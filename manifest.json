@@ -1,0 +1,26 @@
+{
+  "name": "SKICA – CAD pro CNC soustružník",
+  "short_name": "SKICA",
+  "description": "CAD aplikace pro CNC soustružník – X/Z souřadnice, průsečíky, tečny, offset, kontury, CNC export",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#181825",
+  "background_color": "#1e1e2e",
+  "id": "skica-cad",
+  "scope": "./",
+  "lang": "cs",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Nový výkres",
+      "url": "./?new=1",
+      "description": "Otevřít prázdný výkres"
+    }
+  ]
+}

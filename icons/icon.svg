@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#1e1e2e"/>
+  <!-- Osy -->
+  <line x1="60" y1="256" x2="452" y2="256" stroke="#f38ba840" stroke-width="2"/>
+  <line x1="256" y1="60" x2="256" y2="452" stroke="#a6e3a140" stroke-width="2"/>
+  <!-- Kružnice -->
+  <circle cx="220" cy="210" r="90" fill="none" stroke="#a6e3a1" stroke-width="14"/>
+  <!-- Úsečka -->
+  <line x1="100" y1="370" x2="380" y2="130" stroke="#89b4fa" stroke-width="14" stroke-linecap="round"/>
+  <!-- Průsečík bod 1 -->
+  <circle cx="153" cy="301" r="10" fill="#f9e2af"/>
+  <rect x="141" y="289" width="24" height="24" fill="none" stroke="#f9e2af" stroke-width="3"/>
+  <!-- Průsečík bod 2 -->
+  <circle cx="295" cy="153" r="10" fill="#f9e2af"/>
+  <rect x="283" y="141" width="24" height="24" fill="none" stroke="#f9e2af" stroke-width="3"/>
+  <!-- Popisky os -->
+  <text x="432" y="244" font-family="Consolas,monospace" font-size="42" font-weight="bold" fill="#f38ba8">X</text>
+  <text x="264" y="88" font-family="Consolas,monospace" font-size="42" font-weight="bold" fill="#a6e3a1">Z</text>
+</svg>

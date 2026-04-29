@@ -1,0 +1,20 @@
+{
+  "name": "skica",
+  "version": "1.7.0",
+  "description": "SKICA – CAD pro CNC soustružník",
+  "main": "sw.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "sw": "node scripts/generate-sw-assets.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "vitest": "^4.1.2"
+  }
+}
