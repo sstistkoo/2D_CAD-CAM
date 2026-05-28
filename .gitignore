@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Local tooling / editor config
+.claude/
+.vscode/
+*.code-workspace
+
+# OS / logs
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# Coverage / build
+coverage/
