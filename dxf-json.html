@@ -1,0 +1,1891 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>SKICA – DXF ↔ JSON Konvertor</title>
+    <script src="js/lib/dxf-parser.min.js"></script>
+    <style>
+      /* Catppuccin Mocha – Dark Theme (SKICA) */
+      :root {
+        --ctp-crust: #11111b;
+        --ctp-mantle: #181825;
+        --ctp-base: #1e1e2e;
+        --ctp-surface0: #313244;
+        --ctp-surface1: #45475a;
+        --ctp-surface2: #585b70;
+        --ctp-overlay0: #6c7086;
+        --ctp-overlay2: #9399b2;
+        --ctp-subtext0: #a6adc8;
+        --ctp-text: #cdd6f4;
+        --ctp-blue: #89b4fa;
+        --ctp-sapphire: #74c7ec;
+        --ctp-mauve: #cba6f7;
+        --ctp-green: #a6e3a1;
+        --ctp-yellow: #f9e2af;
+        --ctp-red: #f38ba8;
+        --ctp-pink: #f5c2e7;
+        --ctp-peach: #fab387;
+      }
+
+      body {
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        margin: 0;
+        background-color: var(--ctp-base);
+        color: var(--ctp-text);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      header {
+        background: var(--ctp-mantle);
+        padding: 10px 20px;
+        border-bottom: 1px solid var(--ctp-surface0);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+        z-index: 10;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        color: var(--ctp-blue);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+      }
+
+      .main-area {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+        flex-direction: row;
+        position: relative;
+      }
+
+      /* Drag Overlay */
+      .drag-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(137, 180, 250, 0.1);
+        border: 4px dashed var(--ctp-blue);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        font-size: 24px;
+        font-weight: bold;
+        color: var(--ctp-blue);
+        z-index: 100;
+        pointer-events: none;
+        backdrop-filter: blur(3px);
+      }
+      body.drag-active .drag-overlay {
+        display: flex;
+      }
+
+      .panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 15px;
+        border-right: 1px solid var(--ctp-surface0);
+        min-width: 0;
+        position: relative;
+        background: var(--ctp-base);
+        transition: background 0.3s;
+      }
+      .panel:last-child {
+        border-right: none;
+      }
+
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        color: var(--ctp-subtext0);
+        margin: 0;
+        border-bottom: 2px solid var(--ctp-blue);
+        padding-bottom: 4px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+
+      /* View Toggle */
+      .view-toggle {
+        display: flex;
+        background: var(--ctp-surface0);
+        border-radius: 4px;
+        padding: 2px;
+      }
+      .vt-btn {
+        padding: 4px 12px;
+        font-size: 11px;
+        cursor: pointer;
+        border-radius: 3px;
+        color: var(--ctp-subtext0);
+        border: none;
+        background: transparent;
+        font-weight: 600;
+      }
+      .vt-btn.active {
+        background: var(--ctp-surface1);
+        color: var(--ctp-text);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      }
+
+      /* Filters Bar */
+      .filters-bar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+        padding: 5px;
+        background: var(--ctp-mantle);
+        border-radius: 4px;
+        border: 1px solid var(--ctp-surface0);
+      }
+      .filter-group-label {
+        font-size: 10px;
+        font-weight: bold;
+        color: var(--ctp-overlay0);
+        width: 100%;
+        margin-bottom: 2px;
+        text-transform: uppercase;
+      }
+
+      .chip {
+        background: var(--ctp-surface0);
+        color: var(--ctp-subtext0);
+        border: 1px solid var(--ctp-surface1);
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        cursor: pointer;
+        white-space: nowrap;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s;
+        font-weight: 600;
+      }
+      .chip:hover {
+        background: var(--ctp-surface1);
+        border-color: var(--ctp-overlay0);
+      }
+      .chip.active {
+        background: var(--ctp-green);
+        color: var(--ctp-crust);
+        border-color: var(--ctp-green);
+      }
+      .chip.active:hover {
+        opacity: 0.85;
+      }
+      .chip-ignore {
+        background: var(--ctp-surface0);
+        color: var(--ctp-overlay0);
+        text-decoration: line-through;
+        border-color: var(--ctp-surface1);
+      }
+      .chip-ignore.active {
+        background: var(--ctp-red);
+        color: white;
+        text-decoration: none;
+        border-color: var(--ctp-red);
+      }
+
+      /* Content Area */
+      .content-stack {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--ctp-surface1);
+        border-radius: 4px;
+        background: var(--ctp-mantle);
+        box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      textarea,
+      .gcode-view {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: transparent;
+        color: var(--ctp-text);
+        padding: 12px;
+        font-family: "Consolas", "Monaco", monospace;
+        resize: none;
+        font-size: 12px;
+        outline: none;
+        white-space: pre;
+        overflow: auto;
+        box-sizing: border-box;
+        position: absolute;
+        top: 0;
+        left: 0;
+        line-height: 1.4;
+      }
+
+      .gcode-view {
+        display: none;
+        background: var(--ctp-mantle);
+        color: var(--ctp-text);
+        overflow-y: scroll;
+      }
+
+      .gc-line {
+        border-bottom: 1px solid var(--ctp-surface0);
+        display: flex;
+        padding: 2px 0;
+      }
+      .gc-line:hover {
+        background: var(--ctp-surface0);
+      }
+      .gc-num {
+        color: var(--ctp-overlay0);
+        width: 30px;
+        display: inline-block;
+        user-select: none;
+        text-align: right;
+        margin-right: 10px;
+        font-size: 11px;
+      }
+      .gc-cmd {
+        color: var(--ctp-blue);
+        font-weight: bold;
+        width: 30px;
+      }
+      .gc-coord {
+        color: var(--ctp-sapphire);
+        margin-right: 8px;
+      }
+      .gc-arc {
+        color: var(--ctp-green);
+        font-weight: bold;
+      }
+
+      canvas {
+        width: 100%;
+        height: 100%;
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: var(--ctp-crust);
+        cursor: grab;
+      }
+      canvas:active {
+        cursor: grabbing;
+      }
+
+      .stats-info {
+        font-size: 11px;
+        color: var(--ctp-overlay0);
+        margin-top: 6px;
+        min-height: 16px;
+        font-family: monospace;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .highlight-val {
+        color: var(--ctp-blue);
+        font-weight: bold;
+      }
+
+      .controls-container {
+        margin-bottom: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .btn-row {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+      }
+
+      .btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 12px;
+        transition: 0.2s;
+        color: white;
+        white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      }
+      .btn:active {
+        transform: translateY(1px);
+        box-shadow: none;
+      }
+
+      .btn-primary {
+        background-color: var(--ctp-blue);
+        color: var(--ctp-crust);
+      }
+      .btn-primary:hover {
+        opacity: 0.85;
+      }
+      .btn-sec {
+        background-color: var(--ctp-surface0);
+        color: var(--ctp-text);
+        border: 1px solid var(--ctp-surface1);
+      }
+      .btn-sec:hover {
+        background-color: var(--ctp-surface1);
+      }
+      .btn-del {
+        background-color: var(--ctp-surface0);
+        color: var(--ctp-red);
+        border: 1px solid var(--ctp-red);
+        flex: 0 0 40px;
+      }
+      .btn-del:hover {
+        background-color: rgba(243, 139, 168, 0.15);
+      }
+      .btn-copy {
+        background-color: var(--ctp-sapphire);
+        color: var(--ctp-crust);
+        flex: 0 0 40px;
+      }
+      .btn-copy:hover {
+        opacity: 0.85;
+      }
+
+      .btn-file {
+        position: relative;
+        overflow: hidden;
+        background: var(--ctp-green);
+        color: var(--ctp-crust);
+      }
+      .btn-file:hover {
+        opacity: 0.85;
+      }
+      .btn-file-orange {
+        background: var(--ctp-peach);
+      }
+      .btn-file-orange:hover {
+        opacity: 0.85;
+      }
+      .btn-file input[type="file"] {
+        position: absolute;
+        top: 0;
+        right: 0;
+        min-width: 100%;
+        min-height: 100%;
+        font-size: 100px;
+        text-align: right;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .status-bar {
+        padding: 6px 20px;
+        background: var(--ctp-mantle);
+        font-size: 11px;
+        color: var(--ctp-overlay0);
+        border-top: 1px solid var(--ctp-surface0);
+        display: flex;
+        justify-content: space-between;
+        flex-shrink: 0;
+        font-weight: 500;
+      }
+
+      .opt-group {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--ctp-text);
+        background: var(--ctp-surface0);
+        padding: 0 10px;
+        border-radius: 4px;
+        border: 1px solid var(--ctp-surface1);
+      }
+      select {
+        border: none;
+        background: transparent;
+        font-weight: bold;
+        color: var(--ctp-blue);
+        outline: none;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      select option {
+        background: var(--ctp-surface0);
+        color: var(--ctp-text);
+      }
+      .inp-sm {
+        width: 40px;
+        border: 1px solid var(--ctp-surface1);
+        border-radius: 3px;
+        padding: 2px 4px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 11px;
+        background: var(--ctp-surface0);
+        color: var(--ctp-text);
+      }
+      input[type="checkbox"] {
+        accent-color: var(--ctp-blue);
+        cursor: pointer;
+      }
+      label {
+        cursor: pointer;
+        user-select: none;
+      }
+
+      /* Back link */
+      .back-link {
+        color: var(--ctp-subtext0);
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .back-link:hover {
+        color: var(--ctp-text);
+      }
+
+      @media screen and (max-width: 768px) {
+        body {
+          position: fixed;
+          width: 100%;
+          overflow: hidden;
+        }
+        .main-area {
+          flex-direction: column;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .panel {
+          border-right: none;
+          border-bottom: 4px solid var(--ctp-surface0);
+          flex: none;
+          min-height: 75vh;
+          padding: 12px;
+        }
+        .btn {
+          padding: 12px;
+          font-size: 13px;
+        }
+        header {
+          padding: 8px 15px;
+        }
+        .status-bar span:nth-child(2) {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>&#x1F4D0; DXF &#x21C4; JSON</h1>
+      <div style="display: flex; align-items: center; gap: 16px">
+        <div
+          style="font-size: 11px; color: var(--ctp-overlay0); font-weight: 600"
+        >
+          SKICA Konvertor v1.0
+        </div>
+        <a href="index.html" class="back-link">&#x2190; Zpět do SKICA</a>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <div class="drag-overlay">Přetáhněte soubor sem</div>
+
+      <!-- PANEL DXF (LEVÝ/HORNÍ) -->
+      <div class="panel" id="panel-dxf">
+        <div class="panel-header">
+          <h2>DXF (Výkres)</h2>
+          <div class="view-toggle">
+            <button class="vt-btn active" onclick="setView('dxf', 'code')">
+              Kód
+            </button>
+            <button class="vt-btn" onclick="setView('dxf', 'preview')">
+              Náhled
+            </button>
+          </div>
+        </div>
+
+        <!-- Filtry -->
+        <div class="filters-bar" id="filters-container" style="display: none">
+          <div class="filter-group-label">Vrstvy</div>
+          <div
+            id="layers-list"
+            style="display: flex; gap: 4px; flex-wrap: wrap; width: 100%"
+          ></div>
+          <div
+            style="
+              width: 100%;
+              height: 1px;
+              background: var(--ctp-surface1);
+              margin: 4px 0;
+            "
+          ></div>
+          <div class="filter-group-label">Ignorovat Entity</div>
+          <div
+            class="chip chip-ignore active"
+            onclick="toggleFilter('DIMENSION', this)"
+          >
+            Kóty
+          </div>
+          <div
+            class="chip chip-ignore active"
+            onclick="toggleFilter('TEXT', this)"
+          >
+            Texty
+          </div>
+          <div
+            class="chip chip-ignore active"
+            onclick="toggleFilter('HATCH', this)"
+          >
+            Šrafy
+          </div>
+        </div>
+
+        <div class="controls-container">
+          <div class="btn-row">
+            <label class="btn btn-file">
+              &#x1F4C2; Načíst DXF
+              <input type="file" id="dxfFile" accept=".dxf" />
+            </label>
+            <button
+              class="btn btn-del"
+              onclick="clearPanel('dxf')"
+              title="Vymazat vše"
+            >
+              &#x1F5D1;
+            </button>
+            <button
+              class="btn btn-copy"
+              onclick="copyToClipboard('dxfContent')"
+              title="Kopírovat"
+            >
+              &#x1F4CB;
+            </button>
+            <button
+              class="btn btn-sec"
+              onclick="downloadDxfResult()"
+              title="Uložit DXF"
+            >
+              &#x1F4BE;
+            </button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="convertDxfToJson()">
+              Převést na JSON &#x2193;
+            </button>
+          </div>
+        </div>
+
+        <div class="content-stack">
+          <textarea
+            id="dxfContent"
+            placeholder="Obsah DXF souboru..."
+          ></textarea>
+          <canvas id="dxfCanvas"></canvas>
+        </div>
+        <div class="stats-info">
+          <span id="dxf-stats"></span>
+          <span
+            style="
+              font-size: 10px;
+              cursor: pointer;
+              color: var(--ctp-sapphire);
+              font-weight: bold;
+            "
+            onclick="fitView('dxf')"
+            >&#x26F6; FIT</span
+          >
+        </div>
+      </div>
+
+      <!-- PANEL JSON (PRAVÝ/DOLNÍ) -->
+      <div class="panel" id="panel-json">
+        <div class="panel-header">
+          <h2>JSON Data</h2>
+          <div class="view-toggle">
+            <button class="vt-btn active" onclick="setView('json', 'code')">
+              JSON
+            </button>
+            <button class="vt-btn" onclick="setView('json', 'gcode')">
+              G-Kód
+            </button>
+            <button class="vt-btn" onclick="setView('json', 'preview')">
+              Náhled
+            </button>
+          </div>
+        </div>
+
+        <div class="controls-container">
+          <div class="btn-row">
+            <label class="btn btn-file btn-file-orange">
+              &#x1F4C4; Načíst JSON
+              <input type="file" id="jsonFile" accept=".json" />
+            </label>
+            <button
+              class="btn btn-del"
+              onclick="clearPanel('json')"
+              title="Vymazat vše"
+            >
+              &#x1F5D1;
+            </button>
+            <button
+              class="btn btn-copy"
+              onclick="copyToClipboard('jsonContent')"
+              title="Kopírovat"
+            >
+              &#x1F4CB;
+            </button>
+            <button class="btn btn-sec" onclick="downloadJson()">
+              &#x2B07;
+            </button>
+          </div>
+          <div class="btn-row">
+            <div class="opt-group" style="flex: 1">
+              <select id="machine-type" onchange="convertDxfToJson()">
+                <option value="soustruh" selected>Soustruh</option>
+                <option value="karusel">Karusel</option>
+              </select>
+            </div>
+            <div class="opt-group" title="Zarovná začátek výkresu na X0 Z0">
+              <input
+                type="checkbox"
+                id="chk-auto-zero"
+                checked
+                onchange="convertDxfToJson()"
+              />
+              <label for="chk-auto-zero">Auto 0</label>
+            </div>
+            <div class="opt-group" title="Zobrazit čísla objektů v náhledu">
+              <input
+                type="checkbox"
+                id="chk-show-nums"
+                onchange="drawPreviewFromJSON(false)"
+              />
+              <label for="chk-show-nums">Čísla</label>
+            </div>
+            <div class="opt-group" title="Měřítko pro export">
+              Sc:
+              <input
+                type="number"
+                id="export-scale"
+                value="1.0"
+                step="0.1"
+                class="inp-sm"
+              />
+            </div>
+            <button
+              class="btn btn-primary"
+              style="flex: 0.5"
+              onclick="convertJsonToDxf()"
+              title="Exportovat zpět do DXF"
+            >
+              &#x2191;
+            </button>
+          </div>
+        </div>
+
+        <div class="content-stack">
+          <textarea id="jsonContent" placeholder="Obsah JSON..."></textarea>
+          <div id="gcodeContent" class="gcode-view"></div>
+          <canvas id="jsonCanvas"></canvas>
+        </div>
+        <div class="stats-info">
+          <span id="json-stats"></span>
+          <span
+            style="
+              font-size: 10px;
+              cursor: pointer;
+              color: var(--ctp-sapphire);
+              font-weight: bold;
+            "
+            onclick="fitView('json')"
+            >&#x26F6; FIT</span
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="status-msg">Připraveno. Výchozí stroj: Soustruh (X,Z)</span>
+      <span>SKICA DXF ↔ JSON Konvertor</span>
+    </div>
+
+    <script>
+      // ─── STATE ───
+      const AppState = {
+        dxf: { layers: {}, parsed: null, view: { x: 0, y: 0, k: 1 } },
+        json: { parsed: null, view: { x: 0, y: 0, k: 1 } },
+        filters: { ignore: ["DIMENSION", "TEXT", "MTEXT", "HATCH"] },
+      };
+
+      // ─── SKICA JSON Format Constants ───
+      const SKICA_VERSION = 3;
+      const DEFAULT_COLOR = "#89b4fa";
+      const CONSTR_COLOR = "#6c7086";
+
+      // ─── UI HELPERS ───
+      function setView(panel, type) {
+        const p = document.getElementById("panel-" + panel);
+        const ta = p.querySelector("textarea");
+        const cv = p.querySelector("canvas");
+        const gc = p.querySelector(".gcode-view");
+
+        ta.style.display = "none";
+        cv.style.display = "none";
+        if (gc) gc.style.display = "none";
+
+        if (type === "code") ta.style.display = "block";
+        else if (type === "preview") {
+          cv.style.display = "block";
+          panel === "json"
+            ? drawPreviewFromJSON(false)
+            : drawPreviewFromDXF(false);
+        } else if (type === "gcode") {
+          gc.style.display = "block";
+          renderGCodeView();
+        }
+
+        p.querySelectorAll(".vt-btn").forEach(function (b) {
+          b.classList.remove("active");
+          if (
+            type === "code" &&
+            (b.innerText === "Kód" || b.innerText === "JSON")
+          )
+            b.classList.add("active");
+          if (type === "gcode" && b.innerText === "G-Kód")
+            b.classList.add("active");
+          if (type === "preview" && b.innerText === "Náhled")
+            b.classList.add("active");
+        });
+      }
+
+      function fitView(panel) {
+        AppState[panel].view = { x: 0, y: 0, k: 1, autoFit: true };
+        panel === "dxf" ? drawPreviewFromDXF(true) : drawPreviewFromJSON(true);
+      }
+
+      function clearPanel(type) {
+        if (confirm("Opravdu vymazat?")) {
+          document.getElementById(type + "Content").value = "";
+          document.getElementById(type + "-stats").innerHTML = "";
+          if (type === "json")
+            document.getElementById("gcodeContent").innerHTML = "";
+          AppState[type] = {
+            layers: {},
+            parsed: null,
+            view: { x: 0, y: 0, k: 1 },
+          };
+          var cv = document.getElementById(type + "Canvas");
+          var ctx = cv.getContext("2d");
+          ctx.clearRect(0, 0, cv.width, cv.height);
+          ctx.fillStyle = "#11111b";
+          ctx.fillRect(0, 0, cv.width, cv.height);
+          if (type === "dxf") {
+            document.getElementById("layers-list").innerHTML = "";
+            document.getElementById("filters-container").style.display = "none";
+          }
+          setStatus("Vymazáno.");
+        }
+      }
+
+      function renderGCodeView() {
+        var txt = document.getElementById("jsonContent").value;
+        var div = document.getElementById("gcodeContent");
+        div.innerHTML = "";
+        if (!txt.trim()) {
+          div.innerHTML =
+            '<div style="padding:10px;color:var(--ctp-overlay0)">Žádná data</div>';
+          return;
+        }
+        try {
+          var data = JSON.parse(txt);
+          var objects = data.objects || [];
+          var machineType = data.machineType || "soustruh";
+          var html =
+            '<div style="padding:10px; font-family: monospace; font-size:12px;">';
+          var lineNum = 0;
+
+          for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+            if (obj.type === "line" || obj.type === "constr") {
+              var row =
+                '<div class="gc-line"><span class="gc-num">' +
+                lineNum +
+                ".</span>";
+              row += '<span class="gc-cmd">G1</span> ';
+              if (machineType === "karusel") {
+                row +=
+                  '<span class="gc-coord">X' +
+                  obj.x1.toFixed(3) +
+                  " Z" +
+                  obj.y1.toFixed(3) +
+                  "</span> → ";
+                row +=
+                  '<span class="gc-coord">X' +
+                  obj.x2.toFixed(3) +
+                  " Z" +
+                  obj.y2.toFixed(3) +
+                  "</span>";
+              } else {
+                row +=
+                  '<span class="gc-coord">Z' +
+                  obj.x1.toFixed(3) +
+                  " X" +
+                  obj.y1.toFixed(3) +
+                  "</span> → ";
+                row +=
+                  '<span class="gc-coord">Z' +
+                  obj.x2.toFixed(3) +
+                  " X" +
+                  obj.y2.toFixed(3) +
+                  "</span>";
+              }
+              row += "</div>";
+              html += row;
+              lineNum++;
+            } else if (obj.type === "arc") {
+              var row =
+                '<div class="gc-line"><span class="gc-num">' +
+                lineNum +
+                ".</span>";
+              var code = obj.ccw === false ? "G2" : "G3";
+              row += '<span class="gc-cmd gc-arc">' + code + "</span> ";
+              row += '<span class="gc-coord">R' + obj.r.toFixed(3) + "</span> ";
+              row +=
+                '<span style="font-size:9px;color:var(--ctp-overlay0)">C(' +
+                obj.cx.toFixed(2) +
+                ", " +
+                obj.cy.toFixed(2) +
+                ")</span>";
+              row += "</div>";
+              html += row;
+              lineNum++;
+            } else if (obj.type === "circle") {
+              var row =
+                '<div class="gc-line"><span class="gc-num">' +
+                lineNum +
+                ".</span>";
+              row += '<span class="gc-cmd gc-arc">G2/G3</span> ';
+              row += '<span class="gc-coord">R' + obj.r.toFixed(3) + "</span> ";
+              row +=
+                '<span style="font-size:9px;color:var(--ctp-overlay0)">C(' +
+                obj.cx.toFixed(2) +
+                ", " +
+                obj.cy.toFixed(2) +
+                ")</span>";
+              row += "</div>";
+              html += row;
+              lineNum++;
+            } else if (obj.type === "rect") {
+              var row =
+                '<div class="gc-line"><span class="gc-num">' +
+                lineNum +
+                ".</span>";
+              row += '<span class="gc-cmd">G1</span> ';
+              row +=
+                '<span class="gc-coord">' +
+                Math.abs(obj.x2 - obj.x1).toFixed(1) +
+                " × " +
+                Math.abs(obj.y2 - obj.y1).toFixed(1) +
+                "</span>";
+              row += "</div>";
+              html += row;
+              lineNum++;
+            }
+          }
+          html += "</div>";
+          div.innerHTML = html;
+        } catch (e) {
+          div.innerText = "Chyba dat: " + e.message;
+        }
+      }
+
+      function copyToClipboard(id) {
+        var el = document.getElementById(id);
+        el.select();
+        navigator.clipboard
+          .writeText(el.value)
+          .then(function () {
+            setStatus("Zkopírováno do schránky.");
+          })
+          .catch(function () {
+            document.execCommand("copy");
+            setStatus("Zkopírováno.");
+          });
+        window.getSelection().removeAllRanges();
+      }
+      function setStatus(msg) {
+        document.getElementById("status-msg").innerText = msg;
+      }
+      function setStats(id, w, h, count) {
+        document.getElementById(id).innerHTML =
+          'Prvky: <span class="highlight-val">' +
+          count +
+          '</span> | Rozměr: <span class="highlight-val">' +
+          w.toFixed(1) +
+          '</span> x <span class="highlight-val">' +
+          h.toFixed(1) +
+          "</span>";
+      }
+
+      // ─── FILTERS / FILES ───
+      function toggleFilter(type, el) {
+        el.classList.toggle("active");
+        if (el.classList.contains("active")) AppState.filters.ignore.push(type);
+        else
+          AppState.filters.ignore = AppState.filters.ignore.filter(
+            function (t) {
+              return t !== type;
+            },
+          );
+        convertDxfToJson();
+      }
+
+      ["dragenter", "dragover", "dragleave", "drop"].forEach(function (e) {
+        document.body.addEventListener(e, function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        });
+      });
+      document.body.addEventListener("dragenter", function () {
+        document.body.classList.add("drag-active");
+      });
+      document.body.addEventListener("dragleave", function (e) {
+        if (!e.relatedTarget) document.body.classList.remove("drag-active");
+      });
+      document.body.addEventListener("drop", function (e) {
+        document.body.classList.remove("drag-active");
+        var f = e.dataTransfer.files[0];
+        if (f) handleFile(f);
+      });
+
+      document
+        .getElementById("dxfFile")
+        .addEventListener("change", function (e) {
+          handleFile(e.target.files[0]);
+        });
+      document
+        .getElementById("jsonFile")
+        .addEventListener("change", function (e) {
+          handleFile(e.target.files[0]);
+        });
+
+      function handleFile(f) {
+        if (!f) return;
+        var r = new FileReader();
+        var ext = f.name.split(".").pop().toLowerCase();
+        r.onload = function (e) {
+          if (ext === "dxf") {
+            document.getElementById("dxfContent").value = e.target.result;
+            setStatus("Načteno: " + f.name);
+            analyzeDXF();
+          } else if (ext === "json") {
+            // Auto-detekce SimDxf formátu (points místo objects)
+            try {
+              var parsed = JSON.parse(e.target.result);
+              if (
+                Array.isArray(parsed.points) &&
+                !Array.isArray(parsed.objects)
+              ) {
+                parsed = convertSimDxfToSkica(parsed);
+                document.getElementById("jsonContent").value = JSON.stringify(
+                  parsed,
+                  null,
+                  2,
+                );
+                setStatus("Načteno (SimDxf formát zkonvertován): " + f.name);
+              } else {
+                document.getElementById("jsonContent").value = e.target.result;
+                setStatus("Načteno: " + f.name);
+              }
+            } catch (parseErr) {
+              document.getElementById("jsonContent").value = e.target.result;
+              setStatus("Načteno: " + f.name);
+            }
+            drawPreviewFromJSON(true);
+          }
+        };
+        r.readAsText(f);
+      }
+
+      /**
+       * Převádí SimDxf "points" formát na SKICA v3 objekty.
+       */
+      function convertSimDxfToSkica(data) {
+        var points = data.points || [];
+        var objects = [];
+        var idCounter = 1;
+
+        for (var i = 0; i < points.length - 1; i++) {
+          var curr = points[i];
+          var next = points[i + 1];
+          if (next.break) continue;
+
+          if (next.type === "line") {
+            objects.push({
+              type: "line",
+              id: idCounter,
+              name: "Úsečka " + idCounter,
+              x1: curr.x,
+              y1: curr.z,
+              x2: next.x,
+              y2: next.z,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          } else if (next.type === "arc") {
+            var cx = next.cx,
+              cy = next.cz,
+              r = next.r;
+            var startAngle = Math.atan2(curr.z - cy, curr.x - cx);
+            var endAngle = Math.atan2(next.z - cy, next.x - cx);
+            objects.push({
+              type: "arc",
+              id: idCounter,
+              name: "Oblouk " + idCounter,
+              cx: cx,
+              cy: cy,
+              r: r,
+              startAngle: next.cw ? endAngle : startAngle,
+              endAngle: next.cw ? startAngle : endAngle,
+              ccw: !next.cw,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          }
+        }
+
+        return {
+          version: SKICA_VERSION,
+          objects: objects,
+          intersections: [],
+          nextId: idCounter,
+          gridSize: 10,
+          coordMode: "abs",
+          machineType: (data.machineType || "soustruh").toLowerCase(),
+          xDisplayMode: "radius",
+          layers: [
+            { id: 0, name: "Vrstva 0", color: DEFAULT_COLOR, visible: true },
+          ],
+          activeLayer: 0,
+          nextLayerId: 1,
+          showObjectNumbers: false,
+          showIntersectionNumbers: false,
+          anchors: [],
+        };
+      }
+
+      // ─── LOGIC ───
+      function analyzeDXF() {
+        var txt = document.getElementById("dxfContent").value;
+        if (!txt.trim()) return;
+        try {
+          var parser = new DxfParser();
+          AppState.dxf.parsed = parser.parseSync(txt);
+          var layers = {};
+          if (AppState.dxf.parsed && AppState.dxf.parsed.entities) {
+            AppState.dxf.parsed.entities.forEach(function (e) {
+              var l = e.layer || "0";
+              layers[l] = (layers[l] || 0) + 1;
+            });
+          }
+          AppState.dxf.layers = layers;
+          renderLayerBar();
+          drawPreviewFromDXF(true);
+          setView("dxf", "preview");
+          convertDxfToJson();
+        } catch (e) {
+          console.error(e);
+          setStatus("Chyba parsování DXF: " + e.message);
+        }
+      }
+
+      function renderLayerBar() {
+        var c = document.getElementById("layers-list");
+        c.innerHTML = "";
+        document.getElementById("filters-container").style.display = "block";
+        Object.keys(AppState.dxf.layers).forEach(function (l) {
+          var d = document.createElement("div");
+          d.className = "chip active";
+          d.dataset.layer = l;
+          d.innerHTML =
+            "<span>" +
+            l +
+            '</span><span style="font-size:9px;opacity:0.6">' +
+            AppState.dxf.layers[l] +
+            "</span>";
+          d.onclick = function () {
+            this.classList.toggle("active");
+            convertDxfToJson();
+          };
+          c.appendChild(d);
+        });
+      }
+
+      /**
+       * Konvertuje DXF na SKICA JSON formát (version 3, objects[])
+       * Formát je synchronizovaný s hlavní aplikací SKICA
+       */
+      function convertDxfToJson() {
+        if (!AppState.dxf.parsed) return;
+        var activeL = Array.from(
+          document.querySelectorAll("#layers-list .chip.active"),
+        ).map(function (e) {
+          return e.dataset.layer;
+        });
+        var entities = AppState.dxf.parsed.entities.filter(function (e) {
+          if (AppState.filters.ignore.includes(e.type)) return false;
+          if (e.type === "MTEXT" && AppState.filters.ignore.includes("TEXT"))
+            return false;
+          return activeL.includes(e.layer || "0");
+        });
+        var skicaObjects = parseEntitiesToSkica(entities);
+        var mType = document.getElementById("machine-type").value;
+
+        // SKICA formát version 3
+        var project = {
+          version: SKICA_VERSION,
+          objects: skicaObjects,
+          intersections: [],
+          nextId: skicaObjects.length + 1,
+          gridSize: 10,
+          coordMode: "abs",
+          machineType: mType,
+          xDisplayMode: "radius",
+          layers: [
+            { id: 0, name: "Vrstva 0", color: DEFAULT_COLOR, visible: true },
+          ],
+          activeLayer: 0,
+          nextLayerId: 1,
+          showObjectNumbers: false,
+          showIntersectionNumbers: false,
+          anchors: [],
+        };
+        document.getElementById("jsonContent").value = JSON.stringify(
+          project,
+          null,
+          2,
+        );
+        drawPreviewFromJSON(true);
+      }
+
+      /**
+       * Parsuje DXF entity do SKICA object formátu
+       */
+      function parseEntitiesToSkica(entities) {
+        var objects = [];
+        var idCounter = 1;
+        var typeNames = {
+          line: "Úsečka",
+          circle: "Kružnice",
+          arc: "Oblouk",
+          polyline: "Kontura",
+          text: "Text",
+          point: "Bod",
+        };
+
+        entities.forEach(function (ent) {
+          if (ent.type === "LINE") {
+            objects.push({
+              type: "line",
+              id: idCounter,
+              name: "Úsečka " + idCounter,
+              x1: ent.vertices[0].x,
+              y1: ent.vertices[0].y,
+              x2: ent.vertices[1].x,
+              y2: ent.vertices[1].y,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          } else if (ent.type === "CIRCLE") {
+            objects.push({
+              type: "circle",
+              id: idCounter,
+              name: "Kružnice " + idCounter,
+              cx: ent.center.x,
+              cy: ent.center.y,
+              r: ent.radius,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          } else if (ent.type === "ARC") {
+            objects.push({
+              type: "arc",
+              id: idCounter,
+              name: "Oblouk " + idCounter,
+              cx: ent.center.x,
+              cy: ent.center.y,
+              r: ent.radius,
+              startAngle: ent.startAngle,
+              endAngle: ent.endAngle,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          } else if (ent.type === "LWPOLYLINE" || ent.type === "POLYLINE") {
+            if (!ent.vertices || ent.vertices.length < 2) return;
+            var vertices = ent.vertices.map(function (v) {
+              return { x: v.x, y: v.y };
+            });
+            var bulges = ent.vertices.map(function (v) {
+              return v.bulge || 0;
+            });
+            var closed = ent.shape || false;
+            objects.push({
+              type: "polyline",
+              id: idCounter,
+              name: "Kontura " + idCounter,
+              vertices: vertices,
+              bulges: bulges,
+              closed: closed,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          } else if (ent.type === "POINT") {
+            var x = ent.position ? ent.position.x : 0;
+            var y = ent.position ? ent.position.y : 0;
+            objects.push({
+              type: "point",
+              id: idCounter,
+              name: "Bod " + idCounter,
+              x: x,
+              y: y,
+              color: DEFAULT_COLOR,
+              layer: 0,
+            });
+            idCounter++;
+          } else if (ent.type === "ELLIPSE") {
+            // Tessellace elipsy na úsečky
+            var c = ent.center,
+              mx = ent.majorAxisEndPoint.x,
+              my = ent.majorAxisEndPoint.y;
+            var ratio = ent.axisRatio || 1;
+            var a = Math.sqrt(mx * mx + my * my);
+            if (Math.abs(ratio - 1) < 0.001) {
+              objects.push({
+                type: "circle",
+                id: idCounter,
+                name: "Kružnice " + idCounter,
+                cx: c.x,
+                cy: c.y,
+                r: a,
+                color: DEFAULT_COLOR,
+                layer: 0,
+              });
+              idCounter++;
+            } else {
+              var b = a * ratio;
+              var rot = Math.atan2(my, mx);
+              var startP = ent.startAngle || 0;
+              var endP = ent.endAngle || 2 * Math.PI;
+              var segments = Math.max(32, Math.round(a * 4));
+              var step = (endP - startP) / segments;
+              for (var si = 0; si < segments; si++) {
+                var t1 = startP + si * step;
+                var t2 = startP + (si + 1) * step;
+                var cosR = Math.cos(rot),
+                  sinR = Math.sin(rot);
+                objects.push({
+                  type: "line",
+                  id: idCounter,
+                  name: "Úsečka " + idCounter,
+                  x1: c.x + a * Math.cos(t1) * cosR - b * Math.sin(t1) * sinR,
+                  y1: c.y + a * Math.cos(t1) * sinR + b * Math.sin(t1) * cosR,
+                  x2: c.x + a * Math.cos(t2) * cosR - b * Math.sin(t2) * sinR,
+                  y2: c.y + a * Math.cos(t2) * sinR + b * Math.sin(t2) * cosR,
+                  color: DEFAULT_COLOR,
+                  layer: 0,
+                });
+                idCounter++;
+              }
+            }
+          }
+        });
+
+        // Auto-zero: posun všech objektů tak, aby min X,Y = 0
+        if (
+          document.getElementById("chk-auto-zero").checked &&
+          objects.length > 0
+        ) {
+          var minX = Infinity,
+            minY = Infinity;
+          objects.forEach(function (o) {
+            if (o.type === "line") {
+              minX = Math.min(minX, o.x1, o.x2);
+              minY = Math.min(minY, o.y1, o.y2);
+            } else if (o.type === "circle" || o.type === "arc") {
+              minX = Math.min(minX, o.cx - o.r);
+              minY = Math.min(minY, o.cy - o.r);
+            } else if (o.type === "polyline" && o.vertices) {
+              o.vertices.forEach(function (v) {
+                minX = Math.min(minX, v.x);
+                minY = Math.min(minY, v.y);
+              });
+            } else if (o.type === "point") {
+              minX = Math.min(minX, o.x);
+              minY = Math.min(minY, o.y);
+            }
+          });
+          if (isFinite(minX) && isFinite(minY)) {
+            objects.forEach(function (o) {
+              if (o.type === "line") {
+                o.x1 -= minX;
+                o.y1 -= minY;
+                o.x2 -= minX;
+                o.y2 -= minY;
+              } else if (o.type === "circle" || o.type === "arc") {
+                o.cx -= minX;
+                o.cy -= minY;
+              } else if (o.type === "polyline" && o.vertices) {
+                o.vertices.forEach(function (v) {
+                  v.x -= minX;
+                  v.y -= minY;
+                });
+              } else if (o.type === "point") {
+                o.x -= minX;
+                o.y -= minY;
+              }
+            });
+          }
+        }
+
+        return objects;
+      }
+
+      /**
+       * Konvertuje SKICA JSON zpět na DXF
+       */
+      function convertJsonToDxf() {
+        var txt = document.getElementById("jsonContent").value;
+        if (!txt.trim()) return;
+        try {
+          var data = JSON.parse(txt);
+          var scale =
+            parseFloat(document.getElementById("export-scale").value) || 1.0;
+          var fmt = function (n) {
+            return n.toFixed(6);
+          };
+          var dxf =
+            "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+          var objects = data.objects || [];
+
+          for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+            var sx, sy, ex, ey;
+
+            if (obj.type === "line") {
+              sx = obj.x1 * scale;
+              sy = obj.y1 * scale;
+              ex = obj.x2 * scale;
+              ey = obj.y2 * scale;
+              dxf +=
+                "0\nLINE\n8\n0\n10\n" +
+                fmt(sx) +
+                "\n20\n" +
+                fmt(sy) +
+                "\n30\n0\n11\n" +
+                fmt(ex) +
+                "\n21\n" +
+                fmt(ey) +
+                "\n31\n0\n";
+            } else if (obj.type === "circle") {
+              var cx = obj.cx * scale,
+                cy = obj.cy * scale,
+                r = obj.r * scale;
+              dxf +=
+                "0\nCIRCLE\n8\n0\n10\n" +
+                fmt(cx) +
+                "\n20\n" +
+                fmt(cy) +
+                "\n30\n0\n40\n" +
+                fmt(r) +
+                "\n";
+            } else if (obj.type === "arc") {
+              var cx = obj.cx * scale,
+                cy = obj.cy * scale,
+                r = obj.r * scale;
+              var sa = (obj.startAngle * 180) / Math.PI;
+              var ea = (obj.endAngle * 180) / Math.PI;
+              if (sa < 0) sa += 360;
+              if (ea < 0) ea += 360;
+              dxf +=
+                "0\nARC\n8\n0\n10\n" +
+                fmt(cx) +
+                "\n20\n" +
+                fmt(cy) +
+                "\n30\n0\n40\n" +
+                fmt(r) +
+                "\n50\n" +
+                fmt(sa) +
+                "\n51\n" +
+                fmt(ea) +
+                "\n";
+            } else if (
+              obj.type === "polyline" &&
+              obj.vertices &&
+              obj.vertices.length >= 2
+            ) {
+              dxf +=
+                "0\nLWPOLYLINE\n8\n0\n90\n" +
+                obj.vertices.length +
+                "\n70\n" +
+                (obj.closed ? 1 : 0) +
+                "\n43\n0.0\n";
+              for (var vi = 0; vi < obj.vertices.length; vi++) {
+                dxf +=
+                  "10\n" +
+                  fmt(obj.vertices[vi].x * scale) +
+                  "\n20\n" +
+                  fmt(obj.vertices[vi].y * scale) +
+                  "\n";
+                if (obj.bulges && obj.bulges[vi] && obj.bulges[vi] !== 0) {
+                  dxf += "42\n" + fmt(obj.bulges[vi]) + "\n";
+                }
+              }
+            } else if (obj.type === "point") {
+              dxf +=
+                "0\nPOINT\n8\n0\n10\n" +
+                fmt(obj.x * scale) +
+                "\n20\n" +
+                fmt(obj.y * scale) +
+                "\n30\n0\n";
+            } else if (obj.type === "rect") {
+              var rx1 = obj.x1 * scale,
+                ry1 = obj.y1 * scale;
+              var rx2 = obj.x2 * scale,
+                ry2 = obj.y2 * scale;
+              dxf += "0\nLWPOLYLINE\n8\n0\n90\n4\n70\n1\n43\n0.0\n";
+              dxf += "10\n" + fmt(rx1) + "\n20\n" + fmt(ry1) + "\n";
+              dxf += "10\n" + fmt(rx2) + "\n20\n" + fmt(ry1) + "\n";
+              dxf += "10\n" + fmt(rx2) + "\n20\n" + fmt(ry2) + "\n";
+              dxf += "10\n" + fmt(rx1) + "\n20\n" + fmt(ry2) + "\n";
+            } else if (obj.type === "constr") {
+              dxf +=
+                "0\nLINE\n8\nCONSTR\n10\n" +
+                fmt(obj.x1 * scale) +
+                "\n20\n" +
+                fmt(obj.y1 * scale) +
+                "\n30\n0\n11\n" +
+                fmt(obj.x2 * scale) +
+                "\n21\n" +
+                fmt(obj.y2 * scale) +
+                "\n31\n0\n";
+            }
+          }
+
+          dxf += "0\nENDSEC\n0\nEOF\n";
+          document.getElementById("dxfContent").value = dxf;
+          setStatus("DXF vygenerováno z JSON.");
+          analyzeDXF();
+        } catch (e) {
+          alert("Chyba JSON: " + e.message);
+        }
+      }
+
+      // ─── CANVAS RENDERER ───
+      function initCanvas(id, key) {
+        var c = document.getElementById(id);
+        var state = AppState[key];
+        var drag = false,
+          sx,
+          sy;
+        var redraw = function () {
+          key === "dxf"
+            ? drawPreviewFromDXF(false)
+            : drawPreviewFromJSON(false);
+        };
+        c.addEventListener("wheel", function (e) {
+          e.preventDefault();
+          state.view.k *= e.deltaY > 0 ? 0.9 : 1.1;
+          redraw();
+        });
+        var start = function (x, y) {
+          drag = true;
+          sx = x;
+          sy = y;
+        };
+        var move = function (x, y) {
+          if (drag) {
+            state.view.x += x - sx;
+            state.view.y += y - sy;
+            sx = x;
+            sy = y;
+            redraw();
+          }
+        };
+        c.addEventListener("mousedown", function (e) {
+          start(e.clientX, e.clientY);
+        });
+        window.addEventListener("mousemove", function (e) {
+          move(e.clientX, e.clientY);
+        });
+        window.addEventListener("mouseup", function () {
+          drag = false;
+        });
+        c.addEventListener("touchstart", function (e) {
+          start(e.touches[0].clientX, e.touches[0].clientY);
+        });
+        c.addEventListener("touchmove", function (e) {
+          e.preventDefault();
+          move(e.touches[0].clientX, e.touches[0].clientY);
+        });
+        c.addEventListener("touchend", function () {
+          drag = false;
+        });
+      }
+      initCanvas("dxfCanvas", "dxf");
+      initCanvas("jsonCanvas", "json");
+
+      function drawPreviewFromDXF(fit) {
+        if (!AppState.dxf.parsed) return;
+        var active = Array.from(
+          document.querySelectorAll("#layers-list .chip.active"),
+        ).map(function (e) {
+          return e.dataset.layer;
+        });
+        var ents = AppState.dxf.parsed.entities.filter(function (e) {
+          if (AppState.filters.ignore.includes(e.type)) return false;
+          return active.includes(e.layer || "0");
+        });
+        var skicaObjs = parseEntitiesToSkica(ents);
+        drawObjects(
+          "dxfCanvas",
+          skicaObjs,
+          "dxf-stats",
+          AppState.dxf.view,
+          fit,
+        );
+        if (fit) AppState.dxf.view.autoFit = false;
+      }
+
+      function drawPreviewFromJSON(fit) {
+        try {
+          var data = JSON.parse(document.getElementById("jsonContent").value);
+          drawObjects(
+            "jsonCanvas",
+            data.objects || [],
+            "json-stats",
+            AppState.json.view,
+            fit,
+          );
+          if (fit) AppState.json.view.autoFit = false;
+        } catch (e) {}
+      }
+
+      /**
+       * Vykreslí SKICA objekty na canvas
+       */
+      function drawObjects(cid, objects, sid, view, fit) {
+        var c = document.getElementById(cid);
+        var ctx = c.getContext("2d");
+        var w = c.parentElement.clientWidth,
+          h = c.parentElement.clientHeight;
+        c.width = w;
+        c.height = h;
+        ctx.fillStyle = "#11111b";
+        ctx.fillRect(0, 0, w, h);
+        if (!objects.length) return;
+
+        // Spočítej bounding box
+        var minX = Infinity,
+          maxX = -Infinity,
+          minY = Infinity,
+          maxY = -Infinity;
+        objects.forEach(function (obj) {
+          if (
+            obj.type === "line" ||
+            obj.type === "constr" ||
+            obj.type === "rect"
+          ) {
+            minX = Math.min(minX, obj.x1, obj.x2);
+            maxX = Math.max(maxX, obj.x1, obj.x2);
+            minY = Math.min(minY, obj.y1, obj.y2);
+            maxY = Math.max(maxY, obj.y1, obj.y2);
+          } else if (obj.type === "circle" || obj.type === "arc") {
+            minX = Math.min(minX, obj.cx - obj.r);
+            maxX = Math.max(maxX, obj.cx + obj.r);
+            minY = Math.min(minY, obj.cy - obj.r);
+            maxY = Math.max(maxY, obj.cy + obj.r);
+          } else if (obj.type === "polyline" && obj.vertices) {
+            obj.vertices.forEach(function (v) {
+              minX = Math.min(minX, v.x);
+              maxX = Math.max(maxX, v.x);
+              minY = Math.min(minY, v.y);
+              maxY = Math.max(maxY, v.y);
+            });
+          } else if (obj.type === "point") {
+            minX = Math.min(minX, obj.x);
+            maxX = Math.max(maxX, obj.x);
+            minY = Math.min(minY, obj.y);
+            maxY = Math.max(maxY, obj.y);
+          }
+        });
+        setStats(sid, maxX - minX, maxY - minY, objects.length);
+
+        if (fit || view.autoFit) {
+          var pad = 40;
+          var sc = Math.min(
+            (w - pad) / (maxX - minX || 1),
+            (h - pad) / (maxY - minY || 1),
+          );
+          view.k = sc;
+          view.x = (w - (maxX - minX) * sc) / 2 - minX * sc;
+          view.y = (h - (maxY - minY) * sc) / 2 + maxY * sc;
+        }
+
+        var tx = function (x) {
+          return view.x + x * view.k;
+        };
+        var ty = function (y) {
+          return view.y - y * view.k;
+        };
+
+        // Mřížka
+        ctx.beginPath();
+        ctx.strokeStyle = "#181825";
+        ctx.lineWidth = 1;
+        for (var gi = 0; gi < w; gi += 50) {
+          ctx.moveTo(gi, 0);
+          ctx.lineTo(gi, h);
+        }
+        for (var gi = 0; gi < h; gi += 50) {
+          ctx.moveTo(0, gi);
+          ctx.lineTo(w, gi);
+        }
+        ctx.stroke();
+
+        // Osy
+        var ox = tx(0),
+          oy = ty(0);
+        ctx.beginPath();
+        ctx.strokeStyle = "#45475a";
+        ctx.lineWidth = 1;
+        ctx.moveTo(ox, 0);
+        ctx.lineTo(ox, h);
+        ctx.moveTo(0, oy);
+        ctx.lineTo(w, oy);
+        ctx.stroke();
+
+        var showNums =
+          document.getElementById("chk-show-nums") &&
+          document.getElementById("chk-show-nums").checked;
+        ctx.font = "10px monospace";
+
+        // Vykreslení objektů
+        objects.forEach(function (obj, idx) {
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = obj.color || "#89b4fa";
+
+          if (obj.type === "line") {
+            ctx.beginPath();
+            ctx.moveTo(tx(obj.x1), ty(obj.y1));
+            ctx.lineTo(tx(obj.x2), ty(obj.y2));
+            ctx.stroke();
+            if (showNums) {
+              ctx.fillStyle = "#74c7ec";
+              var mx = (tx(obj.x1) + tx(obj.x2)) / 2;
+              var my = (ty(obj.y1) + ty(obj.y2)) / 2;
+              ctx.fillText(idx, mx + 4, my - 4);
+            }
+          } else if (obj.type === "circle") {
+            ctx.beginPath();
+            ctx.arc(tx(obj.cx), ty(obj.cy), obj.r * view.k, 0, 2 * Math.PI);
+            ctx.stroke();
+            if (showNums) {
+              ctx.fillStyle = "#74c7ec";
+              ctx.fillText(idx, tx(obj.cx) + obj.r * view.k + 4, ty(obj.cy));
+            }
+          } else if (obj.type === "arc") {
+            ctx.beginPath();
+            // DXF arcs are CCW by default
+            ctx.arc(
+              tx(obj.cx),
+              ty(obj.cy),
+              obj.r * view.k,
+              -obj.startAngle,
+              -obj.endAngle,
+              true,
+            );
+            ctx.stroke();
+            if (showNums) {
+              ctx.fillStyle = "#74c7ec";
+              ctx.fillText(idx, tx(obj.cx) + 4, ty(obj.cy) - 4);
+            }
+          } else if (
+            obj.type === "polyline" &&
+            obj.vertices &&
+            obj.vertices.length >= 2
+          ) {
+            ctx.beginPath();
+            ctx.moveTo(tx(obj.vertices[0].x), ty(obj.vertices[0].y));
+            for (var vi = 0; vi < obj.vertices.length; vi++) {
+              var curr = obj.vertices[vi];
+              var next = obj.vertices[(vi + 1) % obj.vertices.length];
+              if (vi === obj.vertices.length - 1 && !obj.closed) break;
+
+              if (obj.bulges && obj.bulges[vi] && obj.bulges[vi] !== 0) {
+                // Oblouk z bulge
+                var b = obj.bulges[vi];
+                var theta = 4 * Math.atan(b);
+                var dist = Math.sqrt(
+                  Math.pow(next.x - curr.x, 2) + Math.pow(next.y - curr.y, 2),
+                );
+                var r = Math.abs(dist / (2 * Math.sin(theta / 2)));
+                var midXp = (curr.x + next.x) / 2,
+                  midYp = (curr.y + next.y) / 2;
+                var cot = 1 / Math.tan(theta / 2);
+                var cX = midXp - ((next.y - curr.y) / 2) * cot;
+                var cY = midYp + ((next.x - curr.x) / 2) * cot;
+                var as = Math.atan2(ty(curr.y) - ty(cY), tx(curr.x) - tx(cX));
+                var ae = Math.atan2(ty(next.y) - ty(cY), tx(next.x) - tx(cX));
+                ctx.arc(tx(cX), ty(cY), r * view.k, as, ae, b < 0);
+              } else {
+                ctx.lineTo(tx(next.x), ty(next.y));
+              }
+            }
+            ctx.stroke();
+            if (showNums) {
+              ctx.fillStyle = "#74c7ec";
+              ctx.fillText(
+                idx,
+                tx(obj.vertices[0].x) + 4,
+                ty(obj.vertices[0].y) - 4,
+              );
+            }
+          } else if (obj.type === "point") {
+            ctx.fillStyle = obj.color || "#89b4fa";
+            ctx.fillRect(tx(obj.x) - 2, ty(obj.y) - 2, 4, 4);
+            if (showNums) {
+              ctx.fillStyle = "#74c7ec";
+              ctx.fillText(idx, tx(obj.x) + 4, ty(obj.y) - 4);
+            }
+          } else if (obj.type === "rect") {
+            ctx.beginPath();
+            ctx.moveTo(tx(obj.x1), ty(obj.y1));
+            ctx.lineTo(tx(obj.x2), ty(obj.y1));
+            ctx.lineTo(tx(obj.x2), ty(obj.y2));
+            ctx.lineTo(tx(obj.x1), ty(obj.y2));
+            ctx.closePath();
+            ctx.stroke();
+            if (showNums) {
+              ctx.fillStyle = "#74c7ec";
+              ctx.fillText(
+                idx,
+                (tx(obj.x1) + tx(obj.x2)) / 2 + 4,
+                (ty(obj.y1) + ty(obj.y2)) / 2 - 4,
+              );
+            }
+          } else if (obj.type === "constr") {
+            ctx.save();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = "#6c7086";
+            ctx.beginPath();
+            ctx.moveTo(tx(obj.x1), ty(obj.y1));
+            ctx.lineTo(tx(obj.x2), ty(obj.y2));
+            ctx.stroke();
+            ctx.restore();
+          } else if (obj.type === "text") {
+            ctx.fillStyle = obj.color || "#89b4fa";
+            var fs = Math.max(8, (obj.fontSize || 12) * view.k);
+            ctx.font = fs + "px monospace";
+            ctx.fillText(obj.text || "", tx(obj.x), ty(obj.y));
+          }
+        });
+
+        // Startovní bod (zelený čtverec)
+        if (objects.length > 0) {
+          var firstObj = objects[0];
+          var startX, startY;
+          if (
+            firstObj.type === "line" ||
+            firstObj.type === "constr" ||
+            firstObj.type === "rect"
+          ) {
+            startX = tx(firstObj.x1);
+            startY = ty(firstObj.y1);
+          } else if (firstObj.type === "circle" || firstObj.type === "arc") {
+            startX = tx(firstObj.cx + firstObj.r);
+            startY = ty(firstObj.cy);
+          } else if (
+            firstObj.type === "polyline" &&
+            firstObj.vertices &&
+            firstObj.vertices.length > 0
+          ) {
+            startX = tx(firstObj.vertices[0].x);
+            startY = ty(firstObj.vertices[0].y);
+          } else if (firstObj.type === "point") {
+            startX = tx(firstObj.x);
+            startY = ty(firstObj.y);
+          }
+          if (startX !== undefined) {
+            ctx.fillStyle = "#a6e3a1";
+            ctx.fillRect(startX - 4, startY - 4, 8, 8);
+          }
+        }
+
+        // Křížek na nule
+        ctx.beginPath();
+        ctx.strokeStyle = "#f38ba8";
+        ctx.lineWidth = 1;
+        ctx.moveTo(ox - 10, oy);
+        ctx.lineTo(ox + 10, oy);
+        ctx.moveTo(ox, oy - 10);
+        ctx.lineTo(ox, oy + 10);
+        ctx.stroke();
+      }
+
+      function downloadTextFile(c, n) {
+        var b = new Blob([c], { type: "text/plain" });
+        var u = URL.createObjectURL(b);
+        var a = document.createElement("a");
+        a.href = u;
+        a.download = n;
+        a.click();
+        URL.revokeObjectURL(u);
+      }
+      function downloadJson() {
+        var txt = document.getElementById("jsonContent").value;
+        if (!txt.trim()) return;
+        downloadTextFile(txt, "skica_projekt.json");
+      }
+      function downloadDxfResult() {
+        var v = document.getElementById("dxfContent").value;
+        if (v && v.startsWith("0")) downloadTextFile(v, "skica_export.dxf");
+      }
+    </script>
+  </body>
+</html>
