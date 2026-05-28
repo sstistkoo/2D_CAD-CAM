@@ -2606,6 +2606,58 @@ body {
   margin: 0;
   line-height: 1.4;
 }
+
+/* ── AI panel (analýza výkresu) ── */
+.ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ai-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-sec-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ctp-blue);
+}
+.ai-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--ctp-mantle);
+  color: var(--ctp-text);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 6px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.ai-textarea:focus {
+  outline: none;
+  border-color: var(--ctp-blue);
+}
+.ai-textarea[readonly] {
+  color: var(--ctp-subtext0, var(--ctp-overlay0));
+}
+.ai-file {
+  width: 100%;
+  font-size: 12px;
+  color: var(--ctp-text);
+  box-sizing: border-box;
+}
+.ai-file::file-selector-button {
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-right: 8px;
+  cursor: pointer;
+}
 .cnc-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

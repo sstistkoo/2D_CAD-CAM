@@ -12,7 +12,7 @@ import { addObject } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openInsertCalc, openSinumerikHub, openCamSimulator } from './cnc-calcs.js';
 import { makeOverlay, makeInputOverlay } from './dialogFactory.js';
-import { openAISettings } from './ai/aiSettings.js';
+import { openAIPanel } from './ai/aiPanel.js';
 import { getMeta, setMeta } from './idb.js';
 import { showEditObjectDialog } from './dialogs/mobileEdit.js';
 import { isAnchored, removeAnchorsForObject, cleanupOrphanAnchors } from './tools/anchorClick.js';
@@ -3176,7 +3176,7 @@ document.getElementById("btnOpenRoughness").addEventListener("click", openRoughn
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
 document.getElementById("btnOpenCam").addEventListener("click", openCamSimulator);
-document.getElementById("btnOpenAI")?.addEventListener("click", openAISettings);
+document.getElementById("btnOpenAI")?.addEventListener("click", openAIPanel);
 
 // ── Poznámkový blok (profesionální verze) ──
 document.getElementById("btnOpenNotes").addEventListener("click", async () => {

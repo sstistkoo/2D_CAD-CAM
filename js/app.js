@@ -206,36 +206,18 @@ window.addEventListener('load', () => {
   }
 });
 
-// ── PWA Service Worker ──
+// ── PWA Service Worker – DOČASNĚ VYPNUTO (probíhá vývoj) ──
+// Neregistrujeme žádný SW; navíc odregistrujeme případný starý SW a smažeme
+// jeho cache na VŠECH adresách, ať stará verze neblokuje načtení aktuálních
+// souborů. Až bude appka hotová, vrátit zpět registraci ./sw.js (viz git).
 if ("serviceWorker" in navigator) {
-  const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  if (isDev) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      regs.forEach(r => r.unregister());
-    });
-    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
-  } else {
-    navigator.serviceWorker
-      .register("./sw.js", { updateViaCache: 'none' })
-      .then((reg) => {
-        console.log("SW: Registrován");
-        setInterval(() => reg.update(), 60000);
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('SW: Nová verze nainstalována');
-            }
-          });
-        });
-      })
-      .catch((e) => console.warn("SW: Chyba", e));
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      showToast('Aktualizace... stránka se obnoví', 1500);
-      setTimeout(() => location.reload(), 1500);
-    });
+  navigator.serviceWorker.getRegistrations()
+    .then((regs) => regs.forEach((r) => r.unregister()))
+    .catch(() => {});
+  if (window.caches) {
+    caches.keys()
+      .then((keys) => keys.forEach((k) => caches.delete(k)))
+      .catch(() => {});
   }
 }
 
