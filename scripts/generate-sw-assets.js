@@ -16,7 +16,7 @@ const SW_PATH = join(ROOT, 'sw.js');
 const EXTENSIONS = new Set(['.html', '.css', '.js', '.json', '.svg', '.png', '.webp', '.ico']);
 
 // Adresáře/soubory, které se ignorují
-const IGNORE = new Set(['node_modules', 'tests', 'scripts', '.git', '.vscode', 'test.dxf', 'vitest.config.js', 'package.json', 'package-lock.json', 'skica.code-workspace', 'sw.js']);
+const IGNORE = new Set(['node_modules', 'tests', 'scripts', '.git', '.vscode', '.claude', 'test.dxf', 'vitest.config.js', 'package.json', 'package-lock.json', 'skica.code-workspace', 'sw.js']);
 
 function collectFiles(dir, base = ROOT) {
   const entries = readdirSync(dir);

@@ -2532,6 +2532,80 @@ body {
   min-width: 340px;
   max-width: 440px;
 }
+
+/* ── AI nastavení (modal providerů) ── */
+.ai-window {
+  min-width: 340px;
+  max-width: 460px;
+}
+.ai-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-row > span {
+  font-size: 12px;
+  color: var(--ctp-subtext0, var(--ctp-overlay0));
+  font-weight: 600;
+}
+.ai-settings select,
+.ai-settings input[type="password"] {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--ctp-mantle);
+  color: var(--ctp-text);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.ai-settings select:focus,
+.ai-settings input[type="password"]:focus {
+  outline: none;
+  border-color: var(--ctp-blue);
+}
+.ai-row-link {
+  margin-top: -6px;
+}
+.ai-row-link a {
+  font-size: 12px;
+  color: var(--ctp-blue);
+  text-decoration: none;
+}
+.ai-row-link a:hover {
+  text-decoration: underline;
+}
+.ai-actions {
+  display: flex;
+  gap: 8px;
+}
+.ai-actions .btn-ok {
+  flex: 1;
+}
+.ai-actions-bottom {
+  margin-top: 2px;
+}
+.ai-status {
+  font-size: 12px;
+  min-height: 16px;
+  color: var(--ctp-overlay0);
+  word-break: break-word;
+}
+.ai-status-busy { color: var(--ctp-yellow); }
+.ai-status-ok { color: var(--ctp-green); }
+.ai-status-err { color: var(--ctp-red); }
+.ai-note {
+  font-size: 11px;
+  color: var(--ctp-overlay0);
+  margin: 0;
+  line-height: 1.4;
+}
 .cnc-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
