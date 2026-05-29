@@ -10,7 +10,7 @@ import { renderAll } from '../render.js';
 import { addDimensionForObject } from './dimension.js';
 import { intersectInfiniteLines } from '../geometry.js';
 import { bulgeToArc } from '../utils.js';
-import { drawCanvas } from '../canvas.js';
+import { drawCanvas, vSign } from '../canvas.js';
 
 const EPS = 1e-4;      // tolerance pro shodu bodů
 const TANGENT_TOL = 0.05; // tolerance tečnosti (rad, ~3°)
@@ -749,7 +749,7 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
       const canvasW = drawCanvas.width;
       const canvasH = drawCanvas.height;
       state.panX = canvasW / 2 - pt.x * state.zoom;
-      state.panY = canvasH / 2 + pt.y * state.zoom;
+      state.panY = canvasH / 2 - vSign() * pt.y * state.zoom;
 
       overlay.remove();
       renderAll();

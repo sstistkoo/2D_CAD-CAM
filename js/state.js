@@ -84,6 +84,8 @@ export const state = {
   machineType: 'soustruh',
   // Zobrazení osy X: 'radius' = skutečná hodnota, 'diameter' = ×2 (průměr)
   xDisplayMode: 'radius',
+  // Otočení svislé osy X: false = X+ nahoru (výchozí), true = X+ dolů (soustruh s nástrojem zespodu)
+  flipX: false,
   // Přesnost zobrazení souřadnic a kót (počet desetinných míst)
   displayDecimals: 3,
   // Motiv: 'dark' nebo 'light'

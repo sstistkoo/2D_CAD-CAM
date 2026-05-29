@@ -46,12 +46,39 @@ window.addEventListener("resize", resizeCanvases);
 
 // ── Souřadnicové transformace ──
 /**
+ * Vertikální směr svislé osy: -1 = X+ nahoru (výchozí), +1 = X+ dolů (otočeno).
+ * @returns {number}
+ */
+export function vSign() {
+  return state.flipX ? 1 : -1;
+}
+
+/**
+ * Převede world úhel na canvas úhel (canvas má Y dolů, proto v základu negace;
+ * při otočení svislé osy se znaménko obrátí zpět).
+ * @param {number} angle
+ * @returns {number}
+ */
+export function screenAngle(angle) {
+  return state.flipX ? angle : -angle;
+}
+
+/**
+ * Převede příznak směru oblouku (anticlockwise) – vertikální překlopení mění smysl.
+ * @param {boolean} anticlockwise
+ * @returns {boolean}
+ */
+export function screenCCW(anticlockwise) {
+  return state.flipX ? !anticlockwise : anticlockwise;
+}
+
+/**
  * @param {number} wx
  * @param {number} wy
  * @returns {[number, number]}
  */
 export function worldToScreen(wx, wy) {
-  return [wx * state.zoom + state.panX, -wy * state.zoom + state.panY];
+  return [wx * state.zoom + state.panX, vSign() * wy * state.zoom + state.panY];
 }
 
 /**
@@ -63,7 +90,7 @@ export function screenToWorld(sx, sy) {
   const z = state.zoom || 1;
   return [
     (sx - state.panX) / z,
-    -(sy - state.panY) / z,
+    vSign() * (sy - state.panY) / z,
   ];
 }
 
@@ -364,7 +391,7 @@ export function autoCenterView() {
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   state.panX = canvasW / 2 - centerX * state.zoom;
-  state.panY = (fullCanvasH - topbarH) / 2 + centerY * state.zoom;
+  state.panY = (fullCanvasH - topbarH) / 2 - vSign() * centerY * state.zoom;
 
   document.getElementById("statusZoom").textContent =
     `Zoom: ${(state.zoom * 100).toFixed(0)}%`;

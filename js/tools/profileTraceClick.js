@@ -6,6 +6,7 @@
 import { COLORS } from '../constants.js';
 import { state, showToast, toDisplayCoords, axisLabels, displayX, inputX, xPrefix, coordHelpers, pushUndo } from '../state.js';
 import { renderAll } from '../render.js';
+import { vSign } from '../canvas.js';
 import { resetHint, setHint, updateObjectList } from '../ui.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { showBulgeDialog } from '../dialogs/bulge.js';
@@ -605,7 +606,7 @@ export function updateTracePanel() {
       if (idx >= 0 && idx < _tracePoints.length) {
         const pt = _tracePoints[idx];
         state.panX = -pt.x * state.zoom + (state.canvasW || 400) / 2;
-        state.panY = pt.y * state.zoom + (state.canvasH || 400) / 2;
+        state.panY = -vSign() * pt.y * state.zoom + (state.canvasH || 400) / 2;
         renderAll();
       }
       // Zobrazit vlastnosti

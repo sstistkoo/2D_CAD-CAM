@@ -102,6 +102,7 @@ export function importProjectFile() {
         if (data.incReference) state.incReference = data.incReference;
         if (data.machineType) state.machineType = data.machineType;
         state.xDisplayMode = data.xDisplayMode || 'radius';
+        state.flipX = !!data.flipX;
         if (data.showObjectNumbers !== undefined) state.showObjectNumbers = data.showObjectNumbers;
         if (data.showIntersectionNumbers !== undefined) state.showIntersectionNumbers = data.showIntersectionNumbers;
         state.anchors = data.anchors || [];
@@ -332,11 +333,15 @@ document.getElementById("btnLoad").addEventListener("click", () => {
 // ── CNC Export ──
 function runCncExport() {
   const isInc = state.coordMode === 'inc';
+  // Spodní obrábění (X+ dolů / zadní nožová hlava): osa X má obrácený smysl,
+  // proto se G2↔G3 zapisují prohozeně. Hodnoty X (poloměr) zůstávají kladné a stejné.
+  const flipArc = (code) => state.flipX ? (code === 'G02' ? 'G03' : 'G02') : code;
   let out = "; === SKICA – CNC Soustružník (X,Z) ===\n";
   out += `; Datum: ${new Date().toLocaleString("cs")}\n`;
   out += `; Počet objektů: ${state.objects.length}\n`;
   out += `; Průsečíků: ${state.intersections.length}\n`;
   out += `; Režim: ${isInc ? 'Inkrementální (INC)' : 'Absolutní (ABS)'}\n`;
+  if (state.flipX) out += "; Obrábění zespodu (X+ dolů) – G2/G3 prohozeny\n";
   const [_gH, _gV] = state.machineType === 'karusel' ? ['X','Z'] : ['Z','X'];
   if (isInc) out += `; Reference: ${_gH}${state.incReference.x.toFixed(3)} ${_gV}${state.incReference.y.toFixed(3)}\n`;
   out += "\n";
@@ -462,14 +467,15 @@ function runCncExport() {
         out += `; ${obj.name} (R: ${obj.r.toFixed(3)})\n`;
         const cStartX = obj.cx + obj.r, cStartY = obj.cy;
         if (needsRapid(cStartX, cStartY)) out += `G00 ${fmtCoord(cStartX, cStartY)}\n`;
+        const circG = flipArc('G02');
         if (isInc) {
-          out += `G02 X${(-2 * obj.r).toFixed(3)} Z0.000 I${(-obj.r).toFixed(3)} K0.000\n`;
+          out += `${circG} X${(-2 * obj.r).toFixed(3)} Z0.000 I${(-obj.r).toFixed(3)} K0.000\n`;
           prevX = obj.cx - obj.r; prevY = obj.cy;
-          out += `G02 X${(2 * obj.r).toFixed(3)} Z0.000 I${obj.r.toFixed(3)} K0.000\n`;
+          out += `${circG} X${(2 * obj.r).toFixed(3)} Z0.000 I${obj.r.toFixed(3)} K0.000\n`;
           prevX = obj.cx + obj.r; prevY = obj.cy;
         } else {
-          out += `G02 X${(obj.cx - obj.r).toFixed(3)} Z${obj.cy.toFixed(3)} I${(-obj.r).toFixed(3)} K0.000\n`;
-          out += `G02 X${(obj.cx + obj.r).toFixed(3)} Z${obj.cy.toFixed(3)} I${obj.r.toFixed(3)} K0.000\n`;
+          out += `${circG} X${(obj.cx - obj.r).toFixed(3)} Z${obj.cy.toFixed(3)} I${(-obj.r).toFixed(3)} K0.000\n`;
+          out += `${circG} X${(obj.cx + obj.r).toFixed(3)} Z${obj.cy.toFixed(3)} I${obj.r.toFixed(3)} K0.000\n`;
         }
         lastEndX = cStartX; lastEndY = cStartY;
         break;
@@ -481,7 +487,7 @@ function runCncExport() {
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
           ey = obj.cy + obj.r * Math.sin(obj.endAngle);
         if (needsRapid(sx, sy)) out += `G00 ${fmtCoord(sx, sy)}\n`;
-        const arcG = obj.ccw ? 'G03' : 'G02';
+        const arcG = flipArc(obj.ccw ? 'G03' : 'G02');
         out += `${arcG} ${fmtCoord(ex, ey)} R${obj.r.toFixed(3)}\n`;
         lastEndX = ex; lastEndY = ey;
         break;
@@ -511,7 +517,7 @@ function runCncExport() {
             const pp1 = obj.vertices[i];
             const parc = bulgeToArc(pp1, pp2, pb);
             if (parc) {
-              const gCode = pb < 0 ? 'G02' : 'G03';
+              const gCode = flipArc(pb < 0 ? 'G02' : 'G03');
               out += `${gCode} ${fmtCoord(pp2.x, pp2.y)} R${parc.r.toFixed(3)}\n`;
             } else {
               out += `G01 ${fmtCoord(pp2.x, pp2.y)}\n`;

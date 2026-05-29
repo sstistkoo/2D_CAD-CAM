@@ -39,6 +39,7 @@ function persistSettings() {
       base.incReference = state.incReference;
       base.machineType = state.machineType;
       base.xDisplayMode = state.xDisplayMode;
+      base.flipX = state.flipX;
       base.displayDecimals = state.displayDecimals;
       base.theme = state.theme;
       base.snapToGrid = state.snapToGrid;
@@ -3771,6 +3772,9 @@ function showSettingsDialog() {
           <button class="calc-btn" id="settMachSoustruh" style="${btnS}${act(state.machineType === 'soustruh')}">Soustruh</button>
           <button class="calc-btn" id="settMachKarusel" style="${btnS}${act(state.machineType === 'karusel')}">Karusel</button>
         </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="calc-btn" id="settFlipX" style="${btnS}${act(state.flipX)}" title="Otočit svislou osu – nástroj zespodu">⇅ X+ ${state.flipX ? 'dolů ↓' : 'nahoru ↑'}</button>
+        </div>
       </fieldset>
 
       <!-- Mřížka a snap -->
@@ -3902,6 +3906,18 @@ function showSettingsDialog() {
     updateXBtns();
     renderAll();
     persistSettings();
+  });
+
+  // ── Otočení svislé osy X (nástroj zespodu) ──
+  overlay.querySelector('#settFlipX').addEventListener('click', () => {
+    state.flipX = !state.flipX;
+    const fBtn = overlay.querySelector('#settFlipX');
+    fBtn.style.cssText = `${btnBase}${state.flipX ? activeStyle : inactiveStyle}`;
+    fBtn.textContent = `⇅ X+ ${state.flipX ? 'dolů ↓' : 'nahoru ↑'}`;
+    renderAll();
+    persistSettings();
+    if (bridge.updateMobileCoords) bridge.updateMobileCoords(state.mouse.x, state.mouse.y);
+    showToast(state.flipX ? 'Osa X otočena – X+ dolů' : 'Osa X – X+ nahoru');
   });
 
   // ── Snap mřížka ON/OFF ──

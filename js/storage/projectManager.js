@@ -32,6 +32,7 @@ function _buildProjectData() {
     nullPointAngle: state.nullPointAngle,
     machineType: state.machineType,
     xDisplayMode: state.xDisplayMode,
+    flipX: state.flipX,
     layers: state.layers,
     activeLayer: state.activeLayer,
     nextLayerId: state.nextLayerId,
@@ -61,6 +62,7 @@ function _loadProjectData(data) {
   state.nullPointAngle = data.nullPointAngle || 0;
   if (data.machineType) state.machineType = data.machineType;
   state.xDisplayMode = data.xDisplayMode || 'radius';
+  state.flipX = !!data.flipX;
   if (data.layers) {
     state.layers = data.layers;
     state.activeLayer = data.activeLayer || 0;

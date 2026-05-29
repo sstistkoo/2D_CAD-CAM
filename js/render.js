@@ -2,7 +2,7 @@
 // ║  SKICA – Renderování (mřížka, objekty, kóty, snap)         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { drawCanvas, ctx, worldToScreen, screenToWorld } from './canvas.js';
+import { drawCanvas, ctx, worldToScreen, screenToWorld, screenAngle, screenCCW } from './canvas.js';
 import { state, toDisplayCoords, displayX, xPrefix, fmtCoordLabel } from './state.js';
 import { bridge } from './bridge.js';
 import { bulgeToArc, getRectCorners, deepClone } from './utils.js';
@@ -334,7 +334,7 @@ function renderAxes() {
   g.fillStyle = hColor;
   g.fillText(hLabel, w - 18, state.panY - 8);
   g.fillStyle = vColor;
-  g.fillText(vLabel, state.panX + 8, 16);
+  g.fillText(vLabel, state.panX + 8, state.flipX ? h - 8 : 16);
 
   // ── Nulový bod – středový kříž v offsetové pozici ──
   if (state.nullPointActive) {
@@ -648,11 +648,11 @@ function renderObjects() {
       const r = Math.hypot(tp[1].x - cx, tp[1].y - cy);
       const [scx, scy] = worldToScreen(cx, cy);
       const rr = r * state.zoom;
-      const startAngle = -Math.atan2(tp[1].y - cy, tp[1].x - cx);
-      const endAngle = -Math.atan2(my - cy, mx - cx);
+      const startAngle = screenAngle(Math.atan2(tp[1].y - cy, tp[1].x - cx));
+      const endAngle = screenAngle(Math.atan2(my - cy, mx - cx));
       // Default direction: ccw=false → CW in math → anticlockwise=true in screen
       ctx.beginPath();
-      ctx.arc(scx, scy, rr, startAngle, endAngle, true);
+      ctx.arc(scx, scy, rr, startAngle, endAngle, screenCCW(true));
       ctx.stroke();
     }
     if (state.tool === "polyline" && tp.length >= 1) {
@@ -685,7 +685,7 @@ function renderObjects() {
             const [scx, scy] = worldToScreen(arc.cx, arc.cy);
             const sr = arc.r * state.zoom;
             ctx.beginPath();
-            ctx.arc(scx, scy, sr, -arc.endAngle, -arc.startAngle, b < 0);
+            ctx.arc(scx, scy, sr, screenAngle(arc.endAngle), screenAngle(arc.startAngle), screenCCW(b < 0));
             ctx.stroke();
           }
         }
@@ -874,7 +874,7 @@ function renderObjects() {
             ctx.strokeStyle = COLORS.primary;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(scx, scy, sr, -arc.endAngle, -arc.startAngle, b < 0);
+            ctx.arc(scx, scy, sr, screenAngle(arc.endAngle), screenAngle(arc.startAngle), screenCCW(b < 0));
             ctx.stroke();
             ctx.strokeStyle = COLORS.selected;
             // Popisek R
@@ -1495,8 +1495,8 @@ export function drawLine(obj) {
       ctx.stroke();
       // Oblouk kóty – vždy kratší oblouk
       const aR = sr * 0.8;
-      const screenStart = -startA;
-      const screenEnd = -endA;
+      const screenStart = screenAngle(startA);
+      const screenEnd = screenAngle(endA);
       let ccwSweep = screenStart - screenEnd;
       while (ccwSweep < 0) ccwSweep += 2 * Math.PI;
       while (ccwSweep >= 2 * Math.PI) ccwSweep -= 2 * Math.PI;
@@ -1706,7 +1706,7 @@ export function drawArc(obj) {
   const r = obj.r * state.zoom;
   ctx.beginPath();
   // ccw in math → canvas anticlockwise=true; default (no ccw) = CCW for backward compat
-  ctx.arc(sx, sy, r, -obj.startAngle, -obj.endAngle, obj.ccw !== false);
+  ctx.arc(sx, sy, r, screenAngle(obj.startAngle), screenAngle(obj.endAngle), screenCCW(obj.ccw !== false));
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(sx, sy, 2, 0, Math.PI * 2);
@@ -1823,7 +1823,7 @@ export function drawPolyline(obj, isSel, normalColor, objIdx) {
         const [scx, scy] = worldToScreen(arc.cx, arc.cy);
         const sr = arc.r * state.zoom;
         ctx.beginPath();
-        ctx.arc(scx, scy, sr, -arc.endAngle, -arc.startAngle, b < 0);
+        ctx.arc(scx, scy, sr, screenAngle(arc.endAngle), screenAngle(arc.startAngle), screenCCW(b < 0));
         ctx.stroke();
       }
     }
