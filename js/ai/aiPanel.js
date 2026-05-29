@@ -3,10 +3,10 @@
 // ║  Prompt (kopírovat) · foto→AI (auto) · JSON→vykreslit       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { showToast } from '../state.js';
-import { makeOverlay } from '../dialogFactory.js';
+import { showToast, state, pushUndo } from '../state.js';
+import { makeOverlay, makeDraggable } from '../dialogFactory.js';
 import { addObject } from '../objects.js';
-import { radiusToBulge } from '../utils.js';
+import { radiusToBulge, bulgeToArc } from '../utils.js';
 import { autoCenterView } from '../canvas.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { getActiveAIConfig, openAISettings, AI_PROVIDERS } from './aiSettings.js';
@@ -46,6 +46,108 @@ PRAVIDLA:
 - Nezačínej ani nekonči obloukem „do vzduchu" – krajní body leží na čele.
 
 Než vrátíš JSON, zkontroluj: (1) jen okótované ⌀ a polohy; (2) každý roh = průsečík dvou rovných ploch; (3) R/sražení je jen značka u rohu, ne délka; (4) pořadí zleva doprava od sklíčidla.`;
+
+// ── Prompt č. 2: přímo G-kód programu (soustruh) ──
+export const AI_PROMPT_GCODE = `Jsi CNC programátor soustruhu. Z přiloženého výkresu rotačního dílu vytvoř PROGRAM v G-kódu, který OBKRESLÍ konturu zleva doprava.
+
+Vracej POUZE řádky G-kódu. Žádný text, žádný markdown, žádné komentáře navíc.
+
+SOUŘADNICE A SMĚR (POZOR – dodrž přesně):
+- Absolutní programování (G90), milimetry (G71), rovina G18.
+- X = PRŮMĚR (⌀, ne poloměr). Z = poloha podél osy.
+- Kresli HORNÍ polovinu obrysu (nad osou, materiál pod ní).
+- Jdi ZPRAVA DOLEVA (jako při soustružení) od volného konce/špičky ke sklíčidlu.
+- ZAČNI NA OSE: "G0 X0 Z<celková délka>" (vpravo), pak "G1" nahoru na první ⌀ (čelo špičky).
+- Sklíčidlo = NEJVĚTŠÍ ⌀ je VLEVO na Z0. Z se cestou jen ZMENŠUJE. Skonči taky na ose: poslední blok "G1 X0 Z0".
+- KONTROLA NA KONCI: poslední bod musí vyjít přesně Z0. Když nevyjde Z0, vynechal jsi nějakou délku – dopočítej a oprav.
+- Drž PŘESNÉ absolutní hodnoty z kót, ať profil přesně sedí.
+
+PŘÍKAZY, KTERÉ MŮŽEŠ POUŽÍT:
+- G0 X.. Z.. = rychloposuv na začátek kontury.
+- G1 X.. Z.. = úsečka (válec, kužel, čelo).
+- G2 X.. Z.. CR=.. = oblouk PO směru hodinových ručiček; G3 X.. Z.. CR=.. = oblouk PROTI směru hodinových ručiček. CR= = poloměr. Pro rádiusy, pasy, hrboly a oblé přechody.
+- RND=poloměr = zaoblení, CHF=délka / CHR=délka = sražení — POUZE NA ROH (pravoúhlé osazení / hrana).
+
+Výběr nech na sobě podle tvaru: zaoblení/sražení rohu → RND=/CHF=; oblouky a oblé přechody → G2/G3 s CR=.
+Úhel kužele (např. 70°) přepočítej do koncových X/Z.
+
+POZOR (jinak je geometrie nemožná):
+- Používej jen ⌀ okótované na výkrese. NEVYMÝŠLEJ mezilehlé průměry.
+- U G2/G3 musí platit CR ≥ polovina vzdálenosti jeho dvou bodů (√(ΔZ² + (Δ⌀/2)²) / 2). Když ti CR vychází menší, body jsou moc daleko od sebe – dej oblouk na bližší body a zbytek jako úsečku.
+- RND=/CHF= dávej jen na roh, jehož obě sousední hrany jsou delší než ten poloměr/délka. Velký rádius na krátké hraně se nevejde – pak ho udělej jako oblouk G2/G3.
+- Sražení zadej JEDNÍM způsobem: buď diagonální G1 (z menšího ⌀ na větší), NEBO CHF=/CHR= na pravoúhlém rohu – NIKDY obojí. Špičku nezačínej už sraženou (X8) a ještě k tomu CHF=.
+
+PŘÍKLAD (ZPRAVA DOLEVA: špička vpravo → ⌀28 sklíčidlo vlevo, start i konec na ose):
+G18 G90 G71
+G0 X0 Z48             ; osa, pravý konec (Z = celková délka)
+G1 X8 Z48             ; čelo nahoru na ⌀8 (sražená špička)
+G1 X10 Z47            ; sražení 1×45° = diagonála (NE CHF= navíc)
+G1 X10 Z41
+G1 X16 Z30 RND=7
+G1 X16 Z18 RND=1      ; pravoúhlé osazení se zaoblením
+G1 X28 Z18
+G2 X28 Z3 CR=10       ; pas R10 = OBLOUK, NE RND
+G1 X28 Z0             ; čelo sklíčidla na Z0
+G1 X0 Z0              ; uzavři na osu
+(Toto je jen ukázka formátu/směru – čísla vezmi z přiloženého výkresu.)`;
+
+// ── Prompt č. 3: DRÁHA z výřezu výkresu (bez Z0 / sklíčidla) ──
+export const AI_PROMPT_GCODE_PATH = `Jsi CNC programátor. Na obrázku je POUZE VÝŘEZ / kousek výkresu – NE celý díl. NENÍ tu nulový bod Z0 ani sklíčidlo a tvar nemusí být uzavřený. Tvým úkolem je obkreslit DRÁHOU jen ty tvary, které na výřezu vidíš.
+
+Vracej POUZE řádky G-kódu. Žádný text, žádný markdown, žádné komentáře.
+
+PŘÍKAZY:
+- Absolutní programování (G90), milimetry (G71), rovina G18. X = svislý rozměr (průměr), Z = vodorovný rozměr.
+- G0 X.. Z.. = bod, KDE dráha ZAČÍNÁ (najetí na první viditelný bod tvaru).
+- G1 X.. Z.. = rovný úsek (úsečka).
+- G2 X.. Z.. CR=.. = oblouk PO směru hodinových ručiček.
+- G3 X.. Z.. CR=.. = oblouk PROTI směru hodinových ručiček.
+- CR= = poloměr oblouku.
+
+PRAVIDLA:
+- Začni "G0" na jednom konci viditelného tvaru a veď dráhu PLYNULE k druhému konci – každý další blok navazuje tam, kde předchozí skončil.
+- Rovné čáry → G1. Rádiusy/oblouky → G2 nebo G3 (směr podle zakřivení). U oblouku musí být CR ≥ polovina vzdálenosti jeho dvou bodů.
+- Kresli JEN to, co je na výřezu vidět. NEDOPLŇUJ čelo, osu, Z0 ani domyšlené konce.
+- Rozměry ber z kót na výřezu; když kóta chybí, odhadni proporčně podle obrázku.
+- Souřadnice mohou být jakékoli (nemusí začínat v 0) – G0 jen určí, odkud dráha vychází.`;
+
+// ── Knihovna promptů (vestavěné + uživatelské v localStorage) ──
+// mode: 'skeleton' (výstup = JSON skelet) | 'gcode' (výstup = G-kód)
+const BUILTIN_PROMPTS = [
+  { id: 'builtin-skeleton', name: 'Skelet kontury (JSON)', mode: 'skeleton', text: AI_PROMPT, builtin: true },
+  { id: 'builtin-gcode', name: 'Kontura G kód', mode: 'gcode', text: AI_PROMPT_GCODE, builtin: true },
+  { id: 'builtin-gcode-path', name: 'Dráha G kód', mode: 'gcode', text: AI_PROMPT_GCODE_PATH, builtin: true },
+  // Prázdný editovatelný slot – text si uživatel napíše sám (ukládá se zvlášť)
+  { id: 'builtin-mygcode', name: 'Můj G kód', mode: 'gcode', text: '', builtin: true, editable: true },
+];
+const PROMPTS_KEY = 'skica_ai_prompts';
+const PROMPT_ACTIVE_KEY = 'skica_ai_prompt_active';
+const MYGCODE_KEY = 'skica_ai_mygcode';
+function loadMyGcode() { try { return localStorage.getItem(MYGCODE_KEY) || ''; } catch { return ''; } }
+function saveMyGcode(t) { try { localStorage.setItem(MYGCODE_KEY, t || ''); } catch { /* ignore */ } }
+
+function loadUserPrompts() {
+  try {
+    const a = JSON.parse(localStorage.getItem(PROMPTS_KEY));
+    return Array.isArray(a) ? a.filter((p) => p && p.id && p.text) : [];
+  } catch {
+    return [];
+  }
+}
+function saveUserPrompts(list) {
+  try {
+    localStorage.setItem(PROMPTS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+/** Všechny prompty = vestavěné (+ uložený text „Můj G kód") + uživatelské. */
+export function allPrompts() {
+  const builtins = BUILTIN_PROMPTS.map((p) =>
+    p.id === 'builtin-mygcode' ? { ...p, text: loadMyGcode() } : p,
+  );
+  return [...builtins, ...loadUserPrompts()];
+}
 
 // ── Parsing JSON z AI odpovědi (toleruje obalový text / markdown) ──
 export function parseAIProfile(text) {
@@ -363,22 +465,184 @@ export function buildProfile(items) {
   return isElementFormat(items) ? elementsToProfile(items) : segmentsToProfile(items);
 }
 
-/** Vykreslí profil do výkresu jako jedna polyline (vrcholy + bulge → správný směr oblouků). */
-export function renderProfile(items) {
-  const { vertices, bulges } = buildProfile(items);
-  if (vertices.length < 2) throw new Error('Profil nemá dost bodů');
+/** Vytvoří polyline objekt z vrcholů + bulge (sdílené pro skelet i G-kód). */
+function addProfileObject(vertices, bulges) {
+  if (!vertices || vertices.length < 2) throw new Error('Profil nemá dost bodů');
   for (const v of vertices) {
     if (!isFinite(v.x) || !isFinite(v.y)) throw new Error('Profil obsahuje neplatné souřadnice');
   }
-  const obj = addObject({
-    type: 'polyline',
-    vertices,
-    bulges,
-    closed: false,
-    name: 'AI Profil',
-  });
+  const obj = addObject({ type: 'polyline', vertices, bulges, closed: false, name: 'AI Profil' });
   autoCenterView();
   return obj;
+}
+
+/** Vykreslí profil ze skeletu / elementů (JSON) jako jednu polyline. */
+export function renderProfile(items) {
+  const { vertices, bulges } = buildProfile(items);
+  return addProfileObject(vertices, bulges);
+}
+
+/**
+ * Parsuje G-kód na vrcholy + bulge. Podporuje:
+ *  - G0/G1 lineární, G2/G3 oblouky (CR=/R nebo I/K),
+ *  - Sinumerik zkratky na rohu: RND= (zaoblení), RNDM= (modální), CHF=/CHR= (sražení) –
+ *    dopočítají se tečně + ořezem (stejně jako tlačítko Zaob./Zkos.).
+ * X bere jako PRŮMĚR (poloměr = X/2), Z jako osu. G2=CW, G3=CCW.
+ * @returns {{vertices:{x:number,y:number}[], bulges:number[]}}
+ */
+export function gcodeToProfile(text) {
+  const isKarusel = state.machineType === 'karusel';
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !/^[(;%]/.test(l));
+  const pts = [];        // {x,y} koncové body bloků
+  const segBulge = [];   // bulge úsečky pts[i]→pts[i+1]
+  const cornerMod = [];  // modifikátor rohu v pts[i]: {kind:'rnd'|'chf', v} | null
+  let curX = 0, curZ = 0, curG = 'G0', modalRnd = 0;
+
+  for (const line of lines) {
+    const gm = line.match(/G0*([0-3])(?!\d)/i);
+    if (gm) curG = 'G' + gm[1];
+    const rndmM = line.match(/RNDM\s*=\s*(-?[\d.]+)/i);
+    if (rndmM) modalRnd = parseFloat(rndmM[1]) || 0;
+    const rndM = !rndmM && line.match(/RND\s*=\s*([\d.]+)/i);
+    const chfM = line.match(/CH[FR]\s*=\s*([\d.]+)/i);
+    const xm = line.match(/X\s*(-?[\d.]+)/i);
+    const zm = line.match(/Z\s*(-?[\d.]+)/i);
+    const mod = rndM ? { kind: 'rnd', v: parseFloat(rndM[1]) }
+      : chfM ? { kind: 'chf', v: parseFloat(chfM[1]) }
+        : null;
+
+    if (xm || zm) {
+      if (xm) curX = parseFloat(xm[1]);
+      if (zm) curZ = parseFloat(zm[1]);
+      // X = PRŮMĚR → poloměr = X/2 (nezávisle na režimu zobrazení appky)
+      const rad = curX / 2;
+      const pt = { x: isKarusel ? rad : curZ, y: isKarusel ? curZ : rad };
+      if (pts.length) {
+        let bulge = 0;
+        if (curG === 'G2' || curG === 'G3') {
+          const prev = pts[pts.length - 1];
+          const cw = curG === 'G2';
+          const im = line.match(/I\s*(-?[\d.]+)/i);
+          const km = line.match(/K\s*(-?[\d.]+)/i);
+          const rm = line.match(/CR\s*=\s*(-?[\d.]+)/i) || line.match(/R\s*=?\s*(-?[\d.]+)/i);
+          if (im && km) {
+            // I,K = poloměrové inkrementy ke středu (Sinumerik I/K jsou v poloměru)
+            const cx = isKarusel ? prev.x + parseFloat(im[1]) : prev.x + parseFloat(km[1]);
+            const cy = isKarusel ? prev.y + parseFloat(km[1]) : prev.y + parseFloat(im[1]);
+            bulge = radiusToBulge(prev, pt, Math.hypot(prev.x - cx, prev.y - cy), cw) || 0;
+          } else if (rm) {
+            const rv = parseFloat(rm[1]);
+            bulge = radiusToBulge(prev, pt, Math.abs(rv), cw) || 0;
+            if (rv < 0) bulge = -bulge;
+          }
+        }
+        segBulge.push(bulge);
+      }
+      pts.push(pt);
+      cornerMod.push(mod || (modalRnd > 0 ? { kind: 'rnd', v: modalRnd } : null));
+    } else if (mod && pts.length) {
+      cornerMod[pts.length - 1] = mod; // samostatné RND=/CHF= → roh u posledního bodu
+    }
+  }
+  if (pts.length < 2) throw new Error('G-kód nemá dost bodů (potřebuje G0/G1… s X/Z)');
+
+  // Aplikuj RND/CHF na rozích mezi DVĚMA rovnými úseky (jinak nech ostrý)
+  const res = new Array(pts.length).fill(null);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const m = cornerMod[i];
+    if (!m) continue;
+    if ((segBulge[i - 1] || 0) !== 0 || (segBulge[i] || 0) !== 0) continue;
+    const A = { x1: pts[i - 1].x, y1: pts[i - 1].y, x2: pts[i].x, y2: pts[i].y };
+    const B = { x1: pts[i].x, y1: pts[i].y, x2: pts[i + 1].x, y2: pts[i + 1].y };
+    if (m.kind === 'chf') {
+      const out = chamferTwoLines(A, B, m.v, m.v);
+      if (out.ok) res[i] = { T1: { x: A.x2, y: A.y2 }, T2: { x: B.x1, y: B.y1 }, bulge: 0 };
+    } else {
+      const out = filletTwoLines(A, B, m.v);
+      if (out.ok) {
+        const T1 = { x: A.x2, y: A.y2 }, T2 = { x: B.x1, y: B.y1 };
+        if (_within(T1, pts[i - 1], pts[i]) && _within(T2, pts[i], pts[i + 1]))
+          res[i] = { T1, T2, bulge: _arcBulge(T1, T2, out.arc.cx, out.arc.cy) };
+      }
+    }
+  }
+
+  // poskládej vrcholy + bulge
+  const vertices = [], bulges = [];
+  for (let i = 0; i < pts.length; i++) {
+    const segB = i < segBulge.length ? segBulge[i] || 0 : 0;
+    if (res[i]) {
+      vertices.push({ x: res[i].T1.x, y: res[i].T1.y }); bulges.push(res[i].bulge);
+      vertices.push({ x: res[i].T2.x, y: res[i].T2.y }); bulges.push(segB);
+    } else {
+      vertices.push({ x: pts[i].x, y: pts[i].y }); bulges.push(segB);
+    }
+  }
+  return { vertices, bulges };
+}
+
+/** Vykreslí profil z G-kódu (výstup AI v režimu „G-kód"). */
+export function renderGcode(text) {
+  const { vertices, bulges } = gcodeToProfile(text);
+  return addProfileObject(vertices, bulges);
+}
+
+/**
+ * Převede konturu (vrcholy + bulge) na G-kód soustruhu – obkreslí profil
+ * zleva doprava (Z0 vlevo). X = PRŮMĚR (2× poloměr), nezávisle na režimu zobrazení.
+ * Oblouky přes CR= (poloměr). bulge<0 → G2 (CW), bulge>0 → G3 (CCW).
+ * @returns {string}
+ */
+export function profileToGcode(vertices, bulges) {
+  if (!vertices || vertices.length < 2) return '';
+  const isKarusel = state.machineType === 'karusel';
+  const dec = state.displayDecimals ?? 3;
+  // X = průměr = 2× poloměr (poloměr je svislá osa u soustruhu, vodorovná u karuselu)
+  const xOf = (p) => (2 * (isKarusel ? p.x : p.y)).toFixed(dec);
+  const zOf = (p) => (isKarusel ? p.y : p.x).toFixed(dec);
+
+  let g = '; G-kód kontury AI Profil (Z0 vlevo, X = průměr)\nG18 G90 G71\n';
+  g += `G0 X${xOf(vertices[0])} Z${zOf(vertices[0])}\n`;
+  let feedDone = false;
+  const F = () => (feedDone ? '' : ((feedDone = true), ' F0.2'));
+
+  for (let i = 1; i < vertices.length; i++) {
+    const p1 = vertices[i - 1], p2 = vertices[i];
+    const b = bulges[i - 1] || 0;
+    const arc = Math.abs(b) > 1e-9 ? bulgeToArc(p1, p2, b) : null;
+    if (arc) {
+      g += `${b < 0 ? 'G2' : 'G3'} X${xOf(p2)} Z${zOf(p2)} CR=${arc.r.toFixed(dec)}${F()}\n`;
+    } else {
+      g += `G1 X${xOf(p2)} Z${zOf(p2)}${F()}\n`;
+    }
+  }
+  return g;
+}
+
+// ── Historie vloženého JSON (localStorage) ──
+const JSON_HISTORY_KEY = 'skica_ai_json_history';
+function loadJsonHistory() {
+  try {
+    const h = JSON.parse(localStorage.getItem(JSON_HISTORY_KEY));
+    return Array.isArray(h) ? h : [];
+  } catch {
+    return [];
+  }
+}
+function pushJsonHistory(json) {
+  const j = (json || '').trim();
+  if (!j) return;
+  let h = loadJsonHistory().filter((e) => e.json !== j); // dedupe
+  h.unshift({ ts: Date.now(), json: j });
+  h = h.slice(0, 3);
+  try {
+    localStorage.setItem(JSON_HISTORY_KEY, JSON.stringify(h));
+  } catch {
+    /* ignore */
+  }
 }
 
 // Vytáhne stručný důvod chyby z odpovědi (JSON error.message nebo začátek textu).
@@ -401,10 +665,12 @@ async function readErrDetail(res) {
  * Odešle obrázek + prompt aktivnímu AI provideru a vrátí textovou odpověď.
  * @param {string} dataUrl - "data:image/...;base64,..."
  */
-export async function analyzeImage(dataUrl) {
+export async function analyzeImage(dataUrl, promptText = AI_PROMPT) {
   const cfg = getActiveAIConfig();
   if (!cfg.apiKey) throw new Error('Chybí API klíč – otevři ⚙ Nastavení.');
   if (!cfg.model) throw new Error('Není vybraný model – otevři ⚙ Nastavení.');
+  const PROMPT = promptText || AI_PROMPT;
+  const temp = isFinite(Number(cfg.temperature)) ? Number(cfg.temperature) : 0;
 
   // ── Gemini (nativní generateContent) ──
   if (cfg.provider === 'gemini') {
@@ -414,8 +680,8 @@ export async function analyzeImage(dataUrl) {
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent?key=` +
       encodeURIComponent(cfg.apiKey);
     const body = {
-      contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
-      generationConfig: { temperature: 0 },
+      contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
+      generationConfig: { temperature: temp },
     };
     const res = await fetch(url, {
       method: 'POST',
@@ -441,12 +707,12 @@ export async function analyzeImage(dataUrl) {
     },
     body: JSON.stringify({
       model: cfg.model,
-      temperature: 0,
+      temperature: temp,
       messages: [
         {
           role: 'user',
           content: [
-            { type: 'text', text: AI_PROMPT },
+            { type: 'text', text: PROMPT },
             { type: 'image_url', image_url: { url: dataUrl } },
           ],
         },
@@ -473,10 +739,23 @@ function fileToDataUrl(file) {
 const BODY_HTML = `
   <div class="ai-panel">
     <div class="ai-sec">
-      <div class="ai-sec-head">1) Prompt pro AI</div>
-      <textarea id="aiPrompt" class="ai-textarea" rows="5" readonly></textarea>
+      <div class="ai-sec-head">1) Prompt pro AI (knihovna)</div>
+      <label class="ai-row">
+        <span>Prompt</span>
+        <select id="aiPromptSel"></select>
+      </label>
+      <label class="ai-row">
+        <span>Výstup</span>
+        <select id="aiPromptMode">
+          <option value="skeleton">Skelet kontury (JSON)</option>
+          <option value="gcode">G-kód (kontura / dráha)</option>
+        </select>
+      </label>
+      <textarea id="aiPrompt" class="ai-textarea" rows="5"></textarea>
       <div class="ai-actions">
-        <button class="btn-ok" id="aiCopyPrompt" type="button">📋 Kopírovat prompt</button>
+        <button class="btn-ok" id="aiCopyPrompt" type="button">📋 Kopírovat</button>
+        <button class="btn-ok" id="aiSavePrompt" type="button">💾 Uložit jako nový</button>
+        <button class="btn-ok" id="aiDeletePrompt" type="button">🗑 Smazat</button>
       </div>
     </div>
 
@@ -489,12 +768,17 @@ const BODY_HTML = `
     </div>
 
     <div class="ai-sec">
-      <div class="ai-sec-head">3) JSON od AI → vykreslit</div>
-      <textarea id="aiJson" class="ai-textarea" rows="5" placeholder='[{"z":0,"d":28},{"z":18,"d":28,"r":10},{"z":24,"d":16,"r":4},{"z":48,"d":10,"chamfer":[1,45]}]'></textarea>
+      <div class="ai-sec-head">3) Výstup od AI → vykreslit</div>
+      <textarea id="aiJson" class="ai-textarea" rows="5" placeholder='Skelet: [{"z":0,"d":28},…]   nebo   G-kód: G0 X28 Z0 …'></textarea>
       <div class="ai-actions">
-        <button class="btn-ok" id="aiRender" type="button">✏️ Vykreslit profil</button>
+        <button class="btn-ok btn-primary" id="aiRender" type="button">✏️ Vykreslit</button>
+        <button class="btn-ok" id="aiGcode" type="button">📄 G-kód</button>
         <button class="btn-ok" id="aiOpenSettings" type="button">⚙ Nastavení</button>
       </div>
+      <label class="ai-row">
+        <span>Historie výstupů</span>
+        <select id="aiJsonHist"></select>
+      </label>
     </div>
 
     <div class="ai-status" id="aiPanelStatus"></div>
@@ -513,7 +797,40 @@ export function openAIPanel() {
     statusEl.className = 'ai-status' + (cls ? ' ' + cls : '');
   };
 
-  $('#aiPrompt').value = AI_PROMPT;
+  // Okno lze táhnout za titulkovou lištu
+  makeDraggable(overlay.querySelector('.calc-window'), overlay.querySelector('.calc-titlebar'));
+
+  // ── Knihovna promptů ──
+  function loadPromptIntoEditor(id) {
+    const p = allPrompts().find((x) => x.id === id) || allPrompts()[0];
+    $('#aiPrompt').value = p.text;
+    $('#aiPromptMode').value = p.mode || 'skeleton';
+    $('#aiDeletePrompt').disabled = !!p.builtin;
+    try { localStorage.setItem(PROMPT_ACTIVE_KEY, p.id); } catch { /* ignore */ }
+  }
+  function refreshPromptSel(selectId) {
+    const sel = $('#aiPromptSel');
+    const prompts = allPrompts();
+    sel.innerHTML = '';
+    prompts.forEach((p) => {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = (p.builtin ? '★ ' : '') + p.name;
+      sel.appendChild(o);
+    });
+    let active = selectId || localStorage.getItem(PROMPT_ACTIVE_KEY) || prompts[0].id;
+    if (!prompts.some((p) => p.id === active)) active = prompts[0].id;
+    sel.value = active;
+    loadPromptIntoEditor(active);
+  }
+  refreshPromptSel();
+
+  // Detekce typu výstupu (JSON skelet vs G-kód) a sestavení profilu
+  const looksLikeJson = (t) =>
+    /^[[{]/.test(String(t || '').replace(/^```(?:json)?/i, '').trim());
+  function profileFromOutput(text) {
+    return looksLikeJson(text) ? buildProfile(parseAIProfile(text)) : gcodeToProfile(text);
+  }
 
   function refreshProvName() {
     const cfg = getActiveAIConfig();
@@ -522,15 +839,126 @@ export function openAIPanel() {
   }
   refreshProvName();
 
-  // 1) Kopírovat prompt
+  // Historie vloženého JSON
+  function refreshHistory() {
+    const sel = $('#aiJsonHist');
+    const h = loadJsonHistory();
+    sel.innerHTML = '';
+    const head = document.createElement('option');
+    head.value = '';
+    head.textContent = h.length ? `— historie (${h.length}) —` : '— historie prázdná —';
+    sel.appendChild(head);
+    h.forEach((e, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      const t = new Date(e.ts);
+      const time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+      const preview = e.json.replace(/\s+/g, ' ').slice(0, 40);
+      o.textContent = `${time}  ${preview}…`;
+      sel.appendChild(o);
+    });
+  }
+  refreshHistory();
+
+  // Poslední výstup zůstává v poli (do nového požadavku)
+  const lastOut = loadJsonHistory()[0];
+  if (lastOut && !$('#aiJson').value.trim()) $('#aiJson').value = lastOut.json;
+
+  // Zobrazí G-kód v samostatném okně s tlačítkem Kopírovat
+  function showGcode(text) {
+    const html = `
+      <div class="ai-panel">
+        <textarea id="aiGcodeText" class="ai-textarea" rows="16" readonly></textarea>
+        <div class="ai-actions">
+          <button class="btn-ok btn-primary" id="aiGcodeCopy" type="button">📋 Kopírovat G-kód</button>
+        </div>
+      </div>`;
+    const ov = makeOverlay('ai-gcode', '📄 G-kód kontury (Z0 vlevo)', html, 'ai-window');
+    if (!ov) return;
+    ov.querySelector('#aiGcodeText').value = text;
+    ov.querySelector('#aiGcodeCopy').addEventListener('click', () => {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => showToast('G-kód zkopírován do schránky'))
+        .catch(() => showToast('Nelze zkopírovat do schránky'));
+    });
+    ov.querySelectorAll('textarea').forEach((el) => el.addEventListener('keydown', (e) => e.stopPropagation()));
+  }
+
+  // Zeptá se, co s existujícím výkresem: 'replace' | 'add' | 'cancel'
+  function askOverwrite() {
+    return new Promise((resolve) => {
+      const html = `
+        <div class="ai-panel">
+          <p style="margin:0 0 4px">Na ploše už je nakreslený objekt. Co s ním?</p>
+          <div class="ai-actions">
+            <button class="btn-ok btn-primary" id="ovReplace" type="button">Přepsat</button>
+            <button class="btn-ok" id="ovAdd" type="button">Přidat vedle</button>
+            <button class="btn-ok" id="ovCancel" type="button">Zrušit</button>
+          </div>
+        </div>`;
+      const ov = makeOverlay('ai-confirm', '⚠️ Přepsat výkres?', html, 'ai-window');
+      if (!ov) { resolve('cancel'); return; }
+      let decided = false;
+      const finish = (v) => { decided = true; ov.remove(); resolve(v); };
+      ov.querySelector('#ovReplace').addEventListener('click', () => finish('replace'));
+      ov.querySelector('#ovAdd').addEventListener('click', () => finish('add'));
+      ov.querySelector('#ovCancel').addEventListener('click', () => finish('cancel'));
+      // zavření přes ✕ / pozadí / Esc → bránit se jako 'cancel'
+      new MutationObserver((_, obs) => {
+        if (!document.body.contains(ov)) { obs.disconnect(); if (!decided) resolve('cancel'); }
+      }).observe(document.body, { childList: true });
+    });
+  }
+
+  // Vykreslí profil; když už něco je na ploše, zeptá se na přepsání.
+  async function drawProfile(vertices, bulges) {
+    if (state.objects.length > 0) {
+      const choice = await askOverwrite();
+      if (choice === 'cancel') return null;
+      if (choice === 'replace') {
+        pushUndo();
+        state.objects.length = 0;
+        state.selected = null;
+        state.selectedPoint = null;
+        state.intersections = [];
+      }
+    }
+    return addProfileObject(vertices, bulges);
+  }
+
+  // 1) Knihovna promptů: výběr / kopírovat / uložit / smazat
+  $('#aiPromptSel').addEventListener('change', () => loadPromptIntoEditor($('#aiPromptSel').value));
+  // „Můj G kód" se ukládá průběžně, jak ho píšeš
+  $('#aiPrompt').addEventListener('input', () => {
+    if ($('#aiPromptSel').value === 'builtin-mygcode') saveMyGcode($('#aiPrompt').value);
+  });
   $('#aiCopyPrompt').addEventListener('click', () => {
     navigator.clipboard
-      .writeText(AI_PROMPT)
+      .writeText($('#aiPrompt').value)
       .then(() => showToast('Prompt zkopírován do schránky'))
       .catch(() => showToast('Nelze zkopírovat do schránky'));
   });
+  $('#aiSavePrompt').addEventListener('click', () => {
+    const name = (window.prompt('Název nového promptu:', 'Můj prompt') || '').trim();
+    if (!name) return;
+    const list = loadUserPrompts();
+    const id = 'user-' + Date.now();
+    list.push({ id, name, mode: $('#aiPromptMode').value, text: $('#aiPrompt').value });
+    saveUserPrompts(list);
+    refreshPromptSel(id);
+    showToast('Prompt uložen ✓');
+  });
+  $('#aiDeletePrompt').addEventListener('click', () => {
+    const id = $('#aiPromptSel').value;
+    const p = allPrompts().find((x) => x.id === id);
+    if (!p || p.builtin) { showToast('Vestavěný prompt nelze smazat'); return; }
+    saveUserPrompts(loadUserPrompts().filter((x) => x.id !== id));
+    refreshPromptSel();
+    showToast('Prompt smazán');
+  });
 
-  // 2) Analyzovat foto přes AI
+  // 2) Analyzovat foto přes AI (vybraným promptem)
   $('#aiAnalyze').addEventListener('click', async () => {
     const file = $('#aiImage').files?.[0];
     if (!file) {
@@ -542,12 +970,14 @@ export function openAIPanel() {
     setStatus('Odesílám obrázek AI…', 'ai-status-busy');
     try {
       const dataUrl = await fileToDataUrl(file);
-      const answer = await analyzeImage(dataUrl);
+      const answer = await analyzeImage(dataUrl, $('#aiPrompt').value);
       $('#aiJson').value = answer.trim();
-      // zkus rovnou vykreslit
-      const items = parseAIProfile(answer);
-      renderProfile(items);
-      setStatus(`Hotovo – vykresleno ${items.length} prvků.`, 'ai-status-ok');
+      pushJsonHistory(answer);
+      refreshHistory();
+      // zkus rovnou vykreslit (auto-detekce JSON / G-kód), s dotazem na přepsání
+      const { vertices, bulges } = profileFromOutput(answer);
+      const obj = await drawProfile(vertices, bulges);
+      setStatus(obj ? `Hotovo – vykresleno ${vertices.length} bodů.` : 'Analýza hotová – vykreslení zrušeno.', 'ai-status-ok');
     } catch (e) {
       setStatus('Chyba: ' + e.message, 'ai-status-err');
       showToast('AI: ' + e.message);
@@ -556,15 +986,48 @@ export function openAIPanel() {
     }
   });
 
-  // 3) Vykreslit z JSON
-  $('#aiRender').addEventListener('click', () => {
+  // 3) Vykreslit z výstupu (JSON skelet i G-kód)
+  $('#aiRender').addEventListener('click', async () => {
     try {
-      const items = parseAIProfile($('#aiJson').value);
-      renderProfile(items);
-      setStatus(`Vykresleno ${items.length} prvků.`, 'ai-status-ok');
+      const raw = $('#aiJson').value;
+      const { vertices, bulges } = profileFromOutput(raw);
+      const obj = await drawProfile(vertices, bulges);
+      if (!obj) { setStatus('Vykreslení zrušeno.'); return; }
+      pushJsonHistory(raw);
+      refreshHistory();
+      setStatus(`Vykresleno – ${vertices.length} bodů.`, 'ai-status-ok');
     } catch (e) {
       setStatus('Chyba: ' + e.message, 'ai-status-err');
       showToast('AI: ' + e.message);
+    }
+  });
+
+  // 📄 G-kód kontury (z aktuálního výstupu)
+  $('#aiGcode').addEventListener('click', () => {
+    try {
+      const { vertices, bulges } = profileFromOutput($('#aiJson').value);
+      const g = profileToGcode(vertices, bulges);
+      if (!g) {
+        setStatus('Profil nemá dost bodů pro G-kód.', 'ai-status-err');
+        return;
+      }
+      showGcode(g);
+      setStatus('G-kód vygenerován.', 'ai-status-ok');
+    } catch (e) {
+      setStatus('Chyba: ' + e.message, 'ai-status-err');
+      showToast('AI: ' + e.message);
+    }
+  });
+
+  // Historie → načti zpět do textarea
+  $('#aiJsonHist').addEventListener('change', (e) => {
+    const idx = e.target.value;
+    if (idx === '') return;
+    const h = loadJsonHistory();
+    const item = h[Number(idx)];
+    if (item) {
+      $('#aiJson').value = item.json;
+      setStatus('Načteno z historie.', 'ai-status-ok');
     }
   });
 

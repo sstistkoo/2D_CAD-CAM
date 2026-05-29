@@ -32,6 +32,51 @@ export function makeOverlay(type, title, bodyHTML, windowClass) {
 }
 
 /**
+ * Umožní táhnout okno za danou lištu (myš i dotyk). Posouvá přes transform,
+ * takže nekoliduje s centrováním overlaye. Klik na tlačítko v liště se ignoruje.
+ * @param {HTMLElement} win - element okna (.calc-window)
+ * @param {HTMLElement} handle - úchyt (.calc-titlebar)
+ */
+export function makeDraggable(win, handle) {
+  if (!win || !handle) return;
+  let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+  const pt = (e) => (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+  const onMove = (e) => {
+    if (!dragging) return;
+    const p = pt(e);
+    win.style.transform = `translate(${ox + (p.clientX - sx)}px, ${oy + (p.clientY - sy)}px)`;
+    if (e.cancelable) e.preventDefault();
+  };
+  const onUp = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const p = pt(e);
+    ox += p.clientX - sx;
+    oy += p.clientY - sy;
+    handle.style.cursor = 'move';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  };
+  const onDown = (e) => {
+    if (e.target.closest('button')) return; // zavírací tlačítko nech být
+    dragging = true;
+    const p = pt(e);
+    sx = p.clientX; sy = p.clientY;
+    handle.style.cursor = 'grabbing';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    if (e.cancelable) e.preventDefault();
+  };
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', onDown);
+  handle.addEventListener('touchstart', onDown, { passive: false });
+}
+
+/**
  * Vytvoří input-overlay s daným innerHTML, připojí do body
  * a přidá dismiss kliknutím na pozadí.
  */

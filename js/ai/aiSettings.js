@@ -32,7 +32,7 @@ export const AI_PROVIDERS = {
 };
 
 function emptyProvider() {
-  return { apiKey: '', model: '', apiKeys: [] };
+  return { apiKey: '', model: '', apiKeys: [], temperature: 0 };
 }
 
 // Sloučí uložená data providera s výchozími a normalizuje seznam klíčů.
@@ -40,6 +40,8 @@ function normProvider(o) {
   const r = { ...emptyProvider(), ...(o || {}) };
   if (!Array.isArray(r.apiKeys)) r.apiKeys = [];
   if (r.apiKey && !r.apiKeys.includes(r.apiKey)) r.apiKeys.unshift(r.apiKey);
+  const t = Number(r.temperature);
+  r.temperature = isFinite(t) ? Math.min(2, Math.max(0, t)) : 0;
   return r;
 }
 
@@ -205,6 +207,11 @@ const BODY_HTML = `
       <select id="aiModel"></select>
     </label>
 
+    <label class="ai-row">
+      <span>Teplota (0 = přesné, vyšší = kreativnější)</span>
+      <input type="number" id="aiTemp" min="0" max="2" step="0.1" />
+    </label>
+
     <div class="ai-actions">
       <button class="btn-ok" id="aiLoadModels" type="button">↻ Načíst free modely</button>
       <button class="btn-ok" id="aiLoadAll" type="button">↻ I placené</button>
@@ -233,6 +240,7 @@ export function openAISettings() {
   const keyInput = $('#aiApiKey');
   const savedSel = $('#aiSavedKeys');
   const modelSel = $('#aiModel');
+  const tempInput = $('#aiTemp');
   const statusEl = $('#aiStatus');
   const keyLink = $('#aiKeyLink');
 
@@ -243,6 +251,8 @@ export function openAISettings() {
   function stashCurrent() {
     settings.providers[current].apiKey = keyInput.value.trim();
     settings.providers[current].model = modelSel.value;
+    const t = parseFloat(tempInput.value);
+    settings.providers[current].temperature = isFinite(t) ? Math.min(2, Math.max(0, t)) : 0;
   }
 
   const maskKey = (k) => (k && k.length > 6 ? '••••' + k.slice(-4) : '••••');
@@ -317,6 +327,7 @@ export function openAISettings() {
     const cfg = settings.providers[pid];
 
     keyInput.value = cfg.apiKey || '';
+    tempInput.value = cfg.temperature ?? 0;
     renderSavedKeys();
     keyLink.href = p.keyUrl;
     keyLink.textContent = '↗ Získat API klíč (' + p.name + ')';
