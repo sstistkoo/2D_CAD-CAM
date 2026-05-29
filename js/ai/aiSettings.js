@@ -32,7 +32,15 @@ export const AI_PROVIDERS = {
 };
 
 function emptyProvider() {
-  return { apiKey: '', model: '' };
+  return { apiKey: '', model: '', apiKeys: [] };
+}
+
+// Sloučí uložená data providera s výchozími a normalizuje seznam klíčů.
+function normProvider(o) {
+  const r = { ...emptyProvider(), ...(o || {}) };
+  if (!Array.isArray(r.apiKeys)) r.apiKeys = [];
+  if (r.apiKey && !r.apiKeys.includes(r.apiKey)) r.apiKeys.unshift(r.apiKey);
+  return r;
 }
 
 /** Načte uložené AI nastavení (localStorage). */
@@ -44,9 +52,9 @@ export function loadAISettings() {
     return {
       active: AI_PROVIDERS[s.active] ? s.active : 'openrouter',
       providers: {
-        groq: { ...emptyProvider(), ...(p.groq || {}) },
-        gemini: { ...emptyProvider(), ...(p.gemini || {}) },
-        openrouter: { ...emptyProvider(), ...(p.openrouter || {}) },
+        groq: normProvider(p.groq),
+        gemini: normProvider(p.gemini),
+        openrouter: normProvider(p.openrouter),
       },
     };
   } catch {
@@ -91,7 +99,7 @@ function dedupeSort(list) {
  * @param {string} apiKey
  * @returns {Promise<{id:string,label:string}[]>}
  */
-export async function fetchFreeModels(providerId, apiKey) {
+export async function fetchFreeModels(providerId, apiKey, includePaid = false) {
   const p = AI_PROVIDERS[providerId];
   if (!p) throw new Error('Neznámý provider');
 
@@ -104,12 +112,18 @@ export async function fetchFreeModels(providerId, apiKey) {
     const json = await res.json();
     const list = (json.data || [])
       .filter((m) => {
+        if (includePaid) return true;
         const pr = m.pricing || {};
         const isZero = (v) => v === '0' || v === 0;
         const free = isZero(pr.prompt) && isZero(pr.completion);
         return free || /:free$/.test(m.id || '');
       })
-      .map((m) => ({ id: m.id, label: m.name || m.id }));
+      .map((m) => {
+        const arch = m.architecture || {};
+        const inMod = arch.input_modalities || [];
+        const vision = inMod.includes('image') || /image/i.test(arch.modality || '');
+        return { id: m.id, label: m.name || m.id, vision };
+      });
     return dedupeSort(list);
   }
 
@@ -126,7 +140,7 @@ export async function fetchFreeModels(providerId, apiKey) {
     const list = (json.data || [])
       // jen jazykové/vision modely (vynech audio: whisper, tts)
       .filter((m) => !/whisper|tts|playai|guard/i.test(m.id || ''))
-      .map((m) => ({ id: m.id, label: m.id }));
+      .map((m) => ({ id: m.id, label: m.id, vision: /vision|llama-4|scout|maverick/i.test(m.id || '') }));
     return dedupeSort(list);
   }
 
@@ -142,10 +156,16 @@ export async function fetchFreeModels(providerId, apiKey) {
     const json = await res.json();
     const list = (json.models || [])
       .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
-      .map((m) => ({
-        id: (m.name || '').replace(/^models\//, ''),
-        label: (m.displayName || m.name || '').replace(/^models\//, ''),
-      }));
+      .map((m) => {
+        const id = (m.name || '').replace(/^models\//, '');
+        // Gemini 1.5/2.x i Gemma 3 jsou multimodální; vynech embedding/aqa/tts/imagen
+        const vision = /gemini|vision|gemma-3/i.test(id) && !/embedding|aqa|imagen|tts/i.test(id);
+        return {
+          id,
+          label: (m.displayName || m.name || '').replace(/^models\//, ''),
+          vision,
+        };
+      });
     return dedupeSort(list);
   }
 
@@ -163,10 +183,19 @@ const BODY_HTML = `
       </select>
     </label>
 
+    <label class="ai-row" id="aiSavedRow">
+      <span>Uložené klíče</span>
+      <select id="aiSavedKeys"></select>
+    </label>
+
     <label class="ai-row">
       <span>API klíč</span>
       <input type="password" id="aiApiKey" autocomplete="off" spellcheck="false" placeholder="vlož API klíč" />
     </label>
+    <div class="ai-actions">
+      <button class="btn-ok" id="aiSaveKey" type="button">💾 Uložit klíč</button>
+      <button class="btn-ok" id="aiDeleteKey" type="button">🗑 Smazat</button>
+    </div>
     <div class="ai-row-link">
       <a id="aiKeyLink" href="#" target="_blank" rel="noopener noreferrer">Získat klíč</a>
     </div>
@@ -178,14 +207,16 @@ const BODY_HTML = `
 
     <div class="ai-actions">
       <button class="btn-ok" id="aiLoadModels" type="button">↻ Načíst free modely</button>
+      <button class="btn-ok" id="aiLoadAll" type="button">↻ I placené</button>
     </div>
 
     <div class="ai-status" id="aiStatus"></div>
 
     <div class="ai-actions ai-actions-bottom">
-      <button class="btn-ok" id="aiSaveClose" type="button">Uložit a zavřít</button>
+      <button class="btn-ok btn-primary" id="aiSaveClose" type="button">Uložit a zavřít</button>
     </div>
 
+    <p class="ai-note">🖼 = model umí číst obrázky (potřebné pro analýzu výkresu).</p>
     <p class="ai-note">🔒 API klíče se ukládají pouze lokálně v tomto prohlížeči (localStorage).</p>
   </div>
 `;
@@ -200,11 +231,13 @@ export function openAISettings() {
 
   const provSel = $('#aiProvider');
   const keyInput = $('#aiApiKey');
+  const savedSel = $('#aiSavedKeys');
   const modelSel = $('#aiModel');
   const statusEl = $('#aiStatus');
   const keyLink = $('#aiKeyLink');
 
   let current = settings.active;
+  let lastModels = []; // naposledy načtené modely aktuálního providera
 
   // Uloží rozpracované hodnoty aktuálního providera do paměti (ne na disk).
   function stashCurrent() {
@@ -212,13 +245,79 @@ export function openAISettings() {
     settings.providers[current].model = modelSel.value;
   }
 
+  const maskKey = (k) => (k && k.length > 6 ? '••••' + k.slice(-4) : '••••');
+
+  // Naplní dropdown uložených klíčů (maskovaně) pro aktuálního providera.
+  function renderSavedKeys() {
+    const keys = settings.providers[current].apiKeys || [];
+    savedSel.innerHTML = '';
+    const head = document.createElement('option');
+    head.value = '';
+    head.textContent = keys.length ? '— vybrat uložený klíč —' : '— žádné uložené klíče —';
+    savedSel.appendChild(head);
+    keys.forEach((k, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = maskKey(k);
+      savedSel.appendChild(o);
+    });
+  }
+
+  function saveKey() {
+    const k = keyInput.value.trim();
+    if (!k) { showToast('Zadej API klíč'); return; }
+    const cfg = settings.providers[current];
+    if (!Array.isArray(cfg.apiKeys)) cfg.apiKeys = [];
+    if (!cfg.apiKeys.includes(k)) cfg.apiKeys.push(k);
+    cfg.apiKey = k;
+    saveAISettings(settings);
+    renderSavedKeys();
+    showToast('Klíč uložen ✓');
+  }
+
+  function deleteKey() {
+    const cfg = settings.providers[current];
+    const cur = keyInput.value.trim();
+    const before = (cfg.apiKeys || []).length;
+    cfg.apiKeys = (cfg.apiKeys || []).filter((k) => k !== cur);
+    if (cfg.apiKey === cur) cfg.apiKey = cfg.apiKeys[0] || '';
+    keyInput.value = cfg.apiKey;
+    saveAISettings(settings);
+    renderSavedKeys();
+    showToast(before === cfg.apiKeys.length ? 'Tento klíč není uložený' : 'Klíč smazán');
+  }
+
+  // Vykreslí <option> ze lastModels: vision modely nahoru, značka 🖼.
+  function renderModelOptions() {
+    const prevModel = settings.providers[current].model || modelSel.value;
+    const list = lastModels.slice();
+    list.sort((a, b) => (b.vision === a.vision ? a.label.localeCompare(b.label) : b.vision - a.vision));
+    modelSel.innerHTML = '';
+    if (!list.length) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = '(žádné modely)';
+      modelSel.appendChild(o);
+      return;
+    }
+    for (const m of list) {
+      const o = document.createElement('option');
+      o.value = m.id;
+      o.textContent = (m.vision ? '🖼 ' : '') + m.label;
+      if (m.id === prevModel) o.selected = true;
+      modelSel.appendChild(o);
+    }
+  }
+
   function renderProvider(pid) {
     current = pid;
     provSel.value = pid;
+    lastModels = []; // při přepnutí providera zahoď starý seznam
     const p = AI_PROVIDERS[pid];
     const cfg = settings.providers[pid];
 
     keyInput.value = cfg.apiKey || '';
+    renderSavedKeys();
     keyLink.href = p.keyUrl;
     keyLink.textContent = '↗ Získat API klíč (' + p.name + ')';
 
@@ -241,43 +340,36 @@ export function openAISettings() {
     statusEl.className = 'ai-status';
   }
 
-  async function loadModels() {
+  async function loadModels(includePaid) {
     const pid = current;
     const key = keyInput.value.trim();
     statusEl.textContent = 'Načítám modely…';
     statusEl.className = 'ai-status ai-status-busy';
-    const btn = $('#aiLoadModels');
-    btn.disabled = true;
+    const btnFree = $('#aiLoadModels'), btnAll = $('#aiLoadAll');
+    btnFree.disabled = btnAll.disabled = true;
     try {
-      const models = await fetchFreeModels(pid, key);
-      const prevModel = settings.providers[pid].model;
-      modelSel.innerHTML = '';
-      if (!models.length) {
-        const o = document.createElement('option');
-        o.value = '';
-        o.textContent = '(žádné free modely)';
-        modelSel.appendChild(o);
-      }
-      for (const m of models) {
-        const o = document.createElement('option');
-        o.value = m.id;
-        o.textContent = m.label;
-        if (m.id === prevModel) o.selected = true;
-        modelSel.appendChild(o);
-      }
-      statusEl.textContent = `Načteno ${models.length} free modelů.`;
+      lastModels = await fetchFreeModels(pid, key, includePaid);
+      renderModelOptions();
+      const visCount = lastModels.filter((m) => m.vision).length;
+      const kind = includePaid ? 'modelů (vč. placených)' : 'free modelů';
+      statusEl.textContent = `Načteno ${lastModels.length} ${kind} (🖼 ${visCount} pro obrázky).`;
       statusEl.className = 'ai-status ai-status-ok';
     } catch (e) {
       statusEl.textContent = 'Chyba: ' + e.message;
       statusEl.className = 'ai-status ai-status-err';
       showToast('AI: ' + e.message);
     } finally {
-      btn.disabled = false;
+      btnFree.disabled = btnAll.disabled = false;
     }
   }
 
   function save() {
     stashCurrent();
+    // aktivní klíč rovnou ulož mezi uložené (ať se neztratí)
+    const cfg = settings.providers[current];
+    const k = (cfg.apiKey || '').trim();
+    if (!Array.isArray(cfg.apiKeys)) cfg.apiKeys = [];
+    if (k && !cfg.apiKeys.includes(k)) cfg.apiKeys.push(k);
     settings.active = current;
     const ok = saveAISettings(settings);
     showToast(ok ? 'AI nastavení uloženo' : 'Nelze uložit AI nastavení');
@@ -288,7 +380,15 @@ export function openAISettings() {
     stashCurrent();
     renderProvider(provSel.value);
   });
-  $('#aiLoadModels').addEventListener('click', loadModels);
+  savedSel.addEventListener('change', () => {
+    if (savedSel.value === '') return;
+    const k = (settings.providers[current].apiKeys || [])[Number(savedSel.value)];
+    if (k) { keyInput.value = k; settings.providers[current].apiKey = k; }
+  });
+  $('#aiSaveKey').addEventListener('click', saveKey);
+  $('#aiDeleteKey').addEventListener('click', deleteKey);
+  $('#aiLoadModels').addEventListener('click', () => loadModels(false));
+  $('#aiLoadAll').addEventListener('click', () => loadModels(true));
   $('#aiSaveClose').addEventListener('click', () => {
     if (save()) overlay.remove();
   });

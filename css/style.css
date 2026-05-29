@@ -2591,6 +2591,46 @@ body {
 .ai-actions-bottom {
   margin-top: 2px;
 }
+/* ── Moderní tlačítka v AI modalech ── */
+.ai-window .btn-ok {
+  appearance: none;
+  border: 1px solid var(--ctp-surface1);
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  padding: 9px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease,
+    box-shadow 0.15s ease, filter 0.15s ease;
+}
+.ai-window .btn-ok:hover {
+  background: var(--ctp-surface1);
+  border-color: var(--ctp-overlay0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.ai-window .btn-ok:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+.ai-window .btn-ok:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+  transform: none;
+}
+/* primární akce (Uložit a zavřít) */
+.ai-window .btn-ok.btn-primary {
+  background: linear-gradient(180deg, var(--ctp-blue), var(--ctp-sapphire, var(--ctp-blue)));
+  border-color: var(--ctp-blue);
+  color: var(--ctp-base);
+}
+.ai-window .btn-ok.btn-primary:hover {
+  filter: brightness(1.08);
+  background: linear-gradient(180deg, var(--ctp-blue), var(--ctp-sapphire, var(--ctp-blue)));
+}
 .ai-status {
   font-size: 12px;
   min-height: 16px;

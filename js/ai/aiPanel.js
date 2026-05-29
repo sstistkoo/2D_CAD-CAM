@@ -8,29 +8,44 @@ import { makeOverlay } from '../dialogFactory.js';
 import { addObject } from '../objects.js';
 import { radiusToBulge } from '../utils.js';
 import { autoCenterView } from '../canvas.js';
+import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { getActiveAIConfig, openAISettings, AI_PROVIDERS } from './aiSettings.js';
 
 // ── Prompt pro AI (čtení strojírenských výkresů → řetězec elementů) ──
-export const AI_PROMPT = `Jsi expert na čtení strojírenských výkresů rotačních dílů (hřídele, příruby, knoflíky).
-Analyzuj obrázek a vrať PŘESNOU geometrii profilu jako souvislý řetězec elementů v JSON.
+export const AI_PROMPT = `Jsi expert na čtení strojírenských výkresů rotačních (soustružených) dílů – hřídele, příruby, knoflíky, čepy.
+Vrať geometrii profilu jako ROHOVÉ BODY ostrého obrysu. Délky rovinek ani tečné ořezy NEDOPOČÍTÁVEJ – to udělá program.
 
-Vracej POUZE čisté JSON pole objektů. Žádný doprovodný text, žádný markdown.
+Vracej POUZE čisté JSON pole objektů. Žádný text, žádný markdown, žádné komentáře.
 
-Profil čti souvisle od jednoho konce ke druhému – každý element navazuje na předchozí
-(d1 elementu = d2 předchozího). Každý element je úsečka nebo oblouk mezi dvěma průměry:
-
+Formát = pole rohů ostrého profilu (jako by žádné R/sražení nebyly), ZLEVA DOPRAVA:
 [
-  {"type":"line","d1":PRŮMĚR_ZAČÁTEK,"d2":PRŮMĚR_KONEC,"l":DÉLKA_V_OSE},
-  {"type":"arc","d1":...,"d2":...,"l":...,"r":POLOMĚR,"concave":true}
+  {"z":0,  "d":28},
+  {"z":Z,  "d":D, "r":POLOMĚR},
+  {"z":Z,  "d":D, "chamfer":[DÉLKA,ÚHEL]},
+  {"z":Z,  "d":D, "cz":STŘED_Z, "cx":STŘED_X}
 ]
 
-Pravidla:
-- Jednotky: milimetry. U tolerancí ber střední (jmenovitou) hodnotu.
-- "line": válec (d1=d2), kužel (d1≠d2) i sražení (krátká úsečka; např. 1x45° → l=1 a d2=d1-2).
-- "arc": zaoblení / rádius. "concave":true = oblouk UBÍRÁ materiál (vydutý pas, zápich, R dovnitř); "concave":false = oblouk PŘIDÁVÁ materiál (vypouklý nos, kulová hlava).
-- "d1" každého elementu se musí rovnat "d2" předchozího (souvislý profil bez skoků).
-- "l" = délka elementu podél osy (vyčti z kótového řetězce).
-- Začni od největšího průměru / základny.`;
+ORIENTACE:
+- Z0 je VLEVO (strana sklíčidla), Z roste DOPRAVA. Začni u sklíčidla (obvykle největší ⌀) a jdi k volnému konci.
+- "z" = poloha podél osy [mm], "d" = průměr v tom bodě [mm].
+
+CO JE ROHOVÝ BOD:
+- Bod, kde se dvě sousední ROVNÉ plochy (válec / kužel / čelo) protnou, KDYBY tam nebylo zaoblení.
+- Zadávej jen body s okótovanou polohou a průměrem. NEVYMÝŠLEJ mezilehlé ⌀ ani délky rovinek – ty dopočítá program z tečnosti R.
+
+ZAOBLENÍ A SRAŽENÍ (volitelné u daného rohu):
+- "r": poloměr, kterým je TENTO roh zaoblený. Program ořízne sousední plochy a vloží tečný oblouk.
+- "chamfer":[délka,úhel]: sražení rohu (např. 1x45° → [1,45]).
+- "cz","cx": střed oblouku, je-li na výkrese okótovaný (cz podél osy, cx = vzdálenost od osy = poloměr). MÁ PŘEDNOST před "r".
+- Vyduté/vypouklé (concave/convex) NEZADÁVEJ – plyne to z geometrie rohu.
+
+PRAVIDLA:
+- Jednotky mm; u tolerancí ber jmenovitou (střední) hodnotu.
+- Úhly (např. 70°): zvol "z"/"d" rohů tak, aby kužel i okótované ⌀ seděly.
+- Mezikóty (např. 24, 30, 44, 48) odpovídají polohám rohů; celková délka = poslední "z".
+- Nezačínej ani nekonči obloukem „do vzduchu" – krajní body leží na čele.
+
+Než vrátíš JSON, zkontroluj: (1) jen okótované ⌀ a polohy; (2) každý roh = průsečík dvou rovných ploch; (3) R/sražení je jen značka u rohu, ne délka; (4) pořadí zleva doprava od sklíčidla.`;
 
 // ── Parsing JSON z AI odpovědi (toleruje obalový text / markdown) ──
 export function parseAIProfile(text) {
@@ -130,7 +145,7 @@ export function segmentsToProfile(segs) {
     prevR = R;
   }
 
-  add(z, 0); // pravé čelo zpět na osu
+  if (Math.abs(pts[pts.length - 1].y) > 1e-6) add(z, 0); // pravé čelo zpět na osu
 
   return {
     vertices: pts.map((p) => ({ x: p.x, y: p.y })),
@@ -163,8 +178,8 @@ export function elementsToProfile(els) {
 
   let z = 0;
   const R0 = E[0].d1 / 2;
-  add(0, 0);   // levé čelo na ose
-  add(0, R0);  // nahoru na první poloměr
+  add(0, 0);                  // levé čelo na ose
+  if (R0 > 1e-6) add(0, R0);  // nahoru na první poloměr (jen pokud nezačínáme na ose)
 
   for (const el of E) {
     const R1 = el.d1 / 2;
@@ -181,9 +196,12 @@ export function elementsToProfile(els) {
     if (el.type === 'arc' && el.r > 0) {
       const chord = Math.hypot(P2.x - P1.x, P2.y - P1.y);
       const rr = Math.max(el.r, chord / 2 + 1e-6); // poloměr musí pokrýt tětivu
-      // concave (ubírá materiál → oblouk pod tětivou/dovnitř) = CW (záporný bulge);
-      // convex (přidává → ven) = CCW (kladný bulge)
-      setBulge(radiusToBulge(P1, P2, rr, /* cw */ el.concave));
+      // Profil kreslíme zleva doprava (world y = poloměr), takže v bulgeToArc:
+      //   kladný bulge = oblouk se prohýbá DOLŮ k ose  = concave (ubírá materiál)
+      //   záporný bulge = prohýbá se NAHORU od osy      = convex  (přidává materiál)
+      // radiusToBulge(...,cw) vrací cw ? -bulge : +bulge →
+      //   concave ⇒ cw=false (kladný), convex ⇒ cw=true (záporný)
+      setBulge(radiusToBulge(P1, P2, rr, /* cw */ !el.concave));
       add(P2.x, P2.y);
     } else {
       // line: válec / kužel / sražení
@@ -193,15 +211,155 @@ export function elementsToProfile(els) {
     z += L;
   }
 
-  add(z, 0); // pravé čelo zpět na osu
+  if (Math.abs(pts[pts.length - 1].y) > 1e-6) add(z, 0); // pravé čelo zpět na osu
   return {
     vertices: pts.map((p) => ({ x: p.x, y: p.y })),
     bulges: pts.map((p) => p.bulge),
   };
 }
 
-/** Sestaví profil – detekuje formát (nový elementy / starý segmenty). */
+// ── Skeleton formát: rohové body ostrého profilu + R / sražení / střed ──
+// Pata kolmice z bodu na úsečku (tečný bod pro zadaný střed oblouku).
+function _foot(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const L2 = dx * dx + dy * dy || 1e-12;
+  const t = ((px - x1) * dx + (py - y1) * dy) / L2;
+  return { x: x1 + t * dx, y: y1 + t * dy };
+}
+// Leží tečný bod T uvnitř úsečky P1→P2? (ochrana proti přetečení radiusu)
+function _within(T, P1, P2) {
+  const dx = P2.x - P1.x, dy = P2.y - P1.y;
+  const L2 = dx * dx + dy * dy || 1e-12;
+  const t = ((T.x - P1.x) * dx + (T.y - P1.y) * dy) / L2;
+  return t >= -1e-6 && t <= 1 + 1e-6;
+}
+// Znaménkový bulge oblouku T1→T2 kolem středu (cx,cy). + = CCW (prohýbá dolů k ose).
+function _arcBulge(T1, T2, cx, cy) {
+  const a1 = Math.atan2(T1.y - cy, T1.x - cx);
+  const a2 = Math.atan2(T2.y - cy, T2.x - cx);
+  let d = a2 - a1;
+  d = (((d + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; // (-π, π]
+  return Math.tan(d / 4);
+}
+
+// Skeleton = pole rohových bodů {z,d} (zleva doprava, Z0 vlevo u sklíčidla).
+// Roh může mít r (fillet), chamfer:[délka,úhel] nebo střed cz/cx (přednost).
+function isSkeletonFormat(items) {
+  return items.some(
+    (o) => o && o.z !== undefined && o.d !== undefined && o.d1 === undefined && o.type === undefined,
+  );
+}
+
+/**
+ * Sestaví profil z ostrého skeletu: rovné úseky se protnou v rozích a kód
+ * dopočítá tečné fillety / sražení (přes filletTwoLines / chamferTwoLines).
+ * Chybějící rovinky vzniknou samy jako zbytek po oříznutí.
+ * @returns {{vertices:{x:number,y:number}[], bulges:number[]}}
+ */
+export function skeletonToProfile(rawPts) {
+  const P = rawPts
+    .filter((o) => o && o.z !== undefined && o.d !== undefined)
+    .map((o) => ({
+      z: Number(o.z),
+      d: Number(o.d),
+      r: Number(o.r ?? o.radius ?? 0) || 0,
+      cz: o.cz !== undefined ? Number(o.cz) : null,
+      cx: o.cx !== undefined ? Number(o.cx) : null,
+      chamfer: Array.isArray(o.chamfer) ? o.chamfer.map(Number) : null,
+    }))
+    .filter((o) => isFinite(o.z) && isFinite(o.d) && o.d >= 0);
+  if (P.length < 2) throw new Error('Skelet potřebuje aspoň 2 rohové body (z, d)');
+
+  // rohové body horní kontury: world x = Z, world y = poloměr
+  const top = P.map((p) => ({ x: p.z, y: p.d / 2 }));
+
+  // ostrá lomená čára vč. uzavření na osu (levé + pravé čelo)
+  const full = []; // {x,y}
+  const mod = [];  // modifikátor rohu (P[k]) nebo null pro body na ose
+  const z0 = top[0].x, zN = top[top.length - 1].x;
+  if (top[0].y > 1e-6) { full.push({ x: z0, y: 0 }); mod.push(null); }
+  for (let k = 0; k < top.length; k++) { full.push({ x: top[k].x, y: top[k].y }); mod.push(P[k]); }
+  if (top[top.length - 1].y > 1e-6) { full.push({ x: zN, y: 0 }); mod.push(null); }
+
+  // vyřeš každý vnitřní roh
+  const res = new Array(full.length).fill(null); // null = ostrý, nebo {T1,T2,bulge}
+  for (let i = 1; i < full.length - 1; i++) {
+    const m = mod[i];
+    if (!m) continue;
+    const hasCham = m.chamfer && m.chamfer.length >= 1 && m.chamfer[0] > 1e-9;
+    const hasCenter = m.cz !== null && m.cx !== null;
+    const hasFillet = m.r > 1e-9 || hasCenter;
+    if (!hasCham && !hasFillet) continue;
+
+    const A = { x1: full[i - 1].x, y1: full[i - 1].y, x2: full[i].x, y2: full[i].y };
+    const B = { x1: full[i].x, y1: full[i].y, x2: full[i + 1].x, y2: full[i + 1].y };
+
+    if (hasCham) {
+      const leg = Number(m.chamfer[0]) || 0;
+      const ang = ((m.chamfer.length >= 2 ? Number(m.chamfer[1]) : 45) * Math.PI) / 180;
+      const out = chamferTwoLines(A, B, leg, leg * Math.tan(ang));
+      if (out.ok) res[i] = { T1: { x: A.x2, y: A.y2 }, T2: { x: B.x1, y: B.y1 }, bulge: 0 };
+      continue;
+    }
+
+    const P0 = full[i - 1], Pi = full[i], P2 = full[i + 1];
+    if (hasCenter) {
+      // zadaný střed má přednost: tečné body = paty kolmic ze středu
+      const T1 = _foot(m.cz, m.cx, A.x1, A.y1, A.x2, A.y2);
+      const T2 = _foot(m.cz, m.cx, B.x1, B.y1, B.x2, B.y2);
+      if (_within(T1, P0, Pi) && _within(T2, Pi, P2))
+        res[i] = { T1, T2, bulge: _arcBulge(T1, T2, m.cz, m.cx) };
+    } else {
+      const out = filletTwoLines(A, B, m.r);
+      if (out.ok) {
+        const T1 = { x: A.x2, y: A.y2 };
+        const T2 = { x: B.x1, y: B.y1 };
+        // tečné body musí zůstat uvnitř svých úseček, jinak by se profil překřížil
+        if (_within(T1, P0, Pi) && _within(T2, Pi, P2))
+          res[i] = { T1, T2, bulge: _arcBulge(T1, T2, out.arc.cx, out.arc.cy) };
+      } // když fillet selže nebo nesedne (rovnoběžné / R moc velké) → roh zůstane ostrý
+    }
+  }
+
+  // Pojistka proti překřížení dvou sousedních filletů na společné úsečce.
+  // Na úsečce full[i]→full[i+1] ji ořezává res[i].T2 (od začátku) a res[i+1].T1 (od konce);
+  // když se přejedou, zahoď ten roh, který ukrajuje víc, a opakuj.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < full.length - 1; i++) {
+      const P1 = full[i], P2 = full[i + 1];
+      const dx = P2.x - P1.x, dy = P2.y - P1.y, L2 = dx * dx + dy * dy || 1e-12;
+      const param = (T) => ((T.x - P1.x) * dx + (T.y - P1.y) * dy) / L2;
+      const tStart = res[i] ? param(res[i].T2) : 0;
+      const tEnd = res[i + 1] ? param(res[i + 1].T1) : 1;
+      if (tStart > tEnd + 1e-9) {
+        const eatStart = res[i] ? tStart : 0;        // kolik ukrojí roh i od začátku
+        const eatEnd = res[i + 1] ? 1 - tEnd : 0;    // kolik ukrojí roh i+1 od konce
+        if (eatStart >= eatEnd && res[i]) res[i] = null;
+        else if (res[i + 1]) res[i + 1] = null;
+        else res[i] = null;
+        changed = true;
+      }
+    }
+  }
+
+  // poskládej vrcholy + bulge
+  const vertices = [], bulges = [];
+  for (let i = 0; i < full.length; i++) {
+    if (res[i]) {
+      vertices.push({ x: res[i].T1.x, y: res[i].T1.y }); bulges.push(res[i].bulge);
+      vertices.push({ x: res[i].T2.x, y: res[i].T2.y }); bulges.push(0);
+    } else {
+      vertices.push({ x: full[i].x, y: full[i].y }); bulges.push(0);
+    }
+  }
+  return { vertices, bulges };
+}
+
+/** Sestaví profil – detekuje formát (skeleton / nové elementy / staré segmenty). */
 export function buildProfile(items) {
+  if (isSkeletonFormat(items)) return skeletonToProfile(items);
   return isElementFormat(items) ? elementsToProfile(items) : segmentsToProfile(items);
 }
 
@@ -209,6 +367,9 @@ export function buildProfile(items) {
 export function renderProfile(items) {
   const { vertices, bulges } = buildProfile(items);
   if (vertices.length < 2) throw new Error('Profil nemá dost bodů');
+  for (const v of vertices) {
+    if (!isFinite(v.x) || !isFinite(v.y)) throw new Error('Profil obsahuje neplatné souřadnice');
+  }
   const obj = addObject({
     type: 'polyline',
     vertices,
@@ -218,6 +379,22 @@ export function renderProfile(items) {
   });
   autoCenterView();
   return obj;
+}
+
+// Vytáhne stručný důvod chyby z odpovědi (JSON error.message nebo začátek textu).
+async function readErrDetail(res) {
+  try {
+    const t = await res.text();
+    if (!t) return '';
+    try {
+      const j = JSON.parse(t);
+      return (j.error?.message || j.message || t).slice(0, 200);
+    } catch {
+      return t.slice(0, 200);
+    }
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -245,7 +422,10 @@ export async function analyzeImage(dataUrl) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error('Gemini HTTP ' + res.status);
+    if (!res.ok) {
+      const d = await readErrDetail(res);
+      throw new Error('Gemini HTTP ' + res.status + (d ? ' – ' + d : ''));
+    }
     const j = await res.json();
     return (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
   }
@@ -273,7 +453,10 @@ export async function analyzeImage(dataUrl) {
       ],
     }),
   });
-  if (!res.ok) throw new Error(AI_PROVIDERS[cfg.provider].name + ' HTTP ' + res.status);
+  if (!res.ok) {
+    const d = await readErrDetail(res);
+    throw new Error(AI_PROVIDERS[cfg.provider].name + ' HTTP ' + res.status + (d ? ' – ' + d : ''));
+  }
   const j = await res.json();
   return j.choices?.[0]?.message?.content || '';
 }
@@ -307,7 +490,7 @@ const BODY_HTML = `
 
     <div class="ai-sec">
       <div class="ai-sec-head">3) JSON od AI → vykreslit</div>
-      <textarea id="aiJson" class="ai-textarea" rows="5" placeholder='[{"type":"line","d1":28,"d2":28,"l":4},{"type":"arc","d1":28,"d2":14,"l":7,"r":10,"concave":true}, …]'></textarea>
+      <textarea id="aiJson" class="ai-textarea" rows="5" placeholder='[{"z":0,"d":28},{"z":18,"d":28,"r":10},{"z":24,"d":16,"r":4},{"z":48,"d":10,"chamfer":[1,45]}]'></textarea>
       <div class="ai-actions">
         <button class="btn-ok" id="aiRender" type="button">✏️ Vykreslit profil</button>
         <button class="btn-ok" id="aiOpenSettings" type="button">⚙ Nastavení</button>
