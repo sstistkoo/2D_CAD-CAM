@@ -102,9 +102,16 @@ function injectCSS() {
 .cam-confirm-cancel:hover { background: #585b70; }
 .cam-sim-window {
   width: 100vw !important; max-width: 100vw !important;
-  height: calc(100dvh - 60px) !important; max-height: calc(100dvh - 60px) !important;
+  height: 100dvh !important; max-height: 100dvh !important;
   display: flex; flex-direction: column;
   border-radius: 0 !important;
+  animation: none !important;
+  transform: none !important;
+}
+.calc-overlay[data-type="cam-simulator"] {
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  padding: 0 !important;
 }
 .cam-sim-window .calc-titlebar { border-radius: 0 !important; position: relative; }
 .cam-sim-calc-btn {
