@@ -47,6 +47,7 @@ function _buildProjectData() {
     showDimensions: state.showDimensions,
     snapQuadrants: state.snapQuadrants,
     snapMidpoints: state.snapMidpoints,
+    snapCenters: state.snapCenters,
     undoStack: state.undoStack,
   };
 }
@@ -80,6 +81,7 @@ function _loadProjectData(data) {
   if (data.showDimensions !== undefined) state.showDimensions = data.showDimensions;
   if (data.snapQuadrants !== undefined) state.snapQuadrants = data.snapQuadrants;
   if (data.snapMidpoints !== undefined) state.snapMidpoints = data.snapMidpoints;
+  if (data.snapCenters !== undefined) state.snapCenters = data.snapCenters;
   state.selected = null;
   state.multiSelected.clear();
   state.selectedPoint = null;

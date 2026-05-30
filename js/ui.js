@@ -50,6 +50,7 @@ function persistSettings() {
       base.showIntersectionNumbers = state.showIntersectionNumbers;
       base.snapQuadrants = state.snapQuadrants;
       base.snapMidpoints = state.snapMidpoints;
+      base.snapCenters = state.snapCenters;
       await setMeta('currentProjectData', base);
     } catch(e) { console.warn('persistSettings:', e); }
   }, 500);
@@ -3795,6 +3796,7 @@ function showSettingsDialog() {
         <div style="display:flex;gap:6px;margin-top:5px">
           <button class="calc-btn" id="settSnapQuadrants" style="${btnS}font-size:11px;${act(state.snapQuadrants)}">◎ Quadranty: ${state.snapQuadrants ? 'ON' : 'OFF'}</button>
           <button class="calc-btn" id="settSnapMidpoints" style="${btnS}font-size:11px;${act(state.snapMidpoints)}">½ Středy: ${state.snapMidpoints ? 'ON' : 'OFF'}</button>
+          <button class="calc-btn" id="settSnapCenters" style="${btnS}font-size:11px;${act(state.snapCenters)}">⊕ Středy R: ${state.snapCenters ? 'ON' : 'OFF'}</button>
         </div>
       </fieldset>
 
@@ -3997,6 +3999,20 @@ function showSettingsDialog() {
     renderAll();
     persistSettings();
     showToast(state.snapMidpoints ? 'Snap středy úseček: ON' : 'Snap středy úseček: OFF');
+  });
+
+  // ── Středy oblouků (R) ON/OFF ──
+  function updateSnapCentersBtn() {
+    const btn = overlay.querySelector('#settSnapCenters');
+    btn.style.cssText = `${btnBaseSmall}${state.snapCenters ? activeStyle : inactiveStyle}`;
+    btn.textContent = `⊕ Středy R: ${state.snapCenters ? 'ON' : 'OFF'}`;
+  }
+  overlay.querySelector('#settSnapCenters').addEventListener('click', () => {
+    state.snapCenters = !state.snapCenters;
+    updateSnapCentersBtn();
+    renderAll();
+    persistSettings();
+    showToast(state.snapCenters ? 'Snap středy oblouků: ON' : 'Snap středy oblouků: OFF');
   });
 
   // ── Souřadnice ABS/INC ──

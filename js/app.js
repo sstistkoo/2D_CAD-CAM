@@ -72,6 +72,7 @@ async function tryAutoLoad() {
       if (data.showDimensions !== undefined) state.showDimensions = data.showDimensions;
       if (data.snapQuadrants !== undefined) state.snapQuadrants = data.snapQuadrants;
       if (data.snapMidpoints !== undefined) state.snapMidpoints = data.snapMidpoints;
+      if (data.snapCenters !== undefined) state.snapCenters = data.snapCenters;
       if (Array.isArray(data.undoStack)) state.undoStack = data.undoStack;
       updateObjectList();
       updateProperties();
@@ -112,6 +113,7 @@ setInterval(() => {
       showDimensions: state.showDimensions,
       snapQuadrants: state.snapQuadrants,
       snapMidpoints: state.snapMidpoints,
+      snapCenters: state.snapCenters,
       undoStack: state.undoStack,
     };
     setMeta('currentProjectData', data).catch(err => {
@@ -153,6 +155,7 @@ window.addEventListener('beforeunload', () => {
       showDimensions: state.showDimensions,
       snapQuadrants: state.snapQuadrants,
       snapMidpoints: state.snapMidpoints,
+      snapCenters: state.snapCenters,
       undoStack: state.undoStack,
     };
     // Synchronní pokus o uložení – navigator.sendBeacon není vhodný pro IDB,

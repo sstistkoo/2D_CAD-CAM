@@ -93,6 +93,8 @@ export const state = {
   // Snap body: quadranty kružnice a středy úseček
   snapQuadrants: false,
   snapMidpoints: false,
+  // Snap body: středy kružnic/oblouků (i bulge segmentů polylinie)
+  snapCenters: true,
   // Vrstvy
   layers: [
     { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },

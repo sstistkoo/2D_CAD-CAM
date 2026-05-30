@@ -199,7 +199,8 @@ export function getObjectSnapPoints(obj) {
       return pts;
     }
     case "circle": {
-      const pts = [{ x: obj.cx, y: obj.cy }];
+      const pts = [];
+      if (state.snapCenters) pts.push({ x: obj.cx, y: obj.cy });
       if (state.snapQuadrants) {
         pts.push(
           { x: obj.cx + obj.r, y: obj.cy, quarter: true },
@@ -210,9 +211,10 @@ export function getObjectSnapPoints(obj) {
       }
       return pts;
     }
-    case "arc":
-      return [
-        { x: obj.cx, y: obj.cy },
+    case "arc": {
+      const pts = [];
+      if (state.snapCenters) pts.push({ x: obj.cx, y: obj.cy });
+      pts.push(
         {
           x: obj.cx + obj.r * Math.cos(obj.startAngle),
           y: obj.cy + obj.r * Math.sin(obj.startAngle),
@@ -221,7 +223,9 @@ export function getObjectSnapPoints(obj) {
           x: obj.cx + obj.r * Math.cos(obj.endAngle),
           y: obj.cy + obj.r * Math.sin(obj.endAngle),
         },
-      ];
+      );
+      return pts;
+    }
     case "rect": {
       const c = getRectCorners(obj);
       const rPts = [...c];
@@ -258,6 +262,11 @@ export function getObjectSnapPoints(obj) {
               pts.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, mid: true });
             }
           }
+        }
+        // Střed oblouku u bulge segmentu
+        if (state.snapCenters && b !== 0) {
+          const arc = bulgeToArc(p1, p2, b);
+          if (arc) pts.push({ x: arc.cx, y: arc.cy });
         }
       }
       return pts;
