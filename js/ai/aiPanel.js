@@ -485,6 +485,9 @@ export function renderProfile(items) {
 /**
  * Parsuje G-kód na vrcholy + bulge. Podporuje:
  *  - G0/G1 lineární, G2/G3 oblouky (CR=/R nebo I/K),
+ *  - G90 (absolutní) / G91 (inkrementální) – modální, platí od řádku, kde jsou uvedeny,
+ *    až do dalšího přepnutí. Default = G90. V G91 se X/Z přičítají k aktuální poloze
+ *    (X je inkrement PRŮMĚRU). I/K jsou vždy relativní ke start. bodu oblouku (beze změny).
  *  - Sinumerik zkratky na rohu: RND= (zaoblení), RNDM= (modální), CHF=/CHR= (sražení) –
  *    dopočítají se tečně + ořezem (stejně jako tlačítko Zaob./Zkos.).
  * X bere jako PRŮMĚR (poloměr = X/2), Z jako osu. G2=CW, G3=CCW.
@@ -499,9 +502,12 @@ export function gcodeToProfile(text) {
   const pts = [];        // {x,y} koncové body bloků
   const segBulge = [];   // bulge úsečky pts[i]→pts[i+1]
   const cornerMod = [];  // modifikátor rohu v pts[i]: {kind:'rnd'|'chf', v} | null
-  let curX = 0, curZ = 0, curG = 'G0', modalRnd = 0;
+  let curX = 0, curZ = 0, curG = 'G0', modalRnd = 0, absMode = true;
 
   for (const line of lines) {
+    // G90/G91 = modální přepnutí absolutní/inkrementální; platí od tohoto řádku včetně
+    const absM = line.match(/G9([01])(?!\d)/i);
+    if (absM) absMode = absM[1] === '0';
     const gm = line.match(/G0*([0-3])(?!\d)/i);
     if (gm) curG = 'G' + gm[1];
     const rndmM = line.match(/RNDM\s*=\s*(-?[\d.]+)/i);
@@ -515,8 +521,8 @@ export function gcodeToProfile(text) {
         : null;
 
     if (xm || zm) {
-      if (xm) curX = parseFloat(xm[1]);
-      if (zm) curZ = parseFloat(zm[1]);
+      if (xm) curX = absMode ? parseFloat(xm[1]) : curX + parseFloat(xm[1]);
+      if (zm) curZ = absMode ? parseFloat(zm[1]) : curZ + parseFloat(zm[1]);
       // X = PRŮMĚR → poloměr = X/2 (nezávisle na režimu zobrazení appky)
       const rad = curX / 2;
       const pt = { x: isKarusel ? rad : curZ, y: isKarusel ? curZ : rad };
