@@ -3,7 +3,8 @@
 // mezery, rotaci, neznámé znaky.
 
 import { describe, it, expect } from 'vitest';
-import { renderHersheyText, measureHersheyText, listHersheyFonts } from '../js/lib/hersheyFont.js';
+import { renderHersheyText, measureHersheyText, listHersheyFonts, __test__ } from '../js/lib/hersheyFont.js';
+const { parseHersheyD, readGlyph } = __test__;
 
 describe('renderHersheyText – základní rendering', () => {
   it('písmeno A má 3 tahy (levá noha, pravá noha, příčka)', () => {
@@ -144,6 +145,63 @@ describe('Multi-font podpora', () => {
     const a = renderHersheyText('A', 10);
     const b = renderHersheyText('A', 10, 0, 0, 0, 'futural');
     expect(a.length).toBe(b.length);
+  });
+});
+
+describe('parseHersheyD – starý formát {M/L tokens}', () => {
+  it('parsuje single stroke "M9,1 L1,22"', () => {
+    const strokes = parseHersheyD('M9,1 L1,22');
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]).toEqual([{ x: 9, y: 1 }, { x: 1, y: 22 }]);
+  });
+
+  it('parsuje multi-stroke A: 3 tahy', () => {
+    const strokes = parseHersheyD('M9,1 L1,22 M9,1 L17,22 M4,15 L14,15');
+    expect(strokes).toHaveLength(3);
+    expect(strokes[0]).toEqual([{ x: 9, y: 1 }, { x: 1, y: 22 }]);
+    expect(strokes[2]).toEqual([{ x: 4, y: 15 }, { x: 14, y: 15 }]);
+  });
+
+  it('parsuje implicitní lineTo (bez L prefixu)', () => {
+    const strokes = parseHersheyD('M4,1 L4,22 M4,1 L13,1 16,2 17,3');
+    expect(strokes).toHaveLength(2);
+    expect(strokes[1]).toHaveLength(4); // M4,1 L13,1 (implicit) 16,2 (implicit) 17,3
+  });
+});
+
+describe('parseHersheyD – nový kompaktní formát', () => {
+  it('parsuje "9,1;1,22|9,1;17,22|4,15;14,15" jako 3 tahy', () => {
+    const strokes = parseHersheyD('9,1;1,22|9,1;17,22|4,15;14,15');
+    expect(strokes).toHaveLength(3);
+    expect(strokes[0]).toEqual([{ x: 9, y: 1 }, { x: 1, y: 22 }]);
+    expect(strokes[1]).toEqual([{ x: 9, y: 1 }, { x: 17, y: 22 }]);
+    expect(strokes[2]).toEqual([{ x: 4, y: 15 }, { x: 14, y: 15 }]);
+  });
+
+  it('starý i nový formát stejné A dají identické tahy', () => {
+    const oldA = parseHersheyD('M9,1 L1,22 M9,1 L17,22 M4,15 L14,15');
+    const newA = parseHersheyD('9,1;1,22|9,1;17,22|4,15;14,15');
+    expect(oldA).toEqual(newA);
+  });
+
+  it('odolnost vůči trailing oddělovačům', () => {
+    expect(parseHersheyD('9,1;1,22;')).toHaveLength(1);
+    expect(parseHersheyD('9,1;1,22||4,15;14,15')).toHaveLength(2);
+  });
+});
+
+describe('readGlyph – formátová polymorfie', () => {
+  it('tuple [o, d] vrátí { o, d }', () => {
+    expect(readGlyph([9, '9,1;1,22'])).toEqual({ o: 9, d: '9,1;1,22' });
+  });
+
+  it('objekt { o, d } vrátí { o, d }', () => {
+    expect(readGlyph({ o: 9, d: 'M9,1 L1,22' })).toEqual({ o: 9, d: 'M9,1 L1,22' });
+  });
+
+  it('prázdné/chybějící hodnoty → defaults', () => {
+    expect(readGlyph([])).toEqual({ o: 0, d: '' });
+    expect(readGlyph({})).toEqual({ o: 0, d: '' });
   });
 });
 

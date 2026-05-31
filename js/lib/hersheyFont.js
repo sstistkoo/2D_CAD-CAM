@@ -198,3 +198,6 @@ export function measureHersheyText(text, fontSize, fontName = DEFAULT_FONT) {
 
 // Zpětná kompatibilita
 export { futuralFont };
+
+// Internal exports for tests (nepoužívat v aplikačním kódu)
+export const __test__ = { parseHersheyD, readGlyph };
