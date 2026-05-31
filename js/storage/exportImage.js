@@ -6,6 +6,7 @@ import { state, showToast } from '../state.js';
 import { COLORS } from '../constants.js';
 import { bulgeToArc, exportFileName } from '../utils.js';
 import { buildMakerModel } from '../dxf.js';
+import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 
 // ── Pomocné funkce ──
 
@@ -114,11 +115,20 @@ function visibleObjects() {
 }
 
 /**
- * Export SVG přes Maker.js (sjednotně s DXF exportem). Y se NEneguje –
- * `toSVG` si osu Y obrátí sám a data jsou už Y-nahoru.
+ * Export SVG přes makerjs.exporter.toSVG. Y se NEneguje – `toSVG` si osu Y
+ * obrátí sám a data jsou už Y-nahoru.
+ *
+ * Pokud projekt obsahuje text a font ještě není načtený, čekáme na něj –
+ * text se pak v SVG vykreslí jako vektorové cesty (konzistentně s DXF
+ * exportem) místo Maker.js caption.
  */
-function exportSVG(background) {
+async function exportSVG(background) {
   const objs = visibleObjects();
+  const hasText = objs.some(o => o && o.type === 'text');
+  if (hasText && !isVectorTextAvailable()) {
+    try { await loadFont(); } catch (e) { /* fallback uvnitř objToMakerModel */ }
+  }
+
   const built = buildMakerModel(objs, {
     target: 'svg',
     getColor: (o) => getObjColor(o),
@@ -151,7 +161,8 @@ function exportSVG(background) {
   a.download = exportFileName('svg');
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('SVG exportováno');
+  const note = hasText && isVectorTextAvailable() ? ' (text → vektor)' : '';
+  showToast(`SVG exportováno${note}`);
 }
 
 // ── SVG Export (původní DOM generátor – fallback) ──
