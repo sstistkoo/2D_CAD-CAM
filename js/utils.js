@@ -586,6 +586,83 @@ export function deepClone(obj) {
   return structuredClone(obj);
 }
 
+// ── Zjednodušení polyline – odstranění kolineárních vrcholů ──
+/**
+ * Vrátí novou polylinu se zachovanými poli `vertices` a `bulges`, kde se
+ * odstranily vrcholy, jejichž okolí (předchozí, tento, následující) leží
+ * na společné přímce a oba sousední bulges jsou 0.
+ *
+ * Konzervativní: nikdy neodstraní vrchol, k němuž (nebo z něj) vede oblouk.
+ * Iteruje až do stabilního stavu, takže odstraní i řetězce kolineárních
+ * vrcholů (typický výstup `combineUnion` dvou sousedních obdélníků).
+ *
+ * @param {{vertices:{x:number,y:number}[], bulges?:number[], closed?:boolean}} poly
+ * @param {number} [tolerance=1e-6]  maximální vzdálenost bodu od přímky (mm)
+ * @returns {{vertices:{x:number,y:number}[], bulges:number[], closed:boolean}}
+ */
+export function simplifyPolyline(poly, tolerance = 1e-6) {
+  if (!poly || !Array.isArray(poly.vertices) || poly.vertices.length < 3) {
+    return {
+      vertices: (poly && poly.vertices) ? poly.vertices.slice() : [],
+      bulges: (poly && poly.bulges) ? poly.bulges.slice() : [],
+      closed: !!(poly && poly.closed),
+    };
+  }
+  const closed = !!poly.closed;
+  let verts = poly.vertices.slice();
+  let bulges = (poly.bulges || verts.map(() => 0)).slice();
+  if (bulges.length < verts.length) {
+    while (bulges.length < verts.length) bulges.push(0);
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const n = verts.length;
+    if (n < 3) break;
+    const keep = new Array(n).fill(true);
+    const startIdx = closed ? 0 : 1;
+    const endIdx = closed ? n : n - 1;
+
+    for (let i = startIdx; i < endIdx; i++) {
+      // Najdi nejbližší zachovaný předchůdce (pokud iterujeme po více vrcholech)
+      let prevIdx = (i - 1 + n) % n;
+      while (!keep[prevIdx] && prevIdx !== i) prevIdx = (prevIdx - 1 + n) % n;
+      const nextIdx = (i + 1) % n;
+      // Sousední bulges (incoming = bulges[prevIdx], outgoing = bulges[i])
+      const bIncoming = bulges[prevIdx] || 0;
+      const bOutgoing = bulges[i] || 0;
+      if (bIncoming !== 0 || bOutgoing !== 0) continue;
+
+      const p1 = verts[prevIdx], p2 = verts[i], p3 = verts[nextIdx];
+      const dx = p3.x - p1.x, dy = p3.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len < tolerance) continue; // zhroucené – raději zachovat
+      // Perpendicular distance od p2 k přímce p1-p3
+      const dist = Math.abs((p2.x - p1.x) * dy - (p2.y - p1.y) * dx) / len;
+      if (dist < tolerance) {
+        keep[i] = false;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      const newVerts = [];
+      const newBulges = [];
+      for (let i = 0; i < n; i++) {
+        if (keep[i]) {
+          newVerts.push(verts[i]);
+          newBulges.push(bulges[i] || 0);
+        }
+      }
+      verts = newVerts;
+      bulges = newBulges;
+    }
+  }
+
+  return { vertices: verts, bulges, closed };
+}
+
 // ── Dynamický název exportovaného souboru ──
 /**
  * Sestaví název souboru ve formátu SKICA_[název_projektu]_[YYYYMMDD].ext

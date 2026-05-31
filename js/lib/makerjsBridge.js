@@ -8,7 +8,13 @@
 //     polylinu s bulges (chord-úsečky + tan(sweep/4) pro oblouky).
 //   - chainToPolyline(chain) – low-level: jeden řetězec → polylina
 //
+// Výsledné polyliny se automaticky zjednoduší (kolineární vrcholy mezi
+// dvěma úsečkami se odeberou) – konzistentní výstup pro boolean, gear,
+// slot, polygon, star.
+//
 // Pozn. k ose Y: SKICA i Maker.js používají Y-nahoru, takže se nic neneguje.
+
+import { simplifyPolyline } from '../utils.js';
 
 /**
  * Převede Maker.js model na pole SKICA polylines (každý uzavřený chain → 1).
@@ -91,5 +97,5 @@ export function chainToPolyline(chain) {
     }
   }
 
-  return { vertices, bulges, closed: !!chain.endless };
+  return simplifyPolyline({ vertices, bulges, closed: !!chain.endless });
 }
