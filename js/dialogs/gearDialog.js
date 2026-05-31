@@ -192,6 +192,10 @@ export function showGearDialog(onConfirm) {
         <input data-id="grefcircles" type="checkbox" checked>
         <span data-id="greflabel">Přidat referenční kružnice</span>
       </label>
+      <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px 18px;font-size:13px;cursor:pointer" title="Přidá textové popisky průměrů (Ø) ke každé kružnici" data-id="gdimrow">
+        <input data-id="gdimensions" type="checkbox">
+        <span>Přidat kóty průměrů</span>
+      </label>
 
       <details style="margin:8px 0;font-size:12px;color:var(--ctp-subtext0)">
         <summary style="cursor:pointer;font-weight:bold">ℹ️ Nápověda</summary>
@@ -218,6 +222,16 @@ export function showGearDialog(onConfirm) {
   const helpDiv = overlay.querySelector('[data-id="ghelp"]');
   const refRow = overlay.querySelector('[data-id="grefrow"]');
   const refLabel = overlay.querySelector('[data-id="greflabel"]');
+  const dimRow = overlay.querySelector('[data-id="gdimrow"]');
+  const refCb = overlay.querySelector('[data-id="grefcircles"]');
+
+  // Skrýt kóty když nejsou ref kružnice (kóty patří k nim)
+  function syncDimRow() {
+    if (!dimRow) return;
+    const canShow = refRow.style.display !== 'none' && (refCb ? refCb.checked : true);
+    dimRow.style.display = canShow ? 'flex' : 'none';
+  }
+  if (refCb) refCb.addEventListener('change', syncDimRow);
 
   /** Aktuální typ */
   let currentType = 'spur';
@@ -252,6 +266,7 @@ export function showGearDialog(onConfirm) {
     } else {
       refRow.style.display = 'none';
     }
+    syncDimRow();
 
     wireInputs();
     recalculate();
@@ -365,6 +380,8 @@ export function showGearDialog(onConfirm) {
   overlay.querySelector('.gear-btn-draw').addEventListener('click', () => {
     const refCircles = overlay.querySelector('[data-id="grefcircles"]');
     const addRefCircles = refCircles ? refCircles.checked : false;
+    const dimsEl = overlay.querySelector('[data-id="gdimensions"]');
+    const addDimensions = !!(dimsEl && dimsEl.checked);
 
     switch (currentType) {
       case 'spur': {
@@ -375,7 +392,7 @@ export function showGearDialog(onConfirm) {
         const steps = parseInt(fieldsDiv.querySelector('[data-id="gsteps"]').value);
         if (!m || m <= 0 || !z || z < 6) { alert('Modul > 0, zuby ≥ 6'); return; }
         overlay.remove();
-        onConfirm({ gearType: 'spur', m, z, alpha, x: xVal, steps, addRefCircles });
+        onConfirm({ gearType: 'spur', m, z, alpha, x: xVal, steps, addRefCircles, addDimensions });
         return;
       }
       case 'internal': {
@@ -386,7 +403,7 @@ export function showGearDialog(onConfirm) {
         const steps = parseInt(fieldsDiv.querySelector('[data-id="gsteps"]').value);
         if (!m || m <= 0 || !z || z < 18) { alert('Modul > 0, zuby ≥ 18'); return; }
         overlay.remove();
-        onConfirm({ gearType: 'internal', m, z, alpha, x: xVal, steps, addRefCircles });
+        onConfirm({ gearType: 'internal', m, z, alpha, x: xVal, steps, addRefCircles, addDimensions });
         return;
       }
       case 'rack': {
@@ -406,7 +423,7 @@ export function showGearDialog(onConfirm) {
         const steps = parseInt(fieldsDiv.querySelector('[data-id="gsteps"]').value);
         if (!pCh || pCh <= 0 || !z || z < 7 || !d1 || d1 <= 0) { alert('Rozteč > 0, zuby ≥ 7, průměr válečku > 0'); return; }
         overlay.remove();
-        onConfirm({ gearType: 'sprocket', pChain: pCh, z, d1, steps, addRefCircles });
+        onConfirm({ gearType: 'sprocket', pChain: pCh, z, d1, steps, addRefCircles, addDimensions });
         return;
       }
     }
