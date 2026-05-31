@@ -495,9 +495,11 @@ export async function showLibraryDialog() {
 }
 
 // ── Tlačítka ──
-document.getElementById("btnSave").addEventListener("click", saveProject);
+document.getElementById("btnSave")?.addEventListener("click", saveProject);
 document.getElementById("btnProjects")?.addEventListener("click", () => showProjectsDialog());
 document.getElementById("btnLibrary")?.addEventListener("click", () => showLibraryDialog());
 
 import { bridge } from '../bridge.js';
 bridge.showProjectsDialog = showProjectsDialog;
+bridge.saveProject = saveProject;
+bridge.showLibraryDialog = showLibraryDialog;

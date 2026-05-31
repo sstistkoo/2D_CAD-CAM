@@ -1253,7 +1253,7 @@ body {
   left: 8px;
   right: 8px;
   z-index: 60;
-  grid-template-columns: 48px 1fr 48px 48px 1fr 48px;
+  grid-template-columns: 48px 1fr 48px 48px 1fr 24px 1fr 48px;
   justify-items: center;
   align-items: center;
   pointer-events: none;
@@ -1292,6 +1292,17 @@ body {
 #mobileMeasure.active {
   background: var(--ctp-green);
   box-shadow: 0 0 14px #a6e3a166;
+}
+
+#mobileBottomBar > #mobileSettings {
+  grid-column: 6;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  background: var(--ctp-surface2);
+  color: var(--ctp-text);
+  line-height: 24px;
+  padding: 0;
 }
 
 #mobileAutoCenter {
@@ -1561,7 +1572,7 @@ body {
 
 
 #mobileSidebarToggle {
-  grid-column: 6;
+  grid-column: 8;
   background: var(--ctp-green);
   color: var(--ctp-base);
 }
@@ -1996,6 +2007,12 @@ body {
   }
 
   #mobileMeasure {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #mobileSettings {
     display: flex;
     align-items: center;
     justify-content: center;

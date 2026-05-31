@@ -291,7 +291,7 @@ function convertSimDxfToSkica(data) {
 }
 
 // ── Tlačítko Soubor (overlay) ──
-document.getElementById("btnLoad").addEventListener("click", () => {
+export function showFileDialog() {
   const overlay = document.createElement("div");
   overlay.className = "input-overlay";
   overlay.innerHTML = `
@@ -337,7 +337,9 @@ document.getElementById("btnLoad").addEventListener("click", () => {
     overlay.remove();
     showExportImageDialog();
   });
-});
+}
+document.getElementById("btnLoad")?.addEventListener("click", showFileDialog);
+bridge.showFileDialog = showFileDialog;
 
 // ── CNC Export ──
 function runCncExport() {

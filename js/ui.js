@@ -2480,7 +2480,7 @@ document.getElementById("btnClearAll").addEventListener("click", async () => {
 });
 
 // ── Historie smazaných výkresů ──
-document.getElementById("btnHistory").addEventListener("click", async () => {
+async function showHistoryDialog() {
   let history = (await getMeta('deletedHistory')) || [];
   if (history.length === 0) {
     showToast("Žádné smazané výkresy v historii");
@@ -2597,7 +2597,8 @@ document.getElementById("btnHistory").addEventListener("click", async () => {
     });
   }
   attachHistoryListeners();
-});
+}
+document.getElementById("btnHistory")?.addEventListener("click", showHistoryDialog);
 
 // ── Kalkulačka – clipboard schránka ──
 let _calcClipboardValue = null;
@@ -3735,11 +3736,19 @@ function showSettingsDialog() {
     <div style="display:flex;flex-direction:column;gap:10px;min-width:300px;max-width:420px">
 
       <!-- Projekty a export – zabalovací -->
-      <details style="border:1px solid var(--ctp-surface1);border-radius:6px;margin:0;background:var(--ctp-mantle)">
+      <details open style="border:1px solid var(--ctp-surface1);border-radius:6px;margin:0;background:var(--ctp-mantle)">
         <summary style="padding:6px 10px;cursor:pointer;font-size:12px;color:var(--ctp-blue);font-weight:600;user-select:none;list-style:none;display:flex;align-items:center;gap:4px">
-          <span id="settProjArrow" style="transition:transform .2s;display:inline-block">▸</span> 📂 Projekty a export
+          <span id="settProjArrow" style="transition:transform .2s;display:inline-block;transform:rotate(90deg)">▸</span> 📂 Projekty a export
         </summary>
         <div style="padding:4px 10px 8px;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;gap:6px">
+            <button class="calc-btn" id="settSave" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Uložit projekt do prohlížeče">💾 Uložit</button>
+            <button class="calc-btn" id="settLoad" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Načíst / Uložit (soubory)">📂 Soubor</button>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="calc-btn" id="settHistory" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Historie smazaných výkresů">🕓 Historie</button>
+            <button class="calc-btn" id="settLibrary" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Knihovna výkresů">📚 Knihovna</button>
+          </div>
           <div style="display:flex;gap:6px">
             <button class="calc-btn" id="settProjects" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📁 Projekty</button>
             <button class="calc-btn" id="settCNC" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📋 CNC Export</button>
@@ -4076,6 +4085,30 @@ function showSettingsDialog() {
     });
   });
 
+  // ── Uložit ──
+  overlay.querySelector('#settSave').addEventListener('click', () => {
+    overlay.remove();
+    if (bridge.saveProject) bridge.saveProject();
+  });
+
+  // ── Soubor (načíst/uložit) ──
+  overlay.querySelector('#settLoad').addEventListener('click', () => {
+    overlay.remove();
+    if (bridge.showFileDialog) bridge.showFileDialog();
+  });
+
+  // ── Historie ──
+  overlay.querySelector('#settHistory').addEventListener('click', () => {
+    overlay.remove();
+    showHistoryDialog();
+  });
+
+  // ── Knihovna ──
+  overlay.querySelector('#settLibrary').addEventListener('click', () => {
+    overlay.remove();
+    if (bridge.showLibraryDialog) bridge.showLibraryDialog();
+  });
+
   // ── Projekty ──
   overlay.querySelector('#settProjects').addEventListener('click', () => {
     overlay.remove();
@@ -4166,4 +4199,5 @@ function showSettingsDialog() {
 }
 
 document.getElementById('btnSettings')?.addEventListener('click', showSettingsDialog);
+document.getElementById('mobileSettings')?.addEventListener('click', showSettingsDialog);
 

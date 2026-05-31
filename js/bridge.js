@@ -35,4 +35,8 @@ export const bridge = {
   linearArrayFromSelection: null,
   circularArrayFromSelection: null,
   copyPlaceFromSelection: null,
+  saveProject: null,
+  showFileDialog: null,
+  showLibraryDialog: null,
+  showProjectsDialog: null,
 };
