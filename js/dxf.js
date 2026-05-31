@@ -99,18 +99,23 @@ function parsePairs(text) {
   return pairs;
 }
 
-// Najdi sekci ENTITIES v DXF párech
-function findEntitiesSection(pairs) {
+// Najdi sekci v DXF párech podle jména (např. 'ENTITIES', 'BLOCKS')
+function findSection(pairs, sectionName) {
   let start = -1;
   for (let i = 0; i < pairs.length; i++) {
-    if (pairs[i].code === 2 && pairs[i].value === 'ENTITIES') {
+    if (pairs[i].code === 2 && pairs[i].value === sectionName && start < 0) {
       start = i + 1;
+      continue;
     }
     if (start >= 0 && pairs[i].code === 0 && pairs[i].value === 'ENDSEC') {
       return { start, end: i };
     }
   }
   return null;
+}
+
+function findEntitiesSection(pairs) {
+  return findSection(pairs, 'ENTITIES');
 }
 
 // ── Tessellace ELLIPSE → polyline (nebo arc/circle pro ratio≈1) ──
@@ -414,9 +419,216 @@ function parseEntity(type, data) {
     case 'SPLINE':
       return { _multi: tessellateSpline(data, color) };
 
+    case '3DFACE':
+      return parse3DFace(data, color);
+
     default:
       return null;
   }
+}
+
+/**
+ * Parsuje DXF 3DFACE (3 nebo 4 rohy, Z se ignoruje pro 2D projekci).
+ * Rohy: 10/20 (1), 11/21 (2), 12/22 (3), 13/23 (4).
+ * Pokud roh 4 == roh 3, je to trojúhelník.
+ * Vrátí uzavřenou polylinu (3 nebo 4 vrcholy) v rovině XY.
+ */
+function parse3DFace(data, color) {
+  const corners = [];
+  const codes = [[10, 20], [11, 21], [12, 22], [13, 23]];
+  for (const [cx, cy] of codes) {
+    const xRaw = data.find(p => p.code === cx);
+    const yRaw = data.find(p => p.code === cy);
+    if (xRaw === undefined || yRaw === undefined) continue;
+    corners.push({ x: safeFloat(xRaw.value), y: safeFloat(yRaw.value) });
+  }
+  if (corners.length < 3) return null;
+  // Pokud 4. roh == 3. roh → trojúhelník
+  const isTriangle = corners.length >= 4 &&
+    Math.abs(corners[3].x - corners[2].x) < 1e-9 &&
+    Math.abs(corners[3].y - corners[2].y) < 1e-9;
+  const vertices = isTriangle ? corners.slice(0, 3) : corners;
+  return {
+    type: 'polyline',
+    vertices,
+    bulges: vertices.map(() => 0),
+    closed: true,
+    color,
+  };
+}
+
+/**
+ * Parsuje BLOCKS sekci DXF souboru a vrátí mapu jméno → seznam entit.
+ * Každý blok začíná `0 BLOCK`, končí `0 ENDBLK`, mezi tím obsahuje
+ * sub-entity ve stejném formátu jako ENTITIES sekce.
+ *
+ * @param {Array<{code:number, value:string}>} pairs
+ * @returns {Object<string, object[]>}  mapa jméno bloku → SKICA entity
+ */
+function parseBlocks(pairs) {
+  const blocks = {};
+  const section = findSection(pairs, 'BLOCKS');
+  if (!section) return blocks;
+
+  let i = section.start;
+  while (i < section.end) {
+    if (pairs[i].code !== 0) { i++; continue; }
+    if (pairs[i].value !== 'BLOCK') { i++; continue; }
+    i++;
+
+    // Sbírej hlavičku bloku (jméno, base point) až do prvního dalšího kódu 0
+    const headerData = [];
+    while (i < section.end && pairs[i].code !== 0) {
+      headerData.push(pairs[i]);
+      i++;
+    }
+    const name = headerData.find(p => p.code === 2)?.value || '';
+    const baseX = safeFloat(headerData.find(p => p.code === 10)?.value);
+    const baseY = safeFloat(headerData.find(p => p.code === 20)?.value);
+
+    // Sbírej entity bloku až do ENDBLK
+    const subEntities = [];
+    while (i < section.end) {
+      if (pairs[i].code !== 0) { i++; continue; }
+      const t = pairs[i].value;
+      i++;
+      if (t === 'ENDBLK') {
+        while (i < section.end && pairs[i].code !== 0) i++;
+        break;
+      }
+      const entityData = [];
+      while (i < section.end && pairs[i].code !== 0) {
+        entityData.push(pairs[i]);
+        i++;
+      }
+      // Použij stejný parseEntity – v bloku NEpodporujeme nested INSERT
+      // (rekurze by mohla být nekonečná u špatně sestaveného DXF).
+      const obj = parseEntity(t, entityData);
+      if (obj) {
+        if (obj._multi) subEntities.push(...obj._multi);
+        else subEntities.push(obj);
+      }
+    }
+    if (name) blocks[name] = { entities: subEntities, baseX, baseY };
+  }
+  return blocks;
+}
+
+/**
+ * Aplikuje translaci, rotaci a měřítko na bod (relativně k 0,0 bloku).
+ * Pořadí transformací: scale → rotate → translate (= matrix M = T·R·S).
+ */
+function transformPoint(x, y, t) {
+  const sx = x * t.sx;
+  const sy = y * t.sy;
+  const rx = sx * t.cos - sy * t.sin;
+  const ry = sx * t.sin + sy * t.cos;
+  return { x: rx + t.tx, y: ry + t.ty };
+}
+
+/**
+ * Transformuje SKICA entitu (deep copy) přes danou transformaci.
+ * Podporované typy: point, line, circle, arc, polyline, text, rect.
+ * Pro circle/arc se škálování projeví v poloměru (uniformní – průměr
+ * z absolutních hodnot sx, sy; v praxi vždy sx===sy u většiny DXF).
+ */
+function transformEntity(obj, t) {
+  const pt = (x, y) => transformPoint(x, y, t);
+  switch (obj.type) {
+    case 'point': {
+      const p = pt(obj.x, obj.y);
+      return { ...obj, x: p.x, y: p.y };
+    }
+    case 'line':
+    case 'constr': {
+      const a = pt(obj.x1, obj.y1);
+      const b = pt(obj.x2, obj.y2);
+      return { ...obj, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+    }
+    case 'circle': {
+      const c = pt(obj.cx, obj.cy);
+      const r = obj.r * (Math.abs(t.sx) + Math.abs(t.sy)) / 2;
+      return { ...obj, cx: c.x, cy: c.y, r };
+    }
+    case 'arc': {
+      const c = pt(obj.cx, obj.cy);
+      const r = obj.r * (Math.abs(t.sx) + Math.abs(t.sy)) / 2;
+      const rot = Math.atan2(t.sin, t.cos);
+      return {
+        ...obj, cx: c.x, cy: c.y, r,
+        startAngle: obj.startAngle + rot,
+        endAngle: obj.endAngle + rot,
+      };
+    }
+    case 'rect': {
+      const a = pt(obj.x1, obj.y1);
+      const b = pt(obj.x2, obj.y2);
+      return { ...obj, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+    }
+    case 'polyline': {
+      const vertices = (obj.vertices || []).map(v => pt(v.x, v.y));
+      return { ...obj, vertices, bulges: (obj.bulges || []).slice() };
+    }
+    case 'text': {
+      const p = pt(obj.x, obj.y);
+      const rot = Math.atan2(t.sin, t.cos);
+      return {
+        ...obj, x: p.x, y: p.y,
+        rotation: (obj.rotation || 0) + rot,
+        fontSize: (obj.fontSize || 14) * Math.abs(t.sy),
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Expanduje DXF INSERT entitu: pro každý "blokový" výskyt vytvoří
+ * transformované kopie všech entit bloku. Podporuje arrays (rows×cols).
+ *
+ * @param {object[]} data        skupinové kódy entity INSERT
+ * @param {Object} blocks        mapa bloků
+ * @returns {object[]}           pole SKICA entit (může být prázdné)
+ */
+function expandInsert(data, blocks) {
+  const name = data.find(p => p.code === 2)?.value;
+  if (!name || !blocks[name]) return [];
+  const block = blocks[name];
+  const ix = safeFloat(data.find(p => p.code === 10)?.value);
+  const iy = safeFloat(data.find(p => p.code === 20)?.value);
+  const sxRaw = data.find(p => p.code === 41);
+  const syRaw = data.find(p => p.code === 42);
+  const sx = sxRaw !== undefined ? safeFloat(sxRaw.value) : 1;
+  const sy = syRaw !== undefined ? safeFloat(syRaw.value) : 1;
+  const rotDeg = safeFloat(data.find(p => p.code === 50)?.value);
+  const rotRad = rotDeg * DEG2RAD;
+  const cols = parseInt(data.find(p => p.code === 70)?.value || '1', 10);
+  const rows = parseInt(data.find(p => p.code === 71)?.value || '1', 10);
+  const colSpacing = safeFloat(data.find(p => p.code === 44)?.value);
+  const rowSpacing = safeFloat(data.find(p => p.code === 45)?.value);
+
+  // Base point bloku se odečítá při klonování – DXF konvence
+  const out = [];
+  for (let r = 0; r < Math.max(1, rows); r++) {
+    for (let c = 0; c < Math.max(1, cols); c++) {
+      const t = {
+        sx, sy,
+        cos: Math.cos(rotRad),
+        sin: Math.sin(rotRad),
+        tx: ix + c * colSpacing,
+        ty: iy + r * rowSpacing,
+      };
+      for (const e of block.entities) {
+        // Posun o -base, pak transformace
+        const shifted = transformEntity(e, { sx: 1, sy: 1, cos: 1, sin: 0, tx: -block.baseX, ty: -block.baseY });
+        if (!shifted) continue;
+        const final = transformEntity(shifted, t);
+        if (final) out.push(final);
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -425,7 +637,9 @@ function parseEntity(type, data) {
  *   POINT, LINE, CIRCLE, ARC, LWPOLYLINE, POLYLINE (heavy),
  *   TEXT, MTEXT,
  *   ELLIPSE (ratio=1 → circle/arc, jinak polyline aproximace),
- *   SPLINE (de Boor evaluace B-spline / NURBS, fallback na fit body).
+ *   SPLINE (de Boor evaluace B-spline / NURBS, fallback na fit body),
+ *   3DFACE (3/4 rohy → uzavřená polylina v rovině XY),
+ *   INSERT (expanze BLOCK definice s translací/rotací/měřítkem; arrays).
  * @param {string} text
  * @returns {import('./types.js').DXFParseResult}
  */
@@ -434,6 +648,8 @@ export function parseDXF(text) {
   const errors = [];
 
   const pairs = parsePairs(text);
+  // BLOCKS sekce se parsuje předem, aby INSERT entity uměly expandovat
+  const blocks = parseBlocks(pairs);
   const section = findEntitiesSection(pairs);
 
   if (!section) {
@@ -507,6 +723,25 @@ export function parseDXF(text) {
   // ── Druhý průchod: parsuj normální entity ──
   for (const { entityType, entityData } of rawEntities) {
     if (entityType === 'LWPOLYLINE' && entityData.length === 0) continue; // heavy polyline already processed
+
+    // INSERT: expanduj blok do entit s transformací
+    if (entityType === 'INSERT') {
+      const expanded = expandInsert(entityData, blocks);
+      if (expanded.length === 0) {
+        const name = entityData.find(p => p.code === 2)?.value || '?';
+        errors.push(`INSERT '${name}': blok není definovaný nebo prázdný`);
+        continue;
+      }
+      for (const e of expanded) {
+        entities.push(e);
+        if (entities.length >= MAX_ENTITIES) break;
+      }
+      if (entities.length >= MAX_ENTITIES) {
+        errors.push(`Dosažen limit ${MAX_ENTITIES} entit, zbytek ignorován`);
+        break;
+      }
+      continue;
+    }
 
     const obj = parseEntity(entityType, entityData);
     if (obj) {
