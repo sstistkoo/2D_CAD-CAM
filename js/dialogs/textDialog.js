@@ -4,6 +4,7 @@
 
 import { makeOverlay } from '../dialogFactory.js';
 import { state } from '../state.js';
+import { listHersheyFonts } from '../lib/hersheyFont.js';
 
 /** Escape HTML pro bezpečné vložení uživatelského textu */
 function escHTML(str) {
@@ -62,6 +63,7 @@ export function showTextDialog(opts, onConfirm) {
     pathOffset: 2,
     letterSpacing: 0,
     hershey: false,
+    hersheyFont: 'futural',
     ...opts,
   };
 
@@ -139,11 +141,21 @@ export function showTextDialog(opts, onConfirm) {
         </label>
       </div>
 
-      <label class="cnc-field" style="flex-direction:row;align-items:center;gap:8px;margin-top:6px;background:var(--ctp-surface0);padding:6px 8px;border-radius:4px"
-        title="Vytvoří text jako sadu otevřených polylines (single-stroke), kde každé písmeno má 1+ tahů středovou čarou. Vhodné pro CNC gravuru jedním průchodem nástroje – výstup je entitou v plánu, kterou lze přímo frézovat.">
-        <input data-id="txt-hershey" type="checkbox" ${defaults.hershey ? 'checked' : ''}>
-        <span style="font-weight:bold">✏️ Single-line pro CNC gravuru (Hershey)</span>
-      </label>
+      <div style="margin-top:6px;background:var(--ctp-surface0);padding:6px 8px;border-radius:4px">
+        <label class="cnc-field" style="flex-direction:row;align-items:center;gap:8px"
+          title="Vytvoří text jako sadu otevřených polylines (single-stroke), kde každé písmeno má 1+ tahů středovou čarou. Vhodné pro CNC gravuru jedním průchodem nástroje.">
+          <input data-id="txt-hershey" type="checkbox" ${defaults.hershey ? 'checked' : ''}>
+          <span style="font-weight:bold">✏️ Single-line pro CNC gravuru (Hershey)</span>
+        </label>
+        <label class="cnc-field" data-id="txt-hershey-font-wrap" style="display:${defaults.hershey ? 'flex' : 'none'};flex-direction:column;gap:3px;margin-top:6px">
+          <span style="font-size:12px">Hershey font</span>
+          <select data-id="txt-hershey-font">
+            ${listHersheyFonts().map(f =>
+              `<option value="${f.id}" ${defaults.hersheyFont === f.id ? 'selected' : ''}>${f.label}</option>`
+            ).join('')}
+          </select>
+        </label>
+      </div>
 
       <hr style="border-color:var(--ctp-surface1);margin:8px 0">
 
@@ -199,6 +211,16 @@ export function showTextDialog(opts, onConfirm) {
   const elPathOffset = overlay.querySelector('[data-id="txt-pathoffset"]');
   const elPathOffsetWrap = overlay.querySelector('[data-id="txt-pathoffset-wrap"]');
   const elPreview = overlay.querySelector('[data-id="txt-preview"]');
+  const elHershey = overlay.querySelector('[data-id="txt-hershey"]');
+  const elHersheyFont = overlay.querySelector('[data-id="txt-hershey-font"]');
+  const elHersheyFontWrap = overlay.querySelector('[data-id="txt-hershey-font-wrap"]');
+
+  // Show/hide font dropdown podle stavu Hershey checkboxu
+  if (elHershey && elHersheyFontWrap) {
+    elHershey.addEventListener('change', () => {
+      elHersheyFontWrap.style.display = elHershey.checked ? 'flex' : 'none';
+    });
+  }
 
   let currentAlign = defaults.textAlign;
 
@@ -265,7 +287,6 @@ export function showTextDialog(opts, onConfirm) {
       elText.style.borderColor = 'var(--ctp-red)';
       return;
     }
-    const elHershey = overlay.querySelector('[data-id="txt-hershey"]');
     const result = {
       text,
       fontSize: parseFloat(elSize.value) || 14,
@@ -279,6 +300,7 @@ export function showTextDialog(opts, onConfirm) {
       pathObjectId: elPathMode.value !== 'none' && elPathObj.value ? parseInt(elPathObj.value, 10) : null,
       pathOffset: parseFloat(elPathOffset.value) || 0,
       hershey: !!(elHershey && elHershey.checked),
+      hersheyFont: elHersheyFont ? elHersheyFont.value : 'futural',
     };
     overlay.remove();
     onConfirm(result);

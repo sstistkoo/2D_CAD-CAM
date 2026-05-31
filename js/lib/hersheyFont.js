@@ -1,38 +1,63 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  SKICA – Hershey single-line font pro CNC gravuru          ║
+// ║  SKICA – Hershey single-line fonty pro CNC gravuru         ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Renderuje text jako pole SKICA polylines (otevřené, single-stroke).
 // Každé písmeno má jeden nebo více tahů — frézka projíždí každý tah
 // jedním průchodem, žádný vnější/vnitřní obrys jako u outline fontů.
 //
-// Hershey font „futural" (Sans 1-stroke) je ASCII 32–126 (95 znaků).
-// Souřadnice jsou v Hershey jednotkách (~21 jednotek na výšku majuskule),
-// Y dolů. Pro SKICA Y-up se Y neguje.
+// Dostupné fonty (každý ASCII 33–126):
+//   - 'futural' (Sans, default)
+//   - 'futuram' (Sans bold)
+//   - 'timesr'  (Serif)
+//   - 'scripts' (Handwriting script)
+//
+// Souřadnice glyphů jsou v Hershey jednotkách (~21 jednotek na výšku
+// kapitálky), Y dolů. Pro SKICA Y-up se Y neguje při renderingu.
 
 import futuralFont from './hershey/futural.json' with { type: 'json' };
+import futuramFont from './hershey/futuram.json' with { type: 'json' };
+import timesrFont  from './hershey/timesr.json'  with { type: 'json' };
+import scriptsFont from './hershey/scripts.json' with { type: 'json' };
+
+// Registry dostupných fontů + jejich UI labelů
+const FONTS = {
+  futural: { font: futuralFont, label: 'Sans 1-stroke' },
+  futuram: { font: futuramFont, label: 'Sans bold' },
+  timesr:  { font: timesrFont,  label: 'Serif' },
+  scripts: { font: scriptsFont, label: 'Script' },
+};
+const DEFAULT_FONT = 'futural';
+
+/** @returns {Array<{id:string, label:string}>} */
+export function listHersheyFonts() {
+  return Object.entries(FONTS).map(([id, v]) => ({ id, label: v.label }));
+}
+
+function getFontData(fontName) {
+  return (FONTS[fontName] && FONTS[fontName].font) || FONTS[DEFAULT_FONT].font;
+}
 
 // Měřítko: typická výška kapitálky v Hershey ≈ 21 jednotek → požadovaný fontSize
 const HERSHEY_CAP_HEIGHT = 21;
 // Hershey kerning multiplier (převod glyph.o → reálný advance v Hershey jednotkách).
-// Originál hersheytextjs používá 1.68 pro Hershey fonty (1.0 pro SVG fonty).
+// Originál hersheytextjs používá 1.68 pro Hershey fonty.
 const HERSHEY_ADVANCE_MULT = 1.68;
+// Šířka mezery v Hershey jednotkách (mezera nemá vlastní glyph,
+// futural používá ~10 jednotek = polovina běžné kapitálky).
+const SPACE_ADVANCE = 10 * HERSHEY_ADVANCE_MULT;
 
 /**
  * Parsuje Hershey `d` string (mini SVG-path) na pole tahů.
  * Format: "M x,y L x,y x,y M x,y L x,y" – M začíná nový tah, L pokračuje.
- * Implicitní lineTo: za posledním souřadnicovým páerem mohou následovat
- * další páry bez explicitního L.
+ * M/L může být prefix přímo nalepený na souřadnice (např. "M9,1").
  *
- * @returns {Array<Array<{x:number, y:number}>>} pole tahů, každý = pole bodů
+ * @returns {Array<Array<{x:number, y:number}>>}
  */
 function parseHersheyD(d) {
   if (!d) return [];
   const strokes = [];
   let current = null;
-  // Hershey tokens jsou např. "M9,1" / "L1,22" / "17,22" – M/L může být
-  // prefix přímo nalepený na souřadnice. Rozdělíme bíkém znakem a pro
-  // každý token zjistíme příkaz a hodnoty.
   const tokens = d.split(/\s+/).filter(t => t.length > 0);
   for (const tok of tokens) {
     let cmd = '';
@@ -54,34 +79,20 @@ function parseHersheyD(d) {
   return strokes.filter(s => s.length >= 2);
 }
 
-// Šířka mezery v Hershey jednotkách (mezera nemá vlastní glyph,
-// futural používá ~10 jednotek = polovina běžné kapitálky).
-const SPACE_ADVANCE = 10 * HERSHEY_ADVANCE_MULT;
-
 /**
- * Renderuje jeden znak (ASCII 33–126) na pole SKICA polylines.
- * Mapování: `chars[code - 33]` (Hershey začíná na ASCII 33 = '!'),
- * mezera (ASCII 32) se řeší separátně. Souřadnice jsou v Hershey
- * jednotkách relativně ke středu glyphu (X=0) a baseline (Y=0).
- * Y se neguje (Hershey má Y dolů).
- *
- * @param {string} char        jeden ASCII znak
- * @returns {{strokes:Array<Array<{x:number,y:number}>>, advance:number}}
- *           advance = šířka glyphu v Hershey jednotkách (= 2 × o)
+ * Renderuje jeden znak z daného fontu na pole tahů.
+ * Mapování: `chars[ASCII - 33]` (Hershey začíná na '!'), mezera (32) se
+ * řeší separátně. Y se neguje (Hershey má Y dolů).
  */
-function renderGlyph(char) {
+function renderGlyph(char, fontData) {
   const code = char.charCodeAt(0);
   if (code === 32) return { strokes: [], advance: SPACE_ADVANCE };
   if (code < 33 || code > 126) return { strokes: [], advance: 0 };
-  const glyph = futuralFont.chars[code - 33];
+  const glyph = fontData.chars[code - 33];
   if (!glyph) return { strokes: [], advance: 0 };
   const strokes = parseHersheyD(glyph.d).map(stroke =>
-    stroke.map(p => ({ x: p.x, y: -p.y })),  // Hershey Y-dolů → Y-up
+    stroke.map(p => ({ x: p.x, y: -p.y })),
   );
-  // Reálný advance je `o * 1.68` (kerning multiplier použitý v originál
-  // hersheytextjs). Glyph se posune o cursorX bez dalšího centrování –
-  // souřadnice glyphu jsou již položené tak, že sousední znaky jen mírně
-  // překrývají v očekávané kerning oblasti.
   const advance = (glyph.o || 0) * HERSHEY_ADVANCE_MULT;
   return { strokes, advance };
 }
@@ -95,10 +106,12 @@ function renderGlyph(char) {
  * @param {number} cx            X počátku (levý okraj prvního znaku)
  * @param {number} cy            Y baseline
  * @param {number} [rotation=0]  rotace okolo (cx, cy) v radiánech
+ * @param {string} [fontName='futural']  id fontu (viz listHersheyFonts)
  * @returns {Array<{vertices:{x:number,y:number}[], bulges:number[], closed:boolean}>}
  */
-export function renderHersheyText(text, fontSize, cx = 0, cy = 0, rotation = 0) {
+export function renderHersheyText(text, fontSize, cx = 0, cy = 0, rotation = 0, fontName = DEFAULT_FONT) {
   if (!text || !fontSize) return [];
+  const fontData = getFontData(fontName);
   const scale = fontSize / HERSHEY_CAP_HEIGHT;
   const cosR = Math.cos(rotation);
   const sinR = Math.sin(rotation);
@@ -106,19 +119,13 @@ export function renderHersheyText(text, fontSize, cx = 0, cy = 0, rotation = 0) 
 
   let cursorX = 0;
   for (const ch of String(text)) {
-    if (ch === '\n') {
-      // Nový řádek: posun dolů o 1.4 × fontSize, cursor reset
-      // (zatím nepodporujeme – jednoduchý single-line text)
-      continue;
-    }
-    const { strokes, advance } = renderGlyph(ch);
+    if (ch === '\n') continue; // newlines zatím nepodporujeme
+    const { strokes, advance } = renderGlyph(ch, fontData);
     for (const stroke of strokes) {
       if (stroke.length < 2) continue;
       const vertices = stroke.map(p => {
-        // Glyph souřadnice jsou v Hershey jednotkách; posun glyphu = cursorX.
         const localX = p.x * scale + cursorX;
         const localY = p.y * scale;
-        // Rotace okolo (0,0) a translace na (cx, cy)
         const rx = localX * cosR - localY * sinR;
         const ry = localX * sinR + localY * cosR;
         return { x: cx + rx, y: cy + ry };
@@ -138,8 +145,9 @@ export function renderHersheyText(text, fontSize, cx = 0, cy = 0, rotation = 0) 
  * Spočítá rozměry vykresleného textu (bez vytváření polyline objektů).
  * @returns {{width:number, height:number}}
  */
-export function measureHersheyText(text, fontSize) {
+export function measureHersheyText(text, fontSize, fontName = DEFAULT_FONT) {
   if (!text || !fontSize) return { width: 0, height: fontSize || 0 };
+  const fontData = getFontData(fontName);
   const scale = fontSize / HERSHEY_CAP_HEIGHT;
   let width = 0;
   for (const ch of String(text)) {
@@ -147,10 +155,11 @@ export function measureHersheyText(text, fontSize) {
     const code = ch.charCodeAt(0);
     if (code === 32) { width += SPACE_ADVANCE * scale; continue; }
     if (code < 33 || code > 126) continue;
-    const glyph = futuralFont.chars[code - 33];
+    const glyph = fontData.chars[code - 33];
     if (glyph) width += (glyph.o || 0) * HERSHEY_ADVANCE_MULT * scale;
   }
   return { width, height: fontSize };
 }
 
+// Zpětná kompatibilita
 export { futuralFont };

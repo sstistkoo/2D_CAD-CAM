@@ -52,7 +52,9 @@ export function handleTextClick(wx, wy) {
     if (result.hershey) {
       // Single-line CNC gravura: vyrenderovat text jako sadu otevřených
       // polylines (každé písmeno 1+ tahů středovou čarou).
-      const polys = renderHersheyText(result.text, result.fontSize, wx, wy, result.rotation);
+      const polys = renderHersheyText(
+        result.text, result.fontSize, wx, wy, result.rotation, result.hersheyFont,
+      );
       if (polys.length === 0) {
         showToast('Hershey font nezná žádný znak v zadaném textu');
         return;

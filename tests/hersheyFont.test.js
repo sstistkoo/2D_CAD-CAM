@@ -3,7 +3,7 @@
 // mezery, rotaci, neznámé znaky.
 
 import { describe, it, expect } from 'vitest';
-import { renderHersheyText, measureHersheyText } from '../js/lib/hersheyFont.js';
+import { renderHersheyText, measureHersheyText, listHersheyFonts } from '../js/lib/hersheyFont.js';
 
 describe('renderHersheyText – základní rendering', () => {
   it('písmeno A má 3 tahy (levá noha, pravá noha, příčka)', () => {
@@ -96,6 +96,54 @@ describe('renderHersheyText – rotace', () => {
     const normMaxX = Math.max(...norm.flatMap(p => p.vertices.map(v => v.x)));
     const rotMaxY = Math.max(...rot.flatMap(p => p.vertices.map(v => v.y)));
     expect(rotMaxY).toBeCloseTo(normMaxX, 1);
+  });
+});
+
+describe('Multi-font podpora', () => {
+  it('listHersheyFonts vrátí >= 4 fonty', () => {
+    const fonts = listHersheyFonts();
+    expect(fonts.length).toBeGreaterThanOrEqual(4);
+    const ids = fonts.map(f => f.id);
+    expect(ids).toContain('futural');
+    expect(ids).toContain('futuram');
+    expect(ids).toContain('timesr');
+    expect(ids).toContain('scripts');
+  });
+
+  it('každý font vyrobí glyfy pro velká písmena', () => {
+    for (const f of listHersheyFonts()) {
+      const polys = renderHersheyText('ABC', 10, 0, 0, 0, f.id);
+      expect(polys.length, `font ${f.id} 'ABC'`).toBeGreaterThan(0);
+    }
+  });
+
+  it('různé fonty produkují různé výsledky pro stejný text', () => {
+    const a = renderHersheyText('AB', 10, 0, 0, 0, 'futural');
+    const b = renderHersheyText('AB', 10, 0, 0, 0, 'timesr');
+    // Liší se počet tahů nebo počet vrcholů
+    const aTotal = a.reduce((s, p) => s + p.vertices.length, 0);
+    const bTotal = b.reduce((s, p) => s + p.vertices.length, 0);
+    expect(a.length !== b.length || aTotal !== bTotal).toBe(true);
+  });
+
+  it('neznámý font → fallback na default (futural)', () => {
+    const unknown = renderHersheyText('A', 10, 0, 0, 0, 'nonexistent');
+    const def = renderHersheyText('A', 10, 0, 0, 0, 'futural');
+    expect(unknown.length).toBe(def.length);
+  });
+
+  it('measureHersheyText respektuje volbu fontu', () => {
+    const wFuturem = measureHersheyText('TEST', 10, 'futural').width;
+    const wTimesr = measureHersheyText('TEST', 10, 'timesr').width;
+    expect(wFuturem).toBeGreaterThan(0);
+    expect(wTimesr).toBeGreaterThan(0);
+    // Šířky se obvykle liší (různý kerning per font)
+  });
+
+  it('bez parametru fontName se chová jako futural', () => {
+    const a = renderHersheyText('A', 10);
+    const b = renderHersheyText('A', 10, 0, 0, 0, 'futural');
+    expect(a.length).toBe(b.length);
   });
 });
 
