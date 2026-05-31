@@ -113,7 +113,7 @@ function findEntitiesSection(pairs) {
   return null;
 }
 
-// ── Tessellace ELLIPSE na obloukové/úsečkové segmenty ──
+// ── Tessellace ELLIPSE → polyline (nebo arc/circle pro ratio≈1) ──
 function tessellateEllipse(data, color) {
   const cx = safeFloat(data.find(p => p.code === 10)?.value);
   const cy = safeFloat(data.find(p => p.code === 20)?.value);
@@ -122,75 +122,197 @@ function tessellateEllipse(data, color) {
   const my = safeFloat(data.find(p => p.code === 21)?.value);
   const ratio = safeFloat(data.find(p => p.code === 40)?.value) || 1;
   const startParam = safeFloat(data.find(p => p.code === 41)?.value);
-  const endParam = safeFloat(data.find(p => p.code === 42)?.value) || (2 * Math.PI);
+  const endParamRaw = data.find(p => p.code === 42)?.value;
+  const endParam = endParamRaw !== undefined ? safeFloat(endParamRaw) : (2 * Math.PI);
 
   const a = Math.sqrt(mx * mx + my * my); // hlavní poloosa
   const b = a * ratio; // vedlejší poloosa
   const rot = Math.atan2(my, mx); // rotace elipsy
+  if (a <= 0) return [];
 
-  // Pokud je ratio ≈ 1, je to kružnice/oblouk
-  if (Math.abs(ratio - 1) < 0.001) {
-    const isFullCircle = Math.abs(endParam - startParam - 2 * Math.PI) < 0.01 ||
-                         Math.abs(endParam - startParam) < 0.01;
-    if (isFullCircle) {
-      return [{ type: 'circle', cx, cy, r: a, color }];
-    }
+  // Pokud je ratio ≈ 1, je to kružnice/oblouk (nativní SKICA entity).
+  if (Math.abs(ratio - 1) < 1e-3) {
+    const isFullCircle = Math.abs(endParam - startParam - 2 * Math.PI) < 1e-3;
+    if (isFullCircle) return [{ type: 'circle', cx, cy, r: a, color }];
     return [{
       type: 'arc', cx, cy, r: a,
       startAngle: startParam + rot,
       endAngle: endParam + rot,
-      color
+      color,
     }];
   }
 
-  // Tessellace na úsečky
-  const segments = Math.max(32, Math.round(a * 4));
-  const step = (endParam - startParam) / segments;
-  const results = [];
-  for (let i = 0; i < segments; i++) {
-    const t1 = startParam + i * step;
-    const t2 = startParam + (i + 1) * step;
-    const cos1 = Math.cos(t1), sin1 = Math.sin(t1);
-    const cos2 = Math.cos(t2), sin2 = Math.sin(t2);
-    const cosR = Math.cos(rot), sinR = Math.sin(rot);
-    results.push({
-      type: 'line',
-      x1: cx + a * cos1 * cosR - b * sin1 * sinR,
-      y1: cy + a * cos1 * sinR + b * sin1 * cosR,
-      x2: cx + a * cos2 * cosR - b * sin2 * sinR,
-      y2: cy + a * cos2 * sinR + b * sin2 * cosR,
-      color
+  // Skutečná elipsa → polyline (chord aproximace, dle delší poloosy).
+  // Adaptivní vzorkování: minimálně 64 segmentů, víc pro velké elipsy.
+  let sweep = endParam - startParam;
+  while (sweep <= 0) sweep += 2 * Math.PI;
+  const isClosed = Math.abs(sweep - 2 * Math.PI) < 1e-3;
+  const segments = Math.max(32, Math.ceil(a * 4 * (sweep / (2 * Math.PI))));
+  const cosR = Math.cos(rot), sinR = Math.sin(rot);
+  const vertices = [];
+  // Pro uzavřenou elipsu nepřidávat duplicitní koncový bod
+  const stepCount = isClosed ? segments : segments + 1;
+  for (let i = 0; i < stepCount; i++) {
+    const t = startParam + (i / segments) * sweep;
+    const ct = Math.cos(t), st = Math.sin(t);
+    vertices.push({
+      x: cx + a * ct * cosR - b * st * sinR,
+      y: cy + a * ct * sinR + b * st * cosR,
     });
   }
-  return results;
+  return [{
+    type: 'polyline',
+    vertices,
+    bulges: vertices.map(() => 0),
+    closed: isClosed,
+    color,
+  }];
 }
 
-// ── Tessellace SPLINE na úsečky ──
+// ── Tessellace SPLINE → polyline (de Boor algoritmus) ──
+//
+// DXF SPLINE entity (skupinové kódy):
+//   70 = flags (1=closed, 2=periodic, 4=rational, 8=planar, 16=linear)
+//   71 = stupeň (degree, typicky 3)
+//   72 = počet uzlů (knots)
+//   73 = počet řídicích bodů (control points)
+//   74 = počet fit bodů
+//   40 = hodnoty uzlů (opakované, počet daný 72)
+//   41 = váhy (opakované pro rational spline, počet daný 73)
+//   10/20 = řídicí body (počet daný 73)
+//   11/21 = fit body (počet daný 74)
 function tessellateSpline(data, color) {
-  // Sbírej řídicí body (kód 10/20) a fit body (kód 11/21)
+  let degree = 3;
+  let flags = 0;
+  const knots = [];
+  const weights = [];
   const controlPts = [];
   const fitPts = [];
+
   for (const p of data) {
-    if (p.code === 10) controlPts.push({ x: safeFloat(p.value), y: 0 });
-    else if (p.code === 20 && controlPts.length > 0) controlPts[controlPts.length - 1].y = safeFloat(p.value);
-    else if (p.code === 11) fitPts.push({ x: safeFloat(p.value), y: 0 });
-    else if (p.code === 21 && fitPts.length > 0) fitPts[fitPts.length - 1].y = safeFloat(p.value);
+    switch (p.code) {
+      case 70: flags = parseInt(p.value, 10) || 0; break;
+      case 71: degree = parseInt(p.value, 10) || 3; break;
+      case 40: knots.push(safeFloat(p.value)); break;
+      case 41: weights.push(safeFloat(p.value)); break;
+      case 10: controlPts.push({ x: safeFloat(p.value), y: 0 }); break;
+      case 20:
+        if (controlPts.length > 0) controlPts[controlPts.length - 1].y = safeFloat(p.value);
+        break;
+      case 11: fitPts.push({ x: safeFloat(p.value), y: 0 }); break;
+      case 21:
+        if (fitPts.length > 0) fitPts[fitPts.length - 1].y = safeFloat(p.value);
+        break;
+      default: break;
+    }
   }
 
-  // Preferuj fit body (přesnější aproximace), jinak řídicí body
-  const pts = fitPts.length >= 2 ? fitPts : controlPts;
-  if (pts.length < 2) return [];
-
-  const results = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    results.push({
-      type: 'line',
-      x1: pts[i].x, y1: pts[i].y,
-      x2: pts[i + 1].x, y2: pts[i + 1].y,
-      color
-    });
+  // Fallback: žádné control body → pokud máme fit body, použij je jako lomenou
+  // čáru (real spline z fit bodů by potřeboval interpolaci, což je nad rámec).
+  if (controlPts.length === 0) {
+    if (fitPts.length < 2) return [];
+    return [{
+      type: 'polyline',
+      vertices: fitPts,
+      bulges: fitPts.map(() => 0),
+      closed: false,
+      color,
+    }];
   }
-  return results;
+
+  const n = controlPts.length;
+  if (n < 2) return [];
+
+  // Sanity: degree nesmí být víc než n-1
+  if (degree > n - 1) degree = n - 1;
+
+  // Pokud chybí knots, vyrobíme uniformní clamped knot vector
+  if (knots.length === 0) {
+    for (let i = 0; i <= n + degree; i++) {
+      knots.push(i < degree + 1 ? 0 : i > n - 1 ? n - degree : i - degree);
+    }
+  }
+
+  // Rational spline: pokud máme weights, použij je; jinak všechny 1
+  const w = (weights.length === n) ? weights : controlPts.map(() => 1);
+  const closed = !!(flags & 1);
+
+  // Vzorkování: ~16 bodů na řídicí bod, minimálně 64.
+  const samples = Math.max(64, n * 16);
+  const tMin = knots[degree];
+  const tMax = knots[n];
+  const span = tMax - tMin;
+  if (!Number.isFinite(span) || span <= 0) {
+    // Degenerovaný knot vector – fallback na lomenou čáru přes control points
+    return [{
+      type: 'polyline',
+      vertices: controlPts,
+      bulges: controlPts.map(() => 0),
+      closed,
+      color,
+    }];
+  }
+
+  const vertices = [];
+  for (let s = 0; s <= samples; s++) {
+    const t = tMin + (s / samples) * span;
+    const pt = deBoor(t, degree, knots, controlPts, w);
+    if (pt) vertices.push(pt);
+  }
+  if (vertices.length < 2) return [];
+
+  return [{
+    type: 'polyline',
+    vertices,
+    bulges: vertices.map(() => 0),
+    closed,
+    color,
+  }];
+}
+
+/**
+ * de Boor algoritmus pro evaluaci (rational) B-spline v parametru t.
+ * Vrací bod {x,y} nebo null pokud t je mimo rozsah knot vektoru.
+ */
+function deBoor(t, p, knots, ctrl, weights) {
+  const n = ctrl.length;
+  // Najdi knot interval k: knots[k] <= t < knots[k+1]
+  let k = -1;
+  for (let i = p; i < n; i++) {
+    if (t >= knots[i] && t <= knots[i + 1]) { k = i; break; }
+  }
+  if (k < 0) {
+    // Edge case: t = tMax → použij poslední validní interval
+    if (Math.abs(t - knots[n]) < 1e-9) k = n - 1;
+    else return null;
+  }
+
+  // Inicializace homogenních souřadnic [w·x, w·y, w]
+  const dx = new Array(p + 1);
+  const dy = new Array(p + 1);
+  const dw = new Array(p + 1);
+  for (let j = 0; j <= p; j++) {
+    const idx = k - p + j;
+    if (idx < 0 || idx >= n) return null;
+    dw[j] = weights[idx];
+    dx[j] = ctrl[idx].x * dw[j];
+    dy[j] = ctrl[idx].y * dw[j];
+  }
+
+  // de Boor iterace
+  for (let r = 1; r <= p; r++) {
+    for (let j = p; j >= r; j--) {
+      const i = k - p + j;
+      const denom = knots[i + p - r + 1] - knots[i];
+      const alpha = denom === 0 ? 0 : (t - knots[i]) / denom;
+      dx[j] = (1 - alpha) * dx[j - 1] + alpha * dx[j];
+      dy[j] = (1 - alpha) * dy[j - 1] + alpha * dy[j];
+      dw[j] = (1 - alpha) * dw[j - 1] + alpha * dw[j];
+    }
+  }
+
+  if (dw[p] === 0) return null;
+  return { x: dx[p] / dw[p], y: dy[p] / dw[p] };
 }
 
 // Parsuj jednu DXF entitu → SKICA objekt(y)
@@ -299,8 +421,11 @@ function parseEntity(type, data) {
 
 /**
  * Parsuje DXF text a vrací entity.
- * Podporuje: POINT, LINE, CIRCLE, ARC, LWPOLYLINE, POLYLINE (heavy),
- *            TEXT, MTEXT, ELLIPSE (tessellace), SPLINE (tessellace)
+ * Podporuje:
+ *   POINT, LINE, CIRCLE, ARC, LWPOLYLINE, POLYLINE (heavy),
+ *   TEXT, MTEXT,
+ *   ELLIPSE (ratio=1 → circle/arc, jinak polyline aproximace),
+ *   SPLINE (de Boor evaluace B-spline / NURBS, fallback na fit body).
  * @param {string} text
  * @returns {import('./types.js').DXFParseResult}
  */

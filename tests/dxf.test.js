@@ -665,7 +665,7 @@ describe('parseDXF – TEXT/MTEXT', () => {
 // ── ELLIPSE import (tessellace) ──
 // ════════════════════════════════════════
 describe('parseDXF – ELLIPSE', () => {
-  it('tesselluje elipsu na úsečky', () => {
+  it('tesselluje elipsu na polylinu (uzavřenou)', () => {
     const dxf = makeDXF([
       '0', 'ELLIPSE',
       '10', '0', '20', '0',
@@ -675,8 +675,10 @@ describe('parseDXF – ELLIPSE', () => {
     ]);
     const { entities, errors } = parseDXF(dxf);
     expect(errors).toHaveLength(0);
-    expect(entities.length).toBeGreaterThan(10);
-    expect(entities[0].type).toBe('line');
+    expect(entities).toHaveLength(1);
+    expect(entities[0].type).toBe('polyline');
+    expect(entities[0].closed).toBe(true);
+    expect(entities[0].vertices.length).toBeGreaterThanOrEqual(32);
   });
 
   it('elipsa s ratio ≈ 1 → kružnice', () => {
@@ -698,7 +700,10 @@ describe('parseDXF – ELLIPSE', () => {
 // ── SPLINE import (tessellace) ──
 // ════════════════════════════════════════
 describe('parseDXF – SPLINE', () => {
-  it('tesselluje spline na úsečky z řídicích bodů', () => {
+  it('tesselluje spline na polylinu přes de Boor', () => {
+    // 3 control body bez knot vektoru → použije se default uniformní clamped
+    // knot vector pro degree=3 (degraduje na n-1=2). První a poslední vrchol
+    // odpovídají prvnímu/poslednímu řídicímu bodu.
     const dxf = makeDXF([
       '0', 'SPLINE',
       '10', '0', '20', '0',
@@ -707,14 +712,16 @@ describe('parseDXF – SPLINE', () => {
     ]);
     const { entities, errors } = parseDXF(dxf);
     expect(errors).toHaveLength(0);
-    expect(entities).toHaveLength(2);
-    expect(entities[0].type).toBe('line');
-    expect(entities[0].x1).toBe(0);
-    expect(entities[0].x2).toBe(10);
-    expect(entities[1].x2).toBe(20);
+    expect(entities).toHaveLength(1);
+    const poly = entities[0];
+    expect(poly.type).toBe('polyline');
+    expect(poly.vertices[0].x).toBeCloseTo(0, 1);
+    expect(poly.vertices[poly.vertices.length - 1].x).toBeCloseTo(20, 1);
   });
 
-  it('preferuje fit body před řídicími body', () => {
+  it('preferuje řídicí body (control) před fit body', () => {
+    // Nová implementace upřednostňuje skutečné control body, protože
+    // fit body jsou jen informativní (zápis návrhu, ne primární geometrie).
     const dxf = makeDXF([
       '0', 'SPLINE',
       '10', '0', '20', '0',
@@ -724,11 +731,12 @@ describe('parseDXF – SPLINE', () => {
       '11', '20', '21', '0',
     ]);
     const { entities } = parseDXF(dxf);
-    expect(entities).toHaveLength(2);
-    // Fit body (kód 11): 0→10→20
-    expect(entities[0].x1).toBe(0);
-    expect(entities[0].x2).toBe(10);
-    expect(entities[1].x2).toBe(20);
+    expect(entities).toHaveLength(1);
+    const poly = entities[0];
+    expect(poly.type).toBe('polyline');
+    // Krajní body odpovídají řídicím (0 a 50), ne fit (0 a 20)
+    expect(poly.vertices[0].x).toBeCloseTo(0, 1);
+    expect(poly.vertices[poly.vertices.length - 1].x).toBeCloseTo(50, 1);
   });
 
   it('spline s jedním bodem → žádné entity + varování', () => {
