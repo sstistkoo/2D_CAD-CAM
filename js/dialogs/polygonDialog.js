@@ -5,6 +5,25 @@
 import { makeOverlay } from '../dialogFactory.js';
 
 /**
+ * Pure validace parametrů pravidelného polygonu.
+ * @param {{sides:number, radius:number, firstAngle?:number, circumscribed?:boolean}} raw
+ * @returns {{error:string}|{params:{sides:number, radius:number, firstAngle:number, circumscribed:boolean}}}
+ */
+export function validatePolygonParams(raw) {
+  const sides = parseInt(raw?.sides, 10);
+  const radius = Number(raw?.radius);
+  const firstAngle = Number(raw?.firstAngle) || 0;
+  const circumscribed = !!raw?.circumscribed;
+  if (!Number.isFinite(sides) || sides < 3) {
+    return { error: 'Počet stran musí být ≥ 3' };
+  }
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return { error: 'Poloměr musí být > 0' };
+  }
+  return { params: { sides, radius, firstAngle, circumscribed } };
+}
+
+/**
  * @param {(params:{sides:number, radius:number, firstAngle:number, circumscribed:boolean}|null)=>void} onConfirm
  */
 export function showPolygonDialog(onConfirm) {
@@ -37,16 +56,19 @@ export function showPolygonDialog(onConfirm) {
   if (!overlay) return;
 
   overlay.querySelector('.poly-btn-draw').addEventListener('click', () => {
-    const sides = parseInt(overlay.querySelector('[data-id="sides"]').value, 10);
-    const radius = parseFloat(overlay.querySelector('[data-id="radius"]').value);
-    const firstAngle = parseFloat(overlay.querySelector('[data-id="firstAngle"]').value) || 0;
-    const circumscribed = overlay.querySelector('[data-id="circumscribed"]').checked;
-    if (!sides || sides < 3 || !radius || radius <= 0) {
-      alert('Strany ≥ 3 a poloměr > 0');
+    const raw = {
+      sides: parseInt(overlay.querySelector('[data-id="sides"]').value, 10),
+      radius: parseFloat(overlay.querySelector('[data-id="radius"]').value),
+      firstAngle: parseFloat(overlay.querySelector('[data-id="firstAngle"]').value),
+      circumscribed: overlay.querySelector('[data-id="circumscribed"]').checked,
+    };
+    const validated = validatePolygonParams(raw);
+    if (validated.error) {
+      alert(validated.error);
       return;
     }
     overlay.remove();
-    onConfirm({ sides, radius, firstAngle, circumscribed });
+    onConfirm(validated.params);
   });
   overlay.querySelector('.poly-btn-cancel').addEventListener('click', () => {
     overlay.remove();
