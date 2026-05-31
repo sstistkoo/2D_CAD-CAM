@@ -24,6 +24,7 @@ const DARK_COLORS = {
   surfaceHover:  '#45475a',
   border:        '#585b70',
   yellow:        '#f9e2af',
+  stock:         '#fab387',
 };
 
 // ── Catppuccin Latte – světlé barvy ─────────────────────────
@@ -48,6 +49,7 @@ const LIGHT_COLORS = {
   surfaceHover:  '#bcc0cc',
   border:        '#acb0be',
   yellow:        '#df8e1d',
+  stock:         '#fe640b',
 };
 
 export const COLORS = { ...DARK_COLORS };

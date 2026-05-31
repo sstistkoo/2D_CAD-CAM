@@ -443,16 +443,17 @@ function renderObjects() {
       && isDimConnectedToPoints(obj, state.selectedPoint);
     const isConstr = obj.type === "constr";
     const layerColor = layer ? layer.color : COLORS.primary;
+    const baseColor = obj.isStock ? COLORS.stock : (obj.color || layerColor);
     ctx.strokeStyle = (isSel || isConnectedDim)
       ? COLORS.selected
       : isConstr
         ? COLORS.construction
-        : obj.color || layerColor;
+        : baseColor;
     ctx.fillStyle = (isSel || isConnectedDim)
       ? COLORS.selected
       : isConstr
         ? COLORS.construction
-        : obj.color || layerColor;
+        : baseColor;
     ctx.lineWidth = (isSel || isConnectedDim) ? LINE_WIDTH_SELECTED : LINE_WIDTH;
     ctx.setLineDash(isConstr || obj.dashed ? CONSTRUCTION_DASH : []);
 
@@ -473,10 +474,10 @@ function renderObjects() {
         if (obj.showCenterMark) drawCenterMark(obj);
         break;
       case "rect":
-        drawRect(obj, isSel, obj.color || layerColor, idx);
+        drawRect(obj, isSel, baseColor, idx);
         break;
       case "polyline":
-        drawPolyline(obj, isSel, obj.color || layerColor, idx);
+        drawPolyline(obj, isSel, baseColor, idx);
         break;
       case "text":
         drawText(obj, isSel);

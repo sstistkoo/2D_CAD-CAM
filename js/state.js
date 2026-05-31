@@ -95,6 +95,8 @@ export const state = {
   snapMidpoints: false,
   // Snap body: středy kružnic/oblouků (i bulge segmentů polylinie)
   snapCenters: true,
+  // Režim kreslení polotovaru – nové objekty se značí isStock a kreslí se jinou barvou
+  drawStockMode: false,
   // Vrstvy
   layers: [
     { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },

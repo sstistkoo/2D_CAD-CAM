@@ -29,6 +29,11 @@ export function addObject(obj) {
   if (obj.layer === undefined) {
     obj.layer = (obj.type === 'constr') ? 1 : state.activeLayer;
   }
+  // Režim kreslení polotovaru – nové geometrické objekty se značí isStock
+  if (state.drawStockMode && !obj.isDimension && !obj.isCoordLabel
+      && obj.type !== 'constr' && obj.type !== 'text') {
+    obj.isStock = true;
+  }
   state.objects.push(obj);
   updateObjectList();
   calculateAllIntersections(); // Auto-přepočet průsečíků (volá renderAll)
@@ -47,6 +52,7 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
   pushUndo();
   const segments = [];
   const count = closed ? vertices.length : vertices.length - 1;
+  const stockTag = state.drawStockMode;
   for (let i = 0; i < count; i++) {
     const p1 = vertices[i];
     const p2 = vertices[(i + 1) % vertices.length];
@@ -81,6 +87,7 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
     }
 
     if (obj) {
+      if (stockTag) obj.isStock = true;
       state.objects.push(obj);
       segments.push(obj);
     }
@@ -105,6 +112,7 @@ export function addRectAsSegments(x1, y1, x2, y2) {
     { x: x2, y: y2 },
     { x: x1, y: y2 },
   ];
+  const stockTag = state.drawStockMode;
   const lines = [];
   for (let i = 0; i < 4; i++) {
     const p1 = corners[i];
@@ -118,6 +126,7 @@ export function addRectAsSegments(x1, y1, x2, y2) {
       id,
       layer: state.activeLayer,
     };
+    if (stockTag) obj.isStock = true;
     state.objects.push(obj);
     lines.push(obj);
   }

@@ -1856,6 +1856,18 @@ document.getElementById("btnDelLayer").addEventListener("click", () => {
   showToast("Vrstva smazána, objekty přesunuty na vrstvu Kontura");
 });
 
+// ── Polotovar (stock) drawing mode toggle ──
+const btnDrawStock = document.getElementById("btnDrawStock");
+if (btnDrawStock) {
+  btnDrawStock.addEventListener("click", () => {
+    state.drawStockMode = !state.drawStockMode;
+    btnDrawStock.classList.toggle("active", state.drawStockMode);
+    showToast(state.drawStockMode
+      ? "Režim polotovaru zapnut – nové objekty budou jiné barvy"
+      : "Režim polotovaru vypnut");
+  });
+}
+
 // ── Toolbar ──
 document.querySelectorAll("[data-tool]").forEach((btn) => {
   btn.addEventListener("click", () => {
