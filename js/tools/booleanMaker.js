@@ -14,9 +14,21 @@ import { getMaker, objToMakerModel } from '../dxf.js';
  * @param {object} objA  první uzavřený tvar (circle | rect | polyline.closed)
  * @param {object} objB  druhý uzavřený tvar
  * @param {'union'|'subtract'|'intersect'} operation
- * @returns {object[]|null}  pole výsledných SKICA objektů, nebo null při selhání
+ * @returns {object[]|null}  pole výsledných SKICA objektů, [] pro identické
+ *                            vstupy / prázdný výsledek, null při selhání Maker.js
  */
 export function booleanCombine(objA, objB, operation) {
+  // Defenziva: validní uzavřené tvary (degenerované polyliny zahazujeme)
+  if (!isValidClosedShape(objA) || !isValidClosedShape(objB)) return [];
+
+  // Geometricky identické tvary – combine v Maker.js si s nimi neporadí.
+  // A − A = 0, A ∪ A = A, A ∩ A = A. První řeším explicitně.
+  if (geometrySignature(objA) === geometrySignature(objB)) {
+    if (operation === 'subtract') return [];
+    // Pro union/intersect vrátím kopii vstupu se zděděnými vlajkami.
+    return [{ ...cloneAsPolyline(objA), ...inheritFlags(objA, objB) }];
+  }
+
   const mk = getMaker();
   if (!mk) return null;
 
@@ -24,7 +36,6 @@ export function booleanCombine(objA, objB, operation) {
   const modelB = objToMakerModel(objB, mk);
   if (!modelA || !modelB) return null;
 
-  // Zabalit do plnohodnotných modelů (combine očekává `models.*` / `paths.*`)
   const wrapA = { models: { a: modelA } };
   const wrapB = { models: { b: modelB } };
 
@@ -42,23 +53,95 @@ export function booleanCombine(objA, objB, operation) {
   }
   if (!result) return null;
 
-  return chainsToSkicaObjects(mk, result, objA);
+  return chainsToSkicaObjects(mk, result, objA, objB);
+}
+
+/** Zkontroluje, že tvar je uzavřený a má smysluplnou geometrii. */
+function isValidClosedShape(obj) {
+  if (!obj) return false;
+  if (obj.type === 'circle') return obj.r > 0;
+  if (obj.type === 'rect') return obj.x1 !== obj.x2 && obj.y1 !== obj.y2;
+  if (obj.type === 'polyline') {
+    return !!obj.closed && Array.isArray(obj.vertices) && obj.vertices.length >= 3;
+  }
+  return false;
 }
 
 /**
- * Najde všechny řetězce v Maker.js modelu a převede je na SKICA polyliny
- * (uzavřené, s bulges). Otevřené řetězce se vrátí jako neuzavřené polyliny.
- *
- * @param {object} mk     Maker.js instance
- * @param {object} model  Maker.js model po combine
- * @param {object} ref    referenční SKICA objekt (pro dědění layer/color)
+ * Spočítá deterministický řetězec popisující geometrii tvaru
+ * (bez metadat jako id/name/layer). Identické tvary mají stejnou signaturu.
  */
-function chainsToSkicaObjects(mk, model, ref) {
+function geometrySignature(obj) {
+  const r = (n) => Number(n).toFixed(6);
+  switch (obj.type) {
+    case 'circle':
+      return `c|${r(obj.cx)}|${r(obj.cy)}|${r(obj.r)}`;
+    case 'rect': {
+      const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
+      const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
+      return `r|${r(x1)}|${r(y1)}|${r(x2)}|${r(y2)}`;
+    }
+    case 'polyline': {
+      const vs = obj.vertices.map(v => `${r(v.x)},${r(v.y)}`).join(';');
+      const bs = (obj.bulges || []).map(b => r(b || 0)).join(';');
+      return `p|${obj.closed ? 1 : 0}|${vs}|${bs}`;
+    }
+    default:
+      return 't|' + obj.type;
+  }
+}
+
+/** Vytvoří kopii vstupu jako uzavřenou polylinu (pro union/intersect identických). */
+function cloneAsPolyline(obj) {
+  if (obj.type === 'polyline') {
+    return {
+      type: 'polyline',
+      vertices: obj.vertices.map(v => ({ x: v.x, y: v.y })),
+      bulges: (obj.bulges || []).slice(),
+      closed: true,
+    };
+  }
+  if (obj.type === 'circle') {
+    return {
+      type: 'polyline',
+      vertices: [{ x: obj.cx + obj.r, y: obj.cy }, { x: obj.cx - obj.r, y: obj.cy }],
+      bulges: [1, 1],
+      closed: true,
+    };
+  }
+  if (obj.type === 'rect') {
+    const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
+    const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
+    return {
+      type: 'polyline',
+      vertices: [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }],
+      bulges: [0, 0, 0, 0],
+      closed: true,
+    };
+  }
+  return null;
+}
+
+/**
+ * Sestaví objekt s děděnými vlajkami: layer/color z A, isStock = A || B,
+ * dashed/skipIntersections z A. Tím se zachová stock-flag při union dvou stocků
+ * a vizuální atributy zůstanou od „hlavního" objektu.
+ */
+function inheritFlags(objA, objB) {
+  const out = { layer: objA.layer };
+  if (objA.color) out.color = objA.color;
+  if (objA.dashed) out.dashed = true;
+  if (objA.skipIntersections) out.skipIntersections = true;
+  if (objA.isStock || objB.isStock) out.isStock = true;
+  return out;
+}
+
+/**
+ * Najde všechny řetězce v Maker.js modelu a převede je na SKICA polyliny.
+ */
+function chainsToSkicaObjects(mk, model, refA, refB) {
   const out = [];
-  const base = {
-    layer: ref.layer,
-    ...(ref.color ? { color: ref.color } : {}),
-  };
+  const base = inheritFlags(refA, refB);
 
   mk.model.findChains(model, (chains /*, loose, layer */) => {
     if (!chains) return;
@@ -90,7 +173,7 @@ function chainToPolyline(chain) {
       const r = path.radius;
       return {
         vertices: [{ x: cx + r, y: cy }, { x: cx - r, y: cy }],
-        bulges: [1, 1], // dva 180° oblouky (tan(180°/4)=1)
+        bulges: [1, 1],
         closed: true,
       };
     }
@@ -105,7 +188,7 @@ function chainToPolyline(chain) {
     const path = link.walkedPath.pathContext;
     const reversed = !!link.reversed;
     const ep = link.endPoints;
-    if (!ep) return null; // ochrana – běžné chainy mají endPoints
+    if (!ep) return null;
 
     const startPt = ep[reversed ? 1 : 0];
     vertices.push({ x: startPt[0], y: startPt[1] });

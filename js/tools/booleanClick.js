@@ -93,8 +93,10 @@ function _executeBooleanOp(idxA, idxB, objA, objB, operation) {
 
 function _isClosedShape(obj) {
   if (!obj) return false;
-  if (obj.type === 'circle') return true;
-  if (obj.type === 'rect') return true;
-  if (obj.type === 'polyline' && obj.closed) return true;
+  if (obj.type === 'circle') return obj.r > 0;
+  if (obj.type === 'rect') return obj.x1 !== obj.x2 && obj.y1 !== obj.y2;
+  if (obj.type === 'polyline') {
+    return !!obj.closed && Array.isArray(obj.vertices) && obj.vertices.length >= 3;
+  }
   return false;
 }
