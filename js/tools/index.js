@@ -23,6 +23,7 @@ export { handleRectClick } from './rectClick.js';
 export { handlePolylineClick } from './polylineClick.js';
 export { handleTextClick } from './textClick.js';
 export { handleGearClick, resetGearState } from './gearClick.js';
+export { handleGearPairClick, resetGearPairState } from './gearPairClick.js';
 export { handleSlotClick, resetSlotState } from './slotClick.js';
 export { handlePolygonClick, resetPolygonState } from './polygonClick.js';
 export { handleStarClick, resetStarState } from './starClick.js';
