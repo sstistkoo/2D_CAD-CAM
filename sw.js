@@ -56,6 +56,7 @@ const ASSETS = [
   './js/idb.js',
   './js/lib/browser.maker.js',
   './js/lib/dxf-parser.min.js',
+  './js/lib/makerjs-gear.js',
   './js/lib/jspdf.umd.min.js',
   './js/objects.js',
   './js/render.js',

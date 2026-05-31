@@ -3,6 +3,8 @@
 // ║          sprocket)                                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+import { InvoluteGear } from '../lib/makerjs-gear.js';
+
 /**
  * Vypočítá základní rozměry ozubeného kola.
  * @param {number} m  modul
@@ -44,109 +46,74 @@ function involuteAngleAt(rb, r) {
 }
 
 /**
- * Vygeneruje kompletní profil ozubeného kola jako pole vrcholů uzavřené polyline.
- * Používá polární souřadnice pro přesné umístění involut.
+ * Vygeneruje kompletní profil čelního ozubeného kola jako uzavřenou polyline.
  *
- * @param {number} m  modul
- * @param {number} z  počet zubů
+ * Geometrie se staví přes `makerjs.models.InvoluteGear` (plugin v
+ * `js/lib/makerjs-gear.js`). Model je sled úseček (boky evolventy) a oblouků
+ * (hlava + pata), který se převede na vertex/bulge formát SKICA.
+ *
+ * Pozn. k ose Y: SKICA uchovává souřadnice v Y-up konvenci (canvas si je
+ * pro vykreslení obrací sám), stejně jako Maker.js – proto se přebírají 1:1.
+ *
+ * @param {number} m      modul
+ * @param {number} z      počet zubů
  * @param {number} alpha  úhel záběru [°]
- * @param {number} x  koeficient posunutí
- * @param {number} steps  počet bodů na jednu stranu involuty
- * @param {number} cx  X středu
- * @param {number} cy  Y středu
+ * @param {number} x      korekce profilu
+ * @param {number} steps  počet úseček na bok evolventy
+ * @param {number} cx     X středu
+ * @param {number} cy     Y středu
  * @returns {{vertices: {x:number,y:number}[], bulges: number[]}}
  */
 export function generateFullGearProfile(m, z, alpha = 20, x = 0, steps = 20, cx = 0, cy = 0) {
   if (z < 1) return { vertices: [], bulges: [] };
-  const dim = calculateGearDimensions(m, z, alpha, x);
-  const { rp, rb, ra, rf, aRad } = dim;
 
-  const angularPitch = (2 * Math.PI) / z;
+  const gear = new InvoluteGear(
+    z,
+    Math.PI * m,    // circularPitch = π·m
+    alpha,
+    0,              // clearance
+    0,              // backlash
+    x,
+    steps,
+  );
 
-  // Polovina úhlové tloušťky zubu na roztečné kružnici
-  const halfThickAngle = (Math.PI + 4 * x * Math.tan(aRad)) / (2 * z);
+  return makerGearToPolyline(gear, cx, cy);
+}
 
-  // inv(α) na roztečném poloměru
-  const invAlpha = inv(aRad);
-
-  // Efektivní patní poloměr (ochrana proti záporným hodnotám)
-  const effRf = Math.max(rf, m * 0.1);
-
+/**
+ * Převede Maker.js model ozubeného kola (s `orderedPaths`) na vertex/bulge
+ * polylinu SKICA. Úsečky generují vrcholy s bulge = 0; oblouky vrcholy
+ * s bulge = tan(sweep/4) (Maker.js oblouky jsou vždy CCW → kladný bulge).
+ *
+ * @param {object} gear  instance modelu (musí mít `paths` a `orderedPaths`)
+ * @param {number} cx    posun středu X
+ * @param {number} cy    posun středu Y
+ * @returns {{vertices: {x:number,y:number}[], bulges: number[]}}
+ */
+function makerGearToPolyline(gear, cx, cy) {
+  const order = gear.orderedPaths || Object.keys(gear.paths);
   const vertices = [];
   const bulges = [];
 
-  /** Přidá vertex, pokud není duplicitní s předchozím */
-  function addVert(vx, vy, bulge) {
-    const n = vertices.length;
-    if (n > 0) {
-      const prev = vertices[n - 1];
-      const dx = vx - prev.x, dy = vy - prev.y;
-      if (dx * dx + dy * dy < 1e-10) return; // skip duplicitní bod
-    }
-    vertices.push({ x: vx, y: vy });
-    bulges.push(bulge);
-  }
-
-  for (let tooth = 0; tooth < z; tooth++) {
-    const tc = tooth * angularPitch;
-    const rightBase = tc - halfThickAngle - invAlpha;
-    const leftBase = tc + halfThickAngle + invAlpha;
-
-    // ── Parametry tip oblouku ──
-    const tipInv = involuteAngleAt(rb, ra);
-    const rightTipA = rightBase + tipInv;
-    const leftTipA = leftBase - tipInv;
-    let tipSweep = leftTipA - rightTipA;
-    while (tipSweep < 0) tipSweep += 2 * Math.PI;
-    const tipBulge = (tipSweep > 0.001 && tipSweep < angularPitch)
-      ? Math.tan(tipSweep / 4) : 0;
-
-    // ── Parametry root oblouku ──
-    const nextRightBase = ((tooth + 1) * angularPitch) - halfThickAngle - invAlpha;
-    const rootStartA = effRf < rb ? leftBase : leftBase - involuteAngleAt(rb, effRf);
-    const rootEndA = effRf < rb ? nextRightBase : nextRightBase + involuteAngleAt(rb, effRf);
-    let rootSweep = rootEndA - rootStartA;
-    while (rootSweep < 0) rootSweep += 2 * Math.PI;
-    const rootBulge = (rootSweep > 0.001 && rootSweep < angularPitch)
-      ? Math.tan(rootSweep / 4) : 0;
-
-    // ── Patní bod (pravá strana) ──
-    if (effRf < rb) {
-      addVert(cx + effRf * Math.cos(rightBase), cy + effRf * Math.sin(rightBase), 0);
-    }
-
-    // ── Pravá involuta (od základní kružnice k hlavové) ──
-    for (let i = 0; i <= steps; i++) {
-      const r = rb + (ra - rb) * (i / steps);
-      const ia = involuteAngleAt(rb, r);
-      const a = rightBase + ia;
-      // Poslední bod dostane tip bulge (oblouk k levé involutě)
-      const b = (i === steps) ? tipBulge : 0;
-      addVert(cx + r * Math.cos(a), cy + r * Math.sin(a), b);
-    }
-
-    // ── Levá involuta (od hlavové kružnice zpět k základní) ──
-    for (let i = steps; i >= 0; i--) {
-      const r = rb + (ra - rb) * (i / steps);
-      const ia = involuteAngleAt(rb, r);
-      const a = leftBase - ia;
-      addVert(cx + r * Math.cos(a), cy + r * Math.sin(a), 0);
-    }
-
-    // ── Patní přechod s root bulge ──
-    if (effRf < rb) {
-      // Patní bod levá strana – oblouk k dalšímu zubu
-      addVert(cx + effRf * Math.cos(leftBase), cy + effRf * Math.sin(leftBase), rootBulge);
+  for (let i = 0; i < order.length; i++) {
+    const p = gear.paths[order[i]];
+    if (!p) continue;
+    if (p.type === 'line') {
+      vertices.push({ x: cx + p.origin[0], y: cy + p.origin[1] });
+      bulges.push(0);
     } else {
-      // effRf >= rb: explicitní body na patní kružnici
-      addVert(cx + effRf * Math.cos(rootStartA), cy + effRf * Math.sin(rootStartA), rootBulge);
-      addVert(cx + effRf * Math.cos(rootEndA), cy + effRf * Math.sin(rootEndA), 0);
+      // Arc: start point = origin + r·(cos s, sin s); bulge z rozpětí CCW oblouku.
+      const sRad = p.startAngle * Math.PI / 180;
+      const sx = p.origin[0] + p.radius * Math.cos(sRad);
+      const sy = p.origin[1] + p.radius * Math.sin(sRad);
+      let sweepDeg = p.endAngle - p.startAngle;
+      while (sweepDeg <= 0) sweepDeg += 360;
+      while (sweepDeg > 360) sweepDeg -= 360;
+      const sweepRad = sweepDeg * Math.PI / 180;
+      vertices.push({ x: cx + sx, y: cy + sy });
+      bulges.push(Math.tan(sweepRad / 4));
     }
   }
-
-  // Pro uzavřenou polyline: bulges.length === vertices.length
-  while (bulges.length > vertices.length) bulges.pop();
-  while (bulges.length < vertices.length) bulges.push(0);
 
   return { vertices, bulges };
 }
