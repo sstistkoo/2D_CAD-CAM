@@ -549,7 +549,7 @@ export function exportDXF(objects, layers) {
 //   zrcadlově převrátily oproti tomu, co je na plátně.
 
 /** Vrátí globální instanci Maker.js (z lokálního bundlu) nebo null. */
-function getMaker() {
+export function getMaker() {
   if (typeof window === 'undefined') return null;
   if (window.makerjs) return window.makerjs;
   try {
@@ -604,7 +604,7 @@ function polylineToMaker(obj, mk) {
 }
 
 /** Převede jeden SKICA objekt na Maker.js model/path. Bez negace Y. */
-function objToMakerModel(obj, mk) {
+export function objToMakerModel(obj, mk) {
   switch (obj.type) {
     case 'point': {
       // Maker.js nemá POINT entitu → malý křížek (dvě úsečky)

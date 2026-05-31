@@ -69,6 +69,7 @@ const ASSETS = [
   './js/tools/anchorClick.js',
   './js/tools/arcClick.js',
   './js/tools/booleanClick.js',
+  './js/tools/booleanMaker.js',
   './js/tools/breakClick.js',
   './js/tools/centerMarkClick.js',
   './js/tools/circleClick.js',
