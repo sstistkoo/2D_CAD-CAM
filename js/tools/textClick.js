@@ -7,6 +7,7 @@ import { addObject } from '../objects.js';
 import { COLORS } from '../constants.js';
 import { showTextDialog } from '../dialogs/textDialog.js';
 import { findObjectAt } from '../geometry.js';
+import { renderHersheyText } from '../lib/hersheyFont.js';
 
 /**
  * Kliknutí při aktivním nástroji "text".
@@ -48,6 +49,29 @@ export function handleTextClick(wx, wy) {
   }
 
   showTextDialog(dialogOpts, (result) => {
+    if (result.hershey) {
+      // Single-line CNC gravura: vyrenderovat text jako sadu otevřených
+      // polylines (každé písmeno 1+ tahů středovou čarou).
+      const polys = renderHersheyText(result.text, result.fontSize, wx, wy, result.rotation);
+      if (polys.length === 0) {
+        showToast('Hershey font nezná žádný znak v zadaném textu');
+        return;
+      }
+      const baseName = `Gravura "${result.text.substring(0, 16)}"`;
+      polys.forEach((p, i) => {
+        addObject({
+          type: 'polyline',
+          vertices: p.vertices,
+          bulges: p.bulges,
+          closed: false,
+          name: polys.length === 1 ? baseName : `${baseName} #${i + 1}`,
+          color: COLORS.textSecondary,
+        });
+      });
+      showToast(`Gravura: ${polys.length} tah${polys.length === 1 ? '' : 'ů'} přidán${polys.length === 1 ? '' : 'o'}`);
+      return;
+    }
+
     addObject({
       type: 'text',
       x: wx,

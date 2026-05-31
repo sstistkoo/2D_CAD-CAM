@@ -61,6 +61,7 @@ export function showTextDialog(opts, onConfirm) {
     pathObjectId: null,
     pathOffset: 2,
     letterSpacing: 0,
+    hershey: false,
     ...opts,
   };
 
@@ -137,6 +138,12 @@ export function showTextDialog(opts, onConfirm) {
           <span style="font-style:italic">I Kurzíva</span>
         </label>
       </div>
+
+      <label class="cnc-field" style="flex-direction:row;align-items:center;gap:8px;margin-top:6px;background:var(--ctp-surface0);padding:6px 8px;border-radius:4px"
+        title="Vytvoří text jako sadu otevřených polylines (single-stroke), kde každé písmeno má 1+ tahů středovou čarou. Vhodné pro CNC gravuru jedním průchodem nástroje – výstup je entitou v plánu, kterou lze přímo frézovat.">
+        <input data-id="txt-hershey" type="checkbox" ${defaults.hershey ? 'checked' : ''}>
+        <span style="font-weight:bold">✏️ Single-line pro CNC gravuru (Hershey)</span>
+      </label>
 
       <hr style="border-color:var(--ctp-surface1);margin:8px 0">
 
@@ -258,6 +265,7 @@ export function showTextDialog(opts, onConfirm) {
       elText.style.borderColor = 'var(--ctp-red)';
       return;
     }
+    const elHershey = overlay.querySelector('[data-id="txt-hershey"]');
     const result = {
       text,
       fontSize: parseFloat(elSize.value) || 14,
@@ -270,6 +278,7 @@ export function showTextDialog(opts, onConfirm) {
       pathMode: elPathMode.value,
       pathObjectId: elPathMode.value !== 'none' && elPathObj.value ? parseInt(elPathObj.value, 10) : null,
       pathOffset: parseFloat(elPathOffset.value) || 0,
+      hershey: !!(elHershey && elHershey.checked),
     };
     overlay.remove();
     onConfirm(result);

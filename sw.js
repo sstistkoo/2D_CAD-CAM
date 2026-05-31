@@ -60,6 +60,8 @@ const ASSETS = [
   './js/lib/browser.maker.js',
   './js/lib/dxf-parser.min.js',
   './js/lib/fontLoader.js',
+  './js/lib/hersheyFont.js',
+  './js/lib/hershey/futural.json',
   './js/lib/makerjs-gear.js',
   './js/lib/makerjsBridge.js',
   './js/lib/jspdf.umd.min.js',
