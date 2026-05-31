@@ -2,7 +2,7 @@
 // ║  SKICA – Nástroj: Textová anotace                         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast } from '../state.js';
+import { state, showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { COLORS } from '../constants.js';
 import { showTextDialog } from '../dialogs/textDialog.js';
@@ -60,14 +60,16 @@ export function handleTextClick(wx, wy) {
         return;
       }
       const baseName = `Gravura "${result.text.substring(0, 16)}"`;
-      polys.forEach((p, i) => {
-        addObject({
-          type: 'polyline',
-          vertices: p.vertices,
-          bulges: p.bulges,
-          closed: false,
-          name: polys.length === 1 ? baseName : `${baseName} #${i + 1}`,
-          color: COLORS.textSecondary,
+      withUndoBatch(() => {
+        polys.forEach((p, i) => {
+          addObject({
+            type: 'polyline',
+            vertices: p.vertices,
+            bulges: p.bulges,
+            closed: false,
+            name: polys.length === 1 ? baseName : `${baseName} #${i + 1}`,
+            color: COLORS.textSecondary,
+          });
         });
       });
       showToast(`Gravura: ${polys.length} tah${polys.length === 1 ? '' : 'ů'} přidán${polys.length === 1 ? '' : 'o'}`);

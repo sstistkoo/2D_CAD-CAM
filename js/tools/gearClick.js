@@ -2,7 +2,7 @@
 // ║  SKICA – Nástroj: Ozubení (spur, internal, rack, sprocket) ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast } from '../state.js';
+import { state, showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import {
   generateFullGearProfile,
@@ -74,6 +74,7 @@ function addRefCircles3(cx, cy, dim, opts = {}) {
 export function handleGearClick(wx, wy) {
   showGearDialog((params) => {
     if (!params) return;
+    withUndoBatch(() => {
     switch (params.gearType) {
 
       // ── Čelní kolo (spur) ──
@@ -180,5 +181,6 @@ export function handleGearClick(wx, wy) {
         break;
       }
     }
+    });
   });
 }

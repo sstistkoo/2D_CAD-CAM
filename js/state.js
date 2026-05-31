@@ -158,13 +158,55 @@ export function resetDrawingState() {
 }
 
 // ── Undo / Redo ──
+
+// Batch režim: uvnitř beginUndoBatch/endUndoBatch se další pushUndo() volání
+// ignorují (uloží se jen první snapshot). Slouží pro akce, které přidávají
+// víc objektů najednou (gear, gear pair, boolean, array, Hershey text…) –
+// jedno Ctrl+Z pak vrátí celou tvůrčí akci, ne jednotlivé objekty.
+let _undoBatchDepth = 0;
+
 /** Uloží aktuální stav objektů na undo stack. */
 export function pushUndo() {
+  if (_undoBatchDepth > 0) return; // uvnitř batch – snapshot už byl uložen
   state.undoStack.push(JSON.stringify({ objects: state.objects, anchors: state.anchors }));
   if (state.undoStack.length > state.maxUndo) state.undoStack.shift();
   state.redoStack = [];
   updateUndoButtons();
   if (_pushUndoHook) _pushUndoHook();
+}
+
+/**
+ * Zahájí batch režim. Při prvním volání uloží jeden snapshot; další
+ * volání jen inkrementují hloubku (umožňuje vnořené batche).
+ */
+export function beginUndoBatch() {
+  if (_undoBatchDepth === 0) {
+    state.undoStack.push(JSON.stringify({ objects: state.objects, anchors: state.anchors }));
+    if (state.undoStack.length > state.maxUndo) state.undoStack.shift();
+    state.redoStack = [];
+    updateUndoButtons();
+    if (_pushUndoHook) _pushUndoHook();
+  }
+  _undoBatchDepth++;
+}
+
+/** Ukončí batch režim. Až poslední endUndoBatch obnoví normální chování. */
+export function endUndoBatch() {
+  if (_undoBatchDepth > 0) _undoBatchDepth--;
+}
+
+/**
+ * Pomocné: spustí callback v rámci undo batche. Bezpečné i při výjimce
+ * (try/finally garantuje endUndoBatch).
+ *
+ * @template T
+ * @param {() => T} fn
+ * @returns {T}
+ */
+export function withUndoBatch(fn) {
+  beginUndoBatch();
+  try { return fn(); }
+  finally { endUndoBatch(); }
 }
 
 /** Parsuje undo/redo záznam (kompatibilita se starým formátem). */

@@ -2,7 +2,7 @@
 // ║  Kruhové pole (Circular Array) – click logika               ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast } from '../state.js';
+import { state, showToast, withUndoBatch } from '../state.js';
 import { renderAll } from '../render.js';
 import { findObjectAt, calculateAllIntersections, circularArray } from '../geometry.js';
 import { addObject } from '../objects.js';
@@ -22,11 +22,12 @@ export function handleCircularArrayClick(wx, wy) {
   setHint("Zadejte parametry kruhového pole");
 
   showCircularArrayDialog(obj, (cx, cz, count, totalAngle, includeOriginal) => {
-    pushUndo();
     const copies = circularArray(obj, cx, cz, count, totalAngle, includeOriginal);
-    for (const copy of copies) {
-      addObject(copy);
-    }
+    withUndoBatch(() => {
+      for (const copy of copies) {
+        addObject(copy);
+      }
+    });
     calculateAllIntersections();
     updateAssociativeDimensions();
     updateObjectList();

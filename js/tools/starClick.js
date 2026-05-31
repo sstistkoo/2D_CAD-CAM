@@ -3,7 +3,7 @@
 // ║  Generuje přes makerjs.models.Star                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { showToast } from '../state.js';
+import { showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { showStarDialog } from '../dialogs/starDialog.js';
@@ -27,16 +27,18 @@ export function handleStarClick(wx, wy) {
       showToast('Hvězda se nepodařila vytvořit');
       return;
     }
-    for (const p of polys) {
-      addObject({
-        type: 'polyline',
-        vertices: p.vertices,
-        bulges: p.bulges,
-        closed: p.closed,
-        skipIntersections: true,
-        name: `Hvězda ${points}*`,
-      });
-    }
+    withUndoBatch(() => {
+      for (const p of polys) {
+        addObject({
+          type: 'polyline',
+          vertices: p.vertices,
+          bulges: p.bulges,
+          closed: p.closed,
+          skipIntersections: true,
+          name: `Hvězda ${points}*`,
+        });
+      }
+    });
     renderAll();
     showToast(`Hvězda ${points} cípů přidána ✓`);
   });

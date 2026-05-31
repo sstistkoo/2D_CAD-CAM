@@ -3,7 +3,7 @@
 // ║  Generuje přes makerjs.models.Slot                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { showToast } from '../state.js';
+import { showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { showSlotDialog } from '../dialogs/slotDialog.js';
@@ -39,16 +39,18 @@ export function handleSlotClick(wx, wy) {
       showToast('Slot se nepodařilo vytvořit');
       return;
     }
-    for (const p of polys) {
-      addObject({
-        type: 'polyline',
-        vertices: p.vertices,
-        bulges: p.bulges,
-        closed: p.closed,
-        skipIntersections: true,
-        name: `Drážka ${length}×${width}`,
-      });
-    }
+    withUndoBatch(() => {
+      for (const p of polys) {
+        addObject({
+          type: 'polyline',
+          vertices: p.vertices,
+          bulges: p.bulges,
+          closed: p.closed,
+          skipIntersections: true,
+          name: `Drážka ${length}×${width}`,
+        });
+      }
+    });
     renderAll();
     showToast(`Drážka ${length}×${width} mm přidána ✓`);
   });

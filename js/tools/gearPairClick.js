@@ -5,7 +5,7 @@
 // Vykreslí dvě zabírající čelní kola se správnou osovou vzdáleností
 // a fázovou rotací druhého kola, aby zuby zapadaly do mezer.
 
-import { showToast } from '../state.js';
+import { showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { showGearPairDialog } from '../dialogs/gearPairDialog.js';
@@ -22,6 +22,8 @@ export function handleGearPairClick(wx, wy) {
     const { m, z1, z2, alpha, x1, x2, steps, addRefCircles, addAxisLine } = params;
     const cx1 = wx, cy1 = wy;
     const { axis, cx2, cy2, rotation2 } = computeGearPairLayout(params, cx1, cy1);
+
+    withUndoBatch(() => {
 
     // Kolo A (pastorek)
     const profile1 = generateFullGearProfile(m, z1, alpha, x1, steps, cx1, cy1);
@@ -74,5 +76,6 @@ export function handleGearPairClick(wx, wy) {
 
     renderAll();
     showToast(`Pár kol m=${m}, z₁=${z1}, z₂=${z2}, a=${axis.toFixed(1)} mm ✓`);
+    });
   });
 }

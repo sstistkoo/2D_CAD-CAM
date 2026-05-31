@@ -3,7 +3,7 @@
 // ║  Generuje přes makerjs.models.Polygon                       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { showToast } from '../state.js';
+import { showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { showPolygonDialog } from '../dialogs/polygonDialog.js';
@@ -27,16 +27,18 @@ export function handlePolygonClick(wx, wy) {
       showToast('Polygon se nepodařilo vytvořit');
       return;
     }
-    for (const p of polys) {
-      addObject({
-        type: 'polyline',
-        vertices: p.vertices,
-        bulges: p.bulges,
-        closed: p.closed,
-        skipIntersections: true,
-        name: `Polygon ${sides}×${radius}`,
-      });
-    }
+    withUndoBatch(() => {
+      for (const p of polys) {
+        addObject({
+          type: 'polyline',
+          vertices: p.vertices,
+          bulges: p.bulges,
+          closed: p.closed,
+          skipIntersections: true,
+          name: `Polygon ${sides}×${radius}`,
+        });
+      }
+    });
     renderAll();
     showToast(`Polygon ${sides}-úhelník ⌀${(2 * radius).toFixed(1)} mm přidán ✓`);
   });

@@ -4,7 +4,7 @@
 
 import { ZOOM_FACTOR, ZOOM_MIN, ZOOM_MAX, PASTE_OFFSET } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, applyAngleSnap } from './canvas.js';
-import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords } from './state.js';
+import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
 import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI } from './ui.js';
@@ -1612,12 +1612,14 @@ function startLinearArrayAction() {
   const objs = indices.map(i => state.objects[i]);
 
   showLinearArrayDialog(objs[0], (dx, dz, count, dx2, dz2, count2) => {
-    for (const obj of objs) {
-      const copies = linearArray(obj, dx, dz, count, dx2, dz2, count2);
-      for (const copy of copies) {
-        addObject(copy);
+    withUndoBatch(() => {
+      for (const obj of objs) {
+        const copies = linearArray(obj, dx, dz, count, dx2, dz2, count2);
+        for (const copy of copies) {
+          addObject(copy);
+        }
       }
-    }
+    });
     const total = count2 > 0 ? (count + 1) * count2 - 1 : count;
     showToast(`Vytvořeno ${total} kopií${objs.length > 1 ? ` z ${objs.length} objektů` : ''}`);
   });
@@ -1633,15 +1635,16 @@ function startCircularArrayAction() {
   const objs = indices.map(i => state.objects[i]);
 
   showCircularArrayDialog(objs[0], (cx, cz, count, totalAngle, includeOriginal) => {
-    pushUndo();
     let totalCopies = 0;
-    for (const obj of objs) {
-      const copies = circularArray(obj, cx, cz, count, totalAngle, includeOriginal);
-      for (const copy of copies) {
-        addObject(copy);
+    withUndoBatch(() => {
+      for (const obj of objs) {
+        const copies = circularArray(obj, cx, cz, count, totalAngle, includeOriginal);
+        for (const copy of copies) {
+          addObject(copy);
+        }
+        totalCopies += copies.length;
       }
-      totalCopies += copies.length;
-    }
+    });
     showToast(`Vytvořeno ${totalCopies} kopií${objs.length > 1 ? ` z ${objs.length} objektů` : ''}`);
   });
 }
