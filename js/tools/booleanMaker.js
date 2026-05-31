@@ -8,6 +8,7 @@
 // dírou), vznikne odpovídající počet polylines.
 
 import { getMaker, objToMakerModel } from '../dxf.js';
+import { chainToPolyline } from '../lib/makerjsBridge.js';
 
 /**
  * Provede booleovskou operaci nad dvěma uzavřenými SKICA tvary.
@@ -156,55 +157,4 @@ function chainsToSkicaObjects(mk, model, refA, refB) {
   return out;
 }
 
-/** Převede jeden Maker.js chain na vertex/bulge polylinu. */
-function chainToPolyline(chain) {
-  const links = chain.links || [];
-  if (links.length === 0) return null;
-
-  // Speciální případ: chain z plné kružnice / 360° oblouku – findChains ho
-  // ohlásí jako jediný „endless" link bez endPoints. Rozdělíme ho na dva
-  // půlkruhové bulge segmenty.
-  if (links.length === 1 && chain.endless && (!links[0].endPoints)) {
-    const path = links[0].walkedPath.pathContext;
-    const offset = links[0].walkedPath.offset || [0, 0];
-    if (path.type === 'circle' || path.type === 'arc') {
-      const cx = path.origin[0] + offset[0];
-      const cy = path.origin[1] + offset[1];
-      const r = path.radius;
-      return {
-        vertices: [{ x: cx + r, y: cy }, { x: cx - r, y: cy }],
-        bulges: [1, 1],
-        closed: true,
-      };
-    }
-    return null;
-  }
-
-  const vertices = [];
-  const bulges = [];
-
-  for (let i = 0; i < links.length; i++) {
-    const link = links[i];
-    const path = link.walkedPath.pathContext;
-    const reversed = !!link.reversed;
-    const ep = link.endPoints;
-    if (!ep) return null;
-
-    const startPt = ep[reversed ? 1 : 0];
-    vertices.push({ x: startPt[0], y: startPt[1] });
-
-    if (path.type === 'arc') {
-      let sweepDeg = path.endAngle - path.startAngle;
-      while (sweepDeg <= 0) sweepDeg += 360;
-      while (sweepDeg > 360) sweepDeg -= 360;
-      const sweepRad = sweepDeg * Math.PI / 180;
-      let bulge = Math.tan(sweepRad / 4);
-      if (reversed) bulge = -bulge;
-      bulges.push(bulge);
-    } else {
-      bulges.push(0);
-    }
-  }
-
-  return { vertices, bulges, closed: !!chain.endless };
-}
+// chainToPolyline je nyní v js/lib/makerjsBridge.js (sdíleno s novými nástroji).
