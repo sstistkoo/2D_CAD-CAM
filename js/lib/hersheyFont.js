@@ -48,14 +48,39 @@ const HERSHEY_ADVANCE_MULT = 1.68;
 const SPACE_ADVANCE = 10 * HERSHEY_ADVANCE_MULT;
 
 /**
- * Parsuje Hershey `d` string (mini SVG-path) na pole tahů.
- * Format: "M x,y L x,y x,y M x,y L x,y" – M začíná nový tah, L pokračuje.
- * M/L může být prefix přímo nalepený na souřadnice (např. "M9,1").
+ * Parsuje Hershey `d` string na pole tahů. Podporuje DVA formáty:
+ *
+ *   Starý (původní hersheytext.json):
+ *     "M9,1 L1,22 M9,1 L17,22 M4,15 L14,15"
+ *     M začíná nový tah, L pokračuje (volitelné). Prefix přilepený na číslo.
+ *
+ *   Nový (komprimovaný, scripts/compressHershey.js):
+ *     "9,1;1,22|9,1;17,22|4,15;14,15"
+ *     '|' odděluje tahy, ';' body uvnitř tahu. Bez M/L tokenů.
  *
  * @returns {Array<Array<{x:number, y:number}>>}
  */
 function parseHersheyD(d) {
   if (!d) return [];
+
+  // Detekce nového formátu: obsahuje '|' nebo ';' (a žádné M/L)
+  const isCompact = (d.indexOf('|') >= 0 || d.indexOf(';') >= 0) && d.indexOf('M') < 0;
+  if (isCompact) {
+    const strokes = [];
+    for (const seg of d.split('|')) {
+      const pts = [];
+      for (const xy of seg.split(';')) {
+        if (!xy) continue;
+        const [xs, ys] = xy.split(',');
+        const x = parseFloat(xs), y = parseFloat(ys);
+        if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+      }
+      if (pts.length >= 2) strokes.push(pts);
+    }
+    return strokes;
+  }
+
+  // Starý formát – M/L tokeny
   const strokes = [];
   let current = null;
   const tokens = d.split(/\s+/).filter(t => t.length > 0);
@@ -80,6 +105,15 @@ function parseHersheyD(d) {
 }
 
 /**
+ * Vrátí { d, o } pro daný glyph bez ohledu na formát uložení.
+ * Nový kompaktní formát: tuple [o, d]. Starý: objekt { d, o }.
+ */
+function readGlyph(glyph) {
+  if (Array.isArray(glyph)) return { o: glyph[0] || 0, d: glyph[1] || '' };
+  return { o: glyph.o || 0, d: glyph.d || '' };
+}
+
+/**
  * Renderuje jeden znak z daného fontu na pole tahů.
  * Mapování: `chars[ASCII - 33]` (Hershey začíná na '!'), mezera (32) se
  * řeší separátně. Y se neguje (Hershey má Y dolů).
@@ -88,12 +122,13 @@ function renderGlyph(char, fontData) {
   const code = char.charCodeAt(0);
   if (code === 32) return { strokes: [], advance: SPACE_ADVANCE };
   if (code < 33 || code > 126) return { strokes: [], advance: 0 };
-  const glyph = fontData.chars[code - 33];
-  if (!glyph) return { strokes: [], advance: 0 };
-  const strokes = parseHersheyD(glyph.d).map(stroke =>
+  const raw = fontData.chars[code - 33];
+  if (!raw) return { strokes: [], advance: 0 };
+  const { d, o } = readGlyph(raw);
+  const strokes = parseHersheyD(d).map(stroke =>
     stroke.map(p => ({ x: p.x, y: -p.y })),
   );
-  const advance = (glyph.o || 0) * HERSHEY_ADVANCE_MULT;
+  const advance = o * HERSHEY_ADVANCE_MULT;
   return { strokes, advance };
 }
 
@@ -155,8 +190,8 @@ export function measureHersheyText(text, fontSize, fontName = DEFAULT_FONT) {
     const code = ch.charCodeAt(0);
     if (code === 32) { width += SPACE_ADVANCE * scale; continue; }
     if (code < 33 || code > 126) continue;
-    const glyph = fontData.chars[code - 33];
-    if (glyph) width += (glyph.o || 0) * HERSHEY_ADVANCE_MULT * scale;
+    const raw = fontData.chars[code - 33];
+    if (raw) width += readGlyph(raw).o * HERSHEY_ADVANCE_MULT * scale;
   }
   return { width, height: fontSize };
 }
