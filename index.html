@@ -4220,8 +4220,12 @@
       </div>
     </div>
 
+    <!-- ── bezier-js (vyžaduje Maker.js Text pro převod glyph cesty) ── -->
+    <script src="lib/bezier.js"></script>
     <!-- ── Maker.js (lokální bundle pro robustní DXF/SVG export, PWA offline) ── -->
     <script src="js/lib/browser.maker.js"></script>
+    <!-- ── opentype.js (pro vektorový text v DXF přes makerjs.models.Text) ── -->
+    <script src="lib/opentype.min.js"></script>
     <!-- ── Skripty (ES Module entry point) ── -->
     <script type="module" src="js/app.js"></script>
   </body>

@@ -8,6 +8,7 @@ import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeB
 import { calculateAllIntersections } from '../geometry.js';
 import { bulgeToArc, exportFileName } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
+import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
 import { bridge } from '../bridge.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
@@ -191,11 +192,18 @@ export function importDXFFile() {
 }
 
 /** Exportuje projekt jako DXF soubor (Maker.js → validní formát pro Fusion 360). */
-export function exportDXFFile() {
+export async function exportDXFFile() {
   if (state.objects.length === 0) {
     showToast('Žádné objekty k exportu');
     return;
   }
+  // Pokud projekt obsahuje text a font ještě není načtený, počkáme na něj –
+  // text se pak v DXF vygeneruje jako vektorové cesty místo TEXT entity.
+  const hasText = state.objects.some(o => o && o.type === 'text');
+  if (hasText && !isVectorTextAvailable()) {
+    try { await loadFont(); } catch (e) { /* nepodstatné – fallback uvnitř */ }
+  }
+
   // Primárně robustní export přes Maker.js; fallback na manuální generátor.
   let dxfText = null;
   try {
@@ -211,7 +219,8 @@ export function exportDXFFile() {
   a.download = exportFileName('dxf');
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast(`Exportováno ${state.objects.length} objektů do DXF`);
+  const note = hasText && isVectorTextAvailable() ? ' (text → vektor)' : '';
+  showToast(`Exportováno ${state.objects.length} objektů do DXF${note}`);
 }
 
 /** Exportuje projekt jako JSON soubor kompatibilní se SimDxf konvertorem. */

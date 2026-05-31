@@ -630,6 +630,24 @@ export function objToMakerModel(obj, mk) {
     case 'text': {
       if (!obj.text) return null;
       const rot = obj.rotation || 0; // rotace 1:1 (bez negace, data jsou Y-nahoru)
+
+      // Vektorový text přes makerjs.models.Text + opentype font, je-li
+      // načtený. Jinak fallback na Maker.js caption (původní chování).
+      const font = (typeof window !== 'undefined' && window.__skicaFont) || null;
+      if (font && mk.models && mk.models.Text) {
+        try {
+          const fontSize = obj.size || obj.height || 10;
+          const textModel = new mk.models.Text(font, String(obj.text), fontSize, false, false);
+          // Maker.js Text vykreslí baseline na y=0, počátek na x=0.
+          // Posun na (obj.x, obj.y) + volitelná rotace okolo (obj.x, obj.y).
+          mk.model.move(textModel, [obj.x, obj.y]);
+          if (rot) mk.model.rotate(textModel, rot * 180 / Math.PI, [obj.x, obj.y]);
+          return textModel;
+        } catch (err) {
+          console.warn('Vektorový text selhal, fallback na caption:', err && err.message);
+        }
+      }
+
       const anchor = new mk.paths.Line(
         [obj.x, obj.y],
         [obj.x + Math.cos(rot), obj.y + Math.sin(rot)],
