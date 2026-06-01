@@ -2689,13 +2689,15 @@ export function openCamSimulator(initialContour) {
     ];
   }
 
-  // ── Pre-connect raw offsets (jen u arcs) ──
-  // Pro line-line spoje 90° trim sám správně najde průsečík (žádný connector
-  // není potřeba — způsoboval by zigzagy). Connector vkládáme JEN když aspoň
-  // jeden ze sousedů je arc — tím arc zůstane se zachovaným středem,
-  // stejným R-přídavek a stejným úhlem rozevření (= geometricky správný
-  // koncentrický ofset). Connector je označen `isConnector` aby ho
-  // chamfer/fillet pass přeskočil (jinak by vznikaly další body).
+  // ── Pre-connect raw offsets (manhattan u arcs) ──
+  // Pro arc → line: prodloužíme tangentu oblouku z koncového bodu a tangentu
+  // další line z jejího počátku — průsečík tvoří manhattan corner. Vložíme
+  // dvě nohy line (pe → corner → cs). Chamfer/fillet pass pak na rohu
+  // udělá sražení (= „vyjet po tangentě, pak srazit roh"). Konektory
+  // nejsou označeny isConnector, aby chamfer normálně proběhl.
+  // Pro line → arc / arc → arc / případy kde manhattan nedává smysl
+  // (corner za počátkem) padáme zpět na jednu diagonálu označenou
+  // isConnector — chamfer ji přeskočí.
   function preConnectOffsets(rawOffsets) {
     if (rawOffsets.length < 2) return rawOffsets;
     const endOf = (s) => s.type === 'line'
@@ -2704,18 +2706,48 @@ export function openCamSimulator(initialContour) {
     const startOf = (s) => s.type === 'line'
       ? s.p1
       : { x: s.cx + Math.sin(s.startAngle) * s.r, z: s.cz + Math.cos(s.startAngle) * s.r };
+    // Tangenta na konci/začátku oblouku ve směru průchodu (G2 = CW, G3 = CCW)
+    const tangentAtEnd = (a) => {
+      const sign = a.dir === 'G2' ? -1 : 1;
+      return { x: sign * Math.cos(a.endAngle), z: -sign * Math.sin(a.endAngle) };
+    };
+    const tangentAtStart = (a) => {
+      const sign = a.dir === 'G2' ? -1 : 1;
+      return { x: sign * Math.cos(a.startAngle), z: -sign * Math.sin(a.startAngle) };
+    };
+    const lineDir = (l) => {
+      const dx = l.p2.x - l.p1.x, dz = l.p2.z - l.p1.z;
+      const len = Math.hypot(dx, dz);
+      return len > 1e-9 ? { x: dx / len, z: dz / len } : { x: 0, z: 0 };
+    };
+    const intersectInf = (P1, d1, P2, d2) => {
+      const det = d1.x * d2.z - d1.z * d2.x;
+      if (Math.abs(det) < 1e-9) return null;
+      const t = ((P2.x - P1.x) * d2.z - (P2.z - P1.z) * d2.x) / det;
+      return { x: P1.x + t * d1.x, z: P1.z + t * d1.z };
+    };
     const result = [rawOffsets[0]];
     for (let i = 1; i < rawOffsets.length; i++) {
       const prev = result[result.length - 1];
       const cur = rawOffsets[i];
-      // Connector jen u arc-line / line-arc / arc-arc; line-line nech trimu
-      if (prev.type === 'arc' || cur.type === 'arc') {
-        const pe = endOf(prev);
-        const cs = startOf(cur);
-        const gap = Math.hypot(cs.x - pe.x, cs.z - pe.z);
-        if (gap > 0.1) {
-          result.push({ type: 'line', p1: { x: pe.x, z: pe.z }, p2: { x: cs.x, z: cs.z }, isConnector: true });
-        }
+      if (prev.type !== 'arc' && cur.type !== 'arc') { result.push(cur); continue; }
+      const pe = endOf(prev);
+      const cs = startOf(cur);
+      const gap = Math.hypot(cs.x - pe.x, cs.z - pe.z);
+      if (gap <= 0.1) { result.push(cur); continue; }
+      const dPrev = prev.type === 'arc' ? tangentAtEnd(prev) : lineDir(prev);
+      const dCur  = cur.type === 'arc'  ? tangentAtStart(cur) : lineDir(cur);
+      const corner = intersectInf(pe, dPrev, cs, dCur);
+      // Roh je validní jen pokud je „za" pe ve směru dPrev a „před" cs ve směru dCur
+      const tFromPrev = corner ? (corner.x - pe.x) * dPrev.x + (corner.z - pe.z) * dPrev.z : -1;
+      const tToNext   = corner ? (cs.x - corner.x) * dCur.x + (cs.z - corner.z) * dCur.z : -1;
+      if (corner && tFromPrev > 0.01 && tToNext > 0.01) {
+        // Manhattan — dvě line nohy, ty pak chamfer/fillet zpracuje na rohu
+        result.push({ type: 'line', p1: { x: pe.x, z: pe.z }, p2: { x: corner.x, z: corner.z } });
+        result.push({ type: 'line', p1: { x: corner.x, z: corner.z }, p2: { x: cs.x, z: cs.z } });
+      } else {
+        // Fallback: jediná diagonála, chamfer na jejích koncích přeskočit
+        result.push({ type: 'line', p1: { x: pe.x, z: pe.z }, p2: { x: cs.x, z: cs.z }, isConnector: true });
       }
       result.push(cur);
     }
