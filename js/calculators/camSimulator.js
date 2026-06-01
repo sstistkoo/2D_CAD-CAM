@@ -591,7 +591,10 @@ function isOnSegBounds(pt, seg) {
     pt.z >= Math.min(seg.p1.z, seg.p2.z) - TRIM_TOL &&
     pt.z <= Math.max(seg.p1.z, seg.p2.z) + TRIM_TOL;
 }
-function trimAndRemoveLoops(rawSegs) {
+function trimAndRemoveLoops(rawSegs, opts = {}) {
+  // opts.bridgeCollinear: pokud true, přemostí nesousední LINE segmenty
+  // ležící na stejné nekonečné přímce (potlačí drážky/štěrbiny užší než
+  // přídavek). Default false — vhodné pro stock generation, ne pro cutting.
   if (rawSegs.length === 0) return [];
   const result = [structuredClone(rawSegs[0])];
   // 1. local trimming
@@ -638,6 +641,57 @@ function trimAndRemoveLoops(rawSegs) {
             loopFound = true;
             break outerLoop;
           }
+        }
+      }
+    }
+  }
+  // 3. collinear bridging — řeší případ, kdy dva nesousední LINE segmenty
+  // leží na stejné nekonečné přímce (typicky dvě OD strany drážky, jejichž
+  // ofsety se po překlopení přídavkem překrývají). Vložky mezi nimi
+  // (drážka, štěrbina) se nahradí přímým spojením po té přímce.
+  // POUZE pokud volající explicitně požádá (opt-in) — pro cutting paths
+  // by mohlo zakrýt skutečně dosažitelné feature.
+  if (opts.bridgeCollinear && result.length > 2) {
+    let bridged = true, iter = 0;
+    while (bridged && iter < 5) {
+      bridged = false; iter++;
+      outerB:
+      for (let i = 0; i < result.length - 2; i++) {
+        const s1 = result[i];
+        if (s1.type !== 'line' || s1.isDegenerate) continue;
+        const d1x = s1.p2.x - s1.p1.x, d1z = s1.p2.z - s1.p1.z;
+        const l1 = Math.hypot(d1x, d1z);
+        if (l1 < 1e-6) continue;
+        for (let j = i + 2; j < result.length; j++) {
+          const s2 = result[j];
+          if (s2.type !== 'line' || s2.isDegenerate) continue;
+          const d2x = s2.p2.x - s2.p1.x, d2z = s2.p2.z - s2.p1.z;
+          const l2 = Math.hypot(d2x, d2z);
+          if (l2 < 1e-6) continue;
+          // paralelní (cross ≈ 0) a stejný směr (dot > 0)
+          const cross = (d1x / l1) * (d2z / l2) - (d1z / l1) * (d2x / l2);
+          if (Math.abs(cross) > 1e-3) continue;
+          const dot = (d1x / l1) * (d2x / l2) + (d1z / l1) * (d2z / l2);
+          if (dot < 0.99) continue;
+          // s2.p1 leží na nekonečné přímce s1
+          const px = s2.p1.x - s1.p1.x, pz = s2.p1.z - s1.p1.z;
+          const perpDist = Math.abs(px * (d1z / l1) - pz * (d1x / l1));
+          if (perpDist > TRIM_TOL) continue;
+          // alespoň jeden meziostřední segment musí od přímky odbočit (= skutečný „výlet")
+          let hasExcursion = false;
+          for (let k = i + 1; k < j; k++) {
+            const sk = result[k];
+            const ptK = sk.type === 'line' ? sk.p2 : { x: sk.cx + Math.sin(sk.endAngle) * sk.r, z: sk.cz + Math.cos(sk.endAngle) * sk.r };
+            const dKx = ptK.x - s1.p1.x, dKz = ptK.z - s1.p1.z;
+            const perp = Math.abs(dKx * (d1z / l1) - dKz * (d1x / l1));
+            if (perp > TRIM_TOL * 5) { hasExcursion = true; break; }
+          }
+          if (!hasExcursion) continue;
+          // sloučit i..j do jedné přímky s1.p1 → s2.p2 (po stejné přímce)
+          result[i] = { type: 'line', p1: { x: s1.p1.x, z: s1.p1.z }, p2: { x: s2.p2.x, z: s2.p2.z } };
+          result.splice(i + 1, j - i);
+          bridged = true;
+          break outerB;
         }
       }
     }
@@ -994,7 +1048,10 @@ export function openCamSimulator(initialContour) {
       stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
       stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
       machineStructure: 'lathe', controlSystem: 'sinumerik',
-      toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90
+      toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
+      // Tvarový polotovar z kontury — jednotný přídavek na všechny plochy
+      // + sražení/radius do rohů (proti popraskání při tepelném zpracování).
+      stockShapeEnabled: false, stockAllowance: 5, stockChamfer: 0
     },
     view: { scale: 3, panX: 600, panY: 350 },
     flipX: false,
@@ -1176,13 +1233,15 @@ export function openCamSimulator(initialContour) {
     }
 
     let incompleteMachiningCount = 0;
-    // 1. raw offsets
+    // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs
     for (let i = 0; i < contourSegments.length; i++) {
       const seg = contourSegments[i];
       let offSeg = null;
       if (seg.type === 'line') {
         const n = getNormal(seg.p1, seg.p2);
-        offSeg = { type: 'line', p1: { x: seg.p1.x + n.x * totalOffset, z: seg.p1.z + n.z * totalOffset }, p2: { x: seg.p2.x + n.x * totalOffset, z: seg.p2.z + n.z * totalOffset } };
+        const tx = n.x * (tipR + allowanceX);
+        const tz = n.z * (tipR + allowanceZ);
+        offSeg = { type: 'line', p1: { x: seg.p1.x + tx, z: seg.p1.z + tz }, p2: { x: seg.p2.x + tx, z: seg.p2.z + tz } };
       } else if (seg.type === 'arc') {
         let rNew = (seg.dir === 'G3') ? seg.r + totalOffset : seg.r - totalOffset;
         if (rNew <= 1.5) { incompleteMachiningCount++; offSeg = null; }
@@ -2190,6 +2249,20 @@ export function openCamSimulator(initialContour) {
       <div class="cam-sim-row"><div class="cam-sim-field"><label>Přídavek čelo</label><input type="number" data-cylp="stockFace" value="${S.params.stockFace}"></div>
       <div class="cam-sim-field"><label>Přídavek (Auto)</label><input type="number" data-cylp="stockMargin" value="${S.params.stockMargin}"></div></div>
       <button class="cam-sim-btn cam-sim-btn-indigo" data-act="auto-stock">🎯 Auto-rozměr</button>`;
+      // Checkbox + pole pro Přídavek na plochu — dostupné i v cylinder módu
+      // (po zaškrtnutí se automaticky přepne na tvarový polotovar)
+      const en1 = !!S.params.stockShapeEnabled;
+      const dis1 = en1 ? '' : 'disabled';
+      html += `<div style="margin-top:8px;padding:6px;border:1px solid #45475a;border-radius:4px;background:#1e1e2e">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
+          <input type="checkbox" data-act="stock-shape-toggle" ${en1 ? 'checked' : ''}>
+          <span style="font-weight:600">📏 Přídavek na plochu</span>
+        </label>
+        <div class="cam-sim-row" style="margin-top:6px">
+          <div class="cam-sim-field"><label>Přídavek (mm/pl)</label><input type="number" step="0.5" data-act="stock-shape-allowance" value="${S.params.stockAllowance}" ${dis1}></div>
+          <div class="cam-sim-field"><label>Sražení / R</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis1}></div>
+        </div>
+      </div>`;
     } else {
     html += `<div class="cam-sim-point-header"><div style="width:18px">#</div><div style="width:48px">Typ</div><div style="width:32px">Mód</div><div style="width:56px">X/U</div><div style="width:56px">Z/W</div><div style="width:40px">R</div></div>`;
     pts.forEach((p, i) => {
@@ -2210,6 +2283,20 @@ export function openCamSimulator(initialContour) {
     html += `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="cam-sim-btn ${isStock ? 'cam-sim-btn-green' : 'cam-sim-btn-blue'}" data-act="addpt-list">➕ Přidat bod</button>
     </div>`;
+    if (isStock) {
+      const en = !!S.params.stockShapeEnabled;
+      const dis = en ? '' : 'disabled';
+      html += `<div style="margin-top:8px;padding:6px;border:1px solid #45475a;border-radius:4px;background:#1e1e2e">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
+          <input type="checkbox" data-act="stock-shape-toggle" ${en ? 'checked' : ''}>
+          <span style="font-weight:600">📏 Přídavek na plochu</span>
+        </label>
+        <div class="cam-sim-row" style="margin-top:6px">
+          <div class="cam-sim-field"><label>Přídavek (mm/pl)</label><input type="number" step="0.5" data-act="stock-shape-allowance" value="${S.params.stockAllowance}" ${dis}></div>
+          <div class="cam-sim-field"><label>Sražení / R</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis}></div>
+        </div>
+      </div>`;
+    }
     }
     html += `<div style="display:flex;gap:4px;margin-top:6px">
       <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-gray" data-act="copy-code">📋 Kopírovat</button>
@@ -2309,6 +2396,30 @@ export function openCamSimulator(initialContour) {
     });
     const autoStockEdBtn = tabBody.querySelector('[data-act="auto-stock"]');
     if (autoStockEdBtn) autoStockEdBtn.addEventListener('click', () => { handleAutoStock(); fullUpdate(); });
+    // Checkbox + 2 pole pro Přídavek na plochu
+    const shapeToggle = tabBody.querySelector('[data-act="stock-shape-toggle"]');
+    if (shapeToggle) shapeToggle.addEventListener('change', () => {
+      pushHistory();
+      S.params.stockShapeEnabled = shapeToggle.checked;
+      if (shapeToggle.checked) {
+        // Při zaškrtnutí vynuluj přídavky řezání (X i Z) — uživatel
+        // pracuje se stock-shape přídavkem, ne s machining offset.
+        S.params.allowanceX = 0;
+        S.params.allowanceZ = 0;
+        handleStockFromContourAllowance();
+      }
+      renderTab(); fullUpdate();
+    });
+    const shapeAllow = tabBody.querySelector('[data-act="stock-shape-allowance"]');
+    if (shapeAllow) shapeAllow.addEventListener('change', () => {
+      S.params.stockAllowance = parseFloat(shapeAllow.value) || 0;
+      if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
+    });
+    const shapeCham = tabBody.querySelector('[data-act="stock-shape-chamfer"]');
+    if (shapeCham) shapeCham.addEventListener('change', () => {
+      S.params.stockChamfer = parseFloat(shapeCham.value) || 0;
+      if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
+    });
   }
 
   // ── params tab ──
@@ -2576,6 +2687,226 @@ export function openCamSimulator(initialContour) {
       { id: Date.now() + 1, type: 'G1', x: stockX, z: sL, r: 0, mode: 'ABS' },
       { id: Date.now() + 2, type: 'G1', x: 0, z: sL, r: 0, mode: 'ABS' }
     ];
+  }
+
+  // ── Pre-connect raw offsets (jen u arcs) ──
+  // Pro line-line spoje 90° trim sám správně najde průsečík (žádný connector
+  // není potřeba — způsoboval by zigzagy). Connector vkládáme JEN když aspoň
+  // jeden ze sousedů je arc — tím arc zůstane se zachovaným středem,
+  // stejným R-přídavek a stejným úhlem rozevření (= geometricky správný
+  // koncentrický ofset). Connector je označen `isConnector` aby ho
+  // chamfer/fillet pass přeskočil (jinak by vznikaly další body).
+  function preConnectOffsets(rawOffsets) {
+    if (rawOffsets.length < 2) return rawOffsets;
+    const endOf = (s) => s.type === 'line'
+      ? s.p2
+      : { x: s.cx + Math.sin(s.endAngle) * s.r, z: s.cz + Math.cos(s.endAngle) * s.r };
+    const startOf = (s) => s.type === 'line'
+      ? s.p1
+      : { x: s.cx + Math.sin(s.startAngle) * s.r, z: s.cz + Math.cos(s.startAngle) * s.r };
+    const result = [rawOffsets[0]];
+    for (let i = 1; i < rawOffsets.length; i++) {
+      const prev = result[result.length - 1];
+      const cur = rawOffsets[i];
+      // Connector jen u arc-line / line-arc / arc-arc; line-line nech trimu
+      if (prev.type === 'arc' || cur.type === 'arc') {
+        const pe = endOf(prev);
+        const cs = startOf(cur);
+        const gap = Math.hypot(cs.x - pe.x, cs.z - pe.z);
+        if (gap > 0.1) {
+          result.push({ type: 'line', p1: { x: pe.x, z: pe.z }, p2: { x: cs.x, z: cs.z }, isConnector: true });
+        }
+      }
+      result.push(cur);
+    }
+    return result;
+  }
+
+  // ── Chamfer/Fillet pass přes ofsetovou polyčáru ──
+  // Pro každý vnitřní vrchol (mezi dvěma LINE segmenty) se podle znaménka
+  // cross-productu rozhodne:
+  //   cross < 0  → konvexní (vnější) roh   → SRAŽENÍ (chamfer)  – linie
+  //   cross > 0  → konkávní (vnitřní) roh  → POLOMĚR (fillet)   – G3 oblouk
+  // Velikost `size` je v mm: pro chamfer = délka nohy, pro fillet = poloměr.
+  function applyChamferFillet(segs, size) {
+    if (size <= 0 || segs.length < 2) return segs;
+    const mods = [];
+    for (let i = 0; i < segs.length - 1; i++) {
+      const s1 = segs[i], s2 = segs[i + 1];
+      if (s1.type !== 'line' || s2.type !== 'line') { mods.push(null); continue; }
+      // Connectory (vložené preConnect mezi arc a line) chamfer/fillet
+      // neaplikujeme — vznikaly by zbytečné body / zigzagy.
+      if (s1.isConnector || s2.isConnector) { mods.push(null); continue; }
+      const V = s1.p2;
+      const d1Lx = s1.p2.x - s1.p1.x, d1Lz = s1.p2.z - s1.p1.z;
+      const d2Lx = s2.p2.x - s2.p1.x, d2Lz = s2.p2.z - s2.p1.z;
+      const d1Len = Math.hypot(d1Lx, d1Lz);
+      const d2Len = Math.hypot(d2Lx, d2Lz);
+      if (d1Len < 1e-6 || d2Len < 1e-6) { mods.push(null); continue; }
+      const d1 = { x: d1Lx / d1Len, z: d1Lz / d1Len };
+      const d2 = { x: d2Lx / d2Len, z: d2Lz / d2Len };
+      const cross = d1.x * d2.z - d1.z * d2.x;
+      if (Math.abs(cross) < 0.05) { mods.push(null); continue; }
+
+      if (cross < 0) {
+        // Konvexní → chamfer (sražení 45°-ish dle úhlu, nohy = size)
+        const c = Math.min(size, d1Len * 0.49, d2Len * 0.49);
+        if (c < 0.05) { mods.push(null); continue; }
+        const P1 = { x: V.x - d1.x * c, z: V.z - d1.z * c };
+        const P2 = { x: V.x + d2.x * c, z: V.z + d2.z * c };
+        mods.push({ type: 'chamfer', P1, P2 });
+      } else {
+        // Konkávní → fillet (poloměr = size, ořezáno na délku segmentů)
+        const cosA = -d1.x * d2.x - d1.z * d2.z; // úhel mezi (-d1) a d2 = vnitřní úhel
+        const halfAngle = Math.acos(Math.max(-1, Math.min(1, cosA))) / 2;
+        if (halfAngle < 0.05 || halfAngle > Math.PI / 2 - 0.05) { mods.push(null); continue; }
+        let tanLen = size / Math.tan(halfAngle);
+        tanLen = Math.min(tanLen, d1Len * 0.49, d2Len * 0.49);
+        const r = tanLen * Math.tan(halfAngle);
+        if (r < 0.05) { mods.push(null); continue; }
+        const P1 = { x: V.x - d1.x * tanLen, z: V.z - d1.z * tanLen };
+        const P2 = { x: V.x + d2.x * tanLen, z: V.z + d2.z * tanLen };
+        const bisX = -d1.x + d2.x, bisZ = -d1.z + d2.z;
+        const bisLen = Math.hypot(bisX, bisZ);
+        if (bisLen < 1e-6) { mods.push(null); continue; }
+        const centerDist = r / Math.sin(halfAngle);
+        const C = { x: V.x + (bisX / bisLen) * centerDist, z: V.z + (bisZ / bisLen) * centerDist };
+        const startAngle = Math.atan2(P1.x - C.x, P1.z - C.z);
+        const endAngle = Math.atan2(P2.x - C.x, P2.z - C.z);
+        mods.push({ type: 'fillet', P1, P2, C, r, startAngle, endAngle });
+      }
+    }
+    // Aplikace
+    const out = [];
+    for (let i = 0; i < segs.length; i++) {
+      const seg = structuredClone(segs[i]);
+      if (i > 0 && mods[i - 1] && seg.type === 'line') seg.p1 = mods[i - 1].P2;
+      if (i < segs.length - 1 && mods[i] && seg.type === 'line') seg.p2 = mods[i].P1;
+      out.push(seg);
+      if (i < segs.length - 1 && mods[i]) {
+        const m = mods[i];
+        if (m.type === 'chamfer') {
+          out.push({ type: 'line', p1: m.P1, p2: m.P2 });
+        } else {
+          // Konkávní roh (cross > 0 v naší konvenci = pravý zatáček) → G2 (CW)
+          // — krátká cesta okolo středu, oblouk bulguje TOWARD V (do rohu).
+          // G3 by šlo dlouhou stranou (3/4 kolem) — to vypadá jako půlkruh / obrácený radius.
+          out.push({ type: 'arc', cx: m.C.x, cz: m.C.z, r: m.r, dir: 'G2', startAngle: m.startAngle, endAngle: m.endAngle, p1: m.P1, p2: m.P2 });
+        }
+      }
+    }
+    return out;
+  }
+
+  // ── Stock z kontury + přídavek ──
+  // Uniformní přídavek `stockAllowance` (mm/pl) ve všech směrech (X i Z)
+  // + volitelné sražení/poloměr `stockChamfer` na vrcholech polotovaru
+  // (sražení vnějších rohů + radius vnitřních — proti popraskání v peci).
+  function handleStockFromContourAllowance() {
+    const absPts = resolvePointsToAbsolute(S.contourPoints);
+    if (absPts.length < 2) return; // nelze, tiše ignoruj (auto-regen)
+    const prms = S.params;
+    const allowance = parseFloat(prms.stockAllowance) || 0;
+    const chamfer   = parseFloat(prms.stockChamfer)   || 0;
+    if (allowance <= 0) return; // tiše ignoruj — uživatel nastaví hodnotu
+    const toR = (x) => prms.mode === 'DIAMON' ? x / 2 : x;
+    const fromR = (r) => prms.mode === 'DIAMON' ? r * 2 : r;
+
+    // 1) Postav contourSegments v poloměru
+    const wp = absPts.map(p => ({ ...p, xR: toR(p.xAbs), zR: p.zAbs }));
+    const contourSegments = [];
+    for (let i = 0; i < wp.length - 1; i++) {
+      const p1 = wp[i], p2 = wp[i + 1], type = p2.type;
+      const a = { x: p1.xR, z: p1.zR }, b = { x: p2.xR, z: p2.zR };
+      if (type === 'G0' || type === 'G1') {
+        contourSegments.push({ type: 'line', p1: a, p2: b });
+      } else if (type === 'G2' || type === 'G3') {
+        const arc = getArcParams(a, b, p2.rVal, type);
+        if (arc.error) continue;
+        contourSegments.push({ type: 'arc', cx: arc.cx, cz: arc.cz, r: arc.r, p1: a, p2: b, dir: type });
+      }
+    }
+    if (contourSegments.length === 0) return;
+
+    // 2) Raw offsets — uniformní allowance v obou osách
+    const rawOffsets = [];
+    for (const seg of contourSegments) {
+      if (seg.type === 'line') {
+        const n = getNormal(seg.p1, seg.p2);
+        const tx = n.x * allowance, tz = n.z * allowance;
+        rawOffsets.push({
+          type: 'line',
+          p1: { x: seg.p1.x + tx, z: seg.p1.z + tz },
+          p2: { x: seg.p2.x + tx, z: seg.p2.z + tz }
+        });
+      } else {
+        const rNew = (seg.dir === 'G3') ? seg.r + allowance : seg.r - allowance;
+        if (rNew <= 0.5) continue;
+        const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+        const endAngle   = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+        rawOffsets.push({ type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, startAngle, endAngle });
+      }
+    }
+    if (rawOffsets.length === 0) return;
+
+    pushHistory();
+
+    // 3) Trim sousedů + global loop removal + collinear bridging (opt-in
+    // pro polotovar — drážky/štěrbiny užší než přídavek se přemostí, aby
+    // polotovar neměl nesmyslné výjezdy přes neobrobitelnou oblast).
+    // 2.5) Vlož spojovací linky mezi sousední ofsety s mezerou (aby trim nenatahoval arcy)
+    const preConnected = preConnectOffsets(rawOffsets);
+
+    // 3) Trim sousedů + global loop removal + collinear bridging
+    let trimmed = trimAndRemoveLoops(preConnected, { bridgeCollinear: true });
+
+    // 3.5) Sražení/radius vrcholů (pokud je hodnota > 0)
+    if (chamfer > 0) {
+      trimmed = applyChamferFillet(trimmed, chamfer);
+    }
+
+    // 4) Konverze do stockPoints
+    const baseId = Date.now();
+    const stockPts = [];
+    const first = trimmed[0];
+    const firstStart = first.type === 'line'
+      ? first.p1
+      : { x: first.cx + Math.sin(first.startAngle) * first.r, z: first.cz + Math.cos(first.startAngle) * first.r };
+    stockPts.push({
+      id: baseId,
+      type: 'G0',
+      x: Math.round(fromR(firstStart.x) * 1000) / 1000,
+      z: Math.round(firstStart.z * 1000) / 1000,
+      r: 0, mode: 'ABS'
+    });
+    trimmed.forEach((seg, idx) => {
+      let endPt, type, r;
+      if (seg.type === 'line') {
+        endPt = seg.p2; type = 'G1'; r = 0;
+      } else {
+        endPt = { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
+        type = seg.dir; r = seg.r;
+      }
+      const nx = Math.round(fromR(endPt.x) * 1000) / 1000;
+      const nz = Math.round(endPt.z * 1000) / 1000;
+      // Vynech duplicitní body (po chamfer/trim může vzniknout segment nulové délky)
+      const prev = stockPts[stockPts.length - 1];
+      if (prev && Math.abs(prev.x - nx) < 0.005 && Math.abs(prev.z - nz) < 0.005) return;
+      stockPts.push({
+        id: baseId + idx + 1,
+        type,
+        x: nx,
+        z: nz,
+        r: Math.round(r * 1000) / 1000,
+        mode: 'ABS'
+      });
+    });
+    S.stockPoints = stockPts;
+
+    if (S.params.stockMode !== 'casting') S.params.stockMode = 'casting';
+    S.editMode = 'stock';
+    fullUpdate();
+    fitView();
   }
 
   // ── copy / download / PDF ──
