@@ -3190,7 +3190,17 @@ document.getElementById("btnOpenTolerance").addEventListener("click", openTolera
 document.getElementById("btnOpenRoughness").addEventListener("click", openRoughnessCalc);
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
-document.getElementById("btnOpenCam").addEventListener("click", openCamSimulator);
+document.getElementById("btnOpenCam").addEventListener("click", () => {
+  // Pokud je něco nakresleno, vždy přegenerovat G-kód z aktuálního výkresu
+  // (jinak by se po smazání objektů načetl starý cache cncOutput).
+  if (state.objects && state.objects.length > 0 && bridge.runCncExport) {
+    bridge.runCncExport();
+    const code = document.getElementById("cncOutput")?.textContent;
+    openCamSimulator(code || undefined);
+  } else {
+    openCamSimulator();
+  }
+});
 document.getElementById("btnOpenAI")?.addEventListener("click", openAIPanel);
 
 // ── Poznámkový blok (profesionální verze) ──

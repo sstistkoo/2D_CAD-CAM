@@ -446,7 +446,12 @@ function intersectLineCircle(p1, p2, center, r) {
   const fx = p1.x - center.x, fz = p1.z - center.z;
   const a = dx * dx + dz * dz, b = 2 * (fx * dx + fz * dz), c = (fx * fx + fz * fz) - r * r;
   let discriminant = b * b - 4 * a * c;
-  if (discriminant < 0) return null;
+  // Tolerance pro tangentní případ — bez ní by se line tečná k offset oblouku
+  // vyhodnotila jako "no intersection" a bridge fallback v trimAndRemoveLoops
+  // by zdegeneroval malý oblouk (radius při ostrém rohu) do bodu.
+  const tangentTol = 1e-6 * Math.max(1, a, c < 0 ? -c : c);
+  if (discriminant < -tangentTol) return null;
+  if (discriminant < 0) discriminant = 0;
   discriminant = Math.sqrt(discriminant);
   const t1 = (-b - discriminant) / (2 * a), t2 = (-b + discriminant) / (2 * a);
   return [
@@ -591,6 +596,19 @@ function isOnSegBounds(pt, seg) {
     pt.z >= Math.min(seg.p1.z, seg.p2.z) - TRIM_TOL &&
     pt.z <= Math.max(seg.p1.z, seg.p2.z) + TRIM_TOL;
 }
+// Minimální vzdálenost průsečíku od endpointu, kterou požadujeme pro
+// global loop-removal. Nižší hodnota → loop-removal eliminuje legitimní
+// malé oblouky mezi dlouhými segmenty (intersection padne těsně za
+// trimnutý konec line, ale je to falešná smyčka, ne skutečné self-cross).
+const LOOP_INTERIOR_MIN = 0.1;
+function segEndPoint(seg) {
+  if (seg.type === 'line') return seg.p2;
+  return { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
+}
+function segStartPoint(seg) {
+  if (seg.type === 'line') return seg.p1;
+  return { x: seg.cx + Math.sin(seg.startAngle) * seg.r, z: seg.cz + Math.cos(seg.startAngle) * seg.r };
+}
 function trimAndRemoveLoops(rawSegs, opts = {}) {
   // opts.bridgeCollinear: pokud true, přemostí nesousední LINE segmenty
   // ležící na stejné nekonečné přímce (potlačí drážky/štěrbiny užší než
@@ -635,6 +653,38 @@ function trimAndRemoveLoops(rawSegs, opts = {}) {
           if (s1.isDegenerate || s2.isDegenerate) continue;
           const pt = findSegIntersection(s1, s2);
           if (pt && isOnSegBounds(pt, s1) && isOnSegBounds(pt, s2)) {
+            // True loop musí mít průsečík dostatečně uvnitř s1 i s2.
+            const s1End = segEndPoint(s1);
+            const s2Start = segStartPoint(s2);
+            const d1 = Math.hypot(pt.x - s1End.x, pt.z - s1End.z);
+            const d2 = Math.hypot(pt.x - s2Start.x, pt.z - s2Start.z);
+            if (d1 < LOOP_INTERIOR_MIN || d2 < LOOP_INTERIOR_MIN) continue;
+            // Skutečná smyčka = směry segmentů jsou ~opačné (path se vrací).
+            // Fillet (segment mezi ~kolmými lines/arcs) má směry pod úhlem
+            // ~90° → není loop, jen rounded corner.
+            const exitDir = (seg) => {
+              if (seg.type === 'line') {
+                const dx = seg.p2.x - seg.p1.x, dz = seg.p2.z - seg.p1.z;
+                const l = Math.hypot(dx, dz);
+                return l > 1e-6 ? { x: dx / l, z: dz / l } : null;
+              }
+              const sign = seg.dir === 'G2' ? -1 : 1;
+              return { x: sign * Math.cos(seg.endAngle), z: -sign * Math.sin(seg.endAngle) };
+            };
+            const entryDir = (seg) => {
+              if (seg.type === 'line') {
+                const dx = seg.p2.x - seg.p1.x, dz = seg.p2.z - seg.p1.z;
+                const l = Math.hypot(dx, dz);
+                return l > 1e-6 ? { x: dx / l, z: dz / l } : null;
+              }
+              const sign = seg.dir === 'G2' ? -1 : 1;
+              return { x: sign * Math.cos(seg.startAngle), z: -sign * Math.sin(seg.startAngle) };
+            };
+            const e1 = exitDir(s1), n2 = entryDir(s2);
+            if (e1 && n2) {
+              const dot = e1.x * n2.x + e1.z * n2.z;
+              if (dot > -0.5) continue; // ne dost opačné → není loop
+            }
             setSegEnd(s1, pt);
             setSegStart(s2, pt);
             result.splice(i + 1, j - (i + 1));
@@ -939,6 +989,7 @@ export function openCamSimulator(initialContour) {
       <button data-act="lock" title="Zamknout/odemknout body" class="cam-sim-active">🔒</button>
       <button data-act="fit" title="Centrovat">🎯</button>
       <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
+      <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div></div>
@@ -1051,13 +1102,16 @@ export function openCamSimulator(initialContour) {
       toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
       // Tvarový polotovar z kontury — jednotný přídavek na všechny plochy
       // + sražení/radius do rohů (proti popraskání při tepelném zpracování).
-      stockShapeEnabled: false, stockAllowance: 5, stockChamfer: 0
+      stockShapeEnabled: false, stockAllowance: 5, stockChamfer: 0, stockFillet: 0
     },
     view: { scale: 3, panX: 600, panY: 350 },
     flipX: false,
     // Z-osa limity (čelisti/koník) a rozsah obrábění – hodnoty v Z (null = vypnuto)
     zLimits: { chuck: null, tail: null, rangeStart: null, rangeEnd: null },
     showZLimits: false,
+    // 'all' = vše, 'cut' = jen řezné (G1/G2/G3, skryje G0 rychloposuvy),
+    // 'none' = nic. Cyklus: all → cut → none → all.
+    showSimPath: 'all',
     draggedLimit: null, // 'chuck' | 'tail' | 'rangeStart' | 'rangeEnd' nebo null
     simRunning: false, simProgress: 0,
     useManualCode: false, manualGCode: '',
@@ -1090,8 +1144,19 @@ export function openCamSimulator(initialContour) {
       if (p.flipX !== undefined) S.flipX = !!p.flipX;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
       if (p.showZLimits !== undefined) S.showZLimits = !!p.showZLimits;
+      if (p.showSimPath !== undefined) {
+        // Zpětná kompatibilita: dříve byl boolean, teď string.
+        if (typeof p.showSimPath === 'boolean') S.showSimPath = p.showSimPath ? 'all' : 'none';
+        else if (['all', 'cut', 'none'].includes(p.showSimPath)) S.showSimPath = p.showSimPath;
+      }
     }
   } catch (_) { /* ignore */ }
+
+  // Synchronizace s módem canvasu — bez toho se G-kód vyexportovaný v RADIUS
+  // módu interpretuje v CAMu v DIAMON (default) a kontura se vykreslí na
+  // poloviční pozici. Mód v CAMu by neměl měnit fyzické umístění kontury.
+  if (state.xDisplayMode === 'radius') S.params.mode = 'RADIUS';
+  else if (state.xDisplayMode === 'diameter') S.params.mode = 'DIAMON';
 
   // Parse initial contour if provided
   let _importedContour = false;
@@ -1109,6 +1174,7 @@ export function openCamSimulator(initialContour) {
       S.params.stockMode = 'casting';
     }
   } catch (e) { console.warn('buildStockPointsFromCanvas:', e); }
+
 
   // ── DOM refs ──
   const root = overlay.querySelector('.cam-sim-root');
@@ -1136,6 +1202,17 @@ export function openCamSimulator(initialContour) {
   // Sync Z-limits button to persisted state
   const zlimBtn = toolbar.querySelector('[data-act="zlimits"]');
   if (zlimBtn) zlimBtn.classList.toggle('cam-sim-active', S.showZLimits);
+  // Sync sim-path toggle button to persisted state (all/cut/none)
+  const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
+  if (simPathBtn) {
+    const cfg = {
+      all:  { icon: '👁',  active: true },
+      cut:  { icon: '✂️',  active: true },
+      none: { icon: '🙈', active: false },
+    }[S.showSimPath] || { icon: '👁', active: true };
+    simPathBtn.classList.toggle('cam-sim-active', cfg.active);
+    simPathBtn.textContent = cfg.icon;
+  }
 
   // ── HISTORY ──
   function pushHistory() {
@@ -1184,7 +1261,7 @@ export function openCamSimulator(initialContour) {
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
         useManualCode: S.useManualCode, flipX: S.flipX,
-        zLimits: S.zLimits, showZLimits: S.showZLimits
+        zLimits: S.zLimits, showZLimits: S.showZLimits, showSimPath: S.showSimPath
       }));
     } catch (_) { /* quota */ }
   }
@@ -1244,7 +1321,9 @@ export function openCamSimulator(initialContour) {
         offSeg = { type: 'line', p1: { x: seg.p1.x + tx, z: seg.p1.z + tz }, p2: { x: seg.p2.x + tx, z: seg.p2.z + tz } };
       } else if (seg.type === 'arc') {
         let rNew = (seg.dir === 'G3') ? seg.r + totalOffset : seg.r - totalOffset;
-        if (rNew <= 1.5) { incompleteMachiningCount++; offSeg = null; }
+        // Pouze geometricky nemožné (rNew <= 0) zahodíme. Malé ale kladné
+        // rNew je legitimní — nástroj sleduje miniaturní oblouk kolem rohu.
+        if (rNew <= 0.05) { incompleteMachiningCount++; offSeg = null; }
         else {
           const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
           const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
@@ -1267,7 +1346,7 @@ export function openCamSimulator(initialContour) {
           finRaw.push({ type: 'line', p1: { x: seg.p1.x + n.x * tipR, z: seg.p1.z + n.z * tipR }, p2: { x: seg.p2.x + n.x * tipR, z: seg.p2.z + n.z * tipR } });
         } else if (seg.type === 'arc') {
           let rNew = (seg.dir === 'G3') ? seg.r + tipR : seg.r - tipR;
-          if (rNew > 1.5) {
+          if (rNew > 0.05) {
             const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
             const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
             finRaw.push({ type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle });
@@ -1770,8 +1849,8 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.contour; ctx.lineWidth = 3; ctx.stroke();
     }
 
-    // offset path
-    if (calc.offsetPath.length > 0) {
+    // offset path — v 🙈 stavu (none) skryjeme všechny drahy
+    if (S.showSimPath !== 'none' && calc.offsetPath.length > 0) {
       ctx.beginPath();
       calc.offsetPath.forEach((seg, i) => {
         if (seg.isDegenerate) return;
@@ -1795,8 +1874,8 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.offset; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // finish path
-    if (prms.doFinishing && calc.finishOffsetPath.length > 0) {
+    // finish path — v 🙈 stavu skryjeme všechny drahy
+    if (S.showSimPath !== 'none' && prms.doFinishing && calc.finishOffsetPath.length > 0) {
       ctx.beginPath();
       calc.finishOffsetPath.forEach((seg, i) => {
         if (seg.isDegenerate) return;
@@ -1820,24 +1899,27 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.finish; ctx.lineWidth = 2; ctx.stroke();
     }
 
-    // roughing passes
-    ctx.beginPath();
-    calc.passes.forEach(pass => {
-      if (pass.type === 'long') {
-        const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
-        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-      } else {
-        const p1 = toScreen(pass.xStart, pass.z), p2 = toScreen(pass.xEnd, pass.z);
-        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-      }
-    });
-    ctx.strokeStyle = C.pass; ctx.lineWidth = 1.5; ctx.stroke();
+    // roughing passes — v 🙈 stavu skryjeme všechny drahy
+    if (S.showSimPath !== 'none') {
+      ctx.beginPath();
+      calc.passes.forEach(pass => {
+        if (pass.type === 'long') {
+          const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        } else {
+          const p1 = toScreen(pass.xStart, pass.z), p2 = toScreen(pass.xEnd, pass.z);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        }
+      });
+      ctx.strokeStyle = C.pass; ctx.lineWidth = 1.5; ctx.stroke();
+    }
 
-    // sim path (dashed)
-    if (calc.simPath.length > 0) {
+    // sim path (dashed) — 'all' = vše, 'cut' = jen G1/G2/G3, 'none' = nic
+    if (S.showSimPath !== 'none' && calc.simPath.length > 0) {
       ctx.beginPath();
       for (let i = 0; i < calc.simPath.length - 1; i++) {
         const p1 = calc.simPath[i], p2 = calc.simPath[i + 1];
+        if (S.showSimPath === 'cut' && p2.type === 'G0') continue;
         const s = toScreen(p1.x, p1.z), e = toScreen(p2.x, p2.z);
         if (Math.abs(s.x - e.x) > 0.1 || Math.abs(s.y - e.y) > 0.1) {
           ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y);
@@ -2260,7 +2342,8 @@ export function openCamSimulator(initialContour) {
         </label>
         <div class="cam-sim-row" style="margin-top:6px">
           <div class="cam-sim-field"><label>Přídavek (mm/pl)</label><input type="number" step="0.5" data-act="stock-shape-allowance" value="${S.params.stockAllowance}" ${dis1}></div>
-          <div class="cam-sim-field"><label>Sražení / R</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis1}></div>
+          <div class="cam-sim-field"><label>Sražení</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis1}></div>
+          <div class="cam-sim-field"><label>R</label><input type="number" step="0.5" data-act="stock-shape-fillet" value="${S.params.stockFillet}" ${dis1}></div>
         </div>
       </div>`;
     } else {
@@ -2293,7 +2376,8 @@ export function openCamSimulator(initialContour) {
         </label>
         <div class="cam-sim-row" style="margin-top:6px">
           <div class="cam-sim-field"><label>Přídavek (mm/pl)</label><input type="number" step="0.5" data-act="stock-shape-allowance" value="${S.params.stockAllowance}" ${dis}></div>
-          <div class="cam-sim-field"><label>Sražení / R</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis}></div>
+          <div class="cam-sim-field"><label>Sražení</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis}></div>
+          <div class="cam-sim-field"><label>R</label><input type="number" step="0.5" data-act="stock-shape-fillet" value="${S.params.stockFillet}" ${dis}></div>
         </div>
       </div>`;
     }
@@ -2317,10 +2401,21 @@ export function openCamSimulator(initialContour) {
     tabBody.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => {
         S.editMode = btn.dataset.edit;
-        if (S.editMode === 'stock' && S.params.stockMode !== 'cylinder' && S.stockPoints.length === 0) generateDefaultStock();
+        if (S.editMode === 'stock') {
+          // Vstup do editoru polotovaru = uživatel chce vlastní tvar.
+          // Bez switche by jeho body byly skryté za válcovým renderingem.
+          if (S.params.stockMode !== 'casting') S.params.stockMode = 'casting';
+          if (S.stockPoints.length === 0) generateDefaultStock();
+        }
         renderTab(); draw();
       });
     });
+    // Když uživatel mění/přidává/maže body polotovaru v editoru, znamená to,
+    // že chce vlastní tvar — switchneme stockMode na 'casting', jinak by
+    // jeho úpravy byly zakryty válcovým renderingem.
+    const ensureStockModeCasting = () => {
+      if (S.editMode === 'stock' && S.params.stockMode !== 'casting') S.params.stockMode = 'casting';
+    };
     tabBody.querySelectorAll('[data-field]').forEach(el => {
       const id = parseInt(el.dataset.id);
       const field = el.dataset.field;
@@ -2330,6 +2425,7 @@ export function openCamSimulator(initialContour) {
         const pt = list.find(p => p.id === id);
         if (pt) {
           pt[field] = el.value;
+          ensureStockModeCasting();
           fullUpdate();
         }
       });
@@ -2340,7 +2436,7 @@ export function openCamSimulator(initialContour) {
         const id = parseInt(btn.dataset.modeid);
         const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
         const pt = list.find(p => p.id === id);
-        if (pt) { pt.mode = pt.mode === 'ABS' ? 'INC' : 'ABS'; fullUpdate(); }
+        if (pt) { pt.mode = pt.mode === 'ABS' ? 'INC' : 'ABS'; ensureStockModeCasting(); fullUpdate(); }
       });
     });
     tabBody.querySelectorAll('[data-insertid]').forEach(btn => {
@@ -2352,6 +2448,7 @@ export function openCamSimulator(initialContour) {
         if (idx >= 0) {
           const prev = list[idx];
           list.splice(idx + 1, 0, { ...prev, id: Date.now(), z: parseFloat(prev.z) - 5 });
+          ensureStockModeCasting();
           fullUpdate();
         }
       });
@@ -2364,6 +2461,7 @@ export function openCamSimulator(initialContour) {
           pushHistory();
           const idx = list.findIndex(p => p.id === id);
           if (idx >= 0) list.splice(idx, 1);
+          ensureStockModeCasting();
           fullUpdate();
         }
       });
@@ -2374,6 +2472,7 @@ export function openCamSimulator(initialContour) {
       const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
       const last = list.length > 0 ? list[list.length - 1] : { x: 100, z: 0 };
       list.push({ id: Date.now(), type: 'G1', x: last.x, z: parseFloat(last.z) - 10, r: 0, mode: 'ABS' });
+      ensureStockModeCasting();
       fullUpdate();
     });
     const copyBtn = tabBody.querySelector('[data-act="copy-code"]');
@@ -2418,6 +2517,11 @@ export function openCamSimulator(initialContour) {
     const shapeCham = tabBody.querySelector('[data-act="stock-shape-chamfer"]');
     if (shapeCham) shapeCham.addEventListener('change', () => {
       S.params.stockChamfer = parseFloat(shapeCham.value) || 0;
+      if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
+    });
+    const shapeFil = tabBody.querySelector('[data-act="stock-shape-fillet"]');
+    if (shapeFil) shapeFil.addEventListener('change', () => {
+      S.params.stockFillet = parseFloat(shapeFil.value) || 0;
       if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
     });
   }
@@ -2760,8 +2864,11 @@ export function openCamSimulator(initialContour) {
   //   cross < 0  → konvexní (vnější) roh   → SRAŽENÍ (chamfer)  – linie
   //   cross > 0  → konkávní (vnitřní) roh  → POLOMĚR (fillet)   – G3 oblouk
   // Velikost `size` je v mm: pro chamfer = délka nohy, pro fillet = poloměr.
-  function applyChamferFillet(segs, size) {
-    if (size <= 0 || segs.length < 2) return segs;
+  function applyChamferFillet(segs, chamferSize, filletSize) {
+    // Zpětná kompatibilita: pokud volající předá jen jeden argument,
+    // použije se pro obojí (původní chování).
+    if (filletSize === undefined) filletSize = chamferSize;
+    if ((chamferSize <= 0 && filletSize <= 0) || segs.length < 2) return segs;
     const mods = [];
     for (let i = 0; i < segs.length - 1; i++) {
       const s1 = segs[i], s2 = segs[i + 1];
@@ -2781,18 +2888,20 @@ export function openCamSimulator(initialContour) {
       if (Math.abs(cross) < 0.05) { mods.push(null); continue; }
 
       if (cross < 0) {
-        // Konvexní → chamfer (sražení 45°-ish dle úhlu, nohy = size)
-        const c = Math.min(size, d1Len * 0.49, d2Len * 0.49);
+        // Konvexní → chamfer (sražení 45°-ish dle úhlu, nohy = chamferSize)
+        if (chamferSize <= 0) { mods.push(null); continue; }
+        const c = Math.min(chamferSize, d1Len * 0.49, d2Len * 0.49);
         if (c < 0.05) { mods.push(null); continue; }
         const P1 = { x: V.x - d1.x * c, z: V.z - d1.z * c };
         const P2 = { x: V.x + d2.x * c, z: V.z + d2.z * c };
         mods.push({ type: 'chamfer', P1, P2 });
       } else {
-        // Konkávní → fillet (poloměr = size, ořezáno na délku segmentů)
+        // Konkávní → fillet (poloměr = filletSize, ořezáno na délku segmentů)
+        if (filletSize <= 0) { mods.push(null); continue; }
         const cosA = -d1.x * d2.x - d1.z * d2.z; // úhel mezi (-d1) a d2 = vnitřní úhel
         const halfAngle = Math.acos(Math.max(-1, Math.min(1, cosA))) / 2;
         if (halfAngle < 0.05 || halfAngle > Math.PI / 2 - 0.05) { mods.push(null); continue; }
-        let tanLen = size / Math.tan(halfAngle);
+        let tanLen = filletSize / Math.tan(halfAngle);
         tanLen = Math.min(tanLen, d1Len * 0.49, d2Len * 0.49);
         const r = tanLen * Math.tan(halfAngle);
         if (r < 0.05) { mods.push(null); continue; }
@@ -2840,6 +2949,7 @@ export function openCamSimulator(initialContour) {
     const prms = S.params;
     const allowance = parseFloat(prms.stockAllowance) || 0;
     const chamfer   = parseFloat(prms.stockChamfer)   || 0;
+    const fillet    = parseFloat(prms.stockFillet)    || 0;
     if (allowance <= 0) return; // tiše ignoruj — uživatel nastaví hodnotu
     const toR = (x) => prms.mode === 'DIAMON' ? x / 2 : x;
     const fromR = (r) => prms.mode === 'DIAMON' ? r * 2 : r;
@@ -2892,9 +3002,9 @@ export function openCamSimulator(initialContour) {
     // 3) Trim sousedů + global loop removal + collinear bridging
     let trimmed = trimAndRemoveLoops(preConnected, { bridgeCollinear: true });
 
-    // 3.5) Sražení/radius vrcholů (pokud je hodnota > 0)
-    if (chamfer > 0) {
-      trimmed = applyChamferFillet(trimmed, chamfer);
+    // 3.5) Sražení/radius vrcholů (pokud je některá hodnota > 0)
+    if (chamfer > 0 || fillet > 0) {
+      trimmed = applyChamferFillet(trimmed, chamfer, fillet);
     }
 
     // 4) Konverze do stockPoints
@@ -3150,6 +3260,20 @@ export function openCamSimulator(initialContour) {
         ? (S.useManualCode ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)' : 'Osa X otočena – X+ dolů (G2/G3 prohozeny)')
         : 'Osa X – X+ nahoru';
       showToast(msg);
+    } else if (act === 'simpath') {
+      // Cyklus: all → cut (skryté rychloposuvy) → none → all
+      const next = { all: 'cut', cut: 'none', none: 'all' };
+      S.showSimPath = next[S.showSimPath] || 'all';
+      const cfg = {
+        all:  { icon: '👁',  active: true,  toast: 'Simulační trajektorie zobrazena' },
+        cut:  { icon: '✂️',  active: true,  toast: 'Skryté rychloposuvy (jen řezné drahy)' },
+        none: { icon: '🙈', active: false, toast: 'Simulační trajektorie skryta' },
+      }[S.showSimPath];
+      btn.classList.toggle('cam-sim-active', cfg.active);
+      btn.textContent = cfg.icon;
+      draw();
+      saveState();
+      showToast(cfg.toast);
     } else if (act === 'zlimits') {
       S.showZLimits = !S.showZLimits;
       btn.classList.toggle('cam-sim-active', S.showZLimits);
@@ -3738,6 +3862,12 @@ export function openCamSimulator(initialContour) {
       S.params.stockFace = 2.0;
     }
     generateDefaultStock();
+  }
+  // Pokud má uživatel zapnutý "Přídavek na plochu", regeneruj polotovar
+  // z aktuální kontury hned po načtení — bez toho by musel ručně sáhnout
+  // na hodnotu, aby se polotovar přepočítal.
+  if (S.params.stockShapeEnabled && S.contourPoints.length >= 2) {
+    try { handleStockFromContourAllowance(); } catch (e) { console.warn('auto stock-shape regen:', e); }
   }
   fullUpdate();
   requestAnimationFrame(() => fitView());
