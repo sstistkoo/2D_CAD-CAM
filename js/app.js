@@ -213,18 +213,28 @@ window.addEventListener('load', () => {
   }
 });
 
-// ── PWA Service Worker – DOČASNĚ VYPNUTO (probíhá vývoj) ──
-// Neregistrujeme žádný SW; navíc odregistrujeme případný starý SW a smažeme
-// jeho cache na VŠECH adresách, ať stará verze neblokuje načtení aktuálních
-// souborů. Až bude appka hotová, vrátit zpět registraci ./sw.js (viz git).
+// ── PWA Service Worker ──
+// Na localhost/127.0.0.1 (vývoj) SW NEregistrujeme a aktivně odhlašujeme
+// případný starý — jinak by cachoval staré moduly a vývoj se zasekával.
+// Na produkčním hostingu SW registrujeme pro PWA offline režim.
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.getRegistrations()
-    .then((regs) => regs.forEach((r) => r.unregister()))
-    .catch(() => {});
-  if (window.caches) {
-    caches.keys()
-      .then((keys) => keys.forEach((k) => caches.delete(k)))
+  const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (isDev) {
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => regs.forEach((r) => r.unregister()))
       .catch(() => {});
+    if (window.caches) {
+      caches.keys()
+        .then((keys) => keys.forEach((k) => caches.delete(k)))
+        .catch(() => {});
+    }
+  } else {
+    // Produkce: registrace SW pro PWA. Spustíme až po load eventu, ať
+    // neblokujeme načtení modulů na první návštěvě.
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .catch(() => { /* ignore — PWA je optional */ });
+    });
   }
 }
 

@@ -414,6 +414,9 @@ function runCncExport() {
     if (obj.type === 'constr') continue;
     if (obj.type === 'text') continue;
     if (obj.isDimension || obj.isCoordLabel) continue;
+    // Polotovar (isStock) jde do CAMu samostatným kanálem
+    // (buildStockPointsFromCanvas), do kontury G-kódu nepatří.
+    if (obj.isStock) continue;
 
     if (obj.type === 'line') {
       let x1 = obj.x1, y1 = obj.y1, x2 = obj.x2, y2 = obj.y2;
@@ -498,7 +501,15 @@ function runCncExport() {
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
           ey = obj.cy + obj.r * Math.sin(obj.endAngle);
         if (needsRapid(sx, sy)) out += `G00 ${fmtCoord(sx, sy)}\n`;
-        const arcG = flipArc(obj.ccw ? 'G03' : 'G02');
+        // G2/G3 z GEOMETRIE (cross product chord × center-offset), ne z
+        // obj.ccw flagu. Flag je v plátno-screen konvenci (flipnutá Y),
+        // CNC G2/G3 jsou ve world coords. Pro short arc s daným
+        // start/end/center existuje jen jeden správný směr.
+        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
+        const dx = ex - sx, dy = ey - sy;
+        const cox = obj.cx - mx, coy = obj.cy - my;
+        const cross = dx * coy - dy * cox;
+        const arcG = flipArc(cross < 0 ? 'G03' : 'G02');
         out += `${arcG} ${fmtCoord(ex, ey)} R${obj.r.toFixed(3)}\n`;
         lastEndX = ex; lastEndY = ey;
         break;

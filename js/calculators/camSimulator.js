@@ -1320,7 +1320,16 @@ export function openCamSimulator(initialContour) {
         const tz = n.z * (tipR + allowanceZ);
         offSeg = { type: 'line', p1: { x: seg.p1.x + tx, z: seg.p1.z + tz }, p2: { x: seg.p2.x + tx, z: seg.p2.z + tz } };
       } else if (seg.type === 'arc') {
-        let rNew = (seg.dir === 'G3') ? seg.r + totalOffset : seg.r - totalOffset;
+        // Autodetekce směru z geometrie — nezávisle na G2/G3 z exportu.
+        // Důvod: pokud byl arc nakreslen s "obrácenou" CW/CCW volbou
+        // (canvas má flipnutou Y), export má prohozený G2/G3 a offset by
+        // se pak posílal na špatnou stranu.
+        // OUTER (konvexní): |center.x| < |chord_midpoint.x| → offset ven.
+        // INNER (konkávní): |center.x| > |chord_midpoint.x| → offset dovnitř.
+        const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+        const centerAbsX = Math.abs(seg.cx);
+        const isOuter = centerAbsX < midAbsX;
+        let rNew = isOuter ? seg.r + totalOffset : seg.r - totalOffset;
         // Pouze geometricky nemožné (rNew <= 0) zahodíme. Malé ale kladné
         // rNew je legitimní — nástroj sleduje miniaturní oblouk kolem rohu.
         if (rNew <= 0.05) { incompleteMachiningCount++; offSeg = null; }
@@ -1345,7 +1354,11 @@ export function openCamSimulator(initialContour) {
           const n = getNormal(seg.p1, seg.p2);
           finRaw.push({ type: 'line', p1: { x: seg.p1.x + n.x * tipR, z: seg.p1.z + n.z * tipR }, p2: { x: seg.p2.x + n.x * tipR, z: seg.p2.z + n.z * tipR } });
         } else if (seg.type === 'arc') {
-          let rNew = (seg.dir === 'G3') ? seg.r + tipR : seg.r - tipR;
+          // Autodetekce směru z geometrie — viz komentář u rough offsetu.
+          const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+          const centerAbsX = Math.abs(seg.cx);
+          const isOuter = centerAbsX < midAbsX;
+          let rNew = isOuter ? seg.r + tipR : seg.r - tipR;
           if (rNew > 0.05) {
             const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
             const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
@@ -1786,10 +1799,10 @@ export function openCamSimulator(initialContour) {
       // filled area
       ctx.fillStyle = 'rgba(108,112,134,0.12)';
       ctx.beginPath(); ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath(); ctx.fill();
-      // outline — all 4 sides visible
-      ctx.strokeStyle = '#fab387'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath();
+      // outline — all 4 sides visible (tlustá červená čára)
+      ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.beginPath();
       ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath();
-      ctx.stroke(); ctx.setLineDash([]);
+      ctx.stroke();
       // label with stock dimensions
       const labelPt = toScreen(sRad, sFace);
       const stockDiaLabel = `∅${parseFloat(prms.stockDiameter)} × ${sLen}`;
@@ -1817,7 +1830,7 @@ export function openCamSimulator(initialContour) {
           }
         }
       });
-      ctx.strokeStyle = C.stock; ctx.setLineDash([4, 4]); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
     }
 
     // contour
@@ -2955,12 +2968,22 @@ export function openCamSimulator(initialContour) {
     const fromR = (r) => prms.mode === 'DIAMON' ? r * 2 : r;
 
     // 1) Postav contourSegments v poloměru
+    // G0 přejezdy NEzařazujeme — jsou jen přepozicování nástroje, ne
+    // součást tvaru dílu. Pokud uživatel má v kontuře G0 jumps (typicky
+    // při exportu z nepropojených objektů na plátně), bez tohoto kroku
+    // by se z nich offsetovaly falešné segmenty zasahující do polotovaru.
+    // Také filtrujeme nulové segmenty (p1 == p2) které dělají problémy
+    // při trimování.
     const wp = absPts.map(p => ({ ...p, xR: toR(p.xAbs), zR: p.zAbs }));
     const contourSegments = [];
+    const SEG_EPS = 1e-4;
     for (let i = 0; i < wp.length - 1; i++) {
       const p1 = wp[i], p2 = wp[i + 1], type = p2.type;
       const a = { x: p1.xR, z: p1.zR }, b = { x: p2.xR, z: p2.zR };
-      if (type === 'G0' || type === 'G1') {
+      const dist = Math.hypot(b.x - a.x, b.z - a.z);
+      if (dist < SEG_EPS) continue; // nulový segment — přeskoč
+      if (type === 'G0') continue; // rychloposuv není součástí tvaru
+      if (type === 'G1') {
         contourSegments.push({ type: 'line', p1: a, p2: b });
       } else if (type === 'G2' || type === 'G3') {
         const arc = getArcParams(a, b, p2.rVal, type);
@@ -2969,6 +2992,41 @@ export function openCamSimulator(initialContour) {
       }
     }
     if (contourSegments.length === 0) return;
+
+    // 1.2) Čištění kontury — filtrujeme segmenty, které končí v již
+    // navštívené poloze (typicky "zpětné" oblouky jak je generuje export
+    // nepropojených objektů z plátna). A pokud mezi sousedy zůstane gap
+    // (kvůli skipnutým G0 přejezdům), vložíme spojovací úsečku.
+    const cleaned = (() => {
+      const VISIT_TOL = 0.01;
+      const visited = [];
+      const isVisited = (pt) => visited.some(v => Math.abs(v.x - pt.x) < VISIT_TOL && Math.abs(v.z - pt.z) < VISIT_TOL);
+      const visit = (pt) => visited.push(pt);
+      const result = [];
+      for (let i = 0; i < contourSegments.length; i++) {
+        const seg = contourSegments[i];
+        const segEnd = seg.p2;
+        // Pokud končí v již navštíveném bodě, jde o zpětný/duplicitní
+        // segment — přeskočíme. (Výjimka: úplně první segment.)
+        if (i > 0 && isVisited(segEnd)) continue;
+        // Pokud začátek nenavazuje na konec předchozího v result, vlož bridge.
+        if (result.length > 0) {
+          const prevEnd = result[result.length - 1].p2;
+          const gap = Math.hypot(seg.p1.x - prevEnd.x, seg.p1.z - prevEnd.z);
+          if (gap > VISIT_TOL) {
+            result.push({ type: 'line', p1: prevEnd, p2: seg.p1, isBridge: true });
+          }
+        }
+        result.push(seg);
+        visit(seg.p1);
+        visit(seg.p2);
+      }
+      return result;
+    })();
+    if (cleaned.length === 0) return;
+    // Přepiš pracovní pole — další kroky pracují s vyčištěnou konturou.
+    contourSegments.length = 0;
+    cleaned.forEach(s => contourSegments.push(s));
 
     // 2) Raw offsets — uniformní allowance v obou osách
     const rawOffsets = [];
@@ -2982,7 +3040,11 @@ export function openCamSimulator(initialContour) {
           p2: { x: seg.p2.x + tx, z: seg.p2.z + tz }
         });
       } else {
-        const rNew = (seg.dir === 'G3') ? seg.r + allowance : seg.r - allowance;
+        // Autodetekce směru z geometrie — viz komentář u rough offsetu výše.
+        const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+        const centerAbsX = Math.abs(seg.cx);
+        const isOuter = centerAbsX < midAbsX;
+        const rNew = isOuter ? seg.r + allowance : seg.r - allowance;
         if (rNew <= 0.5) continue;
         const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
         const endAngle   = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
@@ -3146,41 +3208,75 @@ export function openCamSimulator(initialContour) {
       ? { x: cncX, y: cncZ }
       : { x: cncZ, y: cncX };
 
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p1 = pts[i], p2 = pts[i + 1];
-      // Přepočet z průměru na poloměr pokud je DIAMON mód
-      const x1 = isDia ? p1.xAbs / 2 : p1.xAbs;
-      const x2 = isDia ? p2.xAbs / 2 : p2.xAbs;
-      const c1 = toCanvas(x1, p1.zAbs);
-      const c2 = toCanvas(x2, p2.zAbs);
+    // Vykreslí řetězec absolutních CNC bodů do state.objects.
+    // isStock=true označí segmenty jako polotovar (isStock příznak).
+    const emitChain = (chainPts, isStock) => {
+      for (let i = 0; i < chainPts.length - 1; i++) {
+        const p1 = chainPts[i], p2 = chainPts[i + 1];
+        // Přepočet z průměru na poloměr pokud je DIAMON mód
+        const x1 = isDia ? p1.xAbs / 2 : p1.xAbs;
+        const x2 = isDia ? p2.xAbs / 2 : p2.xAbs;
+        const c1 = toCanvas(x1, p1.zAbs);
+        const c2 = toCanvas(x2, p2.zAbs);
 
-      if (p2.type === 'G0' || p2.type === 'G1') {
-        // Úsečka
-        const id = state.nextId++;
-        state.objects.push({
-          type: 'line', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
-          name: `Úsečka ${id}`, id, layer: state.activeLayer,
-        });
-      } else if (p2.type === 'G2' || p2.type === 'G3') {
-        // Oblouk – vypočítat střed a úhly
-        const arc = getArcParams(
-          { x: x1, z: p1.zAbs },
-          { x: x2, z: p2.zAbs },
-          p2.rVal, p2.type
-        );
-        if (arc.error) continue;
-        const cc = toCanvas(arc.cx, arc.cz);
-        // Přepočítat úhly v souřadnicích canvasu
-        const startAngle = Math.atan2(c1.y - cc.y, c1.x - cc.x);
-        const endAngle = Math.atan2(c2.y - cc.y, c2.x - cc.x);
-        const id = state.nextId++;
-        state.objects.push({
-          type: 'arc', cx: cc.x, cy: cc.y, r: arc.r,
-          startAngle: p2.type === 'G2' ? endAngle : startAngle,
-          endAngle: p2.type === 'G2' ? startAngle : endAngle,
-          name: `Oblouk ${id}`, id, layer: state.activeLayer,
-        });
+        if (p2.type === 'G0' || p2.type === 'G1') {
+          const id = state.nextId++;
+          const obj = {
+            type: 'line', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
+            name: `Úsečka ${id}`, id, layer: state.activeLayer,
+          };
+          if (isStock) obj.isStock = true;
+          state.objects.push(obj);
+        } else if (p2.type === 'G2' || p2.type === 'G3') {
+          const arc = getArcParams(
+            { x: x1, z: p1.zAbs },
+            { x: x2, z: p2.zAbs },
+            p2.rVal, p2.type
+          );
+          if (arc.error) continue;
+          const cc = toCanvas(arc.cx, arc.cz);
+          const startAngle = Math.atan2(c1.y - cc.y, c1.x - cc.x);
+          const endAngle = Math.atan2(c2.y - cc.y, c2.x - cc.x);
+          const id = state.nextId++;
+          const obj = {
+            type: 'arc', cx: cc.x, cy: cc.y, r: arc.r,
+            startAngle: p2.type === 'G2' ? endAngle : startAngle,
+            endAngle: p2.type === 'G2' ? startAngle : endAngle,
+            name: `Oblouk ${id}`, id, layer: state.activeLayer,
+          };
+          if (isStock) obj.isStock = true;
+          state.objects.push(obj);
+        }
       }
+    };
+
+    // Kontura
+    emitChain(pts, false);
+
+    // Polotovar — válcový (rectangle z stockDiameter/stockLength/stockFace)
+    // nebo tvarový (stockPoints řetězec).
+    const prms = S.params;
+    if (prms.stockMode === 'cylinder') {
+      const sRad = (parseFloat(prms.stockDiameter) || 0) / 2;
+      const sLen = parseFloat(prms.stockLength) || 0;
+      const sFace = parseFloat(prms.stockFace) || 0;
+      if (sRad > 0 && sLen > 0) {
+        // 4 rohy v CNC X (poloměr), Z; obejdou rectangle.
+        // Použijeme syntetické body s xAbs jako průměr v DIAMON režimu,
+        // aby emitChain udělal /2 zpětně na poloměr.
+        const xDia = isDia ? sRad * 2 : sRad;
+        const stockChain = [
+          { type: 'G0', xAbs: 0,    zAbs: sFace },
+          { type: 'G1', xAbs: xDia, zAbs: sFace },
+          { type: 'G1', xAbs: xDia, zAbs: -sLen },
+          { type: 'G1', xAbs: 0,    zAbs: -sLen },
+          { type: 'G1', xAbs: 0,    zAbs: sFace },
+        ];
+        emitChain(stockChain, true);
+      }
+    } else {
+      const stockPts = resolvePointsToAbsolute(S.stockPoints);
+      if (stockPts.length >= 2) emitChain(stockPts, true);
     }
 
     calculateAllIntersections();
@@ -3197,7 +3293,7 @@ export function openCamSimulator(initialContour) {
       const sideOverlay = document.getElementById('sidebarOverlay');
       if (sideOverlay) sideOverlay.style.display = 'none';
     }
-    showToast(`Kontura vložena (${state.objects.length} objektů)`);
+    showToast(`Kontura + polotovar vloženy (${state.objects.length} objektů)`);
   }
 
   // ── FULL UPDATE (recalc + redraw + re-render UI) ──
