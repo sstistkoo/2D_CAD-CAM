@@ -1400,9 +1400,29 @@ export function openCamSimulator(initialContour) {
       const rapidClrFC = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
       const xStartFC = sRad + rapidClrFC;
       const minZPart = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.z)) : -1000;
-      let currentZ = stockFace;
+      // Start na pravé hraně polotovaru: pro cylinder = stockFace, pro casting =
+      // max(stockWorldPoints.zReal). Bez tohoto fixu casting s default stockFace=2
+      // ihned vyletí ze smyčky (currentZ-step <= minZPart=0) a žádný pas se neemituje.
+      let faceStartZ = stockFace;
+      if (prms.stockMode === 'casting' && stockWorldPoints.length > 0) {
+        faceStartZ = -9999;
+        stockWorldPoints.forEach(p => { if (p.zReal > faceStartZ) faceStartZ = p.zReal; });
+      }
+      // Z-rozsah kontury (pro detekci „za konturou" – tam stop, jinak by
+      // se cuty pouštěly i do chuck-stub oblasti).
+      let maxOZ = -9999, minOZ = 9999;
+      offsetPath.forEach(p => {
+        if (p.isDegenerate) return;
+        const z1 = p.type === 'line' ? p.p1.z : p.cz + p.r;
+        const z2 = p.type === 'line' ? p.p2.z : p.cz - p.r;
+        maxOZ = Math.max(maxOZ, z1, z2);
+        minOZ = Math.min(minOZ, z1, z2);
+      });
+      let currentZ = faceStartZ;
       let safe = 0;
-      while (currentZ > minZPart && safe < 500) {
+      // Iterace: ukončíme, jakmile by další step šel pod minZPart (= nejlevější
+      // Z bodu kontury). Tím se vyhneme řezu za konturou do držákové oblasti.
+      while ((currentZ - step) >= minZPart - 0.01 && safe < 500) {
         currentZ -= step; safe++;
         let xsEnd = [];
         offsetPath.forEach(os => {
@@ -1419,24 +1439,23 @@ export function openCamSimulator(initialContour) {
           }
         });
         xsEnd.sort((a, b) => a - b);
-        let xEnd = 0; // default: až k ose
+        let xEnd;
         if (xsEnd.length > 0) {
-          // Vyber NEJVĚTŠÍ X průsečík (= outermost kontura na tomto Z,
-          // ten první narazíme jdoucí −X od povrchu).
+          // Kontura na tomto Z protíná svislici → vyber NEJVĚTŠÍ X (= outermost
+          // kontura, ten první narazíme jdoucí −X od povrchu). Filtruj jen
+          // průsečíky uvnitř polotovaru.
           const validXs = xsEnd.filter(x => x < sRad + 1);
-          if (validXs.length > 0) xEnd = validXs[validXs.length - 1];
+          if (validXs.length === 0) continue; // všechny mimo polotovar
+          xEnd = validXs[validXs.length - 1];
         } else {
-          // Bez průsečíku: jsme buď za rozsahem kontury (= cuttable bez bloku),
-          // nebo nad konturou (= nic neuříznout). Když je currentZ za nejZazším
-          // bodem offsetu, řežeme nazdar; jinak skip.
-          let maxOZ = -9999;
-          offsetPath.forEach(p => {
-            if (p.isDegenerate) return;
-            const z1 = p.type === 'line' ? p.p1.z : p.cz + p.r;
-            const z2 = p.type === 'line' ? p.p2.z : p.cz - p.r;
-            maxOZ = Math.max(maxOZ, z1, z2);
-          });
-          if (currentZ > maxOZ) xEnd = -1; else continue;
+          // Bez průsečíku:
+          //   currentZ > maxOZ → jsme za pravým koncem kontury (face-stub
+          //     nad konturou), řezáme až k ose
+          //   currentZ < minOZ → jsme za levým koncem kontury (chuck-stub),
+          //     skip (nesmíme řezat do držáku)
+          //   uvnitř → unusual, skip pro safety
+          if (currentZ > maxOZ + 0.01) xEnd = 0;
+          else continue;
         }
         if (xEnd >= xStartFC - 0.01) continue; // řez nulové délky
         passes.push({ type: 'face', z: currentZ, xStart: xStartFC, xEnd });
