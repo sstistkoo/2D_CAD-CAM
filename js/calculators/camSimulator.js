@@ -1116,8 +1116,8 @@ export function openCamSimulator(initialContour) {
     flipX: false,
     // Z-osa limity (čelisti/koník) a rozsah obrábění – hodnoty v Z (null = vypnuto)
     zLimits: { chuck: null, tail: null, rangeStart: null, rangeEnd: null },
-    // 'off' = skryto, 'fixtures' = čelisti + koník, 'range' = rozsah obrábění.
-    // Cyklus: off → fixtures → range → off.
+    // 'off' = skryto, 'fixtures' = čelisti + koník, 'range' = rozsah obrábění,
+    // 'both' = vše. Cyklus: off → fixtures → range → both → off.
     showZLimits: 'off',
     // 'all' = vše, 'cut' = jen řezné (G1/G2/G3, skryje G0 rychloposuvy),
     // 'none' = nic. Cyklus: all → cut → none → all.
@@ -1155,9 +1155,9 @@ export function openCamSimulator(initialContour) {
       if (p.flipX !== undefined) S.flipX = !!p.flipX;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
       if (p.showZLimits !== undefined) {
-        // Zpětná kompatibilita: dříve boolean, teď tri-state string.
+        // Zpětná kompatibilita: dříve boolean, teď tri/quad-state string.
         if (typeof p.showZLimits === 'boolean') S.showZLimits = p.showZLimits ? 'fixtures' : 'off';
-        else if (['off', 'fixtures', 'range'].includes(p.showZLimits)) S.showZLimits = p.showZLimits;
+        else if (['off', 'fixtures', 'range', 'both'].includes(p.showZLimits)) S.showZLimits = p.showZLimits;
       }
       if (p.showSimPath !== undefined) {
         // Zpětná kompatibilita: dříve byl boolean, teď string.
@@ -1220,6 +1220,7 @@ export function openCamSimulator(initialContour) {
     off:      { icon: '📏', active: false, toast: 'Z-limity skryty' },
     fixtures: { icon: '⛔', active: true,  toast: 'Zobrazeny čelisti a koník' },
     range:    { icon: '📐', active: true,  toast: 'Zobrazen rozsah obrábění' },
+    both:     { icon: '🟰', active: true,  toast: 'Zobrazeno vše – čelisti, koník i rozsah' },
   };
   if (zlimBtn) {
     const cfg = ZLIM_CFG[S.showZLimits] || ZLIM_CFG.off;
@@ -2360,11 +2361,14 @@ export function openCamSimulator(initialContour) {
           ctx.restore();
         }
       };
-      if (S.showZLimits === 'fixtures') {
+      const showFix = S.showZLimits === 'fixtures' || S.showZLimits === 'both';
+      const showRng = S.showZLimits === 'range'    || S.showZLimits === 'both';
+      if (showFix) {
         // Limity (čelisti, koník) – červené, krátké tečky
         drawZLine(S.zLimits.chuck, '#f38ba8', '⛔ Čelisti', false);
         drawZLine(S.zLimits.tail,  '#f38ba8', '⛔ Koník',   false);
-      } else if (S.showZLimits === 'range') {
+      }
+      if (showRng) {
         // Rozsah obrábění – žluté, dlouhé čárky
         drawZLine(S.zLimits.rangeStart, '#f9e2af', '◀ Start rozsahu', true);
         drawZLine(S.zLimits.rangeEnd,   '#f9e2af', 'Konec rozsahu ▶', true);
@@ -2520,9 +2524,10 @@ export function openCamSimulator(initialContour) {
     const isKarusel = prms.machineStructure === 'carousel';
     let bestKey = null, bestD = 8; // tolerance v pixelech
     // Drag-target jen pro aktuálně viditelnou skupinu čar.
-    const visibleKeys = S.showZLimits === 'fixtures'
-      ? ['chuck', 'tail']
-      : (S.showZLimits === 'range' ? ['rangeStart', 'rangeEnd'] : []);
+    let visibleKeys = [];
+    if (S.showZLimits === 'fixtures') visibleKeys = ['chuck', 'tail'];
+    else if (S.showZLimits === 'range') visibleKeys = ['rangeStart', 'rangeEnd'];
+    else if (S.showZLimits === 'both') visibleKeys = ['chuck', 'tail', 'rangeStart', 'rangeEnd'];
     for (const key of visibleKeys) {
       const z = S.zLimits[key];
       if (z === null || z === undefined || isNaN(z)) continue;
@@ -2915,7 +2920,8 @@ export function openCamSimulator(initialContour) {
     const zlOn = S.showZLimits && S.showZLimits !== 'off';
     const zlLabel = S.showZLimits === 'fixtures' ? '⛔ Čelisti+koník'
                   : (S.showZLimits === 'range'   ? '📐 Rozsah obrábění'
-                  : 'Zobrazit');
+                  : (S.showZLimits === 'both'    ? '🟰 Vše'
+                  : 'Zobrazit'));
     html += `<div class="cam-sim-section-title">Z-limity / rozsah <button data-act="zlimits-toggle" class="cam-sim-btn ${zlOn ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">${zlLabel}</button></div>
     <small class="cam-sim-info-box" style="display:block">Čelisti / koník = bezpečnostní limity (červené). Rozsah = úsek kontury k obrábění (žluté). Na canvasu lze tahat myší.</small>
     <div class="cam-sim-row">
@@ -3734,8 +3740,8 @@ export function openCamSimulator(initialContour) {
       saveState();
       showToast(cfg.toast);
     } else if (act === 'zlimits') {
-      // Cyklus: off → fixtures (čelisti + koník) → range (rozsah obrábění) → off
-      const next = { off: 'fixtures', fixtures: 'range', range: 'off' };
+      // Cyklus: off → fixtures (čelisti + koník) → range (rozsah obrábění) → both (vše) → off
+      const next = { off: 'fixtures', fixtures: 'range', range: 'both', both: 'off' };
       S.showZLimits = next[S.showZLimits] || 'fixtures';
       // Při prvním zapnutí (= přepnutí do viditelného stavu): pokud nejsou
       // hodnoty, automaticky podle kontury.
