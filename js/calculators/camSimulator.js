@@ -1662,6 +1662,100 @@ export function openCamSimulator(initialContour) {
       }
     }
 
+    // ── Z-limity (čelisti / koník): ořez drah aby nezasáhly do zóny ──
+    // Pravidla: cut (G1) musí zůstat uvnitř [chuck, tail]:
+    //   long:    zEnd >= chuck (nejet pod čelisti), zStart <= tail (nejet za koník)
+    //   face:    pass.z musí být v [chuck, tail], jinak průchod vyhodíme
+    //   finish:  finishOffsetPath se ořízne na lineární clip / drop arc
+    // Pokud po ořezu nezbude smysluplný řez, segment se zahodí celý.
+    // Clamping je aktivní jen když uživatel zobrazí čelisti/koník (fixtures
+    // nebo both). 'off' a 'range' chuck/tail ignorují, takže lze přepínat
+    // chování bez mazání čísel v parametrech.
+    const limitsActive = S.showZLimits === 'fixtures' || S.showZLimits === 'both';
+    const chuckLim = (limitsActive && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck)) ? S.zLimits.chuck : null;
+    const tailLim  = (limitsActive && typeof S.zLimits.tail  === 'number' && isFinite(S.zLimits.tail))  ? S.zLimits.tail  : null;
+    if (chuckLim !== null || tailLim !== null) {
+      const EPS = 0.05;
+      const zInBounds = (z) => {
+        if (chuckLim !== null && z < chuckLim - 0.0001) return false;
+        if (tailLim  !== null && z > tailLim  + 0.0001) return false;
+        return true;
+      };
+      let droppedCount = 0;
+      let clampedCount = 0;
+      const clamped = [];
+      for (const pass of passes) {
+        if (pass.type === 'long') {
+          let zS = pass.zStart, zE = pass.zEnd;
+          const origZS = zS, origZE = zE;
+          if (chuckLim !== null && zE < chuckLim) zE = chuckLim;
+          if (tailLim  !== null && zS > tailLim)  zS = tailLim;
+          if (zS - zE < EPS) { droppedCount++; continue; }
+          if (zS !== origZS || zE !== origZE) clampedCount++;
+          clamped.push({ ...pass, zStart: zS, zEnd: zE });
+        } else if (pass.type === 'face') {
+          if (chuckLim !== null && pass.z < chuckLim) { droppedCount++; continue; }
+          if (tailLim  !== null && pass.z > tailLim)  { droppedCount++; continue; }
+          clamped.push(pass);
+        } else {
+          clamped.push(pass);
+        }
+      }
+      passes.length = 0;
+      for (const p of clamped) passes.push(p);
+
+      // Ořez finishOffsetPath: lineární clip endpointu k limitu, oblouky
+      // překračující limit se zahodí. Vše po prvním ořezu se dropne, aby
+      // dráha nepokračovala do zakázané zóny.
+      let finishDropped = 0;
+      let finishClipped = 0;
+      let pastLimit = false;
+      for (const seg of finishOffsetPath) {
+        if (seg.isDegenerate) continue;
+        if (pastLimit) { seg.isDegenerate = true; finishDropped++; continue; }
+        if (seg.type === 'line') {
+          const inP1 = zInBounds(seg.p1.z);
+          const inP2 = zInBounds(seg.p2.z);
+          if (inP1 && inP2) continue;
+          if (!inP1 && !inP2) { seg.isDegenerate = true; finishDropped++; pastLimit = true; continue; }
+          // Jeden bod uvnitř, druhý venku → clip na limit.
+          const outZ = inP1 ? seg.p2.z : seg.p1.z;
+          const limit = (chuckLim !== null && outZ < chuckLim) ? chuckLim
+                       : (tailLim !== null && outZ > tailLim ? tailLim : null);
+          if (limit === null) { seg.isDegenerate = true; finishDropped++; pastLimit = true; continue; }
+          const dz = seg.p2.z - seg.p1.z;
+          const t = Math.abs(dz) > 1e-9 ? (limit - seg.p1.z) / dz : 0;
+          const tt = Math.max(0, Math.min(1, t));
+          const cx = seg.p1.x + tt * (seg.p2.x - seg.p1.x);
+          if (inP1) {
+            seg.p2 = { x: cx, z: limit };
+          } else {
+            seg.p1 = { x: cx, z: limit };
+          }
+          finishClipped++;
+          pastLimit = true;
+        } else {
+          // Arc: pokud je celý uvnitř → keep; pokud min/max Z prochází limit → drop.
+          const zMin = seg.cz - seg.r, zMax = seg.cz + seg.r;
+          // Konzervativně: pokud rozsah Z překračuje limit, oblouk zahodit.
+          if (!zInBounds(zMin) || !zInBounds(zMax)) {
+            seg.isDegenerate = true; finishDropped++; pastLimit = true;
+          }
+        }
+      }
+      if (droppedCount > 0 || clampedCount > 0 || finishDropped > 0 || finishClipped > 0) {
+        const parts = [];
+        if (clampedCount > 0) parts.push(`${clampedCount} hrubovacích zkráceno`);
+        if (droppedCount > 0) parts.push(`${droppedCount} hrubovacích vynecháno`);
+        if (finishClipped > 0) parts.push(`dokončování ořezáno`);
+        if (finishDropped > 0) parts.push(`${finishDropped} dokončovacích segmentů vynecháno`);
+        foundErrors.push({
+          type: 'warning',
+          msg: `Z-limity (čelisti/koník): ${parts.join(', ')}.`
+        });
+      }
+    }
+
     // Sim path
     let simPath = [];
     let totalPathLength = 0;
@@ -1772,8 +1866,9 @@ export function openCamSimulator(initialContour) {
       });
       simPath.push(addToPath(currentSimX, currentSimZ, prms.safeX / 2, prms.safeZ, 'G0'));
 
-      if (prms.doFinishing && finishOffsetPath.length > 0) {
-        const startSeg = finishOffsetPath[0];
+      const firstFinSeg = finishOffsetPath.find(s => !s.isDegenerate);
+      if (prms.doFinishing && firstFinSeg) {
+        const startSeg = firstFinSeg;
         const startX = startSeg.type === 'line' ? startSeg.p1.x : (startSeg.cx + Math.sin(startSeg.startAngle) * startSeg.r);
         const startZ = startSeg.type === 'line' ? startSeg.p1.z : (startSeg.cz + Math.cos(startSeg.startAngle) * startSeg.r);
         // Nájezd na hotovou konturu pod úhlem entryAngle (= úhel spodní
@@ -1927,9 +2022,10 @@ export function openCamSimulator(initialContour) {
     simCounter += 1;
     addN(`G0 X${prms.safeX} Z${prms.safeZ}`, simCounter);
 
-    if (prms.doFinishing && calc.finishOffsetPath.length > 0) {
+    const firstGcFinSeg = calc.finishOffsetPath.find(s => !s.isDegenerate);
+    if (prms.doFinishing && firstGcFinSeg) {
       addCmt('--- DOKONCOVANI ---');
-      const startSeg = calc.finishOffsetPath[0];
+      const startSeg = firstGcFinSeg;
       const sX = startSeg.type === 'line' ? startSeg.p1.x : (startSeg.cx + Math.sin(startSeg.startAngle) * startSeg.r);
       const sZ = startSeg.type === 'line' ? startSeg.p1.z : (startSeg.cz + Math.cos(startSeg.startAngle) * startSeg.r);
       const sX_out = prms.mode === 'DIAMON' ? (sX * 2).toFixed(3) : sX.toFixed(3);
@@ -3030,7 +3126,10 @@ export function openCamSimulator(initialContour) {
         const key = inp.dataset.zlim;
         const v = inp.value.trim();
         S.zLimits[key] = v === '' ? null : (parseFloat(v) || 0);
-        draw(); saveState();
+        // Chuck/koník ovlivňují generování drah → recalc; range slouží
+        // jen jako vizuální vodítko, takže by stačil draw, ale pro
+        // konzistenci děláme fullUpdate i tam.
+        fullUpdate();
       });
     });
     const zlToggle = tabBody.querySelector('[data-act="zlimits-toggle"]');
@@ -3766,9 +3865,9 @@ export function openCamSimulator(initialContour) {
       const cfg = ZLIM_CFG[S.showZLimits] || ZLIM_CFG.off;
       btn.classList.toggle('cam-sim-active', cfg.active);
       btn.textContent = cfg.icon;
-      draw();
-      renderTab();
-      saveState();
+      // Pokud byly chuck/tail auto-populated, dráhy se nově ořežou →
+      // recalc. Při off taky, aby zmizel "Z-limity ořízly dráhy" warning.
+      fullUpdate();
       showToast(cfg.toast);
     }
   });
@@ -4120,7 +4219,10 @@ export function openCamSimulator(initialContour) {
       saveState(); renderCodeArea(); renderTab();
     }
     if (S.draggedLimit) {
+      // Po přetažení čelisti/koníka přepočítat dráhy (chuck/tail ořezává cuts).
+      const needRecalc = S.draggedLimit === 'chuck' || S.draggedLimit === 'tail';
       saveState(); renderTab();
+      if (needRecalc) fullUpdate();
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null;
     draw();
@@ -4288,7 +4390,12 @@ export function openCamSimulator(initialContour) {
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock)) {
       saveState(); renderCodeArea(); renderTab();
     }
-    S.isDragging = false; S.draggedPointId = null; _draggingStock = false; lastPinchDist = null;
+    if (S.draggedLimit) {
+      const needRecalc = S.draggedLimit === 'chuck' || S.draggedLimit === 'tail';
+      saveState(); renderTab();
+      if (needRecalc) fullUpdate();
+    }
+    S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null; lastPinchDist = null;
     draw();
   });
 
