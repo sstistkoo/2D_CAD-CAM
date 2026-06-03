@@ -1386,8 +1386,21 @@ export function openCamSimulator(initialContour) {
     const stockFace = parseFloat(prms.stockFace) || 0;
 
     if (prms.roughingStrategy === 'face') {
-      let currentZ = stockFace;
+      // ── ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře) ──
+      // Pro každou hloubku Z od (stockFace − step) po minZPart:
+      //   1. xStart = stockOuter + rapidClr (= rapid-bezpečná X nad povrchem)
+      //   2. xEnd = max X průsečíku offsetu se svislicí v currentZ (= místo,
+      //      kde kontura blokuje řez jdoucí −X k ose). Pokud žádný blok,
+      //      řezáme až k X=0.
+      //
+      // Nájezd: G0 X za polotovar → G0 Z na hloubku → G1 −X řez → G1 retract 45°.
+      // 45° retract po čelním řezu jede do už odřezané zóny (slab nad
+      // currentZ byl plně odebrán předchozími pasy + aktuálním), takže
+      // bezpečné.
+      const rapidClrFC = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
+      const xStartFC = sRad + rapidClrFC;
       const minZPart = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.z)) : -1000;
+      let currentZ = stockFace;
       let safe = 0;
       while (currentZ > minZPart && safe < 500) {
         currentZ -= step; safe++;
@@ -1406,11 +1419,16 @@ export function openCamSimulator(initialContour) {
           }
         });
         xsEnd.sort((a, b) => a - b);
-        let xTarget = 0;
+        let xEnd = 0; // default: až k ose
         if (xsEnd.length > 0) {
+          // Vyber NEJVĚTŠÍ X průsečík (= outermost kontura na tomto Z,
+          // ten první narazíme jdoucí −X od povrchu).
           const validXs = xsEnd.filter(x => x < sRad + 1);
-          if (validXs.length > 0) xTarget = validXs[validXs.length - 1];
+          if (validXs.length > 0) xEnd = validXs[validXs.length - 1];
         } else {
+          // Bez průsečíku: jsme buď za rozsahem kontury (= cuttable bez bloku),
+          // nebo nad konturou (= nic neuříznout). Když je currentZ za nejZazším
+          // bodem offsetu, řežeme nazdar; jinak skip.
           let maxOZ = -9999;
           offsetPath.forEach(p => {
             if (p.isDegenerate) return;
@@ -1418,10 +1436,10 @@ export function openCamSimulator(initialContour) {
             const z2 = p.type === 'line' ? p.p2.z : p.cz - p.r;
             maxOZ = Math.max(maxOZ, z1, z2);
           });
-          if (currentZ > maxOZ) xTarget = -1; else continue;
+          if (currentZ > maxOZ) xEnd = -1; else continue;
         }
-        if (xTarget >= sRad - 0.01) continue;
-        passes.push({ type: 'face', z: currentZ, xStart: sRad + 2, xEnd: xTarget });
+        if (xEnd >= xStartFC - 0.01) continue; // řez nulové délky
+        passes.push({ type: 'face', z: currentZ, xStart: xStartFC, xEnd });
         if (currentZ < -200) break;
       }
     } else {
@@ -1649,15 +1667,32 @@ export function openCamSimulator(initialContour) {
           currentSimX = xClear;
           currentSimZ = zRetract;
         } else {
-          const tx = pass.xStart;
-          const tz = pass.z;
-          if (Math.abs(currentSimZ - tz) > 0.001) { simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, tz, 'G0')); currentSimZ = tz; }
-          if (Math.abs(currentSimX - tx) > 0.001) { simPath.push(addToPath(currentSimX, currentSimZ, tx, tz, 'G0')); currentSimX = tx; }
+          // Čelní řez (od povrchu polotovaru −X k ose / kontuře). Vzor:
+          //   (a) G0 X na xStart (za polotovar v X, drží Z)
+          //   (b) G0 Z na pass.z (= cílová hloubka; na xStart jsme mimo polotovar
+          //         radiálně, sjezd Z je v vzduchu nad povrchem)
+          //   (c) G1 −X na pass.xEnd — čelní řez od povrchu k bloku kontury
+          //   (d) G1 retract 45°: (xEnd + odskok, pass.z + odskok)
+          //         Slab nad pass.z (= Z mezi pass.z a stockFace) je již
+          //         odřezán (z aktuálního + předchozích pasů ve stejné
+          //         radiální zóně), takže diagonálu jedeme do vzduchu.
+          const xRetract = pass.xEnd + retractDist;
           const zRetract = pass.z + retractDist;
-          simPath.push(addToPath(currentSimX, currentSimZ, pass.xEnd, pass.z, 'G1'));
-          simPath.push(addToPath(pass.xEnd, pass.z, pass.xEnd, zRetract, 'G1'));
-          simPath.push(addToPath(pass.xEnd, zRetract, pass.xStart, zRetract, 'G0'));
-          currentSimX = pass.xStart; currentSimZ = zRetract;
+          if (Math.abs(currentSimX - pass.xStart) > 0.001) {
+            simPath.push(addToPath(currentSimX, currentSimZ, pass.xStart, currentSimZ, 'G0'));
+            currentSimX = pass.xStart;
+          }
+          if (Math.abs(currentSimZ - pass.z) > 0.001) {
+            simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, pass.z, 'G0'));
+            currentSimZ = pass.z;
+          }
+          // G1 −X řez
+          simPath.push(addToPath(currentSimX, currentSimZ, pass.xEnd, currentSimZ, 'G1'));
+          currentSimX = pass.xEnd;
+          // G1 45° retract
+          simPath.push(addToPath(currentSimX, currentSimZ, xRetract, zRetract, 'G1'));
+          currentSimX = xRetract;
+          currentSimZ = zRetract;
         }
       });
       simPath.push(addToPath(currentSimX, currentSimZ, prms.safeX / 2, prms.safeZ, 'G0'));
@@ -1788,16 +1823,20 @@ export function openCamSimulator(initialContour) {
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xClear} Z${zRetract}`, simCounter);
       } else {
+        // Čelní hrubování (vzor shodný se sim cestou):
+        //   G0 X<xStart>            ; rychloposuv za polotovar v X
+        //   G0 Z<z>                 ; rychloposuv na cílovou hloubku (kolmo)
+        //   G1 X<xEnd> F<f>         ; čelní řez −X k bloku kontury
+        //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45° do odřezané zóny
         const zVal = pass.z.toFixed(3);
         const zRetract = (pass.z + rDist).toFixed(3);
         const xStart = prms.mode === 'DIAMON' ? (pass.xStart * 2).toFixed(3) : pass.xStart.toFixed(3);
         const xEnd = prms.mode === 'DIAMON' ? (pass.xEnd * 2).toFixed(3) : pass.xEnd.toFixed(3);
         const xEndRetract = prms.mode === 'DIAMON' ? ((pass.xEnd + rDist) * 2).toFixed(3) : (pass.xEnd + rDist).toFixed(3);
-        simCounter += 1; addN(`G0 X${xStart} Z${zRetract}`, simCounter);
-        simCounter += 1; addN(`G1 Z${zVal} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${xEnd}`, simCounter);
-        simCounter += 1; addN(`G1 X${xEndRetract} Z${zRetract}`, simCounter);
         simCounter += 1; addN(`G0 X${xStart}`, simCounter);
+        simCounter += 1; addN(`G0 Z${zVal}`, simCounter);
+        simCounter += 1; addN(`G1 X${xEnd} F${prms.feed}`, simCounter);
+        simCounter += 1; addN(`G1 X${xEndRetract} Z${zRetract}`, simCounter);
       }
     });
 
