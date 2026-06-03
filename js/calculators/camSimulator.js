@@ -1398,7 +1398,28 @@ export function openCamSimulator(initialContour) {
       // currentZ byl plně odebrán předchozími pasy + aktuálním), takže
       // bezpečné.
       const rapidClrFC = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
-      const xStartFC = sRad + rapidClrFC;
+      // Helper: max X polotovaru (skutečná pravá hrana materiálu) na zadané Z.
+      // Pro cylinder = konstantní sRad. Pro casting = max X všech průsečíků
+      // svislice v Z s outline polotovaru → per-Z, takže rapid nemusí jezdit
+      // až na globální sRad+clearance, ale jen těsně nad lokální povrch.
+      const castingOuterAtZ = (z) => {
+        if (prms.stockMode !== 'casting' || stockPathSegments.length === 0) return sRad;
+        let maxX = -9999;
+        stockPathSegments.forEach(seg => {
+          if (seg.isDegenerate) return;
+          if (seg.type === 'line') {
+            const x = intersectVerticalLineSegment(z, seg.p1, seg.p2);
+            if (x !== null && x > maxX) maxX = x;
+          } else if (seg.type === 'arc') {
+            const res = intersectVerticalLineArc(z, { x: seg.cx, z: seg.cz }, seg.r);
+            res.forEach(x => {
+              const angle = Math.atan2(x - seg.cx, z - seg.cz);
+              if (isAngleBetween(angle, seg.startAngle, seg.endAngle, seg.dir === 'G2') && x > maxX) maxX = x;
+            });
+          }
+        });
+        return maxX > -9999 ? maxX : sRad;
+      };
       const minZPart = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.z)) : -1000;
       // Start na pravé hraně polotovaru: pro cylinder = stockFace, pro casting =
       // max(stockWorldPoints.zReal). Bez tohoto fixu casting s default stockFace=2
@@ -1457,8 +1478,11 @@ export function openCamSimulator(initialContour) {
           if (currentZ > maxOZ + 0.01) xEnd = 0;
           else continue;
         }
-        if (xEnd >= xStartFC - 0.01) continue; // řez nulové délky
-        passes.push({ type: 'face', z: currentZ, xStart: xStartFC, xEnd });
+        // Per-Z casting outer (pro casting). Pro cylinder = sRad konstantní.
+        const xSurface = castingOuterAtZ(currentZ);
+        const xStartLocal = xSurface + rapidClrFC;
+        if (xEnd >= xStartLocal - 0.01) continue; // řez nulové délky
+        passes.push({ type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd });
         if (currentZ < -200) break;
       }
     } else {
@@ -1691,28 +1715,33 @@ export function openCamSimulator(initialContour) {
           currentSimZ = zRetract;
         } else {
           // Čelní řez (od povrchu polotovaru −X k ose / kontuře). Vzor:
-          //   (a) G0 X na xStart = sRad + rapidClr (rapid-safe nad povrchem)
-          //   (b) G0 Z na pass.z (= cílová hloubka; na xStart radiálně mimo polotovar)
-          //   (c) G0 X na sRad (= povrch polotovaru) — odřezne air G1
-          //         (jinak by G1 prvních rapidClr mm jelo posuvem přes vzduch)
+          //   (a) G0 X na pass.xStart = LOKÁLNÍ casting outer + rapidClr
+          //         (per-Z, ne globální sRad+clr → vyjede jen těsně nad
+          //         skutečný povrch v tomto Z, ne na globální maximum)
+          //         Safety: jdeme jen NAHORU (max s currentSimX), nikdy dolů
+          //         pod aktuální X, abychom nepřejeli přes vyšší kus castingu.
+          //   (b) G0 Z na pass.z (= cílová hloubka)
+          //   (c) G0 X DOLŮ na pass.xSurface (= povrch polotovaru tady) — odřezne air G1
           //   (d) G1 −X na pass.xEnd — čelní řez MATERIÁLEM od povrchu k bloku
           //   (e) G1 retract 45°: (xEnd + odskok, pass.z + odskok)
           const xRetract = pass.xEnd + retractDist;
           const zRetract = pass.z + retractDist;
-          // (a) G0 X rapid-safe nad povrch
-          if (Math.abs(currentSimX - pass.xStart) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, pass.xStart, currentSimZ, 'G0'));
-            currentSimX = pass.xStart;
+          // (a) G0 X UP na max(currentSimX, pass.xStart) — chrání před tím,
+          //     aby se X sjelo pod úroveň, kde je casting outline výš
+          const xRapidTarget = Math.max(currentSimX, pass.xStart);
+          if (Math.abs(currentSimX - xRapidTarget) > 0.001) {
+            simPath.push(addToPath(currentSimX, currentSimZ, xRapidTarget, currentSimZ, 'G0'));
+            currentSimX = xRapidTarget;
           }
           // (b) G0 Z na hloubku
           if (Math.abs(currentSimZ - pass.z) > 0.001) {
             simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, pass.z, 'G0'));
             currentSimZ = pass.z;
           }
-          // (c) G0 X na povrch polotovaru (= sRad)
-          if (Math.abs(currentSimX - sRad) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, sRad, currentSimZ, 'G0'));
-            currentSimX = sRad;
+          // (c) G0 X DOLŮ na povrch polotovaru (per-Z) — eliminuje air G1
+          if (Math.abs(currentSimX - pass.xSurface) > 0.001) {
+            simPath.push(addToPath(currentSimX, currentSimZ, pass.xSurface, currentSimZ, 'G0'));
+            currentSimX = pass.xSurface;
           }
           // (d) G1 −X řez (celý posuv řeže materiál)
           simPath.push(addToPath(currentSimX, currentSimZ, pass.xEnd, currentSimZ, 'G1'));
@@ -1834,8 +1863,6 @@ export function openCamSimulator(initialContour) {
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
     const entryAngleDegGc = Math.max(0.5, Math.min(89.5, parseFloat(prms.entryAngle) || 30));
     const entryRadGc = entryAngleDegGc * Math.PI / 180;
-    const sRadGc = (parseFloat(prms.stockDiameter) || 100) / 2;
-    const sRadOut = prms.mode === 'DIAMON' ? (sRadGc * 2).toFixed(3) : sRadGc.toFixed(3);
     calc.passes.forEach((pass, i) => {
       addCmt(`Průchod ${i + 1}`);
       if (pass.type === 'long') {
@@ -1857,21 +1884,23 @@ export function openCamSimulator(initialContour) {
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xClear} Z${zRetract}`, simCounter);
       } else {
-        // Čelní hrubování (vzor shodný se sim cestou):
-        //   G0 X<xStart>           ; rapid za polotovar v X (clearance)
+        // Čelní hrubování (vzor shodný se sim cestou). Per-Z hodnoty:
+        //   xStart = lokální casting outer + rapidClr (rapid-safe v tomto Z)
+        //   xSurface = lokální casting outer (povrch polotovaru tady)
+        //   G0 X<xStart>           ; rapid za polotovar v X (per-Z clearance)
         //   G0 Z<z>                ; rapid na cílovou hloubku
-        //   G0 X<sRad>             ; rapid sjezd na povrch polotovaru
-        //                            (odřezává air G1 — G1 pak začíná v materiálu)
+        //   G0 X<xSurface>         ; rapid sjezd na povrch polotovaru
         //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
         //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
         const zVal = pass.z.toFixed(3);
         const zRetract = (pass.z + rDist).toFixed(3);
         const xStart = prms.mode === 'DIAMON' ? (pass.xStart * 2).toFixed(3) : pass.xStart.toFixed(3);
+        const xSurface = prms.mode === 'DIAMON' ? (pass.xSurface * 2).toFixed(3) : pass.xSurface.toFixed(3);
         const xEnd = prms.mode === 'DIAMON' ? (pass.xEnd * 2).toFixed(3) : pass.xEnd.toFixed(3);
         const xEndRetract = prms.mode === 'DIAMON' ? ((pass.xEnd + rDist) * 2).toFixed(3) : (pass.xEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 X${xStart}`, simCounter);
         simCounter += 1; addN(`G0 Z${zVal}`, simCounter);
-        simCounter += 1; addN(`G0 X${sRadOut}`, simCounter);
+        simCounter += 1; addN(`G0 X${xSurface}`, simCounter);
         simCounter += 1; addN(`G1 X${xEnd} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xEndRetract} Z${zRetract}`, simCounter);
       }
