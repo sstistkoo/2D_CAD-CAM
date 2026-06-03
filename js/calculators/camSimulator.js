@@ -165,7 +165,7 @@ function injectCSS() {
 }
 .cam-sim-speed-group button:hover { color: #cdd6f4; }
 .cam-sim-speed-label {
-  min-width: 28px; text-align: center; font-family: monospace;
+  min-width: 38px; text-align: center; font-family: monospace;
   font-weight: bold; color: #a6e3a1; font-size: 11px;
 }
 .cam-sim-progress-bar {
@@ -980,6 +980,7 @@ export function openCamSimulator(initialContour) {
     <div class="cam-sim-toolbar">
       <button data-act="play" title="Spustit/Pauza">▶</button>
       <button data-act="stop" title="Zastavit">⏹</button>
+      <button data-act="sbl" title="Single block – krok po blocích G-kódu" style="font-size:11px;font-weight:bold;letter-spacing:0.5px">SBL</button>
       <div class="cam-sim-speed-group">
         <button data-act="speed-down" title="Zpomalit">◀</button>
         <span class="cam-sim-speed-label">1×</span>
@@ -1127,6 +1128,7 @@ export function openCamSimulator(initialContour) {
     draggedPointId: null, hoverPointId: null,
     isDragging: false, addPointMode: false, pointDragEnabled: false,
     activeTab: 'editor', simSpeed: 1,
+    singleBlock: false, simBlockTarget: null,
     _animId: null, _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
     _cachedCalc: null, _hoverIsStock: false,
     selectedPoints: new Set(),
@@ -2509,7 +2511,10 @@ export function openCamSimulator(initialContour) {
   }
 
   // ── SIMULATION ──
-  const SIM_SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
+  const SIM_SPEEDS = [0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8];
+  // Posuv (G1/G2/G3) běží oproti rychloposuvu (G0) poloviční rychlostí —
+  // přibližuje pocit reálného obrábění při přehrávání.
+  const FEED_RATE_FACTOR = 0.5;
 
   function updateProgressBar() {
     const pct = Math.round(S.simProgress * 100);
@@ -2518,7 +2523,8 @@ export function openCamSimulator(initialContour) {
   }
 
   function updateSpeedLabel() {
-    const txt = S.simSpeed < 1 ? S.simSpeed.toFixed(2).replace(/0$/, '') : S.simSpeed;
+    const v = S.simSpeed;
+    const txt = v < 1 ? v.toFixed(2).replace(/0+$/, '').replace(/\.$/, '') : v;
     speedLabel.textContent = txt + '×';
   }
 
@@ -2526,9 +2532,27 @@ export function openCamSimulator(initialContour) {
     if (S._animId) return;
     const animate = () => {
       if (!S.simRunning) { S._animId = null; return; }
-      S.simProgress += 0.0015 * S.simSpeed;
+      // Pomalejší inkrement pro řezné pohyby (G1/G2/G3) — odpovídá tomu,
+      // že posuv je ve skutečnosti řádově pomalejší než rychloposuv.
+      let feedFactor = 1;
+      const calc = S._cachedCalc;
+      if (calc && calc.simPath && calc.simPath.length > 1) {
+        const idx = Math.floor(S.simProgress * (calc.simPath.length - 1));
+        const nextPt = calc.simPath[Math.min(idx + 1, calc.simPath.length - 1)];
+        if (nextPt && nextPt.type && nextPt.type !== 'G0') feedFactor = FEED_RATE_FACTOR;
+      }
+      S.simProgress += 0.0015 * S.simSpeed * feedFactor;
+      // Single-block: zastavit po dosažení konce aktuálního G-kód bloku.
+      if (S.simBlockTarget !== null && S.simProgress >= S.simBlockTarget) {
+        S.simProgress = S.simBlockTarget;
+        S.simBlockTarget = null;
+        S.simRunning = false;
+      }
       if (S.simProgress >= 1) {
         S.simProgress = 1; S.simRunning = false;
+        S.simBlockTarget = null;
+      }
+      if (!S.simRunning) {
         const playBtn = toolbar.querySelector('[data-act="play"]');
         if (playBtn) playBtn.textContent = '▶';
       }
@@ -3610,12 +3634,31 @@ export function openCamSimulator(initialContour) {
     if (!btn) return;
     const act = btn.dataset.act;
     if (act === 'play') {
-      if (S.simRunning) { S.simRunning = false; btn.textContent = '▶'; }
-      else { if (S.simProgress >= 1) S.simProgress = 0; S.simRunning = true; btn.textContent = '⏸'; startSimLoop(); }
+      if (S.simRunning) { S.simRunning = false; S.simBlockTarget = null; btn.textContent = '▶'; }
+      else {
+        if (S.simProgress >= 1) S.simProgress = 0;
+        // V single-block módu: spočítat cíl = konec dalšího G-kód bloku.
+        if (S.singleBlock) {
+          if (!S._cachedCalc) S._cachedCalc = calculate();
+          const calc = S._cachedCalc;
+          const total = calc.simPath.length - 1;
+          const currentSimIdx = Math.floor(S.simProgress * total);
+          const nextLine = S.generatedCode.find(l => l.simIdx != null && l.simIdx > currentSimIdx);
+          S.simBlockTarget = nextLine ? Math.min(1, nextLine.simIdx / total) : 1;
+        } else {
+          S.simBlockTarget = null;
+        }
+        S.simRunning = true; btn.textContent = '⏸'; startSimLoop();
+      }
     } else if (act === 'stop') {
-      S.simRunning = false; S.simProgress = 0;
+      S.simRunning = false; S.simProgress = 0; S.simBlockTarget = null;
       toolbar.querySelector('[data-act="play"]').textContent = '▶';
       draw(); updateCodeHighlight(); updateProgressBar();
+    } else if (act === 'sbl') {
+      S.singleBlock = !S.singleBlock;
+      btn.classList.toggle('cam-sim-active', S.singleBlock);
+      if (!S.singleBlock) S.simBlockTarget = null;
+      showToast(S.singleBlock ? 'Single block ZAP – přehrávání po blocích' : 'Single block VYP');
     } else if (act === 'addpt') {
       S.addPointMode = !S.addPointMode;
       btn.classList.toggle('cam-sim-active', S.addPointMode);
