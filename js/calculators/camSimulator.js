@@ -1656,59 +1656,68 @@ export function openCamSimulator(initialContour) {
       passes.forEach((pass, passIdx) => {
         if (pass.type === 'long') {
           // Standardní podélné hrubování (vpravo → vlevo, −Z). Vzor:
-          //   (a) G0 Z za polotovar (= pass.zStart + rapidClr, typicky stockFace+1)
-          //   (b) G0 X přímo k průměru = pass.x  (žádný šikmý rapid, jen kolmý
-          //         sjezd v vzduchu za pravou hranou polotovaru)
-          //   (c) G1 −Z na pass.zEnd  — podélný řez přes celou špónu
-          //   (d) G1 X+Z retract pod 45° od konce řezu o retractDist v obou
-          //         osách — uvolnění od kontury (ne jen kolmo v X)
-          // 3° engagement (úhel spodní strany destičky) se uplatňuje JEN
-          // pro nájezd na hotovou konturu při dokončování, ne pro hrubování.
+          //   (a) G0 Z za polotovar (= pass.zStart + rapidClr, rapid clearance)
+          //   (b) G0 X přímo k průměru = pass.x  (žádný šikmý rapid)
+          //   (c) G0 Z na pass.zStart — sjezd na hranu polotovaru bez řezu
+          //         vzduchem (jinak by G1 první rapidClr mm jelo posuvem
+          //         přes vzduch za pravou hranou polotovaru)
+          //   (d) G1 −Z na pass.zEnd  — podélný řez přes celou špónu MATERIÁLEM
+          //   (e) G1 X+Z retract pod 45° od konce řezu o retractDist v obou osách
           const xClear = pass.x + retractDist;
           const zRetract = pass.zEnd + retractDist;
           const zApproach = pass.zStart + rapidClr;
 
-          // (a) G0 Z za polotovar (drží aktuální X)
+          // (a) G0 Z za polotovar (rapid-safe nad konturou)
           if (Math.abs(currentSimZ - zApproach) > 0.001) {
             simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, zApproach, 'G0'));
             currentSimZ = zApproach;
           }
-          // (b) G0 X k průměru = pass.x (jsme ve vzduchu za pravou hranou, bezpečné)
+          // (b) G0 X k průměru = pass.x (ve vzduchu za pravou hranou)
           if (Math.abs(currentSimX - pass.x) > 0.001) {
             simPath.push(addToPath(currentSimX, currentSimZ, pass.x, currentSimZ, 'G0'));
             currentSimX = pass.x;
           }
-          // (c) G1 podélný řez −Z na pass.zEnd
+          // (c) G0 Z na hranu polotovaru (= pass.zStart) — odřezne air G1
+          if (Math.abs(currentSimZ - pass.zStart) > 0.001) {
+            simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, pass.zStart, 'G0'));
+            currentSimZ = pass.zStart;
+          }
+          // (d) G1 podélný řez −Z na pass.zEnd — celý posuv řeže materiál
           simPath.push(addToPath(currentSimX, currentSimZ, pass.x, pass.zEnd, 'G1'));
           currentSimZ = pass.zEnd;
-          // (d) G1 retract pod 45° (dx = dz = retractDist)
+          // (e) G1 retract pod 45° (dx = dz = retractDist)
           simPath.push(addToPath(currentSimX, currentSimZ, xClear, zRetract, 'G1'));
           currentSimX = xClear;
           currentSimZ = zRetract;
         } else {
           // Čelní řez (od povrchu polotovaru −X k ose / kontuře). Vzor:
-          //   (a) G0 X na xStart (za polotovar v X, drží Z)
-          //   (b) G0 Z na pass.z (= cílová hloubka; na xStart jsme mimo polotovar
-          //         radiálně, sjezd Z je v vzduchu nad povrchem)
-          //   (c) G1 −X na pass.xEnd — čelní řez od povrchu k bloku kontury
-          //   (d) G1 retract 45°: (xEnd + odskok, pass.z + odskok)
-          //         Slab nad pass.z (= Z mezi pass.z a stockFace) je již
-          //         odřezán (z aktuálního + předchozích pasů ve stejné
-          //         radiální zóně), takže diagonálu jedeme do vzduchu.
+          //   (a) G0 X na xStart = sRad + rapidClr (rapid-safe nad povrchem)
+          //   (b) G0 Z na pass.z (= cílová hloubka; na xStart radiálně mimo polotovar)
+          //   (c) G0 X na sRad (= povrch polotovaru) — odřezne air G1
+          //         (jinak by G1 prvních rapidClr mm jelo posuvem přes vzduch)
+          //   (d) G1 −X na pass.xEnd — čelní řez MATERIÁLEM od povrchu k bloku
+          //   (e) G1 retract 45°: (xEnd + odskok, pass.z + odskok)
           const xRetract = pass.xEnd + retractDist;
           const zRetract = pass.z + retractDist;
+          // (a) G0 X rapid-safe nad povrch
           if (Math.abs(currentSimX - pass.xStart) > 0.001) {
             simPath.push(addToPath(currentSimX, currentSimZ, pass.xStart, currentSimZ, 'G0'));
             currentSimX = pass.xStart;
           }
+          // (b) G0 Z na hloubku
           if (Math.abs(currentSimZ - pass.z) > 0.001) {
             simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, pass.z, 'G0'));
             currentSimZ = pass.z;
           }
-          // G1 −X řez
+          // (c) G0 X na povrch polotovaru (= sRad)
+          if (Math.abs(currentSimX - sRad) > 0.001) {
+            simPath.push(addToPath(currentSimX, currentSimZ, sRad, currentSimZ, 'G0'));
+            currentSimX = sRad;
+          }
+          // (d) G1 −X řez (celý posuv řeže materiál)
           simPath.push(addToPath(currentSimX, currentSimZ, pass.xEnd, currentSimZ, 'G1'));
           currentSimX = pass.xEnd;
-          // G1 45° retract
+          // (e) G1 45° retract
           simPath.push(addToPath(currentSimX, currentSimZ, xRetract, zRetract, 'G1'));
           currentSimX = xRetract;
           currentSimZ = zRetract;
@@ -1825,28 +1834,36 @@ export function openCamSimulator(initialContour) {
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
     const entryAngleDegGc = Math.max(0.5, Math.min(89.5, parseFloat(prms.entryAngle) || 30));
     const entryRadGc = entryAngleDegGc * Math.PI / 180;
+    const sRadGc = (parseFloat(prms.stockDiameter) || 100) / 2;
+    const sRadOut = prms.mode === 'DIAMON' ? (sRadGc * 2).toFixed(3) : sRadGc.toFixed(3);
     calc.passes.forEach((pass, i) => {
       addCmt(`Průchod ${i + 1}`);
       if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
-        //   G0 Z<zApproach>                 ; rychloposuv za polotovar v Z
-        //   G0 X<hloubka>                   ; rychloposuv k průměru (kolmo, ne šikmo)
-        //   G1 Z<zEnd> F<f>                 ; podélný řez −Z přes celou špónu
-        //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45° (dx=dz=odskok)
+        //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
+        //   G0 X<hloubka>              ; rapid k průměru
+        //   G0 Z<pass.zStart>          ; rapid sjezd na hranu polotovaru
+        //                                (odřezává air G1 — G1 pak začíná v materiálu)
+        //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
+        //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
         const xVal = prms.mode === 'DIAMON' ? (pass.x * 2).toFixed(3) : pass.x.toFixed(3);
         const xClear = prms.mode === 'DIAMON' ? ((pass.x + rDist) * 2).toFixed(3) : (pass.x + rDist).toFixed(3);
         const zApproach = (pass.zStart + rapidClrGc).toFixed(3);
+        const zStart = pass.zStart.toFixed(3);
         const zRetract = (pass.zEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 Z${zApproach}`, simCounter);
         simCounter += 1; addN(`G0 X${xVal}`, simCounter);
+        simCounter += 1; addN(`G0 Z${zStart}`, simCounter);
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xClear} Z${zRetract}`, simCounter);
       } else {
         // Čelní hrubování (vzor shodný se sim cestou):
-        //   G0 X<xStart>            ; rychloposuv za polotovar v X
-        //   G0 Z<z>                 ; rychloposuv na cílovou hloubku (kolmo)
-        //   G1 X<xEnd> F<f>         ; čelní řez −X k bloku kontury
-        //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45° do odřezané zóny
+        //   G0 X<xStart>           ; rapid za polotovar v X (clearance)
+        //   G0 Z<z>                ; rapid na cílovou hloubku
+        //   G0 X<sRad>             ; rapid sjezd na povrch polotovaru
+        //                            (odřezává air G1 — G1 pak začíná v materiálu)
+        //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
+        //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
         const zVal = pass.z.toFixed(3);
         const zRetract = (pass.z + rDist).toFixed(3);
         const xStart = prms.mode === 'DIAMON' ? (pass.xStart * 2).toFixed(3) : pass.xStart.toFixed(3);
@@ -1854,6 +1871,7 @@ export function openCamSimulator(initialContour) {
         const xEndRetract = prms.mode === 'DIAMON' ? ((pass.xEnd + rDist) * 2).toFixed(3) : (pass.xEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 X${xStart}`, simCounter);
         simCounter += 1; addN(`G0 Z${zVal}`, simCounter);
+        simCounter += 1; addN(`G0 X${sRadOut}`, simCounter);
         simCounter += 1; addN(`G1 X${xEnd} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xEndRetract} Z${zRetract}`, simCounter);
       }
