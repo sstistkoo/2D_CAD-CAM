@@ -1623,10 +1623,12 @@ export function openCamSimulator(initialContour) {
           //   (b) G0 X přímo k průměru = pass.x  (žádný šikmý rapid, jen kolmý
           //         sjezd v vzduchu za pravou hranou polotovaru)
           //   (c) G1 −Z na pass.zEnd  — podélný řez přes celou špónu
-          //   (d) G1 X retract o retractDist  — uvolnění od materiálu
+          //   (d) G1 X+Z retract pod 45° od konce řezu o retractDist v obou
+          //         osách — uvolnění od kontury (ne jen kolmo v X)
           // 3° engagement (úhel spodní strany destičky) se uplatňuje JEN
           // pro nájezd na hotovou konturu při dokončování, ne pro hrubování.
           const xClear = pass.x + retractDist;
+          const zRetract = pass.zEnd + retractDist;
           const zApproach = pass.zStart + rapidClr;
 
           // (a) G0 Z za polotovar (drží aktuální X)
@@ -1642,9 +1644,10 @@ export function openCamSimulator(initialContour) {
           // (c) G1 podélný řez −Z na pass.zEnd
           simPath.push(addToPath(currentSimX, currentSimZ, pass.x, pass.zEnd, 'G1'));
           currentSimZ = pass.zEnd;
-          // (d) G1 retract X na xClear
-          simPath.push(addToPath(currentSimX, currentSimZ, xClear, currentSimZ, 'G1'));
+          // (d) G1 retract pod 45° (dx = dz = retractDist)
+          simPath.push(addToPath(currentSimX, currentSimZ, xClear, zRetract, 'G1'));
           currentSimX = xClear;
+          currentSimZ = zRetract;
         } else {
           const tx = pass.xStart;
           const tz = pass.z;
@@ -1772,17 +1775,18 @@ export function openCamSimulator(initialContour) {
       addCmt(`Průchod ${i + 1}`);
       if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
-        //   G0 Z<zApproach>         ; rychloposuv za polotovar v Z
-        //   G0 X<hloubka>           ; rychloposuv k průměru (kolmo, ne šikmo)
-        //   G1 Z<zEnd> F<f>         ; podélný řez −Z přes celou špónu
-        //   G1 X<hloubka + odskok>  ; retract X o „odskok"
+        //   G0 Z<zApproach>                 ; rychloposuv za polotovar v Z
+        //   G0 X<hloubka>                   ; rychloposuv k průměru (kolmo, ne šikmo)
+        //   G1 Z<zEnd> F<f>                 ; podélný řez −Z přes celou špónu
+        //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45° (dx=dz=odskok)
         const xVal = prms.mode === 'DIAMON' ? (pass.x * 2).toFixed(3) : pass.x.toFixed(3);
         const xClear = prms.mode === 'DIAMON' ? ((pass.x + rDist) * 2).toFixed(3) : (pass.x + rDist).toFixed(3);
         const zApproach = (pass.zStart + rapidClrGc).toFixed(3);
+        const zRetract = (pass.zEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 Z${zApproach}`, simCounter);
         simCounter += 1; addN(`G0 X${xVal}`, simCounter);
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${xClear}`, simCounter);
+        simCounter += 1; addN(`G1 X${xClear} Z${zRetract}`, simCounter);
       } else {
         const zVal = pass.z.toFixed(3);
         const zRetract = (pass.z + rDist).toFixed(3);
