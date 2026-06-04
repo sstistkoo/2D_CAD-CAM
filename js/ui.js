@@ -141,10 +141,14 @@ export function updateObjectList() {
     ul.appendChild(selectAllLi);
   }
 
+  // Pořadové číslo pro panel se počítá stejně jako v render.drawObjectNumbers:
+  // přeskakuje kóty/coord labels, takže panel a canvas mají identické číslování.
+  let _seqNum = 0;
   state.objects.forEach((obj, idx) => {
     const li = document.createElement("li");
     const isChecked = idx === state.selected || state.multiSelected.has(idx);
     const isDim = obj.isDimension || obj.isCoordLabel;
+    if (!isDim) _seqNum++;
 
     // Zjistit, jestli objekt má vybrané body (ale není sám vybraný)
     const SEL_PT_TOL_OBJ = 1e-4;
@@ -197,6 +201,14 @@ export function updateObjectList() {
     iconSpan.className = "obj-icon";
     iconSpan.textContent = isDim ? "⌗" : (icons[obj.type] || "?");
     span.appendChild(iconSpan);
+    // Pořadové číslo (matchuje labely v canvasu) — kóty číslo nedostávají.
+    if (!isDim) {
+      const numSpan = document.createElement("span");
+      numSpan.className = "obj-seq";
+      numSpan.textContent = `${_seqNum}.`;
+      numSpan.style.cssText = 'opacity:.6;font-variant-numeric:tabular-nums;margin:0 6px 0 2px;min-width:1.5em;display:inline-block;';
+      span.appendChild(numSpan);
+    }
     span.appendChild(document.createTextNode(obj.name || obj.type + " " + obj.id));
     li.appendChild(span);
 
