@@ -209,7 +209,12 @@ export function updateObjectList() {
       numSpan.style.cssText = 'opacity:.6;font-variant-numeric:tabular-nums;margin:0 6px 0 2px;min-width:1.5em;display:inline-block;';
       span.appendChild(numSpan);
     }
-    span.appendChild(document.createTextNode(obj.name || obj.type + " " + obj.id));
+    // Zobrazit jen typ/název BEZ koncového ID čísla — pořadové číslo už
+    // máme jako prefix. Pokud obj.name končí číslem (např. „Úsečka 1003",
+    // „Polotovar oblouk 6"), to číslo se odstraní.
+    const rawName = obj.name || obj.type;
+    const cleanName = rawName.replace(/\s+\d+\s*$/, '');
+    span.appendChild(document.createTextNode(cleanName));
     li.appendChild(span);
 
     // ── Wrapper pro akční tlačítka (edit + delete) ──
