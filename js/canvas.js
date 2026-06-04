@@ -289,6 +289,8 @@ export function autoCenterView() {
     state.zoom = 1;
     state.panX = drawCanvas.width / 2;
     state.panY = drawCanvas.height / 2;
+    const zoomEl = document.getElementById("statusZoom");
+    if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
     renderAll();
     showToast("Pohled vycentrován (prázdný)");
     return;
