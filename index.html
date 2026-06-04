@@ -484,23 +484,31 @@
       </button>
       <button
         class="tool-btn"
-        data-tool="move"
-        title="Přesun – vyber objekty, klikni odkud a kam"
+        data-tool="profileTrace"
+        title="Trasování profilu – klikej po kontuře, Enter = tabulka souřadnic"
       >
         <svg viewBox="0 0 24 24">
           <path
-            d="M12 2l3 3h-2v5h5v-2l3 3-3 3v-2h-5v5h2l-3 3-3-3h2v-5H5v2L2 12l3-3v2h5V6H8z"
-            fill="currentColor"
+            d="M3 19L7 15L11 17L15 11L21 5"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            stroke-linejoin="round"
           />
+          <circle cx="3" cy="19" r="2" fill="currentColor" />
+          <circle cx="7" cy="15" r="2" fill="currentColor" />
+          <circle cx="11" cy="17" r="2" fill="currentColor" />
+          <circle cx="15" cy="11" r="2" fill="currentColor" />
+          <circle cx="21" cy="5" r="2" fill="currentColor" />
         </svg>
-        Přesun
+        Profil
       </button>
       <button
         class="tool-btn toolbar-mid-toggle"
         id="btnToolbarMid"
         title="Editace / úpravy"
       >
-        ▾
+        <span class="toolbar-toggle-arrow">▾</span><span class="toolbar-toggle-label"> Úpravy</span>
       </button>
       <div id="toolbarMid" class="toolbar-mid">
         <button
@@ -574,24 +582,16 @@
         </button>
         <button
           class="tool-btn"
-          data-tool="profileTrace"
-          title="Trasování profilu – klikej po kontuře, Enter = tabulka souřadnic"
+          data-tool="move"
+          title="Přesun – vyber objekty, klikni odkud a kam"
         >
           <svg viewBox="0 0 24 24">
             <path
-              d="M3 19L7 15L11 17L15 11L21 5"
-              stroke="currentColor"
-              stroke-width="2"
-              fill="none"
-              stroke-linejoin="round"
+              d="M12 2l3 3h-2v5h5v-2l3 3-3 3v-2h-5v5h2l-3 3-3-3h2v-5H5v2L2 12l3-3v2h5V6H8z"
+              fill="currentColor"
             />
-            <circle cx="3" cy="19" r="2" fill="currentColor" />
-            <circle cx="7" cy="15" r="2" fill="currentColor" />
-            <circle cx="11" cy="17" r="2" fill="currentColor" />
-            <circle cx="15" cy="11" r="2" fill="currentColor" />
-            <circle cx="21" cy="5" r="2" fill="currentColor" />
           </svg>
-          Profil
+          Přesun
         </button>
         <button
           class="tool-btn"
@@ -875,7 +875,7 @@
         id="btnToolbarMore"
         title="Další nástroje"
       >
-        ▾
+        <span class="toolbar-toggle-arrow">▾</span><span class="toolbar-toggle-label"> Více</span>
       </button>
       <!-- ── Rozbalovací sekce: další nástroje ── -->
       <div id="toolbarMore" class="toolbar-more">

@@ -171,12 +171,32 @@ body {
     transform: translate(16px, 16px);
   }
 
-  /* Toolbar-more rozbalené */
+  /* Toolbar-more: collapsible (toggle viditelný i na desktopu) */
   .toolbar-more {
-    display: contents;
-  }
-  .toolbar-more-toggle {
     display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+    padding-top: 3px;
+  }
+  .toolbar-more.open {
+    display: flex;
+  }
+  .toolbar-mid {
+    display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+  }
+  .toolbar-mid.open {
+    display: flex;
+  }
+  .toolbar-mid-toggle,
+  .toolbar-more-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
   }
   .toolbar-more-settings:empty {
     display: none;
@@ -1993,6 +2013,10 @@ body {
     padding: 5px 10px;
     flex: 1 1 0;
     min-width: 60px;
+  }
+  /* Mobil: skrýt textový popis u toggle tlačítek – pouze šipka */
+  .toolbar-toggle-label {
+    display: none;
   }
   .toolbar-mid-toggle:hover {
     background: var(--ctp-surface2);

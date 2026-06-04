@@ -40,7 +40,8 @@ const toolbarMore = document.getElementById("toolbarMore");
 btnToolbarMore.addEventListener("click", (e) => {
   e.stopPropagation();
   const open = toolbarMore.classList.toggle("open");
-  btnToolbarMore.textContent = open ? "▴" : "▾";
+  const arrow = btnToolbarMore.querySelector(".toolbar-toggle-arrow");
+  if (arrow) arrow.textContent = open ? "▴" : "▾";
 });
 
 // ── Toolbar: rozbalovací střední sekce (editace) ──
@@ -49,7 +50,8 @@ const toolbarMid = document.getElementById("toolbarMid");
 btnToolbarMid.addEventListener("click", (e) => {
   e.stopPropagation();
   const open = toolbarMid.classList.toggle("open");
-  btnToolbarMid.textContent = open ? "▴" : "▾";
+  const arrow = btnToolbarMid.querySelector(".toolbar-toggle-arrow");
+  if (arrow) arrow.textContent = open ? "▴" : "▾";
 });
 
 // ── Mobile: Toolbar close button ──
