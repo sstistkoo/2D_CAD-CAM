@@ -1856,15 +1856,26 @@ document.getElementById("btnDelLayer").addEventListener("click", () => {
   showToast("Vrstva smazána, objekty přesunuty na vrstvu Kontura");
 });
 
-// ── Polotovar (stock) – modal pro výběr způsobu vytvoření ──
+// ── Polotovar (stock) drawing mode toggle ──
 const btnDrawStock = document.getElementById("btnDrawStock");
 if (btnDrawStock) {
-  btnDrawStock.addEventListener("click", async () => {
+  btnDrawStock.addEventListener("click", () => {
+    state.drawStockMode = !state.drawStockMode;
+    btnDrawStock.classList.toggle("active", state.drawStockMode);
+    showToast(state.drawStockMode
+      ? "Režim polotovaru zapnut – nové objekty budou jiné barvy"
+      : "Režim polotovaru vypnut");
+  });
+}
+
+// ── Přídavek na plochu (př/pl) – modal pro offset / válec ──
+const btnAllowance = document.getElementById("btnAllowance");
+if (btnAllowance) {
+  btnAllowance.addEventListener("click", async () => {
     const [{ showStockDialog }, stockTools] = await Promise.all([
       import('./dialogs/stockDialog.js'),
       import('./stockTools.js'),
     ]);
-    // Defaulty si pamatujeme v localStorage, ať uživatel nemusí znovu psát
     let defaults = {};
     try {
       const raw = localStorage.getItem('skica-stock-dialog');
@@ -1873,7 +1884,6 @@ if (btnDrawStock) {
 
     showStockDialog((result) => {
       if (!result) return;
-      // Uložit hodnoty jako default pro příští otevření
       try {
         const persist = { ...defaults };
         if (result.mode === 'auto') {
@@ -1884,25 +1894,25 @@ if (btnDrawStock) {
           persist.allowanceX = result.allowanceX;
           persist.allowanceZ = result.allowanceZ;
         }
+        persist.target = result.target;
         localStorage.setItem('skica-stock-dialog', JSON.stringify(persist));
       } catch (_) { /* ignore */ }
 
-      if (result.mode === 'draw') {
-        state.drawStockMode = !state.drawStockMode;
-        btnDrawStock.classList.toggle("active", state.drawStockMode);
-        showToast(state.drawStockMode
-          ? "Režim kreslení polotovaru zapnut – nové objekty budou jiné barvy"
-          : "Režim kreslení polotovaru vypnut");
-      } else if (result.mode === 'auto') {
+      // result.target: 'stock' (polotovar – po peci, isStock=true)
+      //              | 'contour' (kontura – před peci, normální vrstva)
+      const asContour = result.target === 'contour';
+      if (result.mode === 'auto') {
         stockTools.generateStockFromAllowance({
           allowance: result.allowance,
           chamfer: result.chamfer,
           fillet: result.fillet,
+          asContour,
         });
       } else if (result.mode === 'cylinder') {
         stockTools.generateCylinderStock({
           allowanceX: result.allowanceX,
           allowanceZ: result.allowanceZ,
+          asContour,
         });
       }
     }, defaults);

@@ -241,11 +241,14 @@ function _camSegmentToCadObject(seg) {
   };
 }
 
-// ── Společné: dávkové přidání stock objektů ────────────────────
-function _addStockObjects(cadObjLikes) {
+// ── Společné: dávkové přidání objektů (polotovar nebo kontura) ──
+// asContour=true → bez isStock=true, normální vrstva (přídavek jako kontura
+// pro obrobek před tepelným zpracováním).
+function _addStockObjects(cadObjLikes, asContour = false) {
   if (cadObjLikes.length === 0) return 0;
   pushUndo();
   const baseLayer = state.activeLayer;
+  const prefix = asContour ? 'Přídavek' : 'Polotovar';
   let added = 0;
   for (const o of cadObjLikes) {
     const id = state.nextId++;
@@ -253,9 +256,9 @@ function _addStockObjects(cadObjLikes) {
       ...o,
       id,
       layer: baseLayer,
-      name: o.type === 'arc' ? `Polotovar oblouk ${id}` : `Polotovar úsečka ${id}`,
-      isStock: true,
+      name: o.type === 'arc' ? `${prefix} oblouk ${id}` : `${prefix} úsečka ${id}`,
     };
+    if (!asContour) obj.isStock = true;
     state.objects.push(obj);
     added++;
   }
@@ -268,7 +271,7 @@ function _addStockObjects(cadObjLikes) {
 // ══════════════════════════════════════════════════════════════
 // ║  PUBLIC: Auto přídavek na plochu (offset kontury)            ║
 // ══════════════════════════════════════════════════════════════
-export function generateStockFromAllowance({ allowance, chamfer = 0, fillet = 0 }) {
+export function generateStockFromAllowance({ allowance, chamfer = 0, fillet = 0, asContour = false }) {
   const objs = _contourObjects();
   if (objs.length === 0) {
     showToast('Žádné objekty kontury — nejdřív nakreslete obrys.');
@@ -324,15 +327,16 @@ export function generateStockFromAllowance({ allowance, chamfer = 0, fillet = 0 
   });
 
   const cadObjs = cleaned.map(_camSegmentToCadObject);
-  const n = _addStockObjects(cadObjs);
-  showToast(`Polotovar vytvořen (${n} segmentů, přídavek ${allowance} mm).`);
+  const n = _addStockObjects(cadObjs, asContour);
+  const label = asContour ? 'Přídavek' : 'Polotovar';
+  showToast(`${label} vytvořen (${n} segmentů, přídavek ${allowance} mm).`);
   return { ok: true, count: n };
 }
 
 // ══════════════════════════════════════════════════════════════
 // ║  PUBLIC: Polotovar tvaru válce (obdélník kolem kontury)      ║
 // ══════════════════════════════════════════════════════════════
-export function generateCylinderStock({ allowanceX, allowanceZ }) {
+export function generateCylinderStock({ allowanceX, allowanceZ, asContour = false }) {
   const objs = _contourObjects();
   if (objs.length === 0) {
     showToast('Žádné objekty kontury — nejdřív nakreslete obrys.');
@@ -405,8 +409,9 @@ export function generateCylinderStock({ allowanceX, allowanceZ }) {
     const a = corners[i], b = corners[(i + 1) % 4];
     objLikes.push({ type: 'line', x1: a.x, y1: a.y, x2: b.x, y2: b.y });
   }
-  const n = _addStockObjects(objLikes);
+  const n = _addStockObjects(objLikes, asContour);
   const d = (y2 - y1) * 2; // průměr v DIAMON (kontura je polovina nad osou)
-  showToast(`Polotovar (válec) ${(x2 - x1).toFixed(1)} × ⌀${d.toFixed(1)} mm vytvořen.`);
+  const label = asContour ? 'Přídavek (válec)' : 'Polotovar (válec)';
+  showToast(`${label} ${(x2 - x1).toFixed(1)} × ⌀${d.toFixed(1)} mm vytvořen.`);
   return { ok: true, count: n };
 }
