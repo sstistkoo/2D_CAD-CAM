@@ -884,25 +884,58 @@ function buildStockPointsFromCanvas(camParams) {
   if (segs.length === 0) return [];
 
   // Seřadit do řetězce – propojit segmenty podle koncových bodů.
-  const tol = 1e-3;
+  // Tolerance 0.01 mm pokrývá výsledky offset+trim (zaokrouhlování v render).
+  // Bi-directional walking: chain rozšiřujeme z obou konců, aby se vždy
+  // sebraly všechny propojené segmenty bez ohledu na pořadí v state.objects.
+  const tol = 0.01;
   const eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < tol;
-  const chain = [segs.shift()];
-  let safety = segs.length + 5;
-  while (segs.length > 0 && safety-- > 0) {
-    const last = chain[chain.length - 1].p2;
-    let foundIdx = -1, reverse = false;
+  // Vyber startovní segment s nejvyšším X (pravá strana, blízko sklíčidla)
+  // — vhodný startpoint pro polotovar v soustružnické konvenci.
+  let bestIdx = 0, bestX = -Infinity;
+  for (let i = 0; i < segs.length; i++) {
+    const sx = Math.max(segs[i].p1.x, segs[i].p2.x);
+    if (sx > bestX) { bestX = sx; bestIdx = i; }
+  }
+  const chain = [segs.splice(bestIdx, 1)[0]];
+  let safety = segs.length * 2 + 5;
+  let extended = true;
+  while (segs.length > 0 && extended && safety-- > 0) {
+    extended = false;
+    // 1) Forward: navázat za konec
+    const tail = chain[chain.length - 1].p2;
+    let fIdx = -1, fRev = false;
     for (let i = 0; i < segs.length; i++) {
       const s = segs[i];
-      if (eq(s.p1, last)) { foundIdx = i; break; }
-      if (eq(s.p2, last)) { foundIdx = i; reverse = true; break; }
+      if (eq(s.p1, tail)) { fIdx = i; break; }
+      if (eq(s.p2, tail)) { fIdx = i; fRev = true; break; }
     }
-    if (foundIdx === -1) break; // nezbývají navazující segmenty
-    const seg = segs.splice(foundIdx, 1)[0];
-    if (reverse) {
-      const tmp = seg.p1; seg.p1 = seg.p2; seg.p2 = tmp;
-      if (seg.type === 'arc') seg.ccw = !seg.ccw;
+    if (fIdx !== -1) {
+      const seg = segs.splice(fIdx, 1)[0];
+      if (fRev) {
+        const tmp = seg.p1; seg.p1 = seg.p2; seg.p2 = tmp;
+        if (seg.type === 'arc') seg.ccw = !seg.ccw;
+      }
+      chain.push(seg);
+      extended = true;
+      continue;
     }
-    chain.push(seg);
+    // 2) Backward: navázat před začátek
+    const head = chain[0].p1;
+    let bIdx = -1, bRev = false;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (eq(s.p2, head)) { bIdx = i; break; }
+      if (eq(s.p1, head)) { bIdx = i; bRev = true; break; }
+    }
+    if (bIdx !== -1) {
+      const seg = segs.splice(bIdx, 1)[0];
+      if (bRev) {
+        const tmp = seg.p1; seg.p1 = seg.p2; seg.p2 = tmp;
+        if (seg.type === 'arc') seg.ccw = !seg.ccw;
+      }
+      chain.unshift(seg);
+      extended = true;
+    }
   }
 
   // Inverzní mapování canvas → CNC (zrcadlí transformaci v handleSendToCanvas)
@@ -936,13 +969,16 @@ function buildStockPointsFromCanvas(camParams) {
   return pts;
 }
 
-function parseContourGCode(text) {
-  const lines = text.split('\n');
+// Parser řádků G-kódu do bodů {type, x, z, r, mode} v daném rozsahu řádků.
+// `startLine` inclusive, `endLine` exclusive. Polohu/typ trackujeme lokálně,
+// aby polotovarová sekce nebyla ovlivněna posledním bodem kontury.
+function _parseGCodeRange(lines, startLine, endLine, idBase) {
   const pts = [];
-  let currentType = 'G1', idCounter = Date.now(), lastX = 100, lastZ = 0;
-  lines.forEach(line => {
-    const clean = line.toUpperCase().trim();
-    if (!clean || clean.startsWith(';') || clean.startsWith('(') || clean.startsWith('%')) return;
+  let currentType = 'G1', idCounter = idBase, lastX = 100, lastZ = 0;
+  for (let i = startLine; i < endLine; i++) {
+    const line = lines[i];
+    const clean = (line || '').toUpperCase().trim();
+    if (!clean || clean.startsWith(';') || clean.startsWith('(') || clean.startsWith('%')) continue;
     const gMatch = clean.match(/\bG0?([0-3])\b/);
     if (gMatch) currentType = 'G' + gMatch[1];
     const xMatch = clean.match(/X([-]?\d+\.?\d*)/);
@@ -963,8 +999,33 @@ function parseContourGCode(text) {
       pts.push({ id: idCounter++, type: currentType, x: newX, z: newZ, r: rVal, mode: 'ABS' });
       lastX = newX; lastZ = newZ;
     }
-  });
+  }
   return pts;
+}
+
+// Kompatibilní wrapper – jen kontura (žádné STOCK_START/END značky).
+function parseContourGCode(text) {
+  const lines = text.split('\n');
+  return _parseGCodeRange(lines, 0, lines.length, Date.now());
+}
+
+// Rozdělí G-kód podle značek STOCK_START / STOCK_END do dvou sekcí.
+// Vrací { contour: pts[], stock: pts[] }. Pokud značky chybí, vrátí jen konturu.
+function parseContourAndStockGCode(text) {
+  const lines = text.split('\n');
+  let stockStart = -1, stockEnd = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const u = (lines[i] || '').toUpperCase();
+    if (u.includes('STOCK_START')) stockStart = i;
+    else if (u.includes('STOCK_END') && stockStart !== -1) { stockEnd = i; break; }
+  }
+  if (stockStart === -1) {
+    return { contour: _parseGCodeRange(lines, 0, lines.length, Date.now()), stock: [] };
+  }
+  const idBase = Date.now();
+  const contour = _parseGCodeRange(lines, 0, stockStart, idBase);
+  const stock = _parseGCodeRange(lines, stockStart + 1, stockEnd, idBase + 100000);
+  return { contour, stock };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1107,10 +1168,7 @@ export function openCamSimulator(initialContour) {
       entryAngle: 30,
       // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
       // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
-      rapidClearance: 1.0,
-      // Tvarový polotovar z kontury — jednotný přídavek na všechny plochy
-      // + sražení/radius do rohů (proti popraskání při tepelném zpracování).
-      stockShapeEnabled: false, stockAllowance: 5, stockChamfer: 0, stockFillet: 0
+      rapidClearance: 1.0
     },
     view: { scale: 3, panX: 600, panY: 350 },
     flipX: false,
@@ -1173,22 +1231,33 @@ export function openCamSimulator(initialContour) {
   if (state.xDisplayMode === 'radius') S.params.mode = 'RADIUS';
   else if (state.xDisplayMode === 'diameter') S.params.mode = 'DIAMON';
 
-  // Parse initial contour if provided
+  // Parse initial contour (+ volitelně polotovar) z G-kódu pokud byl předán.
+  // CNC export v CAD obaluje polotovar značkami STOCK_START/END, takže ho
+  // umíme přečíst rovnou z G-kódu bez druhého kanálu.
   let _importedContour = false;
+  let _importedStockFromGCode = false;
   if (initialContour && typeof initialContour === 'string' && initialContour.trim()) {
-    const parsed = parseContourGCode(initialContour);
-    if (parsed.length > 0) { S.contourPoints = parsed; _importedContour = true; }
+    const parsed = parseContourAndStockGCode(initialContour);
+    if (parsed.contour.length > 0) { S.contourPoints = parsed.contour; _importedContour = true; }
+    if (parsed.stock.length >= 2) {
+      S.stockPoints = parsed.stock;
+      S.params.stockMode = 'casting';
+      _importedStockFromGCode = true;
+    }
   }
 
-  // Auto-import drawn polotovaru z CAD plátna (objekty s isStock=true).
-  try {
-    const importedStock = buildStockPointsFromCanvas(S.params);
-    if (importedStock.length >= 2) {
-      S.stockPoints = importedStock;
-      // Přepnout polotovar na vlastní tvar, aby byl řetězec viditelný.
-      S.params.stockMode = 'casting';
-    }
-  } catch (e) { console.warn('buildStockPointsFromCanvas:', e); }
+  // Fallback: pokud G-kód polotovar neobsahoval, zkus přímý canvas import
+  // (isStock objekty na plátně). Pomáhá ve scénářích, kdy CAM byl otevřen
+  // jinak než přes "Otevřít v CAM" (např. uložený projekt s polotovarem).
+  if (!_importedStockFromGCode) {
+    try {
+      const importedStock = buildStockPointsFromCanvas(S.params);
+      if (importedStock.length >= 2) {
+        S.stockPoints = importedStock;
+        S.params.stockMode = 'casting';
+      }
+    } catch (e) { console.warn('buildStockPointsFromCanvas:', e); }
+  }
 
 
   // ── DOM refs ──
@@ -2793,21 +2862,6 @@ export function openCamSimulator(initialContour) {
       <div class="cam-sim-row"><div class="cam-sim-field"><label>Přídavek čelo</label><input type="number" data-cylp="stockFace" value="${S.params.stockFace}"></div>
       <div class="cam-sim-field"><label>Přídavek (Auto)</label><input type="number" data-cylp="stockMargin" value="${S.params.stockMargin}"></div></div>
       <button class="cam-sim-btn cam-sim-btn-indigo" data-act="auto-stock">🎯 Auto-rozměr</button>`;
-      // Checkbox + pole pro Přídavek na plochu — dostupné i v cylinder módu
-      // (po zaškrtnutí se automaticky přepne na tvarový polotovar)
-      const en1 = !!S.params.stockShapeEnabled;
-      const dis1 = en1 ? '' : 'disabled';
-      html += `<div style="margin-top:8px;padding:6px;border:1px solid #45475a;border-radius:4px;background:#1e1e2e">
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
-          <input type="checkbox" data-act="stock-shape-toggle" ${en1 ? 'checked' : ''}>
-          <span style="font-weight:600">📏 Přídavek na plochu</span>
-        </label>
-        <div class="cam-sim-row" style="margin-top:6px">
-          <div class="cam-sim-field"><label>Přídavek (mm/pl)</label><input type="number" step="0.5" data-act="stock-shape-allowance" value="${S.params.stockAllowance}" ${dis1}></div>
-          <div class="cam-sim-field"><label>Sražení</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis1}></div>
-          <div class="cam-sim-field"><label>R</label><input type="number" step="0.5" data-act="stock-shape-fillet" value="${S.params.stockFillet}" ${dis1}></div>
-        </div>
-      </div>`;
     } else {
     html += `<div class="cam-sim-point-header"><div style="width:18px">#</div><div style="width:48px">Typ</div><div style="width:32px">Mód</div><div style="width:56px">X/U</div><div style="width:56px">Z/W</div><div style="width:40px">R</div></div>`;
     pts.forEach((p, i) => {
@@ -2828,21 +2882,6 @@ export function openCamSimulator(initialContour) {
     html += `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="cam-sim-btn ${isStock ? 'cam-sim-btn-green' : 'cam-sim-btn-blue'}" data-act="addpt-list">➕ Přidat bod</button>
     </div>`;
-    if (isStock) {
-      const en = !!S.params.stockShapeEnabled;
-      const dis = en ? '' : 'disabled';
-      html += `<div style="margin-top:8px;padding:6px;border:1px solid #45475a;border-radius:4px;background:#1e1e2e">
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
-          <input type="checkbox" data-act="stock-shape-toggle" ${en ? 'checked' : ''}>
-          <span style="font-weight:600">📏 Přídavek na plochu</span>
-        </label>
-        <div class="cam-sim-row" style="margin-top:6px">
-          <div class="cam-sim-field"><label>Přídavek (mm/pl)</label><input type="number" step="0.5" data-act="stock-shape-allowance" value="${S.params.stockAllowance}" ${dis}></div>
-          <div class="cam-sim-field"><label>Sražení</label><input type="number" step="0.5" data-act="stock-shape-chamfer" value="${S.params.stockChamfer}" ${dis}></div>
-          <div class="cam-sim-field"><label>R</label><input type="number" step="0.5" data-act="stock-shape-fillet" value="${S.params.stockFillet}" ${dis}></div>
-        </div>
-      </div>`;
-    }
     }
     html += `<div style="display:flex;gap:4px;margin-top:6px">
       <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-gray" data-act="copy-code">📋 Kopírovat</button>
@@ -2957,35 +2996,6 @@ export function openCamSimulator(initialContour) {
     });
     const autoStockEdBtn = tabBody.querySelector('[data-act="auto-stock"]');
     if (autoStockEdBtn) autoStockEdBtn.addEventListener('click', () => { handleAutoStock(); fullUpdate(); });
-    // Checkbox + 2 pole pro Přídavek na plochu
-    const shapeToggle = tabBody.querySelector('[data-act="stock-shape-toggle"]');
-    if (shapeToggle) shapeToggle.addEventListener('change', () => {
-      pushHistory();
-      S.params.stockShapeEnabled = shapeToggle.checked;
-      if (shapeToggle.checked) {
-        // Při zaškrtnutí vynuluj přídavky řezání (X i Z) — uživatel
-        // pracuje se stock-shape přídavkem, ne s machining offset.
-        S.params.allowanceX = 0;
-        S.params.allowanceZ = 0;
-        handleStockFromContourAllowance();
-      }
-      renderTab(); fullUpdate();
-    });
-    const shapeAllow = tabBody.querySelector('[data-act="stock-shape-allowance"]');
-    if (shapeAllow) shapeAllow.addEventListener('change', () => {
-      S.params.stockAllowance = parseFloat(shapeAllow.value) || 0;
-      if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
-    });
-    const shapeCham = tabBody.querySelector('[data-act="stock-shape-chamfer"]');
-    if (shapeCham) shapeCham.addEventListener('change', () => {
-      S.params.stockChamfer = parseFloat(shapeCham.value) || 0;
-      if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
-    });
-    const shapeFil = tabBody.querySelector('[data-act="stock-shape-fillet"]');
-    if (shapeFil) shapeFil.addEventListener('change', () => {
-      S.params.stockFillet = parseFloat(shapeFil.value) || 0;
-      if (S.params.stockShapeEnabled) { handleStockFromContourAllowance(); renderTab(); }
-    });
   }
 
   // ── params tab ──
@@ -3269,324 +3279,6 @@ export function openCamSimulator(initialContour) {
     ];
   }
 
-  // ── Pre-connect raw offsets (manhattan u arcs) ──
-  // Pro arc → line: prodloužíme tangentu oblouku z koncového bodu a tangentu
-  // další line z jejího počátku — průsečík tvoří manhattan corner. Vložíme
-  // dvě nohy line (pe → corner → cs). Chamfer/fillet pass pak na rohu
-  // udělá sražení (= „vyjet po tangentě, pak srazit roh"). Konektory
-  // nejsou označeny isConnector, aby chamfer normálně proběhl.
-  // Pro line → arc / arc → arc / případy kde manhattan nedává smysl
-  // (corner za počátkem) padáme zpět na jednu diagonálu označenou
-  // isConnector — chamfer ji přeskočí.
-  function preConnectOffsets(rawOffsets) {
-    if (rawOffsets.length < 2) return rawOffsets;
-    const endOf = (s) => s.type === 'line'
-      ? s.p2
-      : { x: s.cx + Math.sin(s.endAngle) * s.r, z: s.cz + Math.cos(s.endAngle) * s.r };
-    const startOf = (s) => s.type === 'line'
-      ? s.p1
-      : { x: s.cx + Math.sin(s.startAngle) * s.r, z: s.cz + Math.cos(s.startAngle) * s.r };
-    // Tangenta na konci/začátku oblouku ve směru průchodu (G2 = CW, G3 = CCW)
-    const tangentAtEnd = (a) => {
-      const sign = a.dir === 'G2' ? -1 : 1;
-      return { x: sign * Math.cos(a.endAngle), z: -sign * Math.sin(a.endAngle) };
-    };
-    const tangentAtStart = (a) => {
-      const sign = a.dir === 'G2' ? -1 : 1;
-      return { x: sign * Math.cos(a.startAngle), z: -sign * Math.sin(a.startAngle) };
-    };
-    const lineDir = (l) => {
-      const dx = l.p2.x - l.p1.x, dz = l.p2.z - l.p1.z;
-      const len = Math.hypot(dx, dz);
-      return len > 1e-9 ? { x: dx / len, z: dz / len } : { x: 0, z: 0 };
-    };
-    const intersectInf = (P1, d1, P2, d2) => {
-      const det = d1.x * d2.z - d1.z * d2.x;
-      if (Math.abs(det) < 1e-9) return null;
-      const t = ((P2.x - P1.x) * d2.z - (P2.z - P1.z) * d2.x) / det;
-      return { x: P1.x + t * d1.x, z: P1.z + t * d1.z };
-    };
-    const result = [rawOffsets[0]];
-    for (let i = 1; i < rawOffsets.length; i++) {
-      const prev = result[result.length - 1];
-      const cur = rawOffsets[i];
-      if (prev.type !== 'arc' && cur.type !== 'arc') { result.push(cur); continue; }
-      const pe = endOf(prev);
-      const cs = startOf(cur);
-      const gap = Math.hypot(cs.x - pe.x, cs.z - pe.z);
-      if (gap <= 0.1) { result.push(cur); continue; }
-      const dPrev = prev.type === 'arc' ? tangentAtEnd(prev) : lineDir(prev);
-      const dCur  = cur.type === 'arc'  ? tangentAtStart(cur) : lineDir(cur);
-      const corner = intersectInf(pe, dPrev, cs, dCur);
-      // Roh je validní jen pokud je „za" pe ve směru dPrev a „před" cs ve směru dCur
-      const tFromPrev = corner ? (corner.x - pe.x) * dPrev.x + (corner.z - pe.z) * dPrev.z : -1;
-      const tToNext   = corner ? (cs.x - corner.x) * dCur.x + (cs.z - corner.z) * dCur.z : -1;
-      if (corner && tFromPrev > 0.01 && tToNext > 0.01) {
-        // Manhattan — dvě line nohy, ty pak chamfer/fillet zpracuje na rohu
-        result.push({ type: 'line', p1: { x: pe.x, z: pe.z }, p2: { x: corner.x, z: corner.z } });
-        result.push({ type: 'line', p1: { x: corner.x, z: corner.z }, p2: { x: cs.x, z: cs.z } });
-      } else {
-        // Fallback: jediná diagonála, chamfer na jejích koncích přeskočit
-        result.push({ type: 'line', p1: { x: pe.x, z: pe.z }, p2: { x: cs.x, z: cs.z }, isConnector: true });
-      }
-      result.push(cur);
-    }
-    return result;
-  }
-
-  // ── Chamfer/Fillet pass přes ofsetovou polyčáru ──
-  // Pro každý vnitřní vrchol (mezi dvěma LINE segmenty) se podle znaménka
-  // cross-productu rozhodne:
-  //   cross < 0  → konvexní (vnější) roh   → SRAŽENÍ (chamfer)  – linie
-  //   cross > 0  → konkávní (vnitřní) roh  → POLOMĚR (fillet)   – G3 oblouk
-  // Velikost `size` je v mm: pro chamfer = délka nohy, pro fillet = poloměr.
-  function applyChamferFillet(segs, chamferSize, filletSize) {
-    // Zpětná kompatibilita: pokud volající předá jen jeden argument,
-    // použije se pro obojí (původní chování).
-    if (filletSize === undefined) filletSize = chamferSize;
-    if ((chamferSize <= 0 && filletSize <= 0) || segs.length < 2) return segs;
-
-    const mods = [];
-    for (let i = 0; i < segs.length - 1; i++) {
-      const s1 = segs[i], s2 = segs[i + 1];
-      if (s1.type !== 'line' || s2.type !== 'line') { mods.push(null); continue; }
-      // Connectory (vložené preConnect mezi arc a line) chamfer/fillet
-      // neaplikujeme — vznikaly by zbytečné body / zigzagy.
-      if (s1.isConnector || s2.isConnector) { mods.push(null); continue; }
-      const V = s1.p2;
-      const d1Lx = s1.p2.x - s1.p1.x, d1Lz = s1.p2.z - s1.p1.z;
-      const d2Lx = s2.p2.x - s2.p1.x, d2Lz = s2.p2.z - s2.p1.z;
-      const d1Len = Math.hypot(d1Lx, d1Lz);
-      const d2Len = Math.hypot(d2Lx, d2Lz);
-      if (d1Len < 1e-6 || d2Len < 1e-6) { mods.push(null); continue; }
-      const d1 = { x: d1Lx / d1Len, z: d1Lz / d1Len };
-      const d2 = { x: d2Lx / d2Len, z: d2Lz / d2Len };
-      const cross = d1.x * d2.z - d1.z * d2.x;
-      if (Math.abs(cross) < 0.05) { mods.push(null); continue; }
-
-      if (cross < 0) {
-        // Konvexní → chamfer (sražení 45°-ish dle úhlu, nohy = chamferSize)
-        if (chamferSize <= 0) { mods.push(null); continue; }
-        // ── Filtr na úhel rozevření rohu ──
-        // Sražení má smysl jen na dostatečně ostrém rohu. Tupé rohy
-        // (změna směru < cca 55°) typicky vznikají na koncích již
-        // existujícího sražení v kontuře — pravoúhlý roh sražený 45°
-        // dává na obou koncích 45° změnu směru. Jejich opětovné sražení
-        // by vytvořilo drobné zuby (viz issue se stock-shape přídavkem).
-        // cos(úhlu změny směru) = d1·d2; prahem cos > 0.57 vyřadíme
-        // všechny rohy s úhlem rozevření menším než ~55°.
-        const cosTurn = d1.x * d2.x + d1.z * d2.z;
-        if (cosTurn > 0.57) { mods.push(null); continue; }
-        const c = Math.min(chamferSize, d1Len * 0.49, d2Len * 0.49);
-        if (c < 0.05) { mods.push(null); continue; }
-        const P1 = { x: V.x - d1.x * c, z: V.z - d1.z * c };
-        const P2 = { x: V.x + d2.x * c, z: V.z + d2.z * c };
-        mods.push({ type: 'chamfer', P1, P2 });
-      } else {
-        // Konkávní → fillet (poloměr = filletSize, ořezáno na délku segmentů)
-        if (filletSize <= 0) { mods.push(null); continue; }
-        const cosA = -d1.x * d2.x - d1.z * d2.z; // úhel mezi (-d1) a d2 = vnitřní úhel
-        const halfAngle = Math.acos(Math.max(-1, Math.min(1, cosA))) / 2;
-        if (halfAngle < 0.05 || halfAngle > Math.PI / 2 - 0.05) { mods.push(null); continue; }
-        let tanLen = filletSize / Math.tan(halfAngle);
-        tanLen = Math.min(tanLen, d1Len * 0.49, d2Len * 0.49);
-        const r = tanLen * Math.tan(halfAngle);
-        if (r < 0.05) { mods.push(null); continue; }
-        const P1 = { x: V.x - d1.x * tanLen, z: V.z - d1.z * tanLen };
-        const P2 = { x: V.x + d2.x * tanLen, z: V.z + d2.z * tanLen };
-        const bisX = -d1.x + d2.x, bisZ = -d1.z + d2.z;
-        const bisLen = Math.hypot(bisX, bisZ);
-        if (bisLen < 1e-6) { mods.push(null); continue; }
-        const centerDist = r / Math.sin(halfAngle);
-        const C = { x: V.x + (bisX / bisLen) * centerDist, z: V.z + (bisZ / bisLen) * centerDist };
-        const startAngle = Math.atan2(P1.x - C.x, P1.z - C.z);
-        const endAngle = Math.atan2(P2.x - C.x, P2.z - C.z);
-        mods.push({ type: 'fillet', P1, P2, C, r, startAngle, endAngle });
-      }
-    }
-    // Aplikace
-    const out = [];
-    for (let i = 0; i < segs.length; i++) {
-      const seg = structuredClone(segs[i]);
-      if (i > 0 && mods[i - 1] && seg.type === 'line') seg.p1 = mods[i - 1].P2;
-      if (i < segs.length - 1 && mods[i] && seg.type === 'line') seg.p2 = mods[i].P1;
-      out.push(seg);
-      if (i < segs.length - 1 && mods[i]) {
-        const m = mods[i];
-        if (m.type === 'chamfer') {
-          out.push({ type: 'line', p1: m.P1, p2: m.P2 });
-        } else {
-          // Konkávní roh (cross > 0 v naší konvenci = pravý zatáček) → G2 (CW)
-          // — krátká cesta okolo středu, oblouk bulguje TOWARD V (do rohu).
-          // G3 by šlo dlouhou stranou (3/4 kolem) — to vypadá jako půlkruh / obrácený radius.
-          out.push({ type: 'arc', cx: m.C.x, cz: m.C.z, r: m.r, dir: 'G2', startAngle: m.startAngle, endAngle: m.endAngle, p1: m.P1, p2: m.P2 });
-        }
-      }
-    }
-    return out;
-  }
-
-  // ── Stock z kontury + přídavek ──
-  // Uniformní přídavek `stockAllowance` (mm/pl) ve všech směrech (X i Z)
-  // + volitelné sražení/poloměr `stockChamfer` na vrcholech polotovaru
-  // (sražení vnějších rohů + radius vnitřních — proti popraskání v peci).
-  function handleStockFromContourAllowance() {
-    const absPts = resolvePointsToAbsolute(S.contourPoints);
-    if (absPts.length < 2) return; // nelze, tiše ignoruj (auto-regen)
-    const prms = S.params;
-    const allowance = parseFloat(prms.stockAllowance) || 0;
-    const chamfer   = parseFloat(prms.stockChamfer)   || 0;
-    const fillet    = parseFloat(prms.stockFillet)    || 0;
-    if (allowance <= 0) return; // tiše ignoruj — uživatel nastaví hodnotu
-    const toR = (x) => prms.mode === 'DIAMON' ? x / 2 : x;
-    const fromR = (r) => prms.mode === 'DIAMON' ? r * 2 : r;
-
-    // 1) Postav contourSegments v poloměru
-    // G0 přejezdy NEzařazujeme — jsou jen přepozicování nástroje, ne
-    // součást tvaru dílu. Pokud uživatel má v kontuře G0 jumps (typicky
-    // při exportu z nepropojených objektů na plátně), bez tohoto kroku
-    // by se z nich offsetovaly falešné segmenty zasahující do polotovaru.
-    // Také filtrujeme nulové segmenty (p1 == p2) které dělají problémy
-    // při trimování.
-    const wp = absPts.map(p => ({ ...p, xR: toR(p.xAbs), zR: p.zAbs }));
-    const contourSegments = [];
-    const SEG_EPS = 1e-4;
-    for (let i = 0; i < wp.length - 1; i++) {
-      const p1 = wp[i], p2 = wp[i + 1], type = p2.type;
-      const a = { x: p1.xR, z: p1.zR }, b = { x: p2.xR, z: p2.zR };
-      const dist = Math.hypot(b.x - a.x, b.z - a.z);
-      if (dist < SEG_EPS) continue; // nulový segment — přeskoč
-      if (type === 'G0') continue; // rychloposuv není součástí tvaru
-      if (type === 'G1') {
-        contourSegments.push({ type: 'line', p1: a, p2: b });
-      } else if (type === 'G2' || type === 'G3') {
-        const arc = getArcParams(a, b, p2.rVal, type);
-        if (arc.error) continue;
-        contourSegments.push({ type: 'arc', cx: arc.cx, cz: arc.cz, r: arc.r, p1: a, p2: b, dir: type });
-      }
-    }
-    if (contourSegments.length === 0) return;
-
-    // 1.2) Čištění kontury — filtrujeme segmenty, které končí v již
-    // navštívené poloze (typicky "zpětné" oblouky jak je generuje export
-    // nepropojených objektů z plátna). A pokud mezi sousedy zůstane gap
-    // (kvůli skipnutým G0 přejezdům), vložíme spojovací úsečku.
-    const cleaned = (() => {
-      const VISIT_TOL = 0.01;
-      const visited = [];
-      const isVisited = (pt) => visited.some(v => Math.abs(v.x - pt.x) < VISIT_TOL && Math.abs(v.z - pt.z) < VISIT_TOL);
-      const visit = (pt) => visited.push(pt);
-      const result = [];
-      for (let i = 0; i < contourSegments.length; i++) {
-        const seg = contourSegments[i];
-        const segEnd = seg.p2;
-        // Pokud končí v již navštíveném bodě, jde o zpětný/duplicitní
-        // segment — přeskočíme. (Výjimka: úplně první segment.)
-        if (i > 0 && isVisited(segEnd)) continue;
-        // Pokud začátek nenavazuje na konec předchozího v result, vlož bridge.
-        if (result.length > 0) {
-          const prevEnd = result[result.length - 1].p2;
-          const gap = Math.hypot(seg.p1.x - prevEnd.x, seg.p1.z - prevEnd.z);
-          if (gap > VISIT_TOL) {
-            result.push({ type: 'line', p1: prevEnd, p2: seg.p1, isBridge: true });
-          }
-        }
-        result.push(seg);
-        visit(seg.p1);
-        visit(seg.p2);
-      }
-      return result;
-    })();
-    if (cleaned.length === 0) return;
-    // Přepiš pracovní pole — další kroky pracují s vyčištěnou konturou.
-    contourSegments.length = 0;
-    cleaned.forEach(s => contourSegments.push(s));
-
-    // 2) Raw offsets — uniformní allowance v obou osách
-    const rawOffsets = [];
-    for (const seg of contourSegments) {
-      if (seg.type === 'line') {
-        const n = getNormal(seg.p1, seg.p2);
-        const tx = n.x * allowance, tz = n.z * allowance;
-        rawOffsets.push({
-          type: 'line',
-          p1: { x: seg.p1.x + tx, z: seg.p1.z + tz },
-          p2: { x: seg.p2.x + tx, z: seg.p2.z + tz }
-        });
-      } else {
-        // Autodetekce směru z geometrie — viz komentář u rough offsetu výše.
-        const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
-        const centerAbsX = Math.abs(seg.cx);
-        const isOuter = centerAbsX < midAbsX;
-        const rNew = isOuter ? seg.r + allowance : seg.r - allowance;
-        if (rNew <= 0.5) continue;
-        const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-        const endAngle   = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-        rawOffsets.push({ type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, startAngle, endAngle });
-      }
-    }
-    if (rawOffsets.length === 0) return;
-
-    pushHistory();
-
-    // 3) Trim sousedů + global loop removal + collinear bridging (opt-in
-    // pro polotovar — drážky/štěrbiny užší než přídavek se přemostí, aby
-    // polotovar neměl nesmyslné výjezdy přes neobrobitelnou oblast).
-    // 2.5) Vlož spojovací linky mezi sousední ofsety s mezerou (aby trim nenatahoval arcy)
-    const preConnected = preConnectOffsets(rawOffsets);
-
-    // 3) Trim sousedů + global loop removal + collinear bridging
-    let trimmed = trimAndRemoveLoops(preConnected, { bridgeCollinear: true });
-
-    // 3.5) Sražení/radius vrcholů (pokud je některá hodnota > 0)
-    if (chamfer > 0 || fillet > 0) {
-      trimmed = applyChamferFillet(trimmed, chamfer, fillet);
-    }
-
-    // 4) Konverze do stockPoints
-    const baseId = Date.now();
-    const stockPts = [];
-    const first = trimmed[0];
-    const firstStart = first.type === 'line'
-      ? first.p1
-      : { x: first.cx + Math.sin(first.startAngle) * first.r, z: first.cz + Math.cos(first.startAngle) * first.r };
-    stockPts.push({
-      id: baseId,
-      type: 'G0',
-      x: Math.round(fromR(firstStart.x) * 1000) / 1000,
-      z: Math.round(firstStart.z * 1000) / 1000,
-      r: 0, mode: 'ABS'
-    });
-    trimmed.forEach((seg, idx) => {
-      let endPt, type, r;
-      if (seg.type === 'line') {
-        endPt = seg.p2; type = 'G1'; r = 0;
-      } else {
-        endPt = { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
-        type = seg.dir; r = seg.r;
-      }
-      const nx = Math.round(fromR(endPt.x) * 1000) / 1000;
-      const nz = Math.round(endPt.z * 1000) / 1000;
-      // Vynech duplicitní body (po chamfer/trim může vzniknout segment nulové délky)
-      const prev = stockPts[stockPts.length - 1];
-      if (prev && Math.abs(prev.x - nx) < 0.005 && Math.abs(prev.z - nz) < 0.005) return;
-      stockPts.push({
-        id: baseId + idx + 1,
-        type,
-        x: nx,
-        z: nz,
-        r: Math.round(r * 1000) / 1000,
-        mode: 'ABS'
-      });
-    });
-    S.stockPoints = stockPts;
-
-    if (S.params.stockMode !== 'casting') S.params.stockMode = 'casting';
-    S.editMode = 'stock';
-    fullUpdate();
-    fitView();
-  }
-
   // ── copy / download / PDF ──
   function handleCopyGCode() {
     const text = S.useManualCode ? S.manualGCode : S.generatedCode.map(l => l.text).join('\n');
@@ -3709,13 +3401,20 @@ export function openCamSimulator(initialContour) {
           );
           if (arc.error) continue;
           const cc = toCanvas(arc.cx, arc.cz);
+          // Nastavit ccw + zachovat start/end body podle p1→p2 směru (BEZ swapu).
+          // Mapování CAM G2/G3 → CAD ccw:
+          //   G3 (CCW v CAMu = svět CCW) → ccw=true
+          //   G2 (CW  v CAMu = svět CW ) → ccw=false
+          // Bez správného ccw renderer kresí default (true), což pro G2 znamená
+          // dlouhý oblouk přes druhou stranu středu. Při dalším exportu pak
+          // cross-product produkoval jiný G2/G3 → round-trip oblouky obracel.
           const startAngle = Math.atan2(c1.y - cc.y, c1.x - cc.x);
-          const endAngle = Math.atan2(c2.y - cc.y, c2.x - cc.x);
+          const endAngle   = Math.atan2(c2.y - cc.y, c2.x - cc.x);
           const id = state.nextId++;
           const obj = {
             type: 'arc', cx: cc.x, cy: cc.y, r: arc.r,
-            startAngle: p2.type === 'G2' ? endAngle : startAngle,
-            endAngle: p2.type === 'G2' ? startAngle : endAngle,
+            startAngle, endAngle,
+            ccw: p2.type === 'G3',
             name: `Oblouk ${id}`, id, layer: state.activeLayer,
           };
           if (isStock) obj.isStock = true;
@@ -4449,7 +4148,9 @@ export function openCamSimulator(initialContour) {
   canvas.width = canvasWrap.clientWidth;
   canvas.height = canvasWrap.clientHeight;
   if (_importedContour) {
-    // Auto-fit stock to imported contour
+    // Auto-fit cylinder-stock parametrů k importované kontuře (Diameter/Length/Face).
+    // Tyto hodnoty pouze nastavují velikost defaultního válcového polotovaru —
+    // pokud už máme tvarový polotovar (z G-kódu nebo z canvas), nepřepisujeme ho.
     const absPts = resolvePointsToAbsolute(S.contourPoints);
     if (absPts.length > 0) {
       let minZ = Infinity, maxD = 0;
@@ -4463,13 +4164,10 @@ export function openCamSimulator(initialContour) {
       S.params.stockLength = Math.ceil(Math.abs(minZ) + margin);
       S.params.stockFace = 2.0;
     }
-    generateDefaultStock();
-  }
-  // Pokud má uživatel zapnutý "Přídavek na plochu", regeneruj polotovar
-  // z aktuální kontury hned po načtení — bez toho by musel ručně sáhnout
-  // na hodnotu, aby se polotovar přepočítal.
-  if (S.params.stockShapeEnabled && S.contourPoints.length >= 2) {
-    try { handleStockFromContourAllowance(); } catch (e) { console.warn('auto stock-shape regen:', e); }
+    // Defaultní casting-stock vygeneruj jen pokud žádný (ani G-kódový, ani canvas) není.
+    if (!_importedStockFromGCode && S.stockPoints.length === 0) {
+      generateDefaultStock();
+    }
   }
   fullUpdate();
   requestAnimationFrame(() => fitView());

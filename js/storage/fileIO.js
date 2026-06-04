@@ -409,14 +409,16 @@ function runCncExport() {
   }
 
   // ── Pre-process: trim + orient right-to-left + sort ──
+  // Roztřídíme objekty na (a) konturu a (b) polotovar. Oba se exportují
+  // do G-kódu samostatnými sekcemi, aby je CAM (i externí parser) uměl
+  // rozlišit – polotovar mezi značkami STOCK_START / STOCK_END.
   const items = [];
+  const stockItems = [];
   for (const obj of state.objects) {
     if (obj.type === 'constr') continue;
     if (obj.type === 'text') continue;
     if (obj.isDimension || obj.isCoordLabel) continue;
-    // Polotovar (isStock) jde do CAMu samostatným kanálem
-    // (buildStockPointsFromCanvas), do kontury G-kódu nepatří.
-    if (obj.isStock) continue;
+    const target = obj.isStock ? stockItems : items;
 
     if (obj.type === 'line') {
       let x1 = obj.x1, y1 = obj.y1, x2 = obj.x2, y2 = obj.y2;
@@ -436,35 +438,46 @@ function runCncExport() {
         }
       }
 
-      // Orient right to left (higher X first)
-      if (x1 < x2) { [x1, x2] = [x2, x1]; [y1, y2] = [y2, y1]; }
+      // Orient right-to-left jen u kontury. U polotovaru je orientace
+      // diktována chain pořadím (orientation by chain rozbil → G00 skoky).
+      if (!obj.isStock && x1 < x2) { [x1, x2] = [x2, x1]; [y1, y2] = [y2, y1]; }
 
-      items.push({
+      target.push({
         type: 'line', name: obj.name,
         x1, y1, x2, y2,
         _sortX: Math.max(x1, x2)
       });
     } else if (obj.type === 'point') {
-      items.push({ ...obj, _sortX: obj.x });
+      target.push({ ...obj, _sortX: obj.x });
     } else if (obj.type === 'circle') {
-      items.push({ ...obj, _sortX: obj.cx + obj.r });
+      target.push({ ...obj, _sortX: obj.cx + obj.r });
     } else if (obj.type === 'arc') {
-      items.push({ ...obj, _sortX: obj.cx + obj.r });
+      // _sortX podle pravějšího ENDPOINTU oblouku (ne cx+r, který je extrémně
+      // vlevo když má oblouk velký poloměr s endpointy blízko sebe). Bez toho
+      // by sort u kontury reorganizoval segmenty před úsečku mezi obloukama
+      // a fileIO musel vkládat zbytečné G00 přejezdy → po round-tripu
+      // se chain rozbil na duplikované úsečky.
+      const aSx = obj.cx + obj.r * Math.cos(obj.startAngle);
+      const aEx = obj.cx + obj.r * Math.cos(obj.endAngle);
+      target.push({ ...obj, _sortX: Math.max(aSx, aEx) });
     } else if (obj.type === 'rect') {
-      // Orient right to left
       let rx1 = obj.x1, ry1 = obj.y1, rx2 = obj.x2, ry2 = obj.y2;
-      if (rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
-      items.push({ ...obj, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2) });
+      if (!obj.isStock && rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
+      target.push({ ...obj, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2) });
     } else if (obj.type === 'polyline') {
-      items.push({ ...obj, _sortX: Math.max(...obj.vertices.map(v => v.x)) });
+      target.push({ ...obj, _sortX: Math.max(...obj.vertices.map(v => v.x)) });
     }
   }
 
-  // Sort right to left (highest X first)
+  // Sort right to left (highest X first) — jen kontura.
   items.sort((a, b) => b._sortX - a._sortX);
+  // Polotovar NEŘADÍME — objekty byly přidány v chain pořadí (po offsetu nebo
+  // po obvodu obdélníku) a sorting podle X by chain rozbil → emitor pak musí
+  // mezi sousedy vkládat G00 rapidy, což CAM parser interpretuje jako přerušení
+  // řetězce a vytvoří více skoků uvnitř polotovaru.
 
-  out += "; --- Objekty (zprava doleva) ---\n";
-  items.forEach((obj) => {
+  // Společný emitor jednoho objektu (přepoužit pro konturu i polotovar)
+  function emitObj(obj) {
     switch (obj.type) {
       case "point":
         out += `; ${obj.name}\n`;
@@ -501,15 +514,14 @@ function runCncExport() {
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
           ey = obj.cy + obj.r * Math.sin(obj.endAngle);
         if (needsRapid(sx, sy)) out += `G00 ${fmtCoord(sx, sy)}\n`;
-        // G2/G3 z GEOMETRIE (cross product chord × center-offset), ne z
-        // obj.ccw flagu. Flag je v plátno-screen konvenci (flipnutá Y),
-        // CNC G2/G3 jsou ve world coords. Pro short arc s daným
-        // start/end/center existuje jen jeden správný směr.
-        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
-        const dx = ex - sx, dy = ey - sy;
-        const cox = obj.cx - mx, coy = obj.cy - my;
-        const cross = dx * coy - dy * cox;
-        const arcG = flipArc(cross < 0 ? 'G03' : 'G02');
+        // Jednotná logika pro konturu i polotovar: G2/G3 z `ccw` flagu.
+        //  • CAD ccw=true  (canvas anticlockwise=true) = svět CCW = G03
+        //  • CAD ccw=false                              = svět CW  = G02
+        //  • undefined ccw (legacy/fillet bez nastavení) → default true → G03
+        // Cross-product přístup picknul „kratší" arc kolem středu bez ohledu
+        // na uživatelův záměr (krátký/dlouhý), takže round-trip CAD→CAM→CAD
+        // prohazoval oblouky. ccw flag tu informaci nese spolehlivě.
+        const arcG = flipArc(obj.ccw === false ? 'G02' : 'G03');
         out += `${arcG} ${fmtCoord(ex, ey)} R${obj.r.toFixed(3)}\n`;
         lastEndX = ex; lastEndY = ey;
         break;
@@ -552,7 +564,21 @@ function runCncExport() {
       }
     }
     out += "\n";
-  });
+  }
+
+  out += "; --- Objekty (zprava doleva) ---\n";
+  items.forEach(emitObj);
+
+  // Polotovar – samostatná sekce mezi STOCK_START / STOCK_END značkami.
+  // CAM (i externí parser) tak může konturu a polotovar přijmout odděleně.
+  if (stockItems.length > 0) {
+    // Reset polohy mezi sekcemi: další G00 v polotovaru musí být vždy emitován,
+    // i kdyby náhodou souřadnice navazovala na poslední bod kontury.
+    lastEndX = null; lastEndY = null;
+    out += "; STOCK_START — polotovar (isStock objekty)\n";
+    stockItems.forEach(emitObj);
+    out += "; STOCK_END\n\n";
+  }
 
   if (state.intersections.length > 0) {
     out += "; --- Průsečíky ---\n";
