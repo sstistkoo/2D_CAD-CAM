@@ -31,7 +31,7 @@ export function showPolygonDialog(onConfirm) {
     <div class="cnc-fields">
       <label class="cnc-field" title="Počet stran (3 = trojúhelník, 6 = šestihran/matice)">
         <span>Počet stran</span>
-        <input data-id="sides" type="number" value="6" min="3" max="64" step="1">
+        <input data-id="sides" type="number" inputmode="numeric" value="6" min="3" max="64" step="1">
       </label>
       <label class="cnc-field" title="Poloměr opsané kružnice (od středu k rohu)">
         <span>Poloměr [mm]</span>

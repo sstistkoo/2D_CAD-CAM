@@ -3246,7 +3246,7 @@ document.getElementById("btnOpenNotes").addEventListener("click", async () => {
     </div>
     <!-- Search bar -->
     <div class="notes-search-bar" id="notesSearchBar">
-      <input type="text" id="notesSearchInput" placeholder="Hledat…">
+      <input type="text" id="notesSearchInput" inputmode="text" placeholder="Hledat…">
       <span class="notes-search-count" id="notesSearchCount"></span>
       <button class="notes-tb-btn" data-act="searchPrev" title="Předchozí">▲</button>
       <button class="notes-tb-btn" data-act="searchNext" title="Další">▼</button>

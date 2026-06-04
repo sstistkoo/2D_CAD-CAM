@@ -217,7 +217,7 @@ export function showSaveAsDialog() {
     <div class="input-dialog">
       <h3>💾 Uložit jako</h3>
       <label>Název projektu:</label>
-      <input type="text" id="saveAsName" autofocus>
+      <input type="text" id="saveAsName" inputmode="text" autofocus>
       <div class="btn-row">
         <button class="btn-cancel" id="saveAsCancel">Zrušit</button>
         <button class="btn-ok" id="saveAsOk">Uložit</button>

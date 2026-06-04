@@ -663,7 +663,7 @@ export function openThreadCalc() {
         '<button class="tol-toggle" data-thr="acme">Acme</button>' +
       '</div>' +
     '</div>' +
-    '<input type="text" class="cnc-filter" placeholder="Filtr..." id="threadFilter">' +
+    '<input type="text" class="cnc-filter" inputmode="text" placeholder="Filtr..." id="threadFilter">' +
     '<div class="cnc-fields" id="thrTolClasses" style="margin-top:6px">' +
       '<label class="cnc-field"><span>T\u0159\u00EDda vn\u011Bj\u0161\u00ED</span>' +
         '<select data-id="tExtClass">' +
@@ -732,7 +732,7 @@ export function openThreadCalc() {
       '<label class="cnc-field"><span>P <small>mm</small></span>' +
         '<input type="number" data-id="tP" step="any" placeholder="Stoup\u00E1n\u00ED"></label>' +
       '<label class="cnc-field" id="thrStartsField" style="display:none"><span>Chod\u016F <small>n</small></span>' +
-        '<input type="number" data-id="tStarts" step="1" min="1" value="1" placeholder="1"></label>' +
+        '<input type="number" data-id="tStarts" step="1" min="1" value="1" inputmode="numeric" placeholder="1"></label>' +
     '</div>' +
     '<div class="cnc-actions">' +
       '<button class="cnc-btn cnc-btn-copy" id="thrCopy">\uD83D\uDCCB Kop\u00EDrovat</button>' +

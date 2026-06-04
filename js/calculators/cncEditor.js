@@ -377,8 +377,8 @@ function buildEditorHTML() {
     <div class="cne-im-card">
       <div class="cne-im-title">Přečíslování N-bloků<button class="cne-im-close" data-act="renumCancel" title="Zavřít">✕</button></div>
       <div style="display:flex;gap:8px;margin:8px 0">
-        <label style="flex:1;color:var(--ctp-subtext0);font-size:.85rem">Start:<input data-el="renumStart" type="number" value="10" min="1" class="cne-im-input" style="width:100%;margin-top:4px"></label>
-        <label style="flex:1;color:var(--ctp-subtext0);font-size:.85rem">Krok:<input data-el="renumStep" type="number" value="10" min="1" class="cne-im-input" style="width:100%;margin-top:4px"></label>
+        <label style="flex:1;color:var(--ctp-subtext0);font-size:.85rem">Start:<input data-el="renumStart" type="number" inputmode="numeric" value="10" min="1" class="cne-im-input" style="width:100%;margin-top:4px"></label>
+        <label style="flex:1;color:var(--ctp-subtext0);font-size:.85rem">Krok:<input data-el="renumStep" type="number" inputmode="numeric" value="10" min="1" class="cne-im-input" style="width:100%;margin-top:4px"></label>
       </div>
       <div class="cne-im-actions">
         <button class="cne-im-btn cancel" data-act="renumCancel">Zrušit</button>
@@ -735,16 +735,16 @@ export function openCncEditor(initialCode) {
     hdrList.innerHTML = `
       <div class="cne-hdr-row">
         <label><input type="checkbox" data-hdr="gear" ${h.gear.active ? 'checked' : ''}> Převod</label>
-        <span>M<input type="number" class="cne-hdr-inp" data-hdr-v="gear.val" value="${h.gear.val}" min="40" max="45" style="width:40px"></span>
+        <span>M<input type="number" class="cne-hdr-inp" data-hdr-v="gear.val" value="${h.gear.val}" min="40" max="45" inputmode="numeric" style="width:40px"></span>
       </div>
       <div class="cne-hdr-row">
         <label><input type="checkbox" data-hdr="door" ${h.door.active ? 'checked' : ''}> Odjezd do výměny</label>
-        <span>M<input type="number" class="cne-hdr-inp" data-hdr-v="door.val" value="${h.door.val}" min="0" max="99" style="width:40px"></span>
+        <span>M<input type="number" class="cne-hdr-inp" data-hdr-v="door.val" value="${h.door.val}" min="0" max="99" inputmode="numeric" style="width:40px"></span>
       </div>
       <div class="cne-hdr-row">
         <label><input type="checkbox" data-hdr="tool" ${h.tool.active ? 'checked' : ''}> Nástroj</label>
-        <span>T<input type="number" class="cne-hdr-inp" data-hdr-v="tool.t" value="${h.tool.t}" min="1" max="99" style="width:36px">
-        D<input type="number" class="cne-hdr-inp" data-hdr-v="tool.d" value="${h.tool.d}" min="1" max="9" style="width:36px"></span>
+        <span>T<input type="number" class="cne-hdr-inp" data-hdr-v="tool.t" value="${h.tool.t}" min="1" max="99" inputmode="numeric" style="width:36px">
+        D<input type="number" class="cne-hdr-inp" data-hdr-v="tool.d" value="${h.tool.d}" min="1" max="9" inputmode="numeric" style="width:36px"></span>
       </div>
       <div class="cne-hdr-row">
         <label><input type="checkbox" data-hdr="coords" ${h.coords.active ? 'checked' : ''}> Souřadnice</label>
@@ -758,9 +758,9 @@ export function openCncEditor(initialCode) {
         <label><input type="checkbox" data-hdr="spindle" ${h.spindle.active ? 'checked' : ''}> Vřeteno</label>
         <div class="cne-hdr-sp-wrap">
           <select class="cne-hdr-inp" data-hdr-v="spindle.mode">${spModeOpts}</select>
-          <span>S<input type="number" class="cne-hdr-inp" data-hdr-v="spindle.s" value="${h.spindle.s}" min="1" max="9999" style="width:52px"></span>
+          <span>S<input type="number" class="cne-hdr-inp" data-hdr-v="spindle.s" value="${h.spindle.s}" min="1" max="9999" inputmode="numeric" style="width:52px"></span>
           <select class="cne-hdr-inp" data-hdr-v="spindle.m">${spDirOpts}</select>
-          <span>LIMS<input type="number" class="cne-hdr-inp" data-hdr-v="spindle.lims" value="${h.spindle.lims}" min="1" max="9999" style="width:52px"></span>
+          <span>LIMS<input type="number" class="cne-hdr-inp" data-hdr-v="spindle.lims" value="${h.spindle.lims}" min="1" max="9999" inputmode="numeric" style="width:52px"></span>
         </div>
       </div>`;
     hdrModal.style.display = 'flex';

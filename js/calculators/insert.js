@@ -170,7 +170,7 @@ export function openInsertCalc() {
   // ── TAB 1: Dekodér VBD ──
   // Auto-dekodér input
   var tab1 = '<div class="vbd-pane" id="pane-vbdDec">';
-  tab1 += '<div class="vbd-decode-row"><input type="text" id="vbdAutoInput" class="vbd-auto-input" placeholder="Zadejte kód, např. CNMG120408-PM" maxlength="20" spellcheck="false" autocomplete="off">';
+  tab1 += '<div class="vbd-decode-row"><input type="text" id="vbdAutoInput" class="vbd-auto-input" inputmode="text" placeholder="Zadejte kód, např. CNMG120408-PM" maxlength="20" spellcheck="false" autocomplete="off">';
   tab1 += '<button class="vbd-decode-btn" id="vbdAutoBtn">Dekódovat</button></div>';
 
   // Tvar ilustrace
@@ -200,7 +200,7 @@ export function openInsertCalc() {
   tab2 += '<div class="vbd-reverse-section">' +
     '<div class="cnc-table-label">🔍 Najdi držák podle plátku</div>' +
     '<div class="vbd-decode-row">' +
-      '<input type="text" id="holderFromVbdInput" class="vbd-auto-input" placeholder="Kód plátku, např. CNMG nebo DNMG120408" maxlength="20" spellcheck="false" autocomplete="off">' +
+      '<input type="text" id="holderFromVbdInput" class="vbd-auto-input" inputmode="text" placeholder="Kód plátku, např. CNMG nebo DNMG120408" maxlength="20" spellcheck="false" autocomplete="off">' +
       '<button class="vbd-decode-btn" id="holderFromVbdBtn">Najdi držák</button>' +
     '</div>' +
     '<div class="vbd-reverse-quick">' +
@@ -226,7 +226,7 @@ export function openInsertCalc() {
   tab2 += '<div class="vbd-section-sep"></div>';
   tab2 += '<div class="cnc-table-label">🔧 Dekodér značení držáku</div>';
 
-  tab2 += '<div class="vbd-decode-row"><input type="text" id="holderAutoInput" class="vbd-auto-input" placeholder="Zadejte kód držáku, např. MCLNR2525" maxlength="20" spellcheck="false" autocomplete="off">';
+  tab2 += '<div class="vbd-decode-row"><input type="text" id="holderAutoInput" class="vbd-auto-input" inputmode="text" placeholder="Zadejte kód držáku, např. MCLNR2525" maxlength="20" spellcheck="false" autocomplete="off">';
   tab2 += '<button class="vbd-decode-btn" id="holderAutoBtn">Dekódovat</button></div>';
 
   tab2 += '<div class="vbd-sel-row" id="holderSelRow">';
@@ -493,7 +493,7 @@ export function openInsertCalc() {
   tab5 += '</div>';
 
   // ── Quick search ──
-  var searchBar = '<div class="vbd-search-row"><input type="text" id="vbdSearch" class="vbd-search-input" placeholder="Hledat v datech (kód, tvar, popis\u2026)" spellcheck="false">' +
+  var searchBar = '<div class="vbd-search-row"><input type="text" id="vbdSearch" class="vbd-search-input" inputmode="text" placeholder="Hledat v datech (kód, tvar, popis\u2026)" spellcheck="false">' +
     '<div class="vbd-search-results" id="vbdSearchResults" style="display:none"></div></div>';
 
   // ── Buttons ──

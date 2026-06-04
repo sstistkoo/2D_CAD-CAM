@@ -1789,6 +1789,13 @@ export function openCamSimulator(initialContour) {
       const rapidClr = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
       const entryAngleDeg = Math.max(0.5, Math.min(89.5, parseFloat(prms.entryAngle) || 30));
       const entryRad = entryAngleDeg * Math.PI / 180;
+      // Helper: ořezat rapid/retract Z target k aktivním čelist/koník limitům.
+      const clipZ = (z) => {
+        let v = z;
+        if (tailLim  !== null && v > tailLim)  v = tailLim;
+        if (chuckLim !== null && v < chuckLim) v = chuckLim;
+        return v;
+      };
       passes.forEach((pass, passIdx) => {
         if (pass.type === 'long') {
           // Standardní podélné hrubování (vpravo → vlevo, −Z). Vzor:
@@ -1800,8 +1807,8 @@ export function openCamSimulator(initialContour) {
           //   (d) G1 −Z na pass.zEnd  — podélný řez přes celou špónu MATERIÁLEM
           //   (e) G1 X+Z retract pod 45° od konce řezu o retractDist v obou osách
           const xClear = pass.x + retractDist;
-          const zRetract = pass.zEnd + retractDist;
-          const zApproach = pass.zStart + rapidClr;
+          const zRetract = clipZ(pass.zEnd + retractDist);
+          const zApproach = clipZ(pass.zStart + rapidClr);
 
           // (a) G0 Z za polotovar (rapid-safe nad konturou)
           if (Math.abs(currentSimZ - zApproach) > 0.001) {
@@ -1837,7 +1844,7 @@ export function openCamSimulator(initialContour) {
           //   (d) G1 −X na pass.xEnd — čelní řez MATERIÁLEM od povrchu k bloku
           //   (e) G1 retract 45°: (xEnd + odskok, pass.z + odskok)
           const xRetract = pass.xEnd + retractDist;
-          const zRetract = pass.z + retractDist;
+          const zRetract = clipZ(pass.z + retractDist);
           // (a) G0 X UP na max(currentSimX, pass.xStart) — chrání před tím,
           //     aby se X sjelo pod úroveň, kde je casting outline výš
           const xRapidTarget = Math.max(currentSimX, pass.xStart);
@@ -1876,9 +1883,15 @@ export function openCamSimulator(initialContour) {
         // posuvem do (startX, startZ) — gentle dotek místo kolmého plunge.
         const finishApproachDx = 2;
         const finishRampDz = finishApproachDx / Math.tan(entryRad);
+        // Rapid přibližovací bod nesmí překročit koník/čelisti — pokud by
+        // ramp s daným úhlem překročil limit, Z přibližovacího bodu se
+        // ořízne k limitu (entry úhel se zostří).
+        let approachZ = startZ + finishRampDz;
+        if (tailLim !== null && approachZ > tailLim) approachZ = tailLim;
+        if (chuckLim !== null && approachZ < chuckLim) approachZ = chuckLim;
         const lastPt = simPath[simPath.length - 1];
-        simPath.push(addToPath(lastPt.x, lastPt.z, startX + finishApproachDx, startZ + finishRampDz, 'G0'));
-        simPath.push(addToPath(startX + finishApproachDx, startZ + finishRampDz, startX, startZ, 'G1'));
+        simPath.push(addToPath(lastPt.x, lastPt.z, startX + finishApproachDx, approachZ, 'G0'));
+        simPath.push(addToPath(startX + finishApproachDx, approachZ, startX, startZ, 'G1'));
         finishOffsetPath.forEach(seg => {
           if (seg.isDegenerate) return;
           const prev = simPath[simPath.length - 1];
@@ -1976,6 +1989,16 @@ export function openCamSimulator(initialContour) {
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
     const entryAngleDegGc = Math.max(0.5, Math.min(89.5, parseFloat(prms.entryAngle) || 30));
     const entryRadGc = entryAngleDegGc * Math.PI / 180;
+    // Helper: ořezat Z na aktivní čelisti/koník limity (G-kód generace).
+    const gcLimsActive = S.showZLimits === 'fixtures' || S.showZLimits === 'both';
+    const gcChuckZ = (gcLimsActive && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck)) ? S.zLimits.chuck : null;
+    const gcTailZ  = (gcLimsActive && typeof S.zLimits.tail  === 'number' && isFinite(S.zLimits.tail))  ? S.zLimits.tail  : null;
+    const clipZGc = (z) => {
+      let v = z;
+      if (gcTailZ  !== null && v > gcTailZ)  v = gcTailZ;
+      if (gcChuckZ !== null && v < gcChuckZ) v = gcChuckZ;
+      return v;
+    };
     calc.passes.forEach((pass, i) => {
       addCmt(`Průchod ${i + 1}`);
       if (pass.type === 'long') {
@@ -1988,9 +2011,9 @@ export function openCamSimulator(initialContour) {
         //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
         const xVal = prms.mode === 'DIAMON' ? (pass.x * 2).toFixed(3) : pass.x.toFixed(3);
         const xClear = prms.mode === 'DIAMON' ? ((pass.x + rDist) * 2).toFixed(3) : (pass.x + rDist).toFixed(3);
-        const zApproach = (pass.zStart + rapidClrGc).toFixed(3);
+        const zApproach = clipZGc(pass.zStart + rapidClrGc).toFixed(3);
         const zStart = pass.zStart.toFixed(3);
-        const zRetract = (pass.zEnd + rDist).toFixed(3);
+        const zRetract = clipZGc(pass.zEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 Z${zApproach}`, simCounter);
         simCounter += 1; addN(`G0 X${xVal}`, simCounter);
         simCounter += 1; addN(`G0 Z${zStart}`, simCounter);
@@ -2006,7 +2029,7 @@ export function openCamSimulator(initialContour) {
         //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
         //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
         const zVal = pass.z.toFixed(3);
-        const zRetract = (pass.z + rDist).toFixed(3);
+        const zRetract = clipZGc(pass.z + rDist).toFixed(3);
         const xStart = prms.mode === 'DIAMON' ? (pass.xStart * 2).toFixed(3) : pass.xStart.toFixed(3);
         const xSurface = prms.mode === 'DIAMON' ? (pass.xSurface * 2).toFixed(3) : pass.xSurface.toFixed(3);
         const xEnd = prms.mode === 'DIAMON' ? (pass.xEnd * 2).toFixed(3) : pass.xEnd.toFixed(3);
@@ -2035,7 +2058,9 @@ export function openCamSimulator(initialContour) {
       const finishApproachDx = 2;
       const finishRampDz = finishApproachDx / Math.tan(entryRadGc);
       const sX_approach = prms.mode === 'DIAMON' ? ((sX + finishApproachDx) * 2).toFixed(3) : (sX + finishApproachDx).toFixed(3);
-      const sZ_approach = (sZ + finishRampDz).toFixed(3);
+      // Rapid přibližovací bod ořežeme na čelisti/koník když jsou aktivní —
+      // jinak by ramp s mělkým úhlem překročil limit (collision risk).
+      const sZ_approach = clipZGc(sZ + finishRampDz).toFixed(3);
       simCounter += 1; addN(`G0 X${sX_approach} Z${sZ_approach}`, simCounter);
       simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${prms.feed}`, simCounter);
       calc.finishOffsetPath.forEach(seg => {
@@ -2984,8 +3009,8 @@ export function openCamSimulator(initialContour) {
       <button data-pmode="RADIUS" class="${prms.mode === 'RADIUS' ? 'cam-sim-active' : ''}">R Poloměr</button>
     </div>
     <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
-      <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" value="${prms.toolName}"></div>
+      <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
+      <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${prms.toolName}"></div>
     </div>`;
     html += `<div class="cam-sim-section-title">Polotovar</div>
     <div class="cam-sim-toggle-row">

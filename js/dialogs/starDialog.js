@@ -36,7 +36,7 @@ export function showStarDialog(onConfirm) {
     <div class="cnc-fields">
       <label class="cnc-field" title="Počet cípů hvězdy">
         <span>Počet cípů</span>
-        <input data-id="points" type="number" value="5" min="3" max="32" step="1">
+        <input data-id="points" type="number" inputmode="numeric" value="5" min="3" max="32" step="1">
       </label>
       <label class="cnc-field" title="Vzdálenost špiček cípů od středu">
         <span>Vnější poloměr [mm]</span>

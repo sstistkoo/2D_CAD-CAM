@@ -46,7 +46,7 @@ function fieldsSpur() {
     </label>
     <label class="cnc-field" title="Celkový počet zubů. Minimum 6.">
       <span>Počet zubů (z) ℹ️</span>
-      <input data-id="gz" type="number" value="20" min="6" max="300" step="1">
+      <input data-id="gz" type="number" inputmode="numeric" value="20" min="6" max="300" step="1">
     </label>
     <label class="cnc-field" title="Úhel profilu zubu. Standard: 20°">
       <span>Úhel záběru α [°] ℹ️</span>
@@ -58,7 +58,7 @@ function fieldsSpur() {
     </label>
     <label class="cnc-field" title="Počet bodů na jednu stranu evolventy">
       <span>Body na involutu ℹ️</span>
-      <input data-id="gsteps" type="number" value="10" min="5" max="60" step="5">
+      <input data-id="gsteps" type="number" inputmode="numeric" value="10" min="5" max="60" step="5">
     </label>`;
 }
 
@@ -73,7 +73,7 @@ function fieldsInternal() {
     </label>
     <label class="cnc-field" title="Celkový počet zubů vnitřního kola. Minimum 18.">
       <span>Počet zubů (z) ℹ️</span>
-      <input data-id="gz" type="number" value="40" min="18" max="300" step="1">
+      <input data-id="gz" type="number" inputmode="numeric" value="40" min="18" max="300" step="1">
     </label>
     <label class="cnc-field" title="Úhel profilu zubu. Standard: 20°">
       <span>Úhel záběru α [°] ℹ️</span>
@@ -85,7 +85,7 @@ function fieldsInternal() {
     </label>
     <label class="cnc-field" title="Počet bodů na jednu stranu evolventy">
       <span>Body na involutu ℹ️</span>
-      <input data-id="gsteps" type="number" value="10" min="5" max="60" step="5">
+      <input data-id="gsteps" type="number" inputmode="numeric" value="10" min="5" max="60" step="5">
     </label>`;
 }
 
@@ -100,7 +100,7 @@ function fieldsRack() {
     </label>
     <label class="cnc-field" title="Počet zubů hřebenu">
       <span>Počet zubů ℹ️</span>
-      <input data-id="gz" type="number" value="10" min="1" max="100" step="1">
+      <input data-id="gz" type="number" inputmode="numeric" value="10" min="1" max="100" step="1">
     </label>
     <label class="cnc-field" title="Úhel profilu zubu. Standard: 20°">
       <span>Úhel záběru α [°] ℹ️</span>
@@ -128,11 +128,11 @@ function fieldsSprocket() {
     </label>
     <label class="cnc-field" title="Počet zubů řetězového kola. Minimum 7.">
       <span>Počet zubů (z) ℹ️</span>
-      <input data-id="gz" type="number" value="19" min="7" max="200" step="1">
+      <input data-id="gz" type="number" inputmode="numeric" value="19" min="7" max="200" step="1">
     </label>
     <label class="cnc-field" title="Počet bodů na oblouk sedla">
       <span>Body na oblouk ℹ️</span>
-      <input data-id="gsteps" type="number" value="8" min="4" max="30" step="2">
+      <input data-id="gsteps" type="number" inputmode="numeric" value="8" min="4" max="30" step="2">
     </label>`;
 }
 

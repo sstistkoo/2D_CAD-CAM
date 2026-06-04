@@ -30,11 +30,16 @@ export function wireExprInputs(container) {
 }
 
 // ── Helper: nastaví inputmode="decimal" na všechna numerická pole v elementu ──
+// Respektuje explicitně nastavený inputmode (text/numeric) – nepřepisuje ho.
+// Pokrývá text i number inputy (decimal i pro type="number" zajistí desetinnou tečku
+// na iOS klávesnici).
 /** @param {HTMLElement} container */
 export function applyMobileInputMode(container) {
-  container.querySelectorAll('input[type="text"]').forEach((inp) => {
-    inp.setAttribute("inputmode", "decimal");
-  });
+  container
+    .querySelectorAll('input[type="text"]:not([inputmode]), input[type="number"]:not([inputmode])')
+    .forEach((inp) => {
+      inp.setAttribute("inputmode", "decimal");
+    });
 }
 
 // ── Mobile Edit Dialog ──

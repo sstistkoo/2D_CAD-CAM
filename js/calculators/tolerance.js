@@ -141,9 +141,9 @@ export function openToleranceCalc() {
     '<div class="cnc-table-label" style="margin-top:12px">\uD83D\uDD27 Ulo\u017Een\u00ED (l\u00EDcov\u00E1n\u00ED d\u00EDra + h\u0159\u00EDdel)</div>' +
     '<div class="cnc-fields">' +
       '<label class="cnc-field"><span>D\u00EDra <small>nap\u0159. H7</small></span>' +
-        '<input type="text" data-id="fitHole" placeholder="H7" value="H7" style="text-transform:uppercase"></label>' +
+        '<input type="text" data-id="fitHole" inputmode="text" placeholder="H7" value="H7" style="text-transform:uppercase"></label>' +
       '<label class="cnc-field"><span>H\u0159\u00EDdel <small>nap\u0159. g6</small></span>' +
-        '<input type="text" data-id="fitShaft" placeholder="g6" value="g6" style="text-transform:lowercase"></label>' +
+        '<input type="text" data-id="fitShaft" inputmode="text" placeholder="g6" value="g6" style="text-transform:lowercase"></label>' +
     '</div>' +
     '<div class="cnc-result" id="fitResult"></div>' +
     '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">\uD83D\uDCCB Kopírovat</button></div>';

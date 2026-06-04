@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { ZOOM_FACTOR, ZOOM_MIN, ZOOM_MAX, PASTE_OFFSET } from './constants.js';
-import { drawCanvas, screenToWorld, snapPt, applyAngleSnap } from './canvas.js';
+import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } from './canvas.js';
 import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
@@ -299,14 +299,16 @@ drawCanvas.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+    const rawFactor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+    const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, state.zoom * rawFactor));
+    const factor = newZoom / state.zoom;
+    if (factor === 1) return;
     const rect = drawCanvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     state.panX = mx - (mx - state.panX) * factor;
     state.panY = my - (my - state.panY) * factor;
-    state.zoom *= factor;
-    state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, state.zoom));
+    state.zoom = newZoom;
     document.getElementById("statusZoom").textContent =
       `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
     renderAll();
@@ -314,8 +316,25 @@ drawCanvas.addEventListener(
   { passive: false },
 );
 
+// ── Desktop: Centrovat výkres ──
+const desktopAutoCenterBtn = document.getElementById("desktopAutoCenter");
+if (desktopAutoCenterBtn) {
+  desktopAutoCenterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    autoCenterView();
+  });
+}
+
 // ── Klávesnice ──
 document.addEventListener("keydown", (e) => {
+  // Centrovat výkres: Ctrl+0 nebo Home
+  const tgt = e.target;
+  const isEditable = tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable);
+  if (!isEditable && ((e.ctrlKey && (e.key === "0" || e.code === "Digit0")) || e.key === "Home")) {
+    e.preventDefault();
+    autoCenterView();
+    return;
+  }
   if (e.key === "Escape") {
     // Close topmost dialog overlay if open (highest z-index first)
     const allOverlays = document.querySelectorAll('.input-overlay, .calc-overlay');

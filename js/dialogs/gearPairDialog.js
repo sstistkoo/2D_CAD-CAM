@@ -66,7 +66,7 @@ export function showGearPairDialog(onConfirm) {
         <legend style="font-size:12px;color:var(--ctp-text)">Kolo A (pastorek)</legend>
         <label class="cnc-field">
           <span>Počet zubů z₁</span>
-          <input data-id="gp-z1" type="number" value="20" min="6" max="300" step="1">
+          <input data-id="gp-z1" type="number" inputmode="numeric" value="20" min="6" max="300" step="1">
         </label>
         <label class="cnc-field">
           <span>Korekce x₁</span>
@@ -78,7 +78,7 @@ export function showGearPairDialog(onConfirm) {
         <legend style="font-size:12px;color:var(--ctp-text)">Kolo B (kolo)</legend>
         <label class="cnc-field">
           <span>Počet zubů z₂</span>
-          <input data-id="gp-z2" type="number" value="40" min="6" max="300" step="1">
+          <input data-id="gp-z2" type="number" inputmode="numeric" value="40" min="6" max="300" step="1">
         </label>
         <label class="cnc-field">
           <span>Korekce x₂</span>
@@ -92,7 +92,7 @@ export function showGearPairDialog(onConfirm) {
       </label>
       <label class="cnc-field" title="Počet úseček na bok evolventy">
         <span>Body na involutu</span>
-        <input data-id="gp-steps" type="number" value="16" min="5" max="60" step="5">
+        <input data-id="gp-steps" type="number" inputmode="numeric" value="16" min="5" max="60" step="5">
       </label>
 
       <div class="gear-computed" style="margin:8px 0;padding:8px;background:var(--ctp-surface0);border-radius:6px;font-size:12px">
