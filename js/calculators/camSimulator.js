@@ -1048,6 +1048,7 @@ export function openCamSimulator(initialContour) {
         <button data-act="speed-up" title="Zrychlit">▶</button>
       </div>
       <button data-act="addpt" title="Vložit za bod">➕</button>
+      <button data-act="delpt" title="Odebrat bod">➖</button>
       <button data-act="lock" title="Zamknout/odemknout body" class="cam-sim-active">🔒</button>
       <button data-act="fit" title="Centrovat">🎯</button>
       <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
@@ -3516,8 +3517,14 @@ export function openCamSimulator(initialContour) {
       showToast(S.singleBlock ? 'Single block ZAP – přehrávání po blocích' : 'Single block VYP');
     } else if (act === 'addpt') {
       S.addPointMode = !S.addPointMode;
+      if (S.addPointMode) { S.delPointMode = false; toolbar.querySelector('[data-act="delpt"]').classList.remove('cam-sim-active'); }
       btn.classList.toggle('cam-sim-active', S.addPointMode);
       canvas.style.cursor = S.addPointMode ? 'copy' : 'crosshair';
+    } else if (act === 'delpt') {
+      S.delPointMode = !S.delPointMode;
+      if (S.delPointMode) { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); }
+      btn.classList.toggle('cam-sim-active', S.delPointMode);
+      canvas.style.cursor = S.delPointMode ? 'no-drop' : 'crosshair';
     } else if (act === 'speed-down') {
       const idx = SIM_SPEEDS.indexOf(S.simSpeed);
       if (idx > 0) S.simSpeed = SIM_SPEEDS[idx - 1];
@@ -3685,12 +3692,191 @@ export function openCamSimulator(initialContour) {
 
   // ── CANVAS INTERACTION ──
   function handleInsertAfter(index) {
-    pushHistory();
     const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
     const prev = list[index];
-    list.splice(index + 1, 0, { ...prev, id: Date.now(), z: parseFloat(prev.z) - 5 });
-    fullUpdate();
+    openInsertSegmentModal(prev, (newPt, tgt) => {
+      pushHistory();
+      const targetList = tgt === 'stock' ? S.stockPoints : S.contourPoints;
+      // vložit za index jen pokud jde o stejný list, jinak na konec
+      if (targetList === list) {
+        list.splice(index + 1, 0, { ...newPt, id: Date.now() });
+      } else {
+        targetList.push({ ...newPt, id: Date.now() });
+      }
+      fullUpdate();
+    });
   }
+
+  // ── Modal pro vložení segmentu ──────────────────────────────────
+  function openInsertSegmentModal(fromPt, onConfirm) {
+    let pickMode = false;
+
+    const ov = document.createElement('div');
+    ov.className = 'cam-confirm-overlay';
+    ov.style.zIndex = '200000';
+
+    // pick hint banner – zobrazí se místo modalu při pick módu
+    const hint = document.createElement('div');
+    hint.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:200001;background:#f9e2af;color:#1e1e2e;font-weight:700;font-size:13px;padding:8px 20px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:none;display:none';
+    hint.textContent = '🎯 Klikněte na bod kontury nebo polotovaru…  (Esc = zpět)';
+    document.body.appendChild(hint);
+
+    const syncValues = () => {
+      const xEl = ov.querySelector('#ism-x');
+      const zEl = ov.querySelector('#ism-z');
+      const rEl = ov.querySelector('#ism-r');
+      if (xEl) ov._x = parseFloat(xEl.value) || 0;
+      if (zEl) ov._z = parseFloat(zEl.value) || 0;
+      if (rEl) ov._r = parseFloat(rEl.value) || 0;
+    };
+
+    const enterPickMode = () => {
+      syncValues();
+      pickMode = true;
+      ov.style.display = 'none';
+      hint.style.display = 'block';
+      canvas.style.cursor = 'crosshair';
+    };
+
+    const exitPickMode = () => {
+      pickMode = false;
+      ov.style.display = '';
+      hint.style.display = 'none';
+      canvas.style.cursor = 'crosshair';
+      renderModal();
+      setTimeout(() => ov.querySelector('#ism-x') && ov.querySelector('#ism-x').focus(), 30);
+    };
+
+    const renderModal = () => {
+      const mode = ov._mode || fromPt.mode || 'ABS';
+      const type = ov._type || 'G1';
+      const x = ov._x !== undefined ? ov._x : fromPt.x;
+      const z = ov._z !== undefined ? ov._z : (parseFloat(fromPt.z) - 5);
+      const r = ov._r !== undefined ? ov._r : (fromPt.r || 0);
+      const target = ov._target || S.editMode || 'contour';
+      const isArc = type === 'G2' || type === 'G3';
+
+      ov.innerHTML = `
+        <div class="cam-confirm-box" style="min-width:340px;max-width:95vw">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:14px;color:#cba6f7">➕ Vložit segment za bod</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12px;color:#a6adc8;min-width:36px">Kam</span>
+            <button data-tgt="contour" style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid ${target==='contour'?'#cba6f7':'#45475a'};background:${target==='contour'?'#cba6f7':'#313244'};color:${target==='contour'?'#1e1e2e':'#cdd6f4'}">Kontura</button>
+            <button data-tgt="stock" style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid ${target==='stock'?'#a6e3a1':'#45475a'};background:${target==='stock'?'#a6e3a1':'#313244'};color:${target==='stock'?'#1e1e2e':'#cdd6f4'}">Polotovar</button>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+            <span style="font-size:12px;color:#a6adc8;min-width:36px">Režim</span>
+            <button id="ism-mode" style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:${mode==='ABS'?'#89b4fa':'#a6e3a1'};color:#1e1e2e">
+              ${mode==='ABS'?'G90 ABS':'G91 INC'}
+            </button>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            ${['G1','G2','G3'].map(t => `
+              <button data-type="${t}" style="flex:1;padding:6px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid ${t===type?'#cba6f7':'#45475a'};background:${t===type?'#cba6f7':'#313244'};color:${t===type?'#1e1e2e':'#cdd6f4'}">${t}</button>
+            `).join('')}
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:${isArc?'10px':'14px'}">
+            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+              X<input id="ism-x" type="number" value="${x}" step="0.1"
+                style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
+            </label>
+            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+              Z<input id="ism-z" type="number" value="${z}" step="0.1"
+                style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
+            </label>
+          </div>
+          ${isArc ? `
+          <div style="margin-bottom:14px">
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+              R (poloměr)<input id="ism-r" type="number" value="${r}" step="0.1" min="0"
+                style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
+            </label>
+          </div>` : ''}
+          <div style="margin-bottom:14px">
+            <button id="ism-pick" style="width:100%;padding:7px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4">
+              🎯 Přebrat souřadnice z bodu
+            </button>
+          </div>
+          <div class="cam-confirm-btns">
+            <button id="ism-ok" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#a6e3a1;color:#1e1e2e">Vložit</button>
+            <button id="ism-cancel" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#45475a;color:#cdd6f4">Zrušit</button>
+          </div>
+        </div>`;
+
+      ov._mode = mode;
+      ov._type = type;
+      ov._x = x;
+      ov._z = z;
+      ov._r = r;
+      ov._target = target;
+
+      ov.querySelectorAll('[data-tgt]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          syncValues();
+          ov._target = btn.dataset.tgt;
+          renderModal();
+        });
+      });
+
+      ov.querySelector('#ism-mode').addEventListener('click', () => {
+        syncValues();
+        ov._mode = ov._mode === 'ABS' ? 'INC' : 'ABS';
+        renderModal();
+      });
+
+      ov.querySelectorAll('[data-type]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          syncValues();
+          ov._type = btn.dataset.type;
+          renderModal();
+        });
+      });
+
+      ov.querySelector('#ism-pick').addEventListener('click', enterPickMode);
+
+      ov.querySelector('#ism-ok').addEventListener('click', () => {
+        syncValues();
+        const pt = { type: ov._type, x: ov._x, z: ov._z, r: ov._r || 0, mode: ov._mode };
+        const tgt = ov._target;
+        ov.remove(); hint.remove();
+        _pickHandler = null;
+        canvas.style.cursor = 'crosshair';
+        onConfirm(pt, tgt);
+      });
+
+      ov.querySelector('#ism-cancel').addEventListener('click', () => {
+        document.removeEventListener('keydown', handlePickEsc);
+        ov.remove(); hint.remove(); _pickHandler = null; canvas.style.cursor = 'crosshair';
+      });
+
+      ov.addEventListener('keydown', e => {
+        if (e.key === 'Enter') ov.querySelector('#ism-ok').click();
+        else if (e.key === 'Escape') ov.querySelector('#ism-cancel').click();
+      });
+    };
+
+    // Escape při pick módu vrátí modal zpět
+    const handlePickEsc = (e) => {
+      if (e.key === 'Escape' && pickMode) { exitPickMode(); }
+    };
+    document.addEventListener('keydown', handlePickEsc);
+
+    renderModal();
+    document.body.appendChild(ov);
+    setTimeout(() => ov.querySelector('#ism-x') && ov.querySelector('#ism-x').focus(), 50);
+
+    // pick handler – kliknutí na canvas přebere souřadnice bodu
+    _pickHandler = (wx, wz) => {
+      if (!pickMode) { _pickHandler = null; return; }
+      ov._x = Math.round(wx * 100) / 100;
+      ov._z = Math.round(wz * 100) / 100;
+      document.removeEventListener('keydown', handlePickEsc);
+      _pickHandler = null;
+      exitPickMode();
+    };
+  }
+
+  let _pickHandler = null;
 
   canvasWrap.addEventListener('wheel', e => {
     e.preventDefault();
@@ -3721,6 +3907,33 @@ export function openCamSimulator(initialContour) {
   });
 
   canvasWrap.addEventListener('mousedown', e => {
+    // Pick handler pro modal vložení segmentu
+    if (_pickHandler) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const vS = S.flipX ? 1 : -1;
+      const prms = S.params || {};
+      let wx, wz;
+      if (prms.machineStructure === 'carousel') {
+        wx = (sx - S.view.panX) / S.view.scale;
+        wz = vS * (sy - S.view.panY) / S.view.scale;
+      } else {
+        wz = (sx - S.view.panX) / S.view.scale;
+        wx = vS * (sy - S.view.panY) / S.view.scale;
+      }
+      // snap na nejbližší bod kontury
+      const allPts = [...S.contourPoints, ...S.stockPoints];
+      let best = null, bestD = Infinity;
+      for (const p of allPts) {
+        const d = Math.hypot(p.x - wx, p.z - wz);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      if (best && bestD < 20 / S.view.scale) { wx = best.x; wz = best.z; }
+      _pickHandler(wx, wz);
+      e.stopPropagation();
+      return;
+    }
     // Rect selection start
     if (S.rectSelecting) {
       const rect = canvas.getBoundingClientRect();
@@ -3747,6 +3960,19 @@ export function openCamSimulator(initialContour) {
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
       if (pointIdx !== null) { handleInsertAfter(pointIdx); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
+      return;
+    }
+    if (S.delPointMode) {
+      if (pointIdx !== null) {
+        const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
+        if (list.length > 1) {
+          pushHistory();
+          list.splice(pointIdx, 1);
+          fullUpdate();
+        } else {
+          showToast('Nelze odebrat poslední bod.');
+        }
+      }
       return;
     }
     if (S.pointDragEnabled && pointIdx !== null) { pushHistory(); S.draggedPointId = pointIdx; S.isDragging = true; }
@@ -3989,6 +4215,14 @@ export function openCamSimulator(initialContour) {
       const pointIdx = getPointAt(t.clientX, t.clientY);
       if (S.addPointMode) {
         if (pointIdx !== null) { handleInsertAfter(pointIdx); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
+        return;
+      }
+      if (S.delPointMode) {
+        if (pointIdx !== null) {
+          const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
+          if (list.length > 1) { pushHistory(); list.splice(pointIdx, 1); fullUpdate(); }
+          else showToast('Nelze odebrat poslední bod.');
+        }
         return;
       }
       if (S.pointDragEnabled && pointIdx !== null) { pushHistory(); S.draggedPointId = pointIdx; S.isDragging = true; }
