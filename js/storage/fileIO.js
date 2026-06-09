@@ -392,6 +392,7 @@ function runCncExport() {
       _firstRapidDone = true;
     } else {
       out += `G00 ${fmtCoord(x, y)}\n`;
+      prevX = x; prevY = y;
     }
   }
 
