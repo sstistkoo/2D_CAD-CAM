@@ -394,11 +394,15 @@ function applyChamferFillet(segs, chamferSize, filletSize) {
       if (r < 0.05) { mods.push(null); continue; }
       const P1 = { x: V.x - d1.x * tanLen, z: V.z - d1.z * tanLen };
       const P2 = { x: V.x + d2.x * tanLen, z: V.z + d2.z * tanLen };
-      const bisX = -d1.x + d2.x, bisZ = -d1.z + d2.z;
-      const bisLen = Math.hypot(bisX, bisZ);
-      if (bisLen < 1e-6) { mods.push(null); continue; }
-      const centerDist = r / Math.sin(halfAngle);
-      const C = { x: V.x + (bisX / bisLen) * centerDist, z: V.z + (bisZ / bisLen) * centerDist };
+      // Convex arc (G3): center on concave/inward side so the arc bulges outward
+      const chDx = P2.x - P1.x, chDz = P2.z - P1.z;
+      const chLen = Math.hypot(chDx, chDz);
+      if (chLen < 1e-6) { mods.push(null); continue; }
+      const chH2 = r * r - chLen * chLen / 4;
+      if (chH2 < 0) { mods.push({ type: 'chamfer', P1, P2 }); continue; }
+      const chH = Math.sqrt(chH2);
+      const chOx = -chDz / chLen, chOz = chDx / chLen;
+      const C = { x: (P1.x + P2.x) / 2 - chH * chOx, z: (P1.z + P2.z) / 2 - chH * chOz };
       const startAngle = Math.atan2(P1.x - C.x, P1.z - C.z);
       const endAngle = Math.atan2(P2.x - C.x, P2.z - C.z);
       mods.push({ type: 'fillet', P1, P2, C, r, startAngle, endAngle });
@@ -415,7 +419,7 @@ function applyChamferFillet(segs, chamferSize, filletSize) {
       if (m.type === 'chamfer') {
         out.push({ type: 'line', p1: m.P1, p2: m.P2 });
       } else {
-        out.push({ type: 'arc', cx: m.C.x, cz: m.C.z, r: m.r, dir: 'G2', startAngle: m.startAngle, endAngle: m.endAngle, p1: m.P1, p2: m.P2 });
+        out.push({ type: 'arc', cx: m.C.x, cz: m.C.z, r: m.r, dir: 'G3', startAngle: m.startAngle, endAngle: m.endAngle, p1: m.P1, p2: m.P2 });
       }
     }
   }
