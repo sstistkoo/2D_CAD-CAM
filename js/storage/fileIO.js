@@ -711,91 +711,136 @@ function parseGcodeToObjects(code) {
     return isKarusel ? { x: gX, y: gZ } : { x: gZ, y: xRaw };
   }
 
-  const objs = [];
-  let cx = 0, cy = 0;       // aktuální poloha v canvas souřadnicích
-  let gMode = 90;            // 90=absolutní, 91=inkrementální
-  let motionCode = 0;        // poslední G0/1/2/3
-  let inStock = false;       // jsme uvnitř STOCK_START/STOCK_END sekce
+  // Bezpečné vyhodnocení aritmetického výrazu (pouze číslice, +−×÷, tečka, e)
+  function evalExpr(s) {
+    if (s == null) return null;
+    s = String(s).replace(/[\[\]()]/g, '').trim();
+    if (!s || !/^[0-9eE.+\-*\/\s]+$/.test(s)) return null;
+    try {
+      // eslint-disable-next-line no-new-func
+      const v = Function('"use strict"; return (' + s + ')')();
+      return isFinite(v) ? v : null;
+    } catch { return null; }
+  }
 
-  const reG = /\bG(\d+)\b/gi;
-  const reZ = /\bZ([-\d.]+)/i;
-  const reX = /\bX([-\d.]+)/i;
-  const reR = /\bR([-\d.]+)/i;
+  // Extrakce číselné hodnoty adresy (X, Z, R, I, K…) z řádku.
+  // Podporuje: čísla, znaménka, výrazy (X10+5, X10/2), mezery (X 10), rovnítko (X=10).
+  function getAddr(line, letter) {
+    const re = new RegExp(
+      '(?:^|[^A-Za-z])' + letter +
+      '\\s*=?\\s*([+\\-]?\\s*(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+\\-]?\\d+)?' +
+      '(?:\\s*[+\\-\\*\\/]\\s*(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+\\-]?\\d+)?)*)',
+      'i'
+    );
+    const m = re.exec(line);
+    return m ? evalExpr(m[1]) : null;
+  }
+
+  const objs = [];
+  let cx = 0, cy = 0;     // aktuální poloha v canvas souřadnicích
+  let gMode = 90;          // 90=absolutní, 91=inkrementální (modální – platí dokud není změněno)
+  let motionCode = 0;      // poslední pohybový kód (modální G0/1/2/3)
+  let inStock = false;
 
   for (const rawLine of code.split('\n')) {
-    // Detekce stock sekce před odstraněním komentáře
+    // Detekce STOCK markerů před odstraněním komentářů
     if (/STOCK_START/i.test(rawLine)) { inStock = true; continue; }
     if (/STOCK_END/i.test(rawLine))   { inStock = false; continue; }
 
-    const line = rawLine.replace(/;.*$/, '').trim();
-    if (!line) continue;
+    // Odstraň komentáře: (text) Fanuc styl, ; do konce řádku
+    let line = rawLine
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/;.*$/, '')
+      .trim();
 
-    // Zpracuj všechna G-slova na řádku
-    let m;
-    reG.lastIndex = 0;
+    if (!line || line === '%') continue;         // oddělovač programu
+    if (/#\d/.test(line)) continue;              // Fanuc makro proměnné #1, #100 …
+    line = line.replace(/\[([^\]]*)\]/g, '$1');  // [výraz] → výraz (aritmetika)
+    line = line.replace(/^\s*N\s*\d+\s*/i, '').trim(); // číslo bloku N10, N0020
+
+    // Zpracuj G-slova na řádku (G0=G00, G1=G01 atd.)
     const gs = [];
-    while ((m = reG.exec(line)) !== null) gs.push(parseInt(m[1]));
+    const reG = /\bG\s*(0*\d{1,2})(?!\d)/gi;
+    let gm;
+    while ((gm = reG.exec(line)) !== null) gs.push(parseInt(gm[1], 10));
 
-    // Přepnutí modálního režimu
+    // Aktualizace modálních stavů (platí dokud nejsou přepsány)
     if (gs.includes(90)) gMode = 90;
     if (gs.includes(91)) gMode = 91;
-    if (gs.includes(0))  motionCode = 0;
-    if (gs.includes(1))  motionCode = 1;
-    if (gs.includes(2))  motionCode = 2;
-    if (gs.includes(3))  motionCode = 3;
+    if (gs.some(g => g === 0)) motionCode = 0;
+    if (gs.some(g => g === 1)) motionCode = 1;
+    if (gs.some(g => g === 2)) motionCode = 2;
+    if (gs.some(g => g === 3)) motionCode = 3;
 
-    // Zjisti, zda řádek obsahuje souřadnice
-    const mZ = reZ.exec(line), mX = reX.exec(line);
-    if (!mZ && !mX) continue;
+    // Zjisti souřadnice na řádku
+    const gZval = getAddr(line, 'Z');
+    const gXval = getAddr(line, 'X');
+    if (gZval === null && gXval === null) continue;
 
-    const gZval = mZ ? parseFloat(mZ[1]) : null;
-    const gXval = mX ? parseFloat(mX[1]) : null;
-
-    // Efektivní G-kód pro tento řádek (G na tomto řádku nebo poslední modální)
+    // Efektivní pohybový G-kód: explicitní na tomto řádku nebo poslední modální
     const thisMotion = gs.find(g => g <= 3) ?? motionCode;
 
-    // Výpočet cílového bodu
+    // Výpočet cílového bodu v canvas souřadnicích
     let tx, ty;
     if (gMode === 91) {
+      // Inkrementální: přičti zadané osy, nezadané zůstanou
       const dPt = toCanvas(gZval ?? 0, gXval ?? 0);
       tx = cx + (gZval !== null ? dPt.x : 0);
       ty = cy + (gXval !== null ? dPt.y : 0);
     } else {
-      const absPt = toCanvas(gZval ?? (isKarusel ? cy : cx), gXval ?? (isKarusel ? cx : (isDiam ? cy * 2 : cy)));
+      // Absolutní: nezadaná osa zůstane na aktuální poloze
+      const curGZ = isKarusel ? cy : cx;
+      const curGX = isKarusel ? cx : (isDiam ? cy * 2 : cy);
+      const absPt = toCanvas(gZval ?? curGZ, gXval ?? curGX);
       tx = absPt.x;
       ty = absPt.y;
     }
 
-    if (thisMotion === 0) {
-      // G00 rapid — jen přesun polohy, nekreslíme
-      cx = tx; cy = ty;
-      continue;
-    }
+    if (thisMotion === 0) { cx = tx; cy = ty; continue; } // G00 rapid
 
     if (thisMotion === 1) {
       if (Math.hypot(tx - cx, ty - cy) > 1e-4) {
-        objs.push({ type: 'line', id: state.nextId++, name: `Úsečka`, x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
+        objs.push({ type: 'line', id: state.nextId++, name: 'Úsečka',
+          x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
       }
       cx = tx; cy = ty;
       continue;
     }
 
     if (thisMotion === 2 || thisMotion === 3) {
-      const mR = reR.exec(line);
-      if (!mR) { cx = tx; cy = ty; continue; }
-      const R = parseFloat(mR[1]);
+      const gRval = getAddr(line, 'R');
+      const gIval = getAddr(line, 'I');  // offset středu v X od aktuální polohy
+      const gKval = getAddr(line, 'K');  // offset středu v Z od aktuální polohy
       const dx = tx - cx, dy = ty - cy;
       const dist2 = dx * dx + dy * dy;
-      if (dist2 < 1e-8 || R * R < dist2 / 4) { cx = tx; cy = ty; continue; }
-      const h = Math.sqrt(R * R - dist2 / 4);
-      const mx = (cx + tx) / 2, my = (cy + ty) / 2;
-      const nx = -dy / Math.sqrt(dist2), ny = dx / Math.sqrt(dist2);
-      const sign = thisMotion === 2 ? -1 : 1;
-      const acx = mx + sign * h * nx;
-      const acy = my + sign * h * ny;
+      let acx, acy;
+
+      if (gIval !== null || gKval !== null) {
+        // Formát I/K: střed = aktuální poloha + (I=ΔX, K=ΔZ)
+        const off = toCanvas(gKval ?? 0, gIval ?? 0);
+        acx = cx + off.x;
+        acy = cy + off.y;
+      } else if (gRval !== null) {
+        // Formát R: R<0 = velký oblouk (>180°), R>0 = malý oblouk
+        const isLong = gRval < 0;
+        const absR = Math.abs(gRval);
+        if (dist2 < 1e-8 || absR * absR < dist2 / 4 - 1e-6) { cx = tx; cy = ty; continue; }
+        const h = Math.sqrt(Math.max(0, absR * absR - dist2 / 4));
+        const dist = Math.sqrt(dist2);
+        const nx = -dy / dist, ny = dx / dist;
+        const sBase = thisMotion === 2 ? -1 : 1;
+        const sign = isLong ? -sBase : sBase;
+        acx = (cx + tx) / 2 + sign * h * nx;
+        acy = (cy + ty) / 2 + sign * h * ny;
+      } else { cx = tx; cy = ty; continue; }
+
+      const R = Math.hypot(cx - acx, cy - acy);
+      if (R < 1e-6) { cx = tx; cy = ty; continue; }
       const startA = Math.atan2(cy - acy, cx - acx);
       const endA   = Math.atan2(ty - acy, tx - acx);
-      objs.push({ type: 'arc', id: state.nextId++, name: `Oblouk`, cx: acx, cy: acy, r: Math.abs(R), startAngle: startA, endAngle: endA, ccw: thisMotion === 3, isStock: inStock });
+      objs.push({ type: 'arc', id: state.nextId++, name: 'Oblouk',
+        cx: acx, cy: acy, r: R, startAngle: startA, endAngle: endA,
+        ccw: thisMotion === 3, isStock: inStock });
       cx = tx; cy = ty;
     }
   }
