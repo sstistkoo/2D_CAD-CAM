@@ -5,7 +5,7 @@
 import { state } from './state.js';
 import { SNAP_POINT_THRESHOLD, SELECT_THRESHOLD, CONSTRAINT_OFFSET_PX, ARC_OUTSIDE_PENALTY } from './constants.js';
 import { distPointToSegment, isAngleBetween, bulgeToArc, deepClone, getObjectSnapPoints, getRectCorners, getNearestPointOnObject } from './utils.js';
-import { renderAll } from './render.js';
+import { renderAll, findNumLabelAt } from './render.js';
 import { bridge } from './bridge.js';
 
 // ── Hledání a výběr objektu ──
@@ -210,6 +210,57 @@ function _toggleSegInMap(objIdx, segIdx) {
  * @param {number} wy
  */
 export function selectObjectAt(wx, wy) {
+  // Klik na číselný štítek (jen pokud je Číslovat zapnuto)
+  if (state.showObjectNumbers) {
+    const lbl = findNumLabelAt(wx, wy);
+    if (lbl) {
+      if (lbl.segIdx >= 0) {
+        // Segment polyline — toggle v multiSelectedSegments
+        state.selected = lbl.objIdx;
+        state.multiSelected.clear();
+        state._selectedSegmentObjIdx = lbl.objIdx;
+        if (!state.multiSelectedSegments.has(lbl.objIdx)) {
+          state.multiSelectedSegments.set(lbl.objIdx, new Set());
+        }
+        const segs = state.multiSelectedSegments.get(lbl.objIdx);
+        if (segs.has(lbl.segIdx)) {
+          segs.delete(lbl.segIdx);
+          // Nastavit selectedSegment na poslední zbývající, nebo null
+          state.selectedSegment = segs.size > 0 ? [...segs].pop() : null;
+          if (segs.size === 0) state.multiSelectedSegments.delete(lbl.objIdx);
+        } else {
+          segs.add(lbl.segIdx);
+          state.selectedSegment = lbl.segIdx;
+        }
+      } else {
+        // Celý objekt — toggle v multiSelected
+        const oi = lbl.objIdx;
+        state.selectedSegment = null;
+        state._selectedSegmentObjIdx = null;
+        state.multiSelectedSegments.clear();
+        if (state.multiSelected.has(oi) || state.selected === oi) {
+          state.multiSelected.delete(oi);
+          if (state.selected === oi) {
+            state.selected = state.multiSelected.size > 0 ? [...state.multiSelected].pop() : null;
+            if (state.multiSelected.size === 1) {
+              state.selected = state.multiSelected.values().next().value;
+              state.multiSelected.clear();
+            }
+          }
+        } else {
+          if (state.selected !== null) state.multiSelected.add(state.selected);
+          state.multiSelected.add(oi);
+          state.selected = oi;
+        }
+      }
+      state.selectedPoint = null;
+      if (bridge.updateProperties) bridge.updateProperties();
+      if (bridge.updateObjectList) bridge.updateObjectList();
+      renderAll();
+      return;
+    }
+  }
+
   // Nejdřív zkontrolovat, zda klik je na vazební značku
   const constr = findConstraintAt(wx, wy);
   if (constr) {

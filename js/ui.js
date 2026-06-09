@@ -316,6 +316,43 @@ export function updateObjectList() {
     if (obj.type === 'polyline' && (idx === state.selected || state.multiSelected.has(idx))) {
       const n = obj.vertices.length;
       const segCount = obj.closed ? n : n - 1;
+
+      // Řádek "Vše" pro segmenty — select all / deselect all
+      const selectAllSegLi = document.createElement("li");
+      selectAllSegLi.className = "seg-item seg-select-all-row";
+      const saSegsSet = state.multiSelectedSegments.get(idx);
+      const allSegsSel = saSegsSet && saSegsSet.size === segCount;
+      const saSegCb = document.createElement("input");
+      saSegCb.type = "checkbox";
+      saSegCb.className = "obj-checkbox";
+      saSegCb.checked = allSegsSel;
+      saSegCb.indeterminate = !allSegsSel && saSegsSet && saSegsSet.size > 0;
+      saSegCb.addEventListener("change", (e) => {
+        e.stopPropagation();
+        state.selected = idx;
+        if (saSegCb.checked) {
+          const s = new Set();
+          for (let i = 0; i < segCount; i++) s.add(i);
+          state.multiSelectedSegments.set(idx, s);
+          state.selectedSegment = segCount - 1;
+          state._selectedSegmentObjIdx = idx;
+        } else {
+          state.multiSelectedSegments.delete(idx);
+          state.selectedSegment = null;
+          state._selectedSegmentObjIdx = null;
+        }
+        updateObjectList();
+        updateProperties();
+        renderAll();
+      });
+      const saLabel = document.createElement("span");
+      saLabel.textContent = "Vše";
+      saLabel.style.opacity = "0.7";
+      saLabel.style.fontSize = "11px";
+      selectAllSegLi.appendChild(saSegCb);
+      selectAllSegLi.appendChild(saLabel);
+      ul.appendChild(selectAllSegLi);
+
       for (let si = 0; si < segCount; si++) {
         const p1 = obj.vertices[si];
         const p2 = obj.vertices[(si + 1) % n];
@@ -326,12 +363,40 @@ export function updateObjectList() {
         const objSegsSet = state.multiSelectedSegments.get(idx);
         const isSS = objSegsSet ? objSegsSet.has(si) : false;
         segLi.className = "seg-item" + (isSS ? " seg-selected" : "");
+
+        // Checkbox pro výběr segmentu
+        const segCb = document.createElement("input");
+        segCb.type = "checkbox";
+        segCb.className = "obj-checkbox";
+        segCb.checked = isSS;
+        segCb.addEventListener("change", (e) => {
+          e.stopPropagation();
+          state.selected = idx;
+          state.selectedSegment = si;
+          state._selectedSegmentObjIdx = idx;
+          if (segCb.checked) {
+            if (!state.multiSelectedSegments.has(idx)) state.multiSelectedSegments.set(idx, new Set());
+            state.multiSelectedSegments.get(idx).add(si);
+          } else {
+            state.multiSelectedSegments.get(idx)?.delete(si);
+          }
+          updateObjectList();
+          updateProperties();
+          renderAll();
+        });
+        segLi.appendChild(segCb);
+
         const segSpan = document.createElement("span");
         const segIcon = document.createElement("span");
         segIcon.className = "obj-icon";
         segIcon.textContent = b === 0 ? "/" : "⌒";
         segSpan.appendChild(segIcon);
-        segSpan.appendChild(document.createTextNode(segName));
+        const segNumSpan = document.createElement("span");
+        segNumSpan.className = "obj-seq";
+        segNumSpan.textContent = `${si + 1}.`;
+        segNumSpan.style.cssText = 'opacity:.6;font-variant-numeric:tabular-nums;margin:0 6px 0 2px;min-width:1.5em;display:inline-block;';
+        segSpan.appendChild(segNumSpan);
+        segSpan.appendChild(document.createTextNode(b === 0 ? "Úsečka" : "Oblouk"));
         segLi.appendChild(segSpan);
 
         // Delete segment button
@@ -715,10 +780,65 @@ export function updateProperties() {
     }
   }
 
+  // Pořadové číslo vybraného objektu (stejná logika jako updateObjectList)
+  let _selSeq = 0;
+  for (let i = 0; i <= state.selected; i++) {
+    const o = state.objects[i];
+    if (!o) break;
+    if (!o.isDimension && !o.isCoordLabel) _selSeq++;
+  }
+  const _cleanName = (obj.name || '').replace(/\s+\d+\s*$/, '') || typeLabel(obj.type);
+
   // Typ (read-only)
   addInfoRow("Typ", typeLabel(obj.type));
-  // Název (editovatelný)
-  addTextRow("Název", obj.name || "", (v) => { obj.name = v; });
+
+  // Kontura / Polotovar přepínač (platí pro celý výběr)
+  {
+    const allObjs = state.multiSelected.size > 1
+      ? [...state.multiSelected].map(i => state.objects[i])
+      : [obj];
+    const stockCount = allObjs.filter(o => o.isStock).length;
+    const currentVal = stockCount === allObjs.length ? 'stock'
+      : stockCount === 0 ? 'kontura' : 'mixed';
+
+    const tr = document.createElement("tr");
+    const tdLabel = document.createElement("td");
+    tdLabel.textContent = "Profil";
+    const tdVal = document.createElement("td");
+    const sel = document.createElement("select");
+    sel.className = "prop-layer-select";
+    if (currentVal === 'mixed') {
+      const optMixed = document.createElement("option");
+      optMixed.value = 'mixed';
+      optMixed.textContent = "— smíšené —";
+      sel.appendChild(optMixed);
+    }
+    const optK = document.createElement("option");
+    optK.value = 'kontura';
+    optK.textContent = "Kontura";
+    optK.selected = currentVal === 'kontura';
+    const optS = document.createElement("option");
+    optS.value = 'stock';
+    optS.textContent = "Polotovar";
+    optS.selected = currentVal === 'stock';
+    sel.appendChild(optK);
+    sel.appendChild(optS);
+    sel.addEventListener("change", () => {
+      pushUndo();
+      const toStock = sel.value === 'stock';
+      allObjs.forEach(o => { o.isStock = toStock; });
+      renderAll();
+      updateObjectList();
+      updateProperties();
+    });
+    tdVal.appendChild(sel);
+    tr.appendChild(tdLabel);
+    tr.appendChild(tdVal);
+    tbody.appendChild(tr);
+  }
+
+  // Název (editovatelný) — zobrazí čistý název + pořadové číslo
+  addTextRow("Název", `${_cleanName} ${_selSeq}`, (v) => { obj.name = v; });
   // Barva (editovatelná)
   addColorRow("Barva", obj.color || COLORS.primary, (v) => { obj.color = v; renderAllDebounced(); });
 

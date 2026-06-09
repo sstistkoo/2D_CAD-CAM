@@ -516,6 +516,22 @@ body {
   border-color: var(--ctp-surface2);
 }
 
+.prop-layer-select {
+  width: 100%;
+  background: var(--ctp-base);
+  color: var(--ctp-pink);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.prop-layer-select:focus {
+  border-color: var(--ctp-blue);
+  outline: none;
+}
+
 .prop-readonly {
   color: var(--ctp-overlay0);
   font-style: italic;
@@ -747,11 +763,25 @@ body {
 }
 
 #objectList li.seg-item {
-  padding-left: 22px;
+  padding-left: 8px;
   font-size: 11px;
   opacity: 0.8;
   border-left: 2px solid var(--ctp-surface1, #45475a);
   margin-left: 8px;
+}
+
+#objectList li.seg-select-all-row {
+  padding-left: 8px;
+  font-size: 11px;
+  border-left: 2px solid var(--ctp-surface1, #45475a);
+  margin-left: 8px;
+  border-bottom: 1px solid var(--ctp-surface1, #45475a);
+  margin-bottom: 2px;
+  padding-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.85;
 }
 
 #objectList li.seg-item:hover {

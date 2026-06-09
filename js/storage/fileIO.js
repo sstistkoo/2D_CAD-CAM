@@ -414,11 +414,15 @@ function runCncExport() {
   // rozlišit – polotovar mezi značkami STOCK_START / STOCK_END.
   const items = [];
   const stockItems = [];
+  let _seqNum = 0;
   for (const obj of state.objects) {
     if (obj.type === 'constr') continue;
     if (obj.type === 'text') continue;
     if (obj.isDimension || obj.isCoordLabel) continue;
+    _seqNum++;
     const target = obj.isStock ? stockItems : items;
+    const cleanName = (obj.name || '').replace(/\s+\d+\s*$/, '') || obj.type;
+    const seqLabel = `${cleanName} ${_seqNum}`;
 
     if (obj.type === 'line') {
       let x1 = obj.x1, y1 = obj.y1, x2 = obj.x2, y2 = obj.y2;
@@ -443,14 +447,14 @@ function runCncExport() {
       if (!obj.isStock && x1 < x2) { [x1, x2] = [x2, x1]; [y1, y2] = [y2, y1]; }
 
       target.push({
-        type: 'line', name: obj.name,
+        type: 'line', name: seqLabel,
         x1, y1, x2, y2,
         _sortX: Math.max(x1, x2)
       });
     } else if (obj.type === 'point') {
-      target.push({ ...obj, _sortX: obj.x });
+      target.push({ ...obj, name: seqLabel, _sortX: obj.x });
     } else if (obj.type === 'circle') {
-      target.push({ ...obj, _sortX: obj.cx + obj.r });
+      target.push({ ...obj, name: seqLabel, _sortX: obj.cx + obj.r });
     } else if (obj.type === 'arc') {
       // _sortX podle pravějšího ENDPOINTU oblouku (ne cx+r, který je extrémně
       // vlevo když má oblouk velký poloměr s endpointy blízko sebe). Bez toho
@@ -459,13 +463,13 @@ function runCncExport() {
       // se chain rozbil na duplikované úsečky.
       const aSx = obj.cx + obj.r * Math.cos(obj.startAngle);
       const aEx = obj.cx + obj.r * Math.cos(obj.endAngle);
-      target.push({ ...obj, _sortX: Math.max(aSx, aEx) });
+      target.push({ ...obj, name: seqLabel, _sortX: Math.max(aSx, aEx) });
     } else if (obj.type === 'rect') {
       let rx1 = obj.x1, ry1 = obj.y1, rx2 = obj.x2, ry2 = obj.y2;
       if (!obj.isStock && rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
-      target.push({ ...obj, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2) });
+      target.push({ ...obj, name: seqLabel, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2) });
     } else if (obj.type === 'polyline') {
-      target.push({ ...obj, _sortX: Math.max(...obj.vertices.map(v => v.x)) });
+      target.push({ ...obj, name: seqLabel, _sortX: Math.max(...obj.vertices.map(v => v.x)) });
     }
   }
 

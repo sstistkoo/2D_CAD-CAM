@@ -1207,8 +1207,17 @@ function resolveDimLabelPos(x, y, textW, textH) {
   return { x, y: y + offsetY, collided };
 }
 
+// Hit-boxy štítků čísel — aktualizují se při každém renderu
+let _numLabels = [];
+/** Vrátí info o štítku čísla pod světovými souřadnicemi, nebo null. */
+export function findNumLabelAt(wx, wy) {
+  const [sx, sy] = worldToScreen(wx, wy);
+  return _numLabels.find(l => sx >= l.rx && sx <= l.rx + l.bw && sy >= l.ry && sy <= l.ry + l.bh) || null;
+}
+
 // ── Čísla objektů na výkrese ──
 function drawObjectNumbers() {
+  _numLabels = [];
   const fontSize = Math.round(Math.min(20, Math.max(13, 10 + state.zoom * 5)));
   ctx.font = `bold ${fontSize}px Consolas`;
 
@@ -1253,39 +1262,72 @@ function drawObjectNumbers() {
         return;
     }
 
-    const [scx, scy] = worldToScreen(cx, cy);
-    const label = String(num);
-    const tw = ctx.measureText(label).width;
-    const pad = 4;
-    const bw = tw + pad * 2;
-    const bh = fontSize + pad * 2;
+    // objIdx a segIdx pro hit-test; segIdx=-1 znamená celý objekt
+    function drawNumLabel(wcx, wcy, label, selected, stock, objIdx, segIdx) {
+      const [scx, scy] = worldToScreen(wcx, wcy);
+      const tw = ctx.measureText(label).width;
+      const pad = 4;
+      const bw = tw + pad * 2;
+      const bh = fontSize + pad * 2;
+      const rx = scx - bw / 2, ry = scy - bh / 2;
+      // Barva: bílá = vybrané, oranžová = polotovar, žlutá = kontura
+      ctx.fillStyle = selected ? COLORS.selected : (stock ? COLORS.stock : COLORS.yellow);
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      const r = 4;
+      ctx.moveTo(rx + r, ry);
+      ctx.lineTo(rx + bw - r, ry);
+      ctx.arcTo(rx + bw, ry, rx + bw, ry + r, r);
+      ctx.lineTo(rx + bw, ry + bh - r);
+      ctx.arcTo(rx + bw, ry + bh, rx + bw - r, ry + bh, r);
+      ctx.lineTo(rx + r, ry + bh);
+      ctx.arcTo(rx, ry + bh, rx, ry + bh - r, r);
+      ctx.lineTo(rx, ry + r);
+      ctx.arcTo(rx, ry, rx + r, ry, r);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = COLORS.bgDark;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, scx, scy);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+      // Uložit hit-box pro klik
+      _numLabels.push({ rx, ry, bw, bh, objIdx, segIdx: segIdx ?? -1 });
+    }
 
-    // Background pill
     const isSel = idx === state.selected || state.multiSelected.has(idx);
-    ctx.fillStyle = isSel ? COLORS.selected : COLORS.yellow;
-    ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    const rx = scx - bw / 2, ry = scy - bh / 2;
-    const r = 4;
-    ctx.moveTo(rx + r, ry);
-    ctx.lineTo(rx + bw - r, ry);
-    ctx.arcTo(rx + bw, ry, rx + bw, ry + r, r);
-    ctx.lineTo(rx + bw, ry + bh - r);
-    ctx.arcTo(rx + bw, ry + bh, rx + bw - r, ry + bh, r);
-    ctx.lineTo(rx + r, ry + bh);
-    ctx.arcTo(rx, ry + bh, rx, ry + bh - r, r);
-    ctx.lineTo(rx, ry + r);
-    ctx.arcTo(rx, ry, rx + r, ry, r);
-    ctx.fill();
-    ctx.globalAlpha = 1;
 
-    // Number text
-    ctx.fillStyle = COLORS.bgDark;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, scx, scy);
-    ctx.textAlign = 'start';
-    ctx.textBaseline = 'alphabetic';
+    if (obj.type === 'polyline' && obj.vertices && obj.vertices.length >= 2) {
+      // Pro polyline zobrazit čísla segmentů místo jednoho čísla objektu
+      const n = obj.vertices.length;
+      const segCount = obj.closed ? n : n - 1;
+      const objSegsSet = state.multiSelectedSegments.get(idx);
+      for (let si = 0; si < segCount; si++) {
+        const p1 = obj.vertices[si];
+        const p2 = obj.vertices[(si + 1) % n];
+        const b = obj.bulges ? (obj.bulges[si] || 0) : 0;
+        let wcx2, wcy2;
+        if (b === 0) {
+          wcx2 = (p1.x + p2.x) / 2;
+          wcy2 = (p1.y + p2.y) / 2;
+        } else {
+          const arc = bulgeToArc(p1, p2, b);
+          if (arc) {
+            const midAngle = (arc.startAngle + arc.endAngle) / 2;
+            wcx2 = arc.cx + arc.r * Math.cos(midAngle);
+            wcy2 = arc.cy + arc.r * Math.sin(midAngle);
+          } else {
+            wcx2 = (p1.x + p2.x) / 2;
+            wcy2 = (p1.y + p2.y) / 2;
+          }
+        }
+        const isSegSel = isSel && (objSegsSet ? objSegsSet.has(si) : false);
+        drawNumLabel(wcx2, wcy2, String(si + 1), isSegSel, !!obj.isStock, idx, si);
+      }
+    } else {
+      drawNumLabel(cx, cy, String(num), isSel, !!obj.isStock, idx, -1);
+    }
   });
 }
 
