@@ -1019,6 +1019,40 @@ export function circlePositionsTangentToLine(cx, cy, r, x1, y1, x2, y2) {
   ];
 }
 
+// ── Pozice NOVÉ kružnice (poloměr r) tečné k existující kružnici i k úsečce ──
+export function circlePositionsTangentToCircleAndLine(r, cx1, cy1, r1, lx1, ly1, lx2, ly2) {
+  const results = [];
+  const dx = lx2 - lx1, dy = ly2 - ly1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return results;
+  const nx = -dy / len, ny = dx / len;
+
+  for (const lineSide of [1, -1]) {
+    const ox = nx * r * lineSide;
+    const oy = ny * r * lineSide;
+    for (const circSide of [1, -1]) {
+      const D = r1 + circSide * r;
+      if (D < -1e-9) continue;
+      const Dabs = Math.abs(D);
+      const ax = lx1 + ox - cx1, ay = ly1 + oy - cy1;
+      const a = dx * dx + dy * dy;
+      const b = 2 * (ax * dx + ay * dy);
+      const c = ax * ax + ay * ay - Dabs * Dabs;
+      const disc = b * b - 4 * a * c;
+      if (disc < -1e-9) continue;
+      const sqrtDisc = Math.sqrt(Math.max(0, disc));
+      for (const s of [-1, 1]) {
+        const t = (-b + s * sqrtDisc) / (2 * a);
+        const ncx = lx1 + ox + t * dx;
+        const ncy = ly1 + oy + t * dy;
+        const isDup = results.some(p => Math.hypot(p.cx - ncx, p.cy - ncy) < 1e-4);
+        if (!isDup) results.push({ cx: ncx, cy: ncy, r });
+      }
+    }
+  }
+  return results;
+}
+
 // ── Pozice kružnice tečné ke dvěma úsečkám ──
 export function circlePositionsTangentToTwoLines(r, l1, l2) {
   const results = [];
@@ -1321,6 +1355,131 @@ export function circleTangentToCircleAndTwoPoints(ccx, ccy, cR, p1x, p1y, p2x, p
       deduped.push(p);
   }
   return deduped;
+}
+
+// ── Pozice NOVÉ kružnice (poloměr r) tečné ke dvěma kružnicím/obloukům ──
+export function circlePositionsTangentToTwoCircles(r, cx1, cy1, r1, cx2, cy2, r2) {
+  const results = [];
+  for (const s1 of [1, -1]) {
+    const D1 = r + s1 * r1;
+    if (D1 < -1e-9) continue;
+    const aD1 = Math.abs(D1);
+    for (const s2 of [1, -1]) {
+      const D2 = r + s2 * r2;
+      if (D2 < -1e-9) continue;
+      const aD2 = Math.abs(D2);
+      const d = Math.hypot(cx2 - cx1, cy2 - cy1);
+      if (d < 1e-9 || aD1 + aD2 < d - 1e-9 || Math.abs(aD1 - aD2) > d + 1e-9) continue;
+      const a = (aD1 * aD1 - aD2 * aD2 + d * d) / (2 * d);
+      const h2 = aD1 * aD1 - a * a;
+      if (h2 < -1e-9) continue;
+      const h = Math.sqrt(Math.max(0, h2));
+      const mx = cx1 + a * (cx2 - cx1) / d, my = cy1 + a * (cy2 - cy1) / d;
+      const px = -(cy2 - cy1) / d, py = (cx2 - cx1) / d;
+      for (const hs of (h < 1e-6 ? [0] : [h, -h])) {
+        const ncx = mx + hs * px, ncy = my + hs * py;
+        if (!results.some(p => Math.hypot(p.cx - ncx, p.cy - ncy) < 1e-4))
+          results.push({ cx: ncx, cy: ncy, r });
+      }
+    }
+  }
+  return results;
+}
+
+// ── Dispatcher: pozice kružnice (poloměr r) tečné ke dvěma segmentům ──
+// seg: {type:'line', x1,y1,x2,y2} nebo {type:'arc', cx,cy,r}
+export function circlePositionsTangentToTwoSegments(r, seg1, seg2) {
+  const l = s => s.type === 'line';
+  if (l(seg1) && l(seg2))
+    return circlePositionsTangentToTwoLines(r, seg1, seg2);
+  if (l(seg1) && !l(seg2))
+    return circlePositionsTangentToCircleAndLine(r, seg2.cx, seg2.cy, seg2.r, seg1.x1, seg1.y1, seg1.x2, seg1.y2);
+  if (!l(seg1) && l(seg2))
+    return circlePositionsTangentToCircleAndLine(r, seg1.cx, seg1.cy, seg1.r, seg2.x1, seg2.y1, seg2.x2, seg2.y2);
+  return circlePositionsTangentToTwoCircles(r, seg1.cx, seg1.cy, seg1.r, seg2.cx, seg2.cy, seg2.r);
+}
+
+// ── Apollonius: kružnice tečná ke třem segmentům (poloměr se hledá) ──
+// Hintové souřadnice pomáhají Newtonově metodě konvergovat k nejbližšímu řešení.
+export function circleTangentToThreeSegments(seg1, seg2, seg3, hintCx, hintCy, hintR) {
+  function rawDist(seg, cx, cy) {
+    if (seg.type === 'line') {
+      const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-10) return 0;
+      return (-dy / len) * cx + (dx / len) * cy - ((-dy / len) * seg.x1 + (dx / len) * seg.y1);
+    }
+    return Math.hypot(cx - seg.cx, cy - seg.cy) - seg.r;
+  }
+  function rawGrad(seg, cx, cy) {
+    if (seg.type === 'line') {
+      const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-10) return [0, 0];
+      return [-dy / len, dx / len];
+    }
+    const d = Math.hypot(cx - seg.cx, cy - seg.cy);
+    if (d < 1e-10) return [0, 0];
+    return [(cx - seg.cx) / d, (cy - seg.cy) / d];
+  }
+  function gaussSolve(A) {
+    const m = A.map(r => [...r]);
+    for (let c = 0; c < 3; c++) {
+      let maxR = c;
+      for (let r = c + 1; r < 3; r++) if (Math.abs(m[r][c]) > Math.abs(m[maxR][c])) maxR = r;
+      [m[c], m[maxR]] = [m[maxR], m[c]];
+      if (Math.abs(m[c][c]) < 1e-12) return null;
+      for (let r = 0; r < 3; r++) {
+        if (r === c) continue;
+        const f = m[r][c] / m[c][c];
+        for (let j = c; j < 4; j++) m[r][j] -= f * m[c][j];
+      }
+    }
+    return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
+  }
+
+  const segs = [seg1, seg2, seg3];
+  const results = [];
+
+  for (const s1 of [1, -1]) for (const s2 of [1, -1]) for (const s3 of [1, -1]) {
+    const signs = [s1, s2, s3];
+    const starts = [
+      [hintCx, hintCy, hintR],
+      [hintCx, hintCy, hintR * 0.5],
+      [hintCx, hintCy, hintR * 2],
+      [hintCx + hintR, hintCy, hintR],
+      [hintCx - hintR, hintCy, hintR],
+      [hintCx, hintCy + hintR, hintR],
+    ];
+    for (const [sx, sy, sr] of starts) {
+      let cx = sx, cy = sy, r = Math.max(0.01, sr);
+      let ok = false;
+      for (let iter = 0; iter < 60; iter++) {
+        const f = segs.map((s, i) => signs[i] * rawDist(s, cx, cy) - r);
+        const err = Math.max(...f.map(Math.abs));
+        if (err < 1e-7) { ok = true; break; }
+        const J = segs.map((s, i) => {
+          const g = rawGrad(s, cx, cy);
+          return [signs[i] * g[0], signs[i] * g[1], -1, -f[i]];
+        });
+        const sol = gaussSolve(J);
+        if (!sol) break;
+        const scale = Math.min(1, 5 / Math.max(...sol.map(Math.abs), 0.001));
+        cx += sol[0] * scale;
+        cy += sol[1] * scale;
+        r = Math.max(0.001, r + sol[2] * scale);
+      }
+      if (!ok) {
+        const f = segs.map((s, i) => signs[i] * rawDist(s, cx, cy) - r);
+        ok = Math.max(...f.map(Math.abs)) < 1e-4;
+      }
+      if (ok && r > 1e-6) {
+        const isDup = results.some(p => Math.hypot(p.cx - cx, p.cy - cy) < 0.01 && Math.abs(p.r - r) < 0.01);
+        if (!isDup) results.push({ cx, cy, r });
+      }
+    }
+  }
+  return results;
 }
 
 // ── Extrakce úsečkových dat z polyline segmentu ──

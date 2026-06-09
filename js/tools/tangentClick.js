@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast } from '../state.js';
+import { bulgeToArc } from '../utils.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
@@ -10,13 +11,54 @@ import {
   findObjectAt, findSegmentAt, calculateAllIntersections,
   tangentsFromPointToCircle, tangentsTwoCircles,
   circlePositionsTangentToLine, circlePositionsTangentToTwoLines,
-  circlePositionsTangentToLineAndPoint, getPolylineSegmentAsLine,
+  circlePositionsTangentToLineAndPoint, circlePositionsTangentToCircleAndLine,
+  circlePositionsTangentToTwoSegments, circleTangentToThreeSegments,
+  getPolylineSegmentAsLine,
   circleThrough3Points, circleTangentToLineAndTwoPoints,
   circleTangentToTwoLinesAndPoint, circleTangentToThreeLines,
   circleTangentToCircleAndTwoPoints
 } from '../geometry.js';
-import { showTangentChoiceDialog, showTangentPositionDialog } from '../dialogs.js';
+import { showTangentChoiceDialog, showTangentPositionDialog, showTangentCircleLineActionDialog, showTangentNewCircleRadiusDialog } from '../dialogs.js';
 import { hasAnchoredPoint } from './anchorClick.js';
+
+let _lastTangentNewCircleR = 0;
+
+// ── Extrahuje segment jako constraint objekt {type:'line',...} nebo {type:'arc',...} ──
+function extractSegmentConstraint(obj, segIdx) {
+  if (obj.type === 'line' || obj.type === 'constr')
+    return { type: 'line', x1: obj.x1, y1: obj.y1, x2: obj.x2, y2: obj.y2 };
+  if (obj.type === 'circle' || obj.type === 'arc')
+    return { type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r };
+  if (obj.type === 'polyline' && segIdx != null) {
+    const bulge = obj.bulges[segIdx] || 0;
+    if (bulge === 0) {
+      const seg = getPolylineSegmentAsLine(obj, segIdx);
+      return seg ? { type: 'line', ...seg } : null;
+    }
+    const p1 = obj.vertices[segIdx];
+    const p2 = obj.vertices[(segIdx + 1) % obj.vertices.length];
+    const arc = bulgeToArc(p1, p2, bulge);
+    return arc ? { type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r } : null;
+  }
+  return null;
+}
+
+// ── Vypočítá pozice kružnice tečné k jednomu segmentu (zachová r) ──
+function singleSegTangentPositions(circ, seg) {
+  if (seg.type === 'line')
+    return circlePositionsTangentToLine(circ.cx, circ.cy, circ.r, seg.x1, seg.y1, seg.x2, seg.y2);
+  // arc: externe (r + arc.r) nebo interně (|r - arc.r|)
+  const positions = [];
+  for (const sign of [1, -1]) {
+    const D = circ.r + sign * seg.r;
+    if (D <= 0) continue;
+    const dx = circ.cx - seg.cx, dy = circ.cy - seg.cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1e-9) continue;
+    positions.push({ cx: seg.cx + (dx / dist) * D, cy: seg.cy + (dy / dist) * D });
+  }
+  return positions;
+}
 
 // ── Pomocné funkce pro extrakci dat z výběru ──
 
@@ -211,24 +253,14 @@ export function tangentFromSelection() {
     const circ = circles[0];
     const line = lines[0];
     const circObj = state.objects[circ.idx];
-    const positions = circlePositionsTangentToLine(
-      circ.cx, circ.cy, circ.r, line.x1, line.y1, line.x2, line.y2
-    );
-    if (positions.length === 0) {
-      showToast("Tečnou pozici nelze vypočítat");
-      return true;
-    }
+
     if (lines.length >= 2) {
-      // Dvě úsečky → tečnost k oběma
       const line2 = lines[1];
       const positions2 = circlePositionsTangentToTwoLines(circ.r,
         { x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2 },
         { x1: line2.x1, y1: line2.y1, x2: line2.x2, y2: line2.y2 }
       );
-      if (positions2.length === 0) {
-        showToast("Tečnou pozici ke dvěma úsečkám nelze najít");
-        return true;
-      }
+      if (positions2.length === 0) { showToast("Tečnou pozici ke dvěma úsečkám nelze najít"); return true; }
       showTangentPositionDialog(positions2, circObj, (chosenIdx) => {
         pushUndo();
         circObj.cx = positions2[chosenIdx].cx;
@@ -239,6 +271,11 @@ export function tangentFromSelection() {
       });
       return true;
     }
+
+    const positions = circlePositionsTangentToLine(
+      circ.cx, circ.cy, circ.r, line.x1, line.y1, line.x2, line.y2
+    );
+    if (positions.length === 0) { showToast("Tečnou pozici nelze vypočítat"); return true; }
     showTangentPositionDialog(positions, circObj, (chosenIdx) => {
       pushUndo();
       circObj.cx = positions[chosenIdx].cx;
@@ -249,6 +286,7 @@ export function tangentFromSelection() {
     });
     return true;
   }
+
 
   // ── Kružnice + Kružnice → tečné úsečky ──
   if (circles.length === 2 && lines.length === 0) {
@@ -409,120 +447,111 @@ export function handleTangentClick(wx, wy) {
       const obj = state.objects[idx];
 
       if (obj.type === 'circle' || obj.type === 'arc') {
-        // Režim B1: kružnice → kružnice (tečné úsečky)
-        if (idx === state._tangentFirstCircle) {
-          showToast("Vyberte jinou kružnici nebo úsečku");
-          return;
-        }
+        // Kružnice → kružnice: tečné úsečky (standardní chování)
+        if (idx === state._tangentFirstCircle) { showToast("Vyberte jinou kružnici nebo úsečku"); return; }
         const c1 = state.objects[state._tangentFirstCircle];
         const tangents = tangentsTwoCircles(c1.cx, c1.cy, c1.r, obj.cx, obj.cy, obj.r);
-        if (tangents.length === 0) {
-          showToast("Tečny neexistují");
-        } else {
+        if (tangents.length === 0) { showToast("Tečny neexistují"); }
+        else {
           showTangentChoiceDialog(tangents, (indices) => {
             for (const i of indices) {
               const t = tangents[i];
-              addObject({
-                type: 'line',
-                x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2,
-                name: `Tečna ${state.nextId}`,
-              });
+              addObject({ type: 'line', x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, name: `Tečna ${state.nextId}` });
             }
             showToast(`Vytvořeno ${indices.length} tečen`);
           });
         }
-      } else if (obj.type === 'line' || obj.type === 'constr') {
-        // Režim B2: kružnice → úsečka (přesun kružnice tečně k úsečce)
+      } else {
+        // Segment (úsečka, oblouk, polyline) → přesun kružnice tečně + nabídnout pokračování
         const circIdx = state._tangentFirstCircle;
         const circ = state.objects[circIdx];
-        const lineIdx = idx;
-        const positions = circlePositionsTangentToLine(circ.cx, circ.cy, circ.r, obj.x1, obj.y1, obj.x2, obj.y2);
-        if (positions.length === 0) {
-          showToast("Tečnou pozici nelze vypočítat");
-        } else {
-          showTangentPositionDialog(positions, circ, (chosenIdx) => {
-            pushUndo();
-            circ.cx = positions[chosenIdx].cx;
-            circ.cy = positions[chosenIdx].cy;
-            calculateAllIntersections();
-            renderAll();
-            showToast("Kružnice přesunuta tečně k úsečce");
-            // Nabídnout druhou úsečku
-            state.drawing = true;
-            state._tangentMode = 'circle-line-2';
-            state._tangentFirstCircle = circIdx;
-            state._tangentFirstLine = lineIdx;
-            setHint("Klepněte na druhou úsečku pro tečnost s oběma, nebo Esc/zrušit");
-          });
-          return;
-        }
-      } else if (obj.type === 'polyline') {
-        // Polyline → najít nejbližší segment a použít jako úsečku
-        const segIdx = findSegmentAt(obj, wx, wy);
-        if (segIdx !== null) {
-          const seg = getPolylineSegmentAsLine(obj, segIdx);
-          if (seg && (obj.bulges[segIdx] || 0) === 0) {
-            const circIdx = state._tangentFirstCircle;
-            const circ = state.objects[circIdx];
-            const positions = circlePositionsTangentToLine(circ.cx, circ.cy, circ.r, seg.x1, seg.y1, seg.x2, seg.y2);
-            if (positions.length === 0) {
-              showToast("Tečnou pozici nelze vypočítat");
-            } else {
-              showTangentPositionDialog(positions, circ, (chosenIdx) => {
-                pushUndo();
-                circ.cx = positions[chosenIdx].cx;
-                circ.cy = positions[chosenIdx].cy;
-                calculateAllIntersections();
-                renderAll();
-                showToast("Kružnice přesunuta tečně k segmentu kontury");
-              });
-              return;
-            }
-          } else {
-            showToast("Tečnost k obloukovému segmentu není podporována");
-            return;
-          }
-        }
-      } else {
-        showToast("Vyberte kružnici, oblouk nebo úsečku");
-        // Neukončovat drawing – uživatel může kliknout znovu
-        return;
-      }
-    } else if (state._tangentMode === 'circle-line-2') {
-      // Třetí klik: druhá úsečka pro tečnost se dvěma úsečkami
-      const idx = findObjectAt(wx, wy);
-      if (idx === null) { showToast("Klepněte na úsečku"); return; }
-      const obj = state.objects[idx];
-      if (obj.type !== 'line' && obj.type !== 'constr') {
-        showToast("Vyberte úsečku");
-        return;
-      }
-      if (idx === state._tangentFirstLine) {
-        showToast("Vyberte jinou úsečku");
-        return;
-      }
-      const circ = state.objects[state._tangentFirstCircle];
-      const line1 = state.objects[state._tangentFirstLine];
-      const positions = circlePositionsTangentToTwoLines(circ.r, line1, obj);
-      if (positions.length === 0) {
-        showToast("Tečnou pozici ke dvěma úsečkám nelze najít");
-      } else {
+        let segIdx = null;
+        if (obj.type === 'polyline') segIdx = findSegmentAt(obj, wx, wy);
+        const seg = extractSegmentConstraint(obj, segIdx);
+        if (!seg) { showToast("Vyberte kružnici, úsečku nebo segment kontury"); return; }
+        const positions = singleSegTangentPositions(circ, seg);
+        if (positions.length === 0) { showToast("Tečnou pozici nelze vypočítat"); return; }
         showTangentPositionDialog(positions, circ, (chosenIdx) => {
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
           calculateAllIntersections();
           renderAll();
-          showToast("Kružnice přesunuta tečně ke dvěma úsečkám");
+          showToast("Klepněte na 2. segment pro tečnost ke dvěma, nebo Esc");
+          state.drawing = true;
+          state._tangentMode = 'circle-seg-2';
+          state._tangentFirstCircle = circIdx;
+          state._tangentSeg1 = seg;
+          setHint("2. segment: tečnost ke dvěma (zachovat r), nebo Esc");
         });
+        return;
       }
+
+    } else if (state._tangentMode === 'circle-seg-2') {
+      // 2. segment → přesunout kružnici tečně k oběma segmentům (zachovat r)
+      const idx = findObjectAt(wx, wy);
+      if (idx === null) { showToast("Klepněte na segment"); return; }
+      const obj = state.objects[idx];
+      let segIdx = null;
+      if (obj.type === 'polyline') segIdx = findSegmentAt(obj, wx, wy);
+      const seg2 = extractSegmentConstraint(obj, segIdx);
+      if (!seg2) { showToast("Vyberte úsečku nebo segment kontury"); return; }
+      const circ = state.objects[state._tangentFirstCircle];
+      const circIdx = state._tangentFirstCircle;
+      const seg1 = state._tangentSeg1;
+      const positions = circlePositionsTangentToTwoSegments(circ.r, seg1, seg2);
+      if (positions.length === 0) { showToast("Tečnou pozici ke dvěma segmentům nelze najít"); return; }
+      showTangentPositionDialog(positions, circ, (chosenIdx) => {
+        pushUndo();
+        circ.cx = positions[chosenIdx].cx;
+        circ.cy = positions[chosenIdx].cy;
+        calculateAllIntersections();
+        renderAll();
+        showToast("Klepněte na 3. segment pro nalezení tečné kružnice, nebo Esc");
+        state.drawing = true;
+        state._tangentMode = 'circle-seg-3';
+        state._tangentFirstCircle = circIdx;
+        state._tangentSeg1 = seg1;
+        state._tangentSeg2 = seg2;
+        setHint("3. segment: najít kružnici tečnou ke třem segmentům (změní se r), nebo Esc");
+      });
+      return;
+
+    } else if (state._tangentMode === 'circle-seg-3') {
+      // 3. segment → najít novou kružnici tečnou ke třem segmentům (r se změní)
+      const idx = findObjectAt(wx, wy);
+      if (idx === null) { showToast("Klepněte na segment"); return; }
+      const obj = state.objects[idx];
+      let segIdx = null;
+      if (obj.type === 'polyline') segIdx = findSegmentAt(obj, wx, wy);
+      const seg3 = extractSegmentConstraint(obj, segIdx);
+      if (!seg3) { showToast("Vyberte úsečku nebo segment kontury"); return; }
+      const circ = state.objects[state._tangentFirstCircle];
+      const positions = circleTangentToThreeSegments(
+        state._tangentSeg1, state._tangentSeg2, seg3,
+        circ.cx, circ.cy, circ.r
+      );
+      if (positions.length === 0) { showToast("Tečnou kružnici ke třem segmentům nelze najít"); return; }
+      showTangentPositionDialog(positions, circ, (chosenIdx) => {
+        pushUndo();
+        circ.cx = positions[chosenIdx].cx;
+        circ.cy = positions[chosenIdx].cy;
+        circ.r  = positions[chosenIdx].r;
+        calculateAllIntersections();
+        renderAll();
+        showToast(`Kružnice upravena tečně ke třem segmentům (r=${positions[chosenIdx].r.toFixed(3)}) ✓`);
+      });
+      return;
     }
+
     // Reset stavu
     state.drawing = false;
     state.tempPoints = [];
     state._tangentMode = null;
     state._tangentFirstCircle = null;
     state._tangentFirstLine = null;
+    state._tangentSeg1 = null;
+    state._tangentSeg2 = null;
     resetHint();
   }
 }
