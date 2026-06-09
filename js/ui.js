@@ -2661,7 +2661,7 @@ document.getElementById("btnClearAll").addEventListener("click", async () => {
     updateObjectList();
     updateProperties();
     updateIntersectionList();
-    document.getElementById("cncOutput").textContent =
+    document.getElementById("cncOutput").value =
       "Klikněte 📋 CNC Export";
     renderAll();
   }

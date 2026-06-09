@@ -1607,14 +1607,30 @@
           </div>
         </div>
         <div class="panel-header cnc-header" data-panel="cncPanel">
-          <span>▾ CNC Souřadnice</span>
+          <span>▾ CNC Kód</span>
           <button
-            id="btnCncCopy"
-            class="cnc-copy-btn"
-            title="Kopírovat G-kód do schránky"
-            aria-label="Kopírovat G-kód do schránky"
+            id="btnCncMode"
+            class="cnc-copy-btn cnc-mode-btn"
+            title="Přepnout G90 (absolutní) / G91 (inkrementální)"
+            aria-label="Přepnout režim G90/G91"
           >
-            📋
+            G90
+          </button>
+          <button
+            id="btnCncSave"
+            class="cnc-copy-btn"
+            title="Uložit G-kód do souboru (.mpf)"
+            aria-label="Uložit G-kód do souboru"
+          >
+            💾
+          </button>
+          <button
+            id="btnCncLoad"
+            class="cnc-copy-btn"
+            title="Načíst G-kód ze souboru a vykreslit"
+            aria-label="Načíst G-kód ze souboru"
+          >
+            📂
           </button>
           <button
             id="btnCncEdit"
@@ -1627,8 +1643,8 @@
           <button
             id="btnCncToCam"
             class="cnc-copy-btn"
-            title="Otevřít v CAM Simulátoru"
-            aria-label="Otevřít v CAM Simulátoru"
+            title="Vykreslit CNC kód na canvas"
+            aria-label="Vykreslit CNC kód na canvas"
           >
             🔄
           </button>
@@ -1639,7 +1655,7 @@
           role="region"
           aria-label="CNC Souřadnice"
         >
-          <pre id="cncOutput"></pre>
+          <textarea id="cncOutput" class="cnc-output-area" spellcheck="false" autocomplete="off"></textarea>
         </div>
         <div
           class="panel-header"

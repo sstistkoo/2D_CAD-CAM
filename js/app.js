@@ -199,6 +199,7 @@ window.addEventListener('beforeunload', () => {
   updateLayerList();
   initAutoSave();
   updateStatusProject();
+  if (bridge.runCncExport) bridge.runCncExport();
   if (bridge.updateMobileCoords) bridge.updateMobileCoords(0, 0);
   checkFirstRunHelp();
 })().catch(e => {

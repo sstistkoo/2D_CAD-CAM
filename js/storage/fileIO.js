@@ -343,7 +343,7 @@ bridge.showFileDialog = showFileDialog;
 
 // ── CNC Export ──
 function runCncExport() {
-  const isInc = state.coordMode === 'inc';
+  const isInc = state.cncOutputMode === 'inc';
   // Spodní obrábění (X+ dolů / zadní nožová hlava): osa X má obrácený smysl,
   // proto se G2↔G3 zapisují prohozeně. Hodnoty X (poloměr) zůstávají kladné a stejné.
   const flipArc = (code) => state.flipX ? (code === 'G02' ? 'G03' : 'G02') : code;
@@ -357,12 +357,13 @@ function runCncExport() {
   if (isInc) out += `; Reference: ${_gH}${state.incReference.x.toFixed(3)} ${_gV}${state.incReference.y.toFixed(3)}\n`;
   out += "\n";
   out += "G28 ; Návrat do referenčního bodu\n";
-  out += isInc ? "G91 ; Inkrementální režim\n\n" : "G90 ; Absolutní režim\n\n";
+  out += isInc ? "\n" : "G90 ; Absolutní režim\n\n";
 
   let prevX = isInc ? state.incReference.x : 0;
   let prevY = isInc ? state.incReference.y : 0;
   let lastEndX = null;
   let lastEndY = null;
+  let _firstRapidDone = false;  // G91: první G00 jede absolutně (G90), pak přepneme G91
   function fmtCoord(x, y) {
     // V CNC exportu: soustruh → y je osa X, karusel → x je osa X
     const xVal = state.machineType === 'karusel' ? displayX(x) : x;
@@ -377,6 +378,21 @@ function runCncExport() {
       return `${_gH}${dxDisp.toFixed(3)} ${_gV}${dyDisp.toFixed(3)}`;
     }
     return `${_gH}${xVal.toFixed(3)} ${_gV}${yVal.toFixed(3)}`;
+  }
+  function fmtCoordAbs(x, y) {
+    const xVal = state.machineType === 'karusel' ? displayX(x) : x;
+    const yVal = state.machineType === 'karusel' ? y : displayX(y);
+    return `${_gH}${xVal.toFixed(3)} ${_gV}${yVal.toFixed(3)}`;
+  }
+  function emitRapid(x, y) {
+    if (isInc && !_firstRapidDone) {
+      out += `G00 ${fmtCoordAbs(x, y)} G90\n`;
+      out += `G91 ; Inkrementální režim\n`;
+      prevX = x; prevY = y;
+      _firstRapidDone = true;
+    } else {
+      out += `G00 ${fmtCoord(x, y)}\n`;
+    }
   }
 
   function needsRapid(x, y) {
@@ -485,19 +501,19 @@ function runCncExport() {
     switch (obj.type) {
       case "point":
         out += `; ${obj.name}\n`;
-        if (needsRapid(obj.x, obj.y)) out += `G00 ${fmtCoord(obj.x, obj.y)}\n`;
+        if (needsRapid(obj.x, obj.y)) emitRapid(obj.x, obj.y);
         lastEndX = obj.x; lastEndY = obj.y;
         break;
       case "line":
         out += `; ${obj.name} (délka: ${Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1).toFixed(3)})\n`;
-        if (needsRapid(obj.x1, obj.y1)) out += `G00 ${fmtCoord(obj.x1, obj.y1)}\n`;
+        if (needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
         lastEndX = obj.x2; lastEndY = obj.y2;
         break;
       case "circle": {
         out += `; ${obj.name} (R: ${obj.r.toFixed(3)})\n`;
         const cStartX = obj.cx + obj.r, cStartY = obj.cy;
-        if (needsRapid(cStartX, cStartY)) out += `G00 ${fmtCoord(cStartX, cStartY)}\n`;
+        if (needsRapid(cStartX, cStartY)) emitRapid(cStartX, cStartY);
         const circG = flipArc('G02');
         if (isInc) {
           out += `${circG} X${(-2 * obj.r).toFixed(3)} Z0.000 I${(-obj.r).toFixed(3)} K0.000\n`;
@@ -517,7 +533,7 @@ function runCncExport() {
           sy = obj.cy + obj.r * Math.sin(obj.startAngle);
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
           ey = obj.cy + obj.r * Math.sin(obj.endAngle);
-        if (needsRapid(sx, sy)) out += `G00 ${fmtCoord(sx, sy)}\n`;
+        if (needsRapid(sx, sy)) emitRapid(sx, sy);
         // Jednotná logika pro konturu i polotovar: G2/G3 z `ccw` flagu.
         //  • CAD ccw=true  (canvas anticlockwise=true) = svět CCW = G03
         //  • CAD ccw=false                              = svět CW  = G02
@@ -532,7 +548,7 @@ function runCncExport() {
       }
       case "rect":
         out += `; ${obj.name} (${Math.abs(obj.x2 - obj.x1).toFixed(2)} × ${Math.abs(obj.y2 - obj.y1).toFixed(2)})\n`;
-        if (needsRapid(obj.x1, obj.y1)) out += `G00 ${fmtCoord(obj.x1, obj.y1)}\n`;
+        if (needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y1)}\n`;
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
         out += `G01 ${fmtCoord(obj.x1, obj.y2)}\n`;
@@ -544,7 +560,7 @@ function runCncExport() {
         const pSegCnt = obj.closed ? pn : pn - 1;
         out += `; ${obj.name} (${pn} vrcholů${obj.closed ? ', uzavřená' : ''})\n`;
         if (needsRapid(obj.vertices[0].x, obj.vertices[0].y)) {
-          out += `G00 ${fmtCoord(obj.vertices[0].x, obj.vertices[0].y)}\n`;
+          emitRapid(obj.vertices[0].x, obj.vertices[0].y);
         }
         for (let i = 0; i < pSegCnt; i++) {
           const pp2 = obj.vertices[(i + 1) % pn];
@@ -594,16 +610,16 @@ function runCncExport() {
   }
   out += "\nG28 ; Návrat do referenčního bodu\nM30 ; Konec programu\n";
   out += "\n; === Konec ===\n";
-  document.getElementById("cncOutput").textContent = out;
+  document.getElementById("cncOutput").value = out;
   return out;
 }
 
 function copyCncToClipboard() {
-  const out = document.getElementById("cncOutput").textContent;
+  const out = document.getElementById("cncOutput").value;
   if (!out) {
     runCncExport();
   }
-  const text = document.getElementById("cncOutput").textContent;
+  const text = document.getElementById("cncOutput").value;
   navigator.clipboard
     .writeText(text)
     .then(() => showToast("CNC export zkopírován do schránky"))
@@ -614,15 +630,266 @@ document.getElementById("btnExport")?.addEventListener("click", () => {
   runCncExport();
   copyCncToClipboard();
 });
-document.getElementById("btnCncCopy").addEventListener("click", copyCncToClipboard);
+document.getElementById("btnCncMode").addEventListener("click", () => {
+  state.cncOutputMode = state.cncOutputMode === 'abs' ? 'inc' : 'abs';
+  document.getElementById("btnCncMode").textContent = state.cncOutputMode === 'abs' ? 'G90' : 'G91';
+  runCncExport();
+});
 document.getElementById("btnCncEdit").addEventListener("click", () => {
-  let code = document.getElementById("cncOutput").textContent;
-  if (!code) { runCncExport(); code = document.getElementById("cncOutput").textContent; }
+  let code = document.getElementById("cncOutput").value;
+  if (!code) { runCncExport(); code = document.getElementById("cncOutput").value; }
   openCncEditor(code);
 });
 document.getElementById("btnCncToCam").addEventListener("click", () => {
-  let code = document.getElementById("cncOutput").textContent;
-  if (!code) { runCncExport(); code = document.getElementById("cncOutput").textContent; }
-  openCamSimulator(code);
+  const code = document.getElementById("cncOutput").value;
+  if (!code) { showToast("CNC kód je prázdný"); return; }
+  try {
+    const objs = parseGcodeToObjects(code);
+    if (!objs.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
+    pushUndo();
+    state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
+    objs.forEach(o => state.objects.push(o));
+    calculateAllIntersections();
+    updateObjectList();
+    updateProperties();
+    autoCenterView();
+    showToast(`Vykresleno ${objs.length} objektů z CNC kódu`);
+  } catch (e) {
+    showToast("Chyba při parsování kódu: " + e.message);
+  }
 });
 bridge.runCncExport = runCncExport;
+
+// ── CNC Uložit / Načíst ──
+
+function saveCncFile() {
+  let code = document.getElementById("cncOutput").value;
+  if (!code) { runCncExport(); code = document.getElementById("cncOutput").value; }
+  if (!code) { showToast("Žádný CNC kód k uložení"); return; }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
+  a.download = exportFileName("mpf");
+  a.click();
+}
+
+function importCncFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".mpf,.nc,.txt,.cnc";
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const objs = parseGcodeToObjects(ev.target.result);
+        if (!objs.length) { showToast("Nenalezeny žádné pohyby v souboru"); return; }
+        pushUndo();
+        objs.forEach(o => state.objects.push(o));
+        calculateAllIntersections();
+        updateObjectList();
+        updateProperties();
+        autoCenterView();
+        runCncExport();
+        showToast(`Načteno ${objs.length} objektů z G-kódu`);
+      } catch (e) {
+        showToast("Chyba při načítání G-kódu: " + e.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function parseGcodeToObjects(code) {
+  const isKarusel = state.machineType === 'karusel';
+  const isDiam = state.xDisplayMode === 'diameter';
+  // soustruh: Z = canvas x, X = canvas y (poloměr)
+  // karusel:  X = canvas x, Z = canvas y
+  function toCanvas(gZ, gX) {
+    const xRaw = isDiam ? gX / 2 : gX;
+    return isKarusel ? { x: gX, y: gZ } : { x: gZ, y: xRaw };
+  }
+
+  const objs = [];
+  let cx = 0, cy = 0;       // aktuální poloha v canvas souřadnicích
+  let gMode = 90;            // 90=absolutní, 91=inkrementální
+  let motionCode = 0;        // poslední G0/1/2/3
+  let inStock = false;       // jsme uvnitř STOCK_START/STOCK_END sekce
+
+  const reG = /\bG(\d+)\b/gi;
+  const reZ = /\bZ([-\d.]+)/i;
+  const reX = /\bX([-\d.]+)/i;
+  const reR = /\bR([-\d.]+)/i;
+
+  for (const rawLine of code.split('\n')) {
+    // Detekce stock sekce před odstraněním komentáře
+    if (/STOCK_START/i.test(rawLine)) { inStock = true; continue; }
+    if (/STOCK_END/i.test(rawLine))   { inStock = false; continue; }
+
+    const line = rawLine.replace(/;.*$/, '').trim();
+    if (!line) continue;
+
+    // Zpracuj všechna G-slova na řádku
+    let m;
+    reG.lastIndex = 0;
+    const gs = [];
+    while ((m = reG.exec(line)) !== null) gs.push(parseInt(m[1]));
+
+    // Přepnutí modálního režimu
+    if (gs.includes(90)) gMode = 90;
+    if (gs.includes(91)) gMode = 91;
+    if (gs.includes(0))  motionCode = 0;
+    if (gs.includes(1))  motionCode = 1;
+    if (gs.includes(2))  motionCode = 2;
+    if (gs.includes(3))  motionCode = 3;
+
+    // Zjisti, zda řádek obsahuje souřadnice
+    const mZ = reZ.exec(line), mX = reX.exec(line);
+    if (!mZ && !mX) continue;
+
+    const gZval = mZ ? parseFloat(mZ[1]) : null;
+    const gXval = mX ? parseFloat(mX[1]) : null;
+
+    // Efektivní G-kód pro tento řádek (G na tomto řádku nebo poslední modální)
+    const thisMotion = gs.find(g => g <= 3) ?? motionCode;
+
+    // Výpočet cílového bodu
+    let tx, ty;
+    if (gMode === 91) {
+      const dPt = toCanvas(gZval ?? 0, gXval ?? 0);
+      tx = cx + (gZval !== null ? dPt.x : 0);
+      ty = cy + (gXval !== null ? dPt.y : 0);
+    } else {
+      const absPt = toCanvas(gZval ?? (isKarusel ? cy : cx), gXval ?? (isKarusel ? cx : (isDiam ? cy * 2 : cy)));
+      tx = absPt.x;
+      ty = absPt.y;
+    }
+
+    if (thisMotion === 0) {
+      // G00 rapid — jen přesun polohy, nekreslíme
+      cx = tx; cy = ty;
+      continue;
+    }
+
+    if (thisMotion === 1) {
+      if (Math.hypot(tx - cx, ty - cy) > 1e-4) {
+        objs.push({ type: 'line', id: state.nextId++, name: `Úsečka`, x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
+      }
+      cx = tx; cy = ty;
+      continue;
+    }
+
+    if (thisMotion === 2 || thisMotion === 3) {
+      const mR = reR.exec(line);
+      if (!mR) { cx = tx; cy = ty; continue; }
+      const R = parseFloat(mR[1]);
+      const dx = tx - cx, dy = ty - cy;
+      const dist2 = dx * dx + dy * dy;
+      if (dist2 < 1e-8 || R * R < dist2 / 4) { cx = tx; cy = ty; continue; }
+      const h = Math.sqrt(R * R - dist2 / 4);
+      const mx = (cx + tx) / 2, my = (cy + ty) / 2;
+      const nx = -dy / Math.sqrt(dist2), ny = dx / Math.sqrt(dist2);
+      const sign = thisMotion === 2 ? -1 : 1;
+      const acx = mx + sign * h * nx;
+      const acy = my + sign * h * ny;
+      const startA = Math.atan2(cy - acy, cx - acx);
+      const endA   = Math.atan2(ty - acy, tx - acx);
+      objs.push({ type: 'arc', id: state.nextId++, name: `Oblouk`, cx: acx, cy: acy, r: Math.abs(R), startAngle: startA, endAngle: endA, ccw: thisMotion === 3, isStock: inStock });
+      cx = tx; cy = ty;
+    }
+  }
+  return chainToPolylines(objs);
+}
+
+// Spojí za sebou navazující line/arc objekty do polyline (kontury).
+// Segmenty navazují pokud konec jednoho = začátek druhého (tolerance 1e-3).
+function chainToPolylines(objs) {
+  const EPS = 1e-3;
+  function eq(a, b) { return Math.abs(a - b) < EPS; }
+  function endPt(o) {
+    if (o.type === 'line') return { x: o.x2, y: o.y2 };
+    if (o.type === 'arc')  return { x: o.cx + o.r * Math.cos(o.endAngle), y: o.cy + o.r * Math.sin(o.endAngle) };
+    return null;
+  }
+  function startPt(o) {
+    if (o.type === 'line') return { x: o.x1, y: o.y1 };
+    if (o.type === 'arc')  return { x: o.cx + o.r * Math.cos(o.startAngle), y: o.cy + o.r * Math.sin(o.startAngle) };
+    return null;
+  }
+  // Výpočet bulge pro oblouk (tan(θ/4), kladný=CCW, záporný=CW)
+  function arcBulge(o) {
+    let dA = o.endAngle - o.startAngle;
+    if (o.ccw) { if (dA <= 0) dA += 2 * Math.PI; }
+    else        { if (dA >= 0) dA -= 2 * Math.PI; }
+    const b = Math.tan(dA / 4);
+    return o.ccw ? b : -Math.abs(b);
+  }
+
+  const result = [];
+  const used = new Array(objs.length).fill(false);
+
+  for (let i = 0; i < objs.length; i++) {
+    if (used[i]) continue;
+    const o = objs[i];
+    if (o.type !== 'line' && o.type !== 'arc') { result.push(o); used[i] = true; continue; }
+
+    // Zkus sestavit řetězec začínající od i
+    const chain = [o];
+    used[i] = true;
+
+    let tail = endPt(o);
+    while (tail) {
+      let found = false;
+      for (let j = 0; j < objs.length; j++) {
+        if (used[j]) continue;
+        if (objs[j].type !== 'line' && objs[j].type !== 'arc') continue;
+        const sp = startPt(objs[j]);
+        if (sp && eq(sp.x, tail.x) && eq(sp.y, tail.y)) {
+          chain.push(objs[j]);
+          used[j] = true;
+          tail = endPt(objs[j]);
+          found = true;
+          break;
+        }
+      }
+      if (!found) break;
+    }
+
+    if (chain.length === 1) {
+      result.push(chain[0]);
+      continue;
+    }
+
+    // Sestav polyline z řetězce
+    const vertices = [];
+    const bulges = [];
+    const isStock = chain[0].isStock;
+    for (const seg of chain) {
+      const sp = startPt(seg);
+      vertices.push({ x: sp.x, y: sp.y });
+      bulges.push(seg.type === 'arc' ? arcBulge(seg) : 0);
+    }
+    // Přidej koncový bod posledního segmentu
+    const lastEnd = endPt(chain[chain.length - 1]);
+    const closed = eq(lastEnd.x, vertices[0].x) && eq(lastEnd.y, vertices[0].y);
+    if (!closed) {
+      vertices.push({ x: lastEnd.x, y: lastEnd.y });
+      bulges.push(0);
+    }
+
+    result.push({
+      type: 'polyline',
+      id: state.nextId++,
+      name: isStock ? 'Polotovar' : 'Kontura',
+      vertices,
+      bulges,
+      closed,
+      isStock: !!isStock,
+    });
+  }
+  return result;
+}
+
+document.getElementById("btnCncSave").addEventListener("click", saveCncFile);
+document.getElementById("btnCncLoad").addEventListener("click", importCncFile);

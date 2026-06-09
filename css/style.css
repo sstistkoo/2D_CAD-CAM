@@ -461,6 +461,14 @@ body {
   background: var(--ctp-surface2);
 }
 
+.cnc-mode-btn {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 5px;
+  border: 1px solid var(--ctp-surface2);
+  color: var(--ctp-blue);
+}
+
 .panel-body {
   padding: 8px 10px;
   font-size: 13px;
@@ -1307,13 +1315,24 @@ body {
 /* â”€â”€ CNC Output â”€â”€ */
 #cncOutput {
   font-size: 11px;
+  font-family: monospace;
   color: var(--ctp-yellow);
-  white-space: pre-wrap;
-  max-height: 200px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: vertical;
+  width: 100%;
+  min-height: 140px;
+  max-height: 400px;
   overflow-y: auto;
-  -webkit-user-select: text;
-  user-select: text;
-  cursor: text;
+  white-space: pre;
+  box-sizing: border-box;
+  padding: 0;
+  line-height: 1.5;
+}
+#cncOutput:focus {
+  outline: 1px solid var(--ctp-surface2);
+  border-radius: 3px;
 }
 
 /* â”€â”€ Mobile bottom bar (grid) â”€â”€ */
