@@ -1011,8 +1011,6 @@ export function circlePositionsTangentToLine(cx, cy, r, x1, y1, x2, y2) {
   const nx = -dy / len, ny = dx / len;
   const t = ((cx - x1) * dx + (cy - y1) * dy) / (len * len);
   const footX = x1 + t * dx, footY = y1 + t * dy;
-  // Filtrovat pozice kde tečný bod leží mimo konečnou úsečku
-  if (t < -1e-9 || t > 1 + 1e-9) return [];
   return [
     { cx: footX + nx * r, cy: footY + ny * r },
     { cx: footX - nx * r, cy: footY - ny * r }
@@ -1064,12 +1062,7 @@ export function circlePositionsTangentToTwoLines(r, l1, l2) {
       if (pt) results.push({ cx: pt.x, cy: pt.y });
     }
   }
-  // Filtrovat: tečný bod (projekce středu na úsečku) musí ležet na konečné úsečce
-  return results.filter(p => {
-    const t1 = projectionParam(p.cx, p.cy, l1.x1, l1.y1, l1.x2, l1.y2);
-    const t2 = projectionParam(p.cx, p.cy, l2.x1, l2.y1, l2.x2, l2.y2);
-    return t1 >= -1e-9 && t1 <= 1 + 1e-9 && t2 >= -1e-9 && t2 <= 1 + 1e-9;
-  });
+  return results;
 }
 
 // ── Pozice kružnice tečné k úsečce A procházející bodem ──
@@ -1120,6 +1113,32 @@ export function circlePositionsTangentToLineAndPoint(r, x1, y1, x2, y2, px, py) 
       deduped.push(p);
   }
   return deduped;
+}
+
+// ── Pozice kružnice (poloměr r) tečné k jiné kružnici a procházející bodem ──
+/**
+ * Střed nové kružnice musí být ve vzdálenosti (r ± rArc) od středu oblouku
+ * a ve vzdálenosti r od bodu (kružnice jím prochází).
+ * @returns {{cx: number, cy: number}[]}
+ */
+export function circlePositionsTangentToCircleAndPoint(r, cxArc, cyArc, rArc, px, py) {
+  const results = [];
+  for (const D of [r + rArc, Math.abs(r - rArc)]) {
+    const dx = px - cxArc, dy = py - cyArc;
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-10) continue;
+    if (d > D + r + 1e-6 || d < Math.abs(D - r) - 1e-6) continue;
+    const a = (D * D - r * r + d * d) / (2 * d);
+    const h2 = D * D - a * a;
+    if (h2 < -1e-9) continue;
+    const h = Math.sqrt(Math.max(0, h2));
+    const mx = cxArc + a * dx / d, my = cyArc + a * dy / d;
+    results.push({ cx: mx + h * dy / d, cy: my - h * dx / d });
+    if (h > 1e-6) results.push({ cx: mx - h * dy / d, cy: my + h * dx / d });
+  }
+  return results.filter((p, i) =>
+    !results.slice(0, i).some(q => Math.hypot(p.cx - q.cx, p.cy - q.cy) < 1e-4)
+  );
 }
 
 // ── Kružnice procházející třemi body ──
