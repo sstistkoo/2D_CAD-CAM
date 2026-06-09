@@ -343,13 +343,24 @@ bridge.showFileDialog = showFileDialog;
 
 // ── CNC Export ──
 function runCncExport() {
+  // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
+  const selectedIndices = new Set();
+  if (state.multiSelected && state.multiSelected.size > 0) {
+    state.multiSelected.forEach(i => selectedIndices.add(i));
+  } else if (state.selected !== null && state.selected !== undefined) {
+    selectedIndices.add(state.selected);
+  }
+  const exportObjects = selectedIndices.size > 0
+    ? state.objects.filter((_, i) => selectedIndices.has(i))
+    : state.objects;
+
   const isInc = state.cncOutputMode === 'inc';
   // Spodní obrábění (X+ dolů / zadní nožová hlava): osa X má obrácený smysl,
   // proto se G2↔G3 zapisují prohozeně. Hodnoty X (poloměr) zůstávají kladné a stejné.
   const flipArc = (code) => state.flipX ? (code === 'G02' ? 'G03' : 'G02') : code;
   let out = "; === SKICA – CNC Soustružník (X,Z) ===\n";
   out += `; Datum: ${new Date().toLocaleString("cs")}\n`;
-  out += `; Počet objektů: ${state.objects.length}\n`;
+  out += `; Počet objektů: ${exportObjects.length}${selectedIndices.size > 0 ? ' (vybraný profil)' : ''}\n`;
   out += `; Průsečíků: ${state.intersections.length}\n`;
   out += `; Režim: ${isInc ? 'Inkrementální (INC)' : 'Absolutní (ABS)'}\n`;
   if (state.flipX) out += "; Obrábění zespodu (X+ dolů) – G2/G3 prohozeny\n";
@@ -432,13 +443,16 @@ function runCncExport() {
   const items = [];
   const stockItems = [];
   let _seqNum = 0;
-  for (const obj of state.objects) {
+  for (const obj of exportObjects) {
     if (obj.type === 'constr') continue;
     if (obj.type === 'text') continue;
     if (obj.isDimension || obj.isCoordLabel) continue;
     _seqNum++;
-    const target = obj.isStock ? stockItems : items;
     const cleanName = (obj.name || '').replace(/\s+\d+\s*$/, '') || obj.type;
+    // Objekt považujeme za polotovar pokud má isStock=true NEBO pokud je pojmenovaný
+    // "Polotovar" (prefix bez čísla) — to pokrývá případ kde isStock byl nesprávně false.
+    const _nameIsStock = cleanName.toLowerCase() === 'polotovar';
+    const target = (obj.isStock || _nameIsStock) ? stockItems : items;
     const seqLabel = `${cleanName} ${_seqNum}`;
 
     if (obj.type === 'line') {
@@ -492,10 +506,105 @@ function runCncExport() {
 
   // Sort right to left (highest X first) — jen kontura.
   items.sort((a, b) => b._sortX - a._sortX);
-  // Polotovar NEŘADÍME — objekty byly přidány v chain pořadí (po offsetu nebo
-  // po obvodu obdélníku) a sorting podle X by chain rozbil → emitor pak musí
-  // mezi sousedy vkládat G00 rapidy, což CAM parser interpretuje jako přerušení
-  // řetězce a vytvoří více skoků uvnitř polotovaru.
+
+  // Chain-sort polotovaru: seřadíme objekty tak, aby konec[i] navazoval na
+  // začátek[i+1]. Pokud je třeba, otočíme orientaci segmentu. Tím zajistíme,
+  // že emitor nevloží G00 rapidy mezi navazující segmenty polotovaru a celý
+  // polotovar vyjde jako jeden spojitý tvar.
+  if (stockItems.length > 1) {
+    function _getEp(obj) {
+      switch (obj.type) {
+        case 'line':   return { sx: obj.x1, sy: obj.y1, ex: obj.x2, ey: obj.y2 };
+        case 'arc': {
+          const sx = obj.cx + obj.r * Math.cos(obj.startAngle);
+          const sy = obj.cy + obj.r * Math.sin(obj.startAngle);
+          const ex = obj.cx + obj.r * Math.cos(obj.endAngle);
+          const ey = obj.cy + obj.r * Math.sin(obj.endAngle);
+          return { sx, sy, ex, ey };
+        }
+        case 'polyline': {
+          const vv = obj.vertices;
+          return { sx: vv[0].x, sy: vv[0].y, ex: vv[vv.length - 1].x, ey: vv[vv.length - 1].y };
+        }
+        default: return null;
+      }
+    }
+    function _revObj(obj) {
+      switch (obj.type) {
+        case 'line':
+          return { ...obj, x1: obj.x2, y1: obj.y2, x2: obj.x1, y2: obj.y1 };
+        case 'arc':
+          return { ...obj, startAngle: obj.endAngle, endAngle: obj.startAngle, ccw: !(obj.ccw !== false) };
+        case 'polyline': {
+          const rev = [...obj.vertices].reverse();
+          const n = obj.vertices.length;
+          const rb = [];
+          for (let i = 0; i < n - 1; i++) rb[i] = -(obj.bulges[n - 2 - i] || 0);
+          return { ...obj, vertices: rev, bulges: rb };
+        }
+        default: return obj;
+      }
+    }
+    // Najdi volný startovní konec (není spojen s žádným jiným koncem).
+    const EPS = 0.05;
+    const eps_arr = stockItems.map(_getEp); // null pro typy bez endpointů
+    function _isFreeEnd(x, y) {
+      let cnt = 0;
+      for (const ep of eps_arr) {
+        if (!ep) continue;
+        if (Math.hypot(ep.sx - x, ep.sy - y) < EPS) cnt++;
+        if (Math.hypot(ep.ex - x, ep.ey - y) < EPS) cnt++;
+      }
+      return cnt <= 1;
+    }
+    // Najdi startovní item (jehož start je volný konec).
+    // Přeskočíme položky bez endpointů (circle) — ty nemohou zahájit chain.
+    let startIdx = -1;
+    // Nejdřív hledej skutečný volný konec
+    outer: for (let i = 0; i < stockItems.length; i++) {
+      const ep = eps_arr[i]; if (!ep) continue;
+      if (_isFreeEnd(ep.sx, ep.sy)) { startIdx = i; break outer; }
+      if (_isFreeEnd(ep.ex, ep.ey)) {
+        stockItems[i] = _revObj(stockItems[i]);
+        eps_arr[i] = _getEp(stockItems[i]);
+        startIdx = i; break outer;
+      }
+    }
+    // U uzavřeného obrysu není žádný volný konec → začni prvním chainovatelným segmentem
+    if (startIdx === -1) {
+      for (let i = 0; i < stockItems.length; i++) {
+        if (eps_arr[i]) { startIdx = i; break; }
+      }
+    }
+    if (startIdx === -1) startIdx = 0; // fallback: všechno jsou circles apod.
+    // Greedy chain-sort od startIdx
+    const used = new Array(stockItems.length).fill(false);
+    const sorted = [];
+    used[startIdx] = true;
+    sorted.push(stockItems[startIdx]);
+    let curEnd = eps_arr[startIdx] ? { x: eps_arr[startIdx].ex, y: eps_arr[startIdx].ey } : null;
+    for (let iter = 0; iter < stockItems.length - 1 && curEnd; iter++) {
+      let found = false;
+      for (let i = 0; i < stockItems.length; i++) {
+        if (used[i]) continue;
+        const ep = _getEp(stockItems[i]); if (!ep) continue;
+        if (Math.hypot(ep.sx - curEnd.x, ep.sy - curEnd.y) < EPS) {
+          used[i] = true; sorted.push(stockItems[i]);
+          curEnd = { x: ep.ex, y: ep.ey }; found = true; break;
+        }
+        if (Math.hypot(ep.ex - curEnd.x, ep.ey - curEnd.y) < EPS) {
+          stockItems[i] = _revObj(stockItems[i]);
+          used[i] = true; sorted.push(stockItems[i]);
+          const rep = _getEp(stockItems[i]);
+          curEnd = rep ? { x: rep.ex, y: rep.ey } : null; found = true; break;
+        }
+      }
+      if (!found) break;
+    }
+    // Přidej zbývající nepřipojené položky
+    for (let i = 0; i < stockItems.length; i++) if (!used[i]) sorted.push(stockItems[i]);
+    stockItems.length = 0; sorted.forEach(s => stockItems.push(s));
+  }
 
   // Společný emitor jednoho objektu (přepoužit pro konturu i polotovar)
   function emitObj(obj) {
@@ -593,6 +702,14 @@ function runCncExport() {
   // Polotovar – samostatná sekce mezi STOCK_START / STOCK_END značkami.
   // CAM (i externí parser) tak může konturu a polotovar přijmout odděleně.
   if (stockItems.length > 0) {
+    // Odfiltruj degenerované úsečky (délka ≈ 0) — vznikají jako artefakty
+    // chain-sortu nebo boolean operací a způsobují zbytečné G00 rapidy.
+    for (let i = stockItems.length - 1; i >= 0; i--) {
+      const _o = stockItems[i];
+      if (_o.type === 'line' && Math.hypot(_o.x2 - _o.x1, _o.y2 - _o.y1) < 1e-3) {
+        stockItems.splice(i, 1);
+      }
+    }
     // Reset polohy mezi sekcemi: další G00 v polotovaru musí být vždy emitován,
     // i kdyby náhodou souřadnice navazovala na poslední bod kontury.
     lastEndX = null; lastEndY = null;

@@ -3382,7 +3382,7 @@ document.getElementById("btnOpenCam").addEventListener("click", () => {
   // (jinak by se po smazání objektů načetl starý cache cncOutput).
   if (state.objects && state.objects.length > 0 && bridge.runCncExport) {
     bridge.runCncExport();
-    const code = document.getElementById("cncOutput")?.textContent;
+    const code = document.getElementById("cncOutput")?.value;
     openCamSimulator(code || undefined);
   } else {
     openCamSimulator();
