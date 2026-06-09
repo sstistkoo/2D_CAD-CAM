@@ -4,7 +4,7 @@
 
 export { handleTangentClick, tangentFromSelection } from './tangentClick.js';
 export { handleOffsetClick, offsetFromSelection } from './offsetClick.js';
-export { handleTrimClick, trimFromSelection } from './trimClick.js';
+export { handleTrimClick, trimFromSelection, resetTrimState } from './trimClick.js';
 export { handleExtendClick, extendFromSelection } from './extendClick.js';
 export { handleFilletClick, filletFromSelection } from './filletClick.js';
 export { handleChamferClick, chamferFromSelection } from './chamferClick.js';
