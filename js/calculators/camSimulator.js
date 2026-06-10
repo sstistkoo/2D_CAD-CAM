@@ -417,6 +417,26 @@ function getNormal(p1, p2) {
   if (l === 0 || isNaN(l)) return { x: 0, z: 0 };
   return { x: -dz / l, z: dx / l };
 }
+// Úhel směrového vektoru (x,z) ve stejné konvenci jako úhly oblouků (atan2(x,z)).
+function vecAngle(x, z) { return Math.atan2(x, z); }
+// Normalizace úhlu do rozsahu (-PI, PI>.
+function normalizeAngle(a) {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+// Úhlový rozsah normál kontury, který destička daného tvaru pokryje bez
+// záběru bočním ostřím (vrcholový úhel ε omezuje, jak moc se může povrch
+// odklánět od osy destičky). Pro kulatou destičku (toolShape !== 'polygon')
+// omezení neplatí.
+function getToolClearanceRange(prms, flipX) {
+  if (prms.toolShape !== 'polygon') return null;
+  const toolAngleRad = (parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+  const tipRad = (parseFloat(prms.toolTipAngle) || 90) * Math.PI / 180;
+  const bisector = flipX ? (-toolAngleRad - tipRad / 2) : (toolAngleRad + tipRad / 2);
+  const halfRange = (Math.PI - tipRad) / 2;
+  return { bisector, halfRange };
+}
 function intersectLines(p1, p2, p3, p4) {
   if (!p1 || !p2 || !p3 || !p4) return null;
   if (isNaN(p1.x) || isNaN(p1.z) || isNaN(p2.x) || isNaN(p2.z) ||
@@ -1405,6 +1425,40 @@ export function openCamSimulator(initialContour) {
       }
     }
 
+    // Detekce kolize tvaru destičky s konturou (vrcholový úhel / natočení) —
+    // segmenty, jejichž normála leží mimo úhlový rozsah, který destička
+    // bez záběru bočním ostřím pokryje.
+    const clearance = getToolClearanceRange(prms, S.flipX);
+    const interferenceSegments = [];
+    if (clearance) {
+      const { bisector, halfRange } = clearance;
+      contourSegments.forEach(seg => {
+        let bad = false;
+        if (seg.type === 'line') {
+          const n = getNormal(seg.p1, seg.p2);
+          if (n.x !== 0 || n.z !== 0) {
+            const normAngle = vecAngle(n.x, n.z);
+            if (Math.abs(normalizeAngle(normAngle - bisector)) > halfRange) bad = true;
+          }
+        } else if (seg.type === 'arc') {
+          const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+          const isOuter = Math.abs(seg.cx) < midAbsX;
+          const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+          let endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+          if (seg.dir === 'G2' && endAngle > startAngle) endAngle -= 2 * Math.PI;
+          if (seg.dir === 'G3' && endAngle < startAngle) endAngle += 2 * Math.PI;
+          const steps = 8;
+          for (let s = 0; s <= steps; s++) {
+            const a = startAngle + (endAngle - startAngle) * (s / steps);
+            const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
+            if (Math.abs(normalizeAngle(normAngle - bisector)) > halfRange) { bad = true; break; }
+          }
+        }
+        if (bad) interferenceSegments.push(seg);
+      });
+    }
+
+
     let incompleteMachiningCount = 0;
     // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs
     for (let i = 0; i < contourSegments.length; i++) {
@@ -1467,6 +1521,9 @@ export function openCamSimulator(initialContour) {
 
     if (incompleteMachiningCount > 0)
       foundErrors.push({ type: 'warning', msg: `POZNÁMKA: V ${incompleteMachiningCount} místech nedojde ke kompletnímu obrobení.` });
+
+    if (interferenceSegments.length > 0)
+      foundErrors.push({ type: 'warning', msg: `Tvar destičky (vrchol ${prms.toolTipAngle}°, natočení ${prms.toolAngle}°) nedosáhne na ${interferenceSegments.length} úsek(ů) kontury (viz zvýrazněná místa na výkrese).` });
 
     // Passes
     const passes = [];
@@ -1990,7 +2047,7 @@ export function openCamSimulator(initialContour) {
     }
 
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds };
+    return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments };
   }
 
   // ── G-Code Generator ─────────────────────────────────────────
@@ -2323,6 +2380,30 @@ export function openCamSimulator(initialContour) {
         }
       }
       ctx.strokeStyle = C.contour; ctx.lineWidth = 3; ctx.stroke();
+    }
+
+    // zvýraznění úseků kontury, kam destička dle svého tvaru/natočení
+    // nedosáhne beze zbytku materiálu (kolize bočním ostřím)
+    if (calc.interferenceSegments && calc.interferenceSegments.length > 0) {
+      ctx.beginPath();
+      calc.interferenceSegments.forEach(seg => {
+        if (seg.type === 'line') {
+          const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        } else if (seg.type === 'arc') {
+          const steps = arcSteps(seg.r, S.view.scale);
+          let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+          let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          for (let j = 0; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+            if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          }
+        }
+      });
+      ctx.strokeStyle = C.error; ctx.lineWidth = 5; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
     }
 
     // offset path — v 🙈 stavu (none) skryjeme všechny drahy
