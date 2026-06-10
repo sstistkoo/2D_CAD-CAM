@@ -86,6 +86,8 @@ export const state = {
   xDisplayMode: 'radius',
   // Otočení svislé osy X: false = X+ nahoru (výchozí), true = X+ dolů (soustruh s nástrojem zespodu)
   flipX: false,
+  // Náhled zrcadlení kontury kolem osy rotace (y=0) – jen vizuální, neukládá objekty
+  mirrorPreview: false,
   // Režim výstupu CNC kódu: 'abs' = G90, 'inc' = G91
   cncOutputMode: 'abs',
   // Přesnost zobrazení souřadnic a kót (počet desetinných míst)

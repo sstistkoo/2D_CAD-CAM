@@ -40,6 +40,7 @@ function persistSettings() {
       base.machineType = state.machineType;
       base.xDisplayMode = state.xDisplayMode;
       base.flipX = state.flipX;
+      base.mirrorPreview = state.mirrorPreview;
       base.displayDecimals = state.displayDecimals;
       base.theme = state.theme;
       base.snapToGrid = state.snapToGrid;
@@ -3994,6 +3995,9 @@ function showSettingsDialog() {
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settFlipX" style="${btnS}${act(state.flipX)}" title="Otočit svislou osu – nástroj zespodu">⇅ X+ ${state.flipX ? 'dolů ↓' : 'nahoru ↑'}</button>
         </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Zobrazit poloprůhledný náhled kontury zrcadlené kolem osy rotace (y=0)">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
+        </div>
       </fieldset>
 
       <!-- Mřížka a snap -->
@@ -4138,6 +4142,17 @@ function showSettingsDialog() {
     persistSettings();
     if (bridge.updateMobileCoords) bridge.updateMobileCoords(state.mouse.x, state.mouse.y);
     showToast(state.flipX ? 'Osa X otočena – X+ dolů' : 'Osa X – X+ nahoru');
+  });
+
+  // ── Náhled zrcadlení kolem osy rotace (y=0) ──
+  overlay.querySelector('#settMirrorPreview').addEventListener('click', () => {
+    state.mirrorPreview = !state.mirrorPreview;
+    const mBtn = overlay.querySelector('#settMirrorPreview');
+    mBtn.style.cssText = `${btnBase}${state.mirrorPreview ? activeStyle : inactiveStyle}`;
+    mBtn.textContent = `⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}`;
+    renderAll();
+    persistSettings();
+    showToast(state.mirrorPreview ? 'Náhled zrcadlení: ON' : 'Náhled zrcadlení: OFF');
   });
 
   // ── Snap mřížka ON/OFF ──

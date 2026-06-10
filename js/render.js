@@ -421,6 +421,95 @@ function renderAxes() {
   }
 }
 
+// ── Náhled zrcadlení kolem osy rotace (y=0) ──
+
+/**
+ * Vrátí mělkou kopii geometrického objektu zrcadlenou podle osy y=0
+ * (cad_y -> -cad_y). Oblouky/bulge mění směr (ccw flip), úhly se negují.
+ * Vrátí null pro typy, které nedává smysl zrcadlit (text, kóty, ...).
+ */
+function mirrorObjectAcrossY(obj) {
+  switch (obj.type) {
+    case 'point':
+      return { ...obj, y: -obj.y };
+    case 'line':
+    case 'constr':
+      return { ...obj, y1: -obj.y1, y2: -obj.y2 };
+    case 'circle':
+      return { ...obj, cy: -obj.cy };
+    case 'arc':
+      return {
+        ...obj,
+        cy: -obj.cy,
+        startAngle: -obj.startAngle,
+        endAngle: -obj.endAngle,
+        ccw: !(obj.ccw !== false),
+      };
+    case 'rect':
+      return { ...obj, y1: -obj.y1, y2: -obj.y2 };
+    case 'polyline':
+      return {
+        ...obj,
+        vertices: obj.vertices.map(v => ({ x: v.x, y: -v.y })),
+        bulges: (obj.bulges || []).map(b => -b),
+      };
+    default:
+      return null;
+  }
+}
+
+/** Vykreslí poloprůhlednou zrcadlenou kopii kontury kolem osy y=0 (jen náhled). */
+function renderMirrorPreview(vp) {
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.setLineDash(CONSTRUCTION_DASH);
+
+  state.objects.forEach((obj, idx) => {
+    if (obj.isDimension || obj.isCoordLabel || obj.type === 'text') return;
+    const layer = state.layers.find(l => l.id === obj.layer);
+    if (layer && !layer.visible) return;
+
+    const mirrored = mirrorObjectAcrossY(obj);
+    if (!mirrored) return;
+
+    if (obj.type !== 'constr') {
+      const bounds = getObjectBounds(mirrored);
+      if (bounds && !boundsOverlap(bounds, vp)) return;
+    }
+
+    const layerColor = layer ? layer.color : COLORS.primary;
+    const baseColor = obj.isStock ? COLORS.stock : (obj.color || layerColor);
+    ctx.strokeStyle = baseColor;
+    ctx.fillStyle = baseColor;
+    ctx.lineWidth = LINE_WIDTH;
+
+    switch (mirrored.type) {
+      case 'point':
+        drawPoint(mirrored);
+        break;
+      case 'line':
+      case 'constr':
+        drawLine(mirrored);
+        break;
+      case 'circle':
+        drawCircle(mirrored);
+        break;
+      case 'arc':
+        drawArc(mirrored);
+        break;
+      case 'rect':
+        drawRect(mirrored, false, baseColor, -1);
+        break;
+      case 'polyline':
+        drawPolyline(mirrored, false, baseColor, -1);
+        break;
+    }
+  });
+
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 // ── Vykreslení objektů ──
 function renderObjects() {
   const w = drawCanvas.width,
@@ -501,6 +590,11 @@ function renderObjects() {
     // Kóty – skrýt když jsou zapnutá čísla objektů
     if (state.showDimensions !== 'none' && !isConstr && !state.showObjectNumbers) drawDimension(obj);
   });
+
+  // ── Náhled zrcadlení kontury kolem osy rotace (y=0) ──
+  if (state.mirrorPreview) {
+    renderMirrorPreview(vp);
+  }
 
   // ── Čísla objektů na výkrese ──
   if (state.showObjectNumbers) {

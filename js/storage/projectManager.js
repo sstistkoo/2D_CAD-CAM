@@ -33,6 +33,7 @@ function _buildProjectData() {
     machineType: state.machineType,
     xDisplayMode: state.xDisplayMode,
     flipX: state.flipX,
+    mirrorPreview: state.mirrorPreview,
     layers: state.layers,
     activeLayer: state.activeLayer,
     nextLayerId: state.nextLayerId,
@@ -64,6 +65,7 @@ function _loadProjectData(data) {
   if (data.machineType) state.machineType = data.machineType;
   state.xDisplayMode = data.xDisplayMode || 'radius';
   state.flipX = !!data.flipX;
+  state.mirrorPreview = !!data.mirrorPreview;
   if (data.layers) {
     state.layers = data.layers;
     state.activeLayer = data.activeLayer || 0;

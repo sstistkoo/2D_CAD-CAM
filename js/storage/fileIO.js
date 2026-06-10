@@ -35,6 +35,7 @@ export function exportProjectFile() {
     nextLayerId: state.nextLayerId,
     showObjectNumbers: state.showObjectNumbers,
     showIntersectionNumbers: state.showIntersectionNumbers,
+    mirrorPreview: state.mirrorPreview,
     anchors: state.anchors,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -106,6 +107,7 @@ export function importProjectFile() {
         state.flipX = !!data.flipX;
         if (data.showObjectNumbers !== undefined) state.showObjectNumbers = data.showObjectNumbers;
         if (data.showIntersectionNumbers !== undefined) state.showIntersectionNumbers = data.showIntersectionNumbers;
+        state.mirrorPreview = !!data.mirrorPreview;
         state.anchors = data.anchors || [];
         if (data.layers) {
           state.layers = data.layers;
