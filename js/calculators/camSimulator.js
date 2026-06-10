@@ -122,6 +122,8 @@ function injectCSS() {
   border-radius: 4px;
 }
 .cam-sim-calc-btn:hover { background: rgba(255,255,255,0.15); }
+.cam-sim-calc-btn:disabled { opacity: .35; cursor: default; }
+.cam-sim-calc-btn:disabled:hover { background: none; }
 .cam-sim-window .calc-body {
   flex: 1; overflow: hidden; padding: 0 !important;
 }
@@ -1130,12 +1132,31 @@ export function openCamSimulator(initialContour) {
   </div>
 </div>`;
 
-  const overlay = makeOverlay('cam-simulator', '🔄 CAM Simulátor', bodyHTML, 'cam-sim-window');
+  const overlay = makeOverlay('cam-simulator', '🔄', bodyHTML, 'cam-sim-window');
   if (!overlay) return;
 
-  // Přidat tlačítko kalkulačky do titlebaru
+  // Místo nápisu „CAM Simulátor" tlačítka Zpět/Vpřed (historie úprav)
+  // a tlačítko kalkulačky do titlebaru
+  let undoTitleBtn = null, redoTitleBtn = null;
   const titlebar = overlay.querySelector('.calc-titlebar');
   if (titlebar) {
+    const titleH3 = titlebar.querySelector('h3');
+
+    undoTitleBtn = document.createElement('button');
+    undoTitleBtn.className = 'cam-sim-calc-btn';
+    undoTitleBtn.title = 'Zpět';
+    undoTitleBtn.textContent = '↩';
+    undoTitleBtn.addEventListener('click', (e) => { e.stopPropagation(); undo(); });
+
+    redoTitleBtn = document.createElement('button');
+    redoTitleBtn.className = 'cam-sim-calc-btn';
+    redoTitleBtn.title = 'Vpřed';
+    redoTitleBtn.textContent = '↪';
+    redoTitleBtn.addEventListener('click', (e) => { e.stopPropagation(); redo(); });
+
+    if (titleH3) titleH3.after(undoTitleBtn, redoTitleBtn);
+    else titlebar.insertBefore(undoTitleBtn, titlebar.firstChild);
+
     const calcBtn = document.createElement('button');
     calcBtn.className = 'cam-sim-calc-btn';
     calcBtn.title = 'Kalkulačka';
@@ -1383,6 +1404,8 @@ export function openCamSimulator(initialContour) {
     const rBtn = root.querySelector('[data-act="redo"]');
     if (uBtn) uBtn.disabled = S.past.length === 0;
     if (rBtn) rBtn.disabled = S.future.length === 0;
+    if (undoTitleBtn) undoTitleBtn.disabled = S.past.length === 0;
+    if (redoTitleBtn) redoTitleBtn.disabled = S.future.length === 0;
   }
 
   // ── SAVE ──
