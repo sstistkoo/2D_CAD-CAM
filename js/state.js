@@ -91,7 +91,7 @@ export const state = {
   // Body mezer/přerušení v kontuře nalezené při kontrole validity (pro zvýraznění na plátně)
   contourGaps: [],
   // Zobrazovat značky "Mezera" na plátně (lze vypnout v nastavení)
-  showContourGaps: true,
+  showContourGaps: false,
   // Režim výstupu CNC kódu: 'abs' = G90, 'inc' = G91
   cncOutputMode: 'abs',
   // Přesnost zobrazení souřadnic a kót (počet desetinných míst)
