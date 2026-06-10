@@ -88,6 +88,8 @@ export const state = {
   flipX: false,
   // Náhled zrcadlení kontury kolem osy rotace (y=0) – jen vizuální, neukládá objekty
   mirrorPreview: false,
+  // Body mezer/přerušení v kontuře nalezené při kontrole validity (pro zvýraznění na plátně)
+  contourGaps: [],
   // Režim výstupu CNC kódu: 'abs' = G90, 'inc' = G91
   cncOutputMode: 'abs',
   // Přesnost zobrazení souřadnic a kót (počet desetinných míst)

@@ -97,7 +97,7 @@ function _contourObjects() {
 // aby chain robustně pohltil i kontury, kde se segmenty nejsou v state.objects
 // uloženy v lineárním pořadí (např. po offsetech, fillet/chamfer operacích).
 // Tolerance 0.01 mm pokrývá zaokrouhlení v render/storage.
-function _chainSegments(segs) {
+function _chainSegments(segs, leftoverOut) {
   if (segs.length === 0) return [];
   const tol = 0.01;
   const eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < tol;
@@ -151,7 +151,40 @@ function _chainSegments(segs) {
       extended = true;
     }
   }
+  if (leftoverOut) leftoverOut.push(...pool);
   return chain;
+}
+
+// ── Kontrola uzavřenosti/validity kontury ──────────────────────
+// Vrátí pole bodů (cad souřadnice) v místech, kde je kontura přerušená:
+//  - konce hlavního řetězu, pokud netvoří uzavřenou smyčku,
+//  - koncové body segmentů, které se do hlavního řetězu nepodařilo napojit.
+// Prázdné pole = kontura je v pořádku (uzavřená a souvislá).
+export function findContourGaps() {
+  const objs = _contourObjects();
+  if (objs.length === 0) return [];
+  const segs = _objectsToSegments(objs);
+  if (segs.length === 0) return [];
+  const tol = 0.01;
+  const eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < tol;
+
+  const leftover = [];
+  const chain = _chainSegments(segs, leftover);
+  const gaps = [];
+
+  if (chain.length > 0) {
+    const head = chain[0].p1;
+    const tail = chain[chain.length - 1].p2;
+    if (!eq(head, tail)) {
+      gaps.push({ x: tail.x, y: tail.y });
+      gaps.push({ x: head.x, y: head.y });
+    }
+  }
+  for (const s of leftover) {
+    gaps.push({ x: s.p1.x, y: s.p1.y });
+    gaps.push({ x: s.p2.x, y: s.p2.y });
+  }
+  return gaps;
 }
 
 // ── Konverze CAD canvas ↔ CAM (z = cad_x, x = cad_y) ───────────
@@ -282,6 +315,14 @@ export function generateStockFromAllowance({ allowance, chamfer = 0, fillet = 0,
     showToast('Konturu nelze sestavit z aktuálních objektů.');
     return { ok: false };
   }
+  const gaps = findContourGaps();
+  if (gaps.length > 0) {
+    state.contourGaps = gaps;
+    renderAll();
+    showToast('Kontura má mezery — opravte vyznačená místa před generováním polotovaru.');
+    return { ok: false };
+  }
+  state.contourGaps = [];
   const cadChain = _chainSegments(cadSegs);
   if (cadChain.length === 0) {
     showToast('Kontura není propojená.');
@@ -341,6 +382,12 @@ export function generateCylinderStock({ allowanceX, allowanceZ, asContour = fals
   if (objs.length === 0) {
     showToast('Žádné objekty kontury — nejdřív nakreslete obrys.');
     return { ok: false };
+  }
+  const gaps = findContourGaps();
+  state.contourGaps = gaps;
+  if (gaps.length > 0) {
+    renderAll();
+    showToast('Pozor: kontura má mezery (vyznačeno červeně) — válcový polotovar bude vytvořen, ale obrys zkontrolujte.');
   }
 
   // Bbox: xMin, xMax (osa Z), yMax (max poloměr). Osu rotace bereme jako y=0.

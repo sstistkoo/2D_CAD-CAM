@@ -1131,6 +1131,9 @@ function renderObjects() {
     ctx.restore();
   }
 
+  // Mezery v kontuře (kontrola uzavřenosti před generováním polotovaru/G-kódu)
+  drawContourGapMarkers();
+
   // Snap indikátor
   drawSnapIndicator();
 
@@ -1139,6 +1142,33 @@ function renderObjects() {
 
   // Počítadlo vybraných objektů
   drawSelectionCounter();
+}
+
+// ── Mezery v kontuře (zvýraznění chyb před generováním polotovaru/G-kódu) ──
+function drawContourGapMarkers() {
+  const gaps = state.contourGaps;
+  if (!gaps || gaps.length === 0) return;
+  ctx.save();
+  ctx.strokeStyle = COLORS.delete;
+  ctx.fillStyle = COLORS.delete;
+  ctx.lineWidth = 2.5;
+  const r = Math.round(Math.min(20, Math.max(8, 6 + state.zoom * 3)));
+  for (const gp of gaps) {
+    const [sx, sy] = worldToScreen(gp.x, gp.y);
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.6, sy - r * 0.6);
+    ctx.lineTo(sx + r * 0.6, sy + r * 0.6);
+    ctx.moveTo(sx + r * 0.6, sy - r * 0.6);
+    ctx.lineTo(sx - r * 0.6, sy + r * 0.6);
+    ctx.stroke();
+    const fontSize = Math.round(Math.min(20, Math.max(11, 8 + state.zoom * 4)));
+    ctx.font = `bold ${fontSize}px Consolas`;
+    ctx.fillText('Mezera', sx + r + 4, sy - r);
+  }
+  ctx.restore();
 }
 
 // ── Indikátor vybraného bodu ──

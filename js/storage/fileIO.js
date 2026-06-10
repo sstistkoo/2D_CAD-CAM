@@ -15,6 +15,8 @@ import { openCncEditor } from '../calculators/cncEditor.js';
 import { openCamSimulator } from '../calculators/camSimulator.js';
 import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
+import { findContourGaps } from '../stockTools.js';
+import { renderAll } from '../render.js';
 
 // ── Export / Import ──
 
@@ -355,6 +357,14 @@ function runCncExport() {
   const exportObjects = selectedIndices.size > 0
     ? state.objects.filter((_, i) => selectedIndices.has(i))
     : state.objects;
+
+  // Kontrola uzavřenosti/validity kontury – mezery zvýrazníme na plátně
+  const gaps = findContourGaps();
+  state.contourGaps = gaps;
+  if (gaps.length > 0) {
+    renderAll();
+    showToast('Pozor: kontura má mezery (vyznačeno červeně) — zkontrolujte výkres před použitím G-kódu.');
+  }
 
   const isInc = state.cncOutputMode === 'inc';
   // Spodní obrábění (X+ dolů / zadní nožová hlava): osa X má obrácený smysl,
