@@ -16,6 +16,7 @@ export { showMeasureResult, showIntersectionInfo, showMeasureObjectInfo,
 export { showCircleRadiusDialog } from './dialogs/circleRadius.js';
 export { showNumericalInputDialog } from './dialogs/numericalInput.js';
 export { showPolarDrawingDialog } from './dialogs/polarDrawing.js';
+export { showAngleLineDialog } from './dialogs/angleLineDialog.js';
 export { showBulgeDialog } from './dialogs/bulge.js';
 export { addDimensionForObject, addAngleDimensionForLines } from './dialogs/dimension.js';
 export { applyMobileInputMode, wireExprInputs, showMobileEditDialog, showEditObjectDialog } from './dialogs/mobileEdit.js';
