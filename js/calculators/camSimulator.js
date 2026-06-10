@@ -647,6 +647,120 @@ function segStartPoint(seg) {
   if (seg.type === 'line') return seg.p1;
   return { x: seg.cx + Math.sin(seg.startAngle) * seg.r, z: seg.cz + Math.cos(seg.startAngle) * seg.r };
 }
+// Po úpravě startAngle/endAngle obloukového segmentu (setSegEnd/setSegStart)
+// dosynchronizuje p1/p2 — u raw kontury slouží jako reference pro isOuter
+// detekci offsetu i pro zobrazení, takže musí odpovídat novým úhlům.
+function syncArcEndpoints(seg) {
+  if (seg.type !== 'arc') return;
+  seg.p1 = segStartPoint(seg);
+  seg.p2 = segEndPoint(seg);
+}
+// Vrátí true, pokud bod leží uvnitř segmentu (ne na/blízko jeho koncových
+// bodů) — používá se pro detekci "mostu": nově přidaného segmentu, jehož oba
+// konce dopadají do vnitřku jiných segmentů kontury (ne na jejich konce).
+function pointOnSegInterior(pt, seg) {
+  if (seg.type === 'line') {
+    const { p1, p2 } = seg;
+    const dx = p2.x - p1.x, dz = p2.z - p1.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-9) return false;
+    const cross = Math.abs((pt.x - p1.x) * dz - (pt.z - p1.z) * dx) / len;
+    if (cross > TRIM_TOL) return false;
+    const t = ((pt.x - p1.x) * dx + (pt.z - p1.z) * dz) / (len * len);
+    if (t * len < LOOP_INTERIOR_MIN || (1 - t) * len < LOOP_INTERIOR_MIN) return false;
+    return true;
+  } else {
+    const d = Math.hypot(pt.x - seg.cx, pt.z - seg.cz);
+    if (Math.abs(d - seg.r) > TRIM_TOL) return false;
+    const a = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
+    if (!isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return false;
+    const sp = segStartPoint(seg), ep = segEndPoint(seg);
+    if (Math.hypot(pt.x - sp.x, pt.z - sp.z) < LOOP_INTERIOR_MIN) return false;
+    if (Math.hypot(pt.x - ep.x, pt.z - ep.z) < LOOP_INTERIOR_MIN) return false;
+    return true;
+  }
+}
+// Vyhledá "mostové" segmenty — nově nakreslené úseky, které na konturu
+// nenavazují v pořadí kreslení (G0 mezera před i po), ale oba jejich konce
+// geometricky dopadají do vnitřku dvou jiných segmentů kontury. Takový
+// segment se vloží na své geometrické místo místo úseku, který "přemosťuje" —
+// ten (a segmenty mezi ním) se z hlavní kontury odstraní.
+function spliceBridgeSegments(segs) {
+  let result = segs.map(s => structuredClone(s));
+  for (let bi = 0; bi < result.length; bi++) {
+    if (result.length < 2) break;
+    const bridge = result[bi];
+    if (bridge.isDegenerate) continue;
+    const bStart = segStartPoint(bridge);
+    const bEnd = segEndPoint(bridge);
+    const prevConnected = bi > 0 &&
+      Math.hypot(segEndPoint(result[bi - 1]).x - bStart.x, segEndPoint(result[bi - 1]).z - bStart.z) < 1e-4;
+    const nextConnected = bi < result.length - 1 &&
+      Math.hypot(segStartPoint(result[bi + 1]).x - bEnd.x, segStartPoint(result[bi + 1]).z - bEnd.z) < 1e-4;
+    if (prevConnected && nextConnected) continue;
+
+    let aIdx = -1, bIdx = -1;
+    for (let k = 0; k < result.length; k++) {
+      if (k === bi) continue;
+      if (!prevConnected && aIdx === -1 && pointOnSegInterior(bStart, result[k])) aIdx = k;
+      if (!nextConnected && bIdx === -1 && pointOnSegInterior(bEnd, result[k])) bIdx = k;
+    }
+    if (prevConnected) aIdx = bi - 1;
+    if (nextConnected) bIdx = bi + 1;
+    if (aIdx === -1 || bIdx === -1 || aIdx === bIdx) continue;
+
+    const segA = result[aIdx], segB = result[bIdx];
+    if (!prevConnected) { setSegEnd(segA, bStart); syncArcEndpoints(segA); }
+    if (!nextConnected) { setSegStart(segB, bEnd); syncArcEndpoints(segB); }
+
+    const lo = Math.min(aIdx, bIdx), hi = Math.max(aIdx, bIdx);
+    const newArr = [];
+    for (let k = 0; k < result.length; k++) {
+      if (k === bi) continue;
+      if (k > lo && k < hi) continue;
+      newArr.push(result[k]);
+      if (k === aIdx) newArr.push(bridge);
+    }
+    return spliceBridgeSegments(newArr);
+  }
+  return result;
+}
+// Odstranění samoprotnutí raw kontury (bez tool-offsetu). Narozdíl od
+// trimAndRemoveLoops (offset trimming) zde NEKONTROLUJEME směr segmentů —
+// segmenty raw kontury na sebe vždy přímo navazují (žádné spurious
+// near-touches po zaoblení rohu jako u offsetu), takže jakékoliv geometrické
+// protnutí dvou nesousedních segmentů znamená, že úsek mezi nimi leží
+// "pod" výslednou konturou a CAM dráhy by ho neměly brát v potaz.
+function removeContourSelfIntersections(segs) {
+  if (segs.length < 3) return segs;
+  const result = segs.map(s => structuredClone(s));
+  let loopFound = true, iterations = 0;
+  while (loopFound && iterations < 10) {
+    loopFound = false; iterations++;
+    outerLoop:
+    for (let i = 0; i < result.length - 2; i++) {
+      for (let j = i + 2; j < result.length; j++) {
+        const s1 = result[i], s2 = result[j];
+        const pt = findSegIntersection(s1, s2);
+        if (pt && isOnSegBounds(pt, s1) && isOnSegBounds(pt, s2)) {
+          const s1End = segEndPoint(s1);
+          const s2Start = segStartPoint(s2);
+          const d1 = Math.hypot(pt.x - s1End.x, pt.z - s1End.z);
+          const d2 = Math.hypot(pt.x - s2Start.x, pt.z - s2Start.z);
+          if (d1 < LOOP_INTERIOR_MIN || d2 < LOOP_INTERIOR_MIN) continue;
+          setSegEnd(s1, pt);
+          setSegStart(s2, pt);
+          syncArcEndpoints(s1);
+          syncArcEndpoints(s2);
+          result.splice(i + 1, j - (i + 1));
+          loopFound = true;
+          break outerLoop;
+        }
+      }
+    }
+  }
+  return result;
+}
 function trimAndRemoveLoops(rawSegs, opts = {}) {
   // opts.bridgeCollinear: pokud true, přemostí nesousední LINE segmenty
   // ležící na stejné nekonečné přímce (potlačí drážky/štěrbiny užší než
@@ -657,10 +771,19 @@ function trimAndRemoveLoops(rawSegs, opts = {}) {
   for (let i = 0; i < rawSegs.length - 1; i++) {
     const prevOff = result[result.length - 1];
     const nextOff = structuredClone(rawSegs[i + 1]);
+    // chainBreak = mezi předchozím a tímto segmentem v raw konturě nic
+    // nebylo nakresleno (G0 přeskok mezi nesouvisejícími entitami) — žádné
+    // trimování ani spojovací přemostění, dráha sem najede samostatně.
+    if (nextOff.chainBreak) {
+      result.push(nextOff);
+      continue;
+    }
     const intersection = findSegIntersection(prevOff, nextOff);
     if (intersection) {
       setSegEnd(prevOff, intersection);
       setSegStart(nextOff, intersection);
+      syncArcEndpoints(prevOff);
+      syncArcEndpoints(nextOff);
       result.push(nextOff);
     } else {
       let corner = null;
@@ -689,6 +812,11 @@ function trimAndRemoveLoops(rawSegs, opts = {}) {
         for (let j = i + 2; j < result.length; j++) {
           const s1 = result[i], s2 = result[j];
           if (s1.isDegenerate || s2.isDegenerate) continue;
+          // Smyčka nesmí spláchnout přechod mezi samostatnými řetězy (subpath) —
+          // ty zůstávají oddělené, i kdyby se jejich offsety geometricky kryly.
+          let crossesChainBreak = false;
+          for (let k = i + 1; k <= j; k++) if (result[k].chainBreak) { crossesChainBreak = true; break; }
+          if (crossesChainBreak) continue;
           const pt = findSegIntersection(s1, s2);
           if (pt && isOnSegBounds(pt, s1) && isOnSegBounds(pt, s2)) {
             // True loop musí mít průsečík dostatečně uvnitř s1 i s2.
@@ -725,6 +853,8 @@ function trimAndRemoveLoops(rawSegs, opts = {}) {
             }
             setSegEnd(s1, pt);
             setSegStart(s2, pt);
+            syncArcEndpoints(s1);
+            syncArcEndpoints(s2);
             result.splice(i + 1, j - (i + 1));
             loopFound = true;
             break outerLoop;
@@ -1442,18 +1572,48 @@ export function openCamSimulator(initialContour) {
 
     for (let i = 0; i < worldPoints.length - 1; i++) {
       const p1 = worldPoints[i], p2 = worldPoints[i + 1], type = p2.type;
-      if (type === 'G0' || type === 'G1') {
+      // G0 = export vygeneroval pouze "přesun" mezi dvěma nesouvisejícími
+      // entitami (mezera mezi nimi v CADu nic nemá nakresleno) — takový
+      // segment NENÍ součástí kontury a nesmí se obrábět ani zobrazovat
+      // jako spojnice (viz removeContourSelfIntersections/chainBreak níže).
+      if (type === 'G1') {
         contourSegments.push({ type: 'line', p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, orig: p2 });
       } else if (type === 'G2' || type === 'G3') {
         const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, type);
         if (arc.error) foundErrors.push(`Řádek ${i + 2}: Rádius R${p2.r} je příliš malý.`);
         else if (arc.r < totalOffset) foundErrors.push(`KOLIZE (Řádek ${i + 2}): Rádius kontury menší než nástroj.`);
-        contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type });
+        const startAngle = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+        const endAngle = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+        contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle });
+      }
+    }
+    // Nejprve "mostové" segmenty (nově nakreslený úsek, který oběma konci
+    // dopadá doprostřed jiných segmentů přes G0 mezeru) zařadíme na jejich
+    // geometrické místo v kontuře — nahradí úsek, který přemosťují.
+    if (contourSegments.length > 2) {
+      contourSegments = spliceBridgeSegments(contourSegments);
+    }
+    // Odstranění samoprotnutí (global loop-removal) se dělá nad CELOU
+    // konturou napříč G0 mezerami — nový segment může "podjet" pod
+    // stávající konturu i přes místo, kde CAD export vložil G0 přeskok
+    // (segmenty na sebe geometricky nenavazují, ale protnutí mezi nimi
+    // pořád určuje, kde se má vnitřní smyčka vyříznout).
+    if (contourSegments.length > 2) {
+      contourSegments = removeContourSelfIntersections(contourSegments);
+    }
+    // Až po vyříznutí smyček označíme zbývající skutečné mezery (G0
+    // přeskoky, které se nepodařilo/nemělo spojit ořezem) jako chainBreak —
+    // tam dráha najede rychloposuvem místo spojovacího řezu/čáry.
+    for (let i = 1; i < contourSegments.length; i++) {
+      const prevEnd = segEndPoint(contourSegments[i - 1]);
+      const curStart = segStartPoint(contourSegments[i]);
+      if (Math.hypot(curStart.x - prevEnd.x, curStart.z - prevEnd.z) > 1e-4) {
+        contourSegments[i].chainBreak = true;
       }
     }
     for (let i = 0; i < stockWorldPoints.length - 1; i++) {
       const p1 = stockWorldPoints[i], p2 = stockWorldPoints[i + 1], type = p2.type;
-      if (type === 'G0' || type === 'G1') {
+      if (type === 'G1') {
         stockPathSegments.push({ type: 'line', p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal } });
       } else if (type === 'G2' || type === 'G3') {
         const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, type);
@@ -1527,7 +1687,10 @@ export function openCamSimulator(initialContour) {
           offSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
         }
       }
-      if (offSeg) rawOffsets.push(offSeg);
+      if (offSeg) {
+        if (seg.chainBreak) offSeg.chainBreak = true;
+        rawOffsets.push(offSeg);
+      }
     }
 
     // 2. trimming + loop removal (shared helper handles all segment combos)
@@ -1538,9 +1701,10 @@ export function openCamSimulator(initialContour) {
       let finRaw = [];
       for (let i = 0; i < contourSegments.length; i++) {
         const seg = contourSegments[i];
+        let finSeg = null;
         if (seg.type === 'line') {
           const n = getNormal(seg.p1, seg.p2);
-          finRaw.push({ type: 'line', p1: { x: seg.p1.x + n.x * tipR, z: seg.p1.z + n.z * tipR }, p2: { x: seg.p2.x + n.x * tipR, z: seg.p2.z + n.z * tipR } });
+          finSeg = { type: 'line', p1: { x: seg.p1.x + n.x * tipR, z: seg.p1.z + n.z * tipR }, p2: { x: seg.p2.x + n.x * tipR, z: seg.p2.z + n.z * tipR } };
         } else if (seg.type === 'arc') {
           // Autodetekce směru z geometrie — viz komentář u rough offsetu.
           const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
@@ -1550,8 +1714,12 @@ export function openCamSimulator(initialContour) {
           if (rNew > 0.05) {
             const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
             const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-            finRaw.push({ type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle });
+            finSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
           }
+        }
+        if (finSeg) {
+          if (seg.chainBreak) finSeg.chainBreak = true;
+          finRaw.push(finSeg);
         }
       }
       finishOffsetPath = trimAndRemoveLoops(finRaw);
@@ -2231,6 +2399,13 @@ export function openCamSimulator(initialContour) {
       simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${prms.feed}`, simCounter);
       calc.finishOffsetPath.forEach(seg => {
         if (seg.isDegenerate) return;
+        // chainBreak = samostatný řetěz (mezi konturami nic nenavazuje) —
+        // najet rychloposuvem na jeho začátek místo řezného přejezdu mezerou.
+        if (seg.chainBreak) {
+          const sp = segStartPoint(seg);
+          const spX = prms.mode === 'DIAMON' ? (sp.x * 2).toFixed(3) : sp.x.toFixed(3);
+          simCounter += 1; addN(`G0 X${spX} Z${sp.z.toFixed(3)}`, simCounter);
+        }
         if (seg.type === 'line') {
           const eX = prms.mode === 'DIAMON' ? (seg.p2.x * 2).toFixed(3) : seg.p2.x.toFixed(3);
           simCounter += 1; addN(`G1 X${eX} Z${seg.p2.z.toFixed(3)}`, simCounter);
@@ -2399,7 +2574,11 @@ export function openCamSimulator(initialContour) {
       for (let i = 0; i < calc.worldPoints.length - 1; i++) {
         const p1 = calc.worldPoints[i], p2 = calc.worldPoints[i + 1];
         const ptEnd = toScreen(p2.xReal, p2.zReal);
-        if (p2.type === 'G0' || p2.type === 'G1') {
+        if (p2.type === 'G0') {
+          // G0 = mezera mezi nesouvisejícími entitami — nic nevykreslovat,
+          // jen přesunout "pero" na začátek dalšího úseku.
+          ctx.moveTo(ptEnd.x, ptEnd.y);
+        } else if (p2.type === 'G1') {
           ctx.lineTo(ptEnd.x, ptEnd.y);
         } else if (p2.type === 'G2' || p2.type === 'G3') {
           const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
@@ -2451,7 +2630,7 @@ export function openCamSimulator(initialContour) {
         if (seg.isDegenerate) return;
         if (seg.type === 'line') {
           const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
-          if (i === 0) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
+          if (i === 0 || seg.chainBreak) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
           ctx.lineTo(p2.x, p2.y);
         } else if (seg.type === 'arc') {
           const steps = arcSteps(seg.r, S.view.scale);
@@ -2461,7 +2640,7 @@ export function openCamSimulator(initialContour) {
           for (let j = 0; j <= steps; j++) {
             const a = sA + (eA - sA) * (j / steps);
             const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
-            if (j === 0 && i === 0) ctx.moveTo(pt.x, pt.y);
+            if (j === 0 && (i === 0 || seg.chainBreak)) ctx.moveTo(pt.x, pt.y);
             else ctx.lineTo(pt.x, pt.y);
           }
         }
@@ -2476,7 +2655,7 @@ export function openCamSimulator(initialContour) {
         if (seg.isDegenerate) return;
         if (seg.type === 'line') {
           const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
-          if (i === 0) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
+          if (i === 0 || seg.chainBreak) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
           ctx.lineTo(p2.x, p2.y);
         } else if (seg.type === 'arc') {
           const steps = arcSteps(seg.r, S.view.scale);
@@ -2486,7 +2665,7 @@ export function openCamSimulator(initialContour) {
           for (let j = 0; j <= steps; j++) {
             const a = sA + (eA - sA) * (j / steps);
             const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
-            if (i === 0 && j === 0) ctx.moveTo(pt.x, pt.y);
+            if (j === 0 && (i === 0 || seg.chainBreak)) ctx.moveTo(pt.x, pt.y);
             else ctx.lineTo(pt.x, pt.y);
           }
         }
@@ -3569,7 +3748,11 @@ export function openCamSimulator(initialContour) {
         const c1 = toCanvas(x1, p1.zAbs);
         const c2 = toCanvas(x2, p2.zAbs);
 
-        if (p2.type === 'G0' || p2.type === 'G1') {
+        if (p2.type === 'G0') {
+          // G0 = mezera mezi nesouvisejícími entitami — nevytvářet úsečku
+          // tam, kde v CADu nic nebylo nakresleno.
+          continue;
+        } else if (p2.type === 'G1') {
           const id = state.nextId++;
           const obj = {
             type: 'line', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
