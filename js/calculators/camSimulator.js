@@ -2568,11 +2568,12 @@ export function openCamSimulator(initialContour) {
       // V contour edit módu jsou interaktivní; v stock módu jen reference (menší).
       ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const contourActive = S.editMode === 'contour';
+      const pointPickActive = S.addPointMode || S.delPointMode;
       if (calc.worldPoints) {
         calc.worldPoints.forEach((p, i) => {
           if (!p) return;
           const pt = toScreen(p.xReal, p.zReal);
-          const isHovered = contourActive && !S._hoverIsStock && i === S.hoverPointId;
+          const isHovered = (contourActive || pointPickActive) && !S._hoverIsStock && i === S.hoverPointId;
           const isDragged = contourActive && !_draggingStock && i === S.draggedPointId;
           const isSelected = contourActive && S.selectedPoints.has(i);
           const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (contourActive ? 4 : 3));
@@ -2596,7 +2597,7 @@ export function openCamSimulator(initialContour) {
         calc.stockWorldPoints.forEach((p, i) => {
           if (!p) return;
           const pt = toScreen(p.xReal, p.zReal);
-          const isHovered = stockActive && S._hoverIsStock && i === S.hoverPointId;
+          const isHovered = (stockActive || pointPickActive) && S._hoverIsStock && i === S.hoverPointId;
           const isDragged = stockActive && _draggingStock && i === S.draggedPointId;
           const isSelected = stockActive && S.selectedPoints.has(i);
           const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (stockActive ? 4 : 3));
@@ -2795,6 +2796,36 @@ export function openCamSimulator(initialContour) {
       const pt = toScreen(pts[i].xReal, pts[i].zReal);
       const d = Math.hypot(pt.x - mx, pt.y - my);
       if (d < 15 && d < minD) { minD = d; closest = i; }
+    }
+    return closest;
+  }
+
+  // Najde nejbližší bod kontury NEBO polotovaru bez ohledu na aktuální
+  // editMode — používá se pro "+"/"−" (vložit/odebrat bod), aby šlo
+  // navázat kresbu i z bodu polotovaru, když je aktivní editor kontury.
+  function getAnyPointAt(clientX, clientY) {
+    if (S.simRunning) return null;
+    const calc = S._cachedCalc; if (!calc) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left, my = clientY - rect.top;
+    const prms = S.params;
+    const vS = S.flipX ? 1 : -1;
+    const toScreen = (x, z) => {
+      if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+    };
+    let closest = null, minD = Infinity;
+    (calc.worldPoints || []).forEach((p, i) => {
+      const pt = toScreen(p.xReal, p.zReal);
+      const d = Math.hypot(pt.x - mx, pt.y - my);
+      if (d < 15 && d < minD) { minD = d; closest = { idx: i, isStock: false }; }
+    });
+    if (prms.stockMode !== 'cylinder') {
+      (calc.stockWorldPoints || []).forEach((p, i) => {
+        const pt = toScreen(p.xReal, p.zReal);
+        const d = Math.hypot(pt.x - mx, pt.y - my);
+        if (d < 15 && d < minD) { minD = d; closest = { idx: i, isStock: true }; }
+      });
     }
     return closest;
   }
@@ -3853,8 +3884,9 @@ export function openCamSimulator(initialContour) {
   }
 
   // ── CANVAS INTERACTION ──
-  function handleInsertAfter(index) {
-    const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
+  function handleInsertAfter(index, isStock) {
+    const stock = isStock !== undefined ? isStock : S.editMode === 'stock';
+    const list = stock ? S.stockPoints : S.contourPoints;
     const prev = list[index];
     openInsertSegmentModal(prev, (newPt, tgt) => {
       pushHistory();
@@ -3866,11 +3898,11 @@ export function openCamSimulator(initialContour) {
         targetList.push({ ...newPt, id: Date.now() });
       }
       fullUpdate();
-    });
+    }, stock ? 'stock' : 'contour');
   }
 
   // ── Modal pro vložení segmentu ──────────────────────────────────
-  function openInsertSegmentModal(fromPt, onConfirm) {
+  function openInsertSegmentModal(fromPt, onConfirm, defaultTarget) {
     let pickMode = false;
 
     const ov = document.createElement('div');
@@ -3915,7 +3947,7 @@ export function openCamSimulator(initialContour) {
       const x = ov._x !== undefined ? ov._x : fromPt.x;
       const z = ov._z !== undefined ? ov._z : (parseFloat(fromPt.z) - 5);
       const r = ov._r !== undefined ? ov._r : (fromPt.r || 0);
-      const target = ov._target || S.editMode || 'contour';
+      const target = ov._target || defaultTarget || S.editMode || 'contour';
       const isArc = type === 'G2' || type === 'G3';
 
       ov.innerHTML = `
@@ -4121,15 +4153,17 @@ export function openCamSimulator(initialContour) {
     }
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
-      if (pointIdx !== null) { handleInsertAfter(pointIdx); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
+      const found = getAnyPointAt(e.clientX, e.clientY);
+      if (found) { handleInsertAfter(found.idx, found.isStock); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
       return;
     }
     if (S.delPointMode) {
-      if (pointIdx !== null) {
-        const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
+      const found = getAnyPointAt(e.clientX, e.clientY);
+      if (found) {
+        const list = found.isStock ? S.stockPoints : S.contourPoints;
         if (list.length > 1) {
           pushHistory();
-          list.splice(pointIdx, 1);
+          list.splice(found.idx, 1);
           fullUpdate();
         } else {
           showToast('Nelze odebrat poslední bod.');
@@ -4155,8 +4189,10 @@ export function openCamSimulator(initialContour) {
     const stockHover = S.pointDragEnabled ? getStockHandleAt(e.clientX, e.clientY) : null;
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
-      canvas.style.cursor = pointIdx !== null ? 'pointer' : 'copy';
-      if (S.hoverPointId !== pointIdx) { S.hoverPointId = pointIdx; draw(); }
+      const found = getAnyPointAt(e.clientX, e.clientY);
+      canvas.style.cursor = found ? 'pointer' : 'copy';
+      const newId = found ? found.idx : null, newIsStock = !!(found && found.isStock);
+      if (S.hoverPointId !== newId || S._hoverIsStock !== newIsStock) { S.hoverPointId = newId; S._hoverIsStock = newIsStock; draw(); }
       return;
     }
     if (!S.isDragging) {
@@ -4376,13 +4412,15 @@ export function openCamSimulator(initialContour) {
       }
       const pointIdx = getPointAt(t.clientX, t.clientY);
       if (S.addPointMode) {
-        if (pointIdx !== null) { handleInsertAfter(pointIdx); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
+        const found = getAnyPointAt(t.clientX, t.clientY);
+        if (found) { handleInsertAfter(found.idx, found.isStock); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
         return;
       }
       if (S.delPointMode) {
-        if (pointIdx !== null) {
-          const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
-          if (list.length > 1) { pushHistory(); list.splice(pointIdx, 1); fullUpdate(); }
+        const found = getAnyPointAt(t.clientX, t.clientY);
+        if (found) {
+          const list = found.isStock ? S.stockPoints : S.contourPoints;
+          if (list.length > 1) { pushHistory(); list.splice(found.idx, 1); fullUpdate(); }
           else showToast('Nelze odebrat poslední bod.');
         }
         return;
