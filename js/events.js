@@ -15,7 +15,7 @@ import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 
@@ -396,6 +396,7 @@ document.addEventListener("keydown", (e) => {
     resetSlotState();
     resetPolygonState();
     resetStarState();
+    resetGrooveState();
     resetBooleanState();
     resetCopyPlaceState();
     resetProfileTraceState();
@@ -986,6 +987,10 @@ export function handleCanvasClick(wx, wy) {
 
     case "star":
       handleStarClick(wx, wy);
+      break;
+
+    case "groove":
+      handleGrooveClick(wx, wy);
       break;
 
     case "anchor":

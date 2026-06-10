@@ -222,6 +222,19 @@ function renderAxes() {
   g.lineTo(state.panX, h);
   g.stroke();
 
+  // Osa rotace soustruhu (Z, y=0) – čerchovaná čára (konvence osy souměrnosti)
+  if (!isKarusel) {
+    g.save();
+    g.strokeStyle = hColor + 'aa';
+    g.lineWidth = LINE_WIDTH;
+    g.setLineDash([18, 4, 2, 4]);
+    g.beginPath();
+    g.moveTo(0, state.panY);
+    g.lineTo(w, state.panY);
+    g.stroke();
+    g.restore();
+  }
+
   // Mřížka – zobrazit pokud je zapnutý snap na mřížku
   if (state.snapToGrid) {
     const gs = state.gridSize * state.zoom;         // velikost buňky v px

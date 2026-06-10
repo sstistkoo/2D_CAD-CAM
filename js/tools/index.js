@@ -27,6 +27,7 @@ export { handleGearPairClick, resetGearPairState } from './gearPairClick.js';
 export { handleSlotClick, resetSlotState } from './slotClick.js';
 export { handlePolygonClick, resetPolygonState } from './polygonClick.js';
 export { handleStarClick, resetStarState } from './starClick.js';
+export { handleGrooveClick, resetGrooveState } from './grooveClick.js';
 export { handleAnchorClick, isAnchored, hasAnchoredPoint, removeAnchorsForObject, removeAnchorAt, cleanupOrphanAnchors } from './anchorClick.js';
 export { handleBreakClick } from './breakClick.js';
 export { handleCenterMarkClick, centerMarkFromSelection } from './centerMarkClick.js';
