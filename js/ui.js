@@ -41,6 +41,7 @@ function persistSettings() {
       base.xDisplayMode = state.xDisplayMode;
       base.flipX = state.flipX;
       base.mirrorPreview = state.mirrorPreview;
+      base.showContourGaps = state.showContourGaps;
       base.displayDecimals = state.displayDecimals;
       base.theme = state.theme;
       base.snapToGrid = state.snapToGrid;
@@ -3998,6 +3999,9 @@ function showSettingsDialog() {
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Zobrazit poloprůhledný náhled kontury zrcadlené kolem osy rotace (y=0)">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
         </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="calc-btn" id="settContourGaps" style="${btnS}${act(state.showContourGaps)}" title="Zvýraznit mezery/přerušení v kontuře na plátně">⊗ Mezery v kontuře: ${state.showContourGaps ? 'ON' : 'OFF'}</button>
+        </div>
       </fieldset>
 
       <!-- Mřížka a snap -->
@@ -4153,6 +4157,17 @@ function showSettingsDialog() {
     renderAll();
     persistSettings();
     showToast(state.mirrorPreview ? 'Náhled zrcadlení: ON' : 'Náhled zrcadlení: OFF');
+  });
+
+  // ── Zobrazení mezer v kontuře ──
+  overlay.querySelector('#settContourGaps').addEventListener('click', () => {
+    state.showContourGaps = !state.showContourGaps;
+    const gBtn = overlay.querySelector('#settContourGaps');
+    gBtn.style.cssText = `${btnBase}${state.showContourGaps ? activeStyle : inactiveStyle}`;
+    gBtn.textContent = `⊗ Mezery v kontuře: ${state.showContourGaps ? 'ON' : 'OFF'}`;
+    renderAll();
+    persistSettings();
+    showToast(state.showContourGaps ? 'Zvýraznění mezer v kontuře: ON' : 'Zvýraznění mezer v kontuře: OFF');
   });
 
   // ── Snap mřížka ON/OFF ──

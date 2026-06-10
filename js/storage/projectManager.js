@@ -34,6 +34,7 @@ function _buildProjectData() {
     xDisplayMode: state.xDisplayMode,
     flipX: state.flipX,
     mirrorPreview: state.mirrorPreview,
+    showContourGaps: state.showContourGaps,
     layers: state.layers,
     activeLayer: state.activeLayer,
     nextLayerId: state.nextLayerId,
@@ -66,6 +67,7 @@ function _loadProjectData(data) {
   state.xDisplayMode = data.xDisplayMode || 'radius';
   state.flipX = !!data.flipX;
   state.mirrorPreview = !!data.mirrorPreview;
+  if (data.showContourGaps !== undefined) state.showContourGaps = !!data.showContourGaps;
   if (data.layers) {
     state.layers = data.layers;
     state.activeLayer = data.activeLayer || 0;

@@ -1146,6 +1146,7 @@ function renderObjects() {
 
 // ── Mezery v kontuře (zvýraznění chyb před generováním polotovaru/G-kódu) ──
 function drawContourGapMarkers() {
+  if (!state.showContourGaps) return;
   const gaps = state.contourGaps;
   if (!gaps || gaps.length === 0) return;
   ctx.save();

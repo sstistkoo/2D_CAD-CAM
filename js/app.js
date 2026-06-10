@@ -77,6 +77,7 @@ async function tryAutoLoad() {
       if (data.snapQuadrants !== undefined) state.snapQuadrants = data.snapQuadrants;
       if (data.snapMidpoints !== undefined) state.snapMidpoints = data.snapMidpoints;
       if (data.snapCenters !== undefined) state.snapCenters = data.snapCenters;
+      if (data.showContourGaps !== undefined) state.showContourGaps = data.showContourGaps;
       if (Array.isArray(data.undoStack)) state.undoStack = data.undoStack;
       updateObjectList();
       updateProperties();
