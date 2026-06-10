@@ -560,6 +560,21 @@ function intersectVerticalLineArc(zLine, center, radius) {
   const sqrtTerm = Math.sqrt(term);
   return [center.x - sqrtTerm, center.x + sqrtTerm];
 }
+// X-ové průsečíky segmentu (line/arc) se svislou čarou Z = zVal — pro
+// nalezení bodu polotovaru na limitu čelistí/koníku.
+function intersectSegAtZ(seg, zVal) {
+  if (seg.type === 'line') {
+    const x = intersectVerticalLineSegment(zVal, seg.p1, seg.p2);
+    return x === null ? [] : [x];
+  }
+  if (seg.type === 'arc') {
+    return intersectVerticalLineArc(zVal, { x: seg.cx, z: seg.cz }, seg.r).filter(x => {
+      const a = Math.atan2(x - seg.cx, zVal - seg.cz);
+      return isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2');
+    });
+  }
+  return [];
+}
 
 // ── Shared offset trimming + loop removal ──────────────────────
 function findSegIntersection(s1, s2) {
@@ -2573,17 +2588,18 @@ export function openCamSimulator(initialContour) {
           }
         });
       }
-      // Body polotovaru — jen v stock módu (a jen pro casting, ne pro cylinder
-      // — ten má své vlastní handle nahoře). Čísla s prefixem „S" aby se
-      // nepletly s konturou.
-      if (S.editMode === 'stock' && calc.stockWorldPoints && prms.stockMode !== 'cylinder') {
+      // Body polotovaru — VŽDY zobrazené s čísly (S1, S2...), jen pro
+      // casting (ne pro cylinder — ten má své vlastní handle nahoře).
+      // V stock edit módu jsou interaktivní; v contour módu jen reference.
+      if (calc.stockWorldPoints && prms.stockMode !== 'cylinder') {
+        const stockActive = S.editMode === 'stock';
         calc.stockWorldPoints.forEach((p, i) => {
           if (!p) return;
           const pt = toScreen(p.xReal, p.zReal);
-          const isHovered = S._hoverIsStock && i === S.hoverPointId;
-          const isDragged = _draggingStock && i === S.draggedPointId;
-          const isSelected = S.selectedPoints.has(i);
-          const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : 4);
+          const isHovered = stockActive && S._hoverIsStock && i === S.hoverPointId;
+          const isDragged = stockActive && _draggingStock && i === S.draggedPointId;
+          const isSelected = stockActive && S.selectedPoints.has(i);
+          const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (stockActive ? 4 : 3));
           ctx.fillStyle = (isHovered || isDragged) ? '#f9e2af' : (isSelected ? '#f9e2af' : C.pass);
           ctx.beginPath(); ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2); ctx.fill();
           if (isSelected) {
@@ -2591,7 +2607,7 @@ export function openCamSimulator(initialContour) {
             ctx.beginPath(); ctx.arc(pt.x, pt.y, radius + 3, 0, Math.PI * 2); ctx.stroke();
           }
           if (!isHovered && !isDragged) {
-            ctx.fillStyle = '#f9e2af';
+            ctx.fillStyle = stockActive ? '#f9e2af' : C.pass;
             ctx.fillText(`S${i + 1}`, pt.x + 8, pt.y - 8);
           }
         });
@@ -2965,6 +2981,11 @@ export function openCamSimulator(initialContour) {
     html += `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="cam-sim-btn ${isStock ? 'cam-sim-btn-green' : 'cam-sim-btn-blue'}" data-act="addpt-list">➕ Přidat bod</button>
     </div>`;
+    if (isStock && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck)) {
+      html += `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+      <button class="cam-sim-btn cam-sim-btn-gray" data-act="addpt-chuck-limit">⛔ Bod na limitu čelistí</button>
+    </div>`;
+    }
     }
     html += `<div style="display:flex;gap:4px;margin-top:6px">
       <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-gray" data-act="copy-code">📋 Kopírovat</button>
@@ -3059,6 +3080,8 @@ export function openCamSimulator(initialContour) {
       ensureStockModeCasting();
       fullUpdate();
     });
+    const addChuckPtBtn = tabBody.querySelector('[data-act="addpt-chuck-limit"]');
+    if (addChuckPtBtn) addChuckPtBtn.addEventListener('click', handleAddStockChuckPoint);
     const copyBtn = tabBody.querySelector('[data-act="copy-code"]');
     if (copyBtn) copyBtn.addEventListener('click', handleCopyGCode);
     const dlBtn = tabBody.querySelector('[data-act="download"]');
@@ -3795,6 +3818,39 @@ export function openCamSimulator(initialContour) {
       draw(); updateCodeHighlight(); updateProgressBar();
     }
   });
+
+  // Vloží do polotovaru nový bod tam, kde jeho obrys protíná svislou
+  // čáru limitu čelistí (Z = S.zLimits.chuck) — vznikne reálný vrchol
+  // polotovaru, který lze tahat/označit i použít jako bod pro kreslení
+  // (po "📐 Kreslit" je vidět jako koncový bod úsečky polotovaru).
+  function handleAddStockChuckPoint() {
+    const chuckLim = S.zLimits.chuck;
+    if (typeof chuckLim !== 'number' || !isFinite(chuckLim)) return;
+    const calc = S._cachedCalc || calculate();
+    const prms = S.params;
+    const inserts = [];
+    calc.stockPathSegments.forEach((seg, i) => {
+      intersectSegAtZ(seg, chuckLim).forEach(x => inserts.push({ afterIndex: i, x }));
+    });
+    if (inserts.length === 0) {
+      alert('Obrys polotovaru neprotíná limit čelistí.');
+      return;
+    }
+    pushHistory();
+    // Vkládat od konce, ať se nemění indexy dříve nalezených průsečíků.
+    inserts.sort((a, b) => b.afterIndex - a.afterIndex);
+    inserts.forEach(({ afterIndex, x }) => {
+      const rawX = prms.mode === 'DIAMON' ? x * 2 : x;
+      S.stockPoints.splice(afterIndex + 1, 0, {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        type: 'G1', mode: 'ABS',
+        x: Math.round(rawX * 1000) / 1000,
+        z: Math.round(chuckLim * 1000) / 1000,
+        r: 0
+      });
+    });
+    fullUpdate();
+  }
 
   // ── CANVAS INTERACTION ──
   function handleInsertAfter(index) {
