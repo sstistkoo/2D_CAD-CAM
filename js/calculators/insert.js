@@ -1,6 +1,7 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { saveToolToLibrary } from '../toolLibrary.js';
 
 const vbdIsoData = {
   1: { title:'Tvar',options:[
@@ -275,12 +276,14 @@ export function openInsertCalc() {
     '<tr><td>Vc</td><td id="cutRVc">–</td><td>m/min</td></tr>' +
     '<tr><td>f</td><td id="cutRF">–</td><td>mm/ot</td></tr>' +
     '<tr><td>ap</td><td id="cutRAp">–</td><td>mm</td></tr>' +
-    '<tr><td>VBD</td><td id="cutRVbd" colspan="2">–</td></tr></table></div>';
+    '<tr><td>VBD</td><td id="cutRVbd" colspan="2">–</td></tr></table>' +
+    '<button class="vbd-decode-btn" id="cutRSave" style="width:100%;margin-top:6px">🧰 Uložit do knihovny nástrojů</button></div>';
   tab4 += '<div class="vbd-cut-card"><div class="vbd-cut-title vbd-cut-finish">Dokončování</div><table class="vbd-cut-tbl">' +
     '<tr><td>Vc</td><td id="cutFVc">–</td><td>m/min</td></tr>' +
     '<tr><td>f</td><td id="cutFF">–</td><td>mm/ot</td></tr>' +
     '<tr><td>ap</td><td id="cutFAp">–</td><td>mm</td></tr>' +
-    '<tr><td>VBD</td><td id="cutFVbd" colspan="2">–</td></tr></table></div>';
+    '<tr><td>VBD</td><td id="cutFVbd" colspan="2">–</td></tr></table>' +
+    '<button class="vbd-decode-btn" id="cutFSave" style="width:100%;margin-top:6px">🧰 Uložit do knihovny nástrojů</button></div>';
   tab4 += '</div>';
   tab4 += '<div class="vbd-cut-note">⚠ Orientační hodnoty – závisí na stroji, chlazení a stabilitě upnutí.</div>';
   tab4 += '</div></div>';
@@ -797,6 +800,26 @@ export function openInsertCalc() {
     overlay.querySelector('#cutFF').textContent = data.finish[1];
     overlay.querySelector('#cutFAp').textContent = data.finish[2];
     overlay.querySelector('#cutFVbd').textContent = data.finish[3];
+
+    var matLabel = data.label;
+    overlay.querySelector('#cutRSave').onclick = function() {
+      saveToolToLibrary({
+        name: matLabel + ' – hrubování',
+        material: matLabel,
+        vbdCode: data.rough[3],
+        tipRadius: 0.8,
+        vc: data.rough[0], f: data.rough[1], ap: data.rough[2],
+      });
+    };
+    overlay.querySelector('#cutFSave').onclick = function() {
+      saveToolToLibrary({
+        name: matLabel + ' – dokončování',
+        material: matLabel,
+        vbdCode: data.finish[3],
+        tipRadius: 0.4,
+        vc: data.finish[0], f: data.finish[1], ap: data.finish[2],
+      });
+    };
   });
 
   // ── Search ──

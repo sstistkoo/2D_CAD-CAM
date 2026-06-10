@@ -11,6 +11,7 @@ import { autoCenterView } from '../canvas.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
+import { showToolLibraryDialog } from '../toolLibrary.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
 function camConfirm(message) {
@@ -3085,7 +3086,7 @@ export function openCamSimulator(initialContour) {
     <div class="cam-sim-row">
       <div class="cam-sim-field" title="Rezervováno pro ramp-in nájezdy. Aktuální podélná strategie ho nepoužívá — nástroj sjede svisle na bezpečném Z, kde kontura už klesla pod aktuální hloubku."><label>Úhel nájezdu (°)</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${prms.entryAngle}"></div>
     </div>`;
-    html += `<div class="cam-sim-section-title">Nástroj</div>
+    html += `<div class="cam-sim-section-title">Nástroj <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button></div>
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
       <div class="cam-sim-field"><label>Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
@@ -3188,6 +3189,30 @@ export function openCamSimulator(initialContour) {
     });
     const finCb = tabBody.querySelector('#cam-sim-fin');
     if (finCb) finCb.addEventListener('change', () => { S.params.doFinishing = finCb.checked; fullUpdate(); });
+    const toolLibBtn = tabBody.querySelector('[data-act="tool-library"]');
+    if (toolLibBtn) toolLibBtn.addEventListener('click', () => {
+      showToolLibraryDialog({
+        getCurrent: () => ({
+          name: S.params.toolName,
+          tipRadius: S.params.toolRadius,
+          toolAngle: S.params.toolAngle,
+          tipAngle: S.params.toolTipAngle,
+          vc: S.params.speed,
+          f: S.params.feed,
+          ap: S.params.depthOfCut,
+        }),
+        onApply: (tool) => {
+          if (tool.name) S.params.toolName = tool.name;
+          if (tool.tipRadius !== undefined) S.params.toolRadius = tool.tipRadius;
+          if (tool.toolAngle !== undefined) S.params.toolAngle = tool.toolAngle;
+          if (tool.tipAngle !== undefined) S.params.toolTipAngle = tool.tipAngle;
+          if (tool.vc) S.params.speed = tool.vc;
+          if (tool.f) S.params.feed = tool.f;
+          if (tool.ap) S.params.depthOfCut = tool.ap;
+          fullUpdate();
+        },
+      });
+    });
     const autoBtn = tabBody.querySelector('[data-act="auto-stock"]');
     if (autoBtn) autoBtn.addEventListener('click', handleAutoStock);
     const resetBtn = tabBody.querySelector('[data-act="reset"]');
