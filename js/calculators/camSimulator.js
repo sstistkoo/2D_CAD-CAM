@@ -188,6 +188,18 @@ function injectCSS() {
   font-size: 10px; font-family: monospace; color: #6c7086; min-width: 32px;
   text-align: right;
 }
+.cam-sim-player-bar {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 4px 8px; background: #181825; border-top: 1px solid #45475a;
+}
+.cam-sim-player-bar button {
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 16px;
+  line-height: 1;
+}
+.cam-sim-player-bar button:hover { background: #45475a; }
+.cam-sim-player-bar button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
+.cam-sim-player-bar button[data-act="play"] { min-width: 44px; }
 .cam-sim-code-area {
   height: 180px; border-top: 1px solid #45475a; display: flex; flex-direction: column;
   background: #11111b;
@@ -395,7 +407,15 @@ function injectCSS() {
     margin-top: 0;
   }
   .cam-sim-tab-body { padding-bottom: 80px; }
-  .cam-sim-code-area { min-height: 100px; max-height: 140px; }
+  .cam-sim-code-area { min-height: 160px; max-height: 200px; }
+  .cam-sim-player-bar { gap: 3px; padding: 4px 4px; }
+  .cam-sim-player-bar button {
+    padding: 4px 6px; font-size: 13px; min-width: 0;
+  }
+  .cam-sim-player-bar button[data-act="play"] { min-width: 30px; }
+  .cam-sim-speed-group { padding: 2px 4px; gap: 2px; }
+  .cam-sim-speed-label { min-width: 26px; font-size: 10px; }
+  .cam-sim-code-bar > span { display: none; }
 }
 `;
   document.head.appendChild(style);
@@ -1214,14 +1234,6 @@ export function openCamSimulator(initialContour) {
 <div class="cam-sim-root">
   <div class="cam-sim-canvas-area">
     <div class="cam-sim-toolbar">
-      <button data-act="play" title="Spustit/Pauza">▶</button>
-      <button data-act="stop" title="Zastavit">⏹</button>
-      <button data-act="sbl" title="Single block – krok po blocích G-kódu" style="font-size:11px;font-weight:bold;letter-spacing:0.5px">SBL</button>
-      <div class="cam-sim-speed-group">
-        <button data-act="speed-down" title="Zpomalit">◀</button>
-        <span class="cam-sim-speed-label">1×</span>
-        <button data-act="speed-up" title="Zrychlit">▶</button>
-      </div>
       <button data-act="addpt" title="Vložit za bod">➕</button>
       <button data-act="delpt" title="Odebrat bod">➖</button>
       <button data-act="lock" title="Zamknout/odemknout body" class="cam-sim-active">🔒</button>
@@ -1235,11 +1247,23 @@ export function openCamSimulator(initialContour) {
       <div class="cam-sim-progress-track"><div class="cam-sim-progress-fill"></div></div>
       <span class="cam-sim-progress-pct">0%</span>
     </div>
+    <div class="cam-sim-player-bar">
+      <button data-act="step-back" title="Krok zpět – předchozí pohyb">⏮</button>
+      <button data-act="play" title="Spustit/Pauza">▶</button>
+      <button data-act="stop" title="Zastavit a vrátit na začátek">⏹</button>
+      <button data-act="step-fwd" title="Krok vpřed – další pohyb">⏭</button>
+      <div class="cam-sim-speed-group">
+        <button data-act="speed-down" title="Zpomalit">◀</button>
+        <span class="cam-sim-speed-label">1×</span>
+        <button data-act="speed-up" title="Zrychlit">▶</button>
+      </div>
+      <button data-act="sbl" title="Single block – krok po blocích G-kódu" style="font-size:11px;font-weight:bold;letter-spacing:0.5px">SBL</button>
+    </div>
     <div class="cam-sim-code-area">
       <div class="cam-sim-code-bar">
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
-          <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Autorefresh drah</button>
+          <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Dráhy</button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
           <button data-code="show-sidebar" title="Zobrazit editor kontury">✏ Edit</button>
@@ -1485,6 +1509,8 @@ export function openCamSimulator(initialContour) {
   const errorsDiv = root.querySelector('.cam-sim-errors');
   const tabBody = root.querySelector('.cam-sim-tab-body');
   const toolbar = root.querySelector('.cam-sim-toolbar');
+  const playerBar = root.querySelector('.cam-sim-player-bar');
+  const playBtn = playerBar.querySelector('[data-act="play"]');
   const sidebar = root.querySelector('.cam-sim-sidebar');
 
   // Sync flipX button to persisted state
@@ -2999,6 +3025,39 @@ export function openCamSimulator(initialContour) {
     speedLabel.textContent = txt + '×';
   }
 
+  // Posun simulace o jeden G-kód blok vpřed (+1) nebo zpět (-1).
+  function seekToAdjacentBlock(direction) {
+    if (!S._cachedCalc) S._cachedCalc = calculate();
+    const calc = S._cachedCalc;
+    const total = calc.simPath.length - 1;
+    if (total <= 0) return;
+    S.simRunning = false; S.simBlockTarget = null; playBtn.textContent = '▶';
+    const currentSimIdx = Math.max(0, Math.min(total, Math.floor(S.simProgress * total)));
+    const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
+    let targetIdx;
+    if (direction > 0) {
+      targetIdx = total;
+      for (let i = currentSimIdx + 1; i <= total; i++) {
+        const li = calc.simPath[i].originalLineIdx;
+        if (li != null && li > currentLineIdx) { targetIdx = i; break; }
+      }
+    } else {
+      // Najít začátek aktuálního bloku; pokud už na něm jsme, skočit na začátek předchozího.
+      let blockStart = currentSimIdx;
+      while (blockStart > 0 && calc.simPath[blockStart - 1].originalLineIdx === currentLineIdx) blockStart--;
+      if (blockStart < currentSimIdx) {
+        targetIdx = blockStart;
+      } else {
+        const prevLineIdx = blockStart > 0 ? calc.simPath[blockStart - 1].originalLineIdx : null;
+        let i = blockStart - 1;
+        while (i > 0 && calc.simPath[i - 1].originalLineIdx === prevLineIdx) i--;
+        targetIdx = Math.max(0, i);
+      }
+    }
+    S.simProgress = targetIdx / total;
+    draw(); updateCodeHighlight(); updateProgressBar();
+  }
+
   function startSimLoop() {
     if (S._animId) return;
     const animate = () => {
@@ -3024,8 +3083,7 @@ export function openCamSimulator(initialContour) {
         S.simBlockTarget = null;
       }
       if (!S.simRunning) {
-        const playBtn = toolbar.querySelector('[data-act="play"]');
-        if (playBtn) playBtn.textContent = '▶';
+        playBtn.textContent = '▶';
       }
       draw();
       updateCodeHighlight();
@@ -3796,38 +3854,7 @@ export function openCamSimulator(initialContour) {
     const btn = e.target.closest('button');
     if (!btn) return;
     const act = btn.dataset.act;
-    if (act === 'play') {
-      if (S.simRunning) { S.simRunning = false; S.simBlockTarget = null; btn.textContent = '▶'; }
-      else {
-        if (S.simProgress >= 1) S.simProgress = 0;
-        // V single-block módu: spočítat cíl = konec dalšího G-kód bloku.
-        if (S.singleBlock) {
-          if (!S._cachedCalc) S._cachedCalc = calculate();
-          const calc = S._cachedCalc;
-          const total = calc.simPath.length - 1;
-          const currentSimIdx = Math.floor(S.simProgress * total);
-          const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
-          let targetIdx = total;
-          for (let i = currentSimIdx + 1; i <= total; i++) {
-            const li = calc.simPath[i].originalLineIdx;
-            if (li != null && li > currentLineIdx) { targetIdx = i; break; }
-          }
-          S.simBlockTarget = total > 0 ? targetIdx / total : 1;
-        } else {
-          S.simBlockTarget = null;
-        }
-        S.simRunning = true; btn.textContent = '⏸'; startSimLoop();
-      }
-    } else if (act === 'stop') {
-      S.simRunning = false; S.simProgress = 0; S.simBlockTarget = null;
-      toolbar.querySelector('[data-act="play"]').textContent = '▶';
-      draw(); updateCodeHighlight(); updateProgressBar();
-    } else if (act === 'sbl') {
-      S.singleBlock = !S.singleBlock;
-      btn.classList.toggle('cam-sim-active', S.singleBlock);
-      if (!S.singleBlock) S.simBlockTarget = null;
-      showToast(S.singleBlock ? 'Single block ZAP – přehrávání po blocích' : 'Single block VYP');
-    } else if (act === 'addpt') {
+    if (act === 'addpt') {
       S.addPointMode = !S.addPointMode;
       if (S.addPointMode) { S.delPointMode = false; toolbar.querySelector('[data-act="delpt"]').classList.remove('cam-sim-active'); }
       btn.classList.toggle('cam-sim-active', S.addPointMode);
@@ -3837,16 +3864,6 @@ export function openCamSimulator(initialContour) {
       if (S.delPointMode) { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); }
       btn.classList.toggle('cam-sim-active', S.delPointMode);
       canvas.style.cursor = S.delPointMode ? 'no-drop' : 'crosshair';
-    } else if (act === 'speed-down') {
-      const idx = SIM_SPEEDS.indexOf(S.simSpeed);
-      if (idx > 0) S.simSpeed = SIM_SPEEDS[idx - 1];
-      else if (idx === -1) S.simSpeed = SIM_SPEEDS[0];
-      updateSpeedLabel();
-    } else if (act === 'speed-up') {
-      const idx = SIM_SPEEDS.indexOf(S.simSpeed);
-      if (idx < SIM_SPEEDS.length - 1) S.simSpeed = SIM_SPEEDS[idx + 1];
-      else if (idx === -1) S.simSpeed = SIM_SPEEDS[SIM_SPEEDS.length - 1];
-      updateSpeedLabel();
     } else if (act === 'lock') {
       S.pointDragEnabled = !S.pointDragEnabled;
       btn.textContent = S.pointDragEnabled ? '🔓' : '🔒';
@@ -3912,6 +3929,62 @@ export function openCamSimulator(initialContour) {
       // recalc. Při off taky, aby zmizel "Z-limity ořízly dráhy" warning.
       fullUpdate();
       showToast(cfg.toast);
+    }
+  });
+
+  // player bar (play/stop, krokování, rychlost, single-block)
+  playerBar.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'play') {
+      if (S.simRunning) {
+        // Pauza – zastavit, ale zachovat pozici.
+        S.simRunning = false; S.simBlockTarget = null;
+        playBtn.textContent = '▶';
+      } else {
+        if (S.simProgress >= 1) S.simProgress = 0;
+        // V single-block módu: spočítat cíl = konec dalšího G-kód bloku.
+        if (S.singleBlock) {
+          if (!S._cachedCalc) S._cachedCalc = calculate();
+          const calc = S._cachedCalc;
+          const total = calc.simPath.length - 1;
+          const currentSimIdx = Math.floor(S.simProgress * total);
+          const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
+          let targetIdx = total;
+          for (let i = currentSimIdx + 1; i <= total; i++) {
+            const li = calc.simPath[i].originalLineIdx;
+            if (li != null && li > currentLineIdx) { targetIdx = i; break; }
+          }
+          S.simBlockTarget = total > 0 ? targetIdx / total : 1;
+        } else {
+          S.simBlockTarget = null;
+        }
+        S.simRunning = true; playBtn.textContent = '⏸'; startSimLoop();
+      }
+    } else if (act === 'stop') {
+      S.simRunning = false; S.simProgress = 0; S.simBlockTarget = null;
+      playBtn.textContent = '▶';
+      draw(); updateCodeHighlight(); updateProgressBar();
+    } else if (act === 'step-back') {
+      seekToAdjacentBlock(-1);
+    } else if (act === 'step-fwd') {
+      seekToAdjacentBlock(1);
+    } else if (act === 'sbl') {
+      S.singleBlock = !S.singleBlock;
+      btn.classList.toggle('cam-sim-active', S.singleBlock);
+      if (!S.singleBlock) S.simBlockTarget = null;
+      showToast(S.singleBlock ? 'Single block ZAP – přehrávání po blocích' : 'Single block VYP');
+    } else if (act === 'speed-down') {
+      const idx = SIM_SPEEDS.indexOf(S.simSpeed);
+      if (idx > 0) S.simSpeed = SIM_SPEEDS[idx - 1];
+      else if (idx === -1) S.simSpeed = SIM_SPEEDS[0];
+      updateSpeedLabel();
+    } else if (act === 'speed-up') {
+      const idx = SIM_SPEEDS.indexOf(S.simSpeed);
+      if (idx < SIM_SPEEDS.length - 1) S.simSpeed = SIM_SPEEDS[idx + 1];
+      else if (idx === -1) S.simSpeed = SIM_SPEEDS[SIM_SPEEDS.length - 1];
+      updateSpeedLabel();
     }
   });
 
