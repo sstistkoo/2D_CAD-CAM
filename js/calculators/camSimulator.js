@@ -3180,11 +3180,19 @@ export function openCamSimulator(initialContour) {
     updateCodeHighlight();
     updateCodeBtns();
   }
-  function updateCodeHighlight() {
-    const calc = S._cachedCalc; if (!calc || S.useManualCode || calc.simPath.length < 2) return;
+  // Index řádku v S.generatedCode odpovídající aktuální pozici simulace
+  // (stejná logika jako zvýraznění v G-CODE panelu) — používá se i pro
+  // skok kurzoru v CAM Editoru na stejný řádek.
+  function getActiveCodeLineIdx() {
+    const calc = S._cachedCalc;
+    if (!calc || S.useManualCode || calc.simPath.length < 2) return null;
     const currentSimIdx = Math.floor(S.simProgress * (calc.simPath.length - 1));
     const activeIdx = S.generatedCode.findIndex(l => l.simIdx !== null && l.simIdx > currentSimIdx);
-    const hlIdx = activeIdx === -1 ? findLastIdx(S.generatedCode, l => l.simIdx !== null) : activeIdx;
+    return activeIdx === -1 ? findLastIdx(S.generatedCode, l => l.simIdx !== null) : activeIdx;
+  }
+  function updateCodeHighlight() {
+    if (S.useManualCode) return;
+    const hlIdx = getActiveCodeLineIdx();
     codeScroll.querySelectorAll('.cam-sim-code-line').forEach((el, i) => {
       el.classList.toggle('cam-sim-code-active', i === hlIdx);
     });
@@ -3749,7 +3757,7 @@ export function openCamSimulator(initialContour) {
   function handleSendToEditor() {
     const text = S.useManualCode ? S.manualGCode : S.generatedCode.map(l => l.text).join('\n');
     if (!text.trim()) { alert('Není žádný G-kód k odeslání.'); return; }
-    openCamEditor(text);
+    openCamEditor(text, getActiveCodeLineIdx());
   }
 
   // ── Vrátit konturu zpět na plátno ──

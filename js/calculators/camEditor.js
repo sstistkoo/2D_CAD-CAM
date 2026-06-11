@@ -441,7 +441,7 @@ function buildEditorHTML() {
 // ══════════════════════════════════════════════════════════════
 // ██  MAIN EXPORT  ████████████████████████████████████████████
 // ══════════════════════════════════════════════════════════════
-export function openCamEditor(initialCode) {
+export function openCamEditor(initialCode, jumpLine) {
   // ── State ──────────────────────────────────────────────────
   let programs   = {};
   let currentFile = '';
@@ -1186,4 +1186,9 @@ export function openCamEditor(initialCode) {
   }
 
   displayFile(currentFile);
+
+  // Skok kurzoru na řádek odpovídající aktuální pozici v simulaci CAM
+  if (typeof jumpLine === 'number' && jumpLine >= 0) {
+    requestAnimationFrame(() => jumpToLine(jumpLine));
+  }
 }
