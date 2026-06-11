@@ -1587,6 +1587,13 @@ export function openCamSimulator(initialContour) {
         contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle });
       }
     }
+    // Snapshot PŘED přemostěním/odstraněním smyček — spliceBridgeSegments
+    // může segmenty (např. malý zaoblovací rádius pod mostem) z kontury
+    // úplně odstranit, protože dráha tam nepojede. Pro detekci kolize
+    // tvaru destičky (interferenceSegments níže) ale potřebujeme i tyto
+    // odstraněné segmenty — i když se neobrábí, destička by je při
+    // přejezdu mostu mohla narážet, takže uživatel o nich má vědět.
+    const rawContourForInterference = contourSegments.map(s => structuredClone(s));
     // Nejprve "mostové" segmenty (nově nakreslený úsek, který oběma konci
     // dopadá doprostřed jiných segmentů přes G0 mezeru) zařadíme na jejich
     // geometrické místo v kontuře — nahradí úsek, který přemosťují.
@@ -1611,6 +1618,26 @@ export function openCamSimulator(initialContour) {
         contourSegments[i].chainBreak = true;
       }
     }
+    // Slepá odbočka: chainBreak segment, jehož KONEC se vrací do bodu, kde
+    // kontura už pokračuje (= konec předchozího segmentu). Dráha by sem
+    // musela rychloposuvem zajet a zase se vrátit na stejné místo —
+    // typicky zbytkový/duplicitní úsek z CADu uvnitř kontury, který nejde
+    // obrobit. Odstranit a nahlásit jako varování.
+    for (let i = contourSegments.length - 1; i >= 1; i--) {
+      const seg = contourSegments[i];
+      if (!seg.chainBreak) continue;
+      const segEnd = segEndPoint(seg);
+      const prevEnd = segEndPoint(contourSegments[i - 1]);
+      if (Math.hypot(segEnd.x - prevEnd.x, segEnd.z - prevEnd.z) < 1e-4) {
+        foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Uzavřená odbočka kontury u X${segEnd.x.toFixed(2)} Z${segEnd.z.toFixed(2)} nelze obrobit — vynechána.` });
+        contourSegments.splice(i, 1);
+        if (i < contourSegments.length) {
+          const nextSeg = contourSegments[i];
+          const nextStart = segStartPoint(nextSeg);
+          nextSeg.chainBreak = Math.hypot(nextStart.x - prevEnd.x, nextStart.z - prevEnd.z) > 1e-4;
+        }
+      }
+    }
     for (let i = 0; i < stockWorldPoints.length - 1; i++) {
       const p1 = stockWorldPoints[i], p2 = stockWorldPoints[i + 1], type = p2.type;
       if (type === 'G1') {
@@ -1630,7 +1657,7 @@ export function openCamSimulator(initialContour) {
     const interferenceSegments = [];
     if (clearance) {
       const { bisector, halfRange } = clearance;
-      contourSegments.forEach(seg => {
+      rawContourForInterference.forEach(seg => {
         let bad = false;
         if (seg.type === 'line') {
           const n = getNormal(seg.p1, seg.p2);
@@ -2228,6 +2255,15 @@ export function openCamSimulator(initialContour) {
         simPath.push(addToPath(startX + finishApproachDx, approachZ, startX, startZ, 'G1'));
         finishOffsetPath.forEach(seg => {
           if (seg.isDegenerate) return;
+          // chainBreak: G-kód generátor sem vkládá navíc G0 na začátek
+          // segmentu (viz --- DOKONCOVANI --- výše) — musíme jej zrcadlit
+          // i v simPath, jinak se simIdx/simCounter rozejdou a kurzor
+          // v editoru ukazuje na špatný bod dráhy.
+          if (seg.chainBreak) {
+            const sp = segStartPoint(seg);
+            const before = simPath[simPath.length - 1];
+            simPath.push(addToPath(before.x, before.z, sp.x, sp.z, 'G0'));
+          }
           const prev = simPath[simPath.length - 1];
           if (seg.type === 'line') {
             simPath.push(addToPath(prev.x, prev.z, seg.p2.x, seg.p2.z, 'G1'));

@@ -63,6 +63,7 @@ function defaultParserConfig() {
     spindle:   { name: 'Otáčky (G96/G97)',     active: true },
     startstop: { name: 'Vřeteno při G95',      active: true },
     end:       { name: 'Konec programu',       active: true },
+    duplicate: { name: 'Zbytečný G0 na stejnou souřadnici', active: true },
     calls:     { name: 'Podprogramy',          active: true },
     params:    { name: 'Parametry (R)',         active: true },
     syntax:    { name: 'Syntaxe',              active: true }
@@ -87,6 +88,9 @@ class CNCParser {
     this.parameters = new Map();
     this.loadedSubprograms = new Map();
     this.errors = [];
+    this.coordMode = 90;
+    this.lastX = null;
+    this.lastZ = null;
   }
   loadSubprograms(progs) {
     this.loadedSubprograms = new Map(Object.entries(progs));
@@ -135,7 +139,8 @@ class CNCParser {
       hasLims: this.hasLims, spindleActive: this.spindleActive,
       coordModeDefined: this.coordModeDefined, feedModeDefined: this.feedModeDefined,
       spindleModeDefined: this.spindleModeDefined, firstMoveFound: this.firstMoveFound,
-      activeFeedMode: this.activeFeedMode
+      activeFeedMode: this.activeFeedMode,
+      coordMode: this.coordMode, lastX: this.lastX, lastZ: this.lastZ
     } : null;
 
     lines.forEach(l => {
@@ -154,7 +159,33 @@ class CNCParser {
       const hasCo = /[XZ]/.test(clean);
       const isFirst = depth === 0 && isMv && hasCo && !this.firstMoveFound;
 
+      if (/\bG90\b/.test(clean)) this.coordMode = 90;
+      if (/\bG91\b/.test(clean)) this.coordMode = 91;
       if (/\bG90\b/.test(clean) || /\bG91\b/.test(clean)) this.coordModeDefined = true;
+
+      // Pohyb na stejnou souřadnici jako předchozí blok — typicky zbytečný
+      // G0 vložený mezi dva řezné bloky, které už na daném místě skončily
+      // (např. chainBreak v CAM generátoru). Kontrolujeme jen G0, protože
+      // u G1/G2/G3 může jít o úmyslnou prodlevu/změnu posuvu na místě.
+      if (this.cfg.duplicate.active && /\bG0+\b/.test(clean) && hasCo) {
+        const xm = clean.match(/X(-?[\d.]+)/);
+        const zm = clean.match(/Z(-?[\d.]+)/);
+        const xv = xm ? parseFloat(xm[1]) : null;
+        const zv = zm ? parseFloat(zm[1]) : null;
+        const newX = xv === null ? this.lastX : (this.coordMode === 91 ? (this.lastX ?? 0) + xv : xv);
+        const newZ = zv === null ? this.lastZ : (this.coordMode === 91 ? (this.lastZ ?? 0) + zv : zv);
+        if (this.lastX !== null && this.lastZ !== null &&
+            Math.abs(newX - this.lastX) < 1e-6 && Math.abs(newZ - this.lastZ) < 1e-6)
+          this.errors.push({ file: currentFile, lineIndex: i, msg: `Zbytečný rychloposuv G0 na stejnou souřadnici jako předchozí blok (X${this.lastX} Z${this.lastZ}).` });
+      }
+      if (isMv && hasCo) {
+        const xm = clean.match(/X(-?[\d.]+)/);
+        const zm = clean.match(/Z(-?[\d.]+)/);
+        const xv = xm ? parseFloat(xm[1]) : null;
+        const zv = zm ? parseFloat(zm[1]) : null;
+        this.lastX = xv === null ? this.lastX : (this.coordMode === 91 ? (this.lastX ?? 0) + xv : xv);
+        this.lastZ = zv === null ? this.lastZ : (this.coordMode === 91 ? (this.lastZ ?? 0) + zv : zv);
+      }
       if (/\bG94\b/.test(clean) || /\bG95\b/.test(clean)) this.feedModeDefined = true;
       if (/\bG96\b/.test(clean) || /\bG97\b/.test(clean)) this.spindleModeDefined = true;
       if (/\bG94\b/.test(clean)) this.activeFeedMode = 'G94';
