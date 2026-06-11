@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { makeOverlay } from '../dialogFactory.js';
-import { openCncEditor } from './cncEditor.js';
+import { openCamEditor } from './camEditor.js';
 import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { autoCenterView } from '../canvas.js';
@@ -1233,7 +1233,7 @@ export function openCamSimulator(initialContour) {
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
           <button data-code="toggle-mode" class="cam-sim-active">Auto</button>
-          <button data-code="editor" title="Otevřít v CNC Editoru pro úpravu">🔧 Editor</button>
+          <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
           <button data-code="show-sidebar" title="Zobrazit editor kontury">✏ Edit</button>
         </div>
@@ -3262,7 +3262,7 @@ export function openCamSimulator(initialContour) {
     </div>
     <div style="display:flex;gap:4px;margin-top:4px">
       <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-indigo" data-act="export-pdf">📄 Export PDF</button>
-      <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-green" data-act="send-editor">🔧 Otevřít v Editoru</button>
+      <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-green" data-act="send-editor">🔧 Otevřít v CAM Editoru</button>
     </div>
     <div style="display:flex;gap:4px;margin-top:4px">
       <button class="cam-sim-btn cam-sim-btn-blue" data-act="to-canvas-edit" title="Vrátit konturu na plátno pro úpravu (přepsat výkres)">📐 Kreslit</button>
@@ -3745,11 +3745,11 @@ export function openCamSimulator(initialContour) {
     }
   }
 
-  // ── Send to CNC Editor ──
+  // ── Send to CAM Editor ──
   function handleSendToEditor() {
     const text = S.useManualCode ? S.manualGCode : S.generatedCode.map(l => l.text).join('\n');
     if (!text.trim()) { alert('Není žádný G-kód k odeslání.'); return; }
-    openCncEditor(text);
+    openCamEditor(text);
   }
 
   // ── Vrátit konturu zpět na plátno ──
