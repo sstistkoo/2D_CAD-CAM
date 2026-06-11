@@ -5082,18 +5082,6 @@ body {
   flex: 1; display: flex; overflow: hidden; min-width: 0;
   position: relative;
 }
-.cne-line-nums {
-  width: 38px; flex-shrink: 0;
-  padding: 10px 6px 10px 0;
-  text-align: right;
-  font: 14px/20px "Consolas","Courier New",monospace;
-  color: var(--ctp-overlay0);
-  background: var(--ctp-mantle);
-  border-right: 1px solid var(--ctp-surface0);
-  overflow: hidden; white-space: pre;
-  -webkit-user-select: none;
-  user-select: none;
-}
 .cne-editor-container {
   position: relative; flex: 1; overflow: hidden;
 }
@@ -5129,7 +5117,7 @@ body {
 .hl-param   { color: var(--ctp-mauve); }
 .hl-comment { color: var(--ctp-overlay0); font-style: italic; }
 .hl-msg     { color: var(--ctp-peach); }
-.hl-block   { color: var(--ctp-overlay1); font-size: .9em; }
+.hl-block   { color: var(--ctp-overlay1); }
 .hl-logic   { color: var(--ctp-red);    font-weight: 700; }
 .hl-sub     { color: var(--ctp-lavender); font-weight: 700; }
 .hl-error   { text-decoration: underline wavy var(--ctp-red); cursor: help; }
@@ -5361,8 +5349,6 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
   }
   .cne-qb { padding: 8px 2px; font-size: 13px; min-height: 36px; }
 
-  /* Line numbers + editor — must use identical font-size, line-height, padding-top */
-  .cne-line-nums { width: 30px; font: 11px/18px "Consolas","Courier New",monospace; padding: 8px 3px 8px 0; }
   .cne-backdrop, .cne-textarea { font: 13px/18px "Consolas","Courier New",monospace; padding: 8px 8px; }
   .cne-textarea { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 

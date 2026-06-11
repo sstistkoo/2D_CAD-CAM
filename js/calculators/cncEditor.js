@@ -29,17 +29,21 @@ const M_CODES = {
 };
 
 // ── Pre-compiled regex ─────────────────────────────────────────
-const RE_FEED   = /\b([FSTD])(\d*\.?\d+)\b/g;
-const RE_BLOCK  = /\b(N\d+)\b/g;
-const RE_G_RAP  = /\b(G0[0-3]?|G[0-3])\b/g;
-const RE_G_GEN  = /\b(G\d+)\b/g;
-const RE_M_GEN  = /\b(M\d+)\b/g;
-const RE_COORD  = /([XZIKCR])(\s*=?\s*[-\d.]+)/g;
-const RE_PARAM  = /\b(R\d+)/g;
-const RE_LOGIC  = /\b(GOTOF|GOTOB|IF|ELSE|ENDIF|STOPRE)\b/g;
-const RE_SUB    = /\b(L\d+)\b/g;
-const RE_MSG    = /(MSG\s*\()(.*?)(\))/gi;
-const RE_MSG_PH = /__MSG_(\d+)__/g;
+// Jediný průchod přes kód řádku – každý znak je vypsán právě jednou
+// (buď prostý, nebo obalený přesně jedním <span>), takže výstup má
+// vždy stejný počet řádků/sloupců jako textarea (žádné vnořené spany).
+const TOKEN_RE = new RegExp(
+  '(?<msg>MSG\\s*\\([^)]*\\))' +
+  '|(?<block>\\bN\\d+\\b)' +
+  '|(?<logic>\\b(?:GOTOF|GOTOB|IF|ELSE|ENDIF|STOPRE)\\b)' +
+  '|(?<sub>\\bL\\d+\\b)' +
+  '|(?<g>\\bG\\d+\\b)' +
+  '|(?<m>\\bM\\d+\\b)' +
+  '|(?<param>\\bR\\d+\\b)' +
+  '|(?<coord>[XZIKCR]\\s*=?\\s*[-\\d.]+)' +
+  '|(?<feed>\\b[FSTD]\\d*\\.?\\d+\\b)',
+  'gi'
+);
 
 // ── Helpers ────────────────────────────────────────────────────
 function esc(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -270,7 +274,6 @@ function buildEditorHTML() {
     </div>
 
     <div class="cne-editor-wrap">
-      <div class="cne-line-nums" data-el="lineNums"></div>
       <div class="cne-editor-container">
         <div class="cne-backdrop" data-el="backdrop"><div data-el="highlights"></div></div>
         <textarea class="cne-textarea" data-el="editor" spellcheck="false"
@@ -443,7 +446,6 @@ export function openCncEditor(initialCode) {
   const editor      = $('editor');
   const backdrop    = $('backdrop');
   const highlights  = $('highlights');
-  const lineNums    = $('lineNums');
   const fileListEl  = $('fileList');
   const paramListEl = $('paramList');
   const sidebarEl   = $('sidebar');
@@ -529,53 +531,47 @@ export function openCncEditor(initialCode) {
   }
 
   // ── Syntax highlighting ────────────────────────────────────
+  function highlightCode(code) {
+    let out = '';
+    let last = 0;
+    TOKEN_RE.lastIndex = 0;
+    let m;
+    while ((m = TOKEN_RE.exec(code))) {
+      out += esc(code.slice(last, m.index));
+      const g = m.groups;
+      const cls = g.msg ? 'hl-msg' : g.block ? 'hl-block' : g.logic ? 'hl-logic'
+        : g.sub ? 'hl-sub' : g.g ? 'hl-g' : g.m ? 'hl-m' : g.param ? 'hl-param'
+        : g.coord ? 'hl-coord' : 'hl-feed';
+      out += `<span class="${cls}">${esc(m[0])}</span>`;
+      last = m.index + m[0].length;
+      if (m[0].length === 0) TOKEN_RE.lastIndex++;
+    }
+    out += esc(code.slice(last));
+    return out;
+  }
+
   function applyHighlight() {
     const code = editor.value;
     const out = code.split('\n').map(line => {
       const ci = line.indexOf(';');
       if (ci === 0) return `<span class="hl-comment">${esc(line)}</span>`;
 
-      let work = ci > 0 ? line.substring(0, ci) : line;
-      let comment = ci > 0 ? `<span class="hl-comment">${esc(line.substring(ci))}</span>` : '';
+      const work = ci > 0 ? line.substring(0, ci) : line;
+      const comment = ci > 0 ? `<span class="hl-comment">${esc(line.substring(ci))}</span>` : '';
 
-      const msgs = [];
-      work = work.replace(RE_MSG, (_, pre, content, post) => {
-        msgs.push(`<span class="hl-msg">${esc(pre)}${esc(content)}${esc(post)}</span>`);
-        return `__MSG_${msgs.length - 1}__`;
-      });
-
-      let s = esc(work);
-      s = s.replace(RE_BLOCK, '<span class="hl-block">$1</span>');
-      s = s.replace(RE_LOGIC, '<span class="hl-logic">$1</span>');
-      s = s.replace(RE_SUB,   '<span class="hl-sub">$1</span>');
-      s = s.replace(RE_G_RAP, '<span class="hl-g">$1</span>');
-      s = s.replace(RE_G_GEN, '<span class="hl-g">$1</span>');
-      s = s.replace(RE_M_GEN, '<span class="hl-m">$1</span>');
-      s = s.replace(RE_COORD, '<span class="hl-coord">$1$2</span>');
-      s = s.replace(RE_FEED,  '<span class="hl-feed">$1$2</span>');
-      s = s.replace(RE_PARAM, '<span class="hl-param">$1</span>');
-      s = s.replace(RE_MSG_PH, (_, idx) => msgs[parseInt(idx)] || '');
-      return s + comment;
+      return highlightCode(work) + comment;
     });
     highlights.innerHTML = out.join('\n') + '\n';
   }
 
-  function updateLineNumbers() {
-    const c = editor.value.split('\n').length;
-    const a = [];
-    for (let i = 1; i <= c; i++) a.push(i);
-    lineNums.textContent = a.join('\n');
-  }
-
   function refreshVisual() {
     applyHighlight();
-    updateLineNumbers();
+    syncScroll();
   }
 
   function syncScroll() {
     backdrop.scrollTop  = editor.scrollTop;
     backdrop.scrollLeft = editor.scrollLeft;
-    lineNums.scrollTop  = editor.scrollTop;
   }
 
   // ── Insert / Backspace ─────────────────────────────────────
@@ -1028,7 +1024,11 @@ export function openCncEditor(initialCode) {
   // ██  EVENT WIRING  ████████████████████████████████████████
   // ══════════════════════════════════════════════════════════
   editor.addEventListener('input', onInput);
-  editor.addEventListener('scroll', () => requestAnimationFrame(syncScroll));
+  editor.addEventListener('scroll', syncScroll);
+  // Na mobilu je editor zpočátku readOnly (aby se klávesnice neotvírala
+  // automaticky při scrollování/výběru). Klepnutím do textu se ale má
+  // editace povolit a klávesnice rovnou otevřít.
+  editor.addEventListener('pointerdown', () => { editor.readOnly = false; });
 
   // Delegated clicks
   root.addEventListener('click', e => {
@@ -1147,9 +1147,10 @@ export function openCncEditor(initialCode) {
   ensureFile();
 
   // Pokud byl předán initialCode, vloží se do nového souboru
+  // (pokud už soubor existuje, zachovají se v něm provedené úpravy)
   if (initialCode && typeof initialCode === 'string' && initialCode.trim()) {
     const name = 'CNC_IMPORT.MPF';
-    programs[name] = initialCode;
+    if (!programs[name]) programs[name] = initialCode;
     currentFile = name;
   }
 
