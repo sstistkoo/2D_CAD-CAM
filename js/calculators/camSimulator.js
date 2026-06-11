@@ -504,6 +504,34 @@ function segInterferesWithTool(seg, clearance) {
   }
   return false;
 }
+// Test, jestli úsečka (p1→p2, reálné souřadnice X = rádius) protíná
+// segmenty offsetové dráhy — pro kontrolu bezpečnosti rychloposuvů.
+// Doteky v koncových bodech (najetí přesně na dráhu) se nepočítají.
+function segmentHitsPath(p1, p2, segs) {
+  const dx = p2.x - p1.x, dz = p2.z - p1.z;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-12) return false;
+  for (const seg of segs) {
+    if (seg.isDegenerate) continue;
+    if (seg.type === 'line') {
+      const d = (p1.x - p2.x) * (seg.p1.z - seg.p2.z) - (p1.z - p2.z) * (seg.p1.x - seg.p2.x);
+      if (Math.abs(d) < 1e-12) continue; // rovnoběžné/kolineární — neprotíná příčně
+      const t = ((p1.x - seg.p1.x) * (seg.p1.z - seg.p2.z) - (p1.z - seg.p1.z) * (seg.p1.x - seg.p2.x)) / d;
+      const u = ((p1.x - seg.p1.x) * (p1.z - p2.z) - (p1.z - seg.p1.z) * (p1.x - p2.x)) / d;
+      if (t > 0.001 && t < 0.999 && u > 0.001 && u < 0.999) return true;
+    } else if (seg.type === 'arc') {
+      const hits = intersectLineCircle(p1, p2, { x: seg.cx, z: seg.cz }, seg.r);
+      if (!hits) continue;
+      for (const q of hits) {
+        const t = ((q.x - p1.x) * dx + (q.z - p1.z) * dz) / len2;
+        if (t <= 0.001 || t >= 0.999) continue;
+        const ang = Math.atan2(q.x - seg.cx, q.z - seg.cz);
+        if (isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return true;
+      }
+    }
+  }
+  return false;
+}
 function intersectLines(p1, p2, p3, p4) {
   if (!p1 || !p2 || !p3 || !p4) return null;
   if (isNaN(p1.x) || isNaN(p1.z) || isNaN(p2.x) || isNaN(p2.z) ||
@@ -2104,10 +2132,16 @@ export function openCamSimulator(initialContour) {
       const effPlungeDegL = getEffectivePlungeAngle(prms);
       const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
       let plungeSkipped = 0;
+      // Průchody předchozí hloubky — vjezd rampou smí začít jen nad
+      // floor-em, který předchozí hloubka skutečně dořezala (napravo od
+      // něj zůstává neodřezaný klín po její rampě / schod stěny).
+      let prevDepthPasses = [];
+      let prevDepthX = maxStockX;
 
       for (const currentX of depths) {
         const sz = stockZRangeAt(currentX);
         if (!sz) continue;
+        const thisDepthPasses = [];
 
         // Skenem zprava doleva najdeme všechny volné intervaly (offset
         // nepřekračuje currentX). První interval (od pravé hrany
@@ -2147,22 +2181,37 @@ export function openCamSimulator(initialContour) {
           if (iv.zStart - iv.zEnd < dzScan) return;
           if (idx === 0 && firstOpen) {
             // Otevřený vjezd zprava přes hranu polotovaru.
-            passes.push({ type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked });
+            const pass = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
+            passes.push(pass); thisDepthPasses.push(pass);
             return;
           }
           // Kapsa — vjezd jen rampou (zanořování).
           if (!prms.plungeRoughing) return;
-          const x0 = Math.min(currentX + step, maxStockX);
+          const x0 = Math.min(prevDepthX, maxStockX);
           if (x0 - currentX < 0.01) return;
+          // Vjezd rampou nesmí začít na přirozené pozici pravé stěny —
+          // předchozí hloubka tam kvůli své rampě floor nedořezala
+          // (zbylý klín) a sjezd shora by zajel do materiálu. Začátek
+          // rampy klampneme na zStart překrývajícího průchodu předchozí
+          // hloubky. Nad hladinou polotovaru (x0 = vršek) klamp netřeba.
+          let z0 = iv.zStart;
+          if (x0 < maxStockX - 0.01) {
+            const above = prevDepthPasses.filter(p => p.zEnd <= iv.zStart + 0.01 && p.zStart >= iv.zEnd - 0.01);
+            if (above.length === 0) { plungeSkipped++; return; }
+            z0 = Math.min(z0, Math.max(...above.map(p => p.zStart)));
+          }
           const dzRamp = (x0 - currentX) / effPlungeTanL;
-          if (iv.zStart - dzRamp - iv.zEnd < dzScan) { plungeSkipped++; return; }
-          passes.push({
+          if (z0 - dzRamp - iv.zEnd < dzScan) { plungeSkipped++; return; }
+          const pass = {
             type: 'long', x: currentX,
-            zStart: iv.zStart - dzRamp, // floor začíná až pod koncem rampy
+            zStart: z0 - dzRamp, // floor začíná až pod koncem rampy
             zEnd: iv.zEnd, blocked: iv.blocked,
-            ramp: { x0, z0: iv.zStart }
-          });
+            ramp: { x0, z0 }
+          };
+          passes.push(pass); thisDepthPasses.push(pass);
         });
+        prevDepthPasses = thisDepthPasses;
+        prevDepthX = currentX;
       }
       if (plungeSkipped > 0)
         foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeSkipped} kapes je příliš úzkých pro rampu pod ${effPlungeDegL.toFixed(1)}°.` });
@@ -2447,6 +2496,62 @@ export function openCamSimulator(initialContour) {
       if (gcChuckZ !== null && v < gcChuckZ) v = gcChuckZ;
       return v;
     };
+
+    // ── Bezpečné rychloposuvy ──
+    // Sledujeme reálnou polohu nástroje (X = rádius) a každý přejezd G0
+    // testujeme proti offsetové kontuře (hrubovací i dokončovací offset).
+    // Pokud by přímý přejezd konturu protnul, nejdřív se vyjede v X nad
+    // polotovar/konturu, přejede v Z a teprve pak sjede na cíl.
+    const rapidBlockers = [...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])].filter(s => !s.isDegenerate);
+    let rapidTopX = calc.stockTopX || 0;
+    rapidBlockers.forEach(s => {
+      if (s.type === 'line') rapidTopX = Math.max(rapidTopX, s.p1.x, s.p2.x);
+      else rapidTopX = Math.max(rapidTopX, s.cx + s.r);
+    });
+    const xDia = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
+    const cur = { x: null, z: null };
+    const setPos = (x, z) => { cur.x = x; cur.z = z; };
+    // Výchozí poloha = bezpečná poloha z úvodního G0 (programované souř.).
+    setPos((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
+    // touch = true: cíl leží na kontuře/materiálu — poslední úsek sjezdu
+    // (Vůle nad polotovarem) se jede pracovním posuvem, ne rychloposuvem.
+    const safeRapidTo = (tx, tz, touch = false) => {
+      const sameX = Math.abs(tx - cur.x) < 1e-6;
+      const sameZ = Math.abs(tz - cur.z) < 1e-6;
+      if (sameX && sameZ) { setPos(tx, tz); return; }
+      const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+      // Sjezd v X na cíl: s touch zastaví rychloposuv o vůli výš a dojede G1.
+      const descendTo = (fromX) => {
+        if (touch && fromX - tx > 1e-6) {
+          if (fromX - tx > rapidClrGc + 1e-6) emit(`G0 X${xDia(tx + rapidClrGc)}`);
+          emit(`G1 X${xDia(tx)} F${prms.feed}`);
+        } else if (Math.abs(fromX - tx) > 1e-6) {
+          emit(`G0 X${xDia(tx)}`);
+        }
+      };
+      if (segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)) {
+        const xUp = Math.max(rapidTopX + rapidClrGc, cur.x, tx);
+        if (xUp > cur.x + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
+        if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
+        descendTo(xUp);
+      } else if (sameX) {
+        emit(`G0 Z${tz.toFixed(3)}`);
+      } else if (sameZ) {
+        descendTo(cur.x);
+      } else if (touch && cur.x - tx > 1e-6) {
+        // Diagonální sjezd k materiálu: rychloposuvem jen na vůli nad cíl.
+        if (cur.x - tx > rapidClrGc + 1e-6) {
+          emit(`G0 X${xDia(tx + rapidClrGc)} Z${tz.toFixed(3)}`);
+          emit(`G1 X${xDia(tx)} F${prms.feed}`);
+        } else {
+          emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}`);
+        }
+      } else {
+        emit(`G0 X${xDia(tx)} Z${tz.toFixed(3)}`);
+      }
+      setPos(tx, tz);
+    };
+
     calc.passes.forEach((pass, i) => {
       addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : ''}`);
       if (pass.type === 'long' && pass.ramp) {
@@ -2458,15 +2563,18 @@ export function openCamSimulator(initialContour) {
         //   G1 X<hloubka> Z<zStart>    ; rampa pod úhlem zanoření
         //   G1 Z<zEnd> F<f>            ; podélný řez po dně kapsy
         //   G1 X+odskok Z+odskok       ; retract pod 45°
-        const dia = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
-        const zRetract = clipZGc(pass.zEnd + rDist).toFixed(3);
-        simCounter += 1; addN(`G0 X${dia((calc.stockTopX || 0) + rapidClrGc)}`, simCounter);
-        simCounter += 1; addN(`G0 Z${pass.ramp.z0.toFixed(3)}`, simCounter);
-        simCounter += 1; addN(`G0 X${dia(pass.ramp.x0 + rapidClrGc)}`, simCounter);
-        simCounter += 1; addN(`G1 X${dia(pass.ramp.x0)} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${dia(pass.x)} Z${pass.zStart.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter);
-        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${dia(pass.x + rDist)} Z${zRetract}`, simCounter);
+        // Vždy přes vršek polotovaru — stav rozpracovaného obrobku mezi
+        // kapsami nelze z finálního offsetu spolehlivě poznat.
+        const xTopRamp = Math.max((calc.stockTopX || 0) + rapidClrGc, cur.x);
+        const zRetractVal = clipZGc(pass.zEnd + rDist);
+        if (xTopRamp > cur.x + 1e-6) { simCounter += 1; addN(`G0 X${xDia(xTopRamp)}`, simCounter); }
+        setPos(xTopRamp, cur.z);
+        simCounter += 1; addN(`G0 Z${pass.ramp.z0.toFixed(3)}`, simCounter); setPos(cur.x, pass.ramp.z0);
+        simCounter += 1; addN(`G0 X${xDia(pass.ramp.x0 + rapidClrGc)}`, simCounter); setPos(pass.ramp.x0 + rapidClrGc, cur.z);
+        simCounter += 1; addN(`G1 X${xDia(pass.ramp.x0)} F${prms.feed}`, simCounter); setPos(pass.ramp.x0, cur.z);
+        simCounter += 1; addN(`G1 X${xDia(pass.x)} Z${pass.zStart.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(pass.x, pass.zStart);
+        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+        simCounter += 1; addN(`G1 X${xDia(pass.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.x + rDist, zRetractVal);
       } else if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
         //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
@@ -2475,16 +2583,15 @@ export function openCamSimulator(initialContour) {
         //                                už pracovním posuvem (bezpečný dotek)
         //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
         //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
-        const xVal = prms.mode === 'DIAMON' ? (pass.x * 2).toFixed(3) : pass.x.toFixed(3);
-        const xClear = prms.mode === 'DIAMON' ? ((pass.x + rDist) * 2).toFixed(3) : (pass.x + rDist).toFixed(3);
-        const zApproach = clipZGc(pass.zStart + rapidClrGc).toFixed(3);
-        const zStart = pass.zStart.toFixed(3);
-        const zRetract = clipZGc(pass.zEnd + rDist).toFixed(3);
-        simCounter += 1; addN(`G0 Z${zApproach}`, simCounter);
-        simCounter += 1; addN(`G0 X${xVal}`, simCounter);
-        simCounter += 1; addN(`G1 Z${zStart} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${xClear} Z${zRetract}`, simCounter);
+        const zApproachVal = clipZGc(pass.zStart + rapidClrGc);
+        const zRetractVal = clipZGc(pass.zEnd + rDist);
+        // Přejezd v Z na nájezdový bod s kontrolou kolize (po zanoření do
+        // kapsy může nástroj stát hluboko — přímý přejezd by řízl stěnu).
+        safeRapidTo(cur.x, zApproachVal);
+        safeRapidTo(pass.x, zApproachVal);
+        simCounter += 1; addN(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zStart);
+        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+        simCounter += 1; addN(`G1 X${xDia(pass.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.x + rDist, zRetractVal);
       } else {
         // Čelní hrubování (vzor shodný se sim cestou). Per-Z hodnoty:
         //   xStart = lokální casting outer + rapidClr (rapid-safe v tomto Z)
@@ -2495,22 +2602,19 @@ export function openCamSimulator(initialContour) {
         //                            už pracovním posuvem (bezpečný dotek)
         //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
         //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
-        const zVal = pass.z.toFixed(3);
-        const zRetract = clipZGc(pass.z + rDist).toFixed(3);
-        const xStart = prms.mode === 'DIAMON' ? (pass.xStart * 2).toFixed(3) : pass.xStart.toFixed(3);
-        const xSurface = prms.mode === 'DIAMON' ? (pass.xSurface * 2).toFixed(3) : pass.xSurface.toFixed(3);
-        const xEnd = prms.mode === 'DIAMON' ? (pass.xEnd * 2).toFixed(3) : pass.xEnd.toFixed(3);
-        const xEndRetract = prms.mode === 'DIAMON' ? ((pass.xEnd + rDist) * 2).toFixed(3) : (pass.xEnd + rDist).toFixed(3);
-        simCounter += 1; addN(`G0 X${xStart}`, simCounter);
-        simCounter += 1; addN(`G0 Z${zVal}`, simCounter);
-        simCounter += 1; addN(`G1 X${xSurface} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${xEnd} F${prms.feed}`, simCounter);
-        simCounter += 1; addN(`G1 X${xEndRetract} Z${zRetract}`, simCounter);
+        const zRetractVal = clipZGc(pass.z + rDist);
+        // Přejezdy s kontrolou kolize: nejdřív v X za polotovar, pak v Z.
+        safeRapidTo(pass.xStart, cur.z);
+        safeRapidTo(pass.xStart, pass.z);
+        simCounter += 1; addN(`G1 X${xDia(pass.xSurface)} F${prms.feed}`, simCounter); setPos(pass.xSurface, pass.z);
+        simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z);
+        simCounter += 1; addN(`G1 X${xDia(pass.xEnd + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.xEnd + rDist, zRetractVal);
       }
     });
 
-    simCounter += 1;
-    addN(`G0 X${prms.safeX} Z${prms.safeZ}`, simCounter);
+    // Návrat na bezpečnou polohu s kontrolou kolize (po zanoření do kapsy
+    // by přímá diagonála mohla proříznout stěnu/konturu).
+    safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
 
     const firstGcFinSeg = calc.finishOffsetPath.find(s => !s.isDegenerate);
     if (prms.doFinishing && firstGcFinSeg) {
@@ -2524,33 +2628,34 @@ export function openCamSimulator(initialContour) {
       // G1 posuvem do startovního bodu kontury (gentle dotek).
       const finishApproachDx = 2;
       const finishRampDz = finishApproachDx / Math.tan(entryRadGc);
-      const sX_approach = prms.mode === 'DIAMON' ? ((sX + finishApproachDx) * 2).toFixed(3) : (sX + finishApproachDx).toFixed(3);
       // Rapid přibližovací bod ořežeme na čelisti/koník když jsou aktivní —
       // jinak by ramp s mělkým úhlem překročil limit (collision risk).
-      const sZ_approach = clipZGc(sZ + finishRampDz).toFixed(3);
-      simCounter += 1; addN(`G0 X${sX_approach} Z${sZ_approach}`, simCounter);
-      simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${prms.feed}`, simCounter);
+      const sZ_approachVal = clipZGc(sZ + finishRampDz);
+      // Nájezd na přibližovací bod s kontrolou kolize — přímá diagonála
+      // z bezpečné polohy může u členité kontury proříznout offset.
+      safeRapidTo(sX + finishApproachDx, sZ_approachVal);
+      simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(sX, sZ);
       calc.finishOffsetPath.forEach(seg => {
         if (seg.isDegenerate) return;
         // chainBreak = samostatný řetěz (mezi konturami nic nenavazuje) —
         // najet rychloposuvem na jeho začátek místo řezného přejezdu mezerou.
         if (seg.chainBreak) {
           const sp = segStartPoint(seg);
-          const spX = prms.mode === 'DIAMON' ? (sp.x * 2).toFixed(3) : sp.x.toFixed(3);
-          simCounter += 1; addN(`G0 X${spX} Z${sp.z.toFixed(3)}`, simCounter);
+          // touch: cíl leží na kontuře — poslední vůli dojet posuvem.
+          safeRapidTo(sp.x, sp.z, true);
         }
         if (seg.type === 'line') {
           const eX = prms.mode === 'DIAMON' ? (seg.p2.x * 2).toFixed(3) : seg.p2.x.toFixed(3);
-          simCounter += 1; addN(`G1 X${eX} Z${seg.p2.z.toFixed(3)}`, simCounter);
+          simCounter += 1; addN(`G1 X${eX} Z${seg.p2.z.toFixed(3)}`, simCounter); setPos(seg.p2.x, seg.p2.z);
         } else {
           simCounter += 10;
-          const eX = prms.mode === 'DIAMON' ? ((seg.cx + Math.sin(seg.endAngle) * seg.r) * 2).toFixed(3) : (seg.cx + Math.sin(seg.endAngle) * seg.r).toFixed(3);
-          const eZ = (seg.cz + Math.cos(seg.endAngle) * seg.r).toFixed(3);
-          addN(`${flipArc(seg.dir)} X${eX} Z${eZ} ${arcR(seg.r)}`, simCounter);
+          const eXv = seg.cx + Math.sin(seg.endAngle) * seg.r;
+          const eZv = seg.cz + Math.cos(seg.endAngle) * seg.r;
+          addN(`${flipArc(seg.dir)} X${xDia(eXv)} Z${eZv.toFixed(3)} ${arcR(seg.r)}`, simCounter);
+          setPos(eXv, eZv);
         }
       });
-      simCounter += 2;
-      addN(`G0 X${prms.safeX} Z${prms.safeZ}`, simCounter);
+      safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
     }
 
     if (prms.controlSystem === 'fanuc') {
@@ -3182,6 +3287,49 @@ export function openCamSimulator(initialContour) {
       });
     }
     return closest;
+  }
+
+  // Převod kliknutí (client souřadnice) na world souřadnice (X = rádius).
+  function clientToWorldCam(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = clientX - rect.left, sy = clientY - rect.top;
+    const vS = S.flipX ? 1 : -1;
+    if (S.params.machineStructure === 'carousel') {
+      return { wx: (sx - S.view.panX) / S.view.scale, wz: vS * (sy - S.view.panY) / S.view.scale };
+    }
+    return { wx: vS * (sy - S.view.panY) / S.view.scale, wz: (sx - S.view.panX) / S.view.scale };
+  }
+
+  // Najde nejbližší obloukový segment (G2/G3) kontury nebo polotovaru pod
+  // kurzorem — pro "+" mód (tečná úsečka pod úhlem z oblouku, CAM obdoba
+  // CAD nástroje „Úhel"). Vrací index KONCOVÉHO bodu segmentu.
+  function getArcSegmentAt(clientX, clientY) {
+    if (S.simRunning) return null;
+    const calc = S._cachedCalc; if (!calc) return null;
+    const { wx, wz } = clientToWorldCam(clientX, clientY);
+    const tol = 10 / S.view.scale;
+    let best = null, bestD = Infinity;
+    const scan = (pts, isStock) => {
+      if (!pts) return;
+      for (let i = 1; i < pts.length; i++) {
+        const p2 = pts[i];
+        if (p2.type !== 'G2' && p2.type !== 'G3') continue;
+        const p1 = pts[i - 1];
+        const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
+        if (arc.error) continue;
+        const d = Math.abs(Math.hypot(wx - arc.cx, wz - arc.cz) - arc.r);
+        if (d > tol || d >= bestD) continue;
+        const ang = Math.atan2(wx - arc.cx, wz - arc.cz);
+        const sA = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+        const eA = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+        if (!isAngleBetween(ang, sA, eA, p2.type === 'G2')) continue;
+        bestD = d;
+        best = { idx: i, isStock, wx, wz };
+      }
+    };
+    scan(calc.worldPoints, false);
+    if (S.params.stockMode !== 'cylinder') scan(calc.stockWorldPoints, true);
+    return best;
   }
 
   // Vrátí klíč Z-limity ('chuck' | 'tail' | 'rangeStart' | 'rangeEnd') pod kurzorem, jinak null.
@@ -4089,7 +4237,10 @@ export function openCamSimulator(initialContour) {
     const act = btn.dataset.act;
     if (act === 'addpt') {
       S.addPointMode = !S.addPointMode;
-      if (S.addPointMode) { S.delPointMode = false; toolbar.querySelector('[data-act="delpt"]').classList.remove('cam-sim-active'); }
+      if (S.addPointMode) {
+        S.delPointMode = false; toolbar.querySelector('[data-act="delpt"]').classList.remove('cam-sim-active');
+        showToast('Klikněte na bod (vložit segment) nebo na oblouk (tečna pod úhlem)');
+      }
       btn.classList.toggle('cam-sim-active', S.addPointMode);
       canvas.style.cursor = S.addPointMode ? 'copy' : 'crosshair';
     } else if (act === 'delpt') {
@@ -4350,6 +4501,8 @@ export function openCamSimulator(initialContour) {
     const stock = isStock !== undefined ? isStock : S.editMode === 'stock';
     const list = stock ? S.stockPoints : S.contourPoints;
     const prev = list[index];
+    // Absolutní souřadnice výchozího bodu — pro dopočet X/Z z úhlu+délky.
+    const fromAbs = resolvePointsToAbsolute(list)[index];
     openInsertSegmentModal(prev, (newPt, tgt) => {
       pushHistory();
       const targetList = tgt === 'stock' ? S.stockPoints : S.contourPoints;
@@ -4360,11 +4513,85 @@ export function openCamSimulator(initialContour) {
         targetList.push({ ...newPt, id: Date.now() });
       }
       fullUpdate();
-    }, stock ? 'stock' : 'contour');
+    }, stock ? 'stock' : 'contour', fromAbs);
+  }
+
+  // ── Modal: tečná úsečka pod úhlem z oblouku (CAM obdoba CAD „Úhel") ──
+  // Klik na oblouk v "+" módu: oblouk se ukončí (ořízne/prodlouží po své
+  // kružnici) v bodě, kde má tečna zadaný úhel — na straně kliknutí — a za
+  // tečný bod se vloží G1 úsečka zadané délky pod tímto úhlem.
+  function openTangentLineModal(found) {
+    const ov = document.createElement('div');
+    ov.className = 'cam-confirm-overlay';
+    ov.style.zIndex = '200000';
+    const inpStyle = 'background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box';
+    ov.innerHTML = `
+      <div class="cam-confirm-box" style="min-width:320px;max-width:95vw">
+        <div style="font-weight:bold;font-size:14px;margin-bottom:10px;color:#cba6f7">📐 Tečna pod úhlem z oblouku</div>
+        <p style="font-size:11px;color:#a6adc8;margin:0 0 12px">Oblouk se ukončí v tečném bodě (na straně kliknutí) a naváže úsečka pod zadaným úhlem. Úhel: 0° = +Z (vodorovně vpravo), 90° = +X (nahoru), záporný/+180° = opačný směr.</p>
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+            Úhel (°)<input id="tlm-ang" type="number" value="45" step="1" style="${inpStyle}">
+          </label>
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+            Délka<input id="tlm-len" type="number" value="10" step="0.5" min="0.001" style="${inpStyle}">
+          </label>
+        </div>
+        <div class="cam-confirm-btns">
+          <button id="tlm-ok" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#a6e3a1;color:#1e1e2e">Vložit</button>
+          <button id="tlm-cancel" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#45475a;color:#cdd6f4">Zrušit</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.querySelector('#tlm-cancel').addEventListener('click', close);
+    ov.addEventListener('keydown', e => {
+      if (e.key === 'Escape') close();
+      else if (e.key === 'Enter') ov.querySelector('#tlm-ok').click();
+    });
+    setTimeout(() => { const i = ov.querySelector('#tlm-ang'); if (i) { i.focus(); i.select(); } }, 50);
+
+    ov.querySelector('#tlm-ok').addEventListener('click', () => {
+      const angDeg = parseFloat(ov.querySelector('#tlm-ang').value);
+      const len = parseFloat(ov.querySelector('#tlm-len').value);
+      if (isNaN(angDeg) || isNaN(len) || len <= 0) { showToast('Zkontrolujte úhel a délku.'); return; }
+      const list = found.isStock ? S.stockPoints : S.contourPoints;
+      const abs = resolvePointsToAbsolute(list);
+      const p1 = abs[found.idx - 1], p2 = abs[found.idx];
+      if (!p1 || !p2) { close(); return; }
+      const isDia = S.params.mode === 'DIAMON';
+      const toReal = (p) => ({ x: isDia ? p.xAbs / 2 : p.xAbs, z: p.zAbs });
+      const arc = getArcParams(toReal(p1), toReal(p2), p2.rVal, p2.type);
+      if (arc.error) { showToast('Oblouk nelze vyhodnotit.'); close(); return; }
+      const rad = angDeg * Math.PI / 180;
+      const dirZ = Math.cos(rad), dirX = Math.sin(rad);
+      // Tečný bod = střed ± r·normála směru (kolmice v rovině ZX);
+      // ze dvou kandidátů bereme ten blíž místu kliknutí.
+      const t1 = { x: arc.cx + arc.r * dirZ, z: arc.cz - arc.r * dirX };
+      const t2 = { x: arc.cx - arc.r * dirZ, z: arc.cz + arc.r * dirX };
+      const d1 = Math.hypot(found.wx - t1.x, found.wz - t1.z);
+      const d2 = Math.hypot(found.wx - t2.x, found.wz - t2.z);
+      const T = d1 <= d2 ? t1 : t2;
+      const E = { x: T.x + dirX * len, z: T.z + dirZ * len };
+      pushHistory();
+      const tgt = list[found.idx];
+      tgt.x = Math.round((isDia ? T.x * 2 : T.x) * 1000) / 1000;
+      tgt.z = Math.round(T.z * 1000) / 1000;
+      tgt.mode = 'ABS';
+      list.splice(found.idx + 1, 0, {
+        id: Date.now(), type: 'G1', mode: 'ABS',
+        x: Math.round((isDia ? E.x * 2 : E.x) * 1000) / 1000,
+        z: Math.round(E.z * 1000) / 1000,
+        r: 0
+      });
+      close();
+      fullUpdate();
+      showToast(`Tečna pod úhlem ${angDeg}° vložena ✓`);
+    });
   }
 
   // ── Modal pro vložení segmentu ──────────────────────────────────
-  function openInsertSegmentModal(fromPt, onConfirm, defaultTarget) {
+  function openInsertSegmentModal(fromPt, onConfirm, defaultTarget, fromAbs) {
     let pickMode = false;
 
     const ov = document.createElement('div');
@@ -4384,6 +4611,10 @@ export function openCamSimulator(initialContour) {
       if (xEl) ov._x = parseFloat(xEl.value) || 0;
       if (zEl) ov._z = parseFloat(zEl.value) || 0;
       if (rEl) ov._r = parseFloat(rEl.value) || 0;
+      const aEl = ov.querySelector('#ism-ang');
+      const alEl = ov.querySelector('#ism-anglen');
+      if (aEl) ov._ang = parseFloat(aEl.value);
+      if (alEl) ov._angLen = parseFloat(alEl.value);
     };
 
     const enterPickMode = () => {
@@ -4448,6 +4679,19 @@ export function openCamSimulator(initialContour) {
                 style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
             </label>
           </div>` : ''}
+          ${fromAbs ? `
+          <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-end">
+            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+              📐 Úhel (°)<input id="ism-ang" type="number" value="${ov._ang !== undefined && !isNaN(ov._ang) ? ov._ang : 45}" step="1"
+                style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
+            </label>
+            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+              Délka<input id="ism-anglen" type="number" value="${ov._angLen !== undefined && !isNaN(ov._angLen) ? ov._angLen : 10}" step="0.5" min="0.001"
+                style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
+            </label>
+            <button id="ism-angcalc" title="Dopočítat X/Z z úhlu a délky od výchozího bodu (0° = +Z vodorovně, 90° = +X nahoru)"
+              style="padding:7px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4;white-space:nowrap">↘ X/Z</button>
+          </div>` : ''}
           <div style="margin-bottom:14px">
             <button id="ism-pick" style="width:100%;padding:7px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4">
               🎯 Přebrat souřadnice z bodu
@@ -4489,6 +4733,23 @@ export function openCamSimulator(initialContour) {
       });
 
       ov.querySelector('#ism-pick').addEventListener('click', enterPickMode);
+
+      // Dopočet X/Z z úhlu a délky od výchozího bodu (CAD nástroj „Úhel").
+      const angCalcBtn = ov.querySelector('#ism-angcalc');
+      if (angCalcBtn) angCalcBtn.addEventListener('click', () => {
+        syncValues();
+        const a = ov._ang, l = ov._angLen;
+        if (isNaN(a) || isNaN(l) || l <= 0) { showToast('Zkontrolujte úhel a délku.'); return; }
+        const isDia = S.params.mode === 'DIAMON';
+        const fx = isDia ? fromAbs.xAbs / 2 : fromAbs.xAbs;
+        const rad = a * Math.PI / 180;
+        const ex = fx + Math.sin(rad) * l;
+        const ez = fromAbs.zAbs + Math.cos(rad) * l;
+        ov._x = Math.round((isDia ? ex * 2 : ex) * 1000) / 1000;
+        ov._z = Math.round(ez * 1000) / 1000;
+        ov._mode = 'ABS';
+        renderModal();
+      });
 
       ov.querySelector('#ism-ok').addEventListener('click', () => {
         syncValues();
@@ -4615,8 +4876,12 @@ export function openCamSimulator(initialContour) {
     }
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
+      const exitAddMode = () => { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; };
       const found = getAnyPointAt(e.clientX, e.clientY);
-      if (found) { handleInsertAfter(found.idx, found.isStock); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
+      if (found) { handleInsertAfter(found.idx, found.isStock); exitAddMode(); return; }
+      // Klik na oblouk → tečná úsečka pod úhlem (CAD nástroj „Úhel").
+      const arcFound = getArcSegmentAt(e.clientX, e.clientY);
+      if (arcFound) { openTangentLineModal(arcFound); exitAddMode(); }
       return;
     }
     if (S.delPointMode) {
@@ -4652,7 +4917,7 @@ export function openCamSimulator(initialContour) {
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
       const found = getAnyPointAt(e.clientX, e.clientY);
-      canvas.style.cursor = found ? 'pointer' : 'copy';
+      canvas.style.cursor = found ? 'pointer' : (getArcSegmentAt(e.clientX, e.clientY) ? 'pointer' : 'copy');
       const newId = found ? found.idx : null, newIsStock = !!(found && found.isStock);
       if (S.hoverPointId !== newId || S._hoverIsStock !== newIsStock) { S.hoverPointId = newId; S._hoverIsStock = newIsStock; draw(); }
       return;
@@ -4874,8 +5139,12 @@ export function openCamSimulator(initialContour) {
       }
       const pointIdx = getPointAt(t.clientX, t.clientY);
       if (S.addPointMode) {
+        const exitAddMode = () => { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; };
         const found = getAnyPointAt(t.clientX, t.clientY);
-        if (found) { handleInsertAfter(found.idx, found.isStock); S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; }
+        if (found) { handleInsertAfter(found.idx, found.isStock); exitAddMode(); return; }
+        // Tap na oblouk → tečná úsečka pod úhlem (CAD nástroj „Úhel").
+        const arcFound = getArcSegmentAt(t.clientX, t.clientY);
+        if (arcFound) { openTangentLineModal(arcFound); exitAddMode(); }
         return;
       }
       if (S.delPointMode) {
