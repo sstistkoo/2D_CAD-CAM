@@ -2287,8 +2287,8 @@ export function openCamSimulator(initialContour) {
         // Standardní podélné hrubování (vpravo → vlevo):
         //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
         //   G0 X<hloubka>              ; rapid k průměru
-        //   G0 Z<pass.zStart>          ; rapid sjezd na hranu polotovaru
-        //                                (odřezává air G1 — G1 pak začíná v materiálu)
+        //   G1 Z<pass.zStart>          ; sjezd přes clearance na hranu polotovaru
+        //                                už pracovním posuvem (bezpečný dotek)
         //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
         //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
         const xVal = prms.mode === 'DIAMON' ? (pass.x * 2).toFixed(3) : pass.x.toFixed(3);
@@ -2298,7 +2298,7 @@ export function openCamSimulator(initialContour) {
         const zRetract = clipZGc(pass.zEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 Z${zApproach}`, simCounter);
         simCounter += 1; addN(`G0 X${xVal}`, simCounter);
-        simCounter += 1; addN(`G0 Z${zStart}`, simCounter);
+        simCounter += 1; addN(`G1 Z${zStart} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xClear} Z${zRetract}`, simCounter);
       } else {
@@ -2307,7 +2307,8 @@ export function openCamSimulator(initialContour) {
         //   xSurface = lokální casting outer (povrch polotovaru tady)
         //   G0 X<xStart>           ; rapid za polotovar v X (per-Z clearance)
         //   G0 Z<z>                ; rapid na cílovou hloubku
-        //   G0 X<xSurface>         ; rapid sjezd na povrch polotovaru
+        //   G1 X<xSurface>         ; sjezd přes clearance na povrch polotovaru
+        //                            už pracovním posuvem (bezpečný dotek)
         //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
         //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
         const zVal = pass.z.toFixed(3);
@@ -2318,7 +2319,7 @@ export function openCamSimulator(initialContour) {
         const xEndRetract = prms.mode === 'DIAMON' ? ((pass.xEnd + rDist) * 2).toFixed(3) : (pass.xEnd + rDist).toFixed(3);
         simCounter += 1; addN(`G0 X${xStart}`, simCounter);
         simCounter += 1; addN(`G0 Z${zVal}`, simCounter);
-        simCounter += 1; addN(`G0 X${xSurface}`, simCounter);
+        simCounter += 1; addN(`G1 X${xSurface} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xEnd} F${prms.feed}`, simCounter);
         simCounter += 1; addN(`G1 X${xEndRetract} Z${zRetract}`, simCounter);
       }
@@ -3389,7 +3390,7 @@ export function openCamSimulator(initialContour) {
       <div class="cam-sim-field"><label>Z</label><input type="number" data-p="safeZ" value="${prms.safeZ}"></div>
     </div>
     <div class="cam-sim-row">
-      <div class="cam-sim-field" title="Vzdálenost rychloposuvu od polotovaru. Čím menší, tím kratší dráhy rychloposuvu."><label>Vůle nad polotovarem</label><input type="number" step="0.1" min="0.1" data-p="rapidClearance" value="${prms.rapidClearance}"></div>
+      <div class="cam-sim-field" title="Vzdálenost od polotovaru, kde končí rychloposuv. Sjezd přes tuto vůli na povrch už jede pracovním posuvem G1."><label>Vůle nad polotovarem</label><input type="number" step="0.1" min="0.1" data-p="rapidClearance" value="${prms.rapidClearance}"></div>
     </div>`;
     const zlOn = S.showZLimits && S.showZLimits !== 'off';
     const zlLabel = S.showZLimits === 'fixtures' ? '⛔ Čelisti+koník'
