@@ -2676,12 +2676,25 @@ export function openCamSimulator(initialContour) {
           const bisector = (a1 + a2) / 2;
           const cornerX = Math.cos(bisector + Math.PI) * distToCorner;
           const cornerY = Math.sin(bisector + Math.PI) * distToCorner;
+          // tangenciální body, kde poloměr špičky (rPix) navazuje na hrany destičky
+          const tanLen = Math.min(rPix / Math.tan(tipAng / 2), lenPix * 0.99);
+          const t1x = cornerX + Math.cos(a1) * tanLen, t1y = cornerY + Math.sin(a1) * tanLen;
+          const t2x = cornerX + Math.cos(a2) * tanLen, t2y = cornerY + Math.sin(a2) * tanLen;
+          const angT1 = Math.atan2(t1y, t1x), angT2 = Math.atan2(t2y, t2x);
+          const angCorner = bisector + Math.PI;
+          const norm = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          const angDiff = (a, b) => { let d = norm(a - b); if (d > Math.PI) d -= 2 * Math.PI; return d; };
+          const midCCWfalse = angT2 + norm(angT1 - angT2) / 2;
+          const midCCWtrue = angT2 - norm(angT2 - angT1) / 2;
+          const useCCW = Math.abs(angDiff(midCCWtrue, angCorner)) < Math.abs(angDiff(midCCWfalse, angCorner));
           ctx.save(); ctx.translate(pt.x, pt.y);
-          ctx.beginPath(); ctx.moveTo(cornerX, cornerY);
+          ctx.beginPath(); ctx.moveTo(t1x, t1y);
           ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
           ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
-          ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-          ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.stroke();
+          ctx.lineTo(t2x, t2y);
+          ctx.arc(0, 0, rPix, angT2, angT1, useCCW);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.restore();
         }
         // crosshair at tool center
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
