@@ -466,6 +466,44 @@ function getToolClearanceRange(prms, flipX) {
   const halfRange = (Math.PI - tipRad) / 2;
   return { bisector, halfRange };
 }
+// Efektivní úhel zanoření/nájezdu (°). V auto režimu se dopočítá z tvaru
+// destičky = úhel spodní hrany vůči ose posuvu (podélně: natočení;
+// čelně: natočení + ε − 90). Kulatá destička hrany nemá — auto je 45°.
+function getEffectivePlungeAngle(prms) {
+  const clampA = (v) => Math.max(0.5, Math.min(89, v));
+  if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
+  if (prms.toolShape !== 'polygon') return 45;
+  const rot = parseFloat(prms.toolAngle) || 0;
+  const tip = parseFloat(prms.toolTipAngle) || 90;
+  const a = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
+  return clampA(a);
+}
+// Test jednoho segmentu kontury proti úhlovému rozsahu destičky —
+// true = destička by při sledování segmentu špičkou zajela bočním
+// ostřím do materiálu (normála segmentu mimo pokrytý rozsah).
+function segInterferesWithTool(seg, clearance) {
+  const { bisector, halfRange } = clearance;
+  if (seg.type === 'line') {
+    const n = getNormal(seg.p1, seg.p2);
+    if (n.x === 0 && n.z === 0) return false;
+    return Math.abs(normalizeAngle(vecAngle(n.x, n.z) - bisector)) > halfRange;
+  }
+  if (seg.type === 'arc') {
+    const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+    const isOuter = Math.abs(seg.cx) < midAbsX;
+    const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+    let endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+    if (seg.dir === 'G2' && endAngle > startAngle) endAngle -= 2 * Math.PI;
+    if (seg.dir === 'G3' && endAngle < startAngle) endAngle += 2 * Math.PI;
+    const steps = 8;
+    for (let s = 0; s <= steps; s++) {
+      const a = startAngle + (endAngle - startAngle) * (s / steps);
+      const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
+      if (Math.abs(normalizeAngle(normAngle - bisector)) > halfRange) return true;
+    }
+  }
+  return false;
+}
 function intersectLines(p1, p2, p3, p4) {
   if (!p1 || !p2 || !p3 || !p4) return null;
   if (isNaN(p1.x) || isNaN(p1.z) || isNaN(p2.x) || isNaN(p2.z) ||
@@ -1383,10 +1421,19 @@ export function openCamSimulator(initialContour) {
       stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
       machineStructure: 'lathe', controlSystem: 'sinumerik',
       toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
-      // Úhel nájezdu (ramp-in) pro podélné hrubování — pod tímto úhlem
-      // se nástroj zapichuje do plného materiálu (vedlejší úhel destičky).
-      // Stupně. Default 30° = typický pro hrubovací destičky.
+      // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
+      // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
       entryAngle: 30,
+      // true = úhel zanoření se dopočítává z tvaru destičky (úhel spodní
+      // hrany: podélně = natočení; čelně = natočení + ε − 90).
+      entryAngleAuto: true,
+      // Hlídat boční ostří destičky: hrubovací průchody se zkracují tak,
+      // aby destička (natočení + vrcholový úhel) nezajela do kontury,
+      // a dokončování přeskočí úseky, kam destička nedosáhne.
+      respectInsertGeometry: false,
+      // Zanořování: podélné hrubování smí rampou (pod úhlem zanoření)
+      // sjet i do kapes/zápichů v kontuře, ne jen do otevřeného řezu.
+      plungeRoughing: false,
       // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
       // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
       rapidClearance: 1.0
@@ -1704,30 +1751,8 @@ export function openCamSimulator(initialContour) {
     const clearance = getToolClearanceRange(prms, S.flipX);
     const interferenceSegments = [];
     if (clearance) {
-      const { bisector, halfRange } = clearance;
       rawContourForInterference.forEach(seg => {
-        let bad = false;
-        if (seg.type === 'line') {
-          const n = getNormal(seg.p1, seg.p2);
-          if (n.x !== 0 || n.z !== 0) {
-            const normAngle = vecAngle(n.x, n.z);
-            if (Math.abs(normalizeAngle(normAngle - bisector)) > halfRange) bad = true;
-          }
-        } else if (seg.type === 'arc') {
-          const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
-          const isOuter = Math.abs(seg.cx) < midAbsX;
-          const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-          let endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-          if (seg.dir === 'G2' && endAngle > startAngle) endAngle -= 2 * Math.PI;
-          if (seg.dir === 'G3' && endAngle < startAngle) endAngle += 2 * Math.PI;
-          const steps = 8;
-          for (let s = 0; s <= steps; s++) {
-            const a = startAngle + (endAngle - startAngle) * (s / steps);
-            const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
-            if (Math.abs(normalizeAngle(normAngle - bisector)) > halfRange) { bad = true; break; }
-          }
-        }
-        if (bad) interferenceSegments.push(seg);
+        if (segInterferesWithTool(seg, clearance)) interferenceSegments.push(seg);
       });
     }
 
@@ -1773,9 +1798,18 @@ export function openCamSimulator(initialContour) {
 
     // finishing offset
     if (prms.doFinishing) {
+      // Hlídání destičky: úseky, kam destička bočním ostřím nedosáhne,
+      // dokončování vynechá — následující segment dostane chainBreak,
+      // takže se přes mezeru přejede rychloposuvem.
+      const respectFin = prms.respectInsertGeometry && clearance;
+      let finSkipped = 0;
+      let pendingBreak = false;
       let finRaw = [];
       for (let i = 0; i < contourSegments.length; i++) {
         const seg = contourSegments[i];
+        if (respectFin && segInterferesWithTool(seg, clearance)) {
+          finSkipped++; pendingBreak = true; continue;
+        }
         let finSeg = null;
         if (seg.type === 'line') {
           const n = getNormal(seg.p1, seg.p2);
@@ -1793,11 +1827,14 @@ export function openCamSimulator(initialContour) {
           }
         }
         if (finSeg) {
-          if (seg.chainBreak) finSeg.chainBreak = true;
+          if (seg.chainBreak || pendingBreak) finSeg.chainBreak = true;
+          pendingBreak = false;
           finRaw.push(finSeg);
         }
       }
       finishOffsetPath = trimAndRemoveLoops(finRaw);
+      if (finSkipped > 0)
+        foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
     }
 
     if (incompleteMachiningCount > 0)
@@ -1888,6 +1925,7 @@ export function openCamSimulator(initialContour) {
         });
         xsEnd.sort((a, b) => a - b);
         let xEnd;
+        let xEndBlocked = false;
         if (xsEnd.length > 0) {
           // Kontura na tomto Z protíná svislici → vyber NEJVĚTŠÍ X (= outermost
           // kontura, ten první narazíme jdoucí −X od povrchu). Filtruj jen
@@ -1895,6 +1933,7 @@ export function openCamSimulator(initialContour) {
           const validXs = xsEnd.filter(x => x < sRad + 1);
           if (validXs.length === 0) continue; // všechny mimo polotovar
           xEnd = validXs[validXs.length - 1];
+          xEndBlocked = true;
         } else {
           // Bez průsečíku:
           //   currentZ > maxOZ → jsme za pravým koncem kontury (face-stub
@@ -1909,8 +1948,39 @@ export function openCamSimulator(initialContour) {
         const xSurface = castingOuterAtZ(currentZ);
         const xStartLocal = xSurface + rapidClrFC;
         if (xEnd >= xStartLocal - 0.01) continue; // řez nulové délky
-        passes.push({ type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd });
+        passes.push({ type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked });
         if (currentZ < -200) break;
+      }
+
+      // ── Hlídání geometrie destičky (čelně) ──
+      // Spodní hrana destičky se naklání pod vodorovnou o |natočení|
+      // (při čelním hrubování bývá natočení záporné) → průchody končící
+      // u kontury se zastavují postupně výš, jinak by hrana vpravo od
+      // špičky zajela do už obrobeného osazení (vzniká schodiště).
+      if (prms.respectInsertGeometry && prms.toolShape === 'polygon') {
+        const phiFaceDeg = -(parseFloat(prms.toolAngle) || 0);
+        if (phiFaceDeg > 0.01) {
+          const tanPhiF = Math.tan(Math.min(89.5, phiFaceDeg) * Math.PI / 180);
+          const faceWalls = passes.filter(p => p.type === 'face' && p.blocked).map(p => ({ z: p.z, xEnd: p.xEnd }));
+          let faceAdjusted = 0;
+          for (let pi = passes.length - 1; pi >= 0; pi--) {
+            const p = passes[pi];
+            if (p.type !== 'face') continue;
+            let xE = p.xEnd;
+            for (const w of faceWalls) {
+              if (w.z <= p.z + 1e-6) continue;
+              const cand = w.xEnd + (w.z - p.z) * tanPhiF;
+              if (cand > xE) xE = cand;
+            }
+            if (xE > p.xEnd + 0.01) {
+              faceAdjusted++;
+              if (xE >= p.xStart - 0.05) { passes.splice(pi, 1); continue; }
+              p.xEnd = xE;
+            }
+          }
+          if (faceAdjusted > 0)
+            foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${faceAdjusted} čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.` });
+        }
       }
     } else {
       // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
@@ -2031,43 +2101,129 @@ export function openCamSimulator(initialContour) {
         depths.push(minPartX);
       }
 
+      const effPlungeDegL = getEffectivePlungeAngle(prms);
+      const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
+      let plungeSkipped = 0;
+
       for (const currentX of depths) {
         const sz = stockZRangeAt(currentX);
         if (!sz) continue;
 
-        // Pro každou hloubku jeden pas:
-        //   zStart = pravá hrana polotovaru (sz.zMax)
-        //   zEnd   = první Z (jdoucí −Z od zStart), kde offset překročí
-        //            currentX = kontura by tu byla nahryznuta. Pokud k tomu
-        //            nikdy nedojde, zEnd = sz.zMin (levá hrana polotovaru).
+        // Skenem zprava doleva najdeme všechny volné intervaly (offset
+        // nepřekračuje currentX). První interval (od pravé hrany
+        // polotovaru) = klasický otevřený vjezd. Každý další interval je
+        // kapsa/zápich — tam se smí jet jen se zapnutým zanořováním:
+        // vjezd rampou pod úhlem zanoření z floor-u předchozí hloubky.
         //
         // Stock outline NEPROFILUJE řez (i kdyby měl casting přerušení /
         // dolíky uprostřed) — fyzický nástroj projíždí mezerou ve vzduchu
         // bez problému. Stopuje JEN kontura.
-        //
-        // Tím se vyhneme „lambadě" mezi více intervaly i tomu, že by řez
-        // u castingu s členitým okrajem stopnul na první mezeře místo
-        // až u kontury, jak to bylo dříve.
         const dzScan = 0.2;
-        let zEnd = sz.zMin;
+        const blockedAt = (z) => {
+          const offX = offsetXAt(z);
+          return offX !== null && offX > currentX + 0.01;
+        };
+        const intervals = [];
         let zScan = sz.zMax;
+        let inRun = !blockedAt(zScan);
+        const firstOpen = inRun;
+        let runStartZ = zScan;
         while (zScan > sz.zMin + dzScan) {
           zScan -= dzScan;
-          const offX = offsetXAt(zScan);
-          if (offX !== null && offX > currentX + 0.01) {
-            zEnd = zScan + dzScan; // o krok zpět = poslední bezpečné Z
-            break;
+          const blocked = blockedAt(zScan);
+          if (inRun && blocked) {
+            // o krok zpět = poslední bezpečné Z
+            intervals.push({ zStart: runStartZ, zEnd: zScan + dzScan, blocked: true });
+            inRun = false;
+          } else if (!inRun && !blocked) {
+            runStartZ = zScan;
+            inRun = true;
           }
         }
-        // Vynech triviálně krátké průchody (nic neuříznou).
-        if (sz.zMax - zEnd >= dzScan) {
+        if (inRun) intervals.push({ zStart: runStartZ, zEnd: sz.zMin, blocked: false });
+
+        intervals.forEach((iv, idx) => {
+          // Vynech triviálně krátké průchody (nic neuříznou).
+          if (iv.zStart - iv.zEnd < dzScan) return;
+          if (idx === 0 && firstOpen) {
+            // Otevřený vjezd zprava přes hranu polotovaru.
+            passes.push({ type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked });
+            return;
+          }
+          // Kapsa — vjezd jen rampou (zanořování).
+          if (!prms.plungeRoughing) return;
+          const x0 = Math.min(currentX + step, maxStockX);
+          if (x0 - currentX < 0.01) return;
+          const dzRamp = (x0 - currentX) / effPlungeTanL;
+          if (iv.zStart - dzRamp - iv.zEnd < dzScan) { plungeSkipped++; return; }
           passes.push({
-            type: 'long',
-            x: currentX,
-            zStart: sz.zMax, // RIGHT (pravá hrana polotovaru, typicky stockFace)
-            zEnd               // LEFT (klampnuto k prvnímu bloku offsetu, nebo sz.zMin)
+            type: 'long', x: currentX,
+            zStart: iv.zStart - dzRamp, // floor začíná až pod koncem rampy
+            zEnd: iv.zEnd, blocked: iv.blocked,
+            ramp: { x0, z0: iv.zStart }
           });
+        });
+      }
+      if (plungeSkipped > 0)
+        foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeSkipped} kapes je příliš úzkých pro rampu pod ${effPlungeDegL.toFixed(1)}°.` });
+
+      // ── Hlídání geometrie destičky (podélně) ──
+      // Čelní hrana destičky se nad špičkou naklání o φ = natočení + ε − 90
+      // za svislici → průchody končící u zdi (levé stěny) se zastavují
+      // postupně dál vpravo, takže boční ostří nezajede do kontury
+      // (zbytek tvoří schodiště pod úhlem hrany). Spodní hrana (natočení)
+      // totéž zrcadlově u pravých stěn kapes při zanořování.
+      if (prms.respectInsertGeometry && prms.toolShape === 'polygon') {
+        const rotDeg = parseFloat(prms.toolAngle) || 0;
+        const tipDeg = parseFloat(prms.toolTipAngle) || 90;
+        let adjusted = 0;
+        const phiDeg = rotDeg + tipDeg - 90;
+        if (phiDeg > 0.01) {
+          const tanPhi = Math.tan(Math.min(89.5, phiDeg) * Math.PI / 180);
+          const walls = passes.filter(p => p.type === 'long' && p.blocked).map(p => ({ x: p.x, z: p.zEnd }));
+          for (let pi = passes.length - 1; pi >= 0; pi--) {
+            const p = passes[pi];
+            if (p.type !== 'long') continue;
+            let zE = p.zEnd;
+            for (const w of walls) {
+              if (w.x <= p.x + 1e-6 || w.z > p.zStart + 0.01) continue;
+              const cand = w.z + (w.x - p.x) * tanPhi;
+              if (cand > zE) zE = cand;
+            }
+            if (zE > p.zEnd + 0.01) {
+              adjusted++;
+              if (zE >= p.zStart - 0.05) { passes.splice(pi, 1); continue; }
+              p.zEnd = zE;
+            }
+          }
         }
+        // Pravé stěny kapes: spodní hrana destičky stoupá od špičky pod
+        // úhlem natočení — hlubší zanořovací průchody musí začínat o
+        // dx/tan(natočení) víc vlevo, jinak by hrana nad špičkou zajela
+        // do pravé stěny kapsy.
+        if (rotDeg > 0.01) {
+          const tanRot = Math.tan(Math.min(89.5, rotDeg) * Math.PI / 180);
+          const rightWalls = passes.filter(p => p.type === 'long' && p.ramp).map(p => ({ x: p.x, z: p.ramp.z0 }));
+          for (let pi = passes.length - 1; pi >= 0; pi--) {
+            const p = passes[pi];
+            if (p.type !== 'long' || !p.ramp) continue;
+            let z0 = p.ramp.z0;
+            for (const w of rightWalls) {
+              if (w.x <= p.x + 1e-6) continue;
+              const cand = w.z - (w.x - p.x) / tanRot;
+              if (cand < z0) z0 = cand;
+            }
+            if (z0 < p.ramp.z0 - 0.01) {
+              adjusted++;
+              const dzRamp = p.ramp.z0 - p.zStart;
+              p.ramp.z0 = z0;
+              p.zStart = z0 - dzRamp;
+              if (p.zStart - p.zEnd < 0.05) passes.splice(pi, 1);
+            }
+          }
+        }
+        if (adjusted > 0)
+          foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
       }
     }
 
@@ -2100,6 +2256,9 @@ export function openCamSimulator(initialContour) {
           if (chuckLim !== null && zE < chuckLim) zE = chuckLim;
           if (tailLim  !== null && zS > tailLim)  zS = tailLim;
           if (zS - zE < EPS) { droppedCount++; continue; }
+          // Zanořovací průchod nelze zkrátit zprava (rampa by se rozbila)
+          // — pokud limity stahují zStart nebo vršek rampy, celý vynech.
+          if (pass.ramp && (zS !== origZS || (tailLim !== null && pass.ramp.z0 > tailLim))) { droppedCount++; continue; }
           if (zS !== origZS || zE !== origZE) clampedCount++;
           clamped.push({ ...pass, zStart: zS, zEnd: zE });
         } else if (pass.type === 'face') {
@@ -2195,8 +2354,15 @@ export function openCamSimulator(initialContour) {
     for (let i = 0; i < simPath.length - 1; i++)
       addToPath(simPath[i].x, simPath[i].z, simPath[i + 1].x, simPath[i + 1].z, simPath[i + 1].type);
 
+    // Vrch polotovaru v X (pro bezpečné rapid přejezdy nad materiálem).
+    let stockTopX = sRad;
+    if (prms.stockMode === 'casting' && stockWorldPoints.length > 0) {
+      stockTopX = -9999;
+      stockWorldPoints.forEach(p => { if (p.xReal > stockTopX) stockTopX = p.xReal; });
+    }
+
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments };
+    return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, stockTopX };
   }
 
   // ── G-Code Editor Content ────────────────────────────────────
@@ -2269,7 +2435,7 @@ export function openCamSimulator(initialContour) {
     addCmt(`--- HRUBOVANI (${prms.roughingStrategy === 'face' ? 'CELNI' : 'PODELNE'}) ---`);
     // Vůle nad polotovarem + úhel nájezdové rampy (ladí s calculate()).
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
-    const entryAngleDegGc = Math.max(0.5, Math.min(89.5, parseFloat(prms.entryAngle) || 30));
+    const entryAngleDegGc = getEffectivePlungeAngle(prms);
     const entryRadGc = entryAngleDegGc * Math.PI / 180;
     // Helper: ořezat Z na aktivní čelisti/koník limity (G-kód generace).
     const gcLimsActive = S.showZLimits === 'fixtures' || S.showZLimits === 'both';
@@ -2282,8 +2448,26 @@ export function openCamSimulator(initialContour) {
       return v;
     };
     calc.passes.forEach((pass, i) => {
-      addCmt(`Průchod ${i + 1}`);
-      if (pass.type === 'long') {
+      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : ''}`);
+      if (pass.type === 'long' && pass.ramp) {
+        // Zanořovací průchod do kapsy/zápichu:
+        //   G0 X<nad polotovar>        ; rapid do plného vzduchu
+        //   G0 Z<z0>                   ; nad pravý okraj kapsy
+        //   G0 X<x0+vůle>              ; sjezd k floor-u předchozí hloubky
+        //   G1 X<x0>                   ; dotek floor-u posuvem
+        //   G1 X<hloubka> Z<zStart>    ; rampa pod úhlem zanoření
+        //   G1 Z<zEnd> F<f>            ; podélný řez po dně kapsy
+        //   G1 X+odskok Z+odskok       ; retract pod 45°
+        const dia = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
+        const zRetract = clipZGc(pass.zEnd + rDist).toFixed(3);
+        simCounter += 1; addN(`G0 X${dia((calc.stockTopX || 0) + rapidClrGc)}`, simCounter);
+        simCounter += 1; addN(`G0 Z${pass.ramp.z0.toFixed(3)}`, simCounter);
+        simCounter += 1; addN(`G0 X${dia(pass.ramp.x0 + rapidClrGc)}`, simCounter);
+        simCounter += 1; addN(`G1 X${dia(pass.ramp.x0)} F${prms.feed}`, simCounter);
+        simCounter += 1; addN(`G1 X${dia(pass.x)} Z${pass.zStart.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter);
+        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter);
+        simCounter += 1; addN(`G1 X${dia(pass.x + rDist)} Z${zRetract}`, simCounter);
+      } else if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
         //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
         //   G0 X<hloubka>              ; rapid k průměru
@@ -2627,6 +2811,12 @@ export function openCamSimulator(initialContour) {
       ctx.beginPath();
       calc.passes.forEach(pass => {
         if (pass.type === 'long') {
+          if (pass.ramp) {
+            // rampa zanoření z floor-u předchozí hloubky
+            const pr = toScreen(pass.ramp.x0, pass.ramp.z0);
+            const pe = toScreen(pass.x, pass.zStart);
+            ctx.moveTo(pr.x, pr.y); ctx.lineTo(pe.x, pe.y);
+          }
           const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
           ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
         } else {
@@ -3424,9 +3614,6 @@ export function openCamSimulator(initialContour) {
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
       <div class="cam-sim-field"><label>Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
-    </div>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field" title="Rezervováno pro ramp-in nájezdy. Aktuální podélná strategie ho nepoužívá — nástroj sjede svisle na bezpečném Z, kde kontura už klesla pod aktuální hloubku."><label>Úhel nájezdu (°)</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${prms.entryAngle}"></div>
     </div>`;
     html += `<div class="cam-sim-section-title">Nástroj <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button></div>
     <div class="cam-sim-row">
@@ -3446,6 +3633,23 @@ export function openCamSimulator(initialContour) {
         <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
       </div>`;
     }
+    const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
+    html += `<div class="cam-sim-row">
+      <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°)."><label>Úhel zanoření (°)</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${effPlunge}"></div>
+      <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky (natočení + vrcholový úhel)">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
+    </div>`;
+    if (prms.toolShape === 'polygon') {
+      html += `<div class="cam-sim-checkbox-row">
+        <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
+        <span>Hlídat geometrii destičky</span>
+      </div>
+      <small class="cam-sim-info-box" style="display:block;margin-top:2px">Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.</small>`;
+    }
+    html += `<div class="cam-sim-checkbox-row">
+      <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
+      <span>Zanořování (kapsy/zápichy)</span>
+    </div>
+    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.</small>`;
     html += `<div class="cam-sim-checkbox-row">
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
       <span>Dokončovací operace</span>
@@ -3481,6 +3685,8 @@ export function openCamSimulator(initialContour) {
         if (inp.dataset.p === 'lims') {
           S.params.machineType = `LIMS=${parseInt(v) || 2000}`;
         } else {
+          // Ruční zadání úhlu zanoření vypíná auto dopočet z destičky.
+          if (inp.dataset.p === 'entryAngle') S.params.entryAngleAuto = false;
           S.params[inp.dataset.p] = inp.type === 'number' ? (parseFloat(v) || 0) : v;
         }
         fullUpdate();
@@ -3531,6 +3737,19 @@ export function openCamSimulator(initialContour) {
     });
     const finCb = tabBody.querySelector('#cam-sim-fin');
     if (finCb) finCb.addEventListener('change', () => { S.params.doFinishing = finCb.checked; fullUpdate(); });
+    const respCb = tabBody.querySelector('#cam-sim-respect-insert');
+    if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; fullUpdate(); });
+    const plungeCb = tabBody.querySelector('#cam-sim-plunge');
+    if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; fullUpdate(); });
+    const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
+    if (plungeAutoBtn) plungeAutoBtn.addEventListener('click', () => {
+      S.params.entryAngleAuto = !S.params.entryAngleAuto;
+      // Při vypnutí auta převezme pole aktuálně dopočtenou hodnotu,
+      // aby šla ručně doladit od smysluplného výchozího čísla.
+      if (!S.params.entryAngleAuto)
+        S.params.entryAngle = getEffectivePlungeAngle({ ...S.params, entryAngleAuto: true });
+      fullUpdate();
+    });
     const toolLibBtn = tabBody.querySelector('[data-act="tool-library"]');
     if (toolLibBtn) toolLibBtn.addEventListener('click', () => {
       showToolLibraryDialog({
