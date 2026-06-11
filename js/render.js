@@ -524,6 +524,8 @@ function renderObjects() {
   const vp = getViewportBounds();
 
   state.objects.forEach((obj, idx) => {
+    // Skrytá poznámka s CAM G-kódem (viz camSimulator.js handleSendToCanvas) — nikdy nevykreslovat
+    if (obj.isCamPathNote) return;
     // Skip objects on invisible layers
     const layer = state.layers.find(l => l.id === obj.layer);
     if (layer && !layer.visible) return;

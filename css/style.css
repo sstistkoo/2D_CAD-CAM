@@ -478,6 +478,10 @@ body {
   display: none;
 }
 
+#objPanel {
+  display: none;
+}
+
 #intPanel {
   display: none;
 }

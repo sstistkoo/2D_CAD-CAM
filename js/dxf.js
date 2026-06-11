@@ -1041,7 +1041,7 @@ export function buildMakerModel(objects, opts = {}) {
   let count = 0;
 
   for (const obj of objects) {
-    if (!obj || obj.isDimension || obj.isCoordLabel) continue;
+    if (!obj || obj.isDimension || obj.isCoordLabel || obj.isCamPathNote) continue;
     let sub;
     try {
       sub = objToMakerModel(obj, mk);

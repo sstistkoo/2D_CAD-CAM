@@ -206,22 +206,29 @@ function injectCSS() {
 .cam-sim-code-bar button:hover { background: #45475a; }
 .cam-sim-code-bar button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
 .cam-sim-code-bar button[data-code="editor"] { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
-.cam-sim-code-scroll {
-  flex: 1; overflow-y: auto; font-family: monospace; font-size: 11px; padding: 4px;
+.cam-sim-code-wrap {
+  flex: 1; position: relative; overflow: hidden;
 }
-.cam-sim-code-scroll::-webkit-scrollbar { width: 6px; }
-.cam-sim-code-scroll::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
-.cam-sim-code-line {
-  white-space: pre; padding: 1px 6px; cursor: pointer; color: #a6e3a1;
+.cam-sim-code-backdrop, .cam-sim-manual-ta {
+  position: absolute; inset: 0; margin: 0; box-sizing: border-box;
+  width: 100%; height: 100%; padding: 6px;
+  font-family: monospace; font-size: 11px; line-height: 1.5;
+  white-space: pre; overflow: auto;
 }
-.cam-sim-code-line.cam-sim-code-active {
-  background: rgba(137,180,250,0.2); font-weight: bold; border-left: 3px solid #89b4fa;
+.cam-sim-code-backdrop {
+  pointer-events: none; color: transparent;
+}
+.cam-sim-code-backdrop::-webkit-scrollbar { width: 0; height: 0; }
+.cam-sim-code-bd-line { white-space: pre; }
+.cam-sim-code-bd-line.cam-sim-code-active {
+  background: rgba(137,180,250,0.2); border-left: 3px solid #89b4fa; margin-left: -3px; padding-left: 3px;
 }
 .cam-sim-manual-ta {
-  flex: 1; width: 100%; padding: 6px; font-family: monospace; font-size: 11px;
   resize: none; border: none; outline: none;
-  background: #11111b; color: #a6e3a1;
+  background: transparent; color: #a6e3a1;
 }
+.cam-sim-manual-ta::-webkit-scrollbar { width: 6px; }
+.cam-sim-manual-ta::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
 .cam-sim-sidebar {
   width: 320px; overflow: hidden; border-left: 1px solid #45475a;
   background: #181825; display: flex; flex-direction: column;
@@ -1232,15 +1239,17 @@ export function openCamSimulator(initialContour) {
       <div class="cam-sim-code-bar">
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
-          <button data-code="toggle-mode" class="cam-sim-active">Auto</button>
+          <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Autorefresh drah</button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
           <button data-code="show-sidebar" title="Zobrazit editor kontury">✏ Edit</button>
         </div>
       </div>
-      <div class="cam-sim-code-scroll"></div>
-      <textarea class="cam-sim-manual-ta" style="display:none" spellcheck="false"
-        placeholder="Zde můžete psát vlastní G-kód..."></textarea>
+      <div class="cam-sim-code-wrap">
+        <div class="cam-sim-code-backdrop"></div>
+        <textarea class="cam-sim-manual-ta" spellcheck="false"
+          placeholder="Zde můžete psát vlastní G-kód..."></textarea>
+      </div>
     </div>
   </div>
   <div class="cam-sim-sidebar" style="display:none">
@@ -1370,7 +1379,7 @@ export function openCamSimulator(initialContour) {
     showSimPath: 'all',
     draggedLimit: null, // 'chuck' | 'tail' | 'rangeStart' | 'rangeEnd' nebo null
     simRunning: false, simProgress: 0,
-    useManualCode: false, manualGCode: '',
+    manualGCode: '',
     generatedCode: [], errors: [],
     past: [], future: [],
     draggedPointId: null, hoverPointId: null,
@@ -1397,7 +1406,6 @@ export function openCamSimulator(initialContour) {
       if (p.contourPoints && p.contourPoints.length > 0) S.contourPoints = p.contourPoints;
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
       if (p.manualGCode) S.manualGCode = p.manualGCode;
-      if (p.useManualCode !== undefined) S.useManualCode = p.useManualCode;
       if (p.flipX !== undefined) S.flipX = !!p.flipX;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
       if (p.showZLimits !== undefined) {
@@ -1447,13 +1455,27 @@ export function openCamSimulator(initialContour) {
     } catch (e) { console.warn('buildStockPointsFromCanvas:', e); }
   }
 
+  // Obnovit ručně upravený G-kód uložený při "📐 Kreslit" (CAM → CAD) jako
+  // skrytá poznámka na výkrese — má přednost před localStorage/auto kódem,
+  // takže ruční úpravy drah přežijí cestu tam a zpět přes CAD.
+  const camNoteIdx = state.objects.findIndex(o => o.isCamPathNote);
+  if (camNoteIdx !== -1) {
+    if (state.objects[camNoteIdx].gcode) S.manualGCode = state.objects[camNoteIdx].gcode;
+    state.objects.splice(camNoteIdx, 1);
+  }
+
+  // Pokud zatím není žádný G-kód (nová kontura, nic uloženo), počáteční
+  // obsah editoru vygenerujeme automaticky z kontury/parametrů.
+  if (!S.manualGCode || !S.manualGCode.trim()) {
+    S.manualGCode = generateAutoGCode(calculate()).map(l => l.text).join('\n');
+  }
 
   // ── DOM refs ──
   const root = overlay.querySelector('.cam-sim-root');
   const canvasWrap = root.querySelector('.cam-sim-canvas-wrap');
   const canvas = canvasWrap.querySelector('canvas');
   const ctx = canvas.getContext('2d');
-  const codeScroll = root.querySelector('.cam-sim-code-scroll');
+  const codeBackdrop = root.querySelector('.cam-sim-code-backdrop');
   const manualTa = root.querySelector('.cam-sim-manual-ta');
   const timeOverlay = root.querySelector('.cam-sim-time-overlay');
   const progressBar = root.querySelector('.cam-sim-progress-bar');
@@ -1544,7 +1566,7 @@ export function openCamSimulator(initialContour) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
-        useManualCode: S.useManualCode, flipX: S.flipX,
+        flipX: S.flipX,
         zLimits: S.zLimits, showZLimits: S.showZLimits, showSimPath: S.showSimPath
       }));
     } catch (_) { /* quota */ }
@@ -2140,164 +2162,28 @@ export function openCamSimulator(initialContour) {
       return { x: x2, z: z2, type };
     };
 
-    if (S.useManualCode) {
-      simPath = parseManualGCodeToPath(S.manualGCode, prms);
-      for (let i = 0; i < simPath.length - 1; i++)
-        addToPath(simPath[i].x, simPath[i].z, simPath[i + 1].x, simPath[i + 1].z, simPath[i + 1].type);
-    } else {
-      simPath.push({ x: prms.safeX / 2, z: prms.safeZ, type: 'G0' });
-      let currentSimX = prms.safeX / 2, currentSimZ = prms.safeZ;
-      const rapidClr = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
-      const entryAngleDeg = Math.max(0.5, Math.min(89.5, parseFloat(prms.entryAngle) || 30));
-      const entryRad = entryAngleDeg * Math.PI / 180;
-      // Helper: ořezat rapid/retract Z target k aktivním čelist/koník limitům.
-      const clipZ = (z) => {
-        let v = z;
-        if (tailLim  !== null && v > tailLim)  v = tailLim;
-        if (chuckLim !== null && v < chuckLim) v = chuckLim;
-        return v;
-      };
-      passes.forEach((pass, passIdx) => {
-        if (pass.type === 'long') {
-          // Standardní podélné hrubování (vpravo → vlevo, −Z). Vzor:
-          //   (a) G0 Z za polotovar (= pass.zStart + rapidClr, rapid clearance)
-          //   (b) G0 X přímo k průměru = pass.x  (žádný šikmý rapid)
-          //   (c) G0 Z na pass.zStart — sjezd na hranu polotovaru bez řezu
-          //         vzduchem (jinak by G1 první rapidClr mm jelo posuvem
-          //         přes vzduch za pravou hranou polotovaru)
-          //   (d) G1 −Z na pass.zEnd  — podélný řez přes celou špónu MATERIÁLEM
-          //   (e) G1 X+Z retract pod 45° od konce řezu o retractDist v obou osách
-          const xClear = pass.x + retractDist;
-          const zRetract = clipZ(pass.zEnd + retractDist);
-          const zApproach = clipZ(pass.zStart + rapidClr);
-
-          // (a) G0 Z za polotovar (rapid-safe nad konturou)
-          if (Math.abs(currentSimZ - zApproach) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, zApproach, 'G0'));
-            currentSimZ = zApproach;
-          }
-          // (b) G0 X k průměru = pass.x (ve vzduchu za pravou hranou)
-          if (Math.abs(currentSimX - pass.x) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, pass.x, currentSimZ, 'G0'));
-            currentSimX = pass.x;
-          }
-          // (c) G0 Z na hranu polotovaru (= pass.zStart) — odřezne air G1
-          if (Math.abs(currentSimZ - pass.zStart) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, pass.zStart, 'G0'));
-            currentSimZ = pass.zStart;
-          }
-          // (d) G1 podélný řez −Z na pass.zEnd — celý posuv řeže materiál
-          simPath.push(addToPath(currentSimX, currentSimZ, pass.x, pass.zEnd, 'G1'));
-          currentSimZ = pass.zEnd;
-          // (e) G1 retract pod 45° (dx = dz = retractDist)
-          simPath.push(addToPath(currentSimX, currentSimZ, xClear, zRetract, 'G1'));
-          currentSimX = xClear;
-          currentSimZ = zRetract;
-        } else {
-          // Čelní řez (od povrchu polotovaru −X k ose / kontuře). Vzor:
-          //   (a) G0 X na pass.xStart = LOKÁLNÍ casting outer + rapidClr
-          //         (per-Z, ne globální sRad+clr → vyjede jen těsně nad
-          //         skutečný povrch v tomto Z, ne na globální maximum)
-          //         Safety: jdeme jen NAHORU (max s currentSimX), nikdy dolů
-          //         pod aktuální X, abychom nepřejeli přes vyšší kus castingu.
-          //   (b) G0 Z na pass.z (= cílová hloubka)
-          //   (c) G0 X DOLŮ na pass.xSurface (= povrch polotovaru tady) — odřezne air G1
-          //   (d) G1 −X na pass.xEnd — čelní řez MATERIÁLEM od povrchu k bloku
-          //   (e) G1 retract 45°: (xEnd + odskok, pass.z + odskok)
-          const xRetract = pass.xEnd + retractDist;
-          const zRetract = clipZ(pass.z + retractDist);
-          // (a) G0 X UP na max(currentSimX, pass.xStart) — chrání před tím,
-          //     aby se X sjelo pod úroveň, kde je casting outline výš
-          const xRapidTarget = Math.max(currentSimX, pass.xStart);
-          if (Math.abs(currentSimX - xRapidTarget) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, xRapidTarget, currentSimZ, 'G0'));
-            currentSimX = xRapidTarget;
-          }
-          // (b) G0 Z na hloubku
-          if (Math.abs(currentSimZ - pass.z) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, currentSimX, pass.z, 'G0'));
-            currentSimZ = pass.z;
-          }
-          // (c) G0 X DOLŮ na povrch polotovaru (per-Z) — eliminuje air G1
-          if (Math.abs(currentSimX - pass.xSurface) > 0.001) {
-            simPath.push(addToPath(currentSimX, currentSimZ, pass.xSurface, currentSimZ, 'G0'));
-            currentSimX = pass.xSurface;
-          }
-          // (d) G1 −X řez (celý posuv řeže materiál)
-          simPath.push(addToPath(currentSimX, currentSimZ, pass.xEnd, currentSimZ, 'G1'));
-          currentSimX = pass.xEnd;
-          // (e) G1 45° retract
-          simPath.push(addToPath(currentSimX, currentSimZ, xRetract, zRetract, 'G1'));
-          currentSimX = xRetract;
-          currentSimZ = zRetract;
-        }
-      });
-      simPath.push(addToPath(currentSimX, currentSimZ, prms.safeX / 2, prms.safeZ, 'G0'));
-
-      const firstFinSeg = finishOffsetPath.find(s => !s.isDegenerate);
-      if (prms.doFinishing && firstFinSeg) {
-        const startSeg = firstFinSeg;
-        const startX = startSeg.type === 'line' ? startSeg.p1.x : (startSeg.cx + Math.sin(startSeg.startAngle) * startSeg.r);
-        const startZ = startSeg.type === 'line' ? startSeg.p1.z : (startSeg.cz + Math.cos(startSeg.startAngle) * startSeg.r);
-        // Nájezd na hotovou konturu pod úhlem entryAngle (= úhel spodní
-        // strany destičky). Z přibližovacího bodu (startX + 2 mm, startZ + rampDz)
-        // posuvem do (startX, startZ) — gentle dotek místo kolmého plunge.
-        const finishApproachDx = 2;
-        const finishRampDz = finishApproachDx / Math.tan(entryRad);
-        // Rapid přibližovací bod nesmí překročit koník/čelisti — pokud by
-        // ramp s daným úhlem překročil limit, Z přibližovacího bodu se
-        // ořízne k limitu (entry úhel se zostří).
-        let approachZ = startZ + finishRampDz;
-        if (tailLim !== null && approachZ > tailLim) approachZ = tailLim;
-        if (chuckLim !== null && approachZ < chuckLim) approachZ = chuckLim;
-        const lastPt = simPath[simPath.length - 1];
-        simPath.push(addToPath(lastPt.x, lastPt.z, startX + finishApproachDx, approachZ, 'G0'));
-        simPath.push(addToPath(startX + finishApproachDx, approachZ, startX, startZ, 'G1'));
-        finishOffsetPath.forEach(seg => {
-          if (seg.isDegenerate) return;
-          // chainBreak: G-kód generátor sem vkládá navíc G0 na začátek
-          // segmentu (viz --- DOKONCOVANI --- výše) — musíme jej zrcadlit
-          // i v simPath, jinak se simIdx/simCounter rozejdou a kurzor
-          // v editoru ukazuje na špatný bod dráhy.
-          if (seg.chainBreak) {
-            const sp = segStartPoint(seg);
-            const before = simPath[simPath.length - 1];
-            simPath.push(addToPath(before.x, before.z, sp.x, sp.z, 'G0'));
-          }
-          const prev = simPath[simPath.length - 1];
-          if (seg.type === 'line') {
-            simPath.push(addToPath(prev.x, prev.z, seg.p2.x, seg.p2.z, 'G1'));
-          } else {
-            const steps = 10;
-            let sA = seg.startAngle, eA = seg.endAngle;
-            if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-            if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-            let lastArcX = prev.x, lastArcZ = prev.z;
-            for (let j = 1; j <= steps; j++) {
-              const a = sA + (eA - sA) * (j / steps);
-              const nx = seg.cx + Math.sin(a) * seg.r, nz = seg.cz + Math.cos(a) * seg.r;
-              simPath.push(addToPath(lastArcX, lastArcZ, nx, nz, seg.dir));
-              lastArcX = nx; lastArcZ = nz;
-            }
-          }
-        });
-        const finalPt = simPath[simPath.length - 1];
-        simPath.push(addToPath(finalPt.x, finalPt.z, finalPt.x + 2, finalPt.z + 2, 'G0'));
-        const veryLast = simPath[simPath.length - 1];
-        simPath.push(addToPath(veryLast.x, veryLast.z, prms.safeX / 2, prms.safeZ, 'G0'));
-      }
-    }
+    // Simulační dráha se vždy počítá z (ručně editovatelného) G-kódu —
+    // viz [[feedback_flip-axis-gcode]] a tlačítko "🔄 Autorefresh drah",
+    // které přepíše S.manualGCode čerstvě vygenerovaným kódem z kontury/parametrů.
+    simPath = parseManualGCodeToPath(S.manualGCode, prms);
+    for (let i = 0; i < simPath.length - 1; i++)
+      addToPath(simPath[i].x, simPath[i].z, simPath[i + 1].x, simPath[i + 1].z, simPath[i + 1].type);
 
     S.errors = foundErrors;
     return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments };
   }
 
-  // ── G-Code Generator ─────────────────────────────────────────
+  // ── G-Code Editor Content ────────────────────────────────────
+  // G-kód editor je vždy ručně editovatelný (viz "🔄 Autorefresh drah").
   function generateGCode(calc) {
+    return S.manualGCode.split('\n').map((line, idx) => ({ text: line, simIdx: idx }));
+  }
+
+  // ── Auto G-Code Generator (z aktuální kontury/parametrů) ─────
+  // Volá se jen z tlačítka "🔄 Autorefresh drah" — výsledek přepíše
+  // S.manualGCode (a tedy i editor a simulační dráhu).
+  function generateAutoGCode(calc) {
     const prms = S.params;
-    if (S.useManualCode) {
-      return S.manualGCode.split('\n').map((line, idx) => ({ text: line, simIdx: idx }));
-    }
     const d = new Date();
     const lines = [];
     const add = (text, simIdx = null) => lines.push({ text, simIdx });
@@ -3166,43 +3052,46 @@ export function openCamSimulator(initialContour) {
       timeOverlay.textContent = `⏱ ${Math.floor(calc.estimatedTimeSeconds / 60)}m ${Math.round(calc.estimatedTimeSeconds % 60)}s | ${(calc.totalPathLength / 1000).toFixed(2)}m`;
     else timeOverlay.textContent = '';
 
-    if (S.useManualCode) {
-      codeScroll.style.display = 'none';
-      manualTa.style.display = '';
-      manualTa.value = S.manualGCode;
-    } else {
-      codeScroll.style.display = '';
-      manualTa.style.display = 'none';
-      codeScroll.innerHTML = S.generatedCode.map((line, idx) =>
-        `<div class="cam-sim-code-line" data-idx="${idx}" data-simidx="${line.simIdx ?? ''}">${escHTML(line.text)}</div>`
-      ).join('');
-    }
+    if (manualTa.value !== S.manualGCode) manualTa.value = S.manualGCode;
+    renderCodeBackdrop();
     updateCodeHighlight();
-    updateCodeBtns();
   }
-  // Index řádku v S.generatedCode odpovídající aktuální pozici simulace
-  // (stejná logika jako zvýraznění v G-CODE panelu) — používá se i pro
-  // skok kurzoru v CAM Editoru na stejný řádek.
+  // Vykreslí podkladové řádky pod textarea (1:1 se řádky G-kódu), aby šlo
+  // zvýraznit aktivní řádek simulace pod editovatelným textem.
+  function renderCodeBackdrop() {
+    codeBackdrop.innerHTML = S.manualGCode.split('\n').map(line =>
+      `<div class="cam-sim-code-bd-line">${escHTML(line) || '&nbsp;'}</div>`
+    ).join('');
+    codeBackdrop.scrollTop = manualTa.scrollTop;
+    codeBackdrop.scrollLeft = manualTa.scrollLeft;
+  }
+  // Index řádku G-kódu odpovídající aktuální pozici simulace — najde
+  // nejbližší následující bod simPath s originalLineIdx (viz
+  // parseManualGCodeToPath). Používá se pro zvýraznění i skok kurzoru
+  // v CAM Editoru na stejný řádek.
   function getActiveCodeLineIdx() {
     const calc = S._cachedCalc;
-    if (!calc || S.useManualCode || calc.simPath.length < 2) return null;
+    if (!calc || calc.simPath.length < 2) return null;
     const currentSimIdx = Math.floor(S.simProgress * (calc.simPath.length - 1));
-    const activeIdx = S.generatedCode.findIndex(l => l.simIdx !== null && l.simIdx > currentSimIdx);
-    return activeIdx === -1 ? findLastIdx(S.generatedCode, l => l.simIdx !== null) : activeIdx;
+    for (let i = currentSimIdx; i < calc.simPath.length; i++) {
+      if (calc.simPath[i].originalLineIdx != null) return calc.simPath[i].originalLineIdx;
+    }
+    return findLastIdx(calc.simPath, p => p.originalLineIdx != null) === -1
+      ? null
+      : calc.simPath[findLastIdx(calc.simPath, p => p.originalLineIdx != null)].originalLineIdx;
   }
   function updateCodeHighlight() {
-    if (S.useManualCode) return;
     const hlIdx = getActiveCodeLineIdx();
-    codeScroll.querySelectorAll('.cam-sim-code-line').forEach((el, i) => {
-      el.classList.toggle('cam-sim-code-active', i === hlIdx);
-    });
-    const activeEl = codeScroll.querySelector('.cam-sim-code-active');
-    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-  function updateCodeBtns() {
-    const toggleBtn = root.querySelector('[data-code="toggle-mode"]');
-    toggleBtn.textContent = S.useManualCode ? '✏ Manuál' : 'Auto';
-    toggleBtn.classList.toggle('cam-sim-active', !S.useManualCode);
+    const lineEls = codeBackdrop.querySelectorAll('.cam-sim-code-bd-line');
+    lineEls.forEach((el, i) => el.classList.toggle('cam-sim-code-active', i === hlIdx));
+    if (hlIdx != null && lineEls[hlIdx]) {
+      const lineEl = lineEls[hlIdx];
+      const top = lineEl.offsetTop, bottom = top + lineEl.offsetHeight;
+      if (top < manualTa.scrollTop || bottom > manualTa.scrollTop + manualTa.clientHeight) {
+        manualTa.scrollTop = Math.max(0, top - manualTa.clientHeight / 2);
+        codeBackdrop.scrollTop = manualTa.scrollTop;
+      }
+    }
   }
   function findLastIdx(arr, fn) {
     for (let i = arr.length - 1; i >= 0; i--) if (fn(arr[i])) return i;
@@ -3688,14 +3577,14 @@ export function openCamSimulator(initialContour) {
 
   // ── copy / download / PDF ──
   function handleCopyGCode() {
-    const text = S.useManualCode ? S.manualGCode : S.generatedCode.map(l => l.text).join('\n');
+    const text = S.manualGCode;
     navigator.clipboard.writeText(text).then(() => {
       const btn = tabBody.querySelector('[data-act="copy-code"]');
       if (btn) { const orig = btn.textContent; btn.textContent = '✅ Zkopírováno'; setTimeout(() => { btn.textContent = orig; }, 1500); }
     }).catch(() => alert('Nepodařilo se zkopírovat kód do schránky.'));
   }
   function handleDownload() {
-    const text = S.useManualCode ? S.manualGCode : S.generatedCode.map(l => l.text).join('\n');
+    const text = S.manualGCode;
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -3755,7 +3644,7 @@ export function openCamSimulator(initialContour) {
 
   // ── Send to CAM Editor ──
   function handleSendToEditor() {
-    const text = S.useManualCode ? S.manualGCode : S.generatedCode.map(l => l.text).join('\n');
+    const text = S.manualGCode;
     if (!text.trim()) { alert('Není žádný G-kód k odeslání.'); return; }
     openCamEditor(text, getActiveCodeLineIdx());
   }
@@ -3863,6 +3752,14 @@ export function openCamSimulator(initialContour) {
       if (stockPts.length >= 2) emitChain(stockPts, true);
     }
 
+    // Skrytá poznámka s ručně upraveným G-kódem drah — nevykresluje se,
+    // ale při příštím otevření CAM se z ní obnoví editor (viz openCamSimulator),
+    // takže ruční úpravy drah přežijí cestu CAM → CAD → CAM.
+    state.objects.push({
+      type: 'camNote', id: state.nextId++, isCamPathNote: true,
+      gcode: S.manualGCode, layer: state.activeLayer
+    });
+
     calculateAllIntersections();
     updateObjectList();
     autoCenterView();
@@ -3909,8 +3806,13 @@ export function openCamSimulator(initialContour) {
           const calc = S._cachedCalc;
           const total = calc.simPath.length - 1;
           const currentSimIdx = Math.floor(S.simProgress * total);
-          const nextLine = S.generatedCode.find(l => l.simIdx != null && l.simIdx > currentSimIdx);
-          S.simBlockTarget = nextLine ? Math.min(1, nextLine.simIdx / total) : 1;
+          const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
+          let targetIdx = total;
+          for (let i = currentSimIdx + 1; i <= total; i++) {
+            const li = calc.simPath[i].originalLineIdx;
+            if (li != null && li > currentLineIdx) { targetIdx = i; break; }
+          }
+          S.simBlockTarget = total > 0 ? targetIdx / total : 1;
         } else {
           S.simBlockTarget = null;
         }
@@ -3955,14 +3857,14 @@ export function openCamSimulator(initialContour) {
       S.flipX = !S.flipX;
       btn.classList.toggle('cam-sim-active', S.flipX);
       btn.textContent = S.flipX ? '⇅ X+ ↓' : '⇅ X+ ↑';
-      // Recalc + re-emit – swaps G2/G3 in the generated program (no-op in manual mode).
+      // Přepočet/redraw – ruční G-kód se nepřepisuje (G2/G3 v něm zůstávají
+      // beze změny, viz [[feedback_flip-axis-gcode]]). Nové G2/G3 se promítnou
+      // až po "🔄 Autorefresh drah".
       if (!S._cachedCalc) S._cachedCalc = calculate();
-      S.generatedCode = generateGCode(S._cachedCalc);
-      renderCodeArea();
       draw();
       saveState();
       const msg = S.flipX
-        ? (S.useManualCode ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)' : 'Osa X otočena – X+ dolů (G2/G3 prohozeny)')
+        ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)'
         : 'Osa X – X+ nahoru';
       showToast(msg);
     } else if (act === 'simpath') {
@@ -4068,10 +3970,13 @@ export function openCamSimulator(initialContour) {
   });
 
   // code area buttons
-  root.querySelector('[data-code="toggle-mode"]').addEventListener('click', () => {
-    S.useManualCode = !S.useManualCode;
-    if (S.useManualCode) S.manualGCode = S.generatedCode.map(l => l.text).join('\n');
+  root.querySelector('[data-code="refresh"]').addEventListener('click', async () => {
+    const ok = await camConfirm('Přegenerovat dráhy z aktuální kontury a parametrů? Ruční úpravy G-kódu budou přepsány.');
+    if (!ok) return;
+    if (!S._cachedCalc) S._cachedCalc = calculate();
+    S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
     fullUpdate();
+    showToast('Dráhy přegenerovány z kontury a parametrů');
   });
   root.querySelector('[data-code="editor"]').addEventListener('click', handleSendToEditor);
   root.querySelector('[data-code="to-canvas"]').addEventListener('click', handleSendToCanvas);
@@ -4087,17 +3992,18 @@ export function openCamSimulator(initialContour) {
   });
 
   // manual textarea
-  manualTa.addEventListener('input', () => { S.manualGCode = manualTa.value; S._cachedCalc = calculate(); S.generatedCode = generateGCode(S._cachedCalc); draw(); saveState(); });
-
-  // code line click
-  codeScroll.addEventListener('click', e => {
-    const lineEl = e.target.closest('.cam-sim-code-line');
-    if (!lineEl) return;
-    const simIdx = lineEl.dataset.simidx;
-    if (simIdx !== '' && S._cachedCalc && S._cachedCalc.simPath.length > 1) {
-      S.simProgress = parseInt(simIdx) / (S._cachedCalc.simPath.length - 1);
-      draw(); updateCodeHighlight(); updateProgressBar();
-    }
+  manualTa.addEventListener('input', () => {
+    S.manualGCode = manualTa.value;
+    S._cachedCalc = calculate();
+    S.generatedCode = generateGCode(S._cachedCalc);
+    renderCodeBackdrop();
+    updateCodeHighlight();
+    draw();
+    saveState();
+  });
+  manualTa.addEventListener('scroll', () => {
+    codeBackdrop.scrollTop = manualTa.scrollTop;
+    codeBackdrop.scrollLeft = manualTa.scrollLeft;
   });
 
   // Vloží do polotovaru nový bod tam, kde jeho obrys protíná svislou

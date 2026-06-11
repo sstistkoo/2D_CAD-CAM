@@ -460,7 +460,7 @@ function runCncExport() {
   for (const obj of exportObjects) {
     if (obj.type === 'constr') continue;
     if (obj.type === 'text') continue;
-    if (obj.isDimension || obj.isCoordLabel) continue;
+    if (obj.isDimension || obj.isCoordLabel || obj.isCamPathNote) continue;
     _seqNum++;
     const cleanName = (obj.name || '').replace(/\s+\d+\s*$/, '') || obj.type;
     // Objekt považujeme za polotovar pokud má isStock=true NEBO pokud je pojmenovaný
@@ -494,6 +494,7 @@ function runCncExport() {
       target.push({
         type: 'line', name: seqLabel,
         x1, y1, x2, y2,
+        isStock: obj.isStock,
         _sortX: Math.max(x1, x2)
       });
     } else if (obj.type === 'point') {
@@ -622,20 +623,21 @@ function runCncExport() {
 
   // Společný emitor jednoho objektu (přepoužit pro konturu i polotovar)
   function emitObj(obj) {
+    const stockPrefix = obj.isStock ? "POLOTOVAR — " : "";
     switch (obj.type) {
       case "point":
-        out += `; ${obj.name}\n`;
+        out += `; ${stockPrefix}${obj.name}\n`;
         if (needsRapid(obj.x, obj.y)) emitRapid(obj.x, obj.y);
         lastEndX = obj.x; lastEndY = obj.y;
         break;
       case "line":
-        out += `; ${obj.name} (délka: ${Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1).toFixed(3)})\n`;
+        out += `; ${stockPrefix}${obj.name} (délka: ${Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1).toFixed(3)})\n`;
         if (needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
         lastEndX = obj.x2; lastEndY = obj.y2;
         break;
       case "circle": {
-        out += `; ${obj.name} (R: ${obj.r.toFixed(3)})\n`;
+        out += `; ${stockPrefix}${obj.name} (R: ${obj.r.toFixed(3)})\n`;
         const cStartX = obj.cx + obj.r, cStartY = obj.cy;
         if (needsRapid(cStartX, cStartY)) emitRapid(cStartX, cStartY);
         const circG = flipArc('G02');
@@ -652,7 +654,7 @@ function runCncExport() {
         break;
       }
       case "arc": {
-        out += `; ${obj.name} (R: ${obj.r.toFixed(3)})\n`;
+        out += `; ${stockPrefix}${obj.name} (R: ${obj.r.toFixed(3)})\n`;
         const sx = obj.cx + obj.r * Math.cos(obj.startAngle),
           sy = obj.cy + obj.r * Math.sin(obj.startAngle);
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
@@ -671,7 +673,7 @@ function runCncExport() {
         break;
       }
       case "rect":
-        out += `; ${obj.name} (${Math.abs(obj.x2 - obj.x1).toFixed(2)} × ${Math.abs(obj.y2 - obj.y1).toFixed(2)})\n`;
+        out += `; ${stockPrefix}${obj.name} (${Math.abs(obj.x2 - obj.x1).toFixed(2)} × ${Math.abs(obj.y2 - obj.y1).toFixed(2)})\n`;
         if (needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y1)}\n`;
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
@@ -682,7 +684,7 @@ function runCncExport() {
       case "polyline": {
         const pn = obj.vertices.length;
         const pSegCnt = obj.closed ? pn : pn - 1;
-        out += `; ${obj.name} (${pn} vrcholů${obj.closed ? ', uzavřená' : ''})\n`;
+        out += `; ${stockPrefix}${obj.name} (${pn} vrcholů${obj.closed ? ', uzavřená' : ''})\n`;
         if (needsRapid(obj.vertices[0].x, obj.vertices[0].y)) {
           emitRapid(obj.vertices[0].x, obj.vertices[0].y);
         }

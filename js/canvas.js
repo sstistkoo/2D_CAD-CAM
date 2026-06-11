@@ -127,7 +127,7 @@ export function snapPt(wx, wy) {
 
     const midThreshold = threshold * 0.3;  // Midpoints: ~30% of normal threshold
     for (const obj of state.objects) {
-      if (obj.isDimension || obj.isCoordLabel) continue;
+      if (obj.isDimension || obj.isCoordLabel || obj.isCamPathNote) continue;
       const pts = getObjectSnapPoints(obj);
       for (const p of pts) {
         const d = Math.hypot(p.x - wx, p.y - wy);
