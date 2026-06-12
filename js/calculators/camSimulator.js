@@ -4657,6 +4657,20 @@ export function openCamSimulator(initialContour) {
       if (stockPts.length >= 2) emitChain(stockPts, true);
     }
 
+    // Konstrukční čáry (ruční pomocné + automatické hranice nájezdu/výjezdu)
+    // — souřadnice g.x1/z1/x2/z2 jsou již v reálných (poloměrových) jednotkách,
+    // takže se předávají do toCanvas přímo bez přepočtu DIAMON → RADIUS.
+    const guideLines = getAllGuideLines();
+    for (const g of guideLines) {
+      const c1 = toCanvas(g.x1, g.z1);
+      const c2 = toCanvas(g.x2, g.z2);
+      const id = state.nextId++;
+      state.objects.push({
+        type: 'constr', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
+        name: `Konstrukční čára ${id}`, id, layer: 1,
+      });
+    }
+
     // Skrytá poznámka s ručně upraveným G-kódem drah — nevykresluje se,
     // ale při příštím otevření CAM se z ní obnoví editor (viz openCamSimulator),
     // takže ruční úpravy drah přežijí cestu CAM → CAD → CAM.
@@ -4679,7 +4693,8 @@ export function openCamSimulator(initialContour) {
       const sideOverlay = document.getElementById('sidebarOverlay');
       if (sideOverlay) sideOverlay.style.display = 'none';
     }
-    showToast(`Kontura + polotovar vloženy (${state.objects.length} objektů)`);
+    const guideMsg = guideLines.length ? ` + ${guideLines.length} konstr. čar` : '';
+    showToast(`Kontura + polotovar vloženy (${state.objects.length} objektů${guideMsg})`);
   }
 
   // ── TRASOVÁNÍ PROFILU ──────────────────────────────────────────
