@@ -1862,38 +1862,46 @@ export function openCamSimulator(initialContour) {
       };
       // Strana porušení rozsahu: low = normála pod rozsahem (čelní hrana,
       // dojezd), high = nad rozsahem (spodní hrana, zanoření).
-      const sideOf = (seg) => {
-        const res = { low: false, high: false };
-        const check = (nA) => {
-          const dev = normalizeAngle(nA - clearance.bisector);
-          if (dev < -clearance.halfRange - 1e-6) res.low = true;
-          if (dev > clearance.halfRange + 1e-6) res.high = true;
-        };
+      const isOuterArc = (seg) => Math.abs(seg.cx) < Math.abs((seg.p1.x + seg.p2.x) / 2);
+      const devAtAngle = (seg, a) => normalizeAngle((isOuterArc(seg) ? a : a + Math.PI) - clearance.bisector);
+      // Body segmentu, které SAMY (svou vlastní normálou) porušují danou
+      // stranu rozsahu — u oblouku jen ta část, kde k interferenci skutečně
+      // dochází, ne celý (třeba jen částečně postižený) oblouk.
+      const violatingPts = (seg, wantLow) => {
+        const bad = (dev) => wantLow ? dev < -clearance.halfRange - 1e-6 : dev > clearance.halfRange + 1e-6;
         if (seg.type === 'line') {
           const n = getNormal(seg.p1, seg.p2);
-          if (n.x !== 0 || n.z !== 0) check(vecAngle(n.x, n.z));
-        } else {
-          const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
-          const isOuter = Math.abs(seg.cx) < midAbsX;
-          sampleSeg(seg).forEach(q => {
-            const a = Math.atan2(q.x - seg.cx, q.z - seg.cz);
-            check(normalizeAngle(isOuter ? a : a + Math.PI));
-          });
+          if (n.x === 0 && n.z === 0) return [];
+          return bad(normalizeAngle(vecAngle(n.x, n.z) - clearance.bisector)) ? [seg.p1, seg.p2] : [];
         }
-        return res;
+        return sampleSeg(seg).filter(q => {
+          const a = Math.atan2(q.x - seg.cx, q.z - seg.cz);
+          return bad(devAtAngle(seg, a));
+        });
       };
+      const sideOf = (seg) => ({
+        low: violatingPts(seg, true).length > 0,
+        high: violatingPts(seg, false).length > 0,
+      });
       // Průsečíky mezních čar hledáme JEN na kontuře — obrys polotovaru
       // není obráběný povrch (čára by se jinak táhla třeba až k ose X0).
       const localCalc = { worldPoints, stockWorldPoints: [] };
       for (const grp of groups) {
-        const pts = [];
+        // Body se sbírají odděleně pro dojezd (low) a zanoření (high) —
+        // pokud skupina porušuje rozsah na obě strany různými segmenty,
+        // body z "druhé" hrany by mohly přebít dotykový bod téhle hrany.
+        const lowPts = [], highPts = [];
         let low = false, high = false;
         grp.forEach(s => {
-          pts.push(...sampleSeg(s));
           const sd = sideOf(s);
-          low = low || sd.low; high = high || sd.high;
+          if (sd.low) { low = true; lowPts.push(...violatingPts(s, true)); }
+          if (sd.high) { high = true; highPts.push(...violatingPts(s, false)); }
         });
-        const addGuide = (betaDeg, kind) => {
+        // Při ray-castu vynechat segmenty téhle skupiny — dotykový bod
+        // může ležet na oblouku skupiny a paprsek by jinak mohl narazit
+        // zpět na stejný oblouk místo na navazující konturu.
+        const excludeIdx = grp.map(s => idxOf.get(s) + 1);
+        const addGuide = (betaDeg, kind, pts) => {
           const b = betaDeg * Math.PI / 180;
           const sb = Math.sin(b), cb = Math.cos(b);
           // Normála čáry na stranu vzduchu (+X nahoru). Dotyk = bod regionu
@@ -1909,16 +1917,35 @@ export function openCamSimulator(initialContour) {
             if (q.x > topX) topX = q.x;
             if (q.x < botX) botX = q.x;
           });
+          // Přesný tečný bod oblouku (maximum projekce po celé kružnici) —
+          // pokud padne do úhlového rozsahu tohoto oblouku, je to přesnější
+          // dotykový bod než vzorkované body (tečna na zakřivené kontuře).
+          grp.forEach(s => {
+            if (s.type !== 'arc') return;
+            const sd = sideOf(s);
+            if ((kind === 'dojezd' && !sd.low) || (kind === 'zanoreni' && !sd.high)) return;
+            const tx = s.cx + s.r * nx, tz = s.cz + s.r * nz;
+            const ang = Math.atan2(tx - s.cx, tz - s.cz);
+            const dev = devAtAngle(s, ang);
+            const violates = kind === 'dojezd' ? dev < -clearance.halfRange - 1e-6 : dev > clearance.halfRange + 1e-6;
+            const within = violates && isAngleBetween(ang, s.startAngle, s.endAngle, s.dir === 'G2');
+            if (within) {
+              const g = tx * nx + tz * nz;
+              if (g > bestG) { bestG = g; best = { x: tx, z: tz }; }
+              if (tx > topX) topX = tx;
+              if (tx < botX) botX = tx;
+            }
+          });
           if (!best) return;
           // Dolní konec: průsečík s konturou; bez něj skončit u spodku regionu.
-          let down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalc);
+          let down = camRayIntersection(best.x, best.z, -sb, -cb, excludeIdx, localCalc);
           if (!down) {
             const t = sb > 0.01 ? (best.x - botX) / sb : 0;
             down = t > 0.01 ? { x: best.x - sb * t, z: best.z - cb * t } : best;
           }
           // Horní konec: průsečík s konturou; bez něj skončit u vršku
           // regionu (NEprotahovat k hornímu okraji polotovaru).
-          let up = camRayIntersection(best.x, best.z, sb, cb, null, localCalc);
+          let up = camRayIntersection(best.x, best.z, sb, cb, excludeIdx, localCalc);
           if (!up) {
             const capX = Math.min(topX, stockTopXG);
             const t = sb > 0.01 ? (capX - best.x) / sb : 0;
@@ -1929,8 +1956,8 @@ export function openCamSimulator(initialContour) {
             Math.hypot(g.x1 - down.x, g.z1 - down.z) < 0.5 && Math.hypot(g.x2 - up.x, g.z2 - up.z) < 0.5);
           if (!dup) interferenceGuides.push({ x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind });
         };
-        if (low) addGuide(rotDegG + tipDegG, 'dojezd');
-        if (high) addGuide(rotDegG, 'zanoreni');
+        if (low) addGuide(rotDegG + tipDegG, 'dojezd', lowPts);
+        if (high) addGuide(rotDegG, 'zanoreni', highPts);
       }
     }
 
@@ -3610,6 +3637,9 @@ export function openCamSimulator(initialContour) {
   function camRayIntersection(sx, sz, dirX, dirZ, exclude, calcOverride) {
     const calc = calcOverride || S._cachedCalc; if (!calc) return null;
     let best = null, bestT = Infinity;
+    // exclude: buď {idx,isStock} (jeden segment), nebo pole indexů do
+    // calc.worldPoints (vynechá víc segmentů kontury najednou).
+    const excludeSet = Array.isArray(exclude) ? new Set(exclude) : null;
     const consider = (px, pz) => {
       const t = (px - sx) * dirX + (pz - sz) * dirZ;
       if (t > 0.01 && t < bestT) { bestT = t; best = { x: px, z: pz }; }
@@ -3619,7 +3649,8 @@ export function openCamSimulator(initialContour) {
     const scan = (pts, isStock) => {
       if (!pts) return;
       for (let i = 1; i < pts.length; i++) {
-        if (exclude && exclude.isStock === isStock && exclude.idx === i) continue;
+        if (excludeSet) { if (!isStock && excludeSet.has(i)) continue; }
+        else if (exclude && exclude.isStock === isStock && exclude.idx === i) continue;
         const p2 = pts[i], p1 = pts[i - 1];
         if (p2.type === 'G1') {
           const B1 = { x: p1.xReal, z: p1.zReal }, B2 = { x: p2.xReal, z: p2.zReal };
@@ -6172,4 +6203,5 @@ export function openCamSimulator(initialContour) {
   }
   fullUpdate();
   requestAnimationFrame(() => fitView());
+  if (typeof window !== 'undefined') window.__camDebug = { S, calculate, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
 }
