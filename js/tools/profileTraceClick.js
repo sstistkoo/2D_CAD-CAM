@@ -19,6 +19,7 @@ let _traceSegments = [];
 let _traceBulges = [];   // bulge pro každý segment (0 = rovný)
 let _traceOverlay = null;
 let _selectedTraceIdx = -1; // vybraný bod/segment v panelu
+let _choosingSegment = false; // true, pokud je otevřen modal s výběrem segmentu
 
 /**
  * Vypočte I a K pro obloukový segment.
@@ -45,6 +46,50 @@ function _calcIK(segIdx) {
 }
 
 /**
+ * Najde všechny možné segmenty (přímka + oblouky existujících objektů),
+ * po kterých lze trasovat z p1 do p2. První kandidát je vždy přímka (G01).
+ */
+function _findSegmentCandidates(p1, p2) {
+  const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  const angle = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
+
+  const candidates = [{ segType: 'G01', dist, angle, radius: null, centerX: null, centerY: null }];
+
+  const tol = Math.max(15 / state.zoom, 2);
+
+  for (let i = 0; i < state.objects.length; i++) {
+    const obj = state.objects[i];
+    // Skip locked/invisible layers
+    const layer = state.layers.find(l => l.id === obj.layer);
+    if (layer && (layer.locked || !layer.visible)) continue;
+
+    let arc = null;
+    if (obj.type === 'circle' || obj.type === 'arc') {
+      const d1 = Math.abs(Math.hypot(p1.x - obj.cx, p1.y - obj.cy) - obj.r);
+      const d2 = Math.abs(Math.hypot(p2.x - obj.cx, p2.y - obj.cy) - obj.r);
+      if (d1 < tol && d2 < tol) arc = { cx: obj.cx, cy: obj.cy, r: obj.r };
+    } else if (obj.type === 'polyline') {
+      arc = _findPolylineArcForPoints(obj, p1, p2, tol);
+    }
+
+    if (arc) {
+      const segType = _isClockwise(p1, p2, { x: arc.cx, y: arc.cy }) ? 'G02' : 'G03';
+      const dup = candidates.some(c =>
+        c.radius != null &&
+        Math.abs(c.radius - arc.r) < 1e-6 &&
+        Math.abs(c.centerX - arc.cx) < 1e-6 &&
+        Math.abs(c.centerY - arc.cy) < 1e-6
+      );
+      if (!dup) {
+        candidates.push({ segType, dist, angle, radius: arc.r, centerX: arc.cx, centerY: arc.cy });
+      }
+    }
+  }
+
+  return candidates;
+}
+
+/**
  * Analyzuje segment mezi dvěma body – pokud leží na objektu (oblouk),
  * vrací info o tom. Respektuje manuální bulge.
  */
@@ -66,52 +111,46 @@ function _analyzeSegment(p1, p2, bulge) {
     }
   }
 
-  // Zkusit najít oblouk/kružnici, na které leží OBA body
-  const tol = Math.max(15 / state.zoom, 2);
-  let segType = 'G01';
-  let radius = null;
-  let centerX = null;
-  let centerY = null;
+  // Výchozí volba: první nalezený oblouk, jinak přímka
+  const candidates = _findSegmentCandidates(p1, p2);
+  return candidates.find(c => c.segType !== 'G01') || candidates[0];
+}
 
-  for (let i = 0; i < state.objects.length; i++) {
-    const obj = state.objects[i];
-    // Skip locked/invisible layers
-    const layer = state.layers.find(l => l.id === obj.layer);
-    if (layer && (layer.locked || !layer.visible)) continue;
+/**
+ * Zobrazí modal s možnostmi segmentu (přímka / oblouk(y)) a vrátí Promise,
+ * která se vyřeší vybraným kandidátem. Při zavření bez výběru se vrátí první (přímka).
+ */
+function _chooseSegmentCandidate(candidates) {
+  return new Promise((resolve) => {
+    const dec = state.displayDecimals;
+    let bodyHTML = '<div class="seg-choice-list" style="display:flex;flex-direction:column;gap:6px;">';
+    candidates.forEach((c, i) => {
+      const label = c.segType === 'G01'
+        ? `Přímka — délka ${c.dist.toFixed(dec)} mm`
+        : `Oblouk ${c.segType === 'G02' ? 'CW (G02)' : 'CCW (G03)'} — R${c.radius.toFixed(dec)}`;
+      bodyHTML += `<button class="calc-btn seg-choice-btn" data-idx="${i}" style="text-align:left">${label}</button>`;
+    });
+    bodyHTML += '</div>';
 
-    if (obj.type === 'circle') {
-      const d1 = Math.abs(Math.hypot(p1.x - obj.cx, p1.y - obj.cy) - obj.r);
-      const d2 = Math.abs(Math.hypot(p2.x - obj.cx, p2.y - obj.cy) - obj.r);
-      if (d1 < tol && d2 < tol) {
-        segType = _isClockwise(p1, p2, { x: obj.cx, y: obj.cy }) ? 'G02' : 'G03';
-        radius = obj.r;
-        centerX = obj.cx;
-        centerY = obj.cy;
-        break;
-      }
-    } else if (obj.type === 'arc') {
-      const d1 = Math.abs(Math.hypot(p1.x - obj.cx, p1.y - obj.cy) - obj.r);
-      const d2 = Math.abs(Math.hypot(p2.x - obj.cx, p2.y - obj.cy) - obj.r);
-      if (d1 < tol && d2 < tol) {
-        segType = _isClockwise(p1, p2, { x: obj.cx, y: obj.cy }) ? 'G02' : 'G03';
-        radius = obj.r;
-        centerX = obj.cx;
-        centerY = obj.cy;
-        break;
-      }
-    } else if (obj.type === 'polyline') {
-      const arc = _findPolylineArcForPoints(obj, p1, p2, tol);
-      if (arc) {
-        segType = _isClockwise(p1, p2, { x: arc.cx, y: arc.cy }) ? 'G02' : 'G03';
-        radius = arc.r;
-        centerX = arc.cx;
-        centerY = arc.cy;
-        break;
-      }
-    }
-  }
+    const overlay = makeOverlay('segmentChoice', 'Výběr segmentu profilu', bodyHTML);
+    if (!overlay) { resolve(candidates[0]); return; }
 
-  return { segType, dist, angle, radius, centerX, centerY };
+    let resolved = false;
+    const finish = (val) => {
+      if (resolved) return;
+      resolved = true;
+      if (document.body.contains(overlay)) overlay.remove();
+      resolve(val);
+    };
+
+    overlay.querySelectorAll('.seg-choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => finish(candidates[parseInt(btn.dataset.idx, 10)]));
+    });
+
+    new MutationObserver((_, obs) => {
+      if (!document.body.contains(overlay)) { obs.disconnect(); finish(candidates[0]); }
+    }).observe(document.body, { childList: true });
+  });
 }
 
 /**
@@ -144,7 +183,7 @@ function _findPolylineArcForPoints(poly, p1, p2, tol) {
 /**
  * Hlavní click handler pro trasování profilu.
  */
-export function handleProfileTraceClick(wx, wy) {
+export async function handleProfileTraceClick(wx, wy) {
   if (!state.drawing) {
     // První bod – start trasování
     _tracePoints = [{ x: wx, y: wy }];
@@ -159,9 +198,23 @@ export function handleProfileTraceClick(wx, wy) {
     updateTracePanel();
   } else {
     // Další bod
+    if (_choosingSegment) return;
     const prev = _tracePoints[_tracePoints.length - 1];
-    const seg = _analyzeSegment(prev, { x: wx, y: wy }, 0);
-    _tracePoints.push({ x: wx, y: wy });
+    const p2 = { x: wx, y: wy };
+    const candidates = _findSegmentCandidates(prev, p2);
+
+    let seg;
+    if (candidates.length > 1) {
+      _choosingSegment = true;
+      seg = await _chooseSegmentCandidate(candidates);
+      _choosingSegment = false;
+      // Pokud uživatel mezitím trasování zrušil/dokončil, nic nepřidávat
+      if (!state.drawing) return;
+    } else {
+      seg = candidates[0];
+    }
+
+    _tracePoints.push(p2);
     _traceSegments.push(seg);
     _traceBulges.push(0);
     state.tempPoints.push({ x: wx, y: wy });
@@ -249,6 +302,7 @@ export function resetProfileTraceState() {
   _traceBulges = [];
   _traceOverlay = null;
   _selectedTraceIdx = -1;
+  _choosingSegment = false;
   state._profileTraceBulges = [];
   updateTracePanel();
 }
