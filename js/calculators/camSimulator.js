@@ -143,6 +143,15 @@ function injectCSS() {
   background: rgba(17,17,27,0.75); color: #6c7086; font-size: 11px; font-family: monospace;
   padding: 2px 10px; border-radius: 4px; pointer-events: none; white-space: nowrap; z-index: 2;
 }
+.cam-sim-trace-confirm, .cam-sim-trace-cancel {
+  display: none; position: absolute; bottom: 10px; z-index: 3;
+  padding: 10px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold;
+  white-space: nowrap;
+}
+.cam-sim-trace-confirm { right: 10px; background: #a6e3a1; color: #1e1e2e; }
+.cam-sim-trace-cancel { right: 130px; background: #f38ba8; color: #1e1e2e; }
+.cam-sim-trace-confirm:active { background: #94d8a0; }
+.cam-sim-trace-cancel:active { background: #e07090; }
 .cam-sim-code-bar button[data-code="show-sidebar"] {
   background: #cba6f7; color: #1e1e2e; border-color: #cba6f7;
 }
@@ -1301,6 +1310,9 @@ export function openCamSimulator(initialContour) {
   <div class="cam-sim-canvas-area">
     <div class="cam-sim-toolbar">
       <button data-act="addpt" title="Vložit za bod">➕</button>
+      <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
+      <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
+      <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
       <button data-act="delpt" title="Odebrat bod">➖</button>
       <button data-act="lock" title="Zamknout/odemknout body" class="cam-sim-active">🔒</button>
       <button data-act="fit" title="Centrovat">🎯</button>
@@ -1308,7 +1320,10 @@ export function openCamSimulator(initialContour) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
     </div>
-    <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div></div>
+    <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
+      <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
+      <button class="cam-sim-trace-confirm" data-act="trace-confirm" title="Dokončit trasování profilu (Enter)">✓ Dokončit</button>
+    </div>
     <div class="cam-sim-progress-bar">
       <div class="cam-sim-progress-track"><div class="cam-sim-progress-fill"></div></div>
       <span class="cam-sim-progress-pct">0%</span>
@@ -1412,9 +1427,23 @@ export function openCamSimulator(initialContour) {
     if (clipBtn) clipBtn.style.display = '';
   };
   const camCleanupObs = new MutationObserver(() => {
-    if (!document.body.contains(overlay)) { restoreOnClose(); camCleanupObs.disconnect(); }
+    if (!document.body.contains(overlay)) { restoreOnClose(); document.removeEventListener('keydown', traceKeyHandler, true); camCleanupObs.disconnect(); }
   });
   camCleanupObs.observe(document.body, { childList: true });
+
+  // Enter = dokončit trasování profilu, Esc = zrušit body / vypnout režim.
+  // Zachycuje se v capture fázi a stopImmediatePropagation, aby Esc nezavřel celý overlay.
+  const traceKeyHandler = (e) => {
+    if (!S.profileTraceMode) return;
+    if (e.key === 'Escape') {
+      e.stopImmediatePropagation(); e.preventDefault();
+      _cancelTraceStep();
+    } else if (e.key === 'Enter') {
+      e.stopImmediatePropagation(); e.preventDefault();
+      _finishProfileTrace();
+    }
+  };
+  document.addEventListener('keydown', traceKeyHandler, true);
 
   // ── STATE ──
   const S = {
@@ -1483,6 +1512,12 @@ export function openCamSimulator(initialContour) {
     past: [], future: [],
     draggedPointId: null, hoverPointId: null,
     isDragging: false, addPointMode: false, pointDragEnabled: false,
+    // Trasování profilu (klikací nástroj) — body, segmenty a náhled výsledné kontury
+    profileTraceMode: false,
+    _tracePoints: [],   // [{x, z}] absolutní world souřadnice (rádius, Z)
+    _traceSegs: [],     // [{type:'G1'|'G2'|'G3', dist, r, cx, cz}] – segment od _tracePoints[i] do [i+1]
+    _previewContour: null, // číslovaná náhledová kontura čekající na potvrzení
+    _refContour: null,      // záloha původní S.contourPoints po dobu náhledu
     activeTab: 'editor', simSpeed: 1,
     singleBlock: false, simBlockTarget: null,
     _animId: null, _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
@@ -1786,6 +1821,117 @@ export function openCamSimulator(initialContour) {
       rawContourForInterference.forEach(seg => {
         if (segInterferesWithTool(seg, clearance)) interferenceSegments.push(seg);
       });
+    }
+
+    // ── Automatické mezní čáry hran destičky („kontura hotová") ──
+    // Pro každou souvislou skupinu interferenčních segmentů se spočítá
+    // přímka hrany destičky, která se regionu jen dotkne: dojezd = čelní
+    // hrana (natočení + ε), zanoření = spodní hrana (natočení). Od bodu
+    // dotyku se protáhne podél hrany k průsečíkům s konturou — ukazuje,
+    // kudy destička region bezpečně obejde (tečna jako z nástroje Úhel).
+    const interferenceGuides = [];
+    if (clearance && interferenceSegments.length > 0) {
+      const rotDegG = parseFloat(prms.toolAngle) || 0;
+      const tipDegG = parseFloat(prms.toolTipAngle) || 90;
+      const stockTopXG = (prms.stockMode === 'casting' && stockWorldPoints.length > 0)
+        ? Math.max(...stockWorldPoints.map(p => p.xReal))
+        : (parseFloat(prms.stockDiameter) || 100) / 2;
+      // skupiny po sobě jdoucích interferenčních segmentů (pořadí kontury)
+      const idxOf = new Map();
+      rawContourForInterference.forEach((s, i) => idxOf.set(s, i));
+      const sorted = [...interferenceSegments].sort((a, b) => idxOf.get(a) - idxOf.get(b));
+      const groups = [];
+      let curGrp = null, lastIdx = -10;
+      for (const s of sorted) {
+        const i = idxOf.get(s);
+        if (!curGrp || i !== lastIdx + 1) { curGrp = []; groups.push(curGrp); }
+        curGrp.push(s); lastIdx = i;
+      }
+      const sampleSeg = (seg) => {
+        if (seg.type === 'line') return [seg.p1, seg.p2];
+        const out = [];
+        let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+        let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+        if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+        if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+        for (let s = 0; s <= 12; s++) {
+          const a = sA + (eA - sA) * (s / 12);
+          out.push({ x: seg.cx + Math.sin(a) * seg.r, z: seg.cz + Math.cos(a) * seg.r });
+        }
+        return out;
+      };
+      // Strana porušení rozsahu: low = normála pod rozsahem (čelní hrana,
+      // dojezd), high = nad rozsahem (spodní hrana, zanoření).
+      const sideOf = (seg) => {
+        const res = { low: false, high: false };
+        const check = (nA) => {
+          const dev = normalizeAngle(nA - clearance.bisector);
+          if (dev < -clearance.halfRange - 1e-6) res.low = true;
+          if (dev > clearance.halfRange + 1e-6) res.high = true;
+        };
+        if (seg.type === 'line') {
+          const n = getNormal(seg.p1, seg.p2);
+          if (n.x !== 0 || n.z !== 0) check(vecAngle(n.x, n.z));
+        } else {
+          const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+          const isOuter = Math.abs(seg.cx) < midAbsX;
+          sampleSeg(seg).forEach(q => {
+            const a = Math.atan2(q.x - seg.cx, q.z - seg.cz);
+            check(normalizeAngle(isOuter ? a : a + Math.PI));
+          });
+        }
+        return res;
+      };
+      // Průsečíky mezních čar hledáme JEN na kontuře — obrys polotovaru
+      // není obráběný povrch (čára by se jinak táhla třeba až k ose X0).
+      const localCalc = { worldPoints, stockWorldPoints: [] };
+      for (const grp of groups) {
+        const pts = [];
+        let low = false, high = false;
+        grp.forEach(s => {
+          pts.push(...sampleSeg(s));
+          const sd = sideOf(s);
+          low = low || sd.low; high = high || sd.high;
+        });
+        const addGuide = (betaDeg, kind) => {
+          const b = betaDeg * Math.PI / 180;
+          const sb = Math.sin(b), cb = Math.cos(b);
+          // Normála čáry na stranu vzduchu (+X nahoru). Dotyk = bod regionu
+          // nejdál ve směru této normály — u dojezdu tečna/roh na pravé
+          // straně regionu, u zanoření horní hrana (rim) kapsy.
+          let nx = -cb, nz = sb;
+          if (nx < 0 || (Math.abs(nx) < 1e-9 && nz < 0)) { nx = -nx; nz = -nz; }
+          let best = null, bestG = -Infinity;
+          let topX = -Infinity, botX = Infinity;
+          pts.forEach(q => {
+            const g = q.x * nx + q.z * nz;
+            if (g > bestG) { bestG = g; best = q; }
+            if (q.x > topX) topX = q.x;
+            if (q.x < botX) botX = q.x;
+          });
+          if (!best) return;
+          // Dolní konec: průsečík s konturou; bez něj skončit u spodku regionu.
+          let down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalc);
+          if (!down) {
+            const t = sb > 0.01 ? (best.x - botX) / sb : 0;
+            down = t > 0.01 ? { x: best.x - sb * t, z: best.z - cb * t } : best;
+          }
+          // Horní konec: průsečík s konturou; bez něj skončit u vršku
+          // regionu (NEprotahovat k hornímu okraji polotovaru).
+          let up = camRayIntersection(best.x, best.z, sb, cb, null, localCalc);
+          if (!up) {
+            const capX = Math.min(topX, stockTopXG);
+            const t = sb > 0.01 ? (capX - best.x) / sb : 0;
+            up = t > 0.01 ? { x: best.x + sb * t, z: best.z + cb * t } : best;
+          }
+          if (Math.hypot(up.x - down.x, up.z - down.z) < 0.5) return;
+          const dup = interferenceGuides.some(g =>
+            Math.hypot(g.x1 - down.x, g.z1 - down.z) < 0.5 && Math.hypot(g.x2 - up.x, g.z2 - up.z) < 0.5);
+          if (!dup) interferenceGuides.push({ x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind });
+        };
+        if (low) addGuide(rotDegG + tipDegG, 'dojezd');
+        if (high) addGuide(rotDegG, 'zanoreni');
+      }
     }
 
 
@@ -2447,7 +2593,7 @@ export function openCamSimulator(initialContour) {
     }
 
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, stockTopX };
+    return { worldPoints, stockWorldPoints, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, interferenceGuides, stockTopX };
   }
 
   // ── G-Code Editor Content ────────────────────────────────────
@@ -2711,6 +2857,47 @@ export function openCamSimulator(initialContour) {
     return lines;
   }
 
+  // ── Vykreslení kontury z bodů {x, z, type, r} (trasování profilu) ──
+  function _drawPointsContour(pts, toScreen, color, withNumbers) {
+    if (!pts || pts.length === 0) return;
+    ctx.beginPath();
+    const start = toScreen(pts[0].x, pts[0].z);
+    ctx.moveTo(start.x, start.y);
+    for (let i = 1; i < pts.length; i++) {
+      const p1 = pts[i - 1], p2 = pts[i];
+      if (p2.type === 'G2' || p2.type === 'G3') {
+        const arc = getArcParams({ x: p1.x, z: p1.z }, { x: p2.x, z: p2.z }, p2.r, p2.type);
+        if (!arc.error) {
+          const steps = arcSteps(arc.r, S.view.scale);
+          let sA = Math.atan2(p1.x - arc.cx, p1.z - arc.cz);
+          let eA = Math.atan2(p2.x - arc.cx, p2.z - arc.cz);
+          if (p2.type === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (p2.type === 'G3' && eA < sA) eA += 2 * Math.PI;
+          for (let j = 1; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            const pt = toScreen(arc.cx + Math.sin(a) * arc.r, arc.cz + Math.cos(a) * arc.r);
+            ctx.lineTo(pt.x, pt.y);
+          }
+          continue;
+        }
+      }
+      const pe = toScreen(p2.x, p2.z);
+      ctx.lineTo(pe.x, pe.y);
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+
+    if (withNumbers) {
+      pts.forEach((p, i) => {
+        const pt = toScreen(p.x, p.z);
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.fillStyle = '#1e1e2e'; ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), pt.x, pt.y + 0.5);
+      });
+    }
+  }
+
   // ── CANVAS DRAWING ────────────────────────────────────────────
   function draw() {
     const calc = S._cachedCalc;
@@ -2870,7 +3057,22 @@ export function openCamSimulator(initialContour) {
           } else ctx.lineTo(ptEnd.x, ptEnd.y);
         }
       }
-      ctx.strokeStyle = C.contour; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = S._previewContour ? 'rgba(137,180,250,0.25)' : C.contour; ctx.lineWidth = 3; ctx.stroke();
+    }
+
+    // Náhled trasovaného profilu (číslovaná kontura čekající na potvrzení)
+    if (S._previewContour) {
+      _drawPointsContour(S._previewContour, toScreen, C.pass, true);
+    }
+
+    // Body trasování v průběhu (před dokončením)
+    if (S.profileTraceMode && S._tracePoints.length > 0) {
+      const tracePts = [{ ...S._tracePoints[0], type: 'G0' }];
+      for (let i = 0; i < S._traceSegs.length; i++) {
+        const seg = S._traceSegs[i];
+        tracePts.push({ ...S._tracePoints[i + 1], type: seg.type, r: seg.r || 0 });
+      }
+      _drawPointsContour(tracePts, toScreen, C.tool, true);
     }
 
     // zvýraznění úseků kontury, kam destička dle svého tvaru/natočení
@@ -2897,16 +3099,36 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.error; ctx.lineWidth = 5; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // pomocné (konstrukční) čáry — tečny z nástroje Úhel apod.
-    // Jen vizuální kontrola (např. zda plátek nezajíždí do kontury),
-    // nejsou součástí kontury ani G-kódu.
-    if (S.guideLines && S.guideLines.length > 0) {
-      ctx.beginPath();
-      S.guideLines.forEach(g => {
-        const p1 = toScreen(g.x1, g.z1), p2 = toScreen(g.x2, g.z2);
-        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-      });
-      ctx.strokeStyle = C.tool; ctx.lineWidth = 1.5; ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
+    // pomocné (konstrukční) čáry — ruční tečny z nástroje Úhel (žluté)
+    // + automatické mezní čáry hran destičky (tyrkysové). Ke každé se
+    // kreslí i offset o rádius plátku (kam dojede STŘED plátku) a malé
+    // kroužky na koncových bodech (tečné body / průsečíky) pro klikání.
+    {
+      const allGuides = [
+        ...(S.guideLines || []).map(g => ({ ...g, auto: false })),
+        ...((calc.interferenceGuides || []).map(g => ({ ...g, auto: true })))
+      ];
+      if (allGuides.length > 0) {
+        const tipROff = parseFloat(prms.toolRadius) || 0;
+        allGuides.forEach(g => {
+          const col = g.auto ? '#94e2d5' : C.tool;
+          const p1 = toScreen(g.x1, g.z1), p2 = toScreen(g.x2, g.z2);
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
+          // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X)
+          if (tipROff > 0) {
+            let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
+            if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
+            const o1 = toScreen(g.x1 + n.x * tipROff, g.z1 + n.z * tipROff);
+            const o2 = toScreen(g.x2 + n.x * tipROff, g.z2 + n.z * tipROff);
+            ctx.beginPath(); ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
+            ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
+          }
+          // koncové body — viditelné a klikatelné ("+" vloží bod kontury)
+          ctx.fillStyle = col;
+          for (const q of [p1, p2]) { ctx.beginPath(); ctx.arc(q.x, q.y, 3.5, 0, Math.PI * 2); ctx.fill(); }
+        });
+      }
     }
 
     // offset path — v 🙈 stavu (none) skryjeme všechny drahy
@@ -3382,9 +3604,11 @@ export function openCamSimulator(initialContour) {
 
   // Nejbližší průsečík paprsku (sx,sz) + t·(dirX,dirZ) se segmenty kontury
   // a polotovaru (reálné souřadnice, X = rádius). exclude = {idx, isStock}
-  // segment, který se vynechá (např. tečnovaný oblouk). Vrací {x,z} | null.
-  function camRayIntersection(sx, sz, dirX, dirZ, exclude) {
-    const calc = S._cachedCalc; if (!calc) return null;
+  // segment, který se vynechá (např. tečnovaný oblouk). calcOverride
+  // dovoluje předat čerstvé worldPoints (volání zevnitř calculate()).
+  // Vrací {x,z} | null.
+  function camRayIntersection(sx, sz, dirX, dirZ, exclude, calcOverride) {
+    const calc = calcOverride || S._cachedCalc; if (!calc) return null;
     let best = null, bestT = Infinity;
     const consider = (px, pz) => {
       const t = (px - sx) * dirX + (pz - sz) * dirZ;
@@ -3422,6 +3646,125 @@ export function openCamSimulator(initialContour) {
     scan(calc.worldPoints, false);
     scan(calc.stockWorldPoints, true);
     return best;
+  }
+
+  // Všechny pomocné čáry: ruční (S.guideLines) + automatické mezní
+  // čáry hran destičky z posledního výpočtu.
+  function getAllGuideLines() {
+    return [...(S.guideLines || []), ...((S._cachedCalc && S._cachedCalc.interferenceGuides) || [])];
+  }
+
+  // Index RUČNÍ pomocné čáry (S.guideLines) pod kurzorem — klik na čáru
+  // nebo její koncový bod. Automatické mezní čáry mazat nejdou (počítají
+  // se znovu při každé změně), proto se tu neuvažují.
+  function getUserGuideAt(clientX, clientY) {
+    if (!S.guideLines || S.guideLines.length === 0) return null;
+    const { wx, wz } = clientToWorldCam(clientX, clientY);
+    const tol = 10 / S.view.scale;
+    for (let i = S.guideLines.length - 1; i >= 0; i--) {
+      const g = S.guideLines[i];
+      const dx = g.x2 - g.x1, dz = g.z2 - g.z1;
+      const len2 = dx * dx + dz * dz;
+      let d;
+      if (len2 < 1e-12) {
+        d = Math.hypot(wx - g.x1, wz - g.z1);
+      } else {
+        let t = ((wx - g.x1) * dx + (wz - g.z1) * dz) / len2;
+        t = Math.max(0, Math.min(1, t));
+        d = Math.hypot(g.x1 + t * dx - wx, g.z1 + t * dz - wz);
+      }
+      if (d < tol) return i;
+    }
+    return null;
+  }
+
+  // Koncový bod pomocné čáry (tečný bod / průsečík) poblíž kurzoru.
+  function getGuideEndpointAt(clientX, clientY) {
+    const guides = getAllGuideLines();
+    if (guides.length === 0) return null;
+    const { wx, wz } = clientToWorldCam(clientX, clientY);
+    const tol = 12 / S.view.scale;
+    let best = null, bestD = tol;
+    guides.forEach(g => {
+      for (const q of [{ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 }]) {
+        const d = Math.hypot(q.x - wx, q.z - wz);
+        if (d < bestD) { bestD = d; best = q; }
+      }
+    });
+    return best;
+  }
+
+  // Vloží bod kontury/polotovaru PŘESNĚ na (wx,wz) — pokud bod leží na
+  // některém segmentu: úsečka se rozdělí na dvě, oblouk na dva oblouky
+  // po téže kružnici (se správným znaménkem R pro >180° polovinu).
+  // Používá se pro koncové body pomocných čar (tečné body, průsečíky).
+  function insertPointOnSegmentAt(wx, wz) {
+    const calc = S._cachedCalc; if (!calc) return false;
+    const tol = 0.05; // bod musí ležet prakticky přesně na segmentu
+    const isDia = S.params.mode === 'DIAMON';
+    const roundC = (v) => Math.round(v * 1000) / 1000;
+    const lists = [
+      { pts: calc.worldPoints, raw: S.contourPoints },
+      { pts: calc.stockWorldPoints, raw: S.stockPoints }
+    ];
+    for (const { pts, raw } of lists) {
+      if (!pts || pts.length !== raw.length) continue;
+      for (let i = 1; i < pts.length; i++) {
+        const p2 = pts[i], p1 = pts[i - 1];
+        if (p2.type === 'G1') {
+          const dx = p2.xReal - p1.xReal, dz = p2.zReal - p1.zReal;
+          const len2 = dx * dx + dz * dz;
+          if (len2 < 1e-12) continue;
+          const t = ((wx - p1.xReal) * dx + (wz - p1.zReal) * dz) / len2;
+          if (t < 0.001 || t > 0.999) continue;
+          if (Math.hypot(p1.xReal + t * dx - wx, p1.zReal + t * dz - wz) > tol) continue;
+          pushHistory();
+          raw.splice(i, 0, {
+            id: Date.now(), type: 'G1', mode: 'ABS',
+            x: roundC(isDia ? wx * 2 : wx), z: roundC(wz), r: 0
+          });
+          // Původní koncový bod nesmí změnit polohu — INC by se po vložení
+          // počítal od nového bodu, proto ho přepíšeme na ABS.
+          const endRaw = raw[i + 1];
+          if (endRaw.mode === 'INC') { endRaw.mode = 'ABS'; endRaw.x = roundC(p2.xAbs); endRaw.z = roundC(p2.zAbs); }
+          fullUpdate();
+          return true;
+        }
+        if (p2.type === 'G2' || p2.type === 'G3') {
+          const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
+          if (arc.error) continue;
+          if (Math.abs(Math.hypot(wx - arc.cx, wz - arc.cz) - arc.r) > tol) continue;
+          const aP = Math.atan2(wx - arc.cx, wz - arc.cz);
+          const sA = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+          const eA = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+          if (!isAngleBetween(aP, sA, eA, p2.type === 'G2')) continue;
+          // Bod příliš blízko konci oblouku nemá smysl vkládat.
+          const distToEnds = Math.min(Math.hypot(wx - p1.xReal, wz - p1.zReal), Math.hypot(wx - p2.xReal, wz - p2.zReal));
+          if (distToEnds < 0.01) continue;
+          // Úhlové rozpětí polovin podél směru oblouku → znaménko R
+          // (záporné R = dlouhý oblouk >180°, viz getArcParams).
+          const sweep = (from, to) => {
+            let d = to - from;
+            if (p2.type === 'G2') { while (d > 1e-12) d -= 2 * Math.PI; return -d; }
+            while (d < -1e-12) d += 2 * Math.PI; return d;
+          };
+          const rMag = Math.abs(parseFloat(p2.rVal)) || arc.r;
+          const r1 = sweep(sA, aP) > Math.PI ? -rMag : rMag;
+          const r2 = sweep(aP, eA) > Math.PI ? -rMag : rMag;
+          pushHistory();
+          raw.splice(i, 0, {
+            id: Date.now(), type: p2.type, mode: 'ABS',
+            x: roundC(isDia ? wx * 2 : wx), z: roundC(wz), r: r1
+          });
+          const endRaw = raw[i + 1];
+          endRaw.r = r2;
+          if (endRaw.mode === 'INC') { endRaw.mode = 'ABS'; endRaw.x = roundC(p2.xAbs); endRaw.z = roundC(p2.zAbs); }
+          fullUpdate();
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // Vrátí klíč Z-limity ('chuck' | 'tail' | 'rangeStart' | 'rangeEnd') pod kurzorem, jinak null.
@@ -4308,6 +4651,230 @@ export function openCamSimulator(initialContour) {
     showToast(`Kontura + polotovar vloženy (${state.objects.length} objektů)`);
   }
 
+  // ── TRASOVÁNÍ PROFILU ──────────────────────────────────────────
+
+  /**
+   * Najde všechny možné segmenty (přímka + oblouky existující kontury/polotovaru),
+   * po kterých lze trasovat z p1 do p2. První kandidát je vždy přímka (G1).
+   */
+  function _findTraceCandidates(p1, p2) {
+    const dist = Math.hypot(p2.x - p1.x, p2.z - p1.z);
+    const candidates = [{ type: 'G1', dist, r: 0, cx: null, cz: null }];
+    const tol = Math.max(0.05, 10 / S.view.scale);
+
+    for (const arr of [S.contourPoints, S.stockPoints]) {
+      const abs = resolvePointsToAbsolute(arr);
+      for (let i = 1; i < abs.length; i++) {
+        const seg = abs[i];
+        if (seg.type !== 'G2' && seg.type !== 'G3') continue;
+        const a = abs[i - 1];
+        const ap = getArcParams({ x: a.xAbs, z: a.zAbs }, { x: seg.xAbs, z: seg.zAbs }, seg.rVal, seg.type);
+        if (ap.error) continue;
+        const d1 = Math.abs(Math.hypot(p1.x - ap.cx, p1.z - ap.cz) - ap.r);
+        const d2 = Math.abs(Math.hypot(p2.x - ap.cx, p2.z - ap.cz) - ap.r);
+        if (d1 < tol && d2 < tol) {
+          const dup = candidates.some(c =>
+            c.cx != null &&
+            Math.abs(c.cx - ap.cx) < 1e-6 &&
+            Math.abs(c.cz - ap.cz) < 1e-6 &&
+            Math.abs(c.r - ap.r) < 1e-6
+          );
+          if (!dup) {
+            // Směr (G2/G3) pro pořadí p1→p2 určíme tak, že vyzkoušíme,
+            // která varianta dá stejný střed jako nalezený oblouk.
+            const test2 = getArcParams(p1, p2, ap.r, 'G2');
+            const matches2 = !test2.error && Math.abs(test2.cx - ap.cx) < 1e-3 && Math.abs(test2.cz - ap.cz) < 1e-3;
+            candidates.push({ type: matches2 ? 'G2' : 'G3', dist, r: ap.r, cx: ap.cx, cz: ap.cz });
+          }
+        }
+      }
+    }
+    return candidates;
+  }
+
+  /**
+   * Zobrazí modal s možnostmi segmentu (přímka / oblouk(y)) a vrátí Promise,
+   * která se vyřeší vybraným kandidátem. Při zavření bez výběru se vrátí první (přímka).
+   */
+  function _chooseTraceSegment(candidates) {
+    return new Promise((resolve) => {
+      let bodyHTML = '<div style="display:flex;flex-direction:column;gap:6px;">';
+      candidates.forEach((c, i) => {
+        const label = c.type === 'G1'
+          ? `Přímka (G1) — délka ${c.dist.toFixed(2)} mm`
+          : `Oblouk (${c.type}) — R${c.r.toFixed(2)}`;
+        bodyHTML += `<button class="calc-btn cam-seg-choice-btn" data-idx="${i}" style="text-align:left">${label}</button>`;
+      });
+      bodyHTML += '</div>';
+
+      const overlay = makeOverlay('camSegmentChoice', 'Výběr segmentu profilu', bodyHTML);
+      if (!overlay) { resolve(candidates[0]); return; }
+
+      let resolved = false;
+      const finish = (val) => {
+        if (resolved) return;
+        resolved = true;
+        if (document.body.contains(overlay)) overlay.remove();
+        resolve(val);
+      };
+
+      overlay.querySelectorAll('.cam-seg-choice-btn').forEach(btn => {
+        btn.addEventListener('click', () => finish(candidates[parseInt(btn.dataset.idx, 10)]));
+      });
+
+      new MutationObserver((_, obs) => {
+        if (!document.body.contains(overlay)) { obs.disconnect(); finish(candidates[0]); }
+      }).observe(document.body, { childList: true });
+    });
+  }
+
+  let _choosingTraceSeg = false;
+
+  /** Převede klientské souřadnice na světové (rádius, Z) a přichytí k nejbližšímu bodu kontury/polotovaru. */
+  function _traceWorldFromClient(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const vS = S.flipX ? 1 : -1;
+    const prms = S.params || {};
+    let wx, wz;
+    if (prms.machineStructure === 'carousel') {
+      wx = (sx - S.view.panX) / S.view.scale;
+      wz = vS * (sy - S.view.panY) / S.view.scale;
+    } else {
+      wz = (sx - S.view.panX) / S.view.scale;
+      wx = vS * (sy - S.view.panY) / S.view.scale;
+    }
+    // Trasování pracuje v surových souřadnicích (DIAMON = průměr) —
+    // world z plátna je v rádiusu, proto převod.
+    if (prms.mode === 'DIAMON') wx *= 2;
+    // snap na nejbližší bod kontury/polotovaru + koncové body pomocných
+    // čar (ruční tečny i automatické mezní čáry hran destičky)
+    const allPts = [...resolvePointsToAbsolute(S.contourPoints), ...resolvePointsToAbsolute(S.stockPoints)];
+    getAllGuideLines().forEach(g => {
+      for (const q of [{ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 }]) {
+        allPts.push({ xAbs: prms.mode === 'DIAMON' ? q.x * 2 : q.x, zAbs: q.z });
+      }
+    });
+    let best = null, bestD = Infinity;
+    for (const p of allPts) {
+      const d = Math.hypot(p.xAbs - wx, p.zAbs - wz);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (best && bestD < 20 / S.view.scale * (prms.mode === 'DIAMON' ? 2 : 1)) { wx = best.xAbs; wz = best.zAbs; }
+    return { wx, wz };
+  }
+
+  /** Přidá další bod do trasování; pokud existuje víc možností segmentu, zobrazí volbu. */
+  async function _addTracePoint(wx, wz) {
+    const p2 = { x: wx, z: wz };
+    if (S._tracePoints.length === 0) {
+      S._tracePoints = [p2];
+      S._traceSegs = [];
+      draw();
+      return;
+    }
+    if (_choosingTraceSeg) return;
+    const p1 = S._tracePoints[S._tracePoints.length - 1];
+    const candidates = _findTraceCandidates(p1, p2);
+
+    let seg;
+    if (candidates.length > 1) {
+      _choosingTraceSeg = true;
+      seg = await _chooseTraceSegment(candidates);
+      _choosingTraceSeg = false;
+      if (!S.profileTraceMode) return; // mezitím zrušeno
+    } else {
+      seg = candidates[0];
+    }
+
+    S._tracePoints.push(p2);
+    S._traceSegs.push(seg);
+    _showTraceButtons();
+    draw();
+  }
+
+  /** Zobrazí/skryje tlačítka pro potvrzení/zrušení náhledu profilu. */
+  function _showPreviewButtons(show) {
+    const a = toolbar.querySelector('[data-act="profile-apply"]');
+    const c = toolbar.querySelector('[data-act="profile-cancel"]');
+    if (a) a.style.display = show ? '' : 'none';
+    if (c) c.style.display = show ? '' : 'none';
+  }
+
+  /** Zobrazí/skryje plovoucí tlačítka ✓ Dokončit / ✗ Zrušit u trasování profilu. */
+  function _showTraceButtons() {
+    const confirmBtn = canvasWrap.querySelector('.cam-sim-trace-confirm');
+    const cancelBtn = canvasWrap.querySelector('.cam-sim-trace-cancel');
+    if (confirmBtn) confirmBtn.style.display = (S.profileTraceMode && S._tracePoints.length >= 2) ? 'block' : 'none';
+    if (cancelBtn) cancelBtn.style.display = S.profileTraceMode ? 'block' : 'none';
+  }
+
+  /** Esc/✗: zruší poslední rozpracované body trasování, nebo vypne celý režim. */
+  function _cancelTraceStep() {
+    if (S._tracePoints.length > 0) {
+      S._tracePoints = []; S._traceSegs = [];
+      _showTraceButtons();
+      draw();
+      showToast('Trasování zrušeno');
+    } else {
+      _exitProfileTraceMode();
+    }
+  }
+
+  /** Vypne režim trasování profilu (volitelně zachová rozpracované body). */
+  function _exitProfileTraceMode(clearTrace = true) {
+    S.profileTraceMode = false;
+    if (clearTrace) { S._tracePoints = []; S._traceSegs = []; }
+    const pbtn = toolbar.querySelector('[data-act="profile"]');
+    if (pbtn) pbtn.classList.remove('cam-sim-active');
+    canvas.style.cursor = 'crosshair';
+    _showTraceButtons();
+    draw();
+  }
+
+  /** Dokončí trasování a připraví číslovaný náhled nové kontury. */
+  function _finishProfileTrace() {
+    if (S._tracePoints.length < 2) { showToast('Je potřeba alespoň 2 body'); return; }
+    const pts = [];
+    let id = 1;
+    pts.push({ id: id++, type: 'G0', x: S._tracePoints[0].x, z: S._tracePoints[0].z, r: 0, mode: 'ABS' });
+    for (let i = 0; i < S._traceSegs.length; i++) {
+      const seg = S._traceSegs[i];
+      const p = S._tracePoints[i + 1];
+      pts.push({ id: id++, type: seg.type, x: p.x, z: p.z, r: seg.r || 0, mode: 'ABS' });
+    }
+    S._refContour = S.contourPoints;
+    S._previewContour = pts;
+    _exitProfileTraceMode();
+    _showPreviewButtons(true);
+    draw();
+    showToast('Náhled profilu připraven – potvrďte (✅) nebo zrušte (❌)');
+  }
+
+  /** Nahradí konturu trasovaným profilem. */
+  function _applyPreviewContour() {
+    if (!S._previewContour) return;
+    pushHistory();
+    S.contourPoints = S._previewContour;
+    S._previewContour = null;
+    S._refContour = null;
+    _showPreviewButtons(false);
+    S._cachedCalc = calculate();
+    S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    fullUpdate();
+    showToast('Profil použit jako nová kontura ✓');
+  }
+
+  /** Zahodí náhled trasovaného profilu, kontura zůstává nezměněná. */
+  function _cancelPreviewContour() {
+    S._previewContour = null;
+    S._refContour = null;
+    _showPreviewButtons(false);
+    draw();
+    showToast('Náhled profilu zrušen');
+  }
+
   // ── FULL UPDATE (recalc + redraw + re-render UI) ──
   function fullUpdate() {
     S._cachedCalc = calculate();
@@ -4340,6 +4907,26 @@ export function openCamSimulator(initialContour) {
       if (S.delPointMode) { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); }
       btn.classList.toggle('cam-sim-active', S.delPointMode);
       canvas.style.cursor = S.delPointMode ? 'no-drop' : 'crosshair';
+    } else if (act === 'profile') {
+      if (S._previewContour) { showToast('Nejprve potvrďte (✅) nebo zrušte (❌) náhled profilu'); return; }
+      if (S.profileTraceMode) {
+        _exitProfileTraceMode();
+      } else {
+        S.addPointMode = false; S.delPointMode = false;
+        toolbar.querySelector('[data-act="addpt"]')?.classList.remove('cam-sim-active');
+        toolbar.querySelector('[data-act="delpt"]')?.classList.remove('cam-sim-active');
+        S.profileTraceMode = true;
+        S._tracePoints = []; S._traceSegs = [];
+        btn.classList.add('cam-sim-active');
+        canvas.style.cursor = 'crosshair';
+        showToast('Trasování profilu: klikejte na body (Enter/✓ = dokončit, Esc/✗ = zrušit)');
+        _showTraceButtons();
+        draw();
+      }
+    } else if (act === 'profile-apply') {
+      _applyPreviewContour();
+    } else if (act === 'profile-cancel') {
+      _cancelPreviewContour();
     } else if (act === 'lock') {
       S.pointDragEnabled = !S.pointDragEnabled;
       btn.textContent = S.pointDragEnabled ? '🔓' : '🔒';
@@ -4637,6 +5224,11 @@ export function openCamSimulator(initialContour) {
             Délka<input id="tlm-len" type="number" value="10" step="0.5" min="0.001" style="${inpStyle}">
           </label>
         </div>
+        ${S.params.toolShape === 'polygon' ? `
+        <div style="display:flex;gap:6px;margin-bottom:14px">
+          <button id="tlm-preset-front" title="Úhel čelní hrany destičky (natočení + ε − 180) — kontrola dojezdů v Z" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4">↘ Hrana dojezdu</button>
+          <button id="tlm-preset-bottom" title="Úhel spodní hrany destičky (natočení − 180) — kontrola zanořování" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4">↙ Hrana zanoření</button>
+        </div>` : ''}
         <div style="display:flex;gap:10px;margin-bottom:6px">
           <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
             Výsledek<select id="tlm-result" style="${inpStyle};padding:7px 6px">
@@ -4670,6 +5262,23 @@ export function openCamSimulator(initialContour) {
       draw();
       clearBtn.parentElement.remove();
       showToast('Pomocné čáry smazány.');
+    });
+    // Presety: úhel hrany destičky (směr dolů k materiálu) + Do průsečíku.
+    const applyPreset = (angDeg) => {
+      let a = angDeg;
+      while (a <= -180) a += 360;
+      while (a > 180) a -= 360;
+      ov.querySelector('#tlm-ang').value = Math.round(a * 10) / 10;
+      modeSel.value = 'intersect';
+      modeSel.dispatchEvent(new Event('change'));
+    };
+    const presetFront = ov.querySelector('#tlm-preset-front');
+    if (presetFront) presetFront.addEventListener('click', () => {
+      applyPreset((parseFloat(S.params.toolAngle) || 0) + (parseFloat(S.params.toolTipAngle) || 90) - 180);
+    });
+    const presetBottom = ov.querySelector('#tlm-preset-bottom');
+    if (presetBottom) presetBottom.addEventListener('click', () => {
+      applyPreset((parseFloat(S.params.toolAngle) || 0) - 180);
     });
     setTimeout(() => { const i = ov.querySelector('#tlm-ang'); if (i) { i.focus(); i.select(); } }, 50);
 
@@ -4979,6 +5588,7 @@ export function openCamSimulator(initialContour) {
 
   // ── Double-click to enter rect selection mode ──
   canvasWrap.addEventListener('dblclick', e => {
+    if (S.profileTraceMode) { e.preventDefault(); _finishProfileTrace(); return; }
     if (!S.pointDragEnabled || S.simRunning) return;
     e.preventDefault();
     S.rectSelecting = true;
@@ -4988,7 +5598,26 @@ export function openCamSimulator(initialContour) {
     draw();
   });
 
+  // Plovoucí tlačítka ✓ Dokončit / ✗ Zrušit pro trasování profilu (mobil bez klávesnice)
+  canvasWrap.querySelector('.cam-sim-trace-confirm').addEventListener('click', e => {
+    e.stopPropagation();
+    _finishProfileTrace();
+  });
+  canvasWrap.querySelector('.cam-sim-trace-cancel').addEventListener('click', e => {
+    e.stopPropagation();
+    _cancelTraceStep();
+  });
+
   canvasWrap.addEventListener('mousedown', e => {
+    // Klik na plovoucí tlačítka ✓/✗ trasování – neinterpretovat jako bod kontury
+    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
+    // Trasování profilu – klik přidá další bod
+    if (S.profileTraceMode) {
+      const { wx, wz } = _traceWorldFromClient(e.clientX, e.clientY);
+      _addTracePoint(wx, wz);
+      e.stopPropagation();
+      return;
+    }
     // Pick handler pro modal vložení segmentu
     if (_pickHandler) {
       const rect = canvas.getBoundingClientRect();
@@ -5042,6 +5671,14 @@ export function openCamSimulator(initialContour) {
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
       const exitAddMode = () => { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; };
+      // Klik na koncový bod pomocné čáry → vložit bod kontury přesně
+      // v tečném bodě / průsečíku (rozdělí úsečku či oblouk na místě).
+      const gp = getGuideEndpointAt(e.clientX, e.clientY);
+      if (gp && insertPointOnSegmentAt(gp.x, gp.z)) {
+        exitAddMode();
+        showToast('Bod vložen na konturu v místě pomocné čáry ✓');
+        return;
+      }
       const found = getAnyPointAt(e.clientX, e.clientY);
       if (found) { handleInsertAfter(found.idx, found.isStock); exitAddMode(); return; }
       // Klik na oblouk → tečná úsečka pod úhlem (CAD nástroj „Úhel").
@@ -5060,6 +5697,15 @@ export function openCamSimulator(initialContour) {
         } else {
           showToast('Nelze odebrat poslední bod.');
         }
+        return;
+      }
+      // Klik mimo body: smazat ruční pomocnou čáru pod kurzorem.
+      const gIdx = getUserGuideAt(e.clientX, e.clientY);
+      if (gIdx !== null) {
+        S.guideLines.splice(gIdx, 1);
+        saveState();
+        draw();
+        showToast('Pomocná čára smazána ✓');
       }
       return;
     }
@@ -5082,7 +5728,8 @@ export function openCamSimulator(initialContour) {
     const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
       const found = getAnyPointAt(e.clientX, e.clientY);
-      canvas.style.cursor = found ? 'pointer' : (getArcSegmentAt(e.clientX, e.clientY) ? 'pointer' : 'copy');
+      canvas.style.cursor = found ? 'pointer'
+        : (getGuideEndpointAt(e.clientX, e.clientY) || getArcSegmentAt(e.clientX, e.clientY)) ? 'pointer' : 'copy';
       const newId = found ? found.idx : null, newIsStock = !!(found && found.isStock);
       if (S.hoverPointId !== newId || S._hoverIsStock !== newIsStock) { S.hoverPointId = newId; S._hoverIsStock = newIsStock; draw(); }
       return;
@@ -5272,7 +5919,15 @@ export function openCamSimulator(initialContour) {
 
   // ── TOUCH ──
   canvasWrap.addEventListener('touchstart', e => {
+    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
     if (e.touches.length === 1) {
+      // Trasování profilu – tap přidá další bod
+      if (S.profileTraceMode) {
+        const t = e.touches[0];
+        const { wx, wz } = _traceWorldFromClient(t.clientX, t.clientY);
+        _addTracePoint(wx, wz);
+        return;
+      }
       // Double-tap detection for rect selection
       const now = Date.now();
       if (now - S._lastTapTime < 350 && S.pointDragEnabled && !S.simRunning) {
@@ -5305,6 +5960,13 @@ export function openCamSimulator(initialContour) {
       const pointIdx = getPointAt(t.clientX, t.clientY);
       if (S.addPointMode) {
         const exitAddMode = () => { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; };
+        // Tap na koncový bod pomocné čáry → bod přesně na segmentu.
+        const gp = getGuideEndpointAt(t.clientX, t.clientY);
+        if (gp && insertPointOnSegmentAt(gp.x, gp.z)) {
+          exitAddMode();
+          showToast('Bod vložen na konturu v místě pomocné čáry ✓');
+          return;
+        }
         const found = getAnyPointAt(t.clientX, t.clientY);
         if (found) { handleInsertAfter(found.idx, found.isStock); exitAddMode(); return; }
         // Tap na oblouk → tečná úsečka pod úhlem (CAD nástroj „Úhel").
@@ -5318,6 +5980,15 @@ export function openCamSimulator(initialContour) {
           const list = found.isStock ? S.stockPoints : S.contourPoints;
           if (list.length > 1) { pushHistory(); list.splice(found.idx, 1); fullUpdate(); }
           else showToast('Nelze odebrat poslední bod.');
+          return;
+        }
+        // Tap mimo body: smazat ruční pomocnou čáru pod prstem.
+        const gIdx = getUserGuideAt(t.clientX, t.clientY);
+        if (gIdx !== null) {
+          S.guideLines.splice(gIdx, 1);
+          saveState();
+          draw();
+          showToast('Pomocná čára smazána ✓');
         }
         return;
       }
