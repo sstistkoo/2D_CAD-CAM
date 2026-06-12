@@ -1492,6 +1492,9 @@ export function openCamSimulator(initialContour) {
     rectStart: null,
     rectEnd: null,
     snapLines: [],
+    // Pomocné (konstrukční) čáry — např. tečny z nástroje Úhel. Reálné
+    // souřadnice (X = rádius), nejsou součástí kontury ani G-kódu.
+    guideLines: [],
     _lastTapTime: 0
   };
 
@@ -1506,6 +1509,7 @@ export function openCamSimulator(initialContour) {
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
       if (p.manualGCode) S.manualGCode = p.manualGCode;
       if (p.flipX !== undefined) S.flipX = !!p.flipX;
+      if (Array.isArray(p.guideLines)) S.guideLines = p.guideLines;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
       if (p.showZLimits !== undefined) {
         // Zpětná kompatibilita: dříve boolean, teď tri/quad-state string.
@@ -1667,7 +1671,7 @@ export function openCamSimulator(initialContour) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
-        flipX: S.flipX,
+        flipX: S.flipX, guideLines: S.guideLines,
         zLimits: S.zLimits, showZLimits: S.showZLimits, showSimPath: S.showSimPath
       }));
     } catch (_) { /* quota */ }
@@ -2228,16 +2232,48 @@ export function openCamSimulator(initialContour) {
         let adjusted = 0;
         const phiDeg = rotDeg + tipDeg - 90;
         if (phiDeg > 0.01) {
-          const tanPhi = Math.tan(Math.min(89.5, phiDeg) * Math.PI / 180);
-          const walls = passes.filter(p => p.type === 'long' && p.blocked).map(p => ({ x: p.x, z: p.zEnd }));
+          // Dojezd se počítá přesně proti offsetové dráze: rohy (koncové
+          // body segmentů) klasicky přes tanφ, oblouky navíc TEČNOU čelní
+          // hrany na kružnici — jinak by hrana mezi vzorky zajela do
+          // vyduté/vypouklé stěny oblouku.
+          const phiRad = Math.min(89.5, phiDeg) * Math.PI / 180;
+          const tanPhi = Math.tan(phiRad);
+          const betaRad = phiRad + Math.PI / 2;          // směr čelní hrany (od +Z)
+          const eX = Math.sin(betaRad), eZ = Math.cos(betaRad); // hrana míří nahoru-doleva
           for (let pi = passes.length - 1; pi >= 0; pi--) {
             const p = passes[pi];
             if (p.type !== 'long') continue;
             let zE = p.zEnd;
-            for (const w of walls) {
-              if (w.x <= p.x + 1e-6 || w.z > p.zStart + 0.01) continue;
-              const cand = w.z + (w.x - p.x) * tanPhi;
-              if (cand > zE) zE = cand;
+            for (const seg of offsetPath) {
+              if (seg.isDegenerate) continue;
+              if (seg.type === 'line') {
+                for (const q of [seg.p1, seg.p2]) {
+                  if (q.x <= p.x + 0.05 || q.z > p.zStart + 0.01) continue;
+                  const cand = q.z + (q.x - p.x) * tanPhi;
+                  if (cand > zE) zE = cand;
+                }
+              } else {
+                const a1 = { x: seg.cx + Math.sin(seg.startAngle) * seg.r, z: seg.cz + Math.cos(seg.startAngle) * seg.r };
+                const a2 = { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
+                for (const q of [a1, a2]) {
+                  if (q.x <= p.x + 0.05 || q.z > p.zStart + 0.01) continue;
+                  const cand = q.z + (q.x - p.x) * tanPhi;
+                  if (cand > zE) zE = cand;
+                }
+                // Tečna hrany na oblouk: přímka hrany špičky (p.x, zT) se
+                // směrem e musí mít od středu vzdálenost r. Dotyk musí
+                // ležet nad špičkou, vlevo od startu pasu a v rozsahu oblouku.
+                for (const sgn of [1, -1]) {
+                  const zT = seg.cz - ((seg.cx - p.x) * eZ - sgn * seg.r) / eX;
+                  const t = (seg.cx - p.x) * eX + (seg.cz - zT) * eZ; // projekce středu na hranu
+                  if (t <= 0.05) continue;
+                  const Px = p.x + eX * t, Pz = zT + eZ * t;
+                  if (Px <= p.x + 0.05 || Pz > p.zStart + 0.01) continue;
+                  const ang = Math.atan2(Px - seg.cx, Pz - seg.cz);
+                  if (!isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) continue;
+                  if (zT > zE) zE = zT;
+                }
+              }
             }
             if (zE > p.zEnd + 0.01) {
               adjusted++;
@@ -2861,6 +2897,18 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.error; ctx.lineWidth = 5; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
     }
 
+    // pomocné (konstrukční) čáry — tečny z nástroje Úhel apod.
+    // Jen vizuální kontrola (např. zda plátek nezajíždí do kontury),
+    // nejsou součástí kontury ani G-kódu.
+    if (S.guideLines && S.guideLines.length > 0) {
+      ctx.beginPath();
+      S.guideLines.forEach(g => {
+        const p1 = toScreen(g.x1, g.z1), p2 = toScreen(g.x2, g.z2);
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+      });
+      ctx.strokeStyle = C.tool; ctx.lineWidth = 1.5; ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
+    }
+
     // offset path — v 🙈 stavu (none) skryjeme všechny drahy
     if (S.showSimPath !== 'none' && calc.offsetPath.length > 0) {
       ctx.beginPath();
@@ -3329,6 +3377,50 @@ export function openCamSimulator(initialContour) {
     };
     scan(calc.worldPoints, false);
     if (S.params.stockMode !== 'cylinder') scan(calc.stockWorldPoints, true);
+    return best;
+  }
+
+  // Nejbližší průsečík paprsku (sx,sz) + t·(dirX,dirZ) se segmenty kontury
+  // a polotovaru (reálné souřadnice, X = rádius). exclude = {idx, isStock}
+  // segment, který se vynechá (např. tečnovaný oblouk). Vrací {x,z} | null.
+  function camRayIntersection(sx, sz, dirX, dirZ, exclude) {
+    const calc = S._cachedCalc; if (!calc) return null;
+    let best = null, bestT = Infinity;
+    const consider = (px, pz) => {
+      const t = (px - sx) * dirX + (pz - sz) * dirZ;
+      if (t > 0.01 && t < bestT) { bestT = t; best = { x: px, z: pz }; }
+    };
+    const far = { x: sx + dirX * 1e5, z: sz + dirZ * 1e5 };
+    const A1 = { x: sx, z: sz };
+    const scan = (pts, isStock) => {
+      if (!pts) return;
+      for (let i = 1; i < pts.length; i++) {
+        if (exclude && exclude.isStock === isStock && exclude.idx === i) continue;
+        const p2 = pts[i], p1 = pts[i - 1];
+        if (p2.type === 'G1') {
+          const B1 = { x: p1.xReal, z: p1.zReal }, B2 = { x: p2.xReal, z: p2.zReal };
+          const d = (A1.x - far.x) * (B1.z - B2.z) - (A1.z - far.z) * (B1.x - B2.x);
+          if (Math.abs(d) < 1e-12) continue;
+          const t = ((A1.x - B1.x) * (B1.z - B2.z) - (A1.z - B1.z) * (B1.x - B2.x)) / d;
+          const u = ((A1.x - B1.x) * (A1.z - far.z) - (A1.z - B1.z) * (A1.x - far.x)) / d;
+          if (u < -0.001 || u > 1.001) continue;
+          consider(A1.x + t * (far.x - A1.x), A1.z + t * (far.z - A1.z));
+        } else if (p2.type === 'G2' || p2.type === 'G3') {
+          const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
+          if (arc.error) continue;
+          const hits = intersectLineCircle(A1, far, { x: arc.cx, z: arc.cz }, arc.r);
+          if (!hits) continue;
+          const sA = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+          const eA = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+          for (const q of hits) {
+            const ang = Math.atan2(q.x - arc.cx, q.z - arc.cz);
+            if (isAngleBetween(ang, sA, eA, p2.type === 'G2')) consider(q.x, q.z);
+          }
+        }
+      }
+    };
+    scan(calc.worldPoints, false);
+    scan(calc.stockWorldPoints, true);
     return best;
   }
 
@@ -4528,15 +4620,33 @@ export function openCamSimulator(initialContour) {
     ov.innerHTML = `
       <div class="cam-confirm-box" style="min-width:320px;max-width:95vw">
         <div style="font-weight:bold;font-size:14px;margin-bottom:10px;color:#cba6f7">📐 Tečna pod úhlem z oblouku</div>
-        <p style="font-size:11px;color:#a6adc8;margin:0 0 12px">Oblouk se ukončí v tečném bodě (na straně kliknutí) a naváže úsečka pod zadaným úhlem. Úhel: 0° = +Z (vodorovně vpravo), 90° = +X (nahoru), záporný/+180° = opačný směr.</p>
+        <p style="font-size:11px;color:#a6adc8;margin:0 0 12px">Úsečka tečná k oblouku pod zadaným úhlem (tečný bod na straně kliknutí). Úhel: 0° = +Z (vodorovně vpravo), 90° = +X (nahoru), záporný/+180° = opačný směr.</p>
         <div style="display:flex;gap:10px;margin-bottom:14px">
           <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
             Úhel (°)<input id="tlm-ang" type="number" value="45" step="1" style="${inpStyle}">
           </label>
           <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+            Ukončení<select id="tlm-mode" style="${inpStyle};padding:7px 6px">
+              <option value="length" selected>Zadaná délka</option>
+              <option value="intersect">Do průsečíku</option>
+            </select>
+          </label>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:14px" id="tlm-len-row">
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
             Délka<input id="tlm-len" type="number" value="10" step="0.5" min="0.001" style="${inpStyle}">
           </label>
         </div>
+        <div style="display:flex;gap:10px;margin-bottom:6px">
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+            Výsledek<select id="tlm-result" style="${inpStyle};padding:7px 6px">
+              <option value="guide" selected>Pomocná čára (jen zobrazit)</option>
+              <option value="insert">Vložit do kontury (oříznout oblouk)</option>
+            </select>
+          </label>
+        </div>
+        <p style="font-size:10px;color:#6c7086;margin:0 0 12px">Pomocná čára konturu nemění — slouží ke kontrole, např. zda destička nezajíždí do kontury.</p>
+        ${S.guideLines.length > 0 ? `<div style="margin-bottom:12px"><button id="tlm-clear" style="width:100%;padding:6px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4">🧹 Smazat pomocné čáry (${S.guideLines.length})</button></div>` : ''}
         <div class="cam-confirm-btns">
           <button id="tlm-ok" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#a6e3a1;color:#1e1e2e">Vložit</button>
           <button id="tlm-cancel" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#45475a;color:#cdd6f4">Zrušit</button>
@@ -4549,12 +4659,25 @@ export function openCamSimulator(initialContour) {
       if (e.key === 'Escape') close();
       else if (e.key === 'Enter') ov.querySelector('#tlm-ok').click();
     });
+    const modeSel = ov.querySelector('#tlm-mode');
+    modeSel.addEventListener('change', () => {
+      ov.querySelector('#tlm-len-row').style.display = modeSel.value === 'length' ? '' : 'none';
+    });
+    const clearBtn = ov.querySelector('#tlm-clear');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      S.guideLines = [];
+      saveState();
+      draw();
+      clearBtn.parentElement.remove();
+      showToast('Pomocné čáry smazány.');
+    });
     setTimeout(() => { const i = ov.querySelector('#tlm-ang'); if (i) { i.focus(); i.select(); } }, 50);
 
     ov.querySelector('#tlm-ok').addEventListener('click', () => {
       const angDeg = parseFloat(ov.querySelector('#tlm-ang').value);
+      const termMode = modeSel.value;
       const len = parseFloat(ov.querySelector('#tlm-len').value);
-      if (isNaN(angDeg) || isNaN(len) || len <= 0) { showToast('Zkontrolujte úhel a délku.'); return; }
+      if (isNaN(angDeg) || (termMode === 'length' && (isNaN(len) || len <= 0))) { showToast('Zkontrolujte úhel a délku.'); return; }
       const list = found.isStock ? S.stockPoints : S.contourPoints;
       const abs = resolvePointsToAbsolute(list);
       const p1 = abs[found.idx - 1], p2 = abs[found.idx];
@@ -4572,7 +4695,25 @@ export function openCamSimulator(initialContour) {
       const d1 = Math.hypot(found.wx - t1.x, found.wz - t1.z);
       const d2 = Math.hypot(found.wx - t2.x, found.wz - t2.z);
       const T = d1 <= d2 ? t1 : t2;
-      const E = { x: T.x + dirX * len, z: T.z + dirZ * len };
+      let E;
+      if (termMode === 'intersect') {
+        // Do průsečíku: prodloužit paprsek z tečného bodu k nejbližšímu
+        // prvku kontury/polotovaru (tečnovaný oblouk se vynechá).
+        E = camRayIntersection(T.x, T.z, dirX, dirZ, { idx: found.idx, isStock: found.isStock });
+        if (!E) { showToast('Žádný průsečík ve směru úhlu nenalezen.'); return; }
+      } else {
+        E = { x: T.x + dirX * len, z: T.z + dirZ * len };
+      }
+      const resultMode = ov.querySelector('#tlm-result').value;
+      if (resultMode === 'guide') {
+        // Jen pomocná čára — kontura zůstává beze změny.
+        S.guideLines.push({ x1: T.x, z1: T.z, x2: E.x, z2: E.z });
+        close();
+        saveState();
+        draw();
+        showToast(`Pomocná tečna pod úhlem ${angDeg}° přidána ✓`);
+        return;
+      }
       pushHistory();
       const tgt = list[found.idx];
       tgt.x = Math.round((isDia ? T.x * 2 : T.x) * 1000) / 1000;
@@ -4613,8 +4754,10 @@ export function openCamSimulator(initialContour) {
       if (rEl) ov._r = parseFloat(rEl.value) || 0;
       const aEl = ov.querySelector('#ism-ang');
       const alEl = ov.querySelector('#ism-anglen');
+      const amEl = ov.querySelector('#ism-angmode');
       if (aEl) ov._ang = parseFloat(aEl.value);
       if (alEl) ov._angLen = parseFloat(alEl.value);
+      if (amEl) ov._angMode = amEl.value;
     };
 
     const enterPickMode = () => {
@@ -4680,16 +4823,23 @@ export function openCamSimulator(initialContour) {
             </label>
           </div>` : ''}
           ${fromAbs ? `
-          <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-end">
-            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+          <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-end;flex-wrap:wrap">
+            <label style="flex:1;min-width:70px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
               📐 Úhel (°)<input id="ism-ang" type="number" value="${ov._ang !== undefined && !isNaN(ov._ang) ? ov._ang : 45}" step="1"
                 style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
             </label>
-            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+            <label style="flex:1;min-width:100px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
+              Ukončení<select id="ism-angmode"
+                style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:7px 4px;font-size:13px;width:100%;box-sizing:border-box">
+                <option value="length" ${ov._angMode !== 'intersect' ? 'selected' : ''}>Zadaná délka</option>
+                <option value="intersect" ${ov._angMode === 'intersect' ? 'selected' : ''}>Do průsečíku</option>
+              </select>
+            </label>
+            <label id="ism-anglen-wrap" style="flex:1;min-width:60px;display:${ov._angMode === 'intersect' ? 'none' : 'flex'};flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">
               Délka<input id="ism-anglen" type="number" value="${ov._angLen !== undefined && !isNaN(ov._angLen) ? ov._angLen : 10}" step="0.5" min="0.001"
                 style="background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box">
             </label>
-            <button id="ism-angcalc" title="Dopočítat X/Z z úhlu a délky od výchozího bodu (0° = +Z vodorovně, 90° = +X nahoru)"
+            <button id="ism-angcalc" title="Dopočítat X/Z od výchozího bodu: pod úhlem na zadanou délku, nebo do průsečíku s konturou/polotovarem (0° = +Z vodorovně, 90° = +X nahoru)"
               style="padding:7px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4;white-space:nowrap">↘ X/Z</button>
           </div>` : ''}
           <div style="margin-bottom:14px">
@@ -4734,17 +4884,32 @@ export function openCamSimulator(initialContour) {
 
       ov.querySelector('#ism-pick').addEventListener('click', enterPickMode);
 
-      // Dopočet X/Z z úhlu a délky od výchozího bodu (CAD nástroj „Úhel").
+      // Dopočet X/Z z úhlu od výchozího bodu (CAD nástroj „Úhel") —
+      // ukončení zadanou délkou, nebo do průsečíku s konturou/polotovarem.
+      const angModeSel = ov.querySelector('#ism-angmode');
+      if (angModeSel) angModeSel.addEventListener('change', () => {
+        ov._angMode = angModeSel.value;
+        const lenWrap = ov.querySelector('#ism-anglen-wrap');
+        if (lenWrap) lenWrap.style.display = angModeSel.value === 'intersect' ? 'none' : 'flex';
+      });
       const angCalcBtn = ov.querySelector('#ism-angcalc');
       if (angCalcBtn) angCalcBtn.addEventListener('click', () => {
         syncValues();
         const a = ov._ang, l = ov._angLen;
-        if (isNaN(a) || isNaN(l) || l <= 0) { showToast('Zkontrolujte úhel a délku.'); return; }
+        const toIntersect = ov._angMode === 'intersect';
+        if (isNaN(a) || (!toIntersect && (isNaN(l) || l <= 0))) { showToast('Zkontrolujte úhel a délku.'); return; }
         const isDia = S.params.mode === 'DIAMON';
         const fx = isDia ? fromAbs.xAbs / 2 : fromAbs.xAbs;
         const rad = a * Math.PI / 180;
-        const ex = fx + Math.sin(rad) * l;
-        const ez = fromAbs.zAbs + Math.cos(rad) * l;
+        let ex, ez;
+        if (toIntersect) {
+          const hit = camRayIntersection(fx, fromAbs.zAbs, Math.sin(rad), Math.cos(rad), null);
+          if (!hit) { showToast('Žádný průsečík ve směru úhlu nenalezen.'); return; }
+          ex = hit.x; ez = hit.z;
+        } else {
+          ex = fx + Math.sin(rad) * l;
+          ez = fromAbs.zAbs + Math.cos(rad) * l;
+        }
         ov._x = Math.round((isDia ? ex * 2 : ex) * 1000) / 1000;
         ov._z = Math.round(ez * 1000) / 1000;
         ov._mode = 'ABS';
