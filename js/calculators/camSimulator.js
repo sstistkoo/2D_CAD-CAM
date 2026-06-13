@@ -2308,23 +2308,88 @@ export function openCamSimulator(initialContour) {
 
       const effPlungeDegL = getEffectivePlungeAngle(prms);
       const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
-      let plungeSkipped = 0;
-      // Průchody předchozí hloubky — vjezd rampou smí začít jen nad
-      // floor-em, který předchozí hloubka skutečně dořezala (napravo od
-      // něj zůstává neodřezaný klín po její rampě / schod stěny).
-      let prevDepthPasses = [];
-      let prevDepthX = maxStockX;
+      let plungeShallowed = 0;
+
+      // Úhel oblouku offsetPath na zadaném Z (jen v rozsahu segmentu).
+      const arcAngleAtZ = (seg, z) => {
+        const cosA = (z - seg.cz) / seg.r;
+        if (cosA < -1.001 || cosA > 1.001) return null;
+        const cosC = Math.max(-1, Math.min(1, cosA));
+        const a1 = Math.acos(cosC);
+        for (const a of [a1, -a1]) {
+          if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return a;
+        }
+        return null;
+      };
+
+      // Najde bod na offsetPath, kde sklon dX/dZ ve směru jízdy (klesající Z)
+      // dosáhne úhlu zanoření effPlungeDegL — odtud se opouští kontura a
+      // jede se rampou na currentX. Skenuje od zFrom dolů k zStop. Vrací
+      // {x,z}, nebo null, pokud sklon prahu nikdy nedosáhne.
+      const findPlungeCorner = (zFrom, zStop) => {
+        const h = 0.05;
+        for (let z = zFrom; z > zStop + h; z -= h) {
+          const xa = offsetXAt(z), xb = offsetXAt(z - h);
+          if (xa === null || xb === null) continue;
+          const slope = (xa - xb) / h;
+          if (slope >= effPlungeTanL) return { x: xa, z };
+        }
+        return null;
+      };
+
+      // Kopie segmentů offsetPath oříznuté na Z∈[zLo,zHi], v pořadí jízdy
+      // (od vyššího Z k nižšímu) — podklad pro G1/G2/G3 sledování kontury
+      // přes "kapsu" místo odskoku a rychloposuvu nad polotovarem.
+      const traceOffsetPath = (zHi, zLo) => {
+        const out = [];
+        for (let i = offsetPath.length - 1; i >= 0; i--) {
+          const seg = offsetPath[i];
+          if (seg.isDegenerate) continue;
+          if (seg.type === 'line') {
+            const zA = seg.p1.z, zB = seg.p2.z;
+            const hiPt = zA >= zB ? seg.p1 : seg.p2;
+            const loPt = zA >= zB ? seg.p2 : seg.p1;
+            const clipHi = Math.min(zHi, hiPt.z);
+            const clipLo = Math.max(zLo, loPt.z);
+            if (clipHi <= clipLo + 1e-6) continue;
+            const dz = hiPt.z - loPt.z;
+            const xAt = (z) => Math.abs(dz) < 1e-9 ? hiPt.x : loPt.x + (z - loPt.z) / dz * (hiPt.x - loPt.x);
+            out.push({ type: 'line', x1: xAt(clipHi), z1: clipHi, x2: xAt(clipLo), z2: clipLo });
+          } else if (seg.type === 'arc') {
+            const zAtStart = seg.cz + Math.cos(seg.startAngle) * seg.r;
+            const zAtEnd = seg.cz + Math.cos(seg.endAngle) * seg.r;
+            const reversed = zAtStart < zAtEnd;
+            const aAtHiOrig = reversed ? seg.endAngle : seg.startAngle;
+            const aAtLoOrig = reversed ? seg.startAngle : seg.endAngle;
+            const zSegHi = Math.max(zAtStart, zAtEnd);
+            const zSegLo = Math.min(zAtStart, zAtEnd);
+            const clipHi = Math.min(zHi, zSegHi);
+            const clipLo = Math.max(zLo, zSegLo);
+            if (clipHi <= clipLo + 1e-6) continue;
+            const aAtClipHi = arcAngleAtZ(seg, clipHi) ?? aAtHiOrig;
+            const aAtClipLo = arcAngleAtZ(seg, clipLo) ?? aAtLoOrig;
+            const outDir = reversed ? (seg.dir === 'G2' ? 'G3' : 'G2') : seg.dir;
+            out.push({
+              type: 'arc', cx: seg.cx, cz: seg.cz, r: seg.r, dir: outDir,
+              startAngle: aAtClipHi, endAngle: aAtClipLo,
+              x1: seg.cx + Math.sin(aAtClipHi) * seg.r, z1: clipHi,
+              x2: seg.cx + Math.sin(aAtClipLo) * seg.r, z2: clipLo
+            });
+          }
+        }
+        return out;
+      };
 
       for (const currentX of depths) {
         const sz = stockZRangeAt(currentX);
         if (!sz) continue;
-        const thisDepthPasses = [];
 
         // Skenem zprava doleva najdeme všechny volné intervaly (offset
         // nepřekračuje currentX). První interval (od pravé hrany
         // polotovaru) = klasický otevřený vjezd. Každý další interval je
-        // kapsa/zápich — tam se smí jet jen se zapnutým zanořováním:
-        // vjezd rampou pod úhlem zanoření z floor-u předchozí hloubky.
+        // kapsa za "bossem" kontury — vede se k ní sledováním kontury
+        // (G1/G2/G3) a rampou pod úhlem zanoření, jen se zapnutým
+        // zanořováním.
         //
         // Stock outline NEPROFILUJE řez (i kdyby měl casting přerušení /
         // dolíky uprostřed) — fyzický nástroj projíždí mezerou ve vzduchu
@@ -2358,40 +2423,43 @@ export function openCamSimulator(initialContour) {
           if (iv.zStart - iv.zEnd < dzScan) return;
           if (idx === 0 && firstOpen) {
             // Otevřený vjezd zprava přes hranu polotovaru.
-            const pass = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
-            passes.push(pass); thisDepthPasses.push(pass);
+            passes.push({ type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked });
             return;
           }
-          // Kapsa — vjezd jen rampou (zanořování).
+          // Kapsa za bossem kontury — sledování kontury (G1/G2/G3) a rampa
+          // pod úhlem zanoření, jen se zapnutým zanořováním.
           if (!prms.plungeRoughing) return;
-          const x0 = Math.min(prevDepthX, maxStockX);
-          if (x0 - currentX < 0.01) return;
-          // Vjezd rampou nesmí začít na přirozené pozici pravé stěny —
-          // předchozí hloubka tam kvůli své rampě floor nedořezala
-          // (zbylý klín) a sjezd shora by zajel do materiálu. Začátek
-          // rampy klampneme na zStart překrývajícího průchodu předchozí
-          // hloubky. Nad hladinou polotovaru (x0 = vršek) klamp netřeba.
-          let z0 = iv.zStart;
-          if (x0 < maxStockX - 0.01) {
-            const above = prevDepthPasses.filter(p => p.zEnd <= iv.zStart + 0.01 && p.zStart >= iv.zEnd - 0.01);
-            if (above.length === 0) { plungeSkipped++; return; }
-            z0 = Math.min(z0, Math.max(...above.map(p => p.zStart)));
+          const zGapHi = intervals[idx - 1].zEnd;
+          const corner = findPlungeCorner(zGapHi, iv.zStart);
+          if (!corner) {
+            // Sklon kontury nikdy nedosáhne úhlu zanoření — celá mezera se
+            // projede po kontuře na currentX, žádná rampa.
+            passes.push({
+              type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked,
+              contourLeadIn: traceOffsetPath(zGapHi, iv.zStart)
+            });
+            return;
           }
-          const dzRamp = (x0 - currentX) / effPlungeTanL;
-          if (z0 - dzRamp - iv.zEnd < dzScan) { plungeSkipped++; return; }
-          const pass = {
-            type: 'long', x: currentX,
-            zStart: z0 - dzRamp, // floor začíná až pod koncem rampy
-            zEnd: iv.zEnd, blocked: iv.blocked,
-            ramp: { x0, z0 }
-          };
-          passes.push(pass); thisDepthPasses.push(pass);
+          // Sledování kontury (G1/G2/G3) z (currentX, zGapHi) do "rohu"
+          // (corner) a odtud rampa pod úhlem zanoření na currentX. Pokud se
+          // rampa do plné cílové hloubky nevejde do dostupné šířky kapsy,
+          // sjede aspoň tak hluboko, jak to jde (částečně), a zbytek
+          // dorampuje až příští hloubka.
+          const leadIn = traceOffsetPath(zGapHi, corner.z);
+          const dzRampFull = (corner.x - currentX) / effPlungeTanL;
+          const availWidth = corner.z - iv.zEnd;
+          const dzRamp = Math.min(dzRampFull, availWidth);
+          const xReached = corner.x - dzRamp * effPlungeTanL;
+          if (xReached > currentX + 0.001) plungeShallowed++;
+          passes.push({
+            type: 'long', x: xReached,
+            zStart: corner.z - dzRamp, zEnd: iv.zEnd, blocked: iv.blocked,
+            contourLeadIn: leadIn, ramp: { x0: corner.x, z0: corner.z }
+          });
         });
-        prevDepthPasses = thisDepthPasses;
-        prevDepthX = currentX;
       }
-      if (plungeSkipped > 0)
-        foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeSkipped} kapes je příliš úzkých pro rampu pod ${effPlungeDegL.toFixed(1)}°.` });
+      if (plungeShallowed > 0)
+        foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
 
       // ── Hlídání geometrie destičky (podélně) ──
       // Čelní hrana destičky se nad špičkou naklání o φ = natočení + ε − 90
@@ -2459,12 +2527,16 @@ export function openCamSimulator(initialContour) {
         // úhlem natočení — hlubší zanořovací průchody musí začínat o
         // dx/tan(natočení) víc vlevo, jinak by hrana nad špičkou zajela
         // do pravé stěny kapsy.
+        // Průchody s contourLeadIn mají rampu zavěšenou na pevném
+        // tečném bodě kontury (stejný pro všechny hloubky) — ten je už
+        // sledováním kontury bezkolizní, tato heuristika by ho jen
+        // chybně prodloužila, takže se na ně nevztahuje.
         if (rotDeg > 0.01) {
           const tanRot = Math.tan(Math.min(89.5, rotDeg) * Math.PI / 180);
-          const rightWalls = passes.filter(p => p.type === 'long' && p.ramp).map(p => ({ x: p.x, z: p.ramp.z0 }));
+          const rightWalls = passes.filter(p => p.type === 'long' && p.ramp && !p.contourLeadIn).map(p => ({ x: p.x, z: p.ramp.z0 }));
           for (let pi = passes.length - 1; pi >= 0; pi--) {
             const p = passes[pi];
-            if (p.type !== 'long' || !p.ramp) continue;
+            if (p.type !== 'long' || !p.ramp || p.contourLeadIn) continue;
             let z0 = p.ramp.z0;
             for (const w of rightWalls) {
               if (w.x <= p.x + 1e-6) continue;
@@ -2513,10 +2585,19 @@ export function openCamSimulator(initialContour) {
           const origZS = zS, origZE = zE;
           if (chuckLim !== null && zE < chuckLim) zE = chuckLim;
           if (tailLim  !== null && zS > tailLim)  zS = tailLim;
-          if (zS - zE < EPS) { droppedCount++; continue; }
-          // Zanořovací průchod nelze zkrátit zprava (rampa by se rozbila)
-          // — pokud limity stahují zStart nebo vršek rampy, celý vynech.
-          if (pass.ramp && (zS !== origZS || (tailLim !== null && pass.ramp.z0 > tailLim))) { droppedCount++; continue; }
+          if (pass.ramp) {
+            // Zanořovací průchod (sledování kontury + rampa) nelze zkrátit
+            // zprava — limit by rozbil návaznost na konturu. Pokud limity
+            // stahují zStart, nebo vršek sledování kontury/rampy leží za
+            // tailLim, celý vynech.
+            const leadInTopZ = (pass.contourLeadIn && pass.contourLeadIn.length > 0) ? pass.contourLeadIn[0].z1 : pass.ramp.z0;
+            if (zS !== origZS || (tailLim !== null && leadInTopZ > tailLim)) { droppedCount++; continue; }
+            // Floor může mít nulovou šířku (čistá rampa bez floor-u) — to
+            // je v pořádku, zahodit jen pokud limit ořezal zEnd až za
+            // začátek rampy (zS).
+            if (zS - zE < -EPS) { droppedCount++; continue; }
+            zE = Math.min(zE, zS);
+          } else if (zS - zE < EPS) { droppedCount++; continue; }
           if (zS !== origZS || zE !== origZE) clampedCount++;
           clamped.push({ ...pass, zStart: zS, zEnd: zE });
         } else if (pass.type === 'face') {
@@ -2762,27 +2843,34 @@ export function openCamSimulator(initialContour) {
     };
 
     calc.passes.forEach((pass, i) => {
-      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : ''}`);
-      if (pass.type === 'long' && pass.ramp) {
-        // Zanořovací průchod do kapsy/zápichu:
-        //   G0 X<nad polotovar>        ; rapid do plného vzduchu
-        //   G0 Z<z0>                   ; nad pravý okraj kapsy
-        //   G0 X<x0+vůle>              ; sjezd k floor-u předchozí hloubky
-        //   G1 X<x0>                   ; dotek floor-u posuvem
-        //   G1 X<hloubka> Z<zStart>    ; rampa pod úhlem zanoření
-        //   G1 Z<zEnd> F<f>            ; podélný řez po dně kapsy
-        //   G1 X+odskok Z+odskok       ; retract pod 45°
-        // Vždy přes vršek polotovaru — stav rozpracovaného obrobku mezi
-        // kapsami nelze z finálního offsetu spolehlivě poznat.
-        const xTopRamp = Math.max((calc.stockTopX || 0) + rapidClrGc, cur.x);
+      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : ''}`);
+      if (pass.type === 'long' && pass.contourLeadIn) {
+        // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
+        // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
+        // bodu, kde její sklon dosáhne úhlu zanoření, odtud rampa pod
+        // tímto úhlem na aktuální zaběr, dno kapsy a standardní odskok.
+        const li = pass.contourLeadIn;
+        const entry = li.length > 0
+          ? { x: li[0].x1, z: li[0].z1 }
+          : (pass.ramp ? { x: pass.ramp.x0, z: pass.ramp.z0 } : { x: pass.x, z: pass.zStart });
+        // Návrat na konturu z odskoku předchozího průchodu.
+        if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {
+          simCounter += 1; addN(`G1 X${xDia(entry.x)} Z${entry.z.toFixed(3)} F${prms.feed}`, simCounter); setPos(entry.x, entry.z);
+        }
+        for (const seg of li) {
+          if (seg.type === 'line') {
+            simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          } else {
+            simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          }
+        }
+        if (pass.ramp) {
+          simCounter += 1; addN(`G1 X${xDia(pass.x)} Z${pass.zStart.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(pass.x, pass.zStart);
+        }
+        if (pass.zStart - pass.zEnd > 1e-6) {
+          simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+        }
         const zRetractVal = clipZGc(pass.zEnd + rDist);
-        if (xTopRamp > cur.x + 1e-6) { simCounter += 1; addN(`G0 X${xDia(xTopRamp)}`, simCounter); }
-        setPos(xTopRamp, cur.z);
-        simCounter += 1; addN(`G0 Z${pass.ramp.z0.toFixed(3)}`, simCounter); setPos(cur.x, pass.ramp.z0);
-        simCounter += 1; addN(`G0 X${xDia(pass.ramp.x0 + rapidClrGc)}`, simCounter); setPos(pass.ramp.x0 + rapidClrGc, cur.z);
-        simCounter += 1; addN(`G1 X${xDia(pass.ramp.x0)} F${prms.feed}`, simCounter); setPos(pass.ramp.x0, cur.z);
-        simCounter += 1; addN(`G1 X${xDia(pass.x)} Z${pass.zStart.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(pass.x, pass.zStart);
-        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
         simCounter += 1; addN(`G1 X${xDia(pass.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.x + rDist, zRetractVal);
       } else if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
@@ -3213,8 +3301,27 @@ export function openCamSimulator(initialContour) {
       ctx.beginPath();
       calc.passes.forEach(pass => {
         if (pass.type === 'long') {
+          if (pass.contourLeadIn) {
+            // sledování kontury (G1/G2/G3) přes kapsu místo odskoku
+            for (const seg of pass.contourLeadIn) {
+              if (seg.type === 'line') {
+                const p1 = toScreen(seg.x1, seg.z1), p2 = toScreen(seg.x2, seg.z2);
+                ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+              } else {
+                const steps = arcSteps(seg.r, S.view.scale);
+                let sA = seg.startAngle, eA = seg.endAngle;
+                if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+                if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+                for (let j = 0; j <= steps; j++) {
+                  const a = sA + (eA - sA) * (j / steps);
+                  const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+                  if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+                }
+              }
+            }
+          }
           if (pass.ramp) {
-            // rampa zanoření z floor-u předchozí hloubky
+            // rampa zanoření z "rohu" kontury (tečný bod pod úhlem zanoření)
             const pr = toScreen(pass.ramp.x0, pass.ramp.z0);
             const pe = toScreen(pass.x, pass.zStart);
             ctx.moveTo(pr.x, pr.y); ctx.lineTo(pe.x, pe.y);
