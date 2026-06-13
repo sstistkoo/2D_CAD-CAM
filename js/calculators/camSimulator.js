@@ -2148,6 +2148,14 @@ export function openCamSimulator(initialContour) {
         if (seg.isDegenerate) continue;
         if (seg.type === 'line') {
           const zA = seg.p1.z, zB = seg.p2.z;
+          // Čelní (konstantní-Z) úsek — radiální pohyb v X. Z-klipování by ho
+          // zahodilo (clipHi==clipLo), proto ho zařadíme zvlášť v jízdním
+          // pořadí (p1→p2), pokud jeho Z leží v rozsahu [zLo, zHi].
+          if (Math.abs(zA - zB) < 1e-6) {
+            if (zA <= zHi + 1e-6 && zA >= zLo - 1e-6)
+              out.push({ type: 'line', x1: seg.p1.x, z1: zA, x2: seg.p2.x, z2: zB });
+            continue;
+          }
           const hiPt = zA >= zB ? seg.p1 : seg.p2;
           const loPt = zA >= zB ? seg.p2 : seg.p1;
           const clipHi = Math.min(zHi, hiPt.z);
@@ -2220,6 +2228,27 @@ export function openCamSimulator(initialContour) {
         if (x === null) break;                       // konec kontury
         if (x > depthX + 0.01) leftPocket = true;    // stoupáme po druhé stěně
         else if (leftPocket && x <= depthX + 1e-6) return zNext; // zpět na hloubku
+        z = zNext;
+      }
+      return z;
+    };
+
+    // Konec leadOutu otevřeného (podélného) průchodu pro hrubování bez
+    // schodků: po dojezdu na konturu se po ní jede dál, dokud offset buď
+    // neklesne na hloubku DALŠÍHO (hlubšího) průchodu nextX — tam to převezme
+    // další pas — NEBO nestoupne zpět na hloubku PŘEDCHOZÍHO (mělčího)
+    // průchodu prevX — tam je vršek schodu, který už mělčí pas obrobil. Tím
+    // se schod mezi sousedními zabery obrobí přímo po obrysu (žádný zbytek).
+    const findLeadOutEndZ = (zFrom, prevX, nextX, zFloor) => {
+      const h = 0.05;
+      let z = zFrom;
+      for (let i = 0; i < 8000; i++) {
+        const zNext = z - h;
+        if (zNext < zFloor - 1e-6) break;
+        const x = offsetXAt(zNext);
+        if (x === null) break;                                  // konec kontury
+        if (x <= nextX + 1e-6) return zNext;                    // klesla na hlubší zaber
+        if (prevX !== null && x >= prevX - 1e-6) return zNext;   // stoupla na vršek schodu
         z = zNext;
       }
       return z;
@@ -2470,6 +2499,22 @@ export function openCamSimulator(initialContour) {
           const offX = offsetXAt(z);
           return offX !== null && offX > currentX + 0.01;
         };
+        // Mezi otevřeným krokem (offset ≤ currentX) a zablokovaným (offset >
+        // currentX) najdi PŘESNÉ Z dotyku kontury (offset = currentX), aby
+        // průchod skončil rovnou na kontuře a nemusel pak zajíždět pod
+        // průměr ("dip") před navazujícím obloukem.
+        const refineEngageZ = (zOpen, zBlocked) => {
+          let hi = zOpen, lo = zBlocked;
+          for (let k = 0; k < 24; k++) {
+            const m = (hi + lo) / 2;
+            const x = offsetXAt(m);
+            // null = vzduch (nad čelní stěnou) → patří na otevřenou stranu (hi),
+            // aby dotyk konvergoval na první Z, kde kontura skutečně začíná.
+            if (x === null) { hi = m; continue; }
+            if (x > currentX + 1e-6) lo = m; else hi = m;
+          }
+          return hi;
+        };
         const intervals = [];
         let zScan = sz.zMax;
         let inRun = !blockedAt(zScan);
@@ -2479,8 +2524,8 @@ export function openCamSimulator(initialContour) {
           zScan -= dzScan;
           const blocked = blockedAt(zScan);
           if (inRun && blocked) {
-            // o krok zpět = poslední bezpečné Z
-            intervals.push({ zStart: runStartZ, zEnd: zScan + dzScan, blocked: true });
+            // přesný dotyk kontury mezi posledním volným a prvním blok. krokem
+            intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(zScan + dzScan, zScan), blocked: true });
             inRun = false;
           } else if (!inRun && !blocked) {
             runStartZ = zScan;
@@ -2496,12 +2541,28 @@ export function openCamSimulator(initialContour) {
             // Otevřený vjezd zprava přes hranu polotovaru.
             const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
             if (prms.noStepRoughing && iv.blocked) {
-              // Bez schodků: místo odskoku se dál sleduje kontura
-              // (G1/G2/G3) až na hloubku dalšího průchodu (nebo až na
-              // konec kontury, pokud jde o poslední průchod).
+              // Bez schodků: místo odskoku se dál sleduje kontura (G1/G2/G3),
+              // aby se obrobil schod vůči sousedním zaberum a nezůstal materiál.
               const nextX = (depthIdx + 1 < depths.length) ? depths[depthIdx + 1] : -Infinity;
-              const zCross = findOffsetXCrossing(iv.zEnd, nextX, cylStockZ);
-              const leadOut = traceOffsetPath(iv.zEnd, zCross);
+              let zEndOut;
+              if (intervals.length === 1) {
+                // Jediný interval (žádná kapsa za bossem) → sleduj konturu buď
+                // dolů na hlubší zaber, nebo nahoru na vršek schodu (předchozí
+                // mělčí zaber). Tím se schod obrobí přímo po obrysu.
+                const prevX = depthIdx > 0 ? depths[depthIdx - 1] : null;
+                zEndOut = findLeadOutEndZ(iv.zEnd, prevX, nextX, cylStockZ);
+              } else {
+                // Za bossem následuje kapsa (další interval) — konturu nahoru
+                // řeší až pas kapsy + návaznost (noRetract); tady jen klasický
+                // schod dolů na hlubší zaber.
+                zEndOut = findOffsetXCrossing(iv.zEnd, nextX, cylStockZ);
+              }
+              const leadOut = traceOffsetPath(iv.zEnd, zEndOut);
+              // Zahoď úvodní úseky pod aktuální hloubkou: kvůli diskretizaci /
+              // zaoblenému rohu může trasa hned na začátku klesnout pod
+              // currentX (krátký "dip"). Průchod nesmí řezat pod svou hloubku —
+              // sledování kontury začne až tam, kde se zvedne na currentX.
+              while (leadOut.length > 0 && leadOut[0].x2 <= currentX + 0.02) leadOut.shift();
               if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
             }
             passes.push(passObj);
@@ -2593,6 +2654,9 @@ export function openCamSimulator(initialContour) {
           for (let pi = passes.length - 1; pi >= 0; pi--) {
             const p = passes[pi];
             if (p.type !== 'long') continue;
+            // Průchody sledující konturu (leadOut) zeď obrábějí přímo po
+            // obrysu — posun zEnd by jen rozsynchronizoval navazující dráhu.
+            if (p.contourLeadOut) continue;
             let zE = p.zEnd;
             for (const seg of offsetPath) {
               if (seg.isDegenerate) continue;
@@ -2952,7 +3016,7 @@ export function openCamSimulator(initialContour) {
     };
 
     calc.passes.forEach((pass, i) => {
-      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
+      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
       if (pass.type === 'long' && pass.contourLeadIn) {
         // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
         // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
