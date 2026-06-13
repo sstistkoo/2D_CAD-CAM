@@ -1473,6 +1473,10 @@ export function openCamSimulator(initialContour) {
       machineType: 'LIMS=2000', mode: 'DIAMON', toolName: 'ROUGHER_T1',
       speed: 200, feed: 0.25, depthOfCut: 2.0, retractDistance: 2.0,
       allowanceX: 0.5, allowanceZ: 0.1, toolRadius: 0.8,
+      // Přídavek na hotovo: přičítá se k Rádiusu (R) i k Přídavku X/Z —
+      // hrubovací offset = R + Přídavek X/Z + Přídavek na hotovo,
+      // dokončovací offset = jen R.
+      finishAllowance: 0,
       doFinishing: true, roughingStrategy: 'longitudinal',
       stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
       stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
@@ -1491,6 +1495,13 @@ export function openCamSimulator(initialContour) {
       // Zanořování: podélné hrubování smí rampou (pod úhlem zanoření)
       // sjet i do kapes/zápichů v kontuře, ne jen do otevřeného řezu.
       plungeRoughing: false,
+      // Bez schodků: po dojezdu hrubovacího průchodu na offset nástroj
+      // dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu,
+      // místo okamžitého 45° odskoku — schody mezi kroky se obrobí
+      // přímo po obrysu.
+      noStepRoughing: false,
+      // Stejné chování i pro čelní (X) hrubování.
+      noStepRoughingFace: false,
       // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
       // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
       rapidClearance: 1.0
@@ -1723,7 +1734,8 @@ export function openCamSimulator(initialContour) {
     const tipR = parseFloat(prms.toolRadius) || 0;
     const allowanceX = parseFloat(prms.allowanceX) || 0;
     const allowanceZ = parseFloat(prms.allowanceZ) || 0;
-    const totalOffset = tipR + Math.max(allowanceX, allowanceZ);
+    const finishAllowance = parseFloat(prms.finishAllowance) || 0;
+    const totalOffset = tipR + Math.max(allowanceX, allowanceZ) + finishAllowance;
     const retractDist = parseFloat(prms.retractDistance) || 2.0;
 
     let contourSegments = [];
@@ -1969,8 +1981,8 @@ export function openCamSimulator(initialContour) {
       let offSeg = null;
       if (seg.type === 'line') {
         const n = getNormal(seg.p1, seg.p2);
-        const tx = n.x * (tipR + allowanceX);
-        const tz = n.z * (tipR + allowanceZ);
+        const tx = n.x * (tipR + allowanceX + finishAllowance);
+        const tz = n.z * (tipR + allowanceZ + finishAllowance);
         offSeg = { type: 'line', p1: { x: seg.p1.x + tx, z: seg.p1.z + tz }, p2: { x: seg.p2.x + tx, z: seg.p2.z + tz } };
       } else if (seg.type === 'arc') {
         // Autodetekce směru z geometrie — nezávisle na G2/G3 z exportu.
@@ -2053,6 +2065,133 @@ export function openCamSimulator(initialContour) {
     const step = parseFloat(prms.depthOfCut) || 1;
     const sRad = (parseFloat(prms.stockDiameter) || 100) / 2;
     const stockFace = parseFloat(prms.stockFace) || 0;
+
+    // ── Sdílené helpery pro offsetPath (čelní i podélné hrubování) ──
+    // Horizontální průsečíky segmentů (s kolinárním fallbackem).
+    const hIntersect = (segs, xLine, checkDegen) => {
+      const out = [];
+      for (const seg of segs) {
+        if (checkDegen && seg.isDegenerate) continue;
+        if (seg.type === 'line') {
+          const z = intersectHorizontalLineSegment(xLine, seg.p1, seg.p2);
+          if (z !== null) out.push(z);
+          else if (Math.abs(seg.p1.x - xLine) < 0.01 && Math.abs(seg.p2.x - xLine) < 0.01) {
+            out.push(seg.p1.z, seg.p2.z);
+          }
+        } else if (seg.type === 'arc') {
+          const res = intersectHorizontalLineArc(xLine, { x: seg.cx, z: seg.cz }, seg.r);
+          for (const z of res) {
+            const angle = Math.atan2(xLine - seg.cx, z - seg.cz);
+            if (isAngleBetween(angle, seg.startAngle, seg.endAngle, seg.dir === 'G2')) out.push(z);
+          }
+        }
+      }
+      return out;
+    };
+
+    // Max X segmentů na zadaném Z. Null pokud Z mimo Z-rozsah segmentů.
+    const maxXAt = (segs, z) => {
+      let maxX = null;
+      for (const seg of segs) {
+        if (seg.isDegenerate) continue;
+        if (seg.type === 'line') {
+          const zMin = Math.min(seg.p1.z, seg.p2.z);
+          const zMax = Math.max(seg.p1.z, seg.p2.z);
+          if (z < zMin - 0.01 || z > zMax + 0.01) continue;
+          const dz = seg.p2.z - seg.p1.z;
+          const x = Math.abs(dz) < 1e-6
+            ? Math.max(seg.p1.x, seg.p2.x)
+            : seg.p1.x + ((z - seg.p1.z) / dz) * (seg.p2.x - seg.p1.x);
+          if (maxX === null || x > maxX) maxX = x;
+        } else if (seg.type === 'arc') {
+          const cosA = (z - seg.cz) / seg.r;
+          if (cosA < -1.001 || cosA > 1.001) continue;
+          const cosC = Math.max(-1, Math.min(1, cosA));
+          const a1 = Math.acos(cosC);
+          for (const a of [a1, -a1]) {
+            if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) {
+              const x = seg.cx + Math.sin(a) * seg.r;
+              if (maxX === null || x > maxX) maxX = x;
+            }
+          }
+        }
+      }
+      return maxX;
+    };
+    const offsetXAt = (z) => maxXAt(offsetPath, z);
+
+    // Úhel oblouku offsetPath na zadaném Z (jen v rozsahu segmentu).
+    const arcAngleAtZ = (seg, z) => {
+      const cosA = (z - seg.cz) / seg.r;
+      if (cosA < -1.001 || cosA > 1.001) return null;
+      const cosC = Math.max(-1, Math.min(1, cosA));
+      const a1 = Math.acos(cosC);
+      for (const a of [a1, -a1]) {
+        if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return a;
+      }
+      return null;
+    };
+
+    // Kopie segmentů offsetPath oříznuté na Z∈[zLo,zHi], v pořadí jízdy
+    // (od vyššího Z k nižšímu) — podklad pro G1/G2/G3 sledování kontury
+    // přes "kapsu"/"schod" místo odskoku a rychloposuvu nad polotovarem.
+    const traceOffsetPath = (zHi, zLo) => {
+      const out = [];
+      for (let i = offsetPath.length - 1; i >= 0; i--) {
+        const seg = offsetPath[i];
+        if (seg.isDegenerate) continue;
+        if (seg.type === 'line') {
+          const zA = seg.p1.z, zB = seg.p2.z;
+          const hiPt = zA >= zB ? seg.p1 : seg.p2;
+          const loPt = zA >= zB ? seg.p2 : seg.p1;
+          const clipHi = Math.min(zHi, hiPt.z);
+          const clipLo = Math.max(zLo, loPt.z);
+          if (clipHi <= clipLo + 1e-6) continue;
+          const dz = hiPt.z - loPt.z;
+          const xAt = (z) => Math.abs(dz) < 1e-9 ? hiPt.x : loPt.x + (z - loPt.z) / dz * (hiPt.x - loPt.x);
+          out.push({ type: 'line', x1: xAt(clipHi), z1: clipHi, x2: xAt(clipLo), z2: clipLo });
+        } else if (seg.type === 'arc') {
+          const zAtStart = seg.cz + Math.cos(seg.startAngle) * seg.r;
+          const zAtEnd = seg.cz + Math.cos(seg.endAngle) * seg.r;
+          const reversed = zAtStart < zAtEnd;
+          const aAtHiOrig = reversed ? seg.endAngle : seg.startAngle;
+          const aAtLoOrig = reversed ? seg.startAngle : seg.endAngle;
+          const zSegHi = Math.max(zAtStart, zAtEnd);
+          const zSegLo = Math.min(zAtStart, zAtEnd);
+          const clipHi = Math.min(zHi, zSegHi);
+          const clipLo = Math.max(zLo, zSegLo);
+          if (clipHi <= clipLo + 1e-6) continue;
+          const aAtClipHi = arcAngleAtZ(seg, clipHi) ?? aAtHiOrig;
+          const aAtClipLo = arcAngleAtZ(seg, clipLo) ?? aAtLoOrig;
+          const outDir = reversed ? (seg.dir === 'G2' ? 'G3' : 'G2') : seg.dir;
+          out.push({
+            type: 'arc', cx: seg.cx, cz: seg.cz, r: seg.r, dir: outDir,
+            startAngle: aAtClipHi, endAngle: aAtClipLo,
+            x1: seg.cx + Math.sin(aAtClipHi) * seg.r, z1: clipHi,
+            x2: seg.cx + Math.sin(aAtClipLo) * seg.r, z2: clipLo
+          });
+        }
+      }
+      return out;
+    };
+
+    // Hledání konce "schodu" pro hrubování bez schodků (podélné): jde po
+    // offsetXAt od zFrom (kde offset ≈ hloubka současného průchodu) směrem
+    // k menším Z, dokud X offsetu neklesne na targetX (hloubka dalšího
+    // průchodu), nebo dokud křivka offsetu nekončí (mimo svůj rozsah).
+    const findOffsetXCrossing = (zFrom, targetX, zFloor) => {
+      const h = 0.05;
+      let z = zFrom;
+      for (let i = 0; i < 4000; i++) {
+        const zNext = z - h;
+        if (zNext < zFloor - 1e-6) break;
+        const x = offsetXAt(zNext);
+        if (x === null) break;
+        if (x <= targetX + 1e-6) return zNext;
+        z = zNext;
+      }
+      return z;
+    };
 
     if (prms.roughingStrategy === 'face') {
       // ── ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře) ──
@@ -2154,6 +2293,13 @@ export function openCamSimulator(initialContour) {
         const xStartLocal = xSurface + rapidClrFC;
         if (xEnd >= xStartLocal - 0.01) continue; // řez nulové délky
         passes.push({ type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked });
+        if (prms.noStepRoughing && prms.noStepRoughingFace && xEndBlocked) {
+          // Bez schodků: po dojezdu na xEnd se dál sleduje kontura
+          // (G1/G2/G3) v pásu Z∈[currentZ−step, currentZ] — schod, který
+          // by jinak zůstal po hraně, se obrobí přímo po obrysu.
+          const leadOut = traceOffsetPath(currentZ, currentZ - step);
+          if (leadOut.length > 0) passes[passes.length - 1].contourLeadOut = leadOut;
+        }
         if (currentZ < -200) break;
       }
 
@@ -2226,59 +2372,6 @@ export function openCamSimulator(initialContour) {
         stockWorldPoints.forEach(p => { if (p.xReal > maxStockX) maxStockX = p.xReal; });
       }
 
-      // Horizontální průsečíky segmentů (s kolinarním fallbackem)
-      const hIntersect = (segs, xLine, checkDegen) => {
-        const out = [];
-        for (const seg of segs) {
-          if (checkDegen && seg.isDegenerate) continue;
-          if (seg.type === 'line') {
-            const z = intersectHorizontalLineSegment(xLine, seg.p1, seg.p2);
-            if (z !== null) out.push(z);
-            else if (Math.abs(seg.p1.x - xLine) < 0.01 && Math.abs(seg.p2.x - xLine) < 0.01) {
-              out.push(seg.p1.z, seg.p2.z);
-            }
-          } else if (seg.type === 'arc') {
-            const res = intersectHorizontalLineArc(xLine, { x: seg.cx, z: seg.cz }, seg.r);
-            for (const z of res) {
-              const angle = Math.atan2(xLine - seg.cx, z - seg.cz);
-              if (isAngleBetween(angle, seg.startAngle, seg.endAngle, seg.dir === 'G2')) out.push(z);
-            }
-          }
-        }
-        return out;
-      };
-
-      // Max X segmentů na zadaném Z. Null pokud Z mimo Z-rozsah segmentů.
-      const maxXAt = (segs, z) => {
-        let maxX = null;
-        for (const seg of segs) {
-          if (seg.isDegenerate) continue;
-          if (seg.type === 'line') {
-            const zMin = Math.min(seg.p1.z, seg.p2.z);
-            const zMax = Math.max(seg.p1.z, seg.p2.z);
-            if (z < zMin - 0.01 || z > zMax + 0.01) continue;
-            const dz = seg.p2.z - seg.p1.z;
-            const x = Math.abs(dz) < 1e-6
-              ? Math.max(seg.p1.x, seg.p2.x)
-              : seg.p1.x + ((z - seg.p1.z) / dz) * (seg.p2.x - seg.p1.x);
-            if (maxX === null || x > maxX) maxX = x;
-          } else if (seg.type === 'arc') {
-            const cosA = (z - seg.cz) / seg.r;
-            if (cosA < -1.001 || cosA > 1.001) continue;
-            const cosC = Math.max(-1, Math.min(1, cosA));
-            const a1 = Math.acos(cosC);
-            for (const a of [a1, -a1]) {
-              if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) {
-                const x = seg.cx + Math.sin(a) * seg.r;
-                if (maxX === null || x > maxX) maxX = x;
-              }
-            }
-          }
-        }
-        return maxX;
-      };
-      const offsetXAt = (z) => maxXAt(offsetPath, z);
-
       // Z-rozsah polotovaru na zadané hloubce X.
       // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce.
       // Pro válec: [cylStockZ, stockFace].
@@ -2310,18 +2403,6 @@ export function openCamSimulator(initialContour) {
       const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
       let plungeShallowed = 0;
 
-      // Úhel oblouku offsetPath na zadaném Z (jen v rozsahu segmentu).
-      const arcAngleAtZ = (seg, z) => {
-        const cosA = (z - seg.cz) / seg.r;
-        if (cosA < -1.001 || cosA > 1.001) return null;
-        const cosC = Math.max(-1, Math.min(1, cosA));
-        const a1 = Math.acos(cosC);
-        for (const a of [a1, -a1]) {
-          if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return a;
-        }
-        return null;
-      };
-
       // Najde bod na offsetPath, kde sklon dX/dZ ve směru jízdy (klesající Z)
       // dosáhne úhlu zanoření effPlungeDegL — odtud se opouští kontura a
       // jede se rampou na currentX. Skenuje od zFrom dolů k zStop. Vrací
@@ -2337,50 +2418,8 @@ export function openCamSimulator(initialContour) {
         return null;
       };
 
-      // Kopie segmentů offsetPath oříznuté na Z∈[zLo,zHi], v pořadí jízdy
-      // (od vyššího Z k nižšímu) — podklad pro G1/G2/G3 sledování kontury
-      // přes "kapsu" místo odskoku a rychloposuvu nad polotovarem.
-      const traceOffsetPath = (zHi, zLo) => {
-        const out = [];
-        for (let i = offsetPath.length - 1; i >= 0; i--) {
-          const seg = offsetPath[i];
-          if (seg.isDegenerate) continue;
-          if (seg.type === 'line') {
-            const zA = seg.p1.z, zB = seg.p2.z;
-            const hiPt = zA >= zB ? seg.p1 : seg.p2;
-            const loPt = zA >= zB ? seg.p2 : seg.p1;
-            const clipHi = Math.min(zHi, hiPt.z);
-            const clipLo = Math.max(zLo, loPt.z);
-            if (clipHi <= clipLo + 1e-6) continue;
-            const dz = hiPt.z - loPt.z;
-            const xAt = (z) => Math.abs(dz) < 1e-9 ? hiPt.x : loPt.x + (z - loPt.z) / dz * (hiPt.x - loPt.x);
-            out.push({ type: 'line', x1: xAt(clipHi), z1: clipHi, x2: xAt(clipLo), z2: clipLo });
-          } else if (seg.type === 'arc') {
-            const zAtStart = seg.cz + Math.cos(seg.startAngle) * seg.r;
-            const zAtEnd = seg.cz + Math.cos(seg.endAngle) * seg.r;
-            const reversed = zAtStart < zAtEnd;
-            const aAtHiOrig = reversed ? seg.endAngle : seg.startAngle;
-            const aAtLoOrig = reversed ? seg.startAngle : seg.endAngle;
-            const zSegHi = Math.max(zAtStart, zAtEnd);
-            const zSegLo = Math.min(zAtStart, zAtEnd);
-            const clipHi = Math.min(zHi, zSegHi);
-            const clipLo = Math.max(zLo, zSegLo);
-            if (clipHi <= clipLo + 1e-6) continue;
-            const aAtClipHi = arcAngleAtZ(seg, clipHi) ?? aAtHiOrig;
-            const aAtClipLo = arcAngleAtZ(seg, clipLo) ?? aAtLoOrig;
-            const outDir = reversed ? (seg.dir === 'G2' ? 'G3' : 'G2') : seg.dir;
-            out.push({
-              type: 'arc', cx: seg.cx, cz: seg.cz, r: seg.r, dir: outDir,
-              startAngle: aAtClipHi, endAngle: aAtClipLo,
-              x1: seg.cx + Math.sin(aAtClipHi) * seg.r, z1: clipHi,
-              x2: seg.cx + Math.sin(aAtClipLo) * seg.r, z2: clipLo
-            });
-          }
-        }
-        return out;
-      };
-
-      for (const currentX of depths) {
+      for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
+        const currentX = depths[depthIdx];
         const sz = stockZRangeAt(currentX);
         if (!sz) continue;
 
@@ -2423,7 +2462,17 @@ export function openCamSimulator(initialContour) {
           if (iv.zStart - iv.zEnd < dzScan) return;
           if (idx === 0 && firstOpen) {
             // Otevřený vjezd zprava přes hranu polotovaru.
-            passes.push({ type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked });
+            const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
+            if (prms.noStepRoughing && iv.blocked) {
+              // Bez schodků: místo odskoku se dál sleduje kontura
+              // (G1/G2/G3) až na hloubku dalšího průchodu (nebo až na
+              // konec kontury, pokud jde o poslední průchod).
+              const nextX = (depthIdx + 1 < depths.length) ? depths[depthIdx + 1] : -Infinity;
+              const zCross = findOffsetXCrossing(iv.zEnd, nextX, cylStockZ);
+              const leadOut = traceOffsetPath(iv.zEnd, zCross);
+              if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
+            }
+            passes.push(passObj);
             return;
           }
           // Kapsa za bossem kontury — sledování kontury (G1/G2/G3) a rampa
@@ -2741,10 +2790,10 @@ export function openCamSimulator(initialContour) {
       if (S.flipX) addCmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny');
       addN(`G18${note('', 'Rovina ZX')}`); addN(`G90${note('', 'Absolutní programování')}`);
       addN(`G54${note('', 'Posunutí počátku')}`); addN(`G95${note('', 'Posuv na otáčku')}`);
-      addN(`G75 Z0${note('', 'Nájezd do ref. bodu')}`); addN('G75 X0');
+      addN(`G75 X${prms.safeX}${note('', 'Nájezd do ref. bodu')}`); addN(`G75 Z${prms.safeZ}`);
       addN(`LIMS=2000${note('', 'Limit otáček')}`);
       addN(`G96 S${prms.speed} ${prms.machineType}${note('', 'Konst. řezná rychlost')}`);
-      addN(`${prms.mode}${note('', prms.mode === 'DIAMON' ? 'Programování průměru' : 'Programování poloměru')}`);
+      addN(`${prms.mode === 'DIAMON' ? 'DIAMON' : 'DIAMOF'}${note('', prms.mode === 'DIAMON' ? 'Programování průměru' : 'Programování poloměru')}`);
       addN(`T="${prms.toolName}" D1 M6${note('', 'Výměna nástroje')}`);
       addN(`M3${note('', 'Vřeteno CW')}`); addN(`M8${note('', 'Chlazení ZAP')}`);
       arcR = (r) => `CR=${(parseFloat(r) || 0).toFixed(3)}`;
@@ -2843,7 +2892,7 @@ export function openCamSimulator(initialContour) {
     };
 
     calc.passes.forEach((pass, i) => {
-      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : ''}`);
+      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (zanoření do kapsy)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
       if (pass.type === 'long' && pass.contourLeadIn) {
         // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
         // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
@@ -2881,14 +2930,25 @@ export function openCamSimulator(initialContour) {
         //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
         //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
         const zApproachVal = clipZGc(pass.zStart + rapidClrGc);
-        const zRetractVal = clipZGc(pass.zEnd + rDist);
         // Přejezd v Z na nájezdový bod s kontrolou kolize (po zanoření do
         // kapsy může nástroj stát hluboko — přímý přejezd by řízl stěnu).
         safeRapidTo(cur.x, zApproachVal);
         safeRapidTo(pass.x, zApproachVal);
         simCounter += 1; addN(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zStart);
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
-        simCounter += 1; addN(`G1 X${xDia(pass.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.x + rDist, zRetractVal);
+        if (pass.contourLeadOut) {
+          // Bez schodků: dál po kontuře (G1/G2/G3) až na hloubku dalšího
+          // průchodu místo okamžitého odskoku — schod se obrobí přímo.
+          for (const seg of pass.contourLeadOut) {
+            if (seg.type === 'line') {
+              simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            } else {
+              simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            }
+          }
+        }
+        const zRetractVal = clipZGc(cur.z + rDist);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       } else {
         // Čelní hrubování (vzor shodný se sim cestou). Per-Z hodnoty:
         //   xStart = lokální casting outer + rapidClr (rapid-safe v tomto Z)
@@ -2899,13 +2959,24 @@ export function openCamSimulator(initialContour) {
         //                            už pracovním posuvem (bezpečný dotek)
         //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
         //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
-        const zRetractVal = clipZGc(pass.z + rDist);
         // Přejezdy s kontrolou kolize: nejdřív v X za polotovar, pak v Z.
         safeRapidTo(pass.xStart, cur.z);
         safeRapidTo(pass.xStart, pass.z);
         simCounter += 1; addN(`G1 X${xDia(pass.xSurface)} F${prms.feed}`, simCounter); setPos(pass.xSurface, pass.z);
         simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z);
-        simCounter += 1; addN(`G1 X${xDia(pass.xEnd + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.xEnd + rDist, zRetractVal);
+        if (pass.contourLeadOut) {
+          // Bez schodků: dál po kontuře (G1/G2/G3) v pásu Z∈[z−ap, z]
+          // místo okamžitého odskoku — schod se obrobí přímo po obrysu.
+          for (const seg of pass.contourLeadOut) {
+            if (seg.type === 'line') {
+              simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            } else {
+              simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            }
+          }
+        }
+        const zRetractVal = clipZGc(cur.z + rDist);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       }
     });
 
@@ -3296,6 +3367,27 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.finish; ctx.lineWidth = 2; ctx.stroke();
     }
 
+    // Vykreslí trasování kontury (G1/G2/G3 segmenty s x1/z1/x2/z2) do
+    // aktuální cesty — sdíleno pro contourLeadIn i contourLeadOut.
+    const drawContourTrace = (segs) => {
+      for (const seg of segs) {
+        if (seg.type === 'line') {
+          const p1 = toScreen(seg.x1, seg.z1), p2 = toScreen(seg.x2, seg.z2);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        } else {
+          const steps = arcSteps(seg.r, S.view.scale);
+          let sA = seg.startAngle, eA = seg.endAngle;
+          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          for (let j = 0; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+            if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          }
+        }
+      }
+    };
+
     // roughing passes — v 🙈 stavu skryjeme všechny drahy
     if (S.showSimPath !== 'none') {
       ctx.beginPath();
@@ -3303,22 +3395,7 @@ export function openCamSimulator(initialContour) {
         if (pass.type === 'long') {
           if (pass.contourLeadIn) {
             // sledování kontury (G1/G2/G3) přes kapsu místo odskoku
-            for (const seg of pass.contourLeadIn) {
-              if (seg.type === 'line') {
-                const p1 = toScreen(seg.x1, seg.z1), p2 = toScreen(seg.x2, seg.z2);
-                ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-              } else {
-                const steps = arcSteps(seg.r, S.view.scale);
-                let sA = seg.startAngle, eA = seg.endAngle;
-                if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-                if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-                for (let j = 0; j <= steps; j++) {
-                  const a = sA + (eA - sA) * (j / steps);
-                  const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
-                  if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-                }
-              }
-            }
+            drawContourTrace(pass.contourLeadIn);
           }
           if (pass.ramp) {
             // rampa zanoření z "rohu" kontury (tečný bod pod úhlem zanoření)
@@ -3328,9 +3405,11 @@ export function openCamSimulator(initialContour) {
           }
           const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
           ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          if (pass.contourLeadOut) drawContourTrace(pass.contourLeadOut);
         } else {
           const p1 = toScreen(pass.xStart, pass.z), p2 = toScreen(pass.xEnd, pass.z);
           ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          if (pass.contourLeadOut) drawContourTrace(pass.contourLeadOut);
         }
       });
       ctx.strokeStyle = C.pass; ctx.lineWidth = 1.5; ctx.stroke();
@@ -4336,12 +4415,27 @@ export function openCamSimulator(initialContour) {
       <div class="cam-sim-field"><label>Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
       <div class="cam-sim-field"><label>Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
     </div>`;
+    html += `<div class="cam-sim-checkbox-row">
+      <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
+      <span>Hrubování bez schodků</span>
+    </div>
+    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.</small>`;
+    if (prms.noStepRoughing) {
+      html += `<div class="cam-sim-checkbox-row">
+      <input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}>
+      <span>… i u čelního hrubování</span>
+    </div>`;
+    }
     html += `<div class="cam-sim-section-title">Nástroj <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button></div>
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
+      <div class="cam-sim-field"><label>Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
+    </div>
+    <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
       <div class="cam-sim-field"><label>Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
     </div>
+    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Hrubovací offset = Rádius (R) + Přídavek X/Z + Přídavek na hotovo. Dokončovací offset = jen Rádius (R).</small>
     <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
     <div class="cam-sim-tool-shape-row">
       <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
@@ -4462,6 +4556,10 @@ export function openCamSimulator(initialContour) {
     if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; fullUpdate(); });
     const plungeCb = tabBody.querySelector('#cam-sim-plunge');
     if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; fullUpdate(); });
+    const noStepCb = tabBody.querySelector('#cam-sim-nostep');
+    if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; fullUpdate(); });
+    const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');
+    if (noStepFaceCb) noStepFaceCb.addEventListener('change', () => { S.params.noStepRoughingFace = noStepFaceCb.checked; fullUpdate(); });
     const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
     if (plungeAutoBtn) plungeAutoBtn.addEventListener('click', () => {
       S.params.entryAngleAuto = !S.params.entryAngleAuto;
