@@ -1334,9 +1334,9 @@ export function openCamSimulator(initialContour) {
       <button data-act="stop" title="Zastavit a vrátit na začátek">⏹</button>
       <button data-act="step-fwd" title="Krok vpřed – další pohyb">⏭</button>
       <div class="cam-sim-speed-group">
-        <button data-act="speed-down" title="Zpomalit">◀</button>
+        <button data-act="speed-down" title="Zpomalit">▼</button>
         <span class="cam-sim-speed-label">1×</span>
-        <button data-act="speed-up" title="Zrychlit">▶</button>
+        <button data-act="speed-up" title="Zrychlit">▲</button>
       </div>
       <button data-act="sbl" title="Single block – krok po blocích G-kódu" style="font-size:11px;font-weight:bold;letter-spacing:0.5px">SBL</button>
     </div>
@@ -1348,6 +1348,8 @@ export function openCamSimulator(initialContour) {
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
           <button data-code="show-sidebar" title="Zobrazit editor kontury">✏ Edit</button>
+          <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
+          <button data-code="load-prog" title="Načíst projekt ze souboru .camprog">📂 Načíst</button>
         </div>
       </div>
       <div class="cam-sim-code-wrap">
@@ -2137,7 +2139,11 @@ export function openCamSimulator(initialContour) {
     // přes "kapsu"/"schod" místo odskoku a rychloposuvu nad polotovarem.
     const traceOffsetPath = (zHi, zLo) => {
       const out = [];
-      for (let i = offsetPath.length - 1; i >= 0; i--) {
+      // offsetPath je v jízdním pořadí (klesající Z); procházíme dopředu,
+      // ať výsledek vyjde také v jízdním pořadí (vysoké Z → nízké Z).
+      // Každý segment uvnitř drží x1/z1 = vyšší Z, x2/z2 = nižší Z, takže
+      // dopředný průchod = spojitá dráha bez zpětných skoků/oblouků.
+      for (let i = 0; i < offsetPath.length; i++) {
         const seg = offsetPath[i];
         if (seg.isDegenerate) continue;
         if (seg.type === 'line') {
@@ -2182,12 +2188,38 @@ export function openCamSimulator(initialContour) {
     const findOffsetXCrossing = (zFrom, targetX, zFloor) => {
       const h = 0.05;
       let z = zFrom;
+      let xPrev = offsetXAt(z);
       for (let i = 0; i < 4000; i++) {
         const zNext = z - h;
         if (zNext < zFloor - 1e-6) break;
         const x = offsetXAt(zNext);
         if (x === null) break;
         if (x <= targetX + 1e-6) return zNext;
+        // Offset se vzdaluje od cíle (např. dno kapsy) - další sledování by
+        // jen zdvojovalo zanoření do kapsy a vytvořilo nebezpečný "návrat na
+        // konturu" pro další průchod. Skončit zde beze schodu na tomto místě.
+        if (xPrev !== null && x > xPrev + 1e-6) break;
+        xPrev = x;
+        z = zNext;
+      }
+      return z;
+    };
+
+    // Konec leadOutu z kapsy: na rozdíl od findOffsetXCrossing se NEzastaví,
+    // když offset stoupá — sleduje druhou (odvrácenou) stěnu kapsy nahoru
+    // (G2/G3) až dokud znovu neklesne na řeznou hloubku depthX (tam pokračuje
+    // hlubší průchod), nebo dokud kontura nekončí. Tím se obrobí celá druhá
+    // stěna kapsy přímo po obrysu místo odskoku.
+    const findPocketExitZ = (zFrom, depthX, zFloor) => {
+      const h = 0.05;
+      let z = zFrom, leftPocket = false;
+      for (let i = 0; i < 8000; i++) {
+        const zNext = z - h;
+        if (zNext < zFloor - 1e-6) break;
+        const x = offsetXAt(zNext);
+        if (x === null) break;                       // konec kontury
+        if (x > depthX + 0.01) leftPocket = true;    // stoupáme po druhé stěně
+        else if (leftPocket && x <= depthX + 1e-6) return zNext; // zpět na hloubku
         z = zNext;
       }
       return z;
@@ -2479,6 +2511,16 @@ export function openCamSimulator(initialContour) {
           // pod úhlem zanoření, jen se zapnutým zanořováním.
           if (!prms.plungeRoughing) return;
           const zGapHi = intervals[idx - 1].zEnd;
+          if (!iv.blocked) {
+            // Poslední interval bez protistěny (konec polotovaru) — žádná
+            // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
+            // kontura z konce předchozího průchodu na currentX.
+            passes.push({
+              type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked,
+              contourLeadIn: traceOffsetPath(zGapHi, iv.zStart)
+            });
+            return;
+          }
           const corner = findPlungeCorner(zGapHi, iv.zStart);
           if (!corner) {
             // Sklon kontury nikdy nedosáhne úhlu zanoření — celá mezera se
@@ -2500,11 +2542,29 @@ export function openCamSimulator(initialContour) {
           const dzRamp = Math.min(dzRampFull, availWidth);
           const xReached = corner.x - dzRamp * effPlungeTanL;
           if (xReached > currentX + 0.001) plungeShallowed++;
-          passes.push({
+          const pocketPass = {
             type: 'long', x: xReached,
             zStart: corner.z - dzRamp, zEnd: iv.zEnd, blocked: iv.blocked,
             contourLeadIn: leadIn, ramp: { x0: corner.x, z0: corner.z }
-          });
+          };
+          if (prms.noStepRoughing) {
+            // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
+            // až na hloubku dalšího průchodu (nebo až na konec kontury)
+            // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
+            const zExitOut = findPocketExitZ(iv.zEnd, currentX, cylStockZ);
+            const leadOut = traceOffsetPath(iv.zEnd, zExitOut);
+            if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
+            // Navázání: předchozí (otevřený) průchod končí přesně v bodě,
+            // odkud začíná leadIn téhle kapsy → nesmí odskočit, plynule
+            // pokračuje po kontuře (G3) do kapsy.
+            const prevPass = passes[passes.length - 1];
+            if (prevPass && prevPass.type === 'long' && !prevPass.contourLeadOut && leadIn.length > 0
+                && Math.abs(prevPass.zEnd - leadIn[0].z1) < 0.05
+                && Math.abs(prevPass.x - leadIn[0].x1) < step + 0.1) {
+              prevPass.noRetract = true;
+            }
+          }
+          passes.push(pocketPass);
         });
       }
       if (plungeShallowed > 0)
@@ -2790,7 +2850,7 @@ export function openCamSimulator(initialContour) {
       if (S.flipX) addCmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny');
       addN(`G18${note('', 'Rovina ZX')}`); addN(`G90${note('', 'Absolutní programování')}`);
       addN(`G54${note('', 'Posunutí počátku')}`); addN(`G95${note('', 'Posuv na otáčku')}`);
-      addN(`G75 X${prms.safeX}${note('', 'Nájezd do ref. bodu')}`); addN(`G75 Z${prms.safeZ}`);
+      addN(`G75 X0${note('', 'Nájezd do ref. bodu')}`); addN(`G75 Z0`);
       addN(`LIMS=2000${note('', 'Limit otáček')}`);
       addN(`G96 S${prms.speed} ${prms.machineType}${note('', 'Konst. řezná rychlost')}`);
       addN(`${prms.mode === 'DIAMON' ? 'DIAMON' : 'DIAMOF'}${note('', prms.mode === 'DIAMON' ? 'Programování průměru' : 'Programování poloměru')}`);
@@ -2919,8 +2979,22 @@ export function openCamSimulator(initialContour) {
         if (pass.zStart - pass.zEnd > 1e-6) {
           simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
         }
-        const zRetractVal = clipZGc(pass.zEnd + rDist);
-        simCounter += 1; addN(`G1 X${xDia(pass.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(pass.x + rDist, zRetractVal);
+        if (pass.contourLeadOut) {
+          // Bez schodků: po dně kapsy dál po kontuře (G1/G2/G3) místo
+          // odskoku — druhá stěna kapsy (G2 na bod 10, úsečka na bod 11)
+          // se obrobí přímo po obrysu.
+          for (const seg of pass.contourLeadOut) {
+            if (seg.type === 'line') {
+              simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            } else {
+              simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            }
+          }
+        }
+        if (!pass.noRetract) {
+          const zRetractVal = clipZGc(cur.z + rDist);
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        }
       } else if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
         //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
@@ -2947,8 +3021,10 @@ export function openCamSimulator(initialContour) {
             }
           }
         }
-        const zRetractVal = clipZGc(cur.z + rDist);
-        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        if (!pass.noRetract) {
+          const zRetractVal = clipZGc(cur.z + rDist);
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        }
       } else {
         // Čelní hrubování (vzor shodný se sim cestou). Per-Z hodnoty:
         //   xStart = lokální casting outer + rapidClr (rapid-safe v tomto Z)
@@ -4706,6 +4782,64 @@ export function openCamSimulator(initialContour) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+  // ── Uložit / načíst celý projekt (.camprog) ──
+  // Stejná sada polí jako saveState() — umožní 1:1 přenést stav simulátoru
+  // mezi instancemi (např. z Live Serveru do preview pro reprodukci chyb).
+  function handleSaveProject() {
+    const payload = {
+      __camprog: 1,
+      savedAt: new Date().toISOString(),
+      params: S.params,
+      contourPoints: S.contourPoints,
+      stockPoints: S.stockPoints,
+      manualGCode: S.manualGCode,
+      flipX: S.flipX,
+      guideLines: S.guideLines,
+      zLimits: S.zLimits,
+      showZLimits: S.showZLimits,
+      showSimPath: S.showSimPath
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `projekt_${new Date().toISOString().slice(0, 10)}.camprog`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Projekt uložen do souboru .camprog');
+  }
+  function handleLoadProject() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.camprog,.json,application/json';
+    inp.addEventListener('change', () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        let data;
+        try { data = JSON.parse(reader.result); }
+        catch (_) { alert('Soubor se nepodařilo načíst (neplatný JSON).'); return; }
+        if (!data || !data.params || !data.contourPoints) {
+          alert('Soubor neobsahuje platný projekt (.camprog).'); return;
+        }
+        if (data.params) S.params = data.params;
+        if (data.contourPoints) S.contourPoints = data.contourPoints;
+        if (data.stockPoints) S.stockPoints = data.stockPoints;
+        if (typeof data.manualGCode === 'string') S.manualGCode = data.manualGCode;
+        if (typeof data.flipX === 'boolean') S.flipX = data.flipX;
+        if (data.guideLines) S.guideLines = data.guideLines;
+        if (data.zLimits) S.zLimits = data.zLimits;
+        if (data.showZLimits) S.showZLimits = data.showZLimits;
+        if (data.showSimPath) S.showSimPath = data.showSimPath;
+        S.simRunning = false; S.simProgress = 0;
+        fullUpdate();
+        showToast('Projekt načten ze souboru');
+      };
+      reader.readAsText(file);
+    });
+    inp.click();
+  }
   async function handleExportPDF() {
     try {
       // Načíst jsPDF lokálně (UMD) pokud ještě není
@@ -5367,6 +5501,8 @@ export function openCamSimulator(initialContour) {
   });
   root.querySelector('[data-code="editor"]').addEventListener('click', handleSendToEditor);
   root.querySelector('[data-code="to-canvas"]').addEventListener('click', handleSendToCanvas);
+  root.querySelector('[data-code="save-prog"]').addEventListener('click', handleSaveProject);
+  root.querySelector('[data-code="load-prog"]').addEventListener('click', handleLoadProject);
   root.querySelector('[data-code="show-sidebar"]').addEventListener('click', () => {
     sidebar.classList.add('cam-sim-sidebar-overlay');
     sidebar.style.display = 'flex';
