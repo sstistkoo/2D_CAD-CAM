@@ -4086,8 +4086,8 @@ export function openCamSimulator(initialContour) {
     return best;
   }
   // Úhlový snap (jako v CAD): přichytí směr ref→bod na násobek 90°
-  // (vodorovně/kolmo) s tolerancí ±3°, projekcí na úhlovou přímku.
-  const ANGLE_SNAP_TOL = 3 * Math.PI / 180;
+  // (vodorovně/kolmo) s tolerancí ±1°, projekcí na úhlovou přímku.
+  const ANGLE_SNAP_TOL = 1 * Math.PI / 180;
   function applyCamAngleSnap(p, ref) {
     if (!ref) return p;
     const dx = p.x - ref.x, dz = p.z - ref.z;
