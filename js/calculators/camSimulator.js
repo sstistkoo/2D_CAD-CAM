@@ -1731,12 +1731,14 @@ export function openCamSimulator(initialContour) {
     return {
       contour: JSON.parse(JSON.stringify(S.contourPoints)),
       stock: JSON.parse(JSON.stringify(S.stockPoints)),
+      guides: JSON.parse(JSON.stringify(S.guideLines || [])),
       gcode: S.manualGCode
     };
   }
   function _restore(s) {
     S.contourPoints = s.contour;
     S.stockPoints = s.stock;
+    if (s.guides) S.guideLines = s.guides;
     if (typeof s.gcode === 'string') S.manualGCode = s.gcode;
   }
   function pushHistory() {
@@ -3494,21 +3496,30 @@ export function openCamSimulator(initialContour) {
         const tipROff = parseFloat(prms.toolRadius) || 0;
         allGuides.forEach(g => {
           const col = g.auto ? '#94e2d5' : C.tool;
-          const p1 = toScreen(g.x1, g.z1), p2 = toScreen(g.x2, g.z2);
+          // Uživatelské konstrukční čáry jsou NEKONEČNÉ – protáhneme je daleko
+          // na obě strany (čára slouží jako reference / pro prodloužení dráhy).
+          let e1 = { x: g.x1, z: g.z1 }, e2 = { x: g.x2, z: g.z2 };
+          if (!g.auto) {
+            let dx = g.x2 - g.x1, dz = g.z2 - g.z1; const L = Math.hypot(dx, dz);
+            if (L > 1e-9) { dx /= L; dz /= L; e1 = { x: g.x1 - dx * 1e4, z: g.z1 - dz * 1e4 }; e2 = { x: g.x2 + dx * 1e4, z: g.z2 + dz * 1e4 }; }
+          }
+          const p1 = toScreen(e1.x, e1.z), p2 = toScreen(e2.x, e2.z);
           ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
           ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
           // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X)
           if (tipROff > 0) {
             let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
             if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
-            const o1 = toScreen(g.x1 + n.x * tipROff, g.z1 + n.z * tipROff);
-            const o2 = toScreen(g.x2 + n.x * tipROff, g.z2 + n.z * tipROff);
+            const o1 = toScreen(e1.x + n.x * tipROff, e1.z + n.z * tipROff);
+            const o2 = toScreen(e2.x + n.x * tipROff, e2.z + n.z * tipROff);
             ctx.beginPath(); ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
             ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
           }
-          // koncové body — viditelné a klikatelné ("+" vloží bod kontury)
+          // koncové body (PŮVODNÍ konce) — viditelné a uchopitelné (tažení po
+          // čáře = prodloužit/zkrátit; "+" vloží bod kontury v tečném bodě)
+          const c1 = toScreen(g.x1, g.z1), c2 = toScreen(g.x2, g.z2);
           ctx.fillStyle = col;
-          for (const q of [p1, p2]) { ctx.beginPath(); ctx.arc(q.x, q.y, 3.5, 0, Math.PI * 2); ctx.fill(); }
+          for (const q of [c1, c2]) { ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, Math.PI * 2); ctx.fill(); }
         });
       }
     }
@@ -4479,6 +4490,54 @@ export function openCamSimulator(initialContour) {
       }
     });
     return best;
+  }
+
+  // Uchopený koncový bod UŽIVATELSKÉ konstrukční čáry (S.guideLines) —
+  // vrací {guideIdx, endIdx 0/1}. Auto čáry se needitují.
+  function getUserGuideEndAt(clientX, clientY) {
+    if (!S.guideLines || !S.guideLines.length) return null;
+    const { wx, wz } = clientToWorldCam(clientX, clientY);
+    const tol = 14 / S.view.scale;
+    let best = null, bestD = tol;
+    S.guideLines.forEach((g, gi) => {
+      [[g.x1, g.z1, 0], [g.x2, g.z2, 1]].forEach(([x, z, ei]) => {
+        const d = Math.hypot(x - wx, z - wz);
+        if (d < bestD) { bestD = d; best = { guideIdx: gi, endIdx: ei }; }
+      });
+    });
+    return best;
+  }
+  // Všechny průsečíky NEKONEČNÉ přímky (ax,az)+t·(dx,dz) s geometrií
+  // (kontura + offset + dokončení + konstrukční čáry) — obě strany.
+  function lineGeometryHits(ax, az, dx, dz) {
+    const calc = S._cachedCalc; if (!calc) return [];
+    const out = [];
+    const P = { x: ax - dx * 1e5, z: az - dz * 1e5 };
+    const Q = { x: ax + dx * 1e5, z: az + dz * 1e5 };
+    const lineHit = (B1, B2) => {
+      if (!B1 || !B2) return;
+      const d = (P.x - Q.x) * (B1.z - B2.z) - (P.z - Q.z) * (B1.x - B2.x);
+      if (Math.abs(d) < 1e-12) return;
+      const u = ((P.x - B1.x) * (P.z - Q.z) - (P.z - B1.z) * (P.x - Q.x)) / d;
+      if (u < -0.001 || u > 1.001) return;
+      const t = ((P.x - B1.x) * (B1.z - B2.z) - (P.z - B1.z) * (B1.x - B2.x)) / d;
+      out.push({ x: P.x + t * (Q.x - P.x), z: P.z + t * (Q.z - P.z) });
+    };
+    const arcHit = (seg) => {
+      const hits = intersectLineCircle(P, Q, { x: seg.cx, z: seg.cz }, seg.r);
+      if (!hits) return;
+      for (const q of hits) {
+        const ang = Math.atan2(q.x - seg.cx, q.z - seg.cz);
+        if (isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) out.push({ x: q.x, z: q.z });
+      }
+    };
+    for (const s of [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])]) {
+      if (!s || s.isDegenerate) continue;
+      if (s.type === 'line') lineHit(s.p1, s.p2);
+      else if (s.type === 'arc') arcHit(s);
+    }
+    for (const g of getAllGuideLines()) lineHit({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
+    return out;
   }
 
   // Vloží bod kontury/polotovaru PŘESNĚ na (wx,wz) — pokud bod leží na
@@ -6517,7 +6576,7 @@ export function openCamSimulator(initialContour) {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     const oldScale = S.view.scale;
-    const newScale = Math.max(0.2, Math.min(oldScale * (1 - Math.sign(e.deltaY) * 0.15), 50));
+    const newScale = Math.max(0.2, Math.min(oldScale * (1 - Math.sign(e.deltaY) * 0.15), 200));
     S.view.panX = mx - (mx - S.view.panX) * (newScale / oldScale);
     S.view.panY = my - (my - S.view.panY) * (newScale / oldScale);
     S.view.scale = newScale;
@@ -6626,6 +6685,15 @@ export function openCamSimulator(initialContour) {
           return;
         }
       } else {
+        // Konstrukční (nekonečná) čára: uchopení koncového bodu → posun PO
+        // čáře (prodloužit/zkrátit) se snapem k průsečíkům.
+        const gEnd = getUserGuideEndAt(e.clientX, e.clientY);
+        if (gEnd) {
+          pushHistory();
+          S._draggedGuideEnd = gEnd; S.isDragging = true;
+          lastMousePos = { x: e.clientX, y: e.clientY };
+          return;
+        }
         // Priorita: bod kontury (vrchol = tvar) → uzel dráhy → úsečka dráhy.
         // Vrcholy kontury mají přednost (zámek je primárně na tvar; navíc na
         // nich leží uzly dokončovací dráhy). Uzly/úsečky mimo vrcholy
@@ -6733,6 +6801,40 @@ export function openCamSimulator(initialContour) {
       const changed = (!!prev !== !!next) || (prev && next && (Math.abs(prev.x - next.x) > 1e-6 || Math.abs(prev.z - next.z) > 1e-6 || prev.type !== next.type));
       S._snap = next;
       if (changed) draw();
+    }
+
+    // Tažení koncového bodu konstrukční (nekonečné) čáry PO čáře — posun
+    // se omezí na směr čáry, druhý konec drží směr; snap k průsečíkům.
+    if (S.gcodeEditEnabled && S.isDragging && S._draggedGuideEnd) {
+      const ge = S._draggedGuideEnd;
+      const g = S.guideLines[ge.guideIdx];
+      if (g) {
+        const rect = canvas.getBoundingClientRect();
+        const w = _gToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        const ax = ge.endIdx === 0 ? g.x2 : g.x1, az = ge.endIdx === 0 ? g.z2 : g.z1; // kotva = druhý konec
+        let dx = (ge.endIdx === 0 ? g.x1 : g.x2) - ax, dz = (ge.endIdx === 0 ? g.z1 : g.z2) - az;
+        const L = Math.hypot(dx, dz);
+        if (L > 1e-9) {
+          dx /= L; dz /= L;
+          // projekce kurzoru na nekonečnou čáru
+          const tproj = (w.x - ax) * dx + (w.z - az) * dz;
+          let px = ax + tproj * dx, pz = az + tproj * dz;
+          // snap na nejbližší průsečík čáry s geometrií (v dosahu)
+          S._snap = null;
+          if (S.snapEnabled) {
+            const tolW = 12 / S.view.scale;
+            let bestD = tolW, bestP = null;
+            for (const h of lineGeometryHits(ax, az, dx, dz)) {
+              const d = Math.hypot(h.x - px, h.z - pz);
+              if (d < bestD) { bestD = d; bestP = h; }
+            }
+            if (bestP) { px = bestP.x; pz = bestP.z; S._snap = { x: px, z: pz, type: 'edge' }; }
+          }
+          if (ge.endIdx === 0) { g.x1 = px; g.z1 = pz; } else { g.x2 = px; g.z2 = pz; }
+          draw();
+        }
+      }
+      return;
     }
 
     // Úprava drah (✥ Dráhy) – tažení koncového bodu / úsečky + hover.
@@ -6977,12 +7079,13 @@ export function openCamSimulator(initialContour) {
       saveState(); renderTab();
       if (needRecalc) fullUpdate();
     }
-    // Dokončení úpravy drahy – uložit a obnovit panely.
-    if (S.draggedGNode || S._draggedGSeg) {
+    // Dokončení úpravy drahy / konstrukční čáry – uložit a obnovit panely.
+    if (S.draggedGNode || S._draggedGSeg || S._draggedGuideEnd) {
       saveState(); renderTab(); updateUndoRedoBtns();
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null;
     S.draggedGNode = null; S._draggedGSeg = null; S._gdragNeedHistory = false;
+    S._draggedGuideEnd = null; S._snap = null;
     S._angleSnapLine = null;
     draw();
   };
@@ -7167,7 +7270,7 @@ export function openCamSimulator(initialContour) {
       const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
       const my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
       const oldScale = S.view.scale;
-      const newScale = Math.max(0.2, Math.min(oldScale * zoomFactor, 50));
+      const newScale = Math.max(0.2, Math.min(oldScale * zoomFactor, 200));
       S.view.panX = mx - (mx - S.view.panX) * (newScale / oldScale);
       S.view.panY = my - (my - S.view.panY) * (newScale / oldScale);
       S.view.scale = newScale;
