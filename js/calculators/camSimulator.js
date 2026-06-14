@@ -5868,8 +5868,9 @@ export function openCamSimulator(initialContour) {
       const d = Math.hypot(p.xAbs - wx, p.zAbs - wz);
       if (d < bestD) { bestD = d; best = p; }
     }
-    if (best && bestD < 20 / S.view.scale * (prms.mode === 'DIAMON' ? 2 : 1)) { wx = best.xAbs; wz = best.zAbs; }
-    return { wx, wz };
+    const snapped = !!(best && bestD < 20 / S.view.scale * (prms.mode === 'DIAMON' ? 2 : 1));
+    if (snapped) { wx = best.xAbs; wz = best.zAbs; }
+    return { wx, wz, snapped };
   }
 
   /** Přidá další bod do trasování; pokud existuje víc možností segmentu, zobrazí volbu. */
@@ -6773,10 +6774,19 @@ export function openCamSimulator(initialContour) {
     if (!S._camDispatching && S._camGhostUntil && Date.now() < S._camGhostUntil) return;
     // Klik na plovoucí tlačítka ✓/✗ trasování – neinterpretovat jako bod kontury
     if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
-    // Trasování profilu – klik přidá další bod
+    // Trasování profilu – bod se přidá JEN když klik trefí snapovatelný
+    // bod (vrchol kontury/polotovaru) nebo průsečík/koncový bod pomocné
+    // čáry. Mimo snap se nic nepřidá a klik/tažení jen posune pohled (pan).
     if (S.profileTraceMode) {
-      const { wx, wz } = _traceWorldFromClient(e.clientX, e.clientY);
-      _addTracePoint(wx, wz);
+      const { wx, wz, snapped } = _traceWorldFromClient(e.clientX, e.clientY);
+      if (snapped) {
+        _addTracePoint(wx, wz);
+        e.stopPropagation();
+        return;
+      }
+      // mimo snap → jen posun pohledu
+      S.isDragging = true;
+      lastMousePos = { x: e.clientX, y: e.clientY };
       e.stopPropagation();
       return;
     }
@@ -7375,12 +7385,15 @@ export function openCamSimulator(initialContour) {
   canvasWrap.addEventListener('touchstart', e => {
     if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
     if (e.touches.length === 1) {
-      // Trasování profilu – tap přidá další bod
+      // Trasování profilu – tap přidá bod JEN při snapu na bod/průsečík;
+      // mimo snap propadne na jednoprstou logiku níže (posun pohledu).
       if (S.profileTraceMode) {
-        const t = e.touches[0];
-        const { wx, wz } = _traceWorldFromClient(t.clientX, t.clientY);
-        _addTracePoint(wx, wz);
-        return;
+        const tt = e.touches[0];
+        const { wx, wz, snapped } = _traceWorldFromClient(tt.clientX, tt.clientY);
+        if (snapped) {
+          _addTracePoint(wx, wz);
+          return;
+        }
       }
       // Double-tap detection for rect selection
       const now = Date.now();
