@@ -4215,11 +4215,6 @@ export function openCamSimulator(initialContour) {
   }
   function writeGLine(lineIdx, wx, wz) { writeGLines([{ lineIdx, wx, wz }]); }
 
-  // Zvýrazní řádek G-kódu a skočí na něj kurzorem (ověření změny při tažení).
-  function focusGCodeLine(lineIdx) {
-    S._gcodeFocusLine = lineIdx;
-    updateCodeHighlight();
-  }
   // Smaže pohyb (řádek) z G-kódu a přepočítá.
   function deleteGLine(lineIdx) {
     const lines = S.manualGCode.split('\n');
