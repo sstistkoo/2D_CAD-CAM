@@ -1371,7 +1371,7 @@ export function openCamSimulator(initialContour) {
       <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
-      <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky">🧲</button>
+      <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (odemkněte 🔓)">⊢ Prodl</button>
       <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (odemkněte 🔓)">⊣ Ořez</button>
     </div>
@@ -1580,6 +1580,7 @@ export function openCamSimulator(initialContour) {
     past: [], future: [],
     draggedPointId: null, hoverPointId: null,
     isDragging: false, addPointMode: false, pointDragEnabled: false,
+    snapEnabled: true,   // SNAP přichytávání zapnuté hned po načtení
     // Trasování profilu (klikací nástroj) — body, segmenty a náhled výsledné kontury
     profileTraceMode: false,
     _tracePoints: [],   // [{x, z}] absolutní world souřadnice (rádius, Z)
@@ -4164,8 +4165,8 @@ export function openCamSimulator(initialContour) {
     }
     return nodes;
   }
-  function getGNodeAt(clientX, clientY) {
-    if (!S.gcodeEditEnabled || S.simRunning) return null;
+  function getGNodeAt(clientX, clientY, force = false) {
+    if ((!S.gcodeEditEnabled && !force) || S.simRunning) return null;
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const nodes = getGNodes();
@@ -4178,8 +4179,8 @@ export function openCamSimulator(initialContour) {
     return best;
   }
   // Úsečkové pohyby (G0/G1) jako celé úsečky — pro tažení celé dráhy.
-  function getGSegmentAt(clientX, clientY) {
-    if (!S.gcodeEditEnabled || S.simRunning) return null;
+  function getGSegmentAt(clientX, clientY, force = false) {
+    if ((!S.gcodeEditEnabled && !force) || S.simRunning) return null;
     const calc = S._cachedCalc;
     if (!calc || !calc.simPath) return null;
     const rect = canvas.getBoundingClientRect();
@@ -4823,6 +4824,7 @@ export function openCamSimulator(initialContour) {
     const total = calc.simPath.length - 1;
     if (total <= 0) return;
     S.simRunning = false; S.simBlockTarget = null; playBtn.textContent = '▶';
+    S._gcodeFocusLine = null;   // ovládání simulace přebíjí kliknutý řádek
     const currentSimIdx = Math.max(0, Math.min(total, Math.floor(S.simProgress * total)));
     const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
     let targetIdx;
@@ -4932,7 +4934,9 @@ export function openCamSimulator(initialContour) {
   function updateCodeHighlight() {
     // Při úpravě drah (✥ Dráhy) má přednost právě editovaný řádek, jinak
     // aktivní řádek simulace.
-    const focusEdit = S.gcodeEditEnabled && !S.simRunning && S._gcodeFocusLine != null;
+    // Focus řádek (klik na dráhu) má přednost před aktivním řádkem simulace
+    // i při zamčených bodech – stačí, že není spuštěná simulace.
+    const focusEdit = !S.simRunning && S._gcodeFocusLine != null;
     const hlIdx = focusEdit ? S._gcodeFocusLine : getActiveCodeLineIdx();
     const lineEls = codeBackdrop.querySelectorAll('.cam-sim-code-bd-line');
     lineEls.forEach((el, i) => el.classList.toggle('cam-sim-code-active', i === hlIdx));
@@ -6181,10 +6185,12 @@ export function openCamSimulator(initialContour) {
         } else {
           S.simBlockTarget = null;
         }
+        S._gcodeFocusLine = null;   // přehrávání přebíjí kliknutý řádek
         S.simRunning = true; playBtn.textContent = '⏸'; startSimLoop();
       }
     } else if (act === 'stop') {
       S.simRunning = false; S.simProgress = 0; S.simBlockTarget = null;
+      S._gcodeFocusLine = null;   // stop přebíjí kliknutý řádek
       playBtn.textContent = '▶';
       draw(); updateCodeHighlight(); updateProgressBar();
     } else if (act === 'step-back') {
@@ -6219,6 +6225,7 @@ export function openCamSimulator(initialContour) {
     const rect = track.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     S.simProgress = ratio;
+    S._gcodeFocusLine = null;   // scrub přebíjí kliknutý řádek
     draw(); updateCodeHighlight(); updateProgressBar();
   }
   let _scrubbing = false;
@@ -6894,6 +6901,9 @@ export function openCamSimulator(initialContour) {
             const prev = (sp && gnode.simIdx > 0) ? sp[gnode.simIdx - 1] : null;
             gnode.refPoint = prev ? { x: prev.x, z: prev.z } : null;
             S.draggedGNode = gnode; S.isDragging = true; S._gdragNeedHistory = true;
+            // Už při kliknutí (bez tažení) skoč kurzorem na odpovídající
+            // řádek G-kódu a zvýrazni ho.
+            S._gcodeFocusLine = gnode.lineIdx; updateCodeHighlight();
             lastMousePos = { x: e.clientX, y: e.clientY };
             return;
           }
@@ -6905,12 +6915,22 @@ export function openCamSimulator(initialContour) {
             gseg.orig2 = { x: gseg.p2.x, z: gseg.p2.z };
             gseg.lockAxis = null;
             S._draggedGSeg = gseg; S.isDragging = true; S._gdragNeedHistory = true;
+            // Skok kurzoru na řádek G-kódu už při kliknutí (bez tažení).
+            S._gcodeFocusLine = gseg.lineIdx; updateCodeHighlight();
             lastMousePos = { x: e.clientX, y: e.clientY };
             return;
           }
         }
         // jinak (vrchol kontury) spadne na tažení bodu kontury níže
       }
+    }
+    // Zamčené body (mimo režim úprav drah): klik na dráhu nehýbe tvarem,
+    // jen označí + skočí kurzorem na odpovídající řádek G-kódu. Nevrací se,
+    // takže tažením lze dál posouvat pohled (pan).
+    if (!S.gcodeEditEnabled && !S.simRunning) {
+      const gn = getGNodeAt(e.clientX, e.clientY, true);
+      const gs = gn ? null : getGSegmentAt(e.clientX, e.clientY, true);
+      if (gn || gs) { S._gcodeFocusLine = (gn || gs).lineIdx; updateCodeHighlight(); }
     }
     // Z-limity – mají přednost před ostatními body, lze tahat i bez odemčení.
     const zKey = getZLimitAt(e.clientX, e.clientY);
