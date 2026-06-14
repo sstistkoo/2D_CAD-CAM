@@ -1372,8 +1372,8 @@ export function openCamSimulator(initialContour) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky">🧲</button>
-      <button data-act="gextend" title="Prodloužit dráhu: klik na koncový bod protáhne úsečku (G0/G1) k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (odemkněte 🔓)">⊢ Prodl</button>
-      <button data-act="gtrim" title="Oříznout dráhu: klik na koncový bod zkrátí úsečku (G0/G1) k nejbližšímu průsečíku zpět (odemkněte 🔓)">⊣ Ořez</button>
+      <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (odemkněte 🔓)">⊢ Prodl</button>
+      <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (odemkněte 🔓)">⊣ Ořez</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
       <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
@@ -2629,7 +2629,10 @@ export function openCamSimulator(initialContour) {
           // Kapsa za bossem kontury — sledování kontury (G1/G2/G3) a rampa
           // pod úhlem zanoření, jen se zapnutým zanořováním.
           if (!prms.plungeRoughing) return;
-          const zGapHi = intervals[idx - 1].zEnd;
+          // Když je úplně první interval blokovaný (idx===0, !firstOpen),
+          // neexistuje předchozí interval → horní hranice mezery = okraj
+          // polotovaru (sz.zMax). Bez fallbacku by intervals[-1] spadlo.
+          const zGapHi = idx > 0 ? intervals[idx - 1].zEnd : sz.zMax;
           if (!iv.blocked) {
             // Poslední interval bez protistěny (konec polotovaru) — žádná
             // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
@@ -3496,10 +3499,11 @@ export function openCamSimulator(initialContour) {
         const tipROff = parseFloat(prms.toolRadius) || 0;
         allGuides.forEach(g => {
           const col = g.auto ? '#94e2d5' : C.tool;
-          // Uživatelské konstrukční čáry jsou NEKONEČNÉ – protáhneme je daleko
-          // na obě strany (čára slouží jako reference / pro prodloužení dráhy).
+          // Uživatelské konstrukční čáry jsou NEKONEČNÉ jen v režimu úpravy
+          // (odemčeno) – slouží jako reference pro prodloužení/snap. Po zamčení
+          // se zkrátí ke svým skutečným koncovým bodům.
           let e1 = { x: g.x1, z: g.z1 }, e2 = { x: g.x2, z: g.z2 };
-          if (!g.auto) {
+          if (!g.auto && S.gcodeEditEnabled) {
             let dx = g.x2 - g.x1, dz = g.z2 - g.z1; const L = Math.hypot(dx, dz);
             if (L > 1e-9) { dx /= L; dz /= L; e1 = { x: g.x1 - dx * 1e4, z: g.z1 - dz * 1e4 }; e2 = { x: g.x2 + dx * 1e4, z: g.z2 + dz * 1e4 }; }
           }
@@ -3923,6 +3927,15 @@ export function openCamSimulator(initialContour) {
       ctx.fillText(label, sp.x, sp.y - 24);
       ctx.textAlign = 'left';
     }
+
+    // Označený bod/uzel pro dvoukrokové uchopení (mobil) – výrazný kroužek.
+    if (S._camMarked && !S.simRunning) {
+      const mp = toScreen(S._camMarked.x, S._camMarked.z);
+      ctx.strokeStyle = '#f5c2e7'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 8, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#f5c2e7'; ctx.fill();
+    }
   }
 
   // ── fitView ──
@@ -4062,11 +4075,17 @@ export function openCamSimulator(initialContour) {
     tryPt(0, 0);
     (calc.worldPoints || []).forEach(p => tryPt(p.xReal, p.zReal));
     (calc.stockWorldPoints || []).forEach(p => tryPt(p.xReal, p.zReal));
-    // Konstrukční / pomocné čáry – koncové body (tečné body, průsečíky).
+    // Uzly drah (koncové body pohybů G-kódu) – jen v režimu úpravy drah,
+    // kdy jsou viditelné a tažitelné.
+    if (S.gcodeEditEnabled) getGNodes().forEach(n => tryPt(n.x, n.z));
+    // Konstrukční / pomocné čáry + jejich offsetové čáry (dráha středu plátku)
+    // – koncové body (tečné body, průsečíky) jsou snapovatelné jako úsečky.
     const guides = getAllGuideLines().map(g => ({ type: 'line', p1: { x: g.x1, z: g.z1 }, p2: { x: g.x2, z: g.z2 } }));
-    for (const g of guides) { tryPt(g.p1.x, g.p1.z); tryPt(g.p2.x, g.p2.z); }
-    // Středy oblouků / úseček – jen kontura, polotovar, konstrukční čáry.
-    const baseSegs = [...(calc.contourSegments || []), ...(calc.stockPathSegments || []), ...guides].filter(s => s && !s.isDegenerate);
+    const guideOffsets = getGuideOffsetLines();
+    const allGuideSegs = [...guides, ...guideOffsets];
+    for (const g of allGuideSegs) { tryPt(g.p1.x, g.p1.z); tryPt(g.p2.x, g.p2.z); }
+    // Středy oblouků / úseček – kontura, polotovar, konstrukční + offsetové čáry.
+    const baseSegs = [...(calc.contourSegments || []), ...(calc.stockPathSegments || []), ...allGuideSegs].filter(s => s && !s.isDegenerate);
     for (const s of baseSegs) {
       if (s.type === 'arc') tryPt(s.cx, s.cz);
       else if (s.p1 && s.p2) tryPt((s.p1.x + s.p2.x) / 2, (s.p1.z + s.p2.z) / 2);
@@ -4394,6 +4413,23 @@ export function openCamSimulator(initialContour) {
     return [...(S.guideLines || []), ...((S._cachedCalc && S._cachedCalc.interferenceGuides) || [])];
   }
 
+  // Offsetové (společné) čáry konstrukčních čar – posunuté o rádius plátku
+  // na stranu vzduchu (+X); kam dojede STŘED plátku. Vrací snapovatelné
+  // úsečky {type:'line', p1, p2} (prázdné, je-li rádius 0).
+  function getGuideOffsetLines() {
+    const tipROff = parseFloat(S.params && S.params.toolRadius) || 0;
+    if (tipROff <= 0) return [];
+    const out = [];
+    for (const g of getAllGuideLines()) {
+      let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
+      if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
+      out.push({ type: 'line',
+        p1: { x: g.x1 + n.x * tipROff, z: g.z1 + n.z * tipROff },
+        p2: { x: g.x2 + n.x * tipROff, z: g.z2 + n.z * tipROff } });
+    }
+    return out;
+  }
+
   // Nejbližší průsečík paprsku (sx,sz)+t·(dirX,dirZ), t>0, s geometrií:
   // kontura + offset + dokončovací dráha + konstrukční (pomocné) čáry.
   // Pro prodloužení (paprsek vpřed) i oříznutí (paprsek vzad).
@@ -4452,6 +4488,68 @@ export function openCamSimulator(initialContour) {
     showToast(sign > 0 ? 'Dráha prodloužena k průsečíku ✓' : 'Dráha oříznuta k průsečíku ✓');
   }
 
+  // Cílový bod pro prodloužení (sign=+1) / oříznutí (sign=−1) konce
+  // konstrukční čáry g: konec endIdx se posouvá PO (nekonečné) čáře
+  // k nejbližšímu průsečíku s geometrií — ven od kotvy (prodloužit) nebo
+  // zpět ke kotvě (oříznout). Kotva = druhý konec. Vrací {x,z} nebo null.
+  function guideExtendTrimTarget(g, endIdx, sign) {
+    const ax = endIdx === 0 ? g.x2 : g.x1;
+    const az = endIdx === 0 ? g.z2 : g.z1;
+    const ex = endIdx === 0 ? g.x1 : g.x2;
+    const ez = endIdx === 0 ? g.z1 : g.z2;
+    let dx = ex - ax, dz = ez - az;
+    const L = Math.hypot(dx, dz);
+    if (L < 1e-6) return null;
+    dx /= L; dz /= L;
+    const tEnd = (ex - ax) * dx + (ez - az) * dz;   // = L, parametr aktuálního konce
+    let best = null, bestGap = Infinity;
+    for (const h of lineGeometryHits(ax, az, dx, dz)) {
+      const t = (h.x - ax) * dx + (h.z - az) * dz;
+      if (sign > 0) {
+        if (t > tEnd + 0.05 && (t - tEnd) < bestGap) { bestGap = t - tEnd; best = h; }
+      } else {
+        if (t < tEnd - 0.05 && t > 0.05 && (tEnd - t) < bestGap) { bestGap = tEnd - t; best = h; }
+      }
+    }
+    return best;
+  }
+
+  // Prodloužit/oříznout konstrukční čáru kliknutím (clientX/Y, sign ±1):
+  //  • uživatelská čára (S.guideLines) — konec nebo tělo → posune se konec.
+  //  • automatická mezní čára (interferenceGuides) — PŘEVEDE se na trvalou
+  //    uživatelskou (nekonečnou, editovatelnou) čáru a hned se prodlouží.
+  function extendTrimGuideClick(clientX, clientY, sign) {
+    const gEnd = getUserGuideEndForAction(clientX, clientY);
+    const auto = gEnd ? null : findAutoGuideForAction(clientX, clientY);
+    if (!gEnd && !auto) { showToast('Klikněte na koncový bod nebo na konstrukční čáru'); return; }
+
+    const baseG = gEnd ? S.guideLines[gEnd.guideIdx]
+                       : { x1: auto.x1, z1: auto.z1, x2: auto.x2, z2: auto.z2 };
+    const endIdx = gEnd ? gEnd.endIdx : auto.endIdx;
+    const target = guideExtendTrimTarget(baseG, endIdx, sign);
+
+    // Existující čára bez průsečíku → nic neměnit, jen informovat.
+    if (!target && !auto) {
+      showToast(sign > 0 ? 'Žádný průsečík pro prodloužení' : 'Žádný průsečík pro oříznutí');
+      return;
+    }
+
+    pushHistory();
+    let g = baseG;
+    if (auto) {                       // převést mezní čáru na uživatelskou
+      if (!S.guideLines) S.guideLines = [];
+      g = { x1: auto.x1, z1: auto.z1, x2: auto.x2, z2: auto.z2 };
+      S.guideLines.push(g);
+    }
+    if (target) {
+      if (endIdx === 0) { g.x1 = target.x; g.z1 = target.z; }
+      else { g.x2 = target.x; g.z2 = target.z; }
+    }
+    saveState(); renderTab(); updateUndoRedoBtns(); draw();
+    if (target) showToast(sign > 0 ? 'Konstrukční čára prodloužena ✓' : 'Konstrukční čára oříznuta ✓');
+    else showToast('Mezní čára převedena na konstrukční (nekonečnou) čáru ✓');
+  }
+
   // Index RUČNÍ pomocné čáry (S.guideLines) pod kurzorem — klik na čáru
   // nebo její koncový bod. Automatické mezní čáry mazat nejdou (počítají
   // se znovu při každé změně), proto se tu neuvažují.
@@ -4505,6 +4603,66 @@ export function openCamSimulator(initialContour) {
         if (d < bestD) { bestD = d; best = { guideIdx: gi, endIdx: ei }; }
       });
     });
+    return best;
+  }
+
+  // Cíl pro Prodl/Ořez na konstrukční čáře: nejdřív přesný koncový bod,
+  // jinak klik kamkoli na (nekonečné) tělo UŽIVATELSKÉ čáry → vybere se
+  // konec bližší ke kliknutí. Vrací {guideIdx, endIdx} nebo null.
+  function getUserGuideEndForAction(clientX, clientY) {
+    const exact = getUserGuideEndAt(clientX, clientY);
+    if (exact) return exact;
+    if (!S.guideLines || !S.guideLines.length) return null;
+    const { wx, wz } = clientToWorldCam(clientX, clientY);
+    const tol = 10 / S.view.scale;
+    let best = null, bestD = tol;
+    S.guideLines.forEach((g, gi) => {
+      let dx = g.x2 - g.x1, dz = g.z2 - g.z1;
+      const L = Math.hypot(dx, dz);
+      if (L < 1e-9) return;
+      dx /= L; dz /= L;
+      // kolmá vzdálenost ke (nekonečné) přímce
+      const perp = Math.abs((wx - g.x1) * dz - (wz - g.z1) * dx);
+      if (perp < bestD) {
+        bestD = perp;
+        const d1 = Math.hypot(g.x1 - wx, g.z1 - wz);
+        const d2 = Math.hypot(g.x2 - wx, g.z2 - wz);
+        best = { guideIdx: gi, endIdx: d1 <= d2 ? 0 : 1 };
+      }
+    });
+    return best;
+  }
+
+  // Najde AUTOMATICKOU mezní čáru poblíž kliknutí (konec nebo tělo) pro
+  // převod na uživatelskou. Vrací {x1,z1,x2,z2,endIdx} (endIdx = konec bližší
+  // ke kliknutí) nebo null. Auto čáry jsou KONEČNÉ úsečky → projekce musí
+  // ležet v rozsahu úsečky (s malou tolerancí).
+  function findAutoGuideForAction(clientX, clientY) {
+    const auto = (S._cachedCalc && S._cachedCalc.interferenceGuides) || [];
+    if (!auto.length) return null;
+    const { wx, wz } = clientToWorldCam(clientX, clientY);
+    const tolPt = 14 / S.view.scale;
+    const tolLine = 10 / S.view.scale;
+    let best = null, bestScore = Infinity;
+    for (const g of auto) {
+      let dx = g.x2 - g.x1, dz = g.z2 - g.z1;
+      const L = Math.hypot(dx, dz);
+      if (L < 1e-9) continue;
+      dx /= L; dz /= L;
+      const d1 = Math.hypot(g.x1 - wx, g.z1 - wz);
+      const d2 = Math.hypot(g.x2 - wx, g.z2 - wz);
+      const endIdx = d1 <= d2 ? 0 : 1;
+      const ptD = Math.min(d1, d2);
+      if (ptD < tolPt && ptD < bestScore) {
+        bestScore = ptD; best = { x1: g.x1, z1: g.z1, x2: g.x2, z2: g.z2, endIdx };
+        continue;
+      }
+      const perp = Math.abs((wx - g.x1) * dz - (wz - g.z1) * dx);
+      const t = (wx - g.x1) * dx + (wz - g.z1) * dz;
+      if (perp < tolLine && t > -tolLine && t < L + tolLine && perp < bestScore) {
+        bestScore = perp; best = { x1: g.x1, z1: g.z1, x2: g.x2, z2: g.z2, endIdx };
+      }
+    }
     return best;
   }
   // Všechny průsečíky NEKONEČNÉ přímky (ax,az)+t·(dx,dz) s geometrií
@@ -6665,7 +6823,10 @@ export function openCamSimulator(initialContour) {
       // Prodloužit / oříznout: klik na koncový bod úsečky → k průsečíku.
       if (S.gExtendMode || S.gTrimMode) {
         const gn = getGNodeAt(e.clientX, e.clientY);
-        if (gn) extendTrimNode(gn, S.gExtendMode ? 1 : -1);
+        if (gn) { extendTrimNode(gn, S.gExtendMode ? 1 : -1); return; }
+        // Konstrukční / mezní čára — klik na konec nebo kamkoli na čáru.
+        // Auto mezní čára se přitom převede na trvalou uživatelskou.
+        extendTrimGuideClick(e.clientX, e.clientY, S.gExtendMode ? 1 : -1);
         return;
       }
       // − aktivní: klik na koncový bod smaže příslušný pohyb z G-kódu.
@@ -6695,6 +6856,19 @@ export function openCamSimulator(initialContour) {
           pushHistory();
           S._draggedGuideEnd = gEnd; S.isDragging = true;
           lastMousePos = { x: e.clientX, y: e.clientY };
+          return;
+        }
+        // Uchopení konce AUTOMATICKÉ mezní čáry → převést na trvalou
+        // uživatelskou (nekonečnou) čáru a táhnout její konec.
+        const autoEnd = getGuideEndpointAt(e.clientX, e.clientY) ? findAutoGuideForAction(e.clientX, e.clientY) : null;
+        if (autoEnd) {
+          pushHistory();
+          if (!S.guideLines) S.guideLines = [];
+          S.guideLines.push({ x1: autoEnd.x1, z1: autoEnd.z1, x2: autoEnd.x2, z2: autoEnd.z2 });
+          S._draggedGuideEnd = { guideIdx: S.guideLines.length - 1, endIdx: autoEnd.endIdx };
+          S.isDragging = true;
+          lastMousePos = { x: e.clientX, y: e.clientY };
+          showToast('Mezní čára převedena na konstrukční (nekonečnou) čáru ✓');
           return;
         }
         // Priorita: bod kontury (vrchol = tvar) → uzel dráhy → úsečka dráhy.
@@ -7102,7 +7276,7 @@ export function openCamSimulator(initialContour) {
   // offsetnuté) pozici, takže funguje veškerá myší logika (tažení uzlů, drah,
   // konstrukčních čar, prodloužit/oříznout) a dá se přesně mířit bez posunu
   // pozadí. Pinch (2 prsty) a trasování/výběr zůstávají beze změny.
-  const CAM_CH_OFFSET = -80;        // px – křížek nad prstem
+  const CAM_CH_OFFSET = -60;        // px – křížek nad prstem (blíž ke kolečku/prstu)
   const CAM_LONGPRESS_MS = 320;
   const CAM_MOVE_THRESH = 10;
   const precisionEl = document.getElementById('precisionCrosshair');
@@ -7114,27 +7288,71 @@ export function openCamSimulator(initialContour) {
     canvasWrap.dispatchEvent(new MouseEvent(type, { clientX: cx, clientY: cy, bubbles: true }));
     S._camDispatching = false;
   };
-  const _camShowCrosshair = (fingerX, fingerY) => {
+  // Křížek nad prstem. allowSnap=true (polohovací režim) → přichytí se k
+  // bodům/hranám kontury/offsetu/konstr. čar (jako v CAD): křížek skočí na
+  // snap bod, ukáže snapnuté souřadnice a uloží cílovou pozici pro akci.
+  const _camShowCrosshair = (fingerX, fingerY, allowSnap) => {
     if (!precisionEl) return;
-    const chX = fingerX, chY = fingerY + CAM_CH_OFFSET;
-    precisionEl.style.left = chX + 'px';
-    precisionEl.style.top = chY + 'px';
+    const rect = canvas.getBoundingClientRect();
+    const chX = fingerX, chY = fingerY + CAM_CH_OFFSET;   // poloha křížku (client)
+    let tx = chX, ty = chY, snap = null;
+    if (allowSnap && S.snapEnabled && !S.simRunning) {
+      snap = camSnap(chX, chY);                            // snap k bodu/hraně
+    }
+    if (allowSnap) {
+      // Aktualizovat snap indikátor + překreslit canvas (jako desktop hover).
+      const prev = S._snap;
+      S._snap = snap;
+      if (snap) { const ss = _gToScreen(snap.x, snap.z); tx = rect.left + ss.x; ty = rect.top + ss.y; }
+      const changed = (!!prev !== !!snap)
+        || (prev && snap && (Math.abs(prev.x - snap.x) > 1e-6 || Math.abs(prev.z - snap.z) > 1e-6 || prev.type !== snap.type));
+      if (changed) draw();
+    }
+    S._camTargetClient = { x: tx, y: ty };                 // sem se provede akce při puštění
+    precisionEl.style.left = tx + 'px';
+    precisionEl.style.top = ty + 'px';
     precisionEl.style.display = 'block';
     if (precisionLabel) {
       let wx, wz;
       if (S._snap) { wx = S._snap.x; wz = S._snap.z; }
-      else { const rect = canvas.getBoundingClientRect(); const w = _gToWorld(chX - rect.left, chY - rect.top); wx = w.x; wz = w.z; }
+      else { const w = _gToWorld(tx - rect.left, ty - rect.top); wx = w.x; wz = w.z; }
       const xDisp = S.params.mode === 'DIAMON' ? wx * 2 : wx;
       precisionLabel.textContent = `X${xDisp.toFixed(2)} Z${wz.toFixed(2)}`;
     }
   };
   const _camHideCrosshair = () => { if (precisionEl) precisionEl.style.display = 'none'; };
   const _camActionMode = () => S.addPointMode || S.delPointMode || S.gExtendMode || S.gTrimMode;
+  // Je na (client) pozici tažitelný prvek? (bod kontury / uzel dráhy)
+  const _camDraggableAt = (cx, cy) =>
+    (S.pointDragEnabled && getPointAt(cx, cy) !== null) ||
+    (S.gcodeEditEnabled && getGNodeAt(cx, cy) !== null);
   const _camStartPrecision = () => {
     if (!camTouch) return;
     S._camPrecision = true;
     if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) { /* ignore */ } }
     const fx = camTouch.lastX, fy = camTouch.lastY;
+    // Dvoukrokové uchopení: pokud byl minulým křížkem označen bod/uzel
+    // (S._camMarked, ve světě → přežije zoom/pan), uchop ho teď a táhni
+    // dalším pohybem prstu.
+    if (S._camMarked && !_camActionMode()) {
+      const rect = canvas.getBoundingClientRect();
+      const ss = _gToScreen(S._camMarked.x, S._camMarked.z);
+      _camDispatchMouse('mousedown', rect.left + ss.x, rect.top + ss.y);
+      const got = !!(S.draggedGNode || S.draggedPointId !== null || S._draggedGSeg || S._draggedGuideEnd || _draggingStock);
+      S._camMarked = null;
+      if (got) {
+        // Uchopený prvek se PŘESUNE na křížek a dál ho sleduje (absolutně),
+        // ne relativní posun. lastMousePos zůstává na bodu (z grab mousedownu),
+        // takže iniciální mousemove na pozici křížku ho tam rovnou přitáhne
+        // (delta = křížek − bod); další pohyb prstu už ho jen veze.
+        camTouch.posMode = false;
+        _camShowCrosshair(fx, fy, false);
+        _camDispatchMouse('mousemove', fx, fy + CAM_CH_OFFSET);
+        draw();
+        return;
+      }
+      // Označený prvek už neexistuje (přepočet) → pokračuj normálně.
+    }
     if (_camActionMode()) {
       // Akční režim (+/−/Prodl/Ořez): křížek je jen polohovací kurzor,
       // akce se provede až při puštění na přesné pozici.
@@ -7146,7 +7364,7 @@ export function openCamSimulator(initialContour) {
       if (!grabbed) { S.isDragging = false; camTouch.posMode = true; }  // nic pod křížkem → NEpanovat
       else camTouch.posMode = false;
     }
-    _camShowCrosshair(fx, fy);
+    _camShowCrosshair(fx, fy, camTouch.posMode);   // polohovací režim → snap
   };
   const _camEndTouch = () => {
     if (S._camPrecision) _camHideCrosshair();
@@ -7212,7 +7430,7 @@ export function openCamSimulator(initialContour) {
       if (S._camPrecision) {
         // posMode = jen polohovací kurzor (žádný pan); jinak táhne uchopený prvek
         if (!camTouch.posMode) _camDispatchMouse('mousemove', t.clientX, t.clientY + CAM_CH_OFFSET);
-        _camShowCrosshair(t.clientX, t.clientY);
+        _camShowCrosshair(t.clientX, t.clientY, camTouch.posMode);   // polohovací režim → snap
         return;
       }
       if (!camTouch.started) {
@@ -7344,16 +7562,29 @@ export function openCamSimulator(initialContour) {
       const fx = camTouch.lastX, fy = camTouch.lastY;
       if (S._camPrecision) {
         if (camTouch.posMode) {
-          // Polohovací kurzor: akci (přidat/smazat/prodloužit/oříznout nebo
-          // uchopení) provedeme až teď, na přesné pozici křížku.
-          _camDispatchMouse('mousedown', fx, fy + CAM_CH_OFFSET);
-          _camDispatchMouse('mouseup', fx, fy + CAM_CH_OFFSET);
+          // Polohovací kurzor: akci provedeme až teď, na PŘESNÉ pozici křížku
+          // – tj. na snapnutém bodě/hraně, pokud snap chytil (S._camTargetClient).
+          const tc = S._camTargetClient || { x: fx, y: fy + CAM_CH_OFFSET };
+          if (!_camActionMode() && S._snap && _camDraggableAt(tc.x, tc.y)) {
+            // Dvoukrokové uchopení: snapnutý bod/uzel jen OZNAČ (ve světě);
+            // dalším podržením se uchopí a táhne (viz _camStartPrecision).
+            S._camMarked = { x: S._snap.x, z: S._snap.z };
+            showToast('Označeno – podrž znovu a táhni');
+            draw();
+          } else {
+            _camDispatchMouse('mousedown', tc.x, tc.y);
+            _camDispatchMouse('mouseup', tc.x, tc.y);
+          }
         } else {
           _camDispatchMouse('mouseup', fx, fy + CAM_CH_OFFSET);   // dokonči tažení prvku
         }
         _camHideCrosshair(); S._camPrecision = false;
       } else if (camTouch.started) {
         _camDispatchMouse('mouseup', fx, fy);
+      } else if (S._camMarked) {
+        // Čekalo se na uchopení označeného bodu, ale přišel krátký tap →
+        // zrušit označení (uživatel si to rozmyslel).
+        S._camMarked = null; draw();
       } else {
         // Krátký tap (bez pohybu, bez long-pressu) → klik na (raw) pozici:
         // tap akce (přidat/smazat/prodloužit/oříznout) + uchopení/uvolnění.

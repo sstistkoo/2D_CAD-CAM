@@ -1737,7 +1737,9 @@ body {
 #precisionCrosshair {
   display: none;
   position: fixed;
-  z-index: 80;
+  /* Nad CAM oknem (.calc-overlay z-index 200) i plovoucími panely (300),
+     ale pod modálními potvrzovacími dialogy (100000) – křížek tam nesvítí. */
+  z-index: 1000;
   pointer-events: none;
   width: 0;
   height: 0;
