@@ -7129,12 +7129,23 @@ export function openCamSimulator(initialContour) {
     }
   };
   const _camHideCrosshair = () => { if (precisionEl) precisionEl.style.display = 'none'; };
+  const _camActionMode = () => S.addPointMode || S.delPointMode || S.gExtendMode || S.gTrimMode;
   const _camStartPrecision = () => {
     if (!camTouch) return;
     S._camPrecision = true;
     if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) { /* ignore */ } }
     const fx = camTouch.lastX, fy = camTouch.lastY;
-    _camDispatchMouse('mousedown', fx, fy + CAM_CH_OFFSET);   // uchopení pod křížkem
+    if (_camActionMode()) {
+      // Akční režim (+/−/Prodl/Ořez): křížek je jen polohovací kurzor,
+      // akce se provede až při puštění na přesné pozici.
+      camTouch.posMode = true;
+    } else {
+      // Zkus uchopit prvek pod křížkem (uzel/úsečka/konstr. čára/bod).
+      _camDispatchMouse('mousedown', fx, fy + CAM_CH_OFFSET);
+      const grabbed = !!(S.draggedGNode || S._draggedGSeg || S._draggedGuideEnd || S.draggedPointId !== null || _draggingStock);
+      if (!grabbed) { S.isDragging = false; camTouch.posMode = true; }  // nic pod křížkem → NEpanovat
+      else camTouch.posMode = false;
+    }
     _camShowCrosshair(fx, fy);
   };
   const _camEndTouch = () => {
@@ -7199,7 +7210,8 @@ export function openCamSimulator(initialContour) {
       const t = e.touches[0];
       camTouch.lastX = t.clientX; camTouch.lastY = t.clientY;
       if (S._camPrecision) {
-        _camDispatchMouse('mousemove', t.clientX, t.clientY + CAM_CH_OFFSET);
+        // posMode = jen polohovací kurzor (žádný pan); jinak táhne uchopený prvek
+        if (!camTouch.posMode) _camDispatchMouse('mousemove', t.clientX, t.clientY + CAM_CH_OFFSET);
         _camShowCrosshair(t.clientX, t.clientY);
         return;
       }
@@ -7331,7 +7343,14 @@ export function openCamSimulator(initialContour) {
       clearTimeout(camPressTimer); camPressTimer = null;
       const fx = camTouch.lastX, fy = camTouch.lastY;
       if (S._camPrecision) {
-        _camDispatchMouse('mouseup', fx, fy + CAM_CH_OFFSET);
+        if (camTouch.posMode) {
+          // Polohovací kurzor: akci (přidat/smazat/prodloužit/oříznout nebo
+          // uchopení) provedeme až teď, na přesné pozici křížku.
+          _camDispatchMouse('mousedown', fx, fy + CAM_CH_OFFSET);
+          _camDispatchMouse('mouseup', fx, fy + CAM_CH_OFFSET);
+        } else {
+          _camDispatchMouse('mouseup', fx, fy + CAM_CH_OFFSET);   // dokonči tažení prvku
+        }
         _camHideCrosshair(); S._camPrecision = false;
       } else if (camTouch.started) {
         _camDispatchMouse('mouseup', fx, fy);
