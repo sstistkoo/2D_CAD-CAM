@@ -76,6 +76,58 @@ function camOffsetDialog(count) {
   });
 }
 
+// ── Add-move dialog (úprava drah: + → nový pohyb) ──────────────
+function camAddMoveDialog(def) {
+  return new Promise(resolve => {
+    const d = def || {};
+    const inp = 'background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box';
+    const lab = 'flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8';
+    const ov = document.createElement('div');
+    ov.className = 'cam-confirm-overlay';
+    ov.innerHTML = `
+      <div class="cam-confirm-box">
+        <div class="cam-confirm-msg" style="font-weight:bold;margin-bottom:12px">Přidat pohyb za řádek ${d.afterLabel || ''}</div>
+        <label style="${lab};margin-bottom:10px">Typ pohybu
+          <select id="cam-mv-type" style="${inp}">
+            <option value="G0">G0 — rychloposuv</option>
+            <option value="G1" selected>G1 — posuv (řez)</option>
+            <option value="G2">G2 — oblouk CW</option>
+            <option value="G3">G3 — oblouk CCW</option>
+          </select>
+        </label>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <label style="${lab}">X${d.mode === 'DIAMON' ? ' (⌀)' : ''}<input id="cam-mv-x" type="number" step="0.1" value="${d.x != null ? d.x : 0}" style="${inp}"></label>
+          <label style="${lab}">Z<input id="cam-mv-z" type="number" step="0.1" value="${d.z != null ? d.z : 0}" style="${inp}"></label>
+          <label style="${lab};display:none" id="cam-mv-cr-wrap">CR<input id="cam-mv-cr" type="number" step="0.1" value="${d.cr != null ? d.cr : 0}" style="${inp}"></label>
+        </div>
+        <div class="cam-confirm-btns">
+          <button class="cam-confirm-ok">Přidat</button>
+          <button class="cam-confirm-cancel">Zrušit</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const typeSel = ov.querySelector('#cam-mv-type');
+    const crWrap = ov.querySelector('#cam-mv-cr-wrap');
+    const syncCr = () => { crWrap.style.display = (typeSel.value === 'G2' || typeSel.value === 'G3') ? 'flex' : 'none'; };
+    typeSel.addEventListener('change', syncCr); syncCr();
+    const cleanup = (val) => { ov.remove(); resolve(val); };
+    const doConfirm = () => {
+      const type = typeSel.value;
+      cleanup({
+        type,
+        x: parseFloat(ov.querySelector('#cam-mv-x').value) || 0,
+        z: parseFloat(ov.querySelector('#cam-mv-z').value) || 0,
+        cr: (type === 'G2' || type === 'G3') ? (parseFloat(ov.querySelector('#cam-mv-cr').value) || 0) : 0,
+      });
+    };
+    ov.querySelector('.cam-confirm-ok').addEventListener('click', doConfirm);
+    ov.querySelector('.cam-confirm-cancel').addEventListener('click', () => cleanup(null));
+    ov.addEventListener('click', e => { if (e.target === ov) cleanup(null); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Enter') doConfirm(); else if (e.key === 'Escape') cleanup(null); });
+    ov.querySelector('#cam-mv-x').focus();
+  });
+}
+
 // ── CSS injection ──────────────────────────────────────────────
 let cssInjected = false;
 function injectCSS() {
@@ -4018,6 +4070,48 @@ export function openCamSimulator(initialContour) {
   }
   function writeGLine(lineIdx, wx, wz) { writeGLines([{ lineIdx, wx, wz }]); }
 
+  // Zvýrazní řádek G-kódu a skočí na něj kurzorem (ověření změny při tažení).
+  function focusGCodeLine(lineIdx) {
+    S._gcodeFocusLine = lineIdx;
+    updateCodeHighlight();
+  }
+  // Smaže pohyb (řádek) z G-kódu a přepočítá.
+  function deleteGLine(lineIdx) {
+    const lines = S.manualGCode.split('\n');
+    if (lineIdx == null || lineIdx < 0 || lineIdx >= lines.length) return;
+    lines.splice(lineIdx, 1);
+    S.manualGCode = lines.join('\n');
+    S._cachedCalc = calculate();
+    S.generatedCode = generateGCode(S._cachedCalc);
+    renderCodeArea(); draw(); saveState();
+  }
+  // Vloží nový pohyb (řádek) ZA daný řádek. move = {type:'G1', x, z, cr}.
+  // x,z jsou ve světě (x=poloměr); CR jen pro G2/G3.
+  function insertGMove(afterLineIdx, move) {
+    const lines = S.manualGCode.split('\n');
+    if (afterLineIdx == null || afterLineIdx < 0) return;
+    const xOut = S.params.mode === 'DIAMON' ? move.x * 2 : move.x;
+    const fmt = v => (Math.round(v * 1000) / 1000).toFixed(3);
+    // N-číslo mezi sousedními (cosmetika) — když nejde, bez N.
+    const nOf = s => { const m = (s || '').match(/^\s*N(\d+)/); return m ? parseInt(m[1], 10) : null; };
+    const nHere = nOf(lines[afterLineIdx]);
+    const nNext = nOf(lines[afterLineIdx + 1]);
+    let nStr = '';
+    if (nHere != null) {
+      const nNew = (nNext != null && nNext - nHere > 1) ? Math.floor((nHere + nNext) / 2) : nHere + 1;
+      nStr = `N${nNew} `;
+    }
+    let line = `${nStr}${move.type} X${fmt(xOut)} Z${fmt(move.z)}`;
+    if ((move.type === 'G2' || move.type === 'G3') && move.cr) line += ` CR=${fmt(move.cr)}`;
+    if (move.type !== 'G0') line += ` F${S.params.feed}`;   // řezné pohyby = posuv
+    lines.splice(afterLineIdx + 1, 0, line);
+    S.manualGCode = lines.join('\n');
+    S._cachedCalc = calculate();
+    S.generatedCode = generateGCode(S._cachedCalc);
+    S._gcodeFocusLine = afterLineIdx + 1;
+    renderCodeArea(); draw(); saveState();
+  }
+
   // Najde nejbližší bod kontury NEBO polotovaru bez ohledu na aktuální
   // editMode — používá se pro "+"/"−" (vložit/odebrat bod), aby šlo
   // navázat kresbu i z bodu polotovaru, když je aktivní editor kontury.
@@ -4419,7 +4513,10 @@ export function openCamSimulator(initialContour) {
       : calc.simPath[findLastIdx(calc.simPath, p => p.originalLineIdx != null)].originalLineIdx;
   }
   function updateCodeHighlight() {
-    const hlIdx = getActiveCodeLineIdx();
+    // Při úpravě drah (✥ Dráhy) má přednost právě editovaný řádek, jinak
+    // aktivní řádek simulace.
+    const focusEdit = S.gcodeEditEnabled && !S.simRunning && S._gcodeFocusLine != null;
+    const hlIdx = focusEdit ? S._gcodeFocusLine : getActiveCodeLineIdx();
     const lineEls = codeBackdrop.querySelectorAll('.cam-sim-code-bd-line');
     lineEls.forEach((el, i) => el.classList.toggle('cam-sim-code-active', i === hlIdx));
     if (hlIdx != null && lineEls[hlIdx]) {
@@ -4429,6 +4526,14 @@ export function openCamSimulator(initialContour) {
         manualTa.scrollTop = Math.max(0, top - manualTa.clientHeight / 2);
         codeBackdrop.scrollTop = manualTa.scrollTop;
       }
+    }
+    // Skok kurzoru v editoru na editovaný řádek (ověření změny hodnot).
+    if (focusEdit) {
+      const ls = S.manualGCode.split('\n');
+      let off = 0;
+      for (let i = 0; i < S._gcodeFocusLine && i < ls.length; i++) off += ls[i].length + 1;
+      const end = off + ((ls[S._gcodeFocusLine] || '').length);
+      try { manualTa.setSelectionRange(off, end); } catch (_) { /* mimo rozsah */ }
     }
   }
   function findLastIdx(arr, fn) {
@@ -5589,7 +5694,7 @@ export function openCamSimulator(initialContour) {
         if (S.showSimPath === 'none') { S.showSimPath = 'all'; }
         showToast('Úprava drah: táhněte koncové body (změní souřadnice) nebo úsečky posuvu/rychloposuvu');
       } else {
-        S.hoverGNode = null; S.hoverGSeg = null;
+        S.hoverGNode = null; S.hoverGSeg = null; S._gcodeFocusLine = null;
       }
       canvas.style.cursor = 'crosshair';
       draw();
@@ -6257,8 +6362,30 @@ export function openCamSimulator(initialContour) {
       lastMousePos = { x: e.clientX, y: e.clientY };
       return;
     }
-    // Úprava drah (✥ Dráhy): tažení koncového bodu nebo celé úsečky.
+    // Úprava drah (✥ Dráhy): mazání (−), přidání (+), tažení bodu/úsečky.
     if (S.gcodeEditEnabled) {
+      // − aktivní: klik na koncový bod smaže příslušný pohyb z G-kódu.
+      if (S.delPointMode) {
+        const gn = getGNodeAt(e.clientX, e.clientY);
+        if (gn) { pushHistory(); deleteGLine(gn.lineIdx); }
+        return;
+      }
+      // + aktivní: klik na koncový bod → dialog pro nový pohyb (G0/G1/G2/G3).
+      if (S.addPointMode) {
+        const gn = getGNodeAt(e.clientX, e.clientY);
+        if (gn) {
+          const lns = S.manualGCode.split('\n');
+          const nm = ((lns[gn.lineIdx] || '').match(/^\s*(N\d+)/) || [])[1] || `řádek ${gn.lineIdx + 1}`;
+          const isDia = S.params.mode === 'DIAMON';
+          camAddMoveDialog({ x: +(isDia ? gn.x * 2 : gn.x).toFixed(3), z: +gn.z.toFixed(3), mode: S.params.mode, afterLabel: nm })
+            .then(mv => {
+              if (!mv) return;
+              pushHistory();
+              insertGMove(gn.lineIdx, { type: mv.type, x: isDia ? mv.x / 2 : mv.x, z: mv.z, cr: mv.cr });
+            });
+        }
+        return;
+      }
       const gnode = getGNodeAt(e.clientX, e.clientY);
       if (gnode) {
         S.draggedGNode = gnode; S.isDragging = true; S._gdragNeedHistory = true;
@@ -6354,6 +6481,7 @@ export function openCamSimulator(initialContour) {
       };
       if (S.isDragging && S.draggedGNode) {
         ensureHistory();
+        S._gcodeFocusLine = S.draggedGNode.lineIdx;   // skok kurzoru na řádek
         const w = _gToWorld(e.clientX - rect.left, e.clientY - rect.top);
         writeGLine(S.draggedGNode.lineIdx, w.x, w.z);
         return;
@@ -6368,6 +6496,7 @@ export function openCamSimulator(initialContour) {
           seg.lockAxis = Math.abs(dX) >= Math.abs(dZ) ? 'x' : 'z';
         if (!seg.lockAxis) return;       // dokud se nerozhodne osa, nehýbej
         ensureHistory();
+        S._gcodeFocusLine = seg.lineIdx;  // skok kurzoru na řádek
         if (seg.lockAxis === 'x') dZ = 0; else dX = 0;
         // Zapiš jen zamčenou osu (druhá = null → na řádku zůstává beze změny).
         const edits = [{ lineIdx: seg.lineIdx,
