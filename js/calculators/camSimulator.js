@@ -3582,8 +3582,11 @@ export function openCamSimulator(initialContour) {
       }
     };
 
-    // roughing passes — v 🙈 stavu skryjeme všechny drahy
-    if (S.showSimPath !== 'none') {
+    // roughing passes — v 🙈 stavu skryjeme všechny drahy. Při úpravě drah
+    // (✥ Dráhy) se skryjí taky: jsou počítané z kontury (needitují se podle
+    // ručního G-kódu), takže by zůstaly viset na staré pozici a překrývaly
+    // by skutečnou editovanou dráhu (simPath).
+    if (S.showSimPath !== 'none' && !S.gcodeEditEnabled) {
       ctx.beginPath();
       calc.passes.forEach(pass => {
         if (pass.type === 'long') {
@@ -3609,18 +3612,31 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.pass; ctx.lineWidth = 1.5; ctx.stroke();
     }
 
-    // sim path (dashed) — 'all' = vše, 'cut' = jen G1/G2/G3, 'none' = nic
+    // sim path — 'all' = vše, 'cut' = jen řezné, 'none' = nic.
+    // Posuvy (G1/G2/G3) plnou čarou (zelená = řez), rychloposuvy (G0)
+    // čárkovaně (růžová) — aby G1 nevypadal jako rychloposuv.
     if (S.showSimPath !== 'none' && calc.simPath.length > 0) {
-      ctx.beginPath();
-      for (let i = 0; i < calc.simPath.length - 1; i++) {
-        const p1 = calc.simPath[i], p2 = calc.simPath[i + 1];
-        if (S.showSimPath === 'cut' && p2.type === 'G0') continue;
-        const s = toScreen(p1.x, p1.z), e = toScreen(p2.x, p2.z);
-        if (Math.abs(s.x - e.x) > 0.1 || Math.abs(s.y - e.y) > 0.1) {
-          ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y);
+      const strokeSub = (wantRapid) => {
+        ctx.beginPath();
+        let any = false;
+        for (let i = 0; i < calc.simPath.length - 1; i++) {
+          const p2 = calc.simPath[i + 1];
+          const isRapid = p2.type === 'G0';
+          if (isRapid !== wantRapid) continue;
+          if (S.showSimPath === 'cut' && isRapid) continue;
+          const s = toScreen(calc.simPath[i].x, calc.simPath[i].z), e = toScreen(p2.x, p2.z);
+          if (Math.abs(s.x - e.x) > 0.1 || Math.abs(s.y - e.y) > 0.1) {
+            ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); any = true;
+          }
         }
-      }
-      ctx.strokeStyle = '#f38ba8'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]);
+        if (!any) return;
+        ctx.lineWidth = 1.5;
+        if (wantRapid) { ctx.strokeStyle = '#f38ba8'; ctx.setLineDash([6, 6]); }
+        else { ctx.strokeStyle = '#a6e3a1'; ctx.setLineDash([]); }
+        ctx.stroke(); ctx.setLineDash([]);
+      };
+      strokeSub(false);   // posuvy – plně
+      strokeSub(true);    // rychloposuvy – čárkovaně
     }
 
     // úchopové body / úsečky pro úpravu drah (✥ Dráhy)
