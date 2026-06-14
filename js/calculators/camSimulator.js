@@ -6610,6 +6610,9 @@ export function openCamSimulator(initialContour) {
   });
 
   canvasWrap.addEventListener('mousedown', e => {
+    // Ignoruj „ghost" myší události, které prohlížeč generuje po dotyku
+    // (skutečné dotykové akce jdou přes _camDispatchMouse = _camDispatching).
+    if (!S._camDispatching && S._camGhostUntil && Date.now() < S._camGhostUntil) return;
     // Klik na plovoucí tlačítka ✓/✗ trasování – neinterpretovat jako bod kontury
     if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
     // Trasování profilu – klik přidá další bod
@@ -7093,6 +7096,53 @@ export function openCamSimulator(initialContour) {
   canvasWrap.addEventListener('mouseleave', handleMouseUp);
 
   // ── TOUCH ──
+  // ── Precision crosshair (mobil) ──
+  // Long-press → křížek s offsetem NAD prstem + souřadnice (jako v CAD).
+  // Jednoprstý touch se posílá přes SYNTETICKÉ myší události na (precision =
+  // offsetnuté) pozici, takže funguje veškerá myší logika (tažení uzlů, drah,
+  // konstrukčních čar, prodloužit/oříznout) a dá se přesně mířit bez posunu
+  // pozadí. Pinch (2 prsty) a trasování/výběr zůstávají beze změny.
+  const CAM_CH_OFFSET = -80;        // px – křížek nad prstem
+  const CAM_LONGPRESS_MS = 320;
+  const CAM_MOVE_THRESH = 10;
+  const precisionEl = document.getElementById('precisionCrosshair');
+  const precisionLabel = precisionEl ? precisionEl.querySelector('.ch-label') : null;
+  let camTouch = null;              // {x0,y0,lastX,lastY,started,moved}
+  let camPressTimer = null;
+  const _camDispatchMouse = (type, cx, cy) => {
+    S._camDispatching = true;
+    canvasWrap.dispatchEvent(new MouseEvent(type, { clientX: cx, clientY: cy, bubbles: true }));
+    S._camDispatching = false;
+  };
+  const _camShowCrosshair = (fingerX, fingerY) => {
+    if (!precisionEl) return;
+    const chX = fingerX, chY = fingerY + CAM_CH_OFFSET;
+    precisionEl.style.left = chX + 'px';
+    precisionEl.style.top = chY + 'px';
+    precisionEl.style.display = 'block';
+    if (precisionLabel) {
+      let wx, wz;
+      if (S._snap) { wx = S._snap.x; wz = S._snap.z; }
+      else { const rect = canvas.getBoundingClientRect(); const w = _gToWorld(chX - rect.left, chY - rect.top); wx = w.x; wz = w.z; }
+      const xDisp = S.params.mode === 'DIAMON' ? wx * 2 : wx;
+      precisionLabel.textContent = `X${xDisp.toFixed(2)} Z${wz.toFixed(2)}`;
+    }
+  };
+  const _camHideCrosshair = () => { if (precisionEl) precisionEl.style.display = 'none'; };
+  const _camStartPrecision = () => {
+    if (!camTouch) return;
+    S._camPrecision = true;
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) { /* ignore */ } }
+    const fx = camTouch.lastX, fy = camTouch.lastY;
+    _camDispatchMouse('mousedown', fx, fy + CAM_CH_OFFSET);   // uchopení pod křížkem
+    _camShowCrosshair(fx, fy);
+  };
+  const _camEndTouch = () => {
+    if (S._camPrecision) _camHideCrosshair();
+    S._camPrecision = false; camTouch = null;
+    clearTimeout(camPressTimer); camPressTimer = null;
+  };
+
   canvasWrap.addEventListener('touchstart', e => {
     if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
     if (e.touches.length === 1) {
@@ -7125,57 +7175,46 @@ export function openCamSimulator(initialContour) {
         return;
       }
 
+      // Jednoprstý touch: odložíme rozhodnutí (tap / tažení / long-press
+      // precision) a vše poženeme přes syntetické myší události — viz
+      // touchmove/touchend. Long-press → precision křížek nad prstem.
       const t = e.touches[0];
-      const stockIdx = getStockHandleAt(t.clientX, t.clientY);
-      if (S.pointDragEnabled && stockIdx !== null) {
-        pushHistory(); S.draggedPointId = stockIdx; S.isDragging = true; _draggingStock = true;
-        lastMousePos = { x: t.clientX, y: t.clientY };
-        return;
-      }
-      const pointIdx = getPointAt(t.clientX, t.clientY);
-      if (S.addPointMode) {
-        const exitAddMode = () => { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; };
-        // Tap na koncový bod pomocné čáry → bod přesně na segmentu.
-        const gp = getGuideEndpointAt(t.clientX, t.clientY);
-        if (gp && insertPointOnSegmentAt(gp.x, gp.z)) {
-          exitAddMode();
-          showToast('Bod vložen na konturu v místě pomocné čáry ✓');
-          return;
-        }
-        const found = getAnyPointAt(t.clientX, t.clientY);
-        if (found) { handleInsertAfter(found.idx, found.isStock); exitAddMode(); return; }
-        // Tap na oblouk → tečná úsečka pod úhlem (CAD nástroj „Úhel").
-        const arcFound = getArcSegmentAt(t.clientX, t.clientY);
-        if (arcFound) { openTangentLineModal(arcFound); exitAddMode(); }
-        return;
-      }
-      if (S.delPointMode) {
-        const found = getAnyPointAt(t.clientX, t.clientY);
-        if (found) {
-          const list = found.isStock ? S.stockPoints : S.contourPoints;
-          if (list.length > 1) { pushHistory(); list.splice(found.idx, 1); fullUpdate(); }
-          else showToast('Nelze odebrat poslední bod.');
-          return;
-        }
-        // Tap mimo body: smazat ruční pomocnou čáru pod prstem.
-        const gIdx = getUserGuideAt(t.clientX, t.clientY);
-        if (gIdx !== null) {
-          S.guideLines.splice(gIdx, 1);
-          saveState();
-          draw();
-          showToast('Pomocná čára smazána ✓');
-        }
-        return;
-      }
-      if (S.pointDragEnabled && pointIdx !== null) { pushHistory(); S.draggedPointId = pointIdx; S.isDragging = true; }
-      else { S.isDragging = true; }
-      lastMousePos = { x: t.clientX, y: t.clientY };
+      camTouch = { x0: t.clientX, y0: t.clientY, lastX: t.clientX, lastY: t.clientY, started: false, moved: false };
+      S._camPrecision = false;
+      clearTimeout(camPressTimer);
+      camPressTimer = setTimeout(() => { camPressTimer = null; if (camTouch && !camTouch.moved) _camStartPrecision(); }, CAM_LONGPRESS_MS);
     } else if (e.touches.length === 2) {
+      // Druhý prst → zrušit jednoprstou interakci/precision, jen pinch.
+      clearTimeout(camPressTimer); camPressTimer = null;
+      if (camTouch && camTouch.started) _camDispatchMouse('mouseup', camTouch.lastX, camTouch.lastY);
+      if (S._camPrecision) _camHideCrosshair();
+      S._camPrecision = false; camTouch = null;
       lastPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     }
   }, { passive: true });
 
   canvasWrap.addEventListener('touchmove', e => {
+    // Precision / odložená jednoprstá interakce → syntetické myší události.
+    if (camTouch && e.touches.length === 1) {
+      const t = e.touches[0];
+      camTouch.lastX = t.clientX; camTouch.lastY = t.clientY;
+      if (S._camPrecision) {
+        _camDispatchMouse('mousemove', t.clientX, t.clientY + CAM_CH_OFFSET);
+        _camShowCrosshair(t.clientX, t.clientY);
+        return;
+      }
+      if (!camTouch.started) {
+        if (Math.hypot(t.clientX - camTouch.x0, t.clientY - camTouch.y0) > CAM_MOVE_THRESH) {
+          clearTimeout(camPressTimer); camPressTimer = null;
+          camTouch.moved = true; camTouch.started = true;
+          _camDispatchMouse('mousedown', camTouch.x0, camTouch.y0);   // začátek tažení/posunu
+          _camDispatchMouse('mousemove', t.clientX, t.clientY);
+        }
+        return;
+      }
+      _camDispatchMouse('mousemove', t.clientX, t.clientY);
+      return;
+    }
     if (S.addPointMode) return;
 
     // Rect selection drag on touch
@@ -7283,7 +7322,27 @@ export function openCamSimulator(initialContour) {
     // Rect selection completion on touch
     if (S.rectSelecting && S.rectStart && S.rectEnd) {
       handleMouseUp();
-      lastPinchDist = null;
+      lastPinchDist = null; camTouch = null;
+      return;
+    }
+    // Jednoprstá interakce přes syntetické myší události (tap / tažení /
+    // precision). Po dokončení blokujeme „ghost" myší události z prohlížeče.
+    if (camTouch) {
+      clearTimeout(camPressTimer); camPressTimer = null;
+      const fx = camTouch.lastX, fy = camTouch.lastY;
+      if (S._camPrecision) {
+        _camDispatchMouse('mouseup', fx, fy + CAM_CH_OFFSET);
+        _camHideCrosshair(); S._camPrecision = false;
+      } else if (camTouch.started) {
+        _camDispatchMouse('mouseup', fx, fy);
+      } else {
+        // Krátký tap (bez pohybu, bez long-pressu) → klik na (raw) pozici:
+        // tap akce (přidat/smazat/prodloužit/oříznout) + uchopení/uvolnění.
+        _camDispatchMouse('mousedown', camTouch.x0, camTouch.y0);
+        _camDispatchMouse('mouseup', camTouch.x0, camTouch.y0);
+      }
+      S._camGhostUntil = Date.now() + 700;
+      camTouch = null; lastPinchDist = null;
       return;
     }
     S.snapLines = [];
