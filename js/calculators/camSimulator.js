@@ -1319,6 +1319,7 @@ export function openCamSimulator(initialContour) {
       <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
+      <button data-act="editpath" title="Úprava drah: tažením koncových bodů (změna souřadnic) nebo úseček (posuv/rychloposuv) přímo v G-kódu">✥ Dráhy</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
       <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
@@ -1672,35 +1673,36 @@ export function openCamSimulator(initialContour) {
   }
 
   // ── HISTORY ──
-  function pushHistory() {
-    S.past.push({
+  function _snapshot() {
+    return {
       contour: JSON.parse(JSON.stringify(S.contourPoints)),
-      stock: JSON.parse(JSON.stringify(S.stockPoints))
-    });
+      stock: JSON.parse(JSON.stringify(S.stockPoints)),
+      gcode: S.manualGCode
+    };
+  }
+  function _restore(s) {
+    S.contourPoints = s.contour;
+    S.stockPoints = s.stock;
+    if (typeof s.gcode === 'string') S.manualGCode = s.gcode;
+  }
+  function pushHistory() {
+    S.past.push(_snapshot());
     S.future = [];
     updateUndoRedoBtns();
   }
   function undo() {
     if (S.past.length === 0) return;
     const prev = S.past.pop();
-    S.future.unshift({
-      contour: JSON.parse(JSON.stringify(S.contourPoints)),
-      stock: JSON.parse(JSON.stringify(S.stockPoints))
-    });
-    S.contourPoints = prev.contour;
-    S.stockPoints = prev.stock;
+    S.future.unshift(_snapshot());
+    _restore(prev);
     updateUndoRedoBtns();
     fullUpdate();
   }
   function redo() {
     if (S.future.length === 0) return;
     const next = S.future.shift();
-    S.past.push({
-      contour: JSON.parse(JSON.stringify(S.contourPoints)),
-      stock: JSON.parse(JSON.stringify(S.stockPoints))
-    });
-    S.contourPoints = next.contour;
-    S.stockPoints = next.stock;
+    S.past.push(_snapshot());
+    _restore(next);
     updateUndoRedoBtns();
     fullUpdate();
   }
@@ -3569,6 +3571,27 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = '#f38ba8'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]);
     }
 
+    // úchopové body / úsečky pro úpravu drah (✥ Dráhy)
+    if (S.gcodeEditEnabled && !S.simRunning && calc.simPath.length > 0) {
+      const hlSeg = S._draggedGSeg || S.hoverGSeg;
+      if (hlSeg) {
+        const a = toScreen(hlSeg.p1.x, hlSeg.p1.z), b = toScreen(hlSeg.p2.x, hlSeg.p2.z);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 3; ctx.stroke();
+      }
+      const nodes = getGNodes();
+      const dragLi = S.draggedGNode ? S.draggedGNode.lineIdx : null;
+      const hovLi = S.hoverGNode ? S.hoverGNode.lineIdx : null;
+      for (const n of nodes) {
+        const pt = toScreen(n.x, n.z);
+        const active = n.lineIdx === dragLi || n.lineIdx === hovLi;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, active ? 6 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = active ? '#f9e2af' : (n.type === 'G0' ? '#89b4fa' : '#a6e3a1');
+        ctx.fill();
+        ctx.strokeStyle = '#1e1e2e'; ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+
     // tool position during sim
     if ((S.simRunning || S.simProgress > 0) && calc.simPath.length > 0) {
       const totalPoints = calc.simPath.length;
@@ -3881,6 +3904,119 @@ export function openCamSimulator(initialContour) {
     }
     return closest;
   }
+
+  // ── Úprava drah přímo v G-kódu (tažení v canvasu) ──
+  // Společná projekce svět→obrazovka (shodná s draw()).
+  function _gToScreen(x, z) {
+    const vS = S.flipX ? 1 : -1;
+    if (S.params.machineStructure === 'carousel')
+      return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+    return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+  }
+  function _gToWorld(sx, sy) {
+    const vS = S.flipX ? 1 : -1;
+    if (S.params.machineStructure === 'carousel')
+      return { x: (sx - S.view.panX) / S.view.scale, z: vS * (sy - S.view.panY) / S.view.scale };
+    return { z: (sx - S.view.panX) / S.view.scale, x: vS * (sy - S.view.panY) / S.view.scale };
+  }
+  // Uzly = koncové body pohybů (poslední bod skupiny se stejným
+  // originalLineIdx; u oblouku tedy koncový bod oblouku). Tažením uzlu se
+  // přepíšou souřadnice X/Z příslušného řádku G-kódu.
+  function getGNodes() {
+    const calc = S._cachedCalc;
+    if (!calc || !calc.simPath) return [];
+    const sp = calc.simPath;
+    const nodes = [];
+    for (let i = 0; i < sp.length; i++) {
+      const li = sp[i].originalLineIdx;
+      if (li == null) continue;
+      if (i + 1 >= sp.length || sp[i + 1].originalLineIdx !== li)
+        nodes.push({ simIdx: i, lineIdx: li, x: sp[i].x, z: sp[i].z, type: sp[i].type });
+    }
+    return nodes;
+  }
+  function getGNodeAt(clientX, clientY) {
+    if (!S.gcodeEditEnabled || S.simRunning) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left, my = clientY - rect.top;
+    const nodes = getGNodes();
+    let best = null, minD = Infinity;
+    for (const n of nodes) {
+      const pt = _gToScreen(n.x, n.z);
+      const d = Math.hypot(pt.x - mx, pt.y - my);
+      if (d < 10 && d < minD) { minD = d; best = n; }
+    }
+    return best;
+  }
+  // Úsečkové pohyby (G0/G1) jako celé úsečky — pro tažení celé dráhy.
+  function getGSegmentAt(clientX, clientY) {
+    if (!S.gcodeEditEnabled || S.simRunning) return null;
+    const calc = S._cachedCalc;
+    if (!calc || !calc.simPath) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left, my = clientY - rect.top;
+    const sp = calc.simPath;
+    const distSeg = (px, py, ax, ay, bx, by) => {
+      const dx = bx - ax, dy = by - ay;
+      const L2 = dx * dx + dy * dy;
+      let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    };
+    let best = null, minD = Infinity;
+    for (let i = 1; i < sp.length; i++) {
+      const li = sp[i].originalLineIdx;
+      if (li == null) continue;
+      if (sp[i].type !== 'G0' && sp[i].type !== 'G1') continue;   // jen úsečky
+      if (sp[i - 1].originalLineIdx === li) continue;             // ne vnitřek oblouku
+      const a = _gToScreen(sp[i - 1].x, sp[i - 1].z);
+      const b = _gToScreen(sp[i].x, sp[i].z);
+      const d = distSeg(mx, my, a.x, a.y, b.x, b.y);
+      // u koncových bodů má přednost uzel — drž se dál od konců
+      const dA = Math.hypot(a.x - mx, a.y - my), dB = Math.hypot(b.x - mx, b.y - my);
+      if (d < 6 && d < minD && dA > 9 && dB > 9) {
+        minD = d;
+        best = { simIdx: i, lineIdx: li, type: sp[i].type, startIdx: sp[i - 1].originalLineIdx,
+                 p1: { x: sp[i - 1].x, z: sp[i - 1].z }, p2: { x: sp[i].x, z: sp[i].z } };
+      }
+    }
+    return best;
+  }
+  // Přepíše souřadnici (X/U nebo Z/W) v řádku G-kódu na novou hodnotu;
+  // pokud na řádku není, vloží ji (před případný komentář).
+  function setGLineCoord(line, letters, val) {
+    const v = (Math.round(val * 1000) / 1000).toFixed(3);
+    const re = new RegExp(`([${letters}])(-?\\d*\\.?\\d+)`);
+    if (re.test(line)) return line.replace(re, `${letters[0]}${v}`);
+    const word = `${letters[0]}${v}`;
+    // Vlož za G-slovo (G0/G1/...) – přirozené pořadí G X Z F.
+    const gm = line.match(/\bG0?[0-3]\b/);
+    if (gm) {
+      const at = gm.index + gm[0].length;
+      return line.slice(0, at) + ` ${word}` + line.slice(at);
+    }
+    const ci = line.search(/[;(]/);
+    if (ci >= 0) return line.slice(0, ci).replace(/\s+$/, '') + ` ${word} ` + line.slice(ci);
+    return line.replace(/\s+$/, '') + ` ${word}`;
+  }
+  // Zapíše nové souřadnice (svět: x=poloměr, z) na jeden či více řádků
+  // a přepočítá + překreslí. edits = [{lineIdx, wx, wz}].
+  function writeGLines(edits) {
+    const lines = S.manualGCode.split('\n');
+    for (const ed of edits) {
+      if (ed.lineIdx == null || ed.lineIdx < 0 || ed.lineIdx >= lines.length) continue;
+      let line = lines[ed.lineIdx];
+      if (ed.wx != null) line = setGLineCoord(line, 'XU', S.params.mode === 'DIAMON' ? ed.wx * 2 : ed.wx);
+      if (ed.wz != null) line = setGLineCoord(line, 'ZW', ed.wz);
+      lines[ed.lineIdx] = line;
+    }
+    S.manualGCode = lines.join('\n');
+    S._cachedCalc = calculate();
+    S.generatedCode = generateGCode(S._cachedCalc);
+    renderCodeArea(); renderCodeBackdrop(); updateCodeHighlight();
+    draw();
+  }
+  function writeGLine(lineIdx, wx, wz) { writeGLines([{ lineIdx, wx, wz }]); }
 
   // Najde nejbližší bod kontury NEBO polotovaru bez ohledu na aktuální
   // editMode — používá se pro "+"/"−" (vložit/odebrat bod), aby šlo
@@ -5441,6 +5577,22 @@ export function openCamSimulator(initialContour) {
       // recalc. Při off taky, aby zmizel "Z-limity ořízly dráhy" warning.
       fullUpdate();
       showToast(cfg.toast);
+    } else if (act === 'editpath') {
+      S.gcodeEditEnabled = !S.gcodeEditEnabled;
+      btn.classList.toggle('cam-sim-active', S.gcodeEditEnabled);
+      if (S.gcodeEditEnabled) {
+        // Vypnout kolidující režimy úprav kontury.
+        S.addPointMode = false; S.delPointMode = false;
+        toolbar.querySelector('[data-act="addpt"]')?.classList.remove('cam-sim-active');
+        toolbar.querySelector('[data-act="delpt"]')?.classList.remove('cam-sim-active');
+        // Trajektorie musí být vidět, aby šly body uchopit.
+        if (S.showSimPath === 'none') { S.showSimPath = 'all'; }
+        showToast('Úprava drah: táhněte koncové body (změní souřadnice) nebo úsečky posuvu/rychloposuvu');
+      } else {
+        S.hoverGNode = null; S.hoverGSeg = null;
+      }
+      canvas.style.cursor = 'crosshair';
+      draw();
     }
   });
 
@@ -6105,6 +6257,26 @@ export function openCamSimulator(initialContour) {
       lastMousePos = { x: e.clientX, y: e.clientY };
       return;
     }
+    // Úprava drah (✥ Dráhy): tažení koncového bodu nebo celé úsečky.
+    if (S.gcodeEditEnabled) {
+      const gnode = getGNodeAt(e.clientX, e.clientY);
+      if (gnode) {
+        S.draggedGNode = gnode; S.isDragging = true; S._gdragNeedHistory = true;
+        lastMousePos = { x: e.clientX, y: e.clientY };
+        return;
+      }
+      const gseg = getGSegmentAt(e.clientX, e.clientY);
+      if (gseg) {
+        const rect = canvas.getBoundingClientRect();
+        gseg.startW = _gToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        gseg.orig1 = { x: gseg.p1.x, z: gseg.p1.z };
+        gseg.orig2 = { x: gseg.p2.x, z: gseg.p2.z };
+        gseg.lockAxis = null;
+        S._draggedGSeg = gseg; S.isDragging = true; S._gdragNeedHistory = true;
+        lastMousePos = { x: e.clientX, y: e.clientY };
+        return;
+      }
+    }
     // Z-limity – mají přednost před ostatními body, lze tahat i bez odemčení.
     const zKey = getZLimitAt(e.clientX, e.clientY);
     if (zKey !== null) {
@@ -6172,6 +6344,51 @@ export function openCamSimulator(initialContour) {
       S.rectEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       draw();
       return;
+    }
+
+    // Úprava drah (✥ Dráhy) – tažení koncového bodu / úsečky + hover.
+    if (S.gcodeEditEnabled) {
+      const rect = canvas.getBoundingClientRect();
+      const ensureHistory = () => {
+        if (S._gdragNeedHistory) { pushHistory(); S._gdragNeedHistory = false; }
+      };
+      if (S.isDragging && S.draggedGNode) {
+        ensureHistory();
+        const w = _gToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        writeGLine(S.draggedGNode.lineIdx, w.x, w.z);
+        return;
+      }
+      if (S.isDragging && S._draggedGSeg) {
+        const seg = S._draggedGSeg;
+        const w = _gToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        let dX = w.x - seg.startW.x, dZ = w.z - seg.startW.z;
+        // Zamknutí na jednu osu (podle převažujícího směru tažení) — posun
+        // úsečky jen v X nebo jen v Z, druhá souřadnice se nemění.
+        if (!seg.lockAxis && Math.hypot(dX, dZ) > 0.15)
+          seg.lockAxis = Math.abs(dX) >= Math.abs(dZ) ? 'x' : 'z';
+        if (!seg.lockAxis) return;       // dokud se nerozhodne osa, nehýbej
+        ensureHistory();
+        if (seg.lockAxis === 'x') dZ = 0; else dX = 0;
+        // Zapiš jen zamčenou osu (druhá = null → na řádku zůstává beze změny).
+        const edits = [{ lineIdx: seg.lineIdx,
+          wx: seg.lockAxis === 'x' ? seg.orig2.x + dX : null,
+          wz: seg.lockAxis === 'z' ? seg.orig2.z + dZ : null }];
+        if (seg.startIdx != null) edits.push({ lineIdx: seg.startIdx,
+          wx: seg.lockAxis === 'x' ? seg.orig1.x + dX : null,
+          wz: seg.lockAxis === 'z' ? seg.orig1.z + dZ : null });
+        writeGLines(edits);
+        return;
+      }
+      if (!S.isDragging) {
+        const hn = getGNodeAt(e.clientX, e.clientY);
+        const hs = hn ? null : getGSegmentAt(e.clientX, e.clientY);
+        const changed = ((S.hoverGNode && S.hoverGNode.lineIdx) || null) !== ((hn && hn.lineIdx) || null)
+          || ((S.hoverGSeg && S.hoverGSeg.simIdx) || null) !== ((hs && hs.simIdx) || null);
+        S.hoverGNode = hn; S.hoverGSeg = hs;
+        canvas.style.cursor = (hn || hs) ? 'move' : 'crosshair';
+        if (changed) draw();
+        return;
+      }
     }
 
     const zHover = getZLimitAt(e.clientX, e.clientY);
@@ -6362,7 +6579,12 @@ export function openCamSimulator(initialContour) {
       saveState(); renderTab();
       if (needRecalc) fullUpdate();
     }
+    // Dokončení úpravy drahy – uložit a obnovit panely.
+    if (S.draggedGNode || S._draggedGSeg) {
+      saveState(); renderTab(); updateUndoRedoBtns();
+    }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null;
+    S.draggedGNode = null; S._draggedGSeg = null; S._gdragNeedHistory = false;
     draw();
   };
   canvasWrap.addEventListener('mouseup', handleMouseUp);
