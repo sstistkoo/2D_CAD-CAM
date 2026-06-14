@@ -1372,6 +1372,8 @@ export function openCamSimulator(initialContour) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky">🧲</button>
+      <button data-act="gextend" title="Prodloužit dráhu: klik na koncový bod protáhne úsečku (G0/G1) k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (odemkněte 🔓)">⊢ Prodl</button>
+      <button data-act="gtrim" title="Oříznout dráhu: klik na koncový bod zkrátí úsečku (G0/G1) k nejbližšímu průsečíku zpět (odemkněte 🔓)">⊣ Ořez</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
       <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
@@ -4381,6 +4383,64 @@ export function openCamSimulator(initialContour) {
     return [...(S.guideLines || []), ...((S._cachedCalc && S._cachedCalc.interferenceGuides) || [])];
   }
 
+  // Nejbližší průsečík paprsku (sx,sz)+t·(dirX,dirZ), t>0, s geometrií:
+  // kontura + offset + dokončovací dráha + konstrukční (pomocné) čáry.
+  // Pro prodloužení (paprsek vpřed) i oříznutí (paprsek vzad).
+  function nearestPathHit(sx, sz, dirX, dirZ) {
+    const calc = S._cachedCalc; if (!calc) return null;
+    let best = null, bestT = Infinity;
+    const A1 = { x: sx, z: sz };
+    const far = { x: sx + dirX * 1e5, z: sz + dirZ * 1e5 };
+    const consider = (px, pz) => {
+      const t = (px - sx) * dirX + (pz - sz) * dirZ;     // vzdálenost podél paprsku
+      if (t > 0.05 && t < bestT) { bestT = t; best = { x: px, z: pz }; }
+    };
+    const lineHit = (B1, B2) => {
+      if (!B1 || !B2) return;
+      const d = (A1.x - far.x) * (B1.z - B2.z) - (A1.z - far.z) * (B1.x - B2.x);
+      if (Math.abs(d) < 1e-12) return;
+      const u = ((A1.x - B1.x) * (A1.z - far.z) - (A1.z - B1.z) * (A1.x - far.x)) / d;
+      if (u < -0.001 || u > 1.001) return;               // mimo cílovou úsečku
+      const t = ((A1.x - B1.x) * (B1.z - B2.z) - (A1.z - B1.z) * (B1.x - B2.x)) / d;
+      consider(A1.x + t * (far.x - A1.x), A1.z + t * (far.z - A1.z));
+    };
+    const arcHit = (seg) => {
+      const hits = intersectLineCircle(A1, far, { x: seg.cx, z: seg.cz }, seg.r);
+      if (!hits) return;
+      for (const q of hits) {
+        const ang = Math.atan2(q.x - seg.cx, q.z - seg.cz);
+        if (isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) consider(q.x, q.z);
+      }
+    };
+    const segs = [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])];
+    for (const s of segs) {
+      if (!s || s.isDegenerate) continue;
+      if (s.type === 'line') lineHit(s.p1, s.p2);
+      else if (s.type === 'arc') arcHit(s);
+    }
+    for (const g of getAllGuideLines()) lineHit({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
+    return best;
+  }
+
+  // Prodloužení (sign=+1) / oříznutí (sign=−1) úsečkového pohybu (G0/G1):
+  // z koncového bodu vyšle paprsek ve směru pohybu (vpřed/vzad) a posune
+  // koncový bod na nejbližší průsečík → přepíše X/Z příslušného řádku.
+  function extendTrimNode(node, sign) {
+    const calc = S._cachedCalc; if (!calc || !calc.simPath) return;
+    if (node.type !== 'G0' && node.type !== 'G1') { showToast('Prodloužit/oříznout jde jen u úseček (G0/G1)'); return; }
+    if (node.simIdx <= 0) { showToast('Pohyb nemá počátek'); return; }
+    const p1 = calc.simPath[node.simIdx - 1];
+    let dx = node.x - p1.x, dz = node.z - p1.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) { showToast('Nulová délka pohybu'); return; }
+    dx /= len; dz /= len;
+    const hit = nearestPathHit(node.x, node.z, sign * dx, sign * dz);
+    if (!hit) { showToast(sign > 0 ? 'Žádný průsečík pro prodloužení' : 'Žádný průsečík pro oříznutí'); return; }
+    pushHistory();
+    writeGLine(node.lineIdx, hit.x, hit.z);
+    showToast(sign > 0 ? 'Dráha prodloužena k průsečíku ✓' : 'Dráha oříznuta k průsečíku ✓');
+  }
+
   // Index RUČNÍ pomocné čáry (S.guideLines) pod kurzorem — klik na čáru
   // nebo její koncový bod. Automatické mezní čáry mazat nejdou (počítají
   // se znovu při každé změně), proto se tu neuvažují.
@@ -5724,17 +5784,24 @@ export function openCamSimulator(initialContour) {
     const btn = e.target.closest('button');
     if (!btn) return;
     const act = btn.dataset.act;
+    const clearExtendTrim = () => {
+      if (!S.gExtendMode && !S.gTrimMode) return;
+      S.gExtendMode = false; S.gTrimMode = false;
+      toolbar.querySelector('[data-act="gextend"]')?.classList.remove('cam-sim-active');
+      toolbar.querySelector('[data-act="gtrim"]')?.classList.remove('cam-sim-active');
+    };
     if (act === 'addpt') {
       S.addPointMode = !S.addPointMode;
       if (S.addPointMode) {
         S.delPointMode = false; toolbar.querySelector('[data-act="delpt"]').classList.remove('cam-sim-active');
+        clearExtendTrim();
         showToast('Klikněte na bod (vložit segment) nebo na oblouk (tečna pod úhlem)');
       }
       btn.classList.toggle('cam-sim-active', S.addPointMode);
       canvas.style.cursor = S.addPointMode ? 'copy' : 'crosshair';
     } else if (act === 'delpt') {
       S.delPointMode = !S.delPointMode;
-      if (S.delPointMode) { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); }
+      if (S.delPointMode) { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); clearExtendTrim(); }
       btn.classList.toggle('cam-sim-active', S.delPointMode);
       canvas.style.cursor = S.delPointMode ? 'no-drop' : 'crosshair';
     } else if (act === 'profile') {
@@ -5768,6 +5835,10 @@ export function openCamSimulator(initialContour) {
         showToast('Odemčeno: táhněte body kontury i dráhy (G-kód); ➕/➖ na dráze přidá/smaže pohyb');
       } else {
         S.hoverGNode = null; S.hoverGSeg = null; S._gcodeFocusLine = null;
+        // při zamčení vypnout i režimy prodloužit/oříznout
+        S.gExtendMode = false; S.gTrimMode = false;
+        toolbar.querySelector('[data-act="gextend"]')?.classList.remove('cam-sim-active');
+        toolbar.querySelector('[data-act="gtrim"]')?.classList.remove('cam-sim-active');
       }
       draw();
     } else if (act === 'fit') {
@@ -5838,6 +5909,28 @@ export function openCamSimulator(initialContour) {
       showToast(S.snapEnabled
         ? 'SNAP zapnut: přichytávání k bodům a hranám kontury/polotovaru'
         : 'SNAP vypnut');
+      draw();
+    } else if (act === 'gextend' || act === 'gtrim') {
+      const on = act === 'gextend' ? !S.gExtendMode : !S.gTrimMode;
+      S.gExtendMode = act === 'gextend' ? on : false;
+      S.gTrimMode = act === 'gtrim' ? on : false;
+      // vzájemně vylučující s vkládáním/mazáním bodů
+      if (on) {
+        S.addPointMode = false; S.delPointMode = false;
+        toolbar.querySelector('[data-act="addpt"]')?.classList.remove('cam-sim-active');
+        toolbar.querySelector('[data-act="delpt"]')?.classList.remove('cam-sim-active');
+      }
+      toolbar.querySelector('[data-act="gextend"]').classList.toggle('cam-sim-active', S.gExtendMode);
+      toolbar.querySelector('[data-act="gtrim"]').classList.toggle('cam-sim-active', S.gTrimMode);
+      if (on && !S.gcodeEditEnabled) {
+        // Pro úpravu drah je potřeba odemčeno (= editace drah zapnutá).
+        showToast('Nejdřív odemkněte 🔓 (úprava drah), pak klikněte na koncový bod');
+      } else if (on) {
+        showToast(act === 'gextend'
+          ? 'Prodloužit: klikněte na koncový bod úsečky (protáhne se k průsečíku)'
+          : 'Oříznout: klikněte na koncový bod úsečky (zkrátí se k průsečíku)');
+      }
+      canvas.style.cursor = on ? 'crosshair' : 'crosshair';
       draw();
     }
   });
@@ -6507,6 +6600,12 @@ export function openCamSimulator(initialContour) {
     // Při add/del se nejdřív zkusí dráha; když klik dráhu netrefí, propadne
     // dál na úpravu bodů kontury (sjednocené odemčení tvar + dráhy).
     if (S.gcodeEditEnabled) {
+      // Prodloužit / oříznout: klik na koncový bod úsečky → k průsečíku.
+      if (S.gExtendMode || S.gTrimMode) {
+        const gn = getGNodeAt(e.clientX, e.clientY);
+        if (gn) extendTrimNode(gn, S.gExtendMode ? 1 : -1);
+        return;
+      }
       // − aktivní: klik na koncový bod smaže příslušný pohyb z G-kódu.
       if (S.delPointMode) {
         const gn = getGNodeAt(e.clientX, e.clientY);
