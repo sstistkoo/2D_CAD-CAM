@@ -3878,6 +3878,14 @@ export function openCamSimulator(initialContour) {
       ctx.fillText('⬚ Tažením vyberte body', w / 2, 20);
     }
 
+    // Úhlový snap – vodicí čára (vodorovně/kolmo) od ref bodu k bodu.
+    if (S.snapEnabled && S._angleSnapLine && !S.simRunning) {
+      const a = toScreen(S._angleSnapLine.from.x, S._angleSnapLine.from.z);
+      const b = toScreen(S._angleSnapLine.to.x, S._angleSnapLine.to.z);
+      ctx.strokeStyle = 'rgba(249,226,175,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+
     // SNAP indikátor (navrch): čtvereček = bod, kolečko = hrana, + souřadnice.
     if (S.snapEnabled && S._snap && !S.simRunning) {
       const sp = toScreen(S._snap.x, S._snap.z);
@@ -4041,12 +4049,18 @@ export function openCamSimulator(initialContour) {
     tryPt(0, 0);
     (calc.worldPoints || []).forEach(p => tryPt(p.xReal, p.zReal));
     (calc.stockWorldPoints || []).forEach(p => tryPt(p.xReal, p.zReal));
-    const segs = [...(calc.contourSegments || []), ...(calc.stockPathSegments || [])].filter(s => s && !s.isDegenerate);
-    for (const s of segs) {
+    // Konstrukční / pomocné čáry – koncové body (tečné body, průsečíky).
+    const guides = getAllGuideLines().map(g => ({ type: 'line', p1: { x: g.x1, z: g.z1 }, p2: { x: g.x2, z: g.z2 } }));
+    for (const g of guides) { tryPt(g.p1.x, g.p1.z); tryPt(g.p2.x, g.p2.z); }
+    // Středy oblouků / úseček – jen kontura, polotovar, konstrukční čáry.
+    const baseSegs = [...(calc.contourSegments || []), ...(calc.stockPathSegments || []), ...guides].filter(s => s && !s.isDegenerate);
+    for (const s of baseSegs) {
       if (s.type === 'arc') tryPt(s.cx, s.cz);
       else if (s.p1 && s.p2) tryPt((s.p1.x + s.p2.x) / 2, (s.p1.z + s.p2.z) / 2);
     }
     if (best) return best;   // body mají přednost před hranami
+    // Hrany: kontura + polotovar + konstrukční čáry + offsetové dráhy.
+    const segs = [...baseSegs, ...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])].filter(s => s && !s.isDegenerate);
     for (const s of segs) {
       let px, pz, dist;
       if (s.type === 'line') {
@@ -4071,13 +4085,35 @@ export function openCamSimulator(initialContour) {
     }
     return best;
   }
+  // Úhlový snap (jako v CAD): přichytí směr ref→bod na násobek 90°
+  // (vodorovně/kolmo) s tolerancí ±3°, projekcí na úhlovou přímku.
+  const ANGLE_SNAP_TOL = 3 * Math.PI / 180;
+  function applyCamAngleSnap(p, ref) {
+    if (!ref) return p;
+    const dx = p.x - ref.x, dz = p.z - ref.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1e-9) return p;
+    const angle = Math.atan2(dx, dz);            // x=sin, z=cos
+    const step = Math.PI / 2;                    // 90° = vodorovnost/kolmost
+    const snapped = Math.round(angle / step) * step;
+    if (Math.abs(angle - snapped) > ANGLE_SNAP_TOL) return p;
+    const dirx = Math.sin(snapped), dirz = Math.cos(snapped);
+    const proj = dx * dirx + dz * dirz;
+    return { x: ref.x + proj * dirx, z: ref.z + proj * dirz, _angle: true };
+  }
   // Snapnutá světová pozice (uloží i indikátor S._snap), jinak raw.
-  function snapWorld(clientX, clientY) {
+  // refPoint (volitelný) zapne úhlový snap, když není snap k bodu/hraně.
+  function snapWorld(clientX, clientY, refPoint) {
     const rect = canvas.getBoundingClientRect();
     const raw = _gToWorld(clientX - rect.left, clientY - rect.top);
     const snap = camSnap(clientX, clientY);
-    if (snap) { S._snap = snap; return { x: snap.x, z: snap.z }; }
+    if (snap) { S._snap = snap; S._angleSnapLine = null; return { x: snap.x, z: snap.z }; }
     S._snap = null;
+    if (S.snapEnabled && refPoint) {
+      const a = applyCamAngleSnap(raw, refPoint);
+      if (a._angle) { S._angleSnapLine = { from: refPoint, to: { x: a.x, z: a.z } }; return { x: a.x, z: a.z }; }
+    }
+    S._angleSnapLine = null;
     return raw;
   }
   // Uzly = koncové body pohybů (poslední bod skupiny se stejným
@@ -6504,6 +6540,10 @@ export function openCamSimulator(initialContour) {
         if (!cptHit) {
           const gnode = getGNodeAt(e.clientX, e.clientY);
           if (gnode) {
+            // refPoint = předchozí bod (start pohybu) pro úhlový snap
+            const sp = S._cachedCalc && S._cachedCalc.simPath;
+            const prev = (sp && gnode.simIdx > 0) ? sp[gnode.simIdx - 1] : null;
+            gnode.refPoint = prev ? { x: prev.x, z: prev.z } : null;
             S.draggedGNode = gnode; S.isDragging = true; S._gdragNeedHistory = true;
             lastMousePos = { x: e.clientX, y: e.clientY };
             return;
@@ -6610,7 +6650,8 @@ export function openCamSimulator(initialContour) {
       if (S.isDragging && S.draggedGNode) {
         ensureHistory();
         S._gcodeFocusLine = S.draggedGNode.lineIdx;   // skok kurzoru na řádek
-        const w = snapWorld(e.clientX, e.clientY);     // přichytí k bodu/hraně
+        // snap k bodu/hraně; jinak úhlový snap (vodorovně/kolmo) vůči ref bodu
+        const w = snapWorld(e.clientX, e.clientY, S.draggedGNode.refPoint);
         writeGLine(S.draggedGNode.lineIdx, w.x, w.z);
         return;
       }
@@ -6848,6 +6889,7 @@ export function openCamSimulator(initialContour) {
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null;
     S.draggedGNode = null; S._draggedGSeg = null; S._gdragNeedHistory = false;
+    S._angleSnapLine = null;
     draw();
   };
   canvasWrap.addEventListener('mouseup', handleMouseUp);
