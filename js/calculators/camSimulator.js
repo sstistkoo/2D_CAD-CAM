@@ -2473,7 +2473,13 @@ export function openCamSimulator(initialContour) {
       return z;
     };
 
-    if (prms.roughingStrategy === 'face') {
+    // ── Strategie hrubování ──────────────────────────────────────────
+    // Každá strategie čte sdílený kontext (passes, offsetPath, prms a
+    // pass-helpery definované výše) a naplní pole `passes`. Dispatch podle
+    // prms.roughingStrategy je až za definicemi. Přidání nové strategie
+    // (zápichy, druhá strana) = nová genXxxPasses() + větev v dispatchi;
+    // cílově se to přesune do samostatných modulů cam/strategies/*.
+    const genFacePasses = () => {
       // ── ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře) ──
       // Pro každou hloubku Z od (stockFace − step) po minZPart:
       //   1. xStart = stockOuter + rapidClr (= rapid-bezpečná X nad povrchem)
@@ -2613,7 +2619,8 @@ export function openCamSimulator(initialContour) {
             foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${faceAdjusted} čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.` });
         }
       }
-    } else {
+    };
+    const genLongPasses = () => {
       // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
       // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
       //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -2950,7 +2957,11 @@ export function openCamSimulator(initialContour) {
         if (adjusted > 0)
           foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
       }
-    }
+    };
+
+    // Dispatch strategie. Cílově: strategyRegistry[prms.roughingStrategy].
+    if (prms.roughingStrategy === 'face') genFacePasses();
+    else genLongPasses();
 
     // ── Z-limity (čelisti / koník): ořez drah aby nezasáhly do zóny ──
     // Pravidla: cut (G1) musí zůstat uvnitř [chuck, tail]:
