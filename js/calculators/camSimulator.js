@@ -651,6 +651,35 @@ function intersectCircleCircle(c1x, c1z, r1, c2x, c2z, r2) {
     { x: mx - h * ox, z: mz - h * oz }
   ];
 }
+// Skutečné průsečíky dvou segmentů (line/arc) — body, kde se dvě čáry
+// kříží (ne koncové body). Pro SNAP na průsečíku kontury/offsetu/
+// konstrukční čáry. Vrací jen body ležící uvnitř OBOU segmentů.
+function segPairIntersections(s1, s2) {
+  if (!s1 || !s2 || s1.isDegenerate || s2.isDegenerate) return [];
+  const out = [];
+  const onLine = (q, a, b) => {
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len2 = dx * dx + dz * dz;
+    if (len2 < 1e-12) return false;
+    const t = ((q.x - a.x) * dx + (q.z - a.z) * dz) / len2;
+    return t > 0.001 && t < 0.999;
+  };
+  const onArc = (q, s) => isAngleBetween(Math.atan2(q.x - s.cx, q.z - s.cz), s.startAngle, s.endAngle, s.dir === 'G2');
+  if (s1.type === 'line' && s2.type === 'line') {
+    const p = intersectLines(s1.p1, s1.p2, s2.p1, s2.p2);
+    if (p && onLine(p, s1.p1, s1.p2) && onLine(p, s2.p1, s2.p2)) out.push(p);
+  } else if (s1.type === 'line' && s2.type === 'arc') {
+    const hits = intersectLineCircle(s1.p1, s1.p2, { x: s2.cx, z: s2.cz }, s2.r) || [];
+    for (const q of hits) if (onLine(q, s1.p1, s1.p2) && onArc(q, s2)) out.push(q);
+  } else if (s1.type === 'arc' && s2.type === 'line') {
+    const hits = intersectLineCircle(s2.p1, s2.p2, { x: s1.cx, z: s1.cz }, s1.r) || [];
+    for (const q of hits) if (onLine(q, s2.p1, s2.p2) && onArc(q, s1)) out.push(q);
+  } else if (s1.type === 'arc' && s2.type === 'arc') {
+    const hits = intersectCircleCircle(s1.cx, s1.cz, s1.r, s2.cx, s2.cz, s2.r) || [];
+    for (const q of hits) if (onArc(q, s1) && onArc(q, s2)) out.push(q);
+  }
+  return out;
+}
 function getSegEnd(seg) {
   if (seg.type === 'line') return seg.p2;
   return { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
@@ -1802,6 +1831,9 @@ export function openCamSimulator(initialContour) {
     let contourSegments = [];
     let rawOffsets = [];
     let finishOffsetPath = [];
+    // Dokončovací offset úseků, kam destička nedosáhne (Hlídat geometrii):
+    // nestrojí se, ale vykreslí se tečkovaně a blokuje rychloposuvy.
+    let finishUnreachablePath = [];
     let stockPathSegments = [];
     const foundErrors = [];
 
@@ -2085,9 +2117,7 @@ export function openCamSimulator(initialContour) {
       let finRaw = [];
       for (let i = 0; i < contourSegments.length; i++) {
         const seg = contourSegments[i];
-        if (respectFin && segInterferesWithTool(seg, clearance)) {
-          finSkipped++; pendingBreak = true; continue;
-        }
+        const blocked = respectFin && segInterferesWithTool(seg, clearance);
         let finSeg = null;
         if (seg.type === 'line') {
           const n = getNormal(seg.p1, seg.p2);
@@ -2104,11 +2134,19 @@ export function openCamSimulator(initialContour) {
             finSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
           }
         }
-        if (finSeg) {
-          if (seg.chainBreak || pendingBreak) finSeg.chainBreak = true;
-          pendingBreak = false;
-          finRaw.push(finSeg);
+        if (!finSeg) continue;
+        if (blocked) {
+          // Nedosažitelný úsek: neobrábí se (přerušení dráhy), ale uchová
+          // se pro tečkované vykreslení a jako překážka pro rychloposuvy.
+          finSkipped++;
+          finSeg.unreachable = true;
+          finishUnreachablePath.push(finSeg);
+          pendingBreak = true;
+          continue;
         }
+        if (seg.chainBreak || pendingBreak) finSeg.chainBreak = true;
+        pendingBreak = false;
+        finRaw.push(finSeg);
       }
       finishOffsetPath = trimAndRemoveLoops(finRaw);
       if (finSkipped > 0)
@@ -2936,7 +2974,7 @@ export function openCamSimulator(initialContour) {
     }
 
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, contourSegments, offsetPath, finishOffsetPath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, interferenceGuides, stockTopX };
+    return { worldPoints, stockWorldPoints, contourSegments, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, interferenceGuides, stockTopX };
   }
 
   // ── G-Code Editor Content ────────────────────────────────────
@@ -3027,7 +3065,7 @@ export function openCamSimulator(initialContour) {
     // testujeme proti offsetové kontuře (hrubovací i dokončovací offset).
     // Pokud by přímý přejezd konturu protnul, nejdřív se vyjede v X nad
     // polotovar/konturu, přejede v Z a teprve pak sjede na cíl.
-    const rapidBlockers = [...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])].filter(s => !s.isDegenerate);
+    const rapidBlockers = [...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishUnreachablePath || [])].filter(s => !s.isDegenerate);
     let rapidTopX = calc.stockTopX || 0;
     rapidBlockers.forEach(s => {
       if (s.type === 'line') rapidTopX = Math.max(rapidTopX, s.p1.x, s.p2.x);
@@ -3511,14 +3549,24 @@ export function openCamSimulator(initialContour) {
           const p1 = toScreen(e1.x, e1.z), p2 = toScreen(e2.x, e2.z);
           ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
           ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
-          // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X)
+          // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X).
+          // Dva offsety jako u kontury: dokončovací (jen R) a hrubovací
+          // (R + Přídavek X/Z + Přídavek na hotovo).
           if (tipROff > 0) {
             let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
             if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
-            const o1 = toScreen(e1.x + n.x * tipROff, e1.z + n.z * tipROff);
-            const o2 = toScreen(e2.x + n.x * tipROff, e2.z + n.z * tipROff);
-            ctx.beginPath(); ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
-            ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
+            const aX = parseFloat(prms.allowanceX) || 0;
+            const aZ = parseFloat(prms.allowanceZ) || 0;
+            const fin = parseFloat(prms.finishAllowance) || 0;
+            const drawOff = (ox, oz) => {
+              const o1 = toScreen(e1.x + ox, e1.z + oz);
+              const o2 = toScreen(e2.x + ox, e2.z + oz);
+              ctx.beginPath(); ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
+              ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
+            };
+            drawOff(n.x * tipROff, n.z * tipROff);
+            if (aX > 1e-9 || aZ > 1e-9 || fin > 1e-9)
+              drawOff(n.x * (tipROff + aX + fin), n.z * (tipROff + aZ + fin));
           }
           // koncové body (PŮVODNÍ konce) — viditelné a uchopitelné (tažení po
           // čáře = prodloužit/zkrátit; "+" vloží bod kontury v tečném bodě)
@@ -3577,6 +3625,31 @@ export function openCamSimulator(initialContour) {
         }
       });
       ctx.strokeStyle = C.finish; ctx.lineWidth = 2; ctx.stroke();
+    }
+
+    // Nedosažitelný dokončovací offset (Hlídat geometrii destičky) —
+    // tečkovaně: úseky, kam destička bočním ostřím nedosáhne, takže se
+    // neobrobí, ale je vidět, že tam kontura nebude objeta.
+    if (S.showSimPath !== 'none' && prms.doFinishing && (calc.finishUnreachablePath || []).length > 0) {
+      ctx.beginPath();
+      calc.finishUnreachablePath.forEach(seg => {
+        if (seg.isDegenerate) return;
+        if (seg.type === 'line') {
+          const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        } else if (seg.type === 'arc') {
+          const steps = arcSteps(seg.r, S.view.scale);
+          let sA = seg.startAngle, eA = seg.endAngle;
+          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          for (let j = 0; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+            if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          }
+        }
+      });
+      ctx.strokeStyle = C.finish; ctx.lineWidth = 1.5; ctx.setLineDash([2, 4]); ctx.stroke(); ctx.setLineDash([]);
     }
 
     // Vykreslí trasování kontury (G1/G2/G3 segmenty s x1/z1/x2/z2) do
@@ -4091,9 +4164,20 @@ export function openCamSimulator(initialContour) {
       if (s.type === 'arc') tryPt(s.cx, s.cz);
       else if (s.p1 && s.p2) tryPt((s.p1.x + s.p2.x) / 2, (s.p1.z + s.p2.z) / 2);
     }
+    // Průsečíky čar (kontura × offset × konstrukční čára × offset konstrukční
+    // čáry) — snap na bod, kde se dvě čáry kříží, ne jen na konce/středy.
+    const interSegs = [
+      ...baseSegs,
+      ...(calc.offsetPath || []),
+      ...(calc.finishOffsetPath || []),
+      ...(calc.finishUnreachablePath || [])
+    ].filter(s => s && !s.isDegenerate);
+    for (let ii = 0; ii < interSegs.length; ii++)
+      for (let jj = ii + 1; jj < interSegs.length; jj++)
+        for (const q of segPairIntersections(interSegs[ii], interSegs[jj])) tryPt(q.x, q.z);
     if (best) return best;   // body mají přednost před hranami
     // Hrany: kontura + polotovar + konstrukční čáry + offsetové dráhy.
-    const segs = [...baseSegs, ...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])].filter(s => s && !s.isDegenerate);
+    const segs = [...baseSegs, ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishUnreachablePath || [])].filter(s => s && !s.isDegenerate);
     for (const s of segs) {
       let px, pz, dist;
       if (s.type === 'line') {
@@ -4418,15 +4502,28 @@ export function openCamSimulator(initialContour) {
   // na stranu vzduchu (+X); kam dojede STŘED plátku. Vrací snapovatelné
   // úsečky {type:'line', p1, p2} (prázdné, je-li rádius 0).
   function getGuideOffsetLines() {
-    const tipROff = parseFloat(S.params && S.params.toolRadius) || 0;
+    const prm = S.params || {};
+    const tipROff = parseFloat(prm.toolRadius) || 0;
     if (tipROff <= 0) return [];
+    // Dva offsety jako u kontury: dokončovací = jen R, hrubovací =
+    // R + Přídavek X/Z + Přídavek na hotovo (po složkách normály).
+    const aX = parseFloat(prm.allowanceX) || 0;
+    const aZ = parseFloat(prm.allowanceZ) || 0;
+    const fin = parseFloat(prm.finishAllowance) || 0;
+    const hasRough = aX > 1e-9 || aZ > 1e-9 || fin > 1e-9;
     const out = [];
     for (const g of getAllGuideLines()) {
       let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
       if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
-      out.push({ type: 'line',
+      out.push({ type: 'line', kind: 'finish',
         p1: { x: g.x1 + n.x * tipROff, z: g.z1 + n.z * tipROff },
         p2: { x: g.x2 + n.x * tipROff, z: g.z2 + n.z * tipROff } });
+      if (hasRough) {
+        const dxR = n.x * (tipROff + aX + fin), dzR = n.z * (tipROff + aZ + fin);
+        out.push({ type: 'line', kind: 'rough',
+          p1: { x: g.x1 + dxR, z: g.z1 + dzR },
+          p2: { x: g.x2 + dxR, z: g.z2 + dzR } });
+      }
     }
     return out;
   }
@@ -4460,7 +4557,7 @@ export function openCamSimulator(initialContour) {
         if (isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) consider(q.x, q.z);
       }
     };
-    const segs = [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])];
+    const segs = [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishUnreachablePath || [])];
     for (const s of segs) {
       if (!s || s.isDegenerate) continue;
       if (s.type === 'line') lineHit(s.p1, s.p2);
