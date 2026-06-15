@@ -503,10 +503,74 @@ export function genLongPasses(ctx) {
   }
 }
 
+// PODÉLNÉ HRUBOVÁNÍ ZLEVA — „druhá strana", STEJNÉ upnutí (levý konec
+// v čelistech). Nájezd od levé strany, obrábí se opačným Z směrem.
+// Omezeno rozsahem obrábění (📐 machiningRange); bez rozsahu se vezme celý
+// profil. v1: celý rozsah nahrubo zleva (zrcadlo pravé strany), bez kapes/
+// rampování — passes mají type 'long' + backside:true (emise/retrakt zleva).
+export function genBacksidePasses(ctx, op) {
+  const { sRad, step, offsetPath, passes, foundErrors, offsetXAt, worldPoints, stockFace, machiningRange, chuckZ } = ctx;
+
+  // Z-zóna obrábění: primárně z rozsahu (📐), jinak celý profil po čelo.
+  let zLo, zHi;
+  if (machiningRange) { zLo = machiningRange.zLo; zHi = machiningRange.zHi; }
+  else {
+    const zs = worldPoints.map(p => p.z);
+    zLo = zs.length ? Math.min(...zs) : -100;
+    zHi = stockFace;
+  }
+  // Levý konec v čelistech — nezajíždět pod chuck.
+  if (chuckZ !== null) zLo = Math.max(zLo, chuckZ);
+  if (zHi - zLo < 0.5) {
+    foundErrors.push({ type: 'warning', msg: 'Druhá strana (zleva): prázdná zóna — nastavte 📐 Rozsah obrábění.' });
+    return;
+  }
+
+  // X-meze offsetu (hloubky průchodů jako u pravého podélného).
+  let minPartX = 9999;
+  offsetPath.forEach(os => {
+    if (os.isDegenerate) return;
+    const xs = os.type === 'line' ? [os.p1.x, os.p2.x] : [os.cx - os.r, os.cx + os.r];
+    minPartX = Math.min(minPartX, ...xs);
+  });
+  if (minPartX === 9999) minPartX = 0;
+
+  const maxStockX = sRad; // v1: válec
+  const depths = [];
+  for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
+  if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) depths.push(minPartX);
+
+  const dz = 0.2;
+  const isOpen = (z, currentX) => { const x = offsetXAt(z); return x === null || x <= currentX + 0.01; };
+
+  for (const currentX of depths) {
+    // Otevřené Z-intervaly (offset nepřesahuje currentX) uvnitř [zLo,zHi],
+    // vzorkováno zleva doprava.
+    const intervals = [];
+    let runStart = isOpen(zLo, currentX) ? zLo : null;
+    let prevOpen = runStart !== null;
+    for (let z = zLo + dz; z <= zHi + 1e-9; z += dz) {
+      const o = isOpen(z, currentX);
+      if (o && !prevOpen) runStart = z;
+      else if (!o && prevOpen) { intervals.push({ a: runStart, b: z - dz }); runStart = null; }
+      prevOpen = o;
+    }
+    if (prevOpen && runStart !== null) intervals.push({ a: runStart, b: zHi });
+
+    intervals.forEach(iv => {
+      if (iv.b - iv.a < dz) return;
+      // zStart = pravý (vyšší Z) konec, zEnd = levý (nižší Z). Nájezd zleva
+      // řeší emise podle backside:true.
+      passes.push({ type: 'long', x: currentX, zStart: iv.b, zEnd: iv.a, blocked: true, backside: true });
+    });
+  }
+}
+
 // Registr strategií hrubování. Klíč = prms.roughingStrategy.
 // genPasses(ctx) naplní ctx.passes; label se použije v hlavičce G-kódu.
-// Cílově sem přibudou zápichy ('grooving') a druhá strana ('backside').
+// Cílově sem přibudou zápichy ('grooving').
 export const ROUGHING_STRATEGIES = {
   longitudinal: { genPasses: genLongPasses, label: 'PODELNE' },
   face: { genPasses: genFacePasses, label: 'CELNI' },
+  backside: { genPasses: genBacksidePasses, label: 'PODELNE ZLEVA' },
 };

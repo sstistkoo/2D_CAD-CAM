@@ -2264,6 +2264,19 @@ export function openCamSimulator(initialContour) {
     const sRad = (parseFloat(prms.stockDiameter) || 100) / 2;
     const stockFace = parseFloat(prms.stockFace) || 0;
 
+    // Rozsah obrábění (📐) — pro strategii „druhá strana" (zleva) vymezuje
+    // Z-zónu, kde se obrábí. Aktivní jen když uživatel rozsah zobrazí
+    // (showZLimits 'range' nebo 'both') a má obě hodnoty. null = neomezeno.
+    const rangeShown = S.showZLimits === 'range' || S.showZLimits === 'both';
+    const rS = S.zLimits.rangeStart, rE = S.zLimits.rangeEnd;
+    const machiningRange = (rangeShown && typeof rS === 'number' && isFinite(rS)
+      && typeof rE === 'number' && isFinite(rE))
+      ? { zLo: Math.min(rS, rE), zHi: Math.max(rS, rE) } : null;
+    // Čelisti (levý konec v upínači) — backside nesmí řezat pod chuck.
+    const fixturesShown = S.showZLimits === 'fixtures' || S.showZLimits === 'both';
+    const chuckZ = (fixturesShown && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck))
+      ? S.zLimits.chuck : null;
+
     // ── Sdílené helpery pro offsetPath (čelní i podélné hrubování) ──
     // Horizontální průsečíky segmentů (s kolinárním fallbackem).
     const hIntersect = (segs, xLine, checkDegen) => {
@@ -2456,7 +2469,7 @@ export function openCamSimulator(initialContour) {
       prms, sRad, stockFace, step, offsetPath, stockPathSegments,
       stockWorldPoints, worldPoints, passes, foundErrors,
       offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ,
-      findLeadOutEndZ, hIntersect,
+      findLeadOutEndZ, hIntersect, machiningRange, chuckZ,
     };
     // operations[] model: seznam operací hrubování, každá naplní passes
     // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy
@@ -4972,6 +4985,7 @@ export function openCamSimulator(initialContour) {
     <div class="cam-sim-toggle-row">
       <button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}">→ Podélně (Z)</button>
       <button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}">↓ Čelně (X)</button>
+      <button data-rough="backside" class="${prms.roughingStrategy === 'backside' ? 'cam-sim-active' : ''}" title="Druhá strana — obrábění zleva (stejné upnutí), omezeno 📐 Rozsahem obrábění">⇆ Zleva</button>
     </div>
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Hloubka (ap)</label><input type="number" step="0.5" data-p="depthOfCut" value="${prms.depthOfCut}"></div>
