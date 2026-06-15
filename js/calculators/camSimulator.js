@@ -732,25 +732,47 @@ function buildMachinableContour(segs, guides) {
     const A = { x: g.x1, z: g.z1 }, B = { x: g.x2, z: g.z2 };
     if (Math.hypot(A.x - B.x, A.z - B.z) < 0.5) continue;
     const lA = _locateOnContour(result, A), lB = _locateOnContour(result, B);
-    if (!lA || !lB) continue;
-    // První/druhý bod podle pořadí na kontuře.
-    let f, s, fPt, sPt;
-    if (lA.key <= lB.key) { f = lA; fPt = A; s = lB; sPt = B; }
-    else { f = lB; fPt = B; s = lA; sPt = A; }
-    if (s.key - f.key < 1e-4) continue;
-    const bridge = { type: 'line', p1: fPt, p2: sPt, fromInsert: true };
-    if (f.segIdx === s.segIdx) {
-      // Oba konce na jedné entitě → rozdělit: [start..fPt] + most + [sPt..end].
-      const seg = result[f.segIdx];
-      const head = { ...seg }; setSegEnd(head, fPt); syncArcEndpoints(head);
-      const tail = { ...seg }; setSegStart(tail, sPt); syncArcEndpoints(tail); delete tail.chainBreak;
-      result.splice(f.segIdx, 1, head, bridge, tail);
-    } else {
-      const before = result.slice(0, f.segIdx + 1).map(x => ({ ...x }));
-      setSegEnd(before[before.length - 1], fPt); syncArcEndpoints(before[before.length - 1]);
-      const after = result.slice(s.segIdx).map(x => ({ ...x }));
-      setSegStart(after[0], sPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
-      result = [...before, bridge, ...after];
+    if (lA && lB) {
+      // Oba konce na kontuře → vyříznout úsek mezi nimi a nahradit mostem.
+      let f, s, fPt, sPt;
+      if (lA.key <= lB.key) { f = lA; fPt = A; s = lB; sPt = B; }
+      else { f = lB; fPt = B; s = lA; sPt = A; }
+      if (s.key - f.key < 1e-4) continue;
+      const bridge = { type: 'line', p1: fPt, p2: sPt, fromInsert: true };
+      if (f.segIdx === s.segIdx) {
+        // Oba konce na jedné entitě → rozdělit: [start..fPt] + most + [sPt..end].
+        const seg = result[f.segIdx];
+        const head = { ...seg }; setSegEnd(head, fPt); syncArcEndpoints(head);
+        const tail = { ...seg }; setSegStart(tail, sPt); syncArcEndpoints(tail); delete tail.chainBreak;
+        result.splice(f.segIdx, 1, head, bridge, tail);
+      } else {
+        const before = result.slice(0, f.segIdx + 1).map(x => ({ ...x }));
+        setSegEnd(before[before.length - 1], fPt); syncArcEndpoints(before[before.length - 1]);
+        const after = result.slice(s.segIdx).map(x => ({ ...x }));
+        setSegStart(after[0], sPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
+        result = [...before, bridge, ...after];
+      }
+    } else if (lA || lB) {
+      // Jeden konec mostu leží MIMO konturu (na polotovaru) — typicky čelo
+      // na začátku/konci kontury (mezní čára míří k ose/okraji materiálu).
+      // Most prodlouží konturu na tomto okraji k tomu bodu.
+      const loc = lA || lB, locPt = lA ? A : B, offPt = lA ? B : A;
+      const startPt = segStartPoint(result[0]);
+      const endPt = segEndPoint(result[result.length - 1]);
+      const dStart = Math.hypot(offPt.x - startPt.x, offPt.z - startPt.z);
+      const dEnd = Math.hypot(offPt.x - endPt.x, offPt.z - endPt.z);
+      if (Math.min(dStart, dEnd) > 5) continue; // off bod nepatří k okraji kontury
+      if (dStart <= dEnd) {
+        // Prodloužení na ZAČÁTKU: nový start = offPt, most offPt→locPt.
+        const after = result.slice(loc.segIdx).map(x => ({ ...x }));
+        setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
+        result = [{ type: 'line', p1: offPt, p2: locPt, fromInsert: true }, ...after];
+      } else {
+        // Prodloužení na KONCI: nový konec = offPt, most locPt→offPt.
+        const before = result.slice(0, loc.segIdx + 1).map(x => ({ ...x }));
+        setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]);
+        result = [...before, { type: 'line', p1: locPt, p2: offPt, fromInsert: true }];
+      }
     }
   }
   return result;
