@@ -542,12 +542,17 @@ function getEffectivePlungeAngle(prms) {
 // Test jednoho segmentu kontury proti úhlovému rozsahu destičky —
 // true = destička by při sledování segmentu špičkou zajela bočním
 // ostřím do materiálu (normála segmentu mimo pokrytý rozsah).
+// Malá tolerance, aby tečné body PŘESNĚ na hranici dosažitelnosti (typicky
+// začátek oblouku navázaného na mostovou čáru profilu) nezhodily celý jinak
+// dosažitelný oblouk jako "nedosažitelný" (hraniční false-positive ~0.1°).
+const INSERT_REACH_TOL = 1.5 * Math.PI / 180;
 function segInterferesWithTool(seg, clearance) {
   const { bisector, halfRange } = clearance;
+  const lim = halfRange + INSERT_REACH_TOL;
   if (seg.type === 'line') {
     const n = getNormal(seg.p1, seg.p2);
     if (n.x === 0 && n.z === 0) return false;
-    return Math.abs(normalizeAngle(vecAngle(n.x, n.z) - bisector)) > halfRange;
+    return Math.abs(normalizeAngle(vecAngle(n.x, n.z) - bisector)) > lim;
   }
   if (seg.type === 'arc') {
     const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
@@ -560,7 +565,7 @@ function segInterferesWithTool(seg, clearance) {
     for (let s = 0; s <= steps; s++) {
       const a = startAngle + (endAngle - startAngle) * (s / steps);
       const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
-      if (Math.abs(normalizeAngle(normAngle - bisector)) > halfRange) return true;
+      if (Math.abs(normalizeAngle(normAngle - bisector)) > lim) return true;
     }
   }
   return false;
@@ -2195,7 +2200,13 @@ export function openCamSimulator(initialContour) {
           if (rNew > 0.05) {
             const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
             const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-            finSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
+            // Mikro-oblouk z nepatrného rohu (offsetová tětiva < ~0.12 mm) =
+            // degenerát; zahodit, jinak vznikne smyčka/„čtyřhran" v offsetu.
+            // Sousední segmenty (stěna × most) se pak napojí přímo v průsečíku.
+            const ex1 = seg.cx + Math.sin(startAngle) * rNew, ez1 = seg.cz + Math.cos(startAngle) * rNew;
+            const ex2 = seg.cx + Math.sin(endAngle) * rNew, ez2 = seg.cz + Math.cos(endAngle) * rNew;
+            if (Math.hypot(ex2 - ex1, ez2 - ez1) > 0.12)
+              finSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
           }
         }
         if (!finSeg) continue;
