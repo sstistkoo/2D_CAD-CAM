@@ -2,8 +2,13 @@
 // ║  CAM – strategie hrubování (generování průchodů / passes)      ║
 // ╚══════════════════════════════════════════════════════════════╝
 // Každá strategie dostane `ctx` (data + pass-helpery z calculate()) a
-// naplní pole ctx.passes. Přidání další strategie (zápichy, druhá strana)
-// = nová export funkce sem + větev v dispatchi v camSimulator.calculate().
+// naplní pole ctx.passes. Přidání další strategie (zápichy, druhá strana):
+//   1. nová export funkce genXxxPasses(ctx) sem,
+//   2. záznam do ROUGHING_STRATEGIES (klíč + genPasses + label) dole,
+//   3. (pokud strategie zavádí nový pass.type) obsloužit ho ve třech
+//      dispatch místech v camSimulator.js: ořez Z-limitů a emise G-kódu
+//      (generateAutoGCode) a vykreslení (draw). long/face passes sdílejí
+//      tvar, takže pro ně tyto změny nejsou potřeba.
 //
 // ctx (sestavený v calculate()):
 //   data:         prms, sRad, stockFace, step, offsetPath, stockPathSegments,
@@ -497,3 +502,11 @@ export function genLongPasses(ctx) {
       foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
   }
 }
+
+// Registr strategií hrubování. Klíč = prms.roughingStrategy.
+// genPasses(ctx) naplní ctx.passes; label se použije v hlavičce G-kódu.
+// Cílově sem přibudou zápichy ('grooving') a druhá strana ('backside').
+export const ROUGHING_STRATEGIES = {
+  longitudinal: { genPasses: genLongPasses, label: 'PODELNE' },
+  face: { genPasses: genFacePasses, label: 'CELNI' },
+};

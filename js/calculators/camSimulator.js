@@ -13,7 +13,7 @@ import { updateObjectList } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from './cam/camMath.js';
-import { genFacePasses, genLongPasses } from './cam/roughingStrategies.js';
+import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
 function camConfirm(message) {
@@ -2452,8 +2452,8 @@ export function openCamSimulator(initialContour) {
       offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ,
       findLeadOutEndZ, hIntersect,
     };
-    if (prms.roughingStrategy === 'face') genFacePasses(passCtx);
-    else genLongPasses(passCtx);
+    const strategy = ROUGHING_STRATEGIES[prms.roughingStrategy] || ROUGHING_STRATEGIES.longitudinal;
+    strategy.genPasses(passCtx);
 
     // ── Z-limity (čelisti / koník): ořez drah aby nezasáhly do zóny ──
     // Pravidla: cut (G1) musí zůstat uvnitř [chuck, tail]:
@@ -2669,7 +2669,7 @@ export function openCamSimulator(initialContour) {
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Rychloposuv')}`, 0);
     const rDist = calc.retractDist || 2.0;
 
-    addCmt(`--- HRUBOVANI (${prms.roughingStrategy === 'face' ? 'CELNI' : 'PODELNE'}) ---`);
+    addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[prms.roughingStrategy] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
     // Vůle nad polotovarem + úhel nájezdové rampy (ladí s calculate()).
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
     const entryAngleDegGc = getEffectivePlungeAngle(prms);
