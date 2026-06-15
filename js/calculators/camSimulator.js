@@ -685,52 +685,73 @@ function segPairIntersections(s1, s2) {
   }
   return out;
 }
-// Hlídat geometrii destičky: nahradí nedosažitelné konkávní úseky kontury
-// rovnou "mostovou" úsečkou z geometrie destičky (mezní tečná čára).
-// Tečná čára (guide) se PRODLOUŽÍ k průsečíkům s konturou na obou koncích
-// (u bodu nájezdu i u tečného bodu na oblouku) a úsek mezi nimi se nahradí
-// jednou G1 úsečkou. Sousední oblouk (G3) se zkrátí k tečnému bodu a dál
-// pokračuje stejným tvarem. Výsledek je celá obrobitelná kontura.
+// Lokalizace bodu na kontuře (segmenty result): vrátí {segIdx, key} kde
+// key = segIdx + podíl 0..1 podél segmentu (pro řazení podél kontury).
+// null = bod neleží na žádném segmentu (do TOL).
+function _locateOnContour(result, pt) {
+  const TOL = 0.3;
+  let best = null, bestD = Infinity;
+  for (let i = 0; i < result.length; i++) {
+    const s = result[i]; if (!s || s.isDegenerate) continue;
+    if (s.type === 'line') {
+      if (!s.p1 || !s.p2) continue;
+      const dx = s.p2.x - s.p1.x, dz = s.p2.z - s.p1.z, L2 = dx * dx + dz * dz || 1e-9;
+      let t = ((pt.x - s.p1.x) * dx + (pt.z - s.p1.z) * dz) / L2;
+      if (t < -0.02 || t > 1.02) continue;
+      t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(pt.x - (s.p1.x + t * dx), pt.z - (s.p1.z + t * dz));
+      if (d < bestD && d < TOL) { bestD = d; best = { segIdx: i, key: i + t }; }
+    } else if (s.type === 'arc') {
+      const d = Math.abs(Math.hypot(pt.x - s.cx, pt.z - s.cz) - s.r);
+      if (d > TOL) continue;
+      const a = Math.atan2(pt.x - s.cx, pt.z - s.cz);
+      if (!isAngleBetween(a, s.startAngle, s.endAngle, s.dir === 'G2')) continue;
+      let sA = s.startAngle, eA = s.endAngle;
+      if (s.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (s.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      let aa = a;
+      if (s.dir === 'G2' && aa > sA) aa -= 2 * Math.PI;
+      if (s.dir === 'G3' && aa < sA) aa += 2 * Math.PI;
+      const t = Math.abs(eA - sA) > 1e-9 ? (aa - sA) / (eA - sA) : 0;
+      if (d < bestD) { bestD = d; best = { segIdx: i, key: i + Math.max(0, Math.min(1, t)) }; }
+    }
+  }
+  return best;
+}
+// Hlídat geometrii destičky: nahradí nedosažitelné úseky kontury rovnou
+// "mostovou" úsečkou z geometrie destičky (mezní/tečná čára). Konce mostu
+// jsou body, kde mezní čára protíná konturu (A=spodní, B=horní) — leží na
+// kontuře (camRayIntersection). Úsek kontury mezi nimi se vyřízne a nahradí
+// G1 úsečkou; sousední/rozdělený oblouk se zkrátí a pokračuje dál stejným
+// tvarem. Funguje i když oba konce leží na TÉŽE entitě (rozdělení oblouku).
 // Mostové úseky dostanou fromInsert=true (jiná barva, jinak normální G1).
 function buildMachinableContour(segs, guides) {
   if (!guides || guides.length === 0) return segs;
   let result = segs.map(s => ({ ...s }));
-  // Guides zpracujeme od nejnižšího Z (konec kontury) k nejvyššímu, ať se
-  // indexy splice nerozhodí (každý splice měří průsečíky na aktuálním result).
-  const ordered = [...guides].sort((a, b) =>
-    Math.min(a.z1, a.z2) - Math.min(b.z1, b.z2));
-  for (const g of ordered) {
+  for (const g of guides) {
     const A = { x: g.x1, z: g.z1 }, B = { x: g.x2, z: g.z2 };
-    let dx = B.x - A.x, dz = B.z - A.z; const L = Math.hypot(dx, dz);
-    if (L < 1e-6) continue; dx /= L; dz /= L;
-    const E = 1e4;
-    const line = { type: 'line', p1: { x: A.x - dx * E, z: A.z - dz * E }, p2: { x: B.x + dx * E, z: B.z + dz * E } };
-    // Průsečíky prodloužené tečné čáry s aktuální konturou (t = vzdálenost
-    // podél čáry; segIdx = index protnutého segmentu).
-    const hits = [];
-    for (let i = 0; i < result.length; i++) {
-      const seg = result[i]; if (seg.isDegenerate) continue;
-      for (const q of segPairIntersections(line, seg)) {
-        const t = (q.x - line.p1.x) * dx + (q.z - line.p1.z) * dz;
-        hits.push({ t, pt: q, segIdx: i });
-      }
+    if (Math.hypot(A.x - B.x, A.z - B.z) < 0.5) continue;
+    const lA = _locateOnContour(result, A), lB = _locateOnContour(result, B);
+    if (!lA || !lB) continue;
+    // První/druhý bod podle pořadí na kontuře.
+    let f, s, fPt, sPt;
+    if (lA.key <= lB.key) { f = lA; fPt = A; s = lB; sPt = B; }
+    else { f = lB; fPt = B; s = lA; sPt = A; }
+    if (s.key - f.key < 1e-4) continue;
+    const bridge = { type: 'line', p1: fPt, p2: sPt, fromInsert: true };
+    if (f.segIdx === s.segIdx) {
+      // Oba konce na jedné entitě → rozdělit: [start..fPt] + most + [sPt..end].
+      const seg = result[f.segIdx];
+      const head = { ...seg }; setSegEnd(head, fPt); syncArcEndpoints(head);
+      const tail = { ...seg }; setSegStart(tail, sPt); syncArcEndpoints(tail); delete tail.chainBreak;
+      result.splice(f.segIdx, 1, head, bridge, tail);
+    } else {
+      const before = result.slice(0, f.segIdx + 1).map(x => ({ ...x }));
+      setSegEnd(before[before.length - 1], fPt); syncArcEndpoints(before[before.length - 1]);
+      const after = result.slice(s.segIdx).map(x => ({ ...x }));
+      setSegStart(after[0], sPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
+      result = [...before, bridge, ...after];
     }
-    if (hits.length < 2) continue;
-    hits.sort((a, b) => a.t - b.t);
-    // Dvojice průsečíků, mezi kterými leží střed mezní čáry = nedosažitelný úsek.
-    const midT = ((A.x + B.x) / 2 - line.p1.x) * dx + ((A.z + B.z) / 2 - line.p1.z) * dz;
-    let entry = null, exit = null;
-    for (let i = 0; i < hits.length - 1; i++) {
-      if (hits[i].t <= midT + 1e-6 && hits[i + 1].t >= midT - 1e-6) { entry = hits[i]; exit = hits[i + 1]; break; }
-    }
-    if (!entry || !exit || entry.segIdx >= exit.segIdx) continue;
-    const before = result.slice(0, entry.segIdx + 1).map(s => ({ ...s }));
-    setSegEnd(before[before.length - 1], entry.pt); syncArcEndpoints(before[before.length - 1]);
-    const bridge = { type: 'line', p1: entry.pt, p2: exit.pt, fromInsert: true };
-    const after = result.slice(exit.segIdx).map(s => ({ ...s }));
-    setSegStart(after[0], exit.pt); syncArcEndpoints(after[0]);
-    delete after[0].chainBreak;   // most navazuje plynule
-    result = [...before, bridge, ...after];
   }
   return result;
 }
@@ -2131,10 +2152,14 @@ export function openCamSimulator(initialContour) {
     }
 
 
-    // (Automatická náhrada kontury mostovou úsečkou DOČASNĚ VYPNUTA —
-    // kolidovala s ručním profilováním, které teď tvoří obrobitelnou
-    // konturu. buildMachinableContour ponecháno pro pozdější použití.)
+    // Automatické profilování: při zapnutém Hlídání geometrie se nedosažitelné
+    // úseky kontury nahradí mostovou úsečkou z geometrie destičky a tahle
+    // obrobitelná kontura se použije pro offsety/dráhy/CNC.
     let machinableContour = null;
+    if (clearance && prms.respectInsertGeometry && interferenceGuides.length > 0) {
+      machinableContour = buildMachinableContour(contourSegments, interferenceGuides);
+      contourSegments = machinableContour;
+    }
 
     let incompleteMachiningCount = 0;
     // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs
@@ -3575,6 +3600,20 @@ export function openCamSimulator(initialContour) {
         }
         if (anyIns) { ctx.strokeStyle = '#fab387'; ctx.lineWidth = 3; ctx.stroke(); }
       }
+    }
+
+    // Auto-profil (Hlídat geometrii): mostové úseky z geometrie destičky,
+    // které automaticky nahradily nedosažitelnou část kontury — oranžově,
+    // ať je profil vidět (offsety/CNC jedou po této obrobitelné kontuře).
+    if (calc.machinableContour && !S._previewContour) {
+      ctx.beginPath();
+      let anyM = false;
+      for (const s of calc.machinableContour) {
+        if (!s.fromInsert || s.type !== 'line' || s.isDegenerate) continue;
+        const a = toScreen(s.p1.x, s.p1.z), b = toScreen(s.p2.x, s.p2.z);
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); anyM = true;
+      }
+      if (anyM) { ctx.strokeStyle = '#fab387'; ctx.lineWidth = 3; ctx.stroke(); }
     }
 
     // Náhled trasovaného profilu (číslovaná kontura čekající na potvrzení)
