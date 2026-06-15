@@ -1010,6 +1010,9 @@ export function circlePositionsTangentToLine(cx, cy, r, x1, y1, x2, y2) {
   if (len < 1e-10) return [];
   const nx = -dy / len, ny = dx / len;
   const t = ((cx - x1) * dx + (cy - y1) * dy) / (len * len);
+  // Tečný bod = pata kolmice; musí ležet na KONEČNÉ úsečce (jako u
+  // circlePositionsTangentToLineAndPoint). Mimo úsečku → žádné řešení.
+  if (t < -1e-9 || t > 1 + 1e-9) return [];
   const footX = x1 + t * dx, footY = y1 + t * dy;
   return [
     { cx: footX + nx * r, cy: footY + ny * r },
@@ -1062,7 +1065,13 @@ export function circlePositionsTangentToTwoLines(r, l1, l2) {
       if (pt) results.push({ cx: pt.x, cy: pt.y });
     }
   }
-  return results;
+  // Tečné body (paty kolmic) musí ležet na OBOU konečných úsečkách – tím
+  // odpadnou řešení mimo sevřený úhel / mimo rozsah úseček.
+  const onSeg = (p, l) => {
+    const tp = projectionParam(p.cx, p.cy, l.x1, l.y1, l.x2, l.y2);
+    return tp >= -1e-9 && tp <= 1 + 1e-9;
+  };
+  return results.filter(p => onSeg(p, l1) && onSeg(p, l2));
 }
 
 // ── Pozice kružnice tečné k úsečce A procházející bodem ──
