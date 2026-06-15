@@ -1883,6 +1883,14 @@ export function openCamSimulator(initialContour) {
     } catch (_) { /* quota */ }
   }
 
+  // Seznam operací hrubování (operations[] model). Dokud neexistuje
+  // persistentní S.operations (+ UI), odvodí se z prms.roughingStrategy
+  // jako jediná operace — zachovává dosavadní chování.
+  function getRoughingOperations() {
+    if (Array.isArray(S.operations) && S.operations.length > 0) return S.operations;
+    return [{ kind: S.params.roughingStrategy || 'longitudinal' }];
+  }
+
   // ── CALCULATED DATA (memoized) ──
   function calculate() {
     const prms = S.params;
@@ -2444,16 +2452,20 @@ export function openCamSimulator(initialContour) {
 
     // ── Strategie hrubování (cam/roughingStrategies.js) ──
     // passCtx = sdílený kontext: data + pass-helpery z calculate().
-    // Přidání strategie (zápichy, druhá strana) = nová export funkce v
-    // roughingStrategies.js + větev v dispatchi níže (cílově registry).
     const passCtx = {
       prms, sRad, stockFace, step, offsetPath, stockPathSegments,
       stockWorldPoints, worldPoints, passes, foundErrors,
       offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ,
       findLeadOutEndZ, hIntersect,
     };
-    const strategy = ROUGHING_STRATEGIES[prms.roughingStrategy] || ROUGHING_STRATEGIES.longitudinal;
-    strategy.genPasses(passCtx);
+    // operations[] model: seznam operací hrubování, každá naplní passes
+    // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy
+    // (= 1 operace); persistentní seznam + UI přijdou s druhou stranou.
+    const operations = getRoughingOperations();
+    for (const op of operations) {
+      const strategy = ROUGHING_STRATEGIES[op.kind] || ROUGHING_STRATEGIES.longitudinal;
+      strategy.genPasses(passCtx, op);
+    }
 
     // ── Z-limity (čelisti / koník): ořez drah aby nezasáhly do zóny ──
     // Pravidla: cut (G1) musí zůstat uvnitř [chuck, tail]:
