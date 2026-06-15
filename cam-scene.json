@@ -1,0 +1,10 @@
+{
+  "params": {"machineType":"LIMS=2000","mode":"RADIUS","toolName":"ROUGHER_T1","speed":200,"feed":0.25,"depthOfCut":3,"retractDistance":1.5,"allowanceX":0,"allowanceZ":0,"toolRadius":0.8,"finishAllowance":0.2,"doFinishing":true,"roughingStrategy":"longitudinal","stockMode":"casting","stockMargin":5,"stockDiameter":38,"stockLength":5,"stockFace":2,"safeX":150,"safeZ":50,"machineStructure":"lathe","controlSystem":"sinumerik","toolShape":"polygon","toolLength":10,"toolAngle":15,"toolTipAngle":90,"entryAngle":15,"entryAngleAuto":true,"respectInsertGeometry":true,"plungeRoughing":true,"noStepRoughing":true,"noStepRoughingFace":true,"rapidClearance":1,"blendPassEnds":true,"stockShapeEnabled":true,"stockAllowance":5,"stockChamfer":2.5,"stockFillet":3},
+  "contourPoints": [{"id":1,"type":"G0","x":0,"z":48,"r":0,"mode":"ABS"},{"id":2,"type":"G1","x":4,"z":48,"r":0,"mode":"ABS"},{"id":3,"type":"G1","x":5,"z":47,"r":0,"mode":"ABS"},{"id":4,"type":"G1","x":8,"z":32.76,"r":0,"mode":"ABS"},{"id":5,"type":"G1","x":8,"z":25,"r":0,"mode":"ABS"},{"id":6,"type":"G2","x":9,"z":24,"r":1,"mode":"ABS"},{"id":7,"type":"G1","x":10,"z":24,"r":0,"mode":"ABS"},{"id":8,"type":"G3","x":14,"z":20.046,"r":4,"mode":"ABS"},{"id":9,"type":"G1","x":14,"z":18,"r":0,"mode":"ABS"},{"id":10,"type":"G2","x":14,"z":4,"r":10,"mode":"ABS"},{"id":11,"type":"G1","x":14,"z":0,"r":0,"mode":"ABS"}],
+  "stockPoints": [{"id":101,"type":"G0","x":0,"z":53,"r":0,"mode":"ABS"},{"id":102,"type":"G1","x":19,"z":53,"r":0,"mode":"ABS"},{"id":103,"type":"G1","x":19,"z":0,"r":0,"mode":"ABS"},{"id":104,"type":"G1","x":0,"z":0,"r":0,"mode":"ABS"}],
+  "guideLines": [],
+  "flipX": false,
+  "zLimits": {"chuck":null,"tail":null,"rangeStart":null,"rangeEnd":null},
+  "showZLimits": "off",
+  "showSimPath": "all"
+}
