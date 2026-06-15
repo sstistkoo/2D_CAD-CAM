@@ -1665,6 +1665,9 @@ export function openCamSimulator(initialContour) {
     _traceSegs: [],     // [{type:'G1'|'G2'|'G3', dist, r, cx, cz}] – segment od _tracePoints[i] do [i+1]
     _previewContour: null, // číslovaná náhledová kontura čekající na potvrzení
     _refContour: null,      // záloha původní S.contourPoints po dobu náhledu
+    // Záloha původní (před-profilové) kontury — drží se i po použití profilu,
+    // aby šel profil smazat (❌) a vrátit původní konturu. null = profil není.
+    _profileOriginal: null,
     activeTab: 'editor', simSpeed: 1,
     singleBlock: false, simBlockTarget: null,
     _animId: null, _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
@@ -1691,6 +1694,7 @@ export function openCamSimulator(initialContour) {
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
       if (p.manualGCode) S.manualGCode = p.manualGCode;
       if (p.flipX !== undefined) S.flipX = !!p.flipX;
+      if (Array.isArray(p.profileOriginal)) S._profileOriginal = p.profileOriginal;
       if (Array.isArray(p.guideLines)) S.guideLines = p.guideLines;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
       if (p.showZLimits !== undefined) {
@@ -1856,7 +1860,7 @@ export function openCamSimulator(initialContour) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
-        flipX: S.flipX, guideLines: S.guideLines,
+        flipX: S.flipX, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
         zLimits: S.zLimits, showZLimits: S.showZLimits, showSimPath: S.showSimPath
       }));
     } catch (_) { /* quota */ }
@@ -2122,16 +2126,10 @@ export function openCamSimulator(initialContour) {
     }
 
 
-    // Hlídat geometrii destičky: nedosažitelné konkávní úseky kontury
-    // nahraď mostovou úsečkou z geometrie destičky (mezní tečná čára
-    // prodloužená k průsečíkům s konturou). Výsledek je celá obrobitelná
-    // kontura a použije se pro offsety/dráhy/CNC. Originál zůstává jako
-    // reference (worldPoints) pro vykreslení a snap.
+    // (Automatická náhrada kontury mostovou úsečkou DOČASNĚ VYPNUTA —
+    // kolidovala s ručním profilováním, které teď tvoří obrobitelnou
+    // konturu. buildMachinableContour ponecháno pro pozdější použití.)
     let machinableContour = null;
-    if (clearance && prms.respectInsertGeometry && interferenceGuides.length > 0) {
-      machinableContour = buildMachinableContour(contourSegments, interferenceGuides);
-      contourSegments = machinableContour;
-    }
 
     let incompleteMachiningCount = 0;
     // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs
@@ -6098,13 +6096,21 @@ export function openCamSimulator(initialContour) {
     draw();
   }
 
-  /** Zobrazí/skryje tlačítka pro potvrzení/zrušení náhledu profilu. */
-  function _showPreviewButtons(show) {
+  /** Sjednocená logika tlačítek profilu: ✅ jen při náhledu, ❌ při náhledu
+   *  NEBO když je profil použitý (pak ❌ = smazat profil a vrátit konturu). */
+  function _updateProfileButtons() {
     const a = toolbar.querySelector('[data-act="profile-apply"]');
     const c = toolbar.querySelector('[data-act="profile-cancel"]');
-    if (a) a.style.display = show ? '' : 'none';
-    if (c) c.style.display = show ? '' : 'none';
+    const previewing = !!S._previewContour;
+    const hasProfile = !!S._profileOriginal;
+    if (a) a.style.display = previewing ? '' : 'none';
+    if (c) {
+      c.style.display = (previewing || hasProfile) ? '' : 'none';
+      c.title = previewing ? 'Zrušit náhled profilu' : 'Smazat profil a vrátit původní konturu';
+    }
   }
+  // Zpětná kompatibilita — staré volání; teď řídí vše _updateProfileButtons.
+  function _showPreviewButtons() { _updateProfileButtons(); }
 
   /** Zobrazí/skryje plovoucí tlačítka ✓ Dokončit / ✗ Zrušit u trasování profilu. */
   function _showTraceButtons() {
@@ -6153,32 +6159,47 @@ export function openCamSimulator(initialContour) {
     S._refContour = S.contourPoints;
     S._previewContour = pts;
     _exitProfileTraceMode();
-    _showPreviewButtons(true);
-    draw();
-    showToast('Náhled profilu připraven – potvrďte (✅) nebo zrušte (❌)');
+    // „✓ Dokončit" rovnou použije profil — bez mezikroku náhledu/fajfky.
+    _applyPreviewContour();
   }
 
-  /** Nahradí konturu trasovaným profilem. */
+  /** Nahradí konturu trasovaným profilem. Zachová zálohu původní kontury,
+   *  ať jde profil smazat (❌) a vrátit původní konturu. */
   function _applyPreviewContour() {
     if (!S._previewContour) return;
     pushHistory();
+    // Záloha PŮVODNÍ (před-profilové) kontury — drž tu nejstarší.
+    if (!S._profileOriginal) S._profileOriginal = S._refContour || S.contourPoints;
     S.contourPoints = S._previewContour;
     S._previewContour = null;
     S._refContour = null;
-    _showPreviewButtons(false);
+    _updateProfileButtons();
     S._cachedCalc = calculate();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
     fullUpdate();
-    showToast('Profil použit jako nová kontura ✓');
+    showToast('Profil použit ✓ — ❌ ho smaže a vrátí původní konturu');
   }
 
   /** Zahodí náhled trasovaného profilu, kontura zůstává nezměněná. */
   function _cancelPreviewContour() {
     S._previewContour = null;
     S._refContour = null;
-    _showPreviewButtons(false);
+    _updateProfileButtons();
     draw();
     showToast('Náhled profilu zrušen');
+  }
+
+  /** Smaže použitý profil a vrátí původní (před-profilovou) konturu. */
+  function _deleteProfile() {
+    if (!S._profileOriginal) return;
+    pushHistory();
+    S.contourPoints = S._profileOriginal;
+    S._profileOriginal = null;
+    _updateProfileButtons();
+    S._cachedCalc = calculate();
+    S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    fullUpdate();
+    showToast('Profil smazán — obnovena původní kontura');
   }
 
   // ── FULL UPDATE (recalc + redraw + re-render UI) ──
@@ -6191,6 +6212,7 @@ export function openCamSimulator(initialContour) {
     draw();
     saveState();
     updateUndoRedoBtns();
+    _updateProfileButtons();   // ❌ smazat profil zůstane, dokud profil existuje
   }
 
   // ── EVENT WIRING ──
@@ -6239,7 +6261,9 @@ export function openCamSimulator(initialContour) {
     } else if (act === 'profile-apply') {
       _applyPreviewContour();
     } else if (act === 'profile-cancel') {
-      _cancelPreviewContour();
+      // Při náhledu = zrušit náhled; jinak (profil už použitý) = smazat profil.
+      if (S._previewContour) _cancelPreviewContour();
+      else _deleteProfile();
     } else if (act === 'lock') {
       // Sjednocené odemčení: úprava tvaru (body kontury) I drah (G-kód).
       S.pointDragEnabled = !S.pointDragEnabled;
