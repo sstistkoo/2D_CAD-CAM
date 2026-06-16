@@ -1630,6 +1630,10 @@ export function openCamSimulator(initialContour) {
       // dokončovací offset = jen R.
       finishAllowance: 0,
       doFinishing: true, roughingStrategy: 'longitudinal',
+      // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
+      // doprava (druhá strana — zprava nelze, narazil by držák/destička).
+      // Kombinuje se s roughingStrategy (podélně/čelně).
+      roughingSide: 'right',
       stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
       stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
       machineStructure: 'lathe', controlSystem: 'sinumerik',
@@ -1707,6 +1711,11 @@ export function openCamSimulator(initialContour) {
     if (saved) {
       const p = JSON.parse(saved);
       if (p.params) Object.assign(S.params, p.params);
+      // Migrace: dřívější roughingStrategy 'backside' → podélně + směr zleva.
+      if (S.params.roughingStrategy === 'backside') {
+        S.params.roughingStrategy = 'longitudinal';
+        S.params.roughingSide = 'left';
+      }
       if (p.contourPoints && p.contourPoints.length > 0) S.contourPoints = p.contourPoints;
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
       if (p.manualGCode) S.manualGCode = p.manualGCode;
@@ -1883,12 +1892,23 @@ export function openCamSimulator(initialContour) {
     } catch (_) { /* quota */ }
   }
 
+  // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
+  //   podélně + zprava → longitudinal     podélně + zleva → backside
+  //   čelně   + zprava → face             čelně   + zleva → face (zatím
+  //   bez zrcadlené varianty — TODO genFaceLeft).
+  function roughingKey() {
+    const type = S.params.roughingStrategy || 'longitudinal';
+    const left = (S.params.roughingSide || 'right') === 'left';
+    if (type === 'longitudinal') return left ? 'backside' : 'longitudinal';
+    return 'face';
+  }
+
   // Seznam operací hrubování (operations[] model). Dokud neexistuje
-  // persistentní S.operations (+ UI), odvodí se z prms.roughingStrategy
-  // jako jediná operace — zachovává dosavadní chování.
+  // persistentní S.operations (+ UI), odvodí se z typu × směru jako jediná
+  // operace — zachovává dosavadní chování.
   function getRoughingOperations() {
     if (Array.isArray(S.operations) && S.operations.length > 0) return S.operations;
-    return [{ kind: S.params.roughingStrategy || 'longitudinal' }];
+    return [{ kind: roughingKey() }];
   }
 
   // ── CALCULATED DATA (memoized) ──
@@ -2694,7 +2714,7 @@ export function openCamSimulator(initialContour) {
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Rychloposuv')}`, 0);
     const rDist = calc.retractDist || 2.0;
 
-    addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[prms.roughingStrategy] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
+    addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey()] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
     // Vůle nad polotovarem + úhel nájezdové rampy (ladí s calculate()).
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
     const entryAngleDegGc = getEffectivePlungeAngle(prms);
@@ -2900,7 +2920,7 @@ export function openCamSimulator(initialContour) {
     // zleva doprava (zprava nelze, narazil by držák / geometrie destičky),
     // stejně jako hrubování. Otočí se pořadí segmentů, u oblouků směr (G2↔G3)
     // a krajní úhly; napojení (chainBreak) se přepočítá.
-    const finBackside = prms.roughingStrategy === 'backside';
+    const finBackside = roughingKey() === 'backside';
     let finPath = calc.finishOffsetPath;
     if (finBackside) {
       finPath = calc.finishOffsetPath.slice().reverse().map(s => s.type === 'line'
@@ -3511,7 +3531,7 @@ export function openCamSimulator(initialContour) {
           ctx.save(); ctx.translate(pt.x, pt.y);
           // Druhá strana (zleva): destička řeže opačným směrem (+Z) —
           // zrcadlit v ose Z (vodorovně), ať špička míří doprava.
-          if (prms.roughingStrategy === 'backside') ctx.scale(-1, 1);
+          if (roughingKey() === 'backside') ctx.scale(-1, 1);
           ctx.beginPath(); ctx.moveTo(t1x, t1y);
           ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
           ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
@@ -5028,7 +5048,10 @@ export function openCamSimulator(initialContour) {
     <div class="cam-sim-toggle-row">
       <button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}">→ Podélně (Z)</button>
       <button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}">↓ Čelně (X)</button>
-      <button data-rough="backside" class="${prms.roughingStrategy === 'backside' ? 'cam-sim-active' : ''}" title="Druhá strana — obrábění zleva (stejné upnutí), omezeno 📐 Rozsahem obrábění">⇆ Zleva</button>
+    </div>
+    <div class="cam-sim-toggle-row">
+      <button data-side="right" class="${(prms.roughingSide || 'right') === 'right' ? 'cam-sim-active' : ''}" title="Zaber zprava doleva (standard)">→ Zprava</button>
+      <button data-side="left" class="${prms.roughingSide === 'left' ? 'cam-sim-active' : ''}" title="Druhá strana — zaber zleva doprava (zprava nelze, narazil by držák / geometrie destičky), omezeno 📐 Rozsahem obrábění">⇆ Zleva</button>
     </div>
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Hloubka (ap)</label><input type="number" step="0.5" data-p="depthOfCut" value="${prms.depthOfCut}"></div>
@@ -5140,6 +5163,12 @@ export function openCamSimulator(initialContour) {
       btn.addEventListener('click', () => {
         S.params.roughingStrategy = btn.dataset.rough;
         S.params.toolAngle = btn.dataset.rough === 'face' ? -15 : 15;
+        fullUpdate();
+      });
+    });
+    tabBody.querySelectorAll('[data-side]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        S.params.roughingSide = btn.dataset.side;
         fullUpdate();
       });
     });
