@@ -1236,7 +1236,9 @@ function parseManualGCodeToPath(code, prms) {
             if (type === 'G3' && eA < sA) eA += 2 * Math.PI;
             for (let j = 1; j <= steps; j++) {
               const a = sA + (eA - sA) * (j / steps);
-              path.push({ x: arc.cx + Math.sin(a) * arc.r, z: arc.cz + Math.cos(a) * arc.r, type, originalLineIdx: idx });
+              const pt = { x: arc.cx + Math.sin(a) * arc.r, z: arc.cz + Math.cos(a) * arc.r, type, originalLineIdx: idx };
+              if (j === 1) pt.arcParams = { cx: arc.cx, cz: arc.cz, r: arc.r, startAngle: sA, endAngle: eA, dir: type, tessSteps: steps };
+              path.push(pt);
             }
           } else {
             path.push({ x: targetX, z: targetZ, type, originalLineIdx: idx });
@@ -3374,30 +3376,7 @@ export function openCamSimulator(initialContour) {
       ctx.strokeStyle = C.offset; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // finish path — v 🙈 stavu skryjeme všechny drahy
-    if (S.showSimPath !== 'none' && prms.doFinishing && calc.finishOffsetPath.length > 0) {
-      ctx.beginPath();
-      calc.finishOffsetPath.forEach((seg, i) => {
-        if (seg.isDegenerate) return;
-        if (seg.type === 'line') {
-          const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
-          if (i === 0 || seg.chainBreak) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-        } else if (seg.type === 'arc') {
-          const steps = arcSteps(seg.r, S.view.scale);
-          let sA = seg.startAngle, eA = seg.endAngle;
-          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-          for (let j = 0; j <= steps; j++) {
-            const a = sA + (eA - sA) * (j / steps);
-            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
-            if (j === 0 && (i === 0 || seg.chainBreak)) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
-          }
-        }
-      });
-      ctx.strokeStyle = C.finish; ctx.lineWidth = 2; ctx.stroke();
-    }
+    // finish path — kreslí simPath (zelená), finishOffsetPath overlay odstraněn
 
     // Nedosažitelný dokončovací offset (Hlídat geometrii destičky) —
     // tečkovaně: úseky, kam destička bočním ostřím nedosáhne, takže se
@@ -3487,9 +3466,22 @@ export function openCamSimulator(initialContour) {
           const isRapid = p2.type === 'G0';
           if (isRapid !== wantRapid) continue;
           if (S.showSimPath === 'cut' && isRapid) continue;
-          const s = toScreen(calc.simPath[i].x, calc.simPath[i].z), e = toScreen(p2.x, p2.z);
-          if (Math.abs(s.x - e.x) > 0.1 || Math.abs(s.y - e.y) > 0.1) {
-            ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); any = true;
+          if (p2.arcParams) {
+            const ap = p2.arcParams;
+            const drawSteps = arcSteps(ap.r, S.view.scale);
+            const sA = ap.startAngle, eA = ap.endAngle;
+            for (let j = 0; j <= drawSteps; j++) {
+              const a = sA + (eA - sA) * (j / drawSteps);
+              const pt = toScreen(ap.cx + Math.sin(a) * ap.r, ap.cz + Math.cos(a) * ap.r);
+              if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+            }
+            i += ap.tessSteps - 1;
+            any = true;
+          } else {
+            const s = toScreen(calc.simPath[i].x, calc.simPath[i].z), e = toScreen(p2.x, p2.z);
+            if (Math.abs(s.x - e.x) > 0.1 || Math.abs(s.y - e.y) > 0.1) {
+              ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); any = true;
+            }
           }
         }
         if (!any) return;
