@@ -2268,6 +2268,22 @@ export function openCamSimulator(initialContour) {
         finRaw.push(finSeg);
       }
       finishOffsetPath = trimAndRemoveLoops(finRaw);
+      // Sanitace: když je R nástroje větší než konkávní rádius kontury
+      // (nebo selže ořez), může segment zůstat s null/NaN souřadnicí —
+      // zahodit, aby se neemitoval „XNaN", a označit přejezd (chainBreak).
+      const finFinite = (s) => s.type === 'line'
+        ? [s.p1 && s.p1.x, s.p1 && s.p1.z, s.p2 && s.p2.x, s.p2 && s.p2.z].every(Number.isFinite)
+        : [s.cx, s.cz, s.r, s.startAngle, s.endAngle].every(Number.isFinite);
+      let finDropped = 0;
+      for (let i = finishOffsetPath.length - 1; i >= 0; i--) {
+        if (!finFinite(finishOffsetPath[i])) {
+          finDropped++;
+          finishOffsetPath.splice(i, 1);
+          if (i < finishOffsetPath.length) finishOffsetPath[i].chainBreak = true;
+        }
+      }
+      if (finDropped > 0)
+        foundErrors.push({ type: 'warning', msg: `Dokončování: ${finDropped} úsek(ů) vynecháno — nástroj (R${tipR}) se nevejde do tvaru kontury (malý poloměr). Přejezd G0.` });
       if (finSkipped > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
     }
