@@ -24,7 +24,7 @@ const exportsTail = `
 export { resolvePointsToAbsolute, getArcParams, getNormal, vecAngle, normalizeAngle,
   getToolClearanceRange, segInterferesWithTool, trimAndRemoveLoops, spliceBridgeSegments,
   removeContourSelfIntersections, segEndPoint, segStartPoint, buildMachinableContour,
-  camRayIntersection, computeInterferenceGuides, intersectLineCircle };
+  camRayIntersection, computeInterferenceGuides, intersectLineCircle, extendOffsetStartToAxis };
 `;
 const tmpPath = join(root, 'scripts', '_cam_tmp.mjs');
 writeFileSync(tmpPath, prelude + src + exportsTail);
@@ -117,7 +117,8 @@ function buildFinish(respectFin, segs = contourSegments) {
   console.log(`\n=== finRaw (respectInsertGeometry=${respectFin}), skipped=${finSkipped} ===`);
   finRaw.forEach((s,i)=>console.log(fmtSeg(s,i)));
   const finishOffsetPath = H.trimAndRemoveLoops(finRaw);
-  console.log(`--- finishOffsetPath (after trimAndRemoveLoops) ---`);
+  H.extendOffsetStartToAxis(finishOffsetPath);
+  console.log(`--- finishOffsetPath (after trimAndRemoveLoops + extendToAxis) ---`);
   finishOffsetPath.forEach((s,i)=>console.log(fmtSeg(s,i)));
   return finishOffsetPath;
 }
@@ -146,6 +147,7 @@ function buildRough(segs = contourSegments) {
     if (offSeg) rawOffsets.push(offSeg);
   }
   const offsetPath = H.trimAndRemoveLoops(rawOffsets);
+  H.extendOffsetStartToAxis(offsetPath);
   console.log(`\n=== roughing offsetPath (+${totalOffset}) ===`);
   offsetPath.forEach((s,i)=>console.log(fmtSeg(s,i)));
   return offsetPath;

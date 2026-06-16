@@ -1383,6 +1383,23 @@ function trimAndRemoveLoops(rawSegs, opts = {}) {
   return result;
 }
 
+// Když kontura začíná na ose (čelo do středu, X≈0), offsetová dráha se kvůli
+// korekci R od osy odlepí (první bod má malé X>0). Protáhnout první úsek
+// offsetu po jeho směru zpět až na X=0, ať nástroj dojede až do středu.
+// Volá se na hrubovací i dokončovací offset (požadavek uživatele: obě čáry
+// k ose). Bezpečné: pokud první úsek na ose už je (čelní offset), nedělá nic.
+function extendOffsetStartToAxis(path) {
+  if (!path || path.length === 0) return;
+  const s = path[0];
+  if (s.type !== 'line' || !s.p1 || !s.p2) return;
+  if (Math.abs(s.p1.x) < 1e-6) return;            // už na ose
+  const dx = s.p2.x - s.p1.x, dz = s.p2.z - s.p1.z;
+  if (Math.abs(dx) < 1e-9) return;                // svislý úsek — protažení v X nedává smysl
+  const t = -s.p1.x / dx;                          // parametr, kde úsek protne X=0
+  if (t >= 0) return;                              // X=0 leží ve směru jízdy (uvnitř/za) → neprotahovat zpět
+  s.p1 = { x: 0, z: s.p1.z + t * dz };
+}
+
 // ── resolvePointsToAbsolute ────────────────────────────────────
 function resolvePointsToAbsolute(pts) {
   let lastX = 0, lastZ = 0;
@@ -2386,6 +2403,13 @@ export function openCamSimulator(initialContour) {
         foundErrors.push({ type: 'warning', msg: `Dokončování: ${finDropped} úsek(ů) vynecháno — nástroj (R${tipR}) se nevejde do tvaru kontury (malý poloměr). Přejezd G0.` });
       if (finSkipped > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
+    }
+
+    // Protáhnout obě offsetové čáry až k ose, když kontura začíná na X0
+    // (čelo do středu). Korekce R jinak nechá u osy neobrobený zbytek.
+    if (worldPoints.length > 0 && Math.abs(worldPoints[0].xReal) < 1e-3) {
+      extendOffsetStartToAxis(offsetPath);
+      extendOffsetStartToAxis(finishOffsetPath);
     }
 
     if (incompleteMachiningCount > 0)
