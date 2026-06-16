@@ -2809,6 +2809,23 @@ export function openCamSimulator(initialContour) {
           const zRetractVal = clipZGc(cur.z + rDist);
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
         }
+      } else if (pass.type === 'long' && pass.backside) {
+        // Druhá strana (zleva): nájezd ZLEVA, řez ve směru +Z (doprava),
+        // retract DOLEVA od kontury (zrcadlo pravého 45° odskoku).
+        //   G0 Z<zEnd−clr>     ; rapid vlevo od řezu (přes vůli)
+        //   G0 X<hloubka>
+        //   G1 Z<zEnd>         ; dotyk pracovním posuvem (levá hrana)
+        //   G1 Z<zStart> F     ; podélný řez +Z přes celou špónu
+        //   G1 X<+odskok> Z<−odskok> ; retract doleva od kontury
+        const zApproachVal = clipZGc(pass.zEnd - rapidClrGc);
+        safeRapidTo(cur.x, zApproachVal);
+        safeRapidTo(pass.x, zApproachVal);
+        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+        simCounter += 1; addN(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zStart);
+        if (!pass.noRetract) {
+          const zRetractVal = clipZGc(cur.z - rDist);
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        }
       } else if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
         //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
@@ -3469,6 +3486,9 @@ export function openCamSimulator(initialContour) {
           const midCCWtrue = angT2 - norm(angT2 - angT1) / 2;
           const useCCW = Math.abs(angDiff(midCCWtrue, angCorner)) < Math.abs(angDiff(midCCWfalse, angCorner));
           ctx.save(); ctx.translate(pt.x, pt.y);
+          // Druhá strana (zleva): destička řeže opačným směrem (+Z) —
+          // zrcadlit v ose Z (vodorovně), ať špička míří doprava.
+          if (prms.roughingStrategy === 'backside') ctx.scale(-1, 1);
           ctx.beginPath(); ctx.moveTo(t1x, t1y);
           ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
           ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
