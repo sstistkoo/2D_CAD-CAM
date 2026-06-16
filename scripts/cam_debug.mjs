@@ -104,13 +104,13 @@ function buildFinish(respectFin, segs = contourSegments) {
           finSeg = { type:'arc', cx:seg.cx, cz:seg.cz, r:rNew, dir:seg.dir, refP1:seg.p1, refP2:seg.p2, startAngle, endAngle };
       }
     }
-    if (!finSeg) continue; // degenerát: nechat trim napojit sousedy (jako rough)
+    if (!finSeg) { pendingBreak = true; continue; }
     if (blocked) { finSkipped++; pendingBreak = true; continue; }
     if (pendingBreak && finSeg.type === 'line' && !seg.fromInsert && finRaw.length > 0) {
       const prev = finRaw[finRaw.length-1];
       if (prev.type === 'line' && finSeg.p1.x < prev.p2.x - 0.05) { pendingBreak = false; continue; }
     }
-    if (seg.chainBreak || pendingBreak) finSeg.chainBreak = true;
+    if ((seg.chainBreak || pendingBreak) && !seg.fromInsert) finSeg.chainBreak = true;
     pendingBreak = false;
     finRaw.push(finSeg);
   }

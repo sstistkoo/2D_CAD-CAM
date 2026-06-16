@@ -2334,12 +2334,7 @@ export function openCamSimulator(initialContour) {
               finSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
           }
         }
-        // Degenerovaný/mikro oblouk (R nástroje ≥ R oblouku, nebo nepatrný roh):
-        // kontura je TADY spojitá — nástroj roh prostě zaoblí. Jen ho zahodit a
-        // nechat trimAndRemoveLoops napojit sousedy v průsečíku (jako hrubování).
-        // NEnastavovat pendingBreak → jinak se další úsek (most/stěna) chybně
-        // přeruší a dokončování zajede za konstrukční čáru.
-        if (!finSeg) continue;
+        if (!finSeg) { pendingBreak = true; continue; }
         if (blocked) {
           // Nedosažitelný úsek: neobrábí se (přerušení dráhy), ale uchová
           // se pro tečkované vykreslení a jako překážka pro rychloposuvy.
@@ -2363,7 +2358,12 @@ export function openCamSimulator(initialContour) {
             continue;
           }
         }
-        if (seg.chainBreak || pendingBreak) finSeg.chainBreak = true;
+        // Mostový úsek (fromInsert) nikdy nepřerušovat: jeho konce LEŽÍ na
+        // kontuře (spojitý), takže ho trim napojí v průsečíku s předchozím
+        // úsekem. Bez výjimky by ho přeskočený mikro/degenerovaný oblouk před
+        // ním označil jako chainBreak → dokončování by k němu skočilo G0 a
+        // oblouk by začal moc brzy (zajetí za konstrukční čáru).
+        if ((seg.chainBreak || pendingBreak) && !seg.fromInsert) finSeg.chainBreak = true;
         pendingBreak = false;
         finRaw.push(finSeg);
       }
