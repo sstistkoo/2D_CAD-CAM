@@ -2810,21 +2810,26 @@ export function openCamSimulator(initialContour) {
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
         }
       } else if (pass.type === 'long' && pass.backside) {
-        // Druhá strana (zleva): nájezd ZLEVA, řez ve směru +Z (doprava),
-        // retract DOLEVA od kontury (zrcadlo pravého 45° odskoku).
-        //   G0 Z<zEnd−clr>     ; rapid vlevo od řezu (přes vůli)
-        //   G0 X<hloubka>
-        //   G1 Z<zEnd>         ; dotyk pracovním posuvem (levá hrana)
-        //   G1 Z<zStart> F     ; podélný řez +Z přes celou špónu
-        //   G1 X<+odskok> Z<−odskok> ; retract doleva od kontury
-        const zApproachVal = clipZGc(pass.zEnd - rapidClrGc);
-        safeRapidTo(cur.x, zApproachVal);
-        safeRapidTo(pass.x, zApproachVal);
-        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
-        simCounter += 1; addN(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zStart);
+        // Druhá strana (zleva): záběr VŽDY zleva, řez ve směru +Z (doprava).
+        // Z pravé strany se najet nedá (narazil by držák / geometrie destičky).
+        // Čistý přejezd bez kolizí — zvednout nad polotovar, přejet v Z na
+        // levou hranu, zanořit, řez doprava, odskok doleva od kontury:
+        //   G0 X<nad polotovar>          ; zvednout (čistý přejezd v Z)
+        //   G0 Z<zEnd>                   ; přejezd k záběru (levá hrana)
+        //   G0 X<hloubka+vůle> / G1 X<hloubka> ; zanoření
+        //   G1 Z<zStart> F               ; řez +Z (doprava)
+        //   G1 X<+odskok> Z<−odskok>     ; odskok DOLEVA od kontury
+        const zEng = pass.zEnd;                 // záběr = levá hrana řezu
+        const xSafe = rapidTopX + rapidClrGc;   // X bezpečně nad polotovarem
+        const emitB = (txt) => { simCounter += 1; addN(txt, simCounter); };
+        if (cur.x < xSafe - 1e-6) { emitB(`G0 X${xDia(xSafe)}`); setPos(xSafe, cur.z); }
+        if (Math.abs(cur.z - zEng) > 1e-6) { emitB(`G0 Z${zEng.toFixed(3)}`); setPos(cur.x, zEng); }
+        if (cur.x - pass.x > rapidClrGc + 1e-6) emitB(`G0 X${xDia(pass.x + rapidClrGc)}`);
+        emitB(`G1 X${xDia(pass.x)} F${prms.feed}`); setPos(pass.x, zEng);
+        emitB(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`); setPos(pass.x, pass.zStart);
         if (!pass.noRetract) {
           const zRetractVal = clipZGc(cur.z - rDist);
-          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+          emitB(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`); setPos(cur.x + rDist, zRetractVal);
         }
       } else if (pass.type === 'long') {
         // Standardní podélné hrubování (vpravo → vlevo):
