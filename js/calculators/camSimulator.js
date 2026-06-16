@@ -497,7 +497,12 @@ const MATERIALS = {
 // ── MATH HELPERS ───────────────────────────────────────────────
 const EPSILON = 1e-9;
 const TRIM_TOL = 0.5;
-function arcSteps(r, scale) { return Math.max(8, Math.min(64, Math.ceil(r * scale * 0.5))); }
+function arcSteps(r, scale) {
+  const rPix = Math.abs(r) * scale;
+  if (!(rPix > 0.5)) return 8;
+  const dTheta = 2 * Math.sqrt((2 * 0.4) / rPix);
+  return Math.max(8, Math.min(720, Math.ceil((2 * Math.PI) / dTheta)));
+}
 
 function dist(p1, p2) {
   if (!p1 || !p2) return 0;
@@ -2253,7 +2258,7 @@ export function openCamSimulator(initialContour) {
               finSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
           }
         }
-        if (!finSeg) continue;
+        if (!finSeg) { pendingBreak = true; continue; }
         if (blocked) {
           // Nedosažitelný úsek: neobrábí se (přerušení dráhy), ale uchová
           // se pro tečkované vykreslení a jako překážka pro rychloposuvy.
@@ -2262,6 +2267,17 @@ export function openCamSimulator(initialContour) {
           finishUnreachablePath.push(finSeg);
           pendingBreak = true;
           continue;
+        }
+        // Po přeskočeném oblouku (pendingBreak): přeskočit přechodný čelní
+        // řez, jehož offset začíná na menším X než skončil předchozí segment
+        // (nástroj by musel jet dovnitř — vznik trojúhelníkového artefaktu).
+        // pendingBreak se smaže, aby se trim mohl spojit přímo s dalším segmentem.
+        if (pendingBreak && finSeg.type === 'line' && finRaw.length > 0) {
+          const prev = finRaw[finRaw.length - 1];
+          if (prev.type === 'line' && finSeg.p1.x < prev.p2.x - 0.05) {
+            pendingBreak = false;
+            continue;
+          }
         }
         if (seg.chainBreak || pendingBreak) finSeg.chainBreak = true;
         pendingBreak = false;
@@ -4799,7 +4815,8 @@ export function openCamSimulator(initialContour) {
     if (hlIdx != null && lineEls[hlIdx]) {
       const lineEl = lineEls[hlIdx];
       const top = lineEl.offsetTop, bottom = top + lineEl.offsetHeight;
-      if (top < manualTa.scrollTop || bottom > manualTa.scrollTop + manualTa.clientHeight) {
+      const skipScroll = !focusEdit && document.activeElement === manualTa;
+      if (!skipScroll && (top < manualTa.scrollTop || bottom > manualTa.scrollTop + manualTa.clientHeight)) {
         manualTa.scrollTop = Math.max(0, top - manualTa.clientHeight / 2);
         codeBackdrop.scrollTop = manualTa.scrollTop;
       }
@@ -6181,7 +6198,7 @@ export function openCamSimulator(initialContour) {
   root.querySelector('[data-code="refresh"]').addEventListener('click', async () => {
     const ok = await camConfirm('Přegenerovat dráhy z aktuální kontury a parametrů? Ruční úpravy G-kódu budou přepsány.');
     if (!ok) return;
-    if (!S._cachedCalc) S._cachedCalc = calculate();
+    S._cachedCalc = calculate();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
     fullUpdate();
     showToast('Dráhy přegenerovány z kontury a parametrů');
@@ -6202,7 +6219,9 @@ export function openCamSimulator(initialContour) {
   });
 
   // manual textarea
+  manualTa.addEventListener('mousedown', () => { S._gcodeFocusLine = null; });
   manualTa.addEventListener('input', () => {
+    S._gcodeFocusLine = null;
     S.manualGCode = manualTa.value;
     S._cachedCalc = calculate();
     S.generatedCode = generateGCode(S._cachedCalc);
