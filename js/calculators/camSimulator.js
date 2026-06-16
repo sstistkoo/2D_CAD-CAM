@@ -2896,7 +2896,23 @@ export function openCamSimulator(initialContour) {
     // by přímá diagonála mohla proříznout stěnu/konturu).
     safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
 
-    const firstGcFinSeg = calc.finishOffsetPath.find(s => !s.isDegenerate);
+    // Dokončování: u druhé strany (zleva) se kontura trasuje OPAČNĚ —
+    // zleva doprava (zprava nelze, narazil by držák / geometrie destičky),
+    // stejně jako hrubování. Otočí se pořadí segmentů, u oblouků směr (G2↔G3)
+    // a krajní úhly; napojení (chainBreak) se přepočítá.
+    const finBackside = prms.roughingStrategy === 'backside';
+    let finPath = calc.finishOffsetPath;
+    if (finBackside) {
+      finPath = calc.finishOffsetPath.slice().reverse().map(s => s.type === 'line'
+        ? { ...s, p1: s.p2, p2: s.p1, chainBreak: false }
+        : { ...s, dir: s.dir === 'G2' ? 'G3' : 'G2', startAngle: s.endAngle, endAngle: s.startAngle, p1: s.p2, p2: s.p1, refP1: s.refP2, refP2: s.refP1, chainBreak: false });
+      for (let i = 1; i < finPath.length; i++) {
+        const prevEnd = segEndPoint(finPath[i - 1]);
+        const curStart = segStartPoint(finPath[i]);
+        finPath[i].chainBreak = Math.hypot(curStart.x - prevEnd.x, curStart.z - prevEnd.z) > 1e-4;
+      }
+    }
+    const firstGcFinSeg = finPath.find(s => !s.isDegenerate);
     if (prms.doFinishing && firstGcFinSeg) {
       addCmt('--- DOKONCOVANI ---');
       const startSeg = firstGcFinSeg;
@@ -2910,12 +2926,14 @@ export function openCamSimulator(initialContour) {
       const finishRampDz = finishApproachDx / Math.tan(entryRadGc);
       // Rapid přibližovací bod ořežeme na čelisti/koník když jsou aktivní —
       // jinak by ramp s mělkým úhlem překročil limit (collision risk).
-      const sZ_approachVal = clipZGc(sZ + finishRampDz);
+      // U backsidu se trasuje doprava, takže nájezdová ramp je z levé strany
+      // (−Z), aby nájezd nešel proti směru řezu.
+      const sZ_approachVal = clipZGc(sZ + (finBackside ? -finishRampDz : finishRampDz));
       // Nájezd na přibližovací bod s kontrolou kolize — přímá diagonála
       // z bezpečné polohy může u členité kontury proříznout offset.
       safeRapidTo(sX + finishApproachDx, sZ_approachVal);
       simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(sX, sZ);
-      calc.finishOffsetPath.forEach(seg => {
+      finPath.forEach(seg => {
         if (seg.isDegenerate) return;
         // chainBreak = samostatný řetěz (mezi konturami nic nenavazuje) —
         // najet rychloposuvem na jeho začátek místo řezného přejezdu mezerou.
