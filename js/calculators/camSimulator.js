@@ -2160,7 +2160,8 @@ export function openCamSimulator(initialContour) {
     // Lehký přepočet pro PLYNULÉ tažení bodů: spočítá jen body kontury/
     // polotovaru (z nich draw() kreslí konturu) + obrys polotovaru. Dráhy/
     // offsety/hrubování/simulace se NEpočítají — to je drahé a přepočítá se
-    // až po puštění myši. Dráhy zůstanou vidět (jen se neaktualizují živě).
+    // až po puštění myši. Po dobu tažení se proto dráhy SKRYJÍ (prázdná pole
+    // níže) a po puštění (handleMouseUp → plný calculate()) se zase ukážou.
     if (lightOnly) {
       const stockPathSegments = [];
       for (let i = 0; i < stockWorldPoints.length - 1; i++) {
