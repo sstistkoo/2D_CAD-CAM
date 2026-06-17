@@ -1684,7 +1684,7 @@ function parseContourAndStockGCode(text) {
 // ══════════════════════════════════════════════════════════════
 // ║  MAIN EXPORT                                              ║
 // ══════════════════════════════════════════════════════════════
-export function openCamSimulator(initialContour) {
+export function openCamSimulator(initialContour, initialGCode) {
   injectCSS();
 
   // ── Build HTML ──
@@ -2015,6 +2015,13 @@ export function openCamSimulator(initialContour) {
   if (camNoteIdx !== -1) {
     if (state.objects[camNoteIdx].gcode) S.manualGCode = state.objects[camNoteIdx].gcode;
     state.objects.splice(camNoteIdx, 1);
+  }
+
+  // Kód přenesený z CAM editoru (tlačítko 🔄) je upravená dráha (manualGCode) –
+  // má přednost před localStorage i auto-generací, aby se úpravy z editoru
+  // vrátily zpět do simulátoru, odkud se kód původně bral.
+  if (initialGCode && typeof initialGCode === 'string' && initialGCode.trim()) {
+    S.manualGCode = initialGCode;
   }
 
   // Pokud zatím není žádný G-kód (nová kontura, nic uloženo), počáteční

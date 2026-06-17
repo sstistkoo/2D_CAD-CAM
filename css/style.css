@@ -5015,6 +5015,13 @@ body {
   color: var(--ctp-subtext0); font-size: 18px; font-weight: 700;
 }
 .cne-close-btn:hover { color: var(--ctp-red); background: rgba(243,139,168,.15); }
+/* ── CAM Simulátor button (nahrazuje zavírací ✕ v liště editoru) ── */
+.cne-cam-btn {
+  margin-left: 16px;
+  font-size: 24px; line-height: 1;
+  color: var(--ctp-green);
+}
+.cne-cam-btn:hover { color: var(--ctp-green); background: rgba(166,227,161,.18); }
 
 /* ── Sinumerik 840D bar ─────────────────────────────────────── */
 .cne-sn-bar {

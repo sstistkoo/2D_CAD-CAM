@@ -280,15 +280,13 @@ function buildEditorHTML() {
       <button class="cne-tb-btn cne-hide-m" data-act="import" title="Import balíčku">📂</button>
       <button class="cne-tb-btn cne-hide-m" data-act="export" title="Export balíčku">📦</button>
       <button class="cne-tb-btn cne-hide-m" data-act="renum" title="Přečíslovat N-bloky">🔢</button>
-      <button class="cne-tb-btn cne-conv cne-hide-m" data-act="convAbs" data-el="convAbsBtn" title="Převést na absolutní (G90)">ABS</button>
-      <button class="cne-tb-btn cne-conv cne-hide-m" data-act="convInc" data-el="convIncBtn" title="Převést na přírůstkové (G91)">INC</button>
+      <button class="cne-tb-btn cne-conv cne-hide-m" data-act="convMode" data-el="convModeBtn" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
       <button class="cne-tb-btn cne-hide-m" data-act="header" title="Generovat hlavičku">📝</button>
-      <button class="cne-tb-btn cne-hide-m" data-act="cam" title="Otevřít v CAM Simulátoru">🔄</button>
       <button class="cne-tb-btn cne-status" data-act="validate" data-el="statusBtn" title="Validace">●</button>
       <button class="cne-tb-btn" data-act="calc" title="Kalkulačka">🔢</button>
       <button class="cne-tb-btn cne-hide-m" data-act="settings" title="Nastavení parseru">⚙</button>
       <button class="cne-tb-btn cne-menu-btn" data-act="menu" title="Menu">⋮</button>
-      <button class="cne-tb-btn cne-close-btn" data-act="close" title="Zavřít editor">✕</button>
+      <button class="cne-tb-btn cne-cam-btn" data-act="cam" title="Otevřít v CAM Simulátoru (přenést úpravy)" aria-label="Otevřít v CAM Simulátoru">🔄</button>
     </div>
   </div>
 
@@ -355,8 +353,7 @@ function buildEditorHTML() {
         <button class="cne-menu-item" data-act="export"><span class="cne-mi-icon">📦</span><span class="cne-mi-text"><b>Export balíčku</b><small>Exportovat všechny soubory</small></span></button>
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="renum"><span class="cne-mi-icon">🔢</span><span class="cne-mi-text"><b>Přečíslovat N-bloky</b><small>Přečíslování bloků N10, N20…</small></span></button>
-        <button class="cne-menu-item" data-act="convAbs"><span class="cne-mi-icon sn">ABS</span><span class="cne-mi-text"><b>Převést na absolutní</b><small>G91 → G90 souřadnice</small></span></button>
-        <button class="cne-menu-item" data-act="convInc"><span class="cne-mi-icon sn">INC</span><span class="cne-mi-text"><b>Převést na přírůstkové</b><small>G90 → G91 souřadnice</small></span></button>
+        <button class="cne-menu-item" data-act="convMode"><span class="cne-mi-icon sn" data-el="convModeMenuIcon">G90</span><span class="cne-mi-text"><b>Přepnout G90 / G91</b><small>Absolutní ↔ přírůstkové (nájezd v G90)</small></span></button>
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="header"><span class="cne-mi-icon">📝</span><span class="cne-mi-text"><b>Generovat hlavičku</b><small>Vložit hlavičku programu (M4x, T, G54…)</small></span></button>
         <div class="cne-menu-sep"></div>
@@ -452,8 +449,7 @@ export function openCamEditor(initialCode, jumpLine) {
   let rafHL      = null;
   let inputPrefix = '';
   const parser   = new CNCParser();
-  let activeConversion = null;
-  let originalCode = '';
+  let coordMode = 'abs';            // aktuální režim souřadnic: 'abs' (G90) / 'inc' (G91)
   let codeBeforeRenum = '';
 
   // Load persisted
@@ -512,6 +508,9 @@ export function openCamEditor(initialCode, jumpLine) {
     currentFile = name;
     editor.value = programs[name];
     filenameLbl.textContent = name;
+    // CAM kód je generován absolutně – při zobrazení souboru začínáme v G90.
+    coordMode = 'abs';
+    updateModeBtn();
     refreshVisual();
     renderFileList();
     scheduleValidation();
@@ -909,6 +908,42 @@ export function openCamEditor(initialCode, jumpLine) {
   }
 
   // ── Conversion helpers ────────────────────────────────────
+  // CSP-safe vyhodnocení číselného výrazu (+ - * / a závorky) bez eval/Function.
+  // CSP stránky (index.html) nepovoluje 'unsafe-eval', takže new Function()
+  // by vyhodilo výjimku a přepočet souřadnic by tiše selhal (vrátil NaN).
+  function safeEvalArith(expr) {
+    const tokens = expr.match(/\d+\.?\d*|\.\d+|[+\-*/()]/g);
+    if (!tokens) return NaN;
+    let pos = 0;
+    const peek = () => tokens[pos];
+    const next = () => tokens[pos++];
+    function parseExpr() {                 // sčítání / odčítání
+      let v = parseTerm();
+      while (peek() === '+' || peek() === '-') {
+        const op = next(); const r = parseTerm();
+        v = op === '+' ? v + r : v - r;
+      }
+      return v;
+    }
+    function parseTerm() {                 // násobení / dělení
+      let v = parseFactor();
+      while (peek() === '*' || peek() === '/') {
+        const op = next(); const r = parseFactor();
+        v = op === '*' ? v * r : v / r;
+      }
+      return v;
+    }
+    function parseFactor() {               // unární ±, závorky, číslo
+      const t = peek();
+      if (t === '+') { next(); return parseFactor(); }
+      if (t === '-') { next(); return -parseFactor(); }
+      if (t === '(') { next(); const v = parseExpr(); if (peek() === ')') next(); return v; }
+      next(); return parseFloat(t);
+    }
+    const result = parseExpr();
+    return pos === tokens.length ? result : NaN;   // nespotřebované tokeny = chyba
+  }
+
   function evalParam(expr, params) {
     try {
       let expanded = expr.replace(/R(\d+)/gi, (_, id) => {
@@ -916,7 +951,7 @@ export function openCamEditor(initialCode, jumpLine) {
         return params.has(key) ? params.get(key) : 0;
       });
       if (!/^[0-9.+\-*/() ]+$/.test(expanded)) return NaN;
-      return Number(Function('"use strict";return (' + expanded + ')')());
+      return safeEvalArith(expanded);
     } catch { return NaN; }
   }
 
@@ -928,24 +963,24 @@ export function openCamEditor(initialCode, jumpLine) {
     return pm;
   }
 
-  function updateConvButtons() {
-    const ab = $('convAbsBtn'), ib = $('convIncBtn');
-    if (!ab || !ib) return;
-    ab.classList.toggle('cne-conv-active', activeConversion === 'ABS');
-    ib.classList.toggle('cne-conv-active', activeConversion === 'INC');
-    ab.disabled = activeConversion === 'INC';
-    ib.disabled = activeConversion === 'ABS';
+  function updateModeBtn() {
+    const b = $('convModeBtn');
+    if (b) {
+      b.textContent = coordMode === 'abs' ? 'G90' : 'G91';
+      b.classList.toggle('cne-conv-active', coordMode === 'inc');
+      b.title = coordMode === 'abs'
+        ? 'Režim G90 (absolutní) – klikni pro přepočet na G91 (přírůstkové)'
+        : 'Režim G91 (přírůstkové) – klikni pro návrat na G90 (absolutní)';
+    }
+    const mi = $('convModeMenuIcon');
+    if (mi) mi.textContent = coordMode === 'abs' ? 'G90' : 'G91';
   }
 
-  function convertToAbsolute() {
-    if (activeConversion === 'ABS') {
-      editor.value = originalCode;
-      activeConversion = null;
-      onInput(); updateConvButtons(); return;
-    }
-    if (activeConversion) return;
-    originalCode = editor.value;
-    const lines = editor.value.split('\n');
+  // Přepočet přírůstkového kódu (G91) zpět na absolutní (G90).
+  // Podle markerů G90/G91 v textu se sleduje režim, dopočítá absolutní
+  // poloha a souřadnice se přepíší absolutně; každý G91 se nahradí G90.
+  function codeToAbsolute(code) {
+    const lines = code.split('\n');
     const newLines = [];
     let x = 0, z = 0, mode = 90;
     const params = getParamContext();
@@ -957,6 +992,9 @@ export function openCamEditor(initialCode, jumpLine) {
       if (am) am.forEach(a => { const p = a.split('='); const n = parseInt(p[0].replace('R','')); const v = evalParam(p[1], params); if (!isNaN(v)) params.set(`R${n}`, v); });
       if (clean.includes('G90')) mode = 90;
       if (clean.includes('G91')) mode = 91;
+      // Referenční / pevné body (G74/G75) nesou jen zástupné X0/Z0 – nejsou to
+      // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
+      if (/\bG7[45]\b/.test(clean)) { newLines.push(line); continue; }
       let mod = line;
       if (/[XZ]/.test(clean)) {
         mod = mod.replace(/([XZ])\s*(=?)\s*([^\s;]+)/gi, (m, ax, eq, vs) => {
@@ -970,20 +1008,14 @@ export function openCamEditor(initialCode, jumpLine) {
       if (mode === 91) mod = mod.replace(/\bG91\b/gi, 'G90');
       newLines.push(mod);
     }
-    editor.value = newLines.join('\n');
-    activeConversion = 'ABS';
-    onInput(); updateConvButtons();
+    return newLines.join('\n');
   }
 
-  function convertToIncremental() {
-    if (activeConversion === 'INC') {
-      editor.value = originalCode;
-      activeConversion = null;
-      onInput(); updateConvButtons(); return;
-    }
-    if (activeConversion) return;
-    originalCode = editor.value;
-    const lines = editor.value.split('\n');
+  // Přepočet absolutního kódu (G90) na přírůstkový (G91).
+  // Nájezd (první pohyb v dané ose) zůstává absolutní v G90, navazující
+  // pohyby jsou přírůstkové v G91 – stejně jako CNC export v CAD.
+  function codeToIncremental(code) {
+    const lines = code.split('\n');
     const newLines = [];
     let x = 0, z = 0, curMode = 90, initX = false, initZ = false;
     const params = getParamContext();
@@ -995,6 +1027,9 @@ export function openCamEditor(initialCode, jumpLine) {
       if (am) am.forEach(a => { const p = a.split('='); const n = parseInt(p[0].replace('R','')); const v = evalParam(p[1], params); if (!isNaN(v)) params.set(`R${n}`, v); });
       if (clean.includes('G90')) curMode = 90;
       if (clean.includes('G91')) curMode = 91;
+      // Referenční / pevné body (G74/G75) nesou jen zástupné X0/Z0 – nejsou to
+      // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
+      if (/\bG7[45]\b/.test(clean)) { newLines.push(line); continue; }
       const hasX = /X/i.test(clean), hasZ = /Z/i.test(clean);
       if (!hasX && !hasZ) { newLines.push(line); continue; }
       let tgt = 91;
@@ -1015,9 +1050,17 @@ export function openCamEditor(initialCode, jumpLine) {
       else mod = `${newG} ` + mod.trim();
       newLines.push(mod);
     }
-    editor.value = newLines.join('\n');
-    activeConversion = 'INC';
-    onInput(); updateConvButtons();
+    return newLines.join('\n');
+  }
+
+  // Jedno tlačítko G90/G91 – přepne režim a přepočítá souřadnice v editoru.
+  function toggleCoordMode() {
+    editor.value = coordMode === 'abs'
+      ? codeToIncremental(editor.value)
+      : codeToAbsolute(editor.value);
+    coordMode = coordMode === 'abs' ? 'inc' : 'abs';
+    onInput();
+    updateModeBtn();
   }
 
   // ── Renumbering ───────────────────────────────────────────
@@ -1061,6 +1104,17 @@ export function openCamEditor(initialCode, jumpLine) {
   // editace povolit a klávesnice rovnou otevřít.
   editor.addEventListener('pointerdown', () => { editor.readOnly = false; });
 
+  // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
+  // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
+  // do textu. preventDefault na mousedown ponechá fokus i caret v editoru;
+  // samotný klik (a tím i akce) proběhne dál.
+  const quickbar = root.querySelector('.cne-quickbar');
+  if (quickbar) {
+    quickbar.addEventListener('mousedown', e => {
+      if (e.target.closest('button')) e.preventDefault();
+    });
+  }
+
   // Delegated clicks
   root.addEventListener('click', e => {
     // Actions
@@ -1091,8 +1145,7 @@ export function openCamEditor(initialCode, jumpLine) {
           if (codeBeforeRenum) { editor.value = codeBeforeRenum; codeBeforeRenum = ''; onInput(); }
           $('renumModal').style.display = 'none';
           break;
-        case 'convAbs':   convertToAbsolute(); closeMenu(); break;
-        case 'convInc':   convertToIncremental(); closeMenu(); break;
+        case 'convMode':  toggleCoordMode(); closeMenu(); break;
         case 'header':    showHeaderSettings(); closeMenu(); break;
         case 'hdrClose':  readHeaderInputs(); persistHdr(); hdrModal.style.display = 'none'; break;
         case 'hdrApply':  applyHeader(); break;
@@ -1101,8 +1154,21 @@ export function openCamEditor(initialCode, jumpLine) {
         case 'keyboard':  editor.readOnly = false; editor.focus(); break;
         case 'menu':      $('menuModal').style.display = 'flex'; break;
         case 'menuClose': $('menuModal').style.display = 'none'; break;
-        case 'cam':       persist(); overlay.remove(); openCamSimulator(editor.value); break;
-        case 'close':     persist(); overlay.remove(); break;
+        case 'cam': {
+          // Přenes upravenou dráhu zpět do CAM simulátoru (odkud se kód bral).
+          // Simulátor čte souřadnice absolutně, takže přírůstkový režim (G91)
+          // před odesláním přepočítáme zpět na G90.
+          if (coordMode === 'inc') { editor.value = codeToAbsolute(editor.value); coordMode = 'abs'; onInput(); }
+          persist();
+          const code = editor.value;
+          overlay.remove();
+          // Pokud zůstal otevřený simulátor (z „Odeslat do CAM editoru"), zavři ho,
+          // aby ho šlo znovu vytvořit s přenesenou dráhou (jinak by makeOverlay
+          // vrátil null a kód by se nepřenesl).
+          document.querySelector('.calc-overlay[data-type="cam-simulator"]')?.remove();
+          openCamSimulator(undefined, code);
+          break;
+        }
         case 'numCancel': numModal.style.display = 'none'; break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
