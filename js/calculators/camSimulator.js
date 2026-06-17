@@ -1697,14 +1697,15 @@ export function openCamSimulator(initialContour) {
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
       <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
       <button data-act="delpt" title="Odebrat bod">➖</button>
-      <button data-act="lock" title="Zamknout/odemknout body" class="cam-sim-active">🔒</button>
+      <button data-act="edit-contour" title="Kontura: táhněte body kontury (i polotovaru) pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
+      <button data-act="edit-paths" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
       <button data-act="fit" title="Centrovat">🎯</button>
       <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
-      <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (odemkněte 🔓)">⊢ Prodl</button>
-      <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (odemkněte 🔓)">⊣ Ořez</button>
+      <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (zapněte ✥ Dráhy)">⊢ Prodl</button>
+      <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (zapněte ✥ Dráhy)">⊣ Ořez</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
       <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
@@ -1915,6 +1916,7 @@ export function openCamSimulator(initialContour) {
     past: [], future: [],
     draggedPointId: null, hoverPointId: null,
     isDragging: false, addPointMode: false, pointDragEnabled: false,
+    gcodeEditEnabled: false,   // úprava drah (G-kód) – nezávislá na pointDragEnabled
     snapEnabled: true,   // SNAP přichytávání zapnuté hned po načtení
     // Trasování profilu (klikací nástroj) — body, segmenty a náhled výsledné kontury
     profileTraceMode: false,
@@ -4909,7 +4911,7 @@ export function openCamSimulator(initialContour) {
       <button data-edit="stock" class="${isStock ? 'cam-sim-active' : ''}">📦 Polotovar</button>
     </div>`;
     if (isCylStock) {
-      html += `<div class="cam-sim-info-box">Potáhněte body na canvasu pro změnu rozměrů válce. Odemkněte body tlačítkem 🔒.</div>
+      html += `<div class="cam-sim-info-box">Potáhněte úchopy na canvasu pro změnu rozměrů válce. Zapněte tlačítko ◆ Kontura.</div>
       <div class="cam-sim-row"><div class="cam-sim-field"><label>Průměr (D)</label><input type="number" data-cylp="stockDiameter" value="${S.params.stockDiameter}"></div>
       <div class="cam-sim-field"><label>Délka</label><input type="number" data-cylp="stockLength" value="${S.params.stockLength}"></div></div>
       <div class="cam-sim-row"><div class="cam-sim-field"><label>Přídavek čelo</label><input type="number" data-cylp="stockFace" value="${S.params.stockFace}"></div>
@@ -6021,22 +6023,36 @@ export function openCamSimulator(initialContour) {
       // Při náhledu = zrušit náhled; jinak (profil už použitý) = smazat profil.
       if (S._previewContour) _cancelPreviewContour();
       else _deleteProfile();
-    } else if (act === 'lock') {
-      // Sjednocené odemčení: úprava tvaru (body kontury) I drah (G-kód).
+    } else if (act === 'edit-contour') {
+      // Kontura: tažení bodů kontury. Vzájemně se vylučuje s úpravou drah.
       S.pointDragEnabled = !S.pointDragEnabled;
-      S.gcodeEditEnabled = S.pointDragEnabled;
-      btn.textContent = S.pointDragEnabled ? '🔓' : '🔒';
-      btn.classList.toggle('cam-sim-active', !S.pointDragEnabled);
+      if (S.pointDragEnabled) {
+        S.gcodeEditEnabled = false;
+        S.hoverGNode = null; S.hoverGSeg = null;
+        S.gExtendMode = false; S.gTrimMode = false;
+        toolbar.querySelector('[data-act="edit-paths"]')?.classList.remove('cam-sim-active');
+        toolbar.querySelector('[data-act="gextend"]')?.classList.remove('cam-sim-active');
+        toolbar.querySelector('[data-act="gtrim"]')?.classList.remove('cam-sim-active');
+        showToast('Kontura: táhněte body kontury pro změnu jejich polohy');
+      }
+      btn.classList.toggle('cam-sim-active', S.pointDragEnabled);
+      draw();
+    } else if (act === 'edit-paths') {
+      // Dráhy: úprava G-kódu. Vzájemně se vylučuje s úpravou kontury.
+      S.gcodeEditEnabled = !S.gcodeEditEnabled;
       if (S.gcodeEditEnabled) {
+        S.pointDragEnabled = false;
+        toolbar.querySelector('[data-act="edit-contour"]')?.classList.remove('cam-sim-active');
         if (S.showSimPath === 'none') S.showSimPath = 'all';   // ať jdou dráhy uchopit
-        showToast('Odemčeno: táhněte body kontury i dráhy (G-kód); ➕/➖ na dráze přidá/smaže pohyb');
+        showToast('Dráhy: táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb');
       } else {
         S.hoverGNode = null; S.hoverGSeg = null; S._gcodeFocusLine = null;
-        // při zamčení vypnout i režimy prodloužit/oříznout
+        // při vypnutí vypnout i režimy prodloužit/oříznout
         S.gExtendMode = false; S.gTrimMode = false;
         toolbar.querySelector('[data-act="gextend"]')?.classList.remove('cam-sim-active');
         toolbar.querySelector('[data-act="gtrim"]')?.classList.remove('cam-sim-active');
       }
+      btn.classList.toggle('cam-sim-active', S.gcodeEditEnabled);
       draw();
     } else if (act === 'fit') {
       fitView();
@@ -6121,7 +6137,7 @@ export function openCamSimulator(initialContour) {
       toolbar.querySelector('[data-act="gtrim"]').classList.toggle('cam-sim-active', S.gTrimMode);
       if (on && !S.gcodeEditEnabled) {
         // Pro úpravu drah je potřeba odemčeno (= editace drah zapnutá).
-        showToast('Nejdřív odemkněte 🔓 (úprava drah), pak klikněte na koncový bod');
+        showToast('Nejdřív zapněte ✥ Dráhy, pak klikněte na koncový bod');
       } else if (on) {
         showToast(act === 'gextend'
           ? 'Prodloužit: klikněte na koncový bod úsečky (protáhne se k průsečíku)'
