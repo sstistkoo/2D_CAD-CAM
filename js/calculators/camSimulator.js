@@ -1697,7 +1697,7 @@ export function openCamSimulator(initialContour) {
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
       <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
       <button data-act="delpt" title="Odebrat bod">➖</button>
-      <button data-act="edit-contour" title="Kontura: táhněte body kontury (i polotovaru) pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
+      <button data-act="edit-contour" title="Kontura: táhněte body kontury pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
       <button data-act="edit-paths" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
       <button data-act="fit" title="Centrovat">🎯</button>
       <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
@@ -2150,12 +2150,43 @@ export function openCamSimulator(initialContour) {
   }
 
   // ── CALCULATED DATA (memoized) ──
-  function calculate() {
+  function calculate(lightOnly = false) {
     const prms = S.params;
     const absContour = resolvePointsToAbsolute(S.contourPoints);
     const absStock = resolvePointsToAbsolute(S.stockPoints);
     const worldPoints = absContour.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
     const stockWorldPoints = absStock.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
+
+    // Lehký přepočet pro PLYNULÉ tažení bodů: spočítá jen body kontury/
+    // polotovaru (z nich draw() kreslí konturu) + obrys polotovaru. Dráhy/
+    // offsety/hrubování/simulace se NEpočítají — to je drahé a přepočítá se
+    // až po puštění myši. Dráhy zůstanou vidět (jen se neaktualizují živě).
+    if (lightOnly) {
+      const stockPathSegments = [];
+      for (let i = 0; i < stockWorldPoints.length - 1; i++) {
+        const p1 = stockWorldPoints[i], p2 = stockWorldPoints[i + 1], type = p2.type;
+        if (type === 'G1') {
+          stockPathSegments.push({ type: 'line', p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal } });
+        } else if (type === 'G2' || type === 'G3') {
+          const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, type);
+          const startAngle = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+          const endAngle = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+          stockPathSegments.push({ type: 'arc', ...arc, dir: type, startAngle, endAngle });
+        }
+      }
+      let stockTopX = (parseFloat(prms.stockDiameter) || 0) / 2;
+      if (prms.stockMode === 'casting' && stockWorldPoints.length > 0) {
+        stockTopX = -9999;
+        stockWorldPoints.forEach(p => { if (p.xReal > stockTopX) stockTopX = p.xReal; });
+      }
+      return {
+        worldPoints, stockWorldPoints, contourSegments: [], machinableContour: null,
+        offsetPath: [], finishOffsetPath: [], finishUnreachablePath: [], stockPathSegments,
+        passes: [], simPath: [], retractDist: parseFloat(prms.retractDistance) || 2.0,
+        totalPathLength: 0, estimatedTimeSeconds: 0,
+        interferenceSegments: [], interferenceGuides: [], stockTopX,
+      };
+    }
 
     const tipR = parseFloat(prms.toolRadius) || 0;
     const allowanceX = parseFloat(prms.allowanceX) || 0;
@@ -3174,6 +3205,27 @@ export function openCamSimulator(initialContour) {
         ctx.fillText(String(i + 1), pt.x, pt.y + 0.5);
       });
     }
+  }
+
+  // ── rAF SLUČOVAČ ──────────────────────────────────────────────
+  // Při tažení/posunu generuje myš 100+ událostí za sekundu a každá by jinak
+  // spustila celý přepočet + překreslení. scheduleFrame() sloučí práci do max.
+  // JEDNOHO běhu za snímek (~60 fps) — provede se jen poslední naplánovaná
+  // funkce. flushFrame() vynutí okamžité dokončení (na konci tažení).
+  let _rafId = null, _rafFn = null;
+  function scheduleFrame(fn) {
+    _rafFn = fn;                       // ponech jen poslední požadavek
+    if (_rafId !== null) return;
+    _rafId = requestAnimationFrame(() => {
+      _rafId = null;
+      const f = _rafFn; _rafFn = null;
+      if (f) f();
+    });
+  }
+  function flushFrame() {
+    if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; }
+    const f = _rafFn; _rafFn = null;
+    if (f) f();
   }
 
   // ── CANVAS DRAWING ────────────────────────────────────────────
@@ -4200,10 +4252,17 @@ export function openCamSimulator(initialContour) {
       lines[ed.lineIdx] = line;
     }
     S.manualGCode = lines.join('\n');
-    S._cachedCalc = calculate();
-    S.generatedCode = generateGCode(S._cachedCalc);
-    renderCodeArea(); renderCodeBackdrop(); updateCodeHighlight();
-    draw();
+    // Během tažení uzlu/úsečky (Dráhy) sloučit přepočet+překreslení do jednoho
+    // snímku a NEpřekreslovat G-kód panel (přestavba DOM podkladu + zvýraznění
+    // je drahá a běžela by na každý snímek) — panel se obnoví až po puštění
+    // (handleMouseUp). Mimo tažení (klik Prodl/Ořez) provést rovnou.
+    const commit = () => {
+      S._cachedCalc = calculate();
+      S.generatedCode = generateGCode(S._cachedCalc);
+      if (!S.isDragging) renderCodeArea();   // renderCodeArea volá i backdrop+highlight
+      draw();
+    };
+    if (S.isDragging) scheduleFrame(commit); else commit();
   }
   function writeGLine(lineIdx, wx, wz) { writeGLines([{ lineIdx, wx, wz }]); }
 
@@ -6739,7 +6798,7 @@ export function openCamSimulator(initialContour) {
     S.view.panX = mx - (mx - S.view.panX) * (newScale / oldScale);
     S.view.panY = my - (my - S.view.panY) * (newScale / oldScale);
     S.view.scale = newScale;
-    draw();
+    scheduleFrame(draw);   // zoom kolečkem: sloučit překreslení do snímku
   }, { passive: false });
 
   let lastMousePos = { x: 0, y: 0 };
@@ -7091,18 +7150,20 @@ export function openCamSimulator(initialContour) {
       }
     }
 
-    const zHover = getZLimitAt(e.clientX, e.clientY);
-    const stockHover = S.pointDragEnabled ? getStockHandleAt(e.clientX, e.clientY) : null;
-    const pointIdx = getPointAt(e.clientX, e.clientY);
-    if (S.addPointMode) {
-      const found = getAnyPointAt(e.clientX, e.clientY);
-      canvas.style.cursor = found ? 'pointer'
-        : (getGuideEndpointAt(e.clientX, e.clientY) || getArcSegmentAt(e.clientX, e.clientY)) ? 'pointer' : 'copy';
-      const newId = found ? found.idx : null, newIsStock = !!(found && found.isStock);
-      if (S.hoverPointId !== newId || S._hoverIsStock !== newIsStock) { S.hoverPointId = newId; S._hoverIsStock = newIsStock; draw(); }
-      return;
-    }
+    // Hit-testing (hover/kurzor) JEN když netáhneme — během tažení se nad
+    // ničím nepřejíždí, tak veškeré hledání bodů/úchopů/limitů přeskočíme.
     if (!S.isDragging) {
+      const zHover = getZLimitAt(e.clientX, e.clientY);
+      const stockHover = S.pointDragEnabled ? getStockHandleAt(e.clientX, e.clientY) : null;
+      const pointIdx = getPointAt(e.clientX, e.clientY);
+      if (S.addPointMode) {
+        const found = getAnyPointAt(e.clientX, e.clientY);
+        canvas.style.cursor = found ? 'pointer'
+          : (getGuideEndpointAt(e.clientX, e.clientY) || getArcSegmentAt(e.clientX, e.clientY)) ? 'pointer' : 'copy';
+        const newId = found ? found.idx : null, newIsStock = !!(found && found.isStock);
+        if (S.hoverPointId !== newId || S._hoverIsStock !== newIsStock) { S.hoverPointId = newId; S._hoverIsStock = newIsStock; draw(); }
+        return;
+      }
       if (zHover !== null) {
         canvas.style.cursor = S.params.machineStructure === 'carousel' ? 'ns-resize' : 'ew-resize';
         return;
@@ -7126,7 +7187,7 @@ export function openCamSimulator(initialContour) {
       const dZ = S.params.machineStructure === 'carousel' ? (vS * dy / S.view.scale) : (dx / S.view.scale);
       const cur = parseFloat(S.zLimits[S.draggedLimit]) || 0;
       S.zLimits[S.draggedLimit] = Math.round((cur + dZ) * 100) / 100;
-      draw();
+      scheduleFrame(draw);   // tažení z-limitu: sloučit překreslení do snímku
       return;
     }
     if (_draggingStock && S.draggedPointId !== null) {
@@ -7142,9 +7203,10 @@ export function openCamSimulator(initialContour) {
         S.params.stockLength = Math.max(1, Math.round((parseFloat(S.params.stockLength) - rawDZ) * 100) / 100);
       }
       S.params.stockDiameter = Math.round(S.params.stockDiameter * 100) / 100;
-      S._cachedCalc = calculate();
-      S.generatedCode = generateGCode(S._cachedCalc);
-      draw();
+      // Během tažení jen lehký náhled (body + kontura) — plynulé i u složité
+      // kontury. Plný přepočet drah proběhne po puštění (handleMouseUp); dráhy
+      // se po dobu tažení skryjí a po puštění se zase ukážou.
+      scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
     } else if (S.draggedPointId !== null) {
       let dX_unit = 0, dZ_unit = 0;
       const vS = S.flipX ? 1 : -1;
@@ -7193,16 +7255,20 @@ export function openCamSimulator(initialContour) {
         }
       }
 
-      S._cachedCalc = calculate();
-      S.generatedCode = generateGCode(S._cachedCalc);
-      draw();
+      // Během tažení jen lehký náhled (body + kontura) — plynulé i u složité
+      // kontury. Plný přepočet drah proběhne po puštění (handleMouseUp); dráhy
+      // se po dobu tažení skryjí a po puštění se zase ukážou.
+      scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
     } else {
       S.view.panX += dx; S.view.panY += dy;
-      draw();
+      scheduleFrame(draw);   // posun pohledu: sloučit překreslení do snímku
     }
   });
 
   const handleMouseUp = () => {
+    // Dokončit případný odložený snímek z tažení SYNCHRONNĚ, aby níže navazující
+    // přepočet/saveState/render pracovaly s finálním stavem.
+    flushFrame();
     // Rect selection completion
     if (S.rectSelecting) {
       if (S.rectStart && S.rectEnd) {
@@ -7271,6 +7337,10 @@ export function openCamSimulator(initialContour) {
     // Clear snap lines on release
     S.snapLines = [];
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock)) {
+      // Po puštění TEĎ jednou přepočítat kompletní dráhy z nové polohy bodů
+      // (během tažení běžel jen lehký náhled) → dráhy se zase ukážou.
+      S._cachedCalc = calculate();
+      S.generatedCode = generateGCode(S._cachedCalc);
       saveState(); renderCodeArea(); renderTab();
     }
     if (S.draggedLimit) {
@@ -7281,6 +7351,9 @@ export function openCamSimulator(initialContour) {
     }
     // Dokončení úpravy drahy / konstrukční čáry – uložit a obnovit panely.
     if (S.draggedGNode || S._draggedGSeg || S._draggedGuideEnd) {
+      // Po dotažení dráhy obnovit G-kód panel (během tažení se kvůli výkonu
+      // nepřekresloval). flushFrame() výše už přepočítal _cachedCalc/manualGCode.
+      renderCodeArea();
       saveState(); renderTab(); updateUndoRedoBtns();
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null;
@@ -7499,9 +7572,8 @@ export function openCamSimulator(initialContour) {
           S.params.stockLength = Math.max(1, Math.round((parseFloat(S.params.stockLength) - rawDZ) * 100) / 100);
         }
         S.params.stockDiameter = Math.round(S.params.stockDiameter * 100) / 100;
-        S._cachedCalc = calculate();
-        S.generatedCode = generateGCode(S._cachedCalc);
-        draw();
+        // Tažení (touch): jen lehký náhled, plný přepočet až po puštění.
+        scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
       } else if (S.draggedPointId !== null) {
         let dX_unit = 0, dZ_unit = 0;
         const vS = S.flipX ? 1 : -1;
@@ -7550,12 +7622,11 @@ export function openCamSimulator(initialContour) {
           }
         }
 
-        S._cachedCalc = calculate();
-        S.generatedCode = generateGCode(S._cachedCalc);
-        draw();
+        // Tažení (touch): jen lehký náhled, plný přepočet až po puštění.
+        scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
       } else {
         S.view.panX += dx; S.view.panY += dy;
-        draw();
+        scheduleFrame(draw);   // posun pohledu (touch): sloučit do snímku
       }
     }
     if (e.touches.length === 2 && lastPinchDist) {
@@ -7570,7 +7641,7 @@ export function openCamSimulator(initialContour) {
       S.view.panY = my - (my - S.view.panY) * (newScale / oldScale);
       S.view.scale = newScale;
       lastPinchDist = dist;
-      draw();
+      scheduleFrame(draw);   // pinch zoom: sloučit překreslení do snímku
     }
   }, { passive: true });
 
@@ -7621,8 +7692,13 @@ export function openCamSimulator(initialContour) {
       camTouch = null; lastPinchDist = null;
       return;
     }
+    flushFrame();   // dokončit odložený snímek z tažení před uložením stavu
     S.snapLines = [];
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock)) {
+      // Po puštění TEĎ jednou přepočítat kompletní dráhy z nové polohy bodů
+      // (během tažení běžel jen lehký náhled) → dráhy se zase ukážou.
+      S._cachedCalc = calculate();
+      S.generatedCode = generateGCode(S._cachedCalc);
       saveState(); renderCodeArea(); renderTab();
     }
     if (S.draggedLimit) {
