@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast } from '../state.js';
-import { bulgeToArc } from '../utils.js';
+import { bulgeToArc, getNearestPointOnObject, isAngleBetween, getRectCorners } from '../utils.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
@@ -42,6 +42,79 @@ function extractSegmentConstraint(obj, segIdx) {
     return arc ? { type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r } : null;
   }
   return null;
+}
+
+// ── Koncové body objektu (pro detekci propojení s výkresem) ──
+function objectEndpoints(o) {
+  switch (o.type) {
+    case 'point': return [{ x: o.x, y: o.y }];
+    case 'line': case 'constr': return [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }];
+    case 'arc': return [
+      { x: o.cx + o.r * Math.cos(o.startAngle), y: o.cy + o.r * Math.sin(o.startAngle) },
+      { x: o.cx + o.r * Math.cos(o.endAngle),   y: o.cy + o.r * Math.sin(o.endAngle) },
+    ];
+    case 'rect': return getRectCorners(o);
+    case 'polyline': return (o.vertices || []).map(v => ({ x: v.x, y: v.y }));
+    default: return []; // kružnice nemá koncové body
+  }
+}
+
+// ── Je objekt součástí výkresu? ──
+// Vrací true, když se na obrysu objektu nachází koncový bod jiného objektu
+// (napojení v kontuře / bod položený na kružnici) NEBO když některý vlastní
+// koncový bod leží na jiném objektu. Takový objekt se při tečnosti nehýbe.
+function isPartOfDrawing(idx) {
+  const obj = state.objects[idx];
+  if (!obj) return false;
+  const TOL = 1e-2;
+  const skip = o => !o || o.isDimension || o.isCoordLabel || o.type === 'text' || o.type === 'camNote';
+  // 1) koncový bod jiného objektu leží na našem obrysu
+  for (let j = 0; j < state.objects.length; j++) {
+    if (j === idx) continue;
+    const o = state.objects[j];
+    if (skip(o)) continue;
+    for (const ep of objectEndpoints(o)) {
+      const near = getNearestPointOnObject(obj, ep.x, ep.y);
+      if (near && near.dist < TOL) return true;
+    }
+  }
+  // 2) náš koncový bod leží na jiném objektu (obloukové konce v kontuře)
+  for (const ep of objectEndpoints(obj)) {
+    for (let j = 0; j < state.objects.length; j++) {
+      if (j === idx) continue;
+      const o = state.objects[j];
+      if (skip(o) || o.type === 'point') continue;
+      const near = getNearestPointOnObject(o, ep.x, ep.y);
+      if (near && near.dist < TOL) return true;
+    }
+  }
+  return false;
+}
+
+// ── Posun přímky (zachová směr i délku) tak, aby byla tečná ke kružnici/oblouku ──
+// Vrací {nx, ny, k} = jednotková normála a posun po normále, nebo null.
+function lineTangentToCircleShift(lineObj, circObj) {
+  const dx = lineObj.x2 - lineObj.x1, dy = lineObj.y2 - lineObj.y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return null;
+  const nx = -dy / len, ny = dx / len;                                   // normála přímky
+  const s = (circObj.cx - lineObj.x1) * nx + (circObj.cy - lineObj.y1) * ny; // znaménková vzdálenost středu
+  // Dvě tečné polohy: posun normálou o k tak, aby vzdálenost byla ±r.
+  const cand = [
+    { k: s - circObj.r, tx: circObj.cx - nx * circObj.r, ty: circObj.cy - ny * circObj.r },
+    { k: s + circObj.r, tx: circObj.cx + nx * circObj.r, ty: circObj.cy + ny * circObj.r },
+  ];
+  // U oblouku preferovat stranu, kde tečný bod skutečně leží na oblouku.
+  if (circObj.type === 'arc') {
+    const onArc = c => isAngleBetween(
+      Math.atan2(c.ty - circObj.cy, c.tx - circObj.cx),
+      circObj.startAngle, circObj.endAngle, circObj.ccw);
+    const inSpan = cand.filter(onArc);
+    if (inSpan.length === 1) return { nx, ny, k: inSpan[0].k };
+  }
+  // Jinak rozhoduje nejmenší pohyb (přisunout na bližší stranu).
+  const best = Math.abs(cand[0].k) <= Math.abs(cand[1].k) ? cand[0] : cand[1];
+  return { nx, ny, k: best.k };
 }
 
 // ── Vypočítá pozice kružnice tečné k jednomu segmentu (zachová r) ──
@@ -336,6 +409,24 @@ export function tangentFromSelection() {
         showToast(`Vytvořeno ${indices.length} tečn ✓`);
       });
       return true;
+    }
+
+    // Kružnice/oblouk je součástí výkresu a úsečka je volná (samostatný objekt,
+    // nepropojený s ničím) → místo přesunu kružnice přisuneme úsečku ke kružnici.
+    // (Zachová se směr i délka úsečky.)
+    if (lines.length === 1 && lines[0].segIdx == null && points.length === 0 && otherCircles.length === 0) {
+      const lineObj = state.objects[lines[0].idx];
+      const isLineObj = lineObj && (lineObj.type === 'line' || lineObj.type === 'constr');
+      if (isLineObj && isPartOfDrawing(circles[0].idx) && !isPartOfDrawing(lines[0].idx)) {
+        const shift = lineTangentToCircleShift(lineObj, circObj);
+        if (!shift) { showToast("Tečnou polohu úsečky nelze najít"); return true; }
+        pushUndo();
+        lineObj.x1 += shift.nx * shift.k; lineObj.y1 += shift.ny * shift.k;
+        lineObj.x2 += shift.nx * shift.k; lineObj.y2 += shift.ny * shift.k;
+        calculateAllIntersections(); renderAll();
+        showToast("Úsečka přisunuta tečně ke kružnici/oblouku ✓");
+        return true;
+      }
     }
 
     // 1 segment (úsečka nebo kružnice/oblouk)
