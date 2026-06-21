@@ -1415,6 +1415,46 @@ function resolvePointsToAbsolute(pts) {
   });
 }
 
+// ── Složení oboustranné kontury na jednu stranu ────────────────
+// Soustružnická kontura je JEDNOSTRANNÁ (profil poloměru, jen jedna strana
+// osy rotace). Když uživatel v CADu nakreslí CELÝ obrys (vrch i zrcadlený
+// spodek), kontura střídá +X a −X úseky přes osu (každá entita je v exportu
+// uvozena G0 na svůj počátek, pak přijde její zrcadlo). CAM by jinak offsetoval
+// a obráběl i spodní (zrcadlenou) půlku → dráhy v materiálu, přejezdy pod osu
+// a falešné offsetové oblouky ze záporných X.
+//
+// Funkce takovou oboustrannou konturu složí na stranu polotovaru: body na
+// opačné straně osy zahodí. Protože každá +X entita je uvozena G0 na svůj
+// počátek, po odstranění −X bodů zůstane plně navázaný jednostranný profil.
+// Jednostranné kontury (běžný případ) vrací beze změny.
+function foldContourToMachiningSide(points, stockPoints) {
+  const eps = 0.01;
+  let hasPos = false, hasNeg = false;
+  for (const p of points) {
+    if (p.xReal > eps) hasPos = true;
+    else if (p.xReal < -eps) hasNeg = true;
+  }
+  if (!(hasPos && hasNeg)) return points; // jednostranná → beze změny
+
+  // Strana obrábění = strana osy, kde leží polotovar (jinak strana kontury
+  // s největším dosahem od osy).
+  let machSign = 0, maxAbs = 0;
+  for (const p of (stockPoints || [])) {
+    if (Math.abs(p.xReal) > maxAbs) { maxAbs = Math.abs(p.xReal); machSign = Math.sign(p.xReal); }
+  }
+  if (machSign === 0) {
+    maxAbs = 0;
+    for (const p of points) {
+      if (Math.abs(p.xReal) > maxAbs) { maxAbs = Math.abs(p.xReal); machSign = Math.sign(p.xReal); }
+    }
+  }
+  if (machSign === 0) machSign = 1;
+
+  // Ponech body na ose (X≈0) i na straně obrábění; zahoď zrcadlo za osou.
+  const kept = points.filter(p => p.xReal * machSign >= -eps);
+  return kept.length >= 2 ? kept : points;
+}
+
 // ── G-code parser (manual code → sim path) ─────────────────────
 function parseManualGCodeToPath(code, prms) {
   const lines = code.split('\n');
@@ -2161,8 +2201,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     const prms = S.params;
     const absContour = resolvePointsToAbsolute(S.contourPoints);
     const absStock = resolvePointsToAbsolute(S.stockPoints);
-    const worldPoints = absContour.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
+    let worldPoints = absContour.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
     const stockWorldPoints = absStock.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
+    // Oboustranně nakreslenou konturu (vrch i zrcadlený spodek) složit na stranu
+    // polotovaru — jinak by se offsetovala a obráběla i zrcadlená −X půlka.
+    worldPoints = foldContourToMachiningSide(worldPoints, stockWorldPoints);
 
     // Lehký přepočet pro PLYNULÉ tažení bodů: spočítá jen body kontury/
     // polotovaru (z nich draw() kreslí konturu) + obrys polotovaru. Dráhy/
