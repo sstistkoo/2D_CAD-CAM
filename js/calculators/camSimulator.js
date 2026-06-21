@@ -721,10 +721,89 @@ function _locateOnContour(result, pt) {
 // G1 úsečkou; sousední/rozdělený oblouk se zkrátí a pokračuje dál stejným
 // tvarem. Funguje i když oba konce leží na TÉŽE entitě (rozdělení oblouku).
 // Mostové úseky dostanou fromInsert=true (jiná barva, jinak normální G1).
+// Drážka/kapsa ohraničená DVĚMA mezními čarami (zanoření na vjezdu + dojezd
+// na výjezdu) — nahradit „V" v PRŮSEČÍKU obou čar: dolů po jedné dosažitelné
+// hraně do dna V, nahoru po druhé ven k otevřenému rohu. Bez tohoto by se obě
+// čáry zpracovaly samostatně a konfliktovaly (vjezdový most smaže dno, na které
+// se výjezdová čára váže → výjezd se neudělá a dráha skončí dole v kontuře).
+// Vrací { result, consumed:Set indexů spotřebovaných guides }.
+function mergePocketGuides(segs, guides) {
+  let result = segs.map(s => ({ ...s }));
+  const consumed = new Set();
+  // Vrchol kontury (roh) nejblíž bodu pt do tolerance → {segIdx, at, pt}.
+  const vertexNear = (pt) => {
+    let best = null, bestD = 0.3;
+    for (let i = 0; i < result.length; i++) {
+      const s = result[i]; if (s.isDegenerate) continue;
+      const a = segStartPoint(s), b = segEndPoint(s);
+      const da = Math.hypot(pt.x - a.x, pt.z - a.z); if (da < bestD) { bestD = da; best = { segIdx: i, at: 'start', pt: a }; }
+      const db = Math.hypot(pt.x - b.x, pt.z - b.z); if (db < bestD) { bestD = db; best = { segIdx: i, at: 'end', pt: b }; }
+    }
+    return best;
+  };
+  // Rozliší u mezní čáry vrcholový (rohový) konec od „hloubkového" (uvnitř
+  // entity). Vrací null, když je to nejednoznačné (oba/žádný na rohu).
+  const splitGuide = (g) => {
+    const e = [{ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 }];
+    const v0 = vertexNear(e[0]), v1 = vertexNear(e[1]);
+    if (v0 && !v1) return { vtx: v0.pt, deep: e[1], loc: v0 };
+    if (v1 && !v0) return { vtx: v1.pt, deep: e[0], loc: v1 };
+    return null;
+  };
+  const cutIdx = (loc) => loc.at === 'start' ? loc.segIdx : loc.segIdx + 1;
+  for (let zi = 0; zi < guides.length; zi++) {
+    if (consumed.has(zi) || guides[zi].kind !== 'zanoreni') continue;
+    const zg = splitGuide(guides[zi]); if (!zg) continue;
+    for (let di = 0; di < guides.length; di++) {
+      if (consumed.has(di) || di === zi || guides[di].kind !== 'dojezd') continue;
+      const dg = splitGuide(guides[di]); if (!dg) continue;
+      if (Math.hypot(zg.vtx.x - dg.vtx.x, zg.vtx.z - dg.vtx.z) < 0.3) continue;
+      const V = intersectLinesInfinite(zg.vtx, zg.deep, dg.vtx, dg.deep);
+      if (!V) continue;
+      // Dno V musí být hlubší (menší X) než oba otevřené rohy, ne za osou.
+      if (!(V.x < zg.vtx.x - 0.05 && V.x < dg.vtx.x - 0.05) || V.x < -0.01) continue;
+      // Dno V musí ležet UVNITŘ obou mezních čar (mezi rohem a hloubkovým
+      // koncem), ne na jejich dalekém prodloužení — to spolehlivě odmítne
+      // spárování čar ze dvou různých prvků (např. zaoblení + drážka).
+      const paramOf = (P, A, B) => { const dx = B.x - A.x, dz = B.z - A.z, L2 = dx * dx + dz * dz; return L2 < 1e-9 ? 0 : ((P.x - A.x) * dx + (P.z - A.z) * dz) / L2; };
+      const tz = paramOf(V, zg.vtx, zg.deep), td = paramOf(V, dg.vtx, dg.deep);
+      if (tz < -0.2 || tz > 1.3 || td < -0.2 || td > 1.3) continue;
+      // Rohy seřadit podle pozice v kontuře (klíč = segIdx + at).
+      const aFirst = cutIdx(zg.loc) <= cutIdx(dg.loc);
+      const a = aFirst ? zg : dg, b = aFirst ? dg : zg;
+      const i0 = cutIdx(a.loc), i1 = cutIdx(b.loc);
+      if (i1 - i0 < 1) continue;            // mezi rohy nic není
+      // Kontrola, že úsek mezi rohy je RECESS (zapadá dovnitř, ne ven).
+      const openX = Math.min(a.vtx.x, b.vtx.x);
+      let dipsIn = false, bulgesOut = false;
+      for (let k = i0; k < i1; k++) {
+        const s = result[k]; const ax = segStartPoint(s).x, bx = segEndPoint(s).x;
+        if (Math.min(ax, bx) < openX - 0.3) dipsIn = true;
+        if (Math.max(ax, bx) > Math.max(a.vtx.x, b.vtx.x) + 0.3) bulgesOut = true;
+      }
+      if (!dipsIn || bulgesOut) continue;
+      // Nahradit úsek mezi rohy „V": roh A → dno V → roh B (oba fromInsert).
+      const before = result.slice(0, i0);
+      const after = result.slice(i1);
+      result = [...before,
+        { type: 'line', p1: { ...a.vtx }, p2: { x: V.x, z: V.z }, fromInsert: true },
+        { type: 'line', p1: { x: V.x, z: V.z }, p2: { ...b.vtx }, fromInsert: true },
+        ...after];
+      if (after[0]) delete after[0].chainBreak;
+      consumed.add(zi); consumed.add(di);
+      break;
+    }
+  }
+  return { result, consumed };
+}
 function buildMachinableContour(segs, guides) {
   if (!guides || guides.length === 0) return segs;
-  let result = segs.map(s => ({ ...s }));
-  for (const g of guides) {
+  // Nejdřív drážky/kapsy ohraničené dvojicí mezních čar (V), pak jednotlivé.
+  const pocket = mergePocketGuides(segs, guides);
+  let result = pocket.result;
+  for (let gi = 0; gi < guides.length; gi++) {
+    if (pocket.consumed.has(gi)) continue;
+    const g = guides[gi];
     const A = { x: g.x1, z: g.z1 }, B = { x: g.x2, z: g.z2 };
     if (Math.hypot(A.x - B.x, A.z - B.z) < 0.5) continue;
     const lA = _locateOnContour(result, A), lB = _locateOnContour(result, B);
@@ -786,7 +865,8 @@ function buildMachinableContour(segs, guides) {
   // na následující úsek, ať se nepřeruší řetěz.
   for (let k = result.length - 1; k >= 0; k--) {
     const s = result[k];
-    if (s.type === 'line' && Math.hypot(s.p2.x - s.p1.x, s.p2.z - s.p1.z) <= 1e-6) {
+    const sp = segStartPoint(s), ep = segEndPoint(s);
+    if (Math.hypot(ep.x - sp.x, ep.z - sp.z) <= 1e-3) {
       if (s.chainBreak && k + 1 < result.length) result[k + 1].chainBreak = true;
       result.splice(k, 1);
     }
