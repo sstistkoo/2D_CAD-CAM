@@ -4610,4 +4610,5 @@ function showSettingsDialog() {
 
 document.getElementById('btnSettings')?.addEventListener('click', showSettingsDialog);
 document.getElementById('mobileSettings')?.addEventListener('click', showSettingsDialog);
+document.getElementById('desktopSettings')?.addEventListener('click', showSettingsDialog);
 
