@@ -2865,7 +2865,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (S.flipX) addCmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny');
       addN(`G18${note('', 'Rovina ZX')}`); addN(`G90${note('', 'Absolutní programování')}`);
       addN(`G54${note('', 'Posunutí počátku')}`); addN(`G95${note('', 'Posuv na otáčku')}`);
-      addN(`G75 X0${note('', 'Nájezd do ref. bodu')}`); addN(`G75 Z0`);
+      addN(`G75 X${prms.safeX}${note('', 'Nájezd do ref. bodu')}`); addN(`G75 Z${prms.safeZ}`);
       addN(`LIMS=2000${note('', 'Limit otáček')}`);
       addN(`G96 S${prms.speed} ${prms.machineType}${note('', 'Konst. řezná rychlost')}`);
       addN(`${prms.mode === 'DIAMON' ? 'DIAMON' : 'DIAMOF'}${note('', prms.mode === 'DIAMON' ? 'Programování průměru' : 'Programování poloměru')}`);

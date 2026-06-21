@@ -32,7 +32,7 @@ import './dialogs.js';
 // ── Panel toggle via data-panel attributes ──
 document.querySelectorAll('.panel-header[data-panel]').forEach(header => {
   header.addEventListener('click', (e) => {
-    if (e.target.closest('.obj-edit-btn, .cnc-copy-btn')) return;
+    if (e.target.closest('.obj-edit-btn, .cnc-copy-btn, .obj-header-toggle')) return;
     togglePanel(header.dataset.panel);
   });
   header.addEventListener('keydown', (e) => {

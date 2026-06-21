@@ -14,7 +14,7 @@ import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWe
 import { makeOverlay, makeInputOverlay } from './dialogFactory.js';
 import { openAIPanel } from './ai/aiPanel.js';
 import { getMeta, setMeta } from './idb.js';
-import { showEditObjectDialog } from './dialogs/mobileEdit.js';
+import { showEditObjectDialog, showMobileEditDialog } from './dialogs/mobileEdit.js';
 import { isAnchored, removeAnchorsForObject, cleanupOrphanAnchors } from './tools/anchorClick.js';
 
 // ── Bridge registrace (rozbíjí cyklickou závislost geometry ↔ ui) ──
@@ -68,6 +68,44 @@ document.getElementById("sidebar").addEventListener("focus", (e) => {
 }, true);
 
 // ── Seznam objektů ──
+/**
+ * Smaže více objektů najednou (dle indexů) včetně osiřelých kót a kotev.
+ * Volající si sám zajistí pushUndo(). Po smazání se výběr vyresetuje.
+ * @param {number[]} indices
+ */
+function deleteObjectsByIndices(indices) {
+  const sorted = [...new Set(indices)].sort((a, b) => b - a); // sestupně, aby splice neposouval indexy
+  for (const idx of sorted) {
+    const obj = state.objects[idx];
+    if (!obj) continue;
+    removeAnchorsForObject(obj);
+    state.objects.splice(idx, 1);
+  }
+  // Smazat osiřelé kóty (zdrojový objekt byl právě smazán)
+  const existingIds = new Set(state.objects.map(o => o.id));
+  for (let di = state.objects.length - 1; di >= 0; di--) {
+    const d = state.objects[di];
+    if (!d.isDimension) continue;
+    if (d.sourceObjId && !existingIds.has(d.sourceObjId)) {
+      state.objects.splice(di, 1);
+    } else if (d.dimLine1Id && d.dimLine2Id &&
+               (!existingIds.has(d.dimLine1Id) || !existingIds.has(d.dimLine2Id))) {
+      state.objects.splice(di, 1);
+    }
+  }
+  if (state.dragging) { state.dragging = false; state.dragObjIdx = null; }
+  state.selected = null;
+  state.multiSelected.clear();
+  state.selectedSegment = null;
+  state._selectedSegmentObjIdx = null;
+  state.multiSelectedSegments.clear();
+  updateObjectList();
+  updateProperties();
+  if (bridge.calculateAllIntersections) bridge.calculateAllIntersections();
+  cleanupOrphanAnchors();
+  renderAll();
+}
+
 /** Aktualizuje seznam objektů v panelu. */
 export function updateObjectList() {
   const ul = document.getElementById("objectList");
@@ -82,64 +120,118 @@ export function updateObjectList() {
     polyline: "⛓",
   };
 
-  // ── Select-all checkbox (bez kót) ──
-  const nonDimObjects = state.objects.filter(o => !o.isDimension && !o.isCoordLabel && !o.isCamPathNote);
-  if (nonDimObjects.length > 0) {
-    const selectAllLi = document.createElement("li");
-    selectAllLi.className = "select-all-row";
-    const selectAllCb = document.createElement("input");
-    selectAllCb.type = "checkbox";
-    selectAllCb.className = "obj-checkbox";
-    selectAllCb.title = "Vybrat vše";
-    const nonDimIndices = state.objects.map((o, i) => (!o.isDimension && !o.isCoordLabel && !o.isCamPathNote) ? i : -1).filter(i => i >= 0);
-    const allChecked = nonDimIndices.length > 0 && nonDimIndices.every(i => i === state.selected || state.multiSelected.has(i));
-    selectAllCb.checked = allChecked;
-    selectAllCb.addEventListener("change", () => {
-      if (selectAllCb.checked) {
-        state.multiSelected.clear();
-        nonDimIndices.forEach(i => state.multiSelected.add(i));
-        state.selected = nonDimIndices[0] ?? null;
-      } else {
-        state.selected = null;
-        state.multiSelected.clear();
-      }
-      state.selectedSegment = null;
-      state._selectedSegmentObjIdx = null;
-      updateObjectList();
-      updateProperties();
-      renderAll();
-    });
-    const label = document.createElement("span");
-    label.textContent = "Vše";
-    label.style.opacity = "0.7";
-    selectAllLi.appendChild(selectAllCb);
-    selectAllLi.appendChild(label);
-
-    // Checkbox pro číslování objektů – na stejném řádku
-    const numCb = document.createElement("input");
-    numCb.type = "checkbox";
-    numCb.className = "obj-checkbox";
-    numCb.style.marginLeft = "auto";
-    numCb.title = "Zobrazit čísla objektů na výkrese";
-    numCb.checked = state.showObjectNumbers;
-    numCb.addEventListener("change", () => {
-      state.showObjectNumbers = numCb.checked;
+  // ── Přepínač „Číslovat" v hlavičce panelu (statický prvek) ──
+  const headerNumCb = document.getElementById("objNumberCb");
+  if (headerNumCb) {
+    headerNumCb.checked = state.showObjectNumbers;
+    headerNumCb.onchange = () => {
+      state.showObjectNumbers = headerNumCb.checked;
       renderAll();
       // Na mobilu zavřít panel aby byl vidět výkres s čísly
-      if (numCb.checked && window.innerWidth <= MOBILE_BREAKPOINT) {
+      if (headerNumCb.checked && window.innerWidth <= MOBILE_BREAKPOINT) {
         const sidebar = document.getElementById("sidebar");
         const sidebarOverlay = document.getElementById("sidebarOverlay");
         sidebar.classList.remove("mobile-open");
         sidebarOverlay.classList.remove("active");
         setTimeout(() => autoCenterView(), 260);
       }
-    });
-    const numLabel = document.createElement("span");
-    numLabel.textContent = "Číslovat";
-    numLabel.style.opacity = "0.7";
-    selectAllLi.appendChild(numCb);
-    selectAllLi.appendChild(numLabel);
+    };
+  }
 
+  // ── Řádek „Vše" (cyklický výběr) + akční tlačítka (bez kót) ──
+  const nonDimObjects = state.objects.filter(o => !o.isDimension && !o.isCoordLabel && !o.isCamPathNote);
+  if (nonDimObjects.length > 0) {
+    const selectAllLi = document.createElement("li");
+    selectAllLi.className = "select-all-row";
+
+    const nonDimIndices = state.objects.map((o, i) => (!o.isDimension && !o.isCoordLabel && !o.isCamPathNote) ? i : -1).filter(i => i >= 0);
+    const normalIndices = nonDimIndices.filter(i => !state.objects[i].isStock);
+    const stockIndices = nonDimIndices.filter(i => state.objects[i].isStock);
+
+    // Aktuální fáze odvozená přímo z výběru (bezstavově):
+    // 0 = nic vybráno, 1 = vše, 2 = kontura (normální), 3 = polotovar, -1 = vlastní výběr
+    const selSet = new Set(state.multiSelected);
+    if (state.selected != null) selSet.add(state.selected);
+    const sameSet = (arr) => arr.length > 0 && arr.length === selSet.size && arr.every(i => selSet.has(i));
+    let phase;
+    if (selSet.size === 0) phase = 0;
+    else if (sameSet(nonDimIndices)) phase = 1;
+    else if (sameSet(normalIndices)) phase = 2;
+    else if (sameSet(stockIndices)) phase = 3;
+    else phase = -1;
+
+    const selectAllCb = document.createElement("input");
+    selectAllCb.type = "checkbox";
+    selectAllCb.className = "obj-checkbox";
+    selectAllCb.title = "Klikáním cyklicky: vše → kontura → polotovar → zrušit";
+    selectAllCb.checked = phase === 1;
+    selectAllCb.indeterminate = phase === 2 || phase === 3;
+
+    const applySel = (indices) => {
+      state.multiSelected.clear();
+      indices.forEach(i => state.multiSelected.add(i));
+      state.selected = indices[0] ?? null;
+    };
+    selectAllCb.addEventListener("click", (e) => {
+      e.preventDefault(); // sami řídíme vizuální stav checkboxu
+      const next = phase === -1 ? 1 : (phase + 1) % 4; // 1→2→3→0
+      if (next === 1) applySel(nonDimIndices);
+      else if (next === 2) applySel(normalIndices);
+      else if (next === 3) applySel(stockIndices);
+      else { state.selected = null; state.multiSelected.clear(); }
+      state.selectedSegment = null;
+      state._selectedSegmentObjIdx = null;
+      state.multiSelectedSegments.clear();
+      updateObjectList();
+      updateProperties();
+      renderAll();
+    });
+
+    const label = document.createElement("span");
+    label.textContent = "Vše";
+    label.style.opacity = "0.7";
+
+    const modeLabel = document.createElement("span");
+    modeLabel.style.cssText = "opacity:.55;font-size:10px;margin-left:2px";
+    modeLabel.textContent = phase === 1 ? "(vše)" : phase === 2 ? "(kontura)" : phase === 3 ? "(polotovar)" : "";
+
+    selectAllLi.appendChild(selectAllCb);
+    selectAllLi.appendChild(label);
+    selectAllLi.appendChild(modeLabel);
+
+    // Akční tlačítka zarovnaná nad tlačítky jednotlivých objektů (✏️ + ✕)
+    const actionsWrap = document.createElement("span");
+    actionsWrap.style.cssText = "display:flex;align-items:center;flex-shrink:0;margin-left:auto";
+
+    const editAllBtn = document.createElement("button");
+    editAllBtn.className = "edit-btn";
+    editAllBtn.title = "Upravit objekt";
+    editAllBtn.textContent = "✏️";
+    editAllBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showMobileEditDialog();
+    });
+    actionsWrap.appendChild(editAllBtn);
+
+    const delAllBtn = document.createElement("button");
+    delAllBtn.className = "del-btn";
+    delAllBtn.title = "Smazat vybrané objekty";
+    delAllBtn.textContent = "✕";
+    delAllBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const sel = new Set(state.multiSelected);
+      if (state.selected != null) sel.add(state.selected);
+      const toDelete = [...sel].filter(i => {
+        const o = state.objects[i];
+        return o && !o.isDimension && !o.isCoordLabel && !o.isCamPathNote;
+      });
+      if (toDelete.length === 0) { showToast("Nejsou vybrány žádné objekty"); return; }
+      pushUndo();
+      deleteObjectsByIndices(toDelete);
+    });
+    actionsWrap.appendChild(delAllBtn);
+
+    selectAllLi.appendChild(actionsWrap);
     ul.appendChild(selectAllLi);
   }
 

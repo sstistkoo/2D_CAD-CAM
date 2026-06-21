@@ -11,7 +11,7 @@ import { handleCanvasClick, finishRectSelection } from './events.js';
 import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { toolLabel } from './utils.js';
-import { showNumericalInputDialog, showMobileEditDialog } from './dialogs.js';
+import { showNumericalInputDialog } from './dialogs.js';
 import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
@@ -189,15 +189,9 @@ document.getElementById("mobileAutoCenter").addEventListener("click", (e) => {
   autoCenterView();
 });
 
-// ── Sidebar: Edit tlačítko ──
-document.getElementById("sidebarEditBtn").addEventListener("click", (e) => {
-  e.stopPropagation();
-  topbar.classList.remove("mobile-open");
-  document.body.classList.remove("toolbar-open");
-  sidebar.classList.remove("mobile-open");
-  sidebarOverlay.classList.remove("active");
-  showMobileEditDialog();
-});
+// ── Sidebar: Edit tlačítko (přesunuto do řádku „Vše" v seznamu objektů) ──
+// Dřívější tlačítko ✏️ v hlavičce panelu nahradil přepínač „Číslovat";
+// editace se nyní spouští z akčních tlačítek nad seznamem objektů (ui.js).
 
 // ── Mobile: Cancel tlačítko ──
 const mobileCancelBtn = document.getElementById("mobileCancel");
