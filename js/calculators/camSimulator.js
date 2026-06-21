@@ -5735,6 +5735,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       const id = state.nextId++;
       state.objects.push({
         type: 'constr', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
+        // finite: konce jsou už oříznuté (mezní/tečná čára), v editoru se
+        // nekreslí donekonečna, ale jen mezi koncovými body — jako v CAM.
+        finite: true,
         name: `Konstrukční čára ${id}`, id, layer: 1,
       });
     }

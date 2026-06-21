@@ -1847,7 +1847,10 @@ export function drawLine(obj) {
     return;
   }
 
-  if (obj.type === "constr") {
+  if (obj.type === "constr" && !obj.finite) {
+    // Nekonečná konstrukční čára (CAD nástroj) – natáhnout daleko za oba konce.
+    // Konečná (obj.finite) konstrukční čára z CAM (oříznutá mezní/tečná čára)
+    // se kreslí jen mezi koncovými body → spadne do else větve níže.
     const dx = sx2 - sx1,
       dy = sy2 - sy1;
     const len = Math.hypot(dx, dy);

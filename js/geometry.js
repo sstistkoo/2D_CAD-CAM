@@ -635,7 +635,9 @@ export function getLines(obj) {
         y1: obj.y1,
         x2: obj.x2,
         y2: obj.y2,
-        isConstr: obj.type === "constr",
+        // Nekonečná jen u CAD konstrukční čáry; oříznutá z CAM (finite) se
+        // chová jako běžná úsečka, takže průsečíky nevzniknou mimo její konce.
+        isConstr: obj.type === "constr" && !obj.finite,
       },
     ];
   if (obj.type === "rect") {
