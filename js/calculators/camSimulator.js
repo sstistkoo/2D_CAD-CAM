@@ -758,7 +758,15 @@ function buildMachinableContour(segs, guides) {
       const dStart = Math.hypot(offPt.x - startPt.x, offPt.z - startPt.z);
       const dEnd = Math.hypot(offPt.x - endPt.x, offPt.z - endPt.z);
       if (Math.min(dStart, dEnd) > 5) continue; // off bod nepatří k okraji kontury
-      if (dStart <= dEnd) {
+      // Prodloužení k okraji smí navazovat JEN na krajní entitu kontury.
+      // Když dotykový bod (loc) leží uvnitř kontury (např. mezní čára, jejíž
+      // spodní konec paprskem dopadl na osu odlitku X=0), tahle větev by
+      // jinak smazala celý "ocas" kontury za loc (čelo/osazení) a nahradila
+      // ho mostem k ose → hrubý zához do dílce. Misaplikovanou čáru raději
+      // přeskočit (most se neudělá; geometrie zůstane úplná, žádný zához).
+      const extendStart = dStart <= dEnd;
+      if (extendStart ? loc.segIdx !== 0 : loc.segIdx !== result.length - 1) continue;
+      if (extendStart) {
         // Prodloužení na ZAČÁTKU: nový start = offPt, most offPt→locPt.
         const after = result.slice(loc.segIdx).map(x => ({ ...x }));
         setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
@@ -846,6 +854,9 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
   const stockTopXG = (prms.stockMode === 'casting' && stockWorldPoints.length > 0)
     ? Math.max(...stockWorldPoints.map(p => p.xReal))
     : (parseFloat(prms.stockDiameter) || 100) / 2;
+  // Nejnižší Z dílce (kontury) — pod něj se mezní čára netáhne (zadní čelo
+  // polotovaru není řezná plocha).
+  const minPartZG = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.zReal)) : -1e9;
   // skupiny po sobě jdoucích interferenčních segmentů (pořadí kontury)
   const idxOf = new Map();
   rawContourForInterference.forEach((s, i) => idxOf.set(s, i));
@@ -955,6 +966,19 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       // (boční oblouček u nájezdu), takže s exclude paprsek konturu mine
       // a čára zůstane krátká. Bez exclude trefí skutečnou hranu.
       let down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalcDown);
+      // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ čelo
+      // (z = −délka), což nejsou řezné plochy. Paprsek dolů na ně může dopadnout
+      // a mezní čára se protáhne až k ose / pod konec dílce (vizuálně „jde do
+      // kontury / pod kus", a buildMachinableContour by podle ní mohl smazat
+      // ocas kontury). Takový dopad zahodit a omezit čáru na region.
+      if (down && Math.abs(down.x) < 0.1 && best.x > 0.5) down = null;
+      // Dopad pod konec dílce (zadní čelo polotovaru, z < min Z kontury) →
+      // oříznout přesně na konec dílce po směru paprsku (ne nulovat, ať
+      // fallback nevystřelí čáru daleko). Krátká čára se pak níž zahodí.
+      if (down && down.z < minPartZG - 0.5) {
+        const t = cb > 0.01 ? (best.z - minPartZG) / cb : 0;
+        down = t > 0.01 ? { x: best.x - sb * t, z: minPartZG } : { ...best };
+      }
       if (!down) {
         const t = sb > 0.01 ? (best.x - botX) / sb : 0;
         down = t > 0.01 ? { x: best.x - sb * t, z: best.z - cb * t } : best;
@@ -1086,11 +1110,22 @@ function setSegStart(seg, pt) {
   else seg.startAngle = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
 }
 function isOnSegBounds(pt, seg) {
-  if (seg.type !== 'line') return true;
-  return pt.x >= Math.min(seg.p1.x, seg.p2.x) - TRIM_TOL &&
-    pt.x <= Math.max(seg.p1.x, seg.p2.x) + TRIM_TOL &&
-    pt.z >= Math.min(seg.p1.z, seg.p2.z) - TRIM_TOL &&
-    pt.z <= Math.max(seg.p1.z, seg.p2.z) + TRIM_TOL;
+  if (seg.type === 'line') {
+    return pt.x >= Math.min(seg.p1.x, seg.p2.x) - TRIM_TOL &&
+      pt.x <= Math.max(seg.p1.x, seg.p2.x) + TRIM_TOL &&
+      pt.z >= Math.min(seg.p1.z, seg.p2.z) - TRIM_TOL &&
+      pt.z <= Math.max(seg.p1.z, seg.p2.z) + TRIM_TOL;
+  }
+  // Oblouk: průsečík (z protnutí line↔KRUŽNICE / circle↔circle) musí ležet na
+  // samotném OBLOUKU — na kružnici (v toleranci) a v jeho úhlovém rozsahu.
+  // Bez této kontroly projde i průsečík na prodloužení kružnice mimo oblouk
+  // (falešná smyčka → vyříznutí reálné geometrie, např. stěn zápichu před
+  // navazujícím rádiusem). Dřív funkce pro oblouk vracela vždy true.
+  if (typeof seg.startAngle !== 'number' || typeof seg.endAngle !== 'number') return true;
+  const d = Math.hypot(pt.x - seg.cx, pt.z - seg.cz);
+  if (Math.abs(d - seg.r) > TRIM_TOL) return false;
+  const a = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
+  return isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2');
 }
 // Minimální vzdálenost průsečíku od endpointu, kterou požadujeme pro
 // global loop-removal. Nižší hodnota → loop-removal eliminuje legitimní
@@ -1112,6 +1147,57 @@ function syncArcEndpoints(seg) {
   if (seg.type !== 'arc') return;
   seg.p1 = segStartPoint(seg);
   seg.p2 = segEndPoint(seg);
+}
+// Obrátí směr průchodu segmentem (prohodí start↔konec). Geometrie zůstává,
+// mění se jen orientace: u oblouku prohodí úhly a překlopí G2↔G3.
+function reverseSeg(seg) {
+  const t = seg.p1; seg.p1 = seg.p2; seg.p2 = t;
+  if (seg.type === 'arc') {
+    const ta = seg.startAngle; seg.startAngle = seg.endAngle; seg.endAngle = ta;
+    seg.dir = seg.dir === 'G2' ? 'G3' : 'G2';
+  }
+}
+// Degenerovaný zbytkový oblouk (po ořezu/loop-removalu): jeho začátek a konec
+// téměř splývají (malá tětiva). Buď nulový zlomek, nebo — což je horší — oblouk,
+// kterému ořez nastavil úhly tak, že obíhá skoro DOKOLA (sweep ≈ 2π). V náhledu
+// se kreslí jako PLNÁ KRUŽNICE a v G-kódu se start==konec (po zaokrouhlení) →
+// „G2/G3 …CR=" z bodu do sebe = celá kružnice. U soustružnického profilu je
+// splývající začátek/konec vždy chyba (reálné oblouky mají konce znatelně od
+// sebe), tak ho nahradíme přímou úsečkou start→konec (zachová napojení).
+function dropTinyArcs(path) {
+  if (!path) return path;
+  for (let i = 0; i < path.length; i++) {
+    const s = path[i];
+    if (!s || s.type !== 'arc') continue;
+    const a = segStartPoint(s), b = segEndPoint(s);
+    if (Math.hypot(a.x - b.x, a.z - b.z) < 0.2) {
+      const line = { type: 'line', p1: a, p2: b };
+      if (s.chainBreak) line.chainBreak = true;
+      if (s.unreachable) line.unreachable = true;
+      if (s.isDegenerate) line.isDegenerate = true;
+      path[i] = line;
+    }
+  }
+  return path;
+}
+// Sjednotí SMĚR průchodu kontury: každý segment se orientuje tak, aby jeho
+// začátek navazoval na konec předchozího. Entita nakreslená „pozpátku" (konec
+// blíž k předchozímu konci než začátek) se otočí. Bez toho offsetový trimmer
+// (spojuje konec→začátek) takovou entitu nenaváže a zahodí ji — typicky oblouk
+// nakreslený obráceným směrem zmizí z dráhy. Mění jen orientaci, ne geometrii;
+// správně nakreslené kontury (start už navazuje) nechá beze změny. TOL malá,
+// ať se nepřeklopí samostatný řetěz (G0 mezera) — tam navazuje až další pas.
+function normalizeContourDirection(segs) {
+  const TOL = 0.05;
+  for (let i = 1; i < segs.length; i++) {
+    const prevEnd = segEndPoint(segs[i - 1]);
+    const st = segStartPoint(segs[i]);
+    const en = segEndPoint(segs[i]);
+    const dStart = Math.hypot(prevEnd.x - st.x, prevEnd.z - st.z);
+    const dEnd = Math.hypot(prevEnd.x - en.x, prevEnd.z - en.z);
+    if (dEnd + 1e-9 < dStart && dEnd < TOL) reverseSeg(segs[i]);
+  }
+  return segs;
 }
 // Vrátí true, pokud bod leží uvnitř segmentu (ne na/blízko jeho koncových
 // bodů) — používá se pro detekci "mostu": nově přidaného segmentu, jehož oba
@@ -1450,8 +1536,25 @@ function foldContourToMachiningSide(points, stockPoints) {
   }
   if (machSign === 0) machSign = 1;
 
-  // Ponech body na ose (X≈0) i na straně obrábění; zahoď zrcadlo za osou.
-  const kept = points.filter(p => p.xReal * machSign >= -eps);
+  // Ponech body na ose (X≈0) i na straně obrábění; zrcadlo za osou zahoď —
+  // VYJMA úsečky protínající osu (typicky čelo / upíchnutí, které uživatel
+  // nakreslil přes celý průměr od +X k −X). Tu na ose (X=0) oříznout, ať
+  // kontura dojede až do středu, místo aby celé čelo vypadlo.
+  const kept = [];
+  for (let idx = 0; idx < points.length; idx++) {
+    const p = points[idx];
+    if (p.xReal * machSign >= -eps) { kept.push(p); continue; }
+    const prev = points[idx - 1];
+    if (p.type === 'G1' && prev && prev.xReal * machSign > eps) {
+      const dx = p.xReal - prev.xReal;
+      if (Math.abs(dx) > 1e-9) {
+        const t = (0 - prev.xReal) / dx;           // parametr, kde úsečka protne osu
+        const zAxis = prev.zReal + t * (p.zReal - prev.zReal);
+        kept.push({ ...p, x: 0, xAbs: 0, xReal: 0, z: zAxis, zAbs: zAxis, zReal: zAxis });
+      }
+    }
+    // ostatní body za osou zahodit
+  }
   return kept.length >= 2 ? kept : points;
 }
 
@@ -2272,6 +2375,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle });
       }
     }
+    // Sjednotit směr průchodu kontury (otočit pozpátku nakreslené entity, např.
+    // oblouk) — jinak je offsetový trimmer nenaváže a zahodí (chybějící dráhy).
+    normalizeContourDirection(contourSegments);
     // Snapshot PŘED přemostěním/odstraněním smyček — spliceBridgeSegments
     // může segmenty (např. malý zaoblovací rádius pod mostem) z kontury
     // úplně odstranit, protože dráha tam nepojede. Pro detekci kolize
@@ -2399,7 +2505,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     // 2. trimming + loop removal (shared helper handles all segment combos)
-    const offsetPath = trimAndRemoveLoops(rawOffsets);
+    const offsetPath = dropTinyArcs(trimAndRemoveLoops(rawOffsets));
 
     // finishing offset
     if (prms.doFinishing) {
@@ -2468,7 +2574,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         pendingBreak = false;
         finRaw.push(finSeg);
       }
-      finishOffsetPath = trimAndRemoveLoops(finRaw);
+      finishOffsetPath = dropTinyArcs(trimAndRemoveLoops(finRaw));
       // Sanitace: když je R nástroje větší než konkávní rádius kontury
       // (nebo selže ořez), může segment zůstat s null/NaN souřadnicí —
       // zahodit, aby se neemitoval „XNaN", a označit přejezd (chainBreak).
@@ -2487,6 +2593,49 @@ export function openCamSimulator(initialContour, initialGCode) {
         foundErrors.push({ type: 'warning', msg: `Dokončování: ${finDropped} úsek(ů) vynecháno — nástroj (R${tipR}) se nevejde do tvaru kontury (malý poloměr). Přejezd G0.` });
       if (finSkipped > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
+
+      // ── No-gouge pojistka dokončování („dojet co nejblíž, ale bez zajetí") ──
+      // Při soustružení zvenčí musí střed nástroje zůstat na vzduchové straně:
+      // X ≥ nejvyšší X kontury na daném Z. Když dokončovací úsek (typicky most
+      // z geometrie destičky u úzkého zápichu, kam se destička bokem nevejde)
+      // tuhle mez přejede, oříznout ho přesně na hranici a zajíždějící zbytek
+      // přesunout do nedosažitelných (tečkovaně, bez řezu). Mez se počítá vůči
+      // SKUTEČNÉ kontuře (rawContourForInterference), ne přemostěné.
+      const profileXAt = (z) => {
+        let mx = -Infinity;
+        for (const s of rawContourForInterference) {
+          if (s.isDegenerate) continue;
+          for (const x of intersectSegAtZ(s, z)) if (x > mx) mx = x;
+        }
+        return mx;
+      };
+      const GOUGE_EPS = 0.02;
+      const gougeAt = (p) => { const mx = profileXAt(p.z); return mx > -Infinity && p.x < mx - GOUGE_EPS; };
+      let finClamped = 0;
+      for (let i = finishOffsetPath.length - 1; i >= 0; i--) {
+        const s = finishOffsetPath[i];
+        if (s.type !== 'line' || !s.p1 || !s.p2) continue;
+        const g1 = gougeAt(s.p1), g2 = gougeAt(s.p2);
+        if (!g1 && !g2) continue;
+        finClamped++;
+        if (g1 && g2) {
+          s.unreachable = true; finishUnreachablePath.push(s);
+          finishOffsetPath.splice(i, 1);
+          if (i < finishOffsetPath.length) finishOffsetPath[i].chainBreak = true;
+          continue;
+        }
+        // Jeden konec zajíždí → bisekcí najít hranici a úsek oříznout.
+        let lo = g1 ? { ...s.p2 } : { ...s.p1 };   // bezpečný konec
+        let hi = g1 ? { ...s.p1 } : { ...s.p2 };   // zajíždějící konec
+        for (let k = 0; k < 26; k++) {
+          const m = { x: (lo.x + hi.x) / 2, z: (lo.z + hi.z) / 2 };
+          if (gougeAt(m)) hi = m; else lo = m;
+        }
+        finishUnreachablePath.push({ type: 'line', p1: g1 ? { ...s.p1 } : { ...lo }, p2: g1 ? { ...lo } : { ...s.p2 }, unreachable: true });
+        if (g1) s.p1 = lo; else s.p2 = lo;
+      }
+      if (finClamped > 0)
+        foundErrors.push({ type: 'warning', msg: `Dokončování: ${finClamped} úsek(ů) zkráceno, aby dráha nezajela do kontury (zbytek nedosažitelný — viz tečkovaně).` });
     }
 
     // Protáhnout obě offsetové čáry až k ose, když kontura začíná na X0
