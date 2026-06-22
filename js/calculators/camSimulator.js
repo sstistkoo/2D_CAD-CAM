@@ -2141,7 +2141,12 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (!dirty) { overlay.remove(); return; }
         const choice = await camCloseConfirm();
         if (choice === 'discard') overlay.remove();
-        else if (choice === 'save') await handleSendToCanvas(true);
+        else if (choice === 'save') {
+          await handleSendToCanvas(true);
+          // handleSendToCanvas calls overlay.remove() on success; if it returned
+          // early (e.g. < 2 contour points), the overlay stays open intentionally
+          // so the user can fix the contour and try again.
+        }
       });
     }
 
@@ -2418,7 +2423,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const playerBar = root.querySelector('.cam-sim-player-bar');
   const playBtn = playerBar.querySelector('[data-act="play"]');
   const sidebar = root.querySelector('.cam-sim-sidebar');
-  const _initialGCode = S.manualGCode;
+  const _initialGCode = S.manualGCode ?? '';
 
   // Sync Z-limits button — prostý on/off; co se zobrazuje řídí checkboxy v parametrech
   const zlimBtn = toolbar.querySelector('[data-act="zlimits"]');
@@ -6922,13 +6927,16 @@ export function openCamSimulator(initialContour, initialGCode) {
   root.querySelector('[data-act="redo"]').addEventListener('click', redo);
 
   const codeArea = root.querySelector('.cam-sim-code-area');
-  root.querySelector('[data-act="toggle-code"]').addEventListener('click', function() {
-    const hidden = codeArea.style.display === 'none';
-    codeArea.style.display = hidden ? '' : 'none';
-    this.textContent = hidden ? '▼' : '▲';
-    this.title = hidden ? 'Skrýt G-kód panel' : 'Zobrazit G-kód panel';
-    this.classList.toggle('cam-sim-active', !hidden);
-  });
+  const toggleCodeBtn = root.querySelector('[data-act="toggle-code"]');
+  if (codeArea && toggleCodeBtn) {
+    toggleCodeBtn.addEventListener('click', function() {
+      const hidden = codeArea.style.display === 'none';
+      codeArea.style.display = hidden ? '' : 'none';
+      this.textContent = hidden ? '▼' : '▲';
+      this.title = hidden ? 'Skrýt G-kód panel' : 'Zobrazit G-kód panel';
+      this.classList.toggle('cam-sim-active', !hidden);
+    });
+  }
 
   // progress bar scrubbing
   function scrubProgress(e) {
