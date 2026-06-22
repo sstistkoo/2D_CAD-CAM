@@ -1990,11 +1990,11 @@ export function openCamSimulator(initialContour, initialGCode) {
 <div class="cam-sim-root">
   <div class="cam-sim-canvas-area">
     <div class="cam-sim-toolbar">
-      <button data-act="addpt" title="Vložit za bod">➕</button>
+      <button data-act="addpt" title="Vložit za bod" style="display:none">➕</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
       <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
-      <button data-act="delpt" title="Odebrat bod">➖</button>
+      <button data-act="delpt" title="Odebrat bod" style="display:none">➖</button>
       <button data-act="edit-contour" title="Kontura: táhněte body kontury pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
       <button data-act="edit-paths" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
       <button data-act="fit" title="Centrovat">🎯</button>
@@ -6687,6 +6687,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         showToast('Kontura: táhněte body kontury pro změnu jejich polohy');
       }
       btn.classList.toggle('cam-sim-active', S.pointDragEnabled);
+      { const v = S.pointDragEnabled || S.gcodeEditEnabled; toolbar.querySelector('[data-act="addpt"]').style.display = v ? '' : 'none'; toolbar.querySelector('[data-act="delpt"]').style.display = v ? '' : 'none'; }
       draw();
     } else if (act === 'edit-paths') {
       // Dráhy: úprava G-kódu. Vzájemně se vylučuje s úpravou kontury.
@@ -6704,6 +6705,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         toolbar.querySelector('[data-act="gtrim"]')?.classList.remove('cam-sim-active');
       }
       btn.classList.toggle('cam-sim-active', S.gcodeEditEnabled);
+      { const v = S.pointDragEnabled || S.gcodeEditEnabled; toolbar.querySelector('[data-act="addpt"]').style.display = v ? '' : 'none'; toolbar.querySelector('[data-act="delpt"]').style.display = v ? '' : 'none'; }
       draw();
     } else if (act === 'fit') {
       fitView();
