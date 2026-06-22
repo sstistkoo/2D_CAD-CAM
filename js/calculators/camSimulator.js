@@ -447,12 +447,20 @@ function injectCSS() {
 .cam-sim-checkbox-row {
   display: flex; align-items: center; gap: 8px; padding: 6px 0;
   border-top: 1px solid #45475a; margin-top: 8px;
+  position: relative; cursor: default;
 }
 .cam-sim-checkbox-row input[type="checkbox"] {
   width: 16px; height: 16px; accent-color: #89b4fa;
 }
 .cam-sim-checkbox-row span { font-size: 12px; font-weight: 600; }
 .cam-sim-checkbox-row small { display: block; font-size: 10px; color: #6c7086; padding-left: 24px; }
+.cam-sim-checkbox-row[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 200;
+  background: #313244; border: 1px solid #45475a; color: #a6adc8;
+  font-size: 10px; font-weight: 400; padding: 5px 7px; border-radius: 4px;
+  line-height: 1.5; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
 .cam-sim-mat-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 6px;
 }
@@ -461,6 +469,7 @@ function injectCSS() {
   color: #a6adc8; border-radius: 3px; cursor: pointer;
 }
 .cam-sim-mat-grid button:hover { background: #45475a; color: #cdd6f4; }
+.cam-sim-mat-grid button.cam-sim-active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
 .cam-sim-import-ta {
   width: 100%; min-height: 120px; padding: 6px; font-family: monospace; font-size: 11px;
   resize: vertical; background: #1e1e2e; border: 1px solid #45475a; color: #cdd6f4;
@@ -1979,7 +1988,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="edit-contour" title="Kontura: táhněte body kontury pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
       <button data-act="edit-paths" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
       <button data-act="fit" title="Centrovat">🎯</button>
-      <button data-act="flipx" title="Otočit svislou osu – nástroj zespodu (prohodí G2/G3)">⇅ X+ ↑</button>
+
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
@@ -2222,7 +2231,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     guideLines: [],
     _lastTapTime: 0,
     machineConfigOpen: false,
-    safetyConfigOpen: false
+    safetyConfigOpen: false,
+    materialConfigOpen: false,
+    selectedMaterial: 'Ocel 11 373 (S235)',
+    toolConfigOpen: false
   };
 
   // Load from localStorage
@@ -2342,12 +2354,6 @@ export function openCamSimulator(initialContour, initialGCode) {
   const playBtn = playerBar.querySelector('[data-act="play"]');
   const sidebar = root.querySelector('.cam-sim-sidebar');
 
-  // Sync flipX button to persisted state
-  const flipBtn = toolbar.querySelector('[data-act="flipx"]');
-  if (flipBtn) {
-    flipBtn.classList.toggle('cam-sim-active', S.flipX);
-    flipBtn.textContent = S.flipX ? '⇅ X+ ↓' : '⇅ X+ ↑';
-  }
   // Sync Z-limits button — prostý on/off; co se zobrazuje řídí checkboxy v parametrech
   const zlimBtn = toolbar.querySelector('[data-act="zlimits"]');
   const ZLIM_CFG = {
@@ -5607,6 +5613,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
       <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${prms.toolName}"></div>
+      <div class="cam-sim-field"><label>Osa X</label><button data-act="flipx-param" class="cam-sim-btn ${S.flipX ? 'cam-sim-btn-blue' : 'cam-sim-btn-gray'}" style="padding:4px 2px;font-size:11px">${S.flipX ? '⇅ X+ ↓' : '⇅ X+ ↑'}</button></div>
     </div>`;
     const _safeOpen = S.safetyConfigOpen;
     const _chActive = S.zLimits.chuckActive;
@@ -5661,10 +5668,59 @@ export function openCamSimulator(initialContour, initialGCode) {
       </div>
       <div style="text-align:right;margin-top:2px"><button class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" data-act="zlimits-clear">Vymazat vše</button></div>
     </div>`;
-    html += `<div class="cam-sim-section-title">Databáze materiálů</div>
-    <div class="cam-sim-mat-grid">${Object.keys(MATERIALS).map(k =>
-      `<button data-mat="${k}">${MATERIALS[k].name}</button>`
-    ).join('')}</div>`;
+    const _matOpen = S.materialConfigOpen;
+    const _matLabel = S.selectedMaterial && MATERIALS[S.selectedMaterial]
+      ? MATERIALS[S.selectedMaterial].name : '—';
+    html += `<button class="cam-sim-machine-toggle" data-act="material-config-toggle">
+      <span class="cam-sim-machine-summary">
+        <span style="color:#a6adc8;font-size:11px">Materiál:</span>
+        <span class="cam-sim-machine-chip">${_matLabel}</span>
+      </span>
+      <span class="cam-sim-machine-chevron">${_matOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="cam-sim-machine-body${_matOpen ? '' : ' cam-sim-collapsed'}">
+      <div class="cam-sim-section-title">Databáze materiálů</div>
+      <div class="cam-sim-mat-grid">${Object.keys(MATERIALS).map(k =>
+        `<button data-mat="${k}" class="${S.selectedMaterial === k ? 'cam-sim-active' : ''}">${MATERIALS[k].name}</button>`
+      ).join('')}</div>
+    </div>`;
+    const _toolOpen = S.toolConfigOpen;
+    const _shapeIcon = prms.toolShape === 'round' ? '⬤' : '◼';
+    const _angleChip = prms.toolShape === 'polygon'
+      ? `<span class="cam-sim-machine-chip">${prms.toolAngle}°</span>` : '';
+    html += `<button class="cam-sim-machine-toggle" data-act="tool-config-toggle">
+      <span class="cam-sim-machine-summary">
+        <span style="color:#a6adc8;font-size:11px">Nástroj:</span>
+        <span class="cam-sim-machine-chip">R ${prms.toolRadius}</span>
+        <span class="cam-sim-machine-chip">${_shapeIcon}</span>
+        ${_angleChip}
+      </span>
+      <span class="cam-sim-machine-chevron">${_toolOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="cam-sim-machine-body${_toolOpen ? '' : ' cam-sim-collapsed'}">
+      <div class="cam-sim-section-title">Nástroj <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button></div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
+        <div class="cam-sim-field"><label>Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
+      </div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label>Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
+        <div class="cam-sim-field"><label>Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
+      </div>
+      <small class="cam-sim-info-box" style="display:block;margin-top:2px">Hrubovací offset = Rádius (R) + Přídavek X/Z + Přídavek na hotovo. Dokončovací offset = jen Rádius (R).</small>
+      <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
+      <div class="cam-sim-tool-shape-row">
+        <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
+        <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
+      </div>`;
+    if (prms.toolShape === 'polygon') {
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
+        <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
+        <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
+      </div>`;
+    }
+    html += `</div>`;
     html += `<div class="cam-sim-section-title">Hrubování</div>
     <div class="cam-sim-toggle-row">
       <button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}">↓ Čelně (X)</button>
@@ -5682,61 +5738,35 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-field"><label>Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
       <div class="cam-sim-field"><label>Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
     </div>`;
-    html += `<div class="cam-sim-checkbox-row">
+    html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
       <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
       <span>Hrubování bez schodků</span>
-    </div>
-    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.</small>`;
+    </div>`;
     if (prms.noStepRoughing) {
       html += `<div class="cam-sim-checkbox-row">
       <input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}>
       <span>… i u čelního hrubování</span>
     </div>`;
     }
-    html += `<div class="cam-sim-section-title">Nástroj <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button></div>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
-      <div class="cam-sim-field"><label>Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
-    </div>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
-      <div class="cam-sim-field"><label>Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
-    </div>
-    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Hrubovací offset = Rádius (R) + Přídavek X/Z + Přídavek na hotovo. Dokončovací offset = jen Rádius (R).</small>
-    <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
-    <div class="cam-sim-tool-shape-row">
-      <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
-      <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
-    </div>`;
     if (prms.toolShape === 'polygon') {
-      html += `<div class="cam-sim-row">
-        <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
-        <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
-        <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
+        <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
+        <span>Hlídat geometrii destičky</span>
       </div>`;
     }
+    html += `<div class="cam-sim-checkbox-row" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
+      <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
+      <span>Zanořování (kapsy/zápichy)</span>
+    </div>`;
     const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
     html += `<div class="cam-sim-row">
       <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°)."><label>Úhel zanoření (°)</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${effPlunge}"></div>
       <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky (natočení + vrcholový úhel)">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
     </div>`;
-    if (prms.toolShape === 'polygon') {
-      html += `<div class="cam-sim-checkbox-row">
-        <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
-        <span>Hlídat geometrii destičky</span>
-      </div>
-      <small class="cam-sim-info-box" style="display:block;margin-top:2px">Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.</small>`;
-    }
-    html += `<div class="cam-sim-checkbox-row">
-      <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
-      <span>Zanořování (kapsy/zápichy)</span>
-    </div>
-    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.</small>`;
-    html += `<div class="cam-sim-checkbox-row">
+    html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
       <span>Dokončovací operace</span>
-    </div>
-    <small class="cam-sim-info-box" style="display:block;margin-top:2px">Dráha nástroje přesně po kontuře (pouze s korekcí R).</small>`;
+    </div>`;
     html += `<div style="text-align:center;margin-top:16px">
       <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
     </div>`;
@@ -5753,6 +5783,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     const scToggleBtn = tabBody.querySelector('[data-act="safety-config-toggle"]');
     if (scToggleBtn) scToggleBtn.addEventListener('click', () => {
       S.safetyConfigOpen = !S.safetyConfigOpen;
+      renderTab();
+    });
+    const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');
+    if (flipxParamBtn) flipxParamBtn.addEventListener('click', () => {
+      S.flipX = !S.flipX;
+      if (!S._cachedCalc) S._cachedCalc = calculate();
+      draw(); saveState();
+      showToast(S.flipX ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)' : 'Osa X – X+ nahoru');
       renderTab();
     });
     tabBody.querySelectorAll('[data-struct]').forEach(btn => {
@@ -5777,10 +5815,24 @@ export function openCamSimulator(initialContour, initialGCode) {
         fullUpdate();
       });
     });
+    const matToggleBtn = tabBody.querySelector('[data-act="material-config-toggle"]');
+    if (matToggleBtn) matToggleBtn.addEventListener('click', () => {
+      S.materialConfigOpen = !S.materialConfigOpen;
+      renderTab();
+    });
+    const toolToggleBtn = tabBody.querySelector('[data-act="tool-config-toggle"]');
+    if (toolToggleBtn) toolToggleBtn.addEventListener('click', () => {
+      S.toolConfigOpen = !S.toolConfigOpen;
+      renderTab();
+    });
     tabBody.querySelectorAll('[data-mat]').forEach(btn => {
       btn.addEventListener('click', () => {
         const m = MATERIALS[btn.dataset.mat];
-        if (m) { S.params.speed = m.speed; S.params.feed = m.feed; S.params.depthOfCut = m.depth; fullUpdate(); }
+        if (m) {
+          S.selectedMaterial = btn.dataset.mat;
+          S.params.speed = m.speed; S.params.feed = m.feed; S.params.depthOfCut = m.depth;
+          fullUpdate();
+        }
       });
     });
     tabBody.querySelectorAll('[data-rough]').forEach(btn => {
@@ -6637,20 +6689,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       draw();
     } else if (act === 'fit') {
       fitView();
-    } else if (act === 'flipx') {
-      S.flipX = !S.flipX;
-      btn.classList.toggle('cam-sim-active', S.flipX);
-      btn.textContent = S.flipX ? '⇅ X+ ↓' : '⇅ X+ ↑';
-      // Přepočet/redraw – ruční G-kód se nepřepisuje (G2/G3 v něm zůstávají
-      // beze změny, viz [[feedback_flip-axis-gcode]]). Nové G2/G3 se promítnou
-      // až po "🔄 Autorefresh drah".
-      if (!S._cachedCalc) S._cachedCalc = calculate();
-      draw();
-      saveState();
-      const msg = S.flipX
-        ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)'
-        : 'Osa X – X+ nahoru';
-      showToast(msg);
     } else if (act === 'simpath') {
       // Cyklus: all → cut (skryté rychloposuvy) → none → all
       const next = { all: 'cut', cut: 'none', none: 'all' };
