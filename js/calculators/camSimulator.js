@@ -37,6 +37,27 @@ function camConfirm(message) {
   });
 }
 
+function camCloseConfirm() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'cam-confirm-overlay';
+    ov.innerHTML = `
+      <div class="cam-confirm-box">
+        <div class="cam-confirm-msg"><strong>Neuložené změny v CAM</strong><br><br>Přenést konturu a dráhy do výkresu, nebo zahodit změny?</div>
+        <div class="cam-confirm-btns">
+          <button class="cam-confirm-cancel" data-r="discard">Zahodit změny</button>
+          <button class="cam-confirm-ok" data-r="save">📐 Zachovat a přenést</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const cleanup = (val) => { ov.remove(); resolve(val); };
+    ov.querySelector('[data-r="discard"]').addEventListener('click', () => cleanup('discard'));
+    ov.querySelector('[data-r="save"]').addEventListener('click', () => cleanup('save'));
+    ov.addEventListener('click', e => { if (e.target === ov) cleanup(null); });
+    ov.querySelector('[data-r="save"]').focus();
+  });
+}
+
 // ── Offset dialog ──────────────────────────────────────────────
 function camOffsetDialog(count) {
   return new Promise(resolve => {
@@ -254,7 +275,15 @@ function injectCSS() {
 .cam-sim-player-bar {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 4px 8px; background: #181825; border-top: 1px solid #45475a;
+  position: relative;
 }
+.cam-sim-code-toggle {
+  position: absolute; left: 8px;
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 13px; line-height: 1;
+}
+.cam-sim-code-toggle:hover { background: #45475a; }
+.cam-sim-code-toggle.cam-sim-active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
 .cam-sim-player-bar button {
   background: #313244; border: 1px solid #45475a; color: #cdd6f4;
   border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 16px;
@@ -304,6 +333,12 @@ function injectCSS() {
 }
 .cam-sim-manual-ta::-webkit-scrollbar { width: 6px; }
 .cam-sim-manual-ta::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
+.cam-sim-window .calc-titlebar { display: none !important; }
+.cam-sim-toolbar button:disabled { opacity: .35; cursor: default; }
+.cam-sim-toolbar button:disabled:hover { background: #313244; }
+.cam-sim-toolbar-sep {
+  width: 1px; background: #45475a; align-self: stretch; margin: 2px 0;
+}
 .cam-sim-sidebar {
   width: 320px; flex-shrink: 0; overflow: hidden; border-left: 1px solid #45475a;
   background: #181825; display: flex; flex-direction: column;
@@ -2015,6 +2050,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <span class="cam-sim-progress-pct">0%</span>
     </div>
     <div class="cam-sim-player-bar">
+      <button class="cam-sim-code-toggle" data-act="toggle-code" title="Skrýt/zobrazit G-kód panel">▼</button>
       <button data-act="step-back" title="Krok zpět – předchozí pohyb">⏮</button>
       <button data-act="play" title="Spustit/Pauza">▶</button>
       <button data-act="stop" title="Zastavit a vrátit na začátek">⏹</button>
@@ -2070,34 +2106,50 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Místo nápisu „CAM Simulátor" tlačítka Zpět/Vpřed (historie úprav)
   // a tlačítko kalkulačky do titlebaru
   let undoTitleBtn = null, redoTitleBtn = null;
+  const camToolbar = overlay.querySelector('.cam-sim-toolbar');
   const titlebar = overlay.querySelector('.calc-titlebar');
-  if (titlebar) {
-    const titleH3 = titlebar.querySelector('h3');
-
+  if (camToolbar) {
     undoTitleBtn = document.createElement('button');
-    undoTitleBtn.className = 'cam-sim-calc-btn';
     undoTitleBtn.title = 'Zpět';
     undoTitleBtn.textContent = '↩';
     undoTitleBtn.addEventListener('click', (e) => { e.stopPropagation(); undo(); });
 
     redoTitleBtn = document.createElement('button');
-    redoTitleBtn.className = 'cam-sim-calc-btn';
     redoTitleBtn.title = 'Vpřed';
     redoTitleBtn.textContent = '↪';
     redoTitleBtn.addEventListener('click', (e) => { e.stopPropagation(); redo(); });
 
-    if (titleH3) titleH3.after(undoTitleBtn, redoTitleBtn);
-    else titlebar.insertBefore(undoTitleBtn, titlebar.firstChild);
-
     const calcBtn = document.createElement('button');
-    calcBtn.className = 'cam-sim-calc-btn';
     calcBtn.title = 'Kalkulačka';
     calcBtn.textContent = '🔢';
     calcBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       import('../ui.js').then(m => m.openCalculator());
     });
-    titlebar.insertBefore(calcBtn, titlebar.querySelector('.calc-close-btn'));
+
+    const sep = document.createElement('span');
+    sep.className = 'cam-sim-toolbar-sep';
+
+    const origClose = titlebar?.querySelector('.calc-close-btn');
+    let safeClose = null;
+    if (origClose) {
+      safeClose = origClose.cloneNode(true);
+      origClose.replaceWith(safeClose);
+      safeClose.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const dirty = S.past.length > 0 || S.manualGCode !== _initialGCode;
+        if (!dirty) { overlay.remove(); return; }
+        const choice = await camCloseConfirm();
+        if (choice === 'discard') overlay.remove();
+        else if (choice === 'save') await handleSendToCanvas(true);
+      });
+    }
+
+    camToolbar.appendChild(sep);
+    camToolbar.appendChild(undoTitleBtn);
+    camToolbar.appendChild(redoTitleBtn);
+    camToolbar.appendChild(calcBtn);
+    if (safeClose) camToolbar.appendChild(safeClose);
   }
 
   // Hide floating calculators, canvas buttons and sidebar when CAM is open
@@ -2366,6 +2418,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const playerBar = root.querySelector('.cam-sim-player-bar');
   const playBtn = playerBar.querySelector('[data-act="play"]');
   const sidebar = root.querySelector('.cam-sim-sidebar');
+  const _initialGCode = S.manualGCode;
 
   // Sync Z-limits button — prostý on/off; co se zobrazuje řídí checkboxy v parametrech
   const zlimBtn = toolbar.querySelector('[data-act="zlimits"]');
@@ -5390,11 +5443,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       : calc.simPath[findLastIdx(calc.simPath, p => p.originalLineIdx != null)].originalLineIdx;
   }
   function updateCodeHighlight() {
-    // Při úpravě drah (✥ Dráhy) má přednost právě editovaný řádek, jinak
-    // aktivní řádek simulace.
-    // Focus řádek (klik na dráhu) má přednost před aktivním řádkem simulace
-    // i při zamčených bodech – stačí, že není spuštěná simulace.
     const focusEdit = !S.simRunning && S._gcodeFocusLine != null;
+
+    // Klik na dráhu → auto-zobrazit G-kód panel pokud je schovaný (odloženo na mouseup)
+    if (focusEdit) {
+      const ca = root.querySelector('.cam-sim-code-area');
+      if (ca && ca.style.display === 'none') _panelPending = true;
+    }
     const hlIdx = focusEdit ? S._gcodeFocusLine : getActiveCodeLineIdx();
     const lineEls = codeBackdrop.querySelectorAll('.cam-sim-code-bd-line');
     lineEls.forEach((el, i) => el.classList.toggle('cam-sim-code-active', i === hlIdx));
@@ -6206,11 +6261,13 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   // ── Vrátit konturu zpět na plátno ──
-  async function handleSendToCanvas() {
+  async function handleSendToCanvas(skipConfirm = false) {
     const pts = resolvePointsToAbsolute(S.contourPoints);
     if (pts.length < 2) { alert('Kontura nemá dostatek bodů.'); return; }
-    const ok = await camConfirm('Smazat aktuální výkres a vložit konturu z CAM simulátoru?');
-    if (!ok) return;
+    if (!skipConfirm) {
+      const ok = await camConfirm('Smazat aktuální výkres a vložit konturu z CAM simulátoru?');
+      if (!ok) return;
+    }
 
     // Uložit undo, smazat stávající objekty
     pushUndo();
@@ -6863,6 +6920,15 @@ export function openCamSimulator(initialContour, initialGCode) {
   // undo / redo
   root.querySelector('[data-act="undo"]').addEventListener('click', undo);
   root.querySelector('[data-act="redo"]').addEventListener('click', redo);
+
+  const codeArea = root.querySelector('.cam-sim-code-area');
+  root.querySelector('[data-act="toggle-code"]').addEventListener('click', function() {
+    const hidden = codeArea.style.display === 'none';
+    codeArea.style.display = hidden ? '' : 'none';
+    this.textContent = hidden ? '▼' : '▲';
+    this.title = hidden ? 'Skrýt G-kód panel' : 'Zobrazit G-kód panel';
+    this.classList.toggle('cam-sim-active', !hidden);
+  });
 
   // progress bar scrubbing
   function scrubProgress(e) {
@@ -7526,6 +7592,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   let lastMousePos = { x: 0, y: 0 };
   let lastPinchDist = null;
   let _draggingStock = false;
+  let _mdX = 0, _mdY = 0, _panelPending = false;
 
   // ── Double-click to enter rect selection mode ──
   canvasWrap.addEventListener('dblclick', e => {
@@ -7550,6 +7617,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   });
 
   canvasWrap.addEventListener('mousedown', e => {
+    _mdX = e.clientX; _mdY = e.clientY; _panelPending = false;
     // Ignoruj „ghost" myší události, které prohlížeč generuje po dotyku
     // (skutečné dotykové akce jdou přes _camDispatchMouse = _camDispatching).
     if (!S._camDispatching && S._camGhostUntil && Date.now() < S._camGhostUntil) return;
@@ -8005,7 +8073,19 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
   });
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e) => {
+    if (_panelPending) {
+      _panelPending = false;
+      const dist = e ? Math.hypot(e.clientX - _mdX, e.clientY - _mdY) : 999;
+      if (dist < 6) {
+        const ca = root.querySelector('.cam-sim-code-area');
+        if (ca && ca.style.display === 'none') {
+          ca.style.display = '';
+          const tb = root.querySelector('[data-act="toggle-code"]');
+          if (tb) { tb.textContent = '▼'; tb.title = 'Skrýt G-kód panel'; tb.classList.remove('cam-sim-active'); }
+        }
+      }
+    }
     // Dokončit případný odložený snímek z tažení SYNCHRONNĚ, aby níže navazující
     // přepočet/saveState/render pracovaly s finálním stavem.
     flushFrame();
