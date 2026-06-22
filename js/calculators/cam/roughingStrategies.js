@@ -74,12 +74,23 @@ export function genFacePasses(ctx) {
     maxOZ = Math.max(maxOZ, z1, z2);
     minOZ = Math.min(minOZ, z1, z2);
   });
-  let currentZ = faceStartZ;
-  let safe = 0;
-  // Iterace: ukončíme, jakmile by další step šel pod minZPart (= nejlevější
-  // Z bodu kontury). Tím se vyhneme řezu za konturou do držákové oblasti.
-  while ((currentZ - step) >= minZPart - 0.01 && safe < 500) {
-    currentZ -= step; safe++;
+  // Směr marche (nabírání ap v Z) podle strany:
+  //   zprava (right) = od pravého čela DOLEVA (−Z),
+  //   zleva  (left)  = od levého konce DOPRAVA (+Z).
+  // Dojíždění schodu (leadOut) jde VŽDY opačně než march = k už obrobené
+  // straně (předchozí, mělčí průchod), aby se jen sloupl hřebínek a nezajelo
+  // se do dosud neobrobeného polotovaru.
+  const faceLeft = (prms.roughingSide === 'left');
+  const zList = [];
+  if (!faceLeft) { for (let z = faceStartZ - step; z >= minZPart - 0.01; z -= step) zList.push(z); }
+  else { for (let z = minZPart + step; z <= faceStartZ + 0.01; z += step) zList.push(z); }
+  // Otočení trasy kontury (pro jízdu opačným směrem): obrátí pořadí, koncové
+  // body i směr oblouku.
+  const reverseTrace = (segs) => segs.slice().reverse().map(s => s.type === 'line'
+    ? { type: 'line', x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 }
+    : { type: 'arc', cx: s.cx, cz: s.cz, r: s.r, dir: s.dir === 'G2' ? 'G3' : 'G2', startAngle: s.endAngle, endAngle: s.startAngle, x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 });
+
+  for (const currentZ of zList) {
     let xsEnd = [];
     offsetPath.forEach(os => {
       if (os.isDegenerate) return;
@@ -119,22 +130,20 @@ export function genFacePasses(ctx) {
     const xSurface = castingOuterAtZ(currentZ);
     const xStartLocal = xSurface + rapidClrFC;
     if (xEnd >= xStartLocal - 0.01) continue; // řez nulové délky
-    passes.push({ type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked });
+    const pass = { type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked };
+    if (faceLeft) pass.faceLeft = true;
+    passes.push(pass);
     if (prms.noStepRoughing && prms.noStepRoughingFace && xEndBlocked) {
-      // Bez schodků (čelně, zprava doleva): po dojezdu na xEnd se schod
-      // dojíždí po kontuře DOPRAVA (+Z), k předchozímu (mělčímu) průchodu —
-      // ta strana je už obrobená, takže se jen sloupne hřebínek. Doleva (−Z)
-      // by nástroj zajel do dosud NEobrobeného polotovaru (plný záběr →
-      // zajetí do materiálu). traceOffsetPath vrací úseky shora dolů (vysoké→
-      // nízké Z); pro jízdu doprava je otočíme (pořadí + koncové body + směr
-      // oblouku), aby dráha plynule navázala z (xEnd, currentZ) doprava.
-      const raw = traceOffsetPath(currentZ + step, currentZ);
-      const leadOut = raw.slice().reverse().map(s => s.type === 'line'
-        ? { type: 'line', x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 }
-        : { type: 'arc', cx: s.cx, cz: s.cz, r: s.r, dir: s.dir === 'G2' ? 'G3' : 'G2', startAngle: s.endAngle, endAngle: s.startAngle, x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 });
-      if (leadOut.length > 0) passes[passes.length - 1].contourLeadOut = leadOut;
+      // Schod se dojíždí OPAČNĚ než march, k předchozímu (mělčímu) průchodu:
+      //   zprava → DOPRAVA (+Z), zleva → DOLEVA (−Z). Ta strana je už obrobená,
+      //   takže se jen sloupne hřebínek; opačně by se zajelo do polotovaru.
+      // traceOffsetPath vrací úseky vysoké→nízké Z; pro jízdu doprava (+Z) je
+      // otočíme, doleva (−Z) jdou v původním pořadí.
+      const leadOut = faceLeft
+        ? traceOffsetPath(currentZ, currentZ - step)
+        : reverseTrace(traceOffsetPath(currentZ + step, currentZ));
+      if (leadOut.length > 0) pass.contourLeadOut = leadOut;
     }
-    if (currentZ < -200) break;
   }
 
   // ── Hlídání geometrie destičky (čelně) ──
@@ -153,8 +162,11 @@ export function genFacePasses(ctx) {
         if (p.type !== 'face') continue;
         let xE = p.xEnd;
         for (const w of faceWalls) {
-          if (w.z <= p.z + 1e-6) continue;
-          const cand = w.xEnd + (w.z - p.z) * tanPhiF;
+          // Jen stěny na UŽ OBROBENÉ straně (zprava +Z, zleva −Z) — tam by
+          // spodní hrana destičky zajela do hotového osazení.
+          const machined = faceLeft ? (w.z < p.z - 1e-6) : (w.z > p.z + 1e-6);
+          if (!machined) continue;
+          const cand = w.xEnd + Math.abs(w.z - p.z) * tanPhiF;
           if (cand > xE) xE = cand;
         }
         if (xE > p.xEnd + 0.01) {

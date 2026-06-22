@@ -3434,7 +3434,9 @@ export function openCamSimulator(initialContour, initialGCode) {
             }
           }
         }
-        const zRetractVal = clipZGc(cur.z + rDist);
+        // Retract pod 45° do už obrobené strany: zprava (zprava doleva) +Z,
+        // zleva (zleva doprava) −Z. Směr drží pass.faceLeft.
+        const zRetractVal = clipZGc(cur.z + (pass.faceLeft ? -rDist : rDist));
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       }
     });
