@@ -2228,7 +2228,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Zpětná kompatibilita: boolean → on/off, staré 'fixtures'/'range'/'both' → 'on'.
         if (typeof p.showZLimits === 'boolean') S.showZLimits = p.showZLimits ? 'on' : 'off';
         else if (p.showZLimits === 'off') S.showZLimits = 'off';
-        else S.showZLimits = 'on';
+        else {
+          S.showZLimits = 'on';
+          // Starý formát neměl active flagy — odvodit z tri-state hodnoty.
+          if (p.zLimits && !('chuckActive' in p.zLimits)) {
+            S.zLimits.chuckActive = p.showZLimits === 'fixtures' || p.showZLimits === 'both';
+            S.zLimits.tailActive  = p.showZLimits === 'fixtures' || p.showZLimits === 'both';
+            S.zLimits.rangeActive = p.showZLimits === 'range'    || p.showZLimits === 'both';
+          }
+        }
       }
       if (p.showSimPath !== undefined) {
         // Zpětná kompatibilita: dříve byl boolean, teď string.
@@ -5178,6 +5186,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Vrátí klíč X-limitu ('rangeXMin' | 'rangeXMax') pod kurzorem, jinak null.
   function getXLimitAt(clientX, clientY) {
     if (S.simRunning || !S.showZLimits || S.showZLimits === 'off') return null;
+    if (!S.xLimits.active) return null; // čáry nejsou viditelné — nelze tahat
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
@@ -5996,9 +6005,24 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (typeof data.manualGCode === 'string') S.manualGCode = data.manualGCode;
         if (typeof data.flipX === 'boolean') S.flipX = data.flipX;
         if (data.guideLines) S.guideLines = data.guideLines;
-        if (data.zLimits) S.zLimits = data.zLimits;
-        if (data.showZLimits) S.showZLimits = data.showZLimits;
-        if (data.xLimits) S.xLimits = data.xLimits;
+        if (data.zLimits) S.zLimits = Object.assign(
+          { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false },
+          data.zLimits
+        );
+        if (data.showZLimits) {
+          if (data.showZLimits === 'off') {
+            S.showZLimits = 'off';
+          } else {
+            S.showZLimits = 'on';
+            // Backward compat: starý formát neměl active flagy — odvodit ze showZLimits.
+            if (data.zLimits && !('chuckActive' in data.zLimits)) {
+              S.zLimits.chuckActive = data.showZLimits === 'fixtures' || data.showZLimits === 'both';
+              S.zLimits.tailActive  = data.showZLimits === 'fixtures' || data.showZLimits === 'both';
+              S.zLimits.rangeActive = data.showZLimits === 'range'    || data.showZLimits === 'both';
+            }
+          }
+        }
+        if (data.xLimits) S.xLimits = Object.assign({ rangeXMin: null, rangeXMax: null, active: false }, data.xLimits);
         if (data.showSimPath) S.showSimPath = data.showSimPath;
         S.simRunning = false; S.simProgress = 0;
         fullUpdate();

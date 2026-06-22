@@ -255,6 +255,8 @@ export function genLongPasses(ctx) {
   // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
   if (machiningRangeX) {
     const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
+    if (filtered.length === 0 && depths.length > 0)
+      foundErrors.push({ type: 'warning', msg: `X-rozsah obrábění (${machiningRangeX.xLo}–${machiningRangeX.xHi} mm): žádné hloubky průchodů neleží v zadaném intervalu — dráhy nebyly generovány.` });
     depths.splice(0, depths.length, ...filtered);
   }
 
@@ -575,6 +577,8 @@ export function genBacksidePasses(ctx, op) {
   // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
   if (machiningRangeX) {
     const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
+    if (filtered.length === 0 && depths.length > 0)
+      foundErrors.push({ type: 'warning', msg: `X-rozsah obrábění (${machiningRangeX.xLo}–${machiningRangeX.xHi} mm): žádné hloubky průchodů neleží v zadaném intervalu — dráhy nebyly generovány.` });
     depths.splice(0, depths.length, ...filtered);
   }
 
