@@ -377,6 +377,21 @@ function injectCSS() {
 .cam-sim-toggle-row button.cam-sim-active {
   background: #89b4fa; color: #1e1e2e; border-color: #89b4fa;
 }
+.cam-sim-machine-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  font-size: 11px; font-weight: 600; width: 100%; box-sizing: border-box;
+  margin-bottom: 4px; text-align: left; gap: 6px;
+}
+.cam-sim-machine-toggle:hover { background: #45475a; }
+.cam-sim-machine-summary { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; flex: 1; }
+.cam-sim-machine-chip {
+  background: rgba(137,180,250,0.12); border: 1px solid rgba(137,180,250,0.35); color: #89b4fa;
+  border-radius: 3px; padding: 1px 5px; font-size: 10px; font-weight: 600;
+}
+.cam-sim-machine-chevron { color: #6c7086; font-size: 10px; flex-shrink: 0; }
+.cam-sim-machine-body.cam-sim-collapsed { display: none; }
 .cam-sim-errors {
   background: rgba(243,139,168,0.15); border-left: 3px solid #f38ba8;
   padding: 6px 8px; font-size: 11px; color: #f38ba8;
@@ -2201,7 +2216,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Pomocné (konstrukční) čáry — např. tečny z nástroje Úhel. Reálné
     // souřadnice (X = rádius), nejsou součástí kontury ani G-kódu.
     guideLines: [],
-    _lastTapTime: 0
+    _lastTapTime: 0,
+    machineConfigOpen: false
   };
 
   // Load from localStorage
@@ -5545,21 +5561,35 @@ export function openCamSimulator(initialContour, initialGCode) {
   function renderParamsTab() {
     const prms = S.params;
     let html = '';
-    html += `<div class="cam-sim-section-title">Struktura stroje</div>
-    <div class="cam-sim-toggle-row">
-      <button data-struct="lathe" class="${prms.machineStructure === 'lathe' ? 'cam-sim-active' : ''}">Soustruh</button>
-      <button data-struct="carousel" class="${prms.machineStructure === 'carousel' ? 'cam-sim-active' : ''}">Karusel</button>
-    </div>`;
-    html += `<div class="cam-sim-section-title">Řídicí systém</div>
-    <div class="cam-sim-toggle-row">
-      <button data-ctrl="sinumerik" class="${prms.controlSystem === 'sinumerik' ? 'cam-sim-active' : ''}">Sinumerik</button>
-      <button data-ctrl="fanuc" class="${prms.controlSystem === 'fanuc' ? 'cam-sim-active' : ''}">Fanuc</button>
-      <button data-ctrl="heidenhain" class="${prms.controlSystem === 'heidenhain' ? 'cam-sim-active' : ''}">Heidenhain</button>
-    </div>`;
-    html += `<div class="cam-sim-section-title">Programování</div>
-    <div class="cam-sim-toggle-row">
-      <button data-pmode="DIAMON" class="${prms.mode === 'DIAMON' ? 'cam-sim-active' : ''}">⌀ Průměr</button>
-      <button data-pmode="RADIUS" class="${prms.mode === 'RADIUS' ? 'cam-sim-active' : ''}">R Poloměr</button>
+    const _structLabel = prms.machineStructure === 'lathe' ? 'Soustruh' : 'Karusel';
+    const _ctrlLabel = prms.controlSystem === 'sinumerik' ? 'Sinumerik' : prms.controlSystem === 'fanuc' ? 'Fanuc' : 'Heidenhain';
+    const _modeLabel = prms.mode === 'RADIUS' ? 'R Poloměr' : '⌀ Průměr';
+    const _mcOpen = S.machineConfigOpen;
+    html += `<button class="cam-sim-machine-toggle" data-act="machine-config-toggle">
+      <span class="cam-sim-machine-summary">
+        <span class="cam-sim-machine-chip">${_structLabel}</span>
+        <span class="cam-sim-machine-chip">${_ctrlLabel}</span>
+        <span class="cam-sim-machine-chip">${_modeLabel}</span>
+      </span>
+      <span class="cam-sim-machine-chevron">${_mcOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="cam-sim-machine-body${_mcOpen ? '' : ' cam-sim-collapsed'}">
+      <div class="cam-sim-section-title">Struktura stroje</div>
+      <div class="cam-sim-toggle-row">
+        <button data-struct="lathe" class="${prms.machineStructure === 'lathe' ? 'cam-sim-active' : ''}">Soustruh</button>
+        <button data-struct="carousel" class="${prms.machineStructure === 'carousel' ? 'cam-sim-active' : ''}">Karusel</button>
+      </div>
+      <div class="cam-sim-section-title">Řídicí systém</div>
+      <div class="cam-sim-toggle-row">
+        <button data-ctrl="sinumerik" class="${prms.controlSystem === 'sinumerik' ? 'cam-sim-active' : ''}">Sinumerik</button>
+        <button data-ctrl="fanuc" class="${prms.controlSystem === 'fanuc' ? 'cam-sim-active' : ''}">Fanuc</button>
+        <button data-ctrl="heidenhain" class="${prms.controlSystem === 'heidenhain' ? 'cam-sim-active' : ''}">Heidenhain</button>
+      </div>
+      <div class="cam-sim-section-title">Programování</div>
+      <div class="cam-sim-toggle-row">
+        <button data-pmode="DIAMON" class="${prms.mode === 'DIAMON' ? 'cam-sim-active' : ''}">⌀ Průměr</button>
+        <button data-pmode="RADIUS" class="${prms.mode === 'RADIUS' ? 'cam-sim-active' : ''}">R Poloměr</button>
+      </div>
     </div>
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
@@ -5698,6 +5728,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   function attachParamsEvents() {
+    const mcToggleBtn = tabBody.querySelector('[data-act="machine-config-toggle"]');
+    if (mcToggleBtn) mcToggleBtn.addEventListener('click', () => {
+      S.machineConfigOpen = !S.machineConfigOpen;
+      renderTab();
+    });
     tabBody.querySelectorAll('[data-struct]').forEach(btn => {
       btn.addEventListener('click', () => { S.params.machineStructure = btn.dataset.struct; fullUpdate(); });
     });
