@@ -186,7 +186,7 @@ function injectCSS() {
   position: relative; overflow: hidden;
 }
 .cam-sim-canvas-area {
-  flex: 1; display: flex; flex-direction: column; position: relative; background: #1e1e2e;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; background: #1e1e2e;
 }
 .cam-sim-canvas-wrap {
   flex: 1; overflow: hidden; cursor: crosshair; touch-action: none; position: relative;
@@ -305,7 +305,7 @@ function injectCSS() {
 .cam-sim-manual-ta::-webkit-scrollbar { width: 6px; }
 .cam-sim-manual-ta::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
 .cam-sim-sidebar {
-  width: 320px; overflow: hidden; border-left: 1px solid #45475a;
+  width: 320px; flex-shrink: 0; overflow: hidden; border-left: 1px solid #45475a;
   background: #181825; display: flex; flex-direction: column;
 }
 .cam-sim-sidebar.cam-sim-sidebar-overlay {
