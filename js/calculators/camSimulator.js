@@ -308,6 +308,10 @@ function injectCSS() {
   width: 320px; flex-shrink: 0; overflow: hidden; border-left: 1px solid #45475a;
   background: #181825; display: flex; flex-direction: column;
 }
+.cam-sim-sidebar.cam-sim-sidebar-overlay {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 10;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.5); width: 100%; max-width: 360px;
+}
 
 .cam-sim-sidebar::-webkit-scrollbar { width: 6px; }
 .cam-sim-sidebar::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
@@ -2217,7 +2221,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     // souřadnice (X = rádius), nejsou součástí kontury ani G-kódu.
     guideLines: [],
     _lastTapTime: 0,
-    machineConfigOpen: false
+    machineConfigOpen: false,
+    safetyConfigOpen: false
   };
 
   // Load from localStorage
@@ -5407,6 +5412,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-edit="contour" class="${!isStock ? 'cam-sim-active' : ''}">✏ Kontura</button>
       <button data-edit="stock" class="${isStock ? 'cam-sim-active' : ''}">📦 Polotovar</button>
     </div>`;
+    if (isStock) {
+      html += `<div class="cam-sim-toggle-row">
+        <button data-smode="cylinder" class="${S.params.stockMode === 'cylinder' ? 'cam-sim-active' : ''}">Válec</button>
+        <button data-smode="casting" class="${S.params.stockMode === 'casting' ? 'cam-sim-active' : ''}">Vlastní tvar</button>
+      </div>`;
+    }
     if (isCylStock) {
       html += `<div class="cam-sim-info-box">Potáhněte úchopy na canvasu pro změnu rozměrů válce. Zapněte tlačítko ◆ Kontura.</div>
       <div class="cam-sim-row"><div class="cam-sim-field"><label>Průměr (D)</label><input type="number" data-cylp="stockDiameter" value="${S.params.stockDiameter}"></div>
@@ -5459,12 +5470,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     tabBody.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => {
         S.editMode = btn.dataset.edit;
-        if (S.editMode === 'stock') {
-          // Vstup do editoru polotovaru = uživatel chce vlastní tvar.
-          // Bez switche by jeho body byly skryté za válcovým renderingem.
-          if (S.params.stockMode !== 'casting') S.params.stockMode = 'casting';
-          if (S.stockPoints.length === 0) generateDefaultStock();
-        }
+        if (S.editMode === 'stock' && S.params.stockMode === 'casting' && S.stockPoints.length === 0) generateDefaultStock();
+        renderTab(); draw();
+      });
+    });
+    tabBody.querySelectorAll('[data-smode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        S.params.stockMode = btn.dataset.smode;
+        if (btn.dataset.smode === 'casting' && S.stockPoints.length === 0) generateDefaultStock();
         renderTab(); draw();
       });
     });
@@ -5595,55 +5608,59 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
       <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${prms.toolName}"></div>
     </div>`;
-    html += `<div class="cam-sim-section-title">Polotovar</div>
-    <div class="cam-sim-toggle-row">
-      <button data-smode="cylinder" class="${prms.stockMode === 'cylinder' ? 'cam-sim-active' : ''}">Válec</button>
-      <button data-smode="casting" class="${prms.stockMode === 'casting' ? 'cam-sim-active' : ''}">Vlastní tvar</button>
-    </div>`;
-    if (prms.stockMode === 'cylinder') {
-      html += `<div class="cam-sim-row">
-        <div class="cam-sim-field"><label>Průměr (D)</label><input type="number" data-p="stockDiameter" value="${prms.stockDiameter}"></div>
-        <div class="cam-sim-field"><label>Délka (Z-)</label><input type="number" data-p="stockLength" value="${prms.stockLength}"></div>
+    const _safeOpen = S.safetyConfigOpen;
+    const _chActive = S.zLimits.chuckActive;
+    const _koActive = S.zLimits.tailActive;
+    const _zActive = S.zLimits.rangeActive;
+    const _xActive = S.xLimits.active;
+    const _cs = (on) => on
+      ? 'background:rgba(166,227,161,0.18);border-color:rgba(166,227,161,0.5);color:#a6e3a1'
+      : 'background:rgba(88,91,112,0.12);border-color:rgba(88,91,112,0.35);color:#585b70';
+    html += `<button class="cam-sim-machine-toggle" data-act="safety-config-toggle">
+      <span class="cam-sim-machine-summary">
+        <span class="cam-sim-machine-chip">Bp ${prms.safeX}<span style="color:#1e1e2e;font-weight:900">/</span>${prms.safeZ}</span>
+        <span class="cam-sim-machine-chip">Vůle ${prms.rapidClearance} mm</span>
+        <span class="cam-sim-machine-chip" style="display:inline-flex;gap:3px;align-items:center">
+          <span style="color:${_chActive ? '#a6e3a1' : '#585b70'}" title="Čelisti">Č</span><span style="color:#45475a">/</span><span style="color:${_koActive ? '#a6e3a1' : '#585b70'}" title="Koník">K</span>
+        </span>
+        <span class="cam-sim-machine-chip" style="${_cs(_zActive)}" title="Rozsah Z">Z</span>
+        <span class="cam-sim-machine-chip" style="${_cs(_xActive)}" title="Rozsah X">X</span>
+      </span>
+      <span class="cam-sim-machine-chevron">${_safeOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="cam-sim-machine-body${_safeOpen ? '' : ' cam-sim-collapsed'}">
+      <div class="cam-sim-section-title">Bezpečná poloha</div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label>X (Průměr)</label><input type="number" data-p="safeX" value="${prms.safeX}"></div>
+        <div class="cam-sim-field"><label>Z</label><input type="number" data-p="safeZ" value="${prms.safeZ}"></div>
       </div>
       <div class="cam-sim-row">
-        <div class="cam-sim-field"><label>Přídavek čelo</label><input type="number" data-p="stockFace" value="${prms.stockFace}"></div>
-        <div class="cam-sim-field"><label>Přídavek (Auto)</label><input type="number" data-p="stockMargin" value="${prms.stockMargin}"></div>
-      </div>
-      <button class="cam-sim-btn cam-sim-btn-indigo" data-act="auto-stock">🎯 Auto-rozměr</button>`;
-    } else {
-      html += `<div class="cam-sim-info-box">Pro definici tvarového polotovaru přepněte na Editor → Polotovar.</div>`;
-    }
-    html += `<div class="cam-sim-section-title">Bezpečná poloha</div>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>X (Průměr)</label><input type="number" data-p="safeX" value="${prms.safeX}"></div>
-      <div class="cam-sim-field"><label>Z</label><input type="number" data-p="safeZ" value="${prms.safeZ}"></div>
-    </div>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field" title="Vzdálenost od polotovaru, kde končí rychloposuv. Sjezd přes tuto vůli na povrch už jede pracovním posuvem G1."><label>Vůle nad polotovarem</label><input type="number" step="0.1" min="0.1" data-p="rapidClearance" value="${prms.rapidClearance}"></div>
-    </div>`;
+        <div class="cam-sim-field" title="Vzdálenost od polotovaru, kde končí rychloposuv. Sjezd přes tuto vůli na povrch už jede pracovním posuvem G1."><label>Vůle nad polotovarem</label><input type="number" step="0.1" min="0.1" data-p="rapidClearance" value="${prms.rapidClearance}"></div>
+      </div>`;
     const zlOn = S.showZLimits === 'on';
     const zlLabel = zlOn ? 'Skrýt' : 'Zobrazit';
     html += `<div class="cam-sim-section-title">Z-limity / rozsah <button data-act="zlimits-toggle" class="cam-sim-btn ${zlOn ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">${zlLabel}</button></div>
-    <small class="cam-sim-info-box" style="display:block">Čelisti / koník = bezpečnostní limity (červené). Rozsah = úsek kontury k obrábění (žluté). Na canvasu lze tahat myší.</small>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field"><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="chuck-active" ${S.zLimits.chuckActive ? 'checked' : ''}> ⛔ Čelisti Z</label><input type="number" step="0.5" data-zlim="chuck" value="${S.zLimits.chuck ?? ''}" placeholder="vypnuto"></div>
-      <div class="cam-sim-field"><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="tail-active" ${S.zLimits.tailActive ? 'checked' : ''}> ⛔ Koník Z</label><input type="number" step="0.5" data-zlim="tail" value="${S.zLimits.tail ?? ''}" placeholder="vypnuto"></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#cdd6f4;cursor:pointer;margin:4px 0 2px">
-      <input type="checkbox" data-act="zrange-active" ${S.zLimits.rangeActive ? 'checked' : ''}> Rozsah Z — aktivovat pro generování drah
-    </label>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>◀ Rozsah start Z</label><input type="number" step="0.5" data-zlim="rangeStart" value="${S.zLimits.rangeStart ?? ''}" placeholder="vypnuto"></div>
-      <div class="cam-sim-field"><label>Rozsah konec Z ▶</label><input type="number" step="0.5" data-zlim="rangeEnd" value="${S.zLimits.rangeEnd ?? ''}" placeholder="vypnuto"></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#cdd6f4;cursor:pointer;margin:4px 0 2px">
-      <input type="checkbox" data-act="xrange-active" ${S.xLimits.active ? 'checked' : ''}> Rozsah X — aktivovat pro generování drah
-    </label>
-    <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>▼ Rozsah X min (∅/2)</label><input type="number" step="0.5" min="0" data-xlim="rangeXMin" value="${S.xLimits.rangeXMin ?? ''}" placeholder="vypnuto"></div>
-      <div class="cam-sim-field"><label>Rozsah X max (∅/2) ▲</label><input type="number" step="0.5" min="0" data-xlim="rangeXMax" value="${S.xLimits.rangeXMax ?? ''}" placeholder="vypnuto"></div>
-    </div>
-    <div style="text-align:right;margin-top:2px"><button class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" data-act="zlimits-clear">Vymazat vše</button></div>`;
+      <small class="cam-sim-info-box" style="display:block">Čelisti / koník = bezpečnostní limity (červené). Rozsah = úsek kontury k obrábění (žluté). Na canvasu lze tahat myší.</small>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="chuck-active" ${S.zLimits.chuckActive ? 'checked' : ''}> ⛔ Čelisti Z</label><input type="number" step="0.5" data-zlim="chuck" value="${S.zLimits.chuck ?? ''}" placeholder="vypnuto"></div>
+        <div class="cam-sim-field"><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="tail-active" ${S.zLimits.tailActive ? 'checked' : ''}> ⛔ Koník Z</label><input type="number" step="0.5" data-zlim="tail" value="${S.zLimits.tail ?? ''}" placeholder="vypnuto"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#cdd6f4;cursor:pointer;margin:4px 0 2px">
+        <input type="checkbox" data-act="zrange-active" ${S.zLimits.rangeActive ? 'checked' : ''}> Rozsah Z — aktivovat pro generování drah
+      </label>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label>◀ Rozsah start Z</label><input type="number" step="0.5" data-zlim="rangeStart" value="${S.zLimits.rangeStart ?? ''}" placeholder="vypnuto"></div>
+        <div class="cam-sim-field"><label>Rozsah konec Z ▶</label><input type="number" step="0.5" data-zlim="rangeEnd" value="${S.zLimits.rangeEnd ?? ''}" placeholder="vypnuto"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#cdd6f4;cursor:pointer;margin:4px 0 2px">
+        <input type="checkbox" data-act="xrange-active" ${S.xLimits.active ? 'checked' : ''}> Rozsah X — aktivovat pro generování drah
+      </label>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label>▼ Rozsah X min (∅/2)</label><input type="number" step="0.5" min="0" data-xlim="rangeXMin" value="${S.xLimits.rangeXMin ?? ''}" placeholder="vypnuto"></div>
+        <div class="cam-sim-field"><label>Rozsah X max (∅/2) ▲</label><input type="number" step="0.5" min="0" data-xlim="rangeXMax" value="${S.xLimits.rangeXMax ?? ''}" placeholder="vypnuto"></div>
+      </div>
+      <div style="text-align:right;margin-top:2px"><button class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" data-act="zlimits-clear">Vymazat vše</button></div>
+    </div>`;
     html += `<div class="cam-sim-section-title">Databáze materiálů</div>
     <div class="cam-sim-mat-grid">${Object.keys(MATERIALS).map(k =>
       `<button data-mat="${k}">${MATERIALS[k].name}</button>`
@@ -5733,6 +5750,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.machineConfigOpen = !S.machineConfigOpen;
       renderTab();
     });
+    const scToggleBtn = tabBody.querySelector('[data-act="safety-config-toggle"]');
+    if (scToggleBtn) scToggleBtn.addEventListener('click', () => {
+      S.safetyConfigOpen = !S.safetyConfigOpen;
+      renderTab();
+    });
     tabBody.querySelectorAll('[data-struct]').forEach(btn => {
       btn.addEventListener('click', () => { S.params.machineStructure = btn.dataset.struct; fullUpdate(); });
     });
@@ -5741,13 +5763,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     tabBody.querySelectorAll('[data-pmode]').forEach(btn => {
       btn.addEventListener('click', () => { S.params.mode = btn.dataset.pmode; fullUpdate(); });
-    });
-    tabBody.querySelectorAll('[data-smode]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        S.params.stockMode = btn.dataset.smode;
-        if (btn.dataset.smode === 'casting') { S.activeTab = 'editor'; S.editMode = 'stock'; if (S.stockPoints.length === 0) generateDefaultStock(); }
-        fullUpdate();
-      });
     });
     tabBody.querySelectorAll('[data-p]').forEach(inp => {
       inp.addEventListener('change', () => {
@@ -5879,8 +5894,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         },
       });
     });
-    const autoBtn = tabBody.querySelector('[data-act="auto-stock"]');
-    if (autoBtn) autoBtn.addEventListener('click', handleAutoStock);
     const resetBtn = tabBody.querySelector('[data-act="reset"]');
     if (resetBtn) resetBtn.addEventListener('click', async () => {
       const ok = await camConfirm('Opravdu chcete vymazat veškerou uloženou práci a resetovat?');
@@ -6843,19 +6856,21 @@ export function openCamSimulator(initialContour, initialGCode) {
   root.querySelector('[data-code="to-canvas"]').addEventListener('click', handleSendToCanvas);
   root.querySelector('[data-code="save-prog"]').addEventListener('click', handleSaveProject);
   root.querySelector('[data-code="load-prog"]').addEventListener('click', handleLoadProject);
-  root.querySelector('[data-code="show-sidebar"]').addEventListener('click', () => {
-    if (sidebar.style.display === 'flex') {
-      sidebar.style.display = 'none';
-    } else {
-      sidebar.style.display = 'flex';
-      renderTab();
-    }
-    draw();
-  });
-  root.querySelector('[data-act="hide-sidebar"]').addEventListener('click', () => {
+  const showSidebar = () => {
+    if (root.offsetWidth < 700) sidebar.classList.add('cam-sim-sidebar-overlay');
+    else sidebar.classList.remove('cam-sim-sidebar-overlay');
+    sidebar.style.display = 'flex';
+    renderTab(); draw();
+  };
+  const hideSidebar = () => {
     sidebar.style.display = 'none';
+    sidebar.classList.remove('cam-sim-sidebar-overlay');
     draw();
+  };
+  root.querySelector('[data-code="show-sidebar"]').addEventListener('click', () => {
+    if (sidebar.style.display === 'flex') hideSidebar(); else showSidebar();
   });
+  root.querySelector('[data-act="hide-sidebar"]').addEventListener('click', hideSidebar);
 
   // manual textarea
   manualTa.addEventListener('mousedown', () => { S._gcodeFocusLine = null; });
