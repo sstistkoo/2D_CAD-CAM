@@ -308,10 +308,7 @@ function injectCSS() {
   width: 320px; flex-shrink: 0; overflow: hidden; border-left: 1px solid #45475a;
   background: #181825; display: flex; flex-direction: column;
 }
-.cam-sim-sidebar.cam-sim-sidebar-overlay {
-  position: absolute; top: 0; right: 0; bottom: 0; z-index: 10;
-  box-shadow: -4px 0 16px rgba(0,0,0,0.5); width: 100%; max-width: 360px;
-}
+
 .cam-sim-sidebar::-webkit-scrollbar { width: 6px; }
 .cam-sim-sidebar::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
 .cam-sim-header {
@@ -6809,8 +6806,13 @@ export function openCamSimulator(initialContour, initialGCode) {
   root.querySelector('[data-code="save-prog"]').addEventListener('click', handleSaveProject);
   root.querySelector('[data-code="load-prog"]').addEventListener('click', handleLoadProject);
   root.querySelector('[data-code="show-sidebar"]').addEventListener('click', () => {
-    sidebar.style.display = 'flex';
-    renderTab(); draw();
+    if (sidebar.style.display === 'flex') {
+      sidebar.style.display = 'none';
+    } else {
+      sidebar.style.display = 'flex';
+      renderTab();
+    }
+    draw();
   });
   root.querySelector('[data-act="hide-sidebar"]').addEventListener('click', () => {
     sidebar.style.display = 'none';
