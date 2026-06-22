@@ -398,9 +398,19 @@ function injectCSS() {
 .cam-sim-machine-body.cam-sim-collapsed { display: none; }
 .cam-sim-errors {
   background: rgba(243,139,168,0.15); border-left: 3px solid #f38ba8;
-  padding: 6px 8px; font-size: 11px; color: #f38ba8;
+  font-size: 11px; color: #f38ba8;
 }
-.cam-sim-errors ul { margin: 4px 0 0 16px; padding: 0; }
+.cam-sim-errors-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 6px 8px; background: none; border: none;
+  color: #f38ba8; font-size: 11px; font-weight: 700; cursor: pointer;
+  text-align: left; gap: 6px; box-sizing: border-box;
+}
+.cam-sim-errors-toggle:hover { background: rgba(243,139,168,0.08); }
+.cam-sim-errors-toggle .cam-sim-err-chevron { font-size: 10px; opacity: 0.7; flex-shrink: 0; }
+.cam-sim-errors-body { padding: 0 8px 6px 8px; }
+.cam-sim-errors-body.cam-sim-collapsed { display: none; }
+.cam-sim-errors ul { margin: 2px 0 0 16px; padding: 0; }
 .cam-sim-point-row {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
   padding: 6px; border-radius: 4px; background: #1e1e2e; border: 1px solid #45475a;
@@ -2234,7 +2244,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     safetyConfigOpen: false,
     materialConfigOpen: false,
     selectedMaterial: 'Ocel 11 373 (S235)',
-    toolConfigOpen: false
+    toolConfigOpen: false,
+    errorsOpen: false
   };
 
   // Load from localStorage
@@ -5324,8 +5335,20 @@ export function openCamSimulator(initialContour, initialGCode) {
   function showErrors() {
     if (S.errors.length === 0) { errorsDiv.style.display = 'none'; return; }
     errorsDiv.style.display = '';
-    errorsDiv.innerHTML = '<b>⚠ Nalezeny problémy:</b><ul>' +
-      S.errors.map(e => '<li>' + (e.msg || e) + '</li>').join('') + '</ul>';
+    const n = S.errors.length;
+    const open = S.errorsOpen;
+    errorsDiv.innerHTML =
+      `<button class="cam-sim-errors-toggle" data-act="errors-toggle">
+        <span>⚠ Nalezeny problémy: ${n}</span>
+        <span class="cam-sim-err-chevron">${open ? '▲' : '▼'}</span>
+      </button>
+      <div class="cam-sim-errors-body${open ? '' : ' cam-sim-collapsed'}">
+        <ul>${S.errors.map(e => '<li>' + (e.msg || e) + '</li>').join('')}</ul>
+      </div>`;
+    errorsDiv.querySelector('[data-act="errors-toggle"]').addEventListener('click', () => {
+      S.errorsOpen = !S.errorsOpen;
+      showErrors();
+    });
   }
 
   // ── UI: code area ──
@@ -5740,14 +5763,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     </div>`;
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
       <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
-      <span>Hrubování bez schodků</span>
+      <span>Hrub. bez schodků</span>
+      ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
     </div>`;
-    if (prms.noStepRoughing) {
-      html += `<div class="cam-sim-checkbox-row">
-      <input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}>
-      <span>… i u čelního hrubování</span>
-    </div>`;
-    }
     if (prms.toolShape === 'polygon') {
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
         <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
