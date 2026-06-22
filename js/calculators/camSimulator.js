@@ -836,7 +836,44 @@ function buildMachinableContour(segs, guides) {
       const endPt = segEndPoint(result[result.length - 1]);
       const dStart = Math.hypot(offPt.x - startPt.x, offPt.z - startPt.z);
       const dEnd = Math.hypot(offPt.x - endPt.x, offPt.z - endPt.z);
-      if (Math.min(dStart, dEnd) > 5) continue; // off bod nepatří k okraji kontury
+      if (Math.min(dStart, dEnd) > 5) {
+        // ── Náběhový stín destičky ──
+        // Off konec mezní čáry míří hluboko do POLOTOVARU (ne k okraji kontury)
+        // a loc kotví na vnitřním vrcholu. Zanořovací (spodní hrana) čára tím
+        // říká, že celý úsek kontury od loc dál je ve STÍNU destičky — ta jede
+        // shora a dojede jen k té čáře; vnitřní prvky (drážka apod.) jsou
+        // nedosažitelné. Stín se nahradí JEDNÍM mostem podél čáry (od loc k off);
+        // zbytek kontury hlubší než off (upínací oblast) zůstane. Bez toho zůstane
+        // stín reálnou konturou a hlídání geometrie/dokončování se počítá z
+        // vnitřních prvků místo od náběhu (čára by „začínala" až u nich).
+        if (g.kind !== 'zanoreni' || offPt.x < locPt.x + 0.5) continue;
+        const ci = loc.at === 'start' ? loc.segIdx : loc.segIdx + 1;
+        if (ci >= result.length) continue;
+        const dxL = offPt.x - locPt.x, dzL = offPt.z - locPt.z;
+        const lineXAtZ = (z) => Math.abs(dzL) < 1e-9 ? locPt.x : locPt.x + dxL * ((z - locPt.z) / dzL);
+        // Konec stínu = první segment začínající hlouběji než off (Z ≤ off.z) →
+        // od něj se kontura ponechá. Cestou ověřit, že je celý stín POD čarou
+        // (jinak by most zajel do vystupujícího prvku → přeskočit).
+        let keepFrom = -1, ok = true;
+        for (let k = ci; k < result.length; k++) {
+          const sp = segStartPoint(result[k]), ep = segEndPoint(result[k]);
+          if (sp.z <= offPt.z + 1e-6) { keepFrom = k; break; }
+          const cap = Math.max(ep.z, offPt.z);
+          if (sp.x > lineXAtZ(sp.z) + 0.3 || ep.x > lineXAtZ(cap) + 0.3) { ok = false; break; }
+        }
+        if (!ok) continue;
+        const before = result.slice(0, ci).map(x => ({ ...x }));
+        const bridge = { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true };
+        if (keepFrom === -1) {
+          result = [...before, bridge];
+        } else {
+          const tail = result.slice(keepFrom).map(x => ({ ...x }));
+          const connector = { type: 'line', p1: { ...offPt }, p2: segStartPoint(tail[0]), fromInsert: true };
+          delete tail[0].chainBreak;
+          result = [...before, bridge, connector, ...tail];
+        }
+        continue;
+      }
       // Prodloužení k okraji smí navazovat JEN na krajní entitu kontury.
       // Když dotykový bod (loc) leží uvnitř kontury (např. mezní čára, jejíž
       // spodní konec paprskem dopadl na osu odlitku X=0), tahle větev by
@@ -2534,7 +2571,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     // Automatické mezní čáry: jen při zapnutém Hlídání geometrie (jinak by
     // zůstaly vykreslené i po vypnutí). Ruční čáry (S.guideLines) netknuté.
-    const interferenceGuides = (clearance && prms.respectInsertGeometry)
+    let interferenceGuides = (clearance && prms.respectInsertGeometry)
       ? computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints)
       : [];
 
@@ -2546,6 +2583,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (clearance && prms.respectInsertGeometry && interferenceGuides.length > 0) {
       machinableContour = buildMachinableContour(contourSegments, interferenceGuides);
       contourSegments = machinableContour;
+      // Mezní čáry, které se do machinable kontury NEpromítly (oba konce už
+      // neleží na ní), jsou překryté jiným mostem (stínem) — kreslit je je
+      // matoucí (uživatel je vidí jako „zbytečné" čáry uvnitř hotové kontury).
+      // Ponechat jen ty, jejichž oba konce leží na výsledné kontuře.
+      interferenceGuides = interferenceGuides.filter(g =>
+        _locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
+        _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }));
     }
 
     let incompleteMachiningCount = 0;
@@ -2695,24 +2739,54 @@ export function openCamSimulator(initialContour, initialGCode) {
       for (let i = finishOffsetPath.length - 1; i >= 0; i--) {
         const s = finishOffsetPath[i];
         if (s.type !== 'line' || !s.p1 || !s.p2) continue;
-        const g1 = gougeAt(s.p1), g2 = gougeAt(s.p2);
-        if (!g1 && !g2) continue;
+        // Vzorkovat CELÝ úsek, ne jen konce: dlouhý most z geometrie destičky
+        // (přes nedosažitelný stín destičky) má konce ve vzduchu, ale STŘEDEM
+        // může proříznout konturu. Kontrola jen koncových bodů to propustí →
+        // dráha zajede do materiálu. Úsek se rozseká na nezajíždějící části,
+        // zajíždějící střed se přesune do nedosažitelných (tečkovaně, bez řezu).
+        const ptAt = (t) => ({ x: s.p1.x + (s.p2.x - s.p1.x) * t, z: s.p1.z + (s.p2.z - s.p1.z) * t });
+        const segLen = Math.hypot(s.p2.x - s.p1.x, s.p2.z - s.p1.z);
+        const N = Math.max(20, Math.ceil(segLen / 0.5));
+        const flags = [];
+        let anyGouge = false, allGouge = true;
+        for (let k = 0; k <= N; k++) { const g = gougeAt(ptAt(k / N)); flags.push(g); if (g) anyGouge = true; else allGouge = false; }
+        if (!anyGouge) continue;
         finClamped++;
-        if (g1 && g2) {
-          s.unreachable = true; finishUnreachablePath.push(s);
+        // Přesná hranice (v parametru t) mezi vzorkem t0 a t1 s opačným stavem.
+        const boundary = (t0, t1) => {
+          let lo = t0, hi = t1; const gLo = gougeAt(ptAt(t0));
+          for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (gougeAt(ptAt(m)) === gLo) lo = m; else hi = m; }
+          return (lo + hi) / 2;
+        };
+        if (allGouge) {
+          finishUnreachablePath.push({ type: 'line', p1: { ...s.p1 }, p2: { ...s.p2 }, unreachable: true });
           finishOffsetPath.splice(i, 1);
           if (i < finishOffsetPath.length) finishOffsetPath[i].chainBreak = true;
           continue;
         }
-        // Jeden konec zajíždí → bisekcí najít hranici a úsek oříznout.
-        let lo = g1 ? { ...s.p2 } : { ...s.p1 };   // bezpečný konec
-        let hi = g1 ? { ...s.p1 } : { ...s.p2 };   // zajíždějící konec
-        for (let k = 0; k < 26; k++) {
-          const m = { x: (lo.x + hi.x) / 2, z: (lo.z + hi.z) / 2 };
-          if (gougeAt(m)) hi = m; else lo = m;
+        // Nezajíždějící (keep) i zajíždějící (gouge) intervaly v t.
+        const keepRuns = [], gougeRuns = [];
+        let kStart = flags[0] ? null : 0, gStart = flags[0] ? 0 : null;
+        for (let k = 1; k <= N; k++) {
+          if (flags[k] === flags[k - 1]) continue;
+          const b = boundary((k - 1) / N, k / N);
+          if (flags[k - 1]) { gougeRuns.push([gStart, b]); gStart = null; kStart = b; }
+          else { keepRuns.push([kStart, b]); kStart = null; gStart = b; }
         }
-        finishUnreachablePath.push({ type: 'line', p1: g1 ? { ...s.p1 } : { ...lo }, p2: g1 ? { ...lo } : { ...s.p2 }, unreachable: true });
-        if (g1) s.p1 = lo; else s.p2 = lo;
+        if (kStart !== null) keepRuns.push([kStart, 1]);
+        if (gStart !== null) gougeRuns.push([gStart, 1]);
+        gougeRuns.filter(([a, b]) => b - a > 1e-4).forEach(([a, b]) =>
+          finishUnreachablePath.push({ type: 'line', p1: ptAt(a), p2: ptAt(b), unreachable: true }));
+        const replacement = keepRuns.filter(([a, b]) => b - a > 1e-3).map(([a, b], idx) => {
+          const seg = { type: 'line', p1: ptAt(a), p2: ptAt(b) };
+          // Přejezd (G0) před úsek, když mu předchází vyříznutá mezera nebo
+          // měl-li přejezd už původní úsek.
+          if (a > 1e-6 || idx > 0 || s.chainBreak) seg.chainBreak = true;
+          return seg;
+        });
+        // Konec úseku zajíždí → další segment v řetězu potřebuje přejezd.
+        if (flags[N] && i + 1 < finishOffsetPath.length) finishOffsetPath[i + 1].chainBreak = true;
+        finishOffsetPath.splice(i, 1, ...replacement);
       }
       if (finClamped > 0)
         foundErrors.push({ type: 'warning', msg: `Dokončování: ${finClamped} úsek(ů) zkráceno, aby dráha nezajela do kontury (zbytek nedosažitelný — viz tečkovaně).` });

@@ -121,10 +121,17 @@ export function genFacePasses(ctx) {
     if (xEnd >= xStartLocal - 0.01) continue; // řez nulové délky
     passes.push({ type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked });
     if (prms.noStepRoughing && prms.noStepRoughingFace && xEndBlocked) {
-      // Bez schodků: po dojezdu na xEnd se dál sleduje kontura
-      // (G1/G2/G3) v pásu Z∈[currentZ−step, currentZ] — schod, který
-      // by jinak zůstal po hraně, se obrobí přímo po obrysu.
-      const leadOut = traceOffsetPath(currentZ, currentZ - step);
+      // Bez schodků (čelně, zprava doleva): po dojezdu na xEnd se schod
+      // dojíždí po kontuře DOPRAVA (+Z), k předchozímu (mělčímu) průchodu —
+      // ta strana je už obrobená, takže se jen sloupne hřebínek. Doleva (−Z)
+      // by nástroj zajel do dosud NEobrobeného polotovaru (plný záběr →
+      // zajetí do materiálu). traceOffsetPath vrací úseky shora dolů (vysoké→
+      // nízké Z); pro jízdu doprava je otočíme (pořadí + koncové body + směr
+      // oblouku), aby dráha plynule navázala z (xEnd, currentZ) doprava.
+      const raw = traceOffsetPath(currentZ + step, currentZ);
+      const leadOut = raw.slice().reverse().map(s => s.type === 'line'
+        ? { type: 'line', x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 }
+        : { type: 'arc', cx: s.cx, cz: s.cz, r: s.r, dir: s.dir === 'G2' ? 'G3' : 'G2', startAngle: s.endAngle, endAngle: s.startAngle, x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 });
       if (leadOut.length > 0) passes[passes.length - 1].contourLeadOut = leadOut;
     }
     if (currentZ < -200) break;
@@ -154,6 +161,10 @@ export function genFacePasses(ctx) {
           faceAdjusted++;
           if (xE >= p.xStart - 0.05) { passes.splice(pi, 1); continue; }
           p.xEnd = xE;
+          // leadOut byl spočítán pro NEzvednutý xEnd (po reálné kontuře). Po
+          // zvednutí mezní čárou destičky by sledoval konturu POD limit, kam
+          // boční ostří nedosáhne → zahodit (schod tam destička neobrobí).
+          if (p.contourLeadOut) delete p.contourLeadOut;
         }
       }
       if (faceAdjusted > 0)
