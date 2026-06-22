@@ -399,6 +399,9 @@ function injectCSS() {
   width: 56px; background: #11111b; border: 1px solid #45475a; color: #cdd6f4;
   border-radius: 3px; font-size: 11px; padding: 3px 4px; box-sizing: border-box;
 }
+.cam-sim-point-row input[type=number]::-webkit-inner-spin-button,
+.cam-sim-point-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.cam-sim-point-row input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .cam-sim-point-row input:focus, .cam-sim-point-row select:focus {
   outline: none; border-color: #89b4fa;
 }
