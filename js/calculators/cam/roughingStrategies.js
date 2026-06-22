@@ -187,7 +187,7 @@ export function genFacePasses(ctx) {
 
 // PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standardní soustružení).
 export function genLongPasses(ctx) {
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ, findLeadOutEndZ, hIntersect } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -252,6 +252,11 @@ export function genLongPasses(ctx) {
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
     depths.push(minPartX);
   }
+  // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
+  if (machiningRangeX) {
+    const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
+    depths.splice(0, depths.length, ...filtered);
+  }
 
   const effPlungeDegL = getEffectivePlungeAngle(prms);
   const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
@@ -276,6 +281,11 @@ export function genLongPasses(ctx) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
     if (!sz) continue;
+
+    // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval.
+    const effZMax = machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax;
+    const effZMin = machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin;
+    if (effZMax - effZMin < 0.1) continue;
 
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
     // nepřekračuje currentX). První interval (od pravé hrany
@@ -309,11 +319,11 @@ export function genLongPasses(ctx) {
       return hi;
     };
     const intervals = [];
-    let zScan = sz.zMax;
+    let zScan = effZMax;
     let inRun = !blockedAt(zScan);
     const firstOpen = inRun;
     let runStartZ = zScan;
-    while (zScan > sz.zMin + dzScan) {
+    while (zScan > effZMin + dzScan) {
       zScan -= dzScan;
       const blocked = blockedAt(zScan);
       if (inRun && blocked) {
@@ -325,7 +335,7 @@ export function genLongPasses(ctx) {
         inRun = true;
       }
     }
-    if (inRun) intervals.push({ zStart: runStartZ, zEnd: sz.zMin, blocked: false });
+    if (inRun) intervals.push({ zStart: runStartZ, zEnd: effZMin, blocked: false });
 
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
@@ -367,7 +377,7 @@ export function genLongPasses(ctx) {
       // Když je úplně první interval blokovaný (idx===0, !firstOpen),
       // neexistuje předchozí interval → horní hranice mezery = okraj
       // polotovaru (sz.zMax). Bez fallbacku by intervals[-1] spadlo.
-      const zGapHi = idx > 0 ? intervals[idx - 1].zEnd : sz.zMax;
+      const zGapHi = idx > 0 ? intervals[idx - 1].zEnd : effZMax;
       if (!iv.blocked) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
@@ -532,7 +542,7 @@ export function genLongPasses(ctx) {
 // profil. v1: celý rozsah nahrubo zleva (zrcadlo pravé strany), bez kapes/
 // rampování — passes mají type 'long' + backside:true (emise/retrakt zleva).
 export function genBacksidePasses(ctx, op) {
-  const { sRad, step, offsetPath, passes, foundErrors, offsetXAt, worldPoints, stockFace, machiningRange, chuckZ } = ctx;
+  const { sRad, step, offsetPath, passes, foundErrors, offsetXAt, worldPoints, stockFace, machiningRange, machiningRangeX, chuckZ } = ctx;
 
   // Z-zóna obrábění: primárně z rozsahu (📐), jinak celý profil po čelo.
   let zLo, zHi;
@@ -562,6 +572,11 @@ export function genBacksidePasses(ctx, op) {
   const depths = [];
   for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) depths.push(minPartX);
+  // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
+  if (machiningRangeX) {
+    const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
+    depths.splice(0, depths.length, ...filtered);
+  }
 
   const dz = 0.2;
   const isOpen = (z, currentX) => { const x = offsetXAt(z); return x === null || x <= currentX + 0.01; };
