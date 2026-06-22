@@ -6809,13 +6809,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   root.querySelector('[data-code="save-prog"]').addEventListener('click', handleSaveProject);
   root.querySelector('[data-code="load-prog"]').addEventListener('click', handleLoadProject);
   root.querySelector('[data-code="show-sidebar"]').addEventListener('click', () => {
-    sidebar.classList.add('cam-sim-sidebar-overlay');
     sidebar.style.display = 'flex';
     renderTab(); draw();
   });
   root.querySelector('[data-act="hide-sidebar"]').addEventListener('click', () => {
     sidebar.style.display = 'none';
-    sidebar.classList.remove('cam-sim-sidebar-overlay');
     draw();
   });
 
