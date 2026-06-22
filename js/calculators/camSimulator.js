@@ -1991,9 +1991,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   <div class="cam-sim-canvas-area">
     <div class="cam-sim-toolbar">
       <button data-act="addpt" title="Vložit za bod" style="display:none">➕</button>
-      <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
-      <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
-      <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
+      <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (zapněte ✥ Dráhy)" style="display:none">⊢ Prodl</button>
+      <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (zapněte ✥ Dráhy)" style="display:none">⊣ Ořez</button>
       <button data-act="delpt" title="Odebrat bod" style="display:none">➖</button>
       <button data-act="edit-contour" title="Kontura: táhněte body kontury pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
       <button data-act="edit-paths" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
@@ -2002,8 +2001,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
-      <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (zapněte ✥ Dráhy)">⊢ Prodl</button>
-      <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (zapněte ✥ Dráhy)">⊣ Ořez</button>
+      <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
+      <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
+      <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
+      <button data-act="toggle-controls" title="Skrýt / zobrazit hlavní ovládací tlačítka" style="font-size:11px;padding:4px 8px">«»</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
       <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
@@ -2218,6 +2219,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     isDragging: false, addPointMode: false, pointDragEnabled: false,
     gcodeEditEnabled: false,   // úprava drah (G-kód) – nezávislá na pointDragEnabled
     snapEnabled: true,   // SNAP přichytávání zapnuté hned po načtení
+    controlsHidden: false,
     // Trasování profilu (klikací nástroj) — body, segmenty a náhled výsledné kontury
     profileTraceMode: false,
     _tracePoints: [],   // [{x, z}] absolutní world souřadnice (rádius, Z)
@@ -6688,6 +6690,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       btn.classList.toggle('cam-sim-active', S.pointDragEnabled);
       { const v = S.pointDragEnabled || S.gcodeEditEnabled; toolbar.querySelector('[data-act="addpt"]').style.display = v ? '' : 'none'; toolbar.querySelector('[data-act="delpt"]').style.display = v ? '' : 'none'; }
+      { const ve = S.gcodeEditEnabled; toolbar.querySelector('[data-act="gextend"]').style.display = ve ? '' : 'none'; toolbar.querySelector('[data-act="gtrim"]').style.display = ve ? '' : 'none'; }
       draw();
     } else if (act === 'edit-paths') {
       // Dráhy: úprava G-kódu. Vzájemně se vylučuje s úpravou kontury.
@@ -6706,6 +6709,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       btn.classList.toggle('cam-sim-active', S.gcodeEditEnabled);
       { const v = S.pointDragEnabled || S.gcodeEditEnabled; toolbar.querySelector('[data-act="addpt"]').style.display = v ? '' : 'none'; toolbar.querySelector('[data-act="delpt"]').style.display = v ? '' : 'none'; }
+      { const ve = S.gcodeEditEnabled; toolbar.querySelector('[data-act="gextend"]').style.display = ve ? '' : 'none'; toolbar.querySelector('[data-act="gtrim"]').style.display = ve ? '' : 'none'; }
       draw();
     } else if (act === 'fit') {
       fitView();
@@ -6785,6 +6789,16 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       canvas.style.cursor = on ? 'crosshair' : 'crosshair';
       draw();
+    } else if (act === 'toggle-controls') {
+      S.controlsHidden = !S.controlsHidden;
+      const hidden = S.controlsHidden;
+      const acts = ['edit-contour', 'edit-paths', 'fit', 'simpath', 'zlimits', 'snap', 'profile'];
+      acts.forEach(a => {
+        const el = toolbar.querySelector(`[data-act="${a}"]`);
+        if (el) el.style.display = hidden ? 'none' : '';
+      });
+      btn.textContent = hidden ? '»«' : '«»';
+      btn.title = hidden ? 'Zobrazit hlavní ovládací tlačítka' : 'Skrýt hlavní ovládací tlačítka';
     }
   });
 
@@ -7372,6 +7386,128 @@ export function openCamSimulator(initialContour, initialGCode) {
     };
   }
 
+  // ── Modal pro přidání G-kód pohybu – bohatá verze (úhel, délka, pick) ──
+  function openAddGMoveModal(gn, afterLabel, onConfirm) {
+    const isDia = S.params.mode === 'DIAMON';
+    const fromX = gn.x;   // world radius
+    const fromZ = gn.z;
+
+    let pickMode = false;
+    const ov = document.createElement('div');
+    ov.className = 'cam-confirm-overlay';
+    ov.style.zIndex = '200000';
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:200001;background:#f9e2af;color:#1e1e2e;font-weight:700;font-size:13px;padding:8px 20px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:none;display:none';
+    hint.textContent = '🎯 Klikněte na bod dráhy nebo kontury…  (Esc = zpět)';
+    document.body.appendChild(hint);
+
+    const ms = { type: 'G1', x: +(isDia ? fromX * 2 : fromX).toFixed(3), z: +fromZ.toFixed(3), cr: 0, ang: 45, angLen: 10, angMode: 'length' };
+
+    const syncValues = () => {
+      const xEl = ov.querySelector('#agm-x'); if (xEl) ms.x = parseFloat(xEl.value) || 0;
+      const zEl = ov.querySelector('#agm-z'); if (zEl) ms.z = parseFloat(zEl.value) || 0;
+      const crEl = ov.querySelector('#agm-cr'); if (crEl) ms.cr = parseFloat(crEl.value) || 0;
+      const aEl = ov.querySelector('#agm-ang'); if (aEl) ms.ang = parseFloat(aEl.value);
+      const alEl = ov.querySelector('#agm-anglen'); if (alEl) ms.angLen = parseFloat(alEl.value);
+      const amEl = ov.querySelector('#agm-angmode'); if (amEl) ms.angMode = amEl.value;
+    };
+
+    const enterPickMode = () => { syncValues(); pickMode = true; ov.style.display = 'none'; hint.style.display = 'block'; canvas.style.cursor = 'crosshair'; };
+    const exitPickMode = () => { pickMode = false; ov.style.display = ''; hint.style.display = 'none'; canvas.style.cursor = 'crosshair'; renderModal(); setTimeout(() => { const el = ov.querySelector('#agm-x'); if (el) { el.focus(); el.select(); } }, 30); };
+
+    const inp = 'background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box';
+    const selStyle = 'background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:7px 4px;font-size:13px;width:100%;box-sizing:border-box';
+
+    const renderModal = () => {
+      const isArc = ms.type === 'G2' || ms.type === 'G3';
+      ov.innerHTML = `
+        <div class="cam-confirm-box" style="min-width:340px;max-width:95vw">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:14px;color:#89b4fa">➕ Přidat pohyb za řádek ${afterLabel}</div>
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            ${['G0','G1','G2','G3'].map(t => `<button data-type="${t}" style="flex:1;padding:6px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid ${t===ms.type?'#89b4fa':'#45475a'};background:${t===ms.type?'#89b4fa':'#313244'};color:${t===ms.type?'#1e1e2e':'#cdd6f4'}">${t}</button>`).join('')}
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:${isArc?'10px':'14px'}">
+            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">X${isDia?' (⌀)':''}<input id="agm-x" type="number" value="${ms.x}" step="0.1" style="${inp}"></label>
+            <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">Z<input id="agm-z" type="number" value="${ms.z}" step="0.1" style="${inp}"></label>
+          </div>
+          ${isArc ? `<div style="margin-bottom:14px"><label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">CR (poloměr)<input id="agm-cr" type="number" value="${ms.cr}" step="0.1" min="0" style="${inp}"></label></div>` : ''}
+          <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-end;flex-wrap:wrap">
+            <label style="flex:1;min-width:70px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">📐 Úhel (°)<input id="agm-ang" type="number" value="${!isNaN(ms.ang)?ms.ang:45}" step="1" style="${inp}"></label>
+            <label style="flex:1;min-width:100px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">Ukončení<select id="agm-angmode" style="${selStyle}"><option value="length" ${ms.angMode!=='intersect'?'selected':''}>Zadaná délka</option><option value="intersect" ${ms.angMode==='intersect'?'selected':''}>Do průsečíku</option></select></label>
+            <label id="agm-anglen-wrap" style="flex:1;min-width:60px;display:${ms.angMode==='intersect'?'none':'flex'};flex-direction:column;gap:4px;font-size:12px;color:#a6adc8">Délka<input id="agm-anglen" type="number" value="${!isNaN(ms.angLen)?ms.angLen:10}" step="0.5" min="0.001" style="${inp}"></label>
+            <button id="agm-angcalc" title="Dopočítat X/Z od výchozího bodu pod úhlem (0°=+Z vodorovně, 90°=+X nahoru)" style="padding:7px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4;white-space:nowrap">↘ X/Z</button>
+          </div>
+          <div style="margin-bottom:14px">
+            <button id="agm-pick" style="width:100%;padding:7px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #45475a;background:#313244;color:#cdd6f4">🎯 Přebrat souřadnice z bodu</button>
+          </div>
+          <div class="cam-confirm-btns">
+            <button id="agm-ok" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#89b4fa;color:#1e1e2e">Přidat</button>
+            <button id="agm-cancel" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#45475a;color:#cdd6f4">Zrušit</button>
+          </div>
+        </div>`;
+
+      ov.querySelectorAll('[data-type]').forEach(btn => btn.addEventListener('click', () => { syncValues(); ms.type = btn.dataset.type; renderModal(); }));
+      ov.querySelector('#agm-pick').addEventListener('click', enterPickMode);
+
+      const angModeSel = ov.querySelector('#agm-angmode');
+      angModeSel.addEventListener('change', () => {
+        ms.angMode = angModeSel.value;
+        ov.querySelector('#agm-anglen-wrap').style.display = ms.angMode === 'intersect' ? 'none' : 'flex';
+      });
+
+      ov.querySelector('#agm-angcalc').addEventListener('click', () => {
+        syncValues();
+        const a = ms.ang, l = ms.angLen, toIntersect = ms.angMode === 'intersect';
+        if (isNaN(a) || (!toIntersect && (isNaN(l) || l <= 0))) { showToast('Zkontrolujte úhel a délku.'); return; }
+        const rad = a * Math.PI / 180;
+        let ex, ez;
+        if (toIntersect) {
+          const hit = camRayIntersection(fromX, fromZ, Math.sin(rad), Math.cos(rad), null, S._cachedCalc);
+          if (!hit) { showToast('Žádný průsečík ve směru úhlu nenalezen.'); return; }
+          ex = hit.x; ez = hit.z;
+        } else {
+          ex = fromX + Math.sin(rad) * l;
+          ez = fromZ + Math.cos(rad) * l;
+        }
+        ms.x = Math.round((isDia ? ex * 2 : ex) * 1000) / 1000;
+        ms.z = Math.round(ez * 1000) / 1000;
+        renderModal();
+      });
+
+      const doConfirm = () => {
+        syncValues();
+        document.removeEventListener('keydown', handlePickEsc);
+        ov.remove(); hint.remove();
+        _pickHandler = null; canvas.style.cursor = 'crosshair';
+        onConfirm({ type: ms.type, x: isDia ? ms.x / 2 : ms.x, z: ms.z, cr: ms.cr });
+      };
+      const doCancel = () => {
+        document.removeEventListener('keydown', handlePickEsc);
+        ov.remove(); hint.remove(); _pickHandler = null; canvas.style.cursor = 'crosshair';
+      };
+      ov.querySelector('#agm-ok').addEventListener('click', doConfirm);
+      ov.querySelector('#agm-cancel').addEventListener('click', doCancel);
+      ov.addEventListener('keydown', e => { if (e.key === 'Enter') doConfirm(); else if (e.key === 'Escape') doCancel(); });
+      setTimeout(() => { const el = ov.querySelector('#agm-x'); if (el) { el.focus(); el.select(); } }, 30);
+    };
+
+    const handlePickEsc = (e) => { if (e.key === 'Escape' && pickMode) exitPickMode(); };
+    document.addEventListener('keydown', handlePickEsc);
+
+    renderModal();
+    document.body.appendChild(ov);
+
+    _pickHandler = (wx, wz) => {
+      if (!pickMode) { _pickHandler = null; return; }
+      ms.x = Math.round((isDia ? wx * 2 : wx) * 1000) / 1000;
+      ms.z = Math.round(wz * 1000) / 1000;
+      document.removeEventListener('keydown', handlePickEsc);
+      _pickHandler = null;
+      exitPickMode();
+    };
+  }
+
   let _pickHandler = null;
 
   canvasWrap.addEventListener('wheel', e => {
@@ -7494,13 +7630,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (gn) {
           const lns = S.manualGCode.split('\n');
           const nm = ((lns[gn.lineIdx] || '').match(/^\s*(N\d+)/) || [])[1] || `řádek ${gn.lineIdx + 1}`;
-          const isDia = S.params.mode === 'DIAMON';
-          camAddMoveDialog({ x: +(isDia ? gn.x * 2 : gn.x).toFixed(3), z: +gn.z.toFixed(3), mode: S.params.mode, afterLabel: nm })
-            .then(mv => {
-              if (!mv) return;
-              pushHistory();
-              insertGMove(gn.lineIdx, { type: mv.type, x: isDia ? mv.x / 2 : mv.x, z: mv.z, cr: mv.cr });
-            });
+          openAddGMoveModal(gn, nm, mv => {
+            pushHistory();
+            insertGMove(gn.lineIdx, { type: mv.type, x: mv.x, z: mv.z, cr: mv.cr });
+          });
           return;
         }
       } else {
