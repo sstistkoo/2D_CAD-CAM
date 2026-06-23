@@ -898,8 +898,36 @@ function buildMachinableContour(segs, guides) {
   // Nejdřív drážky/kapsy ohraničené dvojicí mezních čar (V), pak jednotlivé.
   const pocket = mergePocketGuides(segs, guides);
   let result = pocket.result;
+  // ── Horní obálka náběhových stínů ──
+  // 'zanoreni' čáry (spodní hrana destičky) jsou navzájem ROVNOBĚŽNÉ (stejný
+  // sklon = úhel spodní hrany). Když čára G leží celá ve stínu jiné G' (G' je
+  // nad G v jejich společném Z-rozsahu), generuje ji vrchol, který je sám
+  // zastíněný vyšším vrcholem → je nadbytečná. Bez potlačení by nižší čára
+  // (od hlubšího/čelního vrcholu) přemostila konturu POD vyšším vrcholem a
+  // uřízla ho (uživatel: „udělalo dráhy z bodu 8, i když bod 6 leží nad ním").
+  // Pocketem spárované čáry (drážky) se nepotlačují — řeší je mergePocketGuides.
+  const dominated = new Set();
+  const gZLo = (g) => Math.min(g.z1, g.z2), gZHi = (g) => Math.max(g.z1, g.z2);
+  const gXAtZ = (g, z) => Math.abs(g.z2 - g.z1) < 1e-9
+    ? Math.max(g.x1, g.x2)
+    : g.x1 + (g.x2 - g.x1) * (z - g.z1) / (g.z2 - g.z1);
+  for (let i = 0; i < guides.length; i++) {
+    if (guides[i].kind !== 'zanoreni' || pocket.consumed.has(i)) continue;
+    for (let j = 0; j < guides.length; j++) {
+      if (j === i || guides[j].kind !== 'zanoreni' || pocket.consumed.has(j)) continue;
+      const lo = Math.max(gZLo(guides[i]), gZLo(guides[j]));
+      const hi = Math.min(gZHi(guides[i]), gZHi(guides[j]));
+      if (hi - lo < 0.1) continue; // bez překryvu v Z = jiná oblast dílce
+      const zm = (lo + hi) / 2;
+      if (gXAtZ(guides[j], zm) > gXAtZ(guides[i], zm) + 0.05) {
+        dominated.add(i);
+        guides[i]._dominated = true; // ať se nekreslí jako „zbytečná" čára ve stínu
+        break;
+      }
+    }
+  }
   for (let gi = 0; gi < guides.length; gi++) {
-    if (pocket.consumed.has(gi)) continue;
+    if (pocket.consumed.has(gi) || dominated.has(gi)) continue;
     const g = guides[gi];
     const A = { x: g.x1, z: g.z1 }, B = { x: g.x2, z: g.z2 };
     if (Math.hypot(A.x - B.x, A.z - B.z) < 0.5) continue;
@@ -1138,7 +1166,22 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
     // Při ray-castu vynechat segmenty téhle skupiny — dotykový bod
     // může ležet na oblouku skupiny a paprsek by jinak mohl narazit
     // zpět na stejný oblouk místo na navazující konturu.
-    const excludeIdx = grp.map(s => idxOf.get(s) + 1);
+    // Pozor: idxOf vrací index v rawContourForInterference (= contourSegments),
+    // ale camRayIntersection prochází worldPoints (jiná indexace, G0 body navíc).
+    // Správné vyloučení: použít s.orig, které odkazuje přímo na worldPoints[k].
+    const excludeIdx = grp.map(s => {
+      // origIdx je číselný index p2 ve worldPoints — přežije structuredClone
+      // (rawContourForInterference je hluboká kopie, takže `orig` reference je
+      // jiný objekt a worldPoints.indexOf(s.orig) vrací −1 → padalo to na
+      // chybný fallback idxOf+1, který nepočítá s G0 body navíc → vyloučil se
+      // CIZÍ segment a paprsek pak přeletěl přes blokující vrchol).
+      if (Number.isInteger(s.origIdx)) return s.origIdx;
+      if (s.orig) {
+        const idx = worldPoints.indexOf(s.orig);
+        if (idx >= 0) return idx;
+      }
+      return idxOf.get(s) + 1; // fallback pro mostové segmenty bez orig
+    });
     const addGuide = (betaDeg, kind, pts) => {
       const b = betaDeg * Math.PI / 180;
       const sb = Math.sin(b), cb = Math.cos(b);
@@ -1201,7 +1244,13 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       // regionu (NEprotahovat k hornímu okraji polotovaru).
       let up = camRayIntersection(best.x, best.z, sb, cb, excludeIdx, localCalc);
       if (!up) {
-        const capX = Math.min(topX, stockTopXG);
+        let capX = Math.min(topX, stockTopXG);
+        // Čára z nižší skupiny (menší X) nesmí přesáhnout "dolní konec" (x1)
+        // čáry z dřívější (vyšší) skupiny stejného druhu — jinak by nižší bod
+        // generoval čáru, která na obrazovce vypadá výš než vyšší bod (bug).
+        for (const pg of interferenceGuides) {
+          if (pg.kind === kind && pg.x1 < capX) capX = pg.x1;
+        }
         const t = sb > 0.01 ? (capX - best.x) / sb : 0;
         up = t > 0.01 ? { x: best.x + sb * t, z: best.z + cb * t } : best;
       }
@@ -2646,14 +2695,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       // segment NENÍ součástí kontury a nesmí se obrábět ani zobrazovat
       // jako spojnice (viz removeContourSelfIntersections/chainBreak níže).
       if (type === 'G1') {
-        contourSegments.push({ type: 'line', p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, orig: p2 });
+        contourSegments.push({ type: 'line', p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, orig: p2, origIdx: i + 1 });
       } else if (type === 'G2' || type === 'G3') {
         const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, type);
         if (arc.error) foundErrors.push(`Řádek ${i + 2}: Rádius R${p2.r} je příliš malý.`);
         else if (arc.r < totalOffset) foundErrors.push(`KOLIZE (Řádek ${i + 2}): Rádius kontury menší než nástroj.`);
         const startAngle = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
         const endAngle = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
-        contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle });
+        contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle, origIdx: i + 1 });
       }
     }
     // Sjednotit směr průchodu kontury (otočit pozpátku nakreslené entity, např.
@@ -2755,6 +2804,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // matoucí (uživatel je vidí jako „zbytečné" čáry uvnitř hotové kontury).
       // Ponechat jen ty, jejichž oba konce leží na výsledné kontuře.
       interferenceGuides = interferenceGuides.filter(g =>
+        !g._dominated &&
         _locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
         _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }));
     }

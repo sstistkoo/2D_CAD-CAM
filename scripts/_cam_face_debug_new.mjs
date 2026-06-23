@@ -33,7 +33,7 @@ const H = await import(pathToFileURL(tmpPath).href + '?t=' + Date.now());
 try { unlinkSync(tmpPath); } catch { /* */ }
 
 // ── uživatelův .camprog (jen relevantní část) ──
-const prog = JSON.parse(readFileSync(join(root, 'scripts', 'user_face.camprog'), 'utf8'));
+const prog = JSON.parse(readFileSync(join(root, 'scripts', 'user_face_new.camprog'), 'utf8'));
 const prms = prog.params;
 const contourPoints = prog.contourPoints;
 const stockPoints = prog.stockPoints;
