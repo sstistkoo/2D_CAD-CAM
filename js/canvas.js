@@ -198,6 +198,15 @@ export function snapPt(wx, wy) {
         edgeY = np.y;
       }
     }
+    // Snap k ose rotace soustruhu (Z-osa, Y=0) – čára je vizuální, ale snapuje jako hrana
+    if (state.machineType !== 'karusel') {
+      const distToAxis = Math.abs(wy);
+      if (distToAxis < edgeThreshold && distToAxis < edgeD) {
+        edgeD = distToAxis;
+        edgeX = wx;
+        edgeY = 0;
+      }
+    }
     if (edgeX !== null) {
       if (state.mouse.snapType !== 'edge') {
         safeVibrate(VIBRATE_SNAP_EDGE);

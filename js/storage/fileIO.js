@@ -12,7 +12,6 @@ import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
 import { bridge } from '../bridge.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
-import { openCamSimulator } from '../calculators/camSimulator.js';
 import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
 import { findContourGaps } from '../stockTools.js';
@@ -40,6 +39,7 @@ export function exportProjectFile() {
     mirrorPreview: state.mirrorPreview,
     showContourGaps: state.showContourGaps,
     anchors: state.anchors,
+    flipX: state.flipX,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: "application/json",
@@ -53,7 +53,7 @@ export function exportProjectFile() {
 }
 
 /** Importuje .skica JSON soubor. */
-const VALID_OBJ_TYPES = ['point', 'line', 'constr', 'circle', 'arc', 'rect', 'polyline', 'text'];
+const VALID_OBJ_TYPES = ['point', 'line', 'constr', 'circle', 'arc', 'rect', 'polyline', 'text', 'camNote'];
 const MAX_IMPORT_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_OBJECTS = 10000;
 
@@ -129,9 +129,10 @@ export function importProjectFile() {
         calculateAllIntersections();
         updateMachineTypeBtn();
         updateXDisplayBtn();
+        autoCenterView();
         showToast(`Importováno ${state.objects.length} objektů`);
       } catch (err) {
-        showToast("Chyba při čtení souboru");
+        showToast("Chyba při čtení souboru: " + err.message);
       }
     };
     reader.readAsText(file);
@@ -229,11 +230,6 @@ export async function exportDXFFile() {
   showToast(`Exportováno ${state.objects.length} objektů do DXF${note}`);
 }
 
-/** Exportuje projekt jako JSON soubor kompatibilní se SimDxf konvertorem. */
-function exportJsonCompatible() {
-  exportProjectFile();
-}
-
 /**
  * Převádí SimDxf "points" formát na SKICA v3 objekty.
  * SimDxf formát: { version: "1.0", points: [{x, z, break, type, id, r?, cw?, cx?, cz?}], dimensions: [] }
@@ -296,6 +292,216 @@ function convertSimDxfToSkica(data) {
   };
 }
 
+// ── SVG Import ──
+
+export function importSVGFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.svg';
+  input.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > MAX_IMPORT_SIZE) {
+      showToast(`Soubor je příliš velký (max ${MAX_IMPORT_SIZE / 1024 / 1024} MB)`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => showToast('Chyba při čtení SVG souboru');
+    reader.onload = (ev) => {
+      try {
+        const objs = parseSVGToObjects(ev.target.result);
+        if (!objs.length) { showToast('Žádné objekty v SVG souboru'); return; }
+        pushUndo();
+        objs.forEach(o => state.objects.push(o));
+        state.selected = null;
+        state.multiSelected.clear();
+        state.selectedPoint = null;
+        updateObjectList();
+        updateProperties();
+        calculateAllIntersections();
+        autoCenterView();
+        showToast(`Importováno ${objs.length} objektů z SVG`);
+      } catch (err) {
+        showToast('Chyba při čtení SVG souboru: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+function parseSVGToObjects(svgText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const objs = [];
+  const typeNames = { line: 'Úsečka', circle: 'Kružnice', arc: 'Oblouk', rect: 'Obdélník', polyline: 'Kontura' };
+
+  function addObj(obj) {
+    obj.id = state.nextId++;
+    obj.layer = state.activeLayer;
+    obj.name = `${typeNames[obj.type] || obj.type} ${obj.id}`;
+    objs.push(obj);
+  }
+
+  function processElement(el) {
+    const tag = (el.tagName || '').toLowerCase().replace(/^svg:/, '');
+    switch (tag) {
+      case 'line': {
+        const x1 = +(el.getAttribute('x1') || 0);
+        const y1 = -(+(el.getAttribute('y1') || 0));
+        const x2 = +(el.getAttribute('x2') || 0);
+        const y2 = -(+(el.getAttribute('y2') || 0));
+        if (Math.hypot(x2 - x1, y2 - y1) > 1e-6) addObj({ type: 'line', x1, y1, x2, y2 });
+        break;
+      }
+      case 'circle': {
+        const cx = +(el.getAttribute('cx') || 0);
+        const cy = -(+(el.getAttribute('cy') || 0));
+        const r = +(el.getAttribute('r') || 0);
+        if (r > 0) addObj({ type: 'circle', cx, cy, r });
+        break;
+      }
+      case 'rect': {
+        const x = +(el.getAttribute('x') || 0);
+        const y = +(el.getAttribute('y') || 0);
+        const w = +(el.getAttribute('width') || 0);
+        const h = +(el.getAttribute('height') || 0);
+        if (w > 0 && h > 0) addObj({ type: 'rect', x1: x, y1: -(y + h), x2: x + w, y2: -y });
+        break;
+      }
+      case 'polyline':
+      case 'polygon': {
+        const pts = parseSVGPointsList(el.getAttribute('points') || '');
+        if (pts.length >= 2) {
+          const vertices = pts.map(p => ({ x: p.x, y: -p.y }));
+          addObj({ type: 'polyline', vertices, bulges: new Array(vertices.length).fill(0), closed: tag === 'polygon' });
+        }
+        break;
+      }
+      case 'path':
+        parseSVGPath(el.getAttribute('d') || '').forEach(o => addObj(o));
+        break;
+      case 'g':
+      case 'svg':
+        for (const child of el.children) processElement(child);
+        break;
+    }
+  }
+
+  processElement(doc.documentElement);
+  return objs;
+}
+
+function parseSVGPointsList(str) {
+  const nums = str.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+  const pts = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
+  return pts;
+}
+
+function svgArcToCenter(x1, y1, r, largeArc, sweep, x2, y2) {
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
+  const d2 = dx * dx + dy * dy;
+  if (d2 < 1e-12 || r <= 0) return null;
+  let r2 = r * r;
+  if (r2 < d2) r2 = d2;
+  const sign = (largeArc !== sweep) ? 1 : -1;
+  const sq = sign * Math.sqrt(Math.max(0, (r2 - d2) / d2));
+  const acx = mx + sq * dy;
+  const acy = my - sq * dx;
+  return {
+    cx: acx, cy: acy, r: Math.sqrt(r2),
+    startAngle: Math.atan2(y1 - acy, x1 - acx),
+    endAngle:   Math.atan2(y2 - acy, x2 - acx),
+  };
+}
+
+function parseSVGPath(d) {
+  const result = [];
+  const tokens = d.match(/[MmLlHhVvAaZzCcSsQqTt]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [];
+  let i = 0;
+  let px = 0, py = 0, subX = 0, subY = 0;
+  let cmd = null, rel = false;
+
+  function num() { return parseFloat(tokens[i++]); }
+  function hasNum() { return i < tokens.length && /^[-+0-9.]/.test(tokens[i]); }
+
+  while (i < tokens.length) {
+    if (/[A-Za-z]/.test(tokens[i])) {
+      cmd = tokens[i].toUpperCase();
+      rel = tokens[i] !== tokens[i].toUpperCase();
+      i++;
+    }
+    if (!cmd) { i++; continue; }
+
+    const ax = v => rel ? px + v : v;
+    const ay = v => rel ? py + v : v;
+
+    switch (cmd) {
+      case 'M': {
+        px = ax(num()); py = ay(num());
+        subX = px; subY = py;
+        cmd = 'L'; // subsequent pairs become implicit L
+        break;
+      }
+      case 'L': {
+        const nx = ax(num()), ny = ay(num());
+        if (Math.hypot(nx - px, ny - py) > 1e-6)
+          result.push({ type: 'line', x1: px, y1: -py, x2: nx, y2: -ny });
+        px = nx; py = ny;
+        break;
+      }
+      case 'H': {
+        const nx = rel ? px + num() : num();
+        if (Math.abs(nx - px) > 1e-6)
+          result.push({ type: 'line', x1: px, y1: -py, x2: nx, y2: -py });
+        px = nx;
+        break;
+      }
+      case 'V': {
+        const ny = rel ? py + num() : num();
+        if (Math.abs(ny - py) > 1e-6)
+          result.push({ type: 'line', x1: px, y1: -py, x2: px, y2: -ny });
+        py = ny;
+        break;
+      }
+      case 'A': {
+        const rx = Math.abs(num());
+        num(); num(); // ry, x-rotation (ignored — assume circular)
+        const la = Math.round(num()), sw = Math.round(num());
+        const nx = ax(num()), ny = ay(num());
+        const arc = svgArcToCenter(px, py, rx, la, sw, nx, ny);
+        if (arc) {
+          // Y-flip: world_y = -SVG_y → world angles negated, world center cy = -arc.cy
+          result.push({
+            type: 'arc',
+            cx: arc.cx, cy: -arc.cy, r: arc.r,
+            startAngle: -arc.startAngle,
+            endAngle: -arc.endAngle,
+            ccw: sw === 1,
+          });
+        }
+        px = nx; py = ny;
+        break;
+      }
+      case 'Z': {
+        if (Math.hypot(subX - px, subY - py) > 1e-6)
+          result.push({ type: 'line', x1: px, y1: -py, x2: subX, y2: -subY });
+        px = subX; py = subY;
+        break;
+      }
+      default:
+        while (hasNum()) num(); // přeskoč neznámé příkazy (Bezier C, Q, T…)
+        break;
+    }
+
+    if (cmd === 'Z') cmd = null;
+    else if (!hasNum()) { /* čekej na další písmeno */ }
+  }
+  return result;
+}
+
 // ── Tlačítko Soubor (overlay) ──
 export function showFileDialog() {
   const overlay = document.createElement("div");
@@ -307,8 +513,8 @@ export function showFileDialog() {
         <button class="btn-ok" id="loadLocal" style="width:100%">Načíst z paměti prohlížeče</button>
         <button class="btn-ok" id="loadFile" style="width:100%">Importovat ze souboru (.json)</button>
         <button class="btn-ok" id="loadDXF" style="width:100%">📐 Importovat DXF soubor (.dxf)</button>
-        <button class="btn-ok" id="exportFile" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">Exportovat do souboru</button>
-        <button class="btn-ok" id="exportJsonFile" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">📄 Exportovat JSON soubor</button>
+        <button class="btn-ok" id="loadSVG" style="width:100%">🖼 Importovat SVG soubor (.svg)</button>
+        <button class="btn-ok" id="exportFile" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">Exportovat do souboru (.json)</button>
         <button class="btn-ok" id="exportDXF" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">📐 Exportovat DXF</button>
         <button class="btn-ok" id="exportImage" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">🖼 Export obrazu (SVG/PNG)</button>
         <button class="btn-cancel btn-cancel-overlay" style="width:100%">Zrušit</button>
@@ -327,13 +533,13 @@ export function showFileDialog() {
     overlay.remove();
     importDXFFile();
   });
+  overlay.querySelector("#loadSVG").addEventListener("click", () => {
+    overlay.remove();
+    importSVGFile();
+  });
   overlay.querySelector("#exportFile").addEventListener("click", () => {
     overlay.remove();
     exportProjectFile();
-  });
-  overlay.querySelector("#exportJsonFile").addEventListener("click", () => {
-    overlay.remove();
-    exportJsonCompatible();
   });
   overlay.querySelector("#exportDXF").addEventListener("click", () => {
     overlay.remove();
