@@ -1403,6 +1403,7 @@ function dropTinyArcs(path) {
 // ať se nepřeklopí samostatný řetěz (G0 mezera) — tam navazuje až další pas.
 function normalizeContourDirection(segs) {
   const TOL = 0.05;
+  // Pass 1: otočení segmentu, jehož KONEC je blíž k předchozímu konci než START
   for (let i = 1; i < segs.length; i++) {
     const prevEnd = segEndPoint(segs[i - 1]);
     const st = segStartPoint(segs[i]);
@@ -1410,6 +1411,28 @@ function normalizeContourDirection(segs) {
     const dStart = Math.hypot(prevEnd.x - st.x, prevEnd.z - st.z);
     const dEnd = Math.hypot(prevEnd.x - en.x, prevEnd.z - en.z);
     if (dEnd + 1e-9 < dStart && dEnd < TOL) reverseSeg(segs[i]);
+  }
+  // Pass 2: "sdílený start" — segment[i] začíná NA STEJNÉM BODĚ jako segment[i-1],
+  // ale nenavazuje na jeho KONEC. Typický případ: čelní úsek nakreslený dovnitř
+  // od téhož rohu, odkud vychází zkosení. Otočení čelního úseku + přesun před
+  // zkosení vytvoří průběžný řetěz: čelo_ven → zkosení → tělo.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 1; i < segs.length; i++) {
+      const prevSt = segStartPoint(segs[i - 1]);
+      const prevEn = segEndPoint(segs[i - 1]);
+      const st = segStartPoint(segs[i]);
+      const dStartToPrevStart = Math.hypot(st.x - prevSt.x, st.z - prevSt.z);
+      const dStartToPrevEnd   = Math.hypot(st.x - prevEn.x, st.z - prevEn.z);
+      if (dStartToPrevStart < TOL && dStartToPrevEnd > TOL) {
+        reverseSeg(segs[i]);
+        const seg = segs.splice(i, 1)[0];
+        segs.splice(i - 1, 0, seg);
+        changed = true;
+        break;
+      }
+    }
   }
   return segs;
 }
