@@ -61,11 +61,12 @@ bridge.mirrorFromSelection = () => {
     const p2 = { x: axis.x2, y: axis.y2 };
     const toMirror = indices.filter(i => i !== constrIdx).map(i => state.objects[i]);
     if (toMirror.length === 0) { showToast("Vyberte objekty k zrcadlení (kromě konstr. čáry)"); return true; }
-    pushUndo();
-    for (const o of toMirror) {
-      const copy = mirrorObject(o, 'custom', p1, p2);
-      addObject(copy);
-    }
+    withUndoBatch(() => {
+      for (const o of toMirror) {
+        const copy = mirrorObject(o, 'custom', p1, p2);
+        addObject(copy);
+      }
+    });
     calculateAllIntersections();
     renderAll();
     showToast(`${toMirror.length > 1 ? toMirror.length + ' objektů zrcadleno' : 'Objekt zrcadlen'} ✓`);
@@ -1592,11 +1593,14 @@ function startMirrorAction() {
           cleanupMirrorListeners();
           const p1 = state._mirrorAxisPoints[0];
           const p2 = { x: mwx, y: mwy };
-          for (const o of state._mirrorObj) {
-            const copy = mirrorObject(o, 'custom', p1, p2);
-            addObject(copy);
-          }
-          showToast(`${state._mirrorObj.length > 1 ? state._mirrorObj.length + ' objektů zrcadleno' : 'Objekt zrcadlen'} ✓`);
+          const mirrorObjs = state._mirrorObj;
+          withUndoBatch(() => {
+            for (const o of mirrorObjs) {
+              const copy = mirrorObject(o, 'custom', p1, p2);
+              addObject(copy);
+            }
+          });
+          showToast(`${mirrorObjs.length > 1 ? mirrorObjs.length + ' objektů zrcadleno' : 'Objekt zrcadlen'} ✓`);
           resetHint();
           state._mirrorObj = null;
           state._mirrorStep = null;
@@ -1618,10 +1622,12 @@ function startMirrorAction() {
       drawCanvas.addEventListener("touchend", handleMirrorTouch);
       state._mirrorCleanup = cleanupMirrorListeners;
     } else {
-      for (const o of objs) {
-        const copy = mirrorObject(o, axis, null, null);
-        addObject(copy);
-      }
+      withUndoBatch(() => {
+        for (const o of objs) {
+          const copy = mirrorObject(o, axis, null, null);
+          addObject(copy);
+        }
+      });
       showToast(`${objs.length > 1 ? objs.length + ' objektů zrcadleno' : 'Objekt zrcadlen'} podle osy ${axis === 'x' ? 'X' : 'Z'} ✓`);
     }
   });

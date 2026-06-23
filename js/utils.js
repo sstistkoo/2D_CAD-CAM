@@ -663,14 +663,37 @@ export function simplifyPolyline(poly, tolerance = 1e-6) {
   return { vertices: verts, bulges, closed };
 }
 
-// ── Dynamický název exportovaného souboru ──
+// ── Konverze starých polyline objektů (AI Profil) na segmenty ──
 /**
- * Sestaví název souboru ve formátu SKICA_[název_projektu]_[YYYYMMDD].ext
- * Pokud projekt nemá název (prázdný nebo „Bez názvu“), použije se „vykres“.
- * @param {string} ext - přípona bez tečky (např. 'dxf', 'svg')
- * @param {Date} [date] - datum (default: teď)
- * @returns {string}
+ * Převede staré polyline objekty (AI Profil) na jednotlivé úsečky a oblouky.
+ * Vrátí { objects, nextId }.
  */
+export function expandPolylineObjects(objects, nextId) {
+  let id = nextId;
+  let changed = false;
+  const expanded = [];
+  for (const obj of objects) {
+    if (obj.type !== 'polyline') { expanded.push(obj); continue; }
+    changed = true;
+    const n = obj.vertices.length;
+    const segCount = obj.closed ? n : n - 1;
+    for (let i = 0; i < segCount; i++) {
+      const p1 = obj.vertices[i];
+      const p2 = obj.vertices[(i + 1) % n];
+      const b = (obj.bulges && obj.bulges[i]) || 0;
+      const segId = id++;
+      const base = { id: segId, layer: obj.layer ?? 0, ...(obj.isStock ? { isStock: true } : {}), ...(obj.color ? { color: obj.color } : {}) };
+      if (b !== 0) {
+        const arc = bulgeToArc(p1, p2, b);
+        if (arc) expanded.push({ ...base, type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r, startAngle: arc.startAngle, endAngle: arc.endAngle, name: `Oblouk ${segId}` });
+      } else {
+        expanded.push({ ...base, type: 'line', x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, name: `Úsečka ${segId}` });
+      }
+    }
+  }
+  return { objects: changed ? expanded : objects, nextId: id };
+}
+
 export function exportFileName(ext, date = new Date()) {
   const ymd =
     date.getFullYear().toString() +

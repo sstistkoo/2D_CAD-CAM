@@ -7,7 +7,7 @@ import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateStatusProject, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects, setMeta, getMeta } from '../idb.js';
-import { deepClone } from '../utils.js';
+import { deepClone, expandPolylineObjects } from '../utils.js';
 
 // ── Pomocné funkce ──
 
@@ -56,8 +56,9 @@ function _buildProjectData() {
 
 function _loadProjectData(data) {
   pushUndo();
-  state.objects = data.objects || [];
-  state.nextId = data.nextId || 1;
+  const _exp = expandPolylineObjects(data.objects || [], data.nextId || 1);
+  state.objects = _exp.objects;
+  state.nextId = _exp.nextId;
   if (data.gridSize && data.gridSize > 0) state.gridSize = data.gridSize;
   if (data.coordMode) state.coordMode = data.coordMode;
   if (data.incReference) state.incReference = data.incReference;

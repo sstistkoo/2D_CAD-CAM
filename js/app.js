@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, showToast, updateUndoButtons } from './state.js';
+import { expandPolylineObjects } from './utils.js';
 import { resizeCanvases, autoCenterView } from './canvas.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList, updateProperties, resetHint, updateDimsBtn, updateSnapPtsBtn, updateCoordModeBtn, updateMachineTypeBtn, updateXDisplayBtn, updateSnapGridBtn, togglePanel, updateLayerList, updateStatusProject, checkFirstRunHelp, updateAngleSnapBtn, updateNullPointUI, applyTheme } from './ui.js';
@@ -48,8 +49,9 @@ async function tryAutoLoad() {
   try {
     const data = await getMeta('currentProjectData');
     if (data && data.objects && data.objects.length > 0) {
-      state.objects = data.objects;
-      state.nextId = data.nextId || 1;
+      const _exp = expandPolylineObjects(data.objects, data.nextId || 1);
+      state.objects = _exp.objects;
+      state.nextId = _exp.nextId;
       if (data.gridSize && data.gridSize > 0)
         state.gridSize = data.gridSize;
       if (data.coordMode) state.coordMode = data.coordMode;

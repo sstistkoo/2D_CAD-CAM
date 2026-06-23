@@ -4,7 +4,7 @@
 
 import { COLORS, MOBILE_BREAKPOINT, applyThemeColors } from './constants.js';
 import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle } from './state.js';
-import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints } from './utils.js';
+import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects } from './utils.js';
 import { renderAll, renderAllDebounced } from './render.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView } from './canvas.js';
 import { bridge } from './bridge.js';
@@ -2902,8 +2902,9 @@ async function showHistoryDialog() {
             pushUndo();
             if (entry.data) {
               // Nový formát – plná data projektu
-              state.objects = entry.data.objects || [];
-              state.nextId = entry.data.nextId || 1;
+              const _exp = expandPolylineObjects(entry.data.objects || [], entry.data.nextId || 1);
+              state.objects = _exp.objects;
+              state.nextId = _exp.nextId;
               if (entry.data.layers) {
                 state.layers = entry.data.layers;
                 state.activeLayer = entry.data.activeLayer || 0;
@@ -2911,8 +2912,11 @@ async function showHistoryDialog() {
               }
             } else {
               // Starý formát – jen objects + nextId
-              state.objects = entry.objects || [];
-              state.nextId = entry.nextId || (Math.max(0, ...state.objects.map(o => o.id || 0)) + 1);
+              const _rawObjs = entry.objects || [];
+              const _rawId = entry.nextId || (Math.max(0, ..._rawObjs.map(o => o.id || 0)) + 1);
+              const _exp = expandPolylineObjects(_rawObjs, _rawId);
+              state.objects = _exp.objects;
+              state.nextId = _exp.nextId;
             }
             if (entry.name && entry.name !== '(bez názvu)') {
               state.projectName = entry.name;

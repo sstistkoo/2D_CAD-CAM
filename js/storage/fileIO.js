@@ -6,7 +6,7 @@ import { state, showToast, pushUndo, displayX } from '../state.js';
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { bulgeToArc, exportFileName } from '../utils.js';
+import { bulgeToArc, exportFileName, expandPolylineObjects } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
@@ -99,8 +99,9 @@ export function importProjectFile() {
 
         validateImportData(data);
         pushUndo();
-        state.objects = data.objects || [];
-        state.nextId = data.nextId || 1;
+        const _exp = expandPolylineObjects(data.objects || [], data.nextId || 1);
+        state.objects = _exp.objects;
+        state.nextId = _exp.nextId;
         if (data.gridSize && data.gridSize > 0)
           state.gridSize = data.gridSize;
         if (data.coordMode) state.coordMode = data.coordMode;

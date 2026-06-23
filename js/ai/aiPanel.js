@@ -5,7 +5,7 @@
 
 import { showToast, state, pushUndo } from '../state.js';
 import { makeOverlay, makeDraggable } from '../dialogFactory.js';
-import { addObject } from '../objects.js';
+import { addPolylineAsSegments } from '../objects.js';
 import { radiusToBulge, bulgeToArc } from '../utils.js';
 import { autoCenterView } from '../canvas.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
@@ -465,15 +465,15 @@ export function buildProfile(items) {
   return isElementFormat(items) ? elementsToProfile(items) : segmentsToProfile(items);
 }
 
-/** Vytvoří polyline objekt z vrcholů + bulge (sdílené pro skelet i G-kód). */
+/** Přidá profil jako samostatné úsečky a oblouky (bez polyline objektu). */
 function addProfileObject(vertices, bulges) {
   if (!vertices || vertices.length < 2) throw new Error('Profil nemá dost bodů');
   for (const v of vertices) {
     if (!isFinite(v.x) || !isFinite(v.y)) throw new Error('Profil obsahuje neplatné souřadnice');
   }
-  const obj = addObject({ type: 'polyline', vertices, bulges, closed: false, name: 'AI Profil' });
+  const segments = addPolylineAsSegments(vertices, bulges, false);
   autoCenterView();
-  return obj;
+  return segments.length > 0 ? segments[0] : null;
 }
 
 /** Vykreslí profil ze skeletu / elementů (JSON) jako jednu polyline. */
