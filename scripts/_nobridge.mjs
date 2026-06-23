@@ -33,7 +33,7 @@ const H = await import(pathToFileURL(tmpPath).href + '?t=' + Date.now());
 try { unlinkSync(tmpPath); } catch { /* */ }
 
 // ── uživatelův .camprog (jen relevantní část) ──
-const prog = JSON.parse(readFileSync(join(root, 'scripts', 'user_face.camprog'), 'utf8'));
+const prog = JSON.parse(readFileSync(join(root, 'scripts', 'user_face_new.camprog'), 'utf8'));
 const prms = prog.params;
 const contourPoints = prog.contourPoints;
 const stockPoints = prog.stockPoints;
@@ -81,7 +81,7 @@ interferenceSegments.forEach((s,i)=>{
   const d = s.type==='line'?`L (${s.p1.x.toFixed(2)},${s.p1.z.toFixed(2)})->(${s.p2.x.toFixed(2)},${s.p2.z.toFixed(2)})`:`A c(${s.cx.toFixed(2)},${s.cz.toFixed(2)}) r=${s.r.toFixed(2)} ${s.dir}`;
   console.log(`  [${i}] ${d}`);
 });
-if (clearance && prms.respectInsertGeometry && interferenceGuides.length > 0) {
+if (false) {
   contourSegments = H.buildMachinableContour(contourSegments, interferenceGuides);
 }
 const guidesKept = interferenceGuides.filter(g =>

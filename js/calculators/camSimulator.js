@@ -1395,6 +1395,21 @@ function isOnSegBounds(pt, seg) {
 // malé oblouky mezi dlouhými segmenty (intersection padne těsně za
 // trimnutý konec line, ale je to falešná smyčka, ne skutečné self-cross).
 const LOOP_INTERIOR_MIN = 0.1;
+// Striktní kontrola, že bod leží UVNITŘ úsečky (parametr t ∈ [0,1]), ne na
+// jejím prodloužení. isOnSegBounds používá obdélníkovou toleranci TRIM_TOL
+// (0.5 mm) kvůli offsetovým zaokrouhlením — na RAW kontuře ale `intersectLines`
+// vrací průsečík NEKONEČNÝCH přímek, takže bod 0,1–0,5 mm za koncem úsečky
+// (typicky prodloužení zkosení za čelo) projde jako falešná „smyčka" a
+// removeContourSelfIntersections vyřízne reálnou geometrii (sražení). Tahle
+// kontrola promítne bod na úsečku a ověří, že je opravdu mezi koncovými body.
+function isWithinSegStrict(pt, seg) {
+  if (seg.type !== 'line') return isOnSegBounds(pt, seg);
+  const dx = seg.p2.x - seg.p1.x, dz = seg.p2.z - seg.p1.z;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-12) return false;
+  const t = ((pt.x - seg.p1.x) * dx + (pt.z - seg.p1.z) * dz) / len2;
+  return t >= -1e-6 && t <= 1 + 1e-6;
+}
 function segEndPoint(seg) {
   if (seg.type === 'line') return seg.p2;
   return { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
@@ -1572,7 +1587,7 @@ function removeContourSelfIntersections(segs) {
       for (let j = i + 2; j < result.length; j++) {
         const s1 = result[i], s2 = result[j];
         const pt = findSegIntersection(s1, s2);
-        if (pt && isOnSegBounds(pt, s1) && isOnSegBounds(pt, s2)) {
+        if (pt && isWithinSegStrict(pt, s1) && isWithinSegStrict(pt, s2)) {
           const s1End = segEndPoint(s1);
           const s2Start = segStartPoint(s2);
           const d1 = Math.hypot(pt.x - s1End.x, pt.z - s1End.z);
