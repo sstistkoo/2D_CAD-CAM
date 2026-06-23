@@ -6,7 +6,7 @@ import { state, showToast, pushUndo, displayX } from '../state.js';
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { bulgeToArc, exportFileName, expandPolylineObjects } from '../utils.js';
+import { bulgeToArc, exportFileName, expandPolylineObjects, safeEvalMath } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
@@ -1052,16 +1052,13 @@ function parseGcodeToObjects(code) {
     return isKarusel ? { x: gX, y: gZ } : { x: gZ, y: xRaw };
   }
 
-  // Bezpečné vyhodnocení aritmetického výrazu (pouze číslice, +−×÷, tečka, e)
+  // Bezpečné vyhodnocení aritmetického výrazu (CSP-safe, bez eval/new Function)
   function evalExpr(s) {
     if (s == null) return null;
-    s = String(s).replace(/[\[\]()]/g, '').trim();
-    if (!s || !/^[0-9eE.+\-*\/\s]+$/.test(s)) return null;
-    try {
-      // eslint-disable-next-line no-new-func
-      const v = Function('"use strict"; return (' + s + ')')();
-      return isFinite(v) ? v : null;
-    } catch { return null; }
+    s = String(s).replace(/[\[\]]/g, '').trim();
+    if (!s) return null;
+    const v = safeEvalMath(s);
+    return isFinite(v) ? v : null;
   }
 
   // Extrakce číselné hodnoty adresy (X, Z, R, I, K…) z řádku.
@@ -1082,11 +1079,22 @@ function parseGcodeToObjects(code) {
   let gMode = 90;          // 90=absolutní, 91=inkrementální (modální – platí dokud není změněno)
   let motionCode = 0;      // poslední pohybový kód (modální G0/1/2/3)
   let inStock = false;
+  let lastComment = '';    // poslední komentářový řádek (pro pojmenování objektů)
+
+  // Extrakce prvního čísla z komentáře (pro číslo objektu)
+  function commentNum() {
+    const m = lastComment.match(/\b(\d+)\b/);
+    return m ? m[1] : null;
+  }
 
   for (const rawLine of code.split('\n')) {
     // Detekce STOCK markerů před odstraněním komentářů
     if (/STOCK_START/i.test(rawLine)) { inStock = true; continue; }
     if (/STOCK_END/i.test(rawLine))   { inStock = false; continue; }
+
+    // Ulož čistý komentářový řádek pro pojmenování dalšího objektu
+    const rtrim = rawLine.trim();
+    if (rtrim.startsWith(';')) lastComment = rtrim;
 
     // Odstraň komentáře: (text) Fanuc styl, ; do konce řádku
     let line = rawLine
@@ -1140,10 +1148,13 @@ function parseGcodeToObjects(code) {
     if (thisMotion === 0) { cx = tx; cy = ty; continue; } // G00 rapid
 
     if (thisMotion === 1) {
-      if (Math.hypot(tx - cx, ty - cy) > 1e-4) {
-        objs.push({ type: 'line', id: state.nextId++, name: 'Úsečka',
-          x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
+      const len = Math.hypot(tx - cx, ty - cy);
+      if (len > 1e-4) {
+        const num = commentNum();
+        const name = num ? `Úsečka ${num} (délka: ${len.toFixed(3)})` : `Úsečka (délka: ${len.toFixed(3)})`;
+        objs.push({ type: 'line', id: state.nextId++, name, x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
       }
+      lastComment = '';
       cx = tx; cy = ty;
       continue;
     }
@@ -1165,7 +1176,7 @@ function parseGcodeToObjects(code) {
         // Formát R: R<0 = velký oblouk (>180°), R>0 = malý oblouk
         const isLong = gRval < 0;
         const absR = Math.abs(gRval);
-        if (dist2 < 1e-8 || absR * absR < dist2 / 4 - 1e-6) { cx = tx; cy = ty; continue; }
+        if (dist2 < 1e-8 || absR * absR < dist2 / 4 - 1e-6) { lastComment = ''; cx = tx; cy = ty; continue; }
         const h = Math.sqrt(Math.max(0, absR * absR - dist2 / 4));
         const dist = Math.sqrt(dist2);
         const nx = -dy / dist, ny = dx / dist;
@@ -1173,19 +1184,22 @@ function parseGcodeToObjects(code) {
         const sign = isLong ? -sBase : sBase;
         acx = (cx + tx) / 2 + sign * h * nx;
         acy = (cy + ty) / 2 + sign * h * ny;
-      } else { cx = tx; cy = ty; continue; }
+      } else { lastComment = ''; cx = tx; cy = ty; continue; }
 
       const R = Math.hypot(cx - acx, cy - acy);
-      if (R < 1e-6) { cx = tx; cy = ty; continue; }
+      if (R < 1e-6) { lastComment = ''; cx = tx; cy = ty; continue; }
       const startA = Math.atan2(cy - acy, cx - acx);
       const endA   = Math.atan2(ty - acy, tx - acx);
-      objs.push({ type: 'arc', id: state.nextId++, name: 'Oblouk',
+      const arcNum = commentNum();
+      const arcName = arcNum ? `Oblouk ${arcNum} (R: ${R.toFixed(3)})` : `Oblouk (R: ${R.toFixed(3)})`;
+      objs.push({ type: 'arc', id: state.nextId++, name: arcName,
         cx: acx, cy: acy, r: R, startAngle: startA, endAngle: endA,
         ccw: thisMotion === 3, isStock: inStock });
+      lastComment = '';
       cx = tx; cy = ty;
     }
   }
-  return chainToPolylines(objs);
+  return objs;
 }
 
 // Spojí za sebou navazující line/arc objekty do polyline (kontury).
