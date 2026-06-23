@@ -461,7 +461,7 @@ export function fmtStatusCoords(wx, wy, extra = '') {
   const dec = state.displayDecimals;
   return isKarusel
     ? `${prefix}${xp}X: ${displayX(d.x).toFixed(dec)}   ${prefix}Z: ${d.y.toFixed(dec)}${extra}`
-    : `${prefix}Z: ${d.x.toFixed(dec)}   ${prefix}${xp}X: ${displayX(d.y).toFixed(dec)}${extra}`;
+    : `${prefix}${xp}X: ${displayX(d.y).toFixed(dec)}   ${prefix}Z: ${d.x.toFixed(dec)}${extra}`;
 }
 
 /**
@@ -479,7 +479,7 @@ export function fmtCoordLabel(wx, wy, decimals) {
   const xp = xPrefix();
   return isK
     ? `${pf}${xp}X${displayX(d.x).toFixed(dec)} ${pf}Z${d.y.toFixed(dec)}`
-    : `${pf}Z${d.x.toFixed(dec)} ${pf}${xp}X${displayX(d.y).toFixed(dec)}`;
+    : `${pf}${xp}X${displayX(d.y).toFixed(dec)} ${pf}Z${d.x.toFixed(dec)}`;
 }
 
 /**

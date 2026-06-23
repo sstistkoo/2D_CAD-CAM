@@ -2648,7 +2648,7 @@ export function updateNullPointUI() {
     const isK = state.machineType === 'karusel';
     let lbl = isK
       ? `X: ${state.incReference.x.toFixed(3)}  Z: ${state.incReference.y.toFixed(3)}`
-      : `Z: ${state.incReference.x.toFixed(3)}  X: ${state.incReference.y.toFixed(3)}`;
+      : `X: ${state.incReference.y.toFixed(3)}  Z: ${state.incReference.x.toFixed(3)}`;
     if (state.nullPointAngle !== 0) lbl += `  ∠${state.nullPointAngle}°`;
     coordsSpan.textContent = lbl;
     indicator.hidden = false;

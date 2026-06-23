@@ -4416,7 +4416,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         ctx.beginPath(); ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2); ctx.stroke();
       }
       const xDisp = prms.mode === 'DIAMON' ? S._snap.x * 2 : S._snap.x;
-      const label = `Z: ${S._snap.z.toFixed(3)}  X: ${xDisp.toFixed(3)}`;
+      const label = `X: ${xDisp.toFixed(3)}  Z: ${S._snap.z.toFixed(3)}`;
       ctx.font = '11px Consolas';
       ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       const tw = ctx.measureText(label).width;

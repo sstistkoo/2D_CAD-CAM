@@ -779,7 +779,7 @@ drawCanvas.addEventListener("contextmenu", (e) => {
         updateCoordModeBtn();
         updateNullPointUI();
         renderAll();
-        showToast(`Nulový bod: ${state.machineType === 'karusel' ? 'X' : 'Z'}=${wx.toFixed(3)} ${state.machineType === 'karusel' ? 'Z' : 'X'}=${wy.toFixed(3)}`);
+        showToast(`Nulový bod: ${state.machineType === 'karusel' ? `X=${wx.toFixed(3)} Z=${wy.toFixed(3)}` : `X=${wy.toFixed(3)} Z=${wx.toFixed(3)}`}`);
       } else if (action === 'mirror') {
         startMirrorAction();
       } else if (action === 'rotate') {

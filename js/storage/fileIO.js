@@ -607,14 +607,20 @@ function runCncExport() {
       prevY = y;
       const dxDisp = state.machineType === 'karusel' ? displayX(dx) : dx;
       const dyDisp = state.machineType === 'karusel' ? dy : displayX(dy);
-      return `${_gH}${dxDisp.toFixed(3)} ${_gV}${dyDisp.toFixed(3)}`;
+      return state.machineType === 'karusel'
+        ? `${_gH}${dxDisp.toFixed(3)} ${_gV}${dyDisp.toFixed(3)}`
+        : `${_gV}${dyDisp.toFixed(3)} ${_gH}${dxDisp.toFixed(3)}`;
     }
-    return `${_gH}${xVal.toFixed(3)} ${_gV}${yVal.toFixed(3)}`;
+    return state.machineType === 'karusel'
+      ? `${_gH}${xVal.toFixed(3)} ${_gV}${yVal.toFixed(3)}`
+      : `${_gV}${yVal.toFixed(3)} ${_gH}${xVal.toFixed(3)}`;
   }
   function fmtCoordAbs(x, y) {
     const xVal = state.machineType === 'karusel' ? displayX(x) : x;
     const yVal = state.machineType === 'karusel' ? y : displayX(y);
-    return `${_gH}${xVal.toFixed(3)} ${_gV}${yVal.toFixed(3)}`;
+    return state.machineType === 'karusel'
+      ? `${_gH}${xVal.toFixed(3)} ${_gV}${yVal.toFixed(3)}`
+      : `${_gV}${yVal.toFixed(3)} ${_gH}${xVal.toFixed(3)}`;
   }
   function emitRapid(x, y) {
     if (isInc && !_firstRapidDone) {
@@ -994,6 +1000,7 @@ document.getElementById("btnCncToCam").addEventListener("click", () => {
     updateObjectList();
     updateProperties();
     autoCenterView();
+    runCncExport();
     showToast(`Vykresleno ${objs.length} objektů z CNC kódu`);
   } catch (e) {
     showToast("Chyba při parsování kódu: " + e.message);
@@ -1151,7 +1158,7 @@ function parseGcodeToObjects(code) {
       const len = Math.hypot(tx - cx, ty - cy);
       if (len > 1e-4) {
         const num = commentNum();
-        const name = num ? `Úsečka ${num} (délka: ${len.toFixed(3)})` : `Úsečka (délka: ${len.toFixed(3)})`;
+        const name = num ? `Úsečka ${num}` : 'Úsečka';
         objs.push({ type: 'line', id: state.nextId++, name, x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
       }
       lastComment = '';
@@ -1191,7 +1198,7 @@ function parseGcodeToObjects(code) {
       const startA = Math.atan2(cy - acy, cx - acx);
       const endA   = Math.atan2(ty - acy, tx - acx);
       const arcNum = commentNum();
-      const arcName = arcNum ? `Oblouk ${arcNum} (R: ${R.toFixed(3)})` : `Oblouk (R: ${R.toFixed(3)})`;
+      const arcName = arcNum ? `Oblouk ${arcNum}` : 'Oblouk';
       objs.push({ type: 'arc', id: state.nextId++, name: arcName,
         cx: acx, cy: acy, r: R, startAngle: startA, endAngle: endA,
         ccw: thisMotion === 3, isStock: inStock });
