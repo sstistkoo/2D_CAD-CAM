@@ -7,13 +7,18 @@
 
 // Efektivní úhel zanoření (ramp-in): auto z tvaru destičky (podélně =
 // natočení, čelně = |natočení + vrchol − 90|), nebo ruční entryAngle.
+// Pokud je nastaven úhel hřbetu α > 0, omezuje výsledek shora — hřbet destičky
+// kontaktuje materiál při zanořování strmějším než α.
 export function getEffectivePlungeAngle(prms) {
   const clampA = (v) => Math.max(0.5, Math.min(89, v));
   if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
   if (prms.toolShape !== 'polygon') return 45;
   const rot = parseFloat(prms.toolAngle) || 0;
   const tip = parseFloat(prms.toolTipAngle) || 90;
-  const a = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
+  const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
+  const rawAngle = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
+  // clearDeg > 0 → pozitivní plátka, hřbet omezuje max. zanoření na α
+  const a = clearDeg > 0 ? Math.min(rawAngle, clearDeg) : rawAngle;
   return clampA(a);
 }
 

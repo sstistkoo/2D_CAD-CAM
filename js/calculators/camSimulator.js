@@ -12,6 +12,7 @@ import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
+import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 
@@ -525,6 +526,7 @@ function injectCSS() {
   font-size: 11px; color: #6c7086; font-style: italic;
 }
 .cam-sim-tool-shape-row { display: flex; gap: 4px; margin-bottom: 6px; }
+.cam-sim-mag-slot [data-act="mag-toggle"]:hover { background: rgba(137,180,250,0.06); }
 .cam-sim-tool-shape-row button {
   flex: 1; padding: 5px; background: #313244; border: 1px solid #45475a;
   color: #6c7086; border-radius: 4px; cursor: pointer; font-size: 14px;
@@ -605,7 +607,8 @@ function getToolClearanceRange(prms, flipX) {
   const tipRad = (parseFloat(prms.toolTipAngle) || 90) * Math.PI / 180;
   const bisector = flipX ? (-toolAngleRad - tipRad / 2) : (toolAngleRad + tipRad / 2);
   const halfRange = (Math.PI - tipRad) / 2;
-  return { bisector, halfRange };
+  const clearRad = (parseFloat(prms.toolClearanceAngle) || 0) * Math.PI / 180;
+  return { bisector, halfRange, clearRad };
 }
 // getEffectivePlungeAngle → přesunuto do cam/camMath.js
 // Test jednoho segmentu kontury proti úhlovému rozsahu destičky —
@@ -615,13 +618,30 @@ function getToolClearanceRange(prms, flipX) {
 // začátek oblouku navázaného na mostovou čáru profilu) nezhodily celý jinak
 // dosažitelný oblouk jako "nedosažitelný" (hraniční false-positive ~0.1°).
 const INSERT_REACH_TOL = 1.5 * Math.PI / 180;
+// Vrací: 'tip'   = ani s vůlí hřbetu hrot nedosáhne (mimo halfRange + clearRad),
+//        'flank' = hrot dosáhne díky vůli hřbetu (halfRange < diff ≤ halfRange+clearRad),
+//                  ale hřbet bude v kontaktu s materiálem — riziko otěru,
+//        false   = zcela v bezpečné zóně.
+// Model: clearRad rozšiřuje efektivní dosah destičky za geometrické halfRange,
+// ale v tomto "bonusovém" pásmu koliduje hřbet s materiálem.
+// clearRad = 0 (negativní plátka, α=0) → chování beze změny, žádná flank zóna.
 function segInterferesWithTool(seg, clearance) {
-  const { bisector, halfRange } = clearance;
-  const lim = halfRange + INSERT_REACH_TOL;
+  const { bisector, halfRange, clearRad = 0 } = clearance;
+  // Bez vůle: geometrická mez + tolerance. S vůlí: rozšířeno o clearRad.
+  const tipLim   = halfRange + clearRad + INSERT_REACH_TOL;  // za touto mezí ani s α nedosáhne
+  const flankLim = halfRange + INSERT_REACH_TOL;             // bez α nedosáhne, s α dosáhne (flank zóna)
+
+  function checkNormal(normAngle) {
+    const diff = Math.abs(normalizeAngle(normAngle - bisector));
+    if (diff > tipLim) return 'tip';
+    if (clearRad > 0 && diff > flankLim) return 'flank';
+    return null;
+  }
+
   if (seg.type === 'line') {
     const n = getNormal(seg.p1, seg.p2);
     if (n.x === 0 && n.z === 0) return false;
-    return Math.abs(normalizeAngle(vecAngle(n.x, n.z) - bisector)) > lim;
+    return checkNormal(vecAngle(n.x, n.z)) || false;
   }
   if (seg.type === 'arc') {
     const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
@@ -631,11 +651,15 @@ function segInterferesWithTool(seg, clearance) {
     if (seg.dir === 'G2' && endAngle > startAngle) endAngle -= 2 * Math.PI;
     if (seg.dir === 'G3' && endAngle < startAngle) endAngle += 2 * Math.PI;
     const steps = 8;
+    let worstType = null;
     for (let s = 0; s <= steps; s++) {
       const a = startAngle + (endAngle - startAngle) * (s / steps);
       const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
-      if (Math.abs(normalizeAngle(normAngle - bisector)) > lim) return true;
+      const t = checkNormal(normAngle);
+      if (t === 'tip') return 'tip';
+      if (t === 'flank') worstType = 'flank';
     }
+    return worstType || false;
   }
   return false;
 }
@@ -2231,6 +2255,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
       machineStructure: 'lathe', controlSystem: 'sinumerik',
       toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
+      toolVbdCode: '', toolClearanceAngle: 0,
+      finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
       // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
       // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
       entryAngle: 30,
@@ -2304,7 +2330,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     materialConfigOpen: false,
     selectedMaterial: 'Ocel 11 373 (S235)',
     toolConfigOpen: false,
-    errorsOpen: false
+    errorsOpen: false,
+    // Zásobník nástrojů — revolverový stroj
+    toolMagazine: [],      // pole slotů, každý viz _defaultMagSlot()
+    activeMagazineSlot: null,  // index aktivního slotu (null = zásobník nepoužit)
+    editingMagazineSlot: null  // index právě editovaného slotu (rozbalená karta)
   };
 
   // Load from localStorage
@@ -2314,6 +2344,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (saved) {
       const p = JSON.parse(saved);
       if (p.params) Object.assign(S.params, p.params);
+      if (Array.isArray(p.toolMagazine)) S.toolMagazine = p.toolMagazine;
+      if (p.activeMagazineSlot !== undefined) S.activeMagazineSlot = p.activeMagazineSlot;
       // Migrace: dřívější roughingStrategy 'backside' → podélně + směr zleva.
       if (S.params.roughingStrategy === 'backside') {
         S.params.roughingStrategy = 'longitudinal';
@@ -2500,7 +2532,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
         flipX: S.flipX, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
-        zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath
+        zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
+        toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
       }));
     } catch (_) { /* quota */ }
   }
@@ -2563,7 +2596,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         offsetPath: [], finishOffsetPath: [], finishUnreachablePath: [], stockPathSegments,
         passes: [], simPath: [], retractDist: parseFloat(prms.retractDistance) || 2.0,
         totalPathLength: 0, estimatedTimeSeconds: 0,
-        interferenceSegments: [], interferenceGuides: [], stockTopX,
+        interferenceSegments: [], flankSegments: [], interferenceGuides: [], stockTopX,
       };
     }
 
@@ -2670,10 +2703,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     // segmenty, jejichž normála leží mimo úhlový rozsah, který destička
     // bez záběru bočním ostřím pokryje.
     const clearance = getToolClearanceRange(prms, S.flipX);
-    const interferenceSegments = [];
+    const interferenceSegments = [];   // hrot nedosáhne → ovlivňuje dráhy
+    const flankSegments = [];           // hřbet koliduje → jen varování + vizualizace
     if (clearance) {
       rawContourForInterference.forEach(seg => {
-        if (segInterferesWithTool(seg, clearance)) interferenceSegments.push(seg);
+        const itype = segInterferesWithTool(seg, clearance);
+        if (itype === 'tip') interferenceSegments.push(seg);
+        else if (itype === 'flank') flankSegments.push(seg);
       });
     }
 
@@ -2912,6 +2948,8 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     if (interferenceSegments.length > 0)
       foundErrors.push({ type: 'warning', msg: `Tvar destičky (vrchol ${prms.toolTipAngle}°, natočení ${prms.toolAngle}°) nedosáhne na ${interferenceSegments.length} úsek(ů) kontury (viz zvýrazněná místa na výkrese).` });
+    if (flankSegments.length > 0)
+      foundErrors.push({ type: 'warning', msg: `Hřbet destičky (α=${prms.toolClearanceAngle}°): ${flankSegments.length} úsek(ů) je dostupných jen díky vůli hřbetu — hřbet bude v kontaktu s materiálem, riziko otěru (viz oranžové zvýraznění).` });
 
     // Passes
     const passes = [];
@@ -3279,7 +3317,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, interferenceGuides, stockTopX };
+    return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX };
   }
 
   // ── G-Code Editor Content ────────────────────────────────────
@@ -3569,8 +3607,29 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
     }
     const firstGcFinSeg = finPath.find(s => !s.isDegenerate);
+    // Výměna nástroje pro dokončování — jen pokud je nastaven jiný nástroj ze zásobníku
+    const finSlotIdx = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? prms.finishingSlot : null;
+    const finSlotData = (finSlotIdx !== null && S.toolMagazine[finSlotIdx]) ? S.toolMagazine[finSlotIdx] : null;
+    const finFeed  = finSlotData ? finSlotData.f  : prms.feed;
+    const finSpeed = finSlotData ? finSlotData.vc : prms.speed;
     if (prms.doFinishing && firstGcFinSeg) {
       addCmt('--- DOKONCOVANI ---');
+      if (finSlotData) {
+        // Bezpečná poloha před výměnou
+        addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Výjezd do bezpečné polohy')}`);
+        if (prms.controlSystem === 'sinumerik') {
+          addN(`T="${finSlotData.name}" D1 M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
+          addN(`G96 S${finSpeed} ${prms.machineType}${note('', 'Řezná rychlost – dokončování')}`);
+        } else if (prms.controlSystem === 'fanuc') {
+          const tNum = String(finSlotData.slot).padStart(2, '0');
+          addN(`T${tNum}${tNum}${note('', `Výměna na T${finSlotData.slot} – dokončování`)}`);
+          addN(`G96 S${finSpeed} M3${note('', 'Řezná rychlost – dokončování')}`);
+        } else {
+          addN(`T${finSlotData.slot} M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
+          addN(`G96 S${finSpeed} M3${note('', 'Řezná rychlost – dokončování')}`);
+        }
+        addN(`M3${note('', 'Vřeteno CW')}`);
+      }
       const startSeg = firstGcFinSeg;
       const sX = startSeg.type === 'line' ? startSeg.p1.x : (startSeg.cx + Math.sin(startSeg.startAngle) * startSeg.r);
       const sZ = startSeg.type === 'line' ? startSeg.p1.z : (startSeg.cz + Math.cos(startSeg.startAngle) * startSeg.r);
@@ -3588,7 +3647,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Nájezd na přibližovací bod s kontrolou kolize — přímá diagonála
       // z bezpečné polohy může u členité kontury proříznout offset.
       safeRapidTo(sX + finishApproachDx, sZ_approachVal);
-      simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(sX, sZ);
+      simCounter += 1; addN(`G1 X${sX_out} Z${sZ.toFixed(3)} F${finFeed}`, simCounter); setPos(sX, sZ);
       finPath.forEach(seg => {
         if (seg.isDegenerate) return;
         // chainBreak = samostatný řetěz (mezi konturami nic nenavazuje) —
@@ -3922,6 +3981,29 @@ export function openCamSimulator(initialContour, initialGCode) {
       ctx.strokeStyle = C.error; ctx.lineWidth = 5; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
     }
 
+    // oranžové zvýraznění: hřbet destičky koliduje s materiálem (α příliš malý)
+    if (calc.flankSegments && calc.flankSegments.length > 0) {
+      ctx.beginPath();
+      calc.flankSegments.forEach(seg => {
+        if (seg.type === 'line') {
+          const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        } else if (seg.type === 'arc') {
+          const steps = arcSteps(seg.r, S.view.scale);
+          let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+          let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          for (let j = 0; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+            if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          }
+        }
+      });
+      ctx.strokeStyle = '#fab387'; ctx.lineWidth = 4; ctx.setLineDash([6, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+
     // pomocné (konstrukční) čáry — ruční tečny z nástroje Úhel (žluté)
     // + automatické mezní čáry hran destičky (tyrkysové). Ke každé se
     // kreslí i offset o rádius plátku (kam dojede STŘED plátku) a malé
@@ -4185,6 +4267,26 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.lineTo(t2x, t2y);
           ctx.arc(0, 0, rPix, angT2, angT1, useCCW);
           ctx.closePath(); ctx.fill(); ctx.stroke();
+          // Vizualizace úhlu hřbetu (α) — tečkované čáry na hranách plátku
+          const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
+          if (clearDeg > 0) {
+            const clearRad = clearDeg * Math.PI / 180;
+            const clLen = Math.min(lenPix * 0.65, 30);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(166,173,200,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            // hřbet na hlavním ostří (a1)
+            const ca1 = a1 - clearRad;
+            ctx.beginPath(); ctx.moveTo(t1x, t1y);
+            ctx.lineTo(t1x + Math.cos(ca1) * clLen, t1y + Math.sin(ca1) * clLen);
+            ctx.stroke();
+            // hřbet na vedlejším ostří (a2)
+            const ca2 = a2 + clearRad;
+            ctx.beginPath(); ctx.moveTo(t2x, t2y);
+            ctx.lineTo(t2x + Math.cos(ca2) * clLen, t2y + Math.sin(ca2) * clLen);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+          }
           ctx.restore();
         }
         // crosshair at tool center
@@ -4223,12 +4325,38 @@ export function openCamSimulator(initialContour, initialGCode) {
       ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const contourActive = S.editMode === 'contour';
       const pointPickActive = S.addPointMode || S.delPointMode;
+      // Hover zvýraznění segmentu kontury/polotovaru (pod body, aby body byly navrchu)
+      if (_hoverContourSeg && !S.simRunning) {
+        const hs = _hoverContourSeg;
+        const pts = hs.isStock ? calc.stockWorldPoints : calc.worldPoints;
+        if (pts && pts[hs.idx1] && pts[hs.idx2]) {
+          const a = toScreen(pts[hs.idx1].xReal, pts[hs.idx1].zReal);
+          const b = toScreen(pts[hs.idx2].xReal, pts[hs.idx2].zReal);
+          ctx.save();
+          ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 4; ctx.globalAlpha = 0.5;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.restore();
+        }
+      }
+      // Drag zvýraznění segmentu kontury/polotovaru (během tažení)
+      if (_draggedContourSeg && !S.simRunning) {
+        const ds = _draggedContourSeg;
+        const pts = ds.isStock ? calc.stockWorldPoints : calc.worldPoints;
+        if (pts && pts[ds.idx1] && pts[ds.idx2]) {
+          const a = toScreen(pts[ds.idx1].xReal, pts[ds.idx1].zReal);
+          const b = toScreen(pts[ds.idx2].xReal, pts[ds.idx2].zReal);
+          ctx.save();
+          ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 4; ctx.globalAlpha = 0.7;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.restore();
+        }
+      }
       if (calc.worldPoints) {
         calc.worldPoints.forEach((p, i) => {
           if (!p) return;
           const pt = toScreen(p.xReal, p.zReal);
-          const isHovered = (contourActive || pointPickActive) && !S._hoverIsStock && i === S.hoverPointId;
-          const isDragged = contourActive && !_draggingStock && i === S.draggedPointId;
+          const isHovered = (S.pointDragEnabled || contourActive || pointPickActive) && !S._hoverIsStock && i === S.hoverPointId;
+          const isDragged = !_draggingStockPt && !_draggingStock && i === S.draggedPointId;
           const isSelected = contourActive && S.selectedPoints.has(i);
           const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (contourActive ? 4 : 3));
           ctx.fillStyle = (isHovered || isDragged) ? '#f9e2af' : (isSelected ? '#f9e2af' : C.contour);
@@ -4251,8 +4379,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         calc.stockWorldPoints.forEach((p, i) => {
           if (!p) return;
           const pt = toScreen(p.xReal, p.zReal);
-          const isHovered = (stockActive || pointPickActive) && S._hoverIsStock && i === S.hoverPointId;
-          const isDragged = stockActive && _draggingStock && i === S.draggedPointId;
+          const isHovered = (S.pointDragEnabled || stockActive || pointPickActive) && S._hoverIsStock && i === S.hoverPointId;
+          const isDragged = _draggingStockPt && i === S.draggedPointId;
           const isSelected = stockActive && S.selectedPoints.has(i);
           const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (stockActive ? 4 : 3));
           ctx.fillStyle = (isHovered || isDragged) ? '#f9e2af' : (isSelected ? '#f9e2af' : C.pass);
@@ -4831,6 +4959,45 @@ export function openCamSimulator(initialContour, initialGCode) {
     return closest;
   }
 
+  // Hit-test na přímé segmenty (G0/G1) kontury nebo stock polyline.
+  // Vrátí {idx1, idx2, isStock} nebo null. Ignoruje oblouky.
+  function getContourSegmentAt(clientX, clientY) {
+    if (!S.pointDragEnabled || S.simRunning) return null;
+    const calc = S._cachedCalc; if (!calc) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left, my = clientY - rect.top;
+    const vS = S.flipX ? 1 : -1;
+    const toScreen = (x, z) => {
+      if (S.params.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+    };
+    const distToSeg = (px, py, ax, ay, bx, by) => {
+      const dx = bx - ax, dy = by - ay;
+      const L2 = dx * dx + dy * dy;
+      let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    };
+    let best = null, minD = Infinity;
+    const scanPts = (pts, isStock) => {
+      if (!pts || pts.length < 2) return;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p2 = pts[i + 1];
+        if (p2.type === 'G2' || p2.type === 'G3') continue;
+        const a = toScreen(pts[i].xReal, pts[i].zReal);
+        const b = toScreen(p2.xReal, p2.zReal);
+        const d = distToSeg(mx, my, a.x, a.y, b.x, b.y);
+        const dA = Math.hypot(a.x - mx, a.y - my), dB = Math.hypot(b.x - mx, b.y - my);
+        if (d < 8 && d < minD && dA > 12 && dB > 12) {
+          minD = d; best = { idx1: i, idx2: i + 1, isStock };
+        }
+      }
+    };
+    scanPts(calc.worldPoints, false);
+    if (S.params.stockMode !== 'cylinder') scanPts(calc.stockWorldPoints, true);
+    return best;
+  }
+
   // Převod kliknutí (client souřadnice) na world souřadnice (X = rádius).
   function clientToWorldCam(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
@@ -5021,7 +5188,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     let g = baseG;
     if (auto) {                       // převést mezní čáru na uživatelskou
       if (!S.guideLines) S.guideLines = [];
-      g = { x1: auto.x1, z1: auto.z1, x2: auto.x2, z2: auto.z2 };
+      // fromInsert: true → auto-smazání při změně parametrů destičky
+      g = { x1: auto.x1, z1: auto.z1, x2: auto.x2, z2: auto.z2, fromInsert: true };
       S.guideLines.push(g);
     }
     if (target) {
@@ -5773,22 +5941,30 @@ export function openCamSimulator(initialContour, initialGCode) {
     const _shapeIcon = prms.toolShape === 'round' ? '⬤' : '◼';
     const _angleChip = prms.toolShape === 'polygon'
       ? `<span class="cam-sim-machine-chip">${prms.toolAngle}°</span>` : '';
+    const _vbdChip = prms.toolVbdCode
+      ? `<span class="cam-sim-machine-chip" style="font-family:monospace;font-size:10px;letter-spacing:0.5px">${(prms.toolVbdCode || '').substring(0, 8)}</span>` : '';
     html += `<button class="cam-sim-machine-toggle" data-act="tool-config-toggle">
       <span class="cam-sim-machine-summary">
         <span style="color:#a6adc8;font-size:11px">Nástroj:</span>
         <span class="cam-sim-machine-chip">R ${prms.toolRadius}</span>
         <span class="cam-sim-machine-chip">${_shapeIcon}</span>
         ${_angleChip}
+        ${_vbdChip}
       </span>
       <span class="cam-sim-machine-chevron">${_toolOpen ? '▲' : '▼'}</span>
     </button>
     <div class="cam-sim-machine-body${_toolOpen ? '' : ' cam-sim-collapsed'}">
-      <div class="cam-sim-section-title">Nástroj <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button></div>
-      <div class="cam-sim-row">
-        <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
-        <div class="cam-sim-field"><label>Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
+      <div class="cam-sim-section-title">Nástroj
+        <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:8px">🧰 Knihovna</button>
+        <button data-act="open-vbd" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px">🔩 VBD</button>
+        <button data-act="open-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px">🔧 Zásobník</button>
       </div>
       <div class="cam-sim-row">
+        <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-p="toolVbdCode" value="${prms.toolVbdCode || ''}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
+        <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
+      </div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label>Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
         <div class="cam-sim-field"><label>Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
         <div class="cam-sim-field"><label>Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
       </div>
@@ -5803,6 +5979,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
         <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
         <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
+        <div class="cam-sim-field"><label title="Úhel hřbetu — omezuje maximální úhel zanoření na bočním ostří">Úhel hřbetu (α)</label><input type="number" data-p="toolClearanceAngle" value="${prms.toolClearanceAngle ?? 0}" min="0" max="30" step="1"></div>
       </div>`;
     }
     html += `</div>`;
@@ -5829,9 +6006,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
     </div>`;
     if (prms.toolShape === 'polygon') {
+      const insertGuideCount = (S.guideLines || []).filter(g => g.fromInsert).length;
+      const totalGuideCount = (S.guideLines || []).length;
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
         <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
         <span>Hlídat geometrii destičky</span>
+        ${totalGuideCount > 0 ? `<button data-act="clear-insert-guides" title="Smazat konstrukční čáry vygenerované hlídáním destičky (${totalGuideCount} čar)" style="margin-left:6px;padding:1px 7px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#fab387">🧹 ${totalGuideCount}</button>` : ''}
       </div>`;
     }
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
@@ -5839,14 +6019,31 @@ export function openCamSimulator(initialContour, initialGCode) {
       <span>Zanořování (kapsy/zápichy)</span>
     </div>`;
     const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
+    const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
+    const rawPlunge = prms.toolShape === 'polygon'
+      ? (prms.roughingStrategy === 'face' ? Math.abs((parseFloat(prms.toolAngle)||0) + (parseFloat(prms.toolTipAngle)||90) - 90) : Math.abs(parseFloat(prms.toolAngle)||0))
+      : 45;
+    const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
     html += `<div class="cam-sim-row">
-      <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°)."><label>Úhel zanoření (°)</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${effPlunge}"></div>
-      <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky (natočení + vrcholový úhel)">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
+      <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${effPlunge}"></div>
+      <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
     </div>`;
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
       <span>Dokončovací operace</span>
     </div>`;
+    if (prms.doFinishing && S.toolMagazine.length > 1) {
+      const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
+      html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
+        <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
+        <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
+          <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
+          ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${s.name}${s.vbdCode ? ' · ' + s.vbdCode : ''}</option>`).join('')}
+        </select>
+        ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
+      </div>`;
+      if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
+    }
     html += `<div style="text-align:center;margin-top:16px">
       <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
     </div>`;
@@ -5882,15 +6079,24 @@ export function openCamSimulator(initialContour, initialGCode) {
     tabBody.querySelectorAll('[data-pmode]').forEach(btn => {
       btn.addEventListener('click', () => { S.params.mode = btn.dataset.pmode; fullUpdate(); });
     });
+    // Parametry destičky ovlivňující interferenční čáry — při změně se smažou
+    // čáry označené fromInsert:true (byly automaticky povýšeny z hlídání destičky).
+    const INSERT_PARAMS = new Set(['toolAngle', 'toolTipAngle', 'toolShape', 'toolClearanceAngle']);
     tabBody.querySelectorAll('[data-p]').forEach(inp => {
       inp.addEventListener('change', () => {
         const v = inp.value;
         if (inp.dataset.p === 'lims') {
           S.params.machineType = `LIMS=${parseInt(v) || 2000}`;
         } else {
-          // Ruční zadání úhlu zanoření vypíná auto dopočet z destičky.
           if (inp.dataset.p === 'entryAngle') S.params.entryAngleAuto = false;
           S.params[inp.dataset.p] = inp.type === 'number' ? (parseFloat(v) || 0) : v;
+        }
+        // Změna tvaru/úhlu destičky → smazat zastaralé promované interferenční čáry
+        if (INSERT_PARAMS.has(inp.dataset.p) && S.params.respectInsertGeometry) {
+          const before = S.guideLines.length;
+          S.guideLines = S.guideLines.filter(g => !g.fromInsert);
+          if (S.guideLines.length < before)
+            showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
         }
         fullUpdate();
       });
@@ -5985,8 +6191,20 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const finCb = tabBody.querySelector('#cam-sim-fin');
     if (finCb) finCb.addEventListener('change', () => { S.params.doFinishing = finCb.checked; fullUpdate(); });
+    const finSlotSel = tabBody.querySelector('#cam-sim-fin-slot');
+    if (finSlotSel) finSlotSel.addEventListener('change', () => {
+      S.params.finishingSlot = finSlotSel.value === '' ? null : parseInt(finSlotSel.value);
+      fullUpdate();
+    });
     const respCb = tabBody.querySelector('#cam-sim-respect-insert');
     if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; fullUpdate(); });
+    const clearInsertGuidesBtn = tabBody.querySelector('[data-act="clear-insert-guides"]');
+    if (clearInsertGuidesBtn) clearInsertGuidesBtn.addEventListener('click', () => {
+      const count = S.guideLines.length;
+      S.guideLines = [];
+      showToast(`Smazáno ${count} konstrukční čar ✓`);
+      saveState(); fullUpdate();
+    });
     const plungeCb = tabBody.querySelector('#cam-sim-plunge');
     if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; fullUpdate(); });
     const noStepCb = tabBody.querySelector('#cam-sim-nostep');
@@ -6007,21 +6225,44 @@ export function openCamSimulator(initialContour, initialGCode) {
       showToolLibraryDialog({
         getCurrent: () => ({
           name: S.params.toolName,
+          vbdCode: S.params.toolVbdCode,
           tipRadius: S.params.toolRadius,
           toolAngle: S.params.toolAngle,
           tipAngle: S.params.toolTipAngle,
+          clearanceAngle: S.params.toolClearanceAngle,
           vc: S.params.speed,
           f: S.params.feed,
           ap: S.params.depthOfCut,
         }),
         onApply: (tool) => {
           if (tool.name) S.params.toolName = tool.name;
+          if (tool.vbdCode !== undefined) S.params.toolVbdCode = tool.vbdCode;
           if (tool.tipRadius !== undefined) S.params.toolRadius = tool.tipRadius;
           if (tool.toolAngle !== undefined) S.params.toolAngle = tool.toolAngle;
           if (tool.tipAngle !== undefined) S.params.toolTipAngle = tool.tipAngle;
+          if (tool.clearanceAngle !== undefined) S.params.toolClearanceAngle = tool.clearanceAngle;
           if (tool.vc) S.params.speed = tool.vc;
           if (tool.f) S.params.feed = tool.f;
           if (tool.ap) S.params.depthOfCut = tool.ap;
+          fullUpdate();
+        },
+      });
+    });
+    const magazineBtn = tabBody.querySelector('[data-act="open-magazine"]');
+    if (magazineBtn) magazineBtn.addEventListener('click', () => showMagazineDialog());
+    const vbdBtn = tabBody.querySelector('[data-act="open-vbd"]');
+    if (vbdBtn) vbdBtn.addEventListener('click', () => {
+      openInsertCalc({
+        onCamImport: (data) => {
+          if (data.vbdCode) S.params.toolVbdCode = data.vbdCode;
+          if (data.isRound) {
+            S.params.toolShape = 'round';
+          } else if (data.tipAngle !== null) {
+            S.params.toolShape = 'polygon';
+            S.params.toolTipAngle = data.tipAngle;
+          }
+          if (data.clearanceAngle !== null) S.params.toolClearanceAngle = data.clearanceAngle;
+          if (data.tipRadius !== null && data.tipRadius > 0) S.params.toolRadius = data.tipRadius;
           fullUpdate();
         },
       });
@@ -6035,6 +6276,258 @@ export function openCamSimulator(initialContour, initialGCode) {
         openCamSimulator();
       }
     });
+  }
+
+  // ── magazine dialog ──
+  function _defaultMagSlot(num) {
+    return {
+      slot: num, name: `T${num}`, vbdCode: '',
+      shape: 'round', radius: 0.8, tipAngle: 90, toolAngle: 15,
+      clearanceAngle: 0, toolLength: 10,
+      vc: 200, f: 0.25, ap: 2.0,
+    };
+  }
+
+  function _applyMagSlot(idx) {
+    const slot = S.toolMagazine[idx];
+    if (!slot) return;
+    S.activeMagazineSlot = idx;
+    S.params.toolName        = slot.name;
+    S.params.toolVbdCode     = slot.vbdCode;
+    S.params.toolShape       = slot.shape;
+    S.params.toolRadius      = slot.radius;
+    S.params.toolTipAngle    = slot.tipAngle;
+    S.params.toolAngle       = slot.toolAngle;
+    S.params.toolClearanceAngle = slot.clearanceAngle;
+    S.params.toolLength      = slot.toolLength;
+    S.params.speed           = slot.vc;
+    S.params.feed            = slot.f;
+    S.params.depthOfCut      = slot.ap;
+    fullUpdate();
+  }
+
+  function _syncParamsToSlot(idx) {
+    const slot = S.toolMagazine[idx];
+    if (!slot) return;
+    slot.name          = S.params.toolName;
+    slot.vbdCode       = S.params.toolVbdCode || '';
+    slot.shape         = S.params.toolShape;
+    slot.radius        = S.params.toolRadius;
+    slot.tipAngle      = S.params.toolTipAngle;
+    slot.toolAngle     = S.params.toolAngle;
+    slot.clearanceAngle = S.params.toolClearanceAngle || 0;
+    slot.toolLength    = S.params.toolLength;
+    slot.vc            = S.params.speed;
+    slot.f             = S.params.feed;
+    slot.ap            = S.params.depthOfCut;
+  }
+
+  function showMagazineDialog() {
+    const mag = S.toolMagazine;
+
+    const dlg = document.createElement('div');
+    dlg.className = 'input-overlay';
+    dlg.style.zIndex = '300';
+    dlg.innerHTML = `
+      <div class="input-dialog" style="min-width:400px;max-width:540px;width:100%;max-height:82vh;display:flex;flex-direction:column">
+        <h3 style="margin:0 0 12px">🔧 Zásobník nástrojů</h3>
+        <div id="mag-dlg-body" style="flex:1;overflow-y:auto;min-height:0"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;border-top:1px solid #313244;padding-top:10px">
+          <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-add" style="flex:1">＋ Přidat nůž</button>
+          <button class="btn-cancel" id="mag-dlg-close">Zavřít</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+
+    const body = dlg.querySelector('#mag-dlg-body');
+
+    function renderBody() {
+      const activeIdx = S.activeMagazineSlot;
+      const editIdx = S.editingMagazineSlot;
+
+      if (mag.length === 0) {
+        body.innerHTML = `<div class="cam-sim-info-box" style="text-align:center;padding:20px">
+          Zásobník je prázdný.<br><small>Klikněte „＋ Přidat nůž" níže.</small>
+        </div>`;
+        attachBodyEvents();
+        return;
+      }
+
+      let html = '';
+      mag.forEach((slot, i) => {
+        const isActive = i === activeIdx;
+        const isEditing = i === editIdx;
+        const shapeIcon = slot.shape === 'round' ? '⬤' : '◼';
+        const border = isActive ? 'border:1.5px solid #a6e3a1;' : 'border:1.5px solid #313244;';
+
+        html += `<div class="cam-sim-mag-slot" data-magidx="${i}" style="background:#1e1e2e;border-radius:8px;margin-bottom:8px;${border}overflow:hidden">`;
+        html += `<div style="display:flex;align-items:center;gap:6px;padding:7px 8px;cursor:pointer" data-act="mag-toggle" data-magidx="${i}">
+          <span class="cam-sim-machine-chip" style="background:${isActive ? '#40a02b' : '#313244'};font-family:monospace;font-weight:700;min-width:28px;text-align:center">T${slot.slot}</span>
+          <span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHTML(slot.name)}</span>
+          ${slot.vbdCode ? `<span style="font-family:monospace;font-size:10px;color:#89dceb;padding:1px 5px;border-radius:4px;border:1px solid #313244">${escHTML(slot.vbdCode.substring(0,12))}</span>` : ''}
+          <span class="cam-sim-machine-chip">${shapeIcon} R${slot.radius}</span>
+          ${slot.shape === 'polygon' ? `<span class="cam-sim-machine-chip">${slot.toolAngle}° ε${slot.tipAngle}°${slot.clearanceAngle ? ` α${slot.clearanceAngle}°` : ''}</span>` : ''}
+          <span style="color:#6c7086;font-size:12px">${isEditing ? '▲' : '▼'}</span>
+        </div>`;
+
+        if (isEditing) {
+          html += `<div style="padding:0 8px 10px 8px;border-top:1px solid #313244">
+            <div class="cam-sim-row" style="margin-top:8px">
+              <div class="cam-sim-field"><label>Slot (T#)</label><input type="number" data-mf="slot" data-magidx="${i}" value="${slot.slot}" min="1" max="99" style="font-weight:700"></div>
+              <div class="cam-sim-field" style="flex:2"><label>Název (G-kód)</label><input type="text" data-mf="name" data-magidx="${i}" value="${escHTML(slot.name)}" style="font-family:monospace"></div>
+            </div>
+            <div class="cam-sim-row">
+              <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-mf="vbdCode" data-magidx="${i}" value="${escHTML(slot.vbdCode)}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" spellcheck="false"></div>
+              <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" data-mf="radius" data-magidx="${i}" step="0.1" value="${slot.radius}"></div>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <button data-act="mag-vbd" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-gray" style="flex:1;font-size:11px;padding:4px 6px">🔩 VBD dekodér</button>
+              <button data-act="mag-lib" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-gray" style="flex:1;font-size:11px;padding:4px 6px">🧰 Z knihovny</button>
+            </div>
+            <div style="margin-bottom:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
+            <div class="cam-sim-tool-shape-row" style="margin-bottom:6px">
+              <button data-mshape="round" data-magidx="${i}" class="${slot.shape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
+              <button data-mshape="polygon" data-magidx="${i}" class="${slot.shape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
+            </div>
+            ${slot.shape === 'polygon' ? `
+            <div class="cam-sim-row">
+              <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-mf="toolLength" data-magidx="${i}" value="${slot.toolLength}"></div>
+              <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-mf="toolAngle" data-magidx="${i}" value="${slot.toolAngle}"></div>
+              <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-mf="tipAngle" data-magidx="${i}" value="${slot.tipAngle}"></div>
+              <div class="cam-sim-field"><label>Úhel hřbetu (α)</label><input type="number" data-mf="clearanceAngle" data-magidx="${i}" value="${slot.clearanceAngle}" min="0" max="30"></div>
+            </div>` : ''}
+            <div class="cam-sim-section-title" style="margin-top:8px">Řezné podmínky</div>
+            <div class="cam-sim-row">
+              <div class="cam-sim-field"><label>Vc (m/min)</label><input type="number" data-mf="vc" data-magidx="${i}" step="10" value="${slot.vc}"></div>
+              <div class="cam-sim-field"><label>f (mm/ot)</label><input type="number" data-mf="f" data-magidx="${i}" step="0.05" value="${slot.f}"></div>
+              <div class="cam-sim-field"><label>ap (mm)</label><input type="number" data-mf="ap" data-magidx="${i}" step="0.5" value="${slot.ap}"></div>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button data-act="mag-apply" data-magidx="${i}" class="cam-sim-btn ${isActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="flex:2;font-size:12px">✅ ${isActive ? 'Aktivní nástroj' : 'Použít jako aktivní'}</button>
+              <button data-act="mag-delete" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-red" style="flex:1;font-size:12px">🗑 Smazat</button>
+            </div>
+          </div>`;
+        }
+        html += `</div>`;
+      });
+
+      if (mag.length > 0) {
+        html += `<div class="cam-sim-info-box" style="font-size:10px">
+          Kliknutím na kartu rozbalíte editaci. „✅ Použít" přepíše parametry nástroje v záložce Parametry.
+        </div>`;
+      }
+
+      body.innerHTML = html;
+      attachBodyEvents();
+    }
+
+    function attachBodyEvents() {
+      body.querySelectorAll('[data-act="mag-toggle"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.magidx);
+          S.editingMagazineSlot = S.editingMagazineSlot === idx ? null : idx;
+          saveState(); renderBody();
+        });
+      });
+
+      body.querySelectorAll('[data-mf]').forEach(inp => {
+        inp.addEventListener('change', () => {
+          const idx = parseInt(inp.dataset.magidx);
+          const field = inp.dataset.mf;
+          const slot = mag[idx];
+          if (!slot) return;
+          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','vc','f','ap'];
+          slot[field] = numFields.includes(field) ? (parseFloat(inp.value) || 0) : inp.value;
+          if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
+        });
+      });
+
+      body.querySelectorAll('[data-mshape]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.magidx);
+          mag[idx].shape = btn.dataset.mshape;
+          if (mag[idx].shape === 'polygon' && !mag[idx].tipAngle) mag[idx].tipAngle = 90;
+          if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
+        });
+      });
+
+      body.querySelectorAll('[data-act="mag-apply"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          _applyMagSlot(parseInt(btn.dataset.magidx));
+          renderBody();
+        });
+      });
+
+      body.querySelectorAll('[data-act="mag-delete"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const idx = parseInt(btn.dataset.magidx);
+          if (!await camConfirm(`Smazat slot T${mag[idx]?.slot} (${mag[idx]?.name})?`)) return;
+          mag.splice(idx, 1);
+          if (S.activeMagazineSlot === idx) S.activeMagazineSlot = null;
+          else if (S.activeMagazineSlot > idx) S.activeMagazineSlot--;
+          if (S.editingMagazineSlot === idx) S.editingMagazineSlot = null;
+          else if (S.editingMagazineSlot > idx) S.editingMagazineSlot--;
+          saveState(); renderBody();
+        });
+      });
+
+      body.querySelectorAll('[data-act="mag-vbd"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.magidx);
+          openInsertCalc({
+            onCamImport: (data) => {
+              const slot = mag[idx];
+              if (!slot) return;
+              if (data.vbdCode) slot.vbdCode = data.vbdCode;
+              if (data.isRound) { slot.shape = 'round'; }
+              else if (data.tipAngle !== null) { slot.shape = 'polygon'; slot.tipAngle = data.tipAngle; }
+              if (data.clearanceAngle !== null) slot.clearanceAngle = data.clearanceAngle;
+              if (data.tipRadius !== null && data.tipRadius > 0) slot.radius = data.tipRadius;
+              if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
+            },
+          });
+          // VBD overlay (.calc-overlay, z-index 200) se otevírá pod zásobníkem (z-index 300)
+          // → zvednout nad zásobník hned po vytvoření
+          setTimeout(() => {
+            const vbdOvr = document.querySelector('.calc-overlay[data-type="inserts"]');
+            if (vbdOvr) vbdOvr.style.zIndex = '400';
+          }, 0);
+        });
+      });
+
+      body.querySelectorAll('[data-act="mag-lib"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.magidx);
+          showToolLibraryDialog({
+            onApply: (tool) => {
+              const slot = mag[idx];
+              if (!slot) return;
+              if (tool.name) slot.name = tool.name;
+              if (tool.vbdCode !== undefined) slot.vbdCode = tool.vbdCode;
+              if (tool.tipRadius !== undefined) slot.radius = tool.tipRadius;
+              if (tool.toolAngle !== undefined) slot.toolAngle = tool.toolAngle;
+              if (tool.tipAngle !== undefined) slot.tipAngle = tool.tipAngle;
+              if (tool.clearanceAngle !== undefined) slot.clearanceAngle = tool.clearanceAngle;
+              if (tool.vc) slot.vc = tool.vc;
+              if (tool.f) slot.f = tool.f;
+              if (tool.ap) slot.ap = tool.ap;
+              if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
+            },
+          });
+        });
+      });
+    }
+
+    dlg.querySelector('#mag-dlg-add').addEventListener('click', () => {
+      const nextSlot = mag.length > 0 ? Math.max(...mag.map(s => s.slot)) + 1 : 1;
+      mag.push(_defaultMagSlot(nextSlot));
+      S.editingMagazineSlot = mag.length - 1;
+      saveState(); renderBody();
+    });
+
+    dlg.querySelector('#mag-dlg-close').addEventListener('click', () => dlg.remove());
+
+    renderBody();
   }
 
   // ── import tab ──
@@ -6184,7 +6677,12 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.stockPoints) S.stockPoints = data.stockPoints;
         if (typeof data.manualGCode === 'string') S.manualGCode = data.manualGCode;
         if (typeof data.flipX === 'boolean') S.flipX = data.flipX;
-        if (data.guideLines) S.guideLines = data.guideLines;
+        if (data.guideLines) {
+          S.guideLines = data.guideLines;
+          // Upozornění na případně zastaralé čáry z hlídání destičky
+          if (S.guideLines.length > 0 && data.params && data.params.respectInsertGeometry)
+            showToast(`Projekt obsahuje ${S.guideLines.length} konstrukční čar — pokud jsou zastaralé po změně destičky, použijte 🧹 vedle „Hlídat geometrii destičky".`, 5000);
+        }
         if (data.zLimits) S.zLimits = Object.assign(
           { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false },
           data.zLimits
@@ -7600,6 +8098,9 @@ export function openCamSimulator(initialContour, initialGCode) {
   let lastMousePos = { x: 0, y: 0 };
   let lastPinchDist = null;
   let _draggingStock = false;
+  let _draggingStockPt = false;   // tažení bodu stock polyline (ne válcový handle)
+  let _draggedContourSeg = null;  // {idx1,idx2,isStock,lockAxis} – tažení celé úsečky
+  let _hoverContourSeg = null;    // {idx1,idx2,isStock} – hover zvýraznění segmentu
   let _mdX = 0, _mdY = 0, _panelPending = false;
 
   // ── Double-click to enter rect selection mode ──
@@ -7800,7 +8301,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       lastMousePos = { x: e.clientX, y: e.clientY };
       return;
     }
-    const pointIdx = getPointAt(e.clientX, e.clientY);
     if (S.addPointMode) {
       const exitAddMode = () => { S.addPointMode = false; toolbar.querySelector('[data-act="addpt"]').classList.remove('cam-sim-active'); canvas.style.cursor = 'crosshair'; };
       // Klik na koncový bod pomocné čáry → vložit bod kontury přesně
@@ -7841,8 +8341,19 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       return;
     }
-    if (S.pointDragEnabled && pointIdx !== null) { pushHistory(); S.draggedPointId = pointIdx; S.isDragging = true; }
-    else { S.isDragging = true; }
+    const pointHit = S.pointDragEnabled ? getAnyPointAt(e.clientX, e.clientY) : null;
+    if (S.pointDragEnabled && pointHit !== null) {
+      pushHistory();
+      S.draggedPointId = pointHit.idx; S.isDragging = true;
+      _draggingStockPt = pointHit.isStock;
+    } else if (S.pointDragEnabled) {
+      const seg = getContourSegmentAt(e.clientX, e.clientY);
+      if (seg) {
+        pushHistory();
+        _draggedContourSeg = { ...seg, lockAxis: null };
+        S.isDragging = true;
+      } else { S.isDragging = true; }
+    } else { S.isDragging = true; }
     lastMousePos = { x: e.clientX, y: e.clientY };
   });
 
@@ -7937,7 +8448,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (!S.isDragging) {
         const hn = getGNodeAt(e.clientX, e.clientY);
         // bod kontury má přednost před úsečkou dráhy (viz mousedown)
-        const cptHover = !hn && S.pointDragEnabled && getPointAt(e.clientX, e.clientY) !== null;
+        const cptHover = !hn && S.pointDragEnabled && getAnyPointAt(e.clientX, e.clientY) !== null;
         const hs = (hn || cptHover) ? null : getGSegmentAt(e.clientX, e.clientY);
         const changed = ((S.hoverGNode && S.hoverGNode.lineIdx) || null) !== ((hn && hn.lineIdx) || null)
           || ((S.hoverGSeg && S.hoverGSeg.simIdx) || null) !== ((hs && hs.simIdx) || null);
@@ -7957,7 +8468,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!S.isDragging) {
       const zHover = getZLimitAt(e.clientX, e.clientY);
       const stockHover = S.pointDragEnabled ? getStockHandleAt(e.clientX, e.clientY) : null;
-      const pointIdx = getPointAt(e.clientX, e.clientY);
+      const pointHit = S.pointDragEnabled ? getAnyPointAt(e.clientX, e.clientY) : null;
       if (S.addPointMode) {
         const found = getAnyPointAt(e.clientX, e.clientY);
         canvas.style.cursor = found ? 'pointer'
@@ -7977,11 +8488,21 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       if (stockHover !== null) {
         canvas.style.cursor = 'move';
-        if (S.hoverPointId !== stockHover || !S._hoverIsStock) { S.hoverPointId = stockHover; S._hoverIsStock = true; draw(); }
+        if (S.hoverPointId !== stockHover || !S._hoverIsStock) { S.hoverPointId = stockHover; S._hoverIsStock = true; _hoverContourSeg = null; draw(); }
+      } else if (pointHit !== null) {
+        canvas.style.cursor = 'move';
+        if (S.hoverPointId !== pointHit.idx || S._hoverIsStock !== pointHit.isStock) {
+          S.hoverPointId = pointHit.idx; S._hoverIsStock = pointHit.isStock; _hoverContourSeg = null; draw();
+        }
       } else {
-        if (S._hoverIsStock) { S._hoverIsStock = false; S.hoverPointId = null; draw(); }
-        if (S.pointDragEnabled && S.hoverPointId !== pointIdx) { S.hoverPointId = pointIdx; draw(); }
-        canvas.style.cursor = (S.pointDragEnabled && pointIdx !== null) ? 'move' : 'crosshair';
+        const segHit = S.pointDragEnabled ? getContourSegmentAt(e.clientX, e.clientY) : null;
+        const prevSeg = _hoverContourSeg;
+        const changed = (S.hoverPointId !== null) || (S._hoverIsStock)
+          || (!!prevSeg !== !!segHit)
+          || (prevSeg && segHit && (prevSeg.idx1 !== segHit.idx1 || prevSeg.idx2 !== segHit.idx2 || prevSeg.isStock !== segHit.isStock));
+        S.hoverPointId = null; S._hoverIsStock = false; _hoverContourSeg = segHit;
+        canvas.style.cursor = (S.pointDragEnabled && segHit !== null) ? 'move' : 'crosshair';
+        if (changed) draw();
       }
       return;
     }
@@ -8032,7 +8553,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         dZ_unit = dx / S.view.scale; dX_unit = vS * dy / S.view.scale;
       }
       if (S.params.mode === 'DIAMON') dX_unit *= 2;
-      const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;
+      const list = _draggingStockPt ? S.stockPoints : S.contourPoints;
 
       // Multi-drag: if dragging a selected point, move all selected
       if (S.selectedPoints.size > 1 && S.selectedPoints.has(S.draggedPointId)) {
@@ -8074,6 +8595,25 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Během tažení jen lehký náhled (body + kontura) — plynulé i u složité
       // kontury. Plný přepočet drah proběhne po puštění (handleMouseUp); dráhy
       // se po dobu tažení skryjí a po puštění se zase ukážou.
+      scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
+    } else if (_draggedContourSeg !== null) {
+      // Tažení celé úsečky: oba krajní body se posunou spolu, s zamčením na osu.
+      const seg = _draggedContourSeg;
+      let dX_unit = 0, dZ_unit = 0;
+      const vS = S.flipX ? 1 : -1;
+      if (S.params.machineStructure === 'carousel') { dX_unit = dx / S.view.scale; dZ_unit = vS * dy / S.view.scale; }
+      else { dZ_unit = dx / S.view.scale; dX_unit = vS * dy / S.view.scale; }
+      if (S.params.mode === 'DIAMON') dX_unit *= 2;
+      // Zamknout na převažující osu po překročení prahu
+      if (!seg.lockAxis && (Math.abs(dX_unit) + Math.abs(dZ_unit)) > 0.05) {
+        seg.lockAxis = Math.abs(dX_unit) >= Math.abs(dZ_unit) ? 'x' : 'z';
+      }
+      if (seg.lockAxis === 'x') dZ_unit = 0; else if (seg.lockAxis === 'z') dX_unit = 0;
+      const segList = seg.isStock ? S.stockPoints : S.contourPoints;
+      const pt1 = segList[seg.idx1], pt2 = segList[seg.idx2];
+      if (pt1) { pt1.x = parseFloat(pt1.x) + dX_unit; pt1.z = parseFloat(pt1.z) + dZ_unit; }
+      // INC bod: pt1 se posunulo, pt2 sleduje automaticky (je relativní k pt1)
+      if (pt2 && pt2.mode !== 'INC') { pt2.x = parseFloat(pt2.x) + dX_unit; pt2.z = parseFloat(pt2.z) + dZ_unit; }
       scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
     } else {
       S.view.panX += dx; S.view.panY += dy;
@@ -8164,7 +8704,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     // Clear snap lines on release
     S.snapLines = [];
-    if (S.isDragging && (S.draggedPointId !== null || _draggingStock)) {
+    if (S.isDragging && (S.draggedPointId !== null || _draggingStock || _draggedContourSeg !== null)) {
       // Po puštění TEĎ jednou přepočítat kompletní dráhy z nové polohy bodů
       // (během tažení běžel jen lehký náhled) → dráhy se zase ukážou.
       S._cachedCalc = calculate();
@@ -8184,7 +8724,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       renderCodeArea();
       saveState(); renderTab(); updateUndoRedoBtns();
     }
-    S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null;
+    S.isDragging = false; S.draggedPointId = null; _draggingStock = false; _draggingStockPt = false;
+    _draggedContourSeg = null; S.draggedLimit = null;
     S.draggedGNode = null; S._draggedGSeg = null; S._gdragNeedHistory = false;
     S._draggedGuideEnd = null; S._snap = null;
     S._angleSnapLine = null;

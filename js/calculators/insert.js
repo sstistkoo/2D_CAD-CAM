@@ -154,7 +154,13 @@ const vbdMatCompare = [
   {n:'Cermety',hard:4,tough:3,heat:4,use:'Dokončovací, vysoké Vc',vc:'200–400'}
 ];
 
-export function openInsertCalc() {
+// Mapování ISO tvarů/kódů na CAM parametry (exportováno pro camSimulator)
+export const VBD_SHAPE_ANGLES    = { C: 80, D: 55, S: 90, T: 60, V: 35, W: 80 }; // R = round
+export const VBD_CLEARANCE_ANGLES = { N: 0, B: 5, P: 11, C: 7, E: 20, M: 15, A: 25 };
+export const VBD_TIP_RADII       = { '00': 0.0, '04': 0.4, '08': 0.8, '12': 1.2, '16': 1.6, '24': 2.4 };
+
+export function openInsertCalc(opts) {
+  opts = opts || {};
   // ── Tab system ──
   const tabs = [
     {id:'vbdDec',label:'🔍 Dekodér VBD'},
@@ -191,7 +197,9 @@ export function openInsertCalc() {
   // Popis výsledku
   tab1 += '<div class="vbd-result" id="vbdResult"><div class="vbd-code" id="vbdCode">– – – – – – – – –</div>' +
     '<div class="vbd-desc" id="vbdDesc">Klikněte na pozici nebo zadejte kód výše</div>' +
-    '<div class="vbd-holder-rec" id="vbdHolderRec" style="display:none"><strong>Doporučené držáky:</strong> <span id="vbdHolderList"></span></div></div>';
+    '<div class="vbd-holder-rec" id="vbdHolderRec" style="display:none"><strong>Doporučené držáky:</strong> <span id="vbdHolderList"></span></div>' +
+    (opts.onCamImport ? '<button id="vbdUseCam" class="vbd-decode-btn" style="margin-top:10px;width:100%;background:#40a02b">📥 Použít v CAM</button>' : '') +
+    '</div>';
   tab1 += '</div>';
 
   // ── TAB 2: Dekodér Držáků ──
@@ -852,6 +860,32 @@ export function openInsertCalc() {
     searchResults.style.display = '';
   });
   searchInput.addEventListener('blur', function() { setTimeout(function() { searchResults.style.display = 'none'; }, 200); });
+
+  // ── Použít v CAM ──
+  var camImportBtn = overlay.querySelector('#vbdUseCam');
+  if (camImportBtn) {
+    camImportBtn.addEventListener('click', function() {
+      // Sestav kód přímo ze sel[] — vynech prázdné pozice 8+9 na konci
+      var built = '';
+      if (sel[1] !== '-') built += sel[1];
+      if (sel[2] !== '-') built += sel[2];
+      if (sel[3] !== '-') built += sel[3];
+      if (sel[4] !== '-') built += sel[4];
+      if (sel[5] !== '-') built += sel[5];
+      if (sel[6] !== '-') built += sel[6];
+      if (sel[7] !== '-') built += sel[7];
+      if (sel[8] !== '-' || sel[9] !== '-') built += '-' + (sel[8] !== '-' ? sel[8] : '') + (sel[9] !== '-' ? sel[9] : '');
+      var data = {
+        vbdCode: built,
+        isRound: sel[1] === 'R',
+        tipAngle: (sel[1] !== '-' && VBD_SHAPE_ANGLES[sel[1]] !== undefined) ? VBD_SHAPE_ANGLES[sel[1]] : null,
+        clearanceAngle: (sel[2] !== '-' && VBD_CLEARANCE_ANGLES[sel[2]] !== undefined) ? VBD_CLEARANCE_ANGLES[sel[2]] : null,
+        tipRadius: (sel[7] !== '-' && VBD_TIP_RADII[sel[7]] !== undefined) ? VBD_TIP_RADII[sel[7]] : null,
+      };
+      opts.onCamImport(data);
+      overlay.remove();
+    });
+  }
 
   // ── Clear ──
   overlay.querySelector('.cnc-btn-clear').addEventListener('click', function() {

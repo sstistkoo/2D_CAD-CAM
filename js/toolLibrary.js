@@ -32,6 +32,7 @@ export async function saveToolToLibrary(tool) {
     tipRadius: 0,
     toolAngle: 0,
     tipAngle: 0,
+    clearanceAngle: 0,
     vc: 0, f: 0, ap: 0,
     ...tool,
   });
@@ -76,7 +77,7 @@ export async function showToolLibraryDialog(opts = {}) {
         <div class="project-info">
           <div class="project-name">${_esc(t.name)}</div>
           <div class="project-meta">
-            ${t.material ? _esc(t.material) + ' · ' : ''}${t.vbdCode ? _esc(t.vbdCode) + ' · ' : ''}rε ${_fmt(t.tipRadius)} mm
+            ${t.material ? _esc(t.material) + ' · ' : ''}${t.vbdCode ? `<span style="font-family:monospace">${_esc(t.vbdCode)}</span> · ` : ''}rε ${_fmt(t.tipRadius)} mm${t.clearanceAngle ? ` · α ${_fmt(t.clearanceAngle)}°` : ''}
             ${t.vc ? ` · Vc ${_fmt(t.vc)} f ${_fmt(t.f)} ap ${_fmt(t.ap)}` : ''}
           </div>
         </div>
