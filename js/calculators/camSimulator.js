@@ -1631,11 +1631,32 @@ function trimAndRemoveLoops(rawSegs, opts = {}) {
       syncArcEndpoints(nextOff);
       // Přeskočit úsek, jehož počátek byl trimem posunut za jeho konec
       // (obrácený segment = nástroj by musel jet zpět přes již obrobený materiál).
+      // VÝJIMKA: průsečík padl ZA raw konec segmentu (tRaw > 1) — segment není
+      // skutečně obrácený, jen zatím "přetažený". Peek-ahead: ověřit, zda příští
+      // trim segment opraví dopředu. Pokud by zůstal obrácený (průsečík příliš
+      // blízko rohu čela → nástroj by zajel do kontury), přeskočit i jeho.
       if (nextOff.type === 'line') {
         const ox = rawSegs[i + 1].p2.x - rawSegs[i + 1].p1.x;
         const oz = rawSegs[i + 1].p2.z - rawSegs[i + 1].p1.z;
         const dx = nextOff.p2.x - nextOff.p1.x, dz = nextOff.p2.z - nextOff.p1.z;
-        if (dx * ox + dz * oz < 0) continue;
+        if (dx * ox + dz * oz < 0) {
+          const rawLen2 = ox * ox + oz * oz;
+          if (rawLen2 > 1e-12) {
+            const tRaw = ((nextOff.p1.x - rawSegs[i + 1].p1.x) * ox +
+                          (nextOff.p1.z - rawSegs[i + 1].p1.z) * oz) / rawLen2;
+            if (tRaw <= 1 + 1e-6) { continue; } // průsečík uvnitř → skutečný zpětný řez
+            // tRaw > 1: průsečík za koncem. Peek-ahead: příští trim napraví?
+            if (i + 2 < rawSegs.length && !rawSegs[i + 2].chainBreak &&
+                rawSegs[i + 2].type === 'line') {
+              const nn = rawSegs[i + 2];
+              const c2 = intersectLinesInfinite(nextOff.p1, nextOff.p2, nn.p1, nn.p2);
+              if (c2) {
+                const dx2 = c2.x - nextOff.p1.x, dz2 = c2.z - nextOff.p1.z;
+                if (dx2 * ox + dz2 * oz < 0) continue; // stále obrácený → přeskočit
+              }
+            }
+          } else { continue; }
+        }
       }
       result.push(nextOff);
     } else {
@@ -2917,8 +2938,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (pendingBreak && finSeg.type === 'line' && !seg.fromInsert && finRaw.length > 0) {
           const prev = finRaw[finRaw.length - 1];
           if (prev.type === 'line' && finSeg.p1.x < prev.p2.x - 0.05) {
+            if (finSeg.p2.x < prev.p2.x - 0.05) {
+              // Celý segment leží dovnitř → skutečný zpětný řez → zahodit.
+              pendingBreak = false;
+              continue;
+            }
+            // p1 dovnitř, p2 vně → reálné osazení/čelo. Trim ho napojí na
+            // předchozí segment průsečíkem. Vymazat pendingBreak PŘED chainBreak
+            // testem, aby trim spojil plynule bez G0.
             pendingBreak = false;
-            continue;
           }
         }
         // Mostový úsek (fromInsert) nikdy nepřerušovat: jeho konce LEŽÍ na
