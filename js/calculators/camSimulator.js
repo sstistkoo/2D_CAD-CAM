@@ -4657,60 +4657,6 @@ export function openCamSimulator(initialContour, initialGCode) {
           }
         });
       }
-      // Profil mód: nakreslit profilovou dráhu (vnější obrys) s čísly bodů.
-      // Čára se kreslí segment po segmentu (oblouky hladce přes canvas arc),
-      // čísla se přiřazují jen počátečním/koncovým bodům segmentů — ne
-      // každému interpolačnímu kroku oblouku.
-      if (calc.profileModeActive) {
-        const profSegs = (calc.machinableContour || calc.contourSegments || []).filter(s => !s.isDegenerate);
-        if (profSegs.length > 0) {
-          // 1. Nakreslit hladkou profilovou čáru
-          ctx.beginPath();
-          let firstPt = true;
-          for (const s of profSegs) {
-            if (s.type === 'line') {
-              const a = toScreen(s.p1.x, s.p1.z), b = toScreen(s.p2.x, s.p2.z);
-              if (firstPt) { ctx.moveTo(a.x, a.y); firstPt = false; }
-              else ctx.lineTo(a.x, a.y);
-              ctx.lineTo(b.x, b.y);
-            } else if (s.type === 'arc') {
-              const p1 = toScreen(s.cx + Math.sin(s.startAngle)*s.r, s.cz + Math.cos(s.startAngle)*s.r);
-              if (firstPt) { ctx.moveTo(p1.x, p1.y); firstPt = false; }
-              else ctx.lineTo(p1.x, p1.y);
-              const steps = Math.max(6, Math.round(Math.abs(s.endAngle - s.startAngle) * s.r / 0.5));
-              for (let j = 1; j <= steps; j++) {
-                const a2 = s.startAngle + (s.endAngle - s.startAngle) * (j / steps);
-                const pt2 = toScreen(s.cx + Math.sin(a2)*s.r, s.cz + Math.cos(a2)*s.r);
-                ctx.lineTo(pt2.x, pt2.y);
-              }
-            }
-          }
-          ctx.strokeStyle = C.contour; ctx.lineWidth = 3; ctx.stroke();
-
-          // 2. Číslovat jen krajní body segmentů (ne interpolaci oblouku)
-          ctx.fillStyle = C.contour;
-          const numberedPts = [];
-          for (const s of profSegs) {
-            const p1 = s.type === 'line' ? s.p1
-              : { x: s.cx + Math.sin(s.startAngle)*s.r, z: s.cz + Math.cos(s.startAngle)*s.r };
-            const last = numberedPts[numberedPts.length - 1];
-            if (!last || Math.hypot(p1.x - last.x, p1.z - last.z) > 0.1) numberedPts.push(p1);
-          }
-          // Přidat koncový bod posledního segmentu
-          const lastSeg = profSegs[profSegs.length - 1];
-          const lastPt = lastSeg.type === 'line' ? lastSeg.p2
-            : { x: lastSeg.cx + Math.sin(lastSeg.endAngle)*lastSeg.r, z: lastSeg.cz + Math.cos(lastSeg.endAngle)*lastSeg.r };
-          const prevLast = numberedPts[numberedPts.length - 1];
-          if (!prevLast || Math.hypot(lastPt.x - prevLast.x, lastPt.z - prevLast.z) > 0.1) numberedPts.push(lastPt);
-
-          numberedPts.forEach((p, i) => {
-            const pt = toScreen(p.x, p.z);
-            ctx.fillStyle = C.contour;
-            ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
-            ctx.fillText(`${i + 1}`, pt.x + 7, pt.y - 7);
-          });
-        }
-      }
       // Body polotovaru — VŽDY zobrazené s čísly (S1, S2...), jen pro
       // casting (ne pro cylinder — ten má své vlastní handle nahoře).
       // V stock edit módu jsou interaktivní; v contour módu jen reference.
@@ -4733,6 +4679,49 @@ export function openCamSimulator(initialContour, initialGCode) {
             ctx.fillStyle = stockActive ? '#f9e2af' : C.pass;
             ctx.fillText(`S${i + 1}`, pt.x + 8, pt.y - 8);
           }
+        });
+      }
+    }
+
+    // Profil mód: profilová dráha se kreslí MIMO if(!simRunning) blok
+    // → viditelná i při spuštěné simulaci (jako overlay nad nástrojem).
+    if (calc.profileModeActive) {
+      const profSegs = (calc.machinableContour || calc.contourSegments || []).filter(s => !s.isDegenerate);
+      if (profSegs.length > 0) {
+        ctx.beginPath();
+        let _fp = true;
+        for (const s of profSegs) {
+          if (s.type === 'line') {
+            const a = toScreen(s.p1.x, s.p1.z), b = toScreen(s.p2.x, s.p2.z);
+            if (_fp) { ctx.moveTo(a.x, a.y); _fp = false; } else ctx.lineTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+          } else if (s.type === 'arc') {
+            const p1 = toScreen(s.cx + Math.sin(s.startAngle)*s.r, s.cz + Math.cos(s.startAngle)*s.r);
+            if (_fp) { ctx.moveTo(p1.x, p1.y); _fp = false; } else ctx.lineTo(p1.x, p1.y);
+            const steps = Math.max(6, Math.round(Math.abs(s.endAngle - s.startAngle) * s.r / 0.5));
+            for (let j = 1; j <= steps; j++) {
+              const a2 = s.startAngle + (s.endAngle - s.startAngle) * (j / steps);
+              const pt2 = toScreen(s.cx + Math.sin(a2)*s.r, s.cz + Math.cos(a2)*s.r);
+              ctx.lineTo(pt2.x, pt2.y);
+            }
+          }
+        }
+        ctx.strokeStyle = C.contour; ctx.lineWidth = 3; ctx.stroke();
+        // Číslování jen krajních bodů (ne interpolace oblouku)
+        const nPts = [];
+        for (const s of profSegs) {
+          const p1 = s.type === 'line' ? s.p1 : { x: s.cx + Math.sin(s.startAngle)*s.r, z: s.cz + Math.cos(s.startAngle)*s.r };
+          const last = nPts[nPts.length - 1];
+          if (!last || Math.hypot(p1.x - last.x, p1.z - last.z) > 0.1) nPts.push(p1);
+        }
+        const lSeg = profSegs[profSegs.length - 1];
+        const lPt = lSeg.type === 'line' ? lSeg.p2 : { x: lSeg.cx + Math.sin(lSeg.endAngle)*lSeg.r, z: lSeg.cz + Math.cos(lSeg.endAngle)*lSeg.r };
+        if (!nPts.length || Math.hypot(lPt.x - nPts[nPts.length-1].x, lPt.z - nPts[nPts.length-1].z) > 0.1) nPts.push(lPt);
+        nPts.forEach((p, i) => {
+          const pt = toScreen(p.x, p.z);
+          ctx.fillStyle = C.contour;
+          ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
+          ctx.fillText(`${i + 1}`, pt.x + 7, pt.y - 7);
         });
       }
     }
