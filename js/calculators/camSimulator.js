@@ -1480,22 +1480,38 @@ function normalizeContourDirection(segs) {
   // ale nenavazuje na jeho KONEC. Typický případ: čelní úsek nakreslený dovnitř
   // od téhož rohu, odkud vychází zkosení. Otočení čelního úseku + přesun před
   // zkosení vytvoří průběžný řetěz: čelo_ven → zkosení → tělo.
+  // Pass 2 — rozšířený look-back: kromě segs[i-1] kontrolujeme i segs[i-2].
+  // Případ: rozděleného čela (dvě úsečky na stejné ose). Po otočení první
+  // poloviny a jejím přesunutí před zeď se druhá polovina ocitne dvě pozice
+  // za otočenou první, takže segs[i-1] je zeď a shoda se nenajde. Pohled na
+  // segs[i-2] (= právě přesunutá první polovina) ji odhalí a opraví.
   let changed = true;
   while (changed) {
     changed = false;
     for (let i = 1; i < segs.length; i++) {
-      const prevSt = segStartPoint(segs[i - 1]);
-      const prevEn = segEndPoint(segs[i - 1]);
       const st = segStartPoint(segs[i]);
-      const dStartToPrevStart = Math.hypot(st.x - prevSt.x, st.z - prevSt.z);
-      const dStartToPrevEnd   = Math.hypot(st.x - prevEn.x, st.z - prevEn.z);
-      if (dStartToPrevStart < TOL && dStartToPrevEnd > TOL) {
-        reverseSeg(segs[i]);
-        const seg = segs.splice(i, 1)[0];
-        segs.splice(i - 1, 0, seg);
-        changed = true;
-        break;
+      const en = segEndPoint(segs[i]);
+      // Segment jdoucí k NIŽŠÍMU Z (klesající Z = správný směr chodu kontury
+      // od čela k lunete). Takový segment neobracej — je správně orientován.
+      // Příklad: bridge čára (5,46)→(9.287,30) sdílí start s wall1 (5,46),
+      // ale je to záměrná dráha klouzající k hloubce → neobrátit.
+      if (en.z < st.z - TOL) continue;
+      // Zkontrolovat segs[i-1] a případně segs[i-2]
+      const maxBack = Math.min(2, i);
+      for (let back = 1; back <= maxBack; back++) {
+        const prevSt = segStartPoint(segs[i - back]);
+        const prevEn = segEndPoint(segs[i - back]);
+        const dStartToPrevStart = Math.hypot(st.x - prevSt.x, st.z - prevSt.z);
+        const dStartToPrevEnd   = Math.hypot(st.x - prevEn.x, st.z - prevEn.z);
+        if (dStartToPrevStart < TOL && dStartToPrevEnd > TOL) {
+          reverseSeg(segs[i]);
+          const seg = segs.splice(i, 1)[0];
+          segs.splice(i - back, 0, seg); // vložit před segment, jehož start sdílíme
+          changed = true;
+          break;
+        }
       }
+      if (changed) break;
     }
   }
   return segs;
@@ -2741,6 +2757,16 @@ export function openCamSimulator(initialContour, initialGCode) {
         contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle, origIdx: i + 1 });
       }
     }
+    // Odfiltrovat degenerované (nulové délky) segmenty dříve než normalizeContourDirection:
+    // segment G0→G1 na stejném bodě (kreslení záměrně začíná na bodu bez pohybu)
+    // by způsobil, že slepá-odbočka check zahodí správně otočené čelní segmenty —
+    // konec degenerátu = konec otočeného čela → detekováno jako slepá odbočka.
+    contourSegments = contourSegments.filter(s => {
+      const p1 = s.type === 'line' ? s.p1 : null;
+      const p2 = s.type === 'line' ? s.p2 : null;
+      if (!p1 || !p2) return true; // arcs kept
+      return Math.hypot(p2.x - p1.x, p2.z - p1.z) > 1e-4;
+    });
     // Sjednotit směr průchodu kontury (otočit pozpátku nakreslené entity, např.
     // oblouk) — jinak je offsetový trimmer nenaváže a zahodí (chybějící dráhy).
     normalizeContourDirection(contourSegments);
