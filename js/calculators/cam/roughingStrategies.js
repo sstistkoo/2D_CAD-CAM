@@ -84,10 +84,9 @@ export function genFacePasses(ctx) {
   const zList = [];
   if (!faceLeft) { for (let z = faceStartZ - step; z >= minZPart - 0.01; z -= step) zList.push(z); }
   else { for (let z = minZPart + step; z <= faceStartZ + 0.01; z += step) zList.push(z); }
-  // Z, kde obrábění začíná (nejvyšší/nejnižší průchod). No-step leadOut dojíždí
-  // k PŘEDCHOZÍMU (mělčímu) průchodu — první průchod žádný nemá, takže jeho
-  // leadOut nesmí přesáhnout sem (jinak zajede do panenského čela: „dojede k
-  // čelu a pak nahoru").
+  // Marchování začíná na marchStartZ (reference pro clamp leadOutu — zachováno
+  // pro L/R symetrii, ale clamp byl odstraněn: první průchod smí také dojíždět
+  // po offsetu nahoru, jinak by jeho krok nad ním zůstal neobrobený).
   const marchStartZ = zList.length ? zList[0] : faceStartZ;
   // Otočení trasy kontury (pro jízdu opačným směrem): obrátí pořadí, koncové
   // body i směr oblouku.
@@ -145,8 +144,8 @@ export function genFacePasses(ctx) {
       // traceOffsetPath vrací úseky vysoké→nízké Z; pro jízdu doprava (+Z) je
       // otočíme, doleva (−Z) jdou v původním pořadí.
       const leadOut = faceLeft
-        ? traceOffsetPath(currentZ, Math.max(currentZ - step, marchStartZ))
-        : reverseTrace(traceOffsetPath(Math.min(currentZ + step, marchStartZ), currentZ));
+        ? traceOffsetPath(currentZ, currentZ - step)
+        : reverseTrace(traceOffsetPath(currentZ + step, currentZ));
       if (leadOut.length > 0) pass.contourLeadOut = leadOut;
     }
   }
