@@ -1590,6 +1590,105 @@ function spliceBridgeSegments(segs) {
 // trimAndRemoveLoops (offset trimming) zde NEKONTROLUJEME směr segmentů —
 // segmenty raw kontury na sebe vždy přímo navazují (žádné spurious
 // near-touches po zaoblení rohu jako u offsetu), takže jakékoliv geometrické
+// Profilování kontury průchodem grafu — v každém bodě kde z něj vychází
+// dvě cesty vybere tu vnější (vyšší X = větší poloměr na soustruhu).
+// Fotky/případy uživatele:
+//   1. Bod se dvěma výstupy: nahoru (vyšší X) vs dolů → vybere nahoru.
+//   2. Bod 21→20 vs 21→dolu → vybere 20 (vyšší X).
+//   3. Bod 23: větev po mezní čáře destičky (fromInsert) vs oblouk → vybere mezní čáru.
+//   4. Bod 24: oblouk nahoru (vyšší X na start) vs dolů → vybere nahoru.
+// Vrací { segs: výsledné segmenty, hadBranches: zda byly větvení }.
+function resolveOuterProfile(segs) {
+  if (!segs || segs.length <= 2) return { segs, hadBranches: false };
+  const TOL = 0.02;
+  const ptKey = (p) => `${Math.round(p.x / TOL)},${Math.round(p.z / TOL)}`;
+  const segSt = (s) => s.type === 'line' ? s.p1
+    : { x: s.cx + Math.sin(s.startAngle) * s.r, z: s.cz + Math.cos(s.startAngle) * s.r };
+  const segEn = (s) => s.type === 'line' ? s.p2
+    : { x: s.cx + Math.sin(s.endAngle) * s.r, z: s.cz + Math.cos(s.endAngle) * s.r };
+
+  // Pre-split: pokud endpoint jiného segmentu padá na interior LINE segmentu,
+  // rozdělíme ho tam — aby traversal mohl pokračovat z bridgových koncových bodů.
+  // Příklad: bridge (5,46)→(9.287,30) končí uvnitř face_bot (8,30)→(10,30).
+  // Face_bot se splitne na (8,30)→(9.287,30) + (9.287,30)→(10,30),
+  // takže traversal po bridge najde cestu (9.287,30)→(10,30).
+  const splitSegs = [];
+  for (let si = 0; si < segs.length; si++) {
+    const seg = segs[si];
+    if (seg.isDegenerate || seg.type !== 'line') { splitSegs.push(seg); continue; }
+    let cur2 = seg;
+    for (let sj = 0; sj < segs.length; sj++) {
+      if (sj === si) continue;
+      const endPt = segEn(segs[sj]);
+      const dx = cur2.p2.x - cur2.p1.x, dz = cur2.p2.z - cur2.p1.z;
+      const len2 = dx * dx + dz * dz;
+      if (len2 < 1e-10) continue;
+      const t = ((endPt.x - cur2.p1.x) * dx + (endPt.z - cur2.p1.z) * dz) / len2;
+      if (t < 0.05 || t > 0.95) continue;
+      const cross = Math.abs((endPt.x - cur2.p1.x) * dz - (endPt.z - cur2.p1.z) * dx) / Math.sqrt(len2);
+      if (cross > TOL * 2) continue;
+      // endPt leží uvnitř cur2 — split na dvě části
+      const snap = { x: cur2.p1.x + t * dx, z: cur2.p1.z + t * dz };
+      splitSegs.push({ ...cur2, p2: snap });
+      cur2 = { ...cur2, p1: snap };
+    }
+    splitSegs.push(cur2);
+  }
+
+  // Sestavit mapu: klíč počátečního bodu → [segmenty odcházející z něho]
+  const startMap = new Map();
+  for (const seg of splitSegs) {
+    if (seg.isDegenerate) continue;
+    const k = ptKey(segSt(seg));
+    if (!startMap.has(k)) startMap.set(k, []);
+    startMap.get(k).push(seg);
+  }
+  const hadBranches = [...startMap.values()].some(arr => arr.length > 1);
+  if (!hadBranches) return { segs, hadBranches: false };
+
+  // X na začátku segmentu (pro výběr vnější větve):
+  // u oblouku vezmeme X v 10 % délky, aby šlo detekovat směr zakřivení
+  const getInitX = (s) => {
+    if (s.type === 'arc') {
+      const a = s.startAngle + (s.endAngle - s.startAngle) * 0.1;
+      return s.cx + Math.sin(a) * s.r;
+    }
+    return segEn(s).x;
+  };
+
+  // Průchod grafem od prvního bodu, výběr vnější větve v každém uzlu
+  const result = [];
+  const visited = new Set();
+  let cur = segSt(segs[0]);
+  const maxSteps = segs.length * 2 + 5;
+
+  for (let step = 0; step < maxSteps; step++) {
+    const k = ptKey(cur);
+    if (visited.has(k)) break;
+    visited.add(k);
+    const cands = startMap.get(k) || [];
+    if (!cands.length) break;
+
+    let chosen;
+    if (cands.length === 1) {
+      chosen = cands[0];
+    } else {
+      // Pravidlo 1: upřednostnit segment z Hlídání geometrie (fromInsert)
+      const insertSeg = cands.find(s => s.fromInsert);
+      if (insertSeg) {
+        chosen = insertSeg;
+      } else {
+        // Pravidlo 2: vybrat větev s nejvyšším X (vnějšek soustruhu)
+        chosen = cands.reduce((best, s) => getInitX(s) > getInitX(best) ? s : best);
+      }
+    }
+    result.push(chosen);
+    cur = segEn(chosen);
+  }
+
+  return { segs: result.length > 0 ? result : segs, hadBranches: true };
+}
+
 // protnutí dvou nesousedních segmentů znamená, že úsek mezi nimi leží
 // "pod" výslednou konturou a CAM dráhy by ho neměly brát v potaz.
 function removeContourSelfIntersections(segs) {
@@ -1609,6 +1708,12 @@ function removeContourSelfIntersections(segs) {
           const d1 = Math.hypot(pt.x - s1End.x, pt.z - s1End.z);
           const d2 = Math.hypot(pt.x - s2Start.x, pt.z - s2Start.z);
           if (d1 < LOOP_INTERIOR_MIN || d2 < LOOP_INTERIOR_MIN) continue;
+          // Přeskočit sdílené krajní body: průsečík na ZAČÁTKU s1 nebo KONCI s2
+          // = uzavřený polygon sdílí počáteční bod (ne skutečné samoprotnutí).
+          const s1St = segStartPoint(s1), s2En = segEndPoint(s2);
+          const ds1 = Math.hypot(pt.x - s1St.x, pt.z - s1St.z);
+          const ds2 = Math.hypot(pt.x - s2En.x, pt.z - s2En.z);
+          if (ds1 < LOOP_INTERIOR_MIN || ds2 < LOOP_INTERIOR_MIN) continue;
           setSegEnd(s1, pt);
           setSegStart(s2, pt);
           syncArcEndpoints(s1);
@@ -2377,7 +2482,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       roughingSide: 'right',
       stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
       stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
-      machineStructure: 'lathe', controlSystem: 'sinumerik',
+      machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
       toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
       toolVbdCode: '', toolClearanceAngle: 0,
       finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
@@ -2788,8 +2893,25 @@ export function openCamSimulator(initialContour, initialGCode) {
     // stávající konturu i přes místo, kde CAD export vložil G0 přeskok
     // (segmenty na sebe geometricky nenavazují, ale protnutí mezi nimi
     // pořád určuje, kde se má vnitřní smyčka vyříznout).
+    // Profilování: průchod grafem — v každém uzlu se dvěma výstupy
+    // vybere vnější (vyšší X) větev, nebo větev z Hlídání geometrie (fromInsert).
+    // Snapshot originálu se použije pro kreslení ztlumeného pozadí.
+    const rawContourForProfile = contourSegments.map(s => structuredClone(s));
+    let profileModeActive = false;
+    if (prms.autoProfile !== false && contourSegments.length > 2) {
+      const { segs: outerSegs, hadBranches } = resolveOuterProfile(contourSegments);
+      if (hadBranches) {
+        contourSegments = outerSegs;
+        profileModeActive = true;
+      }
+    }
+    // Klasické odstranění smyček (self-intersection) jako fallback
+    // i při vypnutém autoProfile (standardní chování).
     if (contourSegments.length > 2) {
+      const lenBefore = contourSegments.length;
       contourSegments = removeContourSelfIntersections(contourSegments);
+      if (!profileModeActive && prms.autoProfile !== false && contourSegments.length < lenBefore)
+        profileModeActive = true;
     }
     // Až po vyříznutí smyček označíme zbývající skutečné mezery (G0
     // přeskoky, které se nepodařilo/nemělo spojit ořezem) jako chainBreak —
@@ -2858,17 +2980,37 @@ export function openCamSimulator(initialContour, initialGCode) {
     // úseky kontury nahradí mostovou úsečkou z geometrie destičky a tahle
     // obrobitelná kontura se použije pro offsety/dráhy/CNC.
     let machinableContour = null;
-    if (clearance && prms.respectInsertGeometry && interferenceGuides.length > 0) {
+    if (clearance && prms.respectInsertGeometry && !profileModeActive && interferenceGuides.length > 0) {
+      // Normální (non-profil) mód: standardní buildMachinableContour
       machinableContour = buildMachinableContour(contourSegments, interferenceGuides);
       contourSegments = machinableContour;
-      // Mezní čáry, které se do machinable kontury NEpromítly (oba konce už
-      // neleží na ní), jsou překryté jiným mostem (stínem) — kreslit je je
-      // matoucí (uživatel je vidí jako „zbytečné" čáry uvnitř hotové kontury).
-      // Ponechat jen ty, jejichž oba konce leží na výsledné kontuře.
       interferenceGuides = interferenceGuides.filter(g =>
         !g._dominated &&
         _locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
         _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }));
+    } else if (clearance && prms.respectInsertGeometry && profileModeActive) {
+      // Profil mód: vypočítat interference PŘÍMO Z OUTER PROFILU (ne z rawContourForInterference).
+      // Tím guides odpovídají segmentům outer profilu a buildMachinableContour
+      // správně přemostí nedosažitelné části (oblouk) bez přepsání celé kontury.
+      const profileInterferenceSegs = [];
+      contourSegments.forEach(seg => {
+        const itype = segInterferesWithTool(seg, clearance);
+        if (itype === 'tip') profileInterferenceSegs.push(seg);
+      });
+      if (profileInterferenceSegs.length > 0) {
+        const profileGuides = computeInterferenceGuides(
+          profileInterferenceSegs, contourSegments.map(s => structuredClone(s)),
+          clearance, prms, worldPoints, stockWorldPoints
+        );
+        if (profileGuides.length > 0) {
+          machinableContour = buildMachinableContour(contourSegments, profileGuides);
+          contourSegments = machinableContour;
+          interferenceGuides = profileGuides.filter(g =>
+            !g._dominated &&
+            _locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
+            _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }));
+        }
+      }
     }
 
     let incompleteMachiningCount = 0;
@@ -3459,7 +3601,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX };
+    return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, rawContourForProfile: profileModeActive ? rawContourForProfile : null };
   }
 
   // ── G-Code Editor Content ────────────────────────────────────
@@ -4022,7 +4164,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     // contour
-    if (calc.worldPoints.length > 0) {
+    if (calc.worldPoints.length > 0 && !calc.profileModeActive) {
       ctx.beginPath();
       const start = toScreen(calc.worldPoints[0].xReal, calc.worldPoints[0].zReal);
       ctx.moveTo(start.x, start.y);
@@ -4051,7 +4193,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           } else ctx.lineTo(ptEnd.x, ptEnd.y);
         }
       }
-      ctx.strokeStyle = S._previewContour ? 'rgba(137,180,250,0.25)' : C.contour; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = (S._previewContour || calc.profileModeActive) ? 'rgba(137,180,250,0.2)' : C.contour; ctx.lineWidth = calc.profileModeActive ? 1.5 : 3; ctx.stroke();
 
       // Úseky kontury vzniklé z geometrie destičky (profilování po mezní
       // čáře) — odlišná barva, ať je poznat. Berou se ale jako normální
@@ -4500,6 +4642,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           const isHovered = (S.pointDragEnabled || contourActive || pointPickActive) && !S._hoverIsStock && i === S.hoverPointId;
           const isDragged = !_draggingStockPt && !_draggingStock && i === S.draggedPointId;
           const isSelected = contourActive && S.selectedPoints.has(i);
+          // V profil módu: body původní kontury se nezobrazují (jen hover/drag/sel pro editaci)
+          if (calc.profileModeActive && !isHovered && !isDragged && !isSelected) return;
           const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (contourActive ? 4 : 3));
           ctx.fillStyle = (isHovered || isDragged) ? '#f9e2af' : (isSelected ? '#f9e2af' : C.contour);
           ctx.beginPath(); ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2); ctx.fill();
@@ -4507,11 +4651,65 @@ export function openCamSimulator(initialContour, initialGCode) {
             ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(pt.x, pt.y, radius + 3, 0, Math.PI * 2); ctx.stroke();
           }
-          if (!isHovered && !isDragged) {
+          if (!isHovered && !isDragged && !calc.profileModeActive) {
             ctx.fillStyle = contourActive ? '#f9e2af' : C.contour;
             ctx.fillText(`${i + 1}`, pt.x + 8, pt.y - 8);
           }
         });
+      }
+      // Profil mód: nakreslit profilovou dráhu (vnější obrys) s čísly bodů.
+      // Čára se kreslí segment po segmentu (oblouky hladce přes canvas arc),
+      // čísla se přiřazují jen počátečním/koncovým bodům segmentů — ne
+      // každému interpolačnímu kroku oblouku.
+      if (calc.profileModeActive) {
+        const profSegs = (calc.machinableContour || calc.contourSegments || []).filter(s => !s.isDegenerate);
+        if (profSegs.length > 0) {
+          // 1. Nakreslit hladkou profilovou čáru
+          ctx.beginPath();
+          let firstPt = true;
+          for (const s of profSegs) {
+            if (s.type === 'line') {
+              const a = toScreen(s.p1.x, s.p1.z), b = toScreen(s.p2.x, s.p2.z);
+              if (firstPt) { ctx.moveTo(a.x, a.y); firstPt = false; }
+              else ctx.lineTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+            } else if (s.type === 'arc') {
+              const p1 = toScreen(s.cx + Math.sin(s.startAngle)*s.r, s.cz + Math.cos(s.startAngle)*s.r);
+              if (firstPt) { ctx.moveTo(p1.x, p1.y); firstPt = false; }
+              else ctx.lineTo(p1.x, p1.y);
+              const steps = Math.max(6, Math.round(Math.abs(s.endAngle - s.startAngle) * s.r / 0.5));
+              for (let j = 1; j <= steps; j++) {
+                const a2 = s.startAngle + (s.endAngle - s.startAngle) * (j / steps);
+                const pt2 = toScreen(s.cx + Math.sin(a2)*s.r, s.cz + Math.cos(a2)*s.r);
+                ctx.lineTo(pt2.x, pt2.y);
+              }
+            }
+          }
+          ctx.strokeStyle = C.contour; ctx.lineWidth = 3; ctx.stroke();
+
+          // 2. Číslovat jen krajní body segmentů (ne interpolaci oblouku)
+          ctx.fillStyle = C.contour;
+          const numberedPts = [];
+          for (const s of profSegs) {
+            const p1 = s.type === 'line' ? s.p1
+              : { x: s.cx + Math.sin(s.startAngle)*s.r, z: s.cz + Math.cos(s.startAngle)*s.r };
+            const last = numberedPts[numberedPts.length - 1];
+            if (!last || Math.hypot(p1.x - last.x, p1.z - last.z) > 0.1) numberedPts.push(p1);
+          }
+          // Přidat koncový bod posledního segmentu
+          const lastSeg = profSegs[profSegs.length - 1];
+          const lastPt = lastSeg.type === 'line' ? lastSeg.p2
+            : { x: lastSeg.cx + Math.sin(lastSeg.endAngle)*lastSeg.r, z: lastSeg.cz + Math.cos(lastSeg.endAngle)*lastSeg.r };
+          const prevLast = numberedPts[numberedPts.length - 1];
+          if (!prevLast || Math.hypot(lastPt.x - prevLast.x, lastPt.z - prevLast.z) > 0.1) numberedPts.push(lastPt);
+
+          numberedPts.forEach((p, i) => {
+            const pt = toScreen(p.x, p.z);
+            ctx.fillStyle = C.contour;
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillText(`${i + 1}`, pt.x + 7, pt.y - 7);
+          });
+        }
       }
       // Body polotovaru — VŽDY zobrazené s čísly (S1, S2...), jen pro
       // casting (ne pro cylinder — ten má své vlastní handle nahoře).
@@ -5999,6 +6197,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-ctrl="fanuc" class="${prms.controlSystem === 'fanuc' ? 'cam-sim-active' : ''}">Fanuc</button>
         <button data-ctrl="heidenhain" class="${prms.controlSystem === 'heidenhain' ? 'cam-sim-active' : ''}">Heidenhain</button>
       </div>
+      <div class="cam-sim-section-title">Profilování</div>
+      <div class="cam-sim-toggle-row">
+        <button data-act="toggle-auto-profile" class="${prms.autoProfile !== false ? 'cam-sim-active' : ''}">⊙ Auto profil</button>
+      </div>
       <div class="cam-sim-section-title">Programování</div>
       <div class="cam-sim-toggle-row">
         <button data-pmode="DIAMON" class="${prms.mode === 'DIAMON' ? 'cam-sim-active' : ''}">⌀ Průměr</button>
@@ -6220,6 +6422,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     tabBody.querySelectorAll('[data-pmode]').forEach(btn => {
       btn.addEventListener('click', () => { S.params.mode = btn.dataset.pmode; fullUpdate(); });
+    });
+    const _apBtn = tabBody.querySelector('[data-act="toggle-auto-profile"]');
+    if (_apBtn) _apBtn.addEventListener('click', () => {
+      S.params.autoProfile = S.params.autoProfile === false ? true : false;
+      fullUpdate();
     });
     // Parametry destičky ovlivňující interferenční čáry — při změně se smažou
     // čáry označené fromInsert:true (byly automaticky povýšeny z hlídání destičky).
