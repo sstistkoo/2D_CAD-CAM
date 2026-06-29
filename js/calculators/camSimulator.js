@@ -3671,8 +3671,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     let arcR = (r) => `CR=${(parseFloat(r) || 0).toFixed(3)}`;
     // Při otočení svislé osy X (X+ dolů) je program psán pro nástroj zespodu –
     // smysl rotace se obrací, takže G02↔G03 ve výstupu prohazujeme.
+    // Totéž platí pro flipZ; G2/G3 se prohazují při lichém počtu překlopení (XOR).
     const flipArc = (code) => {
-      if (!S.flipX) return code;
+      if (S.flipX === S.flipZ) return code;
       const c = String(code).trim().toUpperCase();
       if (c === 'G2' || c === 'G02') return code.includes('02') ? 'G03' : 'G3';
       if (c === 'G3' || c === 'G03') return code.includes('03') ? 'G02' : 'G2';
@@ -3683,6 +3684,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       addCmt('Vygenerovaný kód SINUMERIK 840D');
       addCmt(`Datum: ${d.toLocaleDateString()}`);
       if (S.flipX) addCmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny');
+      if (S.flipZ) addCmt('Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny');
       addN(`G18${note('', 'Rovina ZX')}`); addN(`G90${note('', 'Absolutní programování')}`);
       addN(`G54${note('', 'Posunutí počátku')}`); addN(`G95${note('', 'Posuv na otáčku')}`);
       addN(`G75 X${prms.safeX}${note('', 'Nájezd do ref. bodu')}`); addN(`G75 Z${prms.safeZ}`);
@@ -3695,6 +3697,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else if (prms.controlSystem === 'fanuc') {
       addCmt('Vygenerovaný kód FANUC'); addCmt(`Datum: ${d.toLocaleDateString()}`);
       if (S.flipX) addCmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny');
+      if (S.flipZ) addCmt('Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny');
       addN(`G21${note('', 'Metrický vstup')}`); addN(`G40${note('', 'Zrušení kompenzace')}`);
       addN(`G99${note('', 'Posuv mm/ot')}`); addN(`G18${note('', 'Rovina ZX')}`);
       addN(`G28 U0 W0${note('', 'Referenční bod')}`); addN(`G50 S2000${note('', 'Max otáčky')}`);
@@ -3704,6 +3707,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else if (prms.controlSystem === 'heidenhain') {
       addCmt('Vygenerovaný kód HEIDENHAIN ISO'); addCmt(`Datum: ${d.toLocaleDateString()}`);
       if (S.flipX) addCmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny');
+      if (S.flipZ) addCmt('Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny');
       addN(`G18${note('', 'Rovina ZX')}`); addN(`G90${note('', 'Absolutní')}`);
       addN(`G71${note('', 'Metrický systém')}`); addN(`G54${note('', 'Nulový bod')}`);
       addN(`G96 S${prms.speed} M3${note('', 'Řezná rychlost')}`);
@@ -7038,6 +7042,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       stockPoints: S.stockPoints,
       manualGCode: S.manualGCode,
       flipX: S.flipX,
+      flipZ: S.flipZ,
       guideLines: S.guideLines,
       zLimits: S.zLimits,
       showZLimits: S.showZLimits,
@@ -7073,6 +7078,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.stockPoints) S.stockPoints = data.stockPoints;
         if (typeof data.manualGCode === 'string') S.manualGCode = data.manualGCode;
         if (typeof data.flipX === 'boolean') { S.flipX = data.flipX; state.flipX = S.flipX; persistSettings(); }
+        if (typeof data.flipZ === 'boolean') { S.flipZ = data.flipZ; state.flipZ = S.flipZ; persistSettings(); }
         if (data.guideLines) {
           S.guideLines = data.guideLines;
           // Upozornění na případně zastaralé čáry z hlídání destičky
