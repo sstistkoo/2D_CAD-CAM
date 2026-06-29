@@ -1635,13 +1635,17 @@ function resolveOuterProfile(segs) {
     splitSegs.push(cur2);
   }
 
-  // Sestavit mapu: klíč počátečního bodu → [segmenty odcházející z něho]
+  // Sestavit mapu: klíč počátečního bodu → [segmenty odcházející z něho].
+  // Degenerované segmenty (start == konec, např. duplicitní bod z CADu)
+  // vynechat — jinak by v uzlu vystupovaly jako falešná větev.
   const startMap = new Map();
+  const endKeys = new Set();
   for (const seg of splitSegs) {
-    if (seg.isDegenerate) continue;
-    const k = ptKey(segSt(seg));
-    if (!startMap.has(k)) startMap.set(k, []);
-    startMap.get(k).push(seg);
+    const stK = ptKey(segSt(seg)), enK = ptKey(segEn(seg));
+    if (seg.isDegenerate || stK === enK) continue;
+    if (!startMap.has(stK)) startMap.set(stK, []);
+    startMap.get(stK).push(seg);
+    endKeys.add(enK);
   }
   const hadBranches = [...startMap.values()].some(arr => arr.length > 1);
   if (!hadBranches) return { segs, hadBranches: false };
@@ -1656,34 +1660,64 @@ function resolveOuterProfile(segs) {
     return segEn(s).x;
   };
 
-  // Průchod grafem od prvního bodu, výběr vnější větve v každém uzlu
+  // Seedy řetězců: body, které NEJSOU koncem žádného segmentu = začátek
+  // souvislého řetězce (první bod kontury nebo bod hned za G0 mezerou).
+  // Kontura bývá rozdělená G0 přeskoky na víc nesouvislých řetězců —
+  // každý profilujeme zvlášť a spojíme (jinak by se traversal utnul na
+  // první mezeře a vrátil jen pár prvních segmentů).
+  const seedKeys = [];
+  const seenSeed = new Set();
+  for (const seg of splitSegs) {
+    const stK = ptKey(segSt(seg));
+    if (seg.isDegenerate || stK === ptKey(segEn(seg))) continue;
+    if (!endKeys.has(stK) && !seenSeed.has(stK)) { seenSeed.add(stK); seedKeys.push(stK); }
+  }
+  // Fallback: pokud nemá kontura žádný „volný" začátek (čistě uzavřená
+  // smyčka), startovat od prvního segmentu jako dřív.
+  if (seedKeys.length === 0) seedKeys.push(ptKey(segSt(segs[0])));
+
+  // Průchod grafem od daného bodu, výběr vnější větve v každém uzlu
   const result = [];
   const visited = new Set();
-  let cur = segSt(segs[0]);
-  const maxSteps = segs.length * 2 + 5;
+  const maxSteps = splitSegs.length * 2 + 5;
+  let firstChain = true;
+  for (const seedK of seedKeys) {
+    if (visited.has(seedK) || !startMap.has(seedK)) continue;
+    let cur = seedK;
+    let firstOfChain = true;
+    for (let step = 0; step < maxSteps; step++) {
+      const k = cur;
+      if (visited.has(k)) break;
+      visited.add(k);
+      const cands = startMap.get(k) || [];
+      if (!cands.length) break;
 
-  for (let step = 0; step < maxSteps; step++) {
-    const k = ptKey(cur);
-    if (visited.has(k)) break;
-    visited.add(k);
-    const cands = startMap.get(k) || [];
-    if (!cands.length) break;
-
-    let chosen;
-    if (cands.length === 1) {
-      chosen = cands[0];
-    } else {
-      // Pravidlo 1: upřednostnit segment z Hlídání geometrie (fromInsert)
-      const insertSeg = cands.find(s => s.fromInsert);
-      if (insertSeg) {
-        chosen = insertSeg;
+      let chosen;
+      if (cands.length === 1) {
+        chosen = cands[0];
       } else {
-        // Pravidlo 2: vybrat větev s nejvyšším X (vnějšek soustruhu)
-        chosen = cands.reduce((best, s) => getInitX(s) > getInitX(best) ? s : best);
+        // Pravidlo 0: vyloučit větve jejichž cílový bod je již navštívený
+        // — takový segment vede zpátky do uzavřené smyčky/kapsy a ne ven
+        // na vnější profil (platí i když má vyšší X než správná větev).
+        const nonCycling = cands.filter(s => !visited.has(ptKey(segEn(s))));
+        const pool = nonCycling.length > 0 ? nonCycling : cands;
+        // Pravidlo 1: upřednostnit segment z Hlídání geometrie (fromInsert)
+        const insertSeg = pool.find(s => s.fromInsert);
+        if (insertSeg) {
+          chosen = insertSeg;
+        } else {
+          // Pravidlo 2: vybrat větev s nejvyšším X (vnějšek soustruhu)
+          chosen = pool.reduce((best, s) => getInitX(s) > getInitX(best) ? s : best);
+        }
       }
+      // První segment řetězce za G0 mezerou označit chainBreak — dráha
+      // sem najede rychloposuvem (mezi řetězci se neřeže spojnice).
+      if (firstOfChain && !firstChain) chosen = { ...chosen, chainBreak: true };
+      result.push(chosen);
+      cur = ptKey(segEn(chosen));
+      firstOfChain = false;
     }
-    result.push(chosen);
-    cur = segEn(chosen);
+    firstChain = false;
   }
 
   return { segs: result.length > 0 ? result : segs, hadBranches: true };
@@ -2898,19 +2932,23 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Snapshot originálu se použije pro kreslení ztlumeného pozadí.
     const rawContourForProfile = contourSegments.map(s => structuredClone(s));
     let profileModeActive = false;
-    if (prms.autoProfile !== false && contourSegments.length > 2) {
+    // Výběr vnější větve běží VŽDY (nezávisle na přepínači „Auto profil") —
+    // aktivuje se jen u kontur s větvením (z bodu vychází víc segmentů) nebo
+    // se samoprotnutím, čistých kontur se nedotkne. Tím se uzavřené tvary
+    // a zpětné úsečky vyloučí jak pro generování drah, tak pro hlídání
+    // geometrie destičky (profileModeActive níže přepočítá interference).
+    if (contourSegments.length > 2) {
       const { segs: outerSegs, hadBranches } = resolveOuterProfile(contourSegments);
       if (hadBranches) {
         contourSegments = outerSegs;
         profileModeActive = true;
       }
     }
-    // Klasické odstranění smyček (self-intersection) jako fallback
-    // i při vypnutém autoProfile (standardní chování).
+    // Klasické odstranění smyček (self-intersection) jako fallback.
     if (contourSegments.length > 2) {
       const lenBefore = contourSegments.length;
       contourSegments = removeContourSelfIntersections(contourSegments);
-      if (!profileModeActive && prms.autoProfile !== false && contourSegments.length < lenBefore)
+      if (!profileModeActive && contourSegments.length < lenBefore)
         profileModeActive = true;
     }
     // Až po vyříznutí smyček označíme zbývající skutečné mezery (G0
@@ -3601,7 +3639,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     S.errors = foundErrors;
-    return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, rawContourForProfile: profileModeActive ? rawContourForProfile : null };
+    // profileModeActive = výpočet drah/hlídání běží po vyřešeném profilu (vždy).
+    // profileViewActive = VYKRESLENÍ vyřešeného profilu (ztlumená originál kontura
+    //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
+    //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
+    const profileViewActive = profileModeActive && (prms.autoProfile !== false);
+    return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
   }
 
   // ── G-Code Editor Content ────────────────────────────────────
@@ -4164,7 +4207,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     // contour
-    if (calc.worldPoints.length > 0 && !calc.profileModeActive) {
+    if (calc.worldPoints.length > 0 && !calc.profileViewActive) {
       ctx.beginPath();
       const start = toScreen(calc.worldPoints[0].xReal, calc.worldPoints[0].zReal);
       ctx.moveTo(start.x, start.y);
@@ -4193,7 +4236,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           } else ctx.lineTo(ptEnd.x, ptEnd.y);
         }
       }
-      ctx.strokeStyle = (S._previewContour || calc.profileModeActive) ? 'rgba(137,180,250,0.2)' : C.contour; ctx.lineWidth = calc.profileModeActive ? 1.5 : 3; ctx.stroke();
+      ctx.strokeStyle = (S._previewContour || calc.profileViewActive) ? 'rgba(137,180,250,0.2)' : C.contour; ctx.lineWidth = calc.profileViewActive ? 1.5 : 3; ctx.stroke();
 
       // Úseky kontury vzniklé z geometrie destičky (profilování po mezní
       // čáře) — odlišná barva, ať je poznat. Berou se ale jako normální
@@ -4643,7 +4686,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           const isDragged = !_draggingStockPt && !_draggingStock && i === S.draggedPointId;
           const isSelected = contourActive && S.selectedPoints.has(i);
           // V profil módu: body původní kontury se nezobrazují (jen hover/drag/sel pro editaci)
-          if (calc.profileModeActive && !isHovered && !isDragged && !isSelected) return;
+          if (calc.profileViewActive && !isHovered && !isDragged && !isSelected) return;
           const radius = (isHovered || isDragged) ? 8 : (isSelected ? 6 : (contourActive ? 4 : 3));
           ctx.fillStyle = (isHovered || isDragged) ? '#f9e2af' : (isSelected ? '#f9e2af' : C.contour);
           ctx.beginPath(); ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2); ctx.fill();
@@ -4651,7 +4694,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(pt.x, pt.y, radius + 3, 0, Math.PI * 2); ctx.stroke();
           }
-          if (!isHovered && !isDragged && !calc.profileModeActive) {
+          if (!isHovered && !isDragged && !calc.profileViewActive) {
             ctx.fillStyle = contourActive ? '#f9e2af' : C.contour;
             ctx.fillText(`${i + 1}`, pt.x + 8, pt.y - 8);
           }
@@ -4685,7 +4728,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     // Profil mód: profilová dráha se kreslí MIMO if(!simRunning) blok
     // → viditelná i při spuštěné simulaci (jako overlay nad nástrojem).
-    if (calc.profileModeActive) {
+    if (calc.profileViewActive) {
       const profSegs = (calc.machinableContour || calc.contourSegments || []).filter(s => !s.isDegenerate);
       if (profSegs.length > 0) {
         ctx.beginPath();
