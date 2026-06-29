@@ -1161,12 +1161,6 @@ function drawContourGapMarkers() {
     ctx.beginPath();
     ctx.arc(sx, sy, r, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(sx - r * 0.6, sy - r * 0.6);
-    ctx.lineTo(sx + r * 0.6, sy + r * 0.6);
-    ctx.moveTo(sx + r * 0.6, sy - r * 0.6);
-    ctx.lineTo(sx - r * 0.6, sy + r * 0.6);
-    ctx.stroke();
     const fontSize = Math.round(Math.min(20, Math.max(11, 8 + state.zoom * 4)));
     ctx.font = `bold ${fontSize}px Consolas`;
     ctx.fillText('Mezera', sx + r + 4, sy - r);

@@ -1898,6 +1898,54 @@ export function rotateObject(obj, cx, cy, angle) {
   }
 }
 
+// ── Překlopení objektu (flip) kolem středu výběru ──
+/**
+ * Překlopí objekt kolem osy procházející bodem [cx,cy].
+ * axis='Z' → zrcadlení kolem svislé osy (negace x-složky)
+ * axis='X' → zrcadlení kolem vodorovné osy (negace y-složky)
+ * Modifikuje objekt in-place.
+ * @param {import('./types.js').DrawObject} obj
+ * @param {number} cx  střed překlopení X
+ * @param {number} cy  střed překlopení Y
+ * @param {'Z'|'X'} axis
+ */
+export function flipObject(obj, cx, cy, axis) {
+  function fp(px, py) {
+    if (axis === 'Z') return { x: 2 * cx - px, y: py };
+    return { x: px, y: 2 * cy - py };
+  }
+  switch (obj.type) {
+    case 'point': { const m = fp(obj.x, obj.y); obj.x = m.x; obj.y = m.y; break; }
+    case 'line': case 'constr': {
+      const m1 = fp(obj.x1, obj.y1), m2 = fp(obj.x2, obj.y2);
+      obj.x1 = m1.x; obj.y1 = m1.y; obj.x2 = m2.x; obj.y2 = m2.y; break;
+    }
+    case 'circle': { const m = fp(obj.cx, obj.cy); obj.cx = m.x; obj.cy = m.y; break; }
+    case 'arc': {
+      const m = fp(obj.cx, obj.cy);
+      obj.cx = m.x; obj.cy = m.y;
+      if (axis === 'Z') {
+        obj.startAngle = Math.PI - obj.startAngle;
+        obj.endAngle   = Math.PI - obj.endAngle;
+      } else {
+        obj.startAngle = -obj.startAngle;
+        obj.endAngle   = -obj.endAngle;
+      }
+      obj.ccw = !obj.ccw;
+      break;
+    }
+    case 'rect': {
+      const m1 = fp(obj.x1, obj.y1), m2 = fp(obj.x2, obj.y2);
+      obj.x1 = m1.x; obj.y1 = m1.y; obj.x2 = m2.x; obj.y2 = m2.y; break;
+    }
+    case 'polyline': {
+      obj.vertices = obj.vertices.map(v => fp(v.x, v.y));
+      if (obj.bulges) obj.bulges = obj.bulges.map(b => -b);
+      break;
+    }
+  }
+}
+
 // ── Kruhové pole ──
 /**
  * Vytvoří kopie objektu rozmístěné po kruhu kolem středu [cx,cy].

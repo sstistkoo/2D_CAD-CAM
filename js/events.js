@@ -8,7 +8,7 @@ import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoo
 import { renderAll, getObjectBounds, boundsOverlap } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
 import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI } from './ui.js';
-import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, findSegmentAt, findConstraintAt } from './geometry.js';
+import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
 import { showNumericalInputDialog, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
 import { saveProject, showExportImageDialog, showProjectsDialog, showSaveAsDialog } from './storage.js';
 import { autoDetectFeatures } from './dialogs/autoDetect.js';
@@ -1314,6 +1314,32 @@ function handleRotateClick(wx, wy) {
     updateAssociativeDimensions();
     renderAll();
     showToast(`Otočeno o ${deg}° ✓`);
+    setTool('select');
+  }, (axis) => {
+    // Překlopení kolem středu bounding boxu vybraných objektů
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const obj of objs) {
+      const b = getObjectBounds(obj);
+      if (!b) continue;
+      if (b.minX < minX) minX = b.minX;
+      if (b.minY < minY) minY = b.minY;
+      if (b.maxX > maxX) maxX = b.maxX;
+      if (b.maxY > maxY) maxY = b.maxY;
+    }
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    pushUndo();
+    for (const obj of objs) {
+      if (hasAnchoredPoint(obj)) {
+        showToast("Zakotvené objekty nelze překlopit");
+        continue;
+      }
+      flipObject(obj, cx, cy, axis);
+    }
+    calculateAllIntersections();
+    updateAssociativeDimensions();
+    renderAll();
+    showToast(`Překlopeno v ose ${axis} ✓`);
     setTool('select');
   });
 }

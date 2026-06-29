@@ -168,21 +168,28 @@ export function findContourGaps() {
   const tol = 0.01;
   const eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < tol;
 
-  const leftover = [];
-  const chain = _chainSegments(segs, leftover);
-  const gaps = [];
-
-  if (chain.length > 0) {
-    const head = chain[0].p1;
-    const tail = chain[chain.length - 1].p2;
-    if (!eq(head, tail)) {
-      gaps.push({ x: tail.x, y: tail.y });
-      gaps.push({ x: head.x, y: head.y });
-    }
+  // Sbírej všechny koncové body všech segmentů
+  const pts = [];
+  for (const s of segs) {
+    pts.push({ x: s.p1.x, y: s.p1.y });
+    pts.push({ x: s.p2.x, y: s.p2.y });
   }
-  for (const s of leftover) {
-    gaps.push({ x: s.p1.x, y: s.p1.y });
-    gaps.push({ x: s.p2.x, y: s.p2.y });
+
+  // Bod je mezera jen tehdy, pokud u něj končí přesně jeden segment
+  // (= volný konec). Spoj dvou segmentů má count=2, větvení count=3 — oboje ok.
+  const gaps = [];
+  const counted = new Array(pts.length).fill(false);
+  for (let i = 0; i < pts.length; i++) {
+    if (counted[i]) continue;
+    let count = 1;
+    for (let j = i + 1; j < pts.length; j++) {
+      if (!counted[j] && eq(pts[i], pts[j])) {
+        count++;
+        counted[j] = true;
+      }
+    }
+    counted[i] = true;
+    if (count === 1) gaps.push({ x: pts[i].x, y: pts[i].y });
   }
   return gaps;
 }

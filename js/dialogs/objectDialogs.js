@@ -249,7 +249,7 @@ export function showLinearArrayDialog(obj, callback) {
  * @param {import('../types.js').DrawObject} obj
  * @param {function(number): void} callback  volané s úhlem ve stupních
  */
-export function showRotateDialog(obj, callback) {
+export function showRotateDialog(obj, callback, flipCallback) {
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
       <h3>Otočit objekt</h3>
@@ -259,6 +259,10 @@ export function showRotateDialog(obj, callback) {
       <div class="btn-row">
         <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
         <button class="btn-ok" id="dlgRotateOk">Otočit</button>
+      </div>
+      <div class="btn-row" style="margin-top:6px;gap:6px">
+        <button class="btn-cancel" id="dlgFlipZ" style="flex:1">⇔ Překlopit Z</button>
+        <button class="btn-cancel" id="dlgFlipX" style="flex:1">⇕ Překlopit X</button>
       </div>
     </div>`);
   const inp = overlay.querySelector("#dlgRotateAngle");
@@ -277,6 +281,10 @@ export function showRotateDialog(obj, callback) {
     if (e.key === "Escape") overlay.remove();
     e.stopPropagation();
   });
+  if (flipCallback) {
+    overlay.querySelector("#dlgFlipZ").addEventListener("click", () => { overlay.remove(); flipCallback('Z'); });
+    overlay.querySelector("#dlgFlipX").addEventListener("click", () => { overlay.remove(); flipCallback('X'); });
+  }
 }
 
 // ── Sdružený dialog zaoblení / zkosení ──
