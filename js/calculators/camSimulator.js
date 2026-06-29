@@ -2036,7 +2036,7 @@ function foldContourToMachiningSide(points, stockPoints) {
 }
 
 // ── G-code parser (manual code → sim path) ─────────────────────
-function parseManualGCodeToPath(code, prms) {
+function parseManualGCodeToPath(code, prms, unflipArc) {
   const lines = code.split('\n');
   const path = [];
   let currentX = parseFloat(prms.safeX) / 2;
@@ -2076,13 +2076,18 @@ function parseManualGCodeToPath(code, prms) {
         if (arcR) {
           const p1 = { x: currentX, z: currentZ };
           const p2 = { x: targetX, z: targetZ };
-          const arc = getArcParams(p1, p2, arcR, type);
+          // Text už může mít G2/G3 prohozené kvůli flipX/flipZ (viz flipArc
+          // v generateAutoGCode) — pro správný výpočet středu/směru oblouku
+          // ve světových souřadnicích (a tedy správné zrcadlení v draw())
+          // se musíme vrátit ke kanonickému smyslu otáčení.
+          const effType = unflipArc ? (type === 'G2' ? 'G3' : 'G2') : type;
+          const arc = getArcParams(p1, p2, arcR, effType);
           if (!arc.error) {
             const steps = 10;
             let sA = Math.atan2(p1.x - arc.cx, p1.z - arc.cz);
             let eA = Math.atan2(p2.x - arc.cx, p2.z - arc.cz);
-            if (type === 'G2' && eA > sA) eA -= 2 * Math.PI;
-            if (type === 'G3' && eA < sA) eA += 2 * Math.PI;
+            if (effType === 'G2' && eA > sA) eA -= 2 * Math.PI;
+            if (effType === 'G3' && eA < sA) eA += 2 * Math.PI;
             for (let j = 1; j <= steps; j++) {
               const a = sA + (eA - sA) * (j / steps);
               const pt = { x: arc.cx + Math.sin(a) * arc.r, z: arc.cz + Math.cos(a) * arc.r, type, originalLineIdx: idx };
@@ -3628,7 +3633,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Simulační dráha se vždy počítá z (ručně editovatelného) G-kódu —
     // viz [[feedback_flip-axis-gcode]] a tlačítko "🔄 Autorefresh drah",
     // které přepíše S.manualGCode čerstvě vygenerovaným kódem z kontury/parametrů.
-    simPath = parseManualGCodeToPath(S.manualGCode, prms);
+    simPath = parseManualGCodeToPath(S.manualGCode, prms, S.flipX !== S.flipZ);
     for (let i = 0; i < simPath.length - 1; i++)
       addToPath(simPath[i].x, simPath[i].z, simPath[i + 1].x, simPath[i + 1].z, simPath[i + 1].type);
 
@@ -4593,7 +4598,10 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.save(); ctx.translate(pt.x, pt.y);
           // Druhá strana (zleva): destička řeže opačným směrem (+Z) —
           // zrcadlit v ose Z (vodorovně), ať špička míří doprava.
-          if (roughingKey() === 'backside') ctx.scale(-1, 1);
+          // Otočená osa Z (flipZ) zrcadlí celý pohled vodorovně (viz hS v
+          // toScreen) — destička proto musí zrcadlit stejně; obě zrcadlení
+          // se při souběhu vzájemně zruší (XOR).
+          if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
           ctx.beginPath(); ctx.moveTo(t1x, t1y);
           ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
           ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
