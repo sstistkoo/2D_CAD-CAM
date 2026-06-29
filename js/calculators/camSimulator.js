@@ -9,7 +9,7 @@ import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { autoCenterView } from '../canvas.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { updateObjectList } from '../ui.js';
+import { updateObjectList, persistSettings } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
@@ -2545,7 +2545,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       rapidClearance: 1.0
     },
     view: { scale: 3, panX: 600, panY: 350 },
-    flipX: false,
+    flipX: state.flipX,
     // Z-osa limity (čelisti/koník) a rozsah obrábění – hodnoty v Z (null = vypnuto)
     zLimits: { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false },
     // 'off' = skryto, 'fixtures' = čelisti + koník, 'range' = rozsah obrábění,
@@ -2617,7 +2617,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (p.contourPoints && p.contourPoints.length > 0) S.contourPoints = p.contourPoints;
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
       if (p.manualGCode) S.manualGCode = p.manualGCode;
-      if (p.flipX !== undefined) S.flipX = !!p.flipX;
+      // flipX se načítá výhradně z state.flipX (sdílený stav s CAD); ignorujeme localStorage
       if (Array.isArray(p.profileOriginal)) S._profileOriginal = p.profileOriginal;
       if (Array.isArray(p.guideLines)) S.guideLines = p.guideLines;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
@@ -6441,6 +6441,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');
     if (flipxParamBtn) flipxParamBtn.addEventListener('click', () => {
       S.flipX = !S.flipX;
+      state.flipX = S.flipX;
+      persistSettings();
       if (!S._cachedCalc) S._cachedCalc = calculate();
       draw(); saveState();
       showToast(S.flipX ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)' : 'Osa X – X+ nahoru');
@@ -7057,7 +7059,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.contourPoints) S.contourPoints = data.contourPoints;
         if (data.stockPoints) S.stockPoints = data.stockPoints;
         if (typeof data.manualGCode === 'string') S.manualGCode = data.manualGCode;
-        if (typeof data.flipX === 'boolean') S.flipX = data.flipX;
+        if (typeof data.flipX === 'boolean') { S.flipX = data.flipX; state.flipX = S.flipX; persistSettings(); }
         if (data.guideLines) {
           S.guideLines = data.guideLines;
           // Upozornění na případně zastaralé čáry z hlídání destičky
@@ -7569,6 +7571,16 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   // ── EVENT WIRING ──
+
+  // Sync flipX z CAD nastavení → CAM (obousměrná synchronizace)
+  const _flipXAC = new AbortController();
+  document.addEventListener('flipx-cad', (e) => {
+    S.flipX = e.detail;
+    draw(); saveState(); renderTab();
+  }, { signal: _flipXAC.signal });
+  new MutationObserver(() => {
+    if (!document.contains(overlay)) _flipXAC.abort();
+  }).observe(document.body, { childList: true });
 
   // toolbar
   toolbar.addEventListener('click', e => {

@@ -28,7 +28,7 @@ bridge.applyTheme = () => applyTheme();
 
 // ── Okamžité uložení nastavení do IDB ──
 let _persistTimer = null;
-function persistSettings() {
+export function persistSettings() {
   if (_persistTimer) clearTimeout(_persistTimer);
   _persistTimer = setTimeout(async () => {
     try {
@@ -4326,6 +4326,7 @@ function showSettingsDialog() {
   // ── Otočení svislé osy X (nástroj zespodu) ──
   overlay.querySelector('#settFlipX').addEventListener('click', () => {
     state.flipX = !state.flipX;
+    document.dispatchEvent(new CustomEvent('flipx-cad', { detail: state.flipX }));
     const fBtn = overlay.querySelector('#settFlipX');
     fBtn.style.cssText = `${btnBase}${state.flipX ? activeStyle : inactiveStyle}`;
     fBtn.textContent = `⇅ X+ ${state.flipX ? 'dolů ↓' : 'nahoru ↑'}`;
