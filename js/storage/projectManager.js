@@ -67,6 +67,7 @@ function _loadProjectData(data) {
   if (data.machineType) state.machineType = data.machineType;
   state.xDisplayMode = data.xDisplayMode || 'radius';
   state.flipX = !!data.flipX;
+  state.flipZ = !!data.flipZ;
   state.mirrorPreview = !!data.mirrorPreview;
   if (data.showContourGaps !== undefined) state.showContourGaps = !!data.showContourGaps;
   if (data.layers) {

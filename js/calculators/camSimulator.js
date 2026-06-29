@@ -2546,6 +2546,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     },
     view: { scale: 3, panX: 600, panY: 350 },
     flipX: state.flipX,
+    flipZ: state.flipZ,
     // Z-osa limity (čelisti/koník) a rozsah obrábění – hodnoty v Z (null = vypnuto)
     zLimits: { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false },
     // 'off' = skryto, 'fixtures' = čelisti + koník, 'range' = rozsah obrábění,
@@ -2617,7 +2618,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (p.contourPoints && p.contourPoints.length > 0) S.contourPoints = p.contourPoints;
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
       if (p.manualGCode) S.manualGCode = p.manualGCode;
-      // flipX se načítá výhradně z state.flipX (sdílený stav s CAD); ignorujeme localStorage
+      // flipX/flipZ se načítají výhradně ze state.flipX/flipZ (sdílený stav s CAD); ignorujeme localStorage
       if (Array.isArray(p.profileOriginal)) S._profileOriginal = p.profileOriginal;
       if (Array.isArray(p.guideLines)) S.guideLines = p.guideLines;
       if (p.zLimits) Object.assign(S.zLimits, p.zLimits);
@@ -2794,7 +2795,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
-        flipX: S.flipX, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
+        flipX: S.flipX, flipZ: S.flipZ, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
       }));
@@ -4092,12 +4093,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     };
 
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
       if (isNaN(x) || isNaN(z)) return { x: 0, y: 0 };
       if (prms.machineStructure === 'carousel')
-        return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+        return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
 
     // grid — dynamically cover entire visible canvas
@@ -4105,8 +4106,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Convert canvas corners to world coords to find visible range
     const toWorld = (sx, sy) => {
       if (prms.machineStructure === 'carousel')
-        return { x: (sx - S.view.panX) / S.view.scale, z: vS * (sy - S.view.panY) / S.view.scale };
-      return { x: vS * (sy - S.view.panY) / S.view.scale, z: (sx - S.view.panX) / S.view.scale };
+        return { x: hS * (sx - S.view.panX) / S.view.scale, z: vS * (sy - S.view.panY) / S.view.scale };
+      return { x: vS * (sy - S.view.panY) / S.view.scale, z: hS * (sx - S.view.panX) / S.view.scale };
     };
     const wTL = toWorld(0, 0), wBR = toWorld(w, h);
     const wMinX = Math.min(wTL.x, wBR.x), wMaxX = Math.max(wTL.x, wBR.x);
@@ -4156,10 +4157,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     ctx.stroke();
     ctx.fillStyle = C.axis; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     const vLabelY = S.flipX ? h - 8 : 15;
+    const hLabelX = S.flipZ ? 20 : w - 20;
     if (prms.machineStructure === 'carousel') {
-      ctx.fillText('X+', w - 20, zero.y + 15); ctx.fillText('Z+', zero.x + 10, vLabelY);
+      ctx.fillText('X+', hLabelX, zero.y + 15); ctx.fillText('Z+', zero.x + 10, vLabelY);
     } else {
-      ctx.fillText('Z+', w - 20, zero.y + 15); ctx.fillText('X+', zero.x + 10, vLabelY);
+      ctx.fillText('Z+', hLabelX, zero.y + 15); ctx.fillText('X+', zero.x + 10, vLabelY);
     }
     ctx.fillText('X0 Z0', zero.x + 4, zero.y - 4);
 
@@ -4975,9 +4977,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     let ns = Math.min(cW / ww, cH / hh) * 0.8;
     if (ns > 10) ns = 10; if (ns < 0.1) ns = 0.1;
     const midZ = (minZ + maxZ) / 2, midX = (minX + maxX) / 2;
-    const vS = S.flipX ? 1 : -1;
-    if (isCar) S.view = { scale: ns, panX: cW / 2 - midX * ns, panY: cH / 2 - vS * midZ * ns };
-    else S.view = { scale: ns, panX: cW / 2 - midZ * ns, panY: cH / 2 - vS * midX * ns };
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
+    if (isCar) S.view = { scale: ns, panX: cW / 2 - hS * midX * ns, panY: cH / 2 - vS * midZ * ns };
+    else S.view = { scale: ns, panX: cW / 2 - hS * midZ * ns, panY: cH / 2 - vS * midX * ns };
     draw();
   }
 
@@ -4988,10 +4990,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
-      if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      if (prms.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
     const sRad = (parseFloat(prms.stockDiameter) || 0) / 2;
     const sLen = parseFloat(prms.stockLength) || 0;
@@ -5015,10 +5017,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
-      if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      if (prms.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
     const pts = S.editMode === 'contour' ? calc.worldPoints : calc.stockWorldPoints;
     if (!pts) return null;
@@ -5034,16 +5036,16 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── Úprava drah přímo v G-kódu (tažení v canvasu) ──
   // Společná projekce svět→obrazovka (shodná s draw()).
   function _gToScreen(x, z) {
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     if (S.params.machineStructure === 'carousel')
-      return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-    return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+    return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
   }
   function _gToWorld(sx, sy) {
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     if (S.params.machineStructure === 'carousel')
-      return { x: (sx - S.view.panX) / S.view.scale, z: vS * (sy - S.view.panY) / S.view.scale };
-    return { z: (sx - S.view.panX) / S.view.scale, x: vS * (sy - S.view.panY) / S.view.scale };
+      return { x: hS * (sx - S.view.panX) / S.view.scale, z: vS * (sy - S.view.panY) / S.view.scale };
+    return { z: hS * (sx - S.view.panX) / S.view.scale, x: vS * (sy - S.view.panY) / S.view.scale };
   }
 
   // ── SNAP (jako v CAD) ── přichytávání k bodům a hranám kontury/polotovaru.
@@ -5310,10 +5312,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
-      if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      if (prms.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
     let closest = null, minD = Infinity;
     (calc.worldPoints || []).forEach((p, i) => {
@@ -5338,10 +5340,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const calc = S._cachedCalc; if (!calc) return null;
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
-      if (S.params.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      if (S.params.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
     const distToSeg = (px, py, ax, ay, bx, by) => {
       const dx = bx - ax, dy = by - ay;
@@ -5374,11 +5376,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   function clientToWorldCam(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const sx = clientX - rect.left, sy = clientY - rect.top;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     if (S.params.machineStructure === 'carousel') {
-      return { wx: (sx - S.view.panX) / S.view.scale, wz: vS * (sy - S.view.panY) / S.view.scale };
+      return { wx: hS * (sx - S.view.panX) / S.view.scale, wz: vS * (sy - S.view.panY) / S.view.scale };
     }
-    return { wx: vS * (sy - S.view.panY) / S.view.scale, wz: (sx - S.view.panX) / S.view.scale };
+    return { wx: vS * (sy - S.view.panY) / S.view.scale, wz: hS * (sx - S.view.panX) / S.view.scale };
   }
 
   // Najde nejbližší obloukový segment (G2/G3) kontury nebo polotovaru pod
@@ -5800,10 +5802,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
-      if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      if (prms.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
     const isKarusel = prms.machineStructure === 'carousel';
     let bestKey = null, bestD = 8; // tolerance v pixelech
@@ -5828,10 +5830,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const toScreen = (x, z) => {
-      if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-      return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+      if (prms.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+      return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
     };
     const isKarusel = prms.machineStructure === 'carousel';
     let bestKey = null, bestD = 8;
@@ -6243,6 +6245,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
       <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${prms.toolName}"></div>
       <div class="cam-sim-field"><label>Osa X</label><button data-act="flipx-param" class="cam-sim-btn ${S.flipX ? 'cam-sim-btn-blue' : 'cam-sim-btn-gray'}" style="padding:4px 2px;font-size:11px">${S.flipX ? '⇅ X+ ↓' : '⇅ X+ ↑'}</button></div>
+      <div class="cam-sim-field"><label>Osa Z</label><button data-act="flipz-param" class="cam-sim-btn ${S.flipZ ? 'cam-sim-btn-blue' : 'cam-sim-btn-gray'}" style="padding:4px 2px;font-size:11px">${S.flipZ ? '⇄ Z+ ←' : '⇄ Z+ →'}</button></div>
     </div>`;
     const _safeOpen = S.safetyConfigOpen;
     const _chActive = S.zLimits.chuckActive;
@@ -6446,6 +6449,16 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (!S._cachedCalc) S._cachedCalc = calculate();
       draw(); saveState();
       showToast(S.flipX ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)' : 'Osa X – X+ nahoru');
+      renderTab();
+    });
+    const flipzParamBtn = tabBody.querySelector('[data-act="flipz-param"]');
+    if (flipzParamBtn) flipzParamBtn.addEventListener('click', () => {
+      S.flipZ = !S.flipZ;
+      state.flipZ = S.flipZ;
+      persistSettings();
+      if (!S._cachedCalc) S._cachedCalc = calculate();
+      draw(); saveState();
+      showToast(S.flipZ ? 'Osa Z otočena – Z+ vlevo (ruční kód – G2/G3 nepřepisuji)' : 'Osa Z – Z+ vpravo');
       renderTab();
     });
     tabBody.querySelectorAll('[data-struct]').forEach(btn => {
@@ -7378,14 +7391,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rect = canvas.getBoundingClientRect();
     const sx = clientX - rect.left;
     const sy = clientY - rect.top;
-    const vS = S.flipX ? 1 : -1;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
     const prms = S.params || {};
     let wx, wz;
     if (prms.machineStructure === 'carousel') {
-      wx = (sx - S.view.panX) / S.view.scale;
+      wx = hS * (sx - S.view.panX) / S.view.scale;
       wz = vS * (sy - S.view.panY) / S.view.scale;
     } else {
-      wz = (sx - S.view.panX) / S.view.scale;
+      wz = hS * (sx - S.view.panX) / S.view.scale;
       wx = vS * (sy - S.view.panY) / S.view.scale;
     }
     // Trasování pracuje v surových souřadnicích (DIAMON = průměr) —
@@ -7572,10 +7585,14 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── EVENT WIRING ──
 
-  // Sync flipX z CAD nastavení → CAM (obousměrná synchronizace)
+  // Sync flipX/flipZ z CAD nastavení → CAM (obousměrná synchronizace)
   const _flipXAC = new AbortController();
   document.addEventListener('flipx-cad', (e) => {
     S.flipX = e.detail;
+    draw(); saveState(); renderTab();
+  }, { signal: _flipXAC.signal });
+  document.addEventListener('flipz-cad', (e) => {
+    S.flipZ = e.detail;
     draw(); saveState(); renderTab();
   }, { signal: _flipXAC.signal });
   new MutationObserver(() => {
@@ -8546,14 +8563,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-      const vS = S.flipX ? 1 : -1;
+      const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
       const prms = S.params || {};
       let wx, wz;
       if (prms.machineStructure === 'carousel') {
-        wx = (sx - S.view.panX) / S.view.scale;
+        wx = hS * (sx - S.view.panX) / S.view.scale;
         wz = vS * (sy - S.view.panY) / S.view.scale;
       } else {
-        wz = (sx - S.view.panX) / S.view.scale;
+        wz = hS * (sx - S.view.panX) / S.view.scale;
         wx = vS * (sy - S.view.panY) / S.view.scale;
       }
       // snap na nejbližší bod kontury
@@ -8903,17 +8920,17 @@ export function openCamSimulator(initialContour, initialGCode) {
     const dy = e.clientY - lastMousePos.y;
     lastMousePos = { x: e.clientX, y: e.clientY };
     if (S.draggedLimit) {
-      const vS = S.flipX ? 1 : -1;
+      const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
       if (S.draggedLimit in S.xLimits) {
         // X-rozsah: tažení v ose X — soustruh dy, karusel dx
         const dX = S.params.machineStructure === 'carousel'
-          ? (dx / S.view.scale)
+          ? (hS * dx / S.view.scale)
           : (dy / (vS * S.view.scale));
         const cur = parseFloat(S.xLimits[S.draggedLimit]) || 0;
         S.xLimits[S.draggedLimit] = Math.round((cur + dX) * 100) / 100;
       } else {
         // Z-rozsah: tažení v ose Z — soustruh dx, karusel vS*dy
-        const dZ = S.params.machineStructure === 'carousel' ? (vS * dy / S.view.scale) : (dx / S.view.scale);
+        const dZ = S.params.machineStructure === 'carousel' ? (vS * dy / S.view.scale) : (hS * dx / S.view.scale);
         const cur = parseFloat(S.zLimits[S.draggedLimit]) || 0;
         S.zLimits[S.draggedLimit] = Math.round((cur + dZ) * 100) / 100;
       }
@@ -8922,9 +8939,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     if (_draggingStock && S.draggedPointId !== null) {
       let rawDX, rawDZ;
-      const vS = S.flipX ? 1 : -1;
-      if (S.params.machineStructure === 'carousel') { rawDX = dx / S.view.scale; rawDZ = vS * dy / S.view.scale; }
-      else { rawDZ = dx / S.view.scale; rawDX = vS * dy / S.view.scale; }
+      const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
+      if (S.params.machineStructure === 'carousel') { rawDX = hS * dx / S.view.scale; rawDZ = vS * dy / S.view.scale; }
+      else { rawDZ = hS * dx / S.view.scale; rawDX = vS * dy / S.view.scale; }
       if (S.draggedPointId === 0) {
         S.params.stockDiameter = Math.max(1, parseFloat(S.params.stockDiameter) + rawDX * 2);
         S.params.stockFace = Math.round((parseFloat(S.params.stockFace) + rawDZ) * 100) / 100;
@@ -8939,11 +8956,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
     } else if (S.draggedPointId !== null) {
       let dX_unit = 0, dZ_unit = 0;
-      const vS = S.flipX ? 1 : -1;
+      const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
       if (S.params.machineStructure === 'carousel') {
-        dX_unit = dx / S.view.scale; dZ_unit = vS * dy / S.view.scale;
+        dX_unit = hS * dx / S.view.scale; dZ_unit = vS * dy / S.view.scale;
       } else {
-        dZ_unit = dx / S.view.scale; dX_unit = vS * dy / S.view.scale;
+        dZ_unit = hS * dx / S.view.scale; dX_unit = vS * dy / S.view.scale;
       }
       if (S.params.mode === 'DIAMON') dX_unit *= 2;
       const list = _draggingStockPt ? S.stockPoints : S.contourPoints;
@@ -8993,9 +9010,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Tažení celé úsečky: oba krajní body se posunou spolu, s zamčením na osu.
       const seg = _draggedContourSeg;
       let dX_unit = 0, dZ_unit = 0;
-      const vS = S.flipX ? 1 : -1;
-      if (S.params.machineStructure === 'carousel') { dX_unit = dx / S.view.scale; dZ_unit = vS * dy / S.view.scale; }
-      else { dZ_unit = dx / S.view.scale; dX_unit = vS * dy / S.view.scale; }
+      const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
+      if (S.params.machineStructure === 'carousel') { dX_unit = hS * dx / S.view.scale; dZ_unit = vS * dy / S.view.scale; }
+      else { dZ_unit = hS * dx / S.view.scale; dX_unit = vS * dy / S.view.scale; }
       if (S.params.mode === 'DIAMON') dX_unit *= 2;
       // Zamknout na převažující osu po překročení prahu
       if (!seg.lockAxis && (Math.abs(dX_unit) + Math.abs(dZ_unit)) > 0.05) {
@@ -9038,10 +9055,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (calc) {
           const pts = S.editMode === 'contour' ? calc.worldPoints : calc.stockWorldPoints;
           const prms = S.params;
-          const vS = S.flipX ? 1 : -1;
+          const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
           const _toScreen = (x, z) => {
-            if (prms.machineStructure === 'carousel') return { x: S.view.panX + x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
-            return { x: S.view.panX + z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+            if (prms.machineStructure === 'carousel') return { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale };
+            return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
           };
           const minX = Math.min(S.rectStart.x, S.rectEnd.x);
           const maxX = Math.max(S.rectStart.x, S.rectEnd.x);
@@ -9323,9 +9340,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       lastMousePos = { x: t.clientX, y: t.clientY };
       if (_draggingStock && S.draggedPointId !== null) {
         let rawDX, rawDZ;
-        const vS = S.flipX ? 1 : -1;
-        if (S.params.machineStructure === 'carousel') { rawDX = dx / S.view.scale; rawDZ = vS * dy / S.view.scale; }
-        else { rawDZ = dx / S.view.scale; rawDX = vS * dy / S.view.scale; }
+        const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
+        if (S.params.machineStructure === 'carousel') { rawDX = hS * dx / S.view.scale; rawDZ = vS * dy / S.view.scale; }
+        else { rawDZ = hS * dx / S.view.scale; rawDX = vS * dy / S.view.scale; }
         if (S.draggedPointId === 0) {
           S.params.stockDiameter = Math.max(1, parseFloat(S.params.stockDiameter) + rawDX * 2);
           S.params.stockFace = Math.round((parseFloat(S.params.stockFace) + rawDZ) * 100) / 100;
@@ -9338,11 +9355,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
       } else if (S.draggedPointId !== null) {
         let dX_unit = 0, dZ_unit = 0;
-        const vS = S.flipX ? 1 : -1;
+        const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
         if (S.params.machineStructure === 'carousel') {
-          dX_unit = dx / S.view.scale; dZ_unit = vS * dy / S.view.scale;
+          dX_unit = hS * dx / S.view.scale; dZ_unit = vS * dy / S.view.scale;
         } else {
-          dZ_unit = dx / S.view.scale; dX_unit = vS * dy / S.view.scale;
+          dZ_unit = hS * dx / S.view.scale; dX_unit = vS * dy / S.view.scale;
         }
         if (S.params.mode === 'DIAMON') dX_unit *= 2;
         const list = S.editMode === 'contour' ? S.contourPoints : S.stockPoints;

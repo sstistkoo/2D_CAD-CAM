@@ -86,6 +86,8 @@ export const state = {
   xDisplayMode: 'radius',
   // Otočení svislé osy X: false = X+ nahoru (výchozí), true = X+ dolů (soustruh s nástrojem zespodu)
   flipX: false,
+  // Otočení vodorovné osy Z: false = Z+ vpravo (výchozí), true = Z+ vlevo
+  flipZ: false,
   // Náhled zrcadlení kontury kolem osy rotace (y=0) – jen vizuální, neukládá objekty
   mirrorPreview: false,
   // Body mezer/přerušení v kontuře nalezené při kontrole validity (pro zvýraznění na plátně)

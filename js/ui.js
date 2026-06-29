@@ -40,6 +40,7 @@ export function persistSettings() {
       base.machineType = state.machineType;
       base.xDisplayMode = state.xDisplayMode;
       base.flipX = state.flipX;
+      base.flipZ = state.flipZ;
       base.mirrorPreview = state.mirrorPreview;
       base.showContourGaps = state.showContourGaps;
       base.displayDecimals = state.displayDecimals;
@@ -4182,6 +4183,7 @@ function showSettingsDialog() {
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settFlipX" style="${btnS}${act(state.flipX)}" title="Otočit svislou osu – nástroj zespodu">⇅ X+ ${state.flipX ? 'dolů ↓' : 'nahoru ↑'}</button>
+          <button class="calc-btn" id="settFlipZ" style="${btnS}${act(state.flipZ)}" title="Otočit vodorovnou osu Z">⇄ Z+ ${state.flipZ ? 'vlevo ←' : 'vpravo →'}</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Zobrazit poloprůhledný náhled kontury zrcadlené kolem osy rotace (y=0)">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
@@ -4334,6 +4336,19 @@ function showSettingsDialog() {
     persistSettings();
     if (bridge.updateMobileCoords) bridge.updateMobileCoords(state.mouse.x, state.mouse.y);
     showToast(state.flipX ? 'Osa X otočena – X+ dolů' : 'Osa X – X+ nahoru');
+  });
+
+  // ── Otočení vodorovné osy Z ──
+  overlay.querySelector('#settFlipZ').addEventListener('click', () => {
+    state.flipZ = !state.flipZ;
+    document.dispatchEvent(new CustomEvent('flipz-cad', { detail: state.flipZ }));
+    const zBtn = overlay.querySelector('#settFlipZ');
+    zBtn.style.cssText = `${btnBase}${state.flipZ ? activeStyle : inactiveStyle}`;
+    zBtn.textContent = `⇄ Z+ ${state.flipZ ? 'vlevo ←' : 'vpravo →'}`;
+    renderAll();
+    persistSettings();
+    if (bridge.updateMobileCoords) bridge.updateMobileCoords(state.mouse.x, state.mouse.y);
+    showToast(state.flipZ ? 'Osa Z otočena – Z+ vlevo' : 'Osa Z – Z+ vpravo');
   });
 
   // ── Náhled zrcadlení kolem osy rotace (y=0) ──

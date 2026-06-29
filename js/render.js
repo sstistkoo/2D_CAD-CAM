@@ -345,7 +345,7 @@ function renderAxes() {
   // Popisky os X a Z
   g.font = "bold 14px Consolas";
   g.fillStyle = hColor;
-  g.fillText(hLabel, w - 18, state.panY - 8);
+  g.fillText(hLabel, state.flipZ ? 8 : w - 18, state.panY - 8);
   g.fillStyle = vColor;
   g.fillText(vLabel, state.panX + 8, state.flipX ? h - 8 : 16);
 

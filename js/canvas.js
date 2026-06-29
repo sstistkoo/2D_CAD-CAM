@@ -54,22 +54,33 @@ export function vSign() {
 }
 
 /**
+ * Vodorovný směr osy Z: 1 = Z+ vpravo (výchozí), -1 = Z+ vlevo (otočeno).
+ * @returns {number}
+ */
+export function hSign() {
+  return state.flipZ ? -1 : 1;
+}
+
+/**
  * Převede world úhel na canvas úhel (canvas má Y dolů, proto v základu negace;
- * při otočení svislé osy se znaménko obrátí zpět).
+ * při otočení svislé osy se znaménko obrátí zpět; při otočení vodorovné osy
+ * se navíc přidá posun o π, protože zrcadlení jedné osy obrací smysl úhlu).
  * @param {number} angle
  * @returns {number}
  */
 export function screenAngle(angle) {
-  return state.flipX ? angle : -angle;
+  const a = state.flipX ? angle : -angle;
+  return state.flipZ ? -a + Math.PI : a;
 }
 
 /**
- * Převede příznak směru oblouku (anticlockwise) – vertikální překlopení mění smysl.
+ * Převede příznak směru oblouku (anticlockwise) – zrcadlení libovolné jedné
+ * osy (vertikální i vodorovné) mění smysl; zrcadlení obou os se vyruší.
  * @param {boolean} anticlockwise
  * @returns {boolean}
  */
 export function screenCCW(anticlockwise) {
-  return state.flipX ? !anticlockwise : anticlockwise;
+  return (state.flipX !== state.flipZ) ? !anticlockwise : anticlockwise;
 }
 
 /**
@@ -78,7 +89,7 @@ export function screenCCW(anticlockwise) {
  * @returns {[number, number]}
  */
 export function worldToScreen(wx, wy) {
-  return [wx * state.zoom + state.panX, vSign() * wy * state.zoom + state.panY];
+  return [hSign() * wx * state.zoom + state.panX, vSign() * wy * state.zoom + state.panY];
 }
 
 /**
@@ -89,7 +100,7 @@ export function worldToScreen(wx, wy) {
 export function screenToWorld(sx, sy) {
   const z = state.zoom || 1;
   return [
-    (sx - state.panX) / z,
+    hSign() * (sx - state.panX) / z,
     vSign() * (sy - state.panY) / z,
   ];
 }
@@ -401,7 +412,7 @@ export function autoCenterView() {
   // Viditelný střed Y = (fullCanvasH - topbarH) / 2
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
-  state.panX = canvasW / 2 - centerX * state.zoom;
+  state.panX = canvasW / 2 - hSign() * centerX * state.zoom;
   state.panY = (fullCanvasH - topbarH) / 2 - vSign() * centerY * state.zoom;
 
   document.getElementById("statusZoom").textContent =

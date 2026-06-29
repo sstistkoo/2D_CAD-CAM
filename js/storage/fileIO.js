@@ -109,6 +109,7 @@ export function importProjectFile() {
         if (data.machineType) state.machineType = data.machineType;
         state.xDisplayMode = data.xDisplayMode || 'radius';
         state.flipX = !!data.flipX;
+        state.flipZ = !!data.flipZ;
         if (data.showObjectNumbers !== undefined) state.showObjectNumbers = data.showObjectNumbers;
         if (data.showIntersectionNumbers !== undefined) state.showIntersectionNumbers = data.showIntersectionNumbers;
         state.mirrorPreview = !!data.mirrorPreview;
@@ -576,15 +577,17 @@ function runCncExport() {
   }
 
   const isInc = state.cncOutputMode === 'inc';
-  // Spodní obrábění (X+ dolů / zadní nožová hlava): osa X má obrácený smysl,
-  // proto se G2↔G3 zapisují prohozeně. Hodnoty X (poloměr) zůstávají kladné a stejné.
-  const flipArc = (code) => state.flipX ? (code === 'G02' ? 'G03' : 'G02') : code;
+  // Spodní obrábění (X+ dolů / zadní nožová hlava) nebo otočená osa Z: zrcadlení
+  // jedné osy obrací smysl oblouku, proto se G2↔G3 zapisují prohozeně. Zrcadlení
+  // obou os (X i Z) se vyruší. Hodnoty X (poloměr) zůstávají kladné a stejné.
+  const flipArc = (code) => (state.flipX !== state.flipZ) ? (code === 'G02' ? 'G03' : 'G02') : code;
   let out = "; === SKICA – CNC Soustružník (X,Z) ===\n";
   out += `; Datum: ${new Date().toLocaleString("cs")}\n`;
   out += `; Počet objektů: ${exportObjects.length}${selectedIndices.size > 0 ? ' (vybraný profil)' : ''}\n`;
   out += `; Průsečíků: ${state.intersections.length}\n`;
   out += `; Režim: ${isInc ? 'Inkrementální (INC)' : 'Absolutní (ABS)'}\n`;
   if (state.flipX) out += "; Obrábění zespodu (X+ dolů) – G2/G3 prohozeny\n";
+  if (state.flipZ) out += "; Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny\n";
   const [_gH, _gV] = state.machineType === 'karusel' ? ['X','Z'] : ['Z','X'];
   if (isInc) out += `; Reference: ${_gH}${state.incReference.x.toFixed(3)} ${_gV}${state.incReference.y.toFixed(3)}\n`;
   out += "\n";
