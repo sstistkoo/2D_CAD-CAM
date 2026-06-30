@@ -11,6 +11,29 @@ const STORAGE_DATA = 'skica-cam-editor-data';
 const STORAGE_CFG  = 'skica-cam-editor-settings';
 const STORAGE_HDR  = 'skica-cam-editor-header';
 
+// ── Potvrzení přepsání zastaralého kódu ──────────────────────────
+// Editor si drží svůj vlastní uložený program; pokud se mezitím
+// v simulátoru přegenerovaly dráhy, nabídne se přepsání aktuálním kódem.
+function confirmStaleCodeOverwrite() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = `
+      <div style="background:#1e1e2e;border:1px solid #45475a;border-radius:10px;padding:24px 28px 18px;min-width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.5);color:#cdd6f4;font-family:system-ui,sans-serif;">
+        <div style="font-size:14px;margin-bottom:18px;line-height:1.5;">Kód v editoru se liší od aktuálního G-kódu simulátoru (dráhy byly mezitím přegenerovány).<br><br>Přepsat editor aktuálním kódem ze simulátoru? Neuložené ruční úpravy v editoru budou ztraceny.</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button data-r="keep" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#45475a;color:#cdd6f4;">Ponechat uložený</button>
+          <button data-r="overwrite" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#89b4fa;color:#1e1e2e;">Přepsat aktuálním</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const cleanup = (val) => { ov.remove(); resolve(val); };
+    ov.querySelector('[data-r="overwrite"]').addEventListener('click', () => cleanup(true));
+    ov.querySelector('[data-r="keep"]').addEventListener('click', () => cleanup(false));
+    ov.addEventListener('click', e => { if (e.target === ov) cleanup(false); });
+  });
+}
+
 const G_CODES = {
   '0':'Rychloposuv','1':'Lineární interpolace','2':'Kruhová int. (CW)',
   '3':'Kruhová int. (CCW)','4':'Časová prodleva','17':'Rovina XY',
@@ -1243,12 +1266,25 @@ export function openCamEditor(initialCode, jumpLine) {
   }
   ensureFile();
 
-  // Pokud byl předán initialCode, vloží se do nového souboru
-  // (pokud už soubor existuje, zachovají se v něm provedené úpravy)
+  // Pokud byl předán initialCode, vloží se do nového souboru.
+  // Pokud už soubor existuje a liší se od initialCode (dráhy byly mezitím
+  // v simulátoru přegenerovány), nabídne se uživateli přepsání zastaralého obsahu.
   if (initialCode && typeof initialCode === 'string' && initialCode.trim()) {
     const name = 'CAM_PROGRAM.MPF';
-    if (!programs[name]) programs[name] = initialCode;
-    currentFile = name;
+    if (!programs[name]) {
+      programs[name] = initialCode;
+      currentFile = name;
+    } else if (programs[name].trim() !== initialCode.trim()) {
+      currentFile = name;
+      confirmStaleCodeOverwrite().then(overwrite => {
+        if (overwrite) {
+          programs[name] = initialCode;
+          if (currentFile === name) displayFile(name);
+        }
+      });
+    } else {
+      currentFile = name;
+    }
   }
 
   displayFile(currentFile);
