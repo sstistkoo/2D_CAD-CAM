@@ -9588,5 +9588,5 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
   fullUpdate();
   requestAnimationFrame(() => fitView());
-  if (typeof window !== 'undefined') window.__camDebug = { S, calculate, generateAutoGCode, parseManualGCodeToPath, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
+  if (typeof window !== 'undefined') window.__camDebug = { S, calculate, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
 }
