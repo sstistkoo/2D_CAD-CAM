@@ -369,24 +369,30 @@ export function genLongPasses(ctx) {
         // Dobrat kapsu najednou: následuje-li za bossem kapsa, kterou
         // teď vykope blok dobírání, otevřený řez NEDĚLÁ leadOut do ní —
         // navázání řeší leadIn prvního zanoření (noRetract). Jinak by se
-        // kontura sledovala dvakrát.
+        // kontura sledovala dvakrát. POZOR: jen když kapsa JEŠTĚ NENÍ
+        // vykopaná — na hlubších hloubkách už je potlačená, a tam otevřený
+        // řez naopak MUSÍ dojet svůj schod po obrysu (jinak schody na
+        // náběhovém kuželu zůstanou neobrobené).
+        const nextIv = idx + 1 < intervals.length ? intervals[idx + 1] : null;
+        const nextMidZ = nextIv ? (nextIv.zStart + nextIv.zEnd) / 2 : null;
+        const nextPocketDug = nextMidZ !== null && pocketDoneRanges.some(r => nextMidZ <= r.zHi + 0.1 && nextMidZ >= r.zLo - 0.1);
         const pocketFollowsNow = prms.plungeRoughing && prms.pocketFinishAtOnce
-          && idx + 1 < intervals.length && intervals[idx + 1].blocked;
+          && nextIv && nextIv.blocked && !nextPocketDug;
         if (prms.noStepRoughing && iv.blocked && !pocketFollowsNow) {
           // Bez schodků: místo odskoku se dál sleduje kontura (G1/G2/G3),
           // aby se obrobil schod vůči sousedním zaberum a nezůstal materiál.
           const nextX = (depthIdx + 1 < depths.length) ? depths[depthIdx + 1] : -Infinity;
+          // ŽIVÁ kapsa za bossem = ještě nevykopaná (inkrementální režim) →
+          // schod dolů na hlubší zaber řeší až pas té kapsy. Pokud za bossem
+          // žádná živá kapsa není (jediný interval, NEBO kapsu už vykopal
+          // blok dobírání → potlačená), dojeď schod po obrysu k sousedním
+          // zaberum (jinak na náběhovém kuželu zůstanou schody neobrobené).
+          const livePocketAfter = intervals.length > 1 && nextIv && nextIv.blocked && !nextPocketDug;
           let zEndOut;
-          if (intervals.length === 1) {
-            // Jediný interval (žádná kapsa za bossem) → sleduj konturu buď
-            // dolů na hlubší zaber, nebo nahoru na vršek schodu (předchozí
-            // mělčí zaber). Tím se schod obrobí přímo po obrysu.
+          if (!livePocketAfter) {
             const prevX = depthIdx > 0 ? depths[depthIdx - 1] : null;
             zEndOut = findLeadOutEndZ(iv.zEnd, prevX, nextX, cylStockZ);
           } else {
-            // Za bossem následuje kapsa (další interval) — konturu nahoru
-            // řeší až pas kapsy + návaznost (noRetract); tady jen klasický
-            // schod dolů na hlubší zaber.
             zEndOut = findOffsetXCrossing(iv.zEnd, nextX, cylStockZ);
           }
           // Dobrat kapsu najednou: neořezávat schod DO už vykopané kapsy —
@@ -519,6 +525,7 @@ export function genLongPasses(ctx) {
       // Fáze 1 — rampované zanořovací zákroky.
       let localX = currentX, curGapHi = zGapHi, curIv = iv, curCorner = corner;
       let firstPlunge = true, bestX = Infinity, safety = 0;
+      let prevRampEnd = null;   // konec rampy předchozího zákroku (na sdílené přímce rampy)
       const CORNER_TOL = 1.5;
       while (safety++ < 500) {
         const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner, firstPlunge, false);
@@ -526,9 +533,21 @@ export function genLongPasses(ctx) {
         // hlubší cíl s posunutým rohem někdy MĚLČÍ dosah — takový zákrok
         // zahoď a ukonči bulk, zbytek dna dořeže fáze 2 (sledování kontury).
         if (!firstPlunge && pocketPass.x >= bestX - 0.05) break;
+        // Zanořovací zákroky se NEODSKAKUJÍ 45° — řetězí se: nástroj zůstane
+        // na dně zápichu a další zákrok ho rychloposuvem zvedne NAHORU PO
+        // ZÁPICHU (po ose Z, ve vyříznutém vzduchu) ke konci rampy
+        // předchozího zákroku a odtud ramuje jen nový úsek. Žádný výjezd nad
+        // kapsu/roh (ten by jel skrz boss nad zápichem).
+        pocketPass.noRetract = true;
         if (firstPlunge) { pocketPass.pocketEntry = true; if (prms.noStepRoughing) linkToPrev(leadIn); }
-        else pocketPass.pocketReposition = true;
+        else {
+          pocketPass.pocketReposition = true;
+          // rampFeedFrom = vršek zápichu předchozího zákroku (konec jeho
+          // rampy) na sdílené přímce rampy — sem se zvedne rychloposuvem.
+          if (prevRampEnd && prevRampEnd.x > pocketPass.x + 0.01) pocketPass.rampFeedFrom = prevRampEnd;
+        }
         passes.push(pocketPass);
+        prevRampEnd = { x: pocketPass.x, z: pocketPass.zStart };
         bestX = pocketPass.x;
         firstPlunge = false;
 
@@ -557,8 +576,13 @@ export function genLongPasses(ctx) {
       // dokud se po druhé stěně nevrátí na vstupní hloubku (u kapsy
       // uprostřed), případně až ke konci kontury (u kapsy na konci dílu).
       const exitZ = findPocketExitZ(pocketBottomZ, currentX, cylStockZ);
-      const cleanLeadIn = traceOffsetPath(corner.z, pocketBottomZ);
-      const cleanLeadOut = traceOffsetPath(pocketBottomZ, exitZ);
+      // Zahoď degenerované mikro-úseky (< 0,05 mm) — vznikají na švu
+      // můstku a oblouku machinable kontury; jinak by se v G-kódu objevil
+      // nulový oblouk (např. CR=8.5 přes 0,02 mm) a simulace by na něm
+      // „zamrzla".
+      const dropMicro = (segs) => segs.filter(s => Math.hypot(s.x2 - s.x1, s.z2 - s.z1) > 0.05);
+      const cleanLeadIn = dropMicro(traceOffsetPath(corner.z, pocketBottomZ));
+      const cleanLeadOut = dropMicro(traceOffsetPath(pocketBottomZ, exitZ));
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
           type: 'long', pocketClean: true,

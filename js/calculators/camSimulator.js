@@ -2083,11 +2083,15 @@ function parseManualGCodeToPath(code, prms, unflipArc) {
           const effType = unflipArc ? (type === 'G2' ? 'G3' : 'G2') : type;
           const arc = getArcParams(p1, p2, arcR, effType);
           if (!arc.error) {
-            const steps = 10;
             let sA = Math.atan2(p1.x - arc.cx, p1.z - arc.cz);
             let eA = Math.atan2(p2.x - arc.cx, p2.z - arc.cz);
             if (effType === 'G2' && eA > sA) eA -= 2 * Math.PI;
             if (effType === 'G3' && eA < sA) eA += 2 * Math.PI;
+            // Počet vzorků úměrný délce oblouku (r·|úhel|), ne pevných 10 —
+            // jinak by se degenerovaný mikro-oblouk (např. 0,02 mm) rozdělil
+            // na 10 bodů a přehrávání simulace by na něm „zamrzlo".
+            const arcLen = arc.r * Math.abs(eA - sA);
+            const steps = Math.max(1, Math.min(48, Math.ceil(arcLen / 0.4)));
             for (let j = 1; j <= steps; j++) {
               const a = sA + (eA - sA) * (j / steps);
               const pt = { x: arc.cx + Math.sin(a) * arc.r, z: arc.cz + Math.cos(a) * arc.r, type, originalLineIdx: idx };
@@ -3810,12 +3814,25 @@ export function openCamSimulator(initialContour, initialGCode) {
         const entry = li.length > 0
           ? { x: li[0].x1, z: li[0].z1 }
           : (pass.ramp ? { x: pass.ramp.x0, z: pass.ramp.z0 } : { x: pass.x, z: pass.zStart });
-        if (pass.pocketReposition || pass.pocketClean) {
-          // Dobrat kapsu najednou: NÁVRAT V KAPSE (žádný výjezd nad
-          // polotovar). Jen přejezd v Z na pozici dalšího zanoření a
-          // přísun v X na konturu — nástroj se pohybuje pořád v kapse.
-          if (Math.abs(cur.z - entry.z) > 1e-6) { simCounter += 1; addN(`G0 Z${entry.z.toFixed(3)}`, simCounter); setPos(cur.x, entry.z); }
-          if (Math.abs(cur.x - entry.x) > 1e-6) { simCounter += 1; addN(`G0 X${xDia(entry.x)}`, simCounter); setPos(entry.x, entry.z); }
+        if (pass.pocketReposition) {
+          // Dobrat kapsu najednou — návrat v kapse na pokračování rampy:
+          //   1) ODSKOK radiálně ven ze dna zápichu (zvednutí z řezu),
+          //   2) přejezd v ose Z NAD bod, kde má rampa pokračovat
+          //      (rampFeedFrom = vršek minulého zápichu / konec minulé rampy),
+          //   3) přísun v ose X na ten bod
+          // a odtud pracovní rampa řeže jen nový úsek pod ním. Žádný výjezd
+          // nad polotovar ani na roh (ten by jel skrz boss nad zápichem).
+          const tgt = pass.rampFeedFrom || entry;
+          const lift = cur.x + rDist;
+          simCounter += 1; addN(`G0 X${xDia(lift)}`, simCounter); setPos(lift, cur.z);
+          if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(lift, tgt.z); }
+          simCounter += 1; addN(`G0 X${xDia(tgt.x)}`, simCounter); setPos(tgt.x, tgt.z);
+        } else if (pass.pocketClean) {
+          // Dokončení kapsy: nájezd na začátek kontury (roh u náběhu) musí
+          // jít BEZPEČNĚ NAD bossem — z dna kapsy přímo nahoru by se řezalo
+          // skrz materiál. safeRapidTo zvedne v X nad konturu, přejede v Z a
+          // teprve pak sjede k rohu.
+          if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) safeRapidTo(entry.x, entry.z, true);
         } else if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {
           // První zanoření kapsy: navázáno na předchozí otevřený řez
           // (noRetract → cur už je na entry). Když ne, bezpečný nájezd.
