@@ -3800,26 +3800,27 @@ export function openCamSimulator(initialContour, initialGCode) {
     };
 
     calc.passes.forEach((pass, i) => {
-      addCmt(`Průchod ${i + 1}${pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
-      if (pass.type === 'long' && pass.contourLeadIn) {
+      addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (dokončení kapsy)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
+      if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp)) {
         // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
         // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
         // bodu, kde její sklon dosáhne úhlu zanoření, odtud rampa pod
-        // tímto úhlem na aktuální zaběr, dno kapsy a standardní odskok.
-        const li = pass.contourLeadIn;
+        // tímto úhlem na aktuální zaběr, dno kapsy a odskok.
+        const li = pass.contourLeadIn || [];
         const entry = li.length > 0
           ? { x: li[0].x1, z: li[0].z1 }
           : (pass.ramp ? { x: pass.ramp.x0, z: pass.ramp.z0 } : { x: pass.x, z: pass.zStart });
-        // Návrat na konturu z odskoku předchozího průchodu. Pasy uvnitř
-        // bursteu "dobrat kapsu najednou" (pocketBurst) se vrací na STEJNÝ
-        // bod kontury jako předchozí zákrok, ale z hloubky uvnitř kapsy —
-        // přímý G1 by mohl zařezávat do stěny, proto bezpečný přejezd
-        // (nad polotovar → přes Z → sjezd v X), stejný jako mezi pasy mimo
-        // kapsu.
-        if (pass.pocketBurst) {
-          safeRapidTo(entry.x, entry.z, true);
+        if (pass.pocketReposition || pass.pocketClean) {
+          // Dobrat kapsu najednou: NÁVRAT V KAPSE (žádný výjezd nad
+          // polotovar). Jen přejezd v Z na pozici dalšího zanoření a
+          // přísun v X na konturu — nástroj se pohybuje pořád v kapse.
+          if (Math.abs(cur.z - entry.z) > 1e-6) { simCounter += 1; addN(`G0 Z${entry.z.toFixed(3)}`, simCounter); setPos(cur.x, entry.z); }
+          if (Math.abs(cur.x - entry.x) > 1e-6) { simCounter += 1; addN(`G0 X${xDia(entry.x)}`, simCounter); setPos(entry.x, entry.z); }
         } else if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {
-          simCounter += 1; addN(`G1 X${xDia(entry.x)} Z${entry.z.toFixed(3)} F${prms.feed}`, simCounter); setPos(entry.x, entry.z);
+          // První zanoření kapsy: navázáno na předchozí otevřený řez
+          // (noRetract → cur už je na entry). Když ne, bezpečný nájezd.
+          if (pass.pocketEntry) safeRapidTo(entry.x, entry.z, true);
+          else { simCounter += 1; addN(`G1 X${xDia(entry.x)} Z${entry.z.toFixed(3)} F${prms.feed}`, simCounter); setPos(entry.x, entry.z); }
         }
         for (const seg of li) {
           if (seg.type === 'line') {
@@ -3835,9 +3836,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
         }
         if (pass.contourLeadOut) {
-          // Bez schodků: po dně kapsy dál po kontuře (G1/G2/G3) místo
-          // odskoku — druhá stěna kapsy (G2 na bod 10, úsečka na bod 11)
-          // se obrobí přímo po obrysu.
+          // Bez schodků / dokončení kapsy: po dně dál po kontuře (G1/G2/G3)
+          // místo odskoku — druhá stěna se obrobí přímo po obrysu.
           for (const seg of pass.contourLeadOut) {
             if (seg.type === 'line') {
               simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
