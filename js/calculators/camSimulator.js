@@ -4596,12 +4596,11 @@ export function openCamSimulator(initialContour, initialGCode) {
           const midCCWtrue = angT2 - norm(angT2 - angT1) / 2;
           const useCCW = Math.abs(angDiff(midCCWtrue, angCorner)) < Math.abs(angDiff(midCCWfalse, angCorner));
           ctx.save(); ctx.translate(pt.x, pt.y);
-          // Druhá strana (zleva): destička řeže opačným směrem (+Z) —
-          // zrcadlit v ose Z (vodorovně), ať špička míří doprava.
-          // Otočená osa Z (flipZ) zrcadlí celý pohled vodorovně (viz hS v
-          // toScreen) — destička proto musí zrcadlit stejně; obě zrcadlení
-          // se při souběhu vzájemně zruší (XOR).
+          // Zrcadlení destičky musí odpovídat globálnímu pohledu (viz vS/hS
+          // v toScreen). Horizontálně (osa Z): backside a flipZ se vzájemně
+          // ruší (XOR). Vertikálně (osa X): flipX zrcadlí pohled svisle.
           if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
+          if (S.flipX) ctx.scale(1, -1);
           ctx.beginPath(); ctx.moveTo(t1x, t1y);
           ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
           ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
