@@ -3816,16 +3816,17 @@ export function openCamSimulator(initialContour, initialGCode) {
           : (pass.ramp ? { x: pass.ramp.x0, z: pass.ramp.z0 } : { x: pass.x, z: pass.zStart });
         if (pass.pocketReposition) {
           // Dobrat kapsu najednou — návrat v kapse na pokračování rampy:
-          //   1) ODSKOK radiálně ven ze dna zápichu (zvednutí z řezu),
+          //   1) ODSKOK pod 45° pryč od kontury o vzdálenost Odskok (stejně
+          //      jako mimo kapsu) — zvednutí z řezu do už vyříznutého vzduchu,
           //   2) přejezd v ose Z NAD bod, kde má rampa pokračovat
           //      (rampFeedFrom = vršek minulého zápichu / konec minulé rampy),
           //   3) přísun v ose X na ten bod
           // a odtud pracovní rampa řeže jen nový úsek pod ním. Žádný výjezd
           // nad polotovar ani na roh (ten by jel skrz boss nad zápichem).
           const tgt = pass.rampFeedFrom || entry;
-          const lift = cur.x + rDist;
-          simCounter += 1; addN(`G0 X${xDia(lift)}`, simCounter); setPos(lift, cur.z);
-          if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(lift, tgt.z); }
+          const odskokZ = clipZGc(cur.z + rDist);
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
+          if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
           simCounter += 1; addN(`G0 X${xDia(tgt.x)}`, simCounter); setPos(tgt.x, tgt.z);
         } else if (pass.pocketClean) {
           // Dokončení kapsy: nájezd na začátek kontury (roh u náběhu) musí
@@ -9587,5 +9588,5 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
   fullUpdate();
   requestAnimationFrame(() => fitView());
-  if (typeof window !== 'undefined') window.__camDebug = { S, calculate, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
+  if (typeof window !== 'undefined') window.__camDebug = { S, calculate, generateAutoGCode, parseManualGCodeToPath, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
 }
