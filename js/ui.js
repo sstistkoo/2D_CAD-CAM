@@ -2246,17 +2246,6 @@ if (btnAllowance) {
 // ── Toolbar ──
 document.querySelectorAll("[data-tool]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    // Zavřít rozbalené sekce toolbaru, pokud je tlačítko uvnitř nich
-    const inMid = btn.closest("#toolbarMid");
-    const inMore = btn.closest("#toolbarMore");
-    if (inMid || inMore) {
-      const toolbarMid = document.getElementById("toolbarMid");
-      const toolbarMore = document.getElementById("toolbarMore");
-      const btnMid = document.getElementById("btnToolbarMid");
-      const btnMore = document.getElementById("btnToolbarMore");
-      if (toolbarMid) { toolbarMid.classList.remove("open"); const a = btnMid?.querySelector(".toolbar-toggle-arrow"); if (a) a.textContent = "▾"; }
-      if (toolbarMore) { toolbarMore.classList.remove("open"); const a = btnMore?.querySelector(".toolbar-toggle-arrow"); if (a) a.textContent = "▾"; }
-    }
     // Deaktivovat všechna tool-tlačítka – setTool() nebo bridge funkce je znovu aktivují
     document.querySelectorAll("[data-tool]").forEach(b => b.classList.remove("active"));
     // Měření: pokud je výběr → okamžitě změřit
@@ -2544,13 +2533,6 @@ document.getElementById("btnDeleteDims").addEventListener("click", () => {
 
 // ── Auto-detekce R, zkosení, zápichů ──
 document.getElementById("btnAutoDetect")?.addEventListener("click", () => {
-  // Zavřít toolbarové panely jako ostatní tool-btn
-  const toolbarMid = document.getElementById("toolbarMid");
-  const toolbarMore = document.getElementById("toolbarMore");
-  const btnMid = document.getElementById("btnToolbarMid");
-  const btnMore = document.getElementById("btnToolbarMore");
-  if (toolbarMid) { toolbarMid.classList.remove("open"); const a = btnMid?.querySelector(".toolbar-toggle-arrow"); if (a) a.textContent = "▾"; }
-  if (toolbarMore) { toolbarMore.classList.remove("open"); const a = btnMore?.querySelector(".toolbar-toggle-arrow"); if (a) a.textContent = "▾"; }
   if (bridge.autoDetectFeatures) bridge.autoDetectFeatures();
 });
 
