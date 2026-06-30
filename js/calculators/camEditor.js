@@ -88,9 +88,9 @@ function storageLoad(key) {
 function splitHeaderBody(code) {
   const lines = code.replace(/\r\n/g, '\n').split('\n');
   const dividerIdx = lines.findIndex(l => /^\s*;\s*-{2,}/.test(l));
-  if (dividerIdx > 0) return { header: lines.slice(0, dividerIdx), body: lines.slice(dividerIdx) };
+  if (dividerIdx !== -1) return { header: lines.slice(0, dividerIdx), body: lines.slice(dividerIdx) };
   let i = 0;
-  while (i < lines.length && !/\bG[123]\b/.test(lines[i].replace(/^N\d+\s*/, '').replace(/;.*/, ''))) i++;
+  while (i < lines.length && !/\bG[123]\b/i.test(lines[i].replace(/^N\d+\s*/, '').replace(/;.*/, ''))) i++;
   return { header: lines.slice(0, i), body: lines.slice(i) };
 }
 
@@ -98,17 +98,17 @@ function splitHeaderBody(code) {
 // na řádku hlavičky vrátí dvojici [klíč, hodnota] použitou k porovnání
 // se stavem z předchozích programů.
 const HEADER_GROUP_PATTERNS = [
-  ['plane',    /\bG1[789]\b/],
-  ['absinc',   /\bG9[01]\b/],
-  ['coordsys', /\bG5[4-7]\b|\bG505\b|\bG53\b/],
-  ['feedmode', /\bG9[45]\b/],
-  ['spmode',   /\bG9[67]\b/],
+  ['plane',    /\bG1[789]\b/i],
+  ['absinc',   /\bG9[01]\b/i],
+  ['coordsys', /\bG5[4-7]\b|\bG505\b|\bG53\b/i],
+  ['feedmode', /\bG9[45]\b/i],
+  ['spmode',   /\bG9[67]\b/i],
   ['lims',     /\bLIMS=([\d.]+)/i],
-  ['sval',     /\bS([\d.]+)\b/],
-  ['spdir',    /\bM[34]\b/],
-  ['coolant',  /\bM[89]\b/],
-  ['tool',     /\bT="?[^"\s]+"?|\bT\d+\b/],
-  ['dcorr',    /\bD\d+\b/],
+  ['sval',     /\bS([\d.]+)\b/i],
+  ['spdir',    /\bM[34]\b/i],
+  ['coolant',  /\bM[89]\b/i],
+  ['tool',     /\bT="?[^"\s]+"?|\bT\d+\b/i],
+  ['dcorr',    /\bD\d+\b/i],
   ['diamode',  /\bDIAMOF\b|\bRADIUS\b/i],
   ['g75x',     /\bG75\b.*\bX-?[\d.]+/i],
   ['g75z',     /\bG75\b.*\bZ-?[\d.]+/i],
@@ -143,6 +143,18 @@ function renumberLines(lines, start = 10, step = 10) {
     }
     return line;
   });
+}
+
+// Umožní do fronty pro spojení načíst i uložený projekt (.camprog) – vytáhne
+// z něj uložený G-kód (pole manualGCode), místo syrového JSON obsahu souboru.
+function extractGCodeFromFile(name, text) {
+  if (/\.camprog$/i.test(name)) {
+    try {
+      const data = JSON.parse(text);
+      if (data && typeof data.manualGCode === 'string' && data.manualGCode.trim()) return data.manualGCode;
+    } catch { /* není platný JSON projekt – použije se syrový obsah */ }
+  }
+  return text;
 }
 
 // Spojí pole {name, code} do jednoho programu: u druhého a dalších se
@@ -424,7 +436,7 @@ function buildEditorHTML() {
   <div class="cne-sn-bar">SINUMERIK 840D sl &mdash; CAM Editor (CNC dráhy)</div>
   <div class="cne-toolbar">
     <div class="cne-toolbar-left">
-      <button class="cne-tb-btn" data-act="sidebar" title="Soubory">☰</button>
+      <button class="cne-tb-btn cne-tb-sidebar" data-act="sidebar" title="Soubory">☰</button>
       <span class="cne-filename" data-el="filename">—</span>
     </div>
     <div class="cne-toolbar-right">
@@ -455,7 +467,7 @@ function buildEditorHTML() {
       <div class="cne-sb-section collapsed">
         <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> Spoj G-kód</div>
         <div class="cne-sb-content">
-          <button class="cne-sb-btn" data-act="mergeLoad">📂 Načíst program</button>
+          <button class="cne-sb-btn" data-act="mergeLoad" title="Načíst .MPF/.SPF nebo uložený projekt .camprog (vytáhne se jeho G-kód)">📂 Načíst program</button>
           <div class="cne-merge-list" data-el="mergeList"></div>
           <button class="cne-sb-btn accent" data-act="mergeJoin" data-el="mergeJoinBtn" disabled>🔗 Spojit do jednoho</button>
         </div>
@@ -598,7 +610,7 @@ function buildEditorHTML() {
   </div>
 
   <input type="file" data-el="fileInput" style="display:none" accept=".txt,.mpf,.spf">
-  <input type="file" data-el="mergeFileInput" style="display:none" accept=".txt,.mpf,.spf" multiple>
+  <input type="file" data-el="mergeFileInput" style="display:none" accept=".txt,.mpf,.spf,.camprog" multiple>
 </div>`;
 }
 
@@ -753,12 +765,19 @@ export function openCamEditor(initialCode, jumpLine) {
   function handleMergeLoad(ev) {
     const files = Array.from(ev.target.files || []);
     if (!files.length) return;
+    // Výsledky se skládají podle pořadí výběru (do předem připraveného pole),
+    // ne podle toho, který soubor se asynchronně načte první.
+    const results = new Array(files.length);
     let pending = files.length;
-    files.forEach(f => {
+    files.forEach((f, i) => {
       const reader = new FileReader();
       reader.onload = () => {
-        mergeQueue.push({ name: f.name, code: reader.result });
-        if (--pending === 0) { renderMergeList(); persistMerge(); }
+        results[i] = { name: f.name, code: extractGCodeFromFile(f.name, reader.result) };
+        if (--pending === 0) {
+          mergeQueue.push(...results);
+          renderMergeList();
+          persistMerge();
+        }
       };
       reader.readAsText(f);
     });
@@ -1323,7 +1342,7 @@ export function openCamEditor(initialCode, jumpLine) {
     const ab = e.target.closest('[data-act]');
     if (ab) {
       switch (ab.dataset.act) {
-        case 'sidebar':   sidebarEl.classList.toggle('open'); break;
+        case 'sidebar':   sidebarEl.classList.toggle('open'); ab.classList.toggle('open'); break;
         case 'toggleSection': ab.closest('.cne-sb-section').classList.toggle('collapsed'); break;
         case 'mergeLoad': mergeFileInput.click(); break;
         case 'mergeJoin': joinMergeQueue(); break;
@@ -1461,24 +1480,24 @@ export function openCamEditor(initialCode, jumpLine) {
   }
   ensureFile();
 
-  // Pokud byl předán initialCode, vloží se do nového souboru.
-  // Pokud už soubor existuje a liší se od initialCode (dráhy byly mezitím
-  // v simulátoru přegenerovány), nabídne se uživateli přepsání zastaralého obsahu.
-  if (initialCode && typeof initialCode === 'string' && initialCode.trim()) {
+  // Pokud byl předán initialCode, vloží se do souboru CAM_PROGRAM.MPF.
+  // Pokud na něm uživatel právě je a obsah se liší od initialCode (dráhy byly
+  // mezitím v simulátoru přegenerovány), nabídne se přepsání zastaralého obsahu.
+  // Je-li uživatel rozkoukaný v jiném souboru (např. po "Nový program"), editor
+  // ho při návratu nepřepne pryč ani mu ten soubor nepřepíše.
+  const onProgramFile = !programs['CAM_PROGRAM.MPF'] || currentFile === 'CAM_PROGRAM.MPF';
+  if (onProgramFile && initialCode && typeof initialCode === 'string' && initialCode.trim()) {
     const name = 'CAM_PROGRAM.MPF';
     if (!programs[name]) {
       programs[name] = initialCode;
       currentFile = name;
     } else if (programs[name].trim() !== initialCode.trim()) {
-      currentFile = name;
       confirmStaleCodeOverwrite().then(overwrite => {
         if (overwrite) {
           programs[name] = initialCode;
           if (currentFile === name) displayFile(name);
         }
       });
-    } else {
-      currentFile = name;
     }
   }
 
@@ -1486,7 +1505,8 @@ export function openCamEditor(initialCode, jumpLine) {
   renderMergeList();
 
   // Skok kurzoru na řádek odpovídající aktuální pozici v simulaci CAM
-  if (typeof jumpLine === 'number' && jumpLine >= 0) {
+  // (dává smysl jen na souboru se synchronizovaným G-kódem ze simulátoru)
+  if (currentFile === 'CAM_PROGRAM.MPF' && typeof jumpLine === 'number' && jumpLine >= 0) {
     requestAnimationFrame(() => jumpToLine(jumpLine));
   }
 }

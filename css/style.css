@@ -4725,6 +4725,13 @@ body {
   transition: background .12s, color .12s;
 }
 .cne-tb-btn:hover { background: var(--ctp-surface1); color: var(--ctp-text); }
+.cne-tb-sidebar {
+  border: 1px solid var(--ctp-surface1);
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+}
+.cne-tb-sidebar:hover { background: var(--ctp-surface1); border-color: var(--ctp-blue); }
+.cne-tb-sidebar.open { border-color: var(--ctp-blue); color: var(--ctp-blue); }
 .cne-tb-new { color: var(--ctp-green); font-weight: 700; }
 .cne-status { font-weight: 700; font-size: 13px; min-width: 24px; text-align: center; }
 
