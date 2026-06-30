@@ -2167,5 +2167,151 @@ export function chamferTwoLines(line1, line2, dist1, dist2) {
   };
 }
 
+/**
+ * Zaoblení (fillet) mezi úsečkou a obloukem.
+ * Používá circlePositionsTangentToCircleAndLine – hledá střed fillet kružnice tečné k oběma.
+ * @param {{x1,y1,x2,y2}} line  – mutable proxy
+ * @param {{cx,cy,r,startAngle,endAngle,ccw?}} arc  – mutable proxy
+ * @param {number} radius
+ * @returns {{ arc: object, ok: boolean, msg?: string }}
+ */
+export function filletLineAndArc(line, arc, radius) {
+  const candidates = circlePositionsTangentToCircleAndLine(
+    radius, arc.cx, arc.cy, arc.r,
+    line.x1, line.y1, line.x2, line.y2
+  );
+  if (candidates.length === 0) return { ok: false, msg: "Nelze nalézt střed zaoblení" };
+
+  const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-12) return { ok: false, msg: "Úsečka je příliš krátká" };
+
+  // Referenční body konců oblouku pro rozhodnutí, který konec oříznout
+  const arcStartPt = {
+    x: arc.cx + arc.r * Math.cos(arc.startAngle),
+    y: arc.cy + arc.r * Math.sin(arc.startAngle),
+  };
+  const arcEndPt = {
+    x: arc.cx + arc.r * Math.cos(arc.endAngle),
+    y: arc.cy + arc.r * Math.sin(arc.endAngle),
+  };
+
+  for (const cand of candidates) {
+    const { cx: fcx, cy: fcy } = cand;
+
+    // Tečný bod na úsečce = pata kolmice z fillet středu
+    const t_line = ((fcx - line.x1) * dx + (fcy - line.y1) * dy) / lenSq;
+    if (t_line < -1e-6 || t_line > 1 + 1e-6) continue;
+    const tp_lx = line.x1 + t_line * dx;
+    const tp_ly = line.y1 + t_line * dy;
+
+    // Tečný bod na oblouku = bod na kružnici ve směru oblouk→fillet
+    // Platí pro vnější i vnitřní tečnost: tp = střed_oblouku + r * směr_k_fillet_středu
+    const D = Math.hypot(fcx - arc.cx, fcy - arc.cy);
+    if (D < 1e-10) continue;
+    const tp_ax = arc.cx + arc.r * (fcx - arc.cx) / D;
+    const tp_ay = arc.cy + arc.r * (fcy - arc.cy) / D;
+
+    // Tečný bod musí ležet v úhlovém rozsahu oblouku
+    const tpAngle = Math.atan2(tp_ay - arc.cy, tp_ax - arc.cx);
+    if (!isAngleBetween(tpAngle, arc.startAngle, arc.endAngle, arc.ccw)) continue;
+
+    // Platný kandidát – provést ořez
+
+    // Ořez úsečky: konec blíže k tečnému bodu se přesune
+    const dla = Math.hypot(line.x1 - tp_lx, line.y1 - tp_ly);
+    const dlb = Math.hypot(line.x2 - tp_lx, line.y2 - tp_ly);
+    if (dla < dlb) { line.x1 = tp_lx; line.y1 = tp_ly; }
+    else           { line.x2 = tp_lx; line.y2 = tp_ly; }
+
+    // Ořez oblouku: konec oblouku blíže k tečnému bodu se přesune
+    const dsa = Math.hypot(arcStartPt.x - tp_ax, arcStartPt.y - tp_ay);
+    const dea = Math.hypot(arcEndPt.x  - tp_ax, arcEndPt.y  - tp_ay);
+    if (dsa < dea) arc.startAngle = tpAngle;
+    else           arc.endAngle   = tpAngle;
+
+    // Fillet oblouk – CCW minor arc mezi tečnými body
+    let fa_s = Math.atan2(tp_ly - fcy, tp_lx - fcx);
+    let fa_e = Math.atan2(tp_ay - fcy, tp_ax - fcx);
+    const ccwSweep = ((fa_e - fa_s) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    if (ccwSweep > Math.PI) [fa_s, fa_e] = [fa_e, fa_s];
+
+    return {
+      ok: true,
+      arc: { type: 'arc', cx: fcx, cy: fcy, r: radius, startAngle: fa_s, endAngle: fa_e },
+    };
+  }
+
+  return { ok: false, msg: "Zaoblení nelze vytvořit – tečné body leží mimo úsečku nebo oblouk" };
+}
+
+/**
+ * Zkosení (chamfer) mezi úsečkou a obloukem.
+ * Najde nejbližší pár (konec úsečky, konec oblouku), ořízne obě části, vrátí spojovací úsečku.
+ * dist1 – vzdálenost ořezu na úsečce (mm), dist2 – délka ořezu na oblouku (délka oblouku, mm).
+ * @param {{x1,y1,x2,y2}} line  – mutable proxy
+ * @param {{cx,cy,r,startAngle,endAngle,ccw?}} arc  – mutable proxy
+ * @param {number} dist1
+ * @param {number} dist2
+ * @returns {{ line: object, ok: boolean, msg?: string }}
+ */
+export function chamferLineAndArc(line, arc, dist1, dist2) {
+  const arcStartPt = {
+    x: arc.cx + arc.r * Math.cos(arc.startAngle),
+    y: arc.cy + arc.r * Math.sin(arc.startAngle),
+  };
+  const arcEndPt = {
+    x: arc.cx + arc.r * Math.cos(arc.endAngle),
+    y: arc.cy + arc.r * Math.sin(arc.endAngle),
+  };
+
+  // Nejbližší pár (konec úsečky, konec oblouku) = roh
+  const pairs = [
+    { lp: { x: line.x1, y: line.y1 }, ap: arcStartPt, lEnd: 'p1', aEnd: 'start', aAngle: arc.startAngle },
+    { lp: { x: line.x1, y: line.y1 }, ap: arcEndPt,   lEnd: 'p1', aEnd: 'end',   aAngle: arc.endAngle },
+    { lp: { x: line.x2, y: line.y2 }, ap: arcStartPt, lEnd: 'p2', aEnd: 'start', aAngle: arc.startAngle },
+    { lp: { x: line.x2, y: line.y2 }, ap: arcEndPt,   lEnd: 'p2', aEnd: 'end',   aAngle: arc.endAngle },
+  ].map(p => ({ ...p, d: Math.hypot(p.lp.x - p.ap.x, p.lp.y - p.ap.y) }))
+   .sort((a, b) => a.d - b.d);
+
+  const best = pairs[0];
+
+  // Směr od rohu pryč podél úsečky
+  const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+  const lineLen = Math.hypot(dx, dy);
+  if (lineLen < 1e-10) return { ok: false, msg: "Úsečka je příliš krátká" };
+  if (dist1 > lineLen + 1e-6) return { ok: false, msg: "Vzdálenost zkosení přesahuje délku úsečky" };
+
+  const sign = best.lEnd === 'p1' ? 1 : -1;
+  const n1x = sign * dx / lineLen, n1y = sign * dy / lineLen;
+  const cp1x = best.lp.x + n1x * dist1;
+  const cp1y = best.lp.y + n1y * dist1;
+
+  // Úhlová vzdálenost na oblouku odpovídající dist2
+  const dAngle = dist2 / arc.r;
+  const arcCCW = arc.ccw !== false;
+  let newArcAngle;
+  if (best.aEnd === 'start') {
+    // Roh je na začátku oblouku → jdeme DO oblouku
+    newArcAngle = arcCCW ? best.aAngle + dAngle : best.aAngle - dAngle;
+    arc.startAngle = newArcAngle;
+  } else {
+    // Roh je na konci oblouku → jdeme DO oblouku opačně
+    newArcAngle = arcCCW ? best.aAngle - dAngle : best.aAngle + dAngle;
+    arc.endAngle = newArcAngle;
+  }
+  const cp2x = arc.cx + arc.r * Math.cos(newArcAngle);
+  const cp2y = arc.cy + arc.r * Math.sin(newArcAngle);
+
+  // Ořez úsečky
+  if (best.lEnd === 'p1') { line.x1 = cp1x; line.y1 = cp1y; }
+  else                    { line.x2 = cp1x; line.y2 = cp1y; }
+
+  return {
+    ok: true,
+    line: { type: 'line', x1: cp1x, y1: cp1y, x2: cp2x, y2: cp2y },
+  };
+}
+
 // ── Bridge registrace ──
 bridge.calculateAllIntersections = () => calculateAllIntersections();
