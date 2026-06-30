@@ -149,10 +149,22 @@ function renumberLines(lines, start = 10, step = 10) {
 // z hlavičky vypíší jen řádky měnící stav stroje oproti stavu z předchozích
 // programů (opakované nastavení se vynechá), závěrečné M30 zůstává jen
 // u posledního programu a celý výsledek se na závěr přečísluje N10, N20…
+// Na každém přechodu mezi programy (kde se M30 vynechává) se před odjezdem
+// na bezpečnou polohu vypne vřeteno i chlazení a po výměně nástroje a
+// doplnění chybějící hlavičky dalšího programu se zase zapnou.
 function mergePrograms(items) {
   const state = {};
   const out = [];
   const isM30 = line => /^(N\d+\s*)?M30\b/i.test(line.replace(/;.*/, '').trim());
+  // Index posledního skutečného kódového řádku (přeskočí komentáře typu
+  // "; --- KONTURA (Pro referenci) ---" za posledním pohybem) – sem se
+  // vloží M5/M9 ještě před odjezd na bezpečnou polohu.
+  const lastCodeIndex = lines => {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].replace(/;.*/, '').trim()) return i;
+    }
+    return -1;
+  };
 
   items.forEach((item, idx) => {
     const isFirst = idx === 0;
@@ -170,12 +182,27 @@ function mergePrograms(items) {
       }
       const changed = keys.some(([k, v]) => state[k] !== v);
       if (isFirst || changed) {
+        // Před výměnou nástroje (M6) musí být STOPRE, jinak by se mohlo
+        // předzpracování bloků dostat dál, než stroj fyzicky vymění nástroj.
+        if (!isFirst && keys.some(([k]) => k === 'tool' || k === 'dcorr')) out.push('STOPRE');
         keys.forEach(([k, v]) => { state[k] = v; });
         out.push(line);
       }
     });
 
+    if (!isFirst) {
+      const dir = state.spdir || 'M3';
+      out.push(`${dir} ; ${M_CODES[dir.slice(1)] || 'Vřeteno ZAP'}`);
+      out.push('M8 ; Chlazení ZAP');
+    }
+
     const bodyLines = isLast ? body : body.filter(l => !isM30(l));
+    if (!isLast) {
+      const stopLines = ['M5 ; Vřeteno STOP', 'M9 ; Chlazení VYP'];
+      const ci = lastCodeIndex(bodyLines);
+      if (ci >= 0) bodyLines.splice(ci, 0, ...stopLines);
+      else bodyLines.push(...stopLines);
+    }
     bodyLines.forEach(line => out.push(line));
   });
 
