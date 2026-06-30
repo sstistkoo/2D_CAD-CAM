@@ -7,7 +7,7 @@ import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } fro
 import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
-import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI } from './ui.js';
+import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
 import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
 import { showNumericalInputDialog, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
 import { saveProject, showExportImageDialog, showProjectsDialog, showSaveAsDialog } from './storage.js';
@@ -536,6 +536,9 @@ document.addEventListener("keydown", (e) => {
     // U (dimension): pokud je výběr → okamžitě přidat kóty
     } else if (e.key.toLowerCase() === 'u' && !e.shiftKey && dimensionFromSelection()) {
       // kóty přidány přes výběr
+    // F/Y (filletChamfer): dialog nejdřív, pak aktivace nástroje
+    } else if ((e.key === 'f' || e.key === 'y') && !e.shiftKey) {
+      activateFilletChamfer();
     } else {
       setTool(shortcuts[e.key.toLowerCase()]);
     }

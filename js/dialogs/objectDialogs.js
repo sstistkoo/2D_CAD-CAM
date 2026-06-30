@@ -325,7 +325,7 @@ export function showFilletChamferDialog(callback) {
       </div>
       <div class="btn-row">
         <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
-        <button class="btn-ok" id="dlgFcOk">OK – klikněte na 2. úsečku</button>
+        <button class="btn-ok" id="dlgFcOk">OK</button>
       </div>
     </div>`);
 

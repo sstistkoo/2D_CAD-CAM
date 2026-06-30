@@ -16,6 +16,7 @@ import { openAIPanel } from './ai/aiPanel.js';
 import { getMeta, setMeta } from './idb.js';
 import { showEditObjectDialog, showMobileEditDialog } from './dialogs/mobileEdit.js';
 import { isAnchored, removeAnchorsForObject, cleanupOrphanAnchors } from './tools/anchorClick.js';
+import { showFilletChamferDialog } from './dialogs/objectDialogs.js';
 
 // ── Bridge registrace (rozbíjí cyklickou závislost geometry ↔ ui) ──
 bridge.updateProperties = () => updateProperties();
@@ -2284,8 +2285,12 @@ document.querySelectorAll("[data-tool]").forEach((btn) => {
     if (btn.dataset.tool === 'centerMark' && bridge.centerMarkFromSelection && bridge.centerMarkFromSelection()) return;
     // Škálování: pokud je výběr → okamžitě provést
     if (btn.dataset.tool === 'scale' && bridge.scaleFromSelection && bridge.scaleFromSelection()) return;
-    // Zaoblení/Zkosení sdružené: pokud je výběr → okamžitě provést
-    if (btn.dataset.tool === 'filletChamfer' && bridge.filletChamferFromSelection && bridge.filletChamferFromSelection()) return;
+    // Zaoblení/Zkosení sdružené: pokud je výběr → okamžitě provést, jinak dialog hned při kliku
+    if (btn.dataset.tool === 'filletChamfer') {
+      if (bridge.filletChamferFromSelection && bridge.filletChamferFromSelection()) return;
+      activateFilletChamfer();
+      return;
+    }
     // Zrcadlení: pokud je výběr → okamžitě provést
     if (btn.dataset.tool === 'mirror' && bridge.mirrorFromSelection && bridge.mirrorFromSelection()) return;
     // Otočení: pokud je výběr → okamžitě přepnout na rotate s výběrem
@@ -2373,6 +2378,23 @@ export function setTool(tool) {
   renderAll();
 }
 
+// ── Zaoblení / Zkosení – aktivace s dialogem ──
+/**
+ * Zobrazí dialog Zaoblení/Zkosení a po potvrzení aktivuje nástroj.
+ * Volá se z tlačítka i z klávesové zkratky F/Y.
+ */
+export function activateFilletChamfer() {
+  showFilletChamferDialog((mode, p1, p2) => {
+    state._fcMode = mode;
+    state._fcP1   = p1;
+    state._fcP2   = p2;
+    setTool('filletChamfer');
+    setHint(mode === 'fillet'
+      ? `Klikněte na roh nebo 1. úsečku (R${p1})`
+      : `Klikněte na roh nebo 1. úsečku (${p1}×${p2})`);
+  });
+}
+
 // ── Hinty ──
 /** @param {string} text */
 export function setHint(text) {
@@ -2402,7 +2424,7 @@ export function resetHint() {
     break: "Klepněte na objekt – rozdělí se v daném místě",
     centerMark: "Klepněte na kružnici/oblouk – přepne středovou značku",
     scale: "Klepněte na objekt – otevře dialog změny měřítka",
-    filletChamfer: "Klepněte na první úsečku – zaoblení nebo zkosení",
+    filletChamfer: "Klikněte na roh nebo na první úsečku – zaoblení nebo zkosení",
     mirror: "Vyberte objekty pro zrcadlení (Shift+M)",
     boolean: "Klikněte na první uzavřenou konturu",
     circularArray: "Klepněte na objekt pro kruhové pole",
