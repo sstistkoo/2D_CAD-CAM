@@ -2538,6 +2538,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Zanořování: podélné hrubování smí rampou (pod úhlem zanoření)
       // sjet i do kapes/zápichů v kontuře, ne jen do otevřeného řezu.
       plungeRoughing: false,
+      // Dobrat kapsu najednou: jakmile rampa narazí na kapsu, dobere ji
+      // celou (všechny zákroky ap po sobě), místo aby se dotahovala
+      // postupně spolu s hloubkou zbytku dílu. false = původní chování
+      // (postupné dotahování v dalších průchodech).
+      pocketFinishAtOnce: false,
       // Bez schodků: po dojezdu hrubovacího průchodu na offset nástroj
       // dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu,
       // místo okamžitého 45° odskoku — schody mezi kroky se obrobí
@@ -3805,8 +3810,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         const entry = li.length > 0
           ? { x: li[0].x1, z: li[0].z1 }
           : (pass.ramp ? { x: pass.ramp.x0, z: pass.ramp.z0 } : { x: pass.x, z: pass.zStart });
-        // Návrat na konturu z odskoku předchozího průchodu.
-        if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {
+        // Návrat na konturu z odskoku předchozího průchodu. Pasy uvnitř
+        // bursteu "dobrat kapsu najednou" (pocketBurst) se vrací na STEJNÝ
+        // bod kontury jako předchozí zákrok, ale z hloubky uvnitř kapsy —
+        // přímý G1 by mohl zařezávat do stěny, proto bezpečný přejezd
+        // (nad polotovar → přes Z → sjezd v X), stejný jako mezi pasy mimo
+        // kapsu.
+        if (pass.pocketBurst) {
+          safeRapidTo(entry.x, entry.z, true);
+        } else if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {
           simCounter += 1; addN(`G1 X${xDia(entry.x)} Z${entry.z.toFixed(3)} F${prms.feed}`, simCounter); setPos(entry.x, entry.z);
         }
         for (const seg of li) {
@@ -6408,6 +6420,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
       <span>Zanořování (kapsy/zápichy)</span>
     </div>`;
+    if (prms.plungeRoughing) {
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Když rampa narazí na kapsu, dobere ji celou najednou (všechny zákroky ap po sobě), než pokračuje zbytkem dílu. Mezi zákroky uvnitř kapsy nástroj bezpečně přejede nad polotovarem. Vypnuto = postupné dotahování spolu s hloubkou zbytku dílu (původní chování).">
+        <input type="checkbox" id="cam-sim-plunge-atonce" ${prms.pocketFinishAtOnce ? 'checked' : ''}>
+        <span>Dobrat kapsu najednou</span>
+      </div>`;
+    }
     const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
     const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
     const rawPlunge = prms.toolShape === 'polygon'
@@ -6614,6 +6632,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const plungeCb = tabBody.querySelector('#cam-sim-plunge');
     if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; fullUpdate(); });
+    const plungeAtOnceCb = tabBody.querySelector('#cam-sim-plunge-atonce');
+    if (plungeAtOnceCb) plungeAtOnceCb.addEventListener('change', () => { S.params.pocketFinishAtOnce = plungeAtOnceCb.checked; fullUpdate(); });
     const noStepCb = tabBody.querySelector('#cam-sim-nostep');
     if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; fullUpdate(); });
     const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');

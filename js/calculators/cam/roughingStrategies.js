@@ -283,6 +283,67 @@ export function genLongPasses(ctx) {
     return null;
   };
 
+  // ── Dobírání kapsy „najednou" (pocketFinishAtOnce) ──
+  // Když je zapnuté, kapsa se po nalezení dorampuje celá (všechny zákroky
+  // ap po sobě v rámci jednoho volání), místo aby se dotahovala postupně,
+  // jen jak na ni narazí hlavní smyčka hloubek X v dalších kolech. Zóny už
+  // takto dobrané se zapisují sem ({zHi,zLo,xFloor}) a blockedAt() je pro
+  // currentX ≥ xFloor považuje za otevřené — hlavní smyčka je tak při
+  // dalších (mělčích i hlubších) průchodech nezpracovává znovu.
+  const pocketDoneRanges = [];
+  const dzScan = 0.2;
+  const blockedAt = (X, z) => {
+    const offX = offsetXAt(z);
+    if (offX === null || offX <= X + 0.01) return false;
+    if (prms.pocketFinishAtOnce) {
+      for (const r of pocketDoneRanges) {
+        if (z <= r.zHi + 1e-6 && z >= r.zLo - 1e-6 && X >= r.xFloor - 1e-6) return false;
+      }
+    }
+    return true;
+  };
+  // Mezi otevřeným krokem (offset ≤ X) a zablokovaným (offset > X) najdi
+  // PŘESNÉ Z dotyku kontury (offset = X), aby průchod skončil rovnou na
+  // kontuře a nemusel pak zajíždět pod průměr ("dip") před navazujícím
+  // obloukem.
+  const refineEngageZ = (X, zOpen, zBlocked) => {
+    let hi = zOpen, lo = zBlocked;
+    for (let k = 0; k < 24; k++) {
+      const m = (hi + lo) / 2;
+      const x = offsetXAt(m);
+      // null = vzduch (nad čelní stěnou) → patří na otevřenou stranu (hi),
+      // aby dotyk konvergoval na první Z, kde kontura skutečně začíná.
+      if (x === null) { hi = m; continue; }
+      if (x > X + 1e-6) lo = m; else hi = m;
+    }
+    return hi;
+  };
+  // Skenem zprava doleva najde všechny volné intervaly (offset nepřekračuje
+  // X) v Z∈[zLoBound,zHiBound]. První interval (od pravé hrany polotovaru) =
+  // klasický otevřený vjezd. Každý další interval je kapsa za "bossem"
+  // kontury. Sdíleno hlavní smyčkou hloubek X i burstem dobírání kapsy
+  // najednou (níže).
+  const scanIntervals = (X, zHiBound, zLoBound) => {
+    const intervals = [];
+    let zScan = zHiBound;
+    let inRun = !blockedAt(X, zScan);
+    const firstOpen = inRun;
+    let runStartZ = zScan;
+    while (zScan > zLoBound + dzScan) {
+      zScan -= dzScan;
+      const blocked = blockedAt(X, zScan);
+      if (inRun && blocked) {
+        intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(X, zScan + dzScan, zScan), blocked: true });
+        inRun = false;
+      } else if (!inRun && !blocked) {
+        runStartZ = zScan;
+        inRun = true;
+      }
+    }
+    if (inRun) intervals.push({ zStart: runStartZ, zEnd: zLoBound, blocked: false });
+    return { intervals, firstOpen };
+  };
+
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -303,45 +364,7 @@ export function genLongPasses(ctx) {
     // Stock outline NEPROFILUJE řez (i kdyby měl casting přerušení /
     // dolíky uprostřed) — fyzický nástroj projíždí mezerou ve vzduchu
     // bez problému. Stopuje JEN kontura.
-    const dzScan = 0.2;
-    const blockedAt = (z) => {
-      const offX = offsetXAt(z);
-      return offX !== null && offX > currentX + 0.01;
-    };
-    // Mezi otevřeným krokem (offset ≤ currentX) a zablokovaným (offset >
-    // currentX) najdi PŘESNÉ Z dotyku kontury (offset = currentX), aby
-    // průchod skončil rovnou na kontuře a nemusel pak zajíždět pod
-    // průměr ("dip") před navazujícím obloukem.
-    const refineEngageZ = (zOpen, zBlocked) => {
-      let hi = zOpen, lo = zBlocked;
-      for (let k = 0; k < 24; k++) {
-        const m = (hi + lo) / 2;
-        const x = offsetXAt(m);
-        // null = vzduch (nad čelní stěnou) → patří na otevřenou stranu (hi),
-        // aby dotyk konvergoval na první Z, kde kontura skutečně začíná.
-        if (x === null) { hi = m; continue; }
-        if (x > currentX + 1e-6) lo = m; else hi = m;
-      }
-      return hi;
-    };
-    const intervals = [];
-    let zScan = effZMax;
-    let inRun = !blockedAt(zScan);
-    const firstOpen = inRun;
-    let runStartZ = zScan;
-    while (zScan > effZMin + dzScan) {
-      zScan -= dzScan;
-      const blocked = blockedAt(zScan);
-      if (inRun && blocked) {
-        // přesný dotyk kontury mezi posledním volným a prvním blok. krokem
-        intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(zScan + dzScan, zScan), blocked: true });
-        inRun = false;
-      } else if (!inRun && !blocked) {
-        runStartZ = zScan;
-        inRun = true;
-      }
-    }
-    if (inRun) intervals.push({ zStart: runStartZ, zEnd: effZMin, blocked: false });
+    const { intervals, firstOpen } = scanIntervals(currentX, effZMax, effZMin);
 
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
@@ -408,36 +431,93 @@ export function genLongPasses(ctx) {
       // (corner) a odtud rampa pod úhlem zanoření na currentX. Pokud se
       // rampa do plné cílové hloubky nevejde do dostupné šířky kapsy,
       // sjede aspoň tak hluboko, jak to jde (částečně), a zbytek
-      // dorampuje až příští hloubka.
-      const leadIn = traceOffsetPath(zGapHi, corner.z);
-      const dzRampFull = (corner.x - currentX) / effPlungeTanL;
-      const availWidth = corner.z - iv.zEnd;
-      const dzRamp = Math.min(dzRampFull, availWidth);
-      const xReached = corner.x - dzRamp * effPlungeTanL;
-      if (xReached > currentX + 0.001) plungeShallowed++;
-      const pocketPass = {
-        type: 'long', x: xReached,
-        zStart: corner.z - dzRamp, zEnd: iv.zEnd, blocked: iv.blocked,
-        contourLeadIn: leadIn, ramp: { x0: corner.x, z0: corner.z }
+      // dorampuje až příští hloubka (nebo, s pocketFinishAtOnce, hned v
+      // dalším kroku bursteu níže).
+      const buildPocketPass = (X, gapHi, ivLocal, cornerLocal) => {
+        const leadIn = traceOffsetPath(gapHi, cornerLocal.z);
+        const dzRampFull = (cornerLocal.x - X) / effPlungeTanL;
+        const availWidth = cornerLocal.z - ivLocal.zEnd;
+        const dzRamp = Math.min(dzRampFull, availWidth);
+        const xReached = cornerLocal.x - dzRamp * effPlungeTanL;
+        if (xReached > X + 0.001) plungeShallowed++;
+        const pocketPass = {
+          type: 'long', x: xReached,
+          zStart: cornerLocal.z - dzRamp, zEnd: ivLocal.zEnd, blocked: ivLocal.blocked,
+          contourLeadIn: leadIn, ramp: { x0: cornerLocal.x, z0: cornerLocal.z }
+        };
+        if (prms.noStepRoughing) {
+          // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
+          // až na hloubku dalšího průchodu (nebo až na konec kontury)
+          // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
+          const zExitOut = findPocketExitZ(ivLocal.zEnd, X, cylStockZ);
+          const leadOut = traceOffsetPath(ivLocal.zEnd, zExitOut);
+          if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
+        }
+        return { pocketPass, leadIn };
       };
-      if (prms.noStepRoughing) {
-        // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
-        // až na hloubku dalšího průchodu (nebo až na konec kontury)
-        // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
-        const zExitOut = findPocketExitZ(iv.zEnd, currentX, cylStockZ);
-        const leadOut = traceOffsetPath(iv.zEnd, zExitOut);
-        if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
-        // Navázání: předchozí (otevřený) průchod končí přesně v bodě,
-        // odkud začíná leadIn téhle kapsy → nesmí odskočit, plynule
-        // pokračuje po kontuře (G3) do kapsy.
+      // Navázání: předchozí (otevřený) průchod končí přesně v bodě, odkud
+      // začíná leadIn téhle kapsy → nesmí odskočit, plynule pokračuje po
+      // kontuře (G3) do kapsy.
+      const linkToPrev = (leadIn) => {
         const prevPass = passes[passes.length - 1];
         if (prevPass && prevPass.type === 'long' && !prevPass.contourLeadOut && leadIn.length > 0
             && Math.abs(prevPass.zEnd - leadIn[0].z1) < 0.05
             && Math.abs(prevPass.x - leadIn[0].x1) < step + 0.1) {
           prevPass.noRetract = true;
         }
+      };
+
+      if (!prms.pocketFinishAtOnce) {
+        const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner);
+        if (prms.noStepRoughing) linkToPrev(leadIn);
+        passes.push(pocketPass);
+        return;
       }
-      passes.push(pocketPass);
+
+      // Dobírání kapsy najednou: rampuje opakovaně hlouběji (krok ap),
+      // dokud boss mezi předchozím intervalem a touto kapsou na nově
+      // dosažené hloubce úplně neotevře (kontura tam klesne pod X), než
+      // se vrátí do hlavní smyčky hloubek X a pokračuje zbytkem dílu.
+      // U zakřivené stěny (oblouk) se "roh" (corner) i hranice mezery
+      // (gapHi/zStart) s hloubkou X postupně POSOUVAJÍ — proto se po
+      // KAŽDÉM zákroku zapisuje vlastní {zHi,zLo,xFloor} přesně pro tu
+      // hloubku a to její okno, místo jednoho konečného záznamu. Hlavní
+      // smyčka tak při návratu na STEJNÉ hloubky X (depths pole je
+      // společné, burst i hlavní smyčka stepují stejně) najde přesně se
+      // shodující okno a nezpracuje je znovu; jen tam, kde se sledování
+      // rohu mezi kroky ztratí (skok přes toleranci), hlavní smyčka
+      // korektně převezme zbytek jako nový, samostatný zákrok (bezpečný
+      // fallback — žádná mezera ani duplicitní řez).
+      let localX = currentX;
+      let curGapHi = zGapHi, curIv = iv, curCorner = corner;
+      let first = true;
+      let safety = 0;
+      const CORNER_TOL = 1.5;
+      while (safety++ < 500) {
+        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner);
+        if (first) { if (prms.noStepRoughing) linkToPrev(leadIn); }
+        else pocketPass.pocketBurst = true;
+        passes.push(pocketPass);
+        pocketDoneRanges.push({ zHi: curGapHi, zLo: curIv.zStart, xFloor: localX });
+        first = false;
+
+        localX -= step;
+        if (localX < minPartX - 0.005) break;
+        const rescan = scanIntervals(localX, effZMax, effZMin);
+        let nextIv = null, nextGapHi = null, nextCorner = null;
+        for (let j = 1; j < rescan.intervals.length; j++) {
+          const cIv = rescan.intervals[j];
+          if (!cIv.blocked) continue;
+          const cGapHi = rescan.intervals[j - 1].zEnd;
+          const cCorner = findPlungeCorner(cGapHi, cIv.zStart);
+          if (cCorner && Math.abs(cCorner.x - curCorner.x) < CORNER_TOL && Math.abs(cCorner.z - curCorner.z) < CORNER_TOL) {
+            nextIv = cIv; nextGapHi = cGapHi; nextCorner = cCorner;
+            break;
+          }
+        }
+        if (!nextIv) break; // boss už na nové hloubce není blokovaný (nebo se ztratilo sledování) — kapsa dobraná / zbytek převezme hlavní smyčka
+        curIv = nextIv; curGapHi = nextGapHi; curCorner = nextCorner;
+      }
     });
   }
   if (plungeShallowed > 0)
