@@ -7,9 +7,10 @@ import { makeOverlay } from '../dialogFactory.js';
 import { openCamSimulator } from './camSimulator.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
-const STORAGE_DATA = 'skica-cam-editor-data';
-const STORAGE_CFG  = 'skica-cam-editor-settings';
-const STORAGE_HDR  = 'skica-cam-editor-header';
+const STORAGE_DATA  = 'skica-cam-editor-data';
+const STORAGE_CFG   = 'skica-cam-editor-settings';
+const STORAGE_HDR   = 'skica-cam-editor-header';
+const STORAGE_MERGE = 'skica-cam-editor-merge-queue';
 
 // ── Potvrzení přepsání zastaralého kódu ──────────────────────────
 // Editor si drží svůj vlastní uložený program; pokud se mezitím
@@ -76,6 +77,109 @@ function storageSave(key, data) {
 }
 function storageLoad(key) {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+
+// ── Spojení více programů do jednoho ─────────────────────────
+// Rozdělí kód na "hlavičku" (úvodní nastavení stroje – rovina, G90/91,
+// nulový bod, posuv, otáčky, nástroj…) a "tělo" (vlastní dráhy). Hranice
+// se hledá primárně podle dělicího komentáře "; ---" (tímto stylem
+// generuje hlavičky CAM simulátor této appky); pokud žádný není, hlavička
+// končí prvním řádkem s G1/G2/G3 (řezný/kruhový pohyb).
+function splitHeaderBody(code) {
+  const lines = code.replace(/\r\n/g, '\n').split('\n');
+  const dividerIdx = lines.findIndex(l => /^\s*;\s*-{2,}/.test(l));
+  if (dividerIdx > 0) return { header: lines.slice(0, dividerIdx), body: lines.slice(dividerIdx) };
+  let i = 0;
+  while (i < lines.length && !/\bG[123]\b/.test(lines[i].replace(/^N\d+\s*/, '').replace(/;.*/, ''))) i++;
+  return { header: lines.slice(0, i), body: lines.slice(i) };
+}
+
+// Modální skupiny sledované při spojování – pro každý rozpoznaný kód
+// na řádku hlavičky vrátí dvojici [klíč, hodnota] použitou k porovnání
+// se stavem z předchozích programů.
+const HEADER_GROUP_PATTERNS = [
+  ['plane',    /\bG1[789]\b/],
+  ['absinc',   /\bG9[01]\b/],
+  ['coordsys', /\bG5[4-7]\b|\bG505\b|\bG53\b/],
+  ['feedmode', /\bG9[45]\b/],
+  ['spmode',   /\bG9[67]\b/],
+  ['lims',     /\bLIMS=([\d.]+)/i],
+  ['sval',     /\bS([\d.]+)\b/],
+  ['spdir',    /\bM[34]\b/],
+  ['coolant',  /\bM[89]\b/],
+  ['tool',     /\bT="?[^"\s]+"?|\bT\d+\b/],
+  ['dcorr',    /\bD\d+\b/],
+  ['diamode',  /\bDIAMOF\b|\bRADIUS\b/i],
+  ['g75x',     /\bG75\b.*\bX-?[\d.]+/i],
+  ['g75z',     /\bG75\b.*\bZ-?[\d.]+/i],
+  ['startpos', /^G0\s+(.+)$/i],
+];
+
+function classifyHeaderLine(line) {
+  const clean = line.replace(/^N\d+\s*/, '').replace(/;.*/, '').trim();
+  if (!clean) return [];
+  const out = [];
+  for (const [key, re] of HEADER_GROUP_PATTERNS) {
+    const m = clean.match(re);
+    if (m) out.push([key, m[1] !== undefined ? m[1] : m[0]]);
+  }
+  return out;
+}
+
+// Přečísluje N-bloky řádků (stejná logika jako menu akce "Přečíslovat
+// N-bloky" v editoru) – řádkům bez N-bloku ho přidá, komentáře a prázdné
+// řádky nechá beze změny.
+function renumberLines(lines, start = 10, step = 10) {
+  let n = start;
+  return lines.map(line => {
+    const t = line.trim();
+    if (!t || t.startsWith(';')) return line;
+    if (/^\s*N\d+/i.test(line)) {
+      line = line.replace(/^\s*N\d+/i, 'N' + n);
+      n += step;
+    } else if (/^[A-Z0-9]/i.test(t) && !t.toUpperCase().startsWith('MSG')) {
+      line = 'N' + n + ' ' + line;
+      n += step;
+    }
+    return line;
+  });
+}
+
+// Spojí pole {name, code} do jednoho programu: u druhého a dalších se
+// z hlavičky vypíší jen řádky měnící stav stroje oproti stavu z předchozích
+// programů (opakované nastavení se vynechá), závěrečné M30 zůstává jen
+// u posledního programu a celý výsledek se na závěr přečísluje N10, N20…
+function mergePrograms(items) {
+  const state = {};
+  const out = [];
+  const isM30 = line => /^(N\d+\s*)?M30\b/i.test(line.replace(/;.*/, '').trim());
+
+  items.forEach((item, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === items.length - 1;
+    const { header, body } = splitHeaderBody(item.code);
+
+    out.push(`; ===== ${item.name} =====`);
+
+    header.forEach(line => {
+      if (!line.trim()) return;
+      const keys = classifyHeaderLine(line);
+      if (!keys.length) {
+        if (isFirst) out.push(line);
+        return;
+      }
+      const changed = keys.some(([k, v]) => state[k] !== v);
+      if (isFirst || changed) {
+        keys.forEach(([k, v]) => { state[k] = v; });
+        out.push(line);
+      }
+    });
+
+    const bodyLines = isLast ? body : body.filter(l => !isM30(l));
+    bodyLines.forEach(line => out.push(line));
+  });
+
+  return renumberLines(out, 10, 10).join('\n');
 }
 
 function defaultParserConfig() {
@@ -316,12 +420,24 @@ function buildEditorHTML() {
   <div class="cne-main">
     <div class="cne-sidebar" data-el="sidebar">
       <div class="cne-sb-section">
-        <div class="cne-sb-title">Soubory</div>
-        <div class="cne-file-list" data-el="fileList"></div>
+        <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> Historie</div>
+        <div class="cne-sb-content">
+          <div class="cne-file-list" data-el="fileList"></div>
+        </div>
+      </div>
+      <div class="cne-sb-section collapsed">
+        <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> Spoj G-kód</div>
+        <div class="cne-sb-content">
+          <button class="cne-sb-btn" data-act="mergeLoad">📂 Načíst program</button>
+          <div class="cne-merge-list" data-el="mergeList"></div>
+          <button class="cne-sb-btn accent" data-act="mergeJoin" data-el="mergeJoinBtn" disabled>🔗 Spojit do jednoho</button>
+        </div>
       </div>
       <div class="cne-sb-section">
-        <div class="cne-sb-title">R-Parametry</div>
-        <div class="cne-param-list" data-el="paramList"></div>
+        <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> R-Parametry</div>
+        <div class="cne-sb-content">
+          <div class="cne-param-list" data-el="paramList"></div>
+        </div>
       </div>
     </div>
 
@@ -455,6 +571,7 @@ function buildEditorHTML() {
   </div>
 
   <input type="file" data-el="fileInput" style="display:none" accept=".txt,.mpf,.spf">
+  <input type="file" data-el="mergeFileInput" style="display:none" accept=".txt,.mpf,.spf" multiple>
 </div>`;
 }
 
@@ -474,6 +591,7 @@ export function openCamEditor(initialCode, jumpLine) {
   const parser   = new CNCParser();
   let coordMode = 'abs';            // aktuální režim souřadnic: 'abs' (G90) / 'inc' (G91)
   let codeBeforeRenum = '';
+  let mergeQueue = [];              // fronta {name, code} pro spojení do jednoho programu
 
   // Load persisted
   const sd = storageLoad(STORAGE_DATA);
@@ -485,6 +603,8 @@ export function openCamEditor(initialCode, jumpLine) {
   if (sc) parserCfg = { ...defaultParserConfig(), ...sc };
   const sh = storageLoad(STORAGE_HDR);
   if (sh) headerCfg = { ...defaultHeaderConfig(), ...sh };
+  const sm = storageLoad(STORAGE_MERGE);
+  if (Array.isArray(sm)) mergeQueue = sm;
 
   // ── Create overlay ─────────────────────────────────────────
   const overlay = makeOverlay('cam-editor', '🔄 CAM Editor', buildEditorHTML(), 'cnc-editor-window');
@@ -512,10 +632,14 @@ export function openCamEditor(initialCode, jumpLine) {
   const fileInput   = $('fileInput');
   const hdrModal    = $('hdrModal');
   const hdrList     = $('hdrList');
+  const mergeListEl = $('mergeList');
+  const mergeJoinBtn = $('mergeJoinBtn');
+  const mergeFileInput = $('mergeFileInput');
 
   // ── Persistence ────────────────────────────────────────────
   function persist() { storageSave(STORAGE_DATA, { programs, currentFile }); }
   function persistCfg() { storageSave(STORAGE_CFG, parserCfg); }
+  function persistMerge() { storageSave(STORAGE_MERGE, mergeQueue); }
 
   // ── File management ────────────────────────────────────────
   function ensureFile() {
@@ -580,6 +704,48 @@ export function openCamEditor(initialCode, jumpLine) {
     delete programs[currentFile];
     currentFile = nw;
     displayFile(nw);
+    persist();
+  }
+
+  // ── Spojení více programů do jednoho ────────────────────────
+  function renderMergeList() {
+    mergeListEl.innerHTML = mergeQueue.length
+      ? mergeQueue.map((p, i) => `
+        <div class="cne-mq">
+          <span class="cne-mq-name" title="${esc(p.name)}">${i + 1}. ${esc(p.name)}</span>
+          <div class="cne-mq-btns">
+            <button class="cne-mq-btn" data-mq-act="up" data-mq-i="${i}" title="Posunout nahoru" ${i === 0 ? 'disabled' : ''}>▲</button>
+            <button class="cne-mq-btn" data-mq-act="down" data-mq-i="${i}" title="Posunout dolů" ${i === mergeQueue.length - 1 ? 'disabled' : ''}>▼</button>
+            <button class="cne-mq-btn del" data-mq-act="del" data-mq-i="${i}" title="Odebrat">✕</button>
+          </div>
+        </div>`).join('')
+      : '<div class="cne-fi-empty">Žádné programy ve frontě</div>';
+    mergeJoinBtn.disabled = mergeQueue.length < 2;
+  }
+
+  function handleMergeLoad(ev) {
+    const files = Array.from(ev.target.files || []);
+    if (!files.length) return;
+    let pending = files.length;
+    files.forEach(f => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        mergeQueue.push({ name: f.name, code: reader.result });
+        if (--pending === 0) { renderMergeList(); persistMerge(); }
+      };
+      reader.readAsText(f);
+    });
+    mergeFileInput.value = '';
+  }
+
+  function joinMergeQueue() {
+    if (mergeQueue.length < 2) return;
+    const merged = mergePrograms(mergeQueue);
+    let n = 1;
+    while (programs[`SPOJENY_${n}.MPF`]) n++;
+    const nm = `SPOJENY_${n}.MPF`;
+    programs[nm] = merged;
+    displayFile(nm);
     persist();
   }
 
@@ -1089,21 +1255,7 @@ export function openCamEditor(initialCode, jumpLine) {
   // ── Renumbering ───────────────────────────────────────────
   function performRenumbering(start, step) {
     codeBeforeRenum = editor.value;
-    const lines = editor.value.split('\n');
-    let n = start;
-    const newLines = lines.map(line => {
-      const t = line.trim();
-      if (!t || t.startsWith(';')) return line;
-      if (/^\s*N\d+/i.test(line)) {
-        line = line.replace(/^\s*N\d+/i, 'N' + n);
-        n += step;
-      } else if (/^[A-Z0-9]/i.test(t) && !t.toUpperCase().startsWith('MSG')) {
-        line = 'N' + n + ' ' + line;
-        n += step;
-      }
-      return line;
-    });
-    editor.value = newLines.join('\n');
+    editor.value = renumberLines(editor.value.split('\n'), start, step).join('\n');
     onInput();
   }
 
@@ -1145,6 +1297,9 @@ export function openCamEditor(initialCode, jumpLine) {
     if (ab) {
       switch (ab.dataset.act) {
         case 'sidebar':   sidebarEl.classList.toggle('open'); break;
+        case 'toggleSection': ab.closest('.cne-sb-section').classList.toggle('collapsed'); break;
+        case 'mergeLoad': mergeFileInput.click(); break;
+        case 'mergeJoin': joinMergeQueue(); break;
         case 'new':       createNew(); closeMenu(); break;
         case 'download':  downloadFile(); closeMenu(); break;
         case 'import':    fileInput.click(); closeMenu(); break;
@@ -1221,6 +1376,18 @@ export function openCamEditor(initialCode, jumpLine) {
     if (dl) { deleteFile(dl.dataset.del); return; }
     const fi = e.target.closest('[data-file]');
     if (fi) { displayFile(fi.dataset.file); return; }
+    // Merge queue (spojení programů)
+    const mq = e.target.closest('[data-mq-act]');
+    if (mq) {
+      const i = parseInt(mq.dataset.mqI, 10);
+      const act = mq.dataset.mqAct;
+      if (act === 'del') mergeQueue.splice(i, 1);
+      else if (act === 'up' && i > 0) [mergeQueue[i - 1], mergeQueue[i]] = [mergeQueue[i], mergeQueue[i - 1]];
+      else if (act === 'down' && i < mergeQueue.length - 1) [mergeQueue[i + 1], mergeQueue[i]] = [mergeQueue[i], mergeQueue[i + 1]];
+      renderMergeList();
+      persistMerge();
+      return;
+    }
     // Validation row → jump
     const vr = e.target.closest('[data-ln]');
     if (vr) { valModal.style.display = 'none'; jumpToLine(parseInt(vr.dataset.ln)); return; }
@@ -1238,6 +1405,7 @@ export function openCamEditor(initialCode, jumpLine) {
   filenameLbl.addEventListener('click', renameFile);
   numInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmNumpad(); });
   fileInput.addEventListener('change', handleImport);
+  mergeFileInput.addEventListener('change', handleMergeLoad);
 
   // Close menu modal on click outside card
   $('menuModal').addEventListener('click', e => {
@@ -1288,6 +1456,7 @@ export function openCamEditor(initialCode, jumpLine) {
   }
 
   displayFile(currentFile);
+  renderMergeList();
 
   // Skok kurzoru na řádek odpovídající aktuální pozici v simulaci CAM
   if (typeof jumpLine === 'number' && jumpLine >= 0) {
