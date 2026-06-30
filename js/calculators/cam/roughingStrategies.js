@@ -292,10 +292,16 @@ export function genLongPasses(ctx) {
   // dalších (mělčích i hlubších) průchodech nezpracovává znovu.
   const pocketDoneRanges = [];
   const dzScan = 0.2;
-  const blockedAt = (X, z) => {
+  // raw=true obejde potlačení podle pocketDoneRanges — používá ho
+  // sledování VLASTNÍHO postupu uvnitř bursteu (najít DALŠÍ roh/stěnu TÉŽE
+  // kapsy), kde potřebujeme vidět SKUTEČNOU geometrii, ne vlastní dosud
+  // zapsané zóny. Potlačení je určené jen pro hlavní smyčku hloubek X
+  // (jiné/pozdější volání intervals.forEach), aby nezpracovávala znovu, co
+  // už burst obrobil.
+  const blockedAt = (X, z, raw) => {
     const offX = offsetXAt(z);
     if (offX === null || offX <= X + 0.01) return false;
-    if (prms.pocketFinishAtOnce) {
+    if (prms.pocketFinishAtOnce && !raw) {
       for (const r of pocketDoneRanges) {
         if (z <= r.zHi + 1e-6 && z >= r.zLo - 1e-6 && X >= r.xFloor - 1e-6) return false;
       }
@@ -322,16 +328,16 @@ export function genLongPasses(ctx) {
   // X) v Z∈[zLoBound,zHiBound]. První interval (od pravé hrany polotovaru) =
   // klasický otevřený vjezd. Každý další interval je kapsa za "bossem"
   // kontury. Sdíleno hlavní smyčkou hloubek X i burstem dobírání kapsy
-  // najednou (níže).
-  const scanIntervals = (X, zHiBound, zLoBound) => {
+  // najednou (níže). raw viz blockedAt().
+  const scanIntervals = (X, zHiBound, zLoBound, raw) => {
     const intervals = [];
     let zScan = zHiBound;
-    let inRun = !blockedAt(X, zScan);
+    let inRun = !blockedAt(X, zScan, raw);
     const firstOpen = inRun;
     let runStartZ = zScan;
     while (zScan > zLoBound + dzScan) {
       zScan -= dzScan;
-      const blocked = blockedAt(X, zScan);
+      const blocked = blockedAt(X, zScan, raw);
       if (inRun && blocked) {
         intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(X, zScan + dzScan, zScan), blocked: true });
         inRun = false;
@@ -433,8 +439,16 @@ export function genLongPasses(ctx) {
       // sjede aspoň tak hluboko, jak to jde (částečně), a zbytek
       // dorampuje až příští hloubka (nebo, s pocketFinishAtOnce, hned v
       // dalším kroku bursteu níže).
-      const buildPocketPass = (X, gapHi, ivLocal, cornerLocal) => {
-        const leadIn = traceOffsetPath(gapHi, cornerLocal.z);
+      // withLeadIn: false vynechá sledování kontury od gapHi (kus stěny
+      // PŘED kapsou, např. kužel) — používá se pro druhý a další zákrok
+      // bursteu (dobrat kapsu najednou), kde tahle stěna je už hotová z
+      // prvního zákroku a opakovat ji znovu by bylo zbytečné jezdění po
+      // už obrobeném povrchu. withLeadOut: false vynechá sledování druhé
+      // stěny kapsy ven (findPocketExitZ) — dráha tak zůstane omezená
+      // jen na samotnou kapsu, místo aby zajížděla za ni do navazujícího
+      // úseku kontury.
+      const buildPocketPass = (X, gapHi, ivLocal, cornerLocal, withLeadIn, withLeadOut) => {
+        const leadIn = withLeadIn ? traceOffsetPath(gapHi, cornerLocal.z) : [];
         const dzRampFull = (cornerLocal.x - X) / effPlungeTanL;
         const availWidth = cornerLocal.z - ivLocal.zEnd;
         const dzRamp = Math.min(dzRampFull, availWidth);
@@ -443,9 +457,10 @@ export function genLongPasses(ctx) {
         const pocketPass = {
           type: 'long', x: xReached,
           zStart: cornerLocal.z - dzRamp, zEnd: ivLocal.zEnd, blocked: ivLocal.blocked,
-          contourLeadIn: leadIn, ramp: { x0: cornerLocal.x, z0: cornerLocal.z }
+          ramp: { x0: cornerLocal.x, z0: cornerLocal.z }
         };
-        if (prms.noStepRoughing) {
+        if (leadIn.length > 0) pocketPass.contourLeadIn = leadIn;
+        if (withLeadOut && prms.noStepRoughing) {
           // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
           // až na hloubku dalšího průchodu (nebo až na konec kontury)
           // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
@@ -468,43 +483,60 @@ export function genLongPasses(ctx) {
       };
 
       if (!prms.pocketFinishAtOnce) {
-        const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner);
+        const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, true, true);
         if (prms.noStepRoughing) linkToPrev(leadIn);
         passes.push(pocketPass);
         return;
       }
 
-      // Dobírání kapsy najednou: rampuje opakovaně hlouběji (krok ap),
-      // dokud boss mezi předchozím intervalem a touto kapsou na nově
-      // dosažené hloubce úplně neotevře (kontura tam klesne pod X), než
-      // se vrátí do hlavní smyčky hloubek X a pokračuje zbytkem dílu.
-      // U zakřivené stěny (oblouk) se "roh" (corner) i hranice mezery
-      // (gapHi/zStart) s hloubkou X postupně POSOUVAJÍ — proto se po
-      // KAŽDÉM zákroku zapisuje vlastní {zHi,zLo,xFloor} přesně pro tu
-      // hloubku a to její okno, místo jednoho konečného záznamu. Hlavní
-      // smyčka tak při návratu na STEJNÉ hloubky X (depths pole je
-      // společné, burst i hlavní smyčka stepují stejně) najde přesně se
-      // shodující okno a nezpracuje je znovu; jen tam, kde se sledování
-      // rohu mezi kroky ztratí (skok přes toleranci), hlavní smyčka
+      // Dobírání kapsy najednou: po prvním zákroku (ten jediný sleduje
+      // konturu od gapHi dovnitř kapsy — nutný nájezd) se dál postupuje
+      // STEJNÝM krokem ap jako zbytek dílu, jen omezené na samotnou
+      // kapsu — žádné sledování kontury PŘED ani ZA kapsou u dalších
+      // zákroků, jen rampa + dno + návrat. Mezi zákroky se nástroj
+      // bezpečně přemístí (nad polotovar → přes Z → sjezd v X, řeší
+      // safeRapidTo v G-kód emisi pro pasy s pocketBurst). Opakuje se,
+      // dokud boss na nově dosažené hloubce úplně neotevře, než se
+      // vrátí do hlavní smyčky hloubek X a pokračuje zbytkem dílu.
+      // U zakřivené stěny (oblouk) se "roh" i hranice mezery (gapHi/
+      // zStart) s hloubkou X mírně posouvají — proto se po KAŽDÉM
+      // zákroku zapisuje vlastní {zHi,zLo,xFloor} podle SKUTEČNĚ
+      // dosažené hloubky (ne cíle — rampa mohla být omezená dostupnou
+      // šířkou a dosáhnout jen mělčeji; zápis cíle by hlavní smyčku
+      // falešně přesvědčil, že je hotovo i tam, kam se ve skutečnosti
+      // nedostala). Hlavní smyčka tak při návratu na STEJNÉ hloubky X
+      // nezpracovává totéž znovu; jen tam, kde se sledování rohu ztratí,
       // korektně převezme zbytek jako nový, samostatný zákrok (bezpečný
       // fallback — žádná mezera ani duplicitní řez).
       let localX = currentX;
       let curGapHi = zGapHi, curIv = iv, curCorner = corner;
       let first = true;
       let safety = 0;
+      let bestReached = Infinity, stallCount = 0;
       const CORNER_TOL = 1.5;
       while (safety++ < 500) {
-        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner);
+        // withLeadOut vždy false: dráha zůstává omezená na samotnou kapsu
+        // (rampa + dno), nezajíždí po kontuře za ni do navazujícího úseku.
+        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner, first, false);
         if (first) { if (prms.noStepRoughing) linkToPrev(leadIn); }
         else pocketPass.pocketBurst = true;
         passes.push(pocketPass);
-        pocketDoneRanges.push({ zHi: curGapHi, zLo: curIv.zStart, xFloor: localX });
+        pocketDoneRanges.push({ zHi: curGapHi, zLo: curIv.zStart, xFloor: pocketPass.x });
         first = false;
+
+        // Geometrický strop (úhel zanoření vs. dostupná šířka kapsy): pokud
+        // se hloubka mezi zákroky dál nezlepšuje, další kroky by jen
+        // donekonečna opakovaly stejný neúspěšný pokus — po pár
+        // neúspěšných pokusech vzdát a nechat zbytek (uvnitř
+        // finishAllowance) na dokončovací operaci.
+        if (pocketPass.x < bestReached - 0.01) { bestReached = pocketPass.x; stallCount = 0; }
+        else if (++stallCount >= 3) break;
 
         localX -= step;
         if (localX < minPartX - 0.005) break;
-        const rescan = scanIntervals(localX, effZMax, effZMin);
+        // Hledej pokračování TÉŽE kapsy na nové, hlubší X.
         let nextIv = null, nextGapHi = null, nextCorner = null;
+        const rescan = scanIntervals(localX, effZMax, effZMin, true);
         for (let j = 1; j < rescan.intervals.length; j++) {
           const cIv = rescan.intervals[j];
           if (!cIv.blocked) continue;
