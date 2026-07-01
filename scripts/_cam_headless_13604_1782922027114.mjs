@@ -1,20 +1,28 @@
+
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from "file:///C:/Users/stistko/CascadeProjects/2D_CAD-CAM/js/calculators/cam/camMath.js";
+import { ROUGHING_STRATEGIES } from "file:///C:/Users/stistko/CascadeProjects/2D_CAD-CAM/js/calculators/cam/roughingStrategies.js";
+const state = { flipX: false, flipZ: false };
+const makeOverlay = () => globalThis.document.body;
+const openCamEditor = () => {}, pushUndo = () => {}, showToast = () => {};
+const renderAll = () => {}, autoCenterView = () => {}, calculateAllIntersections = () => {}, updateObjectList = () => {}, persistSettings = () => {};
+const bulgeToArc = () => {}, showToolLibraryDialog = () => {}, openInsertCalc = () => {};
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  SKICA – CAM Simulátor (soustružení)                      ║
 // ║  Konverze SimDraha.html → vanilla JS ES module            ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { makeOverlay } from '../dialogFactory.js';
-import { openCamEditor } from './camEditor.js';
-import { state, pushUndo, showToast } from '../state.js';
-import { renderAll } from '../render.js';
-import { autoCenterView } from '../canvas.js';
-import { calculateAllIntersections } from '../geometry.js';
-import { updateObjectList, persistSettings } from '../ui.js';
-import { bulgeToArc } from '../utils.js';
-import { showToolLibraryDialog } from '../toolLibrary.js';
-import { openInsertCalc } from './insert.js';
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from './cam/camMath.js';
-import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ── Custom confirm dialog ──────────────────────────────────────
 function camConfirm(message) {
@@ -2689,6 +2697,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   };
 
   // Load from localStorage
+  if (globalThis.__CAM_CAPTURE__) { globalThis.__CAM_RESULT__ = { S, calculate, generateAutoGCode }; return; }
   const STORAGE_KEY = 'skica-cam-simulator';
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
