@@ -92,6 +92,17 @@ function _contourObjects() {
   );
 }
 
+// Degenerovaný (nulové délky) segment — typicky přízrak po operaci
+// Zaoblení/Zkosení (starý roh zůstane jako 0-délková úsečka místo smazání).
+// Stejná ochrana jako v CAM (camSimulator.js) před stavbou řetězu: takový
+// segment se nikam nenapojí (oba konce na stejném bodě) a chain-walk by ho
+// mylně vyhodnotil jako nesouvislý kus kontury.
+function _isDegenerate(seg) {
+  const eps = 1e-4;
+  if (seg.type === 'line') return Math.hypot(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y) < eps;
+  return seg.r < eps;
+}
+
 // Sestavení řetězce — propojení segmentů podle koncových bodů.
 // Bi-directional chain walking: rozšiřujeme z obou konců (head i tail),
 // aby chain robustně pohltil i kontury, kde se segmenty nejsou v state.objects
@@ -332,7 +343,7 @@ export function generateStockFromAllowance({ allowance, chamfer = 0, fillet = 0,
   // OČEKÁVANÉ a uzávěr k ose (caps níže) je dopočítá automaticky — nevyžadujeme
   // ruční uzavření kontury na ose. Blokujeme jen skutečně nesouvislé kusy
   // (víc než jeden řetěz), které by chain-walk nedokázal spojit do jedné dráhy.
-  const cadSegs = _objectsToSegments(objs).filter(s => !_isAxisLine(s));
+  const cadSegs = _objectsToSegments(objs).filter(s => !_isAxisLine(s) && !_isDegenerate(s));
   if (cadSegs.length === 0) {
     showToast('Konturu nelze sestavit z aktuálních objektů.');
     return { ok: false };

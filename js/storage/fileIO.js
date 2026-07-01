@@ -723,9 +723,22 @@ function runCncExport() {
       // by sort u kontury reorganizoval segmenty před úsečku mezi obloukama
       // a fileIO musel vkládat zbytečné G00 přejezdy → po round-tripu
       // se chain rozbil na duplikované úsečky.
-      const aSx = obj.cx + obj.r * Math.cos(obj.startAngle);
-      const aEx = obj.cx + obj.r * Math.cos(obj.endAngle);
-      target.push({ ...obj, name: seqLabel, _sortX: Math.max(aSx, aEx) });
+      let startAngle = obj.startAngle, endAngle = obj.endAngle;
+      let ccw = obj.ccw !== false;
+      const aSx = obj.cx + obj.r * Math.cos(startAngle);
+      const aEx = obj.cx + obj.r * Math.cos(endAngle);
+      // Orient right-to-left jako u úseček (viz výše) — oblouk může mít
+      // start/end uložené "pozpátku" vůči směru kontury (např. nakreslený
+      // druhou stranou nebo vzniklý zaoblením). Bez otočení emitor jede
+      // rychloposuvem ZPĚT na start (vlevo) a pak obloukem zase DOPŘEDU na
+      // bod, který už kontura navštívila → duplicitní G02/G03 a viditelná
+      // "obrácená" smyčka v CAMu. Otočení startAngle/endAngle + ccw uchová
+      // stejný fyzický oblouk, jen obrátí směr průjezdu.
+      if (!obj.isStock && aSx < aEx) {
+        [startAngle, endAngle] = [endAngle, startAngle];
+        ccw = !ccw;
+      }
+      target.push({ ...obj, name: seqLabel, startAngle, endAngle, ccw, _sortX: Math.max(aSx, aEx) });
     } else if (obj.type === 'rect') {
       let rx1 = obj.x1, ry1 = obj.y1, rx2 = obj.x2, ry2 = obj.y2;
       if (!obj.isStock && rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
