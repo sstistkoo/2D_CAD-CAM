@@ -18,6 +18,26 @@
 
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from './camMath.js';
 
+// Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
+// nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
+// průchodem. Segmenty drží x1/z1 (vyšší Z) → x2/z2 (nižší Z). Šikmé úseky se
+// nechávají (ty ořezal findLeadOutEndZ v ose Z); mění se pole na místě.
+function clipLeadOutToDepth(segs, maxX) {
+  const eps = 0.02;
+  const out = [];
+  for (const s of segs) {
+    if (s.type === 'line' && Math.abs(s.z1 - s.z2) < 1e-6) {
+      if (s.x1 > maxX + eps && s.x2 > maxX + eps) break;         // celé čelo za sousedem
+      if (s.x2 > maxX + eps && s.x2 > s.x1) { out.push({ ...s, x2: maxX }); break; } // ven přes souseda
+      out.push(s);
+    } else {
+      out.push(s);
+    }
+  }
+  segs.length = 0;
+  segs.push(...out);
+}
+
 // ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře).
 export function genFacePasses(ctx) {
   const { prms, sRad, stockFace, step, offsetPath, stockPathSegments, stockWorldPoints, worldPoints, passes, foundErrors, traceOffsetPath } = ctx;
@@ -388,9 +408,9 @@ export function genLongPasses(ctx) {
           // blok dobírání → potlačená), dojeď schod po obrysu k sousedním
           // zaberum (jinak na náběhovém kuželu zůstanou schody neobrobené).
           const livePocketAfter = intervals.length > 1 && nextIv && nextIv.blocked && !nextPocketDug;
+          const prevX = depthIdx > 0 ? depths[depthIdx - 1] : null;
           let zEndOut;
           if (!livePocketAfter) {
-            const prevX = depthIdx > 0 ? depths[depthIdx - 1] : null;
             zEndOut = findLeadOutEndZ(iv.zEnd, prevX, nextX, cylStockZ);
           } else {
             zEndOut = findOffsetXCrossing(iv.zEnd, nextX, cylStockZ);
@@ -406,6 +426,12 @@ export function genLongPasses(ctx) {
           // currentX (krátký "dip"). Průchod nesmí řezat pod svou hloubku —
           // sledování kontury začne až tam, kde se zvedne na currentX.
           while (leadOut.length > 0 && leadOut[0].x2 <= currentX + 0.02) leadOut.shift();
+          // „Bez schodků" smí obrobit schod jen k SOUSEDNÍ (mělčí) hloubce
+          // (prevX) — dál (X > prevX) je materiál už obroben mělčím průchodem.
+          // U šikmé kontury to řeší findLeadOutEndZ (v ose Z), ale VODOROVNÉ
+          // čelo (konstantní Z) vydá traceOffsetPath celé až k bossu → oříznout
+          // na prevX (jinak dojezd zbytečně přejede celé čelo ven až na buben).
+          if (prevX !== null && Number.isFinite(prevX)) clipLeadOutToDepth(leadOut, prevX);
           if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
         }
         passes.push(passObj);
@@ -581,7 +607,26 @@ export function genLongPasses(ctx) {
       // nulový oblouk (např. CR=8.5 přes 0,02 mm) a simulace by na něm
       // „zamrzla".
       const dropMicro = (segs) => segs.filter(s => Math.hypot(s.x2 - s.x1, s.z2 - s.z1) > 0.05);
-      const cleanLeadIn = dropMicro(traceOffsetPath(corner.z, pocketBottomZ));
+      // Horní část blízké stěny už obrobily zanořovací rampy (jedou po ní pod
+      // úhlem zanoření). Dokončovací průchod proto NEmusí sledovat stěnu od
+      // rohu (corner.z) — začne až tam, kam dosáhla poslední rampa
+      // (prevRampEnd), jen ODSKOČÍ ode dna a přisune se k tomu bodu, místo
+      // výjezdu nad boss a přejezdu přes už obrobenou stěnu. POJISTKA: jen
+      // když poslední rampa opravdu dosedla na stěnu (offset v tom Z ≈ dosažené
+      // X) — jinak by nad ní zůstal materiál a čistí se celá stěna od rohu.
+      let cleanStartZ = corner.z;
+      let cleanApproach = null;
+      if (prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
+        const wallXThere = offsetXAt(prevRampEnd.z);
+        if (wallXThere !== null && Math.abs(wallXThere - prevRampEnd.x) < 0.2) {
+          // Rampy dojely na stěnu — dokončení začne až u posledního zákroku
+          // (nebo rovnou na dně, když ho poslední rampa dosáhla) a navazuje
+          // odskokem, ne výjezdem nad boss.
+          cleanStartZ = Math.max(prevRampEnd.z, pocketBottomZ);
+          cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
+        }
+      }
+      const cleanLeadIn = dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ));
       const cleanLeadOut = dropMicro(traceOffsetPath(pocketBottomZ, exitZ));
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
@@ -590,6 +635,7 @@ export function genLongPasses(ctx) {
         };
         if (cleanLeadIn.length > 0) cleanPass.contourLeadIn = cleanLeadIn;
         if (cleanLeadOut.length > 0) cleanPass.contourLeadOut = cleanLeadOut;
+        if (cleanApproach) cleanPass.cleanApproach = cleanApproach;
         passes.push(cleanPass);
       }
 

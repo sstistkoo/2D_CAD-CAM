@@ -663,6 +663,33 @@ function segInterferesWithTool(seg, clearance) {
   }
   return false;
 }
+// Pro oblouk vrátí SOUVISLÝ podinterval úhlu {a0,a1} (v parametru oblouku,
+// tj. atan2(x−cx, z−cz), orientovaný start→end), kde špička destičky DOSÁHNE
+// (normála uvnitř úhlového rozsahu i s vůlí hřbetu). Vrací null, když nedosáhne
+// nikde. Slouží k oříznutí ČÁSTEČNĚ nedosažitelného oblouku — obrobí se
+// dosažitelná část místo zahození celého oblouku (jinak vypuklý roh, na který
+// špička dojede, zůstane bez dokončovací dráhy).
+function arcReachableSpan(seg, clearance) {
+  const { bisector, halfRange, clearRad = 0 } = clearance;
+  const tipLim = halfRange + clearRad + INSERT_REACH_TOL;
+  const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+  const isOuter = Math.abs(seg.cx) < midAbsX;
+  const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+  let endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+  if (seg.dir === 'G2' && endAngle > startAngle) endAngle -= 2 * Math.PI;
+  if (seg.dir === 'G3' && endAngle < startAngle) endAngle += 2 * Math.PI;
+  const steps = 64;
+  let a0 = null, a1 = null;
+  for (let s = 0; s <= steps; s++) {
+    const a = startAngle + (endAngle - startAngle) * (s / steps);
+    const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
+    const reachable = Math.abs(normalizeAngle(normAngle - bisector)) <= tipLim;
+    if (reachable) { if (a0 === null) a0 = a; a1 = a; }
+    else if (a0 !== null) break; // souvislý dosažitelný běh skončil
+  }
+  if (a0 === null) return null;
+  return { a0, a1, startAngle, endAngle };
+}
 // Test, jestli úsečka (p1→p2, reálné souřadnice X = rádius) protíná
 // segmenty offsetové dráhy — pro kontrolu bezpečnosti rychloposuvů.
 // Doteky v koncových bodech (najetí přesně na dráhu) se nepočítají.
@@ -3116,8 +3143,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       let finRaw = [];
       for (let i = 0; i < contourSegments.length; i++) {
         const seg = contourSegments[i];
-        const blocked = respectFin && segInterferesWithTool(seg, clearance);
+        let blocked = respectFin && segInterferesWithTool(seg, clearance);
         let finSeg = null;
+        let trailingBreak = false;   // nedosažitelný konec ZA obloukem → přerušit další segment
         if (seg.type === 'line') {
           const n = getNormal(seg.p1, seg.p2);
           finSeg = { type: 'line', p1: { x: seg.p1.x + n.x * tipR, z: seg.p1.z + n.z * tipR }, p2: { x: seg.p2.x + n.x * tipR, z: seg.p2.z + n.z * tipR } };
@@ -3140,6 +3168,41 @@ export function openCamSimulator(initialContour, initialGCode) {
           }
         }
         if (!finSeg) { pendingBreak = true; continue; }
+        // Částečně nedosažitelný oblouk: špička dojede po vrchol vypuklého rohu,
+        // ale ne až do navazující strmé stěny. Místo zahození CELÉHO oblouku ho
+        // ořízni na dosažitelnou část (obrobí se) a jako nedosažitelný označ jen
+        // konec/začátek za mezí (tečkovaně). Trim je vždy PODMNOŽINA dosažitelné
+        // zóny → nikdy nezajede (bezpečné).
+        if (blocked && finSeg.type === 'arc') {
+          const span = arcReachableSpan(seg, clearance);
+          if (span && (span.a1 - span.a0) > 0.03) {
+            const s0 = finSeg.startAngle, e0 = finSeg.endAngle;
+            // Cíp pod GAP (≈1°) je uvnitř tolerance špičky a končí u sousedního
+            // úseku/mostu — přimázne se k obrobené části, nezahazuje se zvlášť.
+            const GAP = 0.02;
+            const beforeGap = Math.abs(span.a0 - s0) > GAP;
+            const afterGap = Math.abs(span.a1 - e0) > GAP;
+            const a0use = beforeGap ? span.a0 : s0;
+            const a1use = afterGap ? span.a1 : e0;
+            const mkUnreach = (aA, aB) => ({
+              type: 'arc', cx: finSeg.cx, cz: finSeg.cz, r: finSeg.r, dir: finSeg.dir,
+              startAngle: aA, endAngle: aB,
+              refP1: { x: seg.cx + Math.sin(aA) * seg.r, z: seg.cz + Math.cos(aA) * seg.r },
+              refP2: { x: seg.cx + Math.sin(aB) * seg.r, z: seg.cz + Math.cos(aB) * seg.r },
+              unreachable: true,
+            });
+            if (beforeGap) { finishUnreachablePath.push(mkUnreach(s0, span.a0)); finSkipped++; }
+            if (afterGap) { finishUnreachablePath.push(mkUnreach(span.a1, e0)); finSkipped++; }
+            // Ořízni obráběný oblouk na dosažitelný podinterval (podmnožina
+            // dosažitelné zóny → nikdy nezajede).
+            finSeg.startAngle = a0use; finSeg.endAngle = a1use;
+            finSeg.refP1 = { x: seg.cx + Math.sin(a0use) * seg.r, z: seg.cz + Math.cos(a0use) * seg.r };
+            finSeg.refP2 = { x: seg.cx + Math.sin(a1use) * seg.r, z: seg.cz + Math.cos(a1use) * seg.r };
+            if (beforeGap) finSeg.chainBreak = true;   // od předchozího přes nedosažitelný začátek
+            if (afterGap) trailingBreak = true;         // další segment přes nedosažitelný konec
+            blocked = false;
+          }
+        }
         if (blocked) {
           // Nedosažitelný úsek: neobrábí se (přerušení dráhy), ale uchová
           // se pro tečkované vykreslení a jako překážka pro rychloposuvy.
@@ -3178,6 +3241,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         if ((seg.chainBreak || pendingBreak) && !seg.fromInsert) finSeg.chainBreak = true;
         pendingBreak = false;
         finRaw.push(finSeg);
+        // Oříznutý oblouk nechal za sebou nedosažitelný konec → další segment
+        // se k němu nesmí plynule napojit (přejezd G0 přes nedosažitelný kus).
+        if (trailingBreak) pendingBreak = true;
       }
       finishOffsetPath = dropTinyArcs(trimAndRemoveLoops(finRaw));
       // Sanitace: když je R nástroje větší než konkávní rádius kontury
@@ -3392,7 +3458,13 @@ export function openCamSimulator(initialContour, initialGCode) {
           // zahodilo (clipHi==clipLo), proto ho zařadíme zvlášť v jízdním
           // pořadí (p1→p2), pokud jeho Z leží v rozsahu [zLo, zHi].
           if (Math.abs(zA - zB) < 1e-6) {
-            if (zA <= zHi + 1e-6 && zA >= zLo - 1e-6)
+            // Uzavírací čelo protínající osu (jede k X≈0) NENÍ soustružnický
+            // schod — hrubovací dojezd (leadOut) ho nesmí přejíždět až na osu,
+            // jinak vznikne dlouhá radiální dráha přes celé čelo do středu
+            // (a odskok pak startuje z osy). Náběhové čelo se sleduje OPAČNĚ
+            // (od osy ven), to necháváme — dílo se u něj obrábí normálně.
+            const towardAxis = seg.p2.x < seg.p1.x - 1e-6 && seg.p2.x < 0.05;
+            if (!towardAxis && zA <= zHi + 1e-6 && zA >= zLo - 1e-6)
               out.push({ type: 'line', x1: seg.p1.x, z1: zA, x2: seg.p2.x, z2: zB });
             continue;
           }
@@ -3805,7 +3877,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     calc.passes.forEach((pass, i) => {
       addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (dokončení kapsy)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
-      if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp)) {
+      if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp || pass.pocketClean)) {
         // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
         // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
         // bodu, kde její sklon dosáhne úhlu zanoření, odtud rampa pod
@@ -3829,11 +3901,23 @@ export function openCamSimulator(initialContour, initialGCode) {
           if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
           simCounter += 1; addN(`G0 X${xDia(tgt.x)}`, simCounter); setPos(tgt.x, tgt.z);
         } else if (pass.pocketClean) {
-          // Dokončení kapsy: nájezd na začátek kontury (roh u náběhu) musí
-          // jít BEZPEČNĚ NAD bossem — z dna kapsy přímo nahoru by se řezalo
-          // skrz materiál. safeRapidTo zvedne v X nad konturu, přejede v Z a
-          // teprve pak sjede k rohu.
-          if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) safeRapidTo(entry.x, entry.z, true);
+          const needMove = Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6;
+          if (pass.cleanApproach && needMove) {
+            // Dokončení navazuje na poslední zanořovací zákrok: horní stěnu už
+            // obrobily rampy, takže se jen ODSKOČÍ ode dna, přejede v Z nad
+            // začátek nedobraného zbytku a přisune se k němu — žádný výjezd nad
+            // boss ani přejezd přes už obrobenou stěnu.
+            const odskokZ = clipZGc(cur.z + rDist);
+            simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
+            if (Math.abs(cur.z - entry.z) > 1e-6) { simCounter += 1; addN(`G0 Z${entry.z.toFixed(3)}`, simCounter); setPos(cur.x, entry.z); }
+            if (Math.abs(cur.x - entry.x) > 1e-6) { simCounter += 1; addN(`G0 X${xDia(entry.x)}`, simCounter); setPos(entry.x, entry.z); }
+          } else if (needMove) {
+            // Dokončení kapsy bez navázání: nájezd na začátek kontury (roh u
+            // náběhu) musí jít BEZPEČNĚ NAD bossem — z dna kapsy přímo nahoru
+            // by se řezalo skrz materiál. safeRapidTo zvedne v X nad konturu,
+            // přejede v Z a teprve pak sjede k rohu.
+            safeRapidTo(entry.x, entry.z, true);
+          }
         } else if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {
           // První zanoření kapsy: navázáno na předchozí otevřený řez
           // (noRetract → cur už je na entry). Když ne, bezpečný nájezd.
