@@ -194,6 +194,15 @@ export function findContourGaps() {
   return gaps;
 }
 
+// Segment ležící celý na ose rotace (cad_y ≈ 0 na obou koncích) reprezentuje
+// osu/podlahu polotovaru, ne skutečný povrch — offsetováním by se posunul na
+// špatnou stranu (pod osu). Uzávěr polotovaru k ose si generateStockFromAllowance
+// dopočítá sama (viz caps níže), takže takové úsečky z offsetu vynecháme.
+function _isAxisLine(seg) {
+  const tol = 0.01;
+  return seg.type === 'line' && Math.abs(seg.p1.y) < tol && Math.abs(seg.p2.y) < tol;
+}
+
 // ── Konverze CAD canvas ↔ CAM (z = cad_x, x = cad_y) ───────────
 function _cadSegmentsToCam(chain) {
   // Pro řetězení segmentů v CAM značení: line a arc segmenty s konvencí:
@@ -317,24 +326,30 @@ export function generateStockFromAllowance({ allowance, chamfer = 0, fillet = 0,
     showToast('Žádné objekty kontury — nejdřív nakreslete obrys.');
     return { ok: false };
   }
-  const cadSegs = _objectsToSegments(objs);
+  // Stejně jako CAM (dráhy/offset v camSimulator.js): kontura pro soustružení
+  // je jednostranný profil, ne uzavřený polygon. Volné konce, kde profil
+  // vychází/vrací se k ose rotace (typicky Z=0 čelo a konec obrobku), jsou
+  // OČEKÁVANÉ a uzávěr k ose (caps níže) je dopočítá automaticky — nevyžadujeme
+  // ruční uzavření kontury na ose. Blokujeme jen skutečně nesouvislé kusy
+  // (víc než jeden řetěz), které by chain-walk nedokázal spojit do jedné dráhy.
+  const cadSegs = _objectsToSegments(objs).filter(s => !_isAxisLine(s));
   if (cadSegs.length === 0) {
     showToast('Konturu nelze sestavit z aktuálních objektů.');
     return { ok: false };
   }
-  const gaps = findContourGaps();
-  if (gaps.length > 0) {
-    state.contourGaps = gaps;
-    renderAll();
-    showToast('Kontura má mezery — opravte vyznačená místa před generováním polotovaru.');
-    return { ok: false };
-  }
-  state.contourGaps = [];
-  const cadChain = _chainSegments(cadSegs);
+  const leftover = [];
+  const cadChain = _chainSegments(cadSegs, leftover);
   if (cadChain.length === 0) {
     showToast('Kontura není propojená.');
     return { ok: false };
   }
+  if (leftover.length > 0) {
+    state.contourGaps = findContourGaps();
+    renderAll();
+    showToast('Kontura má nesouvislé části — opravte vyznačená místa před generováním polotovaru.');
+    return { ok: false };
+  }
+  state.contourGaps = [];
   let camChain = _cadSegmentsToCam(cadChain);
 
   // Zajištění správné orientace (normála ven od osy y=0)
