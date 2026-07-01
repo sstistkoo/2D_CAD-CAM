@@ -920,28 +920,25 @@ function mergePocketGuides(segs, guides) {
   }
   return { result, consumed };
 }
-function buildMachinableContour(segs, guides) {
-  if (!guides || guides.length === 0) return segs;
-  // Nejdřív drážky/kapsy ohraničené dvojicí mezních čar (V), pak jednotlivé.
-  const pocket = mergePocketGuides(segs, guides);
-  let result = pocket.result;
-  // ── Horní obálka náběhových stínů ──
-  // 'zanoreni' čáry (spodní hrana destičky) jsou navzájem ROVNOBĚŽNÉ (stejný
-  // sklon = úhel spodní hrany). Když čára G leží celá ve stínu jiné G' (G' je
-  // nad G v jejich společném Z-rozsahu), generuje ji vrchol, který je sám
-  // zastíněný vyšším vrcholem → je nadbytečná. Bez potlačení by nižší čára
-  // (od hlubšího/čelního vrcholu) přemostila konturu POD vyšším vrcholem a
-  // uřízla ho (uživatel: „udělalo dráhy z bodu 8, i když bod 6 leží nad ním").
-  // Pocketem spárované čáry (drážky) se nepotlačují — řeší je mergePocketGuides.
+// ── Horní obálka náběhových stínů ──
+// 'zanoreni' čáry (spodní hrana destičky) jsou navzájem ROVNOBĚŽNÉ (stejný
+// sklon = úhel spodní hrany). Když čára G leží celá ve stínu jiné G' (G' je
+// nad G v jejich společném Z-rozsahu), generuje ji vrchol, který je sám
+// zastíněný vyšším vrcholem → je nadbytečná. Bez potlačení by nižší čára
+// (od hlubšího/čelního vrcholu) přemostila konturu POD vyšším vrcholem a
+// uřízla ho (uživatel: „udělalo dráhy z bodu 8, i když bod 6 leží nad ním").
+// Pocketem spárované čáry (drážky) se nepotlačují — řeší je mergePocketGuides.
+// Vrací Set indexů potlačených čar; potlačené navíc dostanou _dominated=true.
+function markDominatedGuides(guides, consumed) {
   const dominated = new Set();
   const gZLo = (g) => Math.min(g.z1, g.z2), gZHi = (g) => Math.max(g.z1, g.z2);
   const gXAtZ = (g, z) => Math.abs(g.z2 - g.z1) < 1e-9
     ? Math.max(g.x1, g.x2)
     : g.x1 + (g.x2 - g.x1) * (z - g.z1) / (g.z2 - g.z1);
   for (let i = 0; i < guides.length; i++) {
-    if (guides[i].kind !== 'zanoreni' || pocket.consumed.has(i)) continue;
+    if (guides[i].kind !== 'zanoreni' || consumed.has(i)) continue;
     for (let j = 0; j < guides.length; j++) {
-      if (j === i || guides[j].kind !== 'zanoreni' || pocket.consumed.has(j)) continue;
+      if (j === i || guides[j].kind !== 'zanoreni' || consumed.has(j)) continue;
       const lo = Math.max(gZLo(guides[i]), gZLo(guides[j]));
       const hi = Math.min(gZHi(guides[i]), gZHi(guides[j]));
       if (hi - lo < 0.1) continue; // bez překryvu v Z = jiná oblast dílce
@@ -953,6 +950,126 @@ function buildMachinableContour(segs, guides) {
       }
     }
   }
+  return dominated;
+}
+// Most mezi DVĚMA body ležícími na kontuře (A, B; lokace lA, lB z
+// _locateOnContour): vyřízne úsek kontury mezi nimi a nahradí ho přímým
+// mostem (fromInsert). Vrací novou konturu (nebo beze změny, když jsou body
+// prakticky totožné). Nemutuje vstup kromě případu splice na jedné entitě
+// (result je pracovní kopie z volajícího).
+function bridgeBetweenContourPoints(result, A, B, lA, lB) {
+  let f, s, fPt, sPt;
+  if (lA.key <= lB.key) { f = lA; fPt = A; s = lB; sPt = B; }
+  else { f = lB; fPt = B; s = lA; sPt = A; }
+  if (s.key - f.key < 1e-4) return result;
+  const bridge = { type: 'line', p1: fPt, p2: sPt, fromInsert: true };
+  if (f.segIdx === s.segIdx) {
+    // Oba konce na jedné entitě → rozdělit: [start..fPt] + most + [sPt..end].
+    const seg = result[f.segIdx];
+    const head = { ...seg }; setSegEnd(head, fPt); syncArcEndpoints(head);
+    const tail = { ...seg }; setSegStart(tail, sPt); syncArcEndpoints(tail); delete tail.chainBreak;
+    result.splice(f.segIdx, 1, head, bridge, tail);
+    return result;
+  }
+  const before = result.slice(0, f.segIdx + 1).map(x => ({ ...x }));
+  setSegEnd(before[before.length - 1], fPt); syncArcEndpoints(before[before.length - 1]);
+  const after = result.slice(s.segIdx).map(x => ({ ...x }));
+  setSegStart(after[0], sPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
+  return [...before, bridge, ...after];
+}
+// Most z JEDNOHO bodu na kontuře (loc) k druhému konci MIMO konturu (na
+// polotovaru). Tři topologie mezní čáry:
+//   • downOnStock (ČELNÍ čára u kraje): zahodí nedosažitelné čelo za kotvou a
+//     zakončí konturu podél mezní čáry k hraně polotovaru;
+//   • NÁBĚHOVÝ STÍN (off míří hluboko do polotovaru, kotva na vnitřním vrcholu):
+//     úsek kontury ve stínu destičky se nahradí jedním mostem podél čáry;
+//   • PRODLOUŽENÍ K OKRAJI (kotva na krajní entitě): kontura se protáhne k off.
+// Vrací novou konturu; při čáře, která nesedí na žádný případ, vrací beze změny.
+function bridgeFromContourToStock(result, g, A, B, lA, lB) {
+  const loc = lA || lB, locPt = lA ? A : B, offPt = lA ? B : A;
+  // ── ČELNÍ mezní čára (downOnStock) ──
+  // Kotví na rohu čela u KRAJE kontury a míří k hraně polotovaru. Segment čela
+  // za kotvou (k ose) je nedosažitelný — zahodí se a kontura se zakončí podél
+  // mezní čáry. Kotva u KONCE: ponech [start..kotva] + most k offPt; u ZAČÁTKU
+  // zrcadlově. Kotva uvnitř kontury → jen vizualizace (beze změny).
+  if (g.downOnStock) {
+    // _locateOnContour vrací key = segIdx + t (t≈0 začátek entity, ≈1 konec).
+    const tPos = loc.key - loc.segIdx;
+    const atEnd = tPos > 0.5;
+    // cut = index PRVNÍHO segmentu ZA kotvou (na straně zahozeného čela).
+    const cut = atEnd ? loc.segIdx + 1 : loc.segIdx;
+    const nearEnd = loc.segIdx >= result.length - 2;
+    const nearStart = loc.segIdx <= 1;
+    if (nearEnd) {
+      const before = result.slice(0, cut).map(x => ({ ...x }));
+      if (before.length) {
+        if (atEnd) { setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]); }
+        return [...before, { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true }];
+      }
+    } else if (nearStart) {
+      const after = result.slice(cut).map(x => ({ ...x }));
+      if (after.length) {
+        if (!atEnd) { setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak; }
+        return [{ type: 'line', p1: { ...offPt }, p2: { ...locPt }, fromInsert: true }, ...after];
+      }
+    }
+    return result;
+  }
+  const startPt = segStartPoint(result[0]);
+  const endPt = segEndPoint(result[result.length - 1]);
+  const dStart = Math.hypot(offPt.x - startPt.x, offPt.z - startPt.z);
+  const dEnd = Math.hypot(offPt.x - endPt.x, offPt.z - endPt.z);
+  if (Math.min(dStart, dEnd) > 5) {
+    // ── Náběhový stín destičky ──
+    // Off konec míří hluboko do POLOTOVARU a loc kotví na vnitřním vrcholu.
+    // Zanořovací čára říká, že úsek kontury od loc dál je ve STÍNU destičky
+    // (jede shora, dojede jen k čáře) → nahradí se jedním mostem podél čáry;
+    // zbytek kontury hlubší než off (upínací oblast) zůstane.
+    if (g.kind !== 'zanoreni' || offPt.x < locPt.x + 0.5) return result;
+    const ci = loc.at === 'start' ? loc.segIdx : loc.segIdx + 1;
+    if (ci >= result.length) return result;
+    const dxL = offPt.x - locPt.x, dzL = offPt.z - locPt.z;
+    const lineXAtZ = (z) => Math.abs(dzL) < 1e-9 ? locPt.x : locPt.x + dxL * ((z - locPt.z) / dzL);
+    // Konec stínu = první segment začínající hlouběji než off (Z ≤ off.z).
+    // Cestou ověřit, že je celý stín POD čarou (jinak by most zajel do
+    // vystupujícího prvku → přeskočit).
+    let keepFrom = -1, ok = true;
+    for (let k = ci; k < result.length; k++) {
+      const sp = segStartPoint(result[k]), ep = segEndPoint(result[k]);
+      if (sp.z <= offPt.z + 1e-6) { keepFrom = k; break; }
+      const cap = Math.max(ep.z, offPt.z);
+      if (sp.x > lineXAtZ(sp.z) + 0.3 || ep.x > lineXAtZ(cap) + 0.3) { ok = false; break; }
+    }
+    if (!ok) return result;
+    const before = result.slice(0, ci).map(x => ({ ...x }));
+    const bridge = { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true };
+    if (keepFrom === -1) return [...before, bridge];
+    const tail = result.slice(keepFrom).map(x => ({ ...x }));
+    const connector = { type: 'line', p1: { ...offPt }, p2: segStartPoint(tail[0]), fromInsert: true };
+    delete tail[0].chainBreak;
+    return [...before, bridge, connector, ...tail];
+  }
+  // ── Prodloužení k okraji ── smí navazovat JEN na krajní entitu kontury.
+  // Když loc leží uvnitř kontury (např. spodní konec dopadl paprskem na osu
+  // odlitku X=0), tahle větev by smazala celý „ocas" kontury → přeskočit.
+  const extendStart = dStart <= dEnd;
+  if (extendStart ? loc.segIdx !== 0 : loc.segIdx !== result.length - 1) return result;
+  if (extendStart) {
+    const after = result.slice(loc.segIdx).map(x => ({ ...x }));
+    setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
+    return [{ type: 'line', p1: offPt, p2: locPt, fromInsert: true }, ...after];
+  }
+  const before = result.slice(0, loc.segIdx + 1).map(x => ({ ...x }));
+  setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]);
+  return [...before, { type: 'line', p1: locPt, p2: offPt, fromInsert: true }];
+}
+function buildMachinableContour(segs, guides) {
+  if (!guides || guides.length === 0) return segs;
+  // Nejdřív drážky/kapsy ohraničené dvojicí mezních čar (V), pak jednotlivé.
+  const pocket = mergePocketGuides(segs, guides);
+  let result = pocket.result;
+  // Potlačit náběhové čáry ležící ve stínu vyšší (rovnoběžné) čáry.
+  const dominated = markDominatedGuides(guides, pocket.consumed);
   for (let gi = 0; gi < guides.length; gi++) {
     if (pocket.consumed.has(gi) || dominated.has(gi)) continue;
     const g = guides[gi];
@@ -961,122 +1078,11 @@ function buildMachinableContour(segs, guides) {
     const lA = _locateOnContour(result, A), lB = _locateOnContour(result, B);
     if (lA && lB) {
       // Oba konce na kontuře → vyříznout úsek mezi nimi a nahradit mostem.
-      let f, s, fPt, sPt;
-      if (lA.key <= lB.key) { f = lA; fPt = A; s = lB; sPt = B; }
-      else { f = lB; fPt = B; s = lA; sPt = A; }
-      if (s.key - f.key < 1e-4) continue;
-      const bridge = { type: 'line', p1: fPt, p2: sPt, fromInsert: true };
-      if (f.segIdx === s.segIdx) {
-        // Oba konce na jedné entitě → rozdělit: [start..fPt] + most + [sPt..end].
-        const seg = result[f.segIdx];
-        const head = { ...seg }; setSegEnd(head, fPt); syncArcEndpoints(head);
-        const tail = { ...seg }; setSegStart(tail, sPt); syncArcEndpoints(tail); delete tail.chainBreak;
-        result.splice(f.segIdx, 1, head, bridge, tail);
-      } else {
-        const before = result.slice(0, f.segIdx + 1).map(x => ({ ...x }));
-        setSegEnd(before[before.length - 1], fPt); syncArcEndpoints(before[before.length - 1]);
-        const after = result.slice(s.segIdx).map(x => ({ ...x }));
-        setSegStart(after[0], sPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
-        result = [...before, bridge, ...after];
-      }
+      result = bridgeBetweenContourPoints(result, A, B, lA, lB);
     } else if (lA || lB) {
-      // Jeden konec mostu leží MIMO konturu (na polotovaru) — typicky čelo
-      // na začátku/konci kontury (mezní čára míří k ose/okraji materiálu).
-      // Most prodlouží konturu na tomto okraji k tomu bodu.
-      const loc = lA || lB, locPt = lA ? A : B, offPt = lA ? B : A;
-      // ── ČELNÍ mezní čára (downOnStock) ──
-      // Kotví na rohu čela u KRAJE kontury a míří k hraně polotovaru. Segment
-      // čela za kotvou (k ose) je nedosažitelný (proto tu čára vznikla) — zahodí
-      // se a kontura se zakončí podél mezní čáry. Tím dráhy přestanou zajíždět
-      // za kus. Kotva u KONCE: loc na poslední/předposlední entitě (konec) →
-      // ponech [start..kotva] + most k offPt. Kotva u ZAČÁTKU zrcadlově.
-      if (g.downOnStock) {
-        // _locateOnContour vrací key = segIdx + t (t≈0 začátek entity, ≈1 konec).
-        const tPos = loc.key - loc.segIdx;
-        const atEnd = tPos > 0.5;
-        // cut = index PRVNÍHO segmentu ZA kotvou (na straně zahozeného čela).
-        const cut = atEnd ? loc.segIdx + 1 : loc.segIdx;
-        const nearEnd = loc.segIdx >= result.length - 2;   // kotva u KONCE kontury
-        const nearStart = loc.segIdx <= 1;                 // kotva u ZAČÁTKU kontury
-        if (nearEnd) {
-          // Ponech [start..kotva], zahoď nedosažitelné čelo za kotvou, zakonči
-          // most k hraně polotovaru (offPt).
-          const before = result.slice(0, cut).map(x => ({ ...x }));
-          if (before.length) {
-            if (atEnd) { setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]); }
-            result = [...before, { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true }];
-          }
-        } else if (nearStart) {
-          const after = result.slice(cut).map(x => ({ ...x }));
-          if (after.length) {
-            if (!atEnd) { setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak; }
-            result = [{ type: 'line', p1: { ...offPt }, p2: { ...locPt }, fromInsert: true }, ...after];
-          }
-        }
-        // Kotva uvnitř kontury → jen vizualizace, konturu neměnit.
-        continue;
-      }
-      const startPt = segStartPoint(result[0]);
-      const endPt = segEndPoint(result[result.length - 1]);
-      const dStart = Math.hypot(offPt.x - startPt.x, offPt.z - startPt.z);
-      const dEnd = Math.hypot(offPt.x - endPt.x, offPt.z - endPt.z);
-      if (Math.min(dStart, dEnd) > 5) {
-        // ── Náběhový stín destičky ──
-        // Off konec mezní čáry míří hluboko do POLOTOVARU (ne k okraji kontury)
-        // a loc kotví na vnitřním vrcholu. Zanořovací (spodní hrana) čára tím
-        // říká, že celý úsek kontury od loc dál je ve STÍNU destičky — ta jede
-        // shora a dojede jen k té čáře; vnitřní prvky (drážka apod.) jsou
-        // nedosažitelné. Stín se nahradí JEDNÍM mostem podél čáry (od loc k off);
-        // zbytek kontury hlubší než off (upínací oblast) zůstane. Bez toho zůstane
-        // stín reálnou konturou a hlídání geometrie/dokončování se počítá z
-        // vnitřních prvků místo od náběhu (čára by „začínala" až u nich).
-        if (g.kind !== 'zanoreni' || offPt.x < locPt.x + 0.5) continue;
-        const ci = loc.at === 'start' ? loc.segIdx : loc.segIdx + 1;
-        if (ci >= result.length) continue;
-        const dxL = offPt.x - locPt.x, dzL = offPt.z - locPt.z;
-        const lineXAtZ = (z) => Math.abs(dzL) < 1e-9 ? locPt.x : locPt.x + dxL * ((z - locPt.z) / dzL);
-        // Konec stínu = první segment začínající hlouběji než off (Z ≤ off.z) →
-        // od něj se kontura ponechá. Cestou ověřit, že je celý stín POD čarou
-        // (jinak by most zajel do vystupujícího prvku → přeskočit).
-        let keepFrom = -1, ok = true;
-        for (let k = ci; k < result.length; k++) {
-          const sp = segStartPoint(result[k]), ep = segEndPoint(result[k]);
-          if (sp.z <= offPt.z + 1e-6) { keepFrom = k; break; }
-          const cap = Math.max(ep.z, offPt.z);
-          if (sp.x > lineXAtZ(sp.z) + 0.3 || ep.x > lineXAtZ(cap) + 0.3) { ok = false; break; }
-        }
-        if (!ok) continue;
-        const before = result.slice(0, ci).map(x => ({ ...x }));
-        const bridge = { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true };
-        if (keepFrom === -1) {
-          result = [...before, bridge];
-        } else {
-          const tail = result.slice(keepFrom).map(x => ({ ...x }));
-          const connector = { type: 'line', p1: { ...offPt }, p2: segStartPoint(tail[0]), fromInsert: true };
-          delete tail[0].chainBreak;
-          result = [...before, bridge, connector, ...tail];
-        }
-        continue;
-      }
-      // Prodloužení k okraji smí navazovat JEN na krajní entitu kontury.
-      // Když dotykový bod (loc) leží uvnitř kontury (např. mezní čára, jejíž
-      // spodní konec paprskem dopadl na osu odlitku X=0), tahle větev by
-      // jinak smazala celý "ocas" kontury za loc (čelo/osazení) a nahradila
-      // ho mostem k ose → hrubý zához do dílce. Misaplikovanou čáru raději
-      // přeskočit (most se neudělá; geometrie zůstane úplná, žádný zához).
-      const extendStart = dStart <= dEnd;
-      if (extendStart ? loc.segIdx !== 0 : loc.segIdx !== result.length - 1) continue;
-      if (extendStart) {
-        // Prodloužení na ZAČÁTKU: nový start = offPt, most offPt→locPt.
-        const after = result.slice(loc.segIdx).map(x => ({ ...x }));
-        setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
-        result = [{ type: 'line', p1: offPt, p2: locPt, fromInsert: true }, ...after];
-      } else {
-        // Prodloužení na KONCI: nový konec = offPt, most locPt→offPt.
-        const before = result.slice(0, loc.segIdx + 1).map(x => ({ ...x }));
-        setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]);
-        result = [...before, { type: 'line', p1: locPt, p2: offPt, fromInsert: true }];
-      }
+      // Jeden konec mostu leží MIMO konturu (na polotovaru) — čelní zakončení,
+      // náběhový stín, nebo prodloužení k okraji (viz bridgeFromContourToStock).
+      result = bridgeFromContourToStock(result, g, A, B, lA, lB);
     }
   }
   // Odstranit nulové úsečky, které vzniknou split-em mostu PŘESNĚ na styku
