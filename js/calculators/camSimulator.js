@@ -1026,7 +1026,10 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     // (jede shora, dojede jen k čáře) → nahradí se jedním mostem podél čáry;
     // zbytek kontury hlubší než off (upínací oblast) zůstane.
     if (g.kind !== 'zanoreni' || offPt.x < locPt.x + 0.5) return result;
-    const ci = loc.at === 'start' ? loc.segIdx : loc.segIdx + 1;
+    // ci = první segment ZA kotvou. _locateOnContour vrací key = segIdx + t
+    // (t≈0 začátek entity, ≈1 konec) — pozn.: NEmá pole `at`. Kotva na konci
+    // entity (t≥0.5) → stín začíná až další entitou; na začátku → touto.
+    const ci = (loc.key - loc.segIdx) < 0.5 ? loc.segIdx : loc.segIdx + 1;
     if (ci >= result.length) return result;
     const dxL = offPt.x - locPt.x, dzL = offPt.z - locPt.z;
     const lineXAtZ = (z) => Math.abs(dzL) < 1e-9 ? locPt.x : locPt.x + dxL * ((z - locPt.z) / dzL);
