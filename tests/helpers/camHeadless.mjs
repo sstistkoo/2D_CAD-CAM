@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
+import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..', '..');
@@ -90,7 +91,10 @@ const bulgeToArc = () => {}, showToolLibraryDialog = () => {}, openInsertCalc = 
   src = src.replace(anchor,
     "if (globalThis.__CAM_CAPTURE__) { globalThis.__CAM_RESULT__ = { S, calculate, generateAutoGCode }; return; }\n  " + anchor);
 
-  const tmpPath = join(root, 'scripts', `_cam_headless_${process.pid}_${Date.now()}.mjs`);
+  // Temp modul do OS temp dir (ne do repa) — prelude nahrazuje relativní
+  // importy absolutními file:// URL, takže na umístění nezáleží; přerušený běh
+  // pak nezanechá smetí ve scripts/.
+  const tmpPath = join(tmpdir(), `_cam_headless_${process.pid}_${Date.now()}.mjs`);
   writeFileSync(tmpPath, prelude + src);
   try {
     const H = await import(pathToFileURL(tmpPath).href);

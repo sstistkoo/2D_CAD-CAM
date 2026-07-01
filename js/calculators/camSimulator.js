@@ -3673,7 +3673,14 @@ export function openCamSimulator(initialContour, initialGCode) {
             // začátek rampy (zS).
             if (zS - zE < -EPS) { droppedCount++; continue; }
             zE = Math.min(zE, zS);
-          } else if (zS - zE < EPS) { droppedCount++; continue; }
+          } else if (zS - zE < EPS) {
+            // Dokončovací průchod kapsy (pocketClean) i jiné „lead-only" pasy
+            // mají nulovou šířku zStart→zEnd — jejich řez je v contourLeadIn/Out
+            // (sledování offsetu kolem kapsy). Nezahazovat kvůli nulové šířce,
+            // jinak zmizí dobrání schodků v kapse (leady sledují konturu uvnitř
+            // dílu, tj. v mezích čelistí/koníku). Bez leadů = opravdu prázdný.
+            if (!pass.contourLeadIn && !pass.contourLeadOut) { droppedCount++; continue; }
+          }
           if (zS !== origZS || zE !== origZE) clampedCount++;
           clamped.push({ ...pass, zStart: zS, zEnd: zE });
         } else if (pass.type === 'face') {
