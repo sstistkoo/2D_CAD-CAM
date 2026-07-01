@@ -1245,11 +1245,20 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
         }
       });
       if (!best) return;
-      // Dolní konec: průsečík s konturou/polotovarem. NEvynecháváme
-      // segmenty skupiny — nájezdový tečný bod často leží právě na nich
-      // (boční oblouček u nájezdu), takže s exclude paprsek konturu mine
-      // a čára zůstane krátká. Bez exclude trefí skutečnou hranu.
-      let down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalcDown);
+      // Dolní konec: PRIMÁRNĚ průsečík s KONTUROU. Mezní čára by měla končit
+      // na kontuře, aby ji buildMachinableContour přemostil. Když ale pod
+      // dotykem žádná kontura není (typicky u kraje dílu, kde za polotovarem
+      // už nic není), skončí čára na hraně POLOTOVARU — a označí se
+      // downOnStock, aby se BRALA jen jako VIZUALIZACE (nepřemosťuje konturu,
+      // takže se dráhy nemění, ale uživatel čáru vidí až k hraně materiálu).
+      // NEvynecháváme segmenty skupiny — nájezdový tečný bod často leží právě
+      // na nich (boční oblouček u nájezdu), takže s exclude paprsek konturu mine.
+      let downOnStock = false;
+      let down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalc);
+      if (!down) {
+        down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalcDown);
+        if (down) downOnStock = true;
+      }
       // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ čelo
       // (z = −délka), což nejsou řezné plochy. Paprsek dolů na ně může dopadnout
       // a mezní čára se protáhne až k ose / pod konec dílce (vizuálně „jde do
@@ -1284,7 +1293,7 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       if (Math.hypot(up.x - down.x, up.z - down.z) < 0.5) return;
       const dup = interferenceGuides.some(g =>
         Math.hypot(g.x1 - down.x, g.z1 - down.z) < 0.5 && Math.hypot(g.x2 - up.x, g.z2 - up.z) < 0.5);
-      if (!dup) interferenceGuides.push({ x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind });
+      if (!dup) interferenceGuides.push({ x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind, downOnStock });
     };
     if (low) addGuide(rotDegG + tipDegG, 'dojezd', lowPts);
     if (high) addGuide(rotDegG, 'zanoreni', highPts);
@@ -3061,13 +3070,18 @@ export function openCamSimulator(initialContour, initialGCode) {
     // obrobitelná kontura se použije pro offsety/dráhy/CNC.
     let machinableContour = null;
     if (clearance && prms.respectInsertGeometry && !profileModeActive && interferenceGuides.length > 0) {
-      // Normální (non-profil) mód: standardní buildMachinableContour
-      machinableContour = buildMachinableContour(contourSegments, interferenceGuides);
+      // Normální (non-profil) mód: přemosťují JEN čáry končící oběma konci na
+      // kontuře. Čáry končící na polotovaru (downOnStock) jsou jen vizualizace
+      // — nepředávají se do buildMachinableContour (endpoint na polotovaru by
+      // ho zmátl), ale zůstanou nakreslené (dráhy se tím nemění).
+      const bridgeGuides = interferenceGuides.filter(g => !g._dominated && !g.downOnStock);
+      machinableContour = buildMachinableContour(contourSegments, bridgeGuides);
       contourSegments = machinableContour;
       interferenceGuides = interferenceGuides.filter(g =>
-        !g._dominated &&
-        _locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
-        _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }));
+        !g._dominated && (
+          g.downOnStock ||
+          (_locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
+           _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }))));
     } else if (clearance && prms.respectInsertGeometry && profileModeActive) {
       // Profil mód: vypočítat interference PŘÍMO Z OUTER PROFILU (ne z rawContourForInterference).
       // Tím guides odpovídají segmentům outer profilu a buildMachinableContour
