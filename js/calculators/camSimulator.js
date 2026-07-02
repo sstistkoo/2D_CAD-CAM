@@ -5013,6 +5013,13 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.lineTo(w2 + r, r - bodyH);                    // pravá strana nahoru
           ctx.closePath();
           ctx.fill(); ctx.stroke();
+          // Malý kontrolní křížek ve středu DRUHÉHO (neaktivního) rádiusu —
+          // při obrábění z druhé strany má ležet na offsetové čáře.
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(w2 - 5, 0); ctx.lineTo(w2 + 5, 0);
+          ctx.moveTo(w2, -5); ctx.lineTo(w2, 5);
+          ctx.stroke();
           ctx.restore();
         }
         // crosshair at tool center

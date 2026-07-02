@@ -220,19 +220,30 @@ export function genFacePasses(ctx) {
     const wIns = parseFloat(prms.toolLength) || 0;
     const rIns = Math.min(parseFloat(prms.toolRadius) || 0, wIns / 2);
     if (wIns > 0.01) {
+      // Natočení plátku: kladné = druhá strana výš (šikmé dno stoupá směrem
+      // od aktivního rohu), záporné = níž → přísnější mez. Vzorkuje se mezi
+      // STŘEDY obou rádiusů (rozpětí (w−2r)·cosθ) — offsetová čára je přesná
+      // mez pro střed kružnice R; hranu za druhým rádiusem už kruhová
+      // kontrola v krajním vzorku pokrývá (viz offset = kontura + R).
+      const rotRad = (parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+      const span = Math.max(0, wIns - 2 * rIns) * Math.cos(rotRad);
+      const tanT = Math.tan(rotRad);
       let partAdjusted = 0;
       for (let pi = passes.length - 1; pi >= 0; pi--) {
         const p = passes[pi];
         if (p.type !== 'face') continue;
-        // Z-rozsah těla od aktivního rohu k protější hraně:
-        // zprava tělo doprava (+Z), zleva doleva (−Z).
-        const zFar = faceLeft ? p.z - (wIns - rIns) : p.z + (wIns - rIns);
+        // Tělo od aktivního rohu do už obrobené zóny: zprava +Z, zleva −Z.
+        const zFar = faceLeft ? p.z - span : p.z + span;
         const zLo = Math.min(p.z, zFar), zHi = Math.max(p.z, zFar);
         let xE = p.xEnd;
-        const h = Math.max(0.05, (zHi - zLo) / 60);
+        const h = Math.max(0.05, (zHi - zLo) / 60 || 0.05);
         for (let z = zLo; z <= zHi + 1e-9; z += h) {
           const x = offsetXAt(z);
-          if (x !== null && x > xE) xE = x;
+          if (x === null) continue;
+          // Šikmé dno: v horizontální vzdálenosti d od aktivního rohu je dno
+          // o d·tanθ výš (θ>0) / níž (θ<0) → mez pro programovaný bod.
+          const need = x - Math.abs(z - p.z) * tanT;
+          if (need > xE) xE = need;
         }
         if (xE > p.xEnd + 0.01) {
           partAdjusted++;
