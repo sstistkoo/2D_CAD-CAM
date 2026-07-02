@@ -40,7 +40,7 @@ function clipLeadOutToDepth(segs, maxX) {
 
 // ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře).
 export function genFacePasses(ctx) {
-  const { prms, sRad, stockFace, step, offsetPath, stockPathSegments, stockWorldPoints, worldPoints, passes, foundErrors, traceOffsetPath } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockPathSegments, stockWorldPoints, worldPoints, passes, foundErrors, traceOffsetPath, offsetXAt } = ctx;
   // ── ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře) ──
   // Pro každou hloubku Z od (stockFace − step) po minZPart:
   //   1. xStart = stockOuter + rapidClr (= rapid-bezpečná X nad povrchem)
@@ -205,6 +205,45 @@ export function genFacePasses(ctx) {
       }
       if (faceAdjusted > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${faceAdjusted} čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.` });
+    }
+  }
+
+  // ── Hlídání geometrie destičky (čelně, upichovák) — vždy zapnuto ──
+  // Upichovák má šířku (toolLength); programovaný bod = střed rádiusu
+  // PRACOVNÍ strany (zprava = levý roh plátku, zleva = pravý). Tělo plátku
+  // zasahuje šířkou do už obrobené zóny — když tam kontura stoupá (stěna
+  // tvaru/kapsy, viz pravá strana zápichu), průchod se zastaví výš, aby
+  // druhá strana plátku (dno + rádius + hrana) nevjela do kontury.
+  // Aktivní rádius chrání offset sám (kruh R kolem bodu); zbytek těla se
+  // hlídá konzervativně jako rovné dno proti offsetu.
+  if (prms.toolShape === 'parting') {
+    const wIns = parseFloat(prms.toolLength) || 0;
+    const rIns = Math.min(parseFloat(prms.toolRadius) || 0, wIns / 2);
+    if (wIns > 0.01) {
+      let partAdjusted = 0;
+      for (let pi = passes.length - 1; pi >= 0; pi--) {
+        const p = passes[pi];
+        if (p.type !== 'face') continue;
+        // Z-rozsah těla od aktivního rohu k protější hraně:
+        // zprava tělo doprava (+Z), zleva doleva (−Z).
+        const zFar = faceLeft ? p.z - (wIns - rIns) : p.z + (wIns - rIns);
+        const zLo = Math.min(p.z, zFar), zHi = Math.max(p.z, zFar);
+        let xE = p.xEnd;
+        const h = Math.max(0.05, (zHi - zLo) / 60);
+        for (let z = zLo; z <= zHi + 1e-9; z += h) {
+          const x = offsetXAt(z);
+          if (x !== null && x > xE) xE = x;
+        }
+        if (xE > p.xEnd + 0.01) {
+          partAdjusted++;
+          if (xE >= p.xStart - 0.05) { passes.splice(pi, 1); continue; }
+          p.xEnd = xE;
+          // leadOut byl spočítán pro původní (hlubší) xEnd — zahodit.
+          if (p.contourLeadOut) delete p.contourLeadOut;
+        }
+      }
+      if (partAdjusted > 0)
+        foundErrors.push({ type: 'warning', msg: `Hlídání upichováku: ${partAdjusted} čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka ${wIns}) nevjelo do kontury.` });
     }
   }
 }

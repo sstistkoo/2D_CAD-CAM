@@ -2618,6 +2618,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
       toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
       toolVbdCode: '', toolClearanceAngle: 0,
+      // Upichnutí (part-off) upichovákem: Z roviny řezu (null = neaktivní,
+      // jede se běžné hrubování/zapichování). Zápich jde v X od povrchu na 0.
+      partOffZ: null,
+      // Posl. mm nájezdu posuvem: při peckingu se jede rychloposuvem zpět dolů
+      // až na tuto vzdálenost nad dno předchozího řezu, pak posuvem F.
+      partingApproachFeed: 1.0,
       finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
       // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
       // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
@@ -2671,6 +2677,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     gcodeEditEnabled: false,   // úprava drah (G-kód) – nezávislá na pointDragEnabled
     snapEnabled: true,   // SNAP přichytávání zapnuté hned po načtení
     controlsHidden: false,
+    // Upichnutí: klikací režim pro určení Z roviny řezu (part-off).
+    partOffPickMode: false,
+    // Zapamatovaná geometrie destičky zvlášť pro každý tvar (délka hrany/šířka,
+    // natočení, vrchol, hřbet) — aby přepnutí tvaru nepřepsalo hodnoty jiného.
+    _shapeGeomMem: {},
     // Trasování profilu (klikací nástroj) — body, segmenty a náhled výsledné kontury
     profileTraceMode: false,
     _tracePoints: [],   // [{x, z}] absolutní world souřadnice (rádius, Z)
@@ -3983,6 +3994,46 @@ export function openCamSimulator(initialContour, initialGCode) {
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Rychloposuv')}`, 0);
     const rDist = calc.retractDist || 2.0;
 
+    // ── UPICHNUTÍ (part-off) ── upichovák, zvolená Z rovina → zápich v X na 0.
+    // Peck: po hloubce „Vyjezd" (retractDistance) vyjede pro uvolnění třísek,
+    // zpět rychloposuvem až partingApproachFeed mm nad dno, pak posuvem F.
+    // U osy (X=0) už navíc nevyjíždí.
+    const partOffActive = prms.toolShape === 'parting'
+      && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+    if (partOffActive) {
+      const xd = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
+      const pz = parseFloat(prms.partOffZ);
+      const peck = Math.max(0.1, parseFloat(prms.retractDistance) || 2);
+      const af = Math.max(0, parseFloat(prms.partingApproachFeed));
+      const clr = Math.max(0.5, parseFloat(prms.rapidClearance) || 1);
+      const xStockTop = Math.max(parseFloat(calc.stockTopX) || 0, peck);
+      const xClear = xStockTop + clr;
+      addCmt('--- UPICHNUTI ---');
+      simCounter += 1; addN(`G0 Z${pz.toFixed(3)}${note('', 'Rychloposuv na rovinu upichnutí')}`, simCounter);
+      simCounter += 1; addN(`G0 X${xd(xClear)}`, simCounter);
+      let depth = xStockTop;
+      let guard = 0;
+      while (depth > 1e-4 && guard++ < 10000) {
+        const nextDepth = Math.max(0, depth - peck);
+        // rychloposuv zpět na af mm nad aktuální dno (u prvního nad polotovar)
+        simCounter += 1; addN(`G0 X${xd(depth + af)}`, simCounter);
+        simCounter += 1; addN(`G1 X${xd(nextDepth)} F${prms.feed}${note('', 'Zápich')}`, simCounter);
+        depth = nextDepth;
+        if (depth > 1e-4) { simCounter += 1; addN(`G0 X${xd(xClear)}${note('', 'Vyjezd – uvolnění třísek')}`, simCounter); }
+      }
+      simCounter += 1; addN(`G0 X${xd(xClear)}${note('', 'Výjezd od osy')}`, simCounter);
+      addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Bezpečná poloha')}`);
+      buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
+      addCmt('--- KONTURA (Pro referenci) ---');
+      S.contourPoints.forEach(p => {
+        const cmd = (p.type === 'G2' || p.type === 'G3') ? flipArc(p.type) : p.type;
+        let line = `${cmd} X${(parseFloat(p.x) || 0)} Z${(parseFloat(p.z) || 0)}`;
+        if (p.type === 'G2' || p.type === 'G3') line += ` ${arcR(p.r)}`;
+        addCmt(line);
+      });
+      return lines;
+    }
+
     addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey()] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
     // Vůle nad polotovarem + úhel nájezdové rampy (ladí s calculate()).
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
@@ -4849,6 +4900,21 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
     }
 
+    // Rovina upichnutí (part-off) — svislá čára v Z=partOffZ přes polotovar.
+    if (prms.toolShape === 'parting' && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ))) {
+      const pz = parseFloat(prms.partOffZ);
+      const xTop = Math.max(parseFloat(calc.stockTopX) || 0, (parseFloat(prms.toolRadius) || 1) * 3);
+      const a = toScreen(0, pz), b = toScreen(xTop * 1.05, pz);
+      ctx.save();
+      ctx.strokeStyle = '#f38ba8'; ctx.lineWidth = 2; ctx.setLineDash([7, 5]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f38ba8'; ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`✂ upich Z=${pz.toFixed(2)}`, b.x, b.y - 4);
+      ctx.restore();
+    }
+
     // tool position during sim
     if ((S.simRunning || S.simProgress > 0) && calc.simPath.length > 0) {
       const totalPoints = calc.simPath.length;
@@ -4920,30 +4986,31 @@ export function openCamSimulator(initialContour, initialGCode) {
           }
           ctx.restore();
         } else if (prms.toolShape === 'parting') {
-          // Upichovací / zapichovací plátek: obdélník o šířce = toolLength se
-          // dvěma zaoblenými spodními rohy (rádius R platí pro obě strany).
-          // Vizualizace: jen spodní (poloviční) část těla, aby byly vidět rádiusy.
+          // Upichovací / zapichovací plátek: šířka = toolLength, dva spodní
+          // rádiusy R. Referenční bod (0,0) = STŘED RÁDIUSU PRACOVNÍ STRANY
+          // (jako u polygonu): zprava = levý roh plátku, zleva = pravý roh.
+          // Lokálně kreslíme vždy levý roh v počátku s tělem doprava (do už
+          // obrobené zóny); stranu obrábění řeší zrcadlení níže.
           const wPix = Math.max((parseFloat(prms.toolLength) || 10) * S.view.scale, 20);
           const rotRad = -(parseFloat(prms.toolAngle) || 0) * (Math.PI / 180);
-          const hw = wPix / 2;
-          const r = Math.min(rPix, hw);              // rádius nesmí být širší než půl plátku
+          const r = Math.min(rPix, wPix / 2);        // rádius nesmí být širší než půl plátku
+          const w2 = wPix - 2 * r;                   // rovná část spodního ostří
           const bodyH = Math.max(wPix * 0.6, r + 10); // zobrazená (spodní) část těla
           ctx.save(); ctx.translate(pt.x, pt.y);
-          // Zrcadlení musí odpovídat globálnímu pohledu (viz vS/hS v toScreen) —
-          // stejná pravidla jako u polygonu.
-          if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
+          // Zrcadlení: strana obrábění (zleva = otočený plátek) XOR flipZ
+          // vodorovně; flipX svisle — ladí s vS/hS v toScreen.
+          if (((prms.roughingSide || 'right') === 'left') !== !!S.flipZ) ctx.scale(-1, 1);
           if (S.flipX) ctx.scale(1, -1);
           ctx.rotate(rotRad);
-          // Lokální souřadnice: y roste dolů (k ose), spodní ostří na y=0, tělo
-          // směřuje nahoru (−y). Referenční bod (0,0) = střed spodní hrany.
-          const CLx = -(hw - r), CRx = (hw - r), CY = -r;
+          // Lokální souřadnice: y roste dolů (k ose). Střed aktivního rádiusu
+          // = (0,0), spodní ostří na y=+r, tělo nahoru (−y), šířka doprava.
           ctx.beginPath();
-          ctx.moveTo(-hw, -bodyH);                          // levý horní roh
-          ctx.lineTo(-hw, CY);                              // levá strana dolů k tečně
-          ctx.arc(CLx, CY, r, Math.PI, Math.PI / 2, true); // levý zaoblený roh
-          ctx.lineTo(CRx, 0);                               // spodní ostří (rovná část)
-          ctx.arc(CRx, CY, r, Math.PI / 2, 0, true);       // pravý zaoblený roh
-          ctx.lineTo(hw, -bodyH);                           // pravá strana nahoru
+          ctx.moveTo(-r, r - bodyH);                        // levý horní roh
+          ctx.lineTo(-r, 0);                                // levá strana k tečně rádiusu
+          ctx.arc(0, 0, r, Math.PI, Math.PI / 2, true);    // aktivní rádius (střed = ref. bod)
+          ctx.lineTo(w2, r);                                // spodní ostří (rovná část)
+          ctx.arc(w2, 0, r, Math.PI / 2, 0, true);         // druhý rádius
+          ctx.lineTo(w2 + r, r - bodyH);                    // pravá strana nahoru
           ctx.closePath();
           ctx.fill(); ctx.stroke();
           ctx.restore();
@@ -6686,10 +6753,21 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label title="Úhel hřbetu — omezuje maximální úhel zanoření na bočním ostří">Úhel hřbetu (α)</label><input type="number" data-p="toolClearanceAngle" value="${prms.toolClearanceAngle ?? 0}" min="0" max="30" step="1"></div>
       </div>`;
     } else if (prms.toolShape === 'parting') {
+      const _poActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
       html += `<div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
         <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
-      </div>`;
+      </div>
+      <div class="cam-sim-row" style="align-items:flex-end">
+        <div class="cam-sim-field" style="flex:2"><label title="Upichnutí (part-off): klikni na canvas → v daném Z se udělá zápich v X až na 0. Prázdné = běžné zapichování/hrubování tvaru.">Upichnutí (part-off)</label>
+          <button data-act="partoff-pick" class="cam-sim-btn ${S.partOffPickMode ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px">${S.partOffPickMode ? '⊹ Klikni na canvas…' : (_poActive ? `✂️ Z=${parseFloat(prms.partOffZ).toFixed(2)} (změnit)` : '✂️ Ukázat bod')}</button>
+        </div>
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="partoff-clear" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" ${_poActive || S.partOffPickMode ? '' : 'disabled'} title="Zrušit upichnutí — zpět na zapichování/hrubování tvaru">✖ Zrušit</button></div>
+      </div>
+      ${_poActive ? `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Peck: rychloposuvem zpět dolů až na tuto vzdálenost nad dno předchozího řezu, poslední úsek posuvem F. U osy (0) se nevyjíždí.">Posuv posl. (mm)</label><input type="number" step="0.5" min="0" data-p="partingApproachFeed" value="${prms.partingApproachFeed}"></div>
+        <div class="cam-sim-field"><label title="Vyjezd (peck): po jaké hloubce zanoření nástroj vyjede pro uvolnění třísek. (Sdílí pole „Odskok".)">Vyjezd/peck</label><input type="number" step="0.5" min="0.1" data-p="retractDistance" value="${prms.retractDistance}"></div>
+      </div>` : ''}`;
     }
     html += `</div>`;
     html += `<div class="cam-sim-section-title">Hrubování</div>
@@ -6850,7 +6928,13 @@ export function openCamSimulator(initialContour, initialGCode) {
           if (S.guideLines.length < before)
             showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
         }
-        fullUpdate();
+        // Aktivní upichnutí: peck/posuv (a šířka) mění cyklus → přegenerovat hned.
+        if (S.params.toolShape === 'parting' && S.params.partOffZ != null
+            && ['partingApproachFeed', 'retractDistance', 'feed'].includes(inp.dataset.p)) {
+          _regenGCode();
+        } else {
+          fullUpdate();
+        }
       });
     });
     const matToggleBtn = tabBody.querySelector('[data-act="material-config-toggle"]');
@@ -6936,14 +7020,30 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     tabBody.querySelectorAll('[data-tshape]').forEach(btn => {
       btn.addEventListener('click', () => {
-        S.params.toolShape = btn.dataset.tshape;
-        if (btn.dataset.tshape === 'polygon') S.params.toolTipAngle = 90;
-        else if (btn.dataset.tshape === 'parting') {
-          // Upichovák: standardně čelní obrábění (zanoří kolmo k ose). Podélné
-          // (bočním ostřím) i strany zprava/zleva zůstávají k dispozici.
-          S.params.toolAngle = 0; S.params.toolLength = 5;
-          S.params.roughingStrategy = 'face';
+        const prev = S.params.toolShape;
+        const next = btn.dataset.tshape;
+        if (prev !== next) {
+          // Zapamatovat geometrii odcházejícího tvaru, ať se nepřepíše cizí hodnotou.
+          S._shapeGeomMem[prev] = {
+            toolLength: S.params.toolLength, toolAngle: S.params.toolAngle,
+            toolTipAngle: S.params.toolTipAngle, toolClearanceAngle: S.params.toolClearanceAngle,
+          };
+          S.params.toolShape = next;
+          const mem = S._shapeGeomMem[next];
+          if (mem) {
+            // Obnovit dřívější hodnoty tohoto tvaru.
+            S.params.toolLength = mem.toolLength; S.params.toolAngle = mem.toolAngle;
+            S.params.toolTipAngle = mem.toolTipAngle; S.params.toolClearanceAngle = mem.toolClearanceAngle;
+          } else if (next === 'polygon') {
+            S.params.toolLength = 10; S.params.toolAngle = 15; S.params.toolTipAngle = 90;
+          } else if (next === 'parting') {
+            // Upichovák: šířka 5, natočení 0 (vodorovně s osou Z), standardně čelní.
+            S.params.toolLength = 5; S.params.toolAngle = 0;
+            S.params.roughingStrategy = 'face';
+          }
         }
+        // Upichnutí dává smysl jen pro upichovák — jinde vypnout.
+        if (next !== 'parting') { S.params.partOffZ = null; S.partOffPickMode = false; }
         fullUpdate();
       });
     });
@@ -6979,6 +7079,22 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (!S.params.entryAngleAuto)
         S.params.entryAngle = getEffectivePlungeAngle({ ...S.params, entryAngleAuto: true });
       fullUpdate();
+    });
+    const partOffPickBtn = tabBody.querySelector('[data-act="partoff-pick"]');
+    if (partOffPickBtn) partOffPickBtn.addEventListener('click', () => {
+      S.partOffPickMode = !S.partOffPickMode;
+      // Vzájemně se vylučuje s ostatními klikacími režimy.
+      if (S.partOffPickMode) { S.profileTraceMode = false; S.addPointMode = false; S.delPointMode = false; }
+      canvas.style.cursor = S.partOffPickMode ? 'crosshair' : 'crosshair';
+      showToast(S.partOffPickMode ? 'Upichnutí: klikni na canvas pro Z rovinu řezu (Esc = zrušit)' : 'Výběr upichnutí zrušen');
+      renderTab(); draw();
+    });
+    const partOffClearBtn = tabBody.querySelector('[data-act="partoff-clear"]');
+    if (partOffClearBtn) partOffClearBtn.addEventListener('click', () => {
+      const wasActive = S.params.partOffZ != null;
+      S.params.partOffZ = null; S.partOffPickMode = false;
+      showToast('Upichnutí zrušeno — zpět na zapichování/hrubování tvaru');
+      if (wasActive) _regenGCode(); else { renderTab(); draw(); }
     });
     const toolLibBtn = tabBody.querySelector('[data-act="tool-library"]');
     if (toolLibBtn) toolLibBtn.addEventListener('click', () => {
@@ -7956,6 +8072,15 @@ export function openCamSimulator(initialContour, initialGCode) {
     _updateProfileButtons();   // ❌ smazat profil zůstane, dokud profil existuje
   }
 
+  // Přegeneruje S.manualGCode z aktuální kontury+parametrů (přepíše ruční
+  // úpravy). Používá se u operací, které samy definují dráhu — např. upichnutí
+  // (part-off), kde chceme cyklus vidět hned, ne až po „🔄 Autorefresh".
+  function _regenGCode() {
+    S._cachedCalc = calculate();
+    S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    fullUpdate();
+  }
+
   // ── EVENT WIRING ──
 
   // Sync flipX/flipZ z CAD nastavení → CAM (obousměrná synchronizace)
@@ -8250,7 +8375,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
     if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
     if (e.key === 'Escape') {
-      if (S.rectSelecting) {
+      if (S.partOffPickMode) {
+        S.partOffPickMode = false;
+        showToast('Výběr upichnutí zrušen');
+        renderTab(); draw();
+      } else if (S.rectSelecting) {
         S.rectSelecting = false;
         S.rectStart = null;
         S.rectEnd = null;
@@ -8915,6 +9044,18 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!S._camDispatching && S._camGhostUntil && Date.now() < S._camGhostUntil) return;
     // Klik na plovoucí tlačítka ✓/✗ trasování – neinterpretovat jako bod kontury
     if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel')) return;
+    // Upichnutí – klik určí Z rovinu řezu (snap na bod/hranu má přednost).
+    if (S.partOffPickMode) {
+      const { wz } = _traceWorldFromClient(e.clientX, e.clientY);
+      if (isFinite(wz)) {
+        S.params.partOffZ = Math.round(wz * 1000) / 1000;
+        S.partOffPickMode = false;
+        showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}`);
+        _regenGCode();   // upichovací cyklus se projeví hned
+      }
+      e.stopPropagation();
+      return;
+    }
     // Trasování profilu – bod se přidá JEN když klik trefí snapovatelný
     // bod (vrchol kontury/polotovaru) nebo průsečík/koncový bod pomocné
     // čáry. Mimo snap se nic nepřidá a klik/tažení jen posune pohled (pan).
