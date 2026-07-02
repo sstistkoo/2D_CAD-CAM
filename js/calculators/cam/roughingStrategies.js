@@ -249,12 +249,58 @@ export function genFacePasses(ctx) {
           partAdjusted++;
           if (xE >= p.xStart - 0.05) { passes.splice(pi, 1); continue; }
           p.xEnd = xE;
+          p.partClamped = true;   // u stěny — viz zarovnání schodků níže
           // leadOut byl spočítán pro původní (hlubší) xEnd — zahodit.
           if (p.contourLeadOut) delete p.contourLeadOut;
         }
       }
       if (partAdjusted > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání upichováku: ${partAdjusted} čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka ${wIns}) nevjelo do kontury.` });
+
+      // ── Zarovnání schodků u stěny jedním dojezdem (Hrub. bez schodků) ──
+      // Průchody zkrácené hlídáním (partClamped) nechávají u stoupající
+      // stěny schody — jen zapichují a vyjíždějí v X (svislý výjezd řeší
+      // kontrola odskoku v generateAutoGCode). Schodky zarovná JEDEN
+      // souvislý dojezd po kontuře: připojí se k prvnímu NEzkrácenému
+      // průchodu za runem a vede po offsetu posunutém o (w−2r), takže po
+      // stěně jede DRUHÝ rádius plátku — tělo zůstává nad už obrobeným
+      // dnem a nic negouguje. Pak march pokračuje dál.
+      if (prms.noStepRoughing && prms.noStepRoughingFace) {
+        const w2R = Math.max(0, wIns - 2 * rIns);
+        const dirM = faceLeft ? -1 : 1;   // směr k obrobené straně (stěně)
+        const shiftZ = (segs, dz) => segs.map(s => s.type === 'line'
+          ? { ...s, z1: s.z1 + dz, z2: s.z2 + dz }
+          : { ...s, z1: s.z1 + dz, z2: s.z2 + dz, cz: s.cz + dz });
+        const faceArr = passes.filter(p => p.type === 'face');
+        let runStart = null;
+        for (let i = 0; i <= faceArr.length; i++) {
+          const p = faceArr[i];
+          if (p && p.partClamped) {
+            if (runStart === null) runStart = i;
+            if (p.contourLeadOut) delete p.contourLeadOut;   // per-step šplhání po stěně nahrazuje climb
+            continue;
+          }
+          if (runStart !== null) {
+            const first = faceArr[runStart];
+            const q = p || faceArr[i - 1];   // první nezkrácený za runem (fallback: poslední z runu)
+            const runTopZ = first.z + dirM * step;         // vršek stěny (obrobená strana prvního z runu)
+            const contactStart = q.z + dirM * w2R;         // kde začíná kontakt druhého rádiusu
+            const zHi = dirM > 0 ? runTopZ : contactStart;
+            const zLo = dirM > 0 ? contactStart : runTopZ;
+            if (zHi - zLo > 0.02) {
+              let segs = traceOffsetPath(zHi, zLo);
+              if (dirM > 0) segs = reverseTrace(segs);
+              segs = shiftZ(segs, -dirM * w2R);            // programovaný bod = aktivní roh
+              if (segs.length > 0) {
+                // Napojení ode dna zápichu svisle v X na start posunuté trasy.
+                segs.unshift({ type: 'line', x1: q.xEnd, z1: q.z, x2: segs[0].x1, z2: segs[0].z1 });
+                q.contourLeadOut = segs;
+              }
+            }
+            runStart = null;
+          }
+        }
+      }
     }
   }
 }

@@ -4061,6 +4061,23 @@ export function openCamSimulator(initialContour, initialGCode) {
       else rapidTopX = Math.max(rapidTopX, s.cx + s.r);
     });
     const xDia = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
+    // Max X hrubovacího offsetu na svislici Z (pro kontrolu odskoku u stěny).
+    const gcOffsetXAt = (z) => {
+      let m = null;
+      for (const s of (calc.offsetPath || [])) {
+        if (s.isDegenerate) continue;
+        if (s.type === 'line') {
+          const x = intersectVerticalLineSegment(z, s.p1, s.p2);
+          if (x !== null && (m === null || x > m)) m = x;
+        } else {
+          for (const x of intersectVerticalLineArc(z, { x: s.cx, z: s.cz }, s.r)) {
+            const a = Math.atan2(x - s.cx, z - s.cz);
+            if (isAngleBetween(a, s.startAngle, s.endAngle, s.dir === 'G2') && (m === null || x > m)) m = x;
+          }
+        }
+      }
+      return m;
+    };
     const cur = { x: null, z: null };
     const setPos = (x, z) => { cur.x = x; cur.z = z; };
     // Výchozí poloha = bezpečná poloha z úvodního G0 (programované souř.).
@@ -4263,8 +4280,31 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
         // Retract pod 45° do už obrobené strany: zprava (zprava doleva) +Z,
         // zleva (zleva doprava) −Z. Směr drží pass.faceLeft.
-        const zRetractVal = clipZGc(cur.z + (pass.faceLeft ? -rDist : rDist));
-        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        // Když by diagonála zajela do kontury NEBO do materiálu, který
+        // sousední (mělčí/zkrácený) průchod nechal stát (stěna kapsy,
+        // hlídání destičky) → vyjet svisle jen v X (viz zápichy).
+        const dirZR = pass.faceLeft ? -1 : 1;
+        let retractGouges = false;
+        for (let i = 1; i <= 8 && !retractGouges; i++) {
+          const d = rDist * i / 8;
+          const ox = gcOffsetXAt(cur.z + dirZR * d);
+          if (ox !== null && ox > cur.x + d - 0.02) retractGouges = true;
+        }
+        // Zbytek materiálu na sousedních čelních rovinách (xEnd > offset).
+        if (!retractGouges) {
+          for (const p2 of calc.passes) {
+            if (p2.type !== 'face') continue;
+            const d = dirZR * (p2.z - cur.z);
+            if (d <= 1e-6 || d > rDist + 1e-6) continue;
+            if (p2.xEnd > cur.x + d - 0.02) { retractGouges = true; break; }
+          }
+        }
+        if (retractGouges) {
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
+        } else {
+          const zRetractVal = clipZGc(cur.z + (pass.faceLeft ? -rDist : rDist));
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        }
       }
     });
 
