@@ -58,8 +58,11 @@ describe('CAM pipeline regrese (G-kód + struktura)', () => {
       expect(gcode).toContain('HRUBOVANI');
       expect(gcode.split('\n').length).toBeGreaterThan(20);
 
+      // Normalizovat datum v hlavičce (new Date()) — jinak snapshot padá při
+      // přechodu přes půlnoc. Ostatní řádky jsou deterministické.
+      const stableGcode = gcode.replace(/^; Datum: .*/m, '; Datum: <normalized>');
       expect(pipelineSummary(calc)).toMatchSnapshot('pipeline');
-      expect(gcode).toMatchSnapshot('gcode');
+      expect(stableGcode).toMatchSnapshot('gcode');
     });
   }
 });

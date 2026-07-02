@@ -59,4 +59,31 @@ vdescribe('buildMachinableContour — topologie přemostění', () => {
       'L (20.00,5.00)->(20.00,0.00)',
     ]);
   });
+
+  // ── párování kapes (mergePocketGuides): 'zanoreni' + 'dojezd' čára tvořící V ──
+  // POZN.: reálné fixtures vydávají jen 'zanoreni' čáry, takže tuhle větev
+  // pokrývají POUZE tyto přímé testy.
+  it('V-kapsa (zanoreni + dojezd) → recess nahrazen „V" v průsečíku čar', () => {
+    const segs = [line(20, 30, 20, 20), line(20, 20, 10, 15), line(10, 15, 20, 10), line(20, 10, 20, 0)];
+    const guides = [
+      guide(20, 20, 11, 16, { kind: 'zanoreni' }),
+      guide(20, 10, 11, 14, { kind: 'dojezd' }),
+    ];
+    expect(build(segs, guides)).toEqual([
+      'L (20.00,30.00)->(20.00,20.00)',
+      'L (20.00,20.00)->(8.75,15.00) {ins}',    // roh A → dno V (průsečík čar)
+      'L (8.75,15.00)->(20.00,10.00) {ins}',    // dno V → roh B
+      'L (20.00,10.00)->(20.00,0.00)',
+    ]);
+  });
+
+  it('mergePocketGuides přímo: spáruje a spotřebuje obě čáry', async () => {
+    const segs = [line(20, 30, 20, 20), line(20, 20, 10, 15), line(10, 15, 20, 10), line(20, 10, 20, 0)];
+    const guides = [
+      guide(20, 20, 11, 16, { kind: 'zanoreni' }),
+      guide(20, 10, 11, 14, { kind: 'dojezd' }),
+    ];
+    const r = H.mergePocketGuides(segs.map(s => ({ ...s })), guides);
+    expect([...r.consumed].sort()).toEqual([0, 1]);
+  });
 });
