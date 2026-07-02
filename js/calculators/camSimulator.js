@@ -4919,6 +4919,34 @@ export function openCamSimulator(initialContour, initialGCode) {
             ctx.restore();
           }
           ctx.restore();
+        } else if (prms.toolShape === 'parting') {
+          // Upichovací / zapichovací plátek: obdélník o šířce = toolLength se
+          // dvěma zaoblenými spodními rohy (rádius R platí pro obě strany).
+          // Vizualizace: jen spodní (poloviční) část těla, aby byly vidět rádiusy.
+          const wPix = Math.max((parseFloat(prms.toolLength) || 10) * S.view.scale, 20);
+          const rotRad = -(parseFloat(prms.toolAngle) || 0) * (Math.PI / 180);
+          const hw = wPix / 2;
+          const r = Math.min(rPix, hw);              // rádius nesmí být širší než půl plátku
+          const bodyH = Math.max(wPix * 0.6, r + 10); // zobrazená (spodní) část těla
+          ctx.save(); ctx.translate(pt.x, pt.y);
+          // Zrcadlení musí odpovídat globálnímu pohledu (viz vS/hS v toScreen) —
+          // stejná pravidla jako u polygonu.
+          if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
+          if (S.flipX) ctx.scale(1, -1);
+          ctx.rotate(rotRad);
+          // Lokální souřadnice: y roste dolů (k ose), spodní ostří na y=0, tělo
+          // směřuje nahoru (−y). Referenční bod (0,0) = střed spodní hrany.
+          const CLx = -(hw - r), CRx = (hw - r), CY = -r;
+          ctx.beginPath();
+          ctx.moveTo(-hw, -bodyH);                          // levý horní roh
+          ctx.lineTo(-hw, CY);                              // levá strana dolů k tečně
+          ctx.arc(CLx, CY, r, Math.PI, Math.PI / 2, true); // levý zaoblený roh
+          ctx.lineTo(CRx, 0);                               // spodní ostří (rovná část)
+          ctx.arc(CRx, CY, r, Math.PI / 2, 0, true);       // pravý zaoblený roh
+          ctx.lineTo(hw, -bodyH);                           // pravá strana nahoru
+          ctx.closePath();
+          ctx.fill(); ctx.stroke();
+          ctx.restore();
         }
         // crosshair at tool center
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
@@ -6619,7 +6647,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       ).join('')}</div>
     </div>`;
     const _toolOpen = S.toolConfigOpen;
-    const _shapeIcon = prms.toolShape === 'round' ? '⬤' : '◼';
+    const _shapeIcon = prms.toolShape === 'round' ? '⬤' : prms.toolShape === 'parting' ? '▮' : '◼';
     const _angleChip = prms.toolShape === 'polygon'
       ? `<span class="cam-sim-machine-chip">${prms.toolAngle}°</span>` : '';
     const _vbdChip = prms.toolVbdCode
@@ -6648,6 +6676,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-tool-shape-row">
         <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
         <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
+        <button data-tshape="parting" class="${prms.toolShape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
       </div>`;
     if (prms.toolShape === 'polygon') {
       html += `<div class="cam-sim-row">
@@ -6655,6 +6684,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
         <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
         <div class="cam-sim-field"><label title="Úhel hřbetu — omezuje maximální úhel zanoření na bočním ostří">Úhel hřbetu (α)</label><input type="number" data-p="toolClearanceAngle" value="${prms.toolClearanceAngle ?? 0}" min="0" max="30" step="1"></div>
+      </div>`;
+    } else if (prms.toolShape === 'parting') {
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
+        <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
       </div>`;
     }
     html += `</div>`;
@@ -6711,7 +6745,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       : 45;
     const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
     html += `<div class="cam-sim-row">
-      <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="89" data-p="entryAngle" value="${effPlunge}"></div>
+      <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
       <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
     </div>`;
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
@@ -6904,6 +6938,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       btn.addEventListener('click', () => {
         S.params.toolShape = btn.dataset.tshape;
         if (btn.dataset.tshape === 'polygon') S.params.toolTipAngle = 90;
+        else if (btn.dataset.tshape === 'parting') {
+          // Upichovák: standardně čelní obrábění (zanoří kolmo k ose). Podélné
+          // (bočním ostřím) i strany zprava/zleva zůstávají k dispozici.
+          S.params.toolAngle = 0; S.params.toolLength = 5;
+          S.params.roughingStrategy = 'face';
+        }
         fullUpdate();
       });
     });
@@ -7108,6 +7148,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             <div class="cam-sim-tool-shape-row" style="margin-bottom:6px">
               <button data-mshape="round" data-magidx="${i}" class="${slot.shape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
               <button data-mshape="polygon" data-magidx="${i}" class="${slot.shape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
+              <button data-mshape="parting" data-magidx="${i}" class="${slot.shape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
             </div>
             ${slot.shape === 'polygon' ? `
             <div class="cam-sim-row">
@@ -7115,6 +7156,11 @@ export function openCamSimulator(initialContour, initialGCode) {
               <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-mf="toolAngle" data-magidx="${i}" value="${slot.toolAngle}"></div>
               <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-mf="tipAngle" data-magidx="${i}" value="${slot.tipAngle}"></div>
               <div class="cam-sim-field"><label>Úhel hřbetu (α)</label><input type="number" data-mf="clearanceAngle" data-magidx="${i}" value="${slot.clearanceAngle}" min="0" max="30"></div>
+            </div>` : ''}
+            ${slot.shape === 'parting' ? `
+            <div class="cam-sim-row">
+              <div class="cam-sim-field"><label>Šířka plátku</label><input type="number" data-mf="toolLength" data-magidx="${i}" value="${slot.toolLength}"></div>
+              <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-mf="toolAngle" data-magidx="${i}" value="${slot.toolAngle}"></div>
             </div>` : ''}
             <div class="cam-sim-section-title" style="margin-top:8px">Řezné podmínky</div>
             <div class="cam-sim-row">
@@ -7167,6 +7213,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           const idx = parseInt(btn.dataset.magidx);
           mag[idx].shape = btn.dataset.mshape;
           if (mag[idx].shape === 'polygon' && !mag[idx].tipAngle) mag[idx].tipAngle = 90;
+          if (mag[idx].shape === 'parting') { mag[idx].toolAngle = 0; mag[idx].toolLength = 5; }
           if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
         });
       });

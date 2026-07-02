@@ -10,8 +10,11 @@
 // Pokud je nastaven úhel hřbetu α > 0, omezuje výsledek shora — hřbet destičky
 // kontaktuje materiál při zanořování strmějším než α.
 export function getEffectivePlungeAngle(prms) {
-  const clampA = (v) => Math.max(0.5, Math.min(89, v));
+  // Upichovák smí zanořit kolmo k ose (přímo k Z) → strop 90° místo 89°.
+  const parting = prms.toolShape === 'parting';
+  const clampA = (v) => Math.max(0.5, Math.min(parting ? 90 : 89, v));
   if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
+  if (parting) return 90;               // auto = svislé zanoření (part-off)
   if (prms.toolShape !== 'polygon') return 45;
   const rot = parseFloat(prms.toolAngle) || 0;
   const tip = parseFloat(prms.toolTipAngle) || 90;
