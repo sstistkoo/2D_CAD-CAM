@@ -382,9 +382,17 @@ function injectCSS() {
   border-bottom: 1px solid #45475a; padding-bottom: 4px; margin: 12px 0 6px 0;
 }
 .cam-sim-section-title:first-child { margin-top: 0; }
-.cam-sim-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.cam-sim-row { display: flex; gap: 6px; margin-bottom: 6px; position: relative; }
 .cam-sim-field { display: flex; flex-direction: column; flex: 1; }
 .cam-sim-field label { font-size: 10px; color: #6c7086; margin-bottom: 2px; }
+.cam-sim-field label[data-tooltip] { cursor: help; border-bottom: 1px dotted #6c7086; width: fit-content; }
+.cam-sim-field label[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 200; margin-top: 2px;
+  background: #313244; border: 1px solid #45475a; color: #a6adc8;
+  font-size: 10px; font-weight: 400; padding: 5px 7px; border-radius: 4px;
+  line-height: 1.5; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
 .cam-sim-field input, .cam-sim-field select {
   background: #1e1e2e; border: 1px solid #45475a; color: #cdd6f4;
   border-radius: 4px; padding: 4px 6px; font-size: 12px; width: 100%; box-sizing: border-box;
@@ -2447,8 +2455,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Dráhy</button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
-          <button data-code="show-sidebar" title="Zobrazit editor kontury">✏ Edit</button>
           <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
+          <button data-code="show-sidebar" title="Zobrazit/skrýt boční panel — editor kontury, parametry stroje/nástroje/hrubování a import">⚙ Nast.</button>
           <button data-code="load-prog" title="Načíst projekt ze souboru .camprog">📂 Načíst</button>
         </div>
       </div>
@@ -6539,12 +6547,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-p="toolVbdCode" value="${prms.toolVbdCode || ''}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
         <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
       </div>
-      <div class="cam-sim-row">
-        <div class="cam-sim-field"><label>Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
-        <div class="cam-sim-field"><label>Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
-        <div class="cam-sim-field"><label>Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
-      </div>
-      <small class="cam-sim-info-box" style="display:block;margin-top:2px">Hrubovací offset = Rádius (R) + Přídavek X/Z + Přídavek na hotovo. Dokončovací offset = jen Rádius (R).</small>
       <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
       <div class="cam-sim-tool-shape-row">
         <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
@@ -6569,12 +6571,17 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-side="right" class="${(prms.roughingSide || 'right') === 'right' ? 'cam-sim-active' : ''}" title="Zaber zprava doleva (standard)">← Zprava</button>
     </div>
     <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>Hloubka (ap)</label><input type="number" step="0.5" data-p="depthOfCut" value="${prms.depthOfCut}"></div>
-      <div class="cam-sim-field"><label>Posuv (F)</label><input type="number" step="0.05" data-p="feed" value="${prms.feed}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Hrubovací offset = Rádius (R) + Přídavek X/Z + Přídavek na hotovo. Dokončovací offset = jen Rádius (R).">Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Dodatečný přídavek jen ve směru X (radiálně) — přičte se k hrubovacímu offsetu navíc k Přídavku na hotovo.">Přídavek X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Dodatečný přídavek jen ve směru Z (podélně) — přičte se k hrubovacímu offsetu navíc k Přídavku na hotovo.">Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
     </div>
     <div class="cam-sim-row">
-      <div class="cam-sim-field"><label>Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
-      <div class="cam-sim-field"><label>Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Maximální hloubka záběru na jeden hrubovací zákrok (radiálně).">Hloubka (ap)</label><input type="number" step="0.5" data-p="depthOfCut" value="${prms.depthOfCut}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Posuv na otáčku [mm/ot] pro hrubovací dráhu.">Posuv (F)</label><input type="number" step="0.05" data-p="feed" value="${prms.feed}"></div>
+    </div>
+    <div class="cam-sim-row">
+      <div class="cam-sim-field"><label data-tooltip="Řezná rychlost [m/min] pro výpočet otáček vřetene.">Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Vzdálenost bezpečného odskoku nástroje od obrobku mezi jednotlivými zákroky.">Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
     </div>`;
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
       <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
