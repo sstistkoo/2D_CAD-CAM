@@ -4735,6 +4735,24 @@ body {
 .cne-tb-new { color: var(--ctp-green); font-weight: 700; }
 .cne-status { font-weight: 700; font-size: 13px; min-width: 24px; text-align: center; }
 
+/* Search bar */
+.cne-search-bar {
+  display: none; align-items: center; gap: 6px;
+  padding: 6px 10px; border-bottom: 1px solid var(--ctp-surface0);
+  background: var(--ctp-mantle); flex-shrink: 0;
+}
+.cne-search-bar.open { display: flex; }
+.cne-search-bar input {
+  flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px;
+  background: var(--ctp-surface0); color: var(--ctp-text);
+  border: 1px solid var(--ctp-surface1); border-radius: 4px; outline: none;
+  font-family: 'Consolas', 'Fira Code', monospace;
+}
+.cne-search-bar input:focus { border-color: var(--ctp-blue); }
+.cne-search-count {
+  font-size: 11px; color: var(--ctp-subtext0); white-space: nowrap; min-width: 46px; text-align: center;
+}
+
 /* ══════════════════════════════════════════════════════════
    Poznámkový blok – profesionální verze
    ══════════════════════════════════════════════════════════ */

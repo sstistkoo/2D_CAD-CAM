@@ -229,7 +229,7 @@ function defaultParserConfig() {
     spindle:   { name: 'Otáčky (G96/G97)',     active: true },
     startstop: { name: 'Vřeteno při G95',      active: true },
     end:       { name: 'Konec programu',       active: true },
-    duplicate: { name: 'Zbytečný G0 na stejnou souřadnici', active: true },
+    duplicate: { name: 'Zbytečný (G0-G3) na stejnou souřadnici', active: true },
     calls:     { name: 'Podprogramy',          active: true },
     params:    { name: 'Parametry (R)',         active: true },
     syntax:    { name: 'Syntaxe',              active: true }
@@ -330,10 +330,11 @@ class CNCParser {
       if (/\bG90\b/.test(clean) || /\bG91\b/.test(clean)) this.coordModeDefined = true;
 
       // Pohyb na stejnou souřadnici jako předchozí blok — typicky zbytečný
-      // G0 vložený mezi dva řezné bloky, které už na daném místě skončily
-      // (např. chainBreak v CAM generátoru). Kontrolujeme jen G0, protože
-      // u G1/G2/G3 může jít o úmyslnou prodlevu/změnu posuvu na místě.
-      if (this.cfg.duplicate.active && /\bG0+\b/.test(clean) && hasCo) {
+      // blok vložený mezi dva bloky, které už na daném místě skončily
+      // (např. chainBreak v CAM generátoru). Platí pro G0-G3 stejně.
+      if (this.cfg.duplicate.active && isMv && hasCo) {
+        const gm = clean.match(/G0?([0-3])\b/);
+        const gCode = gm ? 'G' + gm[1] : 'G?';
         const xm = clean.match(/X(-?[\d.]+)/);
         const zm = clean.match(/Z(-?[\d.]+)/);
         const xv = xm ? parseFloat(xm[1]) : null;
@@ -342,7 +343,7 @@ class CNCParser {
         const newZ = zv === null ? this.lastZ : (this.coordMode === 91 ? (this.lastZ ?? 0) + zv : zv);
         if (this.lastX !== null && this.lastZ !== null &&
             Math.abs(newX - this.lastX) < 1e-6 && Math.abs(newZ - this.lastZ) < 1e-6)
-          this.errors.push({ file: currentFile, lineIndex: i, msg: `Zbytečný rychloposuv G0 na stejnou souřadnici jako předchozí blok (X${this.lastX} Z${this.lastZ}).` });
+          this.errors.push({ file: currentFile, lineIndex: i, msg: `Zbytečný pohyb ${gCode} na stejnou souřadnici jako předchozí blok (X${this.lastX} Z${this.lastZ}).` });
       }
       if (isMv && hasCo) {
         const xm = clean.match(/X(-?[\d.]+)/);
@@ -429,11 +430,26 @@ class CNCParser {
   }
 }
 
+// ── Řídicí systém (sdíleno s CAM Simulátorem přes localStorage) ─
+function getControlSystem() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('skica-cam-simulator') || 'null');
+    if (saved && saved.params && saved.params.controlSystem) return saved.params.controlSystem;
+  } catch { /* ignore */ }
+  return 'sinumerik';
+}
+
+function getControlSystemBarText() {
+  const ctrl = getControlSystem();
+  const names = { sinumerik: 'SINUMERIK 840D sl', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
+  return `${names[ctrl] || names.sinumerik} &mdash; CAM Editor (CNC dráhy)`;
+}
+
 // ── Build HTML ─────────────────────────────────────────────────
 function buildEditorHTML() {
   return `
 <div class="cne-layout">
-  <div class="cne-sn-bar">SINUMERIK 840D sl &mdash; CAM Editor (CNC dráhy)</div>
+  <div class="cne-sn-bar" data-el="snBar"></div>
   <div class="cne-toolbar">
     <div class="cne-toolbar-left">
       <button class="cne-tb-btn cne-tb-sidebar" data-act="sidebar" title="Soubory">☰</button>
@@ -441,6 +457,7 @@ function buildEditorHTML() {
     </div>
     <div class="cne-toolbar-right">
       <button class="cne-tb-btn cne-tb-new cne-hide-m" data-act="new" title="Nový program">＋</button>
+      <button class="cne-tb-btn cne-hide-m" data-act="search" title="Hledat v kódu (Ctrl+F)">🔍</button>
       <button class="cne-tb-btn cne-hide-m" data-act="copy" title="Kopírovat do schránky">📋</button>
       <button class="cne-tb-btn cne-hide-m" data-act="download" title="Stáhnout soubor">⬇</button>
       <button class="cne-tb-btn cne-hide-m" data-act="import" title="Import balíčku">📂</button>
@@ -454,6 +471,14 @@ function buildEditorHTML() {
       <button class="cne-tb-btn cne-menu-btn" data-act="menu" title="Menu">⋮</button>
       <button class="cne-tb-btn cne-cam-btn" data-act="cam" title="Otevřít v CAM Simulátoru (přenést úpravy)" aria-label="Otevřít v CAM Simulátoru">🔄</button>
     </div>
+  </div>
+
+  <div class="cne-search-bar" data-el="searchBar">
+    <input type="text" data-el="searchInput" placeholder="Hledat v kódu…">
+    <span class="cne-search-count" data-el="searchCount"></span>
+    <button class="cne-tb-btn" data-act="searchPrev" title="Předchozí (Shift+Enter)">▲</button>
+    <button class="cne-tb-btn" data-act="searchNext" title="Další (Enter)">▼</button>
+    <button class="cne-tb-btn" data-act="searchClose" title="Zavřít (Esc)">✕</button>
   </div>
 
   <div class="cne-main">
@@ -525,6 +550,7 @@ function buildEditorHTML() {
       <div class="cne-im-title">Nástroje editoru<button class="cne-im-close" data-act="menuClose" title="Zavřít">✕</button></div>
       <div class="cne-menu-list">
         <button class="cne-menu-item" data-act="new"><span class="cne-mi-icon green">＋</span><span class="cne-mi-text"><b>Nový program</b><small>Vytvořit nový CNC soubor</small></span></button>
+        <button class="cne-menu-item" data-act="search"><span class="cne-mi-icon">🔍</span><span class="cne-mi-text"><b>Hledat v kódu</b><small>Rychlé vyhledávání textu</small></span></button>
         <button class="cne-menu-item" data-act="copy"><span class="cne-mi-icon">📋</span><span class="cne-mi-text"><b>Kopírovat</b><small>Zkopírovat kód do schránky</small></span></button>
         <button class="cne-menu-item" data-act="download"><span class="cne-mi-icon">⬇</span><span class="cne-mi-text"><b>Stáhnout</b><small>Stáhnout aktuální soubor</small></span></button>
         <button class="cne-menu-item" data-act="import"><span class="cne-mi-icon">📂</span><span class="cne-mi-text"><b>Import balíčku</b><small>Načíst soubory z balíčku</small></span></button>
@@ -600,7 +626,7 @@ function buildEditorHTML() {
   <!-- Header generator modal -->
   <div class="cne-inner-modal" data-el="hdrModal" style="display:none">
     <div class="cne-im-card" style="min-width:300px;max-width:380px">
-      <div class="cne-im-title">Generovat hlavičku programu<button class="cne-im-close" data-act="hdrClose" title="Zavřít">✕</button></div>
+      <div class="cne-im-title"><span data-el="hdrTitle">Generovat hlavičku programu</span><button class="cne-im-close" data-act="hdrClose" title="Zavřít">✕</button></div>
       <div class="cne-hdr-list" data-el="hdrList"></div>
       <div class="cne-im-actions" style="margin-top:10px">
         <button class="cne-im-btn cancel" data-act="hdrClose">Zavřít</button>
@@ -639,7 +665,15 @@ export function openCamEditor(initialCode, jumpLine) {
     currentFile = sd.currentFile || Object.keys(programs)[0];
   }
   const sc = storageLoad(STORAGE_CFG);
-  if (sc) parserCfg = { ...defaultParserConfig(), ...sc };
+  if (sc) {
+    // Jen 'active' (ZAP/VYP) je uživatelské nastavení k zachování — popisky
+    // (name) musí vždy pocházet z aktuálního kódu, jinak přežije stará
+    // uložená verze textu i po přejmenování v defaultParserConfig().
+    parserCfg = defaultParserConfig();
+    Object.keys(parserCfg).forEach(k => {
+      if (sc[k] && typeof sc[k].active === 'boolean') parserCfg[k].active = sc[k].active;
+    });
+  }
   const sh = storageLoad(STORAGE_HDR);
   if (sh) headerCfg = { ...defaultHeaderConfig(), ...sh };
   const sm = storageLoad(STORAGE_MERGE);
@@ -652,6 +686,7 @@ export function openCamEditor(initialCode, jumpLine) {
   // ── DOM refs ───────────────────────────────────────────────
   const $ = s => overlay.querySelector(`[data-el="${s}"]`);
   const root        = overlay.querySelector('.cne-layout');
+  $('snBar').innerHTML = getControlSystemBarText();
   const editor      = $('editor');
   const backdrop    = $('backdrop');
   const highlights  = $('highlights');
@@ -674,6 +709,9 @@ export function openCamEditor(initialCode, jumpLine) {
   const mergeListEl = $('mergeList');
   const mergeJoinBtn = $('mergeJoinBtn');
   const mergeFileInput = $('mergeFileInput');
+  const searchBar    = $('searchBar');
+  const searchInput  = $('searchInput');
+  const searchCountEl = $('searchCount');
 
   // ── Persistence ────────────────────────────────────────────
   function persist() { storageSave(STORAGE_DATA, { programs, currentFile }); }
@@ -839,17 +877,46 @@ export function openCamEditor(initialCode, jumpLine) {
     backdrop.scrollLeft = editor.scrollLeft;
   }
 
+  // ── Aktivní cíl vkládání (naposledy zaostřené pole) ─────────
+  // Spodní klávesnice (quickbar) i numpad musí psát tam, kde uživatel
+  // naposledy klikl — do editoru kódu, nebo do vyhledávacího pole,
+  // pokud je otevřené. mousedown na quickbaru má preventDefault, takže
+  // fokus mezi kliky neputuje na tlačítko a activeTarget zůstává platný
+  // i během interakce s numpad modalem (ten focus nepřebírá).
+  let activeTarget = editor;
+  editor.addEventListener('focus', () => { activeTarget = editor; });
+  searchInput.addEventListener('focus', () => { activeTarget = searchInput; });
+
   // ── Insert / Backspace ─────────────────────────────────────
   function insertText(text) {
+    const actual = text === '\\n' ? '\n' : text;
+    if (activeTarget === searchInput) {
+      const s = searchInput.selectionStart, e = searchInput.selectionEnd, v = searchInput.value;
+      searchInput.value = v.substring(0, s) + actual + v.substring(e);
+      searchInput.selectionStart = searchInput.selectionEnd = s + actual.length;
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
-    const actual = text === '\\n' ? '\n' : text;
     editor.value = v.substring(0, s) + actual + v.substring(e);
     editor.selectionStart = editor.selectionEnd = s + actual.length;
     onInput();
   }
 
   function doBackspace() {
+    if (activeTarget === searchInput) {
+      const s = searchInput.selectionStart, e = searchInput.selectionEnd, v = searchInput.value;
+      if (s !== e) {
+        searchInput.value = v.substring(0, s) + v.substring(e);
+        searchInput.selectionStart = searchInput.selectionEnd = s;
+      } else if (s > 0) {
+        searchInput.value = v.substring(0, s - 1) + v.substring(s);
+        searchInput.selectionStart = searchInput.selectionEnd = s - 1;
+      }
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
     if (s !== e) {
@@ -984,6 +1051,9 @@ export function openCamEditor(initialCode, jumpLine) {
 
   function showHeaderSettings() {
     const h = headerCfg;
+    const ctrlNames = { sinumerik: 'SINUMERIK', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
+    const hdrTitleEl = $('hdrTitle');
+    if (hdrTitleEl) hdrTitleEl.textContent = `Generovat hlavičku programu (${ctrlNames[getControlSystem()] || ctrlNames.sinumerik})`;
     const coordOpts = ['G54','G55','G56','G57','G505','G53'].map(v =>
       `<option value="${v}" ${h.coords.val === v ? 'selected' : ''}>${v}</option>`).join('');
     const feedOpts = ['G95','G94'].map(v =>
@@ -1044,27 +1114,59 @@ export function openCamEditor(initialCode, jumpLine) {
     readHeaderInputs();
     persistHdr();
     const h = headerCfg;
+    const ctrl = getControlSystem();
     const lines = [];
     let n = 10;
+    const N = () => { const s = `N${n} `; n += 10; return s; };
 
-    if (h.gear.active)  { lines.push(`N${n} M${h.gear.val}`); n += 10; }
-    lines.push(`N${n} STOPRE`); n += 10;
-    if (h.door.active)  { lines.push(`N${n} M${h.door.val}`); n += 10; }
-    if (h.tool.active)  { lines.push(`N${n} T${h.tool.t}`); lines.push(`      D${h.tool.d}`); n += 10; }
-
-    let coordLine = `N${n}`;
-    if (h.coords.active) coordLine += ` ${h.coords.val}`;
-    if (h.feed.active)   coordLine += ` ${h.feed.mode}`;
-    coordLine += ' G90';
-    lines.push(coordLine); n += 10;
-
-    if (h.spindle.active) {
-      let sp = `N${n} ${h.spindle.mode}`;
-      if (h.spindle.mode === 'G96' && h.spindle.lims) sp += ` LIMS=${h.spindle.lims}`;
-      sp += ` S${h.spindle.s} M${h.spindle.m}`;
-      lines.push(sp); n += 10;
+    let coordLine;
+    if (ctrl === 'fanuc') {
+      // Fanuc: bez STOPRE (Siemens-specifický "stop předzpracování"),
+      // volání nástroje T0101 (nástroj+korekce po 2 číslicích),
+      // omezení otáček G50 Smax místo LIMS=.
+      if (h.gear.active)  lines.push(`${N()}M${h.gear.val}`);
+      if (h.door.active)  lines.push(`${N()}M${h.door.val}`);
+      if (h.tool.active)  lines.push(`${N()}T${String(h.tool.t).padStart(2, '0')}${String(h.tool.d).padStart(2, '0')}`);
+      coordLine = N();
+      if (h.coords.active) coordLine += `${h.coords.val} `;
+      if (h.feed.active)   coordLine += `${h.feed.mode} `;
+      coordLine += 'G90';
+      lines.push(coordLine.trim());
+      if (h.spindle.active) {
+        if (h.spindle.mode === 'G96' && h.spindle.lims) lines.push(`${N()}G50 S${h.spindle.lims}`);
+        lines.push(`${N()}${h.spindle.mode} S${h.spindle.s} M${h.spindle.m}`);
+      }
+    } else if (ctrl === 'heidenhain') {
+      // Heidenhain (ISO dialekt): bez STOPRE, nástroj T.. M6, bez LIMS.
+      if (h.gear.active)  lines.push(`${N()}M${h.gear.val}`);
+      if (h.door.active)  lines.push(`${N()}M${h.door.val}`);
+      if (h.tool.active)  lines.push(`${N()}T${h.tool.t} M6`);
+      coordLine = N();
+      if (h.coords.active) coordLine += `${h.coords.val} `;
+      if (h.feed.active)   coordLine += `${h.feed.mode} `;
+      coordLine += 'G90';
+      lines.push(coordLine.trim());
+      if (h.spindle.active) lines.push(`${N()}${h.spindle.mode} S${h.spindle.s} M${h.spindle.m}`);
+    } else {
+      // Sinumerik 840D (výchozí): STOPRE před výměnou nástroje i na konci,
+      // nástroj T.. / D.. na dvou řádcích, LIMS=.. u G96.
+      if (h.gear.active)  lines.push(`${N()}M${h.gear.val}`);
+      lines.push(`${N()}STOPRE`);
+      if (h.door.active)  lines.push(`${N()}M${h.door.val}`);
+      if (h.tool.active)  { lines.push(`${N()}T${h.tool.t}`); lines.push(`      D${h.tool.d}`); }
+      coordLine = N();
+      if (h.coords.active) coordLine += `${h.coords.val} `;
+      if (h.feed.active)   coordLine += `${h.feed.mode} `;
+      coordLine += 'G90';
+      lines.push(coordLine.trim());
+      if (h.spindle.active) {
+        let sp = `${N()}${h.spindle.mode}`;
+        if (h.spindle.mode === 'G96' && h.spindle.lims) sp += ` LIMS=${h.spindle.lims}`;
+        sp += ` S${h.spindle.s} M${h.spindle.m}`;
+        lines.push(sp);
+      }
+      lines.push(`${N()}STOPRE`);
     }
-    lines.push(`N${n} STOPRE`);
 
     const existing = editor.value.split('\n');
     let result;
@@ -1141,6 +1243,47 @@ export function openCamEditor(initialCode, jumpLine) {
     if (!editor.value) return;
     navigator.clipboard.writeText(editor.value).catch(() => {});
   }
+
+  // ── Hledání v kódu ─────────────────────────────────────────
+  let searchMatches = [];
+  let searchIdx = -1;
+  function openSearch() {
+    searchBar.classList.add('open');
+    searchInput.focus();
+    searchInput.select();
+  }
+  function closeSearch() {
+    searchBar.classList.remove('open');
+    editor.focus();
+  }
+  function doSearch(dir) {
+    const q = searchInput.value;
+    if (!q) { searchCountEl.textContent = ''; searchMatches = []; searchIdx = -1; return; }
+    searchMatches = [];
+    let i = -1;
+    const lower = editor.value.toLowerCase();
+    const ql = q.toLowerCase();
+    while ((i = lower.indexOf(ql, i + 1)) !== -1) searchMatches.push(i);
+    if (!searchMatches.length) { searchCountEl.textContent = '0 / 0'; searchIdx = -1; return; }
+    searchIdx = (searchIdx + dir + searchMatches.length) % searchMatches.length;
+    searchCountEl.textContent = (searchIdx + 1) + ' / ' + searchMatches.length;
+    // Zvýraznění nálezu bez odebrání fokusu z vyhledávacího pole
+    // (setSelectionRange funguje i bez focus() — jinak by focus() na
+    // editoru "ukradl" fokus z inputu při psaní dalšího znaku).
+    const pos = searchMatches[searchIdx];
+    editor.setSelectionRange(pos, pos + q.length);
+    const lineIdx = editor.value.slice(0, pos).split('\n').length - 1;
+    editor.scrollTop = Math.max(0, lineIdx * 20 - editor.clientHeight / 2);
+    syncScroll();
+  }
+  searchInput.addEventListener('input', () => { searchIdx = -1; doSearch(1); });
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); doSearch(e.shiftKey ? -1 : 1); }
+    if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+  });
+  editor.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearch(); }
+  });
 
   // ── Conversion helpers ────────────────────────────────────
   // CSP-safe vyhodnocení číselného výrazu (+ - * / a závorky) bez eval/Function.
@@ -1354,6 +1497,10 @@ export function openCamEditor(initialCode, jumpLine) {
         case 'calc':      closeMenu(); import('../ui.js').then(m => m.openCalculator()); break;
         case 'settings':  showSettings(); closeMenu(); break;
         case 'copy':      copyToClipboard(); closeMenu(); break;
+        case 'search':    closeMenu(); openSearch(); break;
+        case 'searchPrev': doSearch(-1); break;
+        case 'searchNext': doSearch(1); break;
+        case 'searchClose': closeSearch(); break;
         case 'renum':     closeMenu(); $('renumModal').style.display = 'flex'; break;
         case 'renumCancel': $('renumModal').style.display = 'none'; break;
         case 'renumOk': {
