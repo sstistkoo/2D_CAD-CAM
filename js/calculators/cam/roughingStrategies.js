@@ -591,7 +591,7 @@ export function genLongPasses(ctx) {
         const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         if (!partingNoDress) {
           const liOpen = traceOffsetPath(zGapHi, iv.zStart);
-          if (isParting) linkToPrev(liOpen);   // bez zbytečného odskoku+návratu
+          linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
           passOpen.contourLeadIn = liOpen;
         }
         passes.push(passOpen);
@@ -613,7 +613,7 @@ export function genLongPasses(ctx) {
         const passFlat = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         if (!partingNoDress) {
           const liFlat = traceOffsetPath(zGapHi, iv.zStart);
-          if (isParting) linkToPrev(liFlat);
+          linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
           passFlat.contourLeadIn = liFlat;
         }
         passes.push(passFlat);
@@ -640,12 +640,33 @@ export function genLongPasses(ctx) {
         const dzRamp = Math.min(dzRampFull, availWidth);
         const xReached = cornerLocal.x - dzRamp * effPlungeTanL;
         if (xReached > X + 0.001) plungeShallowed++;
+        // Rampa nesmí přejet hranici kapsy na dosažené hloubce: u KONKÁVNÍ
+        // stěny (údolí), která se pod rohem pokládá pod úhel zanoření, by
+        // sdílená přímka rampy podjela offset a dno by řezalo skrz stěnu.
+        let zS = cornerLocal.z - dzRamp;
+        if (zS > ivLocal.zStart + 1e-6) zS = ivLocal.zStart;
+        // Tětiva rampy (roh → začátek dna) proti offsetu: když i tak někde
+        // podjede (konvexní vyboulení stěny), rampa se nahradí sledováním
+        // kontury po stěně dolů — přesné, bez zajetí.
+        let rampPierces = false;
+        for (let t = 0.1; t < 0.999; t += 0.09) {
+          const z = cornerLocal.z + (zS - cornerLocal.z) * t;
+          const xl = cornerLocal.x + (xReached - cornerLocal.x) * t;
+          const off = offsetXAt(z);
+          if (off !== null && xl < off - 0.05) { rampPierces = true; break; }
+        }
         const pocketPass = {
           type: 'long', x: xReached,
-          zStart: cornerLocal.z - dzRamp, zEnd: ivLocal.zEnd, blocked: ivLocal.blocked,
-          ramp: { x0: cornerLocal.x, z0: cornerLocal.z }
+          zStart: zS, zEnd: ivLocal.zEnd, blocked: ivLocal.blocked,
         };
-        if (leadIn.length > 0) pocketPass.contourLeadIn = leadIn;
+        let leadInFinal = leadIn;
+        if (rampPierces) {
+          const wallTrace = traceOffsetPath(cornerLocal.z, zS);
+          leadInFinal = leadIn.concat(wallTrace);
+        } else {
+          pocketPass.ramp = { x0: cornerLocal.x, z0: cornerLocal.z };
+        }
+        if (leadInFinal.length > 0) pocketPass.contourLeadIn = leadInFinal;
         if (withLeadOut && prms.noStepRoughing) {
           // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
           // až na hloubku dalšího průchodu (nebo až na konec kontury)
@@ -658,7 +679,7 @@ export function genLongPasses(ctx) {
       };
       if (!prms.pocketFinishAtOnce) {
         const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, !partingNoDress, true);
-        if (prms.noStepRoughing) linkToPrev(leadIn);
+        linkToPrev(leadIn);   // navázání nezávisí na „bez schodků"
         passes.push(pocketPass);
         return;
       }
@@ -702,7 +723,7 @@ export function genLongPasses(ctx) {
         // předchozího zákroku a odtud ramuje jen nový úsek. Žádný výjezd nad
         // kapsu/roh (ten by jel skrz boss nad zápichem).
         pocketPass.noRetract = true;
-        if (firstPlunge) { pocketPass.pocketEntry = true; if (prms.noStepRoughing) linkToPrev(leadIn); }
+        if (firstPlunge) { pocketPass.pocketEntry = true; linkToPrev(leadIn); }
         else {
           pocketPass.pocketReposition = true;
           // rampFeedFrom = vršek zápichu předchozího zákroku (konec jeho
@@ -710,7 +731,7 @@ export function genLongPasses(ctx) {
           // Upichovák: přesun jde v úrovni PŘEDCHOZÍHO dna (vzduch vykopaný
           // minulým zákrokem) na NOVÉ zápichové Z a odtud svisle dolů — šikmý
           // přejezd po sdílené rampě by tělem hoblovat pravou stěnu.
-          if (prevRampEnd && prevRampEnd.x > pocketPass.x + 0.01) {
+          if (prevRampEnd && pocketPass.ramp && prevRampEnd.x > pocketPass.x + 0.01) {
             pocketPass.rampFeedFrom = isParting
               ? { x: prevRampEnd.x, z: pocketPass.zStart }
               : prevRampEnd;
@@ -765,10 +786,10 @@ export function genLongPasses(ctx) {
       // když poslední rampa opravdu dosedla na stěnu (offset v tom Z ≈ dosažené
       // X) — jinak by nad ní zůstal materiál a čistí se celá stěna od rohu.
       // Bez „Hrub. bez schodků": žádné dokončení kapsy — zůstávají schodky
-      // (upichovák bere jen spodní stranou, sledování stěn je dojíždění).
+      // (dojíždění tvaru patří jen k „bez schodků"; platí pro všechny tvary).
       let cleanStartZ = corner.z;
       let cleanApproach = null;
-      if (!partingNoDress && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
+      if (prms.noStepRoughing && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
         const wallXThere = offsetXAt(prevRampEnd.z);
         if (wallXThere !== null && Math.abs(wallXThere - prevRampEnd.x) < 0.2) {
           // Rampy dojely na stěnu — dokončení začne až u posledního zákroku
@@ -778,8 +799,8 @@ export function genLongPasses(ctx) {
           cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
         }
       }
-      const cleanLeadIn = partingNoDress ? [] : dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ));
-      const cleanLeadOut = partingNoDress ? [] : dropMicro(traceOffsetPath(pocketBottomZ, exitZ));
+      const cleanLeadIn = prms.noStepRoughing ? dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ)) : [];
+      const cleanLeadOut = prms.noStepRoughing ? dropMicro(traceOffsetPath(pocketBottomZ, exitZ)) : [];
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
           type: 'long', pocketClean: true,
