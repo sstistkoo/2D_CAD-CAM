@@ -389,6 +389,30 @@ export function genLongPasses(ctx) {
   const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
   let plungeShallowed = 0;
 
+  // ── Upichovák (parting) v podélném hrubování ──
+  // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
+  // bodu (střed rádiusu levého rohu) DOPRAVA. Roh kapsy se neurčuje sklonem
+  // kontury (findPlungeCorner s tan90° nikdy nenajde), ale pravým okrajem
+  // kapsy posunutým o (w−2r) — druhý rádius plátku pak přesně lícuje pravou
+  // stěnu. Sjezdy/dojezdy po kontuře jedou po OBÁLCE (viz post-process níže).
+  const isParting = prms.toolShape === 'parting';
+  const wInsL = isParting ? (parseFloat(prms.toolLength) || 0) : 0;
+  const rInsL = isParting ? Math.min(parseFloat(prms.toolRadius) || 0, wInsL / 2) : 0;
+  const w2RL = Math.max(0, wInsL - 2 * rInsL);
+  let partingNarrowPockets = 0;
+
+  // Navázání: předchozí průchod končí přesně v bodě, odkud začíná leadIn
+  // dalšího → nesmí odskočit (žádný zbytečný trojúhelník odskok+návrat),
+  // plynule pokračuje po kontuře. Sdíleno kapsovou větví i fallbacky.
+  const linkToPrev = (leadIn) => {
+    const prevPass = passes[passes.length - 1];
+    if (prevPass && prevPass.type === 'long' && !prevPass.contourLeadOut && leadIn.length > 0
+        && Math.abs(prevPass.zEnd - leadIn[0].z1) < 0.05
+        && Math.abs(prevPass.x - leadIn[0].x1) < step + 0.1) {
+      prevPass.noRetract = true;
+    }
+  };
+
   // Najde bod na offsetPath, kde sklon dX/dZ ve směru jízdy (klesající Z)
   // dosáhne úhlu zanoření effPlungeDegL — odtud se opouští kontura a
   // jede se rampou na currentX. Skenuje od zFrom dolů k zStop. Vrací
@@ -555,19 +579,32 @@ export function genLongPasses(ctx) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
         // kontura z konce předchozího průchodu na currentX.
+        const liOpen = traceOffsetPath(zGapHi, iv.zStart);
+        if (isParting) linkToPrev(liOpen);   // bez zbytečného odskoku+návratu
         passes.push({
           type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked,
-          contourLeadIn: traceOffsetPath(zGapHi, iv.zStart)
+          contourLeadIn: liOpen
         });
         return;
       }
-      const corner = findPlungeCorner(zGapHi, iv.zStart);
+      // Upichovák: svislý zápich — roh = pravý okraj kapsy − (w−2r), druhý
+      // rádius plátku lícuje pravou stěnu. Užší kapsa než plátek se přeskočí.
+      let corner;
+      if (isParting) {
+        const cz = iv.zStart - w2RL;
+        if (cz <= iv.zEnd + 0.05) { partingNarrowPockets++; return; }
+        corner = { x: Math.min(maxStockX, currentX + step), z: cz };
+      } else {
+        corner = findPlungeCorner(zGapHi, iv.zStart);
+      }
       if (!corner) {
         // Sklon kontury nikdy nedosáhne úhlu zanoření — celá mezera se
         // projede po kontuře na currentX, žádná rampa.
+        const liFlat = traceOffsetPath(zGapHi, iv.zStart);
+        if (isParting) linkToPrev(liFlat);
         passes.push({
           type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked,
-          contourLeadIn: traceOffsetPath(zGapHi, iv.zStart)
+          contourLeadIn: liFlat
         });
         return;
       }
@@ -608,18 +645,6 @@ export function genLongPasses(ctx) {
         }
         return { pocketPass, leadIn };
       };
-      // Navázání: předchozí (otevřený) průchod končí přesně v bodě, odkud
-      // začíná leadIn téhle kapsy → nesmí odskočit, plynule pokračuje po
-      // kontuře (G3) do kapsy.
-      const linkToPrev = (leadIn) => {
-        const prevPass = passes[passes.length - 1];
-        if (prevPass && prevPass.type === 'long' && !prevPass.contourLeadOut && leadIn.length > 0
-            && Math.abs(prevPass.zEnd - leadIn[0].z1) < 0.05
-            && Math.abs(prevPass.x - leadIn[0].x1) < step + 0.1) {
-          prevPass.noRetract = true;
-        }
-      };
-
       if (!prms.pocketFinishAtOnce) {
         const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, true, true);
         if (prms.noStepRoughing) linkToPrev(leadIn);
@@ -671,7 +696,14 @@ export function genLongPasses(ctx) {
           pocketPass.pocketReposition = true;
           // rampFeedFrom = vršek zápichu předchozího zákroku (konec jeho
           // rampy) na sdílené přímce rampy — sem se zvedne rychloposuvem.
-          if (prevRampEnd && prevRampEnd.x > pocketPass.x + 0.01) pocketPass.rampFeedFrom = prevRampEnd;
+          // Upichovák: přesun jde v úrovni PŘEDCHOZÍHO dna (vzduch vykopaný
+          // minulým zákrokem) na NOVÉ zápichové Z a odtud svisle dolů — šikmý
+          // přejezd po sdílené rampě by tělem hoblovat pravou stěnu.
+          if (prevRampEnd && prevRampEnd.x > pocketPass.x + 0.01) {
+            pocketPass.rampFeedFrom = isParting
+              ? { x: prevRampEnd.x, z: pocketPass.zStart }
+              : prevRampEnd;
+          }
         }
         passes.push(pocketPass);
         prevRampEnd = { x: pocketPass.x, z: pocketPass.zStart };
@@ -688,8 +720,14 @@ export function genLongPasses(ctx) {
           const cIv = rescan.intervals[j];
           if (!cIv.blocked) continue;
           const cGapHi = rescan.intervals[j - 1].zEnd;
-          const cCorner = findPlungeCorner(cGapHi, cIv.zStart);
-          if (cCorner && Math.abs(cCorner.x - curCorner.x) < CORNER_TOL && Math.abs(cCorner.z - curCorner.z) < CORNER_TOL) {
+          // Upichovák: roh = pravý okraj − (w−2r); s hloubkou se posouvá po
+          // pravé stěně, tolerance shody proto v Z povolí až step + 2 (šikmá
+          // stěna posune okraj o step/tg(sklonu) na vrstvu), X se nesrovnává.
+          const cCorner = isParting
+            ? (cIv.zStart - w2RL > cIv.zEnd + 0.05 ? { x: localX + step, z: cIv.zStart - w2RL } : null)
+            : findPlungeCorner(cGapHi, cIv.zStart);
+          const zTol = isParting ? step + 2 : CORNER_TOL;
+          if (cCorner && (isParting || Math.abs(cCorner.x - curCorner.x) < CORNER_TOL) && Math.abs(cCorner.z - curCorner.z) < zTol) {
             found = { iv: cIv, gapHi: cGapHi, corner: cCorner }; break;
           }
         }
@@ -747,6 +785,38 @@ export function genLongPasses(ctx) {
   }
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
+  if (partingNarrowPockets > 0)
+    foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
+
+  // ── Sjezdy/dojezdy upichováku po OBÁLCE (podélně) ──
+  // Sledování kontury (leadIn do kapsy, leadOut „bez schodků") jede u
+  // upichováku po obálce x(z) = max offsetu pod rovnou částí dna (tělo
+  // doprava): na klesající kontuře (sjezd do kapsy, dojezd schodu doleva)
+  // tak dráha zůstane výš, dokud tělo nemine pravou stěnu — jinak by
+  // aktivní roh sledoval konturu a tělo za ním řezalo do tvaru. Na
+  // stoupající (levé stěny) se obálka kryje s offsetem. Kruhové úseky se
+  // zpětně prokládají G2/G3 (fitArcsToPolyline).
+  if (isParting) {
+    const envify = (segs) => {
+      if (!segs || segs.length === 0) return segs;
+      const zFrom = segs[0].z1, zTo = segs[segs.length - 1].z2;
+      if (Math.abs(zTo - zFrom) < 0.02) return segs;
+      const pts = samplePartingEnvelope(offsetXAt, zFrom, zTo, w2RL, 1, 0.4, 0.003);
+      if (pts.length < 2) return segs;
+      const fitted = fitArcsToPolyline(pts, 0.02);
+      const out = [];
+      for (const s of fitted) {
+        if (s.type === 'line') out.push({ type: 'line', x1: s.p1.x, z1: s.p1.z, x2: s.p2.x, z2: s.p2.z });
+        else out.push({ type: 'arc', x1: s.p1.x, z1: s.p1.z, x2: s.p2.x, z2: s.p2.z, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle });
+      }
+      return out.length > 0 ? out : segs;
+    };
+    for (const p of passes) {
+      if (p.type !== 'long') continue;
+      if (p.contourLeadIn) p.contourLeadIn = envify(p.contourLeadIn);
+      if (p.contourLeadOut) p.contourLeadOut = envify(p.contourLeadOut);
+    }
+  }
 
   // ── Hlídání geometrie destičky (podélně) ──
   // Čelní hrana destičky se nad špičkou naklání o φ = natočení + ε − 90

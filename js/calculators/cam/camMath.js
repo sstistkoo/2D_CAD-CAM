@@ -100,6 +100,14 @@ export function fitArcsToPolyline(pts, tol = 0.02) {
       let ok = true, prevA = null, dirSign = 0, sweep = 0;
       for (let k = i; k <= j; k++) {
         if (Math.abs(Math.hypot(pts[k].x - c.x, pts[k].z - c.z) - c.r) > tol) { ok = false; break; }
+        // Sagitta mezery: mezi vzdálenými body (kolineární merge vyhazuje
+        // body na rovných úsecích) se oblouk prohne o L²/8R — nesmí se od
+        // skutečné dráhy (úsečky mezi body) odchýlit víc než tol, jinak by
+        // rovný úsek nahradil oblouk s obřím R prohnutý doprostřed.
+        if (k > i) {
+          const L = Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z);
+          if (L * L / (8 * c.r) > tol) { ok = false; break; }
+        }
         const a = ang(c, pts[k]);
         if (prevA !== null) {
           let da = a - prevA;
