@@ -13,7 +13,7 @@ import { updateObjectList, persistSettings } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from './cam/camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
@@ -3506,6 +3506,38 @@ export function openCamSimulator(initialContour, initialGCode) {
       return maxX;
     };
     const offsetXAt = (z) => maxXAt(offsetPath, z);
+
+    // ── Dokončování upichovákem: dráha po OBÁLCE ──
+    // Upichovák má šířku — dokončovací dráha po samotném offsetu by na
+    // úsecích stoupajících k obrobené straně (zprava = doprava) zajela
+    // tělem plátku do tvaru. Obálka x(z) = max offsetu pod celou rovnou
+    // částí dna: na stoupajících úsecích tak finální povrch řeže DRUHÝ
+    // rádius plátku, na klesajících aktivní roh; vršky přejíždí rovné dno.
+    // Do úzkých kapes (užší než plátek) obálka nezajede — zbytek je
+    // nedosažitelný stejně jako u hlídání geometrie destičky.
+    if (prms.toolShape === 'parting' && prms.doFinishing && finishOffsetPath.length > 0) {
+      const wInsF = parseFloat(prms.toolLength) || 0;
+      const rInsF = Math.min(parseFloat(prms.toolRadius) || 0, wInsF / 2);
+      const w2RF = Math.max(0, wInsF - 2 * rInsF);
+      const dirMF = (prms.roughingSide === 'left') ? -1 : 1;
+      let fzMin = Infinity, fzMax = -Infinity;
+      finishOffsetPath.forEach(s => {
+        if (s.isDegenerate) return;
+        if (s.type === 'line') { fzMin = Math.min(fzMin, s.p1.z, s.p2.z); fzMax = Math.max(fzMax, s.p1.z, s.p2.z); }
+        else { fzMin = Math.min(fzMin, s.cz - s.r); fzMax = Math.max(fzMax, s.cz + s.r); }
+      });
+      if (isFinite(fzMin) && fzMax - fzMin > 0.05) {
+        const finXAt = (z) => maxXAt(finishOffsetPath, z);
+        // jízdní pořadí = klesající Z (zprava doleva) — jako offsetPath
+        const pts = samplePartingEnvelope(finXAt, fzMax, fzMin, w2RF, dirMF, 0.4, 0.005);
+        if (pts.length >= 2) {
+          const envSegs = [];
+          for (let i = 1; i < pts.length; i++)
+            envSegs.push({ type: 'line', p1: { x: pts[i - 1].x, z: pts[i - 1].z }, p2: { x: pts[i].x, z: pts[i].z }, chainBreak: false });
+          finishOffsetPath = envSegs;
+        }
+      }
+    }
 
     // Úhel oblouku offsetPath na zadaném Z (jen v rozsahu segmentu).
     const arcAngleAtZ = (seg, z) => {

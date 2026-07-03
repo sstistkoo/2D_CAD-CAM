@@ -16,7 +16,7 @@
 //   pass-helpery: offsetXAt, traceOffsetPath, findOffsetXCrossing,
 //                 findPocketExitZ, findLeadOutEndZ, hIntersect
 
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from './camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope } from './camMath.js';
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
@@ -257,48 +257,47 @@ export function genFacePasses(ctx) {
       if (partAdjusted > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání upichováku: ${partAdjusted} čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka ${wIns}) nevjelo do kontury.` });
 
-      // ── Zarovnání schodků u stěny jedním dojezdem (Hrub. bez schodků) ──
-      // Průchody zkrácené hlídáním (partClamped) nechávají u stoupající
-      // stěny schody — jen zapichují a vyjíždějí v X (svislý výjezd řeší
-      // kontrola odskoku v generateAutoGCode). Schodky zarovná JEDEN
-      // souvislý dojezd po kontuře: připojí se k prvnímu NEzkrácenému
-      // průchodu za runem a vede po offsetu posunutém o (w−2r), takže po
-      // stěně jede DRUHÝ rádius plátku — tělo zůstává nad už obrobeným
-      // dnem a nic negouguje. Pak march pokračuje dál.
-      if (prms.noStepRoughing && prms.noStepRoughingFace) {
+      // ── Dojezdy upichováku po OBÁLCE (Hrub. bez schodků i u čelního) ──
+      // Zkrácené průchody (partClamped) jen zapichují a vyjíždějí v X
+      // (svislý výjezd řeší kontrola odskoku v generateAutoGCode) — jejich
+      // dojezdy jsou smazané. KAŽDÝ zbylý dojezd se nahradí lomenou čárou
+      // OBÁLKY: x(z) = max offsetu pod celou rovnou částí dna plátku
+      // (tělo k obrobené straně). Na stoupající kontuře tak po povrchu
+      // jede DRUHÝ rádius plátku (tělo negouguje — původní dojezd šplhal
+      // aktivním rohem a tělo za ním řezalo do tvaru); na klesající se
+      // obálka kryje s offsetem (původní chování, jen po úsečkách).
+      // Dlouhé dojezdy „bez schodků" tím zarovnají schodky za runem
+      // zkrácených průchodů najednou.
+      {
         const w2R = Math.max(0, wIns - 2 * rIns);
-        const dirM = faceLeft ? -1 : 1;   // směr k obrobené straně (stěně)
-        const shiftZ = (segs, dz) => segs.map(s => s.type === 'line'
-          ? { ...s, z1: s.z1 + dz, z2: s.z2 + dz }
-          : { ...s, z1: s.z1 + dz, z2: s.z2 + dz, cz: s.cz + dz });
+        const dirM = faceLeft ? -1 : 1;   // směr k obrobené straně
+        // Runy zkrácených průchodů (partClamped) nechávají na stěně schody —
+        // dojezd PRVNÍHO nezkráceného průchodu za runem se prodlouží tak,
+        // aby DRUHÝ rádius plátku dojel až na vršek stěny (zarovnání
+        // schodků najednou), tj. programovaný konec = vršek − dir·(w−2r).
         const faceArr = passes.filter(p => p.type === 'face');
-        let runStart = null;
+        const extEnd = new Map();
+        let runFirst = null;
         for (let i = 0; i <= faceArr.length; i++) {
           const p = faceArr[i];
-          if (p && p.partClamped) {
-            if (runStart === null) runStart = i;
-            if (p.contourLeadOut) delete p.contourLeadOut;   // per-step šplhání po stěně nahrazuje climb
-            continue;
-          }
-          if (runStart !== null) {
-            const first = faceArr[runStart];
-            const q = p || faceArr[i - 1];   // první nezkrácený za runem (fallback: poslední z runu)
-            const runTopZ = first.z + dirM * step;         // vršek stěny (obrobená strana prvního z runu)
-            const contactStart = q.z + dirM * w2R;         // kde začíná kontakt druhého rádiusu
-            const zHi = dirM > 0 ? runTopZ : contactStart;
-            const zLo = dirM > 0 ? contactStart : runTopZ;
-            if (zHi - zLo > 0.02) {
-              let segs = traceOffsetPath(zHi, zLo);
-              if (dirM > 0) segs = reverseTrace(segs);
-              segs = shiftZ(segs, -dirM * w2R);            // programovaný bod = aktivní roh
-              if (segs.length > 0) {
-                // Napojení ode dna zápichu svisle v X na start posunuté trasy.
-                segs.unshift({ type: 'line', x1: q.xEnd, z1: q.z, x2: segs[0].x1, z2: segs[0].z1 });
-                q.contourLeadOut = segs;
-              }
-            }
-            runStart = null;
-          }
+          if (p && p.partClamped) { if (!runFirst) runFirst = p; continue; }
+          if (runFirst) { if (p) extEnd.set(p, runFirst.z + dirM * (step - w2R)); runFirst = null; }
+        }
+        for (const p of faceArr) {
+          const lo = p.contourLeadOut;
+          let zEnd = (lo && lo.length > 0) ? lo[lo.length - 1].z2 : p.z;
+          const ext = extEnd.get(p);
+          if (ext !== undefined && (dirM > 0 ? ext > zEnd : ext < zEnd)) zEnd = ext;
+          if (Math.abs(zEnd - p.z) < 0.02) { if (lo) delete p.contourLeadOut; continue; }
+          const pts = samplePartingEnvelope(offsetXAt, p.z, zEnd, w2R, dirM, 0.4, 0.01);
+          const segs = [];
+          // Napojení ode dna zápichu svisle v X na start obálky.
+          if (pts.length > 0 && pts[0].x > p.xEnd + 0.02)
+            segs.push({ type: 'line', x1: p.xEnd, z1: p.z, x2: pts[0].x, z2: pts[0].z });
+          for (let i = 1; i < pts.length; i++)
+            segs.push({ type: 'line', x1: pts[i - 1].x, z1: pts[i - 1].z, x2: pts[i].x, z2: pts[i].z });
+          if (segs.length > 0) p.contourLeadOut = segs;
+          else if (lo) delete p.contourLeadOut;
         }
       }
     }

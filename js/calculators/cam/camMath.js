@@ -25,6 +25,41 @@ export function getEffectivePlungeAngle(prms) {
   return clampA(a);
 }
 
+// Obálka dna upichováku: x(z) = max offsetu pod celou rovnou částí dna
+// (span = šířka − 2·rádius), tělo na straně dir (+1 = +Z, zprava; −1 zleva).
+// Programovaný bod = střed rádiusu pracovní strany; na stoupající kontuře
+// tak po povrchu jede DRUHÝ rádius (kontakt na protějším rohu), na klesající
+// se obálka kryje s offsetem. xAt(z) vrací max X offsetu v z, nebo null.
+// Vrací lomenou čáru [{x,z}] v pořadí jízdy zFrom → zTo (kolineární body
+// vyházené s tolerancí tol).
+export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol = 0.01) {
+  const n = Math.max(1, Math.ceil(Math.abs(zTo - zFrom) / h));
+  const inner = Math.max(1, Math.ceil(span / h));
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const z = zFrom + (zTo - zFrom) * (i / n);
+    let m = null;
+    for (let j = 0; j <= inner; j++) {
+      const x = xAt(z + dir * span * (j / inner));
+      if (x !== null && (m === null || x > m)) m = x;
+    }
+    if (m !== null) pts.push({ x: m, z });
+  }
+  // Kolineární redukce — drž jen body, kde se směr láme o víc než tol.
+  const out = [];
+  for (const p of pts) {
+    while (out.length >= 2) {
+      const a = out[out.length - 2], b = out[out.length - 1];
+      const ux = p.x - a.x, uz = p.z - a.z;
+      const len = Math.hypot(ux, uz) || 1;
+      const d = Math.abs((b.x - a.x) * uz - (b.z - a.z) * ux) / len;
+      if (d < tol) out.pop(); else break;
+    }
+    out.push(p);
+  }
+  return out;
+}
+
 // Leží úhel `target` v intervalu <start,end>? isG2 = směr CW (G2).
 export function isAngleBetween(target, start, end, isG2) {
   if (isNaN(target) || isNaN(start) || isNaN(end)) return false;

@@ -78,7 +78,7 @@ async function loadCam() {
   const camMathUrl = pathToFileURL(join(root, 'js/calculators/cam/camMath.js')).href;
   const strategiesUrl = pathToFileURL(join(root, 'js/calculators/cam/roughingStrategies.js')).href;
   const prelude = `
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from ${JSON.stringify(camMathUrl)};
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope } from ${JSON.stringify(camMathUrl)};
 import { ROUGHING_STRATEGIES } from ${JSON.stringify(strategiesUrl)};
 const state = { flipX: false, flipZ: false };
 const makeOverlay = () => globalThis.document.body;
