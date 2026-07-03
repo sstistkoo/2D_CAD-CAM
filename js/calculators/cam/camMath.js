@@ -60,6 +60,91 @@ export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol =
   return out;
 }
 
+// Kružnice třemi body v rovině (z, x); null pro kolineární body.
+function _circum3(A, B, C) {
+  const d = 2 * (A.z * (B.x - C.x) + B.z * (C.x - A.x) + C.z * (A.x - B.x));
+  if (Math.abs(d) < 1e-9) return null;
+  const a2 = A.z * A.z + A.x * A.x, b2 = B.z * B.z + B.x * B.x, c2 = C.z * C.z + C.x * C.x;
+  const z = (a2 * (B.x - C.x) + b2 * (C.x - A.x) + c2 * (A.x - B.x)) / d;
+  const x = (a2 * (C.z - B.z) + b2 * (A.z - C.z) + c2 * (B.z - A.z)) / d;
+  return { z, x, r: Math.hypot(A.z - z, A.x - x) };
+}
+
+// Proloží lomenou čáru oblouky: hladové hledání nejdelších běhů bodů
+// ležících (v toleranci tol) na kružnici s monotónním úhlem a rozvinem
+// ≤ ~170° (R formát v G-kódu je jednoznačný jen pro menší oblouk).
+// Vrací segmenty { type:'line', p1, p2 } | { type:'arc', p1, p2, cx, cz,
+// r, dir:'G2'|'G3', startAngle, endAngle }; úhel = atan2(x−cx, z−cz),
+// G3 = rostoucí úhel (konvence shodná s vykreslováním kontury).
+// Krátké zbytky mezi oblouky se slévají do úseček (kolineární merge).
+export function fitArcsToPolyline(pts, tol = 0.02) {
+  const segs = [];
+  const N = pts.length;
+  const ang = (c, p) => Math.atan2(p.x - c.x, p.z - c.z);
+  const pushLine = (a, b) => {
+    const prev = segs[segs.length - 1];
+    if (prev && prev.type === 'line') {
+      const ux = b.x - prev.p1.x, uz = b.z - prev.p1.z;
+      const len = Math.hypot(ux, uz) || 1;
+      const d = Math.abs((prev.p2.x - prev.p1.x) * uz - (prev.p2.z - prev.p1.z) * ux) / len;
+      if (d < tol * 0.7) { prev.p2 = b; return; }
+    }
+    segs.push({ type: 'line', p1: a, p2: b });
+  };
+  let i = 0;
+  while (i < N - 1) {
+    let best = null;
+    for (let j = i + 3; j < N; j++) {
+      const c = _circum3(pts[i], pts[(i + j) >> 1], pts[j]);
+      if (!c || c.r > 5000 || c.r < 0.05) break;
+      let ok = true, prevA = null, dirSign = 0, sweep = 0;
+      for (let k = i; k <= j; k++) {
+        if (Math.abs(Math.hypot(pts[k].x - c.x, pts[k].z - c.z) - c.r) > tol) { ok = false; break; }
+        const a = ang(c, pts[k]);
+        if (prevA !== null) {
+          let da = a - prevA;
+          while (da > Math.PI) da -= 2 * Math.PI;
+          while (da < -Math.PI) da += 2 * Math.PI;
+          if (Math.abs(da) > Math.PI / 2) { ok = false; break; }
+          if (da !== 0) {
+            const s = Math.sign(da);
+            if (dirSign === 0) dirSign = s;
+            else if (s !== dirSign) { ok = false; break; }
+          }
+          sweep += da;
+        }
+        prevA = a;
+      }
+      if (!ok || dirSign === 0 || Math.abs(sweep) > Math.PI * 0.94) break;
+      best = { c, j, dirSign };
+    }
+    if (best) {
+      const { c, j, dirSign } = best;
+      const p1 = pts[i], p2 = pts[j];
+      // Když celý běh leží v toleranci i na TĚTIVĚ, je to prakticky rovný
+      // úsek → úsečka místo oblouku s obřím R (čitelnější kód a nepadá na
+      // konzervativních kontrolách pracujících s kružnicí).
+      const chLen = Math.hypot(p2.x - p1.x, p2.z - p1.z) || 1;
+      let chordOk = true;
+      for (let k = i + 1; k < j && chordOk; k++) {
+        const d = Math.abs((pts[k].x - p1.x) * (p2.z - p1.z) - (pts[k].z - p1.z) * (p2.x - p1.x)) / chLen;
+        if (d > tol) chordOk = false;
+      }
+      if (chordOk) {
+        pushLine(p1, p2);
+      } else {
+        segs.push({
+          type: 'arc', p1, p2, cx: c.x, cz: c.z, r: c.r,
+          dir: dirSign > 0 ? 'G3' : 'G2',
+          startAngle: ang(c, p1), endAngle: ang(c, p2),
+        });
+      }
+      i = j;
+    } else { pushLine(pts[i], pts[i + 1]); i++; }
+  }
+  return segs;
+}
+
 // Leží úhel `target` v intervalu <start,end>? isG2 = směr CW (G2).
 export function isAngleBetween(target, start, end, isG2) {
   if (isNaN(target) || isNaN(start) || isNaN(end)) return false;

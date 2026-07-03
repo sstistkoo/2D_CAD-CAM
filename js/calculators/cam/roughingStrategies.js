@@ -16,7 +16,7 @@
 //   pass-helpery: offsetXAt, traceOffsetPath, findOffsetXCrossing,
 //                 findPocketExitZ, findLeadOutEndZ, hIntersect
 
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope } from './camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './camMath.js';
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
@@ -289,13 +289,19 @@ export function genFacePasses(ctx) {
           const ext = extEnd.get(p);
           if (ext !== undefined && (dirM > 0 ? ext > zEnd : ext < zEnd)) zEnd = ext;
           if (Math.abs(zEnd - p.z) < 0.02) { if (lo) delete p.contourLeadOut; continue; }
-          const pts = samplePartingEnvelope(offsetXAt, p.z, zEnd, w2R, dirM, 0.4, 0.01);
+          // Jemnější kolineární tolerance — body na obloucích si nechá pro
+          // zpětné proložení G2/G3 (fitArcsToPolyline), ať kód není rozsekaný
+          // na stovky mikro-úseček.
+          const pts = samplePartingEnvelope(offsetXAt, p.z, zEnd, w2R, dirM, 0.4, 0.003);
+          const fitted = fitArcsToPolyline(pts, 0.02);
           const segs = [];
           // Napojení ode dna zápichu svisle v X na start obálky.
           if (pts.length > 0 && pts[0].x > p.xEnd + 0.02)
             segs.push({ type: 'line', x1: p.xEnd, z1: p.z, x2: pts[0].x, z2: pts[0].z });
-          for (let i = 1; i < pts.length; i++)
-            segs.push({ type: 'line', x1: pts[i - 1].x, z1: pts[i - 1].z, x2: pts[i].x, z2: pts[i].z });
+          for (const s of fitted) {
+            if (s.type === 'line') segs.push({ type: 'line', x1: s.p1.x, z1: s.p1.z, x2: s.p2.x, z2: s.p2.z });
+            else segs.push({ type: 'arc', x1: s.p1.x, z1: s.p1.z, x2: s.p2.x, z2: s.p2.z, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle });
+          }
           if (segs.length > 0) p.contourLeadOut = segs;
           else if (lo) delete p.contourLeadOut;
         }

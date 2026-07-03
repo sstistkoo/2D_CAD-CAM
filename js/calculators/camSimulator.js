@@ -13,7 +13,7 @@ import { updateObjectList, persistSettings } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope } from './cam/camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
@@ -2603,6 +2603,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     params: {
       machineType: 'LIMS=2000', mode: 'DIAMON', toolName: 'ROUGHER_T1',
       speed: 200, feed: 0.25, depthOfCut: 2.0, retractDistance: 2.0,
+      // Úhel odskoku po řezu (°): 90 = svisle v X, 45 = klasická diagonála.
+      // X-složka odskoku je vždy retractDistance; Z-složka = rDist/tan(úhel).
+      retractAngle: 45,
       allowanceX: 0.5, allowanceZ: 0.1, toolRadius: 0.8,
       // Přídavek na hotovo: přičítá se k Rádiusu (R) i k Přídavku X/Z —
       // hrubovací offset = R + Přídavek X/Z + Přídavek na hotovo,
@@ -3528,13 +3531,15 @@ export function openCamSimulator(initialContour, initialGCode) {
       });
       if (isFinite(fzMin) && fzMax - fzMin > 0.05) {
         const finXAt = (z) => maxXAt(finishOffsetPath, z);
-        // jízdní pořadí = klesající Z (zprava doleva) — jako offsetPath
-        const pts = samplePartingEnvelope(finXAt, fzMax, fzMin, w2RF, dirMF, 0.4, 0.005);
+        // jízdní pořadí = klesající Z (zprava doleva) — jako offsetPath.
+        // Kruhové úseky obálky se zpětně proloží G2/G3 (fitArcsToPolyline),
+        // ať dokončování není rozsekané na stovky mikro-úseček.
+        const pts = samplePartingEnvelope(finXAt, fzMax, fzMin, w2RF, dirMF, 0.4, 0.003);
         if (pts.length >= 2) {
-          const envSegs = [];
-          for (let i = 1; i < pts.length; i++)
-            envSegs.push({ type: 'line', p1: { x: pts[i - 1].x, z: pts[i - 1].z }, p2: { x: pts[i].x, z: pts[i].z }, chainBreak: false });
-          finishOffsetPath = envSegs;
+          const fitted = fitArcsToPolyline(pts, 0.02);
+          finishOffsetPath = fitted.map(s => s.type === 'line'
+            ? { type: 'line', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, chainBreak: false }
+            : { type: 'arc', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, refP1: { x: s.p1.x, z: s.p1.z }, refP2: { x: s.p2.x, z: s.p2.z }, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle, chainBreak: false });
         }
       }
     }
@@ -3785,9 +3790,15 @@ export function openCamSimulator(initialContour, initialGCode) {
           finishClipped++;
           pastLimit = true;
         } else {
-          // Arc: pokud je celý uvnitř → keep; pokud min/max Z prochází limit → drop.
-          const zMin = seg.cz - seg.r, zMax = seg.cz + seg.r;
-          // Konzervativně: pokud rozsah Z překračuje limit, oblouk zahodit.
+          // Arc: Z-rozsah SKUTEČNÉHO výseku (koncové body + extrém cz±r jen
+          // když úhel extrému leží ve výseku) — bounding box celé kružnice
+          // by u téměř rovných oblouků s velkým R (arc-fit obálky) zahazoval
+          // vše, i když výsek limity vůbec nepřekračuje.
+          const zS = seg.cz + Math.cos(seg.startAngle) * seg.r;
+          const zE = seg.cz + Math.cos(seg.endAngle) * seg.r;
+          let zMin = Math.min(zS, zE), zMax = Math.max(zS, zE);
+          if (isAngleBetween(0, seg.startAngle, seg.endAngle, seg.dir === 'G2')) zMax = seg.cz + seg.r;
+          if (isAngleBetween(Math.PI, seg.startAngle, seg.endAngle, seg.dir === 'G2')) zMin = seg.cz - seg.r;
           if (!zInBounds(zMin) || !zInBounds(zMax)) {
             seg.isDegenerate = true; finishDropped++; pastLimit = true;
           }
@@ -4025,6 +4036,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     let simCounter = 0;
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Rychloposuv')}`, 0);
     const rDist = calc.retractDist || 2.0;
+    // Úhel odskoku (°): X-složka je vždy rDist, Z-složka = rDist/tan(úhel).
+    // 45° = klasická diagonála (Z = rDist), 90° = svisle jen v X (Z = 0).
+    const rAngDeg = Math.max(5, Math.min(90, parseFloat(prms.retractAngle) || 45));
+    // zaokrouhlení na 1e-9 → tan(45°)=0.999…99 nerozhodí výstup (Z1.901 vs 1.902)
+    const rDistZ = rAngDeg >= 89.95 ? 0 : Math.round(rDist / Math.tan(rAngDeg * Math.PI / 180) * 1e9) / 1e9;
 
     // ── UPICHNUTÍ (part-off) ── upichovák, zvolená Z rovina → zápich v X na 0.
     // Peck: po hloubce „Vyjezd" (retractDistance) vyjede pro uvolnění třísek,
@@ -4174,7 +4190,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           // a odtud pracovní rampa řeže jen nový úsek pod ním. Žádný výjezd
           // nad polotovar ani na roh (ten by jel skrz boss nad zápichem).
           const tgt = pass.rampFeedFrom || entry;
-          const odskokZ = clipZGc(cur.z + rDist);
+          const odskokZ = clipZGc(cur.z + rDistZ);
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
           if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
           simCounter += 1; addN(`G0 X${xDia(tgt.x)}`, simCounter); setPos(tgt.x, tgt.z);
@@ -4185,7 +4201,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             // obrobily rampy, takže se jen ODSKOČÍ ode dna, přejede v Z nad
             // začátek nedobraného zbytku a přisune se k němu — žádný výjezd nad
             // boss ani přejezd přes už obrobenou stěnu.
-            const odskokZ = clipZGc(cur.z + rDist);
+            const odskokZ = clipZGc(cur.z + rDistZ);
             simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
             if (Math.abs(cur.z - entry.z) > 1e-6) { simCounter += 1; addN(`G0 Z${entry.z.toFixed(3)}`, simCounter); setPos(cur.x, entry.z); }
             if (Math.abs(cur.x - entry.x) > 1e-6) { simCounter += 1; addN(`G0 X${xDia(entry.x)}`, simCounter); setPos(entry.x, entry.z); }
@@ -4229,7 +4245,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           }
         }
         if (!pass.noRetract) {
-          const zRetractVal = clipZGc(cur.z + rDist);
+          const zRetractVal = clipZGc(cur.z + rDistZ);
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
         }
       } else if (pass.type === 'long' && pass.backside) {
@@ -4251,7 +4267,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         emitB(`G1 X${xDia(pass.x)} F${prms.feed}`); setPos(pass.x, zEng);
         emitB(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`); setPos(pass.x, pass.zStart);
         if (!pass.noRetract) {
-          const zRetractVal = clipZGc(cur.z - rDist);
+          const zRetractVal = clipZGc(cur.z - rDistZ);
           emitB(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`); setPos(cur.x + rDist, zRetractVal);
         }
       } else if (pass.type === 'long') {
@@ -4281,7 +4297,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           }
         }
         if (!pass.noRetract) {
-          const zRetractVal = clipZGc(cur.z + rDist);
+          const zRetractVal = clipZGc(cur.z + rDistZ);
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
         }
       } else {
@@ -4310,31 +4326,33 @@ export function openCamSimulator(initialContour, initialGCode) {
             }
           }
         }
-        // Retract pod 45° do už obrobené strany: zprava (zprava doleva) +Z,
-        // zleva (zleva doprava) −Z. Směr drží pass.faceLeft.
-        // Když by diagonála zajela do kontury NEBO do materiálu, který
-        // sousední (mělčí/zkrácený) průchod nechal stát (stěna kapsy,
-        // hlídání destičky) → vyjet svisle jen v X (viz zápichy).
+        // Retract pod úhlem odskoku do už obrobené strany: zprava +Z,
+        // zleva −Z (drží pass.faceLeft). Když by diagonála zajela do kontury
+        // NEBO do materiálu, který sousední (mělčí/zkrácený) průchod nechal
+        // stát (stěna kapsy, hlídání destičky) → vyjet svisle jen v X.
         const dirZR = pass.faceLeft ? -1 : 1;
+        // Sklon diagonály: na Z-posun dz připadá X-zdvih dz·(rDist/rDistZ);
+        // u 90° (rDistZ=0) je odskok svislý a kontrola bezpředmětná.
+        const rTan = rDistZ > 1e-9 ? rDist / rDistZ : Infinity;
         let retractGouges = false;
-        for (let i = 1; i <= 8 && !retractGouges; i++) {
-          const d = rDist * i / 8;
-          const ox = gcOffsetXAt(cur.z + dirZR * d);
-          if (ox !== null && ox > cur.x + d - 0.02) retractGouges = true;
+        for (let i = 1; i <= 8 && rDistZ > 1e-9 && !retractGouges; i++) {
+          const dz = rDistZ * i / 8;
+          const ox = gcOffsetXAt(cur.z + dirZR * dz);
+          if (ox !== null && ox > cur.x + dz * rTan - 0.02) retractGouges = true;
         }
         // Zbytek materiálu na sousedních čelních rovinách (xEnd > offset).
-        if (!retractGouges) {
+        if (!retractGouges && rDistZ > 1e-9) {
           for (const p2 of calc.passes) {
             if (p2.type !== 'face') continue;
-            const d = dirZR * (p2.z - cur.z);
-            if (d <= 1e-6 || d > rDist + 1e-6) continue;
-            if (p2.xEnd > cur.x + d - 0.02) { retractGouges = true; break; }
+            const dz = dirZR * (p2.z - cur.z);
+            if (dz <= 1e-6 || dz > rDistZ + 1e-6) continue;
+            if (p2.xEnd > cur.x + dz * rTan - 0.02) { retractGouges = true; break; }
           }
         }
         if (retractGouges) {
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
         } else {
-          const zRetractVal = clipZGc(cur.z + (pass.faceLeft ? -rDist : rDist));
+          const zRetractVal = clipZGc(cur.z + (pass.faceLeft ? -rDistZ : rDistZ));
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
         }
       }
@@ -6869,7 +6887,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     </div>
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label data-tooltip="Řezná rychlost [m/min] pro výpočet otáček vřetene.">Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
-      <div class="cam-sim-field"><label data-tooltip="Vzdálenost bezpečného odskoku nástroje od obrobku mezi jednotlivými zákroky.">Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Vzdálenost bezpečného odskoku nástroje od obrobku mezi jednotlivými zákroky (zdvih v X).">Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Úhel odskoku: 45° = klasická diagonála (X i Z), 90° = svisle jen v ose X. Z-složka = Odskok / tan(úhel).">Úhel odsk. (°)</label><input type="number" step="5" min="5" max="90" data-p="retractAngle" value="${prms.retractAngle ?? 45}"></div>
     </div>`;
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
       <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
