@@ -4527,7 +4527,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const C = {
       bg: '#1e1e2e', grid: '#313244', axis: '#f38ba8', stock: '#6c7086',
       contour: '#89b4fa', offset: '#cba6f7', pass: '#a6e3a1', finish: '#f5c2e7',
-      error: '#f38ba8', text: '#6c7086', tool: '#f9e2af'
+      error: '#f38ba8', text: '#6c7086', tool: '#f9e2af', insert: 'rgba(186,194,222,0.7)'
     };
 
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
@@ -5018,8 +5018,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         const curZ = pCurrent.z + (pNext.z - pCurrent.z) * t;
         const pt = toScreen(curX, curZ);
         const tRad = parseFloat(prms.toolRadius) || 0.8;
-        const rPix = Math.max(tRad * S.view.scale, 6);
-        ctx.fillStyle = C.tool; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        // −0.75px = polovina šířky konturové čáry (lineWidth 1.5), aby okraj
+        // plátku nepřekrýval vykreslenou čáru kontury.
+        const rPix = Math.max(tRad * S.view.scale, 6) - 0.75;
+        ctx.fillStyle = C.insert; ctx.strokeStyle = C.text; ctx.lineWidth = 1;
         if (prms.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         } else if (prms.toolShape === 'polygon') {
