@@ -277,11 +277,16 @@ export function genFacePasses(ctx) {
         // schodků najednou), tj. programovaný konec = vršek − dir·(w−2r).
         const faceArr = passes.filter(p => p.type === 'face');
         const extEnd = new Map();
-        let runFirst = null;
-        for (let i = 0; i <= faceArr.length; i++) {
-          const p = faceArr[i];
-          if (p && p.partClamped) { if (!runFirst) runFirst = p; continue; }
-          if (runFirst) { if (p) extEnd.set(p, runFirst.z + dirM * (step - w2R)); runFirst = null; }
+        // Zarovnávací prodloužení dojezdu za runem zkrácených průchodů JEN
+        // s „Hrub. bez schodků i u čelního" — bez něj upichovák jen zapichuje
+        // v X a posouvá se v Z (schodky zůstávají, bere jen jednou stranou).
+        if (prms.noStepRoughing && prms.noStepRoughingFace) {
+          let runFirst = null;
+          for (let i = 0; i <= faceArr.length; i++) {
+            const p = faceArr[i];
+            if (p && p.partClamped) { if (!runFirst) runFirst = p; continue; }
+            if (runFirst) { if (p) extEnd.set(p, runFirst.z + dirM * (step - w2R)); runFirst = null; }
+          }
         }
         for (const p of faceArr) {
           const lo = p.contourLeadOut;
@@ -399,6 +404,10 @@ export function genLongPasses(ctx) {
   const wInsL = isParting ? (parseFloat(prms.toolLength) || 0) : 0;
   const rInsL = isParting ? Math.min(parseFloat(prms.toolRadius) || 0, wInsL / 2) : 0;
   const w2RL = Math.max(0, wInsL - 2 * rInsL);
+  // Bez „Hrub. bez schodků": upichovák bere jen jednou stranou — žádné
+  // sledování kontury (leadIn/leadOut/dokončení kapsy), jen svislé zápichy
+  // a jízda v Z; schodky zůstávají.
+  const partingNoDress = isParting && !prms.noStepRoughing;
   let partingNarrowPockets = 0;
 
   // Navázání: předchozí průchod končí přesně v bodě, odkud začíná leadIn
@@ -579,12 +588,13 @@ export function genLongPasses(ctx) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
         // kontura z konce předchozího průchodu na currentX.
-        const liOpen = traceOffsetPath(zGapHi, iv.zStart);
-        if (isParting) linkToPrev(liOpen);   // bez zbytečného odskoku+návratu
-        passes.push({
-          type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked,
-          contourLeadIn: liOpen
-        });
+        const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
+        if (!partingNoDress) {
+          const liOpen = traceOffsetPath(zGapHi, iv.zStart);
+          if (isParting) linkToPrev(liOpen);   // bez zbytečného odskoku+návratu
+          passOpen.contourLeadIn = liOpen;
+        }
+        passes.push(passOpen);
         return;
       }
       // Upichovák: svislý zápich — roh = pravý okraj kapsy − (w−2r), druhý
@@ -600,12 +610,13 @@ export function genLongPasses(ctx) {
       if (!corner) {
         // Sklon kontury nikdy nedosáhne úhlu zanoření — celá mezera se
         // projede po kontuře na currentX, žádná rampa.
-        const liFlat = traceOffsetPath(zGapHi, iv.zStart);
-        if (isParting) linkToPrev(liFlat);
-        passes.push({
-          type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked,
-          contourLeadIn: liFlat
-        });
+        const passFlat = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
+        if (!partingNoDress) {
+          const liFlat = traceOffsetPath(zGapHi, iv.zStart);
+          if (isParting) linkToPrev(liFlat);
+          passFlat.contourLeadIn = liFlat;
+        }
+        passes.push(passFlat);
         return;
       }
       // Sledování kontury (G1/G2/G3) z (currentX, zGapHi) do "rohu"
@@ -646,7 +657,7 @@ export function genLongPasses(ctx) {
         return { pocketPass, leadIn };
       };
       if (!prms.pocketFinishAtOnce) {
-        const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, true, true);
+        const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, !partingNoDress, true);
         if (prms.noStepRoughing) linkToPrev(leadIn);
         passes.push(pocketPass);
         return;
@@ -680,7 +691,7 @@ export function genLongPasses(ctx) {
       let prevRampEnd = null;   // konec rampy předchozího zákroku (na sdílené přímce rampy)
       const CORNER_TOL = 1.5;
       while (safety++ < 500) {
-        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner, firstPlunge, false);
+        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner, firstPlunge && !partingNoDress, false);
         // Monotonní progres: u zakřivené (zužující se) stěny dává rampa na
         // hlubší cíl s posunutým rohem někdy MĚLČÍ dosah — takový zákrok
         // zahoď a ukonči bulk, zbytek dna dořeže fáze 2 (sledování kontury).
@@ -753,9 +764,11 @@ export function genLongPasses(ctx) {
       // výjezdu nad boss a přejezdu přes už obrobenou stěnu. POJISTKA: jen
       // když poslední rampa opravdu dosedla na stěnu (offset v tom Z ≈ dosažené
       // X) — jinak by nad ní zůstal materiál a čistí se celá stěna od rohu.
+      // Bez „Hrub. bez schodků": žádné dokončení kapsy — zůstávají schodky
+      // (upichovák bere jen spodní stranou, sledování stěn je dojíždění).
       let cleanStartZ = corner.z;
       let cleanApproach = null;
-      if (prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
+      if (!partingNoDress && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
         const wallXThere = offsetXAt(prevRampEnd.z);
         if (wallXThere !== null && Math.abs(wallXThere - prevRampEnd.x) < 0.2) {
           // Rampy dojely na stěnu — dokončení začne až u posledního zákroku
@@ -765,8 +778,8 @@ export function genLongPasses(ctx) {
           cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
         }
       }
-      const cleanLeadIn = dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ));
-      const cleanLeadOut = dropMicro(traceOffsetPath(pocketBottomZ, exitZ));
+      const cleanLeadIn = partingNoDress ? [] : dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ));
+      const cleanLeadOut = partingNoDress ? [] : dropMicro(traceOffsetPath(pocketBottomZ, exitZ));
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
           type: 'long', pocketClean: true,
