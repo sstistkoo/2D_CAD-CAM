@@ -1011,7 +1011,16 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
   // za kotvou (k ose) je nedosažitelný — zahodí se a kontura se zakončí podél
   // mezní čáry. Kotva u KONCE: ponech [start..kotva] + most k offPt; u ZAČÁTKU
   // zrcadlově. Kotva uvnitř kontury → jen vizualizace (beze změny).
-  if (g.downOnStock) {
+  // Sem patří i ČELNÍ DOJEZDOVÁ čára bez downOnStock: natočená destička dojíždí
+  // na čelo u kraje kontury a nechá ho ŠIKMÉ. Kotva je roh čela (start/konec
+  // kontury) a volný konec míří DOPŘEDU (za čelo, větší Z) k ose — stejné
+  // zakončení jako downOnStock. Bez tohoto by čára spadla do „náběhového stínu"
+  // níže a vrátila se beze změny (práh 5 mm překročí každé čelo nad ~19 mm ⌀),
+  // takže by se čelo neobrobilo podle geometrie plátku.
+  const frontFaceDojezd = !g.downOnStock && g.kind === 'dojezd'
+    && offPt.z > locPt.z + 0.5
+    && (loc.segIdx <= 1 || loc.segIdx >= result.length - 2);
+  if (g.downOnStock || frontFaceDojezd) {
     // _locateOnContour vrací key = segIdx + t (t≈0 začátek entity, ≈1 konec).
     const tPos = loc.key - loc.segIdx;
     const atEnd = tPos > 0.5;
