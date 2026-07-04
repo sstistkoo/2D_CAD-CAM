@@ -144,6 +144,13 @@ describe('Upichnutí (part-off) plátkem', () => {
     expect(a.feedStartX).toBeCloseTo(20.8, 3);      // stockTop (20) + R
   });
 
+  it('Peck výjezd (uvolnění třísek) jede na Start X, ne nad polotovar', async () => {
+    const { gcode } = await runCamProg(prog({ partOffSmooth: false, partOffStartX: 8, allowanceX: 2 }));
+    const retracts = gcode.split('\n').filter(l => /uvolnění třísek/.test(l)).map(l => parseFloat(l.match(/X([\-0-9.]+)/)[1]));
+    expect(retracts.length).toBeGreaterThan(0);
+    retracts.forEach(x => expect(x).toBeCloseTo(8.8, 3));   // Start X (8) + R (0.8)
+  });
+
   it('strana zleva → záporné znaménko Z-offsetu', async () => {
     const { gcode } = await runCamProg(prog({ roughingSide: 'left' }));
     const a = analyze(gcode);

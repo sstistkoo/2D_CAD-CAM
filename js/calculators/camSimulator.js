@@ -1124,6 +1124,7 @@ function partOffGeom(prms, calc) {
     canCut = false; reason = '! Dojezd (Dojezd X) leží nad polotovarem – nic k obrobení.';
   }
   return { pz, shape, rIns, allowX, allowZ, finAllow, dir, xStockTop, xBottomEdge: allowX,
+           startEdgeX: xCenterStart - rIns,   // spodní hrana v místě startu posuvu (=povrch, když neaktivní)
            xCenterTop, xCenterStart, xCenterTarget, zRough, zFinal, doFinish, canCut, reason };
 }
 
@@ -2764,7 +2765,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     activeTab: 'editor', simSpeed: 1,
     singleBlock: false, simBlockTarget: null,
     _animId: null, _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
-    _cachedCalc: null, _hoverIsStock: false,
+    _cachedCalc: null, _hoverIsStock: false, _hoverPartOff: null,
     selectedPoints: new Set(),
     rectSelecting: false,
     rectStart: null,
@@ -4176,7 +4177,9 @@ export function openCamSimulator(initialContour, initialGCode) {
             simCounter += 1; addN(`G0 X${xd(depth + af)}`, simCounter);
             simCounter += 1; addN(`G1 X${xd(nextDepth)} F${prms.feed}${note('', 'Zápich')}`, simCounter);
             depth = nextDepth;
-            if (depth > xCenterTarget + 1e-4) { simCounter += 1; addN(`G0 X${xd(xClear)}${note('', 'Vyjezd – uvolnění třísek')}`, simCounter); }
+            // Výjezd pro uvolnění třísek jen na Start X (xCenterStart), ne nad
+            // celý polotovar — v kapse zůstane nástroj blízko a šetří čas.
+            if (depth > xCenterTarget + 1e-4) { simCounter += 1; addN(`G0 X${xd(xCenterStart)}${note('', 'Vyjezd – uvolnění třísek')}`, simCounter); }
           }
           simCounter += 1; addN(`G0 X${xd(xClear)}${note('', 'Vyjezd')}`, simCounter);
         };
@@ -5131,13 +5134,28 @@ export function openCamSimulator(initialContour, initialGCode) {
       ctx.strokeStyle = '#f38ba8'; ctx.lineWidth = 1.5; ctx.setLineDash([7, 5]);
       ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(bRef.x, bRef.y); ctx.stroke();
       ctx.setLineDash([]);
-      // Obrobená úsečka (plná) od spodní hrany (dojezd) po vršek polotovaru + značka dojezdu.
+      // Obrobená úsečka (plná) od spodní hrany (dojezd) po vršek polotovaru
+      // + dva úchopové body: spodní = Dojezd X, horní = Start X. V režimu
+      // ◆ Kontura je lze chytit a táhnout v ose X (nastaví Dojezd X / Start X).
       if (g.canCut) {
         const eBot = toScreen(g.xBottomEdge, pz), eTop = toScreen(g.xStockTop, pz);
         ctx.strokeStyle = '#f38ba8'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.moveTo(eBot.x, eBot.y); ctx.lineTo(eTop.x, eTop.y); ctx.stroke();
-        ctx.fillStyle = '#f38ba8';
-        ctx.beginPath(); ctx.arc(eBot.x, eBot.y, 3.5, 0, Math.PI * 2); ctx.fill();
+        const interactive = S.pointDragEnabled && !S.simRunning;
+        const drawHandle = (p, color, which, label) => {
+          const active = (interactive && S._hoverPartOff === which) || _draggingPartOff === which;
+          const r = active ? 6.5 : (interactive ? 5 : 3.5);
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = active ? '#f9e2af' : color;
+          ctx.fill(); ctx.strokeStyle = '#1e1e2e'; ctx.lineWidth = 1.5; ctx.stroke();
+          if (interactive) {
+            ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.fillText(label, p.x + 9, p.y);
+          }
+        };
+        drawHandle(toScreen(g.startEdgeX, pz), '#89b4fa', 'start', 'Start X');   // horní (modrý)
+        drawHandle(toScreen(g.xBottomEdge, pz), '#f38ba8', 'dojezd', 'Dojezd X'); // spodní (růžový)
       }
       ctx.fillStyle = '#f38ba8'; ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -5967,6 +5985,55 @@ export function openCamSimulator(initialContour, initialGCode) {
       });
     }
     return closest;
+  }
+
+  // Hit-test na úchopové body upichnutí (Dojezd X / Start X) na svislé úsečce.
+  // Vrátí 'dojezd' | 'start' | null. Aktivní jen v režimu ◆ Kontura.
+  function getPartOffHandleAt(clientX, clientY) {
+    if (S.simRunning) return null;
+    const prms = S.params;
+    if (prms.partOffZ == null || !isFinite(parseFloat(prms.partOffZ))) return null;
+    const calc = S._cachedCalc; if (!calc) return null;
+    const g = partOffGeom(prms, calc);
+    if (!g.canCut) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left, my = clientY - rect.top;
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
+    const toScreen = (x, z) => (prms.machineStructure === 'carousel')
+      ? { x: S.view.panX + hS * x * S.view.scale, y: S.view.panY + vS * z * S.view.scale }
+      : { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
+    let closest = null, minD = Infinity;
+    for (const hnd of [{ w: 'dojezd', x: g.xBottomEdge }, { w: 'start', x: g.startEdgeX }]) {
+      const pt = toScreen(hnd.x, g.pz);
+      const d = Math.hypot(pt.x - mx, pt.y - my);
+      if (d < 15 && d < minD) { minD = d; closest = hnd.w; }
+    }
+    return closest;
+  }
+
+  // Radiální (X, v rádiusu) souřadnice pod kurzorem — pro tažení úchopů upichnutí.
+  function _partOffRadiusFromClient(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
+    return (S.params.machineStructure === 'carousel')
+      ? hS * ((clientX - rect.left) - S.view.panX) / S.view.scale
+      : vS * ((clientY - rect.top) - S.view.panY) / S.view.scale;
+  }
+
+  // Nastaví Dojezd X / Start X z radiální polohy kurzoru (s clampem).
+  function _applyPartOffHandle(which, radiusX) {
+    const top = partOffGeom(S.params, S._cachedCalc || {}).xStockTop;
+    let rx = Math.max(0, radiusX);
+    if (which === 'dojezd') {
+      const startV = parseFloat(S.params.partOffStartX);
+      const upper = (isFinite(startV) && startV > 0) ? startV : top;
+      rx = Math.min(rx, Math.max(0, upper - 0.01), top);
+      S.params.allowanceX = Math.round(rx * 100) / 100;
+    } else {   // start
+      const lower = parseFloat(S.params.allowanceX) || 0;
+      if (rx >= top - 0.01) S.params.partOffStartX = 0;         // u povrchu → neaktivní
+      else S.params.partOffStartX = Math.round(Math.max(rx, lower + 0.01) * 100) / 100;
+    }
   }
 
   // Hit-test na přímé segmenty (G0/G1) kontury nebo stock polyline.
@@ -9391,6 +9458,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   let lastPinchDist = null;
   let _draggingStock = false;
   let _draggingStockPt = false;   // tažení bodu stock polyline (ne válcový handle)
+  let _draggingPartOff = null;    // 'dojezd' | 'start' — tažení úchopu upichnutí (jen v ose X)
   let _draggedContourSeg = null;  // {idx1,idx2,isStock,lockAxis} – tažení celé úsečky
   let _hoverContourSeg = null;    // {idx1,idx2,isStock} – hover zvýraznění segmentu
   let _mdX = 0, _mdY = 0, _panelPending = false;
@@ -9430,6 +9498,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (isFinite(wz)) {
         S.params.partOffZ = Math.round(wz * 1000) / 1000;
         S.partOffPickMode = false;
+        // Horní bod úsečky (Start X) předvyplnit povrchem polotovaru — jen když
+        // ještě není nastavený (uživatel ho pak může přetáhnout níž do kapsy).
+        if (!(parseFloat(S.params.partOffStartX) > 0)) {
+          const stTop = (S._cachedCalc && parseFloat(S._cachedCalc.stockTopX)) || (parseFloat(S.params.stockDiameter) || 0) / 2;
+          if (stTop > 0) S.params.partOffStartX = Math.round(stTop * 100) / 100;
+        }
         showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}`);
         _regenGCode();   // upichovací cyklus se projeví hned
       }
@@ -9645,6 +9719,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       return;
     }
+    // Úchopy upichnutí (Dojezd X / Start X) mají přednost před body kontury.
+    const poHandle = S.pointDragEnabled ? getPartOffHandleAt(e.clientX, e.clientY) : null;
+    if (poHandle) {
+      pushHistory();
+      _draggingPartOff = poHandle; S.isDragging = true;
+      lastMousePos = { x: e.clientX, y: e.clientY };
+      return;
+    }
     const pointHit = S.pointDragEnabled ? getAnyPointAt(e.clientX, e.clientY) : null;
     if (S.pointDragEnabled && pointHit !== null) {
       pushHistory();
@@ -9790,6 +9872,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         canvas.style.cursor = S.params.machineStructure === 'carousel' ? 'ew-resize' : 'ns-resize';
         return;
       }
+      // Úchopy upichnutí (Dojezd X / Start X) — přednost, tažení jen v ose X.
+      const poHover = S.pointDragEnabled ? getPartOffHandleAt(e.clientX, e.clientY) : null;
+      if (poHover !== null) {
+        canvas.style.cursor = S.params.machineStructure === 'carousel' ? 'ew-resize' : 'ns-resize';
+        if (S._hoverPartOff !== poHover) { S._hoverPartOff = poHover; S.hoverPointId = null; S._hoverIsStock = false; _hoverContourSeg = null; draw(); }
+        return;
+      }
+      if (S._hoverPartOff !== null) { S._hoverPartOff = null; draw(); }
       if (stockHover !== null) {
         canvas.style.cursor = 'move';
         if (S.hoverPointId !== stockHover || !S._hoverIsStock) { S.hoverPointId = stockHover; S._hoverIsStock = true; _hoverContourSeg = null; draw(); }
@@ -9829,6 +9919,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.zLimits[S.draggedLimit] = Math.round((cur + dZ) * 100) / 100;
       }
       scheduleFrame(draw);
+      return;
+    }
+    if (_draggingPartOff) {
+      // Tažení úchopu upichnutí — jen v ose X, nastaví Dojezd X / Start X.
+      _applyPartOffHandle(_draggingPartOff, _partOffRadiusFromClient(e.clientX, e.clientY));
+      lastMousePos = { x: e.clientX, y: e.clientY };
+      scheduleFrame(draw);   // úsečka + úchopy sledují kurzor; dráhy se přegenerují po puštění
       return;
     }
     if (_draggingStock && S.draggedPointId !== null) {
@@ -10008,6 +10105,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     // Clear snap lines on release
     S.snapLines = [];
+    if (_draggingPartOff) {
+      // Puštění úchopu upichnutí → přegenerovat dráhy z nového Dojezd X / Start X
+      // (a obnovit panel s hodnotami polí).
+      _draggingPartOff = null; S.isDragging = false;
+      _regenGCode();
+      return;
+    }
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock || _draggedContourSeg !== null)) {
       // Po puštění TEĎ jednou přepočítat kompletní dráhy z nové polohy bodů
       // (během tažení běžel jen lehký náhled) → dráhy se zase ukážou.
@@ -10029,6 +10133,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       saveState(); renderTab(); updateUndoRedoBtns();
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; _draggingStockPt = false;
+    _draggingPartOff = null;
     _draggedContourSeg = null; S.draggedLimit = null;
     S.draggedGNode = null; S._draggedGSeg = null; S._gdragNeedHistory = false;
     S._draggedGuideEnd = null; S._snap = null;
