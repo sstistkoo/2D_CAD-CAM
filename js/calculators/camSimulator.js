@@ -2411,6 +2411,69 @@ function parseContourAndStockGCode(text) {
   return { contour, stock };
 }
 
+// Výchozí hodnoty CAM parametrů — sdíleno mezi počátečním stavem a tlačítkem
+// "🔄 Resetovat vše" (to musí vracet PŘESNĚ stejné výchozí hodnoty, ne jen
+// nějakou kopii aktuálních parametrů).
+function _defaultCamParams() {
+  return {
+    machineType: 'LIMS=2000', mode: 'DIAMON', toolName: 'ROUGHER_T1',
+    speed: 200, feed: 0.25, depthOfCut: 2.0, retractDistance: 2.0,
+    // Úhel odskoku po řezu (°): 90 = svisle v X, 45 = klasická diagonála.
+    // X-složka odskoku je vždy retractDistance; Z-složka = rDist/tan(úhel).
+    retractAngle: 45,
+    allowanceX: 0.5, allowanceZ: 0.1, toolRadius: 0.8,
+    // Přídavek na hotovo: přičítá se k Rádiusu (R) i k Přídavku X/Z —
+    // hrubovací offset = R + Přídavek X/Z + Přídavek na hotovo,
+    // dokončovací offset = jen R.
+    finishAllowance: 0,
+    doFinishing: true, roughingStrategy: 'longitudinal',
+    // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
+    // doprava (druhá strana — zprava nelze, narazil by držák/destička).
+    // Kombinuje se s roughingStrategy (podélně/čelně).
+    roughingSide: 'right',
+    stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
+    stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
+    machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
+    toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
+    toolVbdCode: '', toolClearanceAngle: 0,
+    // Upichnutí (part-off) upichovákem: Z roviny řezu (null = neaktivní,
+    // jede se běžné hrubování/zapichování). Zápich jde v X od povrchu na 0.
+    partOffZ: null,
+    // Posl. mm nájezdu posuvem: při peckingu se jede rychloposuvem zpět dolů
+    // až na tuto vzdálenost nad dno předchozího řezu, pak posuvem F.
+    partingApproachFeed: 1.0,
+    finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
+    // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
+    // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
+    entryAngle: 30,
+    // true = úhel zanoření se dopočítává z tvaru destičky (úhel spodní
+    // hrany: podélně = natočení; čelně = natočení + ε − 90).
+    entryAngleAuto: true,
+    // Hlídat boční ostří destičky: hrubovací průchody se zkracují tak,
+    // aby destička (natočení + vrcholový úhel) nezajela do kontury,
+    // a dokončování přeskočí úseky, kam destička nedosáhne.
+    respectInsertGeometry: false,
+    // Zanořování: podélné hrubování smí rampou (pod úhlem zanoření)
+    // sjet i do kapes/zápichů v kontuře, ne jen do otevřeného řezu.
+    plungeRoughing: false,
+    // Dobrat kapsu najednou: jakmile rampa narazí na kapsu, dobere ji
+    // celou (všechny zákroky ap po sobě), místo aby se dotahovala
+    // postupně spolu s hloubkou zbytku dílu. false = původní chování
+    // (postupné dotahování v dalších průchodech).
+    pocketFinishAtOnce: false,
+    // Bez schodků: po dojezdu hrubovacího průchodu na offset nástroj
+    // dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu,
+    // místo okamžitého 45° odskoku — schody mezi kroky se obrobí
+    // přímo po obrysu.
+    noStepRoughing: false,
+    // Stejné chování i pro čelní (X) hrubování.
+    noStepRoughingFace: false,
+    // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
+    // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
+    rapidClearance: 1.0
+  };
+}
+
 // ══════════════════════════════════════════════════════════════
 // ║  MAIN EXPORT                                              ║
 // ══════════════════════════════════════════════════════════════
@@ -2611,63 +2674,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       { id: 102, type: 'G1', x: 85, z: -105, r: 0, mode: 'ABS' },
       { id: 103, type: 'G1', x: 0, z: -105, r: 0, mode: 'ABS' }
     ],
-    params: {
-      machineType: 'LIMS=2000', mode: 'DIAMON', toolName: 'ROUGHER_T1',
-      speed: 200, feed: 0.25, depthOfCut: 2.0, retractDistance: 2.0,
-      // Úhel odskoku po řezu (°): 90 = svisle v X, 45 = klasická diagonála.
-      // X-složka odskoku je vždy retractDistance; Z-složka = rDist/tan(úhel).
-      retractAngle: 45,
-      allowanceX: 0.5, allowanceZ: 0.1, toolRadius: 0.8,
-      // Přídavek na hotovo: přičítá se k Rádiusu (R) i k Přídavku X/Z —
-      // hrubovací offset = R + Přídavek X/Z + Přídavek na hotovo,
-      // dokončovací offset = jen R.
-      finishAllowance: 0,
-      doFinishing: true, roughingStrategy: 'longitudinal',
-      // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
-      // doprava (druhá strana — zprava nelze, narazil by držák/destička).
-      // Kombinuje se s roughingStrategy (podélně/čelně).
-      roughingSide: 'right',
-      stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
-      stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
-      machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
-      toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
-      toolVbdCode: '', toolClearanceAngle: 0,
-      // Upichnutí (part-off) upichovákem: Z roviny řezu (null = neaktivní,
-      // jede se běžné hrubování/zapichování). Zápich jde v X od povrchu na 0.
-      partOffZ: null,
-      // Posl. mm nájezdu posuvem: při peckingu se jede rychloposuvem zpět dolů
-      // až na tuto vzdálenost nad dno předchozího řezu, pak posuvem F.
-      partingApproachFeed: 1.0,
-      finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
-      // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
-      // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
-      entryAngle: 30,
-      // true = úhel zanoření se dopočítává z tvaru destičky (úhel spodní
-      // hrany: podélně = natočení; čelně = natočení + ε − 90).
-      entryAngleAuto: true,
-      // Hlídat boční ostří destičky: hrubovací průchody se zkracují tak,
-      // aby destička (natočení + vrcholový úhel) nezajela do kontury,
-      // a dokončování přeskočí úseky, kam destička nedosáhne.
-      respectInsertGeometry: false,
-      // Zanořování: podélné hrubování smí rampou (pod úhlem zanoření)
-      // sjet i do kapes/zápichů v kontuře, ne jen do otevřeného řezu.
-      plungeRoughing: false,
-      // Dobrat kapsu najednou: jakmile rampa narazí na kapsu, dobere ji
-      // celou (všechny zákroky ap po sobě), místo aby se dotahovala
-      // postupně spolu s hloubkou zbytku dílu. false = původní chování
-      // (postupné dotahování v dalších průchodech).
-      pocketFinishAtOnce: false,
-      // Bez schodků: po dojezdu hrubovacího průchodu na offset nástroj
-      // dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu,
-      // místo okamžitého 45° odskoku — schody mezi kroky se obrobí
-      // přímo po obrysu.
-      noStepRoughing: false,
-      // Stejné chování i pro čelní (X) hrubování.
-      noStepRoughingFace: false,
-      // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
-      // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
-      rapidClearance: 1.0
-    },
+    params: _defaultCamParams(),
     view: { scale: 3, panX: 600, panY: 350 },
     flipX: state.flipX,
     flipZ: state.flipZ,
@@ -2881,7 +2888,16 @@ export function openCamSimulator(initialContour, initialGCode) {
       contour: JSON.parse(JSON.stringify(S.contourPoints)),
       stock: JSON.parse(JSON.stringify(S.stockPoints)),
       guides: JSON.parse(JSON.stringify(S.guideLines || [])),
-      gcode: S.manualGCode
+      gcode: S.manualGCode,
+      // Parametry + zásobník/limity — zejména kvůli "🔄 Resetovat vše",
+      // ať jde vzít zpět tlačítkem ↩ Zpět.
+      params: JSON.parse(JSON.stringify(S.params)),
+      toolMagazine: JSON.parse(JSON.stringify(S.toolMagazine || [])),
+      activeMagazineSlot: S.activeMagazineSlot,
+      zLimits: JSON.parse(JSON.stringify(S.zLimits)),
+      xLimits: JSON.parse(JSON.stringify(S.xLimits)),
+      showZLimits: S.showZLimits,
+      selectedMaterial: S.selectedMaterial
     };
   }
   function _restore(s) {
@@ -2889,6 +2905,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.stockPoints = s.stock;
     if (s.guides) S.guideLines = s.guides;
     if (typeof s.gcode === 'string') S.manualGCode = s.gcode;
+    if (s.params) S.params = s.params;
+    if (Array.isArray(s.toolMagazine)) S.toolMagazine = s.toolMagazine;
+    if ('activeMagazineSlot' in s) S.activeMagazineSlot = s.activeMagazineSlot;
+    if (s.zLimits) S.zLimits = s.zLimits;
+    if (s.xLimits) S.xLimits = s.xLimits;
+    if (s.showZLimits) S.showZLimits = s.showZLimits;
+    if (s.selectedMaterial) S.selectedMaterial = s.selectedMaterial;
   }
   function pushHistory() {
     S.past.push(_snapshot());
@@ -7305,11 +7328,32 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const resetBtn = tabBody.querySelector('[data-act="reset"]');
     if (resetBtn) resetBtn.addEventListener('click', async () => {
-      const ok = await camConfirm('Opravdu chcete vymazat veškerou uloženou práci a resetovat?');
+      const ok = await camConfirm('Opravdu chcete resetovat CAM parametry a vymazat vygenerované dráhy? Kontura a polotovar zůstanou zachovány (lze vzít zpět tlačítkem ↩ Zpět).');
       if (ok) {
-        localStorage.removeItem(STORAGE_KEY);
-        overlay.remove();
-        openCamSimulator();
+        pushHistory();
+        // Parametry popisující GEOMETRII/stroj (jednotky ⌀/R, tvar a rozměry
+        // polotovaru, struktura stroje) se nesmí resetovat na výchozí — jinak
+        // by se stávající kontura/polotovar vykreslily špatně (např. přepnutí
+        // R↔⌀ změní měřítko X, přepnutí stockMode ztratí vlastní tvar polotovaru).
+        const _preserveKeys = ['mode', 'stockMode', 'stockMargin', 'stockDiameter', 'stockLength', 'stockFace', 'machineStructure', 'controlSystem'];
+        const _defaults = _defaultCamParams();
+        _preserveKeys.forEach(k => { _defaults[k] = S.params[k]; });
+        S.params = _defaults;
+        S.selectedMaterial = 'Ocel 11 373 (S235)';
+        S.toolMagazine = [];
+        S.activeMagazineSlot = null;
+        S.guideLines = [];
+        S.zLimits = { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false };
+        S.showZLimits = 'off';
+        S.xLimits = { rangeXMin: null, rangeXMax: null, active: false };
+        S.machineConfigOpen = false;
+        S.safetyConfigOpen = false;
+        S.materialConfigOpen = false;
+        S.toolConfigOpen = false;
+        S.machiningConfigOpen = false;
+        S.manualGCode = '';
+        fullUpdate();
+        showToast('CAM parametry resetovány — kontura a polotovar zachovány');
       }
     });
   }
@@ -8222,6 +8266,20 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── FULL UPDATE (recalc + redraw + re-render UI) ──
   function fullUpdate() {
     S._cachedCalc = calculate();
+    // Prázdný manualGCode (např. po "🔄 Resetovat vše") = žádné dráhy k
+    // zobrazení — potlačit i teoretický náhled (hrubovací šrafování/pasy),
+    // který se jinak počítá vždy nezávisle na manualGCode přímo z parametrů.
+    if (!S.manualGCode || !S.manualGCode.trim()) {
+      S._cachedCalc.offsetPath = [];
+      S._cachedCalc.finishOffsetPath = [];
+      S._cachedCalc.finishUnreachablePath = [];
+      S._cachedCalc.passes = [];
+      S._cachedCalc.interferenceSegments = [];
+      S._cachedCalc.flankSegments = [];
+      S._cachedCalc.interferenceGuides = [];
+      S._cachedCalc.totalPathLength = 0;
+      S._cachedCalc.estimatedTimeSeconds = 0;
+    }
     S.generatedCode = generateGCode(S._cachedCalc);
     showErrors();
     renderCodeArea();
