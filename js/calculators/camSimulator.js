@@ -7185,6 +7185,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Dojezd: cílová radiální poloha SPODNÍ HRANY plátku. 0 = spodní hrana na osu (X0), 10 = hrana na X10. Střed pracovního rádiusu dojede na (Dojezd X + R).">Dojezd X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
         <div class="cam-sim-field"><label title="Start X: radiální poloha SPODNÍ HRANY, kam se z povrchu polotovaru dojede RYCHLOPOSUVEM a teprve odtud jede posuv (užitečné v kapse — nástroj dojede blíž k ose bez řezání). 0 = zápich začne od povrchu polotovaru.">Start X</label><input type="number" step="0.1" data-p="partOffStartX" value="${prms.partOffStartX}"></div>
+        <div class="cam-sim-field"><label title="Z rovina upichnutí (part-off) — souřadnice Z naklikaného bodu. Lze upravit i ručně.">Z upich</label><input type="number" step="0.01" data-p="partOffZ" value="${parseFloat(prms.partOffZ)}"></div>
       </div>
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label title="TRVALÝ přídavek jen v ose Z — poslední (finální) dráha ho nechá stát, NEODEBÍRÁ se dokončováním. Posune finální rovinu řezu o tuto hodnotu.">Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
@@ -7320,7 +7321,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // (dojezd v X, Z-offset, korekce rádiusu) → přegenerovat hned.
         if (S.params.partOffZ != null
             && ['partingApproachFeed', 'retractDistance', 'feed',
-                'allowanceX', 'allowanceZ', 'finishAllowance', 'partOffStartX',
+                'allowanceX', 'allowanceZ', 'finishAllowance', 'partOffStartX', 'partOffZ',
                 'toolRadius', 'toolLength'].includes(inp.dataset.p)) {
           _regenGCode();
         } else {
