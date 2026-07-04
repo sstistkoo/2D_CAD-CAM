@@ -6866,6 +6866,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
         <div class="cam-sim-field"><label title="Úhel hřbetu — omezuje maximální úhel zanoření na bočním ostří">Úhel hřbetu (α)</label><input type="number" data-p="toolClearanceAngle" value="${prms.toolClearanceAngle ?? 0}" min="0" max="30" step="1"></div>
       </div>`;
+    } else if (prms.toolShape === 'parting') {
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
+        <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
+      </div>`;
     }
     html += `</div>`;
     const _machOpen = S.machiningConfigOpen;
@@ -6975,11 +6980,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       html += `<small class="cam-sim-info-box" style="display:block">Připravuje se.</small>`;
     } else if (_machSubTab === 'upich') {
       const _poActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
-      html += `<div class="cam-sim-row">
-        <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
-        <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
-      </div>
-      <div class="cam-sim-row" style="align-items:flex-end">
+      html += `<div class="cam-sim-row" style="align-items:flex-end">
         <div class="cam-sim-field" style="flex:2"><label title="Upichnutí (part-off): klikni na canvas → v daném Z se udělá zápich v X až na 0. Prázdné = běžné zapichování/hrubování tvaru.">Upichnutí (part-off)</label>
           <button data-act="partoff-pick" class="cam-sim-btn ${S.partOffPickMode ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px">${S.partOffPickMode ? '⊹ Klikni na canvas…' : (_poActive ? `✂️ Z=${parseFloat(prms.partOffZ).toFixed(2)} (změnit)` : '✂️ Ukázat bod')}</button>
         </div>
