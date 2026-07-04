@@ -8266,10 +8266,17 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── FULL UPDATE (recalc + redraw + re-render UI) ──
   function fullUpdate() {
     S._cachedCalc = calculate();
+    // Aktivní upichnutí (part-off) = reálný program je JEN zapichovací cyklus
+    // (viz partOffActive v generateAutoGCode). Teoretický náhled hrubování
+    // (offsetPath/passes) se ale počítá vždy nezávisle na tom, z aktuálních
+    // parametrů (roughingStrategy…) — bez potlačení by se přes skutečnou
+    // dráhu upichnutí kreslilo i cizí čelní/podélné hrubovací šrafování.
+    const _partOffActive = S.params.toolShape === 'parting'
+      && S.params.partOffZ != null && isFinite(parseFloat(S.params.partOffZ));
     // Prázdný manualGCode (např. po "🔄 Resetovat vše") = žádné dráhy k
     // zobrazení — potlačit i teoretický náhled (hrubovací šrafování/pasy),
     // který se jinak počítá vždy nezávisle na manualGCode přímo z parametrů.
-    if (!S.manualGCode || !S.manualGCode.trim()) {
+    if (!S.manualGCode || !S.manualGCode.trim() || _partOffActive) {
       S._cachedCalc.offsetPath = [];
       S._cachedCalc.finishOffsetPath = [];
       S._cachedCalc.finishUnreachablePath = [];
