@@ -2724,6 +2724,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     selectedMaterial: 'Ocel 11 373 (S235)',
     toolConfigOpen: false,
     machiningConfigOpen: false,
+    machiningSubTab: 'hrub',
     errorsOpen: false,
     // Zásobník nástrojů — revolverový stroj
     toolMagazine: [],      // pole slotů, každý viz _defaultMagSlot()
@@ -6865,22 +6866,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
         <div class="cam-sim-field"><label title="Úhel hřbetu — omezuje maximální úhel zanoření na bočním ostří">Úhel hřbetu (α)</label><input type="number" data-p="toolClearanceAngle" value="${prms.toolClearanceAngle ?? 0}" min="0" max="30" step="1"></div>
       </div>`;
-    } else if (prms.toolShape === 'parting') {
-      const _poActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
-      html += `<div class="cam-sim-row">
-        <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
-        <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
-      </div>
-      <div class="cam-sim-row" style="align-items:flex-end">
-        <div class="cam-sim-field" style="flex:2"><label title="Upichnutí (part-off): klikni na canvas → v daném Z se udělá zápich v X až na 0. Prázdné = běžné zapichování/hrubování tvaru.">Upichnutí (part-off)</label>
-          <button data-act="partoff-pick" class="cam-sim-btn ${S.partOffPickMode ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px">${S.partOffPickMode ? '⊹ Klikni na canvas…' : (_poActive ? `✂️ Z=${parseFloat(prms.partOffZ).toFixed(2)} (změnit)` : '✂️ Ukázat bod')}</button>
-        </div>
-        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="partoff-clear" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" ${_poActive || S.partOffPickMode ? '' : 'disabled'} title="Zrušit upichnutí — zpět na zapichování/hrubování tvaru">✖ Zrušit</button></div>
-      </div>
-      ${_poActive ? `<div class="cam-sim-row">
-        <div class="cam-sim-field"><label title="Peck: rychloposuvem zpět dolů až na tuto vzdálenost nad dno předchozího řezu, poslední úsek posuvem F. U osy (0) se nevyjíždí.">Posuv posl. (mm)</label><input type="number" step="0.5" min="0" data-p="partingApproachFeed" value="${prms.partingApproachFeed}"></div>
-        <div class="cam-sim-field"><label title="Vyjezd (peck): po jaké hloubce zanoření nástroj vyjede pro uvolnění třísek. (Sdílí pole „Odskok".)">Vyjezd/peck</label><input type="number" step="0.5" min="0.1" data-p="retractDistance" value="${prms.retractDistance}"></div>
-      </div>` : ''}`;
     }
     html += `</div>`;
     const _machOpen = S.machiningConfigOpen;
@@ -6938,46 +6923,72 @@ export function openCamSimulator(initialContour, initialGCode) {
       </div>`;
     }
     html += `</div>`;
-    html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
-      <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
-      <span>Hrub. bez schodků</span>
-      ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
+    const _machSubTab = S.machiningSubTab || 'hrub';
+    html += `<div class="cam-sim-toggle-row" style="margin-top:6px">
+      <button data-machtab="hrub" class="${_machSubTab === 'hrub' ? 'cam-sim-active' : ''}">Hrub.</button>
+      <button data-machtab="hot" class="${_machSubTab === 'hot' ? 'cam-sim-active' : ''}">Hot.</button>
+      <button data-machtab="upich" class="${_machSubTab === 'upich' ? 'cam-sim-active' : ''}">Upich</button>
     </div>`;
-    html += `<div class="cam-sim-checkbox-row">
-      <label class="cam-sim-checkbox-item" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
-        <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
-        <span>Zanořování</span>
-      </label>
-      ${prms.plungeRoughing ? `<label class="cam-sim-checkbox-item" data-tooltip="Když rampa narazí na kapsu, dobere ji celou najednou (všechny zákroky ap po sobě), než pokračuje zbytkem dílu. Mezi zákroky uvnitř kapsy nástroj bezpečně přejede nad polotovarem. Vypnuto = postupné dotahování spolu s hloubkou zbytku dílu (původní chování).">
-        <input type="checkbox" id="cam-sim-plunge-atonce" ${prms.pocketFinishAtOnce ? 'checked' : ''}>
-        <span>Dobrat naráz</span>
-      </label>` : ''}
-    </div>`;
-    const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
-    const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
-    const rawPlunge = prms.toolShape === 'polygon'
-      ? (prms.roughingStrategy === 'face' ? Math.abs((parseFloat(prms.toolAngle)||0) + (parseFloat(prms.toolTipAngle)||90) - 90) : Math.abs(parseFloat(prms.toolAngle)||0))
-      : 45;
-    const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
-    html += `<div class="cam-sim-row">
-      <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
-      <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
-    </div>`;
-    html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
-      <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
-      <span>Dokončovací operace</span>
-    </div>`;
-    if (prms.doFinishing && S.toolMagazine.length > 1) {
-      const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
-      html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
-        <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
-        <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
-          <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
-          ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${s.name}${s.vbdCode ? ' · ' + s.vbdCode : ''}</option>`).join('')}
-        </select>
-        ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
+    if (_machSubTab === 'hrub') {
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
+        <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
+        <span>Hrub. bez schodků</span>
+        ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
       </div>`;
-      if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
+      html += `<div class="cam-sim-checkbox-row">
+        <label class="cam-sim-checkbox-item" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
+          <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
+          <span>Zanořování</span>
+        </label>
+        ${prms.plungeRoughing ? `<label class="cam-sim-checkbox-item" data-tooltip="Když rampa narazí na kapsu, dobere ji celou najednou (všechny zákroky ap po sobě), než pokračuje zbytkem dílu. Mezi zákroky uvnitř kapsy nástroj bezpečně přejede nad polotovarem. Vypnuto = postupné dotahování spolu s hloubkou zbytku dílu (původní chování).">
+          <input type="checkbox" id="cam-sim-plunge-atonce" ${prms.pocketFinishAtOnce ? 'checked' : ''}>
+          <span>Dobrat naráz</span>
+        </label>` : ''}
+      </div>`;
+      const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
+      const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
+      const rawPlunge = prms.toolShape === 'polygon'
+        ? (prms.roughingStrategy === 'face' ? Math.abs((parseFloat(prms.toolAngle)||0) + (parseFloat(prms.toolTipAngle)||90) - 90) : Math.abs(parseFloat(prms.toolAngle)||0))
+        : 45;
+      const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
+      </div>`;
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
+        <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
+        <span>Dokončovací operace</span>
+      </div>`;
+      if (prms.doFinishing && S.toolMagazine.length > 1) {
+        const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
+        html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
+          <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
+          <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
+            <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
+            ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${s.name}${s.vbdCode ? ' · ' + s.vbdCode : ''}</option>`).join('')}
+          </select>
+          ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
+        </div>`;
+        if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
+      }
+    } else if (_machSubTab === 'hot') {
+      html += `<small class="cam-sim-info-box" style="display:block">Připravuje se.</small>`;
+    } else if (_machSubTab === 'upich') {
+      const _poActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
+        <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
+      </div>
+      <div class="cam-sim-row" style="align-items:flex-end">
+        <div class="cam-sim-field" style="flex:2"><label title="Upichnutí (part-off): klikni na canvas → v daném Z se udělá zápich v X až na 0. Prázdné = běžné zapichování/hrubování tvaru.">Upichnutí (part-off)</label>
+          <button data-act="partoff-pick" class="cam-sim-btn ${S.partOffPickMode ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px">${S.partOffPickMode ? '⊹ Klikni na canvas…' : (_poActive ? `✂️ Z=${parseFloat(prms.partOffZ).toFixed(2)} (změnit)` : '✂️ Ukázat bod')}</button>
+        </div>
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="partoff-clear" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" ${_poActive || S.partOffPickMode ? '' : 'disabled'} title="Zrušit upichnutí — zpět na zapichování/hrubování tvaru">✖ Zrušit</button></div>
+      </div>
+      ${_poActive ? `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Peck: rychloposuvem zpět dolů až na tuto vzdálenost nad dno předchozího řezu, poslední úsek posuvem F. U osy (0) se nevyjíždí.">Posuv posl. (mm)</label><input type="number" step="0.5" min="0" data-p="partingApproachFeed" value="${prms.partingApproachFeed}"></div>
+        <div class="cam-sim-field"><label title="Vyjezd (peck): po jaké hloubce zanoření nástroj vyjede pro uvolnění třísek. (Sdílí pole „Odskok".)">Vyjezd/peck</label><input type="number" step="0.5" min="0.1" data-p="retractDistance" value="${prms.retractDistance}"></div>
+      </div>` : ''}`;
     }
     html += `<div style="text-align:center;margin-top:16px">
       <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
@@ -7001,6 +7012,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (machToggleBtn) machToggleBtn.addEventListener('click', () => {
       S.machiningConfigOpen = !S.machiningConfigOpen;
       renderTab();
+    });
+    tabBody.querySelectorAll('[data-machtab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        S.machiningSubTab = btn.dataset.machtab;
+        renderTab();
+      });
     });
     const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');
     if (flipxParamBtn) flipxParamBtn.addEventListener('click', () => {
