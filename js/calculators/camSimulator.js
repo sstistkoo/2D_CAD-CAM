@@ -4082,8 +4082,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Peck: po hloubce „Vyjezd" (retractDistance) vyjede pro uvolnění třísek,
     // zpět rychloposuvem až partingApproachFeed mm nad dno, pak posuvem F.
     // U osy (X=0) už navíc nevyjíždí.
-    const partOffActive = prms.toolShape === 'parting'
-      && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+    // Upichnutí funguje s libovolným tvarem destičky (kulatá i hranatá) —
+    // vlastní zápichový cyklus je čistě radiální a nezávisí na geometrii ostří.
+    const partOffActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
     if (partOffActive) {
       const xd = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
       const pz = parseFloat(prms.partOffZ);
@@ -5027,7 +5028,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     // Rovina upichnutí (part-off) — svislá čára v Z=partOffZ přes polotovar.
-    if (prms.toolShape === 'parting' && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ))) {
+    if (prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ))) {
       const pz = parseFloat(prms.partOffZ);
       const xTop = Math.max(parseFloat(calc.stockTopX) || 0, (parseFloat(prms.toolRadius) || 1) * 3);
       const a = toScreen(0, pz), b = toScreen(xTop * 1.05, pz);
@@ -7112,7 +7113,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
         }
         // Aktivní upichnutí: peck/posuv (a šířka) mění cyklus → přegenerovat hned.
-        if (S.params.toolShape === 'parting' && S.params.partOffZ != null
+        if (S.params.partOffZ != null
             && ['partingApproachFeed', 'retractDistance', 'feed'].includes(inp.dataset.p)) {
           _regenGCode();
         } else {
@@ -7225,8 +7226,6 @@ export function openCamSimulator(initialContour, initialGCode) {
             S.params.roughingStrategy = 'face';
           }
         }
-        // Upichnutí dává smysl jen pro upichovák — jinde vypnout.
-        if (next !== 'parting') { S.params.partOffZ = null; S.partOffPickMode = false; }
         fullUpdate();
       });
     });
@@ -8271,8 +8270,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // (offsetPath/passes) se ale počítá vždy nezávisle na tom, z aktuálních
     // parametrů (roughingStrategy…) — bez potlačení by se přes skutečnou
     // dráhu upichnutí kreslilo i cizí čelní/podélné hrubovací šrafování.
-    const _partOffActive = S.params.toolShape === 'parting'
-      && S.params.partOffZ != null && isFinite(parseFloat(S.params.partOffZ));
+    const _partOffActive = S.params.partOffZ != null && isFinite(parseFloat(S.params.partOffZ));
     // Prázdný manualGCode (např. po "🔄 Resetovat vše") = žádné dráhy k
     // zobrazení — potlačit i teoretický náhled (hrubovací šrafování/pasy),
     // který se jinak počítá vždy nezávisle na manualGCode přímo z parametrů.
