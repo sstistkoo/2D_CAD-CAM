@@ -7040,8 +7040,24 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     tabBody.querySelectorAll('[data-machtab]').forEach(btn => {
       btn.addEventListener('click', () => {
-        S.machiningSubTab = btn.dataset.machtab;
-        renderTab();
+        const nextTab = btn.dataset.machtab;
+        const prevTab = S.machiningSubTab;
+        if (nextTab === prevTab) return;
+        if (nextTab === 'upich') {
+          // Upichnutí se dělá čelně — zapnout, pokud ještě není, a zapamatovat
+          // předchozí strategii, ať se dá po odchodu z Upich vrátit zpět.
+          if (S.params.roughingStrategy !== 'face') {
+            S._preUpichStrategy = S.params.roughingStrategy;
+            S.params.roughingStrategy = 'face';
+          } else {
+            S._preUpichStrategy = null;
+          }
+        } else if (prevTab === 'upich' && S._preUpichStrategy != null) {
+          S.params.roughingStrategy = S._preUpichStrategy;
+          S._preUpichStrategy = null;
+        }
+        S.machiningSubTab = nextTab;
+        fullUpdate();
       });
     });
     const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');
