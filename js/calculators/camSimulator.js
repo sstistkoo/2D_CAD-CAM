@@ -2479,6 +2479,10 @@ function _defaultCamParams() {
     // dokončovací offset = jen R.
     finishAllowance: 0,
     doFinishing: true, roughingStrategy: 'longitudinal',
+    // Jen dokončení (záložka „Hot."): vynechá hrubovací průchody a objede
+    // konturu jediným dokončovacím průchodem (offset = R). Používá se, když
+    // hrubování dělá jiný nástroj/operace a tady se dělá pouze načisto.
+    finishOnly: false,
     // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
     // doprava (druhá strana — zprava nelze, narazil by držák/destička).
     // Kombinuje se s roughingStrategy (podélně/čelně).
@@ -3316,7 +3320,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const offsetPath = dropTinyArcs(trimAndRemoveLoops(rawOffsets));
 
     // finishing offset
-    if (prms.doFinishing) {
+    if (prms.doFinishing || prms.finishOnly) {
       // Hlídání destičky: úseky, kam destička bočním ostřím nedosáhne,
       // dokončování vynechá — následující segment dostane chainBreak,
       // takže se přes mezeru přejede rychloposuvem.
@@ -3619,7 +3623,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // rádius plátku, na klesajících aktivní roh; vršky přejíždí rovné dno.
     // Do úzkých kapes (užší než plátek) obálka nezajede — zbytek je
     // nedosažitelný stejně jako u hlídání geometrie destičky.
-    if (prms.toolShape === 'parting' && prms.doFinishing && finishOffsetPath.length > 0) {
+    if (prms.toolShape === 'parting' && (prms.doFinishing || prms.finishOnly) && finishOffsetPath.length > 0) {
       const wInsF = parseFloat(prms.toolLength) || 0;
       const rInsF = Math.min(parseFloat(prms.toolRadius) || 0, wInsF / 2);
       const w2RF = Math.max(0, wInsF - 2 * rInsF);
@@ -3794,10 +3798,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     // operations[] model: seznam operací hrubování, každá naplní passes
     // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy
     // (= 1 operace); persistentní seznam + UI přijdou s druhou stranou.
-    const operations = getRoughingOperations();
-    for (const op of operations) {
-      const strategy = ROUGHING_STRATEGIES[op.kind] || ROUGHING_STRATEGIES.longitudinal;
-      strategy.genPasses(passCtx, op);
+    // Jen dokončení („Hot."): hrubovací průchody se negenerují — passes zůstane
+    // prázdné a objede se jen dokončovací offset (finishOffsetPath).
+    if (!prms.finishOnly) {
+      const operations = getRoughingOperations();
+      for (const op of operations) {
+        const strategy = ROUGHING_STRATEGIES[op.kind] || ROUGHING_STRATEGIES.longitudinal;
+        strategy.genPasses(passCtx, op);
+      }
     }
 
     // ── Z-limity (čelisti / koník): ořez drah aby nezasáhly do zóny ──
@@ -4222,7 +4230,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       return lines;
     }
 
-    addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey()] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
+    if (!prms.finishOnly)
+      addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey()] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
     // Vůle nad polotovarem + úhel nájezdové rampy (ladí s calculate()).
     const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
     const entryAngleDegGc = getEffectivePlungeAngle(prms);
@@ -4524,7 +4533,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const finSlotData = (finSlotIdx !== null && S.toolMagazine[finSlotIdx]) ? S.toolMagazine[finSlotIdx] : null;
     const finFeed  = finSlotData ? finSlotData.f  : prms.feed;
     const finSpeed = finSlotData ? finSlotData.vc : prms.speed;
-    if (prms.doFinishing && firstGcFinSeg) {
+    if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       addCmt('--- DOKONCOVANI ---');
       if (finSlotData) {
         // Bezpečná poloha před výměnou
@@ -4996,7 +5005,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Nedosažitelný dokončovací offset (Hlídat geometrii destičky) —
     // tečkovaně: úseky, kam destička bočním ostřím nedosáhne, takže se
     // neobrobí, ale je vidět, že tam kontura nebude objeta.
-    if (S.showSimPath !== 'none' && prms.doFinishing && (calc.finishUnreachablePath || []).length > 0) {
+    if (S.showSimPath !== 'none' && (prms.doFinishing || prms.finishOnly) && (calc.finishUnreachablePath || []).length > 0) {
       ctx.beginPath();
       calc.finishUnreachablePath.forEach(seg => {
         if (seg.isDegenerate) return;
@@ -7180,7 +7189,24 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
       }
     } else if (_machSubTab === 'hot') {
-      html += `<small class="cam-sim-info-box" style="display:block">Připravuje se.</small>`;
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Jen dokončení: vynechá hrubovací průchody a objede konturu jediným dokončovacím průchodem (přesně po kontuře, jen s korekcí R) — jako závěrečná dráha v Hrub. Použij, když hrubování dělá jiná operace/nástroj a tady se jede pouze načisto.">
+        <input type="checkbox" id="cam-sim-finonly" ${prms.finishOnly ? 'checked' : ''}>
+        <span>Dokončovací operace</span>
+      </div>`;
+      if (prms.finishOnly && S.toolMagazine.length > 1) {
+        const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
+        html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
+          <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
+          <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
+            <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
+            ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${s.name}${s.vbdCode ? ' · ' + s.vbdCode : ''}</option>`).join('')}
+          </select>
+          ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
+        </div>`;
+        if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
+      } else if (!prms.finishOnly) {
+        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Objede konturu na hotovo bez hrubování (stejná dráha jako závěrečné dokončení v Hrub.).</small>`;
+      }
     } else if (_machSubTab === 'upich') {
       const _poActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
       const _shapeOk = prms.toolShape === 'round' || prms.toolShape === 'parting';
@@ -7457,6 +7483,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Upichnutí: dokončování přidává/ubírá dokončovací zápich → přegenerovat.
       if (S.params.partOffZ != null) _regenGCode();
       else fullUpdate();
+    });
+    const finOnlyCb = tabBody.querySelector('#cam-sim-finonly');
+    if (finOnlyCb) finOnlyCb.addEventListener('change', () => {
+      S.params.finishOnly = finOnlyCb.checked;
+      fullUpdate();
     });
     const partOffSmoothCb = tabBody.querySelector('#cam-sim-partoff-smooth');
     if (partOffSmoothCb) partOffSmoothCb.addEventListener('change', () => {

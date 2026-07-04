@@ -120,6 +120,9 @@ export async function runCamProg(prog) {
   S.flipX = !!prog.flipX;
   S.flipZ = !!prog.flipZ;
   S.guideLines = Array.isArray(prog.guideLines) ? prog.guideLines : [];
+  // Zásobník nástrojů (výměna dokončovacího nástroje) — reset na každé volání,
+  // ať singleton S neprosakuje magazín mezi testy.
+  S.toolMagazine = Array.isArray(prog.toolMagazine) ? prog.toolMagazine : [];
   if (prog.zLimits) Object.assign(S.zLimits, prog.zLimits);
   if (prog.xLimits) Object.assign(S.xLimits, prog.xLimits);
   const calc = calculate();
