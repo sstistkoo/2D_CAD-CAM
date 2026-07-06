@@ -1350,6 +1350,18 @@ export function findNumLabelAt(wx, wy) {
 }
 
 // ── Čísla objektů na výkrese ──
+// Skutečný střed oblouku (bod v půlce SKUTEČNĚ vykreslené dráhy). Naivní průměr
+// (startAngle+endAngle)/2 padne na OPAČNOU stranu, když oblouk jde po směru
+// hodin (ccw=false) nebo když kříží ±180° — proto label „9" končil vedle oblouku.
+// Konvence odpovídá drawArc(): ccw!==false = proti směru (rostoucí úhel).
+function arcMidpoint(cx, cy, r, startAngle, endAngle, ccw) {
+  let sweep = endAngle - startAngle;
+  if (ccw) { while (sweep <= 0) sweep += 2 * Math.PI; }
+  else     { while (sweep >= 0) sweep -= 2 * Math.PI; }
+  const mid = startAngle + sweep / 2;
+  return [cx + r * Math.cos(mid), cy + r * Math.sin(mid)];
+}
+
 function drawObjectNumbers() {
   _numLabels = [];
   const fontSize = Math.round(Math.min(20, Math.max(13, 10 + state.zoom * 5)));
@@ -1378,9 +1390,8 @@ function drawObjectNumbers() {
         cx = obj.cx; cy = obj.cy;
         break;
       case "arc":
-        { const midAngle = (obj.startAngle + obj.endAngle) / 2;
-          cx = obj.cx + obj.r * Math.cos(midAngle);
-          cy = obj.cy + obj.r * Math.sin(midAngle); }
+        { const [amx, amy] = arcMidpoint(obj.cx, obj.cy, obj.r, obj.startAngle, obj.endAngle, obj.ccw !== false);
+          cx = amx; cy = amy; }
         break;
       case "rect":
         cx = (obj.x1 + obj.x2) / 2; cy = (obj.y1 + obj.y2) / 2;
@@ -1448,9 +1459,7 @@ function drawObjectNumbers() {
         } else {
           const arc = bulgeToArc(p1, p2, b);
           if (arc) {
-            const midAngle = (arc.startAngle + arc.endAngle) / 2;
-            wcx2 = arc.cx + arc.r * Math.cos(midAngle);
-            wcy2 = arc.cy + arc.r * Math.sin(midAngle);
+            [wcx2, wcy2] = arcMidpoint(arc.cx, arc.cy, arc.r, arc.startAngle, arc.endAngle, arc.ccw);
           } else {
             wcx2 = (p1.x + p2.x) / 2;
             wcy2 = (p1.y + p2.y) / 2;

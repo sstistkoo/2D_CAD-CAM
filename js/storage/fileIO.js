@@ -556,6 +556,102 @@ document.getElementById("btnLoad")?.addEventListener("click", showFileDialog);
 bridge.showFileDialog = showFileDialog;
 
 // ── CNC Export ──
+
+// Krajní body objektu (start/end) v CAD souřadnicích — pro řetězení kontury.
+function _objEp(obj) {
+  switch (obj.type) {
+    case 'line':   return { sx: obj.x1, sy: obj.y1, ex: obj.x2, ey: obj.y2 };
+    case 'arc': {
+      const sx = obj.cx + obj.r * Math.cos(obj.startAngle);
+      const sy = obj.cy + obj.r * Math.sin(obj.startAngle);
+      const ex = obj.cx + obj.r * Math.cos(obj.endAngle);
+      const ey = obj.cy + obj.r * Math.sin(obj.endAngle);
+      return { sx, sy, ex, ey };
+    }
+    case 'polyline': {
+      const vv = obj.vertices;
+      return { sx: vv[0].x, sy: vv[0].y, ex: vv[vv.length - 1].x, ey: vv[vv.length - 1].y };
+    }
+    default: return null;
+  }
+}
+function _objSortX(obj) {
+  switch (obj.type) {
+    case 'line': return Math.max(obj.x1, obj.x2);
+    case 'arc':  return Math.max(obj.cx + obj.r * Math.cos(obj.startAngle), obj.cx + obj.r * Math.cos(obj.endAngle));
+    case 'circle': return obj.cx + obj.r;
+    case 'point':  return obj.x;
+    case 'rect':   return Math.max(obj.x1, obj.x2);
+    case 'polyline': return Math.max(...obj.vertices.map(v => v.x));
+    default: return 0;
+  }
+}
+
+// Seřadí objekty kontury do pořadí DRÁHY (řetěz): začne na nejpravějším volném
+// konci a navazuje segment na segment (zprava doleva). Vrací NOVÉ pole se
+// STEJNÝMI referencemi objektů — geometrii nemění, jen pořadí průchodu. Díky
+// tomu sedí pořadí i čísla v panelu OBJEKTY na to, co generuje runCncExport.
+// Nechainovatelné objekty (circle/point/…) se zařadí na konec zprava doleva.
+// Stejný algoritmus (EPS, výběr startu, greedy walk) jako chain-sort uvnitř
+// runCncExport, takže obě číslování zůstávají konzistentní.
+export function chainOrderContourObjects(objs) {
+  if (objs.length <= 1) return objs.slice();
+  const EPS = 0.01; // shodné s tolerancí findContourGaps
+  const eps = objs.map(_objEp);
+  const used = new Array(objs.length).fill(false);
+  const degUnused = (x, y) => {
+    let c = 0;
+    for (let i = 0; i < objs.length; i++) {
+      if (used[i] || !eps[i]) continue;
+      if (Math.hypot(eps[i].sx - x, eps[i].sy - y) < EPS) c++;
+      if (Math.hypot(eps[i].ex - x, eps[i].ey - y) < EPS) c++;
+    }
+    return c;
+  };
+  const hasChainable = () => objs.some((_, i) => !used[i] && eps[i]);
+  const ordered = [];
+  while (hasChainable()) {
+    // Start řetězu: nejpravější (max X) endpoint, přednostně volný konec.
+    let bIdx = -1, bAtEnd = false, bX = -Infinity, bFree = false;
+    for (let i = 0; i < objs.length; i++) {
+      if (used[i] || !eps[i]) continue;
+      const cand = [
+        { x: eps[i].sx, y: eps[i].sy, atEnd: false },
+        { x: eps[i].ex, y: eps[i].ey, atEnd: true },
+      ];
+      for (const c of cand) {
+        const free = degUnused(c.x, c.y) === 1;
+        if ((free && !bFree) || (free === bFree && c.x > bX)) {
+          bFree = free; bX = c.x; bIdx = i; bAtEnd = c.atEnd;
+        }
+      }
+    }
+    if (bIdx === -1) break;
+    used[bIdx] = true;
+    ordered.push(objs[bIdx]);
+    // Startujeme-li z „end" konce, pokračujeme z opačného („start") konce.
+    let curEnd = bAtEnd ? { x: eps[bIdx].sx, y: eps[bIdx].sy } : { x: eps[bIdx].ex, y: eps[bIdx].ey };
+    let grow = true;
+    while (grow) {
+      grow = false;
+      for (let i = 0; i < objs.length; i++) {
+        if (used[i] || !eps[i]) continue;
+        const e = eps[i];
+        if (Math.hypot(e.sx - curEnd.x, e.sy - curEnd.y) < EPS) {
+          used[i] = true; ordered.push(objs[i]); curEnd = { x: e.ex, y: e.ey }; grow = true; break;
+        }
+        if (Math.hypot(e.ex - curEnd.x, e.ey - curEnd.y) < EPS) {
+          used[i] = true; ordered.push(objs[i]); curEnd = { x: e.sx, y: e.sy }; grow = true; break;
+        }
+      }
+    }
+  }
+  const rest = [];
+  for (let i = 0; i < objs.length; i++) if (!used[i]) rest.push(objs[i]);
+  rest.sort((a, b) => _objSortX(b) - _objSortX(a));
+  return ordered.concat(rest);
+}
+
 function runCncExport() {
   // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
   const selectedIndices = new Set();
@@ -748,47 +844,126 @@ function runCncExport() {
     }
   }
 
-  // Sort right to left (highest X first) — jen kontura.
-  items.sort((a, b) => b._sortX - a._sortX);
+  // ── Sdílené helpery pro řetězení (kontura i polotovar) ──
+  // _getEp: krajní body objektu (start/end). _revObj: objekt s obrácenou orientací.
+  function _getEp(obj) {
+    switch (obj.type) {
+      case 'line':   return { sx: obj.x1, sy: obj.y1, ex: obj.x2, ey: obj.y2 };
+      case 'arc': {
+        const sx = obj.cx + obj.r * Math.cos(obj.startAngle);
+        const sy = obj.cy + obj.r * Math.sin(obj.startAngle);
+        const ex = obj.cx + obj.r * Math.cos(obj.endAngle);
+        const ey = obj.cy + obj.r * Math.sin(obj.endAngle);
+        return { sx, sy, ex, ey };
+      }
+      case 'polyline': {
+        const vv = obj.vertices;
+        return { sx: vv[0].x, sy: vv[0].y, ex: vv[vv.length - 1].x, ey: vv[vv.length - 1].y };
+      }
+      default: return null;
+    }
+  }
+  function _revObj(obj) {
+    switch (obj.type) {
+      case 'line':
+        return { ...obj, x1: obj.x2, y1: obj.y2, x2: obj.x1, y2: obj.y1 };
+      case 'arc':
+        return { ...obj, startAngle: obj.endAngle, endAngle: obj.startAngle, ccw: !(obj.ccw !== false) };
+      case 'polyline': {
+        const rev = [...obj.vertices].reverse();
+        const n = obj.vertices.length;
+        const rb = [];
+        for (let i = 0; i < n - 1; i++) rb[i] = -(obj.bulges[n - 2 - i] || 0);
+        return { ...obj, vertices: rev, bulges: rb };
+      }
+      default: return obj;
+    }
+  }
+
+  // ── Chain-sort kontury (řetězení segment-na-segment) ──────────────────
+  // Dřív se každý segment orientoval zvlášť zprava-doleva a pole se řadilo
+  // podle _sortX. To u čel (obě krajní Z stejná) a u „pozpátku" nakreslených
+  // oblouků rozbíjelo návaznost: emitor pak vložil G00 skok na druhou stranu
+  // úsečky a dráhu zapsal z opačné strany (dva řádky místo napojení). Místo
+  // toho konturu projdeme jako souvislý řetěz — začneme na nejpravějším volném
+  // konci a segmenty za sebe navazujeme (v případě potřeby otočíme). Výsledkem
+  // je jediné G00 na začátku a plynulá dráha (stejný princip jako chain-sort
+  // polotovaru níže). Nechainovatelné objekty (circle/point) jdou zprava doleva.
+  if (items.length > 1) {
+    const EPS = 0.01; // shodné s tolerancí findContourGaps – co je „mezera" tam, je i tady
+    const used = new Array(items.length).fill(false);
+    const eps = items.map(_getEp);
+    // Počet dosud nepoužitých endpointů shodných s (x,y) – detekce volného konce.
+    function _degUnused(x, y) {
+      let c = 0;
+      for (let i = 0; i < items.length; i++) {
+        if (used[i] || !eps[i]) continue;
+        if (Math.hypot(eps[i].sx - x, eps[i].sy - y) < EPS) c++;
+        if (Math.hypot(eps[i].ex - x, eps[i].ey - y) < EPS) c++;
+      }
+      return c;
+    }
+    function _hasChainable() {
+      for (let i = 0; i < items.length; i++) if (!used[i] && eps[i]) return true;
+      return false;
+    }
+    const chained = [];
+    while (_hasChainable()) {
+      // Start řetězu: nejpravější (max drawing-x) endpoint, přednostně volný konec.
+      let bIdx = -1, bRev = false, bX = -Infinity, bFree = false;
+      for (let i = 0; i < items.length; i++) {
+        if (used[i] || !eps[i]) continue;
+        const cand = [
+          { x: eps[i].sx, y: eps[i].sy, rev: false },
+          { x: eps[i].ex, y: eps[i].ey, rev: true },
+        ];
+        for (const c of cand) {
+          const free = _degUnused(c.x, c.y) === 1;
+          if ((free && !bFree) || (free === bFree && c.x > bX)) {
+            bFree = free; bX = c.x; bIdx = i; bRev = c.rev;
+          }
+        }
+      }
+      if (bIdx === -1) break;
+      const head = bRev ? _revObj(items[bIdx]) : items[bIdx];
+      used[bIdx] = true;
+      chained.push(head); // start řetězu → smí emitovat G00
+      let e = _getEp(head);
+      let curEnd = { x: e.ex, y: e.ey };
+      let grow = true;
+      while (grow) {
+        grow = false;
+        for (let i = 0; i < items.length; i++) {
+          if (used[i] || !eps[i]) continue;
+          const ei = eps[i];
+          if (Math.hypot(ei.sx - curEnd.x, ei.sy - curEnd.y) < EPS) {
+            const it = items[i]; it._chainCont = true;
+            used[i] = true; chained.push(it);
+            curEnd = { x: ei.ex, y: ei.ey }; grow = true; break;
+          }
+          if (Math.hypot(ei.ex - curEnd.x, ei.ey - curEnd.y) < EPS) {
+            const it = _revObj(items[i]); it._chainCont = true;
+            used[i] = true; chained.push(it);
+            const re = _getEp(it); curEnd = { x: re.ex, y: re.ey }; grow = true; break;
+          }
+        }
+      }
+    }
+    // Nechainovatelné (circle/point) přidej zprava doleva podle _sortX.
+    const rest = [];
+    for (let i = 0; i < items.length; i++) if (!used[i]) rest.push(items[i]);
+    rest.sort((a, b) => (b._sortX || 0) - (a._sortX || 0));
+    items.length = 0;
+    chained.forEach(o => items.push(o));
+    rest.forEach(o => items.push(o));
+  }
 
   // Chain-sort polotovaru: seřadíme objekty tak, aby konec[i] navazoval na
   // začátek[i+1]. Pokud je třeba, otočíme orientaci segmentu. Tím zajistíme,
   // že emitor nevloží G00 rapidy mezi navazující segmenty polotovaru a celý
   // polotovar vyjde jako jeden spojitý tvar.
   if (stockItems.length > 1) {
-    function _getEp(obj) {
-      switch (obj.type) {
-        case 'line':   return { sx: obj.x1, sy: obj.y1, ex: obj.x2, ey: obj.y2 };
-        case 'arc': {
-          const sx = obj.cx + obj.r * Math.cos(obj.startAngle);
-          const sy = obj.cy + obj.r * Math.sin(obj.startAngle);
-          const ex = obj.cx + obj.r * Math.cos(obj.endAngle);
-          const ey = obj.cy + obj.r * Math.sin(obj.endAngle);
-          return { sx, sy, ex, ey };
-        }
-        case 'polyline': {
-          const vv = obj.vertices;
-          return { sx: vv[0].x, sy: vv[0].y, ex: vv[vv.length - 1].x, ey: vv[vv.length - 1].y };
-        }
-        default: return null;
-      }
-    }
-    function _revObj(obj) {
-      switch (obj.type) {
-        case 'line':
-          return { ...obj, x1: obj.x2, y1: obj.y2, x2: obj.x1, y2: obj.y1 };
-        case 'arc':
-          return { ...obj, startAngle: obj.endAngle, endAngle: obj.startAngle, ccw: !(obj.ccw !== false) };
-        case 'polyline': {
-          const rev = [...obj.vertices].reverse();
-          const n = obj.vertices.length;
-          const rb = [];
-          for (let i = 0; i < n - 1; i++) rb[i] = -(obj.bulges[n - 2 - i] || 0);
-          return { ...obj, vertices: rev, bulges: rb };
-        }
-        default: return obj;
-      }
-    }
+    // (_getEp / _revObj jsou sdílené helpery definované výše u chain-sortu kontury.)
     // Najdi volný startovní konec (není spojen s žádným jiným koncem).
     const EPS = 0.05;
     const eps_arr = stockItems.map(_getEp); // null pro typy bez endpointů
@@ -856,19 +1031,19 @@ function runCncExport() {
     switch (obj.type) {
       case "point":
         out += `; ${stockPrefix}${obj.name}\n`;
-        if (needsRapid(obj.x, obj.y)) emitRapid(obj.x, obj.y);
+        if (!obj._chainCont && needsRapid(obj.x, obj.y)) emitRapid(obj.x, obj.y);
         lastEndX = obj.x; lastEndY = obj.y;
         break;
       case "line":
         out += `; ${stockPrefix}${obj.name} (délka: ${Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1).toFixed(3)})\n`;
-        if (needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
+        if (!obj._chainCont && needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
         lastEndX = obj.x2; lastEndY = obj.y2;
         break;
       case "circle": {
         out += `; ${stockPrefix}${obj.name} (R: ${obj.r.toFixed(3)})\n`;
         const cStartX = obj.cx + obj.r, cStartY = obj.cy;
-        if (needsRapid(cStartX, cStartY)) emitRapid(cStartX, cStartY);
+        if (!obj._chainCont && needsRapid(cStartX, cStartY)) emitRapid(cStartX, cStartY);
         const circG = flipArc('G02');
         if (isInc) {
           out += `${circG} X${(-2 * obj.r).toFixed(3)} Z0.000 I${(-obj.r).toFixed(3)} K0.000\n`;
@@ -888,7 +1063,7 @@ function runCncExport() {
           sy = obj.cy + obj.r * Math.sin(obj.startAngle);
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
           ey = obj.cy + obj.r * Math.sin(obj.endAngle);
-        if (needsRapid(sx, sy)) emitRapid(sx, sy);
+        if (!obj._chainCont && needsRapid(sx, sy)) emitRapid(sx, sy);
         // Jednotná logika pro konturu i polotovar: G2/G3 z `ccw` flagu.
         //  • CAD ccw=true  (canvas anticlockwise=true) = svět CCW = G03
         //  • CAD ccw=false                              = svět CW  = G02
@@ -903,7 +1078,7 @@ function runCncExport() {
       }
       case "rect":
         out += `; ${stockPrefix}${obj.name} (${Math.abs(obj.x2 - obj.x1).toFixed(2)} × ${Math.abs(obj.y2 - obj.y1).toFixed(2)})\n`;
-        if (needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
+        if (!obj._chainCont && needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y1)}\n`;
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
         out += `G01 ${fmtCoord(obj.x1, obj.y2)}\n`;
@@ -914,7 +1089,7 @@ function runCncExport() {
         const pn = obj.vertices.length;
         const pSegCnt = obj.closed ? pn : pn - 1;
         out += `; ${stockPrefix}${obj.name} (${pn} vrcholů${obj.closed ? ', uzavřená' : ''})\n`;
-        if (needsRapid(obj.vertices[0].x, obj.vertices[0].y)) {
+        if (!obj._chainCont && needsRapid(obj.vertices[0].x, obj.vertices[0].y)) {
           emitRapid(obj.vertices[0].x, obj.vertices[0].y);
         }
         for (let i = 0; i < pSegCnt; i++) {
@@ -1023,6 +1198,39 @@ document.getElementById("btnCncToCam").addEventListener("click", () => {
   }
 });
 bridge.runCncExport = runCncExport;
+
+// Seřadit skupinu objektů (kontura / polotovar) podle dráhy a přečíslovat panel
+// OBJEKTY i CNC kód. Řadí se NA MÍSTĚ — objekty skupiny zůstanou ve svých pozicích
+// v poli, jen se přeuspořádají mezi sebou (ostatní objekty se nehýbou).
+const _DRAWABLE_SORT = new Set(['line', 'arc', 'polyline', 'point', 'circle', 'rect']);
+const _cleanNm = (o) => (o.name || '').replace(/\s+\d+\s*$/, '').toLowerCase();
+const _isStockLike = (o) => !!o.isStock || _cleanNm(o) === 'polotovar';
+const _sortable = (o) =>
+  o && !o.isDimension && !o.isCoordLabel && !o.isCamPathNote &&
+  o.type !== 'constr' && o.type !== 'text' && _DRAWABLE_SORT.has(o.type);
+function _sortGroupByPath(predicate, emptyMsg) {
+  const idxs = [];
+  state.objects.forEach((o, i) => { if (predicate(o)) idxs.push(i); });
+  if (idxs.length < 2) { showToast(emptyMsg); return; }
+  const group = idxs.map(i => state.objects[i]);
+  const ordered = chainOrderContourObjects(group);
+  pushUndo();
+  idxs.forEach((slot, k) => { state.objects[slot] = ordered[k]; });
+  state.selected = null;
+  state.multiSelected.clear();
+  state.selectedSegment = null;
+  state._selectedSegmentObjIdx = null;
+  state.multiSelectedSegments.clear();
+  updateObjectList();
+  updateProperties();
+  renderAll();
+  runCncExport();
+  showToast("Objekty seřazeny podle dráhy a přečíslovány");
+}
+document.getElementById("btnSortContour")?.addEventListener("click", () =>
+  _sortGroupByPath(o => _sortable(o) && !_isStockLike(o), "Kontura nemá dost objektů k seřazení"));
+document.getElementById("btnSortStock")?.addEventListener("click", () =>
+  _sortGroupByPath(o => _sortable(o) && _isStockLike(o), "Polotovar nemá dost objektů k seřazení"));
 
 // ── CNC Uložit / Načíst ──
 

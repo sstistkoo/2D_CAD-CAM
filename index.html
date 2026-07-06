@@ -1511,14 +1511,37 @@
         </div>
         <div class="panel-header obj-header" data-panel="objPanel">
           <span>▸ Objekty</span>
-          <label
-            id="objNumberToggle"
-            class="obj-header-toggle"
-            title="Zobrazit čísla objektů na výkrese"
+          <span
+            class="obj-header-actions"
+            style="display:flex;align-items:center;gap:2px"
           >
-            <input type="checkbox" id="objNumberCb" />
-            <span>Číslovat</span>
-          </label>
+            <button
+              id="btnSortContour"
+              class="cnc-copy-btn"
+              style="color:var(--ctp-blue, #89b4fa)"
+              title="Seřadit konturu podle dráhy a přečíslovat"
+              aria-label="Seřadit konturu podle dráhy"
+            >
+              ⇅
+            </button>
+            <button
+              id="btnSortStock"
+              class="cnc-copy-btn"
+              style="color:var(--ctp-peach, #fab387)"
+              title="Seřadit polotovar podle dráhy a přečíslovat"
+              aria-label="Seřadit polotovar podle dráhy"
+            >
+              ⇅
+            </button>
+            <label
+              id="objNumberToggle"
+              class="obj-header-toggle"
+              title="Zobrazit čísla objektů na výkrese"
+            >
+              <input type="checkbox" id="objNumberCb" />
+              <span>Číslovat</span>
+            </label>
+          </span>
         </div>
         <div
           class="panel-body"
