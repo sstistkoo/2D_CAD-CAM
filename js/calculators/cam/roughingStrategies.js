@@ -755,9 +755,17 @@ export function genLongPasses(ctx) {
           // Upichovák: roh = pravý okraj − (w−2r); s hloubkou se posouvá po
           // pravé stěně, tolerance shody proto v Z povolí až step + 2 (šikmá
           // stěna posune okraj o step/tg(sklonu) na vrstvu), X se nesrovnává.
+          //
+          // Roh hledáme jen do curCorner.z + CORNER_TOL (ne od celého cGapHi):
+          // je-li stěna kapsy přesně pod úhlem zanoření (typicky navazovací
+          // čára z hlídání destičky), sken od vysokého cGapHi by chytil PRVNÍ
+          // strmou stěnu nad kapsou (jiný útvar) a roh by „uskočil" o desítky
+          // mm → shoda selže a burst skončí předčasně (zbytek klínu pak dobere
+          // jeden hluboký nájezd). Omezení na okolí známého rohu drží sken na
+          // TÉŽE stěně, takže rampované zákroky dojdou ap po ap až na dno.
           const cCorner = isParting
             ? (cIv.zStart - w2RL > cIv.zEnd + 0.05 ? { x: localX + step, z: cIv.zStart - w2RL } : null)
-            : findPlungeCorner(cGapHi, cIv.zStart);
+            : findPlungeCorner(Math.min(cGapHi, curCorner.z + CORNER_TOL), cIv.zStart);
           const zTol = isParting ? step + 2 : CORNER_TOL;
           if (cCorner && (isParting || Math.abs(cCorner.x - curCorner.x) < CORNER_TOL) && Math.abs(cCorner.z - curCorner.z) < zTol) {
             found = { iv: cIv, gapHi: cGapHi, corner: cCorner }; break;
