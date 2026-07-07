@@ -8,7 +8,7 @@ import { calculateAllIntersections } from './geometry.js';
 import { autoCenterView } from './canvas.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { hasAnchoredPoint } from './tools/anchorClick.js';
-import { bulgeToArc } from './utils.js';
+import { bulgeToCcwArc } from './utils.js';
 
 /**
  * Přidá objekt do výkresu (push undo, přiřazení ID a vrstvy).
@@ -60,7 +60,9 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
 
     let obj;
     if (b !== 0) {
-      const arc = bulgeToArc(p1, p2, b);
+      // CCW normalizace: samostatný 'arc' objekt se kreslí proti směru hodin,
+      // CW segment polyline (záporný bulge) by se jinak přetočil.
+      const arc = bulgeToCcwArc(p1, p2, b);
       if (arc) {
         const id = state.nextId++;
         obj = {

@@ -560,6 +560,28 @@ export function bulgeToArc(p1, p2, bulge) {
   return { cx, cy, r, startAngle, endAngle, ccw: bulge > 0 };
 }
 
+/**
+ * Jako bulgeToArc, ale výsledek vždy v CCW zápisu. Samostatné 'arc' objekty
+ * se kreslí proti směru hodin (obj.ccw se při rozkladu nezachovává) — u CW
+ * oblouku (záporný bulge) se proto prohodí start/end úhel, jinak by se po
+ * rozkladu polyline vykreslil doplňkový (přetočený) oblouk.
+ * @param {import('./types.js').Point2D} p1
+ * @param {import('./types.js').Point2D} p2
+ * @param {number} bulge
+ * @returns {import('./types.js').BulgeArc|null}
+ */
+export function bulgeToCcwArc(p1, p2, bulge) {
+  const arc = bulgeToArc(p1, p2, bulge);
+  if (!arc) return null;
+  if (!arc.ccw) {
+    const t = arc.startAngle;
+    arc.startAngle = arc.endAngle;
+    arc.endAngle = t;
+    arc.ccw = true;
+  }
+  return arc;
+}
+
 // ── Radius + direction → bulge ──
 /**
  * @param {import('./types.js').Point2D} p1
@@ -684,7 +706,9 @@ export function expandPolylineObjects(objects, nextId) {
       const segId = id++;
       const base = { id: segId, layer: obj.layer ?? 0, ...(obj.isStock ? { isStock: true } : {}), ...(obj.color ? { color: obj.color } : {}) };
       if (b !== 0) {
-        const arc = bulgeToArc(p1, p2, b);
+        // bulgeToCcwArc: CW oblouk (záporný bulge) normalizovat prohozením
+        // úhlů — samostatný 'arc' objekt se kreslí vždy CCW.
+        const arc = bulgeToCcwArc(p1, p2, b);
         if (arc) expanded.push({ ...base, type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r, startAngle: arc.startAngle, endAngle: arc.endAngle, name: `Oblouk ${segId}` });
       } else {
         expanded.push({ ...base, type: 'line', x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, name: `Úsečka ${segId}` });

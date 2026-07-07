@@ -108,6 +108,7 @@ vi.mock('../js/tools/index.js', () => ({
   handleExtendClick: vi.fn(), extendFromSelection: vi.fn(() => false),
   handleFilletClick: vi.fn(), filletFromSelection: vi.fn(() => false),
   handleChamferClick: vi.fn(), chamferFromSelection: vi.fn(() => false),
+  handleThreadClick: vi.fn(), resetThreadState: vi.fn(), threadFromSelection: vi.fn(() => false),
   handlePerpClick: vi.fn(), perpFromSelection: vi.fn(() => false),
   handleHorizontalClick: vi.fn(), horizontalFromSelection: vi.fn(() => false),
   handleParallelClick: vi.fn(), parallelFromSelection: vi.fn(() => false),

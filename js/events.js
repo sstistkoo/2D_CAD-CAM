@@ -12,10 +12,10 @@ import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, 
 import { showNumericalInputDialog, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
 import { saveProject, showExportImageDialog, showProjectsDialog, showSaveAsDialog } from './storage.js';
 import { autoDetectFeatures } from './dialogs/autoDetect.js';
-import { bulgeToArc, deepClone } from './utils.js';
+import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 
@@ -28,6 +28,7 @@ bridge.trimFromSelection = trimFromSelection;
 bridge.extendFromSelection = extendFromSelection;
 bridge.filletFromSelection = filletFromSelection;
 bridge.chamferFromSelection = chamferFromSelection;
+bridge.threadFromSelection = threadFromSelection;
 bridge.perpFromSelection = () => {
   const indices = _getMultiIndices();
   if (indices.length > 1) { perpMultiAlign(indices); return true; }
@@ -398,6 +399,7 @@ document.addEventListener("keydown", (e) => {
     resetPolygonState();
     resetStarState();
     resetGrooveState();
+    resetThreadState();
     resetBooleanState();
     resetCopyPlaceState();
     resetProfileTraceState();
@@ -997,6 +999,10 @@ export function handleCanvasClick(wx, wy) {
       handleGrooveClick(wx, wy);
       break;
 
+    case "thread":
+      handleThreadClick(wx, wy);
+      break;
+
     case "anchor":
       handleAnchorClick(wx, wy);
       break;
@@ -1550,8 +1556,8 @@ function explodeSelectedPolyline() {
         color: obj.color,
       });
     } else {
-      // Arc segment → arc
-      const arc = bulgeToArc(p1, p2, b);
+      // Arc segment → arc (CCW normalizace — CW bulge by se jinak přetočil)
+      const arc = bulgeToCcwArc(p1, p2, b);
       if (arc) {
         newObjects.push({
           type: 'arc',

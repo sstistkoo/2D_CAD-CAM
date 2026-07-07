@@ -15,6 +15,7 @@ import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
+import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
 function camConfirm(message) {
@@ -1094,6 +1095,31 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
   setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]);
   return [...before, { type: 'line', p1: locPt, p2: offPt, fromInsert: true }];
 }
+// ── ZÁVITOVÁNÍ: sdílené výpočty ───────────────────────────────────────────
+// Hloubka profilu závitu [mm, radiálně] podle typu (stejné vzorce jako
+// kalkulačka Závity v CAD — detailMetric/detailG/detailTr/… v thread.js).
+function threadProfileDepth(typeKey, P, external) {
+  if (typeKey === 'tr' || typeKey === 'acme') return 0.5 * P + 0.25;           // lichoběžník: H1 + vůle ac
+  if (typeKey === 'g' || typeKey === 'bspt' || typeKey === 'bsw') return 0.6403 * P; // Whitworth 55°
+  return external ? 0.6134 * P : 0.5413 * P;                                   // ISO / UN 60°
+}
+
+// Rozdělení přísuvů na průchody — kumulativní hloubky [mm]. Degresivně
+// (konstantní průřez třísky, ∝ √(i/n)). Auto počet průchodů: průměrný
+// záběr ~0,12 mm (M×1 → 6, M×1,5 → 8, M×2 → 11, M×2,5 → 15, M×3 → 16),
+// první záběr omezen na 0,4 mm — odpovídá běžné CNC praxi / CYCLE97,
+// na rozdíl od konzervativní ruční tabulky v CAD kalkulačce Závity.
+function computeThreadPassCuts(totalDepth, forcedPasses) {
+  const H = Math.max(0.01, totalDepth);
+  let n = forcedPasses > 0 ? Math.min(200, Math.round(forcedPasses)) : Math.max(4, Math.ceil(H / 0.12));
+  if (!(forcedPasses > 0)) {
+    while (H * Math.sqrt(1 / n) > 0.4 && n < 50) n++;
+  }
+  const cuts = [];
+  for (let i = 1; i <= n; i++) cuts.push(i === n ? H : H * Math.sqrt(i / n));
+  return cuts;
+}
+
 // ── UPICHNUTÍ (part-off): sdílená geometrie ───────────────────────────────
 // Spočítá polohy plátku pro zápich po svislé úsečce v Z=partOffZ. Používá se
 // jak v generování G-kódu (generateAutoGCode), tak ve vykreslení (draw), aby
@@ -2206,7 +2232,10 @@ function parseManualGCodeToPath(code, prms, unflipArc) {
     if (parenIdx >= 0) clean = clean.substring(0, parenIdx).trim();
     if (!clean) return;
     const gMatch = clean.match(/\bG0?([0-3])\b/);
-    const type = gMatch ? 'G' + gMatch[1] : lastMoveType;
+    // Řezání závitu (G33 Sinumerik/Heidenhain, G32 Fanuc) — pro simulaci
+    // přímý řezný pohyb jako G1 (K/F na řádku je stoupání, ne oblouk).
+    const thrMatch = !gMatch && /\bG3[23]\b/.test(clean);
+    const type = thrMatch ? 'G1' : (gMatch ? 'G' + gMatch[1] : lastMoveType);
     const xMatch = clean.match(/[XU]([-]?\d*\.?\d+)/);
     const zMatch = clean.match(/[ZW]([-]?\d*\.?\d+)/);
     const rMatch = clean.match(/(?:R|CR=)([-]?\d*\.?\d+)/);
@@ -2215,7 +2244,7 @@ function parseManualGCodeToPath(code, prms, unflipArc) {
     let targetX = currentX, targetZ = currentZ, hasMove = false;
     if (xMatch) { targetX = prms.mode === 'DIAMON' ? parseFloat(xMatch[1]) / 2 : parseFloat(xMatch[1]); hasMove = true; }
     if (zMatch) { targetZ = parseFloat(zMatch[1]); hasMove = true; }
-    if (gMatch) lastMoveType = type;
+    if (gMatch || thrMatch) lastMoveType = type;
     if (hasMove) {
       if (type === 'G0' || type === 'G1') {
         path.push({ x: targetX, z: targetZ, type, originalLineIdx: idx });
@@ -2492,6 +2521,9 @@ function _defaultCamParams() {
     machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
     toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
     toolVbdCode: '', toolClearanceAngle: 0,
+    // Spodní strana závitového plátku [mm] — šířka rovné špičky (lichoběžník).
+    // Metrické/palcové ~0,1; lichoběžníkové (Tr/Acme) ≈ 0,366×P (dno profilu).
+    toolTipFlat: 0.1,
     // Upichnutí (part-off) upichovákem: Z roviny řezu (null = neaktivní,
     // jede se běžné hrubování/zapichování). Zápich jde v X od povrchu na 0.
     partOffZ: null,
@@ -2506,6 +2538,23 @@ function _defaultCamParams() {
     // odtud jede posuv. 0 = neaktivní (zápich začíná od povrchu polotovaru).
     partOffStartX: 0,
     finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
+    // ── Závitování (záložka „Závit") ──
+    // Aktivní = generuje se závitovací cyklus (G33/G32 průchody) místo
+    // hrubování/dokončování — stejný vzor jako upichnutí (partOffZ).
+    threadActive: false,
+    threadName: '',        // označení (M20, G 1/2, …) — jen popisné
+    threadType: 'mc',      // klíč typu (mc/mf/tr/g/bspt/npt/unc/unf/bsw/acme) → profil/hloubka
+    threadDiameter: 20,    // jmenovitý ⌀ D [mm]
+    threadPitch: 2.5,      // stoupání P [mm]
+    threadAngle: 60,       // vrcholový úhel profilu [°] — jen popis/vizualizace
+    threadDepth: 1.534,    // hloubka profilu H [mm] (radiálně) — auto z P, lze přepsat
+    threadExternal: true,  // vnější (true) / vnitřní (false) závit
+    threadZStart: 0,       // Z začátku závitu (odtud se řeže směrem k threadZEnd)
+    threadZEnd: -20,       // Z konce závitu
+    threadRunIn: 3,        // náběh před závitem [mm] (rozběh posuvu, ve směru od konce)
+    threadRunOut: 0,       // výběh za koncem [mm] (0 = končí přesně na Z konec, např. v zápichu)
+    threadPasses: 0,       // počet průchodů (0 = auto podle hloubky, degresivní přísuv)
+    threadSpringPasses: 1, // jiskřící průchody (ap=0) na konci
     // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
     // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
     entryAngle: 30,
@@ -2846,6 +2895,32 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
   } catch (_) { /* ignore */ }
 
+  // Závit nakreslený v CAD (nástroj Závit ukládá metadata threadInfo na
+  // úsečku hřbetu) → předvyplnit parametry záložky Závit. Aktivace
+  // (threadActive) zůstává na uživateli.
+  try {
+    const _thObj = (state.objects || []).find(o => o && o.threadInfo && !o.isStock);
+    if (_thObj) {
+      const ti = _thObj.threadInfo;
+      S.params.threadName = ti.name;
+      S.params.threadType = ti.type || 'mc';
+      S.params.threadDiameter = ti.D;
+      S.params.threadPitch = ti.P;
+      S.params.threadAngle = ti.angle || 60;
+      S.params.threadDepth = ti.H;
+      S.params.threadExternal = ti.external !== false;
+      S.params.threadZStart = ti.zStart;
+      S.params.threadZEnd = ti.zEnd;
+      // Konec v zápichu DIN 76 → výběh do zápichu ≈ polovina jeho šířky;
+      // bez zápichu nech výchozí/naposledy zadaný výběh.
+      if (ti.undercut && ti.undercut.f) S.params.threadRunOut = Math.round(ti.undercut.f / 2 * 10) / 10;
+      // Spodní strana závitového plátku dle typu (Tr/Acme = dno profilu).
+      S.params.toolTipFlat = (ti.type === 'tr' || ti.type === 'acme')
+        ? Math.round(0.366 * ti.P * 100) / 100 : 0.1;
+      setTimeout(() => showToast(`🧵 Z výkresu načten závit ${ti.name} — parametry v záložce Závit`), 600);
+    }
+  } catch (_) { /* ignore */ }
+
   // Synchronizace s módem canvasu — bez toho se G-kód vyexportovaný v RADIUS
   // módu interpretuje v CAMu v DIAMON (default) a kontura se vykreslí na
   // poloviční pozici. Mód v CAMu by neměl měnit fyzické umístění kontury.
@@ -2870,14 +2945,26 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Fallback: pokud G-kód polotovar neobsahoval, zkus přímý canvas import
   // (isStock objekty na plátně). Pomáhá ve scénářích, kdy CAM byl otevřen
   // jinak než přes "Otevřít v CAM" (např. uložený projekt s polotovarem).
+  let _stockFromCanvas = false;
   if (!_importedStockFromGCode) {
     try {
       const importedStock = buildStockPointsFromCanvas(S.params);
       if (importedStock.length >= 2) {
         S.stockPoints = importedStock;
         S.params.stockMode = 'casting';
+        _stockFromCanvas = true;
       }
     } catch (e) { console.warn('buildStockPointsFromCanvas:', e); }
+  }
+
+  // Kontura přišla z CAD, ale polotovar žádný (ani v G-kódu, ani na plátně)
+  // → CAD je zdroj pravdy: zahodit STARÝ tvarový polotovar z minulé CAM
+  // session (přežíval v localStorage a zobrazoval se u nové kontury).
+  // Rozměry náhradního válce dopočítá auto-fit v INITIAL SETUP níže.
+  if (_importedContour && !_importedStockFromGCode && !_stockFromCanvas
+      && (S.stockPoints.length > 0 || S.params.stockMode === 'casting')) {
+    S.stockPoints = [];
+    if (S.params.stockMode === 'casting') S.params.stockMode = 'cylinder';
   }
 
   // Obnovit ručně upravený G-kód uložený při "📐 Kreslit" (CAM → CAD) jako
@@ -4151,6 +4238,72 @@ export function openCamSimulator(initialContour, initialGCode) {
     // zaokrouhlení na 1e-9 → tan(45°)=0.999…99 nerozhodí výstup (Z1.901 vs 1.902)
     const rDistZ = rAngDeg >= 89.95 ? 0 : Math.round(rDist / Math.tan(rAngDeg * Math.PI / 180) * 1e9) / 1e9;
 
+    // ── ZÁVITOVÁNÍ (záložka Závit) ── průchody G33 (Sinumerik/Heidenhain)
+    // / G32 (Fanuc) s degresivním radiálním přísuvem (√(i/n) — konstantní
+    // průřez třísky) + jiskřící průchody. Vnější závit: přísuv z ⌀D dolů na
+    // ⌀(D−2H); vnitřní: z předvrtané díry ⌀(D−2H) nahoru na ⌀D. Otáčky se
+    // pro závitování přepnou na konstantní (G97) — G96 by měnil otáčky s X
+    // a stoupání by „uteklo".
+    if (prms.threadActive) {
+      const P = Math.max(0.01, parseFloat(prms.threadPitch) || 1);
+      const Dnom = Math.max(0.1, parseFloat(prms.threadDiameter) || 10);
+      const H = Math.max(0.01, parseFloat(prms.threadDepth) || threadProfileDepth(prms.threadType, P, prms.threadExternal !== false));
+      const ext = prms.threadExternal !== false;
+      const zStart = parseFloat(prms.threadZStart) || 0;
+      const zEnd = isFinite(parseFloat(prms.threadZEnd)) ? parseFloat(prms.threadZEnd) : zStart - 10;
+      const runIn = Math.max(0, parseFloat(prms.threadRunIn) || 0);
+      const runOut = Math.max(0, parseFloat(prms.threadRunOut) || 0);
+      const spring = Math.max(0, Math.round(parseFloat(prms.threadSpringPasses)) || 0);
+      const cuts = computeThreadPassCuts(H, parseFloat(prms.threadPasses) || 0);
+      const xd = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
+      // Směr řezu: od zStart k zEnd (typicky zprava doleva, Z klesá).
+      const dirZ = zEnd < zStart ? -1 : 1;
+      const z0 = zStart - dirZ * runIn;        // start s náběhem (rozběh posuvu)
+      const zCut = zEnd + dirZ * runOut;       // konec s výběhem
+      // Konstantní otáčky pro závit: n = Vc·1000/(π·D), omezeno LIMS.
+      const lims = parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000;
+      const rpm = Math.max(10, Math.min(lims, Math.round((parseFloat(prms.speed) || 100) * 1000 / (Math.PI * Dnom))));
+      const clr = Math.max(0.5, parseFloat(prms.rapidClearance) || 1) + 1;
+      const rMinor = Dnom / 2 - H;             // poloměr dna profilu (vnější) / předvrtané díry (vnitřní)
+      const rClear = ext ? Dnom / 2 + clr : Math.max(0.2, rMinor - clr);  // odskok mezi průchody
+      // G33/G32: stoupání K (Sinumerik/Heidenhain ISO) vs. F (Fanuc).
+      const thrLine = prms.controlSystem === 'fanuc'
+        ? (z) => `G32 Z${z.toFixed(3)} F${P}`
+        : (z) => `G33 Z${z.toFixed(3)} K${P}`;
+      addCmt(`--- ZAVITOVANI ${prms.threadName || `⌀${Dnom}×${P}`} (${ext ? 'vnejsi' : 'vnitrni'}, H=${H.toFixed(3)}, ${cuts.length} pruchodu) ---`);
+      if (!ext && rMinor <= 0.05) {
+        addCmt(`! Vnitrni zavit: prumer diry ⌀${(rMinor * 2).toFixed(3)} <= 0 — zkontroluj ⌀D a hloubku H. Drahy nevygenerovany.`);
+      } else {
+        addN(`G97 S${rpm}${note('', 'Konstantní otáčky pro závit')}`);
+        simCounter += 1; addN(`G0 X${xd(rClear)} Z${z0.toFixed(3)}${note('', 'Nájezd před závit (náběh)')}`, simCounter);
+        let prevCum = 0;
+        const onePass = (rPass, label) => {
+          simCounter += 1; addN(`G0 X${xd(rPass)}${note('', label)}`, simCounter);
+          simCounter += 1; addN(thrLine(zCut), simCounter);
+          simCounter += 1; addN(`G0 X${xd(rClear)}${note('', 'Odskok')}`, simCounter);
+          simCounter += 1; addN(`G0 Z${z0.toFixed(3)}`, simCounter);
+        };
+        cuts.forEach((cum, i) => {
+          const rPass = ext ? Dnom / 2 - cum : rMinor + cum;
+          onePass(rPass, `Průchod ${i + 1}/${cuts.length} (ap ${(cum - prevCum).toFixed(3)})`);
+          prevCum = cum;
+        });
+        const rFinal = ext ? Dnom / 2 - H : Dnom / 2;
+        for (let s = 0; s < spring; s++) onePass(rFinal, `Jiskřící průchod ${s + 1}`);
+        addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Bezpečná poloha')}`);
+        addN(`G96 S${prms.speed}${note('', 'Zpět konst. řezná rychlost')}`);
+        buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
+      }
+      addCmt('--- KONTURA (Pro referenci) ---');
+      S.contourPoints.forEach(p => {
+        const cmd = (p.type === 'G2' || p.type === 'G3') ? flipArc(p.type) : p.type;
+        let line = `${cmd} X${(parseFloat(p.x) || 0)} Z${(parseFloat(p.z) || 0)}`;
+        if (p.type === 'G2' || p.type === 'G3') line += ` ${arcR(p.r)}`;
+        addCmt(line);
+      });
+      return lines;
+    }
+
     // ── UPICHNUTÍ (part-off) ── zápich plátkem po SVISLÉ ÚSEČCE v Z=partOffZ.
     // Nově se upich chová jako obrábění syntetické (svislé) kontury plátkem
     // s korekcí rádiusu a přídavky (viz partOffGeom níže) — ne jako „hloupý"
@@ -5200,10 +5353,31 @@ export function openCamSimulator(initialContour, initialGCode) {
         ctx.fillStyle = C.insert; ctx.strokeStyle = C.text; ctx.lineWidth = 1;
         if (prms.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        } else if (prms.toolShape === 'threading') {
+          // Завitový plátek: lichoběžníková špička — rovná SPODNÍ STRANA
+          // (šířka toolTipFlat) leží přímo na dráze (X průchodu = ⌀ řezu),
+          // boky stoupají symetricky ±ε/2 od svislice. Rádius se nepoužívá.
+          const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
+          const half = (tipAngDeg / 2) * (Math.PI / 180);
+          const lenPix = Math.max((parseFloat(prms.toolLength) || 4) * S.view.scale, 20);
+          const w2 = Math.max(((parseFloat(prms.toolTipFlat) || 0) * S.view.scale) / 2, 0.75);
+          const dx = Math.sin(half) * lenPix;
+          const dy = Math.cos(half) * lenPix;
+          ctx.save(); ctx.translate(pt.x, pt.y);
+          if (S.flipX) ctx.scale(1, -1);
+          ctx.beginPath();
+          ctx.moveTo(-w2 - dx, -dy);   // levý horní roh
+          ctx.lineTo(-w2, 0);          // levý konec spodní strany
+          ctx.lineTo(w2, 0);           // spodní strana (řezná hrana)
+          ctx.lineTo(w2 + dx, -dy);    // pravý horní roh
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.restore();
         } else if (prms.toolShape === 'polygon') {
+          const tipAngDeg = parseFloat(prms.toolTipAngle) || 90;
+          const effAngleDeg = parseFloat(prms.toolAngle) || 0;
           const lenPix = Math.max((parseFloat(prms.toolLength) || 10) * S.view.scale, 20);
-          const rotRad = -(parseFloat(prms.toolAngle) || 0) * (Math.PI / 180);
-          const tipAng = (parseFloat(prms.toolTipAngle) || 90) * (Math.PI / 180);
+          const rotRad = -effAngleDeg * (Math.PI / 180);
+          const tipAng = tipAngDeg * (Math.PI / 180);
           const a1 = rotRad, a2 = rotRad - tipAng;
           const distToCorner = rPix / Math.sin(tipAng / 2);
           const bisector = (a1 + a2) / 2;
@@ -7036,15 +7210,17 @@ export function openCamSimulator(initialContour, initialGCode) {
       ).join('')}</div>
     </div>`;
     const _toolOpen = S.toolConfigOpen;
-    const _shapeIcon = prms.toolShape === 'round' ? '⬤' : prms.toolShape === 'parting' ? '▮' : '◼';
+    const _shapeIcon = prms.toolShape === 'round' ? '⬤' : prms.toolShape === 'parting' ? '▮' : prms.toolShape === 'threading' ? '▽' : '◼';
     const _angleChip = prms.toolShape === 'polygon'
-      ? `<span class="cam-sim-machine-chip">${prms.toolAngle}°</span>` : '';
+      ? `<span class="cam-sim-machine-chip">${prms.toolAngle}°</span>`
+      : prms.toolShape === 'threading'
+        ? `<span class="cam-sim-machine-chip">${prms.toolTipAngle}°</span>` : '';
     const _vbdChip = prms.toolVbdCode
       ? `<span class="cam-sim-machine-chip" style="font-family:monospace;font-size:10px;letter-spacing:0.5px">${(prms.toolVbdCode || '').substring(0, 8)}</span>` : '';
     html += `<button class="cam-sim-machine-toggle" data-act="tool-config-toggle">
       <span class="cam-sim-machine-summary">
         <span style="color:#a6adc8;font-size:11px">Nástroj:</span>
-        <span class="cam-sim-machine-chip">R ${prms.toolRadius}</span>
+        <span class="cam-sim-machine-chip">${prms.toolShape === 'threading' ? `⊔ ${prms.toolTipFlat}` : `R ${prms.toolRadius}`}</span>
         <span class="cam-sim-machine-chip">${_shapeIcon}</span>
         ${_angleChip}
         ${_vbdChip}
@@ -7060,16 +7236,18 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px">🧰 Knihovna</button>
         <button data-act="open-vbd" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px">🔩 VBD</button>
         <button data-act="open-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px">🔧 Zásobník</button>
+        <button data-act="open-threads" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px" title="Databáze závitů — výběr nastaví parametry operace Závit i úhel závitového plátku">🧵 Závity</button>
       </div>
       <div class="cam-sim-row">
         <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-p="toolVbdCode" value="${prms.toolVbdCode || ''}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
-        <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
+        ${prms.toolShape === 'threading' ? '' : `<div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>`}
       </div>
       <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
       <div class="cam-sim-tool-shape-row">
         <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
         <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
         <button data-tshape="parting" class="${prms.toolShape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
+        <button data-tshape="threading" class="${prms.toolShape === 'threading' ? 'cam-sim-active' : ''}" title="Závitový plátek (profil V dle úhlu závitu)">▽</button>
       </div>`;
     if (prms.toolShape === 'polygon') {
       html += `<div class="cam-sim-row">
@@ -7082,6 +7260,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       html += `<div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
         <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
+      </div>`;
+    } else if (prms.toolShape === 'threading') {
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Vrcholový úhel V-profilu plátku — musí odpovídat úhlu závitu (M/UN 60°, G/BSW 55°, Tr 30°, Acme 29°). Výběr závitu (🧵 Závity) ho nastaví automaticky.">Úhel profilu (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}" min="10" max="90" step="0.5"></div>
+        <div class="cam-sim-field"><label title="Délka zobrazené hrany plátku (jen vizualizace)">Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
+        <div class="cam-sim-field"><label title="Šířka rovné špičky plátku (lichoběžník). Metrické/palcové ~0,1 mm; Tr/Acme ≈ 0,366×P — výběr závitu (🧵 Závity) nastaví automaticky. Nahrazuje Rádius (R), který se u závitového plátku nepoužívá.">Spodní strana</label><input type="number" data-p="toolTipFlat" value="${prms.toolTipFlat ?? 0.1}" min="0" step="0.05"></div>
       </div>`;
     }
     html += `</div>`;
@@ -7145,6 +7329,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-machtab="hrub" class="${_machSubTab === 'hrub' ? 'cam-sim-active' : ''}">Hrub.</button>
       <button data-machtab="hot" class="${_machSubTab === 'hot' ? 'cam-sim-active' : ''}">Hot.</button>
       <button data-machtab="upich" class="${_machSubTab === 'upich' ? 'cam-sim-active' : ''}">Upich</button>
+      <button data-machtab="zavit" class="${_machSubTab === 'zavit' ? 'cam-sim-active' : ''}">Závit</button>
     </div>`;
     if (_machSubTab === 'hrub') {
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
@@ -7238,6 +7423,39 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label title="Peck: rychloposuvem zpět dolů až na tuto vzdálenost nad dno předchozího řezu, poslední úsek posuvem F.">Posuv posl. (mm)</label><input type="number" step="0.5" min="0" data-p="partingApproachFeed" value="${prms.partingApproachFeed}"></div>
         <div class="cam-sim-field"><label title="Vyjezd (peck): po jaké hloubce zanoření nástroj vyjede pro uvolnění třísek. (Sdílí pole „Odskok".)">Vyjezd/peck</label><input type="number" step="0.5" min="0.1" data-p="retractDistance" value="${prms.retractDistance}"></div>
       </div>`}` : ''}`;
+    } else if (_machSubTab === 'zavit') {
+      const _thName = prms.threadName || `⌀${prms.threadDiameter}×${prms.threadPitch}`;
+      const _thCuts = computeThreadPassCuts(Math.max(0.01, parseFloat(prms.threadDepth) || 0.01), parseFloat(prms.threadPasses) || 0);
+      const _thCmd = prms.controlSystem === 'fanuc' ? 'G32' : 'G33';
+      html += `<div class="cam-sim-row" style="align-items:flex-end">
+        <div class="cam-sim-field" style="flex:2"><label title="Vybrat závit z databáze (M, Tr, G, UNC…) — vyplní ⌀D, stoupání P, hloubku H a úhel profilu.">Závit</label>
+          <button data-act="thread-pick" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px">🧵 ${prms.threadName ? `${_thName} (změnit)` : 'Vybrat závit…'}</button>
+        </div>
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="thread-toggle" class="cam-sim-btn ${prms.threadActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px" title="Zapnout/vypnout generování závitovacího cyklu (nahrazuje hrubování — dráhy se přegenerují)">${prms.threadActive ? '✅ Aktivní' : 'Neaktivní'}</button></div>
+      </div>`;
+      html += `<div class="cam-sim-toggle-row">
+        <button data-thext="1" class="${prms.threadExternal !== false ? 'cam-sim-active' : ''}" title="Vnější závit — přísuv z povrchu ⌀D dolů na dno profilu">Vnější</button>
+        <button data-thext="0" class="${prms.threadExternal === false ? 'cam-sim-active' : ''}" title="Vnitřní závit — přísuv z předvrtané díry ⌀(D−2H) nahoru na ⌀D">Vnitřní</button>
+      </div>`;
+      html += `<div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Jmenovitý (vnější) průměr závitu">⌀ D</label><input type="number" step="0.1" data-p="threadDiameter" value="${prms.threadDiameter}"></div>
+        <div class="cam-sim-field"><label title="Stoupání závitu — v G-kódu jako ${_thCmd === 'G32' ? 'F' : 'K'} na řádku ${_thCmd}. Změna přepočítá hloubku H.">Stoupání P</label><input type="number" step="0.05" data-p="threadPitch" value="${prms.threadPitch}"></div>
+        <div class="cam-sim-field"><label title="Hloubka profilu (radiálně) — auto z P a typu závitu, lze ručně přepsat">Hloubka H</label><input type="number" step="0.01" data-p="threadDepth" value="${prms.threadDepth}"></div>
+      </div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Z začátku závitu (odtud se řeže směrem k Z konec)">Z start</label><input type="number" step="0.5" data-p="threadZStart" value="${prms.threadZStart}"></div>
+        <div class="cam-sim-field"><label title="Z konce závitu">Z konec</label><input type="number" step="0.5" data-p="threadZEnd" value="${prms.threadZEnd}"></div>
+        <div class="cam-sim-field"><label title="Náběh před Z start — dráha navíc na rozběh posuvu/synchronizaci (typ. 2–3×P)">Náběh</label><input type="number" step="0.5" min="0" data-p="threadRunIn" value="${prms.threadRunIn}"></div>
+        <div class="cam-sim-field"><label title="Výběh za Z konec — 0 když závit končí v zápichu">Výběh</label><input type="number" step="0.5" min="0" data-p="threadRunOut" value="${prms.threadRunOut}"></div>
+      </div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Počet řezných průchodů; 0 = auto podle hloubky (degresivní přísuv ~0,12 mm průměrně, první záběr ≤ 0,4 mm — např. M20×2,5 → 15 průchodů)">Průchody (0=auto)</label><input type="number" step="1" min="0" data-p="threadPasses" value="${prms.threadPasses}"></div>
+        <div class="cam-sim-field"><label title="Jiskřící průchody (ap=0) na konci — vyhlazení boků">Jiskřící</label><input type="number" step="1" min="0" data-p="threadSpringPasses" value="${prms.threadSpringPasses}"></div>
+      </div>`;
+      if (prms.threadActive && prms.toolShape !== 'threading') {
+        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ Aktivní závitování, ale tvar plátku není závitový (▽) — dráhy se vygenerují, plátek v simulaci nebude odpovídat.</small>`;
+      }
+      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_thCuts.length} průchodů (1. záběr ${_thCuts[0].toFixed(3)} mm) + ${Math.max(0, Math.round(parseFloat(prms.threadSpringPasses)) || 0)}× jiskřící · ${_thCmd} ${_thCmd === 'G32' ? 'F' : 'K'}${prms.threadPitch} · G97 konst. otáčky${prms.threadActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
     }
     html += `<div style="text-align:center;margin-top:16px">
       <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
@@ -7344,6 +7562,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         } else {
           if (inp.dataset.p === 'entryAngle') S.params.entryAngleAuto = false;
           S.params[inp.dataset.p] = inp.type === 'number' ? (parseFloat(v) || 0) : v;
+          // Změna stoupání → přepočet hloubky profilu podle typu závitu
+          // (ruční úpravu H tím uživatel dělá až PO nastavení P).
+          if (inp.dataset.p === 'threadPitch') {
+            S.params.threadDepth = Math.round(threadProfileDepth(S.params.threadType, parseFloat(v) || 0, S.params.threadExternal !== false) * 1000) / 1000;
+          }
         }
         // Změna tvaru/úhlu destičky → smazat zastaralé promované interferenční čáry
         if (INSERT_PARAMS.has(inp.dataset.p) && S.params.respectInsertGeometry) {
@@ -7358,6 +7581,9 @@ export function openCamSimulator(initialContour, initialGCode) {
             && ['partingApproachFeed', 'retractDistance', 'feed',
                 'allowanceX', 'allowanceZ', 'finishAllowance', 'partOffStartX', 'partOffZ',
                 'toolRadius', 'toolLength'].includes(inp.dataset.p)) {
+          _regenGCode();
+        } else if (S.params.threadActive && inp.dataset.p.startsWith('thread')) {
+          // Aktivní závitování: parametry závitu mění celý cyklus → přegenerovat.
           _regenGCode();
         } else {
           fullUpdate();
@@ -7456,6 +7682,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           S._shapeGeomMem[prev] = {
             toolLength: S.params.toolLength, toolAngle: S.params.toolAngle,
             toolTipAngle: S.params.toolTipAngle, toolClearanceAngle: S.params.toolClearanceAngle,
+            toolRadius: S.params.toolRadius, toolTipFlat: S.params.toolTipFlat,
           };
           S.params.toolShape = next;
           const mem = S._shapeGeomMem[next];
@@ -7463,12 +7690,22 @@ export function openCamSimulator(initialContour, initialGCode) {
             // Obnovit dřívější hodnoty tohoto tvaru.
             S.params.toolLength = mem.toolLength; S.params.toolAngle = mem.toolAngle;
             S.params.toolTipAngle = mem.toolTipAngle; S.params.toolClearanceAngle = mem.toolClearanceAngle;
+            if (mem.toolRadius !== undefined) S.params.toolRadius = mem.toolRadius;
+            if (mem.toolTipFlat !== undefined) S.params.toolTipFlat = mem.toolTipFlat;
           } else if (next === 'polygon') {
             S.params.toolLength = 10; S.params.toolAngle = 15; S.params.toolTipAngle = 90;
           } else if (next === 'parting') {
             // Upichovák: šířka 5, natočení 0 (vodorovně s osou Z), standardně čelní.
             S.params.toolLength = 5; S.params.toolAngle = 0;
             S.params.roughingStrategy = 'face';
+          } else if (next === 'threading') {
+            // Závitový plátek: lichoběžníková špička (rovná spodní strana),
+            // úhel dle zvoleného závitu. Rádius se u závitového nepoužívá —
+            // špičku definuje spodní strana (návrat na jiný tvar R obnoví z paměti).
+            S.params.toolLength = 4; S.params.toolAngle = 0;
+            S.params.toolTipAngle = parseFloat(S.params.threadAngle) || 60;
+            if (!(parseFloat(S.params.toolTipFlat) > 0)) S.params.toolTipFlat = 0.1;
+            S.params.toolRadius = 0;
           }
         }
         // Aktivní upichnutí: tvar plátku mění zápichový cyklus (rádius/šířka)
@@ -7573,6 +7810,25 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const magazineBtn = tabBody.querySelector('[data-act="open-magazine"]');
     if (magazineBtn) magazineBtn.addEventListener('click', () => showMagazineDialog());
+    tabBody.querySelectorAll('[data-act="open-threads"], [data-act="thread-pick"]').forEach(btn => {
+      btn.addEventListener('click', () => showThreadPickerDialog());
+    });
+    const threadToggleBtn = tabBody.querySelector('[data-act="thread-toggle"]');
+    if (threadToggleBtn) threadToggleBtn.addEventListener('click', () => {
+      S.params.threadActive = !S.params.threadActive;
+      showToast(S.params.threadActive ? `Závitování ${S.params.threadName || ''} aktivní — dráhy přegenerovány` : 'Závitování vypnuto — zpět na hrubování');
+      _regenGCode();
+    });
+    tabBody.querySelectorAll('[data-thext]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ext = btn.dataset.thext === '1';
+        if ((S.params.threadExternal !== false) === ext) return;
+        S.params.threadExternal = ext;
+        // Vnější/vnitřní mění hloubku profilu (60°: 0,6134P vs 0,5413P).
+        S.params.threadDepth = Math.round(threadProfileDepth(S.params.threadType, parseFloat(S.params.threadPitch) || 0, ext) * 1000) / 1000;
+        if (S.params.threadActive) _regenGCode(); else fullUpdate();
+      });
+    });
     const vbdBtn = tabBody.querySelector('[data-act="open-vbd"]');
     if (vbdBtn) vbdBtn.addEventListener('click', () => {
       openInsertCalc({
@@ -7622,12 +7878,127 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
   }
 
+  // ── thread picker dialog (🧵 Závity) ──
+  // Výběr závitu z databáze (threadData.js — stejná data jako kalkulačka
+  // Závity v CAD). Klik na řádek vyplní parametry operace Závit (⌀D, P,
+  // hloubku H, úhel profilu) a přepne na záložku Závit.
+  const THREAD_PICKER_TYPES = [
+    { key: 'mc',   label: 'M hrubé',   angle: 60, data: mCoarse,    name: t => `M${t.D}` },
+    { key: 'mf',   label: 'M jemné',   angle: 60, data: mFine,      name: t => `M${t.D}×${t.P}` },
+    { key: 'tr',   label: 'Tr trap.',  angle: 30, data: trThreads,  name: t => `Tr${t.D}×${t.P}` },
+    { key: 'g',    label: 'G (BSP)',   angle: 55, data: gThreads,   name: t => t.n },
+    { key: 'bspt', label: 'BSPT kuž.', angle: 55, data: bsptThreads, name: t => t.n, taper: true },
+    { key: 'npt',  label: 'NPT kuž.',  angle: 60, data: nptThreads, name: t => t.n, taper: true },
+    { key: 'unc',  label: 'UNC',       angle: 60, data: uncThreads, name: t => `UNC ${t.n}` },
+    { key: 'unf',  label: 'UNF',       angle: 60, data: unfThreads, name: t => `UNF ${t.n}` },
+    { key: 'bsw',  label: 'BSW',       angle: 55, data: bswThreads, name: t => `BSW ${t.n}` },
+    { key: 'acme', label: 'Acme',      angle: 29, data: acmeThreads, name: t => `Acme ${t.n}` },
+  ];
+
+  function showThreadPickerDialog() {
+    const dlg = document.createElement('div');
+    dlg.className = 'input-overlay';
+    dlg.style.zIndex = '300';
+    dlg.innerHTML = `
+      <div class="input-dialog" style="min-width:340px;max-width:460px;width:100%;max-height:82vh;display:flex;flex-direction:column">
+        <h3 style="margin:0 0 10px">🧵 Závity — výběr pro závitování</h3>
+        <div id="thr-pick-types" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:8px"></div>
+        <input type="text" id="thr-pick-filter" placeholder="Filtr…" style="background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:5px 8px;font-size:12px;margin-bottom:8px">
+        <div id="thr-pick-body" style="flex:1;overflow-y:auto;min-height:0;border:1px solid #313244;border-radius:6px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;border-top:1px solid #313244;padding-top:10px">
+          <button class="btn-cancel" id="thr-pick-close">Zavřít</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+
+    let activeType = THREAD_PICKER_TYPES.find(t => t.key === S.params.threadType) || THREAD_PICKER_TYPES[0];
+    const typesEl = dlg.querySelector('#thr-pick-types');
+    const bodyEl = dlg.querySelector('#thr-pick-body');
+    const filterEl = dlg.querySelector('#thr-pick-filter');
+
+    function renderTypes() {
+      typesEl.innerHTML = THREAD_PICKER_TYPES.map(t =>
+        `<button data-thrtype="${t.key}" class="cam-sim-btn ${t.key === activeType.key ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:10px;padding:4px 2px">${t.label}</button>`
+      ).join('');
+      typesEl.querySelectorAll('[data-thrtype]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeType = THREAD_PICKER_TYPES.find(t => t.key === btn.dataset.thrtype);
+          renderTypes(); renderRows();
+        });
+      });
+    }
+
+    function pitchOf(t) { return t.P !== undefined ? t.P : Math.round(25.4 / t.tpi * 10000) / 10000; }
+
+    function renderRows() {
+      const f = (filterEl.value || '').toLowerCase();
+      const rows = activeType.data
+        .map(t => ({ t, nm: activeType.name(t), P: pitchOf(t) }))
+        .filter(r => !f || r.nm.toLowerCase().includes(f) || String(r.t.D).includes(f));
+      let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="color:#a6adc8;font-size:10px;text-align:left">
+          <th style="padding:4px 8px">Závit</th><th style="padding:4px 8px">P mm</th><th style="padding:4px 8px">D mm</th>${activeType.data[0] && activeType.data[0].tpi !== undefined ? '<th style="padding:4px 8px">TPI</th>' : ''}
+        </tr></thead><tbody>`;
+      rows.forEach((r, i) => {
+        html += `<tr data-thridx="${i}" style="cursor:pointer;border-top:1px solid #313244">
+          <td style="padding:4px 8px;font-weight:600">${r.nm}</td>
+          <td style="padding:4px 8px">${r.P}</td>
+          <td style="padding:4px 8px">${r.t.D}</td>
+          ${r.t.tpi !== undefined ? `<td style="padding:4px 8px;color:#6c7086">${r.t.tpi}</td>` : ''}
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      if (rows.length === 0) html = '<div style="padding:14px;text-align:center;color:#6c7086;font-size:12px">Žádný závit neodpovídá filtru.</div>';
+      bodyEl.innerHTML = html;
+      bodyEl.querySelectorAll('[data-thridx]').forEach(tr => {
+        tr.addEventListener('click', () => {
+          const r = rows[parseInt(tr.dataset.thridx)];
+          if (!r) return;
+          applyThreadPick(activeType, r.t);
+          dlg.remove();
+        });
+        tr.addEventListener('mouseenter', () => { tr.style.background = '#313244'; });
+        tr.addEventListener('mouseleave', () => { tr.style.background = ''; });
+      });
+    }
+
+    filterEl.addEventListener('input', renderRows);
+    dlg.querySelector('#thr-pick-close').addEventListener('click', () => dlg.remove());
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.remove(); });
+    renderTypes(); renderRows();
+    filterEl.focus();
+  }
+
+  function applyThreadPick(typeDef, t) {
+    const P = t.P !== undefined ? t.P : Math.round(25.4 / t.tpi * 10000) / 10000;
+    const ext = S.params.threadExternal !== false;
+    S.params.threadName = typeDef.name(t);
+    S.params.threadType = typeDef.key;
+    S.params.threadDiameter = t.D;
+    S.params.threadPitch = P;
+    S.params.threadAngle = typeDef.angle;
+    S.params.threadDepth = Math.round(threadProfileDepth(typeDef.key, P, ext) * 1000) / 1000;
+    // Závitový plátek přebírá úhel profilu; náběh standardně 2×P (min 2 mm).
+    S.params.threadRunIn = Math.max(2, Math.round(2 * P * 10) / 10);
+    // Spodní strana plátku: Tr/Acme = šířka dna profilu ≈ 0,366×P, jinak 0,1.
+    S.params.toolTipFlat = (typeDef.key === 'tr' || typeDef.key === 'acme')
+      ? Math.round(0.366 * P * 100) / 100 : 0.1;
+    if (S.params.toolShape === 'threading') {
+      S.params.toolTipAngle = typeDef.angle;
+      S.params.toolRadius = 0;
+    }
+    S.machiningSubTab = 'zavit';
+    const taperNote = typeDef.taper ? ' — POZOR: kuželový závit 1:16, cyklus generuje válcový' : '';
+    showToast(`Závit ${S.params.threadName}: P=${P} mm, H=${S.params.threadDepth} mm, ${typeDef.angle}°${taperNote}`);
+    if (S.params.threadActive) _regenGCode(); else fullUpdate();
+  }
+
   // ── magazine dialog ──
   function _defaultMagSlot(num) {
     return {
       slot: num, name: `T${num}`, vbdCode: '',
       shape: 'round', radius: 0.8, tipAngle: 90, toolAngle: 15,
-      clearanceAngle: 0, toolLength: 10,
+      clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
       vc: 200, f: 0.25, ap: 2.0,
     };
   }
@@ -7644,6 +8015,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.params.toolAngle       = slot.toolAngle;
     S.params.toolClearanceAngle = slot.clearanceAngle;
     S.params.toolLength      = slot.toolLength;
+    if (slot.shape === 'threading') S.params.toolTipFlat = slot.tipFlat ?? 0.1;
     S.params.speed           = slot.vc;
     S.params.feed            = slot.f;
     S.params.depthOfCut      = slot.ap;
@@ -7661,6 +8033,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     slot.toolAngle     = S.params.toolAngle;
     slot.clearanceAngle = S.params.toolClearanceAngle || 0;
     slot.toolLength    = S.params.toolLength;
+    slot.tipFlat       = S.params.toolTipFlat ?? 0.1;
     slot.vc            = S.params.speed;
     slot.f             = S.params.feed;
     slot.ap            = S.params.depthOfCut;
@@ -7701,7 +8074,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       mag.forEach((slot, i) => {
         const isActive = i === activeIdx;
         const isEditing = i === editIdx;
-        const shapeIcon = slot.shape === 'round' ? '⬤' : '◼';
+        const shapeIcon = slot.shape === 'round' ? '⬤' : slot.shape === 'parting' ? '▮' : slot.shape === 'threading' ? '▽' : '◼';
         const border = isActive ? 'border:1.5px solid #a6e3a1;' : 'border:1.5px solid #313244;';
 
         html += `<div class="cam-sim-mag-slot" data-magidx="${i}" style="background:#1e1e2e;border-radius:8px;margin-bottom:8px;${border}overflow:hidden">`;
@@ -7711,6 +8084,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           ${slot.vbdCode ? `<span style="font-family:monospace;font-size:10px;color:#89dceb;padding:1px 5px;border-radius:4px;border:1px solid #313244">${escHTML(slot.vbdCode.substring(0,12))}</span>` : ''}
           <span class="cam-sim-machine-chip">${shapeIcon} R${slot.radius}</span>
           ${slot.shape === 'polygon' ? `<span class="cam-sim-machine-chip">${slot.toolAngle}° ε${slot.tipAngle}°${slot.clearanceAngle ? ` α${slot.clearanceAngle}°` : ''}</span>` : ''}
+          ${slot.shape === 'threading' ? `<span class="cam-sim-machine-chip">ε${slot.tipAngle}°</span>` : ''}
           <span style="color:#6c7086;font-size:12px">${isEditing ? '▲' : '▼'}</span>
         </div>`;
 
@@ -7733,6 +8107,7 @@ export function openCamSimulator(initialContour, initialGCode) {
               <button data-mshape="round" data-magidx="${i}" class="${slot.shape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
               <button data-mshape="polygon" data-magidx="${i}" class="${slot.shape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
               <button data-mshape="parting" data-magidx="${i}" class="${slot.shape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
+              <button data-mshape="threading" data-magidx="${i}" class="${slot.shape === 'threading' ? 'cam-sim-active' : ''}" title="Závitový plátek">▽</button>
             </div>
             ${slot.shape === 'polygon' ? `
             <div class="cam-sim-row">
@@ -7745,6 +8120,12 @@ export function openCamSimulator(initialContour, initialGCode) {
             <div class="cam-sim-row">
               <div class="cam-sim-field"><label>Šířka plátku</label><input type="number" data-mf="toolLength" data-magidx="${i}" value="${slot.toolLength}"></div>
               <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-mf="toolAngle" data-magidx="${i}" value="${slot.toolAngle}"></div>
+            </div>` : ''}
+            ${slot.shape === 'threading' ? `
+            <div class="cam-sim-row">
+              <div class="cam-sim-field"><label>Úhel profilu (ε)</label><input type="number" data-mf="tipAngle" data-magidx="${i}" value="${slot.tipAngle}" min="10" max="90"></div>
+              <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-mf="toolLength" data-magidx="${i}" value="${slot.toolLength}"></div>
+              <div class="cam-sim-field"><label title="Šířka rovné špičky plátku (Tr/Acme ≈ 0,366×P, metrické ~0,1)">Spodní strana</label><input type="number" data-mf="tipFlat" data-magidx="${i}" value="${slot.tipFlat ?? 0.1}" min="0" step="0.05"></div>
             </div>` : ''}
             <div class="cam-sim-section-title" style="margin-top:8px">Řezné podmínky</div>
             <div class="cam-sim-row">
@@ -7786,7 +8167,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           const field = inp.dataset.mf;
           const slot = mag[idx];
           if (!slot) return;
-          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','vc','f','ap'];
+          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','tipFlat','vc','f','ap'];
           slot[field] = numFields.includes(field) ? (parseFloat(inp.value) || 0) : inp.value;
           if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
         });
@@ -7798,6 +8179,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           mag[idx].shape = btn.dataset.mshape;
           if (mag[idx].shape === 'polygon' && !mag[idx].tipAngle) mag[idx].tipAngle = 90;
           if (mag[idx].shape === 'parting') { mag[idx].toolAngle = 0; mag[idx].toolLength = 5; }
+          if (mag[idx].shape === 'threading') { mag[idx].toolAngle = 0; mag[idx].toolLength = 4; mag[idx].tipAngle = 60; if (!(mag[idx].tipFlat > 0)) mag[idx].tipFlat = 0.1; }
           if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
         });
       });
@@ -10559,16 +10941,19 @@ export function openCamSimulator(initialContour, initialGCode) {
     // pokud už máme tvarový polotovar (z G-kódu nebo z canvas), nepřepisujeme ho.
     const absPts = resolvePointsToAbsolute(S.contourPoints);
     if (absPts.length > 0) {
-      let minZ = Infinity, maxD = 0;
+      let minZ = Infinity, maxZ = -Infinity, maxD = 0;
       absPts.forEach(p => {
         const x = S.params.mode === 'DIAMON' ? p.xAbs : p.xAbs * 2;
         if (Math.abs(x) > maxD) maxD = Math.abs(x);
         if (p.zAbs < minZ) minZ = p.zAbs;
+        if (p.zAbs > maxZ) maxZ = p.zAbs;
       });
       const margin = parseFloat(S.params.stockMargin) || 5;
       S.params.stockDiameter = Math.ceil(maxD + margin * 2);
       S.params.stockLength = Math.ceil(Math.abs(minZ) + margin);
-      S.params.stockFace = 2.0;
+      // Čelo válce musí pokrýt i konturu kreslenou v +Z (čelo dílu na
+      // Z=maxZ, ne na Z0) — jinak by polotovar ležel mimo součást.
+      S.params.stockFace = Math.max(2, Math.ceil(maxZ) + 2);
     }
     // Defaultní casting-stock vygeneruj jen pokud žádný (ani G-kódový, ani canvas) není.
     if (!_importedStockFromGCode && S.stockPoints.length === 0) {

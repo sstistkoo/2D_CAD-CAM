@@ -2264,6 +2264,8 @@ document.querySelectorAll("[data-tool]").forEach((btn) => {
     if (btn.dataset.tool === 'fillet' && bridge.filletFromSelection && bridge.filletFromSelection()) return;
     // Zkosení: pokud je výběr → okamžitě provést
     if (btn.dataset.tool === 'chamfer' && bridge.chamferFromSelection && bridge.chamferFromSelection()) return;
+    // Závit: pokud je vybraná vodorovná úsečka → rovnou otevřít dialog
+    if (btn.dataset.tool === 'thread' && bridge.threadFromSelection && bridge.threadFromSelection()) return;
     // Kolmost: pokud je výběr → okamžitě provést
     if (btn.dataset.tool === 'perp' && bridge.perpFromSelection && bridge.perpFromSelection()) return;
     // Vodorovnost: pokud je výběr → okamžitě provést

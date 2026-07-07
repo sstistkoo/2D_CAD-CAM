@@ -19,7 +19,7 @@ const ARC90_BULGE = Math.tan(Math.PI / 8); // bulge pro oblouk 90° (ccw)
  * Souřadnice: x = axiální (Z), y = radiální odchylka od průměru d (<=0,
  * záporné = zápich do materiálu). Počátek (0,0) leží na vstupní hraně.
  */
-function buildGrooveProfile({ f, t, r, alpha, entryStyle, exitStyle }) {
+export function buildGrooveProfile({ f, t, r, alpha, entryStyle, exitStyle }) {
   const rC = Math.max(0, Math.min(r, t));
   const alphaRad = (alpha * Math.PI) / 180;
   const tanA = Math.tan(alphaRad) || 1;
