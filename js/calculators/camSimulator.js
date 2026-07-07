@@ -2555,6 +2555,13 @@ function _defaultCamParams() {
     threadRunOut: 0,       // výběh za koncem [mm] (0 = končí přesně na Z konec, např. v zápichu)
     threadPasses: 0,       // počet průchodů (0 = auto podle hloubky, degresivní přísuv)
     threadSpringPasses: 1, // jiskřící průchody (ap=0) na konci
+    // Kuželový závit: kuželovitost 1:k (0 = válcový; 16 = trubkový BSPT/NPT
+    // 1:16; kladné = ⌀ roste směrem řezu k Z konci, záporné = klesá).
+    threadTaperRatio: 0,
+    // Způsob přísuvu: 'radial' = kolmý (obě strany profilu řežou),
+    // 'flank' = boční po boku profilu (posun Z o hloubka·tan(ε/2)),
+    // 'alternate' = střídavý cik-cak (boky se střídají — rovnoměrné opotřebení).
+    threadInfeed: 'radial',
     // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
     // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
     entryAngle: 30,
@@ -2917,6 +2924,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Spodní strana závitového plátku dle typu (Tr/Acme = dno profilu).
       S.params.toolTipFlat = (ti.type === 'tr' || ti.type === 'acme')
         ? Math.round(0.366 * ti.P * 100) / 100 : 0.1;
+      // CAD nástroj Завit kreslí válcové závity — případný dřívější kužel zrušit.
+      S.params.threadTaperRatio = 0;
       setTimeout(() => showToast(`🧵 Z výkresu načten závit ${ti.name} — parametry v záložce Závit`), 600);
     }
   } catch (_) { /* ignore */ }
@@ -4260,36 +4269,69 @@ export function openCamSimulator(initialContour, initialGCode) {
       const dirZ = zEnd < zStart ? -1 : 1;
       const z0 = zStart - dirZ * runIn;        // start s náběhem (rozběh posuvu)
       const zCut = zEnd + dirZ * runOut;       // konec s výběhem
+      // Kuželový závit 1:k — poloměr povrchu se mění podél dráhy řezu:
+      // slopeR = Δr na 1 mm (Δ⌀ = 1/k na 1 mm). Průchod jede G33 s X i Z
+      // (synchronizovaná kuželová interpolace), stoupání zůstává podél Z.
+      const taper = parseFloat(prms.threadTaperRatio) || 0;
+      const slopeR = taper !== 0 ? 1 / (2 * taper) : 0;
+      const distOf = (z) => (z - zStart) / dirZ;                 // vzdálenost podél řezu od Z startu
+      const rBase = ext ? Dnom / 2 : Dnom / 2 - H;               // povrch (vnější) / předvrtaná díra (vnitřní) na Z startu
+      const rSurfAt = (z) => rBase + slopeR * distOf(z);
       // Konstantní otáčky pro závit: n = Vc·1000/(π·D), omezeno LIMS.
       const lims = parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000;
       const rpm = Math.max(10, Math.min(lims, Math.round((parseFloat(prms.speed) || 100) * 1000 / (Math.PI * Dnom))));
       const clr = Math.max(0.5, parseFloat(prms.rapidClearance) || 1) + 1;
       const rMinor = Dnom / 2 - H;             // poloměr dna profilu (vnější) / předvrtané díry (vnitřní)
-      const rClear = ext ? Dnom / 2 + clr : Math.max(0.2, rMinor - clr);  // odskok mezi průchody
-      // G33/G32: stoupání K (Sinumerik/Heidenhain ISO) vs. F (Fanuc).
-      const thrLine = prms.controlSystem === 'fanuc'
-        ? (z) => `G32 Z${z.toFixed(3)} F${P}`
-        : (z) => `G33 Z${z.toFixed(3)} K${P}`;
-      addCmt(`--- ZAVITOVANI ${prms.threadName || `⌀${Dnom}×${P}`} (${ext ? 'vnejsi' : 'vnitrni'}, H=${H.toFixed(3)}, ${cuts.length} pruchodu) ---`);
+      // Odskok mezi průchody musí minout povrch po CELÉ délce (u kužele
+      // rozhoduje větší/menší konec).
+      const rSurfMax = Math.max(rSurfAt(z0), rSurfAt(zCut));
+      const rSurfMin = Math.min(rSurfAt(z0), rSurfAt(zCut));
+      const rClear = ext ? rSurfMax + clr : Math.max(0.2, rSurfMin - clr);
+      // Způsob přísuvu: radiální (kolmý) / boční po boku profilu / střídavý.
+      // Boční = start průchodu se posune v Z o hloubka·tan(ε/2) — G33 drží
+      // synchronizaci se vřetenem, takže posun startu posouvá řez v drážce
+      // na bok profilu (řeže jen jedna strana špičky). Střídavý znaménko
+      // posunu střídá — boky se řežou střídavě (rovnoměrné opotřebení).
+      const infeed = prms.threadInfeed === 'flank' || prms.threadInfeed === 'alternate' ? prms.threadInfeed : 'radial';
+      const infTan = Math.tan(((parseFloat(prms.threadAngle) || 60) / 2) * Math.PI / 180);
+      const zShiftOf = (cum, i) => infeed === 'radial' ? 0
+        : infeed === 'flank' ? cum * infTan
+        : (i % 2 === 0 ? 1 : -1) * cum * infTan;
+      // G33/G32: stoupání K (Sinumerik/Heidenhain ISO) vs. F (Fanuc);
+      // kuželový průchod má v bloku i cílové X.
+      const thrLine = (z, rTo) => {
+        const xWord = taper !== 0 ? ` X${xd(rTo)}` : '';
+        return prms.controlSystem === 'fanuc'
+          ? `G32 Z${z.toFixed(3)}${xWord} F${P}`
+          : `G33 Z${z.toFixed(3)}${xWord} K${P}`;
+      };
+      const infeedLabel = { radial: 'radialni prisuv', flank: 'bocni prisuv', alternate: 'stridavy prisuv' }[infeed];
+      addCmt(`--- ZAVITOVANI ${prms.threadName || `⌀${Dnom}×${P}`} (${ext ? 'vnejsi' : 'vnitrni'}, H=${H.toFixed(3)}, ${cuts.length} pruchodu, ${infeedLabel}${taper !== 0 ? `, kuzel 1:${Math.abs(taper)}` : ''}) ---`);
       if (!ext && rMinor <= 0.05) {
         addCmt(`! Vnitrni zavit: prumer diry ⌀${(rMinor * 2).toFixed(3)} <= 0 — zkontroluj ⌀D a hloubku H. Drahy nevygenerovany.`);
       } else {
         addN(`G97 S${rpm}${note('', 'Konstantní otáčky pro závit')}`);
         simCounter += 1; addN(`G0 X${xd(rClear)} Z${z0.toFixed(3)}${note('', 'Nájezd před závit (náběh)')}`, simCounter);
         let prevCum = 0;
-        const onePass = (rPass, label) => {
-          simCounter += 1; addN(`G0 X${xd(rPass)}${note('', label)}`, simCounter);
-          simCounter += 1; addN(thrLine(zCut), simCounter);
+        // Jeden průchod: přejezd na start (Z s bočním posunem), přísuv v X
+        // (na kuželu dle povrchu v místě startu), G33 na konec, odskok.
+        const onePass = (cum, zShift, label) => {
+          const z0i = z0 - dirZ * zShift;
+          const rFrom = ext ? rSurfAt(z0i) - cum : rSurfAt(z0i) + cum;
+          const rTo = ext ? rSurfAt(zCut) - cum : rSurfAt(zCut) + cum;
+          simCounter += 1; addN(`G0 Z${z0i.toFixed(3)}`, simCounter);
+          simCounter += 1; addN(`G0 X${xd(rFrom)}${note('', label)}`, simCounter);
+          simCounter += 1; addN(thrLine(zCut, rTo), simCounter);
           simCounter += 1; addN(`G0 X${xd(rClear)}${note('', 'Odskok')}`, simCounter);
-          simCounter += 1; addN(`G0 Z${z0.toFixed(3)}`, simCounter);
         };
         cuts.forEach((cum, i) => {
-          const rPass = ext ? Dnom / 2 - cum : rMinor + cum;
-          onePass(rPass, `Průchod ${i + 1}/${cuts.length} (ap ${(cum - prevCum).toFixed(3)})`);
+          onePass(cum, zShiftOf(cum, i), `Průchod ${i + 1}/${cuts.length} (ap ${(cum - prevCum).toFixed(3)})`);
           prevCum = cum;
         });
-        const rFinal = ext ? Dnom / 2 - H : Dnom / 2;
-        for (let s = 0; s < spring; s++) onePass(rFinal, `Jiskřící průchod ${s + 1}`);
+        // Jiskřící průchody na plné hloubce — boční posun jako poslední
+        // řezný průchod, ať jedou ve stejné stopě.
+        const springShift = zShiftOf(H, cuts.length - 1);
+        for (let s = 0; s < spring; s++) onePass(H, springShift, `Jiskřící průchod ${s + 1}`);
         addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Bezpečná poloha')}`);
         addN(`G96 S${prms.speed}${note('', 'Zpět konst. řezná rychlost')}`);
         buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
@@ -7437,6 +7479,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-thext="1" class="${prms.threadExternal !== false ? 'cam-sim-active' : ''}" title="Vnější závit — přísuv z povrchu ⌀D dolů na dno profilu">Vnější</button>
         <button data-thext="0" class="${prms.threadExternal === false ? 'cam-sim-active' : ''}" title="Vnitřní závit — přísuv z předvrtané díry ⌀(D−2H) nahoru na ⌀D">Vnitřní</button>
       </div>`;
+      const _thInfeed = prms.threadInfeed === 'flank' || prms.threadInfeed === 'alternate' ? prms.threadInfeed : 'radial';
+      html += `<div style="margin-top:2px"><label style="font-size:10px;color:#6c7086">Přísuv</label></div>
+      <div class="cam-sim-toggle-row">
+        <button data-thinfeed="radial" class="${_thInfeed === 'radial' ? 'cam-sim-active' : ''}" title="Radiální (kolmý) přísuv — nástroj jede přímo v X, řežou obě strany profilu. Jednoduchý, pro menší stoupání.">⊥ Radiální</button>
+        <button data-thinfeed="flank" class="${_thInfeed === 'flank' ? 'cam-sim-active' : ''}" title="Boční přísuv — start průchodu se posouvá v Z o hloubka·tan(ε/2), řeže jen jeden bok profilu (lepší odvod třísky, menší síly). Pro větší stoupání.">∠ Boční</button>
+        <button data-thinfeed="alternate" class="${_thInfeed === 'alternate' ? 'cam-sim-active' : ''}" title="Střídavý (cik-cak) přísuv — boční posun střídá strany, boky profilu se řežou střídavě → rovnoměrné opotřebení špičky. Pro velká stoupání a Tr/Acme.">⇄ Střídavý</button>
+      </div>`;
       html += `<div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Jmenovitý (vnější) průměr závitu">⌀ D</label><input type="number" step="0.1" data-p="threadDiameter" value="${prms.threadDiameter}"></div>
         <div class="cam-sim-field"><label title="Stoupání závitu — v G-kódu jako ${_thCmd === 'G32' ? 'F' : 'K'} na řádku ${_thCmd}. Změna přepočítá hloubku H.">Stoupání P</label><input type="number" step="0.05" data-p="threadPitch" value="${prms.threadPitch}"></div>
@@ -7451,11 +7500,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Počet řezných průchodů; 0 = auto podle hloubky (degresivní přísuv ~0,12 mm průměrně, první záběr ≤ 0,4 mm — např. M20×2,5 → 15 průchodů)">Průchody (0=auto)</label><input type="number" step="1" min="0" data-p="threadPasses" value="${prms.threadPasses}"></div>
         <div class="cam-sim-field"><label title="Jiskřící průchody (ap=0) na konci — vyhlazení boků">Jiskřící</label><input type="number" step="1" min="0" data-p="threadSpringPasses" value="${prms.threadSpringPasses}"></div>
+        <div class="cam-sim-field"><label title="Kuželový závit — kuželovitost 1:k. 0 = válcový; 16 = trubkové BSPT/NPT (1:16, výběr z 🧵 Завity nastaví sám). Kladné = ⌀ roste směrem řezu (k Z konci), záporné = klesá. ⌀ D platí na Z startu; průchody jedou G33/G32 s X i Z.">Kužel 1:k</label><input type="number" step="1" data-p="threadTaperRatio" value="${prms.threadTaperRatio ?? 0}"></div>
       </div>`;
       if (prms.threadActive && prms.toolShape !== 'threading') {
         html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ Aktivní závitování, ale tvar plátku není závitový (▽) — dráhy se vygenerují, plátek v simulaci nebude odpovídat.</small>`;
       }
-      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_thCuts.length} průchodů (1. záběr ${_thCuts[0].toFixed(3)} mm) + ${Math.max(0, Math.round(parseFloat(prms.threadSpringPasses)) || 0)}× jiskřící · ${_thCmd} ${_thCmd === 'G32' ? 'F' : 'K'}${prms.threadPitch} · G97 konst. otáčky${prms.threadActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
+      const _thInfeedTxt = _thInfeed === 'flank' ? 'boční přísuv' : _thInfeed === 'alternate' ? 'střídavý přísuv' : 'radiální přísuv';
+      const _thTaper = parseFloat(prms.threadTaperRatio) || 0;
+      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_thCuts.length} průchodů (1. záběr ${_thCuts[0].toFixed(3)} mm) + ${Math.max(0, Math.round(parseFloat(prms.threadSpringPasses)) || 0)}× jiskřící · ${_thInfeedTxt}${_thTaper !== 0 ? ` · kužel 1:${Math.abs(_thTaper)} (Δ⌀ ${(Math.abs(Math.abs(parseFloat(prms.threadZEnd) - parseFloat(prms.threadZStart)) / _thTaper)).toFixed(2)} mm)` : ''} · ${_thCmd} ${_thCmd === 'G32' ? 'F' : 'K'}${prms.threadPitch} · G97 konst. otáčky${prms.threadActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
     }
     html += `<div style="text-align:center;margin-top:16px">
       <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
@@ -7819,6 +7871,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       showToast(S.params.threadActive ? `Závitování ${S.params.threadName || ''} aktivní — dráhy přegenerovány` : 'Závitování vypnuto — zpět na hrubování');
       _regenGCode();
     });
+    tabBody.querySelectorAll('[data-thinfeed]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (S.params.threadInfeed === btn.dataset.thinfeed) return;
+        S.params.threadInfeed = btn.dataset.thinfeed;
+        if (S.params.threadActive) _regenGCode(); else fullUpdate();
+      });
+    });
     tabBody.querySelectorAll('[data-thext]').forEach(btn => {
       btn.addEventListener('click', () => {
         const ext = btn.dataset.thext === '1';
@@ -7978,6 +8037,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.params.threadPitch = P;
     S.params.threadAngle = typeDef.angle;
     S.params.threadDepth = Math.round(threadProfileDepth(typeDef.key, P, ext) * 1000) / 1000;
+    // Kuželové trubkové závity (BSPT/NPT) mají kuželovitost 1:16.
+    S.params.threadTaperRatio = typeDef.taper ? 16 : 0;
     // Závitový plátek přebírá úhel profilu; náběh standardně 2×P (min 2 mm).
     S.params.threadRunIn = Math.max(2, Math.round(2 * P * 10) / 10);
     // Spodní strana plátku: Tr/Acme = šířka dna profilu ≈ 0,366×P, jinak 0,1.
@@ -7988,7 +8049,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.params.toolRadius = 0;
     }
     S.machiningSubTab = 'zavit';
-    const taperNote = typeDef.taper ? ' — POZOR: kuželový závit 1:16, cyklus generuje válcový' : '';
+    const taperNote = typeDef.taper ? ' — kuželový 1:16 (nastaveno, ⌀ D platí na Z startu)' : '';
     showToast(`Závit ${S.params.threadName}: P=${P} mm, H=${S.params.threadDepth} mm, ${typeDef.angle}°${taperNote}`);
     if (S.params.threadActive) _regenGCode(); else fullUpdate();
   }
