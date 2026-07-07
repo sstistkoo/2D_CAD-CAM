@@ -446,6 +446,11 @@ export function genLongPasses(ctx) {
   // uvnitř) — jinak by se kapsa jevila jako otevřená a otevřený řez by ji
   // pohltil do jednoho dlouhého průjezdu skrz materiál.
   const pocketDoneRanges = [];
+  // Bez „dobrat najednou": sdílená rampa z rohu kapsy nemusí dosáhnout dál
+  // (strmá stěna z hlídání držáku, úzké dno) — hlubší vrstvy by pak emitovaly
+  // STEJNÝ zákrok znovu a znovu (nulový progres). Pamatuj si nejlepší
+  // dosaženou hloubku na roh a duplicitní zákroky potlač.
+  const pocketBestX = new Map();
   const dzScan = 0.2;
   const blockedAt = (X, z) => {
     const offX = offsetXAt(z);
@@ -679,6 +684,12 @@ export function genLongPasses(ctx) {
       };
       if (!prms.pocketFinishAtOnce) {
         const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, !partingNoDress, true);
+        // Nulový progres proti dřívější vrstvě u TÉHOŽ rohu → duplicitní
+        // zákrok po stejné rampě, nic neodebere — vynech.
+        const pbKey = `${corner.x.toFixed(1)},${corner.z.toFixed(1)}`;
+        const pbBest = pocketBestX.get(pbKey);
+        if (pbBest !== undefined && pocketPass.x >= pbBest - 0.05) return;
+        pocketBestX.set(pbKey, pocketPass.x);
         linkToPrev(leadIn);   // navázání nezávisí na „bez schodků"
         passes.push(pocketPass);
         return;

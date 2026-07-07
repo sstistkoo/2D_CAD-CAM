@@ -589,6 +589,14 @@ const MATERIALS = {
   'Plast (POM)':          { speed: 500, feed: 0.4,  depth: 5.0, name: "Plast" }
 };
 
+// Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
+// G-kód (hrubování/dokončování/hlídání/…). Uložený manualGCode s jinou verzí se
+// při otevření CAM zahodí a dráhy se přegenerují automaticky — jinak by uživatel
+// viděl staré cachované dráhy z localStorage/projektu (manualGCode se jinak
+// nepřepočítává, dokud není prázdný nebo se neklikne „🔄 Dráhy"). Ruční úpravy
+// G-kódu ve STEJNÉ verzi zůstávají zachované.
+const PATH_LOGIC_VERSION = 3;
+
 // ── MATH HELPERS ───────────────────────────────────────────────
 const EPSILON = 1e-9;
 const TRIM_TOL = 0.5;
@@ -895,6 +903,16 @@ function mergePocketGuides(segs, guides) {
     return null;
   };
   const cutIdx = (loc) => loc.at === 'start' ? loc.segIdx : loc.segIdx + 1;
+  // U lomené čáry (hlídání držáku, g.via) je pro párování do „V" rozhodující
+  // jen PRVNÍ úsek od rohu — hrana destičky. Když průsečík V padne až za její
+  // konec, dno V destička nedosáhne hranou, ale kapsa je dost široká na
+  // zanoření držákem → NEpárovat; každá čára pak přemostí svou stěnu zvlášť
+  // a dno kapsy mezi nimi zůstane obrobitelné.
+  const firstPtAfterVtx = (g, sp) => {
+    if (!g.via || !g.via.length) return null;
+    const isUpEnd = Math.hypot(sp.vtx.x - g.x2, sp.vtx.z - g.z2) <= Math.hypot(sp.vtx.x - g.x1, sp.vtx.z - g.z1);
+    return isUpEnd ? g.via[0] : g.via[g.via.length - 1];
+  };
   for (let zi = 0; zi < guides.length; zi++) {
     if (consumed.has(zi) || guides[zi].kind !== 'zanoreni') continue;
     const zg = splitGuide(guides[zi]); if (!zg) continue;
@@ -902,16 +920,19 @@ function mergePocketGuides(segs, guides) {
       if (consumed.has(di) || di === zi || guides[di].kind !== 'dojezd') continue;
       const dg = splitGuide(guides[di]); if (!dg) continue;
       if (Math.hypot(zg.vtx.x - dg.vtx.x, zg.vtx.z - dg.vtx.z) < 0.3) continue;
-      const V = intersectLinesInfinite(zg.vtx, zg.deep, dg.vtx, dg.deep);
+      const zNext = firstPtAfterVtx(guides[zi], zg), dNext = firstPtAfterVtx(guides[di], dg);
+      const V = intersectLinesInfinite(zg.vtx, zNext || zg.deep, dg.vtx, dNext || dg.deep);
       if (!V) continue;
       // Dno V musí být hlubší (menší X) než oba otevřené rohy, ne za osou.
       if (!(V.x < zg.vtx.x - 0.05 && V.x < dg.vtx.x - 0.05) || V.x < -0.01) continue;
       // Dno V musí ležet UVNITŘ obou mezních čar (mezi rohem a hloubkovým
       // koncem), ne na jejich dalekém prodloužení — to spolehlivě odmítne
       // spárování čar ze dvou různých prvků (např. zaoblení + drážka).
+      // Lomená čára: rozsah se měří jen po konec hranového úseku (bez rezervy
+      // do hloubky — za ním už pokračuje silueta držáku).
       const paramOf = (P, A, B) => { const dx = B.x - A.x, dz = B.z - A.z, L2 = dx * dx + dz * dz; return L2 < 1e-9 ? 0 : ((P.x - A.x) * dx + (P.z - A.z) * dz) / L2; };
-      const tz = paramOf(V, zg.vtx, zg.deep), td = paramOf(V, dg.vtx, dg.deep);
-      if (tz < -0.2 || tz > 1.3 || td < -0.2 || td > 1.3) continue;
+      const tz = paramOf(V, zg.vtx, zNext || zg.deep), td = paramOf(V, dg.vtx, dNext || dg.deep);
+      if (tz < -0.2 || tz > (zNext ? 1.05 : 1.3) || td < -0.2 || td > (dNext ? 1.05 : 1.3)) continue;
       // Rohy seřadit podle pozice v kontuře (klíč = segIdx + at).
       const aFirst = cutIdx(zg.loc) <= cutIdx(dg.loc);
       const a = aFirst ? zg : dg, b = aFirst ? dg : zg;
@@ -952,9 +973,22 @@ function mergePocketGuides(segs, guides) {
 function markDominatedGuides(guides, consumed) {
   const dominated = new Set();
   const gZLo = (g) => Math.min(g.z1, g.z2), gZHi = (g) => Math.max(g.z1, g.z2);
-  const gXAtZ = (g, z) => Math.abs(g.z2 - g.z1) < 1e-9
-    ? Math.max(g.x1, g.x2)
-    : g.x1 + (g.x2 - g.x1) * (z - g.z1) / (g.z2 - g.z1);
+  // Výška čáry v daném Z — po částech přes lomené (via) vrcholy; svislý
+  // úsek / degenerát → max X koncových bodů (jako dřív).
+  const gXAtZ = (g, z) => {
+    const pts = guidePolyPoints(g);
+    let best = -Infinity;
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const a = pts[k], b = pts[k + 1];
+      if (Math.abs(b.z - a.z) < 1e-9) {
+        if (Math.abs(z - a.z) < 1e-6) best = Math.max(best, a.x, b.x);
+        continue;
+      }
+      const t = (z - a.z) / (b.z - a.z);
+      if (t >= -1e-6 && t <= 1 + 1e-6) best = Math.max(best, a.x + (b.x - a.x) * t);
+    }
+    return best === -Infinity ? Math.max(g.x1, g.x2) : best;
+  };
   for (let i = 0; i < guides.length; i++) {
     if (guides[i].kind !== 'zanoreni' || consumed.has(i)) continue;
     for (let j = 0; j < guides.length; j++) {
@@ -977,25 +1011,31 @@ function markDominatedGuides(guides, consumed) {
 // mostem (fromInsert). Vrací novou konturu (nebo beze změny, když jsou body
 // prakticky totožné). Nemutuje vstup kromě případu splice na jedné entitě
 // (result je pracovní kopie z volajícího).
-function bridgeBetweenContourPoints(result, A, B, lA, lB) {
+function bridgeBetweenContourPoints(result, A, B, lA, lB, g) {
   let f, s, fPt, sPt;
   if (lA.key <= lB.key) { f = lA; fPt = A; s = lB; sPt = B; }
   else { f = lB; fPt = B; s = lA; sPt = A; }
   if (s.key - f.key < 1e-4) return result;
-  const bridge = { type: 'line', p1: fPt, p2: sPt, fromInsert: true };
+  // Most = lomená čára podle mezní čáry g (via z hlídání držáku); bez via
+  // jediná přímá úsečka jako dřív. Hranový úsek (od HORNÍHO konce čáry) se
+  // pozná podle orientace fPt vůči koncům g.
+  const pts = guideBridgePts(g, fPt, sPt);
+  const fIsUp = !g || Math.hypot(fPt.x - g.x2, fPt.z - g.z2) <= Math.hypot(fPt.x - g.x1, fPt.z - g.z1);
+  const bridges = mkBridgeSegs(pts, fIsUp);
+  if (!bridges.length) return result;
   if (f.segIdx === s.segIdx) {
     // Oba konce na jedné entitě → rozdělit: [start..fPt] + most + [sPt..end].
     const seg = result[f.segIdx];
     const head = { ...seg }; setSegEnd(head, fPt); syncArcEndpoints(head);
     const tail = { ...seg }; setSegStart(tail, sPt); syncArcEndpoints(tail); delete tail.chainBreak;
-    result.splice(f.segIdx, 1, head, bridge, tail);
+    result.splice(f.segIdx, 1, head, ...bridges, tail);
     return result;
   }
   const before = result.slice(0, f.segIdx + 1).map(x => ({ ...x }));
   setSegEnd(before[before.length - 1], fPt); syncArcEndpoints(before[before.length - 1]);
   const after = result.slice(s.segIdx).map(x => ({ ...x }));
   setSegStart(after[0], sPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
-  return [...before, bridge, ...after];
+  return [...before, ...bridges, ...after];
 }
 // Most z JEDNOHO bodu na kontuře (loc) k druhému konci MIMO konturu (na
 // polotovaru). Tři topologie mezní čáry:
@@ -1007,6 +1047,10 @@ function bridgeBetweenContourPoints(result, A, B, lA, lB) {
 // Vrací novou konturu; při čáře, která nesedí na žádný případ, vrací beze změny.
 function bridgeFromContourToStock(result, g, A, B, lA, lB) {
   const loc = lA || lB, locPt = lA ? A : B, offPt = lA ? B : A;
+  // Mostové úsečky z bodu from do to podél mezní čáry (respektuje lomené
+  // via vrcholy z hlídání držáku; bez nich jediná přímá úsečka).
+  const segsFromTo = (from, to) => mkBridgeSegs(guideBridgePts(g, from, to),
+    Math.hypot(from.x - g.x2, from.z - g.z2) <= Math.hypot(from.x - g.x1, from.z - g.z1));
   // ── ČELNÍ mezní čára (downOnStock) ──
   // Kotví na rohu čela u KRAJE kontury a míří k hraně polotovaru. Segment čela
   // za kotvou (k ose) je nedosažitelný — zahodí se a kontura se zakončí podél
@@ -1033,13 +1077,13 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
       const before = result.slice(0, cut).map(x => ({ ...x }));
       if (before.length) {
         if (atEnd) { setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]); }
-        return [...before, { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true }];
+        return [...before, ...segsFromTo({ ...locPt }, { ...offPt })];
       }
     } else if (nearStart) {
       const after = result.slice(cut).map(x => ({ ...x }));
       if (after.length) {
         if (!atEnd) { setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak; }
-        return [{ type: 'line', p1: { ...offPt }, p2: { ...locPt }, fromInsert: true }, ...after];
+        return [...segsFromTo({ ...offPt }, { ...locPt }), ...after];
       }
     }
     return result;
@@ -1060,8 +1104,22 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     // entity (t≥0.5) → stín začíná až další entitou; na začátku → touto.
     const ci = (loc.key - loc.segIdx) < 0.5 ? loc.segIdx : loc.segIdx + 1;
     if (ci >= result.length) return result;
-    const dxL = offPt.x - locPt.x, dzL = offPt.z - locPt.z;
-    const lineXAtZ = (z) => Math.abs(dzL) < 1e-9 ? locPt.x : locPt.x + dxL * ((z - locPt.z) / dzL);
+    // Výška mezní čáry v daném Z — po částech přes lomené (via) vrcholy;
+    // mimo rozsah lomené čáry extrapolace krajního úseku (jako přímka dřív).
+    const shadowPts = guideBridgePts(g, { x: locPt.x, z: locPt.z }, { x: offPt.x, z: offPt.z });
+    const lineXAtZ = (z) => {
+      let best = null;
+      for (let k = 0; k + 1 < shadowPts.length; k++) {
+        const a = shadowPts[k], b = shadowPts[k + 1];
+        if (Math.abs(b.z - a.z) < 1e-9) { if (Math.abs(z - a.z) < 1e-6) best = Math.max(best ?? -Infinity, a.x, b.x); continue; }
+        const t = (z - a.z) / (b.z - a.z);
+        const inRange = t >= -1e-6 && t <= 1 + 1e-6;
+        const isEdgeSpan = k === 0 || k === shadowPts.length - 2;
+        if (inRange || isEdgeSpan && (shadowPts.length === 2 || (k === 0 ? t < 0 : t > 1)))
+          best = Math.max(best ?? -Infinity, a.x + (b.x - a.x) * t);
+      }
+      return best ?? locPt.x;
+    };
     // Konec stínu = první segment začínající hlouběji než off (Z ≤ off.z).
     // Cestou ověřit, že je celý stín POD čarou (jinak by most zajel do
     // vystupujícího prvku → přeskočit).
@@ -1074,12 +1132,12 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     }
     if (!ok) return result;
     const before = result.slice(0, ci).map(x => ({ ...x }));
-    const bridge = { type: 'line', p1: { ...locPt }, p2: { ...offPt }, fromInsert: true };
-    if (keepFrom === -1) return [...before, bridge];
+    const bridge = segsFromTo({ ...locPt }, { ...offPt });
+    if (keepFrom === -1) return [...before, ...bridge];
     const tail = result.slice(keepFrom).map(x => ({ ...x }));
     const connector = { type: 'line', p1: { ...offPt }, p2: segStartPoint(tail[0]), fromInsert: true };
     delete tail[0].chainBreak;
-    return [...before, bridge, connector, ...tail];
+    return [...before, ...bridge, connector, ...tail];
   }
   // ── Prodloužení k okraji ── smí navazovat JEN na krajní entitu kontury.
   // Když loc leží uvnitř kontury (např. spodní konec dopadl paprskem na osu
@@ -1089,11 +1147,11 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
   if (extendStart) {
     const after = result.slice(loc.segIdx).map(x => ({ ...x }));
     setSegStart(after[0], locPt); syncArcEndpoints(after[0]); delete after[0].chainBreak;
-    return [{ type: 'line', p1: offPt, p2: locPt, fromInsert: true }, ...after];
+    return [...segsFromTo({ ...offPt }, { ...locPt }), ...after];
   }
   const before = result.slice(0, loc.segIdx + 1).map(x => ({ ...x }));
   setSegEnd(before[before.length - 1], locPt); syncArcEndpoints(before[before.length - 1]);
-  return [...before, { type: 'line', p1: locPt, p2: offPt, fromInsert: true }];
+  return [...before, ...segsFromTo({ ...locPt }, { ...offPt })];
 }
 // ── ZÁVITOVÁNÍ: sdílené výpočty ───────────────────────────────────────────
 // Hloubka profilu závitu [mm, radiálně] podle typu (stejné vzorce jako
@@ -1163,6 +1221,163 @@ function partOffGeom(prms, calc) {
            xCenterTop, xCenterStart, xCenterTarget, zRough, zFinal, doFinish, canCut, reason };
 }
 
+// ── Hranice zanoření podle držáku (model dle nákresu uživatele) ────────────
+// Pro NEDOSAŽITELNOU stěnu (zanořovací strana) platí dvě omezení:
+//  1. hrana destičky — nekonečná přímka pod natočením z dotykového rohu
+//     (původní chování bez držáku),
+//  2. držák — svislý pás šířky holderWidth ZA špičkou: nesmí narazit do
+//     zbývajícího materiálu stěny. Zbývající povrch stěny = kontura skupiny,
+//     u odlitku její KŮRA z polotovaru (stěnu destička neobrobí, kůra na ní
+//     zůstane) → omezení = stěna/kůra POSUNUTÁ o holderWidth proti směru
+//     obrábění (svislé čelo → svislice, kužel → rovnoběžka s kuželem).
+// Mezní čára = hrana destičky od rohu až po průsečík s posunutou stěnou,
+// pak podél posunuté stěny dolů (na dno kapsy / k polotovaru).
+// Vrací lomené body hranice od dotyku dolů, nebo null (držák vypnut) →
+// volající použije nekonečnou hranu destičky.
+// Model je aproximace: mezi hloubkou konce hrany destičky a průsečíkem
+// s posunutou stěnou se drží hrana (bezpečné pro běžná natočení, kdy
+// průsečík leží výš než výška destičky nad špičkou).
+function buildHolderBoundaryPts(best, grpSegs, prms, sb, cb, stockWorldPoints) {
+  const W = parseFloat(prms.holderWidth);
+  const HL = parseFloat(prms.holderLength);
+  if (!(W > 0) || !(HL > 0)) return null;
+  // Skupina (stěna) + polotovar jako ploché úsečky (oblouky navzorkované).
+  const sample12 = (cx, cz, r, sA, eA) => {
+    const out = [];
+    for (let s = 0; s <= 12; s++) {
+      const a = sA + (eA - sA) * (s / 12);
+      out.push({ x: cx + Math.sin(a) * r, z: cz + Math.cos(a) * r });
+    }
+    return out;
+  };
+  const wallFlat = [];
+  for (const seg of grpSegs) {
+    if (seg.type === 'line') wallFlat.push([seg.p1, seg.p2]);
+    else if (seg.type === 'arc') {
+      let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+      let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+      if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      const pts = sample12(seg.cx, seg.cz, seg.r, sA, eA);
+      for (let k = 0; k + 1 < pts.length; k++) wallFlat.push([pts[k], pts[k + 1]]);
+    }
+  }
+  if (!wallFlat.length) return null;
+  const stockFlat = [];
+  for (let i = 1; i < (stockWorldPoints || []).length; i++) {
+    const p1 = stockWorldPoints[i - 1], p2 = stockWorldPoints[i];
+    if (p2.type === 'G1') {
+      stockFlat.push([{ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }]);
+    } else if (p2.type === 'G2' || p2.type === 'G3') {
+      const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
+      if (arc.error) continue;
+      const sA = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+      const eA = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+      const pts = sample12(arc.cx, arc.cz, arc.r, sA, eA);
+      for (let k = 0; k + 1 < pts.length; k++) stockFlat.push([pts[k], pts[k + 1]]);
+    }
+  }
+  const crossings = (flat, x) => {
+    const zs = [];
+    for (const [p, q] of flat) {
+      const z = intersectHorizontalLineSegment(x, p, q);
+      if (z !== null) zs.push(z);
+    }
+    return zs;
+  };
+  let wallMinX = Infinity, wallXs = new Set();
+  for (const [p, q] of wallFlat) {
+    wallMinX = Math.min(wallMinX, p.x, q.x);
+    wallXs.add(p.x); wallXs.add(q.x);
+  }
+  // Vzorkovací výšky: dotyk + vrcholy stěny a polotovaru v dosahu držáku.
+  const xsSet = new Set([best.x]);
+  for (const x of wallXs) xsSet.add(x);
+  for (const [p, q] of stockFlat) { xsSet.add(p.x); xsSet.add(q.x); }
+  const xs = [...xsSet]
+    .filter(x => x <= best.x + 1e-9 && x >= best.x - HL)
+    .sort((a, b) => b - a);
+  if (xs[xs.length - 1] > best.x - HL + 1e-6) xs.push(best.x - HL);
+  // Hrana destičky jako z(x): svislá hrana (natočení 0°) = konst. best.z.
+  const zEdgeAt = (x) => sb > 1e-9 ? best.z - (best.x - x) * (cb / sb) : best.z;
+  // Posunutá stěna: KŮRA polotovaru přednostně (nejlevější dopad polotovaru
+  // v okně těsně před stěnou), jinak stěna sama. Pod spodkem stěny se drží
+  // hodnota jejího spodního konce (roh — dál hlídá klouzání kolem rohu).
+  const zHolderAt = (x) => {
+    const xq = Math.max(x, wallMinX + 1e-9);
+    const wallZs = crossings(wallFlat, xq);
+    if (!wallZs.length) return null;
+    const zWall = Math.min(...wallZs);
+    const skin = crossings(stockFlat, xq).filter(z => z >= zWall - W - 1 && z <= zWall + 0.5);
+    const zObs = skin.length ? Math.min(zWall, ...skin) : zWall;
+    return zObs - W;
+  };
+  const out = [{ x: best.x, z: best.z }];
+  const push = (x, z) => {
+    const prev = out[out.length - 1];
+    z = Math.min(z, prev.z);               // hranice nesmí stoupat zpět doprava
+    if (x > prev.x - 1e-9) { prev.z = Math.min(prev.z, z); return; }
+    out.push({ x, z });
+  };
+  let prevX = best.x, prevE = best.z, prevH = zHolderAt(best.x);
+  for (const x of xs) {
+    if (x >= prevX - 1e-9) continue;
+    const zE = zEdgeAt(x);
+    const zH = zHolderAt(x);
+    // Přepnutí větve max(hrana, posunutá stěna) mezi vzorky → vložit
+    // přesný průsečík (obě větve jsou mezi vzorky lineární).
+    if (prevH !== null && zH !== null) {
+      const d0 = prevE - prevH, d1 = zE - zH;
+      if ((d0 > 0) !== (d1 > 0) && Math.abs(d0 - d1) > 1e-12) {
+        const t = d0 / (d0 - d1);
+        push(prevX + (x - prevX) * t, prevE + (zE - prevE) * t);
+      }
+    }
+    push(x, zH === null ? zE : Math.max(zE, zH));
+    prevX = x; prevE = zE; if (zH !== null) prevH = zH;
+  }
+  // Zjednodušit kolineární běhy, ať mostů/via bodů není zbytečně moc.
+  for (let k = out.length - 2; k > 0; k--) {
+    const a = out[k - 1], b = out[k], c = out[k + 1];
+    const cr = (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+    const len = Math.hypot(c.x - a.x, c.z - a.z) || 1;
+    if (Math.abs(cr) / len < 0.02) out.splice(k, 1);
+  }
+  return out.length >= 2 ? out : null;
+}
+// Body lomené mezní čáry od HORNÍHO konce (x2,z2) k DOLNÍMU (x1,z1) —
+// g.via jsou mezilehlé vrcholy (lomení podle siluety držáku), uložené
+// v pořadí od horního konce. Přímá čára (bez via) → jen dva body.
+function guidePolyPoints(g) {
+  return (g && g.via && g.via.length)
+    ? [{ x: g.x2, z: g.z2 }, ...g.via, { x: g.x1, z: g.z1 }]
+    : [{ x: g.x2, z: g.z2 }, { x: g.x1, z: g.z1 }];
+}
+// Body mostu z mezní čáry g mezi dvěma jejími konci (from/to v libovolném
+// pořadí) — mezi ně vloží via vrcholy ve správné orientaci.
+function guideBridgePts(g, fromPt, toPt) {
+  if (!g || !g.via || !g.via.length) return [fromPt, toPt];
+  const dUp = Math.hypot(fromPt.x - g.x2, fromPt.z - g.z2);
+  const dDown = Math.hypot(fromPt.x - g.x1, fromPt.z - g.z1);
+  const seq = dUp <= dDown ? g.via : [...g.via].reverse();
+  return [fromPt, ...seq.map(q => ({ x: q.x, z: q.z })), toPt];
+}
+// Posloupnost bodů → mostové úsečky (fromInsert). Segmenty, které netvoří
+// hrana destičky, ale stěna držáku (vše kromě segmentu u horního konce),
+// dostanou fromHolder=true — dokončování je pak nepřeskakuje kvůli úhlovému
+// rozsahu destičky (špička je po nich schopná sjet, držák kapsou projde).
+function mkBridgeSegs(pts, upFirst = true) {
+  const out = [];
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const a = pts[k], b = pts[k + 1];
+    if (Math.hypot(b.x - a.x, b.z - a.z) < 1e-6) continue;
+    const seg = { type: 'line', p1: { x: a.x, z: a.z }, p2: { x: b.x, z: b.z }, fromInsert: true };
+    const isEdgeSeg = upFirst ? k === 0 : k === pts.length - 2;
+    if (pts.length > 2 && !isEdgeSeg) seg.fromHolder = true;
+    out.push(seg);
+  }
+  return out;
+}
 function buildMachinableContour(segs, guides) {
   if (!guides || guides.length === 0) return segs;
   // Nejdřív drážky/kapsy ohraničené dvojicí mezních čar (V), pak jednotlivé.
@@ -1178,7 +1393,7 @@ function buildMachinableContour(segs, guides) {
     const lA = _locateOnContour(result, A), lB = _locateOnContour(result, B);
     if (lA && lB) {
       // Oba konce na kontuře → vyříznout úsek mezi nimi a nahradit mostem.
-      result = bridgeBetweenContourPoints(result, A, B, lA, lB);
+      result = bridgeBetweenContourPoints(result, A, B, lA, lB, g);
     } else if (lA || lB) {
       // Jeden konec mostu leží MIMO konturu (na polotovaru) — čelní zakončení,
       // náběhový stín, nebo prodloužení k okraji (viz bridgeFromContourToStock).
@@ -1391,52 +1606,108 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       // takže se dráhy nemění, ale uživatel čáru vidí až k hraně materiálu).
       // NEvynecháváme segmenty skupiny — nájezdový tečný bod často leží právě
       // na nich (boční oblouček u nájezdu), takže s exclude paprsek konturu mine.
+      // Dolní konec: sleduje se ODRAŽENÁ SILUETA nástroje ukotvená v dotykovém
+      // bodě (P_k = best − S_k): nejdřív hrana destičky (jen do Délky hrany,
+      // je-li zadán držák), pak přechod na roh držáku a svisle dolů podél jeho
+      // stěny. Bez držáku (profil null) zůstává jediný nekonečný paprsek podél
+      // hrany — původní chování. První průsečík segmentů s konturou = dolní
+      // konec mezní čáry; projité lomové vrcholy se uloží do `via` (mezní čára
+      // je pak lomená a most po ní smí sjet hlouběji do kapsy).
+      // Hranice hlídání = hrana destičky → čára „zbývající stěna/kůra
+      // polotovaru posunutá o holderWidth" (buildHolderBoundaryPts, dle
+      // nákresu). Platí pro obě strany (zanoření i dojezd) — v kapse drží
+      // dno obrobitelné z obou stěn. Bez držáku (nebo bez stěny/polotovaru
+      // k opření) = nekonečná přímka podél hrany (staré chování).
+      const boundaryPts = buildHolderBoundaryPts(best, grp, prms, sb, cb, stockWorldPoints);
+      const walkSilhouette = (calcLoc) => {
+        const pts = boundaryPts
+          || [{ x: best.x, z: best.z }, { x: best.x - sb * 1e5, z: best.z - cb * 1e5 }];
+        const via = [];
+        for (let k = 0; k + 1 < pts.length; k++) {
+          const a = pts[k], b2 = pts[k + 1];
+          const dx = b2.x - a.x, dz = b2.z - a.z;
+          const len = Math.hypot(dx, dz);
+          if (len < 1e-6) continue;
+          const ux = dx / len, uz = dz / len;
+          let hit = camRayIntersection(a.x, a.z, ux, uz, null, calcLoc);
+          if (hit) {
+            const t = (hit.x - a.x) * ux + (hit.z - a.z) * uz;
+            if (t <= len + 1e-6) {
+              // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ
+              // čelo (z < min Z kontury), což nejsou řezné plochy. Dopad na osu
+              // zahodit (ukončí hledání — níž už je jen osa); dopad pod konec
+              // dílce oříznout přesně na konec dílce po směru segmentu.
+              // VÝJIMKA: dotykový bod SÁM na konci dílce (levé/zadní čelo) —
+              // viz komentář u downOnStock níže; tam se neořezává.
+              if (Math.abs(hit.x) < 0.1 && best.x > 0.5) return { rejected: true };
+              if (hit.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
+                const tz = uz < -0.01 ? (a.z - minPartZG) / -uz : -1;
+                hit = (tz > 0.01 && tz <= len) ? { x: a.x + ux * tz, z: minPartZG } : { x: a.x, z: a.z };
+              }
+              return { down: hit, via };
+            }
+          }
+          via.push({ x: b2.x, z: b2.z });
+        }
+        return null;
+      };
+      // Mezní čára by měla končit na KONTUŘE; když pod dotykem žádná kontura
+      // není (typicky u kraje dílu), skončí na hraně POLOTOVARU a označí se
+      // downOnStock (jen vizualizace / čelní zakončení — viz buildMachinable).
       let downOnStock = false;
-      let down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalc);
-      if (!down) {
-        down = camRayIntersection(best.x, best.z, -sb, -cb, null, localCalcDown);
-        if (down) downOnStock = true;
+      let walk = walkSilhouette(localCalc);
+      if (!walk) {
+        // Bez JAKÉHOKOLI dopadu na konturu zkusit i hranu polotovaru.
+        // (Dopad zahozený osní pojistkou — rejected — fázi s polotovarem
+        // nespouští, stejně jako původní přímá varianta.)
+        walk = walkSilhouette(localCalcDown);
+        if (walk && walk.down) downOnStock = true;
       }
-      // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ čelo
-      // (z = −délka), což nejsou řezné plochy. Paprsek dolů na ně může dopadnout
-      // a mezní čára se protáhne až k ose / pod konec dílce (vizuálně „jde do
-      // kontury / pod kus", a buildMachinableContour by podle ní mohl smazat
-      // ocas kontury). Takový dopad zahodit a omezit čáru na region.
-      if (down && Math.abs(down.x) < 0.1 && best.x > 0.5) down = null;
-      // Dopad pod konec dílce (zadní čelo polotovaru, z < min Z kontury) →
-      // oříznout přesně na konec dílce po směru paprsku (ne nulovat, ať
-      // fallback nevystřelí čáru daleko). Krátká čára se pak níž zahodí.
-      // VÝJIMKA: když dotykový bod SÁM leží na konci dílce (best.z ≈ minPartZG),
-      // jde o LEVÉ/ZADNÍ ČELO — mezní čára tu má vést od čela k hraně polotovaru
-      // (přebytek za čelem, který se pak upíchne), aby destička nezajížděla dolů
-      // za kus. Tady neořezávat na minPartZG (to by čáru srazilo na dotyk a
-      // zahodilo) — ponechat dopad na polotovaru (downOnStock zůstává).
-      if (down && down.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
-        const t = cb > 0.01 ? (best.z - minPartZG) / cb : 0;
-        down = t > 0.01 ? { x: best.x - sb * t, z: minPartZG } : { ...best };
-      }
+      let down = (walk && walk.down) ? walk.down : null;
+      let via = (walk && walk.down) ? walk.via : [];
       if (!down) {
+        via = [];
         const t = sb > 0.01 ? (best.x - botX) / sb : 0;
         down = t > 0.01 ? { x: best.x - sb * t, z: best.z - cb * t } : best;
       }
       // Horní konec: průsečík s konturou; bez něj skončit u vršku
       // regionu (NEprotahovat k hornímu okraji polotovaru).
       let up = camRayIntersection(best.x, best.z, sb, cb, excludeIdx, localCalc);
+      // Dopad DALEKO od kotevní skupiny (paprsek přeletěl vzduchem přes jinou
+      // část dílu — např. z levého čela až na protější čelo) = falešný horní
+      // konec: čára by se táhla napříč dílem, stínová dominance by zabila
+      // jiné čáry a most by odřízl půlku kontury. Přijmout jen dopad na
+      // segmentu v sousedství skupiny (±3 v pořadí kontury).
+      if (up) {
+        const upLoc = _locateOnContour(rawContourForInterference, up);
+        const nearGrp = upLoc && grp.some(s => Math.abs(idxOf.get(s) - upLoc.segIdx) <= 3);
+        if (!nearGrp) up = null;
+      }
       if (!up) {
         let capX = Math.min(topX, stockTopXG);
         // Čára z nižší skupiny (menší X) nesmí přesáhnout "dolní konec" (x1)
         // čáry z dřívější (vyšší) skupiny stejného druhu — jinak by nižší bod
         // generoval čáru, která na obrazovce vypadá výš než vyšší bod (bug).
         for (const pg of interferenceGuides) {
-          if (pg.kind === kind && pg.x1 < capX) capX = pg.x1;
+          // U lomené čáry (držák) je „dolní konec hrany destičky" první via
+          // vrchol — hlubší (svislá) část stínu jiné čáry neomezuje.
+          const pgLowX = (pg.via && pg.via.length) ? pg.via[0].x : pg.x1;
+          if (pg.kind === kind && pgLowX < capX) capX = pgLowX;
         }
         const t = sb > 0.01 ? (capX - best.x) / sb : 0;
         up = t > 0.01 ? { x: best.x + sb * t, z: best.z + cb * t } : best;
       }
-      if (Math.hypot(up.x - down.x, up.z - down.z) < 0.5) return;
+      if (!via.length && Math.hypot(up.x - down.x, up.z - down.z) < 0.5) return;
       const dup = interferenceGuides.some(g =>
         Math.hypot(g.x1 - down.x, g.z1 - down.z) < 0.5 && Math.hypot(g.x2 - up.x, g.z2 - up.z) < 0.5);
-      if (!dup) interferenceGuides.push({ x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind, downOnStock });
+      if (!dup) {
+        const g = { x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind, downOnStock };
+        // Lomová místa siluety (konec hrany destičky, roh držáku) — jen ta
+        // NAD dolním koncem; poslední vrchol shodný s dolním koncem vynechat.
+        if (via.length) g.via = via.filter(q => Math.hypot(q.x - down.x, q.z - down.z) > 0.05 && q.x > down.x - 1e-6);
+        if (g.via && !g.via.length) delete g.via;
+        interferenceGuides.push(g);
+      }
     };
     if (low) addGuide(rotDegG + tipDegG, 'dojezd', lowPts);
     if (high) addGuide(rotDegG, 'zanoreni', highPts);
@@ -2521,6 +2792,15 @@ function _defaultCamParams() {
     machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
     toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
     toolVbdCode: '', toolClearanceAngle: 0,
+    // Držák plátku — svislé těleso nad destičkou (kolmé upnutí, jako na
+    // revolveru): pás šířky holderWidth v ose Z, délky holderLength v ose X.
+    // Hlídání geometrie destičky pak neomezuje zanoření nekonečnou hranou
+    // destičky: hrana platí jen do délky Délka hrany (toolLength), hlouběji
+    // rozhoduje držák — do širší kapsy tak nástroj smí sjet podstatně
+    // hlouběji (mezní čára se lomí a pokračuje svisle podél stěny držáku).
+    // holderWidth/holderLength ≤ 0 = držák se nehlídá (staré chování).
+    holderWidth: 20,    // tloušťka držáku [mm] (v ose Z)
+    holderLength: 200,  // délka držáku [mm] (v ose X — max. hloubka zanoření)
     // Spodní strana závitového plátku [mm] — šířka rovné špičky (lichoběžník).
     // Metrické/palcové ~0,1; lichoběžníkové (Tr/Acme) ≈ 0,366×P (dno profilu).
     toolTipFlat: 0.1,
@@ -2874,7 +3154,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       if (p.contourPoints && p.contourPoints.length > 0) S.contourPoints = p.contourPoints;
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
-      if (p.manualGCode) S.manualGCode = p.manualGCode;
+      // Uložené dráhy použij jen když odpovídají AKTUÁLNÍ verzi logiky
+      // generování (jinak jsou zastaralé) — prázdný manualGCode se níž
+      // (řádek ~3270) automaticky přegeneruje z kontury/parametrů.
+      if (p.manualGCode && p.pathLogicVersion === PATH_LOGIC_VERSION) S.manualGCode = p.manualGCode;
       // flipX/flipZ se načítají výhradně ze state.flipX/flipZ (sdílený stav s CAD); ignorujeme localStorage
       if (Array.isArray(p.profileOriginal)) S._profileOriginal = p.profileOriginal;
       if (Array.isArray(p.guideLines)) S.guideLines = p.guideLines;
@@ -2924,7 +3207,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Spodní strana závitového plátku dle typu (Tr/Acme = dno profilu).
       S.params.toolTipFlat = (ti.type === 'tr' || ti.type === 'acme')
         ? Math.round(0.366 * ti.P * 100) / 100 : 0.1;
-      // CAD nástroj Завit kreslí válcové závity — případný dřívější kužel zrušit.
+      // CAD nástroj Závit kreslí válcové závity — případný dřívější kužel zrušit.
       S.params.threadTaperRatio = 0;
       setTimeout(() => showToast(`🧵 Z výkresu načten závit ${ti.name} — parametry v záložce Závit`), 600);
     }
@@ -3106,6 +3389,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        pathLogicVersion: PATH_LOGIC_VERSION,
         params: S.params, contourPoints: S.contourPoints,
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
         flipX: S.flipX, flipZ: S.flipZ, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
@@ -3334,6 +3618,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       : [];
 
 
+    // Kontura PŘED vložením mostů z hlídání destičky/držáku. Mostové čáry
+    // (fromInsert) jsou POUZE HRANICE hlídání, ne obráběná plocha — po nich
+    // se nesmí generovat dokončovací dráha (jela by vzduchem podél mezní
+    // čáry). Dokončování proto sleduje TUTO skutečnou konturu a nedosažitelné
+    // úseky přeskočí (segInterferesWithTool). Hrubování naopak jede po
+    // machinable kontuře (mosty určují, kde má zastavit).
+    const preBridgeContour = contourSegments.map(s => structuredClone(s));
+
     // Automatické profilování: při zapnutém Hlídání geometrie se nedosažitelné
     // úseky kontury nahradí mostovou úsečkou z geometrie destičky a tahle
     // obrobitelná kontura se použije pro offsety/dráhy/CNC.
@@ -3423,9 +3715,19 @@ export function openCamSimulator(initialContour, initialGCode) {
       const respectFin = prms.respectInsertGeometry && clearance;
       let finSkipped = 0;
       let pendingBreak = false;
+      // Přeryv kvůli NEDOSAŽITELNÉMU úseku (hlídání destičky) — na rozdíl od
+      // mikro-přeskoku znamená „tady je díra, další dosažitelný úsek je
+      // samostatný ostrov": musí dostat tvrdý chainBreak (rychloposuv k němu)
+      // a NESMÍ ho spolknout heuristika zpětného řezu (jinak se sousední
+      // stěny natáhnou k sobě do artefaktu — dřív monstrum až za polotovar).
+      let unreachBreak = false;
       let finRaw = [];
-      for (let i = 0; i < contourSegments.length; i++) {
-        const seg = contourSegments[i];
+      // Dokončování jede po SKUTEČNÉ kontuře (bez mostů hlídání) — mostové
+      // čáry jsou jen hranice, ne obráběná plocha. Nedosažitelné úseky se
+      // přeskočí (blocked). Bez hlídání = machinable == pre-bridge, žádný rozdíl.
+      const finContour = respectFin ? preBridgeContour : contourSegments;
+      for (let i = 0; i < finContour.length; i++) {
+        const seg = finContour[i];
         let blocked = respectFin && segInterferesWithTool(seg, clearance);
         let finSeg = null;
         let trailingBreak = false;   // nedosažitelný konec ZA obloukem → přerušit další segment
@@ -3493,6 +3795,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           finSeg.unreachable = true;
           finishUnreachablePath.push(finSeg);
           pendingBreak = true;
+          unreachBreak = true;
           continue;
         }
         // Po přeskočeném oblouku (pendingBreak): přeskočit přechodný čelní
@@ -3502,7 +3805,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         // VÝJIMKA: mostový úsek z geometrie destičky (fromInsert = konstrukční
         // čára dojezd/zanoření) je ZÁMĚRNÁ dráha — nikdy ho nezahazovat, jinak
         // dokončování zajede ZA konstrukční čáru (oblouk by začal moc brzy).
-        if (pendingBreak && finSeg.type === 'line' && !seg.fromInsert && finRaw.length > 0) {
+        // Přeryv po NEDOSAŽITELNÉM úseku (unreachBreak) se neaplikuje: další
+        // dosažitelný úsek je samostatný ostrov (rychloposuv k němu), ne zpětný
+        // řez ke spolknutí.
+        if (!unreachBreak && pendingBreak && finSeg.type === 'line' && !seg.fromInsert && finRaw.length > 0) {
           const prev = finRaw[finRaw.length - 1];
           if (prev.type === 'line' && finSeg.p1.x < prev.p2.x - 0.05) {
             if (finSeg.p2.x < prev.p2.x - 0.05) {
@@ -3522,6 +3828,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         // ním označil jako chainBreak → dokončování by k němu skočilo G0 a
         // oblouk by začal moc brzy (zajetí za konstrukční čáru).
         if ((seg.chainBreak || pendingBreak) && !seg.fromInsert) finSeg.chainBreak = true;
+        // Ostrov za nedosažitelnou dírou: tvrdý přeryv (rapid), ať trim
+        // sousední úseky nespojí natažením do artefaktu.
+        if (unreachBreak) { finSeg.chainBreak = true; unreachBreak = false; }
         pendingBreak = false;
         finRaw.push(finSeg);
         // Oříznutý oblouk nechal za sebou nedosažitelný konec → další segment
@@ -4476,7 +4785,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     setPos((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
     // touch = true: cíl leží na kontuře/materiálu — poslední úsek sjezdu
     // (Vůle nad polotovarem) se jede pracovním posuvem, ne rychloposuvem.
-    const safeRapidTo = (tx, tz, touch = false) => {
+    // forceUp = vždy vyjet NAD polotovar, přejet v Z a teprve najet (nikdy
+    // diagonála mezi dvěma body kontury). Dokončování ho zapíná pro přejezd
+    // mezi nedosažitelnými „ostrovy": rychloposuv podél čela je sice offsetově
+    // 0,8 mm nad plochou (segmentHitsPath ho nevidí jako kolizi), ale vede
+    // šikmo přes hlídanou zónu — dráha tam nesmí (jen kontura↔polotovar).
+    const safeRapidTo = (tx, tz, touch = false, forceUp = false) => {
       const sameX = Math.abs(tx - cur.x) < 1e-6;
       const sameZ = Math.abs(tz - cur.z) < 1e-6;
       if (sameX && sameZ) { setPos(tx, tz); return; }
@@ -4490,7 +4804,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           emit(`G0 X${xDia(tx)}`);
         }
       };
-      if (segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)) {
+      if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)) {
         const xUp = Math.max(rapidTopX + rapidClrGc, cur.x, tx);
         if (xUp > cur.x + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
         if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
@@ -4771,7 +5085,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (seg.chainBreak) {
           const sp = segStartPoint(seg);
           // touch: cíl leží na kontuře — poslední vůli dojet posuvem.
-          safeRapidTo(sp.x, sp.z, true);
+          // forceUp: mezi dosažitelnými ostrovy VŽDY výjezd nad polotovar +
+          // přejezd Z + najetí — nikdy diagonála přes hlídanou zónu.
+          safeRapidTo(sp.x, sp.z, true, true);
         }
         if (seg.type === 'line') {
           const eX = prms.mode === 'DIAMON' ? (seg.p2.x * 2).toFixed(3) : seg.p2.x.toFixed(3);
@@ -5131,35 +5447,47 @@ export function openCamSimulator(initialContour, initialGCode) {
           // Uživatelské konstrukční čáry jsou NEKONEČNÉ jen v režimu úpravy
           // (odemčeno) – slouží jako reference pro prodloužení/snap. Po zamčení
           // se zkrátí ke svým skutečným koncovým bodům.
-          let e1 = { x: g.x1, z: g.z1 }, e2 = { x: g.x2, z: g.z2 };
-          if (!g.auto && S.gcodeEditEnabled) {
+          // Lomená čára (hlídání držáku, g.via) se kreslí po vrcholech; přímá
+          // jako dřív. Uživatelská čára v režimu úprav je nekonečná.
+          let poly = guidePolyPoints(g);
+          if (!g.auto && S.gcodeEditEnabled && (!g.via || !g.via.length)) {
             let dx = g.x2 - g.x1, dz = g.z2 - g.z1; const L = Math.hypot(dx, dz);
-            if (L > 1e-9) { dx /= L; dz /= L; e1 = { x: g.x1 - dx * 1e4, z: g.z1 - dz * 1e4 }; e2 = { x: g.x2 + dx * 1e4, z: g.z2 + dz * 1e4 }; }
+            if (L > 1e-9) {
+              dx /= L; dz /= L;
+              poly = [{ x: g.x2 + dx * 1e4, z: g.z2 + dz * 1e4 }, { x: g.x1 - dx * 1e4, z: g.z1 - dz * 1e4 }];
+            }
           }
-          const p1 = toScreen(e1.x, e1.z), p2 = toScreen(e2.x, e2.z);
-          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          ctx.beginPath();
+          poly.forEach((q, qi) => {
+            const p = toScreen(q.x, q.z);
+            if (qi === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+          });
           // Čelní mezní čára končící na polotovaru (downOnStock) = PLNÁ (mění
           // obrobitelnou konturu); ostatní mezní čáry čárkovaně.
           ctx.strokeStyle = col; ctx.lineWidth = 1.5;
           ctx.setLineDash(g.downOnStock ? [] : [8, 4]); ctx.stroke(); ctx.setLineDash([]);
           // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X).
           // Dva offsety jako u kontury: dokončovací (jen R) a hrubovací
-          // (R + Přídavek X/Z + Přídavek na hotovo).
+          // (R + Přídavek X/Z + Přídavek na hotovo) — po jednotlivých úsecích.
           if (tipROff > 0) {
-            let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
-            if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
             const aX = parseFloat(prms.allowanceX) || 0;
             const aZ = parseFloat(prms.allowanceZ) || 0;
             const fin = parseFloat(prms.finishAllowance) || 0;
-            const drawOff = (ox, oz) => {
-              const o1 = toScreen(e1.x + ox, e1.z + oz);
-              const o2 = toScreen(e2.x + ox, e2.z + oz);
-              ctx.beginPath(); ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
+            const drawOff = (rOff, aXo, aZo) => {
+              ctx.beginPath();
+              for (let k = 0; k + 1 < poly.length; k++) {
+                let n = getNormal(poly[k], poly[k + 1]);
+                if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
+                const ox = n.x * (rOff + aXo), oz = n.z * (rOff + aZo);
+                const o1 = toScreen(poly[k].x + ox, poly[k].z + oz);
+                const o2 = toScreen(poly[k + 1].x + ox, poly[k + 1].z + oz);
+                ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
+              }
               ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
             };
-            drawOff(n.x * tipROff, n.z * tipROff);
+            drawOff(tipROff, 0, 0);
             if (aX > 1e-9 || aZ > 1e-9 || fin > 1e-9)
-              drawOff(n.x * (tipROff + aX + fin), n.z * (tipROff + aZ + fin));
+              drawOff(tipROff + fin, aX, aZ);
           }
           // koncové body (PŮVODNÍ konce) — viditelné a uchopitelné (tažení po
           // čáře = prodloužit/zkrátit; "+" vloží bod kontury v tečném bodě)
@@ -5396,7 +5724,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (prms.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         } else if (prms.toolShape === 'threading') {
-          // Завitový plátek: lichoběžníková špička — rovná SPODNÍ STRANA
+          // Závitový plátek: lichoběžníková špička — rovná SPODNÍ STRANA
           // (šířka toolTipFlat) leží přímo na dráze (X průchodu = ⌀ řezu),
           // boky stoupají symetricky ±ε/2 od svislice. Rádius se nepoužívá.
           const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
@@ -6376,16 +6704,21 @@ export function openCamSimulator(initialContour, initialGCode) {
     const hasRough = aX > 1e-9 || aZ > 1e-9 || fin > 1e-9;
     const out = [];
     for (const g of getAllGuideLines()) {
-      let n = getNormal({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
-      if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
-      out.push({ type: 'line', kind: 'finish',
-        p1: { x: g.x1 + n.x * tipROff, z: g.z1 + n.z * tipROff },
-        p2: { x: g.x2 + n.x * tipROff, z: g.z2 + n.z * tipROff } });
-      if (hasRough) {
-        const dxR = n.x * (tipROff + aX + fin), dzR = n.z * (tipROff + aZ + fin);
-        out.push({ type: 'line', kind: 'rough',
-          p1: { x: g.x1 + dxR, z: g.z1 + dzR },
-          p2: { x: g.x2 + dxR, z: g.z2 + dzR } });
+      // Po úsecích — lomené (via) čáry z hlídání držáku mají offset za segment.
+      const pts = guidePolyPoints(g);
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const a = pts[k], b = pts[k + 1];
+        let n = getNormal(a, b);
+        if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
+        out.push({ type: 'line', kind: 'finish',
+          p1: { x: a.x + n.x * tipROff, z: a.z + n.z * tipROff },
+          p2: { x: b.x + n.x * tipROff, z: b.z + n.z * tipROff } });
+        if (hasRough) {
+          const dxR = n.x * (tipROff + aX + fin), dzR = n.z * (tipROff + aZ + fin);
+          out.push({ type: 'line', kind: 'rough',
+            p1: { x: a.x + dxR, z: a.z + dzR },
+            p2: { x: b.x + dxR, z: b.z + dzR } });
+        }
       }
     }
     return out;
@@ -6426,7 +6759,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (s.type === 'line') lineHit(s.p1, s.p2);
       else if (s.type === 'arc') arcHit(s);
     }
-    for (const g of getAllGuideLines()) lineHit({ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 });
+    for (const g of getAllGuideLines()) {
+      const pts = guidePolyPoints(g);
+      for (let k = 0; k + 1 < pts.length; k++) lineHit(pts[k], pts[k + 1]);
+    }
     return best;
   }
 
@@ -6607,6 +6943,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     const tolLine = 10 / S.view.scale;
     let best = null, bestScore = Infinity;
     for (const g of auto) {
+      // Lomené čáry (hlídání držáku) nejde převést na jednu přímou
+      // uživatelskou čáru — přeskočit (jejich přímá náhrada by lhala).
+      if (g.via && g.via.length) continue;
       let dx = g.x2 - g.x1, dz = g.z2 - g.z1;
       const L = Math.hypot(dx, dz);
       if (L < 1e-9) continue;
@@ -7274,6 +7613,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
         <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${prms.toolName}"></div>
       </div>
+      <div class="cam-sim-row">
+        <div class="cam-sim-field"><label title="Tloušťka (šířka v ose Z) držáku plátku. Hlídání geometrie destičky s ní počítá: hrana destičky omezuje zanoření jen do Délky hrany, hlouběji rozhoduje držák — do kapsy širší než držák smí nástroj sjet až na dno. 0 = držák se nehlídá (mezní čára = nekonečná hrana destičky).">Tloušťka držáku</label><input type="number" step="1" min="0" data-p="holderWidth" value="${prms.holderWidth ?? 20}"></div>
+        <div class="cam-sim-field"><label title="Délka držáku v ose X — maximální hloubka zanoření pod horní hranu kapsy.">Délka držáku</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
+      </div>
       <div class="cam-sim-section-title">
         <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px">🧰 Knihovna</button>
         <button data-act="open-vbd" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px">🔩 VBD</button>
@@ -7319,6 +7662,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const _pxVal = parseFloat(prms.allowanceX) || 0;
     const _pzVal = parseFloat(prms.allowanceZ) || 0;
     const _machChips = [
+      prms.threadActive ? '🧵 závit!' : '',
       _phVal !== 0 ? `Ph${_fmtNum(prms.finishAllowance)}` : '',
       _pxVal !== 0 ? `PX${_fmtNum(prms.allowanceX)}` : '',
       _pzVal !== 0 ? `PZ${_fmtNum(prms.allowanceZ)}` : ''
@@ -7373,6 +7717,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-machtab="upich" class="${_machSubTab === 'upich' ? 'cam-sim-active' : ''}">Upich</button>
       <button data-machtab="zavit" class="${_machSubTab === 'zavit' ? 'cam-sim-active' : ''}">Závit</button>
     </div>`;
+    // Aktivní závitování NAHRAZUJE hrubování/dokončování (viz generateAutoGCode)
+    // — mimo záložku Závit to ale nebylo nikde vidět a uživatel se divil,
+    // proč se místo hrubovacích drah generuje závitovací cyklus.
+    if (prms.threadActive && _machSubTab !== 'zavit') {
+      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ Je aktivní <b>závitování</b> (${prms.threadName || `⌀${prms.threadDiameter}×${prms.threadPitch}`}) — program obsahuje jen závitovací cyklus, hrubování/dokončování se negeneruje.
+        <button data-act="thread-deactivate" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">Vypnout závit</button></small>`;
+    }
     if (_machSubTab === 'hrub') {
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
         <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
@@ -7500,7 +7851,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Počet řezných průchodů; 0 = auto podle hloubky (degresivní přísuv ~0,12 mm průměrně, první záběr ≤ 0,4 mm — např. M20×2,5 → 15 průchodů)">Průchody (0=auto)</label><input type="number" step="1" min="0" data-p="threadPasses" value="${prms.threadPasses}"></div>
         <div class="cam-sim-field"><label title="Jiskřící průchody (ap=0) na konci — vyhlazení boků">Jiskřící</label><input type="number" step="1" min="0" data-p="threadSpringPasses" value="${prms.threadSpringPasses}"></div>
-        <div class="cam-sim-field"><label title="Kuželový závit — kuželovitost 1:k. 0 = válcový; 16 = trubkové BSPT/NPT (1:16, výběr z 🧵 Завity nastaví sám). Kladné = ⌀ roste směrem řezu (k Z konci), záporné = klesá. ⌀ D platí na Z startu; průchody jedou G33/G32 s X i Z.">Kužel 1:k</label><input type="number" step="1" data-p="threadTaperRatio" value="${prms.threadTaperRatio ?? 0}"></div>
+        <div class="cam-sim-field"><label title="Kuželový závit — kuželovitost 1:k. 0 = válcový; 16 = trubkové BSPT/NPT (1:16, výběr z 🧵 Závity nastaví sám). Kladné = ⌀ roste směrem řezu (k Z konci), záporné = klesá. ⌀ D platí na Z startu; průchody jedou G33/G32 s X i Z.">Kužel 1:k</label><input type="number" step="1" data-p="threadTaperRatio" value="${prms.threadTaperRatio ?? 0}"></div>
       </div>`;
       if (prms.threadActive && prms.toolShape !== 'threading') {
         html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ Aktivní závitování, ale tvar plátku není závitový (▽) — dráhy se vygenerují, plátek v simulaci nebude odpovídat.</small>`;
@@ -7605,7 +7956,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     // Parametry destičky ovlivňující interferenční čáry — při změně se smažou
     // čáry označené fromInsert:true (byly automaticky povýšeny z hlídání destičky).
-    const INSERT_PARAMS = new Set(['toolAngle', 'toolTipAngle', 'toolShape', 'toolClearanceAngle']);
+    const INSERT_PARAMS = new Set(['toolAngle', 'toolTipAngle', 'toolShape', 'toolClearanceAngle',
+      'toolLength', 'holderWidth', 'holderLength']);
     tabBody.querySelectorAll('[data-p]').forEach(inp => {
       inp.addEventListener('change', () => {
         const v = inp.value;
@@ -7869,6 +8221,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (threadToggleBtn) threadToggleBtn.addEventListener('click', () => {
       S.params.threadActive = !S.params.threadActive;
       showToast(S.params.threadActive ? `Závitování ${S.params.threadName || ''} aktivní — dráhy přegenerovány` : 'Závitování vypnuto — zpět na hrubování');
+      _regenGCode();
+    });
+    // Rychlé vypnutí závitování z varování v záložkách Hrub./Hot./Upich.
+    const threadOffBtn = tabBody.querySelector('[data-act="thread-deactivate"]');
+    if (threadOffBtn) threadOffBtn.addEventListener('click', () => {
+      S.params.threadActive = false;
+      showToast('Závitování vypnuto — zpět na hrubování');
       _regenGCode();
     });
     tabBody.querySelectorAll('[data-thinfeed]').forEach(btn => {
@@ -8430,6 +8789,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function handleSaveProject() {
     const payload = {
       __camprog: 1,
+      pathLogicVersion: PATH_LOGIC_VERSION,
       savedAt: new Date().toISOString(),
       params: S.params,
       contourPoints: S.contourPoints,
@@ -8470,7 +8830,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.params) S.params = data.params;
         if (data.contourPoints) S.contourPoints = data.contourPoints;
         if (data.stockPoints) S.stockPoints = data.stockPoints;
-        if (typeof data.manualGCode === 'string') S.manualGCode = data.manualGCode;
+        // Uložené dráhy jen když odpovídají aktuální verzi logiky generování;
+        // jinak přegenerovat z kontury/parametrů (fullUpdate níž to zajistí,
+        // protože prázdný manualGCode → generateAutoGCode).
+        if (typeof data.manualGCode === 'string' && data.pathLogicVersion === PATH_LOGIC_VERSION) {
+          S.manualGCode = data.manualGCode;
+        } else {
+          S._cachedCalc = calculate();
+          S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+        }
         if (typeof data.flipX === 'boolean') { S.flipX = data.flipX; state.flipX = S.flipX; persistSettings(); }
         if (typeof data.flipZ === 'boolean') { S.flipZ = data.flipZ; state.flipZ = S.flipZ; persistSettings(); }
         if (data.guideLines) {
@@ -8669,16 +9037,20 @@ export function openCamSimulator(initialContour, initialGCode) {
     // takže se předávají do toCanvas přímo bez přepočtu DIAMON → RADIUS.
     const guideLines = getAllGuideLines();
     for (const g of guideLines) {
-      const c1 = toCanvas(g.x1, g.z1);
-      const c2 = toCanvas(g.x2, g.z2);
-      const id = state.nextId++;
-      state.objects.push({
-        type: 'constr', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
-        // finite: konce jsou už oříznuté (mezní/tečná čára), v editoru se
-        // nekreslí donekonečna, ale jen mezi koncovými body — jako v CAM.
-        finite: true,
-        name: `Konstrukční čára ${id}`, id, layer: 1,
-      });
+      // Lomená čára (hlídání držáku) → každý úsek jako samostatná čára.
+      const pts = guidePolyPoints(g);
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const c1 = toCanvas(pts[k].x, pts[k].z);
+        const c2 = toCanvas(pts[k + 1].x, pts[k + 1].z);
+        const id = state.nextId++;
+        state.objects.push({
+          type: 'constr', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
+          // finite: konce jsou už oříznuté (mezní/tečná čára), v editoru se
+          // nekreslí donekonečna, ale jen mezi koncovými body — jako v CAM.
+          finite: true,
+          name: `Konstrukční čára ${id}`, id, layer: 1,
+        });
+      }
     }
 
     // Skrytá poznámka s ručně upraveným G-kódem drah — nevykresluje se,
@@ -8816,7 +9188,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const insertGuides = (S._cachedCalc && S._cachedCalc.interferenceGuides) || [];
     insertGuides.forEach((g, gi) => {
-      for (const q of [{ x: g.x1, z: g.z1 }, { x: g.x2, z: g.z2 }])
+      // Včetně lomových (via) vrcholů — trasování po lomené čáře jde po úsecích.
+      for (const q of guidePolyPoints(g))
         allPts.push({ xAbs: prms.mode === 'DIAMON' ? q.x * 2 : q.x, zAbs: q.z, _insertIdx: gi });
     });
     let best = null, bestD = Infinity;
@@ -8979,10 +9352,15 @@ export function openCamSimulator(initialContour, initialGCode) {
     // parametrů (roughingStrategy…) — bez potlačení by se přes skutečnou
     // dráhu upichnutí kreslilo i cizí čelní/podélné hrubovací šrafování.
     const _partOffActive = S.params.partOffZ != null && isFinite(parseFloat(S.params.partOffZ));
+    // Aktivní ZÁVITOVÁNÍ nahrazuje hrubování stejně jako upichnutí — bez
+    // potlačení by se přes závitovací cyklus kreslilo hrubovací šrafování
+    // z parametrů a vypadalo by to, že se hrubuje, i když program obsahuje
+    // jen závit (uživatel: „proč mi generuje dráhy závitu v hrubování").
+    const _threadCycleActive = !!S.params.threadActive;
     // Prázdný manualGCode (např. po "🔄 Resetovat vše") = žádné dráhy k
     // zobrazení — potlačit i teoretický náhled (hrubovací šrafování/pasy),
     // který se jinak počítá vždy nezávisle na manualGCode přímo z parametrů.
-    if (!S.manualGCode || !S.manualGCode.trim() || _partOffActive) {
+    if (!S.manualGCode || !S.manualGCode.trim() || _partOffActive || _threadCycleActive) {
       S._cachedCalc.offsetPath = [];
       S._cachedCalc.finishOffsetPath = [];
       S._cachedCalc.finishUnreachablePath = [];

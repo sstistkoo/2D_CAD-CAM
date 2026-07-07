@@ -25,7 +25,8 @@ function pipelineSummary(calc) {
     : `A r=${s.r.toFixed(2)} ${s.dir}${s.fromInsert ? ' {ins}' : ''}`;
   const mc = (calc.machinableContour || calc.contourSegments || []).filter(s => !s.isDegenerate);
   const guides = (calc.interferenceGuides || []).map(g =>
-    `${g.kind}${g.downOnStock ? '/stock' : ''}: (${g.x1.toFixed(2)},${g.z1.toFixed(2)})->(${g.x2.toFixed(2)},${g.z2.toFixed(2)})`);
+    `${g.kind}${g.downOnStock ? '/stock' : ''}: (${g.x1.toFixed(2)},${g.z1.toFixed(2)})->(${g.x2.toFixed(2)},${g.z2.toFixed(2)})`
+    + ((g.via && g.via.length) ? ` via[${g.via.map(q => `(${q.x.toFixed(2)},${q.z.toFixed(2)})`).join(',')}]` : ''));
   const passTags = (calc.passes || []).map((p) => {
     const tags = ['pocketClean', 'pocketReposition', 'pocketEntry', 'ramp', 'contourLeadIn', 'contourLeadOut', 'backside', 'blocked']
       .filter(t => p[t]).join(',');
