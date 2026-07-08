@@ -10,6 +10,9 @@ import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { addDimensionForObject, addAngleDimensionForLines } from '../dialogs.js';
 
+// Tolerance pro shodu bodu s existující kótou souřadnic (snap body jsou přesné).
+const COORD_MATCH_TOL = 1e-3;
+
 export function handleDimensionClick(wx, wy) {
   // Pokud je výběr → okamžitě přidat kóty
   if (!state.drawing && !state._dimFirstLine && dimensionFromSelection()) return;
@@ -39,10 +42,18 @@ export function handleDimensionClick(wx, wy) {
   }
 
   if (!state.drawing) {
-    // Snap k bodu (endpoint/midpoint) → kóta souřadnic bodu
+    // Snap k bodu (endpoint/midpoint) → kóta souřadnic bodu.
+    // Toggle: pokud na tomto bodě kóta souřadnic už je, druhý klik ji odebere.
     if (state.mouse.snapType === 'point') {
       pushUndo();
-      addDimensionForObject({ type: 'point', x: wx, y: wy });
+      const existingIdx = state.objects.findIndex(o =>
+        o.isCoordLabel && Math.hypot(o.x - wx, o.y - wy) < COORD_MATCH_TOL);
+      if (existingIdx !== -1) {
+        state.objects.splice(existingIdx, 1);
+        showToast('Kóta odebrána');
+      } else {
+        addDimensionForObject({ type: 'point', x: wx, y: wy });
+      }
       calculateAllIntersections();
       renderAll();
       return;

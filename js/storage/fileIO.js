@@ -513,12 +513,12 @@ export function showFileDialog() {
       <h3>📂 Načíst / Uložit</h3>
       <div class="btn-row" style="flex-direction:column;gap:8px;align-items:stretch">
         <button class="btn-ok" id="loadLocal" style="width:100%">Načíst z paměti prohlížeče</button>
-        <button class="btn-ok" id="loadFile" style="width:100%">Importovat ze souboru (.json)</button>
-        <button class="btn-ok" id="loadDXF" style="width:100%">📐 Importovat DXF soubor (.dxf)</button>
-        <button class="btn-ok" id="loadSVG" style="width:100%">🖼 Importovat SVG soubor (.svg)</button>
-        <button class="btn-ok" id="exportFile" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">Exportovat do souboru (.json)</button>
-        <button class="btn-ok" id="exportDXF" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">📐 Exportovat DXF</button>
-        <button class="btn-ok" id="exportImage" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">🖼 Export obrazu (SVG/PNG)</button>
+        <button class="btn-ok" id="loadFile" style="width:100%">Načíst ze souboru (.json)</button>
+        <button class="btn-ok" id="loadDXF" style="width:100%">📐 Načíst DXF soubor (.dxf)</button>
+        <button class="btn-ok" id="loadSVG" style="width:100%">🖼 Načíst SVG soubor (.svg)</button>
+        <button class="btn-ok" id="exportFile" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">Uložit do souboru (.json)</button>
+        <button class="btn-ok" id="exportDXF" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">📐 Uložit DXF</button>
+        <button class="btn-ok" id="exportImage" style="width:100%;background:${COLORS.selected};border-color:${COLORS.selected}">🖼 Uložit obraz (SVG/PNG)</button>
         <button class="btn-cancel btn-cancel-overlay" style="width:100%">Zrušit</button>
       </div>
     </div>`;
