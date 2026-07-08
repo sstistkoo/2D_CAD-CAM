@@ -848,6 +848,19 @@ function getObjectEndpoints(obj) {
   }
 }
 
+// Automatické obnovení CNC kódu v pravém panelu po každé změně výkresu
+// (bez toho zůstával panel se starým kódem, dokud uživatel neklikl na
+// export ručně). Debounced, aby se export nepřepočítával při každém
+// dílčím kroku vícekrokové operace, jen ~300 ms po poslední změně.
+let _autoCncExportTimer = null;
+function scheduleAutoCncExport() {
+  clearTimeout(_autoCncExportTimer);
+  _autoCncExportTimer = setTimeout(() => {
+    _autoCncExportTimer = null;
+    if (bridge.runCncExport) bridge.runCncExport();
+  }, 300);
+}
+
 /** Přepočítá všechny průsečíky mezi objekty. */
 export function calculateAllIntersections() {
   const pts = [];
@@ -916,6 +929,7 @@ export function calculateAllIntersections() {
   state.intersections = unique;
   if (bridge.updateIntersectionList) bridge.updateIntersectionList();
   renderAll();
+  scheduleAutoCncExport();
 }
 
 // ── Tečny z bodu ke kružnici ──

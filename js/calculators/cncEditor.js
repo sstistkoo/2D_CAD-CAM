@@ -6,36 +6,14 @@
 
 import { makeOverlay } from '../dialogFactory.js';
 import { bridge } from '../bridge.js';
+import { showToast } from '../state.js';
+import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cnc-editor-data';
 const STORAGE_CFG   = 'skica-cnc-editor-settings';
 const STORAGE_HDR   = 'skica-cnc-editor-header';
 const STORAGE_MERGE = 'skica-cnc-editor-merge-queue';
-
-// ── Potvrzení přepsání zastaralého kódu ──────────────────────────
-// Editor si drží svůj vlastní uložený program; pokud se mezitím
-// v CAD panelu přegeneroval CNC kód (úprava kontury), nabídne se
-// přepsání aktuálním kódem.
-function confirmStaleCodeOverwrite() {
-  return new Promise(resolve => {
-    const ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
-    ov.innerHTML = `
-      <div style="background:#1e1e2e;border:1px solid #45475a;border-radius:10px;padding:24px 28px 18px;min-width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.5);color:#cdd6f4;font-family:system-ui,sans-serif;">
-        <div style="font-size:14px;margin-bottom:18px;line-height:1.5;">Kód v editoru se liší od aktuálního CNC kódu v CAD (kontura byla mezitím upravena).<br><br>Přepsat editor aktuálním kódem z CAD? Neuložené ruční úpravy v editoru budou ztraceny.</div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
-          <button data-r="keep" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#45475a;color:#cdd6f4;">Ponechat uložený</button>
-          <button data-r="overwrite" style="padding:7px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#89b4fa;color:#1e1e2e;">Přepsat aktuálním</button>
-        </div>
-      </div>`;
-    document.body.appendChild(ov);
-    const cleanup = (val) => { ov.remove(); resolve(val); };
-    ov.querySelector('[data-r="overwrite"]').addEventListener('click', () => cleanup(true));
-    ov.querySelector('[data-r="keep"]').addEventListener('click', () => cleanup(false));
-    ov.addEventListener('click', e => { if (e.target === ov) cleanup(false); });
-  });
-}
 
 const G_CODES = {
   '0':'Rychloposuv','1':'Lineární interpolace','2':'Kruhová int. (CW)',
@@ -459,6 +437,173 @@ function getRoundPrefix() {
   return 'RND=';
 }
 
+// Regex pro rozpoznání markeru sražení/zaoblení v textu kódu, dle aktuálního
+// řídicího systému (musí odpovídat tomu, co vkládají tlačítka Sraž./Zaobl.
+// přes getChamferPrefix()/getRoundPrefix()).
+function getCornerMarkerRegex(kind) {
+  const ctrl = getControlSystem();
+  if (kind === 'chamfer') {
+    if (ctrl === 'fanuc') return /\bC([\d.]+)\b/i;
+    if (ctrl === 'heidenhain') return /\bCHF\s+([\d.]+)/i;
+    return /\bCH[FR]\s*=\s*([\d.]+)/i; // Sinumerik: CHF= nebo CHR=
+  }
+  if (ctrl === 'fanuc') return /\bR([\d.]+)\b/i;
+  if (ctrl === 'heidenhain') return /\bRND\s+R([\d.]+)/i;
+  return /\bRND\s*=\s*([\d.]+)/i;
+}
+
+// Přepíše (nebo doplní) X/Z na řádku na nové souřadnice; volitelně z řádku
+// nejprve odstraní text markeru sražení/zaoblení (pokud byl na stejném
+// řádku jako pohyb). Ostatní obsah řádku (N-blok, G-kód, komentář) zachová.
+function rewriteLineXZ(lineText, newX, newZ, stripRe) {
+  const ci = lineText.indexOf(';');
+  let code = ci !== -1 ? lineText.slice(0, ci) : lineText;
+  const comment = ci !== -1 ? lineText.slice(ci) : '';
+
+  if (stripRe) code = code.replace(stripRe, '');
+
+  const xStr = 'X' + newX.toFixed(3);
+  const zStr = 'Z' + newZ.toFixed(3);
+  code = /\bX\s*-?[\d.]+/i.test(code) ? code.replace(/\bX\s*-?[\d.]+/i, xStr) : (code.replace(/\s+$/, '') + ' ' + xStr);
+  code = /\bZ\s*-?[\d.]+/i.test(code) ? code.replace(/\bZ\s*-?[\d.]+/i, zStr) : (code.replace(/\s+$/, '') + ' ' + zStr);
+
+  return code.replace(/[ \t]+/g, ' ').replace(/\s+$/, '') + comment;
+}
+
+// ── Sražení/zaoblení → skutečná G-kód dráha ─────────────────────
+// Najde markery CHF=/RND= (resp. C/R, CHF/RND R dle řídicího systému)
+// vložené tlačítky Sraž./Zaobl. a nahradí je reálnou drahou: zkrácenou
+// úsečkou před rohem + G2/G3 obloukem (zaoblení) nebo G1 spojovací
+// úsečkou (sražení). Používá stejnou geometrii jako CAD nástroj Zaob./Zkos.
+// (filletTwoLines/chamferTwoLines z geometry.js).
+function convertCornersToPaths(code) {
+  const lines = code.split('\n');
+  const n = lines.length;
+  const ctrl = getControlSystem();
+  const chamferRe = getCornerMarkerRegex('chamfer');
+  const roundRe   = getCornerMarkerRegex('round');
+
+  // ── Pass 1: modální sledování polohy + seznam pohybových bodů a markerů ──
+  const points = []; // { lineIdx, x, z, isFeed }
+  const markers = []; // { lineIdx, kind, value, hasOwnXZ, pointIdx }
+  let x = null, z = null, mode = 90;
+
+  for (let i = 0; i < n; i++) {
+    const raw = lines[i];
+    const ci = raw.indexOf(';');
+    const clean = (ci !== -1 ? raw.slice(0, ci) : raw).trim().toUpperCase();
+    if (!clean) continue;
+
+    if (/\bG90\b/.test(clean)) mode = 90;
+    if (/\bG91\b/.test(clean)) mode = 91;
+
+    const isFeed    = /\bG0?1\b/.test(clean);
+    const isRapid   = /\bG0+\b/.test(clean) && !isFeed;
+    const isArcMove = /\bG0?[23]\b/.test(clean);
+
+    const xm = clean.match(/\bX\s*(-?[\d.]+)/);
+    const zm = clean.match(/\bZ\s*(-?[\d.]+)/);
+    const hasXZ = !!(xm || zm);
+
+    let curX = x, curZ = z;
+    if (hasXZ) {
+      const xv = xm ? parseFloat(xm[1]) : null;
+      const zv = zm ? parseFloat(zm[1]) : null;
+      curX = xv === null ? x : (mode === 91 ? (x ?? 0) + xv : xv);
+      curZ = zv === null ? z : (mode === 91 ? (z ?? 0) + zv : zv);
+    }
+
+    // Fanuc: holé C/R jsou nejednoznačné na řádku s G2/G3 (tam R = poloměr
+    // oblouku) – takové řádky pro marker přeskočíme.
+    const skipMarkerOnLine = ctrl === 'fanuc' && isArcMove;
+    const cm = !skipMarkerOnLine ? clean.match(chamferRe) : null;
+    const rm = !skipMarkerOnLine ? clean.match(roundRe)   : null;
+    const markerKind = cm ? 'chamfer' : (rm ? 'round' : null);
+    const markerVal  = cm ? parseFloat(cm[1]) : (rm ? parseFloat(rm[1]) : null);
+
+    if (hasXZ && (isFeed || isRapid)) {
+      x = curX; z = curZ;
+      const pointIdx = points.length;
+      points.push({ lineIdx: i, x, z, isFeed });
+      if (markerKind) markers.push({ lineIdx: i, kind: markerKind, value: markerVal, hasOwnXZ: true, pointIdx });
+    } else if (markerKind) {
+      markers.push({ lineIdx: i, kind: markerKind, value: markerVal, hasOwnXZ: false, pointIdx: points.length - 1 });
+    }
+  }
+
+  if (!markers.length) return { code, converted: 0, skipped: 0 };
+
+  // ── Pass 2: pro každý marker spočti geometrii korekce rohu ──
+  const lineEdits = new Map();  // lineIdx -> nový text řádku (null = smazat)
+  const insertions = new Map(); // lineIdx -> pole řádků k vložení ZA tento řádek
+  let converted = 0, skipped = 0;
+
+  for (const mk of markers) {
+    const cornerPtIdx = mk.pointIdx;
+    const beforePtIdx = cornerPtIdx - 1;
+    const afterPtIdx  = cornerPtIdx + 1;
+    if (cornerPtIdx < 0 || beforePtIdx < 0 || afterPtIdx >= points.length) { skipped++; continue; }
+
+    const beforePt = points[beforePtIdx];
+    const cornerPt = points[cornerPtIdx];
+    const afterPt  = points[afterPtIdx];
+    if (!cornerPt.isFeed || !afterPt.isFeed) { skipped++; continue; } // jen mezi G1 pohyby
+
+    const lineA = { x1: beforePt.x, y1: beforePt.z, x2: cornerPt.x, y2: cornerPt.z };
+    const lineB = { x1: cornerPt.x, y1: cornerPt.z, x2: afterPt.x,  y2: afterPt.z };
+
+    let tp1, tp2, connectorLine;
+    if (mk.kind === 'round') {
+      const res = filletTwoLines(lineA, lineB, mk.value);
+      if (!res.ok) { skipped++; continue; }
+      tp1 = { x: lineA.x2, z: lineA.y2 };
+      tp2 = { x: lineB.x1, z: lineB.y1 };
+      const cx = res.arc.cx, cz = res.arc.cy, r = res.arc.r;
+      // Směr G2 (CW) / G3 (CCW) dopočítaný z reálné geometrie oblouku
+      // (nespoléhá na startAngle/endAngle – ty po interní normalizaci ve
+      // filletTwoLines nemusí odpovídat pořadí tp1→tp2).
+      const cross = (tp1.x - cx) * (tp2.z - cz) - (tp1.z - cz) * (tp2.x - cx);
+      const gWord = cross > 0 ? 'G3' : 'G2';
+      connectorLine = `${gWord} X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)} R${r.toFixed(3)}`;
+    } else {
+      const res = chamferTwoLines(lineA, lineB, mk.value, mk.value);
+      if (!res.ok) { skipped++; continue; }
+      tp1 = { x: lineA.x2, z: lineA.y2 };
+      tp2 = { x: lineB.x1, z: lineB.y1 };
+      connectorLine = `G1 X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)}`;
+    }
+
+    const cornerLineIdx = cornerPt.lineIdx;
+    const stripRe = mk.hasOwnXZ ? (mk.kind === 'chamfer' ? chamferRe : roundRe) : null;
+    lineEdits.set(cornerLineIdx, rewriteLineXZ(lines[cornerLineIdx], tp1.x, tp1.z, stripRe));
+
+    const ins = insertions.get(cornerLineIdx) || [];
+    ins.push(connectorLine);
+    insertions.set(cornerLineIdx, ins);
+
+    // Samostatný řádek jen s markerem (bez vlastních X/Z) se po převodu smaže.
+    if (!mk.hasOwnXZ && mk.lineIdx !== cornerLineIdx) lineEdits.set(mk.lineIdx, null);
+
+    converted++;
+  }
+
+  if (!converted) return { code, converted: 0, skipped };
+
+  // ── Pass 3: sestav výsledný kód ──
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (lineEdits.has(i)) {
+      const v = lineEdits.get(i);
+      if (v !== null) out.push(v);
+    } else {
+      out.push(lines[i]);
+    }
+    if (insertions.has(i)) out.push(...insertions.get(i));
+  }
+
+  return { code: out.join('\n'), converted, skipped };
+}
+
 function getControlSystemBarText() {
   const ctrl = getControlSystem();
   const names = { sinumerik: 'SINUMERIK 840D sl', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
@@ -485,6 +630,7 @@ function buildEditorHTML() {
       <button class="cne-tb-btn cne-hide-m" data-act="renum" title="Přečíslovat N-bloky">N</button>
       <button class="cne-tb-btn cne-conv cne-hide-m" data-act="convMode" data-el="convModeBtn" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
       <button class="cne-tb-btn cne-hide-m" data-act="header" title="Generovat hlavičku">📝</button>
+      <button class="cne-tb-btn cne-hide-m" data-act="cornersToPath" title="Převést sražení/zaoblení (CHF/RND) na skutečnou dráhu G1/G2/G3">⌒</button>
       <button class="cne-tb-btn cne-status" data-act="validate" data-el="statusBtn" title="Validace">●</button>
       <button class="cne-tb-btn" data-act="calc" title="Kalkulačka">🔢</button>
       <button class="cne-tb-btn cne-hide-m" data-act="settings" title="Nastavení parseru">⚙</button>
@@ -580,6 +726,7 @@ function buildEditorHTML() {
         <button class="cne-menu-item" data-act="convMode"><span class="cne-mi-icon sn" data-el="convModeMenuIcon">G90</span><span class="cne-mi-text"><b>Přepnout G90 / G91</b><small>Absolutní ↔ přírůstkové (nájezd v G90)</small></span></button>
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="header"><span class="cne-mi-icon">📝</span><span class="cne-mi-text"><b>Generovat hlavičku</b><small>Vložit hlavičku programu (M4x, T, G54…)</small></span></button>
+        <button class="cne-menu-item" data-act="cornersToPath"><span class="cne-mi-icon">⌒</span><span class="cne-mi-text"><b>Sražení/zaoblení → dráha</b><small>Převede CHF/RND markery na G1/G2/G3</small></span></button>
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="toCad"><span class="cne-mi-icon">🔄</span><span class="cne-mi-text"><b>Vykreslit v CAD</b><small>Přenést kód do CAD a vykreslit konturu</small></span></button>
         <button class="cne-menu-item" data-act="calc"><span class="cne-mi-icon">🔢</span><span class="cne-mi-text"><b>Kalkulačka</b><small>Otevřít kalkulačku</small></span></button>
@@ -1540,6 +1687,19 @@ export function openCncEditor(initialCode) {
         case 'header':    showHeaderSettings(); closeMenu(); break;
         case 'hdrClose':  readHeaderInputs(); persistHdr(); hdrModal.style.display = 'none'; break;
         case 'hdrApply':  applyHeader(); break;
+        case 'cornersToPath': {
+          const result = convertCornersToPaths(editor.value);
+          if (result.converted > 0) {
+            editor.value = result.code;
+            onInput();
+          }
+          if (result.converted && result.skipped) showToast(`Převedeno ${result.converted}, přeskočeno ${result.skipped} (neplatné okolí)`);
+          else if (result.converted) showToast(`Převedeno ${result.converted} sražení/zaoblení na G-kód dráhu ✓`);
+          else if (result.skipped) showToast(`Nepodařilo se převést (${result.skipped}) – zkontrolujte okolní G1 úsečky`);
+          else showToast('Žádné sražení/zaoblení k převedení nenalezeno');
+          closeMenu();
+          break;
+        }
         case 'backspace': doBackspace(); break;
         case 'addBlock':  insertBlockNumber(); break;
         case 'keyboard':  editor.readOnly = false; editor.focus(); break;
@@ -1550,6 +1710,10 @@ export function openCncEditor(initialCode) {
           // vykresli konturu na canvas. CAD panel čte souřadnice absolutně,
           // takže přírůstkový režim (G91) před odesláním přepočítáme na G90.
           if (coordMode === 'inc') { editor.value = codeToAbsolute(editor.value); coordMode = 'abs'; onInput(); }
+          // Nepřevedené sražení/zaoblení (CHF=/RND=…) by CAD parser G-kódu
+          // nerozpoznal – automaticky ho převedeme na skutečnou dráhu (G1/G2/G3).
+          const conv = convertCornersToPaths(editor.value);
+          if (conv.converted > 0) { editor.value = conv.code; onInput(); }
           persist();
           const code = editor.value;
           overlay.remove();
@@ -1647,22 +1811,16 @@ export function openCncEditor(initialCode) {
 
   // Pokud byl předán initialCode, vloží se do souboru CNC_PROGRAM.MPF.
   // Pokud na něm uživatel právě je a obsah se liší od initialCode (kontura
-  // byla mezitím v CAD přegenerována), nabídne se přepsání zastaralého obsahu.
+  // byla mezitím v CAD přegenerována), automaticky se načte aktuální kód
+  // z CAD (bez dotazu – editor je jen dočasná pracovní kopie CAD kódu).
   // Je-li uživatel rozkoukaný v jiném souboru (např. po "Nový program"), editor
   // ho při návratu nepřepne pryč ani mu ten soubor nepřepíše.
   const onProgramFile = !programs['CNC_PROGRAM.MPF'] || currentFile === 'CNC_PROGRAM.MPF';
   if (onProgramFile && initialCode && typeof initialCode === 'string' && initialCode.trim()) {
     const name = 'CNC_PROGRAM.MPF';
-    if (!programs[name]) {
+    if (!programs[name] || programs[name].trim() !== initialCode.trim()) {
       programs[name] = initialCode;
       currentFile = name;
-    } else if (programs[name].trim() !== initialCode.trim()) {
-      confirmStaleCodeOverwrite().then(overwrite => {
-        if (overwrite) {
-          programs[name] = initialCode;
-          if (currentFile === name) displayFile(name);
-        }
-      });
     }
   }
 
