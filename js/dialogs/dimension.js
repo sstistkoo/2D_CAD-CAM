@@ -36,6 +36,102 @@ function _computeLineAngle(line1, line2) {
   return { cx, cy, pt1, pt2, sweep, maxDist1: Math.max(dist1a, dist1b), maxDist2: Math.max(dist2a, dist2b) };
 }
 
+// ── Pomocné funkce pro interaktivní úhlovou kótu ──
+const _norm2pi = (a) => { a %= 2 * Math.PI; return a < 0 ? a + 2 * Math.PI : a; };
+/** Znaménkový rozdíl úhlů v (-π, π]. */
+const _angDiff = (a) => { a %= 2 * Math.PI; if (a > Math.PI) a -= 2 * Math.PI; if (a <= -Math.PI) a += 2 * Math.PI; return a; };
+
+/**
+ * Sestaví úhlovou kótu „od ramene k rameni" pro daný poloměr a stranu
+ * (reflex = vnější strana). Ramena = směry od průsečíku C ke skutečným
+ * koncovým bodům úseček (pt1, pt2 z _computeLineAngle). Přímý úhel `sweep`
+ * (0–180°); při reflex se měří 360°−sweep a oblouk vede opačnou stranou.
+ */
+function _buildAngleDim(C, pt1, pt2, sweep, radius, reflex) {
+  const aA = Math.atan2(pt1.y - C.y, pt1.x - C.x);
+  const aB = Math.atan2(pt2.y - C.y, pt2.x - C.x);
+  const d = _angDiff(aB - aA);          // znaménkový přímý úhel (|d| = sweep)
+  const midDirect = aA + d / 2;         // osa přímého úhlu
+  const measured = reflex ? (2 * Math.PI - sweep) : sweep;
+  const midAng = reflex ? _norm2pi(midDirect + Math.PI) : _norm2pi(midDirect);
+  return {
+    cx: C.x, cy: C.y, radius, sweep: measured, midAng, reflex,
+    x1: C.x + radius * Math.cos(aA), y1: C.y + radius * Math.sin(aA),
+    x2: C.x + radius * Math.cos(aB), y2: C.y + radius * Math.sin(aB),
+  };
+}
+
+/**
+ * Sestaví virtuální vodorovnou úsečku představující osu Z (Y=0), procházející
+ * průsečíkem se zadanou úsečkou. Rameno směřuje k Z+ (svět +X). Slouží jako
+ * druhá „úsečka" pro kótu polárního úhlu úsečky od osy Z.
+ */
+export function buildZAxisRefLine(line1) {
+  const dy = line1.y2 - line1.y1;
+  let cx;
+  if (Math.abs(dy) < 1e-9) {
+    cx = (line1.x1 + line1.x2) / 2;   // rovnoběžná s osou Z
+  } else {
+    const t = -line1.y1 / dy;
+    cx = line1.x1 + t * (line1.x2 - line1.x1);
+  }
+  return { type: 'line', x1: cx, y1: 0, x2: cx + 100, y2: 0, _zAxis: true, id: null };
+}
+
+/**
+ * Vypočítá úhlovou kótu mezi dvěma úsečkami podle pozice kurzoru. Měří úhel
+ * MEZI RAMENY úseček: je-li kurzor uvnitř přímého úhlu → ten (0–180°), jinak
+ * vnější reflexní úhel (360°−přímý). Poloměr = vzdálenost kurzoru od průsečíku.
+ * Vrací null pro rovnoběžné úsečky.
+ */
+export function computeAngleDimPlacement(line1, line2, curX, curY) {
+  const r = _computeLineAngle(line1, line2);
+  if (!r) return null;
+  const { cx, cy, pt1, pt2, sweep } = r;
+  const C = { x: cx, y: cy };
+  const aA = Math.atan2(pt1.y - cy, pt1.x - cx);
+  const aB = Math.atan2(pt2.y - cy, pt2.x - cx);
+  const midDirect = aA + _angDiff(aB - aA) / 2;
+  const phi = Math.atan2(curY - cy, curX - cx);
+  // Kurzor v přímém úhlu? (úhlová vzdálenost od osy ≤ polovina přímého úhlu)
+  const reflex = Math.abs(_angDiff(phi - midDirect)) > sweep / 2;
+  const radius = Math.max(8, Math.hypot(curX - cx, curY - cy));
+  return _buildAngleDim(C, pt1, pt2, sweep, radius, reflex);
+}
+
+/**
+ * Vytvoří úhlovou kótu umístěnou dle pozice kurzoru (viz
+ * computeAngleDimPlacement). Uloží dimReflex + dimMidAng pro asociativitu.
+ */
+export function addAngleDimForPlacement(line1, line2, curX, curY, opts = {}) {
+  const p = computeAngleDimPlacement(line1, line2, curX, curY);
+  if (!p) { showToast("Úsečky jsou rovnoběžné – nelze kótovat úhel"); return; }
+  const deg = p.sweep * 180 / Math.PI;
+  const vsAxis = opts.vsAxis || null;
+  addObject({
+    type: 'line',
+    x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2,
+    name: `Kóta ∠${deg.toFixed(1)}°`,
+    isDimension: true,
+    dimType: 'angular',
+    dimLine1Id: line1.id || null,
+    dimLine2Id: vsAxis ? null : (line2.id || null),
+    dimVsAxis: vsAxis,
+    dimAngle: p.sweep,
+    dimCenterX: p.cx,
+    dimCenterY: p.cy,
+    dimRadius: p.radius,
+    dimReflex: p.reflex,
+    dimMidAng: p.midAng,
+    dimSrcX1: p.x1, dimSrcY1: p.y1,
+    dimSrcX2: p.x2, dimSrcY2: p.y2,
+    color: COLORS.textSecondary,
+  });
+  showToast(vsAxis === 'Z'
+    ? `Kóta polárního úhlu ∠${deg.toFixed(1)}° od osy Z přidána`
+    : `Kóta ∠${deg.toFixed(1)}° přidána`);
+}
+
 // ── Úhlová kóta mezi dvěma úsečkami ──
 export function addAngleDimensionForLines(line1, line2) {
   const r = _computeLineAngle(line1, line2);
@@ -80,6 +176,83 @@ export function addAngleDimensionForLines(line1, line2) {
     color: COLORS.textSecondary,
   });
   showToast(`Kóta ∠${sweepDeg.toFixed(1)}° přidána`);
+}
+
+// ── Interaktivní umístění lineární kóty úsečky ──
+/**
+ * Vypočítá umístění lineární kóty úsečky podle pozice kurzoru.
+ * Rozhoduje mezi třemi režimy podle směru odsazení kurzoru od středu úsečky:
+ *   • 'aligned'    – kótovací čára rovnoběžně s úsečkou → skutečná délka
+ *   • 'horizontal' – vodorovná kótovací čára (odsazení svisle) → rozměr v ose Z
+ *   • 'vertical'   – svislá kótovací čára (odsazení vodorovně) → rozměr v ose X
+ * @returns {{mode:string, x1:number,y1:number,x2:number,y2:number,
+ *            dimOffset:number, len:number,
+ *            srcX1:number,srcY1:number,srcX2:number,srcY2:number}}
+ */
+export function computeLinearDimPlacement(line, cx, cy) {
+  const ax = line.x1, ay = line.y1, bx = line.x2, by = line.y2;
+  const midX = (ax + bx) / 2, midY = (ay + by) / 2;
+  const lineAng = Math.atan2(by - ay, bx - ax);
+  const nx = -Math.sin(lineAng), ny = Math.cos(lineAng); // jednotková normála
+  const offX = cx - midX, offY = cy - midY;
+
+  // Klasifikace režimu – porovnat směr odsazení se třemi cílovými osami (mod π)
+  const offAng = Math.atan2(offY, offX);
+  const axisDist = (a, b) => {
+    let d = Math.abs(a - b) % Math.PI;
+    if (d > Math.PI / 2) d = Math.PI - d;
+    return d;
+  };
+  const dAligned = axisDist(offAng, lineAng + Math.PI / 2);
+  const dHoriz = axisDist(offAng, Math.PI / 2); // odsazení svisle → vodorovná kóta
+  const dVert = axisDist(offAng, 0);            // odsazení vodorovně → svislá kóta
+  let mode = 'aligned', best = dAligned;
+  if (dHoriz < best) { mode = 'horizontal'; best = dHoriz; }
+  if (dVert < best) { mode = 'vertical'; best = dVert; }
+
+  let x1, y1, x2, y2, dimOffset, len;
+  if (mode === 'horizontal') {
+    const yLevel = cy;
+    x1 = ax; y1 = yLevel; x2 = bx; y2 = yLevel;
+    dimOffset = yLevel - midY;
+    len = Math.abs(bx - ax);
+  } else if (mode === 'vertical') {
+    const xLevel = cx;
+    x1 = xLevel; y1 = ay; x2 = xLevel; y2 = by;
+    dimOffset = xLevel - midX;
+    len = Math.abs(by - ay);
+  } else {
+    const signedDist = offX * nx + offY * ny;
+    x1 = ax + nx * signedDist; y1 = ay + ny * signedDist;
+    x2 = bx + nx * signedDist; y2 = by + ny * signedDist;
+    dimOffset = signedDist;
+    len = Math.hypot(bx - ax, by - ay);
+  }
+  return { mode, x1, y1, x2, y2, dimOffset, len, srcX1: ax, srcY1: ay, srcX2: bx, srcY2: by };
+}
+
+/**
+ * Vytvoří lineární kótu úsečky umístěnou dle pozice kurzoru (viz
+ * computeLinearDimPlacement). Zavolá se při interaktivním umístění kóty.
+ */
+export function addLinearDimForLine(line, cx, cy) {
+  const p = computeLinearDimPlacement(line, cx, cy);
+  addObject({
+    type: 'line',
+    x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2,
+    isDimension: true,
+    dimType: 'linear',
+    dimMode: p.mode,
+    sourceObjId: line.id || null,
+    dimOffset: p.dimOffset,
+    dimSrcX1: p.srcX1, dimSrcY1: p.srcY1,
+    dimSrcX2: p.srcX2, dimSrcY2: p.srcY2,
+    name: `Kóta ${p.len.toFixed(2)}mm`,
+    color: COLORS.textSecondary,
+  });
+  const axisNote = p.mode === 'horizontal' ? ` (${axisLabels()[0]})`
+    : p.mode === 'vertical' ? ` (${axisLabels()[1]})` : '';
+  showToast(`Kóta ${p.len.toFixed(2)}mm${axisNote} přidána`);
 }
 
 // ── Přidání kót k objektu ──
@@ -320,11 +493,28 @@ export function updateAssociativeDimensions() {
   for (const dim of state.objects) {
     if (!dim.isDimension) continue;
 
-    // Úhlová kóta mezi dvěma úsečkami (dimLine1Id + dimLine2Id)
-    if (dim.dimType === 'angular' && dim.dimLine1Id && dim.dimLine2Id) {
+    // Úhlová kóta mezi dvěma úsečkami (dimLine1Id + dimLine2Id) nebo od osy Z
+    if (dim.dimType === 'angular' && dim.dimLine1Id && (dim.dimLine2Id || dim.dimVsAxis === 'Z')) {
       const l1 = state.objects.find(o => o.id === dim.dimLine1Id);
-      const l2 = state.objects.find(o => o.id === dim.dimLine2Id);
+      const l2 = dim.dimVsAxis === 'Z'
+        ? (l1 ? buildZAxisRefLine(l1) : null)
+        : state.objects.find(o => o.id === dim.dimLine2Id);
       if (!l1 || !l2) continue;
+      // Interaktivně umístěná kóta – držet zvolenou stranu (dimReflex)
+      if (dim.dimReflex != null && dim.dimMidAng != null) {
+        const rr = _computeLineAngle(l1, l2);
+        if (!rr) continue;
+        const p = _buildAngleDim({ x: rr.cx, y: rr.cy }, rr.pt1, rr.pt2, rr.sweep,
+          dim.dimRadius || 30, dim.dimReflex);
+        dim.x1 = p.x1; dim.y1 = p.y1; dim.x2 = p.x2; dim.y2 = p.y2;
+        dim.dimAngle = p.sweep;
+        dim.dimMidAng = p.midAng;
+        dim.dimCenterX = p.cx; dim.dimCenterY = p.cy;
+        dim.dimSrcX1 = p.x1; dim.dimSrcY1 = p.y1;
+        dim.dimSrcX2 = p.x2; dim.dimSrcY2 = p.y2;
+        dim.name = `Kóta ∠${(p.sweep * 180 / Math.PI).toFixed(1)}°`;
+        continue;
+      }
       const r = _computeLineAngle(l1, l2);
       if (!r) continue;
       const { cx, cy, pt1, pt2, sweep } = r;
@@ -353,20 +543,34 @@ export function updateAssociativeDimensions() {
     switch (dim.dimType) {
       case 'linear': {
         if (src.type === 'line' || src.type === 'constr') {
-          const dimOffset = dim.dimOffset || 20;
-          const ang = Math.atan2(src.y2 - src.y1, src.x2 - src.x1);
-          const nx = -Math.sin(ang) * dimOffset;
-          const ny = Math.cos(ang) * dimOffset;
-          dim.x1 = src.x1 + nx;
-          dim.y1 = src.y1 + ny;
-          dim.x2 = src.x2 + nx;
-          dim.y2 = src.y2 + ny;
+          const mode = dim.dimMode || 'aligned';
+          const off = dim.dimOffset != null ? dim.dimOffset : 20;
+          const midX = (src.x1 + src.x2) / 2, midY = (src.y1 + src.y2) / 2;
           dim.dimSrcX1 = src.x1;
           dim.dimSrcY1 = src.y1;
           dim.dimSrcX2 = src.x2;
           dim.dimSrcY2 = src.y2;
-          const len = Math.hypot(src.x2 - src.x1, src.y2 - src.y1);
-          dim.name = `Kóta ${len.toFixed(2)}mm`;
+          if (mode === 'horizontal') {
+            const yLevel = midY + off;
+            dim.x1 = src.x1; dim.y1 = yLevel;
+            dim.x2 = src.x2; dim.y2 = yLevel;
+            dim.name = `Kóta ${Math.abs(src.x2 - src.x1).toFixed(2)}mm`;
+          } else if (mode === 'vertical') {
+            const xLevel = midX + off;
+            dim.x1 = xLevel; dim.y1 = src.y1;
+            dim.x2 = xLevel; dim.y2 = src.y2;
+            dim.name = `Kóta ${Math.abs(src.y2 - src.y1).toFixed(2)}mm`;
+          } else {
+            const ang = Math.atan2(src.y2 - src.y1, src.x2 - src.x1);
+            const nx = -Math.sin(ang) * off;
+            const ny = Math.cos(ang) * off;
+            dim.x1 = src.x1 + nx;
+            dim.y1 = src.y1 + ny;
+            dim.x2 = src.x2 + nx;
+            dim.y2 = src.y2 + ny;
+            const len = Math.hypot(src.x2 - src.x1, src.y2 - src.y1);
+            dim.name = `Kóta ${len.toFixed(2)}mm`;
+          }
         } else if (src.type === 'rect') {
           // Aktualizovat dle dimSrc bodů – zjistit, zda je to šířka nebo výška
           const isHoriz = Math.abs(dim.dimSrcY1 - dim.dimSrcY2) < 0.01;

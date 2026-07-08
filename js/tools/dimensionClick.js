@@ -8,36 +8,48 @@ import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
-import { addDimensionForObject, addAngleDimensionForLines } from '../dialogs.js';
+import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, addAngleDimForPlacement, buildZAxisRefLine } from '../dialogs.js';
 
 // Tolerance pro shodu bodu s existující kótou souřadnic (snap body jsou přesné).
 const COORD_MATCH_TOL = 1e-3;
 
 export function handleDimensionClick(wx, wy) {
+  // Umísťování úhlové kóty (2. úsečka už vybrána) → tento klik ji umístí
+  if (state._dimAnglePlacing) {
+    finalizeAnglePlacement(wx, wy);
+    return;
+  }
   // Pokud je výběr → okamžitě přidat kóty
   if (!state.drawing && !state._dimFirstLine && dimensionFromSelection()) return;
-  // Režim: čekáme na druhou úsečku pro úhlovou kótu
+  // Režim: první úsečka vybraná – druhá akce určí záměr
   if (state._dimFirstLine) {
     const idx = findObjectAt(wx, wy);
     if (idx !== null) {
       const obj = state.objects[idx];
+      // Klik na JINOU úsečku → vstoupit do umístění kóty úhlu (výběr strany)
       if ((obj.type === 'line' || obj.type === 'constr') && !obj.isDimension && obj.id !== state._dimFirstLine.id) {
-        pushUndo();
-        addAngleDimensionForLines(state._dimFirstLine, obj);
-        state._dimFirstLine = null;
-        calculateAllIntersections();
+        state._dimSecondLine = obj;
+        state._dimAnglePlacing = true;
+        state._dimPlacing = false;
+        setHint("Pohybem vyberte úhel a stranu, klepnutím umístěte kótu úhlu");
         renderAll();
-        resetHint();
         return;
       }
     }
-    // Klik jinam – zrušit režim úhlové kóty, přidat lineární kótu první úsečky
-    pushUndo();
-    addDimensionForObject(state._dimFirstLine);
-    state._dimFirstLine = null;
-    calculateAllIntersections();
-    renderAll();
-    resetHint();
+    // Klik na osu Z (snap na středovém kříži) → kóta polárního úhlu od osy Z
+    if (idx === null && state.mouse.onZAxis) {
+      state._dimSecondLine = buildZAxisRefLine(state._dimFirstLine);
+      state._dimAnglePlacing = true;
+      state._dimAxisRef = 'Z';
+      state._dimPlacing = false;
+      setHint("Pohybem vyberte stranu, klepnutím umístěte kótu polárního úhlu od osy Z");
+      renderAll();
+      return;
+    }
+    // Prázdné plátno → začít přesné umístění kóty délky tažením;
+    // dokončí se až uvolněním myši (mouseup → finalizeDimPlacement).
+    state._dimPlacing = true;
+    setHint("Táhněte a uvolněte pro přesné umístění kóty (nahoru = Z, do strany = X)");
     return;
   }
 
@@ -64,8 +76,10 @@ export function handleDimensionClick(wx, wy) {
       const obj = state.objects[idx];
       // Úsečka/konstr. → nabídnout úhlovou kótu (kliknout na druhou)
       if ((obj.type === 'line' || obj.type === 'constr') && !obj.isDimension) {
+        // 1. klik = pouze výběr úsečky (bez tažení)
         state._dimFirstLine = obj;
-        setHint("Klepněte na druhou úsečku pro kótu úhlu, nebo jinam pro kótu délky");
+        state._dimPlacing = false;
+        setHint("Klepněte na druhou úsečku pro úhel, nebo na plátno a tažením umístěte kótu délky");
         return;
       }
       pushUndo();
@@ -100,6 +114,48 @@ export function handleDimensionClick(wx, wy) {
     renderAll();
     resetHint();
   }
+}
+
+/** Vyčistí stav interaktivního umísťování kóty. */
+export function clearDimPlacing() {
+  state._dimFirstLine = null;
+  state._dimSecondLine = null;
+  state._dimPlacing = false;
+  state._dimAnglePlacing = false;
+  state._dimAxisRef = null;
+}
+
+/**
+ * Dokončí umístění úhlové kóty na pozici kurzoru – vybere sektor (stranu)
+ * a poloměr dle kurzoru (viz computeAngleDimPlacement). Volá se z kliknutí
+ * po výběru druhé úsečky.
+ */
+export function finalizeAnglePlacement(wx, wy) {
+  const l1 = state._dimFirstLine, l2 = state._dimSecondLine;
+  if (!l1 || !l2) { clearDimPlacing(); return; }
+  pushUndo();
+  addAngleDimForPlacement(l1, l2, wx, wy, state._dimAxisRef === 'Z' ? { vsAxis: 'Z' } : {});
+  clearDimPlacing();
+  calculateAllIntersections();
+  renderAll();
+  resetHint();
+}
+
+/**
+ * Dokončí umístění lineární kóty délky na pozici kurzoru (aligned /
+ * vodorovná Z / svislá X – viz computeLinearDimPlacement). Volá se z uvolnění
+ * myši (mouseup) po druhé akci na prázdném plátně. Úhlová kóta se řeší už
+ * v handleDimensionClick při stisku na druhou úsečku.
+ */
+export function finalizeDimPlacement(wx, wy) {
+  const first = state._dimFirstLine;
+  if (!first || !state._dimPlacing) return;
+  pushUndo();
+  addLinearDimForLine(first, wx, wy);
+  clearDimPlacing();
+  calculateAllIntersections();
+  renderAll();
+  resetHint();
 }
 
 /**

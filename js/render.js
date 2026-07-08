@@ -7,6 +7,7 @@ import { state, toDisplayCoords, displayX, xPrefix, fmtCoordLabel } from './stat
 import { bridge } from './bridge.js';
 import { bulgeToArc, getRectCorners, deepClone } from './utils.js';
 import { projectPointToLine } from './geometry.js';
+import { computeLinearDimPlacement, computeAngleDimPlacement } from './dialogs/dimension.js';
 import {
   COLORS, GRID_BASE_STEP, GRID_MIN_PX, LINE_WIDTH, LINE_WIDTH_SELECTED,
   CONSTRUCTION_DASH, PREVIEW_DASH, ARROW_LENGTH, ARROW_ANGLE
@@ -1063,6 +1064,112 @@ function renderObjects() {
     ctx.setLineDash([]);
   }
 
+  // ── Kóta: interaktivní umístění úhlové kóty (obě úsečky vybrány) ──
+  if (state.tool === 'dimension' && state._dimAnglePlacing && state._dimFirstLine && state._dimSecondLine) {
+    const l1 = state._dimFirstLine, l2 = state._dimSecondLine;
+    ctx.save();
+    // Zvýraznit obě úsečky
+    ctx.strokeStyle = COLORS.selected;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    for (const l of [l1, l2]) {
+      if (l._zAxis) continue;   // osa Z se nezvýrazňuje (už je vykreslená)
+      const [a1, b1] = worldToScreen(l.x1, l.y1);
+      const [a2, b2] = worldToScreen(l.x2, l.y2);
+      ctx.beginPath(); ctx.moveTo(a1, b1); ctx.lineTo(a2, b2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    const p = computeAngleDimPlacement(l1, l2, state.mouse.x, state.mouse.y);
+    if (p) {
+      const [scx, scy] = worldToScreen(p.cx, p.cy);
+      const [sx1, sy1] = worldToScreen(p.x1, p.y1);
+      const [sx2, sy2] = worldToScreen(p.x2, p.y2);
+      // Odkazové čáry od průsečíku k obloukovým bodům
+      ctx.strokeStyle = COLORS.textSecondary;
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(scx, scy); ctx.lineTo(sx1, sy1);
+      ctx.moveTo(scx, scy); ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+      // Oblouk kóty – vede přes osu p.midAng (zvolená strana, i reflexní)
+      const sr = Math.hypot(sx1 - scx, sy1 - scy);
+      const startA = screenAngle(Math.atan2(p.y1 - p.cy, p.x1 - p.cx));
+      const endA = screenAngle(Math.atan2(p.y2 - p.cy, p.x2 - p.cx));
+      const midScreen = screenAngle(p.midAng);
+      const nrm = (a) => { a %= 2 * Math.PI; return a < 0 ? a + 2 * Math.PI : a; };
+      const anticw = !(nrm(midScreen - startA) <= nrm(endA - startA));
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.arc(scx, scy, sr, startA, endA, anticw);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      drawDimArrow(sx1, sy1, scx, scy);
+      drawDimArrow(sx2, sy2, scx, scy);
+      // Popisek úhlu uprostřed oblouku
+      ctx.font = `${labelSize}px Consolas`;
+      ctx.fillStyle = COLORS.selected;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${(p.sweep * 180 / Math.PI).toFixed(1)}°`,
+        scx + sr * Math.cos(midScreen), scy + sr * Math.sin(midScreen) - 4);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+    ctx.restore();
+  }
+
+  // ── Kóta: interaktivní umístění lineární kóty (první úsečka vybrána) ──
+  if (state.tool === 'dimension' && state._dimFirstLine && !state._dimAnglePlacing) {
+    const fl = state._dimFirstLine;
+    // Zvýraznit vybranou úsečku
+    const [flsx1, flsy1] = worldToScreen(fl.x1, fl.y1);
+    const [flsx2, flsy2] = worldToScreen(fl.x2, fl.y2);
+    ctx.save();
+    ctx.strokeStyle = COLORS.selected;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath();
+    ctx.moveTo(flsx1, flsy1);
+    ctx.lineTo(flsx2, flsy2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const p = computeLinearDimPlacement(fl, state.mouse.x, state.mouse.y);
+    const [dsx1, dsy1] = worldToScreen(p.x1, p.y1);
+    const [dsx2, dsy2] = worldToScreen(p.x2, p.y2);
+    const [osx1, osy1] = worldToScreen(p.srcX1, p.srcY1);
+    const [osx2, osy2] = worldToScreen(p.srcX2, p.srcY2);
+    ctx.strokeStyle = COLORS.textSecondary;
+    // Odkazové čáry od zdrojových bodů ke kótovací čáře
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(osx1, osy1); ctx.lineTo(dsx1, dsy1);
+    ctx.moveTo(osx2, osy2); ctx.lineTo(dsx2, dsy2);
+    ctx.stroke();
+    // Kótovací čára
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(dsx1, dsy1); ctx.lineTo(dsx2, dsy2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawDimArrow(dsx1, dsy1, dsx2, dsy2);
+    drawDimArrow(dsx2, dsy2, dsx1, dsy1);
+    // Popisek délky + režim
+    const axisTag = p.mode === 'horizontal' ? ' Z' : p.mode === 'vertical' ? ' X' : '';
+    ctx.font = `${labelSize}px Consolas`;
+    ctx.fillStyle = COLORS.selected;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${p.len.toFixed(state.displayDecimals)}${axisTag}`,
+      (dsx1 + dsx2) / 2, (dsy1 + dsy2) / 2 - 4);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
+
   // ── CopyPlace preview (ghost kopií) ──
   if (state.tool === 'copyPlace' && state._copyPlaceRef && state._copyPlaceObjects) {
     const dx = state.mouse.x - state._copyPlaceRef.x;
@@ -1671,43 +1778,57 @@ export function drawLine(obj) {
       const sr = r * state.zoom;
       const startA = Math.atan2(obj.y1 - cy, obj.x1 - cx);
       const endA = Math.atan2(obj.y2 - cy, obj.x2 - cx);
+      // Polární úhel od osy Z → konstrukční (čárkovaný) styl
+      const vsAxis = !!obj.dimVsAxis;
       // Odkazové čáry od středu k oblouku
       ctx.lineWidth = 0.7;
+      if (vsAxis) ctx.setLineDash([5, 3]);
       ctx.beginPath();
       ctx.moveTo(scx, scy);
       ctx.lineTo(sx1, sy1);
       ctx.moveTo(scx, scy);
       ctx.lineTo(sx2, sy2);
       ctx.stroke();
-      // Oblouk kóty – vždy kratší oblouk
+      if (vsAxis) ctx.setLineDash([5, 3]); else ctx.setLineDash([]);
       const aR = sr * 0.8;
       const screenStart = screenAngle(startA);
       const screenEnd = screenAngle(endA);
-      let ccwSweep = screenStart - screenEnd;
-      while (ccwSweep < 0) ccwSweep += 2 * Math.PI;
-      while (ccwSweep >= 2 * Math.PI) ccwSweep -= 2 * Math.PI;
-      const useCCW = ccwSweep <= Math.PI;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(scx, scy, aR, screenStart, screenEnd, useCCW);
-      ctx.stroke();
+      let midScreen, sweep;
+      if (obj.dimMidAng != null) {
+        // Kóta „od ramene k rameni" – oblouk vede přes uloženou osu (i reflexní)
+        midScreen = screenAngle(obj.dimMidAng);
+        const nrm = (a) => { a %= 2 * Math.PI; return a < 0 ? a + 2 * Math.PI : a; };
+        const dSE = nrm(screenEnd - screenStart);
+        const dSM = nrm(midScreen - screenStart);
+        const anticw = !(dSM <= dSE);   // směr tak, aby oblouk procházel osou
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(scx, scy, aR, screenStart, screenEnd, anticw);
+        ctx.stroke();
+        sweep = obj.dimAngle;
+      } else {
+        // Zpětná kompatibilita – vždy kratší oblouk
+        let ccwSweep = screenStart - screenEnd;
+        while (ccwSweep < 0) ccwSweep += 2 * Math.PI;
+        while (ccwSweep >= 2 * Math.PI) ccwSweep -= 2 * Math.PI;
+        const useCCW = ccwSweep <= Math.PI;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(scx, scy, aR, screenStart, screenEnd, useCCW);
+        ctx.stroke();
+        const actualSweep = useCCW ? ccwSweep : (2 * Math.PI - ccwSweep);
+        midScreen = useCCW ? screenStart - actualSweep / 2 : screenStart + actualSweep / 2;
+        sweep = obj.dimAngle || actualSweep;
+        if (sweep < 0) sweep += 2 * Math.PI;
+      }
+      if (vsAxis) ctx.setLineDash([]);   // šipky/text plnou čarou
       // Šipky na koncích oblouku
-      const arrA1x = scx + aR * Math.cos(screenStart);
-      const arrA1y = scy + aR * Math.sin(screenStart);
-      const arrA2x = scx + aR * Math.cos(screenEnd);
-      const arrA2y = scy + aR * Math.sin(screenEnd);
-      drawDimArrow(arrA1x, arrA1y, scx, scy);
-      drawDimArrow(arrA2x, arrA2y, scx, scy);
+      drawDimArrow(scx + aR * Math.cos(screenStart), scy + aR * Math.sin(screenStart), scx, scy);
+      drawDimArrow(scx + aR * Math.cos(screenEnd), scy + aR * Math.sin(screenEnd), scx, scy);
       // Text úhlu – uprostřed oblouku
-      const actualSweep = useCCW ? ccwSweep : (2 * Math.PI - ccwSweep);
-      const halfSweep = actualSweep / 2;
-      const midScreen = useCCW ? screenStart - halfSweep : screenStart + halfSweep;
       const labelX = scx + aR * Math.cos(midScreen);
       const labelY = scy + aR * Math.sin(midScreen);
-      let sweep = obj.dimAngle || actualSweep;
-      if (sweep < 0) sweep += 2 * Math.PI;
-      const labelText = `${(sweep * 180 / Math.PI).toFixed(1)}°`;
-      ctx.fillText(labelText, labelX, labelY - 4);
+      ctx.fillText(`${(sweep * 180 / Math.PI).toFixed(1)}°`, labelX, labelY - 4);
       ctx.textAlign = 'start';
       ctx.textBaseline = 'alphabetic';
       return;
@@ -1808,8 +1929,12 @@ export function drawLine(obj) {
     drawDimArrow(sx1, sy1, sx2, sy2);
     drawDimArrow(sx2, sy2, sx1, sy1);
 
-    // Text délky – rotovaný rovnoběžně s kótou, s detekcí kolizí
-    const len = Math.hypot(ox2 - ox1, oy2 - oy1);
+    // Text délky – rotovaný rovnoběžně s kótou, s detekcí kolizí.
+    // Vodorovná/svislá kóta měří průmět (rozměr v ose Z / X) = délka kótovací
+    // čáry; zarovnaná (aligned) měří skutečnou délku úsečky (zdrojové body).
+    const len = (obj.dimMode === 'horizontal' || obj.dimMode === 'vertical')
+      ? Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1)
+      : Math.hypot(ox2 - ox1, oy2 - oy1);
     const mx = (sx1 + sx2) / 2;
     const my = (sy1 + sy2) / 2;
     const labelText = len.toFixed(state.displayDecimals);

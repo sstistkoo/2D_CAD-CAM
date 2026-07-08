@@ -11,7 +11,7 @@ export { handleChamferClick, chamferFromSelection } from './chamferClick.js';
 export { handlePerpClick, perpFromSelection } from './perpClick.js';
 export { handleHorizontalClick, horizontalFromSelection } from './horizontalClick.js';
 export { handleParallelClick, parallelFromSelection } from './parallelClick.js';
-export { handleDimensionClick, dimensionFromSelection } from './dimensionClick.js';
+export { handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, finalizeAnglePlacement, clearDimPlacing } from './dimensionClick.js';
 export { handleChainDimensionClick, finishChainDimension, resetChainDimensionState } from './chainDimensionClick.js';
 export { handleSnapPointClick } from './snapPointClick.js';
 export { handleMoveClick } from './moveClick.js';

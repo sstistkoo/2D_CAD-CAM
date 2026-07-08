@@ -113,6 +113,7 @@ export function screenToWorld(sx, sy) {
  */
 export function snapPt(wx, wy) {
   let objX = null, objY = null, objD = Infinity;
+  state.mouse.onZAxis = false;
 
   // Snap k bodům objektů a průsečíkům – větší poloměr zachycení
   if (state.snapToPoints) {
@@ -210,12 +211,14 @@ export function snapPt(wx, wy) {
       }
     }
     // Snap k ose rotace soustruhu (Z-osa, Y=0) – čára je vizuální, ale snapuje jako hrana
+    let snappedToAxis = false;
     if (state.machineType !== 'karusel') {
       const distToAxis = Math.abs(wy);
       if (distToAxis < edgeThreshold && distToAxis < edgeD) {
         edgeD = distToAxis;
         edgeX = wx;
         edgeY = 0;
+        snappedToAxis = true;
       }
     }
     if (edgeX !== null) {
@@ -224,6 +227,7 @@ export function snapPt(wx, wy) {
       }
       state.mouse.snapped = true;
       state.mouse.snapType = 'edge';
+      state.mouse.onZAxis = snappedToAxis;
       return [edgeX, edgeY];
     }
   }

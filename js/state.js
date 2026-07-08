@@ -140,6 +140,10 @@ export function resetDrawingState() {
   state._extendLine = null;
   state._filletFirstLine = null;
   state._dimFirstLine = null;
+  state._dimSecondLine = null;
+  state._dimPlacing = false;
+  state._dimAnglePlacing = false;
+  state._dimAxisRef = null;
   state._chainDimCount = 0;
   // Generic tool cleanup (fillet/offset listeners etc.)
   if (state._toolCleanup) {

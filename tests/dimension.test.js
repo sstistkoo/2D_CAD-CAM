@@ -13,7 +13,7 @@ vi.mock('../js/bridge.js', () => ({
   bridge: {},
 }));
 
-import { addDimensionForObject, addAngleDimensionForLines } from '../js/dialogs/dimension.js';
+import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine } from '../js/dialogs/dimension.js';
 import { addObject } from '../js/objects.js';
 import { showToast } from '../js/state.js';
 
@@ -211,6 +211,174 @@ describe('addDimensionForObject', () => {
     });
     // Pouze 1 kóta – segment s nulovou délkou je přeskočen
     expect(addObject).toHaveBeenCalledOnce();
+  });
+});
+
+// ════════════════════════════════════════
+// ── computeLinearDimPlacement / addLinearDimForLine ──
+// ════════════════════════════════════════
+describe('computeLinearDimPlacement', () => {
+  // Šikmá úsečka dx=40, dy=30 (délka 50), střed (20,15)
+  const line = { id: 7, type: 'line', x1: 0, y1: 0, x2: 40, y2: 30 };
+
+  it('zarovnaná kóta (aligned) při odsazení kolmo k úsečce', () => {
+    // Kurzor ve směru normály od středu
+    const p = computeLinearDimPlacement(line, -10, 55);
+    expect(p.mode).toBe('aligned');
+    expect(p.len).toBeCloseTo(50, 5); // skutečná délka
+  });
+
+  it('vodorovná kóta (rozměr Z) při tažení nahoru', () => {
+    const p = computeLinearDimPlacement(line, 20, 100);
+    expect(p.mode).toBe('horizontal');
+    expect(p.len).toBeCloseTo(40, 5); // rozdíl ve vodorovné ose (Z)
+    // Kótovací čára je vodorovná v úrovni kurzoru
+    expect(p.y1).toBeCloseTo(100, 5);
+    expect(p.y2).toBeCloseTo(100, 5);
+    expect(p.x1).toBeCloseTo(0, 5);
+    expect(p.x2).toBeCloseTo(40, 5);
+  });
+
+  it('svislá kóta (rozměr X) při tažení do strany', () => {
+    const p = computeLinearDimPlacement(line, 100, 15);
+    expect(p.mode).toBe('vertical');
+    expect(p.len).toBeCloseTo(30, 5); // rozdíl ve svislé ose (X)
+    expect(p.x1).toBeCloseTo(100, 5);
+    expect(p.x2).toBeCloseTo(100, 5);
+    expect(p.y1).toBeCloseTo(0, 5);
+    expect(p.y2).toBeCloseTo(30, 5);
+  });
+});
+
+describe('addLinearDimForLine', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  const line = { id: 7, type: 'line', x1: 0, y1: 0, x2: 40, y2: 30 };
+
+  it('vytvoří vodorovnou kótu s dimMode a měřenou délkou v ose Z', () => {
+    addLinearDimForLine(line, 20, 100);
+    expect(addObject).toHaveBeenCalledOnce();
+    const arg = addObject.mock.calls[0][0];
+    expect(arg.isDimension).toBe(true);
+    expect(arg.dimType).toBe('linear');
+    expect(arg.dimMode).toBe('horizontal');
+    expect(arg.sourceObjId).toBe(7);
+    expect(arg.name).toContain('40.00');
+    // Zdrojové body zachovány pro odkazové čáry
+    expect(arg.dimSrcX1).toBe(0);
+    expect(arg.dimSrcX2).toBe(40);
+  });
+
+  it('vytvoří svislou kótu s dimMode a měřenou délkou v ose X', () => {
+    addLinearDimForLine(line, 100, 15);
+    const arg = addObject.mock.calls[0][0];
+    expect(arg.dimMode).toBe('vertical');
+    expect(arg.name).toContain('30.00');
+  });
+});
+
+// ════════════════════════════════════════
+// ── computeAngleDimPlacement / addAngleDimForPlacement (výběr sektoru) ──
+// ════════════════════════════════════════
+describe('computeAngleDimPlacement', () => {
+  // Dvě ramena z (0,0): vodorovné (0°) a šikmé 50° – přímý úhel 50°
+  const l1 = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+  const l2 = { id: 2, type: 'line', x1: 0, y1: 0, x2: 10, y2: Math.tan(50 * Math.PI / 180) * 10 };
+
+  it('kurzor uvnitř přímého úhlu měří 50°', () => {
+    // směr ~25° (uvnitř 0°–50°)
+    const p = computeAngleDimPlacement(l1, l2, Math.cos(25 * Math.PI / 180), Math.sin(25 * Math.PI / 180));
+    expect(p.sweep * 180 / Math.PI).toBeCloseTo(50, 4);
+    expect(p.reflex).toBe(false);
+  });
+
+  it('kurzor na vnější straně měří reflexních 310° (od ramene k rameni)', () => {
+    // směr ~205° (opačná strana než osa 25°)
+    const p = computeAngleDimPlacement(l1, l2, Math.cos(205 * Math.PI / 180), Math.sin(205 * Math.PI / 180));
+    expect(p.sweep * 180 / Math.PI).toBeCloseTo(310, 4);
+    expect(p.reflex).toBe(true);
+  });
+
+  it('vše mimo přímý úhel je reflexní (žádný doplňkový sektor)', () => {
+    // směr ~115° je už mimo klín 0–50 → reflex 310
+    const p = computeAngleDimPlacement(l1, l2, Math.cos(115 * Math.PI / 180), Math.sin(115 * Math.PI / 180));
+    expect(p.sweep * 180 / Math.PI).toBeCloseTo(310, 4);
+  });
+
+  it('poloměr odpovídá vzdálenosti kurzoru od průsečíku', () => {
+    const p = computeAngleDimPlacement(l1, l2, 30, 5);
+    expect(p.radius).toBeCloseTo(Math.hypot(30, 5), 4);
+    expect(p.cx).toBeCloseTo(0, 4);
+    expect(p.cy).toBeCloseTo(0, 4);
+  });
+
+  it('vrací null pro rovnoběžné úsečky', () => {
+    const a = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+    const b = { id: 2, type: 'line', x1: 0, y1: 5, x2: 10, y2: 5 };
+    expect(computeAngleDimPlacement(a, b, 5, 2)).toBeNull();
+  });
+});
+
+describe('addAngleDimForPlacement', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  const l1 = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+  const l2 = { id: 2, type: 'line', x1: 0, y1: 0, x2: 0, y2: 10 };
+
+  it('přímá strana → 90° s dimReflex=false a dimMidAng', () => {
+    // kurzor v 1. kvadrantu → přímý úhel 90°
+    addAngleDimForPlacement(l1, l2, 20, 20);
+    expect(addObject).toHaveBeenCalledOnce();
+    const arg = addObject.mock.calls[0][0];
+    expect(arg.dimType).toBe('angular');
+    expect(arg.dimAngle).toBeCloseTo(Math.PI / 2, 5);
+    expect(arg.name).toContain('∠90.0°');
+    expect(arg.dimReflex).toBe(false);
+    expect(arg.dimMidAng).not.toBeUndefined();
+    expect(arg.dimLine1Id).toBe(1);
+    expect(arg.dimLine2Id).toBe(2);
+  });
+
+  it('vnější strana → reflexních 270° (360−90) s dimReflex=true', () => {
+    // kurzor ve 3. kvadrantu → reflex
+    addAngleDimForPlacement(l1, l2, -20, -20);
+    const arg = addObject.mock.calls[0][0];
+    expect(arg.dimAngle * 180 / Math.PI).toBeCloseTo(270, 4);
+    expect(arg.dimReflex).toBe(true);
+    expect(arg.name).toContain('∠270.0°');
+  });
+
+  it('rovnoběžné úsečky nepřidají kótu', () => {
+    const b = { id: 3, type: 'line', x1: 0, y1: 5, x2: 10, y2: 5 };
+    addAngleDimForPlacement(l1, b, 5, 2);
+    expect(addObject).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildZAxisRefLine + polární úhel od osy Z', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('buildZAxisRefLine dá vodorovné rameno v průsečíku s osou Z', () => {
+    // úsečka protínající osu Z v x=10 (z (10,-5) do (10+5,5))
+    const line = { id: 1, type: 'line', x1: 10, y1: -5, x2: 15, y2: 5 };
+    const z = buildZAxisRefLine(line);
+    expect(z._zAxis).toBe(true);
+    expect(z.y1).toBe(0);
+    expect(z.y2).toBe(0);
+    expect(z.x1).toBeCloseTo(12.5, 4); // průsečík s Y=0
+  });
+
+  it('kóta polárního úhlu od osy Z: 45° úsečka → 45° s dimVsAxis', () => {
+    // úsečka pod 45° od osy Z, procházející počátkem
+    const line = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
+    const z = buildZAxisRefLine(line);
+    // kurzor v 1. kvadrantu (uvnitř přímého úhlu mezi Z+ a úsečkou)
+    addAngleDimForPlacement(line, z, 8, 3, { vsAxis: 'Z' });
+    expect(addObject).toHaveBeenCalledOnce();
+    const arg = addObject.mock.calls[0][0];
+    expect(arg.dimType).toBe('angular');
+    expect(arg.dimVsAxis).toBe('Z');
+    expect(arg.dimLine1Id).toBe(1);
+    expect(arg.dimLine2Id).toBeNull(); // osa Z není objekt
+    expect(arg.dimAngle * 180 / Math.PI).toBeCloseTo(45, 3);
   });
 });
 
