@@ -128,7 +128,7 @@ body {
     border-left: 1px solid var(--ctp-surface0);
   }
 
-  /* Topbar přes celou šířku vlevo od sidebaru */
+  /* Topbar plovoucí přes canvas – průhledné pozadí, tlačítka „nad" plátnem */
   #topbar {
     gap: 4px;
     padding: 3px 8px;
@@ -138,8 +138,18 @@ body {
     left: 0;
     right: 300px;
     z-index: 15;
-    background: var(--ctp-mantle);
-    border-bottom: 1px solid var(--ctp-surface0);
+    background: transparent;
+    border-bottom: none;
+    /* Prázdné mezery mezi tlačítky propouští kliknutí na canvas pod nimi */
+    pointer-events: none;
+  }
+  /* Klikací zůstávají jen samotné ovládací prvky toolbaru */
+  #topbar button,
+  #topbar select,
+  #topbar input,
+  #topbar label,
+  #topbar .sep {
+    pointer-events: auto;
   }
   #main {
     margin-right: 300px;
