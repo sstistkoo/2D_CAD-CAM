@@ -611,8 +611,8 @@ function renderObjects() {
   // ── Vazební značky (constraints) ──
   drawConstraintMarkers();
 
-  // Průsečíky (skrýt při číslování objektů)
-  if (state.showDimensions !== 'none' && !state.showObjectNumbers) {
+  // Průsečíky (skrýt při číslování objektů a v režimu jen kót)
+  if ((state.showDimensions === 'all' || state.showDimensions === 'intersections') && !state.showObjectNumbers) {
     state.intersections.forEach((pt) => {
       const [sx, sy] = worldToScreen(pt.x, pt.y);
       const isSelPt = state.selectedPoint != null

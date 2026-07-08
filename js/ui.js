@@ -2495,7 +2495,7 @@ export function updateDimsBtn() {
   btn.style.background = '';
   btn.style.color = '';
   btn.style.borderColor = '';
-  if (state.showDimensions === 'all') {
+  if (state.showDimensions === 'all' || state.showDimensions === 'dimensions') {
     btn.classList.add("active");
   } else if (state.showDimensions === 'intersections') {
     btn.style.background = COLORS.dimension;
@@ -2506,10 +2506,10 @@ export function updateDimsBtn() {
 }
 
 document.getElementById("btnDims")?.addEventListener("click", () => {
-  // Cyklus: all → intersections → none → all
-  const cycle = { all: 'intersections', intersections: 'none', none: 'all' };
+  // Cyklus: all → intersections → dimensions → none → all
+  const cycle = { all: 'intersections', intersections: 'dimensions', dimensions: 'none', none: 'all' };
   state.showDimensions = cycle[state.showDimensions] || 'all';
-  const labels = { all: 'Kóty: vše', intersections: 'Kóty: pouze průsečíky', none: 'Kóty: skryté' };
+  const labels = { all: 'Kóty: vše', intersections: 'Kóty: pouze průsečíky', dimensions: 'Kóty: pouze kóty', none: 'Kóty: skryté' };
   showToast(labels[state.showDimensions]);
   updateDimsBtn();
   document.getElementById("indDims")?.classList.toggle("active", state.showDimensions !== 'none');
@@ -4156,6 +4156,7 @@ function showSettingsDialog() {
         <div style="display:flex;gap:6px;margin-top:2px;flex-wrap:wrap">
           <button class="calc-btn" id="settDimsAll" style="${btnS}min-width:60px;${act(state.showDimensions === 'all')}">Vše</button>
           <button class="calc-btn" id="settDimsIntersect" style="${btnS}min-width:60px;${act(state.showDimensions === 'intersections')}">Průsečíky</button>
+          <button class="calc-btn" id="settDimsOnly" style="${btnS}min-width:60px;${act(state.showDimensions === 'dimensions')}">Kóty</button>
           <button class="calc-btn" id="settDimsNone" style="${btnS}min-width:60px;${act(state.showDimensions === 'none')}">Skryté</button>
         </div>
       </fieldset>
@@ -4500,15 +4501,15 @@ function showSettingsDialog() {
 
   // ── Kóty režim ──
   function updateDimsBtns() {
-    const modes = ['all', 'intersections', 'none'];
-    const ids = ['#settDimsAll', '#settDimsIntersect', '#settDimsNone'];
+    const modes = ['all', 'intersections', 'dimensions', 'none'];
+    const ids = ['#settDimsAll', '#settDimsIntersect', '#settDimsOnly', '#settDimsNone'];
     modes.forEach((m, i) => {
       const btn = overlay.querySelector(ids[i]);
       btn.style.cssText = `${btnBase}min-width:60px;${state.showDimensions === m ? activeStyle : inactiveStyle}`;
     });
   }
-  ['all', 'intersections', 'none'].forEach((mode, i) => {
-    const ids = ['#settDimsAll', '#settDimsIntersect', '#settDimsNone'];
+  ['all', 'intersections', 'dimensions', 'none'].forEach((mode, i) => {
+    const ids = ['#settDimsAll', '#settDimsIntersect', '#settDimsOnly', '#settDimsNone'];
     overlay.querySelector(ids[i]).addEventListener('click', () => {
       state.showDimensions = mode;
       updateDimsBtn();
@@ -4516,7 +4517,7 @@ function showSettingsDialog() {
       updateDimsBtns();
       renderAll();
       persistSettings();
-      const labels = { all: 'Kóty: vše', intersections: 'Kóty: pouze průsečíky', none: 'Kóty: skryté' };
+      const labels = { all: 'Kóty: vše', intersections: 'Kóty: pouze průsečíky', dimensions: 'Kóty: pouze kóty', none: 'Kóty: skryté' };
       showToast(labels[mode]);
     });
   });

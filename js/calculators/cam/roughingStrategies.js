@@ -497,14 +497,48 @@ export function genLongPasses(ctx) {
     return { intervals, firstOpen };
   };
 
+  // ── Regiony (opt-in, jen odlitek) ──────────────────────────────────────
+  // Polotovar odlitku má „výstupky" (bosses) oddělené „údolími", kde se
+  // povrch blíží kontuře. Bez regionů jede sweep po hloubkách přes CELÝ
+  // Z-rozsah → mělký průchod se táhne po kontuře napříč dílem (uživatel:
+  // „přejíždí po kontuře"). S regiony se každý výstupek vyhrubuje shora
+  // dolů SAMOSTATNĚ (Z-okno regionu), mezi regiony rychloposuv nad polotovar.
+  // Split = střed údolí (lokální minimum X mezi dvěma výstupky).
+  const computeRegions = () => {
+    const FULL = [{ zHi: Infinity, zLo: -Infinity }];
+    if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL;
+    const outer = stockWorldPoints.filter(p => p.xReal > 1).map(p => ({ x: p.xReal, z: p.zReal }));
+    if (outer.length < 4) return FULL;
+    const splits = [];
+    for (let i = 1; i < outer.length - 1; i++) {
+      const prev = outer[i - 1].x, cur = outer[i].x;
+      if (!(cur < prev - 0.3)) continue;          // sem musí X klesnout (vjezd do údolí)
+      let j = i;                                   // konec plochého dna údolí
+      while (j + 1 < outer.length && Math.abs(outer[j + 1].x - cur) < 0.3) j++;
+      const after = j + 1 < outer.length ? outer[j + 1].x : cur;
+      if (after > cur + 0.3) splits.push((outer[i].z + outer[j].z) / 2);  // za údolím zas výstupek
+      i = j;
+    }
+    if (splits.length === 0) return FULL;
+    splits.sort((a, b) => b - a);                  // shora (max Z) dolů
+    const regions = [];
+    let hi = Infinity;
+    for (const s of splits) { regions.push({ zHi: hi, zLo: s }); hi = s; }
+    regions.push({ zHi: hi, zLo: -Infinity });
+    return regions;
+  };
+  const _regions = computeRegions();
+
+  for (const _region of _regions) {
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
     if (!sz) continue;
 
-    // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval.
-    const effZMax = machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax;
-    const effZMin = machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin;
+    // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval;
+    // + Z-okno regionu (region roughing).
+    const effZMax = Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, _region.zHi);
+    const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, _region.zLo);
     if (effZMax - effZMin < 0.1) continue;
 
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
@@ -836,6 +870,7 @@ export function genLongPasses(ctx) {
       return;
     });
   }
+  } // konec smyčky regionů
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)

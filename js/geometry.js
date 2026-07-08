@@ -116,7 +116,8 @@ export function findIntersectionAt(wx, wy) {
       if (d < t && d < bestDist) { bestDist = d; best = p; }
     }
   }
-  // Průsečíky (bonus – při stejné vzdálenosti vyhrávají)
+  // Průsečíky (bonus – při stejné vzdálenosti vyhrávají).
+  // Snap funguje i v režimu 'dimensions' (průsečíky skryté, ale lze na ně kótovat).
   if (state.showDimensions !== 'none') {
     for (const pt of state.intersections) {
       const d = Math.hypot(pt.x - wx, pt.y - wy);

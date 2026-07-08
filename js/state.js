@@ -55,7 +55,7 @@ export const state = {
   mouse: { x: 0, y: 0, rawX: 0, rawY: 0, sx: 0, sy: 0, snapped: false, snapType: '' },
   intersections: [],
   nextId: 1,
-  showDimensions: 'all',  // 'all' | 'intersections' | 'none'
+  showDimensions: 'all',  // 'all' | 'intersections' | 'dimensions' | 'none'
   showObjectNumbers: false, // zobrazit čísla objektů na výkrese
   showIntersectionNumbers: false, // zobrazit čísla průsečíků na výkrese
   // Kotvení (anchor) – zafixované snap body

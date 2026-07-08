@@ -553,7 +553,7 @@ document.addEventListener("keydown", (e) => {
     showToast(state.snapToPoints ? "Snap k bodům: ON" : "Snap k bodům: OFF");
   }
   if (e.key.toLowerCase() === "d") {
-    const cycle = { all: 'intersections', intersections: 'none', none: 'all' };
+    const cycle = { all: 'intersections', intersections: 'dimensions', dimensions: 'none', none: 'all' };
     state.showDimensions = cycle[state.showDimensions] || 'all';
     updateDimsBtn();
     renderAll();

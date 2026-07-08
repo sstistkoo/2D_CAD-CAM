@@ -2867,6 +2867,11 @@ function _defaultCamParams() {
     noStepRoughing: false,
     // Stejné chování i pro čelní (X) hrubování.
     noStepRoughingFace: false,
+    // Hrubovat po regionech (jen odlitek): každý výstupek polotovaru
+    // (mezi „údolími", kde se polotovar blíží kontuře) se vyhrubuje shora
+    // dolů SAMOSTATNĚ, mezi regiony rychloposuv nad polotovar. false =
+    // původní globální sweep po hloubkách přes celý díl.
+    regionRoughing: false,
     // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
     // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
     rapidClearance: 1.0
@@ -7740,6 +7745,12 @@ export function openCamSimulator(initialContour, initialGCode) {
           <span>Dobrat naráz</span>
         </label>` : ''}
       </div>`;
+      if (prms.stockMode === 'casting') {
+        html += `<div class="cam-sim-checkbox-row" data-tooltip="Jen odlitek: každý výstupek polotovaru (mezi „údolími", kde se povrch blíží kontuře) se vyhrubuje shora dolů SAMOSTATNĚ; mezi regiony rychloposuv nad polotovar. Nástroj nepřejíždí po kontuře napříč celým dílem. Vypnuto = průchody po hloubkách přes celý díl.">
+          <input type="checkbox" id="cam-sim-region" ${prms.regionRoughing ? 'checked' : ''}>
+          <span>Hrubovat po regionech</span>
+        </div>`;
+      }
       const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
       const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
       const rawPlunge = prms.toolShape === 'polygon'
@@ -8159,6 +8170,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; fullUpdate(); });
     const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');
     if (noStepFaceCb) noStepFaceCb.addEventListener('change', () => { S.params.noStepRoughingFace = noStepFaceCb.checked; fullUpdate(); });
+    const regionCb = tabBody.querySelector('#cam-sim-region');
+    if (regionCb) regionCb.addEventListener('change', () => {
+      S.params.regionRoughing = regionCb.checked;
+      // Strategický přepínač → přegenerovat dráhy hned (editor + simulace),
+      // ne jen překreslit náhled pasů (jinak by editor držel starý G-kód).
+      _regenGCode();
+      showToast(regionCb.checked ? 'Hrubování po regionech zapnuto' : 'Hrubování po regionech vypnuto');
+    });
     const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
     if (plungeAutoBtn) plungeAutoBtn.addEventListener('click', () => {
       S.params.entryAngleAuto = !S.params.entryAngleAuto;
