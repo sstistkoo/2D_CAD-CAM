@@ -1178,8 +1178,8 @@ document.getElementById("btnCncEdit").addEventListener("click", () => {
   if (!code) { runCncExport(); code = document.getElementById("cncOutput").value; }
   openCncEditor(code);
 });
-document.getElementById("btnCncToCam").addEventListener("click", () => {
-  const code = document.getElementById("cncOutput").value;
+/** Naparsuje CNC kód a vykreslí ho jako objekty na canvas (nahradí konturu). */
+function renderCncCodeToCanvas(code) {
   if (!code) { showToast("CNC kód je prázdný"); return; }
   try {
     const objs = parseGcodeToObjects(code);
@@ -1196,8 +1196,12 @@ document.getElementById("btnCncToCam").addEventListener("click", () => {
   } catch (e) {
     showToast("Chyba při parsování kódu: " + e.message);
   }
+}
+document.getElementById("btnCncToCam").addEventListener("click", () => {
+  renderCncCodeToCanvas(document.getElementById("cncOutput").value);
 });
 bridge.runCncExport = runCncExport;
+bridge.renderCncCodeToCanvas = renderCncCodeToCanvas;
 
 // Seřadit skupinu objektů (kontura / polotovar) podle dráhy a přečíslovat panel
 // OBJEKTY i CNC kód. Řadí se NA MÍSTĚ — objekty skupiny zůstanou ve svých pozicích

@@ -439,6 +439,24 @@ function getControlSystem() {
   return 'sinumerik';
 }
 
+// Sražení a zaoblení hrany se v jednotlivých řídicích systémech zapisují
+// odlišnou syntaxí: Sinumerik CHF=/RND= jako přiřazení hodnoty, Fanuc přímo
+// písmenem C/R za koncovými souřadnicemi bloku, Heidenhain vlastním
+// blokem CHF <hodnota> / RND R<hodnota>.
+function getChamferPrefix() {
+  const ctrl = getControlSystem();
+  if (ctrl === 'fanuc') return 'C';
+  if (ctrl === 'heidenhain') return 'CHF ';
+  return 'CHF=';
+}
+
+function getRoundPrefix() {
+  const ctrl = getControlSystem();
+  if (ctrl === 'fanuc') return 'R';
+  if (ctrl === 'heidenhain') return 'RND R';
+  return 'RND=';
+}
+
 function getControlSystemBarText() {
   const ctrl = getControlSystem();
   const names = { sinumerik: 'SINUMERIK 840D sl', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
@@ -462,7 +480,7 @@ function buildEditorHTML() {
       <button class="cne-tb-btn cne-hide-m" data-act="download" title="Stáhnout soubor">⬇</button>
       <button class="cne-tb-btn cne-hide-m" data-act="import" title="Import balíčku">📂</button>
       <button class="cne-tb-btn cne-hide-m" data-act="export" title="Export balíčku">📦</button>
-      <button class="cne-tb-btn cne-hide-m" data-act="renum" title="Přečíslovat N-bloky">🔢</button>
+      <button class="cne-tb-btn cne-hide-m" data-act="renum" title="Přečíslovat N-bloky">N</button>
       <button class="cne-tb-btn cne-conv cne-hide-m" data-act="convMode" data-el="convModeBtn" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
       <button class="cne-tb-btn cne-hide-m" data-act="header" title="Generovat hlavičku">📝</button>
       <button class="cne-tb-btn cne-status" data-act="validate" data-el="statusBtn" title="Validace">●</button>
@@ -533,8 +551,8 @@ function buildEditorHTML() {
     <button class="cne-qb gray" data-ins="=" title="Přiřazení hodnoty">=</button>
     <button class="cne-qb accent" data-ins="G0 " title="G0 – Rychloposuv">G0</button>
     <button class="cne-qb accent" data-ins="G1 " title="G1 – Lineární interpolace">G1</button>
-    <button class="cne-qb accent" data-ins="M30" title="M30 – Konec programu">M30</button>
-    <button class="cne-qb accent" data-ins="M17" title="M17 – Konec podprogramu">M17</button>
+    <button class="cne-qb accent" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
+    <button class="cne-qb accent" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
 
     <button class="cne-qb green" data-ins="\\n" title="Nový řádek">↵</button>
     <button class="cne-qb red" data-inp="LIMS=" title="LIMS – Omezení otáček">LIMS</button>
@@ -1540,6 +1558,8 @@ export function openCamEditor(initialCode, jumpLine) {
           openCamSimulator(undefined, code);
           break;
         }
+        case 'chamfer':   openNumpad(getChamferPrefix()); break;
+        case 'round':     openNumpad(getRoundPrefix()); break;
         case 'numCancel': numModal.style.display = 'none'; break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
