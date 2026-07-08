@@ -2246,6 +2246,13 @@ if (btnAllowance) {
 // ── Toolbar ──
 document.querySelectorAll("[data-tool]").forEach((btn) => {
   btn.addEventListener("click", () => {
+    // Opětovný klik na již aktivní (modální) nástroj → deaktivovat, zpět na Výběr.
+    // Netýká se Výběru (má vlastní chování) ani dialogových/akčních tlačítek,
+    // protože ta nenechávají state.tool nastavený na svou hodnotu.
+    if (btn.dataset.tool === state.tool && state.tool !== 'select') {
+      setTool('select');
+      return;
+    }
     // Deaktivovat všechna tool-tlačítka – setTool() nebo bridge funkce je znovu aktivují
     document.querySelectorAll("[data-tool]").forEach(b => b.classList.remove("active"));
     // Měření: pokud je výběr → okamžitě změřit
