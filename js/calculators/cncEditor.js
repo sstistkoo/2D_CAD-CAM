@@ -561,8 +561,12 @@ function convertCornersToPaths(code) {
       const cx = res.arc.cx, cz = res.arc.cy, r = res.arc.r;
       // Směr G2 (CW) / G3 (CCW) dopočítaný z reálné geometrie oblouku
       // (nespoléhá na startAngle/endAngle – ty po interní normalizaci ve
-      // filletTwoLines nemusí odpovídat pořadí tp1→tp2).
-      const cross = (tp1.x - cx) * (tp2.z - cz) - (tp1.z - cz) * (tp2.x - cx);
+      // filletTwoLines nemusí odpovídat pořadí tp1→tp2). G3/ccw je (jak ho
+      // čte parseGcodeToObjects i vykresluje drawArc) definován ve SKUTEČNÉM
+      // světovém (X,Z) systému, kde světové X = G-kód Z pole a světové Y =
+      // G-kód X pole (soustružnická konvence) – proto se v cross productu
+      // musí prohodit .x/.z oproti tomu, jak jsou pojmenované v G-kódu.
+      const cross = (tp1.z - cz) * (tp2.x - cx) - (tp1.x - cx) * (tp2.z - cz);
       const gWord = cross > 0 ? 'G3' : 'G2';
       connectorLine = `${gWord} X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)} R${r.toFixed(3)}`;
     } else {
@@ -820,6 +824,7 @@ export function openCncEditor(initialCode) {
   let tSave      = null;
   let rafHL      = null;
   let inputPrefix = '';
+  let numTargetSel = null;          // pozice kurzoru v editoru zachycená při otevření numpadu
   const parser   = new CNCParser();
   let coordMode = 'abs';            // aktuální režim souřadnic: 'abs' (G90) / 'inc' (G91)
   let codeBeforeRenum = '';
@@ -1066,8 +1071,29 @@ export function openCncEditor(initialCode) {
     }
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
-    editor.value = v.substring(0, s) + actual + v.substring(e);
-    editor.selectionStart = editor.selectionEnd = s + actual.length;
+    // Nastavení .value textarey samo o sobě resetuje scrollTop/scrollLeft
+    // na 0 (prohlížeč to bere jako úplně nový obsah) – bez tohoto uložení
+    // a obnovení by po každém klepnutí na spodní klávesnici pohled skočil
+    // na začátek souboru, i když kurzor zůstal správně na místě.
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    // Automatická mezera před vkládaným tokenem, pokud znak před kurzorem
+    // není mezera/zalomení řádku – umožní psát tlačítky v kuse bez nutnosti
+    // ručně mezi nimi klikat na "␣". Vynechá se pro pokračování stejného
+    // tokenu (";" komentář, "=" přiřazení, samotnou mezeru/nový řádek).
+    const prevChar = s > 0 ? v[s - 1] : '';
+    const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n';
+    const insert = (needsSpace ? ' ' : '') + actual;
+    editor.value = v.substring(0, s) + insert + v.substring(e);
+    editor.selectionStart = editor.selectionEnd = s + insert.length;
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+    // Tlačítka uvnitř numpad modalu (číslice, OK) na rozdíl od quickbaru
+    // nemají mousedown-preventDefault, takže po jejich použití editor
+    // ztratil focus – na nefokusovaném textarea se selectionStart po čase
+    // (další DOM změna) přestane spolehlivě držet, což při druhém
+    // vkládání za sebou (např. RND=5 pak Z5) způsobovalo skok na začátek.
+    // Vrácením focusu se stav ustálí pro další čtení.
+    editor.focus({ preventScroll: true });
     onInput();
   }
 
@@ -1086,6 +1112,7 @@ export function openCncEditor(initialCode) {
     }
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
     if (s !== e) {
       editor.value = v.substring(0, s) + v.substring(e);
       editor.selectionStart = editor.selectionEnd = s;
@@ -1093,6 +1120,9 @@ export function openCncEditor(initialCode) {
       editor.value = v.substring(0, s - 1) + v.substring(s);
       editor.selectionStart = editor.selectionEnd = s - 1;
     }
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
     onInput();
   }
 
@@ -1110,14 +1140,27 @@ export function openCncEditor(initialCode) {
     for (const m of matches) { const nn = parseInt(m[1]); if (nn > maxN) maxN = nn; }
     const nextN = maxN > 0 ? maxN + step : step;
     const prefix = 'N' + nextN + ' ';
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
     editor.value = v.substring(0, lineStart) + prefix + v.substring(lineStart);
     editor.selectionStart = editor.selectionEnd = lineStart + prefix.length;
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
     onInput();
   }
 
   // ── Numpad ─────────────────────────────────────────────────
   function openNumpad(prefix) {
     inputPrefix = prefix;
+    // Kurzor v editoru zachytíme HNED při otevření numpadu, ne až při
+    // potvrzení – kliknutí na číslice/OK uvnitř modalu (na rozdíl od
+    // quickbaru) nemá mousedown-preventDefault, takže editor při nich
+    // ztrácí focus a prohlížeč mu mezitím může selectionStart resetovat
+    // na 0. Vložení pak vždy použije tuhle uloženou pozici, ne aktuální
+    // (potenciálně vynulovanou) editor.selectionStart.
+    numTargetSel = activeTarget === editor
+      ? { start: editor.selectionStart, end: editor.selectionEnd }
+      : null;
     numTitle.textContent = prefix ? `Zadejte ${prefix}` : 'Zadejte číslo';
     numInput.value = '';
     buildHelpers(prefix);
@@ -1134,7 +1177,10 @@ export function openCncEditor(initialCode) {
 
   function confirmNumpad() {
     const v = numInput.value.trim();
-    if (v) insertText(inputPrefix + v + ' ');
+    if (v) {
+      if (numTargetSel) { editor.selectionStart = numTargetSel.start; editor.selectionEnd = numTargetSel.end; }
+      insertText(inputPrefix + v + ' ');
+    }
     numModal.style.display = 'none';
   }
 

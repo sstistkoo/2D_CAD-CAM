@@ -5,6 +5,8 @@
 
 import { makeOverlay } from '../dialogFactory.js';
 import { openCamSimulator } from './camSimulator.js';
+import { showToast } from '../state.js';
+import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cam-editor-data';
@@ -457,6 +459,177 @@ function getRoundPrefix() {
   return 'RND=';
 }
 
+// Regex pro rozpoznání markeru sražení/zaoblení v textu kódu, dle aktuálního
+// řídicího systému (musí odpovídat tomu, co vkládají tlačítka Sraž./Zaobl.
+// přes getChamferPrefix()/getRoundPrefix()).
+function getCornerMarkerRegex(kind) {
+  const ctrl = getControlSystem();
+  if (kind === 'chamfer') {
+    if (ctrl === 'fanuc') return /\bC([\d.]+)\b/i;
+    if (ctrl === 'heidenhain') return /\bCHF\s+([\d.]+)/i;
+    return /\bCH[FR]\s*=\s*([\d.]+)/i; // Sinumerik: CHF= nebo CHR=
+  }
+  if (ctrl === 'fanuc') return /\bR([\d.]+)\b/i;
+  if (ctrl === 'heidenhain') return /\bRND\s+R([\d.]+)/i;
+  return /\bRND\s*=\s*([\d.]+)/i;
+}
+
+// Přepíše (nebo doplní) X/Z na řádku na nové souřadnice; volitelně z řádku
+// nejprve odstraní text markeru sražení/zaoblení (pokud byl na stejném
+// řádku jako pohyb). Ostatní obsah řádku (N-blok, G-kód, komentář) zachová.
+function rewriteLineXZ(lineText, newX, newZ, stripRe) {
+  const ci = lineText.indexOf(';');
+  let code = ci !== -1 ? lineText.slice(0, ci) : lineText;
+  const comment = ci !== -1 ? lineText.slice(ci) : '';
+
+  if (stripRe) code = code.replace(stripRe, '');
+
+  const xStr = 'X' + newX.toFixed(3);
+  const zStr = 'Z' + newZ.toFixed(3);
+  code = /\bX\s*-?[\d.]+/i.test(code) ? code.replace(/\bX\s*-?[\d.]+/i, xStr) : (code.replace(/\s+$/, '') + ' ' + xStr);
+  code = /\bZ\s*-?[\d.]+/i.test(code) ? code.replace(/\bZ\s*-?[\d.]+/i, zStr) : (code.replace(/\s+$/, '') + ' ' + zStr);
+
+  return code.replace(/[ \t]+/g, ' ').replace(/\s+$/, '') + comment;
+}
+
+// ── Sražení/zaoblení → skutečná G-kód dráha ─────────────────────
+// Najde markery CHF=/RND= (resp. C/R, CHF/RND R dle řídicího systému)
+// vložené tlačítky Sraž./Zaobl. a nahradí je reálnou drahou: zkrácenou
+// úsečkou před rohem + G2/G3 obloukem (zaoblení) nebo G1 spojovací
+// úsečkou (sražení). Používá stejnou geometrii jako CAD nástroj Zaob./Zkos.
+// (filletTwoLines/chamferTwoLines z geometry.js).
+function convertCornersToPaths(code) {
+  const lines = code.split('\n');
+  const n = lines.length;
+  const ctrl = getControlSystem();
+  const chamferRe = getCornerMarkerRegex('chamfer');
+  const roundRe   = getCornerMarkerRegex('round');
+
+  // ── Pass 1: modální sledování polohy + seznam pohybových bodů a markerů ──
+  const points = []; // { lineIdx, x, z, isFeed }
+  const markers = []; // { lineIdx, kind, value, hasOwnXZ, pointIdx }
+  let x = null, z = null, mode = 90;
+
+  for (let i = 0; i < n; i++) {
+    const raw = lines[i];
+    const ci = raw.indexOf(';');
+    const clean = (ci !== -1 ? raw.slice(0, ci) : raw).trim().toUpperCase();
+    if (!clean) continue;
+
+    if (/\bG90\b/.test(clean)) mode = 90;
+    if (/\bG91\b/.test(clean)) mode = 91;
+
+    const isFeed    = /\bG0?1\b/.test(clean);
+    const isRapid   = /\bG0+\b/.test(clean) && !isFeed;
+    const isArcMove = /\bG0?[23]\b/.test(clean);
+
+    const xm = clean.match(/\bX\s*(-?[\d.]+)/);
+    const zm = clean.match(/\bZ\s*(-?[\d.]+)/);
+    const hasXZ = !!(xm || zm);
+
+    let curX = x, curZ = z;
+    if (hasXZ) {
+      const xv = xm ? parseFloat(xm[1]) : null;
+      const zv = zm ? parseFloat(zm[1]) : null;
+      curX = xv === null ? x : (mode === 91 ? (x ?? 0) + xv : xv);
+      curZ = zv === null ? z : (mode === 91 ? (z ?? 0) + zv : zv);
+    }
+
+    // Fanuc: holé C/R jsou nejednoznačné na řádku s G2/G3 (tam R = poloměr
+    // oblouku) – takové řádky pro marker přeskočíme.
+    const skipMarkerOnLine = ctrl === 'fanuc' && isArcMove;
+    const cm = !skipMarkerOnLine ? clean.match(chamferRe) : null;
+    const rm = !skipMarkerOnLine ? clean.match(roundRe)   : null;
+    const markerKind = cm ? 'chamfer' : (rm ? 'round' : null);
+    const markerVal  = cm ? parseFloat(cm[1]) : (rm ? parseFloat(rm[1]) : null);
+
+    if (hasXZ && (isFeed || isRapid)) {
+      x = curX; z = curZ;
+      const pointIdx = points.length;
+      points.push({ lineIdx: i, x, z, isFeed });
+      if (markerKind) markers.push({ lineIdx: i, kind: markerKind, value: markerVal, hasOwnXZ: true, pointIdx });
+    } else if (markerKind) {
+      markers.push({ lineIdx: i, kind: markerKind, value: markerVal, hasOwnXZ: false, pointIdx: points.length - 1 });
+    }
+  }
+
+  if (!markers.length) return { code, converted: 0, skipped: 0 };
+
+  // ── Pass 2: pro každý marker spočti geometrii korekce rohu ──
+  const lineEdits = new Map();  // lineIdx -> nový text řádku (null = smazat)
+  const insertions = new Map(); // lineIdx -> pole řádků k vložení ZA tento řádek
+  let converted = 0, skipped = 0;
+
+  for (const mk of markers) {
+    const cornerPtIdx = mk.pointIdx;
+    const beforePtIdx = cornerPtIdx - 1;
+    const afterPtIdx  = cornerPtIdx + 1;
+    if (cornerPtIdx < 0 || beforePtIdx < 0 || afterPtIdx >= points.length) { skipped++; continue; }
+
+    const beforePt = points[beforePtIdx];
+    const cornerPt = points[cornerPtIdx];
+    const afterPt  = points[afterPtIdx];
+    if (!cornerPt.isFeed || !afterPt.isFeed) { skipped++; continue; } // jen mezi G1 pohyby
+
+    const lineA = { x1: beforePt.x, y1: beforePt.z, x2: cornerPt.x, y2: cornerPt.z };
+    const lineB = { x1: cornerPt.x, y1: cornerPt.z, x2: afterPt.x,  y2: afterPt.z };
+
+    let tp1, tp2, connectorLine;
+    if (mk.kind === 'round') {
+      const res = filletTwoLines(lineA, lineB, mk.value);
+      if (!res.ok) { skipped++; continue; }
+      tp1 = { x: lineA.x2, z: lineA.y2 };
+      tp2 = { x: lineB.x1, z: lineB.y1 };
+      const cx = res.arc.cx, cz = res.arc.cy, r = res.arc.r;
+      // Směr G2 (CW) / G3 (CCW) dopočítaný z reálné geometrie oblouku
+      // (nespoléhá na startAngle/endAngle – ty po interní normalizaci ve
+      // filletTwoLines nemusí odpovídat pořadí tp1→tp2). G3/ccw je (jak ho
+      // čte parseGcodeToObjects i vykresluje drawArc) definován ve SKUTEČNÉM
+      // světovém (X,Z) systému, kde světové X = G-kód Z pole a světové Y =
+      // G-kód X pole (soustružnická konvence) – proto se v cross productu
+      // musí prohodit .x/.z oproti tomu, jak jsou pojmenované v G-kódu.
+      const cross = (tp1.z - cz) * (tp2.x - cx) - (tp1.x - cx) * (tp2.z - cz);
+      const gWord = cross > 0 ? 'G3' : 'G2';
+      connectorLine = `${gWord} X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)} R${r.toFixed(3)}`;
+    } else {
+      const res = chamferTwoLines(lineA, lineB, mk.value, mk.value);
+      if (!res.ok) { skipped++; continue; }
+      tp1 = { x: lineA.x2, z: lineA.y2 };
+      tp2 = { x: lineB.x1, z: lineB.y1 };
+      connectorLine = `G1 X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)}`;
+    }
+
+    const cornerLineIdx = cornerPt.lineIdx;
+    const stripRe = mk.hasOwnXZ ? (mk.kind === 'chamfer' ? chamferRe : roundRe) : null;
+    lineEdits.set(cornerLineIdx, rewriteLineXZ(lines[cornerLineIdx], tp1.x, tp1.z, stripRe));
+
+    const ins = insertions.get(cornerLineIdx) || [];
+    ins.push(connectorLine);
+    insertions.set(cornerLineIdx, ins);
+
+    // Samostatný řádek jen s markerem (bez vlastních X/Z) se po převodu smaže.
+    if (!mk.hasOwnXZ && mk.lineIdx !== cornerLineIdx) lineEdits.set(mk.lineIdx, null);
+
+    converted++;
+  }
+
+  if (!converted) return { code, converted: 0, skipped };
+
+  // ── Pass 3: sestav výsledný kód ──
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (lineEdits.has(i)) {
+      const v = lineEdits.get(i);
+      if (v !== null) out.push(v);
+    } else {
+      out.push(lines[i]);
+    }
+    if (insertions.has(i)) out.push(...insertions.get(i));
+  }
+
+  return { code: out.join('\n'), converted, skipped };
+}
+
 function getControlSystemBarText() {
   const ctrl = getControlSystem();
   const names = { sinumerik: 'SINUMERIK 840D sl', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
@@ -483,6 +656,7 @@ function buildEditorHTML() {
       <button class="cne-tb-btn cne-hide-m" data-act="renum" title="Přečíslovat N-bloky">N</button>
       <button class="cne-tb-btn cne-conv cne-hide-m" data-act="convMode" data-el="convModeBtn" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
       <button class="cne-tb-btn cne-hide-m" data-act="header" title="Generovat hlavičku">📝</button>
+      <button class="cne-tb-btn cne-hide-m" data-act="cornersToPath" title="Převést sražení/zaoblení (CHF/RND) na skutečnou dráhu G1/G2/G3">⌒</button>
       <button class="cne-tb-btn cne-status" data-act="validate" data-el="statusBtn" title="Validace">●</button>
       <button class="cne-tb-btn" data-act="calc" title="Kalkulačka">🔢</button>
       <button class="cne-tb-btn cne-hide-m" data-act="settings" title="Nastavení parseru">⚙</button>
@@ -578,6 +752,7 @@ function buildEditorHTML() {
         <button class="cne-menu-item" data-act="convMode"><span class="cne-mi-icon sn" data-el="convModeMenuIcon">G90</span><span class="cne-mi-text"><b>Přepnout G90 / G91</b><small>Absolutní ↔ přírůstkové (nájezd v G90)</small></span></button>
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="header"><span class="cne-mi-icon">📝</span><span class="cne-mi-text"><b>Generovat hlavičku</b><small>Vložit hlavičku programu (M4x, T, G54…)</small></span></button>
+        <button class="cne-menu-item" data-act="cornersToPath"><span class="cne-mi-icon">⌒</span><span class="cne-mi-text"><b>Sražení/zaoblení → dráha</b><small>Převede CHF/RND markery na G1/G2/G3</small></span></button>
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="cam"><span class="cne-mi-icon">🔄</span><span class="cne-mi-text"><b>CAM Simulátor</b><small>Načíst konturu do CAM simulátoru</small></span></button>
         <button class="cne-menu-item" data-act="calc"><span class="cne-mi-icon">🔢</span><span class="cne-mi-text"><b>Kalkulačka</b><small>Otevřít kalkulačku</small></span></button>
@@ -671,6 +846,7 @@ export function openCamEditor(initialCode, jumpLine) {
   let tSave      = null;
   let rafHL      = null;
   let inputPrefix = '';
+  let numTargetSel = null;          // pozice kurzoru v editoru zachycená při otevření numpadu
   const parser   = new CNCParser();
   let coordMode = 'abs';            // aktuální režim souřadnic: 'abs' (G90) / 'inc' (G91)
   let codeBeforeRenum = '';
@@ -917,8 +1093,29 @@ export function openCamEditor(initialCode, jumpLine) {
     }
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
-    editor.value = v.substring(0, s) + actual + v.substring(e);
-    editor.selectionStart = editor.selectionEnd = s + actual.length;
+    // Nastavení .value textarey samo o sobě resetuje scrollTop/scrollLeft
+    // na 0 (prohlížeč to bere jako úplně nový obsah) – bez tohoto uložení
+    // a obnovení by po každém klepnutí na spodní klávesnici pohled skočil
+    // na začátek souboru, i když kurzor zůstal správně na místě.
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    // Automatická mezera před vkládaným tokenem, pokud znak před kurzorem
+    // není mezera/zalomení řádku – umožní psát tlačítky v kuse bez nutnosti
+    // ručně mezi nimi klikat na "␣". Vynechá se pro pokračování stejného
+    // tokenu (";" komentář, "=" přiřazení, samotnou mezeru/nový řádek).
+    const prevChar = s > 0 ? v[s - 1] : '';
+    const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n';
+    const insert = (needsSpace ? ' ' : '') + actual;
+    editor.value = v.substring(0, s) + insert + v.substring(e);
+    editor.selectionStart = editor.selectionEnd = s + insert.length;
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+    // Tlačítka uvnitř numpad modalu (číslice, OK) na rozdíl od quickbaru
+    // nemají mousedown-preventDefault, takže po jejich použití editor
+    // ztratil focus – na nefokusovaném textarea se selectionStart po čase
+    // (další DOM změna) přestane spolehlivě držet, což při druhém
+    // vkládání za sebou (např. RND=5 pak Z5) způsobovalo skok na začátek.
+    // Vrácením focusu se stav ustálí pro další čtení.
+    editor.focus({ preventScroll: true });
     onInput();
   }
 
@@ -937,6 +1134,7 @@ export function openCamEditor(initialCode, jumpLine) {
     }
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
     if (s !== e) {
       editor.value = v.substring(0, s) + v.substring(e);
       editor.selectionStart = editor.selectionEnd = s;
@@ -944,6 +1142,9 @@ export function openCamEditor(initialCode, jumpLine) {
       editor.value = v.substring(0, s - 1) + v.substring(s);
       editor.selectionStart = editor.selectionEnd = s - 1;
     }
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
     onInput();
   }
 
@@ -961,14 +1162,27 @@ export function openCamEditor(initialCode, jumpLine) {
     for (const m of matches) { const nn = parseInt(m[1]); if (nn > maxN) maxN = nn; }
     const nextN = maxN > 0 ? maxN + step : step;
     const prefix = 'N' + nextN + ' ';
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
     editor.value = v.substring(0, lineStart) + prefix + v.substring(lineStart);
     editor.selectionStart = editor.selectionEnd = lineStart + prefix.length;
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
     onInput();
   }
 
   // ── Numpad ─────────────────────────────────────────────────
   function openNumpad(prefix) {
     inputPrefix = prefix;
+    // Kurzor v editoru zachytíme HNED při otevření numpadu, ne až při
+    // potvrzení – kliknutí na číslice/OK uvnitř modalu (na rozdíl od
+    // quickbaru) nemá mousedown-preventDefault, takže editor při nich
+    // ztrácí focus a prohlížeč mu mezitím může selectionStart resetovat
+    // na 0. Vložení pak vždy použije tuhle uloženou pozici, ne aktuální
+    // (potenciálně vynulovanou) editor.selectionStart.
+    numTargetSel = activeTarget === editor
+      ? { start: editor.selectionStart, end: editor.selectionEnd }
+      : null;
     numTitle.textContent = prefix ? `Zadejte ${prefix}` : 'Zadejte číslo';
     numInput.value = '';
     buildHelpers(prefix);
@@ -985,7 +1199,10 @@ export function openCamEditor(initialCode, jumpLine) {
 
   function confirmNumpad() {
     const v = numInput.value.trim();
-    if (v) insertText(inputPrefix + v + ' ');
+    if (v) {
+      if (numTargetSel) { editor.selectionStart = numTargetSel.start; editor.selectionEnd = numTargetSel.end; }
+      insertText(inputPrefix + v + ' ');
+    }
     numModal.style.display = 'none';
   }
 
@@ -1538,6 +1755,19 @@ export function openCamEditor(initialCode, jumpLine) {
         case 'header':    showHeaderSettings(); closeMenu(); break;
         case 'hdrClose':  readHeaderInputs(); persistHdr(); hdrModal.style.display = 'none'; break;
         case 'hdrApply':  applyHeader(); break;
+        case 'cornersToPath': {
+          const result = convertCornersToPaths(editor.value);
+          if (result.converted > 0) {
+            editor.value = result.code;
+            onInput();
+          }
+          if (result.converted && result.skipped) showToast(`Převedeno ${result.converted}, přeskočeno ${result.skipped} (neplatné okolí)`);
+          else if (result.converted) showToast(`Převedeno ${result.converted} sražení/zaoblení na G-kód dráhu ✓`);
+          else if (result.skipped) showToast(`Nepodařilo se převést (${result.skipped}) – zkontrolujte okolní G1 úsečky`);
+          else showToast('Žádné sražení/zaoblení k převedení nenalezeno');
+          closeMenu();
+          break;
+        }
         case 'backspace': doBackspace(); break;
         case 'addBlock':  insertBlockNumber(); break;
         case 'keyboard':  editor.readOnly = false; editor.focus(); break;
@@ -1548,6 +1778,10 @@ export function openCamEditor(initialCode, jumpLine) {
           // Simulátor čte souřadnice absolutně, takže přírůstkový režim (G91)
           // před odesláním přepočítáme zpět na G90.
           if (coordMode === 'inc') { editor.value = codeToAbsolute(editor.value); coordMode = 'abs'; onInput(); }
+          // Nepřevedené sražení/zaoblení (CHF=/RND=…) by simulátor nerozpoznal –
+          // automaticky ho převedeme na skutečnou dráhu (G1/G2/G3).
+          const conv = convertCornersToPaths(editor.value);
+          if (conv.converted > 0) { editor.value = conv.code; onInput(); }
           persist();
           const code = editor.value;
           overlay.remove();
