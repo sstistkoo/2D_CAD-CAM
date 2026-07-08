@@ -255,6 +255,58 @@ export function addLinearDimForLine(line, cx, cy) {
   showToast(`Kóta ${p.len.toFixed(2)}mm${axisNote} přidána`);
 }
 
+/**
+ * Úhlová kóta oblouku (rozevření) – oblouk se šipkami tečně na obou koncích.
+ * dimMidAng udává střed rozevření, takže render kreslí oblouk správnou stranou
+ * (i pro rozevření > 180°).
+ */
+export function addArcAngleDim(arc) {
+  let sweep = arc.endAngle - arc.startAngle;
+  if (sweep < 0) sweep += 2 * Math.PI;
+  const sweepDeg = sweep * 180 / Math.PI;
+  const x1 = arc.cx + arc.r * Math.cos(arc.startAngle);
+  const y1 = arc.cy + arc.r * Math.sin(arc.startAngle);
+  const x2 = arc.cx + arc.r * Math.cos(arc.endAngle);
+  const y2 = arc.cy + arc.r * Math.sin(arc.endAngle);
+  addObject({
+    type: 'line', x1, y1, x2, y2,
+    name: `Kóta ∠${sweepDeg.toFixed(1)}°`,
+    isDimension: true, dimType: 'angular',
+    sourceObjId: arc.id || null,
+    dimAngle: sweep,
+    dimCenterX: arc.cx, dimCenterY: arc.cy, dimRadius: arc.r,
+    dimMidAng: arc.startAngle + sweep / 2,
+    dimSrcX1: x1, dimSrcY1: y1, dimSrcX2: x2, dimSrcY2: y2,
+    color: COLORS.textSecondary,
+  });
+}
+
+/**
+ * Radiální kóta oblouku/kružnice jako ODKAZ (leader): šipka sedí na oblouku
+ * v bodě `anchorAngle` a míří ke středu, popisek R je vytažen na (placeX,placeY).
+ * Umístění se drží relativně k bodu na oblouku (dimLeadDX/DY).
+ */
+export function addArcRadiusLeader(arc, anchorAngle, placeX, placeY) {
+  const ax = arc.cx + arc.r * Math.cos(anchorAngle);
+  const ay = arc.cy + arc.r * Math.sin(anchorAngle);
+  addObject({
+    type: 'line',
+    x1: ax, y1: ay,          // bod na oblouku (šipka)
+    x2: placeX, y2: placeY,  // umístění popisku
+    name: `Kóta R${arc.r.toFixed(2)}`,
+    isDimension: true,
+    dimType: 'radius',
+    dimLeader: true,
+    sourceObjId: arc.id || null,
+    dimRadius: arc.r,
+    dimCenterX: arc.cx, dimCenterY: arc.cy,
+    dimAnchorAngle: anchorAngle,
+    dimLeadDX: placeX - ax, dimLeadDY: placeY - ay,
+    color: COLORS.textSecondary,
+  });
+  showToast(`Kóta R${arc.r.toFixed(2)} přidána`);
+}
+
 // ── Přidání kót k objektu ──
 export function addDimensionForObject(obj) {
   switch (obj.type) {
@@ -323,50 +375,14 @@ export function addDimensionForObject(obj) {
       break;
     }
     case "arc": {
-      // Radiální kóta (R) – čára od středu k oblouku
-      const midAngle = (obj.startAngle + obj.endAngle) / 2;
-      const mx = obj.cx + obj.r * Math.cos(midAngle);
-      const my = obj.cy + obj.r * Math.sin(midAngle);
-      addObject({
-        type: "line",
-        x1: obj.cx,
-        y1: obj.cy,
-        x2: mx,
-        y2: my,
-        name: `Kóta R${obj.r.toFixed(2)}`,
-        isDimension: true,
-        dimType: 'radius',
-        sourceObjId: obj.id || null,
-        dimRadius: obj.r,
-        dimCenterX: obj.cx,
-        dimCenterY: obj.cy,
-        color: COLORS.textSecondary,
-      });
-      // Úhlová kóta oblouku
+      // Úhlová kóta rozevření + radiální kóta jako odkaz (leader) vytažený ven
+      addArcAngleDim(obj);
       let sweep = obj.endAngle - obj.startAngle;
       if (sweep < 0) sweep += 2 * Math.PI;
-      const sweepDeg = (sweep * 180 / Math.PI);
-      addObject({
-        type: "line",
-        x1: obj.cx + obj.r * Math.cos(obj.startAngle),
-        y1: obj.cy + obj.r * Math.sin(obj.startAngle),
-        x2: obj.cx + obj.r * Math.cos(obj.endAngle),
-        y2: obj.cy + obj.r * Math.sin(obj.endAngle),
-        name: `Kóta ∠${sweepDeg.toFixed(1)}°`,
-        isDimension: true,
-        dimType: 'angular',
-        sourceObjId: obj.id || null,
-        dimAngle: sweep,
-        dimCenterX: obj.cx,
-        dimCenterY: obj.cy,
-        dimRadius: obj.r,
-        dimSrcX1: obj.cx + obj.r * Math.cos(obj.startAngle),
-        dimSrcY1: obj.cy + obj.r * Math.sin(obj.startAngle),
-        dimSrcX2: obj.cx + obj.r * Math.cos(obj.endAngle),
-        dimSrcY2: obj.cy + obj.r * Math.sin(obj.endAngle),
-        color: COLORS.textSecondary,
-      });
-      showToast(`Kóty R${obj.r.toFixed(2)} a ∠${sweepDeg.toFixed(1)}° přidány`);
+      const midAngle = obj.startAngle + sweep / 2;
+      const ax = obj.cx + obj.r * Math.cos(midAngle);
+      const ay = obj.cy + obj.r * Math.sin(midAngle);
+      addArcRadiusLeader(obj, midAngle, ax + Math.cos(midAngle) * obj.r * 0.6, ay + Math.sin(midAngle) * obj.r * 0.6);
       break;
     }
     case "rect": {
@@ -607,7 +623,17 @@ export function updateAssociativeDimensions() {
         break;
       }
       case 'radius': {
-        if (src.type === 'arc' || src.type === 'circle') {
+        if (dim.dimLeader && (src.type === 'arc' || src.type === 'circle')) {
+          // Leader R – bod na oblouku (šipka) + vytažený popisek (dimLeadDX/DY)
+          const ang = dim.dimAnchorAngle != null ? dim.dimAnchorAngle : 0;
+          const ax = src.cx + src.r * Math.cos(ang);
+          const ay = src.cy + src.r * Math.sin(ang);
+          dim.x1 = ax; dim.y1 = ay;
+          dim.x2 = ax + (dim.dimLeadDX || 0); dim.y2 = ay + (dim.dimLeadDY || 0);
+          dim.dimRadius = src.r;
+          dim.dimCenterX = src.cx; dim.dimCenterY = src.cy;
+          dim.name = `Kóta R${src.r.toFixed(2)}`;
+        } else if (src.type === 'arc' || src.type === 'circle') {
           const angle = src.type === 'arc'
             ? (src.startAngle + src.endAngle) / 2
             : 0;
@@ -634,6 +660,7 @@ export function updateAssociativeDimensions() {
           dim.dimCenterX = src.cx;
           dim.dimCenterY = src.cy;
           dim.dimRadius = src.r;
+          if (dim.dimMidAng != null) dim.dimMidAng = src.startAngle + sweep / 2;
           dim.dimSrcX1 = dim.x1;
           dim.dimSrcY1 = dim.y1;
           dim.dimSrcX2 = dim.x2;

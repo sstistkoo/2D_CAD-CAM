@@ -143,6 +143,13 @@ drawCanvas.addEventListener("mousemove", (e) => {
     }
   }
 
+  // Angle snap – vytahování kóty souřadnic bodu (referenční = počáteční bod).
+  // Object snap (bod i bod na hraně) má přednost před úhlovým snapem.
+  if (state.angleSnap && state._dimCoordStart
+      && state.mouse.snapType !== 'point' && state.mouse.snapType !== 'edge') {
+    [wx, wy] = applyAngleSnap(wx, wy, state._dimCoordStart);
+  }
+
   // Angle snap – copyPlace (referenční bod jako pivot)
   if (state.angleSnap && state.tool === 'copyPlace' && state._copyPlaceRef
       && state.mouse.snapType !== 'point') {
@@ -160,8 +167,11 @@ drawCanvas.addEventListener("mousemove", (e) => {
 
   // Polar info z referenčního bodu
   let extra = "";
-  if (state.drawing && state.tempPoints.length > 0) {
-    const ref = state.tempPoints[state.tempPoints.length - 1];
+  const polarRef = (state.drawing && state.tempPoints.length > 0)
+    ? state.tempPoints[state.tempPoints.length - 1]
+    : (state._dimCoordStart || null);
+  if (polarRef) {
+    const ref = polarRef;
     const ddx = wx - ref.x,
       ddy = wy - ref.y;
     const dist = Math.hypot(ddx, ddy);

@@ -13,7 +13,7 @@ vi.mock('../js/bridge.js', () => ({
   bridge: {},
 }));
 
-import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine } from '../js/dialogs/dimension.js';
+import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../js/dialogs/dimension.js';
 import { addObject } from '../js/objects.js';
 import { showToast } from '../js/state.js';
 
@@ -90,16 +90,19 @@ describe('addDimensionForObject', () => {
   });
 
   // ── Arc ──
-  it('přidá kótu poloměru a úhlovou kótu oblouku', () => {
+  it('přidá kótu poloměru (leader) a úhlovou kótu oblouku', () => {
     addDimensionForObject({ type: 'arc', cx: 0, cy: 0, r: 7.5, startAngle: 0, endAngle: Math.PI / 2 });
     expect(addObject).toHaveBeenCalledTimes(2);
-    const rArg = addObject.mock.calls[0][0];
+    const args = addObject.mock.calls.map(c => c[0]);
+    const rArg = args.find(a => a.dimType === 'radius');
+    const aArg = args.find(a => a.dimType === 'angular');
+    expect(rArg).toBeDefined();
     expect(rArg.name).toContain('R7.50');
-    expect(rArg.isDimension).toBe(true);
-    expect(rArg.dimType).toBe('radius');
-    const aArg = addObject.mock.calls[1][0];
-    expect(aArg.dimType).toBe('angular');
+    expect(rArg.dimLeader).toBe(true);          // R je odkaz, ne od středu
+    expect(rArg.dimAnchorAngle).not.toBeUndefined();
+    expect(aArg).toBeDefined();
     expect(aArg.name).toContain('∠90.0°');
+    expect(aArg.dimMidAng).not.toBeUndefined(); // pro směr oblouku/šipek
   });
 
   // ── Rect ──
@@ -350,6 +353,39 @@ describe('addAngleDimForPlacement', () => {
     const b = { id: 3, type: 'line', x1: 0, y1: 5, x2: 10, y2: 5 };
     addAngleDimForPlacement(l1, b, 5, 2);
     expect(addObject).not.toHaveBeenCalled();
+  });
+});
+
+describe('addArcRadiusLeader / addArcAngleDim (interaktivní kóty oblouku)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  const arc = { id: 5, type: 'arc', cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: Math.PI / 2 };
+
+  it('addArcRadiusLeader: leader se šipkou na oblouku a popiskem na kurzoru', () => {
+    // kotva pod 45°, umístit ven do (20,20)
+    addArcRadiusLeader(arc, Math.PI / 4, 20, 20);
+    expect(addObject).toHaveBeenCalledOnce();
+    const a = addObject.mock.calls[0][0];
+    expect(a.dimType).toBe('radius');
+    expect(a.dimLeader).toBe(true);
+    expect(a.dimRadius).toBe(10);
+    expect(a.sourceObjId).toBe(5);
+    expect(a.dimAnchorAngle).toBeCloseTo(Math.PI / 4, 6);
+    // bod na oblouku (x1,y1) = střed + r*(cos,sin)(45°)
+    expect(a.x1).toBeCloseTo(10 * Math.cos(Math.PI / 4), 4);
+    expect(a.y1).toBeCloseTo(10 * Math.sin(Math.PI / 4), 4);
+    // popisek na (20,20)
+    expect(a.x2).toBeCloseTo(20, 4);
+    expect(a.y2).toBeCloseTo(20, 4);
+    expect(a.name).toContain('R10.00');
+  });
+
+  it('addArcAngleDim: rozevření 90° s dimMidAng', () => {
+    addArcAngleDim(arc);
+    const a = addObject.mock.calls[0][0];
+    expect(a.dimType).toBe('angular');
+    expect(a.dimAngle).toBeCloseTo(Math.PI / 2, 6);
+    expect(a.dimMidAng).toBeCloseTo(Math.PI / 4, 6);
+    expect(a.name).toContain('∠90.0°');
   });
 });
 

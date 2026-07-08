@@ -3,20 +3,48 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, axisLabels } from '../state.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
-import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, addAngleDimForPlacement, buildZAxisRefLine } from '../dialogs.js';
+import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, addAngleDimForPlacement, buildZAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../dialogs.js';
 
 // Tolerance pro shodu bodu s existující kótou souřadnic (snap body jsou přesné).
 const COORD_MATCH_TOL = 1e-3;
 
 export function handleDimensionClick(wx, wy) {
+  // Umísťování kóty R oblouku (vytažení odkazu) → tento klik ji umístí
+  if (state._dimArcRadius) {
+    finalizeArcRadius(wx, wy);
+    return;
+  }
+  // Umísťování kóty vzdálenosti mezi dvěma snap body → tento klik ji umístí
+  if (state._dimPointSeg) {
+    finalizePointSegDim(wx, wy);
+    return;
+  }
   // Umísťování úhlové kóty (2. úsečka už vybrána) → tento klik ji umístí
   if (state._dimAnglePlacing) {
     finalizeAnglePlacement(wx, wy);
+    return;
+  }
+  // Vytahování kóty souřadnic bodu – druhá akce určí záměr
+  if (state._dimCoordStart) {
+    const A = state._dimCoordStart;
+    // Klik na JINÝ snap (bod NEBO bod na hraně úsečky) → kóta vzdálenosti mezi body
+    const onSnap = state.mouse.snapType === 'point' || state.mouse.snapType === 'edge';
+    if (onSnap && Math.hypot(wx - A.x, wy - A.y) > COORD_MATCH_TOL) {
+      state._dimPointSeg = { a: { x: A.x, y: A.y }, b: { x: wx, y: wy } };
+      state._dimCoordStart = null;
+      setHint("Pohybem vyberte délku / Z / X, klepnutím umístěte kótu mezi body");
+      renderAll();
+      return;
+    }
+    // Jinam → umístit kótu souřadnic s odkazovou čarou na tuto pozici
+    placeCoordLabel(A.x, A.y, wx, wy);
+    state._dimCoordStart = null;
+    resetHint();
     return;
   }
   // Pokud je výběr → okamžitě přidat kóty
@@ -54,19 +82,22 @@ export function handleDimensionClick(wx, wy) {
   }
 
   if (!state.drawing) {
-    // Snap k bodu (endpoint/midpoint) → kóta souřadnic bodu.
-    // Toggle: pokud na tomto bodě kóta souřadnic už je, druhý klik ji odebere.
+    // Snap k bodu (endpoint/midpoint/průsečík) → kóta souřadnic bodu.
     if (state.mouse.snapType === 'point') {
-      pushUndo();
+      // Toggle: pokud na tomto bodě kóta souřadnic už je, klik ji odebere.
       const existingIdx = state.objects.findIndex(o =>
         o.isCoordLabel && Math.hypot(o.x - wx, o.y - wy) < COORD_MATCH_TOL);
       if (existingIdx !== -1) {
+        pushUndo();
         state.objects.splice(existingIdx, 1);
         showToast('Kóta odebrána');
-      } else {
-        addDimensionForObject({ type: 'point', x: wx, y: wy });
+        calculateAllIntersections();
+        renderAll();
+        return;
       }
-      calculateAllIntersections();
+      // Jinak → začít vytahování kóty souřadnic (umístí se druhým klikem)
+      state._dimCoordStart = { x: wx, y: wy };
+      setHint("Táhněte a klepnutím umístěte kótu souřadnic; klepnutí na jiný bod změří vzdálenost");
       renderAll();
       return;
     }
@@ -80,6 +111,16 @@ export function handleDimensionClick(wx, wy) {
         state._dimFirstLine = obj;
         state._dimPlacing = false;
         setHint("Klepněte na druhou úsečku pro úhel, nebo na plátno a tažením umístěte kótu délky");
+        return;
+      }
+      // Oblouk → hned úhlová kóta rozevření + interaktivní vytažení kóty R
+      if (obj.type === 'arc' && !obj.isDimension) {
+        pushUndo();
+        addArcAngleDim(obj);
+        state._dimArcRadius = { arc: obj, anchorAngle: Math.atan2(wy - obj.cy, wx - obj.cx) };
+        setHint("Táhněte a klepnutím umístěte kótu R");
+        calculateAllIntersections();
+        renderAll();
         return;
       }
       pushUndo();
@@ -116,6 +157,55 @@ export function handleDimensionClick(wx, wy) {
   }
 }
 
+/**
+ * Vytvoří kótu souřadnic bodu (A) s odkazovou čarou vedoucí na umístěnou
+ * pozici (lx,ly). Offset se uloží jako dimLeadDX/DY (svět) a drží se relativně
+ * i po přesunu bodu.
+ */
+function placeCoordLabel(ax, ay, lx, ly) {
+  pushUndo();
+  addObject({
+    type: 'point', x: ax, y: ay,
+    name: `Kóta [${ax.toFixed(2)}, ${ay.toFixed(2)}]`,
+    isDimension: true, isCoordLabel: true, dimType: 'coord',
+    dimLeadDX: lx - ax, dimLeadDY: ly - ay,
+    color: COLORS.textSecondary,
+  });
+  showToast(`Kóta ${axisLabels()[0]}${ax.toFixed(2)} ${axisLabels()[1]}${ay.toFixed(2)} přidána`);
+  calculateAllIntersections();
+  renderAll();
+}
+
+/**
+ * Dokončí kótu vzdálenosti mezi dvěma snap body – jako by mezi nimi byla
+ * úsečka; režim (aligned / Z / X) dle pozice kurzoru (computeLinearDimPlacement).
+ */
+export function finalizePointSegDim(wx, wy) {
+  const seg = state._dimPointSeg;
+  if (!seg) return;
+  pushUndo();
+  addLinearDimForLine({ type: 'line', x1: seg.a.x, y1: seg.a.y, x2: seg.b.x, y2: seg.b.y }, wx, wy);
+  state._dimPointSeg = null;
+  calculateAllIntersections();
+  renderAll();
+  resetHint();
+}
+
+/**
+ * Dokončí umístění kóty R oblouku – odkaz (leader) se šipkou na oblouku a
+ * popiskem R vytaženým na pozici kurzoru (viz addArcRadiusLeader).
+ */
+export function finalizeArcRadius(wx, wy) {
+  const ar = state._dimArcRadius;
+  if (!ar) return;
+  pushUndo();
+  addArcRadiusLeader(ar.arc, ar.anchorAngle, wx, wy);
+  state._dimArcRadius = null;
+  calculateAllIntersections();
+  renderAll();
+  resetHint();
+}
+
 /** Vyčistí stav interaktivního umísťování kóty. */
 export function clearDimPlacing() {
   state._dimFirstLine = null;
@@ -123,6 +213,9 @@ export function clearDimPlacing() {
   state._dimPlacing = false;
   state._dimAnglePlacing = false;
   state._dimAxisRef = null;
+  state._dimCoordStart = null;
+  state._dimPointSeg = null;
+  state._dimArcRadius = null;
 }
 
 /**

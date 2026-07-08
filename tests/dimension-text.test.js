@@ -182,20 +182,24 @@ describe('updateAssociativeDimensions', () => {
     expect(dim.name).toContain('⌀60.00');
   });
 
-  it('aktualizuje radiální kótu po přesunu oblouku', () => {
+  it('aktualizuje radiální kótu (leader) po přesunu oblouku', () => {
     const arc = addObject({
       type: 'arc', cx: 0, cy: 0, r: 10,
       startAngle: 0, endAngle: Math.PI / 2,
     });
     addDimensionForObject(arc);
     const rDim = state.objects.find(o => o.isDimension && o.dimType === 'radius');
+    expect(rDim.dimLeader).toBe(true);
 
     arc.cx = 5;
     arc.cy = 5;
     updateAssociativeDimensions();
 
-    expect(rDim.x1).toBe(5);
-    expect(rDim.y1).toBe(5);
+    // Střed kóty sleduje oblouk; kotva (x1,y1) leží na oblouku pod anchorAngle
+    expect(rDim.dimCenterX).toBe(5);
+    expect(rDim.dimCenterY).toBe(5);
+    expect(rDim.x1).toBeCloseTo(5 + 10 * Math.cos(rDim.dimAnchorAngle), 6);
+    expect(rDim.y1).toBeCloseTo(5 + 10 * Math.sin(rDim.dimAnchorAngle), 6);
   });
 
   it('aktualizuje úhlovou kótu mezi úsečkami po přesunu', () => {

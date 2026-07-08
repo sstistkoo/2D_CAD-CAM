@@ -144,6 +144,9 @@ export function resetDrawingState() {
   state._dimPlacing = false;
   state._dimAnglePlacing = false;
   state._dimAxisRef = null;
+  state._dimCoordStart = null;
+  state._dimPointSeg = null;
+  state._dimArcRadius = null;
   state._chainDimCount = 0;
   // Generic tool cleanup (fillet/offset listeners etc.)
   if (state._toolCleanup) {
