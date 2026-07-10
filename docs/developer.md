@@ -2,14 +2,16 @@
 
 ## Obsah
 1. [Architektura aplikace](#architektura-aplikace)
-2. [Stav aplikace a undo/redo](#stav-aplikace-a-undo-redo)
-3. [Datové typy objektů](#datové-typy-objektů)
-4. [Přidání nového nástroje](#přidání-nového-nástroje)
-5. [CAM pipeline](#cam-pipeline)
-6. [DXF import/export](#dxf-importexport)
-7. [Ukládání a načítání](#ukládání-a-načítání)
-8. [UI a dialogy](#ui-a-dialogy)
-9. [Testování](#testování)
+2. [Bridge pattern – zprostředkovatel modulů](#bridge-pattern)
+3. [Stav aplikace a undo/redo](#stav-aplikace-a-undo-redo)
+4. [Renderování](#renderování)
+5. [Datové typy objektů](#datové-typy-objektů)
+6. [Přidání nového nástroje](#přidání-nového-nástroje)
+7. [CAM pipeline](#cam-pipeline)
+8. [DXF import/export](#dxf-importexport)
+9. [Ukládání a načítání](#ukládání-a-načítání)
+10. [UI a dialogy](#ui-a-dialogy)
+11. [Testování](#testování)
 
 ---
 
@@ -20,7 +22,10 @@ SKICA je client-side SPA bez build steps. Všechno je vanilla JS s ES modulemi.
 ```
 index.html
 ├── css/style.css          # Catppuccin theming
+├── sw.js                  # Service Worker
+├── manifest.json          # PWA manifest
 ├── js/
+│   ├── app.js             # Vstupní bod aplikace (importuje side-effect moduly)
 │   ├── state.js           # Globální stav, undo/redo, toast
 │   ├── objects.js         # CRUD nad výkresovými objekty
 │   ├── types.js           # JSDoc typové definice (neexportuje kód)
@@ -37,19 +42,48 @@ index.html
 │   ├── ui.js              # Panely, seznamy, property panel
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
-│   ├── calculators/       # CAM generátory, g-code, perdrtí, ...
+│   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)
 │   ├── storage/           # IndexedDB, export obrázku, autoSave
 │   └── ai/                # AI panel + nastavení poskytovatelů
+│   └── lib/                # Font loader (DXF text)
 ├── tests/                 # Vitest testy
 └── scripts/               # Build utility (SW generování)
 ```
 
 ### Základní tok
-1. Uživatel akce → handler v `tools/*.js`
-2. Handler modifikuje `state.objects`
-3. Volá `pushUndo()` pro historii
-4. `renderAll()` překreslí canvas
-5. `calculateAllIntersections()` přepočítá průsečíky
+1. `index.html` načte `js/app.js` jako ES module entry point
+2. `app.js` importuje side-effect moduly: `render.js`, `objects.js`, `events.js`, `touch.js`, `dialogs.js` – tyto moduly se spustí hned při načtení a zaregistrují event listenery + bridge callbacks
+3. Uživatel akce → handler v `tools/*.js` (volán z `events.js`)
+4. Handler modifikuje `state.objects`
+5. Volá `pushUndo()` pro historii
+6. `renderAll()` překreslí canvas
+7. `calculateAllIntersections()` přepočítá průsečíky
+
+### Bridge pattern (`js/bridge.js`)
+
+Problém: moduly jsou navzájem závislé (`state.js` → `objects.js` → `render.js` → `state.js`). ES modules nepovolují cykly v importech.
+
+Řešení: `bridge.js` exportuje prázdný objekt s callbacky. Moduly se na sobě neimportují přímo, ale zapisují do `bridge` během inicializace:
+
+```js
+// js/events.js, js/ui.js, js/geometry.js, ...
+import { bridge } from './bridge.js';
+bridge.renderAll = renderAll;
+bridge.calculateAllIntersections = () => calculateAllIntersections();
+bridge.updateObjectList = () => updateObjectList();
+// ...
+```
+
+`bridge.js` tedy slouží jako **dependency injection container**. Když potřebuješ zavolat `calculateAllIntersections()` z `objects.js`, nepoužij import, ale `bridge.calculateAllIntersections()`.
+
+**Pravidlo:** Nikdy neimportuj přímo modul, který by vytvořil cyklus. Vždycky použij `bridge.XXX`.
+
+Bridge se inicializuje při startu v:
+- `js/events.js` – nástroje (`handleLineClick`, `measureSelection`, ...)
+- `js/ui.js` – UI aktualizace (`updateObjectList`, `renderAll`, ...)
+- `js/geometry.js` – geometrické operace (`calculateAllIntersections`)
+- `js/touch.js` – mobilní tlačítka
+- `js/storage/fileIO.js` a `js/storage/projectManager.js` – souborové dialogy
 
 ---
 
@@ -77,7 +111,19 @@ state.redoStack;                         // Pole pro redo
 performUndo();                           // Vrátí zpět
 ```
 
-Undo ukládá **celý snapshot** `state.objects`. Max. velikost: `state.maxUndo` (default 50).
+Undo ukládá **celý snapshot** `state.objects` pomocí `deepClone()`. Max. velikost: `state.maxUndo` (default 50).
+
+### Batch operace – `withUndoBatch`
+
+```js
+withUndoBatch(() => {
+  addObject({...});
+  addObject({...});
+  // ...
+});
+```
+
+Všechny změny uvnitř callbacku se zapíší jako **jeden** krok undo/red
 
 ### Toast notifikace
 
@@ -85,11 +131,38 @@ Undo ukládá **celý snapshot** `state.objects`. Max. velikost: `state.maxUndo`
 showToast("Zpráva", 2000);  // 2s default
 ```
 
+### Renderování (`js/render.js`)
+
+```js
+import { renderAll, renderAllDebounced } from './render.js';
+```
+
+- `renderAll()` – naplánuje překreslení přes `requestAnimationFrame` (debouncing).
+- `renderAllDebounced(delay = 32)` – explicitní debounce pro rychlé UI změny.
+- Volá se po každé změně `state.objects` (např. po `addObject`, `moveObject`, `calculateAllIntersections`).
+
+`canvas.js` poskytuje transformace mezi world a screen souřadnicemi:
+- `worldToScreen(wx, wy)` → `{sx, sy}`
+- `screenToWorld(sx, sy)` → `{wx, wy}`
+- `applyZoomPan()` – aktuální zoom/pan
+
+V rámci `renderAll()` dochází k:
+1. `renderObjects()` – vykreslení všech objektů, dimenzí, snap bodů
+2. `renderAxes()` – osy soustavy
+3. `renderAngleSnapGuide()` – úhlové snap vodicí čáry
+4. Volání bridge callbacků pro mobile (`updateMobileCancelBtn`, `updatePolylineButtons`, ...)
+
+### Viewport culling
+
+`getObjectBounds(obj)` vrací AABB objektu ve world souřadnicích. `render.js` používá to k vynechání objektů mimo canvas.
+
+`calculateAllIntersections()` ze `geometry.js` přepočítává průsečíky a **zároveň volá** `bridge.renderAll()`, takže po její volání není potřeba další `renderAll()`.
+
 ---
 
 ## Datové typy objektů
 
-Všechny typy jsou definovány v `js/types.js` jako JSDoc `@typedef`. Nejednoznáčné.
+Všechny typy jsou definovány v `js/types.js` jako JSDoc `@typedef` (neexportuje kód).
 
 ### Základní typy
 
@@ -120,6 +193,7 @@ Každý objekt má také:
 - `name` – zobrazený název
 - `color` – CSS barva (volitelné)
 - `layer` – index vrstvy
+- `skipIntersections` – (volitelné) pokud je `true`, objekt se nezapočítává do průsečíků (užitečné pro pomocné konstrukce)
 
 ---
 
@@ -161,6 +235,11 @@ Toolbar tlačítka jsou definována v `index.html` nebo generována v `js/ui.js`
 
 ```js
 // js/tools/lineClick.js
+import { state, showToast } from '../state.js';
+import { addObject } from '../objects.js';
+import { startDrawing, finishDrawing } from './helpers.js';
+import { showPostDrawLineDialog } from '../dialogs/postDrawDialog.js';
+
 export function handleLineClick(wx, wy) {
   if (!state.drawing) {
     startDrawing(wx, wy, "Klepněte na koncový bod");
@@ -180,8 +259,34 @@ export function handleLineClick(wx, wy) {
 ### Pattern: Pokročilý nástroj s více kroky
 
 - Ukládej stav do `state.tempPoints` a `state.drawing`
-- Používej `startDrawing()` / `finishDrawing()` z `tools/helpers.js`
+- Používej `startDrawing()` / `finishDrawing()` z `tools/helpers.js` pro více-krokové nástroje
 - Resetuj vnitřní stav při přepnutí toolu (volání `reset*State()`)
+- Nevolej `calculateAllIntersections()` ručně z handleru – `addObject` ho volá automaticky. Pokud potřebuješ přepočítat průsečíky po skupinové operaci, použij `withUndoBatch()` nebo volání přímo.
+
+### Příklad – pokročilý nástroj (Gear)
+
+```js
+// js/tools/gearClick.js
+export function handleGearClick(wx, wy) {
+  showGearDialog((params) => {
+    const profile = generateFullGearProfile(params);
+    profile.forEach(seg => addObject({
+      ...seg,
+      layer: state.activeLayer,
+    }));
+    showToast(`Zubové kolo z ${params.teeth} zuby přidáno`);
+  });
+}
+
+export function resetGearState() {
+  // žádný persistentní stav – dialog je modální
+}
+```
+
+`bridge` callbacks pro toto tlačítko jsou registrované v `js/events.js`:
+```js
+bridge.gearFromSelection = gearFromSelection;
+```
 
 ---
 
@@ -203,7 +308,8 @@ User selects CAM tool
 
 | Modul | Účel |
 |-------|------|
-| `calculators/gcode.js` | Tabulky G/M kódů, dokumentace |
+| `calculators/help.js` | In-app nápověda (G/M kódy, kalkulačky) – text je čistě český, příklady kódů. |
+| `calculators/gcode.js` | Tabulky G/M kódů, dokumentace, příklady (používá i help overlay) |
 | `calculators/sinumerikHub.js` | Hlavní hub pro generování Sinumerik 840D |
 | `calculators/camEditor.js` | Editor CAM strategií |
 | `calculators/camSimulator.js` | Náhled obrysů obrábění |
@@ -224,6 +330,14 @@ User selects CAM tool
    - Vytvoří traversy a řezné dráhy
    - Vrátí `contours: Contour[]` s `segments: Segment[]`
 5. `gcode.js` / `sinumerikHub.js` – převede na NC program (subprogramy, hlavičky)
+
+`calculators/contourOffset.js` – offset kontury pro zajištění rozměrů.
+`calculators/camEditor.js` – editor CAM strategií.
+`calculators/camSimulator.js` – simulátor obrysů obrábění.
+`calculators/gcode.js` – databáze G/M kódů (syntaxe, příklady), používá se v help overlay i CAM generátorech.
+`calculators/sinumerikHub.js` – hlavní hub pro generování Sinumerik 840D programů (subprogramy, hlavičky).
+`calculators/thread.js` a `calculators/threadData.js` – parametry závitů.
+`calculators/cutting.js` – řezné podmínky.
 
 ### Formát segmentu
 
@@ -274,6 +388,7 @@ Segment {
 | `storage/projectManager.js` | CRUD projektů, seznamy |
 | `storage/fileIO.js` | Import/export souborů |
 | `storage/exportImage.js` | Export PNG |
+| `idb.js` | Abstrakce nad IndexedDB (`getMeta`, `setMeta`, `migrateFromLocalStorage`) |
 
 ### IndexedDB
 
