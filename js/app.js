@@ -11,6 +11,15 @@ import { initAutoSave } from './storage.js';
 import { getMeta, setMeta, migrateFromLocalStorage } from './idb.js';
 import { bridge } from './bridge.js';
 import { loadFont } from './lib/fontLoader.js';
+import {
+  Clipper,
+  FillRule,
+  JoinType,
+  EndType,
+  triangulate,
+  triangulateD,
+  TriangulateResult
+} from '../lib/clipper2.min.js';
 
 // Preload font pro vektorový text v DXF (na pozadí, nedrží start aplikace)
 loadFont().catch(() => { /* fallback uvnitř export funkce */ });
