@@ -12,7 +12,7 @@
 
 **SKICA** je samostatná PWA aplikace pro návrh soustružnických dílů a generování NC programů pro obrábění na soustruhu. Aplikace běží plně v prohlížeči jako **client-side SPA** (žádný backend), offline-first, s podporou mobilních zařízení.
 
-Aplikace je určena především pro obrábění na CNC soustruzích s řídicím systémem **Siemens Sinumerik 840D sl**.
+Aplikace je určena pro kreslení 2D (CAD) a pro simulaci a generování cnc drah G-kódy (CAM) .
 
 ---
 
