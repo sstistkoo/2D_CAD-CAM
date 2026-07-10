@@ -1,4 +1,4 @@
-# SKICA – CAD pro CNC soustružník
+# SKICA – 2D CAD / CAM
 
 <div align="center">
   <img src="icons/icon.svg" alt="SKICA logo" width="120" />
@@ -10,9 +10,23 @@
 
 ## O projektu
 
-**SKICA** je samostatná PWA aplikace pro návrh soustružnických dílů a generování NC programů pro obrábění na soustruhu. Aplikace běží plně v prohlížeči jako **client-side SPA** (žádný backend), offline-first, s podporou mobilních zařízení.
+**SKICA** je samostatná PWA aplikace pro návrh dílů a generování NC programů pro obrábění na CNC strojích. Aplikace běží plně v prohlížeči jako **client-side SPA** (žádný backend), offline-first, s podporou mobilních zařízení.
 
-Aplikace je určena pro kreslení 2D (CAD) a pro simulaci a generování cnc drah G-kódy (CAM) .
+Aplikace je určena pro kreslení 2D (CAD) a pro simulaci a generování CNC drah a G-kódy (CAM).
+
+Podporované typy strojů:
+- **Soustruhy** – osa X je osa radiální, osa Z je osa axiální ( Standardní konfigurace )
+- **Karusely / obráběcí centra** – osa X je osa axiální, osa Z je osa radiální (prohození os)
+
+Podporované řídicí systémy:
+- **Sinumerik** (Siemens 840D sl a kompatibilní)
+- **Fanuc** (standardní dialekt)
+- **Haidenhain** (TNC 640 a kompatibilní)
+
+### Souřadnicový systém canvasu
+
+wx (world X) → vodorovně (horizontal)
+wy (world Y) → svisle (vertical)
 
 ---
 
@@ -31,7 +45,10 @@ Aplikace je určena pro kreslení 2D (CAD) a pro simulaci a generování cnc dra
 - **Závity** – metrické, technologické (formy A, B, C), válcové a kuželové
 
 ### CAM / G-kódy
-- Generování **NC programu pro Sinumerik 840D sl**
+- Generování **NC programu** pro více řídicích systémů:
+  - **Sinumerik** (840D sl a kompatibilní)
+  - **Fanuc** (standardní dialekt)
+  - **Haidenhain** (TNC 640 a kompatibilní)
 - Výsekové strategie: čárový a kličkový výsekový rour,
    koncentrické obrysy, vrtací cykly
 - Simulátor CAM strategií (náhled obrysů obrábění)
@@ -67,7 +84,7 @@ Aplikace je určena pro kreslení 2D (CAD) a pro simulaci a generování cnc dra
 | DXĚ import      | Custom DXF parser                        |
 | Testování       | Vitest                                   |
 | AI              | Groq / Gemini / OpenRouter API           |
-| NC formát       | Sinumerik 840D / ISO 6983 (dialekt)      |
+| NC formát       | Sinumerik 840D / Fanuc / Haidenhain (ISO 6983 dialekty) |
 | UI paleta       | Catppuccin (dark + light theme)          |
 
 ---
