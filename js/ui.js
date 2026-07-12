@@ -3536,6 +3536,16 @@ calcBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   openCalculator();
 });
+// Tlačítko kalkulačky má být vidět jen na CAD plátně – schovat ho,
+// kdykoli je otevřené jakékoli overlay okno (jinak prosakuje přes něj).
+function updateCalcBtnVisibility() {
+  const overlayOpen = document.querySelector(".calc-overlay, .input-overlay");
+  calcBtn.style.display = overlayOpen ? "none" : "";
+}
+updateCalcBtnVisibility();
+if (typeof MutationObserver !== "undefined") {
+  new MutationObserver(updateCalcBtnVisibility).observe(document.body, { childList: true });
+}
 // Track last focused input so clipboard/calc paste can target it
 let _lastFocusedInput = null;
 document.addEventListener('focusin', (e) => {
