@@ -2999,6 +2999,10 @@ export function setCalcClipboardValue(v) {
   if (btn) {
     btn.textContent = v != null ? v : "—";
     btn.title = v != null ? `Schránka: ${v} (klik = vložit)` : "Schránka kalkulačky (prázdná)";
+    // Skrýt tlažítko, dokud není nic zkopírováno (prázdný řetězec nebo null).
+    // display:"" nechá platit CSS (mobil → flex, desktop → none).
+    const empty = v == null || v === "";
+    btn.style.display = empty ? "none" : "";
   }
 }
 
@@ -3544,6 +3548,8 @@ document.addEventListener('focusin', (e) => {
 });
 
 const clipBtn = document.getElementById("canvasClipBtn");
+// Počáteční stav: schovat schránku, dokud není nic zkopírováno (na mobilu je jinak defaultně viditelná)
+setCalcClipboardValue(_calcClipboardValue);
 clipBtn.addEventListener("mousedown", (e) => {
   // Prevent focus steal and overlay close
   e.preventDefault();

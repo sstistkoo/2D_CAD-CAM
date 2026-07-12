@@ -9,7 +9,7 @@ import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { autoCenterView } from '../canvas.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { updateObjectList, persistSettings } from '../ui.js';
+import { updateObjectList, persistSettings, setCalcClipboardValue, getCalcClipboardValue } from '../ui.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
@@ -3033,7 +3033,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     document.querySelectorAll('.calc-overlay-float').forEach(el => { el.style.display = ''; });
     if (sidebarEl) sidebarEl.style.display = '';
     if (calcBtn) calcBtn.style.display = '';
-    if (clipBtn) clipBtn.style.display = '';
+    // Obnovit viditelnost schránky podle jejího obsahu (skrytá, když je prázdná)
+    if (clipBtn) setCalcClipboardValue(getCalcClipboardValue());
   };
   const camCleanupObs = new MutationObserver(() => {
     if (!document.body.contains(overlay)) { restoreOnClose(); document.removeEventListener('keydown', traceKeyHandler, true); camCleanupObs.disconnect(); }
