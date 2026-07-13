@@ -2,6 +2,7 @@ import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { saveToolToLibrary } from '../toolLibrary.js';
+import { HOLDER_STYLES } from './holderIsoData.js';
 
 const vbdIsoData = {
   1: { title:'Tvar',options:[
@@ -88,24 +89,25 @@ const holderIso = {
     {v:'V',d:'Kosočtverec 35°',dt:'Přesné kopírování'},
     {v:'W',d:'Šestiúhelníkový',dt:'Speciální aplikace'}
   ]},
-  3: { title:'Orientace',options:[
+  // Styl držáku dle ISO 5608 – určuje přístupový úhel κr (orientační, viz holderIsoData.js)
+  3: { title:'Styl (κr)',options: HOLDER_STYLES.map(function(s) {
+    return { v:s.code, d:s.kappa + '° – ' + s.desc, dt:'Přístupový úhel, orientační dle ISO 5608' };
+  }) },
+  // Úhel hřbetu destičky – stejné hodnoty jako pozice 2 u vbdIsoData (sdílený zdroj pravdy)
+  4: { title:'Úhel hřbetu destičky', options: vbdIsoData[2].options },
+  5: { title:'Ruka nástroje',options:[
+    {v:'R',d:'Pravé provedení',dt:'Pravostranné operace'},
     {v:'L',d:'Levé provedení',dt:'Levostranné operace'},
-    {v:'N',d:'Neutrální',dt:'Standardní operace'},
-    {v:'R',d:'Pravé provedení',dt:'Pravostranné operace'}
+    {v:'N',d:'Neutrální',dt:'Standardní operace'}
   ]},
-  4: { title:'Provedení',options:[
-    {v:'K',d:'Standardní',dt:'Standardní provedení'},
-    {v:'M',d:'S vnitřním chlazením',dt:'Kanálky pro chlazení'},
-    {v:'S',d:'Speciální',dt:'Speciální provedení'}
-  ]},
-  5: { title:'Výška',options:[
+  6: { title:'Výška (h)',options:[
     {v:'16',d:'16 mm',dt:'Menší – přesné obrábění'},
     {v:'20',d:'20 mm',dt:'Standardní'},
     {v:'25',d:'25 mm',dt:'Středně náročné operace'},
     {v:'32',d:'32 mm',dt:'Náročné operace'},
     {v:'40',d:'40 mm',dt:'Těžké obrábění'}
   ]},
-  6: { title:'Šířka',options:[
+  7: { title:'Šířka (b)',options:[
     {v:'16',d:'16 mm',dt:'Úzký – omezené prostory'},
     {v:'20',d:'20 mm',dt:'Standardní'},
     {v:'25',d:'25 mm',dt:'Širší – lepší stabilita'},
@@ -158,6 +160,18 @@ const vbdMatCompare = [
 export const VBD_SHAPE_ANGLES    = { C: 80, D: 55, S: 90, T: 60, V: 35, W: 80 }; // R = round
 export const VBD_CLEARANCE_ANGLES = { N: 0, B: 5, P: 11, C: 7, E: 20, M: 15, A: 25 };
 export const VBD_TIP_RADII       = { '00': 0.0, '04': 0.4, '08': 0.8, '12': 1.2, '16': 1.6, '24': 2.4 };
+
+// Čistý parser kódu držáku dle ISO 5608 (5 jednopísmenných pozic + výška + šířka),
+// oddělený od DOM logiky kvůli testovatelnosti bez jsdom.
+export function parseHolderCode(code) {
+  code = (code || '').replace(/[\s\-]/g, '').toUpperCase();
+  var result = {1:'-',2:'-',3:'-',4:'-',5:'-',6:'-',7:'-'};
+  if (code.length < 5) return result;
+  for (var i = 1; i <= 5; i++) result[i] = code[i - 1] || '-';
+  result[6] = code.length >= 7 ? code.substring(5, 7) : '-';
+  result[7] = code.length >= 9 ? code.substring(7, 9) : '-';
+  return result;
+}
 
 export function openInsertCalc(opts) {
   opts = opts || {};
@@ -235,15 +249,15 @@ export function openInsertCalc(opts) {
   tab2 += '<div class="vbd-section-sep"></div>';
   tab2 += '<div class="cnc-table-label">🔧 Dekodér značení držáku</div>';
 
-  tab2 += '<div class="vbd-decode-row"><input type="text" id="holderAutoInput" class="vbd-auto-input" inputmode="text" placeholder="Zadejte kód držáku, např. MCLNR2525" maxlength="20" spellcheck="false" autocomplete="off">';
+  tab2 += '<div class="vbd-decode-row"><input type="text" id="holderAutoInput" class="vbd-auto-input" inputmode="text" placeholder="Zadejte kód držáku, např. PCLNR2525" maxlength="20" spellcheck="false" autocomplete="off">';
   tab2 += '<button class="vbd-decode-btn" id="holderAutoBtn">Dekódovat</button></div>';
 
   tab2 += '<div class="vbd-sel-row" id="holderSelRow">';
-  for (var h = 1; h <= 6; h++)
+  for (var h = 1; h <= 7; h++)
     tab2 += '<div class="vbd-sel-item vbd-sel-holder" data-pos="' + h + '" title="' + holderIso[h].title + '"><small>' + h + '</small><span>–</span></div>';
   tab2 += '</div>';
 
-  tab2 += '<div class="vbd-result" id="holderResult"><div class="vbd-code" id="holderCode">– – – – – –</div>' +
+  tab2 += '<div class="vbd-result" id="holderResult"><div class="vbd-code" id="holderCode">– – – – – – –</div>' +
     '<div class="vbd-desc" id="holderDesc">Klikněte na pozici nebo zadejte kód</div>' +
     '<div class="vbd-holder-rec" id="holderInsertRec" style="display:none"><strong>Vhodné plátky:</strong> <span id="holderInsertList"></span></div></div>';
   tab2 += '</div>';
@@ -373,18 +387,19 @@ export function openInsertCalc(opts) {
 
   // Upínací systémy držáků
   tab5 += '<div class="vbd-help-section">' +
-    '<h4 class="vbd-help-h">🔧 Značení držáků nástrojů (6 pozic)</h4>' +
-    '<p class="vbd-help-p">Příklad: <strong class="vbd-help-code">M C L N R 2525</strong></p>' +
+    '<h4 class="vbd-help-h">🔧 Značení držáků nástrojů (7 pozic dle ISO 5608)</h4>' +
+    '<p class="vbd-help-p">Příklad: <strong class="vbd-help-code">P C L N R 2525</strong></p>' +
     '<table class="vbd-help-tbl">' +
     '<tr><th>Poz.</th><th>Význam</th><th>Příklad</th><th>Popis</th></tr>' +
-    '<tr><td>1</td><td>Způsob upnutí</td><td>M</td><td>Upínací šroub přes otvor</td></tr>' +
+    '<tr><td>1</td><td>Způsob upnutí</td><td>P</td><td>Páčka</td></tr>' +
     '<tr><td>2</td><td>Tvar destičky</td><td>C</td><td>Kosočtverec 80°</td></tr>' +
-    '<tr><td>3</td><td>Orientace</td><td>L</td><td>Levé provedení</td></tr>' +
-    '<tr><td>4</td><td>Provedení</td><td>N</td><td>Standardní / s chlazením</td></tr>' +
-    '<tr><td>5</td><td>Výška</td><td>25</td><td>25 mm</td></tr>' +
-    '<tr><td>6</td><td>Šířka</td><td>25</td><td>25 mm</td></tr>' +
+    '<tr><td>3</td><td>Styl (κr)</td><td>L</td><td>95° – kopírovací, přístupový úhel</td></tr>' +
+    '<tr><td>4</td><td>Úhel hřbetu destičky</td><td>N</td><td>0° – negativní geometrie</td></tr>' +
+    '<tr><td>5</td><td>Ruka nástroje</td><td>R</td><td>Pravé provedení</td></tr>' +
+    '<tr><td>6</td><td>Výška (h)</td><td>25</td><td>25 mm</td></tr>' +
+    '<tr><td>7</td><td>Šířka (b)</td><td>25</td><td>25 mm</td></tr>' +
     '</table>' +
-    '<div class="vbd-help-note">💡 <strong>R/L</strong> = pravý/levý držák – závisí na orientaci soustruhu a způsobu obrábění.</div>' +
+    '<div class="vbd-help-note">💡 <strong>Styl (κr)</strong> = přístupový úhel hlavního ostří, orientační dle ISO 5608/5610 – ověřte v katalogu nástroje. <strong>R/L/N</strong> = pravé/levé/neutrální provedení.</div>' +
   '</div>';
 
   // Upínací systémy detail
@@ -516,7 +531,7 @@ export function openInsertCalc(opts) {
 
   // ── Selection state ──
   var sel = {1:'-',2:'-',3:'-',4:'-',5:'-',6:'-',7:'-',8:'-',9:'-'};
-  var hSel = {1:'-',2:'-',3:'-',4:'-',5:'-',6:'-'};
+  var hSel = {1:'-',2:'-',3:'-',4:'-',5:'-',6:'-',7:'-'};
 
   // ── DOM refs ──
   var vbdSelRow = overlay.querySelector('#vbdSelRow');
@@ -622,14 +637,14 @@ export function openInsertCalc(opts) {
 
   // ── Update Holder display ──
   function updateHolder() {
-    for (var p = 1; p <= 6; p++) {
+    for (var p = 1; p <= 7; p++) {
       var it = holderSelRow.querySelector('[data-pos="' + p + '"] span');
       it.textContent = hSel[p];
       it.parentElement.classList.toggle('vbd-sel-filled', hSel[p] !== '-');
     }
-    holderCodeEl.textContent = hSel[1]+hSel[2]+hSel[3]+hSel[4]+hSel[5]+hSel[6];
+    holderCodeEl.textContent = hSel[1]+hSel[2]+hSel[3]+hSel[4]+hSel[5]+' '+hSel[6]+hSel[7];
     var desc = []; var cnt = 0;
-    for (var i = 1; i <= 6; i++) {
+    for (var i = 1; i <= 7; i++) {
       if (hSel[i] !== '-') {
         cnt++;
         var found = holderIso[i].options.find(function(o) { return o.v === hSel[i]; });
@@ -637,13 +652,19 @@ export function openInsertCalc(opts) {
       }
     }
     holderDescEl.innerHTML = cnt > 0 ? desc.join(' · ') : 'Klikněte na pozici nebo zadejte kód';
-    // Insert recommendation from holder
-    if (hSel[2] !== '-' && hSel[1] !== '-') {
-      var shape = hSel[2];
-      var suitAngles = (hSel[1] === 'M' || hSel[1] === 'S') ? ['N'] : ['P','N'];
-      var recs = suitAngles.map(function(a) { return shape + a + 'MG, ' + shape + a + 'MM'; });
+    // Insert recommendation from holder – tvar (poz. 2) + úhel hřbetu destičky (poz. 4)
+    if (hSel[2] !== '-' && hSel[4] !== '-' && vbdToHolder[hSel[2]] && vbdToHolder[hSel[2]][hSel[4]]) {
       holderInsertRec.style.display = '';
-      holderInsertList.textContent = recs.join(' | ');
+      holderInsertList.textContent = vbdToHolder[hSel[2]][hSel[4]];
+    } else if (hSel[2] !== '-') {
+      var recs = ['N','P','M'].filter(function(a) { return vbdToHolder[hSel[2]] && vbdToHolder[hSel[2]][a]; })
+        .map(function(a) { return vbdToHolder[hSel[2]][a]; });
+      if (recs.length) {
+        holderInsertRec.style.display = '';
+        holderInsertList.textContent = recs.join(' | ');
+      } else {
+        holderInsertRec.style.display = 'none';
+      }
     } else {
       holderInsertRec.style.display = 'none';
     }
@@ -695,16 +716,11 @@ export function openInsertCalc(opts) {
     if (e.key === 'Enter') autoDecodeVbd(this.value);
   });
 
-  // ── Auto-decode Holder ──
+  // ── Auto-decode Holder ── (ISO 5608: 5 jednopísmenných pozic + výška + šířka)
   function autoDecodeHolder(code) {
-    code = code.replace(/[\s\-]/g, '').toUpperCase();
-    if (code.length < 4) return;
-    hSel[1] = code[0] || '-';
-    hSel[2] = code[1] || '-';
-    hSel[3] = code[2] || '-';
-    hSel[4] = code[3] || '-';
-    if (code.length >= 6) hSel[5] = code.substring(4, 6); else hSel[5] = '-';
-    if (code.length >= 8) hSel[6] = code.substring(6, 8); else hSel[6] = '-';
+    var parsed = parseHolderCode(code);
+    if (parsed[1] === '-') return;
+    for (var i = 1; i <= 7; i++) hSel[i] = parsed[i];
     updateHolder();
   }
 
@@ -890,7 +906,7 @@ export function openInsertCalc(opts) {
   // ── Clear ──
   overlay.querySelector('.cnc-btn-clear').addEventListener('click', function() {
     for (var i = 1; i <= 9; i++) sel[i] = '-';
-    for (var j = 1; j <= 6; j++) hSel[j] = '-';
+    for (var j = 1; j <= 7; j++) hSel[j] = '-';
     updateVbd(); updateHolder();
     overlay.querySelector('#vbdAutoInput').value = '';
     overlay.querySelector('#holderAutoInput').value = '';

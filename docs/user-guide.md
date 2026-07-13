@@ -291,6 +291,43 @@ CAM část ti umožní generovat NC programy pro obrábění.
 - **Kopírovat** – zkopíruj do schránky
 - **Export CNC kódu** – zpět do panelu
 
+### Geometrie nástroje (destička + držák)
+V záložce **Parametry → Nástroj** otevři **⚙️ Geometrie** — modal s živým 2D
+náhledem destičky a držáku. Obsah je rozdělený do dvou přepínatelných
+pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
+- **↩ / ↪** vedle nadpisu — vrátí/znovu provede poslední změnu udělanou v
+  tomto dialogu (sdílí historii s hlavním CAM Simulátorem).
+- **Náhled lze přiblížit/oddálit** kolečkem myši nebo tlačítky **＋ / － / ⟲**
+  (reset), a posunout tažením. Popisky úhlů (κr, ε, natočení, γ/γf) přímo v
+  náhledu jsou klikací — klik přepne na příslušnou pod-záložku a rovnou
+  zaostří dané pole k úpravě.
+- Dlouhý dřík držáku (velké l1) se v náhledu kreslí zkrácený se standardní
+  značkou přerušení (klikatý zlom), ať nezabírá většinu výšky náhledu —
+  popisek u zkráceného dříku ukazuje "(zkráceno)", skutečná hodnota l1
+  zůstává beze změny v poli i v popisce.
+- **Destička (VBD)**: tvar (kulatá/čtyřstranná/zápichová/závitová), délka
+  hrany, natočení, vrcholový úhel (ε) a rádius (R); dekódování VBD kódu.
+  U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
+  Natočení — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
+  stranu** ji překlopí bez nutnosti přepočítávat úhly ručně.
+- **Držák**: výběr stylu dle ISO 5608 (A–W) doplní orientační úhel nastavení
+  hlavního ostří **κr**, dále výška tělesa (h), šířka stopky (b) a funkční
+  délka (l1). Hodnoty jsou orientační napříč výrobci — ověř v katalogu
+  konkrétního nástroje. Tlačítko **↧ Použít** promítne b/l1 do polí
+  Tloušťka/Délka držáku používaných pro hlídání geometrie.
+- **Úhel hřbetu (γ) / čela (γf) tělesa držáku** — nepovinná ruční pole
+  (nedopočítávají se ze stylu), relevantní hlavně u pájených/celistvých
+  nástrojů; pokud jsou vyplněná, zobrazí se v náhledu jako tečkované
+  vodicí čáry na těle držáku.
+- **🔍 Najít dle destičky** — vyhledá styl držáku, jehož κr nejlépe odpovídá
+  aktuálnímu natočení destičky, a doplní ho.
+- **⇄ Ruka (R/L)** — při otevření dialogu se odvodí ze směru hrubování
+  (zprava/zleva), tlačítkem ji lze kdykoli ručně přepnout; náhled destičky
+  se podle ruky zrcadlí.
+
+Pole tvaru destičky (Délka hrany, Natočení, Vrch. úhel, Rádius) jsou
+synchronizovaná mezi hlavním panelem a tímto modalem obousměrně.
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu

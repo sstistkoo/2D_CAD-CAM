@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- CAM Simulator: "⚙️ Geometrie" dialog for insert (VBD) + tool holder geometry
+  with a live 2D preview canvas (`drawInsertAndHolderPreview`), bidirectionally
+  synced with the "Nástroj" panel
+- ISO 5608/5610 reference data (`js/calculators/holderIsoData.js`): holder
+  style letters (A–W) with approach angle κr, and typical functional length
+  (l1) by shank height — orientational, catalog values vary by manufacturer
+- VBD & Držáky dialog: holder code decoder now follows the real 7-position
+  ISO 5608 structure (clamping, insert shape, style/κr, insert clearance
+  angle, hand, height, width) instead of the previous simplified 6-position
+  layout
+- "⚙️ Geometrie" dialog: optional holder body back angle (γ) / face angle
+  (γf) fields, manually entered (not auto-derived — usually only relevant
+  for brazed/solid tools), visualized as dashed guide lines on the preview
+- "⚙️ Geometrie" dialog: "🔍 Najít dle destičky" button suggests the closest
+  ISO 5608 holder style by matching κr to the insert's Natočení (toolAngle);
+  "⇄ Ruka" toggle for holder hand (R/L), auto-derived from the machining
+  side (`roughingSide`) each time the dialog opens, mirroring the insert
+  shape in the preview
+- Holder body preview now reflects κr geometrically: the head near the
+  insert is drawn with a chamfered nose (straight side + side angled by κr)
+  instead of a plain rectangle; falls back to a plain rectangle when no
+  style/κr is selected
+- "⚙️ Geometrie" dialog: ↩/↪ undo/redo buttons next to the title (share the
+  CAM Simulator's existing history stack — any change made in this dialog
+  can be reverted/reapplied); preview canvas is zoomable (mouse wheel or
+  ＋/－ buttons) and pannable (drag), with a ⟲ reset button; content split
+  into two switchable sub-tabs, "🔩 Destička" and "🗜 Držák", instead of one
+  long scrolling form
+- Preview canvas now labels ε (vrcholový úhel), natočení and γ/γf directly
+  on the drawing (not just in the form); each label is a clickable hotspot
+  that switches to the relevant sub-tab (Destička/Držák) and focuses the
+  matching input
+
+### Fixed
+- Preview canvas proportions: the holder body no longer renders visually
+  smaller/narrower than the insert when the shank length (l1) is much
+  larger than the insert edge length — the scale is now computed from a
+  capped drawn shank length instead of the full l1, and the insert's
+  minimum pixel-size clamps were reduced so they no longer override the
+  shared scale
+- A very long holder shank (large l1) is now drawn shortened with a
+  standard technical-drawing break mark (zig-zag) instead of taking up
+  most of the canvas height; the true l1 value stays in the label,
+  suffixed "(zkráceno)" when the drawing is shortened; the shown shank
+  portion was also shortened further so the head/nose detail near the
+  insert stays the visual focus
+- The gap between the insert tip and the holder's near edge is now sized
+  from the insert's actual drawn reach (Délka hrany) instead of a fixed
+  small fraction, so the insert body no longer visually overlaps/crosses
+  into the holder's chamfered head
+
+### Added
+- Polygon insert: "⇄ Přehodit stranu" button — the vertex angle (ε) can
+  open to either side of Natočení (two geometrically valid mirror options);
+  the button flips which one the preview draws instead of requiring the
+  angle to be recalculated by hand (`toolTipMirror`, preview-only — does
+  not affect the interference-guard calculation, which uses its own
+  Natočení-symmetric model)
+
+### Changed
+- Insert shape "Úhel hřbetu (α)" field removed from the polygon shape UI,
+  replaced by "Rádius (R)" at the same position (value still used internally
+  for flank-interference tolerance)
+- "VBD kód" and holder dimension fields ("Tloušťka držáku", "Délka držáku")
+  moved from the main "Nástroj" panel into the new "⚙️ Geometrie" dialog
+
 ## [1.7.0] - 2026-07-04
 
 ### Added
