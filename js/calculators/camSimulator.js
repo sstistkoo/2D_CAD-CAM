@@ -9782,12 +9782,10 @@ export function openCamSimulator(initialContour, initialGCode) {
                 <button data-act="geom-open-rotate-knife" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení celého nože (destička i držák). Šipka ukazuje směrem k destičce. 270° = destička dole / držák nahoru.">↻ Natočení nože (${prms.knifeAngle ?? 270}°)</button>
               </div>
               <div class="cam-sim-row" style="align-items:center">
-                <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;cursor:pointer" title="Když nakreslíte na CAD plátně jen dvě strany (otevřený obrys), auto-doplní se pod 45° podle Délky a Tloušťky. Vypnuto = uloží se přesně nakreslený tvar.">
+                <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;flex:0 0 auto" title="Když nakreslíte na CAD plátně jen dvě strany (otevřený obrys), auto-doplní se pod 45° podle Délky a Tloušťky. Vypnuto = uloží se přesně nakreslený tvar.">
                   <input type="checkbox" id="geom-holder-autocomplete" ${prms.holderAutoComplete !== false ? 'checked' : ''}>
-                  Auto-doplnit držák (l1 × tloušťka)
+                  Auto
                 </label>
-              </div>
-              <div class="cam-sim-row">
                 <div class="cam-sim-field"><label title="Funkční délka l1 — stejné pole jako Délka držáku dole v panelu Nástroj">Délka držáku (l1)</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
                 <div class="cam-sim-field"><label title="Tloušťka (šířka v ose Z) držáku plátku — používá se pro hlídání geometrie destičky">Tloušťka držáku</label><input type="number" step="1" min="0" data-p="holderWidth" value="${prms.holderWidth ?? 20}"></div>
               </div>
