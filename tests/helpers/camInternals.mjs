@@ -17,6 +17,9 @@ const EXPORTS = [
   'buildMachinableContour', 'mergePocketGuides', 'markDominatedGuides',
   'bridgeBetweenContourPoints', 'bridgeFromContourToStock', '_locateOnContour',
   'getArcParams', 'segStartPoint', 'segEndPoint', 'setSegStart', 'setSegEnd',
+  // Editor tvaru držáku (čisté geometrické funkce)
+  'holderRectProfile', 'holderBottomHandles', 'translateHolderProfile',
+  'chamferProfileCorner', 'getInsertAnchorPoints',
 ];
 
 let _mod = null;

@@ -45,11 +45,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     be switched, and the holder is mapped screen-consistently — drawing it
     upward in CAD shows it upward in the preview. The auto-45° closing can be
     turned off with an **"Auto-doplnit držák (l1 × tloušťka)"** checkbox; when
-    off the exact drawn (even open) shape is stored
+    off the exact drawn (even open) shape is stored. Re-entering 📐 when a
+    holder is already saved re-imports it as **editable** lines on the Držák
+    layer (next to the locked insert), so it can be adjusted instead of redrawn
+  - **🔧 Upravit obdélník** (Držák tab): in-preview editor for the default
+    rectangular holder. Materializes the rectangle (holderWidth × holderLength,
+    lifted above the insert) with three clickable yellow handles on the bottom
+    edge (left corner / middle / right corner) and green insert anchors that now
+    include a **🎯 Střed R** target at (0,0). Click a holder handle then an
+    insert anchor to **move** the holder onto that point (e.g. bottom-left
+    corner → insert radius center); **🔻 Srazit roh** chamfers a chosen corner
+    by a given **size + angle** (45° = symmetric; other angles derive the second
+    leg from the corner's interior angle); **🗑 Vymazat** resets to a clean
+    rectangle. Pure geometry
+    (`holderRectProfile`, `holderBottomHandles`, `translateHolderProfile`,
+    `chamferProfileCorner`) is unit-tested (`tests/cam-holder-editor.test.js`)
   - Rotations split: **↻ Natočení destičky** (just the insert, `toolAngle`)
     moved to the Destička sub-tab; the Držák sub-tab gets **↻ Natočení nože**
     (`knifeAngle`) which rotates the whole tool — insert and holder together —
-    in the preview. The Destička sub-tab now hides the holder and fits the view
+    in the preview. The knife angle is the direction the **insert points**
+    (the compass arrow points toward the insert): 270° = default (insert down,
+    holder up), 0° = insert right, etc. (internal preview rotation `R = 270 −
+    knifeAngle`). The Destička sub-tab now hides the holder and fits the view
     to the insert
   - Preview draws `holderProfile` as connected polylines (starting at the
     insert edge) instead of the rectangle once it has points; **🗑 Smazat

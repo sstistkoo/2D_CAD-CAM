@@ -344,6 +344,17 @@ Místo automatické ISO geometrie se obrys držáku kreslí ručně, dvěma způ
   - **Jen dvě strany** (otevřená lomená čára) → automaticky se uzavře pod 45°
     dle polí **Délka držáku (l1)** a **Tloušťka držáku**; tlačítkem **⇄ Strana**
     přepínáš, který konec se doplňuje (auto → A → B).
+  Když už držák uložený máš a klikneš **📐** znovu, načte se zpět na vrstvu
+  Držák jako **editovatelné** čáry (vedle zamčené destičky) — můžeš ho tak
+  doupravit místo kreslení od nuly.
+- **🔧 Upravit obdélník** (v Držák tabu) — úprava výchozího obdélníku držáku
+  přímo v náhledu. Objeví se obdélník (šířka × délka) se třemi žlutými body na
+  spodní hraně (levý roh / střed / pravý roh) a zelené body na destičce, teď
+  navíc **🎯 Střed R** v počátku. **Přesun:** klikni na bod držáku (žlutý), pak
+  na bod destičky (zelený) — držák se tam přesune (např. levý spodní roh →
+  střed rádiusu destičky). **🔻 Srazit roh:** klikni, pak vyber rohový bod a
+  zadej **velikost + úhel** sražení (45° = symetrické; jiný úhel dopočte druhou
+  nohu z úhlu rohu). **🗑 Vymazat:** vrátí čistý obdélník.
 - **🗑 Smazat obrys** vrátí zpět na prostý obdélník (holderWidth × holderLength).
 
 Ruční kreslení v dialogu (✏️) je zatím podporované jen pro kulatou a
