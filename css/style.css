@@ -1881,16 +1881,19 @@ body {
   background: linear-gradient(to bottom, #f9e2af44, transparent);
 }
 
-/* ── Sidebar Precision Pointer (long-press) ── */
-#sidebarPrecisionPointer {
+/* ── Globální Precision Pointer (long-press mimo CAD plátno) ──
+   Jednotná náhrada za dřívější odděleně dělané sidebar/topbar/overlay
+   varianty – funguje nad celým UI (sidebar, topbar, plovoucí tlačítka,
+   dialogy…), kromě samotného CAD plátna (to má vlastní #precisionCrosshair). */
+#globalPrecisionPointer {
   position: fixed;
-  z-index: 90;
+  z-index: 1000;
   pointer-events: none;
   width: 0;
   height: 0;
 }
 
-#sidebarPrecisionPointer .sp-dot {
+#globalPrecisionPointer .sp-dot {
   position: absolute;
   width: 10px;
   height: 10px;
@@ -1902,7 +1905,7 @@ body {
   box-shadow: 0 0 10px var(--ctp-yellow, #f9e2af);
 }
 
-#sidebarPrecisionPointer .sp-connector {
+#globalPrecisionPointer .sp-connector {
   position: absolute;
   width: 1px;
   height: 60px;
@@ -1911,83 +1914,17 @@ body {
   background: linear-gradient(to bottom, #f9e2af66, transparent);
 }
 
-#sidebarPrecisionPointer .sp-label {
-  display: none;
-  position: absolute;
-  left: 14px; top: -12px;
-  white-space: nowrap;
-  font: 600 11px/1.3 system-ui, sans-serif;
-  color: var(--ctp-crust, #11111b);
-  background: var(--ctp-yellow, #f9e2af);
-  padding: 3px 8px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.4);
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Blízko horního okraje obrazovky se pointer ukazuje POD prstem místo nad ním */
+#globalPrecisionPointer.below .sp-connector {
+  top: -60px;
+  background: linear-gradient(to top, #f9e2af66, transparent);
 }
 
-/* ── Topbar Precision Pointer ── */
-#topbarPrecisionPointer {
-  position: fixed;
-  z-index: 90;
-  pointer-events: none;
-  width: 0; height: 0;
-}
-#topbarPrecisionPointer .sp-dot {
-  position: absolute;
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--ctp-yellow, #f9e2af);
-  background: #f9e2af44;
-  left: -5px; top: -5px;
-  box-shadow: 0 0 10px var(--ctp-yellow, #f9e2af);
-}
-#topbarPrecisionPointer .sp-connector {
-  position: absolute;
-  width: 1px; height: 60px;
-  left: 0; top: 0;
-  background: linear-gradient(to bottom, #f9e2af66, transparent);
-}
-#topbarPrecisionPointer .sp-label {
-  display: none;
-  position: absolute;
-  left: 14px; top: -12px;
-  white-space: nowrap;
-  font: 600 11px/1.3 system-ui, sans-serif;
-  color: var(--ctp-crust, #11111b);
-  background: var(--ctp-yellow, #f9e2af);
-  padding: 3px 8px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.4);
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+#globalPrecisionPointer.below .sp-label {
+  top: 12px;
 }
 
-/* ── Overlay Precision Pointer (dialogy) ── */
-#overlayPrecisionPointer {
-  position: fixed;
-  z-index: 310;
-  pointer-events: none;
-  width: 0; height: 0;
-}
-#overlayPrecisionPointer .sp-dot {
-  position: absolute;
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--ctp-yellow, #f9e2af);
-  background: #f9e2af44;
-  left: -5px; top: -5px;
-  box-shadow: 0 0 10px var(--ctp-yellow, #f9e2af);
-}
-#overlayPrecisionPointer .sp-connector {
-  position: absolute;
-  width: 1px; height: 60px;
-  left: 0; top: 0;
-  background: linear-gradient(to bottom, #f9e2af66, transparent);
-}
-#overlayPrecisionPointer .sp-label {
+#globalPrecisionPointer .sp-label {
   display: none;
   position: absolute;
   left: 14px; top: -12px;

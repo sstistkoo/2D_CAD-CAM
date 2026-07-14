@@ -991,415 +991,151 @@ bridge.updatePolylineButtons = updatePolylineButtons;
 bridge.updateTraceButtons = updateTraceButtons;
 bridge.updateHolderDrawButtons = updateHolderDrawButtons;
 
-// ── Sidebar Precision Pointer (long-press pro přesné klikání v panelu) ──
+// ── Globální Precision Pointer (long-press pro přesné klikání kdekoli mimo CAD plátno) ──
+// Jednotná náhrada za dřívější zvlášť řešené sidebar/topbar/overlay varianty –
+// funguje nad celým UI (sidebar, topbar, plovoucí mobilní tlačítka, dialogy…).
+// CAD plátno (#canvasWrap) má vlastní mechanismus – viz showPrecisionCrosshair výše.
 {
-  const spEl = document.getElementById("sidebarPrecisionPointer");
-  const SIDEBAR_OFFSET_Y = -60; // pointer se ukáže NAD prstem
-  let spTimer = null;
-  let spActive = false;
-  let spStartX = 0, spStartY = 0;
-  let spHighlighted = null;
+  const gpEl = document.getElementById("globalPrecisionPointer");
+  const GLOBAL_OFFSET_Y = -60; // pointer se ukáže NAD prstem (výchozí)
+  const gpLabel = gpEl.querySelector(".sp-label");
+  const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card";
+  let gpTimer = null;
+  let gpActive = false;
+  let gpStartX = 0, gpStartY = 0;
+  let gpHighlighted = null;
+  // Pokud je terč blízko horního okraje (plovoucí mobilní tlačítka), posun NAD prst
+  // by ukázal pointer mimo obrazovku – v tom případě ho místo toho ukázat POD prstem.
+  let gpOffsetY = GLOBAL_OFFSET_Y;
 
-  function showSidebarPointer(clientX, clientY) {
-    const pointerX = clientX;
-    const pointerY = clientY + SIDEBAR_OFFSET_Y;
-    spEl.style.left = pointerX + "px";
-    spEl.style.top = pointerY + "px";
-    spEl.style.display = "block";
-    highlightElementAt(pointerX, pointerY);
+  // Potlačit kontextové menu při long-press
+  document.addEventListener("contextmenu", (e) => {
+    if (gpActive) e.preventDefault();
+  });
+
+  function showGlobalPointer(clientX, clientY) {
+    gpOffsetY = (clientY + GLOBAL_OFFSET_Y < 10) ? 60 : GLOBAL_OFFSET_Y;
+    gpEl.classList.toggle("below", gpOffsetY > 0);
+    const px = clientX, py = clientY + gpOffsetY;
+    gpEl.style.left = px + "px";
+    gpEl.style.top = py + "px";
+    gpEl.style.display = "block";
+    highlightGlobalAt(px, py);
   }
 
-  function updateSidebarPointer(clientX, clientY) {
-    const pointerX = clientX;
-    const pointerY = clientY + SIDEBAR_OFFSET_Y;
-    spEl.style.left = pointerX + "px";
-    spEl.style.top = pointerY + "px";
-    highlightElementAt(pointerX, pointerY);
+  function updateGlobalPointer(clientX, clientY) {
+    const px = clientX, py = clientY + gpOffsetY;
+    gpEl.style.left = px + "px";
+    gpEl.style.top = py + "px";
+    highlightGlobalAt(px, py);
   }
 
-  const spLabel = spEl.querySelector(".sp-label");
-
-  function highlightElementAt(x, y) {
-    // Zrušit předchozí highlight
-    if (spHighlighted) {
-      spHighlighted.style.outline = "";
-      spHighlighted.style.outlineOffset = "";
-      spHighlighted = null;
+  function highlightGlobalAt(x, y) {
+    if (gpHighlighted) {
+      gpHighlighted.style.outline = "";
+      gpHighlighted.style.outlineOffset = "";
+      gpHighlighted = null;
     }
-    spLabel.style.display = "none";
+    gpLabel.style.display = "none";
     // Najít element pod pointerem (skrýt pointer, aby nebyl v cestě)
-    spEl.style.display = "none";
+    gpEl.style.display = "none";
     const el = document.elementFromPoint(x, y);
-    spEl.style.display = "block";
-    if (el && sidebar.contains(el)) {
-      const clickable = el.closest("button, input[type=checkbox], input[type=radio], a, label, li, select");
+    gpEl.style.display = "block";
+    if (el) {
+      const clickable = el.closest(CLICKABLE_SEL);
       if (clickable) {
         clickable.style.outline = "2px solid #f9e2af";
         clickable.style.outlineOffset = "1px";
-        spHighlighted = clickable;
+        gpHighlighted = clickable;
         // Zobrazit tooltip z title nebo aria-label
         const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
         if (tip) {
-          spLabel.textContent = tip;
-          spLabel.style.left = "14px";
-          spLabel.style.right = "auto";
-          spLabel.style.display = "block";
+          gpLabel.textContent = tip;
+          gpLabel.style.left = "14px";
+          gpLabel.style.right = "auto";
+          gpLabel.style.display = "block";
           // Pokud přetéká přes pravý okraj, přepnout na levou stranu
-          const rect = spLabel.getBoundingClientRect();
+          const rect = gpLabel.getBoundingClientRect();
           if (rect.right > window.innerWidth - 4) {
-            spLabel.style.left = "auto";
-            spLabel.style.right = "14px";
+            gpLabel.style.left = "auto";
+            gpLabel.style.right = "14px";
           }
         }
       }
     }
   }
 
-  function hideSidebarPointer() {
-    spEl.style.display = "none";
-    spActive = false;
-    if (spHighlighted) {
-      spHighlighted.style.outline = "";
-      spHighlighted.style.outlineOffset = "";
-      spHighlighted = null;
+  function hideGlobalPointer() {
+    gpEl.style.display = "none";
+    gpActive = false;
+    if (gpHighlighted) {
+      gpHighlighted.style.outline = "";
+      gpHighlighted.style.outlineOffset = "";
+      gpHighlighted = null;
     }
-    if (spTimer) { clearTimeout(spTimer); spTimer = null; }
+    if (gpTimer) { clearTimeout(gpTimer); gpTimer = null; }
   }
 
-  function clickElementAt(x, y) {
-    spEl.style.display = "none";
+  function clickGlobalAt(x, y) {
+    gpEl.style.display = "none";
     const el = document.elementFromPoint(x, y);
-    spEl.style.display = "block";
-    if (el && sidebar.contains(el)) {
-      const clickable = el.closest("button, input[type=checkbox], input[type=radio], a, label, li");
-      if (clickable) {
-        if (clickable.tagName === "INPUT" && (clickable.type === "checkbox" || clickable.type === "radio")) {
-          clickable.click();
-        } else {
-          clickable.click();
-        }
-      }
-    }
-  }
-
-  sidebar.addEventListener("touchstart", (e) => {
-    if (!isMobile()) return;
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    // Ignorovat pokud dotyk je na input polích kde se píše
-    if (e.target.tagName === "INPUT" && e.target.type !== "checkbox" && e.target.type !== "radio") return;
-    if (e.target.tagName === "SELECT") return;
-    spStartX = t.clientX;
-    spStartY = t.clientY;
-    spActive = false;
-    if (spTimer) clearTimeout(spTimer);
-    spTimer = setTimeout(() => {
-      spActive = true;
-      try { safeVibrate(VIBRATE_LONG_PRESS); } catch (_) {}
-      showSidebarPointer(t.clientX, t.clientY);
-      e.preventDefault();
-    }, LONG_PRESS_MS);
-  }, { passive: false });
-
-  sidebar.addEventListener("touchmove", (e) => {
-    if (!isMobile()) return;
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    const dist = Math.hypot(t.clientX - spStartX, t.clientY - spStartY);
-    if (!spActive && dist > TOUCH_MOVE_THRESHOLD) {
-      if (spTimer) { clearTimeout(spTimer); spTimer = null; }
-      return;
-    }
-    if (spActive) {
-      e.preventDefault();
-      updateSidebarPointer(t.clientX, t.clientY);
-    }
-  }, { passive: false });
-
-  sidebar.addEventListener("touchend", (e) => {
-    if (spTimer) { clearTimeout(spTimer); spTimer = null; }
-    if (spActive) {
-      e.preventDefault();
-      const pointerX = (e.changedTouches[0]?.clientX || spStartX);
-      const pointerY = (e.changedTouches[0]?.clientY || spStartY) + SIDEBAR_OFFSET_Y;
-      clickElementAt(pointerX, pointerY);
-      hideSidebarPointer();
-    }
-    spActive = false;
-  }, { passive: false });
-
-  sidebar.addEventListener("touchcancel", () => {
-    hideSidebarPointer();
-  });
-}
-
-// ── Topbar Precision Pointer (long-press pro přesné klikání v toolbaru) ──
-{
-  const tpEl = document.getElementById("topbarPrecisionPointer");
-  const TOPBAR_OFFSET_Y = -60; // vizuální indikátor NAD prstem
-  let tpTimer = null;
-  let tpActive = false;
-  let tpStartX = 0, tpStartY = 0;
-  let tpHighlighted = null;
-  const tpLabel = tpEl.querySelector(".sp-label");
-
-  // Potlačit kontextové menu při long-press na toolbaru
-  topbar.addEventListener("contextmenu", (e) => {
-    if (tpActive) e.preventDefault();
-  });
-
-  function showTopbarPointer(clientX, clientY) {
-    const px = clientX, py = clientY + TOPBAR_OFFSET_Y;
-    tpEl.style.left = px + "px";
-    tpEl.style.top = py + "px";
-    tpEl.style.display = "block";
-    highlightTopbarAt(px, py);
-  }
-
-  function updateTopbarPointer(clientX, clientY) {
-    const px = clientX, py = clientY + TOPBAR_OFFSET_Y;
-    tpEl.style.left = px + "px";
-    tpEl.style.top = py + "px";
-    highlightTopbarAt(px, py);
-  }
-
-  function highlightTopbarAt(x, y) {
-    if (tpHighlighted) {
-      tpHighlighted.style.outline = "";
-      tpHighlighted.style.outlineOffset = "";
-      tpHighlighted = null;
-    }
-    tpLabel.style.display = "none";
-    tpEl.style.display = "none";
-    const el = document.elementFromPoint(x, y);
-    tpEl.style.display = "block";
-    if (el && topbar.contains(el)) {
-      const clickable = el.closest("button, a, label");
-      if (clickable) {
-        clickable.style.outline = "2px solid #f9e2af";
-        clickable.style.outlineOffset = "1px";
-        tpHighlighted = clickable;
-        const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
-        if (tip) {
-          tpLabel.textContent = tip;
-          tpLabel.style.left = "14px";
-          tpLabel.style.right = "auto";
-          tpLabel.style.display = "block";
-          const rect = tpLabel.getBoundingClientRect();
-          if (rect.right > window.innerWidth - 4) {
-            tpLabel.style.left = "auto";
-            tpLabel.style.right = "14px";
-          }
-        }
-      }
-    }
-  }
-
-  function hideTopbarPointer() {
-    tpEl.style.display = "none";
-    tpActive = false;
-    if (tpHighlighted) {
-      tpHighlighted.style.outline = "";
-      tpHighlighted.style.outlineOffset = "";
-      tpHighlighted = null;
-    }
-    if (tpTimer) { clearTimeout(tpTimer); tpTimer = null; }
-  }
-
-  function clickTopbarAt(x, y) {
-    tpEl.style.display = "none";
-    const el = document.elementFromPoint(x, y);
-    tpEl.style.display = "block";
-    if (el && topbar.contains(el)) {
-      const clickable = el.closest("button, a, label");
+    gpEl.style.display = "block";
+    if (el) {
+      const clickable = el.closest(CLICKABLE_SEL);
       if (clickable) clickable.click();
     }
   }
 
-  topbar.addEventListener("touchstart", (e) => {
-    if (!isMobile()) return;
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-    tpStartX = t.clientX;
-    tpStartY = t.clientY;
-    tpActive = false;
-    if (tpTimer) clearTimeout(tpTimer);
-    tpTimer = setTimeout(() => {
-      tpActive = true;
-      try { safeVibrate(VIBRATE_LONG_PRESS); } catch (_) {}
-      showTopbarPointer(t.clientX, t.clientY);
-    }, LONG_PRESS_MS);
-  }, { passive: false });
-
-  topbar.addEventListener("touchmove", (e) => {
-    if (!isMobile()) return;
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    const dist = Math.hypot(t.clientX - tpStartX, t.clientY - tpStartY);
-    if (!tpActive && dist > TOUCH_MOVE_THRESHOLD) {
-      if (tpTimer) { clearTimeout(tpTimer); tpTimer = null; }
-      return;
-    }
-    if (tpActive) {
-      e.preventDefault();
-      updateTopbarPointer(t.clientX, t.clientY);
-    }
-  }, { passive: false });
-
-  topbar.addEventListener("touchend", (e) => {
-    if (tpTimer) { clearTimeout(tpTimer); tpTimer = null; }
-    if (tpActive) {
-      e.preventDefault();
-      // Klik na pozici kolečka (s offsetem)
-      const px = (e.changedTouches[0]?.clientX || tpStartX);
-      const py = (e.changedTouches[0]?.clientY || tpStartY) + TOPBAR_OFFSET_Y;
-      clickTopbarAt(px, py);
-      hideTopbarPointer();
-    }
-    tpActive = false;
-  }, { passive: false });
-
-  topbar.addEventListener("touchcancel", () => {
-    hideTopbarPointer();
-  });
-}
-
-// ── Overlay Precision Pointer (long-press v dialozích .calc-overlay / .input-overlay) ──
-{
-  const opEl = document.getElementById("overlayPrecisionPointer");
-  const OVERLAY_OFFSET_Y = -60;
-  let opTimer = null;
-  let opActive = false;
-  let opStartX = 0, opStartY = 0;
-  let opHighlighted = null;
-  let opContainer = null; // aktuální overlay kontejner
-  const opLabel = opEl.querySelector(".sp-label");
-
-  function getOverlayContainer(el) {
-    return el && el.closest(".calc-overlay, .input-overlay");
-  }
-
-  function showOverlayPointer(clientX, clientY) {
-    const px = clientX, py = clientY + OVERLAY_OFFSET_Y;
-    opEl.style.left = px + "px";
-    opEl.style.top = py + "px";
-    opEl.style.display = "block";
-    highlightOverlayAt(px, py);
-  }
-
-  function updateOverlayPointer(clientX, clientY) {
-    const px = clientX, py = clientY + OVERLAY_OFFSET_Y;
-    opEl.style.left = px + "px";
-    opEl.style.top = py + "px";
-    highlightOverlayAt(px, py);
-  }
-
-  function highlightOverlayAt(x, y) {
-    if (opHighlighted) {
-      opHighlighted.style.outline = "";
-      opHighlighted.style.outlineOffset = "";
-      opHighlighted = null;
-    }
-    opLabel.style.display = "none";
-    opEl.style.display = "none";
-    const el = document.elementFromPoint(x, y);
-    opEl.style.display = "block";
-    if (el && opContainer && opContainer.contains(el)) {
-      const clickable = el.closest("button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card");
-      if (clickable) {
-        clickable.style.outline = "2px solid #f9e2af";
-        clickable.style.outlineOffset = "1px";
-        opHighlighted = clickable;
-        const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
-        if (tip) {
-          opLabel.textContent = tip;
-          opLabel.style.left = "14px";
-          opLabel.style.right = "auto";
-          opLabel.style.display = "block";
-          const rect = opLabel.getBoundingClientRect();
-          if (rect.right > window.innerWidth - 4) {
-            opLabel.style.left = "auto";
-            opLabel.style.right = "14px";
-          }
-        }
-      }
-    }
-  }
-
-  function hideOverlayPointer() {
-    opEl.style.display = "none";
-    opActive = false;
-    opContainer = null;
-    if (opHighlighted) {
-      opHighlighted.style.outline = "";
-      opHighlighted.style.outlineOffset = "";
-      opHighlighted = null;
-    }
-    if (opTimer) { clearTimeout(opTimer); opTimer = null; }
-  }
-
-  function clickOverlayAt(x, y) {
-    opEl.style.display = "none";
-    const el = document.elementFromPoint(x, y);
-    opEl.style.display = "block";
-    if (el && opContainer && opContainer.contains(el)) {
-      const clickable = el.closest("button, input[type=checkbox], input[type=radio], a, label, li");
-      if (clickable) clickable.click();
-    }
-  }
-
-  // Delegovaný listener na document – zachytí touch na jakémkoli overlay
   document.addEventListener("touchstart", (e) => {
     if (!isMobile()) return;
     if (e.touches.length !== 1) return;
-    const container = getOverlayContainer(e.target);
-    if (!container) return;
+    // CAD plátno má vlastní precision crosshair (world souřadnice, snapping…)
+    if (e.target.closest("#canvasWrap")) return;
     const t = e.touches[0];
+    // Ignorovat pokud dotyk je na poli kde se píše (necháme nativní kurzor/výběr textu)
     if (e.target.tagName === "INPUT" && e.target.type !== "checkbox" && e.target.type !== "radio") return;
     if (e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
-    opStartX = t.clientX;
-    opStartY = t.clientY;
-    opActive = false;
-    opContainer = container;
-    if (opTimer) clearTimeout(opTimer);
-    opTimer = setTimeout(() => {
-      opActive = true;
+    gpStartX = t.clientX;
+    gpStartY = t.clientY;
+    gpActive = false;
+    if (gpTimer) clearTimeout(gpTimer);
+    gpTimer = setTimeout(() => {
+      gpActive = true;
       try { safeVibrate(VIBRATE_LONG_PRESS); } catch (_) {}
-      showOverlayPointer(t.clientX, t.clientY);
+      showGlobalPointer(t.clientX, t.clientY);
     }, LONG_PRESS_MS);
   }, { passive: false });
 
   document.addEventListener("touchmove", (e) => {
-    if (!opActive && !opTimer) return;
+    if (!gpActive && !gpTimer) return;
     if (!isMobile()) return;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
-    const dist = Math.hypot(t.clientX - opStartX, t.clientY - opStartY);
-    if (!opActive && dist > TOUCH_MOVE_THRESHOLD) {
-      if (opTimer) { clearTimeout(opTimer); opTimer = null; }
+    const dist = Math.hypot(t.clientX - gpStartX, t.clientY - gpStartY);
+    if (!gpActive && dist > TOUCH_MOVE_THRESHOLD) {
+      if (gpTimer) { clearTimeout(gpTimer); gpTimer = null; }
       return;
     }
-    if (opActive) {
+    if (gpActive) {
       e.preventDefault();
-      updateOverlayPointer(t.clientX, t.clientY);
+      updateGlobalPointer(t.clientX, t.clientY);
     }
   }, { passive: false });
 
   document.addEventListener("touchend", (e) => {
-    if (!opActive && !opTimer) return;
-    if (opTimer) { clearTimeout(opTimer); opTimer = null; }
-    if (opActive) {
+    if (!gpActive && !gpTimer) return;
+    if (gpTimer) { clearTimeout(gpTimer); gpTimer = null; }
+    if (gpActive) {
       e.preventDefault();
-      const px = (e.changedTouches[0]?.clientX || opStartX);
-      const py = (e.changedTouches[0]?.clientY || opStartY) + OVERLAY_OFFSET_Y;
-      clickOverlayAt(px, py);
-      hideOverlayPointer();
+      const px = (e.changedTouches[0]?.clientX || gpStartX);
+      const py = (e.changedTouches[0]?.clientY || gpStartY) + gpOffsetY;
+      clickGlobalAt(px, py);
+      hideGlobalPointer();
     }
-    opActive = false;
+    gpActive = false;
   }, { passive: false });
 
   document.addEventListener("touchcancel", () => {
-    if (opActive || opTimer) hideOverlayPointer();
+    if (gpActive || gpTimer) hideGlobalPointer();
   });
 }

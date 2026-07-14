@@ -119,6 +119,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the insert's actual drawn reach, so the insert body no longer visually
   overlaps the holder
 
+### Fixed
+- Mobile long-press "precision pointer" (offset cursor circle used to tap
+  small/tightly-packed controls precisely) was wired up separately for the
+  sidebar, the topbar, and `.calc-overlay`/`.input-overlay` dialogs only —
+  it silently did nothing on the floating mobile action buttons and any
+  other UI outside those three containers. Replaced the three near-duplicate
+  implementations with a single delegated listener on `document` (`touch.js`)
+  that covers the whole UI, excluding the CAD canvas (`#canvasWrap`, which
+  keeps its own dedicated `#precisionCrosshair`) and text-entry fields
+  (`input`/`select`/`textarea`). Also flips the pointer to appear below the
+  finger instead of above when the target is near the top edge of the
+  viewport, so it no longer renders off-screen there.
+
 ## [1.7.0] - 2026-07-04
 
 ### Added

@@ -69,7 +69,10 @@ Herní nástroje seskupené do sekcí:
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky
 - Tlačítko ☰ boční panel
-- Long-press na prázdné místo → precision křížek (numerický vstup)
+- Long-press na prázdné místo na CAD plátně → precision křížek (numerický vstup)
+- Long-press kdekoli jinde v UI (panely, lišty, dialogy, plovoucí tlačítka) →
+  precision pointer: nad prstem se ukáže kolečko s offsetem, které funguje jako
+  kurzor myši pro přesné zacílení malých/blízko sebe umístěných ovládacích prvků
 - Touch zoom: pinch
 - Pan: jeden prst
 
