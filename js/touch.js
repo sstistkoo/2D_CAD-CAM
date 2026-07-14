@@ -130,14 +130,11 @@ export function updateMobileCoords(wx, wy, extra) {
   updateCoordBarIndicators();
 }
 
-/** Aktualizuje indikátory mřížky, úhlu a kót v coord baru. */
+/** Aktualizuje indikátory mřížky, úhlu a kót (mobile coord bar i desktop statusbar). */
 export function updateCoordBarIndicators() {
-  const g = document.getElementById("indGrid");
-  const a = document.getElementById("indAngle");
-  const d = document.getElementById("indDims");
-  if (g) g.classList.toggle("active", !!state.snapToGrid);
-  if (a) a.classList.toggle("active", !!state.angleSnap);
-  if (d) d.classList.toggle("active", state.showDimensions !== 'none');
+  document.querySelectorAll(".ind-grid").forEach(el => el.classList.toggle("active", !!state.snapToGrid));
+  document.querySelectorAll(".ind-angle").forEach(el => el.classList.toggle("active", !!state.angleSnap));
+  document.querySelectorAll(".ind-dims").forEach(el => el.classList.toggle("active", state.showDimensions !== 'none'));
 }
 
 // ── Mobile: Numerický vstup tlačítko ──
@@ -990,6 +987,7 @@ bridge.updateMobileCoords = updateMobileCoords;
 bridge.updatePolylineButtons = updatePolylineButtons;
 bridge.updateTraceButtons = updateTraceButtons;
 bridge.updateHolderDrawButtons = updateHolderDrawButtons;
+bridge.updateCoordBarIndicators = updateCoordBarIndicators;
 
 // ── Globální Precision Pointer (long-press pro přesné klikání kdekoli mimo CAD plátno) ──
 // Jednotná náhrada za dřívější zvlášť řešené sidebar/topbar/overlay varianty –

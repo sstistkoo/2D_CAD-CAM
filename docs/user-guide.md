@@ -61,10 +61,11 @@ Herní nástroje seskupené do sekcí:
 - **Nastavení** – mřížka, úhlové snap, kóty, okraje, autom. středy, číslování, osa Y
 
 ### Dolní lišta (status bar)
-- Souřadnice kurzoru
+- Aktuální nástroj
+- Indikátory stroje/souřadnic: SOU/KAR (typ stroje), ABS/INC, R/⌀ (zobrazení osy X)
 - Přiblížení (zoom)
-- Nápověda (aktuální nástroj)
-- Tlačítka: Undo, Redo, Nápověda, Nastavení, Sinumerik 840D
+- Indikátory mřížky/úhlu/kót (# ∠ 📐) – zobrazí se jen když je daná funkce aktivní
+- Tlačítka: ⊕ Centr (vycentrovat výkres), 🔢 (číselné zadání objektu), ⚙️ Nastavení
 
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky

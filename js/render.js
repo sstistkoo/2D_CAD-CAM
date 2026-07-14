@@ -1411,8 +1411,8 @@ function drawSelectedPointIndicator() {
   }
 }
 
-// ── Počítadlo výběru ──
-function drawSelectionCounter() {
+/** Vrátí text počítadla vybraných objektů/segmentů/bodů, nebo '' když nic není vybráno. */
+export function getSelectionCounterLabel() {
   const objCount = state.multiSelected.size > 0
     ? state.multiSelected.size
     : (state.selected !== null ? 1 : 0);
@@ -1420,20 +1420,26 @@ function drawSelectionCounter() {
   let segCount = 0;
   for (const s of state.multiSelectedSegments.values()) segCount += s.size;
 
-  if (objCount <= 0 && segCount <= 0 && ptCount <= 0) return;
+  if (objCount <= 0 && segCount <= 0 && ptCount <= 0) return '';
 
   const parts = [];
   if (objCount > 0) parts.push(`${objCount} obj`);
   if (segCount > 0) parts.push(`${segCount} seg`);
   if (ptCount > 0) parts.push(`${ptCount} bod${ptCount > 1 ? 'y' : ''}`);
-  const label = parts.join(' + ');
+  return parts.join(' + ');
+}
+
+// ── Počítadlo výběru (mobil: canvas overlay; desktop: viz #cursorCoords u kurzoru v events.js) ──
+function drawSelectionCounter() {
+  if (window.innerWidth > 900) return;
+  const label = getSelectionCounterLabel();
+  if (!label) return;
   const fontSize = 14;
   ctx.font = `bold ${fontSize}px Consolas`;
   const w = ctx.measureText(label).width + 16;
   const h = fontSize + 12;
   const x = (drawCanvas.width - w) / 2;
-  const isMobile = window.innerWidth <= 900;
-  const y = isMobile ? 90 : 50;
+  const y = 90;
   ctx.fillStyle = 'rgba(30,30,46,0.85)';
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 6);

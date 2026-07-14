@@ -98,6 +98,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   layout
 
 ### Changed
+- Desktop status bar: dropped "Projekt: …", the current click-hint text
+  (`#statusHint`, e.g. "Klikněte pro výběr…"), and the "Posun: Prostřední
+  tlačítko / Shift+táhnutí" hint; added the same SOU/KAR·ABS/INC·R/⌀ and
+  #/∠/📐 indicators the mobile coord bar already had, plus an icon-only
+  🔢 button (opens the same "Číselné zadání objektu" dialog as the topbar's
+  "🔢 Zadat"). The indicator-update functions (`updateCoordModeBtn`,
+  `updateXDisplayBtn`, `updateMachineTypeBtn`, `updateCoordBarIndicators`)
+  now target elements by shared class (`.ind-machine`, `.ind-coordmode`,
+  `.ind-xdisplay`, `.ind-grid`, `.ind-angle`, `.ind-dims`) instead of a single
+  `id`, so the mobile bar and desktop status bar copies stay in sync
+  automatically
+- Desktop status bar also shows coordinates (`#statusCoords`, same
+  `fmtStatusCoords()` text as the mobile coord bar and the floating tooltip)
+  — but frozen at the last click rather than following the mouse, set from
+  the canvas `mousedown` handler (`js/events.js`) rather than from the
+  continuous `mousemove`/`updateMobileCoords()` path
+- Desktop floating cursor coordinates (`#cursorCoords`, follows the mouse over
+  the canvas) gained a 2nd line: the selection counter ("1 obj", "2 obj + 3
+  body", …) when something is selected. That counter used to be a separate
+  canvas-drawn box centered below the toolbar on desktop; `drawSelectionCounter()`
+  (`js/render.js`) now only draws that box on mobile (`getSelectionCounterLabel()`
+  extracted so both call sites share the counting logic)
 - Renamed "Natočení (°)" to "Polární úhel (°)" on the insert fields
 - Insert shape "Úhel hřbetu (α)" field removed from the polygon shape UI,
   replaced by "Rádius (R)" at the same position (value still used internally

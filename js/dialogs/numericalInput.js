@@ -14,6 +14,9 @@ import { wireExprInputs } from './mobileEdit.js';
 document
   .getElementById("btnNumInput")
   .addEventListener("click", showNumericalInputDialog);
+document
+  .getElementById("desktopNumInput")
+  ?.addEventListener("click", showNumericalInputDialog);
 
 // Stav pro chaining je uložen v state.numDialogChain
 

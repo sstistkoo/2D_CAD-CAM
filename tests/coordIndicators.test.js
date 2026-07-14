@@ -77,6 +77,17 @@ vi.hoisted(() => {
     globalThis._trackedElements[id] = el;
   }
 
+  // Mapuje třídové selektory (nový sdílený mechanismus indikátorů – mobile
+  // coord bar i desktop statusbar aktualizované stejnou funkcí) na tracked prvky.
+  const classSelectorMap = {
+    '.ind-machine': ['indMachine'],
+    '.ind-coordmode': ['indCoordMode'],
+    '.ind-xdisplay': ['indXDisplay'],
+    '.ind-grid': ['indGrid'],
+    '.ind-angle': ['indAngle'],
+    '.ind-dims': ['indDims'],
+  };
+
   globalThis.document = {
     getElementById: (id) => globalThis._trackedElements[id] || mockEl(id),
     createElement: () => mockEl('_dynamic'),
@@ -86,7 +97,7 @@ vi.hoisted(() => {
       contains: () => true,
     },
     querySelector: () => null,
-    querySelectorAll: () => [],
+    querySelectorAll: (sel) => (classSelectorMap[sel] || []).map(id => globalThis._trackedElements[id]),
     addEventListener: vi.fn(),
   };
   globalThis.window = {

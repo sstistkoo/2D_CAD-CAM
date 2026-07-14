@@ -2396,7 +2396,8 @@ export function activateFilletChamfer() {
 // ── Hinty ──
 /** @param {string} text */
 export function setHint(text) {
-  document.getElementById("statusHint").textContent = text;
+  const el = document.getElementById("statusHint");
+  if (el) el.textContent = text;
 }
 
 /** Obnoví nápovědu pro aktuální nástroj. */
@@ -2463,7 +2464,7 @@ export function updateSnapGridBtn() {
 document.getElementById("btnSnapGrid")?.addEventListener("click", () => {
   state.snapToGrid = !state.snapToGrid;
   updateSnapGridBtn();
-  document.getElementById("indGrid")?.classList.toggle("active", state.snapToGrid);
+  bridge.updateCoordBarIndicators?.();
   renderAll();
   showToast(state.snapToGrid ? `Snap na mřížku: ON (${state.gridSize})` : "Snap na mřížku: OFF");
 });
@@ -2482,7 +2483,7 @@ export function updateAngleSnapBtn() {
 document.getElementById("btnAngleSnap")?.addEventListener("click", () => {
   state.angleSnap = !state.angleSnap;
   updateAngleSnapBtn();
-  document.getElementById("indAngle")?.classList.toggle("active", state.angleSnap);
+  bridge.updateCoordBarIndicators?.();
   renderAll();
   showToast(state.angleSnap ? `Úhlový snap: ON (${state.angleSnapStep}°)` : "Úhlový snap: OFF");
 });
@@ -2519,7 +2520,7 @@ document.getElementById("btnDims")?.addEventListener("click", () => {
   const labels = { all: 'Kóty: vše', intersections: 'Kóty: pouze průsečíky', dimensions: 'Kóty: pouze kóty', none: 'Kóty: skryté' };
   showToast(labels[state.showDimensions]);
   updateDimsBtn();
-  document.getElementById("indDims")?.classList.toggle("active", state.showDimensions !== 'none');
+  bridge.updateCoordBarIndicators?.();
   renderAll();
 });
 
@@ -2562,11 +2563,10 @@ export function updateCoordModeBtn() {
       btn.style.color = '';
     }
   }
-  const ind = document.getElementById("indCoordMode");
-  if (ind) {
+  document.querySelectorAll(".ind-coordmode").forEach((ind) => {
     ind.textContent = state.coordMode === 'inc' ? 'INC' : 'ABS';
     ind.classList.toggle('alt', state.coordMode === 'inc');
-  }
+  });
 }
 
 /** Přepne mód souřadnic ABS ↔ INC. */
@@ -2596,11 +2596,10 @@ export function updateXDisplayBtn() {
       btn.style.color = '';
     }
   }
-  const ind = document.getElementById("indXDisplay");
-  if (ind) {
+  document.querySelectorAll(".ind-xdisplay").forEach((ind) => {
     ind.textContent = state.xDisplayMode === 'diameter' ? '⌀' : 'R';
     ind.classList.toggle('alt', state.xDisplayMode === 'diameter');
-  }
+  });
 }
 
 /** Přepne režim osy X: Poloměr ↔ Průměr. */
@@ -2630,11 +2629,10 @@ export function updateMachineTypeBtn() {
       btn.style.color = '';
     }
   }
-  const ind = document.getElementById("indMachine");
-  if (ind) {
+  document.querySelectorAll(".ind-machine").forEach((ind) => {
     ind.textContent = state.machineType === 'karusel' ? 'KAR' : 'SOU';
     ind.classList.toggle('alt', state.machineType === 'karusel');
-  }
+  });
 }
 
 /** Přepne typ stroje Soustruh ↔ Karusel (prohodí osy). */
@@ -4412,7 +4410,7 @@ function showSettingsDialog() {
   overlay.querySelector('#settSnapGrid').addEventListener('click', () => {
     state.snapToGrid = !state.snapToGrid;
     updateSnapGridBtn();
-    document.getElementById("indGrid")?.classList.toggle("active", state.snapToGrid);
+    bridge.updateCoordBarIndicators?.();
     updateSnapGridSettBtn();
     renderAll();
     persistSettings();
@@ -4428,7 +4426,7 @@ function showSettingsDialog() {
   overlay.querySelector('#settAngleSnap').addEventListener('click', () => {
     state.angleSnap = !state.angleSnap;
     updateAngleSnapBtn();
-    document.getElementById("indAngle")?.classList.toggle("active", state.angleSnap);
+    bridge.updateCoordBarIndicators?.();
     updateAngleSnapSettBtn();
     renderAll();
     persistSettings();
@@ -4536,7 +4534,7 @@ function showSettingsDialog() {
     overlay.querySelector(ids[i]).addEventListener('click', () => {
       state.showDimensions = mode;
       updateDimsBtn();
-      document.getElementById("indDims")?.classList.toggle("active", state.showDimensions !== 'none');
+      bridge.updateCoordBarIndicators?.();
       updateDimsBtns();
       renderAll();
       persistSettings();

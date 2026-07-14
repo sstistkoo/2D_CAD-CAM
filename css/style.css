@@ -1285,6 +1285,12 @@ body {
   flex-shrink: 0;
 }
 
+.statusbar-ind-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .statusbar-btn {
   background: var(--ctp-surface0);
   color: var(--ctp-text);

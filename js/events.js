@@ -5,7 +5,7 @@
 import { ZOOM_FACTOR, ZOOM_MIN, ZOOM_MAX, PASTE_OFFSET } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } from './canvas.js';
 import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
-import { renderAll, getObjectBounds, boundsOverlap } from './render.js';
+import { renderAll, getObjectBounds, boundsOverlap, getSelectionCounterLabel } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
 import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
 import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
@@ -187,12 +187,16 @@ drawCanvas.addEventListener("mousemove", (e) => {
     document.getElementById("coordDisplay").textContent = fmtStatusCoords(wx, wy, extra);
   }
 
-  // Floating souřadnice u kurzoru (desktop)
+  // Floating souřadnice u kurzoru (desktop) – souřadnice + počítadlo výběru
+  // (dřív samostatný box na plátně, viz getSelectionCounterLabel())
   if (_cursorCoordsEl && window.innerWidth > 900) {
     _cursorCoordsEl.style.display = "block";
     _cursorCoordsEl.style.left = e.clientX + "px";
     _cursorCoordsEl.style.top = e.clientY + "px";
-    _cursorCoordsEl.textContent = fmtStatusCoords(wx, wy, extra);
+    let html = fmtStatusCoords(wx, wy, extra);
+    const selLabel = getSelectionCounterLabel();
+    if (selLabel) html += `<br>${selLabel}`;
+    _cursorCoordsEl.innerHTML = html;
   }
 
   if (isPanning) {
@@ -274,6 +278,14 @@ drawCanvas.addEventListener("mousedown", (e) => {
   }
   if (e.button !== 0) return;
 
+  // Desktop statusbar – souřadnice posledního kliknutí (na rozdíl od plovoucího
+  // okénka u kurzoru se neaktualizuje průběžně při pohybu myši)
+  const isDeleteObj = state.tool === 'deleteObj';
+  const clickWx = isDeleteObj ? state.mouse.rawX : state.mouse.x;
+  const clickWy = isDeleteObj ? state.mouse.rawY : state.mouse.y;
+  const statusCoords = document.getElementById("statusCoords");
+  if (statusCoords) statusCoords.textContent = fmtStatusCoords(clickWx, clickWy);
+
   // Obdélníkový výběr: začít tažení z prázdného místa v select režimu
   if (state.tool === "select" && !state.drawing && !state.dragging) {
     const hitObj = findObjectAt(state.mouse.x, state.mouse.y);
@@ -286,11 +298,7 @@ drawCanvas.addEventListener("mousedown", (e) => {
 
   // V deleteObj režimu použít raw (nesnapnuté) souřadnice,
   // aby snap nepřesouval bod k jinému objektu
-  if (state.tool === 'deleteObj') {
-    handleCanvasClick(state.mouse.rawX, state.mouse.rawY);
-  } else {
-    handleCanvasClick(state.mouse.x, state.mouse.y);
-  }
+  handleCanvasClick(clickWx, clickWy);
 });
 
 drawCanvas.addEventListener("mouseup", (e) => {

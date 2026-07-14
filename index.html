@@ -177,18 +177,18 @@
     </button>
     <div id="mobileCoordBar">
       <span id="coordBarIndicators"
-        ><span id="indMachine" class="coord-ind active" title="Typ stroje"
+        ><span id="indMachine" class="coord-ind active ind-machine" title="Typ stroje"
           >SOU</span
-        ><span id="indCoordMode" class="coord-ind active" title="Souřadnice"
+        ><span id="indCoordMode" class="coord-ind active ind-coordmode" title="Souřadnice"
           >ABS</span
-        ><span id="indXDisplay" class="coord-ind active" title="Zobrazení X"
+        ><span id="indXDisplay" class="coord-ind active ind-xdisplay" title="Zobrazení X"
           >R</span
         ></span
       ><span id="coordBarText">X: 0.000 &nbsp; Z: 0.000</span
       ><span id="coordBarIndicators2"
-        ><span id="indGrid" class="coord-ind" title="Mřížka">#</span
-        ><span id="indAngle" class="coord-ind" title="Úhlový snap">∠</span
-        ><span id="indDims" class="coord-ind" title="Kóty">📐</span></span
+        ><span id="indGrid" class="coord-ind ind-grid" title="Mřížka">#</span
+        ><span id="indAngle" class="coord-ind ind-angle" title="Úhlový snap">∠</span
+        ><span id="indDims" class="coord-ind ind-dims" title="Kóty">📐</span></span
       >
     </div>
     <div id="sidebarOverlay"></div>
@@ -1830,10 +1830,19 @@
 
     <!-- ── Statusbar ── -->
     <div id="statusbar">
-      <span id="statusProject">Projekt: Bez názvu</span>
       <span id="statusTool">Nástroj: Výběr</span>
-      <span id="statusHint">Klikněte pro výběr objektu</span>
+      <span class="statusbar-ind-group"
+        ><span class="coord-ind active ind-machine" title="Typ stroje">SOU</span
+        ><span class="coord-ind active ind-coordmode" title="Souřadnice">ABS</span
+        ><span class="coord-ind active ind-xdisplay" title="Zobrazení X">R</span
+      ></span>
+      <span id="statusCoords">X: 0.000 &nbsp; Z: 0.000</span>
       <span id="statusZoom">Zoom: 100%</span>
+      <span class="statusbar-ind-group"
+        ><span class="coord-ind ind-grid" title="Mřížka">#</span
+        ><span class="coord-ind ind-angle" title="Úhlový snap">∠</span
+        ><span class="coord-ind ind-dims" title="Kóty">📐</span
+      ></span>
       <button
         id="desktopAutoCenter"
         type="button"
@@ -1842,13 +1851,19 @@
         title="Centrovat výkres (Ctrl+0)"
       >⊕ Centr</button>
       <button
+        id="desktopNumInput"
+        type="button"
+        class="statusbar-btn"
+        aria-label="Číselné zadání objektu"
+        title="🔢 Číselné zadání objektu"
+      >🔢</button>
+      <button
         id="desktopSettings"
         type="button"
         class="statusbar-btn"
         aria-label="Nastavení"
         title="Nastavení aplikace"
       >⚙️ Nastavení</button>
-      <span>Posun: Prostřední tlačítko / Shift+táhnutí</span>
     </div>
 
     <!-- ── Help Overlay ── -->
