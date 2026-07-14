@@ -332,6 +332,14 @@ function getTouchPos(touch) {
   };
 }
 
+// Touch ekvivalent desktopového mousedown zápisu poslední kliknuté pozice
+// (viz #statusCoords ve statusbaru a záložní bod v dialogu Číselné zadání objektu)
+function recordLastClick(wx, wy) {
+  state.lastClickPoint = { x: wx, y: wy };
+  const statusCoords = document.getElementById("statusCoords");
+  if (statusCoords) statusCoords.textContent = fmtStatusCoords(wx, wy);
+}
+
 // Detekce, zda je jednoprstý posun povolený (ne při kreslení/přetahování/precision/
 // umísťování kóty – 2. akce nástroje Kóta musí sledovat prst, ne posouvat pohled)
 function canSingleFingerPan() {
@@ -518,6 +526,7 @@ drawCanvas.addEventListener(
       // aby touchmove mohl přetahovat (ne panovat)
       if (state.tool === 'move' && !state.dragging) {
         handleCanvasClick(wx, wy);
+        recordLastClick(wx, wy);
         // Pokud se nastavilo dragging, nepokračovat s long-press/panning
         if (state.dragging) {
           touchState.touchMoved = false;
@@ -799,6 +808,7 @@ drawCanvas.addEventListener(
       const wy = state.mouse.y;
       hidePrecisionCrosshair();
       handleCanvasClick(wx, wy);
+      recordLastClick(wx, wy);
       updateMobileCoords(wx, wy);
       touchState.touchMoved = false;
       touchState.singlePanning = false;
@@ -837,6 +847,7 @@ drawCanvas.addEventListener(
       let [wx, wy] = screenToWorld(tp.sx, tp.sy);
       if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
       handleCanvasClick(wx, wy);
+      recordLastClick(wx, wy);
       touchState.touchMoved = false;
       touchState.singlePanning = false;
       if (e.touches.length === 0) touchState.wasMultiTouch = false;
@@ -864,6 +875,7 @@ drawCanvas.addEventListener(
       state.mouse.x = wx;
       state.mouse.y = wy;
       handleCanvasClick(wx, wy);
+      recordLastClick(wx, wy);
       if (state._dimPlacing) finalizeDimPlacement(wx, wy);
       updateMobileCoords(wx, wy);
       touchState.touchMoved = false;
@@ -897,6 +909,7 @@ drawCanvas.addEventListener(
 
       // Simulovat mousedown logiku
       handleCanvasClick(wx, wy);
+      recordLastClick(wx, wy);
       updateMobileCoords(wx, wy);
     }
 
