@@ -40,7 +40,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     with a toast. On confirm the holder is saved as a closed `holderProfile`:
     a fully closed contour is used as-is (mode A); an open two-sided sketch is
     auto-closed at 45° to the "Délka držáku (l1)" / "Tloušťka držáku" fields
-    (mode B), with a ⇄ Strana button to switch which end is completed.
+    (mode B), with a ⇄ Strana button to switch which end is completed. The
+    right-side layers panel stays visible during drawing so the two layers can
+    be switched, and the holder is mapped screen-consistently — drawing it
+    upward in CAD shows it upward in the preview. The auto-45° closing can be
+    turned off with an **"Auto-doplnit držák (l1 × tloušťka)"** checkbox; when
+    off the exact drawn (even open) shape is stored
+  - Rotations split: **↻ Natočení destičky** (just the insert, `toolAngle`)
+    moved to the Destička sub-tab; the Držák sub-tab gets **↻ Natočení nože**
+    (`knifeAngle`) which rotates the whole tool — insert and holder together —
+    in the preview. The Destička sub-tab now hides the holder and fits the view
+    to the insert
   - Preview draws `holderProfile` as connected polylines (starting at the
     insert edge) instead of the rectangle once it has points; **🗑 Smazat
     obrys** clears it. In drawing mode the preview fits to the insert and

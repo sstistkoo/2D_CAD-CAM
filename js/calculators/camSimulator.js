@@ -2818,6 +2818,13 @@ function _defaultCamParams() {
     // (0,0 = referenční bod destičky, +z = "nahoru" do držáku).
     // Tvar: { sideA: [{x,z}, ...], sideB: [{x,z}, ...] }
     holderProfile: null,
+    // Natočení celého nože (destička + držák) v náhledu [°] — na rozdíl od
+    // toolAngle (jen destička) otáčí obojím najednou. Jen náhled/orientace.
+    knifeAngle: 0,
+    // Auto-doplnění obrysu držáku pod 45° dle l1/tloušťky při „📐 Kreslit na
+    // CAD plátně", když uživatel nakreslí jen dvě strany (otevřený obrys).
+    // Vypnuto = uloží se přesně nakreslený tvar (i otevřený).
+    holderAutoComplete: true,
     // Spodní strana závitového plátku [mm] — šířka rovné špičky (lichoběžník).
     // Metrické/palcové ~0,1; lichoběžníkové (Tr/Acme) ≈ 0,366×P (dno profilu).
     toolTipFlat: 0.1,
@@ -2956,22 +2963,36 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   // anchor body sednou přesně na vykreslenou hranu. Držák se v tomto režimu
   // nekreslí (jen destička + anchory + rozpracovaný profil).
   const drawMode = !!opts.showAnchors;
+  // hideHolder = záložka „🔩 Destička" — kreslí se jen destička (bez držáku),
+  // měřítko fituje na destičku (ne na držák).
+  const hideHolder = !!opts.hideHolder;
+  const fitInsert = drawMode || hideHolder;
   const insRadiusMM = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
-  const maxDim = drawMode
-    ? Math.max(toolLen * 2.6, insRadiusMM * 4.5, profileExtentMM * 1.25, 12)
+  const maxDim = fitInsert
+    ? Math.max(toolLen * 2.6, insRadiusMM * 4.5, (drawMode ? profileExtentMM * 1.25 : 0), 12)
     : Math.max((gapMM + shankDrawMM) * 1.15, holderW * 1.15, toolLen * 2, profileExtentMM * 1.25, 20);
   const pad = 26;
   const scale = Math.max(Math.min((w - pad * 2) / maxDim, (h - pad * 2) / maxDim), 0.01);
   // Počátek (špička destičky): dole u fallbacku držáku, ale v kresebním režimu
   // výš (~60 %), ať je kolem destičky místo na anchory i na kulatou destičku
   // (ta má počátek ve svém středu → spodní půlka by jinak vypadla z canvasu).
-  const ox = w / 2, oy = drawMode ? h * 0.6 : h - pad - 8;
+  const ox = w / 2, oy = fitInsert ? h * 0.6 : h - pad - 8;
   const mirror = prms.holderHand === 'L' ? -1 : 1;
   // mm → screen: +z = "nahoru" do držáku (viz gapMM výše), zrcadlení dle ruky.
   const toScr = (x, z) => ({ x: ox + mirror * x * scale, y: oy - z * scale });
 
+  // Natočení CELÉHO NOŽE (destička + držák) — otočí se celý ctx kolem špičky
+  // (ox,oy), takže se destička i držák pootočí najednou. HTML popisky/anchory
+  // (kreslené mimo ctx) se pak dorovnají přes rotScr(). knifeAngle=0 → identita.
+  const knifeRad = (parseFloat(prms.knifeAngle) || 0) * Math.PI / 180;
+  if (knifeRad) { ctx.translate(ox, oy); ctx.rotate(knifeRad); ctx.translate(-ox, -oy); }
+  const kc = Math.cos(knifeRad), ks = Math.sin(knifeRad);
+  const rotScr = (sx, sy) => knifeRad
+    ? { x: ox + (sx - ox) * kc - (sy - oy) * ks, y: oy + (sx - ox) * ks + (sy - oy) * kc }
+    : { x: sx, y: sy };
+
   // ── Těleso držáku (schematicky, kanonická orientace: nahoru = do držáku) ──
-  if (hasProfile) {
+  if (!hideHolder && hasProfile) {
     ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1.4 * us;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ['sideA', 'sideB'].forEach(key => {
@@ -2996,7 +3017,7 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
       ctx.restore();
     }
     ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
-  } else if (!drawMode && holderW > 0 && holderL > 0) {
+  } else if (!hideHolder && !drawMode && holderW > 0 && holderL > 0) {
     const hw2 = (holderW / 2) * scale;
     const nearY = oy - gapMM * scale;
     const farY = nearY - shankDrawMM * scale;
@@ -3026,7 +3047,7 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
 
     texts.push({ x: ox, y: (farY - 12 > 10 ? farY - 12 : farY + 12), text: `b=${holderW} mm`, color: COL.text, align: 'center' });
     texts.push({ x: ox + hw2 + 14, y: (nearY + farY) / 2, text: `l1=${holderL} mm`, color: COL.text, align: 'left' });
-  } else if (!drawMode) {
+  } else if (!hideHolder && !drawMode) {
     texts.push({ x: ox, y: pad, text: 'Držák se nehlídá (0 mm)', color: COL.text, align: 'center' });
   }
 
@@ -3132,7 +3153,10 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   // jejím obvodu a byly by kruhem překryté).
   if (opts.showAnchors) {
     getInsertAnchorPoints(prms).forEach(a => {
-      const s = toScr(a.x, a.z);
+      // Anchory se kreslí AŽ po ctx.restore (mimo rotaci nože) → screen pozici
+      // otočíme ručně přes rotScr, ať sedí na (rotované) hraně destičky.
+      const sp = toScr(a.x, a.z);
+      const s = rotScr(sp.x, sp.y);
       anchorHits.push({ x: s.x, y: s.y, wx: a.x, wz: a.z, side: a.side, label: a.label });
       ctx.beginPath();
       ctx.arc(s.x, s.y, 5 * us, 0, Math.PI * 2);
@@ -3140,6 +3164,13 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
       ctx.strokeStyle = COL.anchor; ctx.lineWidth = 1 * us;
       ctx.fill(); ctx.stroke();
     });
+  }
+
+  // Natočení nože: HTML popisky (ε, ∠, b, l1…) a klikatelné hotspoty leží mimo
+  // ctx, takže je dorovnáme do stejné rotace jako kreslenou geometrii.
+  if (knifeRad) {
+    texts.forEach(t => { const r = rotScr(t.x, t.y); t.x = r.x; t.y = r.y; });
+    Object.keys(labels).forEach(k => { const r = rotScr(labels[k].x, labels[k].y); labels[k] = r; });
   }
 
   return { labels, anchorHits, texts };
@@ -3298,7 +3329,8 @@ function _renderInsertShapeFieldsHTML(prms) {
 // otevřený simulátor, drží se poslední známá sada zde na úrovni modulu.
 const CAM_TOOL_KEYS = ['toolShape', 'toolLength', 'toolAngle', 'toolTipAngle',
   'toolRadius', 'toolTipFlat', 'toolTipMirror', 'toolVbdCode',
-  'holderLength', 'holderWidth', 'holderHand', 'holderProfile'];
+  'holderLength', 'holderWidth', 'holderHand', 'holderProfile',
+  'knifeAngle', 'holderAutoComplete'];
 let _savedCamTool = null;   // naposledy uložený/načtený nůž (mimo otevřené CAM)
 let _activeCamParams = null; // S.params živě otevřeného CAM (nebo null)
 
@@ -8875,7 +8907,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       cctx.scale(viewZoom, viewZoom);
       // uiScale = 1/viewZoom → čáry/markery zůstanou po zoomu konstantně tenké.
       const result = drawInsertAndHolderPreview(cctx, cw, ch, S.params,
-        { showAnchors: drawModeActive, activeSide: currentDrawSide, uiScale: 1 / viewZoom });
+        { showAnchors: drawModeActive, activeSide: currentDrawSide, uiScale: 1 / viewZoom,
+          hideHolder: activeGeomTab === 'insert' });
       lastLabels = (result && result.labels) || {};
       lastAnchorHits = (result && result.anchorHits) || [];
       positionTexts((result && result.texts) || []);
@@ -9042,6 +9075,46 @@ export function openCamSimulator(initialContour, initialGCode) {
       popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
     }
 
+    // Jako showRotateToolPopup, ale natáčí CELÝ NŮŽ (destička + držák) —
+    // knifeAngle se v náhledu aplikuje na obojí najednou (viz
+    // drawInsertAndHolderPreview). Otevřeno z Držák tabu.
+    function showRotateKnifePopup() {
+      const existing = document.querySelector('.geom-rotate-popup');
+      if (existing) { existing.remove(); return; }
+      const popup = document.createElement('div');
+      popup.className = 'geom-rotate-popup input-overlay';
+      popup.style.zIndex = '320';
+      popup.innerHTML = `<div class="input-dialog" style="min-width:220px;width:auto;padding:14px">
+        <h3 style="margin:0 0 10px;font-size:14px">↻ Natočení nože</h3>
+        <div style="font-size:10px;color:#6c7086;margin-bottom:6px">Otočí destičku i držák najednou (celý nůž).</div>
+        <div class="cam-sim-row">
+          <div class="cam-sim-field" style="flex:1">
+            <label>Úhel (°)</label>
+            <div style="display:flex;gap:2px">
+              <input type="number" id="geom-knife-angle" value="${S.params.knifeAngle || 0}" style="flex:1;min-width:0">
+              <button type="button" class="compass-trigger-btn" id="geom-knife-compass" title="Rychlá volba úhlu" style="flex-shrink:0">✛</button>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:10px">
+          <button class="btn-cancel" id="geom-knife-close">Zavřít</button>
+        </div>
+      </div>`;
+      document.body.appendChild(popup);
+      const angInp = popup.querySelector('#geom-knife-angle');
+      angInp.addEventListener('change', withHistory(() => {
+        S.params.knifeAngle = parseFloat(angInp.value) || 0;
+        fullUpdate();
+      }));
+      wireAngleCompass(popup.querySelector('#geom-knife-compass'), angInp, () => {
+        pushHistory();
+        S.params.knifeAngle = parseFloat(angInp.value) || 0;
+        fullUpdate();
+      });
+      popup.querySelector('#geom-knife-close').addEventListener('click', () => popup.remove());
+      popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+    }
+
     // Popup pro přidávání bodů jedné strany obrysu držáku — Délka + Polární
     // úhel (+ ✛ kompas) od POSLEDNÍHO bodu dané strany. "Přidat bod" body
     // ukládá a popup se rovnou znovu otevře pro další segment (bez nutnosti
@@ -9130,15 +9203,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     // jen dolní lištou ✕ Zrušit / ✓ Potvrdit (bridge.confirm/cancelHolderDraw).
 
     // Mapování profil destičky {x,z} (0,0 = špička, +z do držáku) ↔ CAD svět.
-    // Shodné s CAM→CAD osami (viz emitChain/toCanvas v handleSendToCanvas):
-    //   soustruh: wx=Z=profil.z, wy=X=profil.x
-    //   karusel : wx=X=profil.x, wy=Z=profil.z
-    function profToWorld(px, pz) {
-      return state.machineType === 'karusel' ? { x: px, y: pz } : { x: pz, y: px };
-    }
-    function worldToProf(wx, wy) {
-      return state.machineType === 'karusel' ? { x: wx, z: wy } : { x: wy, z: wx };
-    }
+    // holderProfile je JEN pro náhled (drawInsertAndHolderPreview): toScr kreslí
+    // x vodorovně, +z SVISLE NAHORU (do držáku). Aby to, co uživatel nakreslí
+    // na CAD plátně, vypadalo v náhledu STEJNĚ orientované, musí obrazovkové
+    // „nahoru" (CAD wy) = profil z, a obrazovkové „vodorovně" (CAD wx) = profil x.
+    // (Nezávisí na machineType — obrazovková orientace je stejná pro soustruh
+    // i karusel; dřívější prohození os kreslilo držák naležato místo nastojato.)
+    function profToWorld(px, pz) { return { x: px, y: pz }; }
+    function worldToProf(wx, wy) { return { x: wx, z: wy }; }
 
     // Obrys destičky v profilu {x,z} (z nahoru). STEJNÁ matematika jako
     // getInsertAnchorPoints/drawInsertAndHolderPreview (canvas y dolů → z=-y),
@@ -9296,7 +9368,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Režim A — uzavřený obrys je přímo profil.
         return { sideA: prof, sideB: [] };
       }
-      // Režim B — otevřená lomená čára → uzavřít 45° dle l1/tloušťky.
+      // Otevřený obrys: auto-doplnit 45° (režim B) jen když je zaškrtnuto
+      // „Auto-doplnit držák"; jinak uložit přesně nakreslený (otevřený) tvar.
+      if (S.params.holderAutoComplete === false) {
+        return { sideA: prof, sideB: [] };
+      }
       return completeTwoSidedProfile(prof, mode);
     }
 
@@ -9371,6 +9447,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       };
       overlay.style.display = 'none';
       dlg.style.display = 'none';
+      // openCamSimulator schoval pravý panel (#sidebar) — pro kreslení držáku
+      // ho zase ukázat, ať jsou vidět a přepínatelné vrstvy Plátek/Držák.
+      // Musí být PŘED resizeCanvases(), aby canvas počítal se šířkou panelu.
+      const sidebarEl = document.getElementById('sidebar');
+      if (sidebarEl) sidebarEl.style.display = '';
       setTool('line');
       resizeCanvases();
       const span = Math.max((parseFloat(prms.toolLength) || 10) * 4, (parseFloat(prms.toolRadius) || 1) * 8,
@@ -9392,6 +9473,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       const prevTool = mode.backup.tool;
       state.holderDrawMode = null;
       setTool(prevTool || 'select');
+      // Zpět do CAM: pravý panel zase schovat (CAM overlay ho stejně překryje,
+      // ale ať je stav konzistentní s openCamSimulator).
+      const sidebarEl = document.getElementById('sidebar');
+      if (sidebarEl) sidebarEl.style.display = 'none';
       calculateAllIntersections();
       updateObjectList();
       updateLayerList();
@@ -9454,11 +9539,20 @@ export function openCamSimulator(initialContour, initialGCode) {
                 <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-p="toolVbdCode" value="${prms.toolVbdCode || ''}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
               </div>
               ${_renderInsertShapeFieldsHTML(prms)}
+              <div class="cam-sim-row">
+                <button data-act="geom-open-rotate-insert" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení jen destičky (polární úhel)">↻ Natočení destičky (${prms.toolAngle}°)</button>
+              </div>
             </div>
             <div style="display:${activeGeomTab === 'holder' ? '' : 'none'}">
               <div class="cam-sim-row">
                 <button data-act="geom-toggle-hand" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Ruka držáku — při otevření odvozena ze směru hrubování, zde lze přepnout ručně">⇄ Ruka: ${prms.holderHand === 'L' ? 'Levá (L)' : 'Pravá (R)'}</button>
-                <button data-act="geom-open-rotate" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení destičky zadané polárním úhlem">↻ Natočení (${prms.toolAngle}°)</button>
+                <button data-act="geom-open-rotate-knife" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení celého nože (destička i držák) najednou">↻ Natočení nože (${prms.knifeAngle || 0}°)</button>
+              </div>
+              <div class="cam-sim-row" style="align-items:center">
+                <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;cursor:pointer" title="Když nakreslíte na CAD plátně jen dvě strany (otevřený obrys), auto-doplní se pod 45° podle Délky a Tloušťky. Vypnuto = uloží se přesně nakreslený tvar.">
+                  <input type="checkbox" id="geom-holder-autocomplete" ${prms.holderAutoComplete !== false ? 'checked' : ''}>
+                  Auto-doplnit držák (l1 × tloušťka)
+                </label>
               </div>
               <div class="cam-sim-row">
                 <div class="cam-sim-field"><label title="Funkční délka l1 — stejné pole jako Délka držáku dole v panelu Nástroj">Délka držáku (l1)</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
@@ -9513,8 +9607,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.holderHand = S.params.holderHand === 'L' ? 'R' : 'L';
         fullUpdate();
       }));
-      const openRotateBtn = dlg.querySelector('[data-act="geom-open-rotate"]');
-      if (openRotateBtn) openRotateBtn.addEventListener('click', () => showRotateToolPopup());
+      const openRotateInsertBtn = dlg.querySelector('[data-act="geom-open-rotate-insert"]');
+      if (openRotateInsertBtn) openRotateInsertBtn.addEventListener('click', () => showRotateToolPopup());
+      const openRotateKnifeBtn = dlg.querySelector('[data-act="geom-open-rotate-knife"]');
+      if (openRotateKnifeBtn) openRotateKnifeBtn.addEventListener('click', () => showRotateKnifePopup());
+      const autoCompleteChk = dlg.querySelector('#geom-holder-autocomplete');
+      if (autoCompleteChk) autoCompleteChk.addEventListener('change', withHistory(() => {
+        S.params.holderAutoComplete = autoCompleteChk.checked;
+        fullUpdate();
+      }));
       const toggleDrawBtn = dlg.querySelector('[data-act="geom-toggle-draw"]');
       if (toggleDrawBtn) toggleDrawBtn.addEventListener('click', () => {
         drawModeActive = !drawModeActive;
