@@ -279,10 +279,12 @@ drawCanvas.addEventListener("mousedown", (e) => {
   if (e.button !== 0) return;
 
   // Desktop statusbar – souřadnice posledního kliknutí (na rozdíl od plovoucího
-  // okénka u kurzoru se neaktualizuje průběžně při pohybu myši)
+  // okénka u kurzoru se neaktualizuje průběžně při pohybu myši); stejná hodnota
+  // se nabízí i jako výchozí bod v dialogu Číselné zadání objektu
   const isDeleteObj = state.tool === 'deleteObj';
   const clickWx = isDeleteObj ? state.mouse.rawX : state.mouse.x;
   const clickWy = isDeleteObj ? state.mouse.rawY : state.mouse.y;
+  state.lastClickPoint = { x: clickWx, y: clickWy };
   const statusCoords = document.getElementById("statusCoords");
   if (statusCoords) statusCoords.textContent = fmtStatusCoords(clickWx, clickWy);
 

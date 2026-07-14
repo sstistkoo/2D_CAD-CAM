@@ -186,23 +186,50 @@ export function showNumericalInputDialog() {
   const chainDispX = hasChain ? (isInc ? (state.numDialogChain.x - state.incReference.x).toFixed(3) : chainX) : "0";
   const chainDispY = hasChain ? (isInc ? (state.numDialogChain.y - state.incReference.y).toFixed(3) : chainY) : "0";
 
+  // Poslední kliknutý bod na plátně (viz #statusCoords) – záložní výchozí hodnota
+  // počátečního bodu, pokud právě neběží řetězení od předchozího objektu (hasChain)
+  const hasLastClick = state.lastClickPoint.x !== null;
+  const lastClickDispX = hasLastClick
+    ? (isInc ? (state.lastClickPoint.x - state.incReference.x).toFixed(3) : state.lastClickPoint.x.toFixed(3))
+    : "0";
+  const lastClickDispY = hasLastClick
+    ? (isInc ? (state.lastClickPoint.y - state.incReference.y).toFixed(3) : state.lastClickPoint.y.toFixed(3))
+    : "0";
+  // Výchozí hodnota počátečního bodu: chain (pokračování kreslení) > poslední klik > 0
+  const startDispX = hasChain ? chainDispX : lastClickDispX;
+  const startDispY = hasChain ? chainDispY : lastClickDispY;
+
+  // Zobrazovat osy vždy v pořadí X, Z (jako zbytek UI – viz fmtStatusCoords),
+  // bez ohledu na to, že axisLabels() vrací [H, V] podle wx/wy (soustruh: H=Z, V=X)
+  const xFirst = H === 'X';
+  /** Poskládá dvojici polí (H-osa, V-osa) do zobrazovaného pořadí X, Z. */
+  function axisPair(hFieldHtml, vFieldHtml) {
+    return xFirst ? hFieldHtml + vFieldHtml : vFieldHtml + hFieldHtml;
+  }
+
   function updateFields() {
     const t = typeSelect.value;
     let html = "";
     switch (t) {
       case "point":
-        html = `<div class="input-row"><div><label>${lbl(H)}:</label><input type="text" id="nx" value="${hasChain ? chainDispX : '0'}"></div>
-                <div><label>${lbl(V)}:</label><input type="text" id="ny" value="${hasChain ? chainDispY : '0'}"></div>
+        html = `<div class="input-row">${axisPair(
+                  `<div><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
+                  `<div><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯")}</div></div>
                 ${hasChain ? `<div id="numChainInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>` : ''}`;
         break;
       case "line":
       case "constr":
-        html = `<div class="input-row"><div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${hasChain ? chainDispX : '0'}"></div>
-                <div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${hasChain ? chainDispY : '0'}"></div>
+        html = `<div class="input-row">${axisPair(
+                  `<div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯1")}</div></div>
-                <div class="input-row"><div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value="0"></div>
-                <div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value="0"></div>
+                <div class="input-row">${axisPair(
+                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value="0"></div>`,
+                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value="0"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
                 <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Délka a polární úhel</label>
@@ -211,15 +238,19 @@ export function showNumericalInputDialog() {
                 <div class="pick-col">${angleCompassBtn()}</div></div>`;
         break;
       case "circle":
-        html = `<div class="input-row"><div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${hasChain ? chainDispX : '0'}"></div>
-                <div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${hasChain ? chainDispY : '0'}"></div>
+        html = `<div class="input-row">${axisPair(
+                  `<div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
+                  `<div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯")}</div></div>
                 <div class="input-row"><div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
                 <div class="pick-col">${pickBtn("📏 R")}</div></div>`;
         break;
       case "arc":
-        html = `<div class="input-row"><div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${hasChain ? chainDispX : '0'}"></div>
-                <div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${hasChain ? chainDispY : '0'}"></div>
+        html = `<div class="input-row">${axisPair(
+                  `<div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
+                  `<div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯")}</div></div>
                 <div class="input-row"><div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
                 <div class="pick-col">${pickBtn("📏 R")}</div></div>
@@ -233,11 +264,15 @@ export function showNumericalInputDialog() {
                 </select></div></div>`;
         break;
       case "rect":
-        html = `<div class="input-row"><div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${hasChain ? chainDispX : '0'}"></div>
-                <div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${hasChain ? chainDispY : '0'}"></div>
+        html = `<div class="input-row">${axisPair(
+                  `<div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯1")}</div></div>
-                <div class="input-row"><div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value="0"></div>
-                <div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value="0"></div>
+                <div class="input-row">${axisPair(
+                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value="0"></div>`,
+                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value="0"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯2")}</div></div>
                 <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Šířka × Výška od bodu 1</label>
                 <div class="input-row"><div><label>Šířka:</label><input type="text" id="nw" value=""></div>
@@ -245,8 +280,10 @@ export function showNumericalInputDialog() {
         break;
       case "polyline":
         html = `<div style="font-size:12px;color:${COLORS.label};margin-bottom:8px">Zadávejte body po jednom. Klikněte "Přidat bod" pro každý vrchol kontury.</div>
-                <div class="input-row"><div><label>${lbl(H)}:</label><input type="text" id="nx" value="${hasChain ? chainDispX : '0'}"></div>
-                <div><label>${lbl(V)}:</label><input type="text" id="ny" value="${hasChain ? chainDispY : '0'}"></div>
+                <div class="input-row">${axisPair(
+                  `<div><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
+                  `<div><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
+                )}
                 <div class="pick-col">${pickBtn("🎯")}</div></div>
                 <div id="polyLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
                 <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Délka a polární úhel od posledního bodu</label>

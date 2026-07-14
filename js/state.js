@@ -73,6 +73,8 @@ export const state = {
   clipboard: null,
   // Numerical dialog chaining
   numDialogChain: { x: null, y: null },
+  // Souřadnice posledního kliknutí na plátno (viz #statusCoords ve statusbaru)
+  lastClickPoint: { x: null, y: null },
   // Inkrementální souřadnice
   coordMode: 'abs',
   incReference: { x: 0, y: 0 },

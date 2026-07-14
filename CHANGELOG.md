@@ -114,6 +114,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   — but frozen at the last click rather than following the mouse, set from
   the canvas `mousedown` handler (`js/events.js`) rather than from the
   continuous `mousemove`/`updateMobileCoords()` path
+- "🔢 Číselné zadání objektu" dialog (`js/dialogs/numericalInput.js`) now
+  pre-fills the first point of a shape (X/Z for Bod/Kontura, X1/Z1 for
+  Úsečka/Konstr./Obdélník, Střed X/Z for Kružnice/Oblouk) from the last click
+  on the canvas (`state.lastClickPoint`, same value as `#statusCoords`) when
+  there's no active chain from a previously-created object — chain still
+  takes priority so multi-step drawing continuation is unaffected. Also
+  swapped the field order to always show X before Z (`axisPair()` helper),
+  matching the rest of the UI — on a lathe (`machineType: 'soustruh'`) the
+  fields used to read Z-then-X because `axisLabels()` returns `[H, V]` in
+  world horizontal/vertical order, which happens to be `[Z, X]` for that
+  machine type
 - Desktop floating cursor coordinates (`#cursorCoords`, follows the mouse over
   the canvas) gained a 2nd line: the selection counter ("1 obj", "2 obj + 3
   body", …) when something is selected. That counter used to be a separate
