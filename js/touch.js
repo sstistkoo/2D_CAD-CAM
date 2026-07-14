@@ -12,7 +12,7 @@ import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { toolLabel } from './utils.js';
 import { showNumericalInputDialog } from './dialogs.js';
-import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge } from './tools/index.js';
+import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
 
@@ -335,9 +335,11 @@ function getTouchPos(touch) {
   };
 }
 
-// Detekce, zda je jednoprstý posun povolený (ne při kreslení/přetahování/precision)
+// Detekce, zda je jednoprstý posun povolený (ne při kreslení/přetahování/precision/
+// umísťování kóty – 2. akce nástroje Kóta musí sledovat prst, ne posouvat pohled)
 function canSingleFingerPan() {
-  return !state.drawing && !state.dragging && !touchState.precisionMode;
+  const dimPlacingPending = state.tool === 'dimension' && !!state._dimFirstLine;
+  return !state.drawing && !state.dragging && !touchState.precisionMode && !dimPlacingPending;
 }
 
 // ── Precision crosshair helpers ──
@@ -838,6 +840,35 @@ drawCanvas.addEventListener(
       let [wx, wy] = screenToWorld(tp.sx, tp.sy);
       if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
       handleCanvasClick(wx, wy);
+      touchState.touchMoved = false;
+      touchState.singlePanning = false;
+      if (e.touches.length === 0) touchState.wasMultiTouch = false;
+      renderAll();
+      return;
+    }
+
+    // Kóta: 2. akce (umístění délky / výběr úhlu / osy Z) se dokončí uvolněním
+    // prstu i po tažení – touch ekvivalent desktopového mousedown+mouseup
+    // (viz mouseup listener v events.js, který volá finalizeDimPlacement).
+    // Bez tohoto by tažením umístěná kóta zůstala "viset" a nezapsala by se.
+    if (
+      state.tool === 'dimension' &&
+      state._dimFirstLine &&
+      !state._dimAnglePlacing &&
+      !state._dimArcRadius &&
+      !state._dimPointSeg &&
+      !state._dimCoordStart &&
+      !touchState.wasMultiTouch &&
+      e.changedTouches.length === 1
+    ) {
+      const tp = getTouchPos(e.changedTouches[0]);
+      let [wx, wy] = screenToWorld(tp.sx, tp.sy);
+      if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
+      state.mouse.x = wx;
+      state.mouse.y = wy;
+      handleCanvasClick(wx, wy);
+      if (state._dimPlacing) finalizeDimPlacement(wx, wy);
+      updateMobileCoords(wx, wy);
       touchState.touchMoved = false;
       touchState.singlePanning = false;
       if (e.touches.length === 0) touchState.wasMultiTouch = false;
