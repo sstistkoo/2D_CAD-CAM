@@ -44,6 +44,8 @@ export function renderAll() {
     if (bridge.updatePolylineButtons) bridge.updatePolylineButtons();
     // Aktualizovat tlačítka trasování profilu
     if (bridge.updateTraceButtons) bridge.updateTraceButtons();
+    // Aktualizovat lištu Potvrdit/Zrušit ručního kreslení obrysu držáku (CAM)
+    if (bridge.updateHolderDrawButtons) bridge.updateHolderDrawButtons();
   });
 }
 

@@ -90,6 +90,12 @@ export const state = {
   flipZ: false,
   // Náhled zrcadlení kontury kolem osy rotace (y=0) – jen vizuální, neukládá objekty
   mirrorPreview: false,
+  // Aktivní režim „📐 Kreslit držák na CAD plátně" z CAM Simulátoru.
+  // Objekt se zálohou původního výkresu + kontextem režimu (viz
+  // js/calculators/camSimulator.js → startHolderCadDraw), nebo null.
+  // Pozor: NENÍ svázán se state._toolCleanup — přežívá přepnutí nástroje,
+  // ruší se jen přes dolní lištu ✕ Zrušit / ✓ Potvrdit.
+  holderDrawMode: null,
   // Body mezer/přerušení v kontuře nalezené při kontrole validity (pro zvýraznění na plátně)
   contourGaps: [],
   // Zobrazovat značky "Mezera" na plátně (lze vypnout v nastavení)

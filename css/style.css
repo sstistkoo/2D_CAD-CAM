@@ -1560,6 +1560,53 @@ body {
   background: #a4c4fa;
 }
 
+#holderDrawConfirm,
+#holderDrawCancel,
+#holderDrawSide {
+  display: none;
+  position: fixed;
+  bottom: 48px;
+  z-index: 310;
+  border: none;
+  border-radius: 12px;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  line-height: 40px;
+  text-align: center;
+  font-weight: bold;
+  white-space: nowrap;
+}
+#holderDrawConfirm {
+  right: 16px;
+  background: var(--ctp-green);
+  color: var(--ctp-base);
+}
+#holderDrawCancel {
+  right: 150px;
+  background: var(--ctp-red);
+  color: var(--ctp-base);
+}
+#holderDrawSide {
+  right: 284px;
+  background: var(--ctp-surface1);
+  color: var(--ctp-text);
+}
+#holderDrawSide:active,
+#holderDrawSide:hover {
+  background: var(--ctp-surface2);
+}
+#holderDrawConfirm:active,
+#holderDrawConfirm:hover {
+  background: #b4e8b0;
+}
+#holderDrawCancel:active,
+#holderDrawCancel:hover {
+  background: #f38ba8;
+}
+
 #mobileUndo {
   display: none;
   position: fixed;

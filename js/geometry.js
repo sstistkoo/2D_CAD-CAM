@@ -107,7 +107,8 @@ export function findIntersectionAt(wx, wy) {
   const midThreshold = threshold * 0.3;  // Midpoints: snížený práh
   for (const obj of state.objects) {
     const layer = state.layers ? state.layers.find(l => l.id === obj.layer) : null;
-    if (layer && (layer.locked || !layer.visible)) continue;
+    // Zamčená vrstva blokuje snap; destička (isToolInsert) je výjimka (viz canvas.js snapPt).
+    if (layer && (!layer.visible || (layer.locked && !obj.isToolInsert))) continue;
     if (state.showDimensions === 'none' && (obj.isDimension || obj.isCoordLabel)) continue;
     const pts = getObjectSnapPoints(obj);
     for (const p of pts) {

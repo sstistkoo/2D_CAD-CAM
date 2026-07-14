@@ -8,71 +8,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- CAM Simulator: "⚙️ Geometrie" dialog for insert (VBD) + tool holder geometry
-  with a live 2D preview canvas (`drawInsertAndHolderPreview`), bidirectionally
-  synced with the "Nástroj" panel
-- ISO 5608/5610 reference data (`js/calculators/holderIsoData.js`): holder
-  style letters (A–W) with approach angle κr, and typical functional length
-  (l1) by shank height — orientational, catalog values vary by manufacturer
+- CAM Simulator: "⚙️ Geometrie" dialog for insert (VBD) + tool holder geometry,
+  opened from the "Nástroj" panel — live 2D preview canvas
+  (`drawInsertAndHolderPreview`), bidirectionally synced with the main panel,
+  split into two switchable sub-tabs ("🔩 Destička" / "🗜 Držák"); preview is
+  zoomable (mouse wheel or ＋/－, up to 12×) and pannable (drag), with a ⟲
+  reset button; ↩/↪ undo-redo buttons share the CAM Simulator's existing
+  history stack. Angle/dimension labels (ε, ∠, b, l1) render as HTML overlays
+  and stroke widths use a `1/zoom` factor, so labels and lines stay crisp and
+  constant-size at any zoom instead of ballooning with it
+- Manual holder outline drawing (replaces the earlier ISO 5608 style-picker
+  approach, which needed too much data entry for the common case of "hand +
+  length + thickness"):
+  - In-dialog: **✏️ Kreslit obrys** shows clickable anchor points on the
+    insert in the preview (corners for square/diamond inserts, every 45° on
+    round ones) — click one to start a side ("A"/"B"), then add points via
+    Délka (mm) + Polární úhel (with the ✛ quick-angle compass), building up
+    to ~6 segments per side (`S.params.holderProfile.sideA/sideB`,
+    `getInsertAnchorPoints()`)
+  - **📐 Kreslit na CAD plátně** (Držák tab): full CAD drawing of the holder
+    outline on the main canvas. Backs up the current drawing (objects, layers,
+    view, manual G-code) and restores it on ✕/✓, clears the canvas and creates
+    two layers ("Plátek" / "Držák"). The insert is generated as **real, locked,
+    red** LINE/ARC/CIRCLE geometry at the origin (round → circle R; polygon →
+    2 edges + nose arc; parting → radius-to-edge), so ordinary CAD tools can
+    **snap onto it** even though its layer is locked (`isToolInsert` snap
+    bypass in `snapPt`/`findIntersectionAt`). The mode lives in
+    `state.holderDrawMode` and survives tool switching (it is **not** tied to
+    `state._toolCleanup`); it ends only via the bottom bar ✕ Zrušit / ✓ Potvrdit
+    (visible on desktop too). Opening/switching to CAM while drawing is blocked
+    with a toast. On confirm the holder is saved as a closed `holderProfile`:
+    a fully closed contour is used as-is (mode A); an open two-sided sketch is
+    auto-closed at 45° to the "Délka držáku (l1)" / "Tloušťka držáku" fields
+    (mode B), with a ⇄ Strana button to switch which end is completed.
+  - Preview draws `holderProfile` as connected polylines (starting at the
+    insert edge) instead of the rectangle once it has points; **🗑 Smazat
+    obrys** clears it. In drawing mode the preview fits to the insert and
+    hides the holder body, so the clickable anchor points sit exactly on the
+    insert edge (round: on the circle; square/diamond: at the edge tips)
+- Tool library via projects: the project JSON (`_buildProjectData`, bumped to
+  version 4) now stores the CAM tool geometry (`camTool`: insert
+  shape/length/angle/tip-angle/radius/tip-flat/tip-mirror/VBD code + holder
+  length/width/hand/profile). Loading a project transfers the saved tool into
+  CAM ("Nůž z projektu přenesen do CAM" — applied to a live CAM session and
+  seeded into the next one), so projects double as a knife library
+  (`getCamToolGeometry`/`applyCamToolGeometry`, bridged to `projectManager`)
+- Polygon insert: "⇄ Přehodit stranu" button — the vertex angle (ε) can open
+  to either side of the polar angle (two geometrically valid mirror
+  options); flips which one the preview draws instead of requiring the
+  angle to be recalculated by hand (`toolTipMirror`, preview-only — does not
+  affect the interference-guard calculation, which uses its own
+  angle-symmetric model)
+- ✛ quick-angle compass next to polar-angle fields (insert polar angle, the
+  ↻ rotate popup, the outline-side popup) — same 3×3 popup (0/45/90/…) as the
+  CAD's "🔢 Číselné zadání objektu" dialog (`wireAngleCompass`, reuses the
+  existing `.angle-compass-popup`/`.compass-grid` CSS); the popup is given a
+  high z-index so it opens above the full-screen dialog backdrops instead of
+  behind them (previously the compass appeared unresponsive)
 - VBD & Držáky dialog: holder code decoder now follows the real 7-position
   ISO 5608 structure (clamping, insert shape, style/κr, insert clearance
   angle, hand, height, width) instead of the previous simplified 6-position
   layout
-- "⚙️ Geometrie" dialog: optional holder body back angle (γ) / face angle
-  (γf) fields, manually entered (not auto-derived — usually only relevant
-  for brazed/solid tools), visualized as dashed guide lines on the preview
-- "⚙️ Geometrie" dialog: "🔍 Najít dle destičky" button suggests the closest
-  ISO 5608 holder style by matching κr to the insert's Natočení (toolAngle);
-  "⇄ Ruka" toggle for holder hand (R/L), auto-derived from the machining
-  side (`roughingSide`) each time the dialog opens, mirroring the insert
-  shape in the preview
-- Holder body preview now reflects κr geometrically: the head near the
-  insert is drawn with a chamfered nose (straight side + side angled by κr)
-  instead of a plain rectangle; falls back to a plain rectangle when no
-  style/κr is selected
-- "⚙️ Geometrie" dialog: ↩/↪ undo/redo buttons next to the title (share the
-  CAM Simulator's existing history stack — any change made in this dialog
-  can be reverted/reapplied); preview canvas is zoomable (mouse wheel or
-  ＋/－ buttons) and pannable (drag), with a ⟲ reset button; content split
-  into two switchable sub-tabs, "🔩 Destička" and "🗜 Držák", instead of one
-  long scrolling form
-- Preview canvas now labels ε (vrcholový úhel), natočení and γ/γf directly
-  on the drawing (not just in the form); each label is a clickable hotspot
-  that switches to the relevant sub-tab (Destička/Držák) and focuses the
-  matching input
-
-### Fixed
-- Preview canvas proportions: the holder body no longer renders visually
-  smaller/narrower than the insert when the shank length (l1) is much
-  larger than the insert edge length — the scale is now computed from a
-  capped drawn shank length instead of the full l1, and the insert's
-  minimum pixel-size clamps were reduced so they no longer override the
-  shared scale
-- A very long holder shank (large l1) is now drawn shortened with a
-  standard technical-drawing break mark (zig-zag) instead of taking up
-  most of the canvas height; the true l1 value stays in the label,
-  suffixed "(zkráceno)" when the drawing is shortened; the shown shank
-  portion was also shortened further so the head/nose detail near the
-  insert stays the visual focus
-- The gap between the insert tip and the holder's near edge is now sized
-  from the insert's actual drawn reach (Délka hrany) instead of a fixed
-  small fraction, so the insert body no longer visually overlaps/crosses
-  into the holder's chamfered head
-
-### Added
-- Polygon insert: "⇄ Přehodit stranu" button — the vertex angle (ε) can
-  open to either side of Natočení (two geometrically valid mirror options);
-  the button flips which one the preview draws instead of requiring the
-  angle to be recalculated by hand (`toolTipMirror`, preview-only — does
-  not affect the interference-guard calculation, which uses its own
-  Natočení-symmetric model)
 
 ### Changed
+- Renamed "Natočení (°)" to "Polární úhel (°)" on the insert fields
 - Insert shape "Úhel hřbetu (α)" field removed from the polygon shape UI,
   replaced by "Rádius (R)" at the same position (value still used internally
   for flank-interference tolerance)
 - "VBD kód" and holder dimension fields ("Tloušťka držáku", "Délka držáku")
-  moved from the main "Nástroj" panel into the new "⚙️ Geometrie" dialog
+  moved from the main "Nástroj" panel into the "⚙️ Geometrie" dialog; the
+  Držák tab there now holds only ⇄ Ruka (hand, auto-derived from the
+  machining side on open, togglable), ↻ Natočení (rotate the insert without
+  switching tabs), Délka držáku (l1), Tloušťka držáku, and the outline tools
+  above — no ISO style/κr/h/b fields
+- Preview canvas proportions: the holder body no longer renders visually
+  smaller/narrower than the insert when the shank length (l1) is much
+  larger than the insert edge length — scale is computed from a capped
+  drawn shank length instead of the full l1
+- A very long holder shank (large l1) draws shortened with a standard
+  technical-drawing break mark (zig-zag) instead of taking up most of the
+  canvas height; the true l1 value stays in the label
+- The gap between the insert tip and the holder's near edge is sized from
+  the insert's actual drawn reach, so the insert body no longer visually
+  overlaps the holder
 
 ## [1.7.0] - 2026-07-04
 

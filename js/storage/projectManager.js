@@ -21,7 +21,10 @@ async function _saveToProjects(name, data) {
 
 function _buildProjectData() {
   return {
-    version: 3,
+    version: 4,
+    // Geometrie nástroje (destička + držák) pro knihovnu nožů — čte se z CAM
+    // přes bridge (S.params je closure), null když CAM v této relaci nebylo.
+    camTool: (bridge.getCamToolGeometry && bridge.getCamToolGeometry()) || null,
     objects: state.objects,
     intersections: state.intersections,
     nextId: state.nextId,
@@ -91,6 +94,14 @@ function _loadProjectData(data) {
   state.selected = null;
   state.multiSelected.clear();
   state.selectedPoint = null;
+  // Přenést uložený nůž (destička + držák) do CAM — hodnoty se nastaví do
+  // CAM Geometrie hned (je-li CAM otevřené) i pro příští otevření CAM, takže
+  // si uživatel může ukládat projekty jako knihovnu nožů.
+  if (data.camTool && bridge.applyCamToolGeometry) {
+    if (bridge.applyCamToolGeometry(data.camTool)) {
+      showToast('Nůž z projektu přenesen do CAM 🔧');
+    }
+  }
   updateObjectList();
   updateProperties();
   updateLayerList();

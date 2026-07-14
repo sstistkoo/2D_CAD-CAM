@@ -7,16 +7,16 @@ import { makeOverlay } from '../dialogFactory.js';
 import { openCamEditor } from './camEditor.js';
 import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
-import { autoCenterView } from '../canvas.js';
+import { autoCenterView, centerViewOn, resizeCanvases } from '../canvas.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { updateObjectList, persistSettings, setCalcClipboardValue, getCalcClipboardValue } from '../ui.js';
+import { updateObjectList, updateLayerList, persistSettings, setCalcClipboardValue, getCalcClipboardValue, setTool } from '../ui.js';
+import { bridge } from '../bridge.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
-import { HOLDER_STYLES, holderStyleByCode, suggestL1 } from './holderIsoData.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
 function camConfirm(message) {
@@ -2807,23 +2807,17 @@ function _defaultCamParams() {
     // holderWidth/holderLength ≤ 0 = držák se nehlídá (staré chování).
     holderWidth: 20,    // tloušťka držáku [mm] (v ose Z)
     holderLength: 200,  // délka držáku [mm] (v ose X — max. hloubka zanoření)
-    // Katalogová vrstva ISO 5608/5610 (jen informativní — nečte ji žádný
-    // výpočet drah; jediné propojení je tlačítko "Použít jako Tloušťka
-    // držáku" v dialogu Geometrie, které explicitně přepíše holderWidth).
-    holderStyle: '',        // písmeno stylu dle ISO 5608 poz. 3 (A–W)
-    holderKappa: null,      // κr [°] — přístupový úhel hlavního ostří (odvozeno ze stylu, přepsatelné)
-    holderH: null,          // výška tělesa držáku h [mm]
-    holderB: null,          // šířka stopky b [mm]
-    holderSquareShank: true, // h = b (čtvercová stopka)
-    // Úhel hřbetu (γ) a čela (γf) TĚLESA držáku [°] — u běžných indexovatelných
-    // držáků obvykle není v ISO 5608 kódu (hřbet dodává destička, poz. 4),
-    // relevantní hlavně u pájených/celistvých nástrojů nebo speciálních tvarů.
-    // Ruční, nepovinné pole — null = nevyplněno/nerelevantní pro daný držák.
-    holderBackAngle: null,
-    holderFaceAngle: null,
     // Ruka držáku (R/L) — při otevření dialogu Geometrie se odvodí ze směru
     // hrubování (roughingSide), pak ji lze tlačítkem ručně přepnout.
     holderHand: 'R',
+    // Ručně nakreslený obrys držáku kolem destičky (dialog "⚙️ Geometrie" →
+    // Držák → ✏️ Kreslit obrys), buď klikáním v náhledu, nebo přenesením z
+    // hlavního CAD plátna. null = žádný vlastní obrys, náhled kreslí prostý
+    // obdélník (holderWidth × holderLength). Souřadnice v mm ve stejném
+    // systému jako uvnitř drawInsertAndHolderPreview PŘED scale/mirror
+    // (0,0 = referenční bod destičky, +z = "nahoru" do držáku).
+    // Tvar: { sideA: [{x,z}, ...], sideB: [{x,z}, ...] }
+    holderProfile: null,
     // Spodní strana závitového plátku [mm] — šířka rovné špičky (lichoběžník).
     // Metrické/palcové ~0,1; lichoběžníkové (Tr/Acme) ≈ 0,366×P (dno profilu).
     toolTipFlat: 0.1,
@@ -2911,64 +2905,115 @@ function _defaultCamParams() {
 // destičky vychází ze stejných vzorců jako vykreslení nástroje během
 // simulace (viz draw(), blok "tool position during sim"), zbavená
 // flip/mirror větví.
-function drawInsertAndHolderPreview(ctx, w, h, prms) {
+function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
+  opts = opts || {};
+  // uiScale = 1/viewZoom — čáry a markery se násobí jím, aby po zoomu celého
+  // kontextu (viz redrawCanvas) zůstaly na obrazovce KONSTANTNĚ tenké.
+  // Text se na canvas vůbec nekreslí (rozmazal by se při zoomu) — vrací se
+  // v `texts` a vykreslí se jako ostré HTML overlaye (viz positionTexts).
+  const us = opts.uiScale || 1;
   const COL = { bg: '#1e1e2e', insert: 'rgba(186,194,222,0.85)', text: '#a6adc8',
-    holder: 'rgba(108,112,134,0.35)', holderStroke: 'rgba(166,173,200,0.8)' };
+    holder: 'rgba(108,112,134,0.35)', holderStroke: 'rgba(166,173,200,0.85)',
+    anchor: '#a6e3a1' };
   const labels = {}; // klikatelné anotace úhlů — logické souřadnice (bez zoom/pan volajícího)
+  const anchorHits = []; // klikatelné anchor body pro ruční kreslení obrysu (viz opts.showAnchors)
+  const texts = [];  // {x, y, text, color, align} v logických souř. → HTML overlaye
   ctx.save();
-  ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, w, h);
-  if (w <= 0 || h <= 0) { ctx.restore(); return { labels }; }
+  if (w <= 0 || h <= 0) { ctx.restore(); return { labels, anchorHits, texts }; }
 
   const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
   const holderW = Math.max(parseFloat(prms.holderWidth) || 0, 0);
   const holderL = Math.max(parseFloat(prms.holderLength) || 0, 0);
-  const kappaValRaw = parseFloat(prms.holderKappa);
-  const kappaVal = (isFinite(kappaValRaw) && kappaValRaw > 5 && kappaValRaw < 175) ? kappaValRaw : null;
+  const profile = prms.holderProfile;
+  const hasProfile = !!(profile && (
+    (profile.sideA && profile.sideA.length) || (profile.sideB && profile.sideB.length)));
 
   // Vykreslená délka dříku se STROPUJE nezávisle na skutečném l1 (dlouhý
   // držák by jinak zabíral většinu výšky náhledu a zmenšoval destičku pod
   // čitelnou velikost) — reálná délka zůstává v popisce, jen se v náhledu
-  // zkrátí a označí standardní značkou přerušení (klikatý zlom). Strop je
-  // záměrně nízký — u držáku má být vidět hlavně náběh/hlava u destičky,
-  // rovná část dříku dál od ní nenese žádnou informaci navíc.
-  const headLenMM = kappaVal !== null ? Math.min(holderW * 1.3, holderL * 0.4) : 0;
-  const shankRemainMM = Math.max(holderL - headLenMM, 0);
+  // zkrátí a označí standardní značkou přerušení (klikatý zlom). Platí jen
+  // pro obdélníkový fallback (bez vlastního nakresleného obrysu).
   const maxShankDrawMM = Math.max(holderW * 1.6, toolLen * 1.5, 12);
-  const shankDrawMM = Math.min(shankRemainMM, maxShankDrawMM);
-  const isShortened = holderW > 0 && holderL > 0 && shankRemainMM > shankDrawMM + 0.01;
-  const totalDrawMM = headLenMM + shankDrawMM;
+  const shankDrawMM = Math.min(holderL, maxShankDrawMM);
+  const isShortened = !hasProfile && holderW > 0 && holderL > 0 && holderL > shankDrawMM + 0.01;
   // Mezera mezi špičkou destičky a začátkem držáku — musí být aspoň tak
   // velká, jako destička skutečně "sahá" nahoru (toolLen), jinak její tělo
   // vizuálně přesahuje do hlavy držáku a obě kresby se pletou přes sebe.
   const gapMM = toolLen * 1.3;
 
-  const maxDim = Math.max((gapMM + totalDrawMM) * 1.15, holderW * 1.15, toolLen * 2, 20);
+  // Pokud existuje vlastní obrys, musí se do maxDim vejít i on (může sahat
+  // dál/šířeji než obdélníkový fallback). Faktor je nízký (1,25) — profil
+  // má vyplnit náhled; detaily u hrany destičky si uživatel přiblíží zoomem.
+  let profileExtentMM = 0;
+  if (hasProfile) {
+    [...(profile.sideA || []), ...(profile.sideB || [])].forEach(p => {
+      profileExtentMM = Math.max(profileExtentMM, Math.abs(p.x), Math.abs(p.z));
+    });
+  }
+
+  // V kresebním režimu (opts.showAnchors) měřítko fituje na DESTIČKU (ne na
+  // držák) — tím je destička velká, min-pixel clampy níže se neaktivují a
+  // anchor body sednou přesně na vykreslenou hranu. Držák se v tomto režimu
+  // nekreslí (jen destička + anchory + rozpracovaný profil).
+  const drawMode = !!opts.showAnchors;
+  const insRadiusMM = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
+  const maxDim = drawMode
+    ? Math.max(toolLen * 2.6, insRadiusMM * 4.5, profileExtentMM * 1.25, 12)
+    : Math.max((gapMM + shankDrawMM) * 1.15, holderW * 1.15, toolLen * 2, profileExtentMM * 1.25, 20);
   const pad = 26;
   const scale = Math.max(Math.min((w - pad * 2) / maxDim, (h - pad * 2) / maxDim), 0.01);
-  const ox = w / 2, oy = h - pad - 8; // origin = referenční bod destičky (špička)
+  // Počátek (špička destičky): dole u fallbacku držáku, ale v kresebním režimu
+  // výš (~60 %), ať je kolem destičky místo na anchory i na kulatou destičku
+  // (ta má počátek ve svém středu → spodní půlka by jinak vypadla z canvasu).
+  const ox = w / 2, oy = drawMode ? h * 0.6 : h - pad - 8;
   const mirror = prms.holderHand === 'L' ? -1 : 1;
+  // mm → screen: +z = "nahoru" do držáku (viz gapMM výše), zrcadlení dle ruky.
+  const toScr = (x, z) => ({ x: ox + mirror * x * scale, y: oy - z * scale });
 
   // ── Těleso držáku (schematicky, kanonická orientace: nahoru = do držáku) ──
-  if (holderW > 0 && holderL > 0) {
+  if (hasProfile) {
+    ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1.4 * us;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ['sideA', 'sideB'].forEach(key => {
+      const pts = profile[key];
+      if (!pts || pts.length === 0) return;
+      // Obrys začíná na PRVNÍM bodu (anchor na hraně destičky), ne z počátku —
+      // jinak by vznikala matoucí spojnice od špičky ke hraně.
+      ctx.beginPath();
+      const s0 = toScr(pts[0].x, pts[0].z);
+      ctx.moveTo(s0.x, s0.y);
+      for (let i = 1; i < pts.length; i++) { const s = toScr(pts[i].x, pts[i].z); ctx.lineTo(s.x, s.y); }
+      ctx.stroke();
+    });
+    // Orientační spojnice konců obou stran (zezadu) — jen tečkovaně, není to
+    // skutečná hrana, jen naznačení uzavřeného obrysu.
+    if (profile.sideA && profile.sideA.length && profile.sideB && profile.sideB.length) {
+      const lastA = profile.sideA[profile.sideA.length - 1];
+      const lastB = profile.sideB[profile.sideB.length - 1];
+      const sA = toScr(lastA.x, lastA.z), sB = toScr(lastB.x, lastB.z);
+      ctx.save(); ctx.setLineDash([4 * us, 3 * us]); ctx.strokeStyle = 'rgba(166,173,200,0.5)';
+      ctx.beginPath(); ctx.moveTo(sA.x, sA.y); ctx.lineTo(sB.x, sB.y); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+  } else if (!drawMode && holderW > 0 && holderL > 0) {
     const hw2 = (holderW / 2) * scale;
     const nearY = oy - gapMM * scale;
-    const headTopY = nearY - headLenMM * scale;
-    const farY = headTopY - shankDrawMM * scale;
+    const farY = nearY - shankDrawMM * scale;
 
-    ctx.fillStyle = COL.holder; ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1;
-    // Dřík — rovná část dál od destičky, plná šířka b (zkrácená, viz výše).
-    ctx.beginPath(); ctx.rect(ox - hw2, farY, hw2 * 2, headTopY - farY); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = COL.holder; ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1 * us;
+    ctx.beginPath(); ctx.rect(ox - hw2, farY, hw2 * 2, nearY - farY); ctx.fill(); ctx.stroke();
 
     // Standardní značka přerušení (zlom) uprostřed dříku, když je vykreslená
     // délka zkrácená oproti skutečné l1.
     if (isShortened) {
-      const breakY = (headTopY + farY) / 2;
+      const breakY = (nearY + farY) / 2;
       const zig = Math.min(hw2 * 0.5, 8);
       ctx.save();
-      ctx.strokeStyle = COL.bg; ctx.lineWidth = 3;
+      ctx.strokeStyle = COL.bg; ctx.lineWidth = 3 * us;
       ctx.beginPath(); ctx.moveTo(ox - hw2 - 1, breakY); ctx.lineTo(ox + hw2 + 1, breakY); ctx.stroke();
-      ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1.2;
-      [-5, 5].forEach(dy => {
+      ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1.2 * us;
+      [-4 * us, 4 * us].forEach(dy => {
         ctx.beginPath();
         ctx.moveTo(ox - hw2 - 2, breakY + dy + zig);
         ctx.lineTo(ox - hw2 * 0.25, breakY + dy - zig);
@@ -2979,67 +3024,15 @@ function drawInsertAndHolderPreview(ctx, w, h, prms) {
       ctx.restore();
     }
 
-    if (kappaVal !== null) {
-      const kappaRad = kappaVal * Math.PI / 180;
-      const rawChamfer = Math.abs(1 / Math.tan(kappaRad)) * (headLenMM * scale);
-      const chamfer = Math.min(rawChamfer, hw2 * 1.85) * (kappaVal < 90 ? 1 : -1);
-      ctx.save(); ctx.translate(ox, 0); ctx.scale(mirror, 1);
-      ctx.beginPath();
-      ctx.moveTo(-hw2, headTopY);
-      ctx.lineTo(hw2, headTopY);
-      ctx.lineTo(hw2, nearY);
-      ctx.lineTo(-hw2 + chamfer, nearY);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
-
-    ctx.fillStyle = COL.text; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`b=${holderW} mm`, ox, farY - 6 > 10 ? farY - 6 : farY + 12);
-    ctx.save(); ctx.translate(ox + hw2 + 12, (nearY + farY) / 2); ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`l1=${holderL} mm${isShortened ? ' (zkráceno)' : ''}`, 0, 0);
-    ctx.restore();
-    if (kappaVal !== null) {
-      const kx = ox + hw2 + 4, ky = (headTopY + nearY) / 2;
-      ctx.fillStyle = '#89b4fa'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText(`κr=${kappaVal}°`, kx, ky);
-      labels.kappa = { x: kx + 10, y: ky - 4 };
-    }
-
-    // ── Úhel hřbetu (γ, na vzdálenějším konci) a čela (γf, u destičky) ──
-    // těles držáku — nepovinné, jen orientační vizualizace tečkovanými čarami.
-    const backA = parseFloat(prms.holderBackAngle) || 0;
-    const faceA = parseFloat(prms.holderFaceAngle) || 0;
-    if (backA || faceA) {
-      const guideLen = Math.min(hw2 * 1.1, 26);
-      ctx.save();
-      ctx.strokeStyle = 'rgba(249,226,175,0.85)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-      if (backA) {
-        const rad = backA * Math.PI / 180;
-        ctx.beginPath();
-        ctx.moveTo(ox - hw2, farY); ctx.lineTo(ox - hw2 - Math.sin(rad) * guideLen, farY + Math.cos(rad) * guideLen);
-        ctx.moveTo(ox + hw2, farY); ctx.lineTo(ox + hw2 + Math.sin(rad) * guideLen, farY + Math.cos(rad) * guideLen);
-        ctx.stroke();
-      }
-      if (faceA) {
-        const rad = faceA * Math.PI / 180;
-        ctx.beginPath();
-        ctx.moveTo(ox - hw2, nearY); ctx.lineTo(ox - hw2 - Math.sin(rad) * guideLen, nearY - Math.cos(rad) * guideLen);
-        ctx.moveTo(ox + hw2, nearY); ctx.lineTo(ox + hw2 + Math.sin(rad) * guideLen, nearY - Math.cos(rad) * guideLen);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#f9e2af'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
-      if (backA) { ctx.fillText(`γ=${backA}°`, ox + hw2 + 4, farY + 10); labels.backAngle = { x: ox + hw2 + 14, y: farY + 6 }; }
-      if (faceA) { ctx.fillText(`γf=${faceA}°`, ox + hw2 + 4, nearY - 4); labels.faceAngle = { x: ox + hw2 + 14, y: nearY - 8 }; }
-      ctx.restore();
-    }
-  } else {
-    ctx.fillStyle = COL.text; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('Držák se nehlídá (0 mm = staré chování)', ox, pad + 4);
+    texts.push({ x: ox, y: (farY - 12 > 10 ? farY - 12 : farY + 12), text: `b=${holderW} mm`, color: COL.text, align: 'center' });
+    texts.push({ x: ox + hw2 + 14, y: (nearY + farY) / 2, text: `l1=${holderL} mm`, color: COL.text, align: 'left' });
+  } else if (!drawMode) {
+    texts.push({ x: ox, y: pad, text: 'Držák se nehlídá (0 mm)', color: COL.text, align: 'center' });
   }
 
+
   // ── Destička v referenčním bodě (0,0 = špička/aktivní rádius) ──
-  ctx.fillStyle = COL.insert; ctx.strokeStyle = '#cdd6f4'; ctx.lineWidth = 1.5;
+  ctx.fillStyle = COL.insert; ctx.strokeStyle = '#cdd6f4'; ctx.lineWidth = 1.2 * us;
   const shape = prms.toolShape;
   // Minimum jen jako pojistka proti degenerovaně malé/nulové velikosti —
   // NESMÍ dominovat nad skutečným měřítkem (dřívější 20 px minimum dělalo
@@ -3062,8 +3055,7 @@ function drawInsertAndHolderPreview(ctx, w, h, prms) {
     ctx.lineTo(w2 + dx, -dy);
     ctx.closePath(); ctx.fill(); ctx.stroke();
     const epsLx = 0, epsLy = -dy - 12;
-    ctx.fillStyle = '#a6e3a1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`ε=${tipAngDeg}°`, epsLx, epsLy);
+    texts.push({ x: ox + mirror * epsLx, y: oy + epsLy, text: `ε=${tipAngDeg}°`, color: '#a6e3a1', align: 'center' });
     labels.tipAngle = { x: ox + mirror * epsLx, y: oy + epsLy };
   } else if (shape === 'polygon') {
     const tipAngDeg = parseFloat(prms.toolTipAngle) || 90;
@@ -3098,12 +3090,10 @@ function drawInsertAndHolderPreview(ctx, w, h, prms) {
     // stačí k umístění klikací "hotspot" bubliny nad canvasem.
     const epsDir = bisector + Math.PI;
     const epsLx = Math.cos(epsDir) * (rPix + 14), epsLy = Math.sin(epsDir) * (rPix + 14);
-    ctx.fillStyle = '#a6e3a1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`ε=${tipAngDeg}°`, epsLx, epsLy);
+    texts.push({ x: ox + mirror * epsLx, y: oy + epsLy, text: `ε=${tipAngDeg}°`, color: '#a6e3a1', align: 'center' });
     labels.tipAngle = { x: ox + mirror * epsLx, y: oy + epsLy };
-    const angLx = Math.cos(a1) * lenPix * 0.55, angLy = Math.sin(a1) * lenPix * 0.55 - 8;
-    ctx.fillStyle = '#f9e2af'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`∠${effAngleDeg}°`, angLx, angLy);
+    const angLx = Math.cos(a1) * (lenPix * 0.55 + 6), angLy = Math.sin(a1) * (lenPix * 0.55 + 6);
+    texts.push({ x: ox + mirror * angLx, y: oy + angLy, text: `∠${effAngleDeg}°`, color: '#f9e2af', align: 'center' });
     labels.toolAngle = { x: ox + mirror * angLx, y: oy + angLy };
   } else if (shape === 'parting') {
     const wPix = Math.max(toolLen * scale, 8);
@@ -3123,25 +3113,149 @@ function drawInsertAndHolderPreview(ctx, w, h, prms) {
     ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
     const angLx = Math.cos(rotRad) * wPix * 0.5, angLy = Math.sin(rotRad) * wPix * 0.5 - r - 10;
-    ctx.fillStyle = '#f9e2af'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`∠${effAngleDeg}°`, angLx, angLy);
+    texts.push({ x: ox + mirror * angLx, y: oy + angLy, text: `∠${effAngleDeg}°`, color: '#f9e2af', align: 'center' });
     labels.toolAngle = { x: ox + mirror * angLx, y: oy + angLy };
   }
 
   // referenční křížek ve špičce
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+  const cross = 5 * us;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 * us;
   ctx.beginPath();
-  ctx.moveTo(-6, 0); ctx.lineTo(6, 0);
-  ctx.moveTo(0, -6); ctx.lineTo(0, 6);
+  ctx.moveTo(-cross, 0); ctx.lineTo(cross, 0);
+  ctx.moveTo(0, -cross); ctx.lineTo(0, cross);
   ctx.stroke();
   ctx.restore();
   ctx.restore();
-  return { labels };
+
+  // ── Anchor body pro ruční kreslení obrysu držáku (jen v kresebním režimu) ──
+  // Kreslí se AŽ NAD destičkou (jinak by u kulaté destičky ležely přesně na
+  // jejím obvodu a byly by kruhem překryté).
+  if (opts.showAnchors) {
+    getInsertAnchorPoints(prms).forEach(a => {
+      const s = toScr(a.x, a.z);
+      anchorHits.push({ x: s.x, y: s.y, wx: a.x, wz: a.z, side: a.side, label: a.label });
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 5 * us, 0, Math.PI * 2);
+      ctx.fillStyle = opts.activeSide === a.side ? COL.anchor : 'rgba(166,227,161,0.5)';
+      ctx.strokeStyle = COL.anchor; ctx.lineWidth = 1 * us;
+      ctx.fill(); ctx.stroke();
+    });
+  }
+
+  return { labels, anchorHits, texts };
+}
+
+// Klikatelné anchor body na destičce, odkud se dá spustit kreslení jedné
+// strany obrysu držáku (viz S.params.holderProfile). Souřadnice v mm, STEJNÝ
+// systém jako holderProfile (0,0 = referenční bod destičky, +z = "nahoru"
+// do držáku) — bez zrcadlení (to řeší až toScr()/opts v drawInsertAndHolderPreview).
+function getInsertAnchorPoints(prms) {
+  const shape = prms.toolShape;
+  const pts = [];
+  if (shape === 'round') {
+    const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
+    for (let i = 0; i < 8; i++) {
+      const deg = i * 45;
+      const rad = deg * Math.PI / 180;
+      pts.push({ x: Math.cos(rad) * r, z: Math.sin(rad) * r, side: i < 4 ? 'sideA' : 'sideB', label: `${deg}°` });
+    }
+  } else if (shape === 'polygon') {
+    const tipAngDeg = parseFloat(prms.toolTipAngle) || 90;
+    const effAngleDeg = parseFloat(prms.toolAngle) || 0;
+    const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
+    const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0);
+    const rotRad = -effAngleDeg * Math.PI / 180;
+    const tipAng = tipAngDeg * Math.PI / 180;
+    const a1 = rotRad, a2 = rotRad - tipAng * (prms.toolTipMirror ? -1 : 1);
+    // Konec hrany PŘESNĚ tam, kde ji kreslí drawInsertAndHolderPreview:
+    // střed rádiusu špičky je posunut o distToCorner podél bisektoru a hrany
+    // z něj vybíhají do délky toolLen (viz cornerX/cornerY v draw fci). Bez
+    // tohoto offsetu ležel anchor mimo skutečnou hranu.
+    const distToCorner = tipAng > 0 ? r / Math.sin(tipAng / 2) : 0;
+    const bis = (a1 + a2) / 2 + Math.PI;
+    const cx = Math.cos(bis) * distToCorner, cy = Math.sin(bis) * distToCorner;
+    pts.push({ x: cx + Math.cos(a1) * toolLen, z: -(cy + Math.sin(a1) * toolLen), side: 'sideA', label: 'Hrana A' });
+    pts.push({ x: cx + Math.cos(a2) * toolLen, z: -(cy + Math.sin(a2) * toolLen), side: 'sideB', label: 'Hrana B' });
+  }
+  return pts;
 }
 
 // Sdílený markup pro tvar destičky (Rádius/tlačítka tvaru + podmíněná pole) —
 // používá jak hlavní panel "Nástroj", tak modal "⚙️ Geometrie", aby obě UI
 // zůstala vizuálně i datově identická (stejné klíče data-p/data-tshape).
+// Pole polárního úhlu s tlačítkem ✛ pro rychlou volbu po 45° (stejný vzor
+// jako 🔢 Číselné zadání objektu v CAD — viz wireAngleCompass()).
+function _polarAngleFieldHTML(dataP, value, titleAttr) {
+  return `<div class="cam-sim-field"><label${titleAttr ? ` title="${titleAttr}"` : ''}>Polární úhel (°)</label>
+    <div style="display:flex;gap:2px">
+      <input type="number" data-p="${dataP}" value="${value}" style="flex:1;min-width:0">
+      <button type="button" class="compass-trigger-btn" data-compass-for="${dataP}" title="Rychlá volba úhlu" style="font-size:13px;padding:2px 5px;flex-shrink:0">✛</button>
+    </div>
+  </div>`;
+}
+
+// Napojí ✛ tlačítko na kompasový popup pro rychlou volbu úhlu (0/45/90/…)
+// — vzor převzatý z js/dialogs/numericalInput.js (wireAngleCompass), sdílí
+// stejné CSS třídy (.angle-compass-popup/.compass-grid/.compass-arrow).
+// onPick(angleDeg) se zavolá navíc k vyplnění inputEl (pro data-p pole to
+// stačí nechat na 'change' listeneru přes dispatchEvent; onPick je pro
+// místa mimo data-p mechanismus, např. showRotateToolPopup).
+function wireAngleCompass(triggerBtn, inputEl, onPick) {
+  if (!triggerBtn) return;
+  triggerBtn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const existing = document.querySelector('.angle-compass-popup');
+    if (existing) existing.remove();
+    const popup = document.createElement('div');
+    popup.className = 'angle-compass-popup';
+    popup.innerHTML = `<div class="compass-grid">
+      <button type="button" data-ang="135" class="compass-arrow" style="grid-area:tl">↖</button>
+      <button type="button" data-ang="90" class="compass-arrow" style="grid-area:tc">↑</button>
+      <button type="button" data-ang="45" class="compass-arrow" style="grid-area:tr">↗</button>
+      <button type="button" data-ang="180" class="compass-arrow" style="grid-area:ml">←</button>
+      <button type="button" class="compass-close" style="grid-area:mc">✕</button>
+      <button type="button" data-ang="0" class="compass-arrow" style="grid-area:mr">→</button>
+      <button type="button" data-ang="225" class="compass-arrow" style="grid-area:bl">↙</button>
+      <button type="button" data-ang="270" class="compass-arrow" style="grid-area:bc">↓</button>
+      <button type="button" data-ang="315" class="compass-arrow" style="grid-area:br">↘</button>
+    </div>`;
+    document.body.appendChild(popup);
+    const rect = triggerBtn.getBoundingClientRect();
+    popup.style.position = 'fixed';
+    // Musí být NAD modalem Geometrie (z-index 300) i nad side/rotate popupy
+    // (320), jinak by kompas zůstal schovaný za jejich celoobrazovkovým
+    // backdropem a klik by na něj nedosáhl (to byl důvod „nereaguje").
+    popup.style.zIndex = '600';
+    popup.style.left = Math.max(Math.min(rect.left - 60, window.innerWidth - 150), 6) + 'px';
+    popup.style.top = Math.max(rect.top - 150, 6) + 'px';
+    popup.querySelectorAll('.compass-arrow').forEach(ab => {
+      ab.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const ang = parseFloat(ab.dataset.ang);
+        if (inputEl) { inputEl.value = ang; inputEl.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (onPick) onPick(ang);
+        popup.remove();
+      });
+    });
+    popup.querySelector('.compass-close').addEventListener('click', () => popup.remove());
+    setTimeout(() => {
+      function outsideClick(ev) {
+        if (!popup.contains(ev.target) && ev.target !== triggerBtn) { popup.remove(); document.removeEventListener('mousedown', outsideClick); }
+      }
+      document.addEventListener('mousedown', outsideClick);
+    }, 50);
+  });
+}
+
+// Napojí všechna ✛ tlačítka (data-compass-for) uvnitř containeru na jejich
+// odpovídající data-p pole.
+function wireAllAngleCompasses(container) {
+  container.querySelectorAll('[data-compass-for]').forEach(btn => {
+    const inp = container.querySelector(`[data-p="${btn.dataset.compassFor}"]`);
+    wireAngleCompass(btn, inp);
+  });
+}
+
 function _renderInsertShapeFieldsHTML(prms) {
   let html = `${(prms.toolShape === 'threading' || prms.toolShape === 'polygon') ? '' : `<div class="cam-sim-row">
     <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
@@ -3156,7 +3270,7 @@ function _renderInsertShapeFieldsHTML(prms) {
   if (prms.toolShape === 'polygon') {
     html += `<div class="cam-sim-row">
       <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
-      <div class="cam-sim-field"><label>Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
+      ${_polarAngleFieldHTML('toolAngle', prms.toolAngle)}
       <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
       <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
     </div>
@@ -3166,7 +3280,7 @@ function _renderInsertShapeFieldsHTML(prms) {
   } else if (prms.toolShape === 'parting') {
     html += `<div class="cam-sim-row">
       <div class="cam-sim-field"><label title="Šířka upichovacího plátku — odpovídá délce hrany">Šířka plátku</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
-      <div class="cam-sim-field"><label title="Natočení plátku; 0° = vodorovně s osou Z">Natočení (°)</label><input type="number" data-p="toolAngle" value="${prms.toolAngle}"></div>
+      ${_polarAngleFieldHTML('toolAngle', prms.toolAngle, 'Polární úhel plátku; 0° = vodorovně s osou Z')}
     </div>`;
   } else if (prms.toolShape === 'threading') {
     html += `<div class="cam-sim-row">
@@ -3178,7 +3292,62 @@ function _renderInsertShapeFieldsHTML(prms) {
   return html;
 }
 
+// ── Geometrie nástroje (destička + držák) pro knihovnu nožů ─────────
+// S.params je per-instance closure (viz openCamSimulator). Aby šla geometrie
+// nástroje uložit/načíst z projektu (projectManager) a přenést do CAM i mimo
+// otevřený simulátor, drží se poslední známá sada zde na úrovni modulu.
+const CAM_TOOL_KEYS = ['toolShape', 'toolLength', 'toolAngle', 'toolTipAngle',
+  'toolRadius', 'toolTipFlat', 'toolTipMirror', 'toolVbdCode',
+  'holderLength', 'holderWidth', 'holderHand', 'holderProfile'];
+let _savedCamTool = null;   // naposledy uložený/načtený nůž (mimo otevřené CAM)
+let _activeCamParams = null; // S.params živě otevřeného CAM (nebo null)
+
+function _pickCamTool(src) {
+  if (!src) return null;
+  const out = {};
+  for (const k of CAM_TOOL_KEYS) {
+    if (src[k] === undefined) continue;
+    out[k] = k === 'holderProfile' && src[k] ? JSON.parse(JSON.stringify(src[k])) : src[k];
+  }
+  return out;
+}
+
+/** Geometrie nástroje pro uložení do projektu (živé CAM má přednost). */
+export function getCamToolGeometry() {
+  return _pickCamTool(_activeCamParams || _savedCamTool);
+}
+
+/**
+ * Přenese nůž do CAM: uloží do modulového cache a, je-li CAM otevřené, i do
+ * jeho živých parametrů. Vrací true při úspěchu.
+ */
+export function applyCamToolGeometry(tool) {
+  const picked = _pickCamTool(tool);
+  if (!picked) return false;
+  _savedCamTool = { ...(_savedCamTool || {}), ...picked };
+  if (_activeCamParams) {
+    for (const k of CAM_TOOL_KEYS) if (picked[k] !== undefined) _activeCamParams[k] = picked[k];
+    if (bridge.refreshCamToolGeometry) bridge.refreshCamToolGeometry();
+  }
+  return true;
+}
+
+// Registrace pro projectManager (přes bridge — bez cyklického importu).
+// typeof-guard: testovací harness (tests/helpers/camInternals.mjs) importy
+// stripuje a `bridge` nestubuje — bez guardu by tento top-level řádek spadl.
+if (typeof bridge !== 'undefined') {
+  bridge.getCamToolGeometry = getCamToolGeometry;
+  bridge.applyCamToolGeometry = applyCamToolGeometry;
+}
+
 export function openCamSimulator(initialContour, initialGCode) {
+  // Během kreslení držáku na CAD plátně je CAM overlay schovaný a plátno
+  // patří CAD kreslení — nedovolit otevřít/přepnout do CAM (návrat jen přes
+  // dolní lištu ✓ Potvrdit / ✕ Zrušit).
+  if (state.holderDrawMode) {
+    showToast('Nelze přepnout do CAM během kreslení držáku');
+    return;
+  }
   injectCSS();
 
   // ── Build HTML ──
@@ -3332,6 +3501,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (calcBtn) calcBtn.style.display = '';
     // Obnovit viditelnost schránky podle jejího obsahu (skrytá, když je prázdná)
     if (clipBtn) setCalcClipboardValue(getCalcClipboardValue());
+    // Uchovat geometrii nástroje pro knihovnu nožů i po zavření CAM.
+    _savedCamTool = _pickCamTool(S.params);
+    _activeCamParams = null;
   };
   const camCleanupObs = new MutationObserver(() => {
     if (!document.body.contains(overlay)) { restoreOnClose(); document.removeEventListener('keydown', traceKeyHandler, true); camCleanupObs.disconnect(); }
@@ -3601,6 +3773,14 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Refresh callback modalu "⚙️ Geometrie", pokud je otevřený — viz fullUpdate().
   // Záměrně NE na S (S.params se snapshotuje/serializuje, funkce tam nepatří).
   let toolGeomModalRefresh = null;
+  // Zpřístupnit živé parametry nástroje modulu (knihovna nožů / projekt) a
+  // převzít naposledy uložený/načtený nůž, aby přežil zavření a otevření CAM
+  // i načtení projektu (viz getCamToolGeometry/applyCamToolGeometry).
+  _activeCamParams = S.params;
+  if (_savedCamTool) {
+    for (const k of CAM_TOOL_KEYS) if (_savedCamTool[k] !== undefined) S.params[k] = _savedCamTool[k];
+  }
+  bridge.refreshCamToolGeometry = () => { if (toolGeomModalRefresh) toolGeomModalRefresh(); };
   const toolbar = root.querySelector('.cam-sim-toolbar');
   const playerBar = root.querySelector('.cam-sim-player-bar');
   const playBtn = playerBar.querySelector('[data-act="play"]');
@@ -8326,6 +8506,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     tabBody.querySelectorAll('[data-p]').forEach(inp => {
       inp.addEventListener('change', () => applyParamChange(inp.dataset.p, inp));
     });
+    wireAllAngleCompasses(tabBody);
     const matToggleBtn = tabBody.querySelector('[data-act="material-config-toggle"]');
     if (matToggleBtn) matToggleBtn.addEventListener('click', () => {
       S.materialConfigOpen = !S.materialConfigOpen;
@@ -8641,21 +8822,31 @@ export function openCamSimulator(initialContour, initialGCode) {
     // vnějšího closure dialogu, ne do S.params (je to jen UI stav náhledu).
     let viewZoom = 1, viewPanX = 0, viewPanY = 0;
     let activeGeomTab = 'insert'; // 'insert' | 'holder'
-    let isDraggingCanvas = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
+    let isDraggingCanvas = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0, clickMoved = false;
     // Poslední klikatelné popisky úhlů z canvasu (logické souřadnice před
     // zoom/pan), použité k umístění "hotspot" bublin přes canvas.
     let lastLabels = {};
+    // Ruční kreslení obrysu držáku — drawModeActive zapíná zobrazení
+    // klikatelných anchor bodů na destičce; currentDrawSide drží, která
+    // strana ('sideA'/'sideB') se právě rozšiřuje (viz handleDrawCanvasClick).
+    let drawModeActive = false;
+    let currentDrawSide = null;
+    let lastAnchorHits = [];
 
     function closeDialog() {
       toolGeomModalRefresh = null;
       document.removeEventListener('keydown', onKeyDown);
       dlg.remove();
     }
-    function onKeyDown(e) { if (e.key === 'Escape') closeDialog(); }
+    // Escape modal jen zavře, pokud zrovna neběží kreslení obrysu na CAD
+    // plátně (modal je pak jen skrytý display:none — viz startHolderDrawOnCad
+    // — a Escape má v tu chvíli zrušit KRESLENÍ, ne zahodit skrytý dialog;
+    // to řeší state._toolCleanup zaregistrovaný při startu kreslení).
+    function onKeyDown(e) { if (e.key === 'Escape' && !state.holderDrawMode) closeDialog(); }
     document.addEventListener('keydown', onKeyDown);
     dlg.addEventListener('click', e => { if (e.target === dlg) closeDialog(); });
 
-    function clampZoom(z) { return Math.max(0.4, Math.min(4, z)); }
+    function clampZoom(z) { return Math.max(0.4, Math.min(12, z)); }
     function resetView() { viewZoom = 1; viewPanX = 0; viewPanY = 0; redrawCanvas(); }
     function zoomBy(factor, cx, cy) {
       const oldZoom = viewZoom;
@@ -8682,16 +8873,37 @@ export function openCamSimulator(initialContour, initialGCode) {
       cctx.fillStyle = '#1e1e2e'; cctx.fillRect(0, 0, cw, ch);
       cctx.translate(viewPanX, viewPanY);
       cctx.scale(viewZoom, viewZoom);
-      const result = drawInsertAndHolderPreview(cctx, cw, ch, S.params);
+      // uiScale = 1/viewZoom → čáry/markery zůstanou po zoomu konstantně tenké.
+      const result = drawInsertAndHolderPreview(cctx, cw, ch, S.params,
+        { showAnchors: drawModeActive, activeSide: currentDrawSide, uiScale: 1 / viewZoom });
       lastLabels = (result && result.labels) || {};
+      lastAnchorHits = (result && result.anchorHits) || [];
+      positionTexts((result && result.texts) || []);
       positionHotspots();
+    }
+
+    // Popisky (ε, ∠, b, l1…) se kreslí jako HTML spany nad canvasem — vždy
+    // ostré a KONSTANTNÍ velikosti bez ohledu na zoom (canvas text by se při
+    // zoomu rozmazal). Pozice jsou v logických souř. → přepočet zoom/pan.
+    function positionTexts(texts) {
+      const wrap = dlg.querySelector('#tool-geom-canvas-wrap');
+      if (!wrap) return;
+      wrap.querySelectorAll('.geom-canvas-label').forEach(el => el.remove());
+      texts.forEach(t => {
+        const span = document.createElement('span');
+        span.className = 'geom-canvas-label';
+        const align = t.align || 'center';
+        const tx = t.x * viewZoom + viewPanX, ty = t.y * viewZoom + viewPanY;
+        span.textContent = t.text;
+        span.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;`
+          + `transform:translate(${align === 'center' ? '-50%' : align === 'right' ? '-100%' : '0'},-50%);`
+          + `color:${t.color};font:11px sans-serif;white-space:nowrap;pointer-events:none;text-shadow:0 0 3px #1e1e2e,0 0 3px #1e1e2e`;
+        wrap.appendChild(span);
+      });
     }
 
     // Mapa klíčů popisků → kam kliknutím přepnout a co zaostřit.
     const HOTSPOT_TARGETS = {
-      kappa: { tab: 'holder', focusId: 'geom-holder-kappa' },
-      backAngle: { tab: 'holder', focusSelector: '[data-p="holderBackAngle"]' },
-      faceAngle: { tab: 'holder', focusSelector: '[data-p="holderFaceAngle"]' },
       tipAngle: { tab: 'insert', focusSelector: '[data-p="toolTipAngle"]' },
       toolAngle: { tab: 'insert', focusSelector: '[data-p="toolAngle"]' },
     };
@@ -8735,32 +8947,482 @@ export function openCamSimulator(initialContour, initialGCode) {
       }, { passive: false });
       cv.addEventListener('pointerdown', (e) => {
         isDraggingCanvas = true;
+        clickMoved = false;
         dragStartX = e.clientX; dragStartY = e.clientY;
         panStartX = viewPanX; panStartY = viewPanY;
         cv.setPointerCapture(e.pointerId);
       });
       cv.addEventListener('pointermove', (e) => {
         if (!isDraggingCanvas) return;
-        viewPanX = panStartX + (e.clientX - dragStartX);
-        viewPanY = panStartY + (e.clientY - dragStartY);
-        redrawCanvas();
+        const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+        if (Math.hypot(dx, dy) > 4) clickMoved = true;
+        // V kresebním režimu se drží krátká "mrtvá zóna" (4px), ať jde odlišit
+        // klik na anchor bod od tažení pro posun náhledu.
+        if (!drawModeActive || clickMoved) {
+          viewPanX = panStartX + dx;
+          viewPanY = panStartY + dy;
+          redrawCanvas();
+        }
       });
-      const endDrag = () => { isDraggingCanvas = false; };
+      const endDrag = (e) => {
+        isDraggingCanvas = false;
+        if (drawModeActive && !clickMoved && e) {
+          const rect = cv.getBoundingClientRect();
+          handleDrawCanvasClick(e.clientX - rect.left, e.clientY - rect.top);
+        }
+      };
       cv.addEventListener('pointerup', endDrag);
-      cv.addEventListener('pointercancel', endDrag);
-      cv.addEventListener('pointerleave', endDrag);
+      cv.addEventListener('pointercancel', () => { isDraggingCanvas = false; });
+      cv.addEventListener('pointerleave', () => { isDraggingCanvas = false; });
+    }
+
+    // Klik na canvas v kresebním režimu — hit-test proti anchor bodům
+    // (lastAnchorHits, screen-space po přepočtu zoom/pan). Zásah spustí
+    // (nebo naváže) kreslení dané strany obrysu a otevře popup pro první
+    // segment délka+úhel.
+    function handleDrawCanvasClick(cx, cy) {
+      let best = null, bestDist = Infinity;
+      lastAnchorHits.forEach(a => {
+        const sx = a.x * viewZoom + viewPanX, sy = a.y * viewZoom + viewPanY;
+        const d = Math.hypot(cx - sx, cy - sy);
+        if (d < bestDist) { bestDist = d; best = a; }
+      });
+      if (!best || bestDist > 16) return;
+      if (!S.params.holderProfile) S.params.holderProfile = { sideA: [], sideB: [] };
+      const cur = S.params.holderProfile[best.side];
+      if (!cur || cur.length === 0) {
+        pushHistory();
+        S.params.holderProfile[best.side] = [{ x: best.wx, z: best.wz }];
+      }
+      currentDrawSide = best.side;
+      fullUpdate();
+      showHolderSidePopup(best.side);
     }
 
     // Sdílený wrapper — před KAŽDOU změnou z tohoto dialogu uloží historii
     // (S.past), aby šla vzít zpět tlačítkem ↩ v hlavičce dialogu.
     function withHistory(fn) { return (...args) => { pushHistory(); fn(...args); }; }
 
+    // Malé samostatné okno pro natočení destičky (polární úhel + ✛ kompas) —
+    // otevřené z Držák tabu vedle ⇄ Ruka, ať nemusí uživatel přepínat na
+    // Destička tab jen kvůli změně Natočení.
+    function showRotateToolPopup() {
+      const existing = document.querySelector('.geom-rotate-popup');
+      if (existing) { existing.remove(); return; }
+      const popup = document.createElement('div');
+      popup.className = 'geom-rotate-popup input-overlay';
+      popup.style.zIndex = '320';
+      popup.innerHTML = `<div class="input-dialog" style="min-width:220px;width:auto;padding:14px">
+        <h3 style="margin:0 0 10px;font-size:14px">↻ Natočení destičky</h3>
+        <div class="cam-sim-row">
+          <div class="cam-sim-field" style="flex:1">
+            <label>Polární úhel (°)</label>
+            <div style="display:flex;gap:2px">
+              <input type="number" id="geom-rotate-angle" value="${S.params.toolAngle}" style="flex:1;min-width:0">
+              <button type="button" class="compass-trigger-btn" id="geom-rotate-compass" title="Rychlá volba úhlu" style="flex-shrink:0">✛</button>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:10px">
+          <button class="btn-cancel" id="geom-rotate-close">Zavřít</button>
+        </div>
+      </div>`;
+      document.body.appendChild(popup);
+      const angInp = popup.querySelector('#geom-rotate-angle');
+      angInp.addEventListener('change', withHistory(() => {
+        S.params.toolAngle = parseFloat(angInp.value) || 0;
+        fullUpdate();
+      }));
+      wireAngleCompass(popup.querySelector('#geom-rotate-compass'), angInp, () => {
+        pushHistory();
+        S.params.toolAngle = parseFloat(angInp.value) || 0;
+        fullUpdate();
+      });
+      popup.querySelector('#geom-rotate-close').addEventListener('click', () => popup.remove());
+      popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+    }
+
+    // Popup pro přidávání bodů jedné strany obrysu držáku — Délka + Polární
+    // úhel (+ ✛ kompas) od POSLEDNÍHO bodu dané strany. "Přidat bod" body
+    // ukládá a popup se rovnou znovu otevře pro další segment (bez nutnosti
+    // klikat na canvas znovu — jen první bod strany vzniká kliknutím na
+    // anchor, viz handleDrawCanvasClick).
+    function showHolderSidePopup(side) {
+      const existing = document.querySelector('.geom-side-popup');
+      if (existing) existing.remove();
+      const pts = (S.params.holderProfile && S.params.holderProfile[side]) || [];
+      const sideLabel = side === 'sideA' ? 'A' : 'B';
+      const popup = document.createElement('div');
+      popup.className = 'geom-side-popup input-overlay';
+      popup.style.zIndex = '320';
+      popup.innerHTML = `<div class="input-dialog" style="min-width:240px;width:auto;padding:14px">
+        <h3 style="margin:0 0 10px;font-size:14px">✏️ Obrys držáku — strana ${sideLabel}</h3>
+        <div style="font-size:11px;color:#a6adc8;margin-bottom:8px">Bodů: ${pts.length}</div>
+        <div class="cam-sim-row">
+          <div class="cam-sim-field"><label>Délka (mm)</label><input type="number" id="geom-side-len" step="0.5" min="0"></div>
+          <div class="cam-sim-field">
+            <label>Polární úhel (°)</label>
+            <div style="display:flex;gap:2px">
+              <input type="number" id="geom-side-ang" style="flex:1;min-width:0">
+              <button type="button" class="compass-trigger-btn" id="geom-side-compass" title="Rychlá volba úhlu" style="flex-shrink:0">✛</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <button class="cam-sim-btn cam-sim-btn-green" id="geom-side-add" style="width:auto;padding:4px 10px;font-size:12px">➕ Přidat bod</button>
+          <button class="cam-sim-btn cam-sim-btn-gray" id="geom-side-undo" style="width:auto;padding:4px 10px;font-size:12px" ${pts.length <= 1 ? 'disabled' : ''}>↩ Zpět o bod</button>
+          <button class="cam-sim-btn cam-sim-btn-gray" id="geom-side-clear" style="width:auto;padding:4px 10px;font-size:12px">🗑 Zrušit stranu</button>
+        </div>
+        <div style="text-align:right;margin-top:10px">
+          <button class="btn-cancel" id="geom-side-done">✔ Dokončit stranu</button>
+        </div>
+      </div>`;
+      document.body.appendChild(popup);
+
+      const lenInp = popup.querySelector('#geom-side-len');
+      const angInp = popup.querySelector('#geom-side-ang');
+      wireAngleCompass(popup.querySelector('#geom-side-compass'), angInp);
+
+      function addPoint() {
+        const len = parseFloat(lenInp.value);
+        const ang = parseFloat(angInp.value);
+        if (!isFinite(len) || len <= 0 || !isFinite(ang)) { showToast('Zadejte délku a úhel'); return; }
+        const cur = S.params.holderProfile[side];
+        const last = cur[cur.length - 1];
+        const rad = ang * Math.PI / 180;
+        pushHistory();
+        cur.push({ x: last.x + Math.cos(rad) * len, z: last.z + Math.sin(rad) * len });
+        fullUpdate();
+        popup.remove();
+        showHolderSidePopup(side);
+      }
+      popup.querySelector('#geom-side-add').addEventListener('click', addPoint);
+      [lenInp, angInp].forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') addPoint(); }));
+
+      popup.querySelector('#geom-side-undo').addEventListener('click', () => {
+        const cur = S.params.holderProfile[side];
+        if (cur.length <= 1) return; // anchor bod (první) se nemaže — "Zrušit stranu" místo toho
+        pushHistory();
+        cur.pop();
+        fullUpdate();
+        popup.remove();
+        showHolderSidePopup(side);
+      });
+      popup.querySelector('#geom-side-clear').addEventListener('click', () => {
+        pushHistory();
+        S.params.holderProfile[side] = [];
+        currentDrawSide = null;
+        fullUpdate();
+        popup.remove();
+        redrawCanvas();
+      });
+      const finishSide = () => { currentDrawSide = null; popup.remove(); redrawCanvas(); };
+      popup.querySelector('#geom-side-done').addEventListener('click', finishSide);
+      popup.addEventListener('click', e => { if (e.target === popup) finishSide(); });
+      lenInp.focus();
+    }
+
+    // ── „📐 Kreslit držák na CAD plátně" — plnohodnotné CAD kreslení ────
+    // Na rozdíl od zahozeného prvního pokusu (overlay-vodítko v render.js) se
+    // destička vygeneruje jako REÁLNÉ zamčené CAD objekty (jde na ně snapovat)
+    // a držák se kreslí běžnými CAD nástroji. Režim drží state.holderDrawMode
+    // a PŘEŽÍVÁ přepnutí nástroje (není svázán se state._toolCleanup). Ruší se
+    // jen dolní lištou ✕ Zrušit / ✓ Potvrdit (bridge.confirm/cancelHolderDraw).
+
+    // Mapování profil destičky {x,z} (0,0 = špička, +z do držáku) ↔ CAD svět.
+    // Shodné s CAM→CAD osami (viz emitChain/toCanvas v handleSendToCanvas):
+    //   soustruh: wx=Z=profil.z, wy=X=profil.x
+    //   karusel : wx=X=profil.x, wy=Z=profil.z
+    function profToWorld(px, pz) {
+      return state.machineType === 'karusel' ? { x: px, y: pz } : { x: pz, y: px };
+    }
+    function worldToProf(wx, wy) {
+      return state.machineType === 'karusel' ? { x: wx, z: wy } : { x: wy, z: wx };
+    }
+
+    // Obrys destičky v profilu {x,z} (z nahoru). STEJNÁ matematika jako
+    // getInsertAnchorPoints/drawInsertAndHolderPreview (canvas y dolů → z=-y),
+    // aby nakreslená destička v CADu ležela přesně tam, kde ji čeká náhled →
+    // zpětně sejmutý obrys držáku pak v náhledu sedí kolem destičky.
+    function buildInsertProfileSegments(prms) {
+      const shape = prms.toolShape;
+      const R = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
+      const segs = [];
+      if (shape === 'round') {
+        segs.push({ type: 'circle', cx: 0, cz: 0, r: R });
+        return segs;
+      }
+      if (shape === 'polygon') {
+        const tipAng = (parseFloat(prms.toolTipAngle) || 90) * Math.PI / 180;
+        const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+        const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
+        const a1 = rotRad, a2 = rotRad - tipAng * (prms.toolTipMirror ? -1 : 1);
+        const distToCorner = R / Math.sin(tipAng / 2);
+        const bis = (a1 + a2) / 2;
+        const cX = Math.cos(bis + Math.PI) * distToCorner;
+        const cY = Math.sin(bis + Math.PI) * distToCorner;
+        const tanLen = Math.min(R / Math.tan(tipAng / 2), toolLen * 0.99);
+        const P = (ang, len) => ({ x: cX + Math.cos(ang) * len, z: -(cY + Math.sin(ang) * len) });
+        const t1 = P(a1, tanLen), t2 = P(a2, tanLen);
+        const farA = P(a1, toolLen), farB = P(a2, toolLen);
+        segs.push({ type: 'line', from: t1, to: farA });
+        segs.push({ type: 'line', from: farA, to: farB });
+        segs.push({ type: 'line', from: farB, to: t2 });
+        segs.push({ type: 'arc', cx: 0, cz: 0, r: R, from: t2, to: t1 });
+        return segs;
+      }
+      if (shape === 'parting') {
+        // Upichovák: od radiusu (levý roh) k hraně; pravá strana bez radiusu.
+        const toolLen = Math.max(parseFloat(prms.toolLength) || 5, 1);
+        const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+        const r = Math.min(R, toolLen / 2);
+        const w2 = toolLen - 2 * r;
+        const bodyH = Math.max(toolLen * 0.6, r + 4);
+        const rot = (x, y) => ({
+          x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
+          z: -(x * Math.sin(rotRad) + y * Math.cos(rotRad)),
+        });
+        const pTopL = rot(-r, r - bodyH);
+        const pBotL = rot(-r, 0);
+        const pTopArcL = rot(0, r);
+        const pFlatEnd = rot(w2, r);
+        const pTopR = rot(w2 + r, r - bodyH);
+        segs.push({ type: 'line', from: pTopL, to: pBotL });
+        segs.push({ type: 'arc', cx: rot(0, 0).x, cz: rot(0, 0).z, r, from: pBotL, to: pTopArcL });
+        segs.push({ type: 'line', from: pTopArcL, to: pFlatEnd });
+        segs.push({ type: 'arc', cx: rot(w2, 0).x, cz: rot(w2, 0).z, r, from: pFlatEnd, to: pTopR });
+        segs.push({ type: 'line', from: pTopR, to: pTopL });
+        return segs;
+      }
+      return segs;
+    }
+
+    // Převede profil-segmenty na reálné CAD objekty (červené, zamčené, na
+    // vrstvě Plátek). isToolInsert = per-objekt výjimka pro snap (viz snapPt) —
+    // na zamčenou vrstvu se normálně nesnapuje, na destičku ano.
+    function buildInsertObjects(prms, layerId) {
+      const RED = '#f38ba8';
+      const segs = buildInsertProfileSegments(prms);
+      const objs = [];
+      for (const s of segs) {
+        if (s.type === 'circle') {
+          const c = profToWorld(s.cx, s.cz);
+          objs.push({ type: 'circle', cx: c.x, cy: c.y, r: s.r });
+        } else if (s.type === 'line') {
+          const p1 = profToWorld(s.from.x, s.from.z), p2 = profToWorld(s.to.x, s.to.z);
+          objs.push({ type: 'line', x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+        } else if (s.type === 'arc') {
+          const c = profToWorld(s.cx, s.cz);
+          const wf = profToWorld(s.from.x, s.from.z), wt = profToWorld(s.to.x, s.to.z);
+          const startAngle = Math.atan2(wf.y - c.y, wf.x - c.x);
+          const endAngle = Math.atan2(wt.y - c.y, wt.x - c.x);
+          let d = endAngle - startAngle;
+          while (d <= -Math.PI) d += 2 * Math.PI;
+          while (d > Math.PI) d -= 2 * Math.PI;
+          objs.push({ type: 'arc', cx: c.x, cy: c.y, r: s.r, startAngle, endAngle, ccw: d >= 0 });
+        }
+      }
+      objs.forEach(o => {
+        o.id = state.nextId++;
+        o.layer = layerId;
+        o.color = RED;
+        o.isToolInsert = true;
+        o.locked = true;
+        o.name = (o.type === 'circle' ? 'Destička ⌀' : o.type === 'arc' ? 'Destička ⌒' : 'Destička —') + ` ${o.id}`;
+      });
+      return objs;
+    }
+
+    // ── Zřetězení nakreslených objektů držáku do posloupnosti world bodů ──
+    function _objChainPoints(o) {
+      if (o.type === 'line') {
+        const pts = [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }];
+        return { pts };
+      }
+      if (o.type === 'arc') {
+        let d = o.endAngle - o.startAngle;
+        if (o.ccw) { while (d < 0) d += 2 * Math.PI; } else { while (d > 0) d -= 2 * Math.PI; if (d === 0) d = -2 * Math.PI; }
+        const n = 10, pts = [];
+        for (let i = 0; i <= n; i++) {
+          const a = o.startAngle + d * i / n;
+          pts.push({ x: o.cx + o.r * Math.cos(a), y: o.cy + o.r * Math.sin(a) });
+        }
+        return { pts };
+      }
+      if (o.type === 'polyline') {
+        return { pts: o.vertices.map(v => ({ x: v.x, y: v.y })) };
+      }
+      return null;
+    }
+
+    function chainHolderPoints(objs) {
+      const segs = objs.map(_objChainPoints).filter(Boolean);
+      if (!segs.length) return null;
+      const TOL = 0.05; // mm
+      const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) <= TOL;
+      const used = new Array(segs.length).fill(false);
+      used[0] = true;
+      let chain = segs[0].pts.slice();
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (let i = 0; i < segs.length; i++) {
+          if (used[i]) continue;
+          const pts = segs[i].pts;
+          const a = pts[0], b = pts[pts.length - 1];
+          const head = chain[0], tail = chain[chain.length - 1];
+          if (near(tail, a)) { chain = chain.concat(pts.slice(1)); used[i] = true; changed = true; }
+          else if (near(tail, b)) { chain = chain.concat(pts.slice().reverse().slice(1)); used[i] = true; changed = true; }
+          else if (near(head, b)) { chain = pts.slice(0, -1).concat(chain); used[i] = true; changed = true; }
+          else if (near(head, a)) { chain = pts.slice().reverse().slice(0, -1).concat(chain); used[i] = true; changed = true; }
+        }
+      }
+      return chain;
+    }
+
+    // Sejme obrys držáku z vrstvy Držák → holderProfile {sideA, sideB}.
+    // Vrací null, když není co uložit. Rozlišuje režim A (uzavřený obrys) a
+    // režim B (otevřené dvě strany → auto-doplnění 45° dle l1/tloušťky).
+    function captureHolderProfile(mode) {
+      const holderObjs = state.objects.filter(o => o.layer === mode.holderLayerId
+        && (o.type === 'line' || o.type === 'arc' || o.type === 'polyline'));
+      if (holderObjs.length === 0) return null;
+      const chain = chainHolderPoints(holderObjs);
+      if (!chain || chain.length < 2) return null;
+      const TOL = 0.05;
+      const closed = Math.hypot(chain[0].x - chain[chain.length - 1].x, chain[0].y - chain[chain.length - 1].y) <= TOL;
+      const prof = chain.map(p => worldToProf(p.x, p.y));
+      if (closed) {
+        // Režim A — uzavřený obrys je přímo profil.
+        return { sideA: prof, sideB: [] };
+      }
+      // Režim B — otevřená lomená čára → uzavřít 45° dle l1/tloušťky.
+      return completeTwoSidedProfile(prof, mode);
+    }
+
+    // Režim B: z otevřeného profilu {x,z}[] auto-doplní konec pod 45° tak, aby
+    // se uzavřel na požadovanou tloušťku držáku, l1 dle nejvzdálenějšího bodu.
+    // Upravovaný konec (dál od středu) dán mode.editSide ('A' = první bod,
+    // 'B' = poslední bod); přepínač strany viz tlačítko v dolní liště.
+    function completeTwoSidedProfile(prof, mode) {
+      if (prof.length < 2) return { sideA: prof, sideB: [] };
+      const l1 = Math.max(parseFloat(S.params.holderLength) || 0, 0);
+      const thick = Math.max(parseFloat(S.params.holderWidth) || 0, 0.1);
+      const pts = prof.slice();
+      // Který konec je „dál od středu" (větší |x| v profilu) — ten se upravuje,
+      // pokud uživatel ručně nepřepnul stranu.
+      const first = pts[0], last = pts[pts.length - 1];
+      const editLast = mode.editSide === 'B'
+        ? true
+        : mode.editSide === 'A'
+          ? false
+          : Math.abs(last.x) >= Math.abs(first.x);
+      const anchor = editLast ? pts[0] : pts[pts.length - 1];
+      const moving = editLast ? last : first;
+      // Cílová tloušťka = rozteč obou konců v ose z; 45° hrana z pohyblivého
+      // konce směrem k dosažení tloušťky, pak uzavření zpět k anchoru.
+      const targetZ = anchor.z + (moving.z >= anchor.z ? thick : -thick);
+      const dz = targetZ - moving.z;
+      const corner = { x: moving.x + Math.sign(dz || 1) * Math.abs(dz), z: targetZ }; // 45°
+      const closeX = l1 > 0 ? (moving.x >= 0 ? l1 : -l1) : corner.x;
+      const endPt = { x: closeX, z: targetZ };
+      const closed = editLast
+        ? [...pts, corner, endPt, { x: closeX, z: anchor.z }, anchor]
+        : [anchor, { x: closeX, z: anchor.z }, endPt, corner, ...pts];
+      return { sideA: closed, sideB: [] };
+    }
+
+    // Záloha CAD před vstupem do režimu (obnoví se při ✕ i ✓).
+    function backupCad() {
+      return {
+        objects: state.objects, layers: state.layers, activeLayer: state.activeLayer,
+        nextLayerId: state.nextLayerId, nextId: state.nextId,
+        zoom: state.zoom, panX: state.panX, panY: state.panY, tool: state.tool,
+        undoStack: state.undoStack, redoStack: state.redoStack, manualGCode: S.manualGCode,
+      };
+    }
+    function restoreCad(b) {
+      state.objects = b.objects; state.layers = b.layers; state.activeLayer = b.activeLayer;
+      state.nextLayerId = b.nextLayerId; state.nextId = b.nextId;
+      state.zoom = b.zoom; state.panX = b.panX; state.panY = b.panY;
+      state.undoStack = b.undoStack; state.redoStack = b.redoStack;
+      state.selected = null; state.multiSelected.clear(); state.selectedPoint = null;
+    }
+
+    function startHolderCadDraw() {
+      if (state.holderDrawMode) { showToast('Kreslení držáku už běží'); return; }
+      const prms = S.params;
+      const backup = backupCad();
+      const plateLayerId = 0, holderLayerId = 1;
+      state.objects = [];
+      state.selected = null; state.multiSelected.clear(); state.selectedPoint = null;
+      state.undoStack = []; state.redoStack = [];
+      state.layers = [
+        { id: plateLayerId, name: 'Plátek', color: '#f38ba8', visible: true, locked: true },
+        { id: holderLayerId, name: 'Držák', color: '#89b4fa', visible: true, locked: false },
+      ];
+      state.activeLayer = holderLayerId;
+      state.nextLayerId = 2;
+      const insertObjs = buildInsertObjects(prms, plateLayerId);
+      state.objects.push(...insertObjs);
+      state.holderDrawMode = {
+        backup, insertIds: insertObjs.map(o => o.id),
+        plateLayerId, holderLayerId, editSide: 'auto',
+      };
+      overlay.style.display = 'none';
+      dlg.style.display = 'none';
+      setTool('line');
+      resizeCanvases();
+      const span = Math.max((parseFloat(prms.toolLength) || 10) * 4, (parseFloat(prms.toolRadius) || 1) * 8,
+        (parseFloat(prms.holderWidth) || 20) * 3, 40);
+      centerViewOn(0, 0, span);
+      calculateAllIntersections();
+      updateObjectList();
+      updateLayerList();
+      renderAll();
+      if (bridge.updateHolderDrawButtons) bridge.updateHolderDrawButtons();
+      showToast('Nakreslete držák (vrstva Držák) kolem destičky, pak dole ✓ Potvrdit');
+    }
+
+    function finishHolderCadDraw(result) {
+      const mode = state.holderDrawMode;
+      if (!mode) return;
+      if (result) S.params.holderProfile = result;
+      restoreCad(mode.backup);
+      const prevTool = mode.backup.tool;
+      state.holderDrawMode = null;
+      setTool(prevTool || 'select');
+      calculateAllIntersections();
+      updateObjectList();
+      updateLayerList();
+      resizeCanvases();
+      renderAll();
+      if (bridge.updateHolderDrawButtons) bridge.updateHolderDrawButtons();
+      overlay.style.display = '';
+      dlg.style.display = '';
+      activeGeomTab = 'holder';
+      if (toolGeomModalRefresh) toolGeomModalRefresh();
+      showToast(result ? 'Obrys držáku uložen 📐' : 'Kreslení držáku zrušeno');
+    }
+
+    bridge.confirmHolderDraw = () => {
+      const mode = state.holderDrawMode;
+      if (!mode) return;
+      const res = captureHolderProfile(mode);
+      if (!res) { showToast('Nakreslete držák (aspoň jednu úsečku na vrstvě Držák)'); return; }
+      finishHolderCadDraw(res);
+    };
+    bridge.cancelHolderDraw = () => finishHolderCadDraw(null);
+    // Přepínač upravované strany pro režim B (dolní lišta / holder tab).
+    bridge.toggleHolderDrawSide = () => {
+      const mode = state.holderDrawMode;
+      if (!mode) return;
+      mode.editSide = mode.editSide === 'A' ? 'B' : mode.editSide === 'B' ? 'auto' : 'A';
+      showToast(`Upravovaná strana: ${mode.editSide === 'auto' ? 'auto (dál od středu)' : mode.editSide}`);
+    };
+
     function render() {
       const prms = S.params;
-      const style = holderStyleByCode(prms.holderStyle);
-      const suggestedL1 = prms.holderH ? suggestL1(prms.holderH) : null;
-      const bDiffersFromWidth = prms.holderB && parseFloat(prms.holderB) !== parseFloat(prms.holderWidth);
-      const l1DiffersFromLength = suggestedL1 && suggestedL1 !== parseFloat(prms.holderLength);
 
       dlg.innerHTML = `
         <div class="input-dialog" style="min-width:320px;max-width:520px;width:100%;max-height:92vh;display:flex;flex-direction:column;padding:14px">
@@ -8772,7 +9434,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             </div>
           </div>
           <div id="tool-geom-canvas-wrap" style="position:relative;flex-shrink:0;overflow:hidden">
-            <canvas id="tool-geom-canvas" style="width:100%;height:220px;min-height:180px;display:block;border-radius:6px;border:1px solid #313244;touch-action:none;cursor:grab" title="Kolečko = zoom, tažení = posun"></canvas>
+            <canvas id="tool-geom-canvas" style="width:100%;height:300px;min-height:240px;display:block;border-radius:6px;border:1px solid #313244;touch-action:none;cursor:grab" title="Kolečko = zoom, tažení = posun"></canvas>
             <div style="position:absolute;top:6px;right:6px;display:flex;flex-direction:column;gap:3px">
               <button data-act="geom-zoom-in" class="cam-sim-btn cam-sim-btn-gray" style="width:24px;height:24px;padding:0;font-size:13px" title="Přiblížit">＋</button>
               <button data-act="geom-zoom-out" class="cam-sim-btn cam-sim-btn-gray" style="width:24px;height:24px;padding:0;font-size:13px" title="Oddálit">－</button>
@@ -8795,38 +9457,26 @@ export function openCamSimulator(initialContour, initialGCode) {
             </div>
             <div style="display:${activeGeomTab === 'holder' ? '' : 'none'}">
               <div class="cam-sim-row">
-                <button data-act="geom-find-style" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vyhledá styl držáku, jehož κr nejlépe odpovídá Natočení destičky">🔍 Najít dle destičky (${prms.toolAngle}°)</button>
                 <button data-act="geom-toggle-hand" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Ruka držáku — při otevření odvozena ze směru hrubování, zde lze přepnout ručně">⇄ Ruka: ${prms.holderHand === 'L' ? 'Levá (L)' : 'Pravá (R)'}</button>
-              </div>
-              <div style="font-size:10px;color:#6c7086;margin-bottom:6px">Styl držáku — doplní orientační κr (přístupový úhel hlavního ostří):</div>
-              <div id="geom-holder-styles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:4px;margin-bottom:8px">
-                ${HOLDER_STYLES.map(s => `<button data-holder-style="${s.code}" class="cam-sim-btn ${prms.holderStyle === s.code ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:10px;padding:4px 2px" title="${s.code} – ${s.kappa}° – ${s.desc}">${s.code}</button>`).join('')}
-              </div>
-              ${style ? `<div class="cam-sim-info-box" style="margin-bottom:8px">Styl <strong>${style.code}</strong> – ${style.desc}, κr ≈ <strong>${style.kappa}°</strong></div>` : ''}
-              <div class="cam-sim-row">
-                <div class="cam-sim-field"><label title="Přístupový úhel hlavního ostří — odvozen ze stylu, lze ručně přepsat">κr [°]</label><input type="number" id="geom-holder-kappa" step="0.5" value="${prms.holderKappa ?? ''}" placeholder="—"></div>
+                <button data-act="geom-open-rotate" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení destičky zadané polárním úhlem">↻ Natočení (${prms.toolAngle}°)</button>
               </div>
               <div class="cam-sim-row">
-                <div class="cam-sim-field"><label>Výška tělesa h [mm]</label><input type="number" id="geom-holder-h" step="1" min="0" value="${prms.holderH ?? ''}" placeholder="—"></div>
-                <div class="cam-sim-field"><label>Šířka stopky b [mm]</label><input type="number" id="geom-holder-b" step="1" min="0" value="${prms.holderB ?? ''}" placeholder="—" ${prms.holderSquareShank ? 'disabled' : ''}></div>
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#a6adc8;margin-bottom:8px">
-                <input type="checkbox" id="geom-holder-square" ${prms.holderSquareShank ? 'checked' : ''}> čtvercová stopka (h = b)
-              </label>
-              <div style="font-size:10px;color:#6c7086;margin-bottom:4px">Úhel hřbetu/čela tělesa — nepovinné, obvykle relevantní jen u pájených/celistvých nástrojů (u indexovatelných držáků hřbet dodává destička):</div>
-              <div class="cam-sim-row">
-                <div class="cam-sim-field"><label title="Úhel hřbetu (γ) tělesa držáku">Úhel hřbetu (γ) [°]</label><input type="number" data-p="holderBackAngle" step="0.5" value="${prms.holderBackAngle ?? ''}" placeholder="—"></div>
-                <div class="cam-sim-field"><label title="Úhel čela (γf) tělesa držáku">Úhel čela (γf) [°]</label><input type="number" data-p="holderFaceAngle" step="0.5" value="${prms.holderFaceAngle ?? ''}" placeholder="—"></div>
-              </div>
-              <div class="cam-sim-row">
-                <div class="cam-sim-field"><label title="Funkční délka l1 — stejné pole jako Délka držáku dole v panelu Nástroj">Funkční délka (l1)</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
+                <div class="cam-sim-field"><label title="Funkční délka l1 — stejné pole jako Délka držáku dole v panelu Nástroj">Délka držáku (l1)</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
                 <div class="cam-sim-field"><label title="Tloušťka (šířka v ose Z) držáku plátku — používá se pro hlídání geometrie destičky">Tloušťka držáku</label><input type="number" step="1" min="0" data-p="holderWidth" value="${prms.holderWidth ?? 20}"></div>
               </div>
-              ${l1DiffersFromLength ? `<div style="font-size:10px;color:#6c7086;margin-bottom:4px">Návrh dle výšky h: l1 ≈ ${suggestedL1} mm</div>` : ''}
-              ${(bDiffersFromWidth || l1DiffersFromLength) ? `<div style="text-align:right;margin-bottom:8px">
-                <button data-act="geom-apply-dims" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px">↧ Použít b→Tloušťka, l1→Délka</button>
-              </div>` : ''}
-              <div class="cam-sim-info-box" style="font-size:10px">⚠ Orientační dle ISO 5608/5610 — přesná katalogová čísla se liší výrobce od výrobce, ověřte v katalogu nástroje.</div>
+              ${(() => {
+                const anchorsSupported = prms.toolShape === 'round' || prms.toolShape === 'polygon';
+                const prof = prms.holderProfile;
+                const hasProfileNow = !!(prof && ((prof.sideA && prof.sideA.length) || (prof.sideB && prof.sideB.length)));
+                return `<div style="font-size:10px;color:#6c7086;margin:6px 0 4px">Vlastní obrys — klikněte na zvýrazněný bod na destičce v náhledu, pak zadejte délku a úhel jednotlivých úseček:</div>
+                <div class="cam-sim-row">
+                  <button data-act="geom-toggle-draw" class="cam-sim-btn ${drawModeActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" ${anchorsSupported ? '' : 'disabled'} title="${anchorsSupported ? 'Klikněte na zvýrazněný bod na destičce v náhledu nahoře' : 'Ruční obrys je zatím podporovaný jen pro kulatou a čtyřstrannou destičku'}">✏️ Kreslit obrys${drawModeActive ? ' (aktivní)' : ''}</button>
+                  ${hasProfileNow ? `<button data-act="geom-clear-profile" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px">🗑 Smazat obrys</button>` : ''}
+                </div>
+                <div class="cam-sim-row">
+                  <button data-act="geom-draw-on-cad" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vyčistí CAD plátno (se zálohou), vygeneruje destičku jako zamčenou geometrii a nechá vás nakreslit držák běžnými CAD nástroji. Dole ✓ Potvrdit / ✕ Zrušit.">📐 Kreslit na CAD plátně</button>
+                </div>`;
+              })()}
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;border-top:1px solid #313244;padding-top:10px;flex-shrink:0">
@@ -8850,75 +9500,35 @@ export function openCamSimulator(initialContour, initialGCode) {
       dlg.querySelectorAll('[data-p]').forEach(inp => {
         inp.addEventListener('change', withHistory(() => applyParamChange(inp.dataset.p, inp)));
       });
+      wireAllAngleCompasses(dlg);
       const tipMirrorBtn = dlg.querySelector('[data-act="toggle-tip-mirror"]');
       if (tipMirrorBtn) tipMirrorBtn.addEventListener('click', withHistory(() => applyTipMirrorToggle()));
       dlg.querySelectorAll('[data-tshape]').forEach(btn => {
         btn.addEventListener('click', withHistory(() => applyShapeChange(btn.dataset.tshape)));
       });
-      dlg.querySelectorAll('[data-holder-style]').forEach(btn => {
-        btn.addEventListener('click', withHistory(() => {
-          const st = holderStyleByCode(btn.dataset.holderStyle);
-          S.params.holderStyle = btn.dataset.holderStyle;
-          S.params.holderKappa = st ? st.kappa : null;
-          fullUpdate();
-        }));
-      });
       const geomVbdBtn = dlg.querySelector('[data-act="geom-open-vbd"]');
       if (geomVbdBtn) geomVbdBtn.addEventListener('click', () => openVbdImportDialog());
-      const findStyleBtn = dlg.querySelector('[data-act="geom-find-style"]');
-      if (findStyleBtn) findStyleBtn.addEventListener('click', withHistory(() => {
-        const targetKappa = parseFloat(S.params.toolAngle) || 0;
-        let best = null, bestDiff = Infinity;
-        HOLDER_STYLES.forEach(s => {
-          const diff = Math.abs(s.kappa - targetKappa);
-          if (diff < bestDiff) { bestDiff = diff; best = s; }
-        });
-        if (best) {
-          S.params.holderStyle = best.code;
-          S.params.holderKappa = best.kappa;
-          showToast(`Nalezen styl ${best.code} – κr≈${best.kappa}° (dle natočení destičky ${targetKappa}°)`);
-        }
-        fullUpdate();
-      }));
       const toggleHandBtn = dlg.querySelector('[data-act="geom-toggle-hand"]');
       if (toggleHandBtn) toggleHandBtn.addEventListener('click', withHistory(() => {
         S.params.holderHand = S.params.holderHand === 'L' ? 'R' : 'L';
         fullUpdate();
       }));
-      const kappaInp = dlg.querySelector('#geom-holder-kappa');
-      if (kappaInp) kappaInp.addEventListener('change', withHistory(() => {
-        const v = parseFloat(kappaInp.value);
-        S.params.holderKappa = isFinite(v) ? v : null;
+      const openRotateBtn = dlg.querySelector('[data-act="geom-open-rotate"]');
+      if (openRotateBtn) openRotateBtn.addEventListener('click', () => showRotateToolPopup());
+      const toggleDrawBtn = dlg.querySelector('[data-act="geom-toggle-draw"]');
+      if (toggleDrawBtn) toggleDrawBtn.addEventListener('click', () => {
+        drawModeActive = !drawModeActive;
+        currentDrawSide = null;
+        document.querySelector('.geom-side-popup')?.remove();
+        render();
+      });
+      const clearProfileBtn = dlg.querySelector('[data-act="geom-clear-profile"]');
+      if (clearProfileBtn) clearProfileBtn.addEventListener('click', withHistory(() => {
+        S.params.holderProfile = null;
         fullUpdate();
       }));
-      const hInp = dlg.querySelector('#geom-holder-h');
-      if (hInp) hInp.addEventListener('change', withHistory(() => {
-        const v = parseFloat(hInp.value);
-        S.params.holderH = (isFinite(v) && v > 0) ? v : null;
-        if (S.params.holderSquareShank) S.params.holderB = S.params.holderH;
-        fullUpdate();
-      }));
-      const bInp = dlg.querySelector('#geom-holder-b');
-      if (bInp) bInp.addEventListener('change', withHistory(() => {
-        const v = parseFloat(bInp.value);
-        S.params.holderB = (isFinite(v) && v > 0) ? v : null;
-        if (S.params.holderSquareShank) S.params.holderH = S.params.holderB;
-        fullUpdate();
-      }));
-      const sqCb = dlg.querySelector('#geom-holder-square');
-      if (sqCb) sqCb.addEventListener('change', withHistory(() => {
-        S.params.holderSquareShank = sqCb.checked;
-        if (sqCb.checked && S.params.holderH) S.params.holderB = S.params.holderH;
-        fullUpdate();
-      }));
-      const applyDimsBtn = dlg.querySelector('[data-act="geom-apply-dims"]');
-      if (applyDimsBtn) applyDimsBtn.addEventListener('click', withHistory(() => {
-        if (S.params.holderB) S.params.holderWidth = S.params.holderB;
-        const l1 = S.params.holderH ? suggestL1(S.params.holderH) : null;
-        if (l1) S.params.holderLength = l1;
-        showToast('Rozměry b/l1 použity pro hlídání geometrie 📐');
-        fullUpdate();
-      }));
+      const drawOnCadBtn = dlg.querySelector('[data-act="geom-draw-on-cad"]');
+      if (drawOnCadBtn) drawOnCadBtn.addEventListener('click', () => startHolderCadDraw());
 
       // Zoom/posun canvasu — čistě UI stav náhledu, nejde do historie.
       const zoomInBtn = dlg.querySelector('[data-act="geom-zoom-in"]');

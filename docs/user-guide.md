@@ -298,35 +298,61 @@ pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
 - **↩ / ↪** vedle nadpisu — vrátí/znovu provede poslední změnu udělanou v
   tomto dialogu (sdílí historii s hlavním CAM Simulátorem).
 - **Náhled lze přiblížit/oddálit** kolečkem myši nebo tlačítky **＋ / － / ⟲**
-  (reset), a posunout tažením. Popisky úhlů (κr, ε, natočení, γ/γf) přímo v
-  náhledu jsou klikací — klik přepne na příslušnou pod-záložku a rovnou
-  zaostří dané pole k úpravě.
+  (reset), a posunout tažením. Popisky ε (vrcholový úhel) a natočení přímo v
+  náhledu jsou klikací — klik přepne na pod-záložku Destička a rovnou zaostří
+  dané pole k úpravě.
 - Dlouhý dřík držáku (velké l1) se v náhledu kreslí zkrácený se standardní
   značkou přerušení (klikatý zlom), ať nezabírá většinu výšky náhledu —
-  popisek u zkráceného dříku ukazuje "(zkráceno)", skutečná hodnota l1
-  zůstává beze změny v poli i v popisce.
+  skutečná hodnota l1 zůstává beze změny v poli i v popisce.
 - **Destička (VBD)**: tvar (kulatá/čtyřstranná/zápichová/závitová), délka
-  hrany, natočení, vrcholový úhel (ε) a rádius (R); dekódování VBD kódu.
+  hrany, polární úhel, vrcholový úhel (ε) a rádius (R); dekódování VBD kódu.
   U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
-  Natočení — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
+  polárního úhlu — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
   stranu** ji překlopí bez nutnosti přepočítávat úhly ručně.
-- **Držák**: výběr stylu dle ISO 5608 (A–W) doplní orientační úhel nastavení
-  hlavního ostří **κr**, dále výška tělesa (h), šířka stopky (b) a funkční
-  délka (l1). Hodnoty jsou orientační napříč výrobci — ověř v katalogu
-  konkrétního nástroje. Tlačítko **↧ Použít** promítne b/l1 do polí
-  Tloušťka/Délka držáku používaných pro hlídání geometrie.
-- **Úhel hřbetu (γ) / čela (γf) tělesa držáku** — nepovinná ruční pole
-  (nedopočítávají se ze stylu), relevantní hlavně u pájených/celistvých
-  nástrojů; pokud jsou vyplněná, zobrazí se v náhledu jako tečkované
-  vodicí čáry na těle držáku.
-- **🔍 Najít dle destičky** — vyhledá styl držáku, jehož κr nejlépe odpovídá
-  aktuálnímu natočení destičky, a doplní ho.
-- **⇄ Ruka (R/L)** — při otevření dialogu se odvodí ze směru hrubování
-  (zprava/zleva), tlačítkem ji lze kdykoli ručně přepnout; náhled destičky
-  se podle ruky zrcadlí.
+- **Polární úhel** (dřív "Natočení") má vedle sebe tlačítko **✛** — otevře
+  kompas 3×3 pro rychlou volbu po 45° (stejná komponenta jako v CAD dialogu
+  🔢 Číselné zadání objektu).
+- **Držák**: zjednodušeno jen na to, co je pro hlídání geometrie potřeba —
+  **⇄ Ruka (R/L)** (při otevření odvozena ze směru hrubování, jde ručně
+  přepnout; náhled destičky se podle ruky zrcadlí), **↻ Natočení** (otevře
+  malé okno pro otočení destičky polárním úhlem i s ✛ kompasem, bez nutnosti
+  přepínat na Destička tab), **Délka držáku (l1)** a **Tloušťka držáku**.
 
-Pole tvaru destičky (Délka hrany, Natočení, Vrch. úhel, Rádius) jsou
+Pole tvaru destičky (Délka hrany, Polární úhel, Vrch. úhel, Rádius) jsou
 synchronizovaná mezi hlavním panelem a tímto modalem obousměrně.
+
+#### Vlastní obrys držáku
+Místo automatické ISO geometrie se obrys držáku kreslí ručně, dvěma způsoby
+(dají se kombinovat):
+- **✏️ Kreslit obrys** (v Držák tabu) — v náhledu nahoře se zvýrazní klikací
+  body na destičce (rohy u hranaté, po 45° na kulaté). Klikni na jeden →
+  otevře se okénko se **stranou A**: zadej Délku (mm) a Polární úhel (s ✛
+  kompasem) a **➕ Přidat bod** — okénko se znovu otevře pro další segment.
+  **↩ Zpět o bod** vrátí poslední bod, **🗑 Zrušit stranu** smaže celou
+  stranu, **✔ Dokončit stranu** zavře okénko. Stejným postupem (klik na
+  druhý bod) se nakreslí **strana B**. Náhled pak místo obdélníku kreslí
+  skutečný nakreslený obrys.
+- **📐 Kreslit na CAD plátně** (v Držák tabu) — plnohodnotné kreslení držáku
+  běžnými CAD nástroji. Aktuální výkres se **zazálohuje** (vrátí se při ✕ i ✓),
+  plátno se vyčistí a založí se dvě vrstvy — **Plátek** (zamčená, červená
+  destička jako reálná geometrie, jde na ni snapovat) a **Držák** (kreslíš na
+  ni). Destička je uprostřed (počátek 0,0). Režim přežije přepnutí nástroje a
+  ukončíš ho jen dolní lištou: **✕ Zrušit** / **✓ Potvrdit** (a **⇄ Strana**).
+  Během kreslení nelze přepnout do CAM (jen upozornění). Při **✓ Potvrdit** se
+  obrys uloží do držáku dvěma způsoby:
+  - **Celý uzavřený obrys** kolem destičky → použije se přímo.
+  - **Jen dvě strany** (otevřená lomená čára) → automaticky se uzavře pod 45°
+    dle polí **Délka držáku (l1)** a **Tloušťka držáku**; tlačítkem **⇄ Strana**
+    přepínáš, který konec se doplňuje (auto → A → B).
+- **🗑 Smazat obrys** vrátí zpět na prostý obdélník (holderWidth × holderLength).
+
+Ruční kreslení v dialogu (✏️) je zatím podporované jen pro kulatou a
+čtyřstrannou destičku; kreslení na CAD plátně (📐) zvládá i upichovák.
+
+### Knihovna nožů (nůž v projektu)
+Geometrie nástroje (destička + držák) se ukládá do **projektu** (JSON). Při
+načtení projektu se nůž automaticky **přenese do CAM** (do živého i příště
+otevřeného simulátoru), takže si projekty můžeš ukládat jako knihovnu nožů.
 
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3

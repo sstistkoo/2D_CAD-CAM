@@ -202,7 +202,9 @@ export function snapPt(wx, wy) {
     for (const obj of state.objects) {
       if (obj.isDimension || obj.isCoordLabel) continue;
       const layer = state.layers ? state.layers.find(l => l.id === obj.layer) : null;
-      if (layer && (layer.locked || !layer.visible)) continue;
+      // Zamčená vrstva blokuje snap, VÝJIMKA: destička (isToolInsert) v režimu
+      // kreslení držáku má být snapovatelná, i když leží na zamčené vrstvě.
+      if (layer && (!layer.visible || (layer.locked && !obj.isToolInsert))) continue;
       const np = getNearestPointOnObject(obj, wx, wy);
       if (np && np.dist < edgeThreshold && np.dist < edgeD) {
         edgeD = np.dist;
@@ -423,4 +425,23 @@ export function autoCenterView() {
     `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
   renderAll();
   showToast("Pohled vycentrován");
+}
+
+/**
+ * Vycentruje pohled na světový bod (wx,wy) tak, aby `mmSpan` mm bylo vidět
+ * v menším rozměru plátna. Používá CAM „Kreslit obrys držáku na CAD plátně",
+ * aby se vodítko destičky (na počátku 0,0) vždy objevilo uprostřed a v
+ * rozumné velikosti bez ohledu na to, kde leží existující výkres.
+ */
+export function centerViewOn(wx, wy, mmSpan) {
+  const canvasW = drawCanvas.width;
+  const canvasH = drawCanvas.height;
+  const span = Math.max(mmSpan || 160, 1);
+  const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(canvasW, canvasH) / span));
+  state.zoom = z;
+  state.panX = canvasW / 2 - hSign() * wx * z;
+  state.panY = canvasH / 2 - vSign() * wy * z;
+  const zoomEl = document.getElementById("statusZoom");
+  if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
+  renderAll();
 }

@@ -925,11 +925,40 @@ traceRadiusBtn.addEventListener("click", (e) => {
   });
 });
 
+// ── CAM „Kreslit obrys držáku na CAD plátně": Potvrdit / Zrušit tlačítka ──
+const holderDrawConfirmBtn = document.getElementById("holderDrawConfirm");
+const holderDrawCancelBtn = document.getElementById("holderDrawCancel");
+const holderDrawSideBtn = document.getElementById("holderDrawSide");
+
+/** Aktualizuje viditelnost dolní lišty (Potvrdit/Zrušit/Strana) kreslení držáku. */
+export function updateHolderDrawButtons() {
+  const show = !!state.holderDrawMode;
+  holderDrawConfirmBtn.style.display = show ? 'flex' : 'none';
+  holderDrawCancelBtn.style.display = show ? 'flex' : 'none';
+  if (holderDrawSideBtn) holderDrawSideBtn.style.display = show ? 'flex' : 'none';
+}
+
+holderDrawConfirmBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (bridge.confirmHolderDraw) bridge.confirmHolderDraw();
+});
+
+holderDrawCancelBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (bridge.cancelHolderDraw) bridge.cancelHolderDraw();
+});
+
+if (holderDrawSideBtn) holderDrawSideBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (bridge.toggleHolderDrawSide) bridge.toggleHolderDrawSide();
+});
+
 // ── Bridge registrace pro cyklické závislosti ──
 bridge.updateMobileCancelBtn = updateMobileCancelBtn;
 bridge.updateMobileCoords = updateMobileCoords;
 bridge.updatePolylineButtons = updatePolylineButtons;
 bridge.updateTraceButtons = updateTraceButtons;
+bridge.updateHolderDrawButtons = updateHolderDrawButtons;
 
 // ── Sidebar Precision Pointer (long-press pro přesné klikání v panelu) ──
 {
