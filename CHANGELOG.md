@@ -160,6 +160,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Cancelling that popover (✕/Escape/outside click) removes the just-created
   fill entirely rather than reverting to its default color, since cancelling
   a fresh "Vybarvit" click means the user didn't want to fill that area at all
+- CAM Simulator's own canvas (`draw()` in `camSimulator.js`) now also draws
+  "Vybarvit" fills. CAM doesn't keep a live copy of CAD's `state.objects` —
+  opening it converts the drawing to G-code once and reparses that into its
+  own `S.contourPoints`/`S.stockPoints`, so `'fill'` objects (already
+  excluded from that G-code, being a visual annotation and not machinable
+  geometry) would otherwise never reach CAM at all. Reads `state.objects`
+  directly instead (same as CAD's `drawFills()`), remapping each CAD (x,y)
+  point through CAM's own `toScreen()`/machine-axis convention
 
 ### Changed
 - Desktop status bar: dropped "Projekt: …", the current click-hint text

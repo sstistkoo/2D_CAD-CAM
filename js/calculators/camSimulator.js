@@ -5885,6 +5885,33 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     ctx.fillText('X0 Z0', zero.x + 4, zero.y - 4);
 
+    // Vybarvení (fill objekty z CAD nástroje "Vybarvit") — CAM čte state.objects
+    // přímo (na rozdíl od kontury/polotovaru CAM nemá vlastní kopii těchto
+    // objektů, protože jde jen o vizuální anotaci, ne obráběnou geometrii).
+    // Stejné pořadí jako v CAD (js/render.js drawFills) — kreslí se pod vším.
+    const camXZ = (cx, cy) => prms.machineStructure === 'carousel' ? [cx, cy] : [cy, cx];
+    state.objects.forEach((obj) => {
+      if (obj.type !== 'fill' || !obj.loops || obj.loops.length === 0) return;
+      const layer = state.layers.find(l => l.id === obj.layer);
+      if (layer && !layer.visible) return;
+      const path = new Path2D();
+      for (const loop of obj.loops) {
+        if (loop.length < 3) continue;
+        const p0 = toScreen(...camXZ(loop[0].x, loop[0].y));
+        path.moveTo(p0.x, p0.y);
+        for (let i = 1; i < loop.length; i++) {
+          const p = toScreen(...camXZ(loop[i].x, loop[i].y));
+          path.lineTo(p.x, p.y);
+        }
+        path.closePath();
+      }
+      ctx.save();
+      ctx.globalAlpha = obj.alpha ?? 0.35;
+      ctx.fillStyle = obj.color || '#60a5fa';
+      ctx.fill(path, 'evenodd');
+      ctx.restore();
+    });
+
     // stock
     if (prms.stockMode === 'cylinder') {
       const sRad = (parseFloat(prms.stockDiameter) || 0) / 2;
