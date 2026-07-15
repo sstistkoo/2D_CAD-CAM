@@ -168,6 +168,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   geometry) would otherwise never reach CAM at all. Reads `state.objects`
   directly instead (same as CAD's `drawFills()`), remapping each CAD (x,y)
   point through CAM's own `toScreen()`/machine-axis convention
+- CAM Simulator tool magazine (🔧 Zásobník) now stores the full knife, not
+  just the insert: each slot gained `holderLength`/`holderWidth`/`holderHand`/
+  `knifeAngle`/`holderAutoComplete`/`holderProfile`, saved and restored by
+  `_syncParamsToSlot`/`_applyMagSlot` alongside the existing insert fields.
+  The "⚙️ Geometrie" dialog's Držák tab gained a **🔧 Zásobník** button (opens
+  the magazine without leaving the geometry dialog) and a **💾 Uložit do
+  zásobníku** button (`saveCurrentToolToMagazine()`) that captures the
+  currently configured insert + holder — including a custom-drawn
+  `holderProfile` — as a new numbered slot for later reuse; the magazine
+  dialog itself got the same capture action as **💾 Uložit aktuální nástroj**
+  next to "＋ Přidat nůž"
 
 ### Changed
 - Desktop status bar: dropped "Projekt: …", the current click-hint text

@@ -2904,6 +2904,12 @@ function _defaultCamParams() {
   };
 }
 
+// Minimální (reálná, v mm) výška těla upichovacího/zapichovacího plátku nad
+// aktivním rádiem — sdíleno mezi drawInsertAndHolderPreview(), getInsertAnchorPoints()
+// a buildInsertProfileSegments() (📐 Kreslit na CAD plátně), ať plátek v náhledu,
+// anchor bodech i reálně nakreslené CAD geometrii vypadá stejně vysoký.
+const PARTING_BODY_MIN_H_MM = 15;
+
 // ══════════════════════════════════════════════════════════════
 // ║  MAIN EXPORT                                              ║
 // ══════════════════════════════════════════════════════════════
@@ -3133,7 +3139,13 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     const rotRad = -effAngleDeg * (Math.PI / 180);
     const r = Math.min(rPix, wPix / 2);
     const w2 = wPix - 2 * r;
-    const bodyH = Math.max(wPix * 0.6, r + 10);
+    // Výška těla plátku v mm (PARTING_BODY_MIN_H_MM nad rádiem), převedená na
+    // px přes `scale` — dřív byl minimem pevný "+10 px", který se scvrkával
+    // s mm-výškou (10 px v mm ubývalo se zoomem), takže tělo bylo při větším
+    // přiblížení nesmyslně nízké. Stejná konstanta se používá i v
+    // getInsertAnchorPoints() a buildInsertProfileSegments() (📐 Kreslit na
+    // CAD plátně), ať plátek vždy vypadá stejně vysoký (~15 mm reálně).
+    const bodyH = Math.max(wPix * 0.6, r + PARTING_BODY_MIN_H_MM * scale);
     ctx.save(); ctx.rotate(rotRad);
     ctx.beginPath();
     ctx.moveTo(-r, r - bodyH);
@@ -3144,7 +3156,7 @@ function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     ctx.lineTo(w2 + r, r - bodyH);
     ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
-    const angLx = Math.cos(rotRad) * wPix * 0.5, angLy = Math.sin(rotRad) * wPix * 0.5 - r - 10;
+    const angLx = Math.cos(rotRad) * wPix * 0.5, angLy = Math.sin(rotRad) * wPix * 0.5 - bodyH - 6;
     texts.push({ x: ox + mirror * angLx, y: oy + angLy, text: `∠${effAngleDeg}°`, color: '#f9e2af', align: 'center' });
     labels.toolAngle = { x: ox + mirror * angLx, y: oy + angLy };
   }
@@ -3235,6 +3247,35 @@ function getInsertAnchorPoints(prms) {
     const cx = Math.cos(bis) * distToCorner, cy = Math.sin(bis) * distToCorner;
     pts.push({ x: cx + Math.cos(a1) * toolLen, z: -(cy + Math.sin(a1) * toolLen), side: 'sideA', label: 'Hrana A' });
     pts.push({ x: cx + Math.cos(a2) * toolLen, z: -(cy + Math.sin(a2) * toolLen), side: 'sideB', label: 'Hrana B' });
+  } else if (shape === 'threading') {
+    // Stejná matematika jako drawInsertAndHolderPreview (shape === 'threading'),
+    // jen bez scale — vrchní (širší) hrana lichoběžníku, kde plátek sedí
+    // proti držáku, dá tři cíle pro Upravit obdélník: levý/pravý roh + střed.
+    const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
+    const half = (tipAngDeg / 2) * Math.PI / 180;
+    const toolLen = Math.max(parseFloat(prms.toolLength) || 4, 0.1);
+    const flat2 = Math.max((parseFloat(prms.toolTipFlat) || 0) / 2, 0);
+    const dx = Math.sin(half) * toolLen, dz = Math.cos(half) * toolLen;
+    pts.push({ x: -(flat2 + dx), z: dz, side: 'sideA', label: 'Hrana A (vlevo)' });
+    pts.push({ x: 0, z: dz, side: 'top', label: 'Vrch – střed' });
+    pts.push({ x: flat2 + dx, z: dz, side: 'sideB', label: 'Hrana B (vpravo)' });
+  } else if (shape === 'parting') {
+    // Stejná matematika jako buildInsertProfileSegments (shape === 'parting',
+    // v CAD Kreslit na CAD plátně) — vrchní hrana těla plátku (u držáku).
+    const toolLen = Math.max(parseFloat(prms.toolLength) || 5, 1);
+    const R = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
+    const r = Math.min(R, toolLen / 2);
+    const w2 = toolLen - 2 * r;
+    const bodyH = Math.max(toolLen * 0.6, r + PARTING_BODY_MIN_H_MM);
+    const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+    const rot = (x, y) => ({
+      x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
+      z: -(x * Math.sin(rotRad) + y * Math.cos(rotRad)),
+    });
+    const topL = rot(-r, r - bodyH), topR = rot(w2 + r, r - bodyH);
+    pts.push({ x: topL.x, z: topL.z, side: 'sideA', label: 'Hrana A (vlevo)' });
+    pts.push({ x: (topL.x + topR.x) / 2, z: (topL.z + topR.z) / 2, side: 'top', label: 'Vrch – střed' });
+    pts.push({ x: topR.x, z: topR.z, side: 'sideB', label: 'Hrana B (vpravo)' });
   }
   // Střed rádiusu / referenční bod destičky (0,0) — cíl pro přesun držáku.
   // side:'center' → NENÍ strana obrysu, slouží jen jako cíl přesunu (viz editor).
@@ -3256,6 +3297,37 @@ function holderRectProfile(prms) {
   const z0 = Math.max(toolLen, r, 4);
   const bl = { x: -hw / 2, z: z0 }, br = { x: hw / 2, z: z0 };
   return [bl, br, { x: hw / 2, z: z0 + l1 }, { x: -hw / 2, z: z0 + l1 }, { x: bl.x, z: bl.z }];
+}
+
+// Vykreslí obrys DRŽÁKU (za destičkou) v hlavním simulačním náhledu — VOLAT
+// uvnitř ctx.translate(pt.x, pt.y) + zrcadlení strany obrábění, PŘED
+// natočením specifickým pro tvar destičky (toolAngle u polygonu/upichováku),
+// stejně jako v dialogu "⚙️ Geometrie" (tam knifeAngle otáčí držák nezávisle
+// na natočení destičky). Použije stejná profilová data (holderProfile.sideA/
+// sideB, {x,z} vůči referenčnímu bodu destičky, +z = k držáku) jako
+// getInsertAnchorPoints/holderRectProfile — bez vlastního obrysu prostý
+// obdélník Délka × Tloušťka. holderWidth/holderLength ≤ 0 = držák se nehlídá.
+function drawHolderProfileLocal(ctx, prms, scale) {
+  const profile = prms.holderProfile;
+  const hasProfile = profile && ((profile.sideA && profile.sideA.length > 1) || (profile.sideB && profile.sideB.length > 1));
+  if (!hasProfile && (Math.max(parseFloat(prms.holderWidth) || 0, 0) <= 0 || Math.max(parseFloat(prms.holderLength) || 0, 0) <= 0)) return;
+  const sides = hasProfile ? [profile.sideA, profile.sideB] : [holderRectProfile(prms)];
+  ctx.save();
+  ctx.fillStyle = 'rgba(108,112,134,0.35)';
+  ctx.strokeStyle = 'rgba(166,173,200,0.85)';
+  ctx.lineWidth = 1;
+  sides.forEach(pts => {
+    if (!pts || pts.length < 2) return;
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const lx = p.x * scale, ly = -p.z * scale;
+      if (i === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+    });
+    const closed = Math.hypot(pts[0].x - pts[pts.length - 1].x, pts[0].z - pts[pts.length - 1].z) < 1e-6;
+    if (closed) { ctx.closePath(); ctx.fill(); }
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 // Spodní (u destičky) klikací body obrysu: 2 vrcholy s nejmenším z (rohy) +
@@ -3282,6 +3354,52 @@ function holderBottomHandles(profile) {
 function translateHolderProfile(profile, dx, dz) {
   const move = arr => (arr || []).map(p => ({ x: p.x + dx, z: p.z + dz }));
   return { sideA: move(profile.sideA), sideB: move(profile.sideB) };
+}
+
+// Počet úseček uloženého obrysu držáku (0, pokud žádný vlastní obrys není)
+// — stejná data (holderProfile.sideA/sideB), ať vznikla přesunem/sražením
+// obdélníku (🔧 Upravit obdélník) nebo importem z CAD (📐 Kreslit na CAD
+// plátně / captureHolderProfile) — obě cesty píší do stejné struktury bodů.
+function holderProfileSegCount(profile) {
+  const n = arr => Math.max((arr || []).length - 1, 0);
+  return n(profile && profile.sideA) + n(profile && profile.sideB);
+}
+
+// Čitelný výpis obrysu držáku (bod-po-bodu, v profilových souřadnicích —
+// 0,0 = referenční bod destičky, +z = k držáku) pro rozbalovací sekci
+// "Tvar držáku". Později poslouží jako zdroj dat pro hlídání kolizí při
+// generování drah (potřebuje tvar držáku + jeho polohu vůči destičce).
+function holderShapeInfoHTML(prms) {
+  const profile = prms.holderProfile;
+  const hasProfile = profile && ((profile.sideA && profile.sideA.length > 1) || (profile.sideB && profile.sideB.length > 1));
+  if (!hasProfile) {
+    return `<div style="font-size:11px;color:#6c7086;padding:2px 0">Zatím bez vlastního obrysu — počítá se prostý obdélník
+      Délka × Tloušťka (výše). Vlastní obrys vznikne přes 🔧 Upravit obdélník nebo 📐 Kreslit na CAD plátně.</div>`;
+  }
+  const segRows = (pts, label) => {
+    if (!pts || pts.length < 2) return '';
+    let rows = '';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      const ang = Math.atan2(b.z - a.z, b.x - a.x) * 180 / Math.PI;
+      rows += `<tr>
+        <td style="padding:2px 6px">${label}${i + 1}</td>
+        <td style="padding:2px 6px;font-family:monospace">${a.x.toFixed(1)}, ${a.z.toFixed(1)}</td>
+        <td style="padding:2px 6px;font-family:monospace">${b.x.toFixed(1)}, ${b.z.toFixed(1)}</td>
+        <td style="padding:2px 6px">${len.toFixed(1)} mm</td>
+        <td style="padding:2px 6px">${ang.toFixed(0)}°</td>
+      </tr>`;
+    }
+    return rows;
+  };
+  return `<table style="width:100%;font-size:10px;border-collapse:collapse">
+    <thead><tr style="color:#a6adc8;text-align:left">
+      <th style="padding:2px 6px">Úsek</th><th style="padding:2px 6px">Od (X,Z)</th><th style="padding:2px 6px">Do (X,Z)</th>
+      <th style="padding:2px 6px">Délka</th><th style="padding:2px 6px">Úhel</th>
+    </tr></thead>
+    <tbody>${segRows(profile.sideA, 'A')}${segRows(profile.sideB, 'B')}</tbody>
+  </table>`;
 }
 
 // Srazí (zkosí) roh nejbližší bodu cornerPt. `dist` = délka první nohy (podél
@@ -6369,6 +6487,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         // −0.75px = polovina šířky konturové čáry (lineWidth 1.5), aby okraj
         // plátku nepřekrýval vykreslenou čáru kontury.
         const rPix = Math.max(tRad * S.view.scale, 6) - 0.75;
+        // Držák (za destičkou) — stejné zrcadlení jako destička (strana
+        // obrábění/flipZ vodorovně, flipX svisle), ale BEZ natočení
+        // specifického pro tvar destičky (toolAngle), stejně jako v dialogu
+        // "⚙️ Geometrie" (tam drží orientaci držáku jen knifeAngle).
+        ctx.save(); ctx.translate(pt.x, pt.y);
+        if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
+        if (S.flipX) ctx.scale(1, -1);
+        drawHolderProfileLocal(ctx, prms, S.view.scale);
+        ctx.restore();
         ctx.fillStyle = C.insert; ctx.strokeStyle = C.text; ctx.lineWidth = 1;
         if (prms.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -6456,7 +6583,9 @@ export function openCamSimulator(initialContour, initialGCode) {
           const rotRad = -(parseFloat(prms.toolAngle) || 0) * (Math.PI / 180);
           const r = Math.min(rPix, wPix / 2);        // rádius nesmí být širší než půl plátku
           const w2 = wPix - 2 * r;                   // rovná část spodního ostří
-          const bodyH = Math.max(wPix * 0.6, r + 10); // zobrazená (spodní) část těla
+          // Stejná mm-výška jako v dialogu "⚙️ Geometrie" (PARTING_BODY_MIN_H_MM),
+          // aby plátek vypadal stejně vysoký v simulaci i v náhledu geometrie.
+          const bodyH = Math.max(wPix * 0.6, r + PARTING_BODY_MIN_H_MM * S.view.scale);
           ctx.save(); ctx.translate(pt.x, pt.y);
           // Zrcadlení: strana obrábění (zleva = otočený plátek) XOR flipZ
           // vodorovně; flipX svisle — ladí s vS/hS v toScreen.
@@ -9002,6 +9131,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     let rectMoveSel = null;
     let chamferPickMode = false;
     let lastHandleHits = [];
+    // Rozbalovací výpis obrysu držáku (segmenty holderProfile) — jen UI stav.
+    let holderShapeInfoOpen = false;
 
     function closeDialog() {
       toolGeomModalRefresh = null;
@@ -9473,7 +9604,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
         const r = Math.min(R, toolLen / 2);
         const w2 = toolLen - 2 * r;
-        const bodyH = Math.max(toolLen * 0.6, r + 4);
+        const bodyH = Math.max(toolLen * 0.6, r + PARTING_BODY_MIN_H_MM);
         const rot = (x, y) => ({
           x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
           z: -(x * Math.sin(rotRad) + y * Math.cos(rotRad)),
@@ -9805,6 +9936,10 @@ export function openCamSimulator(initialContour, initialGCode) {
             </div>
             <div style="display:${activeGeomTab === 'holder' ? '' : 'none'}">
               <div class="cam-sim-row">
+                <button data-act="geom-open-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Otevřít zásobník nástrojů">🔧 Zásobník</button>
+                <button data-act="geom-save-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Uloží aktuální destičku i držák jako nový nůž v zásobníku pro pozdější použití">💾 Uložit do zásobníku</button>
+              </div>
+              <div class="cam-sim-row">
                 <button data-act="geom-toggle-hand" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Ruka držáku — při otevření odvozena ze směru hrubování, zde lze přepnout ručně">⇄ Ruka: ${prms.holderHand === 'L' ? 'Levá (L)' : 'Pravá (R)'}</button>
                 <button data-act="geom-open-rotate-knife" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení celého nože (destička i držák). Šipka ukazuje směrem k destičce. 270° = destička dole / držák nahoru.">↻ Natočení nože (${prms.knifeAngle ?? 270}°)</button>
               </div>
@@ -9816,6 +9951,10 @@ export function openCamSimulator(initialContour, initialGCode) {
                 <div class="cam-sim-field"><label title="Funkční délka l1 — stejné pole jako Délka držáku dole v panelu Nástroj">Délka držáku (l1)</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
                 <div class="cam-sim-field"><label title="Tloušťka (šířka v ose Z) držáku plátku — používá se pro hlídání geometrie destičky">Tloušťka držáku</label><input type="number" step="1" min="0" data-p="holderWidth" value="${prms.holderWidth ?? 20}"></div>
               </div>
+              <div class="cam-sim-row">
+                <button data-act="geom-toggle-shape-info" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vypíše obrys držáku bod po bodu (délka + úhel každého úseku) — stejná data jako 📐 Kreslit na CAD plátně / 🔧 Upravit obdélník">${holderShapeInfoOpen ? '▾' : '▸'} Tvar držáku${holderProfileSegCount(prms.holderProfile) > 0 ? ` (${holderProfileSegCount(prms.holderProfile)} úseků)` : ''}</button>
+              </div>
+              ${holderShapeInfoOpen ? `<div style="border:1px solid #313244;border-radius:6px;padding:4px 2px;margin:0 0 8px;overflow-x:auto">${holderShapeInfoHTML(prms)}</div>` : ''}
               ${(() => {
                 const anchorsSupported = prms.toolShape === 'round' || prms.toolShape === 'polygon';
                 const prof = prms.holderProfile;
@@ -9867,6 +10006,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       });
       const geomVbdBtn = dlg.querySelector('[data-act="geom-open-vbd"]');
       if (geomVbdBtn) geomVbdBtn.addEventListener('click', () => openVbdImportDialog());
+      const geomOpenMagBtn = dlg.querySelector('[data-act="geom-open-magazine"]');
+      if (geomOpenMagBtn) geomOpenMagBtn.addEventListener('click', () => showMagazineDialog());
+      const geomSaveMagBtn = dlg.querySelector('[data-act="geom-save-magazine"]');
+      if (geomSaveMagBtn) geomSaveMagBtn.addEventListener('click', () => saveCurrentToolToMagazine());
+      const toggleShapeInfoBtn = dlg.querySelector('[data-act="geom-toggle-shape-info"]');
+      if (toggleShapeInfoBtn) toggleShapeInfoBtn.addEventListener('click', () => { holderShapeInfoOpen = !holderShapeInfoOpen; render(); });
       const toggleHandBtn = dlg.querySelector('[data-act="geom-toggle-hand"]');
       if (toggleHandBtn) toggleHandBtn.addEventListener('click', withHistory(() => {
         S.params.holderHand = S.params.holderHand === 'L' ? 'R' : 'L';
@@ -10060,6 +10205,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       shape: 'round', radius: 0.8, tipAngle: 90, toolAngle: 15,
       clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
       vc: 200, f: 0.25, ap: 2.0,
+      // Držák — ukládá se spolu s destičkou, aby ✅ Použít obnovilo celý nůž.
+      holderLength: 200, holderWidth: 20, holderHand: 'R',
+      knifeAngle: 270, holderAutoComplete: true, holderProfile: null,
     };
   }
 
@@ -10079,6 +10227,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.params.speed           = slot.vc;
     S.params.feed            = slot.f;
     S.params.depthOfCut      = slot.ap;
+    // Držák
+    if (slot.holderLength !== undefined) S.params.holderLength = slot.holderLength;
+    if (slot.holderWidth !== undefined) S.params.holderWidth = slot.holderWidth;
+    if (slot.holderHand !== undefined) S.params.holderHand = slot.holderHand;
+    if (slot.knifeAngle !== undefined) S.params.knifeAngle = slot.knifeAngle;
+    if (slot.holderAutoComplete !== undefined) S.params.holderAutoComplete = slot.holderAutoComplete;
+    S.params.holderProfile = slot.holderProfile ? JSON.parse(JSON.stringify(slot.holderProfile)) : null;
     fullUpdate();
   }
 
@@ -10097,6 +10252,27 @@ export function openCamSimulator(initialContour, initialGCode) {
     slot.vc            = S.params.speed;
     slot.f             = S.params.feed;
     slot.ap            = S.params.depthOfCut;
+    // Držák
+    slot.holderLength  = S.params.holderLength;
+    slot.holderWidth   = S.params.holderWidth;
+    slot.holderHand    = S.params.holderHand;
+    slot.knifeAngle    = S.params.knifeAngle;
+    slot.holderAutoComplete = S.params.holderAutoComplete;
+    slot.holderProfile = S.params.holderProfile ? JSON.parse(JSON.stringify(S.params.holderProfile)) : null;
+  }
+
+  /** Uloží AKTUÁLNĚ nastavený nůž (destička i držák z Geometrie nástroje) jako
+   * nový slot v zásobníku — pro pozdější použití (✅ Použít jako aktivní). */
+  function saveCurrentToolToMagazine() {
+    const nextSlot = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(s => s.slot)) + 1 : 1;
+    const slot = _defaultMagSlot(nextSlot);
+    slot.name = S.params.toolName || `T${nextSlot}`;
+    S.toolMagazine.push(slot);
+    _syncParamsToSlot(S.toolMagazine.length - 1);
+    S.activeMagazineSlot = S.toolMagazine.length - 1;
+    S.editingMagazineSlot = S.toolMagazine.length - 1;
+    saveState();
+    showToast(`Nůž (destička + držák) uložen do zásobníku jako T${slot.slot}`);
   }
 
   function showMagazineDialog() {
@@ -10110,6 +10286,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <h3 style="margin:0 0 12px">🔧 Zásobník nástrojů</h3>
         <div id="mag-dlg-body" style="flex:1;overflow-y:auto;min-height:0"></div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;border-top:1px solid #313244;padding-top:10px">
+          <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-save-current" style="flex:1" title="Uloží aktuálně nastavenou destičku i držák (ze záložky Parametry / Geometrie) jako nový nůž">💾 Uložit aktuální nástroj</button>
           <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-add" style="flex:1">＋ Přidat nůž</button>
           <button class="btn-cancel" id="mag-dlg-close">Zavřít</button>
         </div>
@@ -10316,6 +10493,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       mag.push(_defaultMagSlot(nextSlot));
       S.editingMagazineSlot = mag.length - 1;
       saveState(); renderBody();
+    });
+
+    dlg.querySelector('#mag-dlg-save-current').addEventListener('click', () => {
+      saveCurrentToolToMagazine();
+      renderBody();
     });
 
     dlg.querySelector('#mag-dlg-close').addEventListener('click', () => dlg.remove());
