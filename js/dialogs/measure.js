@@ -61,6 +61,7 @@ export function showMeasureResult(p1, p2, d, angle) {
         y2: p2.y,
         name: `Kóta ${d.toFixed(2)}mm`,
         isDimension: true,
+        layer: 2,
         color: COLORS.textSecondary,
       });
       showToast(`Kóta ${d.toFixed(2)}mm přidána`);
@@ -368,7 +369,7 @@ export function showMeasureTwoPointsResult(p1, p2) {
   _addCopyAndDimListeners(overlay, () => {
     addObject({
       type: "line", x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-      name: `Kóta ${d.toFixed(2)}mm`, isDimension: true,
+      name: `Kóta ${d.toFixed(2)}mm`, isDimension: true, layer: 2,
       dimSrcX1: p1.x, dimSrcY1: p1.y, dimSrcX2: p2.x, dimSrcY2: p2.y,
       color: COLORS.textSecondary,
     });
@@ -494,7 +495,7 @@ export function showMeasureTwoLinesResult(obj1, obj2, idx1, idx2) {
       const foot = projectPointToLine(obj2.x1, obj2.y1, obj1.x1, obj1.y1, obj1.x2, obj1.y2);
       addObject({
         type: "line", x1: obj2.x1, y1: obj2.y1, x2: foot.x, y2: foot.y,
-        name: `Kóta ${perpDist.toFixed(2)}mm`, isDimension: true,
+        name: `Kóta ${perpDist.toFixed(2)}mm`, isDimension: true, layer: 2,
         dimSrcX1: obj2.x1, dimSrcY1: obj2.y1, dimSrcX2: foot.x, dimSrcY2: foot.y,
         color: COLORS.textSecondary,
       });
@@ -674,7 +675,7 @@ export function showMeasureTwoCirclesResult(obj1, obj2, idx1, idx2) {
   _addCopyAndDimListeners(overlay, () => {
     addObject({
       type: "line", x1: obj1.cx, y1: obj1.cy, x2: obj2.cx, y2: obj2.cy,
-      name: `Kóta ${centerDist.toFixed(2)}mm`, isDimension: true,
+      name: `Kóta ${centerDist.toFixed(2)}mm`, isDimension: true, layer: 2,
       dimSrcX1: obj1.cx, dimSrcY1: obj1.cy, dimSrcX2: obj2.cx, dimSrcY2: obj2.cy,
       color: COLORS.textSecondary,
     });
@@ -767,7 +768,7 @@ export function showMeasurePointToLineResult(pt, lineObj, ptIdx, lineIdx) {
   _addCopyAndDimListeners(overlay, () => {
     addObject({
       type: "line", x1: pt.x, y1: pt.y, x2: foot.x, y2: foot.y,
-      name: `Kóta ${perpDist.toFixed(2)}mm`, isDimension: true,
+      name: `Kóta ${perpDist.toFixed(2)}mm`, isDimension: true, layer: 2,
       dimSrcX1: pt.x, dimSrcY1: pt.y, dimSrcX2: foot.x, dimSrcY2: foot.y,
       color: COLORS.textSecondary,
     });
@@ -801,7 +802,7 @@ export function showMeasurePointToCircleResult(pt, circObj) {
   _addCopyAndDimListeners(overlay, () => {
     addObject({
       type: "line", x1: pt.x, y1: pt.y, x2: circObj.cx, y2: circObj.cy,
-      name: `Kóta ${centerDist.toFixed(2)}mm`, isDimension: true,
+      name: `Kóta ${centerDist.toFixed(2)}mm`, isDimension: true, layer: 2,
       dimSrcX1: pt.x, dimSrcY1: pt.y, dimSrcX2: circObj.cx, dimSrcY2: circObj.cy,
       color: COLORS.textSecondary,
     });
@@ -850,7 +851,7 @@ export function showMeasureTwoObjectsResult(obj1, obj2) {
   _addCopyAndDimListeners(overlay, () => {
     addObject({
       type: "line", x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
-      name: `Kóta ${d.toFixed(2)}mm`, isDimension: true,
+      name: `Kóta ${d.toFixed(2)}mm`, isDimension: true, layer: 2,
       dimSrcX1: c1.x, dimSrcY1: c1.y, dimSrcX2: c2.x, dimSrcY2: c2.y,
       color: COLORS.textSecondary,
     });

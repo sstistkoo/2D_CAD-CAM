@@ -120,10 +120,25 @@ export const state = {
     { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },
     { id: 1, name: 'Konstrukce', color: COLORS.construction, visible: true, locked: false },
     { id: 2, name: 'Kóty', color: COLORS.dimension, visible: true, locked: false },
+    { id: 3, name: 'Polotovar', color: COLORS.stock, visible: true, locked: false },
   ],
   activeLayer: 0,
-  nextLayerId: 3,
+  nextLayerId: 4,
 };
+
+/** Známé ID vrstvy Polotovar (stock) — používá se pro auto-přiřazení isStock objektů. */
+export const STOCK_LAYER_ID = 3;
+
+/**
+ * Doplní vrstvu Polotovar do staršího projektu, který ji ještě neměl
+ * (zpětná kompatibilita — projekty uložené před zavedením této vrstvy).
+ */
+export function ensureStockLayer() {
+  if (!state.layers.some(l => l.id === STOCK_LAYER_ID)) {
+    state.layers.push({ id: STOCK_LAYER_ID, name: 'Polotovar', color: COLORS.stock, visible: true, locked: false });
+  }
+  if (state.nextLayerId <= STOCK_LAYER_ID) state.nextLayerId = STOCK_LAYER_ID + 1;
+}
 
 // ── Reset dočasného drawing stavu ──
 /**

@@ -5,7 +5,7 @@
 
 import { makeOverlay } from '../dialogFactory.js';
 import { openCamEditor } from './camEditor.js';
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, STOCK_LAYER_ID } from '../state.js';
 import { renderAll } from '../render.js';
 import { autoCenterView, centerViewOn, resizeCanvases } from '../canvas.js';
 import { calculateAllIntersections } from '../geometry.js';
@@ -10582,7 +10582,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           const id = state.nextId++;
           const obj = {
             type: 'line', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
-            name: `Úsečka ${id}`, id, layer: state.activeLayer,
+            name: `Úsečka ${id}`, id, layer: isStock ? STOCK_LAYER_ID : state.activeLayer,
           };
           if (isStock) obj.isStock = true;
           state.objects.push(obj);
@@ -10608,7 +10608,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             type: 'arc', cx: cc.x, cy: cc.y, r: arc.r,
             startAngle, endAngle,
             ccw: p2.type === 'G3',
-            name: `Oblouk ${id}`, id, layer: state.activeLayer,
+            name: `Oblouk ${id}`, id, layer: isStock ? STOCK_LAYER_ID : state.activeLayer,
           };
           if (isStock) obj.isStock = true;
           state.objects.push(obj);

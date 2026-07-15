@@ -473,6 +473,7 @@ export function typeLabel(t) {
       polyline: "Kontura",
       text: "Text",
       gear: "Ozubené kolo",
+      fill: "Výplň",
     }[t] || t
   );
 }
@@ -521,6 +522,7 @@ export function toolLabel(t) {
       boolean: "Boolean",
       rotate: "Otočit",
       profileTrace: "Trasování profilu",
+      fill: "Vybarvit",
     }[t] || t
   );
 }

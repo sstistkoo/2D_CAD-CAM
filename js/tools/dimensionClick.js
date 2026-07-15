@@ -167,7 +167,7 @@ function placeCoordLabel(ax, ay, lx, ly) {
   addObject({
     type: 'point', x: ax, y: ay,
     name: `Kóta [${ax.toFixed(2)}, ${ay.toFixed(2)}]`,
-    isDimension: true, isCoordLabel: true, dimType: 'coord',
+    isDimension: true, isCoordLabel: true, dimType: 'coord', layer: 2,
     dimLeadDX: lx - ax, dimLeadDY: ly - ay,
     color: COLORS.textSecondary,
   });

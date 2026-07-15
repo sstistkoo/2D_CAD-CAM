@@ -2,7 +2,7 @@
 // ║  SKICA – File I/O (export/import projektů, DXF, CNC)       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, pushUndo, displayX } from '../state.js';
+import { state, showToast, pushUndo, displayX, ensureStockLayer, STOCK_LAYER_ID } from '../state.js';
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
@@ -119,6 +119,7 @@ export function importProjectFile() {
           state.layers = data.layers;
           state.activeLayer = data.activeLayer || 0;
           state.nextLayerId = data.nextLayerId || (data.layers.length > 0 ? Math.max(...data.layers.map(l => l.id)) + 1 : 1);
+          ensureStockLayer();
         } else {
           state.objects.forEach(obj => { if (obj.layer === undefined) obj.layer = 0; });
         }
@@ -314,7 +315,7 @@ export function importSVGFile() {
         const objs = parseSVGToObjects(ev.target.result);
         if (!objs.length) { showToast('Žádné objekty v SVG souboru'); return; }
         pushUndo();
-        objs.forEach(o => state.objects.push(o));
+        objs.forEach(o => { if (o.layer === undefined) o.layer = state.activeLayer; state.objects.push(o); });
         state.selected = null;
         state.multiSelected.clear();
         state.selectedPoint = null;
@@ -772,6 +773,7 @@ function runCncExport() {
   for (const obj of exportObjects) {
     if (obj.type === 'constr') continue;
     if (obj.type === 'text') continue;
+    if (obj.type === 'fill') continue;
     if (obj.isDimension || obj.isCoordLabel || obj.isCamPathNote) continue;
     _seqNum++;
     const cleanName = (obj.name || '').replace(/\s+\d+\s*$/, '') || obj.type;
@@ -1186,7 +1188,10 @@ function renderCncCodeToCanvas(code) {
     if (!objs.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
     pushUndo();
     state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
-    objs.forEach(o => state.objects.push(o));
+    // Objekty naparsované z G-kódu dřív neměly .layer vůbec (obcházely addObject()),
+    // takže byly imunní vůči skrývání vrstev a ignorovaly barvu nastavenou u vrstvy
+    // Kontura/Polotovar (kreslily se natvrdo COLORS.primary / COLORS.stock).
+    objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); });
     calculateAllIntersections();
     updateObjectList();
     updateProperties();
@@ -1261,7 +1266,7 @@ function importCncFile() {
         const objs = parseGcodeToObjects(ev.target.result);
         if (!objs.length) { showToast("Nenalezeny žádné pohyby v souboru"); return; }
         pushUndo();
-        objs.forEach(o => state.objects.push(o));
+        objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); });
         calculateAllIntersections();
         updateObjectList();
         updateProperties();

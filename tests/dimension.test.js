@@ -494,3 +494,50 @@ describe('addAngleDimensionForLines', () => {
     expect(arg.name).toContain('∠135');
   });
 });
+
+// ════════════════════════════════════════
+// ── Regrese: kóty musí vždy patřit do vrstvy Kóty (layer: 2) ──
+// Dřív tyto funkce layer vůbec nenastavovaly, takže kóta skončila na
+// aktuálně aktivní vrstvě (typicky Kontura) a skrytí/zobrazení vrstvy
+// Kóty v panelu Vrstvy tak na ni nemělo žádný vliv (a naopak).
+// ════════════════════════════════════════
+describe('kóty vždy patří do vrstvy Kóty (layer: 2)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('addDimensionForObject – point/line/circle/arc/rect/polyline', () => {
+    addDimensionForObject({ type: 'point', x: 1, y: 2 });
+    addDimensionForObject({ type: 'line', x1: 0, y1: 0, x2: 3, y2: 4 });
+    addDimensionForObject({ type: 'circle', cx: 0, cy: 0, r: 5 });
+    addDimensionForObject({ type: 'arc', cx: 0, cy: 0, r: 5, startAngle: 0, endAngle: Math.PI / 2 });
+    addDimensionForObject({ type: 'rect', x1: 0, y1: 0, x2: 10, y2: 10 });
+    addDimensionForObject({
+      type: 'polyline',
+      vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }],
+      bulges: [0],
+      closed: false,
+    });
+    for (const call of addObject.mock.calls) {
+      expect(call[0].layer).toBe(2);
+    }
+  });
+
+  it('addAngleDimensionForLines / addLinearDimForLine / addArcAngleDim / addArcRadiusLeader', () => {
+    const line1 = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+    const line2 = { id: 2, type: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
+    addAngleDimensionForLines(line1, line2);
+    addLinearDimForLine({ id: 7, type: 'line', x1: 0, y1: 0, x2: 40, y2: 30 }, 20, 100);
+    addArcAngleDim({ id: 3, cx: 0, cy: 0, r: 5, startAngle: 0, endAngle: Math.PI / 2 });
+    addArcRadiusLeader({ id: 3, cx: 0, cy: 0, r: 5 }, 0, 5, 5);
+    for (const call of addObject.mock.calls) {
+      expect(call[0].layer).toBe(2);
+    }
+  });
+
+  it('addAngleDimForPlacement', () => {
+    const l1 = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+    const l2 = { id: 2, type: 'line', x1: 0, y1: 0, x2: 10, y2: Math.tan(50 * Math.PI / 180) * 10 };
+    addAngleDimForPlacement(l1, l2, Math.cos(25 * Math.PI / 180), Math.sin(25 * Math.PI / 180));
+    expect(addObject).toHaveBeenCalledOnce();
+    expect(addObject.mock.calls[0][0].layer).toBe(2);
+  });
+});

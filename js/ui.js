@@ -2,11 +2,12 @@
 // ║  SKICA – UI panely, toolbar, hinty                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS, MOBILE_BREAKPOINT, applyThemeColors } from './constants.js';
+import { COLORS, MOBILE_BREAKPOINT, applyThemeColors, LINE_WIDTH } from './constants.js';
 import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle } from './state.js';
 import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects } from './utils.js';
-import { renderAll, renderAllDebounced } from './render.js';
+import { renderAll, renderAllDebounced, resolveObjectColor } from './render.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView } from './canvas.js';
+import { findObjectAt } from './geometry.js';
 import { bridge } from './bridge.js';
 import { addObject } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
@@ -120,6 +121,7 @@ export function updateObjectList() {
     arc: "⌒",
     rect: "□",
     polyline: "⛓",
+    fill: "🎨",
   };
 
   // ── Přepínač „Číslovat" v hlavičce panelu (statický prvek) ──
@@ -880,62 +882,6 @@ export function updateProperties() {
     tbody.appendChild(tr);
   }
 
-  // Helper: přidá color picker s 5 presety na jednom řádku
-  function addColorRow(label, value, onChange) {
-    const COLOR_PRESETS = [
-      '#89b4fa', // modrá
-      '#f38ba8', // červená
-      '#a6e3a1', // zelená
-      '#f9e2af', // žlutá
-      '#ffffff', // bílá
-    ];
-    const tr = document.createElement("tr");
-    const tdLabel = document.createElement("td");
-    tdLabel.textContent = label;
-    const tdVal = document.createElement("td");
-    const wrap = document.createElement("div");
-    wrap.className = "color-inline-row";
-
-    // Color picker
-    const input = document.createElement("input");
-
-    // Preset color buttons
-    function updatePresetActive() {
-      wrap.querySelectorAll('.color-preset-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.color === input.value);
-      });
-    }
-    COLOR_PRESETS.forEach(c => {
-      const btn = document.createElement("button");
-      btn.className = "color-preset-btn";
-      btn.dataset.color = c;
-      btn.style.background = c;
-      btn.title = c;
-      if (c === value) btn.classList.add('active');
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        input.value = c;
-        onChange(c);
-        updatePresetActive();
-      });
-      wrap.appendChild(btn);
-    });
-
-    // Color picker na konci
-    input.type = "color";
-    input.className = "prop-color-input";
-    input.value = value;
-    input.addEventListener("input", () => {
-      onChange(input.value);
-      updatePresetActive();
-    });
-    wrap.appendChild(input);
-
-    tdVal.appendChild(wrap);
-    tr.appendChild(tdLabel);
-    tr.appendChild(tdVal);
-    tbody.appendChild(tr);
-  }
 
   // Aktualizace computed polí bez rebuild
   function refreshComputedProps() {
@@ -979,11 +925,13 @@ export function updateProperties() {
   // Typ (read-only)
   addInfoRow("Typ", typeLabel(obj.type));
 
+  // Objekty aktuálního výběru (platí pro Profil i Barvu níže)
+  const allObjs = state.multiSelected.size > 1
+    ? [...state.multiSelected].map(i => state.objects[i])
+    : [obj];
+
   // Kontura / Polotovar přepínač (platí pro celý výběr)
   {
-    const allObjs = state.multiSelected.size > 1
-      ? [...state.multiSelected].map(i => state.objects[i])
-      : [obj];
     const stockCount = allObjs.filter(o => o.isStock).length;
     const currentVal = stockCount === allObjs.length ? 'stock'
       : stockCount === 0 ? 'kontura' : 'mixed';
@@ -1026,8 +974,40 @@ export function updateProperties() {
 
   // Název (editovatelný) — zobrazí čistý název + pořadové číslo
   addTextRow("Název", `${_cleanName} ${_selSeq}`, (v) => { obj.name = v; });
-  // Barva (editovatelná)
-  addColorRow("Barva", obj.color || COLORS.primary, (v) => { obj.color = v; renderAllDebounced(); });
+
+  // Barva (editovatelná, aplikuje se na celý výběr najednou)
+  {
+    const colors = new Set(allObjs.map(o => o.color || COLORS.primary));
+    const mixed = colors.size > 1;
+    const displayColor = mixed ? COLORS.textMuted : allObjs[0].color || COLORS.primary;
+
+    const tr = document.createElement("tr");
+    const tdLabel = document.createElement("td");
+    tdLabel.textContent = "Barva";
+    const tdVal = document.createElement("td");
+    const wrap = document.createElement("div");
+    wrap.className = "color-inline-row";
+    const swatchBtn = document.createElement("button");
+    swatchBtn.type = "button";
+    swatchBtn.className = "layer-color-dot";
+    swatchBtn.style.background = displayColor;
+    swatchBtn.title = mixed ? "Barvy ve výběru se liší – klikněte pro sjednocení" : "Změnit barvu";
+    swatchBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openObjectColorPicker(allObjs, swatchBtn);
+    });
+    wrap.appendChild(swatchBtn);
+    if (mixed) {
+      const mixedLabel = document.createElement("span");
+      mixedLabel.textContent = "— smíšené —";
+      mixedLabel.className = "color-mixed-label";
+      wrap.appendChild(mixedLabel);
+    }
+    tdVal.appendChild(wrap);
+    tr.appendChild(tdLabel);
+    tr.appendChild(tdVal);
+    tbody.appendChild(tr);
+  }
 
   // Vrstva (select)
   {
@@ -2063,6 +2043,320 @@ export function togglePanel(id) {
 }
 
 // ── Vrstvy ──
+// Vlastní SVG ikony (místo emoji 👁/👁‍🗨, které se na některých systémech
+// vykreslují monochromně černou barvou a splývají s tmavým pozadím panelu).
+const ICON_EYE_OPEN = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.4 19.4 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a19.5 19.5 0 0 1-2.29 3.44M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+// 7 základních barev duhy pro rychlý výběr barvy vrstvy jedním klikem.
+const LAYER_RAINBOW_PRESETS = [
+  '#e53935', // červená
+  '#fb923c', // oranžová
+  '#fbbf24', // žlutá
+  '#4ade80', // zelená
+  '#60a5fa', // modrá
+  '#818cf8', // indigo
+  '#c084fc', // fialová
+];
+
+/**
+ * Aktivuje jednorázový výběr barvy kliknutím na objekt na plátně ("kapátko").
+ * Klik na prázdné místo (žádný objekt pod kurzorem) výběr zruší, místo aby
+ * vzal barvu pozadí/mřížky — kapátko má smysl jen na skutečně nakreslený
+ * objekt. Stejný vzor jako "Vybrat z mapy" jinde v appce (`numericalInput.js`
+ * aj.) — dočasný `click`/`touchend` listener přímo na plátně se souřadnicemi
+ * z `screenToWorld()`, ne přes `state.tool`/hlavní dispatch (ten je sdílený
+ * všemi nástroji a pro jednorázový odběr je zbytečná komplikace navíc).
+ * @param {{onPick:(color:string)=>void, onCancel:()=>void}} opts
+ */
+function pickColorFromCanvas({ onPick, onCancel }) {
+  const prevCursor = drawCanvas.style.cursor;
+  drawCanvas.style.cursor = 'crosshair';
+  showToast('Klikněte na objekt, jehož barvu chcete použít (klik do prázdna = zrušit)');
+
+  let settled = false;
+  function cleanup() {
+    if (settled) return;
+    settled = true;
+    drawCanvas.removeEventListener('click', onClick);
+    drawCanvas.removeEventListener('touchend', onTouch);
+    document.removeEventListener('keydown', onKeydown, true);
+    drawCanvas.style.cursor = prevCursor;
+  }
+  function pick(sx, sy) {
+    const [wx, wy] = screenToWorld(sx, sy);
+    const idx = findObjectAt(wx, wy);
+    cleanup();
+    if (idx == null) { onCancel(); return; }
+    onPick(resolveObjectColor(state.objects[idx]));
+  }
+  function onClick(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    pick(e.clientX - rect.left, e.clientY - rect.top);
+  }
+  function onTouch(e) {
+    if (e.changedTouches.length !== 1) return;
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const rect = drawCanvas.getBoundingClientRect();
+    pick(t.clientX - rect.left, t.clientY - rect.top);
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); cleanup(); onCancel(); }
+  }
+  drawCanvas.addEventListener('click', onClick);
+  drawCanvas.addEventListener('touchend', onTouch);
+  document.addEventListener('keydown', onKeydown, true);
+}
+
+/**
+ * Otevře obecný popover pro výběr barvy (7 barev duhy + vlastní + kapátko),
+ * volitelně i s ovládáním tloušťky čáry a/nebo průhlednosti. Používá se pro
+ * barvu vrstvy, hromadnou změnu barvy vybraných objektů i pro výplně
+ * (Vybarvit). Změny se aplikují průběžně (živý náhled); potvrdí je až
+ * tlačítko OK, zatímco ✕/Escape/klik mimo dialog vše vrátí zpět (onCancel).
+ * @param {{title:string, currentColor:string, onColor:(c:string)=>void,
+ *          currentWidth?:number, onWidth?:(w:number)=>void,
+ *          currentAlpha?:number, onAlpha?:(a:number)=>void,
+ *          onCancel?:()=>void}} opts
+ */
+function openColorPicker(opts) {
+  const { title, currentColor, onColor, currentWidth, onWidth, currentAlpha, onAlpha, onCancel } = opts;
+  document.querySelector('.color-popover-overlay')?.remove();
+
+  // Sleduje aktuální (živě už aplikovanou) hodnotu — potřeba při znovuotevření
+  // dialogu po kapátku, aby se předchozí volby (barva/tloušťka/průhlednost)
+  // z téže relace neztratily.
+  let liveColor = currentColor;
+  let liveWidth = currentWidth;
+  let liveAlpha = currentAlpha;
+  const reopen = () => openColorPicker({ ...opts, currentColor: liveColor, currentWidth: liveWidth, currentAlpha: liveAlpha });
+
+  const overlay = document.createElement('div');
+  overlay.className = 'input-overlay color-popover-overlay';
+
+  const dialog = document.createElement('div');
+  dialog.className = 'input-dialog color-popover-dialog';
+
+  let settled = false;
+  function finish(confirmed) {
+    if (settled) return;
+    settled = true;
+    if (!confirmed && onCancel) onCancel();
+    document.removeEventListener('keydown', onKeydown, true);
+    overlay.remove();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); finish(false); }
+  }
+  document.addEventListener('keydown', onKeydown, true);
+
+  const header = document.createElement('div');
+  header.className = 'color-popover-header';
+  const titleEl = document.createElement('h3');
+  titleEl.textContent = title;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'color-popover-close';
+  closeBtn.innerHTML = '✕';
+  closeBtn.title = 'Zrušit';
+  closeBtn.addEventListener('click', () => finish(false));
+  header.appendChild(titleEl);
+  header.appendChild(closeBtn);
+
+  const swatchRow = document.createElement('div');
+  swatchRow.className = 'color-swatch-row';
+  const swatchBtns = [];
+  const setActiveSwatch = (c) => {
+    swatchBtns.forEach((btn) => btn.classList.toggle('active', btn.dataset.color.toLowerCase() === c.toLowerCase()));
+  };
+  LAYER_RAINBOW_PRESETS.forEach((c) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.color = c;
+    btn.className = 'color-swatch-btn' + (c.toLowerCase() === currentColor.toLowerCase() ? ' active' : '');
+    btn.style.background = c;
+    btn.title = c;
+    btn.addEventListener('click', () => {
+      liveColor = c;
+      onColor(c);
+      customInput.value = c;
+      setActiveSwatch(c);
+    });
+    swatchBtns.push(btn);
+    swatchRow.appendChild(btn);
+  });
+
+  const customRow = document.createElement('div');
+  customRow.className = 'color-popover-custom';
+  const customLabel = document.createElement('label');
+  customLabel.textContent = 'Vlastní barva';
+  const customInput = document.createElement('input');
+  customInput.type = 'color';
+  customInput.value = currentColor;
+  customInput.addEventListener('input', () => {
+    liveColor = customInput.value;
+    onColor(customInput.value);
+    setActiveSwatch(customInput.value);
+  });
+  const eyedropBtn = document.createElement('button');
+  eyedropBtn.type = 'button';
+  eyedropBtn.className = 'color-popover-eyedrop';
+  eyedropBtn.innerHTML = '💧';
+  eyedropBtn.title = 'Vzít barvu z plátna';
+  eyedropBtn.addEventListener('click', () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKeydown, true);
+    pickColorFromCanvas({
+      onPick: (c) => {
+        liveColor = c;
+        onColor(c);
+        reopen();
+      },
+      onCancel: () => reopen(),
+    });
+  });
+  customRow.appendChild(customLabel);
+  customRow.appendChild(customInput);
+  customRow.appendChild(eyedropBtn);
+
+  dialog.appendChild(header);
+  dialog.appendChild(swatchRow);
+  dialog.appendChild(customRow);
+
+  if (onWidth) {
+    const widthRow = document.createElement('div');
+    widthRow.className = 'color-popover-width';
+    const widthLabel = document.createElement('label');
+    widthLabel.textContent = 'Tloušťka čáry';
+    const widthInput = document.createElement('input');
+    widthInput.type = 'range';
+    widthInput.min = '0.5';
+    widthInput.max = '5';
+    widthInput.step = '0.25';
+    widthInput.value = String(currentWidth);
+    const widthVal = document.createElement('span');
+    widthVal.className = 'color-popover-width-val';
+    widthVal.textContent = `${currentWidth} px`;
+    widthInput.addEventListener('input', () => {
+      const w = parseFloat(widthInput.value);
+      liveWidth = w;
+      widthVal.textContent = `${w} px`;
+      onWidth(w);
+    });
+    widthRow.appendChild(widthLabel);
+    widthRow.appendChild(widthInput);
+    widthRow.appendChild(widthVal);
+    dialog.appendChild(widthRow);
+  }
+
+  if (onAlpha) {
+    const alphaRow = document.createElement('div');
+    alphaRow.className = 'color-popover-width';
+    const alphaLabel = document.createElement('label');
+    alphaLabel.textContent = 'Průhlednost';
+    const alphaInput = document.createElement('input');
+    alphaInput.type = 'range';
+    alphaInput.min = '0.05';
+    alphaInput.max = '1';
+    alphaInput.step = '0.05';
+    alphaInput.value = String(currentAlpha);
+    const alphaVal = document.createElement('span');
+    alphaVal.className = 'color-popover-width-val';
+    alphaVal.textContent = `${Math.round(currentAlpha * 100)} %`;
+    alphaInput.addEventListener('input', () => {
+      const a = parseFloat(alphaInput.value);
+      liveAlpha = a;
+      alphaVal.textContent = `${Math.round(a * 100)} %`;
+      onAlpha(a);
+    });
+    alphaRow.appendChild(alphaLabel);
+    alphaRow.appendChild(alphaInput);
+    alphaRow.appendChild(alphaVal);
+    dialog.appendChild(alphaRow);
+  }
+
+  const okRow = document.createElement('div');
+  okRow.className = 'color-popover-actions';
+  const okBtn = document.createElement('button');
+  okBtn.type = 'button';
+  okBtn.className = 'color-popover-ok';
+  okBtn.textContent = 'OK';
+  okBtn.addEventListener('click', () => finish(true));
+  okRow.appendChild(okBtn);
+  dialog.appendChild(okRow);
+
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) finish(false); });
+  document.body.appendChild(overlay);
+}
+
+/** Otevře popover pro výběr barvy a tloušťky čáry vrstvy. */
+function openLayerColorPicker(layer, anchorBtn) {
+  const originalColor = layer.color;
+  const originalWidth = layer.lineWidth;
+  openColorPicker({
+    title: `Barva vrstvy „${layer.name}“`,
+    currentColor: layer.color,
+    onColor: (c) => {
+      layer.color = c;
+      anchorBtn.style.background = c;
+      renderAllDebounced();
+    },
+    currentWidth: layer.lineWidth ?? LINE_WIDTH,
+    onWidth: (w) => {
+      layer.lineWidth = w;
+      renderAllDebounced();
+    },
+    onCancel: () => {
+      layer.color = originalColor;
+      layer.lineWidth = originalWidth;
+      anchorBtn.style.background = originalColor;
+      renderAllDebounced();
+    },
+  });
+}
+
+/** Otevře popover pro hromadnou změnu barvy všech vybraných objektů. */
+function openObjectColorPicker(objs, anchorBtn) {
+  const first = objs[0];
+  const originalColors = objs.map((o) => o.color);
+  openColorPicker({
+    title: objs.length > 1 ? `Barva (${objs.length} objektů)` : 'Barva objektu',
+    currentColor: first.color || COLORS.primary,
+    onColor: (c) => {
+      objs.forEach((o) => { o.color = c; });
+      if (anchorBtn) anchorBtn.style.background = c;
+      renderAllDebounced();
+    },
+    onCancel: () => {
+      objs.forEach((o, i) => { o.color = originalColors[i]; });
+      if (anchorBtn) anchorBtn.style.background = originalColors[0] || COLORS.primary;
+      renderAllDebounced();
+    },
+  });
+}
+
+/** Otevře popover pro barvu a průhlednost nově vytvořené výplně (nástroj Vybarvit). */
+function openFillColorPicker(fillObj) {
+  openColorPicker({
+    title: 'Vybarvit',
+    currentColor: fillObj.color,
+    onColor: (c) => { fillObj.color = c; renderAllDebounced(); },
+    currentAlpha: fillObj.alpha,
+    onAlpha: (a) => { fillObj.alpha = a; renderAllDebounced(); },
+    onCancel: () => {
+      // Zrušit celé vybarvení — smazat nově vytvořenou výplň úplně,
+      // ne jen vrátit barvu (uživatel si rozmyslel vyplnit tuhle plochu).
+      const idx = state.objects.indexOf(fillObj);
+      if (idx !== -1) state.objects.splice(idx, 1);
+      updateObjectList();
+      renderAllDebounced();
+    },
+  });
+}
+bridge.openFillColorPicker = openFillColorPicker;
+
 /** Aktualizuje seznam vrstev v panelu. */
 export function updateLayerList() {
   const ul = document.getElementById("layerList");
@@ -2072,15 +2366,16 @@ export function updateLayerList() {
     const li = document.createElement("li");
     li.className = "layer-row" + (layer.id === state.activeLayer ? " active" : "");
 
-    // Color dot
-    const colorDot = document.createElement("input");
-    colorDot.type = "color";
+    // Color dot – otevře vlastní popover (7 barev duhy + vlastní), místo
+    // holého nativního input[type=color] (do jehož popupu nejde nic přidat).
+    const colorDot = document.createElement("button");
+    colorDot.type = "button";
     colorDot.className = "layer-color-dot";
-    colorDot.value = layer.color;
+    colorDot.style.background = layer.color;
     colorDot.title = "Změnit barvu vrstvy";
-    colorDot.addEventListener("input", () => {
-      layer.color = colorDot.value;
-      renderAllDebounced();
+    colorDot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openLayerColorPicker(layer, colorDot);
     });
 
     // Name (inline editable)
@@ -2113,7 +2408,7 @@ export function updateLayerList() {
     // Visibility toggle
     const visBtn = document.createElement("button");
     visBtn.className = "layer-icon-btn" + (layer.visible ? "" : " off");
-    visBtn.innerHTML = layer.visible ? "👁" : "👁‍🗨";
+    visBtn.innerHTML = layer.visible ? ICON_EYE_OPEN : ICON_EYE_OFF;
     visBtn.title = layer.visible ? "Skrýt vrstvu" : "Zobrazit vrstvu";
     visBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -2428,6 +2723,7 @@ export function resetHint() {
     boolean: "Klikněte na první uzavřenou konturu",
     circularArray: "Klepněte na objekt pro kruhové pole",
     profileTrace: "Klepněte na první bod kontury (R = radius, Enter = dokončit)",
+    fill: "Klikněte do plochy, kterou chcete vybarvit",
   };
   setHint(hints[state.tool] || "");
 }

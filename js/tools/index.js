@@ -38,3 +38,4 @@ export { handleBooleanClick, resetBooleanState } from './booleanClick.js';
 export { handleCircularArrayClick } from './circularArrayClick.js';
 export { handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState } from './copyPlaceClick.js';
 export { handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, getTraceGcode, updateTracePanel, drawTraceToCanvas, importTraceFromGcode } from './profileTraceClick.js';
+export { handleFillAreaClick, buildClosedLoops } from './fillClick.js';

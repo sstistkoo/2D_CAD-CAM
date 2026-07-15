@@ -96,6 +96,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ISO 5608 structure (clamping, insert shape, style/κr, insert clearance
   angle, hand, height, width) instead of the previous simplified 6-position
   layout
+- 4th default layer "Polotovar" (`STOCK_LAYER_ID = 3`, `js/state.js`) alongside
+  Kontura/Konstrukce/Kóty, backfilled into older saved projects on load
+  (`ensureStockLayer()`); `isStock` objects (Polotovar drawing mode, "Přídavek
+  na plochu" generator, CAM "Odeslat do CADu", CNC-code-to-canvas reparse) are
+  now assigned to it instead of silently sharing whatever layer happened to be
+  active
+- Vrstvy panel: clicking a layer's color dot now opens a small custom popover
+  (`openLayerColorPicker()`, built on a shared `openColorPicker()`) with 7
+  one-click rainbow presets, a native color input for a custom color, and an
+  explicit OK/✕ pair — replacing the bare `input[type=color]` swatch, whose
+  native OS picker couldn't be styled or extended with presets. Swatches,
+  the custom input and the sliders all live-preview without closing the
+  popover; only **OK** commits, while **✕**, Escape, or clicking outside all
+  revert every change made in that session and close. The same popover also
+  has a "Tloušťka čáry" slider (0.5–5 px, per-layer `layer.lineWidth`, falls
+  back to the existing `LINE_WIDTH` constant when unset) — `render.js`'s main
+  draw loop reads it per-object via the object's assigned layer. Also added a
+  💧 eyedropper next to "Vlastní barva": hides the popover and lets you click
+  an object on the canvas to reuse its color (`pickColorFromCanvas()` in
+  `ui.js`, same `click`/`touchend`-on-`drawCanvas` pattern as the existing
+  "Vybrat z mapy" pickers in `numericalInput.js`/`objectDialogs.js`, so it
+  works on touch too) — clicking empty canvas cancels the pick instead of
+  grabbing the background/grid color, since `findObjectAt()` returns nothing
+  there. The resolved color always matches what's actually drawn (shared
+  `resolveObjectColor()`, extracted from the main render loop so both places
+  can't drift apart). This sidesteps the native `input[type=color]` popup
+  entirely, whose OS-positioned popup can render partly off-screen on narrow
+  mobile viewports (browser chrome, outside CSS's control) — the eyedropper
+  stays fully in-app and correctly positioned there
+- Vlastnosti panel: the "Barva" row now applies to the *entire current
+  selection* at once (reuses the same rainbow-preset popover as the layer
+  color, via `openObjectColorPicker()`) instead of only the primary selected
+  object — multi-selecting several objects and picking a color now recolors
+  all of them in one click, and shows "— smíšené —" when the selection
+  currently has mixed colors. Replaces the old inline 5-preset color picker
+- New toolbar tool "🎨 Vybarvit" (`data-tool="fill"`, `js/tools/fillClick.js`):
+  click into any closed-off area of the drawing to fill it with a translucent
+  color — no selection needed. Since a SKICA contour is normally a chain of
+  separate line/arc objects rather than one closed polyline
+  (`addPolylineAsSegments`), it builds every closed boundary in the drawing
+  itself (`buildClosedLoops()`, endpoint chaining; circles/rects/closed
+  polylines count as their own loop directly). Turning contours/stock are
+  usually drawn as an OPEN profile referenced to the rotation axis (y=0),
+  not a closed shape — without accounting for that, clicking the gap
+  between Kontura and Polotovar would never find any closed boundary at
+  all, so an open chain whose both loose ends sit on the axis is treated
+  as closed along the axis too (skipped for `machineType: 'karusel'`,
+  where the axis has no such meaning). Point-in-polygon tests the click
+  against all loops and picks the smallest one containing the click point.
+  Clicking inside the ring between two nested loops (e.g. between
+  Kontura and Polotovar) fills only that ring: loops directly nested inside
+  the clicked one become holes, and outer+holes become subpaths of one
+  `Path2D` drawn with the `evenodd` fill rule. Creates a new `type: 'fill'`
+  object (color + opacity, adjustable afterwards via the same rainbow-preset
+  popover, opened automatically right after the click) rendered in its own
+  pass before all strokes (`drawFills()` in `render.js`) so it sits
+  underneath the contour lines; excluded from CNC/DXF export and CAM
+  path-sorting since it's a visual annotation, not machinable geometry.
+  Cancelling that popover (✕/Escape/outside click) removes the just-created
+  fill entirely rather than reverting to its default color, since cancelling
+  a fresh "Vybarvit" click means the user didn't want to fill that area at all
 
 ### Changed
 - Desktop status bar: dropped "Projekt: …", the current click-hint text
@@ -168,6 +229,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`input`/`select`/`textarea`). Also flips the pointer to appear below the
   finger instead of above when the target is near the top edge of the
   viewport, so it no longer renders off-screen there.
+- Vrstvy panel: the "Skrýt vrstvu" eye icon used the 👁‍🗨 emoji, which some
+  systems/browsers render as an unstyled monochrome (black) glyph — invisible
+  against the dark panel background. Replaced with inline `currentColor` SVG
+  icons (`ICON_EYE_OPEN`/`ICON_EYE_OFF`) so the button is always visible in
+  both themes
+- Objects created by "🔄 Vykreslit CNC kód na canvas" and "📂 Načíst G-kód ze
+  souboru" (`parseGcodeToObjects()` → `state.objects.push()`) bypassed
+  `addObject()` entirely and ended up with no `.layer` at all. Since
+  `render.js`'s layer lookup (`state.layers.find(l => l.id === obj.layer)`)
+  then returned `undefined`, those objects were **immune to every layer's
+  show/hide toggle** and always drew in the hardcoded `COLORS.primary` /
+  `COLORS.stock` fallback instead of the user's configured Kontura/Polotovar
+  layer color. Same issue in the CAM Simulator's "Odeslat do CADu" and SVG
+  import. Now explicitly assigned to the Kontura or Polotovar layer (by
+  `isStock`) on creation
+- `isStock` objects (Polotovar drawing mode, "Přídavek na plochu", the paths
+  above) always rendered in the fixed `COLORS.stock` constant regardless of
+  their own layer's configured color — the Polotovar layer's color dot had no
+  effect. `render.js` now prefers the object's assigned layer color, falling
+  back to `COLORS.stock`/`COLORS.primary` only when no layer is found
+- Most dimension/measurement creation paths (`dialogs/dimension.js`,
+  `dialogs/measure.js`, chain dimensions, the coordinate-label tool) never set
+  an explicit `layer`, so new "Kóty" silently landed on whatever layer was
+  currently active (typically Kontura) instead of the dedicated Kóty layer —
+  making the Vrstvy panel's Kóty visibility toggle hide/show the wrong
+  objects, and mixing dimension geometry into Kontura/Konstrukce. All of these
+  now explicitly set `layer: 2`
 
 ## [1.7.0] - 2026-07-04
 

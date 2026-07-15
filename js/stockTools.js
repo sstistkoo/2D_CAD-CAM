@@ -18,7 +18,7 @@
 //   • Offset algoritmus v contourOffset.js používá (z = cad_x, x = cad_y) —
 //     historické CAM značení. Adaptace probíhá v tomto modulu.
 
-import { state, pushUndo, showToast } from './state.js';
+import { state, pushUndo, showToast, STOCK_LAYER_ID } from './state.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList } from './ui.js';
 import { renderAll } from './render.js';
@@ -307,7 +307,7 @@ function _camSegmentToCadObject(seg) {
 function _addStockObjects(cadObjLikes, asContour = false) {
   if (cadObjLikes.length === 0) return 0;
   pushUndo();
-  const baseLayer = state.activeLayer;
+  const baseLayer = asContour ? state.activeLayer : STOCK_LAYER_ID;
   const prefix = asContour ? 'Přídavek' : 'Polotovar';
   let added = 0;
   for (const o of cadObjLikes) {

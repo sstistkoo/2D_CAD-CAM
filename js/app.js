@@ -2,7 +2,7 @@
 // ║  SKICA – Inicializace aplikace (ES Module entry point)      ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, updateUndoButtons } from './state.js';
+import { state, showToast, updateUndoButtons, ensureStockLayer } from './state.js';
 import { expandPolylineObjects } from './utils.js';
 import { resizeCanvases, autoCenterView } from './canvas.js';
 import { calculateAllIntersections } from './geometry.js';
@@ -73,6 +73,7 @@ async function tryAutoLoad() {
         state.layers = data.layers;
         state.activeLayer = data.activeLayer || 0;
         state.nextLayerId = data.nextLayerId || (data.layers.length > 0 ? Math.max(...data.layers.map(l => l.id)) + 1 : 1);
+        ensureStockLayer();
       } else {
         state.objects.forEach(obj => { if (obj.layer === undefined) obj.layer = 0; });
       }

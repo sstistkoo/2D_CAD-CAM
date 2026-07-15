@@ -23,6 +23,7 @@
  * @property {string} color
  * @property {boolean} visible
  * @property {boolean} locked
+ * @property {number} [lineWidth] volitelná tloušťka čáry (px); chybí-li, použije se LINE_WIDTH
  */
 
 // ── Objekty výkresu ──

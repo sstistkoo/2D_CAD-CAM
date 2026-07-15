@@ -2,7 +2,7 @@
 // ║  SKICA – Správa objektů (přidání, přesun)                  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast } from './state.js';
+import { state, pushUndo, showToast, STOCK_LAYER_ID } from './state.js';
 import { updateObjectList } from './ui.js';
 import { calculateAllIntersections } from './geometry.js';
 import { autoCenterView } from './canvas.js';
@@ -25,14 +25,17 @@ export function addObject(obj) {
   }
   pushUndo();
   obj.id = state.nextId++;
+  const hadExplicitLayer = obj.layer !== undefined;
   // Assign layer: construction lines default to layer 1, others to active layer
-  if (obj.layer === undefined) {
+  if (!hadExplicitLayer) {
     obj.layer = (obj.type === 'constr') ? 1 : state.activeLayer;
   }
   // Režim kreslení polotovaru – nové geometrické objekty se značí isStock
+  // a (pokud volající nezadal vrstvu výslovně) putují do vrstvy Polotovar.
   if (state.drawStockMode && !obj.isDimension && !obj.isCoordLabel
       && obj.type !== 'constr' && obj.type !== 'text') {
     obj.isStock = true;
+    if (!hadExplicitLayer) obj.layer = STOCK_LAYER_ID;
   }
   state.objects.push(obj);
   updateObjectList();
@@ -53,6 +56,7 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
   const segments = [];
   const count = closed ? vertices.length : vertices.length - 1;
   const stockTag = state.drawStockMode;
+  const segLayer = stockTag ? STOCK_LAYER_ID : state.activeLayer;
   for (let i = 0; i < count; i++) {
     const p1 = vertices[i];
     const p2 = vertices[(i + 1) % vertices.length];
@@ -73,7 +77,7 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
           endAngle: arc.endAngle,
           name: `Oblouk ${id}`,
           id,
-          layer: state.activeLayer,
+          layer: segLayer,
         };
       }
     } else {
@@ -84,7 +88,7 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
         x2: p2.x, y2: p2.y,
         name: `Úsečka ${id}`,
         id,
-        layer: state.activeLayer,
+        layer: segLayer,
       };
     }
 
@@ -126,7 +130,7 @@ export function addRectAsSegments(x1, y1, x2, y2) {
       x2: p2.x, y2: p2.y,
       name: `Úsečka ${id}`,
       id,
-      layer: state.activeLayer,
+      layer: stockTag ? STOCK_LAYER_ID : state.activeLayer,
     };
     if (stockTag) obj.isStock = true;
     state.objects.push(obj);
@@ -239,6 +243,11 @@ export function moveObject(obj, dx, dy) {
       }
       obj.x += dx;
       obj.y += dy;
+      break;
+    case "fill":
+      for (const loop of obj.loops) {
+        for (const p of loop) { p.x += dx; p.y += dy; }
+      }
       break;
   }
   // Aktualizovat asociativní kóty navázané na přesunutý objekt

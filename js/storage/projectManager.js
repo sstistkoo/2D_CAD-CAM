@@ -2,7 +2,7 @@
 // ║  SKICA – Správa projektů (multi-project)                    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, pushUndo } from '../state.js';
+import { state, showToast, pushUndo, ensureStockLayer } from '../state.js';
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateStatusProject, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
@@ -77,6 +77,7 @@ function _loadProjectData(data) {
     state.layers = data.layers;
     state.activeLayer = data.activeLayer || 0;
     state.nextLayerId = data.nextLayerId || (data.layers.length > 0 ? Math.max(...data.layers.map(l => l.id)) + 1 : 1);
+    ensureStockLayer();
   } else {
     state.objects.forEach(obj => { if (obj.layer === undefined) obj.layer = 0; });
   }
@@ -216,9 +217,10 @@ export function newProject() {
     { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },
     { id: 1, name: 'Konstrukce', color: COLORS.construction, visible: true, locked: false },
     { id: 2, name: 'Kóty', color: COLORS.dimension, visible: true, locked: false },
+    { id: 3, name: 'Polotovar', color: COLORS.stock, visible: true, locked: false },
   ];
   state.activeLayer = 0;
-  state.nextLayerId = 3;
+  state.nextLayerId = 4;
   updateObjectList();
   updateProperties();
   updateLayerList();

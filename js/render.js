@@ -14,6 +14,18 @@ import {
 } from './constants.js';
 
 const DIM_MATCH_TOL = 1e-4;
+
+/**
+ * Vrátí barvu, jakou se objekt skutečně kreslí (vlastní `obj.color`, jinak
+ * barva jeho vrstvy, jinak výchozí fallback). Sdílené mezi hlavním render
+ * loopem, náhledem zrcadlení a "eyedropper" výběrem barvy z plátna, aby
+ * všechna místa použila stejné pravidlo.
+ */
+export function resolveObjectColor(obj) {
+  const layer = state.layers.find((l) => l.id === obj.layer);
+  const layerColor = layer ? layer.color : (obj.isStock ? COLORS.stock : COLORS.primary);
+  return obj.color || layerColor;
+}
 /** Zjistí, zda kóta (isDimension) vychází z některého vybraného bodu. */
 function isDimConnectedToPoints(obj, pts) {
   if (!obj.isDimension || !pts || pts.length === 0) return false;
@@ -165,6 +177,18 @@ export function getObjectBounds(obj) {
         minX: obj.x, minY: obj.y - approxH,
         maxX: obj.x + approxW, maxY: obj.y,
       };
+    }
+    case 'fill': {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const loop of obj.loops) {
+        for (const p of loop) {
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        }
+      }
+      return minX === Infinity ? null : { minX, minY, maxX, maxY };
     }
     default:
       return null;
@@ -480,8 +504,7 @@ function renderMirrorPreview(vp) {
       if (bounds && !boundsOverlap(bounds, vp)) return;
     }
 
-    const layerColor = layer ? layer.color : COLORS.primary;
-    const baseColor = obj.isStock ? COLORS.stock : (obj.color || layerColor);
+    const baseColor = resolveObjectColor(obj);
     ctx.strokeStyle = baseColor;
     ctx.fillStyle = baseColor;
     ctx.lineWidth = LINE_WIDTH;
@@ -513,6 +536,51 @@ function renderMirrorPreview(vp) {
   ctx.restore();
 }
 
+/**
+ * Vykreslí 'fill' objekty (nástroj "Vybarvit") jako samostatnou vrstvu pod
+ * obrysy. Každá smyčka (obj.loops) je subpath jednoho Path2D vykresleného
+ * pravidlem 'evenodd' — dvě smyčky (kontura + polotovar) tak automaticky
+ * vybarví jen mezikruží mezi nimi, jedna smyčka vybarví celou plochu.
+ */
+function drawFills(vp) {
+  state.objects.forEach((obj, idx) => {
+    if (obj.type !== 'fill' || !obj.loops || obj.loops.length === 0) return;
+    const layer = state.layers.find(l => l.id === obj.layer);
+    if (layer && !layer.visible) return;
+
+    const bounds = getObjectBounds(obj);
+    if (bounds && !boundsOverlap(bounds, vp)) return;
+
+    const path = new Path2D();
+    for (const loop of obj.loops) {
+      if (loop.length < 3) continue;
+      const [sx0, sy0] = worldToScreen(loop[0].x, loop[0].y);
+      path.moveTo(sx0, sy0);
+      for (let i = 1; i < loop.length; i++) {
+        const [sx, sy] = worldToScreen(loop[i].x, loop[i].y);
+        path.lineTo(sx, sy);
+      }
+      path.closePath();
+    }
+
+    ctx.save();
+    ctx.globalAlpha = obj.alpha ?? 0.35;
+    ctx.fillStyle = obj.color || '#60a5fa';
+    ctx.fill(path, 'evenodd');
+    ctx.restore();
+
+    const isSel = idx === state.selected || state.multiSelected.has(idx);
+    if (isSel) {
+      ctx.save();
+      ctx.strokeStyle = COLORS.selected;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke(path);
+      ctx.restore();
+    }
+  });
+}
+
 // ── Vykreslení objektů ──
 function renderObjects() {
   const w = drawCanvas.width,
@@ -526,9 +594,14 @@ function renderObjects() {
   // Viewport culling – spočítat viditelnou oblast
   const vp = getViewportBounds();
 
+  // Výplně (nástroj "Vybarvit") – kreslí se jako první vrstva, pod obrysy.
+  drawFills(vp);
+
   state.objects.forEach((obj, idx) => {
     // Skrytá poznámka s CAM G-kódem (viz camSimulator.js handleSendToCanvas) — nikdy nevykreslovat
     if (obj.isCamPathNote) return;
+    // Výplně se kreslí samostatně výše (drawFills), ne v hlavní smyčce
+    if (obj.type === 'fill') return;
     // Skip objects on invisible layers
     const layer = state.layers.find(l => l.id === obj.layer);
     if (layer && !layer.visible) return;
@@ -549,8 +622,7 @@ function renderObjects() {
     const isConnectedDim = !isSel && obj.isDimension && state.selectedPoint != null
       && isDimConnectedToPoints(obj, state.selectedPoint);
     const isConstr = obj.type === "constr";
-    const layerColor = layer ? layer.color : COLORS.primary;
-    const baseColor = obj.isStock ? COLORS.stock : (obj.color || layerColor);
+    const baseColor = resolveObjectColor(obj);
     ctx.strokeStyle = (isSel || isConnectedDim)
       ? COLORS.selected
       : isConstr
@@ -561,7 +633,8 @@ function renderObjects() {
       : isConstr
         ? COLORS.construction
         : baseColor;
-    ctx.lineWidth = (isSel || isConnectedDim) ? LINE_WIDTH_SELECTED : LINE_WIDTH;
+    const baseWidth = layer?.lineWidth ?? LINE_WIDTH;
+    ctx.lineWidth = (isSel || isConnectedDim) ? baseWidth + (LINE_WIDTH_SELECTED - LINE_WIDTH) : baseWidth;
     ctx.setLineDash(isConstr || obj.dashed ? CONSTRUCTION_DASH : []);
 
     switch (obj.type) {

@@ -256,6 +256,16 @@ export function handleLineClick(wx, wy) {
 }
 ```
 
+### Pattern: Akční tlačítko nad výběrem (bez `data-tool`)
+
+Ne každý nástroj kreslí klikáním po plátně — některé jen zpracují aktuální
+`state.selected`/`state.multiSelected` a vytvoří/upraví výsledek rovnou
+(žádný `state.tool`, žádný `handleCanvasClick` case). Příklady: "Přídavek na
+plochu" (`#btnAllowance` → `stockTools.js`), "Seřadit podle dráhy"
+(`#btnSortContour`). Wiring je prosté tlačítko v `index.html` +
+`element.addEventListener('click', …)` v `js/ui.js`, bez kroků 3–4 výše
+(žádný `ToolType`/`data-tool`).
+
 ### Pattern: Pokročilý nástroj s více kroky
 
 - Ukládej stav do `state.tempPoints` a `state.drawing`

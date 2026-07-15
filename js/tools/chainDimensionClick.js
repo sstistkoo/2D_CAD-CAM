@@ -46,6 +46,7 @@ export function handleChainDimensionClick(wx, wy) {
       x1: prev.x + nx, y1: prev.y + ny,
       x2: wx + nx, y2: wy + ny,
       isDimension: true,
+      layer: 2,
       dimType: 'linear',
       dimOffset: dimOffset,
       dimSrcX1: prev.x, dimSrcY1: prev.y,

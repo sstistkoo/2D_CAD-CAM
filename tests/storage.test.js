@@ -237,11 +237,12 @@ describe('projectManager – newProject', () => {
     expect(state.objects).toHaveLength(0);
     expect(state.nextId).toBe(1);
     expect(state.projectName).toBe('Bez názvu');
-    expect(state.layers).toHaveLength(3);
+    expect(state.layers).toHaveLength(4);
     expect(state.layers[0].name).toBe('Kontura');
     expect(state.layers[1].name).toBe('Konstrukce');
     expect(state.layers[2].name).toBe('Kóty');
-    expect(state.nextLayerId).toBe(3);
+    expect(state.layers[3].name).toBe('Polotovar');
+    expect(state.nextLayerId).toBe(4);
   });
 
   it('uloží undo před vyčištěním', () => {
