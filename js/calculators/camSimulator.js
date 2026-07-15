@@ -3598,32 +3598,32 @@ if (typeof bridge !== 'undefined') {
 // drah bez nutnosti ručně importovat/zadávat geometrii. Nasadí se jen při
 // prvním spuštění (prázdný localStorage); jakmile uživatel zásobník uloží
 // (i prázdný), jeho stav se odteď respektuje beze změny.
+// Pořadí odpovídá typickému sledu obrábění (čelo → hrubování → dokončení →
+// profil/rádius → závit → upich).
 const DEFAULT_TOOL_MAGAZINE = [
   {
-    slot: 1, name: 'Zavit', vbdCode: '',
-    shape: 'threading', radius: 0, tipAngle: 60, toolAngle: 0,
-    clearanceAngle: 0, toolLength: 4, tipFlat: 0.1,
-    vc: 100, f: 1.5, ap: 0.1,
+    slot: 1, name: 'Hrub čelo', vbdCode: '',
+    shape: 'polygon', radius: 0, tipAngle: 90, toolAngle: -15,
+    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
+    vc: 200, f: 0.25, ap: 2.5,
     holderLength: 200, holderWidth: 20, holderHand: 'R',
     knifeAngle: 270, holderAutoComplete: true,
     holderProfile: { sideA: [
-      { x: -10, z: 10.464101615137755 }, { x: -3.0000000000000018, z: 3.4641016151377553 },
-      { x: 3, z: 3.4641016151377553 }, { x: 10, z: 10.464101615137753 },
-      { x: 10, z: 203.46410161513776 }, { x: -10, z: 203.46410161513776 },
-      { x: -10, z: 10.464101615137755 },
+      { x: 25.061, z: 137.716 }, { x: 25.061, z: 30.365 }, { x: 34.22, z: 30.365 },
+      { x: 34.22, z: 13.112 }, { x: 8.679, z: -3.154 }, { x: 1.608, z: 9.094 },
+      { x: 1.608, z: 137.716 }, { x: 25.061, z: 137.716 },
     ], sideB: [] },
   },
   {
-    slot: 2, name: 'Upichovak', vbdCode: '',
-    shape: 'parting', radius: 0.8, tipAngle: 55, toolAngle: 0,
-    clearanceAngle: 0, toolLength: 5, tipFlat: 0.1,
-    vc: 120, f: 0.08, ap: 2,
+    slot: 2, name: 'Hrubovaci', vbdCode: '',
+    shape: 'polygon', radius: 0.8, tipAngle: 90, toolAngle: 15,
+    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
+    vc: 200, f: 0.25, ap: 2.5,
     holderLength: 200, holderWidth: 20, holderHand: 'R',
     knifeAngle: 270, holderAutoComplete: true,
     holderProfile: { sideA: [
-      { x: -0.8000000000000007, z: 15 }, { x: 4.199999999999999, z: 15 },
-      { x: 19.2, z: 29.999999999999996 }, { x: 19.2, z: 215 },
-      { x: -0.8000000000000007, z: 215 }, { x: -0.8000000000000007, z: 15 },
+      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
+      { x: 20, z: 200 }, { x: 0, z: 200 }, { x: 0, z: 0 },
     ], sideB: [] },
   },
   {
@@ -3651,28 +3651,30 @@ const DEFAULT_TOOL_MAGAZINE = [
     ], sideB: [] },
   },
   {
-    slot: 5, name: 'Hrubovaci', vbdCode: '',
-    shape: 'polygon', radius: 0.8, tipAngle: 90, toolAngle: 15,
-    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
-    vc: 200, f: 0.25, ap: 2.5,
+    slot: 5, name: 'Zavit', vbdCode: '',
+    shape: 'threading', radius: 0, tipAngle: 60, toolAngle: 0,
+    clearanceAngle: 0, toolLength: 4, tipFlat: 0.1,
+    vc: 100, f: 1.5, ap: 0.1,
     holderLength: 200, holderWidth: 20, holderHand: 'R',
     knifeAngle: 270, holderAutoComplete: true,
     holderProfile: { sideA: [
-      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
-      { x: 20, z: 200 }, { x: 0, z: 200 }, { x: 0, z: 0 },
+      { x: -10, z: 10.464101615137755 }, { x: -3.0000000000000018, z: 3.4641016151377553 },
+      { x: 3, z: 3.4641016151377553 }, { x: 10, z: 10.464101615137753 },
+      { x: 10, z: 203.46410161513776 }, { x: -10, z: 203.46410161513776 },
+      { x: -10, z: 10.464101615137755 },
     ], sideB: [] },
   },
   {
-    slot: 6, name: 'Hrub čelo', vbdCode: '',
-    shape: 'polygon', radius: 0, tipAngle: 90, toolAngle: -15,
-    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
-    vc: 200, f: 0.25, ap: 2.5,
+    slot: 6, name: 'Upichovak', vbdCode: '',
+    shape: 'parting', radius: 0.8, tipAngle: 55, toolAngle: 0,
+    clearanceAngle: 0, toolLength: 5, tipFlat: 0.1,
+    vc: 120, f: 0.08, ap: 2,
     holderLength: 200, holderWidth: 20, holderHand: 'R',
     knifeAngle: 270, holderAutoComplete: true,
     holderProfile: { sideA: [
-      { x: 25.061, z: 137.716 }, { x: 25.061, z: 30.365 }, { x: 34.22, z: 30.365 },
-      { x: 34.22, z: 13.112 }, { x: 8.679, z: -3.154 }, { x: 1.608, z: 9.094 },
-      { x: 1.608, z: 137.716 }, { x: 25.061, z: 137.716 },
+      { x: -0.8000000000000007, z: 15 }, { x: 4.199999999999999, z: 15 },
+      { x: 19.2, z: 29.999999999999996 }, { x: 19.2, z: 215 },
+      { x: -0.8000000000000007, z: 215 }, { x: -0.8000000000000007, z: 15 },
     ], sideB: [] },
   },
 ];
@@ -10360,6 +10362,25 @@ export function openCamSimulator(initialContour, initialGCode) {
     return slot;
   }
 
+  // Přeřadí nože shodné jménem s DEFAULT_TOOL_MAGAZINE na začátek (T1–T6,
+  // v pořadí obrábění) a přečísluje je — pro případ, že v zásobníku dřív
+  // zabraly jiná čísla (např. po smazání starších vlastních nožů). Vlastní
+  // nože (jiné jméno) jdou za ně se navazujícím číslováním, pořadí zachováno.
+  function _resortToolMagazineToDefaults() {
+    const order = DEFAULT_TOOL_MAGAZINE.map(d => d.name);
+    const defaults = S.toolMagazine.filter(s => order.includes(s.name))
+      .sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
+    const custom = S.toolMagazine.filter(s => !order.includes(s.name));
+    const merged = [...defaults, ...custom];
+    merged.forEach((s, i) => { s.slot = i + 1; });
+    // Mutovat POLE NA MÍSTĚ (ne S.toolMagazine = merged) — showMagazineDialog
+    // si drží `const mag = S.toolMagazine` a nový reference by nezachytil.
+    S.toolMagazine.length = 0;
+    S.toolMagazine.push(...merged);
+    S.activeMagazineSlot = null;
+    S.editingMagazineSlot = null;
+  }
+
   function _applyMagSlot(idx) {
     const slot = S.toolMagazine[idx];
     if (!slot) return;
@@ -10479,6 +10500,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div id="mag-dlg-body" style="flex:1;overflow-y:auto;min-height:0"></div>
         <div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #313244">
           <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-import-files" style="flex:1" title="Vyberte jeden nebo víc .json souborů z 💾 Uložit do PC (dialog Geometrie) — každý se přidá jako nový slot, název podle souboru">📥 Import ze souborů</button>
+          <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-resort" style="flex:1" title="Přečísluje výchozí nože (Hrub čelo, Hrubovaci, Šlicht, Kulaty, Zavit, Upichovak) zpět na T1–T6 v pořadí obrábění; vlastní nože přesune za ně">🔄 Seřadit dle výchozích</button>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
           <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-save-current" style="flex:1" title="Uloží aktuálně nastavenou destičku i držák (ze záložky Parametry / Geometrie) jako nový nůž">💾 Uložit aktuální nástroj</button>
@@ -10720,6 +10742,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         });
       });
       inp.click();
+    });
+
+    dlg.querySelector('#mag-dlg-resort').addEventListener('click', () => {
+      _resortToolMagazineToDefaults();
+      saveState();
+      showToast('Zásobník přeřazen: výchozí nože na T1–T6, vlastní za nimi');
+      renderBody();
     });
 
     dlg.querySelector('#mag-dlg-save-current').addEventListener('click', () => {
