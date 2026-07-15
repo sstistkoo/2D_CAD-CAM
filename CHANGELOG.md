@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Geometry-library migration groundwork (Clipper2 / Turf.js / Detect-Collisions):
+  new adapter `js/geom/geomCore.js` — the single entry point for all geometry
+  libs (CAM code never imports `lib/` directly). Wraps Clipper2 boolean ops,
+  offsets, point-in-polygon, simplify and Minkowski tool sweep in the CAM
+  `{x, z}` mm convention (precision 1e-4 mm), adds a `StockModel` class for
+  incremental material removal / collision queries, and lazy loaders
+  `ensureTurf()` / `ensureCollisions()`. Covered by `tests/geom-core.test.js`
+  (11 tests). Migration plan: `docs/geometry-libs-migration.md`
 - CAM Simulator: "⚙️ Geometrie" dialog for insert (VBD) + tool holder geometry,
   opened from the "Nástroj" panel — live 2D preview canvas
   (`drawInsertAndHolderPreview`), bidirectionally synced with the main panel,

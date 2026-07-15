@@ -11,15 +11,8 @@ import { initAutoSave } from './storage.js';
 import { getMeta, setMeta, migrateFromLocalStorage } from './idb.js';
 import { bridge } from './bridge.js';
 import { loadFont } from './lib/fontLoader.js';
-import {
-  Clipper,
-  FillRule,
-  JoinType,
-  EndType,
-  triangulate,
-  triangulateD,
-  TriangulateResult
-} from '../lib/clipper2.min.js';
+// Geometrické knihovny (Clipper2/Turf/Detect-Collisions) se importují
+// výhradně přes adaptér js/geom/geomCore.js — ne přímo z lib/.
 
 // Preload font pro vektorový text v DXF (na pozadí, nedrží start aplikace)
 loadFont().catch(() => { /* fallback uvnitř export funkce */ });
