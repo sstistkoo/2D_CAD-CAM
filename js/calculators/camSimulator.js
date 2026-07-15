@@ -3594,6 +3594,89 @@ if (typeof bridge !== 'undefined') {
   bridge.applyCamToolGeometry = applyCamToolGeometry;
 }
 
+// Výchozí sada nožů v 🔧 Zásobníku nástrojů (T1–T6) — pro rovnou testování
+// drah bez nutnosti ručně importovat/zadávat geometrii. Nasadí se jen při
+// prvním spuštění (prázdný localStorage); jakmile uživatel zásobník uloží
+// (i prázdný), jeho stav se odteď respektuje beze změny.
+const DEFAULT_TOOL_MAGAZINE = [
+  {
+    slot: 1, name: 'Zavit', vbdCode: '',
+    shape: 'threading', radius: 0, tipAngle: 60, toolAngle: 0,
+    clearanceAngle: 0, toolLength: 4, tipFlat: 0.1,
+    vc: 100, f: 1.5, ap: 0.1,
+    holderLength: 200, holderWidth: 20, holderHand: 'R',
+    knifeAngle: 270, holderAutoComplete: true,
+    holderProfile: { sideA: [
+      { x: -10, z: 10.464101615137755 }, { x: -3.0000000000000018, z: 3.4641016151377553 },
+      { x: 3, z: 3.4641016151377553 }, { x: 10, z: 10.464101615137753 },
+      { x: 10, z: 203.46410161513776 }, { x: -10, z: 203.46410161513776 },
+      { x: -10, z: 10.464101615137755 },
+    ], sideB: [] },
+  },
+  {
+    slot: 2, name: 'Upichovak', vbdCode: '',
+    shape: 'parting', radius: 0.8, tipAngle: 55, toolAngle: 0,
+    clearanceAngle: 0, toolLength: 5, tipFlat: 0.1,
+    vc: 120, f: 0.08, ap: 2,
+    holderLength: 200, holderWidth: 20, holderHand: 'R',
+    knifeAngle: 270, holderAutoComplete: true,
+    holderProfile: { sideA: [
+      { x: -0.8000000000000007, z: 15 }, { x: 4.199999999999999, z: 15 },
+      { x: 19.2, z: 29.999999999999996 }, { x: 19.2, z: 215 },
+      { x: -0.8000000000000007, z: 215 }, { x: -0.8000000000000007, z: 15 },
+    ], sideB: [] },
+  },
+  {
+    slot: 3, name: 'Šlicht', vbdCode: '',
+    shape: 'polygon', radius: 0.8, tipAngle: 55, toolAngle: 25,
+    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
+    vc: 200, f: 0.25, ap: 2.5,
+    holderLength: 200, holderWidth: 20, holderHand: 'R',
+    knifeAngle: 270, holderAutoComplete: true,
+    holderProfile: { sideA: [
+      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
+      { x: 20, z: 200 }, { x: 0, z: 200 }, { x: 0, z: 0 },
+    ], sideB: [] },
+  },
+  {
+    slot: 4, name: 'Kulaty', vbdCode: '',
+    shape: 'round', radius: 10, tipAngle: 90, toolAngle: 15,
+    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
+    vc: 180, f: 0.15, ap: 1.5,
+    holderLength: 200, holderWidth: 20, holderHand: 'R',
+    knifeAngle: 270, holderAutoComplete: true,
+    holderProfile: { sideA: [
+      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
+      { x: 20, z: 200 }, { x: 0, z: 200 }, { x: 0, z: 0 },
+    ], sideB: [] },
+  },
+  {
+    slot: 5, name: 'Hrubovaci', vbdCode: '',
+    shape: 'polygon', radius: 0.8, tipAngle: 90, toolAngle: 15,
+    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
+    vc: 200, f: 0.25, ap: 2.5,
+    holderLength: 200, holderWidth: 20, holderHand: 'R',
+    knifeAngle: 270, holderAutoComplete: true,
+    holderProfile: { sideA: [
+      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
+      { x: 20, z: 200 }, { x: 0, z: 200 }, { x: 0, z: 0 },
+    ], sideB: [] },
+  },
+  {
+    slot: 6, name: 'Hrub čelo', vbdCode: '',
+    shape: 'polygon', radius: 0, tipAngle: 90, toolAngle: -15,
+    clearanceAngle: 0, toolLength: 10, tipFlat: 0.1,
+    vc: 200, f: 0.25, ap: 2.5,
+    holderLength: 200, holderWidth: 20, holderHand: 'R',
+    knifeAngle: 270, holderAutoComplete: true,
+    holderProfile: { sideA: [
+      { x: 25.061, z: 137.716 }, { x: 25.061, z: 30.365 }, { x: 34.22, z: 30.365 },
+      { x: 34.22, z: 13.112 }, { x: 8.679, z: -3.154 }, { x: 1.608, z: 9.094 },
+      { x: 1.608, z: 137.716 }, { x: 25.061, z: 137.716 },
+    ], sideB: [] },
+  },
+];
+
 export function openCamSimulator(initialContour, initialGCode) {
   // Během kreslení držáku na CAD plátně je CAM overlay schovaný a plátno
   // patří CAD kreslení — nedovolit otevřít/přepnout do CAM (návrat jen přes
@@ -3861,8 +3944,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     machiningConfigOpen: false,
     machiningSubTab: 'hrub',
     errorsOpen: false,
-    // Zásobník nástrojů — revolverový stroj
-    toolMagazine: [],      // pole slotů, každý viz _defaultMagSlot()
+    // Zásobník nástrojů — revolverový stroj. Doplní se výchozími T1–T6 (viz
+    // DEFAULT_TOOL_MAGAZINE) níž po načtení ze savu — podle jména, ať se
+    // nezdvojí a nepřepíšou vlastní nože.
+    toolMagazine: [],
     activeMagazineSlot: null,  // index aktivního slotu (null = zásobník nepoužit)
     editingMagazineSlot: null  // index právě editovaného slotu (rozbalená karta)
   };
@@ -3913,6 +3998,20 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
     }
   } catch (_) { /* ignore */ }
+
+  // Doplnit chybějící výchozí nože (T1–T6) do zásobníku podle jména — ať jsou
+  // vždy k dispozici na testování drah, ale nezdvojí se ani nepřepíšou
+  // uživatelovy vlastní nože se stejným slotem.
+  {
+    const existingNames = new Set(S.toolMagazine.map(s => s.name));
+    let nextSlot = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(s => s.slot)) + 1 : 1;
+    DEFAULT_TOOL_MAGAZINE.forEach(def => {
+      if (existingNames.has(def.name)) return;
+      const slot = JSON.parse(JSON.stringify(def));
+      slot.slot = nextSlot++;
+      S.toolMagazine.push(slot);
+    });
+  }
 
   // Závit nakreslený v CAD (nástroj Závit ukládá metadata threadInfo na
   // úsečku hřbetu) → předvyplnit parametry záložky Závit. Aktivace
@@ -9923,22 +10022,24 @@ export function openCamSimulator(initialContour, initialGCode) {
           </div>
           <div style="flex:1;overflow-y:auto;min-height:0;margin-top:8px">
             <div style="display:${activeGeomTab === 'insert' ? '' : 'none'}">
+              <div class="cam-sim-section-title">VBD kód</div>
               <div class="cam-sim-row">
-                <button data-act="geom-open-vbd" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px">🔩 VBD dekodér</button>
-              </div>
-              <div class="cam-sim-row">
-                <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-p="toolVbdCode" value="${prms.toolVbdCode || ''}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
+                <button data-act="geom-open-vbd" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Rozpoznat rozměry destičky z ISO kódu VBD">🔩 Dekodér</button>
+                <div class="cam-sim-field" style="flex:2"><input type="text" data-p="toolVbdCode" value="${prms.toolVbdCode || ''}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
               </div>
               ${_renderInsertShapeFieldsHTML(prms)}
+              <div class="cam-sim-section-title">Natočení</div>
               <div class="cam-sim-row">
                 <button data-act="geom-open-rotate-insert" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení jen destičky (polární úhel)">↻ Natočení destičky (${prms.toolAngle}°)</button>
               </div>
             </div>
             <div style="display:${activeGeomTab === 'holder' ? '' : 'none'}">
+              <div class="cam-sim-section-title">🧰 Zásobník nástrojů</div>
               <div class="cam-sim-row">
                 <button data-act="geom-open-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Otevřít zásobník nástrojů">🔧 Zásobník</button>
-                <button data-act="geom-save-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Uloží aktuální destičku i držák jako nový nůž v zásobníku pro pozdější použití">💾 Uložit do zásobníku</button>
+                <button data-act="geom-save-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Uloží aktuální destičku i držák jako nový nůž v zásobníku pro pozdější použití">💾 Uložit nůž</button>
               </div>
+              <div class="cam-sim-section-title">Rozměry a natočení</div>
               <div class="cam-sim-row">
                 <button data-act="geom-toggle-hand" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Ruka držáku — při otevření odvozena ze směru hrubování, zde lze přepnout ručně">⇄ Ruka: ${prms.holderHand === 'L' ? 'Levá (L)' : 'Pravá (R)'}</button>
                 <button data-act="geom-open-rotate-knife" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení celého nože (destička i držák). Šipka ukazuje směrem k destičce. 270° = destička dole / držák nahoru.">↻ Natočení nože (${prms.knifeAngle ?? 270}°)</button>
@@ -9953,13 +10054,16 @@ export function openCamSimulator(initialContour, initialGCode) {
               </div>
               <div class="cam-sim-row">
                 <button data-act="geom-toggle-shape-info" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vypíše obrys držáku bod po bodu (délka + úhel každého úseku) — stejná data jako 📐 Kreslit na CAD plátně / 🔧 Upravit obdélník">${holderShapeInfoOpen ? '▾' : '▸'} Tvar držáku${holderProfileSegCount(prms.holderProfile) > 0 ? ` (${holderProfileSegCount(prms.holderProfile)} úseků)` : ''}</button>
+                <button data-act="geom-export-tool" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Uložit celý nůž (destička + držák) jako .json soubor na disk">💾 Uložit do PC</button>
+                <button data-act="geom-import-tool" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Načíst nůž (destička + držák) z .json souboru z disku">📂 Načíst z PC</button>
               </div>
-              ${holderShapeInfoOpen ? `<div style="border:1px solid #313244;border-radius:6px;padding:4px 2px;margin:0 0 8px;overflow-x:auto">${holderShapeInfoHTML(prms)}</div>` : ''}
+              ${holderShapeInfoOpen ? `<div class="cam-sim-info-box" style="font-style:normal;padding:6px 4px;margin:0 0 8px;overflow-x:auto">${holderShapeInfoHTML(prms)}</div>` : ''}
+              <div class="cam-sim-section-title">Vlastní obrys</div>
               ${(() => {
                 const anchorsSupported = prms.toolShape === 'round' || prms.toolShape === 'polygon';
                 const prof = prms.holderProfile;
                 const hasProfileNow = !!(prof && ((prof.sideA && prof.sideA.length) || (prof.sideB && prof.sideB.length)));
-                return `<div style="font-size:10px;color:#6c7086;margin:6px 0 4px">Vlastní obrys — klikněte na zvýrazněný bod na destičce v náhledu, pak zadejte délku a úhel jednotlivých úseček:</div>
+                return `<div class="cam-sim-info-box" style="margin-bottom:6px">Klikněte na zvýrazněný bod na destičce v náhledu, pak zadejte délku a úhel jednotlivých úseček.</div>
                 <div class="cam-sim-row">
                   <button data-act="geom-toggle-draw" class="cam-sim-btn ${drawModeActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" ${anchorsSupported ? '' : 'disabled'} title="${anchorsSupported ? 'Klikněte na zvýrazněný bod na destičce v náhledu nahoře' : 'Ruční obrys je zatím podporovaný jen pro kulatou a čtyřstrannou destičku'}">✏️ Kreslit obrys${drawModeActive ? ' (aktivní)' : ''}</button>
                   ${hasProfileNow ? `<button data-act="geom-clear-profile" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px">🗑 Smazat obrys</button>` : ''}
@@ -9967,7 +10071,8 @@ export function openCamSimulator(initialContour, initialGCode) {
                 <div class="cam-sim-row">
                   <button data-act="geom-draw-on-cad" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vyčistí CAD plátno (se zálohou), vygeneruje destičku jako zamčenou geometrii a nechá vás nakreslit držák běžnými CAD nástroji. Dole ✓ Potvrdit / ✕ Zrušit.">📐 Kreslit na CAD plátně</button>
                 </div>
-                <div style="font-size:10px;color:#6c7086;margin:8px 0 4px">Úprava obdélníku držáku přímo v náhledu — přesuň roh na bod destičky (vč. 🎯 Střed R) a sraž druhý roh:</div>
+                <div class="cam-sim-section-title">Editor obdélníku</div>
+                <div class="cam-sim-info-box" style="margin-bottom:6px">Přesuňte roh na bod destičky (vč. 🎯 Střed R) a sražte druhý roh přímo v náhledu.</div>
                 <div class="cam-sim-row">
                   <button data-act="geom-rect-edit" class="cam-sim-btn ${rectEditActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Zobrazí obdélník držáku se 3 body na spodní hraně (2 rohy + střed) a body destičky. Klik na bod držáku → klik na bod destičky = přesun.">🔧 Upravit obdélník${rectEditActive ? ' (aktivní)' : ''}</button>
                   ${rectEditActive ? `
@@ -10012,6 +10117,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (geomSaveMagBtn) geomSaveMagBtn.addEventListener('click', () => saveCurrentToolToMagazine());
       const toggleShapeInfoBtn = dlg.querySelector('[data-act="geom-toggle-shape-info"]');
       if (toggleShapeInfoBtn) toggleShapeInfoBtn.addEventListener('click', () => { holderShapeInfoOpen = !holderShapeInfoOpen; render(); });
+      const exportToolBtn = dlg.querySelector('[data-act="geom-export-tool"]');
+      if (exportToolBtn) exportToolBtn.addEventListener('click', () => exportToolGeometryFile());
+      const importToolBtn = dlg.querySelector('[data-act="geom-import-tool"]');
+      if (importToolBtn) importToolBtn.addEventListener('click', () => importToolGeometryFile());
       const toggleHandBtn = dlg.querySelector('[data-act="geom-toggle-hand"]');
       if (toggleHandBtn) toggleHandBtn.addEventListener('click', withHistory(() => {
         S.params.holderHand = S.params.holderHand === 'L' ? 'R' : 'L';
@@ -10211,6 +10320,46 @@ export function openCamSimulator(initialContour, initialGCode) {
     };
   }
 
+  // Odhadnuté řezné podmínky podle tvaru — soubory z 💾 Uložit do PC/Zásobník
+  // je neobsahují (jen geometrie destička+držák), takže se doplní rozumný
+  // výchozí odhad namísto obecného _defaultMagSlot() nastavení pro kolečko.
+  const MAG_CUT_DEFAULTS_BY_SHAPE = {
+    round: { vc: 180, f: 0.15, ap: 1.5 },
+    polygon: { vc: 200, f: 0.25, ap: 2.5 },
+    parting: { vc: 120, f: 0.08, ap: 2 },
+    threading: { vc: 100, f: 1.5, ap: 0.1 },
+  };
+
+  // Odvodí název slotu z názvu souboru (bez přípony a "_T1" suffixu z exportu).
+  function _slotNameFromFilename(filename) {
+    const base = String(filename || '').replace(/\.json$/i, '').replace(/_T\d+$/i, '')
+      .replace(/[_-]+/g, ' ').trim();
+    if (!base) return 'Nůž';
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  }
+
+  // Postaví slot zásobníku z exportované geometrie nástroje (viz
+  // exportToolGeometryFile/CAM_TOOL_KEYS) — pro 📥 Import ze souborů.
+  function _buildMagSlotFromTool(tool, num, name) {
+    const slot = _defaultMagSlot(num);
+    slot.name = name;
+    if (tool.toolVbdCode) slot.vbdCode = tool.toolVbdCode;
+    if (tool.toolShape) slot.shape = tool.toolShape;
+    if (tool.toolRadius !== undefined) slot.radius = tool.toolRadius;
+    if (tool.toolTipAngle !== undefined) slot.tipAngle = tool.toolTipAngle;
+    if (tool.toolAngle !== undefined) slot.toolAngle = tool.toolAngle;
+    if (tool.toolLength !== undefined) slot.toolLength = tool.toolLength;
+    if (tool.toolTipFlat !== undefined) slot.tipFlat = tool.toolTipFlat;
+    if (tool.holderLength !== undefined) slot.holderLength = tool.holderLength;
+    if (tool.holderWidth !== undefined) slot.holderWidth = tool.holderWidth;
+    if (tool.holderHand !== undefined) slot.holderHand = tool.holderHand;
+    if (tool.knifeAngle !== undefined) slot.knifeAngle = tool.knifeAngle;
+    if (tool.holderAutoComplete !== undefined) slot.holderAutoComplete = tool.holderAutoComplete;
+    slot.holderProfile = tool.holderProfile ? JSON.parse(JSON.stringify(tool.holderProfile)) : null;
+    Object.assign(slot, MAG_CUT_DEFAULTS_BY_SHAPE[slot.shape] || {});
+    return slot;
+  }
+
   function _applyMagSlot(idx) {
     const slot = S.toolMagazine[idx];
     if (!slot) return;
@@ -10275,6 +10424,49 @@ export function openCamSimulator(initialContour, initialGCode) {
     showToast(`Nůž (destička + držák) uložen do zásobníku jako T${slot.slot}`);
   }
 
+  /** Stáhne aktuální nůž (destička + držák, stejná pole jako CAM_TOOL_KEYS —
+   * sdílené s knihovnou/projektem/zásobníkem) jako .json soubor na disk. */
+  function exportToolGeometryFile() {
+    const tool = _pickCamTool(S.params);
+    if (!tool) return;
+    const payload = { __skicaTool: 1, savedAt: new Date().toISOString(), toolName: S.params.toolName || '', tool };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeName = (S.params.toolName || 'nastroj').replace(/[^a-z0-9_-]+/gi, '_');
+    a.download = `nuz_${safeName}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Nůž (destička + držák) uložen do souboru');
+  }
+
+  /** Načte nůž (destička + držák) z .json souboru vyexportovaného výše. */
+  function importToolGeometryFile() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.addEventListener('change', () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        let data;
+        try { data = JSON.parse(reader.result); }
+        catch (_) { alert('Soubor se nepodařilo načíst (neplatný JSON).'); return; }
+        const tool = data && data.tool && typeof data.tool === 'object' ? data.tool : data;
+        if (!tool || !tool.toolShape) { alert('Soubor neobsahuje platnou geometrii nástroje (destička + držák).'); return; }
+        pushHistory();
+        for (const k of CAM_TOOL_KEYS) if (tool[k] !== undefined) S.params[k] = tool[k];
+        fullUpdate();
+        if (toolGeomModalRefresh) toolGeomModalRefresh();
+        showToast('Nůž (destička + držák) načten ze souboru');
+      };
+      reader.readAsText(file);
+    });
+    inp.click();
+  }
+
   function showMagazineDialog() {
     const mag = S.toolMagazine;
 
@@ -10285,7 +10477,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="input-dialog" style="min-width:400px;max-width:540px;width:100%;max-height:82vh;display:flex;flex-direction:column">
         <h3 style="margin:0 0 12px">🔧 Zásobník nástrojů</h3>
         <div id="mag-dlg-body" style="flex:1;overflow-y:auto;min-height:0"></div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;border-top:1px solid #313244;padding-top:10px">
+        <div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #313244">
+          <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-import-files" style="flex:1" title="Vyberte jeden nebo víc .json souborů z 💾 Uložit do PC (dialog Geometrie) — každý se přidá jako nový slot, název podle souboru">📥 Import ze souborů</button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
           <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-save-current" style="flex:1" title="Uloží aktuálně nastavenou destičku i držák (ze záložky Parametry / Geometrie) jako nový nůž">💾 Uložit aktuální nástroj</button>
           <button class="cam-sim-btn cam-sim-btn-gray" id="mag-dlg-add" style="flex:1">＋ Přidat nůž</button>
           <button class="btn-cancel" id="mag-dlg-close">Zavřít</button>
@@ -10493,6 +10688,38 @@ export function openCamSimulator(initialContour, initialGCode) {
       mag.push(_defaultMagSlot(nextSlot));
       S.editingMagazineSlot = mag.length - 1;
       saveState(); renderBody();
+    });
+
+    dlg.querySelector('#mag-dlg-import-files').addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.json,application/json'; inp.multiple = true;
+      inp.addEventListener('change', () => {
+        const files = Array.from(inp.files || []);
+        if (!files.length) return;
+        let remaining = files.length, added = 0;
+        files.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            remaining--;
+            try {
+              const data = JSON.parse(reader.result);
+              const tool = data && data.tool && typeof data.tool === 'object' ? data.tool : data;
+              if (tool && tool.toolShape) {
+                const nextSlot = mag.length > 0 ? Math.max(...mag.map(s => s.slot)) + 1 : 1;
+                mag.push(_buildMagSlotFromTool(tool, nextSlot, _slotNameFromFilename(file.name)));
+                added++;
+              }
+            } catch (_) { /* neplatný/nekompatibilní soubor přeskočen */ }
+            if (remaining === 0) {
+              saveState();
+              showToast(added > 0 ? `Do zásobníku přidáno ${added} nožů ze souborů` : 'Nepodařilo se rozpoznat žádný platný soubor nože');
+              renderBody();
+            }
+          };
+          reader.readAsText(file);
+        });
+      });
+      inp.click();
     });
 
     dlg.querySelector('#mag-dlg-save-current').addEventListener('click', () => {
