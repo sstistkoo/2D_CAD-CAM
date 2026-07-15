@@ -1047,14 +1047,131 @@ body {
   flex: 1;
 }
 
-.color-popover-custom input[type="color"] {
+.color-popover-swatch-toggle {
   width: 32px;
   height: 26px;
   padding: 0;
   border: 1px solid var(--ctp-surface1);
   border-radius: 4px;
   cursor: pointer;
-  background: none;
+}
+
+/* ── Vlastní color picker (SV plocha + hue + RGB) — nahrazuje nativní
+   input[type=color], jehož popup se na úzkém mobilním viewportu vykresloval
+   mimo obrazovku a nešlo ho žádnou CSS ovlivnit ── */
+.custom-picker-panel {
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.custom-picker-sv {
+  position: relative;
+  width: 100%;
+  height: 130px;
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.custom-picker-sv-white {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #fff, rgba(255,255,255,0));
+}
+
+.custom-picker-sv-black {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #000, rgba(0,0,0,0));
+}
+
+.custom-picker-sv-cursor {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(0,0,0,0.3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.custom-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.custom-picker-preview {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--ctp-surface1);
+  flex-shrink: 0;
+}
+
+.custom-picker-hue {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  outline: none;
+  cursor: pointer;
+}
+
+.custom-picker-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--ctp-crust);
+  cursor: pointer;
+}
+
+.custom-picker-hue::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--ctp-crust);
+  cursor: pointer;
+}
+
+.custom-picker-rgb {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.custom-picker-num {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.custom-picker-num input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 2px;
+  text-align: center;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-text);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: "Consolas", monospace;
+}
+
+.custom-picker-num span {
+  font-size: 10px;
+  color: var(--ctp-subtext0);
 }
 
 .color-popover-eyedrop {

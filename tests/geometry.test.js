@@ -487,6 +487,42 @@ describe('distToObject', () => {
   it('neznámý typ → Infinity', () => {
     expect(distToObject({ type: 'alien' }, 0, 0)).toBe(Infinity);
   });
+
+  // ── 'fill' (výplň z nástroje Vybarvit) — musí jít vybrat kliknutím dovnitř,
+  // jinak na ni nejde použít tlačítko Smaž (nahlášený bug: klik na vybarvenou
+  // plochu nic nevybral, takže Smaž neměl co smazat).
+  it('fill: klik dovnitř smyčky vybere výplň (dist 0)', () => {
+    const fillObj = {
+      type: 'fill',
+      loops: [[{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]],
+    };
+    expect(distToObject(fillObj, 5, 5)).toBe(0);
+  });
+
+  it('fill: klik mimo smyčku → Infinity', () => {
+    const fillObj = {
+      type: 'fill',
+      loops: [[{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]],
+    };
+    expect(distToObject(fillObj, 50, 50)).toBe(Infinity);
+  });
+
+  it('fill: mezikruží (2 smyčky, evenodd) — díra se nevybírá, prstenec ano', () => {
+    const donut = {
+      type: 'fill',
+      loops: [
+        [{ x: -10, y: -10 }, { x: 10, y: -10 }, { x: 10, y: 10 }, { x: -10, y: 10 }], // vnější
+        [{ x: -3, y: -3 }, { x: 3, y: -3 }, { x: 3, y: 3 }, { x: -3, y: 3 }],          // vnitřní díra
+      ],
+    };
+    expect(distToObject(donut, 0, 0)).toBe(Infinity); // uvnitř díry
+    expect(distToObject(donut, 6, 6)).toBe(0);         // v prstenci
+    expect(distToObject(donut, 50, 50)).toBe(Infinity); // úplně mimo
+  });
+
+  it('fill: bez loops → Infinity (nehavaruje)', () => {
+    expect(distToObject({ type: 'fill' }, 0, 0)).toBe(Infinity);
+  });
 });
 
 // ════════════════════════════════════════

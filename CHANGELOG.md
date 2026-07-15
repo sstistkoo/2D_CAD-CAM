@@ -104,27 +104,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   active
 - Vrstvy panel: clicking a layer's color dot now opens a small custom popover
   (`openLayerColorPicker()`, built on a shared `openColorPicker()`) with 7
-  one-click rainbow presets, a native color input for a custom color, and an
-  explicit OK/✕ pair — replacing the bare `input[type=color]` swatch, whose
-  native OS picker couldn't be styled or extended with presets. Swatches,
-  the custom input and the sliders all live-preview without closing the
-  popover; only **OK** commits, while **✕**, Escape, or clicking outside all
-  revert every change made in that session and close. The same popover also
-  has a "Tloušťka čáry" slider (0.5–5 px, per-layer `layer.lineWidth`, falls
-  back to the existing `LINE_WIDTH` constant when unset) — `render.js`'s main
-  draw loop reads it per-object via the object's assigned layer. Also added a
-  💧 eyedropper next to "Vlastní barva": hides the popover and lets you click
-  an object on the canvas to reuse its color (`pickColorFromCanvas()` in
-  `ui.js`, same `click`/`touchend`-on-`drawCanvas` pattern as the existing
-  "Vybrat z mapy" pickers in `numericalInput.js`/`objectDialogs.js`, so it
-  works on touch too) — clicking empty canvas cancels the pick instead of
-  grabbing the background/grid color, since `findObjectAt()` returns nothing
-  there. The resolved color always matches what's actually drawn (shared
+  one-click rainbow presets and an explicit OK/✕ pair — replacing the bare
+  `input[type=color]` swatch, whose native OS popup couldn't be styled,
+  extended with presets, or reliably positioned: on narrow mobile viewports
+  it rendered using desktop-scale coordinates and could open partly or
+  entirely off-screen (browser chrome, outside CSS's control). "Vlastní
+  barva" now toggles a fully custom, self-contained picker instead
+  (saturation/value gradient square + hue slider + R/G/B number fields, HSV
+  ⇄ RGB conversion helpers in `ui.js`) that always renders inside the same
+  dialog, so it's correctly positioned at any viewport size. It also has its
+  own 💧 eyedropper: hides the popover and lets you click an object on the
+  canvas to reuse its color (`pickColorFromCanvas()`, same `click`/
+  `touchend`-on-`drawCanvas` pattern as the existing "Vybrat z mapy" pickers
+  in `numericalInput.js`/`objectDialogs.js`, so it works on touch too) —
+  clicking empty canvas cancels the pick instead of grabbing the
+  background/grid color, since `findObjectAt()` returns nothing there. The
+  resolved color always matches what's actually drawn (shared
   `resolveObjectColor()`, extracted from the main render loop so both places
-  can't drift apart). This sidesteps the native `input[type=color]` popup
-  entirely, whose OS-positioned popup can render partly off-screen on narrow
-  mobile viewports (browser chrome, outside CSS's control) — the eyedropper
-  stays fully in-app and correctly positioned there
+  can't drift apart). Swatches, the SV square, hue/RGB fields and the
+  sliders all live-preview without closing the popover; only **OK** commits,
+  while **✕**, Escape, or clicking outside all revert every change made in
+  that session and close. The same popover also has a "Tloušťka čáry" slider
+  (0.5–5 px, per-layer `layer.lineWidth`, falls back to the existing
+  `LINE_WIDTH` constant when unset) — `render.js`'s main draw loop reads it
+  per-object via the object's assigned layer
 - Vlastnosti panel: the "Barva" row now applies to the *entire current
   selection* at once (reuses the same rainbow-preset popover as the layer
   color, via `openObjectColorPicker()`) instead of only the primary selected
@@ -256,6 +259,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   making the Vrstvy panel's Kóty visibility toggle hide/show the wrong
   objects, and mixing dimension geometry into Kontura/Konstrukce. All of these
   now explicitly set `layer: 2`
+- Výplně (`type: 'fill'`, nástroj "Vybarvit") nešly vybrat kliknutím na
+  plátno — `distToObject()` je pro neznámé typy záměrně vylučoval z výběru
+  (default: `Infinity`), takže kliknutí na vybarvenou plochu nic nevybralo a
+  hlavní tlačítko **Smaž** tak nemělo co smazat. Přidán case `'fill'`
+  (evenodd test přes všechny smyčky, stejný jako při vykreslení —
+  mezikruží se tedy správně vybírá jen za prstenec, ne za díru uprostřed).
 
 ## [1.7.0] - 2026-07-04
 

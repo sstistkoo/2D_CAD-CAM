@@ -615,6 +615,24 @@ export function distToObject(obj, wx, wy) {
       const cy = Math.max(by1, Math.min(wy, by2));
       return Math.hypot(wx - cx, wy - cy);
     }
+    case "fill": {
+      // Klik dovnitř vyplněné plochy ji vybere (aby šla smazat tlačítkem
+      // Smaž) — evenodd přes všechny smyčky stejně jako při vykreslení
+      // (drawFills), takže díra mezikruží se správně NEbere jako "uvnitř".
+      if (!obj.loops || obj.loops.length === 0) return Infinity;
+      let inside = false;
+      for (const loop of obj.loops) {
+        let loopInside = false;
+        for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+          const xi = loop[i].x, yi = loop[i].y;
+          const xj = loop[j].x, yj = loop[j].y;
+          const hit = (yi > wy) !== (yj > wy) && wx < ((xj - xi) * (wy - yi)) / (yj - yi) + xi;
+          if (hit) loopInside = !loopInside;
+        }
+        if (loopInside) inside = !inside;
+      }
+      return inside ? 0 : Infinity;
+    }
     default:
       return Infinity;
   }
