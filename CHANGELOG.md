@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM Simulator: independent collision validation of generated toolpaths
+  (Phase 2 of the geometry-library migration,
+  `js/calculators/cam/collisionValidator.js`) — walks the whole simPath
+  block-by-block over an evolving remaining-stock polygon and reports to the
+  "⚠ Nalezeny problémy" panel when (a) the holder outline (custom
+  sideA/sideB profile or the width × length rectangle) sweeps through
+  remaining material during a cutting move, or (b) a G0 rapid would drive
+  the insert or holder through material. Uses Minkowski sweeps + boolean
+  intersection (Clipper2) with a Detect-Collisions SAT broad-phase filter
+  (manual AABB fallback), runs debounced (600 ms) after each path
+  regeneration, gated by the geometry-guard checkbox. Existing
+  interference-guide logic is untouched — this is a cross-check ahead of
+  Phase 3. Covered by `tests/collision-validator.test.js` (10 tests)
+- CAM Simulator: "Hlídat geometrii destičky" checkbox renamed to
+  "Hlídat geometrii (destička + držák)" — it now also gates the holder
+  collision validation
 - CAM Simulator: visual material removal during simulation (Phase 1 of the
   geometry-library migration, `js/calculators/cam/materialRemoval.js`) — the
   stock is kept as a polygon (`StockModel`) and the tool-tip footprint swept

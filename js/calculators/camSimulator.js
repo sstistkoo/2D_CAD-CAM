@@ -17,6 +17,8 @@ import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { MaterialRemoval } from './cam/materialRemoval.js';
+import { validateToolpath } from './cam/collisionValidator.js';
+import { ensureCollisions } from '../geom/geomCore.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
@@ -6012,6 +6014,71 @@ export function openCamSimulator(initialContour, initialGCode) {
   // JEDNOHO běhu za snímek (~60 fps) — provede se jen poslední naplánovaná
   // funkce. flushFrame() vynutí okamžité dokončení (na konci tažení).
   let _rafId = null, _rafFn = null;
+  // ── Validace kolizí držáku/destičky (Fáze 2 migrace na Clipper2) ──
+  // Nezávislá křížová kontrola vygenerovaných drah: běží debounced po
+  // fullUpdate(), výsledky přidává do S.errors (⚠ panel). Broad-phase
+  // Detect-Collisions se načítá lazy — do té doby ruční AABB filtr.
+  let _collisionsMod = null;
+  ensureCollisions().then(m => { _collisionsMod = m; });
+  let _validateTimer = null;
+  let _validatedKey = null;
+  function scheduleCollisionValidation() {
+    if (_validateTimer) clearTimeout(_validateTimer);
+    _validateTimer = setTimeout(runCollisionValidation, 600);
+  }
+  let _lastIssues = [];
+  function runCollisionValidation() {
+    _validateTimer = null;
+    const calc = S._cachedCalc;
+    if (!S.params.respectInsertGeometry || !calc || !calc.simPath || calc.simPath.length < 2) {
+      _validatedKey = null;
+      _lastIssues = [];
+      if (S.errors.some(e => e && e.collision)) {
+        S.errors = S.errors.filter(e => !(e && e.collision));
+        showErrors();
+      }
+      return;
+    }
+    // Klíč vstupů — plná validace jen při změně; jinak se jen znovu
+    // připojí nasbírané problémy (calculate() přepisuje S.errors od nuly).
+    const p = S.params;
+    const key = [
+      S.manualGCode, p.toolRadius, p.depthOfCut, p.toolLength,
+      p.holderWidth, p.holderLength, JSON.stringify(p.holderProfile || null),
+      p.stockMode, p.stockDiameter, p.stockLength, p.stockFace,
+      roughingKey(), (calc.stockPathSegments || []).length,
+    ].join('');
+    if (key !== _validatedKey) {
+      _validatedKey = key;
+      try {
+        _lastIssues = validateToolpath(calc.simPath, p, calc.stockPathSegments, {
+          backside: roughingKey() === 'backside',
+          collisions: _collisionsMod,
+        });
+      } catch (err) {
+        _lastIssues = [];
+        console.warn('CAM: validace kolizí selhala:', err);
+      }
+    }
+    const issues = _lastIssues;
+    S.errors = S.errors.filter(e => !(e && e.collision));
+    const lines = S.manualGCode.split('\n');
+    const lineLabel = (idx) => {
+      const m = idx != null && lines[idx] ? lines[idx].match(/^\s*(N\d+)/) : null;
+      return m ? m[1] : (idx != null ? `řádek ${idx + 1}` : 'dráha');
+    };
+    for (const it of issues) {
+      const where = `X${(it.x * 2).toFixed(1)} Z${it.z.toFixed(1)}`;
+      S.errors.push({
+        collision: true,
+        msg: it.kind === 'rapid'
+          ? `⛔ Rychloposuv materiálem (${lineLabel(it.lineIdx)}, ${where}) — průnik ~${it.area.toFixed(1)} mm².`
+          : `⛔ Držák v kolizi se zbývajícím materiálem (${lineLabel(it.lineIdx)}, ${where}) — průnik ~${it.area.toFixed(1)} mm².`,
+      });
+    }
+    showErrors();
+  }
+
   // ── Vizuální úběr materiálu (Fáze 1 migrace na Clipper2) ──────
   // Instance se váže na konkrétní výsledek calculate() (identita objektu);
   // po přepočtu drah se založí čerstvá nad novým polotovarem.
@@ -8624,7 +8691,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const totalGuideCount = (S.guideLines || []).length;
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
         <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
-        <span>Hlídat geometrii destičky</span>
+        <span>Hlídat geometrii (destička + držák)</span>
         ${totalGuideCount > 0 ? `<button data-act="clear-insert-guides" title="Smazat konstrukční čáry vygenerované hlídáním destičky (${totalGuideCount} čar)" style="margin-left:6px;padding:1px 7px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#fab387">🧹 ${totalGuideCount}</button>` : ''}
       </div>`;
     }
@@ -10997,7 +11064,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           S.guideLines = data.guideLines;
           // Upozornění na případně zastaralé čáry z hlídání destičky
           if (S.guideLines.length > 0 && data.params && data.params.respectInsertGeometry)
-            showToast(`Projekt obsahuje ${S.guideLines.length} konstrukční čar — pokud jsou zastaralé po změně destičky, použijte 🧹 vedle „Hlídat geometrii destičky".`, 5000);
+            showToast(`Projekt obsahuje ${S.guideLines.length} konstrukční čar — pokud jsou zastaralé po změně destičky, použijte 🧹 vedle „Hlídat geometrii".`, 5000);
         }
         if (data.zLimits) S.zLimits = Object.assign(
           { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false },
@@ -11526,6 +11593,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     S.generatedCode = generateGCode(S._cachedCalc);
     showErrors();
+    scheduleCollisionValidation();
     renderCodeArea();
     renderTab();
     draw();

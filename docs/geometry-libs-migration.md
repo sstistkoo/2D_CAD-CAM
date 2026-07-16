@@ -82,22 +82,34 @@ integrace v `camSimulator.js` (`getRemovalModel`, `remainPath` v `draw()`).
   (+ upichovák šířky b) přijde s Fází 2.
 - Testy: `tests/material-removal.test.js`.
 
-### Fáze 2 — hlídání kolizí (destička + držák) jako VALIDACE
+### Fáze 2 — hlídání kolizí (destička + držák) jako VALIDACE (HOTOVO 16. 7. 2026)
 *Stará logika dál generuje dráhy; nová je nezávisle kontroluje.*
 
-1. Složit polygon nástroje = plátek ∪ držák (`holderProfile`, nebo obdélník
-   holderWidth × holderLength) relativně ke špičce.
-2. Po vygenerování drah: pro každý posuvový úsek `toolSweep(nástroj, úsek)`
-   × `StockModel` aktuálního zbytku → průnik nad toleranci = kolize →
-   zápis do „⚠ Nalezeny problémy“ s číslem bloku.
-3. Broad-phase: Detect-Collisions `System` s bounding-boxy zbytkového
-   polotovaru; přesný `polyIntersect` až při kontaktu boxů (po dodání bundle;
-   do té doby rovnou Clipper2 — pro validaci po průchodech stačí).
-4. Přejmenovat checkbox „Hlídat geometrii destičky“ → **„Hlídat geometrii“**
-   (`respectInsertGeometry`) a vztáhnout i na držák.
-5. Až se validace usadí, teprve nahrazovat `computeInterferenceGuides` /
-   `buildHolderBoundaryPts`: mezní čáru zanoření odvodit z
-   `polyOffset(dosažitelná oblast nástroje)` místo ručních via-bodů.
+Implementace: `js/calculators/cam/collisionValidator.js`
+(`validateToolpath`, `holderProfileLoop`, `holderWorldLoop`) + integrace
+v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
+`fullUpdate()`, gated checkboxem `respectInsertGeometry`).
+
+- Obrys držáku: vlastní profil (`holderProfile.sideA` + otočená `sideB`)
+  nebo obdélník Tloušťka × Délka; transformace do světa dle strany
+  hrubování (backside zrcadlí Z) — stejně jako kreslení v `draw()`.
+- Průchod celé dráhy blok po bloku (řádek G-kódu) nad `StockModel`:
+  řezné bloky nejdřív odeberou materiál stopou destičky, pak se testuje
+  Minkowského stopa DRŽÁKU × zbytek; G0 rychloposuvy testují destičku
+  i držák (rychloposuv materiálem = havárie). Obrysy pro testy zmenšeny
+  o 0,05 mm a tolerance průniku 0,5 mm² — proti falešným dotykům.
+- Broad-phase: Detect-Collisions SAT `System` proti původnímu polotovaru
+  (lazy přes `ensureCollisions()`), fallback ruční AABB.
+- Nálezy jdou do „⚠ Nalezeny problémy“ s N-číslem řádku, X/Z pozicí
+  a plochou průniku; cache podle klíče vstupů (G-kód + nástroj + držák +
+  polotovar), plná validace jen při změně.
+- Checkbox přejmenován: „Hlídat geometrii destičky“ → **„Hlídat geometrii
+  (destička + držák)“**.
+- Testy: `tests/collision-validator.test.js`.
+- Zbývá (Fáze 2b/3): nahradit `computeInterferenceGuides` /
+  `buildHolderBoundaryPts` — mezní čáru zanoření odvodit z
+  `polyOffset(dosažitelná oblast nástroje)` místo ručních via-bodů;
+  nekruhové tvary destičky (upichovák šířky b) ve stopě nástroje.
 
 ### Fáze 3 — hrubovací dráhy z booleovské geometrie
 *Jádro přepisu; krýt regresními snapshoty, zapínat za příznakem.*
