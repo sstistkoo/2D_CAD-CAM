@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM Simulator: visual material removal during simulation (Phase 1 of the
+  geometry-library migration, `js/calculators/cam/materialRemoval.js`) — the
+  stock is kept as a polygon (`StockModel`) and the tool-tip footprint swept
+  along completed cutting moves (Minkowski sum, rapids excluded) is
+  subtracted from it as the simulation plays. The remaining-stock polygon
+  clips the CAD "Vybarvit" fills and the stock fill, so material visually
+  disappears where the tool has cut. New ⛏ toolbar toggle (persisted in
+  localStorage and project files, default on); incremental cutting with
+  periodic simplification keeps playback smooth, rewinding recomputes from
+  scratch. Covered by `tests/material-removal.test.js`
 - Geometry-library migration groundwork (Clipper2 / Turf.js / Detect-Collisions):
   new adapter `js/geom/geomCore.js` — the single entry point for all geometry
   libs (CAM code never imports `lib/` directly). Wraps Clipper2 boolean ops,

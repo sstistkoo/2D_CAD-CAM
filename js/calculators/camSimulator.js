@@ -16,6 +16,7 @@ import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
+import { MaterialRemoval } from './cam/materialRemoval.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
@@ -3704,6 +3705,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
+      <button data-act="removal" title="Úběr materiálu: při simulaci vizuálně odebírat projetý materiál z polotovaru">⛏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
@@ -3901,6 +3903,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // 'all' = vše, 'cut' = jen řezné (G1/G2/G3, skryje G0 rychloposuvy),
     // 'none' = nic. Cyklus: all → cut → none → all.
     showSimPath: 'all',
+    // Vizuální úběr materiálu při simulaci (Clipper2) — zbývající polotovar
+    // ořezává vybarvení, takže je vidět, co už nástroj odebral.
+    showRemoval: true,
     draggedLimit: null, // 'chuck' | 'tail' | 'rangeStart' | 'rangeEnd' | 'rangeXMin' | 'rangeXMax' nebo null
     simRunning: false, simProgress: 0,
     manualGCode: '',
@@ -3998,6 +4003,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (typeof p.showSimPath === 'boolean') S.showSimPath = p.showSimPath ? 'all' : 'none';
         else if (['all', 'cut', 'none'].includes(p.showSimPath)) S.showSimPath = p.showSimPath;
       }
+      if (typeof p.showRemoval === 'boolean') S.showRemoval = p.showRemoval;
     }
   } catch (_) { /* ignore */ }
 
@@ -4153,6 +4159,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     zlimBtn.classList.toggle('cam-sim-active', cfg.active);
     zlimBtn.textContent = cfg.icon;
   }
+  // Sync removal toggle button to persisted state
+  const removalBtn = toolbar.querySelector('[data-act="removal"]');
+  if (removalBtn) removalBtn.classList.toggle('cam-sim-active', !!S.showRemoval);
   // Sync sim-path toggle button to persisted state (all/cut/none)
   const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
   if (simPathBtn) {
@@ -4235,6 +4244,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
         flipX: S.flipX, flipZ: S.flipZ, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
+        showRemoval: S.showRemoval,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
       }));
     } catch (_) { /* quota */ }
@@ -6002,6 +6012,26 @@ export function openCamSimulator(initialContour, initialGCode) {
   // JEDNOHO běhu za snímek (~60 fps) — provede se jen poslední naplánovaná
   // funkce. flushFrame() vynutí okamžité dokončení (na konci tažení).
   let _rafId = null, _rafFn = null;
+  // ── Vizuální úběr materiálu (Fáze 1 migrace na Clipper2) ──────
+  // Instance se váže na konkrétní výsledek calculate() (identita objektu);
+  // po přepočtu drah se založí čerstvá nad novým polotovarem.
+  let _removal = null;
+  let _removalCalcRef = null;
+  function getRemovalModel(calc) {
+    if (!S.showRemoval || !calc || !calc.simPath || calc.simPath.length < 2) {
+      _removal = null; _removalCalcRef = null;
+      return null;
+    }
+    if (!_removal || _removalCalcRef !== calc) {
+      _removal = new MaterialRemoval(S.params, calc.stockPathSegments);
+      _removalCalcRef = calc;
+    }
+    if (!_removal.valid) return null;
+    const fIdx = S.simProgress * (calc.simPath.length - 1);
+    _removal.advanceTo(calc.simPath, fIdx);
+    return _removal;
+  }
+
   function scheduleFrame(fn) {
     _rafFn = fn;                       // ponech jen poslední požadavek
     if (_rafId !== null) return;
@@ -6104,11 +6134,43 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     ctx.fillText('X0 Z0', zero.x + 4, zero.y - 4);
 
+    // Zbývající polotovar po úběru (Fáze 1 – Clipper2): Path2D ve screen
+    // souřadnicích. Když je aktivní, ořezává vybarvení i výplň polotovaru,
+    // takže projetý materiál vizuálně mizí.
+    let remainPath = null;   // čistý zbytek materiálu (pro výplň polotovaru)
+    let fillClipPath = null; // clip pro vybarvení: vše MIMO původní polotovar + zbytek
+    if (S.simProgress > 0 && S.showRemoval) {
+      const rm = getRemovalModel(calc);
+      if (rm) {
+        const addLoop = (path, loop) => {
+          if (loop.length < 3) return;
+          const p0 = toScreen(loop[0].x, loop[0].z);
+          path.moveTo(p0.x, p0.y);
+          for (let i = 1; i < loop.length; i++) {
+            const p = toScreen(loop[i].x, loop[i].z);
+            path.lineTo(p.x, p.y);
+          }
+          path.closePath();
+        };
+        remainPath = new Path2D();
+        for (const loop of rm.model.loops) addLoop(remainPath, loop);
+        // Parity trik (evenodd): celé plátno + původní obrys polotovaru +
+        // zbylé smyčky → vyplněná oblast = mimo polotovar ∪ zbytek. Vybarvení
+        // se tedy maže jen tam, kde nástroj skutečně odebral materiál —
+        // výplně mimo polotovar (obrobek, anotace) zůstávají netknuté.
+        fillClipPath = new Path2D();
+        fillClipPath.rect(-10, -10, w + 20, h + 20);
+        addLoop(fillClipPath, rm.baseLoop);
+        for (const loop of rm.model.loops) addLoop(fillClipPath, loop);
+      }
+    }
+
     // Vybarvení (fill objekty z CAD nástroje "Vybarvit") — CAM čte state.objects
     // přímo (na rozdíl od kontury/polotovaru CAM nemá vlastní kopii těchto
     // objektů, protože jde jen o vizuální anotaci, ne obráběnou geometrii).
     // Stejné pořadí jako v CAD (js/render.js drawFills) — kreslí se pod vším.
     const camXZ = (cx, cy) => prms.machineStructure === 'carousel' ? [cx, cy] : [cy, cx];
+    if (fillClipPath) { ctx.save(); ctx.clip(fillClipPath, 'evenodd'); }
     state.objects.forEach((obj) => {
       if (obj.type !== 'fill' || !obj.loops || obj.loops.length === 0) return;
       const layer = state.layers.find(l => l.id === obj.layer);
@@ -6130,6 +6192,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       ctx.fill(path, 'evenodd');
       ctx.restore();
     });
+    if (fillClipPath) ctx.restore();
 
     // stock
     if (prms.stockMode === 'cylinder') {
@@ -6137,9 +6200,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       const sLen = parseFloat(prms.stockLength) || 0;
       const sFace = parseFloat(prms.stockFace) || 0;
       const s1 = toScreen(sRad, sFace), s2 = toScreen(sRad, -sLen), s3 = toScreen(0, -sLen), sStart = toScreen(0, sFace);
-      // filled area
+      // filled area — při aktivním úběru se kreslí jen ZBÝVAJÍCÍ materiál
       ctx.fillStyle = 'rgba(108,112,134,0.12)';
-      ctx.beginPath(); ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath(); ctx.fill();
+      if (remainPath) {
+        ctx.fill(remainPath, 'evenodd');
+      } else {
+        ctx.beginPath(); ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath(); ctx.fill();
+      }
       // outline — all 4 sides visible (tlustá červená čára)
       ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.beginPath();
       ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath();
@@ -6172,6 +6239,12 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
       });
       ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
+      // Odlitek: při aktivním úběru vyplnit zbývající materiál (válec má
+      // výplň výš — tady se jinak kreslí jen obrys).
+      if (remainPath) {
+        ctx.fillStyle = 'rgba(108,112,134,0.12)';
+        ctx.fill(remainPath, 'evenodd');
+      }
     }
 
     // contour
@@ -10879,7 +10952,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       zLimits: S.zLimits,
       showZLimits: S.showZLimits,
       xLimits: S.xLimits,
-      showSimPath: S.showSimPath
+      showSimPath: S.showSimPath,
+      showRemoval: S.showRemoval
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -10944,6 +11018,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
         if (data.xLimits) S.xLimits = Object.assign({ rangeXMin: null, rangeXMax: null, active: false }, data.xLimits);
         if (data.showSimPath) S.showSimPath = data.showSimPath;
+        if (typeof data.showRemoval === 'boolean') S.showRemoval = data.showRemoval;
         S.simRunning = false; S.simProgress = 0;
         fullUpdate();
         showToast('Projekt načten ze souboru');
@@ -11585,6 +11660,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       draw();
       saveState();
       showToast(cfg.toast);
+    } else if (act === 'removal') {
+      S.showRemoval = !S.showRemoval;
+      _removal = null; _removalCalcRef = null;
+      btn.classList.toggle('cam-sim-active', S.showRemoval);
+      draw();
+      saveState();
+      showToast(S.showRemoval ? 'Úběr materiálu při simulaci zapnut' : 'Úběr materiálu vypnut');
     } else if (act === 'zlimits') {
       // Prostý on/off – co se zobrazuje řídí checkboxy v parametrech.
       S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on';

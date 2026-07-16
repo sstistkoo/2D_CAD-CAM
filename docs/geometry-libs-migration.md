@@ -22,7 +22,7 @@ počítá s uzavřenými polygony množinově.
 |---|---|---|---|
 | Clipper2 (clipper2-ts 2.0.1-18) | `lib/clipper2.min.js` (125 kB) | ES modul | ✅ funguje (ověřeno testy) |
 | Turf.js | `lib/turf.min.js` (531 kB) | UMD → `globalThis.turf` | ✅ funguje, načítat lazy |
-| Detect-Collisions | `lib/detect-collisions.js` (1,2 kB) | ❌ CommonJS `index.js` s `require()` | **ROZBITÉ** — je to jen rozcestník z npm balíčku, ne bundle. V prohlížeči nepoběží. Stáhnout browser bundle, např. `https://cdn.jsdelivr.net/npm/detect-collisions/+esm` (~50 kB), a nahradit. |
+| Detect-Collisions | `lib/detect-collisions.js` (35 kB) | ES modul | ✅ nahrazeno soběstačným bundlem `check2d@9.36.4` (balíček detect-collisions se přejmenoval na check2d; původní soubor byl nepoužitelný CommonJS rozcestník) |
 
 CSP v `index.html` povoluje jen `script-src 'self'` — všechny knihovny musí
 zůstat lokální soubory (žádné CDN za běhu). Po přidání do produkce spustit
@@ -58,22 +58,29 @@ musí buď nechat snapshoty beze změny, nebo je změnit **vědomě** (`-u`).
 
 ## Fáze migrace
 
-### Fáze 0 — základ (HOTOVO)
+### Fáze 0 — základ (HOTOVO 15. 7. 2026)
 Adaptér + testy, úklid přímého importu Clipperu z `js/app.js`,
-odstranění rozbité source-map reference. Zbývá: nahradit
-`lib/detect-collisions.js` skutečným bundlem.
+odstranění rozbité source-map reference, náhrada
+`lib/detect-collisions.js` funkčním bundlem (check2d 9.36.4).
 
-### Fáze 1 — vizuální odebírání polotovaru v simulaci
+### Fáze 1 — vizuální odebírání polotovaru v simulaci (HOTOVO 15. 7. 2026)
 *Nízké riziko, nemění G-kód ani snapshoty.*
 
-1. Při startu simulace postavit `StockModel` z `stockWorldPoints`
-   (resp. z CAD vybarvení polotovaru — červený `fill` objekt).
-2. Obrys plátku (z `buildInsertProfileSegments` / geometrie destičky)
-   převést na uzavřenou smyčku relativně ke špičce.
-3. Po každém odsimulovaném bloku posuvu: `stock.cut(toolSweep(insertLoop, úsek))`.
-   Kvůli výkonu dávkovat (např. po celých průchodech, ne po mikrokrocích)
-   a výsledek kreslit v `draw()` místo/přes statické vybarvení.
-4. Přepínač v panelu „Zobrazit úběr materiálu“.
+Implementace: `js/calculators/cam/materialRemoval.js`
+(`MaterialRemoval`, `buildStockLoop`, `toolFootprint`) +
+integrace v `camSimulator.js` (`getRemovalModel`, `remainPath` v `draw()`).
+
+- Polotovar → `StockModel` (válec = obdélník od osy; odlitek =
+  navzorkované `stockPathSegments` uzavřené k ose X=0).
+- Stopa nástroje = Minkowského suma obrysu špičky podél řezných úseků
+  `simPath` (G0 rychloposuvy neřežou); inkrementálně po snímcích,
+  přetočení zpět = přepočet od nuly, periodický `polySimplify`.
+- Zbývající polotovar ořezává (clip) CAD vybarvení i výplň polotovaru
+  v `draw()` → materiál vizuálně mizí.
+- Přepínač ⛏ v horní liště simulátoru (persistovaný, default zapnuto).
+- V1 aproximace špičky = kružnice rádiusu R; celý polygon destičky
+  (+ upichovák šířky b) přijde s Fází 2.
+- Testy: `tests/material-removal.test.js`.
 
 ### Fáze 2 — hlídání kolizí (destička + držák) jako VALIDACE
 *Stará logika dál generuje dráhy; nová je nezávisle kontroluje.*
