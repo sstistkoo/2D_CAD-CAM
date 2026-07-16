@@ -88,10 +88,10 @@ async function loadCam() {
   const prelude = `
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from ${JSON.stringify(camMathUrl)};
 import { ROUGHING_STRATEGIES } from ${JSON.stringify(strategiesUrl)};
-import { MaterialRemoval } from ${JSON.stringify(materialRemovalUrl)};
+import { MaterialRemoval, buildStockLoop, toolFootprint } from ${JSON.stringify(materialRemovalUrl)};
 import { validateToolpath } from ${JSON.stringify(collisionValidatorUrl)};
 import { makeHolderClamp } from ${JSON.stringify(toolEnvelopeUrl)};
-import { ensureCollisions } from ${JSON.stringify(geomCoreUrl)};
+import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset } from ${JSON.stringify(geomCoreUrl)};
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from ${JSON.stringify(threadDataUrl)};
 const state = { flipX: false, flipZ: false };
 const makeOverlay = () => globalThis.document.body;

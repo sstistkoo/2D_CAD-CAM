@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM: dynamic rapid-move planning (Phase 4 core of the geometry-library
+  migration) — G-code emission now maintains a live remaining-stock polygon
+  (`StockModel`, cut pass-by-pass via `noteCutPass`) and every direct rapid
+  is tested by sweeping the insert footprint against the CURRENT remaining
+  material; a hit routes the move up over the stock, across in Z, and back
+  down (the ordering problem static blockers cannot see). Rapid stop points
+  are now measured from the tool EDGE (`clearance + tool radius`) instead
+  of the tip centre — with vůle < R the nose used to rub the stock by
+  R − vůle on every approach (the ~1 mm² grazes the validator kept
+  reporting). Open-ended passes exit the material at working feed for the
+  Z clearance distance before retracting (per spec). Isolated validator
+  results: six longitudinal fixtures now report 0 rapid collisions and
+  holder findings dropped to ordering-class residuals in pockets
 - CAM: holder envelope for the finishing pass and contour-following traces
   (Phase 3b of the geometry-library migration) — finishing segments whose
   tip would put the holder inside remaining material are skipped like

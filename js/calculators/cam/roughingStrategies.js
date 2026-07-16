@@ -52,7 +52,8 @@ export function genFacePasses(ctx) {
   // 45° retract po čelním řezu jede do už odřezané zóny (slab nad
   // currentZ byl plně odebrán předchozími pasy + aktuálním), takže
   // bezpečné.
-  const rapidClrFC = stockClearances(prms).x;
+  // Vůle od HRANY nástroje: nos špičky (R) předbíhá střed — viz emise.
+  const rapidClrFC = stockClearances(prms).x + (parseFloat(prms.toolRadius) || 0);
   // Helper: max X polotovaru (skutečná pravá hrana materiálu) na zadané Z.
   // Pro cylinder = konstantní sRad. Pro casting = max X všech průsečíků
   // svislice v Z s outline polotovaru → per-Z, takže rapid nemusí jezdit

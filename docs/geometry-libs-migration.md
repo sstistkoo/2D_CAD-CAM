@@ -201,6 +201,25 @@ Teď vrací i `calcSim` (druhý průchod z vygenerovaného kódu) a prelude
 harnessu zrcadlí všechny reálné importy camSimulatoru (chybějící symboly
 dřív tiše zabíjely obálku držáku přes try/catch).
 
+Hotovo (jádro, 17. 7. 2026):
+- **Dynamický zbytkový polotovar v emisi G-kódu**: `generateAutoGCode` si
+  drží `StockModel` a po každém průchodu ho „obrobí" (`noteCutPass` — řezné
+  pohyby průchodu v pořadí emise; rychloposuvy/odskoky se nezapočítávají).
+  Každý přímý rychloposuv (`safeRapidTo`) se testuje Minkowského stopou
+  destičky proti AKTUÁLNÍMU zbytku → při kontaktu nahoru přes polotovar,
+  přejezd v Z, sjezd (řeší kolize závislé na POŘADÍ, které statické
+  blockery nevidí).
+- **Vůle měřená od HRANY nástroje**: zastavení rychloposuvu = vůle + R
+  (`rapidStopX/Z`) — dřív při vůli < R nos špičky škrtal o polotovar o
+  R − vůle při každém nájezdu (třída ~1 mm² nálezů validátoru).
+- **Výjezd z materiálu posuvem**: otevřený konec průchodu pokračuje G1
+  ještě o Vůli Z za hranu (test proti zbytku ověří, že za koncem je
+  vzduch — hranice rozsahu/stěna se neprodlužuje), teprve pak odskok.
+- Izolovaná validace: part-1/2/4/6/9 + pocket-wall **rapid = 0**, holder
+  kleslo na ~3 (řadové zbytky v kapsách). POZOR: souhrnný sweep v jednom
+  procesu je kontaminovaný singleton stavem S mezi fixtures — měřit
+  izolovaně (proces na fixture).
+
 Zbývá:
 
 - Z **Bezpečné polohy** (`safeX`/`safeZ`) rychloposuvem; **Vůle nad

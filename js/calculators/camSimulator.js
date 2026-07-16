@@ -16,10 +16,10 @@ import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
-import { MaterialRemoval } from './cam/materialRemoval.js';
+import { MaterialRemoval, buildStockLoop, toolFootprint } from './cam/materialRemoval.js';
 import { validateToolpath } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
-import { ensureCollisions } from '../geom/geomCore.js';
+import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
@@ -5689,6 +5689,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey()] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
     // Vůle nad polotovarem po osách + úhel nájezdové rampy (ladí s calculate()).
     const { x: rapidClrGc, z: rapidClrZGc } = stockClearances(prms);
+    // Zastavení rychloposuvu: vůle se měří od HRANY nástroje — nos špičky
+    // (rádius R) předbíhá střed, takže střed staví o R dál. Jinak by při
+    // vůli < R nos při příjezdu „na vůli“ už škrtal o polotovar.
+    const tipRGc = parseFloat(prms.toolRadius) || 0;
+    const rapidStopX = rapidClrGc + tipRGc;
+    const rapidStopZ = rapidClrZGc + tipRGc;
     const entryAngleDegGc = getEffectivePlungeAngle(prms);
     const entryRadGc = entryAngleDegGc * Math.PI / 180;
     // Helper: ořezat Z na aktivní čelisti/koník limity (G-kód generace).
@@ -5712,6 +5718,74 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (s.type === 'line') rapidTopX = Math.max(rapidTopX, s.p1.x, s.p2.x);
       else rapidTopX = Math.max(rapidTopX, s.cx + s.r);
     });
+    // ── Fáze 4: dynamický zbytkový polotovar pro rychloposuvy ────────
+    // Statické blockery (offsety) nevidí POŘADÍ obrábění: přejezd nad
+    // místem, které se obrobí až později, vede skrz stojící materiál.
+    // Model polotovaru se proto během emise průběžně „obrábí" (noteCutPass
+    // po každém průchodu) a přímé rychloposuvy se testují stopou destičky
+    // proti aktuálnímu zbytku — při kontaktu se jede nahoru přes polotovar
+    // (stejný vzor jako u statických blockerů).
+    let rapidStock = null;
+    let rapidFoot = null;
+    let rapidFootSlim = null;
+    let rapidStockCuts = 0;
+    try {
+      const stockLoop0 = buildStockLoop(prms, calc.stockPathSegments);
+      if (stockLoop0) {
+        rapidStock = new StockModel([stockLoop0]);
+        rapidFoot = toolFootprint(prms);
+        rapidFootSlim = polyOffset([rapidFoot], -0.05)[0] || rapidFoot;
+      }
+    } catch (err) {
+      console.warn('CAM: dynamický model polotovaru pro rychloposuvy selhal:', err);
+      rapidStock = null;
+    }
+    const rapidHitsStock = (x1, z1, x2, z2) => {
+      if (!rapidStock) return false;
+      try {
+        const sweep = toolSweep(rapidFootSlim, [{ x: x1, z: z1 }, { x: x2, z: z2 }]);
+        return Math.abs(polyArea(rapidStock.collide(sweep))) > 0.5;
+      } catch { return false; }
+    };
+    const noteCutPts = (pts) => {
+      if (!rapidStock || pts.length < 2) return;
+      try {
+        rapidStock.cut(toolSweep(rapidFoot, pts));
+        if (++rapidStockCuts % 24 === 0) rapidStock.loops = polySimplify(rapidStock.loops, 0.002);
+      } catch { /* model je jen pro rychloposuvy — pokračovat bez řezu */ }
+    };
+    // Odebere z modelu materiál celého průchodu (řezné pohyby v pořadí
+    // emise: leadIn → rampa/vjezd → dno → leadOut). Rychloposuvy a odskoky
+    // se nezapočítávají — falešný „řez" by model podřezal a pustil
+    // rychloposuv skutečným materiálem.
+    const noteCutPass = (pass) => {
+      if (!rapidStock) return;
+      const pts = [];
+      const push = (x, z) => {
+        const l = pts[pts.length - 1];
+        if (Number.isFinite(x) && Number.isFinite(z)
+          && (!l || Math.hypot(l.x - x, l.z - z) > 1e-6)) pts.push({ x, z });
+      };
+      if (pass.type === 'face') {
+        push(pass.xStart, pass.z);
+        push(pass.xEnd, pass.z);
+      } else {
+        const li = pass.contourLeadIn || [];
+        if (li.length > 0) {
+          for (const s of li) { push(s.x1, s.z1); push(s.x2, s.z2); }
+        } else if (pass.rampFeedFrom) {
+          push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
+        } else if (pass.ramp) {
+          push(pass.ramp.x0, pass.ramp.z0);
+        }
+        push(pass.x, pass.zStart);
+        push(pass.x, pass.zEnd);
+        if (pass.contourLeadOut) {
+          for (const s of pass.contourLeadOut) { push(s.x1, s.z1); push(s.x2, s.z2); }
+        }
+      }
+      noteCutPts(pts);
+    };
     const xDia = (v) => prms.mode === 'DIAMON' ? (v * 2).toFixed(3) : v.toFixed(3);
     // Max X hrubovacího offsetu na svislici Z (pro kontrolu odskoku u stěny).
     const gcOffsetXAt = (z) => {
@@ -5749,14 +5823,18 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Sjezd v X na cíl: s touch zastaví rychloposuv o vůli výš a dojede G1.
       const descendTo = (fromX) => {
         if (touch && fromX - tx > 1e-6) {
-          if (fromX - tx > rapidClrGc + 1e-6) emit(`G0 X${xDia(tx + rapidClrGc)}`);
+          if (fromX - tx > rapidStopX + 1e-6) emit(`G0 X${xDia(tx + rapidStopX)}`);
           emit(`G1 X${xDia(tx)} F${prms.feed}`);
         } else if (Math.abs(fromX - tx) > 1e-6) {
           emit(`G0 X${xDia(tx)}`);
         }
       };
-      if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)) {
-        const xUp = Math.max(rapidTopX + rapidClrGc, cur.x, tx);
+      // Rychloposuvová část cíle: s touch končí rapid o vůli výš (zbytek
+      // sjede posuvem) — proti zbytkovému polotovaru se testuje jen ona.
+      const rTx = touch ? tx + rapidStopX : tx;
+      if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
+          || rapidHitsStock(cur.x, cur.z, rTx, tz)) {
+        const xUp = Math.max(rapidTopX + rapidStopX, cur.x, tx);
         if (xUp > cur.x + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
         if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
         descendTo(xUp);
@@ -5766,8 +5844,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         descendTo(cur.x);
       } else if (touch && cur.x - tx > 1e-6) {
         // Diagonální sjezd k materiálu: rychloposuvem jen na vůli nad cíl.
-        if (cur.x - tx > rapidClrGc + 1e-6) {
-          emit(`G0 X${xDia(tx + rapidClrGc)} Z${tz.toFixed(3)}`);
+        if (cur.x - tx > rapidStopX + 1e-6) {
+          emit(`G0 X${xDia(tx + rapidStopX)} Z${tz.toFixed(3)}`);
           emit(`G1 X${xDia(tx)} F${prms.feed}`);
         } else {
           emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}`);
@@ -5868,11 +5946,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         //   G1 Z<zStart> F               ; řez +Z (doprava)
         //   G1 X<+odskok> Z<−odskok>     ; odskok DOLEVA od kontury
         const zEng = pass.zEnd;                 // záběr = levá hrana řezu
-        const xSafe = rapidTopX + rapidClrGc;   // X bezpečně nad polotovarem
+        const xSafe = rapidTopX + rapidStopX;   // X bezpečně nad polotovarem
         const emitB = (txt) => { simCounter += 1; addN(txt, simCounter); };
         if (cur.x < xSafe - 1e-6) { emitB(`G0 X${xDia(xSafe)}`); setPos(xSafe, cur.z); }
         if (Math.abs(cur.z - zEng) > 1e-6) { emitB(`G0 Z${zEng.toFixed(3)}`); setPos(cur.x, zEng); }
-        if (cur.x - pass.x > rapidClrGc + 1e-6) emitB(`G0 X${xDia(pass.x + rapidClrGc)}`);
+        if (cur.x - pass.x > rapidStopX + 1e-6) emitB(`G0 X${xDia(pass.x + rapidStopX)}`);
         emitB(`G1 X${xDia(pass.x)} F${prms.feed}`); setPos(pass.x, zEng);
         emitB(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`); setPos(pass.x, pass.zStart);
         if (!pass.noRetract) {
@@ -5887,13 +5965,23 @@ export function openCamSimulator(initialContour, initialGCode) {
         //                                už pracovním posuvem (bezpečný dotek)
         //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
         //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
-        const zApproachVal = clipZGc(pass.zStart + rapidClrZGc);
+        const zApproachVal = clipZGc(pass.zStart + rapidStopZ);
         // Přejezd v Z na nájezdový bod s kontrolou kolize (po zanoření do
         // kapsy může nástroj stát hluboko — přímý přejezd by řízl stěnu).
         safeRapidTo(cur.x, zApproachVal);
         safeRapidTo(pass.x, zApproachVal);
         simCounter += 1; addN(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zStart);
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+        // Fáze 4: výjezd z materiálu do vzduchu — posuvem ještě o Vůli Z
+        // za konec řezu, teprve pak odskok/rychloposuv. Jen u otevřeného
+        // konce, za kterým skutečně NENÍ materiál (hrana polotovaru; stěnu
+        // ani hranici rozsahu ověří test proti zbytkovému modelu).
+        if (!pass.blocked && !pass.contourLeadOut && rapidStock) {
+          const zExit = clipZGc(pass.zEnd - rapidClrZGc);
+          if (zExit < pass.zEnd - 1e-6 && !rapidHitsStock(pass.x, pass.zEnd, pass.x, zExit)) {
+            simCounter += 1; addN(`G1 Z${zExit.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, zExit);
+          }
+        }
         if (pass.contourLeadOut) {
           // Bez schodků: dál po kontuře (G1/G2/G3) až na hloubku dalšího
           // průchodu místo okamžitého odskoku — schod se obrobí přímo.
@@ -5965,6 +6053,9 @@ export function openCamSimulator(initialContour, initialGCode) {
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
         }
       }
+      // Fáze 4: průchod je odsimulovaný — odebrat jeho materiál z modelu,
+      // ať další rychloposuvy počítají s aktuálním zbytkem polotovaru.
+      noteCutPass(pass);
     });
 
     // Návrat na bezpečnou polohu s kontrolou kolize (po zanoření do kapsy

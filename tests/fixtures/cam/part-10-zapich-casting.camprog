@@ -1,0 +1,420 @@
+{
+  "__camprog": 1,
+  "pathLogicVersion": 3,
+  "savedAt": "2026-07-16T22:31:43.247Z",
+  "params": {
+    "machineType": "LIMS=2000",
+    "mode": "DIAMON",
+    "toolName": "T1",
+    "speed": 200,
+    "feed": 0.25,
+    "depthOfCut": 2,
+    "retractDistance": 2,
+    "retractAngle": 45,
+    "allowanceX": 0,
+    "allowanceZ": 0.5,
+    "toolRadius": 0.8,
+    "finishAllowance": 0,
+    "doFinishing": false,
+    "roughingStrategy": "longitudinal",
+    "finishOnly": false,
+    "roughingSide": "right",
+    "stockMode": "casting",
+    "stockMargin": 5,
+    "stockDiameter": 82,
+    "stockLength": 5,
+    "stockFace": 136,
+    "safeX": 150,
+    "safeZ": 5,
+    "machineStructure": "lathe",
+    "controlSystem": "sinumerik",
+    "autoProfile": false,
+    "toolShape": "polygon",
+    "toolLength": 10,
+    "toolAngle": 15,
+    "toolTipAngle": 90,
+    "toolTipMirror": false,
+    "toolVbdCode": "",
+    "toolClearanceAngle": 0,
+    "holderWidth": 20,
+    "holderLength": 200,
+    "holderHand": "R",
+    "holderProfile": {
+      "sideA": [
+        {
+          "x": 0,
+          "z": 0
+        },
+        {
+          "x": 2,
+          "z": 0
+        },
+        {
+          "x": 20,
+          "z": 6.551464216791643
+        },
+        {
+          "x": 20,
+          "z": 200
+        },
+        {
+          "x": 0,
+          "z": 200
+        },
+        {
+          "x": 0,
+          "z": 0
+        }
+      ],
+      "sideB": []
+    },
+    "knifeAngle": 270,
+    "holderAutoComplete": true,
+    "toolTipFlat": 0.1,
+    "partOffZ": null,
+    "partingApproachFeed": 1,
+    "partOffSmooth": false,
+    "partOffStartX": 0,
+    "finishingSlot": null,
+    "threadActive": false,
+    "threadName": "",
+    "threadType": "mc",
+    "threadDiameter": 20,
+    "threadPitch": 2.5,
+    "threadAngle": 60,
+    "threadDepth": 1.534,
+    "threadExternal": true,
+    "threadZStart": 0,
+    "threadZEnd": -20,
+    "threadRunIn": 3,
+    "threadRunOut": 0,
+    "threadPasses": 0,
+    "threadSpringPasses": 1,
+    "threadTaperRatio": 0,
+    "threadInfeed": "radial",
+    "entryAngle": 15,
+    "entryAngleAuto": true,
+    "respectInsertGeometry": true,
+    "plungeRoughing": true,
+    "pocketFinishAtOnce": true,
+    "noStepRoughing": true,
+    "noStepRoughingFace": true,
+    "regionRoughing": true,
+    "rapidClearance": 1,
+    "stockClearX": null,
+    "stockClearZ": null
+  },
+  "contourPoints": [
+    {
+      "id": 1784240572492,
+      "type": "G0",
+      "x": 0,
+      "z": 133.003,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572493,
+      "type": "G1",
+      "x": 22.776,
+      "z": 133.003,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572494,
+      "type": "G1",
+      "x": 63.086,
+      "z": 118.004,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572495,
+      "type": "G3",
+      "x": 71.146,
+      "z": 109.982,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572496,
+      "type": "G1",
+      "x": 71.146,
+      "z": 103.194,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572497,
+      "type": "G1",
+      "x": 62.648,
+      "z": 103.194,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572498,
+      "type": "G2",
+      "x": 42.648,
+      "z": 93.194,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572499,
+      "type": "G1",
+      "x": 42.648,
+      "z": 82.384,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572500,
+      "type": "G1",
+      "x": 66.77,
+      "z": 82.384,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572501,
+      "type": "G3",
+      "x": 70.77,
+      "z": 80.384,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572502,
+      "type": "G1",
+      "x": 70.77,
+      "z": 76.946,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572503,
+      "type": "G3",
+      "x": 63.093,
+      "z": 69.069,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572504,
+      "type": "G1",
+      "x": 31.953,
+      "z": 56.89,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572505,
+      "type": "G2",
+      "x": 24.276,
+      "z": 49.013,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572506,
+      "type": "G1",
+      "x": 24.276,
+      "z": 23.55,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572507,
+      "type": "G2",
+      "x": 40.988,
+      "z": 13.686,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572508,
+      "type": "G1",
+      "x": 45.81,
+      "z": 13.285,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572509,
+      "type": "G3",
+      "x": 62.522,
+      "z": 3.421,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572510,
+      "type": "G1",
+      "x": 62.522,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240572511,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "stockPoints": [
+    {
+      "id": 1784240672492,
+      "type": "G0",
+      "x": 0,
+      "z": 141.003,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672493,
+      "type": "G1",
+      "x": 28.076,
+      "z": 141.003,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672494,
+      "type": "G1",
+      "x": 72.638,
+      "z": 124.422,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672495,
+      "type": "G3",
+      "x": 87.146,
+      "z": 109.982,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672496,
+      "type": "G1",
+      "x": 87.146,
+      "z": 95.194,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672497,
+      "type": "G1",
+      "x": 86.77,
+      "z": 76.946,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672498,
+      "type": "G3",
+      "x": 72.951,
+      "z": 62.768,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672499,
+      "type": "G1",
+      "x": 41.811,
+      "z": 50.589,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672500,
+      "type": "G2",
+      "x": 40.276,
+      "z": 49.013,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672501,
+      "type": "G1",
+      "x": 40.276,
+      "z": 23.55,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672502,
+      "type": "G2",
+      "x": 43.618,
+      "z": 21.578,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672503,
+      "type": "G1",
+      "x": 48.44,
+      "z": 21.176,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672504,
+      "type": "G3",
+      "x": 78.522,
+      "z": 3.421,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672505,
+      "type": "G1",
+      "x": 78.522,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672506,
+      "type": "G1",
+      "x": 0,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1784240672507,
+      "type": "G1",
+      "x": 0,
+      "z": 141.003,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "manualGCode": "",
+  "flipX": false,
+  "flipZ": false,
+  "guideLines": [],
+  "zLimits": {
+    "chuck": -19.95,
+    "tail": 152.95,
+    "chuckActive": true,
+    "tailActive": true,
+    "rangeStart": 165.18,
+    "rangeEnd": -12.13,
+    "rangeActive": true
+  },
+  "showZLimits": "on",
+  "xLimits": {
+    "rangeXMin": null,
+    "rangeXMax": null,
+    "active": false
+  },
+  "showSimPath": "all",
+  "showRemoval": true
+}
