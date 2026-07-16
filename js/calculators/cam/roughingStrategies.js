@@ -16,7 +16,7 @@
 //   pass-helpery: offsetXAt, traceOffsetPath, findOffsetXCrossing,
 //                 findPocketExitZ, findLeadOutEndZ, hIntersect
 
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
@@ -52,7 +52,7 @@ export function genFacePasses(ctx) {
   // 45° retract po čelním řezu jede do už odřezané zóny (slab nad
   // currentZ byl plně odebrán předchozími pasy + aktuálním), takže
   // bezpečné.
-  const rapidClrFC = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
+  const rapidClrFC = stockClearances(prms).x;
   // Helper: max X polotovaru (skutečná pravá hrana materiálu) na zadané Z.
   // Pro cylinder = konstantní sRad. Pro casting = max X všech průsečíků
   // svislice v Z s outline polotovaru → per-Z, takže rapid nemusí jezdit
@@ -317,7 +317,7 @@ export function genFacePasses(ctx) {
 
 // PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standardní soustružení).
 export function genLongPasses(ctx) {
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, holderClampZEnd } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -409,6 +409,7 @@ export function genLongPasses(ctx) {
   // a jízda v Z; schodky zůstávají.
   const partingNoDress = isParting && !prms.noStepRoughing;
   let partingNarrowPockets = 0;
+  let holderDroppedPasses = 0;   // průchody vynechané obálkou držáku (Fáze 3a)
 
   // Navázání: předchozí průchod končí přesně v bodě, odkud začíná leadIn
   // dalšího → nesmí odskočit (žádný zbytečný trojúhelník odskok+návrat),
@@ -476,7 +477,7 @@ export function genLongPasses(ctx) {
   // X) v Z∈[zLoBound,zHiBound]. První interval (od pravé hrany polotovaru) =
   // klasický otevřený vjezd. Každý další interval je kapsa za "bossem"
   // kontury. Sdíleno hlavní smyčkou hloubek X i dobíráním kapsy najednou.
-  const scanIntervals = (X, zHiBound, zLoBound) => {
+  const scanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
     const intervals = [];
     let zScan = zHiBound;
     let inRun = !blockedAt(X, zScan);
@@ -494,7 +495,30 @@ export function genLongPasses(ctx) {
       }
     }
     if (inRun) intervals.push({ zStart: runStartZ, zEnd: zLoBound, blocked: false });
-    return { intervals, firstOpen };
+    if (!holderClampZEnd) return { intervals, firstOpen };
+    // ── Fáze 3a (Clipper2): obálka držáku ────────────────────────────
+    // Špička nesmí vjet do zakázané oblasti (silueta offsetu ⊕ −držák):
+    // interval se zkrátí na první vstup do ní. U hlavního otevřeného
+    // intervalu navíc platí schodová podmínka (mainStair) — držák nesmí
+    // najet do materiálu, který nechaly stát zkrácené MĚLČÍ průchody.
+    // holderClamped potlačí sledování kontury z konce průchodu (leadOut) —
+    // pokračování po stěně je právě to, kam držák nesmí.
+    const out = [];
+    let firstSurvived = firstOpen;
+    for (let k = 0; k < intervals.length; k++) {
+      const iv = intervals[k];
+      const nz = holderClampZEnd(X, iv.zStart, iv.zEnd,
+        { mainStair: mainScan && k === 0 && firstOpen });
+      if (nz === null) {
+        if (k === 0) firstSurvived = false;
+        if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
+        continue;
+      }
+      if (nz > iv.zEnd + 1e-9) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
+      if (iv.zStart - iv.zEnd < dzScan) { if (k === 0) firstSurvived = false; continue; }
+      out.push(iv);
+    }
+    return { intervals: out, firstOpen: firstSurvived };
   };
 
   // ── Regiony (opt-in, jen odlitek) ──────────────────────────────────────
@@ -530,6 +554,9 @@ export function genLongPasses(ctx) {
   const _regions = computeRegions();
 
   for (const _region of _regions) {
+  // Schodová evidence obálky držáku platí v rámci jednoho regionu —
+  // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
+  if (holderClampZEnd && holderClampZEnd.resetStair) holderClampZEnd.resetStair();
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -551,7 +578,7 @@ export function genLongPasses(ctx) {
     // Stock outline NEPROFILUJE řez (i kdyby měl casting přerušení /
     // dolíky uprostřed) — fyzický nástroj projíždí mezerou ve vzduchu
     // bez problému. Stopuje JEN kontura.
-    const { intervals, firstOpen } = scanIntervals(currentX, effZMax, effZMin);
+    const { intervals, firstOpen } = scanIntervals(currentX, effZMax, effZMin, true);
 
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
@@ -559,6 +586,24 @@ export function genLongPasses(ctx) {
       if (idx === 0 && firstOpen) {
         // Otevřený vjezd zprava přes hranu polotovaru.
         const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
+        // ── Vjezd na hranici rozsahu Z rampou (Fáze 4, částečně) ──────
+        // Když rozsah obrábění začíná UVNITŘ polotovaru (napravo od
+        // hranice ještě stojí materiál), kolmý zápich na hloubku
+        // nahrazuje rampa pod úhlem zanoření: kotva = průsečík čáry
+        // začátku rozsahu s hranicí polotovaru (+ vůle X). Každá hloubka
+        // vjíždí po TÉŽE přímce (sdílená rampa jako u kapes); průchod,
+        // do kterého se rampa nevejde, se vynechá.
+        if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
+            && iv.zStart >= effZMax - 1e-6) {
+          const surfX = stockOuterXAtZ(prms, sRad, stockPathSegments, effZMax + 0.01);
+          if (surfX !== null && surfX > currentX + 0.05) {
+            const rampTop = surfX + stockClearances(prms).x;
+            const zS = effZMax - (rampTop - currentX) / effPlungeTanL;
+            if (zS <= iv.zEnd + 0.05) return;   // rampa se nevejde
+            passObj.ramp = { x0: rampTop, z0: effZMax };
+            passObj.zStart = zS;
+          }
+        }
         // Dobrat kapsu najednou: následuje-li za bossem kapsa, kterou
         // teď vykope blok dobírání, otevřený řez NEDĚLÁ leadOut do ní —
         // navázání řeší leadIn prvního zanoření (noRetract). Jinak by se
@@ -571,7 +616,7 @@ export function genLongPasses(ctx) {
         const nextPocketDug = nextMidZ !== null && pocketDoneRanges.some(r => nextMidZ <= r.zHi + 0.1 && nextMidZ >= r.zLo - 0.1);
         const pocketFollowsNow = prms.plungeRoughing && prms.pocketFinishAtOnce
           && nextIv && nextIv.blocked && !nextPocketDug;
-        if (prms.noStepRoughing && iv.blocked && !pocketFollowsNow) {
+        if (prms.noStepRoughing && iv.blocked && !pocketFollowsNow && !iv.holderClamped) {
           // Bez schodků: místo odskoku se dál sleduje kontura (G1/G2/G3),
           // aby se obrobil schod vůči sousedním zaberum a nezůstal materiál.
           const nextX = (depthIdx + 1 < depths.length) ? depths[depthIdx + 1] : -Infinity;
@@ -608,6 +653,15 @@ export function genLongPasses(ctx) {
           if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
         }
         passes.push(passObj);
+        // Schodová evidence (Fáze 3a): JEN ZKRÁCENÉ konce. Nezkrácený
+        // průchod končí na stěně offsetu — ta už je v siluetě zakázané
+        // oblasti a evidovat ji znovu by přes bbox držáku falešně škrtala
+        // vzdálené intervaly (např. pásy u čela). Zkrácený konec ale nechal
+        // stát materiál NAD siluetou — hlubší průchody podle něj drží
+        // levou hranu držáku před schodem.
+        if (holderClampZEnd && holderClampZEnd.noteMainEnd && iv.holderClamped) {
+          holderClampZEnd.noteMainEnd(currentX, currentX + step, iv.zEnd);
+        }
         return;
       }
       // Kapsa za bossem kontury — sledování kontury (G1/G2/G3) a rampa
@@ -706,10 +760,12 @@ export function genLongPasses(ctx) {
           pocketPass.ramp = { x0: cornerLocal.x, z0: cornerLocal.z };
         }
         if (leadInFinal.length > 0) pocketPass.contourLeadIn = leadInFinal;
-        if (withLeadOut && prms.noStepRoughing) {
+        if (withLeadOut && prms.noStepRoughing && !ivLocal.holderClamped) {
           // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
           // až na hloubku dalšího průchodu (nebo až na konec kontury)
           // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
+          // (holderClamped: konec zkrácen obálkou držáku — pokračovat po
+          // stěně by znamenalo vjet držákem do materiálu.)
           const zExitOut = findPocketExitZ(ivLocal.zEnd, X, cylStockZ);
           const leadOut = traceOffsetPath(ivLocal.zEnd, zExitOut);
           if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
@@ -875,6 +931,8 @@ export function genLongPasses(ctx) {
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)
     foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
+  if (holderDroppedPasses > 0)
+    foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${holderDroppedPasses} průchod(ů) vynecháno — držák by v nich narazil do materiálu (typicky čelo u osy nebo úzká kapsa). Zbytek obrobte jiným nástrojem/upnutím.` });
 
   // ── Sjezdy/dojezdy upichováku po OBÁLCE (podélně) ──
   // Sledování kontury (leadIn do kapsy, leadOut „bez schodků") jede u

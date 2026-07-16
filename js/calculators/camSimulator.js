@@ -14,10 +14,11 @@ import { bridge } from '../bridge.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from './cam/camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { MaterialRemoval } from './cam/materialRemoval.js';
 import { validateToolpath } from './cam/collisionValidator.js';
+import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { ensureCollisions } from '../geom/geomCore.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
@@ -2903,7 +2904,15 @@ function _defaultCamParams() {
     regionRoughing: false,
     // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
     // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
-    rapidClearance: 1.0
+    // (Legacy jednotná hodnota — viz stockClearX/stockClearZ níže.)
+    rapidClearance: 1.0,
+    // Vůle nad polotovarem po osách: odsazení hranice pracovního posuvu
+    // (a bezpečné zóny pro držák) od polotovaru — radiálně (X) a axiálně
+    // (Z), analogicky k Přídavku X/Z u kontury. null = převzít
+    // rapidClearance (staré projekty fungují beze změny). Hranice se
+    // kreslí tečkovaně kolem polotovaru.
+    stockClearX: null,
+    stockClearZ: null
   };
 }
 
@@ -4541,14 +4550,46 @@ export function openCamSimulator(initialContour, initialGCode) {
         const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
         const centerAbsX = Math.abs(seg.cx);
         const isOuter = centerAbsX < midAbsX;
-        let rNew = isOuter ? seg.r + totalOffset : seg.r - totalOffset;
-        // Pouze geometricky nemožné (rNew <= 0) zahodíme. Malé ale kladné
-        // rNew je legitimní — nástroj sleduje miniaturní oblouk kolem rohu.
-        if (rNew <= 0.05) { incompleteMachiningCount++; offSeg = null; }
-        else {
+        // Per-axis offset stejně jako u úseček: bod oblouku s normálou
+        // (sin a, cos a) se posouvá o (R+aX) v X a (R+aZ) v Z → poloosy.
+        // Při aX == aZ je to obyčejný oblouk (rx == rz); při různých
+        // přídavcích ELIPSA — jinak konce nesedí na offsety sousedních
+        // úseček a trimmer z krátkých úseků dělá trojúhelníkové artefakty
+        // (oblouk byl navíc celý odsazen o max(aX, aZ) i v ose s menším
+        // přídavkem).
+        const rx = isOuter ? seg.r + tipR + allowanceX + finishAllowance
+          : seg.r - (tipR + allowanceX + finishAllowance);
+        const rz = isOuter ? seg.r + tipR + allowanceZ + finishAllowance
+          : seg.r - (tipR + allowanceZ + finishAllowance);
+        // Pouze geometricky nemožné (poloosa <= 0) zahodíme. Malé ale kladné
+        // je legitimní — nástroj sleduje miniaturní oblouk kolem rohu.
+        if (Math.min(rx, rz) <= 0.05) { incompleteMachiningCount++; offSeg = null; }
+        else if (Math.abs(rx - rz) < 1e-9) {
           const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
           const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-          offSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rNew, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
+          offSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rx, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
+        } else {
+          // Elipsu navzorkovat (hustě, chord error << tol) a proložit zpět
+          // oblouky/úsečkami (fitArcsToPolyline, tol 0,02) — G-kód zůstane
+          // kompaktní (G2/G3) a konce sedí na offsety sousedních úseček.
+          let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+          let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          const rMax = Math.max(rx, rz);
+          const dTheta = Math.sqrt(8 * 0.002 / rMax);
+          const steps = Math.max(4, Math.min(256, Math.ceil(Math.abs(eA - sA) / dTheta)));
+          const pts = [];
+          for (let j = 0; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            pts.push({ x: seg.cx + Math.sin(a) * rx, z: seg.cz + Math.cos(a) * rz });
+          }
+          const fitted = fitArcsToPolyline(pts, 0.02);
+          fitted.forEach((fs, fi) => {
+            if (fi === 0 && seg.chainBreak) fs.chainBreak = true;
+            rawOffsets.push(fs);
+          });
+          offSeg = null;   // segmenty už jsou vložené
         }
       }
       if (offSeg) {
@@ -5045,6 +5086,22 @@ export function openCamSimulator(initialContour, initialGCode) {
       return z;
     };
 
+    // ── Fáze 3a (Clipper2): obálka držáku pro konce průchodů ──
+    // Zakázaná oblast špičky = silueta offsetu ⊕ (−obrys držáku)
+    // (Minkowski). scanIntervals pak průchody zkrátí tak, aby držák
+    // nikdy nevjel do materiálu, který po hrubování zůstává (silueta =
+    // minimum toho, co v okamžiku průchodu stojí → bezpečně konzervativní
+    // vůči guides; nikdy neprodlužuje, jen zkracuje). Jen se zapnutým
+    // „Hlídat geometrii" a definovaným držákem.
+    let holderClampZEnd = null;
+    if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+      try {
+        holderClampZEnd = makeHolderClamp(prms, offsetPath, { backside: false, stockPathSegments });
+      } catch (err) {
+        console.warn('CAM: obálku držáku se nepodařilo sestavit:', err);
+      }
+    }
+
     // ── Strategie hrubování (cam/roughingStrategies.js) ──
     // passCtx = sdílený kontext: data + pass-helpery z calculate().
     const passCtx = {
@@ -5052,6 +5109,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       stockWorldPoints, worldPoints, passes, foundErrors,
       offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ,
       findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ,
+      holderClampZEnd,
     };
     // operations[] model: seznam operací hrubování, každá naplní passes
     // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy
@@ -5442,7 +5500,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Konstantní otáčky pro závit: n = Vc·1000/(π·D), omezeno LIMS.
       const lims = parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000;
       const rpm = Math.max(10, Math.min(lims, Math.round((parseFloat(prms.speed) || 100) * 1000 / (Math.PI * Dnom))));
-      const clr = Math.max(0.5, parseFloat(prms.rapidClearance) || 1) + 1;
+      const clr = Math.max(0.5, stockClearances(prms).x) + 1;
       const rMinor = Dnom / 2 - H;             // poloměr dna profilu (vnější) / předvrtané díry (vnitřní)
       // Odskok mezi průchody musí minout povrch po CELÉ délce (u kužele
       // rozhoduje větší/menší konec).
@@ -5530,7 +5588,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const pz = geom.pz;
       const peck = Math.max(0.1, parseFloat(prms.retractDistance) || 2);
       const af = Math.max(0, parseFloat(prms.partingApproachFeed));
-      const clr = Math.max(0.5, parseFloat(prms.rapidClearance) || 1);
+      const clr = Math.max(0.5, stockClearances(prms).x);
       const xCenterStart = geom.xCenterStart;  // odkud jede posuv (rychloposuv sem)
       const xCenterTarget = geom.xCenterTarget; // střed plátku, spodní hrana na dojezdu
       const xClear = geom.xCenterTop + clr;
@@ -5589,8 +5647,8 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     if (!prms.finishOnly)
       addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey()] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);
-    // Vůle nad polotovarem + úhel nájezdové rampy (ladí s calculate()).
-    const rapidClrGc = Math.max(0.05, parseFloat(prms.rapidClearance) || 1);
+    // Vůle nad polotovarem po osách + úhel nájezdové rampy (ladí s calculate()).
+    const { x: rapidClrGc, z: rapidClrZGc } = stockClearances(prms);
     const entryAngleDegGc = getEffectivePlungeAngle(prms);
     const entryRadGc = entryAngleDegGc * Math.PI / 180;
     // Helper: ořezat Z na aktivní čelisti/koník limity (G-kód generace).
@@ -5789,7 +5847,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         //                                už pracovním posuvem (bezpečný dotek)
         //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
         //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
-        const zApproachVal = clipZGc(pass.zStart + rapidClrGc);
+        const zApproachVal = clipZGc(pass.zStart + rapidClrZGc);
         // Přejezd v Z na nájezdový bod s kontrolou kolize (po zanoření do
         // kapsy může nástroj stát hluboko — přímý přejezd by řízl stěnu).
         safeRapidTo(cur.x, zApproachVal);
@@ -6312,6 +6370,59 @@ export function openCamSimulator(initialContour, initialGCode) {
         ctx.fillStyle = 'rgba(108,112,134,0.12)';
         ctx.fill(remainPath, 'evenodd');
       }
+    }
+
+    // Tečkovaná hranice pracovního posuvu kolem polotovaru: offset povrchu
+    // o Vůli X (radiálně) a Vůli Z (axiálně). Sem končí rychloposuv (G0) a
+    // začíná pracovní posuv (G1); zároveň bezpečná zóna pro držák.
+    {
+      const clr = stockClearances(prms);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(250,179,135,0.75)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      if (prms.stockMode === 'cylinder') {
+        const bRad = (parseFloat(prms.stockDiameter) || 0) / 2 + clr.x;
+        const bFace = (parseFloat(prms.stockFace) || 0) + clr.z;
+        const bLen = (parseFloat(prms.stockLength) || 0) + clr.z;
+        const b0 = toScreen(0, bFace), b1 = toScreen(bRad, bFace),
+          b2 = toScreen(bRad, -bLen), b3 = toScreen(0, -bLen);
+        ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b3.x, b3.y);
+      } else if (calc.stockPathSegments.length > 0) {
+        // Odlitek: navzorkovat obrys a posunout každý bod po osách podle
+        // normály (nx·VůleX, nz·VůleZ) — stejné pravidlo jako offset kontury.
+        const pts = [];
+        calc.stockPathSegments.forEach(seg => {
+          if (seg.isDegenerate) return;
+          if (seg.type === 'line') { pts.push({ ...seg.p1 }); pts.push({ ...seg.p2 }); }
+          else {
+            let sA = seg.startAngle, eA = seg.endAngle;
+            if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+            if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+            const steps = Math.max(2, Math.min(48, Math.ceil(seg.r * Math.abs(eA - sA) / 0.6)));
+            for (let j = 0; j <= steps; j++) {
+              const a = sA + (eA - sA) * (j / steps);
+              pts.push({ x: seg.cx + Math.sin(a) * seg.r, z: seg.cz + Math.cos(a) * seg.r });
+            }
+          }
+        });
+        // Normály per bod; orientaci VEN určí převaha nx přes horní plochy
+        // (jednotně pro celý obrys — per-bod přepínání by cikcakovalo).
+        const normals = pts.map((_, i) => {
+          const pPrev = pts[Math.max(0, i - 1)], pNext = pts[Math.min(pts.length - 1, i + 1)];
+          const dx = pNext.x - pPrev.x, dz = pNext.z - pPrev.z;
+          const l = Math.hypot(dx, dz) || 1;
+          return { nx: -dz / l, nz: dx / l };
+        });
+        const sgn = normals.reduce((s, n) => s + n.nx, 0) >= 0 ? 1 : -1;
+        for (let i = 0; i < pts.length; i++) {
+          const p = toScreen(pts[i].x + sgn * normals[i].nx * clr.x, pts[i].z + sgn * normals[i].nz * clr.z);
+          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
     }
 
     // contour
@@ -8551,7 +8662,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     html += `<button class="cam-sim-machine-toggle" data-act="safety-config-toggle">
       <span class="cam-sim-machine-summary">
         <span class="cam-sim-machine-chip">Bp ${prms.safeX}<span style="color:#1e1e2e;font-weight:900">/</span>${prms.safeZ}</span>
-        <span class="cam-sim-machine-chip">Vůle ${prms.rapidClearance} mm</span>
+        <span class="cam-sim-machine-chip">Vůle X${stockClearances(prms).x} Z${stockClearances(prms).z}</span>
         <span class="cam-sim-machine-chip" style="display:inline-flex;gap:3px;align-items:center">
           <span style="color:${_chActive ? '#a6e3a1' : '#585b70'}" title="Čelisti">Č</span><span style="color:#45475a">/</span><span style="color:${_koActive ? '#a6e3a1' : '#585b70'}" title="Koník">K</span>
         </span>
@@ -8567,7 +8678,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Z</label><input type="number" data-p="safeZ" value="${prms.safeZ}"></div>
       </div>
       <div class="cam-sim-row">
-        <div class="cam-sim-field" title="Vzdálenost od polotovaru, kde končí rychloposuv. Sjezd přes tuto vůli na povrch už jede pracovním posuvem G1."><label>Vůle nad polotovarem</label><input type="number" step="0.1" min="0.1" data-p="rapidClearance" value="${prms.rapidClearance}"></div>
+        <div class="cam-sim-field" title="Vůle nad polotovarem radiálně (osa X): vzdálenost od povrchu polotovaru, kde končí rychloposuv — sjezd přes ni už jede pracovním posuvem G1. Hranice se kreslí tečkovaně kolem polotovaru."><label>Vůle X (polotovar)</label><input type="number" step="0.1" min="0.05" data-p="stockClearX" value="${stockClearances(prms).x}"></div>
+        <div class="cam-sim-field" title="Vůle nad polotovarem axiálně (osa Z): vzdálenost od čela/hran polotovaru, kde končí rychloposuv a začíná pracovní posuv G1. Hranice se kreslí tečkovaně kolem polotovaru."><label>Vůle Z (polotovar)</label><input type="number" step="0.1" min="0.05" data-p="stockClearZ" value="${stockClearances(prms).z}"></div>
       </div>`;
     const zlOn = S.showZLimits === 'on';
     const zlLabel = zlOn ? 'Skrýt' : 'Zobrazit';

@@ -8,6 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM: per-axis stock clearance ("Vůle X/Z (polotovar)", params `stockClearX`
+  / `stockClearZ`, `null` inherits the legacy single `rapidClearance`) — the
+  boundary where rapids end and working feed (G1) begins is now offset from
+  the stock per-axis and drawn as a dashed line around the stock outline
+  (cylinder and casting). Approach/retract emission, face-roughing entry,
+  thread and part-off clearances all use the split values
+- CAM: entering the stock at the Z machining-range boundary now ramps at the
+  plunge angle from an anchor at the range-start × stock-boundary
+  intersection (shared line across depths, like pocket ramps) instead of
+  plunging perpendicularly into material; passes whose ramp doesn't fit are
+  skipped. Covered by `tests/range-entry-ramp.test.js`
+- CAM: warning in the ⚠ panel when the holder envelope drops passes
+  ("Hlídání geometrie (držák): N průchodů vynecháno…")
+
+### Fixed
+- CAM: anisotropic contour offset (Přídavek X ≠ Přídavek Z) produced
+  triangle artifacts at radius→short line→radius transitions and shifted
+  arcs by max(aX, aZ) in both axes — arcs are now offset per-axis as an
+  ellipse fitted back to G2/G3 arcs (`fitArcsToPolyline`), so offset ends
+  meet adjacent line offsets exactly. Covered by
+  `tests/offset-anisotropic.test.js`
+- CAM: holder envelope (Phase 3a) reworked after real-path validation:
+  `minkowskiSolidSum` orientation bug fixed (holes inside the forbidden
+  region), obstacle silhouette is clipped to the stock and morphologically
+  opened by the tip reach (thin final-surface skins are finishable and
+  don't block the holder), and the staircase rule only records
+  holder-clamped pass ends. Regression snapshots updated deliberately:
+  the removed passes were verified as genuine holder collisions by the
+  Phase 2 validator (e.g. facing to the axis with the holder over the part
+  body, ~343 mm² interference on part-2)
+- tests: `camHeadless.runCamProg` now returns `calcSim` — a second
+  calculate() over the generated G-code, so `simPath` is the real
+  simulated path (it was empty before, which silently blinded
+  collision-validator assertions); the harness prelude now mirrors all real
+  camSimulator imports (`makeHolderClamp` etc. were silently undefined)
+- CAM: holder-aware pass clamping (Phase 3a of the geometry-library
+  migration, `js/calculators/cam/toolEnvelope.js`) — longitudinal roughing
+  pass ends are now limited by a forbidden tip region computed as the
+  Minkowski sum of the offset-contour silhouette with the reflected holder
+  outline (`geomCore.minkowskiSolidSum`), plus a staircase rule that keeps
+  the holder clear of material left standing by shallower clamped passes.
+  Active only with "Hlídat geometrii" on and a holder defined; clamped
+  pass ends suppress the no-step contour lead-out. Regression snapshots
+  are unchanged (fixtures are collision-free so the clamp never fires);
+  a new cross-check test (`tests/holder-envelope-demo.test.js`) generates
+  the demo part and asserts the Phase 2 collision validator finds no
+  holder collisions in the roughing section. Finishing-pass holder
+  clearance is a known gap left for Phase 3b
 - CAM Simulator: independent collision validation of generated toolpaths
   (Phase 2 of the geometry-library migration,
   `js/calculators/cam/collisionValidator.js`) — walks the whole simPath

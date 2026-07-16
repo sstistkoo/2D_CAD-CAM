@@ -77,9 +77,22 @@ async function loadCam() {
   src = src.replace(/^import\s[^\n]*$/gm, '');
   const camMathUrl = pathToFileURL(join(root, 'js/calculators/cam/camMath.js')).href;
   const strategiesUrl = pathToFileURL(join(root, 'js/calculators/cam/roughingStrategies.js')).href;
+  // POZOR: prelude musí zrcadlit reálné importy camSimulator.js z čistých
+  // modulů (cam/*, geom/*, threadData) — jinak nové symboly v headless
+  // běhu tiše chybí (ReferenceError až za běhu, try/catch je spolkne).
+  const materialRemovalUrl = pathToFileURL(join(root, 'js/calculators/cam/materialRemoval.js')).href;
+  const collisionValidatorUrl = pathToFileURL(join(root, 'js/calculators/cam/collisionValidator.js')).href;
+  const toolEnvelopeUrl = pathToFileURL(join(root, 'js/calculators/cam/toolEnvelope.js')).href;
+  const geomCoreUrl = pathToFileURL(join(root, 'js/geom/geomCore.js')).href;
+  const threadDataUrl = pathToFileURL(join(root, 'js/calculators/threadData.js')).href;
   const prelude = `
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline } from ${JSON.stringify(camMathUrl)};
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from ${JSON.stringify(camMathUrl)};
 import { ROUGHING_STRATEGIES } from ${JSON.stringify(strategiesUrl)};
+import { MaterialRemoval } from ${JSON.stringify(materialRemovalUrl)};
+import { validateToolpath } from ${JSON.stringify(collisionValidatorUrl)};
+import { makeHolderClamp } from ${JSON.stringify(toolEnvelopeUrl)};
+import { ensureCollisions } from ${JSON.stringify(geomCoreUrl)};
+import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from ${JSON.stringify(threadDataUrl)};
 const state = { flipX: false, flipZ: false };
 const makeOverlay = () => globalThis.document.body;
 const openCamEditor = () => {}, pushUndo = () => {}, showToast = () => {};
@@ -114,6 +127,7 @@ const bulgeToArc = () => {}, showToolLibraryDialog = () => {}, openInsertCalc = 
 export async function runCamProg(prog) {
   const { S, calculate, generateAutoGCode } = await loadCam();
   // reset relevantního stavu (S je singleton napříč voláními)
+  S.manualGCode = '';
   Object.assign(S.params, prog.params);
   S.contourPoints = prog.contourPoints;
   S.stockPoints = prog.stockPoints;
@@ -128,7 +142,14 @@ export async function runCamProg(prog) {
   const calc = calculate();
   const gc = generateAutoGCode(calc);
   const gcode = Array.isArray(gc) ? gc.map(l => l.text).join('\n') : String(gc);
-  return { calc, gcode };
+  // Druhý průchod jako v aplikaci (Autorefresh): vygenerovaný kód →
+  // manualGCode → calculate() z něj postaví simPath (dráhu simulace).
+  // calcSim.simPath je potřeba pro validátor kolizí — calc.simPath z
+  // prvního průchodu je prázdný (manualGCode byl při něm prázdný).
+  S.manualGCode = gcode;
+  const calcSim = calculate();
+  S.manualGCode = '';
+  return { calc, calcSim, gcode, S };
 }
 
 /** Načte .camprog ze souboru a spustí pipeline. */

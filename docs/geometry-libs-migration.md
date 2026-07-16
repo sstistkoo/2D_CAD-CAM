@@ -111,7 +111,35 @@ v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
   `polyOffset(dosažitelná oblast nástroje)` místo ručních via-bodů;
   nekruhové tvary destičky (upichovák šířky b) ve stopě nástroje.
 
-### Fáze 3 — hrubovací dráhy z booleovské geometrie
+### Fáze 3a — konce průchodů z obálky nástroje (HOTOVO 16. 7. 2026)
+*První booleovský zásah do generování drah — kolize držáku z Fáze 2
+se řeší u zdroje.*
+
+Implementace: `js/calculators/cam/toolEnvelope.js` (`makeHolderClamp`,
+`offsetSilhouetteLoop`, `buildTipForbiddenRegion`, `clampZTowardNegative`)
++ `geomCore.minkowskiSolidSum` + napojení v `scanIntervals`
+(roughingStrategies.js) přes `passCtx.holderClampZEnd`.
+
+- **Zakázaná oblast špičky** F = silueta offsetu ⊕ (−obrys držáku)
+  (Minkowského suma vyplněných polygonů). Špička nesmí do F → interval
+  průchodu se zkrátí na první vstup (rezerva 0,1 mm), plně zakázaný
+  interval se vynechá.
+- **Schodová podmínka**: silueta je jen finální materiál — zkrácené mělčí
+  průchody nechávají schody NAD ní. Clamp si přes `noteMainEnd()` eviduje
+  skutečné konce mělčích průchodů hlavní stěny a hlubší průchod drží
+  levou hranu držáku před nimi (bbox držáku; reset per region/operace).
+- `holderClamped` interval potlačí „bez schodků" leadOut (sledování stěny
+  je přesně to, kam držák nesmí).
+- Aktivní jen se zapnutým „Hlídat geometrii" + definovaným držákem; jen
+  podélné hrubování zprava (genLongPasses). Regresní snapshoty beze
+  změny (fixtures jsou dle validátoru kolizí prosté → clamp se neaktivuje);
+  nový regresní test `tests/holder-envelope-demo.test.js` drží demo díl
+  hrubovaný bez kolizí držáku (křížová kontrola validátorem Fáze 2).
+- Zbývá (Fáze 3b): obálka pro DOKONČOVACÍ dráhu (validátor na demo dílu
+  hlásí reálné kolize držáku u čela — dokončování k ose s širokým
+  držákem), backside/čelní strategie, schody pro kapsy.
+
+### Fáze 3 — hrubovací dráhy z booleovské geometrie (zbytek)
 *Jádro přepisu; krýt regresními snapshoty, zapínat za příznakem.*
 
 1. **Zbytkový materiál** = polotovar − (kontura ⊕ offset R + přídavky X/Z)
@@ -124,8 +152,35 @@ v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
 5. Nedosažitelné úseky (kolize dle Fáze 2) se z hrany smyčky vyříznou;
    zanoření jen pod úhlem `entryAngle` (Auto = úhel spodní hrany plátku).
 
-### Fáze 4 — plánování přejezdů (rychloposuvy)
-Cíl chování (zadání):
+### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
+
+Hotovo:
+- **Vůle nad polotovarem po osách** (`stockClearX`/`stockClearZ`, UI „Vůle
+  X/Z (polotovar)", null = dědí `rapidClearance`): hranice konce
+  rychloposuvu / začátku G1 se kreslí **tečkovaně kolem polotovaru**
+  (válec i odlitek, per-osový offset povrchu). Emise nájezdů/odskoků,
+  čelní hrubování, závit i upichnutí čtou oddělené hodnoty
+  (`camMath.stockClearances`).
+- **Vjezd na hranici rozsahu Z rampou**: kotva = průsečík čáry začátku
+  rozsahu s hranicí polotovaru (+ vůle X), všechny hloubky sdílejí touž
+  přímku pod úhlem zanoření (dřív kolmý zápich jako u upichování).
+  Test: `tests/range-entry-ramp.test.js`.
+- Oprava anizotropního offsetu kontury (aX ≠ aZ): oblouk = elipsa
+  proložená zpět G2/G3 — konec trojúhelníkových artefaktů u
+  rádius→krátká úsečka→rádius. Test: `tests/offset-anisotropic.test.js`.
+- Oprava Fáze 3a po validaci na reálných drahách (viz níže): snapshoty
+  fixtures vědomě aktualizovány — odstraněné průchody byly validátorem
+  potvrzené SKUTEČNÉ kolize držáku (čelo k ose ~343 mm² na part-2);
+  vynechané průchody hlásí ⚠ varování.
+
+DŮLEŽITÉ POUČENÍ (testovací infrastruktura): `camHeadless.runCamProg`
+dřív vracel `calc.simPath` z běhu s prázdným `manualGCode` → **prázdná
+dráha** — všechny headless validace kolizí byly bezpředmětné (vždy 0).
+Teď vrací i `calcSim` (druhý průchod z vygenerovaného kódu) a prelude
+harnessu zrcadlí všechny reálné importy camSimulatoru (chybějící symboly
+dřív tiše zabíjely obálku držáku přes try/catch).
+
+Zbývá:
 
 - Z **Bezpečné polohy** (`safeX`/`safeZ`) rychloposuvem; **Vůle nad
   polotovarem** (`rapidClearance`) před materiálem → přepnout na posuv.

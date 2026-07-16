@@ -115,6 +115,24 @@ export function toolSweep(toolLoop, pathPts) {
   return fromClipperLoops(unionD(swept, [], FillRule.NonZero, PRECISION));
 }
 
+/**
+ * Minkowského suma dvou VYPLNĚNÝCH polygonů A ⊕ B (oba uzavřené smyčky).
+ * Standardní konstrukce pro souvislé B: (∂A ⊕ B) ∪ (A + b₀) — okrajová
+ * stopa B podél hranice A sjednocená s jedním posunutým A. Použití:
+ * zakázaná oblast špičky nástroje = překážka ⊕ (−obrys nástroje).
+ */
+export function minkowskiSolidSum(loopA, loopB) {
+  const sweep = minkowskiSumD(toClipperLoop(loopB), toClipperLoop(loopA), true);
+  // Smyčky z minkowskiSumD mají smíšené orientace — NonZero union by
+  // opačně orientované překryvy vyrušil (díry uvnitř oblasti). Sjednotit
+  // všechny na kladnou plochu = skutečné množinové sjednocení.
+  const oriented = sweep.map(path => areaD(path) < 0 ? path.slice().reverse() : path);
+  const b0 = loopB[0];
+  const shiftedA = toClipperLoop(loopA.map(p => ({ x: p.x + b0.x, z: p.z + b0.z })));
+  const shiftedAOriented = areaD(shiftedA) < 0 ? shiftedA.slice().reverse() : shiftedA;
+  return fromClipperLoops(unionD([...oriented, shiftedAOriented], [], FillRule.NonZero, PRECISION));
+}
+
 // ── Model polotovaru (vizuální odebírání materiálu) ─────────────
 
 /**

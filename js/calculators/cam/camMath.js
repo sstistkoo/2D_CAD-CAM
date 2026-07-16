@@ -182,3 +182,41 @@ export function intersectVerticalLineArc(zLine, center, radius) {
   const sqrtTerm = Math.sqrt(term);
   return [center.x - sqrtTerm, center.x + sqrtTerm];
 }
+
+// ── Vůle nad polotovarem po osách ──────────────────────────────
+// Odsazení hranice pracovního posuvu od polotovaru: stockClearX (radiálně)
+// a stockClearZ (axiálně). null/undefined = převzít starou jednotnou
+// „Vůli nad polotovarem" (rapidClearance) — staré projekty tak fungují
+// beze změny, dokud uživatel hodnoty nerozdělí.
+export function stockClearances(prms) {
+  const legacy = parseFloat(prms.rapidClearance);
+  const base = Number.isFinite(legacy) && legacy > 0 ? legacy : 1;
+  const cx = parseFloat(prms.stockClearX);
+  const cz = parseFloat(prms.stockClearZ);
+  return {
+    x: Math.max(0.05, Number.isFinite(cx) ? cx : base),
+    z: Math.max(0.05, Number.isFinite(cz) ? cz : base),
+  };
+}
+
+// Max X (vnější povrch) polotovaru na zadaném Z: válec = konstantní sRad,
+// odlitek = největší průsečík svislice se segmenty obrysu. Vrací null,
+// když v daném Z polotovar není.
+export function stockOuterXAtZ(prms, sRad, stockPathSegments, z) {
+  if (prms.stockMode !== 'casting' || !stockPathSegments || stockPathSegments.length === 0) return sRad;
+  let maxX = null;
+  for (const seg of stockPathSegments) {
+    if (seg.isDegenerate) continue;
+    if (seg.type === 'line') {
+      const x = intersectVerticalLineSegment(z, seg.p1, seg.p2);
+      if (x !== null && (maxX === null || x > maxX)) maxX = x;
+    } else if (seg.type === 'arc') {
+      for (const x of intersectVerticalLineArc(z, { x: seg.cx, z: seg.cz }, seg.r)) {
+        const angle = Math.atan2(x - seg.cx, z - seg.cz);
+        if (isAngleBetween(angle, seg.startAngle, seg.endAngle, seg.dir === 'G2')
+          && (maxX === null || x > maxX)) maxX = x;
+      }
+    }
+  }
+  return maxX;
+}
