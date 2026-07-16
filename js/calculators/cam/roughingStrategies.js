@@ -392,6 +392,49 @@ export function genLongPasses(ctx) {
 
   const effPlungeDegL = getEffectivePlungeAngle(prms);
   const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
+
+  // ── Fáze 3b: ořez sledování kontury (leadIn/leadOut) obálkou držáku ──
+  // traceOffsetPath umí vydat trasu přes celou konturu (např. nájezd kapsy
+  // od osy přes čelo) — úseky, kde by špička ležela v zakázané oblasti
+  // (silueta ⊕ −držák), se z trasy vyříznou: leadIn (končí v cíli) zahodí
+  // PREFIX po poslední blokovaný úsek, leadOut (začíná na konci řezu)
+  // zahodí SUFFIX od prvního blokovaného. Vzorkování po ~0,5 mm (tětiva).
+  // Test úseku trasy proti zakázané oblasti. `soft` = měkká oblast
+  // (erodovaná o dosah špičky + 1 mm): drhnutí o přídavkovou slupku
+  // podél stěn toleruje — používá se JEN pro dočišťovací trasy kapes
+  // (guides v2 tam vědomě pouští držák těsně podél stěn, dno musí
+  // zůstat dosažitelné). Vše ostatní testuje tvrdou oblast.
+  const _traceSegBlocked = (s, soft) => {
+    const test = soft ? holderClampZEnd?.isForbiddenSoft : holderClampZEnd?.isForbidden;
+    if (!test) return false;
+    const n = Math.max(1, Math.min(32, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.5)));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      if (test(s.x1 + (s.x2 - s.x1) * t, s.z1 + (s.z2 - s.z1) * t)) return true;
+    }
+    return false;
+  };
+  const holderTrimLeadIn = (li, soft = false) => {
+    if (globalThis.__DISABLE_HOLDER_TRIMS__) return li;
+    if (!holderClampZEnd || !holderClampZEnd.isForbidden || li.length === 0) return li;
+    let lastBad = -1;
+    for (let i = 0; i < li.length; i++) if (_traceSegBlocked(li[i], soft)) lastBad = i;
+    if (globalThis.__HOLDER_CLAMP_DEBUG__ && lastBad >= 0)
+      console.log(`[trimIn${soft ? '/soft' : ''}] ${li.length} segů → ${li.length - lastBad - 1} (od (${li[0].x1?.toFixed(1)},${li[0].z1?.toFixed(1)}))`);
+    return lastBad >= 0 ? li.slice(lastBad + 1) : li;
+  };
+  const holderTrimLeadOut = (lo, soft = false) => {
+    if (globalThis.__DISABLE_HOLDER_TRIMS__) return lo;
+    if (!holderClampZEnd || !holderClampZEnd.isForbidden || lo.length === 0) return lo;
+    for (let i = 0; i < lo.length; i++) {
+      if (_traceSegBlocked(lo[i], soft)) {
+        if (globalThis.__HOLDER_CLAMP_DEBUG__)
+          console.log(`[trimOut${soft ? '/soft' : ''}] ${lo.length} segů → ${i} (blok u (${lo[i].x1?.toFixed(1)},${lo[i].z1?.toFixed(1)}))`);
+        return lo.slice(0, i);
+      }
+    }
+    return lo;
+  };
   let plungeShallowed = 0;
 
   // ── Upichovák (parting) v podélném hrubování ──
@@ -507,15 +550,32 @@ export function genLongPasses(ctx) {
     let firstSurvived = firstOpen;
     for (let k = 0; k < intervals.length; k++) {
       const iv = intervals[k];
-      const nz = holderClampZEnd(X, iv.zStart, iv.zEnd,
-        { mainStair: mainScan && k === 0 && firstOpen });
-      if (nz === null) {
-        if (k === 0) firstSurvived = false;
-        if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
-        continue;
+      if (k === 0 && firstOpen) {
+        // OTEVŘENÝ vjezd: zakázaný start = nelze bezpečně vjet → vynechat;
+        // jinak jen zkrátit hluboký konec (+ schodová podmínka).
+        const nz = holderClampZEnd(X, iv.zStart, iv.zEnd, { mainStair: mainScan });
+        if (nz === null) {
+          firstSurvived = false;
+          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
+          continue;
+        }
+        if (nz > iv.zEnd + 1e-9) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
+        if (iv.zStart - iv.zEnd < dzScan) { firstSurvived = false; continue; }
+      } else {
+        // KAPSA (zanoření): vstupní pás u stěny bývá zakázaný (držák nad
+        // okrajem), vnitřek dosažitelný — ořez na povolenou KOMPONENTU
+        // z obou stran. Okno vyjde ≈ shodně s lomenými mezními čarami
+        // guides v2 („stěna − holderWidth"); kapsy, kam se držák nevejde
+        // vůbec, se vynechají (⚠ varování).
+        const span = holderClampZEnd.span(X, iv.zStart, iv.zEnd);
+        if (span === null) {
+          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
+          continue;
+        }
+        if (span.zStart < iv.zStart - 1e-9) { iv.zStart = span.zStart; iv.holderClamped = true; }
+        if (span.zEnd > iv.zEnd + 1e-9) { iv.zEnd = span.zEnd; iv.blocked = true; iv.holderClamped = true; }
+        if (iv.zStart - iv.zEnd < dzScan) continue;
       }
-      if (nz > iv.zEnd + 1e-9) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
-      if (iv.zStart - iv.zEnd < dzScan) { if (k === 0) firstSurvived = false; continue; }
       out.push(iv);
     }
     return { intervals: out, firstOpen: firstSurvived };
@@ -638,7 +698,7 @@ export function genLongPasses(ctx) {
           for (const r of pocketDoneRanges) {
             if (r.zHi <= iv.zEnd + 1e-6 && r.zHi > zEndOut) zEndOut = r.zHi;
           }
-          const leadOut = traceOffsetPath(iv.zEnd, zEndOut);
+          const leadOut = holderTrimLeadOut(traceOffsetPath(iv.zEnd, zEndOut));
           // Zahoď úvodní úseky pod aktuální hloubkou: kvůli diskretizaci /
           // zaoblenému rohu může trasa hned na začátku klesnout pod
           // currentX (krátký "dip"). Průchod nesmí řezat pod svou hloubku —
@@ -683,7 +743,7 @@ export function genLongPasses(ctx) {
         // kontura z konce předchozího průchodu na currentX.
         const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         if (!partingNoDress) {
-          const liOpen = traceOffsetPath(zGapHi, iv.zStart);
+          const liOpen = holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart));
           linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
           passOpen.contourLeadIn = liOpen;
         }
@@ -705,7 +765,7 @@ export function genLongPasses(ctx) {
         // projede po kontuře na currentX, žádná rampa.
         const passFlat = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         if (!partingNoDress) {
-          const liFlat = traceOffsetPath(zGapHi, iv.zStart);
+          const liFlat = holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart));
           linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
           passFlat.contourLeadIn = liFlat;
         }
@@ -727,7 +787,7 @@ export function genLongPasses(ctx) {
       // jen na samotnou kapsu, místo aby zajížděla za ni do navazujícího
       // úseku kontury.
       const buildPocketPass = (X, gapHi, ivLocal, cornerLocal, withLeadIn, withLeadOut) => {
-        const leadIn = withLeadIn ? traceOffsetPath(gapHi, cornerLocal.z) : [];
+        const leadIn = withLeadIn ? holderTrimLeadIn(traceOffsetPath(gapHi, cornerLocal.z)) : [];
         const dzRampFull = (cornerLocal.x - X) / effPlungeTanL;
         const availWidth = cornerLocal.z - ivLocal.zEnd;
         const dzRamp = Math.min(dzRampFull, availWidth);
@@ -755,7 +815,7 @@ export function genLongPasses(ctx) {
         let leadInFinal = leadIn;
         if (rampPierces) {
           const wallTrace = traceOffsetPath(cornerLocal.z, zS);
-          leadInFinal = leadIn.concat(wallTrace);
+          leadInFinal = holderTrimLeadIn(leadIn.concat(wallTrace));
         } else {
           pocketPass.ramp = { x0: cornerLocal.x, z0: cornerLocal.z };
         }
@@ -767,7 +827,7 @@ export function genLongPasses(ctx) {
           // (holderClamped: konec zkrácen obálkou držáku — pokračovat po
           // stěně by znamenalo vjet držákem do materiálu.)
           const zExitOut = findPocketExitZ(ivLocal.zEnd, X, cylStockZ);
-          const leadOut = traceOffsetPath(ivLocal.zEnd, zExitOut);
+          const leadOut = holderTrimLeadOut(traceOffsetPath(ivLocal.zEnd, zExitOut));
           if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
         }
         return { pocketPass, leadIn };
@@ -908,8 +968,18 @@ export function genLongPasses(ctx) {
           cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
         }
       }
-      const cleanLeadIn = prms.noStepRoughing ? dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ)) : [];
-      const cleanLeadOut = prms.noStepRoughing ? dropMicro(traceOffsetPath(pocketBottomZ, exitZ)) : [];
+      // Fáze 3b: dočišťovací trasy ořezat na OKNO kapsového intervalu —
+      // scanIntervals ho už zúžil komponentovým spanem obálky держáku
+      // (curIv.zStart/zEnd = kam se держák mezi stěny vejde). Úseky mimo
+      // okno (konce dna u stěn, kam держák nesmí) se vypustí; úzká kapsa
+      // bez okna nemá interval vůbec (burst sem ani nevejde).
+      const clipToHolderWindow = (segs) => {
+        if (!holderClampZEnd || !curIv || !curIv.holderClamped) return segs;
+        const zHi = curIv.zStart + 0.05, zLo = curIv.zEnd - 0.05;
+        return segs.filter(s => Math.max(s.z1, s.z2) <= zHi && Math.min(s.z1, s.z2) >= zLo);
+      };
+      const cleanLeadIn = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ))) : [];
+      const cleanLeadOut = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(pocketBottomZ, exitZ))) : [];
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
           type: 'long', pocketClean: true,

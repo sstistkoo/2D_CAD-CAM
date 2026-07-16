@@ -111,6 +111,27 @@ v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
   `polyOffset(dosažitelná oblast nástroje)` místo ručních via-bodů;
   nekruhové tvary destičky (upichovák šířky b) ve stopě nástroje.
 
+### Fáze 3b — obálka держáku pro dokončování a trasy (HOTOVO 16. 7. 2026)
+
+- **Dokončování**: úseky, kde by špička (a tedy держák) ležela v zakázané
+  oblasti, se přeskočí jako nedosažitelné (tečkovaně, rychloposuv přes
+  mezeru, ⚠ varování) — `clamp.isForbidden` v dokončovací smyčce.
+- **Trasy sledování kontury** (leadIn/leadOut kapes, „bez schodků"
+  dojezdy): ořez proti obálce (`holderTrimLeadIn/Out`) — odstranilo třídu
+  „nájezd kapsy trasovaný od osy přes celé čelo" (~343 mm² na part-2).
+- **Kapsové intervaly**: komponentový ořez `clampSpanTowardNegative` —
+  okno, kam se держák mezi stěny vejde (≈ lomené mezní čáry guides v2);
+  užší kapsy se vynechají s varováním. Dočišťovací trasy kapes se ořezávají
+  na totéž okno.
+- Existuje i MĚKKÁ zakázaná oblast (`isForbiddenSoft`, eroze o dosah
+  špičky + 1 mm) pro tolerování drhnutí o přídavkovou slupku.
+- **Známé zbývající mezery** (validátor je HLÁSÍ v ⚠ panelu, generátor jim
+  zatím nebrání): čelní strategie (genFacePasses bez obálky), odlitkové
+  regiony (nezapočaté regiony stojí jako plný materiál — statická silueta
+  je nevidí) a KOLIZE ZÁVISLÉ NA POŘADÍ (trasa jede dřív, než se okolní
+  materiál obrobí — statický model je principiálně nevidí; řešení = 
+  dynamické plánování ve Fázi 4 nad StockModel).
+
 ### Fáze 3a — konce průchodů z obálky nástroje (HOTOVO 16. 7. 2026)
 *První booleovský zásah do generování drah — kolize držáku z Fáze 2
 se řeší u zdroje.*

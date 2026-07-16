@@ -152,7 +152,69 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = 0
   };
   clamp.noteMainEnd = (xLo, xHi, zEnd) => { stair.push({ xLo, xHi, zEnd }); };
   clamp.resetStair = () => { stair = []; };
+  // Bodový test (tvrdá oblast) — konce otevřených průchodů.
+  clamp.isForbidden = (x, z) => pointInForbidden(forbidden, x, z);
+  // MĚKKÁ zakázaná oblast pro sledování kontury (leadIn/leadOut) a
+  // dokončování: překážka erodovaná o dalších (openR + 1) mm. Trasy po
+  // stěnách „drhnou" držákem jen o přídavkovou slupku (~R + přídavek) —
+  // to guides v2 vědomě tolerují (dno kapsy musí zůstat dosažitelné);
+  // masivní kolize s TĚLEM dílu (čelo u osy, boss) blokuje i po erozi.
+  const softObstacle = polyOffset(obstacleLoops, -(openR + 1.0), 'miter');
+  const forbiddenSoft = softObstacle.length > 0
+    ? buildTipForbiddenRegion(softObstacle, holder) : [];
+  clamp.isForbiddenSoft = (x, z) => forbiddenSoft.length > 0 && pointInForbidden(forbiddenSoft, x, z);
+  // Komponentový ořez pro KAPSOVÉ intervaly (vstup u stěny zakázaný,
+  // vnitřek dosažitelný — držák se do široké kapsy vejde): vrací
+  // { zStart, zEnd } první povolené komponenty, nebo null.
+  clamp.span = (X, zStart, zEnd) => clampSpanTowardNegative(forbidden, X, zStart, zEnd, margin);
   return clamp;
+}
+
+/**
+ * Bodový test: leží špička (x, z) uvnitř zakázané oblasti? Even-odd
+ * parita paprskem podél +z (stejné half-open pravidlo jako clamp sken).
+ */
+export function pointInForbidden(forbiddenLoops, x, z) {
+  let parity = 0;
+  for (const loop of forbiddenLoops) {
+    for (let i = 0; i < loop.length; i++) {
+      const p = loop[i], q = loop[(i + 1) % loop.length];
+      if ((p.x <= x) === (q.x <= x)) continue;
+      const zc = p.z + ((x - p.x) / (q.x - p.x)) * (q.z - p.z);
+      if (zc > z) parity ^= 1;
+    }
+  }
+  return parity === 1;
+}
+
+/**
+ * Ořez intervalu na PRVNÍ povolenou komponentu od zStart (obě strany):
+ * pro KAPSY, kde je vstup u stěny zakázaný (držák nad okrajem), ale
+ * vnitřek dosažitelný — vrací { zStart, zEnd } zmenšené o rezervu,
+ * nebo null, když v intervalu žádná povolená komponenta není.
+ */
+export function clampSpanTowardNegative(forbiddenLoops, X, zStart, zEnd, margin = 0.1) {
+  const crossings = [];
+  let insideAtStart = 0;
+  for (const loop of forbiddenLoops) {
+    for (let i = 0; i < loop.length; i++) {
+      const p = loop[i], q = loop[(i + 1) % loop.length];
+      if ((p.x <= X) === (q.x <= X)) continue;
+      const z = p.z + ((X - p.x) / (q.x - p.x)) * (q.z - p.z);
+      if (z > zStart) insideAtStart ^= 1;
+      else if (z >= zEnd - 1e-9) crossings.push(z);
+    }
+  }
+  crossings.sort((a, b) => b - a);   // shora dolů (směr jízdy −Z)
+  let state = insideAtStart === 1;
+  let sNew = state ? null : zStart;
+  let eNew = zEnd;
+  for (const c of crossings) {
+    if (state) { sNew = c - margin; state = false; }   // výstup z F → začátek
+    else { eNew = c + margin; break; }                 // vstup do F → konec
+  }
+  if (sNew === null || sNew - eNew < 0.2) return null;
+  return { zStart: Math.min(zStart, sNew), zEnd: Math.max(zEnd, eNew) };
 }
 
 /**

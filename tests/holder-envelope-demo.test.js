@@ -56,20 +56,23 @@ const demoProg = {
 };
 
 describe('obálka držáku na demo dílu (Fáze 3a)', () => {
-  it('hrubování je bez kolizí držáku a bez rychloposuvů materiálem', async () => {
+  it('celý program je bez kolizí držáku; hrubování i bez rychloposuvů materiálem', async () => {
     // calcSim = druhý průchod z vygenerovaného G-kódu → REÁLNÝ simPath
     // (calc.simPath prvního průchodu je prázdný — viz camHeadless).
     const { calcSim, gcode } = await runCamProg(demoProg);
     const issues = validateToolpath(calcSim.simPath, demoProg.params, calcSim.stockPathSegments,
       { backside: false, maxIssues: 99 });
-    // Dokončování obálku zatím nemá (Fáze 3b) — nálezy od začátku
-    // dokončovací sekce se vylučují.
     const lines = gcode.split('\n');
+    const fmt = (list) => list.map(i =>
+      `${i.kind} ${(lines[i.lineIdx] || '').trim().slice(0, 30)} X${(i.x * 2).toFixed(1)} Z${i.z.toFixed(1)} ~${i.area.toFixed(1)}mm²`);
+    // Fáze 3b: kolize DRŽÁKU nesmí být nikde — hrubování hlídá clamp v
+    // scanIntervals, dokončování přeskakuje úseky přes isForbidden.
+    expect(fmt(issues.filter(i => i.kind === 'holder'))).toEqual([]);
+    // Hrubovací sekce musí být čistá úplně (vč. rychloposuvů); rychloposuvy
+    // kolem dokončovacích ostrovů řeší až plánování přejezdů (Fáze 4).
     const finishStart = lines.findIndex(l => /DOKON|FINISH/i.test(l));
     const roughingIssues = issues.filter(i =>
       finishStart < 0 || i.lineIdx == null || i.lineIdx < finishStart);
-    const fmt = roughingIssues.map(i =>
-      `${i.kind} ${(lines[i.lineIdx] || '').trim().slice(0, 30)} X${(i.x * 2).toFixed(1)} Z${i.z.toFixed(1)} ~${i.area.toFixed(1)}mm²`);
-    expect(fmt).toEqual([]);
+    expect(fmt(roughingIssues)).toEqual([]);
   }, 60000);
 });

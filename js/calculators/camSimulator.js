@@ -4601,6 +4601,23 @@ export function openCamSimulator(initialContour, initialGCode) {
     // 2. trimming + loop removal (shared helper handles all segment combos)
     const offsetPath = dropTinyArcs(trimAndRemoveLoops(rawOffsets));
 
+    // ── Fáze 3a/3b (Clipper2): obálka držáku ──────────────────────
+    // Zakázaná oblast špičky = silueta offsetu ⊕ (−obrys držáku)
+    // (Minkowski). Hrubování: scanIntervals průchody zkrátí, aby držák
+    // nikdy nevjel do materiálu, který po hrubování zůstává (silueta =
+    // minimum toho, co v okamžiku průchodu stojí → bezpečně konzervativní
+    // vůči guides; nikdy neprodlužuje, jen zkracuje). Dokončování (3b):
+    // úseky se špičkou v zakázané oblasti se přeskočí (isForbidden).
+    // Jen se zapnutým „Hlídat geometrii" a definovaným držákem.
+    let holderClampZEnd = null;
+    if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+      try {
+        holderClampZEnd = makeHolderClamp(prms, offsetPath, { backside: false, stockPathSegments });
+      } catch (err) {
+        console.warn('CAM: obálku držáku se nepodařilo sestavit:', err);
+      }
+    }
+
     // finishing offset
     if (prms.doFinishing || prms.finishOnly) {
       // Hlídání destičky: úseky, kam destička bočním ostřím nedosáhne,
@@ -4608,6 +4625,31 @@ export function openCamSimulator(initialContour, initialGCode) {
       // takže se přes mezeru přejede rychloposuvem.
       const respectFin = prms.respectInsertGeometry && clearance;
       let finSkipped = 0;
+      let finHolderSkipped = 0;
+      // Fáze 3b: vzorkování dokončovacího segmentu pro test proti zakázané
+      // oblasti špičky (držák) — body po ~0,5 mm včetně konců.
+      const segSamplePts = (fs) => {
+        const pts = [];
+        if (fs.type === 'line') {
+          const n = Math.max(2, Math.min(64, Math.ceil(Math.hypot(fs.p2.x - fs.p1.x, fs.p2.z - fs.p1.z) / 0.5) + 1));
+          for (let k = 0; k < n; k++) {
+            const t = k / (n - 1);
+            pts.push({ x: fs.p1.x + (fs.p2.x - fs.p1.x) * t, z: fs.p1.z + (fs.p2.z - fs.p1.z) * t });
+          }
+        } else {
+          let sA = fs.startAngle, eA = fs.endAngle;
+          if (fs.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (fs.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          const n = Math.max(3, Math.min(64, Math.ceil(fs.r * Math.abs(eA - sA) / 0.5) + 1));
+          for (let k = 0; k < n; k++) {
+            const a = sA + (eA - sA) * (k / (n - 1));
+            pts.push({ x: fs.cx + Math.sin(a) * fs.r, z: fs.cz + Math.cos(a) * fs.r });
+          }
+        }
+        return pts;
+      };
+      const holderBlocks = (fs) => holderClampZEnd && holderClampZEnd.isForbidden
+        && segSamplePts(fs).some(p => holderClampZEnd.isForbidden(p.x, p.z));
       let pendingBreak = false;
       // Přeryv kvůli NEDOSAŽITELNÉMU úseku (hlídání destičky) — na rozdíl od
       // mikro-přeskoku znamená „tady je díra, další dosažitelný úsek je
@@ -4692,6 +4734,18 @@ export function openCamSimulator(initialContour, initialGCode) {
           unreachBreak = true;
           continue;
         }
+        // Fáze 3b: úsek, kde by DRŽÁK jel ve zbývajícím materiálu (špička
+        // v zakázané oblasti silueta ⊕ −držák), dokončování přeskočí
+        // stejně jako nedosažitelné úseky destičky — typicky čelo u osy,
+        // kam se držák přes osazení nevejde.
+        if (holderBlocks(finSeg)) {
+          finHolderSkipped++;
+          finSeg.unreachable = true;
+          finishUnreachablePath.push(finSeg);
+          pendingBreak = true;
+          unreachBreak = true;
+          continue;
+        }
         // Po přeskočeném oblouku (pendingBreak): přeskočit přechodný čelní
         // řez, jehož offset začíná na menším X než skončil předchozí segment
         // (nástroj by musel jet dovnitř — vznik trojúhelníkového artefaktu).
@@ -4750,6 +4804,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         foundErrors.push({ type: 'warning', msg: `Dokončování: ${finDropped} úsek(ů) vynecháno — nástroj (R${tipR}) se nevejde do tvaru kontury (malý poloměr). Přejezd G0.` });
       if (finSkipped > 0)
         foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
+      if (finHolderSkipped > 0)
+        foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): dokončování vynechá ${finHolderSkipped} úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.` });
 
       // ── No-gouge pojistka dokončování („dojet co nejblíž, ale bez zajetí") ──
       // Při soustružení zvenčí musí střed nástroje zůstat na vzduchové straně:
@@ -5085,22 +5141,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       return z;
     };
-
-    // ── Fáze 3a (Clipper2): obálka držáku pro konce průchodů ──
-    // Zakázaná oblast špičky = silueta offsetu ⊕ (−obrys držáku)
-    // (Minkowski). scanIntervals pak průchody zkrátí tak, aby držák
-    // nikdy nevjel do materiálu, který po hrubování zůstává (silueta =
-    // minimum toho, co v okamžiku průchodu stojí → bezpečně konzervativní
-    // vůči guides; nikdy neprodlužuje, jen zkracuje). Jen se zapnutým
-    // „Hlídat geometrii" a definovaným držákem.
-    let holderClampZEnd = null;
-    if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
-      try {
-        holderClampZEnd = makeHolderClamp(prms, offsetPath, { backside: false, stockPathSegments });
-      } catch (err) {
-        console.warn('CAM: obálku držáku se nepodařilo sestavit:', err);
-      }
-    }
 
     // ── Strategie hrubování (cam/roughingStrategies.js) ──
     // passCtx = sdílený kontext: data + pass-helpery z calculate().

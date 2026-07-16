@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM: holder envelope for the finishing pass and contour-following traces
+  (Phase 3b of the geometry-library migration) — finishing segments whose
+  tip would put the holder inside remaining material are skipped like
+  insert-unreachable segments (dotted, rapid over the gap, ⚠ warning);
+  pocket lead-in/lead-out contour traces are trimmed against the envelope
+  (the part-2 fixture's "face traced from the axis" ~343 mm² crash class);
+  pocket intervals are clipped to the component window where the holder
+  actually fits between the walls (`clampSpanTowardNegative` — matches the
+  guides-v2 bent-boundary semantics; pockets narrower than the holder are
+  dropped with a warning) and pocket-cleanup traces are clipped to that
+  window. A soft (extra-eroded) forbidden region exists for
+  allowance-skin-tolerant checks. Snapshots updated deliberately —
+  removed/trimmed motions were validator-confirmed real holder collisions.
+  Known remaining gaps (reported by the ⚠ validator, not yet prevented):
+  face-strategy roughing, casting region-roughing obstacles, and
+  ordering-dependent collisions (a trace running before neighbouring
+  material is machined) — Phase 4 scope
 - CAM: per-axis stock clearance ("Vůle X/Z (polotovar)", params `stockClearX`
   / `stockClearZ`, `null` inherits the legacy single `rapidClearance`) — the
   boundary where rapids end and working feed (G1) begins is now offset from
