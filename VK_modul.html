@@ -1,0 +1,122 @@
+<!-- ZÁKLADNÍ POJMY -->
+<details>
+    <summary style="color: #fff; font-size: 13px; padding: 8px;">ℹ️ Základní příkazy a zápis</summary>
+    <div class="details-content" style="padding: 10px;">
+        <div class="combo-block" style="border-left-color: var(--border);">
+            <div class="combo-title">Význam základních příkazů</div>
+            <div class="combo-desc">
+                • <strong>G111</strong> = Definice pólu (VPOL) pro určení úhlů a konstrukčních drah.<br>
+                • <strong>G11</strong> = Volná úsečka bez rozměrů (<code>X?</code>, <code>Z?</code>) nebo polárně přes <code>PA/PR</code>.<br>
+                • <strong>G2 / G3</strong> = Volný oblouk s poloměrem <code>R</code>.
+            </div>
+        </div>
+        <div class="combo-block" style="border-left-color: var(--border);">
+            <div class="combo-title">Možnosti zápisu geometrie</div>
+            <div class="combo-desc">
+                • <strong>Průsečíky (?)</strong>: Neznámé se ručně přepíší po externím výpočtu.<br>
+                • <strong>Tečnost (T)</strong>: Plynulé napojení na předchozí prvek.<br>
+                • <strong>Konverze</strong>: Po doplnění hodnot lze kód převést na čistý standardní ISO G-kód.
+            </div>
+        </div>
+        <div class="combo-block" style="border-left-color: var(--border);">
+            <div class="combo-title">Formáty pro uložení (Export)</div>
+            <div class="combo-desc">
+                • <code>.NC</code> / <code>.TXT</code> = Univerzální textový ISO G-kód.<br>
+                • <code>.DIN</code> = Standard dle normy DIN 66025.<br>
+                • <code>.MPF</code> = Hlavní program kontury (Siemens).<br>
+                • <code>.SPF</code> = Technologický podprogram.
+            </div>
+        </div>
+    </div>
+</details>
+
+<!-- VÝZNAM VPOL -->
+<details>
+    <summary style="color: var(--accent-blue); font-size: 13px; padding: 8px;">🔍 Význam parametru VPOL</summary>
+    <div class="details-content" style="padding: 10px;">
+        <div class="combo-block" style="border-left-color: var(--accent-blue);">
+            <div class="combo-title">Kdy je VPOL nutný?</div>
+            <div class="combo-desc">Při křížení prvků se dvěma matematickými řešeními. Určuje jednoznačnou dráhu:</div>
+            <div class="combo-desc">
+                • <strong>VPOL1</strong> = První řešení (bližší bod od počátku / spodní průsečík).<br>
+                • <strong>VPOL2</strong> = Druhé řešení (vzdálenější / horní průsečík).
+            </div>
+        </div>
+    </div>
+</details>
+
+<!-- KATEGORIE 1 -->
+<details>
+    <summary style="color: var(--accent-orange); font-size: 13px; padding: 8px;">📐 1. Lineární kombinace (Přímky)</summary>
+    <div class="details-content" style="padding: 10px;">
+        <div class="combo-block">
+            <div class="combo-title">Úsečka (?) ➔ Úsečka (známá)</div>
+            <div class="syntax-box">G11 X40.0 Z?&#10;G11 X60.0 Z-20.0</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Úsečka (?) ➔ Kužel (známý)</div>
+            <div class="syntax-box">G11 X30.0 Z?&#10;G11 X50.0 Z-30.0 PA135</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Kužel (?) ➔ Úsečka (známá)</div>
+            <div class="syntax-box">G11 X? Z? PA150&#10;G11 X60.0 Z-40.0</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Kužel (?) ➔ Kužel (známý)</div>
+            <div class="syntax-box">G11 X? Z? PA140&#10;G11 X80.0 Z-50.0 PA165</div>
+        </div>
+    </div>
+</details>
+
+<!-- KATEGORIE 2 -->
+<details>
+    <summary style="color: var(--accent-green); font-size: 13px; padding: 8px;">⭕ 2. Jeden tečný oblouk</summary>
+    <div class="details-content" style="padding: 10px;">
+        <div class="combo-block">
+            <div class="combo-title">Úsečka (?) ➔ Oblouk (známý)</div>
+            <div class="syntax-box">G11 X40.0 Z?&#10;G2 X50.0 Z-25.0 R5.0 T</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Úsečka (?) ➔ Oblouk ➔ Kužel <span class="badge blue">VPOL</span></div>
+            <div class="syntax-box">G11 X20.0 Z?&#10;G2 X? Z? R3.0 T VPOL1&#10;G11 X40.0 Z-30.0 PA150 T</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Kužel (?) ➔ Oblouk ➔ Úsečka</div>
+            <div class="syntax-box">G11 X? Z? PA135&#10;G3 X? Z? R4.0 T&#10;G11 X50.0 Z-40.0 T</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Kužel (?) ➔ Oblouk ➔ Kužel <span class="badge blue">VPOL</span></div>
+            <div class="syntax-box">G11 X? Z? PA160&#10;G2 X? Z? R5.0 T VPOL2&#10;G11 X70.0 Z-45.0 PA130 T</div>
+        </div>
+    </div>
+</details>
+
+<!-- KATEGORIE 3 -->
+<details>
+    <summary style="color: var(--primary-hover); font-size: 13px; padding: 8px;">〰️ 3. Pokročilá Esíčka</summary>
+    <div class="details-content" style="padding: 10px;">
+        <div class="combo-block">
+            <div class="combo-title">Oblouk (?) ➔ Oblouk (známý) <span class="badge blue">VPOL</span></div>
+            <div class="syntax-box">G2 X? Z? R8.0&#10;G3 X50.0 Z-30.0 R6.0 T VPOL1</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Úsečka ➔ Oblouk ➔ Oblouk ➔ Úsečka <span class="badge blue">VPOL</span></div>
+            <div class="syntax-box">G11 X20.0 Z?&#10;G2 X? Z? R5.0 T VPOL1&#10;G3 X? Z? R5.0 T VPOL2&#10;G11 X60.0 Z-40.0 T</div>
+        </div>
+    </div>
+</details>
+
+<!-- KATEGORIE 4 -->
+<details>
+    <summary style="color: var(--accent-red); font-size: 13px; padding: 8px;">⚡ 4. Netečná napojení</summary>
+    <div class="details-content" style="padding: 10px;">
+        <div class="combo-block">
+            <div class="combo-title">Úsečka (?) ➔ Oblouk (netečný) <span class="badge blue">VPOL</span></div>
+            <div class="syntax-box">G11 X30.0 Z?&#10;G2 X50.0 Z-20.0 R10.0 VPOL2</div>
+        </div>
+        <div class="combo-block">
+            <div class="combo-title">Oblouk (?) ➔ Kužel (netečný) <span class="badge blue">VPOL</span></div>
+            <div class="syntax-box">G3 X? Z? R12.0&#10;G11 X70.0 Z-35.0 PA120 VPOL1</div>
+        </div>
+    </div>
+</details>

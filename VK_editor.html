@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK - Volná Kontura</title>
+    <style>
+        :root {
+            --bg-main: #1e1e2f;
+            --bg-dark: #12121f;
+            --bg-panel: #1a1a2e;
+            --border: #3d3d5c;
+            --primary: #4f46e5;
+            --primary-hover: #6366f1;
+            --text: #ffffff;
+            --text-muted: #a5a5c5;
+            --accent-orange: #ff9800;
+            --accent-green: #4af2a1;
+            --accent-red: #ff4a4a;
+            --accent-blue: #00bfff;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--text);
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal {
+            background-color: var(--bg-main);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .canvas-container {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            height: 320px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        details {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        summary {
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            background-color: #252538;
+            outline: none;
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .details-content {
+            padding: 15px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: bold;
+            margin: 15px 0 8px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .section-title.red { color: var(--accent-red); }
+        .section-title.orange { color: var(--accent-orange); }
+        .section-title.green { color: var(--accent-green); }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 5px;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        input[type="text"].unknown {
+            border-color: var(--accent-orange);
+            color: var(--accent-orange);
+            font-weight: bold;
+            text-align: center;
+        }
+
+        input[type="text"].vpol { border-color: var(--accent-red); color: var(--accent-red); font-weight: bold; }
+
+        .btn-q {
+            background-color: var(--bg-main);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 0 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-q.active {
+            background-color: var(--accent-orange);
+            border-color: var(--accent-orange);
+            color: #000;
+        }
+
+        .btn-toggle {
+            background-color: #2b2b40;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            flex: 1;
+        }
+
+        .btn-toggle.active {
+            background-color: var(--primary);
+            border-color: var(--primary-hover);
+            color: var(--text);
+        }
+
+        .btn-action-insert {
+            width: 100%;
+            background-color: #2b2b40;
+            border: 1px solid var(--accent-orange);
+            color: var(--accent-orange);
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 5px;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        .btn-action-insert:hover {
+            background-color: var(--accent-orange);
+            color: #000;
+        }
+        .btn-action-insert.red-btn {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+        .btn-action-insert.red-btn:hover {
+            background-color: var(--accent-red);
+            color: #000;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        /* Styly pro načtenou nápovědu */
+        .combo-block { background-color: var(--bg-dark); border-left: 3px solid var(--primary); padding: 10px; border-radius: 0 6px 6px 0; margin-bottom: 12px; }
+        .combo-block:last-child { margin-bottom: 0; }
+        .combo-title { font-size: 13px; font-weight: bold; color: var(--text); margin-bottom: 4px; }
+        .combo-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; margin-bottom: 6px; }
+        .syntax-box { background-color: #0f0f1a; border: 1px solid #2d2d44; border-radius: 4px; padding: 6px 10px; font-family: monospace; font-size: 12px; color: var(--accent-green); white-space: pre-line; line-height: 1.4; }
+        .badge { font-size: 10px; padding: 1px 4px; border-radius: 4px; font-weight: bold; display: inline-block; margin-left: 5px; }
+        .badge.blue { background-color: rgba(0, 191, 255, 0.15); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+
+        .gcode-editor-box {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+        }
+
+        .gcode-editor-box span { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px; }
+        
+        textarea.gcode-textarea {
+            width: 100%;
+            height: 90px;
+            background-color: #0f0f1a;
+            color: var(--accent-green);
+            border: 1px solid var(--accent-orange);
+            resize: vertical;
+            line-height: 1.4;
+            font-weight: bold;
+        }
+
+        .actions { display: flex; gap: 10px; }
+        .actions button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .btn-cancel { background-color: #3d3d5c; color: white; }
+        .btn-save { background-color: var(--primary); color: white; }
+        
+        .btn-convert {
+            background-color: #2b2b40;
+            color: var(--text-muted);
+            border: 1px solid var(--border) !important;
+        }
+        .btn-convert.error-state { background-color: var(--accent-red); color: #000; }
+        .btn-convert.success-state { background-color: var(--accent-green); color: #000; }
+
+        #arc-settings { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="modal">
+
+    <!-- CANVAS -->
+    <div class="canvas-container" id="canvas-view">
+        [ HTML5 Canvas - Grafické zobrazení VK ]
+    </div>
+
+    <!-- 1. ZÁLOŽKA: START & VPOL -->
+    <details>
+        <summary style="color: var(--accent-red);">📍 1. Počáteční bod & Volný Pól (VPOL)</summary>
+        <div class="details-content">
+            <div class="section-title">Výchozí poloha obrysu:</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>Start X1 (Průměr):</label>
+                    <input type="text" id="start-x" value="0.0">
+                </div>
+                <div class="input-group">
+                    <label>Start Z1 (Délka):</label>
+                    <input type="text" id="start-z" value="0.0">
+                </div>
+            </div>
+
+            <div class="section-title red">Definice pólu (VPOL):</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>VPOL X (Průměr):</label>
+                    <input type="text" class="vpol" id="vpol-x" value="0.0">
+                </div>
+                <div class="input-group">
+                    <label>VPOL Z (Délka):</label>
+                    <input type="text" class="vpol" id="vpol-z" value="40.0">
+                </div>
+            </div>
+
+            <div class="section-title red">Konstrukční nástroje vyhledání průsečíku:</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>Konstrukční úhel (PA):</label>
+                    <input type="text" id="vpol-pa" placeholder="Např. 45°">
+                </div>
+                <div class="input-group">
+                    <label>Hledat na požadovaném rádiusu (R):</label>
+                    <input type="text" id="vpol-arc-intersect" placeholder="Poloměr kružnice">
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <!-- 2. ZÁLOŽKA: PARAMETRY VK PRVKU -->
+    <details open>
+        <summary style="color: var(--accent-orange);">🎰 2. Parametry nového VK prvku</summary>
+        <div class="details-content">
+            <div class="section-title">Geometrie prvku:</div>
+            <div class="grid-2" style="display: flex;">
+                <button class="btn-toggle active" id="btn-vl" onclick="setType('vl')">VL (Úsečka)</button>
+                <button class="btn-toggle" id="btn-vkr" onclick="setType('vkr')">VKr (Oblouk)</button>
+            </div>
+
+            <div id="arc-settings">
+                <div class="grid-2" style="display: flex; margin-top: 10px;">
+                    <button class="btn-toggle active" id="btn-g2" onclick="setDir('g2')">G2 (Po směru)</button>
+                    <button class="btn-toggle" id="btn-g3" onclick="setDir('g3')">G3 (Proti směru)</button>
+                </div>
+                <div class="grid-2" style="margin-top: 10px;">
+                    <div class="input-group">
+                        <label>Poloměr zaoblení (R):</label>
+                        <div class="input-row">
+                            <input type="text" id="val-r" value="5.0">
+                            <button class="btn-q" onclick="toggleUnknown('val-r', this)">❓</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">Cílové pravoúhlé souřadnice:</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>Cíl X2 (Průměr):</label>
+                    <div class="input-row">
+                        <input type="text" id="val-x2" value="40.0">
+                        <button class="btn-q" onclick="toggleUnknown('val-x2', this)">❓</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Cíl Z2 (Délka):</label>
+                    <div class="input-row">
+                        <input type="text" id="val-z2" value="?" class="unknown" disabled>
+                        <button class="btn-q active" onclick="toggleUnknown('val-z2', this)">❓</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">Cílové polární souřadnice (k VPOL):</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>Polární úhel (PA):</label>
+                    <div class="input-row">
+                        <input type="text" id="val-pa" value="150">
+                        <button class="btn-q" onclick="toggleUnknown('val-pa', this)">❓</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Polární rádius/délka (PR):</label>
+                    <div class="input-row">
+                        <input type="text" id="val-pr" value="?" class="unknown" disabled>
+                        <button class="btn-q active" onclick="toggleUnknown('val-pr', this)">❓</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">Návaznost drah:</div>
+            <label class="checkbox-row">
+                <input type="checkbox" id="check-t" checked>
+                Tečné napojení na předchozí prvek (T)
+            </label>
+
+            <div class="grid-2" style="margin-top: 15px; gap: 10px;">
+                <button class="btn-action-insert red-btn" style="margin-top: 0;" onclick="insertVpol()">VPOL</button>
+                <button class="btn-action-insert" style="margin-top: 0;" onclick="insertVkElement()">Přidat VK prvek</button>
+            </div>
+        </div>
+    </details>
+
+    <!-- 3. ZÁLOŽKA: EXTERNÍ NÁPOVĚDA -->
+    <details id="help-details">
+        <summary style="color: var(--accent-green);" onclick="loadHelpModule()">❓ 3. Přehled syntaxe a možností VK</summary>
+        <div class="details-content" id="help-container" style="padding: 10px 5px;">
+            <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px;">Načítání modulu nápovědy...</div>
+        </div>
+    </details>
+
+    <!-- EDITOVATELNÝ G-KÓD EDITOR -->
+    <div class="gcode-editor-box">
+        <span>Generovaná VK syntaxe (Zde můžete kód přímo upravovat nebo mazat):</span>
+        <textarea id="gcode-editor" class="gcode-textarea">G111 X0.0 Z40.0&#10;G11 X40.0 Z? PA150 PR? T</textarea>
+    </div>
+
+    <!-- SPODNÍ TLAČÍTKA -->
+    <div class="actions">
+        <button class="btn-cancel" onclick="document.getElementById('gcode-editor').value=''">Smazat</button>
+        <button class="btn-save">Přidat</button>
+        <button id="btn-convert" class="btn-convert" onclick="convertToStandardGCode()">Konvertovat na ISO G-kód</button>
+    </div>
+</div>
+
+<script>
+    let currentType = 'vl';
+    let arcDir = 'G2';
+    let isHelpLoaded = false;
+
+    // Dynamické načtení nápovědy z externího souboru při rozbalení záložky
+    function loadHelpModule() {
+        if (isHelpLoaded) return;
+        
+        fetch('napoveda.html')
+            .then(response => {
+                if (!response.ok) throw new Error('Soubor nenalezen');
+                return response.text();
+            })
+            .then(html => {
+                document.getElementById('help-container').innerHTML = html;
+                isHelpLoaded = true;
+            })
+            .catch(error => {
+                document.getElementById('help-container').innerHTML = 
+                    `<div style="color:var(--accent-red); text-align:center; font-size:12px; padding:10px;">
+                        Chyba: Nepodařilo se načíst soubor napoveda.html. Spusťte stránku přes lokální server (Live Server).
+                     </div>`;
+            });
+    }
+
+    function setType(type) {
+        currentType = type;
+        document.getElementById('btn-vl').classList.toggle('active', type === 'vl');
+        document.getElementById('btn-vkr').classList.toggle('active', type === 'vkr');
+        document.getElementById('arc-settings').style.display = type === 'vkr' ? 'block' : 'none';
+    }
+
+    function setDir(dir) {
+        arcDir = dir.toUpperCase();
+        document.getElementById('btn-g2').classList.toggle('active', dir === 'g2');
+        document.getElementById('btn-g3').classList.toggle('active', dir === 'g3');
+    }
+
+    function toggleUnknown(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const isUnknown = input.value === '?';
+        
+        if (isUnknown) {
+            input.value = '0.0';
+            input.classList.remove('unknown');
+            input.disabled = false;
+            btn.classList.remove('active');
+        } else {
+            input.value = '?';
+            input.classList.add('unknown');
+            input.disabled = true;
+            btn.classList.add('active');
+        }
+    }
+
+    function insertVpol() {
+        const vx = document.getElementById('vpol-x').value;
+        const vz = document.getElementById('vpol-z').value;
+        const vpa = document.getElementById('vpol-pa').value;
+        const varc = document.getElementById('vpol-arc-intersect').value;
+
+        let line = `G111 X${vx} Z${vz}`;
+        if (vpa) line += ` PA${vpa}`;
+        if (varc) line += ` R${varc}`;
+
+        appendCode(line);
+    }
+
+    function insertVkElement() {
+        const x = document.getElementById('val-x2').value;
+        const z = document.getElementById('val-z2').value;
+        const pa = document.getElementById('val-pa').value;
+        const pr = document.getElementById('val-pr').value;
+        const r = document.getElementById('val-r').value;
+        const isT = document.getElementById('check-t').checked ? ' T' : '';
+
+        let cmd = currentType === 'vl' ? 'G11' : arcDir;
+        let arcParams = currentType === 'vkr' ? ` R${r}` : '';
+        
+        let line = `${cmd} X${x} Z${z}`;
+        if (pa !== '?') line += ` PA${pa}`;
+        if (pr !== '?') line += ` PR${pr}`;
+        if (arcParams) line += arcParams;
+        if (isT) line += isT;
+        
+        appendCode(line);
+    }
+
+    function appendCode(newLine) {
+        const editor = document.getElementById('gcode-editor');
+        if (editor.value.trim() === "") {
+            editor.value = newLine;
+        } else {
+            editor.value += `\n${newLine}`;
+        }
+        resetConvertButton();
+    }
+
+    function resetConvertButton() {
+        const btn = document.getElementById('btn-convert');
+        btn.classList.remove('error-state', 'success-state');
+    }
+
+    function convertToStandardGCode() {
+        const editor = document.getElementById('gcode-editor');
+        const btn = document.getElementById('btn-convert');
+        let text = editor.value;
+
+        if (text.includes('?')) {
+            btn.classList.remove('success-state');
+            btn.classList.add('error-state');
+            alert('Nelze konvertovat! Nejprve v editoru doplňte vypočítané rozměry namísto otazníků (?).');
+            return;
+        }
+
+        let lines = text.split('\n');
+        let convertedLines = lines.map(line => {
+            let clean = line.trim();
+            if (clean.startsWith('G111')) {
+                return `( ${clean} - POZNÁMKA VPOL )`;
+            }
+            clean = clean.replace(/G11/g, 'G1');
+            clean = clean.replace(/PA\d+(\.\d+)?/g, '');
+            clean = clean.replace(/PR\d+(\.\d+)?/g, '');
+            clean = clean.replace(/\s*T/g, '');
+            return clean.replace(/\s+/g, ' ').trim();
+        });
+
+        editor.value = convertedLines.join('\n');
+        btn.classList.remove('error-state');
+        btn.classList.add('success-state');
+    }
+</script>
+
+</body>
+</html>
