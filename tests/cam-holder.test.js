@@ -54,17 +54,19 @@ function pocketProg(overrides = {}) {
 describe('držák plátku — zanoření do široké kapsy', () => {
   it('s držákem: mezní čáry se lomí (via) a dno kapsy zůstává obrobitelné', async () => {
     const { calc } = await runCamProg(pocketProg());
-    // Zanořovací mezní čára je lomená podle „stěna − šířka držáku".
+    // Zanořovací mezní čára je lomená podle dosažitelné oblasti držáku (F).
     const viaGuides = (calc.interferenceGuides || []).filter(g => g.via && g.via.length);
     expect(viaGuides.length).toBeGreaterThanOrEqual(1);
     // Lomená čára pravého rohu (40,70): hrana destičky pod 15° z rohu až po
-    // průsečík se svislicí „stěna − šířka držáku" (z = 70−20 = 50), pak
-    // svisle na dno (20, 50).
+    // průsečík s dosažitelnou hranicí držáku. Fáze 3: plný obrys držáku
+    // (holderWorldLoop) je vycentrovaný ±holderWidth/2, takže hranice leží
+    // na „stěna − holderWidth/2" (z = 70 − 10 = 60), ne na 70−20 jako dřívější
+    // aproximace svislým pásem šířky W. Pak svisle na dno (20, 60).
     const zan = viaGuides.find(g => g.kind === 'zanoreni');
     expect(zan).toBeTruthy();
     expect(zan.x1).toBeCloseTo(20, 1);
-    expect(zan.z1).toBeCloseTo(50, 1);
-    expect(zan.via[0].z).toBeCloseTo(50, 1);
+    expect(zan.z1).toBeCloseTo(60, 1);
+    expect(zan.via[0].z).toBeCloseTo(60, 1);
     // Obrobitelná kontura obsahuje kus DNA kapsy (x = 20) — bez držáku by
     // celou kapsu nahradilo „V" a na dno by se nesmělo.
     const mc = calc.machinableContour || calc.contourSegments;

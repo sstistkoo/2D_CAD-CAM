@@ -29,8 +29,10 @@ export async function loadCamInternals() {
   let src = readFileSync(join(root, 'js/calculators/camSimulator.js'), 'utf8');
   src = src.replace(/^import\s[^\n]*$/gm, '');
   const camMathUrl = pathToFileURL(join(root, 'js/calculators/cam/camMath.js')).href;
+  const interferenceGuidesUrl = pathToFileURL(join(root, 'js/calculators/cam/interferenceGuides.js')).href;
   const prelude = `
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from ${JSON.stringify(camMathUrl)};
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour } from ${JSON.stringify(camMathUrl)};
+import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from ${JSON.stringify(interferenceGuidesUrl)};
 const ROUGHING_STRATEGIES = {};
 const makeOverlay=()=>({}), openCamEditor=()=>{}, state={}, pushUndo=()=>{}, showToast=()=>{};
 const renderAll=()=>{}, autoCenterView=()=>{}, calculateAllIntersections=()=>{}, updateObjectList=()=>{};

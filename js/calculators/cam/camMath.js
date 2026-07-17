@@ -183,6 +183,118 @@ export function intersectVerticalLineArc(zLine, center, radius) {
   return [center.x - sqrtTerm, center.x + sqrtTerm];
 }
 
+// ── Základní geometrické primitivy (line/arc) ──────────────────
+// Přesunuto z camSimulator.js, aby je sdílela i logika mezních čar
+// (cam/interferenceGuides.js) i strategie generování drah.
+
+// Normála úsečky p1→p2 (jednotková, otočená o +90°). {0,0} pro degenerát.
+export function getNormal(p1, p2) {
+  if (!p1 || !p2) return { x: 0, z: 0 };
+  const dx = p2.x - p1.x, dz = p2.z - p1.z, l = Math.sqrt(dx * dx + dz * dz);
+  if (l === 0 || isNaN(l)) return { x: 0, z: 0 };
+  return { x: -dz / l, z: dx / l };
+}
+
+// Úhel směrového vektoru (x,z) ve stejné konvenci jako úhly oblouků (atan2(x,z)).
+export function vecAngle(x, z) { return Math.atan2(x, z); }
+
+// Normalizace úhlu do rozsahu (-PI, PI>.
+export function normalizeAngle(a) {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+
+// Střed a poloměr oblouku ze dvou koncových bodů a zadaného poloměru r
+// (r < 0 = velký oblouk). type 'G2'/'G3' určuje stranu středu. error=true,
+// když body splývají nebo r < tětiva/2 (safeR se dopočítá).
+export function getArcParams(p1, p2, r, type) {
+  if (!p1 || !p2) return { error: true, cx: 0, cz: 0, r: 0 };
+  const d2 = Math.pow(p2.x - p1.x, 2) + Math.pow(p2.z - p1.z, 2), d = Math.sqrt(d2);
+  const isLongArc = r < 0;
+  const absR = Math.abs(r);
+  let safeR = absR, error = false;
+  if (d2 === 0) return { error: true, cx: p1.x, cz: p1.z, r: 0 };
+  if (absR < d / 2 - 0.001) { error = true; safeR = d / 2 + 0.001; }
+  const mx = (p1.x + p2.x) / 2, mz = (p1.z + p2.z) / 2;
+  const h = Math.sqrt(Math.max(0, safeR * safeR - d2 / 4));
+  const dx = p2.x - p1.x, dz = p2.z - p1.z;
+  const ox = -dz / d, oz = dx / d;
+  let sign = (type === 'G3') ? -1 : 1;
+  if (isLongArc) sign *= -1;
+  const cx = mx + sign * h * ox, cz = mz + sign * h * oz;
+  if (isNaN(cx) || isNaN(cz)) return { error: true, cx: 0, cz: 0, r: 0 };
+  return { cx, cz, r: safeR, error };
+}
+
+// Průsečíky přímky p1→p2 s kružnicí (center, r). Vrací dva body [t1, t2]
+// na PŘÍMCE (neomezeno na úsečku), nebo null pro míjení (s tolerancí pro
+// tangentní případ). Body se řadí podle parametru t (menší první).
+export function intersectLineCircle(p1, p2, center, r) {
+  if (!p1 || !p2 || !center) return null;
+  const dx = p2.x - p1.x, dz = p2.z - p1.z;
+  const fx = p1.x - center.x, fz = p1.z - center.z;
+  const a = dx * dx + dz * dz, b = 2 * (fx * dx + fz * dz), c = (fx * fx + fz * fz) - r * r;
+  let discriminant = b * b - 4 * a * c;
+  // Tolerance pro tangentní případ — bez ní by se line tečná k offset oblouku
+  // vyhodnotila jako "no intersection" a bridge fallback v trimAndRemoveLoops
+  // by zdegeneroval malý oblouk (radius při ostrém rohu) do bodu.
+  const tangentTol = 1e-6 * Math.max(1, a, c < 0 ? -c : c);
+  if (discriminant < -tangentTol) return null;
+  if (discriminant < 0) discriminant = 0;
+  discriminant = Math.sqrt(discriminant);
+  const t1 = (-b - discriminant) / (2 * a), t2 = (-b + discriminant) / (2 * a);
+  return [
+    { x: p1.x + t1 * dx, z: p1.z + t1 * dz },
+    { x: p1.x + t2 * dx, z: p1.z + t2 * dz }
+  ];
+}
+
+// Z-souřadnice průsečíku vodorovné čáry X=xLine s úsečkou p1→p2
+// (null mimo X-rozsah nebo pro vodorovnou úsečku).
+export function intersectHorizontalLineSegment(xLine, p1, p2) {
+  if (!p1 || !p2) return null;
+  const minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+  if (xLine < minX || xLine > maxX) return null;
+  if (Math.abs(p2.x - p1.x) < 1e-6) return null;
+  const t = (xLine - p1.x) / (p2.x - p1.x);
+  return p1.z + t * (p2.z - p1.z);
+}
+
+// Lokalizace bodu na kontuře (segmenty result): vrátí {segIdx, key} kde
+// key = segIdx + podíl 0..1 podél segmentu (pro řazení podél kontury).
+// null = bod neleží na žádném segmentu (do TOL).
+export function _locateOnContour(result, pt) {
+  const TOL = 0.3;
+  let best = null, bestD = Infinity;
+  for (let i = 0; i < result.length; i++) {
+    const s = result[i]; if (!s || s.isDegenerate) continue;
+    if (s.type === 'line') {
+      if (!s.p1 || !s.p2) continue;
+      const dx = s.p2.x - s.p1.x, dz = s.p2.z - s.p1.z, L2 = dx * dx + dz * dz || 1e-9;
+      let t = ((pt.x - s.p1.x) * dx + (pt.z - s.p1.z) * dz) / L2;
+      if (t < -0.02 || t > 1.02) continue;
+      t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(pt.x - (s.p1.x + t * dx), pt.z - (s.p1.z + t * dz));
+      if (d < bestD && d < TOL) { bestD = d; best = { segIdx: i, key: i + t }; }
+    } else if (s.type === 'arc') {
+      const d = Math.abs(Math.hypot(pt.x - s.cx, pt.z - s.cz) - s.r);
+      if (d > TOL) continue;
+      const a = Math.atan2(pt.x - s.cx, pt.z - s.cz);
+      if (!isAngleBetween(a, s.startAngle, s.endAngle, s.dir === 'G2')) continue;
+      let sA = s.startAngle, eA = s.endAngle;
+      if (s.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (s.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      let aa = a;
+      if (s.dir === 'G2' && aa > sA) aa -= 2 * Math.PI;
+      if (s.dir === 'G3' && aa < sA) aa += 2 * Math.PI;
+      const t = Math.abs(eA - sA) > 1e-9 ? (aa - sA) / (eA - sA) : 0;
+      if (d < bestD) { bestD = d; best = { segIdx: i, key: i + Math.max(0, Math.min(1, t)) }; }
+    }
+  }
+  return best;
+}
+
 // ── Vůle nad polotovarem po osách ──────────────────────────────
 // Odsazení hranice pracovního posuvu od polotovaru: stockClearX (radiálně)
 // a stockClearZ (axiálně). null/undefined = převzít starou jednotnou
