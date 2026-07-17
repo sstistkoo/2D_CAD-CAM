@@ -20,6 +20,7 @@ import { MaterialRemoval, buildStockLoop, toolFootprint } from './cam/materialRe
 import { validateToolpath } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
+import { HolderGouge } from './cam/holderGouge.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 // ── Custom confirm dialog ──────────────────────────────────────
@@ -3846,6 +3847,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="removal" title="Úběr materiálu: při simulaci vizuálně odebírat projetý materiál z polotovaru">⛏</button>
+      <button data-act="holdercol" title="Kolize držáku: oranžově obarví oblast, kudy se držák při simulaci vnořil do polotovaru/obrobku (stopa zůstává i po přejetí)">🟧</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
@@ -4046,6 +4048,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Vizuální úběr materiálu při simulaci (Clipper2) — zbývající polotovar
     // ořezává vybarvení, takže je vidět, co už nástroj odebral.
     showRemoval: true,
+    // Oranžové varování: akumulovaná stopa vnoření obrysu držáku do materiálu
+    // podél projeté dráhy (HolderGouge) — zůstává i po přejetí.
+    showHolderCollision: true,
     draggedLimit: null, // 'chuck' | 'tail' | 'rangeStart' | 'rangeEnd' | 'rangeXMin' | 'rangeXMax' nebo null
     simRunning: false, simProgress: 0,
     manualGCode: '',
@@ -4144,6 +4149,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         else if (['all', 'cut', 'none'].includes(p.showSimPath)) S.showSimPath = p.showSimPath;
       }
       if (typeof p.showRemoval === 'boolean') S.showRemoval = p.showRemoval;
+      if (typeof p.showHolderCollision === 'boolean') S.showHolderCollision = p.showHolderCollision;
     }
   } catch (_) { /* ignore */ }
 
@@ -4302,6 +4308,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Sync removal toggle button to persisted state
   const removalBtn = toolbar.querySelector('[data-act="removal"]');
   if (removalBtn) removalBtn.classList.toggle('cam-sim-active', !!S.showRemoval);
+  const holderColBtn = toolbar.querySelector('[data-act="holdercol"]');
+  if (holderColBtn) holderColBtn.classList.toggle('cam-sim-active', !!S.showHolderCollision);
   // Sync sim-path toggle button to persisted state (all/cut/none)
   const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
   if (simPathBtn) {
@@ -4384,7 +4392,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
         flipX: S.flipX, flipZ: S.flipZ, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
-        showRemoval: S.showRemoval,
+        showRemoval: S.showRemoval, showHolderCollision: S.showHolderCollision,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
       }));
     } catch (_) { /* quota */ }
@@ -6425,6 +6433,29 @@ export function openCamSimulator(initialContour, initialGCode) {
     return _removal;
   }
 
+  // ── Kolize držáku s materiálem (oranžové varování) ─────────────
+  // AKUMULOVANÁ stopa vnoření: stopa obrysu držáku podél projeté dráhy ×
+  // zbývající materiál v daném okamžiku (HolderGouge). Na rozdíl od okamžité
+  // kontroly oblast ZŮSTANE oranžová i po přejetí — je to záznam, kde všude
+  // se držák do materiálu vnořil. Instance se váže na konkrétní calc (identita)
+  // stejně jako _removal. Vrací pole smyček v SIM souřadnicích {x,z} (kresli
+  // přes toScreen), nebo null.
+  let _holderGouge = null;
+  let _holderGougeCalcRef = null;
+  function getHolderGouge(calc) {
+    if (!S.showHolderCollision || S.simProgress <= 0 || !calc || !calc.simPath || calc.simPath.length < 2) {
+      return null;
+    }
+    if (!_holderGouge || _holderGougeCalcRef !== calc) {
+      _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, roughingKey() === 'backside');
+      _holderGougeCalcRef = calc;
+    }
+    if (!_holderGouge.valid) return null;
+    const fIdx = S.simProgress * (calc.simPath.length - 1);
+    _holderGouge.advanceTo(calc.simPath, fIdx);
+    return _holderGouge.gouge.length ? _holderGouge.gouge : null;
+  }
+
   function scheduleFrame(fn) {
     _rafFn = fn;                       // ponech jen poslední požadavek
     if (_rafId !== null) return;
@@ -7116,6 +7147,31 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (S.flipX) ctx.scale(1, -1);
         drawHolderProfileLocal(ctx, prms, S.view.scale);
         ctx.restore();
+        // Oranžové varování: AKUMULOVANÁ oblast, kudy se držák vnořil do
+        // materiálu (zůstává i po přejetí). Smyčky jsou v SIM souřadnicích,
+        // kreslí se přímo přes toScreen (mimo výše zrcadlený kontext — ten
+        // řeší toScreen sám).
+        const holderHit = getHolderGouge(calc);
+        if (holderHit) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(250,140,50,0.55)';
+          ctx.strokeStyle = '#e8590c';
+          ctx.lineWidth = 1.5;
+          for (const loop of holderHit) {
+            if (loop.length < 3) continue;
+            ctx.beginPath();
+            const p0 = toScreen(loop[0].x, loop[0].z);
+            ctx.moveTo(p0.x, p0.y);
+            for (let i = 1; i < loop.length; i++) {
+              const p = toScreen(loop[i].x, loop[i].z);
+              ctx.lineTo(p.x, p.y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
         ctx.fillStyle = C.insert; ctx.strokeStyle = C.text; ctx.lineWidth = 1;
         if (prms.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -11394,7 +11450,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       showZLimits: S.showZLimits,
       xLimits: S.xLimits,
       showSimPath: S.showSimPath,
-      showRemoval: S.showRemoval
+      showRemoval: S.showRemoval,
+      showHolderCollision: S.showHolderCollision
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -11460,6 +11517,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.xLimits) S.xLimits = Object.assign({ rangeXMin: null, rangeXMax: null, active: false }, data.xLimits);
         if (data.showSimPath) S.showSimPath = data.showSimPath;
         if (typeof data.showRemoval === 'boolean') S.showRemoval = data.showRemoval;
+        if (typeof data.showHolderCollision === 'boolean') S.showHolderCollision = data.showHolderCollision;
         S.simRunning = false; S.simProgress = 0;
         fullUpdate();
         showToast('Projekt načten ze souboru');
@@ -12109,6 +12167,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       draw();
       saveState();
       showToast(S.showRemoval ? 'Úběr materiálu při simulaci zapnut' : 'Úběr materiálu vypnut');
+    } else if (act === 'holdercol') {
+      S.showHolderCollision = !S.showHolderCollision;
+      _holderGouge = null; _holderGougeCalcRef = null;
+      btn.classList.toggle('cam-sim-active', S.showHolderCollision);
+      draw();
+      saveState();
+      showToast(S.showHolderCollision ? 'Hlídání kolize držáku zapnuto' : 'Hlídání kolize držáku vypnuto');
     } else if (act === 'zlimits') {
       // Prostý on/off – co se zobrazuje řídí checkboxy v parametrech.
       S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on';

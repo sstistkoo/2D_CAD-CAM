@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and each half machined toward the split as if solid
 
 ### Added
+- CAM (simulace): **oranžové varování na kolizi držáku** (🟧) — během simulace
+  se podél projeté dráhy navléká stopa obrysu držáku a její průnik se
+  zbývajícím materiálem (co destička ještě neodebrala) se AKUMULUJE do jedné
+  oblasti, která zůstává oranžová i po přejetí — je vidět, kudy všude se držák
+  vnořil do polotovaru/obrobku. Nový akumulátor `HolderGouge`
+  (`js/calculators/cam/holderGouge.js`, obdoba `MaterialRemoval`) drží vlastní
+  kopii zbytkového polotovaru, takže kanál po destičce nehlásí jako kolizi;
+  přepínatelné tlačítko, stav `showHolderCollision` se ukládá do localStorage
+  i projektu. Testy `tests/cam-holder-gouge.test.js`
 - CAM: dynamic rapid-move planning (Phase 4 core of the geometry-library
   migration) — G-code emission now maintains a live remaining-stock polygon
   (`StockModel`, cut pass-by-pass via `noteCutPass`) and every direct rapid
