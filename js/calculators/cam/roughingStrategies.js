@@ -586,21 +586,13 @@ export function genLongPasses(ctx) {
         }
         if (nz > iv.zEnd + 1e-9) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
         if (iv.zStart - iv.zEnd < dzScan) { firstSurvived = false; continue; }
-      } else {
-        // KAPSA (zanoření): vstupní pás u stěny bývá zakázaný (držák nad
-        // okrajem), vnitřek dosažitelný — ořez na povolenou KOMPONENTU
-        // z obou stran. Okno vyjde ≈ shodně s lomenými mezními čarami
-        // guides v2 („stěna − holderWidth"); kapsy, kam se držák nevejde
-        // vůbec, se vynechají (⚠ varování).
-        const span = holderClampZEnd.span(X, iv.zStart, iv.zEnd);
-        if (span === null) {
-          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
-          continue;
-        }
-        if (span.zStart < iv.zStart - 1e-9) { iv.zStart = span.zStart; iv.holderClamped = true; }
-        if (span.zEnd > iv.zEnd + 1e-9) { iv.zEnd = span.zEnd; iv.blocked = true; iv.holderClamped = true; }
-        if (iv.zStart - iv.zEnd < dzScan) continue;
       }
+      // KAPSY (k>0 / zanoření) obálka NEOŘEZÁVÁ: lomené mezní čáry guides v2
+      // („stěna − holderWidth") už drží držák uvnitř kapsy a jsou zapracované
+      // do obrobitelné kontury. Druhá (statická) restrikce přes span by přes
+      // přídavkovou slupku zkracovala rampy a bránila digu na dno (široká
+      // kapsa, cam-holder test). Nájezd/výjezd kapes hlídá holderTrimLeadIn/Out;
+      // zbytek pokryje validátor (⚠ panel).
       out.push(iv);
     }
     return { intervals: out, firstOpen: firstSurvived };
@@ -685,7 +677,7 @@ export function genLongPasses(ctx) {
       if (iv.zStart - iv.zEnd < dzScan) return;
       if (idx === 0 && firstOpen) {
         // Otevřený vjezd zprava přes hranu polotovaru.
-        const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked, _r: 'k0' };
+        const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         // ── Vjezd na hranici rozsahu Z rampou (Fáze 4, částečně) ──────
         // Když rozsah obrábění začíná UVNITŘ polotovaru (napravo od
         // hranice ještě stojí materiál), kolmý zápich na hloubku
@@ -781,7 +773,7 @@ export function genLongPasses(ctx) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
         // kontura z konce předchozího průchodu na currentX.
-        const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked, _r: 'open' };
+        const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         const erOpen = stockEntryRamp(currentX, iv.zStart);
         if (erOpen) {
           // Vstup leží v kůře odlitku → rampa od tečkované hranice
@@ -808,7 +800,7 @@ export function genLongPasses(ctx) {
       if (!corner) {
         // Sklon kontury nikdy nedosáhne úhlu zanoření — celá mezera se
         // projede po kontuře na currentX, žádná rampa.
-        const passFlat = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked, _r: 'flat' };
+        const passFlat = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
         const erFlat = stockEntryRamp(currentX, iv.zStart);
         if (erFlat) {
           // Vstup leží v kůře odlitku → rampa od tečkované hranice.
@@ -906,14 +898,12 @@ export function genLongPasses(ctx) {
       };
       if (!prms.pocketFinishAtOnce) {
         const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, !partingNoDress, true);
-        if (globalThis.__HOLDER_CLAMP_DEBUG__ && currentX < 22) console.log(`[pocket] X=${currentX.toFixed(1)} corner=${corner.x.toFixed(1)},${corner.z.toFixed(1)} reached=${pocketPass.x.toFixed(1)} zS=${pocketPass.zStart.toFixed(1)} best=${pocketBestX.get(`${corner.x.toFixed(1)},${corner.z.toFixed(1)}`)}`);
         // Nulový progres proti dřívější vrstvě u TÉHOŽ rohu → duplicitní
         // zákrok po stejné rampě, nic neodebere — vynech.
         const pbKey = `${corner.x.toFixed(1)},${corner.z.toFixed(1)}`;
         const pbBest = pocketBestX.get(pbKey);
         if (pbBest !== undefined && pocketPass.x >= pbBest - 0.05) return;
         pocketBestX.set(pbKey, pocketPass.x);
-        if (globalThis.__HOLDER_CLAMP_DEBUG__ && currentX < 22) console.log(`[push] X=${currentX.toFixed(1)} zS=${pocketPass.zStart.toFixed(1)} zE=${pocketPass.zEnd.toFixed(1)} totalBefore=${passes.length}`);
         linkToPrev(leadIn);   // navázání nezávisí na „bez schodků"
         passes.push(pocketPass);
         return;
