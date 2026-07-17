@@ -166,7 +166,12 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = 0
   // Komponentový ořez pro KAPSOVÉ intervaly (vstup u stěny zakázaný,
   // vnitřek dosažitelný — držák se do široké kapsy vejde): vrací
   // { zStart, zEnd } první povolené komponenty, nebo null.
-  clamp.span = (X, zStart, zEnd) => clampSpanTowardNegative(forbidden, X, zStart, zEnd, margin);
+  clamp.span = (X, zStart, zEnd) => {
+    const r = clampSpanTowardNegative(forbidden, X, zStart, zEnd, margin);
+    if (globalThis.__HOLDER_CLAMP_DEBUG__)
+      console.log(`[span] X=${X.toFixed(2)} [${zStart.toFixed(2)}..${zEnd.toFixed(2)}] → ${r ? r.zStart.toFixed(2) + '..' + r.zEnd.toFixed(2) : 'NULL'}`);
+    return r;
+  };
   return clamp;
 }
 

@@ -1093,6 +1093,30 @@ function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     }
     return result;
   }
+  // ── STÍN POD KOTVOU (mezní čára oříznutá polotovarem) ──
+  // Kotva NAHOŘE na kontuře, dolní konec oříznutý na hranici polotovaru
+  // (výstup siluety do vzduchu údolí). Nedosažitelná stěna POD kotvou se
+  // nahradí mostem podél čáry; kontura pokračuje prvním segmentem hlubším
+  // než konec čáry — navázání přes chainBreak (mezi nimi je VZDUCH,
+  // spojnice přes údolí by se chovala jako falešná kontura).
+  if (g.downClipped && g.kind === 'zanoreni' && offPt.x < locPt.x + 0.5) {
+    const tPos = loc.key - loc.segIdx;
+    const ci = tPos < 0.5 ? loc.segIdx : loc.segIdx + 1;
+    let keepFrom = -1;
+    for (let k = ci; k < result.length; k++) {
+      if (segStartPoint(result[k]).z <= offPt.z + 1e-6) { keepFrom = k; break; }
+    }
+    const before = result.slice(0, ci).map(x => ({ ...x }));
+    if (before.length && tPos >= 0.5) {
+      setSegEnd(before[before.length - 1], locPt);
+      syncArcEndpoints(before[before.length - 1]);
+    }
+    const bridge = segsFromTo({ ...locPt }, { ...offPt });
+    if (keepFrom === -1) return [...before, ...bridge];
+    const tail = result.slice(keepFrom).map(x => ({ ...x }));
+    tail[0] = { ...tail[0], chainBreak: true };
+    return [...before, ...bridge, ...tail];
+  }
   const startPt = segStartPoint(result[0]);
   const endPt = segEndPoint(result[result.length - 1]);
   const dStart = Math.hypot(offPt.x - startPt.x, offPt.z - startPt.z);
@@ -1531,6 +1555,77 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
     low: violatingPts(seg, true).length > 0,
     high: violatingPts(seg, false).length > 0,
   });
+  // ── Ořez mezních čar polotovarem (odlitek) ─────────────────────
+  // Mezní čára má smysl jen v MATERIÁLU: jakmile silueta nástroje vyjde
+  // z kůry odlitku do vzduchu (údolí mezi výstupky), čára končí na
+  // hranici polotovaru + vůle X. Bez ořezu by se táhla vzduchem přes
+  // údolí, mergePocketGuides by ji spároval s protější stěnou a most by
+  // z ní udělal falešnou konturu (hrubování by „obrábělo" vzduch).
+  const stockLoopG2 = (() => {
+    if (prms.stockMode !== 'casting' || !stockWorldPoints || stockWorldPoints.length < 3) return null;
+    const pts = [];
+    const pushP = (x, z) => {
+      const l = pts[pts.length - 1];
+      if (!l || Math.hypot(l.x - x, l.z - z) > 1e-6) pts.push({ x, z });
+    };
+    for (let i = 1; i < stockWorldPoints.length; i++) {
+      const p1 = stockWorldPoints[i - 1], p2 = stockWorldPoints[i];
+      if (p2.type === 'G1') {
+        pushP(p1.xReal, p1.zReal); pushP(p2.xReal, p2.zReal);
+      } else if (p2.type === 'G2' || p2.type === 'G3') {
+        const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
+        if (arc.error) continue;
+        let sA = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
+        let eA = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
+        if (p2.type === 'G2' && eA > sA) eA -= 2 * Math.PI;
+        if (p2.type === 'G3' && eA < sA) eA += 2 * Math.PI;
+        for (let s = 0; s <= 12; s++) {
+          const a = sA + (eA - sA) * (s / 12);
+          pushP(arc.cx + Math.sin(a) * arc.r, arc.cz + Math.cos(a) * arc.r);
+        }
+      }
+    }
+    if (pts.length < 3) return null;
+    if (Math.abs(pts[pts.length - 1].x) > 1e-6) pushP(0, pts[pts.length - 1].z);
+    if (Math.abs(pts[0].x) > 1e-6) pushP(0, pts[0].z);
+    return pts;
+  })();
+  const insideStockG = (x, z) => {
+    if (!stockLoopG2) return true;
+    let parity = 0;
+    for (let i = 0; i < stockLoopG2.length; i++) {
+      const p = stockLoopG2[i], q = stockLoopG2[(i + 1) % stockLoopG2.length];
+      if ((p.x <= x) === (q.x <= x)) continue;
+      const zc = p.z + ((x - p.x) / (q.x - p.x)) * (q.z - p.z);
+      if (zc > z) parity ^= 1;
+    }
+    return parity === 1;
+  };
+  const clrExitG = stockClearances(prms).x;
+  // Výstup siluety z materiálu podél úseku a+t·(ux,uz), t∈(0, tMax]:
+  // pochod po 0,5 mm + bisekce. k===0 = kotva na kontuře (v materiálu).
+  const stockExitOnSeg = (a, ux, uz, tMax, isFirst) => {
+    if (!stockLoopG2 || tMax < 0.05) return null;
+    let prevT = 0;
+    let prevIn = isFirst ? true : insideStockG(a.x, a.z);
+    if (!prevIn) return 0;
+    const step = 0.5;
+    for (let t = step; ; t += step) {
+      const tt = Math.min(t, tMax);
+      const inNow = insideStockG(a.x + ux * tt, a.z + uz * tt);
+      if (prevIn && !inNow) {
+        let lo = prevT, hi = tt;
+        for (let i = 0; i < 12; i++) {
+          const m = (lo + hi) / 2;
+          if (insideStockG(a.x + ux * m, a.z + uz * m)) lo = m; else hi = m;
+        }
+        return hi;
+      }
+      prevT = tt; prevIn = inNow;
+      if (tt >= tMax) return null;
+    }
+  };
+
   // Průsečíky mezních čar hledáme JEN na kontuře — obrys polotovaru
   // není obráběný povrch (čára by se jinak táhla třeba až k ose X0).
   const localCalc = { worldPoints, stockWorldPoints: [] };
@@ -1635,22 +1730,39 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
           if (len < 1e-6) continue;
           const ux = dx / len, uz = dz / len;
           let hit = camRayIntersection(a.x, a.z, ux, uz, null, calcLoc);
+          let tHit = null;
           if (hit) {
             const t = (hit.x - a.x) * ux + (hit.z - a.z) * uz;
-            if (t <= len + 1e-6) {
-              // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ
-              // čelo (z < min Z kontury), což nejsou řezné plochy. Dopad na osu
-              // zahodit (ukončí hledání — níž už je jen osa); dopad pod konec
-              // dílce oříznout přesně na konec dílce po směru segmentu.
-              // VÝJIMKA: dotykový bod SÁM na konci dílce (levé/zadní čelo) —
-              // viz komentář u downOnStock níže; tam se neořezává.
-              if (Math.abs(hit.x) < 0.1 && best.x > 0.5) return { rejected: true };
-              if (hit.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
-                const tz = uz < -0.01 ? (a.z - minPartZG) / -uz : -1;
-                hit = (tz > 0.01 && tz <= len) ? { x: a.x + ux * tz, z: minPartZG } : { x: a.x, z: a.z };
-              }
-              return { down: hit, via };
+            if (t <= len + 1e-6) tHit = t; else hit = null;
+          }
+          // Ořez polotovarem (odlitek): když silueta vyjde z materiálu DŘÍV,
+          // než dopadne na konturu, čára končí na hranici polotovaru + vůle
+          // X — dál je vzduch (údolí), tam se nehlídá ani nemostí.
+          // VÝJIMKA: výstup přes OSU (x≈0) nebo ZADNÍ čelo (z < konec dílce)
+          // — to jsou uzavírací hrany smyčky, ne kůra; nechat staré chování
+          // (dopad na osu → rejected, zadní čelo → ořez na konec dílce).
+          let tExit = stockExitOnSeg(a, ux, uz, tHit !== null ? tHit : len, k === 0);
+          if (tExit !== null) {
+            const ex = { x: a.x + ux * tExit, z: a.z + uz * tExit };
+            if (ex.x < 0.5 || ex.z < minPartZG - 0.5) tExit = null;
+          }
+          if (tExit !== null && (tHit === null || tExit < tHit - 1e-6)) {
+            const tEnd = tExit + clrExitG;
+            return { down: { x: a.x + ux * tEnd, z: a.z + uz * tEnd }, via, clipped: true };
+          }
+          if (hit) {
+            // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ
+            // čelo (z < min Z kontury), což nejsou řezné plochy. Dopad na osu
+            // zahodit (ukončí hledání — níž už je jen osa); dopad pod konec
+            // dílce oříznout přesně na konec dílce po směru segmentu.
+            // VÝJIMKA: dotykový bod SÁM na konci dílce (levé/zadní čelo) —
+            // viz komentář u downOnStock níže; tam se neořezává.
+            if (Math.abs(hit.x) < 0.1 && best.x > 0.5) return { rejected: true };
+            if (hit.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
+              const tz = uz < -0.01 ? (a.z - minPartZG) / -uz : -1;
+              hit = (tz > 0.01 && tz <= len) ? { x: a.x + ux * tz, z: minPartZG } : { x: a.x, z: a.z };
             }
+            return { down: hit, via };
           }
           via.push({ x: b2.x, z: b2.z });
         }
@@ -1670,6 +1782,7 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       }
       let down = (walk && walk.down) ? walk.down : null;
       let via = (walk && walk.down) ? walk.via : [];
+      const downClipped = !!(walk && walk.clipped);
       if (!down) {
         via = [];
         const t = sb > 0.01 ? (best.x - botX) / sb : 0;
@@ -1707,6 +1820,10 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
         Math.hypot(g.x1 - down.x, g.z1 - down.z) < 0.5 && Math.hypot(g.x2 - up.x, g.z2 - up.z) < 0.5);
       if (!dup) {
         const g = { x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind, downOnStock };
+        // Dolní konec oříznutý polotovarem (výstup do vzduchu v údolí) —
+        // drží se v seznamu i bez dopadu na konturu (vizualizace + most
+        // „náběhový stín" zakončí konturu podél čáry a zbytek nechá).
+        if (downClipped) g.downClipped = true;
         // Lomová místa siluety (konec hrany destičky, roh držáku) — jen ta
         // NAD dolním koncem; poslední vrchol shodný s dolním koncem vynechat.
         if (via.length) g.via = via.filter(q => Math.hypot(q.x - down.x, q.z - down.z) > 0.05 && q.x > down.x - 1e-6);
@@ -4283,6 +4400,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── CALCULATED DATA (memoized) ──
   function calculate(lightOnly = false) {
     const prms = S.params;
+    // „Dobrat naráz" odstraněno (Fáze 5): kapsy se dobírají postupně po
+    // vrstvách a schodky zahlazuje „Hrub. bez schodků" dojížděním
+    // k předchozí vrstvě (i v kapse). Staré projekty s uloženým true se
+    // normalizují zde — jediné hrdlo, kterým teče každá generace.
+    prms.pocketFinishAtOnce = false;
     const absContour = resolvePointsToAbsolute(S.contourPoints);
     const absStock = resolvePointsToAbsolute(S.stockPoints);
     let worldPoints = absContour.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
@@ -4502,7 +4624,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       contourSegments = machinableContour;
       interferenceGuides = interferenceGuides.filter(g =>
         !g._dominated && (
-          g.downOnStock ||
+          g.downOnStock || g.downClipped ||
           (_locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
            _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }))));
     } else if (clearance && prms.respectInsertGeometry && profileModeActive) {
@@ -8964,10 +9086,6 @@ export function openCamSimulator(initialContour, initialGCode) {
           <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
           <span>Zanořování</span>
         </label>
-        ${prms.plungeRoughing ? `<label class="cam-sim-checkbox-item" data-tooltip="Když rampa narazí na kapsu, dobere ji celou najednou (všechny zákroky ap po sobě), než pokračuje zbytkem dílu. Mezi zákroky uvnitř kapsy nástroj bezpečně přejede nad polotovarem. Vypnuto = postupné dotahování spolu s hloubkou zbytku dílu (původní chování).">
-          <input type="checkbox" id="cam-sim-plunge-atonce" ${prms.pocketFinishAtOnce ? 'checked' : ''}>
-          <span>Dobrat naráz</span>
-        </label>` : ''}
       </div>`;
       if (prms.stockMode === 'casting') {
         html += `<div class="cam-sim-checkbox-row" data-tooltip="Jen odlitek: každý výstupek polotovaru (mezi „údolími", kde se povrch blíží kontuře) se vyhrubuje shora dolů SAMOSTATNĚ; mezi regiony rychloposuv nad polotovar. Nástroj nepřejíždí po kontuře napříč celým dílem. Vypnuto = průchody po hloubkách přes celý díl.">
@@ -9406,8 +9524,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const plungeCb = tabBody.querySelector('#cam-sim-plunge');
     if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; fullUpdate(); });
-    const plungeAtOnceCb = tabBody.querySelector('#cam-sim-plunge-atonce');
-    if (plungeAtOnceCb) plungeAtOnceCb.addEventListener('change', () => { S.params.pocketFinishAtOnce = plungeAtOnceCb.checked; fullUpdate(); });
     const noStepCb = tabBody.querySelector('#cam-sim-nostep');
     if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; fullUpdate(); });
     const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');
