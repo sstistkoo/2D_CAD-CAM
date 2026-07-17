@@ -1719,9 +1719,9 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       // dno obrobitelné z obou stěn. Bez držáku (nebo bez stěny/polotovaru
       // k opření) = nekonečná přímka podél hrany (staré chování).
       const boundaryPts = buildHolderBoundaryPts(best, grp, prms, sb, cb, stockWorldPoints);
-      const walkSilhouette = (calcLoc) => {
-        const pts = boundaryPts
-          || [{ x: best.x, z: best.z }, { x: best.x - sb * 1e5, z: best.z - cb * 1e5 }];
+      const straightPts = [{ x: best.x, z: best.z }, { x: best.x - sb * 1e5, z: best.z - cb * 1e5 }];
+      const walkSilhouette = (calcLoc, ptsOverride) => {
+        const pts = ptsOverride || boundaryPts || straightPts;
         const via = [];
         for (let k = 0; k + 1 < pts.length; k++) {
           const a = pts[k], b2 = pts[k + 1];
@@ -1772,7 +1772,19 @@ function computeInterferenceGuides(interferenceSegments, rawContourForInterferen
       // není (typicky u kraje dílu), skončí na hraně POLOTOVARU a označí se
       // downOnStock (jen vizualizace / čelní zakončení — viz buildMachinable).
       let downOnStock = false;
-      let walk = walkSilhouette(localCalc);
+      // Odlitek: má-li PŘÍMÁ hrana destičky (čistý úhel zanoření) vyjít
+      // z polotovaru do vzduchu (údolí / stranou přes kůru) DŘÍV, než by ji
+      // držáková stěna zlomila dolů, drží se stock-ořez přímé čáry. V
+      // otevřeném prostoru za nástrojem není materiál, na který by držák
+      // narazil — lomení k držákové stěně by tam čáru falešně stáhlo dolů
+      // (viz projekt casting: bez tohoto by mezní čára místo pokračování
+      // v úhlu zanoření sjela svisle dolů podél odebírané kůry).
+      let walk = null;
+      if (boundaryPts) {
+        const straightClip = walkSilhouette(localCalc, straightPts);
+        if (straightClip && straightClip.clipped) walk = straightClip;
+      }
+      if (!walk) walk = walkSilhouette(localCalc);
       if (!walk) {
         // Bez JAKÉHOKOLI dopadu na konturu zkusit i hranu polotovaru.
         // (Dopad zahozený osní pojistkou — rejected — fázi s polotovarem
