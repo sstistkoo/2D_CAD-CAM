@@ -4400,11 +4400,14 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── CALCULATED DATA (memoized) ──
   function calculate(lightOnly = false) {
     const prms = S.params;
-    // „Dobrat naráz" odstraněno (Fáze 5): kapsy se dobírají postupně po
-    // vrstvách a schodky zahlazuje „Hrub. bez schodků" dojížděním
-    // k předchozí vrstvě (i v kapse). Staré projekty s uloženým true se
+    // „Dobrat naráz" odstraněno z UI (Fáze 5): kapsu je vždy potřeba
+    // dobrat až na dno (postupné dotahování mělčími průchody dno hluboké
+    // úzké kapsy nedosáhne — rampa z rohu je omezená šířkou kapsy). Proto
+    // je „dobrání kapsy" nyní VŽDY zapnuté; schodky uvnitř kapsy zahlazuje
+    // dokončovací průchod po kontuře (sledování offsetu, bez kolmého
+    // zajetí — vjezdy rampou od hranice polotovaru). Staré projekty se
     // normalizují zde — jediné hrdlo, kterým teče každá generace.
-    prms.pocketFinishAtOnce = false;
+    prms.pocketFinishAtOnce = true;
     const absContour = resolvePointsToAbsolute(S.contourPoints);
     const absStock = resolvePointsToAbsolute(S.stockPoints);
     let worldPoints = absContour.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));

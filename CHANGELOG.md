@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CAM: **"Dobrat naráz" checkbox removed** — pockets are always finished to
+  the bottom (incremental ramp-in per depth cannot reach the floor of a deep
+  narrow pocket, so the burst dig is now permanent). Old projects with the
+  flag saved either way are normalized in `calculate()`
+- CAM (casting): interference-guide lines from insert geometry are now
+  **clipped at the stock boundary** — when the reflected tool silhouette
+  exits the casting skin into a valley, the guide ends on the stock offset
+  (+ vůle X, `downClipped`) instead of continuing through air; the
+  machinable-contour bridge below such an anchor replaces the shadowed wall
+  and hard-breaks (rapid) to the next segment across the valley, so the void
+  is no longer treated as contour and "machined". Fixes valley walls being
+  cut as if the valley were solid stock
+- CAM (casting): longitudinal roughing **enters the stock skin by ramping**
+  from the stock boundary (`stockEntryRamp`, at the plunge angle from the
+  tip×boundary intersection) instead of plunging perpendicularly — applies to
+  open, flat and pocket passes whose entry lies in the casting crust
+- CAM (casting, region roughing): valley split points now only apply **above
+  the valley floor** — in the crust depth the neighbouring regions merge, so
+  the valley is roughed from the real material edge instead of being halved
+  and each half machined toward the split as if solid
+
 ### Added
 - CAM: dynamic rapid-move planning (Phase 4 core of the geometry-library
   migration) — G-code emission now maintains a live remaining-stock polygon
