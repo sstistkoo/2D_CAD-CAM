@@ -343,7 +343,33 @@ User selects CAM tool
 
 `calculators/contourOffset.js` – offset kontury pro zajištění rozměrů.
 `calculators/camEditor.js` – editor CAM strategií.
-`calculators/camSimulator.js` – simulátor obrysů obrábění.
+`calculators/camSimulator.js` – simulátor obrysů obrábění (`openCamSimulator`,
+~10 100 ř. — orchestrace: `calculate()`, `generateAutoGCode()`, `draw()`,
+UI editoru/parametrů/zásobníku nástrojů). Čisté helpery vytažené do
+`calculators/cam/`:
+
+| Modul | Účel |
+|-------|------|
+| `cam/camMath.js` | Základní geometrické primitivy (úsečka/oblouk, průsečíky, segmentové helpery) sdílené napříč CAM |
+| `cam/contourBuild.js` | Pipeline "obráběné kontury" — `buildMachinableContour`, mosty/ořez smyček, `normalizeContourDirection`, `trimAndRemoveLoops` |
+| `cam/gcodeParser.js` | Parsování ručního/importovaného G-kódu zpět na dráhu/konturu |
+| `cam/insertPreview.js` | Kreslení destičky + držáku (dialog "⚙️ Geometrie") a HTML pole tvaru nástroje |
+| `cam/camToolPicker.js` | Sdílená geometrie nástroje pro knihovnu nožů/zásobník (`getCamToolGeometry`/`applyCamToolGeometry`) |
+| `cam/camDefaults.js` | Výchozí CAM parametry (`_defaultCamParams`) |
+| `cam/threadHelpers.js` | Závitování a upichnutí — sdílená geometrie |
+| `cam/camSimulatorDialogs.js` | Vlastní confirm/offset/add-move dialogy |
+| `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
+| `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) |
+| `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky |
+| `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna) |
+| `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
+| `cam/collisionValidator.js` | Validace kolizí držáku na hotové dráze |
+| `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |
+
+Testy nad neexportovanými helpery jdou přes `tests/helpers/camInternals.mjs`
+(text-surgery + přímé importy z `cam/*.js`); plný pipeline (`calculate()` +
+`generateAutoGCode()`) přes `tests/helpers/camHeadless.mjs` — viz
+`tests/cam-gcode-regression.test.js`.
 `calculators/gcode.js` – databáze G/M kódů (syntaxe, příklady), používá se v help overlay i CAM generátorech.
 `calculators/sinumerikHub.js` – hlavní hub pro generování Sinumerik 840D programů (subprogramy, hlavičky).
 `calculators/thread.js` a `calculators/threadData.js` – parametry závitů.

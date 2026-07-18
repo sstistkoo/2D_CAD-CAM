@@ -30,13 +30,19 @@ export async function loadCamInternals() {
   src = src.replace(/^import\s[^\n]*$/gm, '');
   const camMathUrl = pathToFileURL(join(root, 'js/calculators/cam/camMath.js')).href;
   const interferenceGuidesUrl = pathToFileURL(join(root, 'js/calculators/cam/interferenceGuides.js')).href;
+  const contourBuildUrl = pathToFileURL(join(root, 'js/calculators/cam/contourBuild.js')).href;
+  const insertPreviewUrl = pathToFileURL(join(root, 'js/calculators/cam/insertPreview.js')).href;
   const prelude = `
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour } from ${JSON.stringify(camMathUrl)};
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from ${JSON.stringify(camMathUrl)};
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from ${JSON.stringify(interferenceGuidesUrl)};
+import { buildMachinableContour, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock } from ${JSON.stringify(contourBuildUrl)};
+import { holderRectProfile, holderBottomHandles, translateHolderProfile, chamferProfileCorner, getInsertAnchorPoints } from ${JSON.stringify(insertPreviewUrl)};
 const ROUGHING_STRATEGIES = {};
 const makeOverlay=()=>({}), openCamEditor=()=>{}, state={}, pushUndo=()=>{}, showToast=()=>{};
 const renderAll=()=>{}, autoCenterView=()=>{}, calculateAllIntersections=()=>{}, updateObjectList=()=>{};
 const bulgeToArc=()=>{}, showToolLibraryDialog=()=>{};
+const camConfirm=()=>{}, camCloseConfirm=()=>{}, camOffsetDialog=()=>{}, camAddMoveDialog=()=>{};
+const injectCSS=()=>{};
 `;
   const exportsTail = `\nexport { ${EXPORTS.join(', ')} };\n`;
   const tmp = join(tmpdir(), `_cam_internals_${process.pid}_${Date.now()}.mjs`);

@@ -332,3 +332,286 @@ export function stockOuterXAtZ(prms, sRad, stockPathSegments, z) {
   }
   return maxX;
 }
+
+// ── Segmentové primitivy (line/arc kontury) ────────────────────
+// Přesunuto z camSimulator.js (MATH HELPERS / shared offset trimming
+// sekce) — čisté funkce nad segs bez závislosti na S/DOM.
+export const EPSILON = 1e-9;
+export const TRIM_TOL = 0.5;
+// Minimální vzdálenost průsečíku od endpointu, kterou požadujeme pro
+// global loop-removal. Nižší hodnota → loop-removal eliminuje legitimní
+// malé oblouky mezi dlouhými segmenty (intersection padne těsně za
+// trimnutý konec line, ale je to falešná smyčka, ne skutečné self-cross).
+export const LOOP_INTERIOR_MIN = 0.1;
+
+export function arcSteps(r, scale) {
+  const rPix = Math.abs(r) * scale;
+  if (!(rPix > 0.5)) return 8;
+  const dTheta = 2 * Math.sqrt((2 * 0.4) / rPix);
+  return Math.max(8, Math.min(720, Math.ceil((2 * Math.PI) / dTheta)));
+}
+
+export function dist(p1, p2) {
+  if (!p1 || !p2) return 0;
+  return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.z - p1.z, 2));
+}
+
+export function intersectLines(p1, p2, p3, p4) {
+  if (!p1 || !p2 || !p3 || !p4) return null;
+  if (isNaN(p1.x) || isNaN(p1.z) || isNaN(p2.x) || isNaN(p2.z) ||
+      isNaN(p3.x) || isNaN(p3.z) || isNaN(p4.x) || isNaN(p4.z)) return null;
+  const d = (p1.x - p2.x) * (p3.z - p4.z) - (p1.z - p2.z) * (p3.x - p4.x);
+  if (Math.abs(d) < 1e-9 || isNaN(d)) return null;
+  const t = ((p1.x - p3.x) * (p3.z - p4.z) - (p1.z - p3.z) * (p3.x - p4.x)) / d;
+  const ix = p1.x + t * (p2.x - p1.x);
+  const iz = p1.z + t * (p2.z - p1.z);
+  if (isNaN(ix) || isNaN(iz)) return null;
+  return { x: ix, z: iz };
+}
+export function intersectLinesInfinite(p1, p2, p3, p4) {
+  if (!p1 || !p2 || !p3 || !p4) return null;
+  if (isNaN(p1.x) || isNaN(p1.z) || isNaN(p2.x) || isNaN(p2.z) ||
+      isNaN(p3.x) || isNaN(p3.z) || isNaN(p4.x) || isNaN(p4.z)) return null;
+  const d = (p1.x - p2.x) * (p3.z - p4.z) - (p1.z - p2.z) * (p3.x - p4.x);
+  if (Math.abs(d) < 1e-9 || isNaN(d)) return null;
+  const t = ((p1.x - p3.x) * (p3.z - p4.z) - (p1.z - p3.z) * (p3.x - p4.x)) / d;
+  const px = p1.x + t * (p2.x - p1.x);
+  const pz = p1.z + t * (p2.z - p1.z);
+  if (isNaN(px) || isNaN(pz)) return null;
+  return { x: px, z: pz };
+}
+
+export function intersectCircleCircle(c1x, c1z, r1, c2x, c2z, r2) {
+  const dx = c2x - c1x, dz = c2z - c1z;
+  const d = Math.sqrt(dx * dx + dz * dz);
+  if (d < EPSILON || d > r1 + r2 + EPSILON || d < Math.abs(r1 - r2) - EPSILON) return null;
+  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+  const h2 = r1 * r1 - a * a;
+  if (h2 < 0) return null;
+  const h = Math.sqrt(Math.max(0, h2));
+  const mx = c1x + a * dx / d, mz = c1z + a * dz / d;
+  const ox = -dz / d, oz = dx / d;
+  return [
+    { x: mx + h * ox, z: mz + h * oz },
+    { x: mx - h * ox, z: mz - h * oz }
+  ];
+}
+
+// Skutečné průsečíky dvou segmentů (line/arc) — body, kde se dvě čáry
+// kříží (ne koncové body). Pro SNAP na průsečíku kontury/offsetu/
+// konstrukční čáry. Vrací jen body ležící uvnitř OBOU segmentů.
+export function segPairIntersections(s1, s2) {
+  if (!s1 || !s2 || s1.isDegenerate || s2.isDegenerate) return [];
+  const out = [];
+  const onLine = (q, a, b) => {
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len2 = dx * dx + dz * dz;
+    if (len2 < 1e-12) return false;
+    const t = ((q.x - a.x) * dx + (q.z - a.z) * dz) / len2;
+    return t > 0.001 && t < 0.999;
+  };
+  const onArc = (q, s) => isAngleBetween(Math.atan2(q.x - s.cx, q.z - s.cz), s.startAngle, s.endAngle, s.dir === 'G2');
+  if (s1.type === 'line' && s2.type === 'line') {
+    const p = intersectLines(s1.p1, s1.p2, s2.p1, s2.p2);
+    if (p && onLine(p, s1.p1, s1.p2) && onLine(p, s2.p1, s2.p2)) out.push(p);
+  } else if (s1.type === 'line' && s2.type === 'arc') {
+    const hits = intersectLineCircle(s1.p1, s1.p2, { x: s2.cx, z: s2.cz }, s2.r) || [];
+    for (const q of hits) if (onLine(q, s1.p1, s1.p2) && onArc(q, s2)) out.push(q);
+  } else if (s1.type === 'arc' && s2.type === 'line') {
+    const hits = intersectLineCircle(s2.p1, s2.p2, { x: s1.cx, z: s1.cz }, s1.r) || [];
+    for (const q of hits) if (onLine(q, s2.p1, s2.p2) && onArc(q, s1)) out.push(q);
+  } else if (s1.type === 'arc' && s2.type === 'arc') {
+    const hits = intersectCircleCircle(s1.cx, s1.cz, s1.r, s2.cx, s2.cz, s2.r) || [];
+    for (const q of hits) if (onArc(q, s1) && onArc(q, s2)) out.push(q);
+  }
+  return out;
+}
+
+export function getSegEnd(seg) {
+  if (seg.type === 'line') return seg.p2;
+  return { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
+}
+export function getSegStart(seg) {
+  if (seg.type === 'line') return seg.p1;
+  return { x: seg.cx + Math.sin(seg.startAngle) * seg.r, z: seg.cz + Math.cos(seg.startAngle) * seg.r };
+}
+
+export function intersectHorizontalLineArc(xLine, center, radius) {
+  if (!center) return [];
+  const term = radius * radius - Math.pow(xLine - center.x, 2);
+  if (term < 0) return [];
+  const sqrtTerm = Math.sqrt(term);
+  return [center.z - sqrtTerm, center.z + sqrtTerm];
+}
+
+// X-ové průsečíky segmentu (line/arc) se svislou čarou Z = zVal — pro
+// nalezení bodu polotovaru na limitu čelistí/koníku.
+export function intersectSegAtZ(seg, zVal) {
+  if (seg.type === 'line') {
+    const x = intersectVerticalLineSegment(zVal, seg.p1, seg.p2);
+    return x === null ? [] : [x];
+  }
+  if (seg.type === 'arc') {
+    return intersectVerticalLineArc(zVal, { x: seg.cx, z: seg.cz }, seg.r).filter(x => {
+      const a = Math.atan2(x - seg.cx, zVal - seg.cz);
+      return isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2');
+    });
+  }
+  return [];
+}
+
+// ── Shared offset trimming + loop removal ──────────────────────
+export function findSegIntersection(s1, s2) {
+  if (s1.type === 'line' && s2.type === 'line') {
+    return intersectLines(s1.p1, s1.p2, s2.p1, s2.p2);
+  }
+  if (s1.type === 'line' && s2.type === 'arc') {
+    const ints = intersectLineCircle(s1.p1, s1.p2, { x: s2.cx, z: s2.cz }, s2.r);
+    if (ints && ints.length > 0) {
+      const ref = getSegEnd(s1);
+      const d0 = Math.hypot(ints[0].x - ref.x, ints[0].z - ref.z);
+      const d1 = Math.hypot(ints[1].x - ref.x, ints[1].z - ref.z);
+      return d0 < d1 ? ints[0] : ints[1];
+    }
+    return null;
+  }
+  if (s1.type === 'arc' && s2.type === 'line') {
+    const ints = intersectLineCircle(s2.p1, s2.p2, { x: s1.cx, z: s1.cz }, s1.r);
+    if (ints && ints.length > 0) {
+      const ref = getSegStart(s2);
+      const d0 = Math.hypot(ints[0].x - ref.x, ints[0].z - ref.z);
+      const d1 = Math.hypot(ints[1].x - ref.x, ints[1].z - ref.z);
+      return d0 < d1 ? ints[0] : ints[1];
+    }
+    return null;
+  }
+  if (s1.type === 'arc' && s2.type === 'arc') {
+    const ints = intersectCircleCircle(s1.cx, s1.cz, s1.r, s2.cx, s2.cz, s2.r);
+    if (ints && ints.length > 0) {
+      const ref1 = getSegEnd(s1);
+      const ref2 = getSegStart(s2);
+      let best = null, bestD = Infinity;
+      for (const pt of ints) {
+        const d = Math.hypot(pt.x - ref1.x, pt.z - ref1.z) + Math.hypot(pt.x - ref2.x, pt.z - ref2.z);
+        if (d < bestD) { bestD = d; best = pt; }
+      }
+      return best;
+    }
+    return null;
+  }
+  return null;
+}
+export function setSegEnd(seg, pt) {
+  if (seg.type === 'line') seg.p2 = pt;
+  else seg.endAngle = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
+}
+export function setSegStart(seg, pt) {
+  if (seg.type === 'line') seg.p1 = pt;
+  else seg.startAngle = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
+}
+export function isOnSegBounds(pt, seg) {
+  if (seg.type === 'line') {
+    return pt.x >= Math.min(seg.p1.x, seg.p2.x) - TRIM_TOL &&
+      pt.x <= Math.max(seg.p1.x, seg.p2.x) + TRIM_TOL &&
+      pt.z >= Math.min(seg.p1.z, seg.p2.z) - TRIM_TOL &&
+      pt.z <= Math.max(seg.p1.z, seg.p2.z) + TRIM_TOL;
+  }
+  // Oblouk: průsečík (z protnutí line↔KRUŽNICE / circle↔circle) musí ležet na
+  // samotném OBLOUKU — na kružnici (v toleranci) a v jeho úhlovém rozsahu.
+  // Bez této kontroly projde i průsečík na prodloužení kružnice mimo oblouk
+  // (falešná smyčka → vyříznutí reálné geometrie, např. stěn zápichu před
+  // navazujícím rádiusem). Dřív funkce pro oblouk vracela vždy true.
+  if (typeof seg.startAngle !== 'number' || typeof seg.endAngle !== 'number') return true;
+  const d = Math.hypot(pt.x - seg.cx, pt.z - seg.cz);
+  if (Math.abs(d - seg.r) > TRIM_TOL) return false;
+  const a = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
+  return isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2');
+}
+// Striktní kontrola, že bod leží UVNITŘ úsečky (parametr t ∈ [0,1]), ne na
+// jejím prodloužení. isOnSegBounds používá obdélníkovou toleranci TRIM_TOL
+// (0.5 mm) kvůli offsetovým zaokrouhlením — na RAW kontuře ale `intersectLines`
+// vrací průsečík NEKONEČNÝCH přímek, takže bod 0,1–0,5 mm za koncem úsečky
+// (typicky prodloužení zkosení za čelo) projde jako falešná „smyčka" a
+// removeContourSelfIntersections vyřízne reálnou geometrii (sražení). Tahle
+// kontrola promítne bod na úsečku a ověří, že je opravdu mezi koncovými body.
+export function isWithinSegStrict(pt, seg) {
+  if (seg.type !== 'line') return isOnSegBounds(pt, seg);
+  const dx = seg.p2.x - seg.p1.x, dz = seg.p2.z - seg.p1.z;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-12) return false;
+  const t = ((pt.x - seg.p1.x) * dx + (pt.z - seg.p1.z) * dz) / len2;
+  return t >= -1e-6 && t <= 1 + 1e-6;
+}
+export function segEndPoint(seg) {
+  if (seg.type === 'line') return seg.p2;
+  return { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
+}
+export function segStartPoint(seg) {
+  if (seg.type === 'line') return seg.p1;
+  return { x: seg.cx + Math.sin(seg.startAngle) * seg.r, z: seg.cz + Math.cos(seg.startAngle) * seg.r };
+}
+// Po úpravě startAngle/endAngle obloukového segmentu (setSegEnd/setSegStart)
+// dosynchronizuje p1/p2 — u raw kontury slouží jako reference pro isOuter
+// detekci offsetu i pro zobrazení, takže musí odpovídat novým úhlům.
+export function syncArcEndpoints(seg) {
+  if (seg.type !== 'arc') return;
+  seg.p1 = segStartPoint(seg);
+  seg.p2 = segEndPoint(seg);
+}
+// Obrátí směr průchodu segmentem (prohodí start↔konec). Geometrie zůstává,
+// mění se jen orientace: u oblouku prohodí úhly a překlopí G2↔G3.
+export function reverseSeg(seg) {
+  const t = seg.p1; seg.p1 = seg.p2; seg.p2 = t;
+  if (seg.type === 'arc') {
+    const ta = seg.startAngle; seg.startAngle = seg.endAngle; seg.endAngle = ta;
+    seg.dir = seg.dir === 'G2' ? 'G3' : 'G2';
+  }
+}
+// Degenerovaný zbytkový oblouk (po ořezu/loop-removalu): jeho začátek a konec
+// téměř splývají (malá tětiva). Buď nulový zlomek, nebo — což je horší — oblouk,
+// kterému ořez nastavil úhly tak, že obíhá skoro DOKOLA (sweep ≈ 2π). V náhledu
+// se kreslí jako PLNÁ KRUŽNICE a v G-kódu se start==konec (po zaokrouhlení) →
+// „G2/G3 …CR=" z bodu do sebe = celá kružnice. U soustružnického profilu je
+// splývající začátek/konec vždy chyba (reálné oblouky mají konce znatelně od
+// sebe), tak ho nahradíme přímou úsečkou start→konec (zachová napojení).
+export function dropTinyArcs(path) {
+  if (!path) return path;
+  for (let i = 0; i < path.length; i++) {
+    const s = path[i];
+    if (!s || s.type !== 'arc') continue;
+    const a = segStartPoint(s), b = segEndPoint(s);
+    if (Math.hypot(a.x - b.x, a.z - b.z) < 0.2) {
+      const line = { type: 'line', p1: a, p2: b };
+      if (s.chainBreak) line.chainBreak = true;
+      if (s.unreachable) line.unreachable = true;
+      if (s.isDegenerate) line.isDegenerate = true;
+      path[i] = line;
+    }
+  }
+  return path;
+}
+// Vrátí true, pokud bod leží uvnitř segmentu (ne na/blízko jeho koncových
+// bodů) — používá se pro detekci "mostu": nově přidaného segmentu, jehož oba
+// konce dopadají do vnitřku jiných segmentů kontury (ne na jejich konce).
+export function pointOnSegInterior(pt, seg) {
+  if (seg.type === 'line') {
+    const { p1, p2 } = seg;
+    const dx = p2.x - p1.x, dz = p2.z - p1.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-9) return false;
+    const cross = Math.abs((pt.x - p1.x) * dz - (pt.z - p1.z) * dx) / len;
+    if (cross > TRIM_TOL) return false;
+    const t = ((pt.x - p1.x) * dx + (pt.z - p1.z) * dz) / (len * len);
+    if (t * len < LOOP_INTERIOR_MIN || (1 - t) * len < LOOP_INTERIOR_MIN) return false;
+    return true;
+  } else {
+    const d = Math.hypot(pt.x - seg.cx, pt.z - seg.cz);
+    if (Math.abs(d - seg.r) > TRIM_TOL) return false;
+    const a = Math.atan2(pt.x - seg.cx, pt.z - seg.cz);
+    if (!isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return false;
+    const sp = segStartPoint(seg), ep = segEndPoint(seg);
+    if (Math.hypot(pt.x - sp.x, pt.z - sp.z) < LOOP_INTERIOR_MIN) return false;
+    if (Math.hypot(pt.x - ep.x, pt.z - ep.z) < LOOP_INTERIOR_MIN) return false;
+    return true;
+  }
+}

@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- CAM: **refaktoring `camSimulator.js` (13 435 → 10 321 řádků, Fáze A)** —
+  čisté top-level funkce vytaženy do `js/calculators/cam/`:
+  `camSimulatorDialogs.js` (camConfirm/camOffsetDialog/…),
+  `camSimulatorStyles.js` (injectCSS), `camDefaults.js` (_defaultCamParams),
+  `threadHelpers.js` (threadProfileDepth/computeThreadPassCuts/partOffGeom),
+  `gcodeParser.js` (parseManualGCodeToPath/buildStockPointsFromCanvas/…),
+  `contourBuild.js` (buildMachinableContour a celá pipeline mostů/ořezu
+  kontury), `insertPreview.js` (kreslení destičky/držáku + HTML pole tvaru),
+  `camToolPicker.js` (knihovna nožů/zásobník). `camMath.js` rozšířen o
+  segmentové/obloukové primitivy (dřív duplicitně v camSimulatoru). Čistě
+  housekeeping přesun beze změny chování — ověřeno 834 testy + regresní
+  G-kód snapshot (`tests/cam-gcode-regression.test.js`) beze změny + vizuálně
+  v běžící appce. `openCamSimulator` (dráhy/kreslení/UI, ~10 100 ř.) zůstává
+  beze změny — samostatná budoucí Fáze B.
 - CAM: **"Dobrat naráz" checkbox removed** — pockets are always finished to
   the bottom (incremental ramp-in per depth cannot reach the floor of a deep
   narrow pocket, so the burst dig is now permanent). Old projects with the
