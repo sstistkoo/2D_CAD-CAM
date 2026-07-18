@@ -92,6 +92,8 @@ async function loadCam() {
   const contourBuildUrl = pathToFileURL(join(root, 'js/calculators/cam/contourBuild.js')).href;
   const insertPreviewUrl = pathToFileURL(join(root, 'js/calculators/cam/insertPreview.js')).href;
   const camToolPickerUrl = pathToFileURL(join(root, 'js/calculators/cam/camToolPicker.js')).href;
+  const calculatePipelineUrl = pathToFileURL(join(root, 'js/calculators/cam/calculatePipeline.js')).href;
+  const gcodeEmitUrl = pathToFileURL(join(root, 'js/calculators/cam/gcodeEmit.js')).href;
   const prelude = `
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from ${JSON.stringify(camMathUrl)};
 import { _defaultCamParams } from ${JSON.stringify(camDefaultsUrl)};
@@ -107,6 +109,8 @@ import { makeHolderClamp } from ${JSON.stringify(toolEnvelopeUrl)};
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from ${JSON.stringify(interferenceGuidesUrl)};
 import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset } from ${JSON.stringify(geomCoreUrl)};
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from ${JSON.stringify(threadDataUrl)};
+import { computeCalculation, roughingKey as _roughingKey } from ${JSON.stringify(calculatePipelineUrl)};
+import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from ${JSON.stringify(gcodeEmitUrl)};
 const state = { flipX: false, flipZ: false };
 const makeOverlay = () => globalThis.document.body;
 const openCamEditor = () => {}, pushUndo = () => {}, showToast = () => {};

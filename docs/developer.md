@@ -344,12 +344,15 @@ User selects CAM tool
 `calculators/contourOffset.js` – offset kontury pro zajištění rozměrů.
 `calculators/camEditor.js` – editor CAM strategií.
 `calculators/camSimulator.js` – simulátor obrysů obrábění (`openCamSimulator`,
-~10 100 ř. — orchestrace: `calculate()`, `generateAutoGCode()`, `draw()`,
-UI editoru/parametrů/zásobníku nástrojů). Čisté helpery vytažené do
-`calculators/cam/`:
+~8 400 ř. — orchestrace: `draw()`, event-handlery, UI editoru/parametrů/
+zásobníku nástrojů + tenké wrappery `calculate()`/`generateAutoGCode()`/
+`roughingKey()`/`convertGCodeControlSystem()` delegující do modulů níže).
+Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 
 | Modul | Účel |
 |-------|------|
+| `cam/calculatePipeline.js` | Výpočetní jádro `computeCalculation(S, …)` (bývalé `calculate()`) + `roughingKey`/`getRoughingOperations` — z kontury/parametrů staví dráhy, offsety, hrubovací průchody a simPath |
+| `cam/gcodeEmit.js` | Emise G-kódu `generateAutoGCode(S, calc)` + hlavička/závěr dle řídicího systému (`buildControlHeaderLines`/`Tail`, `ctrlCmt`, `controlArcFormatter`, `renumberGCodeLines`) a rychlý převod mezi systémy (`convertGCodeControlSystem`) |
 | `cam/camMath.js` | Základní geometrické primitivy (úsečka/oblouk, průsečíky, segmentové helpery) sdílené napříč CAM |
 | `cam/contourBuild.js` | Pipeline "obráběné kontury" — `buildMachinableContour`, mosty/ořez smyček, `normalizeContourDirection`, `trimAndRemoveLoops` |
 | `cam/gcodeParser.js` | Parsování ručního/importovaného G-kódu zpět na dráhu/konturu |

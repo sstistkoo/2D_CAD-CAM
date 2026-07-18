@@ -38,6 +38,9 @@ import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBr
 import { buildMachinableContour, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock } from ${JSON.stringify(contourBuildUrl)};
 import { holderRectProfile, holderBottomHandles, translateHolderProfile, chamferProfileCorner, getInsertAnchorPoints } from ${JSON.stringify(insertPreviewUrl)};
 const ROUGHING_STRATEGIES = {};
+// camInternals openCamSimulator() nikdy nevolá → wrappery calculate/emise se
+// nespustí; stačí stuby pro aliasy, aby stripnutý zdroj měl vazby (defenzivně).
+const computeCalculation=()=>{}, _roughingKey=()=>{}, _generateAutoGCode=()=>{}, _generateGCode=()=>{}, _convertGCodeControlSystem=()=>{};
 const makeOverlay=()=>({}), openCamEditor=()=>{}, state={}, pushUndo=()=>{}, showToast=()=>{};
 const renderAll=()=>{}, autoCenterView=()=>{}, calculateAllIntersections=()=>{}, updateObjectList=()=>{};
 const bulgeToArc=()=>{}, showToolLibraryDialog=()=>{};

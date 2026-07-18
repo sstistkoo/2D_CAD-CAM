@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- CAM: **refaktoring `camSimulator.js` (10 321 → 8 432 řádků, Fáze B)** —
+  výpočetní jádro vytaženo z `openCamSimulator()` do dvou modulů:
+  `js/calculators/cam/calculatePipeline.js` (`computeCalculation(S, …)` —
+  bývalé `calculate()` + `roughingKey`/`getRoughingOperations`) a
+  `js/calculators/cam/gcodeEmit.js` (`generateAutoGCode(S, calc)` + `generateGCode`,
+  `ctrlCmt`, `buildControlHeaderLines`/`Tail`, `controlArcFormatter`,
+  `renumberGCodeLines`, `convertGCodeControlSystem`). Funkce dostávají sdílený
+  stav `S` explicitním argumentem; v `openCamSimulator()` zůstávají tenké
+  wrappery pod původními jmény, takže všechna volající místa i headless
+  test-capture (`{ S, calculate, generateAutoGCode }`) fungují beze změny.
+  Housekeeping přesun beze změny chování — ověřeno 834 testy + regresní G-kód
+  snapshot (`tests/cam-gcode-regression.test.js`) beze změny. Prelude obou
+  harnessů (`tests/helpers/camHeadless.mjs`, `camInternals.mjs`) doplněn o nové
+  moduly. `draw()` a blok event-handlerů (~2 300 ř.) zůstávají v `camSimulator.js`.
 - CAM: **refaktoring `camSimulator.js` (13 435 → 10 321 řádků, Fáze A)** —
   čisté top-level funkce vytaženy do `js/calculators/cam/`:
   `camSimulatorDialogs.js` (camConfirm/camOffsetDialog/…),
