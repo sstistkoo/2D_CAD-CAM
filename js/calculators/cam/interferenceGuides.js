@@ -14,11 +14,23 @@
 //
 // Souřadnice: CAM svět {x = poloměr, z = axiálně} v mm, stejně jako
 // contourSegments / worldPoints v camSimulator.js.
+//
+// ── STAV (aktuální) ────────────────────────────────────────────
+// HOTOVO (Fáze 3): buildHolderBoundaryPts počítá hranici hlídání držáku
+// z Clipper2 DOSAŽITELNÉ OBLASTI — plný obrys držáku (holderWorldLoop) přes
+// zakázanou oblast špičky F = dílec ⊕ (−obrys držáku) (buildTipForbiddenRegion).
+// Nahradilo to dřívější aproximaci „stěna − šířka W" svislým pásem. Rozšířeno
+// i do generátoru drah (roughingStrategies.js: regiony + dokončování kapes).
+//
+// PLÁN: teď se pracuje na Fázi 5 (sjednocení UI zanořování — 3 checkboxy → 2),
+// PAK se dodělá zbytek Fáze 3/4 — dynamický plánovač pořadí pro order-dependent
+// kolize držáku (vjezd do kapsy / rampa plive do materiálu sousedního regionu
+// obrobeného až později; statická obálka to principiálně nevidí). Detail viz
+// docs/geometry-libs-migration.md a poznámka [[geom-libs-migration]] v paměti.
 
 import {
   getArcParams,
   intersectLineCircle,
-  intersectHorizontalLineSegment,
   getNormal,
   vecAngle,
   normalizeAngle,
@@ -362,7 +374,6 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
     holderForbidden = buildTipForbiddenRegion(obstacle, holderLoopG);
     holderReachX = Math.max(...holderLoopG.map(p => p.x));
   }
-  if (globalThis.__IG_DEBUG__) globalThis.__IG_DBG = { holderLoopG, contourLoopG, holderForbidden, holderReachX };
   // Výstup siluety z materiálu podél úseku a+t·(ux,uz), t∈(0, tMax]:
   // pochod po 0,5 mm + bisekce. k===0 = kotva na kontuře (v materiálu).
   const stockExitOnSeg = (a, ux, uz, tMax, isFirst) => {

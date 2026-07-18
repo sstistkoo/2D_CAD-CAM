@@ -460,6 +460,39 @@ export function genLongPasses(ctx) {
     }
     return lo;
   };
+  // Jemné dělení úseček (~0,4 mm) pro ořez obálkou po částech — dlouhá čára
+  // dna kapsy se tak zahodí jen v zablokované části, ne celá. Oblouky (krátké
+  // rohové blendy) se nedělí, ořežou se celé.
+  const subdivideLineSegs = (segs, h = 0.4) => {
+    const out = [];
+    for (const s of segs) {
+      if (s.type !== 'line') { out.push(s); continue; }
+      const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+      const n = Math.max(1, Math.ceil(len / h));
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n;
+        out.push({ ...s,
+          x1: s.x1 + (s.x2 - s.x1) * t0, z1: s.z1 + (s.z2 - s.z1) * t0,
+          x2: s.x1 + (s.x2 - s.x1) * t1, z2: s.z1 + (s.z2 - s.z1) * t1 });
+      }
+    }
+    return out;
+  };
+  // Sloučení navazujících kolineárních úseček po ořezu (jinak sekaný G-kód).
+  const mergeCollinearSegs = (segs) => {
+    const out = [];
+    for (const s of segs) {
+      const p = out[out.length - 1];
+      if (p && p.type === 'line' && s.type === 'line'
+          && Math.hypot(p.x2 - s.x1, p.z2 - s.z1) < 1e-6) {
+        const cr = (p.x2 - p.x1) * (s.z2 - s.z1) - (p.z2 - p.z1) * (s.x2 - s.x1);
+        const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1) || 1;
+        if (Math.abs(cr) / len < 1e-3) { p.x2 = s.x2; p.z2 = s.z2; continue; }
+      }
+      out.push({ ...s });
+    }
+    return out;
+  };
   let plungeShallowed = 0;
 
   // ── Upichovák (parting) v podélném hrubování ──
@@ -773,7 +806,24 @@ export function genLongPasses(ctx) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
         // kontura z konce předchozího průchodu na currentX.
-        const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
+        // Obálka držáku (Fáze 3a): tenhle interval je OTEVŘENÝ pokračující
+        // řez (jednostranně, bez protistěny) — stejná situace jako hlavní
+        // vjezd (idx===0), ale scanIntervals ho neořezává (komentář výše
+        // „KAPSY obálka NEOŘEZÁVÁ" platí pro SPAN mezi dvěma stěnami u
+        // kapes, ne pro jednostranně otevřené pokračování). Bez ořezu tu
+        // rovný záběr může projet držákem mimo dosah tipu, typicky dlouhý
+        // přejezd v ose Z hlouběji v odlitku (reálný nález: kolize držáku
+        // u „kapsa po kontuře" mezi regiony, dosud nekryté).
+        let zEndEff = iv.zEnd;
+        if (holderClampZEnd) {
+          const nz = holderClampZEnd(currentX, iv.zStart, iv.zEnd, {});
+          if (nz === null) return;               // celý interval zakázaný
+          if (nz > iv.zEnd + 1e-9) zEndEff = nz;
+        }
+        if (iv.zStart - zEndEff < dzScan) return;
+        const holderClampedOpen = zEndEff > iv.zEnd + 1e-9;
+        const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: zEndEff, blocked: iv.blocked };
+        if (holderClampedOpen) passOpen.holderClamped = true;
         const erOpen = stockEntryRamp(currentX, iv.zStart);
         if (erOpen) {
           // Vstup leží v kůře odlitku → rampa od tečkované hranice
@@ -785,6 +835,9 @@ export function genLongPasses(ctx) {
           passOpen.contourLeadIn = liOpen;
         }
         passes.push(passOpen);
+        if (holderClampZEnd && holderClampZEnd.noteMainEnd && holderClampedOpen) {
+          holderClampZEnd.noteMainEnd(currentX, currentX + step, zEndEff);
+        }
         return;
       }
       // Upichovák: svislý zápich — roh = pravý okraj kapsy − (w−2r), druhý
@@ -1042,8 +1095,21 @@ export function genLongPasses(ctx) {
         const zHi = curIv.zStart + 0.05, zLo = curIv.zEnd - 0.05;
         return segs.filter(s => Math.max(s.z1, s.z2) <= zHi && Math.min(s.z1, s.z2) >= zLo);
       };
-      const cleanLeadIn = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ))) : [];
-      const cleanLeadOut = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(pocketBottomZ, exitZ))) : [];
+      // Obálka držáku (měkká — dočišťovací trasa dna smí těsně drhnout o
+      // přídavkovou slupku, viz holderTrimLeadIn/Out výše): clipToHolderWindow
+      // ořízne jen na komponentové okno span (u kapes mezi dvěma stěnami,
+      // curIv.holderClamped), holderTrim navíc useřízne konec/začátek, kde by
+      // trasa dna sama vjela do zakázané oblasti (curIv bez span okna —
+      // typicky kapsa s jednou otevřenou stranou — by jinak zůstala bez
+      // jakékoli ochrany držáku).
+      // holderTrimLeadIn/Out ořezává po CELÝCH segmentech — dno kapsy je ale
+      // jedna dlouhá úsečka (od čisté oblasti u dna po zablokovanou stěnu),
+      // kterou by zahodilo celou. Před ořezem ji jemně rozdělíme (~0,4 mm),
+      // po ořezu kolineární kousky zase slijeme (jinak sekaný G-kód).
+      const _rawLeadIn = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ))) : [];
+      const _rawLeadOut = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(pocketBottomZ, exitZ))) : [];
+      const cleanLeadIn = mergeCollinearSegs(holderTrimLeadIn(subdivideLineSegs(_rawLeadIn), true));
+      const cleanLeadOut = mergeCollinearSegs(holderTrimLeadOut(subdivideLineSegs(_rawLeadOut), true));
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
           type: 'long', pocketClean: true,

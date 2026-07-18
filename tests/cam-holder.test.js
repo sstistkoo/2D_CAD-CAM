@@ -12,8 +12,13 @@
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
 
-// Obdélníková kapsa (šířka 30 mm v Z, hloubka 20 mm v X) ve válci r40;
+// Obdélníková kapsa (šířka 60 mm v Z, hloubka 20 mm v X) ve válci r40;
 // svislé stěny destička (natočení 15°, ε 90°) bočním ostřím neobrobí.
+// Šířka volena tak, aby se do kapsy FYZICKY vešel celý obrys držáku (20 mm)
+// i po zúžení mezní čárou u pravé stěny a dočišťovací průchod dojel na dno.
+// S užší kapsou (dřív 30 mm) je efektivní dno po offsetu+mezní čáře jen
+// ~18 mm — držák se tam nevejde a dno je NEdosažitelné bez kolize (dřívější
+// verze testu to tvrdila mylně; ověřeno nezávislým validátorem kolizí).
 function pocketProg(overrides = {}) {
   const pt = (type, x, z) => ({ id: Math.random(), type, x, z, r: 0, mode: 'ABS' });
   return {
@@ -41,8 +46,8 @@ function pocketProg(overrides = {}) {
       pt('G0', 40, 100),
       pt('G1', 40, 70),   // pravý horní roh kapsy (rim)
       pt('G1', 20, 70),   // pravá svislá stěna
-      pt('G1', 20, 40),   // dno kapsy
-      pt('G1', 40, 40),   // levá svislá stěna
+      pt('G1', 20, 10),   // dno kapsy
+      pt('G1', 40, 10),   // levá svislá stěna
       pt('G1', 40, 0),
       pt('G1', 0, 0),
     ],
