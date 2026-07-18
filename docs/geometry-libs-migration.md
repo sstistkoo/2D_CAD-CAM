@@ -5,6 +5,14 @@
 >
 > Stav: Fáze 0 hotová (15. 7. 2026) · adaptér `js/geom/geomCore.js`
 
+> **PAUZA (18. 7. 2026):** Migrace (Fáze 3 zbytek / 3b dokončování / 4 / 5)
+> se ODKLÁDÁ — přešlo se na REFAKTORING `js/calculators/camSimulator.js`
+> (~13 500 řádků, rozdělit na moduly v `js/calculators/cam/`). Důvod: soubor
+> je teď příliš velký na efektivní práci (žere hodně tokenů kontextu na
+> úpravu). Až bude camSimulator.js rozdělený na menší moduly, migrace na
+> Clipper2 (booleovské hrubovací dráhy, přejezdy, UI) se vrátí do hry —
+> zbytek plánu níže platí beze změny, jen se na něj sáhne POZDĚJI.
+
 ## Proč
 
 Ruční geometrie v `js/calculators/camSimulator.js` (~13 500 řádků) řeší
