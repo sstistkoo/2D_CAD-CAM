@@ -83,7 +83,9 @@ function worldPointsToLoop(pts) {
 //     dřívější aproximaci „stěna − šířka W" plným obrysem držáku (Clipper2).
 // `forbidden` = pole smyček F, `reachX` = x-dosah držáku pod dotykem.
 // Vrací lomené body hranice od dotyku dolů, nebo null (bez držáku / F).
-function buildHolderBoundaryPts(best, sb, cb, forbidden, reachX) {
+// (export jen kvůli charakterizačnímu testu tests/holder-boundary.test.js —
+//  hlídá chování během migrace na Clipper2 hranici, viz geom-libs-migration.)
+export function buildHolderBoundaryPts(best, sb, cb, forbidden, reachX) {
   if (!forbidden || forbidden.length === 0 || !(reachX > 0)) return null;
   // Průsečíky hran F s vodorovnou přímkou X=x (half-open pravidlo).
   const crossingsAt = (x) => {

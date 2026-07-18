@@ -18,9 +18,10 @@
 //
 // Souřadnice: CAM svět {x = poloměr, z = axiálně} v mm, jako offsetPath.
 
-import { minkowskiSolidSum, polyIntersect, polyOffset } from '../../geom/geomCore.js';
+import { minkowskiSolidSum, polyIntersect, polyOffset, polyUnion } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { buildStockLoop } from './materialRemoval.js';
+import { buildInsertProfileSegments } from './insertPreview.js';
 
 /**
  * Silueta offsetu kontury jako uzavřená smyčka: navzorkuje segmenty
@@ -54,6 +55,94 @@ export function offsetSilhouetteLoop(offsetPath) {
   if (Math.abs(last.x) > 1e-6) pts.push({ x: 0, z: last.z });
   if (Math.abs(first.x) > 1e-6) pts.push({ x: 0, z: first.z });
   return pts.length >= 3 ? pts : null;
+}
+
+/**
+ * Plný obrys DESTIČKY ve SVĚTOVÝCH souřadnicích relativně ke špičce, jako
+ * uzavřená smyčka {x,z}. Navzorkuje buildInsertProfileSegments (profil
+ * {x,z}: 0,0 = špička, +z = k držáku) a mapuje do světa STEJNĚ jako
+ * holderWorldLoop: profil.z → svět.x (radiálně), profil.x → svět.z·dir
+ * (axiálně, backside zrcadlí). Round = kruh R, polygon/parting = tělo
+ * destičky (šířka b). Null, když tvar nedává obrys (threading / degenerace).
+ */
+export function insertWorldLoop(prms, backside = false) {
+  const segs = buildInsertProfileSegments(prms);
+  if (!segs || segs.length === 0) return null;
+  const dir = backside ? -1 : 1;
+  const toWorld = (p) => ({ x: p.z, z: p.x * dir });
+  const loop = [];
+  const push = (p) => {
+    const l = loop[loop.length - 1];
+    if (!l || Math.hypot(l.x - p.x, l.z - p.z) > 1e-6) loop.push(p);
+  };
+  for (const s of segs) {
+    if (s.type === 'circle') {
+      const n = 48;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * 2 * Math.PI;
+        push(toWorld({ x: s.cx + Math.cos(a) * s.r, z: s.cz + Math.sin(a) * s.r }));
+      }
+    } else if (s.type === 'line') {
+      push(toWorld(s.from)); push(toWorld(s.to));
+    } else if (s.type === 'arc') {
+      // Kratší úhlová cesta from→to (stejně jako kreslení: |d| ≤ π).
+      const aF = Math.atan2(s.from.z - s.cz, s.from.x - s.cx);
+      let aT = Math.atan2(s.to.z - s.cz, s.to.x - s.cx);
+      let d = aT - aF;
+      while (d <= -Math.PI) d += 2 * Math.PI;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      const steps = Math.max(2, Math.ceil(s.r * Math.abs(d) / 0.3));
+      for (let k = 0; k <= steps; k++) {
+        const a = aF + d * (k / steps);
+        push(toWorld({ x: s.cx + Math.cos(a) * s.r, z: s.cz + Math.sin(a) * s.r }));
+      }
+    }
+  }
+  // Uzavřít (odstranit shodný poslední bod).
+  while (loop.length >= 2
+    && Math.hypot(loop[0].x - loop[loop.length - 1].x, loop[0].z - loop[loop.length - 1].z) < 1e-6) loop.pop();
+  return loop.length >= 3 ? loop : null;
+}
+
+/**
+ * SJEDNOCENÁ zakázaná oblast ŠPIČKY pro celý nástroj (Fáze 2b/3 migrace):
+ * F_all = (obstacle ⊕ −držák) ∪ (obstacle ⊕ −destička). Držák hlídá kolizi
+ * dříku, destička přidává kolizi TĚLA (nekruhové tvary / upichovák šířky b).
+ * Aktivní břit zůstává řeznou referencí sám od sebe — mezní čára se bere jako
+ * HRANICE dosažitelné oblasti (komplement F_all), ne jako bodová kolize, takže
+ * hrana destičky přirozeně vytyčí obráběný povrch a tělo jen tlačí hranici ven.
+ * TĚLO MIMO AKTIVNÍ BŘIT: obrys destičky se před sjednocením morfologicky
+ * OTEVŘE o rádius špičky R (eroze −R + dilatace +R). Tím zmizí aktivní řezný
+ * NOS (kulatá destička rádiusu R se otevřením vynuluje → nepřispívá vůbec,
+ * hrana zůstává jedinou řeznou referencí), zatímco tělo tlustší než 2R
+ * (upichovák šířky b, tělo polygonu) zůstane v plné velikosti a přidá kolizi.
+ * Stejná úvaha jako opening překážky v makeHolderClamp.
+ *
+ * Vrací { forbidden, reachX } — reachX = max radiální dosah nástroje pod
+ * špičkou (pro vzorkování hranice). forbidden=[] a reachX=0, když není co hlídat.
+ */
+export function buildToolForbiddenRegion(obstacleLoops, prms, { backside = false } = {}) {
+  const holder = holderWorldLoop(prms, backside);
+  const insert = insertWorldLoop(prms, backside);
+  const parts = [];
+  let reachX = 0;
+  if (holder) {
+    parts.push(...buildTipForbiddenRegion(obstacleLoops, holder));
+    reachX = Math.max(reachX, ...holder.map(p => p.x));
+  }
+  if (insert) {
+    // Otevření o R odstraní aktivní řezný nos; zbyde jen tělo (šířka b).
+    const R = Math.max(parseFloat(prms.toolRadius) || 0, 0.05);
+    const body = polyOffset(polyOffset([insert], -R, 'miter'), R, 'miter');
+    for (const bodyLoop of body) {
+      parts.push(...buildTipForbiddenRegion(obstacleLoops, bodyLoop));
+      reachX = Math.max(reachX, ...bodyLoop.map(p => p.x));
+    }
+  }
+  if (parts.length === 0) return { forbidden: [], reachX: 0 };
+  // Sjednotit dílčí oblasti do čistých smyček (odstranit překryvy / díry).
+  const forbidden = parts.length > 1 ? polyUnion(parts, []) : parts;
+  return { forbidden, reachX: Math.max(reachX, 0) };
 }
 
 /**

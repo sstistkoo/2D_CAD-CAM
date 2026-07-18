@@ -374,6 +374,65 @@ export function getInsertAnchorPoints(prms) {
   return pts;
 }
 
+// ── Plný obrys destičky (profil {x,z}: 0,0 = špička, +z = k držáku) ──
+// Segmenty uzavřeného obrysu destičky pro daný tvar (round/polygon/parting).
+// SDÍLENO s buildInsertProfileSegments() v camSimulator.js (📐 Kreslit na CAD
+// plátně) — musí zůstat MATEMATICKY shodné (stejné vzorce jako kreslení nože
+// v draw()/drawInsertAndHolderPreview). Slouží i jako zdroj obrysu pro
+// sjednocenou zakázanou oblast nástroje (toolEnvelope.insertWorldLoop, Fáze
+// 2b/3 migrace). Threading → [] (V-profil se do kolizní obálky nepočítá).
+export function buildInsertProfileSegments(prms) {
+  const shape = prms.toolShape;
+  const R = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
+  const segs = [];
+  if (shape === 'round') {
+    segs.push({ type: 'circle', cx: 0, cz: 0, r: R });
+    return segs;
+  }
+  if (shape === 'polygon') {
+    const tipAng = (parseFloat(prms.toolTipAngle) || 90) * Math.PI / 180;
+    const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+    const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
+    const a1 = rotRad, a2 = rotRad - tipAng * (prms.toolTipMirror ? -1 : 1);
+    const distToCorner = R / Math.sin(tipAng / 2);
+    const bis = (a1 + a2) / 2;
+    const cX = Math.cos(bis + Math.PI) * distToCorner;
+    const cY = Math.sin(bis + Math.PI) * distToCorner;
+    const tanLen = Math.min(R / Math.tan(tipAng / 2), toolLen * 0.99);
+    const P = (ang, len) => ({ x: cX + Math.cos(ang) * len, z: -(cY + Math.sin(ang) * len) });
+    const t1 = P(a1, tanLen), t2 = P(a2, tanLen);
+    const farA = P(a1, toolLen), farB = P(a2, toolLen);
+    segs.push({ type: 'line', from: t1, to: farA });
+    segs.push({ type: 'line', from: farA, to: farB });
+    segs.push({ type: 'line', from: farB, to: t2 });
+    segs.push({ type: 'arc', cx: 0, cz: 0, r: R, from: t2, to: t1 });
+    return segs;
+  }
+  if (shape === 'parting') {
+    const toolLen = Math.max(parseFloat(prms.toolLength) || 5, 1);
+    const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
+    const r = Math.min(R, toolLen / 2);
+    const w2 = toolLen - 2 * r;
+    const bodyH = Math.max(toolLen * 0.6, r + PARTING_BODY_MIN_H_MM);
+    const rot = (x, y) => ({
+      x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
+      z: -(x * Math.sin(rotRad) + y * Math.cos(rotRad)),
+    });
+    const pTopL = rot(-r, r - bodyH);
+    const pBotL = rot(-r, 0);
+    const pTopArcL = rot(0, r);
+    const pFlatEnd = rot(w2, r);
+    const pTopR = rot(w2 + r, r - bodyH);
+    segs.push({ type: 'line', from: pTopL, to: pBotL });
+    segs.push({ type: 'arc', cx: rot(0, 0).x, cz: rot(0, 0).z, r, from: pBotL, to: pTopArcL });
+    segs.push({ type: 'line', from: pTopArcL, to: pFlatEnd });
+    segs.push({ type: 'arc', cx: rot(w2, 0).x, cz: rot(w2, 0).z, r, from: pFlatEnd, to: pTopR });
+    segs.push({ type: 'line', from: pTopR, to: pTopL });
+    return segs;
+  }
+  return segs;
+}
+
 // ── Editor tvaru držáku (náhled) — čisté geometrické funkce ──────────
 // Výchozí obdélníkový obrys držáku (uzavřený) v profilu {x,z}: šířka =
 // holderWidth (osa x), délka = holderLength (osa z), spodní hrana u z=0

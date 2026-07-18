@@ -5,13 +5,15 @@
 >
 > Stav: Fáze 0 hotová (15. 7. 2026) · adaptér `js/geom/geomCore.js`
 
-> **PAUZA (18. 7. 2026):** Migrace (Fáze 3 zbytek / 3b dokončování / 4 / 5)
-> se ODKLÁDÁ — přešlo se na REFAKTORING `js/calculators/camSimulator.js`
-> (~13 500 řádků, rozdělit na moduly v `js/calculators/cam/`). Důvod: soubor
-> je teď příliš velký na efektivní práci (žere hodně tokenů kontextu na
-> úpravu). Až bude camSimulator.js rozdělený na menší moduly, migrace na
-> Clipper2 (booleovské hrubovací dráhy, přejezdy, UI) se vrátí do hry —
-> zbytek plánu níže platí beze změny, jen se na něj sáhne POZDĚJI.
+> **PAUZA (18. 7. 2026) → REFAKTOR HOTOV, migrace může pokračovat:**
+> Migrace (Fáze 3 zbytek / 3b dokončování / 4 zbývá / 5) byla dočasně
+> odložena kvůli REFAKTORINGU `js/calculators/camSimulator.js` (byl ~13 500
+> řádků, moc velký na efektivní práci). Refaktoring je **HOTOV** (Fáze A+B,
+> 18. 7. 2026): soubor **13 435 → 8 432 řádků**, čisté funkce + výpočetní
+> jádro (`calculate`→`cam/calculatePipeline.js`, emise G-kódu
+> →`cam/gcodeEmit.js`) rozdělené do modulů v `js/calculators/cam/`. Migrace
+> na Clipper2 (booleovské hrubovací dráhy, přejezdy, UI) se tím vrací do hry —
+> zbytek plánu níže platí beze změny. Viz paměť `geom-libs-migration`.
 
 ## Proč
 
