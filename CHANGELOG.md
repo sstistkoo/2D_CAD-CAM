@@ -45,6 +45,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restrukturace emisní smyčky (samostatná budoucí iterace).
 
 ### Fixed
+- CAM: **marný a nebezpečný descend-back v nájezdu hrubování (migrace Fáze 4)** —
+  dvoufázový nájezd podélného hrubování (`safeRapidTo(cur.x, zApprox)` = přejezd
+  v Z, pak `safeRapidTo(pass.x, zApprox)` = sjezd na hloubku) u čistě-Z fáze,
+  která se musela kvůli materiálu zvednout nad konturu, sjížděl rychloposuvem
+  ZPĚT na původní hluboké X — a druhý nájezd ho hned zase zvedl. Na odlitku
+  (part-10-zapich) to znamenalo rychloposuv skrz ~25 mm² stojícího materiálu za
+  zápichem. Opraveno v `gcodeEmit.js` (`safeRapidTo`): čistě-Z přejezd, který
+  zvedl nad konturu, už NEsjíždí zpět — nástroj zůstane nahoře a navazující
+  nájezd sjede rovnou na skutečnou hloubku (přesně „vyjet rychloposuvem nad
+  polotovar, přejet v Z, sjet tam"). **Řezná geometrie beze změny** — diff je
+  jen odebrané `G0 X…` rychloposuvy, žádný přidaný ani změněný řezný pohyb;
+  vědomě přegenerované snapshoty 9 fixtures. Nový semantický test
+  `tests/cam-traversal-invariants.test.js` (X-profil běhu rychloposuvů musí být
+  unimodální — nikdy „údolí" sjezd-a-znovu-výjezd) padá na 9 fixtures před fixem.
+  Viz `docs/geometry-libs-migration.md` (Fáze 4).
 - CAM: **hang booleovského hrubování na dlouhém odlitku s držákem** —
   `buildResidual` (`booleanRoughing.js`) volal Clipper2 `polyDifference` na
   hustě vzorkované smyčce oblasti dílce (offset po 0,2 mm přes velký Z-rozsah →

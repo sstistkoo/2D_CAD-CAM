@@ -523,6 +523,13 @@ export function generateAutoGCode(S, calc) {
       const xUp = Math.max(rapidTopX + rapidStopX, cur.x, tx);
       if (xUp > cur.x + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
       if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
+      // Fáze 4: čistě-Z přejezd, který se musel kvůli materiálu zvednout, se
+      // NESMÍ sjet zpět na původní X — to X je přes tento Z právě to nebezpečné
+      // (proto zvednutí), sjezd zpět by projel stojícím materiálem (odlitek za
+      // zápichem) a hned by ho další nájezd zase zvedl. Nástroj zůstane nahoře;
+      // navazující přejezd sjede rovnou na skutečnou hloubku (bod „nikdy
+      // nejezdit dolů do materiálu, když se má jen přejet v Z“).
+      if (sameX && xUp > tx + 1e-6) { setPos(xUp, tz); return; }
       descendTo(xUp);
     } else if (sameX) {
       emit(`G0 Z${tz.toFixed(3)}`);

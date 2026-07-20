@@ -333,19 +333,42 @@ Hotovo (jádro, 17. 7. 2026):
   procesu je kontaminovaný singleton stavem S mezi fixtures — měřit
   izolovaně (proces na fixture).
 
-Zbývá:
+Hotovo (přejezdy nájezdu, 21. 7. 2026):
+- **Konec marného/nebezpečného descend-backu v nájezdu**: dvoufázový nájezd
+  podélného hrubování (`safeRapidTo(cur.x, zApprox)` = přejezd v Z, pak
+  `safeRapidTo(pass.x, zApprox)` = sjezd na hloubku) sjížděl u ČISTĚ-Z fáze,
+  která se musela kvůli materiálu zvednout nad konturu, ZPĚT na původní
+  (hluboké) X — a druhý nájezd ho hned zase zvedl. Na odlitku
+  (part-10-zapich) to byl rychloposuv skrz ~25 mm² stojícího materiálu za
+  zápichem. Fix (`safeRapidTo`): čistě-Z přejezd, který zvedl, už NEsjíždí
+  zpět — nástroj zůstane nahoře a navazující nájezd sjede rovnou na skutečnou
+  hloubku (přesně „vyjet rychloposuvem nad polotovar, přejet v Z, sjet tam").
+  Řezná geometrie beze změny (diff = **jen odebrané `G0 X…`**, žádný přidaný
+  ani změněný řezný pohyb); vědomě přegenerované snapshoty 9 fixtures.
+- **Semantická pojistka**: `tests/cam-traversal-invariants.test.js` — nad
+  emitovanými souřadnicemi (žádný geometrický model → není flaky) hlídá, že
+  X-profil každého souvislého běhu rychloposuvů v hrubování je UNIMODÁLNÍ
+  (stoupá k jednomu vrcholu = zvednutí, pak klesá na hloubku), nikdy „údolí"
+  (sjezd-a-znovu-výjezd). Padá na 9 fixtures před fixem, prochází po něm.
 
-- Z **Bezpečné polohy** (`safeX`/`safeZ`) rychloposuvem; **Vůle nad
-  polotovarem** (`rapidClearance`) před materiálem → přepnout na posuv.
-- Po výjezdu z materiálu do vzduchu jet posuvem ještě `rapidClearance`,
-  pak teprve rychloposuv.
-- Mezi záběry na téže vrstvě: **Odskok** (`retractDistance` + `retractAngle`)
-  a rychloposuv vzduchem k dalšímu regionu.
-- **Nikdy nejezdit posuvem po už projeté dráze**: má-li dráha dojíždět dál
-  v Z, vyjet rychloposuvem nad polotovar (`rapidClearance`), přejet v Z nad
-  místo záběru a sjet tam.
+Ověřeno jako už POKRYTÉ (hlavní podélná cesta) — samostatná změna netřeba:
+- Z Bezpečné polohy rychloposuvem + přepnutí na **posuv o `rapidStopZ` před
+  materiálem** (part-1: `G0 Z<zStart+clr>` → `G0 X<hloubka>` → `G1 Z<zStart>`
+  posuvem přes vůli na hranu).
+- **Výjezd z materiálu posuvem** o `rapidClearance` za hranu, pak odskok
+  (`zExit` v podélném průchodu, gated `rapidHitsStock`).
+- **Odskok mezi záběry** (`retractDistance`/`retractAngle`) + rychloposuv
+  vzduchem k dalšímu záběru (`safeRapidTo`, dynamický zbytek).
 
-Implementace: každý bod přejezdu klasifikovat proti **aktuálnímu**
+Zbývá (genuinní mezera — order-dependent odlitek):
+- **Sjezd na hloubku v SOLIDNÍM odlitku posuvem, ne rychloposuvem**: druhý
+  nájezd sjíždí rychloposuvem na `pass.x` i tam, kde je v dané Z-poloze ještě
+  plný odlitek (nájezdová vůle `zApprox` je „vzduch" jen vůči kontuře, ne vůči
+  odlitkovému obalu) — na part-10 zbývá ~13 mm² grazing. Správně: sjet
+  rychloposuvem na povrch odlitku + vůli a zbytek posuvem. Patří k odloženému
+  dynamickému plánování (rozdělení rapid↔posuv proti AKTUÁLNÍMU `StockModel`).
+
+Implementace (odloženo): každý bod přejezdu klasifikovat proti **aktuálnímu**
 `StockModel` (`pointInLoop` / průnik úseku se zbytkem) — „vzduch“ je vše mimo
 zbytkový materiál, včetně už obrobených kapes. Z-limity / X-limity
 (`S.zLimits`, `S.xLimits`) vstupují jako ořezový obdélník (`rectClip`)
