@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- CAM: **geometrické jádro hrubování z booleanů (migrace Fáze 3, kroky 1–2)** —
+  nový modul `js/calculators/cam/booleanRoughing.js` (čisté funkce nad Clipper2):
+  zbytkový materiál `= polotovar − oblast dílce` (`buildResidual` /
+  `polyDifference`), vrstva `= zbytek ∩ pás [xLo,xHi]` s **regiony zadarmo**
+  (`sliceLayer` / `polyIntersect`), řezné Z-intervaly na hloubce paritou
+  průsečíků (`layerZIntervalsAtX`) a hloubková posloupnost (`buildLayers`).
+  Oblast dílce se staví uzavřením hotového `offsetPath` (dráha středu špičky)
+  k ose (`offsetRegionLoop`) — reuse zachová anizotropní offset aX≠aZ. Modul
+  zatím **není napojen do generátoru drah**, takže G-kód ani regresní snapshoty
+  se nemění; napojení `genLongPasses` za příznakem je další krok. Testy
+  `tests/boolean-roughing.test.js`. Viz `docs/geometry-libs-migration.md`.
+
 ### Changed
 - CAM: **sjednocená kolizní oblast nástroje pro mezní čáry (migrace Fáze 2b/3)** —
   `computeInterferenceGuides` / `buildHolderBoundaryPts` počítají mezní čáru ze

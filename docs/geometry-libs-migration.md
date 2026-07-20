@@ -209,6 +209,19 @@ Implementace: `js/calculators/cam/toolEnvelope.js` (`makeHolderClamp`,
 5. Nedosažitelné úseky (kolize dle Fáze 2) se z hrany smyčky vyříznou;
    zanoření jen pod úhlem `entryAngle` (Auto = úhel spodní hrany plátku).
 
+**HOTOVO — geometrické jádro (20. 7. 2026):** kroky 1–2 (+ extrakce řezných
+Z-intervalů) jako čisté funkce v `js/calculators/cam/booleanRoughing.js`:
+`offsetRegionLoop` (uzavře hotový `offsetPath` = dráhu STŘEDU špičky k ose —
+reuse místo `polyOffset`, aby se zachovala anizotropie aX≠aZ; scalar offset
+by ji ztratil, viz pozn. Fáze 4 o elipse), `buildResidual` (polotovar −
+oblast dílce přes `polyDifference`), `sliceLayer` (zbytek ∩ pás `[xLo,xHi]`
+→ regiony), `layerZIntervalsAtX` (řezné intervaly na hloubce X paritou
+průsečíků), `buildLayers` (hloubková posloupnost s volitelným Z-ořezem
+rozsahu obrábění). Ověřeno `tests/boolean-roughing.test.js` (mj. boss–údolí–
+boss → 2 samostatné regiony „zadarmo"). **Modul NENÍ napojen do generátoru
+drah** — G-kód ani regresní snapshoty se nemění; napojení `genLongPasses`
+za příznakem (+ nájezdy/rampy/obálka držáku kroky 3–5) je další krok.
+
 ### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
 
 Hotovo:
