@@ -113,7 +113,13 @@ export function sampleOffsetRegion(offsetXAt, zMax, zMin, dz = 0.2, axisX = 0) {
 export function buildResidual(stockLoop, regionLoop) {
   if (!stockLoop || stockLoop.length < 3) return [];
   if (!regionLoop || regionLoop.length < 3) return [stockLoop.map(p => ({ x: p.x, z: p.z }))];
-  return polyDifference([stockLoop], [regionLoop]);
+  // Vzorkování offsetXAt po 0,2 mm přes velký Z-rozsah (dlouhý odlitek) dává
+  // stovky téměř-kolineárních bodů. Clipper2 na takové husté smyčce u některých
+  // tvarů (ověřeno na holder-region-roughing: ~850 bodů) degeneruje do extrémně
+  // pomalého/zacyklení. Lehké zjednodušení (ε 0,01 mm, hluboko pod řeznou
+  // tolerancí — plocha se nezmění) to spolehlivě řeší.
+  const reg = polySimplify([regionLoop], 0.01);
+  return polyDifference([stockLoop], reg.length ? reg : [regionLoop]);
 }
 
 /**

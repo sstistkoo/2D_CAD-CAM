@@ -35,6 +35,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   splity ≈ ruční, materiál-parita StockModel sweepem). Test-izolace: headless
   harness (`camHeadless`) resetuje experimentální příznak `booleanRoughing` na
   každý běh (jinak prosákl singletonem `S` mezi fixtures → flaky snapshot drift).
+  Detekce bere signál ze SILUETY polotovaru (ne ze zbytku `stock−dílec`):
+  komponenty zbytku mají i opačný směr splynutí (kapsa dílu — oddělena hluboko,
+  splyne mělko), který legacy region model (zHiSurf/zLoSurf) neumí a nechal by
+  stát materiál (na holder-region-roughing +121 mm² pod z≈22,9). Silueta =
+  stejný signál jako ruční detekce → bez regrese pokrytí (holder i part-10:
+  splity i Z-obálka/hloubka identické s ruční cestou). Obecné residual-
+  komponentové regiony (kapsy dílu, obousměrné splynutí) patří až do
+  restrukturace emisní smyčky (samostatná budoucí iterace).
+
+### Fixed
+- CAM: **hang booleovského hrubování na dlouhém odlitku s držákem** —
+  `buildResidual` (`booleanRoughing.js`) volal Clipper2 `polyDifference` na
+  hustě vzorkované smyčce oblasti dílce (offset po 0,2 mm přes velký Z-rozsah →
+  ~850 téměř-kolineárních bodů), na které Clipper2 u některých tvarů
+  (holder-region-roughing) degeneroval do zacyklení/extrémně pomalého běhu.
+  Přidáno lehké zjednodušení vstupu (`polySimplify`, ε 0,01 mm — hluboko pod
+  řeznou tolerancí, plocha beze změny): difference doběhne v jednotkách ms.
+  Latentní od napojení intervalové cesty (příznak `booleanRoughing`), odhaleno
+  až regiony z geometrie (krok 2), které holder plně provedou intervalovou
+  cestou.
 
 ### Changed
 - CAM: **sjednocená kolizní oblast nástroje pro mezní čáry (migrace Fáze 2b/3)** —
