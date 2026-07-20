@@ -7,7 +7,8 @@
 // obrys destičky sedí (round = kruh R, parting = tělo šířky b) a že se dílčí
 // oblasti sjednotí do čistých smyček. Viz docs/geometry-libs-migration.md.
 import { describe, it, expect } from 'vitest';
-import { insertWorldLoop, buildToolForbiddenRegion } from '../js/calculators/cam/toolEnvelope.js';
+import { insertWorldLoop, buildToolForbiddenRegion, buildTipForbiddenRegion } from '../js/calculators/cam/toolEnvelope.js';
+import { holderWorldLoop } from '../js/calculators/cam/collisionValidator.js';
 import { polyArea } from '../js/geom/geomCore.js';
 
 const extent = (loop) => {
@@ -69,7 +70,35 @@ describe('buildToolForbiddenRegion — sjednocení držák ∪ destička', () =>
     expect(reachX).toBeCloseTo(25, 1);   // z0=max(toolLen5,4)=5 + l1=20
   });
 
-  it('bez držáku i bez destičky (threading, holder 0) → prázdná oblast', () => {
+  // ── Politika „tělo jen bez úlevu" (rozhodnutí migrace Fáze 2b/3) ──
+  it('parting BEZ držáku → tělo (šířka b) samo vytvoří kolizní oblast', () => {
+    const { forbidden } = buildToolForbiddenRegion([obstacle],
+      { toolShape: 'parting', toolLength: 5, toolRadius: 0.8, toolAngle: 0, holderWidth: 0, holderLength: 0 });
+    expect(forbidden.length).toBeGreaterThanOrEqual(1);
+    expect(forbidden.reduce((s, l) => s + area(l), 0)).toBeGreaterThan(100);
+  });
+
+  it('round BEZ držáku → prázdná oblast (celá destička je aktivní nos)', () => {
+    const { forbidden } = buildToolForbiddenRegion([obstacle],
+      { toolShape: 'round', toolRadius: 0.8, holderWidth: 0, holderLength: 0 });
+    expect(forbidden).toEqual([]);
+  });
+
+  it('polygon BEZ držáku → prázdná oblast (zadní hrany mají úlev → tělo se nepočítá)', () => {
+    const { forbidden } = buildToolForbiddenRegion([obstacle],
+      { toolShape: 'polygon', toolLength: 10, toolRadius: 0.8, toolTipAngle: 80, toolAngle: 0, holderWidth: 0, holderLength: 0 });
+    expect(forbidden).toEqual([]);
+  });
+
+  it('polygon S držákem → F_all = PŘESNĚ holder-only (tělo polygonu nepřispívá)', () => {
+    const prms = { toolShape: 'polygon', toolLength: 10, toolRadius: 0.8, toolTipAngle: 80, toolAngle: 0, holderWidth: 8, holderLength: 20, toolLength2: 10 };
+    const holderOnly = buildTipForbiddenRegion([obstacle], holderWorldLoop(prms, false));
+    const all = buildToolForbiddenRegion([obstacle], prms);
+    // Stejná reprezentace (syrové smyčky, žádný polyUnion navíc) → nulová regrese.
+    expect(all.forbidden).toEqual(holderOnly);
+  });
+
+  it('threading (holder 0) → prázdná oblast', () => {
     const { forbidden, reachX } = buildToolForbiddenRegion([obstacle],
       { toolShape: 'threading', toolTipAngle: 60, toolLength: 4, holderWidth: 0, holderLength: 0 });
     expect(forbidden).toEqual([]);

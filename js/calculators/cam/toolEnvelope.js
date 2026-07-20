@@ -111,23 +111,30 @@ export function insertWorldLoop(prms, backside = false) {
  * Aktivní břit zůstává řeznou referencí sám od sebe — mezní čára se bere jako
  * HRANICE dosažitelné oblasti (komplement F_all), ne jako bodová kolize, takže
  * hrana destičky přirozeně vytyčí obráběný povrch a tělo jen tlačí hranici ven.
- * TĚLO MIMO AKTIVNÍ BŘIT: obrys destičky se před sjednocením morfologicky
- * OTEVŘE o rádius špičky R (eroze −R + dilatace +R). Tím zmizí aktivní řezný
- * NOS (kulatá destička rádiusu R se otevřením vynuluje → nepřispívá vůbec,
- * hrana zůstává jedinou řeznou referencí), zatímco tělo tlustší než 2R
- * (upichovák šířky b, tělo polygonu) zůstane v plné velikosti a přidá kolizi.
- * Stejná úvaha jako opening překážky v makeHolderClamp.
+ * TĚLO MIMO AKTIVNÍ BŘIT: tělo destičky se přidá jen pro tvary, jejichž bok
+ * NEMÁ ÚLEV (závlek) a v úzké kapse tedy REÁLNĚ naráží — konkrétně UPICHOVÁK
+ * (`parting`, plný bok šířky b). Soustružnický POLYGON má zadní hrany
+ * uvolněné úlevem (řežou načisto, netřou) — nakreslený klín úlev nemodeluje,
+ * takže by složení celého těla falešně ubíralo legitimní průchody; polygon
+ * proto zůstává na analytické hraně (jako dřív). Kulatá destička je celá
+ * aktivní nos → tělo žádné. Obrys těla se ještě morfologicky OTEVŘE o rádius
+ * R (eroze −R + dilatace +R) — odstraní se aktivní nos (rohové rádiusy),
+ * zbudou jen boky. Stejná úvaha jako opening překážky v makeHolderClamp.
  *
  * Vrací { forbidden, reachX } — reachX = max radiální dosah nástroje pod
  * špičkou (pro vzorkování hranice). forbidden=[] a reachX=0, když není co hlídat.
  */
+// Tvary destičky, jejichž TĚLO (bok bez úlevu) se počítá do kolizní oblasti.
+const BODY_COLLISION_SHAPES = new Set(['parting']);
+
 export function buildToolForbiddenRegion(obstacleLoops, prms, { backside = false } = {}) {
   const holder = holderWorldLoop(prms, backside);
-  const insert = insertWorldLoop(prms, backside);
-  const parts = [];
+  const insert = BODY_COLLISION_SHAPES.has(prms.toolShape)
+    ? insertWorldLoop(prms, backside) : null;
+  const holderParts = [], insertParts = [];
   let reachX = 0;
   if (holder) {
-    parts.push(...buildTipForbiddenRegion(obstacleLoops, holder));
+    holderParts.push(...buildTipForbiddenRegion(obstacleLoops, holder));
     reachX = Math.max(reachX, ...holder.map(p => p.x));
   }
   if (insert) {
@@ -135,13 +142,18 @@ export function buildToolForbiddenRegion(obstacleLoops, prms, { backside = false
     const R = Math.max(parseFloat(prms.toolRadius) || 0, 0.05);
     const body = polyOffset(polyOffset([insert], -R, 'miter'), R, 'miter');
     for (const bodyLoop of body) {
-      parts.push(...buildTipForbiddenRegion(obstacleLoops, bodyLoop));
+      insertParts.push(...buildTipForbiddenRegion(obstacleLoops, bodyLoop));
       reachX = Math.max(reachX, ...bodyLoop.map(p => p.x));
     }
   }
-  if (parts.length === 0) return { forbidden: [], reachX: 0 };
-  // Sjednotit dílčí oblasti do čistých smyček (odstranit překryvy / díry).
-  const forbidden = parts.length > 1 ? polyUnion(parts, []) : parts;
+  if (holderParts.length === 0 && insertParts.length === 0) return { forbidden: [], reachX: 0 };
+  // Sjednotit JEN když skutečně přispěly OBA zdroje (držák i tělo destičky) —
+  // jinak vracet syrové smyčky beze změny reprezentace: kulatá destička (bez
+  // těla) tak dá PŘESNĚ původní hranici držáku (polyUnion by jinak zbytečně
+  // přeskládal vrcholy a rozkýval vzorkování hranice → falešná regrese).
+  const forbidden = (holderParts.length && insertParts.length)
+    ? polyUnion([...holderParts, ...insertParts], [])
+    : [...holderParts, ...insertParts];
   return { forbidden, reachX: Math.max(reachX, 0) };
 }
 

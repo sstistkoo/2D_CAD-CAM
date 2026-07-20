@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- CAM: **sjednocená kolizní oblast nástroje pro mezní čáry (migrace Fáze 2b/3)** —
+  `computeInterferenceGuides` / `buildHolderBoundaryPts` počítají mezní čáru ze
+  SJEDNOCENÉ zakázané oblasti špičky `F_all = (dílec ⊕ −držák) ∪ (dílec ⊕ −TĚLO
+  destičky)` přes nový `buildToolForbiddenRegion` (`js/calculators/cam/toolEnvelope.js`)
+  místo dřívější držák-only oblasti. Obrys destičky staví `insertWorldLoop` nad
+  sdíleným `buildInsertProfileSegments` (nově exportováno z `insertPreview.js`).
+  **Tělo destičky** přidává kolizi jen u tvarů bez úlevu boku — **upichovák**
+  (`parting`, šířka b); obrys se morfologicky otevře o R (odstraní aktivní nos).
+  **Polygon a round** zůstávají na analytické hraně (zadní hrany polygonu mají
+  úlev, round je celá aktivní nos), takže se u nich chování NEMĚNÍ — F_all je
+  u nich bit-identická s dřívější oblastí. Aktivní břit není nikdy v F (bere se
+  HRANICE dosažitelné oblasti). Regresní G-kód snapshoty **beze změny** (fixtures
+  jsou polygon/round). Nové testy `tests/insert-forbidden-region.test.js` +
+  charakterizace `tests/holder-boundary.test.js`. Viz `docs/geometry-libs-migration.md`.
 - CAM: **refaktoring `camSimulator.js` (10 321 → 8 432 řádků, Fáze B)** —
   výpočetní jádro vytaženo z `openCamSimulator()` do dvou modulů:
   `js/calculators/cam/calculatePipeline.js` (`computeCalculation(S, …)` —

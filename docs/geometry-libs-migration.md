@@ -116,10 +116,36 @@ v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
 - Checkbox přejmenován: „Hlídat geometrii destičky“ → **„Hlídat geometrii
   (destička + držák)“**.
 - Testy: `tests/collision-validator.test.js`.
-- Zbývá (Fáze 2b/3): nahradit `computeInterferenceGuides` /
-  `buildHolderBoundaryPts` — mezní čáru zanoření odvodit z
-  `polyOffset(dosažitelná oblast nástroje)` místo ručních via-bodů;
-  nekruhové tvary destičky (upichovák šířky b) ve stopě nástroje.
+
+### Fáze 2b/3 — sjednocená kolizní oblast nástroje (destička + držák) (HOTOVO 20. 7. 2026)
+
+Mezní čáry (`computeInterferenceGuides` / `buildHolderBoundaryPts`) se počítají
+ze **SJEDNOCENÉ** zakázané oblasti špičky místo dřívější držák-only:
+
+  F_all = (dílec ⊕ −držák) ∪ (dílec ⊕ −TĚLO destičky)
+
+- Implementace: `js/calculators/cam/toolEnvelope.js`
+  (`insertWorldLoop`, `buildToolForbiddenRegion`) + sdílený obrys destičky
+  `buildInsertProfileSegments` (export z `insertPreview.js`, dřív jen lokální
+  v camSimulatoru). Napojení v `interferenceGuides.js` (F_all místo
+  `buildTipForbiddenRegion(držák)`).
+- **Tělo mimo aktivní břit**: mezní čára = HRANICE dosažitelné oblasti
+  (komplement F_all), ne bodová kolize — aktivní břit tak zůstává řeznou
+  referencí (analytická hrana `zEdgeAt`) a tělo destičky jen tlačí hranici ven.
+- **Politika „tělo jen bez úlevu"**: tělo se přidá pouze pro tvary, jejichž bok
+  reálně naráží — **upichovák** (`parting`, plný bok šířky b). Obrys se
+  morfologicky OTEVŘE o R (odstraní aktivní nos, nechá boky). Soustružnický
+  **polygon** má zadní hrany uvolněné úlevem (nakreslený klín úlev nemodeluje →
+  složení celého těla by falešně ubíralo legitimní průchody) a **kulatá**
+  destička je celá aktivní nos → obě zůstávají na analytické hraně, jako dřív.
+  Důsledek: **existující fixtures (polygon/round) se NEMĚNÍ** — F_all je u nich
+  bit-identická s dřívější držák-only oblastí (viz test). Polygon s modelem
+  úlevu (relief) se může doplnit později.
+- Testy: `tests/insert-forbidden-region.test.js` (obrys destičky + politika
+  těla), `tests/holder-boundary.test.js` (charakterizace `buildHolderBoundary
+  Pts`). Regresní snapshoty `cam-gcode-regression` **beze změny**.
+- Zbývá (rozšíření): polygon/threading s modelem úlevu; využít F_all i pro
+  „stopu nástroje" ve vizuálním úběru (Fáze 1 dnes jen kružnice R).
 
 ### Fáze 3b — obálka держáku pro dokončování a trasy (HOTOVO 16. 7. 2026)
 

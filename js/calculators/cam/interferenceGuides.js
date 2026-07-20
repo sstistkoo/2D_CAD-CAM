@@ -17,15 +17,22 @@
 //
 // ── STAV (aktuální) ────────────────────────────────────────────
 // HOTOVO (Fáze 3): buildHolderBoundaryPts počítá hranici hlídání držáku
-// z Clipper2 DOSAŽITELNÉ OBLASTI — plný obrys držáku (holderWorldLoop) přes
-// zakázanou oblast špičky F = dílec ⊕ (−obrys držáku) (buildTipForbiddenRegion).
-// Nahradilo to dřívější aproximaci „stěna − šířka W" svislým pásem. Rozšířeno
-// i do generátoru drah (roughingStrategies.js: regiony + dokončování kapes).
+// z Clipper2 DOSAŽITELNÉ OBLASTI — obrys nástroje přes zakázanou oblast špičky
+// F = dílec ⊕ (−obrys nástroje). Nahradilo to dřívější aproximaci „stěna −
+// šířka W". Rozšířeno i do generátoru drah (roughingStrategies.js).
 //
-// PLÁN: teď se pracuje na Fázi 5 (sjednocení UI zanořování — 3 checkboxy → 2),
-// PAK se dodělá zbytek Fáze 3/4 — dynamický plánovač pořadí pro order-dependent
-// kolize držáku (vjezd do kapsy / rampa plive do materiálu sousedního regionu
-// obrobeného až později; statická obálka to principiálně nevidí). Detail viz
+// HOTOVO (Fáze 2b/3): mezní čára se počítá ze SJEDNOCENÉ oblasti F_all =
+// (dílec ⊕ −držák) ∪ (dílec ⊕ −TĚLO destičky) přes buildToolForbiddenRegion
+// (toolEnvelope.js). Tělo destičky přidává kolizi jen u tvarů, jejichž bok
+// nemá úlev — konkrétně UPICHOVÁK (parting, šířka b). Kulatá i polygonová
+// destička zůstávají na analytické hraně (aktivní břit = řezná reference),
+// takže se u nich chování nemění. Aktivní břit není nikdy v F (bere se HRANICE
+// dosažitelné oblasti, ne bodová kolize).
+//
+// PLÁN: Fáze 5 (sjednocení UI zanořování — 3 checkboxy → 2), PAK zbytek Fáze
+// 3/4 — dynamický plánovač pořadí pro order-dependent kolize držáku (vjezd do
+// kapsy / rampa plive do materiálu sousedního regionu obrobeného až později;
+// statická obálka to principiálně nevidí). Detail viz
 // docs/geometry-libs-migration.md a poznámka [[geom-libs-migration]] v paměti.
 
 import {
@@ -38,8 +45,7 @@ import {
   stockClearances,
   _locateOnContour,
 } from './camMath.js';
-import { holderWorldLoop } from './collisionValidator.js';
-import { buildTipForbiddenRegion } from './toolEnvelope.js';
+import { buildToolForbiddenRegion } from './toolEnvelope.js';
 import { polyIntersect } from '../../geom/geomCore.js';
 
 // Uzavřená smyčka z posloupnosti světových bodů (worldPoints/stock): řezné
@@ -358,23 +364,25 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
     return parity === 1;
   };
   const clrExitG = stockClearances(prms).x;
-  // ── Zakázaná oblast špičky F pro hranici hlídání držáku (Fáze 3) ──
-  // F = obrys dílce (silueta kontury, u odlitku ∩ polotovar) ⊕ (−obrys
-  // držáku). Špička uvnitř F ⇔ držák naráží do materiálu. Hranice hlídání
-  // (buildHolderBoundaryPts) sleduje LEVÝ (dosažitelný) okraj F místo
-  // dřívější aproximace „stěna − šířka W". Plný obrys držáku (holderWorldLoop,
-  // backside:false — konzistentně s makeHolderClamp). Spočte se JEDNOU.
+  // ── SJEDNOCENÁ zakázaná oblast špičky F_all (Fáze 2b/3 migrace) ──
+  // F_all = (obrys dílce ⊕ −držák) ∪ (obrys dílce ⊕ −TĚLO destičky). Špička
+  // uvnitř F_all ⇔ držák NEBO tělo destičky naráží do materiálu. Hranice
+  // hlídání (buildHolderBoundaryPts) sleduje LEVÝ (dosažitelný) okraj F_all;
+  // aktivní břit zůstává řeznou referencí přes analytickou hranu (zEdgeAt),
+  // TĚLO destičky (nekruhový tvar / upichovák šířky b) přidává kolizi přes
+  // F_all — kulatá destička se otevřením o R vynuluje (viz buildToolForbidden
+  // Region), takže u ní se chování NEMĚNÍ. Obrys dílce = silueta kontury
+  // (u odlitku ∩ polotovar). Spočte se JEDNOU.
   let holderForbidden = null, holderReachX = 0;
-  const holderLoopG = holderWorldLoop(prms, false);
   const contourLoopG = worldPointsToLoop(worldPoints);
-  if (holderLoopG && contourLoopG) {
+  if (contourLoopG) {
     let obstacle = [contourLoopG];
     if (stockLoopG2 && stockLoopG2.length >= 3) {
       const clipped = polyIntersect([contourLoopG], [stockLoopG2]);
       if (clipped.length > 0) obstacle = clipped;
     }
-    holderForbidden = buildTipForbiddenRegion(obstacle, holderLoopG);
-    holderReachX = Math.max(...holderLoopG.map(p => p.x));
+    const { forbidden, reachX } = buildToolForbiddenRegion(obstacle, prms, { backside: false });
+    if (forbidden.length > 0) { holderForbidden = forbidden; holderReachX = reachX; }
   }
   // Výstup siluety z materiálu podél úseku a+t·(ux,uz), t∈(0, tMax]:
   // pochod po 0,5 mm + bisekce. k===0 = kotva na kontuře (v materiálu).
