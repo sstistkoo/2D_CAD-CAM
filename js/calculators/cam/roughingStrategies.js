@@ -18,6 +18,7 @@
 
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoop } from './materialRemoval.js';
+import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX } from './booleanRoughing.js';
 import { pointInLoop } from '../../geom/geomCore.js';
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
@@ -578,32 +579,15 @@ export function genLongPasses(ctx) {
   // X) v Z∈[zLoBound,zHiBound]. První interval (od pravé hrany polotovaru) =
   // klasický otevřený vjezd. Každý další interval je kapsa za "bossem"
   // kontury. Sdíleno hlavní smyčkou hloubek X i dobíráním kapsy najednou.
-  const scanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
-    const intervals = [];
-    let zScan = zHiBound;
-    let inRun = !blockedAt(X, zScan);
-    const firstOpen = inRun;
-    let runStartZ = zScan;
-    while (zScan > zLoBound + dzScan) {
-      zScan -= dzScan;
-      const blocked = blockedAt(X, zScan);
-      if (inRun && blocked) {
-        intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(X, zScan + dzScan, zScan), blocked: true });
-        inRun = false;
-      } else if (!inRun && !blocked) {
-        runStartZ = zScan;
-        inRun = true;
-      }
-    }
-    if (inRun) intervals.push({ zStart: runStartZ, zEnd: zLoBound, blocked: false });
+  // Obálka držáku (Fáze 3a, Clipper2) — společné post-zpracování intervalů
+  // pro obě cesty hledání (scan-line i booleovskou). Špička nesmí vjet do
+  // zakázané oblasti (silueta offsetu ⊕ −držák): interval se zkrátí na první
+  // vstup do ní. U hlavního otevřeného vjezdu navíc schodová podmínka
+  // (mainStair) — držák nesmí najet do materiálu, který nechaly stát zkrácené
+  // MĚLČÍ průchody. holderClamped potlačí sledování kontury z konce průchodu
+  // (leadOut). Bez definovaného držáku vrací vstup beze změny.
+  const applyHolderClamp = (intervals, firstOpen, X, mainScan) => {
     if (!holderClampZEnd) return { intervals, firstOpen };
-    // ── Fáze 3a (Clipper2): obálka držáku ────────────────────────────
-    // Špička nesmí vjet do zakázané oblasti (silueta offsetu ⊕ −držák):
-    // interval se zkrátí na první vstup do ní. U hlavního otevřeného
-    // intervalu navíc platí schodová podmínka (mainStair) — držák nesmí
-    // najet do materiálu, který nechaly stát zkrácené MĚLČÍ průchody.
-    // holderClamped potlačí sledování kontury z konce průchodu (leadOut) —
-    // pokračování po stěně je právě to, kam držák nesmí.
     const out = [];
     let firstSurvived = firstOpen;
     for (let k = 0; k < intervals.length; k++) {
@@ -630,6 +614,76 @@ export function genLongPasses(ctx) {
     }
     return { intervals: out, firstOpen: firstSurvived };
   };
+  const scanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
+    const intervals = [];
+    let zScan = zHiBound;
+    let inRun = !blockedAt(X, zScan);
+    const firstOpen = inRun;
+    let runStartZ = zScan;
+    while (zScan > zLoBound + dzScan) {
+      zScan -= dzScan;
+      const blocked = blockedAt(X, zScan);
+      if (inRun && blocked) {
+        intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(X, zScan + dzScan, zScan), blocked: true });
+        inRun = false;
+      } else if (!inRun && !blocked) {
+        runStartZ = zScan;
+        inRun = true;
+      }
+    }
+    if (inRun) intervals.push({ zStart: runStartZ, zEnd: zLoBound, blocked: false });
+    return applyHolderClamp(intervals, firstOpen, X, mainScan);
+  };
+
+  // ── Booleovská cesta hledání intervalů (migrace Fáze 3, za příznakem) ──
+  // Zbytkový materiál = polotovar − oblast dílce (offset kontury uzavřený
+  // k ose, booleanRoughing.js). Řezné intervaly na hloubce X = průnik zbytku
+  // s vodorovnou čárou x=X, oříznuté na [zLoBound, zHiBound] (rozsah obrábění
+  // / region / polotovar). blocked/firstOpen se klasifikují STEJNÝMI helpery
+  // (blockedAt) jako scan-line, takže navazující emise (rampy, leadIn/Out,
+  // obálka držáku) funguje beze změny. Spočte se JEDNOU (memoizace zbytku).
+  let _residualLoops = null;
+  const getResidualLoops = () => {
+    if (_residualLoops !== null) return _residualLoops;
+    const stockLoop = buildStockLoop(prms, stockPathSegments);
+    if (!stockLoop) { _residualLoops = []; return _residualLoops; }
+    // Z-rozsah z obrysu polotovaru; radiální rozsah do maxStockX (vrch
+    // polotovaru). Zbytek se počítá proti PLNÉMU obdélníkovému POLOTOVAROVÉMU
+    // OBALU [0..maxStockX] × [zMin..zMax], NE proti skutečné siluetě odlitku:
+    // scan-line záměrně obrys polotovaru IGNORUJE („Stopuje JEN kontura",
+    // rychloposuv vzduchem tam, kde odlitek chybí) — proti siluetě by se
+    // intervaly u úzkých míst rozpadly na nesmyslné vnitřní „kapsy", které
+    // emise neobrobí → zůstal by stát materiál. Oblast dílce vzorkuje offsetXAt
+    // (přesně jako scan-line blockedAt) → intervaly SEDÍ se scan-line.
+    let zMax = -Infinity, zMin = Infinity;
+    for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
+    const envelope = [
+      { x: 0, z: zMax }, { x: maxStockX, z: zMax },
+      { x: maxStockX, z: zMin }, { x: 0, z: zMin },
+    ];
+    const region = sampleOffsetRegion(offsetXAt, zMax, zMin, dzScan);
+    _residualLoops = buildResidual(envelope, region);
+    return _residualLoops;
+  };
+  const booleanScanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
+    const residual = getResidualLoops();
+    // Pojistka: bez zbytku (chybí polotovar/offset) zpět na scan-line.
+    if (!residual || residual.length === 0) return scanIntervals(X, zHiBound, zLoBound, mainScan);
+    const eps = 1e-4;
+    const intervals = [];
+    for (const iv of layerZIntervalsAtX(residual, X)) {
+      const zHi = Math.min(iv.zStart, zHiBound);
+      const zLo = Math.max(iv.zEnd, zLoBound);
+      if (zHi - zLo < dzScan) continue;
+      // blocked = levý konec bounduje kontura (nedosáhl spodní meze rozsahu) —
+      // stejná sémantika jako u scan-line (jen poslední otevřený běh je false).
+      intervals.push({ zStart: zHi, zEnd: zLo, blocked: zLo > zLoBound + eps });
+    }
+    const firstOpen = !blockedAt(X, zHiBound);
+    return applyHolderClamp(intervals, firstOpen, X, mainScan);
+  };
+  // Výběr cesty dle příznaku (default scan-line → snapshoty beze změny).
+  const scan = prms.booleanRoughing ? booleanScanIntervals : scanIntervals;
 
   // ── Regiony (opt-in, jen odlitek) ──────────────────────────────────────
   // Polotovar odlitku má „výstupky" (bosses) oddělené „údolími", kde se
@@ -703,7 +757,7 @@ export function genLongPasses(ctx) {
     // Stock outline NEPROFILUJE řez (i kdyby měl casting přerušení /
     // dolíky uprostřed) — fyzický nástroj projíždí mezerou ve vzduchu
     // bez problému. Stopuje JEN kontura.
-    const { intervals, firstOpen } = scanIntervals(currentX, effZMax, effZMin, true);
+    const { intervals, firstOpen } = scan(currentX, effZMax, effZMin, true);
 
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
@@ -1024,7 +1078,7 @@ export function genLongPasses(ctx) {
 
         localX = Math.max(pocketBottomX, localX - step);
         // Najdi tutéž kapsu na nové hloubce (roh se s hloubkou mírně posouvá).
-        const rescan = scanIntervals(localX, effZMax, effZMin);
+        const rescan = scan(localX, effZMax, effZMin);
         let found = null;
         for (let j = 1; j < rescan.intervals.length; j++) {
           const cIv = rescan.intervals[j];

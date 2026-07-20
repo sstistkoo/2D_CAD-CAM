@@ -132,6 +132,13 @@ export function _defaultCamParams() {
     // dolů SAMOSTATNĚ, mezi regiony rychloposuv nad polotovar. false =
     // původní globální sweep po hloubkách přes celý díl.
     regionRoughing: false,
+    // Booleovské hrubování (migrace Fáze 3, docs/geometry-libs-migration.md):
+    // řezné Z-intervaly podélných průchodů se odvozují ze zbytkového
+    // materiálu (polotovar − offset kontury) přes Clipper2 (booleanRoughing.js)
+    // místo ručního scan-line (scanIntervals). PŘÍZNAK — default false =
+    // původní scan-line cesta (regresní snapshoty beze změny). Zapnuto =
+    // experimentální booleovská cesta (zatím jen podélné hrubování).
+    booleanRoughing: false,
     // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
     // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
     // (Legacy jednotná hodnota — viz stockClearX/stockClearZ níže.)

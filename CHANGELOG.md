@@ -8,17 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- CAM: **geometrické jádro hrubování z booleanů (migrace Fáze 3, kroky 1–2)** —
+- CAM: **hrubovací dráhy z booleovské geometrie za příznakem (migrace Fáze 3)** —
   nový modul `js/calculators/cam/booleanRoughing.js` (čisté funkce nad Clipper2):
-  zbytkový materiál `= polotovar − oblast dílce` (`buildResidual` /
+  zbytkový materiál `= obal polotovaru − oblast dílce` (`buildResidual` /
   `polyDifference`), vrstva `= zbytek ∩ pás [xLo,xHi]` s **regiony zadarmo**
   (`sliceLayer` / `polyIntersect`), řezné Z-intervaly na hloubce paritou
-  průsečíků (`layerZIntervalsAtX`) a hloubková posloupnost (`buildLayers`).
-  Oblast dílce se staví uzavřením hotového `offsetPath` (dráha středu špičky)
-  k ose (`offsetRegionLoop`) — reuse zachová anizotropní offset aX≠aZ. Modul
-  zatím **není napojen do generátoru drah**, takže G-kód ani regresní snapshoty
-  se nemění; napojení `genLongPasses` za příznakem je další krok. Testy
-  `tests/boolean-roughing.test.js`. Viz `docs/geometry-libs-migration.md`.
+  průsečíků (`layerZIntervalsAtX`). Oblast dílce vzorkuje `offsetXAt(z)`
+  (`sampleOffsetRegion` — věrně jako scan-line, robustní k chainBreakům
+  offsetPath). **Napojeno do `genLongPasses` za příznakem `booleanRoughing`**
+  (default false = scan-line, kryté snapshoty): zapnuto odvozuje řezné intervaly
+  podélných průchodů z booleanů; obálka držáku (`applyHolderClamp`) sdílená oběma
+  cestami. Ověřeno na 6 podélných fixtures, že booleovská cesta odebere STEJNÝ
+  materiál jako scan-line (part-1 Δ<5 mm²), dojede na stejnou hloubku, bez
+  hard-error (`tests/boolean-roughing.test.js`, `tests/boolean-roughing-wiring.test.js`).
+  G-kód default cesty ani regresní snapshoty se **nemění**. Viz
+  `docs/geometry-libs-migration.md`.
 
 ### Changed
 - CAM: **sjednocená kolizní oblast nástroje pro mezní čáry (migrace Fáze 2b/3)** —

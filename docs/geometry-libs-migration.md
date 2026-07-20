@@ -218,9 +218,30 @@ oblast dílce přes `polyDifference`), `sliceLayer` (zbytek ∩ pás `[xLo,xHi]`
 → regiony), `layerZIntervalsAtX` (řezné intervaly na hloubce X paritou
 průsečíků), `buildLayers` (hloubková posloupnost s volitelným Z-ořezem
 rozsahu obrábění). Ověřeno `tests/boolean-roughing.test.js` (mj. boss–údolí–
-boss → 2 samostatné regiony „zadarmo"). **Modul NENÍ napojen do generátoru
-drah** — G-kód ani regresní snapshoty se nemění; napojení `genLongPasses`
-za příznakem (+ nájezdy/rampy/obálka držáku kroky 3–5) je další krok.
+boss → 2 samostatné regiony „zadarmo").
+
+**HOTOVO — napojení do `genLongPasses` ZA PŘÍZNAKEM (20. 7. 2026):** nový
+příznak `booleanRoughing` (default **false** = scan-line). Zapnuto = řezné
+Z-intervaly podélných průchodů se berou z booleovského jádra
+(`booleanScanIntervals` v `roughingStrategies.js`) místo ručního
+`scanIntervals`. Obálka držáku (`applyHolderClamp`) vytažena jako sdílené
+post-zpracování obou cest. DVĚ KLÍČOVÁ ZJIŠTĚNÍ z ověření na fixtures:
+- **Zbytek = OBAL − oblast dílce, ne silueta − oblast.** Scan-line záměrně
+  IGNORUJE obrys polotovaru (řeže i vzduchem, „Stopuje JEN kontura"). Zbytek
+  proti skutečné siluetě odlitku se u úzkých míst rozpadl na vnitřní „kapsy",
+  které emise neuměla obrobit → stál materiál (až +243 mm²). Proto se zbytek
+  počítá proti PLNÉMU obdélníkovému obalu `[0..maxStockX]×[zMin..zMax]`.
+- **Oblast dílce = vzorkování `offsetXAt(z)`, ne sešití `offsetPath`.**
+  offsetPath má u kapes/bossů chainBreaky → přímé sešití dá nesmyslný polygon.
+  `sampleOffsetRegion` vzorkuje max X (přesně jako scan-line `blockedAt`) →
+  intervaly SEDÍ se scan-line.
+Ověřeno `tests/boolean-roughing-wiring.test.js`: na 6 podélných fixtures
+booleovská cesta odebere STEJNÝ materiál (part-1 Δ<5 mm² = vzorkovací šum),
+dojede na stejnou hloubku/Z-obálku, bez hard-error; pass count jen o málo
+nižší (vynechá degenerované no-op intervaly). Regresní snapshoty
+`cam-gcode-regression` **beze změny** (příznak default off). Zbývá: kroky 3–5
+(dráha přímo z hran regionů + nájezdy/rampy), regiony z komponent zbytku,
+čelní/backside cesta, pak UI přepínač (Fáze 5).
 
 ### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
 

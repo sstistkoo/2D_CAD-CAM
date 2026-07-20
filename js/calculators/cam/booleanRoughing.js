@@ -85,6 +85,26 @@ export function offsetRegionLoop(offsetPath, axisX = 0) {
 }
 
 /**
+ * Oblast dílce vzorkováním funkce `offsetXAt(z)` (max X dráhy STŘEDU špičky
+ * na dané Z, null = vzduch) po kroku `dz` přes [zMin, zMax], uzavřená k ose.
+ * ROBUSTNĚJŠÍ než `offsetRegionLoop` u reálných dílů: offsetPath má u kapes/
+ * bossů chainBreaky a nesouvislé větve — jejich přímé sešití do jedné smyčky
+ * dá nesmyslný polygon. Vzorkování max X (přesně to, co používá scan-line
+ * `blockedAt`) dá věrnou hranici, takže booleovské intervaly SEDÍ se scan-line.
+ * Kde `offsetXAt` vrací null (vzduch nad čelem / za dílem) → hranice na ose
+ * (x=`axisX`), tj. všechen polotovar tam je zbytek.
+ */
+export function sampleOffsetRegion(offsetXAt, zMax, zMin, dz = 0.2, axisX = 0) {
+  const clamp = (x) => (x === null || x < axisX) ? axisX : x;
+  const pts = [];
+  for (let z = zMax; z > zMin + 1e-9; z -= dz) pts.push({ x: clamp(offsetXAt(z)), z });
+  pts.push({ x: clamp(offsetXAt(zMin)), z: zMin });   // přesný spodní vzorek
+  pts.push({ x: axisX, z: zMin });                    // uzavřít k ose
+  pts.push({ x: axisX, z: zMax });
+  return pts;
+}
+
+/**
  * Zbytkový materiál = polotovar − oblast (dílec + přídavek).
  * `stockLoop` = uzavřená smyčka polotovaru (buildStockLoop). `regionLoop`
  * = offsetRegionLoop(offsetPath). Vrací pole smyček zbytku (může být
