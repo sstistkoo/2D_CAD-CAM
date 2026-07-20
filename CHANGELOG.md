@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   G-kód default cesty ani regresní snapshoty se **nemění**. Příznak lze zapnout
   v panelu CAM simulátoru (tab Hrubování → „Booleovské hrubování (exp.)"). Viz
   `docs/geometry-libs-migration.md`.
+- CAM: **regiony hrubování z geometrie (migrace Fáze 3, krok 2)** — nová funkce
+  `computeResidualRegions` v `booleanRoughing.js` detekuje „údolí" (odlitkové hrby
+  / stěny) jako lokální minima horní hrany siluety polotovaru a vrací splity
+  `[{z, xSurf}]` ve stejném formátu jako ruční detekce. Napojeno do
+  `genLongPasses.computeRegions` za příznakem `booleanRoughing` (jen s
+  `regionRoughing` + odlitek); ruční detekce (`manualRegionSplits`) i booleovská
+  (`booleanRegionSplits`) sdílejí `assembleRegions`. Ověřeno
+  `tests/boolean-region-roughing.test.js` (part-10-zapich-casting: booleovské
+  splity ≈ ruční, materiál-parita StockModel sweepem). Test-izolace: headless
+  harness (`camHeadless`) resetuje experimentální příznak `booleanRoughing` na
+  každý běh (jinak prosákl singletonem `S` mezi fixtures → flaky snapshot drift).
 
 ### Changed
 - CAM: **sjednocená kolizní oblast nástroje pro mezní čáry (migrace Fáze 2b/3)** —

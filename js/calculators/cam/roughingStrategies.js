@@ -18,7 +18,7 @@
 
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoop } from './materialRemoval.js';
-import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX } from './booleanRoughing.js';
+import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop } from '../../geom/geomCore.js';
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
@@ -692,11 +692,26 @@ export function genLongPasses(ctx) {
   // „přejíždí po kontuře"). S regiony se každý výstupek vyhrubuje shora
   // dolů SAMOSTATNĚ (Z-okno regionu), mezi regiony rychloposuv nad polotovar.
   // Split = střed údolí (lokální minimum X mezi dvěma výstupky).
-  const computeRegions = () => {
-    const FULL = [{ zHi: Infinity, zLo: -Infinity }];
-    if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL;
+  const FULL_REGION = [{ zHi: Infinity, zLo: -Infinity }];
+  // Sestavení Z-oken regionů z bodů dělení `splits = [{ z, xSurf }]`
+  // (seřazené shora dolů). Sdíleno ruční i booleovskou detekcí — každý split
+  // je horní hranice regionu POD ním a dolní hranice regionu NAD ním; xSurf =
+  // povrch dna údolí (hranice platí jen NAD ním, v kůře regiony splynou).
+  const assembleRegions = (splits) => {
+    if (!splits || splits.length === 0) return FULL_REGION;
+    const regions = [];
+    let hi = Infinity, hiSurf;
+    for (const s of splits) {
+      regions.push({ zHi: hi, zLo: s.z, zHiSurf: hiSurf, zLoSurf: s.xSurf });
+      hi = s.z; hiSurf = s.xSurf;
+    }
+    regions.push({ zHi: hi, zLo: -Infinity, zHiSurf: hiSurf, zLoSurf: undefined });
+    return regions;
+  };
+  // Ruční detekce údolí z obrysu polotovaru (stockWorldPoints) — původní cesta.
+  const manualRegionSplits = () => {
     const outer = stockWorldPoints.filter(p => p.xReal > 1).map(p => ({ x: p.xReal, z: p.zReal }));
-    if (outer.length < 4) return FULL;
+    if (outer.length < 4) return [];
     const splits = [];
     for (let i = 1; i < outer.length - 1; i++) {
       const prev = outer[i - 1].x, cur = outer[i].x;
@@ -711,16 +726,36 @@ export function genLongPasses(ctx) {
       if (after > cur + 0.3) splits.push({ z: (outer[i].z + outer[j].z) / 2, xSurf: cur });
       i = j;
     }
-    if (splits.length === 0) return FULL;
     splits.sort((a, b) => b.z - a.z);              // shora (max Z) dolů
-    const regions = [];
-    let hi = Infinity, hiSurf;
-    for (const s of splits) {
-      regions.push({ zHi: hi, zLo: s.z, zHiSurf: hiSurf, zLoSurf: s.xSurf });
-      hi = s.z; hiSurf = s.xSurf;
-    }
-    regions.push({ zHi: hi, zLo: -Infinity, zHiSurf: hiSurf, zLoSurf: undefined });
-    return regions;
+    return splits;
+  };
+  // Booleovská detekce (Fáze 3, krok 2, za příznakem `booleanRoughing`):
+  // údolí = lokální minima horní hrany SILUETY polotovaru (buildStockLoop),
+  // polygon-native náhrada křehké vrcholové heuristiky nad stockWorldPoints.
+  //
+  // POZOR (proč silueta, ne zbytek stock−dílec): legacy model regionů
+  // (zHiSurf/zLoSurf) umí vyjádřit JEN odlitkový hrb — region oddělen MĚLCE
+  // (X > xSurf) a v kůře dna splyne. Komponenty ZBYTKU (stock − dílec) mají
+  // ale i OPAČNÝ směr (kapsa/hrb dílu = oddělen hluboko, splyne mělko), který
+  // tenhle model neumí — složení celého zbytku pak nechává stát materiál
+  // (ověřeno na holder-region-roughing: +121 mm² pod z≈22.9). Signál pro
+  // odlitkové hrby je horní hrana SILUETY polotovaru — stejný jako manuál,
+  // takže bez regrese pokrytí. Obecné residual-komponentové regiony (kapsy
+  // dílu, obousměrné splynutí) patří až do restrukturace emisní smyčky.
+  const booleanRegionSplits = () => {
+    const stockLoop = buildStockLoop(prms, stockPathSegments);
+    if (!stockLoop || stockLoop.length < 3) return [];
+    let zMax = -Infinity, zMin = Infinity;
+    for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
+    return computeResidualRegions([stockLoop], zMax, zMin, dzScan);
+  };
+  const computeRegions = () => {
+    if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL_REGION;
+    const splits = prms.booleanRoughing ? booleanRegionSplits() : manualRegionSplits();
+    // Diagnostický test seam (guarded, v produkci no-op): tests/boolean-region-
+    // roughing.test.js jím ověřuje separaci regionů ruční vs booleovské cesty.
+    if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({ bool: !!prms.booleanRoughing, splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })) });
+    return assembleRegions(splits);
   };
   const _regions = computeRegions();
 

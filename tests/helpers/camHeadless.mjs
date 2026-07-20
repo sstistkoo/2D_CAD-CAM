@@ -149,6 +149,11 @@ export async function runCamProg(prog) {
   // reset relevantního stavu (S je singleton napříč voláními)
   S.manualGCode = '';
   Object.assign(S.params, prog.params);
+  // Izolace experimentálních příznaků, které některé testy přepínají: fixtures
+  // je v params nemají, takže by v singletonu S prosákla hodnota z předchozího
+  // .camprog v témž workeru (booleanRoughing → jiná hrubovací cesta → falešný
+  // snapshot drift). Vynutit defaultní false, pokud prog vlastní hodnotu neurčí.
+  S.params.booleanRoughing = !!prog.params.booleanRoughing;
   S.contourPoints = prog.contourPoints;
   S.stockPoints = prog.stockPoints;
   S.flipX = !!prog.flipX;

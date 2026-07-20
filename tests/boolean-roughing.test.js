@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   offsetRegionLoop, buildResidual, sliceLayer, layerZIntervalsAtX,
-  buildLayers, residualArea,
+  buildLayers, residualArea, computeResidualRegions,
 } from '../js/calculators/cam/booleanRoughing.js';
 import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
 
@@ -82,6 +82,57 @@ describe('sliceLayer + regiony zadarmo (boss–údolí–boss)', () => {
     // Levý bok pokračuje až na konec polotovaru (díl končí na −40, ale
     // polotovar sahá do −50 → pod dílem je plný materiál).
     expect(iv[1].zEnd).toBeCloseTo(-50, 1);
+  });
+});
+
+describe('computeResidualRegions — regiony z komponent siluety zbytku', () => {
+  // Odlitek s hrbem: r=20 (z 0..−10), údolí r=14 (z −10..−20), r=20
+  // (z −20..−30), uzavřeno k ose. Dílec = válec r=8.
+  const bumpyStock = [
+    { x: 0, z: 0 }, { x: 20, z: 0 }, { x: 20, z: -10 }, { x: 14, z: -10 },
+    { x: 14, z: -20 }, { x: 20, z: -20 }, { x: 20, z: -30 }, { x: 0, z: -30 },
+  ];
+  const partRegion = offsetRegionLoop([{ type: 'line', p1: { x: 8, z: 0 }, p2: { x: 8, z: -30 } }]);
+  const residual = buildResidual(bumpyStock, partRegion);
+
+  it('odlitkový hrb → 1 split ve středu údolí, xSurf = dno údolí', () => {
+    const splits = computeResidualRegions(residual, 0, -30);
+    expect(splits.length).toBe(1);
+    expect(splits[0].z).toBeCloseTo(-15, 0);   // střed dna údolí
+    expect(splits[0].xSurf).toBeCloseTo(14, 0); // povrch dna údolí
+  });
+
+  it('hladký válcový polotovar (žádný hrb) → žádný split', () => {
+    const flat = buildStockLoop(
+      { stockMode: 'cylinder', stockDiameter: 40, stockLength: 30, stockFace: 0 }, null);
+    const res = buildResidual(flat, partRegion);
+    expect(computeResidualRegions(res, 0, -30)).toEqual([]);
+  });
+
+  it('prázdný zbytek → žádný split', () => {
+    expect(computeResidualRegions([], 0, -30)).toEqual([]);
+    expect(computeResidualRegions(residual, -30, 0)).toEqual([]);  // zMax < zMin
+  });
+
+  it('surová silueta polotovaru (produkční vstup) → stejný split jako přes residual', () => {
+    // Produkce krmí funkci [buildStockLoop(...)], ne zbytek stock−dílec.
+    const splits = computeResidualRegions([bumpyStock], 0, -30);
+    expect(splits.length).toBe(1);
+    expect(splits[0].z).toBeCloseTo(-15, 0);
+    expect(splits[0].xSurf).toBeCloseTo(14, 0);
+  });
+
+  it('dva hrby → dva splity (region uprostřed oddělen od obou boků)', () => {
+    // r=20/údolí14/r=20/údolí14/r=20 → dvě údolí.
+    const twoBumps = [
+      { x: 0, z: 0 }, { x: 20, z: 0 }, { x: 20, z: -8 }, { x: 14, z: -8 },
+      { x: 14, z: -14 }, { x: 20, z: -14 }, { x: 20, z: -22 }, { x: 14, z: -22 },
+      { x: 14, z: -28 }, { x: 20, z: -28 }, { x: 20, z: -36 }, { x: 0, z: -36 },
+    ];
+    const res = buildResidual(twoBumps, offsetRegionLoop([{ type: 'line', p1: { x: 8, z: 0 }, p2: { x: 8, z: -36 } }]));
+    const splits = computeResidualRegions(res, 0, -36);
+    expect(splits.length).toBe(2);
+    expect(splits[0].z).toBeGreaterThan(splits[1].z);   // shora dolů
   });
 });
 

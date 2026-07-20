@@ -184,6 +184,94 @@ export function buildLayers(residualLoops, depths, step, zLo = -Z_INF, zHi = Z_I
   return layers;
 }
 
+/**
+ * Horní hrana (max X) zbytkového materiálu na dané axiální souřadnici `z`:
+ * průsečíky svislé čáry z = konst s hranami smyček, největší X = povrch
+ * zbytku. Vrací null, když na tomto Z zbytek žádný materiál nemá (vzduch).
+ */
+function residualTopXAtZ(loops, z) {
+  let top = null;
+  for (const loop of loops) {
+    const n = loop.length;
+    for (let i = 0; i < n; i++) {
+      const a = loop[i], b = loop[(i + 1) % n];
+      const za = a.z, zb = b.z;
+      if ((za <= z && zb > z) || (zb <= z && za > z)) {
+        const t = (z - za) / (zb - za);
+        const x = a.x + (b.x - a.x) * t;
+        if (top === null || x > top) top = x;
+      }
+    }
+  }
+  return top;
+}
+
+/**
+ * REGIONY Z GEOMETRIE (Fáze 3, krok 2) — polygon-native náhrada ruční
+ * valley/surface detekce nad `stockWorldPoints` v roughingStrategies.
+ * computeRegions. Detekuje „údolí" = lokální minima HORNÍ HRANY zadaných
+ * smyček (max X na dané Z) s prominencí `minDrop` na OBOU stranách.
+ *
+ * Produkce jí předává SILUETU polotovaru (`[buildStockLoop(...)]`): signál
+ * pro odlitkové hrby je horní hrana polotovaru, stejně jako u manuálu, takže
+ * bez regrese pokrytí. POZOR: NEpředávat zbytek stock−dílec — jeho komponenty
+ * mají i opačný směr splynutí (kapsa dílu: oddělena hluboko, splyne mělko),
+ * který legacy model (zHiSurf/zLoSurf) neumí a nechal by stát materiál
+ * (viz komentář u booleanRegionSplits). Testy funkci krmí i residuálem
+ * (u něj se horní hrana rovná siluetě, když dílec nedosahuje k povrchu).
+ *
+ * Vrací splits `[{ z, xSurf }]` (z = střed dna údolí, xSurf = X dna) SEŘAZENÉ
+ * shora (max Z) dolů — formát, který čeká `assembleRegions`. Sémantika legacy
+ * modelu (odlitkový hrb): region oddělen MĚLCE (X > xSurf) a v kůře dna (X ≤
+ * xSurf) splyne. Otevřená údolí bez protistěny (klesnou a už se nezvednou)
+ * NEJSOU split — stejně jako manuál (vyžaduje `after > cur`).
+ */
+export function computeResidualRegions(residualLoops, zMax, zMin, dz = 0.2, minDrop = 0.3) {
+  if (!residualLoops || residualLoops.length === 0) return [];
+  if (!(zMax > zMin)) return [];
+  // Hustý vzorek horní hrany zbytku shora (max Z) dolů; vzduch → x = 0.
+  const samples = [];
+  for (let z = zMax; z >= zMin - 1e-9; z -= dz) {
+    samples.push({ z, x: residualTopXAtZ(residualLoops, z) ?? 0 });
+  }
+  const n = samples.length;
+  if (n < 3) return [];
+
+  const splits = [];
+  let peak = samples[0].x;
+  let i = 1;
+  while (i < n) {
+    const x = samples[i].x;
+    if (x > peak) { peak = x; i++; continue; }
+    if (x <= peak - minDrop) {
+      // Sestup do údolí — najdi dno (min X) a čekej na zvednutí na
+      // protistěnu (min + minDrop) = druhý bok. Bez zvednutí = otevřený
+      // konec (žádný split).
+      let minX = x, j = i;
+      while (j < n) {
+        const xj = samples[j].x;
+        if (xj < minX) minX = xj;
+        if (xj >= minX + minDrop) break;
+        j++;
+      }
+      if (j >= n) break;                     // údolí doběhlo do konce → není split
+      // Střed plochého dna (x ≤ minX + tolerance) jako Z splitu.
+      let zSum = 0, cnt = 0;
+      for (let k = i; k < j; k++) {
+        if (samples[k].x <= minX + Math.max(0.15, minDrop / 2)) { zSum += samples[k].z; cnt++; }
+      }
+      const zc = cnt > 0 ? zSum / cnt : samples[i].z;
+      splits.push({ z: zc, xSurf: minX });
+      peak = samples[j].x;                    // reset na protistěnu
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  splits.sort((a, b) => b.z - a.z);           // shora dolů (jako manuál)
+  return splits;
+}
+
 /** Plocha zbytkového materiálu [mm²] (kladně) — pro testy/telemetrii. */
 export function residualArea(residualLoops) {
   return Math.abs(polyArea(residualLoops));

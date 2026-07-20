@@ -251,8 +251,21 @@ booleanů (regiony z KOMPONENT zbytku s přirozeným splynutím v kůře, residu
 aware přejezdy) se plně projeví až v krocích 3–5, které vyžadují restrukturaci
 smyčky emise a DVĚ residuální reprezentace (obal pro intervaly ⇄ silueta
 polotovaru pro regiony) — samostatná větší iterace.
-Zbývá: kroky 3–5 (dráha z hran regionů + nájezdy/rampy), regiony z komponent
-zbytku, čelní/backside cesta, pak UI sjednocení zanořování (Fáze 5).
+**HOTOVO — regiony z geometrie (Fáze 3, krok 2, 20. 7. 2026):**
+`computeResidualRegions` (booleanRoughing.js) detekuje údolí (odlitkové hrby /
+stěny) jako lokální minima horní hrany siluety polotovaru (prominence `minDrop`
+na obou stranách) → splity `[{z, xSurf}]` ve formátu ruční detekce. Napojeno do
+`computeRegions` v genLongPasses za příznakem `booleanRoughing` (jen s
+`regionRoughing` + odlitek); ruční (`manualRegionSplits`) i booleovská
+(`booleanRegionSplits`) cesta sdílejí `assembleRegions`. Ověřeno
+`tests/boolean-region-roughing.test.js` (part-10-zapich-casting: booleovské
+splity ≈ ruční, materiál-parita). POZOR test-izolace: `camHeadless` resetuje
+příznak `booleanRoughing` na každý běh (singleton `S` ho jinak nechá prosáknout
+do dalšího .camprog → flaky snapshot drift; latentní od zapojení příznaku,
+odhaleno až přeuspořádáním workerů).
+
+Zbývá: dráha přímo z HRAN regionů + nájezdy/rampy, čelní/backside cesta, pak
+UI sjednocení zanořování (Fáze 5).
 
 ### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
 
