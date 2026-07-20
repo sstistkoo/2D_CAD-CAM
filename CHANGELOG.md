@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cestami. Ověřeno na 6 podélných fixtures, že booleovská cesta odebere STEJNÝ
   materiál jako scan-line (part-1 Δ<5 mm²), dojede na stejnou hloubku, bez
   hard-error (`tests/boolean-roughing.test.js`, `tests/boolean-roughing-wiring.test.js`).
-  G-kód default cesty ani regresní snapshoty se **nemění**. Viz
+  G-kód default cesty ani regresní snapshoty se **nemění**. Příznak lze zapnout
+  v panelu CAM simulátoru (tab Hrubování → „Booleovské hrubování (exp.)"). Viz
   `docs/geometry-libs-migration.md`.
 
 ### Changed

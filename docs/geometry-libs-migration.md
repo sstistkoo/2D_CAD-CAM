@@ -239,9 +239,20 @@ Ověřeno `tests/boolean-roughing-wiring.test.js`: na 6 podélných fixtures
 booleovská cesta odebere STEJNÝ materiál (part-1 Δ<5 mm² = vzorkovací šum),
 dojede na stejnou hloubku/Z-obálku, bez hard-error; pass count jen o málo
 nižší (vynechá degenerované no-op intervaly). Regresní snapshoty
-`cam-gcode-regression` **beze změny** (příznak default off). Zbývá: kroky 3–5
-(dráha přímo z hran regionů + nájezdy/rampy), regiony z komponent zbytku,
-čelní/backside cesta, pak UI přepínač (Fáze 5).
+`cam-gcode-regression` **beze změny** (příznak default off). Příznak je
+zapínatelný v UI (panel CAM simulátoru, tab Hrubování → „Booleovské hrubování
+(exp.)", `#cam-sim-boolean`) — slouží k vizuálnímu ověření a dalšímu vývoji.
+
+POZNÁMKA k rozsahu: napojení zatím jen odvozuje INTERVALY; emise (rampy,
+leadIn/Out, holder trim) je pořád scan-line-tvarovaná. Analýza ukázala, že na
+úrovni intervalů je booleovská cesta u podélného i čelního hrubování jen VĚRNÝM
+ekvivalentem scan-line (facing nemá kapsy — jeden blokující X). Skutečný přínos
+booleanů (regiony z KOMPONENT zbytku s přirozeným splynutím v kůře, residual-
+aware přejezdy) se plně projeví až v krocích 3–5, které vyžadují restrukturaci
+smyčky emise a DVĚ residuální reprezentace (obal pro intervaly ⇄ silueta
+polotovaru pro regiony) — samostatná větší iterace.
+Zbývá: kroky 3–5 (dráha z hran regionů + nájezdy/rampy), regiony z komponent
+zbytku, čelní/backside cesta, pak UI sjednocení zanořování (Fáze 5).
 
 ### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
 

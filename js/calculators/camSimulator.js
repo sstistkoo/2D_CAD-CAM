@@ -3515,6 +3515,10 @@ export function openCamSimulator(initialContour, initialGCode) {
           <span>Zanořování</span>
         </label>
       </div>`;
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Experimentální (migrace Fáze 3): řezné intervaly podélného hrubování se počítají z booleovské geometrie (Clipper2 zbytkový materiál) místo ručního scan-line. Výchozí VYPNUTO = ověřená původní cesta. Zapnuto odebere stejný materiál — slouží k ověření a dalšímu vývoji.">
+        <input type="checkbox" id="cam-sim-boolean" ${prms.booleanRoughing ? 'checked' : ''}>
+        <span>Booleovské hrubování (exp.)</span>
+      </div>`;
       if (prms.stockMode === 'casting') {
         html += `<div class="cam-sim-checkbox-row" data-tooltip="Jen odlitek: každý výstupek polotovaru (mezi „údolími", kde se povrch blíží kontuře) se vyhrubuje shora dolů SAMOSTATNĚ; mezi regiony rychloposuv nad polotovar. Nástroj nepřejíždí po kontuře napříč celým dílem. Vypnuto = průchody po hloubkách přes celý díl.">
           <input type="checkbox" id="cam-sim-region" ${prms.regionRoughing ? 'checked' : ''}>
@@ -3963,6 +3967,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       // ne jen překreslit náhled pasů (jinak by editor držel starý G-kód).
       _regenGCode();
       showToast(regionCb.checked ? 'Hrubování po regionech zapnuto' : 'Hrubování po regionech vypnuto');
+    });
+    const booleanCb = tabBody.querySelector('#cam-sim-boolean');
+    if (booleanCb) booleanCb.addEventListener('change', () => {
+      S.params.booleanRoughing = booleanCb.checked;
+      // Strategický přepínač (mění dráhy) → přegenerovat G-kód hned.
+      _regenGCode();
+      showToast(booleanCb.checked ? 'Booleovské hrubování zapnuto (exp.)' : 'Booleovské hrubování vypnuto');
     });
     const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
     if (plungeAutoBtn) plungeAutoBtn.addEventListener('click', () => {
