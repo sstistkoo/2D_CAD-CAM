@@ -433,6 +433,26 @@ export function generateAutoGCode(S, calc) {
       return Math.abs(polyArea(rapidStock.collide(sweep))) > 0.5;
     } catch { return false; }
   };
+  // Horní hrana (max X) zbytkového polotovaru na axiální souřadnici `z` — povrch,
+  // který nástroj při radiálním sjezdu (klesající X) potká první. null = na tomto
+  // z zbytek žádný materiál nemá (vzduch). Slouží k zastavení rychloposuvu na
+  // povrchu odlitku, když nájezdová vůle je „vzduch" jen vůči kontuře, ne vůči
+  // plnému obalu odlitku (viz descendTo v safeRapidTo).
+  const residualTopXAtZ = (z) => {
+    if (!rapidStock) return null;
+    let top = null;
+    for (const loop of rapidStock.loops) {
+      const n = loop.length;
+      for (let i = 0; i < n; i++) {
+        const a = loop[i], b = loop[(i + 1) % n];
+        if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+          const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+          if (top === null || x > top) top = x;
+        }
+      }
+    }
+    return top;
+  };
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;
     try {
@@ -508,6 +528,22 @@ export function generateAutoGCode(S, calc) {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     // Sjezd v X na cíl: s touch zastaví rychloposuv o vůli výš a dojede G1.
     const descendTo = (fromX) => {
+      // Fáze 4: sjezd na hloubku v SOLIDNÍM odlitku posuvem, ne rychloposuvem.
+      // Nájezdová vůle (zApprox) je „vzduch" jen vůči KONTUŘE — odlitkový obal
+      // tam může být ještě plný, takže rychloposuv na cílovou hloubku vjede do
+      // materiálu (na part-10-zapich ~13 mm² grazing). Když sjezd reálně naráží
+      // na zbytek (STEJNÝ práh `rapidHitsStock` jako jinde → skin-grazing pod
+      // prahem se nechytá, part-1..9 beze změny), zastav rapid na povrchu
+      // zbytku + vůle a zbytek dojeď posuvem (radiální zápich).
+      if (fromX - tx > 1e-6 && rapidHitsStock(fromX, tz, tx, tz)) {
+        const surf = residualTopXAtZ(tz);
+        if (surf !== null) {
+          const floorX = Math.min(fromX, Math.max(tx, surf + rapidStopX));
+          if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
+          if (floorX - tx > 1e-6) emit(`G1 X${xDia(tx)} F${prms.feed}`);
+          return;
+        }
+      }
       if (touch && fromX - tx > 1e-6) {
         if (fromX - tx > rapidStopX + 1e-6) emit(`G0 X${xDia(tx + rapidStopX)}`);
         emit(`G1 X${xDia(tx)} F${prms.feed}`);

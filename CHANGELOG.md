@@ -45,6 +45,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restrukturace emisní smyčky (samostatná budoucí iterace).
 
 ### Fixed
+- CAM: **sjezd na hloubku v solidním odlitku posuvem místo rychloposuvu (migrace
+  Fáze 4)** — nájezdová vůle `zApprox` je „vzduch" jen vůči kontuře, ale obal
+  odlitku tam může být ještě plný, takže rychloposuv na cílovou hloubku vjížděl
+  do materiálu. `descendTo` v `safeRapidTo` (`gcodeEmit.js`): když sjezd reálně
+  naráží na zbytkový polotovar (gate `rapidHitsStock` — stejný práh 0,5 mm² jako
+  jinde, skin-grazing pod prahem se nechytá → cylindry beze změny), rychloposuv
+  se zastaví na povrchu zbytku + vůle (nový helper `residualTopXAtZ`) a zbytek
+  dojede pracovním posuvem. **Endpointy řezu beze změny** (žádný materiál navíc);
+  nejvíc pomohlo holder-region-roughing (descend do odlitku → posuv), snapshoty
+  4 fixtures vědomě přegenerovány. Zbývající part-10 grazing je RETRACT nahoru
+  (výjezd skrz kůru nad zápichem) — jiný směr, patří k odloženému dynamickému
+  plánování. Viz `docs/geometry-libs-migration.md` (Fáze 4).
 - CAM: **marný a nebezpečný descend-back v nájezdu hrubování (migrace Fáze 4)** —
   dvoufázový nájezd podélného hrubování (`safeRapidTo(cur.x, zApprox)` = přejezd
   v Z, pak `safeRapidTo(pass.x, zApprox)` = sjezd na hloubku) u čistě-Z fáze,

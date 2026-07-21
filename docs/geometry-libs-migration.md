@@ -350,6 +350,16 @@ Hotovo (přejezdy nájezdu, 21. 7. 2026):
   X-profil každého souvislého běhu rychloposuvů v hrubování je UNIMODÁLNÍ
   (stoupá k jednomu vrcholu = zvednutí, pak klesá na hloubku), nikdy „údolí"
   (sjezd-a-znovu-výjezd). Padá na 9 fixtures před fixem, prochází po něm.
+- **Sjezd na hloubku dle povrchu ODLITKU, ne kontury** (`descendTo` v
+  `safeRapidTo`): nájezdová vůle `zApprox` je „vzduch" jen vůči kontuře — obal
+  odlitku tam může být plný, takže rychloposuv na hloubku vjížděl do materiálu.
+  Když sjezd reálně naráží na zbytek (gate `rapidHitsStock` — STEJNÝ práh 0,5 mm²
+  jako jinde, takže skin-grazing pod prahem se nechytá a cylindry/part-1..9
+  zůstávají prakticky beze změny), rychloposuv se zastaví na povrchu zbytku +
+  vůle (`residualTopXAtZ`) a zbytek dojede posuvem. Endpointy řezu beze změny
+  (žádný materiál navíc). Nejvíc pomohlo holder-region (descend rapid do odlitku
+  → posuv); vědomě přegenerované snapshoty 4 fixtures (holder-region/-casting,
+  face-cylinder drobný posun zastavení rapidu, part-1 touch-nájezd o 0,37 mm).
 
 Ověřeno jako už POKRYTÉ (hlavní podélná cesta) — samostatná změna netřeba:
 - Z Bezpečné polohy rychloposuvem + přepnutí na **posuv o `rapidStopZ` před
@@ -361,12 +371,15 @@ Ověřeno jako už POKRYTÉ (hlavní podélná cesta) — samostatná změna net
   vzduchem k dalšímu záběru (`safeRapidTo`, dynamický zbytek).
 
 Zbývá (genuinní mezera — order-dependent odlitek):
-- **Sjezd na hloubku v SOLIDNÍM odlitku posuvem, ne rychloposuvem**: druhý
-  nájezd sjíždí rychloposuvem na `pass.x` i tam, kde je v dané Z-poloze ještě
-  plný odlitek (nájezdová vůle `zApprox` je „vzduch" jen vůči kontuře, ne vůči
-  odlitkovému obalu) — na part-10 zbývá ~13 mm² grazing. Správně: sjet
-  rychloposuvem na povrch odlitku + vůli a zbytek posuvem. Patří k odloženému
-  dynamickému plánování (rozdělení rapid↔posuv proti AKTUÁLNÍMU `StockModel`).
+- **Retract NAHORU z hluboké polohy skrz odlitek** (part-10 ~13 mm² na
+  „Výjezd nad konturu"): po dokončení hlubokého průchodu/zápichu se nástroj
+  zvedá rychloposuvem v X rovnou nahoru přes zatím neobrobený odlitek nad ním
+  (materiál v kůře nad zápichem). Sjezd NA hloubku už řeší `descendTo` výše —
+  tohle je opačný směr (výjezd), kde svislý zdvih v X je jediná bezpečná cesta
+  jen tehdy, když je nad nástrojem vzduch; jinak by se mělo couvnout po
+  nájezdové dráze ven. Patří k odloženému dynamickému plánování pořadí
+  (rozdělení rapid↔posuv i VÝJEZDU proti AKTUÁLNÍMU `StockModel`, příp. retract
+  po vstupní trase).
 
 Implementace (odloženo): každý bod přejezdu klasifikovat proti **aktuálnímu**
 `StockModel` (`pointInLoop` / průnik úseku se zbytkem) — „vzduch“ je vše mimo
