@@ -1057,12 +1057,11 @@ function renderObjects() {
           if (arc) {
             const [scx, scy] = worldToScreen(arc.cx, arc.cy);
             const sr = arc.r * state.zoom;
-            ctx.strokeStyle = COLORS.primary;
+            ctx.strokeStyle = COLORS.selected;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(scx, scy, sr, screenAngle(arc.endAngle), screenAngle(arc.startAngle), screenCCW(b < 0));
             ctx.stroke();
-            ctx.strokeStyle = COLORS.selected;
             // Popisek R
             const midAngle = (-arc.startAngle + -arc.endAngle) / 2;
             const rx = scx + sr * Math.cos(midAngle);

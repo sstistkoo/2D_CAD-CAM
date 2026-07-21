@@ -109,41 +109,44 @@
     >
       ⬡ Uzavřít
     </button>
-    <button
-      id="traceConfirm"
-      aria-label="Dokončit trasování"
-      title="Dokončit trasování (Enter)"
-    >
-      ✓ Dokončit
-    </button>
-    <button
-      id="traceRadius"
-      aria-label="Nastavit radius"
-      title="Nastavit radius segmentu (R)"
-    >
-      ⌒ Radius
-    </button>
-    <button
-      id="traceAuto"
-      aria-label="Auto profil"
-      title="Auto profil: od označeného bodu (nebo od začátku) vyznačí vyřešený profil až do konce — jen náhled, nepotvrzuje"
-    >
-      ⊙ Auto
-    </button>
-    <button
-      id="traceStepBack"
-      aria-label="Krok zpět"
-      title="Krok zpět – ubere poslední úsek profilu"
-    >
-      ◀ Krok
-    </button>
-    <button
-      id="traceStepFwd"
-      aria-label="Krok vpřed"
-      title="Krok vpřed – přidá další úsek profilu"
-    >
-      Krok ▶
-    </button>
+    <div id="traceButtonBar">
+      <button
+        id="traceAuto"
+        aria-label="Auto profil"
+        title="Auto profil: od posledního bodu trasy (nebo od začátku) vyznačí vyřešený profil až do konce — jen náhled, nepotvrzuje"
+      ><span class="tb-icon">⊙ </span><span class="tb-label">Auto</span></button>
+      <button
+        id="traceStepFwd"
+        aria-label="Přidat úsek"
+        title="Přidá další úsek profilu na konec trasy"
+      >
+        Přidat ▶
+      </button>
+      <button
+        id="traceStepBack"
+        aria-label="Ubrat úsek"
+        title="Ubere poslední přidaný úsek profilu"
+      >
+        ◀ Ubrat
+      </button>
+      <button
+        id="traceCancel"
+        aria-label="Zrušit trasování"
+        title="Zrušit trasování (Esc)"
+      ><span class="tb-icon">✕ </span><span class="tb-label">Zrušit</span></button>
+      <button
+        id="traceRadius"
+        aria-label="Nastavit radius"
+        title="Nastavit radius segmentu (R)"
+      >
+        ⌒ Radius
+      </button>
+      <button
+        id="traceConfirm"
+        aria-label="Dokončit trasování"
+        title="Dokončit trasování (Enter)"
+      ><span class="tb-icon">✓ </span><span class="tb-label">Dokončit</span></button>
+    </div>
     <button
       id="holderDrawConfirm"
       aria-label="Potvrdit obrys držáku"

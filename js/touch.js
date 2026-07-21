@@ -12,7 +12,7 @@ import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { toolLabel } from './utils.js';
 import { showNumericalInputDialog } from './dialogs.js';
-import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward } from './tools/index.js';
+import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
 
@@ -344,6 +344,11 @@ function recordLastClick(wx, wy) {
 // umísťování kóty – 2. akce nástroje Kóta musí sledovat prst, ne posouvat pohled)
 function canSingleFingerPan() {
   const dimPlacingPending = state.tool === 'dimension' && !!state._dimFirstLine;
+  // Profil: i uprostřed trasování (state.drawing) musí jít plátnem hýbat,
+  // aby se dalo doklikat na body mimo aktuální výřez — rychlý tap (bez
+  // překročení PAN_ACTIVATE_THRESHOLD) dál přidává bod, pan se aktivuje
+  // jen při skutečném tažení prstem.
+  if (state.tool === 'profileTrace') return !state.dragging && !touchState.precisionMode;
   return !state.drawing && !state.dragging && !touchState.precisionMode && !dimPlacingPending;
 }
 
@@ -936,15 +941,16 @@ document.body.addEventListener(
   { passive: false },
 );
 
-// ── Profile Trace: Dokončit / Radius / Auto / Krok tlačítka ──
+// ── Profile Trace: Dokončit / Radius / Auto / Přidat / Ubrat tlačítka ──
 const traceConfirmBtn = document.getElementById("traceConfirm");
 const traceRadiusBtn = document.getElementById("traceRadius");
 const traceAutoBtn = document.getElementById("traceAuto");
 const traceStepBackBtn = document.getElementById("traceStepBack");
 const traceStepFwdBtn = document.getElementById("traceStepFwd");
+const traceCancelBtn = document.getElementById("traceCancel");
 
-/** Aktualizuje viditelnost tlačítek trasování. Auto/Krok jsou dostupné po
- *  celou dobu aktivního nástroje Profil (i bez rozpracovaného bodu — Auto
+/** Aktualizuje viditelnost tlačítek trasování. Auto/Krok/Zrušit jsou dostupné
+ *  po celou dobu aktivního nástroje Profil (i bez rozpracovaného bodu — Auto
  *  umí začít od začátku kontury); Dokončit/Radius až od 2 bodů. */
 export function updateTraceButtons() {
   const active = state.tool === 'profileTrace';
@@ -954,6 +960,7 @@ export function updateTraceButtons() {
   traceAutoBtn.style.display = active ? 'flex' : 'none';
   traceStepBackBtn.style.display = active ? 'flex' : 'none';
   traceStepFwdBtn.style.display = active ? 'flex' : 'none';
+  traceCancelBtn.style.display = active ? 'flex' : 'none';
 }
 
 traceConfirmBtn.addEventListener("click", (e) => {
@@ -993,6 +1000,16 @@ traceStepBackBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   if (state.tool !== 'profileTrace') return;
   stepTraceBackward();
+  updateTraceButtons();
+});
+
+traceCancelBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (state.tool !== 'profileTrace') return;
+  const hadPoints = getTraceData().points.length > 0;
+  cancelProfileTrace();
+  // Nic rozpracované → zrušit rovnou celý nástroj Profil (ikony zmizí).
+  if (!hadPoints) setTool('select');
   updateTraceButtons();
 });
 

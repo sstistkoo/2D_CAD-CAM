@@ -1786,15 +1786,32 @@ body {
   background: #a4c4fa;
 }
 
+#traceButtonBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 48px;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+@media (min-width: 901px) {
+  /* Vycentrovat vůči ploše plátna (bez pravého sidebaru) */
+  #traceButtonBar {
+    right: 300px;
+  }
+}
 #traceConfirm,
 #traceRadius,
 #traceAuto,
 #traceStepBack,
-#traceStepFwd {
+#traceStepFwd,
+#traceCancel {
   display: none;
-  position: fixed;
-  bottom: 48px;
-  z-index: 60;
+  position: static;
+  pointer-events: auto;
   border: none;
   border-radius: 12px;
   height: 40px;
@@ -1808,27 +1825,26 @@ body {
   white-space: nowrap;
 }
 #traceConfirm {
-  right: 16px;
   background: var(--ctp-green);
   color: var(--ctp-base);
 }
 #traceRadius {
-  right: 150px;
   background: var(--ctp-blue);
   color: var(--ctp-base);
 }
+#traceCancel {
+  background: var(--ctp-red);
+  color: var(--ctp-base);
+}
 #traceStepFwd {
-  right: 280px;
   background: var(--ctp-mauve);
   color: var(--ctp-base);
 }
 #traceStepBack {
-  right: 375px;
   background: var(--ctp-mauve);
   color: var(--ctp-base);
 }
 #traceAuto {
-  right: 470px;
   background: var(--ctp-sapphire);
   color: var(--ctp-base);
 }
@@ -1840,12 +1856,36 @@ body {
 #traceRadius:hover {
   background: #a4c4fa;
 }
+#traceCancel:active,
+#traceCancel:hover {
+  background: #f38ba8;
+}
 #traceStepFwd:active, #traceStepFwd:hover,
 #traceStepBack:active, #traceStepBack:hover {
   filter: brightness(0.92);
 }
 #traceAuto:active, #traceAuto:hover {
   filter: brightness(0.92);
+}
+
+/* Na mobilu se lišta nevejde se všemi popisky vedle sebe — Radius skryjeme
+   (dá se nastavit i přes Vlastnosti segmentu) a Zrušit/Dokončit/Auto
+   zkrátíme jen na ikonu / jen na text. */
+@media (max-width: 900px) {
+  #traceRadius {
+    display: none !important;
+  }
+  #traceAuto .tb-icon {
+    display: none;
+  }
+  #traceCancel .tb-label,
+  #traceConfirm .tb-label {
+    display: none;
+  }
+  /* Posunout výš, aby lišta nezasahovala do #mobileBottomBar (bottom:8px + 48px vysoké ikony) */
+  #traceButtonBar {
+    bottom: 64px;
+  }
 }
 
 #holderDrawConfirm,

@@ -27,14 +27,24 @@ let _traceOverlay = null;
 let _selectedTraceIdx = -1; // vybraný bod/segment v panelu
 let _choosingSegment = false; // true, pokud je otevřen modal s výběrem segmentu
 
-// ── Auto profil / krokování (⊙ Auto, ◀ Krok, Krok ▶) — stejná logika jako CAM ──
+// ── Auto profil / krokování (⊙ Auto, ◀ Ubrat, Přidat ▶) — stejná logika jako CAM ──
 let _cadAutoSegs = null;   // resolveOuterProfile výstup, seříznutý od zvoleného startu
-let _cadAutoIdx = 0;       // kolik segmentů z _cadAutoSegs je aktuálně v _tracePoints
+let _cadAutoIdx = 0;       // kolik segmentů z _cadAutoSegs je aktuálně navíc za fixním prefixem
+// Fixní prefix = stav trasování (body/segmenty/bulge) v okamžiku, kdy byla
+// naposledy zahájena auto/krok session (tj. před přidáním _cadAutoSegs).
+// Díky tomu Auto/Krok NEPŘEPISUJÍ ručně dokreslenou část trasy, jen na ni
+// navazují od jejího POSLEDNÍHO bodu (viz _cadAutoStartIdx).
+let _traceFixedPoints = null;
+let _traceFixedSegments = null;
+let _traceFixedBulges = null;
 
 /** Zruší náhled auto-profilu (bez dopadu na state.objects). */
 function _cadAutoClear() {
   _cadAutoSegs = null;
   _cadAutoIdx = 0;
+  _traceFixedPoints = null;
+  _traceFixedSegments = null;
+  _traceFixedBulges = null;
 }
 
 /** Je vrstva objektu viditelná a odemčená? */
@@ -104,11 +114,13 @@ function _cadResolvedCandidateSegments() {
   return segs;
 }
 
-/** Index segmentu, jehož START je nejblíž prvnímu klik/vybranému bodu
- *  trasování (_tracePoints[0]). Bez rozpracovaného bodu = od začátku. */
+/** Index segmentu, jehož START je nejblíž POSLEDNÍMU bodu rozpracované trasy
+ *  (_tracePoints, konec) — aby Auto/Krok navazovaly tam, kde trasa aktuálně
+ *  končí (i po ručním doplnění jiné dráhy), ne od jejího úplného začátku.
+ *  Bez rozpracovaného bodu = od začátku. */
 function _cadAutoStartIdx(resolvedSegs, isKarusel) {
   if (!state.drawing || _tracePoints.length === 0) return 0;
-  const p0 = _tracePoints[0];
+  const p0 = _tracePoints[_tracePoints.length - 1];
   let bestI = 0, bestD = Infinity;
   resolvedSegs.forEach((s, i) => {
     const st = segStartPoint(s);
@@ -128,28 +140,51 @@ function _cadResolveAndSlice() {
   return { segs: resolved.slice(startIdx), isKarusel };
 }
 
-/** Přepíše _tracePoints/_traceSegments/_traceBulges z _cadAutoSegs.slice(0,_cadAutoIdx). */
+/**
+ * Přepíše _tracePoints/_traceSegments/_traceBulges jako FIXNÍ PREFIX (stav
+ * trasy před zahájením aktuální auto/krok session — viz _ensureAutoSession)
+ * NAVÝŠENÝ o _cadAutoSegs.slice(0,_cadAutoIdx). Ručně dokreslená část trasy
+ * (fixní prefix) se tedy nikdy nezahazuje, Auto/Krok na ni jen navazují.
+ */
 function _cadApplyAutoState(isKarusel) {
   const segs = (_cadAutoSegs || []).slice(0, _cadAutoIdx);
+  const prefixPoints = _traceFixedPoints || [];
+  const prefixSegments = _traceFixedSegments || [];
+  const prefixBulges = _traceFixedBulges || [];
+
   if (!segs.length) {
-    _tracePoints = []; _traceSegments = []; _traceBulges = [];
-    state.drawing = false; state.tempPoints = []; state._profileTraceBulges = [];
+    // Žádný auto segment navíc → zpět na fixní prefix (může být i prázdný).
+    _tracePoints = prefixPoints.slice();
+    _traceSegments = prefixSegments.slice();
+    _traceBulges = prefixBulges.slice();
+    state.drawing = _tracePoints.length > 0;
+    state.tempPoints = _tracePoints.map(p => ({ x: p.x, y: p.y }));
+    state._profileTraceBulges = _traceBulges;
     renderAll();
     updateTracePanel();
     return;
   }
-  const s0 = segStartPoint(segs[0]);
-  const p0 = _fromXZ(s0.x, s0.z, isKarusel);
-  _tracePoints = [{ x: p0.x, y: p0.y }];
-  _traceSegments = [];
-  _traceBulges = [];
+
+  let points, segments, bulges;
+  if (prefixPoints.length > 0) {
+    points = prefixPoints.slice();
+    segments = prefixSegments.slice();
+    bulges = prefixBulges.slice();
+  } else {
+    const s0 = segStartPoint(segs[0]);
+    const p0 = _fromXZ(s0.x, s0.z, isKarusel);
+    points = [{ x: p0.x, y: p0.y }];
+    segments = [];
+    bulges = [];
+  }
+
   for (const s of segs) {
     const e = segEndPoint(s);
     const p2 = _fromXZ(e.x, e.z, isKarusel);
     const bulge = s._bulge || 0;
-    const p1 = _tracePoints[_tracePoints.length - 1];
-    _tracePoints.push({ x: p2.x, y: p2.y });
-    _traceBulges.push(bulge);
+    const p1 = points[points.length - 1];
+    points.push({ x: p2.x, y: p2.y });
+    bulges.push(bulge);
     // Typ (přímka/oblouk) už jednou určil resolveOuterProfile (s.type) — NEHÁDAT
     // ho znovu přes _analyzeSegment/_findSegmentCandidates (ta hledá NEJBLIŽŠÍ
     // objekt v toleranci závislé na zoomu a při volnější toleranci by mohla
@@ -158,14 +193,17 @@ function _cadApplyAutoState(isKarusel) {
     const angle = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
     if (s.type === 'arc' && bulge !== 0) {
       const arc = bulgeToArc(p1, { x: p2.x, y: p2.y }, bulge);
-      _traceSegments.push({
+      segments.push({
         segType: bulge < 0 ? 'G02' : 'G03', dist, angle,
         radius: arc ? arc.r : s.r, centerX: arc ? arc.cx : null, centerY: arc ? arc.cy : null,
       });
     } else {
-      _traceSegments.push({ segType: 'G01', dist, angle, radius: null, centerX: null, centerY: null });
+      segments.push({ segType: 'G01', dist, angle, radius: null, centerX: null, centerY: null });
     }
   }
+  _tracePoints = points;
+  _traceSegments = segments;
+  _traceBulges = bulges;
   state.drawing = true;
   state.tempPoints = _tracePoints.map(p => ({ x: p.x, y: p.y }));
   state._profileTraceBulges = _traceBulges;
@@ -173,37 +211,67 @@ function _cadApplyAutoState(isKarusel) {
   updateTracePanel();
 }
 
-/** ⊙ Auto: od startu (klik/výběr, jinak od začátku) odkryje CELÝ vyřešený
- *  profil až do konce — jen náhled, nepotvrzuje (potvrzení = ✓ Dokončit). */
-export function autoTrace() {
+/**
+ * Zajistí aktivní auto/krok session: pokud ještě neběží (_cadAutoSegs je
+ * null — např. po ručním doplnění bodu, které session ukončí), zafixuje
+ * aktuální trasu jako prefix a dopočítá navazující segmenty od jejího
+ * POSLEDNÍHO bodu (viz _cadAutoStartIdx). Vrací false, pokud není co
+ * profilovat (žádná kontura).
+ */
+function _ensureAutoSession() {
+  if (_cadAutoSegs) return true;
+  const prefixPoints = _tracePoints.slice();
+  const prefixSegments = _traceSegments.slice();
+  const prefixBulges = _traceBulges.slice();
   const r = _cadResolveAndSlice();
-  if (!r) { showToast('Žádná kontura k profilování'); return; }
+  if (!r) return false;
+  _traceFixedPoints = prefixPoints;
+  _traceFixedSegments = prefixSegments;
+  _traceFixedBulges = prefixBulges;
   _cadAutoSegs = r.segs;
-  _cadAutoIdx = _cadAutoSegs.length;
-  _cadApplyAutoState(r.isKarusel);
-  showToast('Auto profil – uprav ◀/▶ Krok, Enter = dokončit, Esc = zrušit');
+  _cadAutoIdx = 0;
+  return true;
 }
 
-/** Krok vpřed: přidá jeden další úsek vyřešeného profilu. */
+/** ⊙ Auto: od posledního bodu rozpracované trasy (nebo od začátku, pokud
+ *  žádná není) odkryje CELÝ zbývající vyřešený profil — jen náhled,
+ *  nepotvrzuje (potvrzení = ✓ Dokončit). */
+export function autoTrace() {
+  if (!_ensureAutoSession()) { showToast('Žádná kontura k profilování'); return; }
+  _cadAutoIdx = _cadAutoSegs.length;
+  _cadApplyAutoState(state.machineType === 'karusel');
+  showToast('Auto profil – uprav ◀ Ubrat/Přidat ▶, Enter = dokončit, Esc = zrušit');
+}
+
+/** Přidat ▶: přidá jeden další úsek vyřešeného profilu za konec trasy. */
 export function stepTraceForward() {
-  let isKarusel = state.machineType === 'karusel';
-  if (!_cadAutoSegs) {
-    const r = _cadResolveAndSlice();
-    if (!r) { showToast('Žádná kontura k profilování'); return; }
-    _cadAutoSegs = r.segs;
-    _cadAutoIdx = 0;
-    isKarusel = r.isKarusel;
-  }
+  if (!_ensureAutoSession()) { showToast('Žádná kontura k profilování'); return; }
   if (_cadAutoIdx >= _cadAutoSegs.length) { showToast('Konec kontury'); return; }
   _cadAutoIdx++;
-  _cadApplyAutoState(isKarusel);
+  _cadApplyAutoState(state.machineType === 'karusel');
 }
 
-/** Krok zpět: ubere poslední úsek. */
+/**
+ * ◀ Ubrat: univerzální krok zpět. Pokud běží auto/krok session s aspoň
+ * jedním přidaným úsekem, ubere ten (fixní prefix nedotčen). Jinak funguje
+ * jako undo posledního (ručně i auto přidaného) bodu trasy — lze tak
+ * postupně odebírat i ručně klikané body, dokud nezůstane jen počáteční bod.
+ */
 export function stepTraceBackward() {
-  if (!_cadAutoSegs || _cadAutoIdx <= 0) { showToast('Začátek profilu'); return; }
-  _cadAutoIdx--;
-  _cadApplyAutoState(state.machineType === 'karusel');
+  if (_cadAutoSegs && _cadAutoIdx > 0) {
+    _cadAutoIdx--;
+    _cadApplyAutoState(state.machineType === 'karusel');
+    return;
+  }
+  if (_tracePoints.length <= 1) { showToast('Začátek profilu'); return; }
+  _cadAutoClear();
+  _tracePoints.pop();
+  _traceSegments.pop();
+  _traceBulges.pop();
+  state.tempPoints = _tracePoints.map(p => ({ x: p.x, y: p.y }));
+  state._profileTraceBulges = _traceBulges;
+  renderAll();
+  updateTracePanel();
 }
 
 /**
