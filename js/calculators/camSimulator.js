@@ -1799,11 +1799,16 @@ export function openCamSimulator(initialContour, initialGCode) {
         for (const s of profSegs) {
           if (s.type === 'line') {
             const a = toScreen(s.p1.x, s.p1.z), b = toScreen(s.p2.x, s.p2.z);
-            if (_fp || s.chainBreak) { ctx.moveTo(a.x, a.y); _fp = false; } else ctx.lineTo(a.x, a.y);
+            // chainBreak (rychloposuv přes mezeru — viz _camBuildFinalTracePts)
+            // se v NÁHLEDU trasování kreslí VIDITELNĚ (lineTo), na rozdíl od
+            // drah G-kódu (offsetPath) o kousek výš — tady se ukazuje uživateli
+            // rozpracovaná trasa, ne skutečná dráha nástroje, takže neviditelná
+            // mezera jen matla ("kde mi zmizela čára").
+            if (_fp) { ctx.moveTo(a.x, a.y); _fp = false; } else ctx.lineTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
           } else if (s.type === 'arc') {
             const p1 = toScreen(s.cx + Math.sin(s.startAngle)*s.r, s.cz + Math.cos(s.startAngle)*s.r);
-            if (_fp || s.chainBreak) { ctx.moveTo(p1.x, p1.y); _fp = false; } else ctx.lineTo(p1.x, p1.y);
+            if (_fp) { ctx.moveTo(p1.x, p1.y); _fp = false; } else ctx.lineTo(p1.x, p1.y);
             const steps = Math.max(6, Math.round(Math.abs(s.endAngle - s.startAngle) * s.r / 0.5));
             for (let j = 1; j <= steps; j++) {
               const a2 = s.startAngle + (s.endAngle - s.startAngle) * (j / steps);
