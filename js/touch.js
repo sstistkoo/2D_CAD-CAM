@@ -12,7 +12,7 @@ import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { toolLabel } from './utils.js';
 import { showNumericalInputDialog } from './dialogs.js';
-import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement } from './tools/index.js';
+import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
 
@@ -936,15 +936,24 @@ document.body.addEventListener(
   { passive: false },
 );
 
-// ── Profile Trace: Dokončit / Radius tlačítka ──
+// ── Profile Trace: Dokončit / Radius / Auto / Krok tlačítka ──
 const traceConfirmBtn = document.getElementById("traceConfirm");
 const traceRadiusBtn = document.getElementById("traceRadius");
+const traceAutoBtn = document.getElementById("traceAuto");
+const traceStepBackBtn = document.getElementById("traceStepBack");
+const traceStepFwdBtn = document.getElementById("traceStepFwd");
 
-/** Aktualizuje viditelnost tlačítek Dokončit/Radius pro trasování. */
+/** Aktualizuje viditelnost tlačítek trasování. Auto/Krok jsou dostupné po
+ *  celou dobu aktivního nástroje Profil (i bez rozpracovaného bodu — Auto
+ *  umí začít od začátku kontury); Dokončit/Radius až od 2 bodů. */
 export function updateTraceButtons() {
-  const show = state.drawing && state.tool === 'profileTrace' && state.tempPoints.length >= 2;
-  traceConfirmBtn.style.display = show ? 'flex' : 'none';
-  traceRadiusBtn.style.display = show ? 'flex' : 'none';
+  const active = state.tool === 'profileTrace';
+  const hasSeg = active && state.drawing && state.tempPoints.length >= 2;
+  traceConfirmBtn.style.display = hasSeg ? 'flex' : 'none';
+  traceRadiusBtn.style.display = hasSeg ? 'flex' : 'none';
+  traceAutoBtn.style.display = active ? 'flex' : 'none';
+  traceStepBackBtn.style.display = active ? 'flex' : 'none';
+  traceStepFwdBtn.style.display = active ? 'flex' : 'none';
 }
 
 traceConfirmBtn.addEventListener("click", (e) => {
@@ -964,6 +973,27 @@ traceRadiusBtn.addEventListener("click", (e) => {
   showBulgeDialog(p1, p2, data.bulges[idx] || 0, (newBulge) => {
     setTraceBulge(idx, newBulge);
   });
+});
+
+traceAutoBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (state.tool !== 'profileTrace') return;
+  autoTrace();
+  updateTraceButtons();
+});
+
+traceStepFwdBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (state.tool !== 'profileTrace') return;
+  stepTraceForward();
+  updateTraceButtons();
+});
+
+traceStepBackBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (state.tool !== 'profileTrace') return;
+  stepTraceBackward();
+  updateTraceButtons();
 });
 
 // ── CAM „Kreslit obrys držáku na CAD plátně": Potvrdit / Zrušit tlačítka ──

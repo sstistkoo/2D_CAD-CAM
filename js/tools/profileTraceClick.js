@@ -12,6 +12,12 @@ import { makeOverlay } from '../dialogFactory.js';
 import { showBulgeDialog } from '../dialogs/bulge.js';
 import { bulgeToArc, radiusToBulge, safeEvalMath } from '../utils.js';
 import { calculateAllIntersections } from '../geometry.js';
+// Auto profil / krokování znovupoužívá VÝHRADNĚ existující resolveOuterProfile
+// z CAM pipeline (contourBuild.js) — stejná logika jako u CAM tlačítek ⊙ Auto/
+// ◀ Krok/Krok ▶, nic se tu znovu nepočítá. segStartPoint/segEndPoint jsou
+// souřadnicově agnostické (jen čtou .p1/.p2/.cx/.cz/.startAngle/.endAngle).
+import { resolveOuterProfile } from '../calculators/cam/contourBuild.js';
+import { segStartPoint, segEndPoint } from '../calculators/cam/camMath.js';
 
 // ── Interní stav trasování ──
 let _tracePoints = [];
@@ -20,6 +26,185 @@ let _traceBulges = [];   // bulge pro každý segment (0 = rovný)
 let _traceOverlay = null;
 let _selectedTraceIdx = -1; // vybraný bod/segment v panelu
 let _choosingSegment = false; // true, pokud je otevřen modal s výběrem segmentu
+
+// ── Auto profil / krokování (⊙ Auto, ◀ Krok, Krok ▶) — stejná logika jako CAM ──
+let _cadAutoSegs = null;   // resolveOuterProfile výstup, seříznutý od zvoleného startu
+let _cadAutoIdx = 0;       // kolik segmentů z _cadAutoSegs je aktuálně v _tracePoints
+
+/** Zruší náhled auto-profilu (bez dopadu na state.objects). */
+function _cadAutoClear() {
+  _cadAutoSegs = null;
+  _cadAutoIdx = 0;
+}
+
+/** Je vrstva objektu viditelná a odemčená? */
+function _layerUsable(obj) {
+  const layer = state.layers.find(l => l.id === obj.layer);
+  return !(layer && (layer.locked || !layer.visible));
+}
+
+/**
+ * resolveOuterProfile (viz cam/contourBuild.js) je napsaná pro CNC rámec, kde
+ * „vnější větev" = nejvyšší X = osa RADIÁLNÍ. V CAD je radiální osa buď wy
+ * (soustruh), nebo wx (karusel) — viz stejná konvence jako v _calcIK výše.
+ * Aby fungovalo VÝBĚR VĚTVE beze změny té funkce, souřadnice se před voláním
+ * přehodí (jen přeznačení, ne zrcadlení) a po výběru zase vrátí přes _fromXZ.
+ */
+function _toXZ(wx, wy, isKarusel) {
+  return isKarusel ? { x: wx, z: wy } : { x: wy, z: wx };
+}
+function _fromXZ(x, z, isKarusel) {
+  return isKarusel ? { x, y: z } : { x: z, y: x };
+}
+
+/**
+ * Sestaví VŠECHNY viditelné objekty (čáry, oblouky, polyline s bulge) jako
+ * normalizované segmenty pro resolveOuterProfile. Kromě přehozených X/Z polí
+ * nese každý segment i „cargo" (_origP1/_origP2/_bulge) v PŮVODNÍCH wx/wy —
+ * pro rekonstrukci výsledku netřeba nic přepočítávat/zrcadlit zpět (viz níže).
+ */
+function _cadResolvedCandidateSegments() {
+  const isKarusel = state.machineType === 'karusel';
+  const toXZ = (wx, wy) => _toXZ(wx, wy, isKarusel);
+  const segs = [];
+  for (const obj of state.objects) {
+    if (!_layerUsable(obj)) continue;
+    if (obj.type === 'line') {
+      const op1 = { x: obj.x1, y: obj.y1 }, op2 = { x: obj.x2, y: obj.y2 };
+      segs.push({ type: 'line', p1: toXZ(op1.x, op1.y), p2: toXZ(op2.x, op2.y), _origP1: op1, _origP2: op2, _bulge: 0 });
+    } else if (obj.type === 'arc') {
+      const op1 = { x: obj.cx + obj.r * Math.cos(obj.startAngle), y: obj.cy + obj.r * Math.sin(obj.startAngle) };
+      const op2 = { x: obj.cx + obj.r * Math.cos(obj.endAngle), y: obj.cy + obj.r * Math.sin(obj.endAngle) };
+      const p1 = toXZ(op1.x, op1.y), p2 = toXZ(op2.x, op2.y), c = toXZ(obj.cx, obj.cy);
+      const startAngle = Math.atan2(p1.x - c.x, p1.z - c.z);
+      const endAngle = Math.atan2(p2.x - c.x, p2.z - c.z);
+      const cw = _isClockwise(op1, op2, { x: obj.cx, y: obj.cy });
+      const bulge = radiusToBulge(op1, op2, obj.r, cw) || 0;
+      segs.push({ type: 'arc', cx: c.x, cz: c.z, r: obj.r, startAngle, endAngle, p1, p2, _origP1: op1, _origP2: op2, _bulge: bulge });
+    } else if (obj.type === 'polyline' && obj.vertices) {
+      const vs = obj.vertices, bs = obj.bulges || [];
+      const pairs = vs.length - 1 + (obj.closed && vs.length > 2 ? 1 : 0);
+      for (let i = 0; i < pairs; i++) {
+        const va = vs[i], vb = vs[(i + 1) % vs.length];
+        const b = bs[i] || 0;
+        if (b !== 0) {
+          const arc = bulgeToArc(va, vb, b);
+          if (arc) {
+            const p1 = toXZ(va.x, va.y), p2 = toXZ(vb.x, vb.y), c = toXZ(arc.cx, arc.cy);
+            const startAngle = Math.atan2(p1.x - c.x, p1.z - c.z);
+            const endAngle = Math.atan2(p2.x - c.x, p2.z - c.z);
+            segs.push({ type: 'arc', cx: c.x, cz: c.z, r: arc.r, startAngle, endAngle, p1, p2, _origP1: va, _origP2: vb, _bulge: b });
+            continue;
+          }
+        }
+        segs.push({ type: 'line', p1: toXZ(va.x, va.y), p2: toXZ(vb.x, vb.y), _origP1: va, _origP2: vb, _bulge: 0 });
+      }
+    }
+  }
+  return segs;
+}
+
+/** Index segmentu, jehož START je nejblíž prvnímu klik/vybranému bodu
+ *  trasování (_tracePoints[0]). Bez rozpracovaného bodu = od začátku. */
+function _cadAutoStartIdx(resolvedSegs, isKarusel) {
+  if (!state.drawing || _tracePoints.length === 0) return 0;
+  const p0 = _tracePoints[0];
+  let bestI = 0, bestD = Infinity;
+  resolvedSegs.forEach((s, i) => {
+    const st = segStartPoint(s);
+    const orig = _fromXZ(st.x, st.z, isKarusel);
+    const d = Math.hypot(orig.x - p0.x, orig.y - p0.y);
+    if (d < bestD) { bestD = d; bestI = i; }
+  });
+  return bestD < 1 ? bestI : 0;
+}
+
+/** Přepočítá vyřešenou konturu (resolveOuterProfile) — jednou za Auto/Krok klik. */
+function _cadResolveAndSlice() {
+  const isKarusel = state.machineType === 'karusel';
+  const resolved = resolveOuterProfile(_cadResolvedCandidateSegments()).segs;
+  if (!resolved.length) return null;
+  const startIdx = _cadAutoStartIdx(resolved, isKarusel);
+  return { segs: resolved.slice(startIdx), isKarusel };
+}
+
+/** Přepíše _tracePoints/_traceSegments/_traceBulges z _cadAutoSegs.slice(0,_cadAutoIdx). */
+function _cadApplyAutoState(isKarusel) {
+  const segs = (_cadAutoSegs || []).slice(0, _cadAutoIdx);
+  if (!segs.length) {
+    _tracePoints = []; _traceSegments = []; _traceBulges = [];
+    state.drawing = false; state.tempPoints = []; state._profileTraceBulges = [];
+    renderAll();
+    updateTracePanel();
+    return;
+  }
+  const s0 = segStartPoint(segs[0]);
+  const p0 = _fromXZ(s0.x, s0.z, isKarusel);
+  _tracePoints = [{ x: p0.x, y: p0.y }];
+  _traceSegments = [];
+  _traceBulges = [];
+  for (const s of segs) {
+    const e = segEndPoint(s);
+    const p2 = _fromXZ(e.x, e.z, isKarusel);
+    const bulge = s._bulge || 0;
+    const p1 = _tracePoints[_tracePoints.length - 1];
+    _tracePoints.push({ x: p2.x, y: p2.y });
+    _traceBulges.push(bulge);
+    // Typ (přímka/oblouk) už jednou určil resolveOuterProfile (s.type) — NEHÁDAT
+    // ho znovu přes _analyzeSegment/_findSegmentCandidates (ta hledá NEJBLIŽŠÍ
+    // objekt v toleranci závislé na zoomu a při volnější toleranci by mohla
+    // omylem vybrat blízký oblouk i pro skutečnou přímku).
+    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const angle = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
+    if (s.type === 'arc' && bulge !== 0) {
+      const arc = bulgeToArc(p1, { x: p2.x, y: p2.y }, bulge);
+      _traceSegments.push({
+        segType: bulge < 0 ? 'G02' : 'G03', dist, angle,
+        radius: arc ? arc.r : s.r, centerX: arc ? arc.cx : null, centerY: arc ? arc.cy : null,
+      });
+    } else {
+      _traceSegments.push({ segType: 'G01', dist, angle, radius: null, centerX: null, centerY: null });
+    }
+  }
+  state.drawing = true;
+  state.tempPoints = _tracePoints.map(p => ({ x: p.x, y: p.y }));
+  state._profileTraceBulges = _traceBulges;
+  renderAll();
+  updateTracePanel();
+}
+
+/** ⊙ Auto: od startu (klik/výběr, jinak od začátku) odkryje CELÝ vyřešený
+ *  profil až do konce — jen náhled, nepotvrzuje (potvrzení = ✓ Dokončit). */
+export function autoTrace() {
+  const r = _cadResolveAndSlice();
+  if (!r) { showToast('Žádná kontura k profilování'); return; }
+  _cadAutoSegs = r.segs;
+  _cadAutoIdx = _cadAutoSegs.length;
+  _cadApplyAutoState(r.isKarusel);
+  showToast('Auto profil – uprav ◀/▶ Krok, Enter = dokončit, Esc = zrušit');
+}
+
+/** Krok vpřed: přidá jeden další úsek vyřešeného profilu. */
+export function stepTraceForward() {
+  let isKarusel = state.machineType === 'karusel';
+  if (!_cadAutoSegs) {
+    const r = _cadResolveAndSlice();
+    if (!r) { showToast('Žádná kontura k profilování'); return; }
+    _cadAutoSegs = r.segs;
+    _cadAutoIdx = 0;
+    isKarusel = r.isKarusel;
+  }
+  if (_cadAutoIdx >= _cadAutoSegs.length) { showToast('Konec kontury'); return; }
+  _cadAutoIdx++;
+  _cadApplyAutoState(isKarusel);
+}
+
+/** Krok zpět: ubere poslední úsek. */
+export function stepTraceBackward() {
+  if (!_cadAutoSegs || _cadAutoIdx <= 0) { showToast('Začátek profilu'); return; }
+  _cadAutoIdx--;
+  _cadApplyAutoState(state.machineType === 'karusel');
+}
 
 /**
  * Vypočte I a K pro obloukový segment.
@@ -184,6 +369,9 @@ function _findPolylineArcForPoints(poly, p1, p2, tol) {
  * Hlavní click handler pro trasování profilu.
  */
 export async function handleProfileTraceClick(wx, wy) {
+  // Ruční klik přebíjí případný Auto náhled (jiný start / jiná volba) —
+  // stejné chování jako u CAM (_addTracePoint tam dělá totéž).
+  if (_cadAutoSegs) _cadAutoClear();
   if (!state.drawing) {
     // První bod – start trasování
     _tracePoints = [{ x: wx, y: wy }];
@@ -285,6 +473,7 @@ export function cancelProfileTrace() {
   _tracePoints = [];
   _traceSegments = [];
   _traceBulges = [];
+  _cadAutoClear();
   state.drawing = false;
   state.tempPoints = [];
   state._profileTraceBulges = [];
@@ -303,6 +492,7 @@ export function resetProfileTraceState() {
   _traceOverlay = null;
   _selectedTraceIdx = -1;
   _choosingSegment = false;
+  _cadAutoClear();
   state._profileTraceBulges = [];
   updateTracePanel();
 }

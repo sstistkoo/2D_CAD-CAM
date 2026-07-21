@@ -1787,7 +1787,10 @@ body {
 }
 
 #traceConfirm,
-#traceRadius {
+#traceRadius,
+#traceAuto,
+#traceStepBack,
+#traceStepFwd {
   display: none;
   position: fixed;
   bottom: 48px;
@@ -1795,7 +1798,7 @@ body {
   border: none;
   border-radius: 12px;
   height: 40px;
-  padding: 0 16px;
+  padding: 0 14px;
   font-size: 14px;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -1814,6 +1817,21 @@ body {
   background: var(--ctp-blue);
   color: var(--ctp-base);
 }
+#traceStepFwd {
+  right: 280px;
+  background: var(--ctp-mauve);
+  color: var(--ctp-base);
+}
+#traceStepBack {
+  right: 375px;
+  background: var(--ctp-mauve);
+  color: var(--ctp-base);
+}
+#traceAuto {
+  right: 470px;
+  background: var(--ctp-sapphire);
+  color: var(--ctp-base);
+}
 #traceConfirm:active,
 #traceConfirm:hover {
   background: #b4e8b0;
@@ -1821,6 +1839,13 @@ body {
 #traceRadius:active,
 #traceRadius:hover {
   background: #a4c4fa;
+}
+#traceStepFwd:active, #traceStepFwd:hover,
+#traceStepBack:active, #traceStepBack:hover {
+  filter: brightness(0.92);
+}
+#traceAuto:active, #traceAuto:hover {
+  filter: brightness(0.92);
 }
 
 #holderDrawConfirm,
