@@ -6197,20 +6197,55 @@ export function openCamSimulator(initialContour, initialGCode) {
   let _camTraceFixedPoints = null;
   let _camTraceFixedSegs = null;
 
-  /** Index segmentu v `segs`, jehož START je nejblíž POSLEDNÍMU bodu
-   *  rozpracované trasy (S._tracePoints, konec) — aby Auto/Krok navazovaly
-   *  tam, kde trasa aktuálně končí (i po ručním doplnění jiné dráhy), ne od
-   *  jejího úplného začátku. Bez rozpracovaného bodu = od začátku kontury. */
-  function _camAutoStartIdx(segs) {
-    if (!S._tracePoints || S._tracePoints.length === 0) return 0;
+  /**
+   * Určí, kterými segmenty vyřešené kontury (segs) má Auto/Krok pokračovat —
+   * podle POSLEDNÍHO bodu rozpracované trasy (S._tracePoints, konec), aby
+   * navazovaly tam, kde trasa aktuálně končí (i po ručním doplnění jiné
+   * dráhy), ne od úplného začátku kontury.
+   *
+   * Bod může ležet přímo NA kontuře (i uprostřed segmentu, ne jen na jeho
+   * začátku — viz _locateOnContour) → segment pod bodem se zkrátí, ať trasa
+   * nenaskočí zpátky na jeho už projetý začátek.
+   *
+   * Nebo bod leží MIMO konturu — typicky konec ruční zanořovací/úhlové čáry
+   * vedené až na polotovar, který NENÍ koncem kontury. V tom případě se z něj
+   * vystřelí paprsek svisle dolů (-X, směrem k ose) na skutečnou konturu
+   * materiálu a vrátí i spojovací segment (bridgeSeg) k ní.
+   *
+   * Bez rozpracovaného bodu = od začátku kontury (contSegs = segs beze změny).
+   */
+  function _camResolveContinuation(segs) {
+    if (!S._tracePoints || S._tracePoints.length === 0) return { contSegs: segs, bridgeSeg: null };
     const p0 = S._tracePoints[S._tracePoints.length - 1];
-    let bestI = 0, bestD = Infinity;
-    segs.forEach((s, i) => {
-      const st = segStartPoint(s);
-      const d = Math.hypot(st.x - p0.x, st.z - p0.z);
-      if (d < bestD) { bestD = d; bestI = i; }
-    });
-    return bestD < 1 ? bestI : 0;
+
+    const fromLocation = (pt) => {
+      const loc = _locateOnContour(segs, pt);
+      if (!loc) return null;
+      const t = loc.key - loc.segIdx;
+      // t≈0 (začátek segmentu) i t≈1 (konec segmentu, tedy start dalšího —
+      // typický případ vrcholu kontury) nepotřebují dělení, jen posun indexu.
+      if (t < 0.02) return segs.slice(loc.segIdx);
+      if (t > 0.98) return segs.slice(loc.segIdx + 1);
+      const seg = { ...segs[loc.segIdx] };
+      setSegStart(seg, { x: pt.x, z: pt.z });
+      syncArcEndpoints(seg);
+      return [seg, ...segs.slice(loc.segIdx + 1)];
+    };
+
+    const direct = fromLocation(p0);
+    if (direct) return { contSegs: direct, bridgeSeg: null };
+
+    const calc = S._cachedCalc;
+    if (calc) {
+      const hit = camRayIntersection(p0.x, p0.z, -1, 0, null, calc);
+      if (hit && Math.hypot(hit.x - p0.x, hit.z - p0.z) > 1e-3) {
+        const cont = fromLocation(hit);
+        if (cont) {
+          return { contSegs: cont, bridgeSeg: { type: 'line', p1: { x: p0.x, z: p0.z }, p2: { x: hit.x, z: hit.z } } };
+        }
+      }
+    }
+    return { contSegs: segs, bridgeSeg: null };
   }
 
   /** Zruší náhled auto-profilu (bez dopadu na S.contourPoints). */
@@ -6223,15 +6258,16 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   /** Zajistí aktivní auto/krok session: pokud ještě neběží, zafixuje aktuální
    *  trasu jako prefix a dopočítá navazující segmenty od jejího posledního
-   *  bodu. Vrací false, pokud není co profilovat (žádná kontura). */
+   *  bodu (viz _camResolveContinuation, včetně případného mostu na konturu
+   *  materiálu). Vrací false, pokud není co profilovat (žádná kontura). */
   function _camEnsureAutoSession() {
     if (_camAutoSegs) return true;
     const segs = (S._cachedCalc && S._cachedCalc.contourSegments) || [];
     if (!segs.length) return false;
-    const startIdx = _camAutoStartIdx(segs);
+    const { contSegs, bridgeSeg } = _camResolveContinuation(segs);
     _camTraceFixedPoints = S._tracePoints.slice();
     _camTraceFixedSegs = S._traceSegs.slice();
-    _camAutoSegs = segs.slice(startIdx);
+    _camAutoSegs = bridgeSeg ? [bridgeSeg, ...contSegs] : contSegs;
     _camAutoRevealCount = 0;
     return true;
   }
@@ -7527,6 +7563,11 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── Double-click to enter rect selection mode ──
   canvasWrap.addEventListener('dblclick', e => {
+    // Dvě rychlá kliknutí na plovoucí tlačítko trasování (Auto/Přidat/Ubrat/
+    // Zrušit/Dokončit) prohlížeč vyhodnotí i jako nativní dblclick, který
+    // bubluje až sem — bez téhle výjimky by to při rychlém krokování rovnou
+    // dokončilo (a tím i vypnulo) rozpracované trasování.
+    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback')) return;
     if (S.profileTraceMode) { e.preventDefault(); _finishProfileTrace(); return; }
     if (!S.pointDragEnabled || S.simRunning) return;
     e.preventDefault();
