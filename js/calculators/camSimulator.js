@@ -102,11 +102,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="toggle-controls" title="Skrýt / zobrazit hlavní ovládací tlačítka" style="font-size:11px;padding:4px 8px">«»</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
-      <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)">✗ Zrušit</button>
-      <button class="cam-sim-trace-auto" data-act="trace-auto" title="Auto profil: od označeného bodu (nebo od začátku) vyznačí vyřešený profil až do konce — jen náhled, nepotvrzuje">⊙ Auto</button>
-      <button class="cam-sim-trace-stepback" data-act="trace-stepback" title="Krok zpět – ubere poslední úsek profilu">◀ Krok</button>
-      <button class="cam-sim-trace-stepfwd" data-act="trace-stepfwd" title="Krok vpřed – přidá další úsek profilu">Krok ▶</button>
-      <button class="cam-sim-trace-confirm" data-act="trace-confirm" title="Dokončit trasování profilu (Enter)">✓ Dokončit</button>
+      <div class="cam-sim-trace-bar">
+        <button class="cam-sim-trace-auto" data-act="trace-auto" title="Auto profil: od posledního bodu trasy (nebo od začátku) vyznačí vyřešený profil až do konce — jen náhled, nepotvrzuje"><span class="tb-icon">⊙ </span><span class="tb-label">Auto</span></button>
+        <button class="cam-sim-trace-stepfwd" data-act="trace-stepfwd" title="Přidá další úsek profilu na konec trasy">Přidat ▶</button>
+        <button class="cam-sim-trace-stepback" data-act="trace-stepback" title="Ubere poslední přidaný úsek profilu / bod trasy">◀ Ubrat</button>
+        <button class="cam-sim-trace-cancel" data-act="trace-cancel" title="Zrušit poslední bod / vypnout trasování (Esc)"><span class="tb-icon">✗ </span><span class="tb-label">Zrušit</span></button>
+        <button class="cam-sim-trace-confirm" data-act="trace-confirm" title="Dokončit trasování profilu (Enter)"><span class="tb-icon">✓ </span><span class="tb-label">Dokončit</span></button>
+      </div>
     </div>
     <div class="cam-sim-progress-bar">
       <div class="cam-sim-progress-track"><div class="cam-sim-progress-fill"></div></div>
@@ -842,7 +844,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const C = {
       bg: '#1e1e2e', grid: '#313244', axis: '#f38ba8', stock: '#6c7086',
       contour: '#89b4fa', offset: '#cba6f7', pass: '#a6e3a1', finish: '#f5c2e7',
-      error: '#f38ba8', text: '#6c7086', tool: '#f9e2af', insert: 'rgba(186,194,222,0.7)'
+      error: '#f38ba8', text: '#6c7086', tool: '#f9e2af', insert: 'rgba(186,194,222,0.7)',
+      // Nedokončené trasování profilu (ruční i Auto/Krok náhled) — bílá, ať je
+      // vidět i na modré konturové čáře (stejně jako v CAD, viz profileTraceClick.js).
+      trace: '#ffffff'
     };
 
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
@@ -1159,7 +1164,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         const seg = S._traceSegs[i];
         tracePts.push({ ...S._tracePoints[i + 1], type: seg.type, r: seg.r || 0 });
       }
-      _drawPointsContour(tracePts, toScreen, C.tool, true);
+      _drawPointsContour(tracePts, toScreen, C.trace, true);
     }
 
     // zvýraznění úseků kontury, kam destička dle svého tvaru/natočení
@@ -1760,7 +1765,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     // Profil mód: profilová dráha se kreslí MIMO if(!simRunning) blok
     // → viditelná i při spuštěné simulaci (jako overlay nad nástrojem).
-    // Auto/Krok náhled (⊙ Auto, ◀ Krok, Krok ▶) kreslí STEJNOU logikou, jen
+    // Auto/Krok náhled (⊙ Auto, ◀ Ubrat, Přidat ▶) kreslí STEJNOU logikou, jen
     // ze segmentů _camAutoSegs (odkrytá část, revealCount) a jinou barvou,
     // ať je zřejmé, že jde o nepotvrzený náhled.
     const _autoPreviewActive = !!(_camAutoSegs && _camAutoRevealCount > 0);
@@ -1787,7 +1792,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             }
           }
         }
-        ctx.strokeStyle = _autoPreviewActive ? '#89b4fa' : C.contour; ctx.lineWidth = 3; ctx.stroke();
+        ctx.strokeStyle = _autoPreviewActive ? C.trace : C.contour; ctx.lineWidth = 3; ctx.stroke();
         // Číslování jen krajních bodů (ne interpolace oblouku)
         const nPts = [];
         for (const s of profSegs) {
@@ -1800,7 +1805,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (!nPts.length || Math.hypot(lPt.x - nPts[nPts.length-1].x, lPt.z - nPts[nPts.length-1].z) > 0.1) nPts.push(lPt);
         nPts.forEach((p, i) => {
           const pt = toScreen(p.x, p.z);
-          ctx.fillStyle = _autoPreviewActive ? '#89b4fa' : C.contour;
+          ctx.fillStyle = _autoPreviewActive ? C.trace : C.contour;
           ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
           ctx.fillText(`${i + 1}`, pt.x + 7, pt.y - 7);
         });
@@ -6178,19 +6183,27 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   let _choosingTraceSeg = false;
 
-  // ── Auto profil / krokování (⊙ Auto, ◀ Krok, Krok ▶) ──
+  // ── Auto profil / krokování (⊙ Auto, ◀ Ubrat, Přidat ▶) ──
   // Znovupoužívá VÝHRADNĚ už vyřešenou konturu z pipeline (S._cachedCalc.contourSegments —
   // ta prošla resolveOuterProfile, který vždy běží v calculate() a vybírá vnější větev/
   // Hlídání geometrie destičky, viz contourBuild.js). Nic se tu znovu nepočítá ani
   // neimplementuje — jen se ukáže (revealCount) a případně převede na nové contourPoints.
   let _camAutoSegs = null;      // pole segmentů (od zvoleného startu do konce)
   let _camAutoRevealCount = 0;  // kolik segmentů z _camAutoSegs je aktuálně "odkrytých"
+  // Fixní prefix = S._tracePoints/_traceSegs v okamžiku, kdy byla naposledy
+  // zahájena auto/krok session — díky tomu Auto/Přidat/Ubrat NEPŘEPISUJÍ
+  // ručně dokreslenou část trasy, jen na ni navazují (viz _camAutoStartIdx
+  // a _camBuildFinalTracePts, který obojí spojí při potvrzení).
+  let _camTraceFixedPoints = null;
+  let _camTraceFixedSegs = null;
 
-  /** Index segmentu v `segs`, jehož START je nejblíž prvnímu klik/vybranému bodu
-   *  trasování (S._tracePoints[0]). Bez vybraného bodu = od začátku kontury. */
+  /** Index segmentu v `segs`, jehož START je nejblíž POSLEDNÍMU bodu
+   *  rozpracované trasy (S._tracePoints, konec) — aby Auto/Krok navazovaly
+   *  tam, kde trasa aktuálně končí (i po ručním doplnění jiné dráhy), ne od
+   *  jejího úplného začátku. Bez rozpracovaného bodu = od začátku kontury. */
   function _camAutoStartIdx(segs) {
     if (!S._tracePoints || S._tracePoints.length === 0) return 0;
-    const p0 = S._tracePoints[0];
+    const p0 = S._tracePoints[S._tracePoints.length - 1];
     let bestI = 0, bestD = Infinity;
     segs.forEach((s, i) => {
       const st = segStartPoint(s);
@@ -6204,50 +6217,100 @@ export function openCamSimulator(initialContour, initialGCode) {
   function _camAutoClear() {
     _camAutoSegs = null;
     _camAutoRevealCount = 0;
+    _camTraceFixedPoints = null;
+    _camTraceFixedSegs = null;
   }
 
-  /** ⊙ Auto: od startu (klik/výběr, jinak od začátku) odkryje CELÝ vyřešený profil
-   *  až do konce — jen náhled, nepotvrzuje (potvrzení = ✅ / ✓ Dokončit). */
-  function _camAutoRun() {
+  /** Zajistí aktivní auto/krok session: pokud ještě neběží, zafixuje aktuální
+   *  trasu jako prefix a dopočítá navazující segmenty od jejího posledního
+   *  bodu. Vrací false, pokud není co profilovat (žádná kontura). */
+  function _camEnsureAutoSession() {
+    if (_camAutoSegs) return true;
     const segs = (S._cachedCalc && S._cachedCalc.contourSegments) || [];
-    if (!segs.length) { showToast('Žádná kontura k profilování'); return; }
+    if (!segs.length) return false;
     const startIdx = _camAutoStartIdx(segs);
+    _camTraceFixedPoints = S._tracePoints.slice();
+    _camTraceFixedSegs = S._traceSegs.slice();
     _camAutoSegs = segs.slice(startIdx);
+    _camAutoRevealCount = 0;
+    return true;
+  }
+
+  /** ⊙ Auto: od posledního bodu trasy (nebo od začátku, pokud žádná není)
+   *  odkryje CELÝ zbývající vyřešený profil — jen náhled, nepotvrzuje
+   *  (potvrzení = ✅ / ✓ Dokončit). */
+  function _camAutoRun() {
+    if (!_camEnsureAutoSession()) { showToast('Žádná kontura k profilování'); return; }
     _camAutoRevealCount = _camAutoSegs.length;
     _updateProfileButtons();
     draw();
-    showToast('Auto profil (náhled) – uprav ◀/▶ Krok nebo potvrď ✅ / ✓ Dokončit');
+    showToast('Auto profil (náhled) – uprav ◀ Ubrat/Přidat ▶ nebo potvrď ✅ / ✓ Dokončit');
   }
 
-  /** ◀ Krok / Krok ▶: přidá/ubere jeden úsek už vyřešeného profilu (bez potvrzení). */
+  /**
+   * Přidat ▶ / ◀ Ubrat: přidá/ubere jeden úsek už vyřešeného profilu (bez
+   * potvrzení). Ubrat navíc funguje jako obecné undo — když už není co ubrat
+   * z auto/krok session (revealCount 0), ubere místo toho poslední ručně
+   * přidaný bod trasy (fixní prefix zůstává netknutý, dokud existuje).
+   */
   function _camAutoStep(forward) {
-    const segs = (S._cachedCalc && S._cachedCalc.contourSegments) || [];
-    if (!segs.length) { showToast('Žádná kontura k profilování'); return; }
-    if (!_camAutoSegs) {
-      const startIdx = _camAutoStartIdx(segs);
-      _camAutoSegs = segs.slice(startIdx);
-      _camAutoRevealCount = 0;
+    if (forward) {
+      if (!_camEnsureAutoSession()) { showToast('Žádná kontura k profilování'); return; }
+      if (_camAutoRevealCount >= _camAutoSegs.length) { showToast('Konec kontury'); return; }
+      _camAutoRevealCount++;
+      _updateProfileButtons();
+      draw();
+      return;
     }
-    const next = _camAutoRevealCount + (forward ? 1 : -1);
-    if (next < 0 || next > _camAutoSegs.length) { showToast(forward ? 'Konec kontury' : 'Začátek profilu'); return; }
-    _camAutoRevealCount = next;
+    if (_camAutoSegs && _camAutoRevealCount > 0) {
+      _camAutoRevealCount--;
+      _updateProfileButtons();
+      draw();
+      return;
+    }
+    if (!S._tracePoints || S._tracePoints.length <= 1) { showToast('Začátek profilu'); return; }
+    _camAutoClear();
+    S._tracePoints.pop();
+    S._traceSegs.pop();
     _updateProfileButtons();
+    _showTraceButtons();
     draw();
   }
 
-  /** Převede segmenty (line/arc) na pole contourPoints ({id,type,x,z,r,mode}) —
-   *  stejný formát jako _finishProfileTrace, jen ze zdroje resolveOuterProfile
-   *  místo ručního klikání. R vždy kladné (krátký oblouk) — stejné omezení
-   *  jako u ručního trasování, viz _finishProfileTrace `r: seg.r || 0`. */
-  function _segsToContourPts(segs) {
-    if (!segs.length) return [];
+  /**
+   * Sestaví finální trasovací body pro potvrzení (✅ / ✓ Dokončit): fixní
+   * ručně dokreslený prefix (nebo aktuální S._tracePoints, pokud žádná auto
+   * session neběží) + navazující odkryté auto segmenty (_camAutoSegs). Bez
+   * tohoto sloučení by potvrzení po Auto/Krok zahodilo ruční část trasy
+   * nakreslenou před spuštěním auto náhledu.
+   */
+  function _camBuildFinalTracePts() {
+    const hasAuto = !!(_camAutoSegs && _camAutoRevealCount > 0);
+    const prefixPts = hasAuto && _camTraceFixedPoints ? _camTraceFixedPoints : S._tracePoints;
+    const prefixSegs = hasAuto && _camTraceFixedSegs ? _camTraceFixedSegs : S._traceSegs;
+    const extra = hasAuto ? _camAutoSegs.slice(0, _camAutoRevealCount) : [];
+    if (!prefixPts.length && !extra.length) return null;
+
     const isDiam = S.params.mode === 'DIAMON';
     const toX = (realX) => isDiam ? realX * 2 : realX;
     const pts = [];
     let id = 1;
-    const start = segStartPoint(segs[0]);
-    pts.push({ id: id++, type: 'G0', x: toX(start.x), z: start.z, r: 0, mode: 'ABS' });
-    for (const s of segs) {
+
+    if (prefixPts.length > 0) {
+      pts.push({ id: id++, type: 'G0', x: prefixPts[0].x, z: prefixPts[0].z, r: 0, mode: 'ABS' });
+      for (let i = 0; i < prefixSegs.length; i++) {
+        const seg = prefixSegs[i];
+        const p = prefixPts[i + 1];
+        const pt = { id: id++, type: seg.type, x: p.x, z: p.z, r: seg.r || 0, mode: 'ABS' };
+        if (seg.fromInsert) pt.fromInsert = true;
+        pts.push(pt);
+      }
+    } else {
+      const start = segStartPoint(extra[0]);
+      pts.push({ id: id++, type: 'G0', x: toX(start.x), z: start.z, r: 0, mode: 'ABS' });
+    }
+
+    for (const s of extra) {
       const e = segEndPoint(s);
       if (s.type === 'arc') {
         pts.push({ id: id++, type: s.dir === 'G2' ? 'G2' : 'G3', x: toX(e.x), z: e.z, r: s.r, mode: 'ABS' });
@@ -6398,19 +6461,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     draw();
   }
 
-  /** Dokončí trasování a připraví číslovaný náhled nové kontury. */
+  /** Dokončí trasování (ruční body + případný navazující Auto/Krok náhled,
+   *  viz _camBuildFinalTracePts) a připraví číslovaný náhled nové kontury. */
   function _finishProfileTrace() {
-    if (S._tracePoints.length < 2) { showToast('Je potřeba alespoň 2 body'); return; }
-    const pts = [];
-    let id = 1;
-    pts.push({ id: id++, type: 'G0', x: S._tracePoints[0].x, z: S._tracePoints[0].z, r: 0, mode: 'ABS' });
-    for (let i = 0; i < S._traceSegs.length; i++) {
-      const seg = S._traceSegs[i];
-      const p = S._tracePoints[i + 1];
-      const pt = { id: id++, type: seg.type, x: p.x, z: p.z, r: seg.r || 0, mode: 'ABS' };
-      if (seg.fromInsert) pt.fromInsert = true;
-      pts.push(pt);
-    }
+    const pts = _camBuildFinalTracePts();
+    if (!pts || pts.length < 2) { showToast('Je potřeba alespoň 2 body'); return; }
     S._refContour = S.contourPoints;
     S._previewContour = pts;
     _exitProfileTraceMode();
@@ -6566,9 +6621,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         draw();
       }
     } else if (act === 'profile-apply') {
-      if (_camAutoSegs && _camAutoRevealCount > 0) {
+      const pts = _camBuildFinalTracePts();
+      if (pts && pts.length >= 2) {
         S._refContour = S.contourPoints;
-        S._previewContour = _segsToContourPts(_camAutoSegs.slice(0, _camAutoRevealCount));
+        S._previewContour = pts;
         _camAutoClear();
         _applyPreviewContour();
       } else {

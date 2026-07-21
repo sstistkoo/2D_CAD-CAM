@@ -65,20 +65,28 @@ export function injectCSS() {
   background: rgba(17,17,27,0.75); color: #6c7086; font-size: 11px; font-family: monospace;
   padding: 2px 10px; border-radius: 4px; pointer-events: none; white-space: nowrap; z-index: 2;
 }
+.cam-sim-trace-bar {
+  position: absolute; left: 0; right: 0; bottom: 10px; z-index: 3;
+  display: flex; justify-content: center; gap: 8px; pointer-events: none;
+}
 .cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepback, .cam-sim-trace-stepfwd {
-  display: none; position: absolute; bottom: 10px; z-index: 3;
+  display: none; pointer-events: auto;
   padding: 10px 14px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold;
   white-space: nowrap;
 }
-.cam-sim-trace-confirm { right: 10px; background: #a6e3a1; color: #1e1e2e; }
-.cam-sim-trace-stepfwd { right: 110px; background: #cba6f7; color: #1e1e2e; }
-.cam-sim-trace-stepback { right: 205px; background: #cba6f7; color: #1e1e2e; }
-.cam-sim-trace-auto { right: 300px; background: #89b4fa; color: #1e1e2e; }
-.cam-sim-trace-cancel { right: 390px; background: #f38ba8; color: #1e1e2e; }
+.cam-sim-trace-confirm { background: #a6e3a1; color: #1e1e2e; }
+.cam-sim-trace-stepfwd, .cam-sim-trace-stepback { background: #cba6f7; color: #1e1e2e; }
+.cam-sim-trace-auto { background: #89b4fa; color: #1e1e2e; }
+.cam-sim-trace-cancel { background: #f38ba8; color: #1e1e2e; }
 .cam-sim-trace-confirm:active { background: #94d8a0; }
 .cam-sim-trace-cancel:active { background: #e07090; }
 .cam-sim-trace-auto:active { background: #6fa0e8; }
 .cam-sim-trace-stepback:active, .cam-sim-trace-stepfwd:active { background: #b48ef0; }
+@media (max-width: 900px) {
+  .cam-sim-trace-auto .tb-icon { display: none; }
+  .cam-sim-trace-cancel .tb-label,
+  .cam-sim-trace-confirm .tb-label { display: none; }
+}
 .cam-sim-code-bar button[data-code="show-sidebar"] {
   background: #cba6f7; color: #1e1e2e; border-color: #cba6f7;
 }
