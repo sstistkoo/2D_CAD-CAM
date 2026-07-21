@@ -286,6 +286,38 @@ komponentové regiony (kapsy dílu = restrukturace emisní smyčky `outer _regio
 inner depths` → per-hloubka komponenty), čelní/backside cesta. UI sjednocení
 zanořování (Fáze 5) se DĚLAT NEBUDE — viz poznámka u Fáze 5.
 
+**HOTOVO — krok 3A geometrické primitivum + síť pro restrukturaci (21. 7. 2026):**
+`extractLayerComponents` (booleanRoughing.js) rozloží hloubkovou vrstvu na
+KOMPONENTY (samostatné smyčky pásu `[xLo,xHi]∩zbytek`) a per komponentu vydá:
+`zStart`/`zEnd` (Z-rozpětí), `floorIntervals` (ploché řezné intervaly na dně pásu =
+dnešní intervalová emise) a `bottomEdge` (min-X hrana = ŘEZNÁ DRÁHA z HRAN pro
+krok 3C; přepínač `withEdge`). Helper `loopBottomXAtZ` (zrcadlo `residualTopXAtZ`).
+Testy `tests/boolean-layer-components.test.js`. Nová G-kód pojistka
+`tests/cam-boolean-gcode-regression.test.js` přišpendlila PŘESNÝ výstup booleovské
+větve všech 12 fixtures (dosud ji hlídala jen material-parita) — nutná síť pro 3C.
+
+**KLÍČOVÝ NÁLEZ MĚŘENÍ (21. 7. 2026) — krok 3C nemá v sadě demonstrátor,
+„output-ekvivalentní 3B" NELZE:**
+- Booleovská cesta dnes odebírá materiál IDENTICKY jako scan-line na VŠECH
+  fixtures (Δ ≤ 1,5 mm², metoda `remaining` jako v boolean-roughing-wiring). Δ:
+  holder-region +0,1, part-10 −1,5, holder-slanted 0,0.
+- Scan-line hrubování má ÚPLNÉ pokrytí dosažitelného materiálu (řeže každou
+  hloubku X na všech Z, kde je díl pod ní) → **stojící materiál nenechává**;
+  demonstrátor „díl nechávající stát materiál" tudíž nejde postavit. Historické
+  `+121/+243 mm²` byly artefakt naive-residual pokusu, ne reálná mezera.
+- Přínos kroku 3C je tedy **kvalita PŘEJEZDŮ** (mělký průchod netáhne po kontuře
+  napříč dílem), ne pokrytí — neměří se jako mm² materiálu.
+- Empiricky ověřeno (a vráceno): přepojení `booleanScanIntervals` přes
+  `extractLayerComponents` (per-hloubka komponenty) ZMĚNILO booleovský G-kód 2
+  fixtures (holder-region, pocket-wall) → per-hloubka komponenty **NEJSOU**
+  output-ekvivalentní s plochými intervaly (granularita se u sevření pásu liší),
+  patří do 3C. Snapshot to zachytil. Cheap `layerZIntervalsAtX` (memoizovaný
+  zbytek) je navíc perf-lepší než per-hloubka Clipper `sliceLayer`.
+
+DALŠÍ KROK (až reálný složitý díl vyžádá): 3C = řezná dráha z `bottomEdge` +
+leadOut po hraně komponenty + holder-trim z hrany; vědomě přegenerovat booleovské
+snapshoty. Scan-line snapshoty (flag OFF) zůstávají mimo.
+
 ### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
 
 Hotovo:

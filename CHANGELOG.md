@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM: **rozklad vrstvy na komponenty + G-kód pojistka booleovské větve (migrace
+  Fáze 3, krok 3A)** — `extractLayerComponents` v `booleanRoughing.js` rozloží
+  hloubkovou vrstvu na KOMPONENTY (smyčky pásu `[xLo,xHi]∩zbytek`) a per komponentu
+  vydá Z-rozpětí, `floorIntervals` (ploché řezné intervaly na dně = dnešní emise) a
+  `bottomEdge` (min-X hrana = řezná dráha z HRAN pro krok 3C; přepínač `withEdge`);
+  helper `loopBottomXAtZ`. Testy `tests/boolean-layer-components.test.js`. Nový
+  `tests/cam-boolean-gcode-regression.test.js` přišpendlí PŘESNÝ výstup booleovské
+  větve (dosud ji hlídala jen material-parita) — nutná síť pro restrukturaci.
+  **Nález měření:** booleovská cesta dnes odebírá materiál identicky jako scan-line
+  na všech fixtures (Δ ≤ 1,5 mm²); scan-line má úplné pokrytí dosažitelného
+  materiálu → přínos kroku 3C je kvalita PŘEJEZDŮ, ne pokrytí (per-hloubka
+  komponenty ověřeně NEjsou output-ekvivalentní s plochými intervaly — mění G-kód 2
+  fixtures, patří do 3C). Nemění G-kód ani snapshoty. Viz
+  `docs/geometry-libs-migration.md`.
 - CAM: **hrubovací dráhy z booleovské geometrie za příznakem (migrace Fáze 3)** —
   nový modul `js/calculators/cam/booleanRoughing.js` (čisté funkce nad Clipper2):
   zbytkový materiál `= obal polotovaru − oblast dílce` (`buildResidual` /
