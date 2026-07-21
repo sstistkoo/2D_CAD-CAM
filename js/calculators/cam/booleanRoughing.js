@@ -252,23 +252,33 @@ function loopBottomXAtZ(loop, z) {
  * tam se dopočte stávajícími helpery (`blockedAt`), aby sémantika seděla se
  * scan-line. Komponenty SEŘAZENÉ zprava (max zStart) doleva. Čistá geometrie.
  */
-export function extractLayerComponents(residualLoops, xLo, xHi, zLo = -Z_INF, zHi = Z_INF, dz = 0.2) {
+export function extractLayerComponents(residualLoops, xLo, xHi, zLo = -Z_INF, zHi = Z_INF, dz = 0.2, withEdge = true) {
   const comps = sliceLayer(residualLoops, xLo, xHi, zLo, zHi);
   const out = [];
   for (const loop of comps) {
     let zMax = -Infinity, zMin = Infinity;
     for (const p of loop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
     if (!(zMax - zMin > 1e-6)) continue;
-    // Spodní hrana shora (zStart) dolů (zEnd), krok dz; přesný spodní vzorek
-    // těsně nad zMin (na hraně by svislice komponentu už neprotla).
-    const bottomEdge = [];
-    for (let z = zMax; z > zMin + 1e-9; z -= dz) {
-      const x = loopBottomXAtZ(loop, z);
-      if (x !== null) bottomEdge.push({ x, z });
+    // Ploché řezné intervaly na dně pásu (x = xLo) uvnitř této komponenty —
+    // to, co dnes emituje scan-line/intervalová cesta. Sjednocení přes všechny
+    // komponenty (seřazené zStart↓) je BIT-shodné s layerZIntervalsAtX(zbytek,
+    // xLo) (parity crossings jsou tytéž body), jen rozdělené po komponentách.
+    const floorIntervals = layerZIntervalsAtX([loop], xLo);
+    const comp = { zStart: zMax, zEnd: zMin, floorIntervals };
+    if (withEdge) {
+      // Spodní hrana shora (zStart) dolů (zEnd), krok dz; přesný spodní vzorek
+      // těsně nad zMin (na hraně by svislice komponentu už neprotla). Řezná
+      // dráha z HRAN (krok 3C); u intervalové cesty (3B) se nevzorkuje.
+      const bottomEdge = [];
+      for (let z = zMax; z > zMin + 1e-9; z -= dz) {
+        const x = loopBottomXAtZ(loop, z);
+        if (x !== null) bottomEdge.push({ x, z });
+      }
+      const xEnd = loopBottomXAtZ(loop, zMin + 1e-6);
+      if (xEnd !== null) bottomEdge.push({ x: xEnd, z: zMin });
+      comp.bottomEdge = bottomEdge;
     }
-    const xEnd = loopBottomXAtZ(loop, zMin + 1e-6);
-    if (xEnd !== null) bottomEdge.push({ x: xEnd, z: zMin });
-    out.push({ zStart: zMax, zEnd: zMin, bottomEdge });
+    out.push(comp);
   }
   out.sort((a, b) => b.zStart - a.zStart);
   return out;

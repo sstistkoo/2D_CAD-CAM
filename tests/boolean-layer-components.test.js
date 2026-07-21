@@ -5,7 +5,7 @@
 // offset dílu tam, kde díl do pásu stoupá. NEMĚNÍ G-kód (čistá geometrie).
 import { describe, it, expect } from 'vitest';
 import {
-  offsetRegionLoop, buildResidual, extractLayerComponents,
+  offsetRegionLoop, buildResidual, extractLayerComponents, layerZIntervalsAtX,
 } from '../js/calculators/cam/booleanRoughing.js';
 import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
 
@@ -80,6 +80,37 @@ describe('extractLayerComponents — komponenty vrstvy + spodní hrana', () => {
     expect(comps.length).toBe(1);
     expect(comps[0].zStart).toBeCloseTo(-10, 1);
     expect(comps[0].zEnd).toBeCloseTo(-30, 1);
+  });
+
+  it('floorIntervals komponent = ploché řezné intervaly na dně pásu', () => {
+    // Pás [10,15], hloubka dna X=10: pravá komponenta řeže z 0..−15, levá
+    // z −25..−50 (přesně dva boky bossu, jako layerZIntervalsAtX).
+    const comps = extractLayerComponents(residual, 10, 15);
+    expect(comps[0].floorIntervals.length).toBe(1);
+    expect(comps[0].floorIntervals[0].zStart).toBeCloseTo(0, 1);
+    expect(comps[0].floorIntervals[0].zEnd).toBeCloseTo(-15, 1);
+    expect(comps[1].floorIntervals[0].zStart).toBeCloseTo(-25, 1);
+    expect(comps[1].floorIntervals[0].zEnd).toBeCloseTo(-50, 1);
+  });
+
+  it('sjednocení floorIntervals = layerZIntervalsAtX nad celým zbytkem (čistá geom.)', () => {
+    // Na tvarech bez sevření pásu jsou komponentové intervaly bit-shodné s
+    // přímým řezem celého zbytku (u reálných odlitků se granularita může lišit
+    // — to je záměr dráhy z hran, krok 3C).
+    const comps = extractLayerComponents(residual, 10, 15);
+    const union = comps.flatMap(c => c.floorIntervals).sort((a, b) => b.zStart - a.zStart);
+    const direct = layerZIntervalsAtX(residual, 10);
+    expect(union.length).toBe(direct.length);
+    for (let i = 0; i < direct.length; i++) {
+      expect(union[i].zStart).toBeCloseTo(direct[i].zStart, 3);
+      expect(union[i].zEnd).toBeCloseTo(direct[i].zEnd, 3);
+    }
+  });
+
+  it('withEdge=false → bez vzorkování hrany (jen intervaly, perf)', () => {
+    const comps = extractLayerComponents(residual, 10, 15, -1e6, 1e6, 0.2, false);
+    expect(comps[0].bottomEdge).toBeUndefined();
+    expect(comps[0].floorIntervals.length).toBeGreaterThan(0);
   });
 
   it('prázdný zbytek → []', () => {
