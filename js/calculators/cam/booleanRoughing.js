@@ -213,6 +213,68 @@ function residualTopXAtZ(loops, z) {
 }
 
 /**
+ * Spodní hrana (min X) jedné smyčky na axiální souřadnici `z` — zrcadlo
+ * `residualTopXAtZ`, ale nad JEDNOU komponentou a s minimem. To je nejhlubší
+ * dosažitelná pozice STŘEDU špičky v této komponentě na daném Z (kde díl
+ * stoupá do pásu, je to jeho offset; jinak spodní mez pásu). Vrací null,
+ * když svislá čára z komponentu neprotíná.
+ */
+function loopBottomXAtZ(loop, z) {
+  let bot = null;
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const a = loop[i], b = loop[(i + 1) % n];
+    const za = a.z, zb = b.z;
+    if ((za <= z && zb > z) || (zb <= z && za > z)) {
+      const t = (z - za) / (zb - za);
+      const x = a.x + (b.x - a.x) * t;
+      if (bot === null || x < bot) bot = x;
+    }
+  }
+  return bot;
+}
+
+/**
+ * ROZKLAD VRSTVY NA KOMPONENTY (Fáze 3, krok 3) — polygon-native primitivum
+ * pro emisi dráhy z HRAN regionů. Pás poloměrů [xLo, xHi] ∩ zbytek (volitelně
+ * ořez Z na [zLo, zHi], `sliceLayer`) → samostatné smyčky = KOMPONENTY (bosse
+ * odlitku i kapsy dílu, oba směry splynutí zadarmo). Pro každou vrátí:
+ *
+ *   - `zStart` / `zEnd` = Z-rozpětí komponenty (zStart > zEnd, jízdní pořadí
+ *     zprava doleva) — grupovací klíč per-hloubka emise (nahrazuje regiony),
+ *   - `bottomEdge` = spodní (min-X) hrana komponenty jako polylinie {x,z} od
+ *     zStart k zEnd — ŘEZNÁ DRÁHA vrstvy: kde díl stoupá do pásu, kopíruje
+ *     jeho offset (dráha středu špičky), jinak je plochá na `xLo`. Sloužit
+ *     může přímo jako sled bodů řezu (krok 3C).
+ *
+ * Klasifikaci konců na „stěna vs otevřený okraj" (`blocked`) tato čistá funkce
+ * NEDĚLÁ — vyžaduje konturu dílu (`offsetXAt`), dostupnou až při napojení;
+ * tam se dopočte stávajícími helpery (`blockedAt`), aby sémantika seděla se
+ * scan-line. Komponenty SEŘAZENÉ zprava (max zStart) doleva. Čistá geometrie.
+ */
+export function extractLayerComponents(residualLoops, xLo, xHi, zLo = -Z_INF, zHi = Z_INF, dz = 0.2) {
+  const comps = sliceLayer(residualLoops, xLo, xHi, zLo, zHi);
+  const out = [];
+  for (const loop of comps) {
+    let zMax = -Infinity, zMin = Infinity;
+    for (const p of loop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
+    if (!(zMax - zMin > 1e-6)) continue;
+    // Spodní hrana shora (zStart) dolů (zEnd), krok dz; přesný spodní vzorek
+    // těsně nad zMin (na hraně by svislice komponentu už neprotla).
+    const bottomEdge = [];
+    for (let z = zMax; z > zMin + 1e-9; z -= dz) {
+      const x = loopBottomXAtZ(loop, z);
+      if (x !== null) bottomEdge.push({ x, z });
+    }
+    const xEnd = loopBottomXAtZ(loop, zMin + 1e-6);
+    if (xEnd !== null) bottomEdge.push({ x: xEnd, z: zMin });
+    out.push({ zStart: zMax, zEnd: zMin, bottomEdge });
+  }
+  out.sort((a, b) => b.zStart - a.zStart);
+  return out;
+}
+
+/**
  * REGIONY Z GEOMETRIE (Fáze 3, krok 2) — polygon-native náhrada ruční
  * valley/surface detekce nad `stockWorldPoints` v roughingStrategies.
  * computeRegions. Detekuje „údolí" = lokální minima HORNÍ HRANY zadaných
