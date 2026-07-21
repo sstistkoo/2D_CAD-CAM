@@ -69,6 +69,14 @@ export function injectCSS() {
   position: absolute; left: 0; right: 0; bottom: 10px; z-index: 3;
   display: flex; justify-content: center; gap: 8px; pointer-events: none;
 }
+.cam-sim-trace-freeclick {
+  display: none; position: absolute; left: 0; right: 0; bottom: 54px; z-index: 3;
+  margin: 0 auto; width: fit-content;
+  align-items: center; gap: 6px; pointer-events: auto;
+  background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer; user-select: none;
+}
+.cam-sim-trace-freeclick input { cursor: pointer; }
 .cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepback, .cam-sim-trace-stepfwd {
   display: none; pointer-events: auto;
   padding: 10px 14px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold;

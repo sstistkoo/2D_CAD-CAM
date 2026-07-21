@@ -3,7 +3,7 @@ import {
   intersectLinesInfinite, findSegIntersection, getSegEnd, getSegStart,
   setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint,
   segStartPoint, syncArcEndpoints, reverseSeg, pointOnSegInterior,
-  _locateOnContour, TRIM_TOL, LOOP_INTERIOR_MIN,
+  _locateOnContour, intersectSegAtZ, TRIM_TOL, LOOP_INTERIOR_MIN,
 } from './camMath.js';
 import { guidePolyPoints, guideBridgePts, mkBridgeSegs } from './interferenceGuides.js';
 
@@ -360,7 +360,27 @@ export function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     const ci = tPos < 0.5 ? loc.segIdx : loc.segIdx + 1;
     let keepFrom = -1;
     for (let k = ci; k < result.length; k++) {
-      if (segStartPoint(result[k]).z <= offPt.z + 1e-6) { keepFrom = k; break; }
+      const sp = segStartPoint(result[k]), ep = segEndPoint(result[k]);
+      if (sp.z <= offPt.z + 1e-6) { keepFrom = k; break; }
+      // Segment PODJÍŽDÍ pod konec stínu (jeho konec je hlouběji než offPt.z),
+      // ale ZAČÍNÁ nad ním — zahodit ho celý by uřízlo i tu jeho reálně
+      // dosažitelnou (hlubší) část. Rozdělit přesně v Z = offPt.z a další
+      // navazování začít až od tohoto bodu (viz intersectSegAtZ).
+      if (ep.z <= offPt.z + 1e-6) {
+        const xs = intersectSegAtZ(result[k], offPt.z);
+        if (xs.length) {
+          const cutX = xs.length > 1
+            ? xs.reduce((best, x) => Math.abs(x - ep.x) < Math.abs(best - ep.x) ? x : best, xs[0])
+            : xs[0];
+          const seg = { ...result[k] };
+          setSegStart(seg, { x: cutX, z: offPt.z });
+          syncArcEndpoints(seg);
+          result = [...result.slice(0, k), seg, ...result.slice(k + 1)];
+          keepFrom = k;
+        }
+        break;
+      }
+      // Segment je celý ještě ve stínu (i jeho konec je nad offPt.z) — pokračovat dál.
     }
     const before = result.slice(0, ci).map(x => ({ ...x }));
     if (before.length && tPos >= 0.5) {

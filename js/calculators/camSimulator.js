@@ -7,7 +7,7 @@ import { makeOverlay } from '../dialogFactory.js';
 import { openCamEditor } from './camEditor.js';
 import { state, pushUndo, showToast, STOCK_LAYER_ID } from '../state.js';
 import { renderAll } from '../render.js';
-import { autoCenterView, centerViewOn, resizeCanvases } from '../canvas.js';
+import { autoCenterView, centerViewOn, resizeCanvases, applyAngleSnap } from '../canvas.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList, updateLayerList, persistSettings, setCalcClipboardValue, getCalcClipboardValue, setTool } from '../ui.js';
 import { bridge } from '../bridge.js';
@@ -102,6 +102,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="toggle-controls" title="Skrýt / zobrazit hlavní ovládací tlačítka" style="font-size:11px;padding:4px 8px">«»</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
+      <label class="cam-sim-trace-freeclick" title="Když je zapnuto, klik na plátně přidá bod trasy KDEKOLIV (ne jen na bod kontury/polotovaru) — s úhlovým snapem jako v CAD.">
+        <input type="checkbox" class="cam-sim-trace-freeclick-cb" />
+        Mimo body
+      </label>
       <div class="cam-sim-trace-bar">
         <button class="cam-sim-trace-auto" data-act="trace-auto" title="Auto profil: od posledního bodu trasy (nebo od začátku) vyznačí vyřešený profil až do konce — jen náhled, nepotvrzuje"><span class="tb-icon">⊙ </span><span class="tb-label">Auto</span></button>
         <button class="cam-sim-trace-stepfwd" data-act="trace-stepfwd" title="Přidá další úsek profilu na konec trasy">Přidat ▶</button>
@@ -322,6 +326,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     profileTraceMode: false,
     _tracePoints: [],   // [{x, z}] absolutní world souřadnice (rádius, Z)
     _traceSegs: [],     // [{type:'G1'|'G2'|'G3', dist, r, cx, cz}] – segment od _tracePoints[i] do [i+1]
+    _traceFreeClick: false, // "Mimo body" — dovolí přidat bod kdekoliv na plátně, ne jen na snap
+    _traceCursor: null,     // {x,z} poslední pozice kurzoru v režimu "Mimo body" (náhledová čára)
     _previewContour: null, // číslovaná náhledová kontura čekající na potvrzení
     _refContour: null,      // záloha původní S.contourPoints po dobu náhledu
     // Záloha původní (před-profilové) kontury — drží se i po použití profilu,
@@ -1167,6 +1173,20 @@ export function openCamSimulator(initialContour, initialGCode) {
       _drawPointsContour(tracePts, toScreen, C.trace, true);
     }
 
+    // Náhledová čára k pozici kurzoru — jen v režimu „Mimo body" (jinak by
+    // překážela); úhlový snap se aplikuje už na S._traceCursor (mousemove).
+    if (S.profileTraceMode && S._traceFreeClick && S._traceCursor && S._tracePoints.length > 0) {
+      const last = S._tracePoints[S._tracePoints.length - 1];
+      const a = toScreen(last.x, last.z), b = toScreen(S._traceCursor.x, S._traceCursor.z);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = C.trace; ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // zvýraznění úseků kontury, kam destička dle svého tvaru/natočení
     // nedosáhne beze zbytku materiálu (kolize bočním ostřím)
     if (calc.interferenceSegments && calc.interferenceSegments.length > 0) {
@@ -1779,11 +1799,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         for (const s of profSegs) {
           if (s.type === 'line') {
             const a = toScreen(s.p1.x, s.p1.z), b = toScreen(s.p2.x, s.p2.z);
-            if (_fp) { ctx.moveTo(a.x, a.y); _fp = false; } else ctx.lineTo(a.x, a.y);
+            if (_fp || s.chainBreak) { ctx.moveTo(a.x, a.y); _fp = false; } else ctx.lineTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
           } else if (s.type === 'arc') {
             const p1 = toScreen(s.cx + Math.sin(s.startAngle)*s.r, s.cz + Math.cos(s.startAngle)*s.r);
-            if (_fp) { ctx.moveTo(p1.x, p1.y); _fp = false; } else ctx.lineTo(p1.x, p1.y);
+            if (_fp || s.chainBreak) { ctx.moveTo(p1.x, p1.y); _fp = false; } else ctx.lineTo(p1.x, p1.y);
             const steps = Math.max(6, Math.round(Math.abs(s.endAngle - s.startAngle) * s.r / 0.5));
             for (let j = 1; j <= steps; j++) {
               const a2 = s.startAngle + (s.endAngle - s.startAngle) * (j / steps);
@@ -6222,11 +6242,20 @@ export function openCamSimulator(initialContour, initialGCode) {
       const loc = _locateOnContour(segs, pt);
       if (!loc) return null;
       const t = loc.key - loc.segIdx;
-      // t≈0 (začátek segmentu) i t≈1 (konec segmentu, tedy start dalšího —
-      // typický případ vrcholu kontury) nepotřebují dělení, jen posun indexu.
-      if (t < 0.02) return segs.slice(loc.segIdx);
+      // t≈0: out[0] START je pt → chainBreak (mezera vůči PŮVODNÍMU předchozímu
+      // segmentu) je vůči nám bezpředmětná, naše trasa na pt už reálně stojí.
+      if (t < 0.02) {
+        const out = segs.slice(loc.segIdx);
+        if (out.length && out[0].chainBreak) out[0] = { ...out[0], chainBreak: false };
+        return out;
+      }
+      // t≈1 (konec segmentu = start dalšího, typicky vrchol kontury): další
+      // segment může mít chainBreak PRÁVĚ vůči TOMUTO bodu — to je reálná
+      // mezera (viz _camBuildFinalTracePts), zachovat beze změny.
       if (t > 0.98) return segs.slice(loc.segIdx + 1);
-      const seg = { ...segs[loc.segIdx] };
+      // Uprostřed segmentu: zkrátit od pt dál — nový start segmentu JE pt,
+      // takže jeho chainBreak (vůči původnímu předchůdci) se zase neuplatní.
+      const seg = { ...segs[loc.segIdx], chainBreak: false };
       setSegStart(seg, { x: pt.x, z: pt.z });
       syncArcEndpoints(seg);
       return [seg, ...segs.slice(loc.segIdx + 1)];
@@ -6254,6 +6283,39 @@ export function openCamSimulator(initialContour, initialGCode) {
     _camAutoRevealCount = 0;
     _camTraceFixedPoints = null;
     _camTraceFixedSegs = null;
+  }
+
+  /**
+   * Natrvalo sloučí aktuálně odkrytý Auto/Krok náhled (_camAutoSegs) do
+   * S._tracePoints/_traceSegs — jako by ty body byly přidané ručně — a
+   * ukončí auto session. Volá se PŘED jakýmkoliv dalším ručním pokračováním
+   * (klik na snap i „Mimo body"), aby nový bod navázal na to, co je vidět
+   * (odkrytý náhled), a ne na starý konec ruční trasy před spuštěním Auto —
+   * bez tohoto by se náhled při ručním kliku tiše zahodil (_camAutoClear) a
+   * trasa by měla „přeskok"/mezeru mezi náhledem a novým bodem.
+   */
+  function _camCommitAutoPreview() {
+    if (!_camAutoSegs || _camAutoRevealCount <= 0) return;
+    const extra = _camAutoSegs.slice(0, _camAutoRevealCount);
+    if (S._tracePoints.length === 0) {
+      const st = segStartPoint(extra[0]);
+      S._tracePoints.push({ x: st.x, z: st.z, gIdx: -1 });
+    }
+    for (const s of extra) {
+      // chainBreak (skutečná mezera — viz _camBuildFinalTracePts) se i tady
+      // zapíše jako samostatný bod, ať se natrvalo neztratí.
+      if (s.chainBreak && S._tracePoints.length > 0) {
+        const st = segStartPoint(s);
+        S._tracePoints.push({ x: st.x, z: st.z, gIdx: -1 });
+        S._traceSegs.push({ type: 'G1', dist: 0, r: 0, cx: null, cz: null });
+      }
+      const e = segEndPoint(s);
+      S._tracePoints.push({ x: e.x, z: e.z, gIdx: -1 });
+      S._traceSegs.push(s.type === 'arc'
+        ? { type: s.dir === 'G2' ? 'G2' : 'G3', dist: 0, r: s.r, cx: s.cx, cz: s.cz }
+        : { type: 'G1', dist: 0, r: 0, cx: null, cz: null });
+    }
+    _camAutoClear();
   }
 
   /** Zajistí aktivní auto/krok session: pokud ještě neběží, zafixuje aktuální
@@ -6347,6 +6409,15 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     for (const s of extra) {
+      // chainBreak = mezi předchozím bodem a startem TOHOTO segmentu je
+      // reálná mezera (nedosažitelný úsek uvnitř kapsy/podřezu) — spojit je
+      // rovnou G1 by nakreslilo šikmou čáru přes prázdno místo skutečné
+      // dráhy. Vložit start segmentu jako zvláštní rychloposuvový bod (G0),
+      // teprve pak pokračovat jeho vlastní geometrií.
+      if (s.chainBreak) {
+        const st = segStartPoint(s);
+        pts.push({ id: id++, type: 'G0', x: toX(st.x), z: st.z, r: 0, mode: 'ABS' });
+      }
       const e = segEndPoint(s);
       if (s.type === 'arc') {
         pts.push({ id: id++, type: s.dir === 'G2' ? 'G2' : 'G3', x: toX(e.x), z: e.z, r: s.r, mode: 'ABS' });
@@ -6391,6 +6462,18 @@ export function openCamSimulator(initialContour, initialGCode) {
       for (const q of guidePolyPoints(g))
         allPts.push({ xAbs: prms.mode === 'DIAMON' ? q.x * 2 : q.x, zAbs: q.z, _insertIdx: gi });
     });
+    // Vrcholy VYŘEŠENÉ kontury (S._cachedCalc.contourSegments) — po hlídání
+    // geometrie destičky/držáku obsahuje i mosty přes stín (viz
+    // bridgeFromContourToStock v contourBuild.js), takže je tu i bod, kde se
+    // stín láme na skutečnou konturu materiálu. Bez tohoto by na něj ruční
+    // trasování nikdy nešlo snapnout (raw S.contourPoints ho neobsahuje —
+    // je to čistě dopočtený bod, ne bod nakreslený v CADu).
+    const resolvedSegs = (S._cachedCalc && S._cachedCalc.contourSegments) || [];
+    resolvedSegs.forEach(s => {
+      const sp = segStartPoint(s), ep = segEndPoint(s);
+      allPts.push({ xAbs: prms.mode === 'DIAMON' ? sp.x * 2 : sp.x, zAbs: sp.z });
+      allPts.push({ xAbs: prms.mode === 'DIAMON' ? ep.x * 2 : ep.x, zAbs: ep.z });
+    });
     let best = null, bestD = Infinity;
     for (const p of allPts) {
       const d = Math.hypot(p.xAbs - wx, p.zAbs - wz);
@@ -6404,8 +6487,10 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   /** Přidá další bod do trasování; pokud existuje víc možností segmentu, zobrazí volbu. */
   async function _addTracePoint(wx, wz, insertGuideIdx = -1) {
-    // Ruční klik přebíjí případný Auto náhled (jiný start / jiná volba).
-    if (_camAutoSegs) { _camAutoClear(); _updateProfileButtons(); }
+    // Ruční klik navazuje na případný Auto náhled — nejdřív se natrvalo
+    // sloučí do trasy (viz _camCommitAutoPreview), ať nový bod pokračuje od
+    // toho, co je vidět, ne od staré ruční trasy před spuštěním Auto.
+    if (_camAutoSegs) { _camCommitAutoPreview(); _updateProfileButtons(); }
     const p2 = { x: wx, z: wz, gIdx: insertGuideIdx };
     if (S._tracePoints.length === 0) {
       S._tracePoints = [p2];
@@ -6454,18 +6539,20 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Zpětná kompatibilita — staré volání; teď řídí vše _updateProfileButtons.
   function _showPreviewButtons() { _updateProfileButtons(); }
 
-  /** Zobrazí/skryje plovoucí tlačítka trasování (Zrušit/Auto/Krok/Dokončit). */
+  /** Zobrazí/skryje plovoucí tlačítka trasování (Zrušit/Auto/Krok/Dokončit) + checkbox „Mimo body". */
   function _showTraceButtons() {
     const confirmBtn = canvasWrap.querySelector('.cam-sim-trace-confirm');
     const cancelBtn = canvasWrap.querySelector('.cam-sim-trace-cancel');
     const autoBtn = canvasWrap.querySelector('.cam-sim-trace-auto');
     const stepFwdBtn = canvasWrap.querySelector('.cam-sim-trace-stepfwd');
     const stepBackBtn = canvasWrap.querySelector('.cam-sim-trace-stepback');
+    const freeClickLabel = canvasWrap.querySelector('.cam-sim-trace-freeclick');
     if (confirmBtn) confirmBtn.style.display = (S.profileTraceMode && S._tracePoints.length >= 2) ? 'block' : 'none';
     if (cancelBtn) cancelBtn.style.display = S.profileTraceMode ? 'block' : 'none';
     if (autoBtn) autoBtn.style.display = S.profileTraceMode ? 'block' : 'none';
     if (stepFwdBtn) stepFwdBtn.style.display = S.profileTraceMode ? 'block' : 'none';
     if (stepBackBtn) stepBackBtn.style.display = S.profileTraceMode ? 'block' : 'none';
+    if (freeClickLabel) freeClickLabel.style.display = S.profileTraceMode ? 'flex' : 'none';
   }
 
   /** Esc/✗: zruší poslední rozpracované body trasování, nebo vypne celý režim. */
@@ -6488,6 +6575,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   /** Vypne režim trasování profilu (volitelně zachová rozpracované body). */
   function _exitProfileTraceMode(clearTrace = true) {
     S.profileTraceMode = false;
+    S._traceCursor = null;
     _camAutoClear();
     if (clearTrace) { S._tracePoints = []; S._traceSegs = []; }
     const pbtn = toolbar.querySelector('[data-act="profile"]');
@@ -7567,7 +7655,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Zrušit/Dokončit) prohlížeč vyhodnotí i jako nativní dblclick, který
     // bubluje až sem — bez téhle výjimky by to při rychlém krokování rovnou
     // dokončilo (a tím i vypnulo) rozpracované trasování.
-    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback')) return;
+    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback, .cam-sim-trace-freeclick')) return;
     if (S.profileTraceMode) { e.preventDefault(); _finishProfileTrace(); return; }
     if (!S.pointDragEnabled || S.simRunning) return;
     e.preventDefault();
@@ -7599,6 +7687,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     e.stopPropagation();
     _camAutoStep(false);
   });
+  canvasWrap.querySelector('.cam-sim-trace-freeclick-cb').addEventListener('change', e => {
+    S._traceFreeClick = e.target.checked;
+    S._traceCursor = null;
+    draw();
+  });
+  canvasWrap.querySelector('.cam-sim-trace-freeclick').addEventListener('click', e => {
+    e.stopPropagation();
+  });
 
   canvasWrap.addEventListener('mousedown', e => {
     _mdX = e.clientX; _mdY = e.clientY; _panelPending = false;
@@ -7606,7 +7702,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // (skutečné dotykové akce jdou přes _camDispatchMouse = _camDispatching).
     if (!S._camDispatching && S._camGhostUntil && Date.now() < S._camGhostUntil) return;
     // Klik na plovoucí tlačítka trasování – neinterpretovat jako bod kontury
-    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback')) return;
+    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback, .cam-sim-trace-freeclick')) return;
     // Upichnutí – klik určí Z rovinu řezu (snap na bod/hranu má přednost).
     if (S.partOffPickMode) {
       const { wz } = _traceWorldFromClient(e.clientX, e.clientY);
@@ -7627,11 +7723,20 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     // Trasování profilu – bod se přidá JEN když klik trefí snapovatelný
     // bod (vrchol kontury/polotovaru) nebo průsečík/koncový bod pomocné
-    // čáry. Mimo snap se nic nepřidá a klik/tažení jen posune pohled (pan).
+    // čáry. Mimo snap se nic nepřidá a klik/tažení jen posune pohled (pan) —
+    // POKUD není zapnuté „Mimo body": pak se bod přidá kamkoliv na klik
+    // (s úhlovým snapem od posledního bodu, viz S._traceCursor v mousemove).
     if (S.profileTraceMode) {
       const { wx, wz, snapped, insertGuideIdx } = _traceWorldFromClient(e.clientX, e.clientY);
       if (snapped) {
         _addTracePoint(wx, wz, insertGuideIdx);
+        e.stopPropagation();
+        return;
+      }
+      if (S._traceFreeClick) {
+        const last = S._tracePoints.length ? S._tracePoints[S._tracePoints.length - 1] : null;
+        const [fx, fz] = last ? applyAngleSnap(wx, wz, { x: last.x, y: last.z }) : [wx, wz];
+        _addTracePoint(fx, fz, -1);
         e.stopPropagation();
         return;
       }
@@ -7859,6 +7964,23 @@ export function openCamSimulator(initialContour, initialGCode) {
   });
 
   canvasWrap.addEventListener('mousemove', e => {
+    // Trasování „Mimo body": sledovat kurzor pro náhledovou čáru — jen mimo
+    // tažení (panování atd. ať funguje dál beze změny). Blízko snapovatelného
+    // bodu se náhled (i budoucí klik) přichytí přesně na něj — přednost před
+    // úhlovým snapem, stejně jako mimo tento režim; SNAP indikátor (kroužek)
+    // se dál aktualizuje normálně, ať zůstává vizuální zpětná vazba.
+    if (S.profileTraceMode && S._traceFreeClick && !S.isDragging) {
+      const { wx, wz, snapped } = _traceWorldFromClient(e.clientX, e.clientY);
+      let cx = wx, cz = wz;
+      if (!snapped) {
+        const last = S._tracePoints.length ? S._tracePoints[S._tracePoints.length - 1] : null;
+        [cx, cz] = last ? applyAngleSnap(wx, wz, { x: last.x, y: last.z }) : [wx, wz];
+      }
+      S._traceCursor = { x: cx, z: cz };
+      if (S.snapEnabled) S._snap = camSnap(e.clientX, e.clientY);
+      draw();
+      return;
+    }
     // Rect selection drag
     if (S.rectSelecting && S.isDragging && S.rectStart) {
       const rect = canvas.getBoundingClientRect();
@@ -8362,7 +8484,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   };
 
   canvasWrap.addEventListener('touchstart', e => {
-    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback')) return;
+    if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback, .cam-sim-trace-freeclick')) return;
     if (e.touches.length === 1) {
       // Trasování profilu – tap přidá bod JEN při snapu na bod/průsečík;
       // mimo snap propadne na jednoprstou logiku níže (posun pohledu).
