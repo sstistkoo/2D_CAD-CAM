@@ -83,12 +83,19 @@ describe('Fáze 3 napojení: booleanRoughing ≈ scan-line (podélné)', () => {
     });
   }
 
-  it('part-1: odebraný materiál se shoduje se scan-line (± vzorkovací šum)', async () => {
-    const { scan, bool } = await runBoth('part-1');
-    const rs = remainingArea(scan.S.params, scan.calc.stockPathSegments, scan.calcSim.simPath);
-    const rb = remainingArea(bool.S.params, bool.calc.stockPathSegments, bool.calcSim.simPath);
-    // Zbytkový materiál po hrubování+dokončení se nesmí lišit o víc než pár mm²
-    // (dané vzorkováním offsetXAt po 0,2 mm) — žádný STOJÍCÍ neobrobený materiál.
-    expect(Math.abs(rb - rs)).toBeLessThan(5);
-  });
+  // Materiál-parita: po hrubování+dokončení se zbytek nesmí lišit o víc než
+  // pár mm² (dané vzorkováním offsetXAt po 0,2 mm) — žádný STOJÍCÍ neobrobený
+  // materiál. part-8 je tu ZÁMĚRNĚ: booleovská cesta u něj emituje o jeden
+  // dočišťovací `pocketClean` průchod navíc (dojede na skutečné dno kapsy
+  // x≈10,77, které scan-line nechává dokončování) — `longMetrics.xMin` ho
+  // vylučuje jako nulový (viz tam), takže reálný invariant (stejný koncový
+  // materiál) musí zamknout právě tady (Δ≈0,3 mm²).
+  for (const name of ['part-1', 'part-8']) {
+    it(`${name}: odebraný materiál se shoduje se scan-line (± vzorkovací šum)`, async () => {
+      const { scan, bool } = await runBoth(name);
+      const rs = remainingArea(scan.S.params, scan.calc.stockPathSegments, scan.calcSim.simPath);
+      const rb = remainingArea(bool.S.params, bool.calc.stockPathSegments, bool.calcSim.simPath);
+      expect(Math.abs(rb - rs)).toBeLessThan(5);
+    });
+  }
 });

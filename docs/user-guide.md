@@ -313,7 +313,7 @@ pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
   U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
   polárního úhlu — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
   stranu** ji překlopí bez nutnosti přepočítávat úhly ručně.
-- **Polární úhel** (dřív "Natočení") má vedle sebe tlačítko **✛** — otevře
+- **natočeni PU(°)** (polární úhel; dřív "Natočení") má vedle sebe tlačítko **✛** — otevře
   kompas 3×3 pro rychlou volbu po 45° (stejná komponenta jako v CAD dialogu
   🔢 Číselné zadání objektu).
 - **Držák**: zjednodušeno jen na to, co je pro hlídání geometrie potřeba —

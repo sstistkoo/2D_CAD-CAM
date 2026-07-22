@@ -365,6 +365,34 @@ Hotovo (jádro, 17. 7. 2026):
   procesu je kontaminovaný singleton stavem S mezi fixtures — měřit
   izolovaně (proces na fixture).
 
+Hotovo (podélný řez rapiduje vzduch nad drážkami odlitku — increment 1, 22. 7. 2026):
+*Řízeno REÁLNÝM dílem uživatele (`projekt_2026-07-22`) — první demonstrátor, kde
+scan/bool cesta prokazatelně řeže vzduch: nálezy „průchod začíná ve vzduchu z druhé
+strany zápichu / nedojede k polotovaru".*
+- **Kořen**: hrubovací intervaly se počítají proti OBDÉLNÍKOVÉMU obalu polotovaru
+  (rozhodnutí Fáze 3), který ignoruje siluetu odlitku → podélný průchod na hloubce
+  X **posuvem** táhne i nad drážkou/nižším místem odlitku, kde díl nesahá a odlitek
+  tam není (vzduch). Ověřeno: region-průchody part-uživatele startovaly ~40 mm ve
+  vzduchu nad zápichem.
+- **Fix** (`gcodeEmit.js`, sdílené pro scan i bool): podélný řez `zStart→zEnd` se
+  rozseká na `G0`(vzduch nad odlitkem) / `G1`(materiál) podle PŮVODNÍ siluety
+  odlitku (`castingTopXAtZ` z hoisted `stockLoop0Ref`, `castingCrossZ`). Práh je
+  **`pass.x − tipRGc`** (dosah NOSU, ne střed — nos sahá o R hlouběji, jinak by se
+  skipnul materiál grazovaný nosem: latentní +16 mm² na part-8, chyceno paritou a
+  opraveno). Clearance „bezpečný dotek" (`G1 Z zStart`) beze změny; rapid jen
+  VÝRAZNÝ vzduch ≥0,5 mm (drobné crossingy tesselovaných oblouků siluety se
+  nesekají); sousední úseky stejného typu se slévají → celý řez v materiálu =
+  původní `G1 Z zEnd` (snapshoty bez drážek beze změny).
+- **Materiál-parita 100 %** (rapiduje jen prokazatelný vzduch): part-1/8/10,
+  holder-region, pocket-wall i uživatelův díl mají zbytek IDENTICKÝ s baseline
+  (ověřeno StockModel remain-sweepem před/po). Vědomě přegenerované snapshoty 9
+  casting fixtures × 2 (scan+bool). Invarianty/kolize/material-removal beze změny.
+- **Rozsah**: řeší jen PODÉLNÝ Z-řez (`pass.type==='long'` bez ramp/pocketEntry).
+  ZBÝVÁ (další increment y z bug-reportu uživatele): rampy pocketEntry přes vzduch
+  (`N550/N570` — diagonální G1, jiná větev), „bez schodků" leadOut na regionech
+  B/C (= krok 3C, leadOut po hraně komponenty), plné zanoření zápichu, pořadí
+  operací (dodělat čelo → pak zanoření).
+
 Hotovo (přejezdy nájezdu, 21. 7. 2026):
 - **Konec marného/nebezpečného descend-backu v nájezdu**: dvoufázový nájezd
   podélného hrubování (`safeRapidTo(cur.x, zApprox)` = přejezd v Z, pak

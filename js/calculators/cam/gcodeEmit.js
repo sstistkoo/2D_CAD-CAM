@@ -415,9 +415,11 @@ export function generateAutoGCode(S, calc) {
   let rapidFoot = null;
   let rapidFootSlim = null;
   let rapidStockCuts = 0;
+  let stockLoop0Ref = null;   // původní (neobrobená) silueta odlitku — referenční „kde je materiál"
   try {
     const stockLoop0 = buildStockLoop(prms, calc.stockPathSegments);
     if (stockLoop0) {
+      stockLoop0Ref = stockLoop0;
       rapidStock = new StockModel([stockLoop0]);
       rapidFoot = toolFootprint(prms);
       rapidFootSlim = polyOffset([rapidFoot], -0.05)[0] || rapidFoot;
@@ -452,6 +454,39 @@ export function generateAutoGCode(S, calc) {
       }
     }
     return top;
+  };
+  // Povrch (max X) PŮVODNÍ siluety odlitku na axiální z — reference „kde odlitek
+  // vůbec je". Na rozdíl od residualTopXAtZ (dynamický zbytek) se nemění řezáním,
+  // takže označuje jen TRVALÝ vzduch nad odlitkem (drážky, nižší místa siluety),
+  // ne už obrobené oblasti. Slouží k rozsekání podélného řezu na rapid(vzduch)/
+  // posuv(materiál): nad drážkou odlitku, kam díl nesahá, nemá co řezat.
+  const castingTopXAtZ = (z) => {
+    if (!stockLoop0Ref) return null;
+    let top = null;
+    const n = stockLoop0Ref.length;
+    for (let i = 0; i < n; i++) {
+      const a = stockLoop0Ref[i], b = stockLoop0Ref[(i + 1) % n];
+      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+        if (top === null || x > top) top = x;
+      }
+    }
+    return top;
+  };
+  // Z-souřadnice, kde silueta odlitku protíná hloubku x (hrany, kde povrch
+  // odlitku přechází přes x = přechody vzduch↔materiál na této hloubce), v [zLo,zHi].
+  const castingCrossZ = (x, zLo, zHi) => {
+    if (!stockLoop0Ref) return [];
+    const zs = new Set();
+    const n = stockLoop0Ref.length;
+    for (let i = 0; i < n; i++) {
+      const a = stockLoop0Ref[i], b = stockLoop0Ref[(i + 1) % n];
+      if ((a.x <= x && b.x > x) || (b.x <= x && a.x > x)) {
+        const z = a.z + (b.z - a.z) * ((x - a.x) / (b.x - a.x));
+        if (z > zLo + 1e-4 && z < zHi - 1e-4) zs.add(+z.toFixed(4));
+      }
+    }
+    return [...zs];
   };
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;
@@ -730,20 +765,54 @@ export function generateAutoGCode(S, calc) {
         emitB(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`); setPos(cur.x + rDist, zRetractVal);
       }
     } else if (pass.type === 'long') {
-      // Standardní podélné hrubování (vpravo → vlevo):
-      //   G0 Z<zApproach>            ; rapid za polotovar (clearance)
-      //   G0 X<hloubka>              ; rapid k průměru
-      //   G1 Z<pass.zStart>          ; sjezd přes clearance na hranu polotovaru
-      //                                už pracovním posuvem (bezpečný dotek)
-      //   G1 Z<zEnd> F<f>            ; podélný řez −Z přes celou špónu
-      //   G1 X<hloubka+odskok> Z<zEnd+odskok>  ; retract pod 45°
-      const zApproachVal = clipZGc(pass.zStart + rapidStopZ);
-      // Přejezd v Z na nájezdový bod s kontrolou kolize (po zanoření do
-      // kapsy může nástroj stát hluboko — přímý přejezd by řízl stěnu).
+      // Standardní podélné hrubování (vpravo → vlevo). Přijezd (sjezd v X) jde na
+      // ZAČÁTEK POLOTOVARU — na Z, kde silueta odlitku reálně dosáhne hloubky
+      // pass.x — NE na pass.zStart, který může ležet uprostřed drážky (intervaly
+      // z obdélníkového obalu ignorují siluetu odlitku). Nad drážkou by se jinak
+      // sjíždělo do vzduchu a teprve pak najíždělo k materiálu.
+      //   G0 Z<hrana polotovaru + clearance>  ; rapid v Z nad ZAČÁTEK polotovaru
+      //   G0 X<hloubka>                         ; sjezd k průměru U POLOTOVARU
+      //   G1 Z<hrana> ; ... ; G1 Z<zEnd>        ; bezpečný dotek + řez (segmentovaný)
+      //   G1 X<hloubka+odskok> Z<zEnd+odskok>   ; retract pod 45°
+      // Řez zStart→zEnd navíc rozseká vnitřní drážky odlitku na rapid(vzduch)/
+      // posuv(materiál). Bez drážek (řez celý v materiálu) = PŘESNĚ původní
+      // `G1 Z zStart` + `G1 Z zEnd` → snapshoty bez drážek beze změny.
+      const dir = pass.zEnd < pass.zStart ? -1 : 1;
+      const zLo = Math.min(pass.zStart, pass.zEnd), zHi = Math.max(pass.zStart, pass.zEnd);
+      // Práh = dosah STOPY nástroje, ne střed: nos (rádius tipRGc) sahá o R
+      // hlouběji, takže řeže i když je střed pass.x kousek nad povrchem odlitku.
+      const xReach = pass.x - tipRGc;
+      const cross = castingCrossZ(xReach, zLo, zHi).filter(z => z > zLo + 1e-6 && z < zHi - 1e-6);
+      let pts = [pass.zStart, ...cross, pass.zEnd].sort((p, q) => dir * (p - q));
+      pts = pts.filter((z, i) => i === 0 || Math.abs(z - pts[i - 1]) > 1e-3);
+      // Rapid jen VÝRAZNÝ vzduch ≥0,5 mm (drobné crossingy z tesselovaných oblouků
+      // siluety neřež), sousední stejného typu slij → čistý výstup.
+      const segs = [];
+      for (let i = 1; i < pts.length; i++) {
+        const ct = castingTopXAtZ((pts[i - 1] + pts[i]) / 2);
+        const air = !(ct !== null && xReach <= ct + 1e-4) && Math.abs(pts[i] - pts[i - 1]) >= 0.5;
+        const kind = air ? 'G0' : 'G1';
+        if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].z = pts[i];
+        else segs.push({ kind, z: pts[i] });
+      }
+      // Vedoucí vzduch (segs[0]=='G0') se NEřeže ani nepřejíždí uprostřed drážky —
+      // přijede se rovnou na jeho konec = HRANA POLOTOVARU. Bez vedoucího vzduchu
+      // je hrana = pass.zStart (původní chování, snapshoty beze změny).
+      const leadAir = segs.length > 0 && segs[0].kind === 'G0';
+      const firstCutZ = leadAir ? segs[0].z : pass.zStart;
+      const emitSegs = leadAir ? segs.slice(1) : segs;
+      const zApproachVal = clipZGc(firstCutZ + rapidStopZ);
+      // Přejezd v Z nad začátek polotovaru + sjezd v X (s kontrolou kolize —
+      // po zanoření do kapsy může nástroj stát hluboko, přímý přejezd by řízl stěnu).
       safeRapidTo(cur.x, zApproachVal);
       safeRapidTo(pass.x, zApproachVal);
-      simCounter += 1; addN(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zStart);
-      simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+      // Bezpečný dotek: sjezd přes clearance na hranu polotovaru pracovním posuvem.
+      simCounter += 1; addN(`G1 Z${firstCutZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, firstCutZ);
+      for (const s of emitSegs) {
+        simCounter += 1;
+        addN(s.kind === 'G0' ? `G0 Z${s.z.toFixed(3)}` : `G1 Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
+        setPos(pass.x, s.z);
+      }
       // Fáze 4: výjezd z materiálu do vzduchu — posuvem ještě o Vůli Z
       // za konec řezu, teprve pak odskok/rychloposuv. Jen u otevřeného
       // konce, za kterým skutečně NENÍ materiál (hrana polotovaru; stěnu

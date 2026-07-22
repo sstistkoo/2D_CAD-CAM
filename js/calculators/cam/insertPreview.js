@@ -589,7 +589,7 @@ export function chamferProfileCorner(sidePts, cornerPt, dist, angleDeg = 45) {
 // Pole polárního úhlu s tlačítkem ✛ pro rychlou volbu po 45° (stejný vzor
 // jako 🔢 Číselné zadání objektu v CAD — viz wireAngleCompass()).
 export function _polarAngleFieldHTML(dataP, value, titleAttr) {
-  return `<div class="cam-sim-field"><label${titleAttr ? ` title="${titleAttr}"` : ''}>Polární úhel (°)</label>
+  return `<div class="cam-sim-field"><label title="${titleAttr || 'Natočení plátku (polární úhel) vůči ose Z; 0° = vodorovně. Tlačítkem ✛ lze rychle zvolit násobky 45°.'}">natočeni PU(°)</label>
     <div style="display:flex;gap:2px">
       <input type="number" data-p="${dataP}" value="${value}" style="flex:1;min-width:0">
       <button type="button" class="compass-trigger-btn" data-compass-for="${dataP}" title="Rychlá volba úhlu" style="font-size:13px;padding:2px 5px;flex-shrink:0">✛</button>
@@ -661,21 +661,21 @@ export function wireAllAngleCompasses(container) {
 
 export function _renderInsertShapeFieldsHTML(prms) {
   let html = `${(prms.toolShape === 'threading' || prms.toolShape === 'polygon') ? '' : `<div class="cam-sim-row">
-    <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
+    <div class="cam-sim-field"><label title="Rádius zaoblení špičky plátku (mm). U kulatého plátku určuje celý poloměr destičky.">Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
   </div>`}
   <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
   <div class="cam-sim-tool-shape-row">
-    <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}">⬤</button>
-    <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}">◼</button>
+    <button data-tshape="round" class="${prms.toolShape === 'round' ? 'cam-sim-active' : ''}" title="Kulatý plátek (RCMT/RCGT) — celá kruhová břitová destička definovaná pouze rádiusem (R)">⬤</button>
+    <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}" title="Polygonální plátek (kosočtverec/trojúhelník/kosodélník…) — definovaný délkou hrany, polárním úhlem, vrcholovým úhlem (ε) a rádiusem špičky">◼</button>
     <button data-tshape="parting" class="${prms.toolShape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
     <button data-tshape="threading" class="${prms.toolShape === 'threading' ? 'cam-sim-active' : ''}" title="Závitový plátek (profil V dle úhlu závitu)">▽</button>
   </div>`;
   if (prms.toolShape === 'polygon') {
     html += `<div class="cam-sim-row">
-      <div class="cam-sim-field"><label>Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
+      <div class="cam-sim-field"><label title="Délka jedné hrany plátku (mm) — velikost polygonální destičky">Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
       ${_polarAngleFieldHTML('toolAngle', prms.toolAngle)}
-      <div class="cam-sim-field"><label>Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
-      <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
+      <div class="cam-sim-field"><label title="Vrcholový úhel špičky (ε) mezi hranami plátku — např. 80° (C), 55° (D), 35° (V), 60° (trojúhelník)">Vrch. úhel (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
+      <div class="cam-sim-field"><label title="Rádius zaoblení špičky plátku (mm)">Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
     </div>
     <div class="cam-sim-row">
       <button data-act="toggle-tip-mirror" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vrcholový úhel (ε) jde od Natočení otevřít na dvě strany — pokud náhled ukáže destičku obráceně, přehoďte ji tímto tlačítkem místo přepočítávání úhlů">⇄ Přehodit stranu</button>
