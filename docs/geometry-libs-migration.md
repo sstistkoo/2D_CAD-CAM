@@ -402,16 +402,39 @@ Ověřeno jako už POKRYTÉ (hlavní podélná cesta) — samostatná změna net
 - **Odskok mezi záběry** (`retractDistance`/`retractAngle`) + rychloposuv
   vzduchem k dalšímu záběru (`safeRapidTo`, dynamický zbytek).
 
+Hotovo (výjezd skrz odlitek posuvem — exit-split, 22. 7. 2026):
+- **Retract NAHORU z hluboké polohy skrz odlitek** (part-10 ~16 mm²): svislý
+  zdvih „Výjezd nad konturu" (`safeRapidTo` v gcodeEmit.js) se teď testuje proti
+  `rapidStock` (STEJNÝ práh `rapidHitsStock` 0,5 mm² jako `descendTo`). Když
+  zdvih reálně naráží na stojící kůru, DĚLÍ se — část skrz materiál až nad
+  povrch zbytku (+ vůle `rapidStopX`, `residualTopXAtZ`) jede POSUVEM
+  (`G1 … ; Výjezd materiálem posuvem`), zbytek vzduchem rychloposuvem. Přesné
+  zrcadlo `descendTo` (opačný směr). Endpoint (xUp) i navazující přejezd v Z
+  beze změny — mění se jen JAK se k xUp dojede (posuv místo rapidu skrz materiál),
+  **žádná změna řezné geometrie** (diff = jen `G0 X…` → `G1 X… posuvem` [+ `G0`]).
+- **Politika „safe-but-slow", ne reorder**: je to bezpečné projetí kůry posuvem,
+  ne přeplánování pořadí. Odlitkové order-dependent podélné retrakty (part-10,
+  holder-*, part-1/4/6/8/9, pocket-wall — všechny měly latentní rychloposuv skrz
+  stojící materiál, ne jen part-10; baseline seamu je podhodnocoval) se opravují
+  konzistentně. **Čelní PŘEJEZDY se VYNECHÁVAJÍ** (`feedThroughStock=false` u
+  `safeRapidTo(pass.xStart, …)`): tam je dotyk sousedního neobrobeného Z
+  INHERENTNÍ šířkou nosu (face-casting 267 mm²/37 přejezdů), ne order-dependent
+  kolize → zůstává rychloposuvem (jinak by se jen nafoukl čas). Face-casting
+  roughing se tím NEMĚNÍ (jen 1 dokončovací retrakt skrz tělo odlitku).
+- Semantická pojistka: `tests/cam-traversal-invariants.test.js` (2. smyčka) —
+  model-free hlídá, že exit-split jede vždy monotónně VEN (feed roste v X, návazný
+  rapid pokračuje ven), nikdy „feed ven → rapid zpět dovnitř".
+- Vědomě přegenerované snapshoty (izolovaně per soubor — singleton `S`
+  kontaminuje): `cam-gcode-regression` (scan-line, ~27 konverzí) i
+  `cam-boolean-gcode-regression` (~12). Ověřeno normalizací N-čísel: jediný nový
+  typ řádku je `Výjezd materiálem posuvem`, vše ostatní jen přečíslování.
+
 Zbývá (genuinní mezera — order-dependent odlitek):
-- **Retract NAHORU z hluboké polohy skrz odlitek** (part-10 ~13 mm² na
-  „Výjezd nad konturu"): po dokončení hlubokého průchodu/zápichu se nástroj
-  zvedá rychloposuvem v X rovnou nahoru přes zatím neobrobený odlitek nad ním
-  (materiál v kůře nad zápichem). Sjezd NA hloubku už řeší `descendTo` výše —
-  tohle je opačný směr (výjezd), kde svislý zdvih v X je jediná bezpečná cesta
-  jen tehdy, když je nad nástrojem vzduch; jinak by se mělo couvnout po
-  nájezdové dráze ven. Patří k odloženému dynamickému plánování pořadí
-  (rozdělení rapid↔posuv i VÝJEZDU proti AKTUÁLNÍMU `StockModel`, příp. retract
-  po vstupní trase).
+- **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd
+  vedl vzduchem, ne posuvem skrz materiál): exit-split výše je jen bezpečný, ne
+  optimální. Patří k odloženému dynamickému plánování pořadí (klasifikace bodů
+  přejezdu proti AKTUÁLNÍMU `StockModel`, retract po vstupní trase). Couvnutí po
+  trase u kolmého zápichu nepomůže (reverz = tentýž blokovaný svislý zdvih).
 
 Implementace (odloženo): každý bod přejezdu klasifikovat proti **aktuálnímu**
 `StockModel` (`pointInLoop` / průnik úseku se zbytkem) — „vzduch“ je vše mimo

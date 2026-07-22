@@ -521,7 +521,12 @@ export function generateAutoGCode(S, calc) {
   // mezi nedosažitelnými „ostrovy": rychloposuv podél čela je sice offsetově
   // 0,8 mm nad plochou (segmentHitsPath ho nevidí jako kolizi), ale vede
   // šikmo přes hlídanou zónu — dráha tam nesmí (jen kontura↔polotovar).
-  const safeRapidTo = (tx, tz, touch = false, forceUp = false) => {
+  // feedThroughStock: povolit exit-split (výjezd skrz stojící zbytek POSUVEM).
+  // Default true pro order-dependent podélné retrakty (výjezd z hluboké kapsy/
+  // zápichu skrz odlitkovou kůru). Čelní PŘEJEZDY ho vypínají (false) — tam je
+  // dotyk se sousedním neobrobeným Z INHERENTNÍ šířkou nosu, ne order-dependent
+  // kolize, a konverze na posuv by jen nafoukla čas (viz Fáze 4, face-casting).
+  const safeRapidTo = (tx, tz, touch = false, forceUp = false, feedThroughStock = true) => {
     const sameX = Math.abs(tx - cur.x) < 1e-6;
     const sameZ = Math.abs(tz - cur.z) < 1e-6;
     if (sameX && sameZ) { setPos(tx, tz); return; }
@@ -572,7 +577,30 @@ export function generateAutoGCode(S, calc) {
           if (a > 0.3) globalThis.__RAPID_LIFT_LOG__.push({ fromX: +cur.x.toFixed(2), toX: +xUp.toFixed(2), z: +cur.z.toFixed(2), area: +a.toFixed(1) });
         } catch { /* seam je jen pro měření — chybu spolknout */ }
       }
-      if (xUp > cur.x + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
+      // Fáze 4 — exit-split (zrcadlo `descendTo`): svislý zdvih „Výjezd nad
+      // konturu" (radiálně ven) předpokládá nad nástrojem vzduch, ale u odlitku
+      // může vést stojící kůrou nad zápichem (order-dependent — materiál nad
+      // nástrojem se ještě neobrobil; viz seam výše). Když zdvih reálně naráží na
+      // zbytek (STEJNÝ práh `rapidHitsStock` jako descendTo → skin-grazing pod
+      // prahem se nechytá, cylindry/part-1..9 bez konfliktu beze změny), vyjeď
+      // POSUVEM až nad povrch zbytku (+ vůle), teprve pak zbytek rychloposuvem
+      // vzduchem. Endpoint (xUp) i následný přejezd v Z beze změny — mění se jen
+      // JAK se k xUp dojede (posuv místo rapidu skrz materiál).
+      if (xUp > cur.x + 1e-6) {
+        const surf = feedThroughStock && rapidStock && rapidHitsStock(cur.x, cur.z, xUp, cur.z)
+          ? residualTopXAtZ(cur.z) : null;
+        if (surf !== null && surf > cur.x + 1e-6) {
+          const feedTop = Math.min(xUp, surf + rapidStopX);
+          emit(`G1 X${xDia(feedTop)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+          if (xUp > feedTop + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
+        } else if (surf !== null) {
+          // Zbytek zdvih protíná, ale povrch na tomto Z je neznámý/pod nástrojem
+          // → celý zdvih konzervativně posuvem (feed vzduchem je jen pomalý).
+          emit(`G1 X${xDia(xUp)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+        } else {
+          emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
+        }
+      }
       if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
       // Fáze 4: čistě-Z přejezd, který se musel kvůli materiálu zvednout, se
       // NESMÍ sjet zpět na původní X — to X je přes tento Z právě to nebezpečné
@@ -752,8 +780,10 @@ export function generateAutoGCode(S, calc) {
       //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
       //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
       // Přejezdy s kontrolou kolize: nejdřív v X za polotovar, pak v Z.
-      safeRapidTo(pass.xStart, cur.z);
-      safeRapidTo(pass.xStart, pass.z);
+      // feedThroughStock=false: čelní graze sousedního Z je inherentní (šířka
+      // nosu), ne order-dependent — zůstává rychloposuvem (viz safeRapidTo).
+      safeRapidTo(pass.xStart, cur.z, false, false, false);
+      safeRapidTo(pass.xStart, pass.z, false, false, false);
       simCounter += 1; addN(`G1 X${xDia(pass.xSurface)} F${prms.feed}`, simCounter); setPos(pass.xSurface, pass.z);
       simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z);
       if (pass.contourLeadOut) {

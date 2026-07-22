@@ -25,8 +25,15 @@ const hardErrors = (calc) => (calc.foundErrors || []).filter(e =>
 
 const longMetrics = (calc) => {
   const longs = (calc.passes || []).filter(p => p.type === 'long');
+  // Obálku (xMin/zHi/zLo) měř JEN přes ŘEZNÉ průchody (zStart−zEnd > 1e-3).
+  // Nulové kotevní `pocketEntry`/`pocketClean` průchody (zStart==zEnd) nesou
+  // x=pocketBottomX (dno kapsy) → zkreslily by xMin. Booleovská větev jich
+  // u part-8 emituje o jeden víc (dočišťuje hlubší dno, ale materiál-parita
+  // drží — viz test níže) → bez filtru flaky dle kontaminace singletonu S.
+  // Count zůstává přes VŠECHNY podélné průchody.
+  const cutting = longs.filter(p => Math.abs(p.zStart - p.zEnd) > 1e-3);
   let zHi = -1e9, zLo = 1e9, xMin = 1e9;
-  for (const p of longs) { zHi = Math.max(zHi, p.zStart); zLo = Math.min(zLo, p.zEnd); xMin = Math.min(xMin, p.x); }
+  for (const p of cutting) { zHi = Math.max(zHi, p.zStart); zLo = Math.min(zLo, p.zEnd); xMin = Math.min(xMin, p.x); }
   return { count: longs.length, zHi, zLo, xMin };
 };
 

@@ -104,4 +104,37 @@ describe('CAM Fáze 4 – invarianty přejezdů', () => {
       expect(dips, `marné rychloposuvové dipy: ${JSON.stringify(dips)}`).toEqual([]);
     });
   }
+
+  // Fáze 4 exit-split (viz docs/geometry-libs-migration.md): výjezd z hluboké
+  // polohy skrz stojící odlitkovou kůru se dělí na POSUV skrz materiál
+  // (`Výjezd materiálem posuvem`) + rychloposuv vzduchem (`Výjezd nad konturu`).
+  // Invariant: split jede vždy VEN (rostoucí X) — feed vyjede k povrchu, rapid
+  // pokračuje dál nad polotovar; nikdy „feed ven, pak rapid zpět dovnitř"
+  // (to by znamenalo rychloposuv zase do materiálu). Model-free nad emisí.
+  for (const file of fixtures) {
+    it(`${file} → exit-split výjezd je monotónně ven`, async () => {
+      const prog = JSON.parse(readFileSync(join(fixturesDir, file), 'utf8'));
+      const { gcode } = await runCamProg(prog);
+      const lines = gcode.split('\n');
+      const bad = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (!/Výjezd materiálem posuvem/.test(lines[i])) continue;
+        const feed = parseMove(lines[i]);
+        // Předchozí pohyb (poloha, ze které feed vyjíždí).
+        let prev = null;
+        for (let j = i - 1; j >= 0 && !prev; j--) prev = parseMove(lines[j]);
+        // Feed musí jít ven (X roste), jinak by se posouvalo do materiálu.
+        if (feed?.x !== null && prev?.x !== null && feed.x < prev.x - 1e-6) {
+          bad.push({ line: lines[i].trim(), prevX: prev.x, feedX: feed.x, why: 'feed dovnitř' });
+        }
+        // Navazující rychloposuv (je-li) musí pokračovat ven, ne zpět dovnitř.
+        let next = null;
+        for (let j = i + 1; j < lines.length && !next; j++) next = parseMove(lines[j]);
+        if (next?.g === 'rapid' && next.x !== null && feed?.x !== null && next.x < feed.x - 1e-6) {
+          bad.push({ line: lines[i].trim(), feedX: feed.x, nextRapidX: next.x, why: 'rapid zpět dovnitř' });
+        }
+      }
+      expect(bad, `nemonotónní exit-split: ${JSON.stringify(bad)}`).toEqual([]);
+    });
+  }
 });
