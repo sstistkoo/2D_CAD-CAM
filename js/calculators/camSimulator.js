@@ -846,6 +846,92 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (f) f();
   }
 
+  // Vzorkuje obrys polotovaru (odlitku) na světové body v pořadí — čáry
+  // rozdělené na kroky (pro přesné hledání průniku s konturou materiálu),
+  // oblouky po arcSteps() jako jinde. Nekonečné/NaN body (degenerované
+  // segmenty bez p1/p2 nebo s neplatným poloměrem) se přeskočí, jinak by
+  // canvas vykreslil čáru "od nikud nikam".
+  function _sampleStockOutlineWorld(stockPathSegments) {
+    const pts = [];
+    const push = (x, z) => { if (Number.isFinite(x) && Number.isFinite(z)) pts.push({ x, z }); };
+    stockPathSegments.forEach(seg => {
+      if (seg.isDegenerate) return;
+      if (seg.type === 'line') {
+        if (!seg.p1 || !seg.p2) return;
+        const N = 24;
+        for (let j = 0; j <= N; j++) {
+          const t = j / N;
+          push(seg.p1.x + (seg.p2.x - seg.p1.x) * t, seg.p1.z + (seg.p2.z - seg.p1.z) * t);
+        }
+      } else if (seg.type === 'arc') {
+        if (!Number.isFinite(seg.r) || seg.r <= 0) return;
+        const steps = arcSteps(seg.r, S.view.scale);
+        let sA = seg.startAngle, eA = seg.endAngle;
+        if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+        if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+        for (let j = 0; j <= steps; j++) {
+          const a = sA + (eA - sA) * (j / steps);
+          push(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+        }
+      }
+    });
+    return pts;
+  }
+
+  // Největší X (vnější povrch) libovolného segmentového obrysu (line/arc) na
+  // zadaném Z — stejná logika jako stockOuterXAtZ(), ale bez vazby na
+  // prms.stockMode, aby šla použít i nad konturou materiálu.
+  function _outlineMaxXAtZ(segs, z) {
+    let maxX = null;
+    for (const seg of segs) {
+      if (seg.isDegenerate) continue;
+      if (seg.type === 'line') {
+        if (!seg.p1 || !seg.p2) continue;
+        const x = intersectVerticalLineSegment(z, seg.p1, seg.p2);
+        if (x !== null && (maxX === null || x > maxX)) maxX = x;
+      } else if (seg.type === 'arc') {
+        if (!Number.isFinite(seg.r) || seg.r <= 0) continue;
+        for (const x of intersectVerticalLineArc(z, { x: seg.cx, z: seg.cz }, seg.r)) {
+          const angle = Math.atan2(x - seg.cx, z - seg.cz);
+          if (isAngleBetween(angle, seg.startAngle, seg.endAngle, seg.dir === 'G2')
+            && (maxX === null || x > maxX)) maxX = x;
+        }
+      }
+    }
+    return maxX;
+  }
+
+  // Ořízne body obrysu polotovaru na úseky ležící MIMO konturu materiálu
+  // (stock musí obalovat hotový díl — pokud na nějakém Z kontura vyčnívá
+  // před polotovar, jde o nekonzistenci ve vykreslení a čára polotovaru se
+  // tam zkrátí přesně na průsečík s konturou, místo aby do ní zasahovala).
+  function _clipOutlineOutsideContour(pts, contourSegs) {
+    if (!pts.length || !contourSegs || contourSegs.length === 0) return [pts];
+    const eps = 0.01;
+    const diffs = pts.map(p => {
+      const cx = _outlineMaxXAtZ(contourSegs, p.z);
+      // Velké KONEČNÉ číslo místo Infinity — Infinity-Infinity při interpolaci
+      // hranice dávalo NaN a canvas pak kreslil "čáru odnikud nikam" (bod 0,0).
+      return cx === null ? 1e7 : p.x - cx;
+    });
+    const runs = [];
+    let cur = [];
+    for (let i = 0; i < pts.length; i++) {
+      const outside = diffs[i] > -eps;
+      if (i > 0 && ((diffs[i - 1] > -eps) !== outside)) {
+        const d0 = diffs[i - 1], d1 = diffs[i];
+        const t = d0 / (d0 - d1);
+        const bx = pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t;
+        const bz = pts[i - 1].z + (pts[i].z - pts[i - 1].z) * t;
+        if (outside) { cur = [{ x: bx, z: bz }]; }
+        else { cur.push({ x: bx, z: bz }); runs.push(cur); cur = []; }
+      }
+      if (outside) cur.push(pts[i]);
+    }
+    if (cur.length > 1) runs.push(cur);
+    return runs;
+  }
+
   // ── CANVAS DRAWING ────────────────────────────────────────────
   function draw() {
     const calc = S._cachedCalc;
@@ -1020,26 +1106,42 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (prms.machineStructure === 'carousel') ctx.fillText(stockDiaLabel, labelPt.x + 4, labelPt.y - 4);
       else ctx.fillText(stockDiaLabel, labelPt.x + 4, labelPt.y - 4);
     } else if (calc.stockPathSegments.length > 0) {
+      // Ořez čáry polotovaru o konturu materiálu se dělá JEN během
+      // trasování profilu (S.profileTraceMode / náhled) — v běžném pohledu
+      // ihned po načtení projektu musí být vidět CELÝ polotovar beze změny,
+      // protože ještě není známo, kudy povede trasa.
+      const _clipStockToContour = !!S._traceConfirmedOnce;
       ctx.beginPath();
-      calc.stockPathSegments.forEach((seg, i) => {
-        if (seg.type === 'line') {
-          const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
-          if (i === 0) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-        } else if (seg.type === 'arc') {
-          const steps = arcSteps(seg.r, S.view.scale);
-          let sA = seg.startAngle, eA = seg.endAngle;
-          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-          for (let j = 0; j <= steps; j++) {
-            const a = sA + (eA - sA) * (j / steps);
-            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
-            if (j === 0 && i === 0) ctx.moveTo(pt.x, pt.y);
-            else if (j === 0) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
+      if (_clipStockToContour) {
+        const _pts = _sampleStockOutlineWorld(calc.stockPathSegments);
+        const _runs = _clipOutlineOutsideContour(_pts, calc.contourSegments);
+        _runs.forEach(run => {
+          run.forEach((p, j) => {
+            const sp = toScreen(p.x, p.z);
+            if (j === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
+          });
+        });
+      } else {
+        calc.stockPathSegments.forEach((seg, i) => {
+          if (seg.type === 'line') {
+            const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
+            if (i === 0) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+          } else if (seg.type === 'arc') {
+            const steps = arcSteps(seg.r, S.view.scale);
+            let sA = seg.startAngle, eA = seg.endAngle;
+            if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+            if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+            for (let j = 0; j <= steps; j++) {
+              const a = sA + (eA - sA) * (j / steps);
+              const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+              if (j === 0 && i === 0) ctx.moveTo(pt.x, pt.y);
+              else if (j === 0) ctx.moveTo(pt.x, pt.y);
+              else ctx.lineTo(pt.x, pt.y);
+            }
           }
-        }
-      });
+        });
+      }
       ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
       // Odlitek: při aktivním úběru vyplnit zbývající materiál (válec má
       // výplň výš — tady se jinak kreslí jen obrys).
@@ -6355,6 +6457,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!_camEnsureAutoSession()) { showToast('Žádná kontura k profilování'); return; }
     _camAutoRevealCount = _camAutoSegs.length;
     _updateProfileButtons();
+    _showTraceButtons();
     draw();
     showToast('Auto profil (náhled) – uprav ◀ Ubrat/Přidat ▶ nebo potvrď ✅ / ✓ Dokončit');
   }
@@ -6371,12 +6474,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (_camAutoRevealCount >= _camAutoSegs.length) { showToast('Konec kontury'); return; }
       _camAutoRevealCount++;
       _updateProfileButtons();
+      _showTraceButtons();
       draw();
       return;
     }
     if (_camAutoSegs && _camAutoRevealCount > 0) {
       _camAutoRevealCount--;
       _updateProfileButtons();
+      _showTraceButtons();
       draw();
       return;
     }
@@ -6564,7 +6669,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     const stepFwdBtn = canvasWrap.querySelector('.cam-sim-trace-stepfwd');
     const stepBackBtn = canvasWrap.querySelector('.cam-sim-trace-stepback');
     const optionsRow = canvasWrap.querySelector('.cam-sim-trace-options');
-    if (confirmBtn) confirmBtn.style.display = (S.profileTraceMode && S._tracePoints.length >= 2) ? 'block' : 'none';
+    // Dokončit je dostupné i u čistě Auto/Krok náhledu bez jediného ručního
+    // bodu (S._tracePoints může mít < 2 body, dokud se náhled nesloučí —
+    // viz _camCommitAutoPreview) — jinak by tlačítko dole nikdy nešlo
+    // stisknout a jediná cesta k potvrzení by byla ✅ nahoře v toolbaru.
+    const hasAutoPreview = !!(_camAutoSegs && _camAutoRevealCount > 0);
+    if (confirmBtn) confirmBtn.style.display = (S.profileTraceMode && (S._tracePoints.length >= 2 || hasAutoPreview)) ? 'block' : 'none';
     if (cancelBtn) cancelBtn.style.display = S.profileTraceMode ? 'block' : 'none';
     if (autoBtn) autoBtn.style.display = S.profileTraceMode ? 'block' : 'none';
     if (stepFwdBtn) stepFwdBtn.style.display = S.profileTraceMode ? 'block' : 'none';
@@ -6622,6 +6732,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Záloha PŮVODNÍ (před-profilové) kontury — drž tu nejstarší.
     if (!S._profileOriginal) S._profileOriginal = S._refContour || S.contourPoints;
     S.contourPoints = S._previewContour;
+    // Teprve TEĎ (po potvrzení trasy) je jasné, kudy trasa vede — čáru
+    // polotovaru zasahující do (nově) potvrzené kontury lze ořezat.
+    // Před potvrzením se neořezává nic (nevíme, kam uživatel trasu povede).
+    S._traceConfirmedOnce = true;
     S._previewContour = null;
     S._refContour = null;
     _updateProfileButtons();
@@ -6646,6 +6760,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     pushHistory();
     S.contourPoints = S._profileOriginal;
     S._profileOriginal = null;
+    // Potvrzená trasa je zrušená — polotovar se zase kreslí celý, dokud se
+    // neprofiluje/potvrdí znovu (viz _applyPreviewContour).
+    S._traceConfirmedOnce = false;
     _updateProfileButtons();
     S._cachedCalc = calculate();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
