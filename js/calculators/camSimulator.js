@@ -105,11 +105,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-trace-options">
         <label class="cam-sim-trace-freeclick" title="Když je zapnuto, klik na plátně přidá bod trasy KDEKOLIV (ne jen na bod kontury/polotovaru) — s úhlovým snapem jako v CAD.">
           <input type="checkbox" class="cam-sim-trace-freeclick-cb" />
-          Mimo body
+          Mimo SNAP
         </label>
-        <label class="cam-sim-trace-stock" title="Spojovací úsek přes stín geometrie destičky (kudy se nejede řezem, jen přejíždí) se do potvrzené kontury zapíše jako viditelná čára (G1) místo neviditelného přejezdu (G0). Zapni jen když víš, že tudy nepovedou dráhy (např. strana držáku) — jinak riziko falešného řezu při přímém odeslání G-kódu z trasy.">
+        <label class="cam-sim-trace-stock" title="Spojovací úsek přes stín geometrie destičky (kudy se nejede řezem, jen přejíždí) se do potvrzené kontury zapíše jako viditelná čára (G1) místo neviditelného přejezdu (G0) — celá trasa tak vyjde jako jedna souvislá čára. Zapni jen když víš, že tudy nepovedou dráhy (např. strana držáku) — jinak riziko falešného řezu při přímém odeslání G-kódu z trasy.">
           <input type="checkbox" class="cam-sim-trace-stock-cb" />
-          Přes polotovar
+          Souvislá trasa
         </label>
       </div>
       <div class="cam-sim-trace-bar">
@@ -340,6 +340,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Záloha původní (před-profilové) kontury — drží se i po použití profilu,
     // aby šel profil smazat (❌) a vrátit původní konturu. null = profil není.
     _profileOriginal: null,
+    // true od chvíle, kdy byla poprvé potvrzena trasa profilu (✓ Dokončit /
+    // ✅ Potvrdit) — teprve pak se čára polotovaru smí ořezávat o konturu.
+    _traceConfirmedOnce: false,
     activeTab: 'editor', simSpeed: 1,
     singleBlock: false, simBlockTarget: null,
     _animId: null, _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
@@ -1106,10 +1109,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (prms.machineStructure === 'carousel') ctx.fillText(stockDiaLabel, labelPt.x + 4, labelPt.y - 4);
       else ctx.fillText(stockDiaLabel, labelPt.x + 4, labelPt.y - 4);
     } else if (calc.stockPathSegments.length > 0) {
-      // Ořez čáry polotovaru o konturu materiálu se dělá JEN během
-      // trasování profilu (S.profileTraceMode / náhled) — v běžném pohledu
-      // ihned po načtení projektu musí být vidět CELÝ polotovar beze změny,
-      // protože ještě není známo, kudy povede trasa.
+      // Ořez čáry polotovaru o konturu materiálu se dělá JEN PO potvrzení
+      // trasování profilu (S._traceConfirmedOnce) — dokud trasa neexistuje
+      // (čerstvě otevřený projekt) ani během jejího kreslení (nevíme, kudy
+      // povede), musí být vidět CELÝ polotovar beze změny.
       const _clipStockToContour = !!S._traceConfirmedOnce;
       ctx.beginPath();
       if (_clipStockToContour) {
@@ -5987,6 +5990,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.params) S.params = data.params;
         if (data.contourPoints) S.contourPoints = data.contourPoints;
         if (data.stockPoints) S.stockPoints = data.stockPoints;
+        // Nový projekt = nová kontura/polotovar — starý ořez i záloha
+        // před-profilové kontury už k ničemu nesedí (jinak by ❌ po
+        // otevření jiného souboru vracelo konturu z PŘEDCHOZÍHO projektu).
+        S._traceConfirmedOnce = false;
+        S._profileOriginal = null;
         // Uložené dráhy jen když odpovídají aktuální verzi logiky generování;
         // jinak přegenerovat z kontury/parametrů (fullUpdate níž to zajistí,
         // protože prázdný manualGCode → generateAutoGCode).
