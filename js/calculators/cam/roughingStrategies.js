@@ -418,6 +418,46 @@ export function genLongPasses(ctx) {
     }
     return null;
   };
+  // Zrcadlo stockEntryRamp: z rohu (kde sklon obrysu dosáhl úhlu zanoření,
+  // viz findSteepCorner níže) se pokračuje DOLŮ/DOVNITŘ přímkou pod úhlem
+  // zanoření, dokud neopustí siluetu odlitku (= projela celou strmou stěnou
+  // bossu) — a ještě o vůli X dál (stejná logika jako u vstupní rampy, jen
+  // v opačném směru toku). Používá se pro dojezd „bez schodků" u strmé
+  // stěny, kde by sledování PŘESNÉHO obrysu (traceOffsetPath) muselo
+  // kopírovat celou výšku stěny (reálný nález na díle uživatele — stěna
+  // skoro svislá desítky mm, teprve při dně strmě padá).
+  const findRampOutTarget = (cx, cz) => {
+    if (!stockLoopL) return null;
+    if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopL) !== 'inside') return null;
+    let t = 0;
+    for (let i = 0; i < 300; i++) {
+      t += 0.5;
+      const xx = cx - t * effPlungeTanL, zz = cz - t;
+      if (pointInLoop({ x: xx, z: zz }, stockLoopL) === 'outside') {
+        return { x: xx - stockClrXL * effPlungeTanL, z: zz - stockClrXL };
+      }
+    }
+    return null;
+  };
+  // Bod, kde sklon OBRYSU (ne naivní sken po 0,05 mm — viz komentář u volání)
+  // dosáhne úhlu zanoření a VYDRŽÍ (min. 1 mm), ne jen okrajový hrot na
+  // vstupu (napojení currentX → offset kontury bývá krátký a strmý samo o
+  // sobě — zaoblení/přechod).
+  const findSteepCorner = (zFrom, zStop) => {
+    const h = 0.05, minRun = 20; // 20×0,05 = 1 mm trvalého sklonu
+    let runLen = 0, runX = null, runZ = null;
+    for (let z = zFrom; z > zStop + h; z -= h) {
+      const xa = offsetXAt(z), xb = offsetXAt(z - h);
+      if (xa === null || xb === null) { runLen = 0; continue; }
+      if ((xa - xb) / h >= effPlungeTanL) {
+        if (runLen === 0) { runX = xa; runZ = z; }
+        if (++runLen >= minRun) return { x: runX, z: runZ };
+      } else {
+        runLen = 0;
+      }
+    }
+    return null;
+  };
 
   // ── Fáze 3b: ořez sledování kontury (leadIn/leadOut) obálkou držáku ──
   // traceOffsetPath umí vydat trasu přes celou konturu (např. nájezd kapsy
@@ -830,9 +870,13 @@ export function genLongPasses(ctx) {
         const nextPocketDug = nextMidZ !== null && pocketDoneRanges.some(r => nextMidZ <= r.zHi + 0.1 && nextMidZ >= r.zLo - 0.1);
         const pocketFollowsNow = prms.plungeRoughing && prms.pocketFinishAtOnce
           && nextIv && nextIv.blocked && !nextPocketDug;
-        if (prms.noStepRoughing && iv.blocked && !pocketFollowsNow && !iv.holderClamped) {
+        if (prms.noStepRoughing && iv.blocked && !pocketFollowsNow) {
           // Bez schodků: místo odskoku se dál sleduje kontura (G1/G2/G3),
           // aby se obrobil schod vůči sousedním zaberum a nezůstal materiál.
+          // iv.holderClamped (konec zkrácen obálkou držáku, ne skutečnou
+          // stěnou) NEBLOKUJE celý dojezd — holderTrimLeadOut níž trasu
+          // stejně ořízne na to, kam držák smí, takže dřívější plošné
+          // potlačení jen zbytečně mazalo i bezpečnou část dojezdu.
           const nextX = (depthIdx + 1 < depths.length) ? depths[depthIdx + 1] : -Infinity;
           // ŽIVÁ kapsa za bossem = ještě nevykopaná (inkrementální režim) →
           // schod dolů na hlubší zaber řeší až pas té kapsy. Pokud za bossem
@@ -847,12 +891,37 @@ export function genLongPasses(ctx) {
           } else {
             zEndOut = findOffsetXCrossing(iv.zEnd, nextX, cylStockZ);
           }
+          // Nezávislé na pořadí zpracování kapes (na rozdíl od zEndOut níž) —
+          // jen z prevX/nextX/obrysu, stejné ve scan i booleovské cestě.
+          // Používá se pro spouštěcí podmínku a mez hledání rohu rampy, ať
+          // stejná strmá stěna nespustí rampu v jednom režimu a v druhém ne
+          // (rozjelo by materiál-paritu mezi režimy — ověřeno testem).
+          const zEndOutRaw = zEndOut;
           // Dobrat kapsu najednou: neořezávat schod DO už vykopané kapsy —
           // zastav sledování na vršku potlačené zóny.
           for (const r of pocketDoneRanges) {
             if (r.zHi <= iv.zEnd + 1e-6 && r.zHi > zEndOut) zEndOut = r.zHi;
           }
-          const leadOut = holderTrimLeadOut(traceOffsetPath(iv.zEnd, zEndOut), true);
+          // Strmá skoro svislá stěna (bos): sledování PŘESNÉHO obrysu k
+          // zEndOut by muselo kopírovat celou výšku stěny, než by X kleslo
+          // na nextX (reálný nález na díle uživatele: schod jen pár mm v X,
+          // ale zEndOut vyjde desítky mm hluboko). To se stává jen PRVNÍMU
+          // (nejmělčímu) průchodu, který na stěnu narazí — jeho prevX leží
+          // NAD stěnou (žádný mělčí soused ji ještě neuřízl), takže sken
+          // nezastaví „vršek schodu" a musí čekat na pád k nextX. Hlubší
+          // sousední průchody mají prevX už u/ve stěně → zEndOut vyjde
+          // krátce, beze změny (viz podmínka níže). V tom vzácném případě
+          // se místo dojezdu po obrysu jede od rohu (findSteepCorner) rampou
+          // pod úhlem zanoření — stejný vzor jako kapsa za bossem — až tam,
+          // kde ramp opustí siluetu odlitku (+ vůle X).
+          const rampSpan = 2 * step + 10;
+          const corner = (iv.zEnd - zEndOutRaw > rampSpan) ? findSteepCorner(iv.zEnd, zEndOutRaw) : null;
+          const rampTarget = corner ? findRampOutTarget(corner.x, corner.z) : null;
+          const leadOut = rampTarget
+            ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
+                .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
+                .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }]), true)
+            : holderTrimLeadOut(traceOffsetPath(iv.zEnd, zEndOut), true);
           // Zahoď úvodní úseky pod aktuální hloubkou: kvůli diskretizaci /
           // zaoblenému rohu může trasa hned na začátku klesnout pod
           // currentX (krátký "dip"). Průchod nesmí řezat pod svou hloubku —
