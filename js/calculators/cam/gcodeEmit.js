@@ -416,6 +416,7 @@ export function generateAutoGCode(S, calc) {
   let rapidFootSlim = null;
   let rapidStockCuts = 0;
   let stockLoop0Ref = null;   // původní (neobrobená) silueta odlitku — referenční „kde je materiál"
+  let stockLoop0OffsetRef = null;   // silueta posunutá o Vůli X/Z (tečkovaná hranice v náhledu)
   try {
     const stockLoop0 = buildStockLoop(prms, calc.stockPathSegments);
     if (stockLoop0) {
@@ -423,6 +424,22 @@ export function generateAutoGCode(S, calc) {
       rapidStock = new StockModel([stockLoop0]);
       rapidFoot = toolFootprint(prms);
       rapidFootSlim = polyOffset([rapidFoot], -0.05)[0] || rapidFoot;
+      // Vůlí-posunutá silueta (stejná tečkovaná hranice jako v náhledu,
+      // camSimulator.js) — přes polyOffset (Clipper), ne per-bodovou normálu:
+      // ta by na ostrých hranách/schodech siluety (odlitek s bosem/zápichem)
+      // zkreslovala roh lineární interpolací mezi posunutými vrcholy místo
+      // skutečného zaobleného přechodu. VůleX ≠ VůleZ (anizotropní) se řeší
+      // měřítkem osy Z (poměr VůleX/VůleZ), izotropním offsetem o VůleX a
+      // měřítkem zpět — ekvivalentní eliptickému posunu (ΔX/VůleX)²+(ΔZ/VůleZ)²=1.
+      const { x: clrXOff, z: clrZOff } = stockClearances(prms);
+      if (Math.abs(clrXOff - clrZOff) < 1e-6) {
+        stockLoop0OffsetRef = polyOffset([stockLoop0], clrXOff)[0] || null;
+      } else {
+        const kZ = clrXOff / clrZOff;
+        const scaled = stockLoop0.map(p => ({ x: p.x, z: p.z * kZ }));
+        const off = polyOffset([scaled], clrXOff)[0];
+        stockLoop0OffsetRef = off ? off.map(p => ({ x: p.x, z: p.z / kZ })) : null;
+      }
     }
   } catch (err) {
     console.warn('CAM: dynamický model polotovaru pro rychloposuvy selhal:', err);
@@ -466,6 +483,24 @@ export function generateAutoGCode(S, calc) {
     const n = stockLoop0Ref.length;
     for (let i = 0; i < n; i++) {
       const a = stockLoop0Ref[i], b = stockLoop0Ref[(i + 1) % n];
+      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+        if (top === null || x > top) top = x;
+      }
+    }
+    return top;
+  };
+  // Totéž jako castingTopXAtZ, ale nad siluetou posunutou o Vůli X/Z
+  // (stockLoop0OffsetRef — stejná tečkovaná hranice jako v náhledu). Používá
+  // se pro RAMPU (diagonální zanoření): posuv (G1) má sahat až k téhle
+  // vůlí-posunuté hranici, ne k holé kůře odlitku — konzistentní s tím, kde
+  // podle náhledu končí rychloposuv.
+  const castingTopXAtZOffset = (z) => {
+    if (!stockLoop0OffsetRef) return null;
+    let top = null;
+    const n = stockLoop0OffsetRef.length;
+    for (let i = 0; i < n; i++) {
+      const a = stockLoop0OffsetRef[i], b = stockLoop0OffsetRef[(i + 1) % n];
       if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
         const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
         if (top === null || x > top) top = x;
@@ -750,39 +785,73 @@ export function generateAutoGCode(S, calc) {
           let segs = [];
           for (let s = 1; s < pts.length; s++) {
             const midX = (pts[s - 1].x + pts[s].x) / 2, midZ = (pts[s - 1].z + pts[s].z) / 2;
-            const ct = castingTopXAtZ(midZ);
+            // Hranice pro touch = silueta POSUNUTÁ o Vůli X/Z (stejná tečkovaná
+            // hranice jako v náhledu), ne holá kůra odlitku — diagonální posuv
+            // sahá až k vůli-zóně kolem materiálu (souhlasí s tím, kde končí
+            // rychloposuv jinde: descendTo/safeRapidTo, exit-split u increment 1).
+            const ct = castingTopXAtZOffset(midZ);
             const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
             const kind = air ? 'G0' : 'G1';
             if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].pt = pts[s];
             else segs.push({ kind, pt: pts[s] });
           }
-          if (!needsExactLanding) {
-            // Zkrátit na konec posledního ŘEZNÉHO úseku — vynechat vzduch za
-            // ním (nic ho nepotřebuje). Bez materiálu na celé rampě (vzácný
-            // okraj — pokud sem detekce kapsy vůbec zavede) rampu nekreslit.
-            const lastCut = segs.map(s => s.kind).lastIndexOf('G1');
-            segs = lastCut >= 0 ? segs.slice(0, lastCut + 1) : [];
-          } else if (segs.length && segs[segs.length - 1].kind === 'G0') {
-            // Musí doletět přesně: poslední krok vždy posuv (touch), i vyjde-li
-            // vzduch — pass.x/zStart je cíl z PROFILU dílu (offsetXAt), ne ze
-            // siluety odlitku, může padnout do „díry" v odlitku. Navazující
-            // tělový řez/leadOut (vždy G1) by jinak splynul přes hranici run
-            // s TÍMTO rapidem v jeden „dip". Cena je jen poslední krok (~0,2 mm).
-            const lastPt = segs[segs.length - 1].pt;
-            if (segs.length > 1 && segs[segs.length - 2].kind === 'G1') segs.pop();
-            segs.push({ kind: 'G1', pt: lastPt });
+          const g1RunCount = segs.filter(s => s.kind === 'G1').length;
+          if (g1RunCount > 1) {
+            // Reálná mezera v odlitku (materiál-vzduch-materiál), ne jen
+            // vzorkovací šum na konci — diagonální rapid mezerou by vedl přes
+            // 3D geometrii, kterou per-Z obálka (castingTopXAtZOffset) nevidí.
+            // Dojet k PRVNÍMU dotyku, pak vyjet nad konturu (stejný vzor jako
+            // jinde — „Výjezd nad konturu") a bezpečně najet na cíl (x1,z1)
+            // přes safeRapidTo — místo hádání zbytku diagonály.
+            const firstG1Idx = segs.findIndex(s => s.kind === 'G1');
+            const headSegs = segs.slice(0, firstG1Idx + 1);
+            headSegs.forEach((s, idx) => {
+              simCounter += 1;
+              const cmt = idx === firstG1Idx ? note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`) : '';
+              addN(s.kind === 'G0'
+                ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
+                : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
+              setPos(s.pt.x, s.pt.z);
+            });
+            safeRapidTo(x1, z1, true, true);
+          } else {
+            if (!needsExactLanding) {
+              // Zkrátit na konec posledního ŘEZNÉHO úseku — vynechat vzduch za
+              // ním (nic ho nepotřebuje). Bez materiálu na celé rampě (vzácný
+              // okraj — pokud sem detekce kapsy vůbec zavede) rampu nekreslit.
+              const lastCut = segs.map(s => s.kind).lastIndexOf('G1');
+              segs = lastCut >= 0 ? segs.slice(0, lastCut + 1) : [];
+            } else if (segs.length && segs[segs.length - 1].kind === 'G0') {
+              // Musí doletět přesně: poslední VZOREK (~0,2 mm krok z `pts`) vždy
+              // posuv (touch), i vyjde-li vzduch — pass.x/zStart je cíl z PROFILU
+              // dílu (offsetXAt), ne ze siluety odlitku, může padnout do „díry" v
+              // odlitku. Navazující tělový řez/leadOut (vždy G1) by jinak splynul
+              // přes hranici run s TÍMTO rapidem v jeden „dip". Cena je jen
+              // poslední vzorkovací krok — pracuje se přímo s `pts`, ne se
+              // smergovaným segmentem (ten může sahat přes víc kroků vzduchu).
+              const lastPt = segs[segs.length - 1].pt; // == pts[pts.length - 1]
+              const preLandPt = pts[pts.length - 2];
+              const segStart = segs.length > 1 ? segs[segs.length - 2].pt : pts[0];
+              const canShorten = Math.abs(segStart.x - preLandPt.x) > 1e-9 || Math.abs(segStart.z - preLandPt.z) > 1e-9;
+              if (canShorten) {
+                segs[segs.length - 1].pt = preLandPt;
+                segs.push({ kind: 'G1', pt: lastPt });
+              } else {
+                segs[segs.length - 1].kind = 'G1';
+              }
+            }
+            // Komentář „Rampa" patří na první ŘEZNÝ (G1) úsek, ne na vedoucí
+            // rapid — jinak by na rapid řádku matoucně naznačoval řezání.
+            const labelIdx = segs.findIndex(s => s.kind === 'G1');
+            segs.forEach((s, idx) => {
+              simCounter += 1;
+              const cmt = idx === (labelIdx >= 0 ? labelIdx : segs.length - 1) ? note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`) : '';
+              addN(s.kind === 'G0'
+                ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
+                : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
+              setPos(s.pt.x, s.pt.z);
+            });
           }
-          // Komentář „Rampa" patří na první ŘEZNÝ (G1) úsek, ne na vedoucí
-          // rapid — jinak by na rapid řádku matoucně naznačoval řezání.
-          const labelIdx = segs.findIndex(s => s.kind === 'G1');
-          segs.forEach((s, idx) => {
-            simCounter += 1;
-            const cmt = idx === (labelIdx >= 0 ? labelIdx : segs.length - 1) ? note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`) : '';
-            addN(s.kind === 'G0'
-              ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
-              : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
-            setPos(s.pt.x, s.pt.z);
-          });
         }
       }
       if (pass.zStart - pass.zEnd > 1e-6) {

@@ -1498,8 +1498,11 @@ export function openCamSimulator(initialContour, initialGCode) {
             // sledování kontury (G1/G2/G3) přes kapsu místo odskoku
             drawContourTrace(pass.contourLeadIn);
           }
-          if (pass.ramp) {
-            // rampa zanoření z "rohu" kontury (tečný bod pod úhlem zanoření)
+          if (pass.ramp && calc.simPath.length === 0) {
+            // rampa zanoření z "rohu" kontury (tečný bod pod úhlem zanoření) —
+            // jen FALLBACK před generováním, stejně jako tělová čára níž: skutečná
+            // emise (gcodeEmit.js) rampu segmentuje/zkracuje podle siluety
+            // odlitku, takže celá diagonála by jinak kreslila ducha nesprávné dráhy.
             const pr = toScreen(pass.ramp.x0, pass.ramp.z0);
             const pe = toScreen(pass.x, pass.zStart);
             ctx.moveTo(pr.x, pr.y); ctx.lineTo(pe.x, pe.y);
