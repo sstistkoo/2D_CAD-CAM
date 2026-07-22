@@ -1504,8 +1504,16 @@ export function openCamSimulator(initialContour, initialGCode) {
             const pe = toScreen(pass.x, pass.zStart);
             ctx.moveTo(pr.x, pr.y); ctx.lineTo(pe.x, pe.y);
           }
-          const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
-          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          // Prostý podélný průchod (bez rampy/leadIn/pocketClean): tělo
+          // zStart→zEnd je tu jen PŘED-emisní odhad intervalu z obdélníkového
+          // obalu polotovaru — ignoruje siluetu odlitku. Skutečná simPath (níž)
+          // teď správně přeskakuje vzduch nad drážkami (Fáze 4), takže by tahle
+          // přímka přes drážku kreslila ducha staré (nesprávné) dráhy. Kreslit
+          // jen jako FALLBACK, dokud simPath není k dispozici (před generováním).
+          if (pass.ramp || pass.contourLeadIn || pass.pocketClean || calc.simPath.length === 0) {
+            const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          }
           if (pass.contourLeadOut) drawContourTrace(pass.contourLeadOut);
         } else {
           const p1 = toScreen(pass.xStart, pass.z), p2 = toScreen(pass.xEnd, pass.z);
