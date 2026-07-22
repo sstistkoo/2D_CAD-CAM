@@ -722,7 +722,68 @@ export function generateAutoGCode(S, calc) {
         }
       }
       if (pass.ramp) {
-        simCounter += 1; addN(`G1 X${xDia(pass.x)} Z${pass.zStart.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(pass.x, pass.zStart);
+        // Rampa je DIAGONÁLNÍ feed (X i Z zároveň) pod úhlem zanoření — na
+        // rozdíl od svislého řezu výše ji silueta odlitku může křížit VÍCKRÁT
+        // podél délky (materiál-vzduch-materiál u odlitku s údolím pod rampou).
+        // Vzorkuje se po ~0,2 mm (konvence dzScan) podél přímky (x0,z0)→(pass.x,
+        // pass.zStart), segmenty stejného druhu (rapid/posuv) se slévají →
+        // diagonální G0/G1 (stejný vzor jako safeRapidTo). Bez křížení siluety
+        // (rampa celá v materiálu) vydá PŘESNĚ původní jeden `G1 X.. Z..`.
+        const x0 = cur.x, z0 = cur.z, x1 = pass.x, z1 = pass.zStart;
+        // Musí rampa DOLETĚT přesně na (pass.x, pass.zStart)? Jen když na ni
+        // navazuje tělový řez (zStart≠zEnd) nebo leadOut — ty čtou `cur` a
+        // potřebují přesnou polohu. Landing-only rampa (degenerovaná, žádný
+        // leadOut, noRetract) nemá NIC, co by na přesném doletu záviselo —
+        // příští průchod si stejně najede vlastním safeRapidTo odjinud
+        // (jiná kapsa), takže dojíždět zbytek diagonály VZDUCHEM nad
+        // drážkou je zbytečné: zkrátit na konec posledního řezného úseku.
+        const needsExactLanding = pass.zStart - pass.zEnd > 1e-6 || !!pass.contourLeadOut;
+        if (Math.abs(z1 - z0) < 1e-6) {
+          simCounter += 1; addN(`G1 X${xDia(x1)} Z${z1.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(x1, z1);
+        } else {
+          const steps = Math.max(4, Math.ceil(Math.abs(z1 - z0) / 0.2));
+          const pts = [];
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            pts.push({ x: x0 + (x1 - x0) * t, z: z0 + (z1 - z0) * t });
+          }
+          let segs = [];
+          for (let s = 1; s < pts.length; s++) {
+            const midX = (pts[s - 1].x + pts[s].x) / 2, midZ = (pts[s - 1].z + pts[s].z) / 2;
+            const ct = castingTopXAtZ(midZ);
+            const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
+            const kind = air ? 'G0' : 'G1';
+            if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].pt = pts[s];
+            else segs.push({ kind, pt: pts[s] });
+          }
+          if (!needsExactLanding) {
+            // Zkrátit na konec posledního ŘEZNÉHO úseku — vynechat vzduch za
+            // ním (nic ho nepotřebuje). Bez materiálu na celé rampě (vzácný
+            // okraj — pokud sem detekce kapsy vůbec zavede) rampu nekreslit.
+            const lastCut = segs.map(s => s.kind).lastIndexOf('G1');
+            segs = lastCut >= 0 ? segs.slice(0, lastCut + 1) : [];
+          } else if (segs.length && segs[segs.length - 1].kind === 'G0') {
+            // Musí doletět přesně: poslední krok vždy posuv (touch), i vyjde-li
+            // vzduch — pass.x/zStart je cíl z PROFILU dílu (offsetXAt), ne ze
+            // siluety odlitku, může padnout do „díry" v odlitku. Navazující
+            // tělový řez/leadOut (vždy G1) by jinak splynul přes hranici run
+            // s TÍMTO rapidem v jeden „dip". Cena je jen poslední krok (~0,2 mm).
+            const lastPt = segs[segs.length - 1].pt;
+            if (segs.length > 1 && segs[segs.length - 2].kind === 'G1') segs.pop();
+            segs.push({ kind: 'G1', pt: lastPt });
+          }
+          // Komentář „Rampa" patří na první ŘEZNÝ (G1) úsek, ne na vedoucí
+          // rapid — jinak by na rapid řádku matoucně naznačoval řezání.
+          const labelIdx = segs.findIndex(s => s.kind === 'G1');
+          segs.forEach((s, idx) => {
+            simCounter += 1;
+            const cmt = idx === (labelIdx >= 0 ? labelIdx : segs.length - 1) ? note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`) : '';
+            addN(s.kind === 'G0'
+              ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
+              : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
+            setPos(s.pt.x, s.pt.z);
+          });
+        }
       }
       if (pass.zStart - pass.zEnd > 1e-6) {
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
