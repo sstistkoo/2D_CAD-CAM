@@ -557,6 +557,21 @@ export function generateAutoGCode(S, calc) {
     if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
         || rapidHitsStock(cur.x, cur.z, rTx, tz)) {
       const xUp = Math.max(rapidTopX + rapidStopX, cur.x, tx);
+      // Diagnostický seam (guarded, v produkci no-op — stejný vzor jako
+      // `__REGION_LOG__`): svislý zdvih „Výjezd nad konturu" v X předpokládá nad
+      // nástrojem vzduch, ale u odlitku (kůra nad zápichem / sousední neobrobené
+      // Z u čela) může vést stojícím materiálem. Nastav `globalThis.__RAPID_LIFT
+      // _LOG__ = []` a spusť pipeline v IZOLOVANÉM procesu (per fixture — singleton
+      // S kontaminuje!) → plocha každého zdvihu skrz `rapidStock`. Změřené baseliny
+      // a metoda: docs/geometry-libs-migration.md (Fáze 4). part-10 ~16 mm² =
+      // order-dependent cíl budoucího plánovače, face-casting ~267 = inherentní.
+      if (globalThis.__RAPID_LIFT_LOG__ && rapidStock && xUp > cur.x + 1e-6) {
+        try {
+          const sweep = toolSweep(rapidFootSlim, [{ x: cur.x, z: cur.z }, { x: xUp, z: cur.z }]);
+          const a = Math.abs(polyArea(rapidStock.collide(sweep)));
+          if (a > 0.3) globalThis.__RAPID_LIFT_LOG__.push({ fromX: +cur.x.toFixed(2), toX: +xUp.toFixed(2), z: +cur.z.toFixed(2), area: +a.toFixed(1) });
+        } catch { /* seam je jen pro měření — chybu spolknout */ }
+      }
       if (xUp > cur.x + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
       if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
       // Fáze 4: čistě-Z přejezd, který se musel kvůli materiálu zvednout, se

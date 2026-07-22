@@ -419,6 +419,23 @@ zbytkový materiál, včetně už obrobených kapes. Z-limity / X-limity
 (`S.zLimits`, `S.xLimits`) vstupují jako ořezový obdélník (`rectClip`)
 povolené oblasti přejezdů i záběrů.
 
+**ZMĚŘENO + diagnostický seam (21. 7. 2026):** svislý zdvih „Výjezd nad konturu"
+(`safeRapidTo` v gcodeEmit.js) se sám netestuje proti `rapidStock`. Guarded seam
+`globalThis.__RAPID_LIFT_LOG__` (v produkci no-op, vzor `__REGION_LOG__`) měří
+plochu, kterou každý zdvih projede zbytkem. Metoda: nastav globál na `[]` a spusť
+pipeline v IZOLOVANÉM procesu **per fixture** (singleton `S` jinak kontaminuje —
+párové měření v jednom procesu je bezcenné). Baseliny [mm²]: part-10-zapich
+**15,9** (JEDEN zdvih X17,6→45,4 @Z15,98 = order-dependent cíl budoucího
+plánovače), face-casting **267** (37 facing-přejezdů — INHERENTNÍ, tool-width
+grazuje sousední neobrobené Z, reorder neopraví), face-cylinder 23, part-4/6/8/9
+~5, holder-slanted 5,7; part-1/2 a holder-region **0** (bez konfliktu). Kontrolní
+fix (retract po vstupní trase / dělení rapid↔posuv i pro VÝJEZD) = tentýž odložený
+order-planner výše; couvnutí po trase navíc nepomůže u kolmého zápichu (reverz =
+tentýž blokovaný svislý zdvih). In-suite absolutní-práh test NELZE spolehlivě
+(singleton `S`: reset params ho izoluje, ale prosákne do `boolean-roughing-wiring`,
+který na deterministické kontaminaci stojí; ta je mimochodem sama flaky nezávisle
+na této práci — kandidát na samostatnou opravu).
+
 ### Fáze 5 — sjednocení UI zanořování
 
 > **NEBUDE SE DĚLAT (rozhodnutí 20. 7. 2026):** UI zanořování se sjednocovat
