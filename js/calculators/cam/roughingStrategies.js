@@ -924,12 +924,27 @@ export function genLongPasses(ctx) {
           // kde ramp opustí siluetu odlitku (+ vůle X).
           const rampSpan = 2 * step + 10;
           const corner = (iv.zEnd - zEndOutRaw > rampSpan) ? findSteepCorner(iv.zEnd, zEndOutRaw) : null;
-          const rampTarget = corner ? findRampOutTarget(corner.x, corner.z) : null;
+          const rampTargetRaw = corner ? findRampOutTarget(corner.x, corner.z) : null;
+          // Rampa nesmí sjet POD aktuální hloubku průchodu (currentX) — víc
+          // materiálu, než odpovídá nastavené Hloubce (ap), by se odebralo
+          // po úhlu zanoření v jednom záběru (reálný nález na díle
+          // uživatele). Ořízni cíl na TÉŽE přímce zanoření přesně na
+          // X=currentX a odtud pokračuj ROVNĚ (jako běžný řez vrstvy) až
+          // tam, kam původně mířila celá rampa (rampTargetRaw.z) — dojezd
+          // tak pokryje STEJNÝ Z-rozsah (žádný schod), jen ho pod currentX
+          // dohoní až následující (hlubší) průchod svým vlastním dojezdem.
+          const rampTarget = (rampTargetRaw && rampTargetRaw.x < currentX)
+            ? { x: currentX, z: corner.z - (corner.x - currentX) / effPlungeTanL }
+            : rampTargetRaw;
+          const straightContinueZ = (rampTarget && rampTarget !== rampTargetRaw) ? rampTargetRaw.z : null;
           if (rampTarget) rampedOutCorners.push({ x: corner.x, z: corner.z, reachedX: rampTarget.x });
           const leadOut = rampTarget
             ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
                 .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
-                .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }]), true)
+                .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }])
+                .concat(straightContinueZ !== null
+                  ? [{ type: 'line', x1: rampTarget.x, z1: rampTarget.z, x2: rampTarget.x, z2: straightContinueZ }]
+                  : []), true)
             : holderTrimLeadOut(traceOffsetPath(iv.zEnd, zEndOut), true);
           // Zahoď úvodní úseky pod aktuální hloubkou: kvůli diskretizaci /
           // zaoblenému rohu může trasa hned na začátku klesnout pod
