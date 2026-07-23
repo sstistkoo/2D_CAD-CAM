@@ -589,6 +589,16 @@ export function genLongPasses(ctx) {
   // uvnitř) — jinak by se kapsa jevila jako otevřená a otevřený řez by ji
   // pohltil do jednoho dlouhého průjezdu skrz materiál.
   const pocketDoneRanges = [];
+  // Rohy strmé stěny, které už dojezd „bez schodků" (otevřený vjezd, idx===0)
+  // sám sešel rampou dolů (viz findSteepCorner/findRampOutTarget níž). Kapsa
+  // za bossem na HLUBŠÍ hloubce narazí na TENTÝŽ roh znovu (roh je vlastnost
+  // obrysu, nezávislá na currentX) — bez téhle evidence by ho sledovala
+  // (contourLeadIn) a rampovala odznova, i když tu stěnu už jednou prošel
+  // jiný průchod (reálný nález na díle uživatele — doslovný duplicitní
+  // úsek G-kódu). Tolerance 2 mm (roh se s hloubkou nepatrně posouvá).
+  const rampedOutCorners = [];
+  const cornerAlreadyRampedOut = (cx, cz) =>
+    rampedOutCorners.some(c => Math.abs(c.x - cx) < 2 && Math.abs(c.z - cz) < 2);
   // Bez „dobrat najednou": sdílená rampa z rohu kapsy nemusí dosáhnout dál
   // (strmá stěna z hlídání držáku, úzké dno) — hlubší vrstvy by pak emitovaly
   // STEJNÝ zákrok znovu a znovu (nulový progres). Pamatuj si nejlepší
@@ -917,6 +927,7 @@ export function genLongPasses(ctx) {
           const rampSpan = 2 * step + 10;
           const corner = (iv.zEnd - zEndOutRaw > rampSpan) ? findSteepCorner(iv.zEnd, zEndOutRaw) : null;
           const rampTarget = corner ? findRampOutTarget(corner.x, corner.z) : null;
+          if (rampTarget) rampedOutCorners.push({ x: corner.x, z: corner.z });
           const leadOut = rampTarget
             ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
                 .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
@@ -975,7 +986,7 @@ export function genLongPasses(ctx) {
       // kapsu hlavní smyčka na KAŽDÉ další (mělčí) hloubce zkoušela znovu
       // — a kolidovala by tam taky (ověřeno: bez téhle poznámky se kolize
       // jen přesunula o pár hloubek dál, misto aby zmizela).
-      const skipRiskyPocketEmit = iv.blocked && prms.pocketFinishAtOnce && idx > 1;
+      let skipRiskyPocketEmit = iv.blocked && prms.pocketFinishAtOnce && idx > 1;
       if (!iv.blocked) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
@@ -1024,6 +1035,14 @@ export function genLongPasses(ctx) {
       } else {
         corner = findPlungeCorner(zGapHi, iv.zStart);
       }
+      // Tenhle roh (strmá stěna) už jednou sešel rampou dolů dojezd „bez
+      // schodků" otevřeného vjezdu na MĚLČÍ hloubce (viz rampedOutCorners
+      // výš) — kapsa za bossem by ho sledováním kontury (leadIn) i rampou
+      // jen zopakovala, doslovně stejný úsek G-kódu podruhé (reálný nález
+      // na díle uživatele). Emisi potlačit stejně jako u druhé+ kapsy
+      // (skipRiskyPocketEmit) — pocketDoneRanges se zaregistruje dál beze
+      // změny, aby to hlubší hloubky nezkoušely znovu.
+      if (!isParting && corner && cornerAlreadyRampedOut(corner.x, corner.z)) skipRiskyPocketEmit = true;
       if (!corner) {
         // Sklon kontury nikdy nedosáhne úhlu zanoření — celá mezera se
         // projede po kontuře na currentX, žádná rampa.

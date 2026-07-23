@@ -108,6 +108,33 @@ docs/                 # developer.md, user-guide.md
 - Při změně nebo přidání funkcí vždy aktualizovat příslušnou dokumentaci v docs/ a případně CHANGELOG.md.
 - Před PR/push spustit `npm test` – musí projít.
 
+## Efektivní práce (Claude Code)
+- **Testy:** celou sadu (`npm test` / `npx vitest run`) spouštět jen když je
+  to opravdu potřeba ověřit, ne opakovaně "pro jistotu" po každé drobné
+  úpravě. Během ladění stačí cílený/izolovaný test
+  (`npx vitest run tests/nazev.test.js`). Celou sadu spustit až na závěr
+  (potvrzení hotové práce) a před PR/push.
+  - **Výjimka (bezpečnost):** u zásahů do hrubování/kolizí/materiálu
+    (`js/calculators/cam/**`) vždy pustit aspoň cílené
+    `tests/collision-validator.test.js` a `tests/material-removal.test.js`
+    (případně `tests/cam-traversal-invariants.test.js`) — tohle se
+    nepřeskakuje kvůli úspoře. Šetří se na opakování CELÉ sady, ne na
+    ověření bezpečnosti/parity.
+  - Pokud se dřív pouštělo něco 2-3× "pro jistotu" (determinismus), bylo to
+    kvůli konkrétnímu historicky nestabilnímu testu (`boolean-roughing-wiring`) —
+    není to obecné pravidlo "spouštěj všechno vícekrát". Bez known-flaky
+    testu v dotčené sadě stačí jeden běh.
+- **Velikost souborů:** platí jen pro NOVÉ soubory — cílit na ~300–500
+  řádků, a když by narostl přes tenhle rozsah, rozdělit logický celek do
+  dalšího souboru místo dalšího kumulování do jednoho. NENÍ to mandát
+  rozdělit už existující velké soubory (`gcodeEmit.js`, `roughingStrategies.js`
+  aj. mají přes 1000 řádků) jako vedlejší efekt nesouvisející opravy — to
+  by byl scope-creep. Refaktoring/rozdělení existujícího souboru je
+  samostatné, vědomé rozhodnutí (po dohodě), ne automatika při bugfixu.
+- **Tokeny:** pracovat úsporně — stručně, bez zbytečného opakování příkazů,
+  opakovaného čtení stejných souborů nebo nadbytečného vypisování velkých
+  výstupů, které nejsou k věci.
+
 ## Odkazy a dokumentace
 - `README.md` – přehled funkcí a struktury
 - `docs/developer.md` – architektura, přidání nástroje, CAM pipeline, DXF
