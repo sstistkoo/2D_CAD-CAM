@@ -59,6 +59,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restrukturace emisní smyčky (samostatná budoucí iterace).
 
 ### Fixed
+- CAM: **schod bez dojezdu u „Hrub. bez schodků" při dobrání kapsy najednou** —
+  když se za bossem poprvé objevila dosažitelná kapsa (`pocketFollowsNow`,
+  `pocketFinishAtOnce`), otevřený řez zcela vynechal svůj dojezd s tím, že
+  navázání dokončí burst kapsy — jenže burst uměl být potlačen (`skipRiskyPocketEmit`
+  přes `cornerAlreadyRampedOut`, který roh mylně považoval za „už hotový" i po
+  velkém skoku hloubek — ramp z mělčí vrstvy sjel jen o kousek, ne až na aktuální
+  hloubku) nebo nedosáhl cíle (rescan bursteu / obálka držáku zablokovala
+  dočišťovací průchod). Výsledek: vrstva bez jakéhokoli dojezdu (viditelný
+  neobrobený schod na dílu uživatele). Opraveno v `roughingStrategies.js`
+  (`genLongPasses`): `cornerAlreadyRampedOut` teď navíc ověří, že dřívější ramp
+  reálně sjel až na aktuální hloubku (`reachedX`); a i tak se dojezd otevřeného
+  řezu nezahazuje, jen odloží jako `pendingPocketFallback` (krátký, lokální,
+  beze eskalace na rohovou rampu) — pokud burst kapsy skutečně nedosáhne dost
+  hluboko, pojistka se po zpracování intervalů dopíše. Vědomě přegenerované
+  snapshoty (scan-line i booleovská větev) — dřív bez dojezdu tiché `long{blocked}`
+  průchody teď dostanou `contourLeadOut` nebo vlastní `pocketEntry` rampu.
 - CAM: **sjezd na hloubku v solidním odlitku posuvem místo rychloposuvu (migrace
   Fáze 4)** — nájezdová vůle `zApprox` je „vzduch" jen vůči kontuře, ale obal
   odlitku tam může být ještě plný, takže rychloposuv na cílovou hloubku vjížděl
