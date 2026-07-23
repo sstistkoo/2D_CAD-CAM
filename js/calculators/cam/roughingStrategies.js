@@ -420,6 +420,22 @@ export function genLongPasses(ctx) {
       stockLoopOffsetL = offL ? offL.map(p => ({ x: p.x, z: p.z / kZL })) : null;
     }
   }
+  // Max X vůlí-posunuté siluety na dané Z (stejný vzor jako
+  // castingTopXAtZOffset v gcodeEmit.js, nad stockLoopOffsetL místo
+  // stockLoop0OffsetRef) — offsetová čára pro vjezd na hranici rozsahu Z.
+  const offsetStockTopXAtZ = (z) => {
+    if (!stockLoopOffsetL) return null;
+    let top = null;
+    const n = stockLoopOffsetL.length;
+    for (let i = 0; i < n; i++) {
+      const a = stockLoopOffsetL[i], b = stockLoopOffsetL[(i + 1) % n];
+      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+        if (top === null || x > top) top = x;
+      }
+    }
+    return top;
+  };
   // Rampa od hranice polotovaru: když vstup průchodu leží v KŮŘE odlitku,
   // kotva se zvedne po přímce zanoření nad polotovar + vůli X — posuv
   // začíná na tečkované hranici a kůra se řeže pod úhlem zanoření
@@ -852,6 +868,12 @@ export function genLongPasses(ctx) {
   // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
   // neobrobený — nic dalšího už tam nezajíždí).
   const pendingRampCompletions = [];
+  // Vjezd na hranici rozsahu Z (machiningRange.zHi): kotva rampy se
+  // ŘETĚZÍ mezi hloubkami (viz níž), ne restartuje pokaždé od povrchu —
+  // jinak by každá hlubší vrstva znovu rampovala i tu ČÁST, kterou už
+  // vyřízla vrstva PŘEDCHOZÍ (reálný nález na díle uživatele — druhá
+  // rampa mířila zpátky nad povrch místo napojení na konec první).
+  let entryRampAnchor = null;
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -888,22 +910,53 @@ export function genLongPasses(ctx) {
       if (idx === 0 && firstOpen) {
         // Otevřený vjezd zprava přes hranu polotovaru.
         const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
-        // ── Vjezd na hranici rozsahu Z rampou (Fáze 4, částečně) ──────
+        // ── Vjezd na hranici rozsahu Z rampou (Fáze 4) ──────
         // Když rozsah obrábění začíná UVNITŘ polotovaru (napravo od
         // hranice ještě stojí materiál), kolmý zápich na hloubku
-        // nahrazuje rampa pod úhlem zanoření: kotva = průsečík čáry
-        // začátku rozsahu s hranicí polotovaru (+ vůle X). Každá hloubka
-        // vjíždí po TÉŽE přímce (sdílená rampa jako u kapes); průchod,
-        // do kterého se rampa nevejde, se vynechá.
+        // nahrazuje rampa pod úhlem zanoření na OFFSETOVOU čáru
+        // (offsetStockTopXAtZ — vůlí-posunutá silueta, stejná jako
+        // castingTopXAtZOffset v gcodeEmit.js). Kotva rampy se ŘETĚZÍ mezi
+        // hloubkami (entryRampAnchor) — první hloubka najede z povrchu,
+        // každá další jen odskočí a napojí se na konec rampy PŘEDCHOZÍ
+        // hloubky (pocketReposition, stejný vzor jako dojezd strmé stěny
+        // výš) — ne restart od povrchu pokaždé znovu (reálný nález na
+        // díle uživatele: to zbytečně přejíždělo/dobíralo už hotovou
+        // horní část rampy a po pár hloubkách se úplně vzdalo, zbytek
+        // Z-rozsahu zůstal bez jakéhokoli dojezdu).
         if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
             && iv.zStart >= effZMax - 1e-6) {
-          const surfX = stockOuterXAtZ(prms, sRad, stockPathSegments, effZMax + 0.01);
-          if (surfX !== null && surfX > currentX + 0.05) {
-            const rampTop = surfX + stockClearances(prms).x;
-            const zS = effZMax - (rampTop - currentX) / effPlungeTanL;
-            if (zS <= iv.zEnd + 0.05) return;   // rampa se nevejde
-            passObj.ramp = { x0: rampTop, z0: effZMax };
-            passObj.zStart = zS;
+          if (!entryRampAnchor) {
+            const surfX = offsetStockTopXAtZ(effZMax);
+            if (surfX !== null && surfX > currentX + 0.05) {
+              entryRampAnchor = { x: surfX, z: effZMax, first: true };
+            }
+          }
+          let rampOk = false;
+          if (entryRampAnchor && entryRampAnchor.x > currentX + 0.05) {
+            const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
+            if (zS > iv.zEnd + 0.05) {
+              passObj.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
+              if (!entryRampAnchor.first) {
+                passObj.pocketReposition = true;
+                passObj.rampFeedFrom = { x: entryRampAnchor.x, z: entryRampAnchor.z };
+              }
+              passObj.zStart = zS;
+              entryRampAnchor = { x: currentX, z: zS, first: false };
+              rampOk = true;
+            }
+          }
+          if (!rampOk) {
+            // Rampa (ani zřetězená, ani nová) se sem nevejde nebo se
+            // nenašla — NEPOKRAČOVAT běžným vjezdem: ten by hledal
+            // skutečnou hranu polotovaru napříč celou siluetou odlitku
+            // (Standardní podélné hrubování v gcodeEmit.js), a ta u
+            // odlitku s bosem/hrbolem sahá výš než Start rozsahu Z — vjezd
+            // by tak řezal materiál NAD (mimo) aktivní rozsah, kudy
+            // nástroj/držák nepočítá s kolizí (reálný nález na díle
+            // uživatele: oranžová kolize držáku v polotovaru). Tahle
+            // hloubka se raději úplně vynechá — dál se zanořuje jen po
+            // vrstvách, kam rampa doopravdy dosáhne.
+            return;
           }
         }
         // Otevřený řez VŽDY dojíždí svůj vlastní schod po obrysu (níž), i
@@ -996,6 +1049,7 @@ export function genLongPasses(ctx) {
           if (prevX !== null && Number.isFinite(prevX)) clipLeadOutToDepth(leadOut, prevX);
           if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
         }
+        if (globalThis.__DBG_MR__) console.log(`[DBGPUSH] currentX=${currentX} passObj.x=${passObj.x} zStart=${passObj.zStart} ramp=${passObj.ramp ? JSON.stringify(passObj.ramp) : '-'}`);
         passes.push(passObj);
         // Schodová evidence (Fáze 3a): JEN ZKRÁCENÉ konce. Nezkrácený
         // průchod končí na stěně offsetu — ta už je v siluetě zakázané
