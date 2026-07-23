@@ -838,31 +838,7 @@ export function computeCalculation(S, lightOnly = false) {
     return out;
   };
 
-  // Hledání konce "schodu" pro hrubování bez schodků (podélné): jde po
-  // offsetXAt od zFrom (kde offset ≈ hloubka současného průchodu) směrem
-  // k menším Z, dokud X offsetu neklesne na targetX (hloubka dalšího
-  // průchodu), nebo dokud křivka offsetu nekončí (mimo svůj rozsah).
-  const findOffsetXCrossing = (zFrom, targetX, zFloor) => {
-    const h = 0.05;
-    let z = zFrom;
-    let xPrev = offsetXAt(z);
-    for (let i = 0; i < 4000; i++) {
-      const zNext = z - h;
-      if (zNext < zFloor - 1e-6) break;
-      const x = offsetXAt(zNext);
-      if (x === null) break;
-      if (x <= targetX + 1e-6) return zNext;
-      // Offset se vzdaluje od cíle (např. dno kapsy) - další sledování by
-      // jen zdvojovalo zanoření do kapsy a vytvořilo nebezpečný "návrat na
-      // konturu" pro další průchod. Skončit zde beze schodu na tomto místě.
-      if (xPrev !== null && x > xPrev + 1e-6) break;
-      xPrev = x;
-      z = zNext;
-    }
-    return z;
-  };
-
-  // Konec leadOutu z kapsy: na rozdíl od findOffsetXCrossing se NEzastaví,
+  // Konec leadOutu z kapsy: na rozdíl od findLeadOutEndZ se NEzastaví,
   // když offset stoupá — sleduje druhou (odvrácenou) stěnu kapsy nahoru
   // (G2/G3) až dokud znovu neklesne na řeznou hloubku depthX (tam pokračuje
   // hlubší průchod), nebo dokud kontura nekončí. Tím se obrobí celá druhá
@@ -908,7 +884,7 @@ export function computeCalculation(S, lightOnly = false) {
   const passCtx = {
     prms, sRad, stockFace, step, offsetPath, stockPathSegments,
     stockWorldPoints, worldPoints, passes, foundErrors,
-    offsetXAt, traceOffsetPath, findOffsetXCrossing, findPocketExitZ,
+    offsetXAt, traceOffsetPath, findPocketExitZ,
     findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ,
     holderClampZEnd,
   };
