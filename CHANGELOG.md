@@ -59,22 +59,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restrukturace emisní smyčky (samostatná budoucí iterace).
 
 ### Fixed
-- CAM: **schod bez dojezdu u „Hrub. bez schodků" při dobrání kapsy najednou** —
-  když se za bossem poprvé objevila dosažitelná kapsa (`pocketFollowsNow`,
-  `pocketFinishAtOnce`), otevřený řez zcela vynechal svůj dojezd s tím, že
-  navázání dokončí burst kapsy — jenže burst uměl být potlačen (`skipRiskyPocketEmit`
-  přes `cornerAlreadyRampedOut`, který roh mylně považoval za „už hotový" i po
-  velkém skoku hloubek — ramp z mělčí vrstvy sjel jen o kousek, ne až na aktuální
-  hloubku) nebo nedosáhl cíle (rescan bursteu / obálka držáku zablokovala
-  dočišťovací průchod). Výsledek: vrstva bez jakéhokoli dojezdu (viditelný
-  neobrobený schod na dílu uživatele). Opraveno v `roughingStrategies.js`
-  (`genLongPasses`): `cornerAlreadyRampedOut` teď navíc ověří, že dřívější ramp
-  reálně sjel až na aktuální hloubku (`reachedX`); a i tak se dojezd otevřeného
-  řezu nezahazuje, jen odloží jako `pendingPocketFallback` (krátký, lokální,
-  beze eskalace na rohovou rampu) — pokud burst kapsy skutečně nedosáhne dost
-  hluboko, pojistka se po zpracování intervalů dopíše. Vědomě přegenerované
-  snapshoty (scan-line i booleovská větev) — dřív bez dojezdu tiché `long{blocked}`
-  průchody teď dostanou `contourLeadOut` nebo vlastní `pocketEntry` rampu.
+- CAD: **"Vybarvit" nedokázalo poskládat otevřenou konturu/polotovar dotažené
+  k ose rotace, když segmenty nebyly ve `state.objects` v topologickém
+  pořadí** (`js/tools/fillClick.js`) — `buildClosedLoops` řetězila segmenty
+  jen dopředu (na konec); od "prostředního" segmentu tak doroste jen k
+  jednomu konci a druhý (i osu dotýkající) zůstane nenapojený → nahlášeno
+  jako "Klikněte dovnitř uzavřeného obrysu" i u vizuálně uzavřeného profilu.
+  Řetězec teď roste OBOUSMĚRNĚ (i na začátek), stejný vzor jako už měl
+  `_chainSegments` v `stockTools.js`. Když se konturu i tak nepodaří uzavřít
+  (skutečná mezera mimo toleranci), nově se vyznačí existujícím indikátorem
+  „Mezera" (`⊗ Mezery v kontuře`) místo jen obecné hlášky. Zpevněn i test
+  vnoření děr (mezikruží kontura/polotovar): používal bod `l[0]` smyčky, což
+  je u profilu dotaženého k ose typicky bod NA ose — přesně na hraně
+  obalové smyčky, kde je ray-casting numericky nespolehlivý; nahrazeno
+  bodem nejdál od osy. `tests/fillClick.test.js` (24 testů).
+- CAM: **schod bez dojezdu u „Hrub. bez schodků" — sada oprav podélného
+  hrubování strmé stěny/bossu** — reálný nález na díle uživatele: jedna
+  vrstva u strmé stěny (boss) uměla skončit úplně bez dojezdu (viditelný
+  neobrobený schod), protože otevřený řez vynechal svůj dojezd s tím, že
+  navázání dokončí samostatný blok „dobrat kapsu najednou" za bossem — ten
+  ale uměl tiše selhat (`cornerAlreadyRampedOut` mylně bral roh za „už
+  hotový" po velkém skoku hloubek, nebo obálka držáku zablokovala
+  dočišťovací průchod). Postupně opraveno (`roughingStrategies.js`,
+  `gcodeEmit.js`):
+  - **Podélné hrubování se za stěnu/boss v rámci jedné hloubkové vrstvy
+    už vůbec nedívá.** Celý blok „kapsa za bossem" (`idx≥1` v
+    `intervals.forEach`, `pocketFollowsNow`/`pendingPocketFallback`,
+    nepoužívaný helper `findOffsetXCrossing`) byl odstraněn — otevřený
+    řez vždy jen dojede svůj vlastní krátký/lokální schod po obrysu.
+    **Vedlejší efekt (vědomý, potvrzený uživatelem):** kapsy/zápichy
+    ohraničené stěnami z OBOU stran uprostřed polotovaru už podélné
+    hrubování nedokopává (`tests/cam-holder.test.js` upraven) — patří
+    jiné operaci/nástroji.
+  - **Rampa u strmé stěny (`findSteepCorner`/`findRampOutTarget`) nesmí
+    v jednom souvislém záběru sebrat víc materiálu, než je nastavená
+    Hloubka (ap).** Cíl rampy se ořízne na `currentX` a odtud pokračuje
+    ROVNĚ (jako běžný řez vrstvy) až na původní (neořízlý) cíl — dojezd
+    tak pokryje stejný Z-rozsah, jen hlubší část nechá na následující
+    vrstvě.
+  - **Dokončení ořízlé rampy** — po skončení hloubkové smyčky regionu se
+    doplní samostatný dokončovací zákrok, rozdělený na kroky ≤ Hloubka
+    (ap) s odskokem/rychloposuvem mezi kroky (`pocketReposition`, stejný
+    vzor jako dřívější „dobrat kapsu najednou"), aby se klín materiálu
+    pod ořízlou rampou nenechal navždy neobrobený.
+  - **`findRampOutTarget` cílí na vůlí-posunutou (offsetovou) siluetu
+    odlitku** (`polyOffset` nad `stockLoopL`, stejná offsetová čára jako
+    `castingTopXAtZOffset` v `gcodeEmit.js`), ne na syrovou siluetu se
+    skalárně odečtenou vůlí na konci — to na diagonále není totéž co
+    posun kolmo k hranici a systematicky to minulo offsetovou čáru.
+  - **`noteCutPass(pass)` (odečtení odřezaného materiálu z dynamického
+    modelu zbytku) se u podélného hrubování volá PŘED kontrolou kolize
+    pro dojezd o Vůli Z**, ne až na konci zpracování průchodu — jinak
+    kontrola narazila na fantomový zbytek vlastního, ještě „nenote'ovaného"
+    záběru a zbytečně netiskla bezpečný dojezd, i když za koncem řezu byl
+    prokazatelně vzduch.
+  Vědomě přegenerované snapshoty (scan-line i booleovská větev).
 - CAM: **sjezd na hloubku v solidním odlitku posuvem místo rychloposuvu (migrace
   Fáze 4)** — nájezdová vůle `zApprox` je „vzduch" jen vůči kontuře, ale obal
   odlitku tam může být ještě plný, takže rychloposuv na cílovou hloubku vjížděl

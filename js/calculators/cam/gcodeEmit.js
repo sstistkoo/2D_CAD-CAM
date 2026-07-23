@@ -957,6 +957,14 @@ export function generateAutoGCode(S, calc) {
       // za konec řezu, teprve pak odskok/rychloposuv. Jen u otevřeného
       // konce, za kterým skutečně NENÍ materiál (hrana polotovaru; stěnu
       // ani hranici rozsahu ověří test proti zbytkovému modelu).
+      // Model se pro TENHLE test musí odříznout HNED (ne až generickým
+      // noteCutPass na konci průchodu) — jinak `rapidStock` ještě obsahuje
+      // materiál, který PRÁVĚ TENTO řez (výše) odebral, a kontrola kolize
+      // narazí na fantomový zbytek vlastního (ještě „nenote'ovaného")
+      // záběru, ne na skutečnou překážku (reálný nález na díle uživatele:
+      // dojezd o Vůli Z se kvůli tomu zbytečně netiskl, i když za koncem
+      // řezu byl prokazatelně vzduch).
+      if (rapidStock) noteCutPass(pass);
       if (!pass.blocked && !pass.contourLeadOut && rapidStock) {
         const zExit = clipZGc(pass.zEnd - rapidClrZGc);
         if (zExit < pass.zEnd - 1e-6 && !rapidHitsStock(pass.x, pass.zEnd, pass.x, zExit)) {

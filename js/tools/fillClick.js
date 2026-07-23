@@ -12,6 +12,7 @@
 import { state, showToast } from '../state.js';
 import { addObject } from '../objects.js';
 import { bulgeToArc } from '../utils.js';
+import { renderAll } from '../render.js';
 
 const LOOP_EPS = 0.02;   // world units – tolerance shody koncových bodů
 const ARC_STEP_DEG = 6;  // krok vzorkování oblouků na body (jemnost výplně)
@@ -89,6 +90,11 @@ const _eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < LOOP_EPS;
 export function buildClosedLoops(objs, opts = {}) {
   const loops = [];
   const edges = [];
+  // Volné konce řetězů, které se NEpodařilo uzavřít — mimo konce legitimně
+  // otevřené k ose rotace (ty uzavře closeOnAxis). Slouží k diagnostice, proč
+  // "Vybarvit" u zdánlivě uzavřené kontury selhalo (typicky drobná mezera
+  // mezi dvěma úsečkami nakreslenými zvlášť, mimo toleranci LOOP_EPS).
+  const gaps = [];
 
   for (const obj of objs) {
     if (obj.type === 'circle' || obj.type === 'rect' || (obj.type === 'polyline' && obj.closed)) {
@@ -110,12 +116,19 @@ export function buildClosedLoops(objs, opts = {}) {
     while (grow) {
       grow = false;
       const tail = chain[chain.length - 1];
-      if (chain.length > 2 && _eq(chain[0], tail)) break; // už uzavřeno
+      const head = chain[0];
+      if (chain.length > 2 && _eq(head, tail)) break; // už uzavřeno
       for (let j = 0; j < edges.length; j++) {
         if (used[j]) continue;
         const e = edges[j];
         if (_eq(e[0], tail)) { chain.push(...e.slice(1)); used[j] = true; grow = true; break; }
         if (_eq(e[e.length - 1], tail)) { chain.push(...e.slice(0, -1).reverse()); used[j] = true; grow = true; break; }
+        // Seed segment nemusí ležet na začátku řetězce (state.objects nejsou
+        // seřazené topologicky, např. po trimu/vložení) — bez tohoto by se
+        // řetězec táhl jen dopředu od tail a druhý (třeba osu dotýkající) konec
+        // by zůstal nenapojený, i když jde geometricky o jeden souvislý profil.
+        if (_eq(e[e.length - 1], head)) { chain.unshift(...e.slice(0, -1)); used[j] = true; grow = true; break; }
+        if (_eq(e[0], head)) { chain.unshift(...e.slice(1).reverse()); used[j] = true; grow = true; break; }
       }
     }
     const closed = chain.length >= 3 && _eq(chain[0], chain[chain.length - 1]);
@@ -125,10 +138,16 @@ export function buildClosedLoops(objs, opts = {}) {
       loops.push(chain);
     } else {
       openCount++;
+      if (chain.length >= 2) {
+        const onAxis = (p) => opts.closeOnAxis && Math.abs(p.y) < AXIS_EPS;
+        if (!onAxis(chain[0])) gaps.push({ x: chain[0].x, y: chain[0].y });
+        const last = chain[chain.length - 1];
+        if (!onAxis(last)) gaps.push({ x: last.x, y: last.y });
+      }
     }
   }
 
-  return { loops, openCount };
+  return { loops, openCount, gaps };
 }
 
 export const FILL_DEFAULT_COLOR = '#60a5fa';
@@ -145,6 +164,17 @@ function pointInPolygon(pt, poly) {
     if (hit) inside = !inside;
   }
   return inside;
+}
+
+/** Bod smyčky nejdál od osy rotace (y=0) — bezpečný reprezentant pro test
+ *  vnoření, mimo dosah ambiguity ray-castingu na hraně (viz volání výše). */
+function _awayFromAxisPoint(loop) {
+  let best = loop[0], bestD = Math.abs(loop[0].y);
+  for (const p of loop) {
+    const d = Math.abs(p.y);
+    if (d > bestD) { bestD = d; best = p; }
+  }
+  return best;
 }
 
 /** Plocha polygonu (shoelace), vždy kladná. */
@@ -168,6 +198,21 @@ function fillableObjects() {
 }
 
 /**
+ * Zviditelní skutečné mezery (volné konce, které NEjsou legitimně otevřené
+ * k ose rotace) přes existující indikátor „Mezera" (viz render.js/state.js
+ * showContourGaps) a vrátí doplněk textu toastu. Bez toho by uživatel u
+ * zdánlivě uzavřené kontury dostal jen obecné „klikněte dovnitř" bez vodítka,
+ * KDE je skutečný problém (typicky mikroskopická mezera mezi dvěma úsečkami).
+ */
+function _reportGaps(gaps) {
+  if (!gaps || gaps.length === 0) return '';
+  state.contourGaps = gaps;
+  state.showContourGaps = true;
+  renderAll();
+  return ' Vyznačil jsem místa mezery (červené kolečko „Mezera") — kontura tam není spojená.';
+}
+
+/**
  * Klik do plochy ji vyplní: najde nejmenší uzavřenou smyčku (ze všech
  * viditelných objektů ve výkresu) obsahující bod [wx,wy], odečte od ní díry
  * ze smyček přímo vnořených uvnitř (klik do mezikruží mezi konturou a
@@ -180,9 +225,9 @@ export function handleFillAreaClick(wx, wy) {
   // Soustruh: profily jsou často vztažené k ose rotace (y=0), takže se
   // otevřené řetězce s oběma konci na ose berou jako uzavřené podél ní.
   const closeOnAxis = state.machineType !== 'karusel';
-  const { loops } = buildClosedLoops(fillableObjects(), { closeOnAxis });
+  const { loops, gaps } = buildClosedLoops(fillableObjects(), { closeOnAxis });
   if (loops.length === 0) {
-    showToast('Ve výkresu nejsou žádné uzavřené obrysy k vybarvení');
+    showToast('Ve výkresu nejsou žádné uzavřené obrysy k vybarvení.' + _reportGaps(gaps));
     return null;
   }
 
@@ -192,7 +237,7 @@ export function handleFillAreaClick(wx, wy) {
     .sort((a, b) => polygonArea(a) - polygonArea(b));
 
   if (containing.length === 0) {
-    showToast('Klikněte dovnitř uzavřeného obrysu');
+    showToast('Klikněte dovnitř uzavřeného obrysu.' + _reportGaps(gaps));
     return null;
   }
 
@@ -202,9 +247,14 @@ export function handleFillAreaClick(wx, wy) {
   // vnoření běží na libovolném bodě HRANICE dané smyčky (ne jejím těžišti!
   // u soustředných obrysů típu kontura/polotovar běžně leží těžiště většího
   // obrysu uvnitř toho menšího, což by vnoření vyhodnotilo obráceně).
-  const insideOuter = loops.filter((l) => l !== outer && pointInPolygon(l[0], outer));
+  // NE ale první bod smyčky (l[0]) — u profilu dotaženého k ose rotace to bývá
+  // právě bod NA ose, tedy přesně na okraji implicitní uzavírací úsečky
+  // "outer" polygonu podél téže osy → ray-casting test je tam číselně
+  // nespolehlivý (bod na hraně). Použije se bod nejdál od osy (jistě
+  // uvnitř/vně, ne na hraně).
+  const insideOuter = loops.filter((l) => l !== outer && pointInPolygon(_awayFromAxisPoint(l), outer));
   const holes = insideOuter.filter((l) =>
-    !insideOuter.some((other) => other !== l && pointInPolygon(l[0], other))
+    !insideOuter.some((other) => other !== l && pointInPolygon(_awayFromAxisPoint(l), other))
   );
 
   return addObject({

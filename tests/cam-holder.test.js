@@ -81,11 +81,13 @@ describe('držák plátku — zanoření do široké kapsy', () => {
     // Svislé mostové úseky podél stěny držáku jsou označené fromHolder
     // (dokončování je nepřeskakuje kvůli úhlovému rozsahu destičky).
     expect(mc.some(s => s.fromHolder)).toBe(true);
-    // Dobírání kapsy (pocketClean) skutečně dojede na dno (offset dna
-    // = 20 + R0.8 + přídavek X 0.5 = 21.3).
-    const cleanPass = (calc.passes || []).find(p => p.pocketClean);
-    expect(cleanPass).toBeTruthy();
-    expect(cleanPass.x).toBeLessThan(22);
+    // Podélné hrubování už kapsu za stěnou/bossem vůbec nedohledává (reálný
+    // nález na díle uživatele: agresivní dojezd/rampa do neznáma tam uměla
+    // narazit na kolizi s držákem a nechat schod bez dojezdu) — dno kapsy
+    // proto roughing nedobírá (žádný pocketClean/pocketEntry), jen
+    // dokončovací offset výš. Zbytek materiálu v kapse patří jinému
+    // nástroji/operaci (např. upichovák/zapichovák), ne podélnému hrubování.
+    expect((calc.passes || []).some(p => p.pocketClean || p.pocketEntry)).toBe(false);
   });
 
   it('bez držáku (holderWidth 0): staré chování — kapsa se přemostí, dno nedostupné', async () => {

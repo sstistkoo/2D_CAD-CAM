@@ -19,7 +19,7 @@
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoop } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
-import { pointInLoop } from '../../geom/geomCore.js';
+import { pointInLoop, polyOffset } from '../../geom/geomCore.js';
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
@@ -401,6 +401,25 @@ export function genLongPasses(ctx) {
   // na hranici materiálu + vůli X; null = válec (rampy kotví postaru).
   const stockLoopL = prms.stockMode === 'casting' ? buildStockLoop(prms, stockPathSegments) : null;
   const stockClrXL = stockClearances(prms).x;
+  // Vůlí-posunutá silueta odlitku (stejná „tečkovaná" offsetová čára jako
+  // v náhledu/simulátoru — viz castingTopXAtZOffset v gcodeEmit.js): přes
+  // polyOffset (Clipper), ne přes ad-hoc odečtení vůle na konci zjištěné
+  // přímky (to na diagonále není totéž co posun KOLMO k hranici o vůli —
+  // reálný nález na díle uživatele: dojezd „bez schodků" u strmé stěny
+  // systematicky minul offsetovou čáru). VůleX ≠ VůleZ (anizotropní) se
+  // řeší měřítkem osy Z, stejně jako v gcodeEmit.js.
+  const { x: stockClrXOffL, z: stockClrZOffL } = stockClearances(prms);
+  let stockLoopOffsetL = null;
+  if (stockLoopL) {
+    if (Math.abs(stockClrXOffL - stockClrZOffL) < 1e-6) {
+      stockLoopOffsetL = polyOffset([stockLoopL], stockClrXOffL)[0] || null;
+    } else {
+      const kZL = stockClrXOffL / stockClrZOffL;
+      const scaledL = stockLoopL.map(p => ({ x: p.x, z: p.z * kZL }));
+      const offL = polyOffset([scaledL], stockClrXOffL)[0];
+      stockLoopOffsetL = offL ? offL.map(p => ({ x: p.x, z: p.z / kZL })) : null;
+    }
+  }
   // Rampa od hranice polotovaru: když vstup průchodu leží v KŮŘE odlitku,
   // kotva se zvedne po přímce zanoření nad polotovar + vůli X — posuv
   // začíná na tečkované hranici a kůra se řeže pod úhlem zanoření
@@ -420,21 +439,25 @@ export function genLongPasses(ctx) {
   };
   // Zrcadlo stockEntryRamp: z rohu (kde sklon obrysu dosáhl úhlu zanoření,
   // viz findSteepCorner níže) se pokračuje DOLŮ/DOVNITŘ přímkou pod úhlem
-  // zanoření, dokud neopustí siluetu odlitku (= projela celou strmou stěnou
-  // bossu) — a ještě o vůli X dál (stejná logika jako u vstupní rampy, jen
-  // v opačném směru toku). Používá se pro dojezd „bez schodků" u strmé
-  // stěny, kde by sledování PŘESNÉHO obrysu (traceOffsetPath) muselo
-  // kopírovat celou výšku stěny (reálný nález na díle uživatele — stěna
-  // skoro svislá desítky mm, teprve při dně strmě padá).
+  // zanoření, dokud neopustí VŮLÍ-POSUNUTOU siluetu odlitku (stockLoopOffsetL
+  // — stejnou offsetovou čáru jako v náhledu/simulátoru, viz
+  // castingTopXAtZOffset v gcodeEmit.js). Používá se pro dojezd „bez
+  // schodků" u strmé stěny, kde by sledování PŘESNÉHO obrysu
+  // (traceOffsetPath) muselo kopírovat celou výšku stěny (reálný nález na
+  // díle uživatele — stěna skoro svislá desítky mm, teprve při dně strmě
+  // padá). Testuje se přímo proti OFFSETOVÉ siluetě (žádné ruční odečítání
+  // vůle na konci) — dřívější verze počítala proti syrové siluetě a na
+  // konci odečetla skalární vůli, což na diagonále není totéž co posun
+  // KOLMO k hranici → systematicky minula offsetovou čáru.
   const findRampOutTarget = (cx, cz) => {
-    if (!stockLoopL) return null;
-    if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopL) !== 'inside') return null;
+    if (!stockLoopOffsetL) return null;
+    if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
     let t = 0;
     for (let i = 0; i < 300; i++) {
       t += 0.5;
       const xx = cx - t * effPlungeTanL, zz = cz - t;
-      if (pointInLoop({ x: xx, z: zz }, stockLoopL) === 'outside') {
-        return { x: xx - stockClrXL * effPlungeTanL, z: zz - stockClrXL };
+      if (pointInLoop({ x: xx, z: zz }, stockLoopOffsetL) === 'outside') {
+        return { x: xx, z: zz };
       }
     }
     return null;
@@ -822,6 +845,13 @@ export function genLongPasses(ctx) {
   // Schodová evidence obálky držáku platí v rámci jednoho regionu —
   // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
   if (holderClampZEnd && holderClampZEnd.resetStair) holderClampZEnd.resetStair();
+  // Strmé stěny, kde rampa (viz níž) byla oříznuta na currentX (Hloubka
+  // ap) — po skončení hloubkové smyčky TOHOTO regionu se sem doplní
+  // dokončovací zákrok, který strmou stěnu dorampuje na její původní
+  // (neořízlý) cíl, než se přejede na další region (reálný nález na díle
+  // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
+  // neobrobený — nic dalšího už tam nezajíždí).
+  const pendingRampCompletions = [];
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -921,7 +951,8 @@ export function genLongPasses(ctx) {
           // krátce, beze změny (viz podmínka níže). V tom vzácném případě
           // se místo dojezdu po obrysu jede od rohu (findSteepCorner) rampou
           // pod úhlem zanoření — stejný vzor jako kapsa za bossem — až tam,
-          // kde ramp opustí siluetu odlitku (+ vůle X).
+          // kde ramp opustí vůlí-posunutou siluetu odlitku (findRampOutTarget
+          // — offsetová čára, stejná jako v náhledu/simulátoru).
           const rampSpan = 2 * step + 10;
           const corner = (iv.zEnd - zEndOutRaw > rampSpan) ? findSteepCorner(iv.zEnd, zEndOutRaw) : null;
           const rampTargetRaw = corner ? findRampOutTarget(corner.x, corner.z) : null;
@@ -938,6 +969,12 @@ export function genLongPasses(ctx) {
             : rampTargetRaw;
           const straightContinueZ = (rampTarget && rampTarget !== rampTargetRaw) ? rampTargetRaw.z : null;
           if (rampTarget) rampedOutCorners.push({ x: corner.x, z: corner.z, reachedX: rampTarget.x });
+          // Ořízlá rampa nechala pod currentX klín materiálu, který žádná
+          // hlubší vrstva sama nenajde (leží mimo její vlastní Z-interval) —
+          // dokončí se až po skončení hloubkové smyčky tohoto regionu.
+          if (straightContinueZ !== null) {
+            pendingRampCompletions.push({ resumeX: rampTarget.x, resumeZ: rampTarget.z, targetX: rampTargetRaw.x, targetZ: rampTargetRaw.z });
+          }
           const leadOut = rampTarget
             ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
                 .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
@@ -1332,6 +1369,43 @@ export function genLongPasses(ctx) {
       pocketDoneRanges.push({ zHi: corner.z, zLo: exitZ });
       return;
     });
+  }
+  // Dokončení ořízlých ramp (viz pendingRampCompletions výš) — teprve TEĎ,
+  // po celé hloubkové smyčce tohoto regionu, je jisté, že žádná další
+  // (hlubší) vrstva ten klín materiálu sama nenajde. Rozděleno na kroky
+  // ≤ Hloubka (ap) — jeden souvislý záběr přes celou rampu by zase sebral
+  // víc materiálu, než odpovídá nastavené hloubce (reálný nález na díle
+  // uživatele). První krok najede bezpečně nad konturou (`pass.ramp` →
+  // safeRapidTo), další kroky se jen ODSKOČÍ (`pocketReposition`,
+  // stejný vzor jako „dobrat kapsu najednou") a rychloposuvem se vrátí na
+  // konec předchozího kroku — odtud pracovní rampa řeže jen nový úsek.
+  for (const rc of pendingRampCompletions) {
+    let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
+    while (curX > rc.targetX + 1e-6) {
+      const stepX = Math.max(rc.targetX, curX - step);
+      const stepZ = curZ - (curX - stepX) / effPlungeTanL;
+      const isLastStep = stepX <= rc.targetX + 1e-6;
+      // Meziкrok nekončí hned po rampě — pokračuje ROVNĚ (jako běžná
+      // vrstva) až na společný cíl rc.targetZ (konec polotovaru v tomhle
+      // regionu), stejně jako u prvního (nerozděleného) dojezdu. Poslední
+      // krok už tam doletí přímo rampou (stepZ === rc.targetZ), navíc
+      // rovný úsek nepotřebuje.
+      const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: isLastStep ? stepZ : rc.targetZ, blocked: true };
+      if (first) {
+        stepPass.ramp = { x0: curX, z0: curZ };
+        first = false;
+      } else {
+        stepPass.ramp = { x0: curX, z0: curZ };
+        stepPass.pocketReposition = true;
+        stepPass.rampFeedFrom = { x: curX, z: curZ };
+      }
+      // Poslední krok smí normálně odjet (retrakt); mezikroky se ŘETĚZÍ
+      // beze změny polohy (noRetract) — návaznost řeší odskok+reposition
+      // NÁSLEDUJÍCÍHO kroku (pocketReposition výš), ne odjezd tohoto.
+      if (stepX > rc.targetX + 1e-6) stepPass.noRetract = true;
+      passes.push(stepPass);
+      curX = stepX; curZ = stepZ;
+    }
   }
   } // konec smyčky regionů
   if (plungeShallowed > 0)

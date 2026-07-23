@@ -291,6 +291,65 @@ describe('handleFillAreaClick', () => {
     expect(obj.loops).toHaveLength(1);
   });
 
+  it('otevřený profil dotažený k ose se poskládá i když jsou segmenty v poli v NEtopologickém pořadí', () => {
+    // Segment 2 (prostřední) jako první seed — bez obousměrného růstu řetězce
+    // by se od něj chain táhl jen dopředu k jednomu konci a druhý (osový)
+    // konec by zůstal nenapojený (nahlášený bug: reálné kresby mají segmenty
+    // v state.objects v pořadí kreslení/editace, ne podél kontury).
+    const p = latheProfile();
+    state.objects = [p[2], p[0], p[1], p[3], p[4]];
+    const obj = handleFillAreaClick(3, 3);
+    expect(obj).not.toBeNull();
+    expect(obj.loops).toHaveLength(1);
+  });
+
+  it('profil s vnitřní mezerou (oba konce na ose, ale uprostřed přerušený) se nevybarví a vyznačí mezeru', () => {
+    // latheProfile s dírou mezi (5,10) a (5,5) — konce na ose (0,0)/(10,0)
+    // jsou v pořádku, ale kontura sama je nesouvislá → musí zůstat otevřená
+    // (žádné tiché domyšlení mezery uprostřed) a diagnostika ji má ukázat.
+    state.objects = [
+      { type: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
+      { type: 'line', x1: 0, y1: 10, x2: 5, y2: 10 },
+      { type: 'line', x1: 5, y1: 5.5, x2: 10, y2: 5 }, // mezera: (5,5.5) ≠ (5,10)/(5,5)
+      { type: 'line', x1: 10, y1: 5, x2: 10, y2: 0 },
+    ];
+    state.contourGaps = [];
+    state.showContourGaps = false;
+    const obj = handleFillAreaClick(3, 3);
+    expect(obj).toBeNull();
+    expect(state.showContourGaps).toBe(true);
+    expect(state.contourGaps.length).toBeGreaterThan(0);
+    // Vyznačené mezery nejsou na ose (jinak by šlo o legitimní otevřený konec)
+    for (const g of state.contourGaps) expect(Math.abs(g.y)).toBeGreaterThan(0.05);
+  });
+
+  it('vlnitá kontura s víc segmenty (jako reálný trasovaný profil) — klik do prstence vyplní jen prstenec, ne celou plochu', () => {
+    // Kontura s "hrbolem" uprostřed, oba konce na ose — podobně jako reálně
+    // trasovaný profil (víc vrcholů než jednoduchý obdélník z ostatních testů).
+    // Nahlášený bug: nesprávný reprezentant bodu při testu vnoření (l[0], což
+    // je zrovna bod NA ose = na hraně obalového polotovaru) způsobil, že se
+    // kontura nerozpoznala jako díra a vyplnila se CELÁ plocha polotovaru.
+    const kontura = [
+      { type: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
+      { type: 'line', x1: 0, y1: 20, x2: 10, y2: 25 },
+      { type: 'line', x1: 10, y1: 25, x2: 20, y2: 20 },
+      { type: 'line', x1: 20, y1: 20, x2: 20, y2: 10 },
+      { type: 'line', x1: 20, y1: 10, x2: 35, y2: 10 },
+      { type: 'line', x1: 35, y1: 10, x2: 35, y2: 0 },
+    ];
+    const polotovar = [
+      { type: 'line', x1: -5, y1: 0, x2: -5, y2: 35 },
+      { type: 'line', x1: -5, y1: 35, x2: 40, y2: 35 },
+      { type: 'line', x1: 40, y1: 35, x2: 40, y2: 0 },
+    ];
+    state.objects = [...kontura, ...polotovar];
+    // Bod v prstenci: mimo konturu (nad ní), uvnitř polotovaru.
+    const obj = handleFillAreaClick(25, 25);
+    expect(obj).not.toBeNull();
+    expect(obj.loops).toHaveLength(2);
+    expect(obj.name).toContain('mezikruží');
+  });
+
   it('profil s jen JEDNÍM koncem na ose zůstává otevřený (nedomýšlí se)', () => {
     state.objects = [
       { type: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },   // na ose
