@@ -960,6 +960,22 @@ export function genLongPasses(ctx) {
         const midZ = (iv.zStart + iv.zEnd) / 2;
         if (pocketDoneRanges.some(r => midZ <= r.zHi + 0.1 && midZ >= r.zLo - 0.1)) return;
       }
+      // Víc oddělených kapes za sebou na TÉŽE hloubce (idx>1): dobrání
+      // najednou pro tu DRUHOU (a další) je order-dependent kolize držáku —
+      // boss NAD ní ještě není doobrobený (na to dojde až hlavní smyčka
+      // hloubek, pokračující po tomhle bloku), takže se tam držák při
+      // zanoření do hloubky opře o materiál, který teprve zmizí. Ověřeno
+      // validátorem kolizí na reálném díle (holder-kolize přesně v místě
+      // dojezdu druhé kapsy). První (idx===1) kapsa dobrání najednou
+      // bezpečně snese (leží hned za právě dokončeným bossem). Zbytek
+      // (další kapsy) zůstává pro pozdější restrukturalizaci pořadí
+      // (dokončit celý boss/čelo, teprve pak kapsy) — POTLAČIT jen EMISI
+      // (passes.push níž), ne celý blok: pocketDoneRanges se MUSÍ
+      // zaregistrovat i tak (níž, beze změny), jinak by tuhle „nedobranou"
+      // kapsu hlavní smyčka na KAŽDÉ další (mělčí) hloubce zkoušela znovu
+      // — a kolidovala by tam taky (ověřeno: bez téhle poznámky se kolize
+      // jen přesunula o pár hloubek dál, misto aby zmizela).
+      const skipRiskyPocketEmit = iv.blocked && prms.pocketFinishAtOnce && idx > 1;
       if (!iv.blocked) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
@@ -1173,7 +1189,7 @@ export function genLongPasses(ctx) {
               : prevRampEnd;
           }
         }
-        passes.push(pocketPass);
+        if (!skipRiskyPocketEmit) passes.push(pocketPass);
         prevRampEnd = { x: pocketPass.x, z: pocketPass.zStart };
         bestX = pocketPass.x;
         firstPlunge = false;
@@ -1276,7 +1292,7 @@ export function genLongPasses(ctx) {
         if (cleanLeadIn.length > 0) cleanPass.contourLeadIn = cleanLeadIn;
         if (cleanLeadOut.length > 0) cleanPass.contourLeadOut = cleanLeadOut;
         if (cleanApproach) cleanPass.cleanApproach = cleanApproach;
-        passes.push(cleanPass);
+        if (!skipRiskyPocketEmit) passes.push(cleanPass);
       }
 
       // Potlačení: celou Z-zónu kapsy hlavní smyčka znovu nezpracuje.

@@ -796,13 +796,16 @@ export function generateAutoGCode(S, calc) {
             else segs.push({ kind, pt: pts[s] });
           }
           const g1RunCount = segs.filter(s => s.kind === 'G1').length;
-          if (g1RunCount > 1) {
+          if (needsExactLanding && g1RunCount > 1) {
             // Reálná mezera v odlitku (materiál-vzduch-materiál), ne jen
             // vzorkovací šum na konci — diagonální rapid mezerou by vedl přes
             // 3D geometrii, kterou per-Z obálka (castingTopXAtZOffset) nevidí.
             // Dojet k PRVNÍMU dotyku, pak vyjet nad konturu (stejný vzor jako
             // jinde — „Výjezd nad konturu") a bezpečně najet na cíl (x1,z1)
-            // přes safeRapidTo — místo hádání zbytku diagonály.
+            // přes safeRapidTo — místo hádání zbytku diagonály. Tahle větev
+            // běží JEN když opravdu něco navazujícího čte přesnou polohu
+            // (tělový řez/leadOut) — landing-only rampa (viz níž) nikdy dál
+            // nejede, natož skáče jinam.
             const firstG1Idx = segs.findIndex(s => s.kind === 'G1');
             const headSegs = segs.slice(0, firstG1Idx + 1);
             headSegs.forEach((s, idx) => {
@@ -816,11 +819,18 @@ export function generateAutoGCode(S, calc) {
             safeRapidTo(x1, z1, true, true);
           } else {
             if (!needsExactLanding) {
-              // Zkrátit na konec posledního ŘEZNÉHO úseku — vynechat vzduch za
-              // ním (nic ho nepotřebuje). Bez materiálu na celé rampě (vzácný
-              // okraj — pokud sem detekce kapsy vůbec zavede) rampu nekreslit.
-              const lastCut = segs.map(s => s.kind).lastIndexOf('G1');
-              segs = lastCut >= 0 ? segs.slice(0, lastCut + 1) : [];
+              // Landing-only rampa (žádný tělový řez, žádný leadOut,
+              // noRetract) — nic dál nepotřebuje přesnou polohu (x1,z1).
+              // Zkrátit VŽDY na konec PRVNÍHO řezného úseku (ne posledního a
+              // NIKDY jízdou/rychloposuvem přes safeRapidTo jinam) —
+              // pokračovat dál diagonálou (nebo přeskočit na vzdálený cíl
+              // x1/z1) by porušilo jednotné odebírání po vrstvách a
+              // přejíždělo/dobíralo materiál, který patří JINÉMU, pozdějšímu
+              // průchodu (reálný nález na díle uživatele — nechtěný skok na
+              // vzdálenou kapsu uprostřed hrubování čela, navíc s kolizním
+              // „upichovacím" doletem).
+              const firstG1Idx = segs.findIndex(s => s.kind === 'G1');
+              segs = firstG1Idx >= 0 ? segs.slice(0, firstG1Idx + 1) : [];
             } else if (segs.length && segs[segs.length - 1].kind === 'G0') {
               // Musí doletět přesně: poslední VZOREK (~0,2 mm krok z `pts`) vždy
               // posuv (touch), i vyjde-li vzduch — pass.x/zStart je cíl z PROFILU
