@@ -321,12 +321,14 @@ snapshoty. Scan-line snapshoty (flag OFF) zůstávají mimo.
 ### Fáze 4 — plánování přejezdů (rychloposuvy) — ČÁSTEČNĚ (16. 7. 2026)
 
 Hotovo:
-- **Vůle nad polotovarem po osách** (`stockClearX`/`stockClearZ`, UI „Vůle
-  X/Z (polotovar)", null = dědí `rapidClearance`): hranice konce
+- **Přídavek kolem polotovaru po osách** (`stockClearX`/`stockClearZ`, UI
+  „Přídavek X/Z (polo.)", null = dědí `rapidClearance`): hranice konce
   rychloposuvu / začátku G1 se kreslí **tečkovaně kolem polotovaru**
   (válec i odlitek, per-osový offset povrchu). Emise nájezdů/odskoků,
   čelní hrubování, závit i upichnutí čtou oddělené hodnoty
-  (`camMath.stockClearances`).
+  (`camMath.stockClearances`). Na tuhle čáru dráha i VYJÍŽDÍ na konci řezu
+  (`gcodeEmit.offsetExitZ`) — odsazení podél osy Z by na šikmé/obloukové
+  hraně skončilo uvnitř přídavkového pásma.
 - **Vjezd na hranici rozsahu Z rampou**: kotva = průsečík čáry začátku
   rozsahu s hranicí polotovaru (+ vůle X), všechny hloubky sdílejí touž
   přímku pod úhlem zanoření (dřív kolmý zápich jako u upichování).

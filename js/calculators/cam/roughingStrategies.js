@@ -498,13 +498,25 @@ export function genLongPasses(ctx) {
   // dosáhne úhlu zanoření a VYDRŽÍ (min. 1 mm), ne jen okrajový hrot na
   // vstupu (napojení currentX → offset kontury bývá krátký a strmý samo o
   // sobě — zaoblení/přechod).
+  // Mez sklonu se porovnává s malou tolerancí, a to NENÍ kosmetika: stěna
+  // vzniklá GEOMETRIÍ PLÁTKU (mezní čára „stínu" břitu, kterou vkládá
+  // buildMachinableContour místo nedosažitelného oblouku) klesá PŘESNĚ pod
+  // úhlem zanoření — u automatického úhlu je totiž effPlungeDeg = |Natočení|
+  // plátku (getEffectivePlungeAngle), tedy TÝŽ úhel, pod kterým se mezní čára
+  // konstruuje. Ostré porovnání (>=) na ní kvůli zaokrouhlení dopadalo o ~1e-5
+  // relativně POD mez, takže se roh nenašel NIKDY a dojezd „bez schodků" sjel
+  // celou stěnu jedním nekontrolovaným úsekem místo rampy ořízlé na Hloubku
+  // (ap) — reálný nález na díle uživatele: zajezd 4,5 mm v X pod hloubku
+  // vrstvy a záběr proti polotovaru přes ap. Tolerance 0,1 % tangenty ≈ 0,06°
+  // při 15°, tj. fyzikálně nic, ale okrajový případ spolehlivě chytí.
+  const steepTanTol = effPlungeTanL * 1e-3;
   const findSteepCorner = (zFrom, zStop) => {
     const h = 0.05, minRun = 20; // 20×0,05 = 1 mm trvalého sklonu
     let runLen = 0, runX = null, runZ = null;
     for (let z = zFrom; z > zStop + h; z -= h) {
       const xa = offsetXAt(z), xb = offsetXAt(z - h);
       if (xa === null || xb === null) { runLen = 0; continue; }
-      if ((xa - xb) / h >= effPlungeTanL) {
+      if ((xa - xb) / h >= effPlungeTanL - steepTanTol) {
         if (runLen === 0) { runX = xa; runZ = z; }
         if (++runLen >= minRun) return { x: runX, z: runZ };
       } else {
@@ -1641,6 +1653,29 @@ export function genLongPasses(ctx) {
         if (!entryRampAnchor.first) {
           finalPass.pocketReposition = true;
           finalPass.rampFeedFrom = { x: entryRampAnchor.x, z: entryRampAnchor.z };
+        }
+        // Poslední (kratší než Hloubka ap) krok řetězu dosedl na konturu —
+        // schod vůči kroku NAD ním se dobere sledováním obrysu, stejně jako
+        // u běžného průchodu „bez schodků" a u dokončení ořízlé rampy níž.
+        // Bez toho průchod končil nasucho a hned odskočil (reálný nález na
+        // díle uživatele: poslední schod na kuželu u čela zůstal nedojetý).
+        // Napojení se NEtestuje přes traceIfContinuous (jako u dokončení
+        // ořízlé rampy níž): konec tohohle průchodu bere booleovská větev ze
+        // VZORKOVANÉ geometrie, takže na STRMÉ stěně leží o desetinu mm v Z
+        // jinam než analytický dotyk offsetu — a desetina v Z je na stěně se
+        // sklonem ~3,7 skoro půl mm v X, tedy nad pevnou tolerancí 0,1 mm.
+        // Dojezd se pak zahodil celý a schod zůstal stát (reálný nález na díle
+        // uživatele: „dojelo to přímo pod zanořováním k čelu a odskok").
+        // Proti nebezpečnému případu (jiná větev kontury u zápichu, part-10:
+        // sjezd 6 mm pod hotovní konturu) chrání shift níž — emise stejně jede
+        // jen KONCOVÉ body segmentů, takže rozhoduje první koncový bod, a ten
+        // musí ležet NAD hloubkou průchodu.
+        if (prms.noStepRoughing) {
+          const lo = holderTrimLeadOut(
+            traceOffsetPath(bestCiv.zEnd, findLeadOutEndZ(bestCiv.zEnd, entryRampAnchor.x, -Infinity, cylStockZ)), true);
+          while (lo.length > 0 && lo[0].x2 <= bestX + 0.02) lo.shift();
+          clipLeadOutToDepth(lo, entryRampAnchor.x);
+          if (lo.length > 0) finalPass.contourLeadOut = lo;
         }
         passes.push(finalPass);
       }

@@ -3501,7 +3501,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     html += `<button class="cam-sim-machine-toggle" data-act="safety-config-toggle">
       <span class="cam-sim-machine-summary">
         <span class="cam-sim-machine-chip">Bp ${prms.safeX}<span style="color:#1e1e2e;font-weight:900">/</span>${prms.safeZ}</span>
-        <span class="cam-sim-machine-chip">Vůle X${stockClearances(prms).x} Z${stockClearances(prms).z}</span>
+        <span class="cam-sim-machine-chip">Přídavek X${stockClearances(prms).x} Z${stockClearances(prms).z}</span>
         <span class="cam-sim-machine-chip" style="display:inline-flex;gap:3px;align-items:center">
           <span style="color:${_chActive ? '#a6e3a1' : '#585b70'}" title="Čelisti">Č</span><span style="color:#45475a">/</span><span style="color:${_koActive ? '#a6e3a1' : '#585b70'}" title="Koník">K</span>
         </span>
@@ -3517,8 +3517,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>Z</label><input type="number" data-p="safeZ" value="${prms.safeZ}"></div>
       </div>
       <div class="cam-sim-row">
-        <div class="cam-sim-field" title="Vůle nad polotovarem radiálně (osa X): vzdálenost od povrchu polotovaru, kde končí rychloposuv — sjezd přes ni už jede pracovním posuvem G1. Hranice se kreslí tečkovaně kolem polotovaru."><label>Vůle X (polotovar)</label><input type="number" step="0.1" min="0.05" data-p="stockClearX" value="${stockClearances(prms).x}"></div>
-        <div class="cam-sim-field" title="Vůle nad polotovarem axiálně (osa Z): vzdálenost od čela/hran polotovaru, kde končí rychloposuv a začíná pracovní posuv G1. Hranice se kreslí tečkovaně kolem polotovaru."><label>Vůle Z (polotovar)</label><input type="number" step="0.1" min="0.05" data-p="stockClearZ" value="${stockClearances(prms).z}"></div>
+        <div class="cam-sim-field" title="Přídavek kolem polotovaru radiálně (osa X): vzdálenost od povrchu polotovaru, kde končí rychloposuv — sjezd přes ni už jede pracovním posuvem G1 a dráha na tuhle čáru na konci řezu i vyjíždí. Hranice se kreslí tečkovaně kolem polotovaru."><label>Přídavek X (polo.)</label><input type="number" step="0.1" min="0.05" data-p="stockClearX" value="${stockClearances(prms).x}"></div>
+        <div class="cam-sim-field" title="Přídavek kolem polotovaru axiálně (osa Z): vzdálenost od čela/hran polotovaru, kde končí rychloposuv a začíná pracovní posuv G1 — a kam dráha vyjíždí na konci řezu. Hranice se kreslí tečkovaně kolem polotovaru."><label>Přídavek Z (polo.)</label><input type="number" step="0.1" min="0.05" data-p="stockClearZ" value="${stockClearances(prms).z}"></div>
       </div>`;
     const zlOn = S.showZLimits === 'on';
     const zlLabel = zlOn ? 'Skrýt' : 'Zobrazit';

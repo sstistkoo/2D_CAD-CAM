@@ -1,0 +1,614 @@
+{
+  "__camprog": 1,
+  "pathLogicVersion": 3,
+  "savedAt": "2026-07-27T20:56:59.038Z",
+  "params": {
+    "machineType": "LIMS=2000",
+    "mode": "RADIUS",
+    "toolName": "T1",
+    "speed": 200,
+    "feed": 0.25,
+    "depthOfCut": 5,
+    "retractDistance": 2,
+    "retractAngle": 45,
+    "allowanceX": 0,
+    "allowanceZ": 0.5,
+    "toolRadius": 0.8,
+    "finishAllowance": 0,
+    "doFinishing": false,
+    "roughingStrategy": "longitudinal",
+    "finishOnly": false,
+    "roughingSide": "right",
+    "stockMode": "casting",
+    "stockMargin": 5,
+    "stockDiameter": 111,
+    "stockLength": 5,
+    "stockFace": 349,
+    "safeX": 150,
+    "safeZ": 5,
+    "machineStructure": "lathe",
+    "controlSystem": "sinumerik",
+    "autoProfile": false,
+    "toolShape": "polygon",
+    "toolLength": 15,
+    "toolAngle": 15,
+    "toolTipAngle": 90,
+    "toolTipMirror": false,
+    "toolVbdCode": "",
+    "toolClearanceAngle": 0,
+    "holderWidth": 20,
+    "holderLength": 200,
+    "holderHand": "R",
+    "holderProfile": {
+      "sideA": [
+        {
+          "x": 0,
+          "z": 0
+        },
+        {
+          "x": 2,
+          "z": 0
+        },
+        {
+          "x": 20,
+          "z": 6.551464216791643
+        },
+        {
+          "x": 20,
+          "z": 200
+        },
+        {
+          "x": 0,
+          "z": 200
+        },
+        {
+          "x": 0,
+          "z": 0
+        }
+      ],
+      "sideB": []
+    },
+    "knifeAngle": 270,
+    "holderAutoComplete": true,
+    "toolTipFlat": 0.1,
+    "partOffZ": null,
+    "partingApproachFeed": 1,
+    "partOffSmooth": false,
+    "partOffStartX": 0,
+    "finishingSlot": null,
+    "threadActive": false,
+    "threadName": "",
+    "threadType": "mc",
+    "threadDiameter": 20,
+    "threadPitch": 2.5,
+    "threadAngle": 60,
+    "threadDepth": 1.534,
+    "threadExternal": true,
+    "threadZStart": 0,
+    "threadZEnd": -20,
+    "threadRunIn": 3,
+    "threadRunOut": 0,
+    "threadPasses": 0,
+    "threadSpringPasses": 1,
+    "threadTaperRatio": 0,
+    "threadInfeed": "radial",
+    "entryAngle": 15.5,
+    "entryAngleAuto": true,
+    "respectInsertGeometry": true,
+    "plungeRoughing": true,
+    "pocketFinishAtOnce": true,
+    "noStepRoughing": true,
+    "noStepRoughingFace": true,
+    "regionRoughing": true,
+    "booleanRoughing": true,
+    "rapidClearance": 1,
+    "stockClearX": null,
+    "stockClearZ": null
+  },
+  "contourPoints": [
+    {
+      "id": 1785185547911,
+      "type": "G0",
+      "x": 0,
+      "z": 346.371,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547912,
+      "type": "G1",
+      "x": 9.117,
+      "z": 345.397,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547913,
+      "type": "G1",
+      "x": 9.117,
+      "z": 243.123,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547914,
+      "type": "G1",
+      "x": 50.081,
+      "z": 234.99,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547915,
+      "type": "G1",
+      "x": 50.081,
+      "z": 221.135,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547916,
+      "type": "G1",
+      "x": 6.744,
+      "z": 205.009,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547917,
+      "type": "G1",
+      "x": 6.744,
+      "z": 165.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547918,
+      "type": "G1",
+      "x": 8.743,
+      "z": 163.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547919,
+      "type": "G1",
+      "x": 8.743,
+      "z": 149.544,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547920,
+      "type": "G1",
+      "x": 8.743,
+      "z": 138.253,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547921,
+      "type": "G1",
+      "x": 38.574,
+      "z": 137.509,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547922,
+      "type": "G1",
+      "x": 40.118,
+      "z": 128.86,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547923,
+      "type": "G1",
+      "x": 40.118,
+      "z": 125.462,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547924,
+      "type": "G3",
+      "x": 33.477,
+      "z": 116.044,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547925,
+      "type": "G1",
+      "x": 14.22,
+      "z": 109.175,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547926,
+      "type": "G2",
+      "x": 7.579,
+      "z": 99.757,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547927,
+      "type": "G1",
+      "x": 7.579,
+      "z": 84.177,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547928,
+      "type": "G2",
+      "x": 15.585,
+      "z": 74.378,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547929,
+      "type": "G1",
+      "x": 22.252,
+      "z": 73.021,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547930,
+      "type": "G3",
+      "x": 27.056,
+      "z": 67.142,
+      "r": 6,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547931,
+      "type": "G1",
+      "x": 27.056,
+      "z": 55.47,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547932,
+      "type": "G3",
+      "x": 25.516,
+      "z": 51.456,
+      "r": 6,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547933,
+      "type": "G2",
+      "x": 27.279,
+      "z": 16.913,
+      "r": 24.495,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547934,
+      "type": "G3",
+      "x": 30.566,
+      "z": 9.502,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547935,
+      "type": "G1",
+      "x": 30.566,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547936,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547937,
+      "type": "G0",
+      "x": 9.117,
+      "z": 243.123,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185547938,
+      "type": "G1",
+      "x": 50.081,
+      "z": 234.99,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "stockPoints": [
+    {
+      "id": 1785185647911,
+      "type": "G0",
+      "x": 0,
+      "z": 173.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647912,
+      "type": "G1",
+      "x": 0,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647913,
+      "type": "G1",
+      "x": 38.566,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647914,
+      "type": "G1",
+      "x": 38.566,
+      "z": 9.502,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647915,
+      "type": "G2",
+      "x": 32.649,
+      "z": 22.843,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647916,
+      "type": "G3",
+      "x": 31.462,
+      "z": 46.104,
+      "r": 16.495,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647917,
+      "type": "G2",
+      "x": 35.056,
+      "z": 55.47,
+      "r": 14,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647918,
+      "type": "G1",
+      "x": 35.056,
+      "z": 67.142,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647919,
+      "type": "G2",
+      "x": 23.847,
+      "z": 80.861,
+      "r": 14,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647920,
+      "type": "G1",
+      "x": 17.18,
+      "z": 82.217,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647921,
+      "type": "G3",
+      "x": 15.579,
+      "z": 84.177,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647922,
+      "type": "G1",
+      "x": 15.579,
+      "z": 99.757,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647923,
+      "type": "G3",
+      "x": 16.907,
+      "z": 101.64,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647924,
+      "type": "G1",
+      "x": 36.165,
+      "z": 108.508,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647925,
+      "type": "G2",
+      "x": 48.118,
+      "z": 125.462,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647926,
+      "type": "G1",
+      "x": 48.118,
+      "z": 128.86,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647927,
+      "type": "G1",
+      "x": 47.649,
+      "z": 141.79,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647928,
+      "type": "G1",
+      "x": 37.742,
+      "z": 142.383,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647929,
+      "type": "G1",
+      "x": 18.226,
+      "z": 147.612,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647930,
+      "type": "G3",
+      "x": 16.743,
+      "z": 149.544,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647931,
+      "type": "G1",
+      "x": 16.743,
+      "z": 167.259,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647932,
+      "type": "G1",
+      "x": 16.744,
+      "z": 196.278,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647933,
+      "type": "G1",
+      "x": 64.359,
+      "z": 196.278,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647934,
+      "type": "G1",
+      "x": 64.545,
+      "z": 256.228,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647935,
+      "type": "G1",
+      "x": 31.753,
+      "z": 267.953,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647936,
+      "type": "G3",
+      "x": 21.803,
+      "z": 282.078,
+      "r": 15,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647937,
+      "type": "G1",
+      "x": 21.803,
+      "z": 366.368,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647938,
+      "type": "G1",
+      "x": 0,
+      "z": 368.932,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647939,
+      "type": "G0",
+      "x": 0,
+      "z": 273.523,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647940,
+      "type": "G1",
+      "x": 0,
+      "z": 244.027,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647941,
+      "type": "G0",
+      "x": 0,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1785185647942,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "manualGCode": "; Vygenerovaný kód SINUMERIK 840D\n; Datum: 27. 7. 2026\nN10 G18 ; Rovina ZX\nN20 G90 ; Absolutní programování\nN30 G54 ; Posunutí počátku\nN40 G95 ; Posuv na otáčku\nN50 G75 X150 ; Nájezd do ref. bodu\nN60 G75 Z5\nN70 LIMS=2000 ; Limit otáček\nN80 G96 S200 LIMS=2000 ; Konst. řezná rychlost\nN90 DIAMOF ; Programování poloměru\nN100 T=\"T1\" D1 M6 ; Výměna nástroje\nN110 M3 ; Vřeteno CW\nN120 M8 ; Chlazení ZAP\nN130 G0 X150 Z5 ; Rychloposuv\n; --- HRUBOVANI (PODELNE) ---\n; Průchod 1\nN140 G0 Z259.816\nN150 G0 X59.545\nN160 G1 Z258.016 F0.25\nN170 G1 Z196.278 F0.25\nN180 G1 Z195.278 F0.25\nN190 G1 X61.545 Z197.278\n; Průchod 2\nN200 G0 Z261.604\nN210 G0 X54.545\nN220 G1 Z259.804 F0.25\nN230 G1 Z196.278 F0.25\nN240 G1 Z195.278 F0.25\nN250 G1 X56.545 Z197.278\n; Průchod 3 (bez schodků)\nN260 G0 Z263.391\nN270 G0 X49.545\nN280 G1 Z261.591 F0.25\nN290 G1 Z236.548 F0.25\nN300 G1 X50.881 Z236.087 F0.25\nN310 G1 X50.881 Z220.900 F0.25\nN320 G1 X50.880 Z220.898 F0.25\nN330 G1 X49.545 Z215.912 F0.25\nN340 G1 X49.545 Z196.278 F0.25\nN350 G1 X51.545 Z198.278\n; Průchod 4 (bez schodků)\nN360 G0 Z265.179\nN370 G0 X44.545\nN380 G1 Z263.379 F0.25\nN390 G1 Z237.887 F0.25\nN400 G1 X49.575 Z236.437 F0.25\nN410 G1 X51.575 Z238.437\n; Průchod 5 (bez schodků)\nN420 G0 Z266.967\nN430 G0 X39.545\nN440 G1 Z265.167 F0.25\nN450 G1 Z239.226 F0.25\nN460 G1 X44.578 Z237.776 F0.25\nN470 G1 X46.578 Z239.776\n; Průchod 6 (bez schodků)\nN480 G0 Z268.755\nN490 G0 X34.545\nN500 G1 Z266.955 F0.25\nN510 G1 Z240.565 F0.25\nN520 G1 X39.580 Z239.115 F0.25\nN530 G1 X41.580 Z241.115\n; Průchod 7 (bez schodků)\nN540 G0 Z270.750\nN550 G0 X29.545\nN560 G1 Z268.950 F0.25\nN570 G1 Z241.904 F0.25\nN580 G1 X34.582 Z240.454 F0.25\nN590 G1 X36.582 Z242.454\n; Průchod 8 (bez schodků)\nN600 G0 Z275.232\nN610 G0 X24.545\nN620 G1 Z273.432 F0.25\nN630 G1 Z243.244 F0.25\nN640 G1 X29.583 Z241.794 F0.25\nN650 G1 X31.583 Z243.794\n; Průchod 9 (oblouk G3)\nN660 G0 X24.603 Z330.350\nN670 G1 X22.803 F0.25\nN680 G1 X19.545 Z318.191 ; Rampa 15.0°\nN690 G1 Z244.583 F0.25\nN700 G1 X24.583 Z243.133 F0.25\nN710 G1 X26.583 Z245.133\n; Průchod 10 (zanoření v kapse)\nN720 G1 X28.583 Z247.133\nN730 G0 Z318.191\nN740 G0 X19.545\nN750 G1 X14.545 Z299.531 ; Rampa 15.0°\nN760 G1 Z245.823 F0.25\nN770 G1 X19.583 Z244.473 F0.25\nN780 G1 X21.583 Z246.473\n; Průchod 11 (zanoření v kapse)\nN790 G1 X23.583 Z248.473\nN800 G0 Z299.531\nN810 G0 X14.545\nN820 G1 X9.920 Z282.270 ; Rampa 15.0°\nN830 G1 Z247.131 F0.25\nN840 G1 X11.920 Z249.131\n; Průchod 12 (oblouk G3)\nN850 G0 X67.900 ; Výjezd nad konturu\nN860 G0 Z215.912\nN870 G0 X51.345\nN880 G1 X49.545 F0.25\nN890 G1 X44.545 Z197.251 ; Rampa 15.0°\nN900 G1 Z194.898 F0.25\n; Průchod 13 (zanoření v kapse)\nN910 G1 X46.545 Z196.898\nN920 G0 Z197.251\nN930 G0 X44.545\nN940 G1 X44.019 Z195.290 ; Rampa 15.0°\nN950 G1 X46.019 Z197.290\n; Průchod 14\nN960 G0 Z143.824\nN970 G0 X44.545\nN980 G1 Z142.024 F0.25\nN990 G1 Z114.698 F0.25\nN1000 G1 Z113.698 F0.25\nN1010 G1 X46.545 Z115.698\n; Průchod 15 (bez schodků)\nN1020 G0 Z144.123\nN1030 G0 X39.545\nN1040 G1 Z142.323 F0.25\nN1050 G1 Z136.818 F0.25\nN1060 G1 X40.918 Z129.019 F0.25\nN1070 G1 X40.918 Z123.951 F0.25\nN1080 G1 X36.408 Z107.118 F0.25\nN1090 G1 X38.408 Z109.118\n; Průchod 16 (bez schodků)\nN1100 G0 X67.900 ; Výjezd nad konturu\nN1110 G0 Z145.254\nN1120 G0 X34.545\nN1130 G1 Z143.454 F0.25\nN1140 G1 Z140.000 F0.25\nN1150 G1 X39.198 Z138.653 F0.25\nN1160 G1 X39.547 Z136.700 F0.25\nN1170 G1 X41.547 Z138.700\n; Průchod 17 (bez schodků)\nN1180 G0 Z146.594\nN1190 G0 X29.545\nN1200 G1 Z144.794 F0.25\nN1210 G1 Z141.340 F0.25\nN1220 G1 X34.583 Z139.890 F0.25\nN1230 G1 X36.583 Z141.890\n; Průchod 18 (bez schodků)\nN1240 G0 Z147.933\nN1250 G0 X24.545\nN1260 G1 Z146.133 F0.25\nN1270 G1 Z142.679 F0.25\nN1280 G1 X29.583 Z141.229 F0.25\nN1290 G1 X31.583 Z143.229\n; Průchod 19 (bez schodků)\nN1300 G0 Z149.273\nN1310 G0 X19.545\nN1320 G1 Z147.473 F0.25\nN1330 G1 Z144.019 F0.25\nN1340 G1 X24.583 Z142.569 F0.25\nN1350 G1 X26.583 Z144.569\nN1360 G0 X150.000 ; Výjezd nad konturu\nN1370 G0 Z5.000\nN1380 M30 ; Konec programu\n; --- KONTURA (Pro referenci) ---\n; G0 X0 Z346.371\n; G1 X9.117 Z345.397\n; G1 X9.117 Z243.123\n; G1 X50.081 Z234.99\n; G1 X50.081 Z221.135\n; G1 X6.744 Z205.009\n; G1 X6.744 Z165.945\n; G1 X8.743 Z163.945\n; G1 X8.743 Z149.544\n; G1 X8.743 Z138.253\n; G1 X38.574 Z137.509\n; G1 X40.118 Z128.86\n; G1 X40.118 Z125.462\n; G3 X33.477 Z116.044 CR=10.000\n; G1 X14.22 Z109.175\n; G2 X7.579 Z99.757 CR=10.000\n; G1 X7.579 Z84.177\n; G2 X15.585 Z74.378 CR=10.000\n; G1 X22.252 Z73.021\n; G3 X27.056 Z67.142 CR=6.000\n; G1 X27.056 Z55.47\n; G3 X25.516 Z51.456 CR=6.000\n; G2 X27.279 Z16.913 CR=24.495\n; G3 X30.566 Z9.502 CR=10.000\n; G1 X30.566 Z0\n; G1 X0 Z0\n; G0 X9.117 Z243.123\n; G1 X50.081 Z234.99",
+  "flipX": false,
+  "flipZ": false,
+  "guideLines": [],
+  "zLimits": {
+    "chuck": -11.77,
+    "tail": 384.81,
+    "chuckActive": true,
+    "tailActive": true,
+    "rangeStart": 330.35,
+    "rangeEnd": 84.37,
+    "rangeActive": true
+  },
+  "showZLimits": "on",
+  "xLimits": {
+    "rangeXMin": null,
+    "rangeXMax": null,
+    "active": false
+  },
+  "showSimPath": "all",
+  "showRemoval": true,
+  "showHolderCollision": true
+}

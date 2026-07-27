@@ -7,7 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CAM (Parametry): pole **„Vůle X/Z (polotovar)" se jmenují „Přídavek X (polo.)"
+  a „Přídavek Z (polo.)"** (a stejně i shrnující chip nad panelem) — je to
+  přídavek kolem polotovaru, na jehož čáru (tečkovaná hranice v náhledu) má
+  dráha dojíždět, ne jen odstup rychloposuvu.
+
 ### Fixed
+- CAM (podélné hrubování): **výjezd z materiálu končí na offsetové čáře
+  polotovaru, ne na holé kůře.** Dojezd se odsazoval jen podél OSY Z
+  (`zEnd − Přídavek Z`), jenže offsetová (tečkovaná) čára je posunutá KOLMO
+  k hranici — na šikmé/obloukové hraně odlitku proto dráha viditelně stála
+  uvnitř přídavkového pásma (reálný díl uživatele: na oblouku R18 chybělo
+  0,6 mm) a u dojezdu „bez schodků" se neodsazovalo vůbec (chybělo 1,2 mm).
+  Konec řezu se teď hledá jako průsečík vůlí-posunuté siluety s hloubkou
+  průchodu (`offsetExitZ`, strop 4× přídavek pro hrany skoro rovnoběžné s osou
+  Z) — a nově dojíždí i „bez schodků" dojezd, pokud končí AXIÁLNÍM úsekem
+  (šikmý/obloukový konec leží na stěně kontury, tam by pokračování řezalo do
+  dílu). Materiálu se tím neubere víc — jde o pohyb v přídavkovém pásmu.
+- CAM (podélné hrubování): **poslední krok řetězu ramp na STRMÉ stěně přišel
+  o dojezd schodu.** Napojení dojezdu se testovalo `traceIfContinuous` s pevnou
+  tolerancí 0,1 mm, jenže konec průchodu bere booleovská větev ze VZORKOVANÉ
+  geometrie — na stěně se sklonem ~3,7 je desetina mm v Z skoro půl mm v X, tak
+  se dojezd zahodil celý (reálný nález na díle uživatele: „dojelo to přímo pod
+  zanořováním k čelu a odskok"). Kontrolu přebírá existující ořez podle hloubky
+  průchodu; emise stejně jede jen KONCOVÉ body segmentů, takže rozhoduje první
+  koncový bod a ten musí ležet nad hloubkou průchodu.
+- CAM (podélné hrubování): **dojezd „bez schodků" sjížděl mezní čáru plátku
+  jedním úsekem hluboko pod hloubku vlastní vrstvy.** Mezní čáru „stínu" břitu
+  (`buildMachinableContour` ji vkládá místo oblouku, na který plátek nedosáhne)
+  klesá PŘESNĚ pod úhlem zanoření — u automatického úhlu je totiž
+  `effPlungeDeg = |Natočení|` plátku, tedy TÝŽ úhel, pod kterým se mezní čára
+  konstruuje. Ostré porovnání v `findSteepCorner` na ní kvůli zaokrouhlení
+  dopadalo o ~1e-5 relativně pod mez, takže se roh strmé stěny nenašel NIKDY a
+  rampa ořízlá na Hloubku (ap) se vůbec nespustila: dojezd sjel celou stěnu
+  naráz (reálný díl uživatele: 4,5 mm v X pod hloubku vrstvy, záběr proti
+  polotovaru přes ap). Mez se teď porovnává s tolerancí 0,1 % tangenty (≈0,06°
+  při 15°). Vrstva díky tomu zůstane na své hloubce, dojede rovně na stěnu
+  kontury a klín pod mezní čárou dobere samostatný průchod rampou ≤ ap.
+- CAM (podélné hrubování): **poslední krok řetězu ramp na hranici rozsahu Z
+  nedojel schodek.** Krok kratší než Hloubka (ap), který řetěz uzavírá (vzniká
+  bisekcí pod poslední plnou hloubkou), dosedl na konturu a hned odskočil —
+  schod vůči kroku nad ním zůstal stát. Teď ho dobere sledováním obrysu stejně
+  jako běžný průchod „bez schodků" a poslední krok dokončení ořízlé rampy.
 - CAM (podélné hrubování): **rampa dojezdu „bez schodků" podjížděla hotovní konturu.**
   `findRampOutTarget` hledala konec rampy jen podle SILUETY POLOTOVARU — hotovní
   konturu netestovala vůbec, takže na dílu, kde za údolím kontura zase stoupá,
