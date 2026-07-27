@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- CAM (podélné hrubování): **rampa dojezdu „bez schodků" podjížděla hotovní konturu.**
+  `findRampOutTarget` hledala konec rampy jen podle SILUETY POLOTOVARU — hotovní
+  konturu netestovala vůbec, takže na dílu, kde za údolím kontura zase stoupá,
+  vedla rampa (a navazující dokončovací kroky ap) přímkou SKRZ díl. Rozsah:
+  **6 z 12 fixtures mělo zajezd 42–44 mm** (rampa dojela až na X≈−1, tj. za osu),
+  reálný díl uživatele 18 mm. Rampa se teď zastaví na offsetu hotovní kontury
+  (konec dopřesněn půlením); stejné omezení dostaly i rovné úseky dokončovacích
+  kroků. Nová pojistka `tests/cam-gouge-invariants.test.js` (model-free nad
+  emitovanou dráhou) tuhle třídu chyb zamyká — na starém kódu padá na 8 z 10
+  podélných fixtures. Zbytkový materiál na fixtures tím ROSTE: šlo o materiál
+  HOTOVÉHO DÍLU, který se nikdy odebírat neměl.
+- CAM (podélné hrubování): **dojezd po dosednutí rampy dobere schodek přes celé
+  údolí a dojede po hotovní kontuře.** Rovné pokračování na hloubce průchodu
+  mířilo jen k Z, kam mířila rampa (rampa je přitom jen VJEZD do vrstvy, ne její
+  konec); po dosednutí navíc vrstva končila nasucho a mezi ní a hotovní konturou
+  zůstal stát klín. Teď jede rovně až na stěnu kontury a odtud dobere schod
+  sledováním obrysu — jak vrstva s rampou, tak poslední krok dokončení rampy.
+  Dojezd se použije jen když NAVAZUJE na aktuální polohu: u zápichu/kapsy má
+  kontura na tomtéž Z víc větví a `traceOffsetPath` může začít na jiné, což by
+  emitovalo svislý sjezd skrz materiál (chyceno na part-10).
+- CAM (podélné hrubování odlitku): **vrstvy se berou od největšího průměru, dělení
+  podle kontury — ne podle středu údolí polotovaru.** Dvě příčiny:
+  (1) **Vjezd průchodu ve vzduchu** — okno regionu / rozsahu 📐 mohlo začínat nad
+  údolím odlitku, takže se vjezd posuzoval desítky mm mimo materiál: obálka držáku
+  tam zahodila i fyzicky bezpečný průchod (vypadla celá vrstva u NEJVĚTŠÍHO
+  průměru) a region bez materiálu vydával prázdný průchod, ze kterého v G-kódu
+  zbyl jen dojezd („trojúhelník" uprostřed údolí). Vjezd se teď ořízne na hranici
+  reálného materiálu podle **vůlí-posunuté siluety** (tečkovaná hranice, `passEntryZ`).
+  (2) **Zbytečné dělení na regiony** — údolí odlitku dělilo dráhy i tam, kde je mezi
+  hrby jen vzduch, takže se nejdřív udělala celá PRAVÁ strana a teprve pak levá,
+  i když vlevo byl větší průměr. `splitIsNeeded` teď hranici zahodí, když sloučený
+  zátah dojede stejně hluboko jako samostatný region: vrstva jde odshora dolů přes
+  obě strany, vzduch přeletí rychloposuvem a doleva pokračuje jen tam, kam pustí
+  offset hotovní kontury. Zbytkový materiál shodný nebo lepší na všech fixtures
+  (izolovaně měřeno, `regionRoughing` ON i OFF), průchodů méně; snapshoty obou
+  regresních sad vědomě přegenerovány. Viz `docs/geometry-libs-migration.md` (Fáze 4).
+
 ### Added
 - CAM: **rozklad vrstvy na komponenty + G-kód pojistka booleovské větve (migrace
   Fáze 3, krok 3A)** — `extractLayerComponents` v `booleanRoughing.js` rozloží

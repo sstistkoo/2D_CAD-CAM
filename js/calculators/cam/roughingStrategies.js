@@ -465,16 +465,32 @@ export function genLongPasses(ctx) {
   // vůle na konci) — dřívější verze počítala proti syrové siluetě a na
   // konci odečetla skalární vůli, což na diagonále není totéž co posun
   // KOLMO k hranici → systematicky minula offsetovou čáru.
+  // HRANICÍ RAMPY JE I HOTOVNÍ KONTURA: dřív se testovala JEN silueta
+  // polotovaru, takže na dílu, kde za údolím kontura zase stoupá, rampa
+  // (a navazující dokončovací kroky) vedla přímkou SKRZ díl — reálný nález na
+  // díle uživatele: zajezd až 18 mm pod offsetovou čáru hotovní kontury.
+  // Latentní od zavedení dojezdu rampou; naplno se projeví, až když rampa může
+  // přejet celé údolí (sloučené regiony). Konec se dopřesní půlením, ať rampa
+  // dosedne PŘESNĚ na konturu, ne o krok skenu dřív.
   const findRampOutTarget = (cx, cz) => {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
+    const at = (t) => ({ x: cx - t * effPlungeTanL, z: cz - t });
     let t = 0;
     for (let i = 0; i < 300; i++) {
+      const tPrev = t;
       t += 0.5;
-      const xx = cx - t * effPlungeTanL, zz = cz - t;
-      if (pointInLoop({ x: xx, z: zz }, stockLoopOffsetL) === 'outside') {
-        return { x: xx, z: zz };
+      const p = at(t);
+      if (blockedAt(p.x, p.z)) {
+        let lo = tPrev, hi = t;
+        for (let k = 0; k < 24; k++) {
+          const m = (lo + hi) / 2;
+          const q = at(m);
+          if (blockedAt(q.x, q.z)) hi = m; else lo = m;
+        }
+        return lo > 1e-6 ? at(lo) : null;
       }
+      if (pointInLoop(p, stockLoopOffsetL) === 'outside') return p;
     }
     return null;
   };
@@ -673,6 +689,76 @@ export function genLongPasses(ctx) {
     }
     return hi;
   };
+  // Dojezd po obrysu se smí použít, jen když NAVAZUJE na aktuální polohu:
+  // u ZÁPICHU/kapsy má kontura na tomtéž Z víc větví a traceOffsetPath může
+  // začít na jiné z nich — mezi ně by se emitoval svislý sjezd SKRZ materiál
+  // (reálný nález na part-10: 6 mm pod hotovní konturu).
+  const traceIfContinuous = (segs, x0, z0) => {
+    const f = segs[0];
+    if (!f) return [];
+    return (Math.abs(f.x1 - x0) < 0.1 && Math.abs(f.z1 - z0) < 0.1) ? segs : [];
+  };
+  // Kam až smí jet ROVNĚ (na hloubce X) směrem doleva z bodu zFrom: po první
+  // stěnu kontury, jinak na dno okna (zFloor). Stejná sémantika jako konec
+  // běžného průchodu ve scanIntervals, jen z jiného výchozího Z — používá
+  // dojezd „bez schodků" po dosednutí rampy.
+  const straightRunEndZ = (X, zFrom, zFloor) => {
+    let z = zFrom;
+    while (z > zFloor + dzScan) {
+      const zn = z - dzScan;
+      if (blockedAt(X, zn)) return refineEngageZ(X, z, zn);
+      z = zn;
+    }
+    return zFloor;
+  };
+
+  // ── Vjezd průchodu tam, kde SKUTEČNĚ začíná polotovar ─────────────────
+  // Okno REGIONU (odlitek, viz níž) i rozsah obrábění 📐 můžou začínat ve
+  // VZDUCHU — nad údolím odlitku nebo v mezeře mezi hrby. Průchod pak „vjížděl"
+  // desítky mm mimo materiál: emise ten kus sice přeletí rychloposuvem
+  // (dynamický rapidStock v gcodeEmit.js), ale obálka DRŽÁKU posuzovala vjezd
+  // v místě, kam nástroj vůbec nesjede — a fyzicky v pořádku průchod zahodila
+  // (reálný nález na díle uživatele: celá vrstva u NEJVĚTŠÍHO průměru vypadla).
+  // Region bez materiálu na dané hloubce navíc vydával prázdný průchod, z něhož
+  // v G-kódu zbyl jen dojezd = „trojúhelník" uprostřed údolí.
+  //
+  // Měří se na VŮLÍ-POSUNUTÉ siluetě (stockLoopOffsetL — tečkovaná hranice
+  // v náhledu, přesně tam začíná posuv, viz castingTopXAtZOffset v
+  // gcodeEmit.js). Syrový obrys by vjezd posadil až ZA vůli a průchod by u
+  // šikmé stěny začal řezat o vůli později → klínek stojícího materiálu
+  // (ověřeno na holder-region-roughing). Bez posunuté siluety fallback na
+  // průsečíky syrového obrysu (sz.all).
+  // Parita: obrys je uzavřený, takže lichý počet průsečíků NAD zHi znamená, že
+  // zHi leží v materiálu. Null = v okně na téhle hloubce materiál není.
+  const stockCrossingsAt = (X, sz) => {
+    if (!stockLoopOffsetL) return (sz && sz.all) || [];
+    const zs = [];
+    const n = stockLoopOffsetL.length;
+    for (let i = 0; i < n; i++) {
+      const a = stockLoopOffsetL[i], b = stockLoopOffsetL[(i + 1) % n];
+      if ((a.x <= X && b.x > X) || (b.x <= X && a.x > X))
+        zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
+    }
+    if (zs.length < 2) return (sz && sz.all) || [];
+    zs.sort((p, q) => q - p);
+    return zs;
+  };
+  const passEntryZ = (zHiRaw, zLo, sz, X) => {
+    if (prms.stockMode !== 'casting') return zHiRaw;
+    const all = stockCrossingsAt(X, sz);
+    if (all.length < 2) return zHiRaw;
+    let above = 0;
+    for (const z of all) if (z > zHiRaw + 1e-9) above++;
+    if (above % 2 === 1) return zHiRaw;                    // vjezd je v materiálu
+    for (const z of all) {
+      if (z > zHiRaw + 1e-9 || z <= zLo + 1e-9) continue;
+      // Materiál začíná až ZA stěnou kontury (offset nad hloubkou průchodu):
+      // vjet se tam nedá, ale průchod má pořád smysl jako dojezd „bez schodků"
+      // po stěně — nechá se původní kraj okna, jako dřív.
+      return blockedAt(X, z) ? zHiRaw : z;
+    }
+    return null;
+  };
   // Skenem zprava doleva najde všechny volné intervaly (offset nepřekračuje
   // X) v Z∈[zLoBound,zHiBound]. První interval (od pravé hrany polotovaru) =
   // klasický otevřený vjezd. Každý další interval je kapsa za "bossem"
@@ -847,9 +933,52 @@ export function genLongPasses(ctx) {
     for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
     return computeResidualRegions([stockLoop], zMax, zMin, dzScan);
   };
+  // ── Který split je opravdu potřeba ────────────────────────────────────
+  // Údolí odlitku je jen SIGNÁL, ne důvod dělit dráhy. Hranice regionu dává
+  // smysl jedině tehdy, když se materiál POD splitem nedá vzít týmž zátahem
+  // jako materiál NAD ním — tedy když vrstvu mezi nimi něco ZASTAVÍ (stěna
+  // hotovní kontury nebo obálka držáku). Nezastaví-li nic, hranice jen
+  // rozřízne souvislý zátah: nejdřív se dodělá celá PRAVÁ strana a teprve pak
+  // levá — i když je vlevo VĚTŠÍ průměr (reálný nález na díle uživatele:
+  // údolí vzniklé obloukem na odlitku, hrb vlevo Ø77 se hruboval až po hrbu
+  // vpravo Ø70). Vzduch nad údolím přitom průchod přeletí rychloposuvem, takže
+  // sloučený zátah po vrstvách jde odshora dolů přesně tak, jak má:
+  // od největšího průměru a doleva až tam, kam pustí kontura.
+  //
+  // Test (čte jen geometrii, žádné vedlejší efekty): pro každou hloubku, kde
+  // region POD splitem ještě něco bere, se zkusí SLOUČENÝ sken od okna nad
+  // splitem po dno okna pod ním. Když sloučený zátah pokaždé dojede aspoň tak
+  // hluboko jako samostatný region, split se zahodí.
+  const splitIsNeeded = (splits, i) => {
+    const s = splits[i];
+    const zTop = i > 0 ? splits[i - 1].z : Infinity;
+    const zBot = i + 1 < splits.length ? splits[i + 1].z : -Infinity;
+    for (const X of depths) {
+      if (X <= s.xSurf + 0.01) continue;          // tady hranice stejně splývá
+      const sz = stockZRangeAt(X);
+      if (!sz) continue;
+      const zHiWin = Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, zTop);
+      const zLoWin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, zBot);
+      if (zHiWin - zLoWin < 0.1) continue;
+      // Vzal by samostatný region pod splitem na téhle hloubce vůbec něco?
+      const zEntryLo = passEntryZ(Math.min(s.z, zHiWin), zLoWin, sz, X);
+      if (zEntryLo === null) continue;
+      const low = scan(X, zEntryLo, zLoWin, false);
+      const ivLow = low.firstOpen ? low.intervals[0] : null;
+      if (!ivLow || ivLow.zStart - ivLow.zEnd < dzScan) continue;
+      // Dojede tam sloučený zátah shora?
+      const zEntryAll = passEntryZ(zHiWin, zLoWin, sz, X);
+      if (zEntryAll === null) return true;
+      const all = scan(X, zEntryAll, zLoWin, false);
+      const ivAll = all.firstOpen ? all.intervals[0] : null;
+      if (!ivAll || ivAll.zEnd > ivLow.zEnd + 0.05) return true;
+    }
+    return false;
+  };
   const computeRegions = () => {
     if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL_REGION;
-    const splits = prms.booleanRoughing ? booleanRegionSplits() : manualRegionSplits();
+    const rawSplits = prms.booleanRoughing ? booleanRegionSplits() : manualRegionSplits();
+    const splits = rawSplits.filter((_, i) => splitIsNeeded(rawSplits, i));
     // Diagnostický test seam (guarded, v produkci no-op): tests/boolean-region-
     // roughing.test.js jím ověřuje separaci regionů ruční vs booleovské cesty.
     if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({ bool: !!prms.booleanRoughing, splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })) });
@@ -889,9 +1018,13 @@ export function genLongPasses(ctx) {
     if (_region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) continue;
     const regZHi = (_region.zHiSurf === undefined || currentX > _region.zHiSurf + 0.01) ? _region.zHi : Infinity;
     const regZLo = (_region.zLoSurf === undefined || currentX > _region.zLoSurf + 0.01) ? _region.zLo : -Infinity;
-    const effZMax = Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, regZHi);
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
-    if (effZMax - effZMin < 0.1) continue;
+    // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
+    // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.
+    // Null = na téhle hloubce v okně žádný materiál není.
+    const effZMax = passEntryZ(
+      Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, regZHi), effZMin, sz, currentX);
+    if (effZMax === null || effZMax - effZMin < 0.1) continue;
 
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
     // nepřekračuje currentX). První interval (od pravé hrany
@@ -1020,7 +1153,15 @@ export function genLongPasses(ctx) {
           const rampTarget = (rampTargetRaw && rampTargetRaw.x < currentX)
             ? { x: currentX, z: corner.z - (corner.x - currentX) / effPlungeTanL }
             : rampTargetRaw;
-          const straightContinueZ = (rampTarget && rampTarget !== rampTargetRaw) ? rampTargetRaw.z : null;
+          // Rovné pokračování na hloubce currentX vede až tam, kde vrstvu
+          // zastaví STĚNA KONTURY (nebo dno okna) — ne jen k Z, kam mířila
+          // rampa. Rampa je jen VJEZD do vrstvy; po dosednutí má dojezd dobrat
+          // schodek přes celé údolí na druhou stranu a teprve pak odjet
+          // (reálný nález na díle uživatele: dojezd končil hned po dosednutí
+          // rampy a materiál za údolím zůstal stát).
+          const straightContinueZ = (rampTarget && rampTarget !== rampTargetRaw)
+            ? straightRunEndZ(currentX, rampTarget.z, effZMin)
+            : null;
           if (rampTarget) rampedOutCorners.push({ x: corner.x, z: corner.z, reachedX: rampTarget.x });
           // Ořízlá rampa nechala pod currentX klín materiálu, který žádná
           // hlubší vrstva sama nenajde (leží mimo její vlastní Z-interval) —
@@ -1028,13 +1169,26 @@ export function genLongPasses(ctx) {
           if (straightContinueZ !== null) {
             pendingRampCompletions.push({ resumeX: rampTarget.x, resumeZ: rampTarget.z, targetX: rampTargetRaw.x, targetZ: rampTargetRaw.z });
           }
+          // Konec rovného pokračování je STEJNÁ situace jako konec běžného
+          // zablokovaného průchodu: vrstva dosedla na stěnu kontury a schod
+          // vůči MĚLČÍMU sousedovi se dobírá sledováním obrysu. Bez tohohle
+          // dojezdu končila vrstva v údolí nasucho a mezi ní a hotovní konturou
+          // zůstal stát klín (reálný nález na díle uživatele — dvě vrstvy
+          // v údolí „nedojeté").
+          const tailTrace = (straightContinueZ !== null && straightContinueZ > effZMin + 1e-6)
+            ? traceIfContinuous(
+                traceOffsetPath(straightContinueZ,
+                  findLeadOutEndZ(straightContinueZ, prevX, nextX, cylStockZ)),
+                rampTarget.x, straightContinueZ)
+            : [];
           const leadOut = rampTarget
             ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
                 .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
                 .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }])
                 .concat(straightContinueZ !== null
                   ? [{ type: 'line', x1: rampTarget.x, z1: rampTarget.z, x2: rampTarget.x, z2: straightContinueZ }]
-                  : []), true)
+                  : [])
+                .concat(tailTrace), true)
             : holderTrimLeadOut(traceOffsetPath(iv.zEnd, zEndOut), true);
           // Zahoď úvodní úseky pod aktuální hloubkou: kvůli diskretizaci /
           // zaoblenému rohu může trasa hned na začátku klesnout pod
@@ -1463,7 +1617,11 @@ export function genLongPasses(ctx) {
       // regionu), stejně jako u prvního (nerozděleného) dojezdu. Poslední
       // krok už tam doletí přímo rampou (stepZ === rc.targetZ), navíc
       // rovný úsek nepotřebuje.
-      const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: isLastStep ? stepZ : rc.targetZ, blocked: true };
+      // Rovný úsek mezikroku končí na stěně kontury, i kdyby společný cíl
+      // rc.targetZ ležel dál — na téhle (mělčí) hloubce může kontura stoupnout
+      // dřív než na cílové (jinak by mezikrok podjel hotovní konturu).
+      const stepEndZ = isLastStep ? stepZ : straightRunEndZ(stepX, stepZ, rc.targetZ);
+      const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: stepEndZ, blocked: true };
       if (first) {
         stepPass.ramp = { x0: curX, z0: curZ };
         first = false;
@@ -1476,6 +1634,18 @@ export function genLongPasses(ctx) {
       // beze změny polohy (noRetract) — návaznost řeší odskok+reposition
       // NÁSLEDUJÍCÍHO kroku (pocketReposition výš), ne odjezd tohoto.
       if (stepX > rc.targetX + 1e-6) stepPass.noRetract = true;
+      else if (prms.noStepRoughing) {
+        // Poslední krok dosedl na konturu — schod vůči kroku NAD ním se
+        // dobere sledováním obrysu, stejně jako u běžného průchodu „bez
+        // schodků" (jinak zůstane mezi rampou a hotovní konturou klín;
+        // reálný nález na díle uživatele v údolí).
+        const lo = holderTrimLeadOut(traceIfContinuous(
+          traceOffsetPath(stepEndZ, findLeadOutEndZ(stepEndZ, curX, -Infinity, cylStockZ)),
+          stepX, stepEndZ), true);
+        while (lo.length > 0 && lo[0].x2 <= stepX + 0.02) lo.shift();
+        clipLeadOutToDepth(lo, curX);
+        if (lo.length > 0) stepPass.contourLeadOut = lo;
+      }
       passes.push(stepPass);
       curX = stepX; curZ = stepZ;
     }

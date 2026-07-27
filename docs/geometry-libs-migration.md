@@ -457,6 +457,70 @@ Hotovo (výjezd skrz odlitek posuvem — exit-split, 22. 7. 2026):
   `cam-boolean-gcode-regression` (~12). Ověřeno normalizací N-čísel: jediný nový
   typ řádku je `Výjezd materiálem posuvem`, vše ostatní jen přečíslování.
 
+Hotovo (vjezd na materiálu + jen nutné regiony — pořadí vrstev, 27. 7. 2026):
+- **Vjezd průchodu na hranici REÁLNÉHO materiálu** (`passEntryZ` v
+  `roughingStrategies.js`): okno regionu / rozsahu 📐 může začínat ve VZDUCHU
+  (údolí odlitku, mezera mezi hrby). Průchod pak „vjížděl" desítky mm mimo
+  materiál — emise to sice přeletěla rychloposuvem (`rapidStock`), ale obálka
+  DRŽÁKU posuzovala vjezd tam, kam nástroj nikdy nesjede, a fyzicky bezpečný
+  průchod zahodila (na díle uživatele vypadla celá vrstva u NEJVĚTŠÍHO průměru).
+  Okno se teď ořízne paritou průsečíků **vůlí-posunuté siluety** (`stockLoopOffsetL`
+  — tečkovaná hranice, přesně kde začíná posuv; syrový obrys by vjezd posadil až
+  ZA vůli a u šikmé stěny nechal klínek — ověřeno na holder-region-roughing).
+  Když v okně na dané hloubce materiál není, hloubka se přeskočí (dřív z ní
+  zbyl prázdný průchod = „trojúhelník" uprostřed údolí). Výjimka: materiál za
+  stěnou kontury (vjet nelze) nechává kraj okna beze změny — takový průchod
+  neřeže vrstvu, ale jeho dojezd „bez schodků" po stěně ano.
+- **Split regionu jen když opravdu dělí** (`splitIsNeeded`): údolí odlitku je
+  SIGNÁL, ne důvod dělit dráhy. Pro každou hloubku, kde region pod splitem něco
+  bere, se zkusí SLOUČENÝ sken; když dojede aspoň tak hluboko jako samostatný
+  region, split se zahodí. Bez toho hranice krájela souvislý zátah: nejdřív celá
+  PRAVÁ strana, teprve pak levá — i když je vlevo VĚTŠÍ průměr (díl uživatele:
+  údolí od oblouku na odlitku, hrb Ø77 vlevo se hruboval až po Ø70 vpravo).
+  Po sloučení jde vrstva odshora dolů přes obě strany, vzduch mezi nimi přeletí
+  rychloposuvem, a doleva se pokračuje jen tam, kam pustí kontura — dělení tak
+  vzniká z OFFSETU HOTOVNÍ KONTURY, ne ze středu údolí polotovaru.
+- Měřeno per fixture izolovaně (singleton `S` kontaminuje) při `regionRoughing`
+  ON i OFF: zbytkový materiál shodný nebo lepší (holder-casting-slanted −5 mm²,
+  part-1/2 +1,5 mm² = 0,03 %), průchodů méně (např. part-4/6 40→36,
+  holder-region 27→23, díl uživatele −707 mm² zbytku). Vědomě přegenerované
+  snapshoty obou regresních sad.
+
+Hotovo (rampa dojezdu nepodjíždí konturu, 27. 7. 2026):
+- **`findRampOutTarget` testuje i HOTOVNÍ KONTURU**, nejen siluetu polotovaru.
+  Dřív rampa dojezdu „bez schodků" mířila tam, kde přímka pod úhlem zanoření
+  opustí vůlí-posunutou siluetu odlitku — pokud mezi tím kontura zase stoupala
+  (údolí s protilehlým hrbem), vedla rampa i navazující dokončovací kroky přímkou
+  SKRZ díl. Naměřeno na fixtures: **6 z 12 mělo zajezd 42–44 mm pod offset**
+  (rampa dojela na X≈−1, tj. za osu), reálný díl uživatele 18 mm. Konec rampy se
+  dopřesňuje půlením (dosedne přesně na konturu); rovné úseky dokončovacích kroků
+  (`pendingRampCompletions`) dostaly stejné omezení (`straightRunEndZ`).
+- **Rovné pokračování dojezdu jede až na stěnu kontury** (dřív jen k Z, kam mířila
+  rampa): rampa je VJEZD do vrstvy, po dosednutí má dojezd dobrat schodek přes
+  celé údolí a teprve pak odjet.
+- **Po dosednutí se dobere schod SLEDOVÁNÍM OBRYSU** (`traceOffsetPath` +
+  `findLeadOutEndZ` na konci rovného úseku, a totéž u posledního kroku
+  `pendingRampCompletions`) — bez toho končila vrstva v údolí nasucho a mezi ní a
+  hotovní konturou stál klín (reálný nález uživatele: „dvě vrstvy v údolí nejsou
+  dojeté"). Trasa se přijme jen když NAVAZUJE na aktuální polohu
+  (`traceIfContinuous`): u zápichu má kontura na tomtéž Z víc větví a
+  `traceOffsetPath` může vrátit jinou → mezi ně by se emitoval svislý sjezd skrz
+  materiál (chyceno pojistkou na part-10, 6 mm).
+- Pozn. k pojistce: kritérium je DVOJ-podmínkové (pod max X offsetu a zároveň
+  dál než 0,15 mm od offsetu). Samotné „X < offsetXAt(z)" je u dílu se zápichem
+  falešně pozitivní (dojezd po dně zápichu je legitimně pod maximem na témž Z) a
+  uzavřená silueta offsetu se pro bodový test použít nedá — u kapes se sama
+  protíná.
+- Pojistka `tests/cam-gouge-invariants.test.js` — model-free nad `calcSim.simPath`:
+  žádný řezný pohyb nesmí ležet pod dráhou středu špičky hotovní kontury
+  (`finishOffsetPath`, jinak `offsetPath`). Čelní fixtures vyňaty (1-D test je u
+  svislé čelní stěny slepý), zbytkový známý zajezd part-10 (2,17 mm, rampa
+  zanoření do zápichu = jiná větev) je přišpendlený, ne skrytý. Test si normalizuje
+  params/zLimits na defaulty — jinak by výsledek závisel na pořadí fixtures
+  (singleton `S` merguje). Na starém kódu padá 8 z 10 podélných fixtures.
+- Zbytkový materiál fixtures tím ROSTE (part-1 5868 → 8647 mm² s regiony) —
+  odebíral se materiál HOTOVÉHO DÍLU. Snapshoty obou regresních sad regenerovány.
+
 Zbývá (genuinní mezera — order-dependent odlitek):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd
   vedl vzduchem, ne posuvem skrz materiál): exit-split výše je jen bezpečný, ne
