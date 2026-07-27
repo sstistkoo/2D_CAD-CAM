@@ -1003,6 +1003,11 @@ export function genLongPasses(ctx) {
   // vyřízla vrstva PŘEDCHOZÍ (reálný nález na díle uživatele — druhá
   // rampa mířila zpátky nad povrch místo napojení na konec první).
   let entryRampAnchor = null;
+  // Jakmile řetěz narazí na hranici (kontura/blokace), zbytek MÉNĚ než
+  // Hloubka (ap) do skutečné cílové kontury se dořeže jedním kratším
+  // krokem (níž), ne zahodí — pak se řetěz uzavře (nezkoušet znovu na
+  // každé další, ještě hlubší vrstvě).
+  let entryRampClosed = false;
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -1069,6 +1074,7 @@ export function genLongPasses(ctx) {
             const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
             if (zS > iv.zEnd + 0.05) {
               passObj.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
+              passObj.entryRangeRamp = true;
               if (!entryRampAnchor.first) {
                 passObj.pocketReposition = true;
                 passObj.rampFeedFrom = { x: entryRampAnchor.x, z: entryRampAnchor.z };
@@ -1088,7 +1094,9 @@ export function genLongPasses(ctx) {
             // nástroj/držák nepočítá s kolizí (reálný nález na díle
             // uživatele: oranžová kolize držáku v polotovaru). Tahle
             // hloubka se raději úplně vynechá — dál se zanořuje jen po
-            // vrstvách, kam rampa doopravdy dosáhne.
+            // vrstvách, kam rampa doopravdy dosáhne. Zbytek pod Hloubku
+            // (ap) dokončí zákrok po skončení celého scanu níž (viz
+            // entryRampClosed).
             return;
           }
         }
@@ -1203,7 +1211,6 @@ export function genLongPasses(ctx) {
           if (prevX !== null && Number.isFinite(prevX)) clipLeadOutToDepth(leadOut, prevX);
           if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
         }
-        if (globalThis.__DBG_MR__) console.log(`[DBGPUSH] currentX=${currentX} passObj.x=${passObj.x} zStart=${passObj.zStart} ramp=${passObj.ramp ? JSON.stringify(passObj.ramp) : '-'}`);
         passes.push(passObj);
         // Schodová evidence (Fáze 3a): JEN ZKRÁCENÉ konce. Nezkrácený
         // průchod končí na stěně offsetu — ta už je v siluetě zakázané
@@ -1590,10 +1597,52 @@ export function genLongPasses(ctx) {
         if (zS > effZMin - 0.05) {
           const passObj = { type: 'long', x: currentX, zStart: zS, zEnd: effZMin, blocked: true };
           passObj.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
+          passObj.entryRangeRamp = true;
           passObj.zStart = zS;
           entryRampAnchor = { x: currentX, z: zS, first: false };
           passes.push(passObj);
         }
+      }
+    }
+    // Zbytek MÉNĚ než Hloubka (ap): řetěz (entryRampAnchor) se na tomhle
+    // kroku dál neposunul (currentX ho zablokovala kontura, obálka držáku
+    // — firstOpen false — nebo ramp na téhle hloubce už nedosáhne
+    // interval.zEnd) — ale řetěz ještě neskončil PŘESNĚ na dosažitelné
+    // hranici. Místo úplného zahození najdi bisekcí největší X mezi
+    // currentX (nejde) a posledním úspěšným krokem (jde), kde scan() (TÝŽ
+    // helper co hlavní smyčka — kontura i obálka držáku) ještě pustí, a
+    // dokonči tam poslední, kratší úsek — reálný nález na díle uživatele:
+    // zbytek pod Hloubku (ap) po posledním úspěšném kroku řetězu zůstal
+    // neobrobený.
+    if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
+        && entryRampAnchor && !entryRampClosed && entryRampAnchor.x - currentX > 0.05) {
+      entryRampClosed = true;
+      // Bisekce hledá NEJMENŠÍ (nejhlubší) X mezi currentX (selže) a
+      // entryRampAnchor.x (poslední úspěšný krok, triviálně projde) —
+      // udržuje invariant loX=selže, hiX=projde a sbíhá k hranici odshora.
+      let loX = currentX, hiX = entryRampAnchor.x;
+      let bestCiv = null, bestX = null;
+      for (let k = 0; k < 20; k++) {
+        const mid = (loX + hiX) / 2;
+        const midScan = scan(mid, effZMax, effZMin, true);
+        const midIv = (midScan.firstOpen && midScan.intervals.length > 0) ? midScan.intervals[0] : null;
+        const zSmid = midIv ? entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL : null;
+        if (midIv && zSmid > midIv.zEnd + 0.05) {
+          bestCiv = midIv; bestX = mid; hiX = mid;
+        } else {
+          loX = mid;
+        }
+      }
+      if (bestCiv && entryRampAnchor.x - bestX > 0.05) {
+        const zS2 = entryRampAnchor.z - (entryRampAnchor.x - bestX) / effPlungeTanL;
+        const finalPass = { type: 'long', x: bestX, zStart: zS2, zEnd: bestCiv.zEnd, blocked: true };
+        finalPass.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
+        finalPass.entryRangeRamp = true;
+        if (!entryRampAnchor.first) {
+          finalPass.pocketReposition = true;
+          finalPass.rampFeedFrom = { x: entryRampAnchor.x, z: entryRampAnchor.z };
+        }
+        passes.push(finalPass);
       }
     }
   }
@@ -1767,10 +1816,16 @@ export function genLongPasses(ctx) {
     // chybně prodloužila, takže se na ně nevztahuje.
     if (rotDeg > 0.01) {
       const tanRot = Math.tan(Math.min(89.5, rotDeg) * Math.PI / 180);
-      const rightWalls = passes.filter(p => p.type === 'long' && p.ramp && !p.contourLeadIn && !p.pocketReposition).map(p => ({ x: p.x, z: p.ramp.z0 }));
+      // Vjezd na hranici rozsahu Z (entryRangeRamp) není pravá stěna kapsy —
+      // je to řetězená posloupnost ramp NAD SEBOU podél téže hranice
+      // (entryRampAnchor výš), ne nezávislý boss. Bez vyloučení tahle
+      // heuristika brala mělčí krok řetězu jako "pravou stěnu" hlubšího
+      // kroku, umělé zúžení smazalo z0 pod zEnd a celý krok zmizel
+      // (reálný nález na díle uživatele — první krok řetězu chyběl).
+      const rightWalls = passes.filter(p => p.type === 'long' && p.ramp && !p.contourLeadIn && !p.pocketReposition && !p.entryRangeRamp).map(p => ({ x: p.x, z: p.ramp.z0 }));
       for (let pi = passes.length - 1; pi >= 0; pi--) {
         const p = passes[pi];
-        if (p.type !== 'long' || !p.ramp || p.contourLeadIn) continue;
+        if (p.type !== 'long' || !p.ramp || p.contourLeadIn || p.entryRangeRamp) continue;
         // Dobrat kapsu najednou: zanořovací zákroky kapsy se neupravují (viz výše).
         if (p.pocketEntry || p.pocketReposition || p.pocketClean) continue;
         let z0 = p.ramp.z0;
