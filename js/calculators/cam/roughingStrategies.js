@@ -1423,6 +1423,25 @@ export function genLongPasses(ctx) {
       pocketDoneRanges.push({ zHi: corner.z, zLo: exitZ });
       return;
     });
+    // Pokud je Z-rozsah aktivní a jeho horní hrana je uvnitř polotovaru
+    // (scanIntervals nevrátí žádné intervaly), vygenerujte rampový
+    // vjezd od hranice rozsahu z povrchu polotovaru.
+    if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
+        && intervals.length === 0 && !entryRampAnchor) {
+      const stockSurfX = sRad + stockClearances(prms).x;
+      const surfX = stockLoopL ? offsetStockTopXAtZ(effZMax) : stockSurfX;
+      if (surfX !== null && surfX > currentX + 0.05) {
+        entryRampAnchor = { x: surfX, z: effZMax, first: true };
+        const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
+        if (zS > effZMin - 0.05) {
+          const passObj = { type: 'long', x: currentX, zStart: zS, zEnd: effZMin, blocked: true };
+          passObj.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
+          passObj.zStart = zS;
+          entryRampAnchor = { x: currentX, z: zS, first: false };
+          passes.push(passObj);
+        }
+      }
+    }
   }
   // Dokončení ořízlých ramp (viz pendingRampCompletions výš) — teprve TEĎ,
   // po celé hloubkové smyčce tohoto regionu, je jisté, že žádná další
