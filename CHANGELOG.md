@@ -66,8 +66,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Z 108–195,6, kde polotovar sahá do X≈48, vygeneroval průchody na X≈65
   a X≈59 — řez vzduchem). Kolize se dál hlídají proti **celému** polotovaru:
   obálka držáku, validátor i model úběru pracují s neořezanou geometrií.
+- CAM (podélné hrubování): přepínač **„Hrub. bez schodků | i u čelního" platí
+  i v podélném hrubování.** Dosud ovládal jen čelní strategii a v podélné se
+  dojezdy po čele nedaly vypnout jinak než vypnutím celého „bez schodků".
+  Nezaškrtnuté „i u čelního" teď vynechá dojezd po **čelní (radiální) stěně** —
+  tedy tam, kde dojezd stoupá v X víc, než ujede v Z; průchod u takové stěny
+  skončí a odskočí a schod dobere čelní operace. Typicky jde navíc o „čelo",
+  které vzniklo **mezní čárou hlídání destičky** (stěna má přesně úhel plátku),
+  takže dojezd po ní jen kopíroval limit plátku a nic neubral. Dojezdy po
+  kuželových a válcových stěnách i dokončení ramp/kapes zůstávají beze změny
+  (jinak by pod ořízlou rampou zůstal stát klín materiálu).
 
 ### Fixed
+- CAM (podélné hrubování): **zablokovaný průchod dojede až na offsetovou
+  čáru.** Obálka držáku si drží bezpečnostní rezervu 0,1 mm od zakázané
+  oblasti — jenže tou oblastí je i silueta offsetu, takže se rezerva
+  uplatnila i tam, kde průchod prostě končí na stěně kontury: **každá vrstva
+  stála 0,1 mm před offsetovou čárou** a nechávala tam materiál navíc (reálný
+  nález na díle uživatele — nejvíc vidět na čele vzniklém mezní čárou
+  destičky). Rezerva nově platí jen pro **překážku za koncem průchodu**
+  (držák), ne pro špičku na offsetu; přídavek na stěně tak odpovídá přesně
+  zadaným přídavkům X/Z.
 - CAM (podélné hrubování): **za odlitkovým hrbem se nástroj zanoří sám** — dřív
   se takové hloubky celé zahodily a menší průměry zůstaly nehrubované. Kotva
   zanořovací rampy sedí na povrchu nad vjezdem; když napravo od obráběné zóny

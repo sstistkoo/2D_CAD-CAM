@@ -443,6 +443,24 @@ stěnou kontury z obou stran uprostřed dílu) podélné hrubování nezajížd�
 zapnutým Zanořováním. Ten materiál se musí obrobit jiným nástrojem/upnutím nebo
 zápichem.
 
+### Hrubování bez schodků a „i u čelního"
+**Hrub. bez schodků** = po dojezdu vrstvy na offset nástroj místo okamžitého
+odskoku dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, takže se
+schod mezi vrstvami obrobí rovnou po obrysu.
+
+Vedlejší přepínač **i u čelního** rozhoduje, jestli se tohle dělá i na **čelních
+(radiálních) stěnách** — tedy tam, kde dojezd stoupá v X víc, než ujede v Z:
+
+- **zaškrtnuto** – dojíždí se i po čele/osazení (schod se obrobí hned);
+- **nezaškrtnuto** – u takové stěny průchod skončí a odskočí; schod dobere až
+  čelní operace. Hodí se hlavně tam, kde „čelo" vzniklo **mezní čárou hlídání
+  destičky** (stěna má přesně úhel plátku) — dojezd po ní jen kopíruje limit
+  destičky a nic neubere.
+
+Dojezdy po **kuželových a válcových** stěnách a dokončení ramp/kapes tenhle
+přepínač neovlivňuje — ty patří k podélnému hrubování a jedou vždy, jinak by
+pod nimi zůstal stát klín materiálu.
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu

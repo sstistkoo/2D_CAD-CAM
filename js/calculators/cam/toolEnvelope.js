@@ -172,6 +172,14 @@ export function buildTipForbiddenRegion(obstacleLoops, toolLoop) {
   return out;
 }
 
+// Bezpečnostní rezerva obálky držáku (mm): o kolik dřív než na hraně
+// zakázané oblasti se průchod zastaví. Platí pro DRŽÁK (těleso nástroje) —
+// ne pro špičku na offsetové čáře, kam průchod dojet SMÍ (přídavek je už
+// v offsetu). Kdo clamp volá, musí umět obojí rozlišit (viz applyHolderClamp
+// v roughingStrategies.js), jinak by každý průchod končil o rezervu dřív
+// než na kontuře.
+export const HOLDER_CLAMP_MARGIN = 0.1;
+
 /**
  * Pohotový konstruktor pro calculate(): z parametrů (držák) a offsetPath
  * (silueta) postaví clamp funkci pro scanIntervals, nebo vrátí null,
@@ -191,7 +199,7 @@ export function buildTipForbiddenRegion(obstacleLoops, toolLoop) {
  * pro každý schod ve výškovém rozsahu držáku. resetStair() nuluje
  * evidenci (nový region / nová operace).
  */
-export function makeHolderClamp(prms, offsetPath, { backside = false, margin = 0.1, stockPathSegments = null } = {}) {
+export function makeHolderClamp(prms, offsetPath, { backside = false, margin = HOLDER_CLAMP_MARGIN, stockPathSegments = null } = {}) {
   const holder = holderWorldLoop(prms, backside);
   if (!holder) return null;
   const silhouette = offsetSilhouetteLoop(offsetPath);

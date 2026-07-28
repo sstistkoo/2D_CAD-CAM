@@ -20,7 +20,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
-import { stockClearances } from '../js/calculators/cam/camMath.js';
+import { stockClearances, intersectVerticalLineSegment, intersectVerticalLineArc, isAngleBetween } from '../js/calculators/cam/camMath.js';
 import { polyOffset } from '../js/geom/geomCore.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +35,25 @@ const fixtureSteep = join(__dirname, 'fixtures', 'cam', 'range-chain-steep-face.
 const segXs = (s) => s.type === 'line'
   ? [s.x1, s.x2]
   : [s.x1, s.x2, s.cx + Math.sin(s.startAngle) * s.r, s.cx + Math.sin(s.endAngle) * s.r];
+
+// Max X offsetové dráhy na zadaném Z (= totéž, co uvnitř generátoru rozhoduje
+// o zablokování průchodu). null = na tomhle Z offset není (vzduch).
+const offsetXAt = (offsetPath, z) => {
+  let max = null;
+  for (const os of offsetPath) {
+    if (os.isDegenerate) continue;
+    if (os.type === 'line') {
+      const x = intersectVerticalLineSegment(z, os.p1, os.p2);
+      if (x !== null && (max === null || x > max)) max = x;
+    } else {
+      for (const x of intersectVerticalLineArc(z, { x: os.cx, z: os.cz }, os.r)) {
+        const a = Math.atan2(x - os.cx, z - os.cz);
+        if (isAngleBetween(a, os.startAngle, os.endAngle, os.dir === 'G2') && (max === null || x > max)) max = x;
+      }
+    }
+  }
+  return max;
+};
 
 describe('dojezd „bez schodků" u řetězu ramp a mezní čáry plátku', () => {
   it('poslední (kratší než ap) krok řetězu ramp dobere schod po obrysu', async () => {
@@ -85,6 +104,85 @@ describe('dojezd „bez schodků" u řetězu ramp a mezní čáry plátku', () =
     // Vystoupá po stěně zpátky k hloubce předchozího kroku řetězu.
     expect(Math.max(...last.contourLeadOut.flatMap(segXs))).toBeGreaterThan(last.ramp.x0 - 0.05);
   }, 30000);
+});
+
+// Obálka držáku si drží bezpečnostní rezervu (HOLDER_CLAMP_MARGIN, 0,1 mm) od
+// zakázané oblasti. Tou oblastí je ale i SILUETA OFFSETU, takže rezerva
+// zkracovala i průchody, které končí prostě na stěně kontury — každý zablokovaný
+// průchod stál 0,1 mm před offsetovou čárou (uživatel: „nedojede úplně
+// k offsetové čáře"). Rezerva patří DRŽÁKU, ne špičce na offsetu.
+describe('zablokovaný průchod dojede až na offsetovou čáru', () => {
+  // Vzdálenost v Z od konce průchodu k místu, kde offset poprvé přeroste jeho
+  // hloubku (= stěna). null = do `max` mm žádná stěna.
+  const distToWall = (offsetPath, p, max = 0.4, h = 0.005) => {
+    for (let z = p.zEnd - h; z > p.zEnd - max; z -= h) {
+      const x = offsetXAt(offsetPath, z);
+      if (x !== null && x > p.x) return p.zEnd - z;
+    }
+    return null;
+  };
+  for (const [name, file] of [['insert-shadow', fixture], ['steep-face', fixtureSteep]]) {
+    it(`${name}: vrstvy končí přesně na mezní čáře plátku`, async () => {
+      const { calc } = await runCamProg(JSON.parse(readFileSync(file, 'utf8')));
+      // ČELNÍ mezní čáry hlídání destičky (rovné úseky obrobitelné kontury
+      // s fromInsert, strmější než 45°) — přesně ta místa z hlášení uživatele.
+      const faces = calc.machinableContour.filter(s => s.type === 'line' && s.fromInsert
+        && !s.isDegenerate && Math.abs(s.p2.x - s.p1.x) > Math.abs(s.p2.z - s.p1.z));
+      expect(faces.length, 'fixture nemá čelní mezní čáru').toBeGreaterThan(0);
+      const inFace = (p) => faces.some(s => {
+        const [zLo, zHi] = [Math.min(s.p1.z, s.p2.z) - 2, Math.max(s.p1.z, s.p2.z) + 2];
+        const [xLo, xHi] = [Math.min(s.p1.x, s.p2.x), Math.max(s.p1.x, s.p2.x)];
+        return p.zEnd >= zLo && p.zEnd <= zHi && p.x >= xLo && p.x <= xHi;
+      });
+      let checked = 0;
+      for (const p of calc.passes) {
+        // Jen běžné vrstvy: konce kroků řetězu ramp určuje rampa a u stěny
+        // skoro rovnoběžné s hloubkou je vzorkovaná booleovská geometrie
+        // (0,2 mm v Z) nepřesná sama o sobě.
+        if (p.type !== 'long' || !p.blocked || p.holderClamped || p.pocketClean || p.ramp || !inFace(p)) continue;
+        const d = distToWall(calc.offsetPath, p);
+        if (d === null) continue;
+        checked++;
+        expect(d, `průchod x=${p.x.toFixed(3)} skončil na Z=${p.zEnd.toFixed(3)}, tj. ${d.toFixed(3)} mm před offsetovou čárou`)
+          .toBeLessThan(0.03);
+      }
+      expect(checked, 'fixture nemá žádnou vrstvu končící na čelní mezní čáře').toBeGreaterThan(2);
+    }, 30000);
+  }
+});
+
+// „Hrub. bez schodků | i u čelního": dojezd po ČELNÍ (radiální) stěně se bez
+// zaškrtnutí nedělá ani v PODÉLNÉM hrubování (dřív přepínač platil jen pro
+// čelní strategii a v podélné se dal vypnout jen vypnutím celého „bez schodků").
+describe('přepínač „i u čelního" platí i v podélném hrubování', () => {
+  // Dojezd běžné vrstvy, který stoupá v X víc, než ujede v Z = dojezd po čele.
+  // (Dokončení rampy/kapsy má vlastní pravidla — pod přepínač nespadá, jinak by
+  // pod ořízlou rampou zůstal stát klín materiálu.)
+  const faceLeadOuts = (calc) => calc.passes.filter(p =>
+    p.type === 'long' && p.contourLeadOut && p.contourLeadOut.length > 0
+    && !p.ramp && !p.pocketEntry && !p.pocketReposition && !p.pocketClean
+    && Math.abs(p.contourLeadOut[p.contourLeadOut.length - 1].x2 - p.contourLeadOut[0].x1)
+       > Math.abs(p.contourLeadOut[p.contourLeadOut.length - 1].z2 - p.contourLeadOut[0].z1));
+
+  it('zaškrtnuto = dojezdy po čele jsou, nezaškrtnuto = nejsou', async () => {
+    const prog = JSON.parse(readFileSync(fixture, 'utf8'));
+    prog.params.noStepRoughing = true;
+
+    prog.params.noStepRoughingFace = true;
+    const on = await runCamProg(JSON.parse(JSON.stringify(prog)));
+    expect(faceLeadOuts(on.calc).length, 'fixture nemá čelní dojezdy, test nic neměří').toBeGreaterThan(0);
+
+    prog.params.noStepRoughingFace = false;
+    const off = await runCamProg(JSON.parse(JSON.stringify(prog)));
+    expect(faceLeadOuts(off.calc).map(p => p.x)).toEqual([]);
+
+    // Dojezdy po KUŽELU/VÁLCI (postupují v Z víc, než stoupají v X) přepínač
+    // neruší — ty patří k podélnému „bez schodků" a zůstávají zapnuté.
+    const alongContour = (calc) => calc.passes.filter(p =>
+      p.type === 'long' && p.contourLeadOut && p.contourLeadOut.length > 0
+      && !faceLeadOuts(calc).includes(p)).length;
+    expect(alongContour(off.calc)).toBeGreaterThan(0);
+  }, 60000);
 });
 
 // Konec rozsahu obrábění 📐 platí pro KAŽDÝ řezný pohyb. Řez vrstvy ho držel

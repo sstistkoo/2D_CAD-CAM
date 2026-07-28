@@ -21,6 +21,7 @@ import { buildStockLoop } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyOffset, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
+import { HOLDER_CLAMP_MARGIN } from './toolEnvelope.js';
 
 // Volný prostor (mm) mezi držákem a vůlí-posunutou siluetou polotovaru
 // („tečkovanou" offsetovou čarou v náhledu) při hledání stropu vjezdu —
@@ -882,6 +883,25 @@ export function genLongPasses(ctx) {
     return zFloor;
   };
 
+  // ── „Hrub. bez schodků | i u čelního" v PODÉLNÉM hrubování ────────────
+  // Dojezd po ČELNÍ (radiální) stěně je jiná práce než dojezd po kuželu:
+  // nástroj šplhá v X a v Z se skoro neposune — tedy přesně to, co dělá
+  // ČELNÍ hrubování. Přepínač „i u čelního" proto platí i tady (dřív se
+  // vztahoval jen na čelní strategii a v podélné se nedal vypnout jinak než
+  // vypnutím celého „bez schodků").
+  // Test: dojezd stoupne v X víc, než ujede v Z (stěna strmější než 45°).
+  // Rampované dojezdy strmých stěn (roh + rampa pod úhlem zanoření) tím
+  // NEPROJDOU — ty ujedou v Z podstatně víc a zůstávají zapnuté, protože
+  // jinak by pod nimi zůstal stát klín materiálu.
+  // Typicky je takové „čelo" navíc jen MEZNÍ ČÁRA hlídání destičky (stěna má
+  // přesně úhel plátku, viz buildMachinableContour) — dojezd po ní kopíruje
+  // limit destičky a nic neubere; schod tam dobere až čelní operace.
+  const isFaceLeadOut = (segs) => {
+    if (!segs || segs.length === 0) return false;
+    const a = segs[0], b = segs[segs.length - 1];
+    return Math.abs(b.x2 - a.x1) > Math.abs(b.z2 - a.z1);
+  };
+
   // ── Vjezd průchodu tam, kde SKUTEČNĚ začíná polotovar ─────────────────
   // Okno REGIONU (odlitek, viz níž) i rozsah obrábění 📐 můžou začínat ve
   // VZDUCHU — nad údolím odlitku nebo v mezeře mezi hrby. Průchod pak „vjížděl"
@@ -955,7 +975,18 @@ export function genLongPasses(ctx) {
           if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
           continue;
         }
-        if (nz > iv.zEnd + 1e-9) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
+        // Rezerva obálky (HOLDER_CLAMP_MARGIN) patří DRŽÁKU, ne špičce:
+        // clamp vrací „první vstup do zakázané oblasti + rezerva", a protože
+        // tou oblastí je i samotná silueta offsetu, vyšlo to i tam, kde
+        // průchod stejně končí — na STĚNĚ KONTURY. Každý zablokovaný průchod
+        // pak končil o rezervu (0,1 mm) dřív, než kam na offsetovou čáru
+        // dojet smí (reálný nález na díle uživatele: dráhy u čela nedojely
+        // k offsetové čáře a nechávaly 0,1 mm navíc). Zkrátit se proto smí,
+        // jen když MÍSTO překážky (nz − rezerva) leží ZA koncem intervalu, a
+        // to o víc než řezná tolerance (0,01 mm jako v blockedAt — hranice
+        // zakázané oblasti a offsetová silueta se po Clipperu liší v řádu
+        // 1e-3 mm). Uvnitř tolerance jde o TUTÉŽ stěnu → konec zůstane přesný.
+        if (nz - HOLDER_CLAMP_MARGIN > iv.zEnd + 0.01) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
         if (iv.zStart - iv.zEnd < dzScan) { firstSurvived = false; continue; }
       }
       // KAPSY (k>0 / zanoření) obálka NEOŘEZÁVÁ: lomené mezní čáry guides v2
@@ -1417,6 +1448,10 @@ export function genLongPasses(ctx) {
           // čelo (konstantní Z) vydá traceOffsetPath celé až k bossu → oříznout
           // na prevX (jinak dojezd zbytečně přejede celé čelo ven až na buben).
           if (prevX !== null && Number.isFinite(prevX)) clipLeadOutToDepth(leadOut, prevX);
+          // „i u čelního" (viz isFaceLeadOut výš): bez zaškrtnutí se dojezd
+          // po čelní/radiální stěně vynechá — průchod skončí u stěny a
+          // odskočí, schod dobere čelní operace.
+          if (!prms.noStepRoughingFace && isFaceLeadOut(leadOut)) leadOut.length = 0;
           if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
         }
         passes.push(passObj);

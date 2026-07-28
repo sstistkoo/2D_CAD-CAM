@@ -3989,7 +3989,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-act="thread-deactivate" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">Vypnout závit</button></small>`;
     }
     if (_machSubTab === 'hrub') {
-      html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.">
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.&#10;&#10;„i u čelního“: dojíždět i po ČELNÍCH (radiálních) stěnách — tedy tam, kde dojezd stoupá v X víc, než ujede v Z. Bez zaškrtnutí průchod u takové stěny skončí a odskočí (schod dobere čelní operace); u čela vzniklého mezní čárou hlídání destičky by dojezd stejně jen kopíroval limit plátku. Kuželové a válcové stěny se dojíždí vždy.">
         <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
         <span>Hrub. bez schodků</span>
         ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}

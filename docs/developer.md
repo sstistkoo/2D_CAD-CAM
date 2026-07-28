@@ -433,6 +433,24 @@ z `cam/gcodeMerge.js`, který při **výměně nože** vypíše i nájezd do
 referenčního bodu (`G75`/`G28`/`G74`) a startovní polohu, i když se oproti
 předchozí části nemění (`TOOL_CHANGE_FORCED`).
 
+#### Konec hrubovacího průchodu: stěna vs. obálka držáku
+
+`makeHolderClamp()` (`cam/toolEnvelope.js`) vrací **první vstup do zakázané
+oblasti + `HOLDER_CLAMP_MARGIN` (0,1 mm)**. Zakázaná oblast je ale
+`silueta offsetu ⊕ (−držák)`, takže obsahuje i samotnou siluetu — clamp proto
+„najde překážku" i tam, kde průchod prostě končí **na stěně kontury**.
+Rezerva patří DRŽÁKU, ne špičce (přídavek je už v offsetu), takže
+`applyHolderClamp()` v `roughingStrategies.js` zkracuje interval jen tehdy,
+když **místo překážky** (`nz − HOLDER_CLAMP_MARGIN`) leží za koncem intervalu
+o víc než řezná tolerance 0,01 mm (hranice po Clipperu a offsetová silueta se
+liší v řádu 1e-3 mm). Bez toho končila každá vrstva 0,1 mm před offsetovou
+čárou. Invariant hlídá `tests/cam-leadout-step.test.js`.
+
+Dojezd „bez schodků" po **čelní (radiální) stěně** — dojezd stoupne v X víc,
+než ujede v Z — se dělá jen se zapnutým `noStepRoughingFace` („i u čelního").
+Rampované dojezdy strmých stěn a dokončení kapes tím neprochází (ujedou v Z
+podstatně víc), takže pod ořízlou rampou nezůstane klín materiálu.
+
 Testy nad neexportovanými helpery jdou přes `tests/helpers/camInternals.mjs`
 (text-surgery + přímé importy z `cam/*.js`); plný pipeline (`calculate()` +
 `generateAutoGCode()`) přes `tests/helpers/camHeadless.mjs` — viz
