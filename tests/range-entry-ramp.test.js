@@ -7,6 +7,8 @@
 // rampou pod úhlem zanoření z kotvy = průsečík čáry začátku rozsahu s
 // hranicí polotovaru (+ vůle X); všechny hloubky sdílejí tutéž přímku.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 
 const prog = {
@@ -55,5 +57,36 @@ describe('rozsah Z uprostřed polotovaru', () => {
     // Žádný kolmý zápich na hranici: dřívější vzor G0 Z(−30+vůle) → G1 X(hloubka)
     // uvnitř materiálu se u rampovaných průchodů nevyskytuje — vjezd jde po
     // rampě z povrchu. (Kontrola: v kódu není G1 X.. bez Z na z≈−29.)
+  }, 30000);
+});
+
+// ── Zanoření za odlitkovým hrbem (strop vjezdu podle držáku) ────────────
+// Na fixture range-end-leadout stojí NAPRAVO od obráběné zóny hrb Ø≈129
+// (skok siluety polotovaru na Z=196,278). Rampa od jeho povrchu na malé
+// průměry se do Z-okna nevejde, takže se dřív takové hloubky celé zahodily —
+// menší průměry zůstaly nehrubované, dokud uživatel ručně neposunul Start
+// rozsahu Z až za hrb. Vjezd se teď posune sám tam, kde se vedle vejde držák.
+const HRB_Z = 196.278;        // skok siluety polotovaru (hrb napravo)
+const HOLDER_W = 20;          // holderWidth fixture
+const STOCK_CLR_Z = 1;        // rapidClearance fixture (Přídavek Z polotovaru)
+const GAP = 1;                // volný prostor mezi držákem a offsetovou čarou
+
+describe('zanoření za odlitkovým hrbem', () => {
+  it('vjezd se posune tam, kam se vejde držák — a přijde na řadu až po větších průměrech', async () => {
+    const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures/cam/range-end-leadout.camprog'), 'utf8'));
+    const { calc } = await runCamProg(prog);
+    const longs = calc.passes.filter(p => p.type === 'long');
+    // Zanoření na malý průměr, které dřív úplně chybělo.
+    const plunges = longs.filter(p => p.entryRangeRamp && p.x < 20);
+    expect(plunges.length).toBeGreaterThan(0);
+    // Držák (šířka HOLDER_W od špičky) se u vjezdu vejde vedle hrbu, a ještě
+    // s GAP volného prostoru od offsetové čáry polotovaru.
+    for (const p of plunges) {
+      expect(p.ramp.z0 + HOLDER_W).toBeLessThanOrEqual(HRB_Z - STOCK_CLR_Z - GAP + 1e-6);
+    }
+    // „Co je nahoře, má přednost": zanoření je až za všemi průchody na
+    // větších průměrech, hrubuje se odshora dolů.
+    const firstPlunge = longs.indexOf(plunges[0]);
+    expect(longs.slice(firstPlunge).every(p => p.x <= plunges[0].x + 1e-6)).toBe(true);
   }, 30000);
 });

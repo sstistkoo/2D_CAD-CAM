@@ -19,7 +19,13 @@
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoop } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
-import { pointInLoop, polyOffset } from '../../geom/geomCore.js';
+import { pointInLoop, polyOffset, polyIntersect } from '../../geom/geomCore.js';
+import { holderWorldLoop } from './collisionValidator.js';
+
+// Volný prostor (mm) mezi držákem a vůlí-posunutou siluetou polotovaru
+// („tečkovanou" offsetovou čarou v náhledu) při hledání stropu vjezdu —
+// viz holderEntryCapZ v genLongPasses.
+const HOLDER_STOCK_GAP = 1.0;
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
@@ -361,14 +367,39 @@ export function genLongPasses(ctx) {
     }
   });
 
-  // Vrch polotovaru v X
+  // ── Rozsah obrábění 📐 ořezává i GEOMETRII, ze které se plánuje ────────
+  // Díl se obrábí po ÚSECÍCH: co je mimo rozsah, se v téhle operaci neobrábí,
+  // a nesmí proto ani ovlivňovat plánování drah. Bez ořezu odlitkový hrb ZA
+  // hranicí rozsahu protahoval hloubkovou posloupnost (`maxStockX`) a vjezdy
+  // mířily na povrch, který v rozsahu vůbec není — reálný nález na díle
+  // uživatele: rozsah Z 108–195,6 (polotovar tam sahá do X≈48) vygeneroval
+  // průchody na X≈65 a X≈59, tedy řez vzduchem.
+  //
+  // Kolize se dál hlídají proti CELÉMU polotovaru: obálka držáku se staví
+  // v calculatePipeline.js z neořezaných `stockPathSegments`, stejně tak
+  // validátor kolizí a model úběru. Ořez je JEN o tom, co se plánuje.
+  const rangeClipZ = machiningRange
+    ? { zLo: machiningRange.zLo, zHi: machiningRange.zHi } : null;
+  // Vrch polotovaru v X — jen z části, která leží v rozsahu.
   let maxStockX = sRad;
   if (prms.stockMode === 'casting' && stockWorldPoints.length > 0) {
     maxStockX = -9999;
-    stockWorldPoints.forEach(p => { if (p.xReal > maxStockX) maxStockX = p.xReal; });
+    stockWorldPoints.forEach(p => {
+      if (rangeClipZ && (p.zReal < rangeClipZ.zLo - 0.01 || p.zReal > rangeClipZ.zHi + 0.01)) return;
+      if (p.xReal > maxStockX) maxStockX = p.xReal;
+    });
+    // Body obrysu můžou být řídké (dlouhý segment přes celý rozsah): dobrat
+    // ještě průsečíky obrysu s oběma hranicemi rozsahu.
+    if (rangeClipZ) {
+      for (const zB of [rangeClipZ.zLo, rangeClipZ.zHi]) {
+        const xB = stockOuterXAtZ(prms, sRad, stockPathSegments, zB);
+        if (xB !== null && xB > maxStockX) maxStockX = xB;
+      }
+    }
+    if (maxStockX < 0) maxStockX = sRad;    // v rozsahu není polotovar vůbec
   }
 
-  // Z-rozsah polotovaru na zadané hloubce X.
+  // Z-rozsah polotovaru na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
   // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce.
   // Pro válec: [cylStockZ, stockFace].
   // Vrací { zMax, zMin, all } nebo null pokud na této X polotovar není.
@@ -381,7 +412,17 @@ export function genLongPasses(ctx) {
       if (endP && endP.xReal > X + 0.01) zs.push(endP.zReal);
       if (zs.length < 2) return null;
       zs.sort((a, b) => b - a);
-      return { zMax: zs[0], zMin: zs[zs.length - 1], all: zs };
+      if (!rangeClipZ) return { zMax: zs[0], zMin: zs[zs.length - 1], all: zs };
+      // Ořez na rozsah: hranice se přidají jako průsečíky tam, kde přes ně
+      // materiál pokračuje, aby parita v passEntryZ zůstala konzistentní.
+      const inR = zs.filter(z => z >= rangeClipZ.zLo - 1e-9 && z <= rangeClipZ.zHi + 1e-9);
+      for (const zB of [rangeClipZ.zHi, rangeClipZ.zLo]) {
+        const xB = stockOuterXAtZ(prms, sRad, stockPathSegments, zB);
+        if (xB !== null && xB > X + 0.01) inR.push(zB);
+      }
+      if (inR.length < 2) return null;      // v rozsahu na téhle hloubce nic není
+      inR.sort((a, b) => b - a);
+      return { zMax: inR[0], zMin: inR[inR.length - 1], all: inR };
     }
     if (X > sRad + 0.01) return null;
     return { zMax: stockFace, zMin: cylStockZ, all: [stockFace, cylStockZ] };
@@ -407,7 +448,32 @@ export function genLongPasses(ctx) {
 
   // Uzavřená smyčka polotovaru (odlitek) — zvedání rampových kotev kapes
   // na hranici materiálu + vůli X; null = válec (rampy kotví postaru).
-  const stockLoopL = prms.stockMode === 'casting' ? buildStockLoop(prms, stockPathSegments) : null;
+  // `stockLoopFullL` = CELÝ polotovar (hlídání kolizí držáku, viz
+  // holderEntryCapZ níž), `stockLoopL` = ořezaný rozsahem 📐 (plánování drah,
+  // viz rangeClipZ výš).
+  const stockLoopFullL = prms.stockMode === 'casting' ? buildStockLoop(prms, stockPathSegments) : null;
+  // Ořez smyčky Z-pásem rozsahu (Clipper). Víc komponent = polotovar je
+  // v pásu přerušený; bere se ta s největším rozpětím X (hlavní kus).
+  const clipLoopToRange = (loop) => {
+    if (!loop || !rangeClipZ) return loop;
+    let xTop = -Infinity;
+    for (const p of loop) if (p.x > xTop) xTop = p.x;
+    const band = [
+      { x: -10, z: rangeClipZ.zLo }, { x: xTop + 10, z: rangeClipZ.zLo },
+      { x: xTop + 10, z: rangeClipZ.zHi }, { x: -10, z: rangeClipZ.zHi },
+    ];
+    let parts = [];
+    try { parts = polyIntersect([loop], [band]); } catch { return loop; }
+    if (parts.length === 0) return null;
+    let best = null, bestSpan = -Infinity;
+    for (const pt of parts) {
+      let lo = Infinity, hi = -Infinity;
+      for (const p of pt) { if (p.x < lo) lo = p.x; if (p.x > hi) hi = p.x; }
+      if (hi - lo > bestSpan) { bestSpan = hi - lo; best = pt; }
+    }
+    return best;
+  };
+  const stockLoopL = clipLoopToRange(stockLoopFullL);
   const stockClrXL = stockClearances(prms).x;
   // Vůlí-posunutá silueta odlitku (stejná „tečkovaná" offsetová čára jako
   // v náhledu/simulátoru — viz castingTopXAtZOffset v gcodeEmit.js): přes
@@ -417,26 +483,30 @@ export function genLongPasses(ctx) {
   // systematicky minul offsetovou čáru). VůleX ≠ VůleZ (anizotropní) se
   // řeší měřítkem osy Z, stejně jako v gcodeEmit.js.
   const { x: stockClrXOffL, z: stockClrZOffL } = stockClearances(prms);
-  let stockLoopOffsetL = null;
-  if (stockLoopL) {
+  const offsetLoopOf = (loop) => {
+    if (!loop) return null;
     if (Math.abs(stockClrXOffL - stockClrZOffL) < 1e-6) {
-      stockLoopOffsetL = polyOffset([stockLoopL], stockClrXOffL)[0] || null;
-    } else {
-      const kZL = stockClrXOffL / stockClrZOffL;
-      const scaledL = stockLoopL.map(p => ({ x: p.x, z: p.z * kZL }));
-      const offL = polyOffset([scaledL], stockClrXOffL)[0];
-      stockLoopOffsetL = offL ? offL.map(p => ({ x: p.x, z: p.z / kZL })) : null;
+      return polyOffset([loop], stockClrXOffL)[0] || null;
     }
-  }
+    const kZL = stockClrXOffL / stockClrZOffL;
+    const scaledL = loop.map(p => ({ x: p.x, z: p.z * kZL }));
+    const offL = polyOffset([scaledL], stockClrXOffL)[0];
+    return offL ? offL.map(p => ({ x: p.x, z: p.z / kZL })) : null;
+  };
+  const stockLoopOffsetL = offsetLoopOf(stockLoopL);
+  // Táž čára nad CELÝM polotovarem (bez ořezu rozsahem) — hlídání kolize
+  // držáku musí vidět i materiál za hranicí rozsahu (holderEntryCapZ níž).
+  const stockLoopOffsetFullL = (stockLoopFullL === stockLoopL)
+    ? stockLoopOffsetL : offsetLoopOf(stockLoopFullL);
   // Max X vůlí-posunuté siluety na dané Z (stejný vzor jako
   // castingTopXAtZOffset v gcodeEmit.js, nad stockLoopOffsetL místo
   // stockLoop0OffsetRef) — offsetová čára pro vjezd na hranici rozsahu Z.
-  const offsetStockTopXAtZ = (z) => {
-    if (!stockLoopOffsetL) return null;
+  const topXOnLoop = (loop, z) => {
+    if (!loop) return null;
     let top = null;
-    const n = stockLoopOffsetL.length;
+    const n = loop.length;
     for (let i = 0; i < n; i++) {
-      const a = stockLoopOffsetL[i], b = stockLoopOffsetL[(i + 1) % n];
+      const a = loop[i], b = loop[(i + 1) % n];
       if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
         const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
         if (top === null || x > top) top = x;
@@ -444,6 +514,74 @@ export function genLongPasses(ctx) {
     }
     return top;
   };
+  const offsetStockTopXAtZ = (z) => topXOnLoop(stockLoopOffsetL, z);
+
+  // ── Kde smí ZAČÍT zanořovací rampa (strop podle držáku) ───────────────
+  // Vjezd průchodu se dosud řídil jen tím, kde na dané hloubce začíná
+  // polotovar (passEntryZ), plus ručním „Startem rozsahu Z" (📐). U odlitku,
+  // kde NAPRAVO od obráběné zóny stojí hrb (velký průměr), byla kotva rampy
+  // na povrchu TOHO hrbu — rampa odtud na hloubku vyšla desítky mm dlouhá,
+  // nevešla se do intervalu a celý průchod se zahodil. Menší průměry pak
+  // zůstaly nehrubované a obejít se to dalo jen ručním posunutím Startu
+  // rozsahu Z doleva, až za hrb (reálný nález na díle uživatele).
+  //
+  // Tenhle helper takové místo najde sám: nejpravější Z, kde
+  //   (a) nástroj stojí na povrchu (vůlí-posunutá silueta = „tečkovaná"
+  //       offsetová čára, Přídavek X/Z polotovaru) a rampa odtud na hloubku
+  //       ještě dosáhne nad dno intervalu,
+  //   (b) vedle se vejde DRŽÁK — v celém svém axiálním dosahu od špičky
+  //       (+ HOLDER_STOCK_GAP volného prostoru) nestojí materiál VYŠŠÍ, než
+  //       je povrch v místě vjezdu.
+  // Výsledek se pak zanořuje rampou úplně stejně jako vjezd na hranici
+  // rozsahu Z — sdílí s ním i celý řetěz kotev (entryRampAnchor níž).
+  const holderLoopL = (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__)
+    ? holderWorldLoop(prms, false) : null;
+  const DZ_CAP = 0.25;
+  // Axiální dosah držáku od špičky + volný prostor; DZ_CAP navíc kryje
+  // zaokrouhlení skenu (hranu hrbu vzorky můžou minout o krok).
+  const holderZLoL = holderLoopL ? Math.min(...holderLoopL.map(p => p.z)) - HOLDER_STOCK_GAP - DZ_CAP : 0;
+  const holderZHiL = holderLoopL ? Math.max(...holderLoopL.map(p => p.z)) + HOLDER_STOCK_GAP + DZ_CAP : 0;
+  // Tabulka výšky offsetové čáry (lookup — sken okna držáku by jinak volal
+  // offsetStockTopXAtZ statisíckrát).
+  // Tabulka se staví nad CELÝM polotovarem (stockLoopOffsetFullL) — držák
+  // narazí i do materiálu za hranicí rozsahu 📐, ten se jen neobrábí.
+  let capZ0 = 0, capTab = null;
+  if (holderLoopL && stockLoopOffsetFullL && holderZHiL - holderZLoL > 0.05) {
+    let tLo = Infinity, tHi = -Infinity;
+    for (const p of stockLoopOffsetFullL) { if (p.z < tLo) tLo = p.z; if (p.z > tHi) tHi = p.z; }
+    const n = Math.ceil((tHi - tLo) / DZ_CAP) + 1;
+    if (n > 1 && n < 40000) {
+      capZ0 = tLo;
+      capTab = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        const t = topXOnLoop(stockLoopOffsetFullL, tLo + i * DZ_CAP);
+        capTab[i] = (t === null) ? -Infinity : t;
+      }
+    }
+  }
+  // Výška offsetové čáry z tabulky; null = mimo polotovar (vzduch).
+  const stockTopTab = (z) => {
+    if (!capTab) return null;
+    const i = Math.round((z - capZ0) / DZ_CAP);
+    if (i < 0 || i >= capTab.length || capTab[i] === -Infinity) return null;
+    return capTab[i];
+  };
+  const holderEntryCapZ = (X, zHi, zFloor) => {
+    if (!capTab || zHi - zFloor < 0.1) return -Infinity;
+    for (let z = zHi; z > zFloor; z -= DZ_CAP) {
+      const top = stockTopTab(z);
+      if (top === null || top <= X + 0.05) continue;              // vzduch / už pod hloubkou
+      if (z - (top - X) / effPlungeTanL <= zFloor + 0.05) continue;   // (a) rampa se nevejde
+      let free = true;
+      for (let s = z + holderZLoL; s <= z + holderZHiL + 1e-9; s += DZ_CAP) {
+        const t = stockTopTab(s);
+        if (t !== null && t > top + 0.05) { free = false; break; }
+      }
+      if (free) return z;                                          // (b) držák se vejde
+    }
+    return -Infinity;
+  };
+
   // Rampa od hranice polotovaru: když vstup průchodu leží v KŮŘE odlitku,
   // kotva se zvedne po přímce zanoření nad polotovar + vůli X — posuv
   // začíná na tečkované hranici a kůra se řeže pod úhlem zanoření
@@ -854,7 +992,7 @@ export function genLongPasses(ctx) {
   let _residualLoops = null;
   const getResidualLoops = () => {
     if (_residualLoops !== null) return _residualLoops;
-    const stockLoop = buildStockLoop(prms, stockPathSegments);
+    const stockLoop = stockLoopL;
     if (!stockLoop) { _residualLoops = []; return _residualLoops; }
     // Z-rozsah z obrysu polotovaru; radiální rozsah do maxStockX (vrch
     // polotovaru). Zbytek se počítá proti PLNÉMU obdélníkovému POLOTOVAROVÉMU
@@ -952,7 +1090,7 @@ export function genLongPasses(ctx) {
   // takže bez regrese pokrytí. Obecné residual-komponentové regiony (kapsy
   // dílu, obousměrné splynutí) patří až do restrukturace emisní smyčky.
   const booleanRegionSplits = () => {
-    const stockLoop = buildStockLoop(prms, stockPathSegments);
+    const stockLoop = stockLoopL;
     if (!stockLoop || stockLoop.length < 3) return [];
     let zMax = -Infinity, zMin = Infinity;
     for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
@@ -1055,7 +1193,6 @@ export function genLongPasses(ctx) {
     const effZMax = passEntryZ(
       Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, regZHi), effZMin, sz, currentX);
     if (effZMax === null || effZMax - effZMin < 0.1) continue;
-
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
     // nepřekračuje currentX). První interval (od pravé hrany
     // polotovaru) = klasický otevřený vjezd. Každý další interval je
@@ -1066,7 +1203,39 @@ export function genLongPasses(ctx) {
     // Stock outline NEPROFILUJE řez (i kdyby měl casting přerušení /
     // dolíky uprostřed) — fyzický nástroj projíždí mezerou ve vzduchu
     // bez problému. Stopuje JEN kontura.
-    const { intervals, firstOpen } = scan(currentX, effZMax, effZMin, true);
+    const passMark = passes.length;
+    let entryZ = effZMax;
+    let { intervals, firstOpen } = scan(currentX, entryZ, effZMin, true);
+    // ── Zanořování (📥 „Zanořování"): najdi, KDE se dá začít ──────────────
+    // Na tuhle hloubku se nedá vjet zprava — vjezd zahodila obálka DRŽÁKU
+    // (napravo stojí materiál, do kterého by narazil) nebo se do okna
+    // nevejde rampa od povrchu nad vjezdem (odlitkový hrb NAPRAVO od
+    // obráběné zóny; rampa by vyšla delší než celé Z-okno). Vjezd se proto
+    // posune doleva na nejpravější místo, kde zanoření opravdu MŮŽE začít:
+    // nástroj tam stojí na offsetové čáře polotovaru, rampa odtud dosáhne a
+    // vedle se vejde držák (holderEntryCapZ výš). Bez toho taková hloubka
+    // vypadla celá a materiál zůstal stát — obejít se to dalo jen ručním
+    // posunutím Startu rozsahu Z (reálný nález na díle uživatele).
+    // Geometrie DESTIČKY je v tom už zahrnutá: mezní čáry hlídání jsou
+    // zapracované do obrobitelné kontury, kterou sken respektuje.
+    if (prms.plungeRoughing) {
+      const surf0 = offsetStockTopXAtZ(entryZ);
+      const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
+      if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05) {
+        const zCap = holderEntryCapZ(currentX, entryZ, effZMin);
+        if (isFinite(zCap) && zCap < entryZ - 1e-6) {
+          const reScan = scan(currentX, zCap, effZMin, true);
+          if (reScan.firstOpen && reScan.intervals.length > 0) {
+            entryZ = zCap; intervals = reScan.intervals; firstOpen = reScan.firstOpen;
+          }
+        }
+      }
+    }
+    // Vjezd stojí na UMĚLÉ hranici — rozsah 📐 nebo posunutý start zanoření —
+    // takže napravo od něj materiál dál stojí a kolmý zápich by do něj sjel;
+    // zanořuje se rampou (níž).
+    const entryCapped = (entryZ !== effZMax)
+      || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6);
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
       if (iv.zStart - iv.zEnd < dzScan) return;
@@ -1086,12 +1255,19 @@ export function genLongPasses(ctx) {
         // díle uživatele: to zbytečně přejíždělo/dobíralo už hotovou
         // horní část rampy a po pár hloubkách se úplně vzdalo, zbytek
         // Z-rozsahu zůstal bez jakéhokoli dojezdu).
-        if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
-            && iv.zStart >= effZMax - 1e-6) {
-          if (!entryRampAnchor) {
-            const surfX = offsetStockTopXAtZ(effZMax);
+        if (entryCapped
+            && iv.zStart >= entryZ - 1e-6) {
+          // Kotva rampy = povrch nad vjezdem. Ještě NEPOUŽITÁ kotva (first)
+          // z jiného Z se přepíše: vjezd se mezitím mohl posunout doleva na
+          // místo, kde zanořování opravdu začíná (entryZ výš).
+          if (!entryRampAnchor
+              || (entryRampAnchor.first && Math.abs(entryRampAnchor.z - entryZ) > 1e-6)) {
+            const surfX = offsetStockTopXAtZ(entryZ);
             if (surfX !== null && surfX > currentX + 0.05) {
-              entryRampAnchor = { x: surfX, z: effZMax, first: true };
+              entryRampAnchor = { x: surfX, z: entryZ, first: true };
+              // Jiné Z = jiný řetěz zanořování: uzavření toho předchozího
+              // (dokončený zbytek pod Hloubku ap) se na nový nevztahuje.
+              entryRampClosed = false;
             }
           }
           let rampOk = false;
@@ -1251,11 +1427,20 @@ export function genLongPasses(ctx) {
       // Kapsa za bossem kontury (idx>=1) — otevřený řez (idx===0) se za
       // bossem nedívá vůbec (viz komentář výš), takže se tu nic za bossem
       // nedohledává ani nedorampovává.
+      //
+      // POZOR (ověřeno 28.07.2026): kód pod tímhle returnem je z doby PŘED
+      // vypnutím kapes (23.07.) a s dnešní geometrií ramp/offsetových čar už
+      // NENÍ konzistentní — pouhé odblokování (i jen se zapnutým Zanořováním)
+      // řeže do hotovní kontury 15,3 mm (pocket-wall-at-plunge-angle) a
+      // 22,2 mm (range-chain-insert-shadow); chytí to
+      // tests/cam-gouge-invariants. Zanoření za boss proto potřebuje NOVOU
+      // implementaci (rampa cílená proti offsetové čáře jako findRampOutTarget
+      // + ořez obálkou držáku), ne oživení tohoto bloku.
       return;
       // Když je úplně první interval blokovaný (idx===0, !firstOpen),
       // neexistuje předchozí interval → horní hranice mezery = okraj
       // polotovaru (sz.zMax). Bez fallbacku by intervals[-1] spadlo.
-      const zGapHi = idx > 0 ? intervals[idx - 1].zEnd : effZMax;
+      const zGapHi = idx > 0 ? intervals[idx - 1].zEnd : entryZ;
       // Dobrat kapsu najednou: tuhle kapsu už vykopal dřívější blok →
       // hlavní smyčka ji na hlubších hloubkách znovu nezpracovává.
       if (iv.blocked && prms.pocketFinishAtOnce) {
@@ -1508,7 +1693,7 @@ export function genLongPasses(ctx) {
 
         localX = Math.max(pocketBottomX, localX - step);
         // Najdi tutéž kapsu na nové hloubce (roh se s hloubkou mírně posouvá).
-        const rescan = scan(localX, effZMax, effZMin);
+        const rescan = scan(localX, entryZ, effZMin);
         let found = null;
         for (let j = 1; j < rescan.intervals.length; j++) {
           const cIv = rescan.intervals[j];
@@ -1612,12 +1797,12 @@ export function genLongPasses(ctx) {
     // Pokud je Z-rozsah aktivní a jeho horní hrana je uvnitř polotovaru
     // (scanIntervals nevrátí žádné intervaly), vygenerujte rampový
     // vjezd od hranice rozsahu z povrchu polotovaru.
-    if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
+    if (entryCapped
         && intervals.length === 0 && !entryRampAnchor) {
       const stockSurfX = sRad + stockClearances(prms).x;
-      const surfX = stockLoopL ? offsetStockTopXAtZ(effZMax) : stockSurfX;
+      const surfX = stockLoopL ? offsetStockTopXAtZ(entryZ) : stockSurfX;
       if (surfX !== null && surfX > currentX + 0.05) {
-        entryRampAnchor = { x: surfX, z: effZMax, first: true };
+        entryRampAnchor = { x: surfX, z: entryZ, first: true };
         const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
         if (zS > effZMin - 0.05) {
           const passObj = { type: 'long', x: currentX, zStart: zS, zEnd: effZMin, blocked: true };
@@ -1639,7 +1824,7 @@ export function genLongPasses(ctx) {
     // dokonči tam poslední, kratší úsek — reálný nález na díle uživatele:
     // zbytek pod Hloubku (ap) po posledním úspěšném kroku řetězu zůstal
     // neobrobený.
-    if (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6
+    if (entryCapped
         && entryRampAnchor && !entryRampClosed && entryRampAnchor.x - currentX > 0.05) {
       entryRampClosed = true;
       // Bisekce hledá NEJMENŠÍ (nejhlubší) X mezi currentX (selže) a
@@ -1649,7 +1834,7 @@ export function genLongPasses(ctx) {
       let bestCiv = null, bestX = null;
       for (let k = 0; k < 20; k++) {
         const mid = (loX + hiX) / 2;
-        const midScan = scan(mid, effZMax, effZMin, true);
+        const midScan = scan(mid, entryZ, effZMin, true);
         const midIv = (midScan.firstOpen && midScan.intervals.length > 0) ? midScan.intervals[0] : null;
         const zSmid = midIv ? entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL : null;
         if (midIv && zSmid > midIv.zEnd + 0.05) {
@@ -1692,6 +1877,13 @@ export function genLongPasses(ctx) {
         }
         passes.push(finalPass);
       }
+    }
+    // Zanoření se stropem držáku (entryZ posunutý doleva, viz výš) bere
+    // MENŠÍ průměr, než na jaký v tomhle Z-okně dosáhly ostatní regiony —
+    // v pořadí se proto odloží až za ně, ať hrubování jde odshora dolů
+    // a nezačíná zanořením (reálný požadavek uživatele).
+    if (entryZ !== effZMax) {
+      for (let i = passMark; i < passes.length; i++) passes[i].__deferEntry = true;
     }
   }
   // Dokončení ořízlých ramp (viz pendingRampCompletions výš) — teprve TEĎ,
@@ -1748,6 +1940,15 @@ export function genLongPasses(ctx) {
     }
   }
   } // konec smyčky regionů
+  // Přesun odloženého zanoření na konec (stabilně, pořadí uvnitř skupin
+  // zůstává) — „co je nahoře, má přednost".
+  if (passes.some(p => p.__deferEntry)) {
+    const head = [], tail = [];
+    for (const p of passes) { (p.__deferEntry ? tail : head).push(p); delete p.__deferEntry; }
+    passes.length = 0;
+    for (const p of head) passes.push(p);
+    for (const p of tail) passes.push(p);
+  }
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)

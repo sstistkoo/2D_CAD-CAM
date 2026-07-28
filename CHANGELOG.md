@@ -13,7 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přídavek kolem polotovaru, na jehož čáru (tečkovaná hranice v náhledu) má
   dráha dojíždět, ne jen odstup rychloposuvu.
 
+### Changed
+- CAM (podélné hrubování): **rozsah obrábění 📐 ořezává i geometrii, ze které
+  se dráhy plánují** — ne jen samotné řezné pohyby. Díl se obrábí po úsecích;
+  co je mimo rozsah, se v dané operaci neobrábí a nesmí tedy ovlivňovat
+  plánování. Dřív odlitkový hrb ZA hranicí rozsahu protahoval hloubkovou
+  posloupnost (počítala se z vrchu celého polotovaru) a vjezdy mířily na
+  povrch, který v rozsahu vůbec není (reálný nález na díle uživatele: rozsah
+  Z 108–195,6, kde polotovar sahá do X≈48, vygeneroval průchody na X≈65
+  a X≈59 — řez vzduchem). Kolize se dál hlídají proti **celému** polotovaru:
+  obálka držáku, validátor i model úběru pracují s neořezanou geometrií.
+
 ### Fixed
+- CAM (podélné hrubování): **za odlitkovým hrbem se nástroj zanoří sám** — dřív
+  se takové hloubky celé zahodily a menší průměry zůstaly nehrubované. Kotva
+  zanořovací rampy sedí na povrchu nad vjezdem; když napravo od obráběné zóny
+  stojí hrb (velký průměr), vyšla rampa od jeho povrchu desítky mm dlouhá,
+  nevešla se do Z-okna a průchod vypadl (i sken intervalů ho u hrbu zavrhl
+  kvůli mezním čarám držáku). Obejít se to dalo jen ručním posunutím **Startu
+  rozsahu Z** doleva až za hrb. Nově — kdykoli je zapnuté **Zanořování**, ne
+  jen na hranici rozsahu 📐 — se vjezd posune sám na nejpravější místo,
+  kde nástroj stojí na offsetové čáře polotovaru (Přídavek X/Z polo.), rampa
+  odtud na hloubku dosáhne a vedle se **vejde držák** — v celém svém axiálním
+  dosahu od špičky s 1 mm volného prostoru od té čáry (reálný nález na díle
+  uživatele: dráha vygenerovaná automaticky se kryje s tou, kterou uživatel
+  dostal ručním Startem rozsahu Z 174,6). Takové zanoření se navíc v pořadí
+  odloží až za průchody na větších průměrech, aby se hrubovalo odshora dolů
+  a nezačínalo zanořením.
 - CAM (podélné hrubování): **konec rozsahu obrábění 📐 platí i pro dojezdy
   a rampy, nejen pro samotný řez.** Řez vrstvy hranici držel (`effZMin`), ale
   sledování obrysu (`findLeadOutEndZ`, `findPocketExitZ`) i cíl rampy

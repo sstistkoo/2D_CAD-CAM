@@ -369,6 +369,40 @@ Geometrie nástroje (destička + držák) se ukládá do **projektu** (JSON). P�
 načtení projektu se nůž automaticky **přenese do CAM** (do živého i příště
 otevřeného simulátoru), takže si projekty můžeš ukládat jako knihovnu nožů.
 
+### Obrábění po úsecích (rozsah Z 📐)
+**Rozsah obrábění Z** neomezuje jen řezné pohyby — pro podélné hrubování
+ořezává i **geometrii polotovaru, ze které se dráhy plánují**. Co je mimo
+rozsah, jako by pro plánování neexistovalo: hloubková posloupnost se odvozuje
+z vrchu polotovaru **uvnitř** rozsahu a vjezdy míří na povrch, který tam
+skutečně je. Díl si tak můžeš rozdělit na úseky a každý odhrubovat zvlášť
+stejnou logikou — hotová část vedle už do plánování nemluví.
+
+**Kolize se hlídají dál proti celému polotovaru.** Obálka držáku, validátor
+kolizí i model úběru pracují s neořezanou geometrií, takže nástroj do materiálu
+za hranicí rozsahu nenarazí (typicky se kvůli němu posune start zanoření — viz
+níž).
+
+### Zanořování za odlitkovým hrbem
+Když u odlitku stojí **napravo** od obráběné zóny hrb (velký průměr), do kterého
+se v této operaci nezajíždí, nedá se na menší průměry vjet od jeho povrchu —
+rampa by odtud vyšla delší než celé Z-okno a nástroj by se tam navíc nevešel
+držákem. Se zapnutým **Zanořováním** najde hrubování takové místo samo: vjezd
+posune doleva na nejpravější
+polohu, kde nástroj stojí na **offsetové čáře polotovaru** (*Přídavek X/Z
+(polo.)*), rampa odtud na hloubku dosáhne a vedle se ještě **vejde držák** —
+v celém svém dosahu od špičky a s 1 mm volného prostoru od té čáry. Odtud se
+pak zanořuje rampou pod *Úhlem zanoření* stejně jako na hranici rozsahu 📐.
+
+Takové zanoření přijde na řadu **až po průchodech na větších průměrech** —
+hrubuje se odshora dolů, ne od zanoření. Ruční **Start rozsahu Z** už proto pro
+tento případ nastavovat nemusíš; nastav ho jen tehdy, když chceš obrábění
+záměrně omezit na kratší úsek.
+
+**Co zanořování zatím NEudělá:** do kapes **za bossem** (materiál ohraničený
+stěnou kontury z obou stran uprostřed dílu) podélné hrubování nezajíždí — ani se
+zapnutým Zanořováním. Ten materiál se musí obrobit jiným nástrojem/upnutím nebo
+zápichem.
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu
