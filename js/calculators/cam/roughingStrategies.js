@@ -593,6 +593,13 @@ export function genLongPasses(ctx) {
     for (let i = 0; i < 300; i++) {
       t += 0.5;
       const xx = X + t * effPlungeTanL, zz = zEntry + t;
+      // HRANICÍ JE I HOTOVNÍ KONTURA (stejně jako u findRampOutTarget níž):
+      // stoupá-li přímka zanoření do materiálu, který po hrubování ZŮSTÁVÁ
+      // (boss mezi vstupem a povrchem), vedla by rampa skrz díl. Dřív se
+      // testovala jen silueta polotovaru — u kapsy za bossem to dalo rampu
+      // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
+      // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
+      if (blockedAt(xx, zz)) return null;
       if (pointInLoop({ x: xx, z: zz }, stockLoopL) === 'outside') {
         return { x0: xx + stockClrXL * effPlungeTanL, z0: zz + stockClrXL };
       }
@@ -1428,14 +1435,19 @@ export function genLongPasses(ctx) {
       // bossem nedívá vůbec (viz komentář výš), takže se tu nic za bossem
       // nedohledává ani nedorampovává.
       //
-      // POZOR (ověřeno 28.07.2026): kód pod tímhle returnem je z doby PŘED
-      // vypnutím kapes (23.07.) a s dnešní geometrií ramp/offsetových čar už
-      // NENÍ konzistentní — pouhé odblokování (i jen se zapnutým Zanořováním)
-      // řeže do hotovní kontury 15,3 mm (pocket-wall-at-plunge-angle) a
-      // 22,2 mm (range-chain-insert-shadow); chytí to
-      // tests/cam-gouge-invariants. Zanoření za boss proto potřebuje NOVOU
-      // implementaci (rampa cílená proti offsetové čáře jako findRampOutTarget
-      // + ořez obálkou držáku), ne oživení tohoto bloku.
+      // POZOR (stav k 28.07.2026): kód pod tímhle returnem je z doby PŘED
+      // vypnutím kapes (23.07.). Zapnutí je ROZPRACOVANÉ, ne hotové:
+      //  ✔ hotovo — gouge do kontury (15,3 mm pocket-wall-at-plunge-angle,
+      //    22,2 mm range-chain-insert-shadow) vyřešen tím, že se kotva rampy
+      //    při zvedání k povrchu zastaví i na HOTOVNÍ KONTUŘE (`stockEntryRamp`
+      //    + jeho dřívější inline kopie v `buildPocketPass` níž testovaly jen
+      //    siluetu polotovaru, takže u kapsy za bossem vedly přímku zanoření
+      //    skrz ten boss);
+      //  ✘ zbývá — kapsová rampa umí vzít 30,4 mm v jednom kroku místo
+      //    Hloubky ap (`cam-leadout-step`), řez u insert-shadow končí 0,1 mm
+      //    uvnitř přídavkového pásma, a zanoření za hrbem si mění pořadí
+      //    (`range-entry-ramp`).
+      // Do vyřešení těchto tří bodů zůstává větev vypnutá.
       return;
       // Když je úplně první interval blokovaný (idx===0, !firstOpen),
       // neexistuje předchozí interval → horní hranice mezery = okraj
@@ -1591,19 +1603,12 @@ export function genLongPasses(ctx) {
           // kontuře POD kůrou — kotva se zvedne po TÉŽE rampové přímce nad
           // polotovar + vůli X, takže posuv začíná na tečkované hranici a
           // kůra se řeže pod úhlem zanoření (ne kolmým vjezdem).
-          let rampAnchor = { x: cornerLocal.x, z: cornerLocal.z };
-          if (stockLoopL) {
-            let t = 0;
-            for (let i = 0; i < 300; i++) {
-              t += 0.5;
-              const xx = cornerLocal.x + t * effPlungeTanL, zz = cornerLocal.z + t;
-              if (pointInLoop({ x: xx, z: zz }, stockLoopL) === 'outside') {
-                rampAnchor = { x: xx + stockClrXL * effPlungeTanL, z: zz + stockClrXL };
-                break;
-              }
-            }
-          }
-          pocketPass.ramp = { x0: rampAnchor.x, z0: rampAnchor.z };
+          // stockEntryRamp zvedání zastaví i na HOTOVNÍ KONTUŘE: u kapsy za
+          // bossem vede přímka zanoření od rohu k povrchu skrz ten boss
+          // (reálný nález: zajezd 15,3 mm pod konturu). Nejde-li to, kotva
+          // zůstane v rohu a hloubku dobere až řetěz vrstev.
+          const anchorUp = stockEntryRamp(cornerLocal.x, cornerLocal.z);
+          pocketPass.ramp = anchorUp || { x0: cornerLocal.x, z0: cornerLocal.z };
         }
         if (leadInFinal.length > 0) pocketPass.contourLeadIn = leadInFinal;
         if (withLeadOut && prms.noStepRoughing && !ivLocal.holderClamped) {
