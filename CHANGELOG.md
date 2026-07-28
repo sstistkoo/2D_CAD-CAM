@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dráha dojíždět, ne jen odstup rychloposuvu.
 
 ### Fixed
+- CAM (podélné hrubování): **konec rozsahu obrábění 📐 platí i pro dojezdy
+  a rampy, nejen pro samotný řez.** Řez vrstvy hranici držel (`effZMin`), ale
+  sledování obrysu (`findLeadOutEndZ`, `findPocketExitZ`) i cíl rampy
+  (`findRampOutTarget`) si za dno braly polotovar / siluetu odlitku — dojezd
+  schodu a dokončení ořízlé rampy proto rozsah přejely o desítky mm (reálný
+  nález na díle uživatele: konec rozsahu Z 61,1, dojezd na Z 42,1 a rampa až
+  na Z 21,4). Nově je konec rozsahu tvrdé dno (`traceFloorL`) a rampa se na
+  něm zastaví stejně jako na stěně kontury.
 - CAM (podélné hrubování): **výjezd z materiálu končí na offsetové čáře
   polotovaru, ne na holé kůře.** Dojezd se odsazoval jen podél OSY Z
   (`zEnd − Přídavek Z`), jenže offsetová (tečkovaná) čára je posunutá KOLMO

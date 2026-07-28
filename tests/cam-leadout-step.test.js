@@ -87,6 +87,34 @@ describe('dojezd „bez schodků" u řetězu ramp a mezní čáry plátku', () =
   }, 30000);
 });
 
+// Konec rozsahu obrábění 📐 platí pro KAŽDÝ řezný pohyb. Řez vrstvy ho držel
+// (effZMin), ale sledování obrysu i cíl rampy si za dno braly polotovar —
+// dojezd schodu a dokončení rampy pak rozsah přejely o desítky mm.
+describe('rozsah obrábění Z je tvrdé dno i pro dojezdy a rampy', () => {
+  for (const file of ['range-end-leadout.camprog', 'range-chain-insert-shadow.camprog', 'range-chain-steep-face.camprog']) {
+    it(`${file}: žádný řez pod konec rozsahu`, async () => {
+      const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'cam', file), 'utf8'));
+      const zLo = Math.min(prog.zLimits.rangeStart, prog.zLimits.rangeEnd);
+      expect(prog.zLimits.rangeActive).toBe(true);
+      const { gcode } = await runCamProg(prog);
+      let g = 0, x = 150, z = 5, minZ = Infinity, at = '';
+      for (const line of gcode.split('\n')) {
+        const t = line.replace(/;.*/, '').trim();
+        if (!t.startsWith('N')) continue;
+        const body = t.replace(/^N\d+\s*/, '');
+        const gm = body.match(/G0?([0-3])\b/); if (gm) g = +gm[1];
+        const xm = body.match(/X(-?[\d.]+)/), zm = body.match(/Z(-?[\d.]+)/);
+        if (!xm && !zm) continue;
+        const nx = xm ? +xm[1] : x, nz = zm ? +zm[1] : z;
+        if (g !== 0 && nz < minZ) { minZ = nz; at = `X${nx.toFixed(3)} Z${nz.toFixed(3)}`; }
+        x = nx; z = nz;
+      }
+      expect(minZ, `řezný pohyb ${at} je ${(zLo - minZ).toFixed(3)} mm za koncem rozsahu Z=${zLo}`)
+        .toBeGreaterThan(zLo - 0.05);
+    }, 30000);
+  }
+});
+
 // Konec řezu do vzduchu musí dojet POSUVEM až na vůlí-posunutou siluetu
 // („tečkovaná" čára = Přídavek X/Z kolem polotovaru). Dřív se odsazovalo jen
 // podél osy Z, takže na šikmé/obloukové hraně polotovaru dráha stála uvnitř

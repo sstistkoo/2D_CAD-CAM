@@ -339,6 +339,14 @@ export function genLongPasses(ctx) {
   // Pro monotonní tvar (kužel + rovný úsek) vyjde 1 průjezd na hloubku.
 
   const cylStockZ = (parseFloat(prms.stockLength) || 100) * -1;
+  // Konec rozsahu obrábění 📐 je TVRDÉ dno pro KAŽDÝ řezný pohyb, ne jen pro
+  // samotný řez vrstvy. Ten drží effZMin (viz níž), ale sledování obrysu
+  // (findLeadOutEndZ) i cíl rampy (findRampOutTarget) si za dno braly polotovar
+  // / siluetu odlitku — dojezd schodu a dokončení rampy pak rozsah přejely
+  // o desítky mm (reálný nález na díle uživatele: dojezd na Z42 a rampa až na
+  // Z21 při konci rozsahu Z61,1).
+  const rangeZLoL = machiningRange ? machiningRange.zLo : -Infinity;
+  const traceFloorL = Math.max(cylStockZ, rangeZLoL);
 
   // X-bounds offsetu
   let minPartX = 9999, maxPartX = -9999;
@@ -476,10 +484,15 @@ export function genLongPasses(ctx) {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
     const at = (t) => ({ x: cx - t * effPlungeTanL, z: cz - t });
+    // Konec rozsahu obrábění 📐 je stejná zeď jako kontura: rampa se na něm
+    // zastaví (a dál pokračuje leda rovný úsek uvnitř rozsahu), místo aby ho
+    // přejela.
+    const tMax = cz - rangeZLoL;
     let t = 0;
     for (let i = 0; i < 300; i++) {
       const tPrev = t;
       t += 0.5;
+      if (t >= tMax) return tMax > 1e-6 ? at(tMax) : null;
       const p = at(t);
       if (blockedAt(p.x, p.z)) {
         let lo = tPrev, hi = t;
@@ -1134,7 +1147,7 @@ export function genLongPasses(ctx) {
           // hloubky (nextX, dolů) nebo zpátky na vršek schodu (prevX,
           // nahoru) — nikdy nezajíždí hloub jen proto, že za stěnou čeká
           // kapsa (o tu se stará samostatně blok „dobrat najednou" níž).
-          let zEndOut = findLeadOutEndZ(iv.zEnd, prevX, nextX, cylStockZ);
+          let zEndOut = findLeadOutEndZ(iv.zEnd, prevX, nextX, traceFloorL);
           // Nezávislé na pořadí zpracování kapes (na rozdíl od zEndOut níž) —
           // jen z prevX/nextX/obrysu, stejné ve scan i booleovské cestě.
           // Používá se pro spouštěcí podmínku a mez hledání rohu rampy, ať
@@ -1198,7 +1211,7 @@ export function genLongPasses(ctx) {
           const tailTrace = (straightContinueZ !== null && straightContinueZ > effZMin + 1e-6)
             ? traceIfContinuous(
                 traceOffsetPath(straightContinueZ,
-                  findLeadOutEndZ(straightContinueZ, prevX, nextX, cylStockZ)),
+                  findLeadOutEndZ(straightContinueZ, prevX, nextX, traceFloorL)),
                 rampTarget.x, straightContinueZ)
             : [];
           const leadOut = rampTarget
@@ -1414,7 +1427,7 @@ export function genLongPasses(ctx) {
           // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
           // (holderClamped: konec zkrácen obálkou držáku — pokračovat po
           // stěně by znamenalo vjet držákem do materiálu.)
-          const zExitOut = findPocketExitZ(ivLocal.zEnd, X, cylStockZ);
+          const zExitOut = findPocketExitZ(ivLocal.zEnd, X, traceFloorL);
           const leadOut = holderTrimLeadOut(traceOffsetPath(ivLocal.zEnd, zExitOut), true);
           if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
         }
@@ -1529,7 +1542,7 @@ export function genLongPasses(ctx) {
       // leadOut = druhá stěna ze dna VEN (G2/G3 → úsečka) — sleduje konturu,
       // dokud se po druhé stěně nevrátí na vstupní hloubku (u kapsy
       // uprostřed), případně až ke konci kontury (u kapsy na konci dílu).
-      const exitZ = findPocketExitZ(pocketBottomZ, currentX, cylStockZ);
+      const exitZ = findPocketExitZ(pocketBottomZ, currentX, traceFloorL);
       // Zahoď degenerované mikro-úseky (< 0,05 mm) — vznikají na švu
       // můstku a oblouku machinable kontury; jinak by se v G-kódu objevil
       // nulový oblouk (např. CR=8.5 přes 0,02 mm) a simulace by na něm
@@ -1672,7 +1685,7 @@ export function genLongPasses(ctx) {
         // musí ležet NAD hloubkou průchodu.
         if (prms.noStepRoughing) {
           const lo = holderTrimLeadOut(
-            traceOffsetPath(bestCiv.zEnd, findLeadOutEndZ(bestCiv.zEnd, entryRampAnchor.x, -Infinity, cylStockZ)), true);
+            traceOffsetPath(bestCiv.zEnd, findLeadOutEndZ(bestCiv.zEnd, entryRampAnchor.x, -Infinity, traceFloorL)), true);
           while (lo.length > 0 && lo[0].x2 <= bestX + 0.02) lo.shift();
           clipLeadOutToDepth(lo, entryRampAnchor.x);
           if (lo.length > 0) finalPass.contourLeadOut = lo;
@@ -1724,7 +1737,7 @@ export function genLongPasses(ctx) {
         // schodků" (jinak zůstane mezi rampou a hotovní konturou klín;
         // reálný nález na díle uživatele v údolí).
         const lo = holderTrimLeadOut(traceIfContinuous(
-          traceOffsetPath(stepEndZ, findLeadOutEndZ(stepEndZ, curX, -Infinity, cylStockZ)),
+          traceOffsetPath(stepEndZ, findLeadOutEndZ(stepEndZ, curX, -Infinity, traceFloorL)),
           stepX, stepEndZ), true);
         while (lo.length > 0 && lo[0].x2 <= stepX + 0.02) lo.shift();
         clipLeadOutToDepth(lo, curX);
