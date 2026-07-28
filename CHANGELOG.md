@@ -78,6 +78,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (jinak by pod ořízlou rampou zůstal stát klín materiálu).
 
 ### Fixed
+- CAM: **hrubování „→ Zleva" nyní umí přesně to samé co „← Zprava",
+  jen z druhé strany.** Druhá strana dosud jela zjednodušenou v1 strategií:
+  počítala s **válcovým** polotovarem (u odlitku tedy hrubovala vzduch),
+  ignorovala siluetu polotovaru, neuměla kapsy, zanořovací rampy, dojezdy
+  „bez schodků" ani obálku držáku, a hlídání geometrie destičky se navíc
+  počítalo pro **pravý** nůž, takže i obrobitelná kontura vycházela pro
+  špatnou orientaci. Na testovacím dílu z toho vzniklo 41 průchodů táhnoucích
+  se přes celý díl.
+  - Řešení: „zleva" **není vlastní algoritmus** — je to zrcadlo. Celý CAM
+    svět se na vstupu výpočtu překlopí v ose Z (`cam/zMirror.js`), spočítá se
+    obyčejné hrubování zprava se standardním nožem a výsledek se překlopí
+    zpět. Zleva tak platí beze zbytku všechno, co umí pravá strana — včetně
+    dosažitelnosti destičky, mezních čar, kapes, ramp a booleovského
+    hrubování. Emise G-kódu obrací nájezd, dojezd i odskok podle jediné
+    proměnné směru řezu.
+  - Na témže dílu: 25 průchodů po regionech se zanořovacími rampami a dojezdy
+    po kontuře, počet hlášených problémů 13 → 2 (obě jen informativní
+    o dosahu destičky).
+  - **Hrubovací offset zleva leží zase VNĚ kontury.** Offset úsečky se počítá
+    z levé normály směru jízdy, takže vychází ven jen u kontury kreslené od
+    pravého čela doleva. Po překlopení běžel řetěz bodů obráceně, a offsety
+    ÚSEČEK proto spadly dovnitř dílu — venku zůstaly jen oblouky, které si
+    stranu detekují z geometrie (odtud „offsetová čára sedí jen u rádiusů").
+    Dráhy pak zajížděly do hotové kontury a rozházené byly i mezní čáry
+    hlídání destičky. Zrcadlení teď řetěz bodů i **obrací** (typ pohybu
+    a rádius patří k úseku DO bodu, takže se posouvají o jedna).
+  - Paritu hlídá nový test `tests/cam-backside-mirror.test.js` (týž díl zleva
+    == geometricky zrcadlený díl zprava, průchody i G-kód, s dokončováním
+    i bez; k tomu kontrola, že hrubovací offset na obou stranách leží vně
+    kontury) a regresní fixtures `part-11-zleva-casting.camprog`
+    a `part-12-zleva-step.camprog`. Pravá strana zůstává bit za bit stejná —
+    žádný existující snapshot se nezměnil.
 - CAM (podélné hrubování): **zablokovaný průchod dojede až na offsetovou
   čáru.** Obálka držáku si drží bezpečnostní rezervu 0,1 mm od zakázané
   oblasti — jenže tou oblastí je i silueta offsetu, takže se rezerva

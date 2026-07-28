@@ -533,18 +533,21 @@ export function generateAutoGCode(S, calc) {
   // Vrací null, když silueta hloubku x pod zFrom v rozumném okně neprotne
   // (hranice skoro rovnoběžná s osou Z → „výjezd v Z" nedává smysl) —
   // volající pak zůstane u odsazení podél osy.
-  const offsetExitZ = (x, zFrom) => {
+  // `zDir` = směr řezu (−1 zprava doleva = standard, +1 zleva doprava
+  // = druhá strana); hledá se první hrana VE SMĚRU jízdy za zFrom.
+  const offsetExitZ = (x, zFrom, zDir = -1) => {
     if (!stockLoop0OffsetRef) return null;
     // Okno hledání: přídavek je KOLMÁ vzdálenost, podél Z ho hrana natáhne
     // 1/sin(sklon). Strop 4× přídavek pokryje hrany až ~15° od osy Z.
-    const zMin = zFrom - 4 * Math.max(rapidClrGc, rapidClrZGc);
+    const zWin = zFrom + zDir * 4 * Math.max(rapidClrGc, rapidClrZGc);
     let best = null;
     const n = stockLoop0OffsetRef.length;
     for (let i = 0; i < n; i++) {
       const a = stockLoop0OffsetRef[i], b = stockLoop0OffsetRef[(i + 1) % n];
       if ((a.x <= x && b.x > x) || (b.x <= x && a.x > x)) {
         const z = a.z + (b.z - a.z) * ((x - a.x) / (b.x - a.x));
-        if (z < zFrom - 1e-6 && z > zMin && (best === null || z > best)) best = z;
+        if (zDir * (z - zFrom) > 1e-6 && zDir * (zWin - z) > 0
+          && (best === null || zDir * (z - best) < 0)) best = z;
       }
     }
     return best;
@@ -726,6 +729,10 @@ export function generateAutoGCode(S, calc) {
 
   calc.passes.forEach((pass, i) => {
     addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (dokončení kapsy)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
+    // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
+    // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
+    // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
+    const zDir = pass.backside ? 1 : -1;
     if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp || pass.pocketClean)) {
       // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
       // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
@@ -745,7 +752,7 @@ export function generateAutoGCode(S, calc) {
         // a odtud pracovní rampa řeže jen nový úsek pod ním. Žádný výjezd
         // nad polotovar ani na roh (ten by jel skrz boss nad zápichem).
         const tgt = pass.rampFeedFrom || entry;
-        const odskokZ = clipZGc(cur.z + rDistZ);
+        const odskokZ = clipZGc(cur.z - zDir * rDistZ);
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
         if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
         simCounter += 1; addN(`G0 X${xDia(tgt.x)}`, simCounter); setPos(tgt.x, tgt.z);
@@ -756,7 +763,7 @@ export function generateAutoGCode(S, calc) {
           // obrobily rampy, takže se jen ODSKOČÍ ode dna, přejede v Z nad
           // začátek nedobraného zbytku a přisune se k němu — žádný výjezd nad
           // boss ani přejezd přes už obrobenou stěnu.
-          const odskokZ = clipZGc(cur.z + rDistZ);
+          const odskokZ = clipZGc(cur.z - zDir * rDistZ);
           simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
           if (Math.abs(cur.z - entry.z) > 1e-6) { simCounter += 1; addN(`G0 Z${entry.z.toFixed(3)}`, simCounter); setPos(cur.x, entry.z); }
           if (Math.abs(cur.x - entry.x) > 1e-6) { simCounter += 1; addN(`G0 X${xDia(entry.x)}`, simCounter); setPos(entry.x, entry.z); }
@@ -798,7 +805,7 @@ export function generateAutoGCode(S, calc) {
         // příští průchod si stejně najede vlastním safeRapidTo odjinud
         // (jiná kapsa), takže dojíždět zbytek diagonály VZDUCHEM nad
         // drážkou je zbytečné: zkrátit na konec posledního řezného úseku.
-        const needsExactLanding = pass.zStart - pass.zEnd > 1e-6 || !!pass.contourLeadOut;
+        const needsExactLanding = Math.abs(pass.zStart - pass.zEnd) > 1e-6 || !!pass.contourLeadOut;
         if (Math.abs(z1 - z0) < 1e-6) {
           simCounter += 1; addN(`G1 X${xDia(x1)} Z${z1.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(x1, z1);
         } else {
@@ -890,7 +897,7 @@ export function generateAutoGCode(S, calc) {
           }
         }
       }
-      if (pass.zStart - pass.zEnd > 1e-6) {
+      if (Math.abs(pass.zStart - pass.zEnd) > 1e-6) {
         simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
       }
       if (pass.contourLeadOut) {
@@ -905,33 +912,12 @@ export function generateAutoGCode(S, calc) {
         }
       }
       if (!pass.noRetract) {
-        const zRetractVal = clipZGc(cur.z + rDistZ);
+        const zRetractVal = clipZGc(cur.z - zDir * rDistZ);
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       }
-    } else if (pass.type === 'long' && pass.backside) {
-      // Druhá strana (zleva): záběr VŽDY zleva, řez ve směru +Z (doprava).
-      // Z pravé strany se najet nedá (narazil by držák / geometrie destičky).
-      // Čistý přejezd bez kolizí — zvednout nad polotovar, přejet v Z na
-      // levou hranu, zanořit, řez doprava, odskok doleva od kontury:
-      //   G0 X<nad polotovar>          ; zvednout (čistý přejezd v Z)
-      //   G0 Z<zEnd>                   ; přejezd k záběru (levá hrana)
-      //   G0 X<hloubka+vůle> / G1 X<hloubka> ; zanoření
-      //   G1 Z<zStart> F               ; řez +Z (doprava)
-      //   G1 X<+odskok> Z<−odskok>     ; odskok DOLEVA od kontury
-      const zEng = pass.zEnd;                 // záběr = levá hrana řezu
-      const xSafe = rapidTopX + rapidStopX;   // X bezpečně nad polotovarem
-      const emitB = (txt) => { simCounter += 1; addN(txt, simCounter); };
-      if (cur.x < xSafe - 1e-6) { emitB(`G0 X${xDia(xSafe)}`); setPos(xSafe, cur.z); }
-      if (Math.abs(cur.z - zEng) > 1e-6) { emitB(`G0 Z${zEng.toFixed(3)}`); setPos(cur.x, zEng); }
-      if (cur.x - pass.x > rapidStopX + 1e-6) emitB(`G0 X${xDia(pass.x + rapidStopX)}`);
-      emitB(`G1 X${xDia(pass.x)} F${prms.feed}`); setPos(pass.x, zEng);
-      emitB(`G1 Z${pass.zStart.toFixed(3)} F${prms.feed}`); setPos(pass.x, pass.zStart);
-      if (!pass.noRetract) {
-        const zRetractVal = clipZGc(cur.z - rDistZ);
-        emitB(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`); setPos(cur.x + rDist, zRetractVal);
-      }
     } else if (pass.type === 'long') {
-      // Standardní podélné hrubování (vpravo → vlevo). Přijezd (sjezd v X) jde na
+      // Otevřený podélný průchod (standardně vpravo → vlevo, u druhé strany
+      // zrcadlově vlevo → vpravo — směr drží zDir). Přijezd (sjezd v X) jde na
       // ZAČÁTEK POLOTOVARU — na Z, kde silueta odlitku reálně dosáhne hloubky
       // pass.x — NE na pass.zStart, který může ležet uprostřed drážky (intervaly
       // z obdélníkového obalu ignorují siluetu odlitku). Nad drážkou by se jinak
@@ -943,7 +929,7 @@ export function generateAutoGCode(S, calc) {
       // Řez zStart→zEnd navíc rozseká vnitřní drážky odlitku na rapid(vzduch)/
       // posuv(materiál). Bez drážek (řez celý v materiálu) = PŘESNĚ původní
       // `G1 Z zStart` + `G1 Z zEnd` → snapshoty bez drážek beze změny.
-      const dir = pass.zEnd < pass.zStart ? -1 : 1;
+      const dir = zDir;
       const zLo = Math.min(pass.zStart, pass.zEnd), zHi = Math.max(pass.zStart, pass.zEnd);
       // Práh = dosah STOPY nástroje, ne střed: nos (rádius tipRGc) sahá o R
       // hlouběji, takže řeže i když je střed pass.x kousek nad povrchem odlitku.
@@ -967,7 +953,7 @@ export function generateAutoGCode(S, calc) {
       const leadAir = segs.length > 0 && segs[0].kind === 'G0';
       const firstCutZ = leadAir ? segs[0].z : pass.zStart;
       const emitSegs = leadAir ? segs.slice(1) : segs;
-      const zApproachVal = clipZGc(firstCutZ + rapidStopZ);
+      const zApproachVal = clipZGc(firstCutZ - zDir * rapidStopZ);
       // Přejezd v Z nad začátek polotovaru + sjezd v X (s kontrolou kolize —
       // po zanoření do kapsy může nástroj stát hluboko, přímý přejezd by řízl stěnu).
       safeRapidTo(cur.x, zApproachVal);
@@ -992,8 +978,15 @@ export function generateAutoGCode(S, calc) {
       // řezu byl prokazatelně vzduch).
       if (rapidStock) noteCutPass(pass);
       if (!pass.blocked && !pass.contourLeadOut && rapidStock) {
-        const zExit = clipZGc(Math.min(pass.zEnd - rapidClrZGc, offsetExitZ(pass.x, pass.zEnd) ?? Infinity));
-        if (zExit < pass.zEnd - 1e-6 && !rapidHitsStock(pass.x, pass.zEnd, pass.x, zExit)) {
+        // Dál ve směru řezu: buď o Vůli Z, nebo až na vůlí-posunutou siluetu —
+        // co je dál (u druhé strany se „dál" počítá v +Z, proto max místo min).
+        // Bez nalezené hrany zůstane jen odsazení o Vůli Z (neutrální prvek
+        // pro min/max je opačný nekonečno než směr řezu).
+        const zExitEdge = offsetExitZ(pass.x, pass.zEnd, zDir) ?? -zDir * Infinity;
+        const zExit = clipZGc(zDir < 0
+          ? Math.min(pass.zEnd - rapidClrZGc, zExitEdge)
+          : Math.max(pass.zEnd + rapidClrZGc, zExitEdge));
+        if (zDir * (zExit - pass.zEnd) > 1e-6 && !rapidHitsStock(pass.x, pass.zEnd, pass.x, zExit)) {
           simCounter += 1; addN(`G1 Z${zExit.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, zExit);
         }
       }
@@ -1017,17 +1010,17 @@ export function generateAutoGCode(S, calc) {
         // i tenhle průchod, viz noteCutPass výš).
         const lastSeg = pass.contourLeadOut[pass.contourLeadOut.length - 1];
         const axialEnd = lastSeg.type === 'line'
-          && Math.abs(lastSeg.x2 - lastSeg.x1) < 0.01 && lastSeg.z2 < lastSeg.z1 - 1e-6;
-        const zOffExit = axialEnd && rapidStock ? offsetExitZ(lastSeg.x2, lastSeg.z2) : null;
+          && Math.abs(lastSeg.x2 - lastSeg.x1) < 0.01 && zDir * (lastSeg.z2 - lastSeg.z1) > 1e-6;
+        const zOffExit = axialEnd && rapidStock ? offsetExitZ(lastSeg.x2, lastSeg.z2, zDir) : null;
         if (zOffExit !== null) {
           const zExitLo = clipZGc(zOffExit);
-          if (zExitLo < lastSeg.z2 - 1e-6 && !rapidHitsStock(lastSeg.x2, lastSeg.z2, lastSeg.x2, zExitLo)) {
+          if (zDir * (zExitLo - lastSeg.z2) > 1e-6 && !rapidHitsStock(lastSeg.x2, lastSeg.z2, lastSeg.x2, zExitLo)) {
             simCounter += 1; addN(`G1 Z${zExitLo.toFixed(3)} F${prms.feed}`, simCounter); setPos(lastSeg.x2, zExitLo);
           }
         }
       }
       if (!pass.noRetract) {
-        const zRetractVal = clipZGc(cur.z + rDistZ);
+        const zRetractVal = clipZGc(cur.z - zDir * rDistZ);
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       }
     } else {

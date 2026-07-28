@@ -363,6 +363,8 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/camSimulatorDialogs.js` | Vlastní confirm/offset/add-move dialogy |
 | `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
 | `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) |
+| `cam/passHelpers.js` | Dotazy nad offsetem kontury pro strategie (`offsetXAt`, `traceOffsetPath`, `findLeadOutEndZ`, `findPocketExitZ`) — továrna `makePassHelpers(offsetPath)` |
+| `cam/zMirror.js` | Zrcadlení CAM světa v ose Z (hrubování „zleva" = zrcadlo pravé strany) |
 | `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky |
 | `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna) |
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
@@ -370,6 +372,47 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |
 | `cam/opParts.js` | Skládání programu z více operací (částí) — záznam části, obrobený polotovar pro další operaci, složení celého programu |
 | `cam/gcodeMerge.js` | Spojení programů do jednoho (`mergePrograms`) — sdíleno s frontou „SPOJ G-KÓD" v CAM Editoru |
+
+#### Hrubování zleva = zrcadlo (`cam/zMirror.js`)
+
+„↔ Podélně (Z)" + „→ Zleva" (`roughingSide: 'left'`, klíč strategie
+`backside`) **nemá vlastní algoritmus**. Je to přesné zrcadlo hrubování
+zprava, takže se místo druhé implementace překlopí celý svět:
+
+1. `computeCalculation()` hned na vstupu zrcadlí `z → −z` — konturu,
+   polotovar, parametry polotovaru (`stockFace` ↔ `stockLength`) i Z-limity
+   (čelisti ↔ koník, rozsah obrábění). Strana se přepne na `'right'`.
+   Řetěz bodů se přitom i **obrací** (`mirrorPointChain`): offset úsečky se
+   počítá z LEVÉ normály směru jízdy (`getNormal` = `{−dz, dx}`), takže leží
+   vně jen u kontury kreslené od pravého čela doleva — a na téže konvenci
+   stojí `normalizeContourDirection`. Bez obrácení by offsety ÚSEČEK spadly
+   dovnitř dílu, zatímco oblouky (ty si stranu detekují z geometrie) by
+   zůstaly venku. Typ pohybu a rádius patří k úseku DO bodu, proto se
+   při obrácení posouvají o jedna; funkce je involuce, takže se stejnou
+   funkcí i vrací (na tom stojí párování `calc.worldPoints[i]` ↔
+   `S.contourPoints[i]` při tažení bodů v simulátoru).
+2. Celý zbytek výpočtu běží **beze změny** — v zrcadle je to obyčejné
+   hrubování zprava se standardním pravým nožem. Platí tedy i dosažitelnost
+   destičky, mezní čáry, obálka držáku, kapsy, rampy a dojezdy bez schodků.
+3. Před `return` se výsledek překlopí zpátky (`mirrorCalcZ`) a průchody
+   dostanou `backside: true`. `simPath` se nezrcadlí — vzniká parsováním
+   skutečného (reálného) G-kódu.
+
+V emisi (`gcodeEmit.js`) drží směr jediná proměnná `zDir` (−1 zprava, +1
+zleva): nájezd a odskok jdou proti směru řezu, dojezd „do vzduchu" po směru.
+Spotřebitelé, kteří pracují v reálném světě (kreslení plátku, `validateToolpath`,
+`HolderGouge`), si nástroj zrcadlí sami přes vlastní příznak `backside`.
+
+Konvence, na které to stojí (podrobně v hlavičce `zMirror.js`): úhel oblouku
+`a = atan2(x − cx, z − cz)`, překlopení mapuje `a → π − a` a obrací smysl
+(G2↔G3). Pole, jejichž pořadí je **konvence** (offsetPath v jízdním pořadí,
+uzavřené smyčky), se navíc obracejí — smysl oblouku pak zůstává. Pole,
+jejichž pořadí je **čas** (dráha nástroje: `contourLeadIn`/`contourLeadOut`),
+se neobracejí a smysl oblouku se prohodí.
+
+Paritu hlídá `tests/cam-backside-mirror.test.js`: týž díl „zleva" musí dát
+identické průchody i G-kód jako geometricky zrcadlený díl „zprava" (až na
+bezpečnou polohu, což je parametr stroje, ne geometrie dílu).
 
 #### Části programu (operace)
 

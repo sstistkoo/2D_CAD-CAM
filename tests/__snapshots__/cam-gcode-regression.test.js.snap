@@ -3849,6 +3849,637 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camp
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > gcode 1`] = `
+"; Vygenerovaný kód SINUMERIK 840D
+; Datum: <normalized>
+N10 G18 ; Rovina ZX
+N20 G90 ; Absolutní programování
+N30 G54 ; Posunutí počátku
+N40 G95 ; Posuv na otáčku
+N50 G75 X150 ; Nájezd do ref. bodu
+N60 G75 Z5
+N70 LIMS=2000 ; Limit otáček
+N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
+N90 DIAMOF ; Programování poloměru
+N100 T="T1" D1 M6 ; Výměna nástroje
+N110 M3 ; Vřeteno CW
+N120 M8 ; Chlazení ZAP
+N130 G0 X150 Z5 ; Rychloposuv
+; --- HRUBOVANI (PODELNE ZLEVA) ---
+; Průchod 1
+N140 G0 Z-9.800
+N150 G0 X34.545
+N160 G1 Z-8.000 F0.25
+N170 G1 Z21.761 F0.25
+N180 G0 Z35.100
+N190 G1 Z36.100 F0.25
+N200 G1 X36.545 Z34.100
+; Průchod 2 (bez schodků)
+N210 G0 Z-9.800
+N220 G0 X29.545
+N230 G1 Z-8.000 F0.25
+N240 G1 Z-1.613 F0.25
+N250 G1 X31.766 Z-1.017 F0.25
+N260 G1 X31.766 Z9.502 F0.25
+N270 G2 X31.381 Z12.437 CR=11.394 F0.25
+N280 G1 X29.545 Z19.290 F0.25
+N290 G1 X29.545 Z35.100 F0.25
+N300 G1 X31.545 Z33.100
+; Průchod 3
+N310 G0 X68.528 ; Výjezd nad konturu
+N320 G0 Z-9.800
+N330 G0 X24.545
+N340 G1 Z-8.000 F0.25
+N350 G1 Z-2.952 F0.25
+N360 G1 X26.545 Z-4.952
+; Průchod 4
+N370 G0 Z-9.800
+N380 G0 X19.545
+N390 G1 Z-8.000 F0.25
+N400 G1 Z-4.292 F0.25
+N410 G1 X21.545 Z-6.292
+; Průchod 5
+N420 G0 Z-9.800
+N430 G0 X14.545
+N440 G1 Z-8.000 F0.25
+N450 G1 Z-5.632 F0.25
+N460 G1 X16.545 Z-7.632
+; Průchod 6
+N470 G0 Z-9.800
+N480 G0 X9.545
+N490 G1 Z-8.000 F0.25
+N500 G1 Z-6.971 F0.25
+N510 G1 X11.545 Z-8.971
+; Průchod 7 (zanoření v kapse)
+N520 G1 X13.545 Z-10.971
+N530 G0 Z37.951
+N540 G0 X24.545
+N550 G1 X22.658 Z44.994 ; Rampa 15.0°
+N560 G3 X24.550 Z48.244 CR=23.151 F0.25
+N570 G1 X26.550 Z46.244
+; Průchod 8
+N580 G0 Z47.758
+N590 G0 X34.545
+N600 G1 Z49.558 F0.25
+N610 G1 Z73.055 F0.25
+N620 G0 Z92.000
+N630 G1 Z93.000 F0.25
+N640 G1 X36.545 Z91.000
+; Průchod 9
+N650 G0 Z40.177
+N660 G0 X29.545
+N670 G1 Z41.977 F0.25
+N680 G1 Z78.840 F0.25
+N690 G0 Z92.000
+N700 G1 Z93.000 F0.25
+N710 G1 X31.545 Z91.000
+; Průchod 10
+N720 G0 X68.528 ; Výjezd nad konturu
+N730 G0 Z112.898
+N740 G0 X44.545
+N750 G1 Z114.698 F0.25
+N760 G1 Z142.024 F0.25
+N770 G0 Z172.500
+N780 G1 Z173.500 F0.25
+N790 G1 X46.545 Z171.500
+; Průchod 11 (bez schodků)
+N800 G0 Z108.328
+N810 G0 X39.545
+N820 G1 Z110.128 F0.25
+N830 G1 Z119.364 F0.25
+N840 G2 X41.318 Z125.462 CR=11.293 F0.25
+N850 G1 X41.318 Z128.984 F0.25
+N860 G1 X39.742 Z137.813 F0.25
+N870 G1 X39.742 Z137.814 F0.25
+N880 G1 X39.545 Z138.548 F0.25
+N890 G1 X39.545 Z172.500 F0.25
+N900 G1 X41.545 Z170.500
+; Průchod 12
+N910 G0 Z105.845
+N920 G0 X34.545
+N930 G1 Z107.645 F0.25
+N940 G1 Z115.088 F0.25
+N950 G1 X36.545 Z113.088
+; Průchod 13
+N960 G0 Z104.062
+N970 G0 X29.545
+N980 G1 Z105.862 F0.25
+N990 G1 Z113.272 F0.25
+N1000 G1 X31.545 Z111.272
+; Průchod 14
+N1010 G0 Z102.279
+N1020 G0 X24.545
+N1030 G1 Z104.079 F0.25
+N1040 G1 Z111.486 F0.25
+N1050 G1 X26.545 Z109.486
+; Průchod 15
+N1060 G0 Z100.496
+N1070 G0 X19.545
+N1080 G1 Z102.296 F0.25
+N1090 G1 Z109.701 F0.25
+N1100 G1 X21.545 Z107.701
+; Průchod 16
+N1110 G0 X68.528 ; Výjezd nad konturu
+N1120 G0 Z194.478
+N1130 G0 X59.545
+N1140 G1 Z196.278 F0.25
+N1150 G1 Z258.016 F0.25
+N1160 G1 Z259.078 F0.25
+N1170 G1 X61.545 Z257.078
+; Průchod 17
+N1180 G0 Z194.478
+N1190 G0 X54.545
+N1200 G1 Z196.278 F0.25
+N1210 G1 Z259.804 F0.25
+N1220 G1 Z260.866 F0.25
+N1230 G1 X56.545 Z258.866
+; Průchod 18 (bez schodků)
+N1240 G0 Z194.478
+N1250 G0 X49.545
+N1260 G1 Z196.278 F0.25
+N1270 G1 Z219.554 F0.25
+N1280 G1 X51.281 Z220.207 F0.25
+N1290 G1 X51.281 Z235.174 F0.25
+N1300 G1 X51.273 Z235.204 F0.25
+N1310 G1 X49.545 Z241.653 F0.25
+N1320 G1 X49.545 Z261.591 F0.25
+N1330 G1 Z262.653 F0.25
+N1340 G1 X51.545 Z260.653
+; Průchod 19
+N1350 G0 Z194.478
+N1360 G0 X44.545
+N1370 G1 Z196.278 F0.25
+N1380 G1 Z217.695 F0.25
+N1390 G1 X46.545 Z215.695
+; Průchod 20
+N1400 G0 Z194.478
+N1410 G0 X39.545
+N1420 G1 Z196.278 F0.25
+N1430 G1 Z215.835 F0.25
+N1440 G1 X41.545 Z213.835
+; Průchod 21
+N1450 G0 Z194.478
+N1460 G0 X34.545
+N1470 G1 Z196.278 F0.25
+N1480 G1 Z213.975 F0.25
+N1490 G1 X36.545 Z211.975
+; Průchod 22
+N1500 G0 Z194.478
+N1510 G0 X29.545
+N1520 G1 Z196.278 F0.25
+N1530 G1 Z212.116 F0.25
+N1540 G1 X31.545 Z210.116
+; Průchod 23
+N1550 G0 Z194.478
+N1560 G0 X24.545
+N1570 G1 Z196.278 F0.25
+N1580 G1 Z210.256 F0.25
+N1590 G1 X26.545 Z208.256
+; Průchod 24
+N1600 G0 Z194.478
+N1610 G0 X19.545
+N1620 G1 Z196.278 F0.25
+N1630 G1 Z208.396 F0.25
+N1640 G1 X21.545 Z206.396
+; Průchod 25 (oblouk G3)
+N1650 G0 X68.528 ; Výjezd nad konturu
+N1660 G0 Z241.653
+N1670 G0 X51.345
+N1680 G1 X49.545 F0.25
+N1690 G1 X44.545 Z260.313 ; Rampa 15.0°
+N1700 G1 Z265.204 F0.25
+; Průchod 26 (zanoření v kapse)
+N1710 G1 X46.545 Z263.204
+N1720 G0 Z260.313
+N1730 G0 X44.545
+N1740 G1 X43.234 Z265.204 ; Rampa 15.0°
+N1750 G1 X45.234 Z263.204
+N1760 G0 X150.000 Z5.000
+N1770 M30 ; Konec programu
+; --- KONTURA (Pro referenci) ---
+; G0 X0 Z346.371
+; G1 X9.117 Z345.397
+; G1 X9.117 Z243.123
+; G1 X50.081 Z234.99
+; G1 X50.081 Z221.135
+; G1 X6.744 Z205.009
+; G1 X6.744 Z165.945
+; G1 X8.743 Z163.945
+; G1 X8.743 Z149.544
+; G1 X8.743 Z138.253
+; G1 X38.574 Z137.509
+; G1 X40.118 Z128.86
+; G1 X40.118 Z125.462
+; G3 X33.477 Z116.044 CR=10.000
+; G1 X14.22 Z109.175
+; G2 X7.579 Z99.757 CR=10.000
+; G1 X7.579 Z84.177
+; G2 X15.585 Z74.378 CR=10.000
+; G1 X22.252 Z73.021
+; G3 X27.056 Z67.142 CR=6.000
+; G1 X27.056 Z55.47
+; G3 X25.516 Z51.456 CR=6.000
+; G2 X27.279 Z16.913 CR=24.495
+; G3 X30.566 Z9.502 CR=10.000
+; G1 X30.566 Z0
+; G1 X0 Z0
+; G0 X9.117 Z243.123
+; G1 X50.081 Z234.99"
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > pipeline 1`] = `
+{
+  "interferenceGuides": [
+    "dojezd: (-0.26,-8.26)->(30.57,0.00)",
+    "zanoreni: (19.47,38.54)->(30.18,12.25) via[(28.07,20.14),(23.16,33.56),(22.51,34.78),(22.12,35.36),(21.34,36.31),(19.48,38.19)]",
+    "zanoreni: (23.30,81.89)->(26.71,69.16)",
+    "zanoreni: (36.97,143.49)->(38.57,137.51)",
+    "zanoreni: (6.74,171.41)->(8.74,163.94)",
+    "zanoreni: (42.00,265.16)->(50.08,234.99)",
+  ],
+  "machinableContour": [
+    "L (0.00,346.37)->(9.12,345.40)",
+    "L (9.12,345.40)->(9.12,265.16)",
+    "L (42.00,265.16)->(50.08,234.99) {ins}",
+    "L (50.08,234.99)->(50.08,221.13)",
+    "L (50.08,221.13)->(6.74,205.01)",
+    "L (6.74,205.01)->(6.74,171.41)",
+    "L (6.74,171.41)->(8.74,163.94) {ins}",
+    "L (8.74,163.94)->(8.74,149.54)",
+    "L (8.74,149.54)->(8.74,143.49)",
+    "L (36.97,143.49)->(38.57,137.51) {ins}",
+    "L (38.57,137.51)->(40.12,128.86)",
+    "L (40.12,128.86)->(40.12,125.46)",
+    "A r=10.00 G3",
+    "L (33.48,116.04)->(14.22,109.17)",
+    "A r=10.00 G2",
+    "L (7.58,99.76)->(7.58,84.18)",
+    "A r=10.00 G2",
+    "L (23.30,81.89)->(26.71,69.16) {ins}",
+    "L (27.06,67.14)->(27.06,55.47)",
+    "A r=6.00 G3",
+    "A r=24.50 G2",
+    "L (19.47,38.54)->(19.48,38.19) {ins}",
+    "L (19.48,38.19)->(21.34,36.31) {ins}",
+    "L (21.34,36.31)->(22.12,35.36) {ins}",
+    "L (22.12,35.36)->(22.51,34.78) {ins}",
+    "L (22.51,34.78)->(23.16,33.56) {ins}",
+    "L (23.16,33.56)->(28.07,20.14) {ins}",
+    "L (28.07,20.14)->(30.18,12.25) {ins}",
+    "A r=10.00 G3",
+    "L (30.57,9.50)->(30.57,0.00)",
+    "L (30.57,0.00)->(-0.26,-8.26) {ins}",
+  ],
+  "passCount": 26,
+  "passTags": [
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{pocketReposition,ramp,contourLeadOut,backside,blocked}",
+    "long{backside}",
+    "long{backside}",
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside}",
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{ramp,backside,blocked}",
+    "long{pocketReposition,ramp,backside,blocked}",
+  ],
+}
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > gcode 1`] = `
+"; Vygenerovaný kód SINUMERIK 840D
+; Datum: <normalized>
+N10 G18 ; Rovina ZX
+N20 G90 ; Absolutní programování
+N30 G54 ; Posunutí počátku
+N40 G95 ; Posuv na otáčku
+N50 G75 X150 ; Nájezd do ref. bodu
+N60 G75 Z5
+N70 LIMS=2000 ; Limit otáček
+N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
+N90 DIAMOF ; Programování poloměru
+N100 T="T1" D1 M6 ; Výměna nástroje
+N110 M3 ; Vřeteno CW
+N120 M8 ; Chlazení ZAP
+N130 G0 X150 Z5 ; Rychloposuv
+; --- HRUBOVANI (PODELNE ZLEVA) ---
+; Průchod 1
+N140 G0 Z-9.800
+N150 G0 X34.545
+N160 G1 Z-8.000 F0.25
+N170 G1 Z21.761 F0.25
+N180 G0 Z35.100
+N190 G1 Z36.100 F0.25
+N200 G1 X36.545 Z34.100
+; Průchod 2 (bez schodků)
+N210 G0 Z-9.800
+N220 G0 X29.545
+N230 G1 Z-8.000 F0.25
+N240 G1 Z-1.613 F0.25
+N250 G1 X31.766 Z-1.017 F0.25
+N260 G1 X31.766 Z9.502 F0.25
+N270 G2 X31.381 Z12.437 CR=11.394 F0.25
+N280 G1 X29.545 Z19.290 F0.25
+N290 G1 X29.545 Z35.100 F0.25
+N300 G1 X31.545 Z33.100
+; Průchod 3
+N310 G0 X68.528 ; Výjezd nad konturu
+N320 G0 Z-9.800
+N330 G0 X24.545
+N340 G1 Z-8.000 F0.25
+N350 G1 Z-2.952 F0.25
+N360 G1 X26.545 Z-4.952
+; Průchod 4
+N370 G0 Z-9.800
+N380 G0 X19.545
+N390 G1 Z-8.000 F0.25
+N400 G1 Z-4.292 F0.25
+N410 G1 X21.545 Z-6.292
+; Průchod 5
+N420 G0 Z-9.800
+N430 G0 X14.545
+N440 G1 Z-8.000 F0.25
+N450 G1 Z-5.632 F0.25
+N460 G1 X16.545 Z-7.632
+; Průchod 6
+N470 G0 Z-9.800
+N480 G0 X9.545
+N490 G1 Z-8.000 F0.25
+N500 G1 Z-6.971 F0.25
+N510 G1 X11.545 Z-8.971
+; Průchod 7 (zanoření v kapse)
+N520 G1 X13.545 Z-10.971
+N530 G0 Z37.951
+N540 G0 X24.545
+N550 G1 X22.658 Z44.994 ; Rampa 15.0°
+N560 G3 X24.550 Z48.244 CR=23.151 F0.25
+N570 G1 X26.550 Z46.244
+; Průchod 8
+N580 G0 Z47.758
+N590 G0 X34.545
+N600 G1 Z49.558 F0.25
+N610 G1 Z73.055 F0.25
+N620 G0 Z92.000
+N630 G1 Z93.000 F0.25
+N640 G1 X36.545 Z91.000
+; Průchod 9
+N650 G0 Z40.177
+N660 G0 X29.545
+N670 G1 Z41.977 F0.25
+N680 G1 Z78.840 F0.25
+N690 G0 Z92.000
+N700 G1 Z93.000 F0.25
+N710 G1 X31.545 Z91.000
+; Průchod 10
+N720 G0 X68.528 ; Výjezd nad konturu
+N730 G0 Z112.898
+N740 G0 X44.545
+N750 G1 Z114.698 F0.25
+N760 G1 Z142.024 F0.25
+N770 G0 Z172.500
+N780 G1 Z173.500 F0.25
+N790 G1 X46.545 Z171.500
+; Průchod 11 (bez schodků)
+N800 G0 Z108.328
+N810 G0 X39.545
+N820 G1 Z110.128 F0.25
+N830 G1 Z119.364 F0.25
+N840 G2 X41.318 Z125.462 CR=11.293 F0.25
+N850 G1 X41.318 Z128.984 F0.25
+N860 G1 X39.742 Z137.813 F0.25
+N870 G1 X39.742 Z137.814 F0.25
+N880 G1 X39.545 Z138.548 F0.25
+N890 G1 X39.545 Z172.500 F0.25
+N900 G1 X41.545 Z170.500
+; Průchod 12
+N910 G0 Z105.845
+N920 G0 X34.545
+N930 G1 Z107.645 F0.25
+N940 G1 Z115.088 F0.25
+N950 G1 X36.545 Z113.088
+; Průchod 13
+N960 G0 Z104.062
+N970 G0 X29.545
+N980 G1 Z105.862 F0.25
+N990 G1 Z113.272 F0.25
+N1000 G1 X31.545 Z111.272
+; Průchod 14
+N1010 G0 Z102.279
+N1020 G0 X24.545
+N1030 G1 Z104.079 F0.25
+N1040 G1 Z111.486 F0.25
+N1050 G1 X26.545 Z109.486
+; Průchod 15
+N1060 G0 Z100.496
+N1070 G0 X19.545
+N1080 G1 Z102.296 F0.25
+N1090 G1 Z109.701 F0.25
+N1100 G1 X21.545 Z107.701
+; Průchod 16
+N1110 G0 X68.528 ; Výjezd nad konturu
+N1120 G0 Z194.478
+N1130 G0 X59.545
+N1140 G1 Z196.278 F0.25
+N1150 G1 Z258.016 F0.25
+N1160 G1 Z259.078 F0.25
+N1170 G1 X61.545 Z257.078
+; Průchod 17
+N1180 G0 Z194.478
+N1190 G0 X54.545
+N1200 G1 Z196.278 F0.25
+N1210 G1 Z259.804 F0.25
+N1220 G1 Z260.866 F0.25
+N1230 G1 X56.545 Z258.866
+; Průchod 18 (bez schodků)
+N1240 G0 Z194.478
+N1250 G0 X49.545
+N1260 G1 Z196.278 F0.25
+N1270 G1 Z219.550 F0.25
+N1280 G1 X51.281 Z220.210 F0.25
+N1290 G1 X51.281 Z235.174 F0.25
+N1300 G1 X51.274 Z235.200 F0.25
+N1310 G1 X49.545 Z241.653 F0.25
+N1320 G1 X49.545 Z261.591 F0.25
+N1330 G1 Z262.653 F0.25
+N1340 G1 X51.545 Z260.653
+; Průchod 19
+N1350 G0 Z194.478
+N1360 G0 X44.545
+N1370 G1 Z196.278 F0.25
+N1380 G1 Z217.679 F0.25
+N1390 G1 X46.545 Z215.679
+; Průchod 20
+N1400 G0 Z194.478
+N1410 G0 X39.545
+N1420 G1 Z196.278 F0.25
+N1430 G1 Z215.807 F0.25
+N1440 G1 X41.545 Z213.807
+; Průchod 21
+N1450 G0 Z194.478
+N1460 G0 X34.545
+N1470 G1 Z196.278 F0.25
+N1480 G1 Z213.935 F0.25
+N1490 G1 X36.545 Z211.935
+; Průchod 22
+N1500 G0 Z194.478
+N1510 G0 X29.545
+N1520 G1 Z196.278 F0.25
+N1530 G1 Z203.224 F0.25
+N1540 G1 X31.545 Z201.224
+; Průchod 23
+N1550 G0 Z194.478
+N1560 G0 X24.545
+N1570 G1 Z196.278 F0.25
+N1580 G1 Z201.884 F0.25
+N1590 G1 X26.545 Z199.884
+; Průchod 24
+N1600 G0 Z194.478
+N1610 G0 X19.545
+N1620 G1 Z196.278 F0.25
+N1630 G1 Z200.544 F0.25
+N1640 G1 X21.545 Z198.544
+; Průchod 25 (oblouk G3)
+N1650 G0 X68.528 ; Výjezd nad konturu
+N1660 G0 Z241.653
+N1670 G0 X51.345
+N1680 G1 X49.545 F0.25
+N1690 G1 X44.545 Z260.313 ; Rampa 15.0°
+N1700 G1 Z265.200 F0.25
+; Průchod 26 (zanoření v kapse)
+N1710 G1 X46.545 Z263.200
+N1720 G0 Z260.313
+N1730 G0 X44.545
+N1740 G1 X43.235 Z265.200 ; Rampa 15.0°
+N1750 G1 X45.235 Z263.200
+N1760 G0 X150.000 Z5.000
+N1770 M30 ; Konec programu
+; --- KONTURA (Pro referenci) ---
+; G0 X0 Z346.371
+; G1 X9.117 Z345.397
+; G1 X9.117 Z243.123
+; G1 X50.081 Z234.99
+; G1 X50.081 Z221.135
+; G1 X30.156 Z213.667
+; G1 X30.156 Z205.009
+; G1 X6.744 Z205.009
+; G1 X6.744 Z165.945
+; G1 X8.743 Z163.945
+; G1 X8.743 Z149.544
+; G1 X8.743 Z138.253
+; G1 X38.574 Z137.509
+; G1 X40.118 Z128.86
+; G1 X40.118 Z125.462
+; G3 X33.477 Z116.044 CR=10.000
+; G1 X14.22 Z109.175
+; G2 X7.579 Z99.757 CR=10.000
+; G1 X7.579 Z84.177
+; G2 X15.585 Z74.378 CR=10.000
+; G1 X22.252 Z73.021
+; G3 X27.056 Z67.142 CR=6.000
+; G1 X27.056 Z55.47
+; G3 X25.516 Z51.456 CR=6.000
+; G2 X27.279 Z16.913 CR=24.495
+; G3 X30.566 Z9.502 CR=10.000
+; G1 X30.566 Z0
+; G1 X0 Z0
+; G0 X9.117 Z243.123
+; G1 X50.081 Z234.99"
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > pipeline 1`] = `
+{
+  "interferenceGuides": [
+    "dojezd: (-0.26,-8.26)->(30.57,0.00)",
+    "zanoreni: (19.47,38.54)->(30.18,12.25) via[(28.07,20.14),(23.16,33.56),(22.51,34.78),(22.12,35.36),(21.34,36.31),(19.48,38.19)]",
+    "zanoreni: (23.30,81.89)->(26.71,69.16)",
+    "zanoreni: (36.97,143.49)->(38.57,137.51)",
+    "zanoreni: (6.74,171.41)->(8.74,163.94)",
+    "dojezd: (6.74,205.01)->(30.16,205.01)",
+    "zanoreni: (42.00,265.16)->(50.08,234.99)",
+  ],
+  "machinableContour": [
+    "L (0.00,346.37)->(9.12,345.40)",
+    "L (9.12,345.40)->(9.12,265.16)",
+    "L (42.00,265.16)->(50.08,234.99) {ins}",
+    "L (50.08,234.99)->(50.08,221.13)",
+    "L (50.08,221.13)->(30.16,213.67)",
+    "L (30.16,213.67)->(30.16,205.01)",
+    "L (30.16,205.01)->(6.74,205.01) {ins}",
+    "L (6.74,205.01)->(6.74,171.41)",
+    "L (6.74,171.41)->(8.74,163.94) {ins}",
+    "L (8.74,163.94)->(8.74,149.54)",
+    "L (8.74,149.54)->(8.74,143.49)",
+    "L (36.97,143.49)->(38.57,137.51) {ins}",
+    "L (38.57,137.51)->(40.12,128.86)",
+    "L (40.12,128.86)->(40.12,125.46)",
+    "A r=10.00 G3",
+    "L (33.48,116.04)->(14.22,109.17)",
+    "A r=10.00 G2",
+    "L (7.58,99.76)->(7.58,84.18)",
+    "A r=10.00 G2",
+    "L (23.30,81.89)->(26.71,69.16) {ins}",
+    "L (27.06,67.14)->(27.06,55.47)",
+    "A r=6.00 G3",
+    "A r=24.50 G2",
+    "L (19.47,38.54)->(19.48,38.19) {ins}",
+    "L (19.48,38.19)->(21.34,36.31) {ins}",
+    "L (21.34,36.31)->(22.12,35.36) {ins}",
+    "L (22.12,35.36)->(22.51,34.78) {ins}",
+    "L (22.51,34.78)->(23.16,33.56) {ins}",
+    "L (23.16,33.56)->(28.07,20.14) {ins}",
+    "L (28.07,20.14)->(30.18,12.25) {ins}",
+    "A r=10.00 G3",
+    "L (30.57,9.50)->(30.57,0.00)",
+    "L (30.57,0.00)->(-0.26,-8.26) {ins}",
+  ],
+  "passCount": 26,
+  "passTags": [
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{pocketReposition,ramp,contourLeadOut,backside,blocked}",
+    "long{backside}",
+    "long{backside}",
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside}",
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{backside,blocked}",
+    "long{ramp,backside,blocked}",
+    "long{pocketReposition,ramp,backside,blocked}",
+  ],
+}
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>

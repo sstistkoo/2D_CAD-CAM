@@ -6,13 +6,15 @@
 // V camSimulator.js zůstává tenký wrapper calculate() → computeCalculation(S).
 
 import { bridge } from '../../bridge.js';
-import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectHorizontalLineArc, intersectHorizontalLineSegment, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint } from './camMath.js';
+import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint } from './camMath.js';
 import { arcReachableSpan, buildMachinableContour, extendOffsetStartToAxis, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
+import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
 import { makeHolderClamp } from './toolEnvelope.js';
+import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
@@ -35,7 +37,6 @@ export function getRoughingOperations(S) {
 
 // ── CALCULATED DATA (memoized) ──
 export function computeCalculation(S, lightOnly = false) {
-  const prms = S.params;
   // „Dobrat naráz" odstraněno z UI (Fáze 5): kapsu je vždy potřeba
   // dobrat až na dno (postupné dotahování mělčími průchody dno hluboké
   // úzké kapsy nedosáhne — rampa z rohu je omezená šířkou kapsy). Proto
@@ -43,9 +44,18 @@ export function computeCalculation(S, lightOnly = false) {
   // dokončovací průchod po kontuře (sledování offsetu, bez kolmého
   // zajetí — vjezdy rampou od hranice polotovaru). Staré projekty se
   // normalizují zde — jediné hrdlo, kterým teče každá generace.
-  prms.pocketFinishAtOnce = true;
-  const absContour = resolvePointsToAbsolute(S.contourPoints);
-  const absStock = resolvePointsToAbsolute(S.stockPoints);
+  S.params.pocketFinishAtOnce = true;
+  // ── Druhá strana (podélně zleva) = TÝŽ výpočet v Z-ZRCADLE ────────────
+  // Vstup se překlopí (z → −z), celý zbytek funkce pak řeší obyčejné
+  // hrubování zprava se standardním pravým nožem a hotový výsledek se před
+  // returnem překlopí zpátky (mirrorCalcZ). Detaily a konvence: zMirror.js.
+  // Pravá strana projde s mirZ=false doslova beze změny.
+  const mirZ = roughingKey(S) === 'backside';
+  const prms = mirZ ? mirrorParamsZ(S.params) : S.params;
+  const zLimits = mirZ ? mirrorZLimits(S.zLimits) : S.zLimits;
+  const mirPts = (pts) => mirZ ? mirrorPointChain(pts) : pts;
+  const absContour = mirPts(resolvePointsToAbsolute(S.contourPoints));
+  const absStock = mirPts(resolvePointsToAbsolute(S.stockPoints));
   let worldPoints = absContour.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
   const stockWorldPoints = absStock.map(p => ({ ...p, xReal: prms.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
   // Oboustranně nakreslenou konturu (vrch i zrcadlený spodek) složit na stranu
@@ -75,13 +85,14 @@ export function computeCalculation(S, lightOnly = false) {
       stockTopX = -9999;
       stockWorldPoints.forEach(p => { if (p.xReal > stockTopX) stockTopX = p.xReal; });
     }
-    return {
+    const lightCalc = {
       worldPoints, stockWorldPoints, contourSegments: [], machinableContour: null,
       offsetPath: [], finishOffsetPath: [], finishUnreachablePath: [], stockPathSegments,
       passes: [], simPath: [], retractDist: parseFloat(prms.retractDistance) || 2.0,
       totalPathLength: 0, estimatedTimeSeconds: 0,
       interferenceSegments: [], flankSegments: [], interferenceGuides: [], stockTopX,
     };
+    return mirZ ? mirrorCalcZ(lightCalc) : lightCalc;
   }
 
   const tipR = parseFloat(prms.toolRadius) || 0;
@@ -664,8 +675,8 @@ export function computeCalculation(S, lightOnly = false) {
   const stockFace = parseFloat(prms.stockFace) || 0;
 
   // Rozsah obrábění Z (📐) — aktivní jen když uživatel zaškrtne políčko.
-  const rS = S.zLimits.rangeStart, rE = S.zLimits.rangeEnd;
-  const machiningRange = (S.zLimits.rangeActive && typeof rS === 'number' && isFinite(rS)
+  const rS = zLimits.rangeStart, rE = zLimits.rangeEnd;
+  const machiningRange = (zLimits.rangeActive && typeof rS === 'number' && isFinite(rS)
     && typeof rE === 'number' && isFinite(rE))
     ? { zLo: Math.min(rS, rE), zHi: Math.max(rS, rE) } : null;
   // Rozsah obrábění X (📐) — aktivní jen když uživatel zaškrtne políčko.
@@ -674,62 +685,13 @@ export function computeCalculation(S, lightOnly = false) {
     && typeof xRx === 'number' && isFinite(xRx))
     ? { xLo: Math.min(xRn, xRx), xHi: Math.max(xRn, xRx) } : null;
   // Čelisti (levý konec v upínači) — backside nesmí řezat pod chuck.
-  const chuckZ = (S.zLimits.chuckActive && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck))
-    ? S.zLimits.chuck : null;
+  const chuckZ = (zLimits.chuckActive && typeof zLimits.chuck === 'number' && isFinite(zLimits.chuck))
+    ? zLimits.chuck : null;
 
   // ── Sdílené helpery pro offsetPath (čelní i podélné hrubování) ──
-  // Horizontální průsečíky segmentů (s kolinárním fallbackem).
-  const hIntersect = (segs, xLine, checkDegen) => {
-    const out = [];
-    for (const seg of segs) {
-      if (checkDegen && seg.isDegenerate) continue;
-      if (seg.type === 'line') {
-        const z = intersectHorizontalLineSegment(xLine, seg.p1, seg.p2);
-        if (z !== null) out.push(z);
-        else if (Math.abs(seg.p1.x - xLine) < 0.01 && Math.abs(seg.p2.x - xLine) < 0.01) {
-          out.push(seg.p1.z, seg.p2.z);
-        }
-      } else if (seg.type === 'arc') {
-        const res = intersectHorizontalLineArc(xLine, { x: seg.cx, z: seg.cz }, seg.r);
-        for (const z of res) {
-          const angle = Math.atan2(xLine - seg.cx, z - seg.cz);
-          if (isAngleBetween(angle, seg.startAngle, seg.endAngle, seg.dir === 'G2')) out.push(z);
-        }
-      }
-    }
-    return out;
-  };
-
-  // Max X segmentů na zadaném Z. Null pokud Z mimo Z-rozsah segmentů.
-  const maxXAt = (segs, z) => {
-    let maxX = null;
-    for (const seg of segs) {
-      if (seg.isDegenerate) continue;
-      if (seg.type === 'line') {
-        const zMin = Math.min(seg.p1.z, seg.p2.z);
-        const zMax = Math.max(seg.p1.z, seg.p2.z);
-        if (z < zMin - 0.01 || z > zMax + 0.01) continue;
-        const dz = seg.p2.z - seg.p1.z;
-        const x = Math.abs(dz) < 1e-6
-          ? Math.max(seg.p1.x, seg.p2.x)
-          : seg.p1.x + ((z - seg.p1.z) / dz) * (seg.p2.x - seg.p1.x);
-        if (maxX === null || x > maxX) maxX = x;
-      } else if (seg.type === 'arc') {
-        const cosA = (z - seg.cz) / seg.r;
-        if (cosA < -1.001 || cosA > 1.001) continue;
-        const cosC = Math.max(-1, Math.min(1, cosA));
-        const a1 = Math.acos(cosC);
-        for (const a of [a1, -a1]) {
-          if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) {
-            const x = seg.cx + Math.sin(a) * seg.r;
-            if (maxX === null || x > maxX) maxX = x;
-          }
-        }
-      }
-    }
-    return maxX;
-  };
-  const offsetXAt = (z) => maxXAt(offsetPath, z);
+  // Geometrické dotazy žijí v cam/passHelpers.js — hrubování zleva si z téže
+  // továrny staví sadu nad ZRCADLENÝM offsetem (viz genBacksidePasses).
+  const { offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ } = makePassHelpers(offsetPath);
 
   // ── Dokončování upichovákem: dráha po OBÁLCE ──
   // Upichovák má šířku — dokončovací dráha po samotném offsetu by na
@@ -765,120 +727,6 @@ export function computeCalculation(S, lightOnly = false) {
     }
   }
 
-  // Úhel oblouku offsetPath na zadaném Z (jen v rozsahu segmentu).
-  const arcAngleAtZ = (seg, z) => {
-    const cosA = (z - seg.cz) / seg.r;
-    if (cosA < -1.001 || cosA > 1.001) return null;
-    const cosC = Math.max(-1, Math.min(1, cosA));
-    const a1 = Math.acos(cosC);
-    for (const a of [a1, -a1]) {
-      if (isAngleBetween(a, seg.startAngle, seg.endAngle, seg.dir === 'G2')) return a;
-    }
-    return null;
-  };
-
-  // Kopie segmentů offsetPath oříznuté na Z∈[zLo,zHi], v pořadí jízdy
-  // (od vyššího Z k nižšímu) — podklad pro G1/G2/G3 sledování kontury
-  // přes "kapsu"/"schod" místo odskoku a rychloposuvu nad polotovarem.
-  const traceOffsetPath = (zHi, zLo) => {
-    const out = [];
-    // offsetPath je v jízdním pořadí (klesající Z); procházíme dopředu,
-    // ať výsledek vyjde také v jízdním pořadí (vysoké Z → nízké Z).
-    // Každý segment uvnitř drží x1/z1 = vyšší Z, x2/z2 = nižší Z, takže
-    // dopředný průchod = spojitá dráha bez zpětných skoků/oblouků.
-    for (let i = 0; i < offsetPath.length; i++) {
-      const seg = offsetPath[i];
-      if (seg.isDegenerate) continue;
-      if (seg.type === 'line') {
-        const zA = seg.p1.z, zB = seg.p2.z;
-        // Čelní (konstantní-Z) úsek — radiální pohyb v X. Z-klipování by ho
-        // zahodilo (clipHi==clipLo), proto ho zařadíme zvlášť v jízdním
-        // pořadí (p1→p2), pokud jeho Z leží v rozsahu [zLo, zHi].
-        if (Math.abs(zA - zB) < 1e-6) {
-          // Uzavírací čelo protínající osu (jede k X≈0) NENÍ soustružnický
-          // schod — hrubovací dojezd (leadOut) ho nesmí přejíždět až na osu,
-          // jinak vznikne dlouhá radiální dráha přes celé čelo do středu
-          // (a odskok pak startuje z osy). Náběhové čelo se sleduje OPAČNĚ
-          // (od osy ven), to necháváme — dílo se u něj obrábí normálně.
-          const towardAxis = seg.p2.x < seg.p1.x - 1e-6 && seg.p2.x < 0.05;
-          if (!towardAxis && zA <= zHi + 1e-6 && zA >= zLo - 1e-6)
-            out.push({ type: 'line', x1: seg.p1.x, z1: zA, x2: seg.p2.x, z2: zB });
-          continue;
-        }
-        const hiPt = zA >= zB ? seg.p1 : seg.p2;
-        const loPt = zA >= zB ? seg.p2 : seg.p1;
-        const clipHi = Math.min(zHi, hiPt.z);
-        const clipLo = Math.max(zLo, loPt.z);
-        if (clipHi <= clipLo + 1e-6) continue;
-        const dz = hiPt.z - loPt.z;
-        const xAt = (z) => Math.abs(dz) < 1e-9 ? hiPt.x : loPt.x + (z - loPt.z) / dz * (hiPt.x - loPt.x);
-        out.push({ type: 'line', x1: xAt(clipHi), z1: clipHi, x2: xAt(clipLo), z2: clipLo });
-      } else if (seg.type === 'arc') {
-        const zAtStart = seg.cz + Math.cos(seg.startAngle) * seg.r;
-        const zAtEnd = seg.cz + Math.cos(seg.endAngle) * seg.r;
-        const reversed = zAtStart < zAtEnd;
-        const aAtHiOrig = reversed ? seg.endAngle : seg.startAngle;
-        const aAtLoOrig = reversed ? seg.startAngle : seg.endAngle;
-        const zSegHi = Math.max(zAtStart, zAtEnd);
-        const zSegLo = Math.min(zAtStart, zAtEnd);
-        const clipHi = Math.min(zHi, zSegHi);
-        const clipLo = Math.max(zLo, zSegLo);
-        if (clipHi <= clipLo + 1e-6) continue;
-        const aAtClipHi = arcAngleAtZ(seg, clipHi) ?? aAtHiOrig;
-        const aAtClipLo = arcAngleAtZ(seg, clipLo) ?? aAtLoOrig;
-        const outDir = reversed ? (seg.dir === 'G2' ? 'G3' : 'G2') : seg.dir;
-        out.push({
-          type: 'arc', cx: seg.cx, cz: seg.cz, r: seg.r, dir: outDir,
-          startAngle: aAtClipHi, endAngle: aAtClipLo,
-          x1: seg.cx + Math.sin(aAtClipHi) * seg.r, z1: clipHi,
-          x2: seg.cx + Math.sin(aAtClipLo) * seg.r, z2: clipLo
-        });
-      }
-    }
-    return out;
-  };
-
-  // Konec leadOutu z kapsy: na rozdíl od findLeadOutEndZ se NEzastaví,
-  // když offset stoupá — sleduje druhou (odvrácenou) stěnu kapsy nahoru
-  // (G2/G3) až dokud znovu neklesne na řeznou hloubku depthX (tam pokračuje
-  // hlubší průchod), nebo dokud kontura nekončí. Tím se obrobí celá druhá
-  // stěna kapsy přímo po obrysu místo odskoku.
-  const findPocketExitZ = (zFrom, depthX, zFloor) => {
-    const h = 0.05;
-    let z = zFrom, leftPocket = false;
-    for (let i = 0; i < 8000; i++) {
-      const zNext = z - h;
-      if (zNext < zFloor - 1e-6) break;
-      const x = offsetXAt(zNext);
-      if (x === null) break;                       // konec kontury
-      if (x > depthX + 0.01) leftPocket = true;    // stoupáme po druhé stěně
-      else if (leftPocket && x <= depthX + 1e-6) return zNext; // zpět na hloubku
-      z = zNext;
-    }
-    return z;
-  };
-
-  // Konec leadOutu otevřeného (podélného) průchodu pro hrubování bez
-  // schodků: po dojezdu na konturu se po ní jede dál, dokud offset buď
-  // neklesne na hloubku DALŠÍHO (hlubšího) průchodu nextX — tam to převezme
-  // další pas — NEBO nestoupne zpět na hloubku PŘEDCHOZÍHO (mělčího)
-  // průchodu prevX — tam je vršek schodu, který už mělčí pas obrobil. Tím
-  // se schod mezi sousedními zabery obrobí přímo po obrysu (žádný zbytek).
-  const findLeadOutEndZ = (zFrom, prevX, nextX, zFloor) => {
-    const h = 0.05;
-    let z = zFrom;
-    for (let i = 0; i < 8000; i++) {
-      const zNext = z - h;
-      if (zNext < zFloor - 1e-6) break;
-      const x = offsetXAt(zNext);
-      if (x === null) break;                                  // konec kontury
-      if (x <= nextX + 1e-6) return zNext;                    // klesla na hlubší zaber
-      if (prevX !== null && x >= prevX - 1e-6) return zNext;   // stoupla na vršek schodu
-      z = zNext;
-    }
-    return z;
-  };
-
   // ── Strategie hrubování (cam/roughingStrategies.js) ──
   // passCtx = sdílený kontext: data + pass-helpery z calculate().
   const passCtx = {
@@ -910,8 +758,8 @@ export function computeCalculation(S, lightOnly = false) {
   // Clamping je aktivní jen když uživatel zobrazí čelisti/koník (fixtures
   // nebo both). 'off' a 'range' chuck/tail ignorují, takže lze přepínat
   // chování bez mazání čísel v parametrech.
-  const chuckLim = (S.zLimits.chuckActive && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck)) ? S.zLimits.chuck : null;
-  const tailLim  = (S.zLimits.tailActive  && typeof S.zLimits.tail  === 'number' && isFinite(S.zLimits.tail))  ? S.zLimits.tail  : null;
+  const chuckLim = (zLimits.chuckActive && typeof zLimits.chuck === 'number' && isFinite(zLimits.chuck)) ? zLimits.chuck : null;
+  const tailLim  = (zLimits.tailActive  && typeof zLimits.tail  === 'number' && isFinite(zLimits.tail))  ? zLimits.tail  : null;
   if (chuckLim !== null || tailLim !== null) {
     const EPS = 0.05;
     const zInBounds = (z) => {
@@ -1062,7 +910,9 @@ export function computeCalculation(S, lightOnly = false) {
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
-  return { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
+  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
+  // Zpět do reálného světa (simPath se nezrcadlí — je z reálného G-kódu).
+  return mirZ ? mirrorCalcZ(calcOut) : calcOut;
 }
 
 // ── G-Code Editor Content ────────────────────────────────────
