@@ -180,6 +180,42 @@ export function injectCSS() {
 .cam-sim-code-bar button:hover { background: #45475a; }
 .cam-sim-code-bar button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
 .cam-sim-code-bar button[data-code="editor"] { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
+.cam-sim-code-bar button[data-code="add-op"] { background: #fab387; color: #1e1e2e; border-color: #fab387; }
+/* ── Lišta částí programu (operací) — viz cam/opParts.js ────────── */
+.cam-sim-parts-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 3px 8px; border-bottom: 1px solid #45475a; background: #181825;
+  font-size: 11px;
+}
+.cam-op-label { color: #6c7086; white-space: nowrap; }
+.cam-op-chips { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.cam-op-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 10px; padding: 1px 4px 1px 2px; cursor: pointer;
+  max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cam-op-chip:hover { background: #45475a; }
+.cam-op-chip.cam-op-active { background: #fab387; color: #1e1e2e; border-color: #fab387; font-weight: bold; }
+.cam-op-chip.cam-op-empty { border-style: dashed; font-style: italic; }
+.cam-op-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 15px; height: 15px; border-radius: 50%;
+  background: #45475a; color: #cdd6f4; font-size: 9px; font-weight: bold;
+}
+.cam-op-chip.cam-op-active .cam-op-num { background: #1e1e2e; color: #fab387; }
+.cam-op-del {
+  background: none; border: none; color: inherit; opacity: 0.5;
+  cursor: pointer; font-size: 10px; padding: 0 2px; line-height: 1;
+}
+.cam-op-del:hover { opacity: 1; color: #f38ba8; }
+.cam-op-views { display: flex; gap: 4px; margin-left: auto; }
+.cam-op-views button {
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
+}
+.cam-op-views button:hover { background: #45475a; }
+.cam-op-views button.cam-sim-active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
 .cam-sim-code-wrap {
   flex: 1; position: relative; overflow: hidden;
 }

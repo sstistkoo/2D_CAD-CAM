@@ -33,6 +33,8 @@ import { drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, d
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { computeCalculation, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
+import { applyPartToState, buildCombinedProgram, machinedStockPoints, makePart, partsAsMergeItems, partToolLabel, syncPartFromState, STOCK_PARAM_KEYS } from './cam/opParts.js';
+import { setEditorMergeQueue } from './camEditor.js';
 
 // ── MATERIALS constant ─────────────────────────────────────────
 const MATERIALS = {
@@ -142,6 +144,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
           <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Dráhy</button>
+          <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ Operace</button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
           <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
@@ -149,6 +152,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           <button data-code="load-prog" title="Načíst projekt ze souboru .camprog">📂 Načíst</button>
         </div>
       </div>
+      <div class="cam-sim-parts-bar" style="display:none"></div>
       <div class="cam-sim-code-wrap">
         <div class="cam-sim-code-backdrop"></div>
         <textarea class="cam-sim-manual-ta" spellcheck="false"
@@ -369,8 +373,36 @@ export function openCamSimulator(initialContour, initialGCode) {
     // nezdvojí a nepřepíšou vlastní nože.
     toolMagazine: [],
     activeMagazineSlot: null,  // index aktivního slotu (null = zásobník nepoužit)
-    editingMagazineSlot: null  // index právě editovaného slotu (rozbalená karta)
+    editingMagazineSlot: null, // index právě editovaného slotu (rozbalená karta)
+    // ── Skládání programu z více operací (cam/opParts.js) ──────
+    // Prázdné pole = klasický jednooperační režim (vše jako dřív). Po
+    // prvním „➕ Operace" se sem uloží dosavadní program jako Část 1 a
+    // živý stav (params/zLimits/manualGCode/stockPoints) patří té části,
+    // na kterou ukazuje activePart. Kontura je společná všem částem.
+    opParts: [],
+    activePart: 0,
+    // 'part' = editace aktivní části (na plátně jen její dráhy nad
+    // obrobeným polotovarem z předchozí části), 'all' = náhled celého
+    // složeného programu od původního polotovaru (G-kód jen ke čtení).
+    opView: 'part',
+    // Otisk kontury, ke které části patří (viz contourKey) — null = neznámý.
+    opContourKey: null
   };
+
+  // Model vizuálního úběru materiálu (viz getRemovalModel níž). Deklarovaný
+  // takhle brzo, protože ho invaliduje i applyView() při přepnutí části —
+  // a to běží ještě při inicializaci, dávno před sekcí s getRemovalModel().
+  let _removal = null;
+  let _removalCalcRef = null;
+
+  // Otisk kontury, se kterou byly části programu vytvořené — podle něj se
+  // pozná, že kontura z CAD je mezitím jiná (polotovary částí pak nemusí
+  // sedět). Zaokrouhleno na setiny mm, ať otisk nerozhodí šum ze zápisu.
+  function contourKey(pts) {
+    return (pts || []).map(p =>
+      `${p.type}:${(+p.x || 0).toFixed(2)},${(+p.z || 0).toFixed(2)},${(+p.r || 0).toFixed(2)}`
+    ).join('|');
+  }
 
   // Load from localStorage
   const STORAGE_KEY = 'skica-cam-simulator';
@@ -418,6 +450,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       if (typeof p.showRemoval === 'boolean') S.showRemoval = p.showRemoval;
       if (typeof p.showHolderCollision === 'boolean') S.showHolderCollision = p.showHolderCollision;
+      // Části programu (operace) — jen když sedí verze logiky drah, stejně
+      // jako u manualGCode; jinak by se skládaly zastaralé dráhy.
+      if (Array.isArray(p.opParts) && p.opParts.length > 0 && p.pathLogicVersion === PATH_LOGIC_VERSION) {
+        S.opParts = p.opParts;
+        S.activePart = Math.min(Math.max(0, p.activePart | 0), S.opParts.length - 1);
+        S.opContourKey = p.opContourKey || null;
+      }
     }
   } catch (_) { /* ignore */ }
 
@@ -509,25 +548,72 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.params.stockMode === 'casting') S.params.stockMode = 'cylinder';
   }
 
+  // Kontura přišla z CAD a části programu z minulé session k ní nemusí sedět.
+  // ZAHOZENÍ by ale znamenalo, že rozdělení na operace nepřežije obnovení
+  // stránky (do CAM se chodí právě přes CAD) — proto se části zachovají a
+  // uživatel dostane jen upozornění, když se kontura oproti nim změnila.
+  let _partsContourChanged = false;
+  if (_importedContour && S.opParts.length > 0 && S.opContourKey
+      && S.opContourKey !== contourKey(S.contourPoints)) {
+    _partsContourChanged = true;
+  }
+  // Polotovar překreslený v CAD patří PRVNÍ části — ostatní se odvozují
+  // z předchozí operace, ne z výkresu.
+  if (S.opParts.length > 0 && (_importedStockFromGCode || _stockFromCanvas) && S.stockPoints.length >= 2) {
+    S.opParts[0].stockPoints = JSON.parse(JSON.stringify(S.stockPoints));
+    S.opParts[0].params.stockMode = 'casting';
+    S.opParts[0].baseStockLoop = null;   // původní obrys se přepočítá
+  }
+
   // Obnovit ručně upravený G-kód uložený při "📐 Kreslit" (CAM → CAD) jako
   // skrytá poznámka na výkrese — má přednost před localStorage/auto kódem,
   // takže ruční úpravy drah přežijí cestu tam a zpět přes CAD.
   const camNoteIdx = state.objects.findIndex(o => o.isCamPathNote);
+  let _gcodeFromNote = null;
   if (camNoteIdx !== -1) {
-    if (state.objects[camNoteIdx].gcode) S.manualGCode = state.objects[camNoteIdx].gcode;
+    if (state.objects[camNoteIdx].gcode) {
+      _gcodeFromNote = state.objects[camNoteIdx].gcode;
+      S.manualGCode = _gcodeFromNote;
+    }
     state.objects.splice(camNoteIdx, 1);
   }
 
   // Kód přenesený z CAM editoru (tlačítko 🔄) je upravená dráha (manualGCode) –
   // má přednost před localStorage i auto-generací, aby se úpravy z editoru
   // vrátily zpět do simulátoru, odkud se kód původně bral.
+  let _partsCollapsedByEditor = false;
   if (initialGCode && typeof initialGCode === 'string' && initialGCode.trim()) {
-    S.manualGCode = initialGCode;
+    // Program se vrací z CAM Editoru jako JEDEN celek. Byl-li rozdělený na
+    // části a v editoru se změnil, části dál nesedí (editor spojuje i maže) —
+    // vrátíme se k jednooperačnímu režimu s tím, co přišlo z editoru.
+    if (S.opParts.length > 0 && initialGCode.trim() !== buildCombinedProgram(S.opParts).trim()) {
+      S.opParts = [];
+      S.activePart = 0;
+      _partsCollapsedByEditor = true;
+    }
+    if (S.opParts.length === 0) S.manualGCode = initialGCode;
+  }
+
+  // Části: živý stav (parametry/polotovar/G-kód) vždy dorovnat podle aktivní
+  // části — v localStorage mohl zůstat náhled celého programu.
+  S.opView = 'part';
+  if (S.opParts.length > 0) {
+    S.activePart = Math.min(Math.max(0, S.activePart), S.opParts.length - 1);
+    applyPartToState(S.opParts[S.activePart], S);
+    // Dráhy upravené během výletu přes CAD („📐 Kreslit" → poznámka na
+    // výkrese) patří té části, ze které se odcházelo — applyPartToState je
+    // právě přepsal uloženou verzí, tak je vrátit zpět (i do záznamu části).
+    if (_gcodeFromNote) {
+      S.manualGCode = _gcodeFromNote;
+      S.opParts[S.activePart].gcode = _gcodeFromNote;
+    }
   }
 
   // Pokud zatím není žádný G-kód (nová kontura, nic uloženo), počáteční
-  // obsah editoru vygenerujeme automaticky z kontury/parametrů.
-  if (!S.manualGCode || !S.manualGCode.trim()) {
+  // obsah editoru vygenerujeme automaticky z kontury/parametrů. Prázdná
+  // rozpracovaná ČÁST se ale negeneruje sama — uživatel k ní teprve vybírá
+  // nůž a parametry, dráhy si vyžádá tlačítkem „🔄 Dráhy".
+  if ((!S.manualGCode || !S.manualGCode.trim()) && S.opParts.length === 0) {
     S.manualGCode = generateAutoGCode(calculate()).map(l => l.text).join('\n');
   }
 
@@ -545,6 +631,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const speedLabel = root.querySelector('.cam-sim-speed-label');
   const errorsDiv = root.querySelector('.cam-sim-errors');
   const tabBody = root.querySelector('.cam-sim-tab-body');
+  const partsBar = root.querySelector('.cam-sim-parts-bar');
   // Refresh callback modalu "⚙️ Geometrie", pokud je otevřený — viz fullUpdate().
   // Záměrně NE na S (S.params se snapshotuje/serializuje, funkce tam nepatří).
   let toolGeomModalRefresh = null;
@@ -606,7 +693,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       zLimits: JSON.parse(JSON.stringify(S.zLimits)),
       xLimits: JSON.parse(JSON.stringify(S.xLimits)),
       showZLimits: S.showZLimits,
-      selectedMaterial: S.selectedMaterial
+      selectedMaterial: S.selectedMaterial,
+      // Části programu (operace) — aby šlo vzít zpět „➕ Operace" i smazání
+      // celé části. Aktivní část se předtím sesynchronizuje ze živého stavu.
+      opParts: JSON.parse(JSON.stringify(S.opParts || [])),
+      activePart: S.activePart,
+      opView: S.opView
     };
   }
   function _restore(s) {
@@ -621,8 +713,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (s.xLimits) S.xLimits = s.xLimits;
     if (s.showZLimits) S.showZLimits = s.showZLimits;
     if (s.selectedMaterial) S.selectedMaterial = s.selectedMaterial;
+    if (Array.isArray(s.opParts)) {
+      S.opParts = s.opParts;
+      S.activePart = Math.min(Math.max(0, s.activePart | 0), Math.max(0, S.opParts.length - 1));
+      S.opView = s.opView || 'part';
+    }
   }
   function pushHistory() {
+    syncActivePart();
     S.past.push(_snapshot());
     S.future = [];
     updateUndoRedoBtns();
@@ -654,6 +752,10 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── SAVE ──
   function saveState() {
+    syncActivePart();
+    // Otisk kontury drží krok s úpravami provedenými v CAM — porovnává se až
+    // s konturou, která příště přijde z CAD (viz _partsContourChanged).
+    if (partsActive()) S.opContourKey = contourKey(S.contourPoints);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         pathLogicVersion: PATH_LOGIC_VERSION,
@@ -663,8 +765,185 @@ export function openCamSimulator(initialContour, initialGCode) {
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
         showRemoval: S.showRemoval, showHolderCollision: S.showHolderCollision,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
+        opParts: S.opParts, activePart: S.activePart, opContourKey: S.opContourKey,
       }));
     } catch (_) { /* quota */ }
+  }
+
+  // ── ČÁSTI PROGRAMU (operace) ───────────────────────────────────
+  // Viz cam/opParts.js. Živý stav S vždy patří části S.opParts[S.activePart];
+  // syncActivePart() ho do záznamu zapíše, applyPart() naopak nahraje.
+  // Prázdné S.opParts = klasický jednooperační režim (nic se neděje).
+  function partsActive() { return S.opParts.length > 0; }
+  function activePartRec() { return partsActive() ? S.opParts[S.activePart] : null; }
+  function syncActivePart() {
+    if (S.opView !== 'part') return;   // v náhledu celého programu se nezapisuje
+    const p = activePartRec();
+    if (p) syncPartFromState(p, S);
+  }
+
+  // Program všech částí za sebou (hlavička se opakuje jen tam, kde se něco
+  // mění; při výměně nože se vypíše nájezd do ref. bodu — viz gcodeMerge.js).
+  function combinedProgram() {
+    if (!partsActive()) return S.manualGCode;
+    syncActivePart();
+    return buildCombinedProgram(S.opParts);
+  }
+  // Kód, který jde „ven" (export, editor, schránka): celý program, ne jen část.
+  function outputGCode() { return partsActive() ? combinedProgram() : S.manualGCode; }
+
+  // Nahraje do živého stavu buď aktivní část, nebo (opView='all') celý
+  // program nad PŮVODNÍM polotovarem z první části.
+  function applyView() {
+    if (!partsActive()) return;
+    const part = S.opParts[S.activePart];
+    if (!part) return;
+    if (S.opView === 'all') {
+      applyPartToState(part, S);
+      const first = S.opParts[0];
+      S.stockPoints = JSON.parse(JSON.stringify(first.stockPoints || []));
+      STOCK_PARAM_KEYS.forEach(k => { if (k in first.params) S.params[k] = first.params[k]; });
+      S.manualGCode = buildCombinedProgram(S.opParts);
+    } else {
+      applyPartToState(part, S);
+    }
+    S.simRunning = false; S.simProgress = 0;
+    _removal = null; _removalCalcRef = null;
+  }
+
+  function setOpView(view) {
+    if (S.opView === view) return;
+    syncActivePart();       // ještě ve starém režimu
+    S.opView = view;
+    applyView();
+    fullUpdate();
+  }
+
+  function switchToPart(idx) {
+    if (!partsActive() || idx < 0 || idx >= S.opParts.length) return;
+    syncActivePart();
+    S.activePart = idx;
+    if (S.opView !== 'part') S.opView = 'part';
+    applyView();
+    fullUpdate();
+  }
+
+  // „➕ Operace" — uzavře aktuální dráhy jako hotovou část, spočítá obrobený
+  // polotovar a připraví prázdnou další část nad ním (stejná kontura).
+  async function handleAddOperation() {
+    if (S.opView !== 'part') { setOpView('part'); }
+    // Nová část se zakládá vždy na KONCI řetězu (polotovar se odvozuje
+    // z části, na které stojíme) — u starší části by přepsala následující.
+    if (partsActive() && S.activePart !== S.opParts.length - 1) {
+      const ok = await camConfirm('Nová část se přidá až za poslední část programu. Pokračovat?');
+      if (!ok) return;
+      switchToPart(S.opParts.length - 1);
+    }
+    if (!S.manualGCode || !S.manualGCode.trim()) {
+      alert('Poslední část nemá žádné dráhy — nejdřív je vygenerujte tlačítkem „🔄 Dráhy".');
+      return;
+    }
+    const ok = await camConfirm(
+      'Uzavřít aktuální dráhy jako hotovou část programu a začít novou operaci?\n\n' +
+      'Dráhy zmizí z plátna a zůstane kontura + polotovar obrobený předchozími ' +
+      'částmi. Pak si nastavte nůž, parametry i rozsah a klikněte na „🔄 Dráhy".');
+    if (!ok) return;
+
+    pushHistory();
+    // 1) Dosavadní stav se stane částí (v klasickém režimu vzniká Část 1).
+    if (!partsActive()) {
+      S.opParts = [makePart(S, { name: `Část 1 – ${partToolLabel(S)}` })];
+      S.activePart = 0;
+    } else {
+      syncActivePart();
+    }
+    const prev = S.opParts[S.activePart];
+
+    // 2) Obrobený polotovar = polotovar části − vše, co její dráha odebrala.
+    const calc = S._cachedCalc || calculate();
+    const machined = machinedStockPoints(S.params, calc.stockPathSegments, calc.simPath);
+    if (!machined.points || machined.points.length < 2) {
+      showToast(machined.noAxis
+        ? 'Obrobený polotovar nejde zapsat profilem (nedotýká se osy) — další část začne na stejném polotovaru.'
+        : 'Obrobený polotovar se nepodařilo spočítat — další část začne na stejném polotovaru.', 5000);
+    }
+    // Obrys PŮVODNÍHO polotovaru si drží první část — podle něj se vybarvení
+    // (CAD „Vybarvit") ořezává i v dalších operacích, kde už je polotovar
+    // obrobený: co jednou odjelo do třísek, se nemá vrátit (viz draw()).
+    if (!S.opParts[0].baseStockLoop && machined.baseLoop) {
+      S.opParts[0].baseStockLoop = machined.baseLoop.map(p => ({
+        x: Math.round(p.x * 1000) / 1000, z: Math.round(p.z * 1000) / 1000,
+      }));
+    }
+
+    // 3) Nová (prázdná) část nad obrobeným polotovarem, stejný nůž/parametry
+    //    jako výchozí bod — uživatel je teď přenastaví.
+    const next = makePart(S, { name: `Část ${S.opParts.length + 1} – ${partToolLabel(S)}`, gcode: '' });
+    if (machined.points && machined.points.length >= 2) {
+      next.stockPoints = machined.points;
+      next.params.stockMode = 'casting';
+    } else {
+      next.stockPoints = JSON.parse(JSON.stringify(prev.stockPoints));
+    }
+    S.opParts.push(next);
+    S.activePart = S.opParts.length - 1;
+    applyView();
+    fullUpdate();
+    const dropped = machined.dropped ? ` (${machined.dropped} oddělených zbytků zahozeno)` : '';
+    showToast(`Nová část ${S.opParts.length} — nastavte nůž a parametry, pak „🔄 Dráhy"${dropped}`, 4000);
+  }
+
+  async function handleDeletePart(idx) {
+    if (!partsActive() || idx < 0 || idx >= S.opParts.length) return;
+    const name = S.opParts[idx].name;
+    const ok = await camConfirm(`Smazat celou část programu „${name}"? Dráhy i její parametry se ztratí.`);
+    if (!ok) return;
+    pushHistory();
+    S.opParts.splice(idx, 1);
+    if (S.opParts.length === 0) {
+      // Poslední část smazána → zpět do klasického jednooperačního režimu.
+      S.activePart = 0;
+      S.opView = 'part';
+      S.manualGCode = '';
+    } else {
+      S.activePart = Math.min(S.activePart >= idx ? S.activePart - 1 : S.activePart, S.opParts.length - 1);
+      if (S.activePart < 0) S.activePart = 0;
+      if (S.opParts.length === 1) S.opView = 'part';
+      applyView();
+    }
+    fullUpdate();
+    showToast(`Část „${name}" smazána`);
+  }
+
+  // Automatický název části („Část N – NŮŽ") drží krok s vybraným nožem;
+  // ručně přejmenovanou část (jiný tvar názvu) nechá být.
+  function refreshAutoPartName() {
+    const p = activePartRec();
+    if (!p) return;
+    if (/^Část \d+\s*[–-]\s*/.test(p.name)) p.name = `Část ${S.activePart + 1} – ${partToolLabel(S)}`;
+  }
+
+  function handleRenamePart(idx) {
+    const p = S.opParts[idx];
+    if (!p) return;
+    const nm = prompt('Název části programu:', p.name);
+    if (nm === null) return;
+    const t = nm.trim();
+    if (!t) return;
+    pushHistory();
+    p.name = t;
+    fullUpdate();
+  }
+
+  // Všechny části do fronty „SPOJ G-KÓD" v CAM Editoru + otevřít spojený
+  // program — tam se dá část ještě upravit nebo z fronty vyhodit.
+  function handlePartsToEditor() {
+    if (!partsActive()) { handleSendToEditor(); return; }
+    const merged = combinedProgram();
+    if (!merged.trim()) { alert('Žádná část nemá vygenerované dráhy.'); return; }
+    setEditorMergeQueue(partsAsMergeItems(S.opParts));
+    openCamEditor(merged, 0);
+    showToast('Části vloženy do fronty „SPOJ G-KÓD" v CAM Editoru', 4000);
   }
 
   // ── Výpočetní jádro (calculate) a emise G-kódu jsou v modulech
@@ -794,8 +1073,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── Vizuální úběr materiálu (Fáze 1 migrace na Clipper2) ──────
   // Instance se váže na konkrétní výsledek calculate() (identita objektu);
   // po přepočtu drah se založí čerstvá nad novým polotovarem.
-  let _removal = null;
-  let _removalCalcRef = null;
+  // (_removal/_removalCalcRef jsou deklarované nahoře u stavu — invalidují
+  // se i při přepnutí části programu, ještě před touto sekcí.)
   function getRemovalModel(calc) {
     if (!S.showRemoval || !calc || !calc.simPath || calc.simPath.length < 2) {
       _removal = null; _removalCalcRef = null;
@@ -1030,29 +1309,39 @@ export function openCamSimulator(initialContour, initialGCode) {
     // takže projetý materiál vizuálně mizí.
     let remainPath = null;   // čistý zbytek materiálu (pro výplň polotovaru)
     let fillClipPath = null; // clip pro vybarvení: vše MIMO původní polotovar + zbytek
-    if (S.simProgress > 0 && S.showRemoval) {
-      const rm = getRemovalModel(calc);
+    if (S.showRemoval) {
+      const addLoop = (path, loop) => {
+        if (!loop || loop.length < 3) return;
+        const p0 = toScreen(loop[0].x, loop[0].z);
+        path.moveTo(p0.x, p0.y);
+        for (let i = 1; i < loop.length; i++) {
+          const p = toScreen(loop[i].x, loop[i].z);
+          path.lineTo(p.x, p.y);
+        }
+        path.closePath();
+      };
+      const rm = S.simProgress > 0 ? getRemovalModel(calc) : null;
       if (rm) {
-        const addLoop = (path, loop) => {
-          if (loop.length < 3) return;
-          const p0 = toScreen(loop[0].x, loop[0].z);
-          path.moveTo(p0.x, p0.y);
-          for (let i = 1; i < loop.length; i++) {
-            const p = toScreen(loop[i].x, loop[i].z);
-            path.lineTo(p.x, p.y);
-          }
-          path.closePath();
-        };
         remainPath = new Path2D();
         for (const loop of rm.model.loops) addLoop(remainPath, loop);
+      }
+      // Materiál odebraný PŘEDCHOZÍMI operacemi je pryč nastálo — vybarvení se
+      // tam proto nemá vracet ani při simProgress = 0 (čerstvě založená část
+      // ještě nemá dráhy). Základ ořezu je pak obrys PŮVODNÍHO polotovaru
+      // (uložený u první části) a zbytek = polotovar aktuální části.
+      const partBase = partsActive() && S.opParts[0] ? S.opParts[0].baseStockLoop : null;
+      const clipBase = partBase || (rm ? rm.baseLoop : null);
+      const remainLoops = rm ? rm.model.loops
+        : (partBase ? [buildStockLoop(prms, calc.stockPathSegments)].filter(Boolean) : null);
+      if (clipBase && remainLoops) {
         // Parity trik (evenodd): celé plátno + původní obrys polotovaru +
         // zbylé smyčky → vyplněná oblast = mimo polotovar ∪ zbytek. Vybarvení
         // se tedy maže jen tam, kde nástroj skutečně odebral materiál —
         // výplně mimo polotovar (obrobek, anotace) zůstávají netknuté.
         fillClipPath = new Path2D();
         fillClipPath.rect(-10, -10, w + 20, h + 20);
-        addLoop(fillClipPath, rm.baseLoop);
-        for (const loop of rm.model.loops) addLoop(fillClipPath, loop);
+        addLoop(fillClipPath, clipBase);
+        for (const loop of remainLoops) addLoop(fillClipPath, loop);
       }
     }
 
@@ -3211,8 +3500,44 @@ export function openCamSimulator(initialContour, initialGCode) {
     else timeOverlay.textContent = '';
 
     if (manualTa.value !== S.manualGCode) manualTa.value = S.manualGCode;
+    manualTa.readOnly = S.opView === 'all';
+    manualTa.placeholder = S.opView === 'all'
+      ? 'Náhled celého programu (jen ke čtení) — pro úpravy přepněte na „Část"'
+      : 'Zde můžete psát vlastní G-kód...';
     renderCodeBackdrop();
     updateCodeHighlight();
+    renderPartsBar();
+  }
+
+  // ── UI: lišta částí programu (operací) ──
+  // Skrytá, dokud je program jednooperační. Chip = jedna část (klik = přepnout,
+  // dvojklik = přejmenovat, ✕ = smazat celou část), vpravo přepínač náhledu
+  // Část / Celý program a odeslání všech částí do CAM Editoru.
+  function renderPartsBar() {
+    if (!partsBar) return;
+    if (!partsActive()) { partsBar.style.display = 'none'; partsBar.innerHTML = ''; return; }
+    partsBar.style.display = 'flex';
+    const allView = S.opView === 'all';
+    const chips = S.opParts.map((p, i) => {
+      const active = !allView && i === S.activePart;
+      const empty = !p.gcode || !p.gcode.trim();
+      const lines = empty ? 0 : p.gcode.split('\n').length;
+      // Název části zadává uživatel (dvojklik) — do title= patří i escapované
+      // uvozovky, jinak by jimi šlo rozbít atribut.
+      const title = escAttr(`${p.name} — ${empty ? 'bez drah' : `${lines} řádků`}\nKlik = přepnout, dvojklik = přejmenovat`);
+      return `<span class="cam-op-chip${active ? ' cam-op-active' : ''}${empty ? ' cam-op-empty' : ''}" data-op="${i}" title="${title}">
+        <span class="cam-op-num">${i + 1}</span>${escHTML(p.name.replace(/^Část \d+\s*[–-]\s*/, ''))}
+        <button class="cam-op-del" data-op-del="${i}" title="Smazat celou část programu">✕</button>
+      </span>`;
+    }).join('');
+    partsBar.innerHTML = `
+      <span class="cam-op-label">Části:</span>
+      <div class="cam-op-chips">${chips}</div>
+      <div class="cam-op-views">
+        <button data-op-view="part" class="${allView ? '' : 'cam-sim-active'}" title="Editace aktivní části — na plátně jen její dráhy nad polotovarem obrobeným předchozími částmi">Část</button>
+        <button data-op-view="all" class="${allView ? 'cam-sim-active' : ''}" title="Náhled celého složeného programu od původního polotovaru (G-kód jen ke čtení)">Celý program</button>
+        <button data-op-act="to-editor" title="Vložit všechny části do fronty „SPOJ G-KÓD" v CAM Editoru a otevřít spojený program (tam lze část upravit i vyhodit)">⛓ Spojit</button>
+      </div>`;
   }
   // Vykreslí podkladové řádky pod textarea (1:1 se řádky G-kódu), aby šlo
   // zvýraznit aktivní řádek simulace pod editovatelným textem.
@@ -3272,6 +3597,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     return -1;
   }
   function escHTML(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // Text do HTML atributu (title=…) — navíc uvozovky, kterými by šel atribut ukončit.
+  function escAttr(s) { return escHTML(s).replace(/"/g, '&quot;'); }
 
   // ── UI: sidebar tabs ──
   function renderTab() {
@@ -4220,7 +4547,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (toolGeomBtn) toolGeomBtn.addEventListener('click', () => showToolGeometryDialog());
     const resetBtn = tabBody.querySelector('[data-act="reset"]');
     if (resetBtn) resetBtn.addEventListener('click', async () => {
-      const ok = await camConfirm('Opravdu chcete resetovat CAM parametry a vymazat vygenerované dráhy? Kontura a polotovar zůstanou zachovány (lze vzít zpět tlačítkem ↩ Zpět).');
+      const ok = await camConfirm(partsActive()
+        ? `Opravdu chcete resetovat CAM parametry a vymazat vygenerované dráhy? Zruší se i rozdělení programu na části (${S.opParts.length}). Kontura a polotovar zůstanou zachovány (lze vzít zpět tlačítkem ↩ Zpět).`
+        : 'Opravdu chcete resetovat CAM parametry a vymazat vygenerované dráhy? Kontura a polotovar zůstanou zachovány (lze vzít zpět tlačítkem ↩ Zpět).');
       if (ok) {
         pushHistory();
         // Parametry popisující GEOMETRII/stroj (jednotky ⌀/R, tvar a rozměry
@@ -4244,6 +4573,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.toolConfigOpen = false;
         S.machiningConfigOpen = false;
         S.manualGCode = '';
+        // Části programu drží vlastní kopie parametrů — po resetu by
+        // neodpovídaly ničemu; zpět do jednooperačního režimu.
+        S.opParts = [];
+        S.activePart = 0;
+        S.opView = 'part';
         fullUpdate();
         showToast('CAM parametry resetovány — kontura a polotovar zachovány');
       }
@@ -5932,15 +6266,17 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   // ── copy / download / PDF ──
+  // Ven (schránka/soubor/editor) jde vždy CELÝ program — u víc částí tedy
+  // všechny operace za sebou (viz outputGCode/combinedProgram).
   function handleCopyGCode() {
-    const text = S.manualGCode;
+    const text = outputGCode();
     navigator.clipboard.writeText(text).then(() => {
       const btn = tabBody.querySelector('[data-act="copy-code"]');
       if (btn) { const orig = btn.textContent; btn.textContent = '✅ Zkopírováno'; setTimeout(() => { btn.textContent = orig; }, 1500); }
     }).catch(() => alert('Nepodařilo se zkopírovat kód do schránky.'));
   }
   function handleDownload() {
-    const text = S.manualGCode;
+    const text = outputGCode();
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -5956,6 +6292,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Stejná sada polí jako saveState() — umožní 1:1 přenést stav simulátoru
   // mezi instancemi (např. z Live Serveru do preview pro reprodukci chyb).
   function handleSaveProject() {
+    syncActivePart();
     const payload = {
       __camprog: 1,
       pathLogicVersion: PATH_LOGIC_VERSION,
@@ -5963,7 +6300,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       params: S.params,
       contourPoints: S.contourPoints,
       stockPoints: S.stockPoints,
-      manualGCode: S.manualGCode,
+      // manualGCode = CELÝ program (i pro starší verze appky a pro frontu
+      // „SPOJ G-KÓD" v editoru, která z .camprog čte právě tohle pole);
+      // opParts drží jednotlivé části pro další editaci.
+      manualGCode: outputGCode(),
+      opParts: S.opParts,
+      activePart: S.activePart,
+      opContourKey: S.opContourKey,
       flipX: S.flipX,
       flipZ: S.flipZ,
       guideLines: S.guideLines,
@@ -6001,6 +6344,19 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.params) S.params = data.params;
         if (data.contourPoints) S.contourPoints = data.contourPoints;
         if (data.stockPoints) S.stockPoints = data.stockPoints;
+        // Části programu (operace) — jen s odpovídající verzí logiky drah,
+        // jinak by se skládaly zastaralé dráhy (stejné pravidlo jako u
+        // manualGCode níž). Projekt bez opParts = klasický jednooperační.
+        S.opParts = [];
+        S.activePart = 0;
+        S.opView = 'part';
+        S.opContourKey = null;
+        if (Array.isArray(data.opParts) && data.opParts.length > 0
+            && data.pathLogicVersion === PATH_LOGIC_VERSION) {
+          S.opParts = data.opParts;
+          S.activePart = Math.min(Math.max(0, data.activePart | 0), S.opParts.length - 1);
+          S.opContourKey = data.opContourKey || contourKey(S.contourPoints);
+        }
         // Nový projekt = nová kontura/polotovar — starý ořez i záloha
         // před-profilové kontury už k ničemu nesedí (jinak by ❌ po
         // otevření jiného souboru vracelo konturu z PŘEDCHOZÍHO projektu).
@@ -6045,8 +6401,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (typeof data.showRemoval === 'boolean') S.showRemoval = data.showRemoval;
         if (typeof data.showHolderCollision === 'boolean') S.showHolderCollision = data.showHolderCollision;
         S.simRunning = false; S.simProgress = 0;
+        // Části: živý stav přepsat záznamem aktivní části (manualGCode v
+        // souboru je CELÝ složený program — ten by jako „část" nesedělo).
+        if (partsActive()) applyView();
         fullUpdate();
-        showToast('Projekt načten ze souboru');
+        showToast(partsActive()
+          ? `Projekt načten — ${S.opParts.length} částí programu`
+          : 'Projekt načten ze souboru');
       };
       reader.readAsText(file);
     });
@@ -6107,6 +6468,9 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── Vrátit konturu zpět na plátno ──
   async function handleSendToCanvas(skipConfirm = false) {
+    // Na plátno (a do skryté poznámky s G-kódem) patří dráhy JEDNÉ části —
+    // z náhledu celého programu by se zpátky vrátil složený kód jako část.
+    if (S.opView === 'all') setOpView('part');
     const pts = resolvePointsToAbsolute(S.contourPoints);
     if (pts.length < 2) { alert('Kontura nemá dostatek bodů.'); return; }
     if (!skipConfirm) {
@@ -7187,14 +7551,41 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // code area buttons
   root.querySelector('[data-code="refresh"]').addEventListener('click', async () => {
-    const ok = await camConfirm('Přegenerovat dráhy z aktuální kontury a parametrů? Ruční úpravy G-kódu budou přepsány.');
+    // V náhledu celého programu se negeneruje — nebylo by kam (kód je složený
+    // ze všech částí); přepnout zpět na aktivní část.
+    if (S.opView === 'all') {
+      showToast('Náhled celého programu — přepněte na „Část", tam se dráhy generují');
+      return;
+    }
+    const what = partsActive() ? `části „${S.opParts[S.activePart].name}"` : 'aktuální kontury';
+    const ok = await camConfirm(`Přegenerovat dráhy ${what} z kontury a parametrů? Ruční úpravy G-kódu budou přepsány.`);
     if (!ok) return;
     S._cachedCalc = calculate();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    syncActivePart();
+    refreshAutoPartName();
     fullUpdate();
-    showToast('Dráhy přegenerovány z kontury a parametrů');
+    showToast(partsActive()
+      ? `Dráhy části ${S.activePart + 1}/${S.opParts.length} přegenerovány`
+      : 'Dráhy přegenerovány z kontury a parametrů');
   });
-  root.querySelector('[data-code="editor"]').addEventListener('click', handleSendToEditor);
+  root.querySelector('[data-code="add-op"]').addEventListener('click', handleAddOperation);
+  root.querySelector('[data-code="editor"]').addEventListener('click', handlePartsToEditor);
+
+  // Lišta částí programu (chipy + přepínač náhledu)
+  partsBar.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-op-del]');
+    if (del) { e.stopPropagation(); handleDeletePart(parseInt(del.dataset.opDel, 10)); return; }
+    const view = e.target.closest('[data-op-view]');
+    if (view) { setOpView(view.dataset.opView); return; }
+    if (e.target.closest('[data-op-act="to-editor"]')) { handlePartsToEditor(); return; }
+    const chip = e.target.closest('[data-op]');
+    if (chip) switchToPart(parseInt(chip.dataset.op, 10));
+  });
+  partsBar.addEventListener('dblclick', (e) => {
+    const chip = e.target.closest('[data-op]');
+    if (chip && !e.target.closest('[data-op-del]')) handleRenamePart(parseInt(chip.dataset.op, 10));
+  });
   root.querySelector('[data-code="to-canvas"]').addEventListener('click', handleSendToCanvas);
   root.querySelector('[data-code="save-prog"]').addEventListener('click', handleSaveProject);
   root.querySelector('[data-code="load-prog"]').addEventListener('click', handleLoadProject);
@@ -7217,6 +7608,10 @@ export function openCamSimulator(initialContour, initialGCode) {
   // manual textarea
   manualTa.addEventListener('mousedown', () => { S._gcodeFocusLine = null; });
   manualTa.addEventListener('input', () => {
+    // Náhled celého programu je jen ke čtení — složený kód se generuje z částí,
+    // ruční úprava by se při dalším přepnutí ztratila (textarea má readonly,
+    // tohle je pojistka pro programové změny hodnoty).
+    if (S.opView === 'all') { manualTa.value = S.manualGCode; return; }
     S._gcodeFocusLine = null;
     S.manualGCode = manualTa.value;
     S._cachedCalc = calculate();
@@ -8936,5 +9331,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
   fullUpdate();
   requestAnimationFrame(() => fitView());
+  if (_partsCollapsedByEditor) {
+    showToast('Program upravený v CAM Editoru se převzal jako celek — rozdělení na části se zrušilo.', 6000);
+  } else if (_partsContourChanged) {
+    showToast(`Kontura se od vytvoření částí (${S.opParts.length}) změnila — polotovary jednotlivých operací nemusí sedět, přegenerujte dráhy tlačítkem „🔄 Dráhy".`, 8000);
+  } else if (partsActive()) {
+    showToast(`Program má ${S.opParts.length} částí — aktivní je ${S.activePart + 1}. „${S.opParts[S.activePart].name}"`, 4000);
+  }
   if (typeof window !== 'undefined') window.__camDebug = { S, calculate, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
 }

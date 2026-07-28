@@ -282,6 +282,46 @@ CAM část ti umožní generovat NC programy pro obrábění.
 4. Klikni **Spustit** – uvidíš simulaci dráhy nástroje
 5. Červená destička = aktuální pozice
 
+### 3b. Více operací na jednom kuse (➕ Operace)
+Jeden díl se často obrábí na několik operací: nejdřív se vyhrubuje jedním
+nožem, pak se jiným udělají drážky, zápich nebo závit. V liště nad G-kódem
+je na to tlačítko **➕ Operace**.
+
+1. Vygeneruj dráhy první operace (**🔄 Dráhy**) jako obvykle.
+2. Klikni na **➕ Operace**. Dosavadní dráhy se uzavřou jako **Část 1** a
+   zmizí z plátna. Zůstane kontura a **polotovar obrobený předchozí částí** —
+   program si tedy pamatuje, co už se odebralo, a další operace na tom staví.
+3. V pravém panelu (**⚙ Nast.**) si vyber jiný nůž a nastav parametry i
+   **rozsah obrábění** (📏) jen na tu část dílu, kterou chceš dělat.
+4. Klikni **🔄 Dráhy** — vygeneruje se **další část** programu. Kroky 2–4
+   opakuj, kolikrát potřebuješ.
+
+Pod lištou tlačítek se objeví **lišta částí**:
+- **Chip s číslem a nožem** – klik přepne na tu část (načte se její nůž,
+  parametry, rozsahy i polotovar), **dvojklik** ji přejmenuje.
+- **✕** na chipu – smaže **celou část** programu (jde vzít zpět přes ↩ Zpět).
+- **Část / Celý program** – přepínač náhledu. „Celý program" ukáže složený
+  program všech operací od původního polotovaru (jen ke čtení) a odsimuluje
+  ho celý; „Část" se vrátí k editaci aktivní operace.
+- **⛓ Spojit** – vloží všechny části do fronty **SPOJ G-KÓD** v CAM Editoru
+  a otevře tam spojený program (tam se dá část ještě upravit nebo z fronty
+  vyhodit).
+
+Poznámky:
+- Rozdělení na části **přežije obnovení stránky** i cestu přes CAD. Když se
+  mezitím změní kontura, části zůstanou a jen se objeví upozornění, že
+  polotovary nemusí sedět — přegeneruj dráhy (🔄 Dráhy).
+- Máš‑li na výkrese **vybarvené** oblasti (CAD nástroj Vybarvit), zmizí i tam,
+  kde materiál odebraly předchozí operace — nejen po dobu přehrávání simulace.
+- Obrobený polotovar se prokládá **oblouky**, ne stovkami úseček, takže
+  zaoblení zůstanou zaoblení a výpočet dalších drah je rychlý.
+
+Ven jde vždy **celý program**: 💾 Uložit, stažení `.MPF`, kopie do schránky
+i 🔧 Editor pracují se všemi částmi za sebou. Hlavička se u dalších částí
+vypisuje jen v tom, co se opravdu mění (nůž, otáčky, posuv…), `M30` zůstane
+jen na konci a **při výměně nože** se vypíše nájezd do referenčního bodu
+(`G75`/`G28`) i vypnutí a znovuzapnutí vřetena a chlazení.
+
 ### 4. CNC Editor
 - Po vygenerování dráhy se otevře CNC editor
 - Zobrazí se G-kód s barevným zvýrazněním

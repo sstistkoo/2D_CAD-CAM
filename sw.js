@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v184';
+const CACHE_NAME = 'skica-v185';
 const ASSETS = [
   './',
   './index.html',
@@ -12,10 +12,25 @@ const ASSETS = [
   './js/ai/aiSettings.js',
   './js/app.js',
   './js/bridge.js',
+  './js/calculators/cam/booleanRoughing.js',
+  './js/calculators/cam/calculatePipeline.js',
+  './js/calculators/cam/camDefaults.js',
   './js/calculators/cam/camMath.js',
+  './js/calculators/cam/camSimulatorDialogs.js',
+  './js/calculators/cam/camSimulatorStyles.js',
+  './js/calculators/cam/camToolPicker.js',
   './js/calculators/cam/collisionValidator.js',
+  './js/calculators/cam/contourBuild.js',
+  './js/calculators/cam/gcodeEmit.js',
+  './js/calculators/cam/gcodeMerge.js',
+  './js/calculators/cam/gcodeParser.js',
+  './js/calculators/cam/holderGouge.js',
+  './js/calculators/cam/insertPreview.js',
+  './js/calculators/cam/interferenceGuides.js',
   './js/calculators/cam/materialRemoval.js',
+  './js/calculators/cam/opParts.js',
   './js/calculators/cam/roughingStrategies.js',
+  './js/calculators/cam/threadHelpers.js',
   './js/calculators/cam/toolEnvelope.js',
   './js/calculators/camEditor.js',
   './js/calculators/camSimulator.js',
@@ -150,6 +165,8 @@ const ASSETS = [
   './lib/opentype.min.js',
   './lib/three.min.js',
   './lib/turf.min.js',
+  './VK_editor.html',
+  './VK_modul_help.html',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon.svg',

@@ -368,6 +368,70 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
 | `cam/collisionValidator.js` | Validace kolizí držáku na hotové dráze |
 | `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |
+| `cam/opParts.js` | Skládání programu z více operací (částí) — záznam části, obrobený polotovar pro další operaci, složení celého programu |
+| `cam/gcodeMerge.js` | Spojení programů do jednoho (`mergePrograms`) — sdíleno s frontou „SPOJ G-KÓD" v CAM Editoru |
+
+#### Části programu (operace)
+
+Jedna kontura se dá obrobit na několik operací (hrubování → drážky → závit),
+každou jiným nožem. Model v `camSimulator.js`:
+
+- `S.opParts: Part[]` — pole částí, `S.activePart` = index té, které patří
+  **živý stav** (`S.params`, `S.zLimits`, `S.xLimits`, `S.stockPoints`,
+  `S.manualGCode`). Prázdné pole = klasický jednooperační režim, nic se
+  nechová jinak než dřív.
+- `Part = { id, name, gcode, params, zLimits, xLimits, stockPoints,
+  selectedMaterial, activeMagazineSlot }` — `stockPoints` je polotovar
+  **před** touto částí. Kontura (`S.contourPoints`) i konstrukční čáry jsou
+  společné všem částem.
+- `syncActivePart()` zapisuje živý stav do záznamu (volá se z `saveState()`
+  i `pushHistory()`), `applyPartToState()` naopak. Parametry stroje/výkresu
+  (`SHARED_PARAM_KEYS`: `machineStructure`, `controlSystem`, `mode`,
+  `safeX`, `safeZ`) si část **nenese** — přebírají se z aktuálního stavu.
+- `S.opView`: `'part'` = editace aktivní části, `'all'` = náhled celého
+  složeného programu nad **původním** polotovarem z první části (G-kód jen
+  ke čtení, `🔄 Dráhy` je zablokované).
+
+Obrobený polotovar pro další operaci: `machinedStockPoints()` pustí
+`MaterialRemoval` přes celou `calc.simPath` části a výslednou smyčku převede
+`loopsToStockProfile()` zpět na otevřený profil (`stockPoints`, `stockMode:
+'casting'`). Profil se nejdřív odsadí **ven** o `SIMPLIFY_EPS`, aby chyba
+padla na stranu „víc materiálu" (nástroj pak nanejvýš řeže vzduch), a pak se
+přes `fitArcsToPolyline()` proloží zpět **oblouky a delšími úsečkami** —
+zbytek z Clipperu je mnohoúhelník, takže zaoblení by jinak skončila jako
+stovky drobných G1. Body vycházejí rovnou s typem `G1`/`G2`/`G3`; rádius se
+píše vždy jako **skutečný poloměr** (tak ho čte `resolvePointsToAbsolute` →
+`rVal`), i v režimu DIAMON. Počet bodů je stropovaný (`MAX_STOCK_POINTS`) —
+při překročení se tolerance fitu stupňuje.
+
+**Pozor na ploché oblouky:** fit povoluje rozvin až ~169°, jenže profil se
+ukládá jako body a znovu se z nich dopočítává střed (`getArcParams`). U
+skoro-180° oblouku je tětiva blízko 2R, takže i zaokrouhlení souřadnic na µm
+posune střed o řád víc, a spadne-li R pod polovinu tětivy, `getArcParams`
+vrátí `error` a dokreslí půlkruh — vypadá to jako obrácený směr G2/G3. Proto
+`splitWideArcs()` dělí oblouky na ≤ 90° (poloviny leží na téže kružnici, tvar
+se nemění) a `arcSurvivesRounding()` každý oblouk po zaokrouhlení ověří; při
+neshodě degraduje na úsečku (po rozdělení je tětiva jen setiny mm od
+kružnice). Hlídá to `tests/cam-op-parts.test.js` → „oblouky odvozeného
+polotovaru se nesmí obrátit".
+
+Vazba na vykreslení: první část si drží `baseStockLoop` = obrys **původního**
+polotovaru. `draw()` z něj staví `fillClipPath` i při `simProgress === 0`,
+takže vybarvení z CAD nástroje „Vybarvit" zůstane odebrané i v dalších
+operacích — materiál, který odjel v předchozí části, se na plátno nevrací.
+
+Části přežívají cestu přes CAD: kontura přicházející z CAD je **nezahazuje**
+(do CAM se chodí právě odtud, takže by rozdělení nepřežilo obnovení stránky).
+Místo toho se porovná `S.opContourKey` (otisk kontury, se kterou části
+vznikly, aktualizovaný v `saveState()`) a při neshodě se jen upozorní.
+Polotovar překreslený v CAD se propíše do **první** části — ostatní se
+odvozují z předchozí operace, ne z výkresu.
+
+Ven (schránka, soubor, CAM Editor, `.camprog`) jde vždy `outputGCode()` =
+celý složený program; `buildCombinedProgram()` používá `mergePrograms()`
+z `cam/gcodeMerge.js`, který při **výměně nože** vypíše i nájezd do
+referenčního bodu (`G75`/`G28`/`G74`) a startovní polohu, i když se oproti
+předchozí části nemění (`TOOL_CHANGE_FORCED`).
 
 Testy nad neexportovanými helpery jdou přes `tests/helpers/camInternals.mjs`
 (text-surgery + přímé importy z `cam/*.js`); plný pipeline (`calculate()` +

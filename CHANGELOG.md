@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- CAM: **skládání programu z více operací — tlačítko „➕ Operace"** v liště nad
+  G-kódem. Jeden díl se často obrábí na několik operací (vyhrubovat jedním
+  nožem, pak jiným udělat drážky/zápich/závit). Po kliknutí se dosavadní dráhy
+  uzavřou jako hotová **část programu**, plátno se vyčistí a zůstane kontura
+  s **polotovarem obrobeným předchozími částmi** — další operace tedy staví na
+  tom, co už se odebralo. Uživatel si přenastaví nůž, parametry i rozsah
+  obrábění a „🔄 Dráhy" vygeneruje další část.
+  - Nová **lišta částí**: chip = jedna operace (klik přepne včetně nože,
+    parametrů, rozsahů i polotovaru; dvojklik přejmenuje; ✕ smaže celou část
+    — vše s ↩ Zpět), přepínač náhledu **Část / Celý program** a **⛓ Spojit**.
+  - „Celý program" ukáže i **odsimuluje** složený program všech operací od
+    původního polotovaru (jen ke čtení).
+  - Ven (💾 Uložit, stažení `.MPF`, kopie do schránky, 🔧 Editor, `.camprog`)
+    jde vždy celý program: hlavička se u dalších částí vypisuje jen v tom, co
+    se opravdu mění, `M30` zůstane jen na konci a **při výměně nože** se
+    doplní nájezd do referenčního bodu (`G75`/`G28`/`G74`), `STOPRE` a vypnutí
+    i znovuzapnutí vřetena a chlazení.
+  - **⛓ Spojit** vloží všechny části do fronty **SPOJ G-KÓD** v CAM Editoru a
+    otevře spojený program — část tam jde ještě upravit nebo z fronty vyhodit.
+  - Obrobený polotovar se prokládá **oblouky** (`fitArcsToPolyline`), ne
+    stovkami drobných úseček z booleovského zbytku — zaoblení dílu zůstanou
+    zaoblení a scan hrubování nejede přes tisíce segmentů (na testovacím dílu
+    34 → 15 bodů, z toho 4 oblouky). Široké oblouky se přitom dělí na
+    **max. 90°**: zápis „koncový bod + poloměr" je u skoro-180° oblouku
+    numericky prekérní (tětiva se blíží 2R), takže i zaokrouhlení souřadnic
+    na µm posune dopočítaný střed o řád víc a v krajním případě `getArcParams`
+    ohlásí chybu a dokreslí půlkruh — na plátně to vypadalo, jako by se
+    oblouk polotovaru obrátil z G3 na G2. Každý oblouk se navíc po zaokrouhlení
+    ověří a při neshodě degraduje na úsečku.
+  - **Vybarvení** (CAD nástroj „Vybarvit") zůstane odebrané i v dalších
+    operacích, ne jen po dobu přehrávání simulace: ořez se počítá proti
+    obrysu **původního** polotovaru uloženému u první části, takže materiál
+    odebraný předchozí operací se na plátno nevrací ani při nulovém postupu
+    simulace.
+  - Rozdělení na části **přežije obnovení stránky** i cestu přes CAD — kontura
+    přicházející z CAD části nezahazuje (do CAM se chodí právě odtud). Při
+    skutečné změně kontury se jen upozorní, že polotovary nemusí sedět;
+    polotovar překreslený v CAD se propíše do první části.
+  - Nové moduly `js/calculators/cam/opParts.js` (záznam části, odvození
+    obrobeného polotovaru, složení programu) a `js/calculators/cam/gcodeMerge.js`
+    (spojování programů — vytaženo z `camEditor.js`, teď sdílené oběma místy).
+
 ### Changed
 - CAM (Parametry): pole **„Vůle X/Z (polotovar)" se jmenují „Přídavek X (polo.)"
   a „Přídavek Z (polo.)"** (a stejně i shrnující chip nad panelem) — je to
