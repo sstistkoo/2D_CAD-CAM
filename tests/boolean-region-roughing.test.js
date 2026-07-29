@@ -69,13 +69,13 @@ describe('Fáze 3 krok 2: booleovské regiony ≈ ruční (odlitek s hrbem)', ()
     expect(hardErrors(man.calc)).toEqual([]);
     expect(hardErrors(boo.calc)).toEqual([]);
 
-    // 1) SEPARACE — fixture má odlitkový hrb → aspoň 1 split, a booleovská
-    //    detekce ho umístí stejně jako ruční (± vzorkování dz).
+    // 1) SEPARACE — hranice úseků se odvozují z mezních čar hlídání destičky
+    //    (guideRegionSplits), tedy NEZÁVISLE na příznaku `booleanRoughing`:
+    //    obě cesty musí dát tytéž hranice, a fixture má aspoň jednu.
     expect(man.splits.length).toBeGreaterThan(0);
     expect(boo.splits.length).toBe(man.splits.length);
     for (let i = 0; i < man.splits.length; i++) {
       expect(boo.splits[i].z).toBeCloseTo(man.splits[i].z, 0);
-      expect(boo.splits[i].xSurf).toBeCloseTo(man.splits[i].xSurf, 0);
     }
 
     // 2) Stejná hloubka/Z-obálka podélných průchodů.

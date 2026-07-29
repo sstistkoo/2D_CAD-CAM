@@ -18,7 +18,7 @@
 
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoop } from './materialRemoval.js';
-import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
+import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX } from './booleanRoughing.js';
 import { pointInLoop, polyOffset, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { HOLDER_CLAMP_MARGIN } from './toolEnvelope.js';
@@ -328,7 +328,7 @@ export function genFacePasses(ctx) {
 
 // PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standardní soustružení).
 export function genLongPasses(ctx) {
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, holderClampZEnd } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -1093,104 +1093,63 @@ export function genLongPasses(ctx) {
     regions.push({ zHi: hi, zLo: -Infinity, zHiSurf: hiSurf, zLoSurf: undefined });
     return regions;
   };
-  // Ruční detekce údolí z obrysu polotovaru (stockWorldPoints) — původní cesta.
-  const manualRegionSplits = () => {
-    const outer = stockWorldPoints.filter(p => p.xReal > 1).map(p => ({ x: p.xReal, z: p.zReal }));
-    if (outer.length < 4) return [];
+  // ── Hranice úseků = MEZNÍ ČÁRY, které vyjedou z polotovaru ────────────
+  // Signál pro dělení dílu na úseky NENÍ tvar odlitku, ale DOSAH DESTIČKY.
+  // Mezní čára hlídání geometrie (interferenceGuides) vede od místa, kam
+  // destička ještě dosáhne, ven; když její volný konec vyjede Z POLOTOVARU
+  // do vzduchu, je to skutečná hranice: za ní se materiál z téhle strany
+  // vzít nedá a začíná další úsek. Naopak čára, která začíná i končí uvnitř
+  // polotovaru (oba konce na hotovní kontuře), úsek NEDĚLÍ — vrstva přes ni
+  // normálně přejede a údolí odlitku přeletí rychloposuvem.
+  //
+  // Dřív se úseky hledaly jako údolí (lokální minima) obrysu odlitku
+  // a pak se prořezávaly testem „vezme to sloučený zátah taky?". To dělilo
+  // i tam, kde nic nebrání: údolí u levého čela rozřízlo vrstvu Ø34,5 na dva
+  // průchody s výjezdem nad polotovar mezi nimi, přestože mezní čára v tom
+  // údolí z polotovaru vůbec nevyjíždí (reálný nález na díle uživatele).
+  //
+  // Hranice se NErozpouští do hloubky (xSurf zůstává undefined): na rozdíl od
+  // odlitkového údolí, kde je dno souvislý materiál a v kůře úseky splynou,
+  // odděluje mezní čára úseky po celé hloubce.
+  const guideRegionSplits = () => {
+    const loop = stockLoopFullL;
+    if (!loop || !Array.isArray(interferenceGuides) || interferenceGuides.length === 0) return [];
+    const inside = (p) => { try { return pointInLoop(p, loop) !== 'outside'; } catch { return true; } };
     const splits = [];
-    for (let i = 1; i < outer.length - 1; i++) {
-      const prev = outer[i - 1].x, cur = outer[i].x;
-      if (!(cur < prev - 0.3)) continue;          // sem musí X klesnout (vjezd do údolí)
-      let j = i;                                   // konec plochého dna údolí
-      while (j + 1 < outer.length && Math.abs(outer[j + 1].x - cur) < 0.3) j++;
-      const after = j + 1 < outer.length ? outer[j + 1].x : cur;
-      // xSurf = povrch údolí: hranice regionu platí jen NAD ním. V hloubce
-      // kůry dna (X ≤ xSurf) je údolí samo materiál — dělit ho napůl by
-      // znamenalo sjíždět kolmo do kůry uprostřed; regiony se tam spojí
-      // a kůra se bere průchody od kraje polotovaru.
-      if (after > cur + 0.3) splits.push({ z: (outer[i].z + outer[j].z) / 2, xSurf: cur });
-      i = j;
+    for (const g of interferenceGuides) {
+      const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
+      const inA = inside(a), inB = inside(b);
+      if (inA === inB) continue;                   // celá uvnitř polotovaru — úsek nedělí
+      splits.push({ z: (inA ? b : a).z });
     }
-    splits.sort((a, b) => b.z - a.z);              // shora (max Z) dolů
-    return splits;
-  };
-  // Booleovská detekce (Fáze 3, krok 2, za příznakem `booleanRoughing`):
-  // údolí = lokální minima horní hrany SILUETY polotovaru (buildStockLoop),
-  // polygon-native náhrada křehké vrcholové heuristiky nad stockWorldPoints.
-  //
-  // POZOR (proč silueta, ne zbytek stock−dílec): legacy model regionů
-  // (zHiSurf/zLoSurf) umí vyjádřit JEN odlitkový hrb — region oddělen MĚLCE
-  // (X > xSurf) a v kůře dna splyne. Komponenty ZBYTKU (stock − dílec) mají
-  // ale i OPAČNÝ směr (kapsa/hrb dílu = oddělen hluboko, splyne mělko), který
-  // tenhle model neumí — složení celého zbytku pak nechává stát materiál
-  // (ověřeno na holder-region-roughing: +121 mm² pod z≈22.9). Signál pro
-  // odlitkové hrby je horní hrana SILUETY polotovaru — stejný jako manuál,
-  // takže bez regrese pokrytí. Obecné residual-komponentové regiony (kapsy
-  // dílu, obousměrné splynutí) patří až do restrukturace emisní smyčky.
-  const booleanRegionSplits = () => {
-    const stockLoop = stockLoopL;
-    if (!stockLoop || stockLoop.length < 3) return [];
-    let zMax = -Infinity, zMin = Infinity;
-    for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
-    return computeResidualRegions([stockLoop], zMax, zMin, dzScan);
-  };
-  // ── Který split je opravdu potřeba ────────────────────────────────────
-  // Údolí odlitku je jen SIGNÁL, ne důvod dělit dráhy. Hranice regionu dává
-  // smysl jedině tehdy, když se materiál POD splitem nedá vzít týmž zátahem
-  // jako materiál NAD ním — tedy když vrstvu mezi nimi něco ZASTAVÍ (stěna
-  // hotovní kontury nebo obálka držáku). Nezastaví-li nic, hranice jen
-  // rozřízne souvislý zátah: nejdřív se dodělá celá PRAVÁ strana a teprve pak
-  // levá — i když je vlevo VĚTŠÍ průměr (reálný nález na díle uživatele:
-  // údolí vzniklé obloukem na odlitku, hrb vlevo Ø77 se hruboval až po hrbu
-  // vpravo Ø70). Vzduch nad údolím přitom průchod přeletí rychloposuvem, takže
-  // sloučený zátah po vrstvách jde odshora dolů přesně tak, jak má:
-  // od největšího průměru a doleva až tam, kam pustí kontura.
-  //
-  // Test (čte jen geometrii, žádné vedlejší efekty): pro každou hloubku, kde
-  // region POD splitem ještě něco bere, se zkusí SLOUČENÝ sken od okna nad
-  // splitem po dno okna pod ním. Když sloučený zátah pokaždé dojede aspoň tak
-  // hluboko jako samostatný region, split se zahodí.
-  const splitIsNeeded = (splits, i) => {
-    const s = splits[i];
-    const zTop = i > 0 ? splits[i - 1].z : Infinity;
-    const zBot = i + 1 < splits.length ? splits[i + 1].z : -Infinity;
-    for (const X of depths) {
-      if (X <= s.xSurf + 0.01) continue;          // tady hranice stejně splývá
-      const sz = stockZRangeAt(X);
-      if (!sz) continue;
-      const zHiWin = Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, zTop);
-      const zLoWin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, zBot);
-      if (zHiWin - zLoWin < 0.1) continue;
-      // Vzal by samostatný region pod splitem na téhle hloubce vůbec něco?
-      const zEntryLo = passEntryZ(Math.min(s.z, zHiWin), zLoWin, sz, X);
-      if (zEntryLo === null) continue;
-      const low = scan(X, zEntryLo, zLoWin, false);
-      const ivLow = low.firstOpen ? low.intervals[0] : null;
-      if (!ivLow || ivLow.zStart - ivLow.zEnd < dzScan) continue;
-      // Dojede tam sloučený zátah shora? Schválně se bere jen PRVNÍ interval:
-      // za stěnou kontury uvnitř okna už další interval není otevřený vjezd,
-      // ale KAPSA (dosažitelná jen rampou a jen se zapnutým zanořováním) —
-      // brát její dosah jako důkaz, že sloučený zátah stačí, by vedlo
-      // k zahození hranice a ztrátě materiálu (ověřeno na range-end-leadout:
-      // vypadly celé průchody Z 61–82).
-      const zEntryAll = passEntryZ(zHiWin, zLoWin, sz, X);
-      if (zEntryAll === null) return true;
-      const all = scan(X, zEntryAll, zLoWin, false);
-      const ivAll = all.firstOpen ? all.intervals[0] : null;
-      if (!ivAll || ivAll.zEnd > ivLow.zEnd + 0.05) return true;
+    splits.sort((p, q) => q.z - p.z);              // shora (max Z) dolů
+    // Příliš tenký úsek se samostatně vyhrubovat nedá: do okna užšího než
+    // dva zábery se nevejde ani zanořovací rampa a řetěz vjezdů se rozpadne
+    // (ověřeno na range-end-leadout: hranice 8 mm od začátku rozsahu srazila
+    // program ze 14 průchodů na 4). Takovou hranici sloučíme se sousední.
+    const minSpan = 2 * step;
+    let zTopWin = machiningRange ? machiningRange.zHi : -Infinity;
+    if (!isFinite(zTopWin)) for (const p of loop) if (p.z > zTopWin) zTopWin = p.z;
+    let zBotWin = machiningRange ? machiningRange.zLo : Infinity;
+    if (!isFinite(zBotWin)) for (const p of loop) if (p.z < zBotWin) zBotWin = p.z;
+    const kept = [];
+    let prevZ = zTopWin;
+    for (const s of splits) {
+      if (s.z > zTopWin - 1e-6 || s.z < zBotWin + 1e-6) continue;   // mimo okno
+      if (prevZ - s.z < minSpan) continue;                          // tenký úsek → sloučit
+      kept.push(s); prevZ = s.z;
     }
-    return false;
+    if (kept.length > 0 && prevZ - zBotWin < minSpan) kept.pop();   // tenký zbytek dole
+    return kept;
   };
   const computeRegions = () => {
     if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL_REGION;
-    const rawSplits = prms.booleanRoughing ? booleanRegionSplits() : manualRegionSplits();
-    const splits = rawSplits.filter((_, i) => splitIsNeeded(rawSplits, i));
+    const splits = guideRegionSplits();
     // Diagnostický test seam (guarded, v produkci no-op): tests/boolean-region-
-    // roughing.test.js jím ověřuje separaci regionů ruční vs booleovské cesty.
+    // roughing.test.js jím ověřuje hranice úseků.
     if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({
       bool: !!prms.booleanRoughing,
-      raw: rawSplits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
-      splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
+      splits: splits.map(s => ({ z: +s.z.toFixed(1) })),
     });
     return assembleRegions(splits);
   };
