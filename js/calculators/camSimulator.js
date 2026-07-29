@@ -1779,7 +1779,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     // (✥ Dráhy) se skryjí taky: jsou počítané z kontury (needitují se podle
     // ručního G-kódu), takže by zůstaly viset na staré pozici a překrývaly
     // by skutečnou editovanou dráhu (simPath).
-    if (S.showSimPath !== 'none' && !S.gcodeEditEnabled) {
+    // Průchody z calc.passes jsou jen PŘED-emisní odhad: skutečnou dráhu
+    // (segmentace podle siluety odlitku, ořez konců na hranici materiálu,
+    // zkrácené rampy) zná až emise, a ta se kreslí ze simPath níž. Jakmile
+    // simPath existuje, tyhle čáry by kreslily ducha neexistující dráhy —
+    // uživatel je viděl viset za konci ořezaných dojezdů.
+    const passesArePreview = calc.simPath.length === 0;
+    if (S.showSimPath !== 'none' && !S.gcodeEditEnabled && passesArePreview) {
       ctx.beginPath();
       calc.passes.forEach(pass => {
         if (pass.type === 'long') {
@@ -1787,25 +1793,14 @@ export function openCamSimulator(initialContour, initialGCode) {
             // sledování kontury (G1/G2/G3) přes kapsu místo odskoku
             drawContourTrace(pass.contourLeadIn);
           }
-          if (pass.ramp && calc.simPath.length === 0) {
-            // rampa zanoření z "rohu" kontury (tečný bod pod úhlem zanoření) —
-            // jen FALLBACK před generováním, stejně jako tělová čára níž: skutečná
-            // emise (gcodeEmit.js) rampu segmentuje/zkracuje podle siluety
-            // odlitku, takže celá diagonála by jinak kreslila ducha nesprávné dráhy.
+          if (pass.ramp) {
+            // rampa zanoření z "rohu" kontury (tečný bod pod úhlem zanoření)
             const pr = toScreen(pass.ramp.x0, pass.ramp.z0);
             const pe = toScreen(pass.x, pass.zStart);
             ctx.moveTo(pr.x, pr.y); ctx.lineTo(pe.x, pe.y);
           }
-          // Prostý podélný průchod (bez rampy/leadIn/pocketClean): tělo
-          // zStart→zEnd je tu jen PŘED-emisní odhad intervalu z obdélníkového
-          // obalu polotovaru — ignoruje siluetu odlitku. Skutečná simPath (níž)
-          // teď správně přeskakuje vzduch nad drážkami (Fáze 4), takže by tahle
-          // přímka přes drážku kreslila ducha staré (nesprávné) dráhy. Kreslit
-          // jen jako FALLBACK, dokud simPath není k dispozici (před generováním).
-          if (pass.ramp || pass.contourLeadIn || pass.pocketClean || calc.simPath.length === 0) {
-            const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-          }
+          const p1 = toScreen(pass.x, pass.zStart), p2 = toScreen(pass.x, pass.zEnd);
+          ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
           if (pass.contourLeadOut) drawContourTrace(pass.contourLeadOut);
         } else {
           const p1 = toScreen(pass.xStart, pass.z), p2 = toScreen(pass.xEnd, pass.z);

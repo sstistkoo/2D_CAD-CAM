@@ -78,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (jinak by pod ořízlou rampou zůstal stát klín materiálu).
 
 ### Fixed
+- CAM (náhled): **na plátně nezůstávají „duchové" drah.** Průchody z
+  `calc.passes` jsou jen před-emisní odhad — skutečnou dráhu (segmentace podle
+  siluety odlitku, ořez konců na hranici materiálu, zkrácené rampy) zná až
+  emise a kreslí se ze `simPath`. Dojezdy a náběhy se přitom kreslily z passes
+  vždycky, takže po ořezu konců visely za dráhou čáry, které v programu vůbec
+  nejsou. Nově se passes kreslí jen dokud `simPath` neexistuje (před
+  vygenerováním drah).
 - CAM (podélné hrubování): **průchod končí na hraně materiálu, ne až na konci
   okna.** Řezný interval se plánuje z obdélníkového obalu, takže mohl sahat
   desítky mm za skutečný polotovar — nástroj pak po posledním řezu ještě
