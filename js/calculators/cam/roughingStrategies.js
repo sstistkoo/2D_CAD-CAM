@@ -1167,7 +1167,12 @@ export function genLongPasses(ctx) {
       const low = scan(X, zEntryLo, zLoWin, false);
       const ivLow = low.firstOpen ? low.intervals[0] : null;
       if (!ivLow || ivLow.zStart - ivLow.zEnd < dzScan) continue;
-      // Dojede tam sloučený zátah shora?
+      // Dojede tam sloučený zátah shora? Schválně se bere jen PRVNÍ interval:
+      // za stěnou kontury uvnitř okna už další interval není otevřený vjezd,
+      // ale KAPSA (dosažitelná jen rampou a jen se zapnutým zanořováním) —
+      // brát její dosah jako důkaz, že sloučený zátah stačí, by vedlo
+      // k zahození hranice a ztrátě materiálu (ověřeno na range-end-leadout:
+      // vypadly celé průchody Z 61–82).
       const zEntryAll = passEntryZ(zHiWin, zLoWin, sz, X);
       if (zEntryAll === null) return true;
       const all = scan(X, zEntryAll, zLoWin, false);
@@ -1182,7 +1187,11 @@ export function genLongPasses(ctx) {
     const splits = rawSplits.filter((_, i) => splitIsNeeded(rawSplits, i));
     // Diagnostický test seam (guarded, v produkci no-op): tests/boolean-region-
     // roughing.test.js jím ověřuje separaci regionů ruční vs booleovské cesty.
-    if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({ bool: !!prms.booleanRoughing, splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })) });
+    if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({
+      bool: !!prms.booleanRoughing,
+      raw: rawSplits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
+      splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
+    });
     return assembleRegions(splits);
   };
   const _regions = computeRegions();
