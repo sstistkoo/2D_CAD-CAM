@@ -552,6 +552,33 @@ export function generateAutoGCode(S, calc) {
     }
     return best;
   };
+  // Ořez „bez schodků" dojezdu na HRANU MATERIÁLU: sledování kontury nemá kudy
+  // pokračovat tam, kde nad nástrojem už polotovar není. Úseky celé ve vzduchu
+  // se zahodí, ten, na kterém materiál končí, se zkrátí (u úseček přesně
+  // interpolací, oblouk se nechá celý — leží těsně u dílu a krátí se stejně
+  // jako dřív až navazujícím dojezdem na offsetovou čáru). Bez toho jel dojezd
+  // po kontuře desítky mm prázdnem až na konec okna (reálný nález na díle
+  // uživatele — za S17 dvě dráhy pokračovaly ve vzduchu).
+  const trimLeadOutToStock = (segs, tipR) => {
+    if (!segs || segs.length === 0 || !stockLoop0Ref) return segs;
+    const solid = (x, z) => { const ct = castingTopXAtZ(z); return ct !== null && (x - tipR) <= ct + 1e-4; };
+    const out = [];
+    for (const seg of segs) {
+      const endSolid = solid(seg.x2, seg.z2);
+      if (endSolid) { out.push(seg); continue; }
+      // Konec je ve vzduchu: začíná úsek v materiálu? Pak ho zkrátit.
+      if (!solid(seg.x1, seg.z1)) break;            // celý ve vzduchu — sem už dojezd nepatří
+      if (seg.type !== 'line') { out.push(seg); break; }
+      let lo = 0, hi = 1;                            // lo = v materiálu, hi = ve vzduchu
+      for (let i = 0; i < 24; i++) {
+        const t = (lo + hi) / 2;
+        if (solid(seg.x1 + (seg.x2 - seg.x1) * t, seg.z1 + (seg.z2 - seg.z1) * t)) lo = t; else hi = t;
+      }
+      if (lo > 1e-3) out.push({ ...seg, x2: seg.x1 + (seg.x2 - seg.x1) * lo, z2: seg.z1 + (seg.z2 - seg.z1) * lo });
+      break;
+    }
+    return out;
+  };
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;
     try {
@@ -953,6 +980,15 @@ export function generateAutoGCode(S, calc) {
       const leadAir = segs.length > 0 && segs[0].kind === 'G0';
       const firstCutZ = leadAir ? segs[0].z : pass.zStart;
       const emitSegs = leadAir ? segs.slice(1) : segs;
+      // KONCOVÝ vzduch se stejně tak nejezdí: za posledním řezem už polotovar
+      // nesahá a interval sám o sobě může končit až na hranici okna (regionu /
+      // rozsahu 📐) desítky mm v prázdnu. Průchod tedy končí na HRANĚ MATERIÁLU
+      // a odtud ho dojezd níž (offsetExitZ) posune na vůlí-posunutou siluetu —
+      // „tečkovanou" čáru z náhledu. Bez toho vznikl po řezu rychloposuv přes
+      // celý vzduch, tam ještě posuv o Vůli Z a teprve pak odskok, takže
+      // nástroj odjížděl desítky mm za dílem (reálný nález na díle uživatele).
+      while (emitSegs.length > 0 && emitSegs[emitSegs.length - 1].kind === 'G0') emitSegs.pop();
+      const bodyEndZ = emitSegs.length > 0 ? emitSegs[emitSegs.length - 1].z : firstCutZ;
       const zApproachVal = clipZGc(firstCutZ - zDir * rapidStopZ);
       // Přejezd v Z nad začátek polotovaru + sjezd v X (s kontrolou kolize —
       // po zanoření do kapsy může nástroj stát hluboko, přímý přejezd by řízl stěnu).
@@ -977,23 +1013,25 @@ export function generateAutoGCode(S, calc) {
       // dojezd o Vůli Z se kvůli tomu zbytečně netiskl, i když za koncem
       // řezu byl prokazatelně vzduch).
       if (rapidStock) noteCutPass(pass);
-      if (!pass.blocked && !pass.contourLeadOut && rapidStock) {
+      const leadOutSegs = pass.contourLeadOut ? trimLeadOutToStock(pass.contourLeadOut, tipRGc) : null;
+      const hasLeadOut = !!(leadOutSegs && leadOutSegs.length > 0);
+      if (!pass.blocked && !hasLeadOut && rapidStock) {
         // Dál ve směru řezu: buď o Vůli Z, nebo až na vůlí-posunutou siluetu —
         // co je dál (u druhé strany se „dál" počítá v +Z, proto max místo min).
         // Bez nalezené hrany zůstane jen odsazení o Vůli Z (neutrální prvek
         // pro min/max je opačný nekonečno než směr řezu).
-        const zExitEdge = offsetExitZ(pass.x, pass.zEnd, zDir) ?? -zDir * Infinity;
+        const zExitEdge = offsetExitZ(pass.x, bodyEndZ, zDir) ?? -zDir * Infinity;
         const zExit = clipZGc(zDir < 0
-          ? Math.min(pass.zEnd - rapidClrZGc, zExitEdge)
-          : Math.max(pass.zEnd + rapidClrZGc, zExitEdge));
-        if (zDir * (zExit - pass.zEnd) > 1e-6 && !rapidHitsStock(pass.x, pass.zEnd, pass.x, zExit)) {
+          ? Math.min(bodyEndZ - rapidClrZGc, zExitEdge)
+          : Math.max(bodyEndZ + rapidClrZGc, zExitEdge));
+        if (zDir * (zExit - bodyEndZ) > 1e-6 && !rapidHitsStock(pass.x, bodyEndZ, pass.x, zExit)) {
           simCounter += 1; addN(`G1 Z${zExit.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, zExit);
         }
       }
-      if (pass.contourLeadOut) {
+      if (hasLeadOut) {
         // Bez schodků: dál po kontuře (G1/G2/G3) až na hloubku dalšího
         // průchodu místo okamžitého odskoku — schod se obrobí přímo.
-        for (const seg of pass.contourLeadOut) {
+        for (const seg of leadOutSegs) {
           if (seg.type === 'line') {
             simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           } else {
@@ -1008,7 +1046,7 @@ export function generateAutoGCode(S, calc) {
         // jen čistě axiální poslední úsek. Kontrolu, že za koncem je
         // opravdu vzduch, dělá rapidHitsStock (model už má odečtený
         // i tenhle průchod, viz noteCutPass výš).
-        const lastSeg = pass.contourLeadOut[pass.contourLeadOut.length - 1];
+        const lastSeg = leadOutSegs[leadOutSegs.length - 1];
         const axialEnd = lastSeg.type === 'line'
           && Math.abs(lastSeg.x2 - lastSeg.x1) < 0.01 && zDir * (lastSeg.z2 - lastSeg.z1) > 1e-6;
         const zOffExit = axialEnd && rapidStock ? offsetExitZ(lastSeg.x2, lastSeg.z2, zDir) : null;

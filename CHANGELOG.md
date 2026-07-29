@@ -78,6 +78,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (jinak by pod ořízlou rampou zůstal stát klín materiálu).
 
 ### Fixed
+- CAM (podélné hrubování): **průchod končí na hraně materiálu, ne až na konci
+  okna.** Řezný interval se plánuje z obdélníkového obalu, takže mohl sahat
+  desítky mm za skutečný polotovar — nástroj pak po posledním řezu ještě
+  přejel prázdnem na konec intervalu, tam pustil posuv o Vůli Z a teprve pak
+  odskočil (na dílu uživatele odjížděl až za osazení Ø47,6 na Z 172,5, ačkoli
+  materiál končí na Z 142). Koncový vzduch se nově zahazuje: průchod dojede na
+  hranu odlitku a navazující dojezd ho posune na **vůlí-posunutou siluetu** —
+  „tečkovanou" čáru z náhledu. Totéž platí pro dojezd „bez schodků": sledování
+  kontury se ořeže tam, kde nad nástrojem přestává být polotovar (úseky celé
+  ve vzduchu se zahodí, ten hraniční se zkrátí interpolací).
+  - Odebraný materiál se nemění — ověřeno na všech 17 regresních dílech
+    (zbytková plocha po projetí dráhy ± 0,0 mm²); mizí jen jízda vzduchem.
+    Na dílu uživatele 3,90 → 3,70 min a 2,44 → 2,25 m dráhy.
+  - Platí pro obě strany hrubování; snapshoty 10 dílů se proto změnily.
 - CAM: **hrubování „→ Zleva" nyní umí přesně to samé co „← Zprava",
   jen z druhé strany.** Druhá strana dosud jela zjednodušenou v1 strategií:
   počítala s **válcovým** polotovarem (u odlitku tedy hrubovala vzduch),
