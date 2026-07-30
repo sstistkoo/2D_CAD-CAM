@@ -181,6 +181,8 @@ export function injectCSS() {
 .cam-sim-code-bar button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
 .cam-sim-code-bar button[data-code="editor"] { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
 .cam-sim-code-bar button[data-code="add-op"] { background: #fab387; color: #1e1e2e; border-color: #fab387; }
+.cam-sim-code-bar .cam-sim-op-full, .cam-sim-code-bar .cam-sim-op-short { color: #1e1e2e; }
+.cam-sim-op-short { display: none; }
 /* ── Lišta částí programu (operací) — viz cam/opParts.js ────────── */
 .cam-sim-parts-bar {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -478,6 +480,8 @@ export function injectCSS() {
   .cam-sim-speed-group { padding: 2px 4px; gap: 2px; }
   .cam-sim-speed-label { min-width: 26px; font-size: 10px; }
   .cam-sim-code-bar > span { display: none; }
+  .cam-sim-op-full { display: none; }
+  .cam-sim-op-short { display: inline; }
 }
 `;
   document.head.appendChild(style);

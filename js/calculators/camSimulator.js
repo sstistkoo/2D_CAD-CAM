@@ -144,7 +144,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
           <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Dráhy</button>
-          <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ Operace</button>
+          <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ <span class="cam-sim-op-full">Operace</span><span class="cam-sim-op-short">Ope.</span></button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
           <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
