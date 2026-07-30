@@ -78,6 +78,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (jinak by pod ořízlou rampou zůstal stát klín materiálu).
 
 ### Fixed
+- CAM (podélné hrubování): **rychloposuv už neprojíždí polotovarem mezi
+  zanořovacími kroky.** Krok dorampování strmé stěny se řetězí — druhý a další
+  krok se jen odskočí a rychloposuvem se v aktuální hloubce vrátí na konec
+  rampy toho předchozího. Heuristika „pravých stěn kapes" (Hlídání geometrie
+  destičky) ale brala kroky řetězu jako samostatné bossy, a to **napříč celým
+  dílem**: krok v jednom údolí posunul začátek kroku v údolí o 120 mm dál tak,
+  že mu `zStart` spadl pod `zEnd` a průchod se celý smazal. Osiřelý návrat pak
+  jel z místa, kde nástroj právě skončil, skrz neobrobený materiál (na dílu
+  uživatele `G0 Z` přes 430 mm² odlitku, ⛔ oranžová kolize v náhledu). Kroky
+  řetězu jsou nově z heuristiky vyňaté — stejně jako dřív vjezd na hranici
+  rozsahu Z. Na regresních fixtures tím zmizely i všechny ostatní kolize téhož
+  původu (part-11/12: 501 mm² → 0, pocket-wall-at-plunge-angle: 163 → 0) a
+  vrátily se smazané průchody, tedy i materiál, který dosud zůstával stát.
+  Pojistka: `tests/cam-ramp-chain.test.js` (žádný `pocketReposition` bez
+  předchůdce).
 - CAM (náhled): **na plátně nezůstávají „duchové" drah.** Průchody z
   `calc.passes` jsou jen před-emisní odhad — skutečnou dráhu (segmentace podle
   siluety odlitku, ořez konců na hranici materiálu, zkrácené rampy) zná až
