@@ -115,6 +115,10 @@ export const state = {
   snapCenters: true,
   // Režim kreslení polotovaru – nové objekty se značí isStock a kreslí se jinou barvou
   drawStockMode: false,
+  // Volba nástroje „Typ čáry" (tlačítko v liště) – viz js/lineStyles.js.
+  // `key` = typ dle ČSN EN ISO 128, `color` = null → podle vrstvy,
+  // `aux` = pomocná čára (zakládá se jako 'constr', mimo konturu a CAM).
+  lineStyle: { key: 'constr', color: null, aux: true },
   // Vrstvy
   layers: [
     { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },

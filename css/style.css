@@ -1056,6 +1056,168 @@ body {
   cursor: pointer;
 }
 
+/* ── Dialog „Typ čáry" (ČSN EN ISO 128) — nástroj v liště nástrojů ── */
+.line-style-dialog {
+  min-width: 340px;
+}
+
+.line-style-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+/* Selektory jsou záměrně zesílené o `.input-dialog`, aby přebily obecné
+   `.input-dialog label { display: block }` a `.input-dialog input { width: 100% }`. */
+.input-dialog .line-style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.line-style-row:hover {
+  background: var(--ctp-surface0);
+}
+
+.line-style-row.active {
+  border-color: var(--ctp-blue);
+  background: var(--ctp-surface0);
+}
+
+.input-dialog .line-style-row input[type="radio"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.line-style-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.line-style-name {
+  font-size: 13px;
+  color: var(--ctp-text);
+}
+
+.line-style-use {
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+}
+
+.line-style-preview {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 12px;
+  color: var(--ctp-text);
+}
+
+.input-dialog .line-style-section-label {
+  margin-bottom: 6px;
+}
+
+.line-style-swatches {
+  margin-bottom: 8px;
+}
+
+.line-style-swatch-auto {
+  background: var(--ctp-surface1);
+  color: var(--ctp-text);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.line-style-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.input-dialog .line-style-custom label {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.input-dialog .line-style-custom input[type="color"] {
+  width: 44px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+.input-dialog .line-style-aux {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.input-dialog .line-style-aux input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.line-style-note {
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+  margin-bottom: 12px;
+  min-height: 28px;
+}
+
+.line-style-btns {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .line-style-dialog {
+    min-width: 0;
+  }
+  .line-style-preview {
+    flex-basis: 64px;
+    width: 64px;
+  }
+  /* 8 vzorníků na jeden řádek i na úzkém telefonu – dialog se pak vejde
+     na výšku bez posouvání */
+  .line-style-swatches {
+    gap: 6px;
+  }
+  .line-style-swatches .color-swatch-btn {
+    width: 30px;
+    height: 30px;
+    min-height: 0;
+    padding: 0;
+  }
+  .line-style-note {
+    min-height: 0;
+  }
+  .line-style-list {
+    gap: 3px;
+    margin-bottom: 8px;
+  }
+  .input-dialog .line-style-aux {
+    margin-bottom: 4px;
+  }
+}
+
 /* ── Vlastní color picker (SV plocha + hue + RGB) — nahrazuje nativní
    input[type=color], jehož popup se na úzkém mobilním viewportu vykresloval
    mimo obrazovku a nešlo ho žádnou CSS ovlivnit ── */
@@ -5400,11 +5562,22 @@ body {
   background: linear-gradient(90deg, #d4760a 0%, #e8a030 50%, #d4760a 100%);
   color: #1a1a1a; font: 700 10px/1 "Consolas","Courier New",monospace;
   text-transform: uppercase; letter-spacing: 1.5px;
-  padding: 3px 12px; text-align: center; flex-shrink: 0;
+  padding: 3px 12px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
   -webkit-user-select: none;
   user-select: none;
   position: relative;
 }
+.cne-sn-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.cne-sn-arrow {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  background: rgba(0,0,0,.15); border-radius: 4px;
+  color: #1a1a1a; font: 900 11px/1 "Consolas","Courier New",monospace;
+}
+.cne-sn-arrow:active { background: rgba(0,0,0,.3); }
+.cne-sn-arrow:disabled { opacity: .3; }
 .cne-sn-close {
   display: none;
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);

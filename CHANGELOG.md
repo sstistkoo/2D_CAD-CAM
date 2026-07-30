@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAM/CNC Editor: **oranžová lišta s řídicím systémem** (🔄 CAM Editor,
+  💻 CNC Editor) teď nese i ovládání, které se na mobilu na výšku jinam
+  nevešlo. Vlevo přibyly šipky **◀ Zpět / ▶ Vpřed** (i Ctrl+Z/Ctrl+Y) pro
+  vlastní historii úprav editoru (přímé přiřazení `editor.value` z quickbaru,
+  hlavičky, přečíslování apod. by nativní undo textarey stejně zahodilo).
+  Text lišty je zkrácený na jen název systému (`SINUMERIK`/`FANUC`/
+  `HEIDENHAIN`, bez „840D sl") + `(CAM)`/`(CAD)` + název programu. Vpravo je
+  zavírací **✕** — na mobilu totiž titulková lišta okna (`.calc-titlebar`)
+  zůstává skrytá a křížek by jinak nešel vidět/kliknout.
+- CAD: **výběr typu čáry dle ČSN EN ISO 128** — tlačítko „Konstr." v liště
+  nástrojů už nekreslí rovnou konstrukční čáru, ale otevře dialog **Typ čáry**.
+  Na výběr je souvislá tlustá (viditelné hrany a obrysy), souvislá tenká
+  (kótovací a odkazovací čáry, šrafy), čárkovaná (zakryté hrany), čerchovaná
+  tenká (osy souměrnosti, středy kružnic), dvoječerchovaná (sousední díly,
+  krajní polohy) a původní konstrukční (nekonečná pomocná čára). Každý typ má
+  v dialogu náhled vzoru i popis použití.
+  - **Barva** se volí zvlášť (7 základních, vlastní, nebo „A" = podle vrstvy).
+  - Zvolený typ platí pro všechny další nakreslené čáry a **popisek tlačítka
+    se přepíše na zkratku** (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`,
+    `Konstr`) — max. 6 znaků, aby lišta nástrojů na mobilu nepřibrala řádek.
+    Ikona tlačítka ukazuje zvolený vzor i barvu.
+  - Přepínač **„Pomocná čára – mimo konturu a CAM"**: zaškrtnuté čáry se
+    ukládají jako typ `constr` (vrstva Konstrukce) a nevstupují do kontury ani
+    do G-kódu. Přednastavuje se podle typu čáry (souvislá tlustá = skutečná
+    geometrie, ostatní pomocné), lze přepnout ručně.
+  - Volba přežívá restart aplikace (`localStorage`), zkratka `K` zapne nástroj
+    rovnou s posledním typem, klik na aktivní tlačítko dialog otevře znovu
+    a nabídne i **Vypnout**.
+
 - CAM: **skládání programu z více operací — tlačítko „➕ Operace"** v liště nad
   G-kódem. Jeden díl se často obrábí na několik operací (vyhrubovat jedním
   nožem, pak jiným udělat drážky/zápich/závit). Po kliknutí se dosavadní dráhy

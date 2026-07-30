@@ -46,7 +46,7 @@ Aplikace běží offline jako PWA – žádný server, žádná instalace. Stač
 ### Toolbar (horní lišta)
 Herní nástroje seskupené do sekcí:
 - **Výběr/úpravy** – Vyber, Přesun, Kopírovat, Měřit, Zrcadlit, Otáčet, Měřítko
-- **Kreslení** – Úsečka, Konstr. čára, Kružnice, Oblouk, Obdélník, Polyline, Text
+- **Kreslení** – Úsečka, Typ čáry (ČSN EN ISO 128), Kružnice, Oblouk, Obdélník, Polyline, Text
 - **Úpravy** – Zaoblení, Zkosení, Ořez, Prodloužit, Zlomit, Tečna, Rovnoběžka, Kolmice, Offset, Rozdělit
 - **Kóty** – Lineární kóta, Řetězová kóta, Souřadnice
 - **Soustruh** – Závit, Drážka, Ozubení, Par ozubení, Zápich
@@ -100,6 +100,31 @@ Herní nástroje seskupené do sekcí:
 2. Klikni na počáteční bod
 3. Klikni na koncový bod (nebo zadej číselně v postranním panelu)
 4. Po kreslení se otevře dialog pro přesné zadání délky/úhlu
+
+### Typ čáry (dřívější „Konstr.")
+Tlačítko v toolbaru neotevírá rovnou kreslení, ale **dialog s výběrem typu
+čáry** podle ČSN EN ISO 128 a barvy. Zvolený typ pak platí pro všechny další
+nakreslené čáry, dokud ho nezměníš – popisek tlačítka se přepíše na zkratku
+zvoleného typu (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`, `Konstr`).
+
+| Typ čáry           | Vzhled        | Použití ve výkrese                     |
+|--------------------|---------------|----------------------------------------|
+| Souvislá tlustá    | `━━━━━━━━━━`  | Viditelné hrany a obrysy               |
+| Souvislá tenká     | `──────────`  | Kótovací a odkazovací čáry, šrafy      |
+| Čárkovaná          | `- - - - - -` | Zakryté hrany a obrysy                 |
+| Čerchovaná tenká   | `─ ∙ ─ ∙ ─ ∙` | Osy souměrnosti, středy kružnic        |
+| Dvoječerchovaná    | `─ ∙ ∙ ─ ∙ ∙` | Sousední díly, krajní polohy           |
+| Konstrukční        | `- - - - - -` | Nekonečná pomocná čára (2 body)        |
+
+- **Barva** – sedm základních barev, vlastní barva, nebo `A` = podle vrstvy.
+- **Pomocná čára – mimo konturu a CAM** – zaškrtnuté čáry se ukládají jako
+  pomocná geometrie do vrstvy *Konstrukce*: nevstupují do kontury ani do
+  G-kódu. Přednastavuje se podle typu čáry (souvislá tlustá = skutečná
+  geometrie, ostatní pomocné), ale jde to přepnout.
+- Postup kreslení je stejný jako u úsečky: klik na počáteční a koncový bod.
+- Klávesová zkratka `K` zapne nástroj rovnou s posledním zvoleným typem
+  (dialog se neotevře). Klik na již aktivní tlačítko dialog otevře znovu
+  a nabídne i **Vypnout**.
 
 ### Kružnice
 1. Vyber **Kružnice**

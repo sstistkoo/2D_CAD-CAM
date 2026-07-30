@@ -309,21 +309,23 @@
         </button>
         <button
           class="tool-btn"
+          id="btnLineStyle"
           data-tool="constr"
-          title="Konstrukční čára – nekonečná pomocná čára, 2 body"
+          title="Typ čáry – vyberte typ čáry (ČSN EN ISO 128) a barvu, pak kreslete 2 body"
         >
           <svg viewBox="0 0 24 24">
             <line
+              class="line-style-icon-seg"
               x1="2"
               y1="22"
               x2="22"
               y2="2"
               stroke="currentColor"
               stroke-width="1.5"
-              stroke-dasharray="4 3"
+              stroke-dasharray="3 2"
             />
           </svg>
-          Konstr.
+          <span class="tool-btn-label">Konstr</span>
         </button>
         <button
           class="tool-btn tool-btn-danger"
@@ -1941,7 +1943,7 @@
               </tr>
               <tr>
                 <td>K</td>
-                <td>Konstrukční čára</td>
+                <td>Typ čáry (poslední zvolený)</td>
               </tr>
               <tr>
                 <td>C</td>
@@ -2182,20 +2184,43 @@
               </details>
               <details class="help-tool-item">
                 <summary>
-                  <span class="tool-icon">⁄</span> Konstrukční čára <kbd>K</kbd>
+                  <span class="tool-icon">⁄</span> Typ čáry <kbd>K</kbd>
                 </summary>
                 <div class="tool-detail">
                   <p>
-                    Nekonečná pomocná čára procházející dvěma body. Slouží jako
-                    vodítko při konstrukci.
+                    Otevře dialog s výběrem typu čáry dle ČSN EN ISO 128 a
+                    barvy; zvolený typ pak kreslíte opakovaně dvěma body.
+                    Popisek tlačítka se přepíše na zkratku zvoleného typu.
                   </p>
                   <ul>
-                    <li>Zobrazuje se čárkovaně</li>
                     <li>
-                      <strong>Neexportuje se</strong> do DXF ani CNC výstupu
+                      <strong>Souvislá tlustá</strong> – viditelné hrany a
+                      obrysy (skutečná geometrie, vstupuje do CAM)
                     </li>
-                    <li>Vytváří průsečíky s ostatními objekty pro snap</li>
-                    <li>Vhodné pro pomocné osy, osové čáry, rozměřování</li>
+                    <li>
+                      <strong>Souvislá tenká</strong> – kótovací a odkazovací
+                      čáry, šrafy
+                    </li>
+                    <li><strong>Čárkovaná</strong> – zakryté hrany a obrysy</li>
+                    <li>
+                      <strong>Čerchovaná tenká</strong> – osy souměrnosti,
+                      středy kružnic
+                    </li>
+                    <li>
+                      <strong>Dvoječerchovaná</strong> – sousední díly, krajní
+                      polohy
+                    </li>
+                    <li>
+                      <strong>Konstrukční</strong> – nekonečná pomocná čára
+                      procházející dvěma body
+                    </li>
+                    <li>
+                      Pomocné čáry (vše kromě souvislé tlusté) se ukládají do
+                      vrstvy Konstrukce a
+                      <strong>neexportují se</strong> do CNC výstupu; lze to
+                      přepnout zaškrtávátkem v dialogu
+                    </li>
+                    <li>Vytvářejí průsečíky s ostatními objekty pro snap</li>
                   </ul>
                 </div>
               </details>

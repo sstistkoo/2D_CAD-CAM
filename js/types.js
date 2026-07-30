@@ -47,6 +47,8 @@
  * @property {string} [color]
  * @property {number} [layer]
  * @property {boolean} [dashed]
+ * @property {string} [lineStyle] klíč typu čáry dle ČSN EN ISO 128 (js/lineStyles.js)
+ * @property {boolean} [finite] u typu 'constr': čára má konce (není nekonečná)
  * @property {boolean} [isDimension]
  * @property {number} x1
  * @property {number} y1

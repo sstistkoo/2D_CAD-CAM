@@ -12,6 +12,7 @@ import {
   COLORS, GRID_BASE_STEP, GRID_MIN_PX, LINE_WIDTH, LINE_WIDTH_SELECTED,
   CONSTRUCTION_DASH, PREVIEW_DASH, ARROW_LENGTH, ARROW_ANGLE
 } from './constants.js';
+import { objDash, objWidthMul } from './lineStyles.js';
 
 const DIM_MATCH_TOL = 1e-4;
 
@@ -611,8 +612,8 @@ function renderObjects() {
     if (state.showDimensions === 'intersections' && obj.isDimension) return;
 
     // Viewport culling – přeskočit objekty mimo viditelnou oblast
-    // Konstrukční čáry (nekonečné) se nekullují
-    if (obj.type !== 'constr') {
+    // Konstrukční čáry (nekonečné) se nekullují; pomocné čáry s konci ano
+    if (obj.type !== 'constr' || obj.finite) {
       const bounds = getObjectBounds(obj);
       if (bounds && !boundsOverlap(bounds, vp)) return;
     }
@@ -623,19 +624,14 @@ function renderObjects() {
       && isDimConnectedToPoints(obj, state.selectedPoint);
     const isConstr = obj.type === "constr";
     const baseColor = resolveObjectColor(obj);
-    ctx.strokeStyle = (isSel || isConnectedDim)
-      ? COLORS.selected
-      : isConstr
-        ? COLORS.construction
-        : baseColor;
-    ctx.fillStyle = (isSel || isConnectedDim)
-      ? COLORS.selected
-      : isConstr
-        ? COLORS.construction
-        : baseColor;
-    const baseWidth = layer?.lineWidth ?? LINE_WIDTH;
+    // Pomocné čáry bez vlastní barvy kreslit šedě; s vlastní barvou (výběr
+    // v dialogu Typ čáry) se respektuje zvolená barva.
+    const drawColor = (isConstr && !obj.color) ? COLORS.construction : baseColor;
+    ctx.strokeStyle = (isSel || isConnectedDim) ? COLORS.selected : drawColor;
+    ctx.fillStyle = (isSel || isConnectedDim) ? COLORS.selected : drawColor;
+    const baseWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj);
     ctx.lineWidth = (isSel || isConnectedDim) ? baseWidth + (LINE_WIDTH_SELECTED - LINE_WIDTH) : baseWidth;
-    ctx.setLineDash(isConstr || obj.dashed ? CONSTRUCTION_DASH : []);
+    ctx.setLineDash(objDash(obj));
 
     switch (obj.type) {
       case "point":

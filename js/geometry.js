@@ -1643,6 +1643,8 @@ export function offsetObject(obj, dist, side) {
         x2: obj.x2 + nx, y2: obj.y2 + ny,
         name: `${obj.name || obj.type} (offset)`,
         dashed: obj.dashed,
+        lineStyle: obj.lineStyle,
+        finite: obj.finite,
         color: obj.color,
       };
     }

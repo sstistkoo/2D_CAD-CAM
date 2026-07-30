@@ -7,6 +7,7 @@ import { COLORS } from '../constants.js';
 import { bulgeToArc, exportFileName } from '../utils.js';
 import { buildMakerModel } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
+import { objDash, objWidthMul } from '../lineStyles.js';
 
 // ── Pomocné funkce ──
 
@@ -82,7 +83,7 @@ function isAngleBetweenExport(start, end, angle) {
 function getObjColor(obj) {
   const layer = state.layers.find(l => l.id === obj.layer);
   const layerColor = layer ? layer.color : COLORS.primary;
-  if (obj.type === 'constr') return COLORS.construction;
+  if (obj.type === 'constr' && !obj.color) return COLORS.construction;
   return obj.color || layerColor;
 }
 
@@ -200,8 +201,8 @@ function exportSVGLegacy(background) {
     if (layer && !layer.visible) continue;
 
     const color = getObjColor(obj);
-    const strokeW = obj.type === 'constr' ? 1 : 1.5;
-    const dash = (obj.type === 'constr' || obj.dashed) ? '6,4' : '';
+    const strokeW = (obj.type === 'constr' ? 1 : 1.5) * objWidthMul(obj);
+    const dash = objDash(obj).join(',');
 
     switch (obj.type) {
       case 'point': {
@@ -387,8 +388,8 @@ function exportPNG(scale, background) {
     const color = getObjColor(obj);
     g.strokeStyle = color;
     g.fillStyle = color;
-    g.lineWidth = 1.5 * scale;
-    g.setLineDash((obj.type === 'constr' || obj.dashed) ? [6 * scale, 4 * scale] : []);
+    g.lineWidth = 1.5 * scale * objWidthMul(obj);
+    g.setLineDash(objDash(obj).map(d => d * scale));
 
     switch (obj.type) {
       case 'point': {

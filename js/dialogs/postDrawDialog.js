@@ -11,6 +11,7 @@ import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList, resetHint } from '../ui.js';
 import { renderAll } from '../render.js';
 import { addObject, addPolylineAsSegments } from '../objects.js';
+import { getLineStyle } from '../lineStyles.js';
 
 /**
  * Zobrazí post-draw dialog pro úsečku (line/constr).
@@ -29,7 +30,7 @@ export function showPostDrawLineDialog(obj) {
 
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
-      <h3>${obj.type === 'constr' ? 'Konstrukční úsečka' : 'Úsečka'} – vlastnosti</h3>
+      <h3>${obj.lineStyle ? getLineStyle(obj.lineStyle).label : (obj.type === 'constr' ? 'Konstrukční úsečka' : 'Úsečka')} – vlastnosti</h3>
       <div class="anchor-radio-row">
         <span>📌 Fixní bod:</span>
         <label><input type="radio" name="pdAnchor" value="1" checked> Bod 1</label>

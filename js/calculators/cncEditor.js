@@ -608,10 +608,10 @@ function convertCornersToPaths(code) {
   return { code: out.join('\n'), converted, skipped };
 }
 
-function getControlSystemBarText() {
+function getControlSystemBarText(programName) {
   const ctrl = getControlSystem();
-  const names = { sinumerik: 'SINUMERIK 840D sl', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
-  return `${names[ctrl] || names.sinumerik} &mdash; CNC Editor (CAD kontura)`;
+  const names = { sinumerik: 'SINUMERIK', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
+  return `${names[ctrl] || names.sinumerik} (CAD) &mdash; ${esc(programName || '')}`;
 }
 
 // ── Build HTML ─────────────────────────────────────────────────
@@ -619,7 +619,9 @@ function buildEditorHTML() {
   return `
 <div class="cne-layout">
   <div class="cne-sn-bar">
-    <span data-el="snBar"></span>
+    <button class="cne-sn-arrow" data-el="undoArrowBtn" data-act="editorUndo" title="Zpět (Ctrl+Z)" disabled>◀</button>
+    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button>
+    <span class="cne-sn-text" data-el="snBar"></span>
     <button class="cne-sn-close" data-act="closeEditor" title="Zavřít editor">✕</button>
   </div>
   <div class="cne-toolbar">
@@ -832,6 +834,10 @@ export function openCncEditor(initialCode) {
   let coordMode = 'abs';            // aktuální režim souřadnic: 'abs' (G90) / 'inc' (G91)
   let codeBeforeRenum = '';
   let mergeQueue = [];              // fronta {name, code} pro spojení do jednoho programu
+  let undoStack = [];                // zásobník pro šipky Zpět/Vpřed (snapshoty textu editoru)
+  let redoStack = [];
+  let undoGroupTimer = null;
+  let undoGroupOpen = false;        // true = probíhající "shluk" úprav se sype do jednoho kroku undo
 
   // Load persisted
   const sd = storageLoad(STORAGE_DATA);
@@ -861,7 +867,6 @@ export function openCncEditor(initialCode) {
   // ── DOM refs ───────────────────────────────────────────────
   const $ = s => overlay.querySelector(`[data-el="${s}"]`);
   const root        = overlay.querySelector('.cne-layout');
-  $('snBar').innerHTML = getControlSystemBarText();
   const editor      = $('editor');
   const backdrop    = $('backdrop');
   const highlights  = $('highlights');
@@ -870,6 +875,8 @@ export function openCncEditor(initialCode) {
   const sidebarEl   = $('sidebar');
   const statusBtn   = $('statusBtn');
   const filenameLbl = $('filename');
+  const undoArrowBtn = $('undoArrowBtn');
+  const redoArrowBtn = $('redoArrowBtn');
   const numModal    = $('numModal');
   const numInput    = $('numInput');
   const numTitle    = $('numTitle');
@@ -907,6 +914,10 @@ export function openCncEditor(initialCode) {
     currentFile = name;
     editor.value = programs[name];
     filenameLbl.textContent = name;
+    $('snBar').innerHTML = getControlSystemBarText(name);
+    // Historie Zpět/Vpřed patří vždy k jednomu souboru, ne napříč programy.
+    undoStack = []; redoStack = []; undoGroupOpen = false;
+    updateUndoRedoButtons();
     // Vstupní CNC kód je generován absolutně – při zobrazení souboru začínáme v G90.
     coordMode = 'abs';
     updateModeBtn();
@@ -1086,6 +1097,7 @@ export function openCncEditor(initialCode) {
     const prevChar = s > 0 ? v[s - 1] : '';
     const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n';
     const insert = (needsSpace ? ' ' : '') + actual;
+    captureUndoSnapshot();
     editor.value = v.substring(0, s) + insert + v.substring(e);
     editor.selectionStart = editor.selectionEnd = s + insert.length;
     editor.scrollTop = scrollTop;
@@ -1116,6 +1128,7 @@ export function openCncEditor(initialCode) {
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    if (s !== e || s > 0) captureUndoSnapshot();
     if (s !== e) {
       editor.value = v.substring(0, s) + v.substring(e);
       editor.selectionStart = editor.selectionEnd = s;
@@ -1144,6 +1157,7 @@ export function openCncEditor(initialCode) {
     const nextN = maxN > 0 ? maxN + step : step;
     const prefix = 'N' + nextN + ' ';
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    captureUndoSnapshot();
     editor.value = v.substring(0, lineStart) + prefix + v.substring(lineStart);
     editor.selectionStart = editor.selectionEnd = lineStart + prefix.length;
     editor.scrollTop = scrollTop;
@@ -1391,6 +1405,7 @@ export function openCncEditor(initialCode) {
     } else {
       result = lines.join('\n') + '\n' + editor.value;
     }
+    captureUndoSnapshot();
     editor.value = result;
     onInput();
     hdrModal.style.display = 'none';
@@ -1499,7 +1514,10 @@ export function openCncEditor(initialCode) {
   });
   editor.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearch(); }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); performUndo(); }
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); performRedo(); }
   });
+  editor.addEventListener('beforeinput', captureUndoSnapshot);
 
   // ── Conversion helpers ────────────────────────────────────
   // CSP-safe vyhodnocení číselného výrazu (+ - * / a závorky) bez eval/Function.
@@ -1649,6 +1667,7 @@ export function openCncEditor(initialCode) {
 
   // Jedno tlačítko G90/G91 – přepne režim a přepočítá souřadnice v editoru.
   function toggleCoordMode() {
+    captureUndoSnapshot();
     editor.value = coordMode === 'abs'
       ? codeToIncremental(editor.value)
       : codeToAbsolute(editor.value);
@@ -1660,6 +1679,7 @@ export function openCncEditor(initialCode) {
   // ── Renumbering ───────────────────────────────────────────
   function performRenumbering(start, step) {
     codeBeforeRenum = editor.value;
+    captureUndoSnapshot();
     editor.value = renumberLines(editor.value.split('\n'), start, step).join('\n');
     onInput();
   }
@@ -1672,6 +1692,51 @@ export function openCncEditor(initialCode) {
     scheduleValidation();
     clearTimeout(tSave);
     tSave = setTimeout(persist, 2000);
+  }
+
+  // ── Zpět / Vpřed (šipky v oranžové liště) ───────────────────
+  // Vlastní historie místo nativního textarea undo: přímé přiřazení
+  // editor.value (quickbar, hlavička, přečíslování…) prohlížeči nativní
+  // undo zásobník stejně zahodí, takže by fungoval nespolehlivě.
+  function updateUndoRedoButtons() {
+    if (undoArrowBtn) undoArrowBtn.disabled = !undoStack.length;
+    if (redoArrowBtn) redoArrowBtn.disabled = !redoStack.length;
+  }
+
+  function captureUndoSnapshot() {
+    clearTimeout(undoGroupTimer);
+    if (!undoGroupOpen) {
+      undoStack.push({ value: editor.value, sel: editor.selectionEnd });
+      if (undoStack.length > 200) undoStack.shift();
+      redoStack.length = 0;
+      undoGroupOpen = true;
+    }
+    undoGroupTimer = setTimeout(() => { undoGroupOpen = false; }, 600);
+    updateUndoRedoButtons();
+  }
+
+  function performUndo() {
+    if (!undoStack.length) return;
+    const entry = undoStack.pop();
+    redoStack.push({ value: editor.value, sel: editor.selectionEnd });
+    editor.value = entry.value;
+    editor.selectionStart = editor.selectionEnd = entry.sel;
+    undoGroupOpen = false;
+    onInput();
+    editor.focus({ preventScroll: true });
+    updateUndoRedoButtons();
+  }
+
+  function performRedo() {
+    if (!redoStack.length) return;
+    const entry = redoStack.pop();
+    undoStack.push({ value: editor.value, sel: editor.selectionEnd });
+    editor.value = entry.value;
+    editor.selectionStart = editor.selectionEnd = entry.sel;
+    undoGroupOpen = false;
+    onInput();
+    editor.focus({ preventScroll: true });
+    updateUndoRedoButtons();
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1703,6 +1768,8 @@ export function openCncEditor(initialCode) {
       switch (ab.dataset.act) {
         case 'sidebar':   sidebarEl.classList.toggle('open'); ab.classList.toggle('open'); break;
         case 'closeEditor': overlay.remove(); break;
+        case 'editorUndo': performUndo(); break;
+        case 'editorRedo': performRedo(); break;
         case 'toggleSection': ab.closest('.cne-sb-section').classList.toggle('collapsed'); break;
         case 'mergeLoad': mergeFileInput.click(); break;
         case 'mergeJoin': joinMergeQueue(); break;
@@ -1740,6 +1807,7 @@ export function openCncEditor(initialCode) {
         case 'cornersToPath': {
           const result = convertCornersToPaths(editor.value);
           if (result.converted > 0) {
+            captureUndoSnapshot();
             editor.value = result.code;
             onInput();
           }

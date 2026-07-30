@@ -168,7 +168,7 @@ Všechny typy jsou definovány v `js/types.js` jako JSDoc `@typedef` (neexportuj
 
 | Typ | Vlastnosti |
 |-----|------------|
-| `LineObject` / `'constr'` | `x1, y1, x2, y2, dashed, layer` |
+| `LineObject` / `'constr'` | `x1, y1, x2, y2, dashed, lineStyle, finite, layer` |
 | `CircleObject` | `cx, cy, r, layer` |
 | `ArcObject` | `cx, cy, r, startAngle, endAngle, ccw, layer` |
 | `RectObject` | `x1, y1, x2, y2, layer` |
@@ -181,6 +181,24 @@ Všechny typy jsou definovány v `js/types.js` jako JSDoc `@typedef` (neexportuj
 - `isCoordLabel` – souřadnicové označení
 - `isStock` – prut hrubý
 - `isMeasureTemp` – dočasný měřicí objekt
+
+### Typy čar (ČSN EN ISO 128)
+
+Katalog je v `js/lineStyles.js` (`LINE_STYLES`), dialog nástroje ve
+`js/dialogs/lineStyleDialog.js`, aktuální volba v `state.lineStyle`
+(perzistence v `localStorage`, klíč `skica-line-style`).
+
+- `obj.lineStyle` – klíč typu čáry; `objDash(obj)` / `objWidthMul(obj)` z něj
+  odvodí vzor čárkování a násobek tloušťky. Objekty bez `lineStyle` si drží
+  původní chování (`obj.dashed` / typ `'constr'` → `CONSTRUCTION_DASH`).
+- **Pomocná čára** = objekt typu `'constr'` s `finite: true`. Typ `'constr'`
+  je všude filtrován z kontury i z CAM (`gcodeParser`, `stockTools`,
+  `fileIO`), takže osy, zakryté hrany a šrafy se neobrábějí. Bez `finite`
+  jde o původní nekonečnou konstrukční čáru.
+- Skutečná geometrie (souvislá tlustá) vzniká jako typ `'line'` na aktivní
+  vrstvě a do CAM normálně vstupuje.
+- DXF export typy čar nepřenáší (chybí tabulka `LTYPE`) – pomocné čáry se
+  exportují jako běžné `LINE` ve své vrstvě.
 
 ### Sjednocený typ
 

@@ -2,7 +2,7 @@
 // ║  SKICA – UI panely, toolbar, hinty                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS, MOBILE_BREAKPOINT, applyThemeColors, LINE_WIDTH } from './constants.js';
+import { COLORS, MOBILE_BREAKPOINT, applyThemeColors, LINE_WIDTH, RAINBOW_PRESETS } from './constants.js';
 import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle } from './state.js';
 import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects } from './utils.js';
 import { renderAll, renderAllDebounced, resolveObjectColor } from './render.js';
@@ -18,6 +18,8 @@ import { getMeta, setMeta } from './idb.js';
 import { showEditObjectDialog, showMobileEditDialog } from './dialogs/mobileEdit.js';
 import { isAnchored, removeAnchorsForObject, cleanupOrphanAnchors } from './tools/anchorClick.js';
 import { showFilletChamferDialog } from './dialogs/objectDialogs.js';
+import { openLineStyleDialog } from './dialogs/lineStyleDialog.js';
+import { loadLineStylePref, refreshLineStyleBtn, activeLineStyle } from './lineStyles.js';
 
 // ── Bridge registrace (rozbíjí cyklickou závislost geometry ↔ ui) ──
 bridge.updateProperties = () => updateProperties();
@@ -2049,15 +2051,7 @@ const ICON_EYE_OPEN = '<svg viewBox="0 0 24 24" width="15" height="15" fill="non
 const ICON_EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.4 19.4 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a19.5 19.5 0 0 1-2.29 3.44M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
 // 7 základních barev duhy pro rychlý výběr barvy vrstvy jedním klikem.
-const LAYER_RAINBOW_PRESETS = [
-  '#e53935', // červená
-  '#fb923c', // oranžová
-  '#fbbf24', // žlutá
-  '#4ade80', // zelená
-  '#60a5fa', // modrá
-  '#818cf8', // indigo
-  '#c084fc', // fialová
-];
+const LAYER_RAINBOW_PRESETS = RAINBOW_PRESETS;
 
 // ── HSV/RGB/HEX konverze pro vlastní color picker (barevná plocha + hue) ──
 function _hexToRgb(hex) {
@@ -2696,6 +2690,16 @@ if (btnAllowance) {
 // ── Toolbar ──
 document.querySelectorAll("[data-tool]").forEach((btn) => {
   btn.addEventListener("click", () => {
+    // Typ čáry: klik vždy otevře dialog s výběrem typu čáry a barvy –
+    // i když nástroj právě kreslí (pak dialog nabídne i „Vypnout").
+    if (btn.dataset.tool === 'constr') {
+      openLineStyleDialog({
+        active: state.tool === 'constr',
+        onApply: () => setTool('constr'),
+        onDeactivate: () => setTool('select'),
+      });
+      return;
+    }
     // Opětovný klik na již aktivní (modální) nástroj → deaktivovat, zpět na Výběr.
     // Netýká se Výběru (má vlastní chování) ani dialogových/akčních tlačítek,
     // protože ta nenechávají state.tool nastavený na svou hodnotu.
@@ -2752,6 +2756,10 @@ document.querySelectorAll("[data-tool]").forEach((btn) => {
     setTool(btn.dataset.tool);
   });
 });
+
+// Obnovit poslední volbu typu čáry (popisek/ikona tlačítka „Typ čáry")
+loadLineStylePref();
+refreshLineStyleBtn();
 
 /** @param {import('./types.js').ToolType} tool */
 export function setTool(tool) {
@@ -2814,7 +2822,7 @@ export function setTool(tool) {
   const btnDel = document.getElementById("btnDelete");
   if (btnDel) btnDel.classList.toggle("active", tool === "deleteObj");
   document.getElementById("statusTool").textContent =
-    "Nástroj: " + toolLabel(tool);
+    "Nástroj: " + (tool === "constr" ? activeLineStyle().label : toolLabel(tool));
   // Sync mobile measure button
   const mmBtn = document.getElementById("mobileMeasure");
   if (mmBtn) mmBtn.classList.toggle("active", tool === "measure");
@@ -2857,7 +2865,7 @@ export function resetHint() {
     move: "Klikněte na objekt pro přesun",
     point: "Klikněte pro umístění bodu",
     line: "Klikněte na počáteční bod úsečky",
-    constr: "Klikněte na počáteční bod konstrukční čáry",
+    constr: `Klikněte na počáteční bod – ${activeLineStyle().label.toLowerCase()}`,
     circle: "Klikněte na střed kružnice",
     arc: "Klikněte na střed oblouku",
     rect: "Klikněte na první roh obdélníku",    polyline: "Klepněte na první bod kontury",    measure: "Klepněte na objekt pro info, nebo na prázdné místo pro měření",

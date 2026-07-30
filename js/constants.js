@@ -60,6 +60,18 @@ export function applyThemeColors(theme) {
   Object.assign(COLORS, src);
 }
 
+// ── Paleta rychlého výběru barvy ────────────────────────────
+// 7 základních barev duhy pro výběr barvy vrstvy / typu čáry jedním klikem.
+export const RAINBOW_PRESETS = [
+  '#e53935', // červená
+  '#fb923c', // oranžová
+  '#fbbf24', // žlutá
+  '#4ade80', // zelená
+  '#60a5fa', // modrá
+  '#818cf8', // indigo
+  '#c084fc', // fialová
+];
+
 // ── Přichycení (snap) ───────────────────────────────────────
 export const SNAP_POINT_THRESHOLD = 20;   // px (děleno zoom) – přichycení k bodu
 export const SNAP_EDGE_THRESHOLD  = 12;   // px (děleno zoom) – přichycení k hraně
