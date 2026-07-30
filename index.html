@@ -1950,6 +1950,14 @@
                 <span class="calc-launch-icon">📝</span>
                 <span>Poznámky</span>
               </button>
+              <button
+                id="btnOpenVk"
+                class="calc-launch-btn"
+                title="VK – Volná kontura (zápis prvků s neznámými rozměry, FK-styl)"
+              >
+                <span class="calc-launch-icon">📐</span>
+                <span>VK Kontura</span>
+              </button>
             </div>
           </div>
         </div>
@@ -4138,7 +4146,7 @@
           <details class="help-section">
             <summary>🧮 Kalkulačky</summary>
             <p style="margin: 6px 0 10px; color: #bbb">
-              12 specializovaných nástrojů v bočním panelu (sekce Kalkulačky).
+              13 specializovaných nástrojů v bočním panelu (sekce Kalkulačky).
               Všechny kalkulačky otevírají vlastní overlay dialog.
             </p>
             <div class="help-tools-list">
@@ -4267,6 +4275,19 @@
                     ukládá do IndexedDB – přežije restart i offline režim.
                     Vhodné pro dočasné poznámky k výkresu, CNC kódy, rozměry
                     apod.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">📐</span> VK Kontura</summary>
+                <div class="tool-detail">
+                  <p>
+                    Editor volné kontury (obdoba Heidenhain FK) – zápis prvku
+                    úsečka/oblouk pomocí toho, co je známo: pravoúhle X/Z,
+                    polárně PA/PR k definovanému pólu (VPOL), nebo „?" tam,
+                    kde je rozměr zatím neznámý a dopočítá se ručně jinde.
+                    Obsahuje přehled syntaxe a typových kombinací a převod
+                    doplněného zápisu na standardní ISO G-kód.
                   </p>
                 </div>
               </details>

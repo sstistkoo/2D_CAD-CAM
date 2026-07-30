@@ -5338,6 +5338,203 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   VK – VOLNÁ KONTURA (editor prvků s neznámými rozměry, FK-styl)
+   ══════════════════════════════════════════════════════════════ */
+.vk-window {
+  width: 94vw; max-width: 480px;
+  max-height: 90vh;
+}
+.vk-window .calc-body {
+  overflow-y: auto;
+  padding: 10px;
+}
+.vk-window .sn-help-summary { padding: 8px 12px; }
+.vk-window .sn-help-body { padding: 6px 12px 8px; white-space: normal; }
+.vk-canvas-placeholder {
+  background: var(--ctp-mantle);
+  border: 1px dashed var(--ctp-surface1);
+  border-radius: 8px;
+  height: 34px;
+  margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ctp-overlay0);
+  font-size: 11.5px; text-align: center; padding: 0 10px;
+}
+.vk-window .cnc-fields { gap: 6px; margin-bottom: 6px; }
+.vk-section { margin-bottom: 6px; }
+.vk-section-title {
+  font-size: 11px; font-weight: 700;
+  color: var(--ctp-subtext0);
+  text-transform: uppercase; letter-spacing: .4px;
+  margin: 8px 0 4px;
+}
+.vk-section-title:first-child { margin-top: 0; }
+.vk-section-title.vk-red { color: var(--ctp-red); }
+.vk-red { color: var(--ctp-red); }
+
+.vk-toggle-row { display: flex; gap: 8px; }
+.vk-toggle {
+  flex: 1;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-subtext0);
+  padding: 9px 10px;
+  border-radius: 6px;
+  font-weight: 700; font-size: 13px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.vk-toggle:hover { background: var(--ctp-surface1); }
+.vk-toggle.active {
+  background: var(--ctp-blue);
+  border-color: var(--ctp-blue);
+  color: var(--ctp-base);
+}
+
+.vk-input-row { display: flex; gap: 5px; }
+.vk-input-row input { flex: 1; min-width: 0; }
+.vk-btn-q {
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-text);
+  border-radius: 6px;
+  padding: 0 12px;
+  cursor: pointer; font-size: 14px;
+  flex-shrink: 0;
+}
+.vk-btn-q:hover { background: var(--ctp-surface1); }
+.vk-btn-q.active {
+  background: var(--ctp-peach);
+  border-color: var(--ctp-peach);
+  color: var(--ctp-base);
+}
+
+.cnc-field input.vk-input-unknown {
+  border-color: var(--ctp-peach);
+  color: var(--ctp-peach);
+  font-weight: 700; text-align: center;
+}
+.cnc-field input.vk-input-vpol {
+  border-color: var(--ctp-red);
+  color: var(--ctp-red);
+  font-weight: 700;
+}
+
+.vk-checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--ctp-text);
+  margin: 4px 0 2px; cursor: pointer;
+}
+
+.vk-insert-btn {
+  width: 100%;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-peach);
+  color: var(--ctp-peach);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-weight: 700; font-size: 13px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background .12s, color .12s;
+}
+.vk-insert-btn:hover { background: var(--ctp-peach); color: var(--ctp-base); }
+.vk-insert-btn.vk-insert-red { border-color: var(--ctp-red); color: var(--ctp-red); }
+.vk-insert-btn.vk-insert-red:hover { background: var(--ctp-red); color: var(--ctp-base); }
+.vk-solve-info {
+  font-size: 11.5px; color: var(--ctp-subtext0);
+  min-height: 14px; margin-top: 4px;
+}
+
+.vk-gcode-box {
+  background: var(--ctp-mantle);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 8px;
+  padding: 8px;
+  margin: 8px 0;
+}
+.vk-gcode-box > span {
+  font-size: 11px; color: var(--ctp-overlay0);
+  display: block; margin-bottom: 4px;
+}
+.vk-gcode-textarea {
+  width: 100%; height: 66px;
+  background: var(--ctp-base);
+  border: 1px solid var(--ctp-peach);
+  color: var(--ctp-green);
+  border-radius: 6px;
+  padding: 8px;
+  resize: vertical;
+  font-family: "Consolas", monospace;
+  font-weight: 700; font-size: 13px; line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.vk-actions { display: flex; gap: 8px; }
+.vk-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 700; font-size: 12.5px;
+  cursor: pointer;
+  transition: filter .15s, background .15s;
+}
+.vk-btn-clear { background: var(--ctp-surface1); color: var(--ctp-text); }
+.vk-btn-clear:hover { filter: brightness(1.12); }
+.vk-btn-copy { background: var(--ctp-surface1); color: var(--ctp-yellow); }
+.vk-btn-copy:hover { filter: brightness(1.12); }
+.vk-btn-convert { background: var(--ctp-surface0); color: var(--ctp-subtext0); border: 1px solid var(--ctp-surface1); }
+.vk-btn-convert.vk-error-state { background: var(--ctp-red); color: var(--ctp-base); }
+.vk-btn-convert.vk-success-state { background: var(--ctp-green); color: var(--ctp-base); }
+
+@media (max-width: 480px) {
+  .vk-window { width: 96vw; }
+  .vk-toggle { font-size: 12px; padding: 8px 6px; }
+}
+
+/* ── Nápověda VK (obsah dialogu vkHelp.js) ── */
+.vk-help-c-text    { color: var(--ctp-text); }
+.vk-help-c-blue     { color: var(--ctp-blue); }
+.vk-help-c-orange   { color: var(--ctp-peach); }
+.vk-help-c-green    { color: var(--ctp-green); }
+.vk-help-c-mauve    { color: var(--ctp-mauve); }
+.vk-help-c-red      { color: var(--ctp-red); }
+.vk-combo-block {
+  background: var(--ctp-surface0);
+  border-left: 3px solid var(--ctp-blue);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.vk-combo-block:last-child { margin-bottom: 0; }
+.vk-combo-title {
+  font-size: 12.5px; font-weight: 700; color: var(--ctp-text);
+  margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.vk-combo-desc {
+  font-size: 12px; color: var(--ctp-subtext0);
+  line-height: 1.5; margin-bottom: 6px;
+}
+.vk-syntax-box {
+  background: var(--ctp-crust);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: "Consolas", monospace;
+  font-size: 12px; color: var(--ctp-green);
+  white-space: pre-line; line-height: 1.5;
+}
+.vk-badge {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 5px; border-radius: 4px;
+  color: var(--ctp-blue);
+  background: rgba(137, 180, 250, 0.15);
+  border: 1px solid var(--ctp-blue);
+}
+
+/* ══════════════════════════════════════════════════════════════
    CNC EDITOR (cnc-editor overlay)
    ══════════════════════════════════════════════════════════════ */
 .cnc-editor-window {

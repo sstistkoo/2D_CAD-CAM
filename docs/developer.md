@@ -347,6 +347,9 @@ User selects CAM tool
 | `calculators/roughness.js` | Povrchová kvalita |
 | `calculators/cutting.js` | Řezné podmínky |
 | `calculators/tolerance.js` | Mezní údaje |
+| `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – dialog + skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku |
+| `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
+| `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec (kat. 2), netečné napojení na kružnici kolem VPOL (kat. 4); kat. 3 (esíčka, dva oblouky) zatím chybí |
 
 ### CAM pipeline: Roughing/Finishing
 

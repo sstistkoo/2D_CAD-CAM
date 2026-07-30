@@ -8,6 +8,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- VK Kontura: **dopočet neznámých souřadnic** (kategorie 1 – roh dvou
+  přímek/kuželů; kategorie 4 – netečné napojení přímky/kužele na kružnici
+  kolem VPOL). Nový čistě matematický modul `js/calculators/vkSolver.js`
+  (žádná vazba na canvas/state): `elementRay`/`intersectRays` řeší roh mezi
+  neznámým prvkem a následujícím plně zadaným (přímka rovnoběžná s osou Z,
+  pokud je dáno jen X, s osou X pokud jen Z; jinak explicitní PA; známý
+  navazující prvek bez PA se bere jako kolmý na předchozí – schod na
+  hřídeli); `intersectRayCircle`/`solveLineArcJunction` řeší průsečík s
+  kružnicí o daném poloměru se středem ve VPOL (netečné napojení), se
+  správným převodem průměr↔poloměr (X/2) pro kruhovou geometrii;
+  `pickByVpolTag` rozlišuje dvě řešení podle značky VPOL1/VPOL2 (blíž/dál
+  od startu obrysu). `vkContour.js` teď při vkládání nového (plně
+  zadaného) prvku automaticky dopočte a v textu doplní „?" u
+  bezprostředně předchozího nedořešeného prvku (přidáno pole „Dvojznačnost
+  řešení" VPOL1/VPOL2 pro kategorii 4). Pokryto 19 testy
+  (`tests/vk-solver.test.js`), včetně ověření na 5-12-13 trojúhelníku.
+  Kategorie 3 (esíčka – dva oblouky za sebou) zatím není řešena.
+- VK Kontura: **kategorie 2** (jeden tečný oblouk daného poloměru R,
+  case 5–8). `vkSolver.js` doplněn o `tangentCircleTouchPoints` (2 prvky:
+  přímka/kužel „?" → oblouk se ZNÁMÝM koncem, tečně) a
+  `tangentCircleBetweenRays` (3 prvky: přímka/kužel „?" → oblouk „?"
+  tečný → přímka/kužel známá – klasický řetězec válec→zaoblení→kužel).
+  Rozlišení od kategorie 4 je přes příznak **T** na oblouku (T = tečné,
+  bez T = netečné kolem VPOL). Záměrně se NEPOUŽÍVÁ G2/G3 k výběru
+  strany tečné kružnice (smysl G2/G3 je v appce svázaný s konfigurací
+  stroje flipX/flipZ, viz `fileIO.js` – hádání by riskovalo tichou
+  chybu), místo toho se mezi geometricky platnými řešeními vybírá stejně
+  jako v kategorii 4 – přes VPOL1/VPOL2 (blíž/dál od startu obrysu).
+  `vkContour.js` teď drží frontu až 2 nedořešených prvků (ne jen 1) a při
+  3prvkovém řetězci dopočte a doplní „?" v OBOU předchozích řádcích
+  najednou. Ověřeno na ručně sestrojeném „rohu" (kolmé přímky r=0/z=20,
+  R=5 → 4 tečné kružnice v rozích) – `tests/vk-solver.test.js`, 24 testů
+  celkem. Kategorie 3 (esíčka – dva oblouky za sebou) zatím není řešena.
+- Kalkulačky: nový nástroj **„VK Kontura"** (📐) v sekci „Další kalkulačky" –
+  editor volné kontury (obdoba Heidenhain FK – Free Kontur programming) pro
+  zápis prvku úsečka/oblouk pomocí toho, co je zrovna známo: pravoúhle X/Z,
+  polárně PA/PR k definovanému pólu (VPOL/G111), nebo „?" tam, kde je rozměr
+  zatím neznámý a dopočítá se ručně jinde. Obsahuje přehled syntaxe a
+  typových kombinací (lineární/obloukové/esíčkové/netečné napojení) a převod
+  doplněného zápisu na standardní ISO G-kód (G111→komentář, G11→G1, PA/PR/T/
+  VPOL se odstraní). Čistě textová pomůcka pro rozměrový řetězec – needituje
+  výkres. Implementace `js/calculators/vkContour.js` (dialog) +
+  `js/calculators/vkHelp.js` (nápověda, líně vykreslená při rozbalení).
 - CAD: nové tlačítko **„Tužka"** (✏️) v liště nástrojů za „Profil" (`data-tool="pencil"`).
   Kreslení od ruky – tažením myší/prstem po plátně vzniká náčrt, který se po
   puštění tlačítka/prstu uloží jako jeden objekt typu polyline (rovné

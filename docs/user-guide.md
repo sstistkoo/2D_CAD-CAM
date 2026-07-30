@@ -513,6 +513,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **Taper** – kuželové zkrácení
 - **Závity** – převodné tabulky
 - **Převody** – jednotky (mm/inch, RPM/SFM)
+- **VK Kontura** – editor volné kontury (obdoba Heidenhain FK): zápis prvku
+  úsečka/oblouk s neznámými rozměry (`?`), polárně k pólu (VPOL), s přehledem
+  syntaxe a převodem doplněného zápisu na ISO G-kód
 
 ---
 
