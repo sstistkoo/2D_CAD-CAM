@@ -22,7 +22,7 @@ import {
   twoTangentArcsBetweenRays, pickTwoArcsByVpolTag,
 } from './vkSolver.js';
 
-const DEFAULT_GCODE = 'G111 X0.0 Z40.0\nG11 X40.0 Z? PA150 PR? T';
+const DEFAULT_GCODE = 'G111 X0.0 Z40.0\nG11 X40.0 Z? PA150 PR?';
 
 export function openVkContour() {
   // X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení) –
@@ -33,12 +33,10 @@ export function openVkContour() {
     <div class="vk-canvas-placeholder">Grafický náhled VK (připravujeme)</div>
 
     <details class="sn-help-details vk-section">
-      <summary class="sn-help-summary"><span class="vk-help-c-red">📍 1. Počáteční bod &amp; Volný pól (VPOL)</span></summary>
+      <summary class="sn-help-summary"><span class="vk-help-c-red">📍 1. Volný pól (VPOL)</span></summary>
       <div class="sn-help-body vk-section-body">
-        <div class="vk-section-title">Počáteční bod a pól (VPOL):</div>
+        <div class="vk-section-title vk-red">Definice pólu:</div>
         <div class="cnc-fields">
-          <label class="cnc-field"><span>Start X1 (${xUnitLabel})</span><input type="text" data-id="start-x" value="0.0"></label>
-          <label class="cnc-field"><span>Start Z1</span><input type="text" data-id="start-z" value="0.0"></label>
           <label class="cnc-field"><span class="vk-red">VPOL X (${xUnitLabel})</span><input type="text" class="vk-input-vpol" data-id="vpol-x" value="0.0"></label>
           <label class="cnc-field"><span class="vk-red">VPOL Z</span><input type="text" class="vk-input-vpol" data-id="vpol-z" value="40.0"></label>
         </div>
@@ -91,17 +89,17 @@ export function openVkContour() {
           </div>
         </div>
 
-        <div class="vk-section-title">Cílové souřadnice (X/Z nebo PA/PR k pólu):</div>
+        <div class="vk-section-title" data-id="coords-title">Souřadnice počátečního bodu:</div>
         <div class="cnc-fields">
           <label class="cnc-field">
-            <span>Cíl X2 (${xUnitLabel})</span>
+            <span data-id="x2-label">Start X1 (${xUnitLabel})</span>
             <div class="vk-input-row">
               <input type="text" data-id="val-x2" value="40.0">
               <button class="vk-btn-q" data-toggle="val-x2">❓</button>
             </div>
           </label>
           <label class="cnc-field">
-            <span>Cíl Z2</span>
+            <span data-id="z2-label">Start Z1</span>
             <div class="vk-input-row">
               <input type="text" data-id="val-z2" value="?" class="vk-input-unknown" disabled>
               <button class="vk-btn-q active" data-toggle="val-z2">❓</button>
@@ -123,8 +121,8 @@ export function openVkContour() {
           </label>
         </div>
 
-        <div class="vk-section-title">Návaznost drah:</div>
-        <label class="vk-checkbox-row">
+        <div class="vk-section-title" data-id="tangent-title">Návaznost drah:</div>
+        <label class="vk-checkbox-row" data-id="tangent-row">
           <input type="checkbox" data-id="check-t" checked>
           Tečné napojení na předchozí prvek (T)
         </label>
@@ -137,7 +135,7 @@ export function openVkContour() {
           </select>
         </label>
 
-        <button class="vk-insert-btn" data-act="element">Přidat VK prvek</button>
+        <button class="vk-insert-btn" data-act="element" data-id="element-btn">Vložit počáteční bod</button>
         <div class="vk-solve-info" data-solve-info></div>
       </div>
     </details>
@@ -260,13 +258,21 @@ export function openVkContour() {
   let vpolPoint = null;
   let lastPoint = null;   // konec posledního VYŘEŠENÉHO prvku
   let pendingQueue = [];  // prvky { isArc, isT, x,z,pa,r, vpolTag, anchor, lineText }
+  let chainStarted = false; // false, dokud nebyl vložen počáteční bod (i jako "?")
 
-  function ensureStart() {
-    if (lastPoint === null) {
-      lastPoint = { z: parseFloat(q('start-z').value) || 0, x: toSolverX(parseFloat(q('start-x').value) || 0) };
-    }
-    if (startPoint === null) startPoint = { ...lastPoint };
+  /** Přepne popisky/viditelnost polí mezi „počáteční bod" (první vložení) a „další prvek". */
+  function updateFormMode() {
+    const first = !chainStarted;
+    q('coords-title').textContent = first
+      ? 'Souřadnice počátečního bodu:'
+      : 'Cílové souřadnice (X/Z nebo PA/PR k pólu):';
+    q('x2-label').textContent = `${first ? 'Start X1' : 'Cíl X2'} (${xUnitLabel})`;
+    q('z2-label').textContent = first ? 'Start Z1' : 'Cíl Z2';
+    q('tangent-title').style.display = first ? 'none' : '';
+    q('tangent-row').style.display = first ? 'none' : '';
+    q('element-btn').textContent = first ? 'Vložit počáteční bod' : 'Přidat VK prvek';
   }
+  updateFormMode();
 
   function refPoint() { return startPoint || lastPoint; }
 
@@ -343,11 +349,12 @@ export function openVkContour() {
 
   function resetChain() {
     startPoint = null; vpolPoint = null; lastPoint = null; pendingQueue = []; nextElId = 1;
+    chainStarted = false;
     solveInfo.textContent = '';
+    updateFormMode();
   }
 
   overlay.querySelector('[data-act="vpol"]').addEventListener('click', () => {
-    ensureStart();
     const vx = q('vpol-x').value, vz = q('vpol-z').value;
     const vpa = q('vpol-pa').value, varc = q('vpol-arc').value;
     vpolPoint = { z: parseFloat(vz) || 0, x: toSolverX(parseFloat(vx) || 0) };
@@ -358,11 +365,11 @@ export function openVkContour() {
   });
 
   overlay.querySelector('[data-act="element"]').addEventListener('click', () => {
-    ensureStart();
+    const isFirstEver = pendingQueue.length === 0 && lastPoint === null;
     const xStr = q('val-x2').value, zStr = q('val-z2').value;
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
-    const isTChecked = q('check-t').checked;
+    const isTChecked = !isFirstEver && q('check-t').checked; // na počátečním bodě není na co se tečně napojit
     const vpolTag = q('vpol-tag').value || null;
     const cmd = currentType === 'vl' ? 'G11' : arcDir;
     const junctionAxis = q('junction-axis').value || null;
@@ -394,6 +401,11 @@ export function openVkContour() {
     solveInfo.textContent = '';
     const isKnown = el.x != null && el.z != null;
 
+    if (isFirstEver && !isKnown && el.pa != null && !vpolPoint) {
+      solveInfo.textContent = '⚠ Pro počáteční bod se zadaným úhlem (PA) nejdřív vlož VPOL – jinak nemá úhel od čeho měřit.';
+      return;
+    }
+
     if (isKnown && pendingQueue.length > 0) {
       try {
         let solved;
@@ -421,10 +433,27 @@ export function openVkContour() {
       lastPoint = { z: el.z, x: el.x };
       pendingQueue = [];
     } else {
-      el.anchor = { ...lastPoint };
+      if (lastPoint) {
+        el.anchor = { ...lastPoint };
+      } else {
+        // Počáteční bod: žádný předchozí prvek neexistuje, takže kotva
+        // paprsku (elementRay bere pro rovnoběžný-s-osou směr POZICI z
+        // kotvy, ne z el.x/z samotného!) se poskládá z toho, co je na
+        // SAMOTNÉM počátečním bodě známé – chybějící souřadnice
+        // (relevantní jen když je navíc zadané PA, jinak nezáleží)
+        // doplní VPOL.
+        el.anchor = {
+          z: el.z != null ? el.z : (vpolPoint ? vpolPoint.z : 0),
+          x: el.x != null ? el.x : (vpolPoint ? vpolPoint.x : 0),
+        };
+      }
       pendingQueue.push(el);
       if (pendingQueue.length > 3) pendingQueue.shift(); // jen poslední 3 se dopočítávají (kat. 3 = A + 2 oblouky)
     }
+
+    if (startPoint === null && lastPoint !== null) startPoint = { ...lastPoint };
+    chainStarted = true;
+    updateFormMode();
   });
 
   overlay.querySelector('[data-act="clear"]').addEventListener('click', () => {

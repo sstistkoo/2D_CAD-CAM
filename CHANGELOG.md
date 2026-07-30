@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- VK Kontura: **počáteční bod přesunut** ze samostatné sekce „1." přímo do
+  „2. Parametry nového VK prvku" jako úplně první zadání (sekce „1." teď
+  obsahuje jen VPOL). Počáteční bod se zadává úplně stejným formulářem
+  jako každý další prvek – včetně „?" u X/Z a PA/PR – takže i on může
+  zůstat částečně neznámý a dopočítat se z dalšího vloženého prvku (např.
+  Start X=30, Z=„?", a Z se doplní, jakmile se přidá navazující prvek).
+  Popisky se automaticky přepínají „Start X1/Z1" ↔ „Cíl X2/Z2" a řádek
+  „Tečné napojení na předchozí prvek (T)" se u počátečního bodu schová
+  (na začátku není na co navazovat). Oprava-při-vývoji: `elementRay()`
+  bere pro směr rovnoběžný s osou POZICI z kotvy (anchor), ne z
+  el.x/el.z – u počátečního bodu (bez předchozího prvku) se proto kotva
+  musí poskládat z toho, co je na SAMOTNÉM počátečním bodě známé (a jen
+  když navíc chybí i to, doplní VPOL) – jinak by paprsek „X=30" ztratil
+  svou polohu a dopočet by tiše vyšel špatně. Pokud počáteční bod udává
+  jen úhel (PA) bez X/Z a VPOL ještě není vložený, appka to teď odmítne
+  s jasnou hláškou (nemá se od čeho měřit) místo tichého špatného čísla.
 - VK Kontura: popisky polí sjednoceny s konvencemi appky – zbytečné
   „(Délka)" u všech Z polí (Start Z1, VPOL Z, Cíl Z2) odstraněno (Z
   jednoznačně délka, nehrozí záměna); „Polární rádius (PR)" přejmenováno
