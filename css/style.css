@@ -2811,6 +2811,17 @@ body {
   font-size: 20px;
 }
 
+.calc-subheader {
+  margin: 8px -10px -8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 0;
+}
+
+.calc-subpanel {
+  padding: 8px 0 0;
+}
+
 /* â”€â”€ Calculator popup windows â”€â”€ */
 .calc-overlay {
   position: fixed;

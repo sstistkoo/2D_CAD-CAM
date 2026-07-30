@@ -3793,9 +3793,9 @@ function openTrigCalc() {
             <text x="275" y="120" text-anchor="start" fill="${COLORS.delete}" font-size="16" font-weight="bold" font-family="Consolas">a</text>
             <text x="140" y="105" text-anchor="end" fill="${COLORS.primary}" font-size="16" font-weight="bold" font-family="Consolas">c</text>
             <!-- Angle arcs -->
-            <path d="M 70,190 A 30,30 0 0,0 56,170" fill="none" stroke="${COLORS.delete}" stroke-width="1.5"/>
+            <path d="M 70,190 A 30,30 0 0,0 64.8,173.1" fill="none" stroke="${COLORS.delete}" stroke-width="1.5"/>
             <text x="78" y="178" fill="${COLORS.delete}" font-size="13" font-family="Consolas">α</text>
-            <path d="M 260,65 A 25,25 0 0,0 243,53" fill="none" stroke="${COLORS.dimension}" stroke-width="1.5"/>
+            <path d="M 260,65 A 25,25 0 0,0 239.3,54.1" fill="none" stroke="${COLORS.dimension}" stroke-width="1.5"/>
             <text x="244" y="75" fill="${COLORS.dimension}" font-size="13" font-family="Consolas">β</text>
             <text x="248" y="195" fill="${COLORS.primary}" font-size="12" font-family="Consolas">90°</text>
           </svg>

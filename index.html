@@ -1779,10 +1779,6 @@
           aria-label="Kalkulačky"
         >
           <div class="calc-launchers">
-            <button id="btnOpenCalc" class="calc-launch-btn" title="Kalkulačka">
-              <span class="calc-launch-icon">🔢</span>
-              <span>Kalkulačka</span>
-            </button>
             <button
               id="btnOpenTrig"
               class="calc-launch-btn"
@@ -1790,66 +1786,6 @@
             >
               <span class="calc-launch-icon">📐</span>
               <span>Trigonometrie</span>
-            </button>
-            <button
-              id="btnOpenCutting"
-              class="calc-launch-btn"
-              title="Řezné podmínky"
-            >
-              <span class="calc-launch-icon">⚙️</span>
-              <span>Řezné podm.</span>
-            </button>
-            <button id="btnOpenTaper" class="calc-launch-btn" title="Kužel">
-              <span class="calc-launch-icon">🔺</span>
-              <span>Kužel</span>
-            </button>
-            <button id="btnOpenThread" class="calc-launch-btn" title="Závity">
-              <span class="calc-launch-icon">🔩</span>
-              <span>Závity</span>
-            </button>
-            <button
-              id="btnOpenConvert"
-              class="calc-launch-btn"
-              title="Převodník"
-            >
-              <span class="calc-launch-icon">🔄</span>
-              <span>Převodník</span>
-            </button>
-            <button id="btnOpenWeight" class="calc-launch-btn" title="Hmotnost">
-              <span class="calc-launch-icon">⚖️</span>
-              <span>Hmotnost</span>
-            </button>
-            <button
-              id="btnOpenTolerance"
-              class="calc-launch-btn"
-              title="Tolerance"
-            >
-              <span class="calc-launch-icon">📏</span>
-              <span>Tolerance</span>
-            </button>
-            <button
-              id="btnOpenRoughness"
-              class="calc-launch-btn"
-              title="Drsnost povrchu"
-            >
-              <span class="calc-launch-icon">🔬</span>
-              <span>Drsnost</span>
-            </button>
-            <button
-              id="btnOpenInserts"
-              class="calc-launch-btn"
-              title="VBD & Držáky"
-            >
-              <span class="calc-launch-icon">🔩</span>
-              <span>VBD & Držáky</span>
-            </button>
-            <button
-              id="btnOpenSinumerik"
-              class="calc-launch-btn"
-              title="Sinumerik 840D – G/M kódy, příkazy, proměnné, zkratky"
-            >
-              <span class="calc-launch-icon">🏭</span>
-              <span>Sinumerik</span>
             </button>
             <button
               id="btnOpenCam"
@@ -1860,14 +1796,6 @@
               <span>CAM</span>
             </button>
             <button
-              id="btnOpenNotes"
-              class="calc-launch-btn"
-              title="Poznámkový blok – rychlé poznámky"
-            >
-              <span class="calc-launch-icon">📝</span>
-              <span>Poznámky</span>
-            </button>
-            <button
               id="btnOpenAI"
               class="calc-launch-btn"
               title="AI asistent – nastavení providerů (Groq, Gemini, OpenRouter)"
@@ -1875,6 +1803,96 @@
               <span class="calc-launch-icon">🤖</span>
               <span>AI</span>
             </button>
+          </div>
+          <div
+            class="panel-header calc-subheader"
+            data-panel="calcMorePanel"
+            role="button"
+            tabindex="0"
+          >
+            ▸ Další kalkulačky
+          </div>
+          <div
+            class="panel-body calc-subpanel"
+            id="calcMorePanel"
+            role="region"
+            aria-label="Další kalkulačky"
+            style="display: none"
+          >
+            <div class="calc-launchers">
+              <button id="btnOpenCalc" class="calc-launch-btn" title="Kalkulačka">
+                <span class="calc-launch-icon">🔢</span>
+                <span>Kalkulačka</span>
+              </button>
+              <button
+                id="btnOpenCutting"
+                class="calc-launch-btn"
+                title="Řezné podmínky"
+              >
+                <span class="calc-launch-icon">⚙️</span>
+                <span>Řezné podm.</span>
+              </button>
+              <button id="btnOpenTaper" class="calc-launch-btn" title="Kužel">
+                <span class="calc-launch-icon">🔺</span>
+                <span>Kužel</span>
+              </button>
+              <button id="btnOpenThread" class="calc-launch-btn" title="Závity">
+                <span class="calc-launch-icon">🔩</span>
+                <span>Závity</span>
+              </button>
+              <button
+                id="btnOpenConvert"
+                class="calc-launch-btn"
+                title="Převodník"
+              >
+                <span class="calc-launch-icon">🔄</span>
+                <span>Převodník</span>
+              </button>
+              <button id="btnOpenWeight" class="calc-launch-btn" title="Hmotnost">
+                <span class="calc-launch-icon">⚖️</span>
+                <span>Hmotnost</span>
+              </button>
+              <button
+                id="btnOpenTolerance"
+                class="calc-launch-btn"
+                title="Tolerance"
+              >
+                <span class="calc-launch-icon">📏</span>
+                <span>Tolerance</span>
+              </button>
+              <button
+                id="btnOpenRoughness"
+                class="calc-launch-btn"
+                title="Drsnost povrchu"
+              >
+                <span class="calc-launch-icon">🔬</span>
+                <span>Drsnost</span>
+              </button>
+              <button
+                id="btnOpenInserts"
+                class="calc-launch-btn"
+                title="VBD & Držáky"
+              >
+                <span class="calc-launch-icon">🔩</span>
+                <span>VBD & Držáky</span>
+              </button>
+              <button
+                id="btnOpenSinumerik"
+                class="calc-launch-btn"
+                title="Sinumerik 840D – G/M kódy, příkazy, proměnné, zkratky"
+              >
+                <span class="calc-launch-icon">🏭</span>
+                <span>Sinumerik</span>
+              </button>
+              <button
+                id="btnOpenNotes"
+                class="calc-launch-btn"
+                title="Poznámkový blok – rychlé poznámky"
+              >
+                <span class="calc-launch-icon">📝</span>
+                <span>Poznámky</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
