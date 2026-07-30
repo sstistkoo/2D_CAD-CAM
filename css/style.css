@@ -5403,7 +5403,17 @@ body {
   padding: 3px 12px; text-align: center; flex-shrink: 0;
   -webkit-user-select: none;
   user-select: none;
+  position: relative;
 }
+.cne-sn-close {
+  display: none;
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  background: rgba(0,0,0,.15); border-radius: 4px;
+  color: #1a1a1a; font: 900 13px/1 "Consolas","Courier New",monospace;
+}
+.cne-sn-close:active { background: rgba(0,0,0,.3); }
 
 /* ── Menu button (visible only on mobile) ───────────────────── */
 .cne-menu-btn { display: none; font-size: 20px !important; font-weight: 700; }
@@ -5744,8 +5754,9 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
   .cnc-editor-window { width: 100vw; height: calc(100dvh - 10px); max-width: 100vw; max-height: calc(100dvh - 10px); border-radius: 0; border: none; box-shadow: none; }
   .cnc-editor-window .calc-titlebar { display: none; }
 
-  /* Sinumerik bar — visible & prominent on mobile */
-  .cne-sn-bar { font-size: 10px; padding: 6px 12px; letter-spacing: 1px; }
+  /* Sinumerik bar — visible & prominent on mobile; nese i zavírací ✕ (titlebar je skrytá) */
+  .cne-sn-bar { font-size: 10px; padding: 6px 32px 6px 12px; letter-spacing: 1px; }
+  .cne-sn-close { display: flex; }
 
   /* Toolbar: hide overflow buttons, show menu */
   .cne-hide-m { display: none !important; }

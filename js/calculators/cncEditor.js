@@ -618,7 +618,10 @@ function getControlSystemBarText() {
 function buildEditorHTML() {
   return `
 <div class="cne-layout">
-  <div class="cne-sn-bar" data-el="snBar"></div>
+  <div class="cne-sn-bar">
+    <span data-el="snBar"></span>
+    <button class="cne-sn-close" data-act="closeEditor" title="Zavřít editor">✕</button>
+  </div>
   <div class="cne-toolbar">
     <div class="cne-toolbar-left">
       <button class="cne-tb-btn cne-tb-sidebar" data-act="sidebar" title="Soubory">☰</button>
@@ -1699,6 +1702,7 @@ export function openCncEditor(initialCode) {
     if (ab) {
       switch (ab.dataset.act) {
         case 'sidebar':   sidebarEl.classList.toggle('open'); ab.classList.toggle('open'); break;
+        case 'closeEditor': overlay.remove(); break;
         case 'toggleSection': ab.closest('.cne-sb-section').classList.toggle('collapsed'); break;
         case 'mergeLoad': mergeFileInput.click(); break;
         case 'mergeJoin': joinMergeQueue(); break;
