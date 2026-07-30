@@ -302,6 +302,29 @@ export function updateMobileRedoBtn() {
 }
 bridge.updateMobileRedoBtn = updateMobileRedoBtn;
 
+// ── Mobile: "Dvoj klik" tlačítko – nahrazuje první ze dvou kliknutí ──
+// potřebných pro obdélníkový výběr více objektů (viz touchstart výše).
+const mobileRectArmBtn = document.getElementById("mobileRectArm");
+if (mobileRectArmBtn) {
+  mobileRectArmBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    state._rectSelectArmed = !state._rectSelectArmed;
+    showToast(state._rectSelectArmed
+      ? 'Klikněte a táhněte prstem pro výběr oblasti'
+      : 'Dvojklik zrušen');
+    updateMobileRectArmBtn();
+  });
+}
+
+/** Zobrazí/skryje tlačítko "Dvoj klik" – jen v nástroji Výběr na mobilu. */
+export function updateMobileRectArmBtn() {
+  if (!mobileRectArmBtn) return;
+  mobileRectArmBtn.style.display = (isMobile() && state.tool === 'select') ? 'flex' : 'none';
+  mobileRectArmBtn.classList.toggle('armed', !!state._rectSelectArmed);
+}
+bridge.updateMobileRectArmBtn = updateMobileRectArmBtn;
+updateMobileRectArmBtn(); // počáteční viditelnost dle výchozího nástroje (Výběr)
+
 // ── Touch state ──
 let touchState = {
 // ── Touch state ──
@@ -570,14 +593,19 @@ drawCanvas.addEventListener(
       touchState.touchStartTime = Date.now();
 
       // Dvojtap na prázdné místo → obdélníkový výběr (detekce v touchstart, prst je ještě dole)
+      // Tlačítko "Dvoj klik" nahrazuje první ze dvou kliknutí – state._rectSelectArmed
       const now = Date.now();
       const DOUBLE_TAP_MS = 400;
       const DOUBLE_TAP_DIST = 30; // px
+      const isDoubleTap =
+        now - touchState.lastTap < DOUBLE_TAP_MS &&
+        Math.hypot(touches[0].clientX - touchState.lastTapX, touches[0].clientY - touchState.lastTapY) < DOUBLE_TAP_DIST;
       if (
         state.tool === 'select' && !state.drawing && !state.dragging &&
-        now - touchState.lastTap < DOUBLE_TAP_MS &&
-        Math.hypot(touches[0].clientX - touchState.lastTapX, touches[0].clientY - touchState.lastTapY) < DOUBLE_TAP_DIST
+        (isDoubleTap || state._rectSelectArmed)
       ) {
+        state._rectSelectArmed = false;
+        updateMobileRectArmBtn();
         const hitObj = findObjectAt(wx, wy);
         if (hitObj === null) {
           touchState.lastTap = 0; // reset

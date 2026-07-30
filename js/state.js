@@ -200,6 +200,7 @@ export function resetDrawingState() {
   // Rect selection cleanup
   state._rectSelecting = false;
   state._rectStart = null;
+  state._rectSelectArmed = false;
 }
 
 // ── Undo / Redo ──
