@@ -2504,14 +2504,11 @@ body {
 
   .toolbar-header {
     display: flex;
-    width: 100%;
     align-items: center;
     gap: 4px;
-    padding: 4px 0;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--ctp-surface0);
-    background: var(--ctp-mantle);
-    flex-wrap: wrap;
+    /* Řadit až za "Oříz"/"Více" – využít volné místo na jejich řádku
+       místo zabírání celého vlastního řádku navíc. */
+    order: 1;
   }
 
   .toolbar-header .toolbar-setting {
