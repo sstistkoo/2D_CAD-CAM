@@ -14,7 +14,7 @@
 // prvním rozbalení, aby se zbytečně nebudoval markup při každém otevření.
 
 import { makeOverlay } from '../dialogFactory.js';
-import { showToast } from '../state.js';
+import { state, showToast } from '../state.js';
 import { renderVkHelp } from './vkHelp.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunction, pickByVpolTag,
@@ -25,6 +25,10 @@ import {
 const DEFAULT_GCODE = 'G111 X0.0 Z40.0\nG11 X40.0 Z? PA150 PR? T';
 
 export function openVkContour() {
+  // X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení) –
+  // popisky se přizpůsobí, ale vkSolver.js vždy počítá s poloměrem, takže se
+  // hodnota při zadání/výstupu převádí přes toSolverX/fromSolverX níže.
+  const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
     <div class="vk-canvas-placeholder">Grafický náhled VK (připravujeme)</div>
 
@@ -33,10 +37,10 @@ export function openVkContour() {
       <div class="sn-help-body vk-section-body">
         <div class="vk-section-title">Počáteční bod a pól (VPOL):</div>
         <div class="cnc-fields">
-          <label class="cnc-field"><span>Start X1 (Průměr)</span><input type="text" data-id="start-x" value="0.0"></label>
-          <label class="cnc-field"><span>Start Z1 (Délka)</span><input type="text" data-id="start-z" value="0.0"></label>
-          <label class="cnc-field"><span class="vk-red">VPOL X (Průměr)</span><input type="text" class="vk-input-vpol" data-id="vpol-x" value="0.0"></label>
-          <label class="cnc-field"><span class="vk-red">VPOL Z (Délka)</span><input type="text" class="vk-input-vpol" data-id="vpol-z" value="40.0"></label>
+          <label class="cnc-field"><span>Start X1 (${xUnitLabel})</span><input type="text" data-id="start-x" value="0.0"></label>
+          <label class="cnc-field"><span>Start Z1</span><input type="text" data-id="start-z" value="0.0"></label>
+          <label class="cnc-field"><span class="vk-red">VPOL X (${xUnitLabel})</span><input type="text" class="vk-input-vpol" data-id="vpol-x" value="0.0"></label>
+          <label class="cnc-field"><span class="vk-red">VPOL Z</span><input type="text" class="vk-input-vpol" data-id="vpol-z" value="40.0"></label>
         </div>
 
         <div class="vk-section-title vk-red">Konstrukční nástroje vyhledání průsečíku:</div>
@@ -77,7 +81,7 @@ export function openVkContour() {
               <select data-id="junction-axis">
                 <option value="">— (netřeba)</option>
                 <option value="z">Z</option>
-                <option value="x">X (průměr)</option>
+                <option value="x">X (${xUnitLabel.toLowerCase()})</option>
               </select>
             </label>
             <label class="cnc-field">
@@ -90,14 +94,14 @@ export function openVkContour() {
         <div class="vk-section-title">Cílové souřadnice (X/Z nebo PA/PR k pólu):</div>
         <div class="cnc-fields">
           <label class="cnc-field">
-            <span>Cíl X2 (Průměr)</span>
+            <span>Cíl X2 (${xUnitLabel})</span>
             <div class="vk-input-row">
               <input type="text" data-id="val-x2" value="40.0">
               <button class="vk-btn-q" data-toggle="val-x2">❓</button>
             </div>
           </label>
           <label class="cnc-field">
-            <span>Cíl Z2 (Délka)</span>
+            <span>Cíl Z2</span>
             <div class="vk-input-row">
               <input type="text" data-id="val-z2" value="?" class="vk-input-unknown" disabled>
               <button class="vk-btn-q active" data-toggle="val-z2">❓</button>
@@ -111,7 +115,7 @@ export function openVkContour() {
             </div>
           </label>
           <label class="cnc-field">
-            <span>Polární rádius (PR)</span>
+            <span>Délka (PR)</span>
             <div class="vk-input-row">
               <input type="text" data-id="val-pr" value="?" class="vk-input-unknown" disabled>
               <button class="vk-btn-q active" data-toggle="val-pr">❓</button>
@@ -227,8 +231,22 @@ export function openVkContour() {
     return String(Math.round(n * 1000) / 1000);
   }
 
+  // vkSolver.js vždy počítá s X jako průměrem (uvnitř dělí /2 na poloměr).
+  // Appka ale může mít aktuálně nastavený režim zadávání na poloměr
+  // (☰ Nastavení → 📏 Zobrazení, `state.xDisplayMode`) – v tom případě
+  // je zadaná hodnota už poloměr a je potřeba ji před voláním solveru
+  // vynásobit 2 (a výsledek zpět vydělit), aby geometrie seděla.
+  function toSolverX(val) {
+    return state.xDisplayMode === 'diameter' ? val : val * 2;
+  }
+  function fromSolverX(val) {
+    return state.xDisplayMode === 'diameter' ? val : val / 2;
+  }
+
   // ── Řetězec prvků pro dopočet neznámých (kategorie 1, 2, 3 a 4) ──
-  // startPoint/vpolPoint/lastPoint jsou v (z,x) – X je průměr.
+  // startPoint/vpolPoint/lastPoint/anchor a el.x jsou VŽDY v solver-
+  // prostoru (X jako průměr, viz toSolverX výše) – el.xRaw drží
+  // originální zobrazovanou hodnotu jen pro sestavení textu řádku.
   // pendingQueue drží 0–3 nedořešené prvky čekající na dopočet:
   //   [] – vše vyřešeno
   //   [A]      – kategorie 1 (A i nový prvek přímka/kužel) nebo kategorie 2
@@ -245,7 +263,7 @@ export function openVkContour() {
 
   function ensureStart() {
     if (lastPoint === null) {
-      lastPoint = { z: parseFloat(q('start-z').value) || 0, x: parseFloat(q('start-x').value) || 0 };
+      lastPoint = { z: parseFloat(q('start-z').value) || 0, x: toSolverX(parseFloat(q('start-x').value) || 0) };
     }
     if (startPoint === null) startPoint = { ...lastPoint };
   }
@@ -315,7 +333,7 @@ export function openVkContour() {
 
   function patchLine(el, pt) {
     let patched = el.lineText;
-    if (patched.includes('X?')) patched = patched.replace('X?', `X${fmt(pt.x)}`);
+    if (patched.includes('X?')) patched = patched.replace('X?', `X${fmt(fromSolverX(pt.x))}`);
     if (patched.includes('Z?')) patched = patched.replace('Z?', `Z${fmt(pt.z)}`);
     gcodeEl.value = gcodeEl.value.replace(el.lineText, patched);
     el.lineText = patched;
@@ -332,7 +350,7 @@ export function openVkContour() {
     ensureStart();
     const vx = q('vpol-x').value, vz = q('vpol-z').value;
     const vpa = q('vpol-pa').value, varc = q('vpol-arc').value;
-    vpolPoint = { z: parseFloat(vz) || 0, x: parseFloat(vx) || 0 };
+    vpolPoint = { z: parseFloat(vz) || 0, x: toSolverX(parseFloat(vx) || 0) };
     let line = `G111 X${vx} Z${vz}`;
     if (vpa) line += ` PA${vpa}`;
     if (varc) line += ` R${varc}`;
@@ -350,20 +368,23 @@ export function openVkContour() {
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
 
+    const xRaw = xStr === '?' ? null : parseFloat(xStr);
     const el = {
       id: nextElId++,
       isArc: currentType === 'vkr',
       isT: isTChecked,
-      x: xStr === '?' ? null : parseFloat(xStr),
+      xRaw,                                          // pro text (zobrazovaná jednotka)
+      x: xRaw == null ? null : toSolverX(xRaw),       // pro geometrii (vkSolver = vždy průměr)
       z: zStr === '?' ? null : parseFloat(zStr),
       pa: (paStr === '?' || paStr.trim() === '') ? null : parseFloat(paStr),
       r: parseFloat(rStr) || 0,
       vpolTag,
       junction: (junctionAxis && junctionValStr.trim() !== '')
-        ? { axis: junctionAxis, value: parseFloat(junctionValStr) } : null,
+        ? { axis: junctionAxis, value: junctionAxis === 'x' ? toSolverX(parseFloat(junctionValStr)) : parseFloat(junctionValStr) }
+        : null,
     };
 
-    let line = `${cmd} X${xStr === '?' ? '?' : el.x} Z${zStr === '?' ? '?' : el.z}`;
+    let line = `${cmd} X${xStr === '?' ? '?' : xRaw} Z${zStr === '?' ? '?' : el.z}`;
     if (el.pa != null) line += ` PA${el.pa}`;
     if (prStr !== '?' && prStr.trim() !== '') line += ` PR${prStr}`;
     if (el.isArc) line += ` R${el.r}`;
@@ -383,7 +404,7 @@ export function openVkContour() {
         for (const item of pendingQueue) {
           const pt = solved[item.id];
           patchLine(item, pt);
-          parts.push(`Z${fmt(pt.z)} X${fmt(pt.x)}`);
+          parts.push(`Z${fmt(pt.z)} X${fmt(fromSolverX(pt.x))}`);
         }
         lastPoint = solved[pendingQueue[pendingQueue.length - 1].id];
         solveInfo.textContent = `✓ Dopočteno: ${parts.join(' | ')}`;

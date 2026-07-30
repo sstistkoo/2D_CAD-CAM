@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- VK Kontura: popisky polí sjednoceny s konvencemi appky – zbytečné
+  „(Délka)" u všech Z polí (Start Z1, VPOL Z, Cíl Z2) odstraněno (Z
+  jednoznačně délka, nehrozí záměna); „Polární rádius (PR)" přejmenováno
+  na „Délka (PR)" (PR je vzdálenost od pólu, ne rozměr obrobku); popisek
+  u X polí (Start X1, VPOL X, Cíl X2, osa bodu zlomu) teď reaguje na
+  aktuální nastavení **☰ Nastavení → 📏 Zobrazení** (Poloměr/Průměr)
+  místo pevného „(Průměr)". Zásadní oprava: `vkSolver.js` uvnitř vždy
+  počítá s X jako průměrem (dělí /2 na skutečný poloměr pro kruhovou
+  geometrii) – dřív se to bralo doslova i když appka byla v režimu
+  Poloměr (výchozí nastavení!), takže by se poloměr omylem půlil znovu.
+  `vkContour.js` teď před voláním solveru hodnotu X převede na
+  „pseudo-průměr" (`toSolverX` – v režimu Poloměr ×2, v režimu Průměr
+  beze změny) a výsledek zpět (`fromSolverX`) při zápisu do textu/hlášky
+  – text řádku (`X40.0` apod.) zůstává vždy v jednotce, jakou uživatel
+  zadal. Ověřeno end-to-end v obou režimech (přepnutím ☰ Nastavení →
+  Zobrazení a zopakováním stejného výpočtu).
+
 ### Added
 - VK Kontura: **dopočet neznámých souřadnic** (kategorie 1 – roh dvou
   přímek/kuželů; kategorie 4 – netečné napojení přímky/kužele na kružnici
