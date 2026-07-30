@@ -876,6 +876,7 @@ function scheduleAutoCncExport() {
   clearTimeout(_autoCncExportTimer);
   _autoCncExportTimer = setTimeout(() => {
     _autoCncExportTimer = null;
+    if (bridge.autoSortAllGroups) bridge.autoSortAllGroups();
     if (bridge.runCncExport) bridge.runCncExport();
   }, 300);
 }

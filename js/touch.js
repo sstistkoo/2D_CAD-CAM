@@ -65,6 +65,14 @@ document.getElementById("mobileToolbarClose").addEventListener("click", (e) => {
 const sidebar = document.getElementById("sidebar");
 const sidebarOverlay = document.getElementById("sidebarOverlay");
 const mobileSidebarToggle = document.getElementById("mobileSidebarToggle");
+
+// Panel se zavírá/otevírá z několika míst v kódu (touch.js, ui.js,
+// camSimulator.js, profileTraceClick.js) – místo dohledávání každého místa
+// se stav zrcadlí na <body> pozorováním třídy, aby CSS mohlo přesunout
+// plovoucí tlačítka canvasCalcBtn/canvasClipBtn do horní lišty panelu.
+new MutationObserver(() => {
+  document.body.classList.toggle("sidebar-open", sidebar.classList.contains("mobile-open"));
+}).observe(sidebar, { attributes: true, attributeFilter: ["class"] });
 mobileSidebarToggle.addEventListener("click", (e) => {
   e.stopPropagation();
   sidebar.classList.toggle("mobile-open");

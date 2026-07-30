@@ -496,6 +496,11 @@ body {
   background: var(--ctp-surface2);
 }
 
+.cnc-copy-btn.active {
+  background: var(--ctp-green, #a6e3a1);
+  color: var(--ctp-base) !important;
+}
+
 .cnc-mode-btn {
   font-size: 11px;
   font-weight: bold;
@@ -2655,6 +2660,28 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* Panel OBJEKTY otevřený: kalkulačka/schránka se přesunou z plovoucí
+     pozice nad canvasem do horní lišty panelu (vedle Menu/✕), aby
+     nepřekrývaly tlačítka uvnitř panelu (např. řádek OBJEKTY). */
+  body.sidebar-open #canvasCalcBtn,
+  body.sidebar-open #canvasClipBtn {
+    top: 8px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    line-height: 32px;
+    font-size: 15px;
+    border-radius: 6px;
+    max-width: 32px;
+    padding: 0;
+  }
+  body.sidebar-open #canvasCalcBtn {
+    right: 92px;
+  }
+  body.sidebar-open #canvasClipBtn {
+    right: 50px;
   }
 
   /* mobileRedo: hidden by default, shown by JS when redo is available */

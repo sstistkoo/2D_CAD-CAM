@@ -58,6 +58,7 @@ export const state = {
   showDimensions: 'all',  // 'all' | 'intersections' | 'dimensions' | 'none'
   showObjectNumbers: false, // zobrazit čísla objektů na výkrese
   showIntersectionNumbers: false, // zobrazit čísla průsečíků na výkrese
+  autoSortPaths: false, // automaticky řadit konturu i polotovar podle dráhy při každé změně výkresu
   // Kotvení (anchor) – zafixované snap body
   anchors: [],  // [{x, y}, ...] – zakotvené body
   // Undo/Redo

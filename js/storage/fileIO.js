@@ -1217,14 +1217,25 @@ const _isStockLike = (o) => !!o.isStock || _cleanNm(o) === 'polotovar';
 const _sortable = (o) =>
   o && !o.isDimension && !o.isCoordLabel && !o.isCamPathNote &&
   o.type !== 'constr' && o.type !== 'text' && _DRAWABLE_SORT.has(o.type);
+// Přeuspořádá jednu skupinu (dle predicate) NA MÍSTĚ podle dráhy. Vrací true,
+// pokud se pořadí skutečně změnilo (jinak nemá smysl mazat výběr/překreslovat).
+function _sortGroupByPathSilent(predicate) {
+  const idxs = [];
+  state.objects.forEach((o, i) => { if (predicate(o)) idxs.push(i); });
+  if (idxs.length < 2) return false;
+  const group = idxs.map(i => state.objects[i]);
+  const ordered = chainOrderContourObjects(group);
+  const changed = ordered.some((o, k) => o !== group[k]);
+  if (!changed) return false;
+  idxs.forEach((slot, k) => { state.objects[slot] = ordered[k]; });
+  return true;
+}
 function _sortGroupByPath(predicate, emptyMsg) {
   const idxs = [];
   state.objects.forEach((o, i) => { if (predicate(o)) idxs.push(i); });
   if (idxs.length < 2) { showToast(emptyMsg); return; }
-  const group = idxs.map(i => state.objects[i]);
-  const ordered = chainOrderContourObjects(group);
   pushUndo();
-  idxs.forEach((slot, k) => { state.objects[slot] = ordered[k]; });
+  _sortGroupByPathSilent(predicate);
   state.selected = null;
   state.multiSelected.clear();
   state.selectedSegment = null;
@@ -1240,6 +1251,42 @@ document.getElementById("btnSortContour")?.addEventListener("click", () =>
   _sortGroupByPath(o => _sortable(o) && !_isStockLike(o), "Kontura nemá dost objektů k seřazení"));
 document.getElementById("btnSortStock")?.addEventListener("click", () =>
   _sortGroupByPath(o => _sortable(o) && _isStockLike(o), "Polotovar nemá dost objektů k seřazení"));
+
+// Automatické řazení: voláno (debounced) po každé změně výkresu z
+// calculateAllIntersections(), pokud je zapnutý přepínač btnAutoSort.
+// Bez pushUndo() – sloučí se do undo kroku operace, která změnu vyvolala.
+function autoSortAllGroups() {
+  if (!state.autoSortPaths) return;
+  const changedContour = _sortGroupByPathSilent(o => _sortable(o) && !_isStockLike(o));
+  const changedStock = _sortGroupByPathSilent(o => _sortable(o) && _isStockLike(o));
+  if (!changedContour && !changedStock) return;
+  state.selected = null;
+  state.multiSelected.clear();
+  state.selectedSegment = null;
+  state._selectedSegmentObjIdx = null;
+  state.multiSelectedSegments.clear();
+  updateObjectList();
+  updateProperties();
+  renderAll();
+}
+bridge.autoSortAllGroups = autoSortAllGroups;
+
+const btnAutoSort = document.getElementById("btnAutoSort");
+if (btnAutoSort) {
+  const syncAutoSortBtn = () => btnAutoSort.classList.toggle("active", state.autoSortPaths);
+  syncAutoSortBtn();
+  btnAutoSort.addEventListener("click", () => {
+    state.autoSortPaths = !state.autoSortPaths;
+    syncAutoSortBtn();
+    if (state.autoSortPaths) {
+      showToast("Auto-seřazení podle dráhy zapnuto");
+      autoSortAllGroups();
+      runCncExport();
+    } else {
+      showToast("Auto-seřazení podle dráhy vypnuto");
+    }
+  });
+}
 
 // ── CNC Uložit / Načíst ──
 
