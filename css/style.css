@@ -2504,11 +2504,14 @@ body {
 
   .toolbar-header {
     display: flex;
+    width: 100%;
     align-items: center;
     gap: 4px;
-    /* Řadit až za "Oříz"/"Více" – využít volné místo na jejich řádku
-       místo zabírání celého vlastního řádku navíc. */
-    order: 1;
+    padding: 4px 0;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--ctp-surface0);
+    background: var(--ctp-mantle);
+    flex-wrap: wrap;
   }
 
   .toolbar-header .toolbar-setting {
@@ -2789,6 +2792,74 @@ body {
   /* Toast nad mobilnÃ­mi tlaÄÃ­tky */
   .toast {
     bottom: 70px;
+  }
+}
+
+/* ── Mobil naležato (landscape): přeuspořádání toolbaru ──
+   V portrétu (na výšku) zůstává toolbar beze změny (viz výše) – tahle
+   úprava dává smysl jen když je na šířku dost místa a na výšku málo:
+   skupina Výběr/Kóta/Tlustá/Smaž se místo vlastního řádku napojí na
+   řádek Oříz/Prodl./Více, a ✕ se přesune na konec řádku Bod…Vybarvit. */
+@media (max-width: 900px) and (orientation: landscape) {
+  #topbar {
+    border-top: none;
+  }
+
+  /* Zruší vlastní box .toolbar-header – Výběr/Kóta/Tlustá/Smaž se stanou
+     samostatnými položkami flexu #topbar (stejně jako na desktopu),
+     takže je lze řadit přes order nezávisle na ✕. */
+  .toolbar-header {
+    display: contents;
+  }
+  .toolbar-header > .tool-btn {
+    order: 6;
+  }
+
+  /* ✕ zůstává (v HTML) uvnitř .toolbar-header, ale přes order se přesune
+     na konec řádku Bod…Vybarvit, s odstupem od poslední kresličí ikony. */
+  .toolbar-close-btn {
+    order: 1;
+    margin-left: 14px;
+  }
+
+  /* Neviditelný "zlom" vynutí konec řádku Bod…Vybarvit/✕ vždy na stejném
+     místě – bez něj by se Oříz podle volného místa občas vešel ještě na
+     ten samý řádek (řádky by se míchaly podle šířky obrazovky). */
+  .toolbar-row-break {
+    flex-basis: 100%;
+    width: 0;
+    height: 0;
+    order: 2;
+  }
+
+  /* Oříz/Prodl./"Více" – společně na řádek za tlačítka kreslení, na
+     jednom řádku se skupinou Výběr/Kóta/Tlustá/Smaž (viz výše). */
+  [data-tool="trim"] {
+    order: 3;
+  }
+  [data-tool="extend"] {
+    order: 4;
+  }
+  .toolbar-more-toggle {
+    order: 5;
+    padding: 5px 10px;
+    /* Pevná šířka srovnatelná s "Úpravy" vedle Tužky – na řádku
+       Oříz/Prodl. je dost místa, ať je líp vidět. */
+    min-width: 100px;
+    max-width: none;
+  }
+
+  /* Oddělovače kolem .toolbar-header už nejsou potřeba – skupina teď
+     sedí na řádku Oříz/Více místo ve vlastním řádku. */
+  .sep-header {
+    display: none;
+  }
+
+  /* Rozbalovací panely až za skupinou Výběr/Kóta/…, aby ji rozbalení
+     nezatlačilo mimo viditelnou (scrollovanou) oblast toolbaru. */
+  .toolbar-more,
+  .toolbar-mid {
+    order: 10;
   }
 }
 
