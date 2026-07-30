@@ -7405,7 +7405,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else if (act === 'toggle-controls') {
       S.controlsHidden = !S.controlsHidden;
       const hidden = S.controlsHidden;
-      const acts = ['edit-contour', 'edit-paths', 'fit', 'simpath', 'zlimits', 'snap', 'profile'];
+      const acts = ['edit-contour', 'edit-paths', 'fit', 'simpath', 'zlimits', 'removal', 'holdercol', 'snap', 'profile'];
       acts.forEach(a => {
         const el = toolbar.querySelector(`[data-act="${a}"]`);
         if (el) el.style.display = hidden ? 'none' : '';
