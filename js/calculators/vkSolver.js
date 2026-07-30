@@ -240,3 +240,116 @@ export function pickBetweenRaysByVpolTag(candidates, refPoint, tag) {
   const sorted = [...candidates].sort((a, b) => dist(a.center, refPoint) - dist(b.center, refPoint));
   return tag === 'VPOL2' ? sorted[1] : sorted[0];
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Kategorie 3 (case 9–11): DVA tečné oblouky („esíčko") mezi dvěma
+// přímkami/kužely, s opačným prohnutím (vnější tečnost mezi oblouky).
+//
+// Na rozdíl od kategorie 2 (1 neznámý oblouk) tu samotné dva zadané
+// poloměry NESTAČÍ – 2 středy oblouků = 4 neznámé, ale tečnost k oběma
+// přímkám + tečnost oblouků navzájem dává jen 3 rovnice → o 1 stupeň
+// volnosti méně, než je potřeba (nekonečně mnoho platných esíček,
+// lišících se polohou bodu zlomu). Proto se navíc vyžaduje ZNÁMÁ jedna
+// souřadnice (Z nebo X) bodu, kde na sebe oba oblouky navazují – to je
+// ta chybějící rovnice.
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * @param {{z0:number,x0:number,angleDeg:number}} ray1  paprsek prvního (pending) prvku
+ * @param {{z0:number,x0:number,angleDeg:number}} ray2  paprsek posledního (známého) prvku
+ * @param {number} r1  poloměr prvního oblouku (u ray1)
+ * @param {number} r2  poloměr druhého oblouku (u ray2)
+ * @param {{axis:'z'|'x', value:number}} junction  známá souřadnice bodu zlomu mezi oblouky
+ * @returns {Array<{foot1:{z,x}, junction:{z,x}, foot2:{z,x}, center1:{z,x}, center2:{z,x}}>}
+ */
+export function twoTangentArcsBetweenRays(ray1, ray2, r1, r2, junction) {
+  const A1 = { z: ray1.z0, r: ray1.x0 / 2 };
+  const u1 = rayDirRadius(ray1);
+  const A2 = { z: ray2.z0, r: ray2.x0 / 2 };
+  const u2 = rayDirRadius(ray2);
+  const k = r1 / (r1 + r2);
+  const axisKey = junction.axis === 'x' ? 'r' : 'z';
+  const v = junction.axis === 'x' ? junction.value / 2 : junction.value;
+  const dotv = (a, b) => a.z * b.z + a.r * b.r;
+  const Rsum2 = (r1 + r2) * (r1 + r2);
+
+  const raw = [];
+  for (const s1 of [1, -1]) {
+    const n1 = { z: -u1.r * s1, r: u1.z * s1 };
+    const P1 = { z: A1.z + r1 * n1.z, r: A1.r + r1 * n1.r };
+    for (const s2 of [1, -1]) {
+      const n2 = { z: -u2.r * s2, r: u2.z * s2 };
+      const P2 = { z: A2.z + r2 * n2.z, r: A2.r + r2 * n2.r };
+
+      const aD = (1 - k) * u1[axisKey];
+      const bD = k * u2[axisKey];
+      const cD = v - (1 - k) * P1[axisKey] - k * P2[axisKey];
+
+      const D0 = { z: P1.z - P2.z, r: P1.r - P2.r };
+      const u1u2 = dotv(u1, u2), D0u1 = dotv(D0, u1), D0u2 = dotv(D0, u2), D0D0 = dotv(D0, D0);
+      const constC = D0D0 - Rsum2;
+
+      const tPairs = [];
+      if (Math.abs(bD) > 1e-9) {
+        // t2 = m*t1 + c0 (z (D)), dosazeno do (C) → kvadratická rovnice v t1
+        const m = -aD / bD, c0 = cD / bD;
+        const A = 1 - 2 * u1u2 * m + m * m;
+        const B = -2 * u1u2 * c0 + 2 * m * c0 + 2 * D0u1 - 2 * D0u2 * m;
+        const C = c0 * c0 - 2 * D0u2 * c0 + constC;
+        if (Math.abs(A) < 1e-9) {
+          if (Math.abs(B) > 1e-9) { const t1 = -C / B; tPairs.push([t1, m * t1 + c0]); }
+        } else {
+          const disc = B * B - 4 * A * C;
+          if (disc >= -1e-9) {
+            const sq = Math.sqrt(Math.max(disc, 0));
+            const t1a = (-B - sq) / (2 * A), t1b = (-B + sq) / (2 * A);
+            if (disc < 1e-9) tPairs.push([t1a, m * t1a + c0]);
+            else { tPairs.push([t1a, m * t1a + c0]); tPairs.push([t1b, m * t1b + c0]); }
+          }
+        }
+      } else if (Math.abs(aD) > 1e-9) {
+        // t1 přímo z (D), (C) se redukuje na kvadratickou rovnici v t2
+        const t1 = cD / aD;
+        const B = -2 * (u1u2 * t1 + D0u2);
+        const C = t1 * t1 + 2 * D0u1 * t1 + constC;
+        const disc = B * B - 4 * C;
+        if (disc >= -1e-9) {
+          const sq = Math.sqrt(Math.max(disc, 0));
+          const t2a = (-B - sq) / 2, t2b = (-B + sq) / 2;
+          if (disc < 1e-9) tPairs.push([t1, t2a]);
+          else { tPairs.push([t1, t2a]); tPairs.push([t1, t2b]); }
+        }
+      } // jinak: zadaná osa je degenerovaná pro obě přímky – nelze určit (zkuste druhou osu)
+
+      for (const [t1, t2] of tPairs) {
+        const c1 = { z: P1.z + t1 * u1.z, r: P1.r + t1 * u1.r };
+        const c2 = { z: P2.z + t2 * u2.z, r: P2.r + t2 * u2.r };
+        const f1t = (c1.z - A1.z) * u1.z + (c1.r - A1.r) * u1.r;
+        const foot1 = { z: A1.z + f1t * u1.z, r: A1.r + f1t * u1.r };
+        const f2t = (c2.z - A2.z) * u2.z + (c2.r - A2.r) * u2.r;
+        const foot2 = { z: A2.z + f2t * u2.z, r: A2.r + f2t * u2.r };
+        const jn = { z: (1 - k) * c1.z + k * c2.z, r: (1 - k) * c1.r + k * c2.r };
+        raw.push({
+          foot1: toDiamPt(foot1), junction: toDiamPt(jn), foot2: toDiamPt(foot2),
+          center1: toDiamPt(c1), center2: toDiamPt(c2),
+        });
+      }
+    }
+  }
+  const out = [];
+  for (const r of raw) {
+    if (!out.some((o) =>
+      Math.abs(o.center1.z - r.center1.z) < 1e-6 && Math.abs(o.center1.x - r.center1.x) < 1e-6 &&
+      Math.abs(o.center2.z - r.center2.z) < 1e-6 && Math.abs(o.center2.x - r.center2.x) < 1e-6)) {
+      out.push(r);
+    }
+  }
+  return out;
+}
+
+/** Vybere z kandidátů (case 9–11) podle VPOL1/VPOL2 – vzdálenost bodu zlomu od refPoint. */
+export function pickTwoArcsByVpolTag(candidates, refPoint, tag) {
+  if (candidates.length <= 1) return candidates[0];
+  const sorted = [...candidates].sort((a, b) => dist(a.junction, refPoint) - dist(b.junction, refPoint));
+  return tag === 'VPOL2' ? sorted[1] : sorted[0];
+}

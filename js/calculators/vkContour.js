@@ -19,6 +19,7 @@ import { renderVkHelp } from './vkHelp.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunction, pickByVpolTag,
   tangentCircleTouchPoints, tangentCircleBetweenRays, pickBetweenRaysByVpolTag,
+  twoTangentArcsBetweenRays, pickTwoArcsByVpolTag,
 } from './vkSolver.js';
 
 const DEFAULT_GCODE = 'G111 X0.0 Z40.0\nG11 X40.0 Z? PA150 PR? T';
@@ -68,6 +69,20 @@ export function openVkContour() {
                 <input type="text" data-id="val-r" value="5.0">
                 <button class="vk-btn-q" data-toggle="val-r">❓</button>
               </div>
+            </label>
+          </div>
+          <div class="cnc-fields" style="margin-top:6px" title="Jen pro esíčko (dva tečné oblouky za sebou) – bez toho by měla soustava o 1 stupeň volnosti víc, než kolik je zadáno">
+            <label class="cnc-field">
+              <span>Bod zlomu k dalšímu oblouku – osa</span>
+              <select data-id="junction-axis">
+                <option value="">— (netřeba)</option>
+                <option value="z">Z</option>
+                <option value="x">X (průměr)</option>
+              </select>
+            </label>
+            <label class="cnc-field">
+              <span>Bod zlomu – hodnota</span>
+              <input type="text" data-id="junction-value" placeholder="Např. 12.0">
             </label>
           </div>
         </div>
@@ -212,15 +227,17 @@ export function openVkContour() {
     return String(Math.round(n * 1000) / 1000);
   }
 
-  // ── Řetězec prvků pro dopočet neznámých (kategorie 1, 2 a 4) ──
+  // ── Řetězec prvků pro dopočet neznámých (kategorie 1, 2, 3 a 4) ──
   // startPoint/vpolPoint/lastPoint jsou v (z,x) – X je průměr.
-  // pendingQueue drží 0–2 nedořešené prvky čekající na dopočet:
+  // pendingQueue drží 0–3 nedořešené prvky čekající na dopočet:
   //   [] – vše vyřešeno
   //   [A]      – kategorie 1 (A i nový prvek přímka/kužel) nebo kategorie 2
   //              case 5 (A přímka/kužel, nový prvek oblouk s T) / kategorie 4
   //              case 12-13 (A nebo nový prvek oblouk bez T, kolem VPOL)
   //   [A, B]   – B musí být oblouk s T (kategorie 2, case 6-8: A i nový
   //              prvek jsou přímka/kužel, B mezi nimi tečný o poloměru B.r)
+  //   [A, B, C] – B i C musí být oblouky s T (kategorie 3, case 9-11:
+  //              esíčko – vyžaduje na C znalost bodu zlomu, viz `junction`)
   let startPoint = null;
   let vpolPoint = null;
   let lastPoint = null;   // konec posledního VYŘEŠENÉHO prvku
@@ -281,6 +298,21 @@ export function openVkContour() {
     return { [elA.id]: pick.foot1, [elB.id]: pick.foot2 };
   }
 
+  /** Dopočet tří nedořešených prvků najednou (kategorie 3, case 9-11: A, oblouk1, oblouk2, pak známý currEl). */
+  function resolveThree(elA, arc1, arc2, currEl) {
+    if (!arc1.isArc || !arc2.isArc) throw new Error('prostřední dva prvky musí být oblouky (esíčko)');
+    if (elA.isArc) throw new Error('první prvek řetězu musí být přímka/kužel');
+    if (!arc2.junction) throw new Error('u druhého oblouku chybí „Bod zlomu" (osa + hodnota) – bez něj má esíčko víc řešení, než kolik je zadáno');
+    const ray1 = elementRay(elA, elA.anchor);
+    const ray2 = elementRay(currEl, { z: currEl.z, x: currEl.x });
+    const candidates = twoTangentArcsBetweenRays(ray1, ray2, arc1.r, arc2.r, arc2.junction);
+    if (candidates.length === 0) throw new Error('žádné řešení (s danými poloměry a bodem zlomu nejde esíčko sestavit)');
+    const pick = candidates.length === 1 ? candidates[0]
+      : (currEl.vpolTag ? pickTwoArcsByVpolTag(candidates, refPoint(), currEl.vpolTag)
+        : (() => { throw new Error('víc možných řešení – zvolte VPOL1 nebo VPOL2'); })());
+    return { [elA.id]: pick.foot1, [arc1.id]: pick.junction, [arc2.id]: pick.foot2 };
+  }
+
   function patchLine(el, pt) {
     let patched = el.lineText;
     if (patched.includes('X?')) patched = patched.replace('X?', `X${fmt(pt.x)}`);
@@ -315,6 +347,8 @@ export function openVkContour() {
     const isTChecked = q('check-t').checked;
     const vpolTag = q('vpol-tag').value || null;
     const cmd = currentType === 'vl' ? 'G11' : arcDir;
+    const junctionAxis = q('junction-axis').value || null;
+    const junctionValStr = q('junction-value').value;
 
     const el = {
       id: nextElId++,
@@ -325,6 +359,8 @@ export function openVkContour() {
       pa: (paStr === '?' || paStr.trim() === '') ? null : parseFloat(paStr),
       r: parseFloat(rStr) || 0,
       vpolTag,
+      junction: (junctionAxis && junctionValStr.trim() !== '')
+        ? { axis: junctionAxis, value: parseFloat(junctionValStr) } : null,
     };
 
     let line = `${cmd} X${xStr === '?' ? '?' : el.x} Z${zStr === '?' ? '?' : el.z}`;
@@ -339,9 +375,10 @@ export function openVkContour() {
 
     if (isKnown && pendingQueue.length > 0) {
       try {
-        const solved = pendingQueue.length === 1
-          ? resolveOne(pendingQueue[0], el)
-          : resolveTwo(pendingQueue[0], pendingQueue[1], el);
+        let solved;
+        if (pendingQueue.length === 1) solved = resolveOne(pendingQueue[0], el);
+        else if (pendingQueue.length === 2) solved = resolveTwo(pendingQueue[0], pendingQueue[1], el);
+        else solved = resolveThree(pendingQueue[0], pendingQueue[1], pendingQueue[2], el);
         const parts = [];
         for (const item of pendingQueue) {
           const pt = solved[item.id];
@@ -365,7 +402,7 @@ export function openVkContour() {
     } else {
       el.anchor = { ...lastPoint };
       pendingQueue.push(el);
-      if (pendingQueue.length > 2) pendingQueue.shift(); // jen poslední 2 se dopočítávají
+      if (pendingQueue.length > 3) pendingQueue.shift(); // jen poslední 3 se dopočítávají (kat. 3 = A + 2 oblouky)
     }
   });
 

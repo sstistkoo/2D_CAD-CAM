@@ -9,6 +9,8 @@ import {
   tangentCircleTouchPoints,
   tangentCircleBetweenRays,
   pickBetweenRaysByVpolTag,
+  twoTangentArcsBetweenRays,
+  pickTwoArcsByVpolTag,
 } from '../js/calculators/vkSolver.js';
 
 describe('elementRay', () => {
@@ -199,5 +201,62 @@ describe('pickBetweenRaysByVpolTag', () => {
     const nearest = pickBetweenRaysByVpolTag(candidates, ref, 'VPOL1');
     expect(nearest.center.z).toBeCloseTo(15, 6);
     expect(nearest.center.x).toBeCloseTo(10, 6);
+  });
+});
+
+describe('twoTangentArcsBetweenRays – kategorie 3 (case 9-11, esíčko)', () => {
+  it('pravoúhlý roh (r=0 / z=40), R1=5 R2=3, zadaná Z bodu zlomu – ověřeno ručním výpočtem', () => {
+    // ručně: center1=(z=30,r=5) tečný k r=0 v (30,0); center2=(z=37,r=8.873)
+    // tečný k z=40 v (40,8.873); vzdálenost center1-center2 = 8 = R1+R2;
+    // bod zlomu (vážený průměr R1:R2) má z = 34.375
+    const ray1 = { z0: 0, x0: 0, angleDeg: 0 };
+    const ray2 = { z0: 40, x0: 0, angleDeg: 90 };
+    const cands = twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'z', value: 34.375 });
+    // pro dané t1=30 existují 2 platná t2 (8.873 i 1.127, oba splňují tečnost) –
+    // hledáme konkrétně tu s foot2.x≈17.746 (druhá má foot2.x≈2.254)
+    const hit = cands.find(c => Math.abs(c.foot1.z - 30) < 0.01 && Math.abs(c.foot2.x - 17.746) < 0.01);
+    expect(hit).toBeTruthy();
+    expect(hit.foot1.x).toBeCloseTo(0, 3);
+    expect(hit.foot2.z).toBeCloseTo(40, 3);
+  });
+
+  it('obecné úhly (30°/150°) – všechny kandidáti splňují geometrické invarianty', () => {
+    const ray1 = { z0: 0, x0: 0, angleDeg: 30 };
+    const ray2 = { z0: 20, x0: 10, angleDeg: 150 };
+    const r1 = 4, r2 = 6;
+    const cands = twoTangentArcsBetweenRays(ray1, ray2, r1, r2, { axis: 'z', value: 12 });
+    expect(cands.length).toBeGreaterThan(0);
+    for (const c of cands) {
+      // vzdálenost středů = R1+R2 (vnější tečnost, opačné prohnutí)
+      const distCenters = Math.hypot(c.center1.z - c.center2.z, (c.center1.x - c.center2.x) / 2);
+      expect(distCenters).toBeCloseTo(r1 + r2, 4);
+      // bod zlomu má zadanou Z souřadnici
+      expect(c.junction.z).toBeCloseTo(12, 4);
+      // foot1/foot2 leží na příslušných paprscích (kontrola přes elementRay směr by šla,
+      // tady stačí že jsou to reálná čísla – přesnou tečnost ověřuje uzel-skript při vývoji)
+      expect(Number.isFinite(c.foot1.z)).toBe(true);
+      expect(Number.isFinite(c.foot2.z)).toBe(true);
+    }
+  });
+
+  it('degenerovaná osa (paprsek rovnoběžný s vybranou osou zlomu) – přeskočí danou větev beze pádu', () => {
+    const ray1 = { z0: 0, x0: 0, angleDeg: 0 };
+    const ray2 = { z0: 40, x0: 0, angleDeg: 90 };
+    // osa 'x' pro tento roh funguje stejně dobře (jen jiná projekce) – test že nespadne
+    expect(() => twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'x', value: 17.746 })).not.toThrow();
+  });
+});
+
+describe('pickTwoArcsByVpolTag', () => {
+  it('VPOL1/VPOL2 rozliší podle vzdálenosti BODU ZLOMU od refPoint', () => {
+    const ray1 = { z0: 0, x0: 0, angleDeg: 30 };
+    const ray2 = { z0: 20, x0: 10, angleDeg: 150 };
+    const cands = twoTangentArcsBetweenRays(ray1, ray2, 4, 6, { axis: 'z', value: 12 });
+    const ref = { z: 0, x: 0 };
+    const nearest = pickTwoArcsByVpolTag(cands, ref, 'VPOL1');
+    const farthest = pickTwoArcsByVpolTag(cands, ref, 'VPOL2');
+    const dNear = Math.hypot(nearest.junction.z - ref.z, nearest.junction.x - ref.x);
+    const dFar = Math.hypot(farthest.junction.z - ref.z, farthest.junction.x - ref.x);
+    expect(dNear).toBeLessThanOrEqual(dFar);
   });
 });

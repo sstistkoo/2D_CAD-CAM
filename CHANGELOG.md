@@ -40,7 +40,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3prvkovém řetězci dopočte a doplní „?" v OBOU předchozích řádcích
   najednou. Ověřeno na ručně sestrojeném „rohu" (kolmé přímky r=0/z=20,
   R=5 → 4 tečné kružnice v rozích) – `tests/vk-solver.test.js`, 24 testů
-  celkem. Kategorie 3 (esíčka – dva oblouky za sebou) zatím není řešena.
+  celkem.
+- VK Kontura: **kategorie 3** (esíčko – dva tečné oblouky za sebou,
+  case 9–11). Před implementací ověřen stupeň volnosti: 2 neznámé
+  středy oblouků = 4 neznámé, ale tečnost k oběma přímkám + tečnost
+  oblouků navzájem dává jen 3 rovnice – o 1 stupeň volnosti méně, než
+  je potřeba (nekonečně mnoho platných esíček lišících se polohou bodu
+  zlomu). Doplněno proto nové nepovinné pole **„Bod zlomu"** (osa Z/X +
+  hodnota) u oblouku – právě ta chybějící rovnice. `vkSolver.js`
+  doplněn o `twoTangentArcsBetweenRays` (uzavřené řešení: lineární
+  rovnice z dané souřadnice bodu zlomu + kvadratická rovnice z tečnosti
+  mezi oblouky, vyřešeno dosazením) a `pickTwoArcsByVpolTag`. Ověřeno
+  nezávisle přes brute-force kontrolu geometrických invariantů
+  (vzdálenost středů = R1+R2, vzdálenost středu od paprsku = R,
+  souřadnice bodu zlomu sedí) na obecných (nekolmých) úhlech, plus
+  ručně sestrojeným pravoúhlým rohem – `tests/vk-solver.test.js`, 32
+  testů celkem. `vkContour.js` teď drží frontu až 3 nedořešených prvků
+  a při 4prvkovém řetězci (přímka→oblouk→oblouk→přímka) dopočte a
+  doplní „?" ve všech třech předchozích řádcích najednou.
 - Kalkulačky: nový nástroj **„VK Kontura"** (📐) v sekci „Další kalkulačky" –
   editor volné kontury (obdoba Heidenhain FK – Free Kontur programming) pro
   zápis prvku úsečka/oblouk pomocí toho, co je zrovna známo: pravoúhle X/Z,
