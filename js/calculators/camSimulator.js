@@ -3959,15 +3959,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label data-tooltip="Vzdálenost bezpečného odskoku nástroje od obrobku mezi jednotlivými zákroky (zdvih v X).">Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
         <div class="cam-sim-field"><label data-tooltip="Úhel odskoku: 45° = klasická diagonála (X i Z), 90° = svisle jen v ose X. Z-složka = Odskok / tan(úhel).">Úhel odsk. (°)</label><input type="number" step="5" min="5" max="90" data-p="retractAngle" value="${prms.retractAngle ?? 45}"></div>
       </div>`;
-    if (prms.toolShape === 'polygon') {
-      const insertGuideCount = (S.guideLines || []).filter(g => g.fromInsert).length;
-      const totalGuideCount = (S.guideLines || []).length;
-      html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
-        <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
-        <span>Hlídat geometrii (destička + držák)</span>
-        ${totalGuideCount > 0 ? `<button data-act="clear-insert-guides" title="Smazat konstrukční čáry vygenerované hlídáním destičky (${totalGuideCount} čar)" style="margin-left:6px;padding:1px 7px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#fab387">🧹 ${totalGuideCount}</button>` : ''}
-      </div>`;
-    }
     html += `</div>`;
     const _machSubTab = S.machiningSubTab || 'hrub';
     html += `<div class="cam-sim-toggle-row" style="margin-top:6px">
@@ -3983,17 +3974,20 @@ export function openCamSimulator(initialContour, initialGCode) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ Je aktivní <b>závitování</b> (${prms.threadName || `⌀${prms.threadDiameter}×${prms.threadPitch}`}) — program obsahuje jen závitovací cyklus, hrubování/dokončování se negeneruje.
         <button data-act="thread-deactivate" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">Vypnout závit</button></small>`;
     }
+    if (prms.toolShape === 'polygon') {
+      const insertGuideCount = (S.guideLines || []).filter(g => g.fromInsert).length;
+      const totalGuideCount = (S.guideLines || []).length;
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
+        <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
+        <span>Hlídat geometrii (destička + držák)</span>
+        ${totalGuideCount > 0 ? `<button data-act="clear-insert-guides" title="Smazat konstrukční čáry vygenerované hlídáním destičky (${totalGuideCount} čar)" style="margin-left:6px;padding:1px 7px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#fab387">🧹 ${totalGuideCount}</button>` : ''}
+      </div>`;
+    }
     if (_machSubTab === 'hrub') {
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Po dojezdu hrubovacího průchodu na offset nástroj dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, místo okamžitého odskoku — schody mezi kroky se obrobí přímo po obrysu.&#10;&#10;„i u čelního“: dojíždět i po ČELNÍCH (radiálních) stěnách — tedy tam, kde dojezd stoupá v X víc, než ujede v Z. Bez zaškrtnutí průchod u takové stěny skončí a odskočí (schod dobere čelní operace); u čela vzniklého mezní čárou hlídání destičky by dojezd stejně jen kopíroval limit plátku. Kuželové a válcové stěny se dojíždí vždy.">
         <input type="checkbox" id="cam-sim-nostep" ${prms.noStepRoughing ? 'checked' : ''}>
         <span>Hrub. bez schodků</span>
         ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
-      </div>`;
-      html += `<div class="cam-sim-checkbox-row">
-        <label class="cam-sim-checkbox-item" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
-          <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
-          <span>Zanořování</span>
-        </label>
       </div>`;
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Experimentální (migrace Fáze 3): řezné intervaly podélného hrubování se počítají z booleovské geometrie (Clipper2 zbytkový materiál) místo ručního scan-line. Výchozí VYPNUTO = ověřená původní cesta. Zapnuto odebere stejný materiál — slouží k ověření a dalšímu vývoji.">
         <input type="checkbox" id="cam-sim-boolean" ${prms.booleanRoughing ? 'checked' : ''}>
@@ -4011,7 +4005,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         ? (prms.roughingStrategy === 'face' ? Math.abs((parseFloat(prms.toolAngle)||0) + (parseFloat(prms.toolTipAngle)||90) - 90) : Math.abs(parseFloat(prms.toolAngle)||0))
         : 45;
       const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
-      html += `<div class="cam-sim-row">
+      html += `<div class="cam-sim-row" style="align-items:center">
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label>
+          <label class="cam-sim-checkbox-item" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
+            <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
+            <span>Zanořování</span>
+          </label>
+        </div>
         <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
       </div>`;
