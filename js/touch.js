@@ -4,7 +4,7 @@
 
 import { MOBILE_BREAKPOINT, LONG_PRESS_MS, CROSSHAIR_OFFSET_Y, ZOOM_MIN, ZOOM_MAX, VIBRATE_LONG_PRESS, TOUCH_MOVE_THRESHOLD, PAN_ACTIVATE_THRESHOLD } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView, applyAngleSnap, safeVibrate } from './canvas.js';
-import { state, undo, redo, showToast, toDisplayCoords, resetDrawingState, displayX, xPrefix, fmtStatusCoords } from './state.js';
+import { state, undo, redo, showToast, toDisplayCoords, resetDrawingState, displayX, xPrefix, fmtStatusCoords, fmtNum } from './state.js';
 import { renderAll } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
 import { handleCanvasClick, finishRectSelection } from './events.js';
@@ -393,7 +393,7 @@ function showPrecisionCrosshair(touch) {
   precisionEl.style.top = touch.clientY + CROSSHAIR_OFFSET_Y + "px";
   const dp = toDisplayCoords(wx, wy);
   const pf = state.coordMode === 'inc' ? 'Δ' : '';
-  precisionLabel.textContent = `${pf}X${dp.x.toFixed(state.displayDecimals)} ${pf}Z${dp.y.toFixed(state.displayDecimals)}`;
+  precisionLabel.textContent = `${pf}X${fmtNum(dp.x)} ${pf}Z${fmtNum(dp.y)}`;
   precisionEl.style.display = "block";
   updateMobileCoords(wx, wy);
   renderAll();
@@ -428,7 +428,7 @@ function updatePrecisionCrosshair(touch) {
   precisionEl.style.top = touch.clientY + CROSSHAIR_OFFSET_Y + "px";
   const dp2 = toDisplayCoords(wx, wy);
   const pf2 = state.coordMode === 'inc' ? 'Δ' : '';
-  precisionLabel.textContent = `${pf2}X${dp2.x.toFixed(state.displayDecimals)} ${pf2}Z${dp2.y.toFixed(state.displayDecimals)}`;
+  precisionLabel.textContent = `${pf2}X${fmtNum(dp2.x)} ${pf2}Z${fmtNum(dp2.y)}`;
 
   let extra = "";
   if (state.drawing && state.tempPoints.length > 0) {

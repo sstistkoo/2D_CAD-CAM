@@ -627,7 +627,11 @@ function buildEditorHTML() {
   <div class="cne-toolbar">
     <div class="cne-toolbar-left">
       <button class="cne-tb-btn cne-tb-sidebar" data-act="sidebar" title="Soubory">☰</button>
-      <span class="cne-filename" data-el="filename">—</span>
+      <span class="cne-filename cne-hide-m" data-el="filename">—</span>
+      <button class="cne-tb-btn cne-show-m" data-act="cornersToPath" title="Převést sražení/zaoblení (CHF/RND) na skutečnou dráhu G1/G2/G3">⌒</button>
+      <button class="cne-tb-btn cne-conv cne-show-m" data-el="convModeBtn" data-act="convMode" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
+      <button class="cne-tb-btn cne-show-m" data-act="search" title="Hledat v kódu (Ctrl+F)">🔍</button>
+      <button class="cne-tb-btn cne-tb-new cne-show-m" data-act="new" title="Nový program">＋</button>
     </div>
     <div class="cne-toolbar-right">
       <button class="cne-tb-btn cne-tb-new cne-hide-m" data-act="new" title="Nový program">＋</button>
@@ -1576,14 +1580,15 @@ export function openCncEditor(initialCode) {
   }
 
   function updateModeBtn() {
-    const b = $('convModeBtn');
-    if (b) {
+    // Tlačítko G90/G91 existuje 2× (desktop toolbar-right, mobil toolbar-left) –
+    // musí se aktualizovat obě instance, proto querySelectorAll místo $().
+    overlay.querySelectorAll('[data-el="convModeBtn"]').forEach(b => {
       b.textContent = coordMode === 'abs' ? 'G90' : 'G91';
       b.classList.toggle('cne-conv-active', coordMode === 'inc');
       b.title = coordMode === 'abs'
         ? 'Režim G90 (absolutní) – klikni pro přepočet na G91 (přírůstkové)'
         : 'Režim G91 (přírůstkové) – klikni pro návrat na G90 (absolutní)';
-    }
+    });
     const mi = $('convModeMenuIcon');
     if (mi) mi.textContent = coordMode === 'abs' ? 'G90' : 'G91';
   }
@@ -1766,7 +1771,13 @@ export function openCncEditor(initialCode) {
     const ab = e.target.closest('[data-act]');
     if (ab) {
       switch (ab.dataset.act) {
-        case 'sidebar':   sidebarEl.classList.toggle('open'); ab.classList.toggle('open'); break;
+        case 'sidebar': {
+          const isOpen = sidebarEl.classList.toggle('open');
+          ab.classList.toggle('open', isOpen);
+          // Klávesnice quickbaru se přes otevřený panel nepotřebuje – ať má panel i ten prostor.
+          if (quickbar) quickbar.classList.toggle('cne-hidden-by-sidebar', isOpen);
+          break;
+        }
         case 'closeEditor': overlay.remove(); break;
         case 'editorUndo': performUndo(); break;
         case 'editorRedo': performRedo(); break;

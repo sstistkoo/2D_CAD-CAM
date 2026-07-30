@@ -32,6 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HEIDENHAIN`, bez „840D sl") + `(CAM)`/`(CAD)` + název programu. Vpravo je
   zavírací **✕** — na mobilu totiž titulková lišta okna (`.calc-titlebar`)
   zůstává skrytá a křížek by jinak nešel vidět/kliknout.
+  - Na mobilu se z lišty nad kódem odstranil název souboru (ten už je vidět
+    v oranžové liště) a uvolněné místo vedle ☰ zabraly často používané akce
+    **⌒ (sražení/zaoblení→dráha), G90/G91, 🔍 Hledat a ＋ Nový program**
+    (`.cne-show-m`, opak `.cne-hide-m` — mimo mobil zůstávají skryté, na
+    desktopu beze změny). Tlačítko G90/G91 teď existuje 2× v DOM (desktop
+    i mobil), `updateModeBtn()` proto aktualizuje obě instance přes
+    `querySelectorAll`, ne jen `$()`.
+  - Otevřený boční panel (☰ Historie/Soubory) na mobilu schová i spodní
+    klávesnici (quickbar) — `.cne-main` (flex:1) se roztáhne do
+    uvolněného místa a panel s ním, není to tak našup na sobě.
 - CAD: **výběr typu čáry dle ČSN EN ISO 128** — tlačítko „Konstr." v liště
   nástrojů už nekreslí rovnou konstrukční čáru, ale otevře dialog **Typ čáry**.
   Na výběr je souvislá tlustá (viditelné hrany a obrysy), souvislá tenká

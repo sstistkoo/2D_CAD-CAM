@@ -5660,6 +5660,9 @@ body {
 /* ── Menu button (visible only on mobile) ───────────────────── */
 .cne-menu-btn { display: none; font-size: 20px !important; font-weight: 700; }
 
+/* ── Toolbar akce nahrazující název souboru (visible only on mobile) ── */
+.cne-show-m { display: none; }
+
 /* ── Keyboard button ────────────────────────────────────────── */
 .cne-kb-btn { color: var(--ctp-yellow) !important; background: var(--ctp-mantle) !important; }
 
@@ -6005,8 +6008,10 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
   .cne-menu-btn { display: flex !important; }
   .cne-toolbar { padding: 6px 8px; gap: 6px; }
   .cne-toolbar-left { min-width: 0; flex: 1; overflow: hidden; }
-  .cne-filename { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55vw; display: inline-block; padding: 4px 8px; }
   .cne-tb-btn { padding: 8px; font-size: 17px; }
+  /* Název souboru je vidět už v oranžové liště nahoře — na mobilu ho tu
+     nezobrazujeme, uvolněné místo dostanou často používané akce (⌒/G90/🔍/＋). */
+  .cne-show-m { display: inline; padding: 6px; font-size: 15px; }
 
   /* Sidebar overlay style on mobile */
   .cne-sidebar {
@@ -6021,6 +6026,10 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
     gap: 3px; padding: 4px 4px calc(64px + env(safe-area-inset-bottom, 6px)) 4px;
   }
   .cne-qb { padding: 8px 2px; font-size: 13px; min-height: 36px; }
+  /* Klávesnice quickbaru se přes otevřený boční panel nepotřebuje – schová
+     se, aby panel (historie/soubory) mohl zabrat i tenhle prostor dole
+     a nebylo to uvnitř na sobě nalepené. */
+  .cne-quickbar.cne-hidden-by-sidebar { display: none; }
 
   .cne-backdrop, .cne-textarea { font: 13px/18px "Consolas","Courier New",monospace; padding: 8px 8px; }
   .cne-textarea { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }

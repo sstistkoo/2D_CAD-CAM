@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { drawCanvas, ctx, worldToScreen, screenToWorld, screenAngle, screenCCW } from './canvas.js';
-import { state, toDisplayCoords, displayX, xPrefix, fmtCoordLabel } from './state.js';
+import { state, toDisplayCoords, displayX, xPrefix, fmtCoordLabel, fmtNum } from './state.js';
 import { bridge } from './bridge.js';
 import { bulgeToArc, getRectCorners, deepClone } from './utils.js';
 import { projectPointToLine } from './geometry.js';
@@ -963,7 +963,7 @@ function renderObjects() {
         ctx.setLineDash([]);
         ctx.font = `${labelSize}px Consolas`;
         ctx.fillStyle = COLORS.primary;
-        ctx.fillText(`∥ d=${dist.toFixed(state.displayDecimals)}mm`, (sx1 + sx2) / 2 + 8, (sy1 + sy2) / 2 - 8);
+        ctx.fillText(`∥ d=${fmtNum(dist)}mm`, (sx1 + sx2) / 2 + 8, (sy1 + sy2) / 2 - 8);
       }
     }
     // Preview: Kóta (2 body)
@@ -986,7 +986,7 @@ function renderObjects() {
       ctx.fillStyle = COLORS.textSecondary;
       const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
       const nx = -Math.sin(angle) * 14, ny = Math.cos(angle) * 14;
-      ctx.fillText(`${d.toFixed(state.displayDecimals)}mm`, (sx1 + sx2) / 2 + nx, (sy1 + sy2) / 2 + ny);
+      ctx.fillText(`${fmtNum(d)}mm`, (sx1 + sx2) / 2 + nx, (sy1 + sy2) / 2 + ny);
     }
     // Preview: Úhlová kóta – první úsečka vybrána, čeká se na druhou
     if (state.tool === "dimension" && state._dimFirstLine) {
@@ -1039,7 +1039,7 @@ function renderObjects() {
       ctx.font = `${labelSize}px Consolas`;
       ctx.fillStyle = COLORS.textSecondary;
       const tmx = (sx1 + sx2) / 2 + nx, tmy = (sy1 + sy2) / 2 + ny;
-      ctx.fillText(`${d.toFixed(state.displayDecimals)}mm`, tmx, tmy - 4);
+      ctx.fillText(`${fmtNum(d)}mm`, tmx, tmy - 4);
       // Zelený bod na předchozích bodech řetězce
       ctx.fillStyle = COLORS.dimension || COLORS.textSecondary;
       for (const pt of tp) {
@@ -1251,7 +1251,7 @@ function renderObjects() {
     ctx.fillStyle = COLORS.selected;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText(`${p.len.toFixed(state.displayDecimals)}${axisTag}`,
+    ctx.fillText(`${fmtNum(p.len)}${axisTag}`,
       (dsx1 + dsx2) / 2, (dsy1 + dsy2) / 2 - 4);
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
@@ -1281,7 +1281,7 @@ function renderObjects() {
       ctx.beginPath(); ctx.arc(msx, msy, 6, 0, Math.PI * 2); ctx.stroke();
       const dist = Math.hypot(state.mouse.x - A.x, state.mouse.y - A.y);
       ctx.font = `bold ${labelSize}px Consolas`;
-      ctx.fillText(`d=${dist.toFixed(state.displayDecimals)}`, msx, msy - labelSize - 8);
+      ctx.fillText(`d=${fmtNum(dist)}`, msx, msy - labelSize - 8);
       ctx.fillStyle = COLORS.text;
       ctx.font = `${labelSize}px Consolas`;
       ctx.fillText(fmtCoordLabel(state.mouse.x, state.mouse.y), msx, msy - 6);
@@ -1334,7 +1334,7 @@ function renderObjects() {
     const axisTag = p.mode === 'horizontal' ? ' Z' : p.mode === 'vertical' ? ' X' : '';
     ctx.font = `${labelSize}px Consolas`; ctx.fillStyle = COLORS.selected;
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText(`${p.len.toFixed(state.displayDecimals)}${axisTag}`,
+    ctx.fillText(`${fmtNum(p.len)}${axisTag}`,
       (dsx1 + dsx2) / 2, (dsy1 + dsy2) / 2 - 4);
     ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     ctx.restore();
@@ -1360,7 +1360,7 @@ function renderObjects() {
     ctx.font = `${labelSize}px Consolas`;
     ctx.textAlign = side >= 0 ? 'left' : 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`R${ar.arc.r.toFixed(state.displayDecimals)}`, msx + side * 5, msy);
+    ctx.fillText(`R${fmtNum(ar.arc.r)}`, msx + side * 5, msy);
     ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     ctx.restore();
   }
@@ -1857,8 +1857,8 @@ function drawDimension(obj) {
       // Skrýt původní popis u středu, když je kružnice okótovaná explicitní kótou
       if (obj.id != null && state.objects.some(o => o.isDimension && o.sourceObjId === obj.id)) break;
       const [sx, sy] = worldToScreen(obj.cx, obj.cy);
-      const rText = `R${obj.r.toFixed(state.displayDecimals)}`;
-      const dText = `⌀${(obj.r * 2).toFixed(state.displayDecimals)}`;
+      const rText = `R${fmtNum(obj.r)}`;
+      const dText = `⌀${fmtNum((obj.r * 2))}`;
       const rW = ctx.measureText(rText).width;
       const dW = ctx.measureText(dText).width;
       const r1 = resolveDimLabelPos(sx + 6, sy - 6, rW, dimSize);
@@ -1872,7 +1872,7 @@ function drawDimension(obj) {
       // Skrýt původní popis u středu, když je oblouk okótovaný explicitní kótou
       if (obj.id != null && state.objects.some(o => o.isDimension && o.sourceObjId === obj.id)) break;
       const [sx, sy] = worldToScreen(obj.cx, obj.cy);
-      const rText = `R${obj.r.toFixed(state.displayDecimals)}`;
+      const rText = `R${fmtNum(obj.r)}`;
       const rW = ctx.measureText(rText).width;
       const r1 = resolveDimLabelPos(sx + 6, sy - 6, rW, dimSize);
       ctx.fillText(rText, sx + 6, r1.y);
@@ -1887,12 +1887,12 @@ function drawDimension(obj) {
       const [sx2r, sy2r] = worldToScreen(rc[1].x, rc[1].y);
       const [sx3r, sy3r] = worldToScreen(rc[2].x, rc[2].y);
       ctx.fillText(
-        w.toFixed(state.displayDecimals),
+        fmtNum(w),
         (sx1r + sx2r) / 2 - 15,
         Math.min(sy1r, sy2r) - 4,
       );
       ctx.fillText(
-        h.toFixed(state.displayDecimals),
+        fmtNum(h),
         Math.max(sx2r, sx3r) + 4,
         (sy2r + sy3r) / 2 + 4,
       );
@@ -1919,7 +1919,7 @@ function drawDimension(obj) {
       }
       if (pn >= 1) {
         const [psx, psy] = worldToScreen(obj.vertices[0].x, obj.vertices[0].y);
-        ctx.fillText(`L${totalLen.toFixed(state.displayDecimals)} [${pn}v]`, psx + 8, psy - 8);
+        ctx.fillText(`L${fmtNum(totalLen)} [${pn}v]`, psx + 8, psy - 8);
       }
       break;
     }
@@ -2077,7 +2077,7 @@ export function drawLine(obj) {
       const diam = (obj.dimRadius || 0) * 2;
       const mx = (sx1 + sx2) / 2;
       const my = (sy1 + sy2) / 2;
-      const labelText = `⌀${diam.toFixed(state.displayDecimals)}`;
+      const labelText = `⌀${fmtNum(diam)}`;
       const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
       let textAngle = angle;
       if (textAngle > Math.PI / 2) textAngle -= Math.PI;
@@ -2111,7 +2111,7 @@ export function drawLine(obj) {
       const side = sx2 >= sx1 ? 1 : -1;
       ctx.textAlign = side >= 0 ? 'left' : 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`R${radiusL.toFixed(state.displayDecimals)}`, sx2 + side * 5, sy2);
+      ctx.fillText(`R${fmtNum(radiusL)}`, sx2 + side * 5, sy2);
       ctx.textAlign = 'start';
       ctx.textBaseline = 'alphabetic';
       return;
@@ -2134,7 +2134,7 @@ export function drawLine(obj) {
       const radius = obj.dimRadius || Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1);
       const mx = (sx1 + sx2) / 2;
       const my = (sy1 + sy2) / 2;
-      const labelText = `R${radius.toFixed(state.displayDecimals)}`;
+      const labelText = `R${fmtNum(radius)}`;
       const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
       let textAngle = angle;
       if (textAngle > Math.PI / 2) textAngle -= Math.PI;
@@ -2191,7 +2191,7 @@ export function drawLine(obj) {
       : Math.hypot(ox2 - ox1, oy2 - oy1);
     const mx = (sx1 + sx2) / 2;
     const my = (sy1 + sy2) / 2;
-    const labelText = len.toFixed(state.displayDecimals);
+    const labelText = fmtNum(len);
     const textW = ctx.measureText(labelText).width;
     const textH = dimSize;
 

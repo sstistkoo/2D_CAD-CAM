@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS, MOBILE_BREAKPOINT, applyThemeColors, LINE_WIDTH, RAINBOW_PRESETS } from './constants.js';
-import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle } from './state.js';
+import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle, fmtNum } from './state.js';
 import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects } from './utils.js';
 import { renderAll, renderAllDebounced, resolveObjectColor } from './render.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView } from './canvas.js';
@@ -1996,7 +1996,7 @@ export function updateIntersectionList() {
     const _vv = fV(pt.y);
     const coordSpan = document.createElement("span");
     coordSpan.style.flex = "1";
-    coordSpan.textContent = `${_Hp}${_iH}=${_hv.toFixed(state.displayDecimals)}  ${_Vp}${_iV}=${_vv.toFixed(state.displayDecimals)}`;
+    coordSpan.textContent = `${_Hp}${_iH}=${fmtNum(_hv)}  ${_Vp}${_iV}=${fmtNum(_vv)}`;
     li.appendChild(coordSpan);
 
     // Číslo průsečíku
@@ -2007,7 +2007,7 @@ export function updateIntersectionList() {
 
     // Klik na text = kopírovat souřadnice
     coordSpan.addEventListener("click", () => {
-      const text = `${_Hp}${_iH}${_hv.toFixed(state.displayDecimals)} ${_Vp}${_iV}${_vv.toFixed(state.displayDecimals)}`;
+      const text = `${_Hp}${_iH}${fmtNum(_hv)} ${_Vp}${_iV}${fmtNum(_vv)}`;
       navigator.clipboard
         .writeText(text)
         .then(() => showToast(`Zkopírováno: ${text}`));
@@ -5073,14 +5073,13 @@ function showSettingsDialog() {
     const listEl = overlay.querySelector('#settAnchorList');
     if (!listEl) return;
     const [H, V] = axisLabels();
-    const dec = state.displayDecimals;
     if (state.anchors.length === 0) {
       listEl.innerHTML = '<p style="margin:0;padding:8px;font-size:12px;color:var(--ctp-subtext0);text-align:center">Žádné kotvy</p>';
       return;
     }
     listEl.innerHTML = state.anchors.map((a, i) => {
-      const hVal = displayX(a.x).toFixed(dec);
-      const vVal = a.y.toFixed(dec);
+      const hVal = fmtNum(displayX(a.x));
+      const vVal = fmtNum(a.y);
       return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--ctp-surface0);font-size:12px" data-anchor-idx="${i}">
         <span style="color:var(--ctp-red);font-size:14px">⚓</span>
         <span style="flex:1;color:var(--ctp-text);font-family:monospace">${H}${xPrefix()}${hVal} &nbsp; ${V}${vVal}</span>

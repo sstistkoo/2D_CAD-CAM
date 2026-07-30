@@ -484,6 +484,22 @@ export function xPrefix() {
 }
 
 /**
+ * Formátuje číslo na dané desetinné místo a ořízne nadbytečné nuly za
+ * desetinnou čárkou (16.000 → 16, 23.650 → 23.65). Používat pro všechny
+ * popisky hodnot na plátně/v panelech – ne pro G-kód/CSV export.
+ * @param {number} value
+ * @param {number} [decimals] - Počet desetinných míst (default state.displayDecimals)
+ * @returns {string}
+ */
+export function fmtNum(value, decimals) {
+  const dec = decimals !== undefined ? decimals : state.displayDecimals;
+  let s = value.toFixed(dec);
+  if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  if (s === '-0') s = '0';
+  return s;
+}
+
+/**
  * Formátuje souřadnice pro status bar/coord display.
  * @param {number} wx - World X
  * @param {number} wy - World Y
@@ -495,10 +511,9 @@ export function fmtStatusCoords(wx, wy, extra = '') {
   const prefix = state.coordMode === 'inc' ? 'Δ' : '';
   const isKarusel = state.machineType === 'karusel';
   const xp = xPrefix();
-  const dec = state.displayDecimals;
   return isKarusel
-    ? `${prefix}${xp}X: ${displayX(d.x).toFixed(dec)}   ${prefix}Z: ${d.y.toFixed(dec)}${extra}`
-    : `${prefix}${xp}X: ${displayX(d.y).toFixed(dec)}   ${prefix}Z: ${d.x.toFixed(dec)}${extra}`;
+    ? `${prefix}${xp}X: ${fmtNum(displayX(d.x))}   ${prefix}Z: ${fmtNum(d.y)}${extra}`
+    : `${prefix}${xp}X: ${fmtNum(displayX(d.y))}   ${prefix}Z: ${fmtNum(d.x)}${extra}`;
 }
 
 /**
@@ -509,14 +524,13 @@ export function fmtStatusCoords(wx, wy, extra = '') {
  * @returns {string}
  */
 export function fmtCoordLabel(wx, wy, decimals) {
-  const dec = decimals !== undefined ? decimals : state.displayDecimals;
   const d = toDisplayCoords(wx, wy);
   const pf = state.coordMode === 'inc' ? 'Δ' : '';
   const isK = state.machineType === 'karusel';
   const xp = xPrefix();
   return isK
-    ? `${pf}${xp}X${displayX(d.x).toFixed(dec)} ${pf}Z${d.y.toFixed(dec)}`
-    : `${pf}${xp}X${displayX(d.y).toFixed(dec)} ${pf}Z${d.x.toFixed(dec)}`;
+    ? `${pf}${xp}X${fmtNum(displayX(d.x), decimals)} ${pf}Z${fmtNum(d.y, decimals)}`
+    : `${pf}${xp}X${fmtNum(displayX(d.y), decimals)} ${pf}Z${fmtNum(d.x, decimals)}`;
 }
 
 /**
