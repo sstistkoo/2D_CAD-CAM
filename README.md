@@ -34,7 +34,7 @@ wy (world Y) → svisle (vertical)
 
 ### 2D CAD
 - Kreslení primitiv: `LINE`, `ARC`, `CIRCLE`, `RECT`, `POLYLINE`, `TEXT`
-- Pokročilé úpravy: `FILLET`, `CHAMFER`, `TRIM`, `EXTEND`, `BREAK`, `MOVE`, `COPY`, `ROTATE`, `SCALE`, `MIRROR`, `ARRAY`, `ARRAY CIRCULAR`
+- Pokročilé úpravy: `FILLET`, `CHAMFER`, `TRIM`, `EXTEND`, `BREAK`, `JOIN`, `MOVE`, `COPY`, `ROTATE`, `SCALE`, `MIRROR`, `ARRAY`, `ARRAY CIRCULAR`
 - Boolean operace, geometrické pomocné konstrukce, MERGE
 - Základní **DXF import/export** s podporou 2D prvků, insertů, bloků, základní 3D face
 - Automatické výpočty průsečíků a asociativní dimenze

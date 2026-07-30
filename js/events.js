@@ -15,7 +15,7 @@ import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 
@@ -256,6 +256,11 @@ drawCanvas.addEventListener("mousemove", (e) => {
     }
   }
 
+  // Tužka: přidat bod do rozkresleného tahu, pokud je tažení aktivní (levé tlačítko drženo)
+  if (state.tool === 'pencil' && state.drawing && (e.buttons & 1)) {
+    addPencilPoint(wx, wy);
+  }
+
   renderAll();
 });
 
@@ -298,12 +303,25 @@ drawCanvas.addEventListener("mousedown", (e) => {
     }
   }
 
+  // Tužka: mousedown začíná nový tah (táhne se, nekliká se bod po bodu)
+  if (state.tool === "pencil") {
+    startPencilStroke(clickWx, clickWy);
+    renderAll();
+    return;
+  }
+
   // V deleteObj režimu použít raw (nesnapnuté) souřadnice,
   // aby snap nepřesouval bod k jinému objektu
   handleCanvasClick(clickWx, clickWy);
 });
 
 drawCanvas.addEventListener("mouseup", (e) => {
+  // Tužka: dokončit a uložit rozkreslený tah
+  if (state.tool === "pencil" && state.drawing) {
+    finishPencilStroke();
+    renderAll();
+    return;
+  }
   // Dokončit obdélníkový výběr
   if (state._rectSelecting && state._rectStart) {
     finishRectSelection();
@@ -429,6 +447,7 @@ document.addEventListener("keydown", (e) => {
     resetProfileTraceState();
     resetChainDimensionState();
     resetTrimState();
+    resetPencilState();
     // Odstranit dočasný měřicí bod
     const mTempIdx = state.objects.findIndex(o => o.isMeasureTemp);
     if (mTempIdx !== -1) state.objects.splice(mTempIdx, 1);
@@ -979,6 +998,10 @@ export function handleCanvasClick(wx, wy) {
 
     case "break":
       handleBreakClick(wx, wy);
+      break;
+
+    case "join":
+      handleJoinClick(wx, wy);
       break;
 
     case "centerMark":

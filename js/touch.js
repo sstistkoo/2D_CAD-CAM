@@ -12,7 +12,7 @@ import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { toolLabel } from './utils.js';
 import { showNumericalInputDialog } from './dialogs.js';
-import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace } from './tools/index.js';
+import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace, startPencilStroke, addPencilPoint, finishPencilStroke } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
 
@@ -548,6 +548,18 @@ drawCanvas.addEventListener(
         }
       }
 
+      // Tužka: touchstart začíná nový tah tažením prstu (přeskočit long-press/dvojtap)
+      if (state.tool === 'pencil' && !state.drawing) {
+        startPencilStroke(wx, wy);
+        touchState.singleTouchStartX = touches[0].clientX;
+        touchState.singleTouchStartY = touches[0].clientY;
+        touchState.touchMoved = false;
+        touchState.singlePanning = false;
+        touchState.touchStartTime = Date.now();
+        renderAll();
+        return;
+      }
+
       // Zapamatovat start pro detekci tah vs. tap
       touchState.singleTouchStartX = touches[0].clientX;
       touchState.singleTouchStartY = touches[0].clientY;
@@ -713,6 +725,10 @@ drawCanvas.addEventListener(
       state.mouse.x = wx;
       state.mouse.y = wy;
 
+      if (state.tool === 'pencil' && state.drawing) {
+        addPencilPoint(wx, wy);
+      }
+
       if (moveDistPx > TOUCH_MOVE_THRESHOLD) touchState.touchMoved = true;
 
       let extra = "";
@@ -784,6 +800,16 @@ drawCanvas.addEventListener(
     if (touchState.longPressTimer) {
       clearTimeout(touchState.longPressTimer);
       touchState.longPressTimer = null;
+    }
+
+    // Tužka: dokončit a uložit rozkreslený tah – má přednost před ostatní logikou
+    if (state.tool === 'pencil' && state.drawing) {
+      finishPencilStroke();
+      touchState.touchMoved = false;
+      touchState.singlePanning = false;
+      touchState.wasMultiTouch = false;
+      renderAll();
+      return;
     }
 
     // Po pinch zoomu (2→1 prst nebo 2→0): neskákat, resetovat stav

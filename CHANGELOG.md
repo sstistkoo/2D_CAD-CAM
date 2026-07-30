@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CAD: nové tlačítko **„Tužka"** (✏️) v liště nástrojů za „Profil" (`data-tool="pencil"`).
+  Kreslení od ruky – tažením myší/prstem po plátně vzniká náčrt, který se po
+  puštění tlačítka/prstu uloží jako jeden objekt typu polyline (rovné
+  mikro-segmenty mezi nasbíranými body, lze později rozložit přes „💥 Rozložit
+  konturu"). Implementace `js/tools/pencilClick.js`.
+  - Nová polyline se značí `isPencilStroke: true`, aby ji **„Zpět" smazal
+    najednou celou** – bez tohoto příznaku by ji zachytilo krokové undo pro
+    právě vytvořenou konturu (`js/state.js` `undo()`) a mazalo by ji bod po
+    bodu (desítky kliknutí na dlouhý náčrt).
+- Mobil: v liště nástrojů zkrácené popisky **„Kruh"** (Kružnice) a **„Obde"**
+  (Obdélník), aby se řádek vešel na jeden řádek i s novým tlačítkem Tužka.
+- CAD: nové tlačítko **„Spoj"** vedle „Rozděl" v liště nástrojů (`data-tool="join"`).
+  Opak rozdělení – klepnutím na bod, kde se stýkají dvě stejnosměrné úsečky
+  (kolineární, tvořící přímé prodloužení, ne roh ani přehyb), se obě sloučí
+  do jedné úsečky. Implementace `js/tools/joinClick.js`.
 - CAM/CNC Editor: **oranžová lišta s řídicím systémem** (🔄 CAM Editor,
   💻 CNC Editor) teď nese i ovládání, které se na mobilu na výšku jinam
   nevešlo. Vlevo přibyly šipky **◀ Zpět / ▶ Vpřed** (i Ctrl+Z/Ctrl+Y) pro

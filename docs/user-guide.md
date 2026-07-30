@@ -46,7 +46,7 @@ Aplikace běží offline jako PWA – žádný server, žádná instalace. Stač
 ### Toolbar (horní lišta)
 Herní nástroje seskupené do sekcí:
 - **Výběr/úpravy** – Vyber, Přesun, Kopírovat, Měřit, Zrcadlit, Otáčet, Měřítko
-- **Kreslení** – Úsečka, Typ čáry (ČSN EN ISO 128), Kružnice, Oblouk, Obdélník, Polyline, Text
+- **Kreslení** – Úsečka, Typ čáry (ČSN EN ISO 128), Kružnice, Oblouk, Obdélník, Polyline, Tužka, Text
 - **Úpravy** – Zaoblení, Zkosení, Ořez, Prodloužit, Zlomit, Tečna, Rovnoběžka, Kolmice, Offset, Rozdělit
 - **Kóty** – Lineární kóta, Řetězová kóta, Souřadnice
 - **Soustruh** – Závit, Drážka, Ozubení, Par ozubení, Zápich
@@ -147,6 +147,13 @@ zvoleného typu (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`, `Konstr`)
 1. Vyber **Polyline**
 2. Postupně klikni na vrcholy
 3. Klikni na první bod pro uzavření, nebo `Escape` pro ukončení
+
+### Tužka
+1. Vyber **Tužka**
+2. Táhni myší (nebo prstem na mobilu) po plátně – vzniká náčrt od ruky
+3. Puštěním tlačítka/prstu se tah uloží jako jeden objekt (jde ho pak
+   rozložit na jednotlivé úsečky přes **💥 Rozložit konturu** v kontextovém
+   menu)
 
 ### Text
 1. Vyber **Text**

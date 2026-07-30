@@ -911,6 +911,24 @@ function renderObjects() {
         (sly + smy) / 2 - 8,
       );
     }
+    if (state.tool === "pencil" && tp.length >= 1) {
+      // Náčrt tužkou: plná (nepřerušovaná) čára přes všechny dosud nasbírané body
+      ctx.strokeStyle = COLORS.preview;
+      ctx.lineWidth = LINE_WIDTH;
+      ctx.setLineDash([]);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      const [sfx, sfy] = worldToScreen(tp[0].x, tp[0].y);
+      ctx.moveTo(sfx, sfy);
+      for (let i = 1; i < tp.length; i++) {
+        const [sxi, syi] = worldToScreen(tp[i].x, tp[i].y);
+        ctx.lineTo(sxi, syi);
+      }
+      const [smx, smy] = worldToScreen(mx, my);
+      ctx.lineTo(smx, smy);
+      ctx.stroke();
+    }
     if (state.tool === "tangent" && tp.length === 1) {
       // Preview: bod tečny – zobrazit bod
       const [sx1, sy1] = worldToScreen(tp[0].x, tp[0].y);

@@ -291,6 +291,11 @@ body {
   fill: currentColor;
 }
 
+/* Zkrácené popisky tlačítek – zobrazí se jen na mobilu (viz @media max-width: 900px) */
+.tool-label-short {
+  display: none;
+}
+
 #coordDisplay {
   margin-left: auto;
   font-family: "Consolas", monospace;
@@ -2548,6 +2553,13 @@ body {
     height: 12px;
   }
 
+  .tool-label-full {
+    display: none;
+  }
+  .tool-label-short {
+    display: inline;
+  }
+
   .toolbar-more {
     gap: 4px;
     padding-top: 2px;
@@ -3196,6 +3208,12 @@ body {
   min-width: 340px;
   max-width: 440px;
 }
+@media (max-width: 480px) {
+  .cnc-window {
+    min-width: 0;
+    width: 95vw;
+  }
+}
 
 /* ── AI nastavení (modal providerů) ── */
 .ai-window {
@@ -3372,6 +3390,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 .cnc-field span {
   font-size: 12px;
@@ -3392,6 +3411,18 @@ body {
   font-size: 14px;
   font-family: "Consolas", monospace;
   outline: none;
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .cnc-fields {
+    gap: 6px;
+  }
+  .cnc-field input,
+  .cnc-field select {
+    padding: 5px 6px;
+    font-size: 13px;
+  }
 }
 .cnc-field select {
   font-size: 16px;

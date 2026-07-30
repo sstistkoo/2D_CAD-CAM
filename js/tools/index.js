@@ -31,6 +31,7 @@ export { handleGrooveClick, resetGrooveState, buildGrooveProfile } from './groov
 export { handleThreadClick, resetThreadState, threadFromSelection } from './threadClick.js';
 export { handleAnchorClick, isAnchored, hasAnchoredPoint, removeAnchorsForObject, removeAnchorAt, cleanupOrphanAnchors } from './anchorClick.js';
 export { handleBreakClick } from './breakClick.js';
+export { handleJoinClick } from './joinClick.js';
 export { handleCenterMarkClick, centerMarkFromSelection } from './centerMarkClick.js';
 export { handleScaleClick, scaleFromSelection } from './scaleClick.js';
 export { handleFilletChamferClick, filletChamferFromSelection } from './filletChamferClick.js';
@@ -39,3 +40,4 @@ export { handleCircularArrayClick } from './circularArrayClick.js';
 export { handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState } from './copyPlaceClick.js';
 export { handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, getTraceGcode, updateTracePanel, drawTraceToCanvas, importTraceFromGcode, autoTrace, stepTraceForward, stepTraceBackward } from './profileTraceClick.js';
 export { handleFillAreaClick, buildClosedLoops } from './fillClick.js';
+export { startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './pencilClick.js';

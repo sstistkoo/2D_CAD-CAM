@@ -2777,6 +2777,17 @@ export function setTool(tool) {
     });
     showToast(`Kontura uložena (${state.tempPoints.length} bodů)`);
   }
+  // Auto-uložit rozkreslený tah tužkou při přepnutí nástroje
+  if (state.tool === 'pencil' && state.drawing && state.tempPoints.length >= 2) {
+    addObject({
+      type: 'polyline',
+      vertices: state.tempPoints.slice(),
+      bulges: new Array(state.tempPoints.length - 1).fill(0),
+      closed: false,
+      name: `Tužka ${state.nextId}`,
+    });
+    showToast(`Náčrt tužkou uložen (${state.tempPoints.length} bodů)`);
+  }
   // Auto-dokončit rozpracované trasování profilu
   if (state.tool === 'profileTrace' && state.drawing && state.tempPoints.length >= 2) {
     if (bridge.finishProfileTrace) bridge.finishProfileTrace();
@@ -2879,6 +2890,7 @@ export function resetHint() {
     deleteObj: "Klepněte na objekt pro smazání",
     anchor: "Klepněte na snap bod pro zakotvení/uvolnění",
     break: "Klepněte na objekt – rozdělí se v daném místě",
+    join: "Klepněte na bod, kde se spojují dvě stejnosměrné úsečky",
     centerMark: "Klepněte na kružnici/oblouk – přepne středovou značku",
     scale: "Klepněte na objekt – otevře dialog změny měřítka",
     filletChamfer: "Klikněte na roh nebo na první úsečku – zaoblení nebo zkosení",

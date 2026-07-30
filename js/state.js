@@ -297,7 +297,7 @@ export function undo() {
   // Pokud je poslední objekt polyline s >2 body a v předchozím stavu neexistuje,
   // odeber jen poslední bod místo smazání celé kontury.
   const lastObj = state.objects[state.objects.length - 1];
-  if (lastObj && lastObj.type === 'polyline' && lastObj.vertices && lastObj.vertices.length > 2) {
+  if (lastObj && lastObj.type === 'polyline' && lastObj.vertices && lastObj.vertices.length > 2 && !lastObj.isPencilStroke) {
     let undoTopObjs;
     try {
       const undoTop = _parseUndoData(state.undoStack[state.undoStack.length - 1]);

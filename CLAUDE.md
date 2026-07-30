@@ -18,7 +18,7 @@ závislostí).
 
 ## Klíčové vlastnosti
 - **CAD/CAM integrace:** Kreslení 2D prvků (LINE, ARC, CIRCLE, RECT, POLYLINE, TEXT)
-  a pokročilé úpravy (FILLET, CHAMFER, TRIM, EXTEND, BREAK, MOVE, COPY, ROTATE,
+  a pokročilé úpravy (FILLET, CHAMFER, TRIM, EXTEND, BREAK, JOIN, MOVE, COPY, ROTATE,
   SCALE, MIRROR, ARRAY, BOOLEAN) s asociativními dimenzemi a průsečíky.
 - **Generátory:** zubová kola (cylindrická/kuželová), prstové drážky (DIN/VDI),
   závity (metrické i technologické formy A/B/C).

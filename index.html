@@ -468,7 +468,7 @@
             stroke-width="2"
           />
         </svg>
-        Kružnice
+        <span class="tool-label-full">Kružnice</span><span class="tool-label-short">Kruh</span>
       </button>
       <button
         class="tool-btn"
@@ -486,7 +486,7 @@
             stroke-width="2"
           />
         </svg>
-        Obdélník
+        <span class="tool-label-full">Obdélník</span><span class="tool-label-short">Obde</span>
       </button>
       <button
         class="tool-btn"
@@ -508,6 +508,29 @@
           <circle cx="21" cy="5" r="2" fill="currentColor" />
         </svg>
         Profil
+      </button>
+      <button
+        class="tool-btn"
+        data-tool="pencil"
+        title="Tužka – kreslení od ruky (táhni myší/prstem po plátně)"
+      >
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M3 21l1.5-5.5L15.5 4.5a2.121 2.121 0 0 1 3 3L7.5 18.5 2 20z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+          />
+          <path
+            d="M13.5 6.5l4 4"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+        Tužka
       </button>
       <button
         class="tool-btn toolbar-mid-toggle"
@@ -1295,6 +1318,33 @@
             />
           </svg>
           Rozděl
+        </button>
+        <button class="tool-btn" data-tool="join" title="Spojit dvě stejnosměrné úsečky ve společném bodě">
+          <svg viewBox="0 0 24 24">
+            <line
+              x1="4"
+              y1="20"
+              x2="12"
+              y2="12"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <line
+              x1="12"
+              y1="12"
+              x2="20"
+              y2="4"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="2.5"
+              fill="currentColor"
+            />
+          </svg>
+          Spoj
         </button>
         <button
           class="tool-btn mobile-hide"
@@ -2399,6 +2449,34 @@
                       </ul>
                     </div>
                   </details>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary>
+                  <span class="tool-icon">✏️</span> Tužka
+                </summary>
+                <div class="tool-detail">
+                  <p>
+                    Kreslení od ruky – táhněte myší (nebo prstem na mobilu) po
+                    plátně, jako byste kreslili tužkou po papíru.
+                  </p>
+                  <ul>
+                    <li>
+                      <strong>Táhnutí</strong> – sbírá body podél dráhy kurzoru
+                    </li>
+                    <li>
+                      <strong>Puštění tlačítka/prstu</strong> – uloží náčrt
+                      jako jeden objekt (polyline z rovných mikro-segmentů)
+                    </li>
+                    <li>
+                      <strong><kbd>Escape</kbd></strong> – zruší rozkreslený
+                      tah bez uložení
+                    </li>
+                    <li>
+                      Náčrt lze později rozložit na jednotlivé úsečky přes
+                      „💥 Rozložit konturu" v kontextovém menu
+                    </li>
+                  </ul>
                 </div>
               </details>
               <details class="help-tool-item">
