@@ -65,6 +65,7 @@ export function buildVkPreviewData(lines, draftSegment = null) {
   const vpol = vpolEntry ? { x: vpolEntry.x ?? 0, z: vpolEntry.z ?? 0 } : null;
   const segments = [];
   let currentPoint = vpol ? { ...vpol } : null;
+  let lastPoint = vpol ? { ...vpol } : null;
 
   for (const entry of parsed) {
     if (!entry || entry.cmd === 'G111') continue;
@@ -90,6 +91,7 @@ export function buildVkPreviewData(lines, draftSegment = null) {
         direction: entry.cmd || 'G11',
       });
       currentPoint = end;
+      lastPoint = end;
     }
   }
 
@@ -128,7 +130,7 @@ export function buildVkPreviewData(lines, draftSegment = null) {
     }
   }
 
-  return { vpol, segments, bounds, draft: draftSegment || null };
+  return { vpol, segments, bounds, draft: draftSegment || null, lastPoint };
 }
 
 export function openVkContour() {
@@ -450,11 +452,11 @@ export function openVkContour() {
     const zRaw = q('val-z2')?.value;
     const x = xRaw != null && xRaw !== '?' && xRaw.trim() !== '' ? parseFloat(xRaw) : null;
     const z = zRaw != null && zRaw !== '?' && zRaw.trim() !== '' ? parseFloat(zRaw) : null;
-    const vpolX = q('vpol-x')?.value;
-    const vpolZ = q('vpol-z')?.value;
-    const baseStart = {
-      x: vpolX != null && vpolX !== '' ? parseFloat(vpolX) || 0 : 0,
-      z: vpolZ != null && vpolZ !== '' ? parseFloat(vpolZ) || 0 : 0,
+    const value = gcodeEl ? gcodeEl.value : '';
+    const previewData = buildVkPreviewData(value);
+    const baseStart = previewData.lastPoint || {
+      x: q('vpol-x')?.value ? parseFloat(q('vpol-x').value) || 0 : 0,
+      z: q('vpol-z')?.value ? parseFloat(q('vpol-z').value) || 0 : 0,
     };
     if (x == null || z == null) return null;
     return {

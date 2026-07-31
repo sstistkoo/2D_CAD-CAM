@@ -23,6 +23,15 @@ describe('buildVkPreviewData', () => {
     expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 0, z: 40 }, end: { x: 10, z: 30 } });
   });
 
+  it('tracks the last known point from the parsed geometry', () => {
+    const data = buildVkPreviewData([
+      'G111 X0 Z40',
+      'G11 X10 Z30',
+    ]);
+
+    expect(data.lastPoint).toEqual({ x: 10, z: 30 });
+  });
+
   it('includes a live draft segment when the form contains a pending element', () => {
     const data = buildVkPreviewData(['G111 X0 Z40'], {
       type: 'line',
