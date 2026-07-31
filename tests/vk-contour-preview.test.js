@@ -1,0 +1,25 @@
+import { describe, it, expect } from 'vitest';
+import { parseVkLine, buildVkPreviewData } from '../js/calculators/vkContour.js';
+
+describe('parseVkLine', () => {
+  it('parses VPOL and element commands from VK syntax', () => {
+    const vpol = parseVkLine('G111 X10 Z20 PA30 R5');
+    const line = parseVkLine('G11 X12 Z22 PA45 PR3');
+
+    expect(vpol).toMatchObject({ cmd: 'G111', x: 10, z: 20, pa: 30, r: 5 });
+    expect(line).toMatchObject({ cmd: 'G11', x: 12, z: 22, pa: 45, pr: 3 });
+  });
+});
+
+describe('buildVkPreviewData', () => {
+  it('builds a simple line preview from VPOL and a subsequent element', () => {
+    const data = buildVkPreviewData([
+      'G111 X0 Z40',
+      'G11 X10 Z30',
+    ]);
+
+    expect(data.vpol).toEqual({ x: 0, z: 40 });
+    expect(data.segments).toHaveLength(1);
+    expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 0, z: 40 }, end: { x: 10, z: 30 } });
+  });
+});
