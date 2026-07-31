@@ -1020,7 +1020,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default: `Infinity`), takže kliknutí na vybarvenou plochu nic nevybralo a
   hlavní tlačítko **Smaž** tak nemělo co smazat. Přidán case `'fill'`
   (evenodd test přes všechny smyčky, stejný jako při vykreslení —
-  mezikruží se tedy správně vybírá jen za prstenec, ne za díru uprostřed).
+   mezikruží se tedy správně vybírá jen za prstenec, ne za díru uprostřed).
+- VK Kontura: náhled na první canvasu teď respektuje typ stroje (soustruh/karusel)
+  — pro soustruh jsou osy prohozené (Z vodorovně, X svisle), takže se PA
+  úhel vykresluje správně (dřív platilo pevně karuselové zobrazení, PA=4°
+  tedy vypadalo jako ~86°). Oblouky (G2/G3) mají pro soustruh obrácený znak
+  kvůli prohození os. První prvek řetězce se nyní označuje G0 (počáteční bod)
+  místo G11; v ISO konverzi se G0 rozdělí na pozicování (G0) + první řez (G1)
+  při PA/PR, nebo se převede na G1.
 
 ## [1.7.0] - 2026-07-04
 

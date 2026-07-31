@@ -315,6 +315,7 @@ export function openVkContour() {
   function drawGrid() {
     if (!canvasContext) return;
     const { width, height } = canvasSize;
+    const isKarusel = state.machineType === 'karusel';
     canvasContext.save();
     canvasContext.strokeStyle = 'rgba(255,255,255,0.08)';
     canvasContext.lineWidth = 1;
@@ -345,8 +346,13 @@ export function openVkContour() {
 
     canvasContext.fillStyle = 'rgba(255,255,255,0.68)';
     canvasContext.font = '10px sans-serif';
-    canvasContext.fillText('Z', originX + 4, 14);
-    canvasContext.fillText('X', width - 14, originY - 4);
+    if (isKarusel) {
+      canvasContext.fillText('Z', originX + 4, 14);
+      canvasContext.fillText('X', width - 14, originY - 4);
+    } else {
+      canvasContext.fillText('X', originX + 4, 14);
+      canvasContext.fillText('Z', width - 14, originY - 4);
+    }
     canvasContext.restore();
   }
 
@@ -391,12 +397,20 @@ export function openVkContour() {
     };
     const spanX = Math.max(bounds.maxX - bounds.minX, 1);
     const spanZ = Math.max(bounds.maxZ - bounds.minZ, 1);
-    const scale = Math.min((width - padding * 2) / spanX, (height - padding * 2) / spanZ);
+    const isKarusel = state.machineType === 'karusel';
+    const hSpan = isKarusel ? spanX : spanZ;
+    const vSpan = isKarusel ? spanZ : spanX;
+    const scale = Math.min((width - padding * 2) / hSpan, (height - padding * 2) / vSpan);
 
     function project(point) {
-      const x = padding + (point.x - bounds.minX) * scale;
-      const z = padding + (bounds.maxZ - point.z) * scale;
-      return { x, z };
+      if (isKarusel) {
+        const x = padding + (point.x - bounds.minX) * scale;
+        const y = padding + (bounds.maxZ - point.z) * scale;
+        return { x, z: y };
+      }
+      const x = padding + (point.z - bounds.minZ) * scale;
+      const y = padding + (bounds.maxX - point.x) * scale;
+      return { x, z: y };
     }
 
     canvasContext.save();
@@ -436,7 +450,7 @@ export function openVkContour() {
           const sagitta = Math.sqrt(Math.max(radiusPx * radiusPx - halfLen * halfLen, 0));
           const perpX = -dz / chordLen;
           const perpZ = dx / chordLen;
-          const sign = segment.direction === 'G3' ? 1 : -1;
+          const sign = (segment.direction === 'G3') === isKarusel ? 1 : -1;
           const centerX = (start.x + end.x) / 2 + sign * perpX * sagitta;
           const centerZ = (start.z + end.z) / 2 + sign * perpZ * sagitta;
           const startAngle = Math.atan2(start.z - centerZ, start.x - centerX);
