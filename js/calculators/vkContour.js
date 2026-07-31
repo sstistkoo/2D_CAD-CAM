@@ -53,10 +53,16 @@ export function openVkContour() {
     <details class="sn-help-details vk-section" open>
       <summary class="sn-help-summary vk-summary-with-nav">
         <span class="vk-help-c-orange">🎯 2. Nový VK prvek</span>
-        <span class="vk-nav-buttons">
-          <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
-          <span class="vk-nav-pos" data-id="nav-pos"></span>
-          <button type="button" class="vk-nav-btn" data-act="nav-next" title="Další / nový prvek">▶</button>
+        <span class="vk-summary-right">
+          <span class="vk-nav-buttons">
+            <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
+            <span class="vk-nav-pos" data-id="nav-pos"></span>
+            <button type="button" class="vk-nav-btn" data-act="nav-next" title="Další / nový prvek">▶</button>
+          </span>
+          <span class="vk-header-actions">
+            <button type="button" class="vk-header-btn" data-act="element" data-id="element-btn" title="Vložit VK prvek">+</button>
+            <button type="button" class="vk-header-btn vk-header-btn-red" data-act="remove-element" title="Odebrat VK prvek">−</button>
+          </span>
         </span>
       </summary>
       <div class="sn-help-body vk-section-body">
@@ -142,10 +148,6 @@ export function openVkContour() {
           </select>
         </label>
 
-        <div class="vk-actions" style="margin-top:6px">
-          <button class="vk-insert-btn" data-act="element" data-id="element-btn" style="flex:2; margin-top:0">Vložit počáteční bod</button>
-          <button class="vk-insert-btn vk-insert-red" data-act="remove-element" style="flex:1; margin-top:0">➖ Odebrat</button>
-        </div>
         <div class="vk-solve-info" data-solve-info></div>
       </div>
     </details>
@@ -366,7 +368,11 @@ export function openVkContour() {
     q('z2-label').textContent = first ? 'Start Z1' : 'Cíl Z2';
     q('tangent-title').style.display = first ? 'none' : '';
     q('tangent-row').style.display = first ? 'none' : '';
-    q('element-btn').textContent = editingItem ? '✓ Uložit úpravu' : (first ? 'Vložit počáteční bod' : 'Přidat VK prvek');
+    const elementBtn = q('element-btn');
+    if (elementBtn) {
+      elementBtn.textContent = editingItem ? '✓' : '+';
+      elementBtn.title = editingItem ? 'Uložit úpravu VK prvku' : (first ? 'Vložit počáteční bod' : 'Přidat VK prvek');
+    }
     const totalCount = pendingQueue.length + (firstElement ? 1 : 0);
     if (editingItem) {
       const position = cursor === -1 ? 1 : cursor + (firstElement ? 2 : 1);

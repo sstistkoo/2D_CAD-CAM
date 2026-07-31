@@ -5459,6 +5459,28 @@ body {
   line-height: 1.6;
 }
 .vk-nav-btn:hover { background: var(--ctp-surface1); }
+.vk-summary-right { display: flex; align-items: center; gap: 8px; }
+.vk-header-actions { display: flex; align-items: center; gap: 6px; }
+.vk-header-btn {
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-text);
+  border-radius: 8px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.vk-header-btn:hover { background: var(--ctp-surface1); }
+.vk-header-btn-red {
+  border-color: var(--ctp-red);
+  color: var(--ctp-red);
+}
+.vk-header-btn-red:hover { background: var(--ctp-red); color: var(--ctp-base); }
 .vk-nav-pos {
   font-size: 10.5px; color: var(--ctp-overlay0);
   min-width: 44px; text-align: center;
@@ -5512,6 +5534,29 @@ body {
 }
 
 /* ── Nápověda VK (obsah dialogu vkHelp.js) ── */
+.vk-summary-with-nav { justify-content: space-between; align-items: center; }
+.vk-summary-right { display: flex; align-items: center; gap: 8px; }
+.vk-header-actions { display: flex; align-items: center; gap: 6px; }
+.vk-header-btn {
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-text);
+  border-radius: 8px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.vk-header-btn:hover { background: var(--ctp-surface1); }
+.vk-header-btn-red {
+  border-color: var(--ctp-red);
+  color: var(--ctp-red);
+}
+.vk-header-btn-red:hover { background: var(--ctp-red); color: var(--ctp-base); }
 .vk-help-c-text    { color: var(--ctp-text); }
 .vk-help-c-blue     { color: var(--ctp-blue); }
 .vk-help-c-orange   { color: var(--ctp-peach); }
