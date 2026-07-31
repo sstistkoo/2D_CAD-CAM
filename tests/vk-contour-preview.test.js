@@ -70,4 +70,16 @@ describe('buildVkPreviewData', () => {
     expect(data.segments).toHaveLength(1);
     expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 0, z: 40 }, end: { x: 10, z: 30 } });
   });
+
+  it('treats first element X/Z + PA/PR as start + direction (not end from VPOL)', () => {
+    const data = buildVkPreviewData([
+      'G111 X0 Z40',
+      'G0 X40 Z20 PA10 PR100',
+    ]);
+
+    expect(data.segments).toHaveLength(1);
+    expect(data.segments[0].start).toEqual({ x: 40, z: 20 });
+    expect(data.segments[0].end.x).toBeCloseTo(40 + 100 * Math.sin(10 * Math.PI / 180), 9);
+    expect(data.segments[0].end.z).toBeCloseTo(20 + 100 * Math.cos(10 * Math.PI / 180), 9);
+  });
 });

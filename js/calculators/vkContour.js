@@ -66,13 +66,18 @@ export function buildVkPreviewData(lines, draftSegment = null) {
   const segments = [];
   let currentPoint = vpol ? { ...vpol } : null;
   let lastPoint = vpol ? { ...vpol } : null;
+  let isFirstElement = true;
 
   for (const entry of parsed) {
     if (!entry || entry.cmd === 'G111') continue;
     let start = currentPoint ? { ...currentPoint } : (vpol ? { ...vpol } : null);
     let end = null;
 
-    if (entry.x != null && entry.z != null) {
+    if (entry.x != null && entry.z != null && entry.pa != null && entry.pr != null && isFirstElement) {
+      start = { x: entry.x, z: entry.z };
+      const delta = polarDelta(entry.pa, entry.pr);
+      end = { x: start.x + delta.x, z: start.z + delta.z };
+    } else if (entry.x != null && entry.z != null) {
       end = { x: entry.x, z: entry.z };
     } else if (entry.pa != null && entry.pr != null && start) {
       const delta = polarDelta(entry.pa, entry.pr);
@@ -92,6 +97,7 @@ export function buildVkPreviewData(lines, draftSegment = null) {
       });
       currentPoint = end;
       lastPoint = end;
+      isFirstElement = false;
     }
   }
 
@@ -130,7 +136,9 @@ export function buildVkPreviewData(lines, draftSegment = null) {
     }
   }
 
-  return { vpol, segments, bounds, draft: draftSegment || null, lastPoint };
+  const startPoint = segments.length > 0 ? segments[0].start : (vpol ? { ...vpol } : null);
+
+  return { vpol, segments, bounds, draft: draftSegment || null, lastPoint, startPoint };
 }
 
 export function openVkContour() {
@@ -385,21 +393,23 @@ export function openVkContour() {
 
     canvasContext.strokeStyle = 'rgba(255,255,255,0.24)';
     canvasContext.lineWidth = 1.4;
+    canvasContext.setLineDash([6, 6]);
     canvasContext.beginPath();
     canvasContext.moveTo(originX, 0);
     canvasContext.lineTo(originX, height);
     canvasContext.moveTo(0, originY);
     canvasContext.lineTo(width, originY);
     canvasContext.stroke();
+    canvasContext.setLineDash([]);
 
     canvasContext.fillStyle = 'rgba(255,255,255,0.68)';
     canvasContext.font = '10px sans-serif';
     if (isKarusel) {
-      canvasContext.fillText('Z', originX + 4, 14);
-      canvasContext.fillText('X', width - 14, originY - 4);
+      canvasContext.fillText('Z', 8, 14);
+      canvasContext.fillText('X', width - 14, height - 6);
     } else {
-      canvasContext.fillText('X', originX + 4, 14);
-      canvasContext.fillText('Z', width - 14, originY - 4);
+      canvasContext.fillText('X', 8, 14);
+      canvasContext.fillText('Z', width - 14, height - 6);
     }
     canvasContext.restore();
   }
@@ -438,6 +448,17 @@ export function openVkContour() {
       canvasContext.arc(p.x, p.z, 4.5, 0, Math.PI * 2);
       canvasContext.fillStyle = '#f38ba8';
       canvasContext.fill();
+    }
+
+    if (previewData.startPoint) {
+      const sp = project(previewData.startPoint);
+      canvasContext.beginPath();
+      canvasContext.arc(sp.x, sp.z, 3.5, 0, Math.PI * 2);
+      canvasContext.fillStyle = 'rgba(255,255,255,0.9)';
+      canvasContext.fill();
+      canvasContext.strokeStyle = 'rgba(255,255,255,0.5)';
+      canvasContext.lineWidth = 1;
+      canvasContext.stroke();
     }
 
     const draftSegment = previewData.draft;

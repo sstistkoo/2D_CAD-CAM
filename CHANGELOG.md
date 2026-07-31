@@ -1029,6 +1029,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    místo G11; v ISO konverzi se G0 rozdělí na pozicování (G0) + první řez (G1)
    při PA/PR, nebo se převede na G1. VK náhled nyní zahrnuje (0,0) do hranic —
    osy X=0/Z=0 jsou vždy viditelné a body leží na skutečných souřadnicích.
+   Oprava: první prvek s X/Z + PA/PR (např. `G0 X40 Z20 PA10 PR100`) nyní
+   správně bere X/Z jako start a PA/PR jako směr (dřív se X/Z bralo jako konec
+   a PA/PR byly ignorovány — vizel jako `G0 X0 Z20`). Osy jsou čárkované a
+   popisky X/Z přesunuté do rohů canvasu, aby neléhaly přes geometrii.
 
 ## [1.7.0] - 2026-07-04
 
