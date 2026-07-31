@@ -331,6 +331,22 @@ export function openVkContour() {
       canvasContext.lineTo(width, y);
       canvasContext.stroke();
     }
+
+    const originX = 24;
+    const originY = height - 24;
+    canvasContext.strokeStyle = 'rgba(255,255,255,0.22)';
+    canvasContext.lineWidth = 1.4;
+    canvasContext.beginPath();
+    canvasContext.moveTo(originX, 0);
+    canvasContext.lineTo(originX, height);
+    canvasContext.moveTo(0, originY);
+    canvasContext.lineTo(width, originY);
+    canvasContext.stroke();
+
+    canvasContext.fillStyle = 'rgba(255,255,255,0.65)';
+    canvasContext.font = '10px sans-serif';
+    canvasContext.fillText('Z', originX + 4, 14);
+    canvasContext.fillText('X', width - 14, originY - 4);
     canvasContext.restore();
   }
 
@@ -412,8 +428,8 @@ export function openVkContour() {
         const dz = end.z - start.z;
         const chordLen = Math.hypot(dx, dz);
         if (chordLen > 1e-3) {
+          const radiusPx = Math.max(4, segment.radius * scale);
           const halfLen = chordLen / 2;
-          const radiusPx = Math.max(1, segment.radius * scale);
           const sagitta = Math.sqrt(Math.max(radiusPx * radiusPx - halfLen * halfLen, 0));
           const perpX = -dz / chordLen;
           const perpZ = dx / chordLen;
@@ -425,8 +441,9 @@ export function openVkContour() {
           let delta = endAngle - startAngle;
           if (segment.direction === 'G3' && delta < 0) delta += Math.PI * 2;
           if (segment.direction !== 'G3' && delta > 0) delta -= Math.PI * 2;
+          if (delta === 0) delta = Math.PI * 2;
           canvasContext.beginPath();
-          canvasContext.arc(centerX, centerZ, Math.max(radiusPx, 4), startAngle, startAngle + delta);
+          canvasContext.arc(centerX, centerZ, radiusPx, startAngle, startAngle + delta);
           canvasContext.stroke();
         }
       } else {
@@ -459,10 +476,22 @@ export function openVkContour() {
       z: q('vpol-z')?.value ? parseFloat(q('vpol-z').value) || 0 : 0,
     };
     if (x == null || z == null) return null;
+
+    const paRaw = q('val-pa')?.value;
+    const prRaw = q('val-pr')?.value;
+    const pa = paRaw != null && paRaw !== '?' && paRaw.trim() !== '' ? parseFloat(paRaw) : null;
+    const pr = prRaw != null && prRaw !== '?' && prRaw.trim() !== '' ? parseFloat(prRaw) : null;
+    const end = pa != null && pr != null
+      ? {
+          x: baseStart.x + pr * Math.sin((pa * Math.PI) / 180),
+          z: baseStart.z + pr * Math.cos((pa * Math.PI) / 180),
+        }
+      : { x, z };
+
     return {
       type: currentType === 'vkr' ? 'arc' : 'line',
       start: { x: baseStart.x, z: baseStart.z },
-      end: { x, z },
+      end,
       direction: arcDir,
       radius: q('val-r')?.value ? parseFloat(q('val-r').value) : null,
     };
@@ -483,6 +512,11 @@ export function openVkContour() {
     }
     drawVkPreview(previewData);
     setCanvasLabelVisible(false);
+    canvasContext.save();
+    canvasContext.fillStyle = 'rgba(255,255,255,0.55)';
+    canvasContext.font = '10px sans-serif';
+    canvasContext.fillText('náhled: VK / draft', 12, canvasSize.height - 8);
+    canvasContext.restore();
   }
 
   overlay.querySelectorAll('.vk-input-row input').forEach(input => {
