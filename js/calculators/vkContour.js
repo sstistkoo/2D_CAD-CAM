@@ -475,7 +475,8 @@ export function openVkContour() {
       x: q('vpol-x')?.value ? parseFloat(q('vpol-x').value) || 0 : 0,
       z: q('vpol-z')?.value ? parseFloat(q('vpol-z').value) || 0 : 0,
     };
-    if (x == null || z == null) return null;
+    const hasLiveDraftValues = x != null || z != null || q('val-pa')?.value?.trim() !== '' || q('val-pr')?.value?.trim() !== '';
+    if (!hasLiveDraftValues) return null;
 
     const paRaw = q('val-pa')?.value;
     const prRaw = q('val-pr')?.value;
@@ -486,7 +487,7 @@ export function openVkContour() {
           x: baseStart.x + pr * Math.sin((pa * Math.PI) / 180),
           z: baseStart.z + pr * Math.cos((pa * Math.PI) / 180),
         }
-      : { x, z };
+      : { x: x ?? baseStart.x, z: z ?? baseStart.z };
 
     return {
       type: currentType === 'vkr' ? 'arc' : 'line',
@@ -516,6 +517,10 @@ export function openVkContour() {
     canvasContext.fillStyle = 'rgba(255,255,255,0.55)';
     canvasContext.font = '10px sans-serif';
     canvasContext.fillText('náhled: VK / draft', 12, canvasSize.height - 8);
+    if (getDraftSegment()) {
+      canvasContext.fillStyle = 'rgba(245, 194, 231, 0.9)';
+      canvasContext.fillText('● live draft', canvasSize.width - 76, canvasSize.height - 8);
+    }
     canvasContext.restore();
   }
 
