@@ -517,11 +517,21 @@ export function openVkContour() {
     canvasContext.fillStyle = 'rgba(255,255,255,0.55)';
     canvasContext.font = '10px sans-serif';
     canvasContext.fillText('náhled: VK / draft', 12, canvasSize.height - 8);
-    if (getDraftSegment()) {
+    if (draftSegment) {
       canvasContext.fillStyle = 'rgba(245, 194, 231, 0.9)';
       canvasContext.fillText('● live draft', canvasSize.width - 76, canvasSize.height - 8);
     }
     canvasContext.restore();
+  }
+
+  let renderFrame = null;
+
+  function scheduleRender() {
+    if (renderFrame != null) return;
+    renderFrame = window.requestAnimationFrame(() => {
+      renderFrame = null;
+      renderVkCanvas();
+    });
   }
 
   overlay.querySelectorAll('.vk-input-row input').forEach(input => {
@@ -587,7 +597,7 @@ export function openVkContour() {
         input.classList.add('vk-input-unknown');
         btn.classList.add('active');
       }
-      renderVkCanvas();
+      scheduleRender();
     });
   });
 
@@ -1034,14 +1044,14 @@ export function openVkContour() {
     navigator.clipboard.writeText(gcodeEl.value).then(() => showToast('Zkopírováno'));
   });
 
-  gcodeEl.addEventListener('input', renderVkCanvas);
+  gcodeEl.addEventListener('input', scheduleRender);
   overlay.addEventListener('input', (event) => {
     if (event.target.matches('input, select, textarea')) {
-      renderVkCanvas();
+      scheduleRender();
     }
   });
-  window.addEventListener('resize', renderVkCanvas);
-  renderVkCanvas();
+  window.addEventListener('resize', scheduleRender);
+  scheduleRender();
 
   convertBtn.addEventListener('click', () => {
       if (restoreOriginalVkCode()) {
