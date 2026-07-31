@@ -312,10 +312,60 @@ export function openVkContour() {
     canvasContext.clearRect(0, 0, canvasSize.width, canvasSize.height);
   }
 
-  function drawGrid() {
+  /**
+   * Vypočítá layout VK canvasu: hranice (vždy obsahující [0,0]), měřítko,
+   * pozici původku os a funkci projekce bodu do canvas pixelů.
+   * Pro soustruh jsou osy prohozené (Z→vodorovně, X→svisle).
+   */
+  function computeCanvasLayout(previewData) {
+    const { width, height } = canvasSize;
+    const padding = 24;
+    const isKarusel = state.machineType === 'karusel';
+    const points = [];
+    if (previewData.vpol) points.push(previewData.vpol);
+    previewData.segments.forEach(segment => {
+      points.push(segment.start, segment.end);
+    });
+    points.push({ x: 0, z: 0 });
+
+    const bounds = points.length > 0 ? {
+      minX: Math.min(...points.map(pt => pt.x)),
+      maxX: Math.max(...points.map(pt => pt.x)),
+      minZ: Math.min(...points.map(pt => pt.z)),
+      maxZ: Math.max(...points.map(pt => pt.z)),
+    } : { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
+
+    const spanX = Math.max(bounds.maxX - bounds.minX, 1);
+    const spanZ = Math.max(bounds.maxZ - bounds.minZ, 1);
+    const hSpan = isKarusel ? spanX : spanZ;
+    const vSpan = isKarusel ? spanZ : spanX;
+    const scale = Math.min((width - padding * 2) / hSpan, (height - padding * 2) / vSpan);
+
+    let originCanvasX, originCanvasY;
+    if (isKarusel) {
+      originCanvasX = padding + (0 - bounds.minX) * scale;
+      originCanvasY = padding + (bounds.maxZ - 0) * scale;
+    } else {
+      originCanvasX = padding + (0 - bounds.minZ) * scale;
+      originCanvasY = padding + (bounds.maxX - 0) * scale;
+    }
+
+    function project(point) {
+      if (isKarusel) {
+        return { x: originCanvasX + point.x * scale, z: originCanvasY - point.z * scale };
+      }
+      return { x: originCanvasX + point.z * scale, z: originCanvasY - point.x * scale };
+    }
+
+    return { isKarusel, scale, originCanvasX, originCanvasY, project, bounds };
+  }
+
+  function drawGrid(layout) {
     if (!canvasContext) return;
     const { width, height } = canvasSize;
     const isKarusel = state.machineType === 'karusel';
+    const originX = layout ? layout.originCanvasX : 24;
+    const originY = layout ? layout.originCanvasY : height - 24;
     canvasContext.save();
     canvasContext.strokeStyle = 'rgba(255,255,255,0.08)';
     canvasContext.lineWidth = 1;
@@ -333,8 +383,6 @@ export function openVkContour() {
       canvasContext.stroke();
     }
 
-    const originX = 24;
-    const originY = height - 24;
     canvasContext.strokeStyle = 'rgba(255,255,255,0.24)';
     canvasContext.lineWidth = 1.4;
     canvasContext.beginPath();
@@ -374,44 +422,9 @@ export function openVkContour() {
     canvasContext.fillText('Připraveno pro prototyp VK náhledu', width / 2, height / 2);
     canvasContext.restore();
   }
-
-  function drawVkPreview(previewData) {
-    if (!canvasContext || !previewData) return;
-    const { width, height } = canvasSize;
-    const padding = 24;
-    const points = [];
-    if (previewData.vpol) points.push(previewData.vpol);
-    previewData.segments.forEach(segment => {
-      points.push(segment.start, segment.end);
-    });
-    const bounds = points.length > 0 ? {
-      minX: Math.min(...points.map(pt => pt.x)),
-      maxX: Math.max(...points.map(pt => pt.x)),
-      minZ: Math.min(...points.map(pt => pt.z)),
-      maxZ: Math.max(...points.map(pt => pt.z)),
-    } : {
-      minX: -10,
-      maxX: 10,
-      minZ: -10,
-      maxZ: 10,
-    };
-    const spanX = Math.max(bounds.maxX - bounds.minX, 1);
-    const spanZ = Math.max(bounds.maxZ - bounds.minZ, 1);
-    const isKarusel = state.machineType === 'karusel';
-    const hSpan = isKarusel ? spanX : spanZ;
-    const vSpan = isKarusel ? spanZ : spanX;
-    const scale = Math.min((width - padding * 2) / hSpan, (height - padding * 2) / vSpan);
-
-    function project(point) {
-      if (isKarusel) {
-        const x = padding + (point.x - bounds.minX) * scale;
-        const y = padding + (bounds.maxZ - point.z) * scale;
-        return { x, z: y };
-      }
-      const x = padding + (point.z - bounds.minZ) * scale;
-      const y = padding + (bounds.maxX - point.x) * scale;
-      return { x, z: y };
-    }
+  function drawVkPreview(previewData, layout) {
+    if (!canvasContext || !previewData || !layout) return;
+    const { scale, isKarusel, project } = layout;
 
     canvasContext.save();
     canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -518,17 +531,19 @@ export function openVkContour() {
   function renderVkCanvas() {
     ensureCanvas();
     clearCanvas();
-    drawGrid();
     const value = gcodeEl ? gcodeEl.value : '';
     const draftSegment = getDraftSegment();
     const previewData = buildVkPreviewData(value, draftSegment);
     const hasData = Boolean(previewData.vpol || previewData.segments.length);
     if (!hasData) {
+      drawGrid(null);
       drawPlaceholder();
       setCanvasLabelVisible(true);
       return;
     }
-    drawVkPreview(previewData);
+    const layout = computeCanvasLayout(previewData);
+    drawGrid(layout);
+    drawVkPreview(previewData, layout);
     setCanvasLabelVisible(false);
     canvasContext.save();
     canvasContext.fillStyle = 'rgba(255,255,255,0.55)';

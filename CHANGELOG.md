@@ -1026,8 +1026,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   úhel vykresluje správně (dřív platilo pevně karuselové zobrazení, PA=4°
   tedy vypadalo jako ~86°). Oblouky (G2/G3) mají pro soustruh obrácený znak
   kvůli prohození os. První prvek řetězce se nyní označuje G0 (počáteční bod)
-  místo G11; v ISO konverzi se G0 rozdělí na pozicování (G0) + první řez (G1)
-  při PA/PR, nebo se převede na G1.
+   místo G11; v ISO konverzi se G0 rozdělí na pozicování (G0) + první řez (G1)
+   při PA/PR, nebo se převede na G1. VK náhled nyní zahrnuje (0,0) do hranic —
+   osy X=0/Z=0 jsou vždy viditelné a body leží na skutečných souřadnicích.
 
 ## [1.7.0] - 2026-07-04
 
