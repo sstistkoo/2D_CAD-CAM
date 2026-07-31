@@ -352,10 +352,10 @@ export function openVkContour() {
     let originCanvasX, originCanvasY;
     if (isKarusel) {
       originCanvasX = padding + (0 - bounds.minX) * scale;
-      originCanvasY = padding + (bounds.maxZ - 0) * scale;
+      originCanvasY = height - padding;
     } else {
       originCanvasX = padding + (0 - bounds.minZ) * scale;
-      originCanvasY = padding + (bounds.maxX - 0) * scale;
+      originCanvasY = height - padding;
     }
 
     function project(point) {
