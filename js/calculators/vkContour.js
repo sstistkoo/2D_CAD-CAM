@@ -299,8 +299,9 @@ export function openVkContour() {
   let vpolPoint = null;
   let lastPoint = null;   // konec posledního VYŘEŠENÉHO prvku
   let pendingQueue = [];  // prvky { isArc, isT, x,z,pa,r, vpolTag, anchor, lineText, wasFirstEver, dir, prRaw }
+  let firstElement = null; // první vložený prvek (počáteční bod), viditelný v navigaci
   let chainStarted = false; // false, dokud nebyl vložen počáteční bod (i jako "?")
-  let cursor = null;      // index do pendingQueue, který se právě prohlíží/edituje; null = nové zadání
+  let cursor = null;      // index do pendingQueue, nebo -1 = firstElement, null = nové zadání
 
   /** Nastaví pole na „?" (neznámé) nebo na konkrétní hodnotu – sdíleno mezi ❓ přepínačem a načtením prvku. */
   function setUnknownField(id, val) {
@@ -356,7 +357,7 @@ export function openVkContour() {
   }
 
   function updateFormMode() {
-    const editingItem = cursor !== null ? pendingQueue[cursor] : null;
+    const editingItem = cursor === -1 ? firstElement : (cursor !== null ? pendingQueue[cursor] : null);
     const first = editingItem ? editingItem.wasFirstEver : !chainStarted;
     q('coords-title').textContent = first
       ? 'Souřadnice počátečního bodu:'
@@ -366,9 +367,13 @@ export function openVkContour() {
     q('tangent-title').style.display = first ? 'none' : '';
     q('tangent-row').style.display = first ? 'none' : '';
     q('element-btn').textContent = editingItem ? '✓ Uložit úpravu' : (first ? 'Vložit počáteční bod' : 'Přidat VK prvek');
-    q('nav-pos').textContent = editingItem
-      ? `${cursor + 1}/${pendingQueue.length}`
-      : (pendingQueue.length ? 'nový' : '');
+    const totalCount = pendingQueue.length + (firstElement ? 1 : 0);
+    if (editingItem) {
+      const position = cursor === -1 ? 1 : cursor + (firstElement ? 2 : 1);
+      q('nav-pos').textContent = `${position}/${totalCount}`;
+    } else {
+      q('nav-pos').textContent = pendingQueue.length || firstElement ? 'nový' : '';
+    }
   }
   updateFormMode();
 
@@ -459,7 +464,7 @@ export function openVkContour() {
   let nextElId = 1;
 
   function resetChain() {
-    startPoint = null; vpolPoint = null; lastPoint = null; pendingQueue = []; nextElId = 1;
+    startPoint = null; vpolPoint = null; lastPoint = null; pendingQueue = []; firstElement = null; nextElId = 1;
     chainStarted = false; cursor = null;
     solveInfo.textContent = '';
     updateFormMode();
@@ -467,9 +472,16 @@ export function openVkContour() {
 
   overlay.querySelector('[data-act="nav-prev"]').addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
-    if (pendingQueue.length === 0) return;
-    cursor = cursor === null ? pendingQueue.length - 1 : Math.max(0, cursor - 1);
-    loadElementIntoForm(pendingQueue[cursor]);
+    if (pendingQueue.length === 0 && !firstElement) return;
+    if (cursor === null) {
+      cursor = pendingQueue.length > 0 ? pendingQueue.length - 1 : -1;
+    } else if (cursor > 0) {
+      cursor -= 1;
+    } else if (cursor === 0) {
+      cursor = firstElement ? -1 : 0;
+    }
+    if (cursor === -1) loadElementIntoForm(firstElement);
+    else loadElementIntoForm(pendingQueue[cursor]);
     solveInfo.textContent = '';
     updateFormMode();
   });
@@ -477,22 +489,35 @@ export function openVkContour() {
   overlay.querySelector('[data-act="nav-next"]').addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (cursor === null) return;
-    cursor++;
-    if (cursor >= pendingQueue.length) { cursor = null; resetFormToNewEntry(); }
-    else loadElementIntoForm(pendingQueue[cursor]);
+    if (cursor === -1) {
+      cursor = pendingQueue.length > 0 ? 0 : null;
+      if (cursor === null) { resetFormToNewEntry(); updateFormMode(); return; }
+      loadElementIntoForm(pendingQueue[cursor]);
+    } else {
+      cursor += 1;
+      if (cursor >= pendingQueue.length) { cursor = null; resetFormToNewEntry(); }
+      else loadElementIntoForm(pendingQueue[cursor]);
+    }
     solveInfo.textContent = '';
     updateFormMode();
   });
 
   overlay.querySelector('[data-act="remove-element"]').addEventListener('click', () => {
-    const idx = cursor !== null ? cursor : pendingQueue.length - 1;
-    if (idx < 0 || idx >= pendingQueue.length) { solveInfo.textContent = 'Není co odebrat.'; return; }
-    const [removed] = pendingQueue.splice(idx, 1);
-    gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== removed.lineText).join('\n');
-    if (removed.wasFirstEver && lastPoint === null) chainStarted = false;
+    if (cursor === null && pendingQueue.length === 0) { solveInfo.textContent = 'Není co odebrat.'; return; }
+    if (cursor === -1) {
+      if (!firstElement) { solveInfo.textContent = 'Není co odebrat.'; return; }
+      gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== firstElement.lineText).join('\n');
+      firstElement = null;
+    } else {
+      const idx = cursor !== null ? cursor : pendingQueue.length - 1;
+      if (idx < 0 || idx >= pendingQueue.length) { solveInfo.textContent = 'Není co odebrat.'; return; }
+      const [removed] = pendingQueue.splice(idx, 1);
+      gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== removed.lineText).join('\n');
+      if (removed.wasFirstEver && lastPoint === null) chainStarted = false;
+    }
     cursor = null;
     resetFormToNewEntry();
-    solveInfo.textContent = `Odebráno: ${removed.lineText}`;
+    solveInfo.textContent = 'Odebráno';
     updateFormMode();
   });
 
@@ -508,9 +533,9 @@ export function openVkContour() {
 
   overlay.querySelector('[data-act="element"]').addEventListener('click', () => {
     const editingIndex = cursor;
-    const isFirstEver = editingIndex !== null
-      ? pendingQueue[editingIndex].wasFirstEver
-      : (pendingQueue.length === 0 && lastPoint === null);
+    const isFirstEver = editingIndex === -1
+      ? true
+      : (editingIndex !== null ? pendingQueue[editingIndex].wasFirstEver : (pendingQueue.length === 0 && lastPoint === null));
     const xStr = q('val-x2').value, zStr = q('val-z2').value;
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
@@ -564,12 +589,21 @@ export function openVkContour() {
         solveInfo.textContent = '⚠ Úpravou by se prvek stal plně známým – k tomu ho nejdřív odeberte (➖) a vložte znovu jako nový.';
         return;
       }
+      if (editingIndex === -1) {
+        const old = firstElement;
+        el.id = old.id;
+        el.anchor = firstElementAnchor(el);
+        el.lineText = line;
+        gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
+        firstElement = el;
+        cursor = null;
+        resetFormToNewEntry();
+        solveInfo.textContent = '✓ Prvek upraven.';
+        updateFormMode();
+        return;
+      }
       const old = pendingQueue[editingIndex];
       el.id = old.id;
-      // Kotva počátečního bodu je odvozená ze samotného X/Z (viz níže) –
-      // při úpravě se musí přepočítat, jinak by paprsek zůstal na STARÉ
-      // pozici i po změně X/Z. U běžných prvků je kotva = konec předchozího
-      // (nezávisí na tomhle prvku), takže se jen zkopíruje beze změny.
       el.anchor = el.wasFirstEver ? firstElementAnchor(el) : old.anchor;
       el.lineText = line;
       gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
@@ -604,6 +638,10 @@ export function openVkContour() {
     el.lineText = line;
     appendCode(line);
 
+    if (isFirstEver) {
+      firstElement = el;
+    }
+
     if (isKnown) {
       lastPoint = { z: el.z, x: el.x };
       pendingQueue = [];
@@ -615,6 +653,7 @@ export function openVkContour() {
 
     if (startPoint === null && lastPoint !== null) startPoint = { ...lastPoint };
     chainStarted = true;
+    cursor = null;
     resetFormToNewEntry();
     updateFormMode();
   });
