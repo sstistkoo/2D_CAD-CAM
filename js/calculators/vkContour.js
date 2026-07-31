@@ -223,14 +223,13 @@ export function openVkContour() {
       const input = q(btn.dataset.toggle);
       const isUnknown = input.value === '?';
       if (isUnknown) {
-        input.value = '0.0';
+        input.value = '';
         input.classList.remove('vk-input-unknown');
-        input.disabled = false;
         btn.classList.remove('active');
+        input.focus();
       } else {
         input.value = '?';
         input.classList.add('vk-input-unknown');
-        input.disabled = true;
         btn.classList.add('active');
       }
     });
@@ -328,9 +327,9 @@ export function openVkContour() {
     arcSettings.style.display = 'none';
     arcDir = 'G2';
     overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
-    setUnknownField('val-x2', 40.0);
+    setUnknownField('val-x2', null);
     setUnknownField('val-z2', null);
-    setUnknownField('val-pa', 150);
+    setUnknownField('val-pa', null);
     setUnknownField('val-pr', null);
     q('val-r').value = '5.0';
     q('check-t').checked = true;
@@ -504,7 +503,7 @@ export function openVkContour() {
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
 
-    const xRaw = xStr === '?' ? null : parseFloat(xStr);
+    const xRaw = xStr === '?' || xStr.trim() === '' ? null : parseFloat(xStr);
     const el = {
       id: nextElId++,
       isArc: currentType === 'vkr',
@@ -512,9 +511,9 @@ export function openVkContour() {
       dir: currentType === 'vkr' ? arcDir : null,
       xRaw,                                          // pro text (zobrazovaná jednotka)
       x: xRaw == null ? null : toSolverX(xRaw),       // pro geometrii (vkSolver = vždy průměr)
-      z: zStr === '?' ? null : parseFloat(zStr),
+      z: zStr === '?' || zStr.trim() === '' ? null : parseFloat(zStr),
       pa: (paStr === '?' || paStr.trim() === '') ? null : parseFloat(paStr),
-      prRaw: prStr === '?' ? null : prStr,
+      prRaw: prStr === '?' || prStr.trim() === '' ? null : prStr,
       r: parseFloat(rStr) || 0,
       vpolTag,
       junction: (junctionAxis && junctionValStr.trim() !== '')
