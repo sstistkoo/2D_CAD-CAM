@@ -691,13 +691,25 @@ export function openVkContour() {
     function buildElementChain(lines) {
       const parsed = lines.map((line) => parseVkLine(line));
       let cur = null;
+      let elementIndex = 0;
       for (const el of parsed) {
         if (!el || el.cmd === 'G111') continue;
+        const isFirstElement = elementIndex === 0;
+        elementIndex += 1;
+
         if (el.isArc) {
           if (cur) {
             el.start = cur;
             cur = null;
           }
+          continue;
+        }
+
+        if (!cur && isFirstElement && el.x != null && el.z != null && el.pa != null && el.pr != null) {
+          el.start = { z: el.z, x: el.x };
+          const delta = polarDelta(el.pa, el.pr);
+          el.end = { z: el.start.z + delta.z, x: el.start.x + delta.x };
+          cur = el.end;
           continue;
         }
 
@@ -783,16 +795,35 @@ export function openVkContour() {
       showToast(`Dopočteno ${fallbackCount} prvků (PA+PR) → pokračuji konverzí`);
     }
 
-    const converted = out.map(line => {
+    const convertedLines = [];
+    let firstElementConverted = false;
+    for (const line of out) {
+      const parsedLine = parseVkLine(line);
+      if (!firstElementConverted && parsedLine && parsedLine.cmd === 'G11' && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null && parsedLine.pa != null && parsedLine.pr != null) {
+        const start = { z: parsedLine.z, x: parsedLine.x };
+        const delta = polarDelta(parsedLine.pa, parsedLine.pr);
+        const end = { z: start.z + delta.z, x: start.x + delta.x };
+        convertedLines.push(`G0 X${fmt(start.x)} Z${fmt(start.z)}`);
+        convertedLines.push(`G1 X${fmt(end.x)} Z${fmt(end.z)}`);
+        firstElementConverted = true;
+        continue;
+      }
       let clean = line.trim();
-      if (clean.startsWith('G111')) return `( ${clean} - POZNÁMKA VPOL )`;
+      if (parsedLine && parsedLine.cmd !== 'G111') {
+        firstElementConverted = true;
+      }
+      if (clean.startsWith('G111')) {
+        convertedLines.push(`( ${clean} - POZNÁMKA VPOL )`);
+        continue;
+      }
       clean = clean.replace(/G11/g, 'G1');
       clean = clean.replace(/PA\d+(?:\.\d+)?/g, '');
       clean = clean.replace(/PR\d+(?:\.\d+)?/g, '');
       clean = clean.replace(/\s*VPOL[12]/g, '');
       clean = clean.replace(/\s+T\b/g, '');
-      return clean.replace(/\s+/g, ' ').trim();
-    }).join('\n');
+      convertedLines.push(clean.replace(/\s+/g, ' ').trim());
+    }
+    const converted = convertedLines.join('\n');
 
     gcodeEl.value = converted;
     convertBtn.classList.remove('vk-error-state');
