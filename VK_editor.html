@@ -267,7 +267,7 @@
 
     <!-- 1. ZÁLOŽKA: START & VPOL -->
     <details>
-        <summary style="color: var(--accent-red);">📍 1. Počáteční bod & Volný Pól (VPOL)</summary>
+        <summary style="color: var(--accent-red);">📍 1. Počáteční bod obrysu</summary>
         <div class="details-content">
             <div class="section-title">Výchozí poloha obrysu:</div>
             <div class="grid-2">
@@ -278,30 +278,6 @@
                 <div class="input-group">
                     <label>Start Z1 (Délka):</label>
                     <input type="text" id="start-z" value="0.0">
-                </div>
-            </div>
-
-            <div class="section-title red">Definice pólu (VPOL):</div>
-            <div class="grid-2">
-                <div class="input-group">
-                    <label>VPOL X (Průměr):</label>
-                    <input type="text" class="vpol" id="vpol-x" value="0.0">
-                </div>
-                <div class="input-group">
-                    <label>VPOL Z (Délka):</label>
-                    <input type="text" class="vpol" id="vpol-z" value="40.0">
-                </div>
-            </div>
-
-            <div class="section-title red">Konstrukční nástroje vyhledání průsečíku:</div>
-            <div class="grid-2">
-                <div class="input-group">
-                    <label>Konstrukční úhel (PA):</label>
-                    <input type="text" id="vpol-pa" placeholder="Např. 45°">
-                </div>
-                <div class="input-group">
-                    <label>Hledat na požadovaném rádiusu (R):</label>
-                    <input type="text" id="vpol-arc-intersect" placeholder="Poloměr kružnice">
                 </div>
             </div>
         </div>
@@ -315,6 +291,7 @@
             <div class="grid-2" style="display: flex;">
                 <button class="btn-toggle active" id="btn-vl" onclick="setType('vl')">VL (Úsečka)</button>
                 <button class="btn-toggle" id="btn-vkr" onclick="setType('vkr')">VKr (Oblouk)</button>
+                <button class="btn-toggle" id="btn-vpol" onclick="setType('vpol')">VPOL</button>
             </div>
 
             <div id="arc-settings">
@@ -329,6 +306,32 @@
                             <input type="text" id="val-r" value="5.0">
                             <button class="btn-q" onclick="toggleUnknown('val-r', this)">❓</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="vpol-settings" style="display:none;">
+                <div class="section-title red">Definice pólu (VPOL):</div>
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>VPOL X (Průměr):</label>
+                        <input type="text" class="vpol" id="vpol-x" value="0.0">
+                    </div>
+                    <div class="input-group">
+                        <label>VPOL Z (Délka):</label>
+                        <input type="text" class="vpol" id="vpol-z" value="40.0">
+                    </div>
+                </div>
+
+                <div class="section-title red">Konstrukční nástroje vyhledání průsečíku:</div>
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>Konstrukční úhel (PA):</label>
+                        <input type="text" id="vpol-pa" placeholder="Např. 45°">
+                    </div>
+                    <div class="input-group">
+                        <label>Hledat na požadovaném rádiusu (R):</label>
+                        <input type="text" id="vpol-arc-intersect" placeholder="Poloměr kružnice">
                     </div>
                 </div>
             </div>
@@ -434,7 +437,9 @@
         currentType = type;
         document.getElementById('btn-vl').classList.toggle('active', type === 'vl');
         document.getElementById('btn-vkr').classList.toggle('active', type === 'vkr');
+        document.getElementById('btn-vpol').classList.toggle('active', type === 'vpol');
         document.getElementById('arc-settings').style.display = type === 'vkr' ? 'block' : 'none';
+        document.getElementById('vpol-settings').style.display = type === 'vpol' ? 'block' : 'none';
     }
 
     function setDir(dir) {

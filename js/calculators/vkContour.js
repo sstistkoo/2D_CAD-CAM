@@ -155,24 +155,6 @@ export function openVkContour() {
       <div class="vk-canvas-label">Grafický náhled VK (připravujeme)</div>
     </div>
 
-    <details class="sn-help-details vk-section">
-      <summary class="sn-help-summary"><span class="vk-help-c-red">📍 1. Volný pól (VPOL)</span></summary>
-      <div class="sn-help-body vk-section-body">
-        <div class="vk-section-title vk-red">Definice pólu:</div>
-        <div class="cnc-fields">
-          <label class="cnc-field"><span class="vk-red">VPOL X (${xUnitLabel})</span><input type="text" class="vk-input-vpol" data-id="vpol-x" value="0.0"></label>
-          <label class="cnc-field"><span class="vk-red">VPOL Z</span><input type="text" class="vk-input-vpol" data-id="vpol-z" value="40.0"></label>
-        </div>
-
-        <div class="vk-section-title vk-red">Konstrukční nástroje vyhledání průsečíku:</div>
-        <div class="cnc-fields">
-          <label class="cnc-field"><span>Konstrukční úhel (PA)</span><input type="text" data-id="vpol-pa" placeholder="Např. 45°"></label>
-          <label class="cnc-field"><span>Hledat na rádiusu (R)</span><input type="text" data-id="vpol-arc" placeholder="Poloměr kružnice"></label>
-        </div>
-        <button class="vk-insert-btn vk-insert-red" data-act="vpol">Vložit VPOL</button>
-      </div>
-    </details>
-
     <details class="sn-help-details vk-section" open>
       <summary class="sn-help-summary vk-summary-with-nav">
         <span class="vk-help-c-orange">🎯 2. Nový VK prvek</span>
@@ -193,6 +175,7 @@ export function openVkContour() {
         <div class="vk-toggle-row">
           <button class="vk-toggle active" data-type="vl">VL (Úsečka)</button>
           <button class="vk-toggle" data-type="vkr">VKr (Oblouk)</button>
+          <button class="vk-toggle" data-type="vpol">VPOL</button>
         </div>
 
         <div class="vk-arc-settings" data-arc-settings style="display:none">
@@ -223,6 +206,21 @@ export function openVkContour() {
               <input type="text" data-id="junction-value" placeholder="Např. 12.0">
             </label>
           </div>
+        </div>
+
+        <div class="vk-vpol-settings" data-vpol-settings style="display:none">
+          <div class="vk-section-title vk-red">Definice pólu:</div>
+          <div class="cnc-fields">
+            <label class="cnc-field"><span class="vk-red">VPOL X (${xUnitLabel})</span><input type="text" class="vk-input-vpol" data-id="vpol-x" value="0.0"></label>
+            <label class="cnc-field"><span class="vk-red">VPOL Z</span><input type="text" class="vk-input-vpol" data-id="vpol-z" value="40.0"></label>
+          </div>
+
+          <div class="vk-section-title vk-red">Konstrukční nástroje vyhledání průsečíku:</div>
+          <div class="cnc-fields">
+            <label class="cnc-field"><span>Konstrukční úhel (PA)</span><input type="text" data-id="vpol-pa" placeholder="Např. 45°"></label>
+            <label class="cnc-field"><span>Hledat na rádiusu (R)</span><input type="text" data-id="vpol-arc" placeholder="Poloměr kružnice"></label>
+          </div>
+          <button class="vk-insert-btn vk-insert-red" data-act="vpol">Vložit VPOL</button>
         </div>
 
         <div class="vk-section-title" data-id="coords-title">Souřadnice počátečního bodu:</div>
@@ -624,13 +622,15 @@ export function openVkContour() {
     }
   });
 
-  // ── VL / VKr přepínač ──
+  // ── VL / VKr / VPOL přepínač ──
   const arcSettings = overlay.querySelector('[data-arc-settings]');
+  const vpolSettings = overlay.querySelector('[data-vpol-settings]');
   overlay.querySelectorAll('[data-type]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
       overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b === btn));
       arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
+      vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
       renderVkCanvas();
     });
   });
@@ -750,6 +750,7 @@ export function openVkContour() {
     currentType = el.isArc ? 'vkr' : 'vl';
     overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === currentType));
     arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
+    vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
     if (el.isArc) {
       arcDir = el.dir || 'G2';
       overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === arcDir));
@@ -770,6 +771,7 @@ export function openVkContour() {
     currentType = 'vl';
     overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === 'vl'));
     arcSettings.style.display = 'none';
+    vpolSettings.style.display = 'none';
     arcDir = 'G2';
     overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
     setUnknownField('val-x2', null);
@@ -976,7 +978,7 @@ export function openVkContour() {
     const rStr = q('val-r').value;
     const isTChecked = !isFirstEver && q('check-t').checked; // na počátečním bodě není na co se tečně napojit
     const vpolTag = q('vpol-tag').value || null;
-    const cmd = isFirstEver && currentType === 'vl' ? 'G0' : (currentType === 'vl' ? 'G11' : arcDir);
+    const cmd = currentType === 'vpol' ? 'G111' : (isFirstEver && currentType === 'vl' ? 'G0' : (currentType === 'vl' ? 'G11' : arcDir));
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
 
