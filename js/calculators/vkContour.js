@@ -179,12 +179,10 @@ export function openVkContour() {
         </div>
 
         <div class="vk-arc-settings" data-arc-settings style="display:none">
-          <div class="vk-toggle-row" style="margin-top:6px">
+          <div class="vk-toggle-row" style="margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap">
             <button class="vk-toggle active" data-dir="G2">G2 (po směru)</button>
             <button class="vk-toggle" data-dir="G3">G3 (proti směru)</button>
-          </div>
-          <div class="cnc-fields" style="margin-top:6px">
-            <label class="cnc-field">
+            <label class="cnc-field" style="margin:0">
               <span>Poloměr zaoblení (R)</span>
               <div class="vk-input-row">
                 <input type="text" data-id="val-r" value="5.0">
