@@ -334,7 +334,7 @@ export function openVkContour() {
 
     const originX = 24;
     const originY = height - 24;
-    canvasContext.strokeStyle = 'rgba(255,255,255,0.22)';
+    canvasContext.strokeStyle = 'rgba(255,255,255,0.24)';
     canvasContext.lineWidth = 1.4;
     canvasContext.beginPath();
     canvasContext.moveTo(originX, 0);
@@ -343,7 +343,7 @@ export function openVkContour() {
     canvasContext.lineTo(width, originY);
     canvasContext.stroke();
 
-    canvasContext.fillStyle = 'rgba(255,255,255,0.65)';
+    canvasContext.fillStyle = 'rgba(255,255,255,0.68)';
     canvasContext.font = '10px sans-serif';
     canvasContext.fillText('Z', originX + 4, 14);
     canvasContext.fillText('X', width - 14, originY - 4);
@@ -518,8 +518,11 @@ export function openVkContour() {
     canvasContext.font = '10px sans-serif';
     canvasContext.fillText('náhled: VK / draft', 12, canvasSize.height - 8);
     if (draftSegment) {
-      canvasContext.fillStyle = 'rgba(245, 194, 231, 0.9)';
-      canvasContext.fillText('● live draft', canvasSize.width - 76, canvasSize.height - 8);
+      canvasContext.fillStyle = 'rgba(245, 194, 231, 0.95)';
+      canvasContext.fillText('● live draft', canvasSize.width - 80, canvasSize.height - 8);
+      canvasContext.beginPath();
+      canvasContext.arc(canvasSize.width - 88, canvasSize.height - 10, 3, 0, Math.PI * 2);
+      canvasContext.fill();
     }
     canvasContext.restore();
   }
