@@ -22,7 +22,7 @@ import {
   twoTangentArcsBetweenRays, pickTwoArcsByVpolTag,
 } from './vkSolver.js';
 
-const DEFAULT_GCODE = 'G111 X0.0 Z40.0\nG11 X40.0 Z? PA150 PR?';
+const DEFAULT_GCODE = '';
 
 export function openVkContour() {
   // X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení) –
@@ -101,8 +101,8 @@ export function openVkContour() {
           <label class="cnc-field">
             <span data-id="x2-label">Start X1 (${xUnitLabel})</span>
             <div class="vk-input-row">
-              <input type="text" data-id="val-x2" value="40.0">
-              <button class="vk-btn-q" data-toggle="val-x2">❓</button>
+              <input type="text" data-id="val-x2" value="?" class="vk-input-unknown">
+              <button class="vk-btn-q active" data-toggle="val-x2">❓</button>
             </div>
           </label>
           <label class="cnc-field">
@@ -115,8 +115,8 @@ export function openVkContour() {
           <label class="cnc-field">
             <span>Polární úhel (PA)</span>
             <div class="vk-input-row">
-              <input type="text" data-id="val-pa" value="150">
-              <button class="vk-btn-q" data-toggle="val-pa">❓</button>
+              <input type="text" data-id="val-pa" value="?" class="vk-input-unknown">
+              <button class="vk-btn-q active" data-toggle="val-pa">❓</button>
             </div>
           </label>
           <label class="cnc-field">
