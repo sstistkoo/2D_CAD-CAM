@@ -5446,6 +5446,24 @@ body {
   min-height: 14px; margin-top: 4px;
 }
 
+.vk-summary-with-nav { justify-content: space-between; }
+.vk-nav-buttons { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.vk-nav-btn {
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-text);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.6;
+}
+.vk-nav-btn:hover { background: var(--ctp-surface1); }
+.vk-nav-pos {
+  font-size: 10.5px; color: var(--ctp-overlay0);
+  min-width: 44px; text-align: center;
+}
+
 .vk-gcode-box {
   background: var(--ctp-mantle);
   border: 1px solid var(--ctp-surface1);

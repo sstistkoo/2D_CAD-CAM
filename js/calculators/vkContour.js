@@ -51,7 +51,14 @@ export function openVkContour() {
     </details>
 
     <details class="sn-help-details vk-section" open>
-      <summary class="sn-help-summary"><span class="vk-help-c-orange">🎯 2. Parametry nového VK prvku</span></summary>
+      <summary class="sn-help-summary vk-summary-with-nav">
+        <span class="vk-help-c-orange">🎯 2. Nový VK prvek</span>
+        <span class="vk-nav-buttons">
+          <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
+          <span class="vk-nav-pos" data-id="nav-pos"></span>
+          <button type="button" class="vk-nav-btn" data-act="nav-next" title="Další / nový prvek">▶</button>
+        </span>
+      </summary>
       <div class="sn-help-body vk-section-body">
         <div class="vk-section-title">Geometrie prvku:</div>
         <div class="vk-toggle-row">
@@ -135,7 +142,10 @@ export function openVkContour() {
           </select>
         </label>
 
-        <button class="vk-insert-btn" data-act="element" data-id="element-btn">Vložit počáteční bod</button>
+        <div class="vk-actions" style="margin-top:6px">
+          <button class="vk-insert-btn" data-act="element" data-id="element-btn" style="flex:2; margin-top:0">Vložit počáteční bod</button>
+          <button class="vk-insert-btn vk-insert-red" data-act="remove-element" style="flex:1; margin-top:0">➖ Odebrat</button>
+        </div>
         <div class="vk-solve-info" data-solve-info></div>
       </div>
     </details>
@@ -257,12 +267,69 @@ export function openVkContour() {
   let startPoint = null;
   let vpolPoint = null;
   let lastPoint = null;   // konec posledního VYŘEŠENÉHO prvku
-  let pendingQueue = [];  // prvky { isArc, isT, x,z,pa,r, vpolTag, anchor, lineText }
+  let pendingQueue = [];  // prvky { isArc, isT, x,z,pa,r, vpolTag, anchor, lineText, wasFirstEver, dir, prRaw }
   let chainStarted = false; // false, dokud nebyl vložen počáteční bod (i jako "?")
+  let cursor = null;      // index do pendingQueue, který se právě prohlíží/edituje; null = nové zadání
 
-  /** Přepne popisky/viditelnost polí mezi „počáteční bod" (první vložení) a „další prvek". */
+  /** Nastaví pole na „?" (neznámé) nebo na konkrétní hodnotu – sdíleno mezi ❓ přepínačem a načtením prvku. */
+  function setUnknownField(id, val) {
+    const input = q(id);
+    const btn = overlay.querySelector(`[data-toggle="${id}"]`);
+    if (val == null) {
+      input.value = '?';
+      input.classList.add('vk-input-unknown');
+      input.disabled = true;
+      btn.classList.add('active');
+    } else {
+      input.value = val;
+      input.classList.remove('vk-input-unknown');
+      input.disabled = false;
+      btn.classList.remove('active');
+    }
+  }
+
+  /** Načte uložený nedořešený prvek zpět do formuláře (pro prohlížení/úpravu přes ◀ ▶). */
+  function loadElementIntoForm(el) {
+    currentType = el.isArc ? 'vkr' : 'vl';
+    overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === currentType));
+    arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
+    if (el.isArc) {
+      arcDir = el.dir || 'G2';
+      overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === arcDir));
+    }
+    setUnknownField('val-x2', el.xRaw);
+    setUnknownField('val-z2', el.z);
+    setUnknownField('val-pa', el.pa);
+    setUnknownField('val-pr', el.prRaw != null ? el.prRaw : null);
+    q('val-r').value = el.r;
+    q('check-t').checked = el.isT;
+    q('vpol-tag').value = el.vpolTag || '';
+    q('junction-axis').value = el.junction ? el.junction.axis : '';
+    q('junction-value').value = el.junction ? el.junction.rawValue : '';
+  }
+
+  /** Vrátí formulář na výchozí hodnoty pro zadání nového prvku. */
+  function resetFormToNewEntry() {
+    currentType = 'vl';
+    overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === 'vl'));
+    arcSettings.style.display = 'none';
+    arcDir = 'G2';
+    overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
+    setUnknownField('val-x2', 40.0);
+    setUnknownField('val-z2', null);
+    setUnknownField('val-pa', 150);
+    setUnknownField('val-pr', null);
+    q('val-r').value = '5.0';
+    q('check-t').checked = true;
+    q('vpol-tag').value = '';
+    q('junction-axis').value = '';
+    q('junction-value').value = '';
+  }
+
+  /** Přepne popisky/viditelnost polí mezi „počáteční bod" a „další prvek" (podle stavu / prohlíženého prvku). */
   function updateFormMode() {
-    const first = !chainStarted;
+    const editingItem = cursor !== null ? pendingQueue[cursor] : null;
+    const first = editingItem ? editingItem.wasFirstEver : !chainStarted;
     q('coords-title').textContent = first
       ? 'Souřadnice počátečního bodu:'
       : 'Cílové souřadnice (X/Z nebo PA/PR k pólu):';
@@ -270,7 +337,10 @@ export function openVkContour() {
     q('z2-label').textContent = first ? 'Start Z1' : 'Cíl Z2';
     q('tangent-title').style.display = first ? 'none' : '';
     q('tangent-row').style.display = first ? 'none' : '';
-    q('element-btn').textContent = first ? 'Vložit počáteční bod' : 'Přidat VK prvek';
+    q('element-btn').textContent = editingItem ? '✓ Uložit úpravu' : (first ? 'Vložit počáteční bod' : 'Přidat VK prvek');
+    q('nav-pos').textContent = editingItem
+      ? `${cursor + 1}/${pendingQueue.length}`
+      : (pendingQueue.length ? 'nový' : '');
   }
   updateFormMode();
 
@@ -337,6 +407,18 @@ export function openVkContour() {
     return { [elA.id]: pick.foot1, [arc1.id]: pick.junction, [arc2.id]: pick.foot2 };
   }
 
+  // Kotva paprsku počátečního bodu (žádný předchozí prvek neexistuje):
+  // elementRay bere pro rovnoběžný-s-osou směr POZICI z kotvy, ne z
+  // el.x/z samotného, takže se kotva musí poskládat z toho, co je na
+  // SAMOTNÉM počátečním bodě známé – chybějící souřadnici (relevantní
+  // jen když je navíc zadané PA, jinak nezáleží) doplní VPOL.
+  function firstElementAnchor(el) {
+    return {
+      z: el.z != null ? el.z : (vpolPoint ? vpolPoint.z : 0),
+      x: el.x != null ? el.x : (vpolPoint ? vpolPoint.x : 0),
+    };
+  }
+
   function patchLine(el, pt) {
     let patched = el.lineText;
     if (patched.includes('X?')) patched = patched.replace('X?', `X${fmt(fromSolverX(pt.x))}`);
@@ -349,10 +431,41 @@ export function openVkContour() {
 
   function resetChain() {
     startPoint = null; vpolPoint = null; lastPoint = null; pendingQueue = []; nextElId = 1;
-    chainStarted = false;
+    chainStarted = false; cursor = null;
     solveInfo.textContent = '';
     updateFormMode();
   }
+
+  overlay.querySelector('[data-act="nav-prev"]').addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (pendingQueue.length === 0) return;
+    cursor = cursor === null ? pendingQueue.length - 1 : Math.max(0, cursor - 1);
+    loadElementIntoForm(pendingQueue[cursor]);
+    solveInfo.textContent = '';
+    updateFormMode();
+  });
+
+  overlay.querySelector('[data-act="nav-next"]').addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (cursor === null) return;
+    cursor++;
+    if (cursor >= pendingQueue.length) { cursor = null; resetFormToNewEntry(); }
+    else loadElementIntoForm(pendingQueue[cursor]);
+    solveInfo.textContent = '';
+    updateFormMode();
+  });
+
+  overlay.querySelector('[data-act="remove-element"]').addEventListener('click', () => {
+    const idx = cursor !== null ? cursor : pendingQueue.length - 1;
+    if (idx < 0 || idx >= pendingQueue.length) { solveInfo.textContent = 'Není co odebrat.'; return; }
+    const [removed] = pendingQueue.splice(idx, 1);
+    gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== removed.lineText).join('\n');
+    if (removed.wasFirstEver && lastPoint === null) chainStarted = false;
+    cursor = null;
+    resetFormToNewEntry();
+    solveInfo.textContent = `Odebráno: ${removed.lineText}`;
+    updateFormMode();
+  });
 
   overlay.querySelector('[data-act="vpol"]').addEventListener('click', () => {
     const vx = q('vpol-x').value, vz = q('vpol-z').value;
@@ -365,7 +478,10 @@ export function openVkContour() {
   });
 
   overlay.querySelector('[data-act="element"]').addEventListener('click', () => {
-    const isFirstEver = pendingQueue.length === 0 && lastPoint === null;
+    const editingIndex = cursor;
+    const isFirstEver = editingIndex !== null
+      ? pendingQueue[editingIndex].wasFirstEver
+      : (pendingQueue.length === 0 && lastPoint === null);
     const xStr = q('val-x2').value, zStr = q('val-z2').value;
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
@@ -380,15 +496,22 @@ export function openVkContour() {
       id: nextElId++,
       isArc: currentType === 'vkr',
       isT: isTChecked,
+      dir: currentType === 'vkr' ? arcDir : null,
       xRaw,                                          // pro text (zobrazovaná jednotka)
       x: xRaw == null ? null : toSolverX(xRaw),       // pro geometrii (vkSolver = vždy průměr)
       z: zStr === '?' ? null : parseFloat(zStr),
       pa: (paStr === '?' || paStr.trim() === '') ? null : parseFloat(paStr),
+      prRaw: prStr === '?' ? null : prStr,
       r: parseFloat(rStr) || 0,
       vpolTag,
       junction: (junctionAxis && junctionValStr.trim() !== '')
-        ? { axis: junctionAxis, value: junctionAxis === 'x' ? toSolverX(parseFloat(junctionValStr)) : parseFloat(junctionValStr) }
+        ? {
+          axis: junctionAxis,
+          rawValue: junctionValStr,
+          value: junctionAxis === 'x' ? toSolverX(parseFloat(junctionValStr)) : parseFloat(junctionValStr),
+        }
         : null,
+      wasFirstEver: isFirstEver,
     };
 
     let line = `${cmd} X${xStr === '?' ? '?' : xRaw} Z${zStr === '?' ? '?' : el.z}`;
@@ -403,6 +526,29 @@ export function openVkContour() {
 
     if (isFirstEver && !isKnown && el.pa != null && !vpolPoint) {
       solveInfo.textContent = '⚠ Pro počáteční bod se zadaným úhlem (PA) nejdřív vlož VPOL – jinak nemá úhel od čeho měřit.';
+      return;
+    }
+
+    // ── Úprava existujícího nedořešeného prvku (přes ◀ ▶) ──
+    if (editingIndex !== null) {
+      if (isKnown) {
+        solveInfo.textContent = '⚠ Úpravou by se prvek stal plně známým – k tomu ho nejdřív odeberte (➖) a vložte znovu jako nový.';
+        return;
+      }
+      const old = pendingQueue[editingIndex];
+      el.id = old.id;
+      // Kotva počátečního bodu je odvozená ze samotného X/Z (viz níže) –
+      // při úpravě se musí přepočítat, jinak by paprsek zůstal na STARÉ
+      // pozici i po změně X/Z. U běžných prvků je kotva = konec předchozího
+      // (nezávisí na tomhle prvku), takže se jen zkopíruje beze změny.
+      el.anchor = el.wasFirstEver ? firstElementAnchor(el) : old.anchor;
+      el.lineText = line;
+      gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
+      pendingQueue[editingIndex] = el;
+      cursor = null;
+      resetFormToNewEntry();
+      solveInfo.textContent = '✓ Prvek upraven.';
+      updateFormMode();
       return;
     }
 
@@ -433,20 +579,7 @@ export function openVkContour() {
       lastPoint = { z: el.z, x: el.x };
       pendingQueue = [];
     } else {
-      if (lastPoint) {
-        el.anchor = { ...lastPoint };
-      } else {
-        // Počáteční bod: žádný předchozí prvek neexistuje, takže kotva
-        // paprsku (elementRay bere pro rovnoběžný-s-osou směr POZICI z
-        // kotvy, ne z el.x/z samotného!) se poskládá z toho, co je na
-        // SAMOTNÉM počátečním bodě známé – chybějící souřadnice
-        // (relevantní jen když je navíc zadané PA, jinak nezáleží)
-        // doplní VPOL.
-        el.anchor = {
-          z: el.z != null ? el.z : (vpolPoint ? vpolPoint.z : 0),
-          x: el.x != null ? el.x : (vpolPoint ? vpolPoint.x : 0),
-        };
-      }
+      el.anchor = lastPoint ? { ...lastPoint } : firstElementAnchor(el);
       pendingQueue.push(el);
       if (pendingQueue.length > 3) pendingQueue.shift(); // jen poslední 3 se dopočítávají (kat. 3 = A + 2 oblouky)
     }

@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- VK Kontura: sekce „2. Parametry nového VK prvku" přejmenována na
+  „2. Nový VK prvek" a doplněna o **navigaci ◀ ▶** mezi nedořešenými
+  prvky (max. 3, přesně to, co drží `pendingQueue`) přímo v záhlaví
+  sekce – umožňuje se vrátit k dřív vloženému nedořešenému prvku,
+  doplnit/upravit jeho pole (PA, PR, R, VPOL tag, bod zlomu…) a uložit.
+  Úprava, která by prvek udělala plně známým, se odmítne s návodem
+  (nejdřív odebrat ➖, vložit znovu jako nový) – jinak by se musel řešit
+  přepočet celého zbytku řetězce, což by výrazně rozšířilo rozsah.
+  Tlačítko „Přidat VK prvek" nahrazeno dvojicí **➕ (vložit/uložit)** a
+  **➖ (odebrat)** – druhé umožňuje smazat naposledy vložený nebo právě
+  prohlížený nedořešený prvek. Oprava odhalená testováním: kotva paprsku
+  počátečního bodu (odvozená ze SAMOTNÉHO X/Z, ne z předchozího prvku)
+  se při úpravě přes ◀ ▶ musela přepočítat znovu (`firstElementAnchor`)
+  – jinak by se paprsek po editaci X/Z tiše nepohnul a dopočet by vyšel
+  podle staré (needitované) polohy.
 - VK Kontura: **počáteční bod přesunut** ze samostatné sekce „1." přímo do
   „2. Parametry nového VK prvku" jako úplně první zadání (sekce „1." teď
   obsahuje jen VPOL). Počáteční bod se zadává úplně stejným formulářem
