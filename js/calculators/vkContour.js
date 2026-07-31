@@ -598,6 +598,7 @@ export function openVkContour() {
 
     if (startPoint === null && lastPoint !== null) startPoint = { ...lastPoint };
     chainStarted = true;
+    resetFormToNewEntry();
     updateFormMode();
   });
 
