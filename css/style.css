@@ -5350,15 +5350,28 @@ body {
 }
 .vk-window .sn-help-summary { padding: 8px 12px; }
 .vk-window .sn-help-body { padding: 6px 12px 8px; white-space: normal; }
+.vk-canvas-wrapper {
+  position: relative;
+  margin-bottom: 8px;
+}
 .vk-canvas-placeholder {
+  width: 100%;
+  height: 120px;
   background: var(--ctp-mantle);
   border: 1px dashed var(--ctp-surface1);
   border-radius: 8px;
-  height: 34px;
-  margin-bottom: 8px;
-  display: flex; align-items: center; justify-content: center;
+}
+.vk-canvas-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--ctp-overlay0);
-  font-size: 11.5px; text-align: center; padding: 0 10px;
+  font-size: 11.5px;
+  text-align: center;
+  pointer-events: none;
+  padding: 0 10px;
 }
 .vk-window .cnc-fields { gap: 6px; margin-bottom: 6px; }
 .vk-section { margin-bottom: 6px; }

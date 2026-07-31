@@ -30,7 +30,10 @@ export function openVkContour() {
   // hodnota při zadání/výstupu převádí přes toSolverX/fromSolverX níže.
   const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
-    <div class="vk-canvas-placeholder">Grafický náhled VK (připravujeme)</div>
+    <div class="vk-canvas-wrapper">
+      <canvas class="vk-canvas-placeholder" data-id="vk-canvas" width="440" height="120"></canvas>
+      <div class="vk-canvas-label">Grafický náhled VK (připravujeme)</div>
+    </div>
 
     <details class="sn-help-details vk-section">
       <summary class="sn-help-summary"><span class="vk-help-c-red">📍 1. Volný pól (VPOL)</span></summary>
