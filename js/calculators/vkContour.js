@@ -108,7 +108,7 @@ export function openVkContour() {
           <label class="cnc-field">
             <span data-id="z2-label">Start Z1</span>
             <div class="vk-input-row">
-              <input type="text" data-id="val-z2" value="?" class="vk-input-unknown" disabled>
+              <input type="text" data-id="val-z2" value="?" class="vk-input-unknown">
               <button class="vk-btn-q active" data-toggle="val-z2">❓</button>
             </div>
           </label>
@@ -122,7 +122,7 @@ export function openVkContour() {
           <label class="cnc-field">
             <span>Délka (PR)</span>
             <div class="vk-input-row">
-              <input type="text" data-id="val-pr" value="?" class="vk-input-unknown" disabled>
+              <input type="text" data-id="val-pr" value="?" class="vk-input-unknown">
               <button class="vk-btn-q active" data-toggle="val-pr">❓</button>
             </div>
           </label>
@@ -171,6 +171,21 @@ export function openVkContour() {
   if (!overlay) return;
 
   const q = (id) => overlay.querySelector(`[data-id="${id}"]`);
+  overlay.querySelectorAll('.vk-input-row input').forEach(input => {
+    input.addEventListener('focus', () => {
+      if (input.classList.contains('vk-input-unknown') && input.value === '?') {
+        input.value = '';
+        input.classList.remove('vk-input-unknown');
+      }
+    });
+    input.addEventListener('blur', () => {
+      if (input.value.trim() === '') {
+        input.value = '?';
+        input.classList.add('vk-input-unknown');
+      }
+    });
+  });
+
   let currentType = 'vl';
   let arcDir = 'G2';
 
@@ -278,12 +293,10 @@ export function openVkContour() {
     if (val == null) {
       input.value = '?';
       input.classList.add('vk-input-unknown');
-      input.disabled = true;
       btn.classList.add('active');
     } else {
       input.value = val;
       input.classList.remove('vk-input-unknown');
-      input.disabled = false;
       btn.classList.remove('active');
     }
   }
@@ -601,14 +614,57 @@ export function openVkContour() {
   });
 
   convertBtn.addEventListener('click', () => {
-    const text = gcodeEl.value;
-    if (text.includes('?')) {
-      convertBtn.classList.remove('vk-success-state');
-      convertBtn.classList.add('vk-error-state');
-      showToast('Nejprve doplňte hodnoty místo „?"');
-      return;
+    const D2R = Math.PI / 180;
+
+    function resolvePAprLine(text, fromPoint) {
+      if (!/X\?\s+Z\?/.test(text)) return null;
+
+      const paMatch = text.match(/PA(-?\d+(?:\.\d+)?)/);
+      const prMatch = text.match(/PR(-?\d+(?:\.\d+)?)/);
+      if (!paMatch || !prMatch) return null;
+      if (fromPoint == null) return null;
+
+      const paDeg = parseFloat(paMatch[1]) % 360;
+      const pr = parseFloat(prMatch[1]);
+      const paRad = paDeg * D2R;
+      let dZ = pr * Math.cos(paRad);
+      let dX = pr * Math.sin(paRad);
+      const newZ = fromPoint.z + dZ;
+      const newX = fromPoint.x + dX;
+      let resolved = text
+        .replace(/X\?/, `X${fmt(newX)}`)
+        .replace(/Z\?/, `Z${fmt(newZ)}`);
+      return { resolved, pt: { z: newZ, x: newX } };
     }
-    const converted = text.split('\n').map(line => {
+
+    const lines = gcodeEl.value.split('\n');
+    const hasUnresolved = lines.some(l => /X\?\s+Z\?/.test(l));
+    if (hasUnresolved) {
+      let cur = lastPoint;
+      let fallbackCount = 0;
+      const out = [];
+      for (const raw of lines) {
+        const r = resolvePAprLine(raw, cur);
+        if (r) {
+          out.push(r.resolved);
+          cur = r.pt;
+          fallbackCount++;
+        } else {
+          const m = raw.match(/X(-?\d+(?:\.\d+)?)\s+Z(-?\d+(?:\.\d+)?)/);
+          if (m) cur = { z: parseFloat(m[2]), x: parseFloat(m[1]) };
+          out.push(raw);
+        }
+      }
+      gcodeEl.value = out.join('\n');
+      if (fallbackCount > 0) {
+        showToast(`Dopočteno ${fallbackCount} prvků (PA+PR) → pokračuji konverzí`);
+      } else {
+        showToast('Nelze dopočíst PA+PR – chybí odchozí bod');
+        return;
+      }
+    }
+
+    const converted = gcodeEl.value.split('\n').map(line => {
       let clean = line.trim();
       if (clean.startsWith('G111')) return `( ${clean} - POZNÁMKA VPOL )`;
       clean = clean.replace(/G11/g, 'G1');
