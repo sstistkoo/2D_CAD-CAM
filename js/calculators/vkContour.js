@@ -810,6 +810,12 @@ export function openVkContour() {
           continue;
         }
       }
+      if (parsedLine && parsedLine.cmd !== 'G111' && parsedLine.x != null && parsedLine.z != null && parsedLine.pa != null && parsedLine.pr != null && !parsedLine.isArc) {
+        const delta = polarDelta(parsedLine.pa, parsedLine.pr);
+        cur = { z: parsedLine.z + delta.z, x: parsedLine.x + delta.x };
+        out.push(raw);
+        continue;
+      }
       const m = raw.match(/X(-?\d+(?:\.\d+)?)\s+Z(-?\d+(?:\.\d+)?)/);
       if (m) cur = { z: parseFloat(m[2]), x: parseFloat(m[1]) };
       out.push(raw);
@@ -821,28 +827,8 @@ export function openVkContour() {
 
     const convertedLines = [];
     let firstElementConverted = false;
-    for (let i = 0; i < out.length; i++) {
-      const line = out[i];
+    for (const line of out) {
       const parsedLine = parseVkLine(line);
-      if (!firstElementConverted && parsedLine && parsedLine.cmd === 'G11' && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null) {
-        const nextLine = out[i + 1];
-        const nextParsed = nextLine ? parseVkLine(nextLine) : null;
-        if (nextParsed && nextParsed.cmd === 'G11' && !nextParsed.isArc && nextParsed.pa != null && nextParsed.pr != null) {
-          const start = { z: parsedLine.z, x: parsedLine.x };
-          let end;
-          if (nextParsed.x != null && nextParsed.z != null) {
-            end = { z: nextParsed.z, x: nextParsed.x };
-          } else {
-            const delta = polarDelta(nextParsed.pa, nextParsed.pr);
-            end = { z: start.z + delta.z, x: start.x + delta.x };
-          }
-          convertedLines.push(`G0 X${fmt(start.x)} Z${fmt(start.z)}`);
-          convertedLines.push(`G1 X${fmt(end.x)} Z${fmt(end.z)}`);
-          firstElementConverted = true;
-          i += 1;
-          continue;
-        }
-      }
       if (!firstElementConverted && parsedLine && parsedLine.cmd === 'G11' && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null && parsedLine.pa != null && parsedLine.pr != null) {
         const start = { z: parsedLine.z, x: parsedLine.x };
         const delta = polarDelta(parsedLine.pa, parsedLine.pr);
