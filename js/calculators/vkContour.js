@@ -23,6 +23,7 @@ import {
 } from './vkSolver.js';
 
 const DEFAULT_GCODE = '';
+const VK_STORAGE_KEY = 'skica-vk-contour';
 
 function polarDelta(paDeg, pr) {
   const paRad = ((paDeg % 360) + 360) % 360 * (Math.PI / 180);
@@ -295,8 +296,16 @@ export function openVkContour() {
   const canvas = q('vk-canvas');
   const canvasLabel = overlay.querySelector('.vk-canvas-label');
   const gcodeEl = q('gcode');
+  try { const _saved = localStorage.getItem('skica-vk-contour'); if (_saved) gcodeEl.value = _saved; } catch { /* ignore */ }
   let canvasContext = null;
   let canvasSize = { width: 440, height: 140 };
+
+  function vkSave() {
+    try { localStorage.setItem('skica-vk-contour', gcodeEl.value); } catch { /* quota */ }
+  }
+  function vkClearStorage() {
+    try { localStorage.removeItem('skica-vk-contour'); } catch { /* ignore */ }
+  }
 
   function ensureCanvas() {
     if (!canvas) return null;
@@ -682,6 +691,7 @@ export function openVkContour() {
     conversionBackup = null;
     resetConvertState();
     convertBtn.textContent = ORIGINAL_CONVERT_LABEL;
+    vkSave();
     return true;
   }
 
@@ -689,6 +699,7 @@ export function openVkContour() {
     gcodeEl.value = gcodeEl.value.trim() === '' ? line : `${gcodeEl.value}\n${line}`;
     resetConvertState();
     resetConversionBackup();
+    vkSave();
   }
 
   function fmt(n) {
@@ -890,6 +901,7 @@ export function openVkContour() {
     gcodeEl.value = gcodeEl.value.replace(el.lineText, patched);
     el.lineText = patched;
     resetConversionBackup();
+    vkSave();
   }
 
   let nextElId = 1;
@@ -940,12 +952,14 @@ export function openVkContour() {
     if (cursor === -1) {
       if (!firstElement) { solveInfo.textContent = 'Není co odebrat.'; return; }
       gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== firstElement.lineText).join('\n');
+      vkSave();
       firstElement = null;
     } else {
       const idx = cursor !== null ? cursor : pendingQueue.length - 1;
       if (idx < 0 || idx >= pendingQueue.length) { solveInfo.textContent = 'Není co odebrat.'; return; }
       const [removed] = pendingQueue.splice(idx, 1);
       gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== removed.lineText).join('\n');
+      vkSave();
       if (removed.wasFirstEver && lastPoint === null) chainStarted = false;
     }
     cursor = null;
@@ -1030,6 +1044,7 @@ export function openVkContour() {
         el.anchor = firstElementAnchor(el);
         el.lineText = line;
         gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
+        vkSave();
         firstElement = el;
         cursor = null;
         resetFormToNewEntry();
@@ -1040,9 +1055,10 @@ export function openVkContour() {
       const old = pendingQueue[editingIndex];
       el.id = old.id;
       el.anchor = el.wasFirstEver ? firstElementAnchor(el) : old.anchor;
-      el.lineText = line;
-      gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
-      pendingQueue[editingIndex] = el;
+        el.lineText = line;
+        gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
+        vkSave();
+        pendingQueue[editingIndex] = el;
       cursor = null;
       resetFormToNewEntry();
       solveInfo.textContent = '✓ Prvek upraven.';
@@ -1096,6 +1112,7 @@ export function openVkContour() {
 
   overlay.querySelector('[data-act="clear"]').addEventListener('click', () => {
     gcodeEl.value = '';
+    vkClearStorage();
     resetConvertState();
     resetConversionBackup();
     resetChain();
@@ -1106,7 +1123,10 @@ export function openVkContour() {
     navigator.clipboard.writeText(gcodeEl.value).then(() => showToast('Zkopírováno'));
   });
 
-  gcodeEl.addEventListener('input', scheduleRender);
+  gcodeEl.addEventListener('input', () => {
+    scheduleRender();
+    vkSave();
+  });
   overlay.addEventListener('input', (event) => {
     if (event.target.matches('input, select, textarea')) {
       scheduleRender();
@@ -1341,6 +1361,7 @@ export function openVkContour() {
     const converted = convertedLines.join('\n');
 
     gcodeEl.value = converted;
+    vkSave();
     convertBtn.classList.remove('vk-error-state');
     convertBtn.classList.add('vk-success-state');
   });
