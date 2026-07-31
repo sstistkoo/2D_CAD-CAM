@@ -22,4 +22,15 @@ describe('buildVkPreviewData', () => {
     expect(data.segments).toHaveLength(1);
     expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 0, z: 40 }, end: { x: 10, z: 30 } });
   });
+
+  it('includes a live draft segment when the form contains a pending element', () => {
+    const data = buildVkPreviewData(['G111 X0 Z40'], {
+      type: 'line',
+      start: { x: 0, z: 40 },
+      end: { x: 12, z: 32 },
+      direction: 'G11',
+    });
+
+    expect(data.draft).toMatchObject({ type: 'line', end: { x: 12, z: 32 } });
+  });
 });

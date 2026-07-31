@@ -58,7 +58,7 @@ export function parseVkLine(text) {
   return data;
 }
 
-export function buildVkPreviewData(lines) {
+export function buildVkPreviewData(lines, draftSegment = null) {
   const rawLines = Array.isArray(lines) ? lines : String(lines || '').split(/\r?\n/);
   const parsed = rawLines.map(parseVkLine).filter(Boolean);
   const vpolEntry = parsed.find(entry => entry.cmd === 'G111') || null;
@@ -113,7 +113,22 @@ export function buildVkPreviewData(lines) {
         maxZ: 10,
       };
 
-  return { vpol, segments, bounds };
+  if (draftSegment) {
+    const start = draftSegment.start || (vpol ? { ...vpol } : null);
+    const end = draftSegment.end || start;
+    if (start && end) {
+      segments.push({
+        type: draftSegment.type || 'line',
+        start: { ...start },
+        end: { ...end },
+        radius: draftSegment.radius ?? null,
+        direction: draftSegment.direction || 'G11',
+        isDraft: true,
+      });
+    }
+  }
+
+  return { vpol, segments, bounds, draft: draftSegment || null };
 }
 
 export function openVkContour() {
@@ -383,6 +398,13 @@ export function openVkContour() {
     previewData.segments.forEach(segment => {
       const start = project(segment.start);
       const end = project(segment.end);
+      if (segment.isDraft) {
+        canvasContext.strokeStyle = 'rgba(245, 194, 231, 0.95)';
+        canvasContext.setLineDash([5, 4]);
+      } else {
+        canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
+        canvasContext.setLineDash([]);
+      }
       if (segment.type === 'arc' && segment.radius) {
         const dx = end.x - start.x;
         const dz = end.z - start.z;
@@ -411,6 +433,7 @@ export function openVkContour() {
         canvasContext.lineTo(end.x, end.z);
         canvasContext.stroke();
       }
+      canvasContext.setLineDash([]);
     });
     canvasContext.restore();
   }
@@ -422,12 +445,34 @@ export function openVkContour() {
     }
   }
 
+  function getDraftSegment() {
+    const xRaw = q('val-x2')?.value;
+    const zRaw = q('val-z2')?.value;
+    const x = xRaw != null && xRaw !== '?' && xRaw.trim() !== '' ? parseFloat(xRaw) : null;
+    const z = zRaw != null && zRaw !== '?' && zRaw.trim() !== '' ? parseFloat(zRaw) : null;
+    const vpolX = q('vpol-x')?.value;
+    const vpolZ = q('vpol-z')?.value;
+    const baseStart = {
+      x: vpolX != null && vpolX !== '' ? parseFloat(vpolX) || 0 : 0,
+      z: vpolZ != null && vpolZ !== '' ? parseFloat(vpolZ) || 0 : 0,
+    };
+    if (x == null || z == null) return null;
+    return {
+      type: currentType === 'vkr' ? 'arc' : 'line',
+      start: { x: baseStart.x, z: baseStart.z },
+      end: { x, z },
+      direction: arcDir,
+      radius: q('val-r')?.value ? parseFloat(q('val-r').value) : null,
+    };
+  }
+
   function renderVkCanvas() {
     ensureCanvas();
     clearCanvas();
     drawGrid();
     const value = gcodeEl ? gcodeEl.value : '';
-    const previewData = buildVkPreviewData(value);
+    const draftSegment = getDraftSegment();
+    const previewData = buildVkPreviewData(value, draftSegment);
     const hasData = Boolean(previewData.vpol || previewData.segments.length);
     if (!hasData) {
       drawPlaceholder();
