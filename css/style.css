@@ -5552,6 +5552,8 @@ body {
 @media (max-width: 480px) {
   .vk-window { width: 96vw; }
   .vk-toggle { font-size: 12px; padding: 8px 6px; }
+  .vk-arc-settings .vk-toggle-row { gap: 4px; }
+  .vk-arc-settings .vk-toggle { font-size: 11px; padding: 6px 4px; }
 }
 
 /* ── Nápověda VK (obsah dialogu vkHelp.js) ── */

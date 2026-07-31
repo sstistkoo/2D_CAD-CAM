@@ -157,7 +157,7 @@ export function openVkContour() {
 
     <details class="sn-help-details vk-section" open>
       <summary class="sn-help-summary vk-summary-with-nav">
-        <span class="vk-help-c-orange">🎯 2. Nový VK prvek</span>
+        <span class="vk-help-c-orange">🎯 2. prvek VK</span>
         <span class="vk-summary-right">
           <span class="vk-nav-buttons">
             <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
@@ -180,8 +180,8 @@ export function openVkContour() {
 
         <div class="vk-arc-settings" data-arc-settings style="display:none">
           <div class="vk-toggle-row" style="margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap">
-            <button class="vk-toggle active" data-dir="G2">G2 (po směru)</button>
-            <button class="vk-toggle" data-dir="G3">G3 (proti směru)</button>
+            <button class="vk-toggle active" data-dir="G2">G2 ↻</button>
+            <button class="vk-toggle" data-dir="G3">G3 ↺</button>
             <label class="cnc-field" style="margin:0">
               <span>Poloměr zaoblení (R)</span>
               <div class="vk-input-row">
