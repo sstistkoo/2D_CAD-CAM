@@ -157,7 +157,7 @@ export function openVkContour() {
 
     <details class="sn-help-details vk-section" open>
       <summary class="sn-help-summary vk-summary-with-nav">
-        <span class="vk-help-c-orange">🎯 2. prvek VK</span>
+        <span class="vk-help-c-orange">🎯 prvek VK</span>
         <span class="vk-summary-right">
           <span class="vk-nav-buttons">
             <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
@@ -272,7 +272,7 @@ export function openVkContour() {
     </details>
 
     <details class="sn-help-details vk-section" data-vk-help-details>
-      <summary class="sn-help-summary"><span class="vk-help-c-green">❓ 3. Přehled syntaxe a možností VK</span></summary>
+      <summary class="sn-help-summary"><span class="vk-help-c-green">❓ Přehled syntaxe a možností VK</span></summary>
       <div class="sn-help-body vk-section-body" data-vk-help-container></div>
     </details>
 
