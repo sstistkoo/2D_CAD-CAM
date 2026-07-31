@@ -32,6 +32,18 @@ describe('buildVkPreviewData', () => {
     expect(data.lastPoint).toEqual({ x: 10, z: 30 });
   });
 
+  it('resolves a line endpoint from PA/PR when coordinates are missing', () => {
+    const data = buildVkPreviewData([
+      'G111 X0 Z40',
+      'G11 PA45 PR10',
+    ]);
+
+    expect(data.segments[0].type).toBe('line');
+    expect(data.segments[0].start).toEqual({ x: 0, z: 40 });
+    expect(data.segments[0].end.x).toBeCloseTo(7.071067811865475, 9);
+    expect(data.segments[0].end.z).toBeCloseTo(47.071067811865476, 9);
+  });
+
   it('includes a live draft segment when the form contains a pending element', () => {
     const data = buildVkPreviewData(['G111 X0 Z40'], {
       type: 'line',
