@@ -616,64 +616,184 @@ export function openVkContour() {
   convertBtn.addEventListener('click', () => {
     const D2R = Math.PI / 180;
 
-    function resolvePAprLine(text, fromPoint) {
-      if (!/X\?\s+Z\?/.test(text)) return null;
+    function parseVkLine(text) {
+      const cmdMatch = text.trim().match(/^(G111|G11|G2|G3)\b/);
+      if (!cmdMatch) return null;
+      const data = { cmd: cmdMatch[1], text, isArc: cmdMatch[1] === 'G2' || cmdMatch[1] === 'G3' };
+      const re = /([A-Z]{1,4})(-?\d+(?:\.\d+)?|\?)/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const key = m[1].toLowerCase();
+        const val = m[2];
+        data[key] = val === '?' ? null : parseFloat(val);
+      }
+      data.isT = /\bT\b/.test(text);
+      if (/\bVPOL1\b/.test(text)) data.vpolTag = 'VPOL1';
+      else if (/\bVPOL2\b/.test(text)) data.vpolTag = 'VPOL2';
+      return data;
+    }
 
+    function normalizeAngle(deg) {
+      return ((deg % 360) + 360) % 360;
+    }
+
+    function polarDelta(paDeg, pr) {
+      const paRad = normalizeAngle(paDeg) * D2R;
+      return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
+    }
+
+    function lineDirection(el) {
+      if (el.pa != null) return normalizeAngle(el.pa);
+      if (el.start && el.end) {
+        const dz = el.end.z - el.start.z;
+        const dx = el.end.x - el.start.x;
+        if (Math.hypot(dz, dx) < 1e-9) return null;
+        return normalizeAngle(Math.atan2(dx, dz) / D2R);
+      }
+      return null;
+    }
+
+    function vectorFromAngle(angleDeg) {
+      return { z: Math.cos(angleDeg * D2R), x: Math.sin(angleDeg * D2R) };
+    }
+
+    function arcNormal(angleDeg, cmd) {
+      const v = vectorFromAngle(angleDeg);
+      return cmd === 'G2' ? { z: -v.x, x: v.z } : { z: v.x, x: -v.z };
+    }
+
+    function computeArcEnd(start, dirStart, dirEnd, radius, cmd) {
+      const n1 = arcNormal(dirStart, cmd);
+      const n2 = arcNormal(dirEnd, cmd);
+      return {
+        z: start.z + n1.z * radius - n2.z * radius,
+        x: start.x + n1.x * radius - n2.x * radius,
+      };
+    }
+
+    function replaceUnknownXY(text, point) {
+      return text.replace(/X\?/, `X${fmt(point.x)}`).replace(/Z\?/, `Z${fmt(point.z)}`);
+    }
+
+    function resolvePAprLine(text, fromPoint) {
+      if (!/X\?/.test(text) || !/Z\?/.test(text)) return null;
       const paMatch = text.match(/PA(-?\d+(?:\.\d+)?)/);
       const prMatch = text.match(/PR(-?\d+(?:\.\d+)?)/);
-      if (!paMatch || !prMatch) return null;
-      if (fromPoint == null) return null;
-
-      const paDeg = parseFloat(paMatch[1]) % 360;
-      const pr = parseFloat(prMatch[1]);
-      const paRad = paDeg * D2R;
-      let dZ = pr * Math.cos(paRad);
-      let dX = pr * Math.sin(paRad);
-      const newZ = fromPoint.z + dZ;
-      const newX = fromPoint.x + dX;
-      let resolved = text
-        .replace(/X\?/, `X${fmt(newX)}`)
-        .replace(/Z\?/, `Z${fmt(newZ)}`);
-      return { resolved, pt: { z: newZ, x: newX } };
+      if (!paMatch || !prMatch || fromPoint == null) return null;
+      const delta = polarDelta(parseFloat(paMatch[1]), parseFloat(prMatch[1]));
+      const pt = { z: fromPoint.z + delta.z, x: fromPoint.x + delta.x };
+      return {
+        resolved: text.replace(/X\?/, `X${fmt(pt.x)}`).replace(/Z\?/, `Z${fmt(pt.z)}`),
+        pt,
+      };
     }
 
-    const lines = gcodeEl.value.split('\n');
-    const hasUnresolved = lines.some(l => /X\?\s+Z\?/.test(l));
-    if (hasUnresolved) {
-      let cur = lastPoint;
-      let fallbackCount = 0;
-      const out = [];
-      for (const raw of lines) {
-        const r = resolvePAprLine(raw, cur);
-        if (r) {
-          out.push(r.resolved);
-          cur = r.pt;
-          fallbackCount++;
-        } else {
-          const m = raw.match(/X(-?\d+(?:\.\d+)?)\s+Z(-?\d+(?:\.\d+)?)/);
-          if (m) cur = { z: parseFloat(m[2]), x: parseFloat(m[1]) };
-          out.push(raw);
+    function buildElementChain(lines) {
+      const parsed = lines.map((line) => parseVkLine(line));
+      let cur = null;
+      for (const el of parsed) {
+        if (!el || el.cmd === 'G111') continue;
+        if (el.isArc) {
+          if (cur) {
+            el.start = cur;
+            cur = null;
+          }
+          continue;
+        }
+
+        if (cur && el.pa != null && el.pr != null) {
+          el.start = cur;
+          const delta = polarDelta(el.pa, el.pr);
+          el.end = { z: cur.z + delta.z, x: cur.x + delta.x };
+          cur = el.end;
+          continue;
+        }
+
+        if (el.x != null && el.z != null) {
+          if (cur) {
+            el.start = cur;
+          } else if (el.pa != null && el.pr != null) {
+            const delta = polarDelta(el.pa, el.pr);
+            el.start = { z: el.z - delta.z, x: el.x - delta.x };
+          }
+          el.end = { z: el.z, x: el.x };
+          cur = el.end;
+          continue;
+        }
+
+        el.start = cur;
+        cur = null;
+      }
+      return parsed;
+    }
+
+    const rawLines = gcodeEl.value.split('\n');
+    let updated = [...rawLines];
+    let progress = true;
+    while (progress) {
+      progress = false;
+      const parsedCurrent = buildElementChain(updated);
+      for (let i = 1; i + 1 < parsedCurrent.length; i++) {
+        const prev = parsedCurrent[i - 1];
+        const arc = parsedCurrent[i];
+        const next = parsedCurrent[i + 1];
+        if (
+          prev && !prev.isArc && prev.end &&
+          arc && arc.isArc && arc.x == null && arc.z == null && arc.r != null && arc.isT &&
+          next && !next.isArc && next.x == null && next.z == null && next.pa != null && next.pr != null && next.isT
+        ) {
+          const dir1 = lineDirection(prev);
+          const dir2 = normalizeAngle(next.pa);
+          if (dir1 == null) continue;
+          const arcEnd = computeArcEnd(prev.end, dir1, dir2, arc.r, arc.cmd);
+          const nextEndDelta = polarDelta(dir2, next.pr);
+          const nextEnd = { z: arcEnd.z + nextEndDelta.z, x: arcEnd.x + nextEndDelta.x };
+          const newArcLine = replaceUnknownXY(updated[i], arcEnd);
+          const newNextLine = replaceUnknownXY(updated[i + 1], nextEnd);
+          if (newArcLine !== updated[i] || newNextLine !== updated[i + 1]) {
+            updated[i] = newArcLine;
+            updated[i + 1] = newNextLine;
+            progress = true;
+            break;
+          }
         }
       }
-      gcodeEl.value = out.join('\n');
-      if (fallbackCount > 0) {
-        showToast(`Dopočteno ${fallbackCount} prvků (PA+PR) → pokračuji konverzí`);
-      } else {
-        showToast('Nelze dopočíst PA+PR – chybí odchozí bod');
-        return;
-      }
     }
 
-    const converted = gcodeEl.value.split('\n').map(line => {
+    let cur = null;
+    let fallbackCount = 0;
+    const out = [];
+    for (const raw of updated) {
+      const parsedLine = parseVkLine(raw);
+      if (parsedLine && parsedLine.cmd !== 'G111' && parsedLine.x == null && parsedLine.z == null && parsedLine.pa != null && parsedLine.pr != null) {
+        const resolved = resolvePAprLine(raw, cur);
+        if (resolved) {
+          out.push(resolved.resolved);
+          cur = resolved.pt;
+          fallbackCount++;
+          continue;
+        }
+      }
+      const m = raw.match(/X(-?\d+(?:\.\d+)?)\s+Z(-?\d+(?:\.\d+)?)/);
+      if (m) cur = { z: parseFloat(m[2]), x: parseFloat(m[1]) };
+      out.push(raw);
+    }
+
+    if (fallbackCount > 0) {
+      showToast(`Dopočteno ${fallbackCount} prvků (PA+PR) → pokračuji konverzí`);
+    }
+
+    const converted = out.map(line => {
       let clean = line.trim();
       if (clean.startsWith('G111')) return `( ${clean} - POZNÁMKA VPOL )`;
       clean = clean.replace(/G11/g, 'G1');
-      clean = clean.replace(/PA\d+(\.\d+)?/g, '');
-      clean = clean.replace(/PR\d+(\.\d+)?/g, '');
+      clean = clean.replace(/PA\d+(?:\.\d+)?/g, '');
+      clean = clean.replace(/PR\d+(?:\.\d+)?/g, '');
       clean = clean.replace(/\s*VPOL[12]/g, '');
       clean = clean.replace(/\s+T\b/g, '');
       return clean.replace(/\s+/g, ' ').trim();
     }).join('\n');
+
     gcodeEl.value = converted;
     convertBtn.classList.remove('vk-error-state');
     convertBtn.classList.add('vk-success-state');
