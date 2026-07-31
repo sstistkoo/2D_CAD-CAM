@@ -413,12 +413,15 @@ export function openVkContour() {
       canvasContext.fill();
     }
 
+    const draftSegment = previewData.draft;
+    const hasDraft = Boolean(draftSegment && draftSegment.end);
+
     previewData.segments.forEach(segment => {
       const start = project(segment.start);
       const end = project(segment.end);
       if (segment.isDraft) {
         canvasContext.strokeStyle = 'rgba(245, 194, 231, 0.95)';
-        canvasContext.setLineDash([5, 4]);
+        canvasContext.setLineDash([6, 4]);
       } else {
         canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
         canvasContext.setLineDash([]);
@@ -523,6 +526,9 @@ export function openVkContour() {
       canvasContext.beginPath();
       canvasContext.arc(canvasSize.width - 88, canvasSize.height - 10, 3, 0, Math.PI * 2);
       canvasContext.fill();
+    } else {
+      canvasContext.fillStyle = 'rgba(255,255,255,0.55)';
+      canvasContext.fillText('● ready', canvasSize.width - 64, canvasSize.height - 8);
     }
     canvasContext.restore();
   }
