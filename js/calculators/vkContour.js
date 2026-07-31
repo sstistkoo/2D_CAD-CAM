@@ -77,6 +77,9 @@ export function buildVkPreviewData(lines, draftSegment = null) {
       start = { x: entry.x, z: entry.z };
       const delta = polarDelta(entry.pa, entry.pr);
       end = { x: start.x + delta.x, z: start.z + delta.z };
+    } else if (entry.x != null && entry.z != null && isFirstElement && entry.cmd === 'G0') {
+      start = { x: entry.x, z: entry.z };
+      end = { x: entry.x, z: entry.z };
     } else if (entry.x != null && entry.z != null) {
       end = { x: entry.x, z: entry.z };
     } else if (entry.pa != null && entry.pr != null && start) {

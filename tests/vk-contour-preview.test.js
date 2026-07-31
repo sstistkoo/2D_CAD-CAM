@@ -61,14 +61,14 @@ describe('buildVkPreviewData', () => {
     expect(data.draft).toMatchObject({ type: 'line', end: { x: 12, z: 32 } });
   });
 
-  it('treats G0 as a line segment starting from VPOL', () => {
+  it('treats first G0 with only X/Z as a positioning point, not a line from VPOL', () => {
     const data = buildVkPreviewData([
       'G111 X0 Z40',
       'G0 X10 Z30',
     ]);
 
     expect(data.segments).toHaveLength(1);
-    expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 0, z: 40 }, end: { x: 10, z: 30 } });
+    expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 10, z: 30 }, end: { x: 10, z: 30 } });
   });
 
   it('treats first element X/Z + PA/PR as start + direction (not end from VPOL)', () => {

@@ -729,6 +729,55 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → stabilní G-kód > pipeline 2`] = `
+{
+  "interferenceGuides": [
+    "zanoreni: (8.00,34.00)->(5.00,45.20)",
+  ],
+  "machinableContour": [
+    "L (0.00,48.00)->(4.00,48.00)",
+    "L (4.00,48.00)->(4.29,47.71)",
+    "L (4.29,47.71)->(5.00,46.00)",
+    "L (5.00,46.00)->(5.00,45.20)",
+    "L (5.00,45.20)->(8.00,34.00) {ins}",
+    "L (8.00,34.00)->(8.00,30.00)",
+    "L (8.00,30.00)->(10.00,30.00)",
+    "L (10.00,30.00)->(14.00,22.00)",
+    "A r=10.00 G2",
+    "L (14.00,4.00)->(14.00,0.00)",
+    "L (14.00,0.00)->(0.00,0.00)",
+  ],
+  "passCount": 25,
+  "passTags": [
+    "face{contourLeadOut,blocked}",
+    "face{contourLeadOut,blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{contourLeadOut,blocked}",
+    "face{contourLeadOut,blocked}",
+    "face{contourLeadOut,blocked}",
+    "face{contourLeadOut,blocked}",
+    "face{contourLeadOut,blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
+  ],
+}
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
