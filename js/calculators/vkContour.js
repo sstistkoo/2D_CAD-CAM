@@ -32,7 +32,7 @@ function polarDelta(paDeg, pr) {
 export function parseVkLine(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return null;
-  const cmdMatch = trimmed.match(/^(G111|G11|G2|G3)\b/);
+  const cmdMatch = trimmed.match(/^(G0|G111|G11|G2|G3)\b/);
   if (!cmdMatch) return null;
   const data = {
     cmd: cmdMatch[1],
@@ -923,7 +923,7 @@ export function openVkContour() {
     const rStr = q('val-r').value;
     const isTChecked = !isFirstEver && q('check-t').checked; // na počátečním bodě není na co se tečně napojit
     const vpolTag = q('vpol-tag').value || null;
-    const cmd = currentType === 'vl' ? 'G11' : arcDir;
+    const cmd = isFirstEver && currentType === 'vl' ? 'G0' : (currentType === 'vl' ? 'G11' : arcDir);
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
 
@@ -1072,7 +1072,7 @@ export function openVkContour() {
       const D2R = Math.PI / 180;
 
     function parseVkLine(text) {
-      const cmdMatch = text.trim().match(/^(G111|G11|G2|G3)\b/);
+      const cmdMatch = text.trim().match(/^(G0|G111|G11|G2|G3)\b/);
       if (!cmdMatch) return null;
       const data = { cmd: cmdMatch[1], text, isArc: cmdMatch[1] === 'G2' || cmdMatch[1] === 'G3' };
       const re = /([A-Z]{1,4})(-?\d+(?:\.\d+)?|\?)/g;
@@ -1260,7 +1260,7 @@ export function openVkContour() {
     let firstElementConverted = false;
     for (const line of out) {
       const parsedLine = parseVkLine(line);
-      if (!firstElementConverted && parsedLine && parsedLine.cmd === 'G11' && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null && parsedLine.pa != null && parsedLine.pr != null) {
+      if (!firstElementConverted && parsedLine && (parsedLine.cmd === 'G11' || parsedLine.cmd === 'G0') && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null && parsedLine.pa != null && parsedLine.pr != null) {
         const start = { z: parsedLine.z, x: parsedLine.x };
         const delta = polarDelta(parsedLine.pa, parsedLine.pr);
         const end = { z: start.z + delta.z, x: start.x + delta.x };
@@ -1277,6 +1277,7 @@ export function openVkContour() {
         convertedLines.push(`( ${clean} - POZNÁMKA VPOL )`);
         continue;
       }
+      clean = clean.replace(/^G0\b/, 'G1');
       clean = clean.replace(/G11/g, 'G1');
       clean = clean.replace(/PA\d+(?:\.\d+)?/g, '');
       clean = clean.replace(/PR\d+(?:\.\d+)?/g, '');

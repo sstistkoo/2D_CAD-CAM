@@ -9,6 +9,12 @@ describe('parseVkLine', () => {
     expect(vpol).toMatchObject({ cmd: 'G111', x: 10, z: 20, pa: 30, r: 5 });
     expect(line).toMatchObject({ cmd: 'G11', x: 12, z: 22, pa: 45, pr: 3 });
   });
+
+  it('parses G0 as the initial point command', () => {
+    const initial = parseVkLine('G0 X10 Z30');
+
+    expect(initial).toMatchObject({ cmd: 'G0', isArc: false, x: 10, z: 30 });
+  });
 });
 
 describe('buildVkPreviewData', () => {
@@ -53,5 +59,15 @@ describe('buildVkPreviewData', () => {
     });
 
     expect(data.draft).toMatchObject({ type: 'line', end: { x: 12, z: 32 } });
+  });
+
+  it('treats G0 as a line segment starting from VPOL', () => {
+    const data = buildVkPreviewData([
+      'G111 X0 Z40',
+      'G0 X10 Z30',
+    ]);
+
+    expect(data.segments).toHaveLength(1);
+    expect(data.segments[0]).toMatchObject({ type: 'line', start: { x: 0, z: 40 }, end: { x: 10, z: 30 } });
   });
 });

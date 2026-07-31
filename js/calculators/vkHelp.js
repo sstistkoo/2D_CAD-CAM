@@ -11,7 +11,8 @@ const basicsSection = {
   items: [
     {
       title: 'Význam základních příkazů',
-      desc: '• <strong>G111</strong> = Definice pólu (VPOL) pro určení úhlů a konstrukčních drah.<br>' +
+      desc: '• <strong>G0</strong> = Počáteční bod (poloha v klidu) – první prvek kontury, řádky <code>X?</code>/<code>Z?</code> nebo <code>PA/PR</code>.<br>' +
+            '• <strong>G111</strong> = Definice pólu (VPOL) pro určení úhlů a konstrukčních drah.<br>' +
             '• <strong>G11</strong> = Volná úsečka bez rozměrů (<code>X?</code>, <code>Z?</code>) nebo polárně přes <code>PA/PR</code>.<br>' +
             '• <strong>G2 / G3</strong> = Volný oblouk s poloměrem <code>R</code>.',
     },
