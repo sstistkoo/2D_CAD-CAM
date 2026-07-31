@@ -130,7 +130,7 @@ export function openVkContour() {
 
         <div class="vk-section-title" data-id="tangent-title">Návaznost drah:</div>
         <label class="vk-checkbox-row" data-id="tangent-row">
-          <input type="checkbox" data-id="check-t" checked>
+          <input type="checkbox" data-id="check-t">
           Tečné napojení na předchozí prvek (T)
         </label>
         <label class="cnc-field" title="Pokud má dopočet dvě řešení (např. netečné napojení na kružnici kolem VPOL), vyberte které se použije">
@@ -239,14 +239,31 @@ export function openVkContour() {
   const gcodeEl = q('gcode');
   const convertBtn = overlay.querySelector('[data-act="convert"]');
   const solveInfo = overlay.querySelector('[data-solve-info]');
+  const ORIGINAL_CONVERT_LABEL = 'Konvertovat na ISO G-kód';
+  let conversionBackup = null;
 
   function resetConvertState() {
     convertBtn.classList.remove('vk-error-state', 'vk-success-state');
   }
 
+  function resetConversionBackup() {
+    conversionBackup = null;
+    convertBtn.textContent = ORIGINAL_CONVERT_LABEL;
+  }
+
+  function restoreOriginalVkCode() {
+    if (conversionBackup == null) return false;
+    gcodeEl.value = conversionBackup;
+    conversionBackup = null;
+    resetConvertState();
+    convertBtn.textContent = ORIGINAL_CONVERT_LABEL;
+    return true;
+  }
+
   function appendCode(line) {
     gcodeEl.value = gcodeEl.value.trim() === '' ? line : `${gcodeEl.value}\n${line}`;
     resetConvertState();
+    resetConversionBackup();
   }
 
   function fmt(n) {
@@ -332,13 +349,12 @@ export function openVkContour() {
     setUnknownField('val-pa', null);
     setUnknownField('val-pr', null);
     q('val-r').value = '5.0';
-    q('check-t').checked = true;
+    q('check-t').checked = false;
     q('vpol-tag').value = '';
     q('junction-axis').value = '';
     q('junction-value').value = '';
   }
 
-  /** Přepne popisky/viditelnost polí mezi „počáteční bod" a „další prvek" (podle stavu / prohlíženého prvku). */
   function updateFormMode() {
     const editingItem = cursor !== null ? pendingQueue[cursor] : null;
     const first = editingItem ? editingItem.wasFirstEver : !chainStarted;
@@ -437,6 +453,7 @@ export function openVkContour() {
     if (patched.includes('Z?')) patched = patched.replace('Z?', `Z${fmt(pt.z)}`);
     gcodeEl.value = gcodeEl.value.replace(el.lineText, patched);
     el.lineText = patched;
+    resetConversionBackup();
   }
 
   let nextElId = 1;
@@ -605,6 +622,7 @@ export function openVkContour() {
   overlay.querySelector('[data-act="clear"]').addEventListener('click', () => {
     gcodeEl.value = '';
     resetConvertState();
+    resetConversionBackup();
     resetChain();
   });
 
@@ -614,7 +632,13 @@ export function openVkContour() {
   });
 
   convertBtn.addEventListener('click', () => {
-    const D2R = Math.PI / 180;
+      if (restoreOriginalVkCode()) {
+        showToast('Obnoveno původní VK syntaxe');
+        return;
+      }
+      conversionBackup = gcodeEl.value;
+      convertBtn.textContent = 'Obnovit VK syntaxi';
+      const D2R = Math.PI / 180;
 
     function parseVkLine(text) {
       const cmdMatch = text.trim().match(/^(G111|G11|G2|G3)\b/);
@@ -797,8 +821,28 @@ export function openVkContour() {
 
     const convertedLines = [];
     let firstElementConverted = false;
-    for (const line of out) {
+    for (let i = 0; i < out.length; i++) {
+      const line = out[i];
       const parsedLine = parseVkLine(line);
+      if (!firstElementConverted && parsedLine && parsedLine.cmd === 'G11' && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null) {
+        const nextLine = out[i + 1];
+        const nextParsed = nextLine ? parseVkLine(nextLine) : null;
+        if (nextParsed && nextParsed.cmd === 'G11' && !nextParsed.isArc && nextParsed.pa != null && nextParsed.pr != null) {
+          const start = { z: parsedLine.z, x: parsedLine.x };
+          let end;
+          if (nextParsed.x != null && nextParsed.z != null) {
+            end = { z: nextParsed.z, x: nextParsed.x };
+          } else {
+            const delta = polarDelta(nextParsed.pa, nextParsed.pr);
+            end = { z: start.z + delta.z, x: start.x + delta.x };
+          }
+          convertedLines.push(`G0 X${fmt(start.x)} Z${fmt(start.z)}`);
+          convertedLines.push(`G1 X${fmt(end.x)} Z${fmt(end.z)}`);
+          firstElementConverted = true;
+          i += 1;
+          continue;
+        }
+      }
       if (!firstElementConverted && parsedLine && parsedLine.cmd === 'G11' && !parsedLine.isArc && parsedLine.x != null && parsedLine.z != null && parsedLine.pa != null && parsedLine.pr != null) {
         const start = { z: parsedLine.z, x: parsedLine.x };
         const delta = polarDelta(parsedLine.pa, parsedLine.pr);
