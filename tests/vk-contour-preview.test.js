@@ -102,6 +102,21 @@ describe('buildVkPreviewData', () => {
     expect(geometry.endAngle).toBeCloseTo(-1.0471975511965976, 9);
   });
 
+  it('treats G0 with X/Z and PA as a construction ray anchored at the given point', () => {
+    const data = buildVkPreviewData(['G0 X20 Z20 PA12']);
+
+    expect(data.segments).toHaveLength(1);
+    expect(data.segments[0]).toMatchObject({ type: 'ray', start: { x: 20, z: 20 }, angle: 12 });
+  });
+
+  it('creates a construction ray from VPOL when the VPOL line includes PA', () => {
+    const data = buildVkPreviewData(['G111 X10 Z30 PA45']);
+
+    expect(data.vpol).toEqual({ x: 10, z: 30 });
+    expect(data.segments).toHaveLength(1);
+    expect(data.segments[0]).toMatchObject({ type: 'ray', start: { x: 10, z: 30 }, angle: 45 });
+  });
+
   it('maps screen axes differently for carousel and lathe views', () => {
     const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
     const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };

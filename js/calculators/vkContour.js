@@ -200,7 +200,10 @@ export function buildVkPreviewData(lines, draftSegment = null) {
     let start = currentPoint ? { ...currentPoint } : (vpol ? { ...vpol } : null);
     let end = null;
 
-    if (entry.x != null && entry.z != null && entry.pa != null && entry.pr != null && isFirstElement) {
+    if (entry.cmd === 'G0' && entry.x != null && entry.z != null && entry.pa != null && entry.pr == null && isFirstElement) {
+      start = { x: entry.x, z: entry.z };
+      end = { x: entry.x, z: entry.z };
+    } else if (entry.x != null && entry.z != null && entry.pa != null && entry.pr != null && isFirstElement) {
       start = { x: entry.x, z: entry.z };
       const delta = polarDelta(entry.pa, entry.pr);
       end = { x: start.x + delta.x, z: start.z + delta.z };
@@ -218,12 +221,14 @@ export function buildVkPreviewData(lines, draftSegment = null) {
     if (!end && start) end = { ...start };
 
     if (start && end) {
+      const isConstructionRay = entry.cmd === 'G0' && entry.x != null && entry.z != null && entry.pa != null && entry.pr == null && isFirstElement;
       segments.push({
-        type: entry.isArc ? 'arc' : 'line',
+        type: isConstructionRay ? 'ray' : (entry.isArc ? 'arc' : 'line'),
         start,
         end,
         radius: entry.r ?? null,
         direction: entry.cmd || 'G11',
+        angle: isConstructionRay ? entry.pa : null,
       });
       currentPoint = end;
       lastPoint = end;
@@ -390,15 +395,6 @@ export function openVkContour() {
           <input type="checkbox" data-id="check-t">
           Tečné napojení na předchozí prvek (T)
         </label>
-        <label class="cnc-field" title="Pokud má dopočet dvě řešení (např. netečné napojení na kružnici kolem VPOL), vyberte které se použije">
-          <span>Dvojznačnost řešení</span>
-          <select data-id="vpol-tag">
-            <option value="">— (jednoznačné / nepočítat)</option>
-            <option value="VPOL1">VPOL1 (blíž startu obrysu)</option>
-            <option value="VPOL2">VPOL2 (dál od startu obrysu)</option>
-          </select>
-        </label>
-
         <div class="vk-solve-info" data-solve-info></div>
       </div>
     </details>
@@ -625,7 +621,7 @@ export function openVkContour() {
       const p = project(previewData.vpol);
       canvasContext.beginPath();
       canvasContext.arc(p.x, p.z, 4.5, 0, Math.PI * 2);
-      canvasContext.fillStyle = '#f38ba8';
+      canvasContext.fillStyle = '#f5a97f';
       canvasContext.fill();
     }
 
@@ -674,7 +670,21 @@ export function openVkContour() {
         canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
         canvasContext.setLineDash([]);
       }
-      if (segment.type === 'arc' && segment.radius) {
+      if (segment.type === 'ray' && Number.isFinite(segment.angle)) {
+        const dirX = Math.sin(segment.angle * Math.PI / 180);
+        const dirZ = Math.cos(segment.angle * Math.PI / 180);
+        const extent = Math.max(layout.bounds.maxX - layout.bounds.minX, layout.bounds.maxZ - layout.bounds.minZ) * 4;
+        const startPoint = segment.start;
+        const forwardPoint = { x: startPoint.x + dirX * extent, z: startPoint.z + dirZ * extent };
+        const startPx = project(startPoint);
+        const forwardPx = project(forwardPoint);
+        canvasContext.strokeStyle = 'rgba(245, 169, 127, 0.95)';
+        canvasContext.setLineDash([6, 4]);
+        canvasContext.beginPath();
+        canvasContext.moveTo(startPx.x, startPx.z);
+        canvasContext.lineTo(forwardPx.x, forwardPx.z);
+        canvasContext.stroke();
+      } else if (segment.type === 'arc' && segment.radius) {
         const geometry = resolveVkArcGeometry(
           { x: start.x, z: start.z },
           { x: end.x, z: end.z },
@@ -1121,7 +1131,8 @@ export function openVkContour() {
     setUnknownField('val-pr', el.prRaw != null ? el.prRaw : null);
     q('val-r').value = el.r;
     q('check-t').checked = el.isT;
-    q('vpol-tag').value = el.vpolTag || '';
+    const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
+    if (vpolTagInput) vpolTagInput.value = el.vpolTag || '';
     q('junction-axis').value = el.junction ? el.junction.axis : '';
     q('junction-value').value = el.junction ? el.junction.rawValue : '';
   }
@@ -1140,7 +1151,8 @@ export function openVkContour() {
     setUnknownField('val-pr', null);
     q('val-r').value = '5.0';
     q('check-t').checked = false;
-    q('vpol-tag').value = '';
+    const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
+    if (vpolTagInput) vpolTagInput.value = '';
     q('junction-axis').value = '';
     q('junction-value').value = '';
   }
@@ -1340,7 +1352,8 @@ export function openVkContour() {
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
     const isTChecked = !isFirstEver && q('check-t').checked; // na počátečním bodě není na co se tečně napojit
-    const vpolTag = q('vpol-tag').value || null;
+    const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
+    const vpolTag = vpolTagInput ? (vpolTagInput.value || null) : null;
     const cmd = currentType === 'vpol' ? 'G111' : (isFirstEver && currentType === 'vl' ? 'G0' : (currentType === 'vl' ? 'G11' : arcDir));
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
