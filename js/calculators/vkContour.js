@@ -984,7 +984,7 @@ export function openVkContour() {
     const editingIndex = cursor;
     const isFirstEver = editingIndex === -1
       ? true
-      : (editingIndex !== null ? pendingQueue[editingIndex].wasFirstEver : (pendingQueue.length === 0 && lastPoint === null));
+      : (editingIndex !== null ? pendingQueue[editingIndex].wasFirstEver : (pendingQueue.length === 0 && lastPoint === null && !/^(G0|G11|G2|G3)\s+/m.test(gcodeEl.value)));
     const xStr = q('val-x2').value, zStr = q('val-z2').value;
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
