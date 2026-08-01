@@ -30,6 +30,29 @@ function polarDelta(paDeg, pr) {
   return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
 }
 
+export function buildVkVpolLine(values = {}) {
+  const xRaw = values.x != null ? values.x : values.vx != null ? values.vx : null;
+  const zRaw = values.z != null ? values.z : values.vz != null ? values.vz : null;
+  const paRaw = values.pa != null ? values.pa : null;
+  const arcRaw = values.arc != null ? values.arc : values.r != null ? values.r : null;
+  const xValue = xRaw != null && String(xRaw).trim() !== '' ? xRaw : 0;
+  const zValue = zRaw != null && String(zRaw).trim() !== '' ? zRaw : 0;
+  const hasAnyValue = [xRaw, zRaw, paRaw, arcRaw].some(value => value != null && String(value).trim() !== '');
+  if (!hasAnyValue) return null;
+  let line = `G111 X${xValue} Z${zValue}`;
+  if (paRaw != null && String(paRaw).trim() !== '') line += ` PA${paRaw}`;
+  if (arcRaw != null && String(arcRaw).trim() !== '') line += ` R${arcRaw}`;
+  return line;
+}
+
+export function upsertVkVpolLine(code, values = {}) {
+  const line = buildVkVpolLine(values);
+  const lines = String(code || '').split(/\r?\n/);
+  const remaining = lines.filter(entry => !/^G111\b/.test(entry.trim()));
+  if (!line) return remaining.join('\n');
+  return [...remaining, line].join('\n');
+}
+
 export function parseVkLine(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return null;
@@ -196,7 +219,19 @@ export function buildVkPreviewData(lines, draftSegment = null) {
   let isFirstElement = true;
 
   for (const entry of parsed) {
-    if (!entry || entry.cmd === 'G111') continue;
+    if (!entry) continue;
+    if (entry.cmd === 'G111') {
+      const isConstructionRay = entry.pa != null && entry.pr == null && entry.x != null && entry.z != null;
+      if (isConstructionRay) {
+        segments.push({
+          type: 'ray',
+          start: { x: entry.x ?? 0, z: entry.z ?? 0 },
+          end: { x: entry.x ?? 0, z: entry.z ?? 0 },
+          angle: entry.pa,
+        });
+      }
+      continue;
+    }
     let start = currentPoint ? { ...currentPoint } : (vpol ? { ...vpol } : null);
     let end = null;
 
@@ -424,6 +459,33 @@ export function openVkContour() {
   const canvasLabel = overlay.querySelector('.vk-canvas-label');
   const gcodeEl = q('gcode');
   try { const _saved = localStorage.getItem('skica-vk-contour'); if (_saved) gcodeEl.value = _saved; } catch { /* ignore */ }
+
+  function populateVpolFormFromCode(code) {
+    const lines = String(code || '').split(/\r?\n/);
+    const vpolEntry = lines.map(parseVkLine).find(entry => entry?.cmd === 'G111');
+    if (!vpolEntry) return;
+    q('vpol-x').value = vpolEntry.x == null ? '' : String(vpolEntry.x);
+    q('vpol-z').value = vpolEntry.z == null ? '' : String(vpolEntry.z);
+    q('vpol-pa').value = vpolEntry.pa == null ? '' : String(vpolEntry.pa);
+    q('vpol-arc').value = vpolEntry.r == null ? '' : String(vpolEntry.r);
+  }
+
+  function syncVpolLineFromForm() {
+    const values = {
+      x: q('vpol-x').value.trim() === '' ? null : parseFloat(q('vpol-x').value),
+      z: q('vpol-z').value.trim() === '' ? null : parseFloat(q('vpol-z').value),
+      pa: q('vpol-pa').value.trim() === '' ? null : parseFloat(q('vpol-pa').value),
+      arc: q('vpol-arc').value.trim() === '' ? null : parseFloat(q('vpol-arc').value),
+    };
+    const nextCode = upsertVkVpolLine(gcodeEl.value, values);
+    if (gcodeEl.value !== nextCode) {
+      gcodeEl.value = nextCode;
+      vkSave();
+    }
+    renderVkCanvas();
+  }
+
+  populateVpolFormFromCode(gcodeEl.value);
   let canvasContext = null;
   let canvasSize = { width: 440, height: 140 };
   let viewport = null;
@@ -1335,12 +1397,19 @@ export function openVkContour() {
   overlay.querySelector('[data-act="vpol"]').addEventListener('click', () => {
     const vx = q('vpol-x').value, vz = q('vpol-z').value;
     const vpa = q('vpol-pa').value, varc = q('vpol-arc').value;
-    vpolPoint = { z: parseFloat(vz) || 0, x: toSolverX(parseFloat(vx) || 0) };
-    let line = `G111 X${vx} Z${vz}`;
-    if (vpa) line += ` PA${vpa}`;
-    if (varc) line += ` R${varc}`;
-    appendCode(line);
-    renderVkCanvas();
+    const xValue = vx.trim() === '' ? null : parseFloat(vx);
+    const zValue = vz.trim() === '' ? null : parseFloat(vz);
+    vpolPoint = { z: (zValue ?? 0), x: toSolverX(xValue ?? 0) };
+    syncVpolLineFromForm();
+  });
+
+  overlay.querySelectorAll('.vk-input-vpol, [data-id="vpol-pa"], [data-id="vpol-arc"]').forEach(input => {
+    input.addEventListener('input', () => {
+      syncVpolLineFromForm();
+    });
+    input.addEventListener('change', () => {
+      syncVpolLineFromForm();
+    });
   });
 
   overlay.querySelector('[data-act="element"]').addEventListener('click', () => {
