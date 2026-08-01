@@ -5358,6 +5358,26 @@ body {
   border: 1px solid var(--ctp-surface1);
   background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
 }
+.vk-canvas-fit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 999px;
+  background: rgba(17, 17, 27, 0.82);
+  color: var(--ctp-text);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+}
+.vk-canvas-fit:hover {
+  background: rgba(30, 32, 48, 0.94);
+}
 .vk-canvas-placeholder {
   display: block;
   width: 100%;

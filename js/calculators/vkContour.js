@@ -174,6 +174,17 @@ export function panVkViewport(viewport, startPoint, endPoint, bounds, size, isKa
   };
 }
 
+export function pickVkAmbiguousSolution(previewData, selectedIndex = 0) {
+  const ambiguousSolutions = previewData?.ambiguousSolutions || [];
+  const safeIndex = Math.max(0, Math.min(selectedIndex, ambiguousSolutions.length - 1));
+  const selectedSolution = ambiguousSolutions[safeIndex] || null;
+  const draft = previewData?.draft ? { ...previewData.draft } : null;
+  if (selectedSolution && draft) {
+    draft.end = { ...selectedSolution.end };
+  }
+  return { selectedSolution, draft };
+}
+
 export function buildVkPreviewData(lines, draftSegment = null) {
   const rawLines = Array.isArray(lines) ? lines : String(lines || '').split(/\r?\n/);
   const parsed = rawLines.map(parseVkLine).filter(Boolean);
@@ -267,6 +278,7 @@ export function openVkContour() {
   const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
     <div class="vk-canvas-wrapper">
+      <button type="button" class="vk-canvas-fit" data-act="fit-view" title="Vycentrovat nákres">⤢</button>
       <canvas class="vk-canvas-placeholder" data-id="vk-canvas" width="440" height="120"></canvas>
       <div class="vk-canvas-label">Grafický náhled VK (připravujeme)</div>
     </div>
@@ -737,6 +749,12 @@ export function openVkContour() {
     const draftSegment = getDraftSegment();
     const previewData = buildVkPreviewData(value, draftSegment);
     previewData.ambiguousSolutions = buildAmbiguousSolutionPreview(previewData, draftSegment);
+    if (previewData.ambiguousSolutions?.length) {
+      const { draft } = pickVkAmbiguousSolution(previewData, selectedSolutionIndex);
+      if (draft) {
+        previewData.draft = draft;
+      }
+    }
     if (solutionButtons) {
       solutionButtons.innerHTML = '';
       if (previewData.ambiguousSolutions?.length) {
@@ -812,6 +830,24 @@ export function openVkContour() {
       },
     };
   }
+
+  function fitViewportToPreview(previewData) {
+    const nextBounds = getPreviewBounds(previewData);
+    viewport = {
+      zoom: 1,
+      originCanvasX: 24,
+      originCanvasY: canvasSize.height - 24,
+      bounds: nextBounds,
+    };
+    renderVkCanvas();
+  }
+
+  overlay.querySelector('[data-act="fit-view"]').addEventListener('click', () => {
+    const value = gcodeEl ? gcodeEl.value : '';
+    const draftSegment = getDraftSegment();
+    const previewData = buildVkPreviewData(value, draftSegment);
+    fitViewportToPreview(previewData);
+  });
 
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();

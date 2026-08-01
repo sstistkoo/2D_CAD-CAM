@@ -6,6 +6,7 @@ import {
   zoomVkViewport,
   screenToVkPoint,
   panVkViewport,
+  pickVkAmbiguousSolution,
 } from '../js/calculators/vkContour.js';
 
 describe('parseVkLine', () => {
@@ -113,6 +114,24 @@ describe('buildVkPreviewData', () => {
     expect(carouselPoint.z).toBeCloseTo(3.0434782608695654, 9);
     expect(lathePoint.x).toBeCloseTo(3.0434782608695654, 9);
     expect(lathePoint.z).toBeCloseTo(5, 9);
+  });
+
+  it('uses the selected ambiguous solution for the draft geometry', () => {
+    const previewData = {
+      vpol: { x: 0, z: 10 },
+      segments: [],
+      bounds: { minX: 0, maxX: 10, minZ: 0, maxZ: 10 },
+      draft: { type: 'line', start: { x: 0, z: 10 }, end: { x: 5, z: 5 } },
+      ambiguousSolutions: [
+        { start: { x: 0, z: 10 }, end: { x: 2, z: 2 }, color: 'default' },
+        { start: { x: 0, z: 10 }, end: { x: 8, z: 8 }, color: 'cyan' },
+      ],
+    };
+
+    const selected = pickVkAmbiguousSolution(previewData, 1);
+
+    expect(selected.selectedSolution).toMatchObject({ end: { x: 8, z: 8 }, color: 'cyan' });
+    expect(selected.draft.end).toEqual({ x: 8, z: 8 });
   });
 
   it('keeps the world point under the cursor stable while panning', () => {
