@@ -30,6 +30,10 @@ function polarDelta(paDeg, pr) {
   return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
 }
 
+export function fmt(n) {
+  return String(Math.round(n * 1000) / 1000);
+}
+
 export function buildVkVpolLine(values = {}) {
   const xRaw = values.x != null ? values.x : values.vx != null ? values.vx : null;
   const zRaw = values.z != null ? values.z : values.vz != null ? values.vz : null;
@@ -309,6 +313,51 @@ export function buildVkPreviewData(lines, draftSegment = null) {
   const startPoint = segments.length > 0 ? segments[0].start : (vpol ? { ...vpol } : null);
 
   return { vpol, segments, bounds, draft: draftSegment || null, lastPoint, startPoint };
+}
+
+const D2R = Math.PI / 180;
+
+function vectorFromAngle(angleDeg) {
+  return { z: Math.cos(angleDeg * D2R), x: Math.sin(angleDeg * D2R) };
+}
+
+function pickTangentArcStart(prev, arc) {
+  if (!prev || !arc || !arc.isArc || arc.x == null || arc.z == null || arc.r == null) return null;
+  if (prev.pa == null || prev.pr != null) return null;
+  const ray = { z0: prev.z, x0: prev.x, angleDeg: ((prev.pa % 360) + 360) % 360 };
+  const candidates = tangentCircleTouchPoints(ray, { z: arc.z, x: arc.x }, arc.r);
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+  const rayDir = vectorFromAngle(ray.angleDeg);
+  let best = null;
+  for (const pt of candidates) {
+    const geometry = resolveVkArcGeometry(pt, { z: arc.z, x: arc.x }, arc.r, arc.cmd);
+    if (!geometry) continue;
+    const startAngle = Math.atan2(pt.z - geometry.center.z, pt.x - geometry.center.x);
+    const tangent = arc.cmd === 'G2'
+      ? { z: -Math.cos(startAngle), x: Math.sin(startAngle) }
+      : { z: Math.cos(startAngle), x: -Math.sin(startAngle) };
+    const dot = tangent.z * rayDir.z + tangent.x * rayDir.x;
+    if (!best || dot > best.dot) best = { pt, dot };
+  }
+  return best ? best.pt : candidates[0];
+}
+
+export function insertTangentTransitions(lines) {
+  const parsed = lines.map((line) => parseVkLine(line));
+  const result = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const prev = i > 0 ? parsed[i - 1] : null;
+    const cur = parsed[i];
+    if (prev && cur) {
+      const tangent = pickTangentArcStart(prev, cur);
+      if (tangent && (Math.abs(tangent.x - prev.x) > 1e-6 || Math.abs(tangent.z - prev.z) > 1e-6)) {
+        result.push(`G1 X${fmt(tangent.x)} Z${fmt(tangent.z)}`);
+      }
+    }
+    result.push(lines[i]);
+  }
+  return result;
 }
 
 export function openVkContour() {
@@ -1125,10 +1174,6 @@ export function openVkContour() {
     vkSave();
   }
 
-  function fmt(n) {
-    return String(Math.round(n * 1000) / 1000);
-  }
-
   // vkSolver.js vždy počítá s X jako průměrem (uvnitř dělí /2 na poloměr).
   // Appka ale může mít aktuálně nastavený režim zadávání na poloměr
   // (☰ Nastavení → 📏 Zobrazení, `state.xDisplayMode`) – v tom případě
@@ -1575,7 +1620,6 @@ export function openVkContour() {
       }
       conversionBackup = gcodeEl.value;
       convertBtn.textContent = 'Obnovit VK syntaxi';
-      const D2R = Math.PI / 180;
 
     function parseVkLine(text) {
       const cmdMatch = text.trim().match(/^(G0|G111|G11|G2|G3)\b/);
@@ -1701,7 +1745,7 @@ export function openVkContour() {
     }
 
     const rawLines = gcodeEl.value.split('\n');
-    let updated = [...rawLines];
+    let updated = insertTangentTransitions([...rawLines]);
     let progress = true;
     while (progress) {
       progress = false;
