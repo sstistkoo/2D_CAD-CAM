@@ -742,6 +742,46 @@ export function openVkContour() {
     };
   }
 
+  function applySelectedAmbiguousSolution(previewData, selectedIndex) {
+    const { selectedSolution } = pickVkAmbiguousSolution(previewData, selectedIndex);
+    if (!selectedSolution?.end) return false;
+
+    const end = selectedSolution.end;
+    const xInput = q('val-x2');
+    const zInput = q('val-z2');
+    if (xInput) {
+      xInput.value = fmt(end.x);
+      xInput.classList.remove('vk-input-unknown');
+      const xBtn = overlay.querySelector('[data-toggle="val-x2"]');
+      if (xBtn) xBtn.classList.remove('active');
+    }
+    if (zInput) {
+      zInput.value = fmt(end.z);
+      zInput.classList.remove('vk-input-unknown');
+      const zBtn = overlay.querySelector('[data-toggle="val-z2"]');
+      if (zBtn) zBtn.classList.remove('active');
+    }
+
+    const editingItem = cursor === -1 ? firstElement : (cursor !== null ? pendingQueue[cursor] : null);
+    if (editingItem?.lineText) {
+      let patched = editingItem.lineText;
+      if (patched.includes('X?')) patched = patched.replace('X?', `X${fmt(end.x)}`);
+      else patched = patched.replace(/X-?\d+(?:\.\d+)?/, `X${fmt(end.x)}`);
+      if (patched.includes('Z?')) patched = patched.replace('Z?', `Z${fmt(end.z)}`);
+      else patched = patched.replace(/Z-?\d+(?:\.\d+)?/, `Z${fmt(end.z)}`);
+      gcodeEl.value = gcodeEl.value.replace(editingItem.lineText, patched);
+      editingItem.lineText = patched;
+      editingItem.xRaw = end.x;
+      editingItem.x = toSolverX(end.x);
+      editingItem.z = end.z;
+      editingItem.pa = null;
+      editingItem.prRaw = null;
+      vkSave();
+    }
+
+    return true;
+  }
+
   function renderVkCanvas() {
     ensureCanvas();
     clearCanvas();
@@ -765,6 +805,13 @@ export function openVkContour() {
           btn.textContent = `Varianta ${index + 1}`;
           btn.addEventListener('click', () => {
             selectedSolutionIndex = index;
+            const value = gcodeEl ? gcodeEl.value : '';
+            const draftSegment = getDraftSegment();
+            const previewData = buildVkPreviewData(value, draftSegment);
+            previewData.ambiguousSolutions = buildAmbiguousSolutionPreview(previewData, draftSegment);
+            if (previewData.ambiguousSolutions?.length) {
+              applySelectedAmbiguousSolution(previewData, selectedSolutionIndex);
+            }
             renderVkCanvas();
           });
           solutionButtons.appendChild(btn);
