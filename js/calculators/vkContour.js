@@ -59,6 +59,89 @@ export function parseVkLine(text) {
   return data;
 }
 
+export function resolveVkArcGeometry(start, end, radius, direction) {
+  if (!start || !end || !Number.isFinite(radius) || radius <= 0) return null;
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const chordLen = Math.hypot(dx, dz);
+  if (chordLen <= 1e-6) return null;
+  const halfLen = chordLen / 2;
+  const sagitta = Math.sqrt(Math.max(radius * radius - halfLen * halfLen, 0));
+  const perpX = -(end.z - start.z) / chordLen;
+  const perpZ = (end.x - start.x) / chordLen;
+  const sign = direction === 'G3' ? 1 : -1;
+  const center = {
+    x: (start.x + end.x) / 2 + sign * perpX * sagitta,
+    z: (start.z + end.z) / 2 + sign * perpZ * sagitta,
+  };
+  const startAngle = Math.atan2(start.z - center.z, start.x - center.x);
+  let endAngle = Math.atan2(end.z - center.z, end.x - center.x);
+  let sweep = endAngle - startAngle;
+  if (direction === 'G3') {
+    if (sweep < 0) sweep += Math.PI * 2;
+  } else if (sweep > 0) {
+    sweep -= Math.PI * 2;
+  }
+  if (Math.abs(sweep) < 1e-9) sweep = direction === 'G3' ? Math.PI * 2 : -Math.PI * 2;
+  return { center, startAngle, endAngle, sweep, radius };
+}
+
+export function zoomVkViewport(viewport, cursor, bounds, size, isKarusel, zoomFactor) {
+  const nextZoom = Math.max(0.4, Math.min(8, (viewport?.zoom || 1) * zoomFactor));
+  const padding = 24;
+  const targetWidth = Math.max((size.width || 1) - padding * 2, 1);
+  const targetHeight = Math.max((size.height || 1) - padding * 2, 1);
+  const cursorPoint = cursor || { x: targetWidth / 2 + padding, y: (size.height || 1) / 2 };
+  const originCanvasX = viewport?.originCanvasX ?? padding;
+  const originCanvasY = viewport?.originCanvasY ?? (size.height - padding);
+  const worldPoint = screenToVkPoint(cursorPoint, viewport, bounds, size, isKarusel);
+  const spanX = Math.max((bounds?.maxX ?? 1) - (bounds?.minX ?? 0), 1);
+  const spanZ = Math.max((bounds?.maxZ ?? 1) - (bounds?.minZ ?? 0), 1);
+  const baseScale = Math.min(targetWidth / spanZ, targetHeight / spanX);
+  const nextScale = Math.max(1e-3, baseScale * nextZoom);
+  const nextSpanX = targetHeight / baseScale;
+  const nextSpanZ = targetWidth / baseScale;
+  const minX = worldPoint.x - (originCanvasY - cursorPoint.y) / nextScale;
+  const minZ = worldPoint.z - (cursorPoint.x - originCanvasX) / nextScale;
+  return {
+    zoom: nextZoom,
+    originCanvasX,
+    originCanvasY,
+    bounds: {
+      minX,
+      maxX: minX + nextSpanX,
+      minZ,
+      maxZ: minZ + nextSpanZ,
+    },
+  };
+}
+
+export function screenToVkPoint(screenPoint, viewport, bounds, size, isKarusel) {
+  const width = size.width || 1;
+  const height = size.height || 1;
+  const zoom = viewport?.zoom || 1;
+  const padding = 24;
+  const originCanvasX = viewport?.originCanvasX ?? padding;
+  const originCanvasY = viewport?.originCanvasY ?? (height - padding);
+  const viewBounds = viewport?.bounds || bounds;
+  const spanX = Math.max((viewBounds?.maxX ?? 1) - (viewBounds?.minX ?? 0), 1);
+  const spanZ = Math.max((viewBounds?.maxZ ?? 1) - (viewBounds?.minZ ?? 0), 1);
+  const targetWidth = Math.max(width - padding * 2, 1);
+  const targetHeight = Math.max(height - padding * 2, 1);
+  const scale = Math.min(targetWidth / spanZ, targetHeight / spanX) * zoom;
+  const scaleValue = Math.max(scale, 1e-3);
+  if (isKarusel) {
+    return {
+      x: (screenPoint.x - originCanvasX) / scaleValue + (viewBounds?.minX ?? 0),
+      z: (originCanvasY - screenPoint.y) / scaleValue + (viewBounds?.minZ ?? 0),
+    };
+  }
+  return {
+    x: (originCanvasY - screenPoint.y) / scaleValue + (viewBounds?.minX ?? 0),
+    z: (screenPoint.x - originCanvasX) / scaleValue + (viewBounds?.minZ ?? 0),
+  };
+}
+
 export function buildVkPreviewData(lines, draftSegment = null) {
   const rawLines = Array.isArray(lines) ? lines : String(lines || '').split(/\r?\n/);
   const parsed = rawLines.map(parseVkLine).filter(Boolean);
@@ -299,6 +382,10 @@ export function openVkContour() {
   try { const _saved = localStorage.getItem('skica-vk-contour'); if (_saved) gcodeEl.value = _saved; } catch { /* ignore */ }
   let canvasContext = null;
   let canvasSize = { width: 440, height: 140 };
+  let viewport = null;
+  let isPanning = false;
+  let panStart = null;
+  let panStartBounds = null;
 
   function vkSave() {
     try { localStorage.setItem('skica-vk-contour', gcodeEl.value); } catch { /* quota */ }
@@ -328,49 +415,49 @@ export function openVkContour() {
     canvasContext.clearRect(0, 0, canvasSize.width, canvasSize.height);
   }
 
-  /**
-   * Vypočítá layout VK canvasu: hranice (vždy obsahující [0,0]), měřítko,
-   * pozici původku os a funkci projekce bodu do canvas pixelů.
-   * Pro soustruh jsou osy prohozené (Z→vodorovně, X→svisle).
-   */
-  function computeCanvasLayout(previewData) {
-    const { width, height } = canvasSize;
-    const padding = 24;
-    const isKarusel = state.machineType === 'karusel';
+  function getPreviewBounds(previewData) {
     const points = [];
-    if (previewData.vpol) points.push(previewData.vpol);
-    previewData.segments.forEach(segment => {
+    if (previewData?.vpol) points.push(previewData.vpol);
+    previewData?.segments?.forEach(segment => {
       points.push(segment.start, segment.end);
     });
     points.push({ x: 0, z: 0 });
-
-    const bounds = points.length > 0 ? {
+    if (points.length === 0) return { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
+    return {
       minX: Math.min(...points.map(pt => pt.x)),
       maxX: Math.max(...points.map(pt => pt.x)),
       minZ: Math.min(...points.map(pt => pt.z)),
       maxZ: Math.max(...points.map(pt => pt.z)),
-    } : { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
+    };
+  }
 
+  /**
+   * Vypočítá layout VK canvasu: hranice, měřítko, pozici původku os a
+   * funkci projekce bodu do canvas pixelů. Při zoom/pan se používá
+   * aktuální viditelná oblast z viewportu.
+   */
+  function computeCanvasLayout(previewData, currentViewport) {
+    const { width, height } = canvasSize;
+    const padding = 24;
+    const isKarusel = state.machineType === 'karusel';
+    const bounds = currentViewport?.bounds || getPreviewBounds(previewData);
     const spanX = Math.max(bounds.maxX - bounds.minX, 1);
     const spanZ = Math.max(bounds.maxZ - bounds.minZ, 1);
-    const hSpan = isKarusel ? spanX : spanZ;
-    const vSpan = isKarusel ? spanZ : spanX;
-    const scale = Math.min((width - padding * 2) / hSpan, (height - padding * 2) / vSpan);
-
-    let originCanvasX, originCanvasY;
-    if (isKarusel) {
-      originCanvasX = padding + (0 - bounds.minX) * scale;
-      originCanvasY = height - padding;
-    } else {
-      originCanvasX = padding + (0 - bounds.minZ) * scale;
-      originCanvasY = height - padding;
-    }
+    const scale = Math.min((width - padding * 2) / spanZ, (height - padding * 2) / spanX) * (currentViewport?.zoom || 1);
+    const originCanvasX = currentViewport?.originCanvasX ?? padding;
+    const originCanvasY = currentViewport?.originCanvasY ?? (height - padding);
 
     function project(point) {
       if (isKarusel) {
-        return { x: originCanvasX + point.x * scale, z: originCanvasY - point.z * scale };
+        return {
+          x: originCanvasX + (point.x - bounds.minX) * scale,
+          z: originCanvasY - (point.z - bounds.minZ) * scale,
+        };
       }
-      return { x: originCanvasX + point.z * scale, z: originCanvasY - point.x * scale };
+      return {
+        x: originCanvasX + (point.z - bounds.minZ) * scale,
+        z: originCanvasY - (point.x - bounds.minX) * scale,
+      };
     }
 
     return { isKarusel, scale, originCanvasX, originCanvasY, project, bounds };
@@ -483,26 +570,19 @@ export function openVkContour() {
         canvasContext.setLineDash([]);
       }
       if (segment.type === 'arc' && segment.radius) {
-        const dx = end.x - start.x;
-        const dz = end.z - start.z;
-        const chordLen = Math.hypot(dx, dz);
-        if (chordLen > 1e-3) {
-          const radiusPx = Math.max(4, segment.radius * scale);
-          const halfLen = chordLen / 2;
-          const sagitta = Math.sqrt(Math.max(radiusPx * radiusPx - halfLen * halfLen, 0));
-          const perpX = -dz / chordLen;
-          const perpZ = dx / chordLen;
-          const sign = (segment.direction === 'G3') === isKarusel ? 1 : -1;
-          const centerX = (start.x + end.x) / 2 + sign * perpX * sagitta;
-          const centerZ = (start.z + end.z) / 2 + sign * perpZ * sagitta;
-          const startAngle = Math.atan2(start.z - centerZ, start.x - centerX);
-          let endAngle = Math.atan2(end.z - centerZ, end.x - centerX);
-          let delta = endAngle - startAngle;
-          if (segment.direction === 'G3' && delta < 0) delta += Math.PI * 2;
-          if (segment.direction !== 'G3' && delta > 0) delta -= Math.PI * 2;
-          if (delta === 0) delta = Math.PI * 2;
+        const geometry = resolveVkArcGeometry(
+          { x: start.x, z: start.z },
+          { x: end.x, z: end.z },
+          segment.radius,
+          segment.direction
+        );
+        if (geometry) {
+          const radiusPx = Math.max(4, geometry.radius * scale);
+          const center = project(geometry.center);
+          const startAngle = geometry.startAngle;
+          const sweep = geometry.sweep;
           canvasContext.beginPath();
-          canvasContext.arc(centerX, centerZ, radiusPx, startAngle, startAngle + delta);
+          canvasContext.arc(center.x, center.z, radiusPx, startAngle, startAngle + sweep);
           canvasContext.stroke();
         }
       } else {
@@ -570,7 +650,10 @@ export function openVkContour() {
       setCanvasLabelVisible(true);
       return;
     }
-    const layout = computeCanvasLayout(previewData);
+    if (!viewport) {
+      viewport = { zoom: 1, bounds: getPreviewBounds(previewData) };
+    }
+    const layout = computeCanvasLayout(previewData, viewport);
     drawGrid(layout);
     drawVkPreview(previewData, layout);
     setCanvasLabelVisible(false);
@@ -600,6 +683,84 @@ export function openVkContour() {
       renderVkCanvas();
     });
   }
+
+  function updateViewportFromPan(deltaX, deltaY) {
+    if (!viewport?.bounds) return;
+    const spanX = Math.max(viewport.bounds.maxX - viewport.bounds.minX, 1);
+    const spanZ = Math.max(viewport.bounds.maxZ - viewport.bounds.minZ, 1);
+    const scale = Math.min((canvasSize.width - 48) / spanZ, (canvasSize.height - 48) / spanX);
+    const panX = deltaX / Math.max(scale, 1e-3);
+    const panZ = deltaY / Math.max(scale, 1e-3);
+    const isKarusel = state.machineType === 'karusel';
+    viewport = {
+      ...viewport,
+      bounds: {
+        minX: isKarusel ? viewport.bounds.minX - panX : viewport.bounds.minX + panZ,
+        maxX: isKarusel ? viewport.bounds.maxX - panX : viewport.bounds.maxX + panZ,
+        minZ: isKarusel ? viewport.bounds.minZ + panZ : viewport.bounds.minZ - panX,
+        maxZ: isKarusel ? viewport.bounds.maxZ + panZ : viewport.bounds.maxZ - panX,
+      },
+    };
+  }
+
+  canvas.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const value = gcodeEl ? gcodeEl.value : '';
+    const draftSegment = getDraftSegment();
+    const previewData = buildVkPreviewData(value, draftSegment);
+    const baseBounds = viewport?.bounds || getPreviewBounds(previewData);
+    const zoomFactor = event.deltaY < 0 ? 1.15 : 0.85;
+    const nextViewport = zoomVkViewport(
+      viewport || { zoom: 1, bounds: baseBounds },
+      { x: event.offsetX, y: event.offsetY },
+      baseBounds,
+      canvasSize,
+      state.machineType === 'karusel',
+      zoomFactor,
+    );
+    viewport = nextViewport;
+    renderVkCanvas();
+  }, { passive: false });
+
+  canvas.addEventListener('pointerdown', (event) => {
+    isPanning = true;
+    panStart = { x: event.offsetX, y: event.offsetY };
+    panStartBounds = viewport?.bounds ? { ...viewport.bounds } : null;
+    canvas.setPointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    if (!isPanning || !panStart || !panStartBounds) return;
+    const deltaX = event.offsetX - panStart.x;
+    const deltaY = event.offsetY - panStart.y;
+    const isKarusel = state.machineType === 'karusel';
+    const spanX = Math.max(panStartBounds.maxX - panStartBounds.minX, 1);
+    const spanZ = Math.max(panStartBounds.maxZ - panStartBounds.minZ, 1);
+    const scale = Math.max(Math.min((canvasSize.width - 48) / spanZ, (canvasSize.height - 48) / spanX), 1e-3);
+    const panX = deltaX / scale;
+    const panZ = deltaY / scale;
+    viewport = {
+      ...viewport,
+      bounds: {
+        minX: isKarusel ? panStartBounds.minX - panX : panStartBounds.minX + panZ,
+        maxX: isKarusel ? panStartBounds.maxX - panX : panStartBounds.maxX + panZ,
+        minZ: isKarusel ? panStartBounds.minZ + panZ : panStartBounds.minZ - panX,
+        maxZ: isKarusel ? panStartBounds.maxZ + panZ : panStartBounds.maxZ - panX,
+      },
+    };
+    renderVkCanvas();
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    isPanning = false;
+    panStart = null;
+    panStartBounds = null;
+  });
+  canvas.addEventListener('pointerleave', () => {
+    isPanning = false;
+    panStart = null;
+    panStartBounds = null;
+  });
 
   overlay.querySelectorAll('.vk-input-row input').forEach(input => {
     input.addEventListener('focus', () => {

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { parseVkLine, buildVkPreviewData } from '../js/calculators/vkContour.js';
+import {
+  parseVkLine,
+  buildVkPreviewData,
+  resolveVkArcGeometry,
+  zoomVkViewport,
+  screenToVkPoint,
+} from '../js/calculators/vkContour.js';
 
 describe('parseVkLine', () => {
   it('parses VPOL and element commands from VK syntax', () => {
@@ -81,5 +87,44 @@ describe('buildVkPreviewData', () => {
     expect(data.segments[0].start).toEqual({ x: 40, z: 20 });
     expect(data.segments[0].end.x).toBeCloseTo(40 + 100 * Math.sin(10 * Math.PI / 180), 9);
     expect(data.segments[0].end.z).toBeCloseTo(20 + 100 * Math.cos(10 * Math.PI / 180), 9);
+  });
+
+  it('resolves a stable arc center for G2/G3 preview segments', () => {
+    const geometry = resolveVkArcGeometry({ x: 0, z: 0 }, { x: 10, z: 0 }, 10, 'G3');
+
+    expect(geometry).not.toBeNull();
+    expect(geometry.center.x).toBeCloseTo(5, 9);
+    expect(geometry.center.z).toBeCloseTo(8.660254037844387, 9);
+    expect(geometry.sweep).toBeGreaterThan(0);
+    expect(geometry.startAngle).toBeCloseTo(-2.0943951023931953, 9);
+    expect(geometry.endAngle).toBeCloseTo(-1.0471975511965976, 9);
+  });
+
+  it('maps screen axes differently for carousel and lathe views', () => {
+    const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
+    const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };
+    const size = { width: 220, height: 140 };
+
+    const carouselPoint = screenToVkPoint({ x: 70, y: 80 }, viewport, bounds, size, true);
+    const lathePoint = screenToVkPoint({ x: 70, y: 80 }, viewport, bounds, size, false);
+
+    expect(carouselPoint.x).toBeCloseTo(5, 9);
+    expect(carouselPoint.z).toBeCloseTo(3.0434782608695654, 9);
+    expect(lathePoint.x).toBeCloseTo(3.0434782608695654, 9);
+    expect(lathePoint.z).toBeCloseTo(5, 9);
+  });
+
+  it('zooms around the cursor while keeping the pointed world coordinate stable', () => {
+    const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
+    const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };
+    const size = { width: 220, height: 140 };
+    const nextViewport = zoomVkViewport(viewport, { x: 110, y: 80 }, bounds, size, false, 1.25);
+
+    const worldPoint = screenToVkPoint({ x: 110, y: 80 }, viewport, bounds, size, false);
+    const nextWorldPoint = screenToVkPoint({ x: 110, y: 80 }, nextViewport, bounds, size, false);
+
+    expect(nextViewport.zoom).toBeCloseTo(1.25, 9);
+    expect(nextWorldPoint.x).toBeCloseTo(worldPoint.x, 9);
+    expect(nextWorldPoint.z).toBeCloseTo(worldPoint.z, 9);
   });
 });
