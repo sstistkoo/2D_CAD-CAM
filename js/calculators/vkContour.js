@@ -24,6 +24,24 @@ import {
 
 const DEFAULT_GCODE = '';
 const VK_STORAGE_KEY = 'skica-vk-contour';
+const VK_FIELD_VALUES_KEY = 'skica-vk-contour-field-values';
+
+function loadVkFieldValues() {
+  try {
+    const raw = localStorage.getItem(VK_FIELD_VALUES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveVkFieldValues(values) {
+  try {
+    localStorage.setItem(VK_FIELD_VALUES_KEY, JSON.stringify(values));
+  } catch {
+    /* ignore */
+  }
+}
 
 function polarDelta(paDeg, pr) {
   const paRad = ((paDeg % 360) + 360) % 360 * (Math.PI / 180);
@@ -507,7 +525,21 @@ export function openVkContour() {
   const canvas = q('vk-canvas');
   const canvasLabel = overlay.querySelector('.vk-canvas-label');
   const gcodeEl = q('gcode');
+  const fieldValues = loadVkFieldValues();
   try { const _saved = localStorage.getItem('skica-vk-contour'); if (_saved) gcodeEl.value = _saved; } catch { /* ignore */ }
+
+  function rememberVkFieldValue(id, value) {
+    if (!id) return;
+    if (value == null) return;
+    const trimmed = String(value).trim();
+    if (trimmed === '' || trimmed === '?') return;
+    fieldValues[id] = trimmed;
+    saveVkFieldValues(fieldValues);
+  }
+
+  function getLastVkFieldValue(id) {
+    return id ? (fieldValues[id] || '') : '';
+  }
 
   function populateVpolFormFromCode(code) {
     const lines = String(code || '').split(/\r?\n/);
@@ -1070,17 +1102,29 @@ export function openVkContour() {
     panStartBounds = null;
   });
 
-  overlay.querySelectorAll('.vk-input-row input').forEach(input => {
+  overlay.querySelectorAll('input[data-id]').forEach(input => {
     input.addEventListener('focus', () => {
       if (input.classList.contains('vk-input-unknown') && input.value === '?') {
-        input.value = '';
+        const previous = getLastVkFieldValue(input.dataset.id);
+        input.value = previous || '';
         input.classList.remove('vk-input-unknown');
+        const toggleBtn = overlay.querySelector(`[data-toggle="${input.dataset.id}"]`);
+        if (toggleBtn) toggleBtn.classList.remove('active');
+      }
+    });
+    input.addEventListener('input', () => {
+      if (!input.classList.contains('vk-input-unknown')) {
+        rememberVkFieldValue(input.dataset.id, input.value);
       }
     });
     input.addEventListener('blur', () => {
       if (input.value.trim() === '') {
         input.value = '?';
         input.classList.add('vk-input-unknown');
+        const toggleBtn = overlay.querySelector(`[data-toggle="${input.dataset.id}"]`);
+        if (toggleBtn) toggleBtn.classList.add('active');
+      } else {
+        rememberVkFieldValue(input.dataset.id, input.value);
       }
     });
   });
@@ -1245,6 +1289,19 @@ export function openVkContour() {
   }
 
   /** Vrátí formulář na výchozí hodnoty pro zadání nového prvku. */
+  function setFieldValueOrRestore(id) {
+    const previous = getLastVkFieldValue(id);
+    if (previous !== '') {
+      const input = q(id);
+      input.value = previous;
+      input.classList.remove('vk-input-unknown');
+      const toggleBtn = overlay.querySelector(`[data-toggle="${id}"]`);
+      if (toggleBtn) toggleBtn.classList.remove('active');
+    } else {
+      setUnknownField(id, null);
+    }
+  }
+
   function resetFormToNewEntry() {
     currentType = 'vl';
     overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === 'vl'));
@@ -1252,16 +1309,17 @@ export function openVkContour() {
     vpolSettings.style.display = 'none';
     arcDir = 'G2';
     overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
-    setUnknownField('val-x2', null);
-    setUnknownField('val-z2', null);
-    setUnknownField('val-pa', null);
-    setUnknownField('val-pr', null);
-    q('val-r').value = '5.0';
-    q('check-t').checked = false;
+    setFieldValueOrRestore('val-x2');
+    setFieldValueOrRestore('val-z2');
+    setFieldValueOrRestore('val-pa');
+    setFieldValueOrRestore('val-pr');
+    q('val-r').value = getLastVkFieldValue('val-r') || '5.0';
+    q('check-t').checked = getLastVkFieldValue('check-t') === '1';
     const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
-    if (vpolTagInput) vpolTagInput.value = '';
-    q('junction-axis').value = '';
-    q('junction-value').value = '';
+    if (vpolTagInput) vpolTagInput.value = getLastVkFieldValue('vpol-tag');
+    const junctionAxisValue = getLastVkFieldValue('junction-axis');
+    q('junction-axis').value = junctionAxisValue || '';
+    q('junction-value').value = getLastVkFieldValue('junction-value');
   }
 
   function updateFormMode() {
