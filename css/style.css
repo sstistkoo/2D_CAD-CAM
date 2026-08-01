@@ -5429,6 +5429,30 @@ body {
   border-color: var(--ctp-peach);
   color: var(--ctp-base);
 }
+.vk-solution-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+}
+.vk-color-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.vk-color-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.35);
+}
+.vk-color-option input {
+  accent-color: var(--ctp-blue);
+}
 
 .cnc-field input.vk-input-unknown {
   border-color: var(--ctp-peach);

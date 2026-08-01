@@ -6,6 +6,7 @@ import {
   intersectRayCircle,
   pickByVpolTag,
   solveLineArcJunction,
+  solveLineArcJunctionCandidates,
   tangentCircleTouchPoints,
   tangentCircleBetweenRays,
   pickBetweenRaysByVpolTag,
@@ -139,6 +140,15 @@ describe('solveLineArcJunction – kategorie 4 (case 12-13)', () => {
     const p2 = solveLineArcJunction(ray, { z: 0, x: 0 }, 13, ref, 'VPOL2');
     expect(p1.z).toBeCloseTo(-12, 6);
     expect(p2.z).toBeCloseTo(12, 6);
+  });
+
+  it('vrací všechny kandidáty řešení pro ambiguální VPOL průsečík', () => {
+    const ray = { z0: 0, x0: 10, angleDeg: 0 };
+    const candidates = solveLineArcJunctionCandidates(ray, { z: 0, x: 0 }, 13);
+    expect(candidates).toHaveLength(2);
+    const zs = candidates.map(pt => pt.z).sort((a, b) => a - b);
+    expect(zs[0]).toBeCloseTo(-12, 6);
+    expect(zs[1]).toBeCloseTo(12, 6);
   });
 
   it('mimo dosah vyhodí chybu', () => {

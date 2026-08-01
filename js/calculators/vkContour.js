@@ -17,8 +17,8 @@ import { makeOverlay } from '../dialogFactory.js';
 import { state, showToast } from '../state.js';
 import { renderVkHelp } from './vkHelp.js';
 import {
-  elementRay, solveCornerLineLine, solveLineArcJunction, pickByVpolTag,
-  tangentCircleTouchPoints, tangentCircleBetweenRays, pickBetweenRaysByVpolTag,
+  elementRay, solveCornerLineLine, solveLineArcJunction, solveLineArcJunctionCandidates,
+  pickByVpolTag, tangentCircleTouchPoints, tangentCircleBetweenRays, pickBetweenRaysByVpolTag,
   twoTangentArcsBetweenRays, pickTwoArcsByVpolTag,
 } from './vkSolver.js';
 
@@ -142,6 +142,38 @@ export function screenToVkPoint(screenPoint, viewport, bounds, size, isKarusel) 
   };
 }
 
+export function panVkViewport(viewport, startPoint, endPoint, bounds, size, isKarusel) {
+  const baseBounds = bounds || viewport?.bounds;
+  if (!baseBounds) return viewport;
+  const viewBounds = baseBounds;
+  const spanX = Math.max(viewBounds.maxX - viewBounds.minX, 1);
+  const spanZ = Math.max(viewBounds.maxZ - viewBounds.minZ, 1);
+  const targetWidth = Math.max((size.width || 1) - 48, 1);
+  const targetHeight = Math.max((size.height || 1) - 48, 1);
+  const scale = Math.max(Math.min(targetWidth / spanZ, targetHeight / spanX), 1e-3);
+  const deltaX = endPoint.x - startPoint.x;
+  const deltaY = endPoint.y - startPoint.y;
+  const panX = deltaX / scale;
+  const panZ = deltaY / scale;
+  const nextBounds = isKarusel
+    ? {
+        minX: viewBounds.minX - panX,
+        maxX: viewBounds.maxX - panX,
+        minZ: viewBounds.minZ + panZ,
+        maxZ: viewBounds.maxZ + panZ,
+      }
+    : {
+        minX: viewBounds.minX + panZ,
+        maxX: viewBounds.maxX + panZ,
+        minZ: viewBounds.minZ - panX,
+        maxZ: viewBounds.maxZ - panX,
+      };
+  return {
+    ...viewport,
+    bounds: nextBounds,
+  };
+}
+
 export function buildVkPreviewData(lines, draftSegment = null) {
   const rawLines = Array.isArray(lines) ? lines : String(lines || '').split(/\r?\n/);
   const parsed = rawLines.map(parseVkLine).filter(Boolean);
@@ -237,6 +269,10 @@ export function openVkContour() {
     <div class="vk-canvas-wrapper">
       <canvas class="vk-canvas-placeholder" data-id="vk-canvas" width="440" height="120"></canvas>
       <div class="vk-canvas-label">Grafický náhled VK (připravujeme)</div>
+    </div>
+    <div class="vk-solution-picker" data-id="solution-picker" style="display:none; margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span class="vk-section-title" style="margin:0">Varianty řešení</span>
+      <div class="vk-solution-buttons" data-id="solution-buttons"></div>
     </div>
 
     <details class="sn-help-details vk-section" open>
@@ -527,9 +563,45 @@ export function openVkContour() {
     canvasContext.fillText('Připraveno pro prototyp VK náhledu', width / 2, height / 2);
     canvasContext.restore();
   }
+  function buildAmbiguousSolutionPreview(previewData, draftSegment) {
+    if (!previewData?.vpol || !draftSegment?.start || !draftSegment.end) return [];
+    const radius = Number.isFinite(draftSegment.radius) ? draftSegment.radius : null;
+    if (!radius || radius <= 0) return [];
+
+    const start = draftSegment.start;
+    const end = draftSegment.end;
+    const dz = end.z - start.z;
+    const dx = end.x - start.x;
+    if (Math.hypot(dz, dx) < 1e-6) return [];
+
+    const angleDeg = Math.atan2(dx, dz) * (180 / Math.PI);
+    const ray = { z0: start.z, x0: start.x, angleDeg };
+    try {
+      const candidates = solveLineArcJunctionCandidates(ray, previewData.vpol, radius);
+      if (candidates.length < 2) return [];
+      const palette = ['default', 'cyan', 'green', 'yellow'];
+      return candidates.map((candidate, index) => ({
+        start: { ...start },
+        end: { ...candidate },
+        type: draftSegment.type || 'line',
+        radius,
+        direction: draftSegment.direction || 'G11',
+        color: palette[index % palette.length],
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   function drawVkPreview(previewData, layout) {
     if (!canvasContext || !previewData || !layout) return;
     const { scale, isKarusel, project } = layout;
+    const solutionColors = {
+      default: '#f38ba8',
+      cyan: '#89dceb',
+      green: '#a6e3a1',
+      yellow: '#f9e2af',
+    };
 
     canvasContext.save();
     canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -554,6 +626,27 @@ export function openVkContour() {
       canvasContext.strokeStyle = 'rgba(255,255,255,0.5)';
       canvasContext.lineWidth = 1;
       canvasContext.stroke();
+    }
+
+    const ambiguousSolutions = previewData.ambiguousSolutions || [];
+    if (ambiguousSolutions.length > 0) {
+      solutionPicker.style.display = 'flex';
+      if (selectedSolutionIndex >= ambiguousSolutions.length) selectedSolutionIndex = 0;
+      ambiguousSolutions.forEach((entry, index) => {
+        const color = solutionColors[entry.color] || solutionColors.default;
+        const isSelected = index === selectedSolutionIndex;
+        canvasContext.strokeStyle = isSelected ? color : 'rgba(255,255,255,0.16)';
+        canvasContext.lineWidth = isSelected ? 2.4 : 1.1;
+        canvasContext.setLineDash(isSelected ? [] : [4, 3]);
+        const start = project(entry.start);
+        const end = project(entry.end);
+        canvasContext.beginPath();
+        canvasContext.moveTo(start.x, start.z);
+        canvasContext.lineTo(end.x, end.z);
+        canvasContext.stroke();
+      });
+    } else {
+      solutionPicker.style.display = 'none';
     }
 
     const draftSegment = previewData.draft;
@@ -643,6 +736,23 @@ export function openVkContour() {
     const value = gcodeEl ? gcodeEl.value : '';
     const draftSegment = getDraftSegment();
     const previewData = buildVkPreviewData(value, draftSegment);
+    previewData.ambiguousSolutions = buildAmbiguousSolutionPreview(previewData, draftSegment);
+    if (solutionButtons) {
+      solutionButtons.innerHTML = '';
+      if (previewData.ambiguousSolutions?.length) {
+        previewData.ambiguousSolutions.forEach((entry, index) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `vk-toggle ${index === selectedSolutionIndex ? 'active' : ''}`;
+          btn.textContent = `Varianta ${index + 1}`;
+          btn.addEventListener('click', () => {
+            selectedSolutionIndex = index;
+            renderVkCanvas();
+          });
+          solutionButtons.appendChild(btn);
+        });
+      }
+    }
     const hasData = Boolean(previewData.vpol || previewData.segments.length);
     if (!hasData) {
       drawGrid(null);
@@ -723,31 +833,25 @@ export function openVkContour() {
   }, { passive: false });
 
   canvas.addEventListener('pointerdown', (event) => {
+    const rect = canvas.getBoundingClientRect();
     isPanning = true;
-    panStart = { x: event.offsetX, y: event.offsetY };
+    panStart = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     panStartBounds = viewport?.bounds ? { ...viewport.bounds } : null;
     canvas.setPointerCapture(event.pointerId);
   });
 
   canvas.addEventListener('pointermove', (event) => {
     if (!isPanning || !panStart || !panStartBounds) return;
-    const deltaX = event.offsetX - panStart.x;
-    const deltaY = event.offsetY - panStart.y;
-    const isKarusel = state.machineType === 'karusel';
-    const spanX = Math.max(panStartBounds.maxX - panStartBounds.minX, 1);
-    const spanZ = Math.max(panStartBounds.maxZ - panStartBounds.minZ, 1);
-    const scale = Math.max(Math.min((canvasSize.width - 48) / spanZ, (canvasSize.height - 48) / spanX), 1e-3);
-    const panX = deltaX / scale;
-    const panZ = deltaY / scale;
-    viewport = {
-      ...viewport,
-      bounds: {
-        minX: isKarusel ? panStartBounds.minX - panX : panStartBounds.minX + panZ,
-        maxX: isKarusel ? panStartBounds.maxX - panX : panStartBounds.maxX + panZ,
-        minZ: isKarusel ? panStartBounds.minZ + panZ : panStartBounds.minZ - panX,
-        maxZ: isKarusel ? panStartBounds.maxZ + panZ : panStartBounds.maxZ - panX,
-      },
-    };
+    const rect = canvas.getBoundingClientRect();
+    const nextViewport = panVkViewport(
+      viewport,
+      panStart,
+      { x: event.clientX - rect.left, y: event.clientY - rect.top },
+      panStartBounds,
+      canvasSize,
+      state.machineType === 'karusel',
+    );
+    viewport = nextViewport;
     renderVkCanvas();
   });
 
@@ -779,6 +883,9 @@ export function openVkContour() {
 
   let currentType = 'vl';
   let arcDir = 'G2';
+  let selectedSolutionIndex = 0;
+  const solutionPicker = q('solution-picker');
+  const solutionButtons = q('solution-buttons');
 
   // ── Lazy nápověda ──
   const helpDetails = overlay.querySelector('[data-vk-help-details]');

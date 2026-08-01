@@ -112,9 +112,14 @@ export function pickByVpolTag(points, refPoint, tag) {
  * @param {{z:number,x:number}} refPoint  pro VPOL1/VPOL2 (typicky start obrysu)
  * @param {'VPOL1'|'VPOL2'|null} [tag]
  */
-export function solveLineArcJunction(ray, vpol, radius, refPoint, tag) {
+export function solveLineArcJunctionCandidates(ray, vpol, radius) {
   const pts = intersectRayCircle(ray, vpol, radius);
   if (pts.length === 0) throw new Error('Přímka/kužel neprotíná kružnici o daném poloměru kolem VPOL');
+  return pts;
+}
+
+export function solveLineArcJunction(ray, vpol, radius, refPoint, tag) {
+  const pts = solveLineArcJunctionCandidates(ray, vpol, radius);
   if (pts.length === 1) return pts[0];
   if (!tag) throw new Error('Dvě možná řešení – zadejte VPOL1 nebo VPOL2');
   return pickByVpolTag(pts, refPoint, tag);

@@ -5,6 +5,7 @@ import {
   resolveVkArcGeometry,
   zoomVkViewport,
   screenToVkPoint,
+  panVkViewport,
 } from '../js/calculators/vkContour.js';
 
 describe('parseVkLine', () => {
@@ -112,6 +113,21 @@ describe('buildVkPreviewData', () => {
     expect(carouselPoint.z).toBeCloseTo(3.0434782608695654, 9);
     expect(lathePoint.x).toBeCloseTo(3.0434782608695654, 9);
     expect(lathePoint.z).toBeCloseTo(5, 9);
+  });
+
+  it('keeps the world point under the cursor stable while panning', () => {
+    const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
+    const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };
+    const size = { width: 220, height: 140 };
+    const startPoint = { x: 100, y: 80 };
+    const endPoint = { x: 120, y: 90 };
+
+    const nextViewport = panVkViewport(viewport, startPoint, endPoint, bounds, size, false);
+    const startWorld = screenToVkPoint(startPoint, viewport, bounds, size, false);
+    const endWorld = screenToVkPoint(endPoint, nextViewport, nextViewport.bounds, size, false);
+
+    expect(endWorld.x).toBeCloseTo(startWorld.x, 9);
+    expect(endWorld.z).toBeCloseTo(startWorld.z, 9);
   });
 
   it('zooms around the cursor while keeping the pointed world coordinate stable', () => {
