@@ -228,7 +228,7 @@ Nebo: `vkContour.js` spravuje konverzi, `vkSolver.js` zůstává čistý.
 
 #### 3.3 `js/calculators/vkContour.js` – VK jako nástroj kreslení
 
-**Nový režim – přepínání mezi VK编辑 a normálním nástrojem:**
+**Nový režim – přepínání mezi VK editací a normálním nástrojem:**
 VK záložka v modálu má dva režimy:
 - **Režim A (výchozí):** VK klik na canvasu vloží souřadnice do VK formuláře (stejný vzorec jako "pick from map" v numericalInput.js). Ostatní nástroje přesto fungují.
 - **Režim B (kreslení):** VK klik na canvasu přidává body do VK kontury. Po dokončení kontury se VK prvky commitují jako objekty výkresu.

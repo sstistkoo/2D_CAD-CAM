@@ -65,7 +65,7 @@ export { showCombinedModal } from './dialogs/combinedModal.js';
 Zachovat staré exporty pro zpětnou kompatibilitu (zakomentované):
 ```js
 // export { showNumericalInputDialog } from './dialogs/numericalInput.js';
-// export { openVkContour } from '../calculators/vkContour.js';
+// Pozn.: openVkContour se NEdává do dialogs.js – je importován přímo v ui.js z ../calculators/vkContour.js
 ```
 
 Staré importy v `events.js`, `touch.js`, `ui.js` se přepíší na `showCombinedModal`.
