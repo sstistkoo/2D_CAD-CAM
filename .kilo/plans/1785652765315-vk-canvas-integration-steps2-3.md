@@ -33,7 +33,14 @@ Nebo upravit existující `makeOverlay()` přidat parametr `float = false`.
 - Všechny VK canvas funkce (`ensureCanvas`, `clearCanvas`, `drawGrid`, `drawVkPreview`, `drawPlaceholder`, `computeCanvasLayout`, `renderVkCanvas`, `scheduleRender`)
 - Wheel/pan/pointer listenery na VK canvasu
 - `fitViewportToPreview()`
-- `scheduleRender()`, `renderFrame`
+- `renderFrame`
+
+**Zachovat v souboru pro krok 2+3 (neodstraňovat):**
+- `zoomVkViewport()`, `screenToVkPoint()`, `panVkViewport()` – VK projekce, potřeba pro CAD canvas preview
+- `pickVkAmbiguousSolution()` – řešení variant, potřeba pro CAD canvas preview
+- `buildAmbiguousSolutionPreview()` – pomocná pro VK canvas preview, potřeba v kroku 2+3
+- `scheduleRender()` – bude přejmenována na `scheduleVkRender()` a upravena pro CAD canvas render v kroku 2+3
+- `fitViewportToPreview()` – bude upravena pro CAD canvas v kroku 2+3
 
 **Poznámka:** Funkce `zoomVkViewport()`, `screenToVkPoint()`, `panVkViewport()`, `pickVkAmbiguousSolution()` zůstávají v `vkContour.js` – jsou součástí VK logiky a nepřenášejí se do `canvas.js`.
 
@@ -80,7 +87,7 @@ vkLayout: null, // aktuální layout pro VK preview na canvasu
 **Změna v `drawCanvas` click handleru:**
 Před existující logikou nástrojů přidat:
 ```js
-if (state.vkPreview?.visible && currentTab === 'vk') {
+if (state.vkPreview?.visible && state.activeModalTab === 'vk') {
   const [wx, wy] = screenToWorld(sx, sy);
   handleVkCanvasClick(wx, wy);
   // VK klik je obsloužen, ale nástrojový click se NEdále blokuje.
@@ -88,16 +95,22 @@ if (state.vkPreview?.visible && currentTab === 'vk') {
 }
 ```
 
-**Poznámka:** VK klik na canvasu přidá souřadnice do VK formuláře, ale neblokuje ostatní nástroje. Uživatel může přepínat mezi VK záložkou a nástroji na toolbaru.
+**Poznámka:** VK klik na canvasu přidá souřadnice do VK formuláře, ale neblokuje ostatní nástroje. Uživatel může přepínat mezi VK záložkou a nástroji na toolbaru. Proměnná `state.activeModalTab` je nastavována v `combinedModal.js` při přepínání záložek.
 
-#### 2.5 `js/ui.js` – spouštěče
+#### 2.5 `js/state.js` – nový stav
 
-**Změna:** Tlačítko `btnOpenVk` (text "VK", nahrazuje `btnNumInput` i starý `btnOpenVk`) volá `showCombinedModal('vk')`.
+Přidat:
 ```js
-document.getElementById("btnOpenVk").addEventListener("click", () => showCombinedModal('vk'));
+vkPreview: {
+  visible: false,
+  segments: [],
+  vpol: null,
+  draft: null,
+  ambiguousSolutions: [],
+  selectedSolutionIndex: 0,
+},
+activeModalTab: null, // 'vk' | 'num' | null
 ```
-
-**Poznámka:** ID `btnNumInput` se mění na `btnOpenVk`. Všechny JS reference na `btnNumInput` se aktualizují. Po otevření VK záložky se nastaví `state.vkPreview.visible = true` a spustí se `renderAll()`.
 
 #### 2.6 `css/style.css` – float overlay + drag + mobilní pozicionování
 
@@ -157,27 +170,23 @@ Na mobilu má `#mobileBottomBar` `z-index` kolem 50–100. Modal overlay má `z-
 
 **Změna:** Při přepnutí na VK záložku:
 1. Nastavit `state.vkPreview.visible = true`
-2. Nastavit `state.vkPreview.segments` z aktuálního VK kódu
-3. Spustit `renderAll()`
+2. Nastavit `state.activeModalTab = 'vk'`
+3. Nastavit `state.vkPreview.segments` z aktuálního VK kódu
+4. Spustit `renderAll()`
 
 Při přepnutí na Číselný vstup:
 1. Nastavit `state.vkPreview.visible = false`
-2. Spustit `renderAll()`
+2. Nastavit `state.activeModalTab = 'num'`
+3. Spustit `renderAll()`
 
-#### 2.8 `js/state.js` – nový stav
+#### 2.8 `js/ui.js` – spouštěče
 
-Přidat:
+**Změna:** Tlačítko `btnOpenVk` (text "VK", nahrazuje `btnNumInput` i starý `btnOpenVk`) volá `showCombinedModal('vk')`.
 ```js
-vkPreview: {
-  visible: false,
-  segments: [],
-  vpol: null,
-  draft: null,
-  ambiguousSolutions: [],
-  selectedSolutionIndex: 0,
-},
-activeModalTab: null, // 'vk' | 'num' | null
+document.getElementById("btnOpenVk").addEventListener("click", () => showCombinedModal('vk'));
 ```
+
+**Poznámka:** ID `btnNumInput` se mění na `btnOpenVk`. Všechny JS reference na `btnNumInput` se aktualizují. Po otevření VK záložky se nastaví `state.vkPreview.visible = true` a `state.activeModalTab = 'vk'` a spustí se `renderAll()`.
 
 ### Open otázky kroku 2
 
@@ -276,12 +285,13 @@ Režim se přepíná v záložce VK (tlačítko "Kreslit" / "Vložit do formulá
 |---|---|---|
 | **2.1** | `makeFloatOverlay()` / `calc-overlay-float` | Krok 1 hotov |
 | **2.2** | `vkContour.js` – přesun canvas logiky, export `renderVkPreview()` | 2.1 |
-| **2.3** | `render.js` – VK preview vrstva | 2.2 |
-| **2.4** | `canvas.js` – VK click handler | 2.2 |
-| **2.5** | `state.js` – `vkPreview` stav | 2.3, 2.4 |
+| **2.3** | `render.js` – VK preview vrstva | 2.2, 2.5 |
+| **2.4** | `canvas.js` – VK click handler | 2.2, 2.5 |
+| **2.5** | `state.js` – `vkPreview` a `activeModalTab` stav | žádná (nezávislá) |
 | **2.6** | `css/style.css` – float overlay + drag | 2.1 |
 | **2.7** | `combinedModal.js` – záložkový přepínač s render control | 2.5, 2.6 |
-| **2.8** | Test: VK preview na CAD canvasu, klik, drag | 2.7 |
+| **2.8** | `ui.js` – spouštěč `btnOpenVk`, nastavení `vkPreview` | 2.7 |
+| **2.9** | Test: VK preview na CAD canvasu, klik, drag | 2.7, 2.8 |
 | **3.1** | `vkContour.js` – `commitVkToDrawing()` | Krok 2 hotov |
 | **3.2** | `vkSolver.js` – wrapper CAD↔VK konverze | 3.1 |
 | **3.3** | `render.js` – VK objekty jako součást výkresu | 3.1 |

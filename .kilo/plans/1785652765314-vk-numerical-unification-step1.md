@@ -9,7 +9,8 @@ Sloučit 📐 VK Kontura a 🔢 Číselné zadání objektu do jednoho okna se d
 ### 1. `js/calculators/vkContour.js` – přepsání `openVkContour()`
 
 **Co se mění:**
-- Funkce `openVkContour()` se přejmenuje na `openCombinedModal()` (nebo se ponechá název a přidá se nová funkce)
+- Funkce `openVkContour()` se přejmenuje na `showVkTab()` a vrátí HTML string VK záložky (bez canvas)
+- Nová funkce `showCombinedModal()` se vytvoří v `js/dialogs/combinedModal.js` – to je hlavní vstupní bod
 - Odstraní se vlastní VK canvas (`<canvas class="vk-canvas-placeholder">`) a celá sekce `vk-canvas-wrapper`
 - Do `calc-body` se vloží záložkový panel s dvěma záložkami:
   - **Záložka 1:** `📐 VK Kontura` – existující VK formulář (bez canvas, bez řešiče preview)
@@ -27,9 +28,15 @@ Sloučit 📐 VK Kontura a 🔢 Číselné zadání objektu do jednoho okna se d
 - `<div class="vk-solution-picker">` (řešič variant – přesunout do VK záložky později, krok 2)
 - `renderVkCanvas()`, `ensureCanvas()`, `clearCanvas()`, `computeCanvasLayout()` a všechny VK canvas funkce
 - Wheel/pan/click listenery na VK canvasu
-- `fitViewportToPreview()`, `scheduleRender()`, `renderFrame`
+- `renderFrame`
 
-**Poznámka:** Funkce `zoomVkViewport()`, `screenToVkPoint()`, `panVkViewport()`, `pickVkAmbiguousSolution()` se v kroku 1 **nepoužívají** (canvas je odstraněn), ale **zachovávají se v souboru** `vkContour.js` pro použití v kroku 2.
+**Zachovat v souboru pro krok 2+3 (neodstraňovat):**
+- `zoomVkViewport()`, `screenToVkPoint()`, `panVkViewport()` – VK projekce, potřeba pro CAD canvas preview
+- `pickVkAmbiguousSolution()` – řešení variant, potřeba pro CAD canvas preview
+- `buildAmbiguousSolutionPreview()` – pomocná pro VK canvas preview, potřeba v kroku 2+3
+- `parseVkLine()`, `buildVkPreviewData()` – parsing VK kódu, potřeba pro CAD canvas preview
+- `scheduleRender()` – bude přejmenována na `scheduleVkRender()` a upravena pro CAD canvas render v kroku 2+3
+- `fitViewportToPreview()` – bude upravena pro CAD canvas v kroku 2+3
 
 ### 2. Nový soubor: `js/dialogs/combinedModal.js`
 
@@ -65,7 +72,7 @@ export { showCombinedModal } from './dialogs/combinedModal.js';
 Zachovat staré exporty pro zpětnou kompatibilitu (zakomentované):
 ```js
 // export { showNumericalInputDialog } from './dialogs/numericalInput.js';
-// Pozn.: openVkContour se NEdává do dialogs.js – je importován přímo v ui.js z ../calculators/vkContour.js
+// Pozn.: showVkTab (dříve openVkContour) se NENACHÁZÍ v dialogs.js – je importován přímo v ui.js z ../calculators/vkContour.js
 ```
 
 Staré importy v `events.js`, `touch.js`, `ui.js` se přepíší na `showCombinedModal`.
@@ -142,16 +149,16 @@ showCombinedModal('num');
 
 **Odstranit funkce, která nejsou potřeba v kroku 1:**
 - `renderVkCanvas()` a všechny pomocné funkce pro canvas (kromě těch potřebných pro VK formulář)
-- `zoomVkViewport()`, `screenToVkPoint()`, `panVkViewport()`
-- `pickVkAmbiguousSolution()`
-- `buildAmbiguousSolutionPreview()`
 - `ensureCanvas()`, `clearCanvas()`, `computeCanvasLayout()`, `drawGrid()`, `drawPlaceholder()`, `drawVkPreview()`
 - Wheel/pan/pointer listenery na canvasu
-- `fitViewportToPreview()`
-- `scheduleRender()`, `renderFrame`
+- `renderFrame`
+
+**Zachovat v souboru pro krok 2+3 (neodstraňovat):**
+- `scheduleRender()` – bude přejmenována na `scheduleVkRender()` a upravena pro CAD canvas render v kroku 2+3
+- `fitViewportToPreview()` – bude upravena pro CAD canvas v kroku 2+3
 
 **Zachovat:**
-- `openVkContour()` → přejmenovat na `showVkTab()` nebo inline do `combinedModal.js`
+- `showVkTab()` – vrací HTML string VK záložky (přejmenováno z `openVkContour()` v kroku 1)
 - `fmt()`, `buildVkVpolLine()`, `upsertVkVpolLine()`, `parseVkLine()`
 - `resolveVkArcGeometry()`
 - `polarDelta()`
@@ -208,13 +215,14 @@ showCombinedModal('num');
 
 ## Pořadí implementace
 
-1. Vytvořit `js/dialogs/combinedModal.js` – společný overlay a záložkový framework
-2. Upravit `js/calculators/vkContour.js` – odstranit canvas, extrahovat VK formulář do funkce vracející HTML
-3. Upravit `js/dialogs/numericalInput.js` – extrahovat formulář do funkce vracející HTML, odstranit vlastní overlay
+1. Upravit `js/calculators/vkContour.js` – extrahovat `showVkTab()` vracející HTML, odstranit canvas
+2. Upravit `js/dialogs/numericalInput.js` – extrahovat `renderNumericalTab()` vracející HTML, odstranit vlastní overlay
+3. Vytvořit `js/dialogs/combinedModal.js` – společný overlay a záložkový framework (importuje z obou)
 4. Upravit `js/dialogs.js` – přidat export `showCombinedModal`
-5. Upravit `js/ui.js`, `js/touch.js`, `js/events.js` – změnit spouštěče
-6. Upravit `css/style.css` – přidat záložkové styly, upravit rozměry oken
-7. Spustit `npm test` – ověřit, že nic se nezlomilo
+5. Aktualizovat `index.html` – přesun tlačítka VK do CAD toolbaru, přejmenování `btnNumInput` → `btnOpenVk`, `mobileNumInput` → `mobileVk`, aktualizace nápovědy
+6. Upravit `js/ui.js`, `js/touch.js`, `js/events.js` – změnit spouštěče na nové ID a `showCombinedModal`
+7. Upravit `css/style.css` – přidat záložkové styly, upravit rozměry oken
+8. Spustit `npm test` – ověřit, že nic se nezlomilo
 
 ## Open otázky
 
