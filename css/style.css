@@ -208,12 +208,6 @@ body {
     justify-content: center;
     gap: 4px;
   }
-  .toolbar-more-settings:empty {
-    display: none;
-  }
-  .toolbar-more-settings {
-    display: none;
-  }
 
   /* Kompaktní tlačítka */
   .tool-btn {
@@ -228,14 +222,6 @@ body {
     height: 20px;
     margin: 0 2px;
   }
-}
-.toolbar-more-settings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  width: 100%;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--ctp-surface0);
 }
 
 .tool-btn {
