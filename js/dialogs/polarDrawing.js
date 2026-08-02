@@ -89,6 +89,7 @@ export function showPolarDrawingDialog() {
     <div class="input-dialog" style="min-width:460px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <h3 style="margin:0">📐 Polární / Úhel</h3>
+        <button class="btn-cancel" id="polClose" style="padding:4px 8px;font-size:16px">✕</button>
       </div>
       <label>Referenční bod:</label>
       <div class="input-row">
@@ -106,15 +107,6 @@ export function showPolarDrawingDialog() {
         <div><label>Délka:</label><input type="text" id="polLen" value="10"></div>
         <div><label>Úhel (°):</label><input type="text" id="polAng" value="0"></div>
       </div>
-      <p style="font-size:11px;color:${COLORS.textMuted};margin:4px 0">Tečna napojení na kružnici/oblouk</p>
-      <div class="input-row">
-        <div><label>Ukončení:</label>
-          <select id="angMode" style="width:100%">
-            <option value="length" selected>Zadaná délka</option>
-            <option value="intersect">Do průsečíku</option>
-          </select>
-        </div>
-      </div>
       <div class="input-row">
         <div><label>Typ:</label>
           <select id="polType" style="width:100%">
@@ -123,18 +115,25 @@ export function showPolarDrawingDialog() {
             <option value="point">Bod (na konci)</option>
           </select>
         </div>
-        <div style="display:flex;align-items:end">
-          <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap">
-            <input type="checkbox" id="polChain" checked> Řetězit (konec → nový ref.)
-          </label>
+        <button class="btn-ok" id="polAdd" style="height:100%;margin-top:18px">➕ Přidat</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px">
+        <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="polChain" checked> Řetězit (konec → nový ref.)
+        </label>
+      </div>
+      <hr style="border-color:${COLORS.surfaceHover};margin:8px 0">
+      <p style="font-size:11px;color:${COLORS.textMuted};margin:4px 0">Tečna napojení na kružnici/oblouk</p>
+      <div class="input-row">
+        <div><label>Ukončení:</label>
+          <select id="angMode" style="width:100%">
+            <option value="length" selected>Zadaná délka</option>
+            <option value="intersect">Do průsečíku</option>
+          </select>
         </div>
+        <button class="btn-ok" id="angPick" title="Vybrat bod / kružnici" style="height:100%;margin-top:18px">🎯 Tečnost</button>
       </div>
       <div id="polHistory" style="max-height:120px;overflow-y:auto;font-size:11px;font-family:Consolas;color:${COLORS.label};margin:8px 0;padding:4px;background:${COLORS.bgDarker};border-radius:4px;display:none"></div>
-      <div class="btn-row">
-        <button class="btn-cancel" id="polClose">Zavřít</button>
-        <button class="btn-ok" id="polAdd">➕ Přidat segment</button>
-        <button class="btn-ok" id="angPick">🎯 Vybrat bod / kružnici</button>
-      </div>
     </div>`);
 
   const polRefX = overlay.querySelector("#polRefX");
