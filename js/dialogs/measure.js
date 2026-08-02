@@ -128,10 +128,16 @@ function buildObjectInfoDialog(obj, objIdx) {
   const { H, V, Hp, Vp, fH, fV } = coordHelpers();
   let rows = "";
   rows += `<tr><td style="color:${COLORS.label}">Typ:</td><td style="color:${COLORS.text}">${typeLabel(obj.type)}</td></tr>`;
-  if (obj.name) {
-    const safeName = obj.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    rows += `<tr><td style="color:${COLORS.label}">Název:</td><td style="color:${COLORS.text}">${safeName}</td></tr>`;
+
+  // Pořadové číslo objektu (stejná logika jako v ui.js updateObjectList)
+  let seqNum = 0;
+  for (let i = 0; i <= objIdx; i++) {
+    const o = state.objects[i];
+    if (!o.isCamPathNote && !o.isDimension && !o.isCoordLabel) {
+      seqNum++;
+    }
   }
+  rows += `<tr><td style="color:${COLORS.label}">Pořadové číslo:</td><td style="color:${COLORS.text}">${seqNum}</td></tr>`;
 
   switch (obj.type) {
     case "point":
@@ -236,6 +242,7 @@ function buildObjectInfoDialog(obj, objIdx) {
 
   let html = `
     <div class="input-dialog">
+      <button class="dialog-close-btn" id="objClose">✕</button>
       <h3>${obj.isDimension || obj.isCoordLabel ? '⌗ Info o kótě' : '📏 Info o objektu'}</h3>
       <table style="width:100%;font-family:Consolas;font-size:13px;">
         ${rows}
@@ -254,6 +261,13 @@ function buildObjectInfoDialog(obj, objIdx) {
   setTimeout(() => {
     const overlay = document.querySelector(".input-overlay:last-child");
     if (!overlay) return;
+
+    const closeBtn = overlay.querySelector("#objClose");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        overlay.remove();
+      });
+    }
 
     const copyBtn = overlay.querySelector("#objCopy");
     if (copyBtn) {

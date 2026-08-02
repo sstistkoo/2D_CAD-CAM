@@ -369,6 +369,17 @@ if (desktopAutoCenterBtn) {
   });
 }
 
+// ── Desktop: Měření ──
+const desktopMeasureBtn = document.getElementById("desktopMeasure");
+if (desktopMeasureBtn) {
+  desktopMeasureBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const newTool = state.tool === "measure" ? "select" : "measure";
+    setTool(newTool);
+    desktopMeasureBtn.classList.toggle("active", newTool === "measure");
+  });
+}
+
 // ── Klávesnice ──
 document.addEventListener("keydown", (e) => {
   // Centrovat výkres: Ctrl+0 nebo Home

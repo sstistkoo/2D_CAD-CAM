@@ -2826,6 +2826,9 @@ export function setTool(tool) {
   // Sync mobile measure button
   const mmBtn = document.getElementById("mobileMeasure");
   if (mmBtn) mmBtn.classList.toggle("active", tool === "measure");
+  // Sync desktop measure button
+  const dmBtn = document.getElementById("desktopMeasure");
+  if (dmBtn) dmBtn.classList.toggle("active", tool === "measure");
   // Sync mobile "Dvoj klik" tlačítko (jen viditelné v nástroji Výběr)
   if (bridge.updateMobileRectArmBtn) bridge.updateMobileRectArmBtn();
   // Aktualizovat mobilní coord bar s novým nástrojem

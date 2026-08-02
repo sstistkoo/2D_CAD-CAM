@@ -1529,12 +1529,33 @@ body {
   padding: 20px;
   min-width: 320px;
   max-width: 480px;
+  position: relative;
+}
+
+.dialog-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--ctp-subtext0);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dialog-close-btn:hover {
+  background: var(--ctp-surface1);
+  color: var(--ctp-text);
 }
 
 .input-dialog h3 {
   margin-bottom: 12px;
   color: var(--ctp-blue);
   font-size: 15px;
+  padding-right: 30px;
 }
 
 .input-dialog label {
@@ -1778,6 +1799,12 @@ body {
 .statusbar-btn:active {
   background: var(--ctp-blue);
   color: var(--ctp-base);
+}
+
+#desktopMeasure.active {
+  background: var(--ctp-green);
+  color: var(--ctp-base);
+  box-shadow: 0 0 14px #a6e3a166;
 }
 
 /* â”€â”€ Snap indicator â”€â”€ */
