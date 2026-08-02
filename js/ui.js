@@ -2625,19 +2625,6 @@ document.getElementById("btnDelLayer").addEventListener("click", () => {
   showToast("Vrstva smazána, objekty přesunuty na vrstvu Kontura");
 });
 
-// ── Polotovar (stock) drawing mode toggle ──
-const btnDrawStock = document.getElementById("btnDrawStock");
-if (btnDrawStock) {
-  btnDrawStock.addEventListener("click", () => {
-    state.drawStockMode = !state.drawStockMode;
-    btnDrawStock.classList.toggle("active", state.drawStockMode);
-    refreshLineStyleBtn();
-    showToast(state.drawStockMode
-      ? "Režim polotovaru zapnut – nové objekty budou jiné barvy"
-      : "Režim polotovaru vypnut");
-  });
-}
-
 // ── Přídavek na plochu (př/pl) – modal pro offset / válec ──
 const btnAllowance = document.getElementById("btnAllowance");
 if (btnAllowance) {

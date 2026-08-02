@@ -129,9 +129,6 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
     state.drawStockMode = !state.drawStockMode;
     stockLabel.textContent = state.drawStockMode ? 'Polotovar' : 'Kontura';
     stockToggle.classList.toggle('active', state.drawStockMode);
-    // Aktualizovat i původní tlačítko v toolbaru
-    const toolbarBtn = document.getElementById('btnDrawStock');
-    if (toolbarBtn) toolbarBtn.classList.toggle('active', state.drawStockMode);
     // Aktualizovat popisek tlačítka Typ čáry
     refreshLineStyleBtn();
   });
