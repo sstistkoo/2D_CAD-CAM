@@ -1071,6 +1071,42 @@ body {
   min-width: 340px;
 }
 
+.line-style-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.line-style-header h3 {
+  margin: 0;
+}
+
+.line-style-stock-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 4px;
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.line-style-stock-toggle:hover {
+  background: var(--ctp-surface1);
+}
+
+.line-style-stock-toggle.active {
+  background: var(--ctp-blue);
+  color: var(--ctp-base);
+  border-color: var(--ctp-blue);
+}
+
+.stock-toggle-label {
+  font-weight: 500;
+}
+
 .line-style-list {
   display: flex;
   flex-direction: column;

@@ -46,7 +46,12 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
 
   const overlay = makeInputOverlay(`
     <div class="input-dialog line-style-dialog">
-      <h3>Typ čáry</h3>
+      <div class="line-style-header">
+        <h3>Typ čáry</h3>
+        <button type="button" class="line-style-stock-toggle${state.drawStockMode ? ' active' : ''}" id="lsStockToggle" title="Přepnout kreslení polotovaru/kontury">
+          <span class="stock-toggle-label">${state.drawStockMode ? 'Polotovar' : 'Kontura'}</span>
+        </button>
+      </div>
       <div class="line-style-list">${rows}</div>
       <label class="line-style-section-label">Barva</label>
       <div class="color-swatch-row line-style-swatches">
@@ -115,6 +120,20 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
   auxInp.addEventListener('change', () => {
     aux = auxInp.checked;
     syncNote();
+  });
+
+  // Přepínač polotovar/kontura
+  const stockToggle = overlay.querySelector('#lsStockToggle');
+  const stockLabel = overlay.querySelector('.stock-toggle-label');
+  stockToggle.addEventListener('click', () => {
+    state.drawStockMode = !state.drawStockMode;
+    stockLabel.textContent = state.drawStockMode ? 'Polotovar' : 'Kontura';
+    stockToggle.classList.toggle('active', state.drawStockMode);
+    // Aktualizovat i původní tlačítko v toolbaru
+    const toolbarBtn = document.getElementById('btnDrawStock');
+    if (toolbarBtn) toolbarBtn.classList.toggle('active', state.drawStockMode);
+    // Aktualizovat popisek tlačítka Typ čáry
+    refreshLineStyleBtn();
   });
 
   function accept() {

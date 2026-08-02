@@ -27,7 +27,7 @@ export const LINE_STYLES = [
   {
     key: 'solidThick',
     label: 'Souvislá tlustá',
-    short: 'Tlustá',
+    short: 'Tl',
     dash: [],
     width: 2,
     aux: false,
@@ -36,7 +36,7 @@ export const LINE_STYLES = [
   {
     key: 'solidThin',
     label: 'Souvislá tenká',
-    short: 'Tenká',
+    short: 'Te',
     dash: [],
     width: 1,
     aux: true,
@@ -45,7 +45,7 @@ export const LINE_STYLES = [
   {
     key: 'dashed',
     label: 'Čárkovaná',
-    short: 'Čárk.',
+    short: 'Čá',
     dash: [8, 4],
     width: 1,
     aux: true,
@@ -54,7 +54,7 @@ export const LINE_STYLES = [
   {
     key: 'dashDot',
     label: 'Čerchovaná tenká',
-    short: 'Čerch.',
+    short: 'Če',
     dash: [14, 4, 2, 4],
     width: 1,
     aux: true,
@@ -63,7 +63,7 @@ export const LINE_STYLES = [
   {
     key: 'dashDotDot',
     label: 'Dvoječerchovaná',
-    short: '2čerch',
+    short: '2č',
     dash: [14, 4, 2, 4, 2, 4],
     width: 1,
     aux: true,
@@ -72,7 +72,7 @@ export const LINE_STYLES = [
   {
     key: 'constr',
     label: 'Konstrukční',
-    short: 'Konstr',
+    short: 'Ko',
     dash: [...CONSTRUCTION_DASH],
     width: 1,
     aux: true,
@@ -179,7 +179,10 @@ export function refreshLineStyleBtn() {
   const st = activeLineStyle();
 
   const label = btn.querySelector('.tool-btn-label');
-  if (label) label.textContent = st.short;
+  if (label) {
+    const stockSuffix = state.drawStockMode ? ' Pol' : ' Kon';
+    label.textContent = st.short + stockSuffix;
+  }
 
   const icon = btn.querySelector('svg');
   const seg = btn.querySelector('.line-style-icon-seg');
@@ -191,5 +194,6 @@ export function refreshLineStyleBtn() {
 
   btn.title = `${st.label} – ${st.use}`
     + (state.lineStyle.aux ? ' · pomocná čára (mimo konturu a CAM)' : ' · součást kontury')
+    + (state.drawStockMode ? ' · kreslení polotovaru' : ' · kreslení kontury')
     + '\nKlik otevře výběr typu čáry a barvy.';
 }

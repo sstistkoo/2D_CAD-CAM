@@ -2631,6 +2631,7 @@ if (btnDrawStock) {
   btnDrawStock.addEventListener("click", () => {
     state.drawStockMode = !state.drawStockMode;
     btnDrawStock.classList.toggle("active", state.drawStockMode);
+    refreshLineStyleBtn();
     showToast(state.drawStockMode
       ? "Režim polotovaru zapnut – nové objekty budou jiné barvy"
       : "Režim polotovaru vypnut");
