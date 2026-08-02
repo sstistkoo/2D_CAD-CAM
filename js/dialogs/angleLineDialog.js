@@ -14,7 +14,7 @@ import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
 import { safeEvalMath, bulgeToArc } from '../utils.js';
 import { findObjectAt, findSegmentAt, intersectLineLine, intersectLineCircle, getPolylineSegmentAsLine } from '../geometry.js';
 
-document.getElementById("btnAngleLine").addEventListener("click", showAngleLineDialog);
+// Event listener moved to polarDrawing.js - button removed from toolbar
 
 /**
  * Najde nejbližší průsečík paprsku (sx,sy) → směr (dx,dy) s ostatní geometrií.

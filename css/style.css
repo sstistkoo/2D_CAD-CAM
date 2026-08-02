@@ -1107,6 +1107,24 @@ body {
   font-weight: 500;
 }
 
+/* ── Přepínače režimů v dialogu Polární/Úhel ── */
+.pol-mode-btn {
+  opacity: 0.6;
+  border: 1px solid var(--ctp-surface1);
+}
+
+.pol-mode-btn.active {
+  opacity: 1;
+  background: var(--ctp-blue);
+  color: var(--ctp-base);
+  border-color: var(--ctp-blue);
+}
+
+.pol-mode-btn:hover:not(.active) {
+  opacity: 0.8;
+  background: var(--ctp-surface1);
+}
+
 .line-style-list {
   display: flex;
   flex-direction: column;
