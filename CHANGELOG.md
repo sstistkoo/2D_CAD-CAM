@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **VK náhled se kreslí přímo na výkres a okno je plovoucí.** Vlastní
+  mini-canvas VK (s vlastním zoomem a panem) je zrušený – kontura se
+  vykresluje rovnou na CAD plátno, takže sdílí měřítko i polohu s tím,
+  co je nakreslené, a jde to porovnat. Tlačítko **⤢** teď přizpůsobí
+  pohled výkresu kontuře. Okno „Zadání objektu" je plovoucí (bez tmavého
+  pozadí), takže **jde kreslit nástrojem, aniž by se muselo zavírat**;
+  ESC proto patří nástroji (zrušit rozkreslený prvek) a okno se zavírá
+  křížkem. Na mobilu je ukotvené dole nad spodní lištou.
+  Nové **🎯 u souřadnic VK prvku** doplní X i Z kliknutím do výkresu –
+  stejný jednorázový odběr kliku, jaký měl číselný vstup (nově sdílený,
+  `js/dialogs/canvasPick.js`), takže nekoliduje s aktivním nástrojem.
+  Číselné zadání se při výběru bodu z výkresu už neschovává – jen se
+  zvýrazní cílové pole.
+  Oblouky náhledu se konstruují ve world souřadnicích stejným postupem
+  jako `parseGcodeToObjects()`, takže náhled a G-kód po naparsování dávají
+  tentýž oblouk (ověřeno v poloměrovém i průměrovém režimu). Osy se
+  převádějí kanonicky přes `displayX`/`inputX` a typ stroje – u karuselu
+  jsou X/Z prohozené.
+- **📐 VK – Volná kontura a 🔢 Číselné zadání objektu jsou teď jedno okno**
+  se dvěma záložkami („Zadání objektu"). Všech pět dosavadních spouštěčů
+  (tlačítko 🔢 Zadat v CAD toolbaru, 🔢 ve stavové liště, 🔢 v mobilní
+  liště, klávesa `n` a 📐 VK Kontura v panelu Další kalkulačky) otevírá
+  totéž okno – liší se jen výchozí záložkou, takže se dá mezi číselným
+  zadáním a VK přepnout bez zavírání. Titulek okna se mění podle aktivní
+  záložky, okno jde táhnout za lištu. Chování obou nástrojů zůstává
+  stejné (řešič, `localStorage`, 🎯 výběr z mapy, řetězení).
+  Interně: `vkContour.js` a `numericalInput.js` nově exportují dvojici
+  `render*Tab()` / `init*Tab(container)` a okno kolem nich staví nový
+  `js/dialogs/combinedModal.js`. Při zavření se volá `destroy()`, takže
+  se uklidí i rozdělaný odběr kliku na plátno (dřív přežíval zavření
+  dialogu) a `resize` listener VK náhledu.
 - VK Kontura: sekce „2. Parametry nového VK prvku" přejmenována na
   „2. Nový VK prvek" a doplněna o **navigaci ◀ ▶** mezi nedořešenými
   prvky (max. 3, přesně to, co drží `pendingQueue`) přímo v záhlaví

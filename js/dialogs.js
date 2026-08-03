@@ -14,7 +14,7 @@ export { showMeasureResult, showIntersectionInfo, showMeasureObjectInfo,
   showMeasurePointToLineResult, showMeasurePointToCircleResult,
   showMeasureTwoObjectsResult, showMeasureMultiObjectResult } from './dialogs/measure.js';
 export { showCircleRadiusDialog } from './dialogs/circleRadius.js';
-export { showNumericalInputDialog } from './dialogs/numericalInput.js';
+export { showCombinedModal, showNumericalInputDialog, openVkContour } from './dialogs/combinedModal.js';
 export { showPolarDrawingDialog } from './dialogs/polarDrawing.js';
 export { showAngleLineDialog } from './dialogs/angleLineDialog.js';
 export { showBulgeDialog } from './dialogs/bulge.js';

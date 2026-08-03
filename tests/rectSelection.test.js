@@ -109,7 +109,7 @@ vi.mock('../js/canvas.js', () => ({
 }));
 
 vi.mock('../js/dialogs.js', () => ({
-  showNumericalInputDialog: vi.fn(),
+  showNumericalInputDialog: vi.fn(), showCombinedModal: vi.fn(),
   showPolarDrawingDialog: vi.fn(),
   showCircleRadiusDialog: vi.fn(),
   showBulgeDialog: vi.fn(),

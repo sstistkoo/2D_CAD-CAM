@@ -9,7 +9,7 @@ import { renderAll, getObjectBounds, boundsOverlap, getSelectionCounterLabel } f
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
 import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
 import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
-import { showNumericalInputDialog, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
+import { showCombinedModal, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
 import { saveProject, showExportImageDialog, showProjectsDialog, showSaveAsDialog } from './storage.js';
 import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
@@ -395,8 +395,12 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "Escape") {
-    // Close topmost dialog overlay if open (highest z-index first)
-    const allOverlays = document.querySelectorAll('.input-overlay, .calc-overlay');
+    // Close topmost dialog overlay if open (highest z-index first).
+    // Okna s [data-keep-on-esc] (plovoucí, koexistují s kreslením) se
+    // přeskakují – tam ESC patří nástroji, zavírají se křížkem.
+    const allOverlays = document.querySelectorAll(
+      '.input-overlay:not([data-keep-on-esc]), .calc-overlay:not([data-keep-on-esc])'
+    );
     if (allOverlays.length) {
       let topOverlay = allOverlays[0];
       let topZ = parseInt(getComputedStyle(topOverlay).zIndex) || 0;
@@ -625,7 +629,7 @@ document.addEventListener("keydown", (e) => {
     if (e.shiftKey) {
       showPolarDrawingDialog();
     } else {
-      showNumericalInputDialog();
+      showCombinedModal('num');
     }
   }
   if (e.key.toLowerCase() === "g") {

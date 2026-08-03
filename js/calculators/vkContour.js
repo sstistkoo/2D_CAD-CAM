@@ -13,8 +13,8 @@
 // Sekce nápovědy (js/calculators/vkHelp.js) se vykresluje líně až při
 // prvním rozbalení, aby se zbytečně nebudoval markup při každém otevření.
 
-import { makeOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { state, showToast, displayX, inputX } from '../state.js';
+import { bridge } from '../bridge.js';
 import { renderVkHelp } from './vkHelp.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunction, solveLineArcJunctionCandidates,
@@ -73,6 +73,35 @@ function toSolverX(val) {
 /** Solver prostor (průměr) → hodnota do formuláře (zobrazované jednotky). */
 function fromSolverX(val) {
   return displayX(val / 2);
+}
+
+// ── Osy VK ↔ CAD plátno ─────────────────────────────────────────
+// VK bod { x, z } je v ŘÍDICÍCH souřadnicích tak, jak jsou napsané
+// v G-kódu (X v zobrazovaných jednotkách). CAD plátno má X vždy jako
+// POLOMĚR a osy prohozené podle typu stroje – viz fmtCoordLabel()
+// ve state.js:
+//   soustruh – CNC Z = wx (vodorovně), CNC X = wy (svisle)
+//   karusel  – CNC X = wx,             CNC Z = wy
+// Bydlí to tady (a ne v vkPreviewRender.js), aby VK mělo převod os
+// i jednotek na jednom místě a modul zůstal bez DOM závislostí.
+
+/**
+ * @param {{x: number, z: number}} pt
+ * @returns {[number, number]} [wx, wy]
+ */
+export function vkToWorld(pt) {
+  const r = inputX(pt.x);
+  return state.machineType === 'karusel' ? [r, pt.z] : [pt.z, r];
+}
+
+/**
+ * @param {number} wx
+ * @param {number} wy
+ * @returns {{x: number, z: number}} VK bod v zobrazovaných jednotkách
+ */
+export function worldToVk(wx, wy) {
+  const isK = state.machineType === 'karusel';
+  return { x: displayX(isK ? wx : wy), z: isK ? wy : wx };
 }
 
 export function buildVkVpolLine(values = {}) {
@@ -152,94 +181,6 @@ export function resolveVkArcGeometry(start, end, radius, direction) {
   }
   if (Math.abs(sweep) < 1e-9) sweep = direction === 'G3' ? Math.PI * 2 : -Math.PI * 2;
   return { center, startAngle, endAngle, sweep, radius };
-}
-
-export function zoomVkViewport(viewport, cursor, bounds, size, isKarusel, zoomFactor) {
-  const nextZoom = Math.max(0.4, Math.min(8, (viewport?.zoom || 1) * zoomFactor));
-  const padding = 24;
-  const targetWidth = Math.max((size.width || 1) - padding * 2, 1);
-  const targetHeight = Math.max((size.height || 1) - padding * 2, 1);
-  const cursorPoint = cursor || { x: targetWidth / 2 + padding, y: (size.height || 1) / 2 };
-  const originCanvasX = viewport?.originCanvasX ?? padding;
-  const originCanvasY = viewport?.originCanvasY ?? (size.height - padding);
-  const worldPoint = screenToVkPoint(cursorPoint, viewport, bounds, size, isKarusel);
-  const spanX = Math.max((bounds?.maxX ?? 1) - (bounds?.minX ?? 0), 1);
-  const spanZ = Math.max((bounds?.maxZ ?? 1) - (bounds?.minZ ?? 0), 1);
-  const baseScale = Math.min(targetWidth / spanZ, targetHeight / spanX);
-  const nextScale = Math.max(1e-3, baseScale * nextZoom);
-  const nextSpanX = targetHeight / baseScale;
-  const nextSpanZ = targetWidth / baseScale;
-  const minX = worldPoint.x - (originCanvasY - cursorPoint.y) / nextScale;
-  const minZ = worldPoint.z - (cursorPoint.x - originCanvasX) / nextScale;
-  return {
-    zoom: nextZoom,
-    originCanvasX,
-    originCanvasY,
-    bounds: {
-      minX,
-      maxX: minX + nextSpanX,
-      minZ,
-      maxZ: minZ + nextSpanZ,
-    },
-  };
-}
-
-export function screenToVkPoint(screenPoint, viewport, bounds, size, isKarusel) {
-  const width = size.width || 1;
-  const height = size.height || 1;
-  const zoom = viewport?.zoom || 1;
-  const padding = 24;
-  const originCanvasX = viewport?.originCanvasX ?? padding;
-  const originCanvasY = viewport?.originCanvasY ?? (height - padding);
-  const viewBounds = viewport?.bounds || bounds;
-  const spanX = Math.max((viewBounds?.maxX ?? 1) - (viewBounds?.minX ?? 0), 1);
-  const spanZ = Math.max((viewBounds?.maxZ ?? 1) - (viewBounds?.minZ ?? 0), 1);
-  const targetWidth = Math.max(width - padding * 2, 1);
-  const targetHeight = Math.max(height - padding * 2, 1);
-  const scale = Math.min(targetWidth / spanZ, targetHeight / spanX) * zoom;
-  const scaleValue = Math.max(scale, 1e-3);
-  if (isKarusel) {
-    return {
-      x: (screenPoint.x - originCanvasX) / scaleValue + (viewBounds?.minX ?? 0),
-      z: (originCanvasY - screenPoint.y) / scaleValue + (viewBounds?.minZ ?? 0),
-    };
-  }
-  return {
-    x: (originCanvasY - screenPoint.y) / scaleValue + (viewBounds?.minX ?? 0),
-    z: (screenPoint.x - originCanvasX) / scaleValue + (viewBounds?.minZ ?? 0),
-  };
-}
-
-export function panVkViewport(viewport, startPoint, endPoint, bounds, size, isKarusel) {
-  const baseBounds = bounds || viewport?.bounds;
-  if (!baseBounds) return viewport;
-  const viewBounds = baseBounds;
-  const spanX = Math.max(viewBounds.maxX - viewBounds.minX, 1);
-  const spanZ = Math.max(viewBounds.maxZ - viewBounds.minZ, 1);
-  const targetWidth = Math.max((size.width || 1) - 48, 1);
-  const targetHeight = Math.max((size.height || 1) - 48, 1);
-  const scale = Math.max(Math.min(targetWidth / spanZ, targetHeight / spanX), 1e-3);
-  const deltaX = endPoint.x - startPoint.x;
-  const deltaY = endPoint.y - startPoint.y;
-  const panX = deltaX / scale;
-  const panZ = deltaY / scale;
-  const nextBounds = isKarusel
-    ? {
-        minX: viewBounds.minX - panX,
-        maxX: viewBounds.maxX - panX,
-        minZ: viewBounds.minZ + panZ,
-        maxZ: viewBounds.maxZ + panZ,
-      }
-    : {
-        minX: viewBounds.minX + panZ,
-        maxX: viewBounds.maxX + panZ,
-        minZ: viewBounds.minZ - panX,
-        maxZ: viewBounds.maxZ - panX,
-      };
-  return {
-    ...viewport,
-    bounds: nextBounds,
-  };
 }
 
 export function pickVkAmbiguousSolution(previewData, selectedIndex = 0) {
@@ -401,7 +342,11 @@ export function insertTangentTransitions(lines) {
   return result;
 }
 
-export function openVkContour() {
+/**
+ * Markup záložky VK. Čistá funkce – žádný DOM ani listenery, jen HTML.
+ * Okno kolem něj staví js/dialogs/combinedModal.js.
+ */
+export function renderVkTab() {
   // X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení) –
   // popisky se přizpůsobí, ale vkSolver.js (dopočet neznámých – kategorie 1–4)
   // vždy počítá s průměrem, takže se hodnota ze strukturovaného formuláře
@@ -410,10 +355,9 @@ export function openVkContour() {
   // X znamená to, co je v G-kódu napsané.
   const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
-    <div class="vk-canvas-wrapper">
-      <button type="button" class="vk-canvas-fit" data-act="fit-view" title="Vycentrovat nákres">⤢</button>
-      <canvas class="vk-canvas-placeholder" data-id="vk-canvas" width="440" height="120"></canvas>
-      <div class="vk-canvas-label">Grafický náhled VK (připravujeme)</div>
+    <div class="vk-preview-bar">
+      <span class="vk-preview-hint">Náhled se kreslí přímo na výkres</span>
+      <button type="button" class="vk-header-btn" data-act="fit-view" title="Přizpůsobit pohled výkresu kontuře">⤢</button>
     </div>
     <div class="vk-solution-picker" data-id="solution-picker" style="display:none; margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap;">
       <span class="vk-section-title" style="margin:0">Varianty řešení</span>
@@ -486,7 +430,10 @@ export function openVkContour() {
           <button class="vk-insert-btn vk-insert-red" data-act="vpol">Vložit VPOL</button>
         </div>
 
-        <div class="vk-section-title" data-id="coords-title">Souřadnice počátečního bodu:</div>
+        <div class="vk-section-title vk-title-with-action" data-id="coords-title-row">
+          <span data-id="coords-title">Souřadnice počátečního bodu:</span>
+          <button type="button" class="vk-header-btn" data-act="pick-xz" title="Vybrat bod z výkresu">🎯</button>
+        </div>
         <div class="cnc-fields">
           <label class="cnc-field">
             <span data-id="x2-label">Start X1 (${xUnitLabel})</span>
@@ -543,13 +490,19 @@ export function openVkContour() {
       <button class="vk-btn vk-btn-convert" data-act="convert">Konvertovat na ISO G-kód</button>
     </div>
   `;
+  return { html: bodyHTML };
+}
 
-  const overlay = makeOverlay('vkcontour', '📐 VK – Volná kontura', bodyHTML, 'vk-window');
-  if (!overlay) return;
+/**
+ * Naváže logiku VK záložky na už vykreslený `container` (obsah záložky,
+ * ne celý overlay – VK sdílí okno s číselným zadáním).
+ * @param {HTMLElement} container
+ * @returns {{ destroy: () => void }}
+ */
+export function initVkTab(container, { picker = null } = {}) {
+  const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
 
-  const q = (id) => overlay.querySelector(`[data-id="${id}"]`);
-  const canvas = q('vk-canvas');
-  const canvasLabel = overlay.querySelector('.vk-canvas-label');
+  const q = (id) => container.querySelector(`[data-id="${id}"]`);
   const gcodeEl = q('gcode');
   const fieldValues = loadVkFieldValues();
   try { const _saved = localStorage.getItem('skica-vk-contour'); if (_saved) gcodeEl.value = _saved; } catch { /* ignore */ }
@@ -589,16 +542,10 @@ export function openVkContour() {
       gcodeEl.value = nextCode;
       vkSave();
     }
-    renderVkCanvas();
+    updateVkPreview();
   }
 
   populateVpolFormFromCode(gcodeEl.value);
-  let canvasContext = null;
-  let canvasSize = { width: 440, height: 140 };
-  let viewport = null;
-  let isPanning = false;
-  let panStart = null;
-  let panStartBounds = null;
 
   function vkSave() {
     try { localStorage.setItem('skica-vk-contour', gcodeEl.value); } catch { /* quota */ }
@@ -607,139 +554,6 @@ export function openVkContour() {
     try { localStorage.removeItem('skica-vk-contour'); } catch { /* ignore */ }
   }
 
-  function ensureCanvas() {
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(320, Math.round(rect.width || 440));
-    const height = Math.max(140, Math.round(rect.height || 160));
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-    }
-    canvasSize = { width, height };
-    canvasContext = canvas.getContext('2d');
-    canvasContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-    return canvasContext;
-  }
-
-  function clearCanvas() {
-    if (!canvasContext) return;
-    canvasContext.clearRect(0, 0, canvasSize.width, canvasSize.height);
-  }
-
-  function getPreviewBounds(previewData) {
-    const points = [];
-    if (previewData?.vpol) points.push(previewData.vpol);
-    previewData?.segments?.forEach(segment => {
-      points.push(segment.start, segment.end);
-    });
-    points.push({ x: 0, z: 0 });
-    if (points.length === 0) return { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
-    return {
-      minX: Math.min(...points.map(pt => pt.x)),
-      maxX: Math.max(...points.map(pt => pt.x)),
-      minZ: Math.min(...points.map(pt => pt.z)),
-      maxZ: Math.max(...points.map(pt => pt.z)),
-    };
-  }
-
-  /**
-   * Vypočítá layout VK canvasu: hranice, měřítko, pozici původku os a
-   * funkci projekce bodu do canvas pixelů. Při zoom/pan se používá
-   * aktuální viditelná oblast z viewportu.
-   */
-  function computeCanvasLayout(previewData, currentViewport) {
-    const { width, height } = canvasSize;
-    const padding = 24;
-    const isKarusel = state.machineType === 'karusel';
-    const bounds = currentViewport?.bounds || getPreviewBounds(previewData);
-    const spanX = Math.max(bounds.maxX - bounds.minX, 1);
-    const spanZ = Math.max(bounds.maxZ - bounds.minZ, 1);
-    const scale = Math.min((width - padding * 2) / spanZ, (height - padding * 2) / spanX) * (currentViewport?.zoom || 1);
-    const originCanvasX = currentViewport?.originCanvasX ?? padding;
-    const originCanvasY = currentViewport?.originCanvasY ?? (height - padding);
-
-    function project(point) {
-      if (isKarusel) {
-        return {
-          x: originCanvasX + (point.x - bounds.minX) * scale,
-          z: originCanvasY - (point.z - bounds.minZ) * scale,
-        };
-      }
-      return {
-        x: originCanvasX + (point.z - bounds.minZ) * scale,
-        z: originCanvasY - (point.x - bounds.minX) * scale,
-      };
-    }
-
-    return { isKarusel, scale, originCanvasX, originCanvasY, project, bounds };
-  }
-
-  function drawGrid(layout) {
-    if (!canvasContext) return;
-    const { width, height } = canvasSize;
-    const isKarusel = state.machineType === 'karusel';
-    const originX = layout ? layout.originCanvasX : 24;
-    const originY = layout ? layout.originCanvasY : height - 24;
-    canvasContext.save();
-    canvasContext.strokeStyle = 'rgba(255,255,255,0.08)';
-    canvasContext.lineWidth = 1;
-    const step = 20;
-    for (let x = 0; x <= width; x += step) {
-      canvasContext.beginPath();
-      canvasContext.moveTo(x, 0);
-      canvasContext.lineTo(x, height);
-      canvasContext.stroke();
-    }
-    for (let y = 0; y <= height; y += step) {
-      canvasContext.beginPath();
-      canvasContext.moveTo(0, y);
-      canvasContext.lineTo(width, y);
-      canvasContext.stroke();
-    }
-
-    canvasContext.strokeStyle = 'rgba(255,255,255,0.24)';
-    canvasContext.lineWidth = 1.4;
-    canvasContext.setLineDash([6, 6]);
-    canvasContext.beginPath();
-    canvasContext.moveTo(originX, 0);
-    canvasContext.lineTo(originX, height);
-    canvasContext.moveTo(0, originY);
-    canvasContext.lineTo(width, originY);
-    canvasContext.stroke();
-    canvasContext.setLineDash([]);
-
-    canvasContext.fillStyle = 'rgba(255,255,255,0.68)';
-    canvasContext.font = '10px sans-serif';
-    if (isKarusel) {
-      canvasContext.fillText('Z', 8, 14);
-      canvasContext.fillText('X', width - 14, height - 6);
-    } else {
-      canvasContext.fillText('X', 8, 14);
-      canvasContext.fillText('Z', width - 14, height - 6);
-    }
-    canvasContext.restore();
-  }
-
-  function drawPlaceholder() {
-    if (!canvasContext) return;
-    const { width, height } = canvasSize;
-    canvasContext.save();
-    canvasContext.fillStyle = 'rgba(255,255,255,0.06)';
-    canvasContext.beginPath();
-    canvasContext.roundRect(18, 18, width - 36, height - 36, 12);
-    canvasContext.fill();
-    canvasContext.strokeStyle = 'rgba(255,255,255,0.16)';
-    canvasContext.setLineDash([6, 6]);
-    canvasContext.stroke();
-    canvasContext.setLineDash([]);
-    canvasContext.fillStyle = 'rgba(255,255,255,0.65)';
-    canvasContext.font = '12px sans-serif';
-    canvasContext.textAlign = 'center';
-    canvasContext.fillText('Připraveno pro prototyp VK náhledu', width / 2, height / 2);
-    canvasContext.restore();
-  }
   function buildAmbiguousSolutionPreview(previewData, draftSegment) {
     if (!previewData?.vpol || !draftSegment?.start || !draftSegment.end) return [];
     const radius = Number.isFinite(draftSegment.radius) ? draftSegment.radius : null;
@@ -767,123 +581,6 @@ export function openVkContour() {
       }));
     } catch {
       return [];
-    }
-  }
-
-  function drawVkPreview(previewData, layout) {
-    if (!canvasContext || !previewData || !layout) return;
-    const { scale, isKarusel, project } = layout;
-    const solutionColors = {
-      default: '#f38ba8',
-      cyan: '#89dceb',
-      green: '#a6e3a1',
-      yellow: '#f9e2af',
-    };
-
-    canvasContext.save();
-    canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
-    canvasContext.lineWidth = 2.2;
-    canvasContext.lineJoin = 'round';
-    canvasContext.lineCap = 'round';
-
-    if (previewData.vpol) {
-      const p = project(previewData.vpol);
-      canvasContext.beginPath();
-      canvasContext.arc(p.x, p.z, 4.5, 0, Math.PI * 2);
-      canvasContext.fillStyle = '#f5a97f';
-      canvasContext.fill();
-    }
-
-    if (previewData.startPoint) {
-      const sp = project(previewData.startPoint);
-      canvasContext.beginPath();
-      canvasContext.arc(sp.x, sp.z, 3.5, 0, Math.PI * 2);
-      canvasContext.fillStyle = 'rgba(255,255,255,0.9)';
-      canvasContext.fill();
-      canvasContext.strokeStyle = 'rgba(255,255,255,0.5)';
-      canvasContext.lineWidth = 1;
-      canvasContext.stroke();
-    }
-
-    const ambiguousSolutions = previewData.ambiguousSolutions || [];
-    if (ambiguousSolutions.length > 0) {
-      solutionPicker.style.display = 'flex';
-      if (selectedSolutionIndex >= ambiguousSolutions.length) selectedSolutionIndex = 0;
-      ambiguousSolutions.forEach((entry, index) => {
-        const color = solutionColors[entry.color] || solutionColors.default;
-        const isSelected = index === selectedSolutionIndex;
-        canvasContext.strokeStyle = isSelected ? color : 'rgba(255,255,255,0.16)';
-        canvasContext.lineWidth = isSelected ? 2.4 : 1.1;
-        canvasContext.setLineDash(isSelected ? [] : [4, 3]);
-        const start = project(entry.start);
-        const end = project(entry.end);
-        canvasContext.beginPath();
-        canvasContext.moveTo(start.x, start.z);
-        canvasContext.lineTo(end.x, end.z);
-        canvasContext.stroke();
-      });
-    } else {
-      solutionPicker.style.display = 'none';
-    }
-
-    const draftSegment = previewData.draft;
-    const hasDraft = Boolean(draftSegment && draftSegment.end);
-
-    previewData.segments.forEach(segment => {
-      const start = project(segment.start);
-      const end = project(segment.end);
-      if (segment.isDraft) {
-        canvasContext.strokeStyle = 'rgba(245, 194, 231, 0.95)';
-        canvasContext.setLineDash([6, 4]);
-      } else {
-        canvasContext.strokeStyle = 'rgba(255,255,255,0.85)';
-        canvasContext.setLineDash([]);
-      }
-      if (segment.type === 'ray' && Number.isFinite(segment.angle)) {
-        const dirX = Math.sin(segment.angle * Math.PI / 180);
-        const dirZ = Math.cos(segment.angle * Math.PI / 180);
-        const extent = Math.max(layout.bounds.maxX - layout.bounds.minX, layout.bounds.maxZ - layout.bounds.minZ) * 4;
-        const startPoint = segment.start;
-        const forwardPoint = { x: startPoint.x + dirX * extent, z: startPoint.z + dirZ * extent };
-        const startPx = project(startPoint);
-        const forwardPx = project(forwardPoint);
-        canvasContext.strokeStyle = 'rgba(245, 169, 127, 0.95)';
-        canvasContext.setLineDash([6, 4]);
-        canvasContext.beginPath();
-        canvasContext.moveTo(startPx.x, startPx.z);
-        canvasContext.lineTo(forwardPx.x, forwardPx.z);
-        canvasContext.stroke();
-      } else if (segment.type === 'arc' && segment.radius) {
-        const geometry = resolveVkArcGeometry(
-          { x: start.x, z: start.z },
-          { x: end.x, z: end.z },
-          segment.radius,
-          segment.direction
-        );
-        if (geometry) {
-          const radiusPx = Math.max(4, geometry.radius * scale);
-          const center = project(geometry.center);
-          const startAngle = geometry.startAngle;
-          const sweep = geometry.sweep;
-          canvasContext.beginPath();
-          canvasContext.arc(center.x, center.z, radiusPx, startAngle, startAngle + sweep);
-          canvasContext.stroke();
-        }
-      } else {
-        canvasContext.beginPath();
-        canvasContext.moveTo(start.x, start.z);
-        canvasContext.lineTo(end.x, end.z);
-        canvasContext.stroke();
-      }
-      canvasContext.setLineDash([]);
-    });
-    canvasContext.restore();
-  }
-
-  function setCanvasLabelVisible(visible) {
-    if (canvasLabel) {
-      canvasLabel.style.opacity = visible ? '1' : '0';
-      canvasLabel.style.visibility = visible ? 'visible' : 'hidden';
     }
   }
 
@@ -931,13 +628,13 @@ export function openVkContour() {
     if (xInput) {
       xInput.value = fmt(end.x);
       xInput.classList.remove('vk-input-unknown');
-      const xBtn = overlay.querySelector('[data-toggle="val-x2"]');
+      const xBtn = container.querySelector('[data-toggle="val-x2"]');
       if (xBtn) xBtn.classList.remove('active');
     }
     if (zInput) {
       zInput.value = fmt(end.z);
       zInput.classList.remove('vk-input-unknown');
-      const zBtn = overlay.querySelector('[data-toggle="val-z2"]');
+      const zBtn = container.querySelector('[data-toggle="val-z2"]');
       if (zBtn) zBtn.classList.remove('active');
     }
 
@@ -961,71 +658,48 @@ export function openVkContour() {
     return true;
   }
 
-  function renderVkCanvas() {
-    ensureCanvas();
-    clearCanvas();
+  /**
+   * Přepočítá náhled z aktuálního textu + rozepsaného prvku, uloží ho do
+   * `state.vkPreview.data` a nechá překreslit CAD plátno. Vlastní kreslení
+   * dělá calculators/vkPreviewRender.js přes bridge.renderVkPreview.
+   */
+  function updateVkPreview() {
     const value = gcodeEl ? gcodeEl.value : '';
     const draftSegment = getDraftSegment();
     const previewData = buildVkPreviewData(value, draftSegment);
     previewData.ambiguousSolutions = buildAmbiguousSolutionPreview(previewData, draftSegment);
     if (previewData.ambiguousSolutions?.length) {
       const { draft } = pickVkAmbiguousSolution(previewData, selectedSolutionIndex);
-      if (draft) {
-        previewData.draft = draft;
-      }
+      if (draft) previewData.draft = draft;
+      if (selectedSolutionIndex >= previewData.ambiguousSolutions.length) selectedSolutionIndex = 0;
+    }
+    previewData.selectedSolutionIndex = selectedSolutionIndex;
+
+    // Přepínač variant řešení (dřív se schovával uvnitř kreslení canvasu)
+    if (solutionPicker) {
+      solutionPicker.style.display = previewData.ambiguousSolutions?.length ? 'flex' : 'none';
     }
     if (solutionButtons) {
       solutionButtons.innerHTML = '';
-      if (previewData.ambiguousSolutions?.length) {
-        previewData.ambiguousSolutions.forEach((entry, index) => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = `vk-toggle ${index === selectedSolutionIndex ? 'active' : ''}`;
-          btn.textContent = `Varianta ${index + 1}`;
-          btn.addEventListener('click', () => {
-            selectedSolutionIndex = index;
-            const value = gcodeEl ? gcodeEl.value : '';
-            const draftSegment = getDraftSegment();
-            const previewData = buildVkPreviewData(value, draftSegment);
-            previewData.ambiguousSolutions = buildAmbiguousSolutionPreview(previewData, draftSegment);
-            if (previewData.ambiguousSolutions?.length) {
-              applySelectedAmbiguousSolution(previewData, selectedSolutionIndex);
-            }
-            renderVkCanvas();
-          });
-          solutionButtons.appendChild(btn);
+      previewData.ambiguousSolutions?.forEach((entry, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `vk-toggle ${index === selectedSolutionIndex ? 'active' : ''}`;
+        btn.textContent = `Varianta ${index + 1}`;
+        btn.addEventListener('click', () => {
+          selectedSolutionIndex = index;
+          const draft = getDraftSegment();
+          const data = buildVkPreviewData(gcodeEl ? gcodeEl.value : '', draft);
+          data.ambiguousSolutions = buildAmbiguousSolutionPreview(data, draft);
+          if (data.ambiguousSolutions?.length) applySelectedAmbiguousSolution(data, selectedSolutionIndex);
+          updateVkPreview();
         });
-      }
+        solutionButtons.appendChild(btn);
+      });
     }
-    const hasData = Boolean(previewData.vpol || previewData.segments.length);
-    if (!hasData) {
-      drawGrid(null);
-      drawPlaceholder();
-      setCanvasLabelVisible(true);
-      return;
-    }
-    if (!viewport) {
-      viewport = { zoom: 1, bounds: getPreviewBounds(previewData) };
-    }
-    const layout = computeCanvasLayout(previewData, viewport);
-    drawGrid(layout);
-    drawVkPreview(previewData, layout);
-    setCanvasLabelVisible(false);
-    canvasContext.save();
-    canvasContext.fillStyle = 'rgba(255,255,255,0.55)';
-    canvasContext.font = '10px sans-serif';
-    canvasContext.fillText('náhled: VK / draft', 12, canvasSize.height - 8);
-    if (draftSegment) {
-      canvasContext.fillStyle = 'rgba(245, 194, 231, 0.95)';
-      canvasContext.fillText('● live draft', canvasSize.width - 80, canvasSize.height - 8);
-      canvasContext.beginPath();
-      canvasContext.arc(canvasSize.width - 88, canvasSize.height - 10, 3, 0, Math.PI * 2);
-      canvasContext.fill();
-    } else {
-      canvasContext.fillStyle = 'rgba(255,255,255,0.55)';
-      canvasContext.fillText('● ready', canvasSize.width - 64, canvasSize.height - 8);
-    }
-    canvasContext.restore();
+
+    state.vkPreview.data = previewData;
+    bridge.renderAll?.();
   }
 
   let renderFrame = null;
@@ -1034,107 +708,41 @@ export function openVkContour() {
     if (renderFrame != null) return;
     renderFrame = window.requestAnimationFrame(() => {
       renderFrame = null;
-      renderVkCanvas();
+      updateVkPreview();
     });
   }
 
-  function updateViewportFromPan(deltaX, deltaY) {
-    if (!viewport?.bounds) return;
-    const spanX = Math.max(viewport.bounds.maxX - viewport.bounds.minX, 1);
-    const spanZ = Math.max(viewport.bounds.maxZ - viewport.bounds.minZ, 1);
-    const scale = Math.min((canvasSize.width - 48) / spanZ, (canvasSize.height - 48) / spanX);
-    const panX = deltaX / Math.max(scale, 1e-3);
-    const panZ = deltaY / Math.max(scale, 1e-3);
-    const isKarusel = state.machineType === 'karusel';
-    viewport = {
-      ...viewport,
-      bounds: {
-        minX: isKarusel ? viewport.bounds.minX - panX : viewport.bounds.minX + panZ,
-        maxX: isKarusel ? viewport.bounds.maxX - panX : viewport.bounds.maxX + panZ,
-        minZ: isKarusel ? viewport.bounds.minZ + panZ : viewport.bounds.minZ - panX,
-        maxZ: isKarusel ? viewport.bounds.maxZ + panZ : viewport.bounds.maxZ - panX,
-      },
-    };
-  }
-
-  function fitViewportToPreview(previewData) {
-    const nextBounds = getPreviewBounds(previewData);
-    viewport = {
-      zoom: 1,
-      originCanvasX: 24,
-      originCanvasY: canvasSize.height - 24,
-      bounds: nextBounds,
-    };
-    renderVkCanvas();
-  }
-
-  overlay.querySelector('[data-act="fit-view"]').addEventListener('click', () => {
-    const value = gcodeEl ? gcodeEl.value : '';
-    const draftSegment = getDraftSegment();
-    const previewData = buildVkPreviewData(value, draftSegment);
-    fitViewportToPreview(previewData);
+  container.querySelector('[data-act="fit-view"]').addEventListener('click', () => {
+    updateVkPreview();
+    bridge.fitVkPreviewView?.();
   });
 
-  canvas.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    const value = gcodeEl ? gcodeEl.value : '';
-    const draftSegment = getDraftSegment();
-    const previewData = buildVkPreviewData(value, draftSegment);
-    const baseBounds = viewport?.bounds || getPreviewBounds(previewData);
-    const zoomFactor = event.deltaY < 0 ? 1.15 : 0.85;
-    const nextViewport = zoomVkViewport(
-      viewport || { zoom: 1, bounds: baseBounds },
-      { x: event.offsetX, y: event.offsetY },
-      baseBounds,
-      canvasSize,
-      state.machineType === 'karusel',
-      zoomFactor,
-    );
-    viewport = nextViewport;
-    renderVkCanvas();
-  }, { passive: false });
-
-  canvas.addEventListener('pointerdown', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    isPanning = true;
-    panStart = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    panStartBounds = viewport?.bounds ? { ...viewport.bounds } : null;
-    canvas.setPointerCapture(event.pointerId);
+  // 🎯 – doplnit X/Z prvku kliknutím do výkresu. Odběr kliku je
+  // jednorázový (canvasPick.js), takže nekoliduje s aktivním nástrojem.
+  container.querySelector('[data-act="pick-xz"]')?.addEventListener('click', () => {
+    if (!picker) return;
+    const xInput = q('val-x2');
+    const zInput = q('val-z2');
+    picker.pick((wx, wy) => {
+      const pt = worldToVk(wx, wy);
+      setUnknownField('val-x2', fmt(pt.x));
+      setUnknownField('val-z2', fmt(pt.z));
+      rememberVkFieldValue('val-x2', fmt(pt.x));
+      rememberVkFieldValue('val-z2', fmt(pt.z));
+      updateVkPreview();
+    }, {
+      field: [xInput?.closest('.cnc-field'), zInput?.closest('.cnc-field')],
+      hint: 'Klikněte do výkresu – doplní se X i Z prvku',
+    });
   });
 
-  canvas.addEventListener('pointermove', (event) => {
-    if (!isPanning || !panStart || !panStartBounds) return;
-    const rect = canvas.getBoundingClientRect();
-    const nextViewport = panVkViewport(
-      viewport,
-      panStart,
-      { x: event.clientX - rect.left, y: event.clientY - rect.top },
-      panStartBounds,
-      canvasSize,
-      state.machineType === 'karusel',
-    );
-    viewport = nextViewport;
-    renderVkCanvas();
-  });
-
-  canvas.addEventListener('pointerup', () => {
-    isPanning = false;
-    panStart = null;
-    panStartBounds = null;
-  });
-  canvas.addEventListener('pointerleave', () => {
-    isPanning = false;
-    panStart = null;
-    panStartBounds = null;
-  });
-
-  overlay.querySelectorAll('input[data-id]').forEach(input => {
+  container.querySelectorAll('input[data-id]').forEach(input => {
     input.addEventListener('focus', () => {
       if (input.classList.contains('vk-input-unknown') && input.value === '?') {
         const previous = getLastVkFieldValue(input.dataset.id);
         input.value = previous || '';
         input.classList.remove('vk-input-unknown');
-        const toggleBtn = overlay.querySelector(`[data-toggle="${input.dataset.id}"]`);
+        const toggleBtn = container.querySelector(`[data-toggle="${input.dataset.id}"]`);
         if (toggleBtn) toggleBtn.classList.remove('active');
       }
     });
@@ -1147,7 +755,7 @@ export function openVkContour() {
       if (input.value.trim() === '') {
         input.value = '?';
         input.classList.add('vk-input-unknown');
-        const toggleBtn = overlay.querySelector(`[data-toggle="${input.dataset.id}"]`);
+        const toggleBtn = container.querySelector(`[data-toggle="${input.dataset.id}"]`);
         if (toggleBtn) toggleBtn.classList.add('active');
       } else {
         rememberVkFieldValue(input.dataset.id, input.value);
@@ -1162,8 +770,8 @@ export function openVkContour() {
   const solutionButtons = q('solution-buttons');
 
   // ── Lazy nápověda ──
-  const helpDetails = overlay.querySelector('[data-vk-help-details]');
-  const helpContainer = overlay.querySelector('[data-vk-help-container]');
+  const helpDetails = container.querySelector('[data-vk-help-details]');
+  const helpContainer = container.querySelector('[data-vk-help-container]');
   helpDetails.addEventListener('toggle', () => {
     if (helpDetails.open && !helpContainer.dataset.loaded) {
       helpContainer.innerHTML = renderVkHelp();
@@ -1172,29 +780,29 @@ export function openVkContour() {
   });
 
   // ── VL / VKr / VPOL přepínač ──
-  const arcSettings = overlay.querySelector('[data-arc-settings]');
-  const vpolSettings = overlay.querySelector('[data-vpol-settings]');
-  overlay.querySelectorAll('[data-type]').forEach(btn => {
+  const arcSettings = container.querySelector('[data-arc-settings]');
+  const vpolSettings = container.querySelector('[data-vpol-settings]');
+  container.querySelectorAll('[data-type]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
-      overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b === btn));
+      container.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b === btn));
       arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
       vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
-      renderVkCanvas();
+      updateVkPreview();
     });
   });
 
   // ── G2 / G3 přepínač ──
-  overlay.querySelectorAll('[data-dir]').forEach(btn => {
+  container.querySelectorAll('[data-dir]').forEach(btn => {
     btn.addEventListener('click', () => {
       arcDir = btn.dataset.dir;
-      overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b === btn));
-      renderVkCanvas();
+      container.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b === btn));
+      updateVkPreview();
     });
   });
 
   // ── ❓ přepínač neznámé hodnoty ──
-  overlay.querySelectorAll('[data-toggle]').forEach(btn => {
+  container.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', () => {
       const input = q(btn.dataset.toggle);
       const isUnknown = input.value === '?';
@@ -1213,8 +821,8 @@ export function openVkContour() {
   });
 
   // ── Generovaná syntaxe ──
-  const convertBtn = overlay.querySelector('[data-act="convert"]');
-  const solveInfo = overlay.querySelector('[data-solve-info]');
+  const convertBtn = container.querySelector('[data-act="convert"]');
+  const solveInfo = container.querySelector('[data-solve-info]');
   const ORIGINAL_CONVERT_LABEL = 'Konvertovat na ISO G-kód';
   let conversionBackup = null;
 
@@ -1268,7 +876,7 @@ export function openVkContour() {
   /** Nastaví pole na „?" (neznámé) nebo na konkrétní hodnotu – sdíleno mezi ❓ přepínačem a načtením prvku. */
   function setUnknownField(id, val) {
     const input = q(id);
-    const btn = overlay.querySelector(`[data-toggle="${id}"]`);
+    const btn = container.querySelector(`[data-toggle="${id}"]`);
     if (val == null) {
       input.value = '?';
       input.classList.add('vk-input-unknown');
@@ -1283,12 +891,12 @@ export function openVkContour() {
   /** Načte uložený nedořešený prvek zpět do formuláře (pro prohlížení/úpravu přes ◀ ▶). */
   function loadElementIntoForm(el) {
     currentType = el.isArc ? 'vkr' : 'vl';
-    overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === currentType));
+    container.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === currentType));
     arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
     vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
     if (el.isArc) {
       arcDir = el.dir || 'G2';
-      overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === arcDir));
+      container.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === arcDir));
     }
     setUnknownField('val-x2', el.xRaw);
     setUnknownField('val-z2', el.z);
@@ -1296,7 +904,7 @@ export function openVkContour() {
     setUnknownField('val-pr', el.prRaw != null ? el.prRaw : null);
     q('val-r').value = el.r;
     q('check-t').checked = el.isT;
-    const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
+    const vpolTagInput = container.querySelector('[data-id="vpol-tag"]');
     if (vpolTagInput) vpolTagInput.value = el.vpolTag || '';
     q('junction-axis').value = el.junction ? el.junction.axis : '';
     q('junction-value').value = el.junction ? el.junction.rawValue : '';
@@ -1309,7 +917,7 @@ export function openVkContour() {
       const input = q(id);
       input.value = previous;
       input.classList.remove('vk-input-unknown');
-      const toggleBtn = overlay.querySelector(`[data-toggle="${id}"]`);
+      const toggleBtn = container.querySelector(`[data-toggle="${id}"]`);
       if (toggleBtn) toggleBtn.classList.remove('active');
     } else {
       setUnknownField(id, null);
@@ -1318,18 +926,18 @@ export function openVkContour() {
 
   function resetFormToNewEntry() {
     currentType = 'vl';
-    overlay.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === 'vl'));
+    container.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === 'vl'));
     arcSettings.style.display = 'none';
     vpolSettings.style.display = 'none';
     arcDir = 'G2';
-    overlay.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
+    container.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
     setFieldValueOrRestore('val-x2');
     setFieldValueOrRestore('val-z2');
     setFieldValueOrRestore('val-pa');
     setFieldValueOrRestore('val-pr');
     q('val-r').value = getLastVkFieldValue('val-r') || '5.0';
     q('check-t').checked = getLastVkFieldValue('check-t') === '1';
-    const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
+    const vpolTagInput = container.querySelector('[data-id="vpol-tag"]');
     if (vpolTagInput) vpolTagInput.value = getLastVkFieldValue('vpol-tag');
     const junctionAxisValue = getLastVkFieldValue('junction-axis');
     q('junction-axis').value = junctionAxisValue || '';
@@ -1453,10 +1061,10 @@ export function openVkContour() {
     chainStarted = false; cursor = null;
     solveInfo.textContent = '';
     updateFormMode();
-    renderVkCanvas();
+    updateVkPreview();
   }
 
-  overlay.querySelector('[data-act="nav-prev"]').addEventListener('click', (e) => {
+  container.querySelector('[data-act="nav-prev"]').addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (pendingQueue.length === 0 && !firstElement) return;
     if (cursor === null) {
@@ -1472,7 +1080,7 @@ export function openVkContour() {
     updateFormMode();
   });
 
-  overlay.querySelector('[data-act="nav-next"]').addEventListener('click', (e) => {
+  container.querySelector('[data-act="nav-next"]').addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (cursor === null) return;
     if (cursor === -1) {
@@ -1486,10 +1094,10 @@ export function openVkContour() {
     }
     solveInfo.textContent = '';
     updateFormMode();
-    renderVkCanvas();
+    updateVkPreview();
   });
 
-  overlay.querySelector('[data-act="remove-element"]').addEventListener('click', () => {
+  container.querySelector('[data-act="remove-element"]').addEventListener('click', () => {
     if (cursor === null && pendingQueue.length === 0) { solveInfo.textContent = 'Není co odebrat.'; return; }
     if (cursor === -1) {
       if (!firstElement) { solveInfo.textContent = 'Není co odebrat.'; return; }
@@ -1508,10 +1116,10 @@ export function openVkContour() {
     resetFormToNewEntry();
     solveInfo.textContent = 'Odebráno';
     updateFormMode();
-    renderVkCanvas();
+    updateVkPreview();
   });
 
-  overlay.querySelector('[data-act="vpol"]').addEventListener('click', () => {
+  container.querySelector('[data-act="vpol"]').addEventListener('click', () => {
     const vx = q('vpol-x').value, vz = q('vpol-z').value;
     const vpa = q('vpol-pa').value, varc = q('vpol-arc').value;
     const xValue = vx.trim() === '' ? null : parseFloat(vx);
@@ -1520,7 +1128,7 @@ export function openVkContour() {
     syncVpolLineFromForm();
   });
 
-  overlay.querySelectorAll('.vk-input-vpol, [data-id="vpol-pa"], [data-id="vpol-arc"]').forEach(input => {
+  container.querySelectorAll('.vk-input-vpol, [data-id="vpol-pa"], [data-id="vpol-arc"]').forEach(input => {
     input.addEventListener('input', () => {
       syncVpolLineFromForm();
     });
@@ -1529,7 +1137,7 @@ export function openVkContour() {
     });
   });
 
-  overlay.querySelector('[data-act="element"]').addEventListener('click', () => {
+  container.querySelector('[data-act="element"]').addEventListener('click', () => {
     const editingIndex = cursor;
     const isFirstEver = editingIndex === -1
       ? true
@@ -1538,7 +1146,7 @@ export function openVkContour() {
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
     const isTChecked = !isFirstEver && q('check-t').checked; // na počátečním bodě není na co se tečně napojit
-    const vpolTagInput = overlay.querySelector('[data-id="vpol-tag"]');
+    const vpolTagInput = container.querySelector('[data-id="vpol-tag"]');
     const vpolTag = vpolTagInput ? (vpolTagInput.value || null) : null;
     const cmd = currentType === 'vpol' ? 'G111' : (isFirstEver && currentType === 'vl' ? 'G0' : (currentType === 'vl' ? 'G11' : arcDir));
     const junctionAxis = q('junction-axis').value || null;
@@ -1657,10 +1265,10 @@ export function openVkContour() {
     cursor = null;
     resetFormToNewEntry();
     updateFormMode();
-    renderVkCanvas();
+    updateVkPreview();
   });
 
-  overlay.querySelector('[data-act="clear"]').addEventListener('click', () => {
+  container.querySelector('[data-act="clear"]').addEventListener('click', () => {
     gcodeEl.value = '';
     vkClearStorage();
     resetConvertState();
@@ -1668,7 +1276,7 @@ export function openVkContour() {
     resetChain();
   });
 
-  overlay.querySelector('[data-act="copy"]').addEventListener('click', () => {
+  container.querySelector('[data-act="copy"]').addEventListener('click', () => {
     if (!gcodeEl.value.trim()) return;
     navigator.clipboard.writeText(gcodeEl.value).then(() => showToast('Zkopírováno'));
   });
@@ -1677,15 +1285,13 @@ export function openVkContour() {
     scheduleRender();
     vkSave();
   });
-  overlay.addEventListener('input', (event) => {
+  container.addEventListener('input', (event) => {
     if (event.target.matches('input, select, textarea')) {
       scheduleRender();
     }
   });
-  // Odhlásit při zavření okna – bez toho se listener hromadí s každým
-  // dalším otevřením a drží referenci na už zahozený canvas.
-  window.addEventListener('resize', scheduleRender);
-  onOverlayRemoved(overlay, () => window.removeEventListener('resize', scheduleRender));
+  // Na resize okna se náhled překreslovat nemusí – žije na CAD plátně,
+  // které si vlastní přizpůsobení velikosti řeší samo (canvas.js).
   scheduleRender();
 
   convertBtn.addEventListener('click', () => {
@@ -1917,4 +1523,16 @@ export function openVkContour() {
     convertBtn.classList.remove('vk-error-state');
     convertBtn.classList.add('vk-success-state');
   });
+
+  return {
+    /** Zavolat po zobrazení záložky – náhled se přepočte a překreslí. */
+    refresh() {
+      scheduleRender();
+    },
+    destroy() {
+      if (renderFrame != null) { window.cancelAnimationFrame(renderFrame); renderFrame = null; }
+      // `state.vkPreview` patří oknu (combinedModal.js) – uklízet ho tady
+      // by přepsalo náhled okna, které se mezitím stihlo otevřít znovu.
+    },
+  };
 }

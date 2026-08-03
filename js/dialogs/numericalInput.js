@@ -3,10 +3,8 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { makeInputOverlay } from '../dialogFactory.js';
 import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../state.js';
 import { addObject, addRectAsSegments, addPolylineAsSegments } from '../objects.js';
-import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
 import { safeEvalMath } from '../utils.js';
 import { wireExprInputs } from './mobileEdit.js';
 
@@ -18,11 +16,15 @@ import { wireExprInputs } from './mobileEdit.js';
 
 // Stav pro chaining je uložen v state.numDialogChain
 
-/** Otevře dialog pro číselné zadání souřadnic objektu. */
-export function showNumericalInputDialog() {
-  const overlay = makeInputOverlay(`
-    <div class="input-dialog" style="min-width:400px">
-      <h3>🔢 Číselné zadání objektu</h3>
+/**
+ * Markup záložky „Číselné zadání". Čistá funkce – jen HTML.
+ * `.input-dialog` zůstává jako obal obsahu, aby platila stávající CSS
+ * pravidla `.input-dialog label/input/.btn-row/.btn-ok/.btn-cancel`
+ * (nejsou zanořená pod `.input-overlay`). Titulek nese titlebar okna.
+ */
+export function renderNumericalTab() {
+  const html = `
+    <div class="input-dialog">
       <div id="numModeInfo" style="font-size:11px;margin-bottom:8px;padding:4px 8px;border-radius:4px;font-family:Consolas;${state.coordMode === 'inc' ? `background:${COLORS.selected}22;color:${COLORS.selected}` : `color:${COLORS.textMuted}`}">
         Režim: ${state.coordMode === 'inc' ? 'INC (přírůstkový) – hodnoty jsou Δ od reference ' + axisLabels()[0] + '=' + state.incReference.x.toFixed(3) + ' ' + axisLabels()[1] + '=' + state.incReference.y.toFixed(3) : 'ABS (absolutní)'}
       </div>
@@ -42,56 +44,37 @@ export function showNumericalInputDialog() {
         <button class="btn-cancel" id="numCancel">Zrušit</button>
         <button class="btn-ok" id="numOk">Vytvořit</button>
       </div>
-    </div>`);
+    </div>`;
+  return { html };
+}
 
-  const typeSelect = overlay.querySelector("#numType");
-  const fieldsDiv = overlay.querySelector("#numFields");
+/**
+ * Naváže logiku číselného zadání na obsah záložky. `container` je jen obsah
+ * záložky – celé okno (pro skrytí při výběru z mapy a pro zavření) se hledá
+ * přes `.calc-overlay`, protože záložka okno sdílí s VK.
+ * @param {HTMLElement} container
+ * @param {{ picker?: import('./canvasPick.js').CanvasPicker|null }} [deps]
+ *   `picker` = sdílený jednorázový odběr kliku na plátno (canvasPick.js).
+ *   Okno je plovoucí, takže se při výběru bodu už neschovává – jen se
+ *   zvýrazní cílové pole.
+ * @returns {{ destroy: () => void }}
+ */
+export function initNumericalTab(container, { picker = null } = {}) {
+  const root = container.closest('.calc-overlay') || container.closest('.input-overlay') || container;
+  const typeSelect = container.querySelector("#numType");
+  const fieldsDiv = container.querySelector("#numFields");
 
-  // -- Pick from map helper --
-  let _pickCallback = null;
+  // Vrcholy rozpracované kontury – dřív visely na elementu okna
+  // (jako `_polyVerts`), teď žijí v closure init funkce.
+  let polyVerts = [];
+  let polyBulges = [];
 
-  let _pickCleanup = null;
-
-  function pickFromMap(callback) {
-    _pickCallback = callback;
-    overlay.style.display = "none";
-    showToast("Klikněte na mapu pro výběr bodu...");
-
-    function cleanup() {
-      drawCanvas.removeEventListener("click", onPick);
-      drawCanvas.removeEventListener("touchend", onTouch);
-      _pickCleanup = null;
-    }
-
-    function onPick(e) {
-      const rect = drawCanvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      let [wx, wy] = screenToWorld(sx, sy);
-      if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
-      cleanup();
-      overlay.style.display = "flex";
-      callback(wx, wy);
-    }
-
-    function onTouch(e) {
-      if (e.changedTouches.length === 1) {
-        const t = e.changedTouches[0];
-        const rect = drawCanvas.getBoundingClientRect();
-        const sx = t.clientX - rect.left;
-        const sy = t.clientY - rect.top;
-        let [wx, wy] = screenToWorld(sx, sy);
-        if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
-        cleanup();
-        overlay.style.display = "flex";
-        e.preventDefault();
-        callback(wx, wy);
-      }
-    }
-
-    drawCanvas.addEventListener("click", onPick);
-    drawCanvas.addEventListener("touchend", onTouch);
-    _pickCleanup = cleanup;
+  function pickFromMap(callback, btn) {
+    if (!picker) return;
+    picker.pick(callback, {
+      field: btn?.closest('.input-row') || null,
+      hint: 'Klikněte do výkresu pro výběr bodu…',
+    });
   }
 
   function pickBtn(label) {
@@ -129,12 +112,12 @@ export function showNumericalInputDialog() {
       popup.style.position = 'fixed';
       popup.style.zIndex = '100000';
 
-      // Blokovat probublání do overlay
+      // Blokovat probublání do okna
       popup.addEventListener('click', (ev) => ev.stopPropagation());
       popup.addEventListener('mousedown', (ev) => ev.stopPropagation());
       popup.addEventListener('touchstart', (ev) => ev.stopPropagation());
 
-      overlay.appendChild(popup);
+      root.appendChild(popup);
 
       // Pozicovat dole na střed obrazovky, nad spodní lištu
       const pw = popup.offsetWidth;
@@ -312,8 +295,8 @@ export function showNumericalInputDialog() {
           // V INC režimu převést absolutní souřadnice na delta pro pole
           const dp = isInc ? toDisplayCoords(wx, wy) : { x: wx, y: wy };
           if (t2 === "point" || t2 === "polyline") {
-            const nx = overlay.querySelector("#nx");
-            const ny = overlay.querySelector("#ny");
+            const nx = container.querySelector("#nx");
+            const ny = container.querySelector("#ny");
             if (nx) nx.value = dp.x.toFixed(3);
             if (ny) ny.value = dp.y.toFixed(3);
             if (t2 === "point") updateChainInfo();
@@ -323,32 +306,32 @@ export function showNumericalInputDialog() {
             }
           } else if (t2 === "line" || t2 === "constr" || t2 === "rect") {
             if (i === 0) {
-              const f1 = overlay.querySelector("#nx1");
-              const f2 = overlay.querySelector("#ny1");
+              const f1 = container.querySelector("#nx1");
+              const f2 = container.querySelector("#ny1");
               if (f1) f1.value = dp.x.toFixed(3);
               if (f2) f2.value = dp.y.toFixed(3);
             } else {
-              const f1 = overlay.querySelector("#nx2");
-              const f2 = overlay.querySelector("#ny2");
+              const f1 = container.querySelector("#nx2");
+              const f2 = container.querySelector("#ny2");
               if (f1) f1.value = dp.x.toFixed(3);
               if (f2) f2.value = dp.y.toFixed(3);
               // Auto-fill rect width/height (delta od delta = absolutní rozdíl)
               if (t2 === "rect") {
-                const x1v = safeEvalMath(overlay.querySelector("#nx1")?.value) || 0;
-                const y1v = safeEvalMath(overlay.querySelector("#ny1")?.value) || 0;
-                const nw = overlay.querySelector("#nw");
-                const nh = overlay.querySelector("#nh");
+                const x1v = safeEvalMath(container.querySelector("#nx1")?.value) || 0;
+                const y1v = safeEvalMath(container.querySelector("#ny1")?.value) || 0;
+                const nw = container.querySelector("#nw");
+                const nh = container.querySelector("#nh");
                 if (nw) nw.value = (dp.x - x1v).toFixed(3);
                 if (nh) nh.value = (dp.y - y1v).toFixed(3);
               }
             }
             updateLineInfo();
           } else if (t2 === "circle" || t2 === "arc") {
-            const cxInp = overlay.querySelector("#ncx");
-            const cyInp = overlay.querySelector("#ncy");
-            const rInp = overlay.querySelector("#nr");
-            const saInp = overlay.querySelector("#nsa");
-            const eaInp = overlay.querySelector("#nea");
+            const cxInp = container.querySelector("#ncx");
+            const cyInp = container.querySelector("#ncy");
+            const rInp = container.querySelector("#nr");
+            const saInp = container.querySelector("#nsa");
+            const eaInp = container.querySelector("#nea");
             const cx = safeEvalMath(cxInp ? cxInp.value : 0) || 0;
             const cy = safeEvalMath(cyInp ? cyInp.value : 0) || 0;
             // Pro výpočet poloměru/úhlu potřebujeme absolutní střed
@@ -374,7 +357,7 @@ export function showNumericalInputDialog() {
             }
           }
           showToast(`Bod: X${wx.toFixed(2)} Z${wy.toFixed(2)}`);
-        });
+        }, btn);
       });
     });
 
@@ -497,21 +480,19 @@ export function showNumericalInputDialog() {
     // Polyline vertex management
     const polyAddBtn = fieldsDiv.querySelector("#polyAddVtx");
     if (polyAddBtn) {
-      if (!overlay._polyVerts) overlay._polyVerts = [];
-      if (!overlay._polyBulges) overlay._polyBulges = [];
       const vtxList = fieldsDiv.querySelector("#polyVertexList");
 
       // Délka/úhel sync pro konturu
       function getPolyLastVert() {
-        if (overlay._polyVerts && overlay._polyVerts.length > 0) {
-          return overlay._polyVerts[overlay._polyVerts.length - 1];
+        if (polyVerts && polyVerts.length > 0) {
+          return polyVerts[polyVerts.length - 1];
         }
         if (hasChain) return { x: state.numDialogChain.x, y: state.numDialogChain.y };
         return null;
       }
 
       function getPrevSegmentAngle() {
-        const verts = overlay._polyVerts;
+        const verts = polyVerts;
         if (!verts || verts.length < 2) return null;
         const p1 = verts[verts.length - 2];
         const p2 = verts[verts.length - 1];
@@ -526,7 +507,7 @@ export function showNumericalInputDialog() {
       function updateRelAngleVisibility() {
         const label = fieldsDiv.querySelector("#polyRelAngleLabel");
         if (label) {
-          label.style.display = (overlay._polyVerts && overlay._polyVerts.length >= 2) ? 'flex' : 'none';
+          label.style.display = (polyVerts && polyVerts.length >= 2) ? 'flex' : 'none';
         }
       }
       updateRelAngleVisibility();
@@ -593,9 +574,9 @@ export function showNumericalInputDialog() {
       syncPolyLenAng();
 
       function updateVtxList() {
-        if (overlay._polyVerts.length > 0) {
+        if (polyVerts.length > 0) {
           vtxList.style.display = "";
-          vtxList.innerHTML = overlay._polyVerts.map((v, vi) =>
+          vtxList.innerHTML = polyVerts.map((v, vi) =>
             `<div>V${vi + 1}: ${H}${v.x.toFixed(3)} ${V}${v.y.toFixed(3)}</div>`
           ).join("");
           vtxList.scrollTop = vtxList.scrollHeight;
@@ -624,20 +605,20 @@ export function showNumericalInputDialog() {
             if (prevAng !== null) angVal = prevAng + angVal;
           }
           const startAbs = isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
-          overlay._polyVerts.push(startAbs);
-          if (overlay._polyVerts.length > 1) overlay._polyBulges.push(0);
-          showToast(`Bod ${overlay._polyVerts.length}: ${H}${startAbs.x.toFixed(2)} ${V}${startAbs.y.toFixed(2)}`);
+          polyVerts.push(startAbs);
+          if (polyVerts.length > 1) polyBulges.push(0);
+          showToast(`Bod ${polyVerts.length}: ${H}${startAbs.x.toFixed(2)} ${V}${startAbs.y.toFixed(2)}`);
           const rad = (angVal * Math.PI) / 180;
           const endAbs = { x: startAbs.x + lenVal * Math.cos(rad), y: startAbs.y + lenVal * Math.sin(rad) };
-          overlay._polyVerts.push(endAbs);
-          overlay._polyBulges.push(0);
-          showToast(`Bod ${overlay._polyVerts.length}: ${H}${endAbs.x.toFixed(2)} ${V}${endAbs.y.toFixed(2)}`);
+          polyVerts.push(endAbs);
+          polyBulges.push(0);
+          showToast(`Bod ${polyVerts.length}: ${H}${endAbs.x.toFixed(2)} ${V}${endAbs.y.toFixed(2)}`);
         } else if (hasCoords) {
           // Jen souřadnice → přidat jeden bod
           const abs = isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
-          overlay._polyVerts.push(abs);
-          if (overlay._polyVerts.length > 1) overlay._polyBulges.push(0);
-          showToast(`Bod ${overlay._polyVerts.length}: ${H}${abs.x.toFixed(2)} ${V}${abs.y.toFixed(2)}`);
+          polyVerts.push(abs);
+          if (polyVerts.length > 1) polyBulges.push(0);
+          showToast(`Bod ${polyVerts.length}: ${H}${abs.x.toFixed(2)} ${V}${abs.y.toFixed(2)}`);
         } else if (hasLenAng) {
           // Jen délka+úhel → vypočítat od posledního vertexu
           const last = getPolyLastVert();
@@ -648,9 +629,9 @@ export function showNumericalInputDialog() {
           }
           const rad = (angVal * Math.PI) / 180;
           const endAbs = { x: last.x + lenVal * Math.cos(rad), y: last.y + lenVal * Math.sin(rad) };
-          overlay._polyVerts.push(endAbs);
-          if (overlay._polyVerts.length > 1) overlay._polyBulges.push(0);
-          showToast(`Bod ${overlay._polyVerts.length}: ${H}${endAbs.x.toFixed(2)} ${V}${endAbs.y.toFixed(2)}`);
+          polyVerts.push(endAbs);
+          if (polyVerts.length > 1) polyBulges.push(0);
+          showToast(`Bod ${polyVerts.length}: ${H}${endAbs.x.toFixed(2)} ${V}${endAbs.y.toFixed(2)}`);
         }
 
         updateVtxList();
@@ -686,8 +667,8 @@ export function showNumericalInputDialog() {
       switch (t) {
         case "point": {
           const raw = toAbs(
-            safeEvalMath(overlay.querySelector("#nx").value),
-            safeEvalMath(overlay.querySelector("#ny").value)
+            safeEvalMath(container.querySelector("#nx").value),
+            safeEvalMath(container.querySelector("#ny").value)
           );
           addObject({ type: "point", x: raw.x, y: raw.y, name: `Bod ${state.nextId}` });
           state.numDialogChain = { x: raw.x, y: raw.y };
@@ -696,13 +677,13 @@ export function showNumericalInputDialog() {
         case "line":
         case "constr": {
           let p1 = toAbs(
-            safeEvalMath(overlay.querySelector("#nx1").value),
-            safeEvalMath(overlay.querySelector("#ny1").value)
+            safeEvalMath(container.querySelector("#nx1").value),
+            safeEvalMath(container.querySelector("#ny1").value)
           );
-          let x2r = safeEvalMath(overlay.querySelector("#nx2").value);
-          let y2r = safeEvalMath(overlay.querySelector("#ny2").value);
-          const len = safeEvalMath(overlay.querySelector("#nlen").value);
-          const ang = safeEvalMath(overlay.querySelector("#nang").value);
+          let x2r = safeEvalMath(container.querySelector("#nx2").value);
+          let y2r = safeEvalMath(container.querySelector("#ny2").value);
+          const len = safeEvalMath(container.querySelector("#nlen").value);
+          const ang = safeEvalMath(container.querySelector("#nang").value);
           if (!isNaN(len) && !isNaN(ang) && len > 0) {
             const rad = (ang * Math.PI) / 180;
             // Polární vždy od bodu 1 (absolutního)
@@ -733,10 +714,10 @@ export function showNumericalInputDialog() {
         }
         case "circle": {
           const c = toAbs(
-            safeEvalMath(overlay.querySelector("#ncx").value),
-            safeEvalMath(overlay.querySelector("#ncy").value)
+            safeEvalMath(container.querySelector("#ncx").value),
+            safeEvalMath(container.querySelector("#ncy").value)
           );
-          const r = safeEvalMath(overlay.querySelector("#nr").value);
+          const r = safeEvalMath(container.querySelector("#nr").value);
           addObject({
             type: "circle", cx: c.x, cy: c.y, r,
             name: `Kružnice ${state.nextId}`,
@@ -746,15 +727,15 @@ export function showNumericalInputDialog() {
         }
         case "arc": {
           const c = toAbs(
-            safeEvalMath(overlay.querySelector("#ncx").value),
-            safeEvalMath(overlay.querySelector("#ncy").value)
+            safeEvalMath(container.querySelector("#ncx").value),
+            safeEvalMath(container.querySelector("#ncy").value)
           );
-          const r = safeEvalMath(overlay.querySelector("#nr").value);
+          const r = safeEvalMath(container.querySelector("#nr").value);
           const sa =
-            (safeEvalMath(overlay.querySelector("#nsa").value) * Math.PI) / 180;
+            (safeEvalMath(container.querySelector("#nsa").value) * Math.PI) / 180;
           const ea =
-            (safeEvalMath(overlay.querySelector("#nea").value) * Math.PI) / 180;
-          const arcCcw = overlay.querySelector("#narcDir")?.value === 'ccw';
+            (safeEvalMath(container.querySelector("#nea").value) * Math.PI) / 180;
+          const arcCcw = container.querySelector("#narcDir")?.value === 'ccw';
           addObject({
             type: "arc", cx: c.x, cy: c.y, r,
             startAngle: sa, endAngle: ea,
@@ -768,13 +749,13 @@ export function showNumericalInputDialog() {
         }
         case "rect": {
           let p1 = toAbs(
-            safeEvalMath(overlay.querySelector("#nx1").value),
-            safeEvalMath(overlay.querySelector("#ny1").value)
+            safeEvalMath(container.querySelector("#nx1").value),
+            safeEvalMath(container.querySelector("#ny1").value)
           );
-          let x2r = safeEvalMath(overlay.querySelector("#nx2").value);
-          let y2r = safeEvalMath(overlay.querySelector("#ny2").value);
-          const w = safeEvalMath(overlay.querySelector("#nw").value);
-          const h = safeEvalMath(overlay.querySelector("#nh").value);
+          let x2r = safeEvalMath(container.querySelector("#nx2").value);
+          let y2r = safeEvalMath(container.querySelector("#ny2").value);
+          const w = safeEvalMath(container.querySelector("#nw").value);
+          const h = safeEvalMath(container.querySelector("#nh").value);
           if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
             // Šířka/výška je vždy relativní delta
             const p2 = { x: p1.x + w, y: p1.y + h };
@@ -788,13 +769,13 @@ export function showNumericalInputDialog() {
           break;
         }
         case "polyline": {
-          const verts = overlay._polyVerts || [];
+          const verts = polyVerts || [];
           if (verts.length < 2) {
             showToast("Kontura potřebuje alespoň 2 body");
             return false;
           }
-          const closed = overlay.querySelector("#polyClosed")?.checked || false;
-          const bulges = overlay._polyBulges || [];
+          const closed = container.querySelector("#polyClosed")?.checked || false;
+          const bulges = polyBulges || [];
           while (bulges.length < (closed ? verts.length : verts.length - 1)) bulges.push(0);
           addPolylineAsSegments(verts.slice(), bulges.slice(0, closed ? verts.length : verts.length - 1), closed);
           const lastV = verts[verts.length - 1];
@@ -810,21 +791,31 @@ export function showNumericalInputDialog() {
   }
 
   // Vytvořit a zavřít
-  overlay.querySelector("#numOk").addEventListener("click", () => {
-    if (createObject()) { if (_pickCleanup) _pickCleanup(); overlay.remove(); }
+  container.querySelector("#numOk").addEventListener("click", () => {
+    if (createObject()) { picker?.cancel(); root.remove(); }
   });
 
   // Zrušit
-  overlay.querySelector("#numCancel").addEventListener("click", () => {
+  container.querySelector("#numCancel").addEventListener("click", () => {
     state.numDialogChain = { x: null, y: null };
-    if (_pickCleanup) _pickCleanup();
-    overlay.remove();
+    picker?.cancel();
+    root.remove();
   });
 
-  overlay.addEventListener("keydown", (e) => {
+  container.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.tagName === "INPUT") {
-      if (createObject()) { if (_pickCleanup) _pickCleanup(); overlay.remove(); }
+      if (createObject()) { picker?.cancel(); root.remove(); }
     }
-    if (e.key === "Escape") { if (_pickCleanup) _pickCleanup(); overlay.remove(); }
+    // ESC okno nezavírá (plovoucí režim – patří nástroji na plátně),
+    // jen odzbrojí rozdělaný 🎯 výběr bodu.
+    if (e.key === "Escape") picker?.cancel();
   });
+
+  return {
+    destroy() {
+      // Rozdělaný odběr kliku na plátno by jinak přežil zavření okna.
+      picker?.cancel();
+      document.querySelector('.angle-compass-popup')?.remove();
+    },
+  };
 }

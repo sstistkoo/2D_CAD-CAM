@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v198';
+const CACHE_NAME = 'skica-v201';
 const ASSETS = [
   './',
   './index.html',
@@ -58,6 +58,7 @@ const ASSETS = [
   './js/calculators/tolerance.js',
   './js/calculators/vkContour.js',
   './js/calculators/vkHelp.js',
+  './js/calculators/vkPreviewRender.js',
   './js/calculators/vkSolver.js',
   './js/calculators/weight.js',
   './js/canvas.js',
@@ -69,7 +70,9 @@ const ASSETS = [
   './js/dialogs/autoDetect.js',
   './js/dialogs/booleanDialog.js',
   './js/dialogs/bulge.js',
+  './js/dialogs/canvasPick.js',
   './js/dialogs/circleRadius.js',
+  './js/dialogs/combinedModal.js',
   './js/dialogs/dimension.js',
   './js/dialogs/gearDialog.js',
   './js/dialogs/gearPairDialog.js',

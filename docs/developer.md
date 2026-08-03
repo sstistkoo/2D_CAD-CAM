@@ -347,7 +347,8 @@ User selects CAM tool
 | `calculators/roughness.js` | Povrchová kvalita |
 | `calculators/cutting.js` | Řezné podmínky |
 | `calculators/tolerance.js` | Mezní údaje |
-| `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – dialog + skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku |
+| `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – `renderVkTab()` (HTML) + `initVkTab(container, { picker })` (skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku); okno staví `dialogs/combinedModal.js`. Bez DOM závislostí, aby šly čisté funkce testovat ve vitest `environment: 'node'` |
+| `calculators/vkPreviewRender.js` | Kreslení VK náhledu na CAD plátno (`bridge.renderVkPreview`) + ⤢ přizpůsobení pohledu (`bridge.fitVkPreviewView`). Oddělené od vkContour.js kvůli importu `canvas.js` |
 | `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
 | `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec (kat. 2), esíčko – dva tečné oblouky s daným bodem zlomu (kat. 3), netečné napojení na kružnici kolem VPOL (kat. 4) |
 
@@ -606,7 +607,17 @@ Segment {
 
 - `js/ui.js` – hlavní UI logika, panely, seznamy objektů
 - `js/dialogs/` – jednotlivá dialogová okna
-  - `numericalInput.js` – numerický vstup souřadnic
+  - `combinedModal.js` – sloučené okno „Zadání objektu": záložky 📐 VK a
+    🔢 Číselné zadání. Otevírá se přes `showCombinedModal('vk' | 'num')` a
+    je to **jediný** vstup – všech pět spouštěčů (`btnOpenVk`, `btnNumInput`,
+    `desktopNumInput`, `mobileNumInput`, klávesa `n`) míří sem.
+  - `numericalInput.js` – numerický vstup souřadnic: `renderNumericalTab()`
+    (HTML) + `initNumericalTab(container, { picker })` (logika, vrací `{ destroy }`)
+  - `canvasPick.js` – sdílený jednorázový odběr kliku na CAD plátno (🎯
+    „vybrat bod z výkresu"). Vědomě **mimo** `handleCanvasClick()`
+    v `events.js`: tam by jeden klik zároveň zapsal souřadnici do
+    formuláře a nakreslil aktivním nástrojem. Tlačítko odběr „nabije",
+    další klik ho spotřebuje a odzbrojí – nástroje o ničem neví.
   - `postDrawDialog.js` – dialog po kreslení
   - `gearPairDialog.js`, `threadDialog.js`, `grooveDialog.js` – specifické dialogy
   - `measure.js` – měření
@@ -614,16 +625,48 @@ Segment {
 ### Dialogy pattern
 
 ```js
-import { makeOverlay } from '../dialogFactory.js';
+import { makeOverlay, onOverlayRemoved, makeDraggable } from '../dialogFactory.js';
 
-const overlay = makeOverlay({
-  title: "Nadpis",
-  content: "<div>...</div>",
-  onClose: () => { /* cleanup */ },
+const overlay = makeOverlay('typ', 'Nadpis', '<div>...</div>', 'moje-okno', {
+  float: false,        // true = plovoucí okno bez tmavého pozadí
+  closeOnEsc: true,    // u plovoucích oken dává smysl false (ESC patří nástroji)
+  closeOnBackdrop: true,
 });
+if (!overlay) return;   // okno daného typu už je otevřené
+onOverlayRemoved(overlay, () => { /* cleanup globálních listenerů */ });
 ```
 
-`dialogFactory.js` vytvoří overlay + close button + drag logic.
+`dialogFactory.js` vytvoří overlay + close button; `makeDraggable(win, handle)`
+přidá tažení za lištu. `data-type` je zároveň **pojistka proti duplicitě** –
+proto se třída `calc-overlay-float` jen PŘIDÁVÁ k `calc-overlay`, nikdy ji
+nenahrazuje (jinak přestane fungovat i skrývání plovoucích oken
+v `camSimulator.js`).
+
+`closeOnEsc: false` nestačí samo o sobě – `events.js` má vlastní globální
+ESC, který zavírá nejvyšší otevřený overlay. `makeOverlay` proto na takové
+okno pověsí `data-keep-on-esc` a ten selektor v `events.js` vyřazuje.
+Rozměry plovoucího okna patří na jeho vlastní třídu
+(`.calc-overlay-float .moje-okno`), NIKDY se nepřepisuje
+`.calc-overlay-float .calc-window` – ta patří plovoucí kalkulačce.
+
+#### Dialog jako záložka sdíleného okna
+
+Když má dialog žít vedle jiného v jednom okně (viz `combinedModal.js`),
+rozdělí se na dvojici:
+
+```js
+export function renderMojeTab()          { return { html: '<div>…</div>' }; }
+export function initMojeTab(container)   { /* listenery nad `container` */
+  return { destroy() { /* odhlásit globální listenery */ }, refresh() {} };
+}
+```
+
+Pravidla: `render*` je čistá funkce (žádný DOM, žádný stav), `init*` sahá
+**jen** do předaného `container` (ne do `document`), stav drží v closure
+(ne na elementu okna) a `destroy()` uklidí všechno, co viselo na
+`window`/`document`/plátně. `refresh()` je volitelný – volá se po zobrazení
+záložky (canvas má schovaný nulové rozměry). Celé okno (pro zavření nebo
+dočasné skrytí) se hledá přes `container.closest('.calc-overlay')`.
 
 ---
 

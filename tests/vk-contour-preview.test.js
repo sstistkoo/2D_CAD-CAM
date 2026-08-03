@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { state } from '../js/state.js';
 import {
   parseVkLine,
   buildVkPreviewData,
   resolveVkArcGeometry,
-  zoomVkViewport,
-  screenToVkPoint,
-  panVkViewport,
+  vkToWorld,
+  worldToVk,
   pickVkAmbiguousSolution,
   insertTangentTransitions,
 } from '../js/calculators/vkContour.js';
@@ -124,19 +124,6 @@ describe('buildVkPreviewData', () => {
     expect(data.segments[0]).toMatchObject({ type: 'ray', start: { x: 10, z: 30 }, angle: 45 });
   });
 
-  it('maps screen axes differently for carousel and lathe views', () => {
-    const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
-    const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };
-    const size = { width: 220, height: 140 };
-
-    const carouselPoint = screenToVkPoint({ x: 70, y: 80 }, viewport, bounds, size, true);
-    const lathePoint = screenToVkPoint({ x: 70, y: 80 }, viewport, bounds, size, false);
-
-    expect(carouselPoint.x).toBeCloseTo(5, 9);
-    expect(carouselPoint.z).toBeCloseTo(3.0434782608695654, 9);
-    expect(lathePoint.x).toBeCloseTo(3.0434782608695654, 9);
-    expect(lathePoint.z).toBeCloseTo(5, 9);
-  });
 
   it('uses the selected ambiguous solution for the draft geometry', () => {
     const previewData = {
@@ -155,33 +142,33 @@ describe('buildVkPreviewData', () => {
     expect(selected.selectedSolution).toMatchObject({ end: { x: 8, z: 8 }, color: 'cyan' });
     expect(selected.draft.end).toEqual({ x: 8, z: 8 });
   });
+});
 
-  it('keeps the world point under the cursor stable while panning', () => {
-    const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
-    const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };
-    const size = { width: 220, height: 140 };
-    const startPoint = { x: 100, y: 80 };
-    const endPoint = { x: 120, y: 90 };
+describe('vkToWorld / worldToVk', () => {
+  const original = { machineType: state.machineType, xDisplayMode: state.xDisplayMode };
+  afterEach(() => Object.assign(state, original));
 
-    const nextViewport = panVkViewport(viewport, startPoint, endPoint, bounds, size, false);
-    const startWorld = screenToVkPoint(startPoint, viewport, bounds, size, false);
-    const endWorld = screenToVkPoint(endPoint, nextViewport, nextViewport.bounds, size, false);
+  it('maps lathe axes: CNC Z vodorovně (wx), CNC X svisle (wy) jako poloměr', () => {
+    state.machineType = 'soustruh';
+    state.xDisplayMode = 'diameter';
 
-    expect(endWorld.x).toBeCloseTo(startWorld.x, 9);
-    expect(endWorld.z).toBeCloseTo(startWorld.z, 9);
+    expect(vkToWorld({ x: 40, z: -12 })).toEqual([-12, 20]);
+    expect(worldToVk(-12, 20)).toEqual({ x: 40, z: -12 });
   });
 
-  it('zooms around the cursor while keeping the pointed world coordinate stable', () => {
-    const viewport = { zoom: 1, originCanvasX: 24, originCanvasY: 120 };
-    const bounds = { minX: -10, maxX: 20, minZ: -10, maxZ: 40 };
-    const size = { width: 220, height: 140 };
-    const nextViewport = zoomVkViewport(viewport, { x: 110, y: 80 }, bounds, size, false, 1.25);
+  it('maps carousel axes prohozeně (CNC X = wx)', () => {
+    state.machineType = 'karusel';
+    state.xDisplayMode = 'diameter';
 
-    const worldPoint = screenToVkPoint({ x: 110, y: 80 }, viewport, bounds, size, false);
-    const nextWorldPoint = screenToVkPoint({ x: 110, y: 80 }, nextViewport, bounds, size, false);
+    expect(vkToWorld({ x: 40, z: -12 })).toEqual([20, -12]);
+    expect(worldToVk(20, -12)).toEqual({ x: 40, z: -12 });
+  });
 
-    expect(nextViewport.zoom).toBeCloseTo(1.25, 9);
-    expect(nextWorldPoint.x).toBeCloseTo(worldPoint.x, 9);
-    expect(nextWorldPoint.z).toBeCloseTo(worldPoint.z, 9);
+  it('nepřepočítává X v režimu poloměr', () => {
+    state.machineType = 'soustruh';
+    state.xDisplayMode = 'radius';
+
+    expect(vkToWorld({ x: 20, z: 5 })).toEqual([5, 20]);
+    expect(worldToVk(5, 20)).toEqual({ x: 20, z: 5 });
   });
 });

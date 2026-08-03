@@ -43,6 +43,11 @@ export function makeOverlay(type, title, bodyHTML, windowClass, opts = {}) {
     const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
     document.addEventListener('keydown', _escHandler);
     onOverlayRemoved(overlay, () => document.removeEventListener('keydown', _escHandler));
+  } else {
+    // Nestačí jen nevěšet handler tady – events.js má vlastní globální ESC,
+    // který zavírá nejvyšší otevřený overlay. Tenhle příznak ho vyřadí,
+    // takže ESC zůstane nástroji (zrušit rozkreslený prvek).
+    overlay.dataset.keepOnEsc = '1';
   }
   return overlay;
 }

@@ -65,7 +65,8 @@ Herní nástroje seskupené do sekcí:
 - Indikátory stroje/souřadnic: SOU/KAR (typ stroje), ABS/INC, R/⌀ (zobrazení osy X)
 - Přiblížení (zoom)
 - Indikátory mřížky/úhlu/kót (# ∠ 📐) – zobrazí se jen když je daná funkce aktivní
-- Tlačítka: ⊕ Centr (vycentrovat výkres), 🔢 (číselné zadání objektu), ⚙️ Nastavení
+- Tlačítka: ⊕ Centr (vycentrovat výkres), 🔢 (zadání objektu – číselně / VK
+  kontura), ⚙️ Nastavení
 
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky
@@ -515,7 +516,22 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **Převody** – jednotky (mm/inch, RPM/SFM)
 - **VK Kontura** – editor volné kontury (obdoba Heidenhain FK): zápis prvku
   úsečka/oblouk s neznámými rozměry (`?`), polárně k pólu (VPOL), s přehledem
-  syntaxe a převodem doplněného zápisu na ISO G-kód
+  syntaxe a převodem doplněného zápisu na ISO G-kód.
+  Otevírá se ve **sdíleném okně „Zadání objektu"** – druhá záložka je
+  🔢 Číselné zadání objektu, takže se dá mezi oběma způsoby zadání
+  přepínat bez zavírání okna (a naopak: 🔢 kdekoli v appce otevře totéž
+  okno rovnou na číselné záložce). Okno jde přesunout tažením za lištu.
+
+  **Náhled se kreslí přímo na výkres** – zadávaná kontura je vidět ve
+  stejném měřítku a poloze jako to, co už je nakreslené. Tlačítko **⤢**
+  přizpůsobí pohled výkresu kontuře. Okno je plovoucí, takže se s ním
+  dá dál kreslit nástrojem; **ESC** proto zruší rozkreslený prvek
+  nástroje (okno se zavírá **✕**). Na mobilu je okno ukotvené dole nad
+  spodní lištou.
+
+  **🎯** u souřadnic prvku doplní X i Z jedním kliknutím do výkresu
+  (stejné tlačítko má i číselné zadání u jednotlivých polí) – klik se
+  spotřebuje jen na výběr bodu, nic nenakreslí.
 
 ---
 

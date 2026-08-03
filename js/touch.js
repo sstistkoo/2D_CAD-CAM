@@ -11,7 +11,7 @@ import { handleCanvasClick, finishRectSelection } from './events.js';
 import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { toolLabel } from './utils.js';
-import { showNumericalInputDialog } from './dialogs.js';
+import { showCombinedModal } from './dialogs.js';
 import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace, startPencilStroke, addPencilPoint, finishPencilStroke } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
@@ -154,7 +154,7 @@ document
     document.body.classList.remove("toolbar-open");
     sidebar.classList.remove("mobile-open");
     sidebarOverlay.classList.remove("active");
-    showNumericalInputDialog();
+    showCombinedModal('num');
   });
 
 // ── Mobile: Měření tlačítko ──

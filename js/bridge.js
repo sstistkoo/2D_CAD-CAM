@@ -23,6 +23,8 @@ export const bridge = {
   calculateAllIntersections: null,
   runCncExport: null,
   renderCncCodeToCanvas: null,
+  renderVkPreview: null,
+  fitVkPreviewView: null,
   renderAll: null,
   resetHint: null,
   measureSelection: null,

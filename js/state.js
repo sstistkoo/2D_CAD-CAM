@@ -74,6 +74,11 @@ export const state = {
   clipboard: null,
   // Numerical dialog chaining
   numDialogChain: { x: null, y: null },
+  // Náhled VK kontury kreslený přímo na CAD plátno (okno „Zadání objektu",
+  // záložka 📐 VK). `data` je celý výstup buildVkPreviewData() – segmenty,
+  // VPOL, draft i varianty řešení pohromadě. Kreslí vkPreviewRender.js
+  // přes bridge.renderVkPreview, aby render.js nemusel znát VK modul.
+  vkPreview: { visible: false, data: null },
   // Souřadnice posledního kliknutí na plátno (viz #statusCoords ve statusbaru)
   lastClickPoint: { x: null, y: null },
   // Inkrementální souřadnice

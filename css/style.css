@@ -5407,68 +5407,118 @@ body {
 /* ══════════════════════════════════════════════════════════════
    VK – VOLNÁ KONTURA (editor prvků s neznámými rozměry, FK-styl)
    ══════════════════════════════════════════════════════════════ */
-.vk-window {
-  width: 94vw; max-width: 480px;
+/* Sloučené okno „Zadání objektu" – záložky VK + číselné zadání.
+   Rozměry patří sem, NIKDY ne na .calc-overlay-float (tu používá
+   plovoucí kalkulačka a camSimulator podle ní schovává okna). */
+.vk-combined-window {
+  width: min(700px, 95vw);
   max-height: 90vh;
 }
-.vk-window .calc-body {
+.vk-combined-window .calc-body {
   overflow-y: auto;
   padding: 10px;
 }
-.vk-window .sn-help-summary { padding: 8px 12px; }
-.vk-window .sn-help-body { padding: 6px 12px 8px; white-space: normal; }
-.vk-canvas-wrapper {
-  position: relative;
-  margin-bottom: 8px;
-  overflow: hidden;
-  border-radius: 10px;
-  border: 1px solid var(--ctp-surface1);
-  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-}
-.vk-canvas-fit {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  border: 1px solid var(--ctp-surface1);
-  border-radius: 999px;
-  background: rgba(17, 17, 27, 0.82);
-  color: var(--ctp-text);
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  font-size: 14px;
-  backdrop-filter: blur(4px);
-}
-.vk-canvas-fit:hover {
-  background: rgba(30, 32, 48, 0.94);
-}
-.vk-canvas-placeholder {
-  display: block;
-  width: 100%;
-  height: 160px;
-  background: var(--ctp-mantle);
+.vk-combined-window .sn-help-summary { padding: 8px 12px; }
+.vk-combined-window .sn-help-body { padding: 6px 12px 8px; white-space: normal; }
+
+/* Obal obsahu číselné záložky – rám a pozadí nese okno, ne dialog uvnitř.
+   Třída .input-dialog zůstává kvůli stávajícím pravidlům pro labely,
+   inputy a .btn-row (nejsou zanořená pod .input-overlay). */
+.vk-combined-window .input-dialog {
+  background: none;
   border: 0;
-  border-radius: 10px;
+  padding: 0;
+  min-width: 0;
+  max-width: none;
 }
-.vk-canvas-label {
-  position: absolute;
-  inset: 0;
+
+/* ── Záložky ── */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--ctp-surface1);
+}
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ctp-subtext0);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.tab-btn:hover { background: var(--ctp-surface0); color: var(--ctp-text); }
+.tab-btn.active {
+  color: var(--ctp-blue);
+  border-bottom-color: var(--ctp-blue);
+  background: var(--ctp-surface0);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── Plovoucí režim okna „Zadání objektu" ──
+   `.calc-overlay-float .calc-window` (320px, top 72px) patří plovoucí
+   kalkulačce – nepřepisovat ji, jen ji přebít na vlastní třídě okna. */
+.calc-overlay-float .vk-combined-window {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  width: min(420px, 92vw);
+  max-height: calc(100vh - 96px);
+}
+@media (max-width: 768px) {
+  .calc-overlay-float .vk-combined-window {
+    top: auto;
+    right: 0;
+    left: 0;
+    /* Nad #mobileBottomBar (z-index 60, tlačítka 48 px) – pointer-events
+       na overlayi spodní lištu neodkryjí, okno na ní fyzicky sedí. */
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    width: 100vw;
+    max-width: 100vw;   /* .calc-window má 95vw – ukotvené okno má sedět celé */
+    max-height: 45vh;
+    border-radius: 12px 12px 0 0;
+  }
+}
+
+/* Pole čekající na 🎯 výběr bodu z výkresu */
+.pick-armed {
+  outline: 2px solid var(--ctp-peach, #fab387);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Lišta nad formulářem – náhled VK se kreslí na CAD plátno, tady zůstalo
+   jen ⤢ (přizpůsobit pohled kontuře) a vysvětlivka. */
+.vk-preview-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--ctp-overlay0);
-  font-size: 11.5px;
-  text-align: center;
-  pointer-events: none;
-  padding: 0 12px;
-  background: linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.08) 100%);
-  transition: opacity .15s ease;
-  z-index: 1;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 8px;
+  background: var(--ctp-mantle);
 }
-.vk-window .cnc-fields { gap: 6px; margin-bottom: 6px; }
+.vk-preview-hint {
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+}
+.vk-title-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vk-combined-window .cnc-fields { gap: 6px; margin-bottom: 6px; }
 .vk-section { margin-bottom: 6px; }
 .vk-section-title {
   font-size: 11px; font-weight: 700;
@@ -5661,7 +5711,8 @@ body {
 .vk-btn-convert.vk-success-state { background: var(--ctp-green); color: var(--ctp-base); }
 
 @media (max-width: 480px) {
-  .vk-window { width: 96vw; }
+  .vk-combined-window { width: 96vw; }
+  .tab-btn { font-size: 12px; padding: 8px 4px; }
   .vk-toggle { font-size: 12px; padding: 8px 6px; }
   .vk-arc-settings .vk-toggle-row { gap: 4px; }
   .vk-arc-settings .vk-toggle { font-size: 11px; padding: 6px 4px; }

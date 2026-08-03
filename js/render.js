@@ -51,6 +51,9 @@ export function renderAll() {
     renderObjects();
     renderAxes();
     renderAngleSnapGuide();
+    // Náhled VK kontury – přes bridge, aby render.js nemusel importovat
+    // calculators/vkContour.js (viz CLAUDE.md: žádné přímé cyklické importy).
+    if (state.vkPreview?.visible && bridge.renderVkPreview) bridge.renderVkPreview(ctx);
     // Aktualizovat mobilní Cancel tlačítko
     if (bridge.updateMobileCancelBtn) bridge.updateMobileCancelBtn();
     // Aktualizovat tlačítka Dokončit/Uzavřít konturu
