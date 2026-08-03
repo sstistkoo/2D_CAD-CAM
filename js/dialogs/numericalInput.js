@@ -11,12 +11,10 @@ import { safeEvalMath } from '../utils.js';
 import { wireExprInputs } from './mobileEdit.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
-document
-  .getElementById("btnNumInput")
-  .addEventListener("click", showNumericalInputDialog);
-document
-  .getElementById("desktopNumInput")
-  ?.addEventListener("click", showNumericalInputDialog);
+// Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
+// desktopNumInput) a js/touch.js (mobileNumInput) – tenhle modul jen
+// exportuje funkce. Dřív si tlačítka lovil sám na úrovni modulu, takže
+// jakákoli změna jejich ID shodila celou appku už při importu.
 
 // Stav pro chaining je uložen v state.numDialogChain
 

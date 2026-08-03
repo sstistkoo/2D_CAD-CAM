@@ -10,10 +10,24 @@ function escHTML(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-export function makeOverlay(type, title, bodyHTML, windowClass) {
+/**
+ * @param {string} type   kl\u00ed\u010d overlaye (data-type) \u2013 z\u00e1rove\u0148 pojistka proti duplicit\u011b
+ * @param {string} title  titulek do li\u0161ty
+ * @param {string} bodyHTML
+ * @param {string} [windowClass]
+ * @param {{float?:boolean, closeOnEsc?:boolean, closeOnBackdrop?:boolean}} [opts]
+ *   `float` = plovouc\u00ed okno bez tmav\u00e9ho pozad\u00ed, nech\u00e1v\u00e1 pl\u00e1tno pod sebou
+ *   klikateln\u00e9 (t\u0159\u00edda `calc-overlay-float` se P\u0158ID\u00c1V\u00c1 k `calc-overlay`,
+ *   nikdy ji nenahrazuje \u2013 jinak p\u0159estane fungovat pojistka proti duplicit\u011b
+ *   i skr\u00fdv\u00e1n\u00ed plovouc\u00edch oken v camSimulator.js).
+ *   U plovouc\u00edch oken, kter\u00e1 maj\u00ed koexistovat s kreslen\u00edm na pl\u00e1tn\u011b, d\u00e1v\u00e1
+ *   smysl `closeOnEsc: false` \u2013 ESC tam pat\u0159\u00ed n\u00e1stroji, ne dialogu.
+ */
+export function makeOverlay(type, title, bodyHTML, windowClass, opts = {}) {
+  const { float = false, closeOnEsc = true, closeOnBackdrop = true } = opts;
   if (document.querySelector(`.calc-overlay[data-type="${CSS.escape(type)}"]`)) return null;
   const overlay = document.createElement("div");
-  overlay.className = "calc-overlay";
+  overlay.className = float ? "calc-overlay calc-overlay-float" : "calc-overlay";
   overlay.dataset.type = type;
   overlay.innerHTML =
     '<div class="calc-window ' + (windowClass || "cnc-window") + '">' +
@@ -22,13 +36,28 @@ export function makeOverlay(type, title, bodyHTML, windowClass) {
     '</div>';
   document.body.appendChild(overlay);
   overlay.querySelector(".calc-close-btn").addEventListener("click", () => overlay.remove());
-  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
-  const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
-  document.addEventListener('keydown', _escHandler);
-  new MutationObserver((_, obs) => {
-    if (!document.body.contains(overlay)) { document.removeEventListener('keydown', _escHandler); obs.disconnect(); }
-  }).observe(document.body, { childList: true });
+  if (closeOnBackdrop) {
+    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  }
+  if (closeOnEsc) {
+    const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
+    document.addEventListener('keydown', _escHandler);
+    onOverlayRemoved(overlay, () => document.removeEventListener('keydown', _escHandler));
+  }
   return overlay;
+}
+
+/**
+ * Zavol\u00e1 `cleanup()`, jakmile overlay zmiz\u00ed z DOM. Slou\u017e\u00ed k odhla\u0161ov\u00e1n\u00ed
+ * glob\u00e1ln\u00edch listener\u016f (document/window), kter\u00e9 by jinak dr\u017eely referenci
+ * na zav\u0159en\u00e9 okno a hromadily se p\u0159i ka\u017ed\u00e9m dal\u0161\u00edm otev\u0159en\u00ed.
+ * @param {HTMLElement} overlay
+ * @param {() => void} cleanup
+ */
+export function onOverlayRemoved(overlay, cleanup) {
+  new MutationObserver((_, obs) => {
+    if (!document.body.contains(overlay)) { cleanup(); obs.disconnect(); }
+  }).observe(document.body, { childList: true });
 }
 
 /**
@@ -90,8 +119,6 @@ export function makeInputOverlay(innerHTML) {
   });
   const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
   document.addEventListener('keydown', _escHandler);
-  new MutationObserver((_, obs) => {
-    if (!document.body.contains(overlay)) { document.removeEventListener('keydown', _escHandler); obs.disconnect(); }
-  }).observe(document.body, { childList: true });
+  onOverlayRemoved(overlay, () => document.removeEventListener('keydown', _escHandler));
   return overlay;
 }

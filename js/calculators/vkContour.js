@@ -13,8 +13,8 @@
 // Sekce nápovědy (js/calculators/vkHelp.js) se vykresluje líně až při
 // prvním rozbalení, aby se zbytečně nebudoval markup při každém otevření.
 
-import { makeOverlay } from '../dialogFactory.js';
-import { state, showToast } from '../state.js';
+import { makeOverlay, onOverlayRemoved } from '../dialogFactory.js';
+import { state, showToast, displayX, inputX } from '../state.js';
 import { renderVkHelp } from './vkHelp.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunction, solveLineArcJunctionCandidates,
@@ -52,14 +52,27 @@ export function fmt(n) {
   return String(Math.round(n * 1000) / 1000);
 }
 
-// X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení).
-// vkSolver.js vždy počítá s X jako průměrem. Tyto funkce převádí mezi
-// zobrazovanou hodnotou (podle state.xDisplayMode) a solver prostorem (průměr).
+// ── Jednotky osy X ──────────────────────────────────────────────
+// V appce platí jedna konvence: INTERNĚ je X vždy POLOMĚR, převod na
+// průměr se dělá až na hranici UI přes displayX()/inputX() (state.js).
+// vkSolver.js je výjimka – počítá v PRŮMĚRECH (kružnice v rovině (Z,X)
+// by jinak vyšla eliptická). Tyhle dvě funkce jsou jediné místo, kde se
+// ta výjimka překlenuje, a jsou definované přes kanonické helpery, aby
+// nevznikla druhá nezávislá konvence.
+//
+// POZOR: platí jen pro hodnoty ze STRUKTUROVANÉHO formuláře (pole X/Z),
+// kde je číslo v zobrazovaných jednotkách. Na surová čísla vytažená
+// z textu G-kódu se NEPOUŽÍVAJÍ – tam už X znamená to, co je napsané.
+// (Záměna přesně tohohle rozbíjela tečné napojení: X20 se tiše
+// zdvojnásobilo na X40 a vyšel degenerovaný dotyk.)
+
+/** Hodnota z formuláře (zobrazované jednotky) → solver prostor (průměr). */
 function toSolverX(val) {
-  return state.xDisplayMode === 'diameter' ? val : val * 2;
+  return 2 * inputX(val);
 }
+/** Solver prostor (průměr) → hodnota do formuláře (zobrazované jednotky). */
 function fromSolverX(val) {
-  return state.xDisplayMode === 'diameter' ? val : val / 2;
+  return displayX(val / 2);
 }
 
 export function buildVkVpolLine(values = {}) {
@@ -1669,7 +1682,10 @@ export function openVkContour() {
       scheduleRender();
     }
   });
+  // Odhlásit při zavření okna – bez toho se listener hromadí s každým
+  // dalším otevřením a drží referenci na už zahozený canvas.
   window.addEventListener('resize', scheduleRender);
+  onOverlayRemoved(overlay, () => window.removeEventListener('resize', scheduleRender));
   scheduleRender();
 
   convertBtn.addEventListener('click', () => {
