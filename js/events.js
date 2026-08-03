@@ -15,7 +15,7 @@ import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handleFilletClick, filletFromSelection, handleChamferClick, chamferFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 
@@ -26,8 +26,6 @@ bridge.tangentFromSelection = tangentFromSelection;
 bridge.offsetFromSelection = offsetFromSelection;
 bridge.trimFromSelection = trimFromSelection;
 bridge.extendFromSelection = extendFromSelection;
-bridge.filletFromSelection = filletFromSelection;
-bridge.chamferFromSelection = chamferFromSelection;
 bridge.threadFromSelection = threadFromSelection;
 bridge.perpFromSelection = () => {
   const indices = _getMultiIndices();
@@ -48,7 +46,10 @@ bridge.centerMarkFromSelection = centerMarkFromSelection;
 bridge.scaleFromSelection = scaleFromSelection;
 bridge.filletChamferFromSelection = filletChamferFromSelection;
 bridge.mirrorFromSelection = () => {
-  if (state.selected === null && state.multiSelected.size === 0) return false;
+  if (state.selected === null && state.multiSelected.size === 0) {
+    showToast("Nejdříve vyberte objekt");
+    return false;  // allow tool activation (currently returns false silently)
+  }
   const indices = state.multiSelected.size > 0
     ? [...state.multiSelected]
     : state.selected !== null ? [state.selected] : [];
@@ -89,9 +90,12 @@ bridge.rotateFromSelection = () => {
 };
 
 bridge.linearArrayFromSelection = () => {
-  if (state.selected === null && state.multiSelected.size === 0) {
+  const indices = state.multiSelected.size > 0
+    ? [...state.multiSelected]
+    : state.selected !== null ? [state.selected] : [];
+  if (indices.length === 0) {
     showToast("Nejdříve vyberte objekt");
-    return true;
+    return false;  // allow tool activation
   }
   startLinearArrayAction();
   return true;
@@ -983,14 +987,6 @@ export function handleCanvasClick(wx, wy) {
       handleExtendClick(wx, wy);
       break;
 
-    case "fillet":
-      handleFilletClick(wx, wy);
-      break;
-
-    case "chamfer":
-      handleChamferClick(wx, wy);
-      break;
-
     case "filletChamfer":
       handleFilletChamferClick(wx, wy);
       break;
@@ -1090,6 +1086,26 @@ export function handleCanvasClick(wx, wy) {
     case "rotate":
       handleRotateClick(wx, wy);
       break;
+
+    case "linearArray": {
+      const idx = findObjectAt(wx, wy);
+      if (idx === null) { showToast("Nejdříve vyberte objekt"); break; }
+      state.selected = idx;
+      state.multiSelected.clear();
+      renderAll();
+      startLinearArrayAction();
+      break;
+    }
+
+    case "mirror": {
+      const idx = findObjectAt(wx, wy);
+      if (idx === null) { showToast("Nejdříve vyberte objekt"); break; }
+      state.selected = idx;
+      state.multiSelected.clear();
+      renderAll();
+      startMirrorAction();
+      break;
+    }
 
     case "deleteObj": {
       // Nejprve zkusit vazbu (constraint marker)
