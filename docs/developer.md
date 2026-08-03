@@ -349,8 +349,36 @@ User selects CAM tool
 | `calculators/tolerance.js` | Mezní údaje |
 | `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – `renderVkTab()` (HTML) + `initVkTab(container, { picker })` (skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku); okno staví `dialogs/combinedModal.js`. Bez DOM závislostí, aby šly čisté funkce testovat ve vitest `environment: 'node'` |
 | `calculators/vkPreviewRender.js` | Kreslení VK náhledu na CAD plátno (`bridge.renderVkPreview`) + ⤢ přizpůsobení pohledu (`bridge.fitVkPreviewView`). Oddělené od vkContour.js kvůli importu `canvas.js` |
+| `calculators/vkCommit.js` | „📥 Vložit do výkresu" (`bridge.commitVkToDrawing`) – VK syntaxe → běžné objekty `line`/`arc` v `state.objects`. Čistá část `vkSegmentsToDrawObjects()` je bez DOM i bez `state` zápisu, takže jde testovat samostatně |
 | `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
 | `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec (kat. 2), esíčko – dva tečné oblouky s daným bodem zlomu (kat. 3), netečné napojení na kružnici kolem VPOL (kat. 4) |
+
+### VK → geometrie výkresu
+
+```
+VK syntaxe → buildVkPreviewData() → segmenty { start, end, radius, direction }
+           → vkSegmentsToDrawObjects()   (vkCommit.js – převod os a jednotek)
+           → pushUndo() 1× → state.objects.push() → calculateAllIntersections()
+```
+
+Pravidla, na kterých ta cesta stojí:
+
+- **Žádný `isVk` příznak.** Jakmile je prvek ve výkresu, je to obyčejný
+  objekt `line`/`arc` – průsečíky, trim/fillet, DXF, CAM i export G-kódu
+  fungují bez dalšího zásahu. Zpětná cesta „objekt → VK zápis" neexistuje.
+- **Jeden `pushUndo()` na celou konturu** (jako `addPolylineAsSegments()`).
+  `addObject()` se schválně nepoužívá – dělalo by undo snapshot a přepočet
+  průsečíků pro každý segment zvlášť.
+- **Nekomituje se** `type: 'ray'` (konstrukční paprsky G111/G0 s PA jsou
+  pomůcka, ne geometrie), rozepsaný `isDraft` prvek z formuláře a nulové
+  segmenty (úvodní `G0` = najetí na start).
+- **Syntaxe s `?` se odmítne.** `buildVkPreviewData()` by nedopočtený prvek
+  sbalilo na nulový segment a ten by z výkresu tiše zmizel – uživatel se
+  místo toho pošle na „Konvertovat na ISO G-kód".
+- **Oblouk se konstruuje až ve world souřadnicích** (`vkArcInWorld()` ve
+  `vkContour.js`, sdílené s náhledem). R je v G-kódu skutečný poloměr;
+  v rovině řešiče (X = průměr) by po převodu vyšla elipsa. `G2 → ccw:false`,
+  `G3 → ccw:true` – stejně jako `parseGcodeToObjects()` v `storage/fileIO.js`.
 
 ### CAM pipeline: Roughing/Finishing
 

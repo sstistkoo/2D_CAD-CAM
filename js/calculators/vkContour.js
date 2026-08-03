@@ -104,6 +104,47 @@ export function worldToVk(wx, wy) {
   return { x: displayX(isK ? wx : wy), z: isK ? wy : wx };
 }
 
+/**
+ * Oblouk VK prvku ve WORLD souřadnicích CAD plátna.
+ *
+ * Záměrně se nepoužívá `resolveVkArcGeometry` – ta počítá v rovině řešiče
+ * (X = průměr), kde by oblouk po převodu na plátno vyšel jako elipsa.
+ * R je v G-kódu vždy SKUTEČNÝ poloměr, takže se konstrukce dělá až ve
+ * world prostoru – stejně jako v `parseGcodeToObjects()` (storage/fileIO.js),
+ * aby náhled, vložení do výkresu i naparsovaný G-kód dávaly tentýž oblouk.
+ *
+ * `ccw` je v CAD konvenci (samostatný objekt `arc` se kreslí startAngle →
+ * endAngle proti směru hodinových ručiček, pokud `ccw !== false`).
+ *
+ * @param {{x: number, z: number}} start
+ * @param {{x: number, z: number}} end
+ * @param {number} radius
+ * @param {'G2'|'G3'|string} direction
+ * @returns {{cx: number, cy: number, r: number, startAngle: number, endAngle: number, ccw: boolean}|null}
+ */
+export function vkArcInWorld(start, end, radius, direction) {
+  if (!Number.isFinite(radius) || radius <= 0) return null;
+  const [x1, y1] = vkToWorld(start);
+  const [x2, y2] = vkToWorld(end);
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist2 = dx * dx + dy * dy;
+  if (dist2 < 1e-8 || radius * radius < dist2 / 4 - 1e-6) return null;
+  const dist = Math.sqrt(dist2);
+  const h = Math.sqrt(Math.max(0, radius * radius - dist2 / 4));
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const sign = direction === 'G2' ? -1 : 1;
+  const cx = (x1 + x2) / 2 + sign * h * nx;
+  const cy = (y1 + y2) / 2 + sign * h * ny;
+  return {
+    cx, cy, r: radius,
+    startAngle: Math.atan2(y1 - cy, x1 - cx),
+    endAngle: Math.atan2(y2 - cy, x2 - cx),
+    ccw: direction === 'G3',
+  };
+}
+
 export function buildVkVpolLine(values = {}) {
   const xRaw = values.x != null ? values.x : values.vx != null ? values.vx : null;
   const zRaw = values.z != null ? values.z : values.vz != null ? values.vz : null;
@@ -488,6 +529,9 @@ export function renderVkTab() {
       <button class="vk-btn vk-btn-clear" data-act="clear">Smazat</button>
       <button class="vk-btn vk-btn-copy" data-act="copy">📋 Kopírovat</button>
       <button class="vk-btn vk-btn-convert" data-act="convert">Konvertovat na ISO G-kód</button>
+    </div>
+    <div class="vk-actions" style="margin-top:8px">
+      <button class="vk-btn vk-btn-commit" data-act="commit" title="Vložit konturu do výkresu jako úsečky a oblouky (jedno UNDO)">📥 Vložit do výkresu</button>
     </div>
   `;
   return { html: bodyHTML };
@@ -1281,6 +1325,22 @@ export function initVkTab(container, { picker = null } = {}) {
     navigator.clipboard.writeText(gcodeEl.value).then(() => showToast('Zkopírováno'));
   });
 
+  // Vložení do výkresu jde přes bridge (calculators/vkCommit.js) – tenhle
+  // modul musí zůstat bez DOM/objects závislostí kvůli node testům.
+  const commitBtn = container.querySelector('[data-act="commit"]');
+  const COMMIT_LABEL = '📥 Vložit do výkresu';
+  let commitResetTimer = null;
+  commitBtn.addEventListener('click', () => {
+    const inserted = bridge.commitVkToDrawing?.(gcodeEl.value) || 0;
+    if (!inserted) return;
+    // Vložené objekty leží přesně pod náhledem, takže samotné plátno
+    // úspěch nepřizná – zpětná vazba musí přijít z tlačítka (jinak by
+    // uživatel klikal znovu a vyrobil duplicitní geometrii).
+    commitBtn.textContent = `✓ Vloženo (${inserted})`;
+    clearTimeout(commitResetTimer);
+    commitResetTimer = setTimeout(() => { commitBtn.textContent = COMMIT_LABEL; }, 1800);
+  });
+
   gcodeEl.addEventListener('input', () => {
     scheduleRender();
     vkSave();
@@ -1531,6 +1591,7 @@ export function initVkTab(container, { picker = null } = {}) {
     },
     destroy() {
       if (renderFrame != null) { window.cancelAnimationFrame(renderFrame); renderFrame = null; }
+      if (commitResetTimer != null) { clearTimeout(commitResetTimer); commitResetTimer = null; }
       // `state.vkPreview` patří oknu (combinedModal.js) – uklízet ho tady
       // by přepsalo náhled okna, které se mezitím stihlo otevřít znovu.
     },

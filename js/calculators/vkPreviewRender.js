@@ -17,72 +17,14 @@
 // `state.vkPreview.visible`, takže se nic neregistruje/odregistrovává
 // při každém otevření okna.
 
-import { state, showToast, inputX } from '../state.js';
+import { state, showToast } from '../state.js';
 import { bridge } from '../bridge.js';
 import { drawCanvas, worldToScreen, screenAngle, screenCCW } from '../canvas.js';
 import { COLORS, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from '../constants.js';
-
-// ── Převod VK ↔ CAD ─────────────────────────────────────────────
-// VK bod je { x, z } v ŘÍDICÍCH souřadnicích tak, jak jsou napsané
-// v G-kódu, tj. X v zobrazovaných jednotkách (průměr/poloměr dle
-// ☰ Nastavení → 📏 Zobrazení). CAD plátno má X vždy jako POLOMĚR
-// a osy prohozené podle typu stroje (viz fmtCoordLabel v state.js):
-//   soustruh – CNC Z = wx (vodorovně), CNC X = wy (svisle)
-//   karusel  – CNC X = wx, CNC Z = wy
-// Vlastní vzorec se sem nepíše, používají se kanonické displayX/inputX.
-
-/**
- * @param {{x: number, z: number}} pt VK bod (CNC X v zobrazovaných jednotkách)
- * @returns {[number, number]} [wx, wy] CAD world souřadnice
- */
-export function vkToWorld(pt) {
-  const r = inputX(pt.x);
-  return state.machineType === 'karusel' ? [r, pt.z] : [pt.z, r];
-}
-
-/**
- * Opačný směr – z CAD plátna do VK zápisu (pro 🎯 výběr bodu z plátna).
- * @param {number} wx
- * @param {number} wy
- * @returns {{x: number, z: number}}
- */
-export function worldToVk(wx, wy) {
-  const isK = state.machineType === 'karusel';
-  const radius = isK ? wx : wy;
-  return { x: state.xDisplayMode === 'diameter' ? radius * 2 : radius, z: isK ? wy : wx };
-}
-
-/**
- * Oblouk VK prvku ve WORLD souřadnicích. Záměrně se nepoužívá
- * `resolveVkArcGeometry` – ta počítá v rovině řešiče (X = průměr), kde by
- * oblouk po převodu na plátno vyšel jako elipsa. R je v G-kódu vždy
- * SKUTEČNÝ poloměr, takže se konstrukce dělá až ve world prostoru –
- * stejně jako v `parseGcodeToObjects()` (storage/fileIO.js), aby náhled
- * a naparsovaný G-kód dávaly tentýž oblouk.
- * @returns {{cx: number, cy: number, r: number, startAngle: number, endAngle: number, ccw: boolean}|null}
- */
-function arcInWorld(start, end, radius, direction) {
-  if (!Number.isFinite(radius) || radius <= 0) return null;
-  const [x1, y1] = vkToWorld(start);
-  const [x2, y2] = vkToWorld(end);
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const dist2 = dx * dx + dy * dy;
-  if (dist2 < 1e-8 || radius * radius < dist2 / 4 - 1e-6) return null;
-  const dist = Math.sqrt(dist2);
-  const h = Math.sqrt(Math.max(0, radius * radius - dist2 / 4));
-  const nx = -dy / dist;
-  const ny = dx / dist;
-  const sign = direction === 'G2' ? -1 : 1;
-  const cx = (x1 + x2) / 2 + sign * h * nx;
-  const cy = (y1 + y2) / 2 + sign * h * ny;
-  return {
-    cx, cy, r: radius,
-    startAngle: Math.atan2(y1 - cy, x1 - cx),
-    endAngle: Math.atan2(y2 - cy, x2 - cx),
-    ccw: direction === 'G3',
-  };
-}
+// Převod os i jednotek (VK ↔ CAD) a konstrukce oblouku bydlí ve vkContour.js,
+// aby ho sdílel náhled i vložení do výkresu (vkCommit.js) a nevznikla druhá
+// nezávislá konvence – viz komentář „Osy VK ↔ CAD plátno" tamtéž.
+import { vkToWorld, vkArcInWorld } from './vkContour.js';
 
 const SOLUTION_COLORS = ['delete', 'primary', 'dimension', 'yellow'];
 
@@ -161,7 +103,7 @@ export function renderVkPreviewOnCad(ctx) {
       ctx.setLineDash([]);
     }
     const arc = segment.type === 'arc'
-      ? arcInWorld(segment.start, segment.end, segment.radius, segment.direction)
+      ? vkArcInWorld(segment.start, segment.end, segment.radius, segment.direction)
       : null;
     if (arc) {
       const [sx, sy] = worldToScreen(arc.cx, arc.cy);

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **VK: „📥 Vložit do výkresu".** Volná kontura byla do teď jen textová
+  pomůcka – hotový zápis teď jde jedním tlačítkem změnit na skutečné
+  objekty výkresu (`line` / `arc`). Vkládají se jako **obyčejné objekty
+  bez jakéhokoli VK příznaku**, takže průsečíky, trim/fillet, kóty, DXF,
+  CAM i export G-kódu fungují bez dalšího zásahu; celé vložení se vrací
+  jedním Ctrl+Z. Konstrukční paprsky (VPOL/PA) a rozepsaný prvek
+  z formuláře se nekomitují. Syntaxi s nedopočtenými rozměry (`?`)
+  tlačítko odmítne a pošle na „Konvertovat na ISO G-kód" – jinak by
+  `buildVkPreviewData()` takový prvek sbalilo na nulový segment a ten by
+  z výkresu tiše zmizel. V režimu kreslení polotovaru jdou objekty do
+  vrstvy Polotovar s `isStock`.
+  Nový `js/calculators/vkCommit.js`; konstrukce oblouku ve world
+  souřadnicích (`vkArcInWorld()`) je nově sdílená s náhledem místo
+  druhé kopie ve `vkPreviewRender.js`.
+
 ### Changed
 - **VK náhled se kreslí přímo na výkres a okno je plovoucí.** Vlastní
   mini-canvas VK (s vlastním zoomem a panem) je zrušený – kontura se

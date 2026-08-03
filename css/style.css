@@ -5706,6 +5706,8 @@ body {
 .vk-btn-clear:hover { filter: brightness(1.12); }
 .vk-btn-copy { background: var(--ctp-surface1); color: var(--ctp-yellow); }
 .vk-btn-copy:hover { filter: brightness(1.12); }
+.vk-btn-commit { background: var(--ctp-green); color: var(--ctp-base); }
+.vk-btn-commit:hover { filter: brightness(1.12); }
 .vk-btn-convert { background: var(--ctp-surface0); color: var(--ctp-subtext0); border: 1px solid var(--ctp-surface1); }
 .vk-btn-convert.vk-error-state { background: var(--ctp-red); color: var(--ctp-base); }
 .vk-btn-convert.vk-success-state { background: var(--ctp-green); color: var(--ctp-base); }

@@ -533,6 +533,17 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (stejné tlačítko má i číselné zadání u jednotlivých polí) – klik se
   spotřebuje jen na výběr bodu, nic nenakreslí.
 
+  **📥 Vložit do výkresu** změní hotovou konturu na skutečné úsečky
+  a oblouky výkresu. Od té chvíle jsou to **normální objekty** – dají se
+  trimovat, zaoblovat, kótovat, exportovat do DXF i použít v CAM.
+  Celé vložení se vrací jedním **Ctrl+Z**. Konstrukční paprsky (VPOL/PA)
+  se nevkládají, jsou to jen pomůcky pro hledání průsečíku. Zpět do VK
+  zápisu už objekty nejdou – VK syntaxe ale v okně zůstává, takže se dá
+  upravit a vložit znovu (pozor, vloží se další kopie).
+
+  > Když je v syntaxi ještě `?`, vložení se odmítne – nejdřív použij
+  > **Konvertovat na ISO G-kód**, který neznámé dopočítá.
+
 ---
 
 ## AI panel

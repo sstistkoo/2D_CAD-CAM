@@ -21,6 +21,8 @@ import { createCanvasPicker } from './canvasPick.js';
 // Side-effect: zaregistruje bridge.renderVkPreview / bridge.fitVkPreviewView,
 // aby renderAll() uměl VK náhled nakreslit na CAD plátno.
 import '../calculators/vkPreviewRender.js';
+// Side-effect: zaregistruje bridge.commitVkToDrawing („Vložit do výkresu").
+import '../calculators/vkCommit.js';
 
 const OVERLAY_TYPE = 'vk-combined';
 
