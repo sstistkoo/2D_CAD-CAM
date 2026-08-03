@@ -158,17 +158,15 @@ describe('solveLineArcJunction – kategorie 4 (case 12-13)', () => {
 });
 
 describe('tangentCircleTouchPoints – kategorie 2, case 5', () => {
-  it('kružnice r=5 tečná k ose Z (r=0), procházející bodem (z=8,x=10 → r=5)', () => {
-    // ručně sestrojeno: střed (z=3,r=5) je tečný ke z-ose v (z=3,r=0) a
-    // zároveň leží na něm bod (z=8,r=5) [(8-3)²+(5-5)²=25 ✓]
+  it('kružnice r=5 tečná k ose Z (x=0), procházející bodem (z=8,x=10)', () => {
+    // v (Z,X) prostoru: střed (z=8,x=5) je tečný k z-ose v (z=8,x=0) a
+    // zároveň leží na něm bod (z=8,x=10) [(8-8)²+(10-5)²=25 ✓]
     const ray = { z0: 0, x0: 0, angleDeg: 0 };
     const point = { z: 8, x: 10 };
     const pts = tangentCircleTouchPoints(ray, point, 5);
-    expect(pts.length).toBe(2);
-    const zs = pts.map(p => p.z).sort((a, b) => a - b);
-    expect(zs[0]).toBeCloseTo(3, 6);
-    expect(zs[1]).toBeCloseTo(13, 6);
-    pts.forEach(p => expect(p.x).toBeCloseTo(0, 6));
+    expect(pts.length).toBe(1);
+    expect(pts[0].z).toBeCloseTo(8, 6);
+    expect(pts[0].x).toBeCloseTo(0, 6);
   });
 
   it('bod mimo dosah (žádné řešení na dané straně) vrací prázdné pole', () => {
@@ -179,20 +177,20 @@ describe('tangentCircleTouchPoints – kategorie 2, case 5', () => {
 });
 
 describe('tangentCircleBetweenRays – kategorie 2, case 6-8', () => {
-  it('pravý úhel: vodorovná (r=0) a svislá (z=20) přímka, R=5 → 4 kružnice v rozích', () => {
-    const ray1 = { z0: 0, x0: 0, angleDeg: 0 };   // r=0, libovolné z
-    const ray2 = { z0: 20, x0: 0, angleDeg: 90 }; // z=20, libovolné r
+  it('pravý úhel: vodorovná (x=0) a svislá (z=20) přímka, R=5 → 4 kružnice v rozích', () => {
+    const ray1 = { z0: 0, x0: 0, angleDeg: 0 };   // x=0, libovolné z
+    const ray2 = { z0: 20, x0: 0, angleDeg: 90 }; // z=20, libovolné x
     const candidates = tangentCircleBetweenRays(ray1, ray2, 5);
     expect(candidates).toHaveLength(4);
     const centers = candidates.map(c => `${c.center.z.toFixed(1)},${c.center.x.toFixed(1)}`).sort();
-    // středy v (z,x=2r): (15, x=10), (15, x=-10), (25, x=10), (25, x=-10)
-    expect(centers).toEqual(['15.0,-10.0', '15.0,10.0', '25.0,-10.0', '25.0,10.0'].sort());
+    // středy v (z,x): (15, x=5), (15, x=-5), (25, x=5), (25, x=-5)
+    expect(centers).toEqual(['15.0,-5.0', '15.0,5.0', '25.0,-5.0', '25.0,5.0'].sort());
 
     const c1 = candidates.find(c => Math.abs(c.center.z - 15) < 0.01 && c.center.x > 0);
     expect(c1.foot1.z).toBeCloseTo(15, 6);
     expect(c1.foot1.x).toBeCloseTo(0, 6);
     expect(c1.foot2.z).toBeCloseTo(20, 6);
-    expect(c1.foot2.x).toBeCloseTo(10, 6);
+    expect(c1.foot2.x).toBeCloseTo(5, 6);
   });
 
   it('rovnoběžné paprsky nedávají žádné řešení (přeskočeny)', () => {
@@ -207,24 +205,24 @@ describe('pickBetweenRaysByVpolTag', () => {
     const ray1 = { z0: 0, x0: 0, angleDeg: 0 };
     const ray2 = { z0: 20, x0: 0, angleDeg: 90 };
     const candidates = tangentCircleBetweenRays(ray1, ray2, 5);
-    const ref = { z: 15, x: 10 }; // nejblíž centru (15, x=10)
+    const ref = { z: 15, x: 5 }; // nejblíž centru (15, x=5)
     const nearest = pickBetweenRaysByVpolTag(candidates, ref, 'VPOL1');
     expect(nearest.center.z).toBeCloseTo(15, 6);
-    expect(nearest.center.x).toBeCloseTo(10, 6);
+    expect(nearest.center.x).toBeCloseTo(5, 6);
   });
 });
 
 describe('twoTangentArcsBetweenRays – kategorie 3 (case 9-11, esíčko)', () => {
-  it('pravoúhlý roh (r=0 / z=40), R1=5 R2=3, zadaná Z bodu zlomu – ověřeno ručním výpočtem', () => {
-    // ručně: center1=(z=30,r=5) tečný k r=0 v (30,0); center2=(z=37,r=8.873)
+  it('pravoúhlý roh (x=0 / z=40), R1=5 R2=3, zadaná Z bodu zlomu – ověřeno ručním výpočtem', () => {
+    // ručně: center1=(z=30,x=5) tečný k x=0 v (30,0); center2=(z=37,x=8.873)
     // tečný k z=40 v (40,8.873); vzdálenost center1-center2 = 8 = R1+R2;
     // bod zlomu (vážený průměr R1:R2) má z = 34.375
     const ray1 = { z0: 0, x0: 0, angleDeg: 0 };
     const ray2 = { z0: 40, x0: 0, angleDeg: 90 };
     const cands = twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'z', value: 34.375 });
     // pro dané t1=30 existují 2 platná t2 (8.873 i 1.127, oba splňují tečnost) –
-    // hledáme konkrétně tu s foot2.x≈17.746 (druhá má foot2.x≈2.254)
-    const hit = cands.find(c => Math.abs(c.foot1.z - 30) < 0.01 && Math.abs(c.foot2.x - 17.746) < 0.01);
+    // hledáme konkrétně tu s foot2.x≈8.873 (druhá má foot2.x≈2.254)
+    const hit = cands.find(c => Math.abs(c.foot1.z - 30) < 0.01 && Math.abs(c.foot2.x - 8.873) < 0.01);
     expect(hit).toBeTruthy();
     expect(hit.foot1.x).toBeCloseTo(0, 3);
     expect(hit.foot2.z).toBeCloseTo(40, 3);
@@ -238,7 +236,7 @@ describe('twoTangentArcsBetweenRays – kategorie 3 (case 9-11, esíčko)', () =
     expect(cands.length).toBeGreaterThan(0);
     for (const c of cands) {
       // vzdálenost středů = R1+R2 (vnější tečnost, opačné prohnutí)
-      const distCenters = Math.hypot(c.center1.z - c.center2.z, (c.center1.x - c.center2.x) / 2);
+      const distCenters = Math.hypot(c.center1.z - c.center2.z, c.center1.x - c.center2.x);
       expect(distCenters).toBeCloseTo(r1 + r2, 4);
       // bod zlomu má zadanou Z souřadnici
       expect(c.junction.z).toBeCloseTo(12, 4);
@@ -253,7 +251,7 @@ describe('twoTangentArcsBetweenRays – kategorie 3 (case 9-11, esíčko)', () =
     const ray1 = { z0: 0, x0: 0, angleDeg: 0 };
     const ray2 = { z0: 40, x0: 0, angleDeg: 90 };
     // osa 'x' pro tento roh funguje stejně dobře (jen jiná projekce) – test že nespadne
-    expect(() => twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'x', value: 17.746 })).not.toThrow();
+    expect(() => twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'x', value: 8.873 })).not.toThrow();
   });
 });
 

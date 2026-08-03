@@ -113,7 +113,7 @@ describe('buildVkPreviewData', () => {
   it('inserts a tangent G1 transition before an arc after a construction ray', () => {
     const lines = insertTangentTransitions(['G0 X20 Z20 PA0', 'G2 X25 Z50 R5']);
 
-    expect(lines).toEqual(['G0 X20 Z20 PA0', 'G1 X20 Z45.67', 'G2 X25 Z50 R5']);
+    expect(lines).toEqual(['G0 X20 Z20 PA0', 'G1 X20 Z45', 'G2 X25 Z50 R5']);
   });
 
   it('creates a construction ray from VPOL when the VPOL line includes PA', () => {

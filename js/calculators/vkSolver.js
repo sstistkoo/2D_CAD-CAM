@@ -140,20 +140,6 @@ export function solveLineArcJunction(ray, vpol, radius, refPoint, tag) {
 // přes VPOL1/VPOL2 (blíž/dál od startu obrysu).
 // ─────────────────────────────────────────────────────────────────
 
-function toRadiusPt(p) { return { z: p.z, r: p.x / 2 }; }
-function toDiamPt(p) { return { z: p.z, x: 2 * p.r }; }
-
-function normalizeVec(v) {
-  const m = Math.hypot(v.z, v.r);
-  return { z: v.z / m, r: v.r / m };
-}
-
-/** Směrový jednotkový vektor paprsku v (Z, R) – R = X/2, takže se musí přenormovat. */
-function rayDirRadius(ray) {
-  const a = ray.angleDeg * D2R;
-  return normalizeVec({ z: Math.cos(a), r: Math.sin(a) / 2 });
-}
-
 function dedupePoints(points, eps = 1e-6) {
   const out = [];
   for (const p of points) {
@@ -172,22 +158,23 @@ function dedupePoints(points, eps = 1e-6) {
  * @returns {Array<{z:number,x:number}>}
  */
 export function tangentCircleTouchPoints(ray, point, radius) {
-  const A = { z: ray.z0, r: ray.x0 / 2 };
-  const u = rayDirRadius(ray);
-  const P = toRadiusPt(point);
+  const A = { z: ray.z0, x: ray.x0 };
+  const a = ray.angleDeg * D2R;
+  const u = { z: Math.cos(a), x: Math.sin(a) };
+  const P = point;
   const results = [];
   for (const s of [1, -1]) {
-    const n = { z: -u.r * s, r: u.z * s };
+    const n = { z: -u.x * s, x: u.z * s };
     const ez = A.z - P.z + radius * n.z;
-    const er = A.r - P.r + radius * n.r;
-    const b = u.z * ez + u.r * er;
-    const c = ez * ez + er * er - radius * radius;
+    const ex = A.x - P.x + radius * n.x;
+    const b = u.z * ez + u.x * ex;
+    const c = ez * ez + ex * ex - radius * radius;
     const disc = b * b - c;
     if (disc < -1e-9) continue;
     const sq = Math.sqrt(Math.max(disc, 0));
     const roots = disc < 1e-9 ? [-b] : [-b - sq, -b + sq];
     for (const t of roots) {
-      results.push(toDiamPt({ z: A.z + t * u.z, r: A.r + t * u.r }));
+      results.push({ z: A.z + t * u.z, x: A.x + t * u.x });
     }
   }
   return dedupePoints(results);
@@ -201,30 +188,32 @@ export function tangentCircleTouchPoints(ray, point, radius) {
  * @param {{z0:number,x0:number,angleDeg:number}} ray1  paprsek prvního (neznámého) prvku
  * @param {{z0:number,x0:number,angleDeg:number}} ray2  paprsek posledního (známého) prvku
  * @param {number} radius
- * @returns {Array<{foot1:{z,x}, foot2:{z,x}, center:{z,x}}>}
+ * @returns {Array<{foot1:{z,x}, foot2:{z,x}, center:{z,x}}>
  */
 export function tangentCircleBetweenRays(ray1, ray2, radius) {
-  const A1 = { z: ray1.z0, r: ray1.x0 / 2 };
-  const u1 = rayDirRadius(ray1);
-  const A2 = { z: ray2.z0, r: ray2.x0 / 2 };
-  const u2 = rayDirRadius(ray2);
+  const A1 = { z: ray1.z0, x: ray1.x0 };
+  const a1 = ray1.angleDeg * D2R;
+  const u1 = { z: Math.cos(a1), x: Math.sin(a1) };
+  const A2 = { z: ray2.z0, x: ray2.x0 };
+  const a2 = ray2.angleDeg * D2R;
+  const u2 = { z: Math.cos(a2), x: Math.sin(a2) };
   const raw = [];
   for (const s1 of [1, -1]) {
-    const n1 = { z: -u1.r * s1, r: u1.z * s1 };
-    const o1 = { z: A1.z + radius * n1.z, r: A1.r + radius * n1.r };
+    const n1 = { z: -u1.x * s1, x: u1.z * s1 };
+    const o1 = { z: A1.z + radius * n1.z, x: A1.x + radius * n1.x };
     for (const s2 of [1, -1]) {
-      const n2 = { z: -u2.r * s2, r: u2.z * s2 };
-      const o2 = { z: A2.z + radius * n2.z, r: A2.r + radius * n2.r };
-      const denom = u1.z * u2.r - u1.r * u2.z;
+      const n2 = { z: -u2.x * s2, x: u2.z * s2 };
+      const o2 = { z: A2.z + radius * n2.z, x: A2.x + radius * n2.x };
+      const denom = u1.z * u2.x - u1.x * u2.z;
       if (Math.abs(denom) < 1e-9) continue; // rovnoběžné paprsky – přeskočit
-      const ez = o2.z - o1.z, er = o2.r - o1.r;
-      const t = (ez * u2.r - er * u2.z) / denom;
-      const center = { z: o1.z + t * u1.z, r: o1.r + t * u1.r };
-      const t1 = (center.z - A1.z) * u1.z + (center.r - A1.r) * u1.r;
-      const foot1 = { z: A1.z + t1 * u1.z, r: A1.r + t1 * u1.r };
-      const t2 = (center.z - A2.z) * u2.z + (center.r - A2.r) * u2.r;
-      const foot2 = { z: A2.z + t2 * u2.z, r: A2.r + t2 * u2.r };
-      raw.push({ foot1: toDiamPt(foot1), foot2: toDiamPt(foot2), center: toDiamPt(center) });
+      const ez = o2.z - o1.z, ex = o2.x - o1.x;
+      const t = (ez * u2.x - ex * u2.z) / denom;
+      const center = { z: o1.z + t * u1.z, x: o1.x + t * u1.x };
+      const t1 = (center.z - A1.z) * u1.z + (center.x - A1.x) * u1.x;
+      const foot1 = { z: A1.z + t1 * u1.z, x: A1.x + t1 * u1.x };
+      const t2 = (center.z - A2.z) * u2.z + (center.x - A2.x) * u2.x;
+      const foot2 = { z: A2.z + t2 * u2.z, x: A2.x + t2 * u2.x };
+      raw.push({ foot1, foot2, center });
     }
   }
   const out = [];
@@ -268,29 +257,31 @@ export function pickBetweenRaysByVpolTag(candidates, refPoint, tag) {
  * @returns {Array<{foot1:{z,x}, junction:{z,x}, foot2:{z,x}, center1:{z,x}, center2:{z,x}}>}
  */
 export function twoTangentArcsBetweenRays(ray1, ray2, r1, r2, junction) {
-  const A1 = { z: ray1.z0, r: ray1.x0 / 2 };
-  const u1 = rayDirRadius(ray1);
-  const A2 = { z: ray2.z0, r: ray2.x0 / 2 };
-  const u2 = rayDirRadius(ray2);
+  const A1 = { z: ray1.z0, x: ray1.x0 };
+  const a1 = ray1.angleDeg * D2R;
+  const u1 = { z: Math.cos(a1), x: Math.sin(a1) };
+  const A2 = { z: ray2.z0, x: ray2.x0 };
+  const a2 = ray2.angleDeg * D2R;
+  const u2 = { z: Math.cos(a2), x: Math.sin(a2) };
   const k = r1 / (r1 + r2);
-  const axisKey = junction.axis === 'x' ? 'r' : 'z';
-  const v = junction.axis === 'x' ? junction.value / 2 : junction.value;
-  const dotv = (a, b) => a.z * b.z + a.r * b.r;
+  const axisKey = junction.axis;
+  const v = junction.value;
+  const dotv = (a, b) => a.z * b.z + a.x * b.x;
   const Rsum2 = (r1 + r2) * (r1 + r2);
 
   const raw = [];
   for (const s1 of [1, -1]) {
-    const n1 = { z: -u1.r * s1, r: u1.z * s1 };
-    const P1 = { z: A1.z + r1 * n1.z, r: A1.r + r1 * n1.r };
+    const n1 = { z: -u1.x * s1, x: u1.z * s1 };
+    const P1 = { z: A1.z + r1 * n1.z, x: A1.x + r1 * n1.x };
     for (const s2 of [1, -1]) {
-      const n2 = { z: -u2.r * s2, r: u2.z * s2 };
-      const P2 = { z: A2.z + r2 * n2.z, r: A2.r + r2 * n2.r };
+      const n2 = { z: -u2.x * s2, x: u2.z * s2 };
+      const P2 = { z: A2.z + r2 * n2.z, x: A2.x + r2 * n2.x };
 
       const aD = (1 - k) * u1[axisKey];
       const bD = k * u2[axisKey];
       const cD = v - (1 - k) * P1[axisKey] - k * P2[axisKey];
 
-      const D0 = { z: P1.z - P2.z, r: P1.r - P2.r };
+      const D0 = { z: P1.z - P2.z, x: P1.x - P2.x };
       const u1u2 = dotv(u1, u2), D0u1 = dotv(D0, u1), D0u2 = dotv(D0, u2), D0D0 = dotv(D0, D0);
       const constC = D0D0 - Rsum2;
 
@@ -327,16 +318,16 @@ export function twoTangentArcsBetweenRays(ray1, ray2, r1, r2, junction) {
       } // jinak: zadaná osa je degenerovaná pro obě přímky – nelze určit (zkuste druhou osu)
 
       for (const [t1, t2] of tPairs) {
-        const c1 = { z: P1.z + t1 * u1.z, r: P1.r + t1 * u1.r };
-        const c2 = { z: P2.z + t2 * u2.z, r: P2.r + t2 * u2.r };
-        const f1t = (c1.z - A1.z) * u1.z + (c1.r - A1.r) * u1.r;
-        const foot1 = { z: A1.z + f1t * u1.z, r: A1.r + f1t * u1.r };
-        const f2t = (c2.z - A2.z) * u2.z + (c2.r - A2.r) * u2.r;
-        const foot2 = { z: A2.z + f2t * u2.z, r: A2.r + f2t * u2.r };
-        const jn = { z: (1 - k) * c1.z + k * c2.z, r: (1 - k) * c1.r + k * c2.r };
+        const c1 = { z: P1.z + t1 * u1.z, x: P1.x + t1 * u1.x };
+        const c2 = { z: P2.z + t2 * u2.z, x: P2.x + t2 * u2.x };
+        const f1t = (c1.z - A1.z) * u1.z + (c1.x - A1.x) * u1.x;
+        const foot1 = { z: A1.z + f1t * u1.z, x: A1.x + f1t * u1.x };
+        const f2t = (c2.z - A2.z) * u2.z + (c2.x - A2.x) * u2.x;
+        const foot2 = { z: A2.z + f2t * u2.z, x: A2.x + f2t * u2.x };
+        const jn = { z: (1 - k) * c1.z + k * c2.z, x: (1 - k) * c1.x + k * c2.x };
         raw.push({
-          foot1: toDiamPt(foot1), junction: toDiamPt(jn), foot2: toDiamPt(foot2),
-          center1: toDiamPt(c1), center2: toDiamPt(c2),
+          foot1, junction: jn, foot2,
+          center1: c1, center2: c2,
         });
       }
     }

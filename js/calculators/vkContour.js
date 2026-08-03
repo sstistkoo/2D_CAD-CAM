@@ -52,6 +52,16 @@ export function fmt(n) {
   return String(Math.round(n * 1000) / 1000);
 }
 
+// X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení).
+// vkSolver.js vždy počítá s X jako průměrem. Tyto funkce převádí mezi
+// zobrazovanou hodnotou (podle state.xDisplayMode) a solver prostorem (průměr).
+function toSolverX(val) {
+  return state.xDisplayMode === 'diameter' ? val : val * 2;
+}
+function fromSolverX(val) {
+  return state.xDisplayMode === 'diameter' ? val : val / 2;
+}
+
 export function buildVkVpolLine(values = {}) {
   const xRaw = values.x != null ? values.x : values.vx != null ? values.vx : null;
   const zRaw = values.z != null ? values.z : values.vz != null ? values.vz : null;
@@ -380,8 +390,11 @@ export function insertTangentTransitions(lines) {
 
 export function openVkContour() {
   // X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení) –
-  // popisky se přizpůsobí, ale vkSolver.js vždy počítá s poloměrem, takže se
-  // hodnota při zadání/výstupu převádí přes toSolverX/fromSolverX níže.
+  // popisky se přizpůsobí, ale vkSolver.js (dopočet neznámých – kategorie 1–4)
+  // vždy počítá s průměrem, takže se hodnota ze strukturovaného formuláře
+  // převádí přes toSolverX/fromSolverX. Náhled z volného textu (insertTangentTransitions,
+  // buildVkPreviewData) pracuje přímo s čísly z textu bez konverze – tam už
+  // X znamená to, co je v G-kódu napsané.
   const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
     <div class="vk-canvas-wrapper">
@@ -1216,18 +1229,6 @@ export function openVkContour() {
     resetConvertState();
     resetConversionBackup();
     vkSave();
-  }
-
-  // vkSolver.js vždy počítá s X jako průměrem (uvnitř dělí /2 na poloměr).
-  // Appka ale může mít aktuálně nastavený režim zadávání na poloměr
-  // (☰ Nastavení → 📏 Zobrazení, `state.xDisplayMode`) – v tom případě
-  // je zadaná hodnota už poloměr a je potřeba ji před voláním solveru
-  // vynásobit 2 (a výsledek zpět vydělit), aby geometrie seděla.
-  function toSolverX(val) {
-    return state.xDisplayMode === 'diameter' ? val : val * 2;
-  }
-  function fromSolverX(val) {
-    return state.xDisplayMode === 'diameter' ? val : val / 2;
   }
 
   // ── Řetězec prvků pro dopočet neznámých (kategorie 1, 2, 3 a 4) ──
