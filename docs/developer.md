@@ -348,10 +348,32 @@ User selects CAM tool
 | `calculators/cutting.js` | Řezné podmínky |
 | `calculators/tolerance.js` | Mezní údaje |
 | `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – `renderVkTab()` (HTML) + `initVkTab(container, { picker })` (skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku); okno staví `dialogs/combinedModal.js`. Bez DOM závislostí, aby šly čisté funkce testovat ve vitest `environment: 'node'` |
-| `calculators/vkPreviewRender.js` | Kreslení VK náhledu na CAD plátno (`bridge.renderVkPreview`) + ⤢ přizpůsobení pohledu (`bridge.fitVkPreviewView`). Oddělené od vkContour.js kvůli importu `canvas.js` |
+| `calculators/vkPreviewRender.js` | Kreslení VK náhledu na CAD plátno (`bridge.renderVkPreview`) + ⤢ přizpůsobení pohledu (`bridge.fitVkPreviewView`) + čárkovaná nápověda tečného napojení (`drawTangentHint`). Oddělené od vkContour.js kvůli importu `canvas.js` |
 | `calculators/vkCommit.js` | „📥 Vložit do výkresu" (`bridge.commitVkToDrawing`) – VK syntaxe → běžné objekty `line`/`arc` v `state.objects`. Čistá část `vkSegmentsToDrawObjects()` je bez DOM i bez `state` zápisu, takže jde testovat samostatně |
 | `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
-| `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec (kat. 2), esíčko – dva tečné oblouky s daným bodem zlomu (kat. 3), netečné napojení na kružnici kolem VPOL (kat. 4) |
+| `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec, plus oblouk jako první prvek fronty přes `tangentArcEndOnRay()` (kat. 2), esíčko – dva tečné oblouky s daným bodem zlomu, nebo bez něj navázané na hotovou geometrii přes `twoTangentArcsFromDirection()` (kat. 3), netečné napojení na kružnici kolem VPOL (kat. 4). Počítá ve skutečné rovině **(Z, poloměr)**, viz níže. `chooseSolution()` je společné pravidlo výběru mezi víc řešeními (VPOL1/VPOL2, nebo auto při rozdílu ≥ `AUTO_PICK_MIN_RATIO`) |
+
+### VK: jednotky osy X (past, na kterou pozor)
+
+`vkSolver.js` počítá ve **skutečné rovině (Z, poloměr)** – R, PR i vzdálenosti
+v něm znamenají reálné milimetry. Je to táž konvence jako ve zbytku appky
+(CLAUDE.md: *„interně vždy poloměr, převod jen na hranici UI"*).
+
+Převod dělá výhradně `vkContour.js`:
+
+| kde | co | čím |
+|---|---|---|
+| formulář → solver | zobrazované jednotky → poloměr | `toSolverX()` = `inputX()` |
+| solver → text/hláška | poloměr → zobrazované jednotky | `fromSolverX()` = `displayX()` |
+| surový text G-kódu | uvnitř funkce si převod udělá volající | `inputX()` / `displayX()` na místě (`tangentPointOnRay`) |
+
+**Historie:** solver dřív dostával X jako *průměr* a každá funkce s kruhovou
+geometrií si ho měla sama vydělit dvěma. `intersectRayCircle` (kat. 4) to
+dělala, tečná rodina (kat. 2/3) ne – osa X tam byla proti Z a R roztažená 2×,
+oblouk tedy elipsa a dotykové body mimo. Rovina s neeuklidovskou osou X je
+past, na kterou musí pamatovat každá nová funkce, takže se v solveru žádná
+nepoužívá. Pokud přidáváš do `vkSolver.js` cokoli s poloměry nebo délkami,
+**nic nepůlíš** – čísla už jsou fyzická.
 
 ### VK → geometrie výkresu
 

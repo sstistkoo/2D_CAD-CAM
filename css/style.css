@@ -5512,6 +5512,8 @@ body {
   font-size: 11px;
   color: var(--ctp-subtext0);
 }
+/* Barva musí sedět s COLORS.snapEdge ve vkPreviewRender.js (drawTangentHint). */
+.vk-hint-tangent { color: var(--ctp-mauve); }
 .vk-title-with-action {
   display: flex;
   align-items: center;

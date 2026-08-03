@@ -6,10 +6,18 @@
 // dvěma VK prvky, kde první má neznámý konec ("?") a druhý je zadaný
 // (kategorie 1 – přímky/kužely, kategorie 4 – netečné napojení s obloukem).
 //
-// Souřadnice X jsou všude PRŮMĚR (jak je zadává uživatel). Pro kruhovou
-// geometrii (oblouk kolem VPOL) se interně převádí na skutečný poloměr
-// r = X/2 a zpátky na průměr X = 2r – jinak by kružnice v (Z, X) rovině
-// vycházela eliptická a poloměr/tečnost by neseděly.
+// Souřadnice X je všude POLOMĚR – tedy skutečná fyzická rovina (Z, poloměr),
+// stejná konvence jako ve zbytku appky (CLAUDE.md: „interně vždy poloměr,
+// převod jen na hranici UI přes displayX/inputX"). Převod z toho, co uživatel
+// napsal, dělá výhradně vkContour.js přes toSolverX/fromSolverX.
+//
+// POZOR na historii: dřív se sem posílal PRŮMĚR a každá funkce s kruhovou
+// geometrií si ho měla sama vydělit dvěma. `intersectRayCircle` (kat. 4) to
+// dělala, tečná rodina (kat. 2/3, přidaná později) ne – X tam bylo proti Z
+// a proti R roztažené 2×, takže dotykové body vycházely úplně jinde
+// (⌀20 → R10 → ⌀40 hlásilo jediný degenerovaný dotyk místo dvou správných).
+// Rovina s neeuklidovskou osou X je past, na kterou musí pamatovat každá
+// nová funkce, takže tady žádná není: R, PR i vzdálenosti jsou skutečné.
 //
 // Konvence:
 // - Úhel (PA) 0° = směr +Z (přímka rovnoběžná s osou Z → válcová plocha,
@@ -75,23 +83,20 @@ export function solveCornerLineLine(prevAnchor, prevEl, currEl) {
 
 /**
  * Průsečíky paprsku {z0,x0,angleDeg} s kružnicí (střed + poloměr).
- * X je průměr → uvnitř se převádí na skutečný poloměr (r = X/2).
+ * Vše v rovině (Z, poloměr) – žádný převod jednotek se tu neděje.
  * @returns {Array<{z:number,x:number}>} 0, 1 nebo 2 body
  */
 export function intersectRayCircle(ray, center, radius) {
   const a = ray.angleDeg * D2R;
-  const dz = Math.cos(a), dr = Math.sin(a) / 2; // X→R
-  const z0 = ray.z0, r0 = ray.x0 / 2;
-  const cz = center.z, cr = center.x / 2;
-  const ez = z0 - cz, er = r0 - cr;
-  const A = dz * dz + dr * dr;
-  const B = 2 * (ez * dz + er * dr);
-  const C = ez * ez + er * er - radius * radius;
-  const disc = B * B - 4 * A * C;
+  const dz = Math.cos(a), dx = Math.sin(a);
+  const ez = ray.z0 - center.z, ex = ray.x0 - center.x;
+  const B = 2 * (ez * dz + ex * dx);
+  const C = ez * ez + ex * ex - radius * radius;
+  const disc = B * B - 4 * C;              // A = dz² + dx² = 1
   if (disc < -1e-9) return [];
   const sq = Math.sqrt(Math.max(disc, 0));
-  const t1 = (-B - sq) / (2 * A), t2 = (-B + sq) / (2 * A);
-  const toPt = (t) => ({ z: z0 + t * dz, x: 2 * (r0 + t * dr) });
+  const t1 = (-B - sq) / 2, t2 = (-B + sq) / 2;
+  const toPt = (t) => ({ z: ray.z0 + t * dz, x: ray.x0 + t * dx });
   if (disc < 1e-9) return [toPt(t1)];
   return [toPt(t1), toPt(t2)];
 }
@@ -101,6 +106,41 @@ export function pickByVpolTag(points, refPoint, tag) {
   if (points.length <= 1) return points[0];
   const sorted = [...points].sort((a, b) => dist(a, refPoint) - dist(b, refPoint));
   return tag === 'VPOL2' ? sorted[1] : sorted[0];
+}
+
+/**
+ * Poměr vzdáleností, od kterého se ze dvou řešení bere to bližší automaticky
+ * (bez VPOL1/VPOL2). 3× je „výrazně blíž" – to druhé řešení leží typicky na
+ * opačné straně dílu a uživatel ho nemyslel. Při menším rozdílu je hádání
+ * riskantní a musí rozhodnout uživatel.
+ */
+export const AUTO_PICK_MIN_RATIO = 3;
+
+/**
+ * Jednotné rozhodování mezi geometricky platnými řešeními – sdílené všemi
+ * kategoriemi, aby se lišila jen měřená veličina (bod / střed oblouku / bod
+ * zlomu) přes `keyFn`, ne pravidlo samotné.
+ *
+ * @template T
+ * @param {T[]} candidates
+ * @param {{z:number,x:number}} refPoint typicky start obrysu
+ * @param {'VPOL1'|'VPOL2'|null|undefined} tag explicitní volba uživatele
+ * @param {(c: T) => {z:number,x:number}} [keyFn] co se u kandidáta měří
+ * @returns {{ value: T, auto: boolean, ratio: number|null } | null}
+ *   `null` = dvojznačné a bez tagu → volající vyhodí srozumitelnou chybu.
+ *   `auto: true` = vybráno automaticky, volající to má uživateli oznámit.
+ */
+export function chooseSolution(candidates, refPoint, tag, keyFn = (c) => c) {
+  if (!candidates || candidates.length === 0) return null;
+  if (candidates.length === 1) return { value: candidates[0], auto: false, ratio: null };
+  const sorted = [...candidates].sort((a, b) => dist(keyFn(a), refPoint) - dist(keyFn(b), refPoint));
+  if (tag) return { value: tag === 'VPOL2' ? sorted[1] : sorted[0], auto: false, ratio: null };
+  const d0 = dist(keyFn(sorted[0]), refPoint);
+  const d1 = dist(keyFn(sorted[1]), refPoint);
+  if (d1 - d0 > 1e-6 && d1 >= AUTO_PICK_MIN_RATIO * d0) {
+    return { value: sorted[0], auto: true, ratio: d0 > 1e-9 ? d1 / d0 : Infinity };
+  }
+  return null;
 }
 
 /**
@@ -120,9 +160,9 @@ export function solveLineArcJunctionCandidates(ray, vpol, radius) {
 
 export function solveLineArcJunction(ray, vpol, radius, refPoint, tag) {
   const pts = solveLineArcJunctionCandidates(ray, vpol, radius);
-  if (pts.length === 1) return pts[0];
-  if (!tag) throw new Error('Dvě možná řešení – zadejte VPOL1 nebo VPOL2');
-  return pickByVpolTag(pts, refPoint, tag);
+  const choice = chooseSolution(pts, refPoint, tag);
+  if (!choice) throw new Error('Dvě možná řešení – zadejte VPOL1 nebo VPOL2');
+  return choice.value;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -178,6 +218,40 @@ export function tangentCircleTouchPoints(ray, point, radius) {
     }
   }
   return dedupePoints(results);
+}
+
+/**
+ * Kategorie 2, tečný oblouk jako PRVNÍ nedořešený prvek fronty.
+ *
+ * Liší se od case 5 tím, co je známé: prvek PŘED obloukem je už dopočtený,
+ * takže se ví, kde oblouk začíná (`start`) i pod jakým úhlem tam navazuje
+ * (`startDirectionDeg` – tečnost, příznak T). Hledá se KONEC oblouku, který
+ * leží na paprsku následujícího plně zadaného prvku.
+ *
+ * Tečnost na začátku posadí střed kolmo od `start` ve vzdálenosti R – na
+ * jednu ze dvou stran. Strana se ZÁMĚRNĚ nevybírá podle G2/G3 (jeho smysl je
+ * svázaný s konfigurací stroje, viz komentář ke kategorii 2 výše), obě se
+ * proto vrátí jako kandidáti a rozhodne VPOL1/VPOL2 nebo `chooseSolution`.
+ *
+ * @param {{z:number,x:number}} start začátek oblouku
+ * @param {number} startDirectionDeg směr geometrie, na kterou se navazuje
+ * @param {number} radius poloměr oblouku
+ * @param {{z0:number,x0:number,angleDeg:number}} ray paprsek následujícího prvku
+ * @returns {Array<{z:number,x:number}>} možné konce oblouku
+ */
+export function tangentArcEndOnRay(start, startDirectionDeg, radius, ray) {
+  if (!Number.isFinite(radius) || radius <= 0) return [];
+  const a = startDirectionDeg * D2R;
+  const u = { z: Math.cos(a), x: Math.sin(a) };
+  const out = [];
+  for (const s of [1, -1]) {
+    const n = { z: -u.x * s, x: u.z * s };
+    const center = { z: start.z + radius * n.z, x: start.x + radius * n.x };
+    // Konec oblouku = průsečík kružnice s paprskem. Napojení na následující
+    // prvek tedy tečné být nemusí – T se vztahuje k prvku PŘED obloukem.
+    out.push(...intersectRayCircle(ray, center, radius));
+  }
+  return dedupePoints(out);
 }
 
 /**
@@ -269,6 +343,21 @@ export function twoTangentArcsBetweenRays(ray1, ray2, r1, r2, junction) {
   const dotv = (a, b) => a.z * b.z + a.x * b.x;
   const Rsum2 = (r1 + r2) * (r1 + r2);
 
+  // Bod zlomu leží na spojnici středů, takže jeho souřadnice v dané ose je
+  // lineární kombinací posunů středů podél obou paprsků. Když jsou OBĚ přímky
+  // na tuhle osu kolmé, souřadnice na ní na posunech vůbec nezávisí – zadaná
+  // hodnota pak nic neurčuje a soustava zůstane nedourčená. Dřív to spadlo do
+  // „žádné řešení", což svádělo na špatnou stopu (poloměry/hodnota), i když
+  // stačí zadat bod zlomu v druhé ose. Nezávisí to na znaménkách s1/s2, takže
+  // se to dá rozhodnout rovnou tady.
+  const otherAxis = axisKey === 'z' ? 'X' : 'Z';
+  if (Math.abs(u1[axisKey]) < 1e-9 && Math.abs(u2[axisKey]) < 1e-9) {
+    throw new Error(
+      `osa ${axisKey.toUpperCase()} bod zlomu neurčuje – obě přímky jsou na ni kolmé; `
+      + `zadej bod zlomu v ose ${otherAxis}`,
+    );
+  }
+
   const raw = [];
   for (const s1 of [1, -1]) {
     const n1 = { z: -u1.x * s1, x: u1.z * s1 };
@@ -315,7 +404,8 @@ export function twoTangentArcsBetweenRays(ray1, ray2, r1, r2, junction) {
           if (disc < 1e-9) tPairs.push([t1, t2a]);
           else { tPairs.push([t1, t2a]); tPairs.push([t1, t2b]); }
         }
-      } // jinak: zadaná osa je degenerovaná pro obě přímky – nelze určit (zkuste druhou osu)
+      } // jinak: aD i bD ≈ 0, což po kontrole degenerované osy výše zbývá
+        // jen pro nulový poloměr oblouku (k = 0 nebo 1) – větev se přeskočí
 
       for (const [t1, t2] of tPairs) {
         const c1 = { z: P1.z + t1 * u1.z, x: P1.x + t1 * u1.x };
@@ -332,6 +422,73 @@ export function twoTangentArcsBetweenRays(ray1, ray2, r1, r2, junction) {
       }
     }
   }
+  const out = [];
+  for (const r of raw) {
+    if (!out.some((o) =>
+      Math.abs(o.center1.z - r.center1.z) < 1e-6 && Math.abs(o.center1.x - r.center1.x) < 1e-6 &&
+      Math.abs(o.center2.z - r.center2.z) < 1e-6 && Math.abs(o.center2.x - r.center2.x) < 1e-6)) {
+      out.push(r);
+    }
+  }
+  return out;
+}
+
+/**
+ * Kategorie 3 BEZ úvodní přímky: dva tečné oblouky za sebou, kde první
+ * navazuje tečně na už dopočtenou geometrii a druhý končí na paprsku
+ * následujícího známého prvku.
+ *
+ * Proti `twoTangentArcsBetweenRays()` tu NENÍ potřeba „bod zlomu": tečnost
+ * prvního oblouku na hotovou geometrii jeho střed pevně určí (leží kolmo od
+ * `start` ve vzdálenosti r1), takže zbývají jen 2 neznámé – střed druhého
+ * oblouku – na 2 rovnice:
+ *   1. `c2` je ve vzdálenosti r2 od paprsku → leží na rovnoběžce s ním,
+ *   2. `|c1 − c2| = r1 + r2`                → vnější tečnost oblouků (esíčko).
+ * Průnik té rovnoběžky s kružnicí kolem `c1` dá rovnou hotové řešení.
+ *
+ * Strany (kam se odklání první oblouk, ke které straně paprsku patří druhý)
+ * se nevybírají podle G2/G3 – vrací se všechny kombinace jako kandidáti,
+ * stejně jako u ostatních kategorií.
+ *
+ * @param {{z:number,x:number}} start začátek prvního oblouku
+ * @param {number} startDirectionDeg směr geometrie, na kterou navazuje
+ * @param {number} r1 poloměr prvního oblouku
+ * @param {number} r2 poloměr druhého oblouku
+ * @param {{z0:number,x0:number,angleDeg:number}} ray paprsek následujícího prvku
+ * @returns {Array<{junction:{z,x}, foot2:{z,x}, center1:{z,x}, center2:{z,x}}>}
+ */
+export function twoTangentArcsFromDirection(start, startDirectionDeg, r1, r2, ray) {
+  if (!Number.isFinite(r1) || r1 <= 0 || !Number.isFinite(r2) || r2 <= 0) return [];
+  const a = startDirectionDeg * D2R;
+  const u = { z: Math.cos(a), x: Math.sin(a) };
+  const ra = ray.angleDeg * D2R;
+  const w = { z: Math.cos(ra), x: Math.sin(ra) };
+
+  const raw = [];
+  for (const s1 of [1, -1]) {
+    const n1 = { z: -u.x * s1, x: u.z * s1 };
+    const c1 = { z: start.z + r1 * n1.z, x: start.x + r1 * n1.x };
+    for (const s2 of [1, -1]) {
+      const n2 = { z: -w.x * s2, x: w.z * s2 };
+      const offsetRay = {
+        z0: ray.z0 + r2 * n2.z,
+        x0: ray.x0 + r2 * n2.x,
+        angleDeg: ray.angleDeg,
+      };
+      for (const c2 of intersectRayCircle(offsetRay, c1, r1 + r2)) {
+        const dz = c2.z - c1.z, dx = c2.x - c1.x;
+        const d = Math.hypot(dz, dx);
+        if (d < 1e-9) continue;
+        // Bod zlomu leží na spojnici středů, ve vzdálenosti r1 od prvního.
+        const junction = { z: c1.z + (dz * r1) / d, x: c1.x + (dx * r1) / d };
+        // Konec druhého oblouku = kolmý průmět jeho středu na paprsek.
+        const t = (c2.z - ray.z0) * w.z + (c2.x - ray.x0) * w.x;
+        const foot2 = { z: ray.z0 + t * w.z, x: ray.x0 + t * w.x };
+        raw.push({ junction, foot2, center1: c1, center2: c2 });
+      }
+    }
+  }
+
   const out = [];
   for (const r of raw) {
     if (!out.some((o) =>

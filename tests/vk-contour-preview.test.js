@@ -8,6 +8,8 @@ import {
   worldToVk,
   pickVkAmbiguousSolution,
   insertTangentTransitions,
+  planTangentTransitions,
+  diffPreviewSegments,
 } from '../js/calculators/vkContour.js';
 
 describe('parseVkLine', () => {
@@ -23,6 +25,36 @@ describe('parseVkLine', () => {
     const initial = parseVkLine('G0 X10 Z30');
 
     expect(initial).toMatchObject({ cmd: 'G0', isArc: false, x: 10, z: 30 });
+  });
+
+  // Vlastní konverze na ISO vyrábí G1 (z G11 i G0) a stejně tak přechodové
+  // úsečky tečnosti. Bez G1 v parseru byl zkonvertovaný program neviditelný.
+  it('rozumí i G1 z vlastního ISO výstupu (a nezamění ho s G11/G111)', () => {
+    expect(parseVkLine('G1 X10 Z-30')).toMatchObject({ cmd: 'G1', isArc: false, x: 10, z: -30 });
+    expect(parseVkLine('G11 X10 Z-30')).toMatchObject({ cmd: 'G11' });
+    expect(parseVkLine('G111 X0 Z40')).toMatchObject({ cmd: 'G111' });
+  });
+});
+
+describe('buildVkPreviewData – zkonvertovaný ISO program', () => {
+  // Po „Konvertovat na ISO G-kód" nezbude ani G0, ani VPOL – samé G1.
+  // První řádek proto musí posloužit jako počátek, jinak by se zahodil celý.
+  it('bere první G1 jako počáteční bod, když není VPOL ani G0', () => {
+    const data = buildVkPreviewData(['G1 X10 Z0', 'G1 X10 Z-30', 'G2 X20 Z-40 R10', 'G1 X20 Z-70']);
+
+    expect(data.vpol).toBeNull();
+    expect(data.segments).toHaveLength(4);
+    expect(data.segments[0]).toMatchObject({ start: { x: 10, z: 0 }, end: { x: 10, z: 0 } });
+    expect(data.segments[1]).toMatchObject({ type: 'line', end: { x: 10, z: -30 } });
+    expect(data.segments[2]).toMatchObject({ type: 'arc', radius: 10, end: { x: 20, z: -40 } });
+    expect(data.segments[3]).toMatchObject({ type: 'line', end: { x: 20, z: -70 } });
+  });
+
+  it('s VPOL zůstává první prvek úsečkou od pólu (beze změny)', () => {
+    const data = buildVkPreviewData(['G111 X0 Z40', 'G11 X10 Z-30']);
+
+    expect(data.vpol).toEqual({ x: 0, z: 40 });
+    expect(data.segments[0]).toMatchObject({ start: { x: 0, z: 40 }, end: { x: 10, z: -30 } });
   });
 });
 
@@ -141,6 +173,119 @@ describe('buildVkPreviewData', () => {
 
     expect(selected.selectedSolution).toMatchObject({ end: { x: 8, z: 8 }, color: 'cyan' });
     expect(selected.draft.end).toEqual({ x: 8, z: 8 });
+  });
+});
+
+describe('insertTangentTransitions – mezi dvěma běžnými prvky', () => {
+  const original = { xDisplayMode: state.xDisplayMode };
+  afterEach(() => Object.assign(state, original));
+
+  // Válec na poloměru 10 od Z0 do Z-40, pak tečný oblouk R10 na poloměr 20.
+  // Střed oblouku leží na poloměru 20, takže dotyk je na Z-30 nebo Z-50 –
+  // napsaný roh Z-40 se musí posunout, ne obejít vloženou úsečkou.
+  const chain = () => ['G0 X10 Z0', 'G11 X10 Z-40', 'G2 X20 Z-40 R10 T'];
+
+  it('posune konec předchozího prvku do dotykového bodu (nevkládá další řádek)', () => {
+    const out = insertTangentTransitions(chain());
+
+    expect(out).toHaveLength(3);                     // žádné couvání navíc
+    expect(out[0]).toBe('G0 X10 Z0');
+    expect(out[2]).toBe('G2 X20 Z-40 R10 T');
+    const [, px, pz] = out[1].match(/^G11 X(\S+) Z(\S+)$/);
+    expect(parseFloat(px)).toBeCloseTo(10, 6);       // zůstává na válci
+    expect([-30, -50]).toContain(parseFloat(pz));    // posunuto na skutečný dotyk
+  });
+
+  it('bez příznaku T se nic nepřepisuje – uživatel o tečnost nežádal', () => {
+    const out = insertTangentTransitions(['G0 X10 Z0', 'G11 X10 Z-40', 'G2 X20 Z-40 R10']);
+
+    expect(out).toEqual(['G0 X10 Z0', 'G11 X10 Z-40', 'G2 X20 Z-40 R10']);
+  });
+
+  it('funguje i v režimu průměr (týž fyzický dotyk, jiný zápis)', () => {
+    state.xDisplayMode = 'radius';
+    const radiusZ = insertTangentTransitions(chain())[1].match(/Z(\S+)$/)[1];
+    state.xDisplayMode = 'diameter';
+    const diameterOut = insertTangentTransitions(['G0 X20 Z0', 'G11 X20 Z-40', 'G2 X40 Z-40 R10 T']);
+    const [, dx, dz] = diameterOut[1].match(/^G11 X(\S+) Z(\S+)$/);
+
+    expect(parseFloat(dx)).toBeCloseTo(20, 6);
+    expect(parseFloat(dz)).toBeCloseTo(parseFloat(radiusZ), 6);
+  });
+
+  it('dva oblouky za sebou zůstávají netknuté (kategorie 4.5, zatím neřešeno)', () => {
+    const lines = ['G0 X10 Z0', 'G2 X20 Z-40 R10 T', 'G2 X30 Z-60 R10 T'];
+
+    expect(insertTangentTransitions(lines)).toEqual(lines);
+  });
+});
+
+describe('planTangentTransitions / diffPreviewSegments – živý náhled tečnosti', () => {
+  const chain = ['G0 X10 Z0', 'G11 X10 Z-40', 'G2 X20 Z-40 R10 T'];
+
+  it('hlásí dotykové body vedle upravených řádků', () => {
+    const plan = planTangentTransitions(chain);
+
+    expect(plan.lines).toEqual(insertTangentTransitions(chain));   // stejný výstup
+    expect(plan.touches).toHaveLength(1);
+    expect(plan.touches[0].x).toBeCloseTo(10, 6);
+    expect([-30, -50]).toContain(plan.touches[0].z);
+  });
+
+  it('bez tečné úpravy nehlásí žádný dotyk', () => {
+    const plan = planTangentTransitions(['G0 X10 Z0', 'G11 X10 Z-40', 'G11 X20 Z-40']);
+
+    expect(plan.touches).toEqual([]);
+    expect(plan.lines).toEqual(['G0 X10 Z0', 'G11 X10 Z-40', 'G11 X20 Z-40']);
+  });
+
+  it('náhled ukáže jen to, co se posune – ne kopii celé kontury', () => {
+    const base = buildVkPreviewData(chain);
+    const hint = buildVkPreviewData(planTangentTransitions(chain).lines);
+    const changed = diffPreviewSegments(hint.segments, base.segments);
+
+    // Posune se konec válce a s ním začátek oblouku – ne celá kontura.
+    expect(changed.length).toBeGreaterThan(0);
+    expect(changed.length).toBeLessThan(hint.segments.length);
+    changed.forEach(seg => expect(seg.type).not.toBe('ray'));
+  });
+
+  it('shodné segmenty se do rozdílu nedostanou', () => {
+    const base = buildVkPreviewData(chain);
+
+    expect(diffPreviewSegments(base.segments, base.segments)).toEqual([]);
+    expect(diffPreviewSegments(null, base.segments)).toEqual([]);
+  });
+});
+
+describe('insertTangentTransitions – jednotky osy X', () => {
+  const original = { xDisplayMode: state.xDisplayMode };
+  afterEach(() => Object.assign(state, original));
+
+  // Tečná geometrie musí počítat ve skutečné rovině (Z, poloměr). Dřív se jí
+  // předhazovala čísla tak, jak jsou v textu, takže v režimu průměr byla osa X
+  // 2× roztažená a dotykový bod vycházel jinde (u tohohle zadání to hlásilo
+  // jediný degenerovaný dotyk přímo na Z-40 místo dvou správných).
+  it('dotykový bod vyjde fyzicky stejně v režimu poloměr i průměr', () => {
+    // Válcová plocha na poloměru 10 (konstrukční paprsek PA0) → tečný oblouk
+    // R10 končící na poloměru 20 / Z-40. Střed oblouku musí ležet na poloměru
+    // 20, takže dotyk je na Z-30 nebo Z-50 – nikdy na Z-40.
+    state.xDisplayMode = 'radius';
+    const inRadius = insertTangentTransitions(['G0 X10 Z0 PA0', 'G2 X20 Z-40 R10']);
+    state.xDisplayMode = 'diameter';
+    const inDiameter = insertTangentTransitions(['G0 X20 Z0 PA0', 'G2 X40 Z-40 R10']);
+
+    expect(inRadius).toHaveLength(3);
+    expect(inDiameter).toHaveLength(3);
+    const [, rx, rz] = inRadius[1].match(/^G1 X(\S+) Z(\S+)$/);
+    const [, dx, dz] = inDiameter[1].match(/^G1 X(\S+) Z(\S+)$/);
+
+    // Dotyk zůstává na paprsku – v obou režimech týž poloměr, jen jinak zapsaný.
+    expect(parseFloat(rx)).toBeCloseTo(10, 6);
+    expect(parseFloat(dx)).toBeCloseTo(20, 6);
+    // A hlavně: stejná geometrie, ne posunutá o faktor 2.
+    expect(parseFloat(dz)).toBeCloseTo(parseFloat(rz), 6);
+    expect([-30, -50]).toContain(parseFloat(rz));
   });
 });
 

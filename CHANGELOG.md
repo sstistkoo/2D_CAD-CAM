@@ -23,7 +23,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   souřadnicích (`vkArcInWorld()`) je nově sdílená s náhledem místo
   druhé kopie ve `vkPreviewRender.js`.
 
+### Added
+- **VK: živý náhled tečného napojení.** Kam konturu posune „Konvertovat na
+  ISO G-kód" je vidět **na výkrese už při psaní** – fialově čárkovaně, plus
+  kroužek v dotykovém bodě. Kreslí se jen ROZDÍL proti hotové kontuře
+  (ten kousek u napojení, který se posune), ne její celá druhá kopie.
+  Text se přitom **nemění**: náhled hlavní kontury musí dál odpovídat tomu,
+  co je napsané, protože přesně to vloží „📥 Vložit do výkresu" – jinak by
+  si náhled a vložená geometrie přestaly odpovídat. Po konverzi nápověda
+  zmizí (už není co napovídat).
+- **VK: esíčko bez úvodní přímky (dva oblouky za sebou).** Dřív „dva oblouky
+  za sebou zatím nejsou podporované". Kategorie 3 uměla jen řetěz
+  *přímka → oblouk → oblouk → známý prvek* a vyžadovala navíc **bod zlomu**,
+  protože oba oblouky byly volné (4 neznámé na 3 rovnice). Když esíčko
+  navazuje tečně na **už dopočtenou geometrii**, je jeho první střed pevně
+  daný a zbývají 2 neznámé na 2 rovnice – soustava vyjde určená sama, takže
+  **bod zlomu se tu zadávat nemusí**. Nová `twoTangentArcsFromDirection()`
+  ve `vkSolver.js`: střed druhého oblouku = průnik rovnoběžky s paprskem
+  (ve vzdálenosti R2) s kružnicí R1+R2 kolem prvního středu.
+- **VK: tečný oblouk jako první nedořešený prvek fronty.** Dřív to skončilo
+  hláškou „zatím není podporovaný". Případ: prvek před obloukem je už
+  dopočtený, takže se ví, kde oblouk začíná i pod jakým úhlem tam tečně
+  navazuje – hledá se jeho konec na následujícím plně zadaném prvku
+  (typicky válec → rádius → čelo). Tečnost na začátku posadí střed kolmo
+  ve vzdálenosti R; strana se **nevybírá podle G2/G3** (jeho smysl je
+  svázaný s konfigurací stroje), obě se nabídnou jako varianty a rozhodne
+  VPOL1/VPOL2 nebo auto-výběr. Následující prvek bez vlastního PA se bere
+  jako kolmý – táž konvence jako u kategorie 1. Nová čistá funkce
+  `tangentArcEndOnRay()` ve `vkSolver.js`. Směr už dopočtené geometrie se
+  bere z napsané VK syntaxe (z fronty ten prvek mezitím vypadl).
+
+### Fixed
+- **VK: vrátilo se pole „Dvojznačnost řešení" (VPOL1/VPOL2).** Kód ho na
+  třech místech četl (vkládání prvku, reset formuláře, načtení prvku přes
+  ◀ ▶), ale samotné pole se ztratilo při rozdělení okna na záložky –
+  z formuláře tedy nešlo zvolit vůbec nic a hláška „zvolte VPOL1 nebo
+  VPOL2" posílala uživatele na něco, co v UI nebylo (šlo to jen dopsat
+  ručně do textu). Po vložení prvku se přepínač vrací na „— (rozhodne
+  appka)", aby se volba tiše nepřenášela na další prvek.
+- **VK: tečné napojení počítalo v roztažené ose X.** `vkSolver.js` dostával
+  X jako **průměr** a každá funkce s kruhovou geometrií si ho měla sama
+  vydělit dvěma. Kategorie 4 (netečné napojení kolem VPOL) to dělala, tečná
+  rodina (kategorie 2 a 3, přidaná později) ne – osa X tam byla proti Z
+  i proti R roztažená 2×, takže oblouk byl v té rovině elipsa a dotykové
+  body vycházely jinde. Na zadání ⌀20 → tečný oblouk R10 → ⌀40 to hlásilo
+  jediný degenerovaný dotyk místo dvou správných. Solver teď počítá ve
+  **skutečné rovině (Z, poloměr)** jako zbytek appky (CLAUDE.md: „interně
+  vždy poloměr, převod jen na hranici UI") – `toSolverX`/`fromSolverX` jsou
+  tenký obal nad `inputX`/`displayX` a `intersectRayCircle` už nic nepůlí.
+  Rovina s neeuklidovskou osou X byla past, na kterou musela pamatovat
+  každá nová funkce; teď žádná není. Kategorie 1 a 4 dávají stejné výsledky
+  jako dřív, kategorie 2 a 3 správné.
+- **VK: zkonvertovaný program byl pro appku neviditelný.** „Konvertovat na
+  ISO G-kód" vyrábí `G1` (z `G11` i `G0`), jenže `parseVkLine()` `G1`
+  neznal – po konverzi tedy zmizel náhled a nešlo nic vložit do výkresu,
+  přesně na cestě, kam uživatele posílá hláška o nedopočtených `?`.
+  Totéž potkávalo přechodové úsečky z `insertTangentTransitions`. Parser
+  teď `G1` bere a `buildVkPreviewData()` použije první prvek jako počátek,
+  když není VPOL ani `G0` (zkonvertovaný program nemá ani jedno).
+
 ### Changed
+- **VK: tečné napojení i mezi dvěma běžnými prvky.** Dřív se řešilo jen po
+  konstrukčním paprsku (PA bez PR). Teď u oblouku s příznakem **T** doveze
+  VK předchozí úsečku/kužel přesně do dotykového bodu – **posunutím jeho
+  konce**, ne vloženou úsečkou navíc (ta by znamenala dojet na napsaný roh
+  a couvnout po vlastní čáře zpátky). Bez `T` se nic nepřepisuje, protože
+  uživatel o tečnost nežádal. Po konstrukčním paprsku zůstává chování
+  původní (paprsek nemá délku, takže se přechodová `G1` pořád vkládá).
+- **VK: dvě možná řešení se místo chyby rozhodnou sama, když je to
+  jednoznačné.** Dřív každá dvojznačnost skončila hláškou „zvolte VPOL1
+  nebo VPOL2", i když jedno řešení leželo na druhé straně dílu. Nově se
+  bere bližší k začátku obrysu, pokud je to druhé aspoň **3× dál** –
+  a řekne se to v informačním řádku i s poměrem, takže je vidět, že se
+  rozhodovalo za uživatele (druhou variantu pořád vynutí zápis VPOL2).
+  Při menším rozdílu se jako dřív ptá. Pravidlo je nově jedno sdílené
+  (`chooseSolution()` ve `vkSolver.js`) pro všechny kategorie – dřív ho
+  měla každá zvlášť a měřila jinou veličinu (bod / střed oblouku / bod
+  zlomu) vlastním kódem.
+- **VK: srozumitelná hláška u degenerované osy bodu zlomu.** Když jsou
+  u esíčka (kategorie 3) obě přímky kolmé na osu zadaného bodu zlomu,
+  ta osa o poloze zlomu nic neříká a soustava zůstane nedourčená. Dřív
+  to skončilo jako „žádné řešení (s danými poloměry a bodem zlomu nejde
+  esíčko sestavit)", což svádělo hledat chybu v poloměrech; teď se řekne
+  rovnou, že má bod zlomu zadat v druhé ose.
 - **VK náhled se kreslí přímo na výkres a okno je plovoucí.** Vlastní
   mini-canvas VK (s vlastním zoomem a panem) je zrušený – kontura se
   vykresluje rovnou na CAD plátno, takže sdílí měřítko i polohu s tím,

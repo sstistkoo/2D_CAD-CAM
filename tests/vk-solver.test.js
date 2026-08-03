@@ -8,10 +8,14 @@ import {
   solveLineArcJunction,
   solveLineArcJunctionCandidates,
   tangentCircleTouchPoints,
+  tangentArcEndOnRay,
   tangentCircleBetweenRays,
   pickBetweenRaysByVpolTag,
   twoTangentArcsBetweenRays,
+  twoTangentArcsFromDirection,
   pickTwoArcsByVpolTag,
+  chooseSolution,
+  AUTO_PICK_MIN_RATIO,
 } from '../js/calculators/vkSolver.js';
 
 describe('elementRay', () => {
@@ -84,19 +88,20 @@ describe('solveCornerLineLine – kategorie 1 (case 1-4)', () => {
 });
 
 describe('intersectRayCircle', () => {
-  it('5-12-13 trojúhelník: vodorovný paprsek (X=10 → r=5) vs kružnice r=13 kolem (0,0)', () => {
-    const ray = { z0: 0, x0: 10, angleDeg: 0 };
+  // Solver počítá ve skutečné rovině (Z, poloměr) – X se tu nikde nepůlí.
+  it('5-12-13 trojúhelník: vodorovný paprsek (poloměr 5) vs kružnice r=13 kolem (0,0)', () => {
+    const ray = { z0: 0, x0: 5, angleDeg: 0 };
     const center = { z: 0, x: 0 };
     const pts = intersectRayCircle(ray, center, 13);
     expect(pts).toHaveLength(2);
     const zs = pts.map(p => p.z).sort((a, b) => a - b);
     expect(zs[0]).toBeCloseTo(-12, 6);
     expect(zs[1]).toBeCloseTo(12, 6);
-    pts.forEach(p => expect(p.x).toBeCloseTo(10, 6));
+    pts.forEach(p => expect(p.x).toBeCloseTo(5, 6));
   });
 
   it('tečna (disc≈0) vrací jediný bod', () => {
-    const ray = { z0: -50, x0: 20, angleDeg: 0 }; // r0=10, tečna ke kružnici r=10 kolem (0,0)
+    const ray = { z0: -50, x0: 10, angleDeg: 0 }; // tečna ke kružnici r=10 kolem (0,0)
     const pts = intersectRayCircle(ray, { z: 0, x: 0 }, 10);
     expect(pts).toHaveLength(1);
   });
@@ -120,21 +125,81 @@ describe('pickByVpolTag', () => {
   });
 });
 
-describe('solveLineArcJunction – kategorie 4 (case 12-13)', () => {
-  it('vrátí jediné řešení bez potřeby tagu (tečna)', () => {
-    const ray = { z0: -50, x0: 20, angleDeg: 0 };
-    const pt = solveLineArcJunction(ray, { z: 0, x: 0 }, 10, { z: 0, x: 0 }, null);
-    expect(pt.z).toBeCloseTo(0, 6);
-    expect(pt.x).toBeCloseTo(20, 6);
+describe('chooseSolution – auto-výběr místo chyby „zvolte VPOL1/VPOL2"', () => {
+  const ref = { z: 0, x: 0 };
+
+  it('jediného kandidáta vrátí bez příznaku auto', () => {
+    const choice = chooseSolution([{ z: 5, x: 5 }], ref, null);
+
+    expect(choice).toMatchObject({ value: { z: 5, x: 5 }, auto: false, ratio: null });
   });
 
-  it('dvě řešení bez tagu vyhodí chybu', () => {
-    const ray = { z0: 0, x0: 10, angleDeg: 0 };
-    expect(() => solveLineArcJunction(ray, { z: 0, x: 0 }, 13, { z: -20, x: 0 }, null)).toThrow();
+  it('bez tagu vezme bližší řešení, když je druhé výrazně dál', () => {
+    const near = { z: 1, x: 0 };
+    const far = { z: 10, x: 0 };
+    const choice = chooseSolution([far, near], ref, null);
+
+    expect(choice.value).toBe(near);
+    expect(choice.auto).toBe(true);
+    expect(choice.ratio).toBeCloseTo(10, 6);
+  });
+
+  it('bez tagu neuhodne, když jsou obě řešení podobně daleko', () => {
+    // poměr 2× je pod prahem – hádat by bylo riskantní
+    expect(chooseSolution([{ z: 10, x: 0 }, { z: 5, x: 0 }], ref, null)).toBeNull();
+    // těsně pod prahem taky ne
+    const justUnder = AUTO_PICK_MIN_RATIO - 0.01;
+    expect(chooseSolution([{ z: justUnder, x: 0 }, { z: 1, x: 0 }], ref, null)).toBeNull();
+  });
+
+  it('explicitní tag má přednost před auto-výběrem a auto nehlásí', () => {
+    const near = { z: 1, x: 0 };
+    const far = { z: 10, x: 0 };
+
+    expect(chooseSolution([far, near], ref, 'VPOL2')).toMatchObject({ value: far, auto: false });
+    expect(chooseSolution([far, near], ref, 'VPOL1')).toMatchObject({ value: near, auto: false });
+  });
+
+  it('měří přes keyFn – pro esíčko se porovnává bod zlomu, ne kandidát sám', () => {
+    const a = { junction: { z: 1, x: 0 }, tag: 'a' };
+    const b = { junction: { z: 20, x: 0 }, tag: 'b' };
+    const choice = chooseSolution([b, a], ref, null, (c) => c.junction);
+
+    expect(choice.value.tag).toBe('a');
+    expect(choice.auto).toBe(true);
+  });
+
+  it('prázdný vstup vrací null', () => {
+    expect(chooseSolution([], ref, null)).toBeNull();
+    expect(chooseSolution(null, ref, 'VPOL1')).toBeNull();
+  });
+});
+
+describe('solveLineArcJunction – kategorie 4 (case 12-13)', () => {
+  it('vrátí jediné řešení bez potřeby tagu (tečna)', () => {
+    const ray = { z0: -50, x0: 10, angleDeg: 0 };
+    const pt = solveLineArcJunction(ray, { z: 0, x: 0 }, 10, { z: 0, x: 0 }, null);
+    expect(pt.z).toBeCloseTo(0, 6);
+    expect(pt.x).toBeCloseTo(10, 6);
+  });
+
+  it('dvě podobně vzdálená řešení bez tagu vyhodí chybu', () => {
+    // refPoint uprostřed → obě řešení stejně daleko, hádat nelze
+    const ray = { z0: 0, x0: 5, angleDeg: 0 };
+    expect(() => solveLineArcJunction(ray, { z: 0, x: 0 }, 13, { z: 0, x: 0 }, null)).toThrow();
+  });
+
+  it('dvě řešení bez tagu se vyřeší automaticky, když je jedno výrazně blíž', () => {
+    // start obrysu leží těsně u řešení z=-12, to druhé (z=12) je 25× dál
+    const ray = { z0: 0, x0: 5, angleDeg: 0 };
+    const pt = solveLineArcJunction(ray, { z: 0, x: 0 }, 13, { z: -13, x: 5 }, null);
+
+    expect(pt.z).toBeCloseTo(-12, 6);
+    expect(pt.x).toBeCloseTo(5, 6);
   });
 
   it('dvě řešení s VPOL1/VPOL2 se rozliší podle refPoint', () => {
-    const ray = { z0: 0, x0: 10, angleDeg: 0 };
+    const ray = { z0: 0, x0: 5, angleDeg: 0 };
     const ref = { z: -20, x: 0 };
     const p1 = solveLineArcJunction(ray, { z: 0, x: 0 }, 13, ref, 'VPOL1');
     const p2 = solveLineArcJunction(ray, { z: 0, x: 0 }, 13, ref, 'VPOL2');
@@ -143,7 +208,7 @@ describe('solveLineArcJunction – kategorie 4 (case 12-13)', () => {
   });
 
   it('vrací všechny kandidáty řešení pro ambiguální VPOL průsečík', () => {
-    const ray = { z0: 0, x0: 10, angleDeg: 0 };
+    const ray = { z0: 0, x0: 5, angleDeg: 0 };
     const candidates = solveLineArcJunctionCandidates(ray, { z: 0, x: 0 }, 13);
     expect(candidates).toHaveLength(2);
     const zs = candidates.map(pt => pt.z).sort((a, b) => a - b);
@@ -173,6 +238,49 @@ describe('tangentCircleTouchPoints – kategorie 2, case 5', () => {
     const ray = { z0: 0, x0: 0, angleDeg: 0 };
     const point = { z: 1000, x: 1000 };
     expect(tangentCircleTouchPoints(ray, point, 5)).toHaveLength(0);
+  });
+});
+
+describe('tangentArcEndOnRay – tečný oblouk jako první prvek fronty', () => {
+  it('čtvrtkruh z válce na čelo – ověřeno ručním výpočtem', () => {
+    // Válec na poloměru 10 běží ve směru +Z a končí v (z=-20, x=10). Tečně
+    // na něj navazuje oblouk R10 → střed leží kolmo nad/pod startem, tedy
+    // v (z=-20, x=20) nebo (z=-20, x=0). Čelo Z=-10 se obou kružnic dotýká
+    // v jejich krajním bodě, takže vyjdou přesně dva konce.
+    const ends = tangentArcEndOnRay({ z: -20, x: 10 }, 0, 10, { z0: -10, x0: 0, angleDeg: 90 });
+
+    expect(ends).toHaveLength(2);
+    ends.forEach(pt => expect(pt.z).toBeCloseTo(-10, 6));
+    const xs = ends.map(pt => pt.x).sort((a, b) => a - b);
+    expect(xs[0]).toBeCloseTo(0, 6);
+    expect(xs[1]).toBeCloseTo(20, 6);
+  });
+
+  it('vrací obě strany oblouku – směr G2/G3 stranu nevybírá', () => {
+    // Čelo Z=-15 protne obě kružnice po dvou bodech → 4 kandidáti,
+    // rozhodne až VPOL1/VPOL2 (nebo chooseSolution).
+    const ends = tangentArcEndOnRay({ z: -20, x: 10 }, 0, 10, { z0: -15, x0: 0, angleDeg: 90 });
+
+    expect(ends).toHaveLength(4);
+    ends.forEach(pt => expect(pt.z).toBeCloseTo(-15, 6));
+    const offset = 5 * Math.sqrt(3);   // sqrt(10² − 5²)
+    const xs = ends.map(pt => pt.x).sort((a, b) => a - b);
+    expect(xs[0]).toBeCloseTo(-offset, 6);
+    expect(xs[3]).toBeCloseTo(20 + offset, 6);
+  });
+
+  it('mimo dosah (paprsek dál než průměr oblouku) vrací prázdné pole', () => {
+    const start = { z: 0, x: 10 };
+    const ray = { z0: 500, x0: 0, angleDeg: 90 };
+
+    expect(tangentArcEndOnRay(start, 0, 10, ray)).toEqual([]);
+  });
+
+  it('nesmyslný poloměr vrací prázdné pole', () => {
+    const ray = { z0: 0, x0: 0, angleDeg: 90 };
+
+    expect(tangentArcEndOnRay({ z: -20, x: 10 }, 0, 0, ray)).toEqual([]);
+    expect(tangentArcEndOnRay({ z: -20, x: 10 }, 0, NaN, ray)).toEqual([]);
   });
 });
 
@@ -252,6 +360,63 @@ describe('twoTangentArcsBetweenRays – kategorie 3 (case 9-11, esíčko)', () =
     const ray2 = { z0: 40, x0: 0, angleDeg: 90 };
     // osa 'x' pro tento roh funguje stejně dobře (jen jiná projekce) – test že nespadne
     expect(() => twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'x', value: 8.873 })).not.toThrow();
+  });
+
+  it('osa kolmá na OBĚ přímky hlásí, že bod zlomu neurčuje – ne „žádné řešení"', () => {
+    // obě přímky rovnoběžné s osou Z → souřadnice X bodu zlomu na jejich
+    // posunech vůbec nezávisí, zadaná hodnota nic neurčuje
+    const ray1 = { z0: 0, x0: 0, angleDeg: 0 };
+    const ray2 = { z0: 40, x0: 20, angleDeg: 180 };
+
+    expect(() => twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'x', value: 10 }))
+      .toThrow(/osa X bod zlomu neurčuje.*ose Z/s);
+    // v druhé ose je úloha řešitelná (nebo aspoň neshodí na degeneraci)
+    expect(() => twoTangentArcsBetweenRays(ray1, ray2, 5, 3, { axis: 'z', value: 20 })).not.toThrow();
+  });
+});
+
+describe('twoTangentArcsFromDirection – esíčko bez úvodní přímky', () => {
+  // Válec na poloměru 10 běží ve směru +Z a končí v (z=0, x=10); na něj tečně
+  // navazuje esíčko R1=5 + R2=3 a to končí na čele Z=6. (Přes esíčko se dá
+  // v Z překlenout nanejvýš zhruba R1+R2, takže čelo musí být blízko.)
+  const start = { z: 0, x: 10 };
+  const ray = { z0: 6, x0: 0, angleDeg: 90 };
+
+  it('každý kandidát splňuje všechny čtyři geometrické podmínky', () => {
+    const candidates = twoTangentArcsFromDirection(start, 0, 5, 3, ray);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const c of candidates) {
+      // 1. střed prvního oblouku leží kolmo od startu ve vzdálenosti R1
+      expect(Math.hypot(c.center1.z - start.z, c.center1.x - start.x)).toBeCloseTo(5, 6);
+      expect(c.center1.z).toBeCloseTo(start.z, 6);            // kolmo na směr +Z
+      // 2. vnější tečnost oblouků – vzdálenost středů = R1 + R2
+      expect(Math.hypot(c.center2.z - c.center1.z, c.center2.x - c.center1.x)).toBeCloseTo(8, 6);
+      // 3. bod zlomu leží na spojnici středů, R1 od prvního a R2 od druhého
+      expect(Math.hypot(c.junction.z - c.center1.z, c.junction.x - c.center1.x)).toBeCloseTo(5, 6);
+      expect(Math.hypot(c.junction.z - c.center2.z, c.junction.x - c.center2.x)).toBeCloseTo(3, 6);
+      // 4. druhý oblouk končí na paprsku a je k němu tečný (střed R2 od paty)
+      expect(c.foot2.z).toBeCloseTo(6, 6);
+      expect(Math.hypot(c.center2.z - c.foot2.z, c.center2.x - c.foot2.x)).toBeCloseTo(3, 6);
+    }
+  });
+
+  it('nabízí obě strany prvního oblouku (nad i pod válcem)', () => {
+    const candidates = twoTangentArcsFromDirection(start, 0, 5, 3, ray);
+    const centers = candidates.map(c => c.center1.x);
+
+    expect(centers).toContain(15);   // odklon ven
+    expect(centers).toContain(5);    // odklon dovnitř
+  });
+
+  it('nedosažitelné zadání vrací prázdné pole místo výjimky', () => {
+    // čelo je dál, než kam esíčko o daných poloměrech dosáhne
+    expect(twoTangentArcsFromDirection(start, 0, 5, 3, { z0: 500, x0: 0, angleDeg: 90 })).toEqual([]);
+  });
+
+  it('nesmyslné poloměry vrací prázdné pole', () => {
+    expect(twoTangentArcsFromDirection(start, 0, 0, 3, ray)).toEqual([]);
+    expect(twoTangentArcsFromDirection(start, 0, 5, -3, ray)).toEqual([]);
   });
 });
 

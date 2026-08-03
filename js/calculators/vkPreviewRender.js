@@ -116,9 +116,48 @@ export function renderVkPreviewOnCad(ctx) {
     ctx.setLineDash([]);
   }
 
+  drawTangentHint(ctx, data.tangentHint);
+
   if (data.vpol) dot(ctx, data.vpol, 4.5, COLORS.snapPoint);
   if (data.startPoint) dot(ctx, data.startPoint, 3.5, COLORS.selected);
 
+  ctx.restore();
+}
+
+/**
+ * Náhled tečného napojení – kam konturu posune „Konvertovat na ISO G-kód".
+ * Kreslí se jen ROZDÍL proti hotové kontuře (jinak by šla přes celou kresbu
+ * druhá kopie) plus kroužek v dotykovém bodě.
+ */
+function drawTangentHint(ctx, hint) {
+  if (!hint?.segments?.length) return;
+  ctx.save();
+  // snapEdge (fialová) je jediná z palety, kterou tady nic jiného nepoužívá –
+  // primary je hotová kontura, preview rozepsaný prvek, dimension/yellow
+  // varianty řešení. Musí sedět s `.vk-hint-tangent` v css/style.css.
+  ctx.strokeStyle = COLORS.snapEdge;
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([3, 3]);
+  for (const segment of hint.segments) {
+    const arc = segment.type === 'arc'
+      ? vkArcInWorld(segment.start, segment.end, segment.radius, segment.direction)
+      : null;
+    if (arc) {
+      const [sx, sy] = worldToScreen(arc.cx, arc.cy);
+      ctx.beginPath();
+      ctx.arc(sx, sy, arc.r * state.zoom, screenAngle(arc.startAngle), screenAngle(arc.endAngle), screenCCW(arc.ccw));
+      ctx.stroke();
+    } else {
+      strokeLine(ctx, segment.start, segment.end);
+    }
+  }
+  ctx.setLineDash([]);
+  for (const touch of hint.touches || []) {
+    const [sx, sy] = worldToScreen(...vkToWorld(touch));
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

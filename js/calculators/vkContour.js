@@ -17,9 +17,9 @@ import { state, showToast, displayX, inputX } from '../state.js';
 import { bridge } from '../bridge.js';
 import { renderVkHelp } from './vkHelp.js';
 import {
-  elementRay, solveCornerLineLine, solveLineArcJunction, solveLineArcJunctionCandidates,
-  pickByVpolTag, tangentCircleTouchPoints, tangentCircleBetweenRays, pickBetweenRaysByVpolTag,
-  twoTangentArcsBetweenRays, pickTwoArcsByVpolTag,
+  elementRay, solveCornerLineLine, solveLineArcJunctionCandidates, chooseSolution,
+  tangentCircleTouchPoints, tangentCircleBetweenRays, twoTangentArcsBetweenRays,
+  tangentArcEndOnRay, twoTangentArcsFromDirection,
 } from './vkSolver.js';
 
 const DEFAULT_GCODE = '';
@@ -55,24 +55,28 @@ export function fmt(n) {
 // ── Jednotky osy X ──────────────────────────────────────────────
 // V appce platí jedna konvence: INTERNĚ je X vždy POLOMĚR, převod na
 // průměr se dělá až na hranici UI přes displayX()/inputX() (state.js).
-// vkSolver.js je výjimka – počítá v PRŮMĚRECH (kružnice v rovině (Z,X)
-// by jinak vyšla eliptická). Tyhle dvě funkce jsou jediné místo, kde se
-// ta výjimka překlenuje, a jsou definované přes kanonické helpery, aby
-// nevznikla druhá nezávislá konvence.
+// vkSolver.js ji dodržuje taky – počítá ve skutečné rovině (Z, poloměr),
+// takže R, PR i vzdálenosti v něm znamenají reálné milimetry.
+//
+// Dřív se solveru posílal PRŮMĚR („pseudo-průměr", toSolverX = 2*inputX)
+// a každá funkce s kruhovou geometrií si ho měla sama vydělit dvěma.
+// Kategorie 4 to dělala, tečná rodina (kat. 2/3) ne – tečnost proto
+// vycházela mimo. Rovina s 2× roztaženou osou X není euklidovská, takže
+// se jí tady radši nedržíme vůbec; obě funkce jsou teď jen tenký obal
+// nad kanonickými helpery.
 //
 // POZOR: platí jen pro hodnoty ze STRUKTUROVANÉHO formuláře (pole X/Z),
 // kde je číslo v zobrazovaných jednotkách. Na surová čísla vytažená
-// z textu G-kódu se NEPOUŽÍVAJÍ – tam už X znamená to, co je napsané.
-// (Záměna přesně tohohle rozbíjela tečné napojení: X20 se tiše
-// zdvojnásobilo na X40 a vyšel degenerovaný dotyk.)
+// z textu G-kódu se NEPOUŽÍVAJÍ automaticky – tam si převod musí udělat
+// volající (viz insertTangentTransitions).
 
-/** Hodnota z formuláře (zobrazované jednotky) → solver prostor (průměr). */
+/** Hodnota z formuláře (zobrazované jednotky) → solver prostor (poloměr). */
 function toSolverX(val) {
-  return 2 * inputX(val);
+  return inputX(val);
 }
-/** Solver prostor (průměr) → hodnota do formuláře (zobrazované jednotky). */
+/** Solver prostor (poloměr) → hodnota do formuláře (zobrazované jednotky). */
 function fromSolverX(val) {
-  return displayX(val / 2);
+  return displayX(val);
 }
 
 // ── Osy VK ↔ CAD plátno ─────────────────────────────────────────
@@ -171,7 +175,11 @@ export function upsertVkVpolLine(code, values = {}) {
 export function parseVkLine(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return null;
-  const cmdMatch = trimmed.match(/^(G0|G111|G11|G2|G3)\b/);
+  // `G1` je tu kvůli VÝSTUPU vlastní konverze na ISO (G11→G1, G0→G1) a kvůli
+  // přechodovým úsečkám z insertTangentTransitions. Bez něj byl zkonvertovaný
+  // program pro parser neviditelný – nešel z něj náhled ani vložení do výkresu.
+  // Pořadí v alternaci musí jít od nejdelšího: G111 → G11 → G1.
+  const cmdMatch = trimmed.match(/^(G0|G111|G11|G1|G2|G3)\b/);
   if (!cmdMatch) return null;
   const data = {
     cmd: cmdMatch[1],
@@ -269,7 +277,10 @@ export function buildVkPreviewData(lines, draftSegment = null) {
       start = { x: entry.x, z: entry.z };
       const delta = polarDelta(entry.pa, entry.pr);
       end = { x: start.x + delta.x, z: start.z + delta.z };
-    } else if (entry.x != null && entry.z != null && isFirstElement && entry.cmd === 'G0') {
+    } else if (entry.x != null && entry.z != null && isFirstElement && (entry.cmd === 'G0' || !start)) {
+      // `!start` = není VPOL ani předchozí bod, takže první prvek JE počátek.
+      // Bez toho by zkonvertovaný program (samé G1, žádné G0/VPOL) neměl kde
+      // začít a všechny jeho řádky by se zahodily.
       start = { x: entry.x, z: entry.z };
       end = { x: entry.x, z: entry.z };
     } else if (entry.x != null && entry.z != null) {
@@ -344,43 +355,167 @@ function vectorFromAngle(angleDeg) {
   return { z: Math.cos(angleDeg * D2R), x: Math.sin(angleDeg * D2R) };
 }
 
-function pickTangentArcStart(prev, arc) {
-  if (!prev || !arc || !arc.isArc || arc.x == null || arc.z == null || arc.r == null) return null;
-  if (prev.pa == null || prev.pr != null) return null;
-  const ray = { z0: prev.z, x0: prev.x, angleDeg: ((prev.pa % 360) + 360) % 360 };
-  const candidates = tangentCircleTouchPoints(ray, { z: arc.z, x: arc.x }, arc.r);
+/** Oblouk s dostatkem zadaného, aby šlo hledat dotyk (známý konec + R). */
+function isResolvableArc(el) {
+  return !!el && el.isArc && el.x != null && el.z != null && el.r != null;
+}
+
+/** Konstrukční paprsek – úhel bez délky (pomůcka pro hledání průsečíku). */
+function isConstructionRay(el) {
+  return !!el && el.pa != null && el.pr == null;
+}
+
+/**
+ * Dotykový bod tečného oblouku na daném paprsku.
+ *
+ * Vstup i výstup jsou v jednotkách TEXTU G-kódu (co uživatel napsal), samotná
+ * geometrie ale běží ve skutečné rovině (Z, poloměr) – v režimu průměr je osa
+ * X 2× roztažená, oblouk by v ní byl elipsa a dotyk by vyšel jinde.
+ *
+ * @param {{x:number, z:number}} anchor bod na paprsku (v jednotkách textu)
+ * @param {number} angleDeg směr paprsku ve skutečné rovině
+ * @param {object} arc naparsovaný řádek oblouku
+ * @returns {{x:number, z:number}|null}
+ */
+function tangentPointOnRay(anchor, angleDeg, arc) {
+  const ray = { z0: anchor.z, x0: inputX(anchor.x), angleDeg: ((angleDeg % 360) + 360) % 360 };
+  const arcEnd = { z: arc.z, x: inputX(arc.x) };
+  const toTextUnits = (pt) => ({ z: pt.z, x: displayX(pt.x) });
+  const candidates = tangentCircleTouchPoints(ray, arcEnd, arc.r);
   if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0];
+  if (candidates.length === 1) return toTextUnits(candidates[0]);
+  // Rozhoduje shoda směru (tečna oblouku vs. směr paprsku); při shodě se bere
+  // bod bližší kotvě, ať se s tím, co uživatel napsal, hýbe co nejmíň.
   const rayDir = vectorFromAngle(ray.angleDeg);
   let best = null;
   for (const pt of candidates) {
-    const geometry = resolveVkArcGeometry(pt, { z: arc.z, x: arc.x }, arc.r, arc.cmd);
+    const geometry = resolveVkArcGeometry(pt, arcEnd, arc.r, arc.cmd);
     if (!geometry) continue;
     const startAngle = Math.atan2(pt.z - geometry.center.z, pt.x - geometry.center.x);
     const tangent = arc.cmd === 'G2'
       ? { z: -Math.cos(startAngle), x: Math.sin(startAngle) }
       : { z: Math.cos(startAngle), x: -Math.sin(startAngle) };
     const dot = tangent.z * rayDir.z + tangent.x * rayDir.x;
-    if (!best || dot > best.dot) best = { pt, dot };
+    const gap = Math.hypot(pt.z - ray.z0, pt.x - ray.x0);
+    if (!best || dot > best.dot + 1e-9 || (Math.abs(dot - best.dot) <= 1e-9 && gap < best.gap)) {
+      best = { pt, dot, gap };
+    }
   }
-  return best ? best.pt : candidates[0];
+  return toTextUnits(best ? best.pt : candidates[0]);
 }
 
-export function insertTangentTransitions(lines) {
+/** Tečný dotyk po KONSTRUKČNÍM PAPRSKU (G0/G111 s PA, bez PR). */
+function pickTangentArcStart(prev, arc) {
+  if (!isConstructionRay(prev) || !isResolvableArc(arc)) return null;
+  return tangentPointOnRay({ z: prev.z, x: prev.x }, prev.pa, arc);
+}
+
+/**
+ * Projde řádky a ke každému prvku dopočte začátek/konec v jednotkách textu.
+ * `chain[i]` je `null` tam, kde chain nejde uzavřít (neznámé „?", VPOL řádek,
+ * první prvek – ten žádný předchozí začátek nemá).
+ */
+function buildTextChain(parsed) {
+  const chain = [];
+  let cur = null;
+  for (const el of parsed) {
+    if (!el || el.cmd === 'G111') { chain.push(null); continue; }
+    const start = cur;
+    let end = null;
+    if (el.x != null && el.z != null) {
+      end = { x: el.x, z: el.z };
+    } else if (el.pa != null && el.pr != null && start) {
+      const delta = polarDelta(el.pa, el.pr);
+      end = { x: start.x + delta.x, z: start.z + delta.z };
+    }
+    chain.push(start && end ? { start, end } : null);
+    cur = end;
+  }
+  return chain;
+}
+
+/** Směr prvku ve skutečné rovině (Z, poloměr), ve stupních – nebo null. */
+function segmentDirectionDeg(segment) {
+  const dz = segment.end.z - segment.start.z;
+  const dx = inputX(segment.end.x) - inputX(segment.start.x);
+  if (Math.hypot(dz, dx) < 1e-9) return null;
+  return Math.atan2(dx, dz) / D2R;
+}
+
+/** Přepíše X a Z v řádku na dopočtené hodnoty (ostatní adresy nechá být). */
+function patchLineXZ(text, pt) {
+  return text
+    .replace(/X-?\d+(?:\.\d+)?/, `X${fmt(pt.x)}`)
+    .replace(/Z-?\d+(?:\.\d+)?/, `Z${fmt(pt.z)}`);
+}
+
+/**
+ * Doplní tečné napojení na oblouky.
+ *
+ * Dva různé případy, protože si žádají různé řešení:
+ *
+ * 1. **Po konstrukčním paprsku** (`G0 X.. Z.. PA..` bez PR) se VLOŽÍ přechodová
+ *    úsečka `G1` do dotykového bodu. Paprsek je jen pomůcka bez délky, takže
+ *    není co posouvat – a dělá se to bez ohledu na příznak T (paprsek žádnou
+ *    jinou roli nemá).
+ * 2. **Mezi dvěma běžnými prvky** se POSUNE konec předchozího prvku do
+ *    dotykového bodu. Vložit další `G1` by tu znamenalo dojet na napsaný roh
+ *    a pak couvnout po vlastní čáře zpátky. Tady se to dělá **jen když má
+ *    oblouk příznak T** – bez něj uživatel o tečnost nežádal a přepisovat mu
+ *    souřadnici, kterou vypsal, by bylo překvapení.
+ *
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+export function planTangentTransitions(lines) {
   const parsed = lines.map((line) => parseVkLine(line));
+  const chain = buildTextChain(parsed);
   const result = [];
+  const touches = [];
   for (let i = 0; i < lines.length; i += 1) {
     const prev = i > 0 ? parsed[i - 1] : null;
     const cur = parsed[i];
     if (prev && cur) {
-      const tangent = pickTangentArcStart(prev, cur);
-      if (tangent && (Math.abs(tangent.x - prev.x) > 1e-6 || Math.abs(tangent.z - prev.z) > 1e-6)) {
-        result.push(`G1 X${fmt(tangent.x)} Z${fmt(tangent.z)}`);
+      const viaRay = pickTangentArcStart(prev, cur);
+      if (viaRay && (Math.abs(viaRay.x - prev.x) > 1e-6 || Math.abs(viaRay.z - prev.z) > 1e-6)) {
+        result.push(`G1 X${fmt(viaRay.x)} Z${fmt(viaRay.z)}`);
+        touches.push({ ...viaRay });
+      } else if (
+        cur.isT && isResolvableArc(cur)
+        && !prev.isArc && !isConstructionRay(prev)
+        && prev.x != null && prev.z != null && chain[i - 1]
+      ) {
+        const direction = segmentDirectionDeg(chain[i - 1]);
+        const touch = direction == null ? null : tangentPointOnRay(chain[i - 1].end, direction, cur);
+        if (touch && (Math.abs(touch.x - prev.x) > 1e-6 || Math.abs(touch.z - prev.z) > 1e-6)) {
+          result[result.length - 1] = patchLineXZ(result[result.length - 1], touch);
+          touches.push({ ...touch });
+        }
       }
     }
     result.push(lines[i]);
   }
-  return result;
+  return { lines: result, touches };
+}
+
+/** Jen upravené řádky – zkratka nad `planTangentTransitions()`. */
+export function insertTangentTransitions(lines) {
+  return planTangentTransitions(lines).lines;
+}
+
+/**
+ * Segmenty, které tečné napojení skutečně změní – tedy ty z `hintSegments`,
+ * pro které v `baseSegments` není shodný protějšek. Slouží živému náhledu,
+ * aby se přes hotovou konturu nekreslila celá její kopie, ale jen ten kousek
+ * u napojení, který se posune.
+ */
+export function diffPreviewSegments(hintSegments, baseSegments) {
+  const same = (a, b) =>
+    Math.abs(a.start.z - b.start.z) < 1e-6 && Math.abs(a.start.x - b.start.x) < 1e-6 &&
+    Math.abs(a.end.z - b.end.z) < 1e-6 && Math.abs(a.end.x - b.end.x) < 1e-6;
+  return (hintSegments || []).filter(
+    (hint) => hint.type !== 'ray' && !(baseSegments || []).some((base) => same(hint, base)),
+  );
 }
 
 /**
@@ -390,14 +525,14 @@ export function insertTangentTransitions(lines) {
 export function renderVkTab() {
   // X může být zadáván v poloměru nebo průměru (☰ Nastavení → 📏 Zobrazení) –
   // popisky se přizpůsobí, ale vkSolver.js (dopočet neznámých – kategorie 1–4)
-  // vždy počítá s průměrem, takže se hodnota ze strukturovaného formuláře
-  // převádí přes toSolverX/fromSolverX. Náhled z volného textu (insertTangentTransitions,
-  // buildVkPreviewData) pracuje přímo s čísly z textu bez konverze – tam už
-  // X znamená to, co je v G-kódu napsané.
+  // počítá vždy v poloměru, takže se hodnota ze strukturovaného formuláře
+  // převádí přes toSolverX/fromSolverX. Náhled a text G-kódu drží čísla tak,
+  // jak je uživatel napsal; kde se z nich počítá geometrie (tangentPointOnRay),
+  // si převod udělá volající. Viz „Jednotky osy X" nahoře.
   const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
     <div class="vk-preview-bar">
-      <span class="vk-preview-hint">Náhled se kreslí přímo na výkres</span>
+      <span class="vk-preview-hint">Náhled se kreslí přímo na výkres · <span class="vk-hint-tangent">čárkovaně</span> = tečné napojení po konverzi</span>
       <button type="button" class="vk-header-btn" data-act="fit-view" title="Přizpůsobit pohled výkresu kontuře">⤢</button>
     </div>
     <div class="vk-solution-picker" data-id="solution-picker" style="display:none; margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -511,6 +646,16 @@ export function renderVkTab() {
           <input type="checkbox" data-id="check-t">
           Tečné napojení na předchozí prvek (T)
         </label>
+        <div class="cnc-fields">
+          <label class="cnc-field" title="Když má dopočet dvě geometricky platná řešení a jsou podobně daleko od začátku obrysu, appka nehádá – vyber, které chceš.">
+            <span>Dvojznačnost řešení</span>
+            <select data-id="vpol-tag">
+              <option value="">— (rozhodne appka)</option>
+              <option value="VPOL1">VPOL1 – bližší začátku obrysu</option>
+              <option value="VPOL2">VPOL2 – vzdálenější</option>
+            </select>
+          </label>
+        </div>
         <div class="vk-solve-info" data-solve-info></div>
       </div>
     </details>
@@ -703,6 +848,27 @@ export function initVkTab(container, { picker = null } = {}) {
   }
 
   /**
+   * Živý náhled tečného napojení: co by s konturou udělalo „Konvertovat na
+   * ISO G-kód", ještě než se na něj klikne.
+   *
+   * Vrací jen ROZDÍL proti hotové kontuře (posunutý kousek u napojení)
+   * a dotykové body. Text se schválně nemění – náhled hlavní kontury musí
+   * dál odpovídat tomu, co je napsané, protože přesně to vloží
+   * „📥 Vložit do výkresu". Kdyby se místo toho překreslila rovnou tečně
+   * upravená kontura, náhled a vložená geometrie by si přestaly odpovídat.
+   *
+   * @returns {{segments: object[], touches: {z:number,x:number}[]}|null}
+   */
+  function buildTangentHint(code, baseData) {
+    const rawLines = String(code || '').split(/\r?\n/);
+    const plan = planTangentTransitions(rawLines);
+    if (plan.touches.length === 0) return null;
+    const segments = diffPreviewSegments(buildVkPreviewData(plan.lines).segments, baseData.segments);
+    if (segments.length === 0) return null;
+    return { segments, touches: plan.touches };
+  }
+
+  /**
    * Přepočítá náhled z aktuálního textu + rozepsaného prvku, uloží ho do
    * `state.vkPreview.data` a nechá překreslit CAD plátno. Vlastní kreslení
    * dělá calculators/vkPreviewRender.js přes bridge.renderVkPreview.
@@ -718,6 +884,7 @@ export function initVkTab(container, { picker = null } = {}) {
       if (selectedSolutionIndex >= previewData.ambiguousSolutions.length) selectedSolutionIndex = 0;
     }
     previewData.selectedSolutionIndex = selectedSolutionIndex;
+    previewData.tangentHint = buildTangentHint(value, previewData);
 
     // Přepínač variant řešení (dřív se schovával uvnitř kreslení canvasu)
     if (solutionPicker) {
@@ -1015,17 +1182,61 @@ export function initVkTab(container, { picker = null } = {}) {
 
   function refPoint() { return startPoint || lastPoint; }
 
-  function pickOrThrow(points, tag) {
-    if (points.length === 0) throw new Error('žádné řešení (mimo dosah)');
-    if (points.length === 1) return points[0];
-    if (!tag) throw new Error('dvě možná řešení – zvolte VPOL1 nebo VPOL2');
-    return pickByVpolTag(points, refPoint(), tag);
+  /**
+   * Směr geometrie, která končí v daném bodě – vytažený z už napsané VK
+   * syntaxe.
+   *
+   * Potřeba pro tečný oblouk, který zůstal ve frontě sám: prvek před ním se
+   * mezitím dopočítal a z fronty vypadl, takže jeho směr nikde v paměti
+   * není – ale v textu ano.
+   *
+   * @param {{z:number, x:number}} anchor začátek oblouku (solver prostor = poloměr)
+   * @returns {number|null} úhel ve stupních, nebo null když směr nejde určit
+   */
+  function directionEndingAt(anchor) {
+    if (!anchor) return null;
+    const parsed = String(gcodeEl.value || '').split(/\r?\n/).map(parseVkLine);
+    const chain = buildTextChain(parsed);
+    for (let i = chain.length - 1; i >= 0; i -= 1) {
+      const segment = chain[i];
+      // Z oblouku by tětiva dala jiný směr než jeho tečna v koncovém bodě –
+      // oblouk na oblouk je stejně samostatná úloha (esíčko, kategorie 3).
+      if (!segment || parsed[i]?.isArc) continue;
+      if (Math.abs(segment.end.z - anchor.z) > 1e-6) continue;
+      if (Math.abs(inputX(segment.end.x) - anchor.x) > 1e-6) continue;
+      return segmentDirectionDeg(segment);
+    }
+    return null;
   }
 
-  /** Dopočet přesně jednoho nedořešeného prvku (kategorie 1, nebo 2/4 se 2 prvky). */
+  /**
+   * Vybere řešení mezi kandidáty. Když je jedno výrazně blíž startu obrysu,
+   * vezme ho i bez VPOL1/VPOL2 – ale řekne to (`notes`), aby uživatel věděl,
+   * že se rozhodovalo za něj a čím to přebít.
+   * @param {Array} candidates
+   * @param {'VPOL1'|'VPOL2'|null} tag
+   * @param {string[]} notes výstupní kanál pro informaci o auto-výběru
+   * @param {(c: any) => {z:number,x:number}} [keyFn] co se u kandidáta měří
+   */
+  function chooseOrThrow(candidates, tag, notes, keyFn) {
+    if (!candidates || candidates.length === 0) throw new Error('žádné řešení (mimo dosah)');
+    const choice = chooseSolution(candidates, refPoint(), tag, keyFn);
+    if (!choice) throw new Error('dvě možná řešení – zvolte VPOL1 nebo VPOL2');
+    if (choice.auto) {
+      const ratioText = Number.isFinite(choice.ratio) ? `${fmt(choice.ratio)}×` : 'mnohem';
+      notes.push(`bližší řešení zvoleno automaticky (druhé je ${ratioText} dál od startu) – druhou variantu vynutíš zápisem VPOL2`);
+    }
+    return choice.value;
+  }
+
+  /**
+   * Dopočet přesně jednoho nedořešeného prvku (kategorie 1, nebo 2/4 se 2 prvky).
+   * @returns {{ points: Record<string, {z:number,x:number}>, notes: string[] }}
+   */
   function resolveOne(prevEl, currEl) {
+    const notes = [];
     if (!prevEl.isArc && !currEl.isArc) {
-      return { [prevEl.id]: solveCornerLineLine(prevEl.anchor, prevEl, currEl) };
+      return { points: { [prevEl.id]: solveCornerLineLine(prevEl.anchor, prevEl, currEl) }, notes };
     }
     if (prevEl.isArc && currEl.isArc) throw new Error('dva oblouky za sebou zatím nejsou podporované (kategorie 3)');
     // jedna strana je oblouk – T rozlišuje tečné (kat. 2, case 5) od netečného kolem VPOL (kat. 4)
@@ -1033,32 +1244,72 @@ export function initVkTab(container, { picker = null } = {}) {
       // case 5: přímka/kužel (prevEl, „?") → oblouk (currEl, ZNÁMÝ konec + R), tečně
       const ray = elementRay(prevEl, prevEl.anchor);
       const pts = tangentCircleTouchPoints(ray, { z: currEl.z, x: currEl.x }, currEl.r);
-      return { [prevEl.id]: pickOrThrow(pts, currEl.vpolTag) };
+      return { points: { [prevEl.id]: chooseOrThrow(pts, currEl.vpolTag, notes) }, notes };
     }
     if (prevEl.isArc && prevEl.isT) {
-      throw new Error('tečný oblouk jako první prvek řetězu (bez předchozí přímky) zatím není podporovaný');
+      // Oblouk zůstal ve frontě sám: začátek zná (kotva), tečně navazuje na
+      // prvek PŘED sebou (ten je už dopočtený, směr se bere z textu) a končí
+      // na paprsku následujícího známého prvku.
+      const startDirection = directionEndingAt(prevEl.anchor);
+      if (startDirection == null) {
+        throw new Error('tečný oblouk nemá na co navázat – před ním musí být dopočtená přímka/kužel (oblouk na oblouk zatím nejde)');
+      }
+      const ends = tangentArcEndOnRay(
+        prevEl.anchor, startDirection, prevEl.r, knownElementRay(currEl, startDirection),
+      );
+      return { points: { [prevEl.id]: chooseOrThrow(ends, currEl.vpolTag, notes) }, notes };
     }
     if (!vpolPoint) throw new Error('nejprve vlož VPOL (netečný oblouk se počítá kolem VPOL)');
-    if (prevEl.isArc) {
-      const ray = elementRay(currEl, { z: currEl.z, x: currEl.x });
-      return { [prevEl.id]: solveLineArcJunction(ray, vpolPoint, prevEl.r, refPoint(), currEl.vpolTag) };
-    }
-    const ray = elementRay(prevEl, prevEl.anchor);
-    return { [prevEl.id]: solveLineArcJunction(ray, vpolPoint, currEl.r, refPoint(), currEl.vpolTag) };
+    const ray = prevEl.isArc
+      ? elementRay(currEl, { z: currEl.z, x: currEl.x })
+      : elementRay(prevEl, prevEl.anchor);
+    const candidates = solveLineArcJunctionCandidates(ray, vpolPoint, prevEl.isArc ? prevEl.r : currEl.r);
+    return { points: { [prevEl.id]: chooseOrThrow(candidates, currEl.vpolTag, notes) }, notes };
+  }
+
+  /**
+   * Paprsek plně zadaného prvku, kterým se dopočet spouští.
+   *
+   * Má X i Z, takže sám o sobě směr nenese a `elementRay` by ho odmítl.
+   * Platí tu táž konvence jako u kategorie 1 (`solveCornerLineLine`): bez
+   * vlastního PA se bere jako KOLMÝ – tady na směr, kterým rozdělaný řetěz
+   * začíná. Typický případ válec → rádius → čelo.
+   */
+  function knownElementRay(currEl, fallbackDirectionDeg) {
+    return currEl.pa != null
+      ? elementRay(currEl, { z: currEl.z, x: currEl.x })
+      : { z0: currEl.z, x0: currEl.x, angleDeg: fallbackDirectionDeg + 90 };
   }
 
   /** Dopočet dvou nedořešených prvků najednou (kategorie 2, case 6-8: A, oblouk B, pak známý currEl). */
   function resolveTwo(elA, elB, currEl) {
     if (!elB.isArc) throw new Error('prostřední prvek musí být oblouk');
-    if (elA.isArc) throw new Error('dva oblouky za sebou zatím nejsou podporované (kategorie 3)');
+    if (elA.isArc) {
+      // Esíčko BEZ úvodní přímky: první oblouk navazuje tečně na už dopočtenou
+      // geometrii (její směr se bere z textu), druhý končí na následujícím
+      // známém prvku. „Bod zlomu" tu netřeba – tečnost prvního oblouku jeho
+      // střed pevně určí, takže soustava vyjde určená sama (viz vkSolver).
+      const notes = [];
+      const startDirection = directionEndingAt(elA.anchor);
+      if (startDirection == null) {
+        throw new Error('esíčko nemá na co navázat – před prvním obloukem musí být dopočtená přímka/kužel');
+      }
+      const candidates = twoTangentArcsFromDirection(
+        elA.anchor, startDirection, elA.r, elB.r, knownElementRay(currEl, startDirection),
+      );
+      if (candidates.length === 0) {
+        throw new Error('žádné řešení (s danými poloměry nejde esíčko na tuhle geometrii navázat)');
+      }
+      const pick = chooseOrThrow(candidates, currEl.vpolTag, notes, (c) => c.junction);
+      return { points: { [elA.id]: pick.junction, [elB.id]: pick.foot2 }, notes };
+    }
+    const notes = [];
     const ray1 = elementRay(elA, elA.anchor);
     const ray2 = elementRay(currEl, { z: currEl.z, x: currEl.x });
     const candidates = tangentCircleBetweenRays(ray1, ray2, elB.r);
     if (candidates.length === 0) throw new Error('žádné řešení (přímky/kužely se s daným R nedají tečně spojit)');
-    const pick = candidates.length === 1 ? candidates[0]
-      : (currEl.vpolTag ? pickBetweenRaysByVpolTag(candidates, refPoint(), currEl.vpolTag)
-        : (() => { throw new Error('dvě možná řešení – zvolte VPOL1 nebo VPOL2'); })());
-    return { [elA.id]: pick.foot1, [elB.id]: pick.foot2 };
+    const pick = chooseOrThrow(candidates, currEl.vpolTag, notes, (c) => c.center);
+    return { points: { [elA.id]: pick.foot1, [elB.id]: pick.foot2 }, notes };
   }
 
   /** Dopočet tří nedořešených prvků najednou (kategorie 3, case 9-11: A, oblouk1, oblouk2, pak známý currEl). */
@@ -1066,14 +1317,13 @@ export function initVkTab(container, { picker = null } = {}) {
     if (!arc1.isArc || !arc2.isArc) throw new Error('prostřední dva prvky musí být oblouky (esíčko)');
     if (elA.isArc) throw new Error('první prvek řetězu musí být přímka/kužel');
     if (!arc2.junction) throw new Error('u druhého oblouku chybí „Bod zlomu" (osa + hodnota) – bez něj má esíčko víc řešení, než kolik je zadáno');
+    const notes = [];
     const ray1 = elementRay(elA, elA.anchor);
     const ray2 = elementRay(currEl, { z: currEl.z, x: currEl.x });
     const candidates = twoTangentArcsBetweenRays(ray1, ray2, arc1.r, arc2.r, arc2.junction);
     if (candidates.length === 0) throw new Error('žádné řešení (s danými poloměry a bodem zlomu nejde esíčko sestavit)');
-    const pick = candidates.length === 1 ? candidates[0]
-      : (currEl.vpolTag ? pickTwoArcsByVpolTag(candidates, refPoint(), currEl.vpolTag)
-        : (() => { throw new Error('víc možných řešení – zvolte VPOL1 nebo VPOL2'); })());
-    return { [elA.id]: pick.foot1, [arc1.id]: pick.junction, [arc2.id]: pick.foot2 };
+    const pick = chooseOrThrow(candidates, currEl.vpolTag, notes, (c) => c.junction);
+    return { points: { [elA.id]: pick.foot1, [arc1.id]: pick.junction, [arc2.id]: pick.foot2 }, notes };
   }
 
   // Kotva paprsku počátečního bodu (žádný předchozí prvek neexistuje):
@@ -1203,7 +1453,7 @@ export function initVkTab(container, { picker = null } = {}) {
       isT: isTChecked,
       dir: currentType === 'vkr' ? arcDir : null,
       xRaw,                                          // pro text (zobrazovaná jednotka)
-      x: xRaw == null ? null : toSolverX(xRaw),       // pro geometrii (vkSolver = vždy průměr)
+      x: xRaw == null ? null : toSolverX(xRaw),       // pro geometrii (vkSolver = vždy poloměr)
       z: zStr === '?' || zStr.trim() === '' ? null : parseFloat(zStr),
       pa: (paStr === '?' || paStr.trim() === '') ? null : parseFloat(paStr),
       prRaw: prStr === '?' || prStr.trim() === '' ? null : prStr,
@@ -1276,12 +1526,13 @@ export function initVkTab(container, { picker = null } = {}) {
         else solved = resolveThree(pendingQueue[0], pendingQueue[1], pendingQueue[2], el);
         const parts = [];
         for (const item of pendingQueue) {
-          const pt = solved[item.id];
+          const pt = solved.points[item.id];
           patchLine(item, pt);
           parts.push(`Z${fmt(pt.z)} X${fmt(fromSolverX(pt.x))}`);
         }
-        lastPoint = solved[pendingQueue[pendingQueue.length - 1].id];
-        solveInfo.textContent = `✓ Dopočteno: ${parts.join(' | ')}`;
+        lastPoint = solved.points[pendingQueue[pendingQueue.length - 1].id];
+        const note = solved.notes?.length ? ` — ${solved.notes.join('; ')}` : '';
+        solveInfo.textContent = `✓ Dopočteno: ${parts.join(' | ')}${note}`;
         pendingQueue = [];
       } catch (err) {
         solveInfo.textContent = `⚠ Nelze dopočítat: ${err.message}`;
@@ -1363,7 +1614,9 @@ export function initVkTab(container, { picker = null } = {}) {
       convertBtn.textContent = 'Obnovit VK syntaxi';
 
     function parseVkLine(text) {
-      const cmdMatch = text.trim().match(/^(G0|G111|G11|G2|G3)\b/);
+      // Stejná sada příkazů jako u modulového parseru (viz komentář tam) –
+      // `G1` musí projít, jinak by druhá konverze zahodila už převedené řádky.
+      const cmdMatch = text.trim().match(/^(G0|G111|G11|G1|G2|G3)\b/);
       if (!cmdMatch) return null;
       const data = { cmd: cmdMatch[1], text, isArc: cmdMatch[1] === 'G2' || cmdMatch[1] === 'G3' };
       const re = /([A-Z]{1,4})(-?\d+(?:\.\d+)?|\?)/g;

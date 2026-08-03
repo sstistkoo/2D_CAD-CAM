@@ -544,6 +544,38 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   > Když je v syntaxi ještě `?`, vložení se odmítne – nejdřív použij
   > **Konvertovat na ISO G-kód**, který neznámé dopočítá.
 
+  **Tečné napojení (T)** – u oblouku s příznakem `T` dotáhne VK předchozí
+  úsečku nebo kužel přesně do bodu dotyku, takže přechod je hladký.
+  Kam se kontura posune, je vidět **na výkrese už při psaní** – fialově
+  čárkovaně, s kroužkem v dotykovém bodě. Je to jen nápověda; do syntaxe
+  (a tím i do výkresu) se úprava zapíše až tlačítkem **Konvertovat na ISO
+  G-kód**, po kterém nápověda zmizí.
+  Konec předchozího prvku se přitom **posune** (napsaný roh byl jen
+  nominální) – proto se to dělá jen s `T`. Po konstrukčním paprsku
+  (úhel bez délky) se místo toho vloží přechodová úsečka `G1`.
+
+  Funguje i obráceně: oblouk může mít **neznámý konec** (`X? Z?`) a dopočítá
+  se z prvku, který za ním následuje – klasické **válec → rádius → čelo**
+  se zadá jako válec, pak oblouk `R` s `T` a `?`, a pak čelo. Kam se oblouk
+  zahne (ven k osazení, nebo dovnitř k ose), rozhoduje **Dvojznačnost
+  řešení** níže.
+
+  Stejně se zadá i **esíčko** (dva tečné oblouky za sebou): válec, pak dva
+  oblouky s `T` a `?`, pak čelo. Když esíčko takhle navazuje na už hotovou
+  geometrii, **nemusíš vyplňovat „Bod zlomu"** – poloha vyjde ze samotné
+  tečnosti. Pole „Bod zlomu" je potřeba jen tehdy, když esíčko začíná
+  rozdělanou přímkou (i ta má `?`), protože pak má úloha o jedno zadání míň.
+
+  **Dvojznačná řešení** – když má dopočet dvě geometricky platná řešení
+  a jedno z nich je aspoň 3× dál od začátku obrysu než druhé, vezme se
+  automaticky to bližší a informační řádek to oznámí (včetně poměru).
+  Když jsou obě podobně daleko, VK se zeptá – vyber ve formuláři
+  **Dvojznačnost řešení** `VPOL1` (bližší) nebo `VPOL2` (vzdálenější),
+  nebo dopiš značku rovnou do řádku v syntaxi. Volba patří k tomu
+  **plně zadanému prvku, kterým se dopočet spouští**, a po vložení se
+  přepínač vrací na „—", aby se tiše nepřenesla na další prvek.
+  Přebít se dá i řešení, které appka vybrala sama.
+
 ---
 
 ## AI panel
