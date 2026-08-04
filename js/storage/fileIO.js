@@ -1184,8 +1184,8 @@ document.getElementById("btnCncEdit").addEventListener("click", () => {
 function renderCncCodeToCanvas(code) {
   if (!code) { showToast("CNC kód je prázdný"); return; }
   try {
-    const objs = parseGcodeToObjects(code);
-    if (!objs.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
+    const { objs, warnings } = parseGcodeToObjects(code);
+    if (!objs.length && !warnings.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
     pushUndo();
     state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
     // Objekty naparsované z G-kódu dřív neměly .layer vůbec (obcházely addObject()),
@@ -1197,7 +1197,18 @@ function renderCncCodeToCanvas(code) {
     updateProperties();
     autoCenterView();
     runCncExport();
-    showToast(`Vykresleno ${objs.length} objektů z CNC kódu`);
+    if (warnings.length > 0) {
+      // Geometricky nemožný řádek (typicky R menší než půlka vzdálenosti
+      // bodů) se dřív tiše přeskočil beze stopy – teď to appka řekne, i s
+      // číslem řádku a tím, jaké R by stačilo. Detaily jdou i do konzole,
+      // ať je vidět všechny najednou, ne jen první.
+      console.warn('G-kód – geometricky nemožné řádky:', warnings);
+      const first = warnings[0];
+      const rest = warnings.length > 1 ? ` (+${warnings.length - 1} další)` : '';
+      showToast(`Vykresleno ${objs.length} objektů – řádek ${first.line} přeskočen: ${first.reason}${rest}`);
+    } else {
+      showToast(`Vykresleno ${objs.length} objektů z CNC kódu`);
+    }
   } catch (e) {
     showToast("Chyba při parsování kódu: " + e.message);
   }
@@ -1310,7 +1321,7 @@ function importCncFile() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const objs = parseGcodeToObjects(ev.target.result);
+        const { objs, warnings } = parseGcodeToObjects(ev.target.result);
         if (!objs.length) { showToast("Nenalezeny žádné pohyby v souboru"); return; }
         pushUndo();
         objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); });
@@ -1319,7 +1330,12 @@ function importCncFile() {
         updateProperties();
         autoCenterView();
         runCncExport();
-        showToast(`Načteno ${objs.length} objektů z G-kódu`);
+        if (warnings.length > 0) {
+          console.warn('G-kód – geometricky nemožné řádky:', warnings);
+          showToast(`Načteno ${objs.length} objektů – řádek ${warnings[0].line} přeskočen: ${warnings[0].reason}`);
+        } else {
+          showToast(`Načteno ${objs.length} objektů z G-kódu`);
+        }
       } catch (e) {
         showToast("Chyba při načítání G-kódu: " + e.message);
       }
@@ -1362,6 +1378,12 @@ function parseGcodeToObjects(code) {
   }
 
   const objs = [];
+  // Řádky, které appka geometricky nedovede sestrojit (typicky R menší než
+  // půlka tětivy) – vrací se volajícímu, aby o nich šlo uživatele
+  // informovat. Dřív se takový řádek tiše zahodil a poloha „teleportovala"
+  // na cíl bez viditelné čáry, beze stopy po tom, že se něco nepovedlo.
+  const warnings = [];
+  let lineNo = 0;
   let cx = 0, cy = 0;     // aktuální poloha v canvas souřadnicích
   let gMode = 90;          // 90=absolutní, 91=inkrementální (modální – platí dokud není změněno)
   let motionCode = 0;      // poslední pohybový kód (modální G0/1/2/3)
@@ -1375,6 +1397,7 @@ function parseGcodeToObjects(code) {
   }
 
   for (const rawLine of code.split('\n')) {
+    lineNo += 1;
     // Detekce STOCK markerů před odstraněním komentářů
     if (/STOCK_START/i.test(rawLine)) { inStock = true; continue; }
     if (/STOCK_END/i.test(rawLine))   { inStock = false; continue; }
@@ -1463,7 +1486,14 @@ function parseGcodeToObjects(code) {
           { x: cx, y: cy }, { x: tx, y: ty },
           Math.abs(gRval), thisMotion === 3, { longArc: gRval < 0 },
         );
-        if (!rArc) { lastComment = ''; cx = tx; cy = ty; continue; }
+        if (!rArc) {
+          const chord = Math.hypot(tx - cx, ty - cy);
+          warnings.push({
+            line: lineNo, text: rtrim,
+            reason: `R${Math.abs(gRval).toFixed(3)} je moc malý pro tuto vzdálenost bodů (${chord.toFixed(3)} mm) – potřeba aspoň R${(chord / 2).toFixed(3)}`,
+          });
+          lastComment = ''; cx = tx; cy = ty; continue;
+        }
         acx = rArc.cx;
         acy = rArc.cy;
       } else { lastComment = ''; cx = tx; cy = ty; continue; }
@@ -1481,7 +1511,7 @@ function parseGcodeToObjects(code) {
       cx = tx; cy = ty;
     }
   }
-  return objs;
+  return { objs, warnings };
 }
 
 // Spojí za sebou navazující line/arc objekty do polyline (kontury).

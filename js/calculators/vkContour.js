@@ -1623,6 +1623,25 @@ export function initVkTab(container, { picker = null } = {}) {
       return;
     }
 
+    // ── Oblouk se zcela známými souřadnicemi cíle – R vůbec neprojde
+    // solverem (ten se volá jen pro nedořešené prvky ve frontě), takže bez
+    // tohohle by appka klidně přijala geometricky nemožné R (kratší než
+    // půlka tětivy) a náhled by ho tiše nakreslil jako rovnou čáru bez
+    // varování. Omezeno na prázdnou frontu – s nedořešenými prvky v ní by
+    // `refPoint()` ukazoval na bod PŘED jejich dopočtem, ne na skutečný
+    // začátek tohoto oblouku (ten teprve vzejde ze společného řešení).
+    if (el.isArc && isKnown && el.r > 0 && pendingQueue.length === 0) {
+      const start = refPoint();
+      if (start) {
+        const chord = Math.hypot(el.z - start.z, el.x - start.x);
+        const minR = chord / 2;
+        if (el.r < minR - 1e-6) {
+          solveInfo.textContent = `⚠ Poloměr R${fmt(el.r)} je moc malý pro tuto vzdálenost bodů (${fmt(chord)} mm) – potřeba aspoň R${fmt(minR)}.`;
+          return;
+        }
+      }
+    }
+
     if (isKnown && pendingQueue.length > 0) {
       try {
         let solved;

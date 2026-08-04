@@ -5450,6 +5450,19 @@ body {
   min-height: 0;
   overflow-y: auto;
 }
+/* Děti nesmí flexboxem SMRSKNOUT pod svou přirozenou výšku, jinak tlačí
+   výšku ven ROLOVÁNÍM (žádoucí – proto `.tab-scroll` má overflow-y:auto).
+   Bez tohohle je `<details class="sn-help-details">` (VK sekce „prvek VK")
+   flex-shrink-1 default a má `overflow:hidden` (kvůli zaobleným rohům
+   jinde v appce) – ta kombinace flexboxu dovolí zmenšit ho až na 0
+   (spec: automatická minimální velikost je 0, když overflow != visible),
+   takže se při nedostatku místa TICHO OŘÍZL místo toho, aby se nechal
+   dorolovat. `.vk-gcode-box` má vlastní flex-shrink:0 už odjinud (roste
+   do volného místa, nesmí zmizet), tohle to jen sjednocuje na ostatní děti.
+*/
+.tab-scroll > * {
+  flex-shrink: 0;
+}
 .vk-combined-window .sn-help-summary { padding: 8px 12px; }
 .vk-combined-window .sn-help-body { padding: 6px 12px 8px; white-space: normal; }
 

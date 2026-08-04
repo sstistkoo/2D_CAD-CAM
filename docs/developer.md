@@ -347,7 +347,7 @@ User selects CAM tool
 | `calculators/roughness.js` | Povrchová kvalita |
 | `calculators/cutting.js` | Řezné podmínky |
 | `calculators/tolerance.js` | Mezní údaje |
-| `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – `renderVkTab()` (HTML) + `initVkTab(container, { picker })` (skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku); okno staví `dialogs/combinedModal.js`. Bez DOM závislostí, aby šly čisté funkce testovat ve vitest `environment: 'node'` |
+| `calculators/vkContour.js` | Editor VK (Volná kontura, FK-styl) – `renderVkTab()` (HTML) + `initVkTab(container, { picker })` (skládání G111/G11/G2/G3 syntaxe + volání vkSolver při vkládání prvku); okno staví `dialogs/combinedModal.js`. Bez DOM závislostí, aby šly čisté funkce testovat ve vitest `environment: 'node'`. `insertElementFromForm()` (uvnitř `initVkTab`) hlídá R vs. tětivu i pro oblouk se ZCELA známými souřadnicemi cíle (ten neprojde solverem – ten se volá jen na nedořešené prvky ve `pendingQueue`) – bez toho by `vkArcInWorld()` nesestrojitelný oblouk potichu nakreslil jako rovnou čáru. Kontrola je omezená na `pendingQueue.length === 0`, protože s nedořešenými prvky ve frontě `refPoint()` ukazuje na bod PŘED jejich dopočtem, ne na skutečný start tohoto oblouku |
 | `calculators/vkPreviewRender.js` | Kreslení VK náhledu na CAD plátno (`bridge.renderVkPreview`) + ⤢ přizpůsobení pohledu (`bridge.fitVkPreviewView`) + čárkovaná nápověda tečného napojení (`drawTangentHint`). Oddělené od vkContour.js kvůli importu `canvas.js` |
 | `calculators/vkCommit.js` | „📥 Vložit do výkresu" (`bridge.commitVkToDrawing`) – VK syntaxe → běžné objekty `line`/`arc` v `state.objects`. Čistá část `vkSegmentsToDrawObjects()` je bez DOM i bez `state` zápisu, takže jde testovat samostatně |
 | `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
@@ -726,6 +726,20 @@ Segment {
     Ručně psaný kód projde `normalizeGcodeText()` (`js/gcodeNormalize.js`) –
     parser tak nemusí znát lidské varianty zápisu (malá písmena, mezery,
     desetinná čárka, výrazy) a normalizace se dá testovat samostatně.
+    `parseGcodeToObjects()` (`storage/fileIO.js`) vrací `{ objs, warnings }`
+    (dřív jen pole `objs`) – `warnings` sbírá `G02/G03 … R` řádky, kde je R
+    kratší než půlka vzdálenosti bodů (geometricky nesestrojitelné, dřív se
+    tiše přeskočily beze stopy). Oba volající (`renderCncCodeToCanvas`,
+    `importCncFile`) je hlásí toastem s číslem řádku a `console.warn` se
+    všemi detaily naráz.
+  - **Flexbox past: `.sn-help-details` má `overflow: hidden`** (kvůli
+    zaobleným rohům jinde v appce). Ve flex sloupci to podle specifikace
+    mění automatickou minimální výšku prvku na `0` – bez `flex-shrink: 0`
+    by ho flexbox v tísni s klidem smrskl a OŘÍZL, místo aby nechal
+    scrollovat obal. `.tab-scroll > * { flex-shrink: 0; }`
+    (`css/style.css`) tohle plošně vypíná pro všechny přímé děti – platí
+    pro obě záložky okna „Zadání objektu". Kdyby se `.tab-scroll` použil
+    jinde s dítětem, které má vlastní `overflow`, hlídat totéž.
   - `canvasPick.js` – sdílený jednorázový odběr kliku na CAD plátno (🎯
     „vybrat bod z výkresu"). Vědomě **mimo** `handleCanvasClick()`
     v `events.js`: tam by jeden klik zároveň zapsal souřadnici do

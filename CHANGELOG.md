@@ -46,7 +46,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (přesně tenhle vzorec je zdroj opravy níž). Nový `state.numPreview` +
   `bridge.renderNumPreview` (stejný vzor jako VK náhled).
 
+### Added
+- **Appka teď řekne, když je zadaná geometrie neproveditelná**, místo aby
+  ji tiše zahodila nebo nakreslila jinak, než co bylo zadáno:
+  - **VK – oblouk se zcela známými souřadnicemi cíle** (mimo dopočet
+    solverem): když je R kratší než půlka vzdálenosti od předchozího bodu,
+    appka prvek nevloží a napíše do informačního řádku, jaké R by stačilo
+    (`⚠ Poloměr R5 je moc malý pro tuto vzdálenost bodů (40 mm) – potřeba
+    aspoň R20.`). Dřív se takový prvek klidně vložil do syntaxe a náhled
+    ho tiše nakreslil jako rovnou čáru (protože `vkArcInWorld` na
+    nesestrojitelný oblouk vrací `null`) beze stopy po chybě.
+  - **Ruční zápis G-kódu (🔄) i import souboru s G-kódem**: řádek `G02/G03`
+    s R kratším než půlka vzdálenosti bodů se dřív tiše přeskočil a poloha
+    se „teleportovala" na cíl bez viditelné čáry. Teď `parseGcodeToObjects`
+    (`storage/fileIO.js`) takové řádky sbírá a vykreslení je oznámí
+    tlačítko po tlačítku – toast s číslem řádku, důvodem a minimálním R
+    (`Vykresleno 1 objektů – řádek 3 přeskočen: R5.000 je moc malý…`),
+    detaily všech přeskočených řádků navíc v konzoli.
+
 ### Fixed
+- **Editor G-kódu v okně „Zadání objektu" ořezával pole formuláře nad
+  sebou** (na VK záložce viditelně u typu Oblouk – po „Geometrie prvku"
+  a přepínači VL/VKr/VPOL zbytek polí zmizel). Příčina: `.sn-help-details`
+  (sdílená třída pro rozbalovací sekce) má `overflow: hidden` kvůli
+  zaobleným rohům jinde v appce; ve flex sloupci to podle specifikace mění
+  automatickou minimální výšku na `0`, takže flexbox tenhle konkrétní prvek
+  smrskl, aby uvolnil místo pro `.vk-gcode-box` (ten má `flex-shrink: 0` –
+  nesmí zmizet), místo aby nechal scrollovat celý `.tab-scroll`. Oprava:
+  `.tab-scroll > * { flex-shrink: 0; }` – žádné dítě se nesmí smrsknout pod
+  přirozenou výšku, takže při nedostatku místa scrolluje obal, ne že by se
+  obsah tiše ořízl.
 - **Ikonová tlačítka (🔄 u zápisu kódu) se v číselné záložce kreslila
   malá a mimo střed** – `.input-dialog button` (padding 6/16 px, font-size
   13 px) má vyšší specificitu než `.vk-header-btn` a přebíjelo mu rozměry.

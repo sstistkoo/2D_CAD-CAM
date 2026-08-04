@@ -576,6 +576,12 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   Komentáře `; …` a `( … )` zůstanou. Srovnaný text se zapíše zpátky do pole,
   takže je vidět, jak appka zápis pochopila; čemu neporozumí, nechá být.
 
+  **Geometricky nemožný oblouk appka nezahodí potichu.** Když má `G02/G03`
+  poloměr kratší než půlka vzdálenosti mezi body, ten řádek se přeskočí a
+  po **🔄** to appka řekne – s číslem řádku, důvodem i tím, jaké R by
+  stačilo (zbytek programu se vykreslí normálně). Totéž hlídá i **📐 VK**
+  na sousední záložce u prvku se zcela známými souřadnicemi cíle.
+
   Okno se otevírá na této záložce s typem **Bod** – má nejmíň polí, takže je
   pole na zápis kódu vidět celé.
 
