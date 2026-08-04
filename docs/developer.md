@@ -730,33 +730,51 @@ Segment {
     jinak by chain-kreslení „bod za bodem" bylo plné zbytečných rapidů.
     `createAnother()` po úspěšném vytvoření taky volá `autoCenterView()`
     (`canvas.js`) – bez toho při řetězení snadno vyjede kresba mimo výřez.
-    **Zaoblení/zkosení rohu jedním krokem:** u úsečky s existující
-    `prevLineEnd` se v `cornerInlineFieldHTML()` zobrazí nepovinný řádek
-    (přepínač `cornerInlineMode` + pole `#ncorner`). `createAnother()` po
-    vytvoření volá `applyInlineCornerIfRequested()` – pokud je pole
-    vyplněné a nová úsečka fakt naváže (`lastLineCorner` se nastaví v
-    `createObject()`), rovnou zavolá `bridge.filletChamferAtCorner()`
-    (skutečná trimovaná geometrie na plátně, stejná jako nástroj na
-    plátně) a `appendCornerMarker()` připíše do ručního zápisu G-kódu
-    standardní zkratku (`bridge.gcodeCornerMarker()` –
-    `calculators/cncEditor.js`, konvence dle řídicího systému: Sinumerik
-    `CHF=`/`RND=`, Fanuc `C`/`R`, Heidenhain `CHF `/`RND R`). Když pole
-    zůstane prázdné, `cornerToolsHTML()` (❌ NENÍ totéž jako
-    `cornerInlineFieldHTML()` – ta druhá se ukazuje PŘED vytvořením,
-    tahle AŽ PO) nabídne stejnou operaci jako záložní krok navíc
-    (`applyCornerTool()`) – volá stejné dvě funkce.
-    Marker patří na řádek, který do rohu DOJÍŽDÍ (má ho jako svůj cíl),
-    ne na ten další – `appendCornerMarker()` proto řádek nehledá podle
-    pořadí/indexu (to už jednou způsobilo bug: marker skončil na ŠPATNÉM
-    řádku, protože `appendGcodeForObject()` mezitím pro DALŠÍ prvek
-    přepsala „poslední připsaný index"), ale přes
+    **Zaoblení/zkosení rohu jedním krokem, rovnou jako G1+G2/G3:** u
+    úsečky s existující `prevLineEnd` se v `cornerInlineFieldHTML()`
+    zobrazí nepovinný řádek (přepínač `cornerInlineMode` + pole
+    `#ncorner`). `createAnother()` po vytvoření volá
+    `applyInlineCornerIfRequested(g)` – pokud je pole vyplněné a nová
+    úsečka fakt naváže (`lastLineCorner` se nastaví v `createObject()`),
+    zavolá `bridge.filletChamferAtCorner()` (skutečná trimovaná geometrie
+    na plátně, stejná jako nástroj na plátně) a výsledek pošle do
+    `applyCornerGcode()`. Když pole zůstane prázdné, `cornerToolsHTML()`
+    (❌ NENÍ totéž jako `cornerInlineFieldHTML()` – ta druhá se ukazuje
+    PŘED vytvořením, tahle AŽ PO) nabídne stejnou operaci jako záložní
+    krok navíc (`applyCornerTool()`) – volá tytéž dvě funkce.
+
+    `bridge.filletChamferAtCorner()` (a `applyFilletChamfer()`/
+    `_applyTwoLines()`/`_applyLineAndArc()` pod ním, `tools/filletChamferClick.js`)
+    teď VRACÍ geometrii spojovacího prvku (`{arc}` nebo `{line}` – stejný
+    tvar jako `filletTwoLines()`/`chamferTwoLines()` v `geometry.js`), ne
+    jen `true`/`false` (funkce dřív nic nevracely; `handleFilletChamferClick()`
+    kontroluje jen truthiness, takže je to zpětně kompatibilní).
+    `applyCornerGcode()` v `numericalInput.js` z ní zapíše PŘÍMO skutečnou
+    G1+G2/G3 dráhu do ručního zápisu G-kódu – přesně to, co by appka
+    napsala po stisku „⌒ Sražení/zaoblení → dráha" (`convertCornersToPaths()`)
+    přímo v CNC Editoru, jen bez mezikroku s CHF=/RND= markerem (ten se
+    v dřívější verzi téhle funkce psal – zavrženo, protože uživatel chtěl
+    rovnou hotovou dráhu).
+
+    Řádek, na který se dráha zapisuje, se hledá přes
     `findLineIndexEndingAt(wx, wy)` – porovná text řádku s
-    `bridge.formatAbsCoord()` naformátovanou souřadnicí rohu, takže je to
-    spolehlivé bez ohledu na to, kolik řádků mezitím přibylo. Appka marker
-    needituje na skutečnou G1/G2/G3 dráhu sama – to dělá tlačítko
-    „⌒ Sražení/zaoblení → dráha" (`convertCornersToPaths()`) přímo v CNC
-    Editoru; ověřeno round-tripem (marker z číselného zadání → otevřít v
-    CNC Editoru → ⌒ → validní G1+G2/G3).
+    `bridge.formatAbsCoord()` naformátovanou souřadnicí rohu, ne podle
+    pořadí/indexu (to jednou způsobilo bug: zápis skončil na ŠPATNÉM
+    řádku, protože `appendGcodeForObject()` mezitím pro DALŠÍ prvek
+    přepsala „poslední připsaný index" na jednoduchém čítači) – spolehlivé
+    bez ohledu na to, kolik řádků mezitím přibylo.
+
+    **Past s pořadím bodů:** `filletTwoLines()` interně PŘEHAZUJE
+    start/end úhel oblouku, aby zůstal MENŠÍ (minor arc, viz komentář „Ensure
+    CCW sweep... is the minor arc" v `geometry.js`) – po tomhle přehození
+    už nejde spolehnout na to, který z obou konců spojovacího prvku patří
+    „straně před rohem" a který „za rohem". `applyCornerGcode()` to řeší
+    porovnáním vzdálenosti k `line2FarPoint` (neořezaný vzdálený konec
+    úsečky za rohem, dodá volající) – blíž k němu je vždycky strana ZA
+    rohem, bez ohledu na interní pořadí. Stejná past a stejné řešení jako
+    `convertCornersToPaths()` v CNC Editoru (`js/calculators/cncEditor.js`).
+    Ověřeno round-tripem: výstup `applyCornerGcode()` porovnaný ručně
+    s výstupem `convertCornersToPaths()` pro tentýž roh – identická dráha.
     Oblouk zadaný začátkem/koncem/R staví `arcFromEndpointsRadius()`
     (`js/utils.js`) – tutéž funkci používá i `parseGcodeToObjects()` pro
     `G02/G03 … R`, takže formulář a G-kód dají identický oblouk.

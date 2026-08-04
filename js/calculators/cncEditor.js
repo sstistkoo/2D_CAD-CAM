@@ -437,24 +437,6 @@ function getRoundPrefix() {
   return 'RND=';
 }
 
-/**
- * Marker sražení/zaoblení rohu ve standardní zkratkové syntaxi aktuálního
- * řídicího systému (Sinumerik `CHF=`/`RND=`, Fanuc `C`/`R`, Heidenhain
- * `CHF `/`RND R`) – bez ní by se nepsala žádná explicitní dráha, řídicí
- * systém si roh dopočítá sám. Zpřístupněné přes bridge pro číselné zadání
- * (js/dialogs/numericalInput.js), aby appka měla konvenci jen na jednom
- * místě – „⌒ Sražení/zaoblení → dráha" tady v editoru marker later expanduje
- * na skutečnou G1/G2/G3 dráhu, když ji chce uživatel vidět/ověřit.
- * @param {'fillet'|'chamfer'} mode
- * @param {number} value poloměr (fillet) / vzdálenost (chamfer)
- * @returns {string}
- */
-export function gcodeCornerMarker(mode, value) {
-  const prefix = mode === 'chamfer' ? getChamferPrefix() : getRoundPrefix();
-  return `${prefix}${value}`;
-}
-bridge.gcodeCornerMarker = gcodeCornerMarker;
-
 // Regex pro rozpoznání markeru sražení/zaoblení v textu kódu, dle aktuálního
 // řídicího systému (musí odpovídat tomu, co vkládají tlačítka Sraž./Zaobl.
 // přes getChamferPrefix()/getRoundPrefix()).

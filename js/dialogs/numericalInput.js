@@ -205,8 +205,12 @@ export function renderNumericalTab() {
         </select>
         <div id="numFields"></div>
       <div class="vk-gcode-box vk-gcode-box-bare">
-        <button type="button" class="vk-header-btn vk-gcode-corner-btn" data-act="gcode-apply"
-          title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu)">🔄</button>
+        <div class="vk-gcode-corner-btns">
+          <button type="button" class="vk-header-btn vk-header-btn-red" data-act="gcode-clear"
+            title="Smazat zapsaný G-kód">🗑</button>
+          <button type="button" class="vk-header-btn" data-act="gcode-apply"
+            title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu)">🔄</button>
+        </div>
         <textarea class="vk-gcode-textarea" data-id="num-gcode" spellcheck="false"
           placeholder="${GCODE_PLACEHOLDER}" aria-label="Ruční zápis G-kódu"></textarea>
         </div>
@@ -360,31 +364,75 @@ export function initNumericalTab(container, { picker = null } = {}) {
   }
 
   /**
-   * Připíše marker sražení/zaoblení (`bridge.gcodeCornerMarker()` – stejná
-   * konvence jako CNC Editor: Sinumerik `CHF=`/`RND=`, Fanuc `C`/`R`,
-   * Heidenhain `CHF `/`RND R`) na řádek, který DOJÍŽDÍ do zadaného rohu.
-   * Je to jen standardní ISO zkratka, appka ji needituje na skutečnou dráhu
-   * – to dělá tlačítko „⌒ Sražení/zaoblení → dráha" přímo v CNC Editoru,
-   * když to uživatel chce vidět/ověřit.
-   * @param {'fillet'|'chamfer'} mode
-   * @param {number} value
-   * @param {number} cornerWx world X rohu (konec úsečky, na kterou marker patří)
-   * @param {number} cornerWy world Y rohu
-   * @returns {boolean} false = řádek dojíždějící do rohu se v textu nenašel
+   * Zapíše zaoblení/zkosení rohu rovnou jako skutečnou G1+G2/G3 dráhu – ne
+   * jako marker (CHF=/RND=) k pozdějšímu převodu, ale hned v podobě, jakou
+   * by appka dostala PO stisku „⌒ Sražení/zaoblení → dráha" v CNC Editoru.
+   * Přepíše cílovou souřadnici řádku, který do rohu DOJÍŽDÍ, na oříznutý
+   * bod a hned za něj vloží G2/G3 R (zaoblení) nebo G1 (zkosení) na druhý
+   * oříznutý bod – řádek DALŠÍ úsečky (za rohem) zůstává beze změny, její
+   * začátek je teď implicitně tenhle nový bod.
+   *
+   * `result` je SKUTEČNÁ geometrie z `bridge.filletChamferAtCorner()` – ta
+   * samá, kterou appka právě napsala na plátno (žádný druhý, potenciálně
+   * odlišný výpočet nazvlášť pro text).
+   * @param {{arc?: object, line?: object}|null} result
+   * @param {number} cornerWx world X rohu PŘED ořezem (podle něj se v textu
+   *   hledá řádek, co do rohu dojíždí)
+   * @param {number} cornerWy world Y rohu PŘED ořezem
+   * @param {{x: number, y: number}} line2FarPoint neořezaný vzdálený konec
+   *   úsečky ZA rohem – `filletTwoLines`/`chamferTwoLines` si pořadí bodů
+   *   ve výsledku můžou interně přeuspořádat (viz komentář v CNC Editoru
+   *   u `convertCornersToPaths`), takže se strana „za rohem" pozná jen
+   *   porovnáním vzdálenosti k tomuhle záchytnému bodu, ne podle pořadí.
+   * @returns {boolean}
    */
-  function appendCornerMarker(mode, value, cornerWx, cornerWy) {
-    if (!bridge.gcodeCornerMarker) return false;
+  function applyCornerGcode(result, cornerWx, cornerWy, line2FarPoint) {
+    if (!result || !bridge.formatAbsCoord) return false;
     const gcodeEl = container.querySelector('[data-id="num-gcode"]');
     if (!gcodeEl) return false;
     const idx = findLineIndexEndingAt(cornerWx, cornerWy);
     if (idx === -1) return false;
+
+    const fmt = (x, y) => bridge.formatAbsCoord(x, y);
+    /** Rozliší, který ze dvou bodů leží na straně úsečky ZA rohem. */
+    const bySide = (p0, p1) => {
+      const d0 = Math.hypot(p0.x - line2FarPoint.x, p0.y - line2FarPoint.y);
+      const d1 = Math.hypot(p1.x - line2FarPoint.x, p1.y - line2FarPoint.y);
+      return d0 < d1 ? { afterCorner: p0, beforeCorner: p1 } : { afterCorner: p1, beforeCorner: p0 };
+    };
+
+    let connectorLine, beforeCorner;
+    if (result.arc) {
+      const arc = result.arc;
+      const e0 = { x: arc.cx + arc.r * Math.cos(arc.startAngle), y: arc.cy + arc.r * Math.sin(arc.startAngle) };
+      const e1 = { x: arc.cx + arc.r * Math.cos(arc.endAngle), y: arc.cy + arc.r * Math.sin(arc.endAngle) };
+      const sides = bySide(e0, e1);
+      beforeCorner = sides.beforeCorner;
+      // Zrcadlení jedné osy obrací smysl oblouku – stejné pravidlo jako
+      // flipArc() v runCncExport() (storage/fileIO.js).
+      const base = arc.ccw !== false ? 'G03' : 'G02';
+      const code = (state.flipX !== state.flipZ) ? (base === 'G02' ? 'G03' : 'G02') : base;
+      connectorLine = `${code} ${fmt(sides.afterCorner.x, sides.afterCorner.y)} R${arc.r.toFixed(3)}`;
+    } else if (result.line) {
+      const sides = bySide(
+        { x: result.line.x1, y: result.line.y1 },
+        { x: result.line.x2, y: result.line.y2 },
+      );
+      beforeCorner = sides.beforeCorner;
+      connectorLine = `G01 ${fmt(sides.afterCorner.x, sides.afterCorner.y)}`;
+    } else {
+      return false;
+    }
+
     const lines = gcodeEl.value.split('\n');
-    const marker = bridge.gcodeCornerMarker(mode, value);
     const line = lines[idx];
     const ci = line.indexOf(';');
-    const code = (ci !== -1 ? line.slice(0, ci) : line).replace(/\s+$/, '');
     const comment = ci !== -1 ? line.slice(ci) : '';
-    lines[idx] = comment ? `${code} ${marker} ${comment}` : `${code} ${marker}`;
+    // Řádek dojíždějící do rohu je vždy G01 (appka ho tak sama píše) –
+    // jen se mu přepíše cíl na oříznutý bod.
+    lines[idx] = comment ? `G01 ${fmt(beforeCorner.x, beforeCorner.y)} ${comment}` : `G01 ${fmt(beforeCorner.x, beforeCorner.y)}`;
+    lines.splice(idx + 1, 0, connectorLine);
+
     gcodeEl.value = lines.join('\n');
     try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, gcodeEl.value); } catch { /* ignore */ }
     return true;
@@ -436,14 +484,17 @@ export function initNumericalTab(container, { picker = null } = {}) {
     const corner = lastLineCorner;
     if (!corner) return;
     showFilletChamferDialog((chosenMode, p1, p2) => {
-      if (!bridge.filletChamferAtCorner?.(chosenMode, p1, p2, corner.x, corner.y)) {
+      const result = bridge.filletChamferAtCorner?.(chosenMode, p1, p2, corner.x, corner.y);
+      if (!result) {
         showToast('Roh se nenašel – úsečky už asi nenavazují');
         return;
       }
-      // Marker je jednohodnotová zkratka (CHF=/RND=) – u zkosení dvěma
-      // různými vzdálenostmi bere jen p1. Skutečná (asymetrická) geometrie
-      // na plátně tím není dotčená, jde jen o zápis do G-kódu.
-      appendCornerMarker(chosenMode, p1, corner.x, corner.y);
+      // Vzdálený (neořezaný) konec úsečky za rohem – appka jinak nemá jak
+      // poznat, který konec zaoblení/zkosení patří „za roh" (viz komentář
+      // u applyCornerGcode). Chain pořád ukazuje na konec téhle úsečky,
+      // protože se od jejího vytvoření nezměnil (jinak by tenhle záložní
+      // řádek nebyl vidět – zmizí při vytvoření další úsečky).
+      applyCornerGcode(result, corner.x, corner.y, { x: state.numDialogChain.x, y: state.numDialogChain.y });
       // Roh je zpracovaný; druhý pokus by zaobloval už zaoblené.
       lastLineCorner = null;
       updateFields();
@@ -998,8 +1049,9 @@ export function initNumericalTab(container, { picker = null } = {}) {
     // hned po něm – ne proto, že by se mezitím měnila, ale aby zápis do
     // G-kódu použil přesně to, co se skutečně vložilo, ne odhad.
     if (!createObject()) return;
-    appendGcodeForObject(typeSelect.value, readFormGeometry());
-    applyInlineCornerIfRequested();
+    const g = readFormGeometry();
+    appendGcodeForObject(typeSelect.value, g);
+    applyInlineCornerIfRequested(g);
     picker?.cancel();
     // Vycentrovat plátno na celý výkres po každém přidaném prvku – při
     // řetězení „bod za bodem" jinak snadno vyjede mimo viditelnou plochu.
@@ -1014,18 +1066,21 @@ export function initNumericalTab(container, { picker = null } = {}) {
    * kroků (čára, pak zvlášť ⌒/⌿). Volá se vždy po `createObject()`; když
    * pole zůstalo prázdné nebo roh (ještě) nevznikl, jen tiše skončí – roh
    * pak nabídne `cornerToolsHTML()` jako záložní krok navíc.
+   * @param {object} g geometrie právě vytvořené úsečky (z `readFormGeometry()`)
+   *   – `g.x2,g.y2` je vzdálený konec, potřeba pro `applyCornerGcode()`.
    */
-  function applyInlineCornerIfRequested() {
+  function applyInlineCornerIfRequested(g) {
     if (!lastLineCorner) return;
     const input = container.querySelector('#ncorner');
     const value = input ? safeEvalMath(input.value) : NaN;
     if (!isFinite(value) || value <= 0) return;
     const corner = lastLineCorner;
-    if (!bridge.filletChamferAtCorner?.(cornerInlineMode, value, value, corner.x, corner.y)) {
+    const result = bridge.filletChamferAtCorner?.(cornerInlineMode, value, value, corner.x, corner.y);
+    if (!result) {
       showToast('Roh se nenašel – úsečky už asi nenavazují');
       return;
     }
-    appendCornerMarker(cornerInlineMode, value, corner.x, corner.y);
+    applyCornerGcode(result, corner.x, corner.y, { x: g.x2, y: g.y2 });
     lastLineCorner = null;
   }
 
@@ -1082,6 +1137,13 @@ export function initNumericalTab(container, { picker = null } = {}) {
       gcodeEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
     bridge.renderCncCodeToCanvas?.(normalized);
+  });
+
+  container.querySelector('[data-act="gcode-clear"]').addEventListener('click', () => {
+    if (!gcodeEl.value.trim()) return;
+    gcodeEl.value = '';
+    try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, ''); } catch { /* ignore */ }
+    lastAppendedGcodeEnd = null;
   });
 
   return {

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **🗑 Smazat vedle 🔄 v poli „Ruční zápis G-kódu"** (číselné zadání) –
+  plovoucí tlačítko v pravém horním rohu textarea, vedle tlačítka pro
+  vykreslení. Vyprázdní pole i localStorage a zruší rozjetý řetěz
+  navazování (`lastAppendedGcodeEnd`), aby další úsečka po smazání
+  nezačala nesmyslným „pokračováním" odnikud.
 - **Zaoblení/zkosení rohu jedním krokem, rovnou při zadávání navazující
   úsečky.** V číselném zadání se u úsečky (když existuje předchozí, se
   kterou by mohla navázat) objeví nepovinný řádek **Roh s předchozí**
@@ -15,14 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **OK** rovnou vytvoří úsečku A zaoblí/zkosí roh s tou předchozí (dřív to
   šlo jen na dva kroky: úsečka, pak zvlášť tlačítko v samostatném řádku,
   které pořád zůstává jako záložní cesta, když se pole nevyplní předem).
-  Do **ručního zápisu G-kódu** se navíc připíše **standardní ISO zkratka**
-  rohu – Sinumerik `CHF=`/`RND=`, Fanuc `C`/`R`, Heidenhain `CHF `/`RND R`
-  (dle aktuálního řídicího systému, nová `bridge.gcodeCornerMarker()` v
-  `calculators/cncEditor.js` – stejná konvence, jakou používá tlačítko
-  „⌒ Sražení/zaoblení → dráha" tam). Marker appka needituje na skutečnou
-  dráhu sama (na plátně se přitom REÁLNÁ zaoblená/zkosená geometrie kreslí
-  hned) – rozbalení na G1/G2/G3 zůstává na existujícím tlačítku přímo v
-  CNC Editoru, kam se dá zápis kdykoli poslat k ověření/simulaci.
+  Do **ručního zápisu G-kódu** se rovnou zapíše **skutečná G1+G2/G3
+  dráha** – přesně to, co by appka napsala PO stisku „⌒ Sražení/zaoblení
+  → dráha" v CNC Editoru, jen bez mezikroku s CHF=/RND= markerem. Řádek
+  úsečky dojíždějící do rohu se přepíše na oříznutý bod a hned za něj
+  přibude `G02`/`G03 … R` (zaoblení) nebo `G01` (zkosení) na druhý
+  oříznutý bod – přesměr G2/G3 respektuje zrcadlení os (flipX/flipZ),
+  stejné pravidlo jako `runCncExport()`. Použitá geometrie je ta SAMÁ,
+  kterou appka právě napsala na plátno (`filletChamferAtCorner()` v
+  `tools/filletChamferClick.js` teď vrací i `{arc}`/`{line}` výsledek
+  zaoblení/zkosení, ne jen `true`/`false`) – žádný druhý, potenciálně
+  odlišný výpočet nazvlášť pro text.
 - **Ruční zápis G-kódu se plní i tím, co nakreslíš přes formulář.** Po
   **OK** se nově vytvořený objekt hned připíše do pole jako G-kód
   (`bridge.formatAbsCoord()` – nová sdílená funkce z `storage/fileIO.js`,
@@ -93,6 +101,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     detaily všech přeskočených řádků navíc v konzoli.
 
 ### Fixed
+- **Ikonová tlačítka (🔄/🗑/🎯/…) v okně „Zadání objektu" byla na mobilu
+  40 px vysoká místo 28 px** (viditelně roztažená, ne čtvercová).
+  `.input-dialog .vk-header-btn` přebíjelo `height`, ale ne `min-height` –
+  ta je samostatná vlastnost a jako spodní hranice vyhrává i nad vyšší
+  specificitou `height`. `.input-dialog button` v mobilní media query
+  (`max-width: 900px`) nastavuje `min-height: 40px` pro VŠECHNA tlačítka
+  v dialogu, takže se to bez výslovného přebití `min-height: 28px`
+  neprojevilo, dokud nepřibylo druhé tlačítko vedle prvního.
 - **Kompas rychlé volby úhlu (✛) v číselném zadání nereagoval na klik.**
   Popup se šipkami se připojuje přímo do `.calc-overlay`, sourozenci
   `.calc-window`, ne jeho potomkovi. Plovoucí okno má schválně

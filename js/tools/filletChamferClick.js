@@ -139,26 +139,32 @@ function getSegDesc(obj, wx, wy) {
  * Provede zaoblení nebo zkosení dvou deskriptorů (každý může být 'line' nebo 'arc').
  * Při line+arc: dist1 vždy pro úsečku, dist2 vždy pro oblouk.
  */
+/**
+ * @returns {{arc?: object, line?: object}|null} geometrie výsledného
+ *   spojovacího prvku (`arc` u zaoblení, `line` u zkosení) – volající
+ *   (`filletChamferAtCorner`) ji dál dá číselnému zadání pro zápis
+ *   rovnou jako G2/G3, ne jako marker. `null` = operace se nepovedla
+ *   (toast s důvodem už appka ukázala).
+ */
 function applyFilletChamfer(mode, p1, p2, s1, s2) {
   const isArc1 = s1.kind === 'arc';
   const isArc2 = s2.kind === 'arc';
 
   if (isArc1 && isArc2) {
     showToast("Zaoblení dvou oblouků není podporováno");
-    return;
+    return null;
   }
 
   if (!isArc1 && !isArc2) {
-    _applyTwoLines(mode, p1, p2, s1, s2);
-  } else {
-    // Normalizujeme: line je vždy první, arc druhý
-    const sLine = isArc1 ? s2 : s1;
-    const sArc  = isArc1 ? s1 : s2;
-    // Pro chamfer: dist1=úsečka, dist2=oblouk (swap pokud arc byl s1)
-    const d1 = isArc1 ? p2 : p1;
-    const d2 = isArc1 ? p1 : p2;
-    _applyLineAndArc(mode, d1, d2, sLine, sArc);
+    return _applyTwoLines(mode, p1, p2, s1, s2);
   }
+  // Normalizujeme: line je vždy první, arc druhý
+  const sLine = isArc1 ? s2 : s1;
+  const sArc  = isArc1 ? s1 : s2;
+  // Pro chamfer: dist1=úsečka, dist2=oblouk (swap pokud arc byl s1)
+  const d1 = isArc1 ? p2 : p1;
+  const d2 = isArc1 ? p1 : p2;
+  return _applyLineAndArc(mode, d1, d2, sLine, sArc);
 }
 
 /** Zaoblení/zkosení dvou úseček (původní logika). */
@@ -167,10 +173,11 @@ function _applyTwoLines(mode, p1, p2, s1, s2) {
   const proxy2 = { x1: s2.seg.x1, y1: s2.seg.y1, x2: s2.seg.x2, y2: s2.seg.y2 };
 
   pushUndo();
+  let out = null;
 
   if (mode === 'fillet') {
     const result = filletTwoLines(proxy1, proxy2, p1);
-    if (!result.ok) { showToast(result.msg); return; }
+    if (!result.ok) { showToast(result.msg); return null; }
     if (!isAnchored(s1.seg.x1, s1.seg.y1)) s1.setP1(proxy1.x1, proxy1.y1);
     if (!isAnchored(s1.seg.x2, s1.seg.y2)) s1.setP2(proxy1.x2, proxy1.y2);
     if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
@@ -178,9 +185,10 @@ function _applyTwoLines(mode, p1, p2, s1, s2) {
     result.arc.name = `Zaoblení R${p1}`;
     addObject(result.arc);
     showToast(`Zaoblení R${p1} vytvořeno ✓`);
+    out = { arc: result.arc };
   } else {
     const result = chamferTwoLines(proxy1, proxy2, p1, p2);
-    if (!result.ok) { showToast(result.msg); return; }
+    if (!result.ok) { showToast(result.msg); return null; }
     if (!isAnchored(s1.seg.x1, s1.seg.y1)) s1.setP1(proxy1.x1, proxy1.y1);
     if (!isAnchored(s1.seg.x2, s1.seg.y2)) s1.setP2(proxy1.x2, proxy1.y2);
     if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
@@ -189,11 +197,13 @@ function _applyTwoLines(mode, p1, p2, s1, s2) {
     result.line.name = `Zkosení ${p1}×${p2}`;
     addObject(result.line);
     showToast(`Zkosení ${p1}×${p2} vytvořeno ✓`);
+    out = { line: result.line };
   }
 
   calculateAllIntersections();
   updateAssociativeDimensions();
   renderAll();
+  return out;
 }
 
 /** Zaoblení/zkosení úsečky a oblouku. */
@@ -212,10 +222,11 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
   };
 
   pushUndo();
+  let out = null;
 
   if (mode === 'fillet') {
     const result = filletLineAndArc(lineProxy, arcProxy, distLine); // distLine = radius
-    if (!result.ok) { showToast(result.msg); return; }
+    if (!result.ok) { showToast(result.msg); return null; }
 
     // Zapsat ořez úsečky
     if (!isAnchored(sLine.seg.x1, sLine.seg.y1)) sLine.setP1(lineProxy.x1, lineProxy.y1);
@@ -228,9 +239,10 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
     result.arc.name = `Zaoblení R${distLine}`;
     addObject(result.arc);
     showToast(`Zaoblení R${distLine} vytvořeno ✓`);
+    out = { arc: result.arc };
   } else {
     const result = chamferLineAndArc(lineProxy, arcProxy, distLine, distArc);
-    if (!result.ok) { showToast(result.msg); return; }
+    if (!result.ok) { showToast(result.msg); return null; }
 
     if (!isAnchored(sLine.seg.x1, sLine.seg.y1)) sLine.setP1(lineProxy.x1, lineProxy.y1);
     if (!isAnchored(sLine.seg.x2, sLine.seg.y2)) sLine.setP2(lineProxy.x2, lineProxy.y2);
@@ -241,11 +253,13 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
     result.line.name  = `Zkosení ${distLine}×${distArc}`;
     addObject(result.line);
     showToast(`Zkosení ${distLine}×${distArc} vytvořeno ✓`);
+    out = { line: result.line };
   }
 
   calculateAllIntersections();
   updateAssociativeDimensions();
   renderAll();
+  return out;
 }
 
 // ── Veřejné funkce ──
@@ -261,13 +275,14 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
  * @param {number} p2 vzdálenost 2 (chamfer)
  * @param {number} wx
  * @param {number} wy
- * @returns {boolean} false = na bodě není roh dvou segmentů
+ * @returns {{arc?: object, line?: object}|null} geometrie spojovacího
+ *   prvku (viz `applyFilletChamfer`), nebo `null` když na bodě není roh
+ *   dvou segmentů nebo operace geometricky nevyšla.
  */
 export function filletChamferAtCorner(mode, p1, p2, wx, wy) {
   const corner = findCornerAt(wx, wy);
-  if (!corner) return false;
-  applyFilletChamfer(mode, p1, p2, corner.s1, corner.s2);
-  return true;
+  if (!corner) return null;
+  return applyFilletChamfer(mode, p1, p2, corner.s1, corner.s2);
 }
 
 bridge.filletChamferAtCorner = filletChamferAtCorner;

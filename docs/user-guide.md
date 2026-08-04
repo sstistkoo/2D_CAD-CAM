@@ -563,11 +563,12 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   plátně) – roh jde doplnit i dodatečně. Okno se zavírá **✕** v liště.
 
   Zaoblený/zkosený roh se do **ručního zápisu G-kódu** (viz níž) zapíše
-  jako standardní zkratka řídicího systému – Sinumerik `CHF=`/`RND=`,
-  Fanuc `C`/`R`, Heidenhain `CHF `/`RND R` – na řádek úsečky, která do
-  rohu dojíždí. Appka ji sama nerozbaluje na skutečnou dráhu; to udělá
-  tlačítko **⌒ Sražení/zaoblení → dráha** přímo v **💻 CNC Editoru**, kam
-  se dá zápis poslat k ověření nebo simulaci.
+  rovnou jako **skutečná dráha** – řádek úsečky, která do rohu dojíždí,
+  se přepíše na oříznutý bod a hned za něj přibude `G02`/`G03 … R`
+  (zaoblení) nebo `G01` (zkosení) na druhý oříznutý bod. Je to přesně to,
+  co by appka napsala po stisku tlačítka **⌒ Sražení/zaoblení → dráha**
+  přímo v **💻 CNC Editoru** – jen bez toho, že by se tam zápis musel
+  posílat ručně.
 
   Pod formulářem je pole na **ruční zápis G-kódu**. Píše se do něj ručně,
   ale **plní se i samo** – co vytvoříš přes formulář (**OK**), se rovnou
@@ -578,7 +579,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (`; Bod …`, `; Kružnice …`) – appka je při zpětném vykreslení jen
   přeskočí. Tlačítko **🔄** (plovoucí v pravém horním rohu pole) kód
   vykreslí na plátno (nahradí objekty výkresu, vrací se jedním **Ctrl+Z**)
-  a pravý panel **CNC** si ho pak vygeneruje sám. Rozepsaný text zůstane
+  a pravý panel **CNC** si ho pak vygeneruje sám. Vedle něj **🗑** pole
+  smaže. Rozepsaný text zůstane
   i po zavření okna.
 
   **Psát se nemusí úhledně.** Před vykreslením se zápis srovná, takže projde:

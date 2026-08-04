@@ -5831,6 +5831,13 @@ body {
   width: 28px;
   min-width: 28px;
   height: 28px;
+  /* `min-height` je SAMOSTATNÁ vlastnost od `height` – bez přebití by
+     zůstal v platnosti `.input-dialog button { min-height: 40px }` z
+     mobilní media query (max-width:900px) o kus níž v souboru a `height`
+     by ho nemohl stlačit pod tuhle spodní hranici (min-height je vždy
+     podlaha, i když má `height` vyšší specificitu). Tlačítko tak dřív na
+     mobilu vycházelo 40px vysoké místo 28px. */
+  min-height: 28px;
   padding: 0;
   font-size: 16px;
 }
@@ -5866,25 +5873,27 @@ body {
 }
 .vk-gcode-label .vk-header-btn { flex: 0 0 auto; }
 /* Bez popisku (ruční zápis v číselném zadání) – žádný řádek nad textarea
-   neubírá výšku, 🔄 sedí jako plovoucí tlačítko v pravém horním rohu
-   PŘÍMO NAD textarea (poloprůhledné, ať nezakrývá nadpisem první řádek). */
+   neubírá výšku, 🗑/🔄 sedí jako plovoucí tlačítka v pravém horním rohu
+   PŘÍMO NAD textarea (poloprůhledné, ať nezakrývají nadpisem první řádek). */
 .vk-gcode-box-bare {
   position: relative;
   padding: 0;
 }
 .vk-gcode-box-bare .vk-gcode-textarea {
   min-height: 100%;
-  /* Místo pro plovoucí 🔄 v rohu, ať mu první řádek textu nemizí pod tlačítkem. */
-  padding-right: 38px;
+  /* Místo pro plovoucí tlačítka v rohu, ať jim první řádek textu nemizí pod nimi. */
+  padding-right: 68px;
 }
-.vk-gcode-corner-btn {
+.vk-gcode-corner-btns {
   position: absolute;
   top: 6px;
   right: 6px;
   z-index: 2;
-  opacity: 0.7;
+  display: flex;
+  gap: 4px;
 }
-.vk-gcode-corner-btn:hover { opacity: 1; }
+.vk-gcode-corner-btns .vk-header-btn { opacity: 0.7; }
+.vk-gcode-corner-btns .vk-header-btn:hover { opacity: 1; }
 .vk-gcode-textarea {
   width: 100%;
   flex: 1 1 auto;
