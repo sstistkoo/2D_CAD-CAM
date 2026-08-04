@@ -718,8 +718,45 @@ Segment {
     záchranou na `autoCenterView()`.
   - `numericalInput.js` – numerický vstup souřadnic: `renderNumericalTab()`
     (HTML) + `initNumericalTab(container, { picker })` (logika, vrací `{ destroy }`).
-    Pole na ruční zápis G-kódu je **záměrně prázdné** (ne zrcadlo `#cncOutput`) –
-    obsah drží localStorage a 🔄 ho pouští přes `bridge.renderCncCodeToCanvas`.
+    Pole na ruční zápis G-kódu **není zrcadlo `#cncOutput`** (obsah drží
+    localStorage, 🔄 ho pouští přes `bridge.renderCncCodeToCanvas`), ale
+    `createAnother()` do něj po každém **OK** připíše `appendGcodeForObject()`
+    – řádek(y) pro právě vytvořený objekt ve stejném formátu, jaký appka
+    vypisuje jinde (`bridge.formatAbsCoord()`, nová exportovaná funkce ve
+    `storage/fileIO.js` – stejná konvence os/jednotek jako `runCncExport()`,
+    ale bez vazby na INC režim). Bod/kružnice nejsou pohyb → zapíšou se
+    jako komentář. Navazující `G00` se vynechává, když nový začátek sedí
+    s koncem posledně připsaného řádku (closure `lastAppendedGcodeEnd`) –
+    jinak by chain-kreslení „bod za bodem" bylo plné zbytečných rapidů.
+    `createAnother()` po úspěšném vytvoření taky volá `autoCenterView()`
+    (`canvas.js`) – bez toho při řetězení snadno vyjede kresba mimo výřez.
+    **Zaoblení/zkosení rohu jedním krokem:** u úsečky s existující
+    `prevLineEnd` se v `cornerInlineFieldHTML()` zobrazí nepovinný řádek
+    (přepínač `cornerInlineMode` + pole `#ncorner`). `createAnother()` po
+    vytvoření volá `applyInlineCornerIfRequested()` – pokud je pole
+    vyplněné a nová úsečka fakt naváže (`lastLineCorner` se nastaví v
+    `createObject()`), rovnou zavolá `bridge.filletChamferAtCorner()`
+    (skutečná trimovaná geometrie na plátně, stejná jako nástroj na
+    plátně) a `appendCornerMarker()` připíše do ručního zápisu G-kódu
+    standardní zkratku (`bridge.gcodeCornerMarker()` –
+    `calculators/cncEditor.js`, konvence dle řídicího systému: Sinumerik
+    `CHF=`/`RND=`, Fanuc `C`/`R`, Heidenhain `CHF `/`RND R`). Když pole
+    zůstane prázdné, `cornerToolsHTML()` (❌ NENÍ totéž jako
+    `cornerInlineFieldHTML()` – ta druhá se ukazuje PŘED vytvořením,
+    tahle AŽ PO) nabídne stejnou operaci jako záložní krok navíc
+    (`applyCornerTool()`) – volá stejné dvě funkce.
+    Marker patří na řádek, který do rohu DOJÍŽDÍ (má ho jako svůj cíl),
+    ne na ten další – `appendCornerMarker()` proto řádek nehledá podle
+    pořadí/indexu (to už jednou způsobilo bug: marker skončil na ŠPATNÉM
+    řádku, protože `appendGcodeForObject()` mezitím pro DALŠÍ prvek
+    přepsala „poslední připsaný index"), ale přes
+    `findLineIndexEndingAt(wx, wy)` – porovná text řádku s
+    `bridge.formatAbsCoord()` naformátovanou souřadnicí rohu, takže je to
+    spolehlivé bez ohledu na to, kolik řádků mezitím přibylo. Appka marker
+    needituje na skutečnou G1/G2/G3 dráhu sama – to dělá tlačítko
+    „⌒ Sražení/zaoblení → dráha" (`convertCornersToPaths()`) přímo v CNC
+    Editoru; ověřeno round-tripem (marker z číselného zadání → otevřít v
+    CNC Editoru → ⌒ → validní G1+G2/G3).
     Oblouk zadaný začátkem/koncem/R staví `arcFromEndpointsRadius()`
     (`js/utils.js`) – tutéž funkci používá i `parseGcodeToObjects()` pro
     `G02/G03 … R`, takže formulář a G-kód dají identický oblouk.
@@ -740,6 +777,23 @@ Segment {
     (`css/style.css`) tohle plošně vypíná pro všechny přímé děti – platí
     pro obě záložky okna „Zadání objektu". Kdyby se `.tab-scroll` použil
     jinde s dítětem, které má vlastní `overflow`, hlídat totéž.
+  - **`pointer-events` past: cokoli připojené přímo do `.calc-overlay`
+    (sourozenec `.calc-window`, ne jeho potomek) zdědí
+    `.calc-overlay-float { pointer-events: none }`** (schválně – plovoucí
+    okno má nechat klikat na plátno pod sebou) a NEDOSTANE zpátky `auto`,
+    protože ten přepíná jen `.calc-window`. Přesně tohle rozbilo popup
+    kompasu rychlé volby úhlu (`wireAngleCompass()` v `numericalInput.js`
+    ho appenduje do `root` = `.calc-overlay`) – byl neklikatelný a
+    kompletně mimo hit-test (`elementsFromPoint` ho přeskakovalo, klik
+    propadl na to, co bylo pod ním). Cokoli nového takhle připojovaného
+    potřebuje vlastní `pointer-events: auto`.
+  - **Z-index vrstvy plovoucích oken:** `.calc-overlay` (obyčejný modal)
+    200, `.calc-overlay-float` (VK/Číselné zadání) 300, `.input-overlay`
+    (`makeInputOverlay()` – offset/mirror/rotate/fillet…) 350. Skutečné
+    rozhodovací dialogy s neprůhledným pozadím (`.input-overlay`) mají být
+    NAD plovoucím oknem, i když ho vyvolá tlačítko UVNITŘ něj (např.
+    ⌒/⌿ v číselném zadání) – jinak se dialog schová pod oknem, ze kterého
+    vznikl.
   - `canvasPick.js` – sdílený jednorázový odběr kliku na CAD plátno (🎯
     „vybrat bod z výkresu"). Vědomě **mimo** `handleCanvasClick()`
     v `events.js`: tam by jeden klik zároveň zapsal souřadnici do

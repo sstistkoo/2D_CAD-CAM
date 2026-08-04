@@ -1516,7 +1516,11 @@ body {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 100;
+  /* Nad `.calc-overlay-float` (300, plovoucí okno „Zadání objektu") – tenhle
+     dialog má neprůhledné pozadí a je to skutečné rozhodovací okno (OK/Zrušit),
+     takže má být nahoře i nad ním (např. Zaoblení/Zkosení vyvolané tlačítkem
+     ⌒/⌿ přímo z číselného zadání, zatímco „Zadání objektu" zůstává otevřené). */
+  z-index: 350;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1699,6 +1703,13 @@ body {
   border-radius: 8px;
   padding: 6px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  /* Popup se připojuje přímo do `.calc-overlay` (sourozenec `.calc-window`,
+     ne jeho potomek – viz numericalInput.js). Plovoucí okno má schválně
+     `.calc-overlay-float { pointer-events: none }`, aby šlo klikat na
+     plátno POD ním, a zpět na `auto` ho přepíná jen `.calc-window` – na
+     tenhle sourozenecký popup se to nevztahovalo, takže byl neklikatelný
+     (klik propadl skrz na to, co bylo pod ním). */
+  pointer-events: auto;
 }
 
 .compass-grid {
@@ -5654,6 +5665,11 @@ body {
   font-size: 14px;
   font-weight: 700;
 }
+/* Nepovinný řádek „Roh s předchozí" přímo ve formuláři úsečky (⌒/⌿ + R). */
+.num-corner-inline-row { align-items: center; margin-top: 4px; gap: 8px; }
+.num-corner-inline-toggle { display: flex; gap: 4px; flex: 0 0 auto; }
+.num-corner-inline-toggle .vk-toggle { padding: 6px 9px; font-size: 15px; }
+.num-corner-inline-row > div:last-child { flex: 1; min-width: 0; }
 .vk-combined-window .cnc-fields { gap: 6px; margin-bottom: 6px; }
 .vk-section { margin-bottom: 6px; }
 .vk-section-title {
@@ -5849,6 +5865,26 @@ body {
   margin-bottom: 4px;
 }
 .vk-gcode-label .vk-header-btn { flex: 0 0 auto; }
+/* Bez popisku (ruční zápis v číselném zadání) – žádný řádek nad textarea
+   neubírá výšku, 🔄 sedí jako plovoucí tlačítko v pravém horním rohu
+   PŘÍMO NAD textarea (poloprůhledné, ať nezakrývá nadpisem první řádek). */
+.vk-gcode-box-bare {
+  position: relative;
+  padding: 0;
+}
+.vk-gcode-box-bare .vk-gcode-textarea {
+  min-height: 100%;
+  /* Místo pro plovoucí 🔄 v rohu, ať mu první řádek textu nemizí pod tlačítkem. */
+  padding-right: 38px;
+}
+.vk-gcode-corner-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  opacity: 0.7;
+}
+.vk-gcode-corner-btn:hover { opacity: 1; }
 .vk-gcode-textarea {
   width: 100%;
   flex: 1 1 auto;

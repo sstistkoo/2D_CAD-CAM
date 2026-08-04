@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Zaoblení/zkosení rohu jedním krokem, rovnou při zadávání navazující
+  úsečky.** V číselném zadání se u úsečky (když existuje předchozí, se
+  kterou by mohla navázat) objeví nepovinný řádek **Roh s předchozí**
+  (přepínač ⌒/⌿ + hodnota) – vyplní se zároveň s cílovým bodem a jedno
+  **OK** rovnou vytvoří úsečku A zaoblí/zkosí roh s tou předchozí (dřív to
+  šlo jen na dva kroky: úsečka, pak zvlášť tlačítko v samostatném řádku,
+  které pořád zůstává jako záložní cesta, když se pole nevyplní předem).
+  Do **ručního zápisu G-kódu** se navíc připíše **standardní ISO zkratka**
+  rohu – Sinumerik `CHF=`/`RND=`, Fanuc `C`/`R`, Heidenhain `CHF `/`RND R`
+  (dle aktuálního řídicího systému, nová `bridge.gcodeCornerMarker()` v
+  `calculators/cncEditor.js` – stejná konvence, jakou používá tlačítko
+  „⌒ Sražení/zaoblení → dráha" tam). Marker appka needituje na skutečnou
+  dráhu sama (na plátně se přitom REÁLNÁ zaoblená/zkosená geometrie kreslí
+  hned) – rozbalení na G1/G2/G3 zůstává na existujícím tlačítku přímo v
+  CNC Editoru, kam se dá zápis kdykoli poslat k ověření/simulaci.
+- **Ruční zápis G-kódu se plní i tím, co nakreslíš přes formulář.** Po
+  **OK** se nově vytvořený objekt hned připíše do pole jako G-kód
+  (`bridge.formatAbsCoord()` – nová sdílená funkce z `storage/fileIO.js`,
+  stejná konvence os/jednotek jako pravý CNC panel). Navazující úsečky/
+  oblouky nedostanou zbytečný `G00` na bod, kde nástroj podle předchozího
+  zápisu už stojí; bod a kružnice, které nejsou pohyb, se zapíšou jako
+  komentář (`; Bod X.. Z..`), takže je zápis čitelný a 🔄 je bez problému
+  přeskočí. Editor je teď i vizuálně větší – popisek „Ruční zápis G-kódu:"
+  zmizel, **🔄** sedí jako plovoucí tlačítko v pravém horním rohu přímo nad
+  textarea.
+- **Automatické vycentrování výkresu po každém prvku z číselného zadání**
+  (`autoCenterView()`) – při řetězení „bod za bodem" jinak snadno vyjede
+  mimo viditelnou plochu.
 - **Zaoblení / zkosení rovnou z číselného zadání.** Když dvě úsečky za sebou
   navážou, přibude řádek **Roh s předchozí úsečkou** s **⌒** a **⌿** –
   spustí tutéž operaci jako nástroj Zaoblení/Zkosení na plátně (sdílená
@@ -65,6 +93,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     detaily všech přeskočených řádků navíc v konzoli.
 
 ### Fixed
+- **Kompas rychlé volby úhlu (✛) v číselném zadání nereagoval na klik.**
+  Popup se šipkami se připojuje přímo do `.calc-overlay`, sourozenci
+  `.calc-window`, ne jeho potomkovi. Plovoucí okno má schválně
+  `.calc-overlay-float { pointer-events: none }` (ať jde klikat na plátno
+  pod ním) a zpátky na `auto` to přepíná jen `.calc-window` – na popup se
+  to nevztahovalo, takže byl (i jeho vlastní pozadí) úplně mimo hit-test:
+  klik propadl skrz na formulářové pole pod ním. `.angle-compass-popup`
+  má teď vlastní `pointer-events: auto`.
+- **Zaoblení/Zkosení vyvolané z číselného zadání (⌒/⌿) se objevovalo POD
+  oknem „Zadání objektu".** `.input-overlay` (`makeInputOverlay()` – sdílí
+  ho spousta jednoduchých dialogů) mělo `z-index: 100`, plovoucí okno
+  `.calc-overlay-float` má `300`. Přebito na `350` – `.input-overlay` má
+  neprůhledné pozadí a je to skutečné rozhodovací okno (OK/Zrušit), takže
+  patří nad cokoli otevřeného, ne pod.
 - **Editor G-kódu v okně „Zadání objektu" ořezával pole formuláře nad
   sebou** (na VK záložce viditelně u typu Oblouk – po „Geometrie prvku"
   a přepínači VL/VKr/VPOL zbytek polí zmizel). Příčina: `.sn-help-details`

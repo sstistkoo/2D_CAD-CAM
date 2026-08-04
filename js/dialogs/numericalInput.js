@@ -10,7 +10,7 @@ import { normalizeGcodeText } from '../gcodeNormalize.js';
 import { wireExprInputs } from './mobileEdit.js';
 import { showFilletChamferDialog } from './objectDialogs.js';
 import { bridge } from '../bridge.js';
-import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds } from '../canvas.js';
+import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
 // Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
@@ -204,14 +204,11 @@ export function renderNumericalTab() {
           ${NUM_TYPES.map(t => `<option value="${t.key}"${t.key === DEFAULT_NUM_TYPE ? ' selected' : ''}>${t.label}</option>`).join('')}
         </select>
         <div id="numFields"></div>
-      <div class="vk-gcode-box">
-        <span class="vk-gcode-label">
-          Ruční zápis G-kódu:
-          <button type="button" class="vk-header-btn" data-act="gcode-apply"
-            title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu)">🔄</button>
-        </span>
+      <div class="vk-gcode-box vk-gcode-box-bare">
+        <button type="button" class="vk-header-btn vk-gcode-corner-btn" data-act="gcode-apply"
+          title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu)">🔄</button>
         <textarea class="vk-gcode-textarea" data-id="num-gcode" spellcheck="false"
-          placeholder="${GCODE_PLACEHOLDER}"></textarea>
+          placeholder="${GCODE_PLACEHOLDER}" aria-label="Ruční zápis G-kódu"></textarea>
         </div>
       </div>
     </div>`;
@@ -282,6 +279,117 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // konec, R a smysl (zápis jako v G-kódu, navazuje na předchozí prvek).
   let arcMode = 'endpoints';
 
+  // Konec posledně PŘIPSANÉHO řádku do pole „Ruční zápis G-kódu" – ať se
+  // při navazujícím řetězení (úsečka na úsečku apod.) neopakuje zbytečný
+  // G00 na bod, kde nástroj beztak už stojí. `null` = další prvek si musí
+  // vždy najet sám (přerušený řetěz, nebo bod/kružnice před ním).
+  let lastAppendedGcodeEnd = null;
+
+  /**
+   * Připíše nově vytvořený objekt do pole „Ruční zápis G-kódu" ve stejném
+   * formátu, jaký appka vypisuje jinde (`bridge.formatAbsCoord` – sdílené
+   * s pravým CNC panelem, aby se osy/jednotky nerozjely na dvou místech).
+   * Bod a kružnice nejsou skutečný pohyb nástroje – zapíšou se jako
+   * komentář, aby zápis zůstal čitelný a validní (parser komentáře
+   * ignoruje, takže nevadí ani při zpětném 🔄 vykreslení).
+   * @param {string} t typ z `readFormGeometry()` ('point'|'line'|'constr'|'circle'|'arc')
+   * @param {object} g geometrie vrácená `readFormGeometry()`
+   */
+  function appendGcodeForObject(t, g) {
+    const gcodeEl = container.querySelector('[data-id="num-gcode"]');
+    if (!gcodeEl) return;
+    const fmt = (x, y) => bridge.formatAbsCoord ? bridge.formatAbsCoord(x, y) : `X${x.toFixed(3)} Z${y.toFixed(3)}`;
+    const continuesFrom = (x, y) => lastAppendedGcodeEnd
+      && Math.hypot(x - lastAppendedGcodeEnd.x, y - lastAppendedGcodeEnd.y) < 1e-6;
+
+    const lines = [];
+    let newEnd = null;
+    switch (t) {
+      case 'point':
+        lines.push(`; Bod ${fmt(g.x, g.y)}`);
+        break;
+      case 'line':
+      case 'constr':
+        if (!continuesFrom(g.x1, g.y1)) lines.push(`G00 ${fmt(g.x1, g.y1)}`);
+        lines.push(`G01 ${fmt(g.x2, g.y2)}${t === 'constr' ? ' ; konstr' : ''}`);
+        newEnd = { x: g.x2, y: g.y2 };
+        break;
+      case 'circle':
+        lines.push(`; Kružnice střed ${fmt(g.cx, g.cy)} R${g.r.toFixed(3)}`);
+        break;
+      case 'arc': {
+        const sx = g.cx + g.r * Math.cos(g.sa), sy = g.cy + g.r * Math.sin(g.sa);
+        const ex = g.cx + g.r * Math.cos(g.ea), ey = g.cy + g.r * Math.sin(g.ea);
+        if (!continuesFrom(sx, sy)) lines.push(`G00 ${fmt(sx, sy)}`);
+        // Zrcadlení jedné osy obrací smysl oblouku – stejné pravidlo jako
+        // flipArc() v runCncExport() (storage/fileIO.js).
+        const base = g.ccw ? 'G03' : 'G02';
+        const code = (state.flipX !== state.flipZ) ? (base === 'G02' ? 'G03' : 'G02') : base;
+        lines.push(`${code} ${fmt(ex, ey)} R${g.r.toFixed(3)}`);
+        newEnd = { x: ex, y: ey };
+        break;
+      }
+      default:
+        return;
+    }
+    lastAppendedGcodeEnd = newEnd;
+    gcodeEl.value = gcodeEl.value.trim() === '' ? lines.join('\n') : `${gcodeEl.value}\n${lines.join('\n')}`;
+    try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, gcodeEl.value); } catch { /* ignore */ }
+  }
+
+  /**
+   * Najde poslední řádek, jehož cílová souřadnice je přesně `(wx, wy)` –
+   * hledá se OD KONCE textem naformátovaným stejně jako `appendGcodeForObject`
+   * (`bridge.formatAbsCoord`), takže je to spolehlivé bez ohledu na to, kolik
+   * dalších řádků mezitím přibylo. Roh vzniká mezi DVĚMA po sobě jdoucími
+   * úsečkami – marker patří na tu, co do rohu DOJÍŽDÍ (má ho jako svůj CÍL),
+   * ne na tu, která z něj teprve vede dál.
+   * @param {number} wx
+   * @param {number} wy
+   * @returns {number} index v `gcodeEl.value.split('\n')`, nebo -1
+   */
+  function findLineIndexEndingAt(wx, wy) {
+    const gcodeEl = container.querySelector('[data-id="num-gcode"]');
+    const target = gcodeEl && bridge.formatAbsCoord ? bridge.formatAbsCoord(wx, wy) : null;
+    if (!target) return -1;
+    const lines = gcodeEl.value.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].includes(target)) return i;
+    }
+    return -1;
+  }
+
+  /**
+   * Připíše marker sražení/zaoblení (`bridge.gcodeCornerMarker()` – stejná
+   * konvence jako CNC Editor: Sinumerik `CHF=`/`RND=`, Fanuc `C`/`R`,
+   * Heidenhain `CHF `/`RND R`) na řádek, který DOJÍŽDÍ do zadaného rohu.
+   * Je to jen standardní ISO zkratka, appka ji needituje na skutečnou dráhu
+   * – to dělá tlačítko „⌒ Sražení/zaoblení → dráha" přímo v CNC Editoru,
+   * když to uživatel chce vidět/ověřit.
+   * @param {'fillet'|'chamfer'} mode
+   * @param {number} value
+   * @param {number} cornerWx world X rohu (konec úsečky, na kterou marker patří)
+   * @param {number} cornerWy world Y rohu
+   * @returns {boolean} false = řádek dojíždějící do rohu se v textu nenašel
+   */
+  function appendCornerMarker(mode, value, cornerWx, cornerWy) {
+    if (!bridge.gcodeCornerMarker) return false;
+    const gcodeEl = container.querySelector('[data-id="num-gcode"]');
+    if (!gcodeEl) return false;
+    const idx = findLineIndexEndingAt(cornerWx, cornerWy);
+    if (idx === -1) return false;
+    const lines = gcodeEl.value.split('\n');
+    const marker = bridge.gcodeCornerMarker(mode, value);
+    const line = lines[idx];
+    const ci = line.indexOf(';');
+    const code = (ci !== -1 ? line.slice(0, ci) : line).replace(/\s+$/, '');
+    const comment = ci !== -1 ? line.slice(ci) : '';
+    lines[idx] = comment ? `${code} ${marker} ${comment}` : `${code} ${marker}`;
+    gcodeEl.value = lines.join('\n');
+    try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, gcodeEl.value); } catch { /* ignore */ }
+    return true;
+  }
+
   /** Tlačítka ⌒/⌿ – jen když je co zaoblit (dvě navazující úsečky). */
   function cornerToolsHTML() {
     if (!lastLineCorner) return '';
@@ -291,6 +399,31 @@ export function initNumericalTab(container, { picker = null } = {}) {
         <button type="button" class="btn-ok num-corner-btn" data-corner="fillet" title="Zaoblit roh">⌒</button>
         <button type="button" class="btn-ok num-corner-btn" data-corner="chamfer" title="Zkosit roh">⌿</button>
       </div>
+    </div>`;
+  }
+
+  // Typ rohu pro NEPOVINNÉ pole „Roh s předchozí" – vyplní se hned při
+  // zadávání navazující úsečky, takže OK v jednom kroku vytvoří úsečku
+  // I zaoblí/zkosí roh s tou předchozí (místo dvou kroků: čára, pak zvlášť
+  // ⌒/⌿ v `cornerToolsHTML()` výše, která zůstává jako záložní cesta,
+  // když se pole nevyplní předem).
+  let cornerInlineMode = 'fillet';
+
+  /**
+   * Nepovinný řádek „Roh s předchozí" přímo ve formuláři úsečky – zobrazí
+   * se, kdykoli existuje předchozí úsečka (`prevLineEnd`), i než appka ví,
+   * jestli tahle nová na ni fakt naváže (to se pozná až po vytvoření).
+   * Když roh nakonec nevznikne (uživatel změnil počáteční bod jinam),
+   * appka o tom po OK jen informuje toastem – nic se tiše neaplikuje jinam.
+   */
+  function cornerInlineFieldHTML() {
+    if (!prevLineEnd) return '';
+    return `<div class="input-row num-corner-inline-row">
+      <div class="num-corner-inline-toggle">
+        <button type="button" class="vk-toggle${cornerInlineMode === 'fillet' ? ' active' : ''}" data-corner-mode="fillet" title="Zaoblit roh s předchozí úsečkou">⌒</button>
+        <button type="button" class="vk-toggle${cornerInlineMode === 'chamfer' ? ' active' : ''}" data-corner-mode="chamfer" title="Zkosit roh s předchozí úsečkou">⌿</button>
+      </div>
+      <div><label>Roh s předchozí (nepovinné):</label><input type="text" id="ncorner" value="" placeholder="R / vzdálenost"></div>
     </div>`;
   }
 
@@ -307,6 +440,10 @@ export function initNumericalTab(container, { picker = null } = {}) {
         showToast('Roh se nenašel – úsečky už asi nenavazují');
         return;
       }
+      // Marker je jednohodnotová zkratka (CHF=/RND=) – u zkosení dvěma
+      // různými vzdálenostmi bere jen p1. Skutečná (asymetrická) geometrie
+      // na plátně tím není dotčená, jde jen o zápis do G-kódu.
+      appendCornerMarker(chosenMode, p1, corner.x, corner.y);
       // Roh je zpracovaný; druhý pokus by zaobloval už zaoblené.
       lastLineCorner = null;
       updateFields();
@@ -543,6 +680,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 )}
                 <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
+                ${cornerInlineFieldHTML()}
                 <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
                 <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
                 <div class="pick-col">${angleCompassBtn()}${okBtn()}</div></div>
@@ -856,10 +994,39 @@ export function initNumericalTab(container, { picker = null } = {}) {
    * čerstvé „Start = konec předchozího prvku" do stejného typu formuláře.
    */
   function createAnother() {
+    // Geometrie se čte PŘED `createObject()` a znovu (stejná, čistá funkce)
+    // hned po něm – ne proto, že by se mezitím měnila, ale aby zápis do
+    // G-kódu použil přesně to, co se skutečně vložilo, ne odhad.
     if (!createObject()) return;
+    appendGcodeForObject(typeSelect.value, readFormGeometry());
+    applyInlineCornerIfRequested();
     picker?.cancel();
+    // Vycentrovat plátno na celý výkres po každém přidaném prvku – při
+    // řetězení „bod za bodem" jinak snadno vyjede mimo viditelnou plochu.
+    autoCenterView();
     updateFields();
     announceChainContinuation();
+  }
+
+  /**
+   * Zaoblí/zkosí roh HNED, když ho uživatel vyplnil v nepovinném řádku
+   * „Roh s předchozí" přímo u zadávání této úsečky – jedno OK místo dvou
+   * kroků (čára, pak zvlášť ⌒/⌿). Volá se vždy po `createObject()`; když
+   * pole zůstalo prázdné nebo roh (ještě) nevznikl, jen tiše skončí – roh
+   * pak nabídne `cornerToolsHTML()` jako záložní krok navíc.
+   */
+  function applyInlineCornerIfRequested() {
+    if (!lastLineCorner) return;
+    const input = container.querySelector('#ncorner');
+    const value = input ? safeEvalMath(input.value) : NaN;
+    if (!isFinite(value) || value <= 0) return;
+    const corner = lastLineCorner;
+    if (!bridge.filletChamferAtCorner?.(cornerInlineMode, value, value, corner.x, corner.y)) {
+      showToast('Roh se nenašel – úsečky už asi nenavazují');
+      return;
+    }
+    appendCornerMarker(cornerInlineMode, value, corner.x, corner.y);
+    lastLineCorner = null;
   }
 
   // OK i tlačítka rohu žijí uvnitř #numFields, který updateFields() pokaždé
@@ -872,6 +1039,16 @@ export function initNumericalTab(container, { picker = null } = {}) {
     if (arcModeBtn && arcModeBtn.dataset.arcMode !== arcMode) {
       arcMode = arcModeBtn.dataset.arcMode;
       updateFields();
+      return;
+    }
+    const cornerModeBtn = e.target.closest("[data-corner-mode]");
+    if (cornerModeBtn && cornerModeBtn.dataset.cornerMode !== cornerInlineMode) {
+      cornerInlineMode = cornerModeBtn.dataset.cornerMode;
+      // Jen přepnout zvýraznění – NE updateFields(), to by smazalo právě
+      // rozepsané X2/Z2/Délku/Úhel (přepínač může přijít kdykoli během
+      // zadávání úsečky, ne jen na jejím začátku).
+      cornerModeBtn.parentElement.querySelectorAll('[data-corner-mode]')
+        .forEach(b => b.classList.toggle('active', b === cornerModeBtn));
     }
   });
 

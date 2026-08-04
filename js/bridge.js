@@ -22,6 +22,13 @@ export const bridge = {
   updateIntersectionList: null,
   calculateAllIntersections: null,
   runCncExport: null,
+  // Absolutní world (x,y) → G-kód adresa (osy/jednotky dle machineType +
+  // xDisplayMode) – sdílená s runCncExport(), aby se konvence os nerozjela
+  // na dvou místech (viz numericalInput.js – ruční zápis G-kódu).
+  formatAbsCoord: null,
+  // Marker sražení/zaoblení rohu (CHF=/RND= apod., dle řídicího systému) –
+  // js/calculators/cncEditor.js, použito v numericalInput.js.
+  gcodeCornerMarker: null,
   renderCncCodeToCanvas: null,
   renderVkPreview: null,
   fitVkPreviewView: null,

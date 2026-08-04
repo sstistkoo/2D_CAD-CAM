@@ -550,17 +550,36 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   sestrojit a formulář napíše, jaké minimum je potřeba.
   Potvrzuje se tlačítkem **OK** přímo v posledním řádku polí –
   objekt se vloží a formulář rovnou navazuje na jeho konec, takže se
-  kontura skládá úsečka po úsečce. Když dvě úsečky za sebou navážou,
-  objeví se řádek **Roh s předchozí úsečkou** s **⌒ zaoblit** a
-  **⌿ zkosit** – je to tatáž operace jako nástroj Zaoblení/Zkosení na
-  plátně, jen se na roh nemusí trefovat myší. Okno se zavírá **✕** v liště.
+  kontura skládá úsečka po úsečce.
 
-  Pod formulářem je pole na **ruční zápis G-kódu**. Je prázdné – není to
-  kopie pravého panelu **CNC**, ale místo, kam se kód píše; šedá předloha
-  ukazuje formát, ve kterém ho panel vypisuje, takže zapsaný program s ním
-  rovnou sedí. Tlačítkem **🔄** se kód vykreslí na plátno (nahradí objekty
-  výkresu, vrací se jedním **Ctrl+Z**) a pravý panel si ho pak vygeneruje sám.
-  Rozepsaný text zůstane i po zavření okna.
+  **Zaoblení/zkosení rohu jde zadat rovnou s navazující úsečkou** – když
+  existuje předchozí úsečka, přibude nepovinný řádek **Roh s předchozí**
+  s přepínačem **⌒**/**⌿** a polem na hodnotu (poloměr/vzdálenost). Vyplň
+  ho spolu s cílovým bodem a jedno **OK** vytvoří úsečku a rovnou zaoblí/
+  zkosí roh s tou předchozí – stejná operace jako nástroj Zaoblení/Zkosení
+  na plátně, jen jedním krokem místo dvou. Když pole necháš prázdné, po
+  vytvoření úsečky se místo něj objeví záložní řádek **Roh s předchozí
+  úsečkou** s **⌒**/**⌿** tlačítky (otevřou stejný dialog jako nástroj na
+  plátně) – roh jde doplnit i dodatečně. Okno se zavírá **✕** v liště.
+
+  Zaoblený/zkosený roh se do **ručního zápisu G-kódu** (viz níž) zapíše
+  jako standardní zkratka řídicího systému – Sinumerik `CHF=`/`RND=`,
+  Fanuc `C`/`R`, Heidenhain `CHF `/`RND R` – na řádek úsečky, která do
+  rohu dojíždí. Appka ji sama nerozbaluje na skutečnou dráhu; to udělá
+  tlačítko **⌒ Sražení/zaoblení → dráha** přímo v **💻 CNC Editoru**, kam
+  se dá zápis poslat k ověření nebo simulaci.
+
+  Pod formulářem je pole na **ruční zápis G-kódu**. Píše se do něj ručně,
+  ale **plní se i samo** – co vytvoříš přes formulář (**OK**), se rovnou
+  připíše jako G-kód ve stejném formátu, jaký appka vypisuje jinde: úsečka
+  jako `G01`, oblouk jako `G02/G03 … R`, navazující prvky bez zbytečného
+  `G00` (jen když nástroj skočí jinam, než kde právě „stojí"). Bod a
+  kružnice nejsou pohyb nástroje, takže se zapíšou jako komentář
+  (`; Bod …`, `; Kružnice …`) – appka je při zpětném vykreslení jen
+  přeskočí. Tlačítko **🔄** (plovoucí v pravém horním rohu pole) kód
+  vykreslí na plátno (nahradí objekty výkresu, vrací se jedním **Ctrl+Z**)
+  a pravý panel **CNC** si ho pak vygeneruje sám. Rozepsaný text zůstane
+  i po zavření okna.
 
   **Psát se nemusí úhledně.** Před vykreslením se zápis srovná, takže projde:
 
@@ -583,7 +602,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   na sousední záložce u prvku se zcela známými souřadnicemi cíle.
 
   Okno se otevírá na této záložce s typem **Bod** – má nejmíň polí, takže je
-  pole na zápis kódu vidět celé.
+  pole na zápis kódu vidět celé. Po každém **OK** se navíc plátno
+  automaticky vycentruje na celý výkres, takže při řetězení „bod za bodem"
+  neuteče mimo viditelnou plochu.
 
   Obě záložky mají **stejnou, pevnou výšku okna** – nemění se podle toho,
   kolik polí má vybraný typ objektu. Obsah se roluje jako celek: k poli na

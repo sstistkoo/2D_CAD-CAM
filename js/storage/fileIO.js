@@ -653,6 +653,27 @@ export function chainOrderContourObjects(objs) {
   return ordered.concat(rest);
 }
 
+/**
+ * Absolutní world souřadnice → G-kód adresa ve správném pořadí os a
+ * jednotkách (soustruh/karusel, poloměr/průměr) – stejná logika jako
+ * `fmtCoordAbs()` uvnitř `runCncExport()`, jen bez vazby na INC režim
+ * (ta funkce navíc drží stav prevX/prevY pro přírůstkové souřadnice, tady
+ * to není potřeba). Zpřístupněné přes bridge pro číselné zadání – jednu
+ * konvenci os/jednotek nemá smysl duplikovat na dvou místech.
+ * @param {number} x
+ * @param {number} y
+ * @returns {string}
+ */
+export function formatAbsCoord(x, y) {
+  const [gH, gV] = state.machineType === 'karusel' ? ['X', 'Z'] : ['Z', 'X'];
+  const xVal = state.machineType === 'karusel' ? displayX(x) : x;
+  const yVal = state.machineType === 'karusel' ? y : displayX(y);
+  return state.machineType === 'karusel'
+    ? `${gH}${xVal.toFixed(3)} ${gV}${yVal.toFixed(3)}`
+    : `${gV}${yVal.toFixed(3)} ${gH}${xVal.toFixed(3)}`;
+}
+bridge.formatAbsCoord = formatAbsCoord;
+
 function runCncExport() {
   // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
   const selectedIndices = new Set();
