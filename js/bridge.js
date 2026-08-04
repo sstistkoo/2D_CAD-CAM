@@ -26,6 +26,13 @@ export const bridge = {
   // xDisplayMode) – sdílená s runCncExport(), aby se konvence os nerozjela
   // na dvou místech (viz numericalInput.js – ruční zápis G-kódu).
   formatAbsCoord: null,
+  // World AABB obsahu G-kódu bez vedlejších účinků na plátno – použito
+  // pro ⤢ v číselném zadání (js/dialogs/numericalInput.js), ať jde rámovat
+  // ruční zápis i před jeho vykreslením přes 🔄.
+  gcodeTextBounds: null,
+  // Poslední bod (world x,y), kam text G-kódu dojíždí – použito v
+  // numericalInput.js pro obnovení closure stavu po (znovu)otevření okna.
+  gcodeTextLastPoint: null,
   renderCncCodeToCanvas: null,
   renderVkPreview: null,
   fitVkPreviewView: null,

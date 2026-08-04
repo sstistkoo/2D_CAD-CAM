@@ -140,13 +140,25 @@ function numPreviewWorldBounds(data) {
 }
 
 /**
- * ⤢ v liště okna nad záložkou 🔢 – vycentruje plátno na rozepsaný objekt.
- * Když ještě není co ukazovat, spadne to na běžné vycentrování výkresu
- * (obojí rámuje jen VIDITELNOU část plátna, ne oblast pod oknem).
+ * ⤢ v liště okna nad záložkou 🔢 – vycentruje plátno na to, s čím uživatel
+ * právě pracuje.
+ *
+ * Přednost má **ruční zápis G-kódu**, pokud není prázdný – jinak by ⤢ po
+ * 🔄 (to samo vycentruje správně na to, co se vykreslilo) přeskočilo na
+ * ZASTARALÝ bod z formulářových polí (ten se nemění tím, co se píše do
+ * editoru, drží si vlastní – třeba zbylou – hodnotu) a vypadalo by to, že
+ * se vykreslení „ztratilo". Editor se rámuje přes `bridge.gcodeTextBounds()`
+ * (stejný parser jako 🔄, bez vedlejších účinků), takže funguje i PŘED
+ * odesláním na plátno. Až když je editor prázdný, dává smysl padnout na
+ * živý náhled formuláře (`numPreviewWorldBounds`) a nakonec na běžné
+ * vycentrování výkresu – obojí rámuje jen VIDITELNOU část plátna, ne
+ * oblast pod oknem.
  * @returns {boolean}
  */
 export function fitCadViewToNumPreview() {
-  const bounds = numPreviewWorldBounds(state.numPreview?.data);
+  const gcodeEl = document.querySelector('[data-tab-content="num"] [data-id="num-gcode"]');
+  const gcodeBounds = gcodeEl ? bridge.gcodeTextBounds?.(gcodeEl.value) : null;
+  const bounds = gcodeBounds || numPreviewWorldBounds(state.numPreview?.data);
   if (!bounds) return false;
   fitViewToWorldBounds(bounds);
   bridge.renderAll?.();
@@ -209,7 +221,7 @@ export function renderNumericalTab() {
           <button type="button" class="vk-header-btn vk-header-btn-red" data-act="gcode-clear"
             title="Smazat zapsaný G-kód">🗑</button>
           <button type="button" class="vk-header-btn" data-act="gcode-apply"
-            title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu)">🔄</button>
+            title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu) – nebo Ctrl+Enter">🔄</button>
         </div>
         <textarea class="vk-gcode-textarea" data-id="num-gcode" spellcheck="false"
           placeholder="${GCODE_PLACEHOLDER}" aria-label="Ruční zápis G-kódu"></textarea>
@@ -303,8 +315,13 @@ export function initNumericalTab(container, { picker = null } = {}) {
     const gcodeEl = container.querySelector('[data-id="num-gcode"]');
     if (!gcodeEl) return;
     const fmt = (x, y) => bridge.formatAbsCoord ? bridge.formatAbsCoord(x, y) : `X${x.toFixed(3)} Z${y.toFixed(3)}`;
+    // Tolerance 1e-3, ne 1e-6: hodnota prošla zobrazovacím polem
+    // (`.toFixed(3)` při přednaplnění ze `state.numDialogChain`) a zpátky
+    // přes `safeEvalMath()` – i beze změny uživatelem to zaokrouhlením a
+    // opětovným naparsováním posune číslo o řádu 1e-4, takže 1e-6 by
+    // řetěz rozbilo hned u druhého navazujícího prvku.
     const continuesFrom = (x, y) => lastAppendedGcodeEnd
-      && Math.hypot(x - lastAppendedGcodeEnd.x, y - lastAppendedGcodeEnd.y) < 1e-6;
+      && Math.hypot(x - lastAppendedGcodeEnd.x, y - lastAppendedGcodeEnd.y) < 1e-3;
 
     const lines = [];
     let newEnd = null;
@@ -401,6 +418,14 @@ export function initNumericalTab(container, { picker = null } = {}) {
       return d0 < d1 ? { afterCorner: p0, beforeCorner: p1 } : { afterCorner: p1, beforeCorner: p0 };
     };
 
+    // Osa VK/G-kódu ↔ world: soustruh má G-kód Z = world x, G-kód X =
+    // world y (vodorovně/svisle prohozené); karusel je 1:1. Pro určení
+    // G2/G3 stačí prohození os (měřítko/průměr na ZNAMÉNKO směru nevadí),
+    // proto bez displayX() – jen syrové prohození.
+    const toGcodePlane = state.machineType === 'karusel'
+      ? (wx, wy) => ({ gx: wx, gz: wy })
+      : (wx, wy) => ({ gx: wy, gz: wx });
+
     let connectorLine, beforeCorner;
     if (result.arc) {
       const arc = result.arc;
@@ -408,9 +433,24 @@ export function initNumericalTab(container, { picker = null } = {}) {
       const e1 = { x: arc.cx + arc.r * Math.cos(arc.endAngle), y: arc.cy + arc.r * Math.sin(arc.endAngle) };
       const sides = bySide(e0, e1);
       beforeCorner = sides.beforeCorner;
-      // Zrcadlení jedné osy obrací smysl oblouku – stejné pravidlo jako
-      // flipArc() v runCncExport() (storage/fileIO.js).
-      const base = arc.ccw !== false ? 'G03' : 'G02';
+      // `filletTwoLines()` (geometry.js) NEVRACÍ `ccw` u výsledného oblouku
+      // (jen cx/cy/r/startAngle/endAngle) – spoléhat na to, že bude/nebude
+      // nastavené, byl přesně tenhle bug (vždycky vyšlo G03, ať byl oblouk
+      // otočený jakkoli). Směr se proto počítá NEZÁVISLE, křížovým součinem
+      // v G-KÓD rovině (ne world – tam by prohození os u soustruhu dalo
+      // opačný výsledek) – stejný vzorec jako `convertCornersToPaths()`
+      // v CNC Editoru (js/calculators/cncEditor.js), jen s převodem
+      // world→G-kód os navíc, protože tahle geometrie (na rozdíl od CNC
+      // Editoru, který čte přímo už napsaný G-kód) vzniká z WORLD souřadnic
+      // skutečných objektů na plátně.
+      const b = toGcodePlane(beforeCorner.x, beforeCorner.y);
+      const a = toGcodePlane(sides.afterCorner.x, sides.afterCorner.y);
+      const c = toGcodePlane(arc.cx, arc.cy);
+      const cross = (b.gz - c.gz) * (a.gx - c.gx) - (b.gx - c.gx) * (a.gz - c.gz);
+      const base = cross > 0 ? 'G03' : 'G02';
+      // Zrcadlení jedné osy obrací smysl oblouku ZNOVU – stejné pravidlo
+      // jako flipArc() v runCncExport() (storage/fileIO.js). Je to DALŠÍ,
+      // nezávislá korekce (mění se jen VÝSTUP, ne uložená world geometrie).
       const code = (state.flipX !== state.flipZ) ? (base === 'G02' ? 'G03' : 'G02') : base;
       connectorLine = `${code} ${fmt(sides.afterCorner.x, sides.afterCorner.y)} R${arc.r.toFixed(3)}`;
     } else if (result.line) {
@@ -1005,8 +1045,13 @@ export function initNumericalTab(container, { picker = null } = {}) {
             dashed: t === "constr",
           });
           // Roh je jen tam, kde nová úsečka fakt začíná na konci předchozí.
+          // Tolerance 1e-3 (ne 1e-6 – viz stejný komentář u appendGcodeForObject
+          // výš): počáteční pole se přednaplňuje zaokrouhleně na 3 des.
+          // místa, takže i beze změny uživatelem vznikne rozdíl řádu 1e-4 –
+          // s 1e-6 by roh přestal být rozpoznaný hned u druhé navazující
+          // úsečky v řadě (přesně tohle uživatel hlásil).
           const joinsPrevious = prevLineEnd
-            && Math.hypot(prevLineEnd.x - g.x1, prevLineEnd.y - g.y1) < 1e-6;
+            && Math.hypot(prevLineEnd.x - g.x1, prevLineEnd.y - g.y1) < 1e-3;
           lastLineCorner = joinsPrevious ? { x: g.x1, y: g.y1 } : null;
           prevLineEnd = { x: g.x2, y: g.y2 };
           state.numDialogChain = { x: g.x2, y: g.y2 };
@@ -1122,11 +1167,24 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // syntaxe na sousední záložce), aby se rozepsaný program neztratil.
   const gcodeEl = container.querySelector('[data-id="num-gcode"]');
   try { gcodeEl.value = localStorage.getItem(NUM_GCODE_STORAGE_KEY) || ''; } catch { /* ignore */ }
+  // `lastAppendedGcodeEnd`/`prevLineEnd` jsou closure proměnné – při KAŽDÉM
+  // otevření okna se zakládají znovu jako `null`, i když text výše je z
+  // localStorage a dojíždí někam úplně jinam. Bez tohohle by appka po
+  // zavření/znovuotevření okna (nebo po F5) zapomněla, kam ruční zápis
+  // dojíždí, a hned první další navazující úsečka by dostala zbytečný
+  // `G00` na bod, kde už fakticky je – to je přesně ten vzor „G01 X.. /
+  // G00 X.. (stejný bod)" opakovaně v textu.
+  const restoredPoint = bridge.gcodeTextLastPoint?.(gcodeEl.value) ?? null;
+  lastAppendedGcodeEnd = restoredPoint;
+  prevLineEnd = restoredPoint;
   gcodeEl.addEventListener('input', () => {
     try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, gcodeEl.value); } catch { /* ignore */ }
   });
 
-  container.querySelector('[data-act="gcode-apply"]').addEventListener('click', () => {
+  /** 🔄 – srovná zápis do kanonického tvaru a pošle ho na plátno. Sdílené
+   *  tlačítkem i klávesovou zkratkou (Ctrl+Enter), ať nedělají dvě mírně
+   *  odlišné věci. */
+  function applyGcodeText() {
     if (!gcodeEl.value.trim()) { showToast('Zapište nejdřív G-kód'); return; }
     // Ručně psaný kód se nejdřív srovná do kanonického tvaru a přepíše se
     // i v poli – uživatel tak vidí, jak byl jeho zápis pochopen, a text je
@@ -1137,6 +1195,16 @@ export function initNumericalTab(container, { picker = null } = {}) {
       gcodeEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
     bridge.renderCncCodeToCanvas?.(normalized);
+  }
+  container.querySelector('[data-act="gcode-apply"]').addEventListener('click', applyGcodeText);
+
+  // Ctrl+Enter vykreslí – obyčejný Enter musí zůstat normální nový řádek,
+  // program má typicky víc řádků a psalo by se s ním jinak nedalo.
+  gcodeEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      applyGcodeText();
+    }
   });
 
   container.querySelector('[data-act="gcode-clear"]').addEventListener('click', () => {

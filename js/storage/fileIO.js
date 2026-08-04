@@ -1535,6 +1535,59 @@ function parseGcodeToObjects(code) {
   return { objs, warnings };
 }
 
+/**
+ * World AABB obsahu G-kódu, nebo `null` když z něj není co rámovat.
+ * Používá stejný parser jako 🔄 (`parseGcodeToObjects`), ale bez vedlejších
+ * účinků na plátno – pro ⤢ v číselném zadání, aby šlo rámovat rozepsaný
+ * ruční zápis ještě PŘED tím, než ho uživatel vůbec pošle na plátno.
+ * @param {string} code
+ * @returns {{minX: number, maxX: number, minY: number, maxY: number}|null}
+ */
+export function gcodeTextBounds(code) {
+  if (!code || !code.trim()) return null;
+  let objs;
+  try { ({ objs } = parseGcodeToObjects(code)); } catch { return null; }
+  if (!objs.length) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const o of objs) {
+    if (o.type === 'line') {
+      minX = Math.min(minX, o.x1, o.x2); maxX = Math.max(maxX, o.x1, o.x2);
+      minY = Math.min(minY, o.y1, o.y2); maxY = Math.max(maxY, o.y1, o.y2);
+    } else if (o.type === 'arc') {
+      minX = Math.min(minX, o.cx - o.r); maxX = Math.max(maxX, o.cx + o.r);
+      minY = Math.min(minY, o.cy - o.r); maxY = Math.max(maxY, o.cy + o.r);
+    }
+  }
+  return isFinite(minX) ? { minX, maxX, minY, maxY } : null;
+}
+bridge.gcodeTextBounds = gcodeTextBounds;
+
+/**
+ * Poslední bod (world x,y), kam text G-kódu dojíždí – nebo `null`, když
+ * v něm není žádný pohyb. Pro číselné zadání: `lastAppendedGcodeEnd` a
+ * `prevLineEnd` (`dialogs/numericalInput.js`) jsou closure proměnné, které
+ * se PŘI KAŽDÉM OTEVŘENÍ okna resetují na `null` – ale text v poli se
+ * načítá z localStorage a přežívá zavření. Bez tohohle by appka po
+ * zavření/znovuotevření okna (nebo po refreshi stránky) zapomněla, kam
+ * ruční zápis dojíždí, a každá další navazující úsečka by dostala
+ * zbytečný `G00` na bod, kde už fakticky je.
+ * @param {string} code
+ * @returns {{x: number, y: number}|null}
+ */
+export function gcodeTextLastPoint(code) {
+  if (!code || !code.trim()) return null;
+  let objs;
+  try { ({ objs } = parseGcodeToObjects(code)); } catch { return null; }
+  if (!objs.length) return null;
+  const last = objs[objs.length - 1];
+  if (last.type === 'line') return { x: last.x2, y: last.y2 };
+  if (last.type === 'arc') {
+    return { x: last.cx + last.r * Math.cos(last.endAngle), y: last.cy + last.r * Math.sin(last.endAngle) };
+  }
+  return null;
+}
+bridge.gcodeTextLastPoint = gcodeTextLastPoint;
+
 // Spojí za sebou navazující line/arc objekty do polyline (kontury).
 // Segmenty navazují pokud konec jednoho = začátek druhého (tolerance 1e-3).
 function chainToPolylines(objs) {

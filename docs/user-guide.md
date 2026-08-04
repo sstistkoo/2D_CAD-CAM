@@ -577,11 +577,15 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   `G00` (jen když nástroj skočí jinam, než kde právě „stojí"). Bod a
   kružnice nejsou pohyb nástroje, takže se zapíšou jako komentář
   (`; Bod …`, `; Kružnice …`) – appka je při zpětném vykreslení jen
-  přeskočí. Tlačítko **🔄** (plovoucí v pravém horním rohu pole) kód
-  vykreslí na plátno (nahradí objekty výkresu, vrací se jedním **Ctrl+Z**)
-  a pravý panel **CNC** si ho pak vygeneruje sám. Vedle něj **🗑** pole
-  smaže. Rozepsaný text zůstane
-  i po zavření okna.
+  přeskočí. Tlačítko **🔄** (plovoucí v pravém horním rohu pole, nebo
+  klávesová zkratka **Ctrl+Enter** – obyčejný Enter dělá normální nový
+  řádek) kód vykreslí na plátno (nahradí objekty výkresu, vrací se jedním
+  **Ctrl+Z**) a pravý panel **CNC** si ho pak vygeneruje sám. Vedle něj
+  **🗑** pole smaže. Rozepsaný text zůstane i po zavření okna.
+
+  Tlačítko **⤢** (v liště okna) rámuje přednostně **obsah tohohle pole**
+  – i před tím, než se vůbec vykreslí přes 🔄. Teprve když je pole
+  prázdné, spadne na živý náhled formuláře.
 
   **Psát se nemusí úhledně.** Před vykreslením se zápis srovná, takže projde:
 

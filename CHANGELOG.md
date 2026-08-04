@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Ctrl+Enter v poli „Ruční zápis G-kódu" vykreslí zapsané na plátno** –
+  stejná akce jako klik na 🔄. Obyčejný Enter zůstává normální nový
+  řádek (program má typicky víc řádků, se samotným Enter = odeslat by se
+  nedalo psát).
 - **🗑 Smazat vedle 🔄 v poli „Ruční zápis G-kódu"** (číselné zadání) –
   plovoucí tlačítko v pravém horním rohu textarea, vedle tlačítka pro
   vykreslení. Vyprázdní pole i localStorage a zruší rozjetý řetěz
@@ -101,6 +105,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     detaily všech přeskočených řádků navíc v konzoli.
 
 ### Fixed
+- **Zaoblení rohu v číselném zadání zapisovalo VŽDY `G03`, i když šlo
+  geometricky o `G02`.** `applyCornerGcode()` (`dialogs/numericalInput.js`)
+  bral směr z `arc.ccw` – ale `filletTwoLines()` (`geometry.js`) tuhle
+  vlastnost u výsledného oblouku vůbec nenastavuje (`undefined !== false`
+  vyjde vždycky pravda), takže se skutečná geometrie ignorovala a psalo
+  se pořád stejné písmeno. Směr se teď počítá NEZÁVISLE křížovým součinem
+  v G-KÓD rovině (stejný vzorec jako `convertCornersToPaths()` v CNC
+  Editoru, jen navíc s převodem world→G-kód os pro soustruh/karusel) –
+  ověřeno round-tripem, že zpětně naparsovaný oblouk z opraveného zápisu
+  sedí se skutečně nakreslenou geometrií na milimetr/stupeň přesně.
+  **Neplatí zatím pro karusel** – u karuselu se stejným testem najde
+  samostatná, hlubší nesrovnalost v tom, jak `parseGcodeToObjects()` čte
+  R-formát oblouku zpátky (nesouvisí s touhle opravou, netýká se
+  soustruhu); zůstává jako známé omezení k řešení zvlášť.
+- **Navazování úsečka-na-úsečku (a tím i zaoblení/zkosení rohu) přestalo
+  fungovat od druhé navazující úsečky v řadě.** Kontrola „navazuje nová
+  úsečka na konec předchozí?" používala toleranci `1e-6` – ale počáteční
+  pole se přednaplňuje ze `state.numDialogChain` zaokrouhleně na 3
+  desetinná místa (`.toFixed(3)`), takže i beze změny uživatelem vznikl
+  při odeslání formuláře rozdíl řádu `1e-4` (zaokrouhlení tam a zpátky
+  přes `safeEvalMath()`). To je o dva řády víc, než `1e-6` tolerovala –
+  roh se přestal poznávat přesně od druhého kroku dál (řetěz „vypadl" a
+  appka místo zaoblení jen přidala další samostatnou úsečku). Tolerance
+  zvednuta na `1e-3` na obou místech, kde na tohle appka spoléhá
+  (`appendGcodeForObject()`, `createObject()`) – stejná hodnota, jakou už
+  pro endpoint-matching používá `chainToPolylines()` jinde v appce.
+- **Zavření a znovuotevření okna „Zadání objektu" rozbilo navazování
+  úseček i zaoblení/zkosení rohu v ručním zápisu G-kódu** – po
+  zavření/znovuotevření (nebo po F5) appka zapomněla, kam zápis dojíždí,
+  a projevovalo se to trojmo: (1) každá další navazující úsečka dostala
+  zbytečný `G00` na bod, kde už fakticky je (opakovaný vzor
+  `G01 X.. Z..` hned následovaný `G00` na STEJNÉ souřadnice), (2) řádek
+  „Roh s předchozí" (⌒/⌿) se u další úsečky vůbec neobjevil, takže se
+  zaoblení/zkosení nedalo přidat jedním krokem, a (3) ani záložní
+  tlačítko po vytvoření nenašlo roh k zaoblení – „misto pokračování jen
+  dvě úsečky". Příčina: `lastAppendedGcodeEnd`/`prevLineEnd`
+  (`dialogs/numericalInput.js`) jsou closure proměnné, které se při
+  KAŽDÉM otevření okna zakládají znovu jako `null` – ale text v poli se
+  načítá z localStorage a zavření okna přežívá beze změny. Nová
+  `bridge.gcodeTextLastPoint()` (`storage/fileIO.js`, stejný parser jako
+  🔄) obě proměnné po otevření okna obnoví z toho, kam ZAPSANÝ text
+  skutečně dojíždí, takže navazování i zaoblení fungují správně i po
+  zavření/znovuotevření.
+- **⤢ v číselném zadání ignorovalo ruční zápis G-kódu a centrovalo na
+  zastaralou hodnotu z formulářových polí.** `fitCadViewToNumPreview()`
+  rámovala vždy `state.numPreview` (živý náhled formuláře) – ten se ale
+  nemění tím, co se píše do editoru, takže po napsání/vykreslení G-kódu
+  přes 🔄 (to samo správně vycentruje) druhý klik na ⤢ pohled ODSKOČIL na
+  bod zbylý ve formuláři z předchozího zadávání. Teď má přednost obsah
+  editoru – nová `bridge.gcodeTextBounds()` (`storage/fileIO.js`) ho
+  parsuje stejně jako 🔄, ale bez vedlejších účinků na plátno, takže jde
+  rámovat i PŘED odesláním. Živý náhled formuláře i běžné vycentrování
+  výkresu zůstávají jako záložní kroky, když je editor prázdný.
 - **Ikonová tlačítka (🔄/🗑/🎯/…) v okně „Zadání objektu" byla na mobilu
   40 px vysoká místo 28 px** (viditelně roztažená, ne čtvercová).
   `.input-dialog .vk-header-btn` přebíjelo `height`, ale ne `min-height` –

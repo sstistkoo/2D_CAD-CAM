@@ -719,15 +719,32 @@ Segment {
   - `numericalInput.js` – numerický vstup souřadnic: `renderNumericalTab()`
     (HTML) + `initNumericalTab(container, { picker })` (logika, vrací `{ destroy }`).
     Pole na ruční zápis G-kódu **není zrcadlo `#cncOutput`** (obsah drží
-    localStorage, 🔄 ho pouští přes `bridge.renderCncCodeToCanvas`), ale
-    `createAnother()` do něj po každém **OK** připíše `appendGcodeForObject()`
-    – řádek(y) pro právě vytvořený objekt ve stejném formátu, jaký appka
-    vypisuje jinde (`bridge.formatAbsCoord()`, nová exportovaná funkce ve
-    `storage/fileIO.js` – stejná konvence os/jednotek jako `runCncExport()`,
-    ale bez vazby na INC režim). Bod/kružnice nejsou pohyb → zapíšou se
-    jako komentář. Navazující `G00` se vynechává, když nový začátek sedí
+    localStorage, 🔄/Ctrl+Enter ho pouští přes `bridge.renderCncCodeToCanvas`
+    – sdílená `applyGcodeText()`, ať tlačítko a zkratka nedělají dvě mírně
+    odlišné věci), ale `createAnother()` do něj po každém **OK** připíše
+    `appendGcodeForObject()` – řádek(y) pro právě vytvořený objekt ve
+    stejném formátu, jaký appka vypisuje jinde (`bridge.formatAbsCoord()`,
+    nová exportovaná funkce ve `storage/fileIO.js` – stejná konvence
+    os/jednotek jako `runCncExport()`, ale bez vazby na INC režim).
+    Bod/kružnice nejsou pohyb → zapíšou se jako komentář. Navazující
+    `G00` se vynechává, když nový začátek sedí
     s koncem posledně připsaného řádku (closure `lastAppendedGcodeEnd`) –
     jinak by chain-kreslení „bod za bodem" bylo plné zbytečných rapidů.
+    Shoda se počítá s tolerancí `1e-3`, ne `1e-6` – počáteční pole se
+    přednaplňuje ze `state.numDialogChain` zaokrouhleně na 3 desetinná
+    místa, takže i beze změny uživatelem vznikne při odeslání formuláře
+    (zaokrouhlení tam a zpátky přes `safeEvalMath()`) rozdíl řádu `1e-4`;
+    s `1e-6` řetěz „vypadával" už od druhé navazující úsečky (stejná
+    tolerance a stejný důvod i u `joinsPrevious` v `createObject()`, kde
+    se z tohohle stejného rozdílu nepoznával roh k zaoblení).
+    **Past:** `lastAppendedGcodeEnd` (a `prevLineEnd` o kus níž) je
+    closure proměnná – při KAŽDÉM otevření okna se zakládá znovu jako
+    `null`, ale text v `#num-gcode` je z localStorage a zavření okna
+    přežívá. Po načtení textu se proto obě OBNOVUJÍ přes
+    `bridge.gcodeTextLastPoint(gcodeEl.value)` (stejný parser jako 🔄),
+    ať appka po zavření/znovuotevření nezapomene, kam zápis dojíždí
+    (jinak: zbytečné `G00` navíc + zaoblení/zkosení rohu nenajde roh
+    k připojení).
     `createAnother()` po úspěšném vytvoření taky volá `autoCenterView()`
     (`canvas.js`) – bez toho při řetězení snadno vyjede kresba mimo výřez.
     **Zaoblení/zkosení rohu jedním krokem, rovnou jako G1+G2/G3:** u
@@ -775,6 +792,37 @@ Segment {
     `convertCornersToPaths()` v CNC Editoru (`js/calculators/cncEditor.js`).
     Ověřeno round-tripem: výstup `applyCornerGcode()` porovnaný ručně
     s výstupem `convertCornersToPaths()` pro tentýž roh – identická dráha.
+
+    **Past se směrem G2/G3:** `filletTwoLines()` u výsledného oblouku
+    VŮBEC nenastavuje `.ccw` (vrací jen `{type:'arc', cx, cy, r,
+    startAngle, endAngle}`) – spoléhat na `arc.ccw !== false` proto vyjde
+    vždycky `true` (žádná hodnota `!== false`), a appka by psala pořád
+    stejné písmeno bez ohledu na skutečnou geometrii. Směr se počítá
+    NEZÁVISLE křížovým součinem BODŮ před/za rohem kolem středu, ale
+    V G-KÓD ROVINĚ, ne world – u soustruhu je totiž G-kód Z = world x,
+    G-kód X = world y (prohozené osy), a prohození jedné osy INVERTUJE
+    smysl otáčení. Bez převodu `toGcodePlane()` PŘED křížovým součinem by
+    vyšel obrácený výsledek přesně u soustruhu (světové ccw/cw ≠ G-kódové
+    G2/G3). Stejný vzorec jako `convertCornersToPaths()` v CNC Editoru,
+    která ale pracuje ROVNOU v G-kód rovině (čte už napsaný text, ne world
+    souřadnice objektů), takže tenhle převod navíc nepotřebuje.
+    Ověřeno pro soustruh: `originalArc` (z `filletChamferAtCorner()`,
+    před zápisem) vs. `reparsedArc` (zpětně naparsovaný z vlastního
+    zápisu přes 🔄) – identické cx/cy/r na 3 des. místa. **U karuselu tenhle
+    round-trip NESEDÍ** – `parseGcodeToObjects()`'s R-formát oblouku
+    (`thisMotion === 3` bráno přímo jako world ccw, bez ohledu na
+    machineType) má nezávislou, hlubší nesrovnalost; netýká se soustruhu
+    a zůstává jako známé omezení.
+
+    `fitCadViewToNumPreview()` (⤢, přes `bridge.fitNumPreviewView`) dává
+    přednost OBSAHU editoru před `state.numPreview` (živý náhled
+    formuláře) – ten se tím, co se píše do editoru, vůbec nemění, takže
+    slepé použití by po napsání/vykreslení G-kódu odskočilo na zastaralý
+    bod z polí. Bounds editoru počítá `bridge.gcodeTextBounds()`
+    (`storage/fileIO.js`) – stejný parser jako `parseGcodeToObjects()`
+    (co používá 🔄), ale bez vedlejších účinků na plátno, takže jde rámovat
+    i PŘED odesláním.
+
     Oblouk zadaný začátkem/koncem/R staví `arcFromEndpointsRadius()`
     (`js/utils.js`) – tutéž funkci používá i `parseGcodeToObjects()` pro
     `G02/G03 … R`, takže formulář a G-kód dají identický oblouk.
