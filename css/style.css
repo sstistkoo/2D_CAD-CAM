@@ -5778,6 +5778,9 @@ body {
 .vk-nav-btn:hover { background: var(--ctp-surface1); }
 .vk-header-actions { display: flex; align-items: center; gap: 6px; }
 .vk-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--ctp-surface0);
   border: 1px solid var(--ctp-surface1);
   color: var(--ctp-text);
@@ -5785,11 +5788,22 @@ body {
   width: 28px;
   min-width: 28px;
   height: 28px;
+  padding: 0;
   font-size: 16px;
   line-height: 1;
   font-weight: 700;
   cursor: pointer;
   transition: background .12s, color .12s;
+}
+/* Uvnitř číselné záložky platí `.input-dialog button` (padding 6/16px,
+   font-size 13px) a mělo by vyšší specificitu – ikona by se v tlačítku
+   zmenšila a vytlačila do rohu. Proto stejně specifické přebití. */
+.input-dialog .vk-header-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
 }
 .vk-header-btn:hover { background: var(--ctp-surface1); }
 .vk-header-btn-red {

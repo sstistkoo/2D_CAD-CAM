@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **⤢ funguje pro obě záložky okna „Zadání objektu"** – na 📐 rámuje VK
   konturu, na 🔢 rozepsaný objekt (`bridge.fitNumPreviewView`), se záchranou
   na vycentrování celého výkresu.
+- **Pole na zápis G-kódu bere „lidský" zápis.** Nový `js/gcodeNormalize.js`
+  srovná ručně psaný kód do kanonického tvaru dřív, než ho dostane parser:
+  malá písmena (`g1 x10`), mezery za adresou (`X 10`), desetinná čárka
+  (`X10,5`), matematické výrazy (`X10+5`, `Z200/3`, `X(10+5)*2`),
+  přiřazovací zápis (`X=10`, `X: 10`) i bloky bez mezer (`n10g1x20z-30`).
+  Komentáře `;…` a `(…)` zůstávají; závorka se samými čísly se počítá jako
+  výraz, ne jako poznámka. Po stisku **🔄** se srovnaný text zapíše zpátky
+  do pole, takže je vidět, jak byl zápis pochopen.
 - **Oblouk jde v číselném zadání zadat začátkem, koncem, R a smyslem** –
   tedy stejně jako `G02/G03 X.. Z.. R..` (přepínač *Start + konec* /
   *Střed + úhly*, výchozí je start+konec, protože navazuje na konec
@@ -39,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `bridge.renderNumPreview` (stejný vzor jako VK náhled).
 
 ### Fixed
+- **Ikonová tlačítka (🔄 u zápisu kódu) se v číselné záložce kreslila
+  malá a mimo střed** – `.input-dialog button` (padding 6/16 px, font-size
+  13 px) má vyšší specificitu než `.vk-header-btn` a přebíjelo mu rozměry.
+  `.vk-header-btn` je teď vycentrovaný `inline-flex` a uvnitř `.input-dialog`
+  se přebíjí stejně specifickým pravidlem.
 - **Přesný zaměřovač (dlouhý stisk) se respektuje i při 🎯 výběru bodu.**
   Křížek je schválně posunutý nad prst, aby byl vidět – `canvasPick.js` ale
   bral souřadnice PRSTU, takže se ve VK modalu bod zapsal o offset vedle
@@ -80,6 +93,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ✕ v liště); **✓ Potvrdit** se změnilo na **OK** v posledním řádku polí.
 - **Mobilní spodní lišta: tlačítko „Zadání objektu" je popsané `VK`** místo
   ikony ✏️ (kolidovala s tužkou i s ✏️ kreslením kontury ve VK).
+- **Okno „Zadání objektu" se otevírá na záložce 🔢 a typu Bod** – ten má
+  nejmíň polí, takže je pole na zápis G-kódu vidět celé bez rolování.
+  (Tlačítko VK/`btnOpenVk` dál otevírá rovnou záložku 📐.)
 - **Číselné zadání – oblouk na třech řádcích:** střed X/Z, pod tím vedle sebe
   Start (°) / Konec (°) a pod tím Poloměr, Směr a OK (dřív pět řádků pod
   sebou). Obsluha 🎯/📏/📐 tlačítek přitom přestala záviset na **pořadí

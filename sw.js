@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v202';
+const CACHE_NAME = 'skica-v203';
 const ASSETS = [
   './',
   './index.html',
@@ -94,6 +94,7 @@ const ASSETS = [
   './js/dialogs/threadDialog.js',
   './js/dxf.js',
   './js/events.js',
+  './js/gcodeNormalize.js',
   './js/geom/geomCore.js',
   './js/geometry.js',
   './js/idb.js',

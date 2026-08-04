@@ -6,6 +6,7 @@ import { COLORS, LINE_WIDTH, PREVIEW_DASH } from '../constants.js';
 import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../state.js';
 import { addObject } from '../objects.js';
 import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
+import { normalizeGcodeText } from '../gcodeNormalize.js';
 import { wireExprInputs } from './mobileEdit.js';
 import { showFilletChamferDialog } from './objectDialogs.js';
 import { bridge } from '../bridge.js';
@@ -171,6 +172,10 @@ const NUM_TYPES = [
   { key: 'arc',    icon: '⌒',          label: 'Oblouk' },
 ];
 
+// Po otevření okna je vybraný Bod: má nejmíň polí, takže na pole pro zápis
+// G-kódu zbyde nejvíc místa a je vidět celé bez rolování.
+const DEFAULT_NUM_TYPE = 'point';
+
 // Pole na ruční zápis G-kódu zůstává PRÁZDNÉ – není to zrcadlo pravého CNC
 // panelu, ale škrtací blok, ze kterého se kód vykreslí na plátno (a teprve
 // pak ho panel vygeneruje sám). Placeholder ukazuje formát, ve kterém to
@@ -196,7 +201,7 @@ export function renderNumericalTab() {
           ${NUM_TYPES.map(t => `<button type="button" class="num-type-btn" data-num-type="${t.key}" title="${t.label}">${t.icon}</button>`).join('')}
         </div>
         <select id="numType" hidden>
-          ${NUM_TYPES.map(t => `<option value="${t.key}">${t.label}</option>`).join('')}
+          ${NUM_TYPES.map(t => `<option value="${t.key}"${t.key === DEFAULT_NUM_TYPE ? ' selected' : ''}>${t.label}</option>`).join('')}
         </select>
         <div id="numFields"></div>
       <div class="vk-gcode-box">
@@ -891,7 +896,15 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
   container.querySelector('[data-act="gcode-apply"]').addEventListener('click', () => {
     if (!gcodeEl.value.trim()) { showToast('Zapište nejdřív G-kód'); return; }
-    bridge.renderCncCodeToCanvas?.(gcodeEl.value);
+    // Ručně psaný kód se nejdřív srovná do kanonického tvaru a přepíše se
+    // i v poli – uživatel tak vidí, jak byl jeho zápis pochopen, a text je
+    // rovnou ve formátu, který vypisuje CNC panel.
+    const normalized = normalizeGcodeText(gcodeEl.value);
+    if (normalized !== gcodeEl.value) {
+      gcodeEl.value = normalized;
+      gcodeEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    bridge.renderCncCodeToCanvas?.(normalized);
   });
 
   return {

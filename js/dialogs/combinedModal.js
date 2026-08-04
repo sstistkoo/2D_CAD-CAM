@@ -110,7 +110,7 @@ function switchTab(overlay, requested) {
  * @param {'vk'|'num'} [initialTab]
  * @returns {HTMLElement|null} overlay, nebo null když ho nešlo vytvořit
  */
-export function showCombinedModal(initialTab = 'vk') {
+export function showCombinedModal(initialTab = 'num') {
   // Okno už otevřené → jen přepnout záložku (nikdy neotevírat podruhé,
   // obě záložky mají stav v closure a sdílený localStorage klíč).
   const existing = document.querySelector(`.calc-overlay[data-type="${CSS.escape(OVERLAY_TYPE)}"]`);

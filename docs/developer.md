@@ -723,6 +723,9 @@ Segment {
     Oblouk zadaný začátkem/koncem/R staví `arcFromEndpointsRadius()`
     (`js/utils.js`) – tutéž funkci používá i `parseGcodeToObjects()` pro
     `G02/G03 … R`, takže formulář a G-kód dají identický oblouk.
+    Ručně psaný kód projde `normalizeGcodeText()` (`js/gcodeNormalize.js`) –
+    parser tak nemusí znát lidské varianty zápisu (malá písmena, mezery,
+    desetinná čárka, výrazy) a normalizace se dá testovat samostatně.
   - `canvasPick.js` – sdílený jednorázový odběr kliku na CAD plátno (🎯
     „vybrat bod z výkresu"). Vědomě **mimo** `handleCanvasClick()`
     v `events.js`: tam by jeden klik zároveň zapsal souřadnici do

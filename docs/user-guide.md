@@ -562,6 +562,23 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   výkresu, vrací se jedním **Ctrl+Z**) a pravý panel si ho pak vygeneruje sám.
   Rozepsaný text zůstane i po zavření okna.
 
+  **Psát se nemusí úhledně.** Před vykreslením se zápis srovná, takže projde:
+
+  | Co napíšeš | Jak se to srovná |
+  |---|---|
+  | `g1 x10 z-5` | `G01 X10.000 Z-5.000` |
+  | `X 10   Z 20` | `X10.000 Z20.000` |
+  | `x10,5` | `X10.500` |
+  | `X10+5`, `Z200/3`, `X(10+5)*2` | `X15.000`, `Z66.667`, `X30.000` |
+  | `x=10`, `z: -5` | `X10.000 Z-5.000` |
+  | `n10g1x20z-30` | `N10 G01 X20.000 Z-30.000` |
+
+  Komentáře `; …` a `( … )` zůstanou. Srovnaný text se zapíše zpátky do pole,
+  takže je vidět, jak appka zápis pochopila; čemu neporozumí, nechá být.
+
+  Okno se otevírá na této záložce s typem **Bod** – má nejmíň polí, takže je
+  pole na zápis kódu vidět celé.
+
   Obě záložky mají **stejnou, pevnou výšku okna** – nemění se podle toho,
   kolik polí má vybraný typ objektu. Obsah se roluje jako celek: k poli na
   zápis kódu se doroluje dolů, a když nad ním zbyde místo, pole se zvětší.
