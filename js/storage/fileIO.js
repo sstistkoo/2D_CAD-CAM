@@ -6,7 +6,7 @@ import { state, showToast, pushUndo, displayX, ensureStockLayer, STOCK_LAYER_ID 
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { bulgeToArc, exportFileName, expandPolylineObjects, safeEvalMath } from '../utils.js';
+import { bulgeToArc, arcFromEndpointsRadius, exportFileName, expandPolylineObjects, safeEvalMath } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
@@ -1450,8 +1450,6 @@ function parseGcodeToObjects(code) {
       const gRval = getAddr(line, 'R');
       const gIval = getAddr(line, 'I');  // offset středu v X od aktuální polohy
       const gKval = getAddr(line, 'K');  // offset středu v Z od aktuální polohy
-      const dx = tx - cx, dy = ty - cy;
-      const dist2 = dx * dx + dy * dy;
       let acx, acy;
 
       if (gIval !== null || gKval !== null) {
@@ -1461,16 +1459,13 @@ function parseGcodeToObjects(code) {
         acy = cy + off.y;
       } else if (gRval !== null) {
         // Formát R: R<0 = velký oblouk (>180°), R>0 = malý oblouk
-        const isLong = gRval < 0;
-        const absR = Math.abs(gRval);
-        if (dist2 < 1e-8 || absR * absR < dist2 / 4 - 1e-6) { lastComment = ''; cx = tx; cy = ty; continue; }
-        const h = Math.sqrt(Math.max(0, absR * absR - dist2 / 4));
-        const dist = Math.sqrt(dist2);
-        const nx = -dy / dist, ny = dx / dist;
-        const sBase = thisMotion === 2 ? -1 : 1;
-        const sign = isLong ? -sBase : sBase;
-        acx = (cx + tx) / 2 + sign * h * nx;
-        acy = (cy + ty) / 2 + sign * h * ny;
+        const rArc = arcFromEndpointsRadius(
+          { x: cx, y: cy }, { x: tx, y: ty },
+          Math.abs(gRval), thisMotion === 3, { longArc: gRval < 0 },
+        );
+        if (!rArc) { lastComment = ''; cx = tx; cy = ty; continue; }
+        acx = rArc.cx;
+        acy = rArc.cy;
       } else { lastComment = ''; cx = tx; cy = ty; continue; }
 
       const R = Math.hypot(cx - acx, cy - acy);

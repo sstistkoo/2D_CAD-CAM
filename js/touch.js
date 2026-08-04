@@ -387,6 +387,20 @@ function canSingleFingerPan() {
 const precisionEl = document.getElementById("precisionCrosshair");
 const precisionLabel = precisionEl.querySelector(".ch-label");
 
+/**
+ * Zveřejní pozici křížku do `state.touchPrecision`, aby ji viděly i odběry
+ * kliku mimo tenhle modul (canvasPick.js – 🎯 v okně „Zadání objektu").
+ * Bez toho brala jejich `touchend` obsluha souřadnice PRSTU, ne křížku,
+ * a bod se zapsal o CROSSHAIR_OFFSET_Y vedle.
+ * @param {number} wx
+ * @param {number} wy
+ */
+function publishPrecisionPoint(wx, wy) {
+  state.touchPrecision.active = true;
+  state.touchPrecision.wx = wx;
+  state.touchPrecision.wy = wy;
+}
+
 function showPrecisionCrosshair(touch) {
   const rect = drawCanvas.getBoundingClientRect();
   const chSx = touch.clientX - rect.left;
@@ -411,6 +425,8 @@ function showPrecisionCrosshair(touch) {
   state.mouse.y = wy;
   state.mouse.sx = chSx;
   state.mouse.sy = chSy;
+
+  publishPrecisionPoint(wx, wy);
 
   precisionEl.style.left = touch.clientX + "px";
   precisionEl.style.top = touch.clientY + CROSSHAIR_OFFSET_Y + "px";
@@ -446,6 +462,8 @@ function updatePrecisionCrosshair(touch) {
   state.mouse.y = wy;
   state.mouse.sx = chSx;
   state.mouse.sy = chSy;
+
+  publishPrecisionPoint(wx, wy);
 
   precisionEl.style.left = touch.clientX + "px";
   precisionEl.style.top = touch.clientY + CROSSHAIR_OFFSET_Y + "px";
@@ -508,6 +526,7 @@ function updatePrecisionCrosshair(touch) {
 function hidePrecisionCrosshair() {
   precisionEl.style.display = "none";
   touchState.precisionMode = false;
+  state.touchPrecision.active = false;
   if (touchState.longPressTimer) {
     clearTimeout(touchState.longPressTimer);
     touchState.longPressTimer = null;

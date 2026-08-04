@@ -15,7 +15,7 @@
 
 import { state, showToast, displayX, inputX } from '../state.js';
 import { bridge } from '../bridge.js';
-import { renderVkHelp } from './vkHelp.js';
+import { showVkHelpModal } from './vkHelp.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunctionCandidates, chooseSolution,
   tangentCircleTouchPoints, tangentCircleBetweenRays, twoTangentArcsBetweenRays,
@@ -609,29 +609,30 @@ export function renderVkTab() {
   // si převod udělá volající. Viz „Jednotky osy X" nahoře.
   const xUnitLabel = state.xDisplayMode === 'diameter' ? 'Průměr' : 'Poloměr';
   const bodyHTML = `
-    <div class="vk-preview-bar">
-      <span class="vk-preview-hint">Náhled se kreslí přímo na výkres · <span class="vk-hint-tangent">čárkovaně</span> = tečné napojení po konverzi</span>
-      <button type="button" class="vk-header-btn" data-act="fit-view" title="Přizpůsobit pohled výkresu kontuře">⤢</button>
-    </div>
-    <div class="vk-solution-picker" data-id="solution-picker" style="display:none; margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap;">
+    <div class="tab-scroll">
+    <div class="vk-solution-picker" data-id="solution-picker" style="display:none; align-items:center; gap:8px; flex-wrap:wrap;">
       <span class="vk-section-title" style="margin:0">Varianty řešení</span>
       <div class="vk-solution-buttons" data-id="solution-buttons"></div>
     </div>
 
     <details class="sn-help-details vk-section" open>
       <summary class="sn-help-summary vk-summary-with-nav">
-        <span class="vk-help-c-orange">🎯 prvek VK</span>
-        <span class="vk-summary-right">
-          <span class="vk-nav-buttons">
-            <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
-            <span class="vk-nav-pos" data-id="nav-pos"></span>
-            <button type="button" class="vk-nav-btn" data-act="nav-next" title="Další / nový prvek">▶</button>
-          </span>
-          <span class="vk-header-actions">
-            <button type="button" class="vk-header-btn" data-act="element" data-id="element-btn" title="Vložit VK prvek">+</button>
-            <button type="button" class="vk-header-btn vk-header-btn-red" data-act="remove-element" title="Odebrat VK prvek">−</button>
-          </span>
+        <span class="vk-nav-buttons">
+          <button type="button" class="vk-nav-btn" data-act="nav-prev" title="Předchozí nedořešený prvek">◀</button>
+          <span class="vk-nav-pos" data-id="nav-pos"></span>
+          <button type="button" class="vk-nav-btn" data-act="nav-next" title="Další / nový prvek">▶</button>
         </span>
+        <span class="vk-header-actions">
+          <button type="button" class="vk-header-btn" data-act="element" data-id="element-btn" title="Vložit VK prvek">+</button>
+          <button type="button" class="vk-header-btn vk-header-btn-red" data-act="remove-element" title="Odebrat VK prvek">−</button>
+        </span>
+        <span class="vk-header-actions vk-code-actions">
+          <button type="button" class="vk-header-btn vk-header-btn-red" data-act="clear" title="Smazat celou VK syntaxi">🗑</button>
+          <button type="button" class="vk-header-btn" data-act="copy" title="Kopírovat VK syntaxi do schránky">📋</button>
+          <button type="button" class="vk-header-btn" data-act="convert" title="Konvertovat na ISO G-kód">⇄</button>
+          <button type="button" class="vk-header-btn" data-act="commit" title="Vložit konturu do výkresu jako úsečky a oblouky (jedno UNDO)">📥</button>
+        </span>
+        <button type="button" class="vk-header-btn vk-help-btn" data-act="help" title="❓ Přehled syntaxe a možností VK">❓</button>
       </summary>
       <div class="sn-help-body vk-section-body">
         <div class="vk-section-title">Geometrie prvku:</div>
@@ -645,8 +646,8 @@ export function renderVkTab() {
           <div class="vk-toggle-row" style="margin-top:6px; align-items:center; gap:8px; flex-wrap:wrap">
             <button class="vk-toggle active" data-dir="G2">G2 ↻</button>
             <button class="vk-toggle" data-dir="G3">G3 ↺</button>
-            <label class="cnc-field" style="margin:0">
-              <span>Poloměr zaoblení (R)</span>
+            <label class="cnc-field vk-field-inline" style="margin:0" title="Poloměr zaoblení (R)">
+              <span>R</span>
               <div class="vk-input-row">
                 <input type="text" data-id="val-r" value="5.0">
                 <button class="vk-btn-q" data-toggle="val-r">❓</button>
@@ -655,7 +656,7 @@ export function renderVkTab() {
           </div>
           <div class="cnc-fields" style="margin-top:6px" title="Jen pro esíčko (dva tečné oblouky za sebou) – bez toho by měla soustava o 1 stupeň volnosti víc, než kolik je zadáno">
             <label class="cnc-field">
-              <span>Bod zlomu k dalšímu oblouku – osa</span>
+              <span>Bod zlomu – osa</span>
               <select data-id="junction-axis">
                 <option value="">— (netřeba)</option>
                 <option value="z">Z</option>
@@ -685,14 +686,22 @@ export function renderVkTab() {
         </div>
 
         <div class="vk-section-title vk-title-with-action" data-id="coords-title-row">
-          <span data-id="coords-title">Souřadnice počátečního bodu:</span>
+          <label class="cnc-field vk-field-inline vk-ambiguity" data-id="ambiguity-field"
+            title="Když má dopočet dvě geometricky platná řešení a jsou podobně daleko od začátku obrysu, appka nehádá – vyber, které chceš.">
+            <span>Dvojznačnost</span>
+            <select data-id="vpol-tag">
+              <option value="">— (rozhodne appka)</option>
+              <option value="VPOL1">VPOL1 – bližší začátku obrysu</option>
+              <option value="VPOL2">VPOL2 – vzdálenější</option>
+            </select>
+          </label>
           <span class="vk-header-actions">
             <button type="button" class="vk-header-btn" data-act="pick-xz" title="Vybrat bod z výkresu">🎯</button>
             <button type="button" class="vk-header-btn" data-act="draw-mode" data-id="draw-mode-btn"
               title="Kreslit konturu klikáním do výkresu (každý klik = jeden prvek)">✏️</button>
           </span>
         </div>
-        <div class="cnc-fields">
+        <div class="cnc-fields" data-id="coords-fields">
           <label class="cnc-field">
             <span data-id="x2-label">Start X1 (${xUnitLabel})</span>
             <div class="vk-input-row">
@@ -728,37 +737,14 @@ export function renderVkTab() {
           <input type="checkbox" data-id="check-t">
           Tečné napojení na předchozí prvek (T)
         </label>
-        <div class="cnc-fields">
-          <label class="cnc-field" title="Když má dopočet dvě geometricky platná řešení a jsou podobně daleko od začátku obrysu, appka nehádá – vyber, které chceš.">
-            <span>Dvojznačnost řešení</span>
-            <select data-id="vpol-tag">
-              <option value="">— (rozhodne appka)</option>
-              <option value="VPOL1">VPOL1 – bližší začátku obrysu</option>
-              <option value="VPOL2">VPOL2 – vzdálenější</option>
-            </select>
-          </label>
-        </div>
         <div class="vk-solve-info" data-solve-info></div>
       </div>
     </details>
 
-    <details class="sn-help-details vk-section" data-vk-help-details>
-      <summary class="sn-help-summary"><span class="vk-help-c-green">❓ Přehled syntaxe a možností VK</span></summary>
-      <div class="sn-help-body vk-section-body" data-vk-help-container></div>
-    </details>
-
     <div class="vk-gcode-box">
-      <span>Generovaná VK syntaxe (lze upravit nebo smazat ručně):</span>
+      <span class="vk-gcode-label">Generovaná VK syntaxe (lze upravit nebo smazat ručně):</span>
       <textarea class="vk-gcode-textarea" data-id="gcode">${DEFAULT_GCODE}</textarea>
     </div>
-
-    <div class="vk-actions">
-      <button class="vk-btn vk-btn-clear" data-act="clear">Smazat</button>
-      <button class="vk-btn vk-btn-copy" data-act="copy">📋 Kopírovat</button>
-      <button class="vk-btn vk-btn-convert" data-act="convert">Konvertovat na ISO G-kód</button>
-    </div>
-    <div class="vk-actions" style="margin-top:8px">
-      <button class="vk-btn vk-btn-commit" data-act="commit" title="Vložit konturu do výkresu jako úsečky a oblouky (jedno UNDO)">📥 Vložit do výkresu</button>
     </div>
   `;
   return { html: bodyHTML };
@@ -1005,9 +991,15 @@ export function initVkTab(container, { picker = null } = {}) {
     });
   }
 
-  container.querySelector('[data-act="fit-view"]').addEventListener('click', () => {
-    updateVkPreview();
-    bridge.fitVkPreviewView?.();
+  // Tlačítka v `<summary>` by jinak sekci sbalila/rozbalila – rozbalování
+  // patří jen kliku na plochu lišty mimo ně.
+  container.querySelector('.vk-summary-with-nav')?.addEventListener('click', (e) => {
+    if (e.target.closest('button')) e.preventDefault();
+  });
+
+  container.querySelector('[data-act="help"]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showVkHelpModal();
   });
 
   // 🎯 – doplnit X/Z prvku kliknutím do výkresu. Odběr kliku je
@@ -1062,25 +1054,29 @@ export function initVkTab(container, { picker = null } = {}) {
   const solutionPicker = q('solution-picker');
   const solutionButtons = q('solution-buttons');
 
-  // ── Lazy nápověda ──
-  const helpDetails = container.querySelector('[data-vk-help-details]');
-  const helpContainer = container.querySelector('[data-vk-help-container]');
-  helpDetails.addEventListener('toggle', () => {
-    if (helpDetails.open && !helpContainer.dataset.loaded) {
-      helpContainer.innerHTML = renderVkHelp();
-      helpContainer.dataset.loaded = '1';
-    }
-  });
-
   // ── VL / VKr / VPOL přepínač ──
   const arcSettings = container.querySelector('[data-arc-settings]');
   const vpolSettings = container.querySelector('[data-vpol-settings]');
+
+  /**
+   * Ukáže jen to, co k vybranému typu patří. VPOL je definice pólu, ne prvek
+   * kontury – souřadnice prvku, tečnost ani dvojznačnost pro něj nedávají
+   * smysl a jen zabíraly výšku okna.
+   */
+  function applyTypeVisibility() {
+    arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
+    vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
+    const isElement = currentType !== 'vpol';
+    q('coords-title-row').style.display = isElement ? '' : 'none';
+    q('coords-fields').style.display = isElement ? '' : 'none';
+    updateFormMode();
+  }
+
   container.querySelectorAll('[data-type]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
       container.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b === btn));
-      arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
-      vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
+      applyTypeVisibility();
       updateVkPreview();
     });
   });
@@ -1116,8 +1112,18 @@ export function initVkTab(container, { picker = null } = {}) {
   // ── Generovaná syntaxe ──
   const convertBtn = container.querySelector('[data-act="convert"]');
   const solveInfo = container.querySelector('[data-solve-info]');
-  const ORIGINAL_CONVERT_LABEL = 'Konvertovat na ISO G-kód';
+  // Tlačítko je v liště jen jako ikona – druhý stav („zpět na VK syntaxi")
+  // se pozná podle ikony a tooltipu, popisek na něj nemá místo.
+  const CONVERT_STATES = {
+    convert: { icon: '⇄', title: 'Konvertovat na ISO G-kód' },
+    restore: { icon: '↩', title: 'Obnovit VK syntaxi' },
+  };
   let conversionBackup = null;
+
+  function setConvertState(key) {
+    convertBtn.textContent = CONVERT_STATES[key].icon;
+    convertBtn.title = CONVERT_STATES[key].title;
+  }
 
   function resetConvertState() {
     convertBtn.classList.remove('vk-error-state', 'vk-success-state');
@@ -1125,7 +1131,7 @@ export function initVkTab(container, { picker = null } = {}) {
 
   function resetConversionBackup() {
     conversionBackup = null;
-    convertBtn.textContent = ORIGINAL_CONVERT_LABEL;
+    setConvertState('convert');
   }
 
   function restoreOriginalVkCode() {
@@ -1133,7 +1139,7 @@ export function initVkTab(container, { picker = null } = {}) {
     gcodeEl.value = conversionBackup;
     conversionBackup = null;
     resetConvertState();
-    convertBtn.textContent = ORIGINAL_CONVERT_LABEL;
+    setConvertState('convert');
     vkSave();
     return true;
   }
@@ -1185,8 +1191,7 @@ export function initVkTab(container, { picker = null } = {}) {
   function loadElementIntoForm(el) {
     currentType = el.isArc ? 'vkr' : 'vl';
     container.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === currentType));
-    arcSettings.style.display = currentType === 'vkr' ? 'block' : 'none';
-    vpolSettings.style.display = currentType === 'vpol' ? 'block' : 'none';
+    applyTypeVisibility();
     if (el.isArc) {
       arcDir = el.dir || 'G2';
       container.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === arcDir));
@@ -1220,8 +1225,7 @@ export function initVkTab(container, { picker = null } = {}) {
   function resetFormToNewEntry() {
     currentType = 'vl';
     container.querySelectorAll('[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === 'vl'));
-    arcSettings.style.display = 'none';
-    vpolSettings.style.display = 'none';
+    applyTypeVisibility();
     arcDir = 'G2';
     container.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b.dataset.dir === 'G2'));
     setFieldValueOrRestore('val-x2');
@@ -1240,13 +1244,16 @@ export function initVkTab(container, { picker = null } = {}) {
   function updateFormMode() {
     const editingItem = cursor === -1 ? firstElement : (cursor !== null ? pendingQueue[cursor] : null);
     const first = editingItem ? editingItem.wasFirstEver : !chainStarted;
-    q('coords-title').textContent = first
-      ? 'Souřadnice počátečního bodu:'
-      : 'Cílové souřadnice (X/Z nebo PA/PR k pólu):';
+    // Popisek řádku („Souřadnice počátečního bodu") zmizel ve prospěch
+    // výběru dvojznačnosti – co je to za bod, říkají popisky polí.
+    q('coords-title-row').title = first
+      ? 'Souřadnice počátečního bodu'
+      : 'Cílové souřadnice (X/Z nebo PA/PR k pólu)';
     q('x2-label').textContent = `${first ? 'Start X1' : 'Cíl X2'} (${xUnitLabel})`;
     q('z2-label').textContent = first ? 'Start Z1' : 'Cíl Z2';
-    q('tangent-title').style.display = first ? 'none' : '';
-    q('tangent-row').style.display = first ? 'none' : '';
+    const hideTangent = first || currentType === 'vpol';
+    q('tangent-title').style.display = hideTangent ? 'none' : '';
+    q('tangent-row').style.display = hideTangent ? 'none' : '';
     const elementBtn = q('element-btn');
     if (elementBtn) {
       elementBtn.textContent = editingItem ? '✓' : '+';
@@ -1260,7 +1267,7 @@ export function initVkTab(container, { picker = null } = {}) {
       q('nav-pos').textContent = pendingQueue.length || firstElement ? 'nový' : '';
     }
   }
-  updateFormMode();
+  applyTypeVisibility();
 
   function refPoint() { return startPoint || lastPoint; }
 
@@ -1814,7 +1821,7 @@ export function initVkTab(container, { picker = null } = {}) {
   // Vložení do výkresu jde přes bridge (calculators/vkCommit.js) – tenhle
   // modul musí zůstat bez DOM/objects závislostí kvůli node testům.
   const commitBtn = container.querySelector('[data-act="commit"]');
-  const COMMIT_LABEL = '📥 Vložit do výkresu';
+  const COMMIT_ICON = '📥';
   let commitResetTimer = null;
   commitBtn.addEventListener('click', () => {
     const inserted = bridge.commitVkToDrawing?.(gcodeEl.value) || 0;
@@ -1822,9 +1829,10 @@ export function initVkTab(container, { picker = null } = {}) {
     // Vložené objekty leží přesně pod náhledem, takže samotné plátno
     // úspěch nepřizná – zpětná vazba musí přijít z tlačítka (jinak by
     // uživatel klikal znovu a vyrobil duplicitní geometrii).
-    commitBtn.textContent = `✓ Vloženo (${inserted})`;
+    commitBtn.textContent = '✓';
+    showToast(`Vloženo do výkresu: ${inserted} prvků`);
     clearTimeout(commitResetTimer);
-    commitResetTimer = setTimeout(() => { commitBtn.textContent = COMMIT_LABEL; }, 1800);
+    commitResetTimer = setTimeout(() => { commitBtn.textContent = COMMIT_ICON; }, 1800);
   });
 
   gcodeEl.addEventListener('input', () => {
@@ -1846,7 +1854,7 @@ export function initVkTab(container, { picker = null } = {}) {
         return;
       }
       conversionBackup = gcodeEl.value;
-      convertBtn.textContent = 'Obnovit VK syntaxi';
+      setConvertState('restore');
 
     function parseVkLine(text) {
       // Stejná sada příkazů jako u modulového parseru (viz komentář tam) –
@@ -2076,6 +2084,10 @@ export function initVkTab(container, { picker = null } = {}) {
     /** Zavolat po zobrazení záložky – náhled se přepočte a překreslí. */
     refresh() {
       scheduleRender();
+    },
+    /** Přepočet náhledu HNED – ⤢ musí rámovat čerstvá data, ne ta z minulého rámce. */
+    refreshNow() {
+      updateVkPreview();
     },
     /** Vypne kreslení myší (zavření okna / přepnutí na číselnou záložku). */
     stopDrawMode() {

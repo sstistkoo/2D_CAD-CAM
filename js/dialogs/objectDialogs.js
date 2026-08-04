@@ -292,8 +292,11 @@ export function showRotateDialog(obj, callback, flipCallback) {
  * @param {function(string, number, number): void} callback  volané s (mode, p1, p2)
  *   mode='fillet' → p1=radius, p2=0
  *   mode='chamfer' → p1=dist1, p2=dist2
+ * @param {'fillet'|'chamfer'} [initialMode] předvolený režim – volající, který
+ *   má vlastní tlačítko „zaoblit"/„zkosit", nemá nutit uživatele přepínat ho
+ *   ještě jednou v dialogu.
  */
-export function showFilletChamferDialog(callback) {
+export function showFilletChamferDialog(callback, initialMode = 'fillet') {
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
       <h3>Zaoblení / Zkosení</h3>
@@ -355,9 +358,13 @@ export function showFilletChamferDialog(callback) {
     daDiv.style.display = chamferSub === 'da' ? '' : 'none';
   }));
 
-  const firstInp = overlay.querySelector("#dlgFcRadius");
-  firstInp.focus();
-  firstInp.select();
+  if (initialMode === 'chamfer') {
+    overlay.querySelector('.fc-mode-btn[data-mode="chamfer"]').click();
+  } else {
+    const firstInp = overlay.querySelector("#dlgFcRadius");
+    firstInp.focus();
+    firstInp.select();
+  }
 
   function accept() {
     if (mode === 'fillet') {

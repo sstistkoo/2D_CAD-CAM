@@ -564,6 +564,46 @@ export function bulgeToArc(p1, p2, bulge) {
 }
 
 /**
+ * Oblouk daný dvěma koncovými body a poloměrem – „R formát" G-kódu
+ * (`G02/G03 X.. Z.. R..`) přepsaný do objektu výkresu.
+ *
+ * Pracuje ve WORLD souřadnicích: `ccw` je smysl oblouku na plátně, ne
+ * G-kódové G2/G3 (převod mezi nimi řeší volající – viz `flipArc`
+ * ve storage/fileIO.js, kde zrcadlení os smysl obrací).
+ *
+ * @param {import('./types.js').Point2D} p1 počáteční bod
+ * @param {import('./types.js').Point2D} p2 koncový bod
+ * @param {number} r poloměr (kladný)
+ * @param {boolean} ccw proti směru hodinových ručiček
+ * @param {{longArc?: boolean}} [opts] `longArc` = větší oblouk (>180°),
+ *   v G-kódu se zapisuje záporným R
+ * @returns {import('./types.js').BulgeArc|null} null = body splývají nebo
+ *   je poloměr kratší než půlka tětivy (oblouk nelze sestrojit)
+ */
+export function arcFromEndpointsRadius(p1, p2, r, ccw, { longArc = false } = {}) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dist2 = dx * dx + dy * dy;
+  if (!isFinite(r) || r <= 0) return null;
+  if (dist2 < 1e-8 || r * r < dist2 / 4 - 1e-6) return null;
+
+  const dist = Math.sqrt(dist2);
+  const h = Math.sqrt(Math.max(0, r * r - dist2 / 4));
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const sign = (ccw ? 1 : -1) * (longArc ? -1 : 1);
+  const cx = (p1.x + p2.x) / 2 + sign * h * nx;
+  const cy = (p1.y + p2.y) / 2 + sign * h * ny;
+
+  return {
+    cx, cy, r,
+    startAngle: Math.atan2(p1.y - cy, p1.x - cx),
+    endAngle: Math.atan2(p2.y - cy, p2.x - cx),
+    ccw,
+  };
+}
+
+/**
  * Jako bulgeToArc, ale výsledek vždy v CCW zápisu. Samostatné 'arc' objekty
  * se kreslí proti směru hodin (obj.ccw se při rozkladu nezachovává) — u CW
  * oblouku (záporný bulge) se proto prohodí start/end úhel, jinak by se po

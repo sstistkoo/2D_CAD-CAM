@@ -520,18 +520,57 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   Otevírá se ve **sdíleném okně „Zadání objektu"** – druhá záložka je
   🔢 Číselné zadání objektu, takže se dá mezi oběma způsoby zadání
   přepínat bez zavírání okna (a naopak: 🔢 kdekoli v appce otevře totéž
-  okno rovnou na číselné záložce). Okno jde přesunout tažením za lištu.
+  okno rovnou na číselné záložce). Obě záložky, ⤢ i ✕ sedí v jedné
+  **liště okna** – okno jde přesunout tažením za ni.
 
   **Náhled se kreslí přímo na výkres** – zadávaná kontura je vidět ve
   stejném měřítku a poloze jako to, co už je nakreslené. Tlačítko **⤢**
-  přizpůsobí pohled výkresu kontuře. Okno je plovoucí, takže se s ním
+  v liště vycentruje plátno na to, co je právě rozepsané (na záložce 📐
+  kontura, na 🔢 zadávaný objekt; když ještě není co ukázat, vycentruje
+  celý výkres). Rámuje se přitom jen do **viditelné části plátna** – na
+  mobilu tedy nad okno, ne pod něj. Okno je plovoucí, takže se s ním
   dá dál kreslit nástrojem; **ESC** proto zruší rozkreslený prvek
-  nástroje (okno se zavírá **✕**). Na mobilu je okno ukotvené dole nad
-  spodní lištou.
+  nástroje (okno se zavírá **✕**). Na mobilu zabírá spodní polovinu
+  displeje, druhá polovina zůstává na plátno.
+
+  **Lišta prvku VK** (řádek s ◀ ▶ ➕ ➖) nese vpravo i akce nad celou
+  syntaxí – **🗑** smazat, **📋** kopírovat, **⇄** konvertovat na ISO
+  G-kód (druhý klik ↩ vrátí VK zápis) a **📥** vložit do výkresu.
+  Úplně vpravo je **❓**, které otevře přehled syntaxe a možností VK
+  ve vlastním okně.
+
+  **Záložka 🔢 Číselné zadání** – typ objektu se vybírá řádkem ikon
+  (**/** úsečka, **○** kružnice, **·** bod, čárkovaná diagonála =
+  konstrukční čára, **⌒** oblouk); pole podporují matematické výrazy
+  (`123+56`, `200/3`, `(10+5)*2`). **Oblouk** se dá zadat dvěma způsoby
+  (přepínač nad poli): *Start + konec* (začátek, konec, poloměr a smysl —
+  stejně jako `G02/G03 X.. Z.. R..`; navazuje na konec předchozího prvku)
+  nebo *Střed + úhly* (střed, Start (°) + Konec (°), poloměr a smysl).
+  Když je poloměr kratší než půlka vzdálenosti obou bodů, oblouk nejde
+  sestrojit a formulář napíše, jaké minimum je potřeba.
+  Potvrzuje se tlačítkem **OK** přímo v posledním řádku polí –
+  objekt se vloží a formulář rovnou navazuje na jeho konec, takže se
+  kontura skládá úsečka po úsečce. Když dvě úsečky za sebou navážou,
+  objeví se řádek **Roh s předchozí úsečkou** s **⌒ zaoblit** a
+  **⌿ zkosit** – je to tatáž operace jako nástroj Zaoblení/Zkosení na
+  plátně, jen se na roh nemusí trefovat myší. Okno se zavírá **✕** v liště.
+
+  Pod formulářem je pole na **ruční zápis G-kódu**. Je prázdné – není to
+  kopie pravého panelu **CNC**, ale místo, kam se kód píše; šedá předloha
+  ukazuje formát, ve kterém ho panel vypisuje, takže zapsaný program s ním
+  rovnou sedí. Tlačítkem **🔄** se kód vykreslí na plátno (nahradí objekty
+  výkresu, vrací se jedním **Ctrl+Z**) a pravý panel si ho pak vygeneruje sám.
+  Rozepsaný text zůstane i po zavření okna.
+
+  Obě záložky mají **stejnou, pevnou výšku okna** – nemění se podle toho,
+  kolik polí má vybraný typ objektu. Obsah se roluje jako celek: k poli na
+  zápis kódu se doroluje dolů, a když nad ním zbyde místo, pole se zvětší.
 
   **🎯** u souřadnic prvku doplní X i Z jedním kliknutím do výkresu
   (stejné tlačítko má i číselné zadání u jednotlivých polí) – klik se
-  spotřebuje jen na výběr bodu, nic nenakreslí.
+  spotřebuje jen na výběr bodu, nic nenakreslí. Na dotyku platí poloha
+  **přesného zaměřovače** (dlouhý stisk), ne prstu – křížek je schválně
+  posunutý nad prst, aby byl vidět.
 
   **✏️ Kreslení myší** – vedle 🎯. Zapne režim, ve kterém **každý klik do
   výkresu rovnou vloží prvek** (jako by ses klikl na 🎯 a pak na ➕), takže
@@ -593,7 +632,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   a jedno z nich je aspoň 3× dál od začátku obrysu než druhé, vezme se
   automaticky to bližší a informační řádek to oznámí (včetně poměru).
   Když jsou obě podobně daleko, VK se zeptá – vyber ve formuláři
-  **Dvojznačnost řešení** `VPOL1` (bližší) nebo `VPOL2` (vzdálenější),
+  **Dvojznačnost** (v řádku s 🎯 ✏️) `VPOL1` (bližší) nebo `VPOL2` (vzdálenější),
   nebo dopiš značku rovnou do řádku v syntaxi. Volba patří k tomu
   **plně zadanému prvku, kterým se dopočet spouští**, a po vložení se
   přepínač vrací na „—", aby se tiše nepřenesla na další prvek.

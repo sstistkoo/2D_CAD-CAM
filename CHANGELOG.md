@@ -8,16 +8,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Zaoblení / zkosení rovnou z číselného zadání.** Když dvě úsečky za sebou
+  navážou, přibude řádek **Roh s předchozí úsečkou** s **⌒** a **⌿** –
+  spustí tutéž operaci jako nástroj Zaoblení/Zkosení na plátně (sdílená
+  `filletChamferAtCorner()` v `tools/filletChamferClick.js`, zpřístupněná
+  přes `bridge`), jen se na roh nemusí trefovat myší.
+- **⤢ funguje pro obě záložky okna „Zadání objektu"** – na 📐 rámuje VK
+  konturu, na 🔢 rozepsaný objekt (`bridge.fitNumPreviewView`), se záchranou
+  na vycentrování celého výkresu.
+- **Oblouk jde v číselném zadání zadat začátkem, koncem, R a smyslem** –
+  tedy stejně jako `G02/G03 X.. Z.. R..` (přepínač *Start + konec* /
+  *Střed + úhly*, výchozí je start+konec, protože navazuje na konec
+  předchozího prvku). Konstrukce oblouku z „R formátu" se přesunula do
+  sdílené `arcFromEndpointsRadius()` v `js/utils.js`, kterou teď používá
+  i parser G-kódu (`parseGcodeToObjects`), aby obě cesty daly týž oblouk.
+  Když je R kratší než půlka tětivy, formulář to napíše místo tichého
+  zmizení náhledu.
+- **Ruční zápis G-kódu v číselném zadání.** Pod formulářem přibylo prázdné pole
+  na psaní G-kódu; **🔄** ho vykreslí na plátno
+  (`bridge.renderCncCodeToCanvas`, stejně jako 🔄 v CNC panelu) a pravý
+  panel si pak kód vygeneruje sám. Placeholder ukazuje formát, ve kterém
+  panel vypisuje, aby se ručně psaný kód s ním rovnou potkal. Obsah přežije
+  zavření okna (localStorage, stejně jako VK syntaxe na sousední záložce).
 - **Číselné zadání: živý náhled na plátně.** Zadávaný objekt (bod, úsečka/
-  konstr. čára, kružnice, oblouk, obdélník, rozestavěná kontura) se
-  čárkovaně kreslí přímo na výkres při psaní do formuláře – **✓ Potvrdit**
-  pak jen potvrdí to, co je vidět. Sdílenou geometrii pro náhled i skutečné
-  vložení počítá jedna funkce (`readFormGeometry()`), aby se nerozjely dvě
-  mírně odlišné cesty výpočtu (přesně tenhle vzorec je zdroj opravy níž).
-  Nový `state.numPreview` + `bridge.renderNumPreview` (stejný vzor jako
-  VK náhled).
+  konstr. čára, kružnice, oblouk) se čárkovaně kreslí přímo na výkres při
+  psaní do formuláře – **OK** pak jen potvrdí to, co je vidět. Sdílenou
+  geometrii pro náhled i skutečné vložení počítá jedna funkce
+  (`readFormGeometry()`), aby se nerozjely dvě mírně odlišné cesty výpočtu
+  (přesně tenhle vzorec je zdroj opravy níž). Nový `state.numPreview` +
+  `bridge.renderNumPreview` (stejný vzor jako VK náhled).
+
+### Fixed
+- **Přesný zaměřovač (dlouhý stisk) se respektuje i při 🎯 výběru bodu.**
+  Křížek je schválně posunutý nad prst, aby byl vidět – `canvasPick.js` ale
+  bral souřadnice PRSTU, takže se ve VK modalu bod zapsal o offset vedle
+  toho, co bylo vidět. Poloha křížku se publikuje do `state.touchPrecision`
+  a odběr kliku ji čte (zachytávací `touchend` na `document`, jinak by ji
+  obsluha plátna stihla smazat). Kreslení nástrojem bylo správně už dřív.
+- **Centrování pohledu už kresbu nestrká pod okno.** `visibleCanvasRect()`
+  v `canvas.js` počítá viditelnou část plátna bez ukotvených panelů
+  (vysunutý `#topbar`, okno „Zadání objektu") a rámuje do ní jak
+  `autoCenterView()`, tak ⤢ v okně.
 
 ### Changed
+- **Okno „Zadání objektu" je na mobilu nižší a přehlednější** – cílem je
+  nechat plátnu polovinu displeje:
+  - záložky 📐/🔢 a ⤢ se přesunuly do **lišty okna** vedle ✕ (titulek zmizel,
+    nesou ho záložky), pořadí 🔢 · ⤢ · 📐 · ✕;
+  - akce nad VK syntaxí (Smazat, Kopírovat, Konvertovat, Vložit do výkresu)
+    jsou **ikony 🗑 📋 ⇄ 📥 v liště prvku VK** místo dvou řad tlačítek dole;
+    název „🎯 prvek VK" ustoupil, aby se vešly;
+  - přehled syntaxe VK se otevírá tlačítkem **❓** ve **vlastním okně**
+    místo rozbalovací sekce v záložce;
+  - **Dvojznačnost řešení** se přesunula na řádek s 🎯 ✏️ místo popisku
+    „Souřadnice počátečního bodu"; u VPOL se souřadnice prvku, tečnost
+    ani dvojznačnost už nezobrazují (k definici pólu nepatří);
+  - u oblouku je „Poloměr zaoblení (R)" jen **R** vedle pole (řádek s G2/G3)
+    a „Bod zlomu k dalšímu oblouku – osa" se zkrátil na **Bod zlomu – osa**;
+  - vysvětlivka „Náhled se kreslí přímo na výkres…" se odstranila;
+  - **pevná výška okna** (mobil 50vh, desktop `min(600px, 100vh - 96px)`)
+    místo `max-height` – okno už neposkakuje podle toho, kolik polí má zrovna
+    vybraný typ objektu. Roluje se celý obsah záložky *včetně* pole na kód
+    (`.tab-scroll`) – ukotvené dole by formuláři nad sebou ubíralo výšku;
+    když naopak zbyde místo, pole se roztáhne.
+- **Číselné zadání: typ objektu jako řádek ikon** (**/** úsečka, **○**
+  kružnice, **·** bod, čárkovaná diagonála = konstrukční čára, **⌒** oblouk) místo
+  rozbalovacího seznamu; **Obdélník a Kontura se odsud odstranily**
+  (obdélník se číselně nekreslí, kontura vzniká řetězením úseček).
+  Zmizel i řádek s režimem ABS/INC, nápověda k matematickým výrazům,
+  popisek „Nebo: Délka a polární úhel" a tlačítko **Zrušit** (okno zavírá
+  ✕ v liště); **✓ Potvrdit** se změnilo na **OK** v posledním řádku polí.
+- **Mobilní spodní lišta: tlačítko „Zadání objektu" je popsané `VK`** místo
+  ikony ✏️ (kolidovala s tužkou i s ✏️ kreslením kontury ve VK).
+- **Číselné zadání – oblouk na třech řádcích:** střed X/Z, pod tím vedle sebe
+  Start (°) / Konec (°) a pod tím Poloměr, Směr a OK (dřív pět řádků pod
+  sebou). Obsluha 🎯/📏/📐 tlačítek přitom přestala záviset na **pořadí
+  v DOM** (`data-pick` role místo indexu) – jinak by přeskládání řádků tiše
+  přehodilo, které pole klik do výkresu naplní.
 - **Mobil: okno „Zadání objektu" (VK / Číselné zadání) teď sahá až na spodní
   okraj obrazovky**, stejně jako výsuvný panel nástrojů (`#topbar`) – větší
   (60vh místo 45vh) a `#mobileBottomBar` je pod ním schválně schovaný, dokud

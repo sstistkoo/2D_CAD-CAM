@@ -6,7 +6,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Nastavit DOM globály PŘED importem modulů (canvas.js přistupuje k DOM na úrovni modulu)
 const { mockCanvas } = vi.hoisted(() => {
-  const mockCanvas = { width: 800, height: 600, getContext: () => ({}) };
+  // getBoundingClientRect potřebuje visibleCanvasRect() – rámování počítá
+  // s tím, že plátno můžou zdola/shora překrývat ukotvené panely.
+  const mockCanvas = {
+    width: 800, height: 600,
+    getContext: () => ({}),
+    getBoundingClientRect: () => ({ top: 0, left: 0, right: 800, bottom: 600, width: 800, height: 600 }),
+  };
   const mockWrap = { clientWidth: 800, clientHeight: 600 };
   const mockStatusZoom = { textContent: '' };
 

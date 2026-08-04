@@ -711,13 +711,27 @@ Segment {
     🔢 Číselné zadání. Otevírá se přes `showCombinedModal('vk' | 'num')` a
     je to **jediný** vstup – všech pět spouštěčů (`btnOpenVk`, `btnNumInput`,
     `desktopNumInput`, `mobileNumInput`, klávesa `n`) míří sem.
+    Záložky i ⤢ sedí v **liště okna** (`titlebarControlsHTML()`), ne nad
+    formulářem – okno je na mobilu ukotvené dole a každý řádek navíc ubírá
+    plochu plátnu. ⤢ řeší `fitViewForActiveTab()`: podle aktivní záložky
+    volá `bridge.fitVkPreviewView` / `bridge.fitNumPreviewView`, se
+    záchranou na `autoCenterView()`.
   - `numericalInput.js` – numerický vstup souřadnic: `renderNumericalTab()`
-    (HTML) + `initNumericalTab(container, { picker })` (logika, vrací `{ destroy }`)
+    (HTML) + `initNumericalTab(container, { picker })` (logika, vrací `{ destroy }`).
+    Pole na ruční zápis G-kódu je **záměrně prázdné** (ne zrcadlo `#cncOutput`) –
+    obsah drží localStorage a 🔄 ho pouští přes `bridge.renderCncCodeToCanvas`.
+    Oblouk zadaný začátkem/koncem/R staví `arcFromEndpointsRadius()`
+    (`js/utils.js`) – tutéž funkci používá i `parseGcodeToObjects()` pro
+    `G02/G03 … R`, takže formulář a G-kód dají identický oblouk.
   - `canvasPick.js` – sdílený jednorázový odběr kliku na CAD plátno (🎯
     „vybrat bod z výkresu"). Vědomě **mimo** `handleCanvasClick()`
     v `events.js`: tam by jeden klik zároveň zapsal souřadnici do
     formuláře a nakreslil aktivním nástrojem. Tlačítko odběr „nabije",
     další klik ho spotřebuje a odzbrojí – nástroje o ničem neví.
+    Dotykový `touchend` visí na `document` v **zachytávací** fázi a čte
+    `state.touchPrecision` (přesný zaměřovač z `touch.js`), aby se bod bral
+    z křížku, ne z prstu – ve fázi AT_TARGET by obsluha plátna stihla
+    zaměřovač schovat dřív.
   - `postDrawDialog.js` – dialog po kreslení
   - `gearPairDialog.js`, `threadDialog.js`, `grooveDialog.js` – specifické dialogy
   - `measure.js` – měření

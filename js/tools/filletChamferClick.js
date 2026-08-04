@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast } from '../state.js';
+import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint } from '../ui.js';
@@ -250,6 +251,28 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
 // ── Veřejné funkce ──
 
 /**
+ * Zaoblí/zkosí roh na zadaném bodě rovnou, bez čekání na klik do plátna.
+ *
+ * Používá to číselné zadání (js/dialogs/numericalInput.js) při řetězení
+ * úsečka-na-úsečku: roh je známý předem, takže se na něj nemusí trefovat
+ * myší. Sdílená je celá výkonná část, aby oba vstupy dělaly totéž.
+ * @param {'fillet'|'chamfer'} mode
+ * @param {number} p1 poloměr (fillet) / vzdálenost 1 (chamfer)
+ * @param {number} p2 vzdálenost 2 (chamfer)
+ * @param {number} wx
+ * @param {number} wy
+ * @returns {boolean} false = na bodě není roh dvou segmentů
+ */
+export function filletChamferAtCorner(mode, p1, p2, wx, wy) {
+  const corner = findCornerAt(wx, wy);
+  if (!corner) return false;
+  applyFilletChamfer(mode, p1, p2, corner.s1, corner.s2);
+  return true;
+}
+
+bridge.filletChamferAtCorner = filletChamferAtCorner;
+
+/**
  * Klik při aktivním nástroji filletChamfer.
  * Parametry jsou předem uloženy v state._fcMode / _fcP1 / _fcP2.
  *
@@ -264,11 +287,7 @@ export function handleFilletChamferClick(wx, wy) {
   const p2   = state._fcP2   ?? 2;
 
   // 1. Pokus: rohový klik (sdílený endpoint)
-  const corner = findCornerAt(wx, wy);
-  if (corner) {
-    applyFilletChamfer(mode, p1, p2, corner.s1, corner.s2);
-    return;
-  }
+  if (filletChamferAtCorner(mode, p1, p2, wx, wy)) return;
 
   // 2. Záloha: klik na první segment (úsečka nebo oblouk)
   const idx = findObjectAt(wx, wy);

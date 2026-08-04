@@ -7,6 +7,7 @@ import {
   distPointToSegment,
   isAngleBetween,
   bulgeToArc,
+  arcFromEndpointsRadius,
   radiusToBulge,
   getObjectSnapPoints,
   getNearestPointOnObject,
@@ -488,5 +489,62 @@ describe('safeEvalMath', () => {
     expect(safeEvalMath('alert(1)')).toBeNaN();
     expect(safeEvalMath('process.exit()')).toBeNaN();
     expect(safeEvalMath('constructor')).toBeNaN();
+  });
+});
+
+// ════════════════════════════════════════
+// arcFromEndpointsRadius – „R formát" G-kódu (G02/G03 X.. Z.. R..)
+// ════════════════════════════════════════
+describe('arcFromEndpointsRadius', () => {
+  const p1 = { x: 0, y: 0 };
+  const p2 = { x: 20, y: 20 };
+
+  /** Koncové body zrekonstruované ze středu a úhlů. */
+  function endpoints(arc) {
+    return [
+      { x: arc.cx + arc.r * Math.cos(arc.startAngle), y: arc.cy + arc.r * Math.sin(arc.startAngle) },
+      { x: arc.cx + arc.r * Math.cos(arc.endAngle), y: arc.cy + arc.r * Math.sin(arc.endAngle) },
+    ];
+  }
+
+  it('oblouk prochází oběma zadanými body', () => {
+    const arc = arcFromEndpointsRadius(p1, p2, 20, true);
+    const [s, e] = endpoints(arc);
+    expect(s.x).toBeCloseTo(p1.x, 6);
+    expect(s.y).toBeCloseTo(p1.y, 6);
+    expect(e.x).toBeCloseTo(p2.x, 6);
+    expect(e.y).toBeCloseTo(p2.y, 6);
+    expect(arc.r).toBe(20);
+  });
+
+  it('smysl otáčení překlápí střed na druhou stranu tětivy', () => {
+    const ccw = arcFromEndpointsRadius(p1, p2, 20, true);
+    const cw = arcFromEndpointsRadius(p1, p2, 20, false);
+    const mid = { x: 10, y: 10 };
+    // Oba středy leží symetricky kolem středu tětivy.
+    expect(ccw.cx + cw.cx).toBeCloseTo(2 * mid.x, 6);
+    expect(ccw.cy + cw.cy).toBeCloseTo(2 * mid.y, 6);
+    expect(ccw.ccw).toBe(true);
+    expect(cw.ccw).toBe(false);
+  });
+
+  it('longArc (záporné R v G-kódu) volí střed na opačné straně', () => {
+    const short = arcFromEndpointsRadius(p1, p2, 20, true);
+    const long = arcFromEndpointsRadius(p1, p2, 20, true, { longArc: true });
+    expect(long.cx).toBeCloseTo(arcFromEndpointsRadius(p1, p2, 20, false).cx, 6);
+    expect(long.cy).toBeCloseTo(arcFromEndpointsRadius(p1, p2, 20, false).cy, 6);
+    expect(long.cx).not.toBeCloseTo(short.cx, 6);
+  });
+
+  it('poloměr kratší než půlka tětivy → null (oblouk nelze sestrojit)', () => {
+    expect(arcFromEndpointsRadius({ x: 0, y: 0 }, { x: 40, y: 0 }, 5, true)).toBeNull();
+    // Přesně půlka tětivy je ještě platná (půlkruh).
+    expect(arcFromEndpointsRadius({ x: 0, y: 0 }, { x: 40, y: 0 }, 20, true)).not.toBeNull();
+  });
+
+  it('splývající body nebo nekladný poloměr → null', () => {
+    expect(arcFromEndpointsRadius(p1, { ...p1 }, 10, true)).toBeNull();
+    expect(arcFromEndpointsRadius(p1, p2, 0, true)).toBeNull();
+    expect(arcFromEndpointsRadius(p1, p2, -5, true)).toBeNull();
   });
 });

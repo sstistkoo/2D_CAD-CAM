@@ -3,7 +3,9 @@
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Statická referenční data pro dialog VK (js/calculators/vkContour.js) –
-// vykreslují se líně, až uživatel rozbalí sekci nápovědy v editoru.
+// vykreslují se líně, až uživatel otevře nápovědu tlačítkem ❓.
+
+import { makeOverlay } from '../dialogFactory.js';
 
 const basicsSection = {
   icon: '📝', color: 'text',
@@ -109,10 +111,29 @@ function renderSection(sec, idx) {
     </details>`;
 }
 
-/** Vrátí HTML nápovědy VK (přehled syntaxe a kombinací). Volá se líně při rozbalení sekce. */
+/** Vrátí HTML nápovědy VK (přehled syntaxe a kombinací). Volá se líně při otevření okna. */
 export function renderVkHelp() {
   return `
     <div class="sn-help-intro">Přehled zápisu volné kontury – od základních příkazů po kombinace s VPOL.</div>
     ${sections.map(renderSection).join('')}
   `;
+}
+
+/**
+ * Otevře nápovědu ve vlastním okně (tlačítko ❓ v liště prvku VK).
+ *
+ * Dřív to byla rozbalovací sekce přímo v záložce VK – jenže okno je na
+ * mobilu ukotvené dole a každý řádek navíc ubírá plochu plátnu. Markup se
+ * staví až tady, takže se při otevření záložky nebuduje zbytečně.
+ * @returns {HTMLElement|null}
+ */
+export function showVkHelpModal() {
+  const existing = document.querySelector('.calc-overlay[data-type="vk-help"]');
+  if (existing) { existing.remove(); return null; }
+  return makeOverlay(
+    'vk-help',
+    '❓ Přehled syntaxe a možností VK',
+    `<div class="vk-help-modal-body">${renderVkHelp()}</div>`,
+    'vk-help-window',
+  );
 }

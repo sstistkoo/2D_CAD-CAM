@@ -19,8 +19,8 @@
 
 import { state, showToast } from '../state.js';
 import { bridge } from '../bridge.js';
-import { drawCanvas, worldToScreen, screenAngle, screenCCW } from '../canvas.js';
-import { COLORS, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from '../constants.js';
+import { drawCanvas, worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds } from '../canvas.js';
+import { COLORS } from '../constants.js';
 // Převod os i jednotek (VK ↔ CAD) a konstrukce oblouku bydlí ve vkContour.js,
 // aby ho sdílel náhled i vložení do výkresu (vkCommit.js) a nevznikla druhá
 // nezávislá konvence – viz komentář „Osy VK ↔ CAD plátno" tamtéž.
@@ -218,28 +218,22 @@ function previewWorldBounds(data) {
 }
 
 /**
- * Přizpůsobí pohled CAD plátna náhledu VK (tlačítko ⤢ v záložce VK).
- * Nahrazuje dřívější `fitViewportToPreview()`, které rámovalo zrušený
- * vlastní VK canvas.
+ * Přizpůsobí pohled CAD plátna náhledu VK (tlačítko ⤢ v liště okna).
+ *
+ * Rámuje se do VIDITELNÉ části plátna (`fitViewToWorldBounds` v canvas.js) –
+ * na mobilu je okno ukotvené dole a kontura vycentrovaná na střed celého
+ * plátna by skončila schovaná pod ním.
+ * @returns {boolean} false = náhled nemá co zobrazit
  */
-export function fitCadViewToVkPreview() {
+export function fitCadViewToVkPreview({ quiet = false } = {}) {
   const bounds = previewWorldBounds(state.vkPreview?.data);
-  if (!bounds) { showToast('VK zatím nemá co zobrazit'); return; }
-  const w = bounds.maxX - bounds.minX || 1;
-  const h = bounds.maxY - bounds.minY || 1;
-  const zoomX = (drawCanvas.width * (1 - 2 * AUTO_CENTER_PADDING)) / w;
-  const zoomY = (drawCanvas.height * (1 - 2 * AUTO_CENTER_PADDING)) / h;
-  state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(zoomX, zoomY)));
-  // Pan se dopočítá z worldToScreen, aby se tu nemusela duplikovat
-  // znaménka flipX/flipZ (hSign/vSign jsou interní pro canvas.js).
-  state.panX = 0;
-  state.panY = 0;
-  const [cxPx, cyPx] = worldToScreen((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
-  state.panX = drawCanvas.width / 2 - cxPx;
-  state.panY = drawCanvas.height / 2 - cyPx;
-  const zoomEl = document.getElementById('statusZoom');
-  if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
+  if (!bounds) {
+    if (!quiet) showToast('VK zatím nemá co zobrazit');
+    return false;
+  }
+  fitViewToWorldBounds(bounds);
   bridge.renderAll?.();
+  return true;
 }
 
 bridge.renderVkPreview = renderVkPreviewOnCad;

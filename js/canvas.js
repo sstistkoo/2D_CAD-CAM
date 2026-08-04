@@ -307,14 +307,78 @@ export function applyAngleSnap(wx, wy, refPoint) {
   ];
 }
 
+// ── Viditelný výřez plátna ──
+// Plátno zabírá celé okno, ale část ho na mobilu překrývají ukotvené panely
+// (vysunutý #topbar dole, okno „Zadání objektu"). Centrovat doprostřed
+// CELÉHO plátna by kresbu schovalo pod ně – proto se rámuje jen do toho,
+// co je fakt vidět.
+const VIEW_OBSTRUCTIONS = [
+  '#topbar.mobile-open',
+  '.calc-overlay-float .vk-combined-window',
+];
+
+/**
+ * Viditelná část plátna v px (bez oblasti pod ukotvenými panely).
+ * @returns {{width: number, top: number, height: number, centerY: number}}
+ */
+export function visibleCanvasRect() {
+  const canvasRect = drawCanvas.getBoundingClientRect();
+  let top = 0;
+  let bottom = drawCanvas.height;
+
+  // Tolerance k okrajům: okna mají vstupní animaci (scale), takže hrana
+  // ukotveného panelu nemusí sedět na pixel.
+  const EDGE_TOLERANCE = 24;
+
+  for (const selector of VIEW_OBSTRUCTIONS) {
+    const el = document.querySelector(selector);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    // Výřez zmenšují jen panely přes (skoro) celou šířku plátna. Úzké
+    // plovoucí okno u kraje (desktop) kresbu nezakrývá, takže se ignoruje.
+    const overlap = Math.min(rect.right, canvasRect.right) - Math.max(rect.left, canvasRect.left);
+    if (overlap < drawCanvas.width * 0.8) continue;
+    const relTop = Math.max(0, rect.top - canvasRect.top);
+    const relBottom = Math.min(drawCanvas.height, rect.bottom - canvasRect.top);
+    if (relBottom >= bottom - EDGE_TOLERANCE) bottom = Math.min(bottom, relTop);
+    else if (relTop <= top + EDGE_TOLERANCE) top = Math.max(top, relBottom);
+  }
+
+  const height = Math.max(80, bottom - top);
+  return { width: drawCanvas.width, top, height, centerY: top + height / 2 };
+}
+
+/**
+ * Nastaví zoom i pan tak, aby zadaný world AABB padl doprostřed viditelné
+ * části plátna. `renderAll()` si volá volající – tahle funkce jen počítá.
+ * @param {{minX: number, maxX: number, minY: number, maxY: number}} bounds
+ * @param {{padding?: number, minExtent?: number}} [opts] `minExtent` = nejmenší
+ *   rámovaná velikost v mm; bez ní by jediný bod (náhled s jedním prvkem)
+ *   vyjel na ZOOM_MAX.
+ */
+export function fitViewToWorldBounds(bounds, { padding = AUTO_CENTER_PADDING, minExtent = 20 } = {}) {
+  const view = visibleCanvasRect();
+  const bboxW = Math.max(bounds.maxX - bounds.minX, minExtent);
+  const bboxH = Math.max(bounds.maxY - bounds.minY, minExtent);
+  const zoomX = (view.width * (1 - 2 * padding)) / bboxW;
+  const zoomY = (view.height * (1 - 2 * padding)) / bboxH;
+  state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(zoomX, zoomY)));
+  state.panX = view.width / 2 - hSign() * ((bounds.minX + bounds.maxX) / 2) * state.zoom;
+  state.panY = view.centerY - vSign() * ((bounds.minY + bounds.maxY) / 2) * state.zoom;
+  const zoomEl = document.getElementById("statusZoom");
+  if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
+}
+
 // ── Auto-center: vycentrovat pohled na všechny objekty ──
 /** Vycentruje pohled tak, aby byly vidět všechny objekty. */
 export function autoCenterView() {
   if (state.objects.length === 0) {
-    // Nic nakresleno – reset na výchozí pozici
+    // Nic nakresleno – reset na výchozí pozici (střed viditelné části plátna)
+    const view = visibleCanvasRect();
     state.zoom = 1;
-    state.panX = drawCanvas.width / 2;
-    state.panY = drawCanvas.height / 2;
+    state.panX = view.width / 2;
+    state.panY = view.centerY;
     const zoomEl = document.getElementById("statusZoom");
     if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
     renderAll();
@@ -393,36 +457,7 @@ export function autoCenterView() {
 
   if (!isFinite(minX)) return;
 
-  const bboxW = maxX - minX || 1;
-  const bboxH = maxY - minY || 1;
-  const canvasW = drawCanvas.width;
-  const fullCanvasH = drawCanvas.height;
-
-  // Při otevřeném toolbaru na mobilu zmenšit viditelnou výšku
-  let visibleH = fullCanvasH;
-  let topbarH = 0;
-  const topbar = document.getElementById("topbar");
-  if (topbar && topbar.classList.contains("mobile-open")) {
-    topbarH = topbar.offsetHeight || 0;
-    visibleH = fullCanvasH - topbarH;
-  }
-
-  const padding = AUTO_CENTER_PADDING;
-
-  // Zoom aby se vše vešlo do viditelné oblasti
-  const zoomX = (canvasW * (1 - 2 * padding)) / bboxW;
-  const zoomY = (visibleH * (1 - 2 * padding)) / bboxH;
-  state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(zoomX, zoomY)));
-
-  // Pan aby střed bboxu byl uprostřed viditelné části canvasu
-  // Viditelný střed Y = (fullCanvasH - topbarH) / 2
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  state.panX = canvasW / 2 - hSign() * centerX * state.zoom;
-  state.panY = (fullCanvasH - topbarH) / 2 - vSign() * centerY * state.zoom;
-
-  document.getElementById("statusZoom").textContent =
-    `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
+  fitViewToWorldBounds({ minX, maxX, minY, maxY });
   renderAll();
   showToast("Pohled vycentrován");
 }

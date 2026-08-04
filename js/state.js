@@ -90,6 +90,11 @@ export const state = {
   numPreview: { visible: false, data: null },
   // Souřadnice posledního kliknutí na plátno (viz #statusCoords ve statusbaru)
   lastClickPoint: { x: null, y: null },
+  // Přesný zaměřovač na mobilu (dlouhý stisk, #precisionCrosshair v touch.js).
+  // Křížek je schválně posunutý nad prst (CROSSHAIR_OFFSET_Y), aby byl vidět –
+  // platí tedy JEHO pozice, ne pozice prstu. Odběry kliku mimo touch.js
+  // (canvasPick.js – 🎯 výběr bodu) si sem sáhnou pro world souřadnice.
+  touchPrecision: { active: false, wx: 0, wy: 0 },
   // Inkrementální souřadnice
   coordMode: 'abs',
   incReference: { x: 0, y: 0 },

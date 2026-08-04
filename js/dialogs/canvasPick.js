@@ -42,32 +42,48 @@ export function createCanvasPicker() {
 
     function done() {
       drawCanvas.removeEventListener('click', onClick);
-      drawCanvas.removeEventListener('touchend', onTouch);
+      document.removeEventListener('touchend', onTouch, true);
       fields.forEach(el => el.classList.remove('pick-armed'));
       cleanup = null;
     }
 
-    function resolve(clientX, clientY) {
-      const rect = drawCanvas.getBoundingClientRect();
-      let [wx, wy] = screenToWorld(clientX - rect.left, clientY - rect.top);
-      if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
+    function resolveWorld(wx, wy) {
       done();
       callback(wx, wy);
     }
 
+    function resolveClient(clientX, clientY) {
+      const rect = drawCanvas.getBoundingClientRect();
+      let [wx, wy] = screenToWorld(clientX - rect.left, clientY - rect.top);
+      if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
+      resolveWorld(wx, wy);
+    }
+
     function onClick(e) {
-      resolve(e.clientX, e.clientY);
+      resolveClient(e.clientX, e.clientY);
     }
 
     function onTouch(e) {
+      if (e.target !== drawCanvas) return;
       if (e.changedTouches.length !== 1) return;
-      const touch = e.changedTouches[0];
       e.preventDefault();
-      resolve(touch.clientX, touch.clientY);
+      // Dlouhý stisk zapne přesný zaměřovač, který je schválně posunutý NAD
+      // prst (touch.js) – platí pak jeho poloha, ne dotyková. Bez tohohle se
+      // bod zapsal o CROSSHAIR_OFFSET_Y vedle toho, co uživatel viděl.
+      if (state.touchPrecision.active) {
+        resolveWorld(state.touchPrecision.wx, state.touchPrecision.wy);
+        return;
+      }
+      const touch = e.changedTouches[0];
+      resolveClient(touch.clientX, touch.clientY);
     }
 
     drawCanvas.addEventListener('click', onClick);
-    drawCanvas.addEventListener('touchend', onTouch);
+    // Zachytávací fáze na `document`: obsluha touchend v touch.js visí přímo
+    // na plátně a při uvolnění prstu zaměřovač schová (`active` → false).
+    // Ve fázi AT_TARGET se listenery volají v pořadí registrace bez ohledu na
+    // capture, takže na plátně by se sem už žádná pozice křížku nedostala.
+    document.addEventListener('touchend', onTouch, true);
     cleanup = done;
   }
 

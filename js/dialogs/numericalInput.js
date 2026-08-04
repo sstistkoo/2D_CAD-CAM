@@ -4,11 +4,12 @@
 
 import { COLORS, LINE_WIDTH, PREVIEW_DASH } from '../constants.js';
 import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../state.js';
-import { addObject, addRectAsSegments, addPolylineAsSegments } from '../objects.js';
-import { safeEvalMath } from '../utils.js';
+import { addObject } from '../objects.js';
+import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
 import { wireExprInputs } from './mobileEdit.js';
+import { showFilletChamferDialog } from './objectDialogs.js';
 import { bridge } from '../bridge.js';
-import { worldToScreen, screenAngle, screenCCW } from '../canvas.js';
+import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds } from '../canvas.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
 // Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
@@ -111,32 +112,102 @@ function renderNumPreviewOnCad(c) {
 bridge.renderNumPreview = renderNumPreviewOnCad;
 
 /**
+ * World AABB živého náhledu, nebo null když není co rámovat.
+ * @param {object|null} data `state.numPreview.data`
+ * @returns {{minX: number, maxX: number, minY: number, maxY: number}|null}
+ */
+function numPreviewWorldBounds(data) {
+  if (!data || data.valid === false) return null;
+  const pts = [];
+  switch (data.type) {
+    case 'point': pts.push([data.x, data.y]); break;
+    case 'line':
+    case 'constr': pts.push([data.x1, data.y1], [data.x2, data.y2]); break;
+    case 'circle':
+    case 'arc':
+      pts.push([data.cx - data.r, data.cy - data.r], [data.cx + data.r, data.cy + data.r]);
+      break;
+  }
+  const finite = pts.filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  if (finite.length === 0) return null;
+  return {
+    minX: Math.min(...finite.map(p => p[0])),
+    maxX: Math.max(...finite.map(p => p[0])),
+    minY: Math.min(...finite.map(p => p[1])),
+    maxY: Math.max(...finite.map(p => p[1])),
+  };
+}
+
+/**
+ * ⤢ v liště okna nad záložkou 🔢 – vycentruje plátno na rozepsaný objekt.
+ * Když ještě není co ukazovat, spadne to na běžné vycentrování výkresu
+ * (obojí rámuje jen VIDITELNOU část plátna, ne oblast pod oknem).
+ * @returns {boolean}
+ */
+export function fitCadViewToNumPreview() {
+  const bounds = numPreviewWorldBounds(state.numPreview?.data);
+  if (!bounds) return false;
+  fitViewToWorldBounds(bounds);
+  bridge.renderAll?.();
+  return true;
+}
+
+bridge.fitNumPreviewView = fitCadViewToNumPreview;
+
+// Typy objektů zadávané číselně. Obdélník a kontura tu schválně nejsou –
+// obdélník se číselně nekreslí a kontura vzniká řetězením úseček (každé
+// „OK" navazuje na konec předchozí). Ikony sedí s panelem nástrojů.
+// Konstrukční čára je „úsečka, ale čárkovaně" – žádný znak přerušovanou
+// diagonálu nemá, takže je z SVG (velikost i barvu dědí z tlačítka).
+const CONSTR_ICON = '<svg class="num-type-svg" viewBox="0 0 20 20" aria-hidden="true">'
+  + '<line x1="3" y1="17" x2="17" y2="3" stroke="currentColor" stroke-width="2"'
+  + ' stroke-dasharray="4 3" stroke-linecap="round"/></svg>';
+
+const NUM_TYPES = [
+  { key: 'line',   icon: '/',          label: 'Úsečka' },
+  { key: 'circle', icon: '○',          label: 'Kružnice' },
+  { key: 'point',  icon: '·',          label: 'Bod' },
+  { key: 'constr', icon: CONSTR_ICON,  label: 'Konstrukční čára' },
+  { key: 'arc',    icon: '⌒',          label: 'Oblouk' },
+];
+
+// Pole na ruční zápis G-kódu zůstává PRÁZDNÉ – není to zrcadlo pravého CNC
+// panelu, ale škrtací blok, ze kterého se kód vykreslí na plátno (a teprve
+// pak ho panel vygeneruje sám). Placeholder ukazuje formát, ve kterém to
+// pravý panel vypisuje, aby se ručně psaný kód s ním rovnou potkal.
+const GCODE_PLACEHOLDER = 'G00 X0.000 Z0.000\nG01 X20.000 Z-30.000\nG03 X25.000 Z-40.000 R5.000';
+const NUM_GCODE_STORAGE_KEY = 'skica-num-gcode';
+
+/**
  * Markup záložky „Číselné zadání". Čistá funkce – jen HTML.
  * `.input-dialog` zůstává jako obal obsahu, aby platila stávající CSS
  * pravidla `.input-dialog label/input/.btn-row/.btn-ok/.btn-cancel`
  * (nejsou zanořená pod `.input-overlay`). Titulek nese titlebar okna.
+ *
+ * Typ objektu se vybírá řádkem ikon; skrytý `<select id="numType">` pod ním
+ * zůstává jediným zdrojem pravdy (čte ho `updateFields()`, `createObject()`
+ * i obsluha 🎯), takže ikony jen přepínají jeho hodnotu.
  */
 export function renderNumericalTab() {
   const html = `
     <div class="input-dialog">
-      <div id="numModeInfo" style="font-size:11px;margin-bottom:8px;padding:4px 8px;border-radius:4px;font-family:Consolas;${state.coordMode === 'inc' ? `background:${COLORS.selected}22;color:${COLORS.selected}` : `color:${COLORS.textMuted}`}">
-        Režim: ${state.coordMode === 'inc' ? 'INC (přírůstkový) – hodnoty jsou Δ od reference ' + axisLabels()[0] + '=' + state.incReference.x.toFixed(3) + ' ' + axisLabels()[1] + '=' + state.incReference.y.toFixed(3) : 'ABS (absolutní)'}
-      </div>
-      <div style="font-size:10px;color:${COLORS.border};margin-bottom:6px;font-style:italic">💡 Pole podporují matematické výrazy: 123+56, 200/3, (10+5)*2</div>
-      <label>Typ objektu:</label>
-      <select id="numType">
-        <option value="point">Bod</option>
-        <option value="line" selected>Úsečka</option>
-        <option value="constr">Konstrukční čára</option>
-        <option value="circle">Kružnice</option>
-        <option value="arc">Oblouk</option>
-        <option value="rect">Obdélník</option>
-        <option value="polyline">Kontura</option>
-      </select>
-      <div id="numFields"></div>
-      <div class="btn-row">
-        <button class="btn-cancel" id="numCancel" title="Zavře okno">Zrušit</button>
-        <button class="btn-ok" id="numOk" title="Potvrdí náhled na plátně a zůstane otevřené pro další prvek (zavřít ✕ v liště)">✓ Potvrdit</button>
+      <div class="tab-scroll">
+        <div class="num-type-row">
+          ${NUM_TYPES.map(t => `<button type="button" class="num-type-btn" data-num-type="${t.key}" title="${t.label}">${t.icon}</button>`).join('')}
+        </div>
+        <select id="numType" hidden>
+          ${NUM_TYPES.map(t => `<option value="${t.key}">${t.label}</option>`).join('')}
+        </select>
+        <div id="numFields"></div>
+      <div class="vk-gcode-box">
+        <span class="vk-gcode-label">
+          Ruční zápis G-kódu:
+          <button type="button" class="vk-header-btn" data-act="gcode-apply"
+            title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu)">🔄</button>
+        </span>
+        <textarea class="vk-gcode-textarea" data-id="num-gcode" spellcheck="false"
+          placeholder="${GCODE_PLACEHOLDER}"></textarea>
+        </div>
       </div>
     </div>`;
   return { html };
@@ -158,11 +229,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
   const typeSelect = container.querySelector("#numType");
   const fieldsDiv = container.querySelector("#numFields");
 
-  // Vrcholy rozpracované kontury – dřív visely na elementu okna
-  // (jako `_polyVerts`), teď žijí v closure init funkce.
-  let polyVerts = [];
-  let polyBulges = [];
-
   // Úsečka/konstr.: která dvojice polí je autoritativní pro createObject().
   // updateLineInfo() PŘEPISUJE nlen/nang jako informační zobrazení pokaždé,
   // když se změní X1/Z1/X2/Z2 (i po 🎯 výběru z mapy) – bez tohohle
@@ -180,12 +246,66 @@ export function initNumericalTab(container, { picker = null } = {}) {
     });
   }
 
-  function pickBtn(label) {
-    return `<button type="button" class="pick-btn" title="Vybrat z mapy">${label}</button>`;
+  /**
+   * Tlačítko „vybrat bod z výkresu". `role` říká, které pole klik naplní –
+   * dřív se to poznávalo podle POŘADÍ tlačítka v DOM, takže přeskládání
+   * řádků formuláře tiše přehodilo význam kliku.
+   * @param {string} label
+   * @param {'point'|'p1'|'p2'|'center'|'radius'|'startAngle'|'endAngle'} role
+   */
+  function pickBtn(label, role) {
+    return `<button type="button" class="pick-btn" data-pick="${role}" title="Vybrat z mapy">${label}</button>`;
   }
 
   function angleCompassBtn() {
     return `<button type="button" class="compass-trigger-btn" title="Rychlá volba úhlu" style="font-size:16px;padding:2px 6px">✛</button>`;
+  }
+
+  /** OK sedí v posledním řádku polí, ne pod nimi – šetří řádek na mobilu. */
+  function okBtn() {
+    return `<button type="button" class="btn-ok num-ok-btn" id="numOk"
+      title="Vloží objekt do výkresu; okno zůstane otevřené pro další prvek (zavřít ✕ v liště)">OK</button>`;
+  }
+
+  // Roh vzniklý navázáním úsečky na úsečku. Drží se poslední vytvořený
+  // konec, aby šlo poznat, že nová úsečka fakt navazuje – jen tehdy má
+  // smysl nabízet zaoblení/zkosení a jen tehdy je roh jednoznačný.
+  let prevLineEnd = null;
+  let lastLineCorner = null;
+
+  // Jak se zadává oblouk: 'center' = střed + úhly, 'endpoints' = začátek,
+  // konec, R a smysl (zápis jako v G-kódu, navazuje na předchozí prvek).
+  let arcMode = 'endpoints';
+
+  /** Tlačítka ⌒/⌿ – jen když je co zaoblit (dvě navazující úsečky). */
+  function cornerToolsHTML() {
+    if (!lastLineCorner) return '';
+    return `<div class="input-row num-corner-row">
+      <span class="num-corner-label">Roh s předchozí úsečkou:</span>
+      <div class="pick-col">
+        <button type="button" class="btn-ok num-corner-btn" data-corner="fillet" title="Zaoblit roh">⌒</button>
+        <button type="button" class="btn-ok num-corner-btn" data-corner="chamfer" title="Zkosit roh">⌿</button>
+      </div>
+    </div>`;
+  }
+
+  /**
+   * Zaoblí/zkosí roh mezi poslední a předposlední úsečkou – stejná operace
+   * jako nástroj Zaoblení/Zkosení na plátně, jen se na roh nemusí klikat.
+   * @param {'fillet'|'chamfer'} mode
+   */
+  function applyCornerTool(mode) {
+    const corner = lastLineCorner;
+    if (!corner) return;
+    showFilletChamferDialog((chosenMode, p1, p2) => {
+      if (!bridge.filletChamferAtCorner?.(chosenMode, p1, p2, corner.x, corner.y)) {
+        showToast('Roh se nenašel – úsečky už asi nenavazují');
+        return;
+      }
+      // Roh je zpracovaný; druhý pokus by zaobloval už zaoblené.
+      lastLineCorner = null;
+      updateFields();
+    }, mode);
   }
 
   function wireAngleCompass(container, angleInputId) {
@@ -339,36 +459,28 @@ export function initNumericalTab(container, { picker = null } = {}) {
         return { type: "circle", valid: finite2(c.x, c.y) && isFinite(r) && r > 0, cx: c.x, cy: c.y, r };
       }
       case "arc": {
-        const c = toAbs(val("#ncx"), val("#ncy"));
         const r = val("#nr");
+        const ccw = container.querySelector("#narcDir")?.value === 'ccw';
+        if (arcMode === 'endpoints') {
+          // Zadání jako v G-kódu: začátek, konec, R a smysl otáčení.
+          const p1 = toAbs(val("#nx1"), val("#ny1"));
+          const p2 = toAbs(val("#nx2"), val("#ny2"));
+          if (!finite2(p1.x, p1.y) || !finite2(p2.x, p2.y)) return { type: "arc", valid: false };
+          const arc = arcFromEndpointsRadius(p1, p2, r, ccw);
+          if (!arc) return { type: "arc", valid: false, minRadius: Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2 };
+          return {
+            type: "arc", valid: true,
+            cx: arc.cx, cy: arc.cy, r: arc.r, sa: arc.startAngle, ea: arc.endAngle, ccw,
+          };
+        }
+        const c = toAbs(val("#ncx"), val("#ncy"));
         const sa = (val("#nsa") * Math.PI) / 180;
         const ea = (val("#nea") * Math.PI) / 180;
-        const ccw = container.querySelector("#narcDir")?.value === 'ccw';
         return {
           type: "arc",
           valid: finite2(c.x, c.y) && isFinite(r) && r > 0 && isFinite(sa) && isFinite(ea),
           cx: c.x, cy: c.y, r, sa, ea, ccw,
         };
-      }
-      case "rect": {
-        const p1 = toAbs(val("#nx1"), val("#ny1"));
-        const w = val("#nw"), h = val("#nh");
-        // Šířka/výška je vždy relativní delta od bodu 1 – i v INC (stejné
-        // pravidlo jako u Délka/Úhel), jinak níž.
-        const p2 = (isFinite(w) && isFinite(h) && w > 0 && h > 0)
-          ? { x: p1.x + w, y: p1.y + h }
-          : toAbs(val("#nx2"), val("#ny2"));
-        return { type: "rect", valid: finite2(p1.x, p1.y) && finite2(p2.x, p2.y), x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
-      }
-      case "polyline": {
-        // Zjednodušený náhled: hotové vrcholy (polyVerts) + draft segment na
-        // právě psaný bod X/Z. Cesta přes Délka/Úhel do náhledu nejde (žije
-        // ve vnořeném uzávěru s relativním úhlem k poslednímu segmentu) –
-        // finální kontura se ale skládá výhradně přes ➕ Přidat bod, takže
-        // to na výsledek nemá vliv, jen na to, co je vidět při psaní.
-        const nx = val("#nx"), ny = val("#ny");
-        const draft = finite2(nx, ny) ? toAbs(nx, ny) : null;
-        return { type: "polyline", valid: polyVerts.length > 0 || draft != null, verts: polyVerts.slice(), draft };
       }
       default:
         return { type: t, valid: false };
@@ -381,6 +493,14 @@ export function initNumericalTab(container, { picker = null } = {}) {
     const geo = readFormGeometry();
     state.numPreview.visible = geo.valid;
     state.numPreview.data = geo.valid ? geo : null;
+    // Oblouk ze začátku a konce nejde sestrojit, když je R kratší než půlka
+    // tětivy – bez téhle hlášky by náhled jen tiše zmizel.
+    const arcInfo = container.querySelector("#numArcInfo");
+    if (arcInfo) {
+      arcInfo.textContent = geo.minRadius
+        ? `Poloměr musí být aspoň ${geo.minRadius.toFixed(3)} mm (půlka vzdálenosti bodů)`
+        : '';
+    }
     bridge.renderAll?.();
   }
   function scheduleNumPreview() {
@@ -402,7 +522,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
                   `<div><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
                   `<div><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯")}</div></div>
+                <div class="pick-col">${pickBtn("🎯", "point")}${okBtn()}</div></div>
                 ${hasChain ? `<div id="numChainInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>` : ''}`;
         break;
       case "line":
@@ -411,154 +531,123 @@ export function initNumericalTab(container, { picker = null } = {}) {
                   `<div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
                   `<div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯1")}</div></div>
+                <div class="pick-col">${pickBtn("🎯1", "p1")}</div></div>
                 <div class="input-row">${axisPair(
                   `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
                   `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯2")}</div></div>
+                <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
-                <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Délka a polární úhel</label>
                 <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
                 <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
-                <div class="pick-col">${angleCompassBtn()}</div></div>`;
+                <div class="pick-col">${angleCompassBtn()}${okBtn()}</div></div>
+                ${cornerToolsHTML()}`;
         break;
       case "circle":
         html = `<div class="input-row">${axisPair(
                   `<div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
                   `<div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯")}</div></div>
+                <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
                 <div class="input-row"><div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
-                <div class="pick-col">${pickBtn("📏 R")}</div></div>`;
+                <div class="pick-col">${pickBtn("📏 R", "radius")}${okBtn()}</div></div>`;
         break;
-      case "arc":
-        html = `<div class="input-row">${axisPair(
+      case "arc": {
+        // Dva způsoby zadání, oba na tři řádky; poslední řádek mají společný
+        // (poloměr + směr + OK).
+        const modeRow = `<div class="num-arc-modes">
+                  <button type="button" class="num-arc-mode${arcMode === 'endpoints' ? ' active' : ''}" data-arc-mode="endpoints">Start + konec</button>
+                  <button type="button" class="num-arc-mode${arcMode === 'center' ? ' active' : ''}" data-arc-mode="center">Střed + úhly</button>
+                </div>`;
+        const shapeRows = arcMode === 'endpoints'
+          ? `<div class="input-row">${axisPair(
+                  `<div><label>${lbl('Start '+H)}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div><label>${lbl('Start '+V)}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                )}
+                <div class="pick-col">${pickBtn("🎯1", "p1")}</div></div>
+                <div class="input-row">${axisPair(
+                  `<div><label>${lbl('Konec '+H)}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div><label>${lbl('Konec '+V)}:</label><input type="text" id="ny2" value=""></div>`
+                )}
+                <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>`
+          : `<div class="input-row">${axisPair(
                   `<div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
                   `<div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯")}</div></div>
-                <div class="input-row"><div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
-                <div class="pick-col">${pickBtn("📏 R")}</div></div>
-                <div class="input-row"><div><label>Start (°):</label><input type="text" id="nsa" value="0"></div>
-                <div class="pick-col">${pickBtn("📐 S")}</div></div>
-                <div class="input-row"><div><label>Konec (°):</label><input type="text" id="nea" value="90"></div>
-                <div class="pick-col">${pickBtn("📐 E")}</div></div>
-                <div class="input-row"><div><label>Směr:</label><select id="narcDir">
+                <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
+                <div class="input-row">
+                <div><label>Start (°):</label><input type="text" id="nsa" value="0"></div>
+                <div><label>Konec (°):</label><input type="text" id="nea" value="90"></div>
+                <div class="pick-col">${pickBtn("📐 S", "startAngle")}${pickBtn("📐 E", "endAngle")}</div></div>`;
+        html = `${modeRow}
+                ${shapeRows}
+                <div class="input-row">
+                <div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
+                <div><label>Směr:</label><select id="narcDir">
                   <option value="cw">↻ CW (po směru)</option>
                   <option value="ccw">↺ CCW (proti směru)</option>
-                </select></div></div>`;
+                </select></div>
+                <div class="pick-col">${pickBtn("📏 R", "radius")}${okBtn()}</div></div>
+                <div id="numArcInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>`;
         break;
-      case "rect":
-        html = `<div class="input-row">${axisPair(
-                  `<div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
-                  `<div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
-                )}
-                <div class="pick-col">${pickBtn("🎯1")}</div></div>
-                <div class="input-row">${axisPair(
-                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
-                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
-                )}
-                <div class="pick-col">${pickBtn("🎯2")}</div></div>
-                <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Šířka × Výška od bodu 1</label>
-                <div class="input-row"><div><label>Šířka:</label><input type="text" id="nw" value=""></div>
-                <div><label>Výška:</label><input type="text" id="nh" value=""></div></div>`;
-        break;
-      case "polyline":
-        html = `<div style="font-size:12px;color:${COLORS.label};margin-bottom:8px">Zadávejte body po jednom. Klikněte "Přidat bod" pro každý vrchol kontury.</div>
-                <div class="input-row">${axisPair(
-                  `<div><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
-                  `<div><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
-                )}
-                <div class="pick-col">${pickBtn("🎯")}</div></div>
-                <div id="polyLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
-                <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Délka a polární úhel od posledního bodu</label>
-                <div class="input-row"><div><label>Délka:</label><input type="text" id="polyLen" value=""></div>
-                <div><label>Úhel (°):</label><input type="text" id="polyAng" value=""></div>
-                <div class="pick-col">${angleCompassBtn()}</div></div>
-                <label id="polyRelAngleLabel" style="font-size:11px;display:none;align-items:center;gap:4px;cursor:pointer;margin-top:2px;color:${COLORS.textMuted}">
-                  <input type="checkbox" id="polyRelAngle"> Relativní úhel (od předchozího segmentu)
-                </label>
-                <div id="polyVertexList" style="max-height:150px;overflow-y:auto;font-size:11px;font-family:Consolas;color:${COLORS.label};margin:8px 0;padding:4px;background:${COLORS.bgDarker};border-radius:4px;display:none"></div>
-                <div style="display:flex;gap:6px;margin-bottom:8px">
-                  <button class="btn-ok" id="polyAddVtx" style="font-size:11px;padding:3px 8px;flex:1">➕ Přidat bod</button>
-                  <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap">
-                    <input type="checkbox" id="polyClosed"> Uzavřená
-                  </label>
-                </div>`;
-        break;
+      }
     }
     fieldsDiv.innerHTML = html;
 
-    // Wire pick buttons
-    const pickBtns = fieldsDiv.querySelectorAll(".pick-btn");
-    pickBtns.forEach((btn, i) => {
+    // Wire pick buttons – co klik naplní, říká `data-pick`, ne pořadí v DOM.
+    fieldsDiv.querySelectorAll(".pick-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         pickFromMap((wx, wy) => {
-          const t2 = typeSelect.value;
           // V INC režimu převést absolutní souřadnice na delta pro pole
           const dp = isInc ? toDisplayCoords(wx, wy) : { x: wx, y: wy };
-          if (t2 === "point" || t2 === "polyline") {
-            const nx = container.querySelector("#nx");
-            const ny = container.querySelector("#ny");
-            if (nx) nx.value = dp.x.toFixed(3);
-            if (ny) ny.value = dp.y.toFixed(3);
-            if (t2 === "point") updateChainInfo();
-            if (t2 === "polyline") {
-              // Trigger input event to update polyline info (délka/úhel)
-              if (nx) nx.dispatchEvent(new Event("input"));
-            }
-          } else if (t2 === "line" || t2 === "constr" || t2 === "rect") {
-            if (i === 0) {
-              const f1 = container.querySelector("#nx1");
-              const f2 = container.querySelector("#ny1");
-              if (f1) f1.value = dp.x.toFixed(3);
-              if (f2) f2.value = dp.y.toFixed(3);
-            } else {
-              const f1 = container.querySelector("#nx2");
-              const f2 = container.querySelector("#ny2");
-              if (f1) f1.value = dp.x.toFixed(3);
-              if (f2) f2.value = dp.y.toFixed(3);
-              // Auto-fill rect width/height (delta od delta = absolutní rozdíl)
-              if (t2 === "rect") {
-                const x1v = safeEvalMath(container.querySelector("#nx1")?.value) || 0;
-                const y1v = safeEvalMath(container.querySelector("#ny1")?.value) || 0;
-                const nw = container.querySelector("#nw");
-                const nh = container.querySelector("#nh");
-                if (nw) nw.value = (dp.x - x1v).toFixed(3);
-                if (nh) nh.value = (dp.y - y1v).toFixed(3);
-              }
-            }
-            updateLineInfo();
-          } else if (t2 === "circle" || t2 === "arc") {
-            const cxInp = container.querySelector("#ncx");
-            const cyInp = container.querySelector("#ncy");
-            const rInp = container.querySelector("#nr");
-            const saInp = container.querySelector("#nsa");
-            const eaInp = container.querySelector("#nea");
-            const cx = safeEvalMath(cxInp ? cxInp.value : 0) || 0;
-            const cy = safeEvalMath(cyInp ? cyInp.value : 0) || 0;
-            // Pro výpočet poloměru/úhlu potřebujeme absolutní střed
-            const absCenter = isInc ? fromIncToAbs(cx, cy) : { x: cx, y: cy };
-            if (i === 0) {
-              // Pick středu
-              if (cxInp) cxInp.value = dp.x.toFixed(3);
-              if (cyInp) cyInp.value = dp.y.toFixed(3);
-            } else if (i === 1) {
-              // Pick bodu pro poloměr – vzdálenost od absolutního středu
+          const setPair = (xSel, ySel) => {
+            const fx = container.querySelector(xSel);
+            const fy = container.querySelector(ySel);
+            if (fx) fx.value = dp.x.toFixed(3);
+            if (fy) fy.value = dp.y.toFixed(3);
+          };
+          /** Absolutní střed oblouku/kružnice a úhel kliknutého bodu od něj. */
+          const fromCenter = () => {
+            const cx = safeEvalMath(container.querySelector("#ncx")?.value) || 0;
+            const cy = safeEvalMath(container.querySelector("#ncy")?.value) || 0;
+            const c = isInc ? fromIncToAbs(cx, cy) : { x: cx, y: cy };
+            return { c, deg: Math.atan2(wy - c.y, wx - c.x) * 180 / Math.PI };
+          };
+
+          switch (btn.dataset.pick) {
+            case "point":
+              setPair("#nx", "#ny");
+              updateChainInfo();
+              break;
+            case "p1":
+              setPair("#nx1", "#ny1");
+              updateLineInfo();
+              break;
+            case "p2":
+              setPair("#nx2", "#ny2");
+              updateLineInfo();
+              break;
+            case "center":
+              setPair("#ncx", "#ncy");
+              break;
+            case "radius": {
+              const rInp = container.querySelector("#nr");
               if (rInp) {
-                const r = Math.hypot(wx - absCenter.x, wy - absCenter.y);
-                rInp.value = r.toFixed(3);
+                const { c } = fromCenter();
+                rInp.value = Math.hypot(wx - c.x, wy - c.y).toFixed(3);
               }
-            } else if (i === 2 && saInp) {
-              // Pick bodu pro start úhel
-              const ang = Math.atan2(wy - absCenter.y, wx - absCenter.x) * 180 / Math.PI;
-              saInp.value = ang.toFixed(2);
-            } else if (i === 3 && eaInp) {
-              // Pick bodu pro konec úhel
-              const ang = Math.atan2(wy - absCenter.y, wx - absCenter.x) * 180 / Math.PI;
-              eaInp.value = ang.toFixed(2);
+              break;
+            }
+            case "startAngle": {
+              const saInp = container.querySelector("#nsa");
+              if (saInp) saInp.value = fromCenter().deg.toFixed(2);
+              break;
+            }
+            case "endAngle": {
+              const eaInp = container.querySelector("#nea");
+              if (eaInp) eaInp.value = fromCenter().deg.toFixed(2);
+              break;
             }
           }
           showToast(`Bod: X${wx.toFixed(2)} Z${wy.toFixed(2)}`);
@@ -632,11 +721,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
     syncLenAngToCoords();
 
     // Wire angle compass – jen pro aktuální typ
-    const currentType = typeSelect.value;
-    if (currentType === 'line' || currentType === 'constr') {
+    if (typeSelect.value === 'line' || typeSelect.value === 'constr') {
       wireAngleCompass(fieldsDiv, 'nang');
-    } else if (currentType === 'polyline') {
-      wireAngleCompass(fieldsDiv, 'polyAng');
     }
 
     // Auto-update info pro bod (chain distance)
@@ -659,209 +745,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
     });
     updateChainInfo();
 
-    // Rect: sync W/H ↔ X2/Z2
-    function syncRectWH() {
-      const nw = fieldsDiv.querySelector("#nw");
-      const nh = fieldsDiv.querySelector("#nh");
-      if (!nw || !nh) return;
-      const x1 = safeEvalMath(fieldsDiv.querySelector("#nx1")?.value);
-      const y1 = safeEvalMath(fieldsDiv.querySelector("#ny1")?.value);
-      const x2f = fieldsDiv.querySelector("#nx2");
-      const y2f = fieldsDiv.querySelector("#ny2");
-      // W/H → X2/Z2
-      nw.addEventListener("input", () => {
-        const w = safeEvalMath(nw.value);
-        if (isFinite(x1) && isFinite(w) && x2f) x2f.value = (x1 + w).toFixed(3);
-      });
-      nh.addEventListener("input", () => {
-        const h = safeEvalMath(nh.value);
-        if (isFinite(y1) && isFinite(h) && y2f) y2f.value = (y1 + h).toFixed(3);
-      });
-      // X2/Z2 → W/H
-      if (x2f) x2f.addEventListener("input", () => {
-        const v = safeEvalMath(x2f.value);
-        if (isFinite(x1) && isFinite(v)) nw.value = (v - x1).toFixed(3);
-      });
-      if (y2f) y2f.addEventListener("input", () => {
-        const v = safeEvalMath(y2f.value);
-        if (isFinite(y1) && isFinite(v)) nh.value = (v - y1).toFixed(3);
-      });
-    }
-    syncRectWH();
-
-    // Polyline vertex management
-    const polyAddBtn = fieldsDiv.querySelector("#polyAddVtx");
-    if (polyAddBtn) {
-      const vtxList = fieldsDiv.querySelector("#polyVertexList");
-
-      // Délka/úhel sync pro konturu
-      function getPolyLastVert() {
-        if (polyVerts && polyVerts.length > 0) {
-          return polyVerts[polyVerts.length - 1];
-        }
-        if (hasChain) return { x: state.numDialogChain.x, y: state.numDialogChain.y };
-        return null;
-      }
-
-      function getPrevSegmentAngle() {
-        const verts = polyVerts;
-        if (!verts || verts.length < 2) return null;
-        const p1 = verts[verts.length - 2];
-        const p2 = verts[verts.length - 1];
-        return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
-      }
-
-      function isRelativeAngle() {
-        const cb = fieldsDiv.querySelector("#polyRelAngle");
-        return cb && cb.checked;
-      }
-
-      function updateRelAngleVisibility() {
-        const label = fieldsDiv.querySelector("#polyRelAngleLabel");
-        if (label) {
-          label.style.display = (polyVerts && polyVerts.length >= 2) ? 'flex' : 'none';
-        }
-      }
-      updateRelAngleVisibility();
-
-      function updatePolyInfo() {
-        const info = fieldsDiv.querySelector("#polyLineInfo");
-        if (!info) return;
-        const nx = safeEvalMath(fieldsDiv.querySelector("#nx")?.value);
-        const ny = safeEvalMath(fieldsDiv.querySelector("#ny")?.value);
-        const last = getPolyLastVert();
-        if (!last || !isFinite(nx) || !isFinite(ny)) { info.textContent = ''; return; }
-        const abs = isInc ? fromIncToAbs(nx, ny) : { x: nx, y: ny };
-        const d = Math.hypot(abs.x - last.x, abs.y - last.y);
-        const a = Math.atan2(abs.y - last.y, abs.x - last.x) * 180 / Math.PI;
-        info.textContent = `Délka: ${d.toFixed(3)} mm  |  Úhel: ${a.toFixed(2)}°`;
-      }
-
-      ["#nx","#ny"].forEach(sel => {
-        const inp = fieldsDiv.querySelector(sel);
-        if (inp) inp.addEventListener("input", updatePolyInfo);
-      });
-
-      // Délka/úhel → info text (nepřepisuje Z/X pole)
-      function syncPolyLenAng() {
-        const polyLen = fieldsDiv.querySelector("#polyLen");
-        const polyAng = fieldsDiv.querySelector("#polyAng");
-        if (!polyLen || !polyAng) return;
-        function onInput() {
-          const len = safeEvalMath(polyLen.value);
-          let ang = safeEvalMath(polyAng.value);
-          if (!isFinite(len) || !isFinite(ang) || len <= 0) return;
-          // Relativní úhel: přičíst úhel předchozího segmentu
-          if (isRelativeAngle()) {
-            const prevAng = getPrevSegmentAngle();
-            if (prevAng !== null) ang = prevAng + ang;
-          }
-          // Zjistit referenční bod – buď ručně zadané Z/X, nebo poslední vertex
-          const nxInp = fieldsDiv.querySelector("#nx");
-          const nyInp = fieldsDiv.querySelector("#ny");
-          const manualX = safeEvalMath(nxInp?.value);
-          const manualY = safeEvalMath(nyInp?.value);
-          let base;
-          if (isFinite(manualX) && isFinite(manualY)) {
-            base = isInc ? fromIncToAbs(manualX, manualY) : { x: manualX, y: manualY };
-          } else {
-            base = getPolyLastVert();
-          }
-          if (!base) return;
-          const rad = (ang * Math.PI) / 180;
-          const absX = base.x + len * Math.cos(rad);
-          const absY = base.y + len * Math.sin(rad);
-          const info = fieldsDiv.querySelector("#polyLineInfo");
-          if (info) {
-            const dp2 = isInc ? toDisplayCoords(absX, absY) : { x: absX, y: absY };
-            info.textContent = `Délka: ${len.toFixed(3)} mm  |  Úhel: ${ang.toFixed(2)}° → ${H}${dp2.x.toFixed(3)} ${V}${dp2.y.toFixed(3)}`;
-          }
-        }
-        polyLen.addEventListener("input", onInput);
-        polyAng.addEventListener("input", onInput);
-        // Při změně checkboxu přepočítat
-        const relCb = fieldsDiv.querySelector("#polyRelAngle");
-        if (relCb) relCb.addEventListener("change", onInput);
-      }
-      syncPolyLenAng();
-
-      function updateVtxList() {
-        if (polyVerts.length > 0) {
-          vtxList.style.display = "";
-          vtxList.innerHTML = polyVerts.map((v, vi) =>
-            `<div>V${vi + 1}: ${H}${v.x.toFixed(3)} ${V}${v.y.toFixed(3)}</div>`
-          ).join("");
-          vtxList.scrollTop = vtxList.scrollHeight;
-        }
-      }
-
-      polyAddBtn.addEventListener("click", () => {
-        const nxInp = fieldsDiv.querySelector("#nx");
-        const nyInp = fieldsDiv.querySelector("#ny");
-        const polyLenInp = fieldsDiv.querySelector("#polyLen");
-        const polyAngInp = fieldsDiv.querySelector("#polyAng");
-        const vx = safeEvalMath(nxInp?.value);
-        const vy = safeEvalMath(nyInp?.value);
-        const lenVal = safeEvalMath(polyLenInp?.value);
-        let angVal = safeEvalMath(polyAngInp?.value);
-        const hasCoords = isFinite(vx) && isFinite(vy);
-        const hasLenAng = isFinite(lenVal) && isFinite(angVal) && lenVal > 0;
-
-        if (!hasCoords && !hasLenAng) return;
-
-        if (hasCoords && hasLenAng) {
-          // Obojí vyplněno → souřadnice jsou začátek, délka+úhel dá koncový bod
-          // Relativní úhel spočítat PŘED přidáním startAbs (od předchozího segmentu)
-          if (isRelativeAngle()) {
-            const prevAng = getPrevSegmentAngle();
-            if (prevAng !== null) angVal = prevAng + angVal;
-          }
-          const startAbs = isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
-          polyVerts.push(startAbs);
-          if (polyVerts.length > 1) polyBulges.push(0);
-          showToast(`Bod ${polyVerts.length}: ${H}${startAbs.x.toFixed(2)} ${V}${startAbs.y.toFixed(2)}`);
-          const rad = (angVal * Math.PI) / 180;
-          const endAbs = { x: startAbs.x + lenVal * Math.cos(rad), y: startAbs.y + lenVal * Math.sin(rad) };
-          polyVerts.push(endAbs);
-          polyBulges.push(0);
-          showToast(`Bod ${polyVerts.length}: ${H}${endAbs.x.toFixed(2)} ${V}${endAbs.y.toFixed(2)}`);
-        } else if (hasCoords) {
-          // Jen souřadnice → přidat jeden bod
-          const abs = isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
-          polyVerts.push(abs);
-          if (polyVerts.length > 1) polyBulges.push(0);
-          showToast(`Bod ${polyVerts.length}: ${H}${abs.x.toFixed(2)} ${V}${abs.y.toFixed(2)}`);
-        } else if (hasLenAng) {
-          // Jen délka+úhel → vypočítat od posledního vertexu
-          const last = getPolyLastVert();
-          if (!last) { showToast('Zadejte nejprve souřadnice bodu'); return; }
-          if (isRelativeAngle()) {
-            const prevAng = getPrevSegmentAngle();
-            if (prevAng !== null) angVal = prevAng + angVal;
-          }
-          const rad = (angVal * Math.PI) / 180;
-          const endAbs = { x: last.x + lenVal * Math.cos(rad), y: last.y + lenVal * Math.sin(rad) };
-          polyVerts.push(endAbs);
-          if (polyVerts.length > 1) polyBulges.push(0);
-          showToast(`Bod ${polyVerts.length}: ${H}${endAbs.x.toFixed(2)} ${V}${endAbs.y.toFixed(2)}`);
-        }
-
-        updateVtxList();
-        // Zobrazit checkbox pro relativní úhel po 2+ bodech
-        updateRelAngleVisibility();
-        // Vyčistit všechna pole po přidání bodu pro další zadávání
-        if (nxInp) nxInp.value = '';
-        if (nyInp) nyInp.value = '';
-        if (polyLenInp) polyLenInp.value = '';
-        if (polyAngInp) polyAngInp.value = '';
-        const info = fieldsDiv.querySelector("#polyLineInfo");
-        if (info) info.textContent = '';
-        // Fokus na první pole pro rychlé zadání dalšího bodu
-        if (nxInp) nxInp.focus();
-      });
-      updateVtxList();
-    }
-
     // Živý náhled – nové HTML, nové hodnoty (výchozí i chain-ové).
     scheduleNumPreview();
   }
@@ -873,7 +756,22 @@ export function initNumericalTab(container, { picker = null } = {}) {
     }
   }
 
-  typeSelect.addEventListener("change", updateFields);
+  // Řádek ikon nad formulářem přepíná skrytý <select id="numType">, který
+  // zůstává jediným zdrojem pravdy o typu objektu.
+  const typeBtns = container.querySelectorAll('[data-num-type]');
+  function syncTypeButtons() {
+    typeBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.numType === typeSelect.value));
+  }
+  typeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (typeSelect.value === btn.dataset.numType) return;
+      typeSelect.value = btn.dataset.numType;
+      typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  typeSelect.addEventListener("change", () => { syncTypeButtons(); updateFields(); });
+  syncTypeButtons();
   updateFields();
   announceChainContinuation();
 
@@ -887,6 +785,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
   function createObject() {
     const t = typeSelect.value;
+    if (t !== 'line' && t !== 'constr') {
+      // Cokoli jiného než úsečka řetěz přerušuje – roh by pak ukazoval
+      // na dvojici, která spolu už nesouvisí.
+      prevLineEnd = null;
+      lastLineCorner = null;
+    }
     try {
       switch (t) {
         case "point": {
@@ -906,6 +810,11 @@ export function initNumericalTab(container, { picker = null } = {}) {
             name: `${t === "constr" ? "Konstr" : "Úsečka"} ${state.nextId}`,
             dashed: t === "constr",
           });
+          // Roh je jen tam, kde nová úsečka fakt začíná na konci předchozí.
+          const joinsPrevious = prevLineEnd
+            && Math.hypot(prevLineEnd.x - g.x1, prevLineEnd.y - g.y1) < 1e-6;
+          lastLineCorner = joinsPrevious ? { x: g.x1, y: g.y1 } : null;
+          prevLineEnd = { x: g.x2, y: g.y2 };
           state.numDialogChain = { x: g.x2, y: g.y2 };
           break;
         }
@@ -927,27 +836,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
           state.numDialogChain = { x: g.cx + g.r * Math.cos(g.ea), y: g.cy + g.r * Math.sin(g.ea) };
           break;
         }
-        case "rect": {
-          const g = readFormGeometry();
-          if (!g.valid) { showToast("Zadejte druhý roh (X2/Z2, nebo Šířka a Výška)"); return false; }
-          addRectAsSegments(g.x1, g.y1, g.x2, g.y2);
-          state.numDialogChain = { x: g.x2, y: g.y2 };
-          break;
-        }
-        case "polyline": {
-          const verts = polyVerts || [];
-          if (verts.length < 2) {
-            showToast("Kontura potřebuje alespoň 2 body");
-            return false;
-          }
-          const closed = container.querySelector("#polyClosed")?.checked || false;
-          const bulges = polyBulges || [];
-          while (bulges.length < (closed ? verts.length : verts.length - 1)) bulges.push(0);
-          addPolylineAsSegments(verts.slice(), bulges.slice(0, closed ? verts.length : verts.length - 1), closed);
-          const lastV = verts[verts.length - 1];
-          state.numDialogChain = { x: lastV.x, y: lastV.y };
-          break;
-        }
       }
       return true;
     } catch (err) {
@@ -965,22 +853,21 @@ export function initNumericalTab(container, { picker = null } = {}) {
   function createAnother() {
     if (!createObject()) return;
     picker?.cancel();
-    // Kontura se zadává přírůstkově přes „Přidat bod" – po vložení hotové
-    // kontury začít napočisto, jinak by se do dalšího „Vytvořit" vlekly
-    // vrcholy té předchozí.
-    if (typeSelect.value === 'polyline') { polyVerts = []; polyBulges = []; }
     updateFields();
     announceChainContinuation();
   }
 
-  // Vytvořit – okno zůstává otevřené, pokračuje se dalším prvkem
-  container.querySelector("#numOk").addEventListener("click", createAnother);
-
-  // Zrušit – tohle konturu ukončí a okno zavře
-  container.querySelector("#numCancel").addEventListener("click", () => {
-    state.numDialogChain = { x: null, y: null };
-    picker?.cancel();
-    root.remove();
+  // OK i tlačítka rohu žijí uvnitř #numFields, který updateFields() pokaždé
+  // přepíše – proto delegace na kontejner, ne listener na konkrétní prvek.
+  container.addEventListener("click", (e) => {
+    if (e.target.closest("#numOk")) { createAnother(); return; }
+    const cornerBtn = e.target.closest("[data-corner]");
+    if (cornerBtn) { applyCornerTool(cornerBtn.dataset.corner); return; }
+    const arcModeBtn = e.target.closest("[data-arc-mode]");
+    if (arcModeBtn && arcModeBtn.dataset.arcMode !== arcMode) {
+      arcMode = arcModeBtn.dataset.arcMode;
+      updateFields();
+    }
   });
 
   container.addEventListener("keydown", (e) => {
@@ -990,6 +877,21 @@ export function initNumericalTab(container, { picker = null } = {}) {
     // ESC okno nezavírá (plovoucí režim – patří nástroji na plátně),
     // jen odzbrojí rozdělaný 🎯 výběr bodu.
     if (e.key === "Escape") picker?.cancel();
+  });
+
+  // ── Ruční zápis G-kódu ──
+  // Škrtací blok, ne zrcadlo pravého CNC panelu: text si píše uživatel a 🔄
+  // ho vykreslí na plátno. Obsah přežívá zavření okna (stejně jako VK
+  // syntaxe na sousední záložce), aby se rozepsaný program neztratil.
+  const gcodeEl = container.querySelector('[data-id="num-gcode"]');
+  try { gcodeEl.value = localStorage.getItem(NUM_GCODE_STORAGE_KEY) || ''; } catch { /* ignore */ }
+  gcodeEl.addEventListener('input', () => {
+    try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, gcodeEl.value); } catch { /* ignore */ }
+  });
+
+  container.querySelector('[data-act="gcode-apply"]').addEventListener('click', () => {
+    if (!gcodeEl.value.trim()) { showToast('Zapište nejdřív G-kód'); return; }
+    bridge.renderCncCodeToCanvas?.(gcodeEl.value);
   });
 
   return {

@@ -15,6 +15,7 @@
 import { makeOverlay, onOverlayRemoved, makeDraggable } from '../dialogFactory.js';
 import { state } from '../state.js';
 import { bridge } from '../bridge.js';
+import { autoCenterView } from '../canvas.js';
 import { renderVkTab, initVkTab } from '../calculators/vkContour.js';
 import { renderNumericalTab, initNumericalTab } from './numericalInput.js';
 import { createCanvasPicker } from './canvasPick.js';
@@ -32,6 +33,11 @@ const TABS = [
   { key: 'num', label: '🔢 Číselné zadání', title: '🔢 Číselné zadání objektu' },
 ];
 
+// Záložky bydlí v LIŠTĚ okna (vedle ✕), ne nad formulářem – na mobilu je
+// každý ušetřený řádek nad plátnem znát. Pořadí je dané zvlášť, protože
+// v liště je mezi nimi ještě ⤢ (vycentrovat plátno na rozepsaný prvek).
+const TITLEBAR_ORDER = ['num', 'fit', 'vk'];
+
 // Handly záložek k danému oknu – drží se stranou DOM, ať se na element
 // nelepí stav (to byl přesně problém starého `overlay._polyVerts`).
 const tabHandles = new WeakMap();
@@ -42,13 +48,41 @@ const tabHandles = new WeakMap();
 let activeOverlay = null;
 
 function tabsHTML(parts) {
-  const bar = TABS
-    .map(tab => `<button type="button" class="tab-btn" data-tab="${tab.key}">${tab.label}</button>`)
-    .join('');
-  const bodies = TABS
+  return TABS
     .map(tab => `<div class="tab-content" data-tab-content="${tab.key}">${parts[tab.key]}</div>`)
     .join('');
-  return `<div class="tab-bar">${bar}</div>${bodies}`;
+}
+
+/** Ovládání do lišty okna – záložky a ⤢, vše před křížkem. */
+function titlebarControlsHTML() {
+  return TITLEBAR_ORDER
+    .map(key => {
+      if (key === 'fit') {
+        return '<button type="button" class="calc-titlebar-btn" data-act="fit-view"'
+          + ' title="Vycentrovat plátno na rozepsaný prvek">⤢</button>';
+      }
+      const tab = TABS.find(entry => entry.key === key);
+      return `<button type="button" class="tab-btn" data-tab="${tab.key}" title="${tab.title}">${tab.label}</button>`;
+    })
+    .join('');
+}
+
+/**
+ * Vycentruje plátno podle právě otevřené záložky. Když náhled ještě nemá co
+ * ukázat, spadne to na vycentrování celého výkresu – aby tlačítko nikdy
+ * „nic neudělalo".
+ * @param {HTMLElement} overlay
+ */
+function fitViewForActiveTab(overlay) {
+  const tab = overlay.dataset.activeTab === 'num' ? 'num' : 'vk';
+  if (tab === 'vk') {
+    // Náhled se přepočítá až při změně pole – před rámováním ho srovnat.
+    tabHandles.get(overlay)?.vk?.refreshNow?.();
+    if (bridge.fitVkPreviewView?.({ quiet: true })) return;
+  } else if (bridge.fitNumPreviewView?.()) {
+    return;
+  }
+  autoCenterView();
 }
 
 /** Přepne aktivní záložku, přepíše titulek okna a dá záložce šanci se překreslit. */
@@ -60,8 +94,6 @@ function switchTab(overlay, requested) {
   overlay.querySelectorAll('.tab-content').forEach(content => {
     content.classList.toggle('active', content.dataset.tabContent === tab.key);
   });
-  const heading = overlay.querySelector('.calc-titlebar h3');
-  if (heading) heading.textContent = tab.title;
   overlay.dataset.activeTab = tab.key;
   // Náhled VK patří k jeho záložce – na číselné by jen mátl.
   state.vkPreview.visible = tab.key === 'vk';
@@ -100,6 +132,13 @@ export function showCombinedModal(initialTab = 'vk') {
   );
   if (!overlay) return null;
 
+  // Lišta okna nese i záložky a ⤢ – titulek by jen zabíral řádek navíc.
+  // Křížek zůstává poslední a se svým listenerem z makeOverlay().
+  const titlebar = overlay.querySelector('.calc-titlebar');
+  titlebar.classList.add('calc-titlebar-tabs');
+  titlebar.querySelector('h3')?.remove();
+  titlebar.querySelector('.calc-close-btn').insertAdjacentHTML('beforebegin', titlebarControlsHTML());
+
   // Jeden sdílený odběr kliku na plátno pro obě záložky – nikdy nemůžou
   // být nabité dva naráz.
   const picker = createCanvasPicker();
@@ -125,7 +164,8 @@ export function showCombinedModal(initialTab = 'vk') {
   overlay.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(overlay, btn.dataset.tab));
   });
-  makeDraggable(overlay.querySelector('.calc-window'), overlay.querySelector('.calc-titlebar'));
+  titlebar.querySelector('[data-act="fit-view"]').addEventListener('click', () => fitViewForActiveTab(overlay));
+  makeDraggable(overlay.querySelector('.calc-window'), titlebar);
   switchTab(overlay, initialTab);
   return overlay;
 }
