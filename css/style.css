@@ -5479,12 +5479,13 @@ body {
     top: auto;
     right: 0;
     left: 0;
-    /* Nad #mobileBottomBar (z-index 60, tlačítka 48 px) – pointer-events
-       na overlayi spodní lištu neodkryjí, okno na ní fyzicky sedí. */
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    /* Až na spodní okraj – stejně jako výsuvný panel nástrojů (#topbar,
+       taky bottom:0 na mobilu). #mobileBottomBar (z-index 60) je pod
+       oknem (z-index 300) schválně schovaný, dokud je okno otevřené. */
+    bottom: 0;
     width: 100vw;
     max-width: 100vw;   /* .calc-window má 95vw – ukotvené okno má sedět celé */
-    max-height: 45vh;
+    max-height: 60vh;
     border-radius: 12px 12px 0 0;
   }
 }

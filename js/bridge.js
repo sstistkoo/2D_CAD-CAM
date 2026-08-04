@@ -25,6 +25,7 @@ export const bridge = {
   renderCncCodeToCanvas: null,
   renderVkPreview: null,
   fitVkPreviewView: null,
+  renderNumPreview: null,
   commitVkToDrawing: null,
   vkDrawPoint: null,
   vkDrawUndo: null,

@@ -2,11 +2,13 @@
 // ║  SKICA – Dialogy / Numerický vstup                        ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS } from '../constants.js';
+import { COLORS, LINE_WIDTH, PREVIEW_DASH } from '../constants.js';
 import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../state.js';
 import { addObject, addRectAsSegments, addPolylineAsSegments } from '../objects.js';
 import { safeEvalMath } from '../utils.js';
 import { wireExprInputs } from './mobileEdit.js';
+import { bridge } from '../bridge.js';
+import { worldToScreen, screenAngle, screenCCW } from '../canvas.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
 // Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
@@ -15,6 +17,98 @@ import { wireExprInputs } from './mobileEdit.js';
 // jakákoli změna jejich ID shodila celou appku už při importu.
 
 // Stav pro chaining je uložen v state.numDialogChain
+
+/**
+ * Vykreslí živý náhled právě rozepsaného objektu (`state.numPreview.data`,
+ * plněné z `readFormGeometry()` v `initNumericalTab`) na CAD plátno.
+ * Volá se z `renderAll()` přes `bridge.renderNumPreview` (render.js
+ * nesmí importovat dialogové moduly – viz CLAUDE.md o bridge).
+ *
+ * Registrace je module-level (na rozdíl od VK): funkce nemá žádný stav
+ * vázaný na konkrétní otevření okna, čte jen `state.numPreview`, takže
+ * ji netřeba při zavření okna odregistrovávat – bez viditelné záložky
+ * je `visible` stejně false a tahle funkce se vůbec nezavolá.
+ * @param {CanvasRenderingContext2D} c
+ */
+function renderNumPreviewOnCad(c) {
+  const data = state.numPreview?.data;
+  if (!data) return;
+  c.save();
+  c.strokeStyle = COLORS.preview;
+  c.fillStyle = COLORS.preview;
+  c.lineWidth = LINE_WIDTH;
+  c.setLineDash(PREVIEW_DASH);
+
+  const dot = (wx, wy, radius = 3.5) => {
+    const [sx, sy] = worldToScreen(wx, wy);
+    const dash = c.getLineDash();
+    c.setLineDash([]);
+    c.beginPath();
+    c.arc(sx, sy, radius, 0, Math.PI * 2);
+    c.fill();
+    c.setLineDash(dash);
+  };
+
+  switch (data.type) {
+    case 'point':
+      dot(data.x, data.y, 4);
+      break;
+    case 'line':
+    case 'constr': {
+      const [sx1, sy1] = worldToScreen(data.x1, data.y1);
+      const [sx2, sy2] = worldToScreen(data.x2, data.y2);
+      c.beginPath();
+      c.moveTo(sx1, sy1);
+      c.lineTo(sx2, sy2);
+      c.stroke();
+      dot(data.x1, data.y1);
+      dot(data.x2, data.y2);
+      break;
+    }
+    case 'circle': {
+      const [sx, sy] = worldToScreen(data.cx, data.cy);
+      c.beginPath();
+      c.arc(sx, sy, data.r * state.zoom, 0, Math.PI * 2);
+      c.stroke();
+      dot(data.cx, data.cy, 2.5);
+      break;
+    }
+    case 'arc': {
+      const [sx, sy] = worldToScreen(data.cx, data.cy);
+      c.beginPath();
+      c.arc(sx, sy, data.r * state.zoom, screenAngle(data.sa), screenAngle(data.ea), screenCCW(data.ccw));
+      c.stroke();
+      break;
+    }
+    case 'rect': {
+      const [sx1, sy1] = worldToScreen(data.x1, data.y1);
+      const [sx2, sy2] = worldToScreen(data.x2, data.y2);
+      c.beginPath();
+      c.rect(Math.min(sx1, sx2), Math.min(sy1, sy2), Math.abs(sx2 - sx1), Math.abs(sy2 - sy1));
+      c.stroke();
+      break;
+    }
+    case 'polyline': {
+      const pts = data.draft ? [...data.verts, data.draft] : data.verts;
+      if (pts.length >= 2) {
+        c.beginPath();
+        const [sx0, sy0] = worldToScreen(pts[0].x, pts[0].y);
+        c.moveTo(sx0, sy0);
+        for (let i = 1; i < pts.length; i += 1) {
+          const [sx, sy] = worldToScreen(pts[i].x, pts[i].y);
+          c.lineTo(sx, sy);
+        }
+        c.stroke();
+      }
+      data.verts.forEach(v => dot(v.x, v.y, 3));
+      break;
+    }
+  }
+  c.setLineDash([]);
+  c.restore();
+}
+
+bridge.renderNumPreview = renderNumPreviewOnCad;
 
 /**
  * Markup záložky „Číselné zadání". Čistá funkce – jen HTML.
@@ -41,8 +135,8 @@ export function renderNumericalTab() {
       </select>
       <div id="numFields"></div>
       <div class="btn-row">
-        <button class="btn-cancel" id="numCancel">Zrušit</button>
-        <button class="btn-ok" id="numOk">Vytvořit</button>
+        <button class="btn-cancel" id="numCancel" title="Zavře okno">Zrušit</button>
+        <button class="btn-ok" id="numOk" title="Potvrdí náhled na plátně a zůstane otevřené pro další prvek (zavřít ✕ v liště)">✓ Potvrdit</button>
       </div>
     </div>`;
   return { html };
@@ -68,6 +162,15 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // (jako `_polyVerts`), teď žijí v closure init funkce.
   let polyVerts = [];
   let polyBulges = [];
+
+  // Úsečka/konstr.: která dvojice polí je autoritativní pro createObject().
+  // updateLineInfo() PŘEPISUJE nlen/nang jako informační zobrazení pokaždé,
+  // když se změní X1/Z1/X2/Z2 (i po 🎯 výběru z mapy) – bez tohohle
+  // příznaku by createObject() vzal displej rekonstruovaný z Délka+Úhel
+  // (úhel zaokrouhlený na 2 des. místa) MÍSTO přesně napsaných souřadnic,
+  // takže by se u velkých délek ztratila přesnost v řádu desetin mm.
+  // true jen tehdy, když do Délka/Úhel fakt psal uživatel.
+  let lineUsesLenAng = false;
 
   function pickFromMap(callback, btn) {
     if (!picker) return;
@@ -156,29 +259,36 @@ export function initNumericalTab(container, { picker = null } = {}) {
     });
   }
 
-  // Chain values
-  const chainX = state.numDialogChain.x !== null ? state.numDialogChain.x.toFixed(3) : "0";
-  const chainY = state.numDialogChain.y !== null ? state.numDialogChain.y.toFixed(3) : "0";
-  const hasChain = state.numDialogChain.x !== null;
   const isInc = state.coordMode === 'inc';
   const [H, V] = axisLabels();
   const lbl = (name) => isInc ? 'Δ' + name : name;
-  // V INC režimu chain hodnoty zobrazit jako delta od reference
-  const chainDispX = hasChain ? (isInc ? (state.numDialogChain.x - state.incReference.x).toFixed(3) : chainX) : "0";
-  const chainDispY = hasChain ? (isInc ? (state.numDialogChain.y - state.incReference.y).toFixed(3) : chainY) : "0";
 
-  // Poslední kliknutý bod na plátně (viz #statusCoords) – záložní výchozí hodnota
-  // počátečního bodu, pokud právě neběží řetězení od předchozího objektu (hasChain)
-  const hasLastClick = state.lastClickPoint.x !== null;
-  const lastClickDispX = hasLastClick
-    ? (isInc ? (state.lastClickPoint.x - state.incReference.x).toFixed(3) : state.lastClickPoint.x.toFixed(3))
-    : "0";
-  const lastClickDispY = hasLastClick
-    ? (isInc ? (state.lastClickPoint.y - state.incReference.y).toFixed(3) : state.lastClickPoint.y.toFixed(3))
-    : "0";
-  // Výchozí hodnota počátečního bodu: chain (pokračování kreslení) > poslední klik > 0
-  const startDispX = hasChain ? chainDispX : lastClickDispX;
-  const startDispY = hasChain ? chainDispY : lastClickDispY;
+  // Chain-závislé výchozí hodnoty pro počáteční bod. `let`, ne module-level
+  // `const` – „Vytvořit" teď okno nezavírá a rovnou pokračuje dalším
+  // prvkem (viz createAnother níž), takže updateFields() musí při KAŽDÉM
+  // volání vidět čerstvý state.numDialogChain, ne ten z prvního vykreslení.
+  let hasChain, startDispX, startDispY;
+  function refreshChainDefaults() {
+    hasChain = state.numDialogChain.x !== null;
+    const chainX = hasChain ? state.numDialogChain.x.toFixed(3) : "0";
+    const chainY = hasChain ? state.numDialogChain.y.toFixed(3) : "0";
+    // V INC režimu chain hodnoty zobrazit jako delta od reference
+    const chainDispX = hasChain ? (isInc ? (state.numDialogChain.x - state.incReference.x).toFixed(3) : chainX) : "0";
+    const chainDispY = hasChain ? (isInc ? (state.numDialogChain.y - state.incReference.y).toFixed(3) : chainY) : "0";
+
+    // Poslední kliknutý bod na plátně (viz #statusCoords) – záložní výchozí hodnota
+    // počátečního bodu, pokud právě neběží řetězení od předchozího objektu (hasChain)
+    const hasLastClick = state.lastClickPoint.x !== null;
+    const lastClickDispX = hasLastClick
+      ? (isInc ? (state.lastClickPoint.x - state.incReference.x).toFixed(3) : state.lastClickPoint.x.toFixed(3))
+      : "0";
+    const lastClickDispY = hasLastClick
+      ? (isInc ? (state.lastClickPoint.y - state.incReference.y).toFixed(3) : state.lastClickPoint.y.toFixed(3))
+      : "0";
+    // Výchozí hodnota počátečního bodu: chain (pokračování kreslení) > poslední klik > 0
+    startDispX = hasChain ? chainDispX : lastClickDispX;
+    startDispY = hasChain ? chainDispY : lastClickDispY;
+  }
 
   // Zobrazovat osy vždy v pořadí X, Z (jako zbytek UI – viz fmtStatusCoords),
   // bez ohledu na to, že axisLabels() vrací [H, V] podle wx/wy (soustruh: H=Z, V=X)
@@ -188,7 +298,102 @@ export function initNumericalTab(container, { picker = null } = {}) {
     return xFirst ? hFieldHtml + vFieldHtml : vFieldHtml + hFieldHtml;
   }
 
+  /**
+   * Přečte aktuální stav formuláře a spočítá geometrii vybraného typu –
+   * BEZ vytvoření objektu. Sdílí ho `createObject()` (skutečné vložení)
+   * i živý náhled na plátně (`scheduleNumPreview`), aby nevznikly dvě
+   * mírně odlišné cesty výpočtu – přesně tenhle vzorec (Délka/Úhel vs.
+   * X2/Z2) dřív způsobil ztrátu přesnosti, viz `lineUsesLenAng` výš.
+   * @returns {{type: string, valid: boolean, [key: string]: any}}
+   */
+  function readFormGeometry() {
+    const t = typeSelect.value;
+    const toAbs = (vx, vy) => isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
+    const val = (id) => safeEvalMath(container.querySelector(id)?.value);
+    const finite2 = (a, b) => isFinite(a) && isFinite(b);
+
+    switch (t) {
+      case "point": {
+        const p = toAbs(val("#nx"), val("#ny"));
+        return { type: "point", valid: finite2(p.x, p.y), x: p.x, y: p.y };
+      }
+      case "line":
+      case "constr": {
+        const p1 = toAbs(val("#nx1"), val("#ny1"));
+        const len = val("#nlen"), ang = val("#nang");
+        let p2;
+        if (lineUsesLenAng && isFinite(len) && isFinite(ang) && len > 0) {
+          // Polární vždy od bodu 1 (absolutního), bez ohledu na INC/ABS –
+          // v INC režimu by toAbs() jinak vzal len*cos/sin jako deltu od
+          // INC reference, ne od p1.
+          const rad = (ang * Math.PI) / 180;
+          p2 = { x: p1.x + len * Math.cos(rad), y: p1.y + len * Math.sin(rad) };
+        } else {
+          p2 = toAbs(val("#nx2"), val("#ny2"));
+        }
+        return { type: t, valid: finite2(p1.x, p1.y) && finite2(p2.x, p2.y), x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+      }
+      case "circle": {
+        const c = toAbs(val("#ncx"), val("#ncy"));
+        const r = val("#nr");
+        return { type: "circle", valid: finite2(c.x, c.y) && isFinite(r) && r > 0, cx: c.x, cy: c.y, r };
+      }
+      case "arc": {
+        const c = toAbs(val("#ncx"), val("#ncy"));
+        const r = val("#nr");
+        const sa = (val("#nsa") * Math.PI) / 180;
+        const ea = (val("#nea") * Math.PI) / 180;
+        const ccw = container.querySelector("#narcDir")?.value === 'ccw';
+        return {
+          type: "arc",
+          valid: finite2(c.x, c.y) && isFinite(r) && r > 0 && isFinite(sa) && isFinite(ea),
+          cx: c.x, cy: c.y, r, sa, ea, ccw,
+        };
+      }
+      case "rect": {
+        const p1 = toAbs(val("#nx1"), val("#ny1"));
+        const w = val("#nw"), h = val("#nh");
+        // Šířka/výška je vždy relativní delta od bodu 1 – i v INC (stejné
+        // pravidlo jako u Délka/Úhel), jinak níž.
+        const p2 = (isFinite(w) && isFinite(h) && w > 0 && h > 0)
+          ? { x: p1.x + w, y: p1.y + h }
+          : toAbs(val("#nx2"), val("#ny2"));
+        return { type: "rect", valid: finite2(p1.x, p1.y) && finite2(p2.x, p2.y), x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+      }
+      case "polyline": {
+        // Zjednodušený náhled: hotové vrcholy (polyVerts) + draft segment na
+        // právě psaný bod X/Z. Cesta přes Délka/Úhel do náhledu nejde (žije
+        // ve vnořeném uzávěru s relativním úhlem k poslednímu segmentu) –
+        // finální kontura se ale skládá výhradně přes ➕ Přidat bod, takže
+        // to na výsledek nemá vliv, jen na to, co je vidět při psaní.
+        const nx = val("#nx"), ny = val("#ny");
+        const draft = finite2(nx, ny) ? toAbs(nx, ny) : null;
+        return { type: "polyline", valid: polyVerts.length > 0 || draft != null, verts: polyVerts.slice(), draft };
+      }
+      default:
+        return { type: t, valid: false };
+    }
+  }
+
+  let numPreviewRAF = null;
+  /** Přepočte a zobrazí (nebo skryje) živý náhled – volá se z rAF, ne přímo z listeneru. */
+  function updateNumPreview() {
+    const geo = readFormGeometry();
+    state.numPreview.visible = geo.valid;
+    state.numPreview.data = geo.valid ? geo : null;
+    bridge.renderAll?.();
+  }
+  function scheduleNumPreview() {
+    if (numPreviewRAF != null) return;
+    numPreviewRAF = window.requestAnimationFrame(() => {
+      numPreviewRAF = null;
+      updateNumPreview();
+    });
+  }
+
   function updateFields() {
+    refreshChainDefaults();
+    lineUsesLenAng = false;
     const t = typeSelect.value;
     let html = "";
     switch (t) {
@@ -208,8 +413,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 )}
                 <div class="pick-col">${pickBtn("🎯1")}</div></div>
                 <div class="input-row">${axisPair(
-                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value="0"></div>`,
-                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value="0"></div>`
+                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
@@ -251,8 +456,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 )}
                 <div class="pick-col">${pickBtn("🎯1")}</div></div>
                 <div class="input-row">${axisPair(
-                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value="0"></div>`,
-                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value="0"></div>`
+                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯2")}</div></div>
                 <label style="font-size:11px;color:${COLORS.textMuted};margin-top:4px">Nebo: Šířka × Výška od bodu 1</label>
@@ -357,6 +562,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
             }
           }
           showToast(`Bod: X${wx.toFixed(2)} Z${wy.toFixed(2)}`);
+          scheduleNumPreview();
         }, btn);
       });
     });
@@ -379,13 +585,15 @@ export function initNumericalTab(container, { picker = null } = {}) {
         const d = Math.hypot(x2-x1, y2-y1);
         const a = Math.atan2(y2-y1, x2-x1) * 180 / Math.PI;
         info.textContent = `Délka: ${d.toFixed(3)} mm  |  Úhel: ${a.toFixed(2)}°`;
-        // Auto-fill délka/úhel polí pokud oba body jsou nenulové
+        // Auto-fill délka/úhel polí pokud oba body jsou nenulové – jen INFO
+        // zobrazení, ne nová autoritativní hodnota (viz lineUsesLenAng výš).
         const nlen = fieldsDiv.querySelector("#nlen");
         const nang = fieldsDiv.querySelector("#nang");
         if (nlen && nang && d > 0.0001) {
           nlen.value = d.toFixed(3);
           nang.value = a.toFixed(2);
         }
+        lineUsesLenAng = false;
       }
     }
     ["#nx1","#ny1","#nx2","#ny2"].forEach(sel => {
@@ -403,6 +611,10 @@ export function initNumericalTab(container, { picker = null } = {}) {
         const len = safeEvalMath(nlen.value);
         const ang = safeEvalMath(nang.value);
         if (!isFinite(len) || !isFinite(ang) || len <= 0) return;
+        // Sem se chodí jen ze skutečného psaní do Délka/Úhel (programová
+        // .value= v updateLineInfo() žádný input event nevyvolává) – od
+        // teď je pro createObject() autoritativní tahle dvojice, ne X2/Z2.
+        lineUsesLenAng = true;
         const x1 = safeEvalMath(fieldsDiv.querySelector("#nx1")?.value) || 0;
         const y1 = safeEvalMath(fieldsDiv.querySelector("#ny1")?.value) || 0;
         const rad = (ang * Math.PI) / 180;
@@ -649,123 +861,77 @@ export function initNumericalTab(container, { picker = null } = {}) {
       });
       updateVtxList();
     }
+
+    // Živý náhled – nové HTML, nové hodnoty (výchozí i chain-ové).
+    scheduleNumPreview();
+  }
+
+  /** Toast „Pokračování od X.. Z.." – při otevření okna i po každém dalším prvku. */
+  function announceChainContinuation() {
+    if (hasChain) {
+      showToast(`Pokračování od ${H}${state.numDialogChain.x.toFixed(2)} ${V}${state.numDialogChain.y.toFixed(2)}`);
+    }
   }
 
   typeSelect.addEventListener("change", updateFields);
   updateFields();
+  announceChainContinuation();
 
-  // Highlight chained start point
-  if (hasChain) {
-    showToast(`Pokračování od ${H}${state.numDialogChain.x.toFixed(2)} ${V}${state.numDialogChain.y.toFixed(2)}`);
-  }
+  // Živý náhled – jeden delegovaný listener na `container` chytí psaní
+  // do jakéhokoli pole i přepínač směru oblouku (narcDir), bez ohledu na
+  // to, že `fieldsDiv.innerHTML` se při každém updateFields() přepisuje.
+  // Konkrétní pole mají navíc vlastní listenery (sync X2↔Délka/Úhel apod.)
+  // – ty tenhle jen doplňují, nenahrazují.
+  container.addEventListener("input", scheduleNumPreview);
+  container.addEventListener("change", scheduleNumPreview);
 
   function createObject() {
     const t = typeSelect.value;
-    // Konverze INC → ABS
-    const toAbs = (vx, vy) => isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
     try {
       switch (t) {
         case "point": {
-          const raw = toAbs(
-            safeEvalMath(container.querySelector("#nx").value),
-            safeEvalMath(container.querySelector("#ny").value)
-          );
-          addObject({ type: "point", x: raw.x, y: raw.y, name: `Bod ${state.nextId}` });
-          state.numDialogChain = { x: raw.x, y: raw.y };
+          const g = readFormGeometry();
+          if (!g.valid) { showToast("Zadejte souřadnice bodu"); return false; }
+          addObject({ type: "point", x: g.x, y: g.y, name: `Bod ${state.nextId}` });
+          state.numDialogChain = { x: g.x, y: g.y };
           break;
         }
         case "line":
         case "constr": {
-          let p1 = toAbs(
-            safeEvalMath(container.querySelector("#nx1").value),
-            safeEvalMath(container.querySelector("#ny1").value)
-          );
-          let x2r = safeEvalMath(container.querySelector("#nx2").value);
-          let y2r = safeEvalMath(container.querySelector("#ny2").value);
-          const len = safeEvalMath(container.querySelector("#nlen").value);
-          const ang = safeEvalMath(container.querySelector("#nang").value);
-          if (!isNaN(len) && !isNaN(ang) && len > 0) {
-            const rad = (ang * Math.PI) / 180;
-            // Polární vždy od bodu 1 (absolutního)
-            x2r = (isInc ? 0 : p1.x) + len * Math.cos(rad);
-            y2r = (isInc ? 0 : p1.y) + len * Math.sin(rad);
-            if (isInc) {
-              // Polar délka+úhel v INC = delta od bodu 1
-              const abs2 = { x: p1.x + len * Math.cos(rad), y: p1.y + len * Math.sin(rad) };
-              addObject({
-                type: t,
-                x1: p1.x, y1: p1.y, x2: abs2.x, y2: abs2.y,
-                name: `${t === "constr" ? "Konstr" : "Úsečka"} ${state.nextId}`,
-                dashed: t === "constr",
-              });
-              state.numDialogChain = { x: abs2.x, y: abs2.y };
-              break;
-            }
-          }
-          let p2 = toAbs(x2r, y2r);
+          const g = readFormGeometry();
+          if (!g.valid) { showToast("Zadejte cílový bod (X2/Z2, nebo Délka a Úhel)"); return false; }
           addObject({
             type: t,
-            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+            x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
             name: `${t === "constr" ? "Konstr" : "Úsečka"} ${state.nextId}`,
             dashed: t === "constr",
           });
-          state.numDialogChain = { x: p2.x, y: p2.y };
+          state.numDialogChain = { x: g.x2, y: g.y2 };
           break;
         }
         case "circle": {
-          const c = toAbs(
-            safeEvalMath(container.querySelector("#ncx").value),
-            safeEvalMath(container.querySelector("#ncy").value)
-          );
-          const r = safeEvalMath(container.querySelector("#nr").value);
-          addObject({
-            type: "circle", cx: c.x, cy: c.y, r,
-            name: `Kružnice ${state.nextId}`,
-          });
-          state.numDialogChain = { x: c.x, y: c.y };
+          const g = readFormGeometry();
+          if (!g.valid) { showToast("Zadejte střed a kladný poloměr"); return false; }
+          addObject({ type: "circle", cx: g.cx, cy: g.cy, r: g.r, name: `Kružnice ${state.nextId}` });
+          state.numDialogChain = { x: g.cx, y: g.cy };
           break;
         }
         case "arc": {
-          const c = toAbs(
-            safeEvalMath(container.querySelector("#ncx").value),
-            safeEvalMath(container.querySelector("#ncy").value)
-          );
-          const r = safeEvalMath(container.querySelector("#nr").value);
-          const sa =
-            (safeEvalMath(container.querySelector("#nsa").value) * Math.PI) / 180;
-          const ea =
-            (safeEvalMath(container.querySelector("#nea").value) * Math.PI) / 180;
-          const arcCcw = container.querySelector("#narcDir")?.value === 'ccw';
+          const g = readFormGeometry();
+          if (!g.valid) { showToast("Zadejte střed, kladný poloměr a úhly"); return false; }
           addObject({
-            type: "arc", cx: c.x, cy: c.y, r,
-            startAngle: sa, endAngle: ea,
-            ccw: arcCcw,
+            type: "arc", cx: g.cx, cy: g.cy, r: g.r,
+            startAngle: g.sa, endAngle: g.ea, ccw: g.ccw,
             name: `Oblouk ${state.nextId}`,
           });
-          const endX = c.x + r * Math.cos(ea);
-          const endY = c.y + r * Math.sin(ea);
-          state.numDialogChain = { x: endX, y: endY };
+          state.numDialogChain = { x: g.cx + g.r * Math.cos(g.ea), y: g.cy + g.r * Math.sin(g.ea) };
           break;
         }
         case "rect": {
-          let p1 = toAbs(
-            safeEvalMath(container.querySelector("#nx1").value),
-            safeEvalMath(container.querySelector("#ny1").value)
-          );
-          let x2r = safeEvalMath(container.querySelector("#nx2").value);
-          let y2r = safeEvalMath(container.querySelector("#ny2").value);
-          const w = safeEvalMath(container.querySelector("#nw").value);
-          const h = safeEvalMath(container.querySelector("#nh").value);
-          if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
-            // Šířka/výška je vždy relativní delta
-            const p2 = { x: p1.x + w, y: p1.y + h };
-            addRectAsSegments(p1.x, p1.y, p2.x, p2.y);
-            state.numDialogChain = { x: p2.x, y: p2.y };
-            break;
-          }
-          let p2 = toAbs(x2r, y2r);
-          addRectAsSegments(p1.x, p1.y, p2.x, p2.y);
-          state.numDialogChain = { x: p2.x, y: p2.y };
+          const g = readFormGeometry();
+          if (!g.valid) { showToast("Zadejte druhý roh (X2/Z2, nebo Šířka a Výška)"); return false; }
+          addRectAsSegments(g.x1, g.y1, g.x2, g.y2);
+          state.numDialogChain = { x: g.x2, y: g.y2 };
           break;
         }
         case "polyline": {
@@ -790,12 +956,27 @@ export function initNumericalTab(container, { picker = null } = {}) {
     }
   }
 
-  // Vytvořit a zavřít
-  container.querySelector("#numOk").addEventListener("click", () => {
-    if (createObject()) { picker?.cancel(); root.remove(); }
-  });
+  /**
+   * Vytvoří objekt a NEZAVÍRÁ okno – rovnou se pokračuje dalším prvkem
+   * (typicky řetězec úseček „bod za bodem"). `createObject()` už
+   * aktualizovalo `state.numDialogChain`, takže `updateFields()` natáhne
+   * čerstvé „Start = konec předchozího prvku" do stejného typu formuláře.
+   */
+  function createAnother() {
+    if (!createObject()) return;
+    picker?.cancel();
+    // Kontura se zadává přírůstkově přes „Přidat bod" – po vložení hotové
+    // kontury začít napočisto, jinak by se do dalšího „Vytvořit" vlekly
+    // vrcholy té předchozí.
+    if (typeSelect.value === 'polyline') { polyVerts = []; polyBulges = []; }
+    updateFields();
+    announceChainContinuation();
+  }
 
-  // Zrušit
+  // Vytvořit – okno zůstává otevřené, pokračuje se dalším prvkem
+  container.querySelector("#numOk").addEventListener("click", createAnother);
+
+  // Zrušit – tohle konturu ukončí a okno zavře
   container.querySelector("#numCancel").addEventListener("click", () => {
     state.numDialogChain = { x: null, y: null };
     picker?.cancel();
@@ -804,7 +985,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
   container.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.tagName === "INPUT") {
-      if (createObject()) { picker?.cancel(); root.remove(); }
+      createAnother();
     }
     // ESC okno nezavírá (plovoucí režim – patří nástroji na plátně),
     // jen odzbrojí rozdělaný 🎯 výběr bodu.

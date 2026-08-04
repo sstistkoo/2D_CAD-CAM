@@ -82,6 +82,12 @@ export const state = {
   // kreslení (`tool === 'vkDraw'`); konec si renderer bere ze `state.mouse`,
   // aby čára jela s kurzorem bez přepočítávání celého náhledu.
   vkPreview: { visible: false, data: null, rubber: null },
+  // Živý náhled záložky 🔢 Číselné zadání (okno „Zadání objektu") – `data`
+  // je výstup readFormGeometry() v numericalInput.js: geometrie odpovídající
+  // právě rozepsanému typu objektu, přepočítaná při každém vstupu do pole.
+  // Kreslí renderNumPreviewOnCad() přes bridge.renderNumPreview (stejný
+  // vzor jako vkPreview – render.js nesmí znát dialogové moduly přímo).
+  numPreview: { visible: false, data: null },
   // Souřadnice posledního kliknutí na plátno (viz #statusCoords ve statusbaru)
   lastClickPoint: { x: null, y: null },
   // Inkrementální souřadnice

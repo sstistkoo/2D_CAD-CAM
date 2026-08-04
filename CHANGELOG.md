@@ -8,6 +8,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Číselné zadání: živý náhled na plátně.** Zadávaný objekt (bod, úsečka/
+  konstr. čára, kružnice, oblouk, obdélník, rozestavěná kontura) se
+  čárkovaně kreslí přímo na výkres při psaní do formuláře – **✓ Potvrdit**
+  pak jen potvrdí to, co je vidět. Sdílenou geometrii pro náhled i skutečné
+  vložení počítá jedna funkce (`readFormGeometry()`), aby se nerozjely dvě
+  mírně odlišné cesty výpočtu (přesně tenhle vzorec je zdroj opravy níž).
+  Nový `state.numPreview` + `bridge.renderNumPreview` (stejný vzor jako
+  VK náhled).
+
+### Changed
+- **Mobil: okno „Zadání objektu" (VK / Číselné zadání) teď sahá až na spodní
+  okraj obrazovky**, stejně jako výsuvný panel nástrojů (`#topbar`) – větší
+  (60vh místo 45vh) a `#mobileBottomBar` je pod ním schválně schovaný, dokud
+  je okno otevřené.
+- **Odstraněno duplicitní tlačítko „Měření" z hlavního panelu nástrojů**
+  (`data-tool="measure"` vedle Výběr/Kóta/Konstr). Měření zůstává na svém
+  vlastním místě – 📏 ve stavové liště (desktop) i ve spodní liště (mobil).
+- **Číselné zadání: „Vytvořit" (teď „✓ Potvrdit") už okno nezavírá.**
+  Objekt se vloží a formulář se rovnou vrátí na start = konec právě
+  vytvořeného prvku (stejné pole jako dosavadní řetězení), takže jde
+  psát rovnou další prvek bez opětovného otevírání. Cílový bod (X2/Z2)
+  i Délka/Úhel zůstávají po vložení PRÁZDNÉ (dřív `value="0"` u X2/Z2
+  dělalo fantomovou výchozí hodnotu, ze které se navíc přes auto-fill
+  dopočítávalo nesmyslné Délka/Úhel z předchozího zadání). Kontura
+  (Kontura/polyline) po vložení vyprázdní nasbírané body. Zavírá už jen
+  **Zrušit** nebo ✕ v liště.
+- **Ikony tlačítek „Zadání objektu" (desktop stavová lišta, mobilní spodní
+  lišta) přestaly vypadat jako Kalkulačka.** Obě dřív ukazovaly jen `🔢` –
+  identicky s `🔢 Kalkulačka` v panelu Kalkulačky. Teď `✏️ VK` (desktop) /
+  `✏️` (mobil, kulaté tlačítko nemá na text místo).
+
+### Fixed
+- **Číselné zadání: přesně napsané souřadnice úsečky se tiše zaokrouhlily.**
+  Pole „Délka a polární úhel" se auto-plní z X1/Z1/X2/Z2 jen jako INFORMACE
+  (zobrazit délku/úhel), ale `createObject()` je bralo jako AUTORITATIVNÍ,
+  kdykoli nebyla prázdná – takže se každá úsečka ve skutečnosti vytvořila
+  rekonstrukcí z délky a úhlu zaokrouhleného na 2 desetinná místa, ne
+  z napsaných X/Z. U delší úsečky to znamenalo odchylku v řádu desetin mm
+  (např. X50 Z20 vyšlo jako X50.0008 Z19.9989). Teď se Délka/Úhel použije
+  jen tehdy, když do nich uživatel fakt psal (`lineUsesLenAng`), jinak mají
+  přednost přesná X/Z.
+- **Tlačítko „Kopie" v toolbaru nedělalo nic.** Při přestavbě toolbaru
 - **VK: kreslení kontury klikáním (✏️).** Vedle 🎯 přibyl přepínač, po kterém
   **každý klik do výkresu rovnou vloží prvek** – kontura se naklikává jako
   polyčára a VK syntaxe se píše sama. Bere přitom nastavení formuláře
