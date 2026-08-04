@@ -476,8 +476,9 @@ document.addEventListener("keydown", (e) => {
     state.multiSelected.clear();
     state.multiSelectedSegments.clear();
     state.selectedPoint = null;
-    // Escape z deleteObj/copyPlace módu → zpět na select
-    if (state.tool === 'deleteObj' || state.tool === 'copyPlace') setTool('select');
+    // Escape z deleteObj/copyPlace/vkDraw módu → zpět na select
+    // (VK okno zůstává otevřené – ESC ho nezavírá, má data-keep-on-esc)
+    if (state.tool === 'deleteObj' || state.tool === 'copyPlace' || state.tool === 'vkDraw') setTool('select');
     updateProperties();
     renderAll();
     resetHint();
@@ -557,8 +558,20 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
-  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")
+  // TEXTAREA patří do stejné party jako INPUT/SELECT: plovoucí okna
+  // (VK syntaxe, CAM/CNC editor) koexistují s plátnem, takže bez toho
+  // psaní „l" do textu přepnulo nástroj na Úsečku.
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA")
     return;
+
+  // Krok zpět v naklikané VK kontuře (režim kreslení) – ⌫ odebere
+  // poslední prvek. Ctrl+Z je globální UNDO výkresu, tomu se sem plést
+  // nesmí (VK zatím ve `state.objects` nic nemá).
+  if (e.key === "Backspace" && state.tool === "vkDraw") {
+    e.preventDefault();
+    bridge.vkDrawUndo?.();
+    return;
+  }
 
   if (e.key === "?") {
     toggleHelp();
@@ -1085,6 +1098,20 @@ export function handleCanvasClick(wx, wy) {
 
     case "profileTrace":
       handleProfileTraceClick(wx, wy);
+      break;
+
+    // VK – kreslení kontury klikáním. Bod se zapíše do otevřeného okna
+    // „Zadání objektu" (js/calculators/vkContour.js) přes bridge, aby
+    // events.js nemuselo importovat kalkulátor. Je to plnohodnotný
+    // nástroj (ne paralelní odběr kliku), takže se klik nikdy nezdvojí
+    // s kreslením jiným nástrojem.
+    case "vkDraw":
+      if (bridge.vkDrawPoint) {
+        bridge.vkDrawPoint(wx, wy);
+      } else {
+        showToast("Nejdřív otevři okno VK – Volná kontura");
+        setTool("select");
+      }
       break;
 
     case "rotate":

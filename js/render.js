@@ -62,6 +62,9 @@ export function renderAll() {
     if (bridge.updateTraceButtons) bridge.updateTraceButtons();
     // Aktualizovat lištu Potvrdit/Zrušit ručního kreslení obrysu držáku (CAM)
     if (bridge.updateHolderDrawButtons) bridge.updateHolderDrawButtons();
+    // Aktualizovat přepínač VK „kreslit myší" (setTool končí renderAll,
+    // takže tlačítko drží krok i při přepnutí nástroje z toolbaru)
+    if (bridge.updateVkDrawButton) bridge.updateVkDrawButton();
   });
 }
 

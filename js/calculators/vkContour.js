@@ -169,7 +169,85 @@ export function upsertVkVpolLine(code, values = {}) {
   const lines = String(code || '').split(/\r?\n/);
   const remaining = lines.filter(entry => !/^G111\b/.test(entry.trim()));
   if (!line) return remaining.join('\n');
+  // Prázdná syntaxe se rozpadne na [''] – bez tohohle by VPOL do čistého
+  // pole spadl až na druhý řádek (`\nG111 …`).
+  if (remaining.every(entry => entry.trim() === '')) return line;
   return [...remaining, line].join('\n');
+}
+
+/**
+ * Příkaz VK řádku pro prvek zadaný ve formuláři.
+ *
+ * Sdílí ho tlačítko „+" i kreslení myší (`state.tool === 'vkDraw'`), aby
+ * obě cesty vyráběly identickou syntaxi. `G0` je vyhrazené pro úplně první
+ * prvek řetězu (najetí na počáteční bod), pak už jde všechno přes `G11`.
+ *
+ * @param {'vl'|'vkr'|'vpol'} type typ prvku ve formuláři
+ * @param {boolean} isFirstEver je to počáteční bod kontury?
+ * @param {'G2'|'G3'} arcDir směr oblouku
+ * @returns {'G0'|'G11'|'G2'|'G3'|'G111'}
+ */
+export function vkElementCommand(type, isFirstEver, arcDir) {
+  if (type === 'vpol') return 'G111';
+  if (type === 'vkr') return arcDir === 'G3' ? 'G3' : 'G2';
+  return isFirstEver ? 'G0' : 'G11';
+}
+
+/**
+ * Sestaví text VK řádku z hodnot formuláře.
+ *
+ * Čísla jdou do textu tak, jak je uživatel napsal (zobrazované jednotky) –
+ * převod na poloměr dělá až řešič, viz „Jednotky osy X" nahoře.
+ * `null` znamená „pole zůstalo neznámé" a zapíše se jako `?`.
+ *
+ * @param {{cmd: string, x?: number|string|null, z?: number|string|null,
+ *          pa?: number|null, pr?: number|string|null, r?: number|null,
+ *          isArc?: boolean, vpolTag?: string|null, isT?: boolean}} values
+ * @returns {string}
+ */
+export function buildVkElementLine(values) {
+  const { cmd, x = null, z = null, pa = null, pr = null, r = null, isArc = false, vpolTag = null, isT = false } = values;
+  let line = `${cmd} X${x == null ? '?' : x} Z${z == null ? '?' : z}`;
+  if (pa != null) line += ` PA${pa}`;
+  if (pr != null && String(pr).trim() !== '') line += ` PR${pr}`;
+  if (isArc) line += ` R${r ?? 0}`;
+  if (vpolTag) line += ` ${vpolTag}`;
+  if (isT) line += ' T';
+  return line;
+}
+
+/**
+ * Odebere ze syntaxe POSLEDNÍ geometrický prvek (krok zpět při kreslení).
+ *
+ * `G111` (VPOL) se přeskakuje – je to definice pólu, ne prvek kontury,
+ * a smazat ji krokem zpět by rozhodilo všechny polární zápisy nad ní.
+ *
+ * @param {string} code
+ * @returns {{code: string, removed: string}|null} null = není co odebrat
+ */
+export function dropLastVkElementLine(code) {
+  const lines = String(code || '').split(/\r?\n/);
+  let idx = -1;
+  lines.forEach((text, i) => {
+    const parsedLine = parseVkLine(text);
+    if (parsedLine && parsedLine.cmd !== 'G111') idx = i;
+  });
+  if (idx === -1) return null;
+  const [removed] = lines.splice(idx, 1);
+  return { code: lines.join('\n'), removed };
+}
+
+/**
+ * Má daná VK syntaxe už aspoň jeden geometrický prvek?
+ *
+ * `G111` (definice pólu) se nepočítá – ta sama o sobě konturu nezačíná,
+ * takže po ní další prvek pořád smí být počáteční `G0`.
+ *
+ * @param {string} code obsah pole „Generovaná VK syntaxe"
+ * @returns {boolean}
+ */
+export function vkChainHasElements(code) {
+  return /^(G0|G11|G1|G2|G3)\s+/m.test(String(code || ''));
 }
 
 export function parseVkLine(text) {
@@ -608,7 +686,11 @@ export function renderVkTab() {
 
         <div class="vk-section-title vk-title-with-action" data-id="coords-title-row">
           <span data-id="coords-title">Souřadnice počátečního bodu:</span>
-          <button type="button" class="vk-header-btn" data-act="pick-xz" title="Vybrat bod z výkresu">🎯</button>
+          <span class="vk-header-actions">
+            <button type="button" class="vk-header-btn" data-act="pick-xz" title="Vybrat bod z výkresu">🎯</button>
+            <button type="button" class="vk-header-btn" data-act="draw-mode" data-id="draw-mode-btn"
+              title="Kreslit konturu klikáním do výkresu (každý klik = jeden prvek)">✏️</button>
+          </span>
         </div>
         <div class="cnc-fields">
           <label class="cnc-field">
@@ -1392,7 +1474,16 @@ export function initVkTab(container, { picker = null } = {}) {
   });
 
   container.querySelector('[data-act="remove-element"]').addEventListener('click', () => {
-    if (cursor === null && pendingQueue.length === 0) { solveInfo.textContent = 'Není co odebrat.'; return; }
+    if (cursor === null && pendingQueue.length === 0) {
+      // Nic nedořešeného ve frontě – pak je „odebrat prvek" myšleno na
+      // poslední hotový řádek syntaxe (typicky naklikaný myší).
+      if (!removeLastCodeLine()) { solveInfo.textContent = 'Není co odebrat.'; return; }
+      resetFormToNewEntry();
+      solveInfo.textContent = 'Odebrán poslední prvek syntaxe';
+      updateFormMode();
+      updateVkPreview();
+      return;
+    }
     if (cursor === -1) {
       if (!firstElement) { solveInfo.textContent = 'Není co odebrat.'; return; }
       gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== firstElement.lineText).join('\n');
@@ -1431,18 +1522,24 @@ export function initVkTab(container, { picker = null } = {}) {
     });
   });
 
-  container.querySelector('[data-act="element"]').addEventListener('click', () => {
+  /**
+   * Vloží (nebo při aktivním kurzoru uloží úpravu) prvek podle aktuálního
+   * stavu formuláře. Vytažené z obsluhy tlačítka „+", aby stejnou cestou
+   * mohlo jít i kreslení myší (`addPointFromCanvas`) – jinak by vznikly dvě
+   * mírně odlišné větve generování syntaxe.
+   */
+  function insertElementFromForm() {
     const editingIndex = cursor;
     const isFirstEver = editingIndex === -1
       ? true
-      : (editingIndex !== null ? pendingQueue[editingIndex].wasFirstEver : (pendingQueue.length === 0 && lastPoint === null && !/^(G0|G11|G2|G3)\s+/m.test(gcodeEl.value)));
+      : (editingIndex !== null ? pendingQueue[editingIndex].wasFirstEver : (pendingQueue.length === 0 && lastPoint === null && !vkChainHasElements(gcodeEl.value)));
     const xStr = q('val-x2').value, zStr = q('val-z2').value;
     const paStr = q('val-pa').value, prStr = q('val-pr').value;
     const rStr = q('val-r').value;
     const isTChecked = !isFirstEver && q('check-t').checked; // na počátečním bodě není na co se tečně napojit
     const vpolTagInput = container.querySelector('[data-id="vpol-tag"]');
     const vpolTag = vpolTagInput ? (vpolTagInput.value || null) : null;
-    const cmd = currentType === 'vpol' ? 'G111' : (isFirstEver && currentType === 'vl' ? 'G0' : (currentType === 'vl' ? 'G11' : arcDir));
+    const cmd = vkElementCommand(currentType, isFirstEver, arcDir);
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
 
@@ -1469,12 +1566,13 @@ export function initVkTab(container, { picker = null } = {}) {
       wasFirstEver: isFirstEver,
     };
 
-    let line = `${cmd} X${xStr === '?' ? '?' : xRaw} Z${zStr === '?' ? '?' : el.z}`;
-    if (el.pa != null) line += ` PA${el.pa}`;
-    if (prStr !== '?' && prStr.trim() !== '') line += ` PR${prStr}`;
-    if (el.isArc) line += ` R${el.r}`;
-    if (vpolTag) line += ` ${vpolTag}`;
-    if (isTChecked) line += ' T';
+    const line = buildVkElementLine({
+      cmd,
+      x: el.xRaw, z: el.z,
+      pa: el.pa, pr: el.prRaw,
+      r: el.r, isArc: el.isArc,
+      vpolTag, isT: isTChecked,
+    });
 
     solveInfo.textContent = '';
     const isKnown = el.x != null && el.z != null;
@@ -1561,7 +1659,144 @@ export function initVkTab(container, { picker = null } = {}) {
     resetFormToNewEntry();
     updateFormMode();
     updateVkPreview();
+  }
+
+  container.querySelector('[data-act="element"]').addEventListener('click', insertElementFromForm);
+
+  // ── Režim kreslení myší (state.tool === 'vkDraw') ──────────────
+  // Klik do výkresu = doplnit X/Z prvku a rovnou ho vložit. Je to
+  // plnohodnotný nástroj CADu (viz `case "vkDraw"` v events.js), takže
+  // stejný klik nikdy nekreslí zároveň úsečku jiným nástrojem a funguje
+  // i na dotyku (touch.js volá tentýž handleCanvasClick).
+
+  /** @returns {boolean} je právě aktivní VK kreslení? */
+  function isDrawMode() {
+    return state.tool === 'vkDraw';
+  }
+
+  const drawModeBtn = q('draw-mode-btn');
+
+  /**
+   * Sesynchronizuje tlačítko ✏️ se skutečným nástrojem a publikuje
+   * nastavení prvku pro gumovou čáru. Volá se z `renderAll()`, takže
+   * jede s každým pohybem myši – proto se tu jen čtou pole formuláře,
+   * nic se nepřepočítává.
+   */
+  function updateDrawModeButton() {
+    const active = isDrawMode();
+    if (drawModeBtn) {
+      drawModeBtn.classList.toggle('active', active);
+      drawModeBtn.title = active
+        ? 'Kreslení myší je zapnuté – klikněte pro návrat k výběru'
+        : 'Kreslit konturu klikáním do výkresu (každý klik = jeden prvek)';
+    }
+    state.vkPreview.rubber = active
+      ? {
+        type: currentType === 'vkr' ? 'arc' : 'line',
+        direction: arcDir,
+        radius: parseFloat(q('val-r')?.value) || null,
+      }
+      : null;
+  }
+
+  /**
+   * Zapíše bod z plátna do formuláře a vloží prvek.
+   *
+   * PA/PR se schválně vynulují na „?" – `resetFormToNewEntry()` je po
+   * každém vložení obnovuje z paměti posledních hodnot a bez toho by se
+   * ke kliknutým X/Z přilepil starý polární zápis a prvek by byl
+   * přeurčený.
+   *
+   * @param {number} wx world X (snapnuté už v events.js)
+   * @param {number} wy world Y
+   */
+  function addPointFromCanvas(wx, wy) {
+    // Klik do výkresu je vždy NOVÝ prvek. Kdyby kurzor stál na
+    // rozeditovaném prvku z fronty (◀ ▶), `insertElementFromForm` by
+    // změnu odmítl („prvek by se stal plně známým").
+    if (cursor !== null) {
+      cursor = null;
+      resetFormToNewEntry();
+      updateFormMode();
+    }
+    const pt = worldToVk(wx, wy);
+    setUnknownField('val-x2', fmt(pt.x));
+    setUnknownField('val-z2', fmt(pt.z));
+    setUnknownField('val-pa', null);
+    setUnknownField('val-pr', null);
+    // VPOL se z plátna neklikají – jeho pole má vlastní sekci.
+    if (currentType === 'vpol') {
+      const vlBtn = container.querySelector('[data-type="vl"]');
+      if (vlBtn) vlBtn.click();
+    }
+    insertElementFromForm();
+    // Po vložení nechat X/Z prázdné. `resetFormToNewEntry()` je jinak
+    // obnoví z paměti posledních hodnot a náhled by ke starému bodu
+    // kreslil rozepsaný prvek, který uživatel nezadal – vedle gumové
+    // čáry k ukazateli by to byla druhá, matoucí čára.
+    setUnknownField('val-x2', null);
+    setUnknownField('val-z2', null);
+    updateVkPreview();
+  }
+
+  /**
+   * Krok zpět v naklikané kontuře – odebere poslední geometrický řádek
+   * syntaxe a dopočte z textu stav řetězu.
+   *
+   * Klikáním vznikají samé PLNĚ ZNÁMÉ prvky, které do `pendingQueue`
+   * nikdy nespadnou, takže ➖ (odebrání nedořešeného prvku) tu nemá co
+   * odebírat – tohle je jeho protějšek pro režim kreslení.
+   *
+   * @returns {boolean} odebralo se něco?
+   */
+  function removeLastCodeLine() {
+    const dropped = dropLastVkElementLine(gcodeEl.value);
+    if (!dropped) return false;
+    gcodeEl.value = dropped.code;
+    vkSave();
+    if (firstElement && firstElement.lineText === dropped.removed) firstElement = null;
+    // Odebraný řádek může patřit prvku, který čeká ve frontě na dopočet
+    // (kombinace ručního zadání s „?" a kreslení myší). Bez tohohle by
+    // fronta držela prvek, který v textu už není, a jeho dopočet by pak
+    // patchoval řádek, který nikde není.
+    pendingQueue = pendingQueue.filter(el => el.lineText !== dropped.removed);
+    syncChainFromCode();
+    return true;
+  }
+
+  /**
+   * Dotáhne stav řetězu (poslední/první bod) k tomu, co je v textu.
+   * Body z `buildVkPreviewData` jsou v jednotkách textu, závěs řetězu
+   * v solver prostoru (poloměr) – viz „Jednotky osy X" nahoře.
+   */
+  function syncChainFromCode() {
+    const data = buildVkPreviewData(gcodeEl.value);
+    lastPoint = data.lastPoint ? { z: data.lastPoint.z, x: toSolverX(data.lastPoint.x) } : null;
+    startPoint = data.startPoint ? { z: data.startPoint.z, x: toSolverX(data.startPoint.x) } : null;
+    chainStarted = lastPoint !== null;
+    if (!chainStarted) firstElement = null;
+  }
+
+  drawModeBtn?.addEventListener('click', () => {
+    if (!bridge.setTool) return;
+    const turningOn = !isDrawMode();
+    bridge.setTool(turningOn ? 'vkDraw' : 'select');
+    // setTool končí renderAll() → updateDrawModeButton() se zavolá samo.
+    if (turningOn) showToast('Kreslení VK: každý klik vloží prvek (⌫ zpět, ESC konec)');
   });
+
+  bridge.vkDrawPoint = addPointFromCanvas;
+  bridge.vkDrawUndo = () => {
+    if (!removeLastCodeLine()) { showToast('VK kontura je prázdná'); return; }
+    cursor = null;
+    resetFormToNewEntry();
+    setUnknownField('val-x2', null);
+    setUnknownField('val-z2', null);
+    updateFormMode();
+    updateVkPreview();
+  };
+  bridge.updateVkDrawButton = updateDrawModeButton;
+  updateDrawModeButton();
 
   container.querySelector('[data-act="clear"]').addEventListener('click', () => {
     gcodeEl.value = '';
@@ -1842,9 +2077,26 @@ export function initVkTab(container, { picker = null } = {}) {
     refresh() {
       scheduleRender();
     },
+    /** Vypne kreslení myší (zavření okna / přepnutí na číselnou záložku). */
+    stopDrawMode() {
+      if (isDrawMode()) bridge.setTool?.('select');
+    },
     destroy() {
       if (renderFrame != null) { window.cancelAnimationFrame(renderFrame); renderFrame = null; }
       if (commitResetTimer != null) { clearTimeout(commitResetTimer); commitResetTimer = null; }
+      // Bez okna nemá kam bod psát – nástroj by po zavření zůstal viset
+      // a klikání do výkresu by nedělalo nic.
+      if (isDrawMode()) bridge.setTool?.('select');
+      // Odregistrovat jen vlastní zápis; kdyby se mezitím stihlo otevřít
+      // nové okno, patří bridge jemu.
+      if (bridge.vkDrawPoint === addPointFromCanvas) {
+        bridge.vkDrawPoint = null;
+        bridge.vkDrawUndo = null;
+      }
+      if (bridge.updateVkDrawButton === updateDrawModeButton) {
+        bridge.updateVkDrawButton = null;
+        state.vkPreview.rubber = null;
+      }
       // `state.vkPreview` patří oknu (combinedModal.js) – uklízet ho tady
       // by přepsalo náhled okna, které se mezitím stihlo otevřít znovu.
     },

@@ -5746,6 +5746,14 @@ body {
   color: var(--ctp-red);
 }
 .vk-header-btn-red:hover { background: var(--ctp-red); color: var(--ctp-base); }
+/* Zapnutý přepínač (✏️ kreslení myší) – nástroj běží na plátně, i když
+   je okno v pozadí, takže musí být vidět na první pohled. */
+.vk-header-btn.active {
+  background: var(--ctp-blue);
+  border-color: var(--ctp-blue);
+  color: var(--ctp-base);
+}
+.vk-header-btn.active:hover { background: var(--ctp-blue); filter: brightness(1.1); }
 .vk-help-c-text    { color: var(--ctp-text); }
 .vk-help-c-blue     { color: var(--ctp-blue); }
 .vk-help-c-orange   { color: var(--ctp-peach); }

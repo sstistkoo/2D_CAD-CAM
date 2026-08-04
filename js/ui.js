@@ -29,6 +29,9 @@ bridge.updateIntersectionList = () => updateIntersectionList();
 bridge.updateLayerList = () => updateLayerList();
 bridge.renderAll = () => renderAll();
 bridge.resetHint = () => resetHint();
+// Přepnutí nástroje z modulů, které ui.js importovat nemůžou (cyklus
+// ui.js → combinedModal.js → vkContour.js).
+bridge.setTool = (tool) => setTool(tool);
 bridge.applyTheme = () => applyTheme();
 
 // ── Okamžité uložení nastavení do IDB ──
@@ -2893,6 +2896,7 @@ export function resetHint() {
     circularArray: "Klepněte na objekt pro kruhové pole",
     profileTrace: "Klepněte na první bod kontury (R = radius, Enter = dokončit)",
     fill: "Klikněte do plochy, kterou chcete vybarvit",
+    vkDraw: "Klepněte do výkresu – bod se zapíše do VK kontury (typ prvku VL/VKr volíte v okně)",
   };
   setHint(hints[state.tool] || "");
 }

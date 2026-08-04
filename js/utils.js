@@ -523,6 +523,7 @@ export function toolLabel(t) {
       rotate: "Otočit",
       profileTrace: "Trasování profilu",
       fill: "Vybarvit",
+      vkDraw: "VK – kreslení kontury",
     }[t] || t
   );
 }

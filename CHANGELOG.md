@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **VK: kreslení kontury klikáním (✏️).** Vedle 🎯 přibyl přepínač, po kterém
+  **každý klik do výkresu rovnou vloží prvek** – kontura se naklikává jako
+  polyčára a VK syntaxe se píše sama. Bere přitom nastavení formuláře
+  (VL/VKr, směr G2/G3, poloměr R, tečné napojení T) a přichycení k bodům.
+  Je to **plnohodnotný nástroj CADu** (`state.tool === 'vkDraw'`,
+  ve stavové liště *Nástroj: VK – kreslení kontury*), ne druhý „nabitý"
+  odběr kliku jako 🎯: odběr běží na `click`, nástroje na `mousedown`,
+  takže by jeden klik zapsal bod do VK **a zároveň** nakreslil aktivním
+  nástrojem. Jako nástroj zároveň zadarmo funguje dotyk, ESC i přepnutí
+  z toolbaru. Režim se vypíná ✏️, ESC, jiným nástrojem, přepnutím na
+  záložku 🔢 nebo zavřením okna (nesmí okno přežít – neměl by kam psát).
+  Syntaxi teď obě cesty (✏️ i ➕) skládají společné čisté funkce
+  `vkElementCommand()` / `vkChainHasElements()` / `buildVkElementLine()`.
+  Součástí režimu je **gumová čára** – prvek, který by kliknutím vznikl,
+  je vidět od konce kontury k ukazateli (u VKr rovnou jako oblouk daného
+  R a směru; když je R na tu vzdálenost krátké, ukáže se úsečka).
+  Krok zpět je **⌫**, případně **➖** – to dřív umělo odebrat jen
+  *nedořešený* prvek z fronty, jenže klikáním vznikají samé plně známé
+  prvky, takže na naklikanou konturu nešlo sáhnout jinak než ručně
+  v textu. `G111` (VPOL) krok zpět nikdy nesmaže – není to prvek kontury.
+
+### Added
 - **VK: „📥 Vložit do výkresu".** Volná kontura byla do teď jen textová
   pomůcka – hotový zápis teď jde jedním tlačítkem změnit na skutečné
   objekty výkresu (`line` / `arc`). Vkládají se jako **obyčejné objekty
@@ -54,6 +76,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bere z napsané VK syntaxe (z fronty ten prvek mezitím vypadl).
 
 ### Fixed
+- **Tlačítko „Kopie" v toolbaru nedělalo nic.** Při přestavbě toolbaru
+  dostalo `data-tool="copy"`, jenže nástroj se jmenuje `copyPlace` –
+  `handleCanvasClick` pro `copy` žádnou větev nemá, ve stavové liště
+  svítilo holé „Nástroj: copy" a zkratka „je vybráno → rovnou umísti"
+  se taky neuplatnila. Kopírování šlo jen přes Shift+C / kontextové menu.
+- **Psaní do textového pole už nepřepíná nástroj.** Klávesová zkratka
+  jednoho písmene se odbavovala i tehdy, když měl fokus `<textarea>` –
+  napsat `l` do VK syntaxe (nebo do CAM/CNC editoru) znamenalo přepnout
+  nástroj na Úsečku, `n` otevřít číselné zadání atd. Stráž v `events.js`
+  hlídala jen `INPUT`/`SELECT`; u modálních dialogů to nevadilo, ale
+  plovoucí okna koexistují s plátnem, takže se to začalo dít při běžném
+  psaní. Ctrl+Z, ESC ani F1 se změna netýká (jsou nad stráží).
 - **VK: vrátilo se pole „Dvojznačnost řešení" (VPOL1/VPOL2).** Kód ho na
   třech místech četl (vkládání prvku, reset formuláře, načtení prvku přes
   ◀ ▶), ale samotné pole se ztratilo při rozdělení okna na záložky –

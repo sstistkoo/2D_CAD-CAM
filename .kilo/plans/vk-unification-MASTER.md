@@ -373,8 +373,19 @@ buildVkPreviewData() → segmenty → pushUndo() → addObject() per segment
   fungují zadarmo a odpadají kroky 3.4–3.7 původního plánu),
 - konstrukční paprsky (`G0 … PA`) se **nekomitují** (jsou to pomůcky).
 
-**Neřešit teď:** režim „kreslení VK klikáním" (plán 3.3). Nejdřív ať se
-osvědčí commit; kreslicí režim je samostatné rozhodnutí.
+**3.3 Režim „kreslení VK klikáním"** ✅ *hotovo* — jako plnohodnotný nástroj
+`state.tool === 'vkDraw'`, ne paralelní odběr kliku (odběr běží na `click`,
+nástroje na `mousedown` → jeden klik by zapsal bod do VK *a zároveň* nakreslil
+aktivním nástrojem). Původní návrh `state.vkInputMode = 'form' | 'draw'` proto
+odpadá: režim = aktivní nástroj, „form" režim je 🎯 (jednorázový pick).
+
+- `vkContour.js` – ✏️ přepínač, `addPointFromCanvas()`, `insertElementFromForm()`
+  vytažené z obsluhy ➕ (obě cesty vyrábějí tutéž syntaxi přes čisté
+  `vkElementCommand()` / `vkChainHasElements()` / `buildVkElementLine()`),
+- `events.js` – `case 'vkDraw'` + ESC → `select`; `bridge.vkDrawPoint`,
+  `bridge.updateVkDrawButton`, `bridge.setTool`,
+- úklid: zavření okna i přepnutí na záložku 🔢 režim vypnou,
+- testy `tests/vk-draw-mode.test.js` (round trip klik → syntaxe → world).
 
 ---
 

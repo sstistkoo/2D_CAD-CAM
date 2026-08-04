@@ -78,7 +78,10 @@ export const state = {
   // záložka 📐 VK). `data` je celý výstup buildVkPreviewData() – segmenty,
   // VPOL, draft i varianty řešení pohromadě. Kreslí vkPreviewRender.js
   // přes bridge.renderVkPreview, aby render.js nemusel znát VK modul.
-  vkPreview: { visible: false, data: null },
+  // `rubber` drží nastavení prvku (typ/směr/R) pro gumovou čáru režimu
+  // kreslení (`tool === 'vkDraw'`); konec si renderer bere ze `state.mouse`,
+  // aby čára jela s kurzorem bez přepočítávání celého náhledu.
+  vkPreview: { visible: false, data: null, rubber: null },
   // Souřadnice posledního kliknutí na plátno (viz #statusCoords ve statusbaru)
   lastClickPoint: { x: null, y: null },
   // Inkrementální souřadnice

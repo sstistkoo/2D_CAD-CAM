@@ -402,6 +402,56 @@ Pravidla, na kterých ta cesta stojí:
   v rovině řešiče (X = průměr) by po převodu vyšla elipsa. `G2 → ccw:false`,
   `G3 → ccw:true` – stejně jako `parseGcodeToObjects()` v `storage/fileIO.js`.
 
+### VK: kreslení klikáním (`state.tool === 'vkDraw'`)
+
+Tlačítko **✏️** v záložce VK zapíná režim, kde klik do výkresu rovnou vloží
+prvek. Je to **plnohodnotný nástroj CADu**, ne paralelní odběr kliku:
+
+```
+mousedown / tap → handleCanvasClick()  (events.js, resp. touch.js)
+                → case 'vkDraw' → bridge.vkDrawPoint(wx, wy)
+                → addPointFromCanvas() (vkContour.js, uvnitř initVkTab)
+                → worldToVk() → pole X/Z → insertElementFromForm()
+```
+
+Proč nástroj, a ne druhý „nabitý" odběr jako 🎯 (`dialogs/canvasPick.js`):
+
+- odběr kliku běží na události `click`, kdežto nástroje na `mousedown` –
+  jeden klik by tedy zapsal bod do VK **a zároveň** nakreslil aktivním
+  nástrojem. Jako nástroj je VK kreslení s ostatními vzájemně vylučující.
+- dotyk, snap, ESC, přepínání z toolbaru i stavová lišta fungují zadarmo
+  (`touch.js` volá tentýž `handleCanvasClick`).
+
+Drátování a úklid – režim nesmí přežít okno, jinak by klikání nemělo kam psát:
+
+| kdo | co dělá |
+|---|---|
+| `bridge.vkDrawPoint` | zapíše bod; registruje `initVkTab`, ruší `destroy()` |
+| `bridge.vkDrawUndo` | krok zpět (⌫ v `events.js`, ➖ v okně) – `dropLastVkElementLine()` + resync řetězu z textu |
+| `bridge.updateVkDrawButton` | sync tlačítka ✏️ se skutečným nástrojem; volá se z `renderAll()` (a `setTool()` končí `renderAll()`, takže tlačítko drží krok i při přepnutí z toolbaru) |
+| `bridge.setTool` | `ui.js` – `vkContour.js` nemůže `ui.js` importovat (cyklus přes `combinedModal.js`) |
+| `combinedModal.js` | přepnutí na záložku 🔢 → `stopDrawMode()` |
+| `initVkTab().destroy()` | zavření okna → zpět na `select` + odregistrování bridge |
+| `events.js` (ESC) | `vkDraw` → `select`, stejně jako `deleteObj`/`copyPlace` |
+
+Syntaxi obou cest (✏️ i tlačítko ➕) skládají společné čisté funkce
+`vkElementCommand()` (G0 pro první prvek, pak G11 / G2 / G3),
+`vkChainHasElements()`, `buildVkElementLine()` a pro krok zpět
+`dropLastVkElementLine()` – testy `tests/vk-draw-mode.test.js`.
+
+**Gumová čára** je schválně rozdělená na dva kusy: `vkContour.js` publikuje
+do `state.vkPreview.rubber` jen *nastavení* prvku (typ / směr / R) a dělá to
+v `updateVkDrawButton()`, které volá `renderAll()`. Konec čáry si bere
+`vkPreviewRender.js` ze `state.mouse` až při kreslení – `renderAll()` běží
+při každém pohybu myši, takže čára jede s kurzorem, aniž by se kvůli ní
+přepočítával celý náhled kontury (`buildVkPreviewData()`).
+
+Krok zpět **nesmí sáhnout na `Ctrl+Z`**: globální UNDO patří výkresu
+(`state.objects`), kde VK před „📥 Vložit do výkresu" nic nemá. Po odebrání
+řádku se stav řetězu (`lastPoint`/`startPoint`/`chainStarted`) dopočítá
+zpátky z textu (`syncChainFromCode()`), jinak by další klik navázal na bod,
+který už v syntaxi není.
+
 ### CAM pipeline: Roughing/Finishing
 
 1. Vyber profil (polyline) nebo definuj geometrii

@@ -533,6 +533,29 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (stejné tlačítko má i číselné zadání u jednotlivých polí) – klik se
   spotřebuje jen na výběr bodu, nic nenakreslí.
 
+  **✏️ Kreslení myší** – vedle 🎯. Zapne režim, ve kterém **každý klik do
+  výkresu rovnou vloží prvek** (jako by ses klikl na 🎯 a pak na ➕), takže
+  se kontura naklikává jako polyčára a syntaxe se píše sama. Je to
+  plnohodnotný nástroj CADu (ve stavové liště *Nástroj: VK – kreslení
+  kontury*), takže klik nikdy nekreslí zároveň něco jiného a funguje
+  i na dotyku. Platí přitom nastavení ve formuláři:
+  - **VL / VKr** – klikáš úsečky, nebo oblouky (oblouk si vezme směr
+    **G2/G3** a **poloměr R** z formuláře),
+  - **Tečné napojení (T)** – zaškrtnuté se přidá každému kliknutému prvku,
+  - **přichycení k bodům** funguje jako u ostatních nástrojů.
+
+  Prvek, který by kliknutím vznikl, je vidět jako **gumová čára** od konce
+  kontury k ukazateli – u VKr rovnou jako oblouk daného R a směru. Když se
+  místo oblouku ukáže úsečka, je poloměr na tu vzdálenost krátký.
+
+  **Krok zpět: ⌫** (nebo tlačítko **➖**) odebere poslední prvek kontury.
+  Definice pólu `G111` (VPOL) se krokem zpět nemaže.
+
+  Režim se vypíná dalším klikem na **✏️**, klávesou **ESC**, přepnutím na
+  jiný nástroj, přepnutím na záložku 🔢 nebo zavřením okna. Naklikaná
+  kontura je pořád jen VK syntaxe – do výkresu se dostane až přes
+  **📥 Vložit do výkresu**.
+
   **📥 Vložit do výkresu** změní hotovou konturu na skutečné úsečky
   a oblouky výkresu. Od té chvíle jsou to **normální objekty** – dají se
   trimovat, zaoblovat, kótovat, exportovat do DXF i použít v CAM.

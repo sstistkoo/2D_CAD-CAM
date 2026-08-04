@@ -24,7 +24,7 @@ import { COLORS, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from '../constants.js
 // Převod os i jednotek (VK ↔ CAD) a konstrukce oblouku bydlí ve vkContour.js,
 // aby ho sdílel náhled i vložení do výkresu (vkCommit.js) a nevznikla druhá
 // nezávislá konvence – viz komentář „Osy VK ↔ CAD plátno" tamtéž.
-import { vkToWorld, vkArcInWorld } from './vkContour.js';
+import { vkToWorld, worldToVk, vkArcInWorld } from './vkContour.js';
 
 const SOLUTION_COLORS = ['delete', 'primary', 'dimension', 'yellow'];
 
@@ -117,10 +117,48 @@ export function renderVkPreviewOnCad(ctx) {
   }
 
   drawTangentHint(ctx, data.tangentHint);
+  drawRubberBand(ctx, data);
 
   if (data.vpol) dot(ctx, data.vpol, 4.5, COLORS.snapPoint);
   if (data.startPoint) dot(ctx, data.startPoint, 3.5, COLORS.selected);
 
+  ctx.restore();
+}
+
+/**
+ * Gumová čára režimu kreslení (`tool === 'vkDraw'`) – prvek, který by
+ * kliknutím vznikl, od konce kontury k ukazateli. Ostatní kreslicí
+ * nástroje appky mají živý náhled taky, bez něj se klikalo naslepo.
+ *
+ * Konec se bere ze `state.mouse` (už osnapnutý v events.js) až tady při
+ * kreslení – `renderAll()` jede při každém pohybu myši, takže se kvůli
+ * čáře nemusí přepočítávat celý náhled kontury.
+ */
+function drawRubberBand(ctx, data) {
+  const rubber = state.vkPreview?.rubber;
+  const start = data?.lastPoint;
+  // Bez prvního bodu není odkud táhnout – první klik konturu teprve založí.
+  if (!rubber || state.tool !== 'vkDraw' || !start) return;
+  if (!Number.isFinite(state.mouse?.x) || !Number.isFinite(state.mouse?.y)) return;
+  const end = worldToVk(state.mouse.x, state.mouse.y);
+
+  ctx.save();
+  ctx.strokeStyle = COLORS.preview;
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([6, 4]);
+  const arc = rubber.type === 'arc'
+    ? vkArcInWorld(start, end, rubber.radius, rubber.direction)
+    : null;
+  if (arc) {
+    const [sx, sy] = worldToScreen(arc.cx, arc.cy);
+    ctx.beginPath();
+    ctx.arc(sx, sy, arc.r * state.zoom, screenAngle(arc.startAngle), screenAngle(arc.endAngle), screenCCW(arc.ccw));
+    ctx.stroke();
+  } else {
+    // Oblouk bez použitelného R (tětiva delší než 2R) se ukáže jako
+    // úsečka – kliknout jde, ale je vidět, že R na tu vzdálenost nestačí.
+    strokeLine(ctx, start, end);
+  }
   ctx.restore();
 }
 

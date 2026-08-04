@@ -65,6 +65,8 @@ function switchTab(overlay, requested) {
   overlay.dataset.activeTab = tab.key;
   // Náhled VK patří k jeho záložce – na číselné by jen mátl.
   state.vkPreview.visible = tab.key === 'vk';
+  // Totéž platí pro kreslení myší: mimo VK záložku nemá klik kam zapsat.
+  if (tab.key !== 'vk') tabHandles.get(overlay)?.vk?.stopDrawMode?.();
   tabHandles.get(overlay)?.[tab.key]?.refresh?.();
   bridge.renderAll?.();
 }

@@ -185,7 +185,7 @@ import { addObject } from '../js/objects.js';
 import { selectObjectAt } from '../js/geometry.js';
 import {
   handleTangentClick, handleOffsetClick, handleTrimClick,
-  handleExtendClick, handleFilletClick, handlePerpClick,
+  handleExtendClick, handleFilletChamferClick, handlePerpClick,
   handleHorizontalClick, handleParallelClick, handleDimensionClick,
   handleSnapPointClick, handleMoveClick, handleLineClick,
   handleMeasureClick, handleCircleClick, handleArcClick,
@@ -317,11 +317,14 @@ describe('handleCanvasClick', () => {
     expect(handleExtendClick).toHaveBeenCalledWith(3, 3);
   });
 
-  // ── Fillet ──
-  it('volá handleFilletClick při nástroji "fillet"', () => {
-    state.tool = 'fillet';
+  // ── Zaoblení / zkosení ──
+  // Samostatné nástroje 'fillet' a 'chamfer' nahradil společný
+  // 'filletChamfer' (dialog vybere režim, viz activateFilletChamfer()
+  // v ui.js) – handleCanvasClick žádný case "fillet" nemá.
+  it('volá handleFilletChamferClick při nástroji "filletChamfer"', () => {
+    state.tool = 'filletChamfer';
     handleCanvasClick(4, 4);
-    expect(handleFilletClick).toHaveBeenCalledWith(4, 4);
+    expect(handleFilletChamferClick).toHaveBeenCalledWith(4, 4);
   });
 
   // ── Perp ──
