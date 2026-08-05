@@ -111,14 +111,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vlastnost u výsledného oblouku vůbec nenastavuje (`undefined !== false`
   vyjde vždycky pravda), takže se skutečná geometrie ignorovala a psalo
   se pořád stejné písmeno. Směr se teď počítá NEZÁVISLE křížovým součinem
-  v G-KÓD rovině (stejný vzorec jako `convertCornersToPaths()` v CNC
-  Editoru, jen navíc s převodem world→G-kód os pro soustruh/karusel) –
-  ověřeno round-tripem, že zpětně naparsovaný oblouk z opraveného zápisu
-  sedí se skutečně nakreslenou geometrií na milimetr/stupeň přesně.
-  **Neplatí zatím pro karusel** – u karuselu se stejným testem najde
-  samostatná, hlubší nesrovnalost v tom, jak `parseGcodeToObjects()` čte
-  R-formát oblouku zpátky (nesouvisí s touhle opravou, netýká se
-  soustruhu); zůstává jako známé omezení k řešení zvlášť.
+  přímo ve WORLD rovině (x,y) – ověřeno round-tripem, že zpětně
+  naparsovaný oblouk z opraveného zápisu sedí se skutečně nakreslenou
+  geometrií na milimetr/stupeň přesně, pro soustruh i karusel.
+  Mezikrok, který se ukázal jako navíc chybný jen u karuselu: první
+  oprava počítala křížový součin v „G-kód rovině" vzorcem okopírovaným
+  z `convertCornersToPaths()` (CNC Editor) – ten ale předpokládá roli
+  Z=vodorovná osa/X=svislá osa (sedí na soustruh), takže pro karusel
+  (X=vodorovná/Z=svislá, beze změny) vyšel opačný křížový součin a G2/G3
+  bylo obráceně. Počítáním přímo ve world souřadnicích (stejná role,
+  kterou má `parseGcodeToObjects()` při zpětném čtení – `toCanvas()` je
+  jen přejmenování os, ne zrcadlení, u obou typů stroje) odpadl důvod
+  k mezikroku úplně a oprava platí pro oba stroje stejně.
 - **Navazování úsečka-na-úsečku (a tím i zaoblení/zkosení rohu) přestalo
   fungovat od druhé navazující úsečky v řadě.** Kontrola „navazuje nová
   úsečka na konec předchozí?" používala toleranci `1e-6` – ale počáteční

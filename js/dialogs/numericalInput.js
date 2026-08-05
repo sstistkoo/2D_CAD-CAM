@@ -418,14 +418,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
       return d0 < d1 ? { afterCorner: p0, beforeCorner: p1 } : { afterCorner: p1, beforeCorner: p0 };
     };
 
-    // Osa VK/G-kódu ↔ world: soustruh má G-kód Z = world x, G-kód X =
-    // world y (vodorovně/svisle prohozené); karusel je 1:1. Pro určení
-    // G2/G3 stačí prohození os (měřítko/průměr na ZNAMÉNKO směru nevadí),
-    // proto bez displayX() – jen syrové prohození.
-    const toGcodePlane = state.machineType === 'karusel'
-      ? (wx, wy) => ({ gx: wx, gz: wy })
-      : (wx, wy) => ({ gx: wy, gz: wx });
-
     let connectorLine, beforeCorner;
     if (result.arc) {
       const arc = result.arc;
@@ -437,16 +429,18 @@ export function initNumericalTab(container, { picker = null } = {}) {
       // (jen cx/cy/r/startAngle/endAngle) – spoléhat na to, že bude/nebude
       // nastavené, byl přesně tenhle bug (vždycky vyšlo G03, ať byl oblouk
       // otočený jakkoli). Směr se proto počítá NEZÁVISLE, křížovým součinem
-      // v G-KÓD rovině (ne world – tam by prohození os u soustruhu dalo
-      // opačný výsledek) – stejný vzorec jako `convertCornersToPaths()`
-      // v CNC Editoru (js/calculators/cncEditor.js), jen s převodem
-      // world→G-kód os navíc, protože tahle geometrie (na rozdíl od CNC
-      // Editoru, který čte přímo už napsaný G-kód) vzniká z WORLD souřadnic
-      // skutečných objektů na plátně.
-      const b = toGcodePlane(beforeCorner.x, beforeCorner.y);
-      const a = toGcodePlane(sides.afterCorner.x, sides.afterCorner.y);
-      const c = toGcodePlane(arc.cx, arc.cy);
-      const cross = (b.gz - c.gz) * (a.gx - c.gx) - (b.gx - c.gx) * (a.gz - c.gz);
+      // přímo ve WORLD rovině (x,y) – přesně to, co `parseGcodeToObjects()`
+      // (storage/fileIO.js) předpokládá při zpětném čtení R-formátu
+      // (`ccw: thisMotion === 3` bráno přímo po převodu na world souřadnice,
+      // STEJNĚ pro oba typy stroje – toCanvas() je jen přejmenování os, ne
+      // zrcadlení). Dřív se tu počítalo v „G-kód rovině" vzorcem okopírovaným
+      // z `convertCornersToPaths()` (CNC Editor) – ten ale předpokládá
+      // gz=vodorovná/gx=svislá role (sedí na soustruh, kde toGcodePlane
+      // prohazuje osy), takže pro karusel (gx=vodorovná/gz=svislá, beze
+      // změny) vyšel opačný křížový součin → G2/G3 obráceně, ale JEN
+      // u karuselu (proto to soustruh round-trip testem neodhalil).
+      const cross = (beforeCorner.x - arc.cx) * (sides.afterCorner.y - arc.cy)
+        - (beforeCorner.y - arc.cy) * (sides.afterCorner.x - arc.cx);
       const base = cross > 0 ? 'G03' : 'G02';
       // Zrcadlení jedné osy obrací smysl oblouku ZNOVU – stejné pravidlo
       // jako flipArc() v runCncExport() (storage/fileIO.js). Je to DALŠÍ,

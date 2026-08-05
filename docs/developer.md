@@ -798,21 +798,30 @@ Segment {
     startAngle, endAngle}`) – spoléhat na `arc.ccw !== false` proto vyjde
     vždycky `true` (žádná hodnota `!== false`), a appka by psala pořád
     stejné písmeno bez ohledu na skutečnou geometrii. Směr se počítá
-    NEZÁVISLE křížovým součinem BODŮ před/za rohem kolem středu, ale
-    V G-KÓD ROVINĚ, ne world – u soustruhu je totiž G-kód Z = world x,
-    G-kód X = world y (prohozené osy), a prohození jedné osy INVERTUJE
-    smysl otáčení. Bez převodu `toGcodePlane()` PŘED křížovým součinem by
-    vyšel obrácený výsledek přesně u soustruhu (světové ccw/cw ≠ G-kódové
-    G2/G3). Stejný vzorec jako `convertCornersToPaths()` v CNC Editoru,
-    která ale pracuje ROVNOU v G-kód rovině (čte už napsaný text, ne world
-    souřadnice objektů), takže tenhle převod navíc nepotřebuje.
-    Ověřeno pro soustruh: `originalArc` (z `filletChamferAtCorner()`,
-    před zápisem) vs. `reparsedArc` (zpětně naparsovaný z vlastního
-    zápisu přes 🔄) – identické cx/cy/r na 3 des. místa. **U karuselu tenhle
-    round-trip NESEDÍ** – `parseGcodeToObjects()`'s R-formát oblouku
-    (`thisMotion === 3` bráno přímo jako world ccw, bez ohledu na
-    machineType) má nezávislou, hlubší nesrovnalost; netýká se soustruhu
-    a zůstává jako známé omezení.
+    NEZÁVISLE křížovým součinem bodů před/za rohem kolem středu, přímo
+    VE WORLD ROVINĚ (x,y) – stejná role, jakou má `parseGcodeToObjects()`
+    (`storage/fileIO.js`) při zpětném čtení R-formátu oblouku (`ccw:
+    thisMotion === 3` bráno přímo po `toCanvas()` – ta je jen přejmenování
+    os podle machineType, ne zrcadlení, takže world ccw/cw sedí s G2/G3
+    stejně pro soustruh i karusel).
+
+    **Past č. 2 (odhalena až dodatečně, na karuselu):** první verze téhle
+    opravy počítala křížový součin V G-KÓD ROVINĚ přes `toGcodePlane()`
+    (world→G-kód osy), vzorcem okopírovaným z `convertCornersToPaths()`
+    v CNC Editoru. Ten vzorec ale implicitně předpokládá roli Z=vodorovná
+    osa/X=svislá osa – sedí to na soustruh (kde `toGcodePlane` osy
+    PROHAZUJE, `gz=world x, gx=world y`), ale ne na karusel (kde
+    `toGcodePlane` je 1:1, `gx=world x, gz=world y` – role gx/gz jsou
+    OPAČNÉ než co vzorec čeká). Výsledek: u karuselu vyšel křížový součin
+    s opačným znaménkem → G2/G3 obráceně, jen u karuselu (soustruh round-trip
+    testem procházel, protože tam se role náhodou shodovaly). Počítáním
+    přímo ve world rovině (bez převodu do G-kód roviny vůbec) odpadl důvod
+    k případu-po-případu rozlišování a platí to pro oba typy stroje stejně.
+    Ověřeno round-tripem (`originalArc` z `filletChamferAtCorner()` před
+    zápisem vs. `reparsedArc` zpětně naparsovaný z vlastního zápisu přes
+    🔄, přes `bridge.renderCncCodeToCanvas()`) – identické cx/cy/r na
+    milimetry přesně, pro soustruh i karusel, včetně obou směrů (G02 i G03)
+    a víc než jedné orientace rohu.
 
     `fitCadViewToNumPreview()` (⤢, přes `bridge.fitNumPreviewView`) dává
     přednost OBSAHU editoru před `state.numPreview` (živý náhled
