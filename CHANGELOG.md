@@ -136,6 +136,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`holderLoopL`) a `validateToolpath` (`collisionValidator.js`).
 
 ### Fixed
+- CAM (podélné hrubování): **se zapnutým „Zanořováním" se hrubuje i pod dnem
+  vybrání — bez ručního Rozsahu Z.** Hranice úseku se dosud v „kůře dna" údolí
+  rozpouštěla a hloubky pod povrchem dna přebíral úsek NAD hranicí; ten na ně
+  ale dosáhne jen svým prvním intervalem, takže materiál za hranicí zůstal
+  stát (reálný nález na díle uživatele: pod vrstvou Ø19,5 se ve vybrání už nic
+  nevzalo, jediná cesta k němu bylo ruční nastavení Rozsahu Z). Nově hranice
+  DRŽÍ a vjezd na ni se řeší RAMPOU pod úhlem zanoření — přesně jako na
+  hranici rozsahu 📐. Zanoření se přitom odkládá za všechny větší průměry
+  svého místa („co je nahoře, má přednost" — `__deferEntry`). Bez zaškrtnutého
+  Zanořování zůstává rozpouštění beze změny (kolmo do kůry dna se sjet nedá).
+  Měřeno izolovaně: **méně stojícího materiálu, nikde ne víc** — part-11 −168 mm²,
+  range-chain-insert-shadow −107, díl uživatele −106, part-12 −104, part-10 −60,
+  holder-region −40, range-end-leadout −34; ostatní fixtures beze změny.
+  Pojistka `tests/cam-region-plunge.test.js`.
+- CAM: **odjezd do bezpečné polohy jde nejdřív v X a teprve pak v Z**, nikdy
+  diagonálou. Kontrola kolize sice diagonálu pustí jen tam, kde v tu chvíli nic
+  nestojí, ale poslední pohyb programu přes celý díl je zbytečné riziko.
+- CAM (podélné hrubování): **krok dorampování nepokračuje rychloposuvem přes
+  celý zbytek dílu.** Rovné dno za rampou končilo koncovým „vzduchovým"
+  rychloposuvem až na cíl kroku (reálný nález na díle uživatele: `G0 Z349`
+  na čelo polotovaru). Koncový vzduch se teď zahodí stejně jako u otevřeného
+  průchodu — krok skončí na vůlí-posunuté siluetě.
+- CAM (podélné hrubování): **přesun v kapse se zvedne nad materiál a nesjíždí
+  rychloposuvem až na něj.** Odskok o „Odskok" (2 mm) nestačí, když je Hloubka
+  (ap) větší (5 mm) — nástroj zůstal pod úrovní předchozí vrstvy a přejezd
+  v ose Z zpátky na pokračování rampy vedl stojícím odlitkem (reálný nález na
+  díle uživatele: `G0 Z37.951` skrz materiál). Nově se před přejezdem zvedne
+  po ÚROVNÍCH PŘEDCHOZÍCH VRSTEV (krok = ap), dokud přejezd nevede volně
+  (strop = výjezd nad konturu). Sjezd zpátky navíc končí pracovním posuvem
+  (rychloposuv zastaví o Vůli nad materiálem) — stejné pravidlo jako u
+  ostatních sjezdů, sdílený helper `emitDescendX`.
+- CAM (podélné hrubování): **dojezd po kontuře dojede až na offsetovou čáru
+  polotovaru.** `trimLeadOutToStock` ořezával dojezd na HOLOU kůru odlitku,
+  takže proti sousedním drahám končil o vůli dřív a viditelně nedotažený.
+  Vůle je přídavek, který se má taky obrobit — ořez teď měří na vůlí-posunuté
+  siluetě (tečkovaná čára z náhledu), stejně jako všechny ostatní výjezdy.
+  Na strmé hraně to není „hodnota + vůle": vůle je KOLMÁ vzdálenost, takže
+  podél X ji hrana natáhne (na díle uživatele 1 mm vůle = 5 mm v X).
 - CAM (podélné hrubování): **dojezd „bez schodků" nepřejíždí vzduch posuvem.**
   Rovné pokračování vrstvy (konstantní hloubka) se teď stejně jako tělo
   průchodu seká na rychloposuv(vzduch)/posuv(materiál) podle siluety odlitku —

@@ -381,6 +381,9 @@ export function generateAutoGCode(S, calc) {
   const tipRGc = parseFloat(prms.toolRadius) || 0;
   const rapidStopX = rapidClrGc + tipRGc;
   const rapidStopZ = rapidClrZGc + tipRGc;
+  // Hloubka záběru (ap) = rozteč vrstev — zvednutí „o úroveň výš" (viz
+  // přesun v kapse níž) se měří v jejích krocích.
+  const stepGc = Math.max(0.1, parseFloat(prms.depthOfCut) || 1);
   const entryAngleDegGc = getEffectivePlungeAngle(prms);
   const entryRadGc = entryAngleDegGc * Math.PI / 180;
   // Helper: ořezat Z na aktivní čelisti/koník limity (G-kód generace).
@@ -559,9 +562,18 @@ export function generateAutoGCode(S, calc) {
   // jako dřív až navazujícím dojezdem na offsetovou čáru). Bez toho jel dojezd
   // po kontuře desítky mm prázdnem až na konec okna (reálný nález na díle
   // uživatele — za S17 dvě dráhy pokračovaly ve vzduchu).
+  //
+  // „Hrana materiálu" = VŮLÍ-POSUNUTÁ silueta (tečkovaná čára z náhledu), ne
+  // holá kůra odlitku: vůle je PŘÍDAVEK, který se má taky obrobit, a všechny
+  // ostatní výjezdy (offsetExitZ, airSplitAxial, findRampOutTarget) končí
+  // právě na ní. Se syrovou siluetou končil dojezd o vůli dřív a proti
+  // sousedním drahám viditelně nedotažený (reálný nález na díle uživatele).
   const trimLeadOutToStock = (segs, tipR) => {
     if (!segs || segs.length === 0 || !stockLoop0Ref) return segs;
-    const solid = (x, z) => { const ct = castingTopXAtZ(z); return ct !== null && (x - tipR) <= ct + 1e-4; };
+    const solid = (x, z) => {
+      const ct = castingTopXAtZOffset(z) ?? castingTopXAtZ(z);
+      return ct !== null && (x - tipR) <= ct + 1e-4;
+    };
     const out = [];
     for (const seg of segs) {
       const endSolid = solid(seg.x2, seg.z2);
@@ -681,7 +693,14 @@ export function generateAutoGCode(S, calc) {
   const emitLeadOutLine = (seg) => {
     const axial = Math.abs(seg.x2 - seg.x1) < 1e-6;
     const segs = axial ? airSplitAxial(seg.x2, seg.z1, seg.z2, Math.sign(seg.z2 - seg.z1) || 1) : null;
-    if (!segs || segs.length < 2) {
+    // KONCOVÝ vzduch se nejezdí vůbec: dojezd končí na hraně materiálu
+    // (vůlí-posunuté siluetě) a odtud rovnou odjíždí odskok — rychloposuv
+    // „doprostřed vzduchu" těsně před odskokem je jen zbytečný řádek.
+    if (segs) while (segs.length > 1 && segs[segs.length - 1].kind === 'G0') segs.pop();
+    // Bez rozdělení (celý úsek jedním druhem pohybu) zůstává původní jediný
+    // posuv na konec úsečky — i když by vyšel „vzduch": ořez celého úseku
+    // řeší trimLeadOutToStock výš, ne tenhle rozklad.
+    if (!segs || segs.length === 0 || (segs.length === 1 && segs[0].kind === 'G0')) {
       simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
       return;
     }
@@ -695,6 +714,33 @@ export function generateAutoGCode(S, calc) {
   };
   // Výchozí poloha = bezpečná poloha z úvodního G0 (programované souř.).
   setPos((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
+  // Sjezd v ose X na hloubku `tx` (na Z = tz) z výšky `fromX`. Rychloposuv
+  // NIKDY nedojede až na materiál: buď narazí na zbytek (pak zastaví na jeho
+  // povrchu + Vůle a zbytek dojede posuvem — radiální zápich), nebo se
+  // s `touch` zastaví o Vůli nad cílem a poslední kousek dojede posuvem.
+  // Nájezdová vůle je „vzduch" jen vůči KONTUŘE — odlitkový obal tam může být
+  // ještě plný, takže rychloposuv na cílovou hloubku by vjel do materiálu
+  // (na part-10-zapich ~13 mm² grazing). Práh `rapidHitsStock` je stejný jako
+  // jinde → skin-grazing pod ním se nechytá (part-1..9 beze změny).
+  // Polohu si volající nastaví sám (setPos).
+  const emitDescendX = (fromX, tx, tz, touch) => {
+    const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+    if (fromX - tx > 1e-6 && rapidHitsStock(fromX, tz, tx, tz)) {
+      const surf = residualTopXAtZ(tz);
+      if (surf !== null) {
+        const floorX = Math.min(fromX, Math.max(tx, surf + rapidStopX));
+        if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
+        if (floorX - tx > 1e-6) emit(`G1 X${xDia(tx)} F${prms.feed}`);
+        return;
+      }
+    }
+    if (touch && fromX - tx > 1e-6) {
+      if (fromX - tx > rapidStopX + 1e-6) emit(`G0 X${xDia(tx + rapidStopX)}`);
+      emit(`G1 X${xDia(tx)} F${prms.feed}`);
+    } else if (Math.abs(fromX - tx) > 1e-6) {
+      emit(`G0 X${xDia(tx)}`);
+    }
+  };
   // touch = true: cíl leží na kontuře/materiálu — poslední úsek sjezdu
   // (Vůle nad polotovarem) se jede pracovním posuvem, ne rychloposuvem.
   // forceUp = vždy vyjet NAD polotovar, přejet v Z a teprve najet (nikdy
@@ -713,30 +759,9 @@ export function generateAutoGCode(S, calc) {
     if (sameX && sameZ) { setPos(tx, tz); return; }
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     // Sjezd v X na cíl: s touch zastaví rychloposuv o vůli výš a dojede G1.
-    const descendTo = (fromX) => {
-      // Fáze 4: sjezd na hloubku v SOLIDNÍM odlitku posuvem, ne rychloposuvem.
-      // Nájezdová vůle (zApprox) je „vzduch" jen vůči KONTUŘE — odlitkový obal
-      // tam může být ještě plný, takže rychloposuv na cílovou hloubku vjede do
-      // materiálu (na part-10-zapich ~13 mm² grazing). Když sjezd reálně naráží
-      // na zbytek (STEJNÝ práh `rapidHitsStock` jako jinde → skin-grazing pod
-      // prahem se nechytá, part-1..9 beze změny), zastav rapid na povrchu
-      // zbytku + vůle a zbytek dojeď posuvem (radiální zápich).
-      if (fromX - tx > 1e-6 && rapidHitsStock(fromX, tz, tx, tz)) {
-        const surf = residualTopXAtZ(tz);
-        if (surf !== null) {
-          const floorX = Math.min(fromX, Math.max(tx, surf + rapidStopX));
-          if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
-          if (floorX - tx > 1e-6) emit(`G1 X${xDia(tx)} F${prms.feed}`);
-          return;
-        }
-      }
-      if (touch && fromX - tx > 1e-6) {
-        if (fromX - tx > rapidStopX + 1e-6) emit(`G0 X${xDia(tx + rapidStopX)}`);
-        emit(`G1 X${xDia(tx)} F${prms.feed}`);
-      } else if (Math.abs(fromX - tx) > 1e-6) {
-        emit(`G0 X${xDia(tx)}`);
-      }
-    };
+    // Fáze 4: sjezd na hloubku v SOLIDNÍM odlitku posuvem, ne rychloposuvem
+    // (sdíleno s přesunem v kapse — viz `emitDescendX` výš).
+    const descendTo = (fromX) => emitDescendX(fromX, tx, tz, touch);
     // Rychloposuvová část cíle: s touch končí rapid o vůli výš (zbytek
     // sjede posuvem) — proti zbytkovému polotovaru se testuje jen ona.
     const rTx = touch ? tx + rapidStopX : tx;
@@ -836,8 +861,25 @@ export function generateAutoGCode(S, calc) {
         const tgt = pass.rampFeedFrom || entry;
         const odskokZ = clipZGc(cur.z - zDir * rDistZ);
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
+        // Odskok o „Odskok" (rDist) NEMUSÍ nástroj dostat nad materiál: při
+        // Hloubce (ap) větší než Odskok zůstane pod úrovní předchozí vrstvy
+        // a přejezd v Z by projel stojícím materiálem (reálný nález na díle
+        // uživatele: ap 5 mm, Odskok 2 mm → `G0 Z` skrz odlitek). Zvedni se
+        // proto po ÚROVNÍCH PŘEDCHOZÍCH VRSTEV (krok = Hloubka ap), dokud
+        // přejezd nevede volně — tam už nad nástrojem materiál není, protože
+        // tu vrstvu vzal dřívější průchod. Strop je výjezd nad konturu.
+        if (rapidStock && Math.abs(cur.z - tgt.z) > 1e-6) {
+          const capX = rapidTopX + rapidStopX;
+          let travX = cur.x;
+          while (travX < capX - 1e-6 && rapidHitsStock(travX, cur.z, travX, tgt.z)) {
+            travX = Math.min(capX, travX + Math.max(stepGc, rDist));
+          }
+          if (travX > cur.x + 1e-6) { simCounter += 1; addN(`G0 X${xDia(travX)}`, simCounter); setPos(travX, cur.z); }
+        }
         if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
-        simCounter += 1; addN(`G0 X${xDia(tgt.x)}`, simCounter); setPos(tgt.x, tgt.z);
+        // Sjezd zpátky na pokračování rampy: poslední kousek (Vůle nad
+        // materiálem) pracovním posuvem, ne rychloposuvem až na materiál.
+        emitDescendX(cur.x, tgt.x, tgt.z, true); setPos(tgt.x, tgt.z);
       } else if (pass.pocketClean) {
         const needMove = Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6;
         if (pass.cleanApproach && needMove) {
@@ -984,7 +1026,14 @@ export function generateAutoGCode(S, calc) {
         // na rychloposuv(vzduch)/posuv(materiál) podle siluety odlitku: krok
         // řetězu dorampování běží až na stěnu kontury a po cestě může přejet
         // celé údolí, kde nástroj nemá co řezat.
-        for (const s of airSplitAxial(pass.x, pass.zStart, pass.zEnd, Math.sign(pass.zEnd - pass.zStart) || zDir)) {
+        const rampBody = airSplitAxial(pass.x, pass.zStart, pass.zEnd, Math.sign(pass.zEnd - pass.zStart) || zDir);
+        // KONCOVÝ vzduch se nejezdí (stejně jako u otevřeného průchodu níž):
+        // za posledním řezem už polotovar nesahá a cíl kroku může ležet
+        // desítky mm v prázdnu (reálný nález na díle uživatele: `G0 Z349`
+        // až na čelo polotovaru). Krok končí na hraně materiálu — přesněji
+        // na vůlí-posunuté siluetě, kam ho dotáhne airSplitAxial.
+        while (rampBody.length > 1 && rampBody[rampBody.length - 1].kind === 'G0') rampBody.pop();
+        for (const s of rampBody) {
           simCounter += 1;
           addN(s.kind === 'G0' ? `G0 Z${s.z.toFixed(3)}` : `G1 Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
           setPos(pass.x, s.z);
@@ -1181,9 +1230,13 @@ export function generateAutoGCode(S, calc) {
     noteCutPass(pass);
   });
 
-  // Návrat na bezpečnou polohu s kontrolou kolize (po zanoření do kapsy
-  // by přímá diagonála mohla proříznout stěnu/konturu).
-  safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
+  // Návrat na bezpečnou polohu VŽDY přes výjezd v ose X a teprve pak přejezd
+  // v Z (`forceUp`) — nikdy diagonálou. Kontrola kolize sice diagonálu pustí
+  // jen tam, kde v tu chvíli nic nestojí, ale odjezd z dílu je poslední pohyb
+  // programu a šikmý pohyb přes celý díl je zbytečné riziko (upnutí, zbytek
+  // po předchozí operaci, ruční zásah). Cena je jeden řádek navíc.
+  safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1),
+    parseFloat(prms.safeZ) || 0, false, true);
 
   // Dokončování: u druhé strany (zleva) se kontura trasuje OPAČNĚ —
   // zleva doprava (zprava nelze, narazil by držák / geometrie destičky),

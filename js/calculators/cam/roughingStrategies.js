@@ -1281,9 +1281,17 @@ export function genLongPasses(ctx) {
     // údolí od skutečného kraje materiálu (žádné kolmé sjezdy doprostřed kůry).
     // Po rozpuštění HORNÍ hranice patří hloubka regionu NAD ní (ten už ji
     // vzal se svou rozpuštěnou dolní hranicí) — jinak duplicitní průchody.
-    if (_region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) continue;
-    const regZHi = (_region.zHiSurf === undefined || currentX > _region.zHiSurf + 0.01) ? _region.zHi : Infinity;
-    const regZLo = (_region.zLoSurf === undefined || currentX > _region.zLoSurf + 0.01) ? _region.zLo : -Infinity;
+    // Rozpouštění hranice platí jen BEZ zanořování: kolmo do kůry dna se sjet
+    // nedá, takže hloubku přebere region NAD ní — jenže ten na ni dosáhne jen
+    // svým prvním intervalem a materiál za hranicí (dno vybrání) zůstane stát
+    // (reálný nález na díle uživatele: pod vrstvou Ø19,5 se ve vybrání už nic
+    // nevzalo). Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni se řeší
+    // RAMPOU pod úhlem zanoření (entryCapped níž) — přesně jako na hranici
+    // rozsahu 📐, kterou si uživatel dosud musel nastavovat ručně.
+    const dissolveEdge = !prms.plungeRoughing;
+    if (dissolveEdge && _region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) continue;
+    const regZHi = (!dissolveEdge || _region.zHiSurf === undefined || currentX > _region.zHiSurf + 0.01) ? _region.zHi : Infinity;
+    const regZLo = (!dissolveEdge || _region.zLoSurf === undefined || currentX > _region.zLoSurf + 0.01) ? _region.zLo : -Infinity;
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
     // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
     // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.
@@ -1332,8 +1340,13 @@ export function genLongPasses(ctx) {
     // Vjezd stojí na UMĚLÉ hranici — rozsah 📐 nebo posunutý start zanoření —
     // takže napravo od něj materiál dál stojí a kolmý zápich by do něj sjel;
     // zanořuje se rampou (níž).
+    // Hranice REGIONU je umělá stejně jako hranice rozsahu 📐: napravo od ní
+    // materiál dál stojí (patří sousednímu regionu), takže se na ni nesmí
+    // kolmo zapíchnout — vjezd tam patří rampě.
+    const regionCapped = regZHi !== Infinity && Math.abs(effZMax - regZHi) < 1e-6;
     const entryCapped = (entryZ !== effZMax)
-      || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6);
+      || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
+      || regionCapped;
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
       if (iv.zStart - iv.zEnd < dzScan) return;
@@ -1982,7 +1995,11 @@ export function genLongPasses(ctx) {
     // MENŠÍ průměr, než na jaký v tomhle Z-okně dosáhly ostatní regiony —
     // v pořadí se proto odloží až za ně, ať hrubování jde odshora dolů
     // a nezačíná zanořením (reálný požadavek uživatele).
-    if (entryZ !== effZMax) {
+    // Zanoření na hranici REGIONU se odkládá stejně jako posunutý vjezd:
+    // „co je nahoře, má přednost" — nejdřív se odeberou všechny větší průměry
+    // a teprve pak se rampou sjede pod hranicí do menšího (jinak by nad
+    // zanořeným nástrojem stál materiál, který se teprve bude brát).
+    if (entryZ !== effZMax || regionCapped) {
       for (let i = passMark; i < passes.length; i++) passes[i].__deferEntry = true;
     }
   }

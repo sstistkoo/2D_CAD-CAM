@@ -2,7 +2,7 @@
 // ║  Dojezd „bez schodků": nejezdit posuvem vzduchem, dojet schod ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
-// Dvě pojistky nad EMITOVANÝM kódem / strukturou průchodů:
+// Pojistky nad EMITOVANÝM kódem / strukturou průchodů:
 //
 //  1. AXIÁLNÍ posuv nepřejíždí vzduch. Rovné pokračování vrstvy (konstantní
 //     hloubka X) se stejně jako tělo průchodu seká na rychloposuv(vzduch)/
@@ -14,12 +14,22 @@
 //  2. Každý krok řetězu dorampování strmé stěny (`rampCompletion`) si při
 //     zapnutém „Hrubování bez schodků" dobírá svůj schod sám. Dřív dojížděl
 //     jen POSLEDNÍ krok, mezikroky končily nasucho na stěně.
+//
+//  3. Přesun v kapse (návrat na pokračování rampy) se zvedne o ÚROVEŇ VRSTVY,
+//     ne jen o „Odskok" — při Hloubce (ap) větší než Odskok zůstal nástroj pod
+//     úrovní předchozí vrstvy a přejezd v Z vedl materiálem. Sjezd zpátky
+//     nedojíždí rychloposuvem až na materiál (poslední kousek posuvem).
+//
+//  4. Dojezd po kontuře končí na VŮLÍ-POSUNUTÉ siluetě, ne na holé kůře —
+//     vůle je přídavek, který se taky obrábí.
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
+import { stockClearances } from '../js/calculators/cam/camMath.js';
+import { polyOffset } from '../js/geom/geomCore.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
@@ -93,6 +103,64 @@ describe('Dojezd „bez schodků"', () => {
         .toBeLessThan(2);
     }, 30000);
   }
+
+  it('part-11-zleva: přesun v kapse se zvedne nad materiál a sjezd dojede posuvem', async () => {
+    // Odskok je 2 mm, Hloubka (ap) 5 mm — samotný odskok tedy nástroj NEDOSTANE
+    // nad úroveň předchozí vrstvy a přejezd v Z by projel odlitkem. Kontrola je
+    // strukturální nad emitovaným kódem: `G0 X<výš>` před `G0 Z<přejezd>` a
+    // rozdělený sjezd `G0 X…` + `G1 X… F…` za ním.
+    const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
+    const { calc, gcode, S } = await runCamProg(prog);
+    const step = parseFloat(S.params.depthOfCut);
+    const loop = buildStockLoop(S.params, calc.stockPathSegments) || [];
+    const tipR = parseFloat(S.params.toolRadius) || 0;
+    const moves = parseMoves(gcode);
+    // Přejezdy v Z (konstantní X) uvnitř kapsy — vezmi ten v údolí Z≈38–80.
+    const trav = moves.filter(m => m.g === 0 && Math.abs(m.x1 - m.x0) < 1e-6
+      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 30 && m.z1 < 60 && m.z0 > 60);
+    expect(trav.length, 'přejezd v kapse zpět na pokračování rampy').toBeGreaterThan(0);
+    for (const m of trav) {
+      // Zvednutí před přejezdem je aspoň o úroveň vrstvy (ne jen o Odskok).
+      // Že přejezd v té výšce opravdu vede vzduchem, hlídá nad DYNAMICKÝM
+      // modelem (co už průchody odebraly) validátor kolizí — syrová silueta
+      // by tady lhala, materiál nad nástrojem je v tu chvíli dávno pryč.
+      const idx = moves.indexOf(m);
+      expect(moves[idx - 1].g, 'před přejezdem je rychloposuv v X').toBe(0);
+      expect(m.x1 - moves[idx - 2].x1).toBeGreaterThanOrEqual(step - 1e-6);
+      // Sjezd zpátky: rychloposuv a teprve pak posuv na cílovou hloubku.
+      expect(moves[idx + 1].g, 'sjezd rychloposuvem').toBe(0);
+      expect(moves[idx + 2].g, 'poslední kousek sjezdu posuvem').toBe(1);
+      expect(moves[idx + 1].x1 - moves[idx + 2].x1).toBeGreaterThan(0);
+    }
+  }, 30000);
+
+  it('part-11-zleva: dojezd po kontuře končí až na offsetové čáře polotovaru', async () => {
+    // Vůle je PŘÍDAVEK — dojezd má vyjet až na vůlí-posunutou (tečkovanou)
+    // siluetu, ne skončit na holé kůře odlitku.
+    const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
+    const { calc, gcode, S } = await runCamProg(prog);
+    const loop = buildStockLoop(S.params, calc.stockPathSegments) || [];
+    const tipR = parseFloat(S.params.toolRadius) || 0;
+    const clrX = stockClearances(S.params).x;
+    // Vůle je KOLMÁ vzdálenost — na strmé hraně ji podél X natáhne 1/sin(sklon),
+    // takže „syrová hodnota + vůle" nestačí; hranice se musí spočítat offsetem
+    // smyčky (polyOffset), stejně jako ji počítá emisní kód i náhled.
+    const off = polyOffset([loop], clrX)[0];
+    // Emitovaný konec dojezdu v údolí (šikmý úsek po mezní čáře destičky) =
+    // řezný pohyb, který v tomhle okně dojede NEJDÁL v Z (za ním už je jen
+    // odskok pod 45°, ten jde zpátky).
+    const end = parseMoves(gcode)
+      .filter(m => m.g === 1 && m.z1 > 78 && m.z1 < 86 && m.x1 > 20 && m.x1 < 30)
+      .reduce((a, b) => (a === null || b.z1 > a.z1 ? b : a), null);
+    expect(end, 'emitovaný konec dojezdu').toBeTruthy();
+    const raw = topXAt(loop, end.z1), offTop = topXAt(off, end.z1);
+    expect(offTop, 'offsetová čára nad koncem dojezdu').not.toBeNull();
+    // Špička dojela ZA syrovou kůru (přídavek se taky obrábí) a stojí na
+    // offsetové čáře — ne dřív (nedotažený dojezd), ne dál (řez do vzduchu).
+    expect(end.x1 - tipR).toBeGreaterThan(raw);
+    expect(Math.abs((end.x1 - tipR) - offTop), `konec ${(end.x1 - tipR).toFixed(3)} vs offset ${offTop.toFixed(3)}`)
+      .toBeLessThan(0.3);
+  }, 30000);
 
   it('part-11-zleva: i MEZIKROK dorampování si dobere schod po kontuře', async () => {
     const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
