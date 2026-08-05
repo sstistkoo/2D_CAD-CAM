@@ -2030,15 +2030,33 @@ export function genLongPasses(ctx) {
   // safeRapidTo), další kroky se jen ODSKOČÍ (`pocketReposition`,
   // stejný vzor jako „dobrat kapsu najednou") a rychloposuvem se vrátí na
   // konec předchozího kroku — odtud pracovní rampa řeže jen nový úsek.
-  // TODO (rozpracované): doběh kroku dorampování zatím může přeletět mezeru
-  // v odlitku a dodělávat vrstvu na DRUHÉ straně údolí (reálný nález na díle
-  // uživatele: `G0 Z142.024` přes celé údolí). Ořez na konec souvislého
-  // materiálu se nabízí, ale musí skončit až na VŮLÍ-POSUNUTÉ siluetě —
-  // a `polyOffset` nad složitým obrysem odlitku vrací víc komponent, takže
-  // `offsetLoopOf` (bere `[0]`) na tomhle místě siluetu nespolehlivě minul
-  // (na range-chain-insert-shadow doběh skončil o vůli dřív, viz
-  // tests/cam-leadout-step). Bez opravy výběru komponenty v `offsetLoopOf`
-  // by ořez jen prohodil jednu vadu za druhou.
+  // Kam až sahá SOUVISLÝ materiál na hloubce X směrem doleva od zFrom: doběh
+  // končí tam, kde vůlí-posunutá silueta polotovaru klesne pod hloubku kroku.
+  // Za takovou mezerou je jiné místo dílu — vcelku se bere jen materiál, který
+  // je V KUSE (stejné pravidlo jako u hranic úseků; reálný nález na díle
+  // uživatele: doběh přeletěl celé údolí a dodělával vrstvu na druhé straně).
+  //
+  // Měří se na CELÉ vůlí-posunuté siluetě (`stockLoopOffsetFullL`, bez ořezu
+  // rozsahem 📐): jestli je materiál v kuse, je vlastnost DÍLU, ne zvoleného
+  // úseku obrábění. Hranice se dopočítá PŮLENÍM, ne po krocích vzorkování:
+  // konec doběhu musí sednout PŘESNĚ na offsetovou čáru. O krok vzorkování
+  // vedle by ho emise (`airSplitAxial`) už nesměla dotáhnout — prodloužení
+  // výjezdu nesmí přejet konec průchodu — a řez by skončil o vůli dřív
+  // (hlídá tests/cam-leadout-step na range-chain-insert-shadow).
+  const stockRunEndZ = (X, zFrom, zFloor) => {
+    const solid = (z) => { const t = topXOnLoop(stockLoopOffsetFullL, z); return t !== null && t > X; };
+    if (!stockLoopOffsetFullL) return zFloor;
+    let prev = zFrom;
+    for (let z = zFrom - dzScan; z > zFloor + dzScan; z -= dzScan) {
+      if (!solid(z)) {
+        let lo = z, hi = prev;                       // lo = vzduch, hi = materiál
+        for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (solid(m)) hi = m; else lo = m; }
+        return hi;
+      }
+      prev = z;
+    }
+    return zFloor;
+  };
   for (const rc of pendingRampCompletions) {
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
     while (curX > rc.targetX + 1e-6) {
@@ -2058,7 +2076,11 @@ export function genLongPasses(ctx) {
       // končil nasucho uprostřed materiálu, přestože vrstva nad ním
       // (o Hloubku ap mělčí) byla obrobená až daleko za tím bodem — reálný
       // nález na díle uživatele.
-      const stepEndZ = isLastStep ? stepZ : straightRunEndZ(stepX, stepZ, traceFloorL);
+      // Doběh končí tím, co přijde DŘÍV: stěna hotovní kontury (straightRunEndZ),
+      // nebo konec souvislého materiálu (stockRunEndZ výš).
+      const stepEndZ = isLastStep ? stepZ : Math.max(
+        straightRunEndZ(stepX, stepZ, traceFloorL),
+        stockRunEndZ(stepX, stepZ, traceFloorL));
       const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: stepEndZ, blocked: true };
       // Řetěz dorampování strmé stěny — stejná povaha jako entryRangeRamp:
       // kroky leží NAD SEBOU podél TÉŽE stěny, nejsou to nezávislé bossy.

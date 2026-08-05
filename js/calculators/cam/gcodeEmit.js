@@ -618,12 +618,19 @@ export function generateAutoGCode(S, calc) {
     // ne na holé kůře odlitku (stejně jako konec průchodu přes offsetExitZ
     // níž). Bez toho by posuv končil o Vůli dřív a mezi ním a tečkovanou
     // čarou by zůstal proužek (hlídá tests/cam-leadout-step).
+    // Prodloužení smí dojet AŽ NA konec navazujícího vzduchu (>=, ne >):
+    // když průchod končí přesně na offsetové čáře (doběh dorampování ořezaný
+    // na konec souvislého materiálu), je poslední vzduch přesně ten kousek
+    // mezi kůrou a tečkovanou čarou — s ostrou nerovností by se prodloužení
+    // zahodilo a řez by skončil o vůli dřív.
     for (let i = 0; i + 1 < segs.length; i++) {
       if (segs[i].kind !== 'G1' || segs[i + 1].kind !== 'G0') continue;
       const zOff = offsetExitZ(x, segs[i].z, dir);
-      if (zOff !== null && dir * (zOff - segs[i].z) > 1e-6 && dir * (segs[i + 1].z - zOff) > 1e-6) segs[i].z = zOff;
+      if (zOff !== null && dir * (zOff - segs[i].z) > 1e-6 && dir * (segs[i + 1].z - zOff) >= -1e-6) segs[i].z = zOff;
     }
-    return segs;
+    // Prodloužení mohlo navazující vzduch smrsknout na nulu — takový úsek
+    // není pohyb, jen řádek navíc.
+    return segs.filter((s, i) => Math.abs(s.z - (i === 0 ? zFrom : segs[i - 1].z)) > 1e-6);
   };
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;
