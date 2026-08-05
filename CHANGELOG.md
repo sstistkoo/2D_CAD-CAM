@@ -104,6 +104,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`Vykresleno 1 objektů – řádek 3 přeskočen: R5.000 je moc malý…`),
     detaily všech přeskočených řádků navíc v konzoli.
 
+### Changed
+- **Mezní čára „Hlídat geometrii (destička + držák)" je zase ROVNÁ ÚSEČKA.**
+  Čára se od dotykového bodu táhne výhradně podél hrany destičky – žádné
+  oblouky, žádné zlomy. Dřív se mohla lámat podél *dosažitelné hranice
+  držáku* (`buildHolderBoundaryPts`, `via` vrcholy) a protože ta hranice
+  kopíruje zakřivenou konturu, „mezní čára" na plátně vycházela jako
+  křivka s několika vrcholy podél oblouku dílu.
+  `computeInterferenceGuides` (`js/calculators/cam/interferenceGuides.js`)
+  proto zakázanou oblast špičky F vůbec nepočítá, jede jediným přímým
+  paprskem podél hrany a před zápisem oba konce promítne na tuhle přímku,
+  takže ani numerika nemůže vyrobit lom. Invariant hlídají testy
+  (`cam-gcode-regression`, `cam-boolean-gcode-regression`, `cam-holder`).
+  **Důsledek:** do kapsy širší než držák se hrubování mezní čárou nepustí
+  (kapsa se přemostí „V" stejně jako s vypnutým držákem) – obrobitelná
+  kontura teď na `holderWidth` vůbec nezávisí. Kolizní ochrana držáku tím
+  nezmizela, dál ji dělá obálka držáku v `roughingStrategies.js`
+  (`holderLoopL`) a `validateToolpath` (`collisionValidator.js`).
+
 ### Fixed
 - **Zaoblení rohu v číselném zadání zapisovalo VŽDY `G03`, i když šlo
   geometricky o `G02`.** `applyCornerGcode()` (`dialogs/numericalInput.js`)

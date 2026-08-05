@@ -119,7 +119,17 @@ v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
 
 ### Fáze 2b/3 — sjednocená kolizní oblast nástroje (destička + držák) (HOTOVO 20. 7. 2026)
 
-Mezní čáry (`computeInterferenceGuides` / `buildHolderBoundaryPts`) se počítají
+> **ZRUŠENO 5. 8. 2026 pro MEZNÍ ČÁRY.** Mezní čára hlídání geometrie destičky
+> musí být **rovná úsečka** — žádné oblouky, žádné zlomy. Hranice dosažitelné
+> oblasti kopíruje zakřivenou konturu, takže lomená („via") mezní čára
+> vycházela jako křivka. `computeInterferenceGuides` proto F_all vůbec
+> nepočítá a vrací čistou hranu destičky;  `buildHolderBoundaryPts` zůstává
+> jen jako samostatný helper s charakterizačním testem, do pipeline zapojený
+> není. Popis níže platí dál pro **ostatní** spotřebitele F_all (obálka
+> držáku v `roughingStrategies.js`, `collisionValidator.js`) — kolizní
+> ochrana držáku se tím nezměnila, jen se nepromítá do mezních čar.
+
+Mezní čáry (`computeInterferenceGuides` / `buildHolderBoundaryPts`) se počítaly
 ze **SJEDNOCENÉ** zakázané oblasti špičky místo dřívější držák-only:
 
   F_all = (dílec ⊕ −držák) ∪ (dílec ⊕ −TĚLO destičky)

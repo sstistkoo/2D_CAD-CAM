@@ -59,6 +59,12 @@ describe('CAM pipeline regrese (G-kód + struktura)', () => {
       expect(gcode).toContain('HRUBOVANI');
       expect(gcode.split('\n').length).toBeGreaterThan(20);
 
+      // INVARIANT: mezní čára hlídání geometrie destičky je VŽDY ROVNÁ
+      // úsečka — žádné lomové (via) vrcholy, žádné oblouky (viz hlavička
+      // js/calculators/cam/interferenceGuides.js).
+      const bent = (calc.interferenceGuides || []).filter(g => g.via && g.via.length);
+      expect(bent, `lomené mezní čáry: ${JSON.stringify(bent)}`).toEqual([]);
+
       // Normalizovat datum v hlavičce (new Date()) — jinak snapshot padá při
       // přechodu přes půlnoc. Ostatní řádky jsou deterministické.
       const stableGcode = gcode.replace(/^; Datum: .*/m, '; Datum: <normalized>');

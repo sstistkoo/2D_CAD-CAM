@@ -7,27 +7,26 @@
 // Pro každou souvislou skupinu interferenčních segmentů kontury se spočítá
 // „mezní čára" hrany destičky, která se regionu jen dotkne: dojezd = čelní
 // hrana (natočení + ε), zanoření = spodní hrana (natočení). Od bodu dotyku
-// se čára protáhne podél hrany destičky, případně se zlomí podél stěny
-// držáku (buildHolderBoundaryPts) k dnu kapsy / polotovaru. Výstup je pole
-// mezních čar { x1,z1, x2,z2, kind, via? } — buildMachinableContour z nich
-// staví „obrobitelnou konturu" (nahrazuje nedosažitelné úseky mosty).
+// se čára protáhne podél hrany destičky ke kontuře (nebo k hraně polotovaru).
+// Výstup je pole mezních čar { x1,z1, x2,z2, kind } — buildMachinableContour
+// z nich staví „obrobitelnou konturu" (nahrazuje nedosažitelné úseky mosty).
+//
+// ── INVARIANT: MEZNÍ ČÁRA JE VŽDY ROVNÁ ÚSEČKA ─────────────────
+// Hlídání geometrie destičky smí vydat POUZE přímou čáru podél hrany
+// destičky — žádné oblouky, žádné zlomy (dřívější `via` vrcholy). Konce se
+// před zápisem promítnou přesně na přímku (`onEdge` v addGuide), takže ani
+// numerika nemůže vyrobit lom. Dřív se čára mohla lámat podél DOSAŽITELNÉ
+// hranice držáku (buildHolderBoundaryPts) — a protože ta hranice kopíruje
+// zakřivenou konturu, výsledná „mezní čára" v aplikaci vypadala jako křivka
+// (několik vrcholů podél oblouku dílu). To je pryč.
+//
+// DŮSLEDEK: v kapse širší než držák se dno NEDOSTANE do obrobitelné kontury
+// (platí stejné „V" přemostění jako bez držáku). Kolizní ochrana držáku tím
+// nezmizela — dál ji dělá holderLoopL v roughingStrategies.js a
+// makeHolderClamp/validateToolpath (toolEnvelope.js, collisionValidator.js).
 //
 // Souřadnice: CAM svět {x = poloměr, z = axiálně} v mm, stejně jako
 // contourSegments / worldPoints v camSimulator.js.
-//
-// ── STAV (aktuální) ────────────────────────────────────────────
-// HOTOVO (Fáze 3): buildHolderBoundaryPts počítá hranici hlídání držáku
-// z Clipper2 DOSAŽITELNÉ OBLASTI — obrys nástroje přes zakázanou oblast špičky
-// F = dílec ⊕ (−obrys nástroje). Nahradilo to dřívější aproximaci „stěna −
-// šířka W". Rozšířeno i do generátoru drah (roughingStrategies.js).
-//
-// HOTOVO (Fáze 2b/3): mezní čára se počítá ze SJEDNOCENÉ oblasti F_all =
-// (dílec ⊕ −držák) ∪ (dílec ⊕ −TĚLO destičky) přes buildToolForbiddenRegion
-// (toolEnvelope.js). Tělo destičky přidává kolizi jen u tvarů, jejichž bok
-// nemá úlev — konkrétně UPICHOVÁK (parting, šířka b). Kulatá i polygonová
-// destička zůstávají na analytické hraně (aktivní břit = řezná reference),
-// takže se u nich chování nemění. Aktivní břit není nikdy v F (bere se HRANICE
-// dosažitelné oblasti, ne bodová kolize).
 //
 // PLÁN: Fáze 5 (sjednocení UI zanořování — 3 checkboxy → 2), PAK zbytek Fáze
 // 3/4 — dynamický plánovač pořadí pro order-dependent kolize držáku (vjezd do
@@ -45,42 +44,13 @@ import {
   stockClearances,
   _locateOnContour,
 } from './camMath.js';
-import { buildToolForbiddenRegion } from './toolEnvelope.js';
-import { polyIntersect } from '../../geom/geomCore.js';
 
-// Uzavřená smyčka z posloupnosti světových bodů (worldPoints/stock): řezné
-// segmenty (G1/G2/G3) navzorkované, profil uzavřený k ose X=0 na obou koncích
-// (G0 přejezdy se přeskočí — netvoří hranu materiálu). Null, když nedává smysl.
-function worldPointsToLoop(pts) {
-  if (!pts || pts.length < 3) return null;
-  const loop = [];
-  const pushP = (x, z) => {
-    const l = loop[loop.length - 1];
-    if (!l || Math.hypot(l.x - x, l.z - z) > 1e-6) loop.push({ x, z });
-  };
-  for (let i = 1; i < pts.length; i++) {
-    const p1 = pts[i - 1], p2 = pts[i];
-    if (p2.type === 'G1') {
-      pushP(p1.xReal, p1.zReal); pushP(p2.xReal, p2.zReal);
-    } else if (p2.type === 'G2' || p2.type === 'G3') {
-      const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, p2.type);
-      if (arc.error) continue;
-      let sA = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
-      let eA = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
-      if (p2.type === 'G2' && eA > sA) eA -= 2 * Math.PI;
-      if (p2.type === 'G3' && eA < sA) eA += 2 * Math.PI;
-      for (let s = 0; s <= 12; s++) {
-        const a = sA + (eA - sA) * (s / 12);
-        pushP(arc.cx + Math.sin(a) * arc.r, arc.cz + Math.cos(a) * arc.r);
-      }
-    }
-  }
-  if (loop.length < 3) return null;
-  if (Math.abs(loop[loop.length - 1].x) > 1e-6) pushP(0, loop[loop.length - 1].z);
-  if (Math.abs(loop[0].x) > 1e-6) pushP(0, loop[0].z);
-  return loop.length >= 3 ? loop : null;
-}
-
+// POZN.: funkce NENÍ zapojená do pipeline mezních čar — mezní čára musí být
+// rovná (viz invariant v hlavičce souboru), takže lomení podél hranice držáku
+// se nepoužívá. Ponecháno jako samostatný geometrický helper spolu s jeho
+// charakterizačním testem (tests/holder-boundary.test.js), kdyby se hranice
+// hlídání držáku měla někdy vrátit jako VLASTNÍ (rovná) čára.
+//
 // Hranice hlídání držáku od dotykového bodu `best` dolů (−X). V každé výšce x
 // se drží MAX(hrana destičky, dosažitelná hranice držáku):
 //   • hrana destičky = přímka pod natočením (sklon dle sb/cb),
@@ -171,9 +141,10 @@ export function buildHolderBoundaryPts(best, sb, cb, forbidden, reachX) {
   return out.length >= 2 ? out : null;
 }
 
-// Body lomené mezní čáry od HORNÍHO konce (x2,z2) k DOLNÍMU (x1,z1) —
-// g.via jsou mezilehlé vrcholy (lomení podle siluety držáku), uložené
-// v pořadí od horního konce. Přímá čára (bez via) → jen dva body.
+// Body mezní čáry od HORNÍHO konce (x2,z2) k DOLNÍMU (x1,z1). Mezní čáry
+// z hlídání geometrie destičky jsou VŽDY přímé (dva body, viz invariant
+// v hlavičce); `g.via` už žádná nemá — větev zůstává jen jako obecná
+// podpora lomené čáry pro ručně kreslené konstrukční čáry.
 export function guidePolyPoints(g) {
   return (g && g.via && g.via.length)
     ? [{ x: g.x2, z: g.z2 }, ...g.via, { x: g.x1, z: g.z1 }]
@@ -364,26 +335,10 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
     return parity === 1;
   };
   const clrExitG = stockClearances(prms).x;
-  // ── SJEDNOCENÁ zakázaná oblast špičky F_all (Fáze 2b/3 migrace) ──
-  // F_all = (obrys dílce ⊕ −držák) ∪ (obrys dílce ⊕ −TĚLO destičky). Špička
-  // uvnitř F_all ⇔ držák NEBO tělo destičky naráží do materiálu. Hranice
-  // hlídání (buildHolderBoundaryPts) sleduje LEVÝ (dosažitelný) okraj F_all;
-  // aktivní břit zůstává řeznou referencí přes analytickou hranu (zEdgeAt),
-  // TĚLO destičky (nekruhový tvar / upichovák šířky b) přidává kolizi přes
-  // F_all — kulatá destička se otevřením o R vynuluje (viz buildToolForbidden
-  // Region), takže u ní se chování NEMĚNÍ. Obrys dílce = silueta kontury
-  // (u odlitku ∩ polotovar). Spočte se JEDNOU.
-  let holderForbidden = null, holderReachX = 0;
-  const contourLoopG = worldPointsToLoop(worldPoints);
-  if (contourLoopG) {
-    let obstacle = [contourLoopG];
-    if (stockLoopG2 && stockLoopG2.length >= 3) {
-      const clipped = polyIntersect([contourLoopG], [stockLoopG2]);
-      if (clipped.length > 0) obstacle = clipped;
-    }
-    const { forbidden, reachX } = buildToolForbiddenRegion(obstacle, prms, { backside: false });
-    if (forbidden.length > 0) { holderForbidden = forbidden; holderReachX = reachX; }
-  }
+  // POZN.: zakázaná oblast špičky F (dílec ⊕ −obrys nástroje) se tu už
+  // NEPOČÍTÁ — sloužila jen k lomení mezní čáry podél hranice držáku a mezní
+  // čára musí být rovná (viz invariant v hlavičce). Kolizní ochranu držáku
+  // dál řeší roughingStrategies.js (holderLoopL) a collisionValidator.js.
   // Výstup siluety z materiálu podél úseku a+t·(ux,uz), t∈(0, tMax]:
   // pochod po 0,5 mm + bisekce. k===0 = kotva na kontuře (v materiálu).
   const stockExitOnSeg = (a, ux, uz, tMax, isFirst) => {
@@ -488,65 +443,49 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
       // takže se dráhy nemění, ale uživatel čáru vidí až k hraně materiálu).
       // NEvynecháváme segmenty skupiny — nájezdový tečný bod často leží právě
       // na nich (boční oblouček u nájezdu), takže s exclude paprsek konturu mine.
-      // Dolní konec: sleduje se ODRAŽENÁ SILUETA nástroje ukotvená v dotykovém
-      // bodě (P_k = best − S_k): nejdřív hrana destičky (jen do Délky hrany,
-      // je-li zadán držák), pak přechod na roh držáku a svisle dolů podél jeho
-      // stěny. Bez držáku (profil null) zůstává jediný nekonečný paprsek podél
-      // hrany — původní chování. První průsečík segmentů s konturou = dolní
-      // konec mezní čáry; projité lomové vrcholy se uloží do `via` (mezní čára
-      // je pak lomená a most po ní smí sjet hlouběji do kapsy).
-      // Hranice hlídání = hrana destičky → čára „zbývající stěna/kůra
-      // polotovaru posunutá o holderWidth" (buildHolderBoundaryPts, dle
-      // nákresu). Platí pro obě strany (zanoření i dojezd) — v kapse drží
-      // dno obrobitelné z obou stěn. Bez držáku (nebo bez stěny/polotovaru
-      // k opření) = nekonečná přímka podél hrany (staré chování).
-      const boundaryPts = buildHolderBoundaryPts(best, sb, cb, holderForbidden, holderReachX);
-      const straightPts = [{ x: best.x, z: best.z }, { x: best.x - sb * 1e5, z: best.z - cb * 1e5 }];
-      const walkSilhouette = (calcLoc, ptsOverride) => {
-        const pts = ptsOverride || boundaryPts || straightPts;
-        const via = [];
-        for (let k = 0; k + 1 < pts.length; k++) {
-          const a = pts[k], b2 = pts[k + 1];
-          const dx = b2.x - a.x, dz = b2.z - a.z;
-          const len = Math.hypot(dx, dz);
-          if (len < 1e-6) continue;
-          const ux = dx / len, uz = dz / len;
-          let hit = camRayIntersection(a.x, a.z, ux, uz, null, calcLoc);
-          let tHit = null;
-          if (hit) {
-            const t = (hit.x - a.x) * ux + (hit.z - a.z) * uz;
-            if (t <= len + 1e-6) tHit = t; else hit = null;
+      // Dolní konec: JEDINÝ přímý paprsek podél hrany destičky od dotykového
+      // bodu dolů (−X ve směru natočení). Žádné lomení podél držáku, žádné
+      // sledování zakřivené hranice — mezní čára musí zůstat rovná úsečka
+      // (viz invariant v hlavičce souboru). Paprsek končí na první z:
+      //   • průsečík s KONTUROU → dolní konec, který se přemostí,
+      //   • výstup z POLOTOVARU (odlitek, údolí) + vůle X → downClipped.
+      const ux = -sb, uz = -cb, rayLen = 1e5;
+      const walkStraight = (calcLoc) => {
+        const a = { x: best.x, z: best.z };
+        let hit = camRayIntersection(a.x, a.z, ux, uz, null, calcLoc);
+        let tHit = null;
+        if (hit) {
+          const t = (hit.x - a.x) * ux + (hit.z - a.z) * uz;
+          if (t <= rayLen + 1e-6) tHit = t; else hit = null;
+        }
+        // Ořez polotovarem (odlitek): když hrana vyjde z materiálu DŘÍV, než
+        // dopadne na konturu, čára končí na hranici polotovaru + vůle X —
+        // dál je vzduch (údolí), tam se nehlídá ani nemostí.
+        // VÝJIMKA: výstup přes OSU (x≈0) nebo ZADNÍ čelo (z < konec dílce)
+        // — to jsou uzavírací hrany smyčky, ne kůra; nechat staré chování
+        // (dopad na osu → rejected, zadní čelo → ořez na konec dílce).
+        let tExit = stockExitOnSeg(a, ux, uz, tHit !== null ? tHit : rayLen, true);
+        if (tExit !== null) {
+          const ex = { x: a.x + ux * tExit, z: a.z + uz * tExit };
+          if (ex.x < 0.5 || ex.z < minPartZG - 0.5) tExit = null;
+        }
+        if (tExit !== null && (tHit === null || tExit < tHit - 1e-6)) {
+          const tEnd = tExit + clrExitG;
+          return { down: { x: a.x + ux * tEnd, z: a.z + uz * tEnd }, clipped: true };
+        }
+        if (hit) {
+          // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ
+          // čelo (z < min Z kontury), což nejsou řezné plochy. Dopad na osu
+          // zahodit (ukončí hledání — níž už je jen osa); dopad pod konec
+          // dílce oříznout přesně na konec dílce po směru paprsku.
+          // VÝJIMKA: dotykový bod SÁM na konci dílce (levé/zadní čelo) —
+          // viz komentář u downOnStock níže; tam se neořezává.
+          if (Math.abs(hit.x) < 0.1 && best.x > 0.5) return { rejected: true };
+          if (hit.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
+            const tz = uz < -0.01 ? (a.z - minPartZG) / -uz : -1;
+            hit = (tz > 0.01 && tz <= rayLen) ? { x: a.x + ux * tz, z: minPartZG } : { x: a.x, z: a.z };
           }
-          // Ořez polotovarem (odlitek): když silueta vyjde z materiálu DŘÍV,
-          // než dopadne na konturu, čára končí na hranici polotovaru + vůle
-          // X — dál je vzduch (údolí), tam se nehlídá ani nemostí.
-          // VÝJIMKA: výstup přes OSU (x≈0) nebo ZADNÍ čelo (z < konec dílce)
-          // — to jsou uzavírací hrany smyčky, ne kůra; nechat staré chování
-          // (dopad na osu → rejected, zadní čelo → ořez na konec dílce).
-          let tExit = stockExitOnSeg(a, ux, uz, tHit !== null ? tHit : len, k === 0);
-          if (tExit !== null) {
-            const ex = { x: a.x + ux * tExit, z: a.z + uz * tExit };
-            if (ex.x < 0.5 || ex.z < minPartZG - 0.5) tExit = null;
-          }
-          if (tExit !== null && (tHit === null || tExit < tHit - 1e-6)) {
-            const tEnd = tExit + clrExitG;
-            return { down: { x: a.x + ux * tEnd, z: a.z + uz * tEnd }, via, clipped: true };
-          }
-          if (hit) {
-            // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ
-            // čelo (z < min Z kontury), což nejsou řezné plochy. Dopad na osu
-            // zahodit (ukončí hledání — níž už je jen osa); dopad pod konec
-            // dílce oříznout přesně na konec dílce po směru segmentu.
-            // VÝJIMKA: dotykový bod SÁM na konci dílce (levé/zadní čelo) —
-            // viz komentář u downOnStock níže; tam se neořezává.
-            if (Math.abs(hit.x) < 0.1 && best.x > 0.5) return { rejected: true };
-            if (hit.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
-              const tz = uz < -0.01 ? (a.z - minPartZG) / -uz : -1;
-              hit = (tz > 0.01 && tz <= len) ? { x: a.x + ux * tz, z: minPartZG } : { x: a.x, z: a.z };
-            }
-            return { down: hit, via };
-          }
-          via.push({ x: b2.x, z: b2.z });
+          return { down: hit };
         }
         return null;
       };
@@ -554,31 +493,17 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
       // není (typicky u kraje dílu), skončí na hraně POLOTOVARU a označí se
       // downOnStock (jen vizualizace / čelní zakončení — viz buildMachinable).
       let downOnStock = false;
-      // Odlitek: má-li PŘÍMÁ hrana destičky (čistý úhel zanoření) vyjít
-      // z polotovaru do vzduchu (údolí / stranou přes kůru) DŘÍV, než by ji
-      // držáková stěna zlomila dolů, drží se stock-ořez přímé čáry. V
-      // otevřeném prostoru za nástrojem není materiál, na který by držák
-      // narazil — lomení k držákové stěně by tam čáru falešně stáhlo dolů
-      // (viz projekt casting: bez tohoto by mezní čára místo pokračování
-      // v úhlu zanoření sjela svisle dolů podél odebírané kůry).
-      let walk = null;
-      if (boundaryPts) {
-        const straightClip = walkSilhouette(localCalc, straightPts);
-        if (straightClip && straightClip.clipped) walk = straightClip;
-      }
-      if (!walk) walk = walkSilhouette(localCalc);
+      let walk = walkStraight(localCalc);
       if (!walk) {
         // Bez JAKÉHOKOLI dopadu na konturu zkusit i hranu polotovaru.
         // (Dopad zahozený osní pojistkou — rejected — fázi s polotovarem
-        // nespouští, stejně jako původní přímá varianta.)
-        walk = walkSilhouette(localCalcDown);
+        // nespouští.)
+        walk = walkStraight(localCalcDown);
         if (walk && walk.down) downOnStock = true;
       }
       let down = (walk && walk.down) ? walk.down : null;
-      let via = (walk && walk.down) ? walk.via : [];
       const downClipped = !!(walk && walk.clipped);
       if (!down) {
-        via = [];
         const t = sb > 0.01 ? (best.x - botX) / sb : 0;
         down = t > 0.01 ? { x: best.x - sb * t, z: best.z - cb * t } : best;
       }
@@ -601,27 +526,34 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
         // čáry z dřívější (vyšší) skupiny stejného druhu — jinak by nižší bod
         // generoval čáru, která na obrazovce vypadá výš než vyšší bod (bug).
         for (const pg of interferenceGuides) {
-          // U lomené čáry (držák) je „dolní konec hrany destičky" první via
-          // vrchol — hlubší (svislá) část stínu jiné čáry neomezuje.
-          const pgLowX = (pg.via && pg.via.length) ? pg.via[0].x : pg.x1;
-          if (pg.kind === kind && pgLowX < capX) capX = pgLowX;
+          if (pg.kind === kind && pg.x1 < capX) capX = pg.x1;
         }
         const t = sb > 0.01 ? (capX - best.x) / sb : 0;
         up = t > 0.01 ? { x: best.x + sb * t, z: best.z + cb * t } : best;
       }
-      if (!via.length && Math.hypot(up.x - down.x, up.z - down.z) < 0.5) return;
+      // ── PODMÍNKA (invariant): mezní čára je ROVNÁ ÚSEČKA ───────
+      // Oba konce se promítnou přesně na přímku (best, směr sb/cb), takže
+      // ani zaokrouhlení z ray-castu nemůže vyrobit lom. Zlom/oblouk se sem
+      // nesmí dostat žádnou cestou — čára hlídání geometrie destičky je
+      // hrana destičky, a ta je rovná.
+      // (Bod už na přímce leží → vrací se beze změny, ať se do souřadnic
+      // nezanáší zaokrouhlovací šum typu −0.)
+      const onEdge = (p) => {
+        const t = (p.x - best.x) * sb + (p.z - best.z) * cb;
+        const q = { x: best.x + sb * t, z: best.z + cb * t };
+        return Math.hypot(q.x - p.x, q.z - p.z) > 1e-9 ? q : p;
+      };
+      down = onEdge(down); up = onEdge(up);
+      if (Math.hypot(up.x - down.x, up.z - down.z) < 0.5) return;
       const dup = interferenceGuides.some(g =>
         Math.hypot(g.x1 - down.x, g.z1 - down.z) < 0.5 && Math.hypot(g.x2 - up.x, g.z2 - up.z) < 0.5);
       if (!dup) {
+        // Bez `via` — mezní čára nemá lomové vrcholy (viz invariant výše).
         const g = { x1: down.x, z1: down.z, x2: up.x, z2: up.z, kind, downOnStock };
         // Dolní konec oříznutý polotovarem (výstup do vzduchu v údolí) —
         // drží se v seznamu i bez dopadu na konturu (vizualizace + most
         // „náběhový stín" zakončí konturu podél čáry a zbytek nechá).
         if (downClipped) g.downClipped = true;
-        // Lomová místa siluety (konec hrany destičky, roh držáku) — jen ta
-        // NAD dolním koncem; poslední vrchol shodný s dolním koncem vynechat.
-        if (via.length) g.via = via.filter(q => Math.hypot(q.x - down.x, q.z - down.z) > 0.05 && q.x > down.x - 1e-6);
-        if (g.via && !g.via.length) delete g.via;
         interferenceGuides.push(g);
       }
     };

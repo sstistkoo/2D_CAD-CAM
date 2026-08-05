@@ -52,6 +52,13 @@ describe('CAM booleovská hrubovací větev — regrese (booleanRoughing=on)', (
       expect(hardErrors, `hard errors: ${JSON.stringify(hardErrors)}`).toEqual([]);
 
       expect(gcode).toContain('HRUBOVANI');
+
+      // INVARIANT: mezní čára hlídání geometrie destičky je VŽDY ROVNÁ
+      // úsečka — žádné lomové (via) vrcholy (viz hlavička
+      // js/calculators/cam/interferenceGuides.js).
+      const bent = (calc.interferenceGuides || []).filter(g => g.via && g.via.length);
+      expect(bent, `lomené mezní čáry: ${JSON.stringify(bent)}`).toEqual([]);
+
       const stableGcode = gcode.replace(/^; Datum: .*/m, '; Datum: <normalized>');
       expect(pipelineSummary(calc)).toMatchSnapshot('pipeline-bool');
       expect(stableGcode).toMatchSnapshot('gcode-bool');
