@@ -1727,6 +1727,36 @@ export function openCamSimulator(initialContour, initialGCode) {
       ctx.strokeStyle = C.offset; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
     }
 
+    // Referenční HOTOVNÍ offset kontury (jen rádius plátku, bez přídavků) —
+    // druhá tečkovaná čára vedle hrubovacího offsetu, přesně jako u mezních
+    // čar hlídání destičky (ty svoje dva offsety měly vždycky, kontura jen
+    // ten hrubovací). Čistá GEOMETRIE „kam dojede střed plátku na hotovo",
+    // ne dráha — kreslí se i s vypnutým Dokončováním. Prázdné pole, když
+    // žádný přídavek není (pak by splynula s hrubovacím offsetem).
+    if (S.showSimPath !== 'none' && (calc.finishRefPath || []).length > 0) {
+      ctx.beginPath();
+      calc.finishRefPath.forEach((seg, i) => {
+        if (seg.isDegenerate) return;
+        if (seg.type === 'line') {
+          const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
+          if (i === 0 || seg.chainBreak) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+        } else if (seg.type === 'arc') {
+          const steps = arcSteps(seg.r, S.view.scale);
+          let sA = seg.startAngle, eA = seg.endAngle;
+          if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+          if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+          for (let j = 0; j <= steps; j++) {
+            const a = sA + (eA - sA) * (j / steps);
+            const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+            if (j === 0 && (i === 0 || seg.chainBreak)) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+          }
+        }
+      });
+      ctx.strokeStyle = C.finish; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+
     // finish path — kreslí simPath (zelená), finishOffsetPath overlay odstraněn
 
     // Nedosažitelný dokončovací offset (Hlídat geometrii destičky) —
@@ -2570,6 +2600,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       ...baseSegs,
       ...(calc.offsetPath || []),
       ...(calc.finishOffsetPath || []),
+      ...(calc.finishRefPath || []),
       ...(calc.finishUnreachablePath || [])
     ].filter(s => s && !s.isDegenerate);
     for (let ii = 0; ii < interSegs.length; ii++)
@@ -2577,7 +2608,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         for (const q of segPairIntersections(interSegs[ii], interSegs[jj])) tryPt(q.x, q.z);
     if (best) return best;   // body mají přednost před hranami
     // Hrany: kontura + polotovar + konstrukční čáry + offsetové dráhy.
-    const segs = [...baseSegs, ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishUnreachablePath || [])].filter(s => s && !s.isDegenerate);
+    const segs = [...baseSegs, ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishRefPath || []), ...(calc.finishUnreachablePath || [])].filter(s => s && !s.isDegenerate);
     for (const s of segs) {
       let px, pz, dist;
       if (s.type === 'line') {
@@ -3010,7 +3041,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) consider(q.x, q.z);
       }
     };
-    const segs = [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishUnreachablePath || [])];
+    const segs = [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishRefPath || []), ...(calc.finishUnreachablePath || [])];
     for (const s of segs) {
       if (!s || s.isDegenerate) continue;
       if (s.type === 'line') lineHit(s.p1, s.p2);
@@ -3247,7 +3278,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) out.push({ x: q.x, z: q.z });
       }
     };
-    for (const s of [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || [])]) {
+    for (const s of [...(calc.contourSegments || []), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishRefPath || [])]) {
       if (!s || s.isDegenerate) continue;
       if (s.type === 'line') lineHit(s.p1, s.p2);
       else if (s.type === 'arc') arcHit(s);
@@ -7168,6 +7199,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!S.manualGCode || !S.manualGCode.trim() || _partOffActive || _threadCycleActive) {
       S._cachedCalc.offsetPath = [];
       S._cachedCalc.finishOffsetPath = [];
+      S._cachedCalc.finishRefPath = [];
       S._cachedCalc.finishUnreachablePath = [];
       S._cachedCalc.passes = [];
       S._cachedCalc.interferenceSegments = [];

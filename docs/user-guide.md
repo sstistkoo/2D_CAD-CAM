@@ -494,6 +494,22 @@ Dojezdy po **kuželových a válcových** stěnách a dokončení ramp/kapes ten
 přepínač neovlivňuje — ty patří k podélnému hrubování a jedou vždy, jinak by
 pod nimi zůstal stát klín materiálu.
 
+### Offsetové čáry v náhledu
+
+Kolem kontury i kolem **mezních čar hlídání geometrie destičky** se kreslí dvě
+tenké tečkované čáry — kam dojede **střed rádiusu plátku**:
+
+- **hrubovací** – kontura + rádius plátku + *Přídavek X/Z* + *Přídavek na hotovo*;
+- **hotovní** – kontura + samotný **rádius plátku** (bez přídavků).
+
+Hotovní čára je jen **geometrická reference**, ne dráha: kreslí se i s vypnutým
+**Dokončováním** a do G-kódu nevstupuje. Dá se na ni snapovat stejně jako na
+ostatní čáry. Když nejsou zadané žádné přídavky, kreslí se jen jedna čára —
+obě by splynuly.
+
+Mezní čára hlídání geometrie destičky je vždycky **rovná úsečka** podél hrany
+plátku (žádné oblouky ani zlomy).
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu

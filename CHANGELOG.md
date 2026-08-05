@@ -104,6 +104,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`Vykresleno 1 objektů – řádek 3 přeskočen: R5.000 je moc malý…`),
     detaily všech přeskočených řádků navíc v konzoli.
 
+### Added
+- **Hotovní offsetová čára i kolem kontury.** Mezní čáry hlídání geometrie
+  destičky měly odjakživa DVĚ tečkované offsetové čáry (hrubovací =
+  R + Přídavek X/Z + Přídavek na hotovo, a hotovní = jen rádius plátku),
+  kolem samotné kontury se ale kreslila jen ta hrubovací. Nově se kreslí
+  obě – nový `calc.finishRefPath` (`js/calculators/cam/toolOffset.js`,
+  vytaženo z `calculatePipeline.js`, aby šel offset spočítat víckrát
+  s různými přídavky). Je to čistě GEOMETRICKÁ reference „kam dojede střed
+  plátku na hotovo“: kreslí se i s vypnutým **Dokončováním** (skutečná dráha
+  `finishOffsetPath` bez něj vůbec nevzniká), do G-kódu nevstupuje a dá se
+  na ni snapovat stejně jako na ostatní offsety. Když nejsou zadané žádné
+  přídavky, čára se nekreslí – splynula by s hrubovacím offsetem.
+
 ### Changed
 - **Mezní čára „Hlídat geometrii (destička + držák)" je zase ROVNÁ ÚSEČKA.**
   Čára se od dotykového bodu táhne výhradně podél hrany destičky – žádné

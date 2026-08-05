@@ -487,7 +487,8 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) |
 | `cam/passHelpers.js` | Dotazy nad offsetem kontury pro strategie (`offsetXAt`, `traceOffsetPath`, `findLeadOutEndZ`, `findPocketExitZ`) — továrna `makePassHelpers(offsetPath)` |
 | `cam/zMirror.js` | Zrcadlení CAM světa v ose Z (hrubování „zleva" = zrcadlo pravé strany) |
-| `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky |
+| `cam/toolOffset.js` | Offset kontury o rádius plátku + přídavky (`buildRawOffsets`) — hrubovací (`offsetPath`) i hotovní referenční (`finishRefPath`). Nezaměňovat s `calculators/contourOffset.js` (CAD: polotovar z kontury) |
+| `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky (VŽDY rovná úsečka) |
 | `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna) |
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
 | `cam/collisionValidator.js` | Validace kolizí držáku na hotové dráze |

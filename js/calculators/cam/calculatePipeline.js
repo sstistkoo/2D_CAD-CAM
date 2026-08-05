@@ -8,6 +8,7 @@
 import { bridge } from '../../bridge.js';
 import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint } from './camMath.js';
 import { arcReachableSpan, buildMachinableContour, extendOffsetStartToAxis, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
+import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
@@ -87,7 +88,7 @@ export function computeCalculation(S, lightOnly = false) {
     }
     const lightCalc = {
       worldPoints, stockWorldPoints, contourSegments: [], machinableContour: null,
-      offsetPath: [], finishOffsetPath: [], finishUnreachablePath: [], stockPathSegments,
+      offsetPath: [], finishOffsetPath: [], finishRefPath: [], finishUnreachablePath: [], stockPathSegments,
       passes: [], simPath: [], retractDist: parseFloat(prms.retractDistance) || 2.0,
       totalPathLength: 0, estimatedTimeSeconds: 0,
       interferenceSegments: [], flankSegments: [], interferenceGuides: [], stockTopX,
@@ -103,7 +104,6 @@ export function computeCalculation(S, lightOnly = false) {
   const retractDist = parseFloat(prms.retractDistance) || 2.0;
 
   let contourSegments = [];
-  let rawOffsets = [];
   let finishOffsetPath = [];
   // Dokončovací offset úseků, kam destička nedosáhne (Hlídat geometrii):
   // nestrojí se, ale vykreslí se tečkovaně a blokuje rychloposuvy.
@@ -302,76 +302,24 @@ export function computeCalculation(S, lightOnly = false) {
     }
   }
 
-  let incompleteMachiningCount = 0;
   // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs
-  for (let i = 0; i < contourSegments.length; i++) {
-    const seg = contourSegments[i];
-    let offSeg = null;
-    if (seg.type === 'line') {
-      const n = getNormal(seg.p1, seg.p2);
-      const tx = n.x * (tipR + allowanceX + finishAllowance);
-      const tz = n.z * (tipR + allowanceZ + finishAllowance);
-      offSeg = { type: 'line', p1: { x: seg.p1.x + tx, z: seg.p1.z + tz }, p2: { x: seg.p2.x + tx, z: seg.p2.z + tz } };
-    } else if (seg.type === 'arc') {
-      // Autodetekce směru z geometrie — nezávisle na G2/G3 z exportu.
-      // Důvod: pokud byl arc nakreslen s "obrácenou" CW/CCW volbou
-      // (canvas má flipnutou Y), export má prohozený G2/G3 a offset by
-      // se pak posílal na špatnou stranu.
-      // OUTER (konvexní): |center.x| < |chord_midpoint.x| → offset ven.
-      // INNER (konkávní): |center.x| > |chord_midpoint.x| → offset dovnitř.
-      const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
-      const centerAbsX = Math.abs(seg.cx);
-      const isOuter = centerAbsX < midAbsX;
-      // Per-axis offset stejně jako u úseček: bod oblouku s normálou
-      // (sin a, cos a) se posouvá o (R+aX) v X a (R+aZ) v Z → poloosy.
-      // Při aX == aZ je to obyčejný oblouk (rx == rz); při různých
-      // přídavcích ELIPSA — jinak konce nesedí na offsety sousedních
-      // úseček a trimmer z krátkých úseků dělá trojúhelníkové artefakty
-      // (oblouk byl navíc celý odsazen o max(aX, aZ) i v ose s menším
-      // přídavkem).
-      const rx = isOuter ? seg.r + tipR + allowanceX + finishAllowance
-        : seg.r - (tipR + allowanceX + finishAllowance);
-      const rz = isOuter ? seg.r + tipR + allowanceZ + finishAllowance
-        : seg.r - (tipR + allowanceZ + finishAllowance);
-      // Pouze geometricky nemožné (poloosa <= 0) zahodíme. Malé ale kladné
-      // je legitimní — nástroj sleduje miniaturní oblouk kolem rohu.
-      if (Math.min(rx, rz) <= 0.05) { incompleteMachiningCount++; offSeg = null; }
-      else if (Math.abs(rx - rz) < 1e-9) {
-        const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-        const endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-        offSeg = { type: 'arc', cx: seg.cx, cz: seg.cz, r: rx, dir: seg.dir, refP1: seg.p1, refP2: seg.p2, startAngle, endAngle };
-      } else {
-        // Elipsu navzorkovat (hustě, chord error << tol) a proložit zpět
-        // oblouky/úsečkami (fitArcsToPolyline, tol 0,02) — G-kód zůstane
-        // kompaktní (G2/G3) a konce sedí na offsety sousedních úseček.
-        let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-        let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-        if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-        if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-        const rMax = Math.max(rx, rz);
-        const dTheta = Math.sqrt(8 * 0.002 / rMax);
-        const steps = Math.max(4, Math.min(256, Math.ceil(Math.abs(eA - sA) / dTheta)));
-        const pts = [];
-        for (let j = 0; j <= steps; j++) {
-          const a = sA + (eA - sA) * (j / steps);
-          pts.push({ x: seg.cx + Math.sin(a) * rx, z: seg.cz + Math.cos(a) * rz });
-        }
-        const fitted = fitArcsToPolyline(pts, 0.02);
-        fitted.forEach((fs, fi) => {
-          if (fi === 0 && seg.chainBreak) fs.chainBreak = true;
-          rawOffsets.push(fs);
-        });
-        offSeg = null;   // segmenty už jsou vložené
-      }
-    }
-    if (offSeg) {
-      if (seg.chainBreak) offSeg.chainBreak = true;
-      rawOffsets.push(offSeg);
-    }
-  }
+  const rough = buildRawOffsets(contourSegments, tipR, allowanceX, allowanceZ, finishAllowance);
+  let incompleteMachiningCount = rough.incompleteCount;
 
   // 2. trimming + loop removal (shared helper handles all segment combos)
-  const offsetPath = dropTinyArcs(trimAndRemoveLoops(rawOffsets));
+  const offsetPath = dropTinyArcs(trimAndRemoveLoops(rough.rawOffsets));
+
+  // ── Referenční HOTOVNÍ offset (jen rádius plátku, bez přídavků) ──
+  // Čistě GEOMETRICKÁ čára „kam dojede střed plátku na hotovo" — kreslí se
+  // v náhledu tečkovaně kolem celé kontury, stejně jako u mezních čar
+  // hlídání destičky (ty svoje dva offsety měly vždycky). Nezávisí na
+  // zapnutém Dokončování: `finishOffsetPath` je skutečná DRÁHA (ořezaná
+  // podle dosažitelnosti destičky/držáku, gouge-clamp, Z-limity) a bez
+  // zaškrtnutého „Dokončování" vůbec nevzniká — tahle čára je jen
+  // reference, do G-kódu nevstupuje.
+  const finishRefPath = (tipR > 0 && (allowanceX > 1e-9 || allowanceZ > 1e-9 || finishAllowance > 1e-9))
+    ? dropTinyArcs(trimAndRemoveLoops(buildRawOffsets(contourSegments, tipR, 0, 0, 0).rawOffsets))
+    : [];
 
   // ── Fáze 3a/3b (Clipper2): obálka držáku ──────────────────────
   // Zakázaná oblast špičky = silueta offsetu ⊕ (−obrys držáku)
@@ -658,6 +606,7 @@ export function computeCalculation(S, lightOnly = false) {
   if (worldPoints.length > 0 && Math.abs(worldPoints[0].xReal) < 1e-3) {
     extendOffsetStartToAxis(offsetPath);
     extendOffsetStartToAxis(finishOffsetPath);
+    extendOffsetStartToAxis(finishRefPath);
   }
 
   if (incompleteMachiningCount > 0)
@@ -910,7 +859,7 @@ export function computeCalculation(S, lightOnly = false) {
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
-  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
+  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
   // Zpět do reálného světa (simPath se nezrcadlí — je z reálného G-kódu).
   return mirZ ? mirrorCalcZ(calcOut) : calcOut;
 }
