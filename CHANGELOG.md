@@ -146,10 +146,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hranici rozsahu 📐. Zanoření se přitom odkládá za všechny větší průměry
   svého místa („co je nahoře, má přednost" — `__deferEntry`). Bez zaškrtnutého
   Zanořování zůstává rozpouštění beze změny (kolmo do kůry dna se sjet nedá).
+  Zanoření vzniká jen tam, kde se vedle vjezdu prokazatelně **vejde DRŽÁK**
+  (`holderEntryCapZ`); jinak se hloubka v tom úseku vynechá jako dřív —
+  hranice leží uprostřed materiálu, takže bez místa pro držák by rampa vjela
+  bokem do neobrobeného odlitku (na díle uživatele oranžová kolize 87 mm²
+  uprostřed vybrání; s podmínkou 5 → 0 hlášených kolizí).
   Měřeno izolovaně: **méně stojícího materiálu, nikde ne víc** — part-11 −168 mm²,
-  range-chain-insert-shadow −107, díl uživatele −106, part-12 −104, part-10 −60,
-  holder-region −40, range-end-leadout −34; ostatní fixtures beze změny.
+  range-chain-insert-shadow −107, díl uživatele −106, part-12 −104,
+  holder-region −40, part-10 −26; ostatní fixtures beze změny.
   Pojistka `tests/cam-region-plunge.test.js`.
+- CAM (podélné hrubování): **odložené zanoření se řadí na konec SVÉHO úseku**,
+  ne až za celý program. Úsek je samostatná Z-zóna dílu — materiál nad
+  zanořeným nástrojem vzaly vrstvy téhož úseku, takže odsouvat ho až za
+  všechny ostatní úseky nemá důvod a jen tříští pořadí (reálný nález na díle
+  uživatele: zanoření se dělalo úplně nakonec programu místo hned po vrstvě,
+  ke které patří). Podmínka „co je nahoře, má přednost" platí dál — měří se
+  ale v Z-okně zanoření (`tests/range-entry-ramp`, `tests/cam-region-plunge`).
 - CAM: **odjezd do bezpečné polohy jde nejdřív v X a teprve pak v Z**, nikdy
   diagonálou. Kontrola kolize sice diagonálu pustí jen tam, kde v tu chvíli nic
   nestojí, ale poslední pohyb programu přes celý díl je zbytečné riziko.

@@ -85,8 +85,21 @@ describe('zanoření za odlitkovým hrbem', () => {
       expect(p.ramp.z0 + HOLDER_W).toBeLessThanOrEqual(HRB_Z - STOCK_CLR_Z - GAP + 1e-6);
     }
     // „Co je nahoře, má přednost": zanoření je až za všemi průchody na
-    // větších průměrech, hrubuje se odshora dolů.
-    const firstPlunge = longs.indexOf(plunges[0]);
-    expect(longs.slice(firstPlunge).every(p => p.x <= plunges[0].x + 1e-6)).toBe(true);
+    // větších průměrech SVÉHO MÍSTA, hrubuje se odshora dolů.
+    //
+    // Měří se v Z-okně zanoření, ne přes celý program: úseky (regiony) jsou
+    // samostatné Z-zóny dílu a odložené zanoření se řadí na konec SVÉHO úseku
+    // (jinak by se dělalo až úplně nakonec programu, dlouho po vrstvě, ke
+    // které patří — reálný nález na díle uživatele). Materiál nad zanořeným
+    // nástrojem hlídá tahle podmínka dál stejně přísně.
+    for (const p of plunges) {
+      const zLo = Math.min(p.zStart, p.zEnd), zHi = Math.max(p.zStart, p.zEnd);
+      const after = longs.slice(longs.indexOf(p) + 1)
+        .filter(q => Math.max(q.zStart, q.zEnd) > zLo && Math.min(q.zStart, q.zEnd) < zHi);
+      for (const q of after) {
+        expect(q.x, `po zanoření Ø${p.x.toFixed(3)} ještě průchod na Ø${q.x.toFixed(3)}`)
+          .toBeLessThanOrEqual(p.x + 1e-6);
+      }
+    }
   }, 30000);
 });

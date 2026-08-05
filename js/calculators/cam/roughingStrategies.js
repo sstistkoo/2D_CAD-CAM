@@ -1258,6 +1258,9 @@ export function genLongPasses(ctx) {
   // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
   // neobrobený — nic dalšího už tam nezajíždí).
   const pendingRampCompletions = [];
+  // Začátek průchodů TOHOTO regionu — odložené zanoření se řadí na konec
+  // svého regionu, ne až za celý program (viz konec smyčky regionů).
+  const regionMark = passes.length;
   // Vjezd na hranici rozsahu Z (machiningRange.zHi): kotva rampy se
   // ŘETĚZÍ mezi hloubkami (viz níž), ne restartuje pokaždé od povrchu —
   // jinak by každá hlubší vrstva znovu rampovala i tu ČÁST, kterou už
@@ -1324,11 +1327,26 @@ export function genLongPasses(ctx) {
     // posunutím Startu rozsahu Z (reálný nález na díle uživatele).
     // Geometrie DESTIČKY je v tom už zahrnutá: mezní čáry hlídání jsou
     // zapracované do obrobitelné kontury, kterou sken respektuje.
+    // Vjezd na hranici REGIONU je pro držák stejně nebezpečný jako posunutý
+    // start zanoření: hranice leží UPROSTŘED materiálu (napravo od ní stojí
+    // sousední region), takže se tam rampa musí posunout tam, kam držák pustí
+    // — jinak vjede bokem do neobrobeného odlitku (reálný nález na díle
+    // uživatele: oranžová kolize držáku uprostřed vybrání).
+    const regionCappedRaw = regZHi !== Infinity && Math.abs(effZMax - regZHi) < 1e-6;
     if (prms.plungeRoughing) {
       const surf0 = offsetStockTopXAtZ(entryZ);
       const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
-      if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05) {
+      if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05 || regionCappedRaw) {
         const zCap = holderEntryCapZ(currentX, entryZ, effZMin);
+        // Zanoření na hranici REGIONU smí vzniknout jen tam, kde se vedle
+        // vjezdu vejde DRŽÁK. Hranice leží uprostřed materiálu (napravo od ní
+        // stojí sousední region), takže bez takového místa by rampa vjela
+        // bokem do neobrobeného odlitku — reálný nález na díle uživatele:
+        // zanoření uprostřed vybrání mezi dvěma hrby, oranžová kolize držáku
+        // 87 mm². Tam se hloubka v tomhle regionu radši vynechá (jako před
+        // zavedením zanořování na hranici); zanoření zůstane jen tam, kde je
+        // pro držák prokazatelně místo.
+        if (regionCappedRaw && !isFinite(zCap)) continue;
         if (isFinite(zCap) && zCap < entryZ - 1e-6) {
           const reScan = scan(currentX, zCap, effZMin, true);
           if (reScan.firstOpen && reScan.intervals.length > 0) {
@@ -1343,7 +1361,7 @@ export function genLongPasses(ctx) {
     // Hranice REGIONU je umělá stejně jako hranice rozsahu 📐: napravo od ní
     // materiál dál stojí (patří sousednímu regionu), takže se na ni nesmí
     // kolmo zapíchnout — vjezd tam patří rampě.
-    const regionCapped = regZHi !== Infinity && Math.abs(effZMax - regZHi) < 1e-6;
+    const regionCapped = regionCappedRaw;
     const entryCapped = (entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
       || regionCapped;
@@ -2012,6 +2030,15 @@ export function genLongPasses(ctx) {
   // safeRapidTo), další kroky se jen ODSKOČÍ (`pocketReposition`,
   // stejný vzor jako „dobrat kapsu najednou") a rychloposuvem se vrátí na
   // konec předchozího kroku — odtud pracovní rampa řeže jen nový úsek.
+  // TODO (rozpracované): doběh kroku dorampování zatím může přeletět mezeru
+  // v odlitku a dodělávat vrstvu na DRUHÉ straně údolí (reálný nález na díle
+  // uživatele: `G0 Z142.024` přes celé údolí). Ořez na konec souvislého
+  // materiálu se nabízí, ale musí skončit až na VŮLÍ-POSUNUTÉ siluetě —
+  // a `polyOffset` nad složitým obrysem odlitku vrací víc komponent, takže
+  // `offsetLoopOf` (bere `[0]`) na tomhle místě siluetu nespolehlivě minul
+  // (na range-chain-insert-shadow doběh skončil o vůli dřív, viz
+  // tests/cam-leadout-step). Bez opravy výběru komponenty v `offsetLoopOf`
+  // by ořez jen prohodil jednu vadu za druhou.
   for (const rc of pendingRampCompletions) {
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
     while (curX > rc.targetX + 1e-6) {
@@ -2071,16 +2098,24 @@ export function genLongPasses(ctx) {
       curX = stepX; curZ = stepZ;
     }
   }
-  } // konec smyčky regionů
-  // Přesun odloženého zanoření na konec (stabilně, pořadí uvnitř skupin
-  // zůstává) — „co je nahoře, má přednost".
-  if (passes.some(p => p.__deferEntry)) {
+  // Přesun odloženého zanoření na konec TOHOTO REGIONU (stabilně, pořadí
+  // uvnitř skupin zůstává) — „co je nahoře, má přednost". Region je vlastní
+  // Z-zóna dílu: odsouvat zanoření až za VŠECHNY ostatní regiony nemá důvod
+  // (materiál nad ním vzaly vrstvy tohohle regionu) a jen to zbytečně tříští
+  // pořadí — zanoření patří hned za poslední vrstvu svého místa (reálný nález
+  // na díle uživatele: zanoření se dělalo úplně nakonec programu).
+  if (passes.length > regionMark) {
     const head = [], tail = [];
-    for (const p of passes) { (p.__deferEntry ? tail : head).push(p); delete p.__deferEntry; }
-    passes.length = 0;
+    for (let i = regionMark; i < passes.length; i++) {
+      const p = passes[i];
+      (p.__deferEntry ? tail : head).push(p);
+      delete p.__deferEntry;
+    }
+    passes.length = regionMark;
     for (const p of head) passes.push(p);
     for (const p of tail) passes.push(p);
   }
+  } // konec smyčky regionů
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)
