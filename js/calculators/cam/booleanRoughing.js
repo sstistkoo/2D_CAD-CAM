@@ -298,8 +298,11 @@ export function extractLayerComponents(residualLoops, xLo, xHi, zLo = -Z_INF, zH
  * (viz komentář u booleanRegionSplits). Testy funkci krmí i residuálem
  * (u něj se horní hrana rovná siluetě, když dílec nedosahuje k povrchu).
  *
- * Vrací splits `[{ z, xSurf }]` (z = střed dna údolí, xSurf = X dna) SEŘAZENÉ
- * shora (max Z) dolů — formát, který čeká `assembleRegions`. Sémantika legacy
+ * Vrací splits `[{ z, xSurf, zHi, zLo }]` (z = střed dna údolí, xSurf = X dna,
+ * zHi/zLo = ÚSTÍ údolí, tj. Z začátku sestupu a Z návratu na protistěnu)
+ * SEŘAZENÉ shora (max Z) dolů — formát, který čeká `assembleRegions`. Ústí
+ * potřebuje `splitIsNeeded` v roughingStrategies.js, aby k údolí přiřadil
+ * mezní čáru hlídání geometrie destičky. Sémantika legacy
  * modelu (odlitkový hrb): region oddělen MĚLCE (X > xSurf) a v kůře dna (X ≤
  * xSurf) splyne. Otevřená údolí bez protistěny (klesnou a už se nezvednou)
  * NEJSOU split — stejně jako manuál (vyžaduje `after > cur`).
@@ -339,7 +342,7 @@ export function computeResidualRegions(residualLoops, zMax, zMin, dz = 0.2, minD
         if (samples[k].x <= minX + Math.max(0.15, minDrop / 2)) { zSum += samples[k].z; cnt++; }
       }
       const zc = cnt > 0 ? zSum / cnt : samples[i].z;
-      splits.push({ z: zc, xSurf: minX });
+      splits.push({ z: zc, xSurf: minX, zHi: samples[i].z, zLo: samples[j].z });
       peak = samples[j].x;                    // reset na protistěnu
       i = j;
     } else {

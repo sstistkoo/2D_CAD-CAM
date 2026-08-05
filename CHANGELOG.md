@@ -136,6 +136,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`holderLoopL`) a `validateToolpath` (`collisionValidator.js`).
 
 ### Fixed
+- CAM (podélné hrubování): **údolí, ze kterého mezní čára nevyjede ven, už
+  nedělí díl na dva úseky.** Hranici úseku dělá až DOSAH DESTIČKY — mezní
+  čára hlídání geometrie (`zanoreni`) musí volným koncem vyjet Z POLOTOVARU
+  do vzduchu. Čára, která končí uvnitř materiálu (na hotovní kontuře),
+  úsek nedělí: vrstva pokračuje přes celé údolí a vzduch nad ním přeletí
+  rychloposuvem (přesně jako to už dělal směr zprava doleva na TÉMŽE dílu —
+  asymetrie vznikala jen tím, jestli sweep narazí na stěnu kontury před
+  údolím, nebo až za ním). Bez toho se nejdřív dokončila celá jedna strana
+  údolí až na dno; protože se hranice úseku v kůře dna rozpouští, zajely
+  hluboké průchody do Z-zóny té druhé strany, kde nad nimi ještě stál
+  neodebraný materiál → **rampa i navazující oblouk braly víc než Hloubku
+  (ap)** (reálný nález na díle uživatele: `G1 X22.658 Z44.994` +
+  `G3 X24.550 Z48.244` po vrstvě na Ø29,5, která tam vůbec nedojela).
+  Implementace `guideStaysInStock` (`cam/roughingStrategies.js`), údolí si
+  k tomu nese své ústí (`zHi`/`zLo` z `computeResidualRegions`). Bez
+  hlídání geometrie destičky se nic nemění (pole mezních čar je prázdné).
+  Měřeno izolovaně per fixture: **odebraný materiál shodný** (part-11/12
+  i díl uživatele na 0,1 mm², part-4/6/8/9 s regiony+boolean shodně),
+  průchodů méně (28→26, resp. 38→30), čas +0,7 %. Nová pojistka
+  `tests/cam-region-guide-split.test.js` (hlídá i opačný extrém: údolí BEZ
+  mezní čáry si hranici drží — jinak vypadnou celé průchody). Vědomě
+  přegenerované snapshoty obou regresních sad.
 - **Zaoblení rohu v číselném zadání zapisovalo VŽDY `G03`, i když šlo
   geometricky o `G02`.** `applyCornerGcode()` (`dialogs/numericalInput.js`)
   bral směr z `arc.ccw` – ale `filletTwoLines()` (`geometry.js`) tuhle

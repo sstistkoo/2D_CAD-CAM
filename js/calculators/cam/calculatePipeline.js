@@ -683,7 +683,7 @@ export function computeCalculation(S, lightOnly = false) {
     stockWorldPoints, worldPoints, passes, foundErrors,
     offsetXAt, traceOffsetPath, findPocketExitZ,
     findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ,
-    holderClampZEnd,
+    holderClampZEnd, interferenceGuides,
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
   // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy

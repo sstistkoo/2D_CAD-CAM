@@ -492,6 +492,17 @@ Hotovo (vjezd na materiálu + jen nutné regiony — pořadí vrstev, 27. 7. 202
   Po sloučení jde vrstva odshora dolů přes obě strany, vzduch mezi nimi přeletí
   rychloposuvem, a doleva se pokračuje jen tam, kam pustí kontura — dělení tak
   vzniká z OFFSETU HOTOVNÍ KONTURY, ne ze středu údolí polotovaru.
+- **Hranici dělá až dosah destičky** (`guideStaysInStock`, doplněk předchozího
+  bodu): test „sloučeného skenu" je jednosměrný — porovnává jen PRVNÍ interval,
+  takže když sweep narazí na stěnu kontury hned na začátku (hrubování zleva),
+  hranici zachová, kdežto z druhé strany TÉHOŽ dílu ji zahodí. Rozhoduje proto
+  mezní čára hlídání geometrie destičky (`interferenceGuides`, kind `zanoreni`)
+  ležící v ÚSTÍ údolí (`zHi`/`zLo` ze `computeResidualRegions`): vyjede-li
+  volným koncem z polotovaru do vzduchu, je materiál za ní z téhle strany
+  nedostupný a hranice platí; končí-li uvnitř polotovaru (na hotovní kontuře),
+  úsek nedělí. Údolí BEZ mezní čáry si hranici drží — nahradit údolí čistě
+  mezními čarami NELZE (naměřeno: range-end-leadout +545 mm² zbytku,
+  14→4 průchody). Zamčeno v `tests/cam-region-guide-split.test.js`.
 - Měřeno per fixture izolovaně (singleton `S` kontaminuje) při `regionRoughing`
   ON i OFF: zbytkový materiál shodný nebo lepší (holder-casting-slanted −5 mm²,
   part-1/2 +1,5 mm² = 0,03 %), průchodů méně (např. part-4/6 40→36,

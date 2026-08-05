@@ -328,7 +328,7 @@ export function genFacePasses(ctx) {
 
 // PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standardní soustružení).
 export function genLongPasses(ctx) {
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, holderClampZEnd } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -1108,7 +1108,13 @@ export function genLongPasses(ctx) {
       // kůry dna (X ≤ xSurf) je údolí samo materiál — dělit ho napůl by
       // znamenalo sjíždět kolmo do kůry uprostřed; regiony se tam spojí
       // a kůra se bere průchody od kraje polotovaru.
-      if (after > cur + 0.3) splits.push({ z: (outer[i].z + outer[j].z) / 2, xSurf: cur });
+      // zHi/zLo = ústí údolí (poslední bod nad sestupem a první bod protistěny)
+      // — podle něj se k údolí přiřadí mezní čára destičky (splitIsNeeded níž).
+      if (after > cur + 0.3) splits.push({
+        z: (outer[i].z + outer[j].z) / 2, xSurf: cur,
+        zHi: Math.max(outer[i - 1].z, outer[j + 1].z),
+        zLo: Math.min(outer[i - 1].z, outer[j + 1].z),
+      });
       i = j;
     }
     splits.sort((a, b) => b.z - a.z);              // shora (max Z) dolů
@@ -1134,24 +1140,69 @@ export function genLongPasses(ctx) {
     for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
     return computeResidualRegions([stockLoop], zMax, zMin, dzScan);
   };
+  // ── Dělí to údolí opravdu díl na úseky? (mezní čára hlídání destičky) ──
+  // PRVNÍ (a nejlevnější) test, který `splitIsNeeded` níž pouští na každý
+  // kandidátní split. Údolí odlitku samo o sobě hranici NEDĚLÁ. Signál je DOSAH
+  // DESTIČKY: mezní čára hlídání geometrie (`interferenceGuides`, kind
+  // 'zanoreni') vede od místa, kam se destička ještě dostane, ven — a teprve
+  // když její volný konec VYJEDE Z POLOTOVARU do vzduchu, je za ní materiál
+  // z téhle strany nedostupný a začíná další úsek. Čára, která začíná i končí
+  // UVNITŘ polotovaru, končí ve stojícím materiálu: ten se dá vzít dál týmž
+  // sweepem, jen se přes vzduch nad údolím přeletí rychloposuvem.
+  //
+  // Reálný nález na díle uživatele (part-11/12-zleva, údolí Z≈35): mezní čára
+  // v tom údolí končí na hotovní kontuře, tedy uvnitř polotovaru. Přesto se
+  // tam řezalo na dva úseky — nejdřív celá pravá strana údolí až na dno, pak
+  // teprve levá. Protože hranice úseku se v kůře dna rozpouští, zajížděly
+  // hluboké průchody pravého úseku do Z-zóny toho levého, kde nad nimi ještě
+  // stál neodebraný materiál → záběr rampy/oblouku přes Hloubku (ap).
+  // Zprava doleva na TÉMŽE dílu přitom `splitIsNeeded` níž hranici zahodí
+  // (sweep tam údolí projede vcelku) — asymetrie čistě jen podle toho, jestli
+  // sweep narazí na stěnu kontury před údolím, nebo až za ním.
+  //
+  // Vyhodnocuje se na CELÉM polotovaru (`stockLoopFullL`, bez ořezu rozsahem
+  // 📐): jestli čára vyjede do vzduchu, je vlastnost dílu, ne zvoleného
+  // úseku obrábění. Bez hlídání geometrie (`respectInsertGeometry` vypnuto)
+  // je pole prázdné → nic se nezahazuje, chování beze změny.
+  const guideStaysInStock = (s) => {
+    if (!stockLoopFullL || !Array.isArray(interferenceGuides) || interferenceGuides.length === 0) return false;
+    if (s.zHi === undefined || s.zLo === undefined) return false;
+    const inStock = (p) => { try { return pointInLoop(p, stockLoopFullL) !== 'outside'; } catch { return true; } };
+    let found = false;
+    for (const g of interferenceGuides) {
+      // Jen čáry zanoření (kam destička nedosáhne při sjíždění do údolí);
+      // 'dojezd' je opačná strana břitu a o dělení úseků nevypovídá.
+      if (g.kind !== 'zanoreni') continue;
+      const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
+      // Leží čára v ústí TOHOTO údolí?
+      if (Math.max(a.z, b.z) < s.zLo - 1e-9 || Math.min(a.z, b.z) > s.zHi + 1e-9) continue;
+      if (!inStock(a) || !inStock(b)) return false;   // vyjíždí ven → hranice platí
+      found = true;
+    }
+    return found;
+  };
   // ── Který split je opravdu potřeba ────────────────────────────────────
-  // Údolí odlitku je jen SIGNÁL, ne důvod dělit dráhy. Hranice regionu dává
-  // smysl jedině tehdy, když se materiál POD splitem nedá vzít týmž zátahem
-  // jako materiál NAD ním — tedy když vrstvu mezi nimi něco ZASTAVÍ (stěna
-  // hotovní kontury nebo obálka držáku). Nezastaví-li nic, hranice jen
-  // rozřízne souvislý zátah: nejdřív se dodělá celá PRAVÁ strana a teprve pak
-  // levá — i když je vlevo VĚTŠÍ průměr (reálný nález na díle uživatele:
-  // údolí vzniklé obloukem na odlitku, hrb vlevo Ø77 se hruboval až po hrbu
-  // vpravo Ø70). Vzduch nad údolím přitom průchod přeletí rychloposuvem, takže
-  // sloučený zátah po vrstvách jde odshora dolů přesně tak, jak má:
-  // od největšího průměru a doleva až tam, kam pustí kontura.
+  // Druhý test: i údolí, které destička nedělí, je jen SIGNÁL, ne důvod dělit
+  // dráhy. Hranice regionu dává smysl jedině tehdy, když se materiál POD
+  // splitem nedá vzít týmž zátahem jako materiál NAD ním — tedy když vrstvu
+  // mezi nimi něco ZASTAVÍ (stěna hotovní kontury nebo obálka držáku).
+  // Nezastaví-li nic, hranice jen rozřízne souvislý zátah: nejdřív se dodělá
+  // celá PRAVÁ strana a teprve pak levá — i když je vlevo VĚTŠÍ průměr (reálný
+  // nález na díle uživatele: údolí vzniklé obloukem na odlitku, hrb vlevo Ø77
+  // se hruboval až po hrbu vpravo Ø70). Vzduch nad údolím přitom průchod
+  // přeletí rychloposuvem, takže sloučený zátah po vrstvách jde odshora dolů
+  // přesně tak, jak má: od největšího průměru a doleva až tam, kam pustí
+  // kontura.
   //
   // Test (čte jen geometrii, žádné vedlejší efekty): pro každou hloubku, kde
   // region POD splitem ještě něco bere, se zkusí SLOUČENÝ sken od okna nad
   // splitem po dno okna pod ním. Když sloučený zátah pokaždé dojede aspoň tak
-  // hluboko jako samostatný region, split se zahodí.
+  // hluboko jako samostatný region, split se zahodí. POZOR: tenhle test je
+  // jednosměrný (porovnává jen PRVNÍ interval), takže sám o sobě odpoví jinak
+  // zprava doleva než zleva doprava — proto je nad ním `guideStaysInStock`.
   const splitIsNeeded = (splits, i) => {
     const s = splits[i];
+    if (guideStaysInStock(s)) return false;
     const zTop = i > 0 ? splits[i - 1].z : Infinity;
     const zBot = i + 1 < splits.length ? splits[i + 1].z : -Infinity;
     for (const X of depths) {
