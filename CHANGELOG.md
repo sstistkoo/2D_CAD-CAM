@@ -136,6 +136,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`holderLoopL`) a `validateToolpath` (`collisionValidator.js`).
 
 ### Fixed
+- CAM (podélné hrubování): **dojezd „bez schodků" nepřejíždí vzduch posuvem.**
+  Rovné pokračování vrstvy (konstantní hloubka) se teď stejně jako tělo
+  průchodu seká na rychloposuv(vzduch)/posuv(materiál) podle siluety odlitku —
+  nad údolím, kam nástroj nedosáhne, není co řezat (dřív tam jel posuv
+  desítky mm naprázdno; reálný nález na díle uživatele: `G1 X29.545 Z78.840`
+  přes celé údolí). Platí i pro dno za rampou. Přechod řez→vzduch navíc dojede
+  až na vůlí-posunutou siluetu („tečkovaná" čára z náhledu), stejně jako konec
+  otevřeného průchodu. Sdílený helper `airSplitAxial` (`cam/gcodeEmit.js`).
+- CAM (podélné hrubování): **mezikrok dorampování strmé stěny si dobere svůj
+  schod.** Rovný doběh kroku se už neomezuje společným cílem řetězu — jede až
+  na stěnu kontury a odtud (při zapnutém „Hrubování bez schodků") pokračuje
+  po obrysu, stejně jako běžný průchod. Dřív dojížděl jen POSLEDNÍ krok
+  řetězu, mezikroky končily nasucho uprostřed materiálu, přestože vrstva nad
+  nimi byla obrobená daleko za tím bodem. Dojezd se přitom ořízne na hranu
+  materiálu (`trimLeadOutToStock` nově i v rampové větvi emise), aby po
+  kontuře nepokračoval do prázdna. Měřeno izolovaně: **méně stojícího
+  materiálu** (part-8 −189 mm², part-4/6 −80, part-11/12 a díl uživatele −67,
+  part-1/2 −21), počty průchodů beze změny, čas dílu uživatele +3 %.
+  Pojistka `tests/cam-leadout-air-rapid.test.js`.
 - CAM (podélné hrubování): **údolí, ze kterého mezní čára nevyjede ven, už
   nedělí díl na dva úseky.** Hranici úseku dělá až DOSAH DESTIČKY — mezní
   čára hlídání geometrie (`zanoreni`) musí volným koncem vyjet Z POLOTOVARU

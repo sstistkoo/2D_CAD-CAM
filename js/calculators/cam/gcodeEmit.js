@@ -579,6 +579,40 @@ export function generateAutoGCode(S, calc) {
     }
     return out;
   };
+  // Rozsekání AXIÁLNÍHO řezu (konstantní hloubka x) na rapid(vzduch)/posuv
+  // (materiál) podle SILUETY ODLITKU. `x` = programovaná hloubka (práh je
+  // dosah STOPY nástroje, tj. x − rádius nosu — nos sahá o R hlouběji, takže
+  // řeže i když je střed kousek nad povrchem), `dir` = směr jízdy v Z. Vrací
+  // `[{ kind:'G0'|'G1', z }]` — vždy aspoň jeden prvek (celý úsek jedním
+  // druhem pohybu), takže bez drážek vyjde přesně původní jediný `G1`.
+  // Rychloposuvem se bere jen VÝRAZNÝ vzduch ≥ 0,5 mm — drobné crossingy
+  // z tesselovaných oblouků siluety se neřežou na kousíčky.
+  const airSplitAxial = (x, zFrom, zTo, dir) => {
+    const xReach = x - tipRGc;
+    const zLo = Math.min(zFrom, zTo), zHi = Math.max(zFrom, zTo);
+    const cross = castingCrossZ(xReach, zLo, zHi).filter(z => z > zLo + 1e-6 && z < zHi - 1e-6);
+    let pts = [zFrom, ...cross, zTo].sort((p, q) => dir * (p - q));
+    pts = pts.filter((z, i) => i === 0 || Math.abs(z - pts[i - 1]) > 1e-3);
+    const segs = [];
+    for (let i = 1; i < pts.length; i++) {
+      const ct = castingTopXAtZ((pts[i - 1] + pts[i]) / 2);
+      const air = !(ct !== null && xReach <= ct + 1e-4) && Math.abs(pts[i] - pts[i - 1]) >= 0.5;
+      const kind = air ? 'G0' : 'G1';
+      if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].z = pts[i];
+      else segs.push({ kind, z: pts[i] });
+    }
+    // Přechod řez→vzduch je VÝJEZD Z MATERIÁLU — a ten podle konvence celého
+    // emitoru končí až na VŮLÍ-POSUNUTÉ siluetě („tečkovaná" čára z náhledu),
+    // ne na holé kůře odlitku (stejně jako konec průchodu přes offsetExitZ
+    // níž). Bez toho by posuv končil o Vůli dřív a mezi ním a tečkovanou
+    // čarou by zůstal proužek (hlídá tests/cam-leadout-step).
+    for (let i = 0; i + 1 < segs.length; i++) {
+      if (segs[i].kind !== 'G1' || segs[i + 1].kind !== 'G0') continue;
+      const zOff = offsetExitZ(x, segs[i].z, dir);
+      if (zOff !== null && dir * (zOff - segs[i].z) > 1e-6 && dir * (segs[i + 1].z - zOff) > 1e-6) segs[i].z = zOff;
+    }
+    return segs;
+  };
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;
     try {
@@ -638,6 +672,27 @@ export function generateAutoGCode(S, calc) {
   };
   const cur = { x: null, z: null };
   const setPos = (x, z) => { cur.x = x; cur.z = z; };
+  // Jedna ÚSEČKA dojezdu „bez schodků". Šikmý úsek (mění se X = sledování
+  // kontury) jde vždy posuvem. Čistě AXIÁLNÍ úsek (konstantní X = rovné
+  // pokračování vrstvy) se rozseká na rychloposuv(vzduch)/posuv(materiál)
+  // podle siluety odlitku — stejné pravidlo jako u těla průchodu
+  // (`airSplitAxial` níž; definice až po castingCrossZ, volá se ale jen
+  // za běhu emise, takže na pořadí nezáleží).
+  const emitLeadOutLine = (seg) => {
+    const axial = Math.abs(seg.x2 - seg.x1) < 1e-6;
+    const segs = axial ? airSplitAxial(seg.x2, seg.z1, seg.z2, Math.sign(seg.z2 - seg.z1) || 1) : null;
+    if (!segs || segs.length < 2) {
+      simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+      return;
+    }
+    for (const s of segs) {
+      simCounter += 1;
+      addN(s.kind === 'G0'
+        ? `G0 X${xDia(seg.x2)} Z${s.z.toFixed(3)}`
+        : `G1 X${xDia(seg.x2)} Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
+      setPos(seg.x2, s.z);
+    }
+  };
   // Výchozí poloha = bezpečná poloha z úvodního G0 (programované souř.).
   setPos((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1), parseFloat(prms.safeZ) || 0);
   // touch = true: cíl leží na kontuře/materiálu — poslední úsek sjezdu
@@ -925,14 +980,25 @@ export function generateAutoGCode(S, calc) {
         }
       }
       if (Math.abs(pass.zStart - pass.zEnd) > 1e-6) {
-        simCounter += 1; addN(`G1 Z${pass.zEnd.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, pass.zEnd);
+        // Rovné dno za rampou — stejně jako tělo otevřeného průchodu se seká
+        // na rychloposuv(vzduch)/posuv(materiál) podle siluety odlitku: krok
+        // řetězu dorampování běží až na stěnu kontury a po cestě může přejet
+        // celé údolí, kde nástroj nemá co řezat.
+        for (const s of airSplitAxial(pass.x, pass.zStart, pass.zEnd, Math.sign(pass.zEnd - pass.zStart) || zDir)) {
+          simCounter += 1;
+          addN(s.kind === 'G0' ? `G0 Z${s.z.toFixed(3)}` : `G1 Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
+          setPos(pass.x, s.z);
+        }
       }
       if (pass.contourLeadOut) {
         // Bez schodků / dokončení kapsy: po dně dál po kontuře (G1/G2/G3)
-        // místo odskoku — druhá stěna se obrobí přímo po obrysu.
-        for (const seg of pass.contourLeadOut) {
+        // místo odskoku — druhá stěna se obrobí přímo po obrysu. Ořez na
+        // hranu materiálu (`trimLeadOutToStock`) je tu ze stejného důvodu
+        // jako u otevřeného průchodu níž: dojezd kroku dorampování může po
+        // kontuře dojet až tam, kde nad nástrojem polotovar dávno nesahá.
+        for (const seg of trimLeadOutToStock(pass.contourLeadOut, tipRGc)) {
           if (seg.type === 'line') {
-            simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            emitLeadOutLine(seg);
           } else {
             simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           }
@@ -957,23 +1023,7 @@ export function generateAutoGCode(S, calc) {
       // posuv(materiál). Bez drážek (řez celý v materiálu) = PŘESNĚ původní
       // `G1 Z zStart` + `G1 Z zEnd` → snapshoty bez drážek beze změny.
       const dir = zDir;
-      const zLo = Math.min(pass.zStart, pass.zEnd), zHi = Math.max(pass.zStart, pass.zEnd);
-      // Práh = dosah STOPY nástroje, ne střed: nos (rádius tipRGc) sahá o R
-      // hlouběji, takže řeže i když je střed pass.x kousek nad povrchem odlitku.
-      const xReach = pass.x - tipRGc;
-      const cross = castingCrossZ(xReach, zLo, zHi).filter(z => z > zLo + 1e-6 && z < zHi - 1e-6);
-      let pts = [pass.zStart, ...cross, pass.zEnd].sort((p, q) => dir * (p - q));
-      pts = pts.filter((z, i) => i === 0 || Math.abs(z - pts[i - 1]) > 1e-3);
-      // Rapid jen VÝRAZNÝ vzduch ≥0,5 mm (drobné crossingy z tesselovaných oblouků
-      // siluety neřež), sousední stejného typu slij → čistý výstup.
-      const segs = [];
-      for (let i = 1; i < pts.length; i++) {
-        const ct = castingTopXAtZ((pts[i - 1] + pts[i]) / 2);
-        const air = !(ct !== null && xReach <= ct + 1e-4) && Math.abs(pts[i] - pts[i - 1]) >= 0.5;
-        const kind = air ? 'G0' : 'G1';
-        if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].z = pts[i];
-        else segs.push({ kind, z: pts[i] });
-      }
+      const segs = airSplitAxial(pass.x, pass.zStart, pass.zEnd, dir);
       // Vedoucí vzduch (segs[0]=='G0') se NEřeže ani nepřejíždí uprostřed drážky —
       // přijede se rovnou na jeho konec = HRANA POLOTOVARU. Bez vedoucího vzduchu
       // je hrana = pass.zStart (původní chování, snapshoty beze změny).
@@ -1033,7 +1083,14 @@ export function generateAutoGCode(S, calc) {
         // průchodu místo okamžitého odskoku — schod se obrobí přímo.
         for (const seg of leadOutSegs) {
           if (seg.type === 'line') {
-            simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            // AXIÁLNÍ úsek (konstantní hloubka — typicky rovné pokračování
+            // vrstvy přes údolí za dosednutím rampy) se stejně jako tělo
+            // průchodu rozseká na rychloposuv(vzduch)/posuv(materiál): nad
+            // údolím odlitku, kam nástroj nedosáhne, není co řezat a posuv
+            // by tam jel desítky mm naprázdno (reálný nález na díle
+            // uživatele). Sledování KONTURY (šikmé úseky, oblouky) se nedělí
+            // — to se drží dílu, tam žádný vzduch nepřipadá v úvahu.
+            emitLeadOutLine(seg);
           } else {
             simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           }

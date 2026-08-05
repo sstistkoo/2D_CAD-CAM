@@ -2006,10 +2006,15 @@ export function genLongPasses(ctx) {
       // regionu), stejně jako u prvního (nerozděleného) dojezdu. Poslední
       // krok už tam doletí přímo rampou (stepZ === rc.targetZ), navíc
       // rovný úsek nepotřebuje.
-      // Rovný úsek mezikroku končí na stěně kontury, i kdyby společný cíl
-      // rc.targetZ ležel dál — na téhle (mělčí) hloubce může kontura stoupnout
-      // dřív než na cílové (jinak by mezikrok podjel hotovní konturu).
-      const stepEndZ = isLastStep ? stepZ : straightRunEndZ(stepX, stepZ, rc.targetZ);
+      // Rovný úsek mezikroku končí na STĚNĚ KONTURY (straightRunEndZ) — na
+      // téhle (mělčí) hloubce může kontura stoupnout dřív než na cílové, tam
+      // musí zastavit, aby nepodjel hotovní konturu. Doběh se ale NEomezuje
+      // společným cílem rc.targetZ: leží-li stěna až ZA ním, mezikrok tam
+      // dojede a schod dobere svým dojezdem (níž). Se stropem na rc.targetZ
+      // končil nasucho uprostřed materiálu, přestože vrstva nad ním
+      // (o Hloubku ap mělčí) byla obrobená až daleko za tím bodem — reálný
+      // nález na díle uživatele.
+      const stepEndZ = isLastStep ? stepZ : straightRunEndZ(stepX, stepZ, traceFloorL);
       const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: stepEndZ, blocked: true };
       // Řetěz dorampování strmé stěny — stejná povaha jako entryRangeRamp:
       // kroky leží NAD SEBOU podél TÉŽE stěny, nejsou to nezávislé bossy.
@@ -2027,11 +2032,17 @@ export function genLongPasses(ctx) {
       // beze změny polohy (noRetract) — návaznost řeší odskok+reposition
       // NÁSLEDUJÍCÍHO kroku (pocketReposition výš), ne odjezd tohoto.
       if (stepX > rc.targetX + 1e-6) stepPass.noRetract = true;
-      else if (prms.noStepRoughing) {
-        // Poslední krok dosedl na konturu — schod vůči kroku NAD ním se
-        // dobere sledováním obrysu, stejně jako u běžného průchodu „bez
-        // schodků" (jinak zůstane mezi rampou a hotovní konturou klín;
-        // reálný nález na díle uživatele v údolí).
+      if (prms.noStepRoughing) {
+        // Krok dosedl na konturu — schod vůči kroku NAD ním se dobere
+        // sledováním obrysu, stejně jako u běžného průchodu „bez schodků"
+        // (jinak zůstane mezi rampou a hotovní konturou klín; reálný nález
+        // na díle uživatele v údolí). Platí i pro MEZIKROKY řetězu: každý
+        // z nich je plnohodnotná vrstva na své hloubce a schod vůči vrstvě
+        // nad sebou si dobírá sám (dřív dojížděl jen poslední krok, takže
+        // mezikrok skončil nasucho na stěně — reálný nález na díle
+        // uživatele). Návaznost řetězu to nerozbíjí: následující krok se
+        // stejně odskočí a rychloposuvem vrátí na konec rampy toho
+        // předchozího (`pocketReposition`/`rampFeedFrom` výš).
         const lo = holderTrimLeadOut(traceIfContinuous(
           traceOffsetPath(stepEndZ, findLeadOutEndZ(stepEndZ, curX, -Infinity, traceFloorL)),
           stepX, stepEndZ), true);
