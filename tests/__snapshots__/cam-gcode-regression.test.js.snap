@@ -693,7 +693,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
 {
   "interferenceGuides": [
     "zanoreni: (9.29,30.00)->(5.00,46.00)",
-    "zanoreni/stock: (19.89,0.00)->(14.00,22.00)",
+    "zanoreni/stock: (21.84,-7.25)->(14.00,22.00)",
   ],
   "machinableContour": [
     "L (0.00,48.00)->(4.00,48.00)",
@@ -4310,10 +4310,10 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
     "zanoreni: (36.97,143.49)->(38.57,137.51)",
     "zanoreni: (6.74,171.41)->(8.74,163.94)",
     "zanoreni: (42.00,265.16)->(50.08,234.99)",
-    "zanoreni/stock: (8.86,346.37)->(9.12,345.40)",
+    "zanoreni/stock: (2.90,368.59)->(9.12,345.40)",
   ],
   "machinableContour": [
-    "L (8.86,346.37)->(9.12,345.40) {ins}",
+    "L (2.90,368.59)->(9.12,345.40) {ins}",
     "L (9.12,345.40)->(9.12,265.16)",
     "L (42.00,265.16)->(50.08,234.99) {ins}",
     "L (50.08,234.99)->(50.08,221.13)",
@@ -4651,10 +4651,10 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
     "zanoreni: (6.74,171.41)->(8.74,163.94)",
     "dojezd: (6.74,198.74)->(30.16,205.01)",
     "zanoreni: (42.00,265.16)->(50.08,234.99)",
-    "zanoreni/stock: (8.86,346.37)->(9.12,345.40)",
+    "zanoreni/stock: (2.90,368.59)->(9.12,345.40)",
   ],
   "machinableContour": [
-    "L (8.86,346.37)->(9.12,345.40) {ins}",
+    "L (2.90,368.59)->(9.12,345.40) {ins}",
     "L (9.12,345.40)->(9.12,265.16)",
     "L (42.00,265.16)->(50.08,234.99) {ins}",
     "L (50.08,234.99)->(50.08,221.13)",

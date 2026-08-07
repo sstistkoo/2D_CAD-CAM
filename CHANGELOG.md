@@ -118,6 +118,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přídavky, čára se nekreslí – splynula by s hrubovacím offsetem.
 
 ### Changed
+- **Mezní čára hlídání geometrie dojede až na hranu MATERIÁLU, ne na konec
+  dílce.** Volný konec čáry hledá paprsek podél hrany destičky; když minul
+  konturu a dopadl až na obrys polotovaru, ořezával se zpátky na konec
+  kontury (`minPartZG`) – čára pak viditelně nedojela k obrysu polotovaru
+  (reálný nález na díle uživatele, hrubování zleva: stín kužele Ø199,7
+  skončil na čele dílce Z449,81, ačkoli polotovar sahá na Z482 – **chybělo
+  32 mm**). Polotovar za koncem dílce je pořád materiál (přídavek na čelo),
+  kam nástroj nedosáhne, takže tam čára patří. Dopad ZA konturou navíc
+  vždycky leží na polotovaru (kontura tam z definice není), takže ten ořez
+  nedělal nic jiného, než že tuhle informaci zahazoval. Dopad na **osu**
+  (X≈0) se dál zahazuje beze změny – to řezná plocha není.
+  - **Dráhy ani G-kód se nemění** – ověřeno na všech 17 regresních dílech
+    (snapshoty obou sad se hnuly jen v souřadnicích čar, žádný řádek
+    G-kódu). Čáry kotvené uprostřed kontury jsou jen vizualizace; u part-11/
+    12-zleva se prodloužil i mostový úsek obrobitelné kontury (`{ins}`),
+    ale leží v přídavku za dílcem, takže na něj žádný průchod nesahá.
+  - Pojistka `tests/cam-guide-to-stock-end.test.js` (na starém kódu padá).
 - **Mezní čára „Hlídat geometrii (destička + držák)" je zase ROVNÁ ÚSEČKA.**
   Čára se od dotykového bodu táhne výhradně podél hrany destičky – žádné
   oblouky, žádné zlomy. Dřív se mohla lámat podél *dosažitelné hranice

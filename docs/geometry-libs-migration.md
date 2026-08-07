@@ -679,6 +679,16 @@ Hotovo (hotovní offset jako sdílená reference, 5. 8. 2026):
   platí jen pro **překážku za koncem** průchodu (držák), ne pro špičku na
   offsetu — dřív stála každá vrstva 0,1 mm před offsetovou čárou.
 
+Hotovo (mezní čára končí na hraně materiálu, 7. 8. 2026):
+- Volný konec mezní čáry (`walkStraight` v `interferenceGuides.js`) se při dopadu
+  ZA konturou ořezával zpět na konec dílce (`minPartZG`). Jenže dopad za konturou
+  z definice leží na POLOTOVARU — kontura tam není — takže ořez jen zahazoval
+  informaci „kam až sahá materiál, kam nástroj nedosáhne". Na díle uživatele
+  (hrubování zleva) tím stín kužele Ø199,7 skončil na čele dílce Z449,81, ačkoli
+  polotovar sahá na Z482. Dopad na OSU (X≈0) se dál zahazuje beze změny.
+- Dráhy ani G-kód se nemění (ověřeno na všech 17 fixtures — snapshoty se hnuly
+  jen v souřadnicích čar). Pojistka `tests/cam-guide-to-stock-end.test.js`.
+
 Zbývá (genuinní mezera — order-dependent odlitek):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd
   vedl vzduchem, ne posuvem skrz materiál): exit-split výše je jen bezpečný, ne

@@ -4188,7 +4188,7 @@ N2060 M30 ; Konec programu
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-11-zleva-casting.camprog → stabilní booleovský G-kód > pipeline-bool 1`] = `
 {
   "machinableContour": [
-    "L (8.86,346.37)->(9.12,345.40) {ins}",
+    "L (2.90,368.59)->(9.12,345.40) {ins}",
     "L (9.12,345.40)->(9.12,265.16)",
     "L (42.00,265.16)->(50.08,234.99) {ins}",
     "L (50.08,234.99)->(50.08,221.13)",
@@ -4519,7 +4519,7 @@ N2020 M30 ; Konec programu
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-12-zleva-step.camprog → stabilní booleovský G-kód > pipeline-bool 1`] = `
 {
   "machinableContour": [
-    "L (8.86,346.37)->(9.12,345.40) {ins}",
+    "L (2.90,368.59)->(9.12,345.40) {ins}",
     "L (9.12,345.40)->(9.12,265.16)",
     "L (42.00,265.16)->(50.08,234.99) {ins}",
     "L (50.08,234.99)->(50.08,221.13)",

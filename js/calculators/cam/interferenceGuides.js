@@ -474,17 +474,22 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
           return { down: { x: a.x + ux * tEnd, z: a.z + uz * tEnd }, clipped: true };
         }
         if (hit) {
-          // Odlitkový polotovar má jako uzavírací hrany i OSU (X=0) a ZADNÍ
-          // čelo (z < min Z kontury), což nejsou řezné plochy. Dopad na osu
-          // zahodit (ukončí hledání — níž už je jen osa); dopad pod konec
-          // dílce oříznout přesně na konec dílce po směru paprsku.
-          // VÝJIMKA: dotykový bod SÁM na konci dílce (levé/zadní čelo) —
-          // viz komentář u downOnStock níže; tam se neořezává.
+          // Odlitkový polotovar má jako uzavírací hranu i OSU (X=0), což není
+          // řezná plocha — dopad na osu zahodit (ukončí hledání, níž už je
+          // jen osa).
+          //
+          // Konec DÍLCE naopak hranicí NENÍ: polotovar za ním pokračuje
+          // (přídavek na čelo) a mezní čára má končit až na hraně MATERIÁLU —
+          // tam, kam nástroj fyzicky nedosáhne. Dřív se dopad pod `minPartZG`
+          // ořezával zpět na konec kontury, takže čára viditelně nedojela
+          // k obrysu polotovaru (reálný nález na díle uživatele: stín kužele
+          // skončil na čele dílce Z449,81, ačkoli polotovar sahá na Z482 —
+          // 32 mm chybělo). Dopad ZA konturou vždycky leží na polotovaru
+          // (kontura tam z definice není), takže ořez nedělal nic jiného, než
+          // že tuhle informaci zahazoval. Ověřeno: dráhy ani G-kód se
+          // neprodloužením nemění (čáry kotvené uprostřed kontury jsou jen
+          // vizualizace) — viz tests/cam-guide-to-stock-end.test.js.
           if (Math.abs(hit.x) < 0.1 && best.x > 0.5) return { rejected: true };
-          if (hit.z < minPartZG - 0.5 && best.z > minPartZG + 0.5) {
-            const tz = uz < -0.01 ? (a.z - minPartZG) / -uz : -1;
-            hit = (tz > 0.01 && tz <= rayLen) ? { x: a.x + ux * tz, z: minPartZG } : { x: a.x, z: a.z };
-          }
           return { down: hit };
         }
         return null;

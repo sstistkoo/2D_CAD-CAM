@@ -777,6 +777,8 @@ export function genLongPasses(ctx) {
   // a jízda v Z; schodky zůstávají.
   const partingNoDress = isParting && !prms.noStepRoughing;
   let partingNarrowPockets = 0;
+  // Kapsy, do kterých se mezi stěny nevejde DRŽÁK (clamp.span) — vynechané.
+  let holderNarrowPockets = 0;
   let holderDroppedPasses = 0;   // průchody vynechané obálkou držáku (Fáze 3a)
 
   // Navázání: předchozí průchod končí přesně v bodě, odkud začíná leadIn
@@ -1272,6 +1274,19 @@ export function genLongPasses(ctx) {
   // krokem (níž), ne zahodí — pak se řetěz uzavře (nezkoušet znovu na
   // každé další, ještě hlubší vrstvě).
   let entryRampClosed = false;
+  // Stojí nástroj OPRAVDU na kotvě řetězu? `pocketReposition` emituje přesun
+  // z AKTUÁLNÍ polohy uvnitř kapsy (odskok → G0 Z → sjezd), ne nájezd zvenčí —
+  // je bezpečný jen tehdy, když je kotva koncem PRÁVĚ VYDANÉHO průchodu.
+  // Řetěz vjezdové rampy běží napříč hloubkami, takže se mezi jeho kroky může
+  // vklínit průchod odjinud (typicky zanoření do kapsy na téže hloubce). Pak
+  // kotva osiří a týž rychloposuv vede skrz stojící materiál — v takovém
+  // případě se krok vydá jako normální vjezd (rampa od kotvy zůstává, jen se
+  // k ní najede zvenčí). Hlídá tests/cam-ramp-chain.test.js.
+  const chainTipIs = (anchor) => {
+    const last = passes[passes.length - 1];
+    return !!last && last.zStart !== undefined
+      && Math.abs(last.x - anchor.x) < 0.01 && Math.abs(last.zStart - anchor.z) < 0.01;
+  };
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -1405,7 +1420,7 @@ export function genLongPasses(ctx) {
             if (zS > iv.zEnd + 0.05) {
               passObj.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
               passObj.entryRangeRamp = true;
-              if (!entryRampAnchor.first) {
+              if (!entryRampAnchor.first && chainTipIs(entryRampAnchor)) {
                 passObj.pocketReposition = true;
                 passObj.rampFeedFrom = { x: entryRampAnchor.x, z: entryRampAnchor.z };
               }
@@ -1557,24 +1572,15 @@ export function genLongPasses(ctx) {
         }
         return;
       }
-      // Kapsa za bossem kontury (idx>=1) — otevřený řez (idx===0) se za
-      // bossem nedívá vůbec (viz komentář výš), takže se tu nic za bossem
-      // nedohledává ani nedorampovává.
+      // Kapsa za bossem kontury — sledování kontury (G1/G2/G3) a rampa pod
+      // úhlem zanoření. Kapsa se bez rampy vjet nedá (kolmý zápich do plného
+      // materiálu), takže celá tahle větev patří pod „Zanořování".
       //
-      // POZOR (stav k 28.07.2026): kód pod tímhle returnem je z doby PŘED
-      // vypnutím kapes (23.07.). Zapnutí je ROZPRACOVANÉ, ne hotové:
-      //  ✔ hotovo — gouge do kontury (15,3 mm pocket-wall-at-plunge-angle,
-      //    22,2 mm range-chain-insert-shadow) vyřešen tím, že se kotva rampy
-      //    při zvedání k povrchu zastaví i na HOTOVNÍ KONTUŘE (`stockEntryRamp`
-      //    + jeho dřívější inline kopie v `buildPocketPass` níž testovaly jen
-      //    siluetu polotovaru, takže u kapsy za bossem vedly přímku zanoření
-      //    skrz ten boss);
-      //  ✘ zbývá — kapsová rampa umí vzít 30,4 mm v jednom kroku místo
-      //    Hloubky ap (`cam-leadout-step`), řez u insert-shadow končí 0,1 mm
-      //    uvnitř přídavkového pásma, a zanoření za hrbem si mění pořadí
-      //    (`range-entry-ramp`).
-      // Do vyřešení těchto tří bodů zůstává větev vypnutá.
-      return;
+      // Sem chodí i PRVNÍ interval, když je blokovaný (idx===0, !firstOpen):
+      // typicky hrubování ZLEVA za přírubou u čela — vjezd zprava neexistuje,
+      // materiál v údolí za ní ale ano (reálný nález na díle uživatele:
+      // příruba Ø170 na Z 0–38 zahodila všechny hloubky pod ní).
+      if (!prms.plungeRoughing) return;
       // Když je úplně první interval blokovaný (idx===0, !firstOpen),
       // neexistuje předchozí interval → horní hranice mezery = okraj
       // polotovaru (sz.zMax). Bez fallbacku by intervals[-1] spadlo.
@@ -1601,6 +1607,22 @@ export function genLongPasses(ctx) {
       // — a kolidovala by tam taky (ověřeno: bez téhle poznámky se kolize
       // jen přesunula o pár hloubek dál, misto aby zmizela).
       let skipRiskyPocketEmit = iv.blocked && prms.pocketFinishAtOnce && idx > 1;
+      // ── Obálka DRŽÁKU pro kapsový SPAN (Fáze 3b) ─────────────────────────
+      // Scan intervaly kapes vědomě neořezává (ořez `holderClampZEnd` platí
+      // pro jednostranně otevřený řez), takže se do kapsy mezi dvě stěny
+      // pouštěl celý interval — a držák se opřel o stěnu nad sebou.
+      // `clamp.span` vrací okno, kam se držák mezi stěny opravdu vejde;
+      // užší kapsu vynecháme (patří jinému nástroji, ne podélnému hrubování).
+      // Bez tohoto ořezu dělá zapnutá kapsová větev na range-chain fixtures
+      // 11 kolizí držáku / 500–670 mm² tam, kde bylo čisto.
+      if (iv.blocked && holderClampZEnd && holderClampZEnd.span) {
+        const sp = holderClampZEnd.span(currentX, iv.zStart, iv.zEnd);
+        if (!sp) { holderNarrowPockets++; return; }
+        if (sp.zStart < iv.zStart - 1e-6 || sp.zEnd > iv.zEnd + 1e-6) {
+          iv = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
+          if (iv.zStart - iv.zEnd < dzScan) { holderNarrowPockets++; return; }
+        }
+      }
       if (!iv.blocked) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
         // kapsa s druhou stěnou, takže žádná rampa. Jen se sleduje
@@ -1735,6 +1757,18 @@ export function genLongPasses(ctx) {
           // zůstane v rohu a hloubku dobere až řetěz vrstev.
           const anchorUp = stockEntryRamp(cornerLocal.x, cornerLocal.z);
           pocketPass.ramp = anchorUp || { x0: cornerLocal.x, z0: cornerLocal.z };
+        }
+        // Jeden průchod nesmí sebrat víc než Hloubka (ap). Kotva zvednutá až
+        // na kůru polotovaru leží u kapsy za bossem klidně 2× ap nad dosaženou
+        // hloubkou (roh kotví hluboko pod povrchem) — rampa by pak jedním
+        // záběrem projela celý ten rozdíl (naměřeno 9,8 mm při ap 5 na
+        // range-chain-insert-shadow). Kotva se proto po TÉŽE rampové přímce
+        // spustí zpátky na ap nad dno průchodu; materiál nad ní vzala mělčí
+        // vrstva (hloubková smyčka jde odshora dolů) nebo ho vezme další krok
+        // řetězu. Hlídá tests/cam-leadout-step.test.js.
+        if (pocketPass.ramp && pocketPass.ramp.x0 > pocketPass.x + step + 1e-6) {
+          const dx = pocketPass.ramp.x0 - (pocketPass.x + step);
+          pocketPass.ramp = { x0: pocketPass.x + step, z0: pocketPass.ramp.z0 - dx / effPlungeTanL };
         }
         if (leadInFinal.length > 0) pocketPass.contourLeadIn = leadInFinal;
         if (withLeadOut && prms.noStepRoughing && !ivLocal.holderClamped) {
@@ -1979,7 +2013,11 @@ export function genLongPasses(ctx) {
         const finalPass = { type: 'long', x: bestX, zStart: zS2, zEnd: bestCiv.zEnd, blocked: true };
         finalPass.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
         finalPass.entryRangeRamp = true;
-        if (!entryRampAnchor.first) {
+        // Uzavírací krok řetězu přichází až PO celé hloubkové smyčce, takže se
+        // mezi něj a kotvu mohlo vklínit zanoření do kapsy z některé hloubky —
+        // pak nástroj na kotvě nestojí a přesun uvnitř kapsy by vedl skrz
+        // materiál (viz chainTipIs výš).
+        if (!entryRampAnchor.first && chainTipIs(entryRampAnchor)) {
           finalPass.pocketReposition = true;
           finalPass.rampFeedFrom = { x: entryRampAnchor.x, z: entryRampAnchor.z };
         }
