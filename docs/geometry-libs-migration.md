@@ -3,7 +3,10 @@
 > Clipper2 (booleovské operace, offsety) · Turf.js (prostorová analýza) ·
 > Detect-Collisions (rychlý broad-phase filtr kolizí)
 >
-> Stav: Fáze 0 hotová (15. 7. 2026) · adaptér `js/geom/geomCore.js`
+> Stav (k 5. 8. 2026): Fáze 0–2 · 2b/3 · 3a/3b hotové · Fáze 3 jádro + regiony
+> + příznak `booleanRoughing` hotové (zbývá krok 3C) · Fáze 4 rozpracovaná
+> (zbývá přeplánování pořadí) · Fáze 5 se dělat NEBUDE.
+> Adaptér `js/geom/geomCore.js`
 
 > **PAUZA (18. 7. 2026) → REFAKTOR HOTOV, migrace může pokračovat:**
 > Migrace (Fáze 3 zbytek / 3b dokončování / 4 zbývá / 5) byla dočasně
@@ -492,8 +495,8 @@ Hotovo (vjezd na materiálu + jen nutné regiony — pořadí vrstev, 27. 7. 202
   Po sloučení jde vrstva odshora dolů přes obě strany, vzduch mezi nimi přeletí
   rychloposuvem, a doleva se pokračuje jen tam, kam pustí kontura — dělení tak
   vzniká z OFFSETU HOTOVNÍ KONTURY, ne ze středu údolí polotovaru.
-- **Hranici dělá až dosah destičky** (`guideStaysInStock`, doplněk předchozího
-  bodu): test „sloučeného skenu" je jednosměrný — porovnává jen PRVNÍ interval,
+- **Hranici dělá až dosah destičky** (`guideStaysInStock`, doplněno 5. 8. 2026
+  jako doplněk předchozího bodu): test „sloučeného skenu" je jednosměrný — porovnává jen PRVNÍ interval,
   takže když sweep narazí na stěnu kontury hned na začátku (hrubování zleva),
   hranici zachová, kdežto z druhé strany TÉHOŽ dílu ji zahodí. Rozhoduje proto
   mezní čára hlídání geometrie destičky (`interferenceGuides`, kind `zanoreni`)
@@ -544,12 +547,150 @@ Hotovo (rampa dojezdu nepodjíždí konturu, 27. 7. 2026):
 - Zbytkový materiál fixtures tím ROSTE (part-1 5868 → 8647 mm² s regiony) —
   odebíral se materiál HOTOVÉHO DÍLU. Snapshoty obou regresních sad regenerovány.
 
+Hotovo (rozsah 📐 ořezává i PLÁNOVACÍ geometrii, 28. 7. 2026):
+- Rozsah obrábění Z se dosud uplatňoval jen na řezné pohyby; hloubková
+  posloupnost i vjezdy se počítaly z CELÉHO polotovaru → odlitkový hrb ZA
+  hranicí rozsahu vyrobil průchody na průměrech, které v rozsahu vůbec nejsou
+  (řez vzduchem: rozsah Z 108–195,6 s materiálem do X≈48 dal průchody na
+  X≈65/59). Nově se ořezává i geometrie, ze které se plánuje. **Kolize se dál
+  počítají proti NEOŘEZANÉMU polotovaru** (obálka držáku, `validateToolpath`,
+  `MaterialRemoval`) — odtud dvojice smyček `stockLoopL` / `stockLoopFullL`
+  a jejich offsetů `stockLoopOffsetL` / `stockLoopOffsetFullL`, se kterou
+  pracují všechny pozdější kroky.
+- **Dno rozsahu je tvrdé i pro DOJEZDY a rampy** (`traceFloorL` ve
+  `findLeadOutEndZ` / `findPocketExitZ` / `findRampOutTarget`) — dřív si za dno
+  braly siluetu polotovaru a rozsah přejely o desítky mm.
+- **Samostatné zanoření za odlitkovým hrbem**: kotva rampy se posune na
+  nejpravější místo, kde nástroj stojí na offsetové čáře polotovaru a vedle se
+  v celém axiálním dosahu vejde držák (1 mm volno). Dřív taková hloubka celá
+  vypadla a menší průměry zůstaly nehrubované (obejít šlo jen ručním posunutím
+  Startu rozsahu Z). Zanoření se v pořadí odloží za větší průměry.
+- Testy: `tests/cam-leadout-step.test.js` + fixture `range-end-leadout`,
+  `tests/range-entry-ramp.test.js`.
+
+Hotovo (víc operací nad zbytkovým `StockModel`em, 28. 7. 2026):
+- **➕ Operace**: program se skládá z částí a další část startuje na polotovaru
+  OBROBENÉM těmi předchozími (`js/calculators/cam/opParts.js`, `gcodeMerge.js`).
+  První reálné využití booleovského zbytku jako **VSTUPU dalšího výpočtu**, ne
+  jen vizualizace.
+- Zbytek z `StockModel` se před předáním prokládá **oblouky**
+  (`fitArcsToPolyline`), ne stovkami úseček z booleovského výstupu (34 → 15
+  bodů, z toho 4 oblouky) — jinak by scan hrubování jelo přes tisíce segmentů.
+  Oblouky se dělí na **max. 90°**: zápis „koncový bod + R" je u skoro-180°
+  oblouku numericky prekérní (tětiva → 2R), zaokrouhlení na µm posune
+  dopočítaný střed o řád víc. Každý oblouk se po zaokrouhlení ověří a při
+  neshodě degraduje na úsečku.
+- Test: `tests/cam-op-parts.test.js`.
+
+Hotovo (hrubování zleva = ZRCADLO, 29. 7. 2026):
+- „→ Zleva" přestalo být vlastní (v1) strategií — je to čistě zrcadlo v ose Z
+  (`js/calculators/cam/zMirror.js` + `passHelpers.js`): svět se na vstupu
+  překlopí, spočítá se obyčejné hrubování zprava a výsledek se překlopí zpět.
+  Levá strana tím zdědila VŠECHNO z pravé — siluetu odlitku, mezní čáry, kapsy,
+  rampy, obálku držáku i booleovskou větev (dřív počítala s válcovým
+  polotovarem a hlídání destičky brala pro pravý nůž → 41 průchodů přes celý
+  díl; nově 25 s regiony a rampami, hlášené problémy 13 → 2).
+- PAST: zrcadlení musí řetěz bodů i **OBRACET** (typ pohybu a rádius patří
+  k úseku DO bodu → posun o jedna), jinak offsety ÚSEČEK spadnou dovnitř dílu
+  (venku zůstanou jen oblouky, které si stranu detekují z geometrie).
+- Pravá strana zůstala bit za bit stejná — žádný snapshot se nezměnil. Testy:
+  `tests/cam-backside-mirror.test.js` + fixtures `part-11-zleva-casting`,
+  `part-12-zleva-step`.
+
+Hotovo (konec průchodu na HRANĚ materiálu, 29.–30. 7. 2026):
+- Řezný interval se plánuje z obdélníkového OBALU (rozhodnutí Fáze 3), takže
+  mohl sahat desítky mm za skutečný polotovar — nástroj po posledním řezu ještě
+  přejel prázdnem na konec okna, tam pustil posuv o Vůli Z a teprve pak odskočil.
+  Koncový vzduch se nově zahazuje: průchod dojede na hranu odlitku a navazující
+  dojezd ho posune na **vůlí-posunutou siluetu**. Totéž pro dojezd „bez schodků"
+  (`trimLeadOutToStock`; úseky celé ve vzduchu se zahodí, hraniční se zkrátí
+  interpolací). Odebraný materiál **± 0,0 mm² na všech 17 fixtures** — mizí jen
+  jízda vzduchem.
+- **Údolí si nese své ústí** (`computeResidualRegions` vrací i `zHi`/`zLo`) =
+  podklad pro `guideStaysInStock` výš.
+- **Řetěz ramp vyňat z heuristiky „pravých stěn kapes"**: kroky dorampování se
+  braly jako samostatné bossy NAPŘÍČ celým dílem → průchodu spadl `zStart` pod
+  `zEnd`, celý se smazal a osiřelý `pocketReposition` jel rychloposuvem skrz
+  neobrobený materiál (part-11/12: 501 mm² → 0, pocket-wall-at-plunge-angle:
+  163 → 0). Pojistka `tests/cam-ramp-chain.test.js` (žádný `pocketReposition`
+  bez předchůdce).
+
+Hotovo (zanořování pod DNO VYBRÁNÍ, 5. 8. 2026):
+- Rozpouštění hranice úseku v „kůře dna" (`zHiSurf`/`zLoSurf`) platí jen **BEZ**
+  `plungeRoughing`. Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni se řeší
+  RAMPOU pod úhlem zanoření (přesně jako na hranici rozsahu 📐) — dřív hloubky
+  pod povrchem dna přebíral úsek NAD hranicí, ten na ně ale dosáhne jen svým
+  prvním intervalem, takže materiál za hranicí zůstal stát a jedinou cestou
+  k němu bylo ruční nastavení Rozsahu Z. Bez rampy by vznikl kolmý zápich do
+  kůry, proto to platí jen se zanořováním.
+- Zanoření vzniká jen tam, kde se vedle vjezdu prokazatelně **vejde DRŽÁK**
+  (`holderEntryCapZ`); jinak se hloubka v tom úseku vynechá jako dřív. Hranice
+  leží uprostřed materiálu → bez místa pro držák by rampa vjela bokem do
+  neobrobeného odlitku (87 mm² oranžová kolize uprostřed vybrání; s podmínkou
+  5 → 0 hlášených kolizí).
+- **Odložené zanoření se řadí na konec SVÉHO úseku** (`regionMark`), ne až za
+  celý program — úsek je samostatná Z-zóna dílu. Podmínka „co je nahoře, má
+  přednost" (`__deferEntry`) platí dál, měří se ale v Z-okně zanoření.
+- Měřeno izolovaně: **méně stojícího materiálu, nikde ne víc** (part-11 −168 mm²,
+  range-chain-insert-shadow −107, díl uživatele −106, part-12 −104, part-10 −60,
+  holder-region −40, range-end-leadout −34).
+- Pojistky: `tests/cam-region-plunge.test.js`, `tests/range-entry-ramp.test.js`.
+
+Hotovo (dojezdy a doběh dorampování nejedou vzduchem, 5. 8. 2026):
+- **`airSplitAxial` (`gcodeEmit.js`) je SDÍLENÝ helper** pro tělo průchodu, dno
+  za rampou i AXIÁLNÍ úsečky dojezdu „bez schodků": rozseká pohyb na
+  G0(vzduch)/G1(materiál) podle siluety odlitku a přechod řez→vzduch dojede až
+  na vůlí-posunutou siluetu (jinak padá `tests/cam-leadout-step`). Dřív jel
+  dojezd „bez schodků" posuvem desítky mm nad údolím naprázdno.
+- **Mezikroky řetězu dorampování si doberou svůj schod** — jedou až na stěnu
+  kontury a odtud po obrysu, ne na společný cíl `rc.targetZ` (dřív dojížděl jen
+  POSLEDNÍ krok, mezikroky končily nasucho uprostřed materiálu). Pak ale
+  POVINNĚ `trimLeadOutToStock` i v rampové větvi emise, jinak dojezd pokračuje
+  po kontuře do vzduchu. Měřeno: part-8 −189 mm², part-4/6 −80, part-11/12
+  a díl uživatele −67, part-1/2 −21; počty průchodů beze změny, čas +3 %.
+- **Doběh končí na konci SOUVISLÉHO materiálu** (`stockRunEndZ`
+  v `roughingStrategies.js`): za mezerou v odlitku je jiné místo dílu, vcelku se
+  bere jen materiál V KUSE (stejné pravidlo jako u hranic úseků; dřív doběh
+  přeletěl celé údolí a dodělával vrstvu na druhé straně). Měří se na **CELÉ**
+  vůlí-posunuté siluetě (`stockLoopOffsetFullL`, bez ořezu rozsahem) — „materiál
+  v kuse" je vlastnost DÍLU, ne zvoleného úseku. Hranice se hledá **PŮLENÍM**,
+  ne po krocích vzorkování: konec musí sednout PŘESNĚ na offsetovou čáru, o krok
+  vedle by ho emise nesměla dotáhnout (prodloužení výjezdu nesmí přejet konec
+  průchodu) a řez by skončil o vůli dřív. Emise proto prodlužuje výjezd i na
+  NULOVÝ navazující vzduch (`>=` místo `>`) a smrsklé úseky filtruje pryč.
+- **Přesun v kapse se zvedá po ÚROVNÍCH PŘEDCHOZÍCH VRSTEV** (krok = ap), dokud
+  přejezd nevede volně (strop = výjezd nad konturu) — odskok 2 mm nestačí, když
+  je ap 5 mm, a přejezd v Z pak vedl stojícím odlitkem. Sjezd zpět končí
+  pracovním posuvem (sdílený `emitDescendX`).
+- Krok dorampování už nepokračuje rychloposuvem přes celý zbytek dílu (koncový
+  vzduch se zahodí stejně jako u otevřeného průchodu); odjezd do bezpečné polohy
+  jde nejdřív v X a teprve pak v Z, nikdy diagonálou.
+- Pojistka `tests/cam-leadout-air-rapid.test.js` — měří posuv **UZAVŘENÝM**
+  vzduchem (vzduch na konci pohybu je legitimní nájezd/dojezd).
+
+Hotovo (hotovní offset jako sdílená reference, 5. 8. 2026):
+- Výpočet offsetu kontury vytažen z `calculatePipeline.js` do
+  `js/calculators/cam/toolOffset.js`, aby šel spočítat víckrát s různými
+  přídavky. Nový `calc.finishRefPath` = čistě GEOMETRICKÁ reference „kam dojede
+  střed plátku na hotovo": kreslí se i s vypnutým Dokončováním (skutečná dráha
+  `finishOffsetPath` bez něj nevzniká), do G-kódu nevstupuje, dá se na ni
+  snapovat. Bez zadaných přídavků se nekreslí (splynula by s hrubovacím).
+- Doplňkově: obálka držáku si drží rezervu 0,1 mm od zakázané oblasti, ta ale
+  platí jen pro **překážku za koncem** průchodu (držák), ne pro špičku na
+  offsetu — dřív stála každá vrstva 0,1 mm před offsetovou čárou.
+
 Zbývá (genuinní mezera — order-dependent odlitek):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd
   vedl vzduchem, ne posuvem skrz materiál): exit-split výše je jen bezpečný, ne
   optimální. Patří k odloženému dynamickému plánování pořadí (klasifikace bodů
   přejezdu proti AKTUÁLNÍMU `StockModel`, retract po vstupní trase). Couvnutí po
   trase u kolmého zápichu nepomůže (reverz = tentýž blokovaný svislý zdvih).
+- **Latentní past ve `offsetLoopOf`** (`roughingStrategies.js`): bere
+  z `polyOffset` jen komponentu `[0]`, takže u složitého obrysu odlitku může
+  minout tu správnou. Dnes to nikde neškodí (konec doběhu dosedá půlením
+  a emise ho smí dotáhnout na nulový vzduch), ale každý další spotřebitel
+  vůlí-posunuté siluety na to musí myslet — dřív kvůli tomu doběh skončil
+  o vůli dřív a padal `tests/cam-leadout-step` na `range-chain-insert-shadow`.
 
 Implementace (odloženo): každý bod přejezdu klasifikovat proti **aktuálnímu**
 `StockModel` (`pointInLoop` / průnik úseku se zbytkem) — „vzduch“ je vše mimo
