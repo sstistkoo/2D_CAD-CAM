@@ -9,6 +9,16 @@
 > Fáze 5 se dělat NEBUDE.
 > Adaptér `js/geom/geomCore.js`
 >
+> **POŘADÍ PRACÍ (8. 8. 2026):**
+> 1. **ÚKLID** — sekce hned pod tímhle blokem. Polotovar = offsetová čára,
+>    sloučit duplicitní detekci údolí, sjednotit modely nástroje. Dělat jako
+>    PRVNÍ: složitost už sama vyrábí chyby a bod 2 úklidu je zároveň polovina
+>    opravy bodu 2 níž.
+> 2. **Hranice úseku ve STŘEDU údolí** — „ZBÝVÁ" ve Fázi 4. Opakovaný nález
+>    uživatele, příčina izolovaná a reprodukovatelná, první pokus o opravu
+>    selhal a je popsáno proč.
+> 3. Teprve pak zbylé fáze migrace (viz níž) — obě stále odložené.
+>
 > **Ke zbývajícím dvěma položkám (rozhodnutí 7. 8. 2026):** obě zůstávají
 > vědomě odložené a to je v pořádku — migrace nemusí být „dojetá do konce".
 > **3C** nemá v sadě demonstrátor (změřeno 21. 7.: booleovská cesta odebírá
@@ -19,6 +29,93 @@
 > operací. Dosavadní zkušenost říká, že práci má vyžádat reálný díl: takhle
 > vznikly increment 1 (22. 7.), dělení úseků (5. 8.) i zanoření do kapsy
 > (7. 8.) — a pokaždé s měřitelným přínosem.
+
+## ÚKLID PŘED DALŠÍMI FÁZEMI (zadání 8. 8. 2026) — DĚLAT JAKO PRVNÍ
+
+> Po sérii oprav řízených reálnými díly (22. 7. – 8. 8.) se nasčítala
+> složitost, která už sama vyrábí chyby. Není to nekonzistentní kód — 1187
+> testů prochází a model-free pojistky (`cam-traversal-invariants`,
+> `cam-gouge-invariants`, `cam-ramp-chain`, `cam-leadout-air-rapid`,
+> `cam-region-guide-split`) fungují. Problém je, že **týž pojem je vyjádřený
+> na dvou třech místech** a záplata dopadne jen na jednu kopii.
+
+### 1. Polotovar = OFFSETOVÁ ČÁRA (návrh uživatele, hlavní zjednodušení)
+
+Dnes existují **tři** paralelní modely „kde je materiál", každý používaný
+jinou částí kódu:
+
+| model | co to je | výskytů |
+|---|---|---|
+| statická silueta odlitku | `castingTopXAtZ`, `stockLoop0Ref` (gcodeEmit) | 16 |
+| dynamický zbytek | `rapidStock`, `rapidHitsStock` (gcodeEmit) | 32 |
+| vůlí-posunutá silueta | `stockLoopOffsetL/FullL` (roughingStrategies) | 20 |
+
+**Rozhodnutí:** pro PLÁNOVÁNÍ DRAH je polotovarem **vůlí-posunutá (offsetová)
+čára**, syrový obrys se ignoruje. Důvod je fyzikální, ne kosmetický: Přídavek
+X/Z (polotovar) je tam právě proto, že odlitek může být větší — takže materiál
+až k té čáře **může reálně existovat** a plánovat se musí pesimisticky.
+Tím první a třetí model splynou v jeden.
+
+Co tím odpadne:
+- `offsetExitZ`, `trimLeadOutToStock`, prodlužování výjezdu v `airSplitAxial`
+  a řada „konec řezu se dotáhne na tečkovanou čáru" míst — všechno je pak
+  prostě „skonči na polotovaru";
+- neshoda prahů, kdy `airSplitAxial` počítá vzduch proti SYROVÉ siluetě
+  (práh `x − tipR`), ale výjezd dojíždí na OFFSETOVOU (kvůli tomu se
+  8. 8. musela přišroubovat pojistka `rapidHitsStock` na `G0` uvnitř řezu).
+
+**POZOR — co se inflatovat NESMÍ:** `validateToolpath` (`collisionValidator.js`)
+a vizuální úběr (`MaterialRemoval`/`buildStockLoop`) odpovídají na jinou otázku
+(„narazil jsem fyzicky?" / „co je vidět"), ne „kde může být materiál". Tam
+zůstává SYROVÝ obrys, jinak by validátor hlásil kolize v přídavkovém pásmu
+a v simulaci by materiál nemizel. Po úklidu tedy zůstanou dva modely
+s jasnou dělbou: **pesimistický obrys (plánování)** × **dynamický zbytek
+(co už je odebráno)** — a validátor se syrovým obrysem stranou.
+
+Degenerovaný případ je bezpečný: při nulových přídavcích je offsetová čára
+totožná se syrovou, takže se nic nemění.
+
+### 2. Sloučit duplicitní detekci údolí
+
+`computeResidualRegions` (`booleanRoughing.js`) a `manualRegionSplits`
+(`roughingStrategies.js`) implementují **týž algoritmus dvakrát** (booleovská
+vs. ruční cesta). Nejlepší důkaz, že to škodí: **obě měly identickou chybu**
+(hranice = střed dna údolí místo ústí, viz ZBÝVÁ ve Fázi 4). Sloučit do jedné
+funkce; ruční cesta ať je jen jiný zdroj vstupní siluety.
+
+### 3. Sjednotit modely nástroje
+
+`rapidFoot` (5×), `rapidFootSlim` (4×), `toolFootprint` (8×) + plný obrys
+destičky ve validátoru. Zbytkové nálezy 0,6–3 mm², které se 8. 8. nepodařilo
+dorazit, jsou doslova mezera mezi dvěma z nich. Buď jeden obrys s explicitním
+parametrem „bezpečnostní zúžení", nebo aspoň zdokumentovat, kdo kdy který
+používá a proč.
+
+### 4. Drobnosti stejného původu
+
+- **`pocketReposition` sdílejí TŘI mechanismy** (řetěz vjezdu na hranici
+  rozsahu, dobírání kapsy, dorampování strmé stěny). Průchod nese 11 příznaků
+  (`ramp`, `rampCompletion`, `pocketEntry`, `pocketReposition`,
+  `entryRangeRamp`, `holderClamped`, `noRetract`, …). Kvůli sdílení příznaku
+  vznikla 8. 8. špatná assertion v testu. Zvážit `pass.kind` místo sady
+  booleanů.
+- **Osiřelý kód**: `clamp.span` (Fáze 3b) byl napsaný a týdny NIKÝM nevolaný;
+  `return;` vypínající kapsovou větev nechal pod sebou ~370 řádků mrtvého
+  kódu. Při vypínání větve VŽDY zkontrolovat, co tím osiří.
+- **Rozsypané pevné tolerance** (0,2 / 0,1 / 0,05 / 0,01 mm, 0,5 mm²,
+  `CORNER_TOL 1,5`). Neúspěšný pokus z 8. 8. byl přesně o jedné takové:
+  tolerance 0,2 mm, do které se trefí jen náhodou, protože burst sjíždí po
+  `ap`, kdežto stěna je šikmá. Odvozovat od kroku/geometrie, ne psát ručně.
+
+**Co NEDĚLAT:** nedělit `roughingStrategies.js` (2380 ř.) ani `gcodeEmit.js`
+(1357 ř.) kvůli velikosti. Bez sjednocení modelů výš by se složitost jen
+rozprostřela do víc souborů. Dělení existujícího souboru je samostatné vědomé
+rozhodnutí (viz CLAUDE.md), ne vedlejší efekt úklidu.
+
+**Jak měřit:** každý krok izolovaně per fixture, baseline v odděleném
+`git worktree` (viz `feedback_measure-baseline-in-worktree`), hlídat
+zbytkový materiál i kolize — ne jen zelené testy. Snapshoty obou regresních
+sad jsou síť; jejich změna musí být vždy vysvětlená.
 
 > **PAUZA (18. 7. 2026) → REFAKTOR HOTOV, migrace může pokračovat:**
 > Migrace (Fáze 3 zbytek / 3b dokončování / 4 zbývá / 5) byla dočasně
@@ -760,6 +857,77 @@ Hotovo (rychloposuv vzduchem se testuje proti ZBYTKU, 7. 8. 2026):
   poplachům), validátor plným obrysem destičky — rozdíl ~0,8 mm² se pod práh
   schová. Táž mez drží 2 nálezy držáku na part-4/6/8/9. Zúžit ji lze jen
   změnou `rapidFootSlim`, což falešné poplachy vrátí.
+
+### ZBÝVÁ — hranice úseku leží ve STŘEDU údolí (nálezy 8. 8. 2026)
+
+> **Priorita 1 pro další sezení.** Opakovaný nález uživatele („bere to od
+> prostředka", „tohle mi udělalo už tolik problémů"). Příčina je izolovaná
+> a reprodukovatelná, ale oprava JE VĚTŠÍ než jeden řádek — první pokus
+> selhal, viz níž. Fixtures: `part-13-zleva-flange.camprog` (v repu) a díl
+> uživatele `projekt_2026-08-08 (2).camprog` (údolí Z103–317, dno X44,5).
+
+**Co je špatně.** Hranice úseku se počítá jako **průměr plochého dna údolí**,
+tedy doslova jeho střed — na dvou místech, která si to duplikují:
+
+- `computeResidualRegions` (`cam/booleanRoughing.js`):
+  `const zc = cnt > 0 ? zSum / cnt : samples[i].z;`
+- `manualRegionSplits` (`cam/roughingStrategies.js`):
+  `z: (outer[i].z + outer[j].z) / 2`
+
+Obě funkce si přitom ÚSTÍ údolí (`zHi`/`zLo`) už počítají — jen se pro hranici
+nepoužívá. Důsledek: `passEntryZ` dostane okno začínající uprostřed volného
+prostoru, takže se do údolí vjíždí od poloviny a levá část zůstane stát
+(na dílu uživatele rampa začínala na Z210,4 = přesně (103,191+317,664)/2).
+
+**Diagnostická cesta (ať se neopakuje).** Bylo to třikrát svedeno na špatnou
+příčinu, než se to izolovalo. Co to NENÍ:
+- **není to držák** — zkrácení `holderProfile` na z≤20 nezmění vůbec nic;
+  `holderEntryCapZ` vrací `ret == zHi`, tj. přesně to, co dostane, a holder
+  span je jen 22,6 mm;
+- **není to mezní čára destičky** — guide u levé stěny je krátký
+  (`zanoreni (71,72/103,56)→(74,68/92,53)`, `clipped`), údolí neblokuje;
+- pozor na `respectInsertGeometry` jako testovací přepínač: vypíná ZÁROVEŇ
+  obálku držáku (`holderLoopL`), takže „NOINS" test nic neizoluje.
+Rozhodující test je `regionRoughing` ON/OFF: OFF → rampy od ústí
+(z89, 108, 126, 145, 164, 182, 201, 220), ON → jediná od z210.
+
+**První pokus a proč selhal.** Změna `z` na `samples[i].z` / `outer[i].z`
+(ústí) udělala na dílu uživatele přesně to, co se chce — jenže rozbila
+pokrytí jinde: **part-11 +444 mm², part-12 +289 mm²** stojícího materiálu,
+průchodů 31→24, a vizuálně to „bere napříč údolím, jako by tam všude byl
+polotovar". Důvod: hranice není jen značka „tady je údolí", ale **tvrdý okraj
+Z-okna úseku** (`regZHi`/`regZLo` → `effZMax`/`effZMin` v hloubkové smyčce).
+Posunutá na ústí nechá jeden úsek zabrat celé údolí VČETNĚ vzduchu nad ním
+a scan tam pak hledá materiál, kde není.
+
+**Co je tedy potřeba udělat.** Rozdělit dvě role, které dnes nese jedno číslo:
+1. **kde údolí JE** (signál pro `splitIsNeeded` / `guideStaysInStock` /
+   `zHiSurf`/`zLoSurf`) — může zůstat střed dna,
+2. **kde končí Z-okno úseku** — musí být ÚSTÍ, a okno se musí odvozovat tak,
+   aby sousední úsek nezabral vzduch nad údolím (tj. okno ořezat siluetou,
+   ne jen hranicí — nabízí se použít `passEntryZ` s `stockLoopOffsetL` už při
+   sestavení regionu v `assembleRegions`, ne až v hloubkové smyčce).
+Měřit IZOLOVANĚ per fixture, baseline v odděleném worktree (viz níž), a hlídat
+part-11/12 — ty jsou na tuhle změnu nejcitlivější.
+
+### ZBÝVÁ — drobnější, ze stejné série
+
+- **Dokončení kapsy (`pocketClean`) běží i s vypnutým Dokončováním.**
+  Uživatel: „nemám danou dokončovací operaci, tohle by dělat nemělo."
+  Jde o dlouhý `G1` po stěně (na dílu uživatele `N900 G1 X50.915 Z171.500`).
+  POZOR: NENÍ to duplicita — změřeno, že jeho vypnutí nechá stát **64 mm²**
+  (bere ~0,5 mm, co po sobě nechaly rampy krokované po ap). Otázka je tedy
+  ne „zrušit", ale jestli má patřit pod `noStepRoughing`, nebo pod
+  `doFinishing`, případně se rozdělit na hrubovací dojezd + hotovní řez.
+- **Pravá strana `part-13-zleva-flange` (Z>305) se nehrubuje.** Tady obálka
+  držáku ANO (`__DISABLE_HOLDER_CLAMP__` → 18 průchodů vpravo místo 0) —
+  držák 20 mm radiálně musí přes přírubu Ø199,7, takže by musel být nástroj
+  na X ≥ 99,85. Fyzikálně to nejspíš správně; ověřit a případně jen HLÁSIT
+  do ⚠ panelu, proč hloubka vypadla, místo tichého zahození.
+- **Zbytkových 0,6–3 mm² `rapid`** na nájezdu dokončení kapsy: rozdíl mezi
+  zeštíhleným footprintem (`rapidFootSlim`, aby nedělal falešné poplachy)
+  a plným obrysem destičky ve validátoru. Táž mez drží 2 nálezy držáku na
+  part-4/6/8/9. Zúžit lze jen změnou `rapidFootSlim` → vrátí falešné poplachy.
 
 Zbývá (genuinní mezera — order-dependent odlitek):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd

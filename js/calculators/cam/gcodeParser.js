@@ -6,7 +6,16 @@ import { bulgeToArc } from '../../utils.js';
 export function parseManualGCodeToPath(code, prms, unflipArc) {
   const lines = code.split('\n');
   const path = [];
-  let currentX = parseFloat(prms.safeX) / 2;
+  // Startovní poloha = bezpečná poloha, ve STEJNÉ konvenci, v jaké se čtou
+  // souřadnice z kódu níž (`DIAMON` → poloměr = X/2, jinak X je rovnou
+  // poloměr). `safeX` se do G-kódu zapisuje doslova (`G0 X${prms.safeX}`),
+  // takže dělit dvěma bezpodmínečně znamenalo, že v režimu POLOMĚR začínala
+  // simulace na polovičním rádiusu — u velkého polotovaru rovnou UVNITŘ
+  // materiálu, takže hned první přejezd do bezpečné polohy „prořízl" odlitek
+  // (reálný nález na díle uživatele: oranžové zajetí u levého čela, 53 mm²,
+  // ačkoli program začíná `G0 X150` nad polotovarem Ø219,8).
+  // Stejná konvence jako `setPos(...)` na začátku generateAutoGCode.
+  let currentX = (parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1);
   let currentZ = parseFloat(prms.safeZ);
   let lastMoveType = 'G0';
   path.push({ x: currentX, z: currentZ, type: 'G0' });

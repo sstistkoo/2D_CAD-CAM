@@ -1834,7 +1834,14 @@ export function genLongPasses(ctx) {
       let prevRampEnd = null;   // konec rampy předchozího zákroku (na sdílené přímce rampy)
       const CORNER_TOL = 1.5;
       while (safety++ < 500) {
-        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner, firstPlunge && !partingNoDress, false);
+        // withLeadOut: dřív `false` — dojezd měla obstarat až fáze 2. Jenže ta
+        // jede JEDINOU trasou po nejhlubší stěně, takže konce jednotlivých
+        // kroků (druhá stěna kapsy, každý o ap jinde) zůstávaly nedojeté a
+        // mezi nimi stály schodky (reálný nález na díle uživatele: `N420
+        // G1 Z262.425` a další konce bez dojezdu). Se zapnutým „Hrub. bez
+        // schodků" proto každý krok dojede svůj schod po kontuře sám —
+        // stejně jako to dělá otevřený průchod.
+        const { pocketPass, leadIn } = buildPocketPass(localX, curGapHi, curIv, curCorner, firstPlunge && !partingNoDress, true);
         // Monotonní progres: u zakřivené (zužující se) stěny dává rampa na
         // hlubší cíl s posunutým rohem někdy MĚLČÍ dosah — takový zákrok
         // zahoď a ukonči bulk, zbytek dna dořeže fáze 2 (sledování kontury).
@@ -1930,6 +1937,15 @@ export function genLongPasses(ctx) {
       let cleanStartZ = corner.z;
       let cleanApproach = null;
       if (prms.noStepRoughing && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
+        // POZOR (změřeno 8. 8. 2026): zkoušelo se tuhle pevnou toleranci
+        // nahradit kritériem „projely rampy celou stěnu?" (offset nikde
+        // neklesne pod přímku rampového řetězu), aby dokončovací průchod
+        // nezačínal od rohu a neopakoval už projetou stěnu. Na díle uživatele
+        // to sice ubralo 0,6 mm² kolize a jeden dlouhý pohyb, ale NECHALO
+        // STÁT 64 mm² materiálu navíc — ten dlouhý `G1` po stěně tedy NENÍ
+        // duplicita, je to dokončovací řez, který bere ~0,5 mm, co po sobě
+        // nechaly rampy krokované po ap. Vráceno; nesnažit se to „optimalizovat"
+        // bez měření odebraného materiálu.
         const wallXThere = offsetXAt(prevRampEnd.z);
         if (wallXThere !== null && Math.abs(wallXThere - prevRampEnd.x) < 0.2) {
           // Rampy dojely na stěnu — dokončení začne až u posledního zákroku

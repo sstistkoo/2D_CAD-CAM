@@ -148,6 +148,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     uživatele: `G1 X50.915 Z171.500` ze Ø171 dolů — 985 mm² kolize držáku
     a dalších 570 mm² na navazujících úsecích). Nově sjede rampovanými kroky
     ap po ap: na díle uživatele **6 → 12 průchodů a 1555 → 0 mm² kolizí**.
+  - **Každý zanořovací krok si dojede svůj schod.** Kroky dobírání dostávaly
+    `withLeadOut: false` — dojezd měla obstarat až závěrečná fáze. Ta ale jede
+    JEDINOU trasou po nejhlubší stěně, takže konce jednotlivých kroků (druhá
+    stěna kapsy, každý o ap jinde) zůstávaly nedojeté a mezi nimi stály schodky
+    (reálný nález na díle uživatele: `N420 G1 Z262.425` a další konce bez
+    dojezdu). Se zapnutým „Hrub. bez schodků" teď každý krok dojede po kontuře
+    sám, stejně jako otevřený průchod — na díle uživatele **−321 mm²** stojícího
+    materiálu, holder-casting-slanted-face −3,4; jinde beze změny.
   - Ořez obálkou držáku (`clamp.span`) platí i uvnitř dobírání — burst si
     intervaly na každé hloubce skenuje znovu, takže by jinak sjel ap po ap do
     kapsy, do které se držák mezi stěny už nevejde.
@@ -156,6 +164,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ostatní beze změny), žádná nová kolize držáku.
 
 ### Fixed
+- **Simulace už nezačíná uvnitř materiálu.** Startovní poloha dráhy se
+  v `parseManualGCodeToPath` (`cam/gcodeParser.js`) počítala jako
+  `safeX / 2` **bezpodmínečně** — jenže `safeX` se do G-kódu zapisuje doslova
+  (`G0 X150`) a na poloměr se přepočítává jen v režimu **DIAMON**. V režimu
+  **Poloměr** tak simulace startovala na polovičním rádiusu (R75 místo R150),
+  u velkého polotovaru rovnou uvnitř odlitku — a hned první přejezd do
+  bezpečné polohy „prořízl" materiál (reálný nález na díle uživatele:
+  oranžové zajetí u levého čela, **53 mm²**, ačkoli program začíná `G0 X150`
+  nad polotovarem Ø219,8). Nově stejná konvence jako `setPos(...)` na začátku
+  `generateAutoGCode`. G-kód se nemění, jen jeho simulace.
 - **Rychloposuv „vzduchem" se přepne na posuv, když naráží do materiálu.**
   Dělení řezu na rapid(vzduch)/posuv(materiál) (`airSplitAxial`) rozhoduje
   podle PŮVODNÍ siluety odlitku a prahu „dosah nosu" (`x − tipR`) – jenže
