@@ -3,10 +3,22 @@
 > Clipper2 (booleovské operace, offsety) · Turf.js (prostorová analýza) ·
 > Detect-Collisions (rychlý broad-phase filtr kolizí)
 >
-> Stav (k 5. 8. 2026): Fáze 0–2 · 2b/3 · 3a/3b hotové · Fáze 3 jádro + regiony
-> + příznak `booleanRoughing` hotové (zbývá krok 3C) · Fáze 4 rozpracovaná
-> (zbývá přeplánování pořadí) · Fáze 5 se dělat NEBUDE.
+> Stav (k 7. 8. 2026): Fáze 0–2 · 2b/3 · 3a/3b hotové (3b dodrátována 7. 8. —
+> `clamp.span`) · Fáze 3 jádro + regiony + příznak `booleanRoughing` hotové
+> (zbývá krok 3C) · Fáze 4 rozpracovaná (zbývá přeplánování pořadí) ·
+> Fáze 5 se dělat NEBUDE.
 > Adaptér `js/geom/geomCore.js`
+>
+> **Ke zbývajícím dvěma položkám (rozhodnutí 7. 8. 2026):** obě zůstávají
+> vědomě odložené a to je v pořádku — migrace nemusí být „dojetá do konce".
+> **3C** nemá v sadě demonstrátor (změřeno 21. 7.: booleovská cesta odebírá
+> materiál identicky se scan-line na VŠECH fixtures), takže by to byl přepis
+> naslepo bez kritéria hotovosti — platí `až reálný složitý díl vyžádá`.
+> **Přeplánování pořadí** má jediný reálný cíl (part-10-zapich, 15,9 mm²;
+> face-casting 267 mm² je inherentní) při riziku zásahu do pořadí všech
+> operací. Dosavadní zkušenost říká, že práci má vyžádat reálný díl: takhle
+> vznikly increment 1 (22. 7.), dělení úseků (5. 8.) i zanoření do kapsy
+> (7. 8.) — a pokaždé s měřitelným přínosem.
 
 > **PAUZA (18. 7. 2026) → REFAKTOR HOTOV, migrace může pokračovat:**
 > Migrace (Fáze 3 zbytek / 3b dokončování / 4 zbývá / 5) byla dočasně
@@ -688,6 +700,66 @@ Hotovo (mezní čára končí na hraně materiálu, 7. 8. 2026):
   polotovar sahá na Z482. Dopad na OSU (X≈0) se dál zahazuje beze změny.
 - Dráhy ani G-kód se nemění (ověřeno na všech 17 fixtures — snapshoty se hnuly
   jen v souřadnicích čar). Pojistka `tests/cam-guide-to-stock-end.test.js`.
+
+Hotovo (zanoření do kapsy zapnuto — Fáze 3b dodrátována, 7. 8. 2026):
+*Řízeno REÁLNÝM dílem uživatele (`projekt_2026-08-07`, hrubování zleva):
+příruba Ø170 u čela zahodila všechny hloubky pod sebou — 4 průchody místo desítek.*
+- **Kořen**: kapsová/zanořovací větev `genLongPasses` byla od 23. 7. vypnutá
+  nepodmíněným `return` (nahradil původní `if (!prms.plungeRoughing) return`).
+  Průchody tak vznikaly JEN pro `idx===0 && firstOpen` = otevřený vjezd. Sken
+  materiál v údolí našel (na X84,9 dva intervaly), jen se s ním nic nedělo.
+- **`clamp.span` byl NAPSANÝ, ale NIKDO HO NEVOLAL** — kapsový ořez obálkou
+  držáku z Fáze 3b při vypnutí větve osiřel. Bez něj zapnutí vyrobilo
+  **11 kolizí držáku / 500–670 mm²** na `range-chain-*` a `range-end-leadout`,
+  kde bylo čisto. Po napojení: 0. Tohle byl skutečný obsah rozhodnutí z 22. 7.
+  („kapsy vypnout") — chybějící drát, ne chybějící algoritmus.
+- Dvě pojistky navíc: rampa ≤ ap (kotva zvednutá na kůru je u kapsy za bossem
+  2× ap nad dnem — naměřeno 9,8 mm při ap 5) a `chainTipIs` (přesun uvnitř
+  kapsy jen když kotva je doloženě posledním vydaným průchodem — jinak se
+  mezi kroky řetězu vklíní zanoření odjinud a rychloposuv vede materiálem).
+- **Burst („dobrat kapsu najednou") hledal kapsu na nové hloubce až od
+  intervalu č. 1.** Kapsa, která je intervalem PRVNÍM (`firstOpen === false` =
+  hrubování zleva za přírubou), se tak nenašla, burst po prvním zanoření
+  skončil a zbytek zůstal na jediném dokončovacím průchodu — ten kapsu projel
+  diagonálou přes celé údolí (985 mm² kolize držáku + 570 mm² na navazujících
+  úsecích). Index se teď odvíjí od `firstOpen` a `cGapHi` má stejný fallback
+  na `entryZ` jako hlavní smyčka. Díl uživatele: **6 → 12 průchodů,
+  1555 → 0 mm² kolizí**.
+- `clamp.span` MUSÍ platit i uvnitř bursteu (vytaženo do `holderSpanClamp`):
+  burst si intervaly na každé hloubce skenuje ZNOVU, takže by jinak sjel ap po
+  ap do kapsy, kam se držák mezi stěny nevejde (chyceno `tests/cam-holder` —
+  7 kolizí, 12–32 mm² každá).
+- Fixture `part-13-zleva-flange.camprog` = díl uživatele, na kterém se to našlo;
+  pojistka `tests/cam-pocket-burst-depth.test.js` (na starém kódu padá: 1 krok
+  místo >4). POZOR při psaní takové pojistky: `pocketReposition` sdílejí TŘI
+  mechanismy (řetěz vjezdu na hranici rozsahu, dobírání kapsy, dorampování
+  strmé stěny) — výhradně kapsové jsou `pocketEntry` a `pocketClean`.
+- Známý zbytek: `simPath[0]` je syntetický startovní bod (bez `originalLineIdx`),
+  který u dílu s velkým polotovarem leží UVNITŘ materiálu → validátor hlásí
+  „rapid" na prvním přejezdu do bezpečné polohy (na díle uživatele 53 mm²).
+  Artefakt simulace, ne dráhy; existuje nezávisle na kapsách.
+- Měřeno izolovaně proti worktree na `0e464ee`: **méně stojícího materiálu,
+  nikde ne víc** (holder-casting-slanted-face −24,2 mm², holder-region −7,7).
+- POZOR na měření baseline: `git checkout --` vrací na HEAD, který už může
+  obsahovat rozpracovanou práci (commit mezitím). Baseline měř v odděleném
+  `git worktree` na konkrétním commitu — jinak porovnáváš kód sám se sebou
+  a vyjde ti falešná „dokonalá parita".
+
+Hotovo (rychloposuv vzduchem se testuje proti ZBYTKU, 7. 8. 2026):
+- `airSplitAxial` dělí řez na rapid/posuv podle PŮVODNÍ siluety odlitku a prahu
+  „dosah nosu" (`x − tipR`). Silueta ale nezná materiál, který v tom místě
+  nechal stát dřívější průchod, a práh nepočítá s tělem destičky za nosem.
+  Takový `G0` se teď navíc testuje proti AKTUÁLNÍMU `rapidStock`
+  (`rapidHitsStock`, týž práh 0,5 mm²) a při nárazu jede posuvem — zrcadlo
+  `descendTo` / exit-splitu. Práh siluety se NEMĚNÍ (dosah nosu je vědomý,
+  viz increment 1 z 22. 7.).
+- Opravilo i nálezy starší než kapsy: part-1/2 0,8 → **0**, part-4/6/9
+  5,7 → **4,4**, part-8 51,4 → **50,1**. Po sadě 17 dílů nezůstal jediný
+  `rapid` nález mimo inherentní čelní hrubování. Řezná geometrie beze změny.
+- Zbytková mez: `rapidHitsStock` měří ZEŠTÍHLENÝM footprintem (proti falešným
+  poplachům), validátor plným obrysem destičky — rozdíl ~0,8 mm² se pod práh
+  schová. Táž mez drží 2 nálezy držáku na part-4/6/8/9. Zúžit ji lze jen
+  změnou `rapidFootSlim`, což falešné poplachy vrátí.
 
 Zbývá (genuinní mezera — order-dependent odlitek):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd

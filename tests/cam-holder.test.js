@@ -15,6 +15,7 @@
 // průchodů s držákem a bez něj pořád liší).
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
+import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 
 // Obdélníková kapsa (šířka 60 mm v Z, hloubka 20 mm v X) ve válci r40;
 // svislé stěny destička (natočení 15°, ε 90°) bočním ostřím neobrobí.
@@ -80,10 +81,25 @@ describe('držák plátku — zanoření do široké kapsy', () => {
       && Math.abs(s.p1.x - 20) < 0.01 && Math.abs(s.p2.x - 20) < 0.01);
     expect(bottom.length).toBe(0);
     expect(mc.some(s => s.fromInsert)).toBe(true);
-    // Podélné hrubování kapsu za stěnou/bossem nedohledává (agresivní
-    // dojezd/rampa do neznáma tam uměla narazit na kolizi s držákem a nechat
-    // schod bez dojezdu) — žádný pocketClean/pocketEntry.
-    expect((calc.passes || []).some(p => p.pocketClean || p.pocketEntry)).toBe(false);
+    // Do kapsy za stěnou/bossem se SMÍ zanořit (7. 8. 2026 — dřív to podélné
+    // hrubování vůbec nezkoušelo, viz `if (!prms.plungeRoughing) return`
+    // v roughingStrategies.js). Podmínkou je Zanořování a to, že se vedle
+    // vjezdu vejde DRŽÁK — okno počítá `clamp.span` (obálka držáku, Fáze 3b);
+    // do užší kapsy se nástroj nepustí.
+    //
+    // Test proto nehlídá „žádná kapsa" (to byla politika, ne vlastnost), ale
+    // to, na čem záleží: kapsové průchody nesmí narazit DRŽÁKEM do materiálu.
+    // Kříži se nezávislým validátorem kolizí (Fáze 2), stejně jako
+    // tests/holder-envelope-demo.test.js.
+    const withPlunge = await runCamProg(pocketProg());
+    const holderHits = validateToolpath(
+      withPlunge.calcSim.simPath, withPlunge.S.params, withPlunge.calc.stockPathSegments, {},
+    ).filter(i => i.kind === 'holder');
+    expect(holderHits, `kolize DRŽÁKU: ${holderHits.map(i => `${i.area?.toFixed(1)} mm² @Z${i.z?.toFixed(1)}`).join(', ')}`)
+      .toEqual([]);
+    // Se zanořováním VYPNUTÝM kapsa nevzniká vůbec (větev je za tím příznakem).
+    const { calc: noPlunge } = await runCamProg(pocketProg({ plungeRoughing: false }));
+    expect((noPlunge.passes || []).some(p => p.pocketClean || p.pocketEntry)).toBe(false);
     // PARITA: stejná kontura jako s vypnutým držákem (holderWidth 0). Mezní
     // čára je čistá hrana destičky, geometrie držáku do ní nevstupuje.
     const { calc: noHolder } = await runCamProg(pocketProg({ holderWidth: 0 }));

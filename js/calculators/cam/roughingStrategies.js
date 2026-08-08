@@ -1287,6 +1287,24 @@ export function genLongPasses(ctx) {
     return !!last && last.zStart !== undefined
       && Math.abs(last.x - anchor.x) < 0.01 && Math.abs(last.zStart - anchor.z) < 0.01;
   };
+  // ── Obálka DRŽÁKU pro kapsový SPAN (Fáze 3b) ───────────────────────────────
+  // Scan intervaly kapes vědomě neořezává (`holderClampZEnd` platí pro
+  // jednostranně otevřený řez), takže by se do kapsy mezi dvě stěny pustil celý
+  // interval a držák by se opřel o stěnu nad sebou. `clamp.span` vrací okno,
+  // kam se držák mezi stěny opravdu vejde; null = kapsa je pro něj moc úzká
+  // (patří jinému nástroji, ne podélnému hrubování).
+  // MUSÍ se volat na KAŽDÉM místě, kde se kapsový interval bere ze `scan()` —
+  // tedy i uvnitř bursteu „dobrat kapsu najednou", který si intervaly na každé
+  // nové hloubce skenuje ZNOVU. Bez toho burst sjížděl ap po ap do kapsy širší
+  // než držák a opíral se o stěnu (naměřeno na tests/cam-holder: 7 kolizí,
+  // 12–32 mm² každá).
+  const holderSpanClamp = (X, iv) => {
+    if (!iv || !iv.blocked || !holderClampZEnd || !holderClampZEnd.span) return iv;
+    const sp = holderClampZEnd.span(X, iv.zStart, iv.zEnd);
+    if (!sp) return null;
+    const out = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
+    return (out.zStart - out.zEnd < dzScan) ? null : out;
+  };
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -1607,21 +1625,13 @@ export function genLongPasses(ctx) {
       // — a kolidovala by tam taky (ověřeno: bez téhle poznámky se kolize
       // jen přesunula o pár hloubek dál, misto aby zmizela).
       let skipRiskyPocketEmit = iv.blocked && prms.pocketFinishAtOnce && idx > 1;
-      // ── Obálka DRŽÁKU pro kapsový SPAN (Fáze 3b) ─────────────────────────
-      // Scan intervaly kapes vědomě neořezává (ořez `holderClampZEnd` platí
-      // pro jednostranně otevřený řez), takže se do kapsy mezi dvě stěny
-      // pouštěl celý interval — a držák se opřel o stěnu nad sebou.
-      // `clamp.span` vrací okno, kam se držák mezi stěny opravdu vejde;
-      // užší kapsu vynecháme (patří jinému nástroji, ne podélnému hrubování).
-      // Bez tohoto ořezu dělá zapnutá kapsová větev na range-chain fixtures
-      // 11 kolizí držáku / 500–670 mm² tam, kde bylo čisto.
-      if (iv.blocked && holderClampZEnd && holderClampZEnd.span) {
-        const sp = holderClampZEnd.span(currentX, iv.zStart, iv.zEnd);
-        if (!sp) { holderNarrowPockets++; return; }
-        if (sp.zStart < iv.zStart - 1e-6 || sp.zEnd > iv.zEnd + 1e-6) {
-          iv = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
-          if (iv.zStart - iv.zEnd < dzScan) { holderNarrowPockets++; return; }
-        }
+      // Obálka držáku pro kapsový span (viz holderSpanClamp výš). Bez tohohle
+      // ořezu dělá zapnutá kapsová větev na range-chain fixtures 11 kolizí
+      // držáku / 500–670 mm² tam, kde bylo čisto.
+      if (iv.blocked) {
+        const clamped = holderSpanClamp(currentX, iv);
+        if (!clamped) { holderNarrowPockets++; return; }
+        iv = clamped;
       }
       if (!iv.blocked) {
         // Poslední interval bez protistěny (konec polotovaru) — žádná
@@ -1860,10 +1870,20 @@ export function genLongPasses(ctx) {
         // Najdi tutéž kapsu na nové hloubce (roh se s hloubkou mírně posouvá).
         const rescan = scan(localX, entryZ, effZMin);
         let found = null;
-        for (let j = 1; j < rescan.intervals.length; j++) {
-          const cIv = rescan.intervals[j];
-          if (!cIv.blocked) continue;
-          const cGapHi = rescan.intervals[j - 1].zEnd;
+        // Kapsa může být i PRVNÍ interval (`firstOpen === false`) — to je právě
+        // hrubování zleva za přírubou u čela, kde vjezd zprava neexistuje.
+        // Sken od j=1 takovou kapsu na nové hloubce NENAŠEL, burst hned skončil
+        // a zbytek kapsy zůstal na jediném dokončovacím průchodu, který ji
+        // projel diagonálou přes celé údolí (reálný nález na díle uživatele:
+        // jeden `G1 X50.9 Z171.5` ze Ø171 dolů = 985 mm² kolize držáku).
+        // S otevřeným vjezdem je interval 0 ten otevřený řez, ne kapsa → j=1.
+        for (let j = rescan.firstOpen ? 1 : 0; j < rescan.intervals.length; j++) {
+          // Obálka držáku i tady (viz holderSpanClamp): burst si intervaly na
+          // každé hloubce skenuje znovu, takže by jinak sjel ap po ap do kapsy,
+          // do které se držák mezi stěny už nevejde.
+          const cIv = holderSpanClamp(localX, rescan.intervals[j]);
+          if (!cIv || !cIv.blocked) continue;
+          const cGapHi = j > 0 ? rescan.intervals[j - 1].zEnd : entryZ;
           // Upichovák: roh = pravý okraj − (w−2r); s hloubkou se posouvá po
           // pravé stěně, tolerance shody proto v Z povolí až step + 2 (šikmá
           // stěna posune okraj o step/tg(sklonu) na vrstvu), X se nesrovnává.

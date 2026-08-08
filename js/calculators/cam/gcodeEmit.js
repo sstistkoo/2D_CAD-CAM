@@ -1042,7 +1042,13 @@ export function generateAutoGCode(S, calc) {
         while (rampBody.length > 1 && rampBody[rampBody.length - 1].kind === 'G0') rampBody.pop();
         for (const s of rampBody) {
           simCounter += 1;
-          addN(s.kind === 'G0' ? `G0 Z${s.z.toFixed(3)}` : `G1 Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
+          // Táž pojistka jako u těla otevřeného průchodu níž: „vzduch" podle
+          // statické siluety nemusí být vzduch proti AKTUÁLNÍMU zbytku
+          // (po zanoření do kapsy tu stojí materiál, který silueta nezná).
+          const hitsStock = s.kind === 'G0' && rapidHitsStock(pass.x, cur.z, pass.x, s.z);
+          addN(s.kind === 'G0' && !hitsStock
+            ? `G0 Z${s.z.toFixed(3)}`
+            : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? ' ; Přejezd materiálem posuvem' : ''}`, simCounter);
           setPos(pass.x, s.z);
         }
       }
@@ -1104,7 +1110,18 @@ export function generateAutoGCode(S, calc) {
       simCounter += 1; addN(`G1 Z${firstCutZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, firstCutZ);
       for (const s of emitSegs) {
         simCounter += 1;
-        addN(s.kind === 'G0' ? `G0 Z${s.z.toFixed(3)}` : `G1 Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
+        // „Vzduch" podle STATICKÉ siluety odlitku nemusí být vzduch doopravdy:
+        // silueta nezná materiál, který v tom místě nechal stát dřívější
+        // průchod, a práh `x − tipR` (dosah NOSU, viz airSplitAxial) navíc
+        // nepočítá s tělem destičky za nosem. Když přejezd prokazatelně naráží
+        // do AKTUÁLNÍHO zbytku, jede se posuvem — táž politika „safe-but-slow"
+        // jako u descendTo a exit-splitu, stejný práh 0,5 mm².
+        // Práh siluety se NEMĚNÍ (dosah nosu je zvolený vědomě kvůli materiálu
+        // grazovanému nosem, +16 mm² na part-8) — tohle je jen pojistka navíc.
+        const hitsStock = s.kind === 'G0' && rapidHitsStock(pass.x, cur.z, pass.x, s.z);
+        addN(s.kind === 'G0' && !hitsStock
+          ? `G0 Z${s.z.toFixed(3)}`
+          : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? ' ; Přejezd materiálem posuvem' : ''}`, simCounter);
         setPos(pass.x, s.z);
       }
       // Fáze 4: výjezd z materiálu do vzduchu — posuvem ještě o Vůli Z

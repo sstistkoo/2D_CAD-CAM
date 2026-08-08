@@ -117,6 +117,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   na ni snapovat stejně jako na ostatní offsety. Když nejsou zadané žádné
   přídavky, čára se nekreslí – splynula by s hrubovacím offsetem.
 
+### Added
+- **Podélné hrubování se zanoří do kapsy za stěnou/bossem.** Větev byla od
+  23. 7. 2026 vypnutá nepodmíněným `return` (nahradila původní
+  `if (!prms.plungeRoughing) return`), takže průchody vznikaly jen pro
+  otevřený vjezd zprava. Na díle, kde vjezd zprava neexistuje – typicky
+  hrubování **zleva za přírubou u čela** – tím vypadly všechny hloubky pod ní
+  (reálný nález na díle uživatele: příruba Ø170 na Z 0–38 zahodila celý
+  zbytek dílu, 4 průchody místo desítek; sken přitom materiál v údolí
+  NAŠEL, jen se s ním nic nedělo). Podmínkou zůstává zaškrtnuté
+  **Zanořování**.
+  - **Kapsu hlídá obálka DRŽÁKU** (`clamp.span`, `cam/toolEnvelope.js`) –
+    okno, kam se držák mezi stěny vejde; do užší kapsy se nástroj nepustí.
+    Ten ořez byl napsaný ve Fázi 3b, ale **nikdo ho nevolal** – při vypnutí
+    větve osiřel. Bez něj zapnutí vyrobilo **11 kolizí držáku / 500–670 mm²**
+    na dílech, kde bylo čisto (`range-chain-*`, `range-end-leadout`).
+  - **Rampa nesmí v jednom průchodu sebrat víc než Hloubka (ap).** Kotva
+    zvednutá až na kůru leží u kapsy za bossem klidně 2× ap nad dnem
+    (naměřeno 9,8 mm při ap 5) – spustí se po téže přímce na ap nad dno.
+  - **Přesun uvnitř kapsy jen s doloženým předchůdcem** (`chainTipIs`):
+    `pocketReposition` emituje přejezd z aktuální polohy, ne nájezd zvenčí.
+    Když se mezi kroky řetězu vklíní zanoření odjinud, kotva osiří a týž
+    rychloposuv vede skrz materiál – krok se pak vydá jako normální vjezd.
+  - **Kapsa se dobírá po Hloubce (ap) až na dno.** Dobírání „najednou" hledá
+    tutéž kapsu na každé nové hloubce znovu — a hledalo ji až od DRUHÉHO
+    intervalu. Kapsa, která je intervalem PRVNÍM (`firstOpen === false`, tedy
+    přesně hrubování zleva za přírubou), se tak na nové hloubce nenašla, burst
+    hned skončil a celý zbytek kapsy zůstal na jediném dokončovacím průchodu:
+    ten ji projel **diagonálou přes celé údolí** (reálný nález na díle
+    uživatele: `G1 X50.915 Z171.500` ze Ø171 dolů — 985 mm² kolize držáku
+    a dalších 570 mm² na navazujících úsecích). Nově sjede rampovanými kroky
+    ap po ap: na díle uživatele **6 → 12 průchodů a 1555 → 0 mm² kolizí**.
+  - Ořez obálkou držáku (`clamp.span`) platí i uvnitř dobírání — burst si
+    intervaly na každé hloubce skenuje znovu, takže by jinak sjel ap po ap do
+    kapsy, do které se držák mezi stěny už nevejde.
+  - Měřeno izolovaně: **méně stojícího materiálu, nikde ne víc**
+    (holder-casting-slanted-face −36,2 mm², holder-region-roughing −7,7;
+    ostatní beze změny), žádná nová kolize držáku.
+
+### Fixed
+- **Rychloposuv „vzduchem" se přepne na posuv, když naráží do materiálu.**
+  Dělení řezu na rapid(vzduch)/posuv(materiál) (`airSplitAxial`) rozhoduje
+  podle PŮVODNÍ siluety odlitku a prahu „dosah nosu" (`x − tipR`) – jenže
+  silueta nezná materiál, který v tom místě nechal stát dřívější průchod,
+  a práh nepočítá s tělem destičky za nosem. Takový `G0` se teď testuje
+  proti AKTUÁLNÍMU zbytku (`rapidHitsStock`, týž práh 0,5 mm² jako jinde)
+  a při nárazu jede posuvem – stejná politika „safe-but-slow" jako
+  u `descendTo` a výjezdu skrz kůru. Práh siluety se **nemění** (dosah nosu
+  je zvolený vědomě kvůli materiálu grazovanému nosem).
+  - Opravilo to i nálezy, které tam byly **dávno před zanořováním do kapes**:
+    part-1 a part-2 0,8 → **0 mm²**, part-4/6/9 5,7 → **4,4**, part-8
+    51,4 → **50,1**. Po sadě 17 dílů nezůstal jediný `rapid` nález mimo
+    inherentní čelní hrubování.
+  - Řezná geometrie beze změny (zbytkový materiál identický) – mění se jen
+    JAK se přes to místo přejede. Nový typ řádku:
+    `; Přejezd materiálem posuvem`.
+
 ### Changed
 - **Mezní čára hlídání geometrie dojede až na hranu MATERIÁLU, ne na konec
   dílce.** Volný konec čáry hledá paprsek podél hrany destičky; když minul
