@@ -6,10 +6,14 @@
 //
 //  1. AXIÁLNÍ posuv nepřejíždí vzduch. Rovné pokračování vrstvy (konstantní
 //     hloubka X) se stejně jako tělo průchodu seká na rychloposuv(vzduch)/
-//     posuv(materiál) podle siluety ODLITKU — nad údolím, kam nástroj
-//     nedosáhne, není co řezat. Měří se proti syrové siluetě polotovaru,
-//     ne proti zbytkovému modelu: jde o TRVALÝ vzduch (dolík odlitku), ne
-//     o už obrobené místo.
+//     posuv(materiál) podle PLÁNOVACÍHO obrysu polotovaru — nad údolím, kam
+//     nástroj nedosáhne, není co řezat. Měří se proti VŮLÍ-POSUNUTÉ siluetě,
+//     ne proti zbytkovému modelu (jde o TRVALÝ vzduch = dolík odlitku, ne
+//     o už obrobené místo) a ne proti syrové kůře: Přídavek polotovaru je
+//     v zadání proto, že odlitek může být větší, takže mělký dolík MĚLČÍ NEŽ
+//     PŘÍDAVEK je z hlediska plánování plný materiál a jezdí se posuvem
+//     (ÚKLID 8. 8. 2026, docs/geometry-libs-migration.md — reálný případ:
+//     pocket-wall-at-plunge-angle má dolík 0,68 mm při Vůli 1 mm).
 //
 //  2. Každý krok řetězu dorampování strmé stěny (`rampCompletion`) si při
 //     zapnutém „Hrubování bez schodků" dobírá svůj schod sám. Dřív dojížděl
@@ -27,9 +31,7 @@ import { readdirSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
-import { stockClearances } from '../js/calculators/cam/camMath.js';
-import { polyOffset } from '../js/geom/geomCore.js';
+import { buildStockLoop, offsetStockLoop } from '../js/calculators/cam/materialRemoval.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
@@ -74,8 +76,9 @@ describe('Dojezd „bez schodků"', () => {
     it(`${file}: axiální posuv nejede vzduchem`, async () => {
       const prog = JSON.parse(readFileSync(join(fxDir, file), 'utf8'));
       const { calc, gcode, S } = await runCamProg(prog);
-      const loop = buildStockLoop(S.params, calc.stockPathSegments) || [];
-      if (loop.length < 3) return;                    // bez siluety není co měřit
+      const rawLoop = buildStockLoop(S.params, calc.stockPathSegments) || [];
+      if (rawLoop.length < 3) return;                 // bez siluety není co měřit
+      const loop = offsetStockLoop(rawLoop, S.params) || rawLoop;
       const tipR = parseFloat(S.params.toolRadius) || 0;
       const worst = { len: 0, at: null };
       for (const m of parseMoves(gcode)) {
@@ -141,11 +144,10 @@ describe('Dojezd „bez schodků"', () => {
     const { calc, gcode, S } = await runCamProg(prog);
     const loop = buildStockLoop(S.params, calc.stockPathSegments) || [];
     const tipR = parseFloat(S.params.toolRadius) || 0;
-    const clrX = stockClearances(S.params).x;
     // Vůle je KOLMÁ vzdálenost — na strmé hraně ji podél X natáhne 1/sin(sklon),
     // takže „syrová hodnota + vůle" nestačí; hranice se musí spočítat offsetem
-    // smyčky (polyOffset), stejně jako ji počítá emisní kód i náhled.
-    const off = polyOffset([loop], clrX)[0];
+    // smyčky, stejně jako ji počítá emisní kód i náhled (sdílený helper).
+    const off = offsetStockLoop(loop, S.params);
     // Emitovaný konec dojezdu v údolí (šikmý úsek po mezní čáře destičky) =
     // řezný pohyb, který v tomhle okně dojede NEJDÁL v Z (za ním už je jen
     // odskok pod 45°, ten jde zpátky).

@@ -9,14 +9,16 @@
 > Fáze 5 se dělat NEBUDE.
 > Adaptér `js/geom/geomCore.js`
 >
-> **POŘADÍ PRACÍ (8. 8. 2026):**
-> 1. **ÚKLID** — sekce hned pod tímhle blokem. Polotovar = offsetová čára,
->    sloučit duplicitní detekci údolí, sjednotit modely nástroje. Dělat jako
->    PRVNÍ: složitost už sama vyrábí chyby a bod 2 úklidu je zároveň polovina
->    opravy bodu 2 níž.
-> 2. **Hranice úseku ve STŘEDU údolí** — „ZBÝVÁ" ve Fázi 4. Opakovaný nález
->    uživatele, příčina izolovaná a reprodukovatelná, první pokus o opravu
->    selhal a je popsáno proč.
+> **POŘADÍ PRACÍ (8. 8. 2026, stav k 10. 8.):**
+> 1. ~~**ÚKLID**~~ — **HOTOV 10. 8. 2026**, všechny tři body (viz sekce pod
+>    tímhle blokem). Zbyly jen „Drobnosti stejného původu" (bod 4), které nikdo
+>    nevyžádal.
+> 2. **Hranice úseku ve STŘEDU údolí** — „ZBÝVÁ" ve Fázi 4. Po úklidu je střed
+>    dna počítaný na JEDNOM místě (`computeResidualRegions`), takže oprava
+>    dopadne celá. **Dva pokusy zamítnuty** (8. 8. a 10. 8.) — u druhého je
+>    změřeno, že zadání je ve skutečnosti jiné: nejde o pokrytí (levá půlka
+>    údolí se odebere stejně s regiony i bez nich), ale o KOTVU ZANOŘENÍ.
+>    Viz „DRUHÝ POKUS" v sekci ZBÝVÁ.
 > 3. Teprve pak zbylé fáze migrace (viz níž) — obě stále odložené.
 >
 > **Ke zbývajícím dvěma položkám (rozhodnutí 7. 8. 2026):** obě zůstávají
@@ -75,6 +77,50 @@ s jasnou dělbou: **pesimistický obrys (plánování)** × **dynamický zbytek
 Degenerovaný případ je bezpečný: při nulových přídavcích je offsetová čára
 totožná se syrovou, takže se nic nemění.
 
+**HOTOVO (jeden plánovací obrys, 10. 8. 2026).** První a třetí model splynuly:
+
+- `gcodeEmit.js` má nově `planLoopRef()` = vůlí-posunutá silueta (fallback na
+  syrovou, když Clipper selže) a nad ní `planTopXAtZ` / `planCrossZ`. Zanikly
+  `castingTopXAtZ`, `castingTopXAtZOffset` a `castingCrossZ`; čtyři skoro
+  identické průchody smyčkou nahradily sdílené `topXOnLoop` / `crossZOnLoop`
+  (`offsetExitZ` si vlastní průchod nechává vědomě — hledá NEJBLIŽŠÍ hranu
+  ve směru jízdy a porovnává na 1e-6, kdežto `crossZOnLoop` zaokrouhluje na
+  0,1 µm, což by u hrany přesně na `zFrom` rozhodlo jinak).
+- **Sdílená `offsetStockLoop(loop, prms)`** (`materialRemoval.js`) — offset
+  siluety byl do té doby zkopírovaný v `gcodeEmit.js` i `roughingStrategies.js`
+  (a testy by ho potřebovaly jako třetí kopii). Je to jediné místo, kde jde
+  opravit známá mez „bere se jen komponenta `[0]`".
+- **`stockEntryRamp` přestal ručně přičítat vůli** na konci nalezené přímky
+  (na diagonále to není totéž co posun KOLMO k hranici) — testuje se přímo
+  proti `stockLoopOffsetL` a konec se dopřesní půlením. Přesně stejná oprava,
+  jakou už měl zrcadlový `findRampOutTarget`.
+- **Nulový Přídavek X i Z (polo.) = žádná offsetová čára se nehledá**
+  (`stockClearanceIsZero` v `camMath.js`): plánovacím obrysem je přímo
+  polotovar, jak je nakreslený. Přes `stockClearances` to nešlo — ta zdola
+  ořezává na 0,05 mm (mez pro zastavení rychloposuvu a ochrana před dělením
+  nulou u anizotropního offsetu), takže i při nulovém zadání by se obrys
+  posunul o 0,05 mm a Clipper by ho navíc přetesseloval. Prázdné pole nulou
+  NENÍ (dědí `rapidClearance`); jen jedna z hodnot nulová taky ne. Platí i pro
+  válcovou obdobu (`stockSurfX`), kde žádná smyčka k offsetování není.
+
+**Změřeno** (izolovaně per fixture proti worktree; `remain` = stojící materiál):
+- **part-11/12-zleva: `rapid` kolize 101,3 → 91,6 mm²**, jinak beze změny;
+- pocket-wall-at-plunge-angle: −4 řádky G-kódu, materiál ± 0,0;
+- holder-region-roughing: +0,85 mm² (0,02 %) a +1 průchod — z přesnější kotvy
+  `stockEntryRamp`; ostatních 15 fixtures beze změny.
+- V pořadí regresní sady (kontaminovaný singleton `S`) totéž: part-1 +0,36 mm².
+
+G-kód se hnul na 14 fixtures, ale **jednotným vzorem**: hranice G1/G0 se posune
+tak, že posuv jde dál a rychloposuv vzduchem se krátí. Žádný nový typ pohybu.
+Snapshoty obou regresních sad vědomě přegenerovány (izolovaně po souborech).
+
+Pojistka `tests/cam-leadout-air-rapid` **musela změnit referenci**: měřila
+„vzduch" proti SYROVÉ kůře, což je přesně konvence, kterou tenhle krok ruší.
+Reálný případ: `pocket-wall-at-plunge-angle` má dolík hluboký 0,68 mm při Vůli
+1 mm — z hlediska plánování je to plný materiál a jede se posuvem, kdežto test
+to hlásil jako 8 mm posuvu vzduchem. Nově měří proti plánovacímu obrysu, takže
+si sílu zachovává (skutečná údolí jsou hlubší než přídavek).
+
 ### 2. Sloučit duplicitní detekci údolí
 
 `computeResidualRegions` (`booleanRoughing.js`) a `manualRegionSplits`
@@ -83,6 +129,23 @@ vs. ruční cesta). Nejlepší důkaz, že to škodí: **obě měly identickou c
 (hranice = střed dna údolí místo ústí, viz ZBÝVÁ ve Fázi 4). Sloučit do jedné
 funkce; ruční cesta ať je jen jiný zdroj vstupní siluety.
 
+**HOTOVO (10. 8. 2026).** `manualRegionSplits` zrušen, zůstala jediná
+`regionSplits()` nad `computeResidualRegions`. Příznak `booleanRoughing` už
+detekci údolí NEOVLIVŇUJE (dál rozhoduje jen o zdroji řezných intervalů).
+
+Sloučeno na **vzorkovanou** verzi, protože přesněji určuje ÚSTÍ údolí:
+vrcholová heuristika brala jako ústí sousední VRCHOL obrysu, což je na dlouhé
+šikmé stěně až její druhý konec. Naměřený dopad té nepřesnosti: na part-11/12
+si obě cesty našly totéž údolí (z −172,9 vs −172,5), ale `splitIsNeeded`
+rozhodl OPAČNĚ → **23 vs 31 průchodů**. Ústí je přitom právě to, podle čeho se
+k údolí přiřadí mezní čára destičky.
+
+Zjištění při měření: **6 fixtures (part-11/12/13, range-*) běží booleovskou
+cestou**, zbytek ruční — takže obě větve byly v sadě živé a rozdíl mezi nimi
+maskovaný. Po sloučení: holder-region +0,44 mm², part-10 −0,09, part-1/2/4/6/9
+a pocket-wall −0,05 až −0,24 (v pořadí sady), **počty průchodů i řádků beze
+změny**; booleovské snapshoty se nehnuly vůbec (ty už tenhle detektor měly).
+
 ### 3. Sjednotit modely nástroje
 
 `rapidFoot` (5×), `rapidFootSlim` (4×), `toolFootprint` (8×) + plný obrys
@@ -90,6 +153,26 @@ destičky ve validátoru. Zbytkové nálezy 0,6–3 mm², které se 8. 8. nepoda
 dorazit, jsou doslova mezera mezi dvěma z nich. Buď jeden obrys s explicitním
 parametrem „bezpečnostní zúžení", nebo aspoň zdokumentovat, kdo kdy který
 používá a proč.
+
+**HOTOVO (10. 8. 2026) — a zadání bylo postavené na omylu.** Obrysy nejsou
+čtyři, ale **DVA**, a obě strany je používají SHODNĚ:
+
+| obrys | k čemu | emise | validátor |
+|---|---|---|---|
+| plný `toolFootprint` | čím se ODEBÍRÁ materiál | `rapidFoot` (`noteCutPass`) | `foot` (cut) |
+| zúžený o 0,05 mm | čím se TESTUJE dotyk | `rapidFootSlim` (`rapidHitsStock`) | `footShrunk` (G0 test) |
+
+Zúžení se počítalo `polyOffset(−0,05)` zvlášť v `gcodeEmit.js` a zvlášť
+v `collisionValidator.js` — odtud dojem dvou různých modelů. Nově je to jedna
+`toolFootprintSlim(prms, shrink = 0.05)` v `materialRemoval.js` s explicitním
+parametrem „bezpečnostní zúžení"; validátoru zůstal jeho konfigurovatelný
+`opts.shrink`. Čistý dedup, **měřitelně nulový dopad**.
+
+**Zbytkové nálezy 0,6–3 mm² tedy NEJSOU rozdílem obrysů** (jak doc tvrdil) —
+je to rozdíl mezi tím, JAK KAŽDÁ STRANA VÍ, co už je odebráno: emise si zbytek
+vede z PLÁNOVANÉ geometrie průchodů (`noteCutPass` = leadIn → rampa → dno →
+leadOut), validátor z reálně projeté `simPath`. Kdo to bude chtít dorazit, musí
+sblížit tyhle dva modely zbytku, ne obrysy nástroje.
 
 ### 4. Drobnosti stejného původu
 
@@ -867,14 +950,12 @@ Hotovo (rychloposuv vzduchem se testuje proti ZBYTKU, 7. 8. 2026):
 > uživatele `projekt_2026-08-08 (2).camprog` (údolí Z103–317, dno X44,5).
 
 **Co je špatně.** Hranice úseku se počítá jako **průměr plochého dna údolí**,
-tedy doslova jeho střed — na dvou místech, která si to duplikují:
+tedy doslova jeho střed. Dřív to bylo na dvou duplicitních místech; po ÚKLIDU
+bodu 2 (10. 8. 2026) je to **jedno místo** — `computeResidualRegions`
+(`cam/booleanRoughing.js`): `const zc = cnt > 0 ? zSum / cnt : samples[i].z;`
+(`manualRegionSplits` zrušen, obě cesty jedou přes něj).
 
-- `computeResidualRegions` (`cam/booleanRoughing.js`):
-  `const zc = cnt > 0 ? zSum / cnt : samples[i].z;`
-- `manualRegionSplits` (`cam/roughingStrategies.js`):
-  `z: (outer[i].z + outer[j].z) / 2`
-
-Obě funkce si přitom ÚSTÍ údolí (`zHi`/`zLo`) už počítají — jen se pro hranici
+Funkce si přitom ÚSTÍ údolí (`zHi`/`zLo`) už počítá — jen se pro hranici
 nepoužívá. Důsledek: `passEntryZ` dostane okno začínající uprostřed volného
 prostoru, takže se do údolí vjíždí od poloviny a levá část zůstane stát
 (na dílu uživatele rampa začínala na Z210,4 = přesně (103,191+317,664)/2).
@@ -891,8 +972,8 @@ příčinu, než se to izolovalo. Co to NENÍ:
 Rozhodující test je `regionRoughing` ON/OFF: OFF → rampy od ústí
 (z89, 108, 126, 145, 164, 182, 201, 220), ON → jediná od z210.
 
-**První pokus a proč selhal.** Změna `z` na `samples[i].z` / `outer[i].z`
-(ústí) udělala na dílu uživatele přesně to, co se chce — jenže rozbila
+**První pokus a proč selhal.** Změna `z` na `samples[i].z` (ústí)
+udělala na dílu uživatele přesně to, co se chce — jenže rozbila
 pokrytí jinde: **part-11 +444 mm², part-12 +289 mm²** stojícího materiálu,
 průchodů 31→24, a vizuálně to „bere napříč údolím, jako by tam všude byl
 polotovar". Důvod: hranice není jen značka „tady je údolí", ale **tvrdý okraj
@@ -910,6 +991,53 @@ a scan tam pak hledá materiál, kde není.
 Měřit IZOLOVANĚ per fixture, baseline v odděleném worktree (viz níž), a hlídat
 part-11/12 — ty jsou na tuhle změnu nejcitlivější.
 
+#### DRUHÝ POKUS (10. 8. 2026) — ZAMĚŘENO, ZAMÍTNUTO, VRÁCENO
+
+Zkoušena přesně varianta „rozdělit dvě role", jen s rolemi vázanými na
+HLOUBKU: hranice = **ÚSTÍ nad povrchem dna údolí** (tam je uvnitř údolí
+vzduch, takže střed jen natahuje okno souseda přes prázdno) a **střed dna
+v kůře a hlouběji** (tam je materiál souvislý a dělí se poctivě na půl).
+Regiony k tomu dostaly `zHiMouth`/`zLoMouth` (region NAD údolím končí u ústí
+na své straně, region POD ním u toho svého).
+
+**Reprodukce symptomu sedí** (`projekt_2026-08-08 (2).camprog`, údolí
+Z102,4–317,8, dno X44,5, ap 5): `regionRoughing` ON → 21 průchodů, kotvy ramp
+**210,4 / 224,2 / 242,8**; OFF → 18 průchodů, kotvy **89,1 · 107,7 · 126,4 ·
+145 · 163,7 · 182,4 · 201 · 219,7** (řetěz od ústí přes 8 hloubek).
+
+Proč to selhalo — tři naměřené věci, každá sama o sobě stopka:
+
+1. **Symptom je POD dnem údolí, kam ta změna nesahá.** Kotvy 210,4/224,2/242,8
+   patří hloubkám X 41,9 / 36,9 / 35,8, tedy pod dnem X44,5. Nad dnem
+   (X 81,9…46,9) je uvnitř údolí vzduch. Po opravě proto na dílu uživatele
+   vyšlo **přesně to co dřív** (21 průchodů, 25 824 mm²) — čistý no-op.
+2. **„Levá část zůstane stát" MĚŘENÍ NEPOTVRDILO.** Zbytek v pásmu údolí:
+   ON 8 762,8 mm² (levá půlka 4 824,5 + pravá 3 938,4) vs OFF 8 804,4
+   (4 822,5 + 3 981,9). Regiony tedy neberou MÉNĚ — levá půlka je na mm²
+   stejná. Vadí VJEZD doprostřed materiálu, ne pokrytí. To mění zadání:
+   hledá se lepší kotva rampy, ne jiné vlastnictví materiálu.
+3. **Vjezd na ústí bez capu držáku = NOVÉ KOLIZE.** Hranice na ústí splyne
+   s hranou materiálu, takže `regionCappedRaw` (`effZMax === regZHi`) začne
+   platit vždycky a vynutí `holderEntryCapZ`; bez místa pro držák se hloubka
+   zahodí → na dílu uživatele **21 → 11 průchodů, +1 210 mm²**. Vyjmout ústí
+   z capu („za ním je přece vzduch") NELZE: držák je široký a dosáhne přes
+   údolí na protilehlý hrb — **nové kolize držáku na 5 fixtures**
+   (holder-region 2×1,6 mm², part-10 3×42,4, part-11/12 +1 nález,
+   range-end-leadout 2×2,2) a k tomu holder-region 33→28 průchodů (+8 mm²),
+   part-11 +28 mm².
+
+**Co si z toho vzít pro TŘETÍ pokus.** Zadání je jiné, než doc tvrdil: není to
+problém pokrytí, ale KOTVY ZANOŘENÍ. Bez `regionRoughing` vzniká řetěz ramp od
+ústí (`pocketEntry` → `pocketReposition`, kotva každé vrstvy = konec té
+předchozí); s regiony se tenhle řetěz nerozvine, protože hranice ROZŘÍZNE
+kapsu údolí na dvě půlky a ani jedna sama neprojde. Cesta tedy vede přes to,
+aby kapsa přes údolí zůstala JEDNA (vlastnictví celého údolí jedním úsekem),
+ne přes posouvání okraje okna. A ať se řetěz rozvine jakkoli, cap držáku na
+vjezdu MUSÍ zůstat.
+
+Diagnostika je připravená: `globalThis.__REGION_LOG__` vedle `raw`/`splits`
+loguje i `mouths` (zHi/zLo každého údolí) a celá sestavená okna `regions`.
+
 ### ZBÝVÁ — drobnější, ze stejné série
 
 - **Dokončení kapsy (`pocketClean`) běží i s vypnutým Dokončováním.**
@@ -924,10 +1052,12 @@ part-11/12 — ty jsou na tuhle změnu nejcitlivější.
   držák 20 mm radiálně musí přes přírubu Ø199,7, takže by musel být nástroj
   na X ≥ 99,85. Fyzikálně to nejspíš správně; ověřit a případně jen HLÁSIT
   do ⚠ panelu, proč hloubka vypadla, místo tichého zahození.
-- **Zbytkových 0,6–3 mm² `rapid`** na nájezdu dokončení kapsy: rozdíl mezi
-  zeštíhleným footprintem (`rapidFootSlim`, aby nedělal falešné poplachy)
-  a plným obrysem destičky ve validátoru. Táž mez drží 2 nálezy držáku na
-  part-4/6/8/9. Zúžit lze jen změnou `rapidFootSlim` → vrátí falešné poplachy.
+- **Zbytkových 0,6–3 mm² `rapid`** na nájezdu dokončení kapsy. POZOR, dřívější
+  vysvětlení („rozdíl mezi zeštíhleným footprintem a plným obrysem ve
+  validátoru") bylo MYLNÉ — ověřeno 10. 8. při ÚKLIDU bodu 3: obě strany
+  používají shodnou dvojici plný/zúžený obrys. Skutečný rozdíl je v tom, jak
+  každá strana ví, co už je odebráno: emise z PLÁNOVANÉ geometrie průchodů
+  (`noteCutPass`), validátor z reálně projeté `simPath`.
 
 Zbývá (genuinní mezera — order-dependent odlitek):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd

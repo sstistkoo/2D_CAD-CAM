@@ -192,6 +192,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `; Přejezd materiálem posuvem`.
 
 ### Changed
+- **Polotovar pro PLÁNOVÁNÍ drah = offsetová („tečkovaná") čára, syrový obrys
+  se ignoruje.** Dosud existovaly tři paralelní modely „kde je materiál" a
+  záplata dopadla vždy jen na jeden z nich: o vzduchu se rozhodovalo proti
+  SYROVÉ kůře odlitku, ale vyjíždělo se na OFFSETOVOU čáru. Přídavek X/Z
+  (polotovar) je přitom v zadání právě proto, že odlitek MŮŽE být větší —
+  materiál až k té čáře tedy reálně existovat může a plánovat se musí
+  pesimisticky. Nově je plánovací obrys jeden (`planLoopRef` v `cam/gcodeEmit.js`,
+  sdílený `offsetStockLoop` v `cam/materialRemoval.js`); syrový obrys zůstává
+  jen pro otázky „narazil jsem FYZICKY?" (validátor kolizí) a „co je vidět"
+  (vizuální úběr). Rampa vjezdu od polotovaru (`stockEntryRamp`) navíc přestala
+  ručně přičítat vůli na konci nalezené přímky — na diagonále to není totéž co
+  posun KOLMO k hranici — a dosedá půlením přesně na čáru.
+  Měřeno izolovaně per fixture: **part-11/12-zleva `rapid` kolize 101,3 → 91,6 mm²**,
+  pocket-wall −4 řádky G-kódu, holder-region +0,85 mm² (0,02 %) z přesnější
+  kotvy rampy, ostatních 15 fixtures beze změny. G-kód se hnul na 14 fixtures
+  jednotným vzorem „posuv jde dál, rychloposuv vzduchem se krátí"; snapshoty
+  obou regresních sad vědomě přegenerovány.
+- **Přídavek X i Z (polo.) = 0 → offsetová čára se vůbec nehledá.** Hranicí je
+  pak přímo polotovar tak, jak je nakreslený. Dřív se i při nulovém zadání
+  posunul obrys o 0,05 mm (spodní mez pro zastavení rychloposuvu) a Clipper ho
+  navíc přetesseloval. Prázdné pole nulou NENÍ — dědí se „Vůle nad polotovarem".
+- **Detekce údolí (hranic úseků) je jedna funkce místo dvou.** Ruční
+  (`manualRegionSplits`, chůze po vrcholech obrysu) a booleovská
+  (`computeResidualRegions`, vzorkování horní hrany siluety) cesta počítaly
+  totéž dvakrát — a měly identickou chybu, takže záplata by dopadla jen na
+  jednu kopii. Zůstala vzorkovaná verze, protože přesněji určuje ÚSTÍ údolí:
+  vrcholová heuristika za ústí brala sousední vrchol obrysu, což je na dlouhé
+  šikmé stěně až její druhý konec. Naměřeno, jak moc na tom záleží: na
+  part-11/12 si obě cesty našly totéž údolí, ale rozhodnutí „dělí to úsek?"
+  vyšlo opačně — **23 vs 31 průchodů**. Po sloučení se počty průchodů ani řádků
+  nikde nezměnily (materiál ±0,5 mm²).
+- **Obrys nástroje: plný odebírá, zúžený testuje dotyk.** Zúžení o 0,05 mm se
+  počítalo zvlášť v emisi a zvlášť ve validátoru, což vypadalo jako dva různé
+  modely nástroje; nově je to jedna `toolFootprintSlim(prms, shrink)`
+  s explicitním parametrem „bezpečnostní zúžení". Bez dopadu na výstup.
 - **Mezní čára hlídání geometrie dojede až na hranu MATERIÁLU, ne na konec
   dílce.** Volný konec čáry hledá paprsek podél hrany destičky; když minul
   konturu a dopadl až na obrys polotovaru, ořezával se zpátky na konec

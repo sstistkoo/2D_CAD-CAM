@@ -311,6 +311,25 @@ export function stockClearances(prms) {
   };
 }
 
+// Jsou OBA Přídavky polotovaru zadané jako NULA? Pak žádná offsetová
+// („tečkovaná") čára neexistuje a plánovacím obrysem je přímo polotovar tak,
+// jak je nakreslený — viz offsetStockLoop v materialRemoval.js.
+//
+// Nejde vyjádřit přes stockClearances výš: ta zdola ořezává na 0,05 mm
+// (rozumné minimum pro zastavení rychloposuvu, a taky ochrana před dělením
+// nulou u anizotropního offsetu), takže nulové zadání by pořád posunulo obrys
+// o 0,05 mm a Clipper by ho navíc přetesseloval.
+//
+// PRÁZDNÉ pole nulou NENÍ — null/undefined dědí `rapidClearance` (staré
+// projekty). Jen JEDNA z hodnot nulová se taky nepočítá: anizotropní offset
+// se škáluje poměrem VůleX/VůleZ, který by s nulou zdegeneroval; tam dál
+// platí spodní mez 0,05 mm.
+export function stockClearanceIsZero(prms) {
+  const cx = parseFloat(prms.stockClearX);
+  const cz = parseFloat(prms.stockClearZ);
+  return Number.isFinite(cx) && Number.isFinite(cz) && cx <= 0 && cz <= 0;
+}
+
 // Max X (vnější povrch) polotovaru na zadaném Z: válec = konstantní sRad,
 // odlitek = největší průsečík svislice se segmenty obrysu. Vrací null,
 // když v daném Z polotovar není.

@@ -8,10 +8,10 @@
 // POZOR: ctrlCmt MUSÍ zůstat function declaration (ne const) — headless test
 // harness ho zachytává přes hoisting (viz tests/helpers/camHeadless.mjs).
 
-import { StockModel, polyArea, polyOffset, polySimplify, toolSweep } from '../../geom/geomCore.js';
+import { StockModel, polyArea, polySimplify, toolSweep } from '../../geom/geomCore.js';
 import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, segEndPoint, segStartPoint, stockClearances } from './camMath.js';
 import { segmentHitsPath } from './contourBuild.js';
-import { buildStockLoop, toolFootprint } from './materialRemoval.js';
+import { buildStockLoop, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { computeThreadPassCuts, partOffGeom, threadProfileDepth } from './threadHelpers.js';
 import { roughingKey } from './calculatePipeline.js';
@@ -418,31 +418,20 @@ export function generateAutoGCode(S, calc) {
   let rapidFoot = null;
   let rapidFootSlim = null;
   let rapidStockCuts = 0;
-  let stockLoop0Ref = null;   // původní (neobrobená) silueta odlitku — referenční „kde je materiál"
+  let stockLoop0Ref = null;   // syrová silueta odlitku — jen FALLBACK pro planLoopRef()
   let stockLoop0OffsetRef = null;   // silueta posunutá o Vůli X/Z (tečkovaná hranice v náhledu)
   try {
     const stockLoop0 = buildStockLoop(prms, calc.stockPathSegments);
     if (stockLoop0) {
       stockLoop0Ref = stockLoop0;
       rapidStock = new StockModel([stockLoop0]);
+      // PLNÝM obrysem se odebírá (noteCutPass), ZÚŽENÝM se testuje dotyk
+      // (rapidHitsStock) — viz dělba u toolFootprintSlim v materialRemoval.js.
       rapidFoot = toolFootprint(prms);
-      rapidFootSlim = polyOffset([rapidFoot], -0.05)[0] || rapidFoot;
-      // Vůlí-posunutá silueta (stejná tečkovaná hranice jako v náhledu,
-      // camSimulator.js) — přes polyOffset (Clipper), ne per-bodovou normálu:
-      // ta by na ostrých hranách/schodech siluety (odlitek s bosem/zápichem)
-      // zkreslovala roh lineární interpolací mezi posunutými vrcholy místo
-      // skutečného zaobleného přechodu. VůleX ≠ VůleZ (anizotropní) se řeší
-      // měřítkem osy Z (poměr VůleX/VůleZ), izotropním offsetem o VůleX a
-      // měřítkem zpět — ekvivalentní eliptickému posunu (ΔX/VůleX)²+(ΔZ/VůleZ)²=1.
-      const { x: clrXOff, z: clrZOff } = stockClearances(prms);
-      if (Math.abs(clrXOff - clrZOff) < 1e-6) {
-        stockLoop0OffsetRef = polyOffset([stockLoop0], clrXOff)[0] || null;
-      } else {
-        const kZ = clrXOff / clrZOff;
-        const scaled = stockLoop0.map(p => ({ x: p.x, z: p.z * kZ }));
-        const off = polyOffset([scaled], clrXOff)[0];
-        stockLoop0OffsetRef = off ? off.map(p => ({ x: p.x, z: p.z / kZ })) : null;
-      }
+      rapidFootSlim = toolFootprintSlim(prms);
+      // Plánovací (vůlí-posunutá) silueta — sdílená implementace, viz
+      // offsetStockLoop v materialRemoval.js.
+      stockLoop0OffsetRef = offsetStockLoop(stockLoop0, prms);
     }
   } catch (err) {
     console.warn('CAM: dynamický model polotovaru pro rychloposuvy selhal:', err);
@@ -455,37 +444,28 @@ export function generateAutoGCode(S, calc) {
       return Math.abs(polyArea(rapidStock.collide(sweep))) > 0.5;
     } catch { return false; }
   };
-  // Horní hrana (max X) zbytkového polotovaru na axiální souřadnici `z` — povrch,
-  // který nástroj při radiálním sjezdu (klesající X) potká první. null = na tomto
-  // z zbytek žádný materiál nemá (vzduch). Slouží k zastavení rychloposuvu na
-  // povrchu odlitku, když nájezdová vůle je „vzduch" jen vůči kontuře, ne vůči
-  // plnému obalu odlitku (viz descendTo v safeRapidTo).
-  const residualTopXAtZ = (z) => {
-    if (!rapidStock) return null;
+  // ── Dva modely „kde je materiál" a jejich dělba (ÚKLID 8. 8. 2026) ──────
+  // 1) PLÁNOVACÍ (pesimistický) obrys = vůlí-posunutá silueta `planLoopRef`.
+  //    Přídavek X/Z (polotovar) je v zadání právě proto, že odlitek MŮŽE být
+  //    větší — materiál až k té čáře tedy reálně existovat může a dráhy se
+  //    musí plánovat proti ní. Syrový obrys se pro plánování IGNORUJE
+  //    (dřív se rozhodovalo o vzduchu proti němu, ale vyjíždělo se na
+  //    offsetovou čáru → neshoda prahů, kterou musely látat pojistky).
+  //    Při nulových přídavcích obě čáry splývají → degenerovaný případ beze změny.
+  // 2) DYNAMICKÝ ZBYTEK `rapidStock` — co už je odebráno (pořadí obrábění).
+  // Syrový obrys zůstává jen tam, kde se ptáme „narazil jsem FYZICKY?"
+  // (validateToolpath) nebo „co je vidět" (MaterialRemoval) — tedy mimo tento
+  // soubor. `stockLoop0Ref` proto slouží už jen jako fallback, když offset
+  // (Clipper) selže.
+  //
+  // Max X (horní hrana) smyčky na axiální souřadnici `z`; null = smyčka tam
+  // materiál nemá (vzduch). Jedna implementace pro všechny modely.
+  const topXOnLoop = (loop, z) => {
+    if (!loop) return null;
     let top = null;
-    for (const loop of rapidStock.loops) {
-      const n = loop.length;
-      for (let i = 0; i < n; i++) {
-        const a = loop[i], b = loop[(i + 1) % n];
-        if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
-          const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
-          if (top === null || x > top) top = x;
-        }
-      }
-    }
-    return top;
-  };
-  // Povrch (max X) PŮVODNÍ siluety odlitku na axiální z — reference „kde odlitek
-  // vůbec je". Na rozdíl od residualTopXAtZ (dynamický zbytek) se nemění řezáním,
-  // takže označuje jen TRVALÝ vzduch nad odlitkem (drážky, nižší místa siluety),
-  // ne už obrobené oblasti. Slouží k rozsekání podélného řezu na rapid(vzduch)/
-  // posuv(materiál): nad drážkou odlitku, kam díl nesahá, nemá co řezat.
-  const castingTopXAtZ = (z) => {
-    if (!stockLoop0Ref) return null;
-    let top = null;
-    const n = stockLoop0Ref.length;
+    const n = loop.length;
     for (let i = 0; i < n; i++) {
-      const a = stockLoop0Ref[i], b = stockLoop0Ref[(i + 1) % n];
+      const a = loop[i], b = loop[(i + 1) % n];
       if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
         const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
         if (top === null || x > top) top = x;
@@ -493,32 +473,14 @@ export function generateAutoGCode(S, calc) {
     }
     return top;
   };
-  // Totéž jako castingTopXAtZ, ale nad siluetou posunutou o Vůli X/Z
-  // (stockLoop0OffsetRef — stejná tečkovaná hranice jako v náhledu). Používá
-  // se pro RAMPU (diagonální zanoření): posuv (G1) má sahat až k téhle
-  // vůlí-posunuté hranici, ne k holé kůře odlitku — konzistentní s tím, kde
-  // podle náhledu končí rychloposuv.
-  const castingTopXAtZOffset = (z) => {
-    if (!stockLoop0OffsetRef) return null;
-    let top = null;
-    const n = stockLoop0OffsetRef.length;
-    for (let i = 0; i < n; i++) {
-      const a = stockLoop0OffsetRef[i], b = stockLoop0OffsetRef[(i + 1) % n];
-      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
-        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
-        if (top === null || x > top) top = x;
-      }
-    }
-    return top;
-  };
-  // Z-souřadnice, kde silueta odlitku protíná hloubku x (hrany, kde povrch
-  // odlitku přechází přes x = přechody vzduch↔materiál na této hloubce), v [zLo,zHi].
-  const castingCrossZ = (x, zLo, zHi) => {
-    if (!stockLoop0Ref) return [];
+  // Z-souřadnice, kde smyčka protíná hloubku `x` (přechody vzduch↔materiál na
+  // této hloubce), v otevřeném intervalu (zLo, zHi).
+  const crossZOnLoop = (loop, x, zLo, zHi) => {
+    if (!loop) return [];
     const zs = new Set();
-    const n = stockLoop0Ref.length;
+    const n = loop.length;
     for (let i = 0; i < n; i++) {
-      const a = stockLoop0Ref[i], b = stockLoop0Ref[(i + 1) % n];
+      const a = loop[i], b = loop[(i + 1) % n];
       if ((a.x <= x && b.x > x) || (b.x <= x && a.x > x)) {
         const z = a.z + (b.z - a.z) * ((x - a.x) / (b.x - a.x));
         if (z > zLo + 1e-4 && z < zHi - 1e-4) zs.add(+z.toFixed(4));
@@ -526,6 +488,28 @@ export function generateAutoGCode(S, calc) {
     }
     return [...zs];
   };
+  // Horní hrana ZBYTKOVÉHO polotovaru — povrch, který nástroj při radiálním
+  // sjezdu (klesající X) potká první. Mění se řezáním (pořadí obrábění).
+  // Slouží k zastavení rychloposuvu na povrchu, když nájezdová vůle je
+  // „vzduch" jen vůči kontuře, ne vůči plnému obalu odlitku (descendTo).
+  const residualTopXAtZ = (z) => {
+    if (!rapidStock) return null;
+    let top = null;
+    for (const loop of rapidStock.loops) {
+      const t = topXOnLoop(loop, z);
+      if (t !== null && (top === null || t > top)) top = t;
+    }
+    return top;
+  };
+  // Plánovací obrys: vůlí-posunutá silueta („tečkovaná" čára z náhledu).
+  const planLoopRef = () => stockLoop0OffsetRef || stockLoop0Ref;
+  // Povrch plánovacího obrysu na axiální z. Na rozdíl od residualTopXAtZ se
+  // řezáním NEMĚNÍ, takže označuje jen TRVALÝ vzduch (drážky, nižší místa
+  // siluety), ne už obrobené oblasti. Slouží k rozsekání řezu na
+  // rapid(vzduch)/posuv(materiál) i k dojezdům na hranu materiálu.
+  const planTopXAtZ = (z) => topXOnLoop(planLoopRef(), z);
+  // Přechody vzduch↔materiál na hloubce x podle plánovacího obrysu.
+  const planCrossZ = (x, zLo, zHi) => crossZOnLoop(planLoopRef(), x, zLo, zHi);
   // Konec řezu do vzduchu: kam až dojet POSUVEM, než se odskočí. Cíl je
   // VŮLÍ-POSUNUTÁ silueta (tečkovaná čára v náhledu) — tam podle náhledu končí
   // materiál včetně přídavku, tam má dráha vyjet. Dřívější „zEnd − Vůle Z"
@@ -543,6 +527,9 @@ export function generateAutoGCode(S, calc) {
     // Okno hledání: přídavek je KOLMÁ vzdálenost, podél Z ho hrana natáhne
     // 1/sin(sklon). Strop 4× přídavek pokryje hrany až ~15° od osy Z.
     const zWin = zFrom + zDir * 4 * Math.max(rapidClrGc, rapidClrZGc);
+    // Vlastní průchod smyčkou (ne crossZOnLoop): tady se hledá NEJBLIŽŠÍ hrana
+    // ve směru jízdy a porovnává se na 1e-6 — zaokrouhlení crossZOnLoop na
+    // 0,1 µm by u hrany ležící přesně na zFrom rozhodlo jinak.
     let best = null;
     const n = stockLoop0OffsetRef.length;
     for (let i = 0; i < n; i++) {
@@ -563,15 +550,16 @@ export function generateAutoGCode(S, calc) {
   // po kontuře desítky mm prázdnem až na konec okna (reálný nález na díle
   // uživatele — za S17 dvě dráhy pokračovaly ve vzduchu).
   //
-  // „Hrana materiálu" = VŮLÍ-POSUNUTÁ silueta (tečkovaná čára z náhledu), ne
-  // holá kůra odlitku: vůle je PŘÍDAVEK, který se má taky obrobit, a všechny
-  // ostatní výjezdy (offsetExitZ, airSplitAxial, findRampOutTarget) končí
-  // právě na ní. Se syrovou siluetou končil dojezd o vůli dřív a proti
-  // sousedním drahám viditelně nedotažený (reálný nález na díle uživatele).
+  // „Hrana materiálu" = PLÁNOVACÍ obrys (vůlí-posunutá silueta, tečkovaná čára
+  // z náhledu), ne holá kůra odlitku: vůle je PŘÍDAVEK, který se má taky
+  // obrobit, a všechny ostatní výjezdy (offsetExitZ, airSplitAxial,
+  // findRampOutTarget) končí právě na ní. Se syrovou siluetou končil dojezd
+  // o vůli dřív a proti sousedním drahám viditelně nedotažený (reálný nález
+  // na díle uživatele).
   const trimLeadOutToStock = (segs, tipR) => {
-    if (!segs || segs.length === 0 || !stockLoop0Ref) return segs;
+    if (!segs || segs.length === 0 || !planLoopRef()) return segs;
     const solid = (x, z) => {
-      const ct = castingTopXAtZOffset(z) ?? castingTopXAtZ(z);
+      const ct = planTopXAtZ(z);
       return ct !== null && (x - tipR) <= ct + 1e-4;
     };
     const out = [];
@@ -592,7 +580,7 @@ export function generateAutoGCode(S, calc) {
     return out;
   };
   // Rozsekání AXIÁLNÍHO řezu (konstantní hloubka x) na rapid(vzduch)/posuv
-  // (materiál) podle SILUETY ODLITKU. `x` = programovaná hloubka (práh je
+  // (materiál) podle PLÁNOVACÍHO OBRYSU. `x` = programovaná hloubka (práh je
   // dosah STOPY nástroje, tj. x − rádius nosu — nos sahá o R hlouběji, takže
   // řeže i když je střed kousek nad povrchem), `dir` = směr jízdy v Z. Vrací
   // `[{ kind:'G0'|'G1', z }]` — vždy aspoň jeden prvek (celý úsek jedním
@@ -602,12 +590,12 @@ export function generateAutoGCode(S, calc) {
   const airSplitAxial = (x, zFrom, zTo, dir) => {
     const xReach = x - tipRGc;
     const zLo = Math.min(zFrom, zTo), zHi = Math.max(zFrom, zTo);
-    const cross = castingCrossZ(xReach, zLo, zHi).filter(z => z > zLo + 1e-6 && z < zHi - 1e-6);
+    const cross = planCrossZ(xReach, zLo, zHi).filter(z => z > zLo + 1e-6 && z < zHi - 1e-6);
     let pts = [zFrom, ...cross, zTo].sort((p, q) => dir * (p - q));
     pts = pts.filter((z, i) => i === 0 || Math.abs(z - pts[i - 1]) > 1e-3);
     const segs = [];
     for (let i = 1; i < pts.length; i++) {
-      const ct = castingTopXAtZ((pts[i - 1] + pts[i]) / 2);
+      const ct = planTopXAtZ((pts[i - 1] + pts[i]) / 2);
       const air = !(ct !== null && xReach <= ct + 1e-4) && Math.abs(pts[i] - pts[i - 1]) >= 0.5;
       const kind = air ? 'G0' : 'G1';
       if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].z = pts[i];
@@ -695,7 +683,7 @@ export function generateAutoGCode(S, calc) {
   // kontury) jde vždy posuvem. Čistě AXIÁLNÍ úsek (konstantní X = rovné
   // pokračování vrstvy) se rozseká na rychloposuv(vzduch)/posuv(materiál)
   // podle siluety odlitku — stejné pravidlo jako u těla průchodu
-  // (`airSplitAxial` níž; definice až po castingCrossZ, volá se ale jen
+  // (`airSplitAxial` níž; definice až po planCrossZ, volá se ale jen
   // za běhu emise, takže na pořadí nezáleží).
   const emitLeadOutLine = (seg) => {
     const axial = Math.abs(seg.x2 - seg.x1) < 1e-6;
@@ -949,11 +937,11 @@ export function generateAutoGCode(S, calc) {
           let segs = [];
           for (let s = 1; s < pts.length; s++) {
             const midX = (pts[s - 1].x + pts[s].x) / 2, midZ = (pts[s - 1].z + pts[s].z) / 2;
-            // Hranice pro touch = silueta POSUNUTÁ o Vůli X/Z (stejná tečkovaná
-            // hranice jako v náhledu), ne holá kůra odlitku — diagonální posuv
-            // sahá až k vůli-zóně kolem materiálu (souhlasí s tím, kde končí
+            // Hranice pro touch = PLÁNOVACÍ obrys (silueta posunutá o Vůli X/Z,
+            // tečkovaná hranice z náhledu), ne holá kůra odlitku — diagonální
+            // posuv sahá až k vůli-zóně kolem materiálu (souhlasí s tím, kde končí
             // rychloposuv jinde: descendTo/safeRapidTo, exit-split u increment 1).
-            const ct = castingTopXAtZOffset(midZ);
+            const ct = planTopXAtZ(midZ);
             const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
             const kind = air ? 'G0' : 'G1';
             if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].pt = pts[s];
@@ -963,7 +951,7 @@ export function generateAutoGCode(S, calc) {
           if (needsExactLanding && g1RunCount > 1) {
             // Reálná mezera v odlitku (materiál-vzduch-materiál), ne jen
             // vzorkovací šum na konci — diagonální rapid mezerou by vedl přes
-            // 3D geometrii, kterou per-Z obálka (castingTopXAtZOffset) nevidí.
+            // 3D geometrii, kterou per-Z obálka (planTopXAtZ) nevidí.
             // Dojet k PRVNÍMU dotyku, pak vyjet nad konturu (stejný vzor jako
             // jinde — „Výjezd nad konturu") a bezpečně najet na cíl (x1,z1)
             // přes safeRapidTo — místo hádání zbytku diagonály. Tahle větev

@@ -22,7 +22,7 @@
 // ruční AABB test.
 
 import { StockModel, toolSweep, polyOffset, polyArea } from '../../geom/geomCore.js';
-import { buildStockLoop, toolFootprint } from './materialRemoval.js';
+import { buildStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
 
 /**
  * Uzavřený obrys držáku v PROFILOVÝCH souřadnicích ({x,z} vůči
@@ -145,8 +145,10 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   const maxIssues = opts.maxIssues ?? 12;
   const maxBlocks = opts.maxBlocks ?? 6000;
 
+  // PLNÝ obrys odebírá materiál, ZÚŽENÝ testuje dotyk — táž dělba jako
+  // v emisi (viz toolFootprintSlim v materialRemoval.js).
   const foot = toolFootprint(prms);
-  const footShrunk = polyOffset([foot], -shrink)[0] || foot;
+  const footShrunk = toolFootprintSlim(prms, shrink);
   const holderRaw = holderWorldLoop(prms, !!opts.backside);
   const holderShrunk = holderRaw ? (polyOffset([holderRaw], -shrink)[0] || holderRaw) : null;
 

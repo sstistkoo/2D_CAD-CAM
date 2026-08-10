@@ -16,10 +16,10 @@
 //   pass-helpery: offsetXAt, traceOffsetPath, findPocketExitZ,
 //                 findLeadOutEndZ, hIntersect
 
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ } from './camMath.js';
-import { buildStockLoop } from './materialRemoval.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
+import { buildStockLoop, offsetStockLoop } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
-import { pointInLoop, polyOffset, polyIntersect } from '../../geom/geomCore.js';
+import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { HOLDER_CLAMP_MARGIN } from './toolEnvelope.js';
 
@@ -475,25 +475,13 @@ export function genLongPasses(ctx) {
     return best;
   };
   const stockLoopL = clipLoopToRange(stockLoopFullL);
-  const stockClrXL = stockClearances(prms).x;
-  // Vůlí-posunutá silueta odlitku (stejná „tečkovaná" offsetová čára jako
-  // v náhledu/simulátoru — viz castingTopXAtZOffset v gcodeEmit.js): přes
-  // polyOffset (Clipper), ne přes ad-hoc odečtení vůle na konci zjištěné
-  // přímky (to na diagonále není totéž co posun KOLMO k hranici o vůli —
-  // reálný nález na díle uživatele: dojezd „bez schodků" u strmé stěny
-  // systematicky minul offsetovou čáru). VůleX ≠ VůleZ (anizotropní) se
-  // řeší měřítkem osy Z, stejně jako v gcodeEmit.js.
-  const { x: stockClrXOffL, z: stockClrZOffL } = stockClearances(prms);
-  const offsetLoopOf = (loop) => {
-    if (!loop) return null;
-    if (Math.abs(stockClrXOffL - stockClrZOffL) < 1e-6) {
-      return polyOffset([loop], stockClrXOffL)[0] || null;
-    }
-    const kZL = stockClrXOffL / stockClrZOffL;
-    const scaledL = loop.map(p => ({ x: p.x, z: p.z * kZL }));
-    const offL = polyOffset([scaledL], stockClrXOffL)[0];
-    return offL ? offL.map(p => ({ x: p.x, z: p.z / kZL })) : null;
-  };
+  // PLÁNOVACÍ (vůlí-posunutá) silueta odlitku — „tečkovaná" offsetová čára
+  // z náhledu. Sdílená implementace: offsetStockLoop v materialRemoval.js
+  // (tam i důvod, proč se posouvá přes polyOffset a ne ad-hoc odečtením
+  // vůle na konci zjištěné přímky — na diagonále to není totéž co posun
+  // KOLMO k hranici; reálný nález na díle uživatele: dojezd „bez schodků"
+  // u strmé stěny systematicky minul offsetovou čáru).
+  const offsetLoopOf = (loop) => offsetStockLoop(loop, prms);
   const stockLoopOffsetL = offsetLoopOf(stockLoopL);
   // Táž čára nad CELÝM polotovarem (bez ořezu rozsahem) — hlídání kolize
   // držáku musí vidět i materiál za hranicí rozsahu (holderEntryCapZ níž).
@@ -584,25 +572,39 @@ export function genLongPasses(ctx) {
   };
 
   // Rampa od hranice polotovaru: když vstup průchodu leží v KŮŘE odlitku,
-  // kotva se zvedne po přímce zanoření nad polotovar + vůli X — posuv
-  // začíná na tečkované hranici a kůra se řeže pod úhlem zanoření
-  // (žádný kolmý sjezd doprostřed kůry). Null = vstup je ve vzduchu.
+  // kotva se zvedne po přímce zanoření až NA PLÁNOVACÍ OBRYS (vůlí-posunutou
+  // siluetu) — posuv začíná na tečkované hranici a kůra se řeže pod úhlem
+  // zanoření (žádný kolmý sjezd doprostřed kůry). Null = vstup je ve vzduchu.
+  //
+  // Testuje se přímo proti OFFSETOVÉ smyčce, žádné ruční přičtení vůle na
+  // konci nalezené přímky: to na diagonále není totéž co posun KOLMO
+  // k hranici (přesně stejná oprava jako u zrcadlového findRampOutTarget
+  // níž). Konec se dopřesní půlením, ať kotva sedne PŘESNĚ na čáru, ne
+  // o krok skenu (0,5 mm) dál.
   const stockEntryRamp = (X, zEntry) => {
-    if (!stockLoopL) return null;
-    if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopL) !== 'inside') return null;
+    if (!stockLoopOffsetL) return null;
+    if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
+    const at = (t) => ({ x: X + t * effPlungeTanL, z: zEntry + t });
     let t = 0;
     for (let i = 0; i < 300; i++) {
+      const tPrev = t;
       t += 0.5;
-      const xx = X + t * effPlungeTanL, zz = zEntry + t;
+      const p = at(t);
       // HRANICÍ JE I HOTOVNÍ KONTURA (stejně jako u findRampOutTarget níž):
       // stoupá-li přímka zanoření do materiálu, který po hrubování ZŮSTÁVÁ
       // (boss mezi vstupem a povrchem), vedla by rampa skrz díl. Dřív se
       // testovala jen silueta polotovaru — u kapsy za bossem to dalo rampu
       // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
       // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
-      if (blockedAt(xx, zz)) return null;
-      if (pointInLoop({ x: xx, z: zz }, stockLoopL) === 'outside') {
-        return { x0: xx + stockClrXL * effPlungeTanL, z0: zz + stockClrXL };
+      if (blockedAt(p.x, p.z)) return null;
+      if (pointInLoop(p, stockLoopOffsetL) === 'outside') {
+        let lo = tPrev, hi = t;
+        for (let k = 0; k < 24; k++) {
+          const m = (lo + hi) / 2;
+          if (pointInLoop(at(m), stockLoopOffsetL) === 'outside') hi = m; else lo = m;
+        }
+        const q = at(hi);
+        return { x0: q.x, z0: q.z };
       }
     }
     return null;
@@ -1084,63 +1086,55 @@ export function genLongPasses(ctx) {
   // (seřazené shora dolů). Sdíleno ruční i booleovskou detekcí — každý split
   // je horní hranice regionu POD ním a dolní hranice regionu NAD ním; xSurf =
   // povrch dna údolí (hranice platí jen NAD ním, v kůře regiony splynou).
+  // `zHiMouth`/`zLoMouth` = ÚSTÍ téhož údolí (kde sestup začíná / kde se
+  // vrací na protistěnu). Hranice totiž nese DVĚ role, které se nad dnem
+  // údolí a v jeho kůře rozcházejí — viz regZHi/regZLo v hloubkové smyčce:
+  // střed dna dělí SOUVISLÝ materiál, ústí ohraničuje VZDUCH nad údolím.
+  // Region NAD údolím končí u ústí na své straně (`s.zHi`), region POD ním
+  // začíná u ústí na té své (`s.zLo`).
   const assembleRegions = (splits) => {
     if (!splits || splits.length === 0) return FULL_REGION;
     const regions = [];
-    let hi = Infinity, hiSurf;
+    let hi = Infinity, hiSurf, hiMouth;
     for (const s of splits) {
-      regions.push({ zHi: hi, zLo: s.z, zHiSurf: hiSurf, zLoSurf: s.xSurf });
-      hi = s.z; hiSurf = s.xSurf;
+      regions.push({
+        zHi: hi, zHiSurf: hiSurf, zHiMouth: hiMouth,
+        zLo: s.z, zLoSurf: s.xSurf, zLoMouth: s.zHi,
+      });
+      hi = s.z; hiSurf = s.xSurf; hiMouth = s.zLo;
     }
-    regions.push({ zHi: hi, zLo: -Infinity, zHiSurf: hiSurf, zLoSurf: undefined });
+    regions.push({
+      zHi: hi, zHiSurf: hiSurf, zHiMouth: hiMouth,
+      zLo: -Infinity, zLoSurf: undefined, zLoMouth: undefined,
+    });
     return regions;
   };
-  // Ruční detekce údolí z obrysu polotovaru (stockWorldPoints) — původní cesta.
-  const manualRegionSplits = () => {
-    const outer = stockWorldPoints.filter(p => p.xReal > 1).map(p => ({ x: p.xReal, z: p.zReal }));
-    if (outer.length < 4) return [];
-    const splits = [];
-    for (let i = 1; i < outer.length - 1; i++) {
-      const prev = outer[i - 1].x, cur = outer[i].x;
-      if (!(cur < prev - 0.3)) continue;          // sem musí X klesnout (vjezd do údolí)
-      let j = i;                                   // konec plochého dna údolí
-      while (j + 1 < outer.length && Math.abs(outer[j + 1].x - cur) < 0.3) j++;
-      const after = j + 1 < outer.length ? outer[j + 1].x : cur;
-      // xSurf = povrch údolí: hranice regionu platí jen NAD ním. V hloubce
-      // kůry dna (X ≤ xSurf) je údolí samo materiál — dělit ho napůl by
-      // znamenalo sjíždět kolmo do kůry uprostřed; regiony se tam spojí
-      // a kůra se bere průchody od kraje polotovaru.
-      // zHi/zLo = ústí údolí (poslední bod nad sestupem a první bod protistěny)
-      // — podle něj se k údolí přiřadí mezní čára destičky (splitIsNeeded níž).
-      if (after > cur + 0.3) splits.push({
-        z: (outer[i].z + outer[j].z) / 2, xSurf: cur,
-        zHi: Math.max(outer[i - 1].z, outer[j + 1].z),
-        zLo: Math.min(outer[i - 1].z, outer[j + 1].z),
-      });
-      i = j;
-    }
-    splits.sort((a, b) => b.z - a.z);              // shora (max Z) dolů
-    return splits;
-  };
-  // Booleovská detekce (Fáze 3, krok 2, za příznakem `booleanRoughing`):
-  // údolí = lokální minima horní hrany SILUETY polotovaru (buildStockLoop),
-  // polygon-native náhrada křehké vrcholové heuristiky nad stockWorldPoints.
+  // ── Detekce údolí — JEDNA implementace pro obě cesty (ÚKLID bod 2) ─────
+  // Údolí = lokální minima horní hrany SILUETY polotovaru
+  // (`computeResidualRegions` v booleanRoughing.js). Dřív to byly DVĚ funkce:
+  // ruční `manualRegionSplits` chodila po vrcholech `stockWorldPoints`,
+  // booleovská vzorkovala smyčku po `dzScan`. Nejlepší důkaz, že duplicita
+  // škodila: obě měly identickou chybu (hranice = střed dna údolí místo ústí)
+  // a záplata by dopadla jen na jednu kopii.
+  //
+  // Sloučeno na VZORKOVANOU verzi, protože ta určuje ÚSTÍ údolí přesněji:
+  // vrcholová heuristika brala jako ústí SOUSEDNÍ VRCHOL obrysu, což je na
+  // dlouhé šikmé stěně až její druhý konec (na part-11/12 se ústí lišilo tak,
+  // že `splitIsNeeded` níž rozhodl opačně — 23 vs 31 průchodů). Ústí je přitom
+  // to, podle čeho se k údolí přiřadí mezní čára destičky.
   //
   // POZOR (proč silueta, ne zbytek stock−dílec): legacy model regionů
   // (zHiSurf/zLoSurf) umí vyjádřit JEN odlitkový hrb — region oddělen MĚLCE
   // (X > xSurf) a v kůře dna splyne. Komponenty ZBYTKU (stock − dílec) mají
   // ale i OPAČNÝ směr (kapsa/hrb dílu = oddělen hluboko, splyne mělko), který
   // tenhle model neumí — složení celého zbytku pak nechává stát materiál
-  // (ověřeno na holder-region-roughing: +121 mm² pod z≈22.9). Signál pro
-  // odlitkové hrby je horní hrana SILUETY polotovaru — stejný jako manuál,
-  // takže bez regrese pokrytí. Obecné residual-komponentové regiony (kapsy
-  // dílu, obousměrné splynutí) patří až do restrukturace emisní smyčky.
-  const booleanRegionSplits = () => {
-    const stockLoop = stockLoopL;
-    if (!stockLoop || stockLoop.length < 3) return [];
+  // (ověřeno na holder-region-roughing: +121 mm² pod z≈22.9). Obecné
+  // residual-komponentové regiony patří až do restrukturace emisní smyčky.
+  const regionSplits = () => {
+    if (!stockLoopL || stockLoopL.length < 3) return [];
     let zMax = -Infinity, zMin = Infinity;
-    for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
-    return computeResidualRegions([stockLoop], zMax, zMin, dzScan);
+    for (const p of stockLoopL) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
+    return computeResidualRegions([stockLoopL], zMax, zMin, dzScan);
   };
   // ── Dělí to údolí opravdu díl na úseky? (mezní čára hlídání destičky) ──
   // PRVNÍ (a nejlevnější) test, který `splitIsNeeded` níž pouští na každý
@@ -1236,16 +1230,20 @@ export function genLongPasses(ctx) {
   };
   const computeRegions = () => {
     if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL_REGION;
-    const rawSplits = prms.booleanRoughing ? booleanRegionSplits() : manualRegionSplits();
+    const rawSplits = regionSplits();
     const splits = rawSplits.filter((_, i) => splitIsNeeded(rawSplits, i));
+    const regions = assembleRegions(splits);
     // Diagnostický test seam (guarded, v produkci no-op): tests/boolean-region-
     // roughing.test.js jím ověřuje separaci regionů ruční vs booleovské cesty.
     if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({
       bool: !!prms.booleanRoughing,
       raw: rawSplits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
       splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
+      // Ústí údolí (zHi/zLo) — hranice úseku je nad dnem právě u nich.
+      mouths: splits.map(s => ({ zHi: +(s.zHi ?? NaN).toFixed(1), zLo: +(s.zLo ?? NaN).toFixed(1) })),
+      regions,
     });
-    return assembleRegions(splits);
+    return regions;
   };
   const _regions = computeRegions();
 
@@ -1324,6 +1322,16 @@ export function genLongPasses(ctx) {
     // nevzalo). Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni se řeší
     // RAMPOU pod úhlem zanoření (entryCapped níž) — přesně jako na hranici
     // rozsahu 📐, kterou si uživatel dosud musel nastavovat ručně.
+    //
+    // ZKOUŠENO A ZAMÍTNUTO (10. 8. 2026) — posunout hranici na ÚSTÍ údolí
+    // (`zHiMouth`/`zLoMouth`, dnes jen v diagnostickém logu) tam, kde je nad
+    // dnem uvnitř údolí vzduch, a střed dna nechat jen pro kůru. Vypadá to
+    // jako správné rozdělení dvou rolí, ale měření to nepotvrdilo — detaily
+    // a čísla v docs/geometry-libs-migration.md, sekce „ZBÝVÁ — hranice úseku
+    // leží ve STŘEDU údolí". Krátce: symptom uživatele („bere to od
+    // prostředka") je u hloubek POD dnem, kam tahle změna nesahá, a vjezd na
+    // ústí se bez capu držáku stane nehlídaným → nové kolize držáku na
+    // 5 fixtures. NEZKOUŠET ZNOVU BEZ ŘEŠENÍ VLASTNICTVÍ ÚDOLÍ.
     const dissolveEdge = !prms.plungeRoughing;
     if (dissolveEdge && _region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) continue;
     const regZHi = (!dissolveEdge || _region.zHiSurf === undefined || currentX > _region.zHiSurf + 0.01) ? _region.zHi : Infinity;
@@ -1365,6 +1373,10 @@ export function genLongPasses(ctx) {
     // sousední region), takže se tam rampa musí posunout tam, kam držák pustí
     // — jinak vjede bokem do neobrobeného odlitku (reálný nález na díle
     // uživatele: oranžová kolize držáku uprostřed vybrání).
+    // POZOR, ten holder cap NENÍ jen opatrnost: pokus vyjmout z něj hranici
+    // ležící na ústí údolí (10. 8. 2026, „za ústím je přece vzduch") vyrobil
+    // NOVÉ kolize držáku na 5 fixtures — držák je široký a dosáhne přes údolí
+    // na protilehlý hrb, i když přímo za hranicí vzduch je.
     const regionCappedRaw = regZHi !== Infinity && Math.abs(effZMax - regZHi) < 1e-6;
     if (prms.plungeRoughing) {
       const surf0 = offsetStockTopXAtZ(entryZ);
@@ -2000,7 +2012,9 @@ export function genLongPasses(ctx) {
     // vjezd od hranice rozsahu z povrchu polotovaru.
     if (entryCapped
         && intervals.length === 0 && !entryRampAnchor) {
-      const stockSurfX = sRad + stockClearances(prms).x;
+      // Válcová obdoba offsetové čáry (bez smyčky není co offsetovat).
+      // Přídavky (polo.) = 0 → povrchem je přímo poloměr polotovaru.
+      const stockSurfX = sRad + (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x);
       const surfX = stockLoopL ? offsetStockTopXAtZ(entryZ) : stockSurfX;
       if (surfX !== null && surfX > currentX + 0.05) {
         entryRampAnchor = { x: surfX, z: entryZ, first: true };

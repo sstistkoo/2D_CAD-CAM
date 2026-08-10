@@ -2,7 +2,7 @@
 // ║  CAM – vizuální úběr materiálu (Fáze 1 migrace na Clipper2)  ║
 // ╚══════════════════════════════════════════════════════════════╝
 import { describe, it, expect } from 'vitest';
-import { MaterialRemoval, buildStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
+import { MaterialRemoval, buildStockLoop, offsetStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
 import { polyArea, pointInLoop } from '../js/geom/geomCore.js';
 
 const cylinderPrms = {
@@ -96,5 +96,33 @@ describe('MaterialRemoval.advanceTo', () => {
     expect(Math.abs(rm.model.area())).toBeLessThan(a0);
     rm.advanceTo(simPath, 0);       // rewind na začátek
     expect(Math.abs(rm.model.area())).toBeCloseTo(a0, 6);
+  });
+});
+
+describe('offsetStockLoop (plánovací obrys polotovaru)', () => {
+  // Válec r20, z ∈ [2, −50] — obdélník od osy.
+  const loop = buildStockLoop(cylinderPrms, []);
+
+  it('Přídavky (polo.) = 0 → vrací PŘÍMO polotovar, žádný offset', () => {
+    const same = offsetStockLoop(loop, { ...cylinderPrms, stockClearX: 0, stockClearZ: 0 });
+    // Ne „skoro stejný" (offset o spodní mez 0,05 mm), ale TÝŽ objekt:
+    // nula znamená, že se offsetová čára vůbec nehledá.
+    expect(same).toBe(loop);
+  });
+
+  it('Přídavky (polo.) zadané → obrys se posune ven o zadanou hodnotu', () => {
+    const off = offsetStockLoop(loop, { ...cylinderPrms, stockClearX: 1, stockClearZ: 1 });
+    expect(off).not.toBe(loop);
+    let maxX = -Infinity;
+    for (const p of off) if (p.x > maxX) maxX = p.x;
+    expect(maxX).toBeCloseTo(21, 3);            // r20 + Vůle 1
+  });
+
+  it('prázdné pole NENÍ nula — dědí se Vůle nad polotovarem', () => {
+    const off = offsetStockLoop(loop, { ...cylinderPrms, stockClearX: null, stockClearZ: null, rapidClearance: 2 });
+    expect(off).not.toBe(loop);
+    let maxX = -Infinity;
+    for (const p of off) if (p.x > maxX) maxX = p.x;
+    expect(maxX).toBeCloseTo(22, 3);            // r20 + rapidClearance 2
   });
 });

@@ -12,7 +12,8 @@
 // Souřadnice: stejné jako simPath — {x = poloměr [mm], z = axiálně [mm]},
 // nezávislé na flipX/flipZ i machineStructure (to řeší až toScreen).
 
-import { StockModel, toolSweep, polySimplify } from '../../geom/geomCore.js';
+import { StockModel, toolSweep, polySimplify, polyOffset } from '../../geom/geomCore.js';
+import { stockClearances, stockClearanceIsZero } from './camMath.js';
 
 /**
  * Obrys řezné části nástroje RELATIVNĚ k programovanému bodu dráhy
@@ -34,6 +35,29 @@ export function toolFootprint(prms) {
   }
   loop.push({ x: H, z: -r });
   return loop;
+}
+
+/**
+ * Týž obrys jako `toolFootprint`, jen ZÚŽENÝ o „bezpečnostní" hodnotu
+ * (default 0,05 mm) — pro TESTY DOTYKU (rychloposuv × zbytek, kolize).
+ * Bez zúžení hlásí každé legitimní dojetí na hranu materiálu falešný dotyk.
+ *
+ * Dělba (ÚKLID bod 3, 10. 8. 2026 — dřív se zúžení počítalo zvlášť
+ * v `gcodeEmit.js` jako `rapidFootSlim` a v `collisionValidator.js` jako
+ * `footShrunk`, obojí `polyOffset(-0,05)`, takže to VYPADALO jako dva různé
+ * modely nástroje; ve skutečnosti jsou obrysy jen DVA):
+ *   - PLNÝ obrys (`toolFootprint`) = čím se ODEBÍRÁ materiál,
+ *   - ZÚŽENÝ (`toolFootprintSlim`) = čím se TESTUJE dotyk.
+ * Obě strany (emise i validátor) tuhle dvojici používají shodně.
+ *
+ * Zbytkové nálezy 0,6–3 mm² tedy NEJSOU rozdílem obrysů: emise si zbytek
+ * vede z PLÁNOVANÉ geometrie průchodů (`noteCutPass`), validátor z reálně
+ * projeté `simPath`. Zúžit rozdíl lze jen menším `shrink`, což vrátí falešné
+ * poplachy.
+ */
+export function toolFootprintSlim(prms, shrink = 0.05) {
+  const foot = toolFootprint(prms);
+  return polyOffset([foot], -shrink)[0] || foot;
 }
 
 /**
@@ -80,6 +104,48 @@ export function buildStockLoop(prms, stockPathSegments) {
   if (Math.abs(last.x) > 1e-6) pts.push({ x: 0, z: last.z });
   if (Math.abs(first.x) > 1e-6) pts.push({ x: 0, z: first.z });
   return pts;
+}
+
+/**
+ * PLÁNOVACÍ (pesimistický) obrys polotovaru = silueta posunutá o Přídavek
+ * X/Z polotovaru — táž „tečkovaná" čára, jakou kreslí náhled a na které
+ * začíná posuv. Jediná implementace pro celý CAM (ÚKLID 8. 8. 2026, viz
+ * docs/geometry-libs-migration.md): dřív byla zkopírovaná v gcodeEmit.js
+ * i roughingStrategies.js.
+ *
+ * Proč OFFSET a ne syrový obrys: Přídavek polotovaru je v zadání právě
+ * proto, že odlitek MŮŽE být větší — materiál až k té čáře tedy reálně
+ * existovat může a dráhy se musí plánovat pesimisticky. Syrový obrys
+ * zůstává jen pro otázky „narazil jsem FYZICKY?" (collisionValidator)
+ * a „co je vidět" (MaterialRemoval níž).
+ *
+ * Posouvá se přes `polyOffset` (Clipper), ne po-bodovou normálou: ta by na
+ * ostrých hranách/schodech siluete (odlitek s bosem/zápichem) zkreslovala
+ * roh lineární interpolací mezi posunutými vrcholy místo skutečného
+ * zaobleného přechodu. VůleX ≠ VůleZ (anizotropní) se řeší měřítkem osy Z
+ * (poměr VůleX/VůleZ), izotropním offsetem o VůleX a měřítkem zpět —
+ * ekvivalentní eliptickému posunu (ΔX/VůleX)² + (ΔZ/VůleZ)² = 1.
+ *
+ * POZOR (známá mez): z výsledku se bere jen komponenta `[0]`, takže
+ * u složitého obrysu odlitku, který se offsetem rozpadne na víc kusů,
+ * může minout ten správný. Dnes to nikde neškodí (spotřebitelé dopřesňují
+ * půlením), ale je to jediné místo, kde to jde opravit.
+ *
+ * @returns {Array<{x:number,z:number}>|null} posunutá smyčka, null při selhání
+ */
+export function offsetStockLoop(loop, prms) {
+  if (!loop) return null;
+  // Přídavek X/Z (polo.) = 0 → žádná offsetová čára se nehledá, plánovacím
+  // obrysem JE polotovar tak, jak je nakreslený (vědomé zadání uživatele
+  // „polotovar je přesně tady"). Degenerovaný případ, ve kterém obě čáry
+  // splývají — viz stockClearanceIsZero v camMath.js.
+  if (stockClearanceIsZero(prms)) return loop;
+  const { x: clrX, z: clrZ } = stockClearances(prms);
+  if (Math.abs(clrX - clrZ) < 1e-6) return polyOffset([loop], clrX)[0] || null;
+  const kZ = clrX / clrZ;
+  const scaled = loop.map(p => ({ x: p.x, z: p.z * kZ }));
+  const off = polyOffset([scaled], clrX)[0];
+  return off ? off.map(p => ({ x: p.x, z: p.z / kZ })) : null;
 }
 
 /**
