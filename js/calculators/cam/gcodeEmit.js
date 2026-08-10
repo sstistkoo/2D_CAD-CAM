@@ -925,6 +925,16 @@ export function generateAutoGCode(S, calc) {
         // (jiná kapsa), takže dojíždět zbytek diagonály VZDUCHEM nad
         // drážkou je zbytečné: zkrátit na konec posledního řezného úseku.
         const needsExactLanding = Math.abs(pass.zStart - pass.zEnd) > 1e-6 || !!pass.contourLeadOut;
+        // Popisek musí říkat SKUTEČNÝ sklon vydané přímky, ne nastavený úhel
+        // zanoření. Rampa se totiž smí ZPLOŠTIT: leží-li stěna údolí sama
+        // těsně pod úhlem zanoření, přímka pod plným úhlem by podjela
+        // offsetovou čáru (řezala by do přídavku), takže se protáhne až tam,
+        // kde vrstva opravdu začíná (viz zS v buildPocketPass). Dokud tu stál
+        // pevně nastavený úhel, výstup tvrdil „Rampa 15,0°" u dráhy, která
+        // jela 13,6° — reálná stížnost uživatele („tahle dráha je vypočítaná
+        // špatně"), přitom čísla byla správná a lhal jen komentář.
+        const rampDeg = Math.abs(Math.atan2(Math.abs(x1 - x0), Math.abs(z1 - z0)) * 180 / Math.PI);
+        const rampNote = `Rampa ${(Math.abs(rampDeg - entryAngleDegGc) < 0.05 ? entryAngleDegGc : rampDeg).toFixed(1)}°`;
         if (Math.abs(z1 - z0) < 1e-6) {
           simCounter += 1; addN(`G1 X${xDia(x1)} Z${z1.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(x1, z1);
         } else {
@@ -962,7 +972,7 @@ export function generateAutoGCode(S, calc) {
             const headSegs = segs.slice(0, firstG1Idx + 1);
             headSegs.forEach((s, idx) => {
               simCounter += 1;
-              const cmt = idx === firstG1Idx ? note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`) : '';
+              const cmt = idx === firstG1Idx ? note('', rampNote) : '';
               addN(s.kind === 'G0'
                 ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
                 : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
@@ -1007,7 +1017,7 @@ export function generateAutoGCode(S, calc) {
             const labelIdx = segs.findIndex(s => s.kind === 'G1');
             segs.forEach((s, idx) => {
               simCounter += 1;
-              const cmt = idx === (labelIdx >= 0 ? labelIdx : segs.length - 1) ? note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`) : '';
+              const cmt = idx === (labelIdx >= 0 ? labelIdx : segs.length - 1) ? note('', rampNote) : '';
               addN(s.kind === 'G0'
                 ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
                 : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);

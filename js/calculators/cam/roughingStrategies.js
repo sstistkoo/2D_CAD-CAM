@@ -864,6 +864,14 @@ export function genLongPasses(ctx) {
   // průchodům, takže na tom nezávisí, kolika `continue` se tam došlo.
   const holderBlockedDepths = new Set();
   const depthKey = (x) => Math.round(x * 1000);
+  // Z-ZÓNY, které obálka držáku zahodila celé. Počítání po HLOUBKÁCH
+  // (holderBlockedDepths výš) tuhle ztrátu neuvidí: stačí, aby táž hloubka
+  // vydala průchod někde jinde, a zóna zmizí bez jediného slova — přesně tak
+  // se u dílu uživatele potichu vypařila CELÁ pravá strana (Z 265→367,
+  // 101 mm), protože držák by musel přes klín, na který nedosáhne destička.
+  // Vyhodnotí se až proti skutečně vydaným průchodům (níž), aby zóny
+  // dobrané dojezdem („bez schodků" sledování obrysu) nehlásily falešně.
+  const holderDroppedZones = [];
 
   // Navázání: předchozí průchod končí přesně v bodě, odkud začíná leadIn
   // dalšího → nesmí odskočit (žádný zbytečný trojúhelník odskok+návrat),
@@ -1342,6 +1350,44 @@ export function genLongPasses(ctx) {
   // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
   // neobrobený — nic dalšího už tam nezajíždí).
   const pendingRampCompletions = [];
+  // ── Kam už někdo sjel po TÉŽE přímce zanoření ──────────────────────────────
+  // Ořízlá rampa dojezdu (pendingRampCompletions výš) a kapsa za bossem
+  // (buildPocketPass níž) se v údolí potkávají na JEDNÉ přímce zanoření: roh
+  // strmé stěny je pro obě týž bod. Kapsa ho ale sjíždí UVNITŘ hloubkové
+  // smyčky (na hlubší vrstvě), zatímco dokončení rampy až po ní — takže se
+  // tentýž klín vyřízl DVAKRÁT (reálný nález na díle uživatele: „Průchod 9
+  // jede od začátku zanoření místo aby pokračoval tam, kde zanoření
+  // skončilo"; průchody 9/10 byly doslovná kopie 4/5).
+  // Přímku identifikuje její konstanta c = z − x/tg(úhel zanoření): všechny
+  // body jednoho zanořování ji mají stejnou. Evidují se ale celé X-INTERVALY,
+  // ne jen nejhlubší dosah: po jedné a téže nekonečné přímce mohou ležet DVA
+  // nesouvislé útvary (naměřeno na holder-casting-slanted-face — kapsa sjela
+  // po úseku X 39–45, dokončovací krok patřil úseku X 52,3–53,0 nad ním).
+  // „Sjelo se hlouběji" by ten druhý úsek chybně smazalo.
+  // `lineX/lineZ` = kterýkoli bod přímky, `fromX`..`toX` = úsek, který se po ní
+  // OPRAVDU vyřezal. Rozdíl je podstatný: rampa kapsy se kotví nejvýš o Hloubku
+  // (ap) nad svým dnem (viz „Jeden průchod nesmí sebrat víc než Hloubka (ap)"),
+  // takže sjíždí jen KUS přímky vedoucí od rohu — hlásit celý rozsah od rohu by
+  // smazalo dobírací krok, který patří jinému (mělčímu) úseku téže přímky
+  // (naměřeno na holder-casting-slanted-face: zmizel krok X 52,3–53,0,
+  // přestože kapsa sjížděla až od X 45).
+  const plungeLineRuns = [];
+  const plungeLineC = (x, z) => z - x / effPlungeTanL;
+  const notePlungeRun = (lineX, lineZ, fromX, toX) => {
+    const c = plungeLineC(lineX, lineZ);
+    const lo = Math.min(fromX, toX), hi = Math.max(fromX, toX);
+    const hit = plungeLineRuns.find(e => Math.abs(e.c - c) < 0.1
+      && lo <= e.hi + 0.05 && hi >= e.lo - 0.05);            // navazuje/překrývá
+    if (hit) { hit.lo = Math.min(hit.lo, lo); hit.hi = Math.max(hit.hi, hi); }
+    else plungeLineRuns.push({ c, lo, hi });
+  };
+  // Je krok rampy (od curX dolů na stepX) už celý pokrytý dřívějším sjezdem
+  // po TÉŽE přímce?
+  const plungeRunCovers = (x0, z0, stepX, curX) => {
+    const c = plungeLineC(x0, z0);
+    return plungeLineRuns.some(e => Math.abs(e.c - c) < 0.1
+      && stepX >= e.lo - 0.05 && curX <= e.hi + 0.05);
+  };
   // Začátek průchodů TOHOTO regionu — odložené zanoření se řadí na konec
   // svého regionu, ne až za celý program (viz konec smyčky regionů).
   const regionMark = passes.length;
@@ -1387,11 +1433,14 @@ export function genLongPasses(ctx) {
     const out = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
     return (out.zStart - out.zEnd < dzScan) ? null : out;
   };
+  // Nejmělčí… vlastně naposledy ÚSPĚŠNÁ hloubka tohohle regionu — proti ní se
+  // pozná, že posloupnost přestřelila nedosažitelnou hranici (viz uzavírací
+  // vrstva na konci hloubkové smyčky).
+  let lastDepthWithPasses = null;
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
-    const DBG = globalThis.__DEPTH_LOG__ ? (m, o) => globalThis.__DEPTH_LOG__.push({ reg: _regions.indexOf(_region), x: +currentX.toFixed(3), m, ...o }) : () => {};
     const sz = stockZRangeAt(currentX);
-    if (!sz) { DBG('no-stock'); continue; }
+    if (!sz) continue;
 
     // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval;
     // + Z-okno regionu (region roughing).
@@ -1418,7 +1467,7 @@ export function genLongPasses(ctx) {
     // ústí se bez capu držáku stane nehlídaným → nové kolize držáku na
     // 5 fixtures. NEZKOUŠET ZNOVU BEZ ŘEŠENÍ VLASTNICTVÍ ÚDOLÍ.
     const dissolveEdge = !prms.plungeRoughing;
-    if (dissolveEdge && _region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) { DBG('dissolveEdge-skip'); continue; }
+    if (dissolveEdge && _region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) continue;
     const regZHi = (!dissolveEdge || _region.zHiSurf === undefined || currentX > _region.zHiSurf + 0.01) ? _region.zHi : Infinity;
     const regZLo = (!dissolveEdge || _region.zLoSurf === undefined || currentX > _region.zLoSurf + 0.01) ? _region.zLo : -Infinity;
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
@@ -1427,7 +1476,7 @@ export function genLongPasses(ctx) {
     // Null = na téhle hloubce v okně žádný materiál není.
     const effZMax = passEntryZ(
       Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, regZHi), effZMin, sz, currentX);
-    if (effZMax === null || effZMax - effZMin < 0.1) { DBG('no-window', { effZMax, effZMin, szMax: sz.zMax, szMin: sz.zMin }); continue; }
+    if (effZMax === null || effZMax - effZMin < 0.1) continue;
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
     // nepřekračuje currentX). První interval (od pravé hrany
     // polotovaru) = klasický otevřený vjezd. Každý další interval je
@@ -1476,7 +1525,7 @@ export function genLongPasses(ctx) {
         // 87 mm². Tam se hloubka v tomhle regionu radši vynechá (jako před
         // zavedením zanořování na hranici); zanoření zůstane jen tam, kde je
         // pro držák prokazatelně místo.
-        if (regionCappedRaw && !isFinite(zCap)) { DBG('holder-no-entry-at-region-edge', { entryZ, effZMin }); holderBlockedDepths.add(depthKey(currentX)); continue; }
+        if (regionCappedRaw && !isFinite(zCap)) { holderBlockedDepths.add(depthKey(currentX)); continue; }
         if (isFinite(zCap) && zCap < entryZ - 1e-6) {
           const reScan = scan(currentX, zCap, effZMin, true);
           if (reScan.firstOpen && reScan.intervals.length > 0) {
@@ -1495,11 +1544,9 @@ export function genLongPasses(ctx) {
     const entryCapped = (entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
       || regionCapped;
-    DBG('scan', { entryZ, effZMax, effZMin, firstOpen, regionCapped, entryCapped,
-      ivs: intervals.map(v => `${v.zStart.toFixed(2)}→${v.zEnd.toFixed(2)}${v.blocked ? 'B' : ''}${v.holderClamped ? 'H' : ''}`) });
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
-      if (iv.zStart - iv.zEnd < dzScan) { DBG('iv-too-short', { idx, zS: iv.zStart, zE: iv.zEnd }); return; }
+      if (iv.zStart - iv.zEnd < dzScan) return;
       if (idx === 0 && firstOpen) {
         // Otevřený vjezd zprava přes hranu polotovaru.
         const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
@@ -1643,7 +1690,6 @@ export function genLongPasses(ctx) {
           // hlubší vrstva sama nenajde (leží mimo její vlastní Z-interval) —
           // dokončí se až po skončení hloubkové smyčky tohoto regionu.
           if (straightContinueZ !== null) {
-            DBG('pendingRampCompletion', { corner: [corner.x, corner.z], resume: [rampTarget.x, rampTarget.z], target: [rampTargetRaw.x, rampTargetRaw.z] });
             pendingRampCompletions.push({ resumeX: rampTarget.x, resumeZ: rampTarget.z, targetX: rampTargetRaw.x, targetZ: rampTargetRaw.z });
           }
           // Konec rovného pokračování je STEJNÁ situace jako konec běžného
@@ -1713,10 +1759,7 @@ export function genLongPasses(ctx) {
       // hlavní smyčka ji na hlubších hloubkách znovu nezpracovává.
       if (iv.blocked && prms.pocketFinishAtOnce) {
         const midZ = (iv.zStart + iv.zEnd) / 2;
-        if (pocketDoneRanges.some(r => midZ <= r.zHi + 0.1 && midZ >= r.zLo - 0.1)) {
-          DBG('pocket-already-done-SKIP', { idx, zS: iv.zStart, zE: iv.zEnd, midZ, ranges: pocketDoneRanges.map(r => `${r.zHi.toFixed(1)}..${r.zLo.toFixed(1)}`) });
-          return;
-        }
+        if (pocketDoneRanges.some(r => midZ <= r.zHi + 0.1 && midZ >= r.zLo - 0.1)) return;
       }
       // Víc oddělených kapes za sebou na TÉŽE hloubce (idx>1): dobrání
       // najednou pro tu DRUHOU (a další) je order-dependent kolize držáku —
@@ -1739,7 +1782,11 @@ export function genLongPasses(ctx) {
       // držáku / 500–670 mm² tam, kde bylo čisto.
       if (iv.blocked) {
         const clamped = holderSpanClamp(currentX, iv);
-        if (!clamped) { DBG('pocket-holder-span-reject', { idx, zS: iv.zStart, zE: iv.zEnd }); holderBlockedDepths.add(depthKey(currentX)); return; }
+        if (!clamped) {
+          holderBlockedDepths.add(depthKey(currentX));
+          holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
+          return;
+        }
         iv = clamped;
       }
       if (!iv.blocked) {
@@ -1762,13 +1809,17 @@ export function genLongPasses(ctx) {
           // celé pravé strany (držák 20 mm radiálně by musel přes přírubu
           // Ø199,7) a v ⚠ panelu nebylo ani slovo, takže to vypadalo jako
           // chyba geometrie.
-          if (nz === null) { DBG('open-iv-holder-NULL', { idx, zS: iv.zStart, zE: iv.zEnd }); holderBlockedDepths.add(depthKey(currentX)); return; }
+          if (nz === null) {
+            holderBlockedDepths.add(depthKey(currentX));
+            holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
+            return;
+          }
           if (nz > iv.zEnd + 1e-9) zEndEff = nz;
         }
         if (iv.zStart - zEndEff < dzScan) {
           // obálka ho zkrátila až pod řezný krok
-          DBG('open-iv-holder-short', { idx, zS: iv.zStart, zE: iv.zEnd, zEndEff });
           if (zEndEff > iv.zEnd + 1e-9) holderBlockedDepths.add(depthKey(currentX));
+          holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
           return;
         }
         const holderClampedOpen = zEndEff > iv.zEnd + 1e-9;
@@ -1848,18 +1899,38 @@ export function genLongPasses(ctx) {
         // Rampa nesmí přejet hranici kapsy na dosažené hloubce: u KONKÁVNÍ
         // stěny (údolí), která se pod rohem pokládá pod úhel zanoření, by
         // sdílená přímka rampy podjela offset a dno by řezalo skrz stěnu.
+        //
+        // KOLIK se přímka pod plným úhlem zanoření smí dostat pod offsetovou
+        // (hrubovací) čáru: offset = hotovní kontura + PŘÍDAVEK, takže mělké
+        // zajetí do přídavku dílu NEUBLÍŽÍ — zůstane tam jen o něco tenčí
+        // slupka pro dokončování. Práh je proto POLOVINA přídavku (na hotovní
+        // konturu se tím nedá dojet), ne pevných 0,05 mm.
+        // PROČ: leží-li stěna údolí sama TĚSNĚ pod úhlem zanoření (na dílu
+        // uživatele 14,6° proti nastaveným 15°), zajede přímka pod offset
+        // o ~0,12 mm — s pevnou tolerancí se rampa zploštila na začátek vrstvy
+        // a jela 13,6° místo 15°. S nulovým přídavkem vyjde práh 0,05 → jako
+        // dřív.
+        const rampDipTol = Math.max(0.05, 0.5 * Math.min(
+          parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0));
+        // Max zajetí tětivy (roh → dosažená hloubka) pod offset.
+        const rampDip = (zCand) => {
+          let worst = 0;
+          for (let t = 0.1; t < 0.999; t += 0.09) {
+            const z = cornerLocal.z + (zCand - cornerLocal.z) * t;
+            const xl = cornerLocal.x + (xReached - cornerLocal.x) * t;
+            const off = offsetXAt(z);
+            if (off !== null && off - xl > worst) worst = off - xl;
+          }
+          return worst;
+        };
         let zS = cornerLocal.z - dzRamp;
-        if (zS > ivLocal.zStart + 1e-6) zS = ivLocal.zStart;
+        // Zploštit (protáhnout na začátek vrstvy) JEN když plný úhel opravdu
+        // zajede do přídavku hlouběji, než je bezpečné.
+        if (zS > ivLocal.zStart + 1e-6 && rampDip(zS) > rampDipTol) zS = ivLocal.zStart;
         // Tětiva rampy (roh → začátek dna) proti offsetu: když i tak někde
         // podjede (konvexní vyboulení stěny), rampa se nahradí sledováním
         // kontury po stěně dolů — přesné, bez zajetí.
-        let rampPierces = false;
-        for (let t = 0.1; t < 0.999; t += 0.09) {
-          const z = cornerLocal.z + (zS - cornerLocal.z) * t;
-          const xl = cornerLocal.x + (xReached - cornerLocal.x) * t;
-          const off = offsetXAt(z);
-          if (off !== null && xl < off - 0.05) { rampPierces = true; break; }
-        }
+        const rampPierces = rampDip(zS) > rampDipTol;
         const pocketPass = {
           type: 'long', x: xReached,
           zStart: zS, zEnd: ivLocal.zEnd, blocked: ivLocal.blocked,
@@ -1922,6 +1993,7 @@ export function genLongPasses(ctx) {
         pocketBestX.set(pbKey, pocketPass.x);
         linkToPrev(leadIn);   // navázání nezávisí na „bez schodků"
         passes.push(pocketPass);
+        if (pocketPass.ramp) notePlungeRun(corner.x, corner.z, pocketPass.ramp.x0, pocketPass.x);
         return;
       }
 
@@ -1985,7 +2057,13 @@ export function genLongPasses(ctx) {
               : prevRampEnd;
           }
         }
-        if (!skipRiskyPocketEmit) passes.push(pocketPass);
+        if (!skipRiskyPocketEmit) {
+          passes.push(pocketPass);
+          // Tenhle zákrok sjel po přímce zanoření od své KOTVY (ne od rohu —
+          // kotva bývá o Hloubku ap níž) na pocketPass.x; dokončení ořízlé
+          // rampy po témž ÚSEKU už tudy nemusí jezdit znovu (plungeLineRuns).
+          if (pocketPass.ramp) notePlungeRun(curCorner.x, curCorner.z, pocketPass.ramp.x0, pocketPass.x);
+        }
         prevRampEnd = { x: pocketPass.x, z: pocketPass.zStart };
         bestX = pocketPass.x;
         firstPlunge = false;
@@ -2116,11 +2194,16 @@ export function genLongPasses(ctx) {
         if (cleanLeadIn.length > 0) cleanPass.contourLeadIn = cleanLeadIn;
         if (cleanLeadOut.length > 0) cleanPass.contourLeadOut = cleanLeadOut;
         if (cleanApproach) cleanPass.cleanApproach = cleanApproach;
-        if (!skipRiskyPocketEmit) passes.push(cleanPass);
+        if (!skipRiskyPocketEmit) {
+          passes.push(cleanPass);
+          // Dobrání schodku dojede po kontuře od konce POSLEDNÍ rampy až na
+          // DNO kapsy — ten úsek přímky zanoření je tím pádem venku a
+          // dokončení ořízlé rampy ho nemá opakovat (plungeLineRuns).
+          if (prevRampEnd) notePlungeRun(corner.x, corner.z, prevRampEnd.x, pocketBottomX);
+        }
       }
 
       // Potlačení: celou Z-zónu kapsy hlavní smyčka znovu nezpracuje.
-      DBG('pocket-done-PUSH', { idx, zHi: corner.z, zLo: exitZ, bottomX: pocketBottomX, reachedX: bestX, ivZS: iv.zStart, ivZE: iv.zEnd });
       pocketDoneRanges.push({ zHi: corner.z, zLo: exitZ });
       return;
     });
@@ -2222,6 +2305,48 @@ export function genLongPasses(ctx) {
         passes.push(finalPass);
       }
     }
+    // ── Poslední (kratší) vrstva před nedosažitelnou hranicí ───────────────
+    // Hloubková posloupnost jde po celé Hloubce (ap) od povrchu, takže
+    // poslední krok obvykle PŘESTŘELÍ hranici, za kterou už geometrie
+    // nepustí. Typicky schodiště u čela: čelní hrana destičky se s hloubkou
+    // vzdaluje od zdi (mezní čára „dojezd"), až okno vyjde nulové — hloubka
+    // pak nevydá NIC a mezi poslední vrstvou a skutečnou hranicí zůstane
+    // stát celý schod ap (reálný nález na díle uživatele: „chybí mi tam
+    // jedna vrstva" pod poslední vrstvou u čela).
+    // Bisekce najde nejhlubší X, kde sken ještě pustí použitelný vjezd, a
+    // vrstvu tam dokončí — týž princip jako uzavření řetězu rampy výš, jen
+    // pro obyčejný otevřený vjezd (tam žádný řetěz neběží).
+    // JEN u nezakrytého vjezdu zprava (`!entryCapped`): stojí-li vjezd na
+    // umělé hranici (rozsah 📐 / hranice úseku / posunutý start zanoření),
+    // patří tam RAMPA a uzavření řetězu si řeší entryRampClosed výš — obyčejná
+    // vrstva by se do neobrobeného materiálu zapíchla svisle.
+    if (passes.length === passMark && !entryCapped && lastDepthWithPasses !== null
+        && lastDepthWithPasses - currentX > 0.1) {
+      let loX = currentX, hiX = lastDepthWithPasses;   // loX = nepustí, hiX = pustí
+      let bestIv = null, bestX = null;
+      for (let k = 0; k < 20; k++) {
+        const mid = (loX + hiX) / 2;
+        const ms = scan(mid, entryZ, effZMin, true);
+        const iv0 = (ms.firstOpen && ms.intervals.length > 0) ? ms.intervals[0] : null;
+        if (iv0 && iv0.zStart - iv0.zEnd >= dzScan) { bestIv = iv0; bestX = mid; hiX = mid; }
+        else loX = mid;
+      }
+      if (bestIv && lastDepthWithPasses - bestX > 0.1) {
+        const closePass = { type: 'long', x: bestX, zStart: bestIv.zStart, zEnd: bestIv.zEnd, blocked: bestIv.blocked };
+        if (prms.noStepRoughing && bestIv.blocked) {
+          // Schod vůči vrstvě NAD ní se dobere sledováním obrysu, stejně
+          // jako u běžného průchodu „bez schodků".
+          const lo = holderTrimLeadOut(
+            traceOffsetPath(bestIv.zEnd, findLeadOutEndZ(bestIv.zEnd, lastDepthWithPasses, -Infinity, traceFloorL)), true);
+          while (lo.length > 0 && lo[0].x2 <= bestX + 0.02) lo.shift();
+          clipLeadOutToDepth(lo, lastDepthWithPasses);
+          if (!prms.noStepRoughingFace && isFaceLeadOut(lo)) lo.length = 0;
+          if (lo.length > 0) closePass.contourLeadOut = lo;
+        }
+        passes.push(closePass);
+      }
+    }
+    if (passes.length > passMark) lastDepthWithPasses = currentX;
     // Zanoření se stropem držáku (entryZ posunutý doleva, viz výš) bere
     // MENŠÍ průměr, než na jaký v tomhle Z-okně dosáhly ostatní regiony —
     // v pořadí se proto odloží až za ně, ať hrubování jde odshora dolů
@@ -2272,10 +2397,20 @@ export function genLongPasses(ctx) {
   };
   for (const rc of pendingRampCompletions) {
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
+    const rcSteps = [];
     while (curX > rc.targetX + 1e-6) {
       const stepX = Math.max(rc.targetX, curX - step);
       const stepZ = curZ - (curX - stepX) / effPlungeTanL;
       const isLastStep = stepX <= rc.targetX + 1e-6;
+      // Tenhle úsek přímky zanoření už jednou sjela kapsa za bossem z hlubší
+      // vrstvy (plungeLineRuns výš) — roh strmé stěny je pro obě týž bod.
+      // Bez tohohle testu se týž klín vyřízl DVAKRÁT: „Průchod 9/10" byl
+      // doslovná kopie „Průchodu 4/5" a začínal znovu od vršku zanoření
+      // (reálný nález na díle uživatele).
+      if (plungeRunCovers(rc.resumeX, rc.resumeZ, stepX, curX)) {
+        curX = stepX; curZ = stepZ;   // posuň se po přímce dál (kdyby hlubší krok ještě chyběl)
+        continue;
+      }
       // Meziкrok nekončí hned po rampě — pokračuje ROVNĚ (jako běžná
       // vrstva) až na společný cíl rc.targetZ (konec polotovaru v tomhle
       // regionu), stejně jako u prvního (nerozděleného) dojezdu. Poslední
@@ -2329,9 +2464,29 @@ export function genLongPasses(ctx) {
         clipLeadOutToDepth(lo, curX);
         if (lo.length > 0) stepPass.contourLeadOut = lo;
       }
-      passes.push(stepPass);
+      rcSteps.push(stepPass);
       curX = stepX; curZ = stepZ;
     }
+    if (rcSteps.length === 0) continue;
+    // ── Kam v pořadí ten dobírací řetěz patří ─────────────────────────────
+    // Rozhodnout SE MUSÍ až tady (dřív není jisté, že klín nevezme některá
+    // hlubší vrstva sama), ale VYDAT se nemusí až tady. Přišitý na konec
+    // regionu skočil mělký dobírák (např. Ø44,5) až za nejhlubší vrstvy
+    // (Ø19,5) — program pak „dodělával nakonec" místo aby šel po vrstvách
+    // dolů (reálná stížnost uživatele). Blok se proto vloží hned za poslední
+    // průchod, který je ještě stejně hluboký nebo mělčí; hloubková
+    // posloupnost tak zůstane monotónní.
+    const deepestStepX = rcSteps[rcSteps.length - 1].x;
+    let at = passes.length;
+    while (at > regionMark && passes[at - 1].x < deepestStepX - 1e-6) at--;
+    // Řetěz se nesmí rozříznout: `pocketReposition`/`noRetract` počítají
+    // s tím, že nástroj stojí na konci PŘEDCHOZÍHO průchodu. Vložit blok mezi
+    // ně by ten rychloposuv poslal skrz materiál — v takovém případě zůstane
+    // dobírák na konci regionu (bezpečné, jen dřívější pořadí).
+    if (at < passes.length
+        && (passes[at].pocketReposition || passes[at].cleanApproach
+            || (at > regionMark && passes[at - 1].noRetract))) at = passes.length;
+    passes.splice(at, 0, ...rcSteps);
   }
   // Přesun odloženého zanoření na konec TOHOTO REGIONU (stabilně, pořadí
   // uvnitř skupin zůstává) — „co je nahoře, má přednost". Region je vlastní
@@ -2365,6 +2520,37 @@ export function genLongPasses(ctx) {
     const lost = [...holderBlockedDepths].filter(k => !machined.has(k)).length;
     if (lost > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${lost} hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.` });
+  }
+  // Zóny zahozené obálkou držáku, kam nakonec NIC nezajelo (viz
+  // holderDroppedZones výš). Pokrytí se bere z vydaných průchodů VČETNĚ
+  // sledování obrysu (leadIn/leadOut) — právě tím se většina zahozených
+  // intervalů dobere (dojezd „bez schodků" projede celé údolí za bossem),
+  // takže bez téhle kontroly by hlášení křičelo skoro vždy.
+  if (holderDroppedZones.length > 0) {
+    const spans = [];
+    for (const p of passes) {
+      if (p.type !== 'long') continue;
+      let lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+      for (const key of ['contourLeadIn', 'contourLeadOut']) {
+        for (const s of p[key] || []) {
+          lo = Math.min(lo, s.z1, s.z2); hi = Math.max(hi, s.z1, s.z2);
+        }
+      }
+      spans.push({ lo, hi });
+    }
+    const uncovered = (z) => !spans.some(s => z >= s.lo - 0.2 && z <= s.hi + 0.2);
+    // Zóna se pokládá za neobrobenou, když je bez pokrytí většina její délky
+    // (vzorkuje se v pětinách) — okrajové překryvy dojezdů nic nezachrání.
+    let worst = 0, cnt = 0;
+    for (const zn of holderDroppedZones) {
+      const len = Math.abs(zn.zHi - zn.zLo);
+      if (len < 1) continue;
+      let miss = 0;
+      for (let i = 1; i <= 5; i++) if (uncovered(zn.zLo + (zn.zHi - zn.zLo) * i / 6)) miss++;
+      if (miss >= 3) { cnt++; if (len > worst) worst = len; }
+    }
+    if (cnt > 0)
+      foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${cnt} úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší ${worst.toFixed(0)} mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.` });
   }
 
   // ── Sjezdy/dojezdy upichováku po OBÁLCE (podélně) ──
