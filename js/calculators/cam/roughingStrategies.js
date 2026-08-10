@@ -1809,6 +1809,13 @@ export function genLongPasses(ctx) {
           // celé pravé strany (držák 20 mm radiálně by musel přes přírubu
           // Ø199,7) a v ⚠ panelu nebylo ani slovo, takže to vypadalo jako
           // chyba geometrie.
+          // POZOR: „posunout vjezd dál do úseku, kde už držák místo má" se
+          // 10. 8. 2026 zkoušelo TŘEMI způsoby (vlastní posun + rampa; totéž
+          // s prověřenou rampou; propadnutí do kapsové větve) a KAŽDÝ přidal
+          // měřitelné kolize držáku (94,5 → 136,6 mm² na dílu uživatele) nebo
+          // rozsypal konec polotovaru na desítky mikro-průchodů. NEZKOUŠET
+          // znovu bez toho, že vjezd i CELÁ jeho rampa se prověří TOU SAMOU
+          // Minkowského obálkou, kterou pak počítá validátor.
           if (nz === null) {
             holderBlockedDepths.add(depthKey(currentX));
             holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });

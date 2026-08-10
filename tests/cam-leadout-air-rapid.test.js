@@ -107,29 +107,32 @@ describe('Dojezd „bez schodků"', () => {
     }, 30000);
   }
 
-  it('part-11-zleva: přesun v kapse se zvedne nad materiál a sjezd dojede posuvem', async () => {
-    // Odskok je 2 mm, Hloubka (ap) 5 mm — samotný odskok tedy nástroj NEDOSTANE
-    // nad úroveň předchozí vrstvy a přejezd v Z by projel odlitkem. Kontrola je
-    // strukturální nad emitovaným kódem: `G0 X<výš>` před `G0 Z<přejezd>` a
-    // rozdělený sjezd `G0 X…` + `G1 X… F…` za ním.
-    const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
-    const { calc, gcode, S } = await runCamProg(prog);
-    const step = parseFloat(S.params.depthOfCut);
-    const loop = buildStockLoop(S.params, calc.stockPathSegments) || [];
-    const tipR = parseFloat(S.params.toolRadius) || 0;
+  it('part-4: přesun v kapse se zvedne nad řez a sjezd dojede posuvem', async () => {
+    // Přesun uvnitř kapsy (návrat na pokračování rampy dalšího kroku řetězu)
+    // se NESMÍ vést v úrovni řezu — nástroj se před ním musí zvednout a sjezd
+    // zpátky nesmí dojet rychloposuvem až na materiál (poslední kousek posuvem).
+    //
+    // POZOR na výběr fixture: dřív se tohle měřilo na `part-11-zleva-casting`
+    // v údolí Z≈38–80. Tam ale ten řetěz byl DUPLICITA (kapsa za bossem sjela
+    // po téže přímce zanoření už uvnitř hloubkové smyčky — viz plungeLineRuns
+    // v roughingStrategies.js) a po jejím odstranění v tom okně žádný přesun
+    // v kapse nezbyl. `part-4` má v údolí Z≈29–59 pravý čtyřkrokový řetěz,
+    // takže se tu měří TÝŽ mechanismus, jen na správném dílu.
+    const prog = JSON.parse(readFileSync(join(fxDir, 'part-4.camprog'), 'utf8'));
+    const { gcode } = await runCamProg(prog);
     const moves = parseMoves(gcode);
-    // Přejezdy v Z (konstantní X) uvnitř kapsy — vezmi ten v údolí Z≈38–80.
+    // Přejezdy v Z (konstantní X) uvnitř kapsy v údolí Z≈29–60, které se
+    // VRACEJÍ na začátek dalšího kroku rampy (z0 < z1, tedy zpátky „nahoru").
     const trav = moves.filter(m => m.g === 0 && Math.abs(m.x1 - m.x0) < 1e-6
-      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 30 && m.z1 < 60 && m.z0 > 60);
+      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 29 && m.z1 < 60 && m.z0 < m.z1 && m.x1 < 60);
     expect(trav.length, 'přejezd v kapse zpět na pokračování rampy').toBeGreaterThan(0);
     for (const m of trav) {
-      // Zvednutí před přejezdem je aspoň o úroveň vrstvy (ne jen o Odskok).
-      // Že přejezd v té výšce opravdu vede vzduchem, hlídá nad DYNAMICKÝM
-      // modelem (co už průchody odebraly) validátor kolizí — syrová silueta
-      // by tady lhala, materiál nad nástrojem je v tu chvíli dávno pryč.
       const idx = moves.indexOf(m);
-      expect(moves[idx - 1].g, 'před přejezdem je rychloposuv v X').toBe(0);
-      expect(m.x1 - moves[idx - 2].x1).toBeGreaterThanOrEqual(step - 1e-6);
+      // Zvednutí PŘED přejezdem: přejezd jde výš, než kde skončil předchozí
+      // řezný pohyb. Že v té výšce opravdu vede vzduchem, hlídá nad DYNAMICKÝM
+      // modelem (co už průchody odebraly) validátor kolizí — syrová silueta by
+      // tady lhala, materiál nad nástrojem je v tu chvíli dávno pryč.
+      expect(m.x1, 'přejezd nad úrovní předchozího řezu').toBeGreaterThan(moves[idx - 1].x0);
       // Sjezd zpátky: rychloposuv a teprve pak posuv na cílovou hloubku.
       expect(moves[idx + 1].g, 'sjezd rychloposuvem').toBe(0);
       expect(moves[idx + 2].g, 'poslední kousek sjezdu posuvem').toBe(1);
@@ -164,17 +167,23 @@ describe('Dojezd „bez schodků"', () => {
       .toBeLessThan(0.3);
   }, 30000);
 
-  it('part-11-zleva: i MEZIKROK dorampování si dobere schod po kontuře', async () => {
-    const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
+  it('part-4: i MEZIKROK dorampování si dobere schod po kontuře', async () => {
+    // Vozidlo přesunuto z `part-11-zleva-casting` (jeho řetěz v údolí Z≈38–45
+    // byl duplicita kapsy za bossem — viz předchozí test) na `part-4`, kde je
+    // řetěz pravý: Ø37,0 → Ø34,5 → Ø32,0 → Ø31,9 v údolí Z≈29–59.
+    const prog = JSON.parse(readFileSync(join(fxDir, 'part-4.camprog'), 'utf8'));
     expect(prog.params.noStepRoughing).toBe(true);
     const { calc } = await runCamProg(prog);
-    // Řetěz v údolí Z≈38–45: mezikrok na Ø24,5 + poslední krok na Ø22,7.
-    const chain = (calc.passes || []).filter(p => p.rampCompletion && p.x > 20 && p.x < 27);
+    const chain = (calc.passes || []).filter(p => p.rampCompletion
+      && p.zStart > 29 && p.zStart < 60);
     expect(chain.length, 'fixture má v údolí řetěz dorampování').toBeGreaterThan(1);
     const mid = chain.find(p => p.noRetract);          // mezikrok (poslední odjíždí)
     expect(mid, 'mezikrok řetězu').toBeTruthy();
-    // Doběh se NEzastaví na společném cíli (Z 44,994) — jede až na stěnu kontury…
-    expect(mid.zEnd).toBeGreaterThan(46);
+    // Doběh se NEzastaví na společném cíli řetězu (poslední krok dosedá na
+    // Z≈40,2) — jede rovně dál až na stěnu kontury…
+    const last = chain[chain.length - 1];
+    expect(mid.zEnd, `mezikrok x=${mid.x.toFixed(3)} skončil na společném cíli`)
+      .toBeLessThan(last.zStart - 1);
     // …a odtud dobere schod sledováním obrysu (dřív dojížděl jen poslední krok).
     expect(mid.contourLeadOut && mid.contourLeadOut.length > 0,
       `mezikrok x=${mid.x.toFixed(3)} bez dojezdu po kontuře`).toBe(true);
