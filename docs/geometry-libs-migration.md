@@ -1059,6 +1059,66 @@ vjezdu MUSÍ zůstat.
 Diagnostika je připravená: `globalThis.__REGION_LOG__` vedle `raw`/`splits`
 loguje i `mouths` (zHi/zLo každého údolí) a celá sestavená okna `regions`.
 
+### VYŘÍZENO — zanořování: duplicita, pořadí, úhel rampy (10. 8. 2026)
+
+Série z bug-reportu nad `projekt_2026-08-10*.camprog` (= fixture
+`part-11-zleva-casting`). Měřeno proti baseline ve worktree.
+
+- **Týž klín dvakrát**: ořízlá rampa dojezdu (`pendingRampCompletions`) a kapsa
+  za bossem (`buildPocketPass`) sjíždějí po TÉŽE přímce zanoření. Fix
+  `plungeLineRuns` (přímka = `c = z − x/tg(úhel)`, evidují se X-ÚSEKY).
+  DVĚ pasti odhalené měřením: (1) „nejhlubší dosah" nestačí — po jedné přímce
+  leží i dva nesouvislé útvary (`holder-casting-slanted-face`: kapsa X 39–45 vs.
+  dobírák X 52,3–53,0); (2) registrovat se musí od `pocketPass.ramp.x0`, ne od
+  `corner.x` (kotva kapsy je nejvýš o ap nad dnem). Tolerance shody přímek 0,1.
+- **Pořadí**: dobírák se rozhoduje po hloubkové smyčce, ale VYDÁVÁ se hned za
+  poslední stejně hluboký/mělčí průchod. Nevkládat před průchod s
+  `pocketReposition`/`noRetract`/`cleanApproach`.
+- **Poslední vrstva u nedosažitelné hranice**: bisekce (`lastDepthWithPasses`),
+  jen při `!entryCapped` (na umělé hranici by to byl svislý zápich).
+- **Úhel rampy**: práh zajetí pod offset = POLOVINA přídavku (ne 0,05 mm) →
+  u stěny těsně pod úhlem zanoření jede rampa opravdu 15°. Popisek v
+  `gcodeEmit.js` tiskne skutečný sklon.
+- **`approachTraverseFree`**: přisunutí v kapse (odskok → přejezd v Z → sjezd)
+  se použije jen tam, kde offset nikde nevystoupí nad úroveň přejezdu. Bez toho
+  vedl rychloposuv hotovní konturou (kontura Ø27 na Z 55–68 vs. přejezd Ø26,5) —
+  regrese, kterou vyrobil právě fix úhlu rampy.
+- **Hlášení zahozených Z-zón** (`holderDroppedZones` × skutečné pokrytí včetně
+  leadIn/leadOut).
+- Testy `cam-leadout-air-rapid` „mezikrok/přesun v kapse" PŘEPOJENY z part-11
+  na **part-4** (jejich vozidlo v part-11 byla právě ta duplicita).
+
+### ZBÝVÁ — pravá strana za přírubou (Z 271→366) se NEHRUBUJE
+
+Uživatel trvá na tom, že tam zanoření JDE, a geometricky má pravdu: za přírubou
+Ø129 stojí polotovar jen na Ø43,6 a držák (20 mm axiálně, spodní hrana stoupá
+6,55 mm na 18 mm) se tam vejde. Chybí ale VJEZD: interval je „otevřený
+pokračující řez" (`!iv.blocked`) a jeho začátek u Z 265 obálka držáku nepustí
+(klín pod mezní čarou „zanoření" sahá do Ø84), takže se celý úsek zahodí.
+
+**TŘI ZAMÍTNUTÉ POKUSY (10. 8. 2026), každý změřen validátorem kolizí:**
+1. Vlastní posun vjezdu (`holderEntryCapZ` + `stockEntryRamp`) — držák naboural
+   do příruby: kontrolovala se jen ŠPIČKA, ne kotva rampy, která leží ZPÁTKY nad
+   vjezdem (Z 258–278). Kolize na `holder-region-roughing` 0 → 42,8 mm².
+2. Totéž + prověření celé rampy bodovou sondou obálky — na fixtures čisté, ale
+   na dílu uživatele pořád oranžová kolize u S25 (kandidát prošel obálkou, přesto
+   validátor hlásí náraz → sonda a validátor si nejsou rovnocenné).
+3. Propadnutí do kapsové větve (přání uživatele „nedělej novou logiku, je to
+   tam") — kolize 94,5 → **136,6 mm²** a konec polotovaru se rozsypal na desítky
+   mikro-průchodů (Ø4,1–4,6 u S27): kapsová větev předpokládá kapsu mezi DVĚMA
+   stěnami, otevřený konec neumí.
+
+**CO JE POTŘEBA (nezkoušet znovu bez toho):** vjezd i CELÁ jeho rampa se musí
+prověřit TÍM SAMÝM Minkowského modelem, který pak počítá `validateToolpath`
+(dnes se rozhoduje podle zjednodušené `holderFitsAt` proti STATICKÉ siluetě, a ta
+navíc nevidí, co už odebraly mělčí vrstvy), a kapsová větev musí umět
+jednostranně otevřený interval (bez `findPocketExitZ` na neexistující protistěně).
+Souvisí to s odloženým dynamickým plánovačem pořadí. Dokud to není, ⚠ panel to
+aspoň NAHLÁSÍ (viz výš) a úsek patří obrábění z druhé strany.
+
+Vedlejší nález z pokusu 3, který platí i pro budoucí řešení: dojezdy v tom úseku
+končily na SYROVÉM polotovaru, ne na offsetové čáře.
+
 ### VYŘÍZENO / UZAVŘENO — drobnější, ze stejné série
 
 - ~~**Dokončení kapsy (`pocketClean`) běží i s vypnutým Dokončováním.**~~

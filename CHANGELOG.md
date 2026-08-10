@@ -164,6 +164,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ostatní beze změny), žádná nová kolize držáku.
 
 ### Fixed
+- **Zanoření se už nedělá dvakrát.** Ořízlá rampa dojezdu strmé stěny
+  (`pendingRampCompletions`) a kapsa za bossem sjíždějí po TÉŽE přímce
+  zanoření — roh stěny je pro obě týž bod. Kapsa ho ale bere UVNITŘ hloubkové
+  smyčky (na hlubší vrstvě), zatímco dokončení rampy až po ní, takže se stejný
+  klín vyřízl dvakrát: „Průchod 9/10" byl doslovná kopie „Průchodu 4/5"
+  a začínal znovu od vršku zanoření místo aby pokračoval tam, kde zanoření
+  skončilo. Nově se evidují X-ÚSEKY, které už po které přímce zanoření někdo
+  sjel (`plungeLineRuns` v `cam/roughingStrategies.js`), a dokončení rampy je
+  přeskočí. Úseky, ne jen „nejhlubší dosah": po jedné nekonečné přímce mohou
+  ležet dva nesouvislé útvary. Změřeno: zbývající materiál se nezvětšil
+  (part-11 9849,0 → 9846,3 mm²), kolize držáku beze změny.
+- **Hrubování jde po vrstvách dolů, „dodělávky" nejsou až na konci.** Dobírací
+  řetěz ořízlé rampy se ROZHODUJE až po celé hloubkové smyčce regionu (dřív
+  není jisté, že klín nevezme některá hlubší vrstva sama), ale vydával se taky
+  až tam — mělký dobírák (Ø44,5) skočil až za nejhlubší vrstvy (Ø19,5). Nově
+  se blok vloží hned za poslední průchod, který je stejně hluboký nebo mělčí.
+  Řetěz se nikdy nerozřízne: kdyby vložení padlo před průchod, který počítá
+  s polohou nástroje z předchozího (`pocketReposition`/`noRetract`/
+  `cleanApproach`), zůstane dobírák na konci regionu.
+- **Chybějící poslední vrstva u nedosažitelné hranice.** Hloubková posloupnost
+  jde po celé Hloubce (ap), takže poslední krok přestřelí hranici, za kterou
+  geometrie nepustí (u čela se mezní čára „dojezd" s hloubkou vzdaluje od zdi,
+  až okno vyjde nulové). Ta hloubka pak nevydala NIC a zůstal stát celý schod
+  ap. Nově bisekce najde nejhlubší X s použitelným vjezdem a vrstvu tam
+  dokončí. Jen u nezakrytého vjezdu zprava — na umělé hranici (rozsah 📐 /
+  hranice úseku) patří rampa a obyčejná vrstva by se zapíchla svisle.
+- **Rampa zanoření drží nastavený úhel, když je to bezpečné.** Zplošťovala se
+  vždy, když by přímka pod plným úhlem podjela offsetovou (hrubovací) čáru
+  o víc než 0,05 mm. Jenže offset = hotovní kontura + PŘÍDAVEK, takže mělké
+  zajetí do přídavku dílu neublíží. Práh je teď POLOVINA přídavku (na hotovní
+  konturu se tím nedá dojet, s nulovým přídavkem vyjde jako dřív). Leží-li
+  stěna údolí sama těsně pod úhlem zanoření (14,6° proti nastaveným 15°),
+  jede rampa konečně opravdu 15° — reálný požadavek uživatele („mělo by to
+  jet Z37.951").
+- **Přisunutí uvnitř kapsy nesmí projet hotovní konturou.** Dokončení kapsy
+  navazuje odskokem + přejezdem v Z místo výjezdu nad boss — ale přejezd jde
+  v úrovni odskoku, takže v údolí s vyšší protistěnou (kontura Ø27 na Z 55–68
+  proti přejezdu na Ø26,5) vedl rychloposuv HOTOVNÍ KONTUROU. Nově se ta
+  úroveň prověří (`approachTraverseFree`) a když by kolidovala, najede
+  dokončení klasicky výjezdem nad konturu.
+- **Popisek „Rampa …°" říká skutečný sklon dráhy**, ne nastavený úhel
+  zanoření. U zploštěné rampy výstup tvrdil „Rampa 15,0°" u dráhy, která jela
+  13,6°. Dráhy se nezměnily, jen popisek.
+- **⚠ panel hlásí úseky, které obálka držáku zahodila celé.** Počítání po
+  HLOUBKÁCH tuhle ztrátu neuvidělo: stačilo, aby táž hloubka vydala průchod
+  někde jinde, a zóna zmizela bez jediného slova — tak se potichu vypařila
+  celá pravá strana dílu (102 mm). Nově se zahozené Z-zóny porovnají se
+  skutečně vydanými průchody (včetně sledování obrysu, které většinu z nich
+  dobere) a co zůstane, se ohlásí i s délkou nejdelšího úseku.
 - **Simulace už nezačíná uvnitř materiálu.** Startovní poloha dráhy se
   v `parseManualGCodeToPath` (`cam/gcodeParser.js`) počítala jako
   `safeX / 2` **bezpodmínečně** — jenže `safeX` se do G-kódu zapisuje doslova

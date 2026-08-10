@@ -16,7 +16,7 @@ import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
-import { MaterialRemoval, buildStockLoop, toolFootprint } from './cam/materialRemoval.js';
+import { MaterialRemoval, buildStockLoop, offsetStockLoop, toolFootprint } from './cam/materialRemoval.js';
 import { validateToolpath } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
@@ -1461,35 +1461,27 @@ export function openCamSimulator(initialContour, initialGCode) {
           b2 = toScreen(bRad, -bLen), b3 = toScreen(0, -bLen);
         ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b3.x, b3.y);
       } else if (calc.stockPathSegments.length > 0) {
-        // Odlitek: navzorkovat obrys a posunout každý bod po osách podle
-        // normály (nx·VůleX, nz·VůleZ) — stejné pravidlo jako offset kontury.
-        const pts = [];
-        calc.stockPathSegments.forEach(seg => {
-          if (seg.isDegenerate) return;
-          if (seg.type === 'line') { pts.push({ ...seg.p1 }); pts.push({ ...seg.p2 }); }
-          else {
-            let sA = seg.startAngle, eA = seg.endAngle;
-            if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-            if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-            const steps = Math.max(2, Math.min(48, Math.ceil(seg.r * Math.abs(eA - sA) / 0.6)));
-            for (let j = 0; j <= steps; j++) {
-              const a = sA + (eA - sA) * (j / steps);
-              pts.push({ x: seg.cx + Math.sin(a) * seg.r, z: seg.cz + Math.cos(a) * seg.r });
-            }
-          }
-        });
-        // Normály per bod; orientaci VEN určí převaha nx přes horní plochy
-        // (jednotně pro celý obrys — per-bod přepínání by cikcakovalo).
-        const normals = pts.map((_, i) => {
-          const pPrev = pts[Math.max(0, i - 1)], pNext = pts[Math.min(pts.length - 1, i + 1)];
-          const dx = pNext.x - pPrev.x, dz = pNext.z - pPrev.z;
-          const l = Math.hypot(dx, dz) || 1;
-          return { nx: -dz / l, nz: dx / l };
-        });
-        const sgn = normals.reduce((s, n) => s + n.nx, 0) >= 0 ? 1 : -1;
-        for (let i = 0; i < pts.length; i++) {
-          const p = toScreen(pts[i].x + sgn * normals[i].nx * clr.x, pts[i].z + sgn * normals[i].nz * clr.z);
-          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        // Odlitek: kreslí se PŘESNĚ ta smyčka, se kterou plánuje hrubování
+        // i emise (`offsetStockLoop` nad `buildStockLoop` — týž helper, co
+        // stojí za `planLoopRef` v gcodeEmit.js). Náhled tak nemůže tvrdit
+        // něco jiného než dráhy.
+        //
+        // DŘÍV se tady offset dopočítával ZVLÁŠŤ: obrys se navzorkoval a každý
+        // bod se posunul po své vlastní normále (z pPrev→pNext). To ale NENÍ
+        // offset polygonu a v rozích i na koncích se čára přitahovala k
+        // polotovaru — normála v rohu půlí úhel (chybí prodloužení hrany), a
+        // v prvním/posledním vzorku se počítala jen z poloviny intervalu.
+        // Reálný nález uživatele: u konce polotovaru (S26→S27) se „offsetová
+        // čára ke konci zužuje místo aby držela stejnou vzdálenost", ačkoli
+        // plánovací smyčka má odstup přesně 1,000 mm po celé délce úseku.
+        const rawLoop = buildStockLoop(prms, calc.stockPathSegments);
+        const offLoop = rawLoop ? offsetStockLoop(rawLoop, prms) : null;
+        if (offLoop && offLoop.length > 1) {
+          offLoop.forEach((q, i) => {
+            const p = toScreen(q.x, q.z);
+            if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+          });
+          ctx.closePath();     // smyčka je uzavřená (na rozdíl od bývalé polylinie)
         }
       }
       ctx.stroke();
