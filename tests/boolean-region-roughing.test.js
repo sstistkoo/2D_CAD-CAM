@@ -21,7 +21,9 @@ import { StockModel, toolSweep, polyArea } from '../js/geom/geomCore.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
 
-const hardErrors = (calc) => (calc.foundErrors || []).filter(e =>
+// Hlášení jsou v `S.errors`; headless runner je vydává jako `errors`
+// (dřív se tu četlo neexistující `calc.foundErrors` → kontrola byla prázdná).
+const hardErrors = (run) => (run.errors || []).filter(e =>
   (typeof e === 'string') || (e && e.type && e.type !== 'warning'));
 
 const longMetrics = (calc) => {
@@ -66,8 +68,8 @@ describe('Fáze 3 krok 2: booleovské regiony ≈ ruční (odlitek s hrbem)', ()
     prog.params.booleanRoughing = true;
     const boo = await runWithRegions(prog);
 
-    expect(hardErrors(man.calc)).toEqual([]);
-    expect(hardErrors(boo.calc)).toEqual([]);
+    expect(hardErrors(man)).toEqual([]);
+    expect(hardErrors(boo)).toEqual([]);
 
     // 1) SEPARACE — fixture má odlitkový hrb → aspoň 1 split, a booleovská
     //    detekce ho umístí stejně jako ruční (± vzorkování dz).

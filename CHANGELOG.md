@@ -192,6 +192,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `; Přejezd materiálem posuvem`.
 
 ### Changed
+- **Obsah panelu ⚠ je nově pod regresní pojistkou — a kontrola „bez chyb
+  výpočtu" už není prázdná.** Čtyři CAM testy četly hlášení jako
+  `calc.foundErrors`, jenže ta vlastnost NEEXISTUJE (výpočet je ukládá do
+  `S.errors`), takže kontrola hard errors roky procházela na prázdném poli.
+  Headless runner teď hlášení vydává jako `errors`/`errorsSim` a regresní
+  snapshot obsahuje i seznam varování. Přesně tahle díra umožnila, aby se
+  counter vynechaných kapes týdny plnil, aniž by ho kdokoli hlásil. Ověřeno
+  negativním testem: zmizelé hlášení shodí 14 fixtures.
 - **Konec tichého zahazování hloubek obálkou držáku.** Když se držák někam
   nevešel, mohla zmizet celá zóna bez jediného slova v panelu ⚠ — na
   `part-13-zleva-flange` takhle vypadlo 17 průchodů celé pravé strany (držák

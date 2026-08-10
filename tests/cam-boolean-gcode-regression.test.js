@@ -45,9 +45,12 @@ describe('CAM booleovská hrubovací větev — regrese (booleanRoughing=on)', (
     it(`${file} → stabilní booleovský G-kód`, async () => {
       const prog = JSON.parse(readFileSync(join(fixturesDir, file), 'utf8'));
       prog.params.booleanRoughing = true;
-      const { calc, gcode } = await runCamProg(prog);
+      const { calc, gcode, errors } = await runCamProg(prog);
 
-      const hardErrors = (calc.foundErrors || calc.errors || []).filter(e =>
+      // POZOR: hlášení nejsou na `calc`, ale v `S.errors` — headless runner je
+      // vydává jako `errors` (dřív se tu četlo `calc.foundErrors`, což je
+      // vlastnost, která NEEXISTUJE, takže tahle kontrola byla vždy prázdná).
+      const hardErrors = errors.filter(e =>
         (typeof e === 'string') || (e && e.type && e.type !== 'warning'));
       expect(hardErrors, `hard errors: ${JSON.stringify(hardErrors)}`).toEqual([]);
 

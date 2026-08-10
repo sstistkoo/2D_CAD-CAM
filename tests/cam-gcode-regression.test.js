@@ -40,6 +40,12 @@ function pipelineSummary(calc) {
   };
 }
 
+// Obsah panelu ⚠ (hlášení z generujícího průchodu). Do snapshotu patří proto,
+// že jinak ho NEHLÍDÁ NIC: counter `holderNarrowPockets` se týdny plnil, ale
+// nikdo ho nehlásil, a celá pravá strana part-13 mizela potichu. Když se číslo
+// v hlášení pohne, pohnulo se pokrytí — a to má být vidět.
+const warningList = (errors) => errors.map(e => (typeof e === 'string' ? `HARD: ${e}` : e.msg));
+
 describe('CAM pipeline regrese (G-kód + struktura)', () => {
   it('nalezeny fixtures', () => {
     expect(fixtures.length).toBeGreaterThan(0);
@@ -48,10 +54,13 @@ describe('CAM pipeline regrese (G-kód + struktura)', () => {
   for (const file of fixtures) {
     it(`${file} → stabilní G-kód`, async () => {
       const prog = JSON.parse(readFileSync(join(fixturesDir, file), 'utf8'));
-      const { calc, gcode } = await runCamProg(prog);
+      const { calc, gcode, errors } = await runCamProg(prog);
 
       // Bez chyb výpočtu (varování jsou OK, ale hard errors ne).
-      const hardErrors = (calc.foundErrors || calc.errors || []).filter(e =>
+      // POZOR: hlášení nejsou na `calc`, ale v `S.errors` — headless runner je
+      // vydává jako `errors` (dřív se tu četlo `calc.foundErrors`, což je
+      // vlastnost, která NEEXISTUJE, takže tahle kontrola byla vždy prázdná).
+      const hardErrors = errors.filter(e =>
         (typeof e === 'string') || (e && e.type && e.type !== 'warning'));
       expect(hardErrors, `hard errors: ${JSON.stringify(hardErrors)}`).toEqual([]);
 
@@ -69,6 +78,7 @@ describe('CAM pipeline regrese (G-kód + struktura)', () => {
       // přechodu přes půlnoc. Ostatní řádky jsou deterministické.
       const stableGcode = gcode.replace(/^; Datum: .*/m, '; Datum: <normalized>');
       expect(pipelineSummary(calc)).toMatchSnapshot('pipeline');
+      expect(warningList(errors)).toMatchSnapshot('warnings');
       expect(stableGcode).toMatchSnapshot('gcode');
     });
   }

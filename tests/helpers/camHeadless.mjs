@@ -165,6 +165,12 @@ export async function runCamProg(prog) {
   if (prog.zLimits) Object.assign(S.zLimits, prog.zLimits);
   if (prog.xLimits) Object.assign(S.xLimits, prog.xLimits);
   const calc = calculate();
+  // Hlášení pro ⚠ panel NEJSOU na `calc` — computeCalculation je ukládá do
+  // `S.errors` (a druhý průchod níž je přepíše). Kdo je chce z generujícího
+  // průchodu, musí si je vyzvednout TADY. Testy je dřív hledaly jako
+  // `calc.foundErrors`, což je vlastnost, která nikdy neexistovala → kontrola
+  // hard errors v obou regresních sadách byla roky prázdná.
+  const errors = (S.errors || []).slice();
   const gc = generateAutoGCode(calc);
   const gcode = Array.isArray(gc) ? gc.map(l => l.text).join('\n') : String(gc);
   // Druhý průchod jako v aplikaci (Autorefresh): vygenerovaný kód →
@@ -173,8 +179,9 @@ export async function runCamProg(prog) {
   // prvního průchodu je prázdný (manualGCode byl při něm prázdný).
   S.manualGCode = gcode;
   const calcSim = calculate();
+  const errorsSim = (S.errors || []).slice();
   S.manualGCode = '';
-  return { calc, calcSim, gcode, S };
+  return { calc, calcSim, gcode, errors, errorsSim, S };
 }
 
 /** Načte .camprog ze souboru a spustí pipeline. */

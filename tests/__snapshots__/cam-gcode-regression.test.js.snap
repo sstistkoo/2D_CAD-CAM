@@ -463,6 +463,15 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → st
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 12 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 3 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 90°, natočení -15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání destičky: 2 čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -737,6 +746,14 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 5 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Tvar destičky (vrchol 60°, natočení -15°) nedosáhne na 5 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání destičky: 11 čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -955,6 +972,17 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face
     "long{ramp,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 4 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 3 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 4 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "Hlídání geometrie (držák): 1 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání destičky: 1 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camprog → stabilní G-kód > gcode 1`] = `
@@ -1314,6 +1342,16 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
     "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 5 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 2 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 5 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 8 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání destičky: 1 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabilní G-kód > gcode 1`] = `
@@ -1693,6 +1731,16 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
     "long{pocketReposition,ramp,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 3 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 6 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání destičky: 2 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabilní G-kód > gcode 1`] = `
@@ -2075,6 +2123,15 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
     "long{ramp,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 13 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabilní G-kód > gcode 1`] = `
@@ -2529,6 +2586,15 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 13 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -2981,6 +3047,15 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 13 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -3343,6 +3418,14 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabiln�
     "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 13 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabilní G-kód > gcode 1`] = `
@@ -3786,6 +3869,15 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 13 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -4171,6 +4263,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camp
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -4538,6 +4636,13 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
     "long{pocketReposition,ramp,contourLeadOut,backside,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 11 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 2 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > gcode 1`] = `
@@ -4908,6 +5013,13 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 2 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -5084,6 +5196,13 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.campro
     "long{pocketClean,contourLeadIn,contourLeadOut,backside,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 9 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 10 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle.camprog → stabilní G-kód > gcode 1`] = `
@@ -5586,6 +5705,16 @@ exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Hlídání destičky: dokončování vynechá 7 úsek(ů), kam destička nedosáhne (přejezd G0).",
+  "Hlídání geometrie (držák): dokončování vynechá 12 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 7 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání destičky: 1 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -5877,6 +6006,13 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.c
 }
 `;
 
+exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 14 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 5 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
+`;
+
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
 ; Datum: <normalized>
@@ -6052,6 +6188,13 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camp
     "long{ramp,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 14 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 3 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog → stabilní G-kód > gcode 1`] = `
@@ -6271,4 +6414,11 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog �
     "long{contourLeadOut,blocked}",
   ],
 }
+`;
+
+exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 14 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání geometrie (držák): 3 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+]
 `;

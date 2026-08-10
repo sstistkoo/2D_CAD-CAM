@@ -20,7 +20,9 @@ const fxDir = join(__dirname, 'fixtures', 'cam');
 // Podélné fixtures bez závitu/upichu — genLongPasses je na ně aktivní.
 const FIXTURES = ['part-1', 'part-6', 'part-9', 'part-2', 'part-8', 'part-4'];
 
-const hardErrors = (calc) => (calc.foundErrors || []).filter(e =>
+// Hlášení jsou v `S.errors`; headless runner je vydává jako `errors`
+// (dřív se tu četlo neexistující `calc.foundErrors` → kontrola byla prázdná).
+const hardErrors = (run) => (run.errors || []).filter(e =>
   (typeof e === 'string') || (e && e.type && e.type !== 'warning'));
 
 const longMetrics = (calc) => {
@@ -67,8 +69,8 @@ describe('Fáze 3 napojení: booleanRoughing ≈ scan-line (podélné)', () => {
     it(`${name}: stejná hloubka/obálka, bez hard-error, pass count nepřeroste`, async () => {
       const { scan, bool } = await runBoth(name);
 
-      expect(hardErrors(scan.calc), 'scan-line hard errors').toEqual([]);
-      expect(hardErrors(bool.calc), 'boolean hard errors').toEqual([]);
+      expect(hardErrors(scan), 'scan-line hard errors').toEqual([]);
+      expect(hardErrors(bool), 'boolean hard errors').toEqual([]);
       expect(bool.gcode).toContain('HRUBOVANI');
 
       const ms = longMetrics(scan.calc), mb = longMetrics(bool.calc);
