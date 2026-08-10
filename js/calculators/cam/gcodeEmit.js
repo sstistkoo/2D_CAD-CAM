@@ -830,7 +830,7 @@ export function generateAutoGCode(S, calc) {
   };
 
   calc.passes.forEach((pass, i) => {
-    addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (dokončení kapsy)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
+    addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
     // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
     // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
     // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
@@ -1041,7 +1041,7 @@ export function generateAutoGCode(S, calc) {
         }
       }
       if (pass.contourLeadOut) {
-        // Bez schodků / dokončení kapsy: po dně dál po kontuře (G1/G2/G3)
+        // Bez schodků / dobrání kapsy: po dně dál po kontuře (G1/G2/G3)
         // místo odskoku — druhá stěna se obrobí přímo po obrysu. Ořez na
         // hranu materiálu (`trimLeadOutToStock`) je tu ze stejného důvodu
         // jako u otevřeného průchodu níž: dojezd kroku dorampování může po

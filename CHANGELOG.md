@@ -192,6 +192,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `; Přejezd materiálem posuvem`.
 
 ### Changed
+- **Konec tichého zahazování hloubek obálkou držáku.** Když se držák někam
+  nevešel, mohla zmizet celá zóna bez jediného slova v panelu ⚠ — na
+  `part-13-zleva-flange` takhle vypadlo 17 průchodů celé pravé strany (držák
+  20 mm radiálně by musel přes přírubu Ø199,7) a vypadalo to jako chyba
+  geometrie. Jeden z counterů se dokonce plnil, ale nikdo ho nehlásil. Nově se
+  hlásí **hloubky, na kterých nakonec nevznikl žádný průchod**. Počítat pokusy
+  nešlo: dávalo to „17 vynechaných průchodů" tam, kde reálně chyběly 4 (tentýž
+  interval bývá obsloužen jinou větví). Dráhy ani G-kód se nemění.
+- **Průchod „dokončení kapsy" se v G-kódu jmenuje „kapsa bez schodků".**
+  Nebylo to chování, ale popisek: průchod visí na „Hrub. bez schodků", ne na
+  Dokončování, a to správně — jeho vypnutí nechá stát 64 mm², protože dobírá
+  hřebínky ~0,5 mm po rampách krokovaných po ap. Je to hrubovací dobrání
+  schodku, jen se jmenovalo jako dokončování.
 - **Polotovar pro PLÁNOVÁNÍ drah = offsetová („tečkovaná") čára, syrový obrys
   se ignoruje.** Dosud existovaly tři paralelní modely „kde je materiál" a
   záplata dopadla vždy jen na jeden z nich: o vzduchu se rozhodovalo proti

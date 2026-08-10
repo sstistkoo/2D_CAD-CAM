@@ -1,38 +1,59 @@
 # Plán přechodu CAM na geometrické knihovny
 
 > Clipper2 (booleovské operace, offsety) · Turf.js (prostorová analýza) ·
-> Detect-Collisions (rychlý broad-phase filtr kolizí)
->
-> Stav (k 7. 8. 2026): Fáze 0–2 · 2b/3 · 3a/3b hotové (3b dodrátována 7. 8. —
-> `clamp.span`) · Fáze 3 jádro + regiony + příznak `booleanRoughing` hotové
-> (zbývá krok 3C) · Fáze 4 rozpracovaná (zbývá přeplánování pořadí) ·
-> Fáze 5 se dělat NEBUDE.
-> Adaptér `js/geom/geomCore.js`
->
-> **POŘADÍ PRACÍ (8. 8. 2026, stav k 10. 8.):**
-> 1. ~~**ÚKLID**~~ — **HOTOV 10. 8. 2026**, všechny tři body (viz sekce pod
->    tímhle blokem). Zbyly jen „Drobnosti stejného původu" (bod 4), které nikdo
->    nevyžádal.
-> 2. **Hranice úseku ve STŘEDU údolí** — „ZBÝVÁ" ve Fázi 4. Po úklidu je střed
->    dna počítaný na JEDNOM místě (`computeResidualRegions`), takže oprava
->    dopadne celá. **Dva pokusy zamítnuty** (8. 8. a 10. 8.) — u druhého je
->    změřeno, že zadání je ve skutečnosti jiné: nejde o pokrytí (levá půlka
->    údolí se odebere stejně s regiony i bez nich), ale o KOTVU ZANOŘENÍ.
->    Viz „DRUHÝ POKUS" v sekci ZBÝVÁ.
-> 3. Teprve pak zbylé fáze migrace (viz níž) — obě stále odložené.
->
-> **Ke zbývajícím dvěma položkám (rozhodnutí 7. 8. 2026):** obě zůstávají
-> vědomě odložené a to je v pořádku — migrace nemusí být „dojetá do konce".
-> **3C** nemá v sadě demonstrátor (změřeno 21. 7.: booleovská cesta odebírá
-> materiál identicky se scan-line na VŠECH fixtures), takže by to byl přepis
-> naslepo bez kritéria hotovosti — platí `až reálný složitý díl vyžádá`.
-> **Přeplánování pořadí** má jediný reálný cíl (part-10-zapich, 15,9 mm²;
-> face-casting 267 mm² je inherentní) při riziku zásahu do pořadí všech
-> operací. Dosavadní zkušenost říká, že práci má vyžádat reálný díl: takhle
-> vznikly increment 1 (22. 7.), dělení úseků (5. 8.) i zanoření do kapsy
-> (7. 8.) — a pokaždé s měřitelným přínosem.
+> Detect-Collisions (rychlý broad-phase filtr kolizí) · adaptér
+> `js/geom/geomCore.js`
 
-## ÚKLID PŘED DALŠÍMI FÁZEMI (zadání 8. 8. 2026) — DĚLAT JAKO PRVNÍ
+## ⛔ MIGRACE UZAVŘENA (10. 8. 2026)
+
+**Hotovo a v produkci:** Fáze 0–2 · 2b/3 · 3a/3b · Fáze 3 (jádro, regiony,
+příznak `booleanRoughing`) · Fáze 4 (přejezdy, vjezdy, dynamický zbytek) ·
+ÚKLID (všechny tři body). Zbytek dokumentu je **záznam, jak to vzniklo** —
+ne backlog.
+
+**Rozhodnutí uživatele:** migrace se dál „dojíždět" nebude. Co zbývalo, byly
+z větší části nápady, které nikdy nedostaly reálný důvod; držet je jako
+„ZBÝVÁ" jen vyrábělo dojem nedodělku a tlak dělat práci naslepo.
+
+### Vědomě NEDĚLÁME (a proč)
+
+| položka | proč ne |
+|---|---|
+| **Fáze 3 krok 3C** — řezná dráha z hran komponent | V sadě **nemá demonstrátor**: změřeno 21. 7., že booleovská cesta odebírá materiál identicky se scan-line na VŠECH fixtures (Δ ≤ 1,5 mm²). Byl by to přepis naslepo bez kritéria hotovosti. |
+| **Skutečné přeplánování pořadí** operací | Jediný reálný cíl je part-10-zapich (15,9 mm²); face-casting 267 mm² je INHERENTNÍ šířkou nosu, reorder ho neopraví. Proti tomu stojí riziko zásahu do pořadí všech operací. Dnešní `exit-split` je bezpečné řešení („safe-but-slow"). |
+| **ÚKLID bod 4** — `pass.kind` místo 11 booleanů, rozsypané tolerance | Čistá kosmetika bez dopadu na výstup. Leda mimochodem, až se toho kódu bude sahat z jiného důvodu. |
+| **Zbytkové 0,6–3 mm² `rapid` nálezy** | Pod prahem šumu. Zúžit to jde jen menším `rapidFootSlim`, což vrátí falešné poplachy. Není to rozdíl obrysů nástroje (ověřeno 10. 8.), ale rozdíl modelů „co už je odebráno": emise z plánované geometrie průchodů, validátor z reálné `simPath`. |
+| **Rozšíření 2b/3** — polygon/threading s modelem úlevu, F_all ve vizuálním úběru | Nikdo si nestěžoval; „bylo by hezké". |
+| **Fáze 5 — sjednocení UI zanořování** | Rozhodnuto 20. 7.: v panelu jsou provedené jiné úpravy a přeskládání checkboxů by je rozbilo. |
+
+### Jediná otevřená věc
+
+**Hranice úseku ve STŘEDU údolí** (sekce „ZBÝVÁ" níž). Dva pokusy zamítnuty
+(8. 8. a 10. 8.); u druhého je změřeno, že zadání je jiné, než se myslelo —
+**nejde o pokrytí** (levá půlka údolí se odebere stejně s regiony i bez nich),
+ale o **kotvu zanoření**. Čeká na díl, kde to reálně uškodí (kolize nebo
+prokazatelně stojící materiál). Nezkoušet potřetí bez přečtení „DRUHÝ POKUS".
+
+### Uděláno na závěr (10. 8. 2026)
+
+- **Konec tichého zahazování hloubek.** Obálka držáku uměla vyhodit celou zónu
+  bez jediného slova v ⚠ panelu — na `part-13-zleva-flange` takhle zmizelo
+  17 průchodů celé pravé strany (držák 20 mm radiálně by musel přes přírubu
+  Ø199,7) a vypadalo to jako chyba geometrie. Jeden z counterů
+  (`holderNarrowPockets`) se dokonce plnil, ale nikdo ho nehlásil — osiřel.
+  Nově se sbírají `holderBlockedDepths` a hlásí se **hloubky, na kterých
+  nakonec nevznikl žádný průchod**. Počítat POKUSY nešlo: na
+  range-end-leadout to dávalo „17 vynechaných průchodů", ačkoli reálně chyběly
+  4 (tentýž interval bývá obsloužen jinou větví nebo přeskenováním).
+  Dráhy ani G-kód se nemění.
+- **`pocketClean` přejmenován v G-kódu** na „(kapsa bez schodků)". Nález
+  uživatele „nemám danou dokončovací operaci, tohle by dělat nemělo" byl
+  o POPISKU: průchod visí na „Hrub. bez schodků" (`noStepRoughing`), ne na
+  `doFinishing`, a to správně — jeho vypnutí nechá stát 64 mm², protože dobírá
+  hřebínky ~0,5 mm po rampách krokovaných po ap. Je to hrubovací dobrání
+  schodku, jen se jmenovalo jako dokončování.
+
+## ÚKLID PŘED DALŠÍMI FÁZEMI (zadání 8. 8. 2026) — HOTOVO 10. 8. 2026
 
 > Po sérii oprav řízených reálnými díly (22. 7. – 8. 8.) se nasčítala
 > složitost, která už sama vyrábí chyby. Není to nekonzistentní kód — 1187
@@ -401,7 +422,7 @@ Implementace: `js/calculators/cam/toolEnvelope.js` (`makeHolderClamp`,
   hlásí reálné kolize držáku u čela — dokončování k ose s širokým
   držákem), backside/čelní strategie, schody pro kapsy.
 
-### Fáze 3 — hrubovací dráhy z booleovské geometrie (zbytek)
+### Fáze 3 — hrubovací dráhy z booleovské geometrie (krok 3C se DĚLAT NEBUDE)
 *Jádro přepisu; krýt regresními snapshoty, zapínat za příznakem.*
 
 1. **Zbytkový materiál** = polotovar − (kontura ⊕ offset R + přídavky X/Z)
@@ -1038,21 +1059,23 @@ vjezdu MUSÍ zůstat.
 Diagnostika je připravená: `globalThis.__REGION_LOG__` vedle `raw`/`splits`
 loguje i `mouths` (zHi/zLo každého údolí) a celá sestavená okna `regions`.
 
-### ZBÝVÁ — drobnější, ze stejné série
+### VYŘÍZENO / UZAVŘENO — drobnější, ze stejné série
 
-- **Dokončení kapsy (`pocketClean`) běží i s vypnutým Dokončováním.**
-  Uživatel: „nemám danou dokončovací operaci, tohle by dělat nemělo."
-  Jde o dlouhý `G1` po stěně (na dílu uživatele `N900 G1 X50.915 Z171.500`).
-  POZOR: NENÍ to duplicita — změřeno, že jeho vypnutí nechá stát **64 mm²**
-  (bere ~0,5 mm, co po sobě nechaly rampy krokované po ap). Otázka je tedy
-  ne „zrušit", ale jestli má patřit pod `noStepRoughing`, nebo pod
-  `doFinishing`, případně se rozdělit na hrubovací dojezd + hotovní řez.
-- **Pravá strana `part-13-zleva-flange` (Z>305) se nehrubuje.** Tady obálka
-  držáku ANO (`__DISABLE_HOLDER_CLAMP__` → 18 průchodů vpravo místo 0) —
-  držák 20 mm radiálně musí přes přírubu Ø199,7, takže by musel být nástroj
-  na X ≥ 99,85. Fyzikálně to nejspíš správně; ověřit a případně jen HLÁSIT
-  do ⚠ panelu, proč hloubka vypadla, místo tichého zahození.
-- **Zbytkových 0,6–3 mm² `rapid`** na nájezdu dokončení kapsy. POZOR, dřívější
+- ~~**Dokončení kapsy (`pocketClean`) běží i s vypnutým Dokončováním.**~~
+  **VYŘÍZENO 10. 8. 2026 — byl to POPISEK, ne chování.** Průchod visí na
+  „Hrub. bez schodků" (`noStepRoughing`), NE na `doFinishing`, a to správně:
+  jeho vypnutí nechá stát **64 mm²**, protože dobírá hřebínky ~0,5 mm po
+  rampách krokovaných po ap — je to hrubovací dobrání schodku. Matoucí bylo
+  jen jméno v G-kódu („dokončení kapsy"), přejmenováno na
+  **„(kapsa bez schodků)"**, ať je z výstupu poznat, ke kterému přepínači
+  patří.
+- ~~**Pravá strana `part-13-zleva-flange` (Z>305) se nehrubuje.**~~
+  **OVĚŘENO A VYŘÍZENO 10. 8. 2026.** Fyzika sedí: držák 20 mm radiálně by
+  musel přes přírubu Ø199,7, tedy nástroj na X ≥ 99,85 (`__DISABLE_HOLDER_CLAMP__`
+  → 29 podélných průchodů místo 12). Chybělo jen HLÁŠENÍ — viz „Uděláno na
+  závěr" v hlavičce: obálka držáku už zóny nezahazuje tiše.
+- **Zbytkových 0,6–3 mm² `rapid`** na nájezdu dokončení kapsy — **NEDĚLÁ SE**
+  (viz tabulka v hlavičce). POZOR, dřívější
   vysvětlení („rozdíl mezi zeštíhleným footprintem a plným obrysem ve
   validátoru") bylo MYLNÉ — ověřeno 10. 8. při ÚKLIDU bodu 3: obě strany
   používají shodnou dvojici plný/zúžený obrys. Skutečný rozdíl je v tom, jak

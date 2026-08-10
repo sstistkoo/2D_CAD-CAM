@@ -780,8 +780,21 @@ export function genLongPasses(ctx) {
   const partingNoDress = isParting && !prms.noStepRoughing;
   let partingNarrowPockets = 0;
   // Kapsy, do kterých se mezi stěny nevejde DRŽÁK (clamp.span) — vynechané.
-  let holderNarrowPockets = 0;
-  let holderDroppedPasses = 0;   // průchody vynechané obálkou držáku (Fáze 3a)
+  // Hloubky, na kterých obálka DRŽÁKU něco zastavila. Tiché zahození je
+  // horší než samo vynechání: uživatel nepozná, jestli jde o fyzikální mez
+  // (držák se prostě nevejde), nebo o chybu — a hledá to v geometrii
+  // (reálný nález: pravá strana part-13-zleva-flange, 17 průchodů pryč bez
+  // jediného hlášení; jeden z counterů se dokonce plnil, ale nikdo ho
+  // nehlásil — osiřel).
+  //
+  // Počítají se HLOUBKY, ne pokusy: zastavený interval ještě neznamená
+  // ztrátu — táž hloubka bývá obsloužena jiným intervalem nebo přeskenováním
+  // (na range-end-leadout dělalo počítání pokusů 17 „vynechaných průchodů",
+  // ačkoli reálně chyběly 4). Ztráta = hloubka, na které nakonec NEVZNIKL
+  // žádný průchod; vyhodnotí se až po smyčce proti skutečně vydaným
+  // průchodům, takže na tom nezávisí, kolika `continue` se tam došlo.
+  const holderBlockedDepths = new Set();
+  const depthKey = (x) => Math.round(x * 1000);
 
   // Navázání: předchozí průchod končí přesně v bodě, odkud začíná leadIn
   // dalšího → nesmí odskočit (žádný zbytečný trojúhelník odskok+návrat),
@@ -976,7 +989,7 @@ export function genLongPasses(ctx) {
         const nz = holderClampZEnd(X, iv.zStart, iv.zEnd, { mainStair: mainScan });
         if (nz === null) {
           firstSurvived = false;
-          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderDroppedPasses++;
+          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderBlockedDepths.add(depthKey(X));
           continue;
         }
         // Rezerva obálky (HOLDER_CLAMP_MARGIN) patří DRŽÁKU, ne špičce:
@@ -1391,7 +1404,7 @@ export function genLongPasses(ctx) {
         // 87 mm². Tam se hloubka v tomhle regionu radši vynechá (jako před
         // zavedením zanořování na hranici); zanoření zůstane jen tam, kde je
         // pro držák prokazatelně místo.
-        if (regionCappedRaw && !isFinite(zCap)) continue;
+        if (regionCappedRaw && !isFinite(zCap)) { holderBlockedDepths.add(depthKey(currentX)); continue; }
         if (isFinite(zCap) && zCap < entryZ - 1e-6) {
           const reScan = scan(currentX, zCap, effZMin, true);
           if (reScan.firstOpen && reScan.intervals.length > 0) {
@@ -1642,7 +1655,7 @@ export function genLongPasses(ctx) {
       // držáku / 500–670 mm² tam, kde bylo čisto.
       if (iv.blocked) {
         const clamped = holderSpanClamp(currentX, iv);
-        if (!clamped) { holderNarrowPockets++; return; }
+        if (!clamped) { holderBlockedDepths.add(depthKey(currentX)); return; }
         iv = clamped;
       }
       if (!iv.blocked) {
@@ -1660,10 +1673,19 @@ export function genLongPasses(ctx) {
         let zEndEff = iv.zEnd;
         if (holderClampZEnd) {
           const nz = holderClampZEnd(currentX, iv.zStart, iv.zEnd, {});
-          if (nz === null) return;               // celý interval zakázaný
+          // Celý interval zakázaný. POČÍTAT: tohle byl hlavní zdroj TICHÉHO
+          // zahazování — na `part-13-zleva-flange` tudy zmizelo 17 průchodů
+          // celé pravé strany (držák 20 mm radiálně by musel přes přírubu
+          // Ø199,7) a v ⚠ panelu nebylo ani slovo, takže to vypadalo jako
+          // chyba geometrie.
+          if (nz === null) { holderBlockedDepths.add(depthKey(currentX)); return; }
           if (nz > iv.zEnd + 1e-9) zEndEff = nz;
         }
-        if (iv.zStart - zEndEff < dzScan) return;
+        if (iv.zStart - zEndEff < dzScan) {
+          // obálka ho zkrátila až pod řezný krok
+          if (zEndEff > iv.zEnd + 1e-9) holderBlockedDepths.add(depthKey(currentX));
+          return;
+        }
         const holderClampedOpen = zEndEff > iv.zEnd + 1e-9;
         const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: zEndEff, blocked: iv.blocked };
         if (holderClampedOpen) passOpen.holderClamped = true;
@@ -1967,6 +1989,15 @@ export function genLongPasses(ctx) {
           cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
         }
       }
+      // POZOR NA POJMENOVÁNÍ (uživatel 8. 8.: „nemám danou dokončovací
+      // operaci, tohle by dělat nemělo"): `pocketClean` NENÍ dokončování.
+      // Visí na „Hrub. bez schodků" (`noStepRoughing` níž), ne na
+      // `doFinishing`, a to správně — změřeno, že jeho vypnutí nechá stát
+      // 64 mm², protože dobírá ~0,5 mm hřebínky, které po sobě nechaly rampy
+      // krokované po ap. Je to tedy HRUBOVACÍ dobrání schodku. Matoucí byl
+      // jen popisek v G-kódu („dokončení kapsy“) — přejmenován na „kapsa bez
+      // schodků“, ať je z výstupu poznat, ke kterému přepínači patří.
+      //
       // Fáze 3b: dočišťovací trasy ořezat na OKNO kapsového intervalu —
       // scanIntervals ho už zúžil komponentovým spanem obálky держáku
       // (curIv.zStart/zEnd = kam se держák mezi stěny vejde). Úseky mimo
@@ -2230,8 +2261,17 @@ export function genLongPasses(ctx) {
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)
     foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
-  if (holderDroppedPasses > 0)
-    foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${holderDroppedPasses} průchod(ů) vynecháno — držák by v nich narazil do materiálu (typicky čelo u osy nebo úzká kapsa). Zbytek obrobte jiným nástrojem/upnutím.` });
+  // Ztracené hloubky = ty, kde obálka držáku něco zastavila a nakonec z nich
+  // NEVZNIKL žádný průchod. Vyhodnocuje se až tady, proti skutečně vydaným
+  // průchodům — počítat pokusy uvnitř smyčky nafukuje číslo (viz komentář
+  // u holderBlockedDepths).
+  if (holderBlockedDepths.size > 0) {
+    const machined = new Set();
+    for (const p of passes) if (p.type === 'long') machined.add(depthKey(p.x));
+    const lost = [...holderBlockedDepths].filter(k => !machined.has(k)).length;
+    if (lost > 0)
+      foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${lost} hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.` });
+  }
 
   // ── Sjezdy/dojezdy upichováku po OBÁLCE (podélně) ──
   // Sledování kontury (leadIn do kapsy, leadOut „bez schodků") jede u
