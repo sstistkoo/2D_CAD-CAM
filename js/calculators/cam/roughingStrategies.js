@@ -2133,6 +2133,27 @@ export function genLongPasses(ctx) {
       // (dojíždění tvaru patří jen k „bez schodků"; platí pro všechny tvary).
       let cleanStartZ = corner.z;
       let cleanApproach = null;
+      // Vede přisunutí UVNITŘ kapsy (odskok 45° → přejezd v Z → sjezd) celou
+      // dobu vzduchem? Přejezd jde v úrovni ODSKOKU nad koncem posledního
+      // průchodu, takže kdekoli mezi ním a bodem přisunutí smí offset sahat
+      // nejvýš tam. V údolí s vyšší protistěnou (u dílu uživatele kontura Ø27
+      // na Z 55–68 proti přejezdu na Ø26,5) by rychloposuv projel HOTOVNÍ
+      // KONTUROU — v takovém případě se přisunutí nepoužije a dokončení kapsy
+      // najede klasicky výjezdem nad konturu.
+      const approachTraverseFree = (zTo) => {
+        const lastP = passes[passes.length - 1];
+        if (!lastP || lastP.zEnd === undefined) return false;
+        let endX = lastP.x, endZ = lastP.zEnd;
+        const lo = lastP.contourLeadOut;
+        if (lo && lo.length) { endX = lo[lo.length - 1].x2; endZ = lo[lo.length - 1].z2; }
+        const travX = endX + (parseFloat(prms.retractDistance) || 0);
+        const zA = Math.min(endZ, zTo), zB = Math.max(endZ, zTo);
+        for (let z = zA; z <= zB + 1e-9; z += dzScan) {
+          const o = offsetXAt(z);
+          if (o !== null && o > travX - 0.05) return false;
+        }
+        return true;
+      };
       if (prms.noStepRoughing && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
         // POZOR (změřeno 8. 8. 2026): zkoušelo se tuhle pevnou toleranci
         // nahradit kritériem „projely rampy celou stěnu?" (offset nikde
@@ -2144,11 +2165,13 @@ export function genLongPasses(ctx) {
         // nechaly rampy krokované po ap. Vráceno; nesnažit se to „optimalizovat"
         // bez měření odebraného materiálu.
         const wallXThere = offsetXAt(prevRampEnd.z);
-        if (wallXThere !== null && Math.abs(wallXThere - prevRampEnd.x) < 0.2) {
+        const startCand = Math.max(prevRampEnd.z, pocketBottomZ);
+        if (wallXThere !== null && Math.abs(wallXThere - prevRampEnd.x) < 0.2
+            && approachTraverseFree(startCand)) {
           // Rampy dojely na stěnu — dokončení začne až u posledního zákroku
           // (nebo rovnou na dně, když ho poslední rampa dosáhla) a navazuje
           // odskokem, ne výjezdem nad boss.
-          cleanStartZ = Math.max(prevRampEnd.z, pocketBottomZ);
+          cleanStartZ = startCand;
           cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
         }
       }
