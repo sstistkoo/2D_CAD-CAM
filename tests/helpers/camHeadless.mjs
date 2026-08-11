@@ -89,6 +89,7 @@ async function loadCam() {
   const camDefaultsUrl = pathToFileURL(join(root, 'js/calculators/cam/camDefaults.js')).href;
   const threadHelpersUrl = pathToFileURL(join(root, 'js/calculators/cam/threadHelpers.js')).href;
   const gcodeParserUrl = pathToFileURL(join(root, 'js/calculators/cam/gcodeParser.js')).href;
+  const feedRatesUrl = pathToFileURL(join(root, 'js/calculators/cam/feedRates.js')).href;
   const contourBuildUrl = pathToFileURL(join(root, 'js/calculators/cam/contourBuild.js')).href;
   const insertPreviewUrl = pathToFileURL(join(root, 'js/calculators/cam/insertPreview.js')).href;
   const camToolPickerUrl = pathToFileURL(join(root, 'js/calculators/cam/camToolPicker.js')).href;
@@ -99,6 +100,7 @@ import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, 
 import { _defaultCamParams } from ${JSON.stringify(camDefaultsUrl)};
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from ${JSON.stringify(threadHelpersUrl)};
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from ${JSON.stringify(gcodeParserUrl)};
+import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from ${JSON.stringify(feedRatesUrl)};
 import { getToolClearanceRange, segInterferesWithTool, arcReachableSpan, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from ${JSON.stringify(contourBuildUrl)};
 import { drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from ${JSON.stringify(insertPreviewUrl)};
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from ${JSON.stringify(camToolPickerUrl)};

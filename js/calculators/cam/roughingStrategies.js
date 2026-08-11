@@ -974,7 +974,14 @@ export function genLongPasses(ctx) {
       if (blockedAt(X, zn)) return refineEngageZ(X, z, zn);
       z = zn;
     }
-    return zFloor;
+    // NIKDY ZPÁTKY: dno okna může ležet ZA výchozím bodem (rampa dosedne až
+    // za koncem polotovaru — na dílu uživatele dosedla na Z−8,473, zatímco
+    // dno okna je Z−8,000). Bez clampu vrátí funkce dno a volající z toho
+    // postaví rovný úsek PROTI směru řezu: `G1 Z−8.473` a hned zpátky
+    // `G1 Z−8.000`. Řež jede zprava doleva, takže konec nesmí být výš než
+    // začátek; když už není kam pokračovat, vrátí se výchozí bod (nulová
+    // délka) a volající takový úsek zahodí.
+    return Math.min(zFloor, zFrom);
   };
 
   // ── „Hrub. bez schodků | i u čelního" v PODÉLNÉM hrubování ────────────
@@ -1708,7 +1715,7 @@ export function genLongPasses(ctx) {
             ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
                 .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
                 .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }])
-                .concat(straightContinueZ !== null
+                .concat(straightContinueZ !== null && rampTarget.z - straightContinueZ > 1e-6
                   ? [{ type: 'line', x1: rampTarget.x, z1: rampTarget.z, x2: rampTarget.x, z2: straightContinueZ }]
                   : [])
                 .concat(tailTrace), true)

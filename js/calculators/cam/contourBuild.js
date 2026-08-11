@@ -72,6 +72,66 @@ export function segInterferesWithTool(seg, clearance) {
   }
   return false;
 }
+/**
+ * OBROBITELNÝ ROZSAH úseku podle mezních čar: kam až se na něj dá dojet.
+ *
+ * `buildMachinableContour` úseky nejen zahazuje, ale i OŘEZÁVÁ — stín
+ * nedosažitelné strmé stěny zkrátí i sousední (jinak dosažitelný) válec.
+ * Hrubování jede po obrobitelné kontuře, takže to respektuje samo; dokončování
+ * jede po SKUTEČNÉ kontuře (mostové čáry nejsou obráběná plocha) a bez tohohle
+ * rozsahu by dojelo až do rohu, kam se destička nedostane, a posledních pár mm
+ * by bralo naráz materiál, který tam hrubování nechalo stát.
+ *
+ * Páruje se GEOMETRICKY (stejná nosná přímka / stejný střed a poloměr), ne přes
+ * identitu objektů: obrobitelná kontura vzniká mutací segmentů a kopie pro
+ * dokončování (`preBridgeContour`) je klon pořízený před ní.
+ *
+ * Vrací {t0, t1} v parametru úseku (0 = začátek, 1 = konec) — u přímky podíl
+ * délky, u oblouku podíl úhlového rozpětí; oba parametry sedí i na offsetové
+ * dráze, protože ta je rovnoběžná (stejné t, stejné úhly). Null = úsek
+ * v obrobitelné kontuře vůbec není (celý leží ve stínu).
+ */
+export function machinableRangeOf(seg, machinable) {
+  const TOL = 1e-3;
+  let best = null;
+  const note = (lo, hi) => {
+    const a = Math.max(0, Math.min(1, lo)), b = Math.max(0, Math.min(1, hi));
+    if (b - a <= 1e-6) return;
+    if (!best || (b - a) > (best.t1 - best.t0)) best = { t0: a, t1: b };
+  };
+  if (seg.type === 'line') {
+    const dx = seg.p2.x - seg.p1.x, dz = seg.p2.z - seg.p1.z;
+    const len2 = dx * dx + dz * dz;
+    if (len2 < 1e-12) return { t0: 0, t1: 1 };
+    for (const m of machinable) {
+      if (!m || m.type !== 'line' || m.fromInsert) continue;
+      // Kolmá vzdálenost obou konců od nosné přímky úseku.
+      const off = (p) => Math.abs((p.x - seg.p1.x) * dz - (p.z - seg.p1.z) * dx) / Math.sqrt(len2);
+      if (off(m.p1) > TOL || off(m.p2) > TOL) continue;
+      const t = (p) => ((p.x - seg.p1.x) * dx + (p.z - seg.p1.z) * dz) / len2;
+      const a = t(m.p1), b = t(m.p2);
+      note(Math.min(a, b), Math.max(a, b));
+    }
+  } else if (seg.type === 'arc') {
+    const span = (s) => {
+      let sA = s.startAngle, eA = s.endAngle;
+      if (s.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (s.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      return [sA, eA];
+    };
+    const [sA, eA] = span(seg);
+    if (Math.abs(eA - sA) < 1e-9) return { t0: 0, t1: 1 };
+    for (const m of machinable) {
+      if (!m || m.type !== 'arc' || m.fromInsert) continue;
+      if (Math.abs(m.cx - seg.cx) > TOL || Math.abs(m.cz - seg.cz) > TOL
+        || Math.abs(m.r - seg.r) > TOL || m.dir !== seg.dir) continue;
+      const [mS, mE] = span(m);
+      note((mS - sA) / (eA - sA), (mE - sA) / (eA - sA));
+    }
+  }
+  return best;
+}
+
 // Pro oblouk vrátí SOUVISLÝ podinterval úhlu {a0,a1} (v parametru oblouku,
 // tj. atan2(x−cx, z−cz), orientovaný start→end), kde špička destičky DOSÁHNE
 // (normála uvnitř úhlového rozsahu i s vůlí hřbetu). Vrací null, když nedosáhne

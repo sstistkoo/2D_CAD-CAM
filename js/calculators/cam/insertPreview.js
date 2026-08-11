@@ -2,7 +2,7 @@
 // aktivním rádiem — sdíleno mezi drawInsertAndHolderPreview(), getInsertAnchorPoints()
 // a buildInsertProfileSegments() (📐 Kreslit na CAD plátně), ať plátek v náhledu,
 // anchor bodech i reálně nakreslené CAD geometrii vypadá stejně vysoký.
-const PARTING_BODY_MIN_H_MM = 15;
+export const PARTING_BODY_MIN_H_MM = 15;
 
 // ── Náhled geometrie destičky + držáku (dialog "⚙️ Geometrie") ────
 // Samostatná, na S/simulaci nezávislá kreslicí funkce — kreslí vždy v

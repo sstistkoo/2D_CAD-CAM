@@ -195,6 +195,39 @@ vede z PLÁNOVANÉ geometrie průchodů (`noteCutPass` = leadIn → rampa → dn
 leadOut), validátor z reálně projeté `simPath`. Kdo to bude chtít dorazit, musí
 sblížit tyhle dva modely zbytku, ne obrysy nástroje.
 
+#### Doplněk (11. 8. 2026): stopa má SMĚR — čelně se prodlužuje v Z
+
+Obrys byl osově souměrný podle osy Z (šířka jen 2R) a tělo protahoval pouze
+radiálně o `max(2·ap, 3)`. To je správně pro PODÉLNÉ hrubování, kde se
+sousední průchody skládají v ose X a hřebínek mezi nimi leží pod tím
+prodloužením. **Čelně se ale průchody skládají v Z** s roztečí ap, takže
+v modelu zůstával stát hřebínek `ap − 2R` po celé délce dílu. Fyzicky
+neexistuje (odřízne ho tělo destičky), ale všichni tři konzumenti obrysu ho
+brali vážně:
+
+| konzument | projev falešného hřebínku |
+|---|---|
+| `HolderGouge` | oranžová stopa vnoření držáku přes CELÝ obrobek |
+| `rapidStock` (emise) | „Výjezd nad konturu" před každým čelním průchodem |
+| `validateToolpath` | desítky ⛔ nálezů „držák v materiálu" |
+
+Nově `insertBodyZ(prms, r)` v `materialRemoval.js` protahuje stadion i v Z —
+**jen čelně** (`roughingStrategy === 'face'`) a **jen k obrobené straně**
+(zprava +Z, zleva −Z, tedy zrcadleně podle `roughingSide`, stejná konvence
+jako `span`/`dirM` v hlídání upichováku). Rozsah: upichovák `Šířka − R`
+(fyzická šířka břitu), ostatní tvary `ap` (dosáhne přesně na střed rádiusu
+předchozího průchodu, překryv R) — dál se tělo nemodeluje, aby se
+nezakrývaly skutečné kolize. Podélná větev vrací bajt po bajtu týž polygon
+(snapshoty part-1…13 se nehnuly), čelní fixtures `face-cylinder`
+a `face-casting` se přegenerovaly.
+
+**Co po opravě ZBYLO a je skutečné:** čelní generátor nemá `holderClampZEnd`
+(používá ho jen `genLongPasses`), takže vlevo od stěny, která stoupá směrem
+k obrobené straně, jede 20mm držák v materiálu. Na dílu uživatele
+(kužel Z 212→221) po opravě zbylo 126 nálezů, všechny v Z ≤ 216 — to už není
+artefakt modelu, ale chybějící PREVENCE (clamp/přeplánování pořadí u čelního
+hrubování).
+
 ### 4. Drobnosti stejného původu
 
 - **`pocketReposition` sdílejí TŘI mechanismy** (řetěz vjezdu na hranici
@@ -377,7 +410,88 @@ ze **SJEDNOCENÉ** zakázané oblasti špičky místo dřívější držák-only
 
 - **Dokončování**: úseky, kde by špička (a tedy держák) ležela v zakázané
   oblasti, se přeskočí jako nedosažitelné (tečkovaně, rychloposuv přes
-  mezeru, ⚠ varování) — `clamp.isForbidden` v dokončovací smyčce.
+  mezeru, ⚠ varování).
+  > **OPRAVA 11. 8. 2026 — ZÁMĚNA SOUSTAV, dokončování mizelo celé.**
+  > Dokončovací smyčka brala `clamp.isForbidden` z hrubovacího clampu, jehož
+  > překážkou je silueta HRUBOVACÍHO offsetu (kontura + R + přídavek) = dráha
+  > STŘEDU špičky, ne materiál. Hrubovací průchody po ní jezdí ZVENČÍ (dotyk =
+  > mez), takže je pro ně správná; dokončovací dráha (kontura + R) ale leží
+  > z definice UVNITŘ — a protože obrys držáku obsahuje počátek, platí
+  > F ⊇ překážka → zakázáno bylo úplně všechno. Změřeno: 42/42 vzorků
+  > dokončovací dráhy uvnitř siluety, díl uživatele 18/18 úseků zahozeno,
+  > fixtures part-2/4/6/8/9 po 13 (a `; --- DOKONCOVANI ---` v jejich
+  > snapshotech vůbec nebylo, aniž by si toho kdo všiml).
+  > Dokončování má teď **vlastní obálku `makeFinishTipGuard`**, jejíž
+  > překážka = silueta FINÁLNÍ kontury ∩ polotovar (skutečný materiál).
+  > Přídavková slupka se nemodeluje schválně — sundává ji špička před sebou
+  > (táž úvaha jako morfologický opening u hrubovacího clampu).
+  > Hrubování se nezměnilo (G-kód 18/18 fixtures bajt po bajtu shodný).
+- **Kvalita dokončovacích drah (11. 8. 2026, nálezy uživatele na part-14)**:
+  (a) NÁJEZD — rampu pod úhlem zanoření měl jen první řetěz, navazující
+  dosedaly kolmo v X na hotovou plochu (ryska v místě dotyku). Rampu teď
+  dostávají všechny, ze strany po SMĚRU řezu; koridor se prověřuje proti
+  `residualTopXAtZ` (strop záběru = jedna hloubka třísky) i proti hotovní
+  kontuře (`finProfileXAt` = finishOffsetPath ∪ finishUnreachablePath),
+  jinak fallback na svislý dojezd. PAST: cílový bod rampy (t = 1) LEŽÍ na
+  kontuře, takže materiál v jeho Z-rovině je z definice — u čela k ose
+  celé tělo dílu; testovat ho nesmíš, jinak zablokuješ každý nájezd na
+  čelo (chyceno `tests/cam-finish-holder.test.js`: fallback vyrobil rapid
+  materiálem, 7–28 mm² na part-1/2/4/6/9).
+  (b) ŽÁDNÉ PŮLKY SEGMENTŮ — částečně dosažitelný oblouk se ořezával na
+  dosažitelnou část (`arcReachableSpan`, Fáze 3b); pravidlo uživatele je
+  „celý, nebo vůbec" (schod uprostřed rádiusu je horší než neobrobeno).
+  Ořez odstraněn; místo něj **rovný průměr** = přímý pohyb v Z na téže
+  hloubce, dokud nástroj z materiálu nevyjede (`finRunOut` v gcodeEmit —
+  potřebuje zbytkový polotovar, který zná jen emise). Taky celý, nebo
+  vůbec: zastavení o strop záběru = pahýl uprostřed materiálu.
+  (c) DVA RŮZNÉ STROPY ZÁBĚRU (oprava po nálezu na part-15): rampa nájezdu
+  smí ukrojit jen PŘÍDAVKOVOU SLUPKU (má do plochy dosednout), rovný
+  průměr smí jednu hloubku třísky (má zbytek ubrat). Se společným stropem
+  ap projela rampa klínem po zanoření hrubování — 1,2 mm třísky celou
+  délkou nájezdu.
+  (c2) ROVNÝ PRŮMĚR I NA ZAČÁTKU ŘETĚZU (`finRunInZ`) — zrcadlo `finRunOut`,
+  jen u válcového prvního úseku (|Δx| < 0,05). NÁLEZ PŘI LADĚNÍ: zbytkový
+  model `rapidStock` hlásí u průchodů SLEDUJÍCÍCH KONTURU povrch až o
+  PŘÍDAVEK níž, než po hrubování reálně zůstal (naměřeno 27,044 vs. 27,441
+  na oblouku R6 dílu uživatele; rozdíl = přesně allowanceX 0,4) — jako by
+  `noteCutPass` registroval ty úseky po hotovní čáře místo po hrubovací
+  offsetové. Rovný průměr proto bere hranici „materiál došel" o přídavek
+  níž (`finTopEps`). Tohle je jen obcházka v dokončování; SAMOTNÁ NEPŘESNOST
+  ZŮSTÁVÁ a míří na nebezpečnou stranu i pro rychloposuvy (model si myslí,
+  že materiál už není) — na fixtures ji validátor drah nechytá, ale stojí
+  za samostatnou opravu v `noteCutPass`.
+  (c3) MEZNÍ ČÁRA PLATÍ I PRO DOKONČOVÁNÍ (`machinableRangeOf` v
+  contourBuild.js). Mezní čára neomezuje jen CELÉ úseky — stín nedosažitelné
+  strmé stěny zkrátí i sousední válec: na part-15 končí válec X9,117 podle
+  `buildMachinableContour` už na Z245,966, ne na Z243,123. Hrubování po
+  obrobitelné kontuře jede, dokončování jelo po syrové a poslední 2,9 mm
+  bralo naráz 29 mm² (tříska 14 mm). Úsek, na který se nedá dojet celý, se
+  podle rozhodnutí uživatele (11. 8. 2026) NEOBRÁBÍ VŮBEC — ani zkrácený,
+  a to i pro ÚSEČKY (dřív jen oblouky). Cena je vědomá: na part-15 tím
+  vypadne dokončení 99 mm válce Ø18,2. Párování preBridge ⇄ machinable je
+  GEOMETRICKÉ (nosná přímka / střed+poloměr), ne přes identitu objektů —
+  obrobitelná kontura vzniká mutací a `preBridgeContour` je klon před ní.
+  MĚŘENÍ hloubky třísky: přehrát emitované řezné bloky ze `simPath` do
+  StockModelu (jako validateToolpath) a brát LOKÁLNÍ záběr ve vzorcích, ne
+  průměr přes blok — špička na posledních mm 102mm válce se v průměru
+  ztratí (0,67 vs. 14 mm). Pojistka: `tests/cam-finish-holder.test.js`
+  „žádný dokončovací řez nebere víc než přídavek".
+  (d) NULOVÉ ÚSEKY (p1 ≡ p2) z ořezu kolineárních segmentů se z
+  `finishOffsetPath` zahazují. Neobrábějí nic, ale projdou filtry — a když
+  jejich skutečné sousedy vyřadí držák, zůstane sirotek, kolem kterého
+  emise vyrobí plný nájezd i odjezd (na part-15 sjezd do materiálu, nic,
+  a výjezd posuvem skrz materiál). `chainBreak` dědí jen tehdy, když ho
+  nulový úsek skutečně měl — jinak vznikne zbytečný přejezd mezi
+  spojitými sousedy.
+- **Zbytek polotovaru při dokončování (11. 8. 2026)**: obálka výš zná jen
+  finální tvar, ne POŘADÍ obrábění. Co po hrubování reálně zůstalo stát
+  (nevyhrubovaný klín za bossem), ví až dynamický `rapidStock` v emisi —
+  úseky, kde by v něm jel držák, se zahazují až tam (`gcodeEmit.js`, hlášení
+  přes `S.genNotes` → `fullUpdate()`). Testuje se JEN materiál nad hotovým
+  tvarem (`rapidStock − kontura⊕přídavek`): kdyby se testoval celý zbytek,
+  přidaly by se inherentní kolize modelu držáku s TĚLEM dílu u čela k ose
+  a dokončování čela by zmizelo celé (face-casting). Změřeno validátorem:
+  face-casting 4 → 0, face-cylinder 8 → 0 nálezů v dokončovacím bloku.
 - **Trasy sledování kontury** (leadIn/leadOut kapes, „bez schodků"
   dojezdy): ořez proti obálce (`holderTrimLeadIn/Out`) — odstranilo třídu
   „nájezd kapsy trasovaný od osy přes celé čelo" (~343 mm² na part-2).
@@ -1108,7 +1222,23 @@ pokračující řez" (`!iv.blocked`) a jeho začátek u Z 265 obálka držáku n
    mikro-průchodů (Ø4,1–4,6 u S27): kapsová větev předpokládá kapsu mezi DVĚMA
    stěnami, otevřený konec neumí.
 
-**CO JE POTŘEBA (nezkoušet znovu bez toho):** vjezd i CELÁ jeho rampa se musí
+**OBCHÁZKA, KTERÁ FUNGUJE (uživatel, 11. 8. 2026) — a ukazuje správnou cestu:**
+Stačí nastavit **Start rozsahu Z** za klín (např. Z 300 nebo 310) a úsek se
+obrobí normálně, se zanořením rampou pod 15° a **0 kolizí** (změřeno
+`validateToolpath` se správným `backside`: 3 průchody, maxZ 368,1). Odpovídá to
+tomu, jak uživatel dílem prochází — po úsecích.
+
+Z toho plyne, že ZBYTEČNÉ je přestavovat hranici v obrobitelné kontuře
+(varianta A níž). Vjezd na hranici rozsahu totiž jde přes UŽ HOTOVÝ a otestovaný
+řetěz: `entryCapped` → `entryRampAnchor` → `holderEntryCapZ` („automatický start
+zanoření za odlitkovým hrbem"). **Automatické řešení = označit svislou hranici
+klínu za UMĚLOU HRANICI (přesně jako hranici rozsahu 📐 nebo hranici úseku), aby
+se pro ni ten řetěz spustil sám** — ne psát pro tenhle případ vlastní vjezd.
+Pět pokusů psát ho vedle toho řetězu skončilo kolizemi (viz výš); řetěz sám to
+zvládá, jen se pro tuhle hranici dosud nespouštěl (interval je `!iv.blocked`
+a `entryCapped` se pro něj nenastaví).
+
+**Varianta A (přestavba hranice) — ODLOŽENO jako zbytečně velké:** vjezd i CELÁ jeho rampa se musí
 prověřit TÍM SAMÝM Minkowského modelem, který pak počítá `validateToolpath`
 (dnes se rozhoduje podle zjednodušené `holderFitsAt` proti STATICKÉ siluetě, a ta
 navíc nevidí, co už odebraly mělčí vrstvy), a kapsová větev musí umět

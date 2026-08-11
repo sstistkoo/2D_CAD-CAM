@@ -16,6 +16,37 @@ import { StockModel, toolSweep, polySimplify, polyOffset } from '../../geom/geom
 import { stockClearances, stockClearanceIsZero } from './camMath.js';
 
 /**
+ * Zásah těla destičky v ose Z (od programovaného bodu k UŽ OBROBENÉ
+ * straně) pro ČELNÍ hrubování. Podélně vrací 0 — tam se sousední
+ * průchody skládají v ose X a hřebínky mezi nimi kryje radiální
+ * prodloužení „stadionu" (viz toolFootprint níž), takže se model
+ * nemění.
+ *
+ * Čelně se ale průchody skládají v ose Z s roztečí ap: pouhý půlkruh
+ * špičky (šířka 2R) nechá mezi nimi stát hřebínek ap − 2R, který
+ * fyzicky odstřihne tělo destičky. Bez tohohle prodloužení zůstávaly
+ * hřebínky v modelu, držák jimi „projížděl" (oranžová stopa vnoření
+ * přes celý díl) a rychloposuvy je braly jako materiál → zbytečný
+ * výjezd nad polotovar před KAŽDÝM čelním průchodem.
+ *
+ * Rozsah: u upichováku šířka plátku od aktivního rádiusu (w − R) —
+ * fyzická šířka břitu, kterou používá i hlídání upichováku
+ * v roughingStrategies.js. U ostatních tvarů hloubka záběru (ap):
+ * přesně dosáhne na střed rádiusu předchozího průchodu (překryv R),
+ * dál se tělo destičky nemodeluje, aby se nezakrývaly reálné kolize.
+ *
+ * @returns {number} kladný zásah v +z (0 = žádné prodloužení)
+ */
+function insertBodyZ(prms, r) {
+  if ((prms.roughingStrategy || 'longitudinal') !== 'face') return 0;
+  if (prms.toolShape === 'parting') {
+    const w = parseFloat(prms.toolLength) || 0;
+    return w > 0 ? Math.max(w - r, 0) : 0;
+  }
+  return Math.max(parseFloat(prms.depthOfCut) || 0, 0);
+}
+
+/**
  * Obrys řezné části nástroje RELATIVNĚ k programovanému bodu dráhy
  * (= střed rádiusové kružnice špičky — viz kreslení plátku v draw()).
  * V1 aproximace „stadion": spodní půlkruh rádiusu R + obdélník nahoru
@@ -23,17 +54,30 @@ import { stockClearances, stockClearanceIsZero } from './camMath.js';
  * tenké hřebínky mezi sousedními průchody (rozteč ap > 2R), které by
  * čistá kružnice vizuálně nechávala stát — fyzicky je odstřihne tělo
  * destičky. Přesný polygon destičky (vč. upichováku) přijde ve Fázi 2.
+ *
+ * Čelně se stadion navíc protahuje v ose Z k obrobené straně (zprava
+ * +Z, zleva −Z) o zásah těla destičky — viz insertBodyZ výš.
  */
 export function toolFootprint(prms) {
   const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
-  const loop = [{ x: H, z: r }];
+  const zBody = insertBodyZ(prms, r);
+  const loop = [];
+  // Tělo k obrobené straně (rovné dno na úrovni středu rádiusu — táž
+  // konzervativní aproximace jako u hlídání upichováku).
+  if (zBody > r) { loop.push({ x: H, z: zBody }); loop.push({ x: 0, z: zBody }); }
+  else loop.push({ x: H, z: r });
   const n = 12;
   for (let k = 0; k <= n; k++) {
     const a = (k / n) * Math.PI;    // 0..π přes spodek špičky
     loop.push({ x: -Math.sin(a) * r, z: Math.cos(a) * r });
   }
   loop.push({ x: H, z: -r });
+  // Čelně zleva je obrobená strana na −Z: zrcadlit a OBRÁTIT pořadí,
+  // ať smyčka drží stejnou orientaci (polyOffset ve `toolFootprintSlim`
+  // by u obrácené smyčky zúžení otočil na rozšíření).
+  if (zBody > r && prms.roughingSide === 'left')
+    return loop.map(p => ({ x: p.x, z: -p.z })).reverse();
   return loop;
 }
 

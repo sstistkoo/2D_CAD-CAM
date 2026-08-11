@@ -5,6 +5,9 @@ export function _defaultCamParams() {
   return {
     machineType: 'LIMS=2000', mode: 'DIAMON', toolName: 'ROUGHER_T1',
     speed: 200, feed: 0.25, depthOfCut: 2.0, retractDistance: 2.0,
+    // Rychloposuv G0 [mm/min] — jen pro odhad času a přehrávání simulace
+    // v reálném čase (do G-kódu se nezapisuje, ten G0 rychlost neuvádí).
+    rapidFeed: 6000,
     // Úhel odskoku po řezu (°): 90 = svisle v X, 45 = klasická diagonála.
     // X-složka odskoku je vždy retractDistance; Z-složka = rDist/tan(úhel).
     retractAngle: 45,

@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Simulace obrábění jede reálnou rychlostí stroje (1× = skutečný čas).**
+  Přehrávání se dřív posouvalo po BODECH dráhy pevným krokem, takže dlouhá
+  úsečka (jeden bod) prosvištěla a hustě vzorkovaný oblouk (desítky bodů)
+  se plazil — s reálným obráběním to nemělo nic společného. Nově se dráha
+  ujíždí strojním časem: `G0` **Rychloposuvem** a řezné pohyby posuvem
+  `F [mm/ot] × otáčky` v tom průměru, kde nástroj právě je
+  (`n = Vc·1000/π⌀`, omezeno `LIMS`; `G97` bere `S` rovnou jako otáčky,
+  `G94`/`G98` `F` rovnou v mm/min). Bere se **modální F/S přímo z G-kódu**
+  (i z ručních úprav), ne jen z polí panelu — a stejný výpočet
+  (`cam/feedRates.js`) pohání i odhad ⏱ nad plátnem, takže čas programu a
+  doba přehrávání sedí. Rozsah násobičů rychlosti rozšířen na 0,1×–64×.
+- **Živý údaj nad plátnem: ubíhající čas, otáčky a posuv** – během simulace
+  se nad odhadem ⏱ ukazuje **ubíhající čas programu** (stopky m:ss podle
+  strojního času, ne podle délky přehrávání) a k němu aktuální **otáčky
+  [ot/min] a posuv [mm/min]** (v závorce mm/ot); u rychloposuvu
+  „G0 rychloposuv … mm/min".
+- **Parametry → Rychloposuv (G0)** [mm/min], předvolba **6000**. Do G-kódu
+  se nezapisuje (`G0` rychlost neuvádí) — slouží pro odhad času programu a
+  pro přehrávání simulace v reálném čase.
 - **Ctrl+Enter v poli „Ruční zápis G-kódu" vykreslí zapsané na plátno** –
   stejná akce jako klik na 🔄. Obyčejný Enter zůstává normální nový
   řádek (program má typicky víc řádků, se samotným Enter = odeslat by se
@@ -163,7 +182,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (holder-casting-slanted-face −36,2 mm², holder-region-roughing −7,7;
     ostatní beze změny), žádná nová kolize držáku.
 
+### Changed
+- **Dokončování najíždí rampou ze strany, odkud řeže — ne svislým
+  dosednutím.** Navazující řetězy (druhý a další, po přeskočeném
+  nedosažitelném kusu) dosedaly na hotovou plochu kolmo v ose X a teprve
+  pak se rozjely v Z; na dílu to nechá rysku v místě dotyku. Rampu pod
+  úhlem zanoření měl dosud jen úplně první řetěz — teď ji dostávají
+  všechny, a to ze strany, ODKUD se řeže (u hrubování zleva tedy od −Z,
+  aby nástroj do materiálu vjel po směru řezu). Koridor rampy se prověří
+  proti zbytkovému polotovaru i proti hotovní kontuře; kde volný není
+  (kraj nedosažitelné oblasti, nevyhrubovaný klín, hotová plocha
+  předchozího řetězu), zůstává svislý dojezd — bezpečnost má přednost
+  před povrchem. Odjezd na konci dokončování jde nově vždy nejdřív ven
+  v X a pak v Z, ne diagonálou přes díl (stejné pravidlo jako u konce
+  hrubování).
+- **Dokončování vjíždí do dílu rovným průměrem, ne rampou** (kde to jde).
+  Zrcadlo rovného průměru na konci řetězu: začíná-li řetěz válcovým úsekem
+  a před ním ještě stojí materiál, dráha se natáhne PROTI směru řezu na
+  téže hloubce, dokud z materiálu nevyjede — nástroj pak do dílu vjede jeho
+  hranou a rovným průměrem, jak se soustruží ručně. Jen u válcového úseku
+  (přímka rovnoběžná se Z): u oblouku nebo čela by rovný pohyb v Z vyrobil
+  cizí válcový pahýl, tam zůstává rampa. Strop záběru (jedna hloubka
+  třísky) a hlídání hotovní kontury platí stejně jako u výjezdu.
+- **Hrubování: rovný úsek po dosednutí rampy už nejede proti směru řezu.**
+  `straightRunEndZ` vracel dno okna i tehdy, když rampa dosedla už ZA ním
+  (na dílu uživatele dosedla na Z−8,473, zatímco dno okna je Z−8,000 =
+  konec polotovaru). Z toho vznikl řez `G1 Z−8.473` a hned zpátky
+  `G1 Z−8.000` — hrubuje se zprava doleva, takže Z smí jen klesat. Konec
+  rovného úseku se proto nikdy nevrátí před jeho začátek; když už není kam
+  pokračovat, úsek se zahodí úplně. Zásah je chirurgický: G-kód všech 18
+  původních fixtures zůstal bajt po bajtu shodný (chování se mění jen tam,
+  kde rampa dosedne za koncem polotovaru).
+- **Dokončování respektuje mezní čáry hlídání destičky.** Mezní čára
+  neomezuje jen CELÉ úseky: stín nedosažitelné strmé stěny zkrátí i
+  sousední, jinak dosažitelný válec. Hrubování to zná (jede po obrobitelné
+  kontuře), dokončování ale jelo po syrové kontuře až do rohu a poslední
+  milimetry bralo naráz materiál, který tam hrubování nechalo stát —
+  naměřeno 29 mm² na posledních 2,9 mm válce, **tříska až 14 mm
+  dokončovacím nožem**, a odjezd z takového konce musel ven skrz materiál
+  posuvem. Úsek, na který se kvůli mezní čáře nedá dojet celý, se teď
+  neobrábí vůbec (pravidlo „celý, nebo vůbec" nově i pro úsečky, nejen pro
+  oblouky) a v náhledu zůstává tečkovaně jako nedosažitelný. Týká se JEN
+  dokončovací dráhy — hrubování se nemění. Jako druhá pojistka platí strop
+  hloubky třísky: kde by dokončovací úsek bral víc než jednu hloubku
+  třísky (ap), zkrátí se nebo vynechá a v ⚠ panelu se řekne proč. Měřeno
+  přehráním emitovaných drah do modelu polotovaru: nejhlubší dokončovací
+  tříska se na všech fixtures rovná zadanému přídavku (0,30 mm při
+  přídavku 0,3; 1,00 při 1,0; na dílu uživatele 0,40 při 0,5).
+- **Dokončování: „celý, nebo vůbec".** Oblouk, na který destička dosáhne
+  jen zčásti, se dosud ořízl na dosažitelnou část a ta se obrobila.
+  Geometricky to bezpečné je, technologicky ne: uprostřed rádiusu vznikne
+  přechod mezi dokončenou a nedokončenou plochou = viditelný schod přesně
+  tam, kde je díl vidět. Kus, který nejde udělat celý, se teď vynechá
+  celý (v náhledu zůstává tečkovaně jako nedosažitelný). Navazující
+  materiál se místo něj dobere **rovným průměrem** — přímým pohybem v ose
+  Z na téže hloubce, dokud nástroj z materiálu nevyjede. I ten platí celý,
+  nebo vůbec: kdyby se cestou zastavil o strop záběru (jedna hloubka
+  třísky) nebo o limit rozsahu, zůstal by po něm pahýl uprostřed
+  materiálu, takže se v takovém případě nedělá vůbec. Trasa se hlídá proti
+  hotovní kontuře, aby přímý pohyb nezajel do dílu, který se za koncem
+  řetězu zvedá. Měřeno: na 5 fixtures mizí 2 rozpůlené oblouky na každé,
+  kolize drah zůstávají nulové.
+
 ### Fixed
+- **Čelní hrubování: falešná kolize držáku přes celý díl + výjezd nad
+  polotovar před KAŽDÝM průchodem.** Model stopy nástroje (`toolFootprint`)
+  prodlužoval tělo destičky jen radiálně (+X) — to kryje hřebínky mezi
+  podélnými průchody (skládají se v X), ale u čelního hrubování se
+  průchody skládají v Z s roztečí ap, takže mezi nimi v modelu zůstával
+  stát hřebínek `ap − 2R` (u ap 3 a R 0,8 celých 1,4 mm), který ve
+  skutečnosti odřízne tělo plátku. Důsledky: (1) držák těmi hřebínky
+  „projížděl" → oranžová stopa vnoření přes celý obrobek, (2) model
+  zbytku je bral jako materiál → přejezd na další průchod pokaždé vyjel
+  až nad polotovar a hned zase sjel zpátky na stejném Z. Stopa se nově
+  čelně protahuje i v ose Z k obrobené straně (zprava +Z, zleva −Z):
+  u upichováku o šířku břitu (`Šířka − R`, tatáž geometrie, jakou už
+  používá hlídání upichováku), u ostatních tvarů o hloubku záběru.
+  Na dílu uživatele (⌀111 × 350 odlitek, 122 čelních průchodů): výjezdů
+  nad polotovar 143 → 36, řádků programu 1065 → 972, plocha vnoření
+  držáku 4007 → 1056 mm² (zbytek jsou skutečné kolize u stěn, viz níž).
+  Podélné hrubování je beze změny.
+- **Čelní hrubování: první průchod zapíchl do polotovaru na bezpečném Z.**
+  Před přejezdem v Z se najíždělo v ose X na „rapid-safe" průměr na
+  AKTUÁLNÍM Z. Když nástroj přijel z bezpečné polohy nad polotovarem
+  (a bezpečné Z leží nad dílem, např. u sklíčidla), nebyl to výjezd, ale
+  SJEZD — a ten skončil pracovním posuvem v odlitku (na dílu uživatele
+  138 mm² hned v 1. průchodu). Výjezd v X se teď dělá jen tehdy, když
+  nástroj skutečně zvedá; jinak se přejede v Z ve vyšší poloze.
+- **Čelní dojezdy „bez schodků" chyběly v modelu zbytku polotovaru**
+  (`noteCutPass` je u čelních průchodů nezapočítával, na rozdíl od
+  podélných) — model držel materiál, který je dávno pryč, a další
+  průchod kvůli němu zbytečně vyjížděl nad polotovar.
+- **Simulace s upichovacím plátkem padala při každém překreslení**
+  (`ReferenceError: PARTING_BODY_MIN_H_MM is not defined`) — plátno CAM
+  simulátoru zůstalo prázdné/zamrzlé. Konstanta se při dekompozici
+  `camSimulator.js` přesunula do `cam/insertPreview.js`, ale zůstala tam
+  neexportovaná, zatímco `camSimulator.js` ji dál používá (vykreslení
+  nástroje během simulace i profil pro „📐 Kreslit na CAD plátně").
+  Nyní je exportovaná a importovaná.
+- **Nájezd dokončování už neprojede klínem po zanoření hrubování.**
+  Koridor rampy se prověřoval se stropem záběru „jedna hloubka třísky"
+  (ap = 5 mm), což je strop pro rovný průměr, ne pro jemné dosednutí do
+  plochy. Rampa tak legálně projela klínem, který po sobě nechala rampa
+  zanoření hrubování (na dílu uživatele přes 1,2 mm třísky po celé délce
+  nájezdu, `N2460 G1 X9.543 Z149.544`). Nájezd teď smí ukrojit jen
+  přídavkovou slupku, kterou dokončování stejně sundává; kde by bral víc,
+  se vrací ke svislému dojezdu.
+- **Osiřelý nulový úsek dokončování (nájezd + odjezd kvůli ničemu).**
+  Ořez dvou kolineárních segmentů (kontura z CADu mívá na přímce navíc
+  bod) vyrábí úsek s p1 ≡ p2. Neobrábí nic, ale projde všemi filtry — a
+  když jeho skutečné sousedy vyřadilo hlídání držáku, zůstal v programu
+  sám: nástroj kvůli němu sjel rampou do materiálu, neudělal nic a vyjel
+  ven skrz materiál posuvem. Nulové úseky se teď z dokončovací dráhy
+  zahazují (`chainBreak` se dědí jen tehdy, když ho úsek skutečně měl).
+- **„Dokončovací operace" už z programu nemizí.** Zaškrtnuté dokončování
+  se při zapnutém „Hlídat geometrii (destička + držák)" nevygenerovalo
+  vůbec: obálka držáku se pro něj počítala ze siluety HRUBOVACÍHO offsetu
+  (kontura + R + přídavek), což je dráha STŘEDU špičky, ne materiál.
+  Dokončovací dráha ale z definice leží UVNITŘ té siluety (o celý
+  přídavek) a protože obrys držáku obsahuje počátek (špičku), vycházel
+  jako kolize KAŽDÝ úsek — na dílu uživatele 18 z 18, ve fixtures
+  part-2/4/6/8/9 po 13. Dokončování teď hlídá vlastní obálka
+  (`makeFinishTipGuard` v `cam/toolEnvelope.js`), jejíž překážkou je
+  SKUTEČNÝ materiál v době dokončování: silueta finální kontury ∩
+  polotovar. Špička na dokončovací dráze je od ní vzdálená přesně o
+  rádius destičky, takže projde vše, kde se držák reálně nevejde (čelo
+  u osy, klín za bossem) — a jen to. Hrubování se nemění (G-kód všech 18
+  fixtures bajt po bajtu shodný).
+- **Dokončování nevjede do NEVYHRUBOVANÉHO zbytku polotovaru.** Kontrola
+  proti finální kontuře nezná pořadí obrábění — co po hrubování zůstalo
+  stát (klín za bossem, kam se destička nedostane), ví až dynamický model
+  zbytku (`rapidStock`). Úseky, kde by v něm jel držák, se zahodí ještě
+  před emisí a v ⚠ panelu se řekne proč (nová hlášení z emise, `S.genNotes`
+  — `calculate()` přepisuje `S.errors` od nuly, takže je `fullUpdate()`
+  po přepočtu připojí zpět). Testuje se JEN materiál nad hotovým tvarem
+  (zbytek − kontura rozšířená o přídavek), aby se nepřidávaly falešné
+  poplachy inherentní kolize modelu držáku u čela k ose. Změřeno
+  validátorem drah: face-casting 4 → 0 a face-cylinder 8 → 0 nálezů
+  v dokončovacím bloku; nová pojistka `tests/cam-finish-holder.test.js`
+  (fixture `part-14-finish-holder`).
 - **Tečkovaná hranice kolem polotovaru se kreslí z TÉŽE smyčky, se kterou
   plánují dráhy** (`offsetStockLoop` nad `buildStockLoop` — týž helper, co
   stojí za `planLoopRef` v `gcodeEmit.js`). Náhled si dřív offset dopočítával

@@ -158,6 +158,36 @@ export function buildToolForbiddenRegion(obstacleLoops, prms, { backside = false
 }
 
 /**
+ * PŘEKÁŽKA pro obálku nástroje z profilové čáry: silueta ∩ polotovar,
+ * volitelně morfologicky otevřená o `openR`.
+ *
+ * Průnik s polotovarem: kontura může přesahovat polotovar (kužel nad
+ * průměrem tyče, úseky za délkou) — tam žádný materiál nestojí a držák
+ * tam smí. Zároveň normalizuje případná samoprotnutí siluety
+ * (nemonotónní profil s kapsami), která by Minkowského sumu zkazila.
+ * Bez polotovaru fallback na čistou siluetu.
+ *
+ * Vrací pole smyček, nebo null když silueta nedává smysl / po otevření
+ * nic nezbude (celá překážka byla jen slupka).
+ */
+export function buildObstacleLoops(path, prms, { stockPathSegments = null, openR = 0 } = {}) {
+  const silhouette = offsetSilhouetteLoop(path);
+  if (!silhouette) return null;
+  let obstacleLoops = [silhouette];
+  const stockLoop = buildStockLoop(prms, stockPathSegments || []);
+  if (stockLoop) {
+    const clipped = polyIntersect([silhouette], polyOffset([stockLoop], 0.1, 'miter'));
+    if (clipped.length > 0) obstacleLoops = clipped;
+  }
+  if (openR > 0) {
+    const eroded = polyOffset(obstacleLoops, -openR, 'miter');
+    if (eroded.length === 0) return null;   // celá překážka je jen slupka
+    obstacleLoops = polyOffset(eroded, openR, 'miter');
+  }
+  return obstacleLoops.length > 0 ? obstacleLoops : null;
+}
+
+/**
  * Zakázaná oblast ŠPIČKY pro daný obrys nástroje relativně ke špičce
  * (typicky držák z holderWorldLoop): F = obstacle ⊕ (−toolLoop).
  * Špička uvnitř F ⇔ nástroj protíná překážku.
@@ -202,19 +232,6 @@ export const HOLDER_CLAMP_MARGIN = 0.1;
 export function makeHolderClamp(prms, offsetPath, { backside = false, margin = HOLDER_CLAMP_MARGIN, stockPathSegments = null } = {}) {
   const holder = holderWorldLoop(prms, backside);
   if (!holder) return null;
-  const silhouette = offsetSilhouetteLoop(offsetPath);
-  if (!silhouette) return null;
-  // Překážka = silueta ∩ polotovar: kontura může přesahovat polotovar
-  // (kužel nad průměrem tyče, úseky za délkou) — tam žádný materiál
-  // nestojí a držák tam smí. Průnik zároveň normalizuje případná
-  // samoprotnutí siluety (nemonotónní profil s kapsami), která by
-  // Minkowského sumu zkazila. Bez polotovaru fallback na čistou siluetu.
-  let obstacleLoops = [silhouette];
-  const stockLoop = buildStockLoop(prms, stockPathSegments || []);
-  if (stockLoop) {
-    const clipped = polyIntersect([silhouette], polyOffset([stockLoop], 0.1, 'miter'));
-    if (clipped.length > 0) obstacleLoops = clipped;
-  }
   // Morfologický OPENING (eroze + dilatace o dosah špičky R + max přídavek):
   // tenké slupky finálního povrchu (tloušťka ≲ 2×dosah, např. přídavkový
   // pás nad čelem) dokončí špička a držáku reálně nevadí — z překážky se
@@ -225,10 +242,8 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
     + Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
     + (parseFloat(prms.finishAllowance) || 0) + 0.1,
     0.3);
-  const eroded = polyOffset(obstacleLoops, -openR, 'miter');
-  if (eroded.length === 0) return null;   // celá překážka je jen slupka
-  obstacleLoops = polyOffset(eroded, openR, 'miter');
-  if (obstacleLoops.length === 0) return null;
+  const obstacleLoops = buildObstacleLoops(offsetPath, prms, { stockPathSegments, openR });
+  if (!obstacleLoops) return null;
   const forbidden = buildTipForbiddenRegion(obstacleLoops, holder);
   if (forbidden.length === 0) return null;
   // Bbox držáku pro schodovou podmínku (u obdélníku přesný, u vlastního
@@ -277,6 +292,43 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
   // { zStart, zEnd } první povolené komponenty, nebo null.
   clamp.span = (X, zStart, zEnd) => clampSpanTowardNegative(forbidden, X, zStart, zEnd, margin);
   return clamp;
+}
+
+/**
+ * Zakázaná oblast špičky pro DOKONČOVÁNÍ (bodový test `isForbidden`).
+ *
+ * Nesmí se použít clamp z makeHolderClamp: ten staví překážku ze siluety
+ * HRUBOVACÍHO offsetu (kontura + R + přídavek) — tedy z dráhy STŘEDU
+ * špičky, ne z materiálu. Hrubovací průchody po ní jezdí ZVENČÍ (dotyk =
+ * mez), takže je to pro ně správná hranice, ale dokončovací dráha leží
+ * z definice UVNITŘ (kontura + R, tj. o celý přídavek pod ní). A protože
+ * obrys držáku obsahuje počátek (špičku), platí F ⊇ překážka → tvrdý test
+ * označí za kolizi KAŽDÝ dokončovací úsek a dokončování z programu úplně
+ * zmizí (nebyla to bezpečnost, byla to záměna soustav).
+ *
+ * Překážka tady = SKUTEČNÝ materiál v době dokončování: silueta finální
+ * kontury ∩ polotovar. Špička na dokončovací dráze je od ní vzdálená
+ * přesně o rádius destičky, takže projde vše, kde se držák do materiálu
+ * reálně nevejde (čelo u osy, klín za bossem) — a jen to.
+ *
+ * Přídavková slupka (~0,4 mm), která na neodjetých místech ještě stojí,
+ * se úmyslně nemodeluje: dokončovací špička ji sundává před sebou a
+ * držák skrz ni projíždí i dnes (stejná úvaha jako morfologický opening
+ * u hrubovacího clampu). Zbytky polotovaru, kam se hrubování nedostalo,
+ * pak zachytí až validátor drah (⛔ panel) nad reálným úběrem.
+ *
+ * Vrací { isForbidden } nebo null, když není co hlídat.
+ */
+export function makeFinishTipGuard(prms, contourPath, { backside = false, stockPathSegments = null } = {}) {
+  const holder = holderWorldLoop(prms, backside);
+  if (!holder) return null;
+  // Malý opening jen kvůli numerické normalizaci siluety (samoprotnutí,
+  // orientace smyček) — ne kvůli filtrování slupek; ty tu nejsou.
+  const obstacleLoops = buildObstacleLoops(contourPath, prms, { stockPathSegments, openR: 0.05 });
+  if (!obstacleLoops) return null;
+  const forbidden = buildTipForbiddenRegion(obstacleLoops, holder);
+  if (forbidden.length === 0) return null;
+  return { isForbidden: (x, z) => pointInForbidden(forbidden, x, z) };
 }
 
 /**

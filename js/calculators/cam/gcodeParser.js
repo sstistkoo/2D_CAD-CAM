@@ -18,6 +18,23 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
   let currentX = (parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1);
   let currentZ = parseFloat(prms.safeZ);
   let lastMoveType = 'G0';
+  // Modální stav posuvu/vřetene — přenáší se do bodů dráhy, aby simulace i
+  // odhad času uměly jet REÁLNOU rychlostí (viz cam/feedRates.js).
+  // Výchozí = to, co generátor zapisuje do hlavičky: posuv na otáčku
+  // (G95/G99) a konstantní řezná rychlost (G96 S = Vc).
+  let feedMode = 'G95', spindleMode = 'G96';
+  let modalFeed = null, spindleVal = null, modalLims = null;
+  // Každý bod dráhy si nese modální kontext svého řádku (posuv, otáčky) —
+  // z něj se počítá reálná rychlost pohybu.
+  const pushPt = (pt) => {
+    if (Number.isFinite(modalFeed)) pt.feed = modalFeed;
+    pt.feedMode = feedMode;
+    pt.spindleMode = spindleMode;
+    if (Number.isFinite(spindleVal)) pt.spindleVal = spindleVal;
+    if (Number.isFinite(modalLims)) pt.lims = modalLims;
+    path.push(pt);
+    return pt;
+  };
   path.push({ x: currentX, z: currentZ, type: 'G0' });
   lines.forEach((line, idx) => {
     let clean = line.toUpperCase().trim();
@@ -33,6 +50,29 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
     // přímý řezný pohyb jako G1 (K/F na řádku je stoupání, ne oblouk).
     const thrMatch = !gMatch && /\bG3[23]\b/.test(clean);
     const type = thrMatch ? 'G1' : (gMatch ? 'G' + gMatch[1] : lastMoveType);
+    // ── modální posuv / otáčky (rychlost pohybu, viz cam/feedRates.js) ──
+    const limsMatch = clean.match(/LIMS\s*=\s*(\d+)/);
+    if (limsMatch) modalLims = parseInt(limsMatch[1], 10);
+    // Posuv: G95 (Sinumerik/Heidenhain) i G99 (Fanuc) = mm/ot, G94/G98 = mm/min.
+    const fModeMatch = clean.match(/\bG9([4589])\b/);
+    if (fModeMatch) feedMode = (fModeMatch[1] === '4' || fModeMatch[1] === '8') ? 'G94' : 'G95';
+    const spModeMatch = clean.match(/\bG9([67])\b/);
+    if (spModeMatch) spindleMode = 'G9' + spModeMatch[1];
+    const sMatch = clean.match(/\bS(\d*\.?\d+)/);
+    if (sMatch) {
+      const sv = parseFloat(sMatch[1]);
+      // Fanuc „G50 S…" = limit otáček (obdoba LIMS), ne řezná rychlost.
+      if (/\bG50\b/.test(clean)) modalLims = sv;
+      else if (sv > 0) spindleVal = sv;
+    }
+    // G4 F… je prodleva (čas), ne posuv.
+    if (!/\bG0?4\b/.test(clean)) {
+      const fMatch = clean.match(/\bF(\d*\.?\d+)/);
+      if (fMatch) modalFeed = parseFloat(fMatch[1]);
+      // Sinumerik G33 K… = stoupání závitu, tj. posuv na otáčku.
+      const kPitch = thrMatch ? clean.match(/\bK(\d*\.?\d+)/) : null;
+      if (kPitch) modalFeed = parseFloat(kPitch[1]);
+    }
     const xMatch = clean.match(/[XU]([-]?\d*\.?\d+)/);
     const zMatch = clean.match(/[ZW]([-]?\d*\.?\d+)/);
     const rMatch = clean.match(/(?:R|CR=)([-]?\d*\.?\d+)/);
@@ -44,7 +84,7 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
     if (gMatch || thrMatch) lastMoveType = type;
     if (hasMove) {
       if (type === 'G0' || type === 'G1') {
-        path.push({ x: targetX, z: targetZ, type, originalLineIdx: idx });
+        pushPt({ x: targetX, z: targetZ, type, originalLineIdx: idx });
       } else if (type === 'G2' || type === 'G3') {
         let arcR = rMatch ? parseFloat(rMatch[1]) : 0;
         if (!arcR && (iMatch || kMatch)) {
@@ -75,18 +115,18 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
               const a = sA + (eA - sA) * (j / steps);
               const pt = { x: arc.cx + Math.sin(a) * arc.r, z: arc.cz + Math.cos(a) * arc.r, type, originalLineIdx: idx };
               if (j === 1) pt.arcParams = { cx: arc.cx, cz: arc.cz, r: arc.r, startAngle: sA, endAngle: eA, dir: type, tessSteps: steps };
-              path.push(pt);
+              pushPt(pt);
             }
           } else {
-            path.push({ x: targetX, z: targetZ, type, originalLineIdx: idx });
+            pushPt({ x: targetX, z: targetZ, type, originalLineIdx: idx });
           }
         } else {
-          path.push({ x: targetX, z: targetZ, type, originalLineIdx: idx });
+          pushPt({ x: targetX, z: targetZ, type, originalLineIdx: idx });
         }
       }
       currentX = targetX; currentZ = targetZ;
     } else if (gMatch) {
-      path.push({ x: currentX, z: currentZ, type, originalLineIdx: idx });
+      pushPt({ x: currentX, z: currentZ, type, originalLineIdx: idx });
     }
   });
   return path;

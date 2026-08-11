@@ -26,10 +26,11 @@ import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads
 import { camConfirm, camCloseConfirm, camOffsetDialog, camAddMoveDialog } from './cam/camSimulatorDialogs.js';
 import { injectCSS } from './cam/camSimulatorStyles.js';
 import { _defaultCamParams } from './cam/camDefaults.js';
+import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
 import { getToolClearanceRange, segInterferesWithTool, arcReachableSpan, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
-import { drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
+import { PARTING_BODY_MIN_H_MM, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { computeCalculation, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
@@ -103,7 +104,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
       <button data-act="toggle-controls" title="Skrýt / zobrazit hlavní ovládací tlačítka" style="font-size:11px;padding:4px 8px">«»</button>
     </div>
-    <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div>
+    <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div><div class="cam-sim-motion-overlay"></div>
       <div class="cam-sim-trace-options">
         <label class="cam-sim-trace-freeclick" title="Když je zapnuto, klik na plátně přidá bod trasy KDEKOLIV (ne jen na bod kontury/polotovaru) — s úhlovým snapem jako v CAD.">
           <input type="checkbox" class="cam-sim-trace-freeclick-cb" />
@@ -349,7 +350,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     _traceConfirmedOnce: false,
     activeTab: 'editor', simSpeed: 1,
     singleBlock: false, simBlockTarget: null,
-    _animId: null, _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
+    _animId: null, _simLastTs: null, _simTimeSrc: null, _simTimeProf: null,
+    _lastMouse: { x: 0, y: 0 }, _lastPinch: null,
     _cachedCalc: null, _hoverIsStock: false, _hoverPartOff: null,
     selectedPoints: new Set(),
     rectSelecting: false,
@@ -625,6 +627,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const codeBackdrop = root.querySelector('.cam-sim-code-backdrop');
   const manualTa = root.querySelector('.cam-sim-manual-ta');
   const timeOverlay = root.querySelector('.cam-sim-time-overlay');
+  const motionOverlay = root.querySelector('.cam-sim-motion-overlay');
   const progressBar = root.querySelector('.cam-sim-progress-bar');
   const progressFill = root.querySelector('.cam-sim-progress-fill');
   const progressPct = root.querySelector('.cam-sim-progress-pct');
@@ -1937,6 +1940,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     // tool position during sim
+    motionOverlay.textContent = '';   // naplní showMotionInfo, když sim běží/stojí na dráze
     if ((S.simRunning || S.simProgress > 0) && calc.simPath.length > 0) {
       const totalPoints = calc.simPath.length;
       const floatIndex = S.simProgress * (totalPoints - 1);
@@ -1947,6 +1951,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         const pNext = calc.simPath[Math.min(idx + 1, totalPoints - 1)] || pCurrent;
         const curX = pCurrent.x + (pNext.x - pCurrent.x) * t;
         const curZ = pCurrent.z + (pNext.z - pCurrent.z) * t;
+        // Ubíhající čas + živé otáčky a posuv v aktuálním místě dráhy.
+        showMotionInfo(pNext, curX, elapsedAtProgress(simTimeProfile(calc.simPath), S.simProgress));
         const pt = toScreen(curX, curZ);
         const tRad = parseFloat(prms.toolRadius) || 0.8;
         // −0.75px = polovina šířky konturové čáry (lineWidth 1.5), aby okraj
@@ -3402,15 +3408,49 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   // ── SIMULATION ──
-  const SIM_SPEEDS = [0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8];
-  // Posuv (G1/G2/G3) běží oproti rychloposuvu (G0) poloviční rychlostí —
-  // přibližuje pocit reálného obrábění při přehrávání.
-  const FEED_RATE_FACTOR = 0.5;
+  // 1× = REÁLNÝ čas stroje: dráha se ujíždí skutečnými rychlostmi
+  // (rychloposuv z parametrů, řezný posuv F × otáčky v daném průměru,
+  // viz cam/feedRates.js). Vyšší násobky jen zrychlují přehrávání.
+  const SIM_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64];
+  // Strop kroku jednoho snímku [s] — po přepnutí záložky prohlížeče
+  // requestAnimationFrame stojí a nahromaděný čas by dráhu „přeskočil".
+  const SIM_MAX_FRAME_SEC = 0.25;
 
   function updateProgressBar() {
     const pct = Math.round(S.simProgress * 100);
     progressFill.style.width = pct + '%';
     progressPct.textContent = pct + '%';
+  }
+
+  // Kumulativní časy dráhy (ubíhající čas v overlayi) — počítají se jednou
+  // na dráhu, ne při každém snímku. Každý calculate() vrací nové pole
+  // simPath, takže reference stačí jako klíč cache.
+  function simTimeProfile(simPath) {
+    if (S._simTimeSrc !== simPath) {
+      S._simTimeSrc = simPath;
+      S._simTimeProf = buildTimeProfile(simPath, S.params);
+    }
+    return S._simTimeProf;
+  }
+
+  // Živý údaj nad časem: ubíhající čas programu + skutečné otáčky vřetene
+  // a posuv v místě, kde nástroj právě je (⌀ v daném bodě → n = Vc·1000/π⌀
+  // omezené LIMS, posuv F [mm/ot] × n = mm/min). U rychloposuvu jen G0.
+  function showMotionInfo(pt, xRadius, elapsedSec) {
+    const prms = S.params;
+    const rapid = !pt || pt.type === 'G0';
+    motionOverlay.classList.toggle('cam-sim-motion-rapid', rapid);
+    const rate = moveRateMmMin(pt, xRadius, prms);
+    const clock = `⏱ ${fmtClock(elapsedSec)}`;
+    if (rapid) {
+      motionOverlay.textContent = `${clock} · G0 rychloposuv ${Math.round(rate)} mm/min`;
+      return;
+    }
+    const rpm = spindleRpmAt(xRadius, prms, pt);
+    const perRev = pt.feedMode === 'G94' ? null : ((Number.isFinite(pt.feed) && pt.feed > 0) ? pt.feed : (parseFloat(prms.feed) || 0.1));
+    motionOverlay.textContent =
+      `${clock} · ${Math.round(rpm)} ot/min · F ${Math.round(rate)} mm/min` +
+      (perRev ? ` (${perRev} mm/ot)` : '');
   }
 
   function updateSpeedLabel() {
@@ -3455,18 +3495,21 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   function startSimLoop() {
     if (S._animId) return;
-    const animate = () => {
-      if (!S.simRunning) { S._animId = null; return; }
-      // Pomalejší inkrement pro řezné pohyby (G1/G2/G3) — odpovídá tomu,
-      // že posuv je ve skutečnosti řádově pomalejší než rychloposuv.
-      let feedFactor = 1;
+    S._simLastTs = null;
+    const animate = (ts) => {
+      if (!S.simRunning) { S._animId = null; S._simLastTs = null; return; }
+      const now = typeof ts === 'number' ? ts : performance.now();
+      const dtSec = S._simLastTs == null ? 1 / 60 : Math.min((now - S._simLastTs) / 1000, SIM_MAX_FRAME_SEC);
+      S._simLastTs = now;
       const calc = S._cachedCalc;
       if (calc && calc.simPath && calc.simPath.length > 1) {
-        const idx = Math.floor(S.simProgress * (calc.simPath.length - 1));
-        const nextPt = calc.simPath[Math.min(idx + 1, calc.simPath.length - 1)];
-        if (nextPt && nextPt.type && nextPt.type !== 'G0') feedFactor = FEED_RATE_FACTOR;
+        // Reálný čas stroje: každý segment se ujíždí svojí skutečnou
+        // rychlostí (G0 rychloposuvem, řezné pohyby posuvem F přes otáčky
+        // v daném průměru); simSpeed jen násobí plynutí času.
+        S.simProgress = advanceAlongPath(calc.simPath, S.simProgress, dtSec * S.simSpeed, S.params);
+      } else {
+        S.simProgress = 1;
       }
-      S.simProgress += 0.0015 * S.simSpeed * feedFactor;
       // Single-block: zastavit po dosažení konce aktuálního G-kód bloku.
       if (S.simBlockTarget !== null && S.simProgress >= S.simBlockTarget) {
         S.simProgress = S.simBlockTarget;
@@ -3484,7 +3527,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       updateCodeHighlight();
       updateProgressBar();
       if (S.simRunning) S._animId = requestAnimationFrame(animate);
-      else S._animId = null;
+      else { S._animId = null; S._simLastTs = null; }
     };
     S._animId = requestAnimationFrame(animate);
   }
@@ -3514,7 +3557,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const calc = S._cachedCalc; if (!calc) return;
     // time info on canvas
     if (calc.estimatedTimeSeconds > 0)
-      timeOverlay.textContent = `⏱ ${Math.floor(calc.estimatedTimeSeconds / 60)}m ${Math.round(calc.estimatedTimeSeconds % 60)}s | ${(calc.totalPathLength / 1000).toFixed(2)}m`;
+      timeOverlay.textContent = `⏱ ${fmtDuration(calc.estimatedTimeSeconds)} | ${(calc.totalPathLength / 1000).toFixed(2)}m`;
     else timeOverlay.textContent = '';
 
     if (manualTa.value !== S.manualGCode) manualTa.value = S.manualGCode;
@@ -3980,7 +4023,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label data-tooltip="Řezná rychlost [m/min] pro výpočet otáček vřetene.">Rychlost (Vc)</label><input type="number" step="10" data-p="speed" value="${prms.speed}"></div>
         <div class="cam-sim-field"><label data-tooltip="Vzdálenost bezpečného odskoku nástroje od obrobku mezi jednotlivými zákroky (zdvih v X).">Odskok</label><input type="number" step="0.5" data-p="retractDistance" value="${prms.retractDistance}"></div>
+      </div>
+      <div class="cam-sim-row">
         <div class="cam-sim-field"><label data-tooltip="Úhel odskoku: 45° = klasická diagonála (X i Z), 90° = svisle jen v ose X. Z-složka = Odskok / tan(úhel).">Úhel odsk. (°)</label><input type="number" step="5" min="5" max="90" data-p="retractAngle" value="${prms.retractAngle ?? 45}"></div>
+        <div class="cam-sim-field"><label data-tooltip="Rychlost rychloposuvu G0 [mm/min] — pro odhad času programu (⏱) a pro přehrávání simulace v reálném čase (rychlost 1×). Do G-kódu se nezapisuje, G0 rychlost neuvádí.">Rychloposuv (G0)</label><input type="number" step="500" min="100" data-p="rapidFeed" value="${prms.rapidFeed ?? 6000}"></div>
       </div>`;
     html += `</div>`;
     const _machSubTab = S.machiningSubTab || 'hrub';
@@ -7199,6 +7245,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       S._cachedCalc.interferenceGuides = [];
       S._cachedCalc.totalPathLength = 0;
       S._cachedCalc.estimatedTimeSeconds = 0;
+    } else if (S.genNotes && S.genNotes.length) {
+      // Hlášení z poslední EMISE G-kódu (zbytkový polotovar / pořadí obrábění,
+      // což calculate() neví). calculate() přepisuje S.errors od nuly, takže
+      // se musí připojit znovu — stejný princip jako u kolizních hlášení
+      // validátoru (collision: true). Bez programu v poli se nepřipojují:
+      // popisují program, který tam už není.
+      S.errors.push(...S.genNotes);
     }
     S.generatedCode = generateGCode(S._cachedCalc);
     showErrors();

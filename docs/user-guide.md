@@ -315,6 +315,19 @@ CAM část ti umožní generovat NC programy pro obrábění.
 4. Klikni **Spustit** – uvidíš simulaci dráhy nástroje
 5. Červená destička = aktuální pozice
 
+**Rychlost přehrávání = rychlost stroje.** Při **1×** jede simulace přesně
+tak rychle, jak by to jelo na stroji: rychloposuvem tam, kde je `G0`, a
+řezným posuvem tam, kde se obrábí. Posuv se počítá z **Posuvu (F)**
+[mm/ot] a otáček v tom průměru, kde nástroj právě je (`n = Vc·1000/π⌀`,
+shora omezeno **Max. otáčky (LIMS)**) — v malém průměru u osy je tedy
+posuv v mm/min menší, přesně jako na stroji. Nad plátnem se během
+přehrávání ukazuje **ubíhající čas programu** (stopky) a k němu **aktuální
+otáčky a posuv**, pod tím pak celkový **odhad času programu ⏱**. Rychlost rychloposuvu se nastavuje v
+**Parametry → Rychloposuv (G0)** (výchozí 6000 mm/min; do G-kódu se
+nezapisuje, `G0` rychlost neuvádí — slouží pro odhad času a simulaci).
+Tlačítky **−/+** u rychlosti se dá přehrávání zrychlit až 64× (dlouhý
+program nemusíš sledovat v reálném čase).
+
 ### 3b. Více operací na jednom kuse (➕ Operace)
 Jeden díl se často obrábí na několik operací: nejdřív se vyhrubuje jedním
 nožem, pak se jiným udělají drážky, zápich nebo závit. V liště nad G-kódem

@@ -7,14 +7,15 @@
 
 import { bridge } from '../../bridge.js';
 import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint } from './camMath.js';
-import { arcReachableSpan, buildMachinableContour, extendOffsetStartToAxis, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
+import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
+import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
-import { makeHolderClamp } from './toolEnvelope.js';
+import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
@@ -368,8 +369,20 @@ export function computeCalculation(S, lightOnly = false) {
       }
       return pts;
     };
-    const holderBlocks = (fs) => holderClampZEnd && holderClampZEnd.isForbidden
-      && segSamplePts(fs).some(p => holderClampZEnd.isForbidden(p.x, p.z));
+    // Vlastní obálka držáku pro dokončování: překážkou je SKUTEČNÝ materiál
+    // (silueta finální kontury), ne silueta hrubovacího offsetu z
+    // holderClampZEnd — po té dokončovací dráha z definice jede uvnitř,
+    // takže by tvrdý test zakázal úplně všechno (viz makeFinishTipGuard).
+    let finHolderGuard = null;
+    if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+      try {
+        finHolderGuard = makeFinishTipGuard(prms, preBridgeContour, { backside: false, stockPathSegments });
+      } catch (err) {
+        console.warn('CAM: obálku držáku pro dokončování se nepodařilo sestavit:', err);
+      }
+    }
+    const holderBlocks = (fs) => !!finHolderGuard
+      && segSamplePts(fs).some(p => finHolderGuard.isForbidden(p.x, p.z));
     let pendingBreak = false;
     // Přeryv kvůli NEDOSAŽITELNÉMU úseku (hlídání destičky) — na rozdíl od
     // mikro-přeskoku znamená „tady je díra, další dosažitelný úsek je
@@ -386,7 +399,6 @@ export function computeCalculation(S, lightOnly = false) {
       const seg = finContour[i];
       let blocked = respectFin && segInterferesWithTool(seg, clearance);
       let finSeg = null;
-      let trailingBreak = false;   // nedosažitelný konec ZA obloukem → přerušit další segment
       if (seg.type === 'line') {
         const n = getNormal(seg.p1, seg.p2);
         finSeg = { type: 'line', p1: { x: seg.p1.x + n.x * tipR, z: seg.p1.z + n.z * tipR }, p2: { x: seg.p2.x + n.x * tipR, z: seg.p2.z + n.z * tipR } };
@@ -409,41 +421,31 @@ export function computeCalculation(S, lightOnly = false) {
         }
       }
       if (!finSeg) { pendingBreak = true; continue; }
-      // Částečně nedosažitelný oblouk: špička dojede po vrchol vypuklého rohu,
-      // ale ne až do navazující strmé stěny. Místo zahození CELÉHO oblouku ho
-      // ořízni na dosažitelnou část (obrobí se) a jako nedosažitelný označ jen
-      // konec/začátek za mezí (tečkovaně). Trim je vždy PODMNOŽINA dosažitelné
-      // zóny → nikdy nezajede (bezpečné).
-      if (blocked && finSeg.type === 'arc') {
-        const span = arcReachableSpan(seg, clearance);
-        if (span && (span.a1 - span.a0) > 0.03) {
-          const s0 = finSeg.startAngle, e0 = finSeg.endAngle;
-          // Cíp pod GAP (≈1°) je uvnitř tolerance špičky a končí u sousedního
-          // úseku/mostu — přimázne se k obrobené části, nezahazuje se zvlášť.
-          const GAP = 0.02;
-          const beforeGap = Math.abs(span.a0 - s0) > GAP;
-          const afterGap = Math.abs(span.a1 - e0) > GAP;
-          const a0use = beforeGap ? span.a0 : s0;
-          const a1use = afterGap ? span.a1 : e0;
-          const mkUnreach = (aA, aB) => ({
-            type: 'arc', cx: finSeg.cx, cz: finSeg.cz, r: finSeg.r, dir: finSeg.dir,
-            startAngle: aA, endAngle: aB,
-            refP1: { x: seg.cx + Math.sin(aA) * seg.r, z: seg.cz + Math.cos(aA) * seg.r },
-            refP2: { x: seg.cx + Math.sin(aB) * seg.r, z: seg.cz + Math.cos(aB) * seg.r },
-            unreachable: true,
-          });
-          if (beforeGap) { finishUnreachablePath.push(mkUnreach(s0, span.a0)); finSkipped++; }
-          if (afterGap) { finishUnreachablePath.push(mkUnreach(span.a1, e0)); finSkipped++; }
-          // Ořízni obráběný oblouk na dosažitelný podinterval (podmnožina
-          // dosažitelné zóny → nikdy nezajede).
-          finSeg.startAngle = a0use; finSeg.endAngle = a1use;
-          finSeg.refP1 = { x: seg.cx + Math.sin(a0use) * seg.r, z: seg.cz + Math.cos(a0use) * seg.r };
-          finSeg.refP2 = { x: seg.cx + Math.sin(a1use) * seg.r, z: seg.cz + Math.cos(a1use) * seg.r };
-          if (beforeGap) finSeg.chainBreak = true;   // od předchozího přes nedosažitelný začátek
-          if (afterGap) trailingBreak = true;         // další segment přes nedosažitelný konec
-          blocked = false;
-        }
+      // MEZ DOJEZDU Z HLÍDÁNÍ DESTIČKY. Mezní čára neomezuje jen CELÉ úseky:
+      // stín nedosažitelné strmé stěny ořízne i sousední, jinak dosažitelný
+      // válec. `buildMachinableContour` to zná (hrubování po ní jede), ale
+      // dokončování jelo po syrové kontuře až do rohu — na dílu uživatele
+      // válec X9,117 pokračoval na Z243,123, i když mezní čára „dojezd" ho
+      // končí na Z245,966, a poslední 2,9 mm bralo naráz materiál, který tam
+      // hrubování nechalo stát (naměřeno 29 mm², tříska až 14 mm).
+      //
+      // Pravidlo „CELÝ, NEBO VŮBEC" (rozhodnutí uživatele 11. 8. 2026) platí
+      // i tady, a to i pro ÚSEČKY: úsek, na který se kvůli mezní čáře nedá
+      // dojet celý, se neobrábí vůbec — ani zkrácený. Jinak zůstane na hotové
+      // ploše přechod mezi dokončenou a nedokončenou částí uprostřed úsečky.
+      if (!blocked && respectFin && machinableContour) {
+        const r = machinableRangeOf(seg, machinableContour);
+        if (!r || r.t0 > 1e-4 || r.t1 < 1 - 1e-4) blocked = true;
       }
+      // CELÝ, NEBO VŮBEC (pravidlo uživatele, 11. 8. 2026). Částečně
+      // dosažitelný oblouk (špička dojede po vrchol vypuklého rohu, ale ne
+      // do navazující strmé stěny) se dřív ořízl na dosažitelnou část a ta
+      // se obrobila. Geometricky to bezpečné je, ale technologicky ne:
+      // v půlce rádiusu vznikne přechod mezi dokončenou a nedokončenou
+      // plochou = viditelný schod/ryska přesně tam, kde je díl vidět.
+      // Kus, který nejde udělat celý, se proto vynechá celý; navazující
+      // materiál se místo toho dobere ROVNÝM PRŮMĚREM (přímý výjezd v ose
+      // Z na konci řetězu, viz `finRunOut` v gcodeEmit.js).
       if (blocked) {
         // Nedosažitelný úsek: neobrábí se (přerušení dráhy), ale uchová
         // se pro tečkované vykreslení a jako překážka pro rychloposuvy.
@@ -501,9 +503,6 @@ export function computeCalculation(S, lightOnly = false) {
       if (unreachBreak) { finSeg.chainBreak = true; unreachBreak = false; }
       pendingBreak = false;
       finRaw.push(finSeg);
-      // Oříznutý oblouk nechal za sebou nedosažitelný konec → další segment
-      // se k němu nesmí plynule napojit (přejezd G0 přes nedosažitelný kus).
-      if (trailingBreak) pendingBreak = true;
     }
     finishOffsetPath = dropTinyArcs(trimAndRemoveLoops(finRaw));
     // Sanitace: když je R nástroje větší než konkávní rádius kontury
@@ -522,6 +521,20 @@ export function computeCalculation(S, lightOnly = false) {
     }
     if (finDropped > 0)
       foundErrors.push({ type: 'warning', msg: `Dokončování: ${finDropped} úsek(ů) vynecháno — nástroj (R${tipR}) se nevejde do tvaru kontury (malý poloměr). Přejezd G0.` });
+    // NULOVÉ ÚSEKY (p1 ≡ p2) — vznikají ořezem dvou kolineárních segmentů
+    // (kontura z CADu mívá na přímce zbytečný bod). Neobrábějí nic, ale
+    // projdou všemi filtry a v emisi kolem sebe vyrobí NÁJEZD I ODJEZD:
+    // nástroj sjede rampou do materiálu, neudělá nic a vyjede ven — přesně
+    // to na dílu uživatele zůstalo, když sousední (skutečné) úseky vypadly
+    // kvůli držáku a osiřelý nulový úsek jako jediný přežil.
+    // chainBreak se dědí, jen když ho nulový úsek měl (jinak jsou sousedi
+    // spojití a přejezd by se vyrobil zbytečně).
+    for (let i = finishOffsetPath.length - 1; i >= 0; i--) {
+      const s = finishOffsetPath[i];
+      if (s.type !== 'line' || Math.hypot(s.p2.x - s.p1.x, s.p2.z - s.p1.z) > 1e-3) continue;
+      finishOffsetPath.splice(i, 1);
+      if (s.chainBreak && i < finishOffsetPath.length) finishOffsetPath[i].chainBreak = true;
+    }
     if (finSkipped > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
     if (finHolderSkipped > 0)
@@ -817,34 +830,14 @@ export function computeCalculation(S, lightOnly = false) {
   }
 
   // Sim path
-  let simPath = [];
-  let totalPathLength = 0;
-  let estimatedTimeSeconds = 0;
-  const addToPath = (x1, z1, x2, z2, type) => {
-    const d = Math.hypot(x2 - x1, z2 - z1);
-    totalPathLength += d;
-    if (type === 'G0') { estimatedTimeSeconds += (d / 5000) * 60; }
-    else {
-      const feed = parseFloat(prms.feed) || 0.1;
-      const speed = parseFloat(prms.speed) || 200;
-      let avgX = Math.abs((x1 + x2) / 2);
-      if (avgX < 1) avgX = 1;
-      let rpm = (speed * 1000) / (Math.PI * avgX * 2);
-      const limsMatch = (prms.machineType || '').match(/LIMS=(\d+)/);
-      const maxRpm = limsMatch ? parseInt(limsMatch[1], 10) : 2000;
-      if (rpm > maxRpm) rpm = maxRpm;
-      const mmPerMin = feed * rpm;
-      if (mmPerMin > 0) estimatedTimeSeconds += (d / mmPerMin) * 60;
-    }
-    return { x: x2, z: z2, type };
-  };
-
   // Simulační dráha se vždy počítá z (ručně editovatelného) G-kódu —
   // viz [[feedback_flip-axis-gcode]] a tlačítko "🔄 Autorefresh drah",
   // které přepíše S.manualGCode čerstvě vygenerovaným kódem z kontury/parametrů.
-  simPath = parseManualGCodeToPath(S.manualGCode, prms, S.flipX !== S.flipZ);
-  for (let i = 0; i < simPath.length - 1; i++)
-    addToPath(simPath[i].x, simPath[i].z, simPath[i + 1].x, simPath[i + 1].z, simPath[i + 1].type);
+  const simPath = parseManualGCodeToPath(S.manualGCode, prms, S.flipX !== S.flipZ);
+  // Čas i délka ze skutečných rychlostí pohybu (rychloposuv z parametrů,
+  // řezný posuv F × otáčky v daném průměru) — stejný výpočet pohání
+  // přehrávání simulace v reálném čase, viz cam/feedRates.js.
+  const { seconds: estimatedTimeSeconds, length: totalPathLength } = pathTimeSeconds(simPath, prms);
 
   // Vrch polotovaru v X (pro bezpečné rapid přejezdy nad materiálem).
   let stockTopX = sRad;

@@ -65,6 +65,14 @@ export function injectCSS() {
   background: rgba(17,17,27,0.75); color: #6c7086; font-size: 11px; font-family: monospace;
   padding: 2px 10px; border-radius: 4px; pointer-events: none; white-space: nowrap; z-index: 2;
 }
+/* Živé otáčky / posuv během přehrávání (nad časovým overlayem). */
+.cam-sim-motion-overlay {
+  position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%);
+  background: rgba(17,17,27,0.75); color: #a6e3a1; font-size: 11px; font-family: monospace;
+  padding: 2px 10px; border-radius: 4px; pointer-events: none; white-space: nowrap; z-index: 2;
+}
+.cam-sim-motion-overlay:empty { display: none; }
+.cam-sim-motion-overlay.cam-sim-motion-rapid { color: #f9e2af; }
 .cam-sim-trace-bar {
   position: absolute; left: 0; right: 0; bottom: 10px; z-index: 3;
   display: flex; justify-content: center; gap: 8px; pointer-events: none;

@@ -477,7 +477,8 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/gcodeEmit.js` | Emise G-kódu `generateAutoGCode(S, calc)` + hlavička/závěr dle řídicího systému (`buildControlHeaderLines`/`Tail`, `ctrlCmt`, `controlArcFormatter`, `renumberGCodeLines`) a rychlý převod mezi systémy (`convertGCodeControlSystem`) |
 | `cam/camMath.js` | Základní geometrické primitivy (úsečka/oblouk, průsečíky, segmentové helpery) sdílené napříč CAM |
 | `cam/contourBuild.js` | Pipeline "obráběné kontury" — `buildMachinableContour`, mosty/ořez smyček, `normalizeContourDirection`, `trimAndRemoveLoops` |
-| `cam/gcodeParser.js` | Parsování ručního/importovaného G-kódu zpět na dráhu/konturu |
+| `cam/gcodeParser.js` | Parsování ručního/importovaného G-kódu zpět na dráhu/konturu (včetně modálního F/S a G94…G99 do bodů dráhy) |
+| `cam/feedRates.js` | Reálné rychlosti pohybu [mm/min] — otáčky v daném ⌀, posuv, rychloposuv, odhad času (`pathTimeSeconds`), ubíhající čas (`buildTimeProfile`/`elapsedAtProgress`) a posun přehrávání strojním časem (`advanceAlongPath`) |
 | `cam/insertPreview.js` | Kreslení destičky + držáku (dialog "⚙️ Geometrie") a HTML pole tvaru nástroje |
 | `cam/camToolPicker.js` | Sdílená geometrie nástroje pro knihovnu nožů/zásobník (`getCamToolGeometry`/`applyCamToolGeometry`) |
 | `cam/camDefaults.js` | Výchozí CAM parametry (`_defaultCamParams`) |
@@ -495,6 +496,29 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |
 | `cam/opParts.js` | Skládání programu z více operací (částí) — záznam části, obrobený polotovar pro další operaci, složení celého programu |
 | `cam/gcodeMerge.js` | Spojení programů do jednoho (`mergePrograms`) — sdíleno s frontou „SPOJ G-KÓD" v CAM Editoru |
+
+#### Přehrávání v reálném čase (`cam/feedRates.js`)
+
+Simulace při rychlosti **1× jede reálnou rychlostí stroje**, ne po bodech
+dráhy. `S.simProgress` zůstává podílem 0..1 v INDEXECH `simPath` (na tom
+stojí progress bar, krokování i zvýrazňování řádků), ale animační smyčka
+ho posouvá funkcí `advanceAlongPath(simPath, progress, dtSec × simSpeed,
+params)`, která spotřebovává skutečný čas segment po segmentu:
+
+- `G0` → **Rychloposuv (G0)** z parametrů (`rapidFeed`, výchozí 6000 mm/min);
+  do G-kódu se nezapisuje, slouží jen pro čas a přehrávání,
+- `G95`/`G99` (mm/ot) → `F × n`, kde `n = Vc·1000/(π·⌀)` omezené `LIMS`
+  (u osy tedy limit otáček stroje), `G97` bere `S` rovnou jako otáčky,
+- `G94`/`G98` → `F` přímo v mm/min; řezný posuv je shora omezen rychloposuvem.
+
+Modální `F`, `S`, `G94…G99` a `LIMS` sbírá do bodů dráhy
+`parseManualGCodeToPath` — počítá se tedy z toho, co v kódu **opravdu je**
+(včetně ručních úprav), ne z parametrů panelu. Stejná funkce
+(`pathTimeSeconds`) pohání odhad ⏱ nad plátnem, takže čas programu a doba
+přehrávání při 1× sedí. Ubíhající čas v živém overlayi se čte z
+`buildTimeProfile` (kumulativní časy dráhy, cachované na referenci
+`simPath`) + `elapsedAtProgress` — ne přepočtem celé dráhy každý snímek. Vedlejší efekt návrhu: hustě vzorkovaný oblouk už
+simulaci nezpomalí — rozhoduje délka a rychlost, ne počet bodů.
 
 #### Hrubování zleva = zrcadlo (`cam/zMirror.js`)
 
