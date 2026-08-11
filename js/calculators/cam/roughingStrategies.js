@@ -1810,12 +1810,14 @@ export function genLongPasses(ctx) {
           // Ø199,7) a v ⚠ panelu nebylo ani slovo, takže to vypadalo jako
           // chyba geometrie.
           // POZOR: „posunout vjezd dál do úseku, kde už držák místo má" se
-          // 10. 8. 2026 zkoušelo TŘEMI způsoby (vlastní posun + rampa; totéž
-          // s prověřenou rampou; propadnutí do kapsové větve) a KAŽDÝ přidal
-          // měřitelné kolize držáku (94,5 → 136,6 mm² na dílu uživatele) nebo
-          // rozsypal konec polotovaru na desítky mikro-průchodů. NEZKOUŠET
-          // znovu bez toho, že vjezd i CELÁ jeho rampa se prověří TOU SAMOU
-          // Minkowského obálkou, kterou pak počítá validátor.
+          // 10. 8. 2026 zkoušelo TŘEMI způsoby; nejlépe vypadající varianta
+          // (nechat interval propadnout do KAPSOVÉ větve) dělá na dílu
+          // uživatele 0 → 10 kolizí držáku / 1034 mm² — měřeno
+          // `validateToolpath` se SPRÁVNÝM příznakem `backside`. Kapsová větev
+          // totiž předpokládá kapsu mezi DVĚMA stěnami. NEZKOUŠET znovu bez
+          // toho, že (a) vjezd i celá jeho rampa se prověří tou samou
+          // Minkowského obálkou, kterou počítá validátor, a (b) kapsová větev
+          // umí jednostranně otevřený interval.
           if (nz === null) {
             holderBlockedDepths.add(depthKey(currentX));
             holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });

@@ -164,6 +164,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ostatní beze změny), žádná nová kolize držáku.
 
 ### Fixed
+- **Tečkovaná hranice kolem polotovaru se kreslí z TÉŽE smyčky, se kterou
+  plánují dráhy** (`offsetStockLoop` nad `buildStockLoop` — týž helper, co
+  stojí za `planLoopRef` v `gcodeEmit.js`). Náhled si dřív offset dopočítával
+  ZVLÁŠŤ: obrys navzorkoval a každý bod posunul po jeho vlastní normále, což
+  není offset polygonu — v rozích normála půlí úhel (chybí prodloužení hrany)
+  a v prvním/posledním vzorku se počítala jen z poloviny intervalu. Na konci
+  polotovaru se tak čára přitahovala k obrysu: naměřeno na úseku S26→S27
+  odstup **0,747 → 0,152 mm** místo konstantní 1,000 mm (plánovací smyčka má
+  správně 1,000 mm po celé délce). Reálný nález uživatele („offsetová čára se
+  na konci zužuje"). Jen náhled, dráhy se nemění.
 - **Zanoření se už nedělá dvakrát.** Ořízlá rampa dojezdu strmé stěny
   (`pendingRampCompletions`) a kapsa za bossem sjíždějí po TÉŽE přímce
   zanoření — roh stěny je pro obě týž bod. Kapsa ho ale bere UVNITŘ hloubkové
