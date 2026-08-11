@@ -211,6 +211,53 @@ export function buildTipForbiddenRegion(obstacleLoops, toolLoop) {
 export const HOLDER_CLAMP_MARGIN = 0.1;
 
 /**
+ * SPODNÍ HRANA držáku vůči špičce, měřená k OBROBENÉ straně.
+ *
+ * Pro ČELNÍ hrubování nejde použít `makeHolderClamp` — ten řeší opačnou
+ * úlohu (na dané hloubce X hledá, kam až v Z smí průchod dojet), zatímco
+ * čelní průchod má Z dané a hledá se HLOUBKA X. V profilové rovině je to
+ * ale táž geometrie z druhé strany: v axiální vzdálenosti `d` od špičky
+ * leží nejnižší bod držáku o `bottomAt(d)` výš (radiálně) než špička, a
+ * průchod smí jít jen tak hluboko, aby pod držákem všechno prošlo:
+ *
+ *     x_špička + bottomAt(d) ≥ výška materiálu na (z + dir·d)
+ *
+ * `d` se měří VŽDY kladně k obrobené straně (zprava +Z, zleva −Z) —
+ * zrcadlení řeší volající znaménkem `dir`, obrys je v obou případech týž.
+ *
+ * NEobrobená strana (část držáku před špičkou, typicky u výchozího
+ * obdélníkového modelu ±Tloušťka/2) se vědomě nemodeluje: tam kolizi
+ * NELZE vyřešit zkrácením průchodu (materiál stojí po celé délce řezu,
+ * nezávisle na hloubce) — je to vlastnost nakresleného nože, ne dráhy,
+ * a hlásí ji až validátor drah nad hotovým programem.
+ *
+ * @returns {{reach:number, bottomAt:(d:number)=>number|null}|null}
+ *   `reach` = jak daleko v ose Z držák od špičky sahá; `bottomAt` vrací
+ *   null mimo tento dosah. Null = není co hlídat (žádný držák).
+ */
+export function holderBottomProfile(prms) {
+  const loop = holderWorldLoop(prms, false);   // +z = k obrobené straně
+  if (!loop || loop.length < 3) return null;
+  const reach = Math.max(...loop.map(p => p.z));
+  if (!(reach > 1e-6)) return null;
+  const bottomAt = (d) => {
+    if (d < -1e-9 || d > reach + 1e-9) return null;
+    let lo = null;
+    const n = loop.length;
+    for (let i = 0; i < n; i++) {
+      const a = loop[i], b = loop[(i + 1) % n];
+      if ((a.z <= d && b.z >= d) || (b.z <= d && a.z >= d)) {
+        const dz = b.z - a.z;
+        const x = Math.abs(dz) < 1e-12 ? Math.min(a.x, b.x) : a.x + (b.x - a.x) * ((d - a.z) / dz);
+        if (lo === null || x < lo) lo = x;
+      }
+    }
+    return lo;
+  };
+  return { reach, bottomAt };
+}
+
+/**
  * Pohotový konstruktor pro calculate(): z parametrů (držák) a offsetPath
  * (silueta) postaví clamp funkci pro scanIntervals, nebo vrátí null,
  * když není co hlídat (bez držáku / bez profilu).

@@ -490,7 +490,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/zMirror.js` | Zrcadlení CAM světa v ose Z (hrubování „zleva" = zrcadlo pravé strany) |
 | `cam/toolOffset.js` | Offset kontury o rádius plátku + přídavky (`buildRawOffsets`) — hrubovací (`offsetPath`) i hotovní referenční (`finishRefPath`). Nezaměňovat s `calculators/contourOffset.js` (CAD: polotovar z kontury) |
 | `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky (VŽDY rovná úsečka) |
-| `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna) |
+| `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna): `makeHolderClamp` = mez v ose Z pro PODÉLNÉ průchody, `holderBottomProfile` = spodní hrana držáku pro ČELNÍ (mez v hloubce X) |
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
 | `cam/collisionValidator.js` | Validace kolizí držáku na hotové dráze |
 | `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |

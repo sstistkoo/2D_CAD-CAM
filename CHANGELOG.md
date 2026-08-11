@@ -244,7 +244,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   řetězu zvedá. Měřeno: na 5 fixtures mizí 2 rozpůlené oblouky na každé,
   kolize drah zůstávají nulové.
 
+### Added
+- **Hlídání držáku i u ČELNÍHO hrubování.** Obálku držáku (`holderClampZEnd`)
+  respektovalo dosud jen podélné hrubování — čelní průchod šel na hloubku
+  danou konturou a vlevo od stoupající stěny (kužel, osazení, hrana odlitku)
+  jel držák v materiálu. Nově se pro každý čelní průchod počítá nejmenší
+  hloubka, při které SPODNÍ HRANA držáku (nový `holderBottomProfile`
+  v `cam/toolEnvelope.js`) mine všechno, co na obrobené straně stojí:
+  konturu i **dna sousedních, dřív hotových průchodů** (schodiště — clamp
+  jen proti statické kontuře si schody sám vyrábí a kolize po zkrácení
+  rostou). Do meze se počítá i **odskok** (posouvá okno držáku o Odskok Z)
+  a **vynechané průchody** (tam stojí syrový odlitek). Průchod, který by
+  tím ztratil smysl, se vynechá; dojezdy „bez schodků" se ořezávají tam,
+  kde by držák narazil do stoupající kontury. Hlásí se do ⚠ panelu
+  („N průchodů zkráceno, M vynecháno"). Platí jen se zapnutým **Hlídat
+  geometrii (destička + držák)**; pás, který si vyčistí sama destička, se
+  přeskakuje. Na dílu uživatele (⌀111 × 350 odlitek, upichovák v držáku
+  20 × 200): **126 kolizních nálezů → 0**, cena je 22 % méně odebraného
+  materiálu (materiál pod mezí se čelně zprava tímhle nožem obrobit nedá).
+  Nová fixture `part-16-face-holder` + `tests/cam-face-holder.test.js`.
+
 ### Fixed
+- **Čelní hrubování: výška přejezdu se rozhodovala dvakrát** (a někdy
+  nahoru–dolů–nahoru po téže svislici). Přejezd na další průchod se skládal
+  ze dvou `safeRapidTo` — první zvedla nástroj na `xStart`, druhá ho hned
+  poslala nad konturu, protože v `xStart` se v ose Z přejet nedalo. Nově se
+  výška volí JEDNOU a stropem je **lokální** povrch zbytku mezi výchozím a
+  cílovým Z, ne globální vršek kontury: u dílu s velkým osazením se nástroj
+  zvedal přes celý polotovar, i když stačilo přejet nad Ø33. Na dílu
+  uživatele výjezdů nad konturu 15 → 7 (a ty zbylé jsou nutné).
 - **Čelní hrubování: falešná kolize držáku přes celý díl + výjezd nad
   polotovar před KAŽDÝM průchodem.** Model stopy nástroje (`toolFootprint`)
   prodlužoval tělo destičky jen radiálně (+X) — to kryje hřebínky mezi

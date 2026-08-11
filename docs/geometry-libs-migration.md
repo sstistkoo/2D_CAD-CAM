@@ -228,6 +228,44 @@ k obrobené straně, jede 20mm držák v materiálu. Na dílu uživatele
 artefakt modelu, ale chybějící PREVENCE (clamp/přeplánování pořadí u čelního
 hrubování).
 
+#### Prevence dodělána (12. 8. 2026): mez držáku i pro čelní hrubování
+
+`makeHolderClamp` řeší opačnou úlohu (na hloubce X hledá mez v Z), pro čelní
+průchod je Z dané a hledá se HLOUBKA. V profilové rovině je to táž geometrie
+z druhé strany, takže stačilo primitivum **`holderBottomProfile(prms)`**
+(`cam/toolEnvelope.js`): v axiální vzdálenosti `d` od špičky vrací, o kolik
+výš leží nejnižší bod držáku. Mez pak je
+
+```
+x_špička ≥ max_d ( materiál(z + dir·d) − bottomAt(d) ) + rezerva
+```
+
+kde `d` běží od **`insertBodyZ`** (pás, který si vyčistí sama destička — týž
+symbol, jakým se protahuje stopa nástroje výš) po `reach` držáku, a
+`materiál(z)` je maximum ze tří zdrojů:
+
+| zdroj | proč |
+|---|---|
+| `offsetXAt(z) − R` | kontura + přídavek; **minus rádius** — offset je dráha STŘEDU špičky, materiál leží o R níž (bez toho je clamp o celý R přísnější a pozná se to na dokončování) |
+| dno sousedních hotových průchodů | schodiště; bez něj si clamp schody sám vyrábí a kolize po zkrácení ROSTOU (poučení z Fáze 3a) |
+| syrový odlitek u VYNECHANÝCH průchodů | vzorkuje se až v dotazu — přes šířku pásu se obrys láme (hrana Ø129 uprostřed pásu jinak propadla) |
+
+Do meze se počítá i **odskok** (`minTipXFull`): odskok jede o `rDistZ`
+k obrobené straně, tam se okno držáku posune, a bez toho průchod dosedne na
+mez a teprve odskok zaveze držák do stěny (měřeno: 50 mm²).
+
+NEobrobená strana držáku (u výchozího obdélníkového modelu ±Tloušťka/2 před
+špičkou) se vědomě nemodeluje — tam kolizi nejde vyřešit zkrácením průchodu
+(materiál stojí po celé délce řezu nezávisle na hloubce).
+
+Výsledek na dílu uživatele (`part-16-face-holder`): **126 nálezů → 0**,
+průchodů 122 → 106, odebráno 6117 → 4752 mm² (−22 %) — to je cena: pod mezí
+se čelně zprava tímhle nožem obrobit nedá. Pojistka
+`tests/cam-face-holder.test.js` (nula nálezů + „není to vacuum" s vypnutým
+`__DISABLE_HOLDER_CLAMP__` + strop na pokrytí, ať clamp nesežere program).
+Fixtures bez nakresleného držáku (`face-cylinder`, `face-casting`) se
+nezměnily — clamp se bez držáku neaktivuje.
+
 ### 4. Drobnosti stejného původu
 
 - **`pocketReposition` sdílejí TŘI mechanismy** (řetěz vjezdu na hranici

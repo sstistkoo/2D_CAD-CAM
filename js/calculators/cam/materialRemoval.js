@@ -35,9 +35,12 @@ import { stockClearances, stockClearanceIsZero } from './camMath.js';
  * přesně dosáhne na střed rádiusu předchozího průchodu (překryv R),
  * dál se tělo destičky nemodeluje, aby se nezakrývaly reálné kolize.
  *
+ * Sdílené i s hlídáním držáku v `roughingStrategies.js` (genFacePasses):
+ * tenhle pás si destička vyčistí sama, takže se v něm držák nehlídá.
+ *
  * @returns {number} kladný zásah v +z (0 = žádné prodloužení)
  */
-function insertBodyZ(prms, r) {
+export function insertBodyZ(prms, r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05)) {
   if ((prms.roughingStrategy || 'longitudinal') !== 'face') return 0;
   if (prms.toolShape === 'parting') {
     const w = parseFloat(prms.toolLength) || 0;

@@ -523,6 +523,23 @@ obě by splynuly.
 Mezní čára hlídání geometrie destičky je vždycky **rovná úsečka** podél hrany
 plátku (žádné oblouky ani zlomy).
 
+### Držák u čelního hrubování
+
+Se zapnutým **Hlídat geometrii (destička + držák)** se u čelního hrubování
+hlídá i **držák**: ten se veze na už obrobené straně (při hrubování zprava
+za nástrojem v +Z) a jeho spodní hrana stoupá od špičky pod úhlem hřbetu.
+Průchod proto smí jít jen tak hluboko, aby držák minul konturu i dna
+sousedních, dřív hotových průchodů — prakticky se **nástroj může zanořovat
+nejvýš pod úhlem hřbetu držáku**. Kde kontura klesá strměji (stěna, kužel,
+hrana odlitku), se průchody zkrátí, případně vynechají, a panel ⚠ to hlásí:
+
+> Hlídání držáku (čelně): N průchodů zkráceno, M vynecháno…
+
+Materiál pod touto mezí se čelně z té strany daným nožem obrobit **nedá** —
+nabízí se podélné hrubování, obrábění z druhé strany (Zleva) nebo štíhlejší
+nůž. S vypnutým hlídáním se dráhy vygenerují jako dřív, ale simulátor je
+oranžově označí jako vnoření držáku do materiálu.
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu

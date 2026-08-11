@@ -1216,18 +1216,47 @@ export function generateAutoGCode(S, calc) {
       //                            už pracovním posuvem (bezpečný dotek)
       //   G1 X<xEnd> F<f>        ; čelní řez −X k bloku kontury
       //   G1 X<xEnd+odskok> Z<z+odskok>  ; retract pod 45°
-      // Přejezdy s kontrolou kolize: nejdřív v X za polotovar, pak v Z.
-      // feedThroughStock=false: čelní graze sousedního Z je inherentní (šířka
-      // nosu), ne order-dependent — zůstává rychloposuvem (viz safeRapidTo).
-      // Výjezd v X na aktuálním Z má smysl jen když nástroj ZVEDÁ (odskok
-      // předchozího průchodu ho nechal pod úrovní polotovaru). Když už je
-      // výš (první průchod z bezpečné polohy, mělký průchod u velkého
-      // průměru), byl by to SJEZD na aktuálním Z — a ten vede materiálem,
-      // kdekoli bezpečné Z leží nad polotovarem (reálný nález: safeZ nad
-      // dílem → `G1 X…` zápich do odlitku u sklíčidla hned v 1. průchodu).
-      // Přejezd v Z se pak udělá ve vyšší (bezpečnější) poloze.
-      if (pass.xStart > cur.x + 1e-6) safeRapidTo(pass.xStart, cur.z, false, false, false);
-      safeRapidTo(pass.xStart, pass.z, false, false, false);
+      // Přejezd na další průchod se emituje PŘÍMO (ne dvěma safeRapidTo):
+      // výška přejezdu v Z se musí rozhodnout JEDNOU. `xStart` je totiž
+      // rapid-safe jen nad CÍLOVÝM Z — když cesta v Z vede přes vyšší
+      // materiál, dvojice „výjezd na xStart" + „přejezd v Z" se dohadovala
+      // po řádcích: první ho zvedla na xStart, druhá hned nad konturu, a
+      // u sameZ dokonce nahoru a zpátky po téže svislici (reálný nález
+      // uživatele: `G0 X42.543` → `G0 X69.217`, resp. nahoru–dolů–nahoru).
+      //
+      // Strop zdvihu je LOKÁLNÍ povrch zbytku mezi výchozím a cílovým Z, ne
+      // globální vršek kontury: u dílu s velkým osazením (Ø129 u čela)
+      // by se nástroj zvedal přes celý polotovar, i když stačí přejet nad
+      // Ø33 v místě přejezdu. Když ani lokální strop nestačí, jde se nad
+      // konturu jako dřív.
+      // feedThroughStock se tu neuplatní: čelní graze sousedního Z je
+      // inherentní (šířka nosu), ne order-dependent — zůstává rychloposuv.
+      {
+        const zFrom = cur.z, zTo = pass.z;
+        const travelBlocked = (x) => segmentHitsPath({ x, z: zFrom }, { x, z: zTo }, rapidBlockers)
+          || rapidHitsStock(x, zFrom, x, zTo);
+        const capX = Math.max(rapidTopX + rapidStopX, pass.xStart);
+        let xTrav = pass.xStart;
+        if (Math.abs(zTo - zFrom) > 1e-6 && travelBlocked(xTrav)) {
+          let top = null;
+          const n = 24;
+          for (let i = 0; i <= n; i++) {
+            const t = residualTopXAtZ(zFrom + (zTo - zFrom) * (i / n));
+            if (t !== null && (top === null || t > top)) top = t;
+          }
+          xTrav = top !== null ? Math.min(capX, Math.max(pass.xStart, top + rapidStopX)) : capX;
+          if (travelBlocked(xTrav)) xTrav = capX;
+        }
+        if (xTrav > cur.x + 1e-6) {
+          simCounter += 1;
+          addN(`G0 X${xDia(xTrav)}${xTrav > pass.xStart + 1e-6 ? note('', 'Výjezd nad konturu') : ''}`, simCounter);
+          setPos(xTrav, cur.z);
+        }
+        if (Math.abs(zTo - cur.z) > 1e-6) { simCounter += 1; addN(`G0 Z${zTo.toFixed(3)}`, simCounter); setPos(cur.x, zTo); }
+        // Sjezd na rapid-safe hloubku nad povrchem (emitDescendX zastaví na
+        // zbytku a poslední kousek dojede posuvem, když je pod ním materiál).
+        if (cur.x - pass.xStart > 1e-6) { emitDescendX(cur.x, pass.xStart, pass.z, false); setPos(pass.xStart, pass.z); }
+      }
       simCounter += 1; addN(`G1 X${xDia(pass.xSurface)} F${prms.feed}`, simCounter); setPos(pass.xSurface, pass.z);
       simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z);
       if (pass.contourLeadOut) {

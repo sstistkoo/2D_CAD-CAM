@@ -17,11 +17,11 @@
 //                 findLeadOutEndZ, hIntersect
 
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
-import { buildStockLoop, offsetStockLoop } from './materialRemoval.js';
+import { buildStockLoop, offsetStockLoop, insertBodyZ } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
-import { HOLDER_CLAMP_MARGIN } from './toolEnvelope.js';
+import { HOLDER_CLAMP_MARGIN, holderBottomProfile } from './toolEnvelope.js';
 
 // Volný prostor (mm) mezi držákem a vůlí-posunutou siluetou polotovaru
 // („tečkovanou" offsetovou čarou v náhledu) při hledání stropu vjezdu —
@@ -324,6 +324,132 @@ export function genFacePasses(ctx) {
           if (segs.length > 0) p.contourLeadOut = segs;
           else if (lo) delete p.contourLeadOut;
         }
+      }
+    }
+  }
+
+  // ── Hlídání DRŽÁKU (čelně) ────────────────────────────────────────
+  // Čelní průchod jede radiálně k ose a držák se veze na UŽ OBROBENÉ
+  // straně (zprava +Z, zleva −Z); jeho spodní hrana stoupá od špičky pod
+  // úhlem hřbetu (holderBottomProfile). Průchod proto smí jít jen tak
+  // hluboko, aby pod držákem prošlo všechno, co na té straně stojí:
+  //   (a) KONTURA dílu (offsetová čára — trvalá překážka),
+  //   (b) DNA sousedních, dřív hotových průchodů (schodiště). Clamp jen
+  //       proti statické kontuře si schody sám vyrábí a kolize po
+  //       zkrácení ROSTOU — poučení z makeHolderClamp (viz
+  //       docs/geometry-libs-migration.md, Fáze 3a).
+  // Pás, který si vyčistí sama destička (insertBodyZ), se přeskakuje —
+  // tam držák jede v kerfu po vlastním řezu.
+  //
+  // Důsledek je fyzikální, ne konzervativní odhad: nástroj se může
+  // zanořovat nejvýš pod úhlem hřbetu držáku. Kde kontura klesá strměji
+  // (stěna, kužel), se průchody zkrátí a materiál pod nimi zůstane —
+  // ta oblast se čelně zprava tímhle nožem obrobit NEDÁ (hlásí ⚠).
+  if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+    const hb = holderBottomProfile(prms);
+    const faceArr = hb ? passes.filter(p => p.type === 'face') : [];
+    if (hb && faceArr.length > 0) {
+      const dirM = faceLeft ? -1 : 1;           // směr k obrobené straně
+      const kerf = Math.max(insertBodyZ(prms), 0);
+      const hStep = Math.max(0.2, hb.reach / 60);
+      // Schodiště: rovné dno nechává jen průchod BEZ dojezdu (s dojezdem
+      // „bez schodků" jde dno po kontuře, tu pokrývá offsetXAt) a průchod
+      // vynechaný — tam stojí SYROVÝ polotovar (`raw`, vzorkuje se až
+      // v dotazu: přes šířku pásu se obrys odlitku může zlomit o desítky
+      // mm — reálný nález, hrana Ø129 uprostřed pásu jinak propadla).
+      const stair = [];                          // { zLo, zHi, x } | { zLo, zHi, raw }
+      const stairAt = (zq) => {
+        let top = null;
+        for (const s of stair) {
+          if (zq < s.zLo - 1e-9 || zq > s.zHi + 1e-9) continue;
+          const x = s.raw ? castingOuterAtZ(zq) : s.x;
+          if (top === null || x > top) top = x;
+        }
+        return top;
+      };
+      // Nejmenší programovaná hloubka (X) na Z, při které držák projde.
+      // POZOR na soustavy: `offsetXAt` je dráha STŘEDU špičky, materiál pod
+      // ní leží o rádius níž (offset = kontura + R + přídavek), a držák míjí
+      // MATERIÁL, ne dráhu. Bez odečtení R je clamp o celý rádius přísnější,
+      // než je fyzikálně nutné, a to už se pozná na dokončování (bere pak
+      // víc než přídavek). `stairAt` naopak vrací rovné dno = skutečný
+      // povrch (tělo destičky ho zarovnává v úrovni programovaného bodu),
+      // takže se z něj NEODEČÍTÁ.
+      const tipR = Math.max(parseFloat(prms.toolRadius) || 0, 0);
+      const minTipX = (z) => {
+        let need = -Infinity;
+        for (let d = kerf; d <= hb.reach + 1e-9; d += hStep) {
+          const hx = hb.bottomAt(d);
+          if (hx === null) continue;
+          const zq = z + dirM * d;
+          const oc = offsetXAt(zq);
+          let floor = oc === null ? null : oc - tipR;
+          const st = stairAt(zq);
+          if (st !== null && (floor === null || st > floor)) floor = st;
+          if (floor === null) continue;
+          const cand = floor - hx + HOLDER_CLAMP_MARGIN;
+          if (cand > need) need = cand;
+        }
+        return need;
+      };
+      // Odskok po řezu jede o `rDist` v X a `rDistZ` v Z K OBROBENÉ STRANĚ —
+      // tam se okno držáku posune o rDistZ dál, takže konec průchodu musí
+      // projít i v té poloze (o rDist výš). Bez toho průchod dosedne na mez
+      // a teprve odskok zaveze držák do stěny (reálný nález: 50 mm² na
+      // odskoku, když samotný řez byl čistý).
+      const rDist = Math.max(parseFloat(prms.retractDistance) || 0, 0);
+      const rAngDeg = Math.max(5, Math.min(90, parseFloat(prms.retractAngle) || 45));
+      const rDistZ = rAngDeg >= 89.95 ? 0 : rDist / Math.tan(rAngDeg * Math.PI / 180);
+      const minTipXFull = (z) => rDistZ > 1e-9
+        ? Math.max(minTipX(z), minTipX(z + dirM * rDistZ) - rDist)
+        : minTipX(z);
+      // Dojezd „bez schodků" šplhá po kontuře k obrobené straně — přesně
+      // tam, kde se veze držák. Ořízne se v prvním bodě, kde by narazil.
+      const trimLeadOut = (p) => {
+        if (!p.contourLeadOut) return false;
+        const keep = [];
+        for (const s of p.contourLeadOut) {
+          if (s.x2 + 1e-9 < minTipX(s.z2)) break;
+          keep.push(s);
+        }
+        if (keep.length === p.contourLeadOut.length) return false;
+        if (keep.length > 0) p.contourLeadOut = keep; else delete p.contourLeadOut;
+        return true;
+      };
+      let holderAdjusted = 0, holderDropped = 0, holderTrimmed = 0;
+      const drop = new Set();
+      for (const p of faceArr) {
+        const need = minTipXFull(p.z);
+        if (need > p.xEnd + 0.01) {
+          if (need >= p.xStart - 0.05) {
+            drop.add(p);
+            holderDropped++;
+          } else {
+            p.xEnd = need;
+            p.holderClamped = true;
+            holderAdjusted++;
+            // Dojezd byl spočítaný pro hlubší (původní) dno — po zvednutí
+            // by sledoval konturu POD mezí držáku.
+            if (p.contourLeadOut) delete p.contourLeadOut;
+          }
+        } else if (trimLeadOut(p)) {
+          holderTrimmed++;
+        }
+        // Evidence schodu pro další (hlubší, více vlevo) průchody.
+        const zA = p.z, zB = p.z + dirM * step;
+        const entry = { zLo: Math.min(zA, zB), zHi: Math.max(zA, zB) };
+        if (drop.has(p)) stair.push({ ...entry, x: castingOuterAtZ(p.z) });
+        else if (!p.contourLeadOut) stair.push({ ...entry, x: p.xEnd });
+      }
+      if (drop.size > 0) {
+        for (let i = passes.length - 1; i >= 0; i--) if (drop.has(passes[i])) passes.splice(i, 1);
+      }
+      if (holderAdjusted + holderDropped > 0) {
+        foundErrors.push({ type: 'warning', msg: `Hlídání držáku (čelně): ${holderAdjusted} průchodů zkráceno`
+          + (holderDropped > 0 ? `, ${holderDropped} vynecháno` : '')
+          + ` — hlouběji by držák (šířka ${hb.reach.toFixed(0)} mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.` });
+      } else if (holderTrimmed > 0) {
+        foundErrors.push({ type: 'warning', msg: `Hlídání držáku (čelně): ${holderTrimmed} dojezdů zkráceno, aby držák nenarazil do stoupající kontury.` });
       }
     }
   }

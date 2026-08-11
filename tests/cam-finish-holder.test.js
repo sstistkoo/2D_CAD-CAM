@@ -170,12 +170,19 @@ describe('CAM: nájezd a výjezd dokončování', () => {
     for (const name of fixtures) {
       const prog = load(name);
       if (!prog.params || !(prog.params.doFinishing || prog.params.finishOnly)) continue;
-      const { calcSim, gcode, S } = await runCamProg(prog);
+      const { calcSim, gcode, errors, S } = await runCamProg(prog);
       const lines = gcode.split('\n');
       const finStart = lines.findIndex(l => l.includes(FIN_MARK));
       if (finStart < 0) continue;
-      const alw = Math.max(+S.params.allowanceX || 0, +S.params.allowanceZ || 0)
+      let alw = Math.max(+S.params.allowanceX || 0, +S.params.allowanceZ || 0)
         + (+S.params.finishAllowance || 0);
+      // Kde hrubování zastavila GEOMETRIE NÁSTROJE (mezní čára držáku
+      // u čelního hrubování), zůstává nad konturou víc než přídavek —
+      // dokončování to buď sundá, nebo díl zůstane nedodělaný. Strop je
+      // pak jedna hloubka třísky, ne přídavek (stejná úvaha jako u
+      // „Rovný průměr" níž). Bez držáku zůstává pravidlo přísné.
+      if ((errors || []).some(e => /Hlídání držáku \(čelně\)/.test(e.msg || '')))
+        alw = Math.max(alw, parseFloat(S.params.depthOfCut) || 0);
       const stock = new StockModel([buildStockLoop(S.params, calcSim.stockPathSegments)]);
       const foot = toolFootprint(S.params);
       // Bloky simPath = po sobě jdoucí body se stejným řádkem a typem.
