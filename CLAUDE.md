@@ -120,10 +120,14 @@ docs/                 # developer.md, user-guide.md
     (případně `tests/cam-traversal-invariants.test.js`) — tohle se
     nepřeskakuje kvůli úspoře. Šetří se na opakování CELÉ sady, ne na
     ověření bezpečnosti/parity.
-  - Pokud se dřív pouštělo něco 2-3× "pro jistotu" (determinismus), bylo to
-    kvůli konkrétnímu historicky nestabilnímu testu (`boolean-roughing-wiring`) —
-    není to obecné pravidlo "spouštěj všechno vícekrát". Bez known-flaky
-    testu v dotčené sadě stačí jeden běh.
+  - **Sada je deterministická — jeden běh stačí.** „Historická nestabilita"
+    (`boolean-roughing-wiring` aj.) byla 13. 8. 2026 vysvětlena: NEbyl to
+    nedeterminismus, ale VÝCHOZÍ 5s timeout vitestu. CAM testy pouští celý
+    pipeline (jednotky až desítky sekund) a při plné sadě padaly podle
+    vytížení stroje — izolovaně prošly. `vitest.config.js` má teď
+    `testTimeout`/`hookTimeout` 120 s a sada běží 1285/1285 opakovaně.
+    Když test padá jen v celé sadě, NEodepisuj to jako flake: zkontroluj,
+    jestli to není timeout.
 - **Velikost souborů:** platí jen pro NOVÉ soubory — cílit na ~300–500
   řádků, a když by narostl přes tenhle rozsah, rozdělit logický celek do
   dalšího souboru místo dalšího kumulování do jednoho. NENÍ to mandát

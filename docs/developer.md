@@ -641,6 +641,83 @@ než ujede v Z — se dělá jen se zapnutým `noStepRoughingFace` („i u čeln
 Rampované dojezdy strmých stěn a dokončení kapes tím neprochází (ujedou v Z
 podstatně víc), takže pod ořízlou rampou nezůstane klín materiálu.
 
+#### Čelní hrubování: střed nosu × povrch polotovaru
+
+Dráha je vždy **střed rádiusové kružnice** špičky, ne řezný bod. Nos proto
+sahá o `R` níž, než kam ukazuje souřadnice, a **stranou v ose Z také až o `R`**
+(o `√(R²−dz²)` níž ve vzdálenosti `dz`). V `genFacePasses` z toho plynou tři
+meze, které se nesmí zaměňovat za „povrch v tomhle Z":
+
+| helper | co vrací | k čemu |
+|---|---|---|
+| `castingOuterOrNull(z)` | povrch odlitku, `null` mimo obrys | podklad pro ostatní |
+| `xTouchAt(z)` | mez pro střed, nad níž nos **nic neodebere** (max `povrch+√(R²−dz²)` přes ±R) | filtr průsečíků + „řez vzduchem" |
+| `rapidStartXAt(z,…)` | totéž + vůle, okno jen do **neobrobené** strany | výška nájezdu `pass.xStart` |
+
+Pravidla, která z toho platí (každé z nich stálo reálnou vadu):
+
+- Konec řezu (`xEnd`) se porovnává s `xTouchAt`, **nikdy** s `sRad` — jmenovitý
+  průměr polotovaru je u odlitku jen jmenovka a bývá menší než skutečný obrys.
+- Sjezd „na povrch" v emisi (`gcodeEmit.js`, větev `face`) jde na
+  `max(xSurface, xEnd)` — pod cíl průchodu se **nesjíždí nikdy**; jinak nos
+  sebere přídavek až na hotovou konturu.
+- Okno pro nájezd se bere jen do neobrobené strany. Na obrobené straně už
+  syrový obrys neplatí a clearance nad ním by hnala rychloposuv zbytečně nahoru.
+- Evidence schodů pro hlídání držáku musí obsahovat i **pásy bez průchodu**
+  (vypadlé už v generování) jako `raw` — jinak clamp pod nimi vidí vzduch,
+  ačkoli tam stojí plná výška odlitku.
+
+#### Dosah destičky × dosah držáku (čelně)
+
+Dvě hlídání navazují a **každé platí jen na svém úseku**:
+
+| úsek od špičky (osa Z) | co hlídá | sklon |
+|---|---|---|
+| 0 … `insertReachZ(prms)` | spodní hrana DESTIČKY | úhel natočení (např. 15°) |
+| `insertBodyZ` … `hb.reach` | spodní hrana DRŽÁKU (`holderBottomProfile`) | dle nakresleného obrysu (typ. 20°) |
+
+`insertReachZ` je povinná mez — hrana destičky za koncem břitu neexistuje.
+Extrapolace „donekonečna" zvedla průchod o `dz·tan φ` i pro `dz` desítky mm
+a přestala se obrábět celá levá polovina dílu.
+
+Důsledek, který NENÍ chyba: u plochy rovnoběžné s osou Z (válec) nakloněná
+destička nedojede na konturu — zadní hrana by pod ni zajela o `b·sin φ`.
+Zůstane kužel a ⚠ panel to hlásí. Ta plocha patří podélnému hrubování.
+
+#### Rychloposuv se ptá na DVĚ tělesa, ne na jedno
+
+`safeRapidTo` (jediné hrdlo, kterým teče každý přejezd v emisi) testuje proti
+živému modelu zbytku `rapidStock` **obojí**:
+
+| co | funkce | proč nestačí to druhé |
+|---|---|---|
+| stopa DESTIČKY | `rapidHitsStock(x1,z1,x2,z2)` | špička může minout a držák přesto orat |
+| obrys DRŽÁKU | `holderHitsRapid(x1,z1,x2,z2)` | držák je v Z tlustý a radiálně sahá stovky mm |
+
+Práh je u obou 0,5 mm² — **týž, jaký používá `validateToolpath`**, a to je
+záměr: generátor se musí ptát na totéž, na co se ptá kontrola, jinak
+aplikace kolizi *najde*, ale generátor ji *neumí obejít*. Přesně tak vznikla
+vada nalezená 13. 8. 2026 (`holder-region-roughing`: destička 0,0 mm², držák
+135,3 mm²) — emise se řídila jen destičkou, nástroj po zanoření přejel v Z
+napříč dílem v hloubce a teprve pak se zvedl. Správné pořadí je
+**zvednout → přejet → sjet**; o to se stará větev `forceUp`.
+
+Nezaměňovat s tím, co bylo 18. 7. 2026 zamítnuto: paralelní detekce nad
+`passCutPts` (předemisní geometrie průchodu) se rozcházela se skutečně
+vydaným `simPath` a dávala false positives. Ptát se smí jen na **konkrétní
+právě emitovaný pohyb** — tedy na týž vstup, jaký uvidí validátor.
+
+Hlídá to `tests/cam-collision-free.test.js` (plošně přes všechny fixtures).
+
+#### Dva modely nástroje pro úběr
+
+`toolFootprint` (plánování + validace kolizí) je aproximace „stadion";
+`toolFootprintVisual` (simulace úběru) je skutečný obrys destičky. Rozdělené
+zůstávají schválně: skutečný obrys nakloněné destičky visí až `b·sin φ` POD
+programovaným bodem, což `rapidStopX` (vůle + rádius nosu) neumí — výměna
+obrysu i pro plánování jen vyrobí hlášení kolizí, která plánovač neobejde.
+Sjednotit je až s hlídáním spodní hrany v rychloposuvech.
+
 Testy nad neexportovanými helpery jdou přes `tests/helpers/camInternals.mjs`
 (text-surgery + přímé importy z `cam/*.js`); plný pipeline (`calculate()` +
 `generateAutoGCode()`) přes `tests/helpers/camHeadless.mjs` — viz

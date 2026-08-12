@@ -709,6 +709,25 @@ export function generateAutoGCode(S, calc) {
       return Math.abs(polyArea(rapidStock.collide(toolSweep(h, pts)))) > 0.5;
     } catch { return false; }
   };
+  // Táž otázka pro PŘEJEZD (dvěma body) — stejná signatura jako
+  // `rapidHitsStock`, aby se daly v podmínce střídat.
+  //
+  // Proč to `rapidHitsStock` nestačí: ten testuje jen STOPU DESTIČKY. Držák
+  // je ale v ose Z tlustý (±šířka/2) a radiálně sahá stovky mm ven, takže
+  // přejezd, kterým špička projede vzduchem vyříznuté kapsy, může držákem
+  // orat sousední stojící materiál. Validátor (`validateToolpath`) to hlásí
+  // jako ⛔ „Rychloposuv materiálem" už od 16. 7. 2026, ale emise se řídila
+  // pouze destičkou — aplikace tedy uměla kolizi NAJÍT, ale generátor ji
+  // neuměl OBEJÍT. Naměřeno na holder-region-roughing: destička 0,0 mm²,
+  // držák 135,3 mm² na dvou po sobě jdoucích G0.
+  //
+  // POZOR na záměnu s tím, co bylo 18. 7. 2026 zamítnuto: tehdy šlo o
+  // PARALELNÍ detekci nad `passCutPts` (předemisní geometrie průchodu), která
+  // se rozcházela se skutečně vydaným simPath → false positives. Tohle je
+  // opak: ptáme se na KONKRÉTNÍ PRÁVĚ EMITOVANÝ pohyb proti živému
+  // `rapidStock`, tedy na týž vstup, jaký uvidí validátor.
+  const holderHitsRapid = (x1, z1, x2, z2) =>
+    holderHitsStock([{ x: x1, z: z1 }, { x: x2, z: z2 }]);
   const noteCutPass = (pass) => {
     if (!rapidStock) return;
     const pts = [];
@@ -843,7 +862,8 @@ export function generateAutoGCode(S, calc) {
     // sjede posuvem) — proti zbytkovému polotovaru se testuje jen ona.
     const rTx = touch ? tx + rapidStopX : tx;
     if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
-        || rapidHitsStock(cur.x, cur.z, rTx, tz)) {
+        || rapidHitsStock(cur.x, cur.z, rTx, tz)
+        || holderHitsRapid(cur.x, cur.z, rTx, tz)) {
       const xUp = Math.max(rapidTopX + rapidStopX, cur.x, tx);
       // Diagnostický seam (guarded, v produkci no-op — stejný vzor jako
       // `__REGION_LOG__`): svislý zdvih „Výjezd nad konturu" v X předpokládá nad
@@ -1359,8 +1379,15 @@ export function generateAutoGCode(S, calc) {
         // zbytku a poslední kousek dojede posuvem, když je pod ním materiál).
         if (cur.x - pass.xStart > 1e-6) { emitDescendX(cur.x, pass.xStart, pass.z, false); setPos(pass.xStart, pass.z); }
       }
-      simCounter += 1; addN(`G1 X${xDia(pass.xSurface)} F${prms.feed}`, simCounter); setPos(pass.xSurface, pass.z);
-      simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z);
+      // Dotyk povrchu polotovaru posuvem — ale NIKDY hlouběji, než kam má
+      // průchod dojet. Programovaný bod je STŘED nosu, materiál pod ním leží
+      // o rádius níž: u odlitku odsazeného zhruba o rádius nosu vyjde cíl
+      // (xEnd = offset kontury) NAD povrch polotovaru a sjezd „na povrch" by
+      // nos zavezl o celý rádius hlouběji — až na hotovou konturu, tj. i
+      // přes celý přídavek (reálný nález s R 8 mm).
+      const xTouch = Math.max(pass.xSurface, pass.xEnd);
+      if (cur.x - xTouch > 1e-6) { simCounter += 1; addN(`G1 X${xDia(xTouch)} F${prms.feed}`, simCounter); setPos(xTouch, pass.z); }
+      if (Math.abs(cur.x - pass.xEnd) > 1e-6) { simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z); }
       if (pass.contourLeadOut) {
         // Bez schodků: dál po kontuře (G1/G2/G3) v pásu Z∈[z−ap, z]
         // místo okamžitého odskoku — schod se obrobí přímo po obrysu.

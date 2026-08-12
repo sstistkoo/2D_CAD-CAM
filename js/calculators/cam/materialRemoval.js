@@ -12,8 +12,9 @@
 // Souřadnice: stejné jako simPath — {x = poloměr [mm], z = axiálně [mm]},
 // nezávislé na flipX/flipZ i machineStructure (to řeší až toScreen).
 
-import { StockModel, toolSweep, polySimplify, polyOffset } from '../../geom/geomCore.js';
+import { StockModel, toolSweep, polySimplify, polyOffset, polyUnion } from '../../geom/geomCore.js';
 import { stockClearances, stockClearanceIsZero } from './camMath.js';
+import { buildInsertProfileSegments } from './insertPreview.js';
 
 /**
  * Zásah těla destičky v ose Z (od programovaného bodu k UŽ OBROBENÉ
@@ -50,13 +51,61 @@ export function insertBodyZ(prms, r = Math.max(parseFloat(prms.toolRadius) || 0.
 }
 
 /**
+ * Plný obrys DESTIČKY ve SVĚTOVÝCH souřadnicích relativně ke špičce, jako
+ * uzavřená smyčka {x,z}. Navzorkuje buildInsertProfileSegments (profil
+ * {x,z}: 0,0 = špička, +z = k držáku) a mapuje do světa STEJNĚ jako
+ * holderWorldLoop: profil.z → svět.x (radiálně), profil.x → svět.z·dir
+ * (axiálně, backside zrcadlí). Round = kruh R, polygon/parting = tělo
+ * destičky (šířka b). Null, když tvar nedává obrys (threading / degenerace).
+ */
+export function insertWorldLoop(prms, backside = false) {
+  const segs = buildInsertProfileSegments(prms);
+  if (!segs || segs.length === 0) return null;
+  const dir = backside ? -1 : 1;
+  const toWorld = (p) => ({ x: p.z, z: p.x * dir });
+  const loop = [];
+  const push = (p) => {
+    const l = loop[loop.length - 1];
+    if (!l || Math.hypot(l.x - p.x, l.z - p.z) > 1e-6) loop.push(p);
+  };
+  for (const s of segs) {
+    if (s.type === 'circle') {
+      const n = 48;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * 2 * Math.PI;
+        push(toWorld({ x: s.cx + Math.cos(a) * s.r, z: s.cz + Math.sin(a) * s.r }));
+      }
+    } else if (s.type === 'line') {
+      push(toWorld(s.from)); push(toWorld(s.to));
+    } else if (s.type === 'arc') {
+      // Kratší úhlová cesta from→to (stejně jako kreslení: |d| ≤ π).
+      const aF = Math.atan2(s.from.z - s.cz, s.from.x - s.cx);
+      let aT = Math.atan2(s.to.z - s.cz, s.to.x - s.cx);
+      let d = aT - aF;
+      while (d <= -Math.PI) d += 2 * Math.PI;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      const steps = Math.max(2, Math.ceil(s.r * Math.abs(d) / 0.3));
+      for (let k = 0; k <= steps; k++) {
+        const a = aF + d * (k / steps);
+        push(toWorld({ x: s.cx + Math.cos(a) * s.r, z: s.cz + Math.sin(a) * s.r }));
+      }
+    }
+  }
+  // Uzavřít (odstranit shodný poslední bod).
+  while (loop.length >= 2
+    && Math.hypot(loop[0].x - loop[loop.length - 1].x, loop[0].z - loop[loop.length - 1].z) < 1e-6) loop.pop();
+  return loop.length >= 3 ? loop : null;
+}
+
+/**
  * Obrys řezné části nástroje RELATIVNĚ k programovanému bodu dráhy
  * (= střed rádiusové kružnice špičky — viz kreslení plátku v draw()).
- * V1 aproximace „stadion": spodní půlkruh rádiusu R + obdélník nahoru
- * (+x, směrem k držáku) výšky max(2·ap, 3 mm). Prodloužení pokrývá i
- * tenké hřebínky mezi sousedními průchody (rozteč ap > 2R), které by
- * čistá kružnice vizuálně nechávala stát — fyzicky je odstřihne tělo
- * destičky. Přesný polygon destičky (vč. upichováku) přijde ve Fázi 2.
+ *
+ * PLÁNOVACÍ obrys — „stadion": spodní půlkruh rádiusu R +
+ * obdélník nahoru (+x, k držáku) výšky max(2·ap, 3 mm) — u ní je půlkruh
+ * přesný obrys a obdélník modeluje tělo nad ním. Prodloužení pokrývá tenké
+ * hřebínky mezi sousedními průchody (rozteč ap > 2R), které by čistá
+ * kružnice vizuálně nechávala stát — fyzicky je odstřihne tělo destičky.
  *
  * Čelně se stadion navíc protahuje v ose Z k obrobené straně (zprava
  * +Z, zleva −Z) o zásah těla destičky — viz insertBodyZ výš.
@@ -82,6 +131,34 @@ export function toolFootprint(prms) {
   if (zBody > r && prms.roughingSide === 'left')
     return loop.map(p => ({ x: p.x, z: -p.z })).reverse();
   return loop;
+}
+
+/**
+ * PŘESNÝ obrys destičky pro VIZUÁLNÍ úběr (simulace).
+ *
+ * `toolFootprint` je plánovací aproximace (stadion) — u nekulaté destičky
+ * proto zůstávaly po odebrání rádiusy i tam, kde řeže rovná hrana („mám
+ * čtvereček, ale po odebrání vidím rádius"). Vizualizace může jít po
+ * skutečném obrysu (`insertWorldLoop`) sjednoceném s obdélníkem nahoru
+ * (tělo nad břitem, odstřihne hřebínky mezi průchody).
+ *
+ * PROČ NE I PRO PLÁNOVÁNÍ: skutečný obrys nakloněné destičky visí až
+ * o (b·sin|natočení|) POD programovaným bodem — u b 10 mm a −15° je to
+ * 3,2 mm. Rychloposuvy i validátor s tím dnes nepočítají (`rapidStopX`
+ * zná jen vůli + rádius nosu), takže samotná výměna obrysu jen VYROBÍ
+ * hlášení kolizí, které plánovač neumí obejít (změřeno: 0 → 12 nálezů,
+ * 12 mm² na dílu uživatele). Nejdřív musí `rapidStopX` a hlídání
+ * geometrie umět spodní hranu destičky; teprve pak sem.
+ */
+export function toolFootprintVisual(prms) {
+  if (prms.toolShape === 'round') return toolFootprint(prms);
+  const body = insertWorldLoop(prms, prms.roughingSide === 'left');
+  if (!body || body.length < 3) return toolFootprint(prms);
+  const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
+  const zMax = Math.max(...body.map(p => p.z)), zMin = Math.min(...body.map(p => p.z));
+  const cap = [{ x: H, z: zMax }, { x: H, z: zMin }, { x: 0, z: zMin }, { x: 0, z: zMax }];
+  const merged = polyUnion([body], [cap]);
+  return (merged.length === 1 && merged[0].length >= 3) ? merged[0] : body;
 }
 
 /**
@@ -203,7 +280,7 @@ export function offsetStockLoop(loop, prms) {
 export class MaterialRemoval {
   constructor(prms, stockPathSegments) {
     this.baseLoop = buildStockLoop(prms, stockPathSegments);
-    this.foot = toolFootprint(prms);
+    this.foot = toolFootprintVisual(prms);
     this.reset();
   }
 

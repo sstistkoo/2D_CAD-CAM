@@ -50,14 +50,19 @@ vdescribe('buildMachinableContour — topologie přemostění', () => {
     ]);
   });
 
-  it('náběhový stín → úsek ve stínu nahrazen mostem + konektor, ocas zachován', () => {
+  // Mezi koncem stínu (na hraně polotovaru) a ocasem kontury je VZDUCH —
+  // navazuje se přes chainBreak, ne spojnicí. Dřív tu byl „konektor" označený
+  // {ins}, takže vypadal jako mezní čára z geometrie destičky: měl ale úhel,
+  // který na destičce není, a vedl skrz polotovar (nález uživatele 13. 8. 2026).
+  it('náběhový stín → úsek ve stínu nahrazen mostem, ocas navázán přes chainBreak', () => {
     const segs = [line(20, 30, 20, 25), line(20, 25, 10, 20), line(10, 20, 10, 10), line(10, 10, 20, 5), line(20, 5, 20, 0)];
-    expect(build(segs, [guide(20, 25, 25, 8, { downOnStock: false })])).toEqual([
+    const out = H.buildMachinableContour(segs.map(s => ({ ...s })), [guide(20, 25, 25, 8, { downOnStock: false })]);
+    expect(describe(out)).toEqual([
       'L (20.00,30.00)->(20.00,25.00)',
       'L (20.00,25.00)->(25.00,8.00) {ins}',    // most podél čáry
-      'L (25.00,8.00)->(20.00,5.00) {ins}',     // konektor zpět na ocas
-      'L (20.00,5.00)->(20.00,0.00)',
+      'L (20.00,5.00)->(20.00,0.00)',           // ocas — BEZ spojnice
     ]);
+    expect(out[out.length - 1].chainBreak).toBe(true);
   });
 
   // ── párování kapes (mergePocketGuides): 'zanoreni' + 'dojezd' čára tvořící V ──

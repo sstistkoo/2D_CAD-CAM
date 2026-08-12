@@ -479,9 +479,16 @@ export function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     const bridge = segsFromTo({ ...locPt }, { ...offPt });
     if (keepFrom === -1) return [...before, ...bridge];
     const tail = result.slice(keepFrom).map(x => ({ ...x }));
-    const connector = { type: 'line', p1: { ...offPt }, p2: segStartPoint(tail[0]), fromInsert: true };
-    delete tail[0].chainBreak;
-    return [...before, ...bridge, connector, ...tail];
+    // Mezi koncem stínu (na hraně polotovaru) a pokračováním kontury je VZDUCH
+    // — proto `chainBreak`, ne spojnice. Dřív se sem vkládala úsečka označená
+    // `fromInsert`, takže vypadala a chovala se jako mezní čára z geometrie
+    // destičky: měla ale ÚHEL, KTERÝ NA DESTIČCE NENÍ (jen „co padne", aby
+    // trefila konturu) a vedla SKRZ POLOTOVAR — aby po ní nástroj jel, musel by
+    // do materiálu vjet celým plátkem shora. Nález uživatele 13. 8. 2026;
+    // komentář nad touhle větví to popisoval správně už předtím, jen to kód
+    // dělal obráceně (`delete tail[0].chainBreak`).
+    tail[0] = { ...tail[0], chainBreak: true };
+    return [...before, ...bridge, ...tail];
   }
   // ── Prodloužení k okraji ── smí navazovat JEN na krajní entitu kontury.
   // Když loc leží uvnitř kontury (např. spodní konec dopadl paprskem na osu

@@ -46,6 +46,14 @@ function pipelineSummary(calc) {
 // v hlášení pohne, pohnulo se pokrytí — a to má být vidět.
 const warningList = (errors) => errors.map(e => (typeof e === 'string' ? `HARD: ${e}` : e.msg));
 
+// Hlášení, která fixture vydává ZÁMĚRNĚ (vlastnost zadání, ne rozbitý pipeline).
+// Nepatří sem nic, co jde spravit v kódu — jen fakta o dílu/nástroji.
+const EXPECTED_HARD = {
+  // R 8 mm do zaoblení R 6 mm se nevejde. Fixture je tu kvůli velkému
+  // rádiusu nosu (viz tests/cam-face-tip-radius.test.js), ne kvůli tomuhle.
+  'part-18-face-big-radius.camprog': ['Rádius kontury menší než nástroj'],
+};
+
 describe('CAM pipeline regrese (G-kód + struktura)', () => {
   it('nalezeny fixtures', () => {
     expect(fixtures.length).toBeGreaterThan(0);
@@ -61,7 +69,8 @@ describe('CAM pipeline regrese (G-kód + struktura)', () => {
       // vydává jako `errors` (dřív se tu četlo `calc.foundErrors`, což je
       // vlastnost, která NEEXISTUJE, takže tahle kontrola byla vždy prázdná).
       const hardErrors = errors.filter(e =>
-        (typeof e === 'string') || (e && e.type && e.type !== 'warning'));
+        (typeof e === 'string') || (e && e.type && e.type !== 'warning'))
+        .filter(e => !(EXPECTED_HARD[file] || []).some(pat => String(typeof e === 'string' ? e : e.msg).includes(pat)));
       expect(hardErrors, `hard errors: ${JSON.stringify(hardErrors)}`).toEqual([]);
 
       // G-kód musí být neprázdný a validně tvarovaný.

@@ -4074,14 +4074,19 @@ export function openCamSimulator(initialContour, initialGCode) {
         ? (prms.roughingStrategy === 'face' ? Math.abs((parseFloat(prms.toolAngle)||0) + (parseFloat(prms.toolTipAngle)||90) - 90) : Math.abs(parseFloat(prms.toolAngle)||0))
         : 45;
       const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
+      // Zanořování rampou umí jen PODÉLNÉ hrubování — čelní jede radiálně na
+      // dané Z, žádná rampa v něm není. Přepínač proto v čelním režimu zůstává
+      // vidět (ať je jasné, že existuje), ale je zašedlý a neaktivní: dokud
+      // vypadal jako zapnutý, vypadalo to, že se nastavený úhel ignoruje.
+      const plungeNA = prms.roughingStrategy === 'face';
       html += `<div class="cam-sim-row" style="align-items:center">
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label>
-          <label class="cam-sim-checkbox-item" data-tooltip="Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.">
-            <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}>
-            <span>Zanořování</span>
+          <label class="cam-sim-checkbox-item"${plungeNA ? ' style="opacity:.45"' : ''} data-tooltip="${plungeNA ? 'Neplatí pro ČELNÍ hrubování — to jede radiálně na danou hloubku Z, rampou se nezanořuje. Úhel zanoření se v čelním režimu použije jen na nájezd dokončování.' : 'Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.'}">
+            <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}${plungeNA ? ' disabled' : ''}>
+            <span>Zanořování${plungeNA ? ' (jen podélně)' : ''}</span>
           </label>
         </div>
-        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes). Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
+        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes).${plungeNA ? ' POZOR: při ČELNÍM hrubování se úhel uplatní jen na nájezd dokončování — samotné čelní průchody jedou radiálně, bez rampy.' : ''} Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
       </div>`;
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
@@ -7106,8 +7111,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
   }
   // Zpětná kompatibilita — staré volání; teď řídí vše _updateProfileButtons.
-  function _showPreviewButtons() { _updateProfileButtons(); }
-
   /** Zobrazí/skryje plovoucí tlačítka trasování (Zrušit/Auto/Krok/Dokončit) + checkboxy „Mimo body"/„Přes polotovar". */
   function _showTraceButtons() {
     const confirmBtn = canvasWrap.querySelector('.cam-sim-trace-confirm');
@@ -9104,12 +9107,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     _camShowCrosshair(fx, fy, camTouch.posMode);   // polohovací režim → snap
   };
-  const _camEndTouch = () => {
-    if (S._camPrecision) _camHideCrosshair();
-    S._camPrecision = false; camTouch = null;
-    clearTimeout(camPressTimer); camPressTimer = null;
-  };
-
   canvasWrap.addEventListener('touchstart', e => {
     if (e.target.closest('.cam-sim-trace-confirm, .cam-sim-trace-cancel, .cam-sim-trace-auto, .cam-sim-trace-stepfwd, .cam-sim-trace-stepback, .cam-sim-trace-freeclick, .cam-sim-trace-stock')) return;
     if (e.touches.length === 1) {

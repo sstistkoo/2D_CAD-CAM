@@ -265,6 +265,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nová fixture `part-16-face-holder` + `tests/cam-face-holder.test.js`.
 
 ### Fixed
+- **Rychloposuv mezi průchody hlídal jen destičku, ne DRŽÁK — a jezdil jím
+  materiálem.** Emise pouštěla přejezd, když stopa **destičky** minula zbytek
+  polotovaru; držák (v ose Z tlustý na šířku a radiálně sahající stovky mm)
+  se přitom neptal nikdo. Nástroj tak po zanoření zůstal stát hluboko v kapse,
+  **přejel v Z napříč dílem** a teprve pak se zvedl — špička vzduchem, držák
+  skrz stojící materiál. Validátor (`validateToolpath`) to hlásil jako ⛔
+  „Rychloposuv materiálem" už od 16. 7. 2026, takže aplikace uměla kolizi
+  **najít, ale generátor ji neuměl obejít**. `safeRapidTo` se teď ptá i na
+  držák (`holderHitsRapid`, týž živý model zbytku a týž práh 0,5 mm² jako
+  destička) a přejezd se poskládá správně: **zvednout → přejet → sjet**.
+  Naměřeno na `holder-region-roughing` (destička 0,0 mm², držák 135,3 mm²
+  na dvou po sobě jdoucích `G0`); přes všech 24 fixtures **2 → 0 kolizí** za
+  cenu jediného řádku G-kódu navíc. Regresi zavedl `e538e66` (kotva zanoření
+  se posunula za hranici úseku s předpokladem „materiál za ní je už
+  obrobený" — což platí pro dráhu špičky, ne pro obálku držáku).
+  Pozn.: nejde o dřív zamítnutou paralelní detekci nad `passCutPts` (ta se
+  rozcházela se skutečně vydaným simPath a dávala false positives) — tady se
+  testuje konkrétní právě emitovaný pohyb, tedy týž vstup, jaký vidí validátor.
+- **Obrobitelná kontura obsahovala čáru, kterou žádná hrana destičky neumí.**
+  Za koncem „náběhového stínu" (mezní čára oříznutá na hraně polotovaru) se
+  profil uzavíral **spojnicí zpět na konturu**, označenou `fromInsert` — takže
+  vypadala i chovala se jako mezní čára z geometrie destičky. Měla ale úhel,
+  který na destičce vůbec není (jen „co padne", aby trefila konturu), a vedla
+  **skrz polotovar**: aby po ní nástroj jel, musel by do materiálu vjet celým
+  plátkem shora. Komentář nad tou větví přitom správně říkal, že mezi koncem
+  stínu a pokračováním kontury je VZDUCH a má se navázat přes `chainBreak` —
+  kód dělal opak. Na dílu uživatele zmizely 4 z 10 mostů; zbylých 6 leží
+  přesně pod natočením destičky (−15°).
+- **„Historicky nestabilní" testy byly ve skutečnosti TIMEOUT.** Vitest má
+  výchozí limit 5 s na test; CAM testy pouští celý pipeline nad .camprog
+  fixtures (jednotky až desítky sekund) a při plné sadě běží soubory
+  paralelně — takže padaly podle vytížení stroje, izolovaně prošly. Část
+  testů si limit obcházela třetím argumentem `it(..., 120000)`, nové na to
+  zapomněly. `vitest.config.js` má teď `testTimeout`/`hookTimeout` 120 s;
+  sada je od té doby **1285/1285 opakovaně**, včetně
+  `boolean-roughing-wiring`, který se týdny považoval za nedeterministický.
+- **Čelní hrubování NAKLONĚNOU destičkou obrábělo jen polovinu dílu.** Hlídání
+  spodní hrany destičky (klesá od špičky pod úhlem natočení) extrapolovalo hranu
+  DONEKONEČNA: stěna vzdálená 33 mm zvedla průchod o 8,8 mm, další ještě víc,
+  a program skončil v půlce dílu — 76 průchodů zahozeno, levá polovina
+  neobrobená (nález uživatele: destička b 10 mm, natočení −15°). Hrana existuje
+  jen po **délku břitu** (`insertReachZ`); za ní přebírá hlídání držáku, které
+  má vlastní, mnohem mírnější sklon. Na dílu uživatele **42 → 84 průchodů**
+  (hrubování dojede z Z 198 až na Z 3), program 327 → 609 řádků, bez kolizí.
+- **Průchod zvednutý hlídáním nad povrch polotovaru se hlásil jako „zkrácený",
+  ale jel vzduchem.** Zvednutí nad mez dotyku je vynechání — teď se průchod
+  zahodí a ⚠ panel to tak i pojmenuje („X zkráceno, Y vynecháno").
+- **Vizuální úběr kreslil rádius i u nekulaté destičky.** Simulace odebírá
+  materiál novým `toolFootprintVisual` — skutečným obrysem destičky
+  (klín z vrcholového úhlu, natočení a délky b), takže čtvercová destička
+  po sobě nechává čtvercovou stopu. Plánování a validace kolizí zůstávají
+  na dosavadní aproximaci: skutečný obrys nakloněné destičky visí až
+  3,2 mm POD programovaným bodem a rychloposuvy s tím zatím neumí počítat
+  (změřeno: samotná výměna obrysu vyrobí 12 nových hlášení kolizí).
+- **Čelní hrubování s velkým rádiusem nosu: chybějící úsek drah, řez do hotové
+  kontury a rychloposuvy materiálem.** Programovaný bod je STŘED nosu, materiál
+  pod ním leží o rádius níž — na čtyřech místech se ale porovnával rovnou
+  s povrchem polotovaru. U R 0,8 mm to byla desetina milimetru, u R 8 mm celá
+  série vad (nález uživatele, odlitek odsazený zhruba o rádius nosu):
+  - konec řezu se zahazoval podle **jmenovitého** `sRad` (Ø polotovaru) místo
+    lokálního povrchu odlitku — u odlitku většího než jmenovka vypadl celý
+    úsek průchodů (30 mm neobrobené stěny) **a bez varování**;
+  - `G1` „sjezd na povrch" mohl vést **hlouběji než cíl průchodu**: nos sjel
+    o rádius pod povrch, tj. přes celý přídavek až na hotovou konturu, a pak
+    couval ven. Nově se nikdy nesjíždí pod plánovanou hloubku;
+  - nájezdová výška se brala z povrchu **v jediném Z**, ačkoli nos je kruh
+    a sahá i ±R stranou — rychloposuv na ni projel kuželem polotovaru
+    (7 kolizí) a když se to zjistilo až testem, vyjelo se pro jistotu nad
+    celý polotovar (poskakování „Výjezd nad konturu"). Nově se hledá dotyk
+    nosu v okně ±R do neobrobené strany;
+  - hlídání držáku nevidělo pásy **bez** průchodu (vypadly už v generování),
+    takže pod nimi počítalo se vzduchem místo syrového polotovaru — první
+    průchod pod takovým pásem zavezl držák do 30mm stěny.
+  Na dílu uživatele: **12 kolizí → 0**, 98 → 109 průchodů. Malé rádiusy beze
+  změny řezné geometrie (mění se jen výšky nájezdů).
+- **„Zanořování" v panelu vypadalo aktivně i u čelního hrubování**, kde rampa
+  neexistuje (jede se radiálně na dané Z) — nastavený úhel se zdánlivě
+  ignoroval. Přepínač je v čelním režimu zašedlý a popsaný „(jen podélně)".
 - **Vrstva se nikdy neodebrala, protože chyběl sjezd na hloubku.** Průchod
   typu „kapsa po kontuře" najíždí po obrysu; leží-li kontura v místě vjezdu
   výš než plánovaná vrstva, nájezd skončí NAD ní. Tělo se pak emitovalo jako

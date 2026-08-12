@@ -21,7 +21,7 @@ import { buildStockLoop, offsetStockLoop, insertBodyZ } from './materialRemoval.
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
-import { HOLDER_CLAMP_MARGIN, holderBottomProfile } from './toolEnvelope.js';
+import { HOLDER_CLAMP_MARGIN, holderBottomProfile, insertReachZ } from './toolEnvelope.js';
 
 // Volný prostor (mm) mezi držákem a vůlí-posunutou siluetou polotovaru
 // („tečkovanou" offsetovou čarou v náhledu) při hledání stropu vjezdu —
@@ -65,13 +65,16 @@ export function genFacePasses(ctx) {
   // 45° retract po čelním řezu jede do už odřezané zóny (slab nad
   // currentZ byl plně odebrán předchozími pasy + aktuálním), takže
   // bezpečné.
-  // Vůle od HRANY nástroje: nos špičky (R) předbíhá střed — viz emise.
-  const rapidClrFC = stockClearances(prms).x + (parseFloat(prms.toolRadius) || 0);
+  // Vůle od HRANY nástroje: nos špičky (R) předbíhá střed — viz rapidStartXAt.
   // Helper: max X polotovaru (skutečná pravá hrana materiálu) na zadané Z.
   // Pro cylinder = konstantní sRad. Pro casting = max X všech průsečíků
   // svislice v Z s outline polotovaru → per-Z, takže rapid nemusí jezdit
   // až na globální sRad+clearance, ale jen těsně nad lokální povrch.
-  const castingOuterAtZ = (z) => {
+  // `…OrNull` verze vrací null tam, kde svislice obrys polotovaru MINE
+  // (za čelem, za upnutým koncem) — „materiál neznámé výšky" a „žádný
+  // materiál" jsou pro hlídání držáku dvě různé věci a fallback na sRad
+  // by z prázdna udělal stěnu vysokou jako jmenovitý polotovar.
+  const castingOuterOrNull = (z) => {
     if (prms.stockMode !== 'casting' || stockPathSegments.length === 0) return sRad;
     let maxX = -9999;
     stockPathSegments.forEach(seg => {
@@ -87,7 +90,44 @@ export function genFacePasses(ctx) {
         });
       }
     });
-    return maxX > -9999 ? maxX : sRad;
+    return maxX > -9999 ? maxX : null;
+  };
+  const castingOuterAtZ = (z) => castingOuterOrNull(z) ?? sRad;
+  // Rapid-bezpečná X pro STŘED špičky na zadané Z. Nos je kruh rádiusu R:
+  // ve vzdálenosti dz od středu sahá o √(R²−dz²) níž než střed, takže
+  // „povrch v tomhle jediném Z + R" nestačí — nad stoupajícím sousedstvím
+  // (kužel odlitku, stěna) vjede BOK nosu do materiálu dřív, než na něj
+  // dosedne špička. Okno se bere jen do NEOBROBENÉ strany (proti směru
+  // marche); na obrobené straně už syrový obrys neplatí a clearance nad ním
+  // by hnala rychloposuv zbytečně vysoko.
+  // U R 0,8 mm je okno neznatelné, u R 8 mm je to reálná kolize (rychloposuv
+  // na xStart projel kuželem polotovaru).
+  const rTipFC = Math.max(parseFloat(prms.toolRadius) || 0, 0);
+  const clrXFC = stockClearances(prms).x;
+  const rapidStartXAt = (z, xHere, dirUncut) => {
+    let need = xHere + rTipFC;
+    const n = 8;
+    for (let i = 1; i <= n && rTipFC > 1e-6; i++) {
+      const dz = rTipFC * (i / n);
+      const cand = castingOuterAtZ(z + dirUncut * dz) + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz));
+      if (cand > need) need = cand;
+    }
+    return need + clrXFC;
+  };
+  // Mez DOTYKU pro střed nosu: nad ní průchod v tomto Z už nic neodebere
+  // (nos se nedotkne polotovaru ani bokem). Táž geometrie jako rapidStartXAt,
+  // jen bez vůle a na obě strany. Programovaný bod je střed nosu, takže mez
+  // leží o rádius NAD povrchem — porovnávat konec řezu se samotným povrchem
+  // (natož s jmenovitým sRad) je záměna soustav.
+  const xTouchAt = (z) => {
+    let m = castingOuterAtZ(z) + rTipFC;
+    const n = 8;
+    for (let i = 1; i <= n && rTipFC > 1e-6; i++) {
+      const dz = rTipFC * (i / n);
+      const bulge = Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz));
+      m = Math.max(m, castingOuterAtZ(z - dz) + bulge, castingOuterAtZ(z + dz) + bulge);
+    }
+    return m;
   };
   const minZPart = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.z)) : -1000;
   // Start na pravé hraně polotovaru: pro cylinder = stockFace, pro casting =
@@ -144,13 +184,20 @@ export function genFacePasses(ctx) {
       }
     });
     xsEnd.sort((a, b) => a - b);
+    // Per-Z casting outer (pro casting). Pro cylinder = sRad konstantní.
+    const xSurface = castingOuterAtZ(currentZ);
+    const xTouch = xTouchAt(currentZ);
     let xEnd;
     let xEndBlocked = false;
     if (xsEnd.length > 0) {
       // Kontura na tomto Z protíná svislici → vyber NEJVĚTŠÍ X (= outermost
       // kontura, ten první narazíme jdoucí −X od povrchu). Filtruj jen
-      // průsečíky uvnitř polotovaru.
-      const validXs = xsEnd.filter(x => x < sRad + 1);
+      // průsečíky uvnitř polotovaru — mezí je LOKÁLNÍ dotyk nosu, ne
+      // jmenovitý poloměr `sRad` (ten je u odlitku jen jmenovka a bývá
+      // MENŠÍ než skutečný obrys: s velkým rádiusem nosu se offsetová čára
+      // přes sRad přehoupne a celý úsek průchodů tiše vypadl — reálný nález,
+      // 30 mm neobrobené stěny a kolize držáku v prvním průchodu pod ní).
+      const validXs = xsEnd.filter(x => x < xTouch + 1);
       if (validXs.length === 0) continue; // všechny mimo polotovar
       xEnd = validXs[validXs.length - 1];
       xEndBlocked = true;
@@ -164,10 +211,8 @@ export function genFacePasses(ctx) {
       if (currentZ > maxOZ + 0.01) xEnd = 0;
       else continue;
     }
-    // Per-Z casting outer (pro casting). Pro cylinder = sRad konstantní.
-    const xSurface = castingOuterAtZ(currentZ);
-    const xStartLocal = xSurface + rapidClrFC;
-    if (xEnd >= xStartLocal - 0.01) continue; // řez nulové délky
+    const xStartLocal = rapidStartXAt(currentZ, xSurface, faceLeft ? 1 : -1);
+    if (xEnd >= xTouch - 0.01) continue;   // nos se polotovaru nedotkne = řez vzduchem
     const pass = { type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked };
     if (faceLeft) pass.faceLeft = true;
     passes.push(pass);
@@ -189,12 +234,20 @@ export function genFacePasses(ctx) {
   // (při čelním hrubování bývá natočení záporné) → průchody končící
   // u kontury se zastavují postupně výš, jinak by hrana vpravo od
   // špičky zajela do už obrobeného osazení (vzniká schodiště).
+  //
+  // Hrana ale existuje jen po DÉLKU BŘITU (insertReachZ). Za koncem destičky
+  // přebírá hlídání držák (holderBottomProfile níž), který má vlastní, mnohem
+  // mírnější sklon. Bez téhle meze se přímka extrapolovala donekonečna: stěna
+  // 33 mm daleko zvedla průchod o 8,8 mm, každý další ještě víc, a celá levá
+  // polovina dílu se přestala obrábět (reálný nález uživatele — 76 průchodů
+  // zahozeno, program končil v půlce dílu).
   if (prms.respectInsertGeometry && prms.toolShape === 'polygon') {
     const phiFaceDeg = -(parseFloat(prms.toolAngle) || 0);
-    if (phiFaceDeg > 0.01) {
+    const insReach = insertReachZ(prms, faceLeft);
+    if (phiFaceDeg > 0.01 && insReach > 1e-6) {
       const tanPhiF = Math.tan(Math.min(89.5, phiFaceDeg) * Math.PI / 180);
       const faceWalls = passes.filter(p => p.type === 'face' && p.blocked).map(p => ({ z: p.z, xEnd: p.xEnd }));
-      let faceAdjusted = 0;
+      let faceAdjusted = 0, faceDropped = 0;
       for (let pi = passes.length - 1; pi >= 0; pi--) {
         const p = passes[pi];
         if (p.type !== 'face') continue;
@@ -204,12 +257,20 @@ export function genFacePasses(ctx) {
           // spodní hrana destičky zajela do hotového osazení.
           const machined = faceLeft ? (w.z < p.z - 1e-6) : (w.z > p.z + 1e-6);
           if (!machined) continue;
-          const cand = w.xEnd + Math.abs(w.z - p.z) * tanPhiF;
+          const dz = Math.abs(w.z - p.z);
+          if (dz > insReach + 1e-6) continue;   // za koncem břitu — hlídá držák
+          const cand = w.xEnd + dz * tanPhiF;
           if (cand > xE) xE = cand;
         }
         if (xE > p.xEnd + 0.01) {
+          // Zvednutí NAD mez dotyku = průchod by jel vzduchem nad polotovarem;
+          // to není zkrácení, ale vynechání (viz totéž u hlídání držáku).
+          if (xE >= p.xStart - 0.05 || xE >= xTouchAt(p.z) - 0.01) {
+            passes.splice(pi, 1);
+            faceDropped++;
+            continue;
+          }
           faceAdjusted++;
-          if (xE >= p.xStart - 0.05) { passes.splice(pi, 1); continue; }
           p.xEnd = xE;
           // leadOut byl spočítán pro NEzvednutý xEnd (po reálné kontuře). Po
           // zvednutí mezní čárou destičky by sledoval konturu POD limit, kam
@@ -217,8 +278,10 @@ export function genFacePasses(ctx) {
           if (p.contourLeadOut) delete p.contourLeadOut;
         }
       }
-      if (faceAdjusted > 0)
-        foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${faceAdjusted} čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.` });
+      if (faceAdjusted + faceDropped > 0)
+        foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${faceAdjusted} čelních průchodů zkráceno`
+          + (faceDropped > 0 ? `, ${faceDropped} vynecháno` : '')
+          + `, aby spodní hrana destičky nezajela do kontury.` });
     }
   }
 
@@ -362,11 +425,24 @@ export function genFacePasses(ctx) {
         let top = null;
         for (const s of stair) {
           if (zq < s.zLo - 1e-9 || zq > s.zHi + 1e-9) continue;
-          const x = s.raw ? castingOuterAtZ(zq) : s.x;
-          if (top === null || x > top) top = x;
+          const x = s.raw ? castingOuterOrNull(zq) : s.x;
+          if (x !== null && (top === null || x > top)) top = x;
         }
         return top;
       };
+      // Z-pásy BEZ průchodu se do evidence schodů nedostanou jinudy: `faceArr`
+      // je nezná (vypadly už v generování — mimo polotovar, nulový řez) a clamp
+      // by pod nimi viděl jen konturu, tedy vzduch. Stojí tam přitom SYROVÝ
+      // polotovar v plné výšce a právě do něj najel držák prvního průchodu pod
+      // takovým pásem (reálný nález: 30 mm neobrobené stěny, 91 mm² kolize).
+      {
+        const have = new Set(faceArr.map(p => p.z.toFixed(3)));
+        for (const z of zList) {
+          if (have.has(z.toFixed(3))) continue;
+          const zB = z + dirM * step;
+          stair.push({ zLo: Math.min(z, zB), zHi: Math.max(z, zB), raw: true });
+        }
+      }
       // Nejmenší programovaná hloubka (X) na Z, při které držák projde.
       // POZOR na soustavy: `offsetXAt` je dráha STŘEDU špičky, materiál pod
       // ní leží o rádius níž (offset = kontura + R + přídavek), a držák míjí
@@ -421,7 +497,11 @@ export function genFacePasses(ctx) {
       for (const p of faceArr) {
         const need = minTipXFull(p.z);
         if (need > p.xEnd + 0.01) {
-          if (need >= p.xStart - 0.05) {
+          // Zvednutí NAD mez dotyku nosu je stejné vynechání jako zvednutí nad
+          // nájezdovou X — průchod by jen projel vzduchem nad polotovarem
+          // (a dojel by tam, kde držák stejně nemá místo). Bez téhle větve
+          // zůstal v programu „řez", který nic neodebral, ale kolidoval.
+          if (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01) {
             drop.add(p);
             holderDropped++;
           } else {
@@ -438,7 +518,7 @@ export function genFacePasses(ctx) {
         // Evidence schodu pro další (hlubší, více vlevo) průchody.
         const zA = p.z, zB = p.z + dirM * step;
         const entry = { zLo: Math.min(zA, zB), zHi: Math.max(zA, zB) };
-        if (drop.has(p)) stair.push({ ...entry, x: castingOuterAtZ(p.z) });
+        if (drop.has(p)) stair.push({ ...entry, raw: true });
         else if (!p.contourLeadOut) stair.push({ ...entry, x: p.xEnd });
       }
       if (drop.size > 0) {
