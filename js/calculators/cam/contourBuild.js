@@ -468,13 +468,37 @@ export function bridgeFromContourToStock(result, g, A, B, lA, lB) {
     // Cestou ověřit, že je celý stín POD čarou (jinak by most zajel do
     // vystupujícího prvku → přeskočit).
     let keepFrom = -1, ok = true;
+    let splitSeg = null;                   // segment ROZŘÍZNUTÝ na konci stínu
     for (let k = ci; k < result.length; k++) {
       const sp = segStartPoint(result[k]), ep = segEndPoint(result[k]);
       if (sp.z <= offPt.z + 1e-6) { keepFrom = k; break; }
+      // Segment ZAČÍNÁ ve stínu, ale KONČÍ pod ním (typicky dlouhý válec od
+      // čela dolů): ve stínu leží jen jeho horní kus. Zahodit ho celý je
+      // chyba — dole je normálně obrobitelný. Rozřízne se přesně na konci
+      // stínu (Z = off.z) a spodní část se nechá.
+      //   Bez toho zmizel z obrobitelné kontury celý válec Z 243…345 a s ním
+      //   18 čelních průchodů; materiál tam zůstal stát a hlídání držáku pak
+      //   (správně) nepustilo hlouběji ani průchody POD ním — na dílu
+      //   uživatele se z řezu 64,5 → 37,8 stal škrábanec 64,5 → 64,2.
+      //   Táž oprava, jakou má sesterská větev `downClipped` (viz výš).
+      if (ep.z <= offPt.z + 1e-6) {
+        const xs = intersectSegAtZ(result[k], offPt.z);
+        if (xs.length) {
+          const cutX = xs.length > 1
+            ? xs.reduce((b, x) => Math.abs(x - ep.x) < Math.abs(b - ep.x) ? x : b, xs[0])
+            : xs[0];
+          splitSeg = { ...result[k] };
+          setSegStart(splitSeg, { x: cutX, z: offPt.z });
+          syncArcEndpoints(splitSeg);
+          keepFrom = k;
+        }
+        break;
+      }
       const cap = Math.max(ep.z, offPt.z);
       if (sp.x > lineXAtZ(sp.z) + 0.3 || ep.x > lineXAtZ(cap) + 0.3) { ok = false; break; }
     }
     if (!ok) return result;
+    if (splitSeg) result = [...result.slice(0, keepFrom), splitSeg, ...result.slice(keepFrom + 1)];
     const before = result.slice(0, ci).map(x => ({ ...x }));
     const bridge = segsFromTo({ ...locPt }, { ...offPt });
     if (keepFrom === -1) return [...before, ...bridge];
