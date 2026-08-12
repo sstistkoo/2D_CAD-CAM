@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
+import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 
 const prog = {
   __camprog: 1,
@@ -66,24 +67,40 @@ describe('rozsah Z uprostřed polotovaru', () => {
 // průměry se do Z-okna nevejde, takže se dřív takové hloubky celé zahodily —
 // menší průměry zůstaly nehrubované, dokud uživatel ručně neposunul Start
 // rozsahu Z až za hrb. Vjezd se teď posune sám tam, kde se vedle vejde držák.
-const HRB_Z = 196.278;        // skok siluety polotovaru (hrb napravo)
-const HOLDER_W = 20;          // holderWidth fixture
-const STOCK_CLR_Z = 1;        // rapidClearance fixture (Přídavek Z polotovaru)
-const GAP = 1;                // volný prostor mezi držákem a offsetovou čarou
+//
+// MODEL DRŽÁKU — assertion přepsána 12. 8. 2026. Test dřív počítal, že se
+// celých 20 mm držáku musí vejít PŘED hrb (`ramp.z0 + 20 ≤ 196,278 − vůle`).
+// To je model PLOCHÉHO bloku v úrovni špičky, který commit `e538e66`
+// (10. 8. 2026) vědomě opustil: bere se SKUTEČNÁ spodní hrana obrysu, která
+// stoupá (u tohohle držáku 0 → 6,55 mm na 20 mm dozadu), takže smí hrb
+// přeletět, pokud pod ní zůstane `HOLDER_ENTRY_STOCK_GAP` = 2 mm volno.
+// Zástupná aritmetika tím zastarala a test padal (kotva Z175,55 → konec
+// držáku 195,55 proti limitu 194,278), ačkoli dráha kolizi nemá. Měří se
+// proto rovnou VALIDÁTOREM — týž Minkowského model, co plní ⚠ panel —
+// nad plným obrysem držáku, ne přes jeden jeho rozměr.
+const fixture = join(__dirname, 'fixtures/cam/range-end-leadout.camprog');
+const load = () => JSON.parse(readFileSync(fixture, 'utf8'));
+
+async function runAndValidate() {
+  const { calc, calcSim, S } = await runCamProg(load());
+  const issues = validateToolpath(calcSim.simPath, S.params, calc.stockPathSegments,
+    { backside: S.params.roughingSide === 'left', maxIssues: 500, maxBlocks: 100000 });
+  return { calc, issues };
+}
+
+const plungesOf = (calc) => calc.passes
+  .filter(p => p.type === 'long' && p.entryRangeRamp && p.x < 20);
 
 describe('zanoření za odlitkovým hrbem', () => {
   it('vjezd se posune tam, kam se vejde držák — a přijde na řadu až po větších průměrech', async () => {
-    const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures/cam/range-end-leadout.camprog'), 'utf8'));
-    const { calc } = await runCamProg(prog);
+    const { calc, issues } = await runAndValidate();
     const longs = calc.passes.filter(p => p.type === 'long');
     // Zanoření na malý průměr, které dřív úplně chybělo.
-    const plunges = longs.filter(p => p.entryRangeRamp && p.x < 20);
+    const plunges = plungesOf(calc);
     expect(plunges.length).toBeGreaterThan(0);
-    // Držák (šířka HOLDER_W od špičky) se u vjezdu vejde vedle hrbu, a ještě
-    // s GAP volného prostoru od offsetové čáry polotovaru.
-    for (const p of plunges) {
-      expect(p.ramp.z0 + HOLDER_W).toBeLessThanOrEqual(HRB_Z - STOCK_CLR_Z - GAP + 1e-6);
-    }
+    // Držák u nich nikam nenaráží (plný obrys × zbytkový polotovar).
+    expect(issues.filter(i => i.kind === 'holder')
+      .map(i => `${i.area.toFixed(1)}mm² @X${i.x.toFixed(1)} Z${i.z.toFixed(1)}`)).toEqual([]);
     // „Co je nahoře, má přednost": zanoření je až za všemi průchody na
     // větších průměrech SVÉHO MÍSTA, hrubuje se odshora dolů.
     //
@@ -101,5 +118,20 @@ describe('zanoření za odlitkovým hrbem', () => {
           .toBeLessThanOrEqual(p.x + 1e-6);
       }
     }
-  }, 30000);
+  }, 60000);
+
+  it('není to vacuum: s vypnutým hlídáním držáku kolize BÝT musí', async () => {
+    // Bez `holderLoopL` (a tedy bez holderEntryCapZ/ReachZ) jede program do
+    // hrbu: naměřeno 21 nálezů držáku, 27–284 mm². Zároveň zmizí i všechna
+    // tři zanoření za hrbem — ta hloubka se bez clampu vůbec nenajde, což je
+    // právě ta zásluha, kterou test výš hlídá. Neasertuje se, aby budoucí
+    // lepší vjezd (bez clampu) nepadal na pojistce.
+    globalThis.__DISABLE_HOLDER_CLAMP__ = true;
+    try {
+      const { issues } = await runAndValidate();
+      expect(issues.filter(i => i.kind === 'holder').length).toBeGreaterThan(10);
+    } finally {
+      delete globalThis.__DISABLE_HOLDER_CLAMP__;
+    }
+  }, 60000);
 });

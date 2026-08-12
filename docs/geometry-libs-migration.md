@@ -344,6 +344,33 @@ se čelně zprava tímhle nožem obrobit nedá. Pojistka
 Fixtures bez nakresleného držáku (`face-cylinder`, `face-casting`) se
 nezměnily — clamp se bez držáku neaktivuje.
 
+#### Model držáku u KOTVY ZANOŘENÍ × zastaralý test (12. 8. 2026)
+
+Při kontrole dokumentu se ukázalo, že sada je **červená od 10. 8.** —
+`tests/range-entry-ramp.test.js` padal 6 commitů (bisekce: zelený ještě na
+`7c8f4c5`, červený od `e538e66`). Nešlo o regresi dráhy, ale o **test měřící
+model, který ten commit vědomě opustil**:
+
+| | starý model | dnešní model (`e538e66`) |
+|---|---|---|
+| držák u vjezdu | PLOCHÝ blok v úrovni špičky (`t > top + 0,05`) | skutečná spodní hrana obrysu (`holderBotTab`) |
+| odstup | žádný | `HOLDER_ENTRY_STOCK_GAP` = 2 mm (zadání uživatele) |
+| kotva | jen `holderEntryCapZ` | + `holderEntryReachZ` (posun k ústí údolí) |
+
+Spodní hrana tohohle držáku stoupá 0 → 6,55 mm na 20 mm dozadu, takže smí hrb
+přeletět. Test ale počítal, že se celých 20 mm musí vejít PŘED hrb — kotva
+Z175,55 → konec držáku 195,55 proti limitu 194,278, tedy „přes" o 1,27 mm,
+zatímco dráha kolizi nemá.
+
+Assertion proto **přepsána na validátor** (týž Minkowského model, co plní ⚠
+panel), plný obrys místo jednoho rozměru: `range-end-leadout` má **0 nálezů
+držáku** a tři zanoření pod Ø20 (Z175,55 / 163,00 / 82,70). Přidána pojistka
+„není to vacuum": s `__DISABLE_HOLDER_CLAMP__` je nálezů **21** (27–284 mm²)
+a zanoření zmizí všechna — clamp je tam nosný, ne kosmetický.
+
+**Poučení:** zástupná aritmetika nad JEDNÍM rozměrem nástroje (šířka × vůle)
+zastará, jakmile se zpřesní model obrysu. Kde existuje validátor, testovat jím.
+
 ### 4. Drobnosti stejného původu
 
 - **`pocketReposition` sdílejí TŘI mechanismy** (řetěz vjezdu na hranici
