@@ -4,7 +4,7 @@
 > Detect-Collisions (rychlý broad-phase filtr kolizí) · adaptér
 > `js/geom/geomCore.js`
 
-## ⛔ MIGRACE UZAVŘENA (10. 8. 2026)
+## ⛔ MIGRACE UZAVŘENA (fáze 10. 8. 2026, definitivně 12. 8. 2026)
 
 **Hotovo a v produkci:** Fáze 0–2 · 2b/3 · 3a/3b · Fáze 3 (jádro, regiony,
 příznak `booleanRoughing`) · Fáze 4 (přejezdy, vjezdy, dynamický zbytek) ·
@@ -27,34 +27,78 @@ z větší části nápady, které nikdy nedostaly reálný důvod; držet je ja
 | **Rozšíření 2b/3** — polygon/threading s modelem úlevu, F_all ve vizuálním úběru | Nikdo si nestěžoval; „bylo by hezké". |
 | **Fáze 5 — sjednocení UI zanořování** | Rozhodnuto 20. 7.: v panelu jsou provedené jiné úpravy a přeskládání checkboxů by je rozbilo. |
 
-### Otevřené věci (stav 12. 8. 2026)
+### UZAVŘENO 12. 8. 2026 — co zbylo, jsou MEZE, ne nedodělky
 
-Uzavření migrace 10. 8. se týkalo FÁZÍ; opravy řízené reálnými díly běžely dál
-(11.–12. 8.) a zůstaly po nich tři otevřené položky. Žádná nemá termín — čekají
-na díl, kde budou skutečně vadit.
+Uzavření 10. 8. se týkalo FÁZÍ; opravy řízené reálnými díly běžely dál
+(11.–12. 8.). K dnešku je hotová i poslední bezpečnostní položka (model zbytku
+pro rychloposuvy, bod 3 níž) a **migrace se tímto zavírá**.
 
-1. **Hranice úseku ve STŘEDU údolí** (sekce „ZBÝVÁ" níž). Dva pokusy zamítnuty
-   (8. 8. a 10. 8.); u druhého je změřeno, že zadání je jiné, než se myslelo —
-   **nejde o pokrytí** (levá půlka údolí se odebere stejně s regiony i bez nich),
-   ale o **kotvu zanoření**. Nezkoušet potřetí bez přečtení „DRUHÝ POKUS".
-2. **Pravá strana za přírubou (Z 271→366) se nehrubuje** (sekce „ZBÝVÁ" níž).
-   Tři pokusy zamítnuty (10. 8.), funkční obcházka je nastavit Start rozsahu Z
-   za klín. Od 11. 8. je popsaná i správná cesta: neposílat tam vlastní vjezd,
-   ale označit svislou hranici klínu za UMĚLOU HRANICI, aby se spustil hotový
-   řetěz `entryCapped` → `entryRampAnchor` → `holderEntryCapZ`.
+Dvě věci zůstávají neopravené a **zůstanou tak vědomě**. Nejsou to rozdělané
+úkoly: u obou se měřením ukázalo, že další pokus by byl naslepo — chybí buď
+demonstrátor, nebo model, bez kterého se výsledek nedá ověřit. Obě mají
+funkční obchůzku a obě jsou v ⚠ panelu HLÁŠENÉ, takže uživatele nepřekvapí.
+Podmínky, které musí splnit každý budoucí pokus, jsou u nich sepsané —
+kdo je nesplní, zopakuje jen jeden z pěti zamítnutých pokusů.
+
+Vedle nich zůstává **jedna otevřená VADA** (bod 3 níž), která demonstrátor
+v repu má, takže se opravit dá — patří do samostatné práce, ne do migrace.
+
+1. **MEZ — hranice úseku leží ve středu údolí** (sekce níž). Dva pokusy
+   zamítnuty (8. 8. a 10. 8.). Druhý ZMĚŘIL, že zadání bylo jiné, než se
+   myslelo: **nejde o pokrytí** — levá půlka údolí se odebere stejně
+   s regiony (8 762 mm²) i bez nich (8 804 mm²) — jde o KOTVU ZANOŘENÍ, tedy
+   o to, že se do údolí vjíždí od poloviny. *Obchůzka:* vypnout `regionRoughing`
+   (rampy pak jdou od ústí) nebo nastavit Rozsah Z. *Podmínka pro další pokus:*
+   nechat celé údolí VLASTNIT jeden úsek (posouvat okraj okna se dvakrát
+   neosvědčilo) a **zachovat cap držáku na vjezdu** — jeho vyjmutí vyrobilo
+   nové kolize na 5 fixtures.
+2. **MEZ — pravá strana za přírubou (Z 271→366) se nehrubuje** (sekce níž).
+   Tři pokusy zamítnuty (10. 8.), každý změřen validátorem; všechny padly
+   stejně — na fixtures čisto, na dílu uživatele kolize držáku (0 → 42,8 mm²,
+   resp. 94,5 → 136,6 mm²). *Obchůzka (ověřená uživatelem 11. 8.):* nastavit
+   Start rozsahu Z za klín — úsek se obrobí se zanořením pod 15° a **0 kolizí**.
+   Odpovídá to tomu, jak uživatel dílem prochází, po úsecích.
+   *Podmínka pro další pokus:* vjezd **i celá jeho rampa** se musí prověřit
+   TÝMŽ Minkowského modelem proti DYNAMICKÉMU zbytku, jaký počítá
+   `validateToolpath` — statická silueta a bodová sonda si s ním nejsou
+   rovnocenné (ověřeno pokusem 2). Takový model v době plánování zatím není;
+   patří k odloženému plánovači pořadí. **Bez něj je to přepis naslepo** —
+   demonstrátor v repu je jen TŘÍDA té vady (part-11/12: 7 úseků neobrobeno,
+   nejdelší 102 mm), ne díl, na kterém předchozí pokusy padly.
 3. ~~**Nepřesnost `noteCutPass`**~~ — **OPRAVENO 12. 8. 2026** (viz ÚKLID
    bod 3). Model zbytku pro rychloposuvy hlásil povrch o 0,30–0,47 mm níž,
    než reálně zůstal, protože OBLOUKY trasovaných leadů se do něj psaly
    tětivou (sagitta). Po `noteCutArc` je odchylka ≤ 0,035 mm, výstup se
    nezměnil na žádné z 17 fixtures, hlídá `tests/cam-residual-model`.
-   **Zbývá z toho jen jedna nit:** part-8 a holder-region-roughing se
-   v izolovaném procesu rozcházejí o 3,3 / 4,5 mm z JINÉHO důvodu — emise
-   tam vydala jiné hloubky, než nese plán (part-8 u Z≈189,75 jede na X26,974,
-   plán věří X24,478/21,978, koncová Z shodná). Nedotčeno.
+   **Zbývá z toho jedna nit — a je to JEDINÁ ZNÁMÁ VADA, ne mez:** part-8
+   a holder-region-roughing se v izolovaném procesu rozcházejí o 3,3 / 4,5 mm
+   z jiného důvodu. Viz „Otevřená nit" hned pod tímhle seznamem.
+
+#### Otevřená nit: emise nevydala hloubku, kterou plán obsahuje
+
+Na rozdíl od dvou MEZÍ výš má tahle **demonstrátor přímo v repu**, takže se dá
+opravit i ověřit. Nechává se otevřená jen proto, že spadla mimo rozsah opravy
+oblouků, ne z rozhodnutí.
+
+**Reprodukce** (jeden proces na fixture — v sadě to singleton `S` zamaskuje):
+`part-8`, Z ≈ 189,75. Plán (`calc.passes`) obsahuje průchody na X24,478
+a X21,978 s koncem Z189,939 / Z190,867. Emitovaná dráha má u téhož Z bloky
+**na X26,974** (o jedno `ap` mělčeji), a to s TOUŽ koncovou Z — takže to
+nevypadá na jiné plánování, ale na to, že se u těch průchodů nevydal sjezd na
+hloubku a tělo se projelo modálním X předchozí vrstvy.
+
+**Proč je to nebezpečné:** model zbytku si ten záběr zapíše (plán ho má),
+takže si myslí, že materiál je pryč — a přesně tam pak smí pustit rychloposuv.
+Naměřený rozdíl model × realita: **3,3 mm** (part-8), **4,5 mm**
+(holder-region-roughing).
+
+**Vyloučeno měřením:** není to artefakt harnessu. `calc.passes` a
+`calcSim.passes` mají shodný obsah (jen jinou referenci), takže plán, který
+měřím, patří k programu, který se emitoval.
 
 Latentně (dnes neškodí, ale každý další spotřebitel na to musí myslet):
 `offsetLoopOf` v `roughingStrategies.js` bere z `polyOffset` jen komponentu
-`[0]` — viz „Zbývá (genuinní mezera)" na konci dokumentu.
+`[0]` — viz „MEZ (genuinní mezera)" na konci dokumentu.
 
 ### Uděláno na závěr (10. 8. 2026)
 
@@ -1308,12 +1352,17 @@ Hotovo (rychloposuv vzduchem se testuje proti ZBYTKU, 7. 8. 2026):
   schová. Táž mez drží 2 nálezy držáku na part-4/6/8/9. Zúžit ji lze jen
   změnou `rapidFootSlim`, což falešné poplachy vrátí.
 
-### ZBÝVÁ — hranice úseku leží ve STŘEDU údolí (nálezy 8. 8. 2026)
+### MEZ (nebude se opravovat) — hranice úseku leží ve STŘEDU údolí
 
-> **Priorita 1 pro další sezení.** Opakovaný nález uživatele („bere to od
-> prostředka", „tohle mi udělalo už tolik problémů"). Příčina je izolovaná
-> a reprodukovatelná, ale oprava JE VĚTŠÍ než jeden řádek — první pokus
-> selhal, viz níž. Fixtures: `part-13-zleva-flange.camprog` (v repu) a díl
+> **UZAVŘENO 12. 8. 2026 jako MEZ.** Dva pokusy zamítnuty a druhý z nich
+> ZMĚŘIL, že původní zadání bylo mylné: nejde o pokrytí (levá půlka údolí se
+> odebere stejně s regiony i bez nich), ale o kotvu zanoření. Obchůzka je
+> vypnout `regionRoughing` nebo nastavit Rozsah Z. Text níž zůstává jako
+> diagnostický záznam — čte se PŘED jakýmkoli třetím pokusem, ne jako
+> zadání práce.
+>
+> Opakovaný nález uživatele („bere to od prostředka"). Příčina je izolovaná
+> a reprodukovatelná. Fixtures: `part-13-zleva-flange.camprog` (v repu) a díl
 > uživatele `projekt_2026-08-08 (2).camprog` (údolí Z103–317, dno X44,5).
 
 **Co je špatně.** Hranice úseku se počítá jako **průměr plochého dna údolí**,
@@ -1434,7 +1483,15 @@ Série z bug-reportu nad `projekt_2026-08-10*.camprog` (= fixture
 - Testy `cam-leadout-air-rapid` „mezikrok/přesun v kapse" PŘEPOJENY z part-11
   na **part-4** (jejich vozidlo v part-11 byla právě ta duplicita).
 
-### ZBÝVÁ — pravá strana za přírubou (Z 271→366) se NEHRUBUJE
+### MEZ (nebude se opravovat) — pravá strana za přírubou (Z 271→366)
+
+> **UZAVŘENO 12. 8. 2026 jako MEZ.** Tři pokusy, tři měřené kolize držáku;
+> čtvrtý by byl naslepo, protože chybí model, kterým se dá VJEZD I RAMPA
+> ověřit už při plánování (dynamický zbytek, jaký má validátor), a v repu
+> není díl, na kterém předchozí pokusy padly. Ověřená obchůzka: **Start
+> rozsahu Z za klín** (0 kolizí, 3 průchody, maxZ 368,1). ⚠ panel to hlásí,
+> takže se to nikde neztratí. Zbytek sekce je záznam pro toho, kdo bude mít
+> dynamický plánovač pořadí.
 
 Uživatel trvá na tom, že tam zanoření JDE, a geometricky má pravdu: za přírubou
 Ø129 stojí polotovar jen na Ø43,6 a držák (20 mm axiálně, spodní hrana stoupá
@@ -1504,7 +1561,7 @@ končily na SYROVÉM polotovaru, ne na offsetové čáře.
   každá strana ví, co už je odebráno: emise z PLÁNOVANÉ geometrie průchodů
   (`noteCutPass`), validátor z reálně projeté `simPath`.
 
-Zbývá (genuinní mezera — order-dependent odlitek):
+MEZ (genuinní mezera — order-dependent odlitek, nebude se řešit):
 - **Skutečné přeplánování pořadí** (obrobit kůru nad zápichem DŘÍV, aby výjezd
   vedl vzduchem, ne posuvem skrz materiál): exit-split výše je jen bezpečný, ne
   optimální. Patří k odloženému dynamickému plánování pořadí (klasifikace bodů
