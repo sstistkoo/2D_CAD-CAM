@@ -42,15 +42,15 @@ na díl, kde budou skutečně vadit.
    za klín. Od 11. 8. je popsaná i správná cesta: neposílat tam vlastní vjezd,
    ale označit svislou hranici klínu za UMĚLOU HRANICI, aby se spustil hotový
    řetěz `entryCapped` → `entryRampAnchor` → `holderEntryCapZ`.
-3. **Nepřesnost `noteCutPass`** — plánovaný zbytek (`rapidStock`) hlásí povrch
-   níž, než po hrubování reálně zůstal, tedy na nebezpečnou stranu: podle něj
-   se pouštějí rychloposuvy. V dokončování je to jen OBEJITÉ (`finTopEps`).
-   **Ze všech tří otevřených položek jediná bezpečnostní.** ZMĚŘENO 12. 8.
-   (tabulka v ÚKLID bodu 3): chyba je 0,07–0,47 mm na běžných fixtures
-   a 3,3 mm na part-8; **nedělá ji přídavek** (fixtures s `allowanceX = 0` ji
-   mají taky), ale **trasované nájezdy/dojezdy** — plán registruje jejich
-   podobu PŘED ořezem a rozsekáním na rapid/posuv. Fix = zapisovat do modelu
-   skutečně emitované pohyby; mění G-kód, proto nezačat naslepo.
+3. ~~**Nepřesnost `noteCutPass`**~~ — **OPRAVENO 12. 8. 2026** (viz ÚKLID
+   bod 3). Model zbytku pro rychloposuvy hlásil povrch o 0,30–0,47 mm níž,
+   než reálně zůstal, protože OBLOUKY trasovaných leadů se do něj psaly
+   tětivou (sagitta). Po `noteCutArc` je odchylka ≤ 0,035 mm, výstup se
+   nezměnil na žádné z 17 fixtures, hlídá `tests/cam-residual-model`.
+   **Zbývá z toho jen jedna nit:** part-8 a holder-region-roughing se
+   v izolovaném procesu rozcházejí o 3,3 / 4,5 mm z JINÉHO důvodu — emise
+   tam vydala jiné hloubky, než nese plán (part-8 u Z≈189,75 jede na X26,974,
+   plán věří X24,478/21,978, koncová Z shodná). Nedotčeno.
 
 Latentně (dnes neškodí, ale každý další spotřebitel na to musí myslet):
 `offsetLoopOf` v `roughingStrategies.js` bere z `polyOffset` jen komponentu
@@ -242,11 +242,12 @@ Dvě zjištění, obě proti dosavadní domněnce:
    rozdíl = přesně přídavek — tedy jako obecné vysvětlení **neplatí**.
    `traceOffsetPath` navíc prokazatelně jede po HRUBOVACÍM offsetu
    (`makePassHelpers(offsetPath)` v `calculatePipeline.js`).
-2. **Skoro celou chybu dělají TRASOVANÉ nájezdy/dojezdy** (`contourLeadIn` /
-   `contourLeadOut`). Když se z plánu vynechají, chyba spadne pod 0,01 mm.
-   Sedí to: leady se před emisí ještě ořezávají (`trimLeadOutToStock`,
-   `holderTrimLeadIn/Out`) a sekají na rapid/posuv (`airSplitAxial`) — plán
-   ale registruje jejich PŮVODNÍ podobu.
+2. **Celou chybu dělají TRASOVANÉ nájezdy/dojezdy** (`contourLeadIn` /
+   `contourLeadOut`) — když se z modelu vynechají, spadne pod 0,01 mm.
+   PRVNÍ VYSVĚTLENÍ BYLO ŠPATNĚ: vypadalo to na rozdíl mezi plánovanou
+   a vydanou podobou leadu (ořez `trimLeadOutToStock`, rozsekání
+   `airSplitAxial`). Přepsání registrace na skutečně emitované pohyby ale
+   změřeno **nepomohlo** (part-1 0,301 → 0,296). Viz opravu níž.
 
 **Výjimka part-8** (jediná, kde leady nevysvětlují nic): u Z≈189,75 plán věří,
 že tam běžely průchody na X24,478 a X21,978, ale emitovaná dráha je tam na
@@ -254,12 +255,51 @@ Dvě zjištění, obě proti dosavadní domněnce:
 (189,939 / 190,867) sedí přesně. Emise tedy vydala jiné HLOUBKY, než plán
 obsahuje. To je samostatná otázka, ne tentýž mechanismus.
 
-**Fix, který z toho plyne** (nezačat — mění G-kód): registrovat do `rapidStock`
-to, co se SKUTEČNĚ emituje, ne plán — tj. přesunout zápis z `noteCutPass(pass)`
-do míst, kde se řezné pohyby vydávají (leady v `emitLeadOutLine`, tělo za
-`airSplitAxial`). Dotkne se to rozhodování `rapidHitsStock`, takže se změní
-rozdělení G0/G1 na fixtures a snapshoty obou regresních sad; měřit izolovaně
-per fixture.
+#### OPRAVENO (12. 8. 2026): oblouk se do modelu psal TĚTIVOU
+
+Skutečná příčina je geometrická, ne procesní. Oblouky trasovaných leadů se do
+`rapidStock` registrovaly **tětivou** (dva koncové body). Tětiva leží
+u vypuklého tvaru hlouběji v materiálu než skutečná dráha, takže model
+„odebral" navíc pásek o výšce **sagitty** — a to je přesně ta odchylka
+0,30–0,47 mm. Model si pak myslel, že materiál není, a podle toho pouštěl
+rychloposuvy.
+
+Diagnostická cesta (ať se neopakuje): rekonstrukce plánu v sondě ukázala, že
+bez leadů je chyba nulová → svedlo to na „plán × emise". Teprve měření
+SKUTEČNÉHO `rapidStock` přes seam ukázalo, že přepis na emitované pohyby
+nepomohl (0,301 → 0,296) a že vadí sám ZÁPIS oblouku.
+
+Opraveno v `gcodeEmit.js`: `noteCutArc` vzorkuje oblouk po ~0,1 mm tětivy
+(střed a úhly segment nese z `traceOffsetPath`), leady se registrují
+`noteCutMove`/`noteCutArc` **v místě emise** (tedy až po ořezu a rozsekání na
+rapid/posuv, což je věcně správně, i když samo o sobě nic neměřilo) a
+`noteCutPass` už drží jen tělo průchodu.
+
+| fixture | model × realita PŘED | PO |
+|---|---|---|
+| part-1 | 0,301 mm | **0,015** |
+| part-4 | 0,370 mm | **0,012** |
+| part-10-zapich | 0,474 mm | **0,034** |
+| part-14-finish-holder | 0,066 mm | **0,007** |
+| part-8 | 3,323 mm | 3,323 (jiná vada, viz výš) |
+| holder-region-roughing | 4,791 mm | 4,518 (totéž) |
+
+**Výstup se nezměnil na žádné ze 17 fixtures scan-line větve** — řádky, počty
+G0/G1, odebraný materiál i nálezy validátoru bit za bit stejné. Chyba byla
+latentní: na fixtures neposunula žádné rozhodnutí `rapidHitsStock`, ale na
+dílu, kde by se rychloposuv testoval přes takový pásek, by pustila `G0`
+materiálem.
+
+V BOOLEOVSKÉ větvi se hnula jediná fixture (`holder-region-roughing`):
+přísun se z „rapid Z → rapid X → diagonální posuv" změnil na „rapid Z → rapid
+X (o 0,33 mm výš, model ví o materiálu) → svislý posuv". Cena **+1,9 mm²**
+stojícího materiálu (0,05 %), nálezy validátoru IDENTICKÉ (2 rapid /
+270,6 mm², 0 držák — ty už tam byly). Snapshot vědomě přegenerován.
+
+Pojistka: **`tests/cam-residual-model.test.js`** — přes seam
+`globalThis.__RAPID_STOCK_DUMP__` (v produkci no-op, vzor `__REGION_LOG__`)
+porovná model s přehranou dráhou a hlídá jen NEBEZPEČNÝ směr (realita výš než
+model), mez 0,05 mm.
 
 #### Doplněk (11. 8. 2026): stopa má SMĚR — čelně se prodlužuje v Z
 

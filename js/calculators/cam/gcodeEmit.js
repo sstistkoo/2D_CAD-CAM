@@ -634,10 +634,55 @@ export function generateAutoGCode(S, calc) {
       if (++rapidStockCuts % 24 === 0) rapidStock.loops = polySimplify(rapidStock.loops, 0.002);
     } catch { /* model je jen pro rychloposuvy — pokračovat bez řezu */ }
   };
-  // Odebere z modelu materiál celého průchodu (řezné pohyby v pořadí
-  // emise: leadIn → rampa/vjezd → dno → leadOut). Rychloposuvy a odskoky
-  // se nezapočítávají — falešný „řez" by model podřezal a pustil
-  // rychloposuv skutečným materiálem.
+  // Jeden SKUTEČNĚ VYDANÝ řezný pohyb (z aktuální polohy do cílové).
+  // Volá se hned u emise, takže model dostane přesně to, co se pojede —
+  // po ořezu i po rozsekání na rapid/posuv. Oblouk se registruje tětivou,
+  // stejně jako ho registroval plán.
+  const noteCutMove = (x1, z1, x2, z2) => {
+    if (!rapidStock) return;
+    if (Math.hypot(x2 - x1, z2 - z1) < 1e-6) return;
+    noteCutPts([{ x: x1, z: z1 }, { x: x2, z: z2 }]);
+  };
+  // Oblouk se do modelu NESMÍ zapsat tětivou. Tětiva leží u vypuklého tvaru
+  // hlouběji v materiálu než skutečná dráha, takže model „odebere" pásek
+  // o výšce sagitty, který ve skutečnosti stojí — a to je nebezpečný směr
+  // (podle modelu se pouští rychloposuvy). Změřeno na fixtures: právě tohle
+  // dělalo 0,30–0,47 mm rozdílu proti realitě, ne domnělý přídavek.
+  // Vzorkuje se po ~0,1 mm tětivy; bez středu/úhlů (cizí producent segmentu)
+  // zůstane tětiva jako dřív.
+  const noteCutArc = (seg, fx, fz) => {
+    if (!rapidStock) return;
+    if (!Number.isFinite(seg.cx) || !Number.isFinite(seg.cz) || !(seg.r > 0)
+      || !Number.isFinite(seg.startAngle) || !Number.isFinite(seg.endAngle)) {
+      noteCutMove(fx, fz, seg.x2, seg.z2);
+      return;
+    }
+    const a0 = seg.startAngle;
+    let a1 = seg.endAngle;
+    if (seg.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+    if (seg.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
+    const n = Math.max(2, Math.min(64, Math.ceil(Math.abs(a1 - a0) * seg.r / 0.1)));
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const a = a0 + (a1 - a0) * (i / n);
+      pts.push({ x: seg.cx + Math.sin(a) * seg.r, z: seg.cz + Math.cos(a) * seg.r });
+    }
+    noteCutPts(pts);
+  };
+  // Odebere z modelu materiál TĚLA průchodu (vjezd/rampa → dno).
+  // Rychloposuvy a odskoky se nezapočítávají — falešný „řez" by model
+  // podřezal a pustil rychloposuv skutečným materiálem.
+  //
+  // TRASOVANÉ NÁJEZDY A DOJEZDY (`contourLeadIn`/`contourLeadOut`) SE SEM
+  // NEPOČÍTAJÍ (12. 8. 2026). Plánovaná podoba leadu není ta vydaná: před
+  // emisí se ještě ořezává na hranu materiálu (`trimLeadOutToStock`,
+  // `holderTrimLeadIn/Out`) a rozsekává na rychloposuv/posuv
+  // (`airSplitAxial`), takže model „odebíral" i to, co se nikdy neprojelo.
+  // Změřeno na fixtures: povrch v modelu ležel až o 0,30–0,47 mm níž, než
+  // po hrubování reálně zůstal — a to je NEBEZPEČNÝ směr, protože podle
+  // tohohle modelu se pouští rychloposuvy. Bez leadů spadla ta odchylka
+  // pod 0,01 mm. Leady se proto registrují až v místě emise přes
+  // `noteCutMove` (viz emitLeadOutLine a smyčky leadIn/leadOut níž).
   const noteCutPass = (pass) => {
     if (!rapidStock) return;
     const pts = [];
@@ -649,26 +694,14 @@ export function generateAutoGCode(S, calc) {
     if (pass.type === 'face') {
       push(pass.xStart, pass.z);
       push(pass.xEnd, pass.z);
-      // Dojezd „bez schodků" (čelně po obálce/kontuře) taky řeže — bez něj
-      // model zbytku drží materiál, který je dávno pryč, a další průchod
-      // kvůli němu zbytečně vyjíždí nad polotovar.
-      if (pass.contourLeadOut) {
-        for (const s of pass.contourLeadOut) { push(s.x1, s.z1); push(s.x2, s.z2); }
-      }
     } else {
-      const li = pass.contourLeadIn || [];
-      if (li.length > 0) {
-        for (const s of li) { push(s.x1, s.z1); push(s.x2, s.z2); }
-      } else if (pass.rampFeedFrom) {
+      if (pass.rampFeedFrom) {
         push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
       } else if (pass.ramp) {
         push(pass.ramp.x0, pass.ramp.z0);
       }
       push(pass.x, pass.zStart);
       push(pass.x, pass.zEnd);
-      if (pass.contourLeadOut) {
-        for (const s of pass.contourLeadOut) { push(s.x1, s.z1); push(s.x2, s.z2); }
-      }
     }
     noteCutPts(pts);
   };
@@ -713,15 +746,20 @@ export function generateAutoGCode(S, calc) {
     // posuv na konec úsečky — i když by vyšel „vzduch": ořez celého úseku
     // řeší trimLeadOutToStock výš, ne tenhle rozklad.
     if (!segs || segs.length === 0 || (segs.length === 1 && segs[0].kind === 'G0')) {
+      const fx = cur.x, fz = cur.z;
       simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+      noteCutMove(fx, fz, seg.x2, seg.z2);
       return;
     }
     for (const s of segs) {
+      const fx = cur.x, fz = cur.z;
       simCounter += 1;
       addN(s.kind === 'G0'
         ? `G0 X${xDia(seg.x2)} Z${s.z.toFixed(3)}`
         : `G1 X${xDia(seg.x2)} Z${s.z.toFixed(3)} F${prms.feed}`, simCounter);
       setPos(seg.x2, s.z);
+      // Rychloposuvem vzduchem se nic neodebírá — do modelu jde jen posuv.
+      if (s.kind !== 'G0') noteCutMove(fx, fz, seg.x2, s.z);
     }
   };
   // Výchozí poloha = bezpečná poloha z úvodního G0 (programované souř.).
@@ -919,10 +957,13 @@ export function generateAutoGCode(S, calc) {
         safeRapidTo(entry.x, entry.z, true);
       }
       for (const seg of li) {
+        const fx = cur.x, fz = cur.z;
         if (seg.type === 'line') {
           simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          noteCutMove(fx, fz, seg.x2, seg.z2);
         } else {
           simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          noteCutArc(seg, fx, fz);
         }
       }
       if (pass.ramp) {
@@ -1077,7 +1118,9 @@ export function generateAutoGCode(S, calc) {
           if (seg.type === 'line') {
             emitLeadOutLine(seg);
           } else {
+            const fx = cur.x, fz = cur.z;
             simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            noteCutArc(seg, fx, fz);
           }
         }
       }
@@ -1180,7 +1223,9 @@ export function generateAutoGCode(S, calc) {
             // — to se drží dílu, tam žádný vzduch nepřipadá v úvahu.
             emitLeadOutLine(seg);
           } else {
+            const fx = cur.x, fz = cur.z;
             simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            noteCutArc(seg, fx, fz);
           }
         }
         // Dojezd končící AXIÁLNĚ (rovný úsek na hloubce průchodu, typicky
@@ -1263,10 +1308,13 @@ export function generateAutoGCode(S, calc) {
         // Bez schodků: dál po kontuře (G1/G2/G3) v pásu Z∈[z−ap, z]
         // místo okamžitého odskoku — schod se obrobí přímo po obrysu.
         for (const seg of pass.contourLeadOut) {
+          const fx = cur.x, fz = cur.z;
           if (seg.type === 'line') {
             simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            noteCutMove(fx, fz, seg.x2, seg.z2);
           } else {
             simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+            noteCutArc(seg, fx, fz);
           }
         }
       }
@@ -1675,5 +1723,12 @@ export function generateAutoGCode(S, calc) {
     if (p.type === 'G2' || p.type === 'G3') line += ` ${arcR(p.r)}`;
     addCmt(line);
   });
+  // Diagnostický seam (v produkci no-op, vzor `__REGION_LOG__`): model
+  // zbytkového polotovaru, podle kterého se rozhodovaly rychloposuvy.
+  // Test `cam-residual-model` ho porovnává s reálně projetou dráhou —
+  // rozejít se smějí jen tam, kde je to změřené a přišpendlené.
+  if (globalThis.__RAPID_STOCK_DUMP__ && rapidStock) {
+    globalThis.__RAPID_STOCK_DUMP__.push(rapidStock.loops.map(l => l.map(q => ({ x: q.x, z: q.z }))));
+  }
   return lines;
 }

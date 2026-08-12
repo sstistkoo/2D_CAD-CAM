@@ -265,6 +265,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nová fixture `part-16-face-holder` + `tests/cam-face-holder.test.js`.
 
 ### Fixed
+- **Model zbytkového polotovaru si „odebíral" materiál, který stál — oblouky
+  se do něj psaly tětivou.** Podle tohohle modelu se rozhoduje, jestli smí
+  jet rychloposuv. Oblouky trasovaných nájezdů a dojezdů se do něj
+  registrovaly jen dvěma koncovými body, a tětiva leží u vypuklého tvaru
+  hlouběji v materiálu než skutečná dráha — model tak spolkl pásek o výšce
+  sagitty a myslel si, že je tam vzduch. Změřeno proti reálně projeté dráze:
+  povrch v modelu ležel o **0,30–0,47 mm** níž, než po hrubování zůstal.
+  Nově se oblouk vzorkuje po ~0,1 mm a trasované leady se do modelu zapisují
+  až v místě emise (tedy po ořezu na hranu materiálu a po rozsekání na
+  rychloposuv/posuv). Odchylka klesla na ≤ 0,035 mm. **Vygenerovaný G-kód se
+  nezměnil na žádné ze 17 fixtures** — vada byla latentní, ale na dílu, kde
+  by rychloposuv přes takový pásek vedl, znamenala `G0` materiálem.
+  (V experimentální booleovské větvi se u jedné fixture změnil tvar přísunu:
+  místo diagonálního posuvu jde svislý, protože model teď o materiálu ví —
+  o 1,9 mm² méně odebráno, kolizní nálezy stejné.)
+  Pojistka `tests/cam-residual-model.test.js`.
 - **Dobírání kapsy lezlo do prohlubně, kam se držák nevejde.** Dočišťovací
   trasy kapes hlídá záměrně jen MĚKKÁ obálka držáku (podél stěn se drhnutí
   o přídavkovou slupku toleruje, jinak by dno široké kapsy bylo
