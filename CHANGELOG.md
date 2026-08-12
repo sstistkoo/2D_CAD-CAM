@@ -265,6 +265,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nová fixture `part-16-face-holder` + `tests/cam-face-holder.test.js`.
 
 ### Fixed
+- **Vrstva se nikdy neodebrala, protože chyběl sjezd na hloubku.** Průchod
+  typu „kapsa po kontuře" najíždí po obrysu; leží-li kontura v místě vjezdu
+  výš než plánovaná vrstva, nájezd skončí NAD ní. Tělo se pak emitovalo jako
+  `G1 Z…` bez X, tedy modálně o ten rozdíl mělčeji — na jednom dílu přesně
+  o celou Hloubku (ap). Materiál zůstal stát, model si ho přesto odečetl
+  a odskok se počítal ze lživé polohy (vyjel 0,5 mm POD nástroj). Nově se na
+  hloubku sjede, ale jen když se tam **vejde držák** (testuje se týmž obrysem
+  jako ve validátoru); jinak průchod zůstane na hloubce nájezdu a ⚠ panel to
+  ohlásí. Odebráno o 3–8 mm² víc na třech dílech, žádné nové kolize.
 - **Model zbytkového polotovaru si „odebíral" materiál, který stál — oblouky
   se do něj psaly tětivou.** Podle tohohle modelu se rozhoduje, jestli smí
   jet rychloposuv. Oblouky trasovaných nájezdů a dojezdů se do něj

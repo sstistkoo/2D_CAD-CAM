@@ -40,8 +40,9 @@ funkční obchůzku a obě jsou v ⚠ panelu HLÁŠENÉ, takže uživatele nepř
 Podmínky, které musí splnit každý budoucí pokus, jsou u nich sepsané —
 kdo je nesplní, zopakuje jen jeden z pěti zamítnutých pokusů.
 
-Vedle nich zůstává **jedna otevřená VADA** (bod 3 níž), která demonstrátor
-v repu má, takže se opravit dá — patří do samostatné práce, ne do migrace.
+**Otevřená vada nezůstává žádná.** Obě, které se během uzavírání našly
+(oblouk psaný tětivou a chybějící sjezd z trasovaného nájezdu na hloubku),
+jsou opravené a pokryté `tests/cam-residual-model.test.js`.
 
 1. **MEZ — hranice úseku leží ve středu údolí** (sekce níž). Dva pokusy
    zamítnuty (8. 8. a 10. 8.). Druhý ZMĚŘIL, že zadání bylo jiné, než se
@@ -70,31 +71,48 @@ v repu má, takže se opravit dá — patří do samostatné práce, ne do migra
    než reálně zůstal, protože OBLOUKY trasovaných leadů se do něj psaly
    tětivou (sagitta). Po `noteCutArc` je odchylka ≤ 0,035 mm, výstup se
    nezměnil na žádné z 17 fixtures, hlídá `tests/cam-residual-model`.
-   **Zbývá z toho jedna nit — a je to JEDINÁ ZNÁMÁ VADA, ne mez:** part-8
-   a holder-region-roughing se v izolovaném procesu rozcházejí o 3,3 / 4,5 mm
-   z jiného důvodu. Viz „Otevřená nit" hned pod tímhle seznamem.
+   Druhá půlka téhož (part-8 a holder-region 3,3 / 4,5 mm) byla **OPRAVENA
+   taky 12. 8.**: trasovanému nájezdu chyběl sjezd na hloubku vrstvy, takže se
+   tělo projelo modálně mělčeji, než plán tvrdil. Po opravě ≤ 0,03 mm —
+   viz sekci pod tímhle seznamem. **Otevřená vada tím nezůstává žádná.**
 
-#### Otevřená nit: emise nevydala hloubku, kterou plán obsahuje
+#### OPRAVENO (12. 8. 2026): chyběl sjezd z trasovaného nájezdu na hloubku
 
-Na rozdíl od dvou MEZÍ výš má tahle **demonstrátor přímo v repu**, takže se dá
-opravit i ověřit. Nechává se otevřená jen proto, že spadla mimo rozsah opravy
-oblouků, ne z rozhodnutí.
+**Co se dělo.** „Kapsa po kontuře" najíždí trasou `traceOffsetPath`. Ta
+sleduje konturu — a leží-li kontura v místě vjezdu VÝŠ než plánovaná vrstva,
+lead skončí nad ní. Tělo se přitom emituje jako `G1 Z…` **bez X**, takže se
+projelo modálně o ten rozdíl mělčeji, zatímco `setPos(pass.x, …)` tvrdil, že
+nástroj na hloubce je. Na `part-8` (Z ≈ 189,75) lead končil na X26,974,
+průchod plánoval X24,478 — přesně o jedno `ap`. Vrstva se neodebrala, model
+si ji odečetl, a navazující odskok se počítal ze lživé polohy (vyjel na
+X26,478, tedy 0,5 mm POD skutečnou polohou nástroje).
 
-**Reprodukce** (jeden proces na fixture — v sadě to singleton `S` zamaskuje):
-`part-8`, Z ≈ 189,75. Plán (`calc.passes`) obsahuje průchody na X24,478
-a X21,978 s koncem Z189,939 / Z190,867. Emitovaná dráha má u téhož Z bloky
-**na X26,974** (o jedno `ap` mělčeji), a to s TOUŽ koncovou Z — takže to
-nevypadá na jiné plánování, ale na to, že se u těch průchodů nevydal sjezd na
-hloubku a tělo se projelo modálním X předchozí vrstvy.
+**Oprava** (`gcodeEmit.js`): před tělem se dojede na hloubku vrstvy přes
+`emitDescendX` (rychloposuv končí nad povrchem zbytku, poslední kus posuvem —
+stejné pravidlo jako všude jinde). Sjezd se ale **nedělá naslepo**: nejdřív
+se týmž zeštíhleným obrysem držáku a proti témuž zbytku jako ve validátoru
+ověří, že se tam držák vejde. Když ne, tělo zůstane na hloubce nájezdu —
+a hlavně se to tak i zapíše do modelu (`emitBodyX`), takže si zbytek
+nepřipíše vrstvu, která se neodebrala. Ta situace se navíc HLÁSÍ v ⚠ panelu.
 
-**Proč je to nebezpečné:** model zbytku si ten záběr zapíše (plán ho má),
-takže si myslí, že materiál je pryč — a přesně tam pak smí pustit rychloposuv.
-Naměřený rozdíl model × realita: **3,3 mm** (part-8), **4,5 mm**
-(holder-region-roughing).
+| fixture | model × realita PŘED | PO | zbytek |
+|---|---|---|---|
+| part-8 | 3,323 mm | **0,012** | −3,2 mm² |
+| holder-region-roughing | 4,518 mm | **0,029** | −6,1 mm² |
+| holder-casting-slanted-face | — | **0,000** | −7,5 mm² |
 
-**Vyloučeno měřením:** není to artefakt harnessu. `calc.passes` a
-`calcSim.passes` mají shodný obsah (jen jinou referenci), takže plán, který
-měřím, patří k programu, který se emitoval.
+Vynucený sjezd BEZ testu držáku byl změřen taky: na part-8 vyrobil **2 nové
+kolize držáku**. Proto ta podmínka — plán tam hloubku chce, ale nůž se tam
+s držákem nevejde.
+
+Dopad na výstup: 3 fixtures z 22, po +4 řádcích. Diff snapshotů je po
+normalizaci N-čísel **jen PŘIDANÉ řádky** (`G0 X<hloubka+vůle>` +
+`G1 X<hloubka>`), nic odebraného ani změněného — nikde jinde se dráha nehnula
+a nálezy validátoru zůstaly beze změny.
+
+**Vyloučeno měřením (diagnostika):** nebyl to artefakt harnessu — `calc.passes`
+a `calcSim.passes` mají shodný obsah, takže měřený plán patří k emitovanému
+programu.
 
 Latentně (dnes neškodí, ale každý další spotřebitel na to musí myslet):
 `offsetLoopOf` v `roughingStrategies.js` bere z `polyOffset` jen komponentu

@@ -683,6 +683,32 @@ export function generateAutoGCode(S, calc) {
   // tohohle modelu se pouští rychloposuvy. Bez leadů spadla ta odchylka
   // pod 0,01 mm. Leady se proto registrují až v místě emise přes
   // `noteCutMove` (viz emitLeadOutLine a smyčky leadIn/leadOut níž).
+  // Skutečná hloubka, na které se tělo průchodu projelo — liší se od
+  // `pass.x` jen tam, kde trasovaný nájezd skončí nad vrstvou a držák
+  // nepustí sjezd na ni (viz „kapsa po kontuře" v emisi níž). Model zbytku
+  // pak MUSÍ odečíst tu skutečnou, ne plánovanou.
+  const emitBodyX = new Map();
+  let holderShallowBodies = 0;
+  // Obrys držáku zeštíhlený o 0,05 mm — týž, jakým měří validátor (a blok
+  // dokončování níž). Lazy, protože bez „Hlídat geometrii" se nepoužije.
+  let holderShrunkRef;
+  const holderShrunkLoop = () => {
+    if (holderShrunkRef === undefined) {
+      const hl = prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__
+        ? holderWorldLoop(prms, roughingKey(S) === 'backside') : null;
+      holderShrunkRef = hl ? (polyOffset([hl], -0.05)[0] || hl) : null;
+    }
+    return holderShrunkRef;
+  };
+  // Narazí držák do zbytku, když nástroj projede úsek `pts`? (Stejný práh
+  // 0,5 mm² jako u `rapidHitsStock` i ve validátoru.)
+  const holderHitsStock = (pts) => {
+    const h = holderShrunkLoop();
+    if (!h || !rapidStock) return false;
+    try {
+      return Math.abs(polyArea(rapidStock.collide(toolSweep(h, pts)))) > 0.5;
+    } catch { return false; }
+  };
   const noteCutPass = (pass) => {
     if (!rapidStock) return;
     const pts = [];
@@ -695,13 +721,14 @@ export function generateAutoGCode(S, calc) {
       push(pass.xStart, pass.z);
       push(pass.xEnd, pass.z);
     } else {
+      const bodyX = emitBodyX.get(pass) ?? pass.x;
       if (pass.rampFeedFrom) {
         push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
       } else if (pass.ramp) {
         push(pass.ramp.x0, pass.ramp.z0);
       }
-      push(pass.x, pass.zStart);
-      push(pass.x, pass.zEnd);
+      push(bodyX, pass.zStart);
+      push(bodyX, pass.zEnd);
     }
     noteCutPts(pts);
   };
@@ -1085,11 +1112,41 @@ export function generateAutoGCode(S, calc) {
         }
       }
       if (Math.abs(pass.zStart - pass.zEnd) > 1e-6) {
+        // Trasovaný nájezd po kontuře NEMUSÍ dojet až na hloubku vrstvy:
+        // `traceOffsetPath` sleduje konturu, a leží-li ta v místě vjezdu výš
+        // než plánovaná vrstva, lead skončí NAD ní. Tělo se přitom emituje
+        // jako `G1 Z…` BEZ X (modálně), takže se projelo o ten rozdíl
+        // mělčeji — a `setPos(pass.x, …)` níž přitom tvrdil, že nástroj na
+        // hloubce JE. Naměřeno na part-8: lead končí na X26,974, průchod
+        // plánuje X24,478 (přesně o jedno ap) → vrstva zůstala neodebraná,
+        // ale model zbytku si ji odečetl (3,3 mm rozdíl proti realitě, tedy
+        // na nebezpečnou stranu — podle modelu se pouští rychloposuvy).
+        // Sjezd jde přes `emitDescendX`, takže platí totéž pravidlo jako
+        // všude jinde: rychloposuv končí nad povrchem zbytku a poslední kus
+        // se dojede posuvem.
+        // Sjezd se ale nesmí udělat naslepo: na part-8 se do té hloubky
+        // nevejde DRŽÁK (změřeno — vynucený sjezd tam vyrobil 2 kolize).
+        // Testuje se týmž zeštíhleným obrysem a proti témuž zbytku jako ve
+        // validátoru. Když se nevejde, zůstane se na hloubce leadu a tělo
+        // pojede TAM — a hlavně se to tak i zapíše do modelu (`emitBodyX`),
+        // takže si zbytek nepřipíše vrstvu, která se neodebrala.
+        let bodyX = pass.x;
+        if (cur.x - pass.x > 1e-6) {
+          const deep = [{ x: pass.x, z: pass.zStart }, { x: pass.x, z: pass.zEnd }];
+          if (holderHitsStock(deep)) {
+            bodyX = cur.x;
+            holderShallowBodies += 1;
+          } else {
+            emitDescendX(cur.x, pass.x, cur.z, true);
+            setPos(pass.x, cur.z);
+          }
+          emitBodyX.set(pass, bodyX);
+        }
         // Rovné dno za rampou — stejně jako tělo otevřeného průchodu se seká
         // na rychloposuv(vzduch)/posuv(materiál) podle siluety odlitku: krok
         // řetězu dorampování běží až na stěnu kontury a po cestě může přejet
         // celé údolí, kde nástroj nemá co řezat.
-        const rampBody = airSplitAxial(pass.x, pass.zStart, pass.zEnd, Math.sign(pass.zEnd - pass.zStart) || zDir);
+        const rampBody = airSplitAxial(bodyX, pass.zStart, pass.zEnd, Math.sign(pass.zEnd - pass.zStart) || zDir);
         // KONCOVÝ vzduch se nejezdí (stejně jako u otevřeného průchodu níž):
         // za posledním řezem už polotovar nesahá a cíl kroku může ležet
         // desítky mm v prázdnu (reálný nález na díle uživatele: `G0 Z349`
@@ -1101,11 +1158,11 @@ export function generateAutoGCode(S, calc) {
           // Táž pojistka jako u těla otevřeného průchodu níž: „vzduch" podle
           // statické siluety nemusí být vzduch proti AKTUÁLNÍMU zbytku
           // (po zanoření do kapsy tu stojí materiál, který silueta nezná).
-          const hitsStock = s.kind === 'G0' && rapidHitsStock(pass.x, cur.z, pass.x, s.z);
+          const hitsStock = s.kind === 'G0' && rapidHitsStock(bodyX, cur.z, bodyX, s.z);
           addN(s.kind === 'G0' && !hitsStock
             ? `G0 Z${s.z.toFixed(3)}`
             : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? ' ; Přejezd materiálem posuvem' : ''}`, simCounter);
-          setPos(pass.x, s.z);
+          setPos(bodyX, s.z);
         }
       }
       if (pass.contourLeadOut) {
@@ -1723,6 +1780,12 @@ export function generateAutoGCode(S, calc) {
     if (p.type === 'G2' || p.type === 'G3') line += ` ${arcR(p.r)}`;
     addCmt(line);
   });
+  // Vrstva, na kterou trasovaný nájezd nedojel a držák nepustil sjezd na ni,
+  // se projede mělcéji — uživatel se to musí dozvědět (tiché zahazování
+  // hloubek už jednou stálo dlouhé hledání, viz docs/geometry-libs-migration).
+  if (holderShallowBodies > 0 && S.genNotes) {
+    S.genNotes.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${holderShallowBodies} průchod(ů) po kontuře zůstal(y) na hloubce nájezdu — sjezd na plnou hloubku vrstvy by zavezl držák do materiálu. Ten zbytek patří jinému upnutí/nástroji.` });
+  }
   // Diagnostický seam (v produkci no-op, vzor `__REGION_LOG__`): model
   // zbytkového polotovaru, podle kterého se rozhodovaly rychloposuvy.
   // Test `cam-residual-model` ho porovnává s reálně projetou dráhou —

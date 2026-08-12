@@ -13,12 +13,12 @@
 // model „odebral" pásek o výšce sagitty, který ve skutečnosti zůstal stát.
 // Po opravě (`noteCutArc` vzorkuje oblouk) je odchylka ≤ 0,035 mm.
 //
-// POZOR na dvě fixtures, které mají JINOU, dosud neopravenou vadu: part-8
-// a holder-region-roughing se rozcházejí o jednotky mm, protože emise tam
-// vydala jiné HLOUBKY, než jaké nese plán (na part-8 u Z≈189,75 jede dráha
-// na X26,974, kdežto plán věří průchodům na X24,478/21,978 — o jedno ap
-// mělčeji, při shodných koncových Z). Jsou tu PŘIŠPENDLENÉ, ne skryté:
-// až se to opraví, čísla spadnou a test si řekne o úpravu.
+// Druhý nález (12. 8. 2026): trasovaný nájezd po kontuře nemusí dojet až na
+// hloubku vrstvy a tělo se emituje jako `G1 Z…` BEZ X, tedy modálně mělčeji —
+// zatímco `setPos(pass.x, …)` tvrdil opak. Na part-8 se tak vrstva X24,478
+// vůbec neodebrala, ale model si ji připsal (rozdíl 3,3 mm; holder-region
+// 4,5 mm). Emise teď na hloubku sjede, a když tam držák nepustí, zůstane na
+// hloubce nájezdu a MODEL SE TO DOZVÍ (`emitBodyX`). Po opravě ≤ 0,03 mm.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -106,15 +106,16 @@ describe('model zbytku pro rychloposuvy nelže o materiálu', () => {
     }, 120000);
   }
 
-  // part-8 tu drží stejnou mez jako ostatní, a to schválně: jeho 3,3mm vada
-  // (jiné hloubky v emisi než v plánu) se objeví jen v IZOLOVANÉM procesu.
-  // V sadě si singleton `S` přenese params z předchozích fixtures, program
-  // vyjde jiný a rozdíl spadne na 0,012 mm — přišpendlit sem „> 1 mm" by byl
-  // test závislý na pořadí souborů. Ta vada je změřená a popsaná
-  // v docs/geometry-libs-migration.md (postup: jeden proces na fixture).
-  it('part-8: v sadě drží paritu jako ostatní', async () => {
-    const { worst, worstZ } = await worstOvercut('part-8');
-    expect(worst, `model o ${worst.toFixed(3)} mm níž než realita @Z${worstZ}`)
-      .toBeLessThanOrEqual(0.05);
-  }, 120000);
+  // Fixtures, kde lead nedojel na hloubku vrstvy (druhý nález). Izolovaně
+  // měly 3,3 / 4,5 mm, po opravě 0,012 / 0,029 — proto stejná mez jako výš.
+  // POZOR při ladění: v sadě singleton `S` přenese params z předchozích
+  // fixtures a část vad se zamaskuje; reprodukce je JEDEN PROCES NA FIXTURE
+  // (postup v docs/geometry-libs-migration.md).
+  for (const name of ['part-8', 'holder-region-roughing', 'holder-casting-slanted-face']) {
+    it(`${name}: model není níž než realita`, async () => {
+      const { worst, worstZ } = await worstOvercut(name);
+      expect(worst, `model o ${worst.toFixed(3)} mm níž než realita @Z${worstZ}`)
+        .toBeLessThanOrEqual(0.05);
+    }, 120000);
+  }
 });
