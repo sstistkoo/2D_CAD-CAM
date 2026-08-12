@@ -42,13 +42,15 @@ na díl, kde budou skutečně vadit.
    za klín. Od 11. 8. je popsaná i správná cesta: neposílat tam vlastní vjezd,
    ale označit svislou hranici klínu za UMĚLOU HRANICI, aby se spustil hotový
    řetěz `entryCapped` → `entryRampAnchor` → `holderEntryCapZ`.
-3. **Nepřesnost `noteCutPass`** (Fáze 3b, bod (c2)) — zbytkový model hlásí
-   u průchodů SLEDUJÍCÍCH KONTURU povrch až o PŘÍDAVEK níž, než po hrubování
-   reálně zůstal. V dokončování je to jen OBEJITÉ (`finTopEps`); samotná
-   nepřesnost trvá a míří na nebezpečnou stranu (model si myslí, že materiál
-   už není) — týká se tedy i rychloposuvů, ne jen dokončování. Na fixtures ji
-   validátor drah nechytá. **Ze všech tří otevřených položek jediná
-   bezpečnostní.**
+3. **Nepřesnost `noteCutPass`** — plánovaný zbytek (`rapidStock`) hlásí povrch
+   níž, než po hrubování reálně zůstal, tedy na nebezpečnou stranu: podle něj
+   se pouštějí rychloposuvy. V dokončování je to jen OBEJITÉ (`finTopEps`).
+   **Ze všech tří otevřených položek jediná bezpečnostní.** ZMĚŘENO 12. 8.
+   (tabulka v ÚKLID bodu 3): chyba je 0,07–0,47 mm na běžných fixtures
+   a 3,3 mm na part-8; **nedělá ji přídavek** (fixtures s `allowanceX = 0` ji
+   mají taky), ale **trasované nájezdy/dojezdy** — plán registruje jejich
+   podobu PŘED ořezem a rozsekáním na rapid/posuv. Fix = zapisovat do modelu
+   skutečně emitované pohyby; mění G-kód, proto nezačat naslepo.
 
 Latentně (dnes neškodí, ale každý další spotřebitel na to musí myslet):
 `offsetLoopOf` v `roughingStrategies.js` bere z `polyOffset` jen komponentu
@@ -214,6 +216,50 @@ je to rozdíl mezi tím, JAK KAŽDÁ STRANA VÍ, co už je odebráno: emise si z
 vede z PLÁNOVANÉ geometrie průchodů (`noteCutPass` = leadIn → rampa → dno →
 leadOut), validátor z reálně projeté `simPath`. Kdo to bude chtít dorazit, musí
 sblížit tyhle dva modely zbytku, ne obrysy nástroje.
+
+#### ZMĚŘENO (12. 8. 2026): odkud se nepřesnost `noteCutPass` bere
+
+Sonda staví OBA modely ze stejného polotovaru a stejným obrysem
+(`toolFootprint`): plán z `calc.passes` přesně podle `noteCutPass`, realitu
+přehráním řezných bloků `calcSim.simPath` (jako `validateToolpath`). Měří se
+`realita − plán` na povrchu po 0,25 mm v Z — kladné číslo = **model si myslí,
+že materiál už není, a přitom stojí** (nebezpečný směr, podle tohohle se pouští
+rychloposuvy).
+
+| fixture | max Δ (plný plán) | max Δ (plán BEZ trasovaných nájezdů/dojezdů) |
+|---|---|---|
+| part-1 | 0,301 mm | 0,006 mm |
+| part-4 | 0,370 mm | 0,000 mm |
+| part-10-zapich | 0,474 mm | 0,003 mm |
+| part-14-finish-holder | 0,066 mm | 0,004 mm |
+| part-8 | 3,323 mm | **3,323 mm** |
+
+Dvě zjištění, obě proti dosavadní domněnce:
+
+1. **Není to přídavek.** Čtyři z pěti fixtures mají `allowanceX = 0` a chybu
+   mají; jediná s přídavkem 0,4 (part-14) má chybu NEJMENŠÍ (0,066). Hypotéza
+   z bodu (c2) — „jako by `noteCutPass` registroval úseky po hotovní čáře",
+   rozdíl = přesně přídavek — tedy jako obecné vysvětlení **neplatí**.
+   `traceOffsetPath` navíc prokazatelně jede po HRUBOVACÍM offsetu
+   (`makePassHelpers(offsetPath)` v `calculatePipeline.js`).
+2. **Skoro celou chybu dělají TRASOVANÉ nájezdy/dojezdy** (`contourLeadIn` /
+   `contourLeadOut`). Když se z plánu vynechají, chyba spadne pod 0,01 mm.
+   Sedí to: leady se před emisí ještě ořezávají (`trimLeadOutToStock`,
+   `holderTrimLeadIn/Out`) a sekají na rapid/posuv (`airSplitAxial`) — plán
+   ale registruje jejich PŮVODNÍ podobu.
+
+**Výjimka part-8** (jediná, kde leady nevysvětlují nic): u Z≈189,75 plán věří,
+že tam běžely průchody na X24,478 a X21,978, ale emitovaná dráha je tam na
+**X26,974** — o jedno `ap` (2,5 mm) mělčeji, přičemž koncová Z obou průchodů
+(189,939 / 190,867) sedí přesně. Emise tedy vydala jiné HLOUBKY, než plán
+obsahuje. To je samostatná otázka, ne tentýž mechanismus.
+
+**Fix, který z toho plyne** (nezačat — mění G-kód): registrovat do `rapidStock`
+to, co se SKUTEČNĚ emituje, ne plán — tj. přesunout zápis z `noteCutPass(pass)`
+do míst, kde se řezné pohyby vydávají (leady v `emitLeadOutLine`, tělo za
+`airSplitAxial`). Dotkne se to rozhodování `rapidHitsStock`, takže se změní
+rozdělení G0/G1 na fixtures a snapshoty obou regresních sad; měřit izolovaně
+per fixture.
 
 #### Doplněk (11. 8. 2026): stopa má SMĚR — čelně se prodlužuje v Z
 
