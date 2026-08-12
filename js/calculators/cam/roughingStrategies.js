@@ -617,7 +617,7 @@ export function genLongPasses(ctx) {
   const stockLoopOffsetFullL = (stockLoopFullL === stockLoopL)
     ? stockLoopOffsetL : offsetLoopOf(stockLoopFullL);
   // Max X vůlí-posunuté siluety na dané Z (stejný vzor jako
-  // castingTopXAtZOffset v gcodeEmit.js, nad stockLoopOffsetL místo
+  // planTopXAtZ v gcodeEmit.js, nad stockLoopOffsetL místo
   // stockLoop0OffsetRef) — offsetová čára pro vjezd na hranici rozsahu Z.
   const topXOnLoop = (loop, z) => {
     if (!loop) return null;
@@ -808,7 +808,7 @@ export function genLongPasses(ctx) {
   // viz findSteepCorner níže) se pokračuje DOLŮ/DOVNITŘ přímkou pod úhlem
   // zanoření, dokud neopustí VŮLÍ-POSUNUTOU siluetu odlitku (stockLoopOffsetL
   // — stejnou offsetovou čáru jako v náhledu/simulátoru, viz
-  // castingTopXAtZOffset v gcodeEmit.js). Používá se pro dojezd „bez
+  // planTopXAtZ v gcodeEmit.js). Používá se pro dojezd „bez
   // schodků" u strmé stěny, kde by sledování PŘESNÉHO obrysu
   // (traceOffsetPath) muselo kopírovat celou výšku stěny (reálný nález na
   // díle uživatele — stěna skoro svislá desítky mm, teprve při dně strmě
@@ -1156,7 +1156,7 @@ export function genLongPasses(ctx) {
   // v G-kódu zbyl jen dojezd = „trojúhelník" uprostřed údolí.
   //
   // Měří se na VŮLÍ-POSUNUTÉ siluetě (stockLoopOffsetL — tečkovaná hranice
-  // v náhledu, přesně tam začíná posuv, viz castingTopXAtZOffset v
+  // v náhledu, přesně tam začíná posuv, viz planTopXAtZ v
   // gcodeEmit.js). Syrový obrys by vjezd posadil až ZA vůli a průchod by u
   // šikmé stěny začal řezat o vůli později → klínek stojícího materiálu
   // (ověřeno na holder-region-roughing). Bez posunuté siluety fallback na
@@ -1704,7 +1704,7 @@ export function genLongPasses(ctx) {
         // hranice ještě stojí materiál), kolmý zápich na hloubku
         // nahrazuje rampa pod úhlem zanoření na OFFSETOVOU čáru
         // (offsetStockTopXAtZ — vůlí-posunutá silueta, stejná jako
-        // castingTopXAtZOffset v gcodeEmit.js). Kotva rampy se ŘETĚZÍ mezi
+        // planTopXAtZ v gcodeEmit.js). Kotva rampy se ŘETĚZÍ mezi
         // hloubkami (entryRampAnchor) — první hloubka najede z povrchu,
         // každá další jen odskočí a napojí se na konec rampy PŘEDCHOZÍ
         // hloubky (pocketReposition, stejný vzor jako dojezd strmé stěny

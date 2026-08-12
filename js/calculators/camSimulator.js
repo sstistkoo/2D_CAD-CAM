@@ -29,7 +29,7 @@ import { _defaultCamParams } from './cam/camDefaults.js';
 import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
-import { getToolClearanceRange, segInterferesWithTool, arcReachableSpan, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
+import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
 import { PARTING_BODY_MIN_H_MM, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { computeCalculation, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
@@ -57,7 +57,7 @@ const PATH_LOGIC_VERSION = 3;
 
 // ── MATH HELPERS ───────────────────────────────────────────────
 // arcSteps, dist, EPSILON, TRIM_TOL, LOOP_INTERIOR_MIN, getNormal, vecAngle, normalizeAngle → přesunuto do cam/camMath.js
-// getToolClearanceRange, segInterferesWithTool, arcReachableSpan, segmentHitsPath, mergePocketGuides,
+// getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides,
 // markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour,
 // normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections,
 // trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide

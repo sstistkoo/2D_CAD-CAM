@@ -132,33 +132,12 @@ export function machinableRangeOf(seg, machinable) {
   return best;
 }
 
-// Pro oblouk vrátí SOUVISLÝ podinterval úhlu {a0,a1} (v parametru oblouku,
-// tj. atan2(x−cx, z−cz), orientovaný start→end), kde špička destičky DOSÁHNE
-// (normála uvnitř úhlového rozsahu i s vůlí hřbetu). Vrací null, když nedosáhne
-// nikde. Slouží k oříznutí ČÁSTEČNĚ nedosažitelného oblouku — obrobí se
-// dosažitelná část místo zahození celého oblouku (jinak vypuklý roh, na který
-// špička dojede, zůstane bez dokončovací dráhy).
-export function arcReachableSpan(seg, clearance) {
-  const { bisector, halfRange, clearRad = 0 } = clearance;
-  const tipLim = halfRange + clearRad + INSERT_REACH_TOL;
-  const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
-  const isOuter = Math.abs(seg.cx) < midAbsX;
-  const startAngle = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-  let endAngle = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-  if (seg.dir === 'G2' && endAngle > startAngle) endAngle -= 2 * Math.PI;
-  if (seg.dir === 'G3' && endAngle < startAngle) endAngle += 2 * Math.PI;
-  const steps = 64;
-  let a0 = null, a1 = null;
-  for (let s = 0; s <= steps; s++) {
-    const a = startAngle + (endAngle - startAngle) * (s / steps);
-    const normAngle = isOuter ? normalizeAngle(a) : normalizeAngle(a + Math.PI);
-    const reachable = Math.abs(normalizeAngle(normAngle - bisector)) <= tipLim;
-    if (reachable) { if (a0 === null) a0 = a; a1 = a; }
-    else if (a0 !== null) break; // souvislý dosažitelný běh skončil
-  }
-  if (a0 === null) return null;
-  return { a0, a1, startAngle, endAngle };
-}
+// Pozn.: `arcReachableSpan` (ořez ČÁSTEČNĚ nedosažitelného oblouku na
+// dosažitelnou část) odstraněn 12. 8. 2026 — pravidlo je „celý, nebo vůbec"
+// (schod uprostřed rádiusu je horší než neobrobeno, viz Fáze 3b bod (b)
+// v docs/geometry-libs-migration.md). Zbytek po oblouku dobírá rovný průměr
+// (`finRunOut` v gcodeEmit.js).
+
 // Test, jestli úsečka (p1→p2, reálné souřadnice X = rádius) protíná
 // segmenty offsetové dráhy — pro kontrolu bezpečnosti rychloposuvů.
 // Doteky v koncových bodech (najetí přesně na dráhu) se nepočítají.

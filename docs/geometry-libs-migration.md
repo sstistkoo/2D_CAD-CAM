@@ -9,7 +9,8 @@
 **Hotovo a v produkci:** Fáze 0–2 · 2b/3 · 3a/3b · Fáze 3 (jádro, regiony,
 příznak `booleanRoughing`) · Fáze 4 (přejezdy, vjezdy, dynamický zbytek) ·
 ÚKLID (všechny tři body). Zbytek dokumentu je **záznam, jak to vzniklo** —
-ne backlog.
+ne backlog; jediné živé položky jsou vypsané v „Otevřené věci" níž
+(sekce `ZBÝVÁ`, na které odkazují).
 
 **Rozhodnutí uživatele:** migrace se dál „dojíždět" nebude. Co zbývalo, byly
 z větší části nápady, které nikdy nedostaly reálný důvod; držet je jako
@@ -26,13 +27,32 @@ z větší části nápady, které nikdy nedostaly reálný důvod; držet je ja
 | **Rozšíření 2b/3** — polygon/threading s modelem úlevu, F_all ve vizuálním úběru | Nikdo si nestěžoval; „bylo by hezké". |
 | **Fáze 5 — sjednocení UI zanořování** | Rozhodnuto 20. 7.: v panelu jsou provedené jiné úpravy a přeskládání checkboxů by je rozbilo. |
 
-### Jediná otevřená věc
+### Otevřené věci (stav 12. 8. 2026)
 
-**Hranice úseku ve STŘEDU údolí** (sekce „ZBÝVÁ" níž). Dva pokusy zamítnuty
-(8. 8. a 10. 8.); u druhého je změřeno, že zadání je jiné, než se myslelo —
-**nejde o pokrytí** (levá půlka údolí se odebere stejně s regiony i bez nich),
-ale o **kotvu zanoření**. Čeká na díl, kde to reálně uškodí (kolize nebo
-prokazatelně stojící materiál). Nezkoušet potřetí bez přečtení „DRUHÝ POKUS".
+Uzavření migrace 10. 8. se týkalo FÁZÍ; opravy řízené reálnými díly běžely dál
+(11.–12. 8.) a zůstaly po nich tři otevřené položky. Žádná nemá termín — čekají
+na díl, kde budou skutečně vadit.
+
+1. **Hranice úseku ve STŘEDU údolí** (sekce „ZBÝVÁ" níž). Dva pokusy zamítnuty
+   (8. 8. a 10. 8.); u druhého je změřeno, že zadání je jiné, než se myslelo —
+   **nejde o pokrytí** (levá půlka údolí se odebere stejně s regiony i bez nich),
+   ale o **kotvu zanoření**. Nezkoušet potřetí bez přečtení „DRUHÝ POKUS".
+2. **Pravá strana za přírubou (Z 271→366) se nehrubuje** (sekce „ZBÝVÁ" níž).
+   Tři pokusy zamítnuty (10. 8.), funkční obcházka je nastavit Start rozsahu Z
+   za klín. Od 11. 8. je popsaná i správná cesta: neposílat tam vlastní vjezd,
+   ale označit svislou hranici klínu za UMĚLOU HRANICI, aby se spustil hotový
+   řetěz `entryCapped` → `entryRampAnchor` → `holderEntryCapZ`.
+3. **Nepřesnost `noteCutPass`** (Fáze 3b, bod (c2)) — zbytkový model hlásí
+   u průchodů SLEDUJÍCÍCH KONTURU povrch až o PŘÍDAVEK níž, než po hrubování
+   reálně zůstal. V dokončování je to jen OBEJITÉ (`finTopEps`); samotná
+   nepřesnost trvá a míří na nebezpečnou stranu (model si myslí, že materiál
+   už není) — týká se tedy i rychloposuvů, ne jen dokončování. Na fixtures ji
+   validátor drah nechytá. **Ze všech tří otevřených položek jediná
+   bezpečnostní.**
+
+Latentně (dnes neškodí, ale každý další spotřebitel na to musí myslet):
+`offsetLoopOf` v `roughingStrategies.js` bere z `polyOffset` jen komponentu
+`[0]` — viz „Zbývá (genuinní mezera)" na konci dokumentu.
 
 ### Uděláno na závěr (10. 8. 2026)
 
@@ -271,7 +291,9 @@ trasu PŘED envify.
 Pravidlo, které z toho plyne (platí pro každý pozdější přepočet dráhy):
 **transformace, která běží až za bezpečnostními ořezy, smí dráhu jen zvednout.**
 `envify` teď bere původní X jako podlahu (`traceXAt`). Měřeno na
-`part-17-long-parting`: 22 nálezů / 2589 mm² → 2 / 77 mm².
+`part-17-long-parting`: 22 nálezů / 2589 mm² → 2 / 77 mm². Pojistka
+`tests/cam-parting-envelope.test.js` (obálka smí jen zvednout + oblouk
+zůstane obloukem, ne narovnanou úsečkou).
 
 Past při implementaci té podlahy (stála jedno kolo): u OBLOUKU nestačí
 „konzervativně vyšší konec". Podlaha se tím zvedne na maximum přes celé
@@ -534,7 +556,10 @@ ze **SJEDNOCENÉ** zakázané oblasti špičky místo dřívější držák-only
   (b) ŽÁDNÉ PŮLKY SEGMENTŮ — částečně dosažitelný oblouk se ořezával na
   dosažitelnou část (`arcReachableSpan`, Fáze 3b); pravidlo uživatele je
   „celý, nebo vůbec" (schod uprostřed rádiusu je horší než neobrobeno).
-  Ořez odstraněn; místo něj **rovný průměr** = přímý pohyb v Z na téže
+  Ořez odstraněn — POZOR, samotná funkce `arcReachableSpan` tím osiřela
+  (exportovaná, importovaná, nikým nevolaná) a smazána byla až 12. 8. při
+  kontrole dokumentu; platí pravidlo z ÚKLID bodu 4: *při vypínání větve
+  vždy zkontroluj, co tím osiří*. Místo ořezu **rovný průměr** = přímý pohyb v Z na téže
   hloubce, dokud nástroj z materiálu nevyjede (`finRunOut` v gcodeEmit —
   potřebuje zbytkový polotovar, který zná jen emise). Taky celý, nebo
   vůbec: zastavení o strop záběru = pahýl uprostřed materiálu.
