@@ -258,6 +258,62 @@ NEobrobená strana držáku (u výchozího obdélníkového modelu ±Tloušťka/
 špičkou) se vědomě nemodeluje — tam kolizi nejde vyřešit zkrácením průchodu
 (materiál stojí po celé délce řezu nezávisle na hloubce).
 
+#### Vedlejší nález: obálka upichováku obcházela hlídání držáku (12. 8. 2026)
+
+Podélné hrubování s upichovákem mělo tutéž oranžovou, ale z jiného důvodu.
+Pořadí operací v `genLongPasses` je: trasa dojezdu → podlaha hloubky vrstvy →
+ořez na sousední průchod → **ořez obálkou držáku** → … → `envify` (obálka
+plátku). Poslední krok počítal obálku ze SYROVÉHO `offsetXAt`, takže rovný
+dojezd ve výšce vrstvy (X49,5) přepsal sjezdem po kontuře na X7,9 — 41 mm pod
+svou vrstvu, držák 20 mm v bossu. Hlídání držáku bylo přitom „čisté": testovalo
+trasu PŘED envify.
+
+Pravidlo, které z toho plyne (platí pro každý pozdější přepočet dráhy):
+**transformace, která běží až za bezpečnostními ořezy, smí dráhu jen zvednout.**
+`envify` teď bere původní X jako podlahu (`traceXAt`). Měřeno na
+`part-17-long-parting`: 22 nálezů / 2589 mm² → 2 / 77 mm².
+
+Past při implementaci té podlahy (stála jedno kolo): u OBLOUKU nestačí
+„konzervativně vyšší konec". Podlaha se tím zvedne na maximum přes celé
+rozpětí oblouku, obálka nad ním vyjde vodorovná a v G-kódu z oblouku zbude
+ÚSEČKA (`G1 X31.766 Z−1.261` místo `G3 … CR=11.344`). Oblouk se musí
+vyhodnotit přesně — průsečík kružnice se svislicí, jen úhlově platná větev
+(`isAngleBetween`, stejně jako `maxXAt`). Narovnané oblouky se navíc
+propsaly do DOKONČOVÁNÍ: zvednutá hrubovací dráha nechala víc zbytku, gate
+„držák vs. nevyhrubovaný zbytek" pak zahodil dokončovací oblouk a místo
+souvislého tvaru vyjel nůž z materiálu a najel znovu přes průměr.
+
+#### Dosažitelnost hrubování × dokončování (12. 8. 2026)
+
+Zbylé nálezy byly týž průchod „kapsa bez schodků" ve VYDUTÉM údolí (oblouk
+R24,5, dno X19,2). Původní diagnóza „7,4 mm pod hotovní konturou" byla
+MYLNÁ — měřilo se proti `finishOffsetPath`, jenže ten tam není offset
+kontury: údolí je pro 3mm upichovák nedosažitelné, leží ve
+`finishUnreachablePath` a dokončování ho **přemostí rovným průměrem**
+(X27,85). Hrubování jelo na X20,43 = kontura + přídavek, tedy správně; proti
+`contourSegments` je zajezd 0,000 mm na celém programu.
+
+Skutečná vada byla v NESOULADU: dokončování prohlubeň přeskočí, hrubování do
+ní vleze — a drhne držákem o přídavek na protilehlé stěně. Dočišťovací trasy
+kapes totiž hlídá jen MĚKKÁ obálka (držák smí podél stěn drhnout, jinak by
+dno široké kapsy bylo nedosažitelné), takže dno propadlo. Nově se dobrání
+vynechá, když je DNO v TVRDÉ obálce (`isForbidden`). Měřeno: 3 → 0 nálezů za
+11 mm² neodebraného materiálu; na part-10/11 a holder-casting-slanted-face se
+odebraný materiál nezměnil vůbec (ta dobrání byla redundantní), takže obava
+„tvrdý test rozbije široké kapsy" se sem nepřenáší — omezuje se jen na dno,
+ne na trasy.
+
+#### Konec PROFILU ≠ konec POLOTOVARU (12. 8. 2026)
+
+Průchod, který dojel na konec offsetové čáry (kontura končí čelem), tam
+nechal prstenec materiálu — polotovar pokračuje dál (odřezek ve sklíčidle).
+Držel i dokončování: `finRunOut` couvne, když nad hotovní čarou stojí víc než
+jedna tříska. Doběh se teď přidá, když (a) `offsetXAt` za koncem už nic
+nevrací a (b) v té hloubce ještě stojí materiál — konec dá `stockRunEndZ`
+(kvůli tomu vytažen do scope celé funkce; čistý přesun bez změny těla).
+Na dílu uživatele `Z−1.261 → Z−9.000`, a dokončování se protáhlo samo na
+`Z−8.299`.
+
 Výsledek na dílu uživatele (`part-16-face-holder`): **126 nálezů → 0**,
 průchodů 122 → 106, odebráno 6117 → 4752 mm² (−22 %) — to je cena: pod mezí
 se čelně zprava tímhle nožem obrobit nedá. Pojistka

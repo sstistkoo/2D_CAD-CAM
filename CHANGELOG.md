@@ -265,6 +265,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nová fixture `part-16-face-holder` + `tests/cam-face-holder.test.js`.
 
 ### Fixed
+- **Dobírání kapsy lezlo do prohlubně, kam se držák nevejde.** Dočišťovací
+  trasy kapes hlídá záměrně jen MĚKKÁ obálka držáku (podél stěn se drhnutí
+  o přídavkovou slupku toleruje, jinak by dno široké kapsy bylo
+  nedosažitelné) — jenže tím propadlo i DNO prohlubně, které leží
+  v TVRDÉ obálce. Na dílu uživatele (vyduté údolí R24,5 hluboké 8 mm)
+  hrubování na dno sjelo (X20,43 = kontura + přídavek, tedy „správně"),
+  ale držák drhnul o přídavek na protilehlé stěně. Dokončování takovou
+  prohlubeň přitom **přeskakuje** (`finishUnreachablePath` → přemostí ji
+  rovným průměrem), takže se dobíralo dno, které stejně nikdo nedokončí.
+  Nově se dobrání vynechá, když je dno v tvrdé obálce, a ⚠ panel to hlásí.
+  Měřeno: kolizí **3 → 0** (78 → 0 mm²) za cenu 11 mm² neodebraného
+  materiálu; na ostatních fixtures (part-10/11, holder-casting-slanted-face)
+  se odebraný materiál nezměnil **vůbec** — ta dobrání byla redundantní.
+- **Dráhy končily na konci PROFILU, ne na konci POLOTOVARU.** Kontura končí
+  čelem, takže offsetová čára skončí v jeho rohu (na dílu uživatele Z−1,3),
+  jenže polotovar pokračuje dál (odřezek ve sklíčidle) — a tam zůstal stát
+  prstenec. Držel i dokončování: jeho doběh (`finRunOut`) couvne, když nad
+  hotovní čarou stojí víc než jedna tříska. Průchod, který dojel na konec
+  profilu a pod nímž ještě je materiál, teď pokračuje rovným průměrem až na
+  vůlí-posunutou siluetu polotovaru (`stockRunEndZ`, táž funkce jako
+  u doběhu mezikroků rampy). Na dílu uživatele: hrubování `Z−1.261 → Z−9.000`,
+  a dokončování se hned samo protáhlo na `Z−8.299`.
+- **Upichovák podélně: obálka plátku přepisovala dojezd sjezdem po kontuře.**
+  Sjezdy/dojezdy se u upichováku přepočítávají na obálku `x(z)` (max offsetu
+  pod rovnou částí dna plátku), aby tělo za aktivním rohem neřezalo do tvaru.
+  Obálka se ale počítala ze **syrového** `offsetXAt`, kdežto původní trasa už
+  prošla podlahou hloubky vrstvy, ořezem na sousední průchod i obálkou
+  držáku — takže se z rovného dojezdu ve výšce vrstvy stal **sjezd po
+  kontuře až na dno dílu** (na dílu uživatele z X49,5 na X7,9, tj. 41 mm pod
+  svou vrstvu) a držák pak jel 20 mm v bossu. Hlídání držáku to přitom
+  hlásilo jako čisté — testovalo tu původní, rovnou trasu, ne obálku.
+  Obálka teď smí dráhu jen **zvednout** (původní X je závazné minimum),
+  a podlaha se u **oblouku vyhodnocuje přesně** (průsečík kružnice se
+  svislicí, jen úhlově platná větev) — „konzervativně vyšším koncem" by
+  podlahu zvedla na maximum přes celé rozpětí oblouku, obálka nad ním by
+  vyšla vodorovná a v G-kódu by z oblouku zbyla **úsečka**
+  (`G1 X31.766 Z−1.261` místo `G3 … CR=11.344`); s narovnanými oblouky se
+  navíc trhalo i dokončování (místo `G3 … CR=6.803` výjezd z materiálu
+  a nový nájezd přes průměr).
+  Na dílu uživatele (upichovák š. 3, podélně): kolizních nálezů **22 → 2**,
+  plocha vnoření držáku **2589 → 77 mm²**. Nová fixture
+  `part-17-long-parting` + `tests/cam-parting-envelope.test.js`.
 - **Čelní hrubování: výška přejezdu se rozhodovala dvakrát** (a někdy
   nahoru–dolů–nahoru po téže svislici). Přejezd na další průchod se skládal
   ze dvou `safeRapidTo` — první zvedla nástroj na `xStart`, druhá ho hned

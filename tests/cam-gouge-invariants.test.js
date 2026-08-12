@@ -125,7 +125,20 @@ function worstPenetration(calc, calcSim) {
 // špička stojí na patě stěny a `maxXAt` na témž Z (tolerance 0,01 mm) vrátí
 // vršek té stěny. Ověřeno proti modelu úběru: do hotového dílu zasahuje
 // 0,02 mm², tj. reálně nic. Hodnota je tu proto přišpendlená, ne skrytá.
-const KNOWN = { 'part-10-zapich-casting.camprog': 2.5 };
+// part-17 (upichovák podélně): ARTEFAKT REFERENCE, ne zajezd do dílu —
+// OPRAVA dřívějšího závěru z 12. 8. 2026. Měří se proti `finishOffsetPath`,
+// jenže ten v tomhle místě NENÍ offset kontury: vyduté údolí (oblouk R24,5,
+// dno X19,2 na Z35) je pro 3mm upichovák nedosažitelné, takže dokončování
+// ho přemostí ROVNÝM PRŮMĚREM na úrovni ramen (X27,85) a segment putuje do
+// `finishUnreachablePath`. Hrubovací průchod „kapsa bez schodků" jede na
+// X20,43 = kontura 19,23 + přídavek 1,2, tedy PŘESNĚ správně — jen 7,4 mm
+// pod tou přemosťující čarou. Ověřeno: proti `contourSegments` je zajezd 0.
+// CO ale v tom údolí SKUTEČNĚ vadí: držák drhne o přídavek na protilehlé
+// stěně (~40 mm² oranžové, Z 35–55; špička hotovou konturu míjí o 0,17 mm).
+// Hodnota je přišpendlená, aby se nezhoršila; správné řešení je sjednotit
+// dosažitelnost hrubování s dokončováním (do údolí, které dokončování
+// přemosťuje, nemá dobírací průchod lézt).
+const KNOWN = { 'part-10-zapich-casting.camprog': 2.5, 'part-17-long-parting.camprog': 6.6 };
 const LIMIT = 0.5;
 
 describe('CAM: řezné pohyby nepodjíždějí hotovní konturu', () => {

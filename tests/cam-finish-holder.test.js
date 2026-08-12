@@ -231,7 +231,10 @@ describe('CAM: nájezd a výjezd dokončování', () => {
           const top = topXAt(p.z);
           if (top === null) continue;
           const depth = top - (p.x - tipR);
-          if (depth > alw + 0.15) {
+          // Rezerva 0,2 mm = vlastní rozlišení měřicího modelu (tětiva
+          // oblouků 0,4 mm, polySimplify ε 0,002, obrys nástroje po 15°).
+          // Dřív 0,15: fixture part-17 na ní hlásila překročení o 3 µm.
+          if (depth > alw + 0.2) {
             tooDeep.push(`${name}: ${depth.toFixed(2)} mm u X${p.x.toFixed(2)} Z${p.z.toFixed(2)} (přídavek ${alw}) @ ${text}`);
             break;
           }

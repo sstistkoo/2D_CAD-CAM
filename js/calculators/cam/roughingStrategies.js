@@ -974,6 +974,8 @@ export function genLongPasses(ctx) {
   // a jízda v Z; schodky zůstávají.
   const partingNoDress = isParting && !prms.noStepRoughing;
   let partingNarrowPockets = 0;
+  // Kapsy, jejichž DNO leží v tvrdé obálce držáku (dobrání se vynechá).
+  let pocketHolderSkips = 0;
   // Kapsy, do kterých se mezi stěny nevejde DRŽÁK (clamp.span) — vynechané.
   // Hloubky, na kterých obálka DRŽÁKU něco zastavila. Tiché zahození je
   // horší než samo vynechání: uživatel nepozná, jestli jde o fyzikální mez
@@ -1108,6 +1110,20 @@ export function genLongPasses(ctx) {
     // začátek; když už není kam pokračovat, vrátí se výchozí bod (nulová
     // délka) a volající takový úsek zahodí.
     return Math.min(zFloor, zFrom);
+  };
+  const stockRunEndZ = (X, zFrom, zFloor) => {
+    const solid = (z) => { const t = topXOnLoop(stockLoopOffsetFullL, z); return t !== null && t > X; };
+    if (!stockLoopOffsetFullL) return zFloor;
+    let prev = zFrom;
+    for (let z = zFrom - dzScan; z > zFloor + dzScan; z -= dzScan) {
+      if (!solid(z)) {
+        let lo = z, hi = prev;                       // lo = vzduch, hi = materiál
+        for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (solid(m)) hi = m; else lo = m; }
+        return hi;
+      }
+      prev = z;
+    }
+    return zFloor;
   };
 
   // ── „Hrub. bez schodků | i u čelního" v PODÉLNÉM hrubování ────────────
@@ -2351,6 +2367,23 @@ export function genLongPasses(ctx) {
       const _rawLeadOut = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(pocketBottomZ, exitZ))) : [];
       const cleanLeadIn = mergeCollinearSegs(holderTrimLeadIn(subdivideLineSegs(_rawLeadIn), true));
       const cleanLeadOut = mergeCollinearSegs(holderTrimLeadOut(subdivideLineSegs(_rawLeadOut), true));
+      // ── DNO kapsy vs. TVRDÁ obálka držáku ──────────────────────────
+      // Trasy výš hlídá jen MĚKKÁ oblast (držák smí drhnout o přídavkovou
+      // slupku podél stěn — jinak by se dno široké kapsy stalo
+      // nedosažitelným). Samotné DNO je ale jiná otázka: leží-li ve TVRDÉ
+      // oblasti, nůž se do té prohlubně reálně nevejde a dokončování ji
+      // stejně přeskočí (`finishUnreachablePath` → přemostí ji rovným
+      // průměrem). Hrubovací dobrání tam pak jen zaveze držák do materiálu,
+      // aniž by na tom kdokoli vydělal.
+      // Reálný nález (díl uživatele, upichovák š. 3): vyduté údolí R24,5
+      // hluboké 8 mm — dobrání sjelo na dno (X20,43 = kontura + přídavek,
+      // tedy „správně"), ale držák drhnul o přídavek na protilehlé stěně,
+      // 40 mm² oranžové / 3 nálezy validátoru; dokončování tu prohlubeň
+      // přemosťovalo rovným průměrem X27,85.
+      if (!skipRiskyPocketEmit && holderClampZEnd?.isForbidden?.(pocketBottomX, pocketBottomZ)) {
+        skipRiskyPocketEmit = true;
+        pocketHolderSkips++;
+      }
       if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
         const cleanPass = {
           type: 'long', pocketClean: true,
@@ -2546,20 +2579,7 @@ export function genLongPasses(ctx) {
   // vedle by ho emise (`airSplitAxial`) už nesměla dotáhnout — prodloužení
   // výjezdu nesmí přejet konec průchodu — a řez by skončil o vůli dřív
   // (hlídá tests/cam-leadout-step na range-chain-insert-shadow).
-  const stockRunEndZ = (X, zFrom, zFloor) => {
-    const solid = (z) => { const t = topXOnLoop(stockLoopOffsetFullL, z); return t !== null && t > X; };
-    if (!stockLoopOffsetFullL) return zFloor;
-    let prev = zFrom;
-    for (let z = zFrom - dzScan; z > zFloor + dzScan; z -= dzScan) {
-      if (!solid(z)) {
-        let lo = z, hi = prev;                       // lo = vzduch, hi = materiál
-        for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (solid(m)) hi = m; else lo = m; }
-        return hi;
-      }
-      prev = z;
-    }
-    return zFloor;
-  };
+
   for (const rc of pendingRampCompletions) {
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
     const rcSteps = [];
@@ -2675,6 +2695,8 @@ export function genLongPasses(ctx) {
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)
     foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
+  if (pocketHolderSkips > 0)
+    foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${pocketHolderSkips} prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.` });
   // Ztracené hloubky = ty, kde obálka držáku něco zastavila a nakonec z nich
   // NEVZNIKL žádný průchod. Vyhodnocuje se až tady, proti skutečně vydaným
   // průchodům — počítat pokusy uvnitř smyčky nafukuje číslo (viz komentář
@@ -2727,12 +2749,56 @@ export function genLongPasses(ctx) {
   // stoupající (levé stěny) se obálka kryje s offsetem. Kruhové úseky se
   // zpětně prokládají G2/G3 (fitArcsToPolyline).
   if (isParting) {
+    // X původní trasy na axiální souřadnici z (max přes segmenty, které tam
+    // zasahují). Slouží jako PODLAHA obálky — viz envify níž.
+    // OBLOUK SE MUSÍ VYHODNOTIT PŘESNĚ (průsečík kružnice se svislicí, jen
+    // úhlově platná větev): „konzervativně vyšším koncem" zvedne podlahu na
+    // maximum přes CELÉ rozpětí oblouku, takže obálka nad ním vyjde vodorovná
+    // a z oblouku se v G-kódu stane ÚSEČKA (reálný nález uživatele:
+    // `G1 X31.766 Z−1.261` místo `G3 … CR=11.344`).
+    const traceXAt = (segs, z) => {
+      let top = null;
+      const bump = (x) => { if (Number.isFinite(x) && (top === null || x > top)) top = x; };
+      for (const s of segs) {
+        const zLo = Math.min(s.z1, s.z2), zHi = Math.max(s.z1, s.z2);
+        if (z < zLo - 1e-9 || z > zHi + 1e-9) continue;
+        if (s.type === 'line') {
+          const dz = s.z2 - s.z1;
+          bump(Math.abs(dz) < 1e-9 ? Math.max(s.x1, s.x2) : s.x1 + (s.x2 - s.x1) * ((z - s.z1) / dz));
+        } else if (Number.isFinite(s.cx) && Number.isFinite(s.cz) && s.r > 0) {
+          const d = z - s.cz;
+          if (Math.abs(d) > s.r) { bump(Math.max(s.x1, s.x2)); continue; }   // svislice mimo kružnici
+          const h = Math.sqrt(Math.max(0, s.r * s.r - d * d));
+          let hit = false;
+          for (const x of [s.cx + h, s.cx - h]) {
+            const a = Math.atan2(x - s.cx, z - s.cz);
+            if (isAngleBetween(a, s.startAngle, s.endAngle, s.dir === 'G2')) { bump(x); hit = true; }
+          }
+          if (!hit) bump(Math.max(s.x1, s.x2));
+        } else {
+          bump(Math.max(s.x1, s.x2));
+        }
+      }
+      return top;
+    };
     const envify = (segs) => {
       if (!segs || segs.length === 0) return segs;
       const zFrom = segs[0].z1, zTo = segs[segs.length - 1].z2;
       if (Math.abs(zTo - zFrom) < 0.02) return segs;
       const pts = samplePartingEnvelope(offsetXAt, zFrom, zTo, w2RL, 1, 0.4, 0.003);
       if (pts.length < 2) return segs;
+      // Obálka smí dráhu jen ZVEDNOUT. Počítá se ze syrového `offsetXAt`,
+      // jenže původní trasa už prošla podlahou hloubky vrstvy, ořezem na
+      // sousední (mělčí) průchod i obálkou držáku — její X je proto závazné
+      // MINIMUM. Bez tohohle stropu se z rovného dojezdu ve výšce vrstvy
+      // stal sjezd po kontuře až na dno dílu: na díle uživatele dojezd
+      // z X49,5 sjel na X7,9 (41 mm pod svou vrstvu) a držák jel 20 mm
+      // v bossu — hlídání držáku přitom trasu VIDĚLO jako čistou, protože
+      // testovalo tu původní, rovnou (2589 mm² kolizí).
+      for (const p of pts) {
+        const floor = traceXAt(segs, p.z);
+        if (floor !== null && floor > p.x) p.x = floor;
+      }
       const fitted = fitArcsToPolyline(pts, 0.02);
       const out = [];
       for (const s of fitted) {
@@ -2745,6 +2811,40 @@ export function genLongPasses(ctx) {
       if (p.type !== 'long') continue;
       if (p.contourLeadIn) p.contourLeadIn = envify(p.contourLeadIn);
       if (p.contourLeadOut) p.contourLeadOut = envify(p.contourLeadOut);
+    }
+  }
+
+  // ── Doběh přes KONEC PROFILU do konce polotovaru ───────────────────
+  // Kontura končí čelem (poslední prvek profilu), takže offsetová čára
+  // skončí v jeho rohu — jenže polotovar tam ještě pokračuje (odřezek
+  // ve sklíčidle). Průchod, který na ten roh dojel, tam nechá stát
+  // prstenec: reálný nález uživatele — dráhy končily na Z−1,3, zatímco
+  // sousední (ničím nezablokované) průchody jedou přes celý zbytek na
+  // Z−9. Prstenec pak navíc drží i DOKONČOVÁNÍ, protože jeho doběh
+  // (`finRunOut` v gcodeEmit) couvne, když nad hotovní čarou stojí víc
+  // než jedna tříska.
+  //
+  // Doběh se přidá jen tam, kde profil OPRAVDU končí (dál v Z už žádná
+  // offsetová čára není) a v té hloubce ještě stojí materiál. Konec
+  // určuje `stockRunEndZ` — táž funkce, jakou používá doběh mezikroků
+  // rampy, takže se skončí na vůlí-posunuté siluetě polotovaru.
+  {
+    const zFloorEnd = Math.max(
+      stockLoopOffsetFullL ? Math.min(...stockLoopOffsetFullL.map(p => p.z)) - 1 : -1e4,
+      rangeZLoL);
+    for (const p of passes) {
+      if (p.type !== 'long' || p.noRetract) continue;
+      const lo = p.contourLeadOut;
+      const end = (lo && lo.length > 0)
+        ? { x: lo[lo.length - 1].x2, z: lo[lo.length - 1].z2 }
+        : (Number.isFinite(p.x) && Number.isFinite(p.zEnd) ? { x: p.x, z: p.zEnd } : null);
+      if (!end || !Number.isFinite(end.x) || !Number.isFinite(end.z)) continue;
+      if (end.z <= zFloorEnd + 0.05) continue;              // už je na dně okna
+      if (offsetXAt(end.z - 0.2) !== null) continue;        // profil pokračuje dál
+      const zRun = stockRunEndZ(end.x, end.z, zFloorEnd);
+      if (!(end.z - zRun > 0.2)) continue;                  // za koncem už není materiál
+      const seg = { type: 'line', x1: end.x, z1: end.z, x2: end.x, z2: zRun };
+      if (lo && lo.length > 0) lo.push(seg); else p.contourLeadOut = [seg];
     }
   }
 
