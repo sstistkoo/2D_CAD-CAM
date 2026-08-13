@@ -55,7 +55,7 @@ function clipLeadOutToDepth(segs, maxX) {
 export function genFacePasses(ctx) {
   const { prms, sRad, stockFace, step, offsetPath, stockPathSegments, stockWorldPoints, worldPoints, passes, foundErrors, traceOffsetPath, offsetXAt } = ctx;
   // ── ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře) ──
-  // Pro každou hloubku Z od (stockFace − step) po minZPart:
+  // Pro každou hloubku Z od (stockFace − step) po marchEndZ:
   //   1. xStart = stockOuter + rapidClr (= rapid-bezpečná X nad povrchem)
   //   2. xEnd = max X průsečíku offsetu se svislicí v currentZ (= místo,
   //      kde kontura blokuje řez jdoucí −X k ose). Pokud žádný blok,
@@ -130,6 +130,20 @@ export function genFacePasses(ctx) {
     return m;
   };
   const minZPart = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.z)) : -1000;
+  // Konec marche v Z: konec DÍLCE není konec MATERIÁLU. Polotovar za čelem
+  // pokračuje (přídavek na čelo, upínací zbytek) a vrstvy tam mají jet dál —
+  // dřív se marchovalo jen po `minZPart`, takže u dílu končícího na Z0 nad
+  // polotovarem sahajícím na Z−8 zůstalo posledních 8 mm materiálu navždy
+  // neobrobených (reálný nález uživatele: poslední vrstva Z2,932 a pod ní
+  // plný průměr polotovaru). Marchuje se tedy po nejnižší Z POLOTOVARU.
+  //
+  // Co se v konkrétním Z opravdu ubere, rozhoduje až blokáda offsetem níž:
+  // za koncem offsetu (`currentZ < minOZ`) se průchod přeskočí, takže se do
+  // OSY v této zóně nezajíždí — obrobek by se uřízl.
+  const minZStock = (prms.stockMode === 'casting' && stockWorldPoints.length > 0)
+    ? Math.min(...stockWorldPoints.map(p => p.zReal))
+    : -(parseFloat(prms.stockLength) || 0);
+  const marchEndZ = Math.min(minZPart, minZStock);
   // Start na pravé hraně polotovaru: pro cylinder = stockFace, pro casting =
   // max(stockWorldPoints.zReal). Bez tohoto fixu casting s default stockFace=2
   // ihned vyletí ze smyčky (currentZ-step <= minZPart=0) a žádný pas se neemituje.
@@ -156,8 +170,8 @@ export function genFacePasses(ctx) {
   // se do dosud neobrobeného polotovaru.
   const faceLeft = (prms.roughingSide === 'left');
   const zList = [];
-  if (!faceLeft) { for (let z = faceStartZ - step; z >= minZPart - 0.01; z -= step) zList.push(z); }
-  else { for (let z = minZPart + step; z <= faceStartZ + 0.01; z += step) zList.push(z); }
+  if (!faceLeft) { for (let z = faceStartZ - step; z >= marchEndZ - 0.01; z -= step) zList.push(z); }
+  else { for (let z = marchEndZ + step; z <= faceStartZ + 0.01; z += step) zList.push(z); }
   // Marchování začíná na marchStartZ (reference pro clamp leadOutu — zachováno
   // pro L/R symetrii, ale clamp byl odstraněn: první průchod smí také dojíždět
   // po offsetu nahoru, jinak by jeho krok nad ním zůstal neobrobený).
