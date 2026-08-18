@@ -9,6 +9,7 @@ import { autoCenterView } from './canvas.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { hasAnchoredPoint } from './tools/anchorClick.js';
 import { bulgeToCcwArc } from './utils.js';
+import { activeShapeStyleProps } from './lineStyles.js';
 
 /**
  * Přidá objekt do výkresu (push undo, přiřazení ID a vrstvy).
@@ -22,6 +23,12 @@ export function addObject(obj) {
       console.warn(`addObject: neplatná hodnota ${key}=${obj[key]}, objekt nebyl přidán`);
       return null;
     }
+  }
+  // Aktivní volba „Typ čáry" (viz lineStyleDialog.js) se přebírá i pro
+  // ostatní nástroje (kružnice, oblouk...) – pokud si volající vlastnosti
+  // čáry/barvy nenastavil už sám (např. úsečka kreslená přes activeLineProps()).
+  if (state.lineStyleActive && obj.lineStyle === undefined && obj.dashed === undefined && obj.color === undefined) {
+    Object.assign(obj, activeShapeStyleProps());
   }
   pushUndo();
   obj.id = state.nextId++;
@@ -93,6 +100,7 @@ export function addPolylineAsSegments(vertices, bulges, closed) {
     }
 
     if (obj) {
+      if (state.lineStyleActive) Object.assign(obj, activeShapeStyleProps());
       if (stockTag) obj.isStock = true;
       state.objects.push(obj);
       segments.push(obj);
@@ -132,6 +140,7 @@ export function addRectAsSegments(x1, y1, x2, y2) {
       id,
       layer: stockTag ? STOCK_LAYER_ID : state.activeLayer,
     };
+    if (state.lineStyleActive) Object.assign(obj, activeShapeStyleProps());
     if (stockTag) obj.isStock = true;
     state.objects.push(obj);
     lines.push(obj);

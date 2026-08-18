@@ -18,9 +18,10 @@ export function handleLineClick(wx, wy) {
       finishDrawing();
       return;
     }
-    // Nástroj „Typ čáry" (data-tool="constr") kreslí podle volby z dialogu –
-    // typ čáry dle ČSN EN ISO 128, barva a příznak pomocné čáry.
-    const styleProps = state.tool === "constr"
+    // Aktivní volba „Typ čáry" (dialog otevřený z tlačítka v liště) platí
+    // pro úsečku bez ohledu na to, jestli se kreslí přes nástroj Úsečka
+    // nebo Typ čáry – typ čáry dle ČSN EN ISO 128, barva a příznak pomocné čáry.
+    const styleProps = state.lineStyleActive
       ? activeLineProps()
       : { type: "line", dashed: false };
     const lineObj = addObject({
@@ -29,7 +30,7 @@ export function handleLineClick(wx, wy) {
       y1: tp.y,
       x2: wx,
       y2: wy,
-      name: `${state.tool === "constr" ? activeLineStyle().label : "Úsečka"} ${state.nextId}`,
+      name: `${state.lineStyleActive ? activeLineStyle().label : "Úsečka"} ${state.nextId}`,
     });
     finishDrawing();
     if (lineObj) showPostDrawLineDialog(lineObj);

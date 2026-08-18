@@ -2684,11 +2684,21 @@ document.querySelectorAll("[data-tool]").forEach((btn) => {
   btn.addEventListener("click", () => {
     // Typ čáry: klik vždy otevře dialog s výběrem typu čáry a barvy –
     // i když nástroj právě kreslí (pak dialog nabídne i „Vypnout").
+    // Volba pak platí pro VŠECHNO další kreslení (úsečka, kružnice, oblouk,
+    // obdélník, kontura) – dokud se nevypne tlačítkem „Vypnout".
     if (btn.dataset.tool === 'constr') {
+      const prevTool = state.tool;
+      const drawTools = ['line', 'circle', 'arc', 'rect', 'polyline', 'pencil'];
       openLineStyleDialog({
-        active: state.tool === 'constr',
-        onApply: () => setTool('constr'),
-        onDeactivate: () => setTool('select'),
+        active: state.lineStyleActive,
+        onApply: () => {
+          state.lineStyleActive = true;
+          setTool(drawTools.includes(prevTool) ? prevTool : 'constr');
+        },
+        onDeactivate: () => {
+          state.lineStyleActive = false;
+          setTool('select');
+        },
       });
       return;
     }
@@ -2753,8 +2763,32 @@ document.querySelectorAll("[data-tool]").forEach((btn) => {
 loadLineStylePref();
 refreshLineStyleBtn();
 
+/**
+ * Zvýrazní tlačítko odpovídající aktuálnímu nástroji v liště a vypne
+ * zvýraznění ostatních. Volá se ze `setTool()`, ale i z dialogů, které
+ * nemění `state.tool` (např. Polární/Úhel), aby toolbar odpovídal tomu,
+ * co se zrovna reálně děje na plátně.
+ * @param {string} [tool] výchozí `state.tool`
+ */
+export function refreshToolbarActive(tool = state.tool) {
+  document
+    .querySelectorAll("[data-tool]")
+    .forEach((b) =>
+      b.classList.toggle("active", b.dataset.tool === tool),
+    );
+  // Tlačítko „Typ čáry" zůstává zvýrazněné, dokud je volba aktivní – i když
+  // se mezitím kreslí jiným nástrojem (kružnice, oblouk, obdélník, kontura).
+  const constrBtn = document.querySelector('[data-tool="constr"]');
+  if (constrBtn) constrBtn.classList.toggle("active", tool === "constr" || state.lineStyleActive);
+}
+
 /** @param {import('./types.js').ToolType} tool */
 export function setTool(tool) {
+  // Klik na jiný kreslicí nástroj zatímco běží tiché „Tečnost" klikání
+  // dialogu Polární/Úhel (viz polarDrawing.js) – dialog zrušit a `state.tool`
+  // synchronně vrátit na hodnotu před „Tečnost", ať následující auto-uložení
+  // rozkreslené kontury (níž) i zbytek přepnutí vidí správný stav.
+  if (bridge.cancelPolarPicking) bridge.cancelPolarPicking();
   // Auto-uložit rozpracovanou konturu při přepnutí nástroje
   if (state.tool === 'polyline' && state.drawing && state.tempPoints.length >= 2) {
     const bulges = state._polylineBulges || [];
@@ -2816,16 +2850,13 @@ export function setTool(tool) {
     state.dragObjIdx = null;
   }
   drawCanvas.style.cursor = tool === "move" ? "move" : "crosshair";
-  document
-    .querySelectorAll("[data-tool]")
-    .forEach((b) =>
-      b.classList.toggle("active", b.dataset.tool === tool),
-    );
+  refreshToolbarActive(tool);
   // Toggle btnDelete active state for deleteObj mode
   const btnDel = document.getElementById("btnDelete");
   if (btnDel) btnDel.classList.toggle("active", tool === "deleteObj");
   document.getElementById("statusTool").textContent =
-    "Nástroj: " + (tool === "constr" ? activeLineStyle().label : toolLabel(tool));
+    "Nástroj: " + (tool === "constr" ? activeLineStyle().label : toolLabel(tool))
+    + (state.lineStyleActive && tool !== "constr" ? ` (${activeLineStyle().label})` : "");
   // Sync mobile measure button
   const mmBtn = document.getElementById("mobileMeasure");
   if (mmBtn) mmBtn.classList.toggle("active", tool === "measure");

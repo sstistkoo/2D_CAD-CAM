@@ -143,6 +143,21 @@ export function activeLineProps() {
   return props;
 }
 
+/**
+ * Vlastnosti pro libovolný jiný nově kreslený objekt (kružnice, oblouk,
+ * obdélník, kontura), když je aktivní volba „Typ čáry" (`state.lineStyleActive`).
+ * Na rozdíl od `activeLineProps()` neřeší `type`/`aux` (mimo konturu a CAM) –
+ * to má smysl jen pro úsečku; zde se přebírá jen vzhled (typ čáry + barva).
+ * @returns {Record<string, any>}
+ */
+export function activeShapeStyleProps() {
+  const st = activeLineStyle();
+  /** @type {Record<string, any>} */
+  const props = { lineStyle: st.key, dashed: st.dash.length > 0 };
+  if (state.lineStyle.color) props.color = state.lineStyle.color;
+  return props;
+}
+
 // ── Perzistence volby (localStorage) ────────────────────────
 
 const LS_KEY = 'skica-line-style';

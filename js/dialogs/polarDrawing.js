@@ -2,18 +2,60 @@
 // ║  SKICA – Dialogy / Polární kreslení z bodu                ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS } from '../constants.js';
-import { makeInputOverlay } from '../dialogFactory.js';
+import { COLORS, SNAP_POINT_THRESHOLD } from '../constants.js';
+import { makeInputOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { state, showToast, axisLabels } from '../state.js';
 import { addObject } from '../objects.js';
 import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
 import { safeEvalMath, bulgeToArc } from '../utils.js';
-import { findObjectAt, findSegmentAt, intersectLineLine, intersectLineCircle, getPolylineSegmentAsLine } from '../geometry.js';
+import { findObjectAt, findSegmentAt, intersectLineLine, intersectLineCircle, getPolylineSegmentAsLine, calculateAllIntersections } from '../geometry.js';
+import { renderAll } from '../render.js';
+import { refreshToolbarActive } from '../ui.js';
+import { bridge } from '../bridge.js';
 
 // ── Polární kreslení z referenčního bodu ──
 document
   .getElementById("btnPolar")
   .addEventListener("click", showPolarDrawingDialog);
+
+// Zapamatování posledně použitých hodnot (Délka/Úhel/Typ/Ukončení/Řetězit) –
+// dialog se pak neotevírá pořád s výchozími hodnotami, ale s tím, co uživatel
+// naposled zadal (podobně jako `lineStyle` v lineStyles.js).
+const POLAR_LS_KEY = 'skica-polar-prefs';
+
+function loadPolarPrefs() {
+  try {
+    const raw = localStorage.getItem(POLAR_LS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function savePolarPrefs(prefs) {
+  try { localStorage.setItem(POLAR_LS_KEY, JSON.stringify(prefs)); } catch { /* localStorage nedostupné */ }
+}
+
+// Aktuálně otevřený/skrytý dialog (max jeden najednou) – umožňuje setTool()
+// v ui.js dialog zrušit, když uživatel klikne na jiný kreslicí nástroj
+// (viz bridge.cancelPolarPicking). `_activeStop` obnoví `state.tool` na
+// hodnotu před „Tečnost" SYNCHRONNĚ (dřív, než setTool() pokračuje dál –
+// jinak by např. auto-uložení rozkreslené kontury při přepnutí nástroje
+// nepoznalo, že `state.tool` byl ve skutečnosti „polyline").
+let _openOverlay = null;
+let _activeStop = null;
+bridge.cancelPolarPicking = () => {
+  if (_activeStop) _activeStop();
+  if (_openOverlay && document.body.contains(_openOverlay)) _openOverlay.remove();
+};
+
+// Poslední úsečka vytvořená „➕ Přidat"/„🎯 Tečnost" – MODULOVÁ úroveň (ne
+// jen v rámci jednoho otevření dialogu), protože běžný postup je zavřít
+// dialog a znovu ho otevřít jen kvůli změně úhlu. Kdyby se tohle sledování
+// resetovalo při každém otevření, „zkouším úhel na stejném místě" by pořád
+// zakládalo novou úsečku vedle staré, místo aby tu předchozí nahradilo –
+// přesně to hromadění, které jde odstranit jen refreshem stránky.
+let _lastAddLine = null;
+let _lastAddRefKey = null;
+let _lastPick = null;
 
 /**
  * Najde nejbližší průsečík paprsku (sx,sy) → směr (dx,dy) s ostatní geometrií.
@@ -64,6 +106,13 @@ function findRayIntersection(sx, sy, dx, dy, excludeIdx) {
 
 /** Otevře dialog pro polární kreslení (délka + úhel) nebo úsečku pod úhlem. */
 export function showPolarDrawingDialog() {
+  // Případnou už otevřenou (třeba jen skrytou, uprostřed „Tečnost" klikání)
+  // relaci nejdřív zrušit – jinak by na plátně zůstaly viset staré
+  // posluchače kliků VEDLE nových (jeden klik pak vytvoří dvě úsečky, každou
+  // pod jiným úhlem) a vstupní pole by vypadala, že se „vynulovala", protože
+  // jde ve skutečnosti o úplně novou instanci dialogu s výchozími hodnotami.
+  bridge.cancelPolarPicking();
+
   let refX = 0,
     refZ = 0;
   // V INC režimu použít incReference jako výchozí referenční bod
@@ -85,6 +134,15 @@ export function showPolarDrawingDialog() {
     }
   }
 
+  // Naposled zadané hodnoty (Délka/Úhel/Typ/Ukončení/Řetězit) – dialog se
+  // pak neotevírá pořád od nuly.
+  const prefs = loadPolarPrefs();
+  const defLen = prefs.len ?? '10';
+  const defAng = prefs.ang ?? '0';
+  const defType = prefs.type ?? 'line';
+  const defAngMode = prefs.angMode ?? 'length';
+  const defChain = !!prefs.chain;
+
   const overlay = makeInputOverlay(`
     <div class="input-dialog" style="min-width:460px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -104,22 +162,22 @@ export function showPolarDrawingDialog() {
       <hr style="border-color:${COLORS.surfaceHover};margin:8px 0">
       <label>Segment (polární souřadnice od ref. bodu):</label>
       <div class="input-row">
-        <div><label>Délka:</label><input type="text" id="polLen" value="10"></div>
-        <div><label>Úhel (°):</label><input type="text" id="polAng" value="0"></div>
+        <div><label>Délka:</label><input type="text" id="polLen" value="${defLen}"></div>
+        <div><label>Úhel (°):</label><input type="text" id="polAng" value="${defAng}"></div>
       </div>
       <div class="input-row">
         <div><label>Typ:</label>
           <select id="polType" style="width:100%">
-            <option value="line" selected>Úsečka</option>
-            <option value="constr">Konstrukční čára</option>
-            <option value="point">Bod (na konci)</option>
+            <option value="line"${defType === 'line' ? ' selected' : ''}>Úsečka</option>
+            <option value="constr"${defType === 'constr' ? ' selected' : ''}>Konstrukční čára</option>
+            <option value="point"${defType === 'point' ? ' selected' : ''}>Bod (na konci)</option>
           </select>
         </div>
         <button class="btn-ok" id="polAdd" style="height:100%;margin-top:18px">➕ Přidat</button>
       </div>
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px">
         <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" id="polChain" checked> Řetězit (konec → nový ref.)
+          <input type="checkbox" id="polChain"${defChain ? ' checked' : ''}> Řetězit (konec → nový ref.)
         </label>
       </div>
       <hr style="border-color:${COLORS.surfaceHover};margin:8px 0">
@@ -127,14 +185,41 @@ export function showPolarDrawingDialog() {
       <div class="input-row">
         <div><label>Ukončení:</label>
           <select id="angMode" style="width:100%">
-            <option value="length" selected>Zadaná délka</option>
-            <option value="intersect">Do průsečíku</option>
+            <option value="length"${defAngMode === 'length' ? ' selected' : ''}>Zadaná délka</option>
+            <option value="intersect"${defAngMode === 'intersect' ? ' selected' : ''}>Do průsečíku</option>
           </select>
         </div>
         <button class="btn-ok" id="angPick" title="Vybrat bod / kružnici" style="height:100%;margin-top:18px">🎯 Tečnost</button>
       </div>
       <div id="polHistory" style="max-height:120px;overflow-y:auto;font-size:11px;font-family:Consolas;color:${COLORS.label};margin:8px 0;padding:4px;background:${COLORS.bgDarker};border-radius:4px;display:none"></div>
     </div>`);
+
+  // Dialog nemění `state.tool` (Přidat/Tečnost fungují nezávisle na
+  // aktuálním nástroji), ale tlačítko dosud aktivního nástroje (např.
+  // Kružnice) by jinak zůstalo vizuálně zvýrazněné, jako by se do
+  // Polární/Úhel vůbec nepřepnulo. Označit „Polární" a ostatní vypnout;
+  // po zavření dialogu se zvýraznění vrátí k aktuálnímu `state.tool`.
+  document.querySelectorAll('[data-tool].active').forEach(b => b.classList.remove('active'));
+  const polarBtn = document.getElementById('btnPolar');
+  polarBtn?.classList.add('active');
+  _openOverlay = overlay;
+  // `stopAnglePicking` je function-deklarace (hoisted) – bezpečné odkázat se
+  // na ni už tady, přestože je definovaná níž v téhle funkci.
+  _activeStop = stopAnglePicking;
+  onOverlayRemoved(overlay, () => {
+    // Když dialog úplně zmizí – Escape/klik mimo, NEBO uživatel mezitím
+    // (v tichém „Tečnost" režimu) klikl na jiný kreslicí nástroj v liště
+    // (setTool() pak zavolá bridge.cancelPolarPicking, které už `_activeStop`
+    // spustilo synchronně) – odhlásit případně stále aktivní posluchače na
+    // canvasu a vrátit `state.tool` na hodnotu před zahájením „Tečnost".
+    // Pokud si `state.tool` mezitím převzal jiný nástroj, návrat se
+    // přeskočí (viz guard uvnitř stopAnglePicking) – nová volba má přednost.
+    _openOverlay = null;
+    _activeStop = null;
+    stopAnglePicking();
+    polarBtn?.classList.remove('active');
+    refreshToolbarActive();
+  });
 
   const polRefX = overlay.querySelector("#polRefX");
   const polRefZ = overlay.querySelector("#polRefZ");
@@ -144,7 +229,23 @@ export function showPolarDrawingDialog() {
   const polChain = overlay.querySelector("#polChain");
   const polHistory = overlay.querySelector("#polHistory");
   const angMode = overlay.querySelector("#angMode");
+
+  /** Uloží aktuální hodnoty polí, aby se při dalším otevření nabídly znovu. */
+  function persistCurrentPrefs() {
+    savePolarPrefs({
+      len: polLen.value,
+      ang: polAng.value,
+      type: polType.value,
+      angMode: angMode.value,
+      chain: polChain.checked,
+    });
+  }
+
   let segCount = 0;
+  // Poslední řádek historie v TÉHLE instanci dialogu (na rozdíl od
+  // _lastAddLine/_lastPick jde o DOM element – při novém otevření dialogu
+  // (nové HTML) nemá smysl přenášet, prostě se založí čerstvý řádek).
+  let _lastAddHistoryDiv = null;
 
   overlay.querySelector("#polMarkRef").addEventListener("click", () => {
     const rx = safeEvalMath(polRefX.value);
@@ -254,6 +355,8 @@ export function showPolarDrawingDialog() {
     const endZ = rz + len * Math.sin(rad);
     const typ = polType.value;
 
+    const historyLine = `#${segCount + 1}: ${axisLabels()[0]}${rx.toFixed(2)} ${axisLabels()[1]}${rz.toFixed(2)} → d=${len} ∠${angDeg}° → ${axisLabels()[0]}${endX.toFixed(2)} ${axisLabels()[1]}${endZ.toFixed(2)}`;
+
     if (typ === "point") {
       addObject({
         type: "point",
@@ -261,21 +364,52 @@ export function showPolarDrawingDialog() {
         y: endZ,
         name: `Bod ${state.nextId}`,
       });
+      _lastAddLine = null;
+      _lastAddRefKey = null;
     } else {
-      addObject({
-        type: typ === "constr" ? "constr" : "line",
-        x1: rx,
-        y1: rz,
-        x2: endX,
-        y2: endZ,
-        name: `${typ === "constr" ? "Konstr" : "Úsečka"} ${state.nextId}`,
-        dashed: typ === "constr",
-      });
+      const refKey = `${typ}:${rx}:${rz}`;
+      if (_lastAddLine && _lastAddRefKey === refKey && state.objects.includes(_lastAddLine)) {
+        // Stejný ref. bod jako minule (jen jiná délka/úhel) – upravit
+        // předchozí úsečku místo přidání dalšího paprsku ze stejného bodu.
+        // ÚMYSLNĚ bez pushUndo() – původní vytvoření úsečky (addObject níž)
+        // už jeden snapshot uložilo („před touhle úsečkou“); kdyby se před
+        // KAŽDOU úpravou úhlu ukládal další, jedno „Zpět“ by vracelo jen
+        // poslední zkoušený úhel místo celé úsečky najednou.
+        _lastAddLine.x2 = endX;
+        _lastAddLine.y2 = endZ;
+        calculateAllIntersections();
+        renderAll();
+        if (_lastAddHistoryDiv) {
+          _lastAddHistoryDiv.textContent = historyLine;
+        } else {
+          // Nahrazovaná úsečka pochází z dřívějšího otevření dialogu (nové
+          // HTML nemá odpovídající řádek) – založit v TÉHLE instanci nový.
+          segCount++;
+          polHistory.style.display = "";
+          const div = document.createElement('div');
+          div.textContent = historyLine;
+          polHistory.appendChild(div);
+          _lastAddHistoryDiv = div;
+        }
+      } else {
+        _lastAddLine = addObject({
+          type: typ === "constr" ? "constr" : "line",
+          x1: rx,
+          y1: rz,
+          x2: endX,
+          y2: endZ,
+          name: `${typ === "constr" ? "Konstr" : "Úsečka"} ${state.nextId}`,
+          dashed: typ === "constr",
+        });
+        _lastAddRefKey = refKey;
+        segCount++;
+        polHistory.style.display = "";
+        const div = document.createElement('div');
+        div.textContent = historyLine;
+        polHistory.appendChild(div);
+        _lastAddHistoryDiv = div;
+      }
     }
-
-    segCount++;
-    polHistory.style.display = "";
-    polHistory.innerHTML += `<div>#${segCount}: ${axisLabels()[0]}${rx.toFixed(2)} ${axisLabels()[1]}${rz.toFixed(2)} → d=${len} ∠${angDeg}° → ${axisLabels()[0]}${endX.toFixed(2)} ${axisLabels()[1]}${endZ.toFixed(2)}</div>`;
     polHistory.scrollTop = polHistory.scrollHeight;
 
     if (polChain.checked) {
@@ -285,6 +419,7 @@ export function showPolarDrawingDialog() {
 
     polLen.focus();
     polLen.select();
+    persistCurrentPrefs();
     showToast(`Segment #${segCount} přidán`);
   });
 
@@ -298,6 +433,23 @@ export function showPolarDrawingDialog() {
 
   // Funkcionalita pro režim Úhel
   let _angPickCleanup = null;
+  // Nástroj aktivní PŘED zahájením „Tečnost" klikání (např. rozpracovaná
+  // kontura) – po dobu klikání na canvasu se `state.tool` dočasně přepne na
+  // neutrální hodnotu, aby souběžný obecný handler kliku (mousedown) klik
+  // nesměroval do původního nástroje (jinak se úsečka pod úhlem vytvoří,
+  // ALE zároveň se klik započítá i jako další bod rozkreslené kontury).
+  let _prevToolBeforePick = null;
+
+  function stopAnglePicking() {
+    if (_angPickCleanup) _angPickCleanup();
+    if (_prevToolBeforePick !== null) {
+      // Obnovit jen když si `state.tool` mezitím nepřevzal jiný nástroj
+      // (klik na Kružnici/Kontura/... v liště zavolá setTool() dřív, než
+      // sem dorazí úklid – v tom případě má nová volba přednost).
+      if (state.tool === '__polarAnglePick') state.tool = _prevToolBeforePick;
+      _prevToolBeforePick = null;
+    }
+  }
 
   overlay.querySelector("#angPick").addEventListener("click", () => {
     const angDeg = safeEvalMath(polAng.value);
@@ -320,6 +472,14 @@ export function showPolarDrawingDialog() {
     const rad = (angDeg * Math.PI) / 180 + angleOffset;
     const dirX = Math.cos(rad), dirY = Math.sin(rad);
 
+    // Opakovaný klik na „Tečnost" v RÁMCI stejného dialogu (např. po úpravě
+    // úhlu, nebo po „Žádný průsečík..." zprávě) jinak nechá viset posluchače
+    // z PŘEDCHOZÍHO kliku na canvasu vedle těch nových – jeden klik pak
+    // vytvoří úsečku za každý dosud neuklizený pokus najednou.
+    if (_angPickCleanup) _angPickCleanup();
+
+    if (_prevToolBeforePick === null) _prevToolBeforePick = state.tool;
+    state.tool = '__polarAnglePick';
     overlay.style.display = "none";
     showToast("Klikněte na bod, nebo na kružnici/oblouk pro tečnu...");
 
@@ -382,14 +542,36 @@ export function showPolarDrawingDialog() {
         endX = hit.x; endY = hit.y;
       }
 
-      addObject({
-        type: 'line',
-        x1: startX, y1: startY, x2: endX, y2: endY,
-        name: `Úhel ${state.nextId}`,
-      });
+      // Klik blízko místa, kam se kliklo minule (typicky: upravil se jen
+      // úhel a zkouší se to znovu na stejném místě) → nahradit tu úsečku
+      // místo přidání dalšího paprsku vedle ní.
+      const tol = SNAP_POINT_THRESHOLD / state.zoom;
+      if (_lastPick && state.objects.includes(_lastPick.obj)
+          && Math.hypot(startX - _lastPick.startX, startY - _lastPick.startY) <= tol) {
+        // ÚMYSLNĚ bez pushUndo() – viz stejná poznámka u „➕ Přidat" výš.
+        _lastPick.obj.x1 = startX; _lastPick.obj.y1 = startY;
+        _lastPick.obj.x2 = endX; _lastPick.obj.y2 = endY;
+        calculateAllIntersections();
+        renderAll();
+        _lastPick.startX = startX; _lastPick.startY = startY;
+      } else {
+        const obj = addObject({
+          type: 'line',
+          x1: startX, y1: startY, x2: endX, y2: endY,
+          name: `Úhel ${state.nextId}`,
+        });
+        _lastPick = { obj, startX, startY };
+      }
+      persistCurrentPrefs();
       cleanup();
-      overlay.remove();
-      showToast(`Úsečka pod úhlem ${angDeg}° vytvořena ✓`);
+      // Dialog zůstává skrytý (nezavře se) a klik na canvasu je pořád
+      // aktivní – další úsečku pod stejným úhlem lze rovnou naklikat
+      // jinde, bez znovuotevírání dialogu a klikání na „Tečnost".
+      // Ukončí se klávesou Esc nebo klikem mimo (zavře celý dialog).
+      drawCanvas.addEventListener("click", onPick);
+      drawCanvas.addEventListener("touchend", onTouch);
+      _angPickCleanup = cleanup;
+      showToast(`Úsečka pod úhlem ${angDeg}° vytvořena ✓ – klikněte pro další (Esc = konec)`);
     }
 
     function onPick(e) {
@@ -420,7 +602,11 @@ export function showPolarDrawingDialog() {
   });
 
   overlay.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && e.target.tagName === "INPUT") {
+    // Enter potvrzuje „➕ Přidat" JEN ve vlastních polích segmentu
+    // (referenční bod) – Délka a Úhel jsou sdílené i s „🎯 Tečnost", takže
+    // Enter po zadání úhlu tam by potvrdil Přidat, i když uživatel chtěl
+    // ve skutečnosti kliknout Tečnost → vznikly by dvě úsečky najednou.
+    if (e.key === "Enter" && (e.target === polRefX || e.target === polRefZ)) {
       overlay.querySelector("#polAdd").click();
     }
     if (e.key === "Escape") {

@@ -139,6 +139,10 @@ export const state = {
   // `key` = typ dle ČSN EN ISO 128, `color` = null → podle vrstvy,
   // `aux` = pomocná čára (zakládá se jako 'constr', mimo konturu a CAM).
   lineStyle: { key: 'constr', color: null, aux: true },
+  // Zapnuto po potvrzení dialogu „Typ čáry" – zvolený typ/barva se pak
+  // uplatní na VŠECHNY nově kreslené objekty (úsečka, kružnice, oblouk,
+  // obdélník, kontura), ne jen na úsečku. Vypíná se tlačítkem „Vypnout".
+  lineStyleActive: false,
   // Vrstvy
   layers: [
     { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },

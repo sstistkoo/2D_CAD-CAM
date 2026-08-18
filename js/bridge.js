@@ -63,6 +63,11 @@ export const bridge = {
   linearArrayFromSelection: null,
   circularArrayFromSelection: null,
   copyPlaceFromSelection: null,
+  // Zruší otevřený/skrytý dialog Polární/Úhel (viz polarDrawing.js) – volá
+  // se ze setTool(), aby přepnutí na jiný kreslicí nástroj během klikání
+  // v režimu „Tečnost" dialog spolehlivě ukončilo (jinak by zůstaly viset
+  // posluchače kliků na plátně z opuštěné relace).
+  cancelPolarPicking: null,
   saveProject: null,
   showFileDialog: null,
   showLibraryDialog: null,
