@@ -60,9 +60,10 @@ vdescribe('buildMachinableContour — topologie přemostění', () => {
     expect(describe(out)).toEqual([
       'L (20.00,30.00)->(20.00,25.00)',
       'L (20.00,25.00)->(25.00,8.00) {ins}',    // most podél čáry
-      'L (20.00,5.00)->(20.00,0.00)',           // ocas — BEZ spojnice
+      'L (14.00,8.00)->(20.00,5.00)',           // ocas ROZŘÍZNUTÝ na konci stínu
+      'L (20.00,5.00)->(20.00,0.00)',
     ]);
-    expect(out[out.length - 1].chainBreak).toBe(true);
+    expect(out[2].chainBreak).toBe(true);       // ocas navazuje přes VZDUCH
   });
 
   // ── párování kapes (mergePocketGuides): 'zanoreni' + 'dojezd' čára tvořící V ──

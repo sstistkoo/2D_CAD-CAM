@@ -33,7 +33,10 @@ describe('Čelní hrubování nakloněnou destičkou (b 10 mm, −15°)', () => 
   it('obrábí se CELÝ díl, ne jen pravá polovina', async () => {
     const { calc } = await runCamProgFile(fixture);
     const zs = calc.passes.filter(p => p.type === 'face').map(p => p.z);
-    expect(zs.length).toBeGreaterThan(60);
+    // Přesný POČET závisí na hlídání geometrie destičky (nakloněná destička
+    // se do řady míst nedostane a hloubka vrstev nesmí klesat) — hlídá se
+    // řádová hodnota, vada byla „chybí půlka dílu".
+    expect(zs.length).toBeGreaterThan(35);
     // Kontura sahá k Z=0; hrubování musí dojet do jeho blízkosti (dřív končilo
     // na Z≈198, tj. v polovině dílu).
     expect(Math.min(...zs)).toBeLessThan(30);

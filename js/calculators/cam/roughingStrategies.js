@@ -426,6 +426,7 @@ export function genFacePasses(ctx) {
     const reachM = insertReachZ(prms, faceLeft);
     if (phiDeg > 0.01 && reachM > 1e-6) {
       const tanM = Math.tan(Math.min(89.5, phiDeg) * Math.PI / 180);
+      const AXIS_NO_MAT = 0.5;   // dno u osy = vzduch, ne stěna
       const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
       const dropM = new Set();
       const done = [];            // { z, x } hotové vrstvy v dosahu břitu
@@ -446,6 +447,12 @@ export function genFacePasses(ctx) {
         }
         let need = -Infinity;
         for (const q of done) {
+          // OSA NENÍ MATERIÁL. Když předchozí vrstva dojela až k ose, za
+          // destičkou nic nezbylo a není co hlídat — další vrstva smí taky
+          // až na X0. Bez tohohle si pravidlo vyrobilo schodiště i tam, kde
+          // se čelo obrábí naplno (nález uživatele: průchody na Ø21,8
+          // končily 0,8 / 1,6 / 2,4 … místo X0).
+          if (q.x < AXIS_NO_MAT) continue;
           const dz = Math.abs(p.z - q.z);
           if (dz > reachM + 1e-6) continue;
           const cand = q.x + dz * tanM;

@@ -277,6 +277,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dráhy ani G-kód se jí nemění.
 
 ### Fixed
+- **Natočená destička jela do větší hloubky než předchozí vrstva.** Spodní hrana
+  klesá od špičky k obrobené straně pod úhlem natočení, takže hlubší řez ji
+  zavezl do už hotové vrstvy. Hlídání to sice řešilo, jenže běželo **před**
+  hlídáním držáku — cokoli držák potom zvedl (a zvedá po svém sklonu), už nikdo
+  nekontroloval. Tak vznikaly sestupné série „škrábanců", kde každý další
+  průchod jel o 0,26 mm HLOUB (nález uživatele: N1730 X20,219 → N1780 X19,955
+  na Ø21,8). Pravidlo se teď vyhodnocuje jako poslední slovo nad hotovým
+  seznamem průchodů (a ještě jednou před držákem, aby si schody počítal
+  z konečných hloubek). Kroky vrstev sedí na `ap · tan(natočení)` — u ap 3 mm
+  a −15° přesně 0,804 mm.
+  - **Osa se nebere jako materiál:** když předchozí vrstva dojela až k X0, za
+    destičkou nic nezbylo a další vrstva smí taky na X0 (jinak si pravidlo
+    vyrábělo schodiště i na čistě obrobeném čele).
+  - **Pás bez průchodu = stojící materiál**, ne vzduch — jde se po celé marche
+    mřížce, ne jen po existujících průchodech.
+  Na dílu uživatele: sedm „škrábanců" na Ø21,8 zmizelo, 0 kolizí, 0 mm² zajezdu
+  těla destičky.
 - **Čelní hrubování: Z0 nebyl konec obrobku.** March se zastavoval na
   nejnižším Z KONTURY, jenže konec dílce není konec MATERIÁLU — polotovar
   za čelem pokračuje (přídavek, upínací zbytek). U dílu končícího na Z0 nad

@@ -709,6 +709,26 @@ právě emitovaný pohyb** — tedy na týž vstup, jaký uvidí validátor.
 
 Hlídá to `tests/cam-collision-free.test.js` (plošně přes všechny fixtures).
 
+#### Hloubka vrstev u natočené destičky (čelně)
+
+Spodní hrana klesá od špičky k obrobené straně pod úhlem natočení, takže
+**průchod nesmí jít hlouběji než předchozí vrstva**: ve vzdálenosti `dz` za ním
+leží hrana o `dz·tan φ` níž. `enforceLayerDepth()` v `genFacePasses` to hlídá
+nad HOTOVÝM seznamem průchodů a volá se **dvakrát** — před hlídáním držáku
+(aby si držák počítal schody z konečných hloubek) a po něm (držák zvedá po
+svém sklonu a pravidlo tím poruší). Obě hlídání smí hloubku jen zvedat, takže
+se střídavým voláním nerozhoupou.
+
+Dvě pravidla, bez kterých to hlásí stěnu tam, kde je vzduch:
+- **osa není materiál** — dno pod ~0,5 mm znamená „za destičkou nic nezbylo",
+  další vrstva smí taky až na X0;
+- **pás bez průchodu je stojící materiál** — jde se po celé marche mřížce
+  (`zList`), ne jen po existujících průchodech.
+
+Důsledek, který NENÍ chyba: na ploše rovnoběžné s osou vzniká kužel pod úhlem
+destičky a po pár vrstvách hrubování vyjede nad polotovar. Tam už čelně není co
+brát — ta plocha patří podélnému hrubování.
+
 #### Dva modely nástroje pro úběr
 
 `toolFootprint` (plánování + validace kolizí) je aproximace „stadion";
