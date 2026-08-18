@@ -430,7 +430,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → st
 [
   "Hlídání destičky: dokončování vynechá 14 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Tvar destičky (vrchol 90°, natočení -15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "Hlídání destičky: 0 čelních průchodů zkráceno, 2 vynecháno, aby spodní hrana destičky nezajela do kontury.",
+  "Hlídání destičky: 2 čelních průchodů zkráceno, 2 vynecháno, aby spodní hrana destičky nezajela do kontury.",
+  "Hlídání destičky (hloubka vrstev): 0 průchodů zkráceno, 2 vynecháno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
 ]
 `;
 
@@ -620,23 +621,35 @@ N1540 G0 Z0.000
 N1550 G1 X33.500 F0.25
 N1560 G1 X21.460 F0.25
 N1570 G1 X23.460 Z2.000
-N1580 G0 X150.000 ; Výjezd nad konturu
-N1590 G0 Z5.000
+; Průchod 26
+N1580 G0 X35.700
+N1590 G0 Z-2.000
+N1600 G1 X33.500 F0.25
+N1610 G1 X21.996 F0.25
+N1620 G1 X23.996 Z0.000
+; Průchod 27
+N1630 G0 X35.700
+N1640 G0 Z-4.000
+N1650 G1 X33.500 F0.25
+N1660 G1 X22.532 F0.25
+N1670 G1 X24.532 Z-2.000
+N1680 G0 X150.000 ; Výjezd nad konturu
+N1690 G0 Z5.000
 ; --- DOKONCOVANI ---
-N1600 G0 X2.000 Z51.200
-N1610 G1 X0.000 Z49.200 F0.25
-N1620 G1 X4.497 Z49.200
-N1630 G1 X5.310 Z48.387
-N1640 G1 X6.109 Z46.459
-N1650 G0 X35.700 ; Výjezd nad konturu
-N1660 G0 Z32.537
-N1670 G0 X13.073
-N1680 G1 X11.073 Z30.537
-N1690 G1 X15.073 Z22.537
-N1700 G1 X15.073 Z20.537 ; Rovný průměr (zbytek nejde dokončit celý)
-N1710 G1 X150.000 F0.25 ; Výjezd materiálem posuvem
-N1720 G0 Z5.000
-N1730 M30 ; Konec programu
+N1700 G0 X2.000 Z51.200
+N1710 G1 X0.000 Z49.200 F0.25
+N1720 G1 X4.497 Z49.200
+N1730 G1 X5.310 Z48.387
+N1740 G1 X6.109 Z46.459
+N1750 G0 X35.700 ; Výjezd nad konturu
+N1760 G0 Z32.537
+N1770 G0 X13.073
+N1780 G1 X11.073 Z30.537
+N1790 G1 X15.073 Z22.537
+N1800 G1 X15.073 Z20.537 ; Rovný průměr (zbytek nejde dokončit celý)
+N1810 G1 X150.000 F0.25 ; Výjezd materiálem posuvem
+N1820 G0 Z5.000
+N1830 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X4 Z48
 ; G1 X4.293 Z47.707
@@ -671,7 +684,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
     "L (14.00,4.00)->(14.00,0.00)",
     "L (14.00,0.00)->(0.00,0.00)",
   ],
-  "passCount": 25,
+  "passCount": 27,
   "passTags": [
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
@@ -698,6 +711,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
   ],
 }
 `;
@@ -706,8 +721,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
 [
   "Hlídání destičky: dokončování vynechá 7 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Tvar destičky (vrchol 60°, natočení -15°) nedosáhne na 5 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "Hlídání destičky: 9 čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.",
-  "Hlídání destičky (hloubka vrstev): 8 průchodů zkráceno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
+  "Hlídání destičky: 11 čelních průchodů zkráceno, aby spodní hrana destičky nezajela do kontury.",
+  "Hlídání destičky (hloubka vrstev): 10 průchodů zkráceno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
 ]
 `;
 
@@ -6915,47 +6930,61 @@ N6260 G1 X38.566 F0.25
 N6270 G1 X31.766 F0.25
 N6280 G1 X31.766 Z2.932 F0.25
 N6290 G1 X33.766 Z4.932
-N6300 G0 X150.000 ; Výjezd nad konturu
-N6310 G0 Z5.000
+; Průchod 108
+N6300 G0 X40.366
+N6310 G0 Z-3.068
+N6320 G1 X38.566 F0.25
+N6330 G1 X31.766 F0.25
+N6340 G1 X33.766 Z-1.068
+; Průchod 109
+N6350 G0 X40.366
+N6360 G0 Z-6.068
+N6370 G1 X38.566 F0.25
+N6380 G1 X31.065 F0.25
+N6390 G1 X33.065 Z-4.068
+N6400 G0 X150.000 ; Výjezd nad konturu
+N6410 G0 Z5.000
 ; --- DOKONCOVANI ---
-N6320 G0 Z354.640
-N6330 G0 X2.000
-N6340 G1 X0.000 Z347.176 F0.25
-N6350 G1 X7.481 Z346.376
-N6360 G1 X9.917 Z345.977
-N6370 G1 X9.917 Z244.072
-N6380 G1 X10.459 Z243.672
-N6390 G1 X50.715 Z235.680
-N6400 G1 X50.881 Z235.280
-N6410 G1 X50.881 Z218.096
-N6420 G1 X50.881 Z217.096 ; Rovný průměr (zbytek nejde dokončit celý)
-N6430 G1 X69.217 F0.25 ; Výjezd materiálem posuvem
-N6440 G0 Z146.834
-N6450 G0 X11.543
-N6460 G1 X9.543 Z139.370
-N6470 G1 X12.077 Z138.970
-N6480 G1 X28.101 Z138.570
-N6490 G1 X39.268 Z138.171
-N6500 G1 X40.909 Z128.979
-N6510 G1 X40.918 Z122.186
-N6520 G1 X40.918 Z121.186 ; Rovný průměr (zbytek nejde dokončit celý)
-N6530 G1 X42.920 F0.25 ; Výjezd materiálem posuvem
-N6540 G0 X69.217 ; Výjezd nad konturu
-N6550 G0 Z82.894
-N6560 G0 X16.730
-N6570 G1 X14.730 Z75.429
-N6580 G1 X16.394 Z75.030
-N6590 G1 X22.284 Z73.831
-N6600 G1 X23.640 Z73.431
-N6610 G3 X27.856 Z67.037 CR=6.803
-N6620 G0 X69.217 ; Výjezd nad konturu
-N6630 G0 Z24.948
-N6640 G0 X29.841
-N6650 G1 X27.841 Z17.484
-N6660 G3 X31.366 Z9.491 CR=10.800
-N6670 G0 X150.000 ; Výjezd nad konturu
-N6680 G0 Z5.000
-N6690 M30 ; Konec programu
+N6420 G0 Z354.640
+N6430 G0 X2.000
+N6440 G1 X0.000 Z347.176 F0.25
+N6450 G1 X7.481 Z346.376
+N6460 G1 X9.917 Z345.977
+N6470 G1 X9.917 Z244.072
+N6480 G1 X10.459 Z243.672
+N6490 G1 X50.715 Z235.680
+N6500 G1 X50.881 Z235.280
+N6510 G1 X50.881 Z218.096
+N6520 G1 X50.881 Z217.096 ; Rovný průměr (zbytek nejde dokončit celý)
+N6530 G1 X69.217 F0.25 ; Výjezd materiálem posuvem
+N6540 G0 Z146.834
+N6550 G0 X11.543
+N6560 G1 X9.543 Z139.370
+N6570 G1 X12.077 Z138.970
+N6580 G1 X28.101 Z138.570
+N6590 G1 X39.268 Z138.171
+N6600 G1 X40.909 Z128.979
+N6610 G1 X40.918 Z122.186
+N6620 G1 X40.918 Z121.186 ; Rovný průměr (zbytek nejde dokončit celý)
+N6630 G1 X42.920 F0.25 ; Výjezd materiálem posuvem
+N6640 G0 X69.217 ; Výjezd nad konturu
+N6650 G0 Z82.894
+N6660 G0 X16.730
+N6670 G1 X14.730 Z75.429
+N6680 G1 X16.394 Z75.030
+N6690 G1 X22.284 Z73.831
+N6700 G1 X23.640 Z73.431
+N6710 G3 X27.856 Z67.037 CR=6.803
+N6720 G0 X69.217 ; Výjezd nad konturu
+N6730 G0 Z24.948
+N6740 G0 X29.841
+N6750 G1 X27.841 Z17.484
+N6760 G3 X31.366 Z9.491 CR=10.800
+N6770 G1 X31.366 Z-1.299
+N6780 G1 X33.570 F0.25 ; Výjezd materiálem posuvem
+N6790 G0 X150.000 ; Výjezd nad konturu
+N6800 G0 Z5.000
+N6810 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -7021,7 +7050,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 107,
+  "passCount": 109,
   "passTags": [
     "face",
     "face",
@@ -7130,6 +7159,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
+    "face{blocked}",
+    "face{blocked}",
   ],
 }
 `;
@@ -7137,8 +7168,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
 exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Hlídání geometrie (držák): dokončování vynechá 11 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
-  "Hlídání upichováku: 21 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 5) nevjelo do kontury.",
-  "Hlídání držáku (čelně): 29 průchodů zkráceno, 16 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
+  "Hlídání upichováku: 22 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 5) nevjelo do kontury.",
+  "Hlídání držáku (čelně): 30 průchodů zkráceno, 16 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
 ]
 `;
 
@@ -9229,9 +9260,21 @@ N4690 G0 Z-0.068
 N4700 G1 X38.566 F0.25
 N4710 G1 X36.896 F0.25
 N4720 G1 X38.896 Z1.932
-N4730 G0 X150.000 ; Výjezd nad konturu
-N4740 G0 Z5.000
-N4750 M30 ; Konec programu
+; Průchod 83
+N4730 G0 X40.366
+N4740 G0 Z-3.068
+N4750 G1 X38.566 F0.25
+N4760 G1 X37.700 F0.25
+N4770 G1 X39.700 Z-1.068
+; Průchod 84
+N4780 G0 X40.366
+N4790 G0 Z-6.068
+N4800 G1 X38.566 F0.25
+N4810 G1 X38.504 F0.25
+N4820 G1 X40.504 Z-4.068
+N4830 G0 X150.000 ; Výjezd nad konturu
+N4840 G0 Z5.000
+N4850 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -9301,7 +9344,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 82,
+  "passCount": 84,
   "passTags": [
     "face",
     "face",
@@ -9385,6 +9428,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",
+    "face{blocked}",
+    "face{blocked}",
   ],
 }
 `;
@@ -9392,8 +9437,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.
 exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Tvar destičky (vrchol 90°, natočení -15°) nedosáhne na 22 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "Hlídání destičky: 39 čelních průchodů zkráceno, 7 vynecháno, aby spodní hrana destičky nezajela do kontury.",
-  "Hlídání destičky (hloubka vrstev): 26 průchodů zkráceno, 33 vynecháno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
+  "Hlídání destičky: 41 čelních průchodů zkráceno, 7 vynecháno, aby spodní hrana destičky nezajela do kontury.",
+  "Hlídání destičky (hloubka vrstev): 28 průchodů zkráceno, 33 vynecháno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
   "Hlídání držáku (čelně): 3 dojezdů zkráceno, aby držák nenarazil do stoupající kontury.",
 ]
 `;

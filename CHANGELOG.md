@@ -277,6 +277,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dráhy ani G-kód se jí nemění.
 
 ### Fixed
+- **Za levým koncem kontury zůstávaly poslední vrstvy neobrobené.** Marche
+  sice už jela až k nejnižšímu Z POLOTOVARU, ale v zóně `Z < konec offsetu` se
+  každý průchod přeskočil („chuck-stub, nesmíme řezat do držáku"). Ten odhad je
+  zbytečný — uživatel má nastavené **čelisti a rozsah Z**, které říkají, kam se
+  smí. Nově se tam pokračuje **posledním průměrem kontury** (pahýl zůstane
+  stejně silný jako díl; k ose se nejede, tím by se obrobek uřízl). Na dílu
+  uživatele přibyly 2 chybějící vrstvy vlevo (Z −3 a −6), bez kolizí.
+- **Pás bez průchodu se do hlídání hloubky vrstev zapisoval o rádius nosu výš,
+  než je skutečný povrch** (`xTouchAt` je mez pro STŘED nosu, ne materiál).
+  Požadavek se tím nafoukl a jakmile jedna vrstva vypadla, strhla celou sérii
+  za sebou — proto chyběl celý pás Ø16,7 a vrstva u Z 140,9.
 - **Natočená destička jela do větší hloubky než předchozí vrstva.** Spodní hrana
   klesá od špičky k obrobené straně pod úhlem natočení, takže hlubší řez ji
   zavezl do už hotové vrstvy. Hlídání to sice řešilo, jenže běželo **před**
