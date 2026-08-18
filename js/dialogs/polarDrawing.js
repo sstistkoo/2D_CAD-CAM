@@ -563,13 +563,16 @@ export function showPolarDrawingDialog() {
         _lastPick = { obj, startX, startY };
       }
       persistCurrentPrefs();
-      // Klikání ukončit a dialog vrátit zpět – NEnechávat posluchač na
-      // canvasu viset donekonečna. Jinak i obyčejný klik jinam (např. na
-      // objekt, který chcete smazat) skončí jako další úsečka pod úhlem.
-      // Pro další úsečku stačí znovu kliknout na „Tečnost".
-      stopAnglePicking();
-      overlay.style.display = "flex";
-      showToast(`Úsečka pod úhlem ${angDeg}° vytvořena ✓`);
+      // „Tečnost" zůstává aktivní (dialog schovaný, NE znovu zavřený ani
+      // znovu vyskakující) – další klik na canvasu rovnou umístí další
+      // úsečku pod stejným úhlem. Tlačítko „Polární" v liště zůstává
+      // zvýrazněné jako vizuální připomínka, že je pořád aktivní. Skončí
+      // se buď klávesou Esc, nebo přepnutím na jiný nástroj v liště
+      // (setTool() ho přes bridge.cancelPolarPicking zruší).
+      drawCanvas.addEventListener("click", onPick);
+      drawCanvas.addEventListener("touchend", onTouch);
+      _angPickCleanup = cleanup;
+      showToast(`Úsečka pod úhlem ${angDeg}° vytvořena ✓ – klikněte pro další (Esc = konec)`);
     }
 
     function onPick(e) {
