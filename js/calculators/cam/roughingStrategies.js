@@ -405,6 +405,89 @@ export function genFacePasses(ctx) {
     }
   }
 
+  // ── Hlídání destičky: NIKDY HLOUB NEŽ PŘEDCHOZÍ VRSTVA ──
+  // Nakloněná destička má spodní hranu klesající od špičky k obrobené straně
+  // pod úhlem natočení. Průchod proto nesmí jít hlouběji než ten předchozí:
+  // v axiální vzdálenosti dz za ním leží hrana o dz·tan(natočení) NÍŽ, takže
+  // hlubší řez by hranou zajel do už hotové vrstvy.
+  //
+  // PROČ AŽ TADY: hlídání výš běží PŘED hlídáním DRŽÁKU. Cokoli držák potom
+  // zvedne (a zvedá to po vlastním sklonu), už žádná kontrola destičky
+  // nevidí — a přesně tak vznikaly sestupné série „škrábanců", kde každý
+  // další průchod jel o 0,26 mm HLOUB než ten před ním (nález uživatele:
+  // N1730 X20,219 → N1780 X19,955 na Ø21,8). Tohle je poslední slovo nad
+  // hotovým seznamem průchodů, takže ho nemá co přebít.
+  //
+  // Mimo dosah břitu (insertReachZ) hrana nesahá — tam se řetěz resetuje a
+  // hlídání přebírá držák (holderBottomProfile výš).
+  const enforceLayerDepth = () => {
+    if (!(prms.respectInsertGeometry && prms.toolShape === 'polygon')) return;
+    const phiDeg = -(parseFloat(prms.toolAngle) || 0);
+    const reachM = insertReachZ(prms, faceLeft);
+    if (phiDeg > 0.01 && reachM > 1e-6) {
+      const tanM = Math.tan(Math.min(89.5, phiDeg) * Math.PI / 180);
+      const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
+      const dropM = new Set();
+      const done = [];            // { z, x } hotové vrstvy v dosahu břitu
+      let raisedM = 0, droppedM = 0;
+      // Jde se po CELÉ marche mřížce, ne jen po existujících průchodech: kde
+      // průchod není (vypadl dřív — mimo polotovar, držák, nulový řez), stojí
+      // syrový materiál v úrovni povrchu a hrana destičky do něj zajede úplně
+      // stejně. Bez toho se první průchod pod takovým pásem tvářil jako volný.
+      for (const zGrid of zList) {
+        const p = byZ.get(zGrid.toFixed(3));
+        if (!p) {
+          const raw = xTouchAt(zGrid);
+          if (Number.isFinite(raw)) {
+            done.push({ z: zGrid, x: raw });
+            while (done.length > 0 && Math.abs(zGrid - done[0].z) > reachM + step) done.shift();
+          }
+          continue;
+        }
+        let need = -Infinity;
+        for (const q of done) {
+          const dz = Math.abs(p.z - q.z);
+          if (dz > reachM + 1e-6) continue;
+          const cand = q.x + dz * tanM;
+          if (cand > need) need = cand;
+        }
+        if (need > p.xEnd + 0.01) {
+          // Zvednutí nad mez dotyku = průchod by jel vzduchem → vynechat
+          // (týž rozdíl „zkráceno × vynecháno" jako u ostatních hlídání).
+          if (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01) {
+            dropM.add(p);
+            droppedM++;
+            // Vynechaný pás zůstává neobrobený — pro další vrstvy je to
+            // materiál v úrovni povrchu, ne vzduch.
+            done.push({ z: p.z, x: xTouchAt(p.z) });
+            continue;
+          }
+          p.xEnd = need;
+          raisedM++;
+          // Dojezd byl spočítaný pro hlubší dno — po zvednutí by šel pod mez.
+          if (p.contourLeadOut) delete p.contourLeadOut;
+        }
+        done.push({ z: p.z, x: p.xEnd });
+        while (done.length > 0 && Math.abs(p.z - done[0].z) > reachM + step) done.shift();
+      }
+      if (dropM.size > 0) {
+        for (let i = passes.length - 1; i >= 0; i--) if (dropM.has(passes[i])) passes.splice(i, 1);
+      }
+      if (raisedM + droppedM > 0) {
+        foundErrors.push({ type: 'warning', msg: `Hlídání destičky (hloubka vrstev): ${raisedM} průchodů zkráceno`
+          + (droppedM > 0 ? `, ${droppedM} vynecháno` : '')
+          + ` — natočená destička (${phiDeg.toFixed(0)}°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.` });
+      }
+    }
+  };
+  // Volá se DVAKRÁT a je to nutné:
+  //   • před hlídáním držáku, aby držák počítal schody z konečných hloubek
+  //     (jinak si postaví `stair` z průchodů, které pak stejně zmizí, a jeho
+  //     rozhodnutí neodpovídají výsledku → kolize),
+  //   • po něm, protože držák zvedá po SVÉM sklonu a tím pravidlo poruší.
+  // Obě hlídání smí hloubku jen ZVEDAT, takže se střídavým voláním nerozhoupou.
+  enforceLayerDepth();
+
   // ── Hlídání DRŽÁKU (čelně) ────────────────────────────────────────
   // Čelní průchod jede radiálně k ose a držák se veze na UŽ OBROBENÉ
   // straně (zprava +Z, zleva −Z); jeho spodní hrana stoupá od špičky pod
@@ -548,89 +631,7 @@ export function genFacePasses(ctx) {
     }
   }
   enforceLayerDepth();
-
-  // ── Hlídání destičky: NIKDY HLOUB NEŽ PŘEDCHOZÍ VRSTVA ──
-  // Nakloněná destička má spodní hranu klesající od špičky k obrobené straně
-  // pod úhlem natočení. Průchod proto nesmí jít hlouběji než ten předchozí:
-  // v axiální vzdálenosti dz za ním leží hrana o dz·tan(natočení) NÍŽ, takže
-  // hlubší řez by hranou zajel do už hotové vrstvy.
-  //
-  // PROČ AŽ TADY: hlídání výš běží PŘED hlídáním DRŽÁKU. Cokoli držák potom
-  // zvedne (a zvedá to po vlastním sklonu), už žádná kontrola destičky
-  // nevidí — a přesně tak vznikaly sestupné série „škrábanců", kde každý
-  // další průchod jel o 0,26 mm HLOUB než ten před ním (nález uživatele:
-  // N1730 X20,219 → N1780 X19,955 na Ø21,8). Tohle je poslední slovo nad
-  // hotovým seznamem průchodů, takže ho nemá co přebít.
-  //
-  // Mimo dosah břitu (insertReachZ) hrana nesahá — tam se řetěz resetuje a
-  // hlídání přebírá držák (holderBottomProfile výš).
-  const enforceLayerDepth = () => {
-    if (!(prms.respectInsertGeometry && prms.toolShape === 'polygon')) return;
-    const phiDeg = -(parseFloat(prms.toolAngle) || 0);
-    const reachM = insertReachZ(prms, faceLeft);
-    if (phiDeg > 0.01 && reachM > 1e-6) {
-      const tanM = Math.tan(Math.min(89.5, phiDeg) * Math.PI / 180);
-      const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
-      const dropM = new Set();
-      const done = [];            // { z, x } hotové vrstvy v dosahu břitu
-      let raisedM = 0, droppedM = 0;
-      // Jde se po CELÉ marche mřížce, ne jen po existujících průchodech: kde
-      // průchod není (vypadl dřív — mimo polotovar, držák, nulový řez), stojí
-      // syrový materiál v úrovni povrchu a hrana destičky do něj zajede úplně
-      // stejně. Bez toho se první průchod pod takovým pásem tvářil jako volný.
-      for (const zGrid of zList) {
-        const p = byZ.get(zGrid.toFixed(3));
-        if (!p) {
-          const raw = xTouchAt(zGrid);
-          if (Number.isFinite(raw)) {
-            done.push({ z: zGrid, x: raw });
-            while (done.length > 0 && Math.abs(zGrid - done[0].z) > reachM + step) done.shift();
-          }
-          continue;
-        }
-        let need = -Infinity;
-        for (const q of done) {
-          const dz = Math.abs(p.z - q.z);
-          if (dz > reachM + 1e-6) continue;
-          const cand = q.x + dz * tanM;
-          if (cand > need) need = cand;
-        }
-        if (need > p.xEnd + 0.01) {
-          // Zvednutí nad mez dotyku = průchod by jel vzduchem → vynechat
-          // (týž rozdíl „zkráceno × vynecháno" jako u ostatních hlídání).
-          if (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01) {
-            dropM.add(p);
-            droppedM++;
-            // Vynechaný pás zůstává neobrobený — pro další vrstvy je to
-            // materiál v úrovni povrchu, ne vzduch.
-            done.push({ z: p.z, x: xTouchAt(p.z) });
-            continue;
-          }
-          p.xEnd = need;
-          raisedM++;
-          // Dojezd byl spočítaný pro hlubší dno — po zvednutí by šel pod mez.
-          if (p.contourLeadOut) delete p.contourLeadOut;
-        }
-        done.push({ z: p.z, x: p.xEnd });
-        while (done.length > 0 && Math.abs(p.z - done[0].z) > reachM + step) done.shift();
-      }
-      if (dropM.size > 0) {
-        for (let i = passes.length - 1; i >= 0; i--) if (dropM.has(passes[i])) passes.splice(i, 1);
-      }
-      if (raisedM + droppedM > 0) {
-        foundErrors.push({ type: 'warning', msg: `Hlídání destičky (hloubka vrstev): ${raisedM} průchodů zkráceno`
-          + (droppedM > 0 ? `, ${droppedM} vynecháno` : '')
-          + ` — natočená destička (${phiDeg.toFixed(0)}°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.` });
-      }
-    }
-  };
-  // Volá se DVAKRÁT a je to nutné:
-  //   • před hlídáním držáku, aby držák počítal schody z konečných hloubek
-  //     (jinak si postaví `stair` z průchodů, které pak stejně zmizí, a jeho
-  //     rozhodnutí neodpovídají výsledku → kolize),
-  //   • po něm, protože držák zvedá po SVÉM sklonu a tím pravidlo poruší.
-  // Obě hlídání smí hloubku jen ZVEDAT, takže se střídavým voláním nerozhoupou.
-  enforceLayerDepth();
+}
 
 // PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standardní soustružení).
 export function genLongPasses(ctx) {
