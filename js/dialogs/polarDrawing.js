@@ -533,10 +533,10 @@ export function showPolarDrawingDialog() {
         const hit = findRayIntersection(startX, startY, dirX, dirY, excludeIdx);
         if (!hit) {
           showToast("Žádný průsečík ve směru úhlu nenalezen");
+          // Ukončit klikání (ne nechat viset posluchač na canvasu do
+          // neurčita) – další pokus vyžaduje nový klik na „Tečnost".
+          stopAnglePicking();
           overlay.style.display = "flex";
-          drawCanvas.addEventListener("click", onPick);
-          drawCanvas.addEventListener("touchend", onTouch);
-          _angPickCleanup = cleanup;
           return;
         }
         endX = hit.x; endY = hit.y;
@@ -563,15 +563,13 @@ export function showPolarDrawingDialog() {
         _lastPick = { obj, startX, startY };
       }
       persistCurrentPrefs();
-      cleanup();
-      // Dialog zůstává skrytý (nezavře se) a klik na canvasu je pořád
-      // aktivní – další úsečku pod stejným úhlem lze rovnou naklikat
-      // jinde, bez znovuotevírání dialogu a klikání na „Tečnost".
-      // Ukončí se klávesou Esc nebo klikem mimo (zavře celý dialog).
-      drawCanvas.addEventListener("click", onPick);
-      drawCanvas.addEventListener("touchend", onTouch);
-      _angPickCleanup = cleanup;
-      showToast(`Úsečka pod úhlem ${angDeg}° vytvořena ✓ – klikněte pro další (Esc = konec)`);
+      // Klikání ukončit a dialog vrátit zpět – NEnechávat posluchač na
+      // canvasu viset donekonečna. Jinak i obyčejný klik jinam (např. na
+      // objekt, který chcete smazat) skončí jako další úsečka pod úhlem.
+      // Pro další úsečku stačí znovu kliknout na „Tečnost".
+      stopAnglePicking();
+      overlay.style.display = "flex";
+      showToast(`Úsečka pod úhlem ${angDeg}° vytvořena ✓`);
     }
 
     function onPick(e) {
