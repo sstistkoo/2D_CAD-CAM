@@ -55,7 +55,14 @@ bridge.cancelPolarPicking = () => {
 // přesně to hromadění, které jde odstranit jen refreshem stránky.
 let _lastAddLine = null;
 let _lastAddRefKey = null;
+let _lastAddTime = 0;
 let _lastPick = null;
+
+// Bezpečnostní okno pro nahrazení – bez něj by např. dvě zcela nesouvisející
+// úsečky založené s prázdným výběrem (ref. bod defaultně 0,0) o hodiny/dny
+// později mohly tiše splynout jen kvůli shodě souřadnic. „Zkouším úhel na
+// stejném místě" se odehrává v řádu sekund/minut, ne déle.
+const REPLACE_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * Najde nejbližší průsečík paprsku (sx,sy) → směr (dx,dy) s ostatní geometrií.
@@ -368,7 +375,8 @@ export function showPolarDrawingDialog() {
       _lastAddRefKey = null;
     } else {
       const refKey = `${typ}:${rx}:${rz}`;
-      if (_lastAddLine && _lastAddRefKey === refKey && state.objects.includes(_lastAddLine)) {
+      if (_lastAddLine && _lastAddRefKey === refKey && state.objects.includes(_lastAddLine)
+          && Date.now() - _lastAddTime <= REPLACE_WINDOW_MS) {
         // Stejný ref. bod jako minule (jen jiná délka/úhel) – upravit
         // předchozí úsečku místo přidání dalšího paprsku ze stejného bodu.
         // ÚMYSLNĚ bez pushUndo() – původní vytvoření úsečky (addObject níž)
@@ -377,6 +385,7 @@ export function showPolarDrawingDialog() {
         // poslední zkoušený úhel místo celé úsečky najednou.
         _lastAddLine.x2 = endX;
         _lastAddLine.y2 = endZ;
+        _lastAddTime = Date.now();
         calculateAllIntersections();
         renderAll();
         if (_lastAddHistoryDiv) {
@@ -402,6 +411,7 @@ export function showPolarDrawingDialog() {
           dashed: typ === "constr",
         });
         _lastAddRefKey = refKey;
+        _lastAddTime = Date.now();
         segCount++;
         polHistory.style.display = "";
         const div = document.createElement('div');
@@ -547,20 +557,22 @@ export function showPolarDrawingDialog() {
       // místo přidání dalšího paprsku vedle ní.
       const tol = SNAP_POINT_THRESHOLD / state.zoom;
       if (_lastPick && state.objects.includes(_lastPick.obj)
-          && Math.hypot(startX - _lastPick.startX, startY - _lastPick.startY) <= tol) {
+          && Math.hypot(startX - _lastPick.startX, startY - _lastPick.startY) <= tol
+          && Date.now() - _lastPick.time <= REPLACE_WINDOW_MS) {
         // ÚMYSLNĚ bez pushUndo() – viz stejná poznámka u „➕ Přidat" výš.
         _lastPick.obj.x1 = startX; _lastPick.obj.y1 = startY;
         _lastPick.obj.x2 = endX; _lastPick.obj.y2 = endY;
         calculateAllIntersections();
         renderAll();
         _lastPick.startX = startX; _lastPick.startY = startY;
+        _lastPick.time = Date.now();
       } else {
         const obj = addObject({
           type: 'line',
           x1: startX, y1: startY, x2: endX, y2: endY,
           name: `Úhel ${state.nextId}`,
         });
-        _lastPick = { obj, startX, startY };
+        _lastPick = { obj, startX, startY, time: Date.now() };
       }
       persistCurrentPrefs();
       // „Tečnost" zůstává aktivní (dialog schovaný, NE znovu zavřený ani
