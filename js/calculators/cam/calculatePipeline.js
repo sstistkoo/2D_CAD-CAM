@@ -12,6 +12,7 @@ import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
+import { computeStockEntryGuides } from './stockEntryGuides.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
@@ -293,14 +294,31 @@ export function computeCalculation(S, lightOnly = false) {
         clearance, prms, worldPoints, stockWorldPoints
       );
       if (profileGuides.length > 0) {
-        machinableContour = buildMachinableContour(contourSegments, profileGuides);
+        const bridgeProfileGuides = profileGuides.filter(g => !g._dominated);
+        machinableContour = buildMachinableContour(contourSegments, bridgeProfileGuides);
         contourSegments = machinableContour;
+        // Táž podmínka jako u větve bez profilu: čára, jejíž dolní konec sedí
+        // na POLOTOVARU (downOnStock / downClipped), na kontuře z definice
+        // neleží — a přesto platí. Dřív ji profilová větev zahodila, takže
+        // u kontur s VĚTVENÍM (a jen ty sem chodí) zmizelo hlídání všude, kde
+        // čára končí až na hraně materiálu: u čela vlevo nezůstala ani jedna
+        // mezní čára, ačkoli se tam destička zavalí.
         interferenceGuides = profileGuides.filter(g =>
-          !g._dominated &&
-          _locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
-          _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }));
+          !g._dominated && (
+            g.downOnStock || g.downClipped ||
+            (_locateOnContour(machinableContour, { x: g.x1, z: g.z1 }) &&
+             _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }))));
       }
     }
+  }
+
+  // Mez ZAVALENÍ destičky (zadní hrana × offsetová čára polotovaru). Přidává
+  // se AŽ TEĎ, za buildMachinableContour: není to tvarová nedosažitelnost,
+  // takže konturu přemosťovat nesmí — jen se kreslí a (příště) omezí hloubku
+  // čelních průchodů. Viz cam/stockEntryGuides.js.
+  if (clearance && prms.respectInsertGeometry) {
+    const stockEntry = computeStockEntryGuides(prms, stockPathSegments, worldPoints);
+    if (stockEntry.length > 0) interferenceGuides = interferenceGuides.concat(stockEntry);
   }
 
   // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs

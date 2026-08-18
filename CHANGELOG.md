@@ -264,7 +264,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   materiálu (materiál pod mezí se čelně zprava tímhle nožem obrobit nedá).
   Nová fixture `part-16-face-holder` + `tests/cam-face-holder.test.js`.
 
+### Added
+- **Mezní čára ZAVALENÍ destičky (`cam/stockEntryGuides.js`).** Hlídání
+  geometrie destičky mělo dosud jediný zdroj — konturu („kam hrot nedosáhne").
+  Při čelním hrubování ale nastane mez dřív: destička jede shora a opře se
+  ZADNÍ hranou o polotovar. U natočení −15° leží zadní roh **2,38 mm POD
+  hrotem** (a 8,9 mm k obrobené straně), takže hrot NENÍ nejnižší bod nástroje.
+  Nová čára ukazuje mezní polohu zadní hrany: dotyk na OFFSETOVÉ ČÁŘE
+  polotovaru → pod úhlem natočení až na konturu, v poloze, kde je destička
+  právě celá zabraná. Čára se jen kreslí — konturu NEpřemosťuje (nese
+  `kind: 'polotovar'` a přidává se až za `buildMachinableContour`), takže
+  dráhy ani G-kód se jí nemění.
+
 ### Fixed
+- **Čelní hrubování: Z0 nebyl konec obrobku.** March se zastavoval na
+  nejnižším Z KONTURY, jenže konec dílce není konec MATERIÁLU — polotovar
+  za čelem pokračuje (přídavek, upínací zbytek). U dílu končícího na Z0 nad
+  polotovarem sahajícím na Z−8 tak zůstalo posledních 8 mm neobrobených.
+  Nově se marchuje po nejnižší Z POLOTOVARU; co se v konkrétním Z ubere,
+  rozhoduje dál blokáda offsetem, takže se v zóně za dílem do OSY nezajíždí
+  (obrobek by se uřízl).
+- **Hlídání geometrie destičky: chyběla mezní čára u čela.** Dvě příčiny:
+  (1) na celou souvislou skupinu interferenčních segmentů se vydávala jediná
+  čára, kotvená v jediném nejvyšším bodě — u dílu, kde jedna skupina sahá od
+  Z73 až po čelo na Z0, tím celý levý konec zůstal bez hlídání. Kotvu teď
+  hledá KAŽDÝ interferující segment sám. (2) Horní konec čáry se protahoval
+  bez omezení, takže tečna u čela přeskočila 34 mm vzduchem na sousední
+  oblouk a čára pak spadla do stínu cizí čáry — konec se nově neprotahuje za
+  dosah břitu destičky (jen polygonální destička; DOLNÍ konec se neořezává,
+  ten drží most obrobitelné kontury).
+- **Profilový režim zahazoval mezní čáry končící na polotovaru.** U kontur
+  s větvením (výběr vnější větve) se guides počítají z outer profilu a filtr
+  tam — na rozdíl od hlavní větve — neuznával `downOnStock`/`downClipped`.
+  Zmizelo tím hlídání všude, kde čára končí až na hraně materiálu.
 - **Rychloposuv mezi průchody hlídal jen destičku, ne DRŽÁK — a jezdil jím
   materiálem.** Emise pouštěla přejezd, když stopa **destičky** minula zbytek
   polotovaru; držák (v ose Z tlustý na šířku a radiálně sahající stovky mm)

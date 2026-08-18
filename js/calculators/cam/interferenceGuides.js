@@ -34,6 +34,7 @@
 // statická obálka to principiálně nevidí). Detail viz
 // docs/geometry-libs-migration.md a poznámka [[geom-libs-migration]] v paměti.
 
+import { insertWorldLoop } from './materialRemoval.js';
 import {
   getArcParams,
   intersectLineCircle,
@@ -335,6 +336,20 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
     return parity === 1;
   };
   const clrExitG = stockClearances(prms).x;
+  // Dosah BŘITU destičky = nejvzdálenější vrchol jejího obrysu od špičky.
+  // HORNÍ (kotevní) konec mezní čáry se za něj neprotahuje: stín nad kotvou
+  // dělá hrana destičky a ta je konečná. Bez meze paprsek přeletí desítky mm
+  // vzduchem nad dílem a zakotví čáru na úplně jiném útvaru (naměřeno: tečna
+  // R10 u čela na Z12 se protáhla 34 mm nahoru na oblouk R24,5 na Z45).
+  // DOLNÍ konec se NEOŘEZÁVÁ — ten drží most obrobitelné kontury (zkrácení
+  // touž mezí bylo změřeno a zamítnuto: mosty zmizely a 7 dílů zajelo).
+  // Jen polygonální destička — kulatá žádnou rovnou hranu nemá.
+  const insEdgeReachG = (() => {
+    if (prms.toolShape !== 'polygon') return Infinity;
+    const loop = insertWorldLoop(prms, false);
+    if (!loop || loop.length < 3) return Infinity;
+    return Math.max(...loop.map(p => Math.hypot(p.x, p.z)));
+  })();
   // POZN.: zakázaná oblast špičky F (dílec ⊕ −obrys nástroje) se tu už
   // NEPOČÍTÁ — sloužila jen k lomení mezní čáry podél hranice držáku a mezní
   // čára musí být rovná (viz invariant v hlavičce). Kolizní ochranu držáku
@@ -370,15 +385,14 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
   // I s polotovarem — čára se prodlouží až o skutečnou hranu materiálu.
   const localCalcDown = { worldPoints, stockWorldPoints };
   for (const grp of groups) {
-    // Body se sbírají odděleně pro dojezd (low) a zanoření (high) —
-    // pokud skupina porušuje rozsah na obě strany různými segmenty,
-    // body z "druhé" hrany by mohly přebít dotykový bod téhle hrany.
-    const lowPts = [], highPts = [];
+    // Porušuje skupina rozsah dolů (dojezd), nahoru (zanoření), nebo obojí?
+    // Body pro každou stranu se sbírají až u konkrétního segmentu níž —
+    // sečtené po celé skupině by body z "druhé" hrany přebily dotykový bod.
     let low = false, high = false;
     grp.forEach(s => {
       const sd = sideOf(s);
-      if (sd.low) { low = true; lowPts.push(...violatingPts(s, true)); }
-      if (sd.high) { high = true; highPts.push(...violatingPts(s, false)); }
+      if (sd.low) low = true;
+      if (sd.high) high = true;
     });
     // Při ray-castu vynechat segmenty téhle skupiny — dotykový bod
     // může ležet na oblouku skupiny a paprsek by jinak mohl narazit
@@ -399,7 +413,7 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
       }
       return idxOf.get(s) + 1; // fallback pro mostové segmenty bez orig
     });
-    const addGuide = (betaDeg, kind, pts) => {
+    const addGuide = (betaDeg, kind, pts, arcSegs) => {
       const b = betaDeg * Math.PI / 180;
       const sb = Math.sin(b), cb = Math.cos(b);
       // Normála čáry na stranu vzduchu (+X nahoru). Dotyk = bod regionu
@@ -418,7 +432,7 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
       // Přesný tečný bod oblouku (maximum projekce po celé kružnici) —
       // pokud padne do úhlového rozsahu tohoto oblouku, je to přesnější
       // dotykový bod než vzorkované body (tečna na zakřivené kontuře).
-      grp.forEach(s => {
+      (arcSegs || grp).forEach(s => {
         if (s.type !== 'arc') return;
         const sd = sideOf(s);
         if ((kind === 'dojezd' && !sd.low) || (kind === 'zanoreni' && !sd.high)) return;
@@ -525,6 +539,7 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
         const nearGrp = upLoc && grp.some(s => Math.abs(idxOf.get(s) - upLoc.segIdx) <= 3);
         if (!nearGrp) up = null;
       }
+      if (up && Math.hypot(up.x - best.x, up.z - best.z) > insEdgeReachG + 0.01) up = null;
       if (!up) {
         let capX = Math.min(topX, stockTopXG);
         // Čára z nižší skupiny (menší X) nesmí přesáhnout "dolní konec" (x1)
@@ -562,8 +577,27 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
         interferenceGuides.push(g);
       }
     };
-    if (low) addGuide(rotDegG + tipDegG, 'dojezd', lowPts);
-    if (high) addGuide(rotDegG, 'zanoreni', highPts);
+    // ── Jedna čára na KAŽDÝ prvek, ne jedna na celou skupinu ──
+    // Dřív se pro celou souvislou skupinu interferenčních segmentů vydala
+    // JEDINÁ mezní čára, kotvená v bodě s největší projekcí na normálu —
+    // tzn. v jediném (nejvyšším) místě skupiny. Skupina ale běžně sáhne přes
+    // desítky mm a několik samostatných útvarů: u dílu uživatele tvořily
+    // segmenty od Z73 až po čelo na Z0 jednu skupinu, čára se vydala jen
+    // k oblouku na Z68,5 a celý levý konec (R10 u čela) zůstal BEZ ČÁRY —
+    // hlídání destičky tam nemělo o co se opřít.
+    //
+    // Kotvu proto hledá KAŽDÝ interferující segment sám (a oblouk i svou
+    // přesnou tečnou). Čáry, které pak leží ve stínu jiné (rovnoběžné, výš),
+    // potlačí markDominatedGuides v contourBuild.js — zbydou jen ty, které
+    // opravdu něco ohraničují.
+    for (const s of grp) {
+      const lp = low ? violatingPts(s, true) : [];
+      if (lp.length) addGuide(rotDegG + tipDegG, 'dojezd', lp, [s]);
+    }
+    for (const s of grp) {
+      const hp = high ? violatingPts(s, false) : [];
+      if (hp.length) addGuide(rotDegG, 'zanoreni', hp, [s]);
+    }
   }
   return interferenceGuides;
 }
