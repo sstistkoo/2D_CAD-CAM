@@ -155,12 +155,17 @@ export function genFacePasses(ctx) {
   // Z-rozsah kontury (pro detekci „za konturou" – tam stop, jinak by
   // se cuty pouštěly i do chuck-stub oblasti).
   let maxOZ = -9999, minOZ = 9999;
+  let minOZx = null;              // X offsetu na jeho LEVÉM konci
   offsetPath.forEach(p => {
     if (p.isDegenerate) return;
     const z1 = p.type === 'line' ? p.p1.z : p.cz + p.r;
     const z2 = p.type === 'line' ? p.p2.z : p.cz - p.r;
     maxOZ = Math.max(maxOZ, z1, z2);
-    minOZ = Math.min(minOZ, z1, z2);
+    if (Math.min(z1, z2) < minOZ) {
+      minOZ = Math.min(z1, z2);
+      if (p.type === 'line') minOZx = (p.p1.z <= p.p2.z) ? p.p1.x : p.p2.x;
+      else minOZx = p.cx;
+    }
   });
   // Směr marche (nabírání ap v Z) podle strany:
   //   zprava (right) = od pravého čela DOLEVA (−Z),
@@ -223,7 +228,17 @@ export function genFacePasses(ctx) {
       //     skip (nesmíme řezat do držáku)
       //   uvnitř → unusual, skip pro safety
       if (currentZ > maxOZ + 0.01) xEnd = 0;
-      else continue;
+      else if (currentZ < minOZ - 0.01 && minOZx !== null) {
+        // ZA LEVÝM KONCEM KONTURY. Kontura tam končí, ale materiál ne —
+        // polotovar pokračuje (přídavek na čelo, upínací zbytek) a uživatel
+        // má nastavené rozsahy (čelisti / rozsah Z), které říkají, kam se smí.
+        // Dřív se tahle zóna přeskakovala úplně, takže úplně vlevo zůstávaly
+        // poslední vrstvy neobrobené (nález uživatele: „chybí dvě vrstvy").
+        // Hloubka = POSLEDNÍ PRŮMĚR kontury: pahýl zůstane stejně silný jako
+        // díl. K ose se tu nejede — tím by se obrobek uřízl.
+        xEnd = minOZx;
+        xEndBlocked = true;
+      } else continue;
     }
     const xStartLocal = rapidStartXAt(currentZ, xSurface, faceLeft ? 1 : -1);
     if (xEnd >= xTouch - 0.01) continue;   // nos se polotovaru nedotkne = řez vzduchem
@@ -438,7 +453,10 @@ export function genFacePasses(ctx) {
       for (const zGrid of zList) {
         const p = byZ.get(zGrid.toFixed(3));
         if (!p) {
-          const raw = xTouchAt(zGrid);
+          // Materiál na neobrobeném pásu = POVRCH polotovaru. `xTouchAt` je
+          // mez pro STŘED nosu (o rádius výš) — jako „stěna" by nafoukla
+          // požadavek o rádius a série pak padala jedna za druhou.
+          const raw = castingOuterAtZ(zGrid);
           if (Number.isFinite(raw)) {
             done.push({ z: zGrid, x: raw });
             while (done.length > 0 && Math.abs(zGrid - done[0].z) > reachM + step) done.shift();
@@ -466,7 +484,7 @@ export function genFacePasses(ctx) {
             droppedM++;
             // Vynechaný pás zůstává neobrobený — pro další vrstvy je to
             // materiál v úrovni povrchu, ne vzduch.
-            done.push({ z: p.z, x: xTouchAt(p.z) });
+            done.push({ z: p.z, x: castingOuterAtZ(p.z) });
             continue;
           }
           p.xEnd = need;
