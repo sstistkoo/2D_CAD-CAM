@@ -50,6 +50,29 @@ function polarDelta(paDeg, pr) {
 }
 
 /**
+ * X/Z + PA/PR zadané na jednom prvku zároveň: X/Z je jeho POČÁTEK (ne cíl –
+ * přepisuje navazující bod z řetězu), PA/PR pak určí délku a úhel, ze
+ * kterých se dopočte konec. Jedno pravidlo sdílené všemi místy, co z VK
+ * syntaxe skládají geometrii (náhled na plátně, dopočet směru pro tečné
+ * napojení, konverze na ISO, vkládání nového prvku z formuláře) – ať se
+ * znovu nerozjedou, jako se to stalo předtím (náhled X/Z+PA/PR mimo první
+ * prvek ignoroval, export do ISO zas ignoroval X/Z).
+ *
+ * Souřadnice jsou v libovolné (ale jednotné pro x/z i délku PR) soustavě
+ * volajícího – funkce žádné jednotky nepřevádí, jen sčítá úhlopříčku.
+ * @param {number} x
+ * @param {number} z
+ * @param {number} pa úhel ve stupních
+ * @param {number} pr délka
+ * @returns {{start: {x:number,z:number}, end: {x:number,z:number}}}
+ */
+function startAndEndFromXzPaPr(x, z, pa, pr) {
+  const start = { x, z };
+  const delta = polarDelta(pa, pr);
+  return { start, end: { x: start.x + delta.x, z: start.z + delta.z } };
+}
+
+/**
  * Text z formulářového pole → číslo, stejně jako všechna ostatní číselná
  * pole appky (desetinná čárka, jednoduché výrazy typu „10+5") – přes
  * `safeEvalMath()`. `null` pro prázdné pole nebo „?" (neznámá hodnota),
@@ -369,12 +392,7 @@ export function buildVkPreviewData(lines, draftSegment = null) {
       start = { x: entry.x, z: entry.z };
       end = { x: entry.x, z: entry.z };
     } else if (entry.x != null && entry.z != null && entry.pa != null && entry.pr != null) {
-      // X/Z + PA/PR zadané zároveň (na jakémkoli prvku, ne jen prvním):
-      // X/Z určuje POČÁTEK téhle úsečky (přepíše navazující bod z řetězu),
-      // PA/PR pak její délku a úhel – konec se dopočte, ne zadá přímo.
-      start = { x: entry.x, z: entry.z };
-      const delta = polarDelta(entry.pa, entry.pr);
-      end = { x: start.x + delta.x, z: start.z + delta.z };
+      ({ start, end } = startAndEndFromXzPaPr(entry.x, entry.z, entry.pa, entry.pr));
     } else if (entry.x != null && entry.z != null && isFirstElement && (entry.cmd === 'G0' || !start)) {
       // `!start` = není VPOL ani předchozí bod, takže první prvek JE počátek.
       // Bez toho by zkonvertovaný program (samé G1, žádné G0/VPOL) neměl kde
@@ -512,8 +530,12 @@ function pickTangentArcStart(prev, arc) {
  * Projde řádky a ke každému prvku dopočte začátek/konec v jednotkách textu.
  * `chain[i]` je `null` tam, kde chain nejde uzavřít (neznámé „?", VPOL řádek,
  * první prvek – ten žádný předchozí začátek nemá).
+ *
+ * Exportováno hlavně kvůli testům – uvnitř appky ho volá `directionEndingAt()`
+ * (closure v `initVkTab`, viz vk-solver.test.js pro DOM cestu) a
+ * `planTangentTransitions()` níž.
  */
-function buildTextChain(parsed) {
+export function buildTextChain(parsed) {
   const chain = [];
   let cur = null;
   for (const el of parsed) {
@@ -521,11 +543,7 @@ function buildTextChain(parsed) {
     let start = cur;
     let end = null;
     if (el.x != null && el.z != null && el.pa != null && el.pr != null) {
-      // X/Z + PA/PR zároveň: X/Z je počátek (přepíše navazující bod), viz
-      // stejné pravidlo v buildVkPreviewData().
-      start = { x: el.x, z: el.z };
-      const delta = polarDelta(el.pa, el.pr);
-      end = { x: start.x + delta.x, z: start.z + delta.z };
+      ({ start, end } = startAndEndFromXzPaPr(el.x, el.z, el.pa, el.pr));
     } else if (el.x != null && el.z != null) {
       end = { x: el.x, z: el.z };
     } else if (el.pa != null && el.pr != null && start) {
@@ -588,6 +606,10 @@ export function planTangentTransitions(lines) {
         cur.isT && isResolvableArc(cur)
         && !prev.isArc && !isConstructionRay(prev)
         && prev.x != null && prev.z != null && chain[i - 1]
+        // Prvek s X/Z + PA/PR zároveň: X/Z je jeho POČÁTEK (viz
+        // startAndEndFromXzPaPr), ne konec – patchLineXZ() by tu ale přepsal
+        // právě X/Z a posunul tak omylem začátek úsečky, ne její konec.
+        && !(prev.pa != null && prev.pr != null)
       ) {
         const direction = segmentDirectionDeg(chain[i - 1]);
         const touch = direction == null ? null : tangentPointOnRay(chain[i - 1].end, direction, cur);
@@ -1723,12 +1745,9 @@ export function initVkTab(container, { picker = null } = {}) {
       // X/Z + PA/PR zadané zároveň: X/Z je počátek téhle úsečky (ne cíl),
       // PA/PR určí její délku a úhel – skutečný konec (a tedy navazující
       // bod řetězu) se dopočte stejně jako v buildVkPreviewData().
-      if (el.pa != null && prVal != null) {
-        const delta = polarDelta(el.pa, prVal);
-        lastPoint = { z: el.z + delta.z, x: el.x + delta.x };
-      } else {
-        lastPoint = { z: el.z, x: el.x };
-      }
+      lastPoint = (el.pa != null && prVal != null)
+        ? startAndEndFromXzPaPr(el.x, el.z, el.pa, prVal).end
+        : { z: el.z, x: el.x };
       pendingQueue = [];
     } else {
       el.anchor = lastPoint ? { ...lastPoint } : firstElementAnchor(el);
@@ -2021,12 +2040,7 @@ export function initVkTab(container, { picker = null } = {}) {
         }
 
         if (el.x != null && el.z != null && el.pa != null && el.pr != null) {
-          // X/Z + PA/PR zároveň (na jakémkoli prvku): X/Z je počátek
-          // (přepíše navazující bod z `cur`), PA/PR určí délku a úhel –
-          // stejné pravidlo jako v buildVkPreviewData()/buildTextChain().
-          el.start = { z: el.z, x: el.x };
-          const delta = polarDelta(el.pa, el.pr);
-          el.end = { z: el.start.z + delta.z, x: el.start.x + delta.x };
+          ({ start: el.start, end: el.end } = startAndEndFromXzPaPr(el.x, el.z, el.pa, el.pr));
           cur = el.end;
           continue;
         }

@@ -21,10 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   její délku a úhel – dřív to platilo jen pro úplně první prvek kontury,
   u dalších se PA/PR tiše ignorovalo (náhled) nebo se naopak ignorovalo
   zadané X/Z (export do ISO G-kódu) – dvě různé, vzájemně nekonzistentní
-  interpretace téhož zápisu. Opraveno na 4 místech (náhled, dopočet směru
-  pro tečné napojení, konverze na ISO, navazující bod řetězu po vložení
-  prvku) + doprovodná oprava kontroly poloměru u oblouku v tomto režimu
-  (dřív měřila tětivu od špatného bodu).
+  interpretace téhož zápisu. Sjednoceno do jedné sdílené funkce
+  (`startAndEndFromXzPaPr`), kterou teď volají všechna 4 místa (náhled,
+  dopočet směru pro tečné napojení, konverze na ISO, navazující bod řetězu
+  po vložení prvku) + doprovodná oprava kontroly poloměru u oblouku v tomto
+  režimu (dřív měřila tětivu od špatného bodu). Doplněna i regrese: dopočet
+  tečného napojení (`planTangentTransitions`) uměl takový řádek omylem
+  přepsat na dotykový bod, jako by X/Z bylo pořád konec úsečky – teď se
+  kombo řádků nedotýká.
 - **📐 Volná kontura / 🔢 Číselné zadání – úchyt pro přesun okna (⠿).**
   Lišta okna byla celá plná tlačítek/záložek, takže nebylo za co okno
   chytit a přetáhnout jinam (`makeDraggable()` klik na tlačítko ignoruje).

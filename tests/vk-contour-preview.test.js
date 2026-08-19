@@ -3,6 +3,7 @@ import { state } from '../js/state.js';
 import {
   parseVkLine,
   buildVkPreviewData,
+  buildTextChain,
   resolveVkArcGeometry,
   vkToWorld,
   worldToVk,
@@ -124,6 +125,25 @@ describe('buildVkPreviewData', () => {
     expect(data.segments[0].end.z).toBeCloseTo(20 + 100 * Math.cos(10 * Math.PI / 180), 9);
   });
 
+  // Dřív fungovalo X/Z + PA/PR (počátek + délka/úhel) jen na úplně prvním
+  // prvku – na dalších appka buď X/Z zadané zároveň s PA/PR tiše ignorovala
+  // (náhled bral X/Z jako CÍL) nebo naopak ignorovala X/Z (konverze na ISO
+  // brala jen předchozí bod + PA/PR) – dvě různé, vzájemně nekonzistentní
+  // interpretace. Stejné pravidlo teď platí na libovolném prvku řetězu.
+  it('applies the same X/Z + PA/PR rule to a later element, not just the first', () => {
+    const data = buildVkPreviewData([
+      'G0 X0 Z0',
+      'G11 X10 Z0 PA90 PR15',
+    ]);
+
+    expect(data.segments).toHaveLength(2);
+    expect(data.segments[1].start).toEqual({ x: 10, z: 0 });
+    expect(data.segments[1].end.x).toBeCloseTo(25, 9);
+    expect(data.segments[1].end.z).toBeCloseTo(0, 9);
+    expect(data.lastPoint.x).toBeCloseTo(25, 9);
+    expect(data.lastPoint.z).toBeCloseTo(0, 9);
+  });
+
   it('resolves a stable arc center for G2/G3 preview segments', () => {
     const geometry = resolveVkArcGeometry({ x: 0, z: 0 }, { x: 10, z: 0 }, 10, 'G3');
 
@@ -217,6 +237,33 @@ describe('insertTangentTransitions – mezi dvěma běžnými prvky', () => {
     const lines = ['G0 X10 Z0', 'G2 X20 Z-40 R10 T', 'G2 X30 Z-60 R10 T'];
 
     expect(insertTangentTransitions(lines)).toEqual(lines);
+  });
+});
+
+describe('buildTextChain – X/Z + PA/PR komba (sdíleno s tečným napojením)', () => {
+  it('bere X/Z jako počátek prvku a dopočte konec z PA/PR i mimo první prvek', () => {
+    const parsed = ['G0 X0 Z0', 'G11 X10 Z0 PA90 PR15'].map(parseVkLine);
+    const chain = buildTextChain(parsed);
+
+    expect(chain[1].start).toEqual({ x: 10, z: 0 });
+    expect(chain[1].end.x).toBeCloseTo(25, 9);
+    expect(chain[1].end.z).toBeCloseTo(0, 9);
+  });
+});
+
+// Regrese: `planTangentTransitions()` umí posunout konec předchozí úsečky
+// na tečný dotyk s následujícím obloukem (`patchLineXZ()` přepíše X/Z).
+// U komba X/Z+PA/PR ale X/Z znamená POČÁTEK, ne konec – kdyby ho appka
+// přepsala na dotykový bod, omylem by posunula začátek úsečky a spolu
+// s nezměněným PA/PR by z toho vyšla úplně jiná geometrie (najeto při
+// psaní testu níž: konec úsečky by "utekl" o délku PR navíc).
+describe('planTangentTransitions – kombo X/Z+PA/PR se tečným dotykem nesmí přepsat', () => {
+  it('nechá kombo řádek beze změny místo posunutí jeho (chybně chápaného) konce', () => {
+    const lines = ['G0 X10 Z0', 'G11 X10 Z0 PA180 PR40', 'G2 X20 Z-40 R10 T'];
+    const plan = planTangentTransitions(lines);
+
+    expect(plan.lines[1]).toBe('G11 X10 Z0 PA180 PR40');
+    expect(plan.touches).toEqual([]);
   });
 });
 
