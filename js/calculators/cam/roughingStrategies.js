@@ -97,15 +97,20 @@ export function genFacePasses(ctx) {
   const faceOffsetOut = rTipFC
     + Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
     + (parseFloat(prms.finishAllowance) || 0);
-  // Doběh kužele (jen NATOČENÁ destička). Spodní hrana se táhne dz·tan(natočení)
+  // Doběh (NATOČENÁ destička nebo UPICHOVÁK). Spodní hrana se táhne dz·tan(natočení)
   // ZA nosem, takže poslední vrstva za sebou nechá 15° kužel. Když march skončí
   // dřív, než kužel vyjede nad offsetovou čáru polotovaru, zůstane na jeho konci
   // SCHODEK — a ten by ještě jedna vrstva vzala (nález uživatele 19. 8. 2026:
   // „nemusí to dobrat úplně doleva, jen ať tam nezůstane schodek"). Vrstvy
   // pokračují po kuželu (nikdy hlouběji, pravidlo „ne pod předchozí vrstvu"),
   // dokud řez nevyjede za offsetovou čáru polotovaru; dál ne — tam už je vzduch.
-  const faceRunOut = (prms.respectInsertGeometry && prms.toolShape === 'polygon'
-    && -(parseFloat(prms.toolAngle) || 0) > 0.01
+  // Platí pro NATOČENOU destičku (tam končí řez kuželem) i pro UPICHOVÁK: ten má
+  // břit 5 mm široký a natočení 0°, takže žádný kužel netvoří — vrstva navíc smí
+  // být ve STEJNÉ hloubce (`tanR` = 0) a přesto něco vezme: dojede tím dál v Z, kam
+  // se při marchování po `ap` žádná mřížková vrstva nedostala.
+  const faceRunOut = (prms.respectInsertGeometry
+    && ((prms.toolShape === 'polygon' && -(parseFloat(prms.toolAngle) || 0) > 0.01)
+      || prms.toolShape === 'parting')
     && insertReachZ(prms, prms.roughingSide === 'left') > 1e-6) ? faceOffsetOut : 0;
 
   // V zóně DOBĚHU (za koncem polotovaru, viz `faceRunOut`) svislice obrys MINE.
@@ -617,7 +622,7 @@ export function genFacePasses(ctx) {
   //   • po něm, protože držák zvedá po SVÉM sklonu a tím pravidlo poruší.
   // Obě hlídání smí hloubku jen ZVEDAT, takže se střídavým voláním nerozhoupou.
 
-  // ── Doběh kužele na KONCI ÚSEKU (jen natočená destička) ──
+  // ── Doběh na KONCI ÚSEKU (natočená destička nebo upichovák) ──
   // Poslední průchod úseku dosedne na kužel spodní hrany. Hned za ním materiál
   // pokračuje (stěna, čelo příruby), ale NOS už je nad povrchem, takže se další
   // vrstva zahodí jako „řez vzduchem" — jenže řeže HRANA za nosem a ta by ten
@@ -628,7 +633,9 @@ export function genFacePasses(ctx) {
   // z definice. Druhá vrstva už ne: ta by jela vzduchem.
   const appendRegionRunOut = () => {
     if (faceRunOut <= 0) return;
-    const tanR = Math.tan(Math.min(89.5, -(parseFloat(prms.toolAngle) || 0)) * Math.PI / 180);
+    // `Math.max(0, …)`: kladný `toolAngle` (a u upichováku nula) by dal ZÁPORNÝ
+    // tangens, tedy vrstvu HLOUBĚJI — to je pravidlo „nikdy hlouběji“ naruby.
+    const tanR = Math.tan(Math.max(0, Math.min(89.5, -(parseFloat(prms.toolAngle) || 0))) * Math.PI / 180);
     const insReachRO = insertReachZ(prms, faceLeft);
     const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
     const add = [];
@@ -708,8 +715,6 @@ export function genFacePasses(ctx) {
   };
 
   enforceLayerDepth();
-  const runOutAdded = appendRegionRunOut();
-  if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh kužele: ${runOutAdded} průchodů přidáno na konce úseků, aby po natočené destičce nezůstal schodek.` });
 
   // ── Hlídání DRŽÁKU (čelně) ────────────────────────────────────────
   // Čelní průchod jede radiálně k ose a držák se veze na UŽ OBROBENÉ
@@ -728,7 +733,17 @@ export function genFacePasses(ctx) {
   // zanořovat nejvýš pod úhlem hřbetu držáku. Kde kontura klesá strměji
   // (stěna, kužel), se průchody zkrátí a materiál pod nimi zůstane —
   // ta oblast se čelně zprava tímhle nožem obrobit NEDÁ (hlásí ⚠).
-  if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+  // Volá se DVAKRÁT (před doběhem úseků i za ním, viz níž). `report` říká, jestli
+  // se mají vypsat varování — jen z posledního volání, jinak by se pushla dvakrát.
+  // Opakování je bezpečné ze stejného důvodu jako u `enforceLayerDepth()`: clamp
+  // hloubku jen ZVEDÁ (`need > p.xEnd`), takže se střídavým voláním nerozhoupou.
+  // Počítadla jsou MIMO funkci: druhé volání už obvykle nemá co zvedat (clamp je
+  // idempotentní), takže s počítadly vevnitř by varování „Materiál pod mezí obrobte
+  // jinou strategií“ z prvního volání zmizelo úplně (změřeno: 30 zkrácených,
+  // 16 vynechaných průchodů uživateli přestalo hlásit ⚠).
+  let holderAdjusted = 0, holderDropped = 0, holderTrimmed = 0;
+  const holderGuardFace = (report) => {
+    if (!prms.respectInsertGeometry || globalThis.__DISABLE_HOLDER_CLAMP__) return;
     const hb = holderBottomProfile(prms);
     const faceArr = hb ? passes.filter(p => p.type === 'face') : [];
     if (hb && faceArr.length > 0) {
@@ -833,7 +848,6 @@ export function genFacePasses(ctx) {
         if (keep.length > 0) p.contourLeadOut = keep; else delete p.contourLeadOut;
         return true;
       };
-      let holderAdjusted = 0, holderDropped = 0, holderTrimmed = 0;
       const drop = new Set();
       for (const p of faceArr) {
         const need = minTipXFull(p.z);
@@ -870,6 +884,7 @@ export function genFacePasses(ctx) {
       if (drop.size > 0) {
         for (let i = passes.length - 1; i >= 0; i--) if (drop.has(passes[i])) passes.splice(i, 1);
       }
+      if (!report) return;
       if (holderAdjusted + holderDropped > 0) {
         foundErrors.push({ type: 'warning', msg: `Hlídání držáku (čelně): ${holderAdjusted} průchodů zkráceno`
           + (holderDropped > 0 ? `, ${holderDropped} vynecháno` : '')
@@ -878,8 +893,48 @@ export function genFacePasses(ctx) {
         foundErrors.push({ type: 'warning', msg: `Hlídání držáku (čelně): ${holderTrimmed} dojezdů zkráceno, aby držák nenarazil do stoupající kontury.` });
       }
     }
-  }
+  };
+  // POŘADÍ: hlídání držáku MUSÍ běžet UŽ PŘED doběhem. Doběh se rozhoduje podle
+  // toho, jestli na dalším Z ještě průchod JE („úsek pokračuje sám“) — a právě ty
+  // průchody držák zahazuje. Když běžel doběh první, viděl konce úseků o vrstvu
+  // (i o několik) dál, než kam se reálně dojede, a na ty skutečné konce se pak už
+  // nikdo nevrátil (nález uživatele 19. 8. 2026 s upichovákem: tři nedojeté konce —
+  // čelo příruby, konec úseku, levý konec). U natočené destičky to vycházelo
+  // náhodou: `enforceLayerDepth()` (polygon-only) ty průchody zahodilo dřív, takže
+  // doběh viděl správný konec úseku; u upichováku hloubka vrstev neběží vůbec.
+  // Druhé volání není kosmetika: průchod přidaný ZA držákem bez jeho kontroly jsou
+  // změřené 3 kolize (rapid@X66,2 Z195,0; holder@X62,0 Z195,0; rapid@X64,0
+  // Z197,0), takže přidané průchody musí jít držákem zkontrolovat ještě jednou.
+  holderGuardFace(false);
+  const runOutAdded = appendRegionRunOut();
+  if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.` });
+  holderGuardFace(true);
   enforceLayerDepth();
+
+  // ── Dojezd se zastaví v ROHU (kde zahne do stěny rovnoběžné s osou) ──
+  // Dojezd „bez schodků“ sleduje konturu k obrobené straně, aby sloupl schod
+  // po předchozím průchodu. Jak ale kontura zahne do stěny ROVNOBĚŽNÉ S OSOU
+  // (úsek s konstantním X, pohyb jen v Z), schod tam už žádný není — ten kus
+  // už obrobil průchod v tom Z sám a nůž po něm jen tře bokem nosu. Dojezd se
+  // proto v tom rohu utne (nález uživatele 19. 8. 2026).
+  {
+    let cornerTrim = 0;
+    for (const p of passes) {
+      if (p.type !== 'face' || !p.contourLeadOut) continue;
+      const at = p.contourLeadOut.findIndex(sg => sg.type === 'line'
+        && Math.abs(sg.x2 - sg.x1) < 0.01 && Math.abs(sg.z2 - sg.z1) > 0.01);
+      // Jen ROH, tedy osový úsek AŽ ZA sloupnutím schodu. Dojezd, který je
+      // osový už od začátku, je jiný případ: tam žádný schod není sloupnutý
+      // a běh po plášti materiál ODEBÍRÁ (změřeno modelem úběru: zahození
+      // všech = +75 mm² zbytku na part-16, včetně vyhozeného výjezdu po kuželu,
+      // který na osový úsek na Z233,932 navazuje).
+      if (at < 1) continue;
+      p.contourLeadOut = p.contourLeadOut.slice(0, at);
+      cornerTrim++;
+    }
+    if (cornerTrim > 0)
+      foundErrors.push({ type: 'warning', msg: `Dojezd bez schodků: ${cornerTrim} dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.` });
+  }
 
   // ── Dojezd na VLASTNÍM kuželu destičky je zbytečný ──
   // Dojezd „bez schodků" sleduje konturu k obrobené straně, aby sloupl schod.
