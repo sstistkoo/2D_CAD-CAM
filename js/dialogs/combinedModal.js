@@ -35,8 +35,11 @@ const TABS = [
 
 // Záložky bydlí v LIŠTĚ okna (vedle ✕), ne nad formulářem – na mobilu je
 // každý ušetřený řádek nad plátnem znát. Pořadí je dané zvlášť, protože
-// v liště je mezi nimi ještě ⤢ (vycentrovat plátno na rozepsaný prvek).
-const TITLEBAR_ORDER = ['num', 'fit', 'vk'];
+// v liště je mezi nimi ještě ⤢ (vycentrovat plátno na rozepsaný prvek)
+// a ⠿ (úchyt pro přesun okna, jen desktop – lišta je jinak celá plná
+// tlačítek/záložek a makeDraggable() klik na tlačítko ignoruje, takže by
+// nezbylo kam okno vůbec chytit).
+const TITLEBAR_ORDER = ['num', 'fit', 'drag', 'vk'];
 
 // Handly záložek k danému oknu – drží se stranou DOM, ať se na element
 // nelepí stav (to byl přesně problém starého `overlay._polyVerts`).
@@ -60,6 +63,12 @@ function titlebarControlsHTML() {
       if (key === 'fit') {
         return '<button type="button" class="calc-titlebar-btn" data-act="fit-view"'
           + ' title="Vycentrovat plátno na rozepsaný prvek">⤢</button>';
+      }
+      if (key === 'drag') {
+        // Úmyslně `<span>`, ne `<button>` – makeDraggable() drag přes klik na
+        // tlačítko ignoruje (aby ⤢/záložky/✕ šly klikat), takže by úchyt
+        // jako button sám sebe vyřadil z tažení.
+        return '<span class="calc-titlebar-drag" title="Přesunout okno (táhni)">⠿</span>';
       }
       const tab = TABS.find(entry => entry.key === key);
       return `<button type="button" class="tab-btn" data-tab="${tab.key}" title="${tab.title}">${tab.label}</button>`;

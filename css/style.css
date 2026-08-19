@@ -5531,6 +5531,27 @@ body {
   cursor: pointer;
 }
 .calc-titlebar-btn:hover { background: var(--ctp-surface1); }
+/* ⠿ úchyt pro přesun okna – jen desktop, na mobilu je okno ukotvené dole
+   (viz media query u .vk-combined-window) a tažení by ho jen rozhodilo. */
+.calc-titlebar-drag {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-subtext0);
+  font-size: 14px;
+  line-height: 1;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: move;
+  user-select: none;
+}
+.calc-titlebar-drag:hover { background: var(--ctp-surface1); color: var(--ctp-text); }
+@media (max-width: 768px) {
+  .calc-titlebar-drag { display: none; }
+}
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 

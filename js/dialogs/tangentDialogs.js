@@ -5,6 +5,7 @@
 import { COLORS } from '../constants.js';
 import { makeInputOverlay } from '../dialogFactory.js';
 import { showToast } from '../state.js';
+import { safeEvalMath } from '../utils.js';
 
 // ── Dialog pro výběr tečny ──
 /**
@@ -85,7 +86,7 @@ export function showTangentNewCircleRadiusDialog(lastR, callback) {
   const inp = overlay.querySelector("#tcl-r");
   inp.focus(); inp.select();
   const confirm = () => {
-    const v = parseFloat(inp.value.replace(',', '.'));
+    const v = safeEvalMath(inp.value);
     if (isNaN(v) || v <= 0) { inp.style.borderColor = 'red'; return; }
     overlay.remove();
     callback(v);

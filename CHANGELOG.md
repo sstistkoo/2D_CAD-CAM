@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **VK – desetinná čárka a výrazy v číselných polích.** Formulářová pole
+  (Start X1/Z1, PA, PR, R, VPOL, bod zlomu) parsovala hodnoty přes syrový
+  `parseFloat()` místo sdíleného `safeEvalMath()` – zápis `12,5` se tiše
+  ořízl na `12` (bez chyby, bez varování) a neplatný text mohl do syntaxe
+  zapsat doslovné `XNaN`. Nově všechna pole projdou `safeEvalMath()` (čárka
+  i jednoduché výrazy jako `10+5`) a neplatný text appka odmítne s hláškou
+  místo tichého zápisu. Stejná oprava i pro poloměr nové tečné kružnice
+  (`tangentDialogs.js`), který měl ruční a neúplný `.replace(',', '.')`.
+- **VK – X/Z + PA/PR zadané zároveň na libovolném prvku.** X/Z teď vždy
+  určuje POČÁTEK dané úsečky (přepíše navazující bod z řetězu), PA/PR pak
+  její délku a úhel – dřív to platilo jen pro úplně první prvek kontury,
+  u dalších se PA/PR tiše ignorovalo (náhled) nebo se naopak ignorovalo
+  zadané X/Z (export do ISO G-kódu) – dvě různé, vzájemně nekonzistentní
+  interpretace téhož zápisu. Opraveno na 4 místech (náhled, dopočet směru
+  pro tečné napojení, konverze na ISO, navazující bod řetězu po vložení
+  prvku) + doprovodná oprava kontroly poloměru u oblouku v tomto režimu
+  (dřív měřila tětivu od špatného bodu).
+- **📐 Volná kontura / 🔢 Číselné zadání – úchyt pro přesun okna (⠿).**
+  Lišta okna byla celá plná tlačítek/záložek, takže nebylo za co okno
+  chytit a přetáhnout jinam (`makeDraggable()` klik na tlačítko ignoruje).
+  Nový úchyt vedle ⤢, jen na desktopu (na mobilu je okno ukotvené dole).
+
 ### Added
 - **Simulace obrábění jede reálnou rychlostí stroje (1× = skutečný čas).**
   Přehrávání se dřív posouvalo po BODECH dráhy pevným krokem, takže dlouhá

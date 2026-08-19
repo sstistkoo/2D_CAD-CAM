@@ -14,6 +14,7 @@
 // prvním rozbalení, aby se zbytečně nebudoval markup při každém otevření.
 
 import { state, showToast, displayX, inputX } from '../state.js';
+import { safeEvalMath } from '../utils.js';
 import { bridge } from '../bridge.js';
 import { showVkHelpModal } from './vkHelp.js';
 import {
@@ -46,6 +47,22 @@ function saveVkFieldValues(values) {
 function polarDelta(paDeg, pr) {
   const paRad = ((paDeg % 360) + 360) % 360 * (Math.PI / 180);
   return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
+}
+
+/**
+ * Text z formulářového pole → číslo, stejně jako všechna ostatní číselná
+ * pole appky (desetinná čárka, jednoduché výrazy typu „10+5") – přes
+ * `safeEvalMath()`. `null` pro prázdné pole nebo „?" (neznámá hodnota),
+ * `NaN` pro neplatný text (volající to musí ošetřit, jinak se do VK
+ * syntaxe zapíše doslovné „NaN").
+ * @param {string|null|undefined} raw
+ * @returns {number|null}
+ */
+function parseVkField(raw) {
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  if (trimmed === '' || trimmed === '?') return null;
+  return safeEvalMath(trimmed);
 }
 
 export function fmt(n) {
@@ -351,7 +368,10 @@ export function buildVkPreviewData(lines, draftSegment = null) {
     if (entry.cmd === 'G0' && entry.x != null && entry.z != null && entry.pa != null && entry.pr == null && isFirstElement) {
       start = { x: entry.x, z: entry.z };
       end = { x: entry.x, z: entry.z };
-    } else if (entry.x != null && entry.z != null && entry.pa != null && entry.pr != null && isFirstElement) {
+    } else if (entry.x != null && entry.z != null && entry.pa != null && entry.pr != null) {
+      // X/Z + PA/PR zadané zároveň (na jakémkoli prvku, ne jen prvním):
+      // X/Z určuje POČÁTEK téhle úsečky (přepíše navazující bod z řetězu),
+      // PA/PR pak její délku a úhel – konec se dopočte, ne zadá přímo.
       start = { x: entry.x, z: entry.z };
       const delta = polarDelta(entry.pa, entry.pr);
       end = { x: start.x + delta.x, z: start.z + delta.z };
@@ -498,9 +518,15 @@ function buildTextChain(parsed) {
   let cur = null;
   for (const el of parsed) {
     if (!el || el.cmd === 'G111') { chain.push(null); continue; }
-    const start = cur;
+    let start = cur;
     let end = null;
-    if (el.x != null && el.z != null) {
+    if (el.x != null && el.z != null && el.pa != null && el.pr != null) {
+      // X/Z + PA/PR zároveň: X/Z je počátek (přepíše navazující bod), viz
+      // stejné pravidlo v buildVkPreviewData().
+      start = { x: el.x, z: el.z };
+      const delta = polarDelta(el.pa, el.pr);
+      end = { x: start.x + delta.x, z: start.z + delta.z };
+    } else if (el.x != null && el.z != null) {
       end = { x: el.x, z: el.z };
     } else if (el.pa != null && el.pr != null && start) {
       const delta = polarDelta(el.pa, el.pr);
@@ -788,11 +814,15 @@ export function initVkTab(container, { picker = null } = {}) {
   }
 
   function syncVpolLineFromForm() {
+    // Živý sync na každý úhoz kláves – NaN (rozepsaný/neplatný výraz) se
+    // tiše bere jako „zatím nic", ať appka do syntaxe nezapíše doslovné
+    // "NaN" už v půlce psaní.
+    const nanToNull = (v) => (Number.isNaN(v) ? null : v);
     const values = {
-      x: q('vpol-x').value.trim() === '' ? null : parseFloat(q('vpol-x').value),
-      z: q('vpol-z').value.trim() === '' ? null : parseFloat(q('vpol-z').value),
-      pa: q('vpol-pa').value.trim() === '' ? null : parseFloat(q('vpol-pa').value),
-      arc: q('vpol-arc').value.trim() === '' ? null : parseFloat(q('vpol-arc').value),
+      x: nanToNull(parseVkField(q('vpol-x').value)),
+      z: nanToNull(parseVkField(q('vpol-z').value)),
+      pa: nanToNull(parseVkField(q('vpol-pa').value)),
+      arc: nanToNull(parseVkField(q('vpol-arc').value)),
     };
     const nextCode = upsertVkVpolLine(gcodeEl.value, values);
     if (gcodeEl.value !== nextCode) {
@@ -844,21 +874,21 @@ export function initVkTab(container, { picker = null } = {}) {
   function getDraftSegment() {
     const xRaw = q('val-x2')?.value;
     const zRaw = q('val-z2')?.value;
-    const x = xRaw != null && xRaw !== '?' && xRaw.trim() !== '' ? parseFloat(xRaw) : null;
-    const z = zRaw != null && zRaw !== '?' && zRaw.trim() !== '' ? parseFloat(zRaw) : null;
+    const x = parseVkField(xRaw);
+    const z = parseVkField(zRaw);
     const value = gcodeEl ? gcodeEl.value : '';
     const previewData = buildVkPreviewData(value);
     const baseStart = previewData.lastPoint || {
-      x: q('vpol-x')?.value ? parseFloat(q('vpol-x').value) || 0 : 0,
-      z: q('vpol-z')?.value ? parseFloat(q('vpol-z').value) || 0 : 0,
+      x: parseVkField(q('vpol-x')?.value) || 0,
+      z: parseVkField(q('vpol-z')?.value) || 0,
     };
     const hasLiveDraftValues = x != null || z != null || q('val-pa')?.value?.trim() !== '' || q('val-pr')?.value?.trim() !== '';
     if (!hasLiveDraftValues) return null;
 
     const paRaw = q('val-pa')?.value;
     const prRaw = q('val-pr')?.value;
-    const pa = paRaw != null && paRaw !== '?' && paRaw.trim() !== '' ? parseFloat(paRaw) : null;
-    const pr = prRaw != null && prRaw !== '?' && prRaw.trim() !== '' ? parseFloat(prRaw) : null;
+    const pa = parseVkField(paRaw);
+    const pr = parseVkField(prRaw);
     const end = pa != null && pr != null
       ? {
           x: baseStart.x + pr * Math.sin((pa * Math.PI) / 180),
@@ -871,7 +901,7 @@ export function initVkTab(container, { picker = null } = {}) {
       start: { x: baseStart.x, z: baseStart.z },
       end,
       direction: arcDir,
-      radius: q('val-r')?.value ? parseFloat(q('val-r').value) : null,
+      radius: parseVkField(q('val-r')?.value),
     };
   }
 
@@ -1513,9 +1543,12 @@ export function initVkTab(container, { picker = null } = {}) {
 
   container.querySelector('[data-act="vpol"]').addEventListener('click', () => {
     const vx = q('vpol-x').value, vz = q('vpol-z').value;
-    const vpa = q('vpol-pa').value, varc = q('vpol-arc').value;
-    const xValue = vx.trim() === '' ? null : parseFloat(vx);
-    const zValue = vz.trim() === '' ? null : parseFloat(vz);
+    const xValue = parseVkField(vx);
+    const zValue = parseVkField(vz);
+    if (Number.isNaN(xValue) || Number.isNaN(zValue)) {
+      solveInfo.textContent = '⚠ VPOL X/Z – neplatná hodnota, nejde vyhodnotit jako číslo.';
+      return;
+    }
     vpolPoint = { z: (zValue ?? 0), x: toSolverX(xValue ?? 0) };
     syncVpolLineFromForm();
   });
@@ -1550,7 +1583,20 @@ export function initVkTab(container, { picker = null } = {}) {
     const junctionAxis = q('junction-axis').value || null;
     const junctionValStr = q('junction-value').value;
 
-    const xRaw = xStr === '?' || xStr.trim() === '' ? null : parseFloat(xStr);
+    const xRaw = parseVkField(xStr);
+    const zVal = parseVkField(zStr);
+    const paVal = parseVkField(paStr);
+    const prVal = parseVkField(prStr);
+    const rVal = parseVkField(rStr);
+    const junctionVal = junctionAxis && junctionValStr.trim() !== '' ? parseVkField(junctionValStr) : null;
+
+    // Neplatný text (překlep, nerozpoznaný výraz) se nesmí propsat do
+    // syntaxe jako doslovné "NaN" – radši to appka odmítne a řekne proč.
+    if ([xRaw, zVal, paVal, prVal, rVal, junctionVal].some(Number.isNaN)) {
+      solveInfo.textContent = '⚠ Některé pole obsahuje text, který nejde vyhodnotit jako číslo.';
+      return;
+    }
+
     const el = {
       id: nextElId++,
       isArc: currentType === 'vkr',
@@ -1558,16 +1604,16 @@ export function initVkTab(container, { picker = null } = {}) {
       dir: currentType === 'vkr' ? arcDir : null,
       xRaw,                                          // pro text (zobrazovaná jednotka)
       x: xRaw == null ? null : toSolverX(xRaw),       // pro geometrii (vkSolver = vždy poloměr)
-      z: zStr === '?' || zStr.trim() === '' ? null : parseFloat(zStr),
-      pa: (paStr === '?' || paStr.trim() === '') ? null : parseFloat(paStr),
-      prRaw: prStr === '?' || prStr.trim() === '' ? null : prStr,
-      r: parseFloat(rStr) || 0,
+      z: zVal,
+      pa: paVal,
+      prRaw: prVal == null ? null : String(prVal),
+      r: rVal || 0,
       vpolTag,
       junction: (junctionAxis && junctionValStr.trim() !== '')
         ? {
           axis: junctionAxis,
           rawValue: junctionValStr,
-          value: junctionAxis === 'x' ? toSolverX(parseFloat(junctionValStr)) : parseFloat(junctionValStr),
+          value: junctionAxis === 'x' ? toSolverX(junctionVal) : junctionVal,
         }
         : null,
       wasFirstEver: isFirstEver,
@@ -1631,9 +1677,12 @@ export function initVkTab(container, { picker = null } = {}) {
     // `refPoint()` ukazoval na bod PŘED jejich dopočtem, ne na skutečný
     // začátek tohoto oblouku (ten teprve vzejde ze společného řešení).
     if (el.isArc && isKnown && el.r > 0 && pendingQueue.length === 0) {
-      const start = refPoint();
+      // X/Z + PA/PR zároveň: X/Z je počátek oblouku (ne cíl, viz `lastPoint`
+      // níž) – tětiva je pak přímo |PR|, ne vzdálenost od předchozího bodu.
+      const comboStart = el.pa != null && prVal != null;
+      const start = comboStart ? { z: el.z, x: el.x } : refPoint();
       if (start) {
-        const chord = Math.hypot(el.z - start.z, el.x - start.x);
+        const chord = comboStart ? Math.abs(prVal) : Math.hypot(el.z - start.z, el.x - start.x);
         const minR = chord / 2;
         if (el.r < minR - 1e-6) {
           solveInfo.textContent = `⚠ Poloměr R${fmt(el.r)} je moc malý pro tuto vzdálenost bodů (${fmt(chord)} mm) – potřeba aspoň R${fmt(minR)}.`;
@@ -1671,7 +1720,15 @@ export function initVkTab(container, { picker = null } = {}) {
     }
 
     if (isKnown) {
-      lastPoint = { z: el.z, x: el.x };
+      // X/Z + PA/PR zadané zároveň: X/Z je počátek téhle úsečky (ne cíl),
+      // PA/PR určí její délku a úhel – skutečný konec (a tedy navazující
+      // bod řetězu) se dopočte stejně jako v buildVkPreviewData().
+      if (el.pa != null && prVal != null) {
+        const delta = polarDelta(el.pa, prVal);
+        lastPoint = { z: el.z + delta.z, x: el.x + delta.x };
+      } else {
+        lastPoint = { z: el.z, x: el.x };
+      }
       pendingQueue = [];
     } else {
       el.anchor = lastPoint ? { ...lastPoint } : firstElementAnchor(el);
@@ -1720,7 +1777,7 @@ export function initVkTab(container, { picker = null } = {}) {
       ? {
         type: currentType === 'vkr' ? 'arc' : 'line',
         direction: arcDir,
-        radius: parseFloat(q('val-r')?.value) || null,
+        radius: parseVkField(q('val-r')?.value) || null,
       }
       : null;
   }
@@ -1952,11 +2009,8 @@ export function initVkTab(container, { picker = null } = {}) {
     function buildElementChain(lines) {
       const parsed = lines.map((line) => parseVkLine(line));
       let cur = null;
-      let elementIndex = 0;
       for (const el of parsed) {
         if (!el || el.cmd === 'G111') continue;
-        const isFirstElement = elementIndex === 0;
-        elementIndex += 1;
 
         if (el.isArc) {
           if (cur) {
@@ -1966,7 +2020,10 @@ export function initVkTab(container, { picker = null } = {}) {
           continue;
         }
 
-        if (!cur && isFirstElement && el.x != null && el.z != null && el.pa != null && el.pr != null) {
+        if (el.x != null && el.z != null && el.pa != null && el.pr != null) {
+          // X/Z + PA/PR zároveň (na jakémkoli prvku): X/Z je počátek
+          // (přepíše navazující bod z `cur`), PA/PR určí délku a úhel –
+          // stejné pravidlo jako v buildVkPreviewData()/buildTextChain().
           el.start = { z: el.z, x: el.x };
           const delta = polarDelta(el.pa, el.pr);
           el.end = { z: el.start.z + delta.z, x: el.start.x + delta.x };
