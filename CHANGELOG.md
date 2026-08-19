@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – čelní hrubování natočenou destičkou: zadní strana plátku pod offsetovou
+  čárou polotovaru.** Hlídání „nikdy hlouběji než předchozí vrstva" bralo syrové
+  (neobrobené) pásy jen v jejich mřížkovém Z a měřilo je proti holému povrchu
+  odlitku. Obojí bylo málo: krok vrstev 3 mm **mine dosah břitu** (8,68 mm u
+  destičky b10/−15°), takže zadní hrana plavala až 0,7 mm POD povrchem, a mez
+  má být **offsetová čára polotovaru**, ne povrch — programovaný bod je střed
+  nosu, tělo destičky leží o offset níž a reálný nůž má hned za ní držák.
+  Syrové pásy se proto vzorkují po celé šířce kroku a proti offsetové čáře.
+  Průchody sousedící se syrovým pásem se tím posunou o ~1,9 mm výš.
 - **CAM – čelní hrubování natočenou destičkou: schodek na konci ÚSEKU.**
   Doběh kužele (viz níž) řešil jen konec celé marche. Stejný schodek ale zůstával
   na konci KAŽDÉHO úseku (za stěnou, u čela příruby): poslední průchod dosedne na

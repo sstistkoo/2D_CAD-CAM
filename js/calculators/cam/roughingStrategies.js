@@ -495,7 +495,7 @@ export function genFacePasses(ctx) {
           // požadavek o rádius a série pak padala jedna za druhou.
           const raw = castingOuterAtZ(zGrid);
           if (Number.isFinite(raw)) {
-            done.push({ z: zGrid, x: raw });
+            done.push({ z: zGrid, x: raw, raw: true });
             while (done.length > 0 && Math.abs(zGrid - done[0].z) > reachM + step) done.shift();
           }
           continue;
@@ -508,6 +508,27 @@ export function genFacePasses(ctx) {
           // se čelo obrábí naplno (nález uživatele: průchody na Ø21,8
           // končily 0,8 / 1,6 / 2,4 … místo X0).
           if (q.x < AXIS_NO_MAT) continue;
+          if (q.raw) {
+            // SYROVÝ pás — dvě opravy proti dřívějšku (nález uživatele
+            // 19. 8. 2026, pás Z 150–197 u čela příruby):
+            //  (a) vzorkuje se po CELÉ šířce kroku, ne jen v mřížkovém Z:
+            //      krok 3 mm mine dosah břitu (8,68 mm u b10/−15°) a zadní
+            //      hrana pak plavala 0,7 mm POD povrchem polotovaru;
+            //  (b) mezí je OFFSETOVÁ ČÁRA polotovaru, ne holý povrch —
+            //      programovaný bod je střed nosu, takže tělo destičky
+            //      leží o offset níž. („aby pravá strana plátku nezajížděla
+            //      pod offsetovou čáru od polotovaru")
+            for (let t = -0.5; t <= 0.5001; t += 0.25) {
+              const zq = q.z + t * step;
+              const dz = Math.abs(p.z - zq);
+              if (dz > reachM + 1e-6) continue;
+              const sf = castingOuterOrNull(zq);
+              if (sf === null || sf < AXIS_NO_MAT) continue;
+              const cand = sf + faceOffsetOut + dz * tanM;
+              if (cand > need) need = cand;
+            }
+            continue;
+          }
           const dz = Math.abs(p.z - q.z);
           if (dz > reachM + 1e-6) continue;
           const cand = q.x + dz * tanM;
@@ -521,7 +542,7 @@ export function genFacePasses(ctx) {
             droppedM++;
             // Vynechaný pás zůstává neobrobený — pro další vrstvy je to
             // materiál v úrovni povrchu, ne vzduch.
-            done.push({ z: p.z, x: castingOuterAtZ(p.z) });
+            done.push({ z: p.z, x: castingOuterAtZ(p.z), raw: true });
             continue;
           }
           p.xEnd = need;
@@ -534,7 +555,7 @@ export function genFacePasses(ctx) {
         // obrobené straně. Materiál pod ním proto stojí v úrovni POVRCHU, ne
         // v úrovni `xEnd` (ten je výš a udělal by z něj falešnou stěnu, která
         // srazí začátek dalšího úseku — změřeno: úsek od Z29,932 celý vypadl).
-        done.push({ z: p.z, x: p.runOut ? castingOuterAtZ(p.z) : p.xEnd });
+        done.push(p.runOut ? { z: p.z, x: castingOuterAtZ(p.z), raw: true } : { z: p.z, x: p.xEnd });
         while (done.length > 0 && Math.abs(p.z - done[0].z) > reachM + step) done.shift();
       }
       if (dropM.size > 0) {

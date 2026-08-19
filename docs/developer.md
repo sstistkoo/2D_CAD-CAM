@@ -725,6 +725,14 @@ Dvě pravidla, bez kterých to hlásí stěnu tam, kde je vzduch:
 - **pás bez průchodu je stojící materiál** — jde se po celé marche mřížce
   (`zList`), ne jen po existujících průchodech.
 
+Syrový (neobrobený) pás se přitom měří jinak než hotová vrstva:
+- **po celé šířce kroku**, ne jen ve svém mřížkovém Z — krok 3 mm mine dosah
+  břitu (8,68 mm u b10/−15°) a zadní hrana pak plave až 0,7 mm POD povrchem;
+- **proti OFFSETOVÉ ČÁŘE polotovaru** (`povrch + faceOffsetOut`), ne proti
+  holému povrchu: programovaný bod je střed nosu, tělo destičky leží o offset
+  níž a reálný nůž má hned za destičkou držák.
+Hotová vrstva zůstává měřená svým `xEnd` — tam žádný offset nepatří.
+
 Důsledek, který NENÍ chyba: na ploše rovnoběžné s osou vzniká kužel pod úhlem
 destičky a po pár vrstvách hrubování vyjede nad polotovar. Tam už čelně není co
 brát — ta plocha patří podélnému hrubování.
