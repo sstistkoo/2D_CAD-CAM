@@ -92,7 +92,45 @@ export function genFacePasses(ctx) {
     });
     return maxX > -9999 ? maxX : null;
   };
-  const castingOuterAtZ = (z) => castingOuterOrNull(z) ?? sRad;
+  // Rádius nosu + doběh kužele: musí být nad `castingOuterAtZ`, které je čte.
+  const rTipFC = Math.max(parseFloat(prms.toolRadius) || 0, 0);
+  const faceOffsetOut = rTipFC
+    + Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
+    + (parseFloat(prms.finishAllowance) || 0);
+  // Doběh kužele (jen NATOČENÁ destička). Spodní hrana se táhne dz·tan(natočení)
+  // ZA nosem, takže poslední vrstva za sebou nechá 15° kužel. Když march skončí
+  // dřív, než kužel vyjede nad offsetovou čáru polotovaru, zůstane na jeho konci
+  // SCHODEK — a ten by ještě jedna vrstva vzala (nález uživatele 19. 8. 2026:
+  // „nemusí to dobrat úplně doleva, jen ať tam nezůstane schodek"). Vrstvy
+  // pokračují po kuželu (nikdy hlouběji, pravidlo „ne pod předchozí vrstvu"),
+  // dokud řez nevyjede za offsetovou čáru polotovaru; dál ne — tam už je vzduch.
+  const faceRunOut = (prms.respectInsertGeometry && prms.toolShape === 'polygon'
+    && -(parseFloat(prms.toolAngle) || 0) > 0.01
+    && insertReachZ(prms, prms.roughingSide === 'left') > 1e-6) ? faceOffsetOut : 0;
+
+  // V zóně DOBĚHU (za koncem polotovaru, viz `faceRunOut`) svislice obrys MINE.
+  // Jmenovitý `sRad` je tam nesmysl — u odlitku bývá úplně jinde než skutečná
+  // hrana, takže rychloposuv i mez dotyku skáčou o desítky mm a poslední vrstva
+  // pak jede dlouhý kus vzduchem. Vezme se povrch na nejbližším Z, kde polotovar
+  // ještě JE (= hrana, o kterou se řez opře). Jen pro doběh: bez něj (kulatá /
+  // nenatočená destička) se `sRad` chová přesně jako dřív.
+  let stockZLo = null, stockZHi = null;
+  if (prms.stockMode === 'casting' && stockWorldPoints.length > 0) {
+    stockZLo = Math.min(...stockWorldPoints.map(p => p.zReal));
+    stockZHi = Math.max(...stockWorldPoints.map(p => p.zReal));
+  }
+  const castingOuterAtZ = (z) => {
+    const v = castingOuterOrNull(z);
+    if (v !== null) return v;
+    if (stockZLo !== null && faceRunOut > 0) {
+      const zc = Math.min(stockZHi, Math.max(stockZLo, z));
+      if (zc !== z) {
+        const w = castingOuterOrNull(zc);
+        if (w !== null) return w;
+      }
+    }
+    return sRad;
+  };
   // Rapid-bezpečná X pro STŘED špičky na zadané Z. Nos je kruh rádiusu R:
   // ve vzdálenosti dz od středu sahá o √(R²−dz²) níž než střed, takže
   // „povrch v tomhle jediném Z + R" nestačí — nad stoupajícím sousedstvím
@@ -102,7 +140,6 @@ export function genFacePasses(ctx) {
   // by hnala rychloposuv zbytečně vysoko.
   // U R 0,8 mm je okno neznatelné, u R 8 mm je to reálná kolize (rychloposuv
   // na xStart projel kuželem polotovaru).
-  const rTipFC = Math.max(parseFloat(prms.toolRadius) || 0, 0);
   const clrXFC = stockClearances(prms).x;
   const rapidStartXAt = (z, xHere, dirUncut) => {
     let need = xHere + rTipFC;
@@ -175,8 +212,8 @@ export function genFacePasses(ctx) {
   // se do dosud neobrobeného polotovaru.
   const faceLeft = (prms.roughingSide === 'left');
   const zList = [];
-  if (!faceLeft) { for (let z = faceStartZ - step; z >= marchEndZ - 0.01; z -= step) zList.push(z); }
-  else { for (let z = marchEndZ + step; z <= faceStartZ + 0.01; z += step) zList.push(z); }
+  if (!faceLeft) { for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zList.push(z); }
+  else { for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zList.push(z); }
   // Marchování začíná na marchStartZ (reference pro clamp leadOutu — zachováno
   // pro L/R symetrii, ale clamp byl odstraněn: první průchod smí také dojíždět
   // po offsetu nahoru, jinak by jeho krok nad ním zůstal neobrobený).

@@ -729,6 +729,26 @@ Důsledek, který NENÍ chyba: na ploše rovnoběžné s osou vzniká kužel pod
 destičky a po pár vrstvách hrubování vyjede nad polotovar. Tam už čelně není co
 brát — ta plocha patří podélnému hrubování.
 
+**Kužel se ale musí nechat DOJET ven.** Dřív march končil přesně na hraně
+polotovaru (`marchEndZ`), takže kužel neměl kam dojet a na jeho konci zůstal
+schodek, který by ještě jedna vrstva vzala. `faceRunOut` proto prodlouží marche
+mřížku (`zList`) o offsetovou čáru polotovaru (rádius nosu + přídavek +
+dokončovací přídavek) za konec polotovaru — vrstvy pokračují po kuželu až ven.
+
+Dvě věci, které se přitom NEmění:
+- **hloubka** — pravidlo „nikdy hlouběji než předchozí vrstva" platí dál, doběh
+  jen přidává vrstvy dál v Z (každá o `ap·tan φ` mělčí);
+- **„neobrábět vzduch"** — průchod, jehož konec vyjde nad mez dotyku nosu
+  (`xTouchAt`), se pořád zahodí. Doběh tím sám přestane, jakmile kužel vyjede.
+
+V zóně doběhu svislice obrys polotovaru MINE, takže `castingOuterAtZ` tam vrací
+povrch na nejbližším Z, kde polotovar ještě je — ne jmenovitý `sRad` (ten u
+odlitku bývá úplně jinde a nájezd i mez dotyku by skákaly o desítky mm). Jen
+v zóně doběhu: bez něj se `sRad` chová přesně jako dřív.
+
+Celé je to podmíněné natočenou polygonovou destičkou; u kulaté/nenatočené hrana
+za nosem netáhne, `faceRunOut` je 0 a výstup je bajtově shodný.
+
 #### Dva modely nástroje pro úběr
 
 `toolFootprint` (plánování + validace kolizí) je aproximace „stadion";

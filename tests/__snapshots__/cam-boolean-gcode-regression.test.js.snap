@@ -621,23 +621,29 @@ N1640 G0 Z-4.000
 N1650 G1 X33.500 F0.25
 N1660 G1 X22.532 F0.25
 N1670 G1 X24.532 Z-2.000
-N1680 G0 X150.000 ; Výjezd nad konturu
-N1690 G0 Z5.000
+; Průchod 28
+N1680 G0 X35.700
+N1690 G0 Z-6.000
+N1700 G1 X33.500 F0.25
+N1710 G1 X23.068 F0.25
+N1720 G1 X25.068 Z-4.000
+N1730 G0 X150.000 ; Výjezd nad konturu
+N1740 G0 Z5.000
 ; --- DOKONCOVANI ---
-N1700 G0 X2.000 Z51.200
-N1710 G1 X0.000 Z49.200 F0.25
-N1720 G1 X4.497 Z49.200
-N1730 G1 X5.310 Z48.387
-N1740 G1 X6.109 Z46.459
-N1750 G0 X35.700 ; Výjezd nad konturu
-N1760 G0 Z32.537
-N1770 G0 X13.073
-N1780 G1 X11.073 Z30.537
-N1790 G1 X15.073 Z22.537
-N1800 G1 X15.073 Z20.537 ; Rovný průměr (zbytek nejde dokončit celý)
-N1810 G1 X150.000 F0.25 ; Výjezd materiálem posuvem
-N1820 G0 Z5.000
-N1830 M30 ; Konec programu
+N1750 G0 X2.000 Z51.200
+N1760 G1 X0.000 Z49.200 F0.25
+N1770 G1 X4.497 Z49.200
+N1780 G1 X5.310 Z48.387
+N1790 G1 X6.109 Z46.459
+N1800 G0 X35.700 ; Výjezd nad konturu
+N1810 G0 Z32.537
+N1820 G0 X13.073
+N1830 G1 X11.073 Z30.537
+N1840 G1 X15.073 Z22.537
+N1850 G1 X15.073 Z20.537 ; Rovný průměr (zbytek nejde dokončit celý)
+N1860 G1 X150.000 F0.25 ; Výjezd materiálem posuvem
+N1870 G0 Z5.000
+N1880 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X4 Z48
 ; G1 X4.293 Z47.707
@@ -668,7 +674,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > fa
     "L (14.00,4.00)->(14.00,0.00)",
     "L (14.00,0.00)->(0.00,0.00)",
   ],
-  "passCount": 27,
+  "passCount": 28,
   "passTags": [
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
@@ -684,6 +690,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > fa
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
+    "face{blocked}",
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",
@@ -8909,9 +8916,14 @@ N4790 G0 Z-6.068
 N4800 G1 X38.566 F0.25
 N4810 G1 X38.504 F0.25
 N4820 G1 X40.504 Z-4.068
-N4830 G0 X150.000 ; Výjezd nad konturu
-N4840 G0 Z5.000
-N4850 M30 ; Konec programu
+; Průchod 85
+N4830 G0 Z-9.068
+N4840 G0 X40.366
+N4850 G1 X39.307 F0.25
+N4860 G1 X41.307 Z-7.068
+N4870 G0 X150.000 ; Výjezd nad konturu
+N4880 G0 Z5.000
+N4890 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -8970,7 +8982,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 84,
+  "passCount": 85,
   "passTags": [
     "face",
     "face",
@@ -9043,6 +9055,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
+    "face{blocked}",
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",

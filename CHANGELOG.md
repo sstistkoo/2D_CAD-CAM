@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – čelní hrubování natočenou destičkou: schodek na konci kužele.**
+  Spodní hrana natočené destičky se táhne `dz·tan(natočení)` za nosem, takže
+  poslední vrstva za sebou nechá kužel pod úhlem natočení. Marchování ale
+  končilo přesně na hraně polotovaru, takže kužel neměl kam „dojet" ven a na
+  jeho konci zůstal schodek, který by ještě jedna vrstva vzala. Nově marche
+  pokračuje o offsetovou čáru polotovaru dál (rádius nosu + přídavek +
+  dokončovací přídavek) a vrstvy jedou po kuželu až ven. **Hloubka se nemění** –
+  pravidlo „nikdy hlouběji než předchozí vrstva" platí dál a průchod, který by
+  jel vzduchem, se pořád zahodí. V zóně doběhu se navíc povrch bere z nejbližší
+  hrany polotovaru místo jmenovitého poloměru (jinak by nájezd i mez dotyku
+  skákaly o desítky mm). Platí jen pro natočenou polygonovou destičku;
+  kulatá/nenatočená dává bajtově shodný výstup.
 - **VK – desetinná čárka a výrazy v číselných polích.** Formulářová pole
   (Start X1/Z1, PA, PR, R, VPOL, bod zlomu) parsovala hodnoty přes syrový
   `parseFloat()` místo sdíleného `safeEvalMath()` – zápis `12,5` se tiše
