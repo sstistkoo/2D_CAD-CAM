@@ -516,7 +516,7 @@ export function genFacePasses(ctx) {
         if (need > p.xEnd + 0.01) {
           // Zvednutí nad mez dotyku = průchod by jel vzduchem → vynechat
           // (týž rozdíl „zkráceno × vynecháno" jako u ostatních hlídání).
-          if (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01) {
+          if (!p.runOut && (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01)) {
             dropM.add(p);
             droppedM++;
             // Vynechaný pás zůstává neobrobený — pro další vrstvy je to
@@ -529,7 +529,12 @@ export function genFacePasses(ctx) {
           // Dojezd byl spočítaný pro hlubší dno — po zvednutí by šel pod mez.
           if (p.contourLeadOut) delete p.contourLeadOut;
         }
-        done.push({ z: p.z, x: p.xEnd });
+        // Doběhový průchod NEODEBRAL nic na SVÉM Z — jeho konec leží na kuželu
+        // předchozího průchodu, tedy nad povrchem; sloupl jen hřebínek na
+        // obrobené straně. Materiál pod ním proto stojí v úrovni POVRCHU, ne
+        // v úrovni `xEnd` (ten je výš a udělal by z něj falešnou stěnu, která
+        // srazí začátek dalšího úseku — změřeno: úsek od Z29,932 celý vypadl).
+        done.push({ z: p.z, x: p.runOut ? castingOuterAtZ(p.z) : p.xEnd });
         while (done.length > 0 && Math.abs(p.z - done[0].z) > reachM + step) done.shift();
       }
       if (dropM.size > 0) {
@@ -548,7 +553,58 @@ export function genFacePasses(ctx) {
   //     rozhodnutí neodpovídají výsledku → kolize),
   //   • po něm, protože držák zvedá po SVÉM sklonu a tím pravidlo poruší.
   // Obě hlídání smí hloubku jen ZVEDAT, takže se střídavým voláním nerozhoupou.
+
+  // ── Doběh kužele na KONCI ÚSEKU (jen natočená destička) ──
+  // Poslední průchod úseku dosedne na kužel spodní hrany. Hned za ním materiál
+  // pokračuje (stěna, čelo příruby), ale NOS už je nad povrchem, takže se další
+  // vrstva zahodí jako „řez vzduchem" — jenže řeže HRANA za nosem a ta by ten
+  // schodek ještě sebrala (nález uživatele 19. 8. 2026: „tady mi to nedojíždí
+  // a chtělo by to ještě jednu vrstvu", N3450 a N2820).
+  // Přidá se PRÁVĚ JEDNA vrstva na konec každého úseku, o `krok·tan φ` MĚLČEJI
+  // než předchozí — pravidlo „nikdy hlouběji než předchozí vrstva" tím platí
+  // z definice. Druhá vrstva už ne: ta by jela vzduchem.
+  const appendRegionRunOut = () => {
+    if (faceRunOut <= 0) return;
+    const tanR = Math.tan(Math.min(89.5, -(parseFloat(prms.toolAngle) || 0)) * Math.PI / 180);
+    const insReachRO = insertReachZ(prms, faceLeft);
+    const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
+    const add = [];
+    for (let i = 0; i < zList.length - 1; i++) {
+      const p = byZ.get(zList[i].toFixed(3));
+      if (!p || p.runOut) continue;                       // řetězit doběh na doběh ne
+      if (byZ.has(zList[i + 1].toFixed(3))) continue;     // úsek pokračuje sám
+      if (p.xEnd >= xTouchAt(p.z) - 0.01) continue;       // předchozí sám nic neubral
+      const z = zList[i + 1];
+      const xEnd = p.xEnd + Math.abs(z - zList[i]) * tanR;
+      // DRUHÁ STRANA DESTIČKY NESMÍ DO POLOTOVARU JAKO PRVNÍ.
+      // V doběhu je nos nad povrchem a řeže HRANA za ním — ta ale dosáhne jen
+      // `délka břitu · tan φ` pod nos. Když konec řezu leží nad povrchem víc,
+      // destička už nad materiálem VISÍ a jako první se ho dotkne to, co je za
+      // ní (druhá strana plátku, držák) — takový průchod se vynechá.
+      // (Uživatel 19. 8. 2026: „aby strana co je na druhé straně než je rádius
+      // nezajížděla do polotovaru jako první — ta dráha se má vynechat.")
+      // Změřeno na čele příruby: konec řezu X62,06 nad povrchem X16,74 = 45 mm
+      // nad materiálem → validátor tam hlásil kolizi držáku i rychloposuvu.
+      if (xEnd - castingOuterAtZ(z) > insReachRO * tanR + 0.01) continue;
+      const xSurface = castingOuterAtZ(z);
+      // Nájezd musí přijít NAD materiál, který hrana sloupne — ten stojí na
+      // obrobené straně, ne na tomhle Z (tam bývá povrch hluboko pod koncem
+      // řezu, viz čelo příruby: povrch 16,7 a konec řezu 62,1).
+      const xStart = Math.max(rapidStartXAt(z, xSurface, faceLeft ? 1 : -1), xEnd + clrXFC);
+      const np = { type: 'face', z, xStart, xSurface, xEnd, blocked: true, runOut: true };
+      if (faceLeft) np.faceLeft = true;
+      add.push({ after: p, pass: np });
+    }
+    for (let k = add.length - 1; k >= 0; k--) {
+      const at = passes.indexOf(add[k].after);
+      if (at >= 0) passes.splice(at + 1, 0, add[k].pass);
+    }
+    return add.length;
+  };
+
   enforceLayerDepth();
+  const runOutAdded = appendRegionRunOut();
+  if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh kužele: ${runOutAdded} průchodů přidáno na konce úseků, aby po natočené destičce nezůstal schodek.` });
 
   // ── Hlídání DRŽÁKU (čelně) ────────────────────────────────────────
   // Čelní průchod jede radiálně k ose a držák se veze na UŽ OBROBENÉ
@@ -677,7 +733,9 @@ export function genFacePasses(ctx) {
         // Evidence schodu pro další (hlubší, více vlevo) průchody.
         const zA = p.z, zB = p.z + dirM * step;
         const entry = { zLo: Math.min(zA, zB), zHi: Math.max(zA, zB) };
-        if (drop.has(p)) stair.push({ ...entry, raw: true });
+        // Doběhový průchod nechává na svém Z syrový povrch (viz výš) — do
+        // schodiště držáku patří jako `raw`, ne jako rovné dno na `xEnd`.
+        if (drop.has(p) || p.runOut) stair.push({ ...entry, raw: true });
         else if (!p.contourLeadOut) stair.push({ ...entry, x: p.xEnd });
       }
       if (drop.size > 0) {

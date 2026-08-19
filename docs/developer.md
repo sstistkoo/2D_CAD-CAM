@@ -746,6 +746,20 @@ povrch na nejbližším Z, kde polotovar ještě je — ne jmenovitý `sRad` (te
 odlitku bývá úplně jinde a nájezd i mez dotyku by skákaly o desítky mm). Jen
 v zóně doběhu: bez něj se `sRad` chová přesně jako dřív.
 
+Totéž platí na konci KAŽDÉHO ÚSEKU, ne jen celé marche — za stěnou nebo u čela
+příruby úsek skončí a schodek zůstane stejně. `appendRegionRunOut()` (běží mezi
+prvním hlídáním hloubky a hlídáním držáku, aby jeho průchody držák ještě viděl)
+přidá na konec úseku **právě jednu** vrstvu s `xEnd = předchozí + krok·tan φ`.
+Dvě pravidla, bez kterých to škodí:
+- **kdy se nepřidá** — když `xEnd − povrch > délka břitu · tan φ`, destička nad
+  materiálem VISÍ; hrana tam nedosáhne a jako první se materiálu dotkne druhá
+  strana plátku a držák (změřeno na čele příruby: konec řezu 45 mm nad povrchem
+  → validátor hlásil kolizi držáku i rychloposuvu);
+- **co po sobě nechá** — do `done` (hloubka vrstev) i do `stair` (držák) patří
+  jako SYROVÝ povrch, ne jako rovné dno na `xEnd`. Jeho konec leží na kuželu
+  předchozího průchodu, tedy NAD povrchem; zapsat ho jako dno udělá falešnou
+  stěnu a ta srazí začátek dalšího úseku (změřeno: úsek od Z29,932 celý vypadl).
+
 Celé je to podmíněné natočenou polygonovou destičkou; u kulaté/nenatočené hrana
 za nosem netáhne, `faceRunOut` je 0 a výstup je bajtově shodný.
 

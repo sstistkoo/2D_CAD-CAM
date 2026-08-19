@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – čelní hrubování natočenou destičkou: schodek na konci ÚSEKU.**
+  Doběh kužele (viz níž) řešil jen konec celé marche. Stejný schodek ale zůstával
+  na konci KAŽDÉHO úseku (za stěnou, u čela příruby): poslední průchod dosedne na
+  kužel spodní hrany, další se zahodí jako „řez vzduchem", protože se nos už
+  polotovaru nedotkne — jenže řeže hrana ZA nosem a ta by schodek ještě sebrala.
+  Nově se na konec každého úseku přidá **právě jedna** vrstva, o `krok·tan φ`
+  mělčeji než předchozí (pravidlo „nikdy hlouběji" tím platí z definice); druhá
+  už ne. Průchod se nepřidá, když by destička nad materiálem VISELA — hrana
+  dosáhne jen `délka břitu · tan φ` pod nos, takže výš už by se materiálu dotkla
+  jako první druhá strana plátku a držák (změřeno na čele příruby: konec řezu
+  45 mm nad povrchem = kolize držáku i rychloposuvu). Doběhový průchod se navíc
+  do evidence materiálu zapisuje jako SYROVÝ povrch, ne jako rovné dno na svém
+  konci — jinak z něj vznikla falešná stěna, která srazila začátek dalšího úseku.
 - **CAM – čelní hrubování natočenou destičkou: schodek na konci kužele.**
   Spodní hrana natočené destičky se táhne `dz·tan(natočení)` za nosem, takže
   poslední vrstva za sebou nechá kužel pod úhlem natočení. Marchování ale
