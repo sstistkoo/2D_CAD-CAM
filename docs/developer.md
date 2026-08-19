@@ -770,9 +770,32 @@ odlitku bývá úplně jinde a nájezd i mez dotyku by skákaly o desítky mm). 
 v zóně doběhu: bez něj se `sRad` chová přesně jako dřív.
 
 Totéž platí na konci KAŽDÉHO ÚSEKU, ne jen celé marche — za stěnou nebo u čela
-příruby úsek skončí a schodek zůstane stejně. `appendRegionRunOut()` (běží mezi
-prvním hlídáním hloubky a hlídáním držáku, aby jeho průchody držák ještě viděl)
-přidá na konec úseku **právě jednu** vrstvu s `xEnd = předchozí + krok·tan φ`.
+příruby úsek skončí a schodek zůstane stejně. `appendRegionRunOut()` přidá na
+konec úseku **právě jednu** vrstvu s `xEnd = předchozí + krok·tan φ`.
+
+**POŘADÍ hlídání je součástí algoritmu.** Doběh se rozhoduje podle toho, jestli
+na dalším Z ještě průchod JE („úsek pokračuje sám“) — a právě ty průchody
+zahazuje hlídání držáku. Proto se `holderGuardFace()` volá **dvakrát**, doběh
+běží mezi těmi voláními:
+
+```
+enforceLayerDepth()  →  holderGuardFace(false)  →  appendRegionRunOut()
+                     →  holderGuardFace(true)   →  enforceLayerDepth()
+```
+
+Když doběh běžel jako první, viděl konce úseků o vrstvu (i o několik) dál, než
+kam se reálně dojede, a na skutečné konce se už nikdo nevrátil. U natočené
+destičky to vycházelo náhodou — `enforceLayerDepth()` je polygon-only a ty
+průchody zahodilo dřív; u **upichováku** hloubka vrstev neběží vůbec, takže
+zůstaly tři nedojeté konce (čelo příruby, konec úseku, levý konec — nález
+uživatele 19. 8. 2026). Druhé volání není kosmetika: průchod přidaný za
+držákem bez jeho kontroly jsou změřené 3 kolize (rapid@X66,2 Z195,0;
+holder@X62,0 Z195,0; rapid@X64,0 Z197,0). Opakování je bezpečné ze stejného
+důvodu jako u `enforceLayerDepth()` — clamp hloubku jen ZVEDÁ. Počítadla
+varování (`holderAdjusted`/`holderDropped`/`holderTrimmed`) proto leží MIMO
+funkci: druhé volání už obvykle nemá co zvedat, a s počítadly vevnitř by
+⚠ z prvního volání zmizelo úplně (30 zkrácených + 16 vynechaných průchodů
+přestalo být hlášeno).
 Dvě pravidla, bez kterých to škodí:
 - **kdy se nepřidá na mřížkové Z** — když `xEnd − povrch > délka břitu · tan φ`,
   destička nad materiálem VISÍ; hrana tam nedosáhne a jako první se materiálu
@@ -794,8 +817,44 @@ Dvě pravidla, bez kterých to škodí:
   předchozího průchodu, tedy NAD povrchem; zapsat ho jako dno udělá falešnou
   stěnu a ta srazí začátek dalšího úseku (změřeno: úsek od Z29,932 celý vypadl).
 
-Celé je to podmíněné natočenou polygonovou destičkou; u kulaté/nenatočené hrana
-za nosem netáhne, `faceRunOut` je 0 a výstup je bajtově shodný.
+Doběh platí pro **natočenou polygonovou destičku** i pro **upichovák**; u kulaté
+nenatočené hrana za nosem netáhne, `faceRunOut` je 0 a výstup je bajtově shodný.
+U upichováku je `toolAngle` 0, tedy `tanR` = 0 a vrstva navíc leží ve **stejné**
+hloubce — přesto něco vezme, protože dojede dál v Z, kam se při marchování po
+`ap` žádná mřížková vrstva nedostala. `tanR` se počítá jako
+`max(0, −toolAngle)`: bez toho by kladný úhel (a u upichováku nula) dal
+záporný tangens, tedy vrstvu HLOUBĚJI — pravidlo „nikdy hlouběji“ naruby.
+
+#### Dojezd v ROHU a obálka upichováku
+
+Dvě vady, které se u čelního hrubování upichovákem sčítaly do jedné divně
+vypadající dráhy v rozích (nález uživatele 19. 8. 2026):
+
+1. **Obálka plátku převzorkovávala rovné úsečky na tětivy.** U upichováku se
+   dojezd nenahrazuje offsetem, ale `samplePartingEnvelope()` — dráhou bodu tak,
+   aby prošlo CELÉ tělo plátku. Vzorkovalo se po 0,4 mm a **zlomy předlohy na
+   mřížku nepadly**: rovné čelo Z138,785→139,523 (29,6 mm v X) vyšlo jako tři
+   tětivy a poslední měla 4× větší sklon než čelo (`X9.943 Z139.807` místo
+   Z139,523) — dráha z rovné offsetové čáry vyjela na stranu vzduchu. Funkce
+   proto přijímá `breakZ`: vzorkovací mřížku doplní o Z zlomů vystopovaného
+   dojezdu (`traceOffsetPath`) a kolineární redukce zbytek slije zpátky do jedné
+   úsečky. Vzorků nemůže ubýt, takže se obálka nikde nesníží — jen zpřesní.
+2. **Dojezd pokračoval po plášti, kde už schod nebyl.** Když po sloupnutí schodu
+   kontura zahne do stěny ROVNOBĚŽNÉ S OSOU (konstantní X, pohyb jen v Z), nůž
+   tam už jen tře. Dojezd se v tom rohu utne — ale **s přesahem 0,4 mm**, ne
+   přesně v rohu: to není obráběcí pravidlo, ale numerická rezerva pro dynamický
+   model polotovaru (`rapidStock`). Když dráha skončí přesně na rohu, stopy
+   sousedních průchodů se jen DOTKNOU a v modelu zůstane JEHLA — na `part-16`
+   zbytek na Z243,5 vyskočí z 10,41 na 16,17 mm (sousedí 11,06 a 9,67) a
+   `finDeepCut` na ni zahodí CELÝ dokončovací úsek po kuželu: 19 mm²
+   neobrobeného a falešné ⚠.
+
+   Utne se **jen roh za sloupnutým schodem** (osový úsek na indexu ≥ 1). Dojezd,
+   který je osový už od začátku, je jiný případ — tam žádný schod sloupnutý
+   není a běh po plášti materiál ODEBÍRÁ: zahození všech = **+75 mm²** zbytku
+   na `part-16` (včetně výjezdu po kuželu, který na osový úsek navazuje).
+   Přesah se NEVÁŽE na rádius nosu: u kulaté destičky R8 by spolkl celý osový
+   úsek a ořez by na `part-18` nikdy nenastal.
 
 #### Dva modely nástroje pro úběr
 

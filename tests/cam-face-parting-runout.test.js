@@ -64,12 +64,48 @@ describe('Čelně upichovákem (šířka 5 mm, natočení 0°)', () => {
   it('dojezd se zastaví v rohu — za sloupnutým schodem už po plášti nejede', async () => {
     const { calc } = await runCamProgFile(fixture);
     const face = calc.passes.filter(p => p.type === 'face');
-    // Žádný dojezd nesmí mít osový úsek AZ ZA jiným úsekem: tam už schod není.
+    // Osový úsek AŽ ZA jiným úsekem (= za sloupnutým schodem) se zkrátí na
+    // 0,4 mm — přesah je numerická rezerva pro dynamický model polotovaru,
+    // viz `roughingStrategies.js`. Před opravou měřil 1,4–1,7 mm.
     const after = face.filter(p => p.contourLeadOut
       && p.contourLeadOut.findIndex(isAxial) >= 1);
-    expect(after).toEqual([]);
+    expect(after.length).toBeGreaterThan(0);
+    for (const p of after) {
+      const sg = p.contourLeadOut[p.contourLeadOut.findIndex(isAxial)];
+      expect(Math.abs(sg.z2 - sg.z1)).toBeLessThanOrEqual(0.41);
+      // A musí to být POSLEDNÍ úsek — za rohem už dojezd nepokračuje.
+      expect(p.contourLeadOut[p.contourLeadOut.length - 1]).toBe(sg);
+    }
     // Test není vacuum: dojezdy, které osovým úsekem ZAČÍNAJÍ, se nechaly — ty
     // materiál odebírají (změřeno modelem úběru: zahození = +75 mm² zbytku).
     expect(face.some(p => p.contourLeadOut && p.contourLeadOut.some(isAxial))).toBe(true);
+  }, 120000);
+});
+
+describe('Obálka upichováku v ROHU offsetu', () => {
+  it('rovné čelo zůstává JEDNOU úsečkou — nevzorkůje se na tětivy', async () => {
+    const { calc } = await runCamProgFile(fixture);
+    const p = calc.passes.find(q => q.type === 'face' && Math.abs(q.z - 137.932) < 0.01);
+    expect(p).toBeTruthy();
+    // Obálka plátku dřív převzorkovala vystopovaný offset na rovnoměrnou mřížku
+    // 0,375 mm v Z. Zlomy offsetu (Z138,785 a Z139,523) na ni nepadly, takže
+    // rovné čelo vyšlo jako tři tětivy a poslední z nich měla 4× větší sklon
+    // než čelo (X9,943 Z139,807 místo Z139,523) — dráha z offsetu vyjela.
+    const face = (p.contourLeadOut || []).find(sg => sg.type === 'line'
+      && Math.abs(sg.x2 - sg.x1) > 5);
+    expect(face).toBeTruthy();
+    // Sklon čela z výkresu: 0,738 mm v Z na 29,63 mm v X.
+    expect(Math.abs(face.z2 - face.z1) / Math.abs(face.x2 - face.x1)).toBeCloseTo(0.0249, 3);
+    // A celé čelo (29,6 mm v X) musí projít jedním úsekem, ne po kouscích.
+    expect(Math.abs(face.x2 - face.x1)).toBeGreaterThan(29);
+  }, 120000);
+
+  it('dokončování neztratí úsek po kuželu (žádná jehla ve zbytkovém modelu)', async () => {
+    const { S } = await runCamProgFile(fixture);
+    // Ořez dojezdu PŘESNĚ v rohu nechal v dynamickém modelu polotovaru jehlu
+    // (Z243,5: 16,17 mm mezi sousedícemi 11,06 a 9,67) a `finDeepCut` na ni
+    // zahodil celý dokončovací úsek po kuželu = 19 mm² neobrobeného.
+    const msgs = (S.genNotes || []).map(n => n.msg).join(' | ');
+    expect(msgs).not.toMatch(/Dokončování: \d+ úsek/);
   }, 120000);
 });

@@ -934,7 +934,22 @@ export function genFacePasses(ctx) {
       // všech = +75 mm² zbytku na part-16, včetně vyhozeného výjezdu po kuželu,
       // který na osový úsek na Z233,932 navazuje).
       if (at < 1) continue;
-      p.contourLeadOut = p.contourLeadOut.slice(0, at);
+      const keep = p.contourLeadOut.slice(0, at);
+      // NEUTÍNAT PŘESNĚ V ROHU — nechá se PŘESAH 0,4 mm. Není to obráběcí
+      // pravidlo, ale numerická rezerva pro dynamický model polotovaru
+      // (`rapidStock` v gcodeEmit): když dráha skončí přesně na rohu offsetu,
+      // stopy sousedních průchodů se jen DOTKNOU a v modelu zůstane JEHLA —
+      // na part-16 vyskakuje zbytek na Z243,5 z 10,41 na 16,17 mm (sousedí
+      // 11,06 a 9,67) a `finDeepCut` na ni zahodí CELÝ dokončovací úsek po
+      // kuželu: 19 mm² neobrobeného a falešné ⚠. 0,4 mm = krok vzorkování
+      // obálky (`samplePartingEnvelope`); náhodných 0,226 mm před opravou (b)
+      // stačilo, takže je to rezerva s margínem, ne těsná hodnota. Rádius nosu
+      // se na to NEHODÍ: u kulaté destičky R8 by přesah spolkl celý osový úsek
+      // a ořez by na part-18 nikdy nenastal.
+      const sg = p.contourLeadOut[at];
+      const dz = Math.sign(sg.z2 - sg.z1) * Math.min(Math.abs(sg.z2 - sg.z1), 0.4);
+      if (Math.abs(dz) > 0.05) keep.push({ ...sg, x2: sg.x1, z2: sg.z1 + dz });
+      p.contourLeadOut = keep;
       cornerTrim++;
     }
     if (cornerTrim > 0)
