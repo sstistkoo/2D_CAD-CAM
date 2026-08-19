@@ -32,12 +32,31 @@ export function getEffectivePlungeAngle(prms) {
 // se obálka kryje s offsetem. xAt(z) vrací max X offsetu v z, nebo null.
 // Vrací lomenou čáru [{x,z}] v pořadí jízdy zFrom → zTo (kolineární body
 // vyházené s tolerancí tol).
-export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol = 0.01) {
+export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol = 0.01, breakZ = null) {
   const n = Math.max(1, Math.ceil(Math.abs(zTo - zFrom) / h));
   const inner = Math.max(1, Math.ceil(span / h));
+  // Mřížka vzorků = rovnoměrná + ZLOMY předlohy (`breakZ`). Bez zlomů se rovná
+  // úsečka nahradí TĚTIVOU přes mrížku a dráha z ní vyjede na stranu vzduchu:
+  // čelo Z138,785→139,523 (na 29,6 mm v X) se vzorkovalo po 0,375 mm, zlomy na
+  // 138,785 ani 139,523 mezi vzorky nepadly a poslední úsek pak vyšel 4× víc
+  // skloněný než čelo (0,375 mm v Z na 3,7 mm v X místo 0,091) — nález uživatele
+  // 19. 8. 2026 „offsetová čára je rovná, ale dráha od ní utíká doprava".
+  // Se zlomy padnou vzorky přesně na ně a kolineární redukce níž slije zbytek
+  // zpátky do jedné úsečky. Vzorků nemůže ubýt, takže obálka se tím nikde
+  // nesníží — jen se zpřesní.
+  const zs = [];
+  for (let i = 0; i <= n; i++) zs.push(zFrom + (zTo - zFrom) * (i / n));
+  if (breakZ) {
+    const zLo = Math.min(zFrom, zTo), zHi = Math.max(zFrom, zTo);
+    for (const z of breakZ) {
+      if (!(z > zLo + 0.02) || !(z < zHi - 0.02)) continue;
+      if (zs.some(q => Math.abs(q - z) < 0.02)) continue;
+      zs.push(z);
+    }
+    zs.sort((a, b) => (zTo >= zFrom ? a - b : b - a));
+  }
   const pts = [];
-  for (let i = 0; i <= n; i++) {
-    const z = zFrom + (zTo - zFrom) * (i / n);
+  for (const z of zs) {
     let m = null;
     for (let j = 0; j <= inner; j++) {
       const x = xAt(z + dir * span * (j / inner));

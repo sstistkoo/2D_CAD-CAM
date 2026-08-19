@@ -445,7 +445,12 @@ export function genFacePasses(ctx) {
           // Jemnější kolineární tolerance — body na obloucích si nechá pro
           // zpětné proložení G2/G3 (fitArcsToPolyline), ať kód není rozsekaný
           // na stovky mikro-úseček.
-          const pts = samplePartingEnvelope(offsetXAt, p.z, zEnd, w2R, dirM, 0.4, 0.003);
+          // Zlomy předlohy: `lo` přišlo z `traceOffsetPath`, takže jeho konce
+          // úseků JSOU zlomy offsetu. Bez nich mrížka 0,4 mm rovnou úsečku čela
+          // překryla tětivou a dráha z offsetu vyjela (viz samplePartingEnvelope).
+          const brkZ = [];
+          for (const sg of lo || []) { brkZ.push(sg.z1); brkZ.push(sg.z2); }
+          const pts = samplePartingEnvelope(offsetXAt, p.z, zEnd, w2R, dirM, 0.4, 0.003, brkZ);
           const fitted = fitArcsToPolyline(pts, 0.02);
           const segs = [];
           // Napojení ode dna zápichu svisle v X na start obálky.
