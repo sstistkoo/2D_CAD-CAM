@@ -743,6 +743,21 @@ schodek, který by ještě jedna vrstva vzala. `faceRunOut` proto prodlouží ma
 mřížku (`zList`) o offsetovou čáru polotovaru (rádius nosu + přídavek +
 dokončovací přídavek) za konec polotovaru — vrstvy pokračují po kuželu až ven.
 
+Dojezd se úplně vynechá tam, kde kontura stoupá pod ÚHLEM NATOČENÍ DESTIČKY:
+schod tam nevzniká, spodní hrana ten tvar udělala už řezem, a dojezd by jen
+třel po hotovém povrchu (na dílu uživatele 39 ze 45 dojezdů; úběr shodný na
+0,01 mm²). Podmínka je „CELÝ na tom kuželu" — stačí jeden oblouk nebo úsek
+s jiným sklonem a dojezd jede, protože tam schod zůstává.
+
+Pravidlo „nikdy hlouběji než předchozí vrstva" platí i pro DOJEZD „bez
+schodků": ten jede po kontuře k obrobené straně, takže by pod kužel spodní
+hrany sjel úplně stejně (nález uživatele 19. 8. 2026: dojezd na X21,62, kužel
+z předchozích vrstev na X22,32). Ořezává se proto proti dvěma limitům — kuželu
+destičky a mezi držáku — a rozhoduje ten VYŠŠÍ. Obojí se ořezává USEKNUTÍM
+úsečky v místě průsečíku, ne zahozením celého úseku: na strmém čele jde o jeden
+úsek přes 23 mm v X a zahození celku tam nechávalo schodek. Oblouk se dál řeší
+celý (ořez oblouku by změnil jeho střed i poloměr).
+
 Dvě věci, které se přitom NEmění:
 - **hloubka** — pravidlo „nikdy hlouběji než předchozí vrstva" platí dál, doběh
   jen přidává vrstvy dál v Z (každá o `ap·tan φ` mělčí);
@@ -759,10 +774,21 @@ příruby úsek skončí a schodek zůstane stejně. `appendRegionRunOut()` (bě
 prvním hlídáním hloubky a hlídáním držáku, aby jeho průchody držák ještě viděl)
 přidá na konec úseku **právě jednu** vrstvu s `xEnd = předchozí + krok·tan φ`.
 Dvě pravidla, bez kterých to škodí:
-- **kdy se nepřidá** — když `xEnd − povrch > délka břitu · tan φ`, destička nad
-  materiálem VISÍ; hrana tam nedosáhne a jako první se materiálu dotkne druhá
-  strana plátku a držák (změřeno na čele příruby: konec řezu 45 mm nad povrchem
-  → validátor hlásil kolizi držáku i rychloposuvu);
+- **kdy se nepřidá na mřížkové Z** — když `xEnd − povrch > délka břitu · tan φ`,
+  destička nad materiálem VISÍ; hrana tam nedosáhne a jako první se materiálu
+  dotkne druhá strana plátku a držák (změřeno na čele příruby: konec řezu 45 mm
+  nad povrchem → validátor hlásil kolizi držáku i rychloposuvu). Tehdy se ale
+  hledá **hrana materiálu** mezi mřížkovými Z (krok 0,05 mm) a vrstva se posadí
+  za ni — co nejdál, ale ne dál než `2 · R nosu` od předchozího průchodu, aby se
+  stopy nosů překryly. Bez toho zůstal na čele příruby nedojetý proužek 1,65 mm.
+  Dvě meze, obě změřené: dál než `2 R` proužek jen podjede a zůstane tam celý;
+  a posadit nos STŘEDEM rovnou na offsetovou čáru polotovaru nejde — validátor
+  hlásí 3 kolize (destička i rychloposuv), o 0,5 mm blíž ještě jednu, protože
+  držák jede nad ještě neodříznutým proužkem. Proto se za průchodem na hraně
+  materiálu přidá DRUHÝ, jehož střed nosu po offsetové čáře sjede: pořadí to
+  vyřeší (proužek je do té doby pryč) a offsetová čára je mez, kam až smí sahat
+  skutečný odlitek — na jmenovitém kuse tedy neubere nic (změřeno: shodný úběr
+  na 0,05 mm), na nadměrném ano;
 - **co po sobě nechá** — do `done` (hloubka vrstev) i do `stair` (držák) patří
   jako SYROVÝ povrch, ne jako rovné dno na `xEnd`. Jeho konec leží na kuželu
   předchozího průchodu, tedy NAD povrchem; zapsat ho jako dno udělá falešnou

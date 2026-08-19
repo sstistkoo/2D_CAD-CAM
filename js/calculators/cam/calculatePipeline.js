@@ -12,7 +12,6 @@ import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
-import { computeStockEntryGuides } from './stockEntryGuides.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
@@ -310,15 +309,6 @@ export function computeCalculation(S, lightOnly = false) {
              _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }))));
       }
     }
-  }
-
-  // Mez ZAVALENÍ destičky (zadní hrana × offsetová čára polotovaru). Přidává
-  // se AŽ TEĎ, za buildMachinableContour: není to tvarová nedosažitelnost,
-  // takže konturu přemosťovat nesmí — jen se kreslí a (příště) omezí hloubku
-  // čelních průchodů. Viz cam/stockEntryGuides.js.
-  if (clearance && prms.respectInsertGeometry) {
-    const stockEntry = computeStockEntryGuides(prms, stockPathSegments, worldPoints);
-    if (stockEntry.length > 0) interferenceGuides = interferenceGuides.concat(stockEntry);
   }
 
   // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs

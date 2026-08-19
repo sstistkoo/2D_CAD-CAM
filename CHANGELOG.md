@@ -8,6 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – ořez dojezdu se tiše zahazoval, když se ořízl POSLEDNÍ úsek.**
+  `trimLeadOut` poznával změnu porovnáním POČTU úseků. Když se ořízl poslední
+  a žádný nevypadl, počet zůstal stejný — funkce ohlásila „beze změny" a ořez
+  se zahodil, takže dojezd jel dál, než mez držáku dovoluje (`part-16`:
+  Z149,932 místo Z147,382). Změna se teď hlídá vlastním příznakem.
+- **CAM – dojezd „bez schodků" na vlastním kuželu destičky byl jalový.** Kde
+  kontura stoupá přesně pod úhlem natočení destičky, žádný schod nevzniká —
+  spodní hrana ten tvar udělala už samotným řezem — a dojezd tam jen třel po
+  hotovém povrchu. Na dílu uživatele šlo o **39 ze 45** dojezdů. Zahodí se, jen
+  když je dojezd CELÝ na tom kuželu; jakmile v něm je oblouk nebo úsek s jiným
+  sklonem, schod tam zůstává a dojezd jede dál. Ověřeno modelem úběru v pěti
+  oknech přes celý díl: zbylý materiál shodný na 0,01 mm² (program −39 řádků).
+- **CAM – dojezd „bez schodků" se zahazoval celý, i když projede z větší části.**
+  Ořez dojezdu proti mezi držáku (`trimLeadOut`) bral úseky jako celek: jakmile
+  konec úseku pod mez spadl, zahodil se celý. Na strmém čele, kde jeden úsek
+  vede přes 23 mm v X, tím dojezd skončil hned na začátku (X39,48), ačkoli
+  držák brání až dole (mez X21,60) — a mezi tím zůstal schodek. Nově se úsečka
+  v místě, kde mez protne, USEKNE (oblouk se dál řeší celý; ořez oblouku by
+  změnil jeho střed i poloměr). Tři čelní fixtures tím získaly po jednom
+  dojezdu navíc, validátor kolizí hlásí čistotu.
+- **CAM – dojezd „bez schodků" sjížděl pod předchozí vrstvu.** Pravidlo „nikdy
+  hlouběji než předchozí vrstva" platilo jen pro KONEC ŘEZU, ne pro dojezd —
+  ten pak u natočené destičky sjel pod kužel spodní hrany (nález uživatele:
+  dojezd na X21,62, kužel z předchozích vrstev na X22,32). Dojezd se nově
+  ořezává i proti tomuto kuželu, stejným způsobem jako proti mezi držáku.
+
+### Removed
+- **Mezní čára ZAVALENÍ destičky (`cam/stockEntryGuides.js`) odstraněna.**
+  Byla to dřívější, nedokončená podoba téhož problému („zadní hrana destičky
+  se opře o polotovar"): podle vlastního komentáře se jen KRESLILA a hloubku
+  čelních průchodů měla omezit „příště" — jediný konzument mezních čar
+  (`guideStaysInStock`) filtruje na `kind === 'zanoreni'`, takže na dráhy
+  neměla vliv žádný. Totéž teď řeší hlídání hloubky vrstev (syrový pás se měří
+  proti offsetové čáře polotovaru po celé šířce kroku) a doběh úseku. Výstup
+  G-kódu se odstraněním nemění, ubyly jen dvě přerušované čáry v náhledu.
+- **CAM – čelní hrubování natočenou destičkou: nedojetý proužek na hraně
+  materiálu.** Doběh úseku uměl přidat vrstvu jen na MŘÍŽKOVÉ Z (po `ap`), takže
+  když materiál skončil mezi dvěma vrstvami, zůstal na jeho hraně proužek —
+  u čela příruby 1,65 mm (poslední vrstva Z197,932, hrana polotovaru Z196,278).
+  Vrstva na další mřížkové Z tam přidat nejde (destička by nad materiálem
+  visela), a tak se poslední vrstva nově posadí **za hranu materiálu** — co
+  nejdál, ale ne dál než `2 × rádius nosu` od předchozího průchodu, aby se
+  stopy nosů překryly. Dál už proužek jen podjede a zůstane tam celý; a
+  posadit nos středem rovnou na offsetovou čáru polotovaru nejde (změřeno:
+  3 kolize destičky i rychloposuvu — držák by jel nad tím ještě neodříznutým
+  proužkem). Hned ZA ním se ale přidá druhý průchod, jehož střed nosu po té
+  **offsetové čáře polotovaru** sjede: offsetová čára je mez, kam až může sahat
+  skutečný odlitek, takže na jmenovitém kuse neubere nic a na nadměrném ano.
 - **CAM – čelní hrubování natočenou destičkou: zadní strana plátku pod offsetovou
   čárou polotovaru.** Hlídání „nikdy hlouběji než předchozí vrstva" bralo syrové
   (neobrobené) pásy jen v jejich mřížkovém Z a měřilo je proti holému povrchu

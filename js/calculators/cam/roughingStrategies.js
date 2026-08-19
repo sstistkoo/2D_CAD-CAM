@@ -550,12 +550,54 @@ export function genFacePasses(ctx) {
           // Dojezd byl spočítaný pro hlubší dno — po zvednutí by šel pod mez.
           if (p.contourLeadOut) delete p.contourLeadOut;
         }
-        // Doběhový průchod NEODEBRAL nic na SVÉM Z — jeho konec leží na kuželu
+        // Doběh na HRANĚ MATERIÁLU řeže (nos je v materiálu) → platí jeho `xEnd`.
+        // Doběh NAD POVRCHEM na svém Z nic neubral (konec leží na kuželu
         // předchozího průchodu, tedy nad povrchem; sloupl jen hřebínek na
-        // obrobené straně. Materiál pod ním proto stojí v úrovni POVRCHU, ne
-        // v úrovni `xEnd` (ten je výš a udělal by z něj falešnou stěnu, která
-        // srazí začátek dalšího úseku — změřeno: úsek od Z29,932 celý vypadl).
-        done.push(p.runOut ? { z: p.z, x: castingOuterAtZ(p.z), raw: true } : { z: p.z, x: p.xEnd });
+        // obrobené straně) → pod ním stojí materiál v úrovni POVRCHU. Zapsat
+        // tam `xEnd` by udělalo falešnou stěnu, která srazí začátek dalšího
+        // úseku (změřeno: úsek od Z29,932 celý vypadl).
+        const runOutAir = p.runOut && p.xEnd >= xTouchAt(p.z) - 0.01;
+        // Dojezd „bez schodků" jede po kontuře k OBROBENÉ straně — platí pro
+        // něj totéž pravidlo jako pro konec řezu: nesmí pod kužel spodní hrany
+        // destičky. Bez toho sjede pod předchozí vrstvu (nález uživatele
+        // 19. 8. 2026: „ta poslední dráha je níže než ta předchozí" — dojezd
+        // šel na X21,62, kužel z předchozích vrstev je přitom na X22,32).
+        // Ořezává se stejně jako u držáku: úsečka se USEKNE v místě průsečíku.
+        if (p.contourLeadOut) {
+          const coneAt = (z) => {
+            let need = -Infinity;
+            for (const q of done) {
+              if (q.x < AXIS_NO_MAT) continue;
+              const dz = Math.abs(z - q.z);
+              if (dz > reachM + 1e-6) continue;
+              let cand;
+              if (q.raw) {
+                const sf = castingOuterOrNull(q.z);
+                if (sf === null || sf < AXIS_NO_MAT) continue;
+                cand = sf + faceOffsetOut + dz * tanM;
+              } else cand = q.x + dz * tanM;
+              if (cand > need) need = cand;
+            }
+            return need;
+          };
+          const keepL = [];
+          for (const sg of p.contourLeadOut) {
+            if (sg.x2 + 1e-9 >= coneAt(sg.z2)) { keepL.push(sg); continue; }
+            if (sg.type !== 'line') break;
+            let tOk = 0;
+            const N = Math.max(20, Math.ceil(Math.hypot(sg.x2 - sg.x1, sg.z2 - sg.z1) / 0.05));
+            for (let k = 1; k <= N; k++) {
+              const t = k / N;
+              const x = sg.x1 + (sg.x2 - sg.x1) * t, z = sg.z1 + (sg.z2 - sg.z1) * t;
+              if (x + 1e-9 < coneAt(z)) break;
+              tOk = t;
+            }
+            if (tOk > 1e-6) keepL.push({ ...sg, x2: sg.x1 + (sg.x2 - sg.x1) * tOk, z2: sg.z1 + (sg.z2 - sg.z1) * tOk });
+            break;
+          }
+          if (keepL.length > 0) p.contourLeadOut = keepL; else delete p.contourLeadOut;
+        }
+        done.push(runOutAir ? { z: p.z, x: castingOuterAtZ(p.z), raw: true } : { z: p.z, x: p.xEnd });
         while (done.length > 0 && Math.abs(p.z - done[0].z) > reachM + step) done.shift();
       }
       if (dropM.size > 0) {
@@ -595,8 +637,10 @@ export function genFacePasses(ctx) {
       if (!p || p.runOut) continue;                       // řetězit doběh na doběh ne
       if (byZ.has(zList[i + 1].toFixed(3))) continue;     // úsek pokračuje sám
       if (p.xEnd >= xTouchAt(p.z) - 0.01) continue;       // předchozí sám nic neubral
-      const z = zList[i + 1];
-      const xEnd = p.xEnd + Math.abs(z - zList[i]) * tanR;
+      const dirRO = Math.sign(zList[i + 1] - zList[i]);   // směr marche, ne k obrobené straně
+      let edgeZ = null;
+      let z = zList[i + 1];
+      let xEnd = p.xEnd + Math.abs(z - zList[i]) * tanR;
       // DRUHÁ STRANA DESTIČKY NESMÍ DO POLOTOVARU JAKO PRVNÍ.
       // V doběhu je nos nad povrchem a řeže HRANA za ním — ta ale dosáhne jen
       // `délka břitu · tan φ` pod nos. Když konec řezu leží nad povrchem víc,
@@ -606,7 +650,32 @@ export function genFacePasses(ctx) {
       // nezajížděla do polotovaru jako první — ta dráha se má vynechat.")
       // Změřeno na čele příruby: konec řezu X62,06 nad povrchem X16,74 = 45 mm
       // nad materiálem → validátor tam hlásil kolizi držáku i rychloposuvu.
-      if (xEnd - castingOuterAtZ(z) > insReachRO * tanR + 0.01) continue;
+      if (xEnd - castingOuterAtZ(z) > insReachRO * tanR + 0.01) {
+        // Nad MŘÍŽKOVÝM Z už destička nad materiálem visí. Materiál ale nemusí
+        // končit na mřížce: mezi posledním průchodem a hranou materiálu (čelo
+        // příruby končí na Z196,278, poslední vrstva sedí na Z197,932) zůstane
+        // proužek, na který nos ještě dosáhne. Poslední vrstva se proto posadí
+        // na HRANU MATERIÁLU, ne na mřížku. (Uživatel 19. 8. 2026: „je tam
+        // kousek nedojetý … měl by dodělat až za tu offsetovou čáru co je
+        // zleva.") Krok 0,05 mm je pod přesností, na kterou se cokoli emituje.
+        let edge = null;
+        const span = Math.abs(zList[i + 1] - zList[i]);
+        for (let t = 0.05; t <= span + 1e-9; t += 0.05) {
+          const zq = zList[i] + dirRO * t;
+          if (castingOuterAtZ(zq) <= p.xEnd + t * tanR + 0.01) break;   // materiál skončil
+          edge = zq;
+        }
+        if (edge === null) continue;
+        // Kam vrstvu posadit: co NEJDÁL za hranu materiálu, ale ne tak daleko,
+        // aby mezi ní a předchozím průchodem vznikla mezera — nos je kruh
+        // rádiusu R, takže sousední průchody se překrývají jen do vzdálenosti
+        // 2R. Dál už by proužek jen podjel a zůstal by tam celý (změřeno:
+        // posazení nosu STŘEDEM až na offsetovou čáru = 3 kolize destičky
+        // i rychloposuvu, o 0,5 mm blíž ještě 1; tohle je poslední čisté).
+        const zc = zList[i] + dirRO * Math.min(2 * rTipFC, Math.abs(edge - zList[i]) + rTipFC);
+        if (Math.abs(zc - zList[i]) < 0.1) continue;   // nos to pokryl už sám
+        z = zc; xEnd = p.xEnd + Math.abs(zc - zList[i]) * tanR; edgeZ = edge;
+      }
       const xSurface = castingOuterAtZ(z);
       // Nájezd musí přijít NAD materiál, který hrana sloupne — ten stojí na
       // obrobené straně, ne na tomhle Z (tam bývá povrch hluboko pod koncem
@@ -615,6 +684,21 @@ export function genFacePasses(ctx) {
       const np = { type: 'face', z, xStart, xSurface, xEnd, blocked: true, runOut: true };
       if (faceLeft) np.faceLeft = true;
       add.push({ after: p, pass: np });
+      // Za hranou materiálu je PRÁZDNO, takže tam střed nosu ještě smí sjet po
+      // OFFSETOVÉ ČÁŘE polotovaru. Není to řez naprázdno: offsetová čára je
+      // mez, kam až může sahat SKUTEČNÝ odlitek (nadměrný kus se přes ni
+      // „nafoukne"), takže na jmenovitém kuse neubere nic a na větším ano.
+      // Musí jít AŽ ZA průchod na hraně materiálu — ten proužek napřed
+      // odřízne; při jízdě rovnou sem jel držák nad syrovým (3 kolize).
+      if (edgeZ !== null) {
+        const zf = edgeZ + dirRO * faceOffsetOut;
+        const xf = p.xEnd + Math.abs(zf - zList[i]) * tanR;
+        const sf = castingOuterAtZ(zf);
+        const pf = { type: 'face', z: zf, xEnd: xf, xSurface: sf, blocked: true, runOut: true,
+          xStart: Math.max(rapidStartXAt(zf, sf, faceLeft ? 1 : -1), xf + clrXFC) };
+        if (faceLeft) pf.faceLeft = true;
+        add.push({ after: p, pass: pf });
+      }
     }
     for (let k = add.length - 1; k >= 0; k--) {
       const at = passes.indexOf(add[k].after);
@@ -720,11 +804,32 @@ export function genFacePasses(ctx) {
       const trimLeadOut = (p) => {
         if (!p.contourLeadOut) return false;
         const keep = [];
+        let clipped = false;
         for (const s of p.contourLeadOut) {
-          if (s.x2 + 1e-9 < minTipX(s.z2)) break;
-          keep.push(s);
+          if (s.x2 + 1e-9 >= minTipX(s.z2)) { keep.push(s); continue; }
+          // Úsek mez držáku PROTÍNÁ. Zahodit ho celý znamená zastavit dojezd
+          // už na začátku úseku, i když po něm ještě kus volně projede —
+          // na strmém čele (jeden úsek přes 23 mm v X) tím zůstal schodek,
+          // ačkoli držák brání až dole (nález uživatele 19. 8. 2026: dojezd
+          // končil na X39,48, mez držáku je přitom až na X21,60).
+          // Úsečka se proto USEKNE v místě, kde mez protne; oblouk se dál
+          // řeší celý (ořez oblouku by změnil jeho střed i poloměr).
+          if (s.type !== 'line') break;
+          let tOk = 0;
+          const N = Math.max(20, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.05));
+          for (let k = 1; k <= N; k++) {
+            const t = k / N;
+            const x = s.x1 + (s.x2 - s.x1) * t, z = s.z1 + (s.z2 - s.z1) * t;
+            if (x + 1e-9 < minTipX(z)) break;
+            tOk = t;
+          }
+          if (tOk > 1e-6) { keep.push({ ...s, x2: s.x1 + (s.x2 - s.x1) * tOk, z2: s.z1 + (s.z2 - s.z1) * tOk }); clipped = true; }
+          break;
         }
-        if (keep.length === p.contourLeadOut.length) return false;
+        // POZOR: porovnávat jen POČTY nestačí. Když se ořízne poslední úsek a
+        // žádný nevypadne, je počet stejný jako předtím — a ořez by se tiše
+        // zahodil. Proto vlastní příznak.
+        if (!clipped && keep.length === p.contourLeadOut.length) return false;
         if (keep.length > 0) p.contourLeadOut = keep; else delete p.contourLeadOut;
         return true;
       };
@@ -754,9 +859,12 @@ export function genFacePasses(ctx) {
         // Evidence schodu pro další (hlubší, více vlevo) průchody.
         const zA = p.z, zB = p.z + dirM * step;
         const entry = { zLo: Math.min(zA, zB), zHi: Math.max(zA, zB) };
-        // Doběhový průchod nechává na svém Z syrový povrch (viz výš) — do
-        // schodiště držáku patří jako `raw`, ne jako rovné dno na `xEnd`.
-        if (drop.has(p) || p.runOut) stair.push({ ...entry, raw: true });
+        // Doběh nad povrchem nechává na svém Z syrový povrch (viz výš) — do
+        // schodiště držáku patří jako `raw`. Doběh na hraně materiálu ale řeže,
+        // ten platí svým dnem; jinak držák nad ním vidí syrový kus a zahodí
+        // následující průchod po offsetové čáře.
+        const roAir = p.runOut && p.xEnd >= xTouchAt(p.z) - 0.01;
+        if (drop.has(p) || roAir) stair.push({ ...entry, raw: true });
         else if (!p.contourLeadOut) stair.push({ ...entry, x: p.xEnd });
       }
       if (drop.size > 0) {
@@ -772,6 +880,35 @@ export function genFacePasses(ctx) {
     }
   }
   enforceLayerDepth();
+
+  // ── Dojezd na VLASTNÍM kuželu destičky je zbytečný ──
+  // Dojezd „bez schodků" sleduje konturu k obrobené straně, aby sloupl schod.
+  // Kde ale kontura stoupá přesně pod úhlem natočení destičky, žádný schod
+  // není: spodní hrana ten tvar udělala už samotným řezem, takže dojezd jen
+  // tře po hotovém povrchu a nic neubere (nález uživatele 19. 8. 2026 —
+  // „samotné nastavení úhlu plátku udělá spodní stranou požadovaný tvar").
+  // Dojezd se proto zahodí, jen když je CELÝ na tomhle kuželu; jakmile v něm
+  // je oblouk nebo úsek s jiným sklonem, schod tam zůstává a dojezd jede.
+  if (prms.respectInsertGeometry && prms.toolShape === 'polygon') {
+    const phiL = -(parseFloat(prms.toolAngle) || 0);
+    if (phiL > 0.01) {
+      const tanL = Math.tan(Math.min(89.5, phiL) * Math.PI / 180);
+      let idleLead = 0;
+      for (const p of passes) {
+        if (p.type !== 'face' || !p.contourLeadOut) continue;
+        // Znaménko rozhoduje: kužel po destičce KLESÁ ve směru jízdy dojezdu
+        // (x ubývá o tan φ). Úsek, který naopak stoupá, je schod, který hrana
+        // NEUDĚLALA — ten se dojet musí, takže `Math.abs` na sklonu by byl
+        // tichý omyl.
+        const onCone = p.contourLeadOut.every(sg => sg.type === 'line'
+          && Math.abs(sg.z2 - sg.z1) > 1e-9
+          && Math.abs((sg.x2 - sg.x1) / Math.abs(sg.z2 - sg.z1) + tanL) < 0.01);
+        if (onCone) { delete p.contourLeadOut; idleLead++; }
+      }
+      if (idleLead > 0)
+        foundErrors.push({ type: 'warning', msg: `Dojezd bez schodků: ${idleLead} dojezdů vynecháno — kontura tam stoupá pod úhlem natočení destičky (${phiL.toFixed(0)}°), takže schod nevzniká a dojezd by jen třel po hotovém povrchu.` });
+    }
+  }
 }
 
 // PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standardní soustružení).
