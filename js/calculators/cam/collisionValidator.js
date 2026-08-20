@@ -143,9 +143,16 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   // „obrobek je celý i s tou offsetovou čarou… mělo by to tak být i dělané“).
   // Dráhy se proti té čáře už plánují (`planLoopRef` v gcodeEmit) a náhled ji
   // vybarvuje — validátor je poslední, kdo měřil jen syrový obrys.
-  // `opts.rawStock` vrátí původní chování (měření proti NAKRESLENÉMU odlitku).
+  // `opts.planStock` — kde končí polotovar:
+  //   true  = na OFFSETOVÉ ČÁŘE. Přídavek X/Z (polo.) je v zadání právě proto,
+  //     že odlitek MŮŽE být větší, takže náraz do té zóny je náraz. Tohle vidí
+  //     uživatel v ⛔ panelu (rozhodnutí 20. 8. 2026).
+  //   false (výchozní) = NAKRESLENÁ silueta, tedy „naražil jsem fyzicky do toho,
+  //     co je nakreslené?“. Na tom stojí tvrdý plošný invariant
+  //     `tests/cam-collision-free` (žádná fixture, žádná kolize) a dráhy jsou na
+  //     něj odladěné. Rozdíl mezi těmi dvěma standardy JE seznam práce.
   const rawLoop = buildStockLoop(prms, stockPathSegments);
-  const stockLoop = (rawLoop && !opts.rawStock)
+  const stockLoop = (rawLoop && opts.planStock)
     ? (offsetStockLoop(rawLoop, prms) || rawLoop) : rawLoop;
   if (!stockLoop) return issues;
 

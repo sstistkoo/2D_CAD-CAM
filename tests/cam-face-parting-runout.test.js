@@ -43,14 +43,40 @@ describe('Čelně upichovákem (šířka 5 mm, natočení 0°)', () => {
     expect(offGrid.length).toBeGreaterThan(0);
   }, 120000);
 
-  it('doběh nejde HLOUBĚJI — natočení 0° = žádný kužel, tedy stejná hloubka', async () => {
+  it('doběh dostane NORMÁLNÍ cíl — hloubku mu určí hlídání držáku', async () => {
     const { calc } = await runCamProgFile(fixture);
     const face = calc.passes.filter(p => p.type === 'face');
-    for (let i = 1; i < face.length; i++) {
-      if (!face[i].runOut) continue;
-      // Kdyby se `tanR` počítal bez `Math.max(0, …)`, vyšel by u natočení 0°
-      // (a u kladného) ZÁPORNÝ tangens a vrstva by šla hlouběji než předchozí.
-      expect(face[i].xEnd).toBeGreaterThanOrEqual(face[i - 1].xEnd - 0.001);
+    const runOut = face.filter(p => p.runOut);
+    expect(runOut.length).toBeGreaterThan(0);
+    // Dřív doběh držel hloubku PŘEDCHOZÍ vrstvy (u natočení 0° je `tanR` = 0),
+    // ale předchozí vrstvy přitom klesaly — a to proto, že je tak hluboko pustil
+    // DRŽÁK. Doběh se tak jako jediný nezanořoval dál, i když by směl (nález
+    // uživatele 20. 8. 2026). Teď dostane týž cíl jako každý jiný průchod
+    // a hloubku mu ustřihne clamp držáku — takže musí být zkrácený držákem
+    // A hlouběji než průchod nad ním.
+    const zs = face.map(p => p.z);
+    for (const p of runOut) {
+      expect(p.holderClamped).toBe(true);
+      const aboveZ = zs.filter(z => z > p.z + 1e-6).sort((a, b) => a - b)[0];
+      if (aboveZ === undefined) continue;
+      const above = face.find(q => Math.abs(q.z - aboveZ) < 1e-9);
+      expect(p.xEnd).toBeLessThan(above.xEnd - 0.01);
+    }
+  }, 120000);
+
+  it('krok doběhu DODRŽUJE ap', async () => {
+    const { calc } = await runCamProgFile(fixture);
+    const face = calc.passes.filter(p => p.type === 'face');
+    const runOut = face.filter(p => p.runOut);
+    expect(runOut.length).toBeGreaterThan(0);
+    // Krok doběhu se skladá z hrany materiálu a ještě `faceOffsetOut`, takže
+    // součet může ap překročit — na dilu uživatele vyšel 3,95 mm při ap 3.
+    const ap = parseFloat(prms0.depthOfCut);
+    const zs = face.map(p => p.z);
+    for (const p of runOut) {
+      const aboveZ = zs.filter(z => z > p.z + 1e-6).sort((a, b) => a - b)[0];
+      if (aboveZ === undefined) continue;
+      expect(aboveZ - p.z).toBeLessThanOrEqual(ap + 0.01);
     }
   }, 120000);
 

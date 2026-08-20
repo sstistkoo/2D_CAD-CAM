@@ -92,6 +92,17 @@ export function polyArea(loops) {
 
 /** Poloha bodu vůči JEDNÉ smyčce: 'inside' | 'outside' | 'on'. */
 export function pointInLoop(pt, loop) {
+  // Clipper na nekořenné souřadnici (NaN, nekonečno, řády 10^18) vyhodí RangeError
+  // a shodí celý `calculate()`. Uživateli pak zůstane v panelu STARÝ program BEZ
+  // jakékoli chyby — vypadá to, že přepnutí nefunguje. Reálný nález
+  // 20. 8. 2026: UPICHOVÁK má zanoření 90 stupňů (`getEffectivePlungeAngle`),
+  // `tan 90` je 1,6e16 a rampové marchování (`stockEntryRamp`,
+  // `findRampOutTarget`) tím NÁSOBÍ — přepnutí na PODÉLNÉ hrubování
+  // s upichovákem tak spadlo. Mimo rozumný rozsah je odpověď mimo smyčku (tam
+  // žádný polotovar není), takže půlení v těch funkcích dojde k degenerované,
+  // ale správné SVISLÉ rampě.
+  if (!Number.isFinite(pt.x) || !Number.isFinite(pt.z)
+    || Math.abs(pt.x) > 1e6 || Math.abs(pt.z) > 1e6) return 'outside';
   const r = pointInPolygonD({ x: pt.z, y: pt.x }, toClipperLoop(loop));
   if (r === PointInPolygonResult.IsInside) return 'inside';
   if (r === PointInPolygonResult.IsOn) return 'on';

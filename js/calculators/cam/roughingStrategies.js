@@ -255,6 +255,27 @@ export function genFacePasses(ctx) {
     ? { type: 'line', x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 }
     : { type: 'arc', cx: s.cx, cz: s.cz, r: s.r, dir: s.dir === 'G2' ? 'G3' : 'G2', startAngle: s.endAngle, endAngle: s.startAngle, x1: s.x2, z1: s.z2, x2: s.x1, z2: s.z1 });
 
+  // NORMÁLNÍ CÍL průchodu na daném Z = největší průsečík offsetové kontury pod
+  // mezí dotyku nosu (táž volba jako v hlavní smyčce níž). null = kontura tam
+  // svislici neprotíná.
+  const contourTargetAt = (z) => {
+    const xs = [];
+    for (const os of offsetPath) {
+      if (os.isDegenerate) continue;
+      if (os.type === 'line') {
+        const x = intersectVerticalLineSegment(z, os.p1, os.p2);
+        if (x !== null) xs.push(x);
+      } else if (os.type === 'arc') {
+        for (const x of intersectVerticalLineArc(z, { x: os.cx, z: os.cz }, os.r)) {
+          const a = Math.atan2(x - os.cx, z - os.cz);
+          if (isAngleBetween(a, os.startAngle, os.endAngle, os.dir === 'G2')) xs.push(x);
+        }
+      }
+    }
+    const valid = xs.filter(x => x < xTouchAt(z) + 1).sort((a, b) => a - b);
+    return valid.length > 0 ? valid[valid.length - 1] : null;
+  };
+
   for (const currentZ of zList) {
     let xsEnd = [];
     offsetPath.forEach(os => {
@@ -676,6 +697,12 @@ export function genFacePasses(ctx) {
       if (byZ.has(zList[i + 1].toFixed(3))) continue;     // úsek pokračuje sám
       if (p.xEnd >= xTouchAt(p.z) - 0.01) continue;       // předchozí sám nic neubral
       const dirRO = Math.sign(zList[i + 1] - zList[i]);   // směr marche, ne k obrobené straně
+      // AP SE MUSÍ DODRŽET. Krok doběhu se skladá z hrany materiálu a ještě
+      // `faceOffsetOut` — součet může ap překročit a vrstva pak bere víc, než
+      // plátek na jeden záběr unese (nález uživatele 20. 8. 2026: Z197,932 na
+      // Z193,982 = 3,95 mm při ap 3). Krok se proto vždy utíná na ap — bez
+      // ohledu na to, jak se hrana našla.
+      const clampAp = (zq) => zList[i] + dirRO * Math.min(Math.abs(zq - zList[i]), step);
       let edgeZ = null;
       let z = zList[i + 1];
       let xEnd = p.xEnd + Math.abs(z - zList[i]) * tanR;
@@ -710,7 +737,7 @@ export function genFacePasses(ctx) {
         // 2R. Dál už by proužek jen podjel a zůstal by tam celý (změřeno:
         // posazení nosu STŘEDEM až na offsetovou čáru = 3 kolize destičky
         // i rychloposuvu, o 0,5 mm blíž ještě 1; tohle je poslední čisté).
-        const zc = zList[i] + dirRO * Math.min(2 * rTipFC, Math.abs(edge - zList[i]) + rTipFC);
+        const zc = clampAp(zList[i] + dirRO * Math.min(2 * rTipFC, Math.abs(edge - zList[i]) + rTipFC));
         if (Math.abs(zc - zList[i]) < 0.1) continue;   // nos to pokryl už sám
         z = zc; xEnd = p.xEnd + Math.abs(zc - zList[i]) * tanR; edgeZ = edge;
       }
@@ -748,12 +775,27 @@ export function genFacePasses(ctx) {
       // změřené. U nosu je `insCover` jen šířka pro vzorkování povrchu —
       // slíbit podle něj sloučení by u kulaté R8 dalo 16 mm záběru, což nikdo
       // nezměřil (a stopa nosu v hloubče ap je mnohem užší než 2R).
-      const zFar = edgeZ !== null ? edgeZ + dirRO * faceOffsetOut : null;
+      // NORMÁLNÍ CÍL, když destička netvoří kužel (upichovák, natočení 0 stupňů).
+      // Doběh dostával hloubku PŘEDCHOZÍ vrstvy — a předchozí vrstvy přitom
+      // klesaly, protoze je tak hluboko pustil DRŽÁK. Doběh se tak jako jediný
+      // nezanořoval dál, i když by směl (nález uživatele 20. 8. 2026). Dostane
+      // proto týž cíl jako každý jiný průchod a hloubku mu určí hlídání držáku,
+      // které běží ZA ním. U NATOČENÉ destičky se nemění nic: tam hloubku dává
+      // kužel spodní hrany (`tanR`) a pravidlo nikdy hlouběji je tabu.
+      if (tanR < 1e-9) {
+        const tgt = contourTargetAt(z);
+        if (tgt !== null && tgt < xEnd) xEnd = tgt;
+      }
+      const zFar = edgeZ !== null ? clampAp(edgeZ + dirRO * faceOffsetOut) : null;
       const mergeOne = zFar !== null && prms.toolShape === 'parting'
         && Math.abs(zFar - zList[i]) <= insCover + 0.01;
       if (!mergeOne) {
         const xSurface = surfaceUnderInsert(z);
-        const xStart = Math.max(rapidStartXAt(z, xSurface, faceLeft ? 1 : -1), xEnd + clrXFC);
+        // NÁJEZD se počítá z PŘEDCHOZÍ hloubky, ne z nového (hlubšího) cíle:
+        // `xStart` je odkud se přijíždí a hlídání držáku podle něj rozhoduje
+        // zvednout, nebo vynechat (`need >= p.xStart`). Když se počítal z cíle
+        // kontury, spadl až k němu a průchod se tím celý VYNECHAL (změřeno).
+        const xStart = Math.max(rapidStartXAt(z, xSurface, faceLeft ? 1 : -1), p.xEnd + clrXFC);
         const np = { type: 'face', z, xStart, xSurface, xEnd, blocked: true, runOut: true };
         if (faceLeft) np.faceLeft = true;
         add.push({ after: p, pass: np });
@@ -766,10 +808,16 @@ export function genFacePasses(ctx) {
       // napřed odřízne; při jízdě rovnou sem jel držák nad syrovým (3 kolize).
       if (zFar !== null) {
         const zf = zFar;
-        const xf = p.xEnd + Math.abs(zf - zList[i]) * tanR;
+        // Bez kuželu platí NORMÁLNÍ CÍL — dopočítávat ho znovu z `p.xEnd` by ho
+        // zahodilo a doběh by zůstal v hloubce předchozí vrstvy.
+        let xf = tanR < 1e-9 ? xEnd : p.xEnd + Math.abs(zf - zList[i]) * tanR;
+        if (tanR < 1e-9) {
+          const tgtF = contourTargetAt(zf);
+          if (tgtF !== null && tgtF < xf) xf = tgtF;
+        }
         const sf = surfaceUnderInsert(zf);
         const pf = { type: 'face', z: zf, xEnd: xf, xSurface: sf, blocked: true, runOut: true,
-          xStart: Math.max(rapidStartXAt(zf, sf, faceLeft ? 1 : -1), xf + clrXFC) };
+          xStart: Math.max(rapidStartXAt(zf, sf, faceLeft ? 1 : -1), p.xEnd + clrXFC) };
         if (faceLeft) pf.faceLeft = true;
         add.push({ after: p, pass: pf });
       }
@@ -935,7 +983,11 @@ export function genFacePasses(ctx) {
           // nájezdovou X — průchod by jen projel vzduchem nad polotovarem
           // (a dojel by tam, kde držák stejně nemá místo). Bez téhle větve
           // zůstal v programu „řez", který nic neodebral, ale kolidoval.
-          if (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01) {
+          // `need >= xTouchAt` = na TOMHLE Z už nos na materiál nedosáhne. U DOBĚHU
+          // to ale neznamená řez vzduchem: plátek je široký a řeže svou VZDÁLENOU
+          // stranou nad materiálem, který stojí dál — právě proto doběh existuje.
+          // Lokální mez dotyku by ho zahodila.
+          if (need >= p.xStart - 0.05 || (need >= xTouchAt(p.z) - 0.01 && !p.runOut)) {
             drop.add(p);
             holderDropped++;
           } else {

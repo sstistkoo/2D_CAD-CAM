@@ -957,6 +957,19 @@ export function openCamSimulator(initialContour, initialGCode) {
   //    wrappery pod původními jmény, aby všechna volající místa i headless
   //    test-capture ({ S, calculate, generateAutoGCode }) fungovaly beze změny.
   function roughingKey() { return _roughingKey(S); }
+  // JE NÁSTROJ ZRCADLENÝ? Držák fyzicky sedí na OBROBENÉ straně, takže se celá
+  // geometrie (destička + držák) překlopí podél Z tehdy, když se obrábí ZLEVA —
+  // bez ohledu na strategii.
+  //
+  // POZOR: `roughingKey()` na to NENÍ — vrací 'backside' jen pro PODÉLNÉ zleva
+  // (u Čelního zleva vrátí 'face'), protože slouží k výběru algoritmu (zrcadlený
+  // svět `mirZ`), ne k orientaci nástroje. Když se používal jako test zrcadlení,
+  // u Čelního ZLEVA se půlka kreslení nástroje překlopila a půlka ne — plátek
+  // odskočil mimo držák (nález uživatele 20. 8. 2026) — a hlavně validátor
+  // i oranžové hlídání úběru dostaly držák na ŠPATNÉ straně, takže kolize
+  // hlídaly proti zrcadlovému obrazu. `tests/cam-collision-free` už správně
+  // používá `roughingSide === 'left'`.
+  const toolMirrored = () => (S.params.roughingSide || 'right') === 'left';
   function calculate(lightOnly = false) { return computeCalculation(S, lightOnly); }
   function generateGCode(calc) { return _generateGCode(S, calc); }
   function generateAutoGCode(calc) { return _generateAutoGCode(S, calc); }
@@ -1049,8 +1062,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       _validatedKey = key;
       try {
         _lastIssues = validateToolpath(calc.simPath, p, calc.stockPathSegments, {
-          backside: roughingKey() === 'backside',
+          backside: toolMirrored(),
           collisions: _collisionsMod,
+          // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE — dráhy se proti ní plánují
+          // a náhled ji vybarvuje; ⛔ panel byl poslední, kdo měřil jen
+          // nakreslený obrys.
+          planStock: true,
         });
       } catch (err) {
         _lastIssues = [];
@@ -1138,7 +1155,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       return null;
     }
     if (!_holderGouge || _holderGougeCalcRef !== calc) {
-      _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, roughingKey() === 'backside', { band: true });
+      _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, toolMirrored(), { band: true });
       _holderGougeCalcRef = calc;
     }
     if (!_holderGouge.valid) return null;
@@ -2024,7 +2041,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // specifického pro tvar destičky (toolAngle), stejně jako v dialogu
         // "⚙️ Geometrie" (tam drží orientaci držáku jen knifeAngle).
         ctx.save(); ctx.translate(pt.x, pt.y);
-        if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
+        if ((toolMirrored()) !== !!S.flipZ) ctx.scale(-1, 1);
         if (S.flipX) ctx.scale(1, -1);
         drawHolderProfileLocal(ctx, prms, S.view.scale);
         ctx.restore();
@@ -2107,7 +2124,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           // Zrcadlení destičky musí odpovídat globálnímu pohledu (viz vS/hS
           // v toScreen). Horizontálně (osa Z): backside a flipZ se vzájemně
           // ruší (XOR). Vertikálně (osa X): flipX zrcadlí pohled svisle.
-          if ((roughingKey() === 'backside') !== !!S.flipZ) ctx.scale(-1, 1);
+          if ((toolMirrored()) !== !!S.flipZ) ctx.scale(-1, 1);
           if (S.flipX) ctx.scale(1, -1);
           ctx.beginPath(); ctx.moveTo(t1x, t1y);
           ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
@@ -4473,7 +4490,16 @@ export function openCamSimulator(initialContour, initialGCode) {
     tabBody.querySelectorAll('[data-rough]').forEach(btn => {
       btn.addEventListener('click', () => {
         S.params.roughingStrategy = btn.dataset.rough;
-        S.params.toolAngle = btn.dataset.rough === 'face' ? -15 : 15;
+        // Znaménko natočení je dáno strategií, ale platí to JEN pro natočenou
+        // polygonovou destičku. U UPICHOVÁKU musí natočení zůstat 0 (břit je
+        // rovnoběžný s osou), u závitového a kulaté se nepoužívá — předtím se sem
+        // zapisovalo ±15° bez ohledu na tvar, takže uživateli se nula při každém
+        // přepnutí přepsala na 15 (nález 20. 8. 2026). VELIKOST se teď zachovává:
+        // kdo si nastavil 25°, nemá důvod dostat 15°.
+        if (S.params.toolShape === 'polygon') {
+          const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
+          S.params.toolAngle = btn.dataset.rough === 'face' ? -mag : mag;
+        }
         fullUpdate();
       });
     });
