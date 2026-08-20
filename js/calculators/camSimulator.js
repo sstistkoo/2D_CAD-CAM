@@ -1362,8 +1362,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // takže projetý materiál vizuálně mizí.
     let remainPath = null;   // čistý zbytek materiálu (pro výplň polotovaru)
     let fillClipPath = null; // clip pro vybarvení: vše MIMO původní polotovar + zbytek
-    let bandPath = null;     // zbytek AŽ po offsetovou čáru (včetně pásu nad polotovarem)
-    let bandClip = null;     // clip „mimo syrový polotovar“ — aby pás nepřekryl jádro
+    let stockPath = null;    // zbytek AŽ po offsetovou čáru — TO je celý polotovar
     if (S.showRemoval) {
       const addLoop = (path, loop) => {
         if (!loop || loop.length < 3) return;
@@ -1379,17 +1378,19 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (rm) {
         remainPath = new Path2D();
         for (const loop of rm.model.loops) addLoop(remainPath, loop);
-        // Pás k offsetové čáře: vykreslí se zbytek OFFSETOVÉHO modelu, ale
-        // obříznutý na „mimo syrový polotovar“ — jádro tak zůstává přesně
-        // v dosavadním odstínu (výplně se na canvasu sčítají) a navíc je
-        // vidět, kde končí nakreslený odlitek a kde začíná pesimistický pás.
+        // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE, takže se vybarví JEDNÍM
+        // odstínem až po ni — pás nad nakresleným odlitkem není zvláštní
+        // zóna, je to prostě polotovar (zadání uživatele 20. 8. 2026:
+        // „obrobek je celý i s tou offsetovou čarou“). Dřív se kreslil zvlášť
+        // světlejším tónem přes clip „mimo syrový obrys“, takže díl vypadal
+        // jako dva materiály.
+        // Offsetový zbytek OBSAHUJE syrový (obě smyčky řeže tatáž dráha, jen
+        // začínají na jiném základu — hlídá tests/cam-removal-offset-band),
+        // takže jedna výplň pokryje obojí.
         const rmOut = getRemovalOuterModel(calc, rm);
-        if (rmOut && rm.rawLoop) {
-          bandPath = new Path2D();
-          for (const loop of rmOut.model.loops) addLoop(bandPath, loop);
-          bandClip = new Path2D();
-          bandClip.rect(-10, -10, w + 20, h + 20);
-          addLoop(bandClip, rm.rawLoop);
+        if (rmOut) {
+          stockPath = new Path2D();
+          for (const loop of rmOut.model.loops) addLoop(stockPath, loop);
         }
       }
       // Materiál odebraný PŘEDCHOZÍMI operacemi je pryč nastálo — vybarvení se
@@ -1417,18 +1418,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     // objektů, protože jde jen o vizuální anotaci, ne obráběnou geometrii).
     // Stejné pořadí jako v CAD (js/render.js drawFills) — kreslí se pod vším.
     const camXZ = (cx, cy) => prms.machineStructure === 'carousel' ? [cx, cy] : [cy, cx];
-    // Pás mezi syrovým polotovarem a offsetovou čarou. Oddělená funkce, aby ji
-    // mohly zavolat oba režimy polotovaru (válec i odlitek) těsně před vlastní
-    // výplní zbytku — jádro se pak překreslí přes něj a odstín zůstane stejný.
-    function drawStockBand() {
-      if (!bandPath || !bandClip) return;
-      ctx.save();
-      ctx.clip(bandClip, 'evenodd');       // jen VNĚ nakresleného odlitku
-      ctx.fillStyle = 'rgba(250,179,135,0.10)';   // stejný tón jako tečkovaná čára
-      ctx.fill(bandPath, 'evenodd');
-      ctx.restore();
-    }
-
     if (fillClipPath) { ctx.save(); ctx.clip(fillClipPath, 'evenodd'); }
     state.objects.forEach((obj) => {
       if (obj.type !== 'fill' || !obj.loops || obj.loops.length === 0) return;
@@ -1462,8 +1451,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // filled area — při aktivním úběru se kreslí jen ZBÝVAJÍCÍ materiál
       ctx.fillStyle = 'rgba(108,112,134,0.12)';
       if (remainPath) {
-        drawStockBand();
-        ctx.fill(remainPath, 'evenodd');
+        ctx.fill(stockPath || remainPath, 'evenodd');
       } else {
         ctx.beginPath(); ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath(); ctx.fill();
       }
@@ -1518,9 +1506,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Odlitek: při aktivním úběru vyplnit zbývající materiál (válec má
       // výplň výš — tady se jinak kreslí jen obrys).
       if (remainPath) {
-        drawStockBand();
         ctx.fillStyle = 'rgba(108,112,134,0.12)';
-        ctx.fill(remainPath, 'evenodd');
+        ctx.fill(stockPath || remainPath, 'evenodd');
       }
     }
 

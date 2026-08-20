@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM náhled – polotovar se vybarvuje JEDNÍM odstínem až po offsetovou
+  čáru.** Pás mezi nakresleným odlitkem a offsetovou čarou se dosud kreslil
+  zvlášť světlejším tónem přes clip „mimo syrový obrys“, takže díl vypadal jako
+  dva různé materiály. Polotovar tam ale prostě končí (zadání uživatele
+  20. 8. 2026: *„obrobek je celý i s tou offsetovou čarou“*), takže se vykreslí
+  jedna výplň — zbytek OFFSETOVÉHO modelu. Drží to na vlastnosti, že offsetový
+  zbytek obsahuje ten syrový (obě smyčky řeže tatáž dráha, jen začínají na
+  jiném základu); nově to hlídá `tests/cam-removal-offset-band` ve třech bodech
+  simulace (mimo offsetový zbytek zůstává < 0,05 mm² syrového). Modely zůstávají
+  dva — `_removal` je pořád parita pro mazání VYBARVENÍ, mění se jen kreslení.
+
 ### Added
 - **Invariant „generátor nevyrábí kolize“ hlídá i OFFSETOVOU ČÁRU.**
   `tests/cam-collision-free` dosud měřil jen proti nakreslenému odlitku.

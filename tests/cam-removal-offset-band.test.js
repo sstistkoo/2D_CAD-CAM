@@ -7,12 +7,15 @@
 // Náhled úběru ale kreslil jen syrový obrys, takže rychloposuv, který za
 // offsetovou čáru skočí, vypadal neškodně (nález uživatele 19. 8. 2026).
 // `MaterialRemoval` proto umí základ na OFFSETOVÉ čáře — `{ planningOutline: true }`.
+// Od 20. 8. 2026 na něm náhled vybarvuje polotovar JEDNÍM odstínem (pás nad
+// nakresleným odlitkem není zvláštní zóna, je to prostě polotovar).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { MaterialRemoval } from '../js/calculators/cam/materialRemoval.js';
 import { HolderGouge } from '../js/calculators/cam/holderGouge.js';
+import { polyDifference } from '../js/geom/geomCore.js';
 import { runCamProgFile } from './helpers/camHeadless.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -54,8 +57,10 @@ describe('MaterialRemoval — základ až po offsetovou čáru', () => {
     const cyl = { ...prog.params, stockMode: 'cylinder', stockDiameter: 100, stockLength: 50, stockFace: 0 };
     const outer = new MaterialRemoval(cyl, [], { planningOutline: true });
     expect(outer.valid).toBe(true);
-    // `rawLoop` musí zůstat k dispozici — náhled na něj ořezává pás, aby jádro
-    // zůstalo v dosavadním odstínu.
+    // `rawLoop` musí zůstat k dispozici — je to odpověď na otázku „kde končí
+    // NAKRESLENÝ odlitek" (pás v `HolderGouge`, úběr pro další část programu).
+    // Náhled ho už nepotřebuje: vybarvuje jedním odstínem až po offsetovou
+    // čáru (viz test níž).
     expect(outer.rawLoop).toBeTruthy();
     expect(area(outer.baseLoop)).toBeGreaterThan(area(outer.rawLoop));
   });
@@ -84,6 +89,29 @@ describe('HolderGouge — vjezd držáku do PÁSU (červeně)', () => {
     expect(hg.gougeBand.length).toBeGreaterThan(0);
     // Záznamy jsou DISJUNKTNÍ: pás je mimo syrový obrys, tvrdé vnoření v něm.
     for (const l of hg.gougeBand) expect(Math.abs(signedArea(l))).toBeGreaterThan(0.02);
+  }, 120000);
+
+  it('offsetový zbytek OBSAHUJE syrový — náhled proto stačí vybarvit jednou', async () => {
+    // Náhled kreslí polotovar JEDNÍM odstínem až po offsetovou čáru (jedna
+    // výplň `stockPath` v camSimulator.js) — polotovar tam končí, pás nad
+    // nakresleným odlitkem není zvláštní zóna. Drží to jen tehdy, když
+    // offsetový zbytek opravdu obsahuje ten syrový: obě smyčky řeže TATÁŽ
+    // dráha, jen začínají na jiném základu a syrový základ ⊆ offsetový.
+    // Kdyby to neplatilo, jedna výplň by kus jádra ztratila.
+    const { calcSim, S } = await runCamProgFile(fixture);
+    const raw = new MaterialRemoval(S.params, calcSim.stockPathSegments);
+    const out = new MaterialRemoval(S.params, calcSim.stockPathSegments, { planningOutline: true });
+    expect(raw.valid && out.valid).toBe(true);
+    for (const p of [0.25, 0.6, 1]) {
+      const at = p * (calcSim.simPath.length - 1);
+      raw.advanceTo(calcSim.simPath, at);
+      out.advanceTo(calcSim.simPath, at);
+      const outside = polyDifference(raw.model.loops, out.model.loops);
+      const lost = Math.abs(outside.reduce((a, l) => a + signedArea(l), 0));
+      // Clipper vrací na společných hranách slivery — mez je řádově pod
+      // plochou, kterou by šlo na plátně rozeznat.
+      expect(lost, `při ${(p * 100).toFixed(0)} % dráhy leží ${lost.toFixed(3)} mm² syrového zbytku MIMO offsetový`).toBeLessThan(0.05);
+    }
   }, 120000);
 
   it('bez příznaku se pás nesleduje (dosavadní chování oranžového varování)', async () => {

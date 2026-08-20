@@ -80,7 +80,7 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 2. **Dva dynamické modely vedle sebe** (`rapidStock` syrový + `rapidStockPlan`).
    Rozhodování už je sjednocené (krok 4), zbývá jen sloučit kód → krok 8.
 3. ~~**Validátor má dva standardy**~~ → hlídají se OBA (krok 6).
-4. **Náhled kreslí na dvakrát** (světlý pás + jádro), ne jeden odstín.
+4. ~~**Náhled kreslí na dvakrát**~~ → jeden odstín (krok 7).
 
 ---
 
@@ -450,18 +450,30 @@ znamená nasadit polygonový test (Minkowski, jako `makeHolderClamp`) i na kotvu
 a zátah rampy. To je samostatná práce; **čtyři pokusy doladit to prahem nebo
 skenem selhaly** (viz krok 5).
 
-### Krok 7 — náhled jedním odstínem ★ DALŠÍ
+### Krok 7 — náhled jedním odstínem ✅ HOTOVO (20. 8. 2026)
 
-**Co:** `camSimulator.js` drží `_removal` (syrový) a `_removalOuter`
-(offsetový) a kreslí pás světlejším tónem, oříznutý přes `bandClip`.
-Cíl: jeden odstín.
+**Provedeno:** místo dvou výplní (jádro `rgba(108,112,134,0.12)` + pás
+`rgba(250,179,135,0.10)` přes clip „mimo syrový obrys“) se kreslí JEDNA výplň
+zbytku OFFSETOVÉHO modelu (`stockPath` v `camSimulator.js`). Polotovar tam
+prostě končí — pás nad nakresleným odlitkem není zvláštní zóna. `drawStockBand`
+i `bandClip` zrušeny.
 
-**PAST (doložená):** `_removal.baseLoop` je zároveň parita pro mazání
-VYBARVENÍ — s pásem jako základem by mazání žralo výplně nad polotovarem.
-Dvojice modelů tedy zůstane, mění se jen kreslení.
-**Riziko:** kosmetika, žádné dráhy. Dá se pustit kdykoli, nezávisle.
+**Na čem to stojí:** offsetový zbytek OBSAHUJE ten syrový (obě smyčky řeže
+TATÁŽ dráha, jen začínají na jiném základu, a syrový základ ⊆ offsetový).
+Kdyby to neplatilo, jedna výplň by kus jádra ztratila. Nově to hlídá
+`tests/cam-removal-offset-band` ve třech bodech simulace (25 / 60 / 100 %
+dráhy): mimo offsetový zbytek zůstává < 0,05 mm² syrového.
 
-### Krok 8 — úklid API
+**PAST (platí dál):** `_removal` (syrový model) se NERUŠÍ — je to parita pro
+mazání VYBARVENÍ (`fillClipPath`); s pásem jako základem by mazání žralo výplně
+nad polotovarem. Dvojice modelů zůstává, změnilo se jen kreslení.
+
+**Ověření:** vizuálně potvrdil uživatel (screenshot, odstíny sjednocené).
+Headless to ověřit nešlo — jde o kreslení na canvas a Browser pane se v tomhle
+prostředí nezobrazuje, takže screenshot vždy vypršel. Proto je invariant
+zapsaný jako test nad MODELEM, ne nad obrázkem.
+
+### Krok 8 — úklid API ★ DALŠÍ (poslední)
 
 Teprve teď má smysl `buildStockLoop` → `buildStockLoopRaw` + `stockPlanLoop()`
 a zrušit ad-hoc přestavby offsetové smyčky (dnes na 5 místech: `gcodeEmit`,
