@@ -943,7 +943,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 4 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
-  "Hlídání geometrie (držák): 51 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání geometrie (držák): 52 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 1 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 72 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
   "Hlídání destičky: 1 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
 ]
@@ -1145,103 +1145,111 @@ N1640 G1 Z106.175 F0.25
 N1650 G1 Z104.995 F0.25
 N1660 G1 X26.988 Z106.995
 ; Průchod 26 (oblouk G3)
-N1670 G0 X17.677 Z125.269
+N1670 G0 X17.677 Z126.519
 N1680 G1 X15.877 F0.25
-N1690 G1 X14.988 Z121.951 ; Rampa 15.0°
+N1690 G1 X14.988 Z123.201 ; Rampa 15.0°
 N1700 G1 Z115.095 F0.25
 N1710 G1 X16.988 Z117.095
 ; Průchod 27 (zanoření v kapse)
 N1720 G1 X18.988 Z119.095
-N1730 G0 Z121.951
+N1730 G0 Z123.201
 N1740 G0 X16.788
 N1750 G1 X14.988 F0.25
-N1760 G1 X13.164 Z115.145 ; Rampa 15.0°
+N1760 G1 X12.988 Z115.737 ; Rampa 15.0°
 N1770 G1 Z115.095 F0.25
-N1780 G1 X15.164 Z117.095
-; Průchod 28
-N1790 G0 X58.788 ; Výjezd nad konturu
-N1800 G0 Z17.517
-N1810 G0 X20.988
-N1820 G1 Z15.717 F0.25
-N1830 G1 Z-4.000 F0.25
-N1840 G1 Z-5.000 F0.25
-N1850 G1 X22.988 Z-3.000
-; Průchod 29 (bez schodků)
-N1860 G0 Z20.706
-N1870 G0 X18.988
-N1880 G1 Z18.906 F0.25
-N1890 G1 Z11.001 F0.25
-N1900 G1 X19.059 Z10.888 F0.25
-N1910 G1 X19.059 Z-0.099 F0.25
-N1920 G1 X18.988 Z-0.370 F0.25
-N1930 G1 X18.988 Z-4.000 F0.25
-N1940 G1 Z-5.000 F0.25
-N1950 G1 X20.988 Z-3.000
-; Průchod 30 (oblouk G3)
-N1960 G0 X22.632 Z11.685
-N1970 G1 X18.988 Z-1.914 ; Rampa 15.0°
-N1980 G1 Z-4.000 F0.25
-N1990 G1 X20.988 Z-2.000
+N1780 G1 X14.988 Z117.095
+; Průchod 28 (zanoření v kapse)
+N1790 G1 X16.988 Z119.095
+N1800 G0 Z115.737
+N1810 G0 X14.788
+N1820 G1 X12.988 F0.25
+N1830 G1 X12.829 Z115.145 ; Rampa 15.0°
+N1840 G1 Z115.095 F0.25
+N1850 G1 X14.829 Z117.095
+; Průchod 29
+N1860 G0 X58.788 ; Výjezd nad konturu
+N1870 G0 Z17.517
+N1880 G0 X20.988
+N1890 G1 Z15.717 F0.25
+N1900 G1 Z-4.000 F0.25
+N1910 G1 Z-5.000 F0.25
+N1920 G1 X22.988 Z-3.000
+; Průchod 30 (bez schodků)
+N1930 G0 Z20.706
+N1940 G0 X18.988
+N1950 G1 Z18.906 F0.25
+N1960 G1 Z11.001 F0.25
+N1970 G1 X19.059 Z10.888 F0.25
+N1980 G1 X19.059 Z-0.099 F0.25
+N1990 G1 X18.988 Z-0.370 F0.25
+N2000 G1 X18.988 Z-4.000 F0.25
+N2010 G1 Z-5.000 F0.25
+N2020 G1 X20.988 Z-3.000
 ; Průchod 31 (oblouk G3)
-N2000 G0 X20.788 Z-0.370
-N2010 G1 X18.988 F0.25
-N2020 G1 X17.774 Z-4.902 ; Rampa 15.0°
-N2030 G1 X19.774 Z-2.902
-; Průchod 32 (bez schodků)
-N2040 G0 Z23.894
-N2050 G0 X16.988
-N2060 G1 Z22.094 F0.25
-N2070 G1 Z14.190 F0.25
-N2080 G1 X18.995 Z10.990 F0.25
-N2090 G1 X20.995 Z12.990
-; Průchod 33 (oblouk G3)
-N2100 G0 X17.665 Z58.719
-N2110 G1 X15.865 F0.25
-N2120 G1 X14.988 Z55.446 ; Rampa 15.0°
-N2130 G1 Z17.378 F0.25
-N2140 G1 X16.995 Z14.178 F0.25
-N2150 G1 X18.995 Z16.178
-; Průchod 34 (zanoření v kapse)
-N2160 G1 X20.995 Z18.178
-N2170 G0 Z55.446
-N2180 G0 X16.788
-N2190 G1 X14.988 F0.25
-N2200 G1 X12.988 Z47.982 ; Rampa 15.0°
-N2210 G1 Z20.567 F0.25
-N2220 G1 X14.995 Z17.367 F0.25
-N2230 G1 X16.995 Z19.367
+N2030 G0 X22.632 Z11.685
+N2040 G1 X18.988 Z-1.914 ; Rampa 15.0°
+N2050 G1 Z-4.000 F0.25
+N2060 G1 X20.988 Z-2.000
+; Průchod 32 (oblouk G3)
+N2070 G0 X20.788 Z-0.370
+N2080 G1 X18.988 F0.25
+N2090 G1 X17.774 Z-4.902 ; Rampa 15.0°
+N2100 G1 X19.774 Z-2.902
+; Průchod 33 (bez schodků)
+N2110 G0 Z23.894
+N2120 G0 X16.988
+N2130 G1 Z22.094 F0.25
+N2140 G1 Z14.190 F0.25
+N2150 G1 X18.995 Z10.990 F0.25
+N2160 G1 X20.995 Z12.990
+; Průchod 34 (oblouk G3)
+N2170 G0 X17.665 Z58.719
+N2180 G1 X15.865 F0.25
+N2190 G1 X14.988 Z55.446 ; Rampa 15.0°
+N2200 G1 Z17.378 F0.25
+N2210 G1 X16.995 Z14.178 F0.25
+N2220 G1 X18.995 Z16.178
 ; Průchod 35 (zanoření v kapse)
-N2240 G1 X18.995 Z21.367
-N2250 G0 Z47.982
-N2260 G0 X14.788
-N2270 G1 X12.988 F0.25
-N2280 G1 X11.655 Z43.007 ; Rampa 15.0°
-N2290 G1 Z22.869 F0.25
-N2300 G1 X13.018 Z20.519 F0.25
-N2310 G1 X15.018 Z22.519
-N2320 G0 X150.000 ; Výjezd nad konturu
-N2330 G0 Z5.000
+N2230 G1 X20.995 Z18.178
+N2240 G0 Z55.446
+N2250 G0 X16.788
+N2260 G1 X14.988 F0.25
+N2270 G1 X12.988 Z47.982 ; Rampa 15.0°
+N2280 G1 Z20.567 F0.25
+N2290 G1 X14.995 Z17.367 F0.25
+N2300 G1 X16.995 Z19.367
+; Průchod 36 (zanoření v kapse)
+N2310 G1 X18.995 Z21.367
+N2320 G0 Z47.982
+N2330 G0 X14.788
+N2340 G1 X12.988 F0.25
+N2350 G1 X11.655 Z43.007 ; Rampa 15.0°
+N2360 G1 Z22.869 F0.25
+N2370 G1 X13.018 Z20.519 F0.25
+N2380 G1 X15.018 Z22.519
+N2390 G0 X150.000 ; Výjezd nad konturu
+N2400 G0 Z5.000
 ; --- DOKONCOVANI ---
-N2340 G0 X55.788 Z168.533
-N2350 G1 X53.788 Z161.069 F0.25
-N2360 G1 X53.788 Z151.118
-N2370 G1 X53.788 Z150.618 ; Rovný průměr (zbytek nejde dokončit celý)
-N2380 G0 X58.788 ; Výjezd nad konturu
-N2390 G0 Z99.547
-N2400 G0 X45.123
-N2410 G1 X43.123 Z92.083
-N2420 G1 X42.705 Z73.546
-N2430 G1 X42.705 Z73.046 ; Rovný průměr (zbytek nejde dokončit celý)
-N2440 G0 X58.788 ; Výjezd nad konturu
-N2450 G0 Z30.335
-N2460 G0 X13.543
-N2470 G1 X11.543 Z22.871
-N2480 G1 X19.059 Z10.888
-N2490 G1 X19.059 Z0.000
-N2500 G1 X19.059 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
-N2510 G0 X150.000 ; Výjezd nad konturu
-N2520 G0 Z5.000
-N2530 M30 ; Konec programu
+N2410 G0 X55.788 Z168.533
+N2420 G1 X53.788 Z161.069 F0.25
+N2430 G1 X53.788 Z151.118
+N2440 G1 X53.788 Z150.618 ; Rovný průměr (zbytek nejde dokončit celý)
+N2450 G0 X58.788 ; Výjezd nad konturu
+N2460 G0 Z99.547
+N2470 G0 X45.123
+N2480 G1 X43.123 Z92.083
+N2490 G1 X42.705 Z73.546
+N2500 G1 X42.705 Z73.046 ; Rovný průměr (zbytek nejde dokončit celý)
+N2510 G0 X58.788 ; Výjezd nad konturu
+N2520 G0 Z30.335
+N2530 G0 X13.543
+N2540 G1 X11.543 Z22.871
+N2550 G1 X19.059 Z10.888
+N2560 G1 X19.059 Z0.000
+N2570 G1 X19.059 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
+N2580 G0 X150.000 ; Výjezd nad konturu
+N2590 G0 Z5.000
+N2600 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z161.069
 ; G1 X52.988 Z161.069
@@ -1280,7 +1288,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
     "L (18.26,10.66)->(18.26,0.00)",
     "L (18.26,0.00)->(17.19,-4.00) {ins}",
   ],
-  "passCount": 35,
+  "passCount": 36,
   "passTags": [
     "long",
     "long",
@@ -1308,6 +1316,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
     "long{blocked}",
     "long{blocked}",
     "long{ramp,blocked}",
+    "long{pocketReposition,ramp,blocked}",
     "long{pocketReposition,ramp,blocked}",
     "long",
     "long{contourLeadOut,blocked}",
@@ -1420,227 +1429,229 @@ N720 G0 X25.990
 N730 G1 X21.978 F0.25
 N740 G1 Z215.462 F0.25
 N750 G1 X23.978 Z217.462
-; Průchod 11 (kapsa po kontuře)
-N760 G0 X93.011 ; Výjezd nad konturu
-N770 G0 Z257.514
-N780 G0 X33.640
-N790 G1 X31.440 F0.25
-N800 G1 X31.440 Z238.641 F0.25
-N810 G1 X26.298 Z219.450 F0.25
-N820 G0 X22.990
-N830 G1 X18.978 F0.25
-N840 G1 Z203.314 F0.25
-N850 G1 X20.978 Z205.314
+; Průchod 11 (oblouk G3)
+N760 G1 X22.194 Z216.764 F0.25
+N770 G1 X21.825 Z215.387 ; Rampa 15.0°
+N780 G0 X93.011 ; Výjezd nad konturu
+N790 G0 Z204.763
+N800 G0 X21.130
+N810 G1 X18.978 F0.25
+N820 G1 Z203.314 F0.25
+N830 G1 X20.978 Z205.314
 ; Průchod 12
-N860 G0 X93.011 ; Výjezd nad konturu
-N870 G0 Z28.703
-N880 G0 X51.910
-N890 G1 X49.978 F0.25
-N900 G1 Z26.503 F0.25
-N910 G1 Z-10.000 F0.25
-N920 G1 Z-11.000 F0.25
-N930 G1 X51.978 Z-9.000
+N840 G0 X93.011 ; Výjezd nad konturu
+N850 G0 Z28.703
+N860 G0 X51.910
+N870 G1 X49.978 F0.25
+N880 G1 Z26.503 F0.25
+N890 G1 Z-10.000 F0.25
+N900 G1 Z-11.000 F0.25
+N910 G1 X51.978 Z-9.000
 ; Průchod 13
-N940 G0 Z30.211
-N950 G0 X50.600
-N960 G1 X48.978 F0.25
-N970 G1 Z28.011 F0.25
-N980 G1 Z-10.000 F0.25
-N990 G1 Z-11.000 F0.25
-N1000 G1 X50.978 Z-9.000
+N920 G0 Z30.211
+N930 G0 X50.600
+N940 G1 X48.978 F0.25
+N950 G1 Z28.011 F0.25
+N960 G1 Z-10.000 F0.25
+N970 G1 Z-11.000 F0.25
+N980 G1 X50.978 Z-9.000
 ; Průchod 14
-N1010 G0 Z114.011
-N1020 G0 X48.040
-N1030 G1 X45.978 F0.25
-N1040 G1 Z111.811 F0.25
-N1050 G1 Z60.216 F0.25
-N1060 G0 Z33.733
-N1070 G1 Z-10.000 F0.25
-N1080 G1 Z-11.000 F0.25
-N1090 G1 X47.978 Z-9.000
+N990 G0 Z114.011
+N1000 G0 X48.040
+N1010 G1 X45.978 F0.25
+N1020 G1 Z111.811 F0.25
+N1030 G1 Z60.216 F0.25
+N1040 G0 Z33.733
+N1050 G1 Z-10.000 F0.25
+N1060 G1 Z-11.000 F0.25
+N1070 G1 X47.978 Z-9.000
 ; Průchod 15 (bez schodků)
-N1100 G0 Z151.065
-N1110 G0 X45.300
-N1120 G1 X42.978 F0.25
-N1130 G1 Z148.865 F0.25
-N1140 G1 Z136.245 F0.25
-N1150 G1 Z118.119 F0.25 ; Přejezd materiálem posuvem
-N1160 G1 Z55.465 F0.25
-N1170 G0 Z38.481
-N1180 G1 Z21.528 F0.25
-N1190 G3 X43.478 Z19.054 CR=6.369 F0.25
-N1200 G1 X43.478 Z-0.197 F0.25
-N1210 G1 X43.471 Z-0.222 F0.25
-N1220 G1 X42.978 Z-2.064 F0.25
-N1230 G1 X42.978 Z-10.000 F0.25
-N1240 G1 Z-11.000 F0.25
-N1250 G1 X44.978 Z-9.000
+N1080 G0 Z151.065
+N1090 G0 X45.300
+N1100 G1 X42.978 F0.25
+N1110 G1 Z148.865 F0.25
+N1120 G1 Z136.245 F0.25
+N1130 G1 Z118.119 F0.25 ; Přejezd materiálem posuvem
+N1140 G1 Z55.465 F0.25
+N1150 G0 Z38.481
+N1160 G1 Z21.528 F0.25
+N1170 G3 X43.478 Z19.054 CR=6.369 F0.25
+N1180 G1 X43.478 Z-0.197 F0.25
+N1190 G1 X43.471 Z-0.222 F0.25
+N1200 G1 X42.978 Z-2.064 F0.25
+N1210 G1 X42.978 Z-10.000 F0.25
+N1220 G1 Z-11.000 F0.25
+N1230 G1 X44.978 Z-9.000
 ; Průchod 16 (oblouk G3)
-N1260 G0 X50.805 Z27.076
-N1270 G1 X42.978 Z-2.135 ; Rampa 15.0°
-N1280 G1 Z-10.000 F0.25
-N1290 G1 X44.978 Z-8.000
+N1240 G0 X50.805 Z27.076
+N1250 G1 X42.978 Z-2.135 ; Rampa 15.0°
+N1260 G1 Z-10.000 F0.25
+N1270 G1 X44.978 Z-8.000
 ; Průchod 17 (oblouk G3)
-N1300 G1 X42.978 Z-2.064 F0.25
-N1310 G1 X40.577 Z-11.023 ; Rampa 15.0°
-N1320 G1 X42.577 Z-9.023
+N1280 G1 X42.978 Z-2.064 F0.25
+N1290 G1 X40.577 Z-11.023 ; Rampa 15.0°
+N1300 G1 X42.577 Z-9.023
 ; Průchod 18 (bez schodků)
-N1330 G0 X93.011 ; Výjezd nad konturu
-N1340 G0 Z156.678
-N1350 G0 X42.070
-N1360 G1 X39.978 F0.25
-N1370 G1 Z154.478 F0.25
-N1380 G1 Z133.443 F0.25
-N1390 G1 Z119.925 F0.25 ; Přejezd materiálem posuvem
-N1400 G1 Z25.016 F0.25
-N1410 G2 X41.197 Z23.938 CR=30.037 F0.25
-N1420 G3 X42.983 Z21.516 CR=6.369 F0.25
-N1430 G1 X44.983 Z23.516
+N1310 G0 X93.011 ; Výjezd nad konturu
+N1320 G0 Z156.678
+N1330 G0 X42.070
+N1340 G1 X39.978 F0.25
+N1350 G1 Z154.478 F0.25
+N1360 G1 Z133.443 F0.25
+N1370 G1 Z119.925 F0.25 ; Přejezd materiálem posuvem
+N1380 G1 Z25.016 F0.25
+N1390 G2 X41.197 Z23.938 CR=30.037 F0.25
+N1400 G3 X42.983 Z21.516 CR=6.369 F0.25
+N1410 G1 X44.983 Z23.516
 ; Průchod 19 (bez schodků)
-N1440 G0 Z163.875
-N1450 G0 X36.978
-N1460 G1 Z161.675 F0.25
-N1470 G1 Z129.477 F0.25
-N1480 G0 Z123.891
-N1490 G1 Z109.821 F0.25
-N1500 G3 X39.110 Z105.008 CR=6.500 F0.25
-N1510 G1 X39.110 Z70.607 F0.25
-N1520 G3 X38.888 Z68.921 CR=6.500 F0.25
-N1530 G1 X36.978 Z61.794 F0.25
-N1540 G1 X36.978 Z28.261 F0.25
-N1550 G2 X39.983 Z25.011 CR=30.037 F0.25
-N1560 G1 X41.983 Z27.011
+N1420 G0 Z163.875
+N1430 G0 X36.978
+N1440 G1 Z161.675 F0.25
+N1450 G1 Z129.477 F0.25
+N1460 G0 Z123.891
+N1470 G1 Z109.821 F0.25
+N1480 G3 X39.110 Z105.008 CR=6.500 F0.25
+N1490 G1 X39.110 Z70.607 F0.25
+N1500 G3 X38.888 Z68.921 CR=6.500 F0.25
+N1510 G1 X36.978 Z61.794 F0.25
+N1520 G1 X36.978 Z28.261 F0.25
+N1530 G2 X39.983 Z25.011 CR=30.037 F0.25
+N1540 G1 X41.983 Z27.011
 ; Průchod 20 (bez schodků)
-N1570 G0 Z183.955
-N1580 G0 X33.978
-N1590 G1 Z181.755 F0.25
-N1600 G1 Z147.871 F0.25
-N1610 G1 X34.657 Z146.695 F0.25
-N1620 G3 X35.068 Z143.621 CR=4.071 F0.25
-N1630 G1 X33.978 Z139.553 F0.25
-N1640 G1 X33.978 Z111.704 F0.25
-N1650 G2 X35.548 Z110.806 CR=17.800 F0.25
-N1660 G3 X36.997 Z109.804 CR=6.500 F0.25
-N1670 G1 X38.997 Z111.804
+N1550 G0 Z183.955
+N1560 G0 X33.978
+N1570 G1 Z181.755 F0.25
+N1580 G1 Z147.871 F0.25
+N1590 G1 X34.657 Z146.695 F0.25
+N1600 G3 X35.068 Z143.621 CR=4.071 F0.25
+N1610 G1 X33.978 Z139.553 F0.25
+N1620 G1 X33.978 Z111.704 F0.25
+N1630 G2 X35.548 Z110.806 CR=17.800 F0.25
+N1640 G3 X36.997 Z109.804 CR=6.500 F0.25
+N1650 G1 X38.997 Z111.804
 ; Průchod 21 (oblouk G3)
-N1680 G0 X93.011 ; Výjezd nad konturu
-N1690 G0 Z61.794
-N1700 G0 X39.178
-N1710 G1 X36.978 F0.25
-N1720 G1 X33.978 Z50.598 ; Rampa 15.0°
-N1730 G1 Z32.825 F0.25
-N1740 G2 X37.007 Z28.225 CR=30.037 F0.25
+N1660 G0 X93.011 ; Výjezd nad konturu
+N1670 G0 Z61.794
+N1680 G0 X39.178
+N1690 G1 X36.978 F0.25
+N1700 G1 X33.978 Z50.598 ; Rampa 15.0°
+N1710 G1 Z32.825 F0.25
+N1720 G2 X37.007 Z28.225 CR=30.037 F0.25
 ; Průchod 22 (zanoření v kapse)
-N1750 G1 X39.007 Z30.225
-N1760 G0 Z50.598
-N1770 G0 X36.178
-N1780 G1 X33.978 F0.25
-N1790 G1 X31.197 Z40.218 ; Rampa 15.0°
-N1800 G2 X33.982 Z32.818 CR=30.037 F0.25
-N1810 G1 X35.982 Z34.818
+N1730 G1 X39.007 Z30.225
+N1740 G0 Z50.598
+N1750 G0 X36.178
+N1760 G1 X33.978 F0.25
+N1770 G1 X31.197 Z40.218 ; Rampa 15.0°
+N1780 G2 X33.982 Z32.818 CR=30.037 F0.25
+N1790 G1 X35.982 Z34.818
 ; Průchod 23 (bez schodků)
-N1820 G0 X93.011 ; Výjezd nad konturu
-N1830 G0 Z188.652
-N1840 G0 X30.978
-N1850 G1 Z186.452 F0.25
-N1860 G1 Z153.052 F0.25
-N1870 G1 X33.989 Z147.852 F0.25
-N1880 G1 X35.989 Z149.852
+N1800 G0 X93.011 ; Výjezd nad konturu
+N1810 G0 Z188.652
+N1820 G0 X30.978
+N1830 G1 Z186.452 F0.25
+N1840 G1 Z153.052 F0.25
+N1850 G1 X33.989 Z147.852 F0.25
+N1860 G1 X35.989 Z149.852
 ; Průchod 24 (oblouk G3)
-N1890 G0 X93.011 ; Výjezd nad konturu
-N1900 G0 Z139.553
-N1910 G0 X36.178
-N1920 G1 X33.978 F0.25
-N1930 G1 X30.978 Z128.357 ; Rampa 15.0°
-N1940 G1 Z114.126 F0.25
-N1950 G2 X34.023 Z111.676 CR=17.800 F0.25
+N1870 G0 X93.011 ; Výjezd nad konturu
+N1880 G0 Z139.553
+N1890 G0 X36.178
+N1900 G1 X33.978 F0.25
+N1910 G1 X30.978 Z128.357 ; Rampa 15.0°
+N1920 G1 Z114.126 F0.25
+N1930 G2 X34.023 Z111.676 CR=17.800 F0.25
 ; Průchod 25 (zanoření v kapse)
-N1960 G1 X36.023 Z113.676
-N1970 G0 Z128.357
-N1980 G0 X33.178
-N1990 G1 X30.978 F0.25
-N2000 G1 X28.152 Z117.810 ; Rampa 15.0°
-N2010 G2 X30.994 Z114.110 CR=17.800 F0.25
-N2020 G1 X32.994 Z116.110
+N1940 G1 X36.023 Z113.676
+N1950 G0 Z128.357
+N1960 G0 X33.178
+N1970 G1 X30.978 F0.25
+N1980 G1 X28.152 Z117.810 ; Rampa 15.0°
+N1990 G2 X30.994 Z114.110 CR=17.800 F0.25
+N2000 G1 X32.994 Z116.110
 ; Průchod 26 (bez schodků)
-N2030 G0 X93.011 ; Výjezd nad konturu
-N2040 G0 Z191.321
-N2050 G0 X27.978
-N2060 G1 Z189.121 F0.25
-N2070 G1 Z158.264 F0.25
-N2080 G1 X30.980 Z153.064 F0.25
-N2090 G1 X32.980 Z155.064
+N2010 G0 X93.011 ; Výjezd nad konturu
+N2020 G0 Z191.321
+N2030 G0 X27.978
+N2040 G1 Z189.121 F0.25
+N2050 G1 Z158.264 F0.25
+N2060 G1 X30.980 Z153.064 F0.25
+N2070 G1 X32.980 Z155.064
 ; Průchod 27 (bez schodků)
-N2100 G0 Z193.011
-N2110 G0 X24.978
-N2120 G1 Z190.811 F0.25
-N2130 G1 Z178.568 F0.25
-N2140 G3 X25.911 Z174.828 CR=7.960 F0.25
-N2150 G1 X25.911 Z161.844 F0.25
-N2160 G1 X28.005 Z158.218 F0.25
-N2170 G1 X30.005 Z160.218
+N2080 G0 Z193.011
+N2090 G0 X24.978
+N2100 G1 Z190.811 F0.25
+N2110 G1 Z178.568 F0.25
+N2120 G3 X25.911 Z174.828 CR=7.960 F0.25
+N2130 G1 X25.911 Z161.844 F0.25
+N2140 G1 X28.005 Z158.218 F0.25
+N2150 G1 X30.005 Z160.218
 ; Průchod 28 (bez schodků)
-N2180 G0 Z194.128
-N2190 G0 X21.978
-N2200 G1 Z191.928 F0.25
-N2210 G1 Z181.695 F0.25
-N2220 G3 X24.990 Z178.545 CR=7.960 F0.25
-N2230 G1 X26.990 Z180.545
+N2160 G0 Z194.128
+N2170 G0 X21.978
+N2180 G1 Z191.928 F0.25
+N2190 G1 Z181.695 F0.25
+N2200 G3 X24.990 Z178.545 CR=7.960 F0.25
+N2210 G1 X26.990 Z180.545
 ; Průchod 29 (bez schodků)
-N2240 G0 Z195.196
-N2250 G0 X21.130
-N2260 G1 X18.978 F0.25
-N2270 G1 Z192.996 F0.25
-N2280 G1 Z182.912 F0.25
-N2290 G1 X20.621 Z182.327 F0.25
-N2300 G3 X22.033 Z181.662 CR=7.960 F0.25
-N2310 G1 X24.033 Z183.662
+N2220 G0 Z195.196
+N2230 G0 X21.130
+N2240 G1 X18.978 F0.25
+N2250 G1 Z192.996 F0.25
+N2260 G1 Z182.912 F0.25
+N2270 G1 X20.621 Z182.327 F0.25
+N2280 G3 X22.033 Z181.662 CR=7.960 F0.25
+N2290 G1 X24.033 Z183.662
 ; Průchod 30 (oblouk G3)
-N2320 G0 X21.121 Z211.064
-N2330 G1 X18.921 F0.25
-N2340 G1 X15.978 Z200.081 ; Rampa 15.0°
-N2350 G1 Z183.980 F0.25
-N2360 G1 X19.067 Z182.880 F0.25
-N2370 G1 X21.067 Z184.880
+N2300 G0 X25.237 Z219.564
+N2310 G1 X24.862 Z218.166 ; Rampa 15.0°
+N2320 G0 X93.011 ; Výjezd nad konturu
+N2330 G0 Z185.009
+N2340 G0 X19.980
+N2350 G1 X15.978 F0.25
+N2360 G1 Z183.980 F0.25
+N2370 G1 X19.067 Z182.880 F0.25
+N2380 G1 X21.067 Z184.880
 ; Průchod 31 (zanoření v kapse)
-N2380 G1 X23.067 Z186.880
-N2390 G0 Z200.081
-N2400 G0 X18.178
-N2410 G1 X15.978 F0.25
-N2420 G1 X13.468 Z190.713 ; Rampa 15.0°
-N2430 G1 Z190.663 F0.25
-N2440 G1 X15.468 Z192.663
-N2450 G0 X150.000 ; Výjezd nad konturu
-N2460 G0 Z5.000
+N2390 G1 X23.067 Z186.880
+N2400 G0 Z185.009
+N2410 G0 X18.178
+N2420 G1 X15.978 F0.25
+N2430 G1 X15.911 Z184.759 ; Rampa 15.0°
+N2440 G1 Z184.004 F0.25
+N2450 G1 X16.051 Z183.954 F0.25
+N2460 G1 X18.051 Z185.954
+N2470 G0 X150.000 ; Výjezd nad konturu
+N2480 G0 Z5.000
 ; --- DOKONCOVANI ---
-N2470 G0 X33.140 Z263.478
-N2480 G1 X31.140 Z256.014 F0.25
-N2490 G1 X31.140 Z238.838
-N2500 G1 X31.140 Z237.838 ; Rovný průměr (zbytek nejde dokončit celý)
-N2510 G0 X93.011 ; Výjezd nad konturu
-N2520 G0 Z189.509
-N2530 G0 X22.521
-N2540 G1 X20.521 Z182.044
-N2550 G3 X25.611 Z174.828 CR=7.660
-N2560 G1 X25.611 Z161.764
-N2570 G1 X34.397 Z146.545
-N2580 G0 X93.011 ; Výjezd nad konturu
-N2590 G0 Z118.003
-N2600 G0 X37.412
-N2610 G1 X35.412 Z110.538
-N2620 G3 X38.810 Z105.008 CR=6.200
-N2630 G1 X38.810 Z70.607
-N2640 G1 X38.810 Z68.607 ; Rovný průměr (zbytek nejde dokončit celý)
-N2650 G0 X93.011 ; Výjezd nad konturu
-N2660 G0 Z31.172
-N2670 G0 X43.004
-N2680 G1 X41.004 Z23.708
-N2690 G3 X43.178 Z19.054 CR=6.069
-N2700 G1 X43.178 Z0.000
-N2710 G1 X43.178 Z-2.500 ; Rovný průměr (zbytek nejde dokončit celý)
-N2720 G0 X150.000 ; Výjezd nad konturu
-N2730 G0 Z5.000
-N2740 M30 ; Konec programu
+N2490 G0 X33.140 Z263.478
+N2500 G1 X31.140 Z256.014 F0.25
+N2510 G1 X31.140 Z238.838
+N2520 G1 X31.140 Z237.838 ; Rovný průměr (zbytek nejde dokončit celý)
+N2530 G0 X93.011 ; Výjezd nad konturu
+N2540 G0 Z189.509
+N2550 G0 X22.521
+N2560 G1 X20.521 Z182.044
+N2570 G3 X25.611 Z174.828 CR=7.660
+N2580 G1 X25.611 Z161.764
+N2590 G1 X34.397 Z146.545
+N2600 G0 X93.011 ; Výjezd nad konturu
+N2610 G0 Z118.003
+N2620 G0 X37.412
+N2630 G1 X35.412 Z110.538
+N2640 G3 X38.810 Z105.008 CR=6.200
+N2650 G1 X38.810 Z70.607
+N2660 G1 X38.810 Z68.607 ; Rovný průměr (zbytek nejde dokončit celý)
+N2670 G0 X93.011 ; Výjezd nad konturu
+N2680 G0 Z31.172
+N2690 G0 X43.004
+N2700 G1 X41.004 Z23.708
+N2710 G3 X43.178 Z19.054 CR=6.069
+N2720 G1 X43.178 Z0.000
+N2730 G1 X43.178 Z-2.500 ; Rovný průměr (zbytek nejde dokončit celý)
+N2740 G0 X150.000 ; Výjezd nad konturu
+N2750 G0 Z5.000
+N2760 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -1707,7 +1718,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
     "long{contourLeadIn}",
     "long{blocked}",
     "long{contourLeadIn}",
-    "long{contourLeadIn}",
+    "long{ramp}",
     "long",
     "long",
     "long",
@@ -1727,7 +1738,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{ramp,contourLeadOut,blocked}",
-    "long{pocketReposition,ramp,blocked}",
+    "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
 `;
@@ -2033,55 +2044,39 @@ N2510 G1 Z182.912 F0.25
 N2520 G1 X20.621 Z182.327 F0.25
 N2530 G3 X22.033 Z181.662 CR=7.960 F0.25
 N2540 G1 X24.033 Z183.662
-; Průchod 34 (oblouk G3)
-N2550 G0 X21.121 Z197.814
-N2560 G1 X18.921 F0.25
-N2570 G1 X15.978 Z186.831 ; Rampa 15.0°
-N2580 G1 Z183.980 F0.25
-N2590 G1 X19.067 Z182.880 F0.25
-N2600 G1 X21.067 Z184.880
-; Průchod 35 (zanoření v kapse)
-N2610 G1 X23.067 Z186.880
-N2620 G0 Z186.831
-N2630 G0 X18.178
-N2640 G1 X15.978 F0.25
-N2650 G1 X15.293 Z184.274 ; Rampa 15.0°
-N2660 G1 Z184.224 F0.25
-N2670 G1 X15.995 Z183.974 F0.25
-N2680 G1 X17.995 Z185.974
-N2690 G0 X150.000 ; Výjezd nad konturu
-N2700 G0 Z5.000
+N2550 G0 X150.000 ; Výjezd nad konturu
+N2560 G0 Z5.000
 ; --- DOKONCOVANI ---
-N2710 G0 Z264.678
-N2720 G0 X2.000
-N2730 G1 X0.000 Z257.214 F0.25
-N2740 G1 X31.140 Z257.214
-N2750 G1 X31.140 Z238.838
-N2760 G1 X31.140 Z237.838 ; Rovný průměr (zbytek nejde dokončit celý)
+N2570 G0 Z264.678
+N2580 G0 X2.000
+N2590 G1 X0.000 Z257.214 F0.25
+N2600 G1 X31.140 Z257.214
+N2610 G1 X31.140 Z238.838
+N2620 G1 X31.140 Z237.838 ; Rovný průměr (zbytek nejde dokončit celý)
+N2630 G0 X93.011 ; Výjezd nad konturu
+N2640 G0 Z189.509
+N2650 G0 X22.521
+N2660 G1 X20.521 Z182.044
+N2670 G3 X25.611 Z174.828 CR=7.660
+N2680 G1 X25.611 Z161.764
+N2690 G1 X34.397 Z146.545
+N2700 G0 X93.011 ; Výjezd nad konturu
+N2710 G0 Z118.003
+N2720 G0 X37.412
+N2730 G1 X35.412 Z110.538
+N2740 G3 X38.810 Z105.008 CR=6.200
+N2750 G1 X38.810 Z70.607
+N2760 G1 X38.810 Z68.607 ; Rovný průměr (zbytek nejde dokončit celý)
 N2770 G0 X93.011 ; Výjezd nad konturu
-N2780 G0 Z189.509
-N2790 G0 X22.521
-N2800 G1 X20.521 Z182.044
-N2810 G3 X25.611 Z174.828 CR=7.660
-N2820 G1 X25.611 Z161.764
-N2830 G1 X34.397 Z146.545
-N2840 G0 X93.011 ; Výjezd nad konturu
-N2850 G0 Z118.003
-N2860 G0 X37.412
-N2870 G1 X35.412 Z110.538
-N2880 G3 X38.810 Z105.008 CR=6.200
-N2890 G1 X38.810 Z70.607
-N2900 G1 X38.810 Z68.607 ; Rovný průměr (zbytek nejde dokončit celý)
-N2910 G0 X93.011 ; Výjezd nad konturu
-N2920 G0 Z31.172
-N2930 G0 X43.004
-N2940 G1 X41.004 Z23.708
-N2950 G3 X43.178 Z19.054 CR=6.069
-N2960 G1 X43.178 Z0.000
-N2970 G1 X43.178 Z-2.500 ; Rovný průměr (zbytek nejde dokončit celý)
-N2980 G0 X150.000 ; Výjezd nad konturu
-N2990 G0 Z5.000
-N3000 M30 ; Konec programu
+N2780 G0 Z31.172
+N2790 G0 X43.004
+N2800 G1 X41.004 Z23.708
+N2810 G3 X43.178 Z19.054 CR=6.069
+N2820 G1 X43.178 Z0.000
+N2830 G1 X43.178 Z-2.500 ; Rovný průměr (zbytek nejde dokončit celý)
+N2840 G0 X150.000 ; Výjezd nad konturu
+N2850 G0 Z5.000
+N2860 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -2136,7 +2131,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
     "L (41.98,19.05)->(41.98,0.00)",
     "L (41.98,0.00)->(39.30,-10.00) {ins}",
   ],
-  "passCount": 35,
+  "passCount": 33,
   "passTags": [
     "long",
     "long",
@@ -2171,8 +2166,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
-    "long{ramp,contourLeadOut,blocked}",
-    "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
 `;
@@ -2182,6 +2175,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
 
@@ -2537,55 +2532,39 @@ N3040 G1 Z183.477 F0.25
 N3050 G1 X20.856 Z182.987 F0.25
 N3060 G3 X22.012 Z182.477 CR=8.660 F0.25
 N3070 G1 X24.012 Z184.477
-; Průchod 42 (oblouk G3)
-N3080 G0 X21.121 Z197.814
-N3090 G1 X18.921 F0.25
-N3100 G1 X16.978 Z190.563 ; Rampa 15.0°
-N3110 G1 Z184.367 F0.25
-N3120 G1 X19.506 Z183.467 F0.25
-N3130 G1 X21.506 Z185.467
-; Průchod 43 (zanoření v kapse)
-N3140 G1 X23.506 Z187.467
-N3150 G0 Z190.563
-N3160 G0 X19.178
-N3170 G1 X16.978 F0.25
-N3180 G1 X15.475 Z184.953 ; Rampa 15.0°
-N3190 G1 Z184.903 F0.25
-N3200 G1 X17.019 Z184.353 F0.25
-N3210 G1 X19.019 Z186.353
-N3220 G0 X150.000 ; Výjezd nad konturu
-N3230 G0 Z5.000
+N3080 G0 X150.000 ; Výjezd nad konturu
+N3090 G0 Z5.000
 ; --- DOKONCOVANI ---
-N3240 G0 Z264.678
-N3250 G0 X2.000
-N3260 G1 X0.000 Z257.214 F0.25
-N3270 G1 X31.140 Z257.214
-N3280 G1 X31.140 Z238.838
-N3290 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
-N3300 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3310 G0 Z189.509
-N3320 G0 X22.521
-N3330 G1 X20.521 Z182.044
-N3340 G3 X25.611 Z174.828 CR=7.660
-N3350 G1 X25.611 Z161.764
-N3360 G1 X34.397 Z146.545
-N3370 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3380 G0 Z118.003
-N3390 G0 X37.412
-N3400 G1 X35.412 Z110.538
-N3410 G3 X38.810 Z105.008 CR=6.200
-N3420 G1 X38.810 Z70.607
-N3430 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
-N3440 G0 X93.011 ; Výjezd nad konturu
-N3450 G0 Z31.172
-N3460 G0 X43.004
-N3470 G1 X41.004 Z23.708
-N3480 G3 X43.178 Z19.054 CR=6.069
-N3490 G1 X43.178 Z0.000
-N3500 G1 X43.178 Z-8.000 ; Rovný průměr (zbytek nejde dokončit celý)
-N3510 G0 X150.000 ; Výjezd nad konturu
-N3520 G0 Z5.000
-N3530 M30 ; Konec programu
+N3100 G0 Z264.678
+N3110 G0 X2.000
+N3120 G1 X0.000 Z257.214 F0.25
+N3130 G1 X31.140 Z257.214
+N3140 G1 X31.140 Z238.838
+N3150 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
+N3160 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N3170 G0 Z189.509
+N3180 G0 X22.521
+N3190 G1 X20.521 Z182.044
+N3200 G3 X25.611 Z174.828 CR=7.660
+N3210 G1 X25.611 Z161.764
+N3220 G1 X34.397 Z146.545
+N3230 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N3240 G0 Z118.003
+N3250 G0 X37.412
+N3260 G1 X35.412 Z110.538
+N3270 G3 X38.810 Z105.008 CR=6.200
+N3280 G1 X38.810 Z70.607
+N3290 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
+N3300 G0 X93.011 ; Výjezd nad konturu
+N3310 G0 Z31.172
+N3320 G0 X43.004
+N3330 G1 X41.004 Z23.708
+N3340 G3 X43.178 Z19.054 CR=6.069
+N3350 G1 X43.178 Z0.000
+N3360 G1 X43.178 Z-8.000 ; Rovný průměr (zbytek nejde dokončit celý)
+N3370 G0 X150.000 ; Výjezd nad konturu
+N3380 G0 Z5.000
+N3390 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -2640,7 +2619,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
     "L (41.98,19.05)->(41.98,0.00)",
     "L (41.98,0.00)->(39.30,-10.00) {ins}",
   ],
-  "passCount": 43,
+  "passCount": 41,
   "passTags": [
     "long",
     "long",
@@ -2683,8 +2662,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
-    "long{ramp,contourLeadOut,blocked}",
-    "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
 `;
@@ -2694,6 +2671,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
 
@@ -3049,55 +3028,39 @@ N3040 G1 Z183.477 F0.25
 N3050 G1 X20.856 Z182.987 F0.25
 N3060 G3 X22.012 Z182.477 CR=8.660 F0.25
 N3070 G1 X24.012 Z184.477
-; Průchod 42 (oblouk G3)
-N3080 G0 X21.121 Z197.814
-N3090 G1 X18.921 F0.25
-N3100 G1 X16.978 Z190.563 ; Rampa 15.0°
-N3110 G1 Z184.367 F0.25
-N3120 G1 X19.506 Z183.467 F0.25
-N3130 G1 X21.506 Z185.467
-; Průchod 43 (zanoření v kapse)
-N3140 G1 X23.506 Z187.467
-N3150 G0 Z190.563
-N3160 G0 X19.178
-N3170 G1 X16.978 F0.25
-N3180 G1 X15.475 Z184.953 ; Rampa 15.0°
-N3190 G1 Z184.903 F0.25
-N3200 G1 X17.019 Z184.353 F0.25
-N3210 G1 X19.019 Z186.353
-N3220 G0 X150.000 ; Výjezd nad konturu
-N3230 G0 Z5.000
+N3080 G0 X150.000 ; Výjezd nad konturu
+N3090 G0 Z5.000
 ; --- DOKONCOVANI ---
-N3240 G0 Z264.678
-N3250 G0 X2.000
-N3260 G1 X0.000 Z257.214 F0.25
-N3270 G1 X31.140 Z257.214
-N3280 G1 X31.140 Z238.838
-N3290 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
-N3300 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3310 G0 Z189.509
-N3320 G0 X22.521
-N3330 G1 X20.521 Z182.044
-N3340 G3 X25.611 Z174.828 CR=7.660
-N3350 G1 X25.611 Z161.764
-N3360 G1 X34.397 Z146.545
-N3370 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3380 G0 Z118.003
-N3390 G0 X37.412
-N3400 G1 X35.412 Z110.538
-N3410 G3 X38.810 Z105.008 CR=6.200
-N3420 G1 X38.810 Z70.607
-N3430 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
-N3440 G0 X93.011 ; Výjezd nad konturu
-N3450 G0 Z31.172
-N3460 G0 X43.004
-N3470 G1 X41.004 Z23.708
-N3480 G3 X43.178 Z19.054 CR=6.069
-N3490 G1 X43.178 Z0.000
-N3500 G1 X43.178 Z-8.000 ; Rovný průměr (zbytek nejde dokončit celý)
-N3510 G0 X150.000 ; Výjezd nad konturu
-N3520 G0 Z5.000
-N3530 M30 ; Konec programu
+N3100 G0 Z264.678
+N3110 G0 X2.000
+N3120 G1 X0.000 Z257.214 F0.25
+N3130 G1 X31.140 Z257.214
+N3140 G1 X31.140 Z238.838
+N3150 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
+N3160 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N3170 G0 Z189.509
+N3180 G0 X22.521
+N3190 G1 X20.521 Z182.044
+N3200 G3 X25.611 Z174.828 CR=7.660
+N3210 G1 X25.611 Z161.764
+N3220 G1 X34.397 Z146.545
+N3230 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N3240 G0 Z118.003
+N3250 G0 X37.412
+N3260 G1 X35.412 Z110.538
+N3270 G3 X38.810 Z105.008 CR=6.200
+N3280 G1 X38.810 Z70.607
+N3290 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
+N3300 G0 X93.011 ; Výjezd nad konturu
+N3310 G0 Z31.172
+N3320 G0 X43.004
+N3330 G1 X41.004 Z23.708
+N3340 G3 X43.178 Z19.054 CR=6.069
+N3350 G1 X43.178 Z0.000
+N3360 G1 X43.178 Z-8.000 ; Rovný průměr (zbytek nejde dokončit celý)
+N3370 G0 X150.000 ; Výjezd nad konturu
+N3380 G0 Z5.000
+N3390 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -3152,7 +3115,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
     "L (41.98,19.05)->(41.98,0.00)",
     "L (41.98,0.00)->(39.30,-10.00) {ins}",
   ],
-  "passCount": 43,
+  "passCount": 41,
   "passTags": [
     "long",
     "long",
@@ -3195,8 +3158,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
-    "long{ramp,contourLeadOut,blocked}",
-    "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
 `;
@@ -3206,6 +3167,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
 
@@ -3965,55 +3928,39 @@ N2980 G1 Z183.477 F0.25
 N2990 G1 X20.856 Z182.987 F0.25
 N3000 G3 X22.012 Z182.477 CR=8.660 F0.25
 N3010 G1 X24.012 Z184.477
-; Průchod 41 (oblouk G3)
-N3020 G0 X21.121 Z197.814
-N3030 G1 X18.921 F0.25
-N3040 G1 X16.978 Z190.563 ; Rampa 15.0°
-N3050 G1 Z184.367 F0.25
-N3060 G1 X19.506 Z183.467 F0.25
-N3070 G1 X21.506 Z185.467
-; Průchod 42 (zanoření v kapse)
-N3080 G1 X23.506 Z187.467
-N3090 G0 Z190.563
-N3100 G0 X19.178
-N3110 G1 X16.978 F0.25
-N3120 G1 X15.475 Z184.953 ; Rampa 15.0°
-N3130 G1 Z184.903 F0.25
-N3140 G1 X17.019 Z184.353 F0.25
-N3150 G1 X19.019 Z186.353
-N3160 G0 X150.000 ; Výjezd nad konturu
-N3170 G0 Z5.000
+N3020 G0 X150.000 ; Výjezd nad konturu
+N3030 G0 Z5.000
 ; --- DOKONCOVANI ---
-N3180 G0 Z264.678
-N3190 G0 X2.000
-N3200 G1 X0.000 Z257.214 F0.25
-N3210 G1 X31.140 Z257.214
-N3220 G1 X31.140 Z238.838
-N3230 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
-N3240 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3250 G0 Z189.509
-N3260 G0 X22.521
-N3270 G1 X20.521 Z182.044
-N3280 G3 X25.611 Z174.828 CR=7.660
-N3290 G1 X25.611 Z161.764
-N3300 G1 X34.397 Z146.545
-N3310 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3320 G0 Z118.003
-N3330 G0 X37.412
-N3340 G1 X35.412 Z110.538
-N3350 G3 X38.810 Z105.008 CR=6.200
-N3360 G1 X38.810 Z70.607
-N3370 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
-N3380 G0 X93.011 ; Výjezd nad konturu
-N3390 G0 Z31.172
-N3400 G0 X43.004
-N3410 G1 X41.004 Z23.708
-N3420 G3 X43.178 Z19.054 CR=6.069
-N3430 G1 X43.178 Z0.000
-N3440 G1 X43.178 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
-N3450 G0 X150.000 ; Výjezd nad konturu
-N3460 G0 Z5.000
-N3470 M30 ; Konec programu
+N3040 G0 Z264.678
+N3050 G0 X2.000
+N3060 G1 X0.000 Z257.214 F0.25
+N3070 G1 X31.140 Z257.214
+N3080 G1 X31.140 Z238.838
+N3090 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
+N3100 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N3110 G0 Z189.509
+N3120 G0 X22.521
+N3130 G1 X20.521 Z182.044
+N3140 G3 X25.611 Z174.828 CR=7.660
+N3150 G1 X25.611 Z161.764
+N3160 G1 X34.397 Z146.545
+N3170 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N3180 G0 Z118.003
+N3190 G0 X37.412
+N3200 G1 X35.412 Z110.538
+N3210 G3 X38.810 Z105.008 CR=6.200
+N3220 G1 X38.810 Z70.607
+N3230 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
+N3240 G0 X93.011 ; Výjezd nad konturu
+N3250 G0 Z31.172
+N3260 G0 X43.004
+N3270 G1 X41.004 Z23.708
+N3280 G3 X43.178 Z19.054 CR=6.069
+N3290 G1 X43.178 Z0.000
+N3300 G1 X43.178 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
+N3310 G0 X150.000 ; Výjezd nad konturu
+N3320 G0 Z5.000
+N3330 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -4068,7 +4015,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
     "L (41.98,19.05)->(41.98,0.00)",
     "L (41.98,0.00)->(41.72,-0.97) {ins}",
   ],
-  "passCount": 42,
+  "passCount": 40,
   "passTags": [
     "long",
     "long",
@@ -4110,8 +4057,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
-    "long{ramp,contourLeadOut,blocked}",
-    "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
 `;
@@ -4121,6 +4066,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
+  "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
 
@@ -4410,31 +4357,31 @@ N2440 G1 X45.919 Z14.582 F0.25
 N2450 G3 X47.536 Z14.403 CR=11.023 F0.25
 N2460 G1 X51.536 Z16.403
 ; Průchod 36 (oblouk G3)
-N2470 G0 X45.876 Z32.803
+N2470 G0 X45.876 Z34.303
 N2480 G1 X42.276 F0.25
-N2490 G1 X39.146 Z26.962 ; Rampa 15.0°
+N2490 G1 X39.146 Z28.462 ; Rampa 15.0°
 N2500 G1 Z15.489 F0.25
 N2510 G1 X43.251 Z14.939 F0.25
 N2520 G1 X47.251 Z16.939
 ; Průchod 37 (zanoření v kapse)
 N2530 G1 X51.251 Z18.939
-N2540 G0 Z26.962
+N2540 G0 Z28.462
 N2550 G0 X42.746
 N2560 G1 X39.146 F0.25
-N2570 G1 X35.146 Z19.498 ; Rampa 15.0°
+N2570 G1 X35.146 Z20.998 ; Rampa 15.0°
 N2580 G1 Z16.025 F0.25
 N2590 G1 X39.251 Z15.475 F0.25
 N2600 G1 X43.251 Z17.475
 ; Průchod 38 (zanoření v kapse)
 N2610 G1 X47.251 Z19.475
-N2620 G0 Z19.498
+N2620 G0 Z20.998
 N2630 G0 X38.746
 N2640 G1 X35.146 F0.25
-N2650 G1 X33.549 Z16.518 ; Rampa 15.0°
-N2660 G1 Z16.468 F0.25
+N2650 G1 X32.871 Z16.753 ; Rampa 15.0°
+N2660 G1 Z16.703 F0.25
 N2670 G2 X34.911 Z16.056 CR=8.640 F0.25
-N2680 G1 X35.199 Z16.018 F0.25
-N2690 G1 X39.199 Z18.018
+N2680 G1 X35.309 Z16.003 F0.25
+N2690 G1 X39.309 Z18.003
 N2700 G0 X150.000 ; Výjezd nad konturu
 N2710 G0 Z5.000
 N2720 M30 ; Konec programu
@@ -4680,123 +4627,117 @@ N1180 G0 X19.545
 N1190 G1 Z101.519 F0.25
 N1200 G1 Z109.701 F0.25
 N1210 G1 X21.545 Z107.701
-; Průchod 17 (oblouk G3)
-N1220 G1 X20.193 Z101.750 F0.25
-N1230 G1 X18.204 Z109.172 ; Rampa 15.0°
-N1240 G1 Z109.222 F0.25
-N1250 G1 X20.289 Z109.972 F0.25
-N1260 G1 X22.289 Z107.972
+; Průchod 17
+N1220 G0 X68.591 ; Výjezd nad konturu
+N1230 G0 Z194.478
+N1240 G0 X60.545
+N1250 G1 Z196.278 F0.25
+N1260 G1 Z257.658 F0.25
+N1270 G1 Z258.720 F0.25
+N1280 G1 X62.545 Z256.720
 ; Průchod 18
-N1270 G0 X68.591 ; Výjezd nad konturu
-N1280 G0 Z194.478
-N1290 G0 X60.545
-N1300 G1 Z196.278 F0.25
-N1310 G1 Z257.658 F0.25
-N1320 G1 Z258.720 F0.25
-N1330 G1 X62.545 Z256.720
+N1290 G0 Z194.478
+N1300 G0 X59.545
+N1310 G1 Z196.278 F0.25
+N1320 G1 Z258.016 F0.25
+N1330 G1 Z259.078 F0.25
+N1340 G1 X61.545 Z257.078
 ; Průchod 19
-N1340 G0 Z194.478
-N1350 G0 X59.545
-N1360 G1 Z196.278 F0.25
-N1370 G1 Z258.016 F0.25
-N1380 G1 Z259.078 F0.25
-N1390 G1 X61.545 Z257.078
-; Průchod 20
-N1400 G0 Z194.478
-N1410 G0 X54.545
-N1420 G1 Z196.278 F0.25
-N1430 G1 Z259.804 F0.25
-N1440 G1 Z260.866 F0.25
-N1450 G1 X56.545 Z258.866
-; Průchod 21 (bez schodků)
-N1460 G0 Z194.478
-N1470 G0 X49.545
-N1480 G1 Z196.278 F0.25
-N1490 G1 Z219.554 F0.25
-N1500 G1 X51.281 Z220.207 F0.25
-N1510 G1 X51.281 Z235.174 F0.25
-N1520 G1 X51.273 Z235.204 F0.25
-N1530 G1 X49.545 Z241.653 F0.25
-N1540 G1 X49.545 Z261.591 F0.25
-N1550 G1 Z262.653 F0.25
-N1560 G1 X51.545 Z260.653
-; Průchod 22
-N1570 G0 Z193.478
-N1580 G0 X44.545
-N1590 G1 Z195.278 F0.25
-N1600 G1 Z217.695 F0.25
-N1610 G1 X46.545 Z215.695
-; Průchod 23 (oblouk G3)
-N1620 G0 X68.591 ; Výjezd nad konturu
-N1630 G0 Z241.653
-N1640 G0 X51.345
-N1650 G1 X49.545 F0.25
-N1660 G1 X44.545 Z260.313 ; Rampa 15.0°
-N1670 G1 Z264.441 F0.25
-; Průchod 24 (zanoření v kapse)
-N1680 G1 X46.545 Z262.441
-N1690 G0 Z260.313
-N1700 G0 X46.345
-N1710 G1 X44.545 F0.25
-N1720 G1 X43.234 Z265.204 ; Rampa 15.0°
-N1730 G1 X45.234 Z263.204
+N1350 G0 Z194.478
+N1360 G0 X54.545
+N1370 G1 Z196.278 F0.25
+N1380 G1 Z259.804 F0.25
+N1390 G1 Z260.866 F0.25
+N1400 G1 X56.545 Z258.866
+; Průchod 20 (bez schodků)
+N1410 G0 Z194.478
+N1420 G0 X49.545
+N1430 G1 Z196.278 F0.25
+N1440 G1 Z219.554 F0.25
+N1450 G1 X51.281 Z220.207 F0.25
+N1460 G1 X51.281 Z235.174 F0.25
+N1470 G1 X51.273 Z235.204 F0.25
+N1480 G1 X49.545 Z241.653 F0.25
+N1490 G1 X49.545 Z261.591 F0.25
+N1500 G1 Z262.653 F0.25
+N1510 G1 X51.545 Z260.653
+; Průchod 21
+N1520 G0 Z193.478
+N1530 G0 X44.545
+N1540 G1 Z195.278 F0.25
+N1550 G1 Z217.695 F0.25
+N1560 G1 X46.545 Z215.695
+; Průchod 22 (oblouk G3)
+N1570 G0 X68.591 ; Výjezd nad konturu
+N1580 G0 Z241.653
+N1590 G0 X51.345
+N1600 G1 X49.545 F0.25
+N1610 G1 X44.545 Z260.313 ; Rampa 15.0°
+N1620 G1 Z264.441 F0.25
+; Průchod 23 (zanoření v kapse)
+N1630 G1 X46.545 Z262.441
+N1640 G0 Z260.313
+N1650 G0 X46.345
+N1660 G1 X44.545 F0.25
+N1670 G1 X43.234 Z265.204 ; Rampa 15.0°
+N1680 G1 X45.234 Z263.204
+; Průchod 24
+N1690 G0 X68.591 ; Výjezd nad konturu
+N1700 G0 Z193.478
+N1710 G0 X39.545
+N1720 G1 Z195.278 F0.25
+N1730 G1 Z215.835 F0.25
+N1740 G1 X41.545 Z213.835
 ; Průchod 25
-N1740 G0 X68.591 ; Výjezd nad konturu
 N1750 G0 Z193.478
-N1760 G0 X39.545
+N1760 G0 X34.545
 N1770 G1 Z195.278 F0.25
-N1780 G1 Z215.835 F0.25
-N1790 G1 X41.545 Z213.835
+N1780 G1 Z213.975 F0.25
+N1790 G1 X36.545 Z211.975
 ; Průchod 26
 N1800 G0 Z193.478
-N1810 G0 X34.545
+N1810 G0 X29.545
 N1820 G1 Z195.278 F0.25
-N1830 G1 Z213.975 F0.25
-N1840 G1 X36.545 Z211.975
+N1830 G1 Z212.116 F0.25
+N1840 G1 X31.545 Z210.116
 ; Průchod 27
 N1850 G0 Z193.478
-N1860 G0 X29.545
+N1860 G0 X24.545
 N1870 G1 Z195.278 F0.25
-N1880 G1 Z212.116 F0.25
-N1890 G1 X31.545 Z210.116
+N1880 G1 Z210.256 F0.25
+N1890 G1 X26.545 Z208.256
 ; Průchod 28
 N1900 G0 Z193.478
-N1910 G0 X24.545
+N1910 G0 X19.545
 N1920 G1 Z195.278 F0.25
-N1930 G1 Z210.256 F0.25
-N1940 G1 X26.545 Z208.256
-; Průchod 29
-N1950 G0 Z193.478
-N1960 G0 X19.545
-N1970 G1 Z195.278 F0.25
-N1980 G1 Z208.396 F0.25
-N1990 G1 X21.545 Z206.396
-; Průchod 30 (oblouk G3)
-N2000 G0 X19.543 Z167.500
-N2010 G1 X17.743 F0.25
-N2020 G1 X14.545 Z179.435 ; Rampa 15.0°
-N2030 G1 Z206.537 F0.25
-N2040 G1 X16.545 Z204.537
+N1930 G1 Z208.396 F0.25
+N1940 G1 X21.545 Z206.396
+; Průchod 29 (oblouk G3)
+N1950 G0 X19.543 Z166.750
+N1960 G1 X17.743 F0.25
+N1970 G1 X14.545 Z178.685 ; Rampa 15.0°
+N1980 G1 Z206.537 F0.25
+N1990 G1 X16.545 Z204.537
+; Průchod 30 (zanoření v kapse)
+N2000 G1 X18.545 Z202.537
+N2010 G0 Z178.685
+N2020 G0 X16.345
+N2030 G1 X14.545 F0.25
+N2040 G1 X9.545 Z197.345 ; Rampa 15.0°
+N2050 G1 Z204.677 F0.25
+N2060 G1 X11.545 Z202.677
 ; Průchod 31 (zanoření v kapse)
-N2050 G1 X18.545 Z202.537
-N2060 G0 Z179.435
-N2070 G0 X16.345
-N2080 G1 X14.545 F0.25
-N2090 G1 X9.545 Z198.095 ; Rampa 15.0°
-N2100 G1 Z204.677 F0.25
-N2110 G1 X11.545 Z202.677
-; Průchod 32 (zanoření v kapse)
-N2120 G1 X13.545 Z200.677
-N2130 G0 Z198.095
-N2140 G0 X11.345
-N2150 G1 X9.545 F0.25
-N2160 G1 X8.232 Z202.995 ; Rampa 15.0°
-N2170 G1 Z204.181 F0.25
-N2180 G1 X9.555 Z204.681 F0.25
-N2190 G1 X11.555 Z202.681
-N2200 G0 X150.000 ; Výjezd nad konturu
-N2210 G0 Z5.000
-N2220 M30 ; Konec programu
+N2070 G1 X13.545 Z200.677
+N2080 G0 Z197.345
+N2090 G0 X11.345
+N2100 G1 X9.545 F0.25
+N2110 G1 X8.232 Z202.245 ; Rampa 15.0°
+N2120 G1 Z204.181 F0.25
+N2130 G1 X9.555 Z204.681 F0.25
+N2140 G1 X11.555 Z202.681
+N2150 G0 X150.000 ; Výjezd nad konturu
+N2160 G0 Z5.000
+N2170 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -4866,7 +4807,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(-0.26,-8.26) {ins}",
   ],
-  "passCount": 32,
+  "passCount": 31,
   "passTags": [
     "long{backside}",
     "long{contourLeadOut,backside,blocked}",
@@ -4884,7 +4825,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
     "long{backside,blocked}",
     "long{backside,blocked}",
     "long{backside,blocked}",
-    "long{ramp,contourLeadOut,backside,blocked}",
     "long{backside}",
     "long{backside}",
     "long{backside}",
@@ -4907,8 +4847,9 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
 exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 11 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
-  "Hlídání geometrie (držák): 6 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání geometrie (držák): 5 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 7 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 102 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
 `;
@@ -5054,117 +4995,120 @@ N1180 G0 X19.545
 N1190 G1 Z101.519 F0.25
 N1200 G1 Z109.701 F0.25
 N1210 G1 X21.545 Z107.701
-; Průchod 17 (oblouk G3)
-N1220 G1 X20.193 Z101.750 F0.25
-N1230 G1 X18.204 Z109.172 ; Rampa 15.0°
-N1240 G1 Z109.222 F0.25
-N1250 G1 X20.289 Z109.972 F0.25
-N1260 G1 X22.289 Z107.972
+; Průchod 17
+N1220 G0 X68.591 ; Výjezd nad konturu
+N1230 G0 Z194.478
+N1240 G0 X60.545
+N1250 G1 Z196.278 F0.25
+N1260 G1 Z257.658 F0.25
+N1270 G1 Z258.720 F0.25
+N1280 G1 X62.545 Z256.720
 ; Průchod 18
-N1270 G0 X68.591 ; Výjezd nad konturu
-N1280 G0 Z194.478
-N1290 G0 X60.545
-N1300 G1 Z196.278 F0.25
-N1310 G1 Z257.658 F0.25
-N1320 G1 Z258.720 F0.25
-N1330 G1 X62.545 Z256.720
+N1290 G0 Z194.478
+N1300 G0 X59.545
+N1310 G1 Z196.278 F0.25
+N1320 G1 Z258.016 F0.25
+N1330 G1 Z259.078 F0.25
+N1340 G1 X61.545 Z257.078
 ; Průchod 19
-N1340 G0 Z194.478
-N1350 G0 X59.545
-N1360 G1 Z196.278 F0.25
-N1370 G1 Z258.016 F0.25
-N1380 G1 Z259.078 F0.25
-N1390 G1 X61.545 Z257.078
-; Průchod 20
-N1400 G0 Z194.478
-N1410 G0 X54.545
-N1420 G1 Z196.278 F0.25
-N1430 G1 Z259.804 F0.25
-N1440 G1 Z260.866 F0.25
-N1450 G1 X56.545 Z258.866
-; Průchod 21 (bez schodků)
-N1460 G0 Z194.478
-N1470 G0 X49.545
-N1480 G1 Z196.278 F0.25
-N1490 G1 Z219.550 F0.25
-N1500 G1 X51.281 Z220.210 F0.25
-N1510 G1 X51.281 Z235.174 F0.25
-N1520 G1 X51.274 Z235.200 F0.25
-N1530 G1 X49.545 Z241.653 F0.25
-N1540 G1 X49.545 Z261.591 F0.25
-N1550 G1 Z262.653 F0.25
-N1560 G1 X51.545 Z260.653
-; Průchod 22
-N1570 G0 Z193.478
-N1580 G0 X44.545
-N1590 G1 Z195.278 F0.25
-N1600 G1 Z217.679 F0.25
-N1610 G1 X46.545 Z215.679
-; Průchod 23 (oblouk G3)
-N1620 G0 X68.591 ; Výjezd nad konturu
-N1630 G0 Z241.653
-N1640 G0 X51.345
-N1650 G1 X49.545 F0.25
-N1660 G1 X44.545 Z260.313 ; Rampa 15.0°
-N1670 G1 Z264.441 F0.25
-; Průchod 24 (zanoření v kapse)
-N1680 G1 X46.545 Z262.441
-N1690 G0 Z260.313
-N1700 G0 X46.345
-N1710 G1 X44.545 F0.25
-N1720 G1 X43.235 Z265.200 ; Rampa 15.0°
-N1730 G1 X45.235 Z263.200
+N1350 G0 Z194.478
+N1360 G0 X54.545
+N1370 G1 Z196.278 F0.25
+N1380 G1 Z259.804 F0.25
+N1390 G1 Z260.866 F0.25
+N1400 G1 X56.545 Z258.866
+; Průchod 20 (bez schodků)
+N1410 G0 Z194.478
+N1420 G0 X49.545
+N1430 G1 Z196.278 F0.25
+N1440 G1 Z219.550 F0.25
+N1450 G1 X51.281 Z220.210 F0.25
+N1460 G1 X51.281 Z235.174 F0.25
+N1470 G1 X51.274 Z235.200 F0.25
+N1480 G1 X49.545 Z241.653 F0.25
+N1490 G1 X49.545 Z261.591 F0.25
+N1500 G1 Z262.653 F0.25
+N1510 G1 X51.545 Z260.653
+; Průchod 21
+N1520 G0 Z193.478
+N1530 G0 X44.545
+N1540 G1 Z195.278 F0.25
+N1550 G1 Z217.679 F0.25
+N1560 G1 X46.545 Z215.679
+; Průchod 22 (oblouk G3)
+N1570 G0 X68.591 ; Výjezd nad konturu
+N1580 G0 Z241.653
+N1590 G0 X51.345
+N1600 G1 X49.545 F0.25
+N1610 G1 X44.545 Z260.313 ; Rampa 15.0°
+N1620 G1 Z264.441 F0.25
+; Průchod 23 (zanoření v kapse)
+N1630 G1 X46.545 Z262.441
+N1640 G0 Z260.313
+N1650 G0 X46.345
+N1660 G1 X44.545 F0.25
+N1670 G1 X43.235 Z265.200 ; Rampa 15.0°
+N1680 G1 X45.235 Z263.200
+; Průchod 24
+N1690 G0 X68.591 ; Výjezd nad konturu
+N1700 G0 Z193.478
+N1710 G0 X39.545
+N1720 G1 Z195.278 F0.25
+N1730 G1 Z215.807 F0.25
+N1740 G1 X41.545 Z213.807
 ; Průchod 25
-N1740 G0 X68.591 ; Výjezd nad konturu
 N1750 G0 Z193.478
-N1760 G0 X39.545
+N1760 G0 X34.545
 N1770 G1 Z195.278 F0.25
-N1780 G1 Z215.807 F0.25
-N1790 G1 X41.545 Z213.807
-; Průchod 26
+N1780 G1 Z213.935 F0.25
+N1790 G1 X36.545 Z211.935
+; Průchod 26 (bez schodků)
 N1800 G0 Z193.478
-N1810 G0 X34.545
+N1810 G0 X29.545
 N1820 G1 Z195.278 F0.25
-N1830 G1 Z213.935 F0.25
-N1840 G1 X36.545 Z211.935
-; Průchod 27 (bez schodků)
-N1850 G0 Z193.478
-N1860 G0 X29.545
-N1870 G1 Z195.278 F0.25
-N1880 G1 Z203.506 F0.25
-N1890 G1 X31.356 Z203.992 F0.25
-N1900 G1 X31.356 Z212.742 F0.25
-N1910 G1 X34.597 Z213.956 F0.25
-N1920 G1 X36.597 Z211.956
+N1830 G1 Z203.506 F0.25
+N1840 G1 X31.356 Z203.992 F0.25
+N1850 G1 X31.356 Z212.742 F0.25
+N1860 G1 X34.597 Z213.956 F0.25
+N1870 G1 X36.597 Z211.956
+; Průchod 27
+N1880 G0 Z193.478
+N1890 G0 X24.545
+N1900 G1 Z195.278 F0.25
+N1910 G1 Z202.167 F0.25
+N1920 G1 X26.545 Z200.167
 ; Průchod 28
 N1930 G0 Z193.478
-N1940 G0 X24.545
+N1940 G0 X19.545
 N1950 G1 Z195.278 F0.25
-N1960 G1 Z202.167 F0.25
-N1970 G1 X26.545 Z200.167
-; Průchod 29
-N1980 G0 Z193.478
-N1990 G0 X19.545
-N2000 G1 Z195.278 F0.25
-N2010 G1 Z200.827 F0.25
-N2020 G1 X21.545 Z198.827
-; Průchod 30 (oblouk G3)
-N2030 G0 X19.543 Z167.500
-N2040 G1 X17.743 F0.25
-N2050 G1 X14.545 Z179.435 ; Rampa 15.0°
-N2060 G1 Z199.487 F0.25
-N2070 G1 X16.545 Z197.487
+N1960 G1 Z200.827 F0.25
+N1970 G1 X21.545 Z198.827
+; Průchod 29 (oblouk G3)
+N1980 G0 X19.543 Z166.750
+N1990 G1 X17.743 F0.25
+N2000 G1 X14.545 Z178.685 ; Rampa 15.0°
+N2010 G1 Z199.487 F0.25
+N2020 G1 X16.545 Z197.487
+; Průchod 30 (zanoření v kapse)
+N2030 G1 X18.545 Z195.487
+N2040 G0 Z178.685
+N2050 G0 X16.345
+N2060 G1 X14.545 F0.25
+N2070 G1 X9.545 Z197.345 ; Rampa 15.0°
+N2080 G1 Z198.147 F0.25
+N2090 G1 X11.545 Z196.147
 ; Průchod 31 (zanoření v kapse)
-N2080 G1 X18.545 Z195.487
-N2090 G0 Z179.435
-N2100 G0 X16.345
-N2110 G1 X14.545 F0.25
-N2120 G1 X9.545 Z198.095 ; Rampa 15.0°
-N2130 G1 Z198.147 F0.25
-N2140 G1 X11.545 Z196.147
-N2150 G0 X150.000 ; Výjezd nad konturu
-N2160 G0 Z5.000
-N2170 M30 ; Konec programu
+N2100 G1 X13.545 Z194.147
+N2110 G0 Z197.345
+N2120 G0 X11.345
+N2130 G1 X9.545 F0.25
+N2140 G1 X9.357 Z198.047 ; Rampa 15.0°
+N2150 G1 Z198.097 F0.25
+N2160 G1 X9.730 Z198.197 F0.25
+N2170 G1 X11.730 Z196.197
+N2180 G0 X150.000 ; Výjezd nad konturu
+N2190 G0 Z5.000
+N2200 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -5257,7 +5201,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
     "long{backside,blocked}",
     "long{backside,blocked}",
     "long{backside,blocked}",
-    "long{ramp,contourLeadOut,backside,blocked}",
     "long{backside}",
     "long{backside}",
     "long{backside}",
@@ -5272,6 +5215,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
     "long{backside,blocked}",
     "long{ramp,backside,blocked}",
     "long{pocketReposition,ramp,backside,blocked}",
+    "long{pocketReposition,ramp,contourLeadOut,backside,blocked}",
   ],
 }
 `;
@@ -5279,8 +5223,9 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
-  "Hlídání geometrie (držák): 2 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání geometrie (držák): 1 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 7 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 102 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
 `;
@@ -5621,156 +5566,158 @@ N1280 G1 Z101.519 F0.25
 N1290 G1 Z109.701 F0.25
 N1300 G1 X24.576 Z111.501 F0.25
 N1310 G1 X26.576 Z109.501
-; Průchod 17 (oblouk G3)
-N1320 G0 X21.993 Z101.750
-N1330 G1 X20.193 F0.25
-N1340 G1 X18.204 Z109.172 ; Rampa 15.0°
-N1350 G1 Z109.222 F0.25
-N1360 G1 X20.289 Z109.972 F0.25
-N1370 G1 X22.289 Z107.972
+; Průchod 17
+N1320 G0 X69.217 ; Výjezd nad konturu
+N1330 G0 Z194.478
+N1340 G0 X60.545
+N1350 G1 Z196.278 F0.25
+N1360 G1 Z257.658 F0.25
+N1370 G1 Z258.720 F0.25
+N1380 G1 X62.545 Z256.720
 ; Průchod 18
-N1380 G0 X69.217 ; Výjezd nad konturu
 N1390 G0 Z194.478
-N1400 G0 X60.545
+N1400 G0 X59.545
 N1410 G1 Z196.278 F0.25
-N1420 G1 Z257.658 F0.25
-N1430 G1 Z258.720 F0.25
-N1440 G1 X62.545 Z256.720
+N1420 G1 Z258.016 F0.25
+N1430 G1 Z259.078 F0.25
+N1440 G1 X61.545 Z257.078
 ; Průchod 19
 N1450 G0 Z194.478
-N1460 G0 X59.545
+N1460 G0 X54.545
 N1470 G1 Z196.278 F0.25
-N1480 G1 Z258.016 F0.25
-N1490 G1 Z259.078 F0.25
-N1500 G1 X61.545 Z257.078
-; Průchod 20
+N1480 G1 Z259.804 F0.25
+N1490 G1 Z260.866 F0.25
+N1500 G1 X56.545 Z258.866
+; Průchod 20 (bez schodků)
 N1510 G0 Z194.478
-N1520 G0 X54.545
+N1520 G0 X49.545
 N1530 G1 Z196.278 F0.25
-N1540 G1 Z259.804 F0.25
-N1550 G1 Z260.866 F0.25
-N1560 G1 X56.545 Z258.866
+N1540 G1 Z219.550 F0.25
+N1550 G1 X51.281 Z220.210 F0.25
+N1560 G1 X51.281 Z235.174 F0.25
+N1570 G1 X51.274 Z235.200 F0.25
+N1580 G1 X49.545 Z241.653 F0.25
+N1590 G1 X49.545 Z261.591 F0.25
+N1600 G1 Z262.653 F0.25
+N1610 G1 X51.545 Z260.653
 ; Průchod 21 (bez schodků)
-N1570 G0 Z194.478
-N1580 G0 X49.545
-N1590 G1 Z196.278 F0.25
-N1600 G1 Z219.550 F0.25
-N1610 G1 X51.281 Z220.210 F0.25
-N1620 G1 X51.281 Z235.174 F0.25
-N1630 G1 X51.274 Z235.200 F0.25
-N1640 G1 X49.545 Z241.653 F0.25
-N1650 G1 X49.545 Z261.591 F0.25
-N1660 G1 Z262.653 F0.25
-N1670 G1 X51.545 Z260.653
-; Průchod 22 (bez schodků)
-N1680 G0 Z193.478
-N1690 G0 X44.545
-N1700 G1 Z195.278 F0.25
-N1710 G1 Z217.679 F0.25
-N1720 G1 X49.597 Z219.579 F0.25
-N1730 G1 X51.597 Z217.579
-; Průchod 23 (oblouk G3)
-N1740 G0 X69.217 ; Výjezd nad konturu
-N1750 G0 Z241.653
-N1760 G0 X51.345
-N1770 G1 X49.545 F0.25
-N1780 G1 X44.545 Z260.313 ; Rampa 15.0°
-N1790 G1 Z264.441 F0.25
-; Průchod 24 (zanoření v kapse)
-N1800 G1 X46.545 Z262.441
-N1810 G0 Z260.313
-N1820 G0 X46.345
-N1830 G1 X44.545 F0.25
-N1840 G1 X43.235 Z265.200 ; Rampa 15.0°
-N1850 G1 X45.235 Z263.200
+N1620 G0 Z193.478
+N1630 G0 X44.545
+N1640 G1 Z195.278 F0.25
+N1650 G1 Z217.679 F0.25
+N1660 G1 X49.597 Z219.579 F0.25
+N1670 G1 X51.597 Z217.579
+; Průchod 22 (oblouk G3)
+N1680 G0 X69.217 ; Výjezd nad konturu
+N1690 G0 Z241.653
+N1700 G0 X51.345
+N1710 G1 X49.545 F0.25
+N1720 G1 X44.545 Z260.313 ; Rampa 15.0°
+N1730 G1 Z264.441 F0.25
+; Průchod 23 (zanoření v kapse)
+N1740 G1 X46.545 Z262.441
+N1750 G0 Z260.313
+N1760 G0 X46.345
+N1770 G1 X44.545 F0.25
+N1780 G1 X43.235 Z265.200 ; Rampa 15.0°
+N1790 G1 X45.235 Z263.200
+; Průchod 24 (bez schodků)
+N1800 G0 X69.217 ; Výjezd nad konturu
+N1810 G0 Z193.478
+N1820 G0 X39.545
+N1830 G1 Z195.278 F0.25
+N1840 G1 Z215.807 F0.25
+N1850 G1 X44.604 Z217.707 F0.25
+N1860 G1 X46.604 Z215.707
 ; Průchod 25 (bez schodků)
-N1860 G0 X69.217 ; Výjezd nad konturu
 N1870 G0 Z193.478
-N1880 G0 X39.545
+N1880 G0 X34.545
 N1890 G1 Z195.278 F0.25
-N1900 G1 Z215.807 F0.25
-N1910 G1 X44.604 Z217.707 F0.25
-N1920 G1 X46.604 Z215.707
+N1900 G1 Z213.935 F0.25
+N1910 G1 X39.610 Z215.835 F0.25
+N1920 G1 X41.610 Z213.835
 ; Průchod 26 (bez schodků)
 N1930 G0 Z193.478
-N1940 G0 X34.545
+N1940 G0 X29.545
 N1950 G1 Z195.278 F0.25
-N1960 G1 Z213.935 F0.25
-N1970 G1 X39.610 Z215.835 F0.25
-N1980 G1 X41.610 Z213.835
+N1960 G1 Z203.506 F0.25
+N1970 G1 X31.356 Z203.992 F0.25
+N1980 G1 X31.356 Z212.742 F0.25
+N1990 G1 X34.597 Z213.956 F0.25
+N2000 G1 X36.597 Z211.956
 ; Průchod 27 (bez schodků)
-N1990 G0 Z193.478
-N2000 G0 X29.545
-N2010 G1 Z195.278 F0.25
-N2020 G1 Z203.506 F0.25
-N2030 G1 X31.356 Z203.992 F0.25
-N2040 G1 X31.356 Z212.742 F0.25
-N2050 G1 X34.597 Z213.956 F0.25
-N2060 G1 X36.597 Z211.956
+N2010 G0 Z193.478
+N2020 G0 X24.545
+N2030 G1 Z195.278 F0.25
+N2040 G1 Z202.167 F0.25
+N2050 G1 X29.583 Z203.517 F0.25
+N2060 G1 X31.583 Z201.517
 ; Průchod 28 (bez schodků)
 N2070 G0 Z193.478
-N2080 G0 X24.545
+N2080 G0 X19.545
 N2090 G1 Z195.278 F0.25
-N2100 G1 Z202.167 F0.25
-N2110 G1 X29.583 Z203.517 F0.25
-N2120 G1 X31.583 Z201.517
-; Průchod 29 (bez schodků)
-N2130 G0 Z193.478
-N2140 G0 X19.545
-N2150 G1 Z195.278 F0.25
-N2160 G1 Z200.827 F0.25
-N2170 G1 X24.583 Z202.177 F0.25
-N2180 G1 X26.583 Z200.177
-; Průchod 30 (oblouk G3)
-N2190 G0 X19.543 Z167.500
-N2200 G1 X17.743 F0.25
-N2210 G1 X14.545 Z179.435 ; Rampa 15.0°
-N2220 G1 Z199.487 F0.25
-N2230 G1 X19.583 Z200.837 F0.25
-N2240 G1 X21.583 Z198.837
+N2100 G1 Z200.827 F0.25
+N2110 G1 X24.583 Z202.177 F0.25
+N2120 G1 X26.583 Z200.177
+; Průchod 29 (oblouk G3)
+N2130 G0 X19.543 Z166.750
+N2140 G1 X17.743 F0.25
+N2150 G1 X14.545 Z178.685 ; Rampa 15.0°
+N2160 G1 Z199.487 F0.25
+N2170 G1 X19.583 Z200.837 F0.25
+N2180 G1 X21.583 Z198.837
+; Průchod 30 (zanoření v kapse)
+N2190 G1 X23.583 Z196.837
+N2200 G0 Z178.685
+N2210 G0 X16.345
+N2220 G1 X14.545 F0.25
+N2230 G1 X9.545 Z197.345 ; Rampa 15.0°
+N2240 G1 Z198.147 F0.25
+N2250 G1 X14.583 Z199.497 F0.25
+N2260 G1 X16.583 Z197.497
 ; Průchod 31 (zanoření v kapse)
-N2250 G1 X23.583 Z196.837
-N2260 G0 Z179.435
-N2270 G0 X16.345
-N2280 G1 X14.545 F0.25
-N2290 G1 X9.545 Z198.095 ; Rampa 15.0°
-N2300 G1 Z198.147 F0.25
-N2310 G1 X14.583 Z199.497 F0.25
-N2320 G1 X16.583 Z197.497
-N2330 G0 X150.000 ; Výjezd nad konturu
-N2340 G0 Z5.000
+N2270 G1 X18.583 Z195.497
+N2280 G0 Z197.345
+N2290 G0 X11.345
+N2300 G1 X9.545 F0.25
+N2310 G1 X9.357 Z198.047 ; Rampa 15.0°
+N2320 G1 Z198.097 F0.25
+N2330 G1 X9.730 Z198.197 F0.25
+N2340 G1 X11.730 Z196.197
+N2350 G0 X150.000 ; Výjezd nad konturu
+N2360 G0 Z5.000
 ; --- DOKONCOVANI ---
-N2350 G0 Z-1.000
-N2360 G0 X31.366
-N2370 G1 X31.366 Z0.000 F0.25 ; Rovný průměr (nájezd hranou materiálu)
-N2380 G1 X31.366 Z9.502
-N2390 G1 X31.366 Z13.002 ; Rovný průměr (zbytek nejde dokončit celý)
-N2400 G0 X69.217 ; Výjezd nad konturu
-N2410 G0 Z43.457
-N2420 G0 X28.111
-N2430 G1 X26.111 Z50.921
-N2440 G2 X27.856 Z55.470 CR=6.800
-N2450 G1 X27.856 Z67.142
-N2460 G1 X27.856 Z70.142 ; Rovný průměr (zbytek nejde dokončit celý)
-N2470 G0 X69.217 ; Výjezd nad konturu
-N2480 G0 Z107.826
-N2490 G0 X35.746
-N2500 G1 X33.746 Z115.290
-N2510 G2 X40.918 Z125.462 CR=10.800
-N2520 G1 X40.918 Z128.931
-N2530 G1 X39.362 Z137.650
-N2540 G1 X39.362 Z138.650 ; Rovný průměr (zbytek nejde dokončit celý)
-N2550 G0 X69.217 ; Výjezd nad konturu
-N2560 G0 Z197.545
-N2570 G0 X32.956
-N2580 G1 X30.956 Z205.009
-N2590 G1 X30.956 Z213.112
-N2600 G1 X50.881 Z220.580
-N2610 G1 X50.881 Z234.990
-N2620 G1 X50.881 Z235.990 ; Rovný průměr (zbytek nejde dokončit celý)
-N2630 G0 X150.000 ; Výjezd nad konturu
-N2640 G0 Z5.000
-N2650 M30 ; Konec programu
+N2370 G0 Z-1.000
+N2380 G0 X31.366
+N2390 G1 X31.366 Z0.000 F0.25 ; Rovný průměr (nájezd hranou materiálu)
+N2400 G1 X31.366 Z9.502
+N2410 G1 X31.366 Z13.002 ; Rovný průměr (zbytek nejde dokončit celý)
+N2420 G0 X69.217 ; Výjezd nad konturu
+N2430 G0 Z43.457
+N2440 G0 X28.111
+N2450 G1 X26.111 Z50.921
+N2460 G2 X27.856 Z55.470 CR=6.800
+N2470 G1 X27.856 Z67.142
+N2480 G1 X27.856 Z70.142 ; Rovný průměr (zbytek nejde dokončit celý)
+N2490 G0 X69.217 ; Výjezd nad konturu
+N2500 G0 Z107.826
+N2510 G0 X35.746
+N2520 G1 X33.746 Z115.290
+N2530 G2 X40.918 Z125.462 CR=10.800
+N2540 G1 X40.918 Z128.931
+N2550 G1 X39.362 Z137.650
+N2560 G1 X39.362 Z138.650 ; Rovný průměr (zbytek nejde dokončit celý)
+N2570 G0 X69.217 ; Výjezd nad konturu
+N2580 G0 Z197.545
+N2590 G0 X32.956
+N2600 G1 X30.956 Z205.009
+N2610 G1 X30.956 Z213.112
+N2620 G1 X50.881 Z220.580
+N2630 G1 X50.881 Z234.990
+N2640 G1 X50.881 Z235.990 ; Rovný průměr (zbytek nejde dokončit celý)
+N2650 G0 X150.000 ; Výjezd nad konturu
+N2660 G0 Z5.000
+N2670 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -5863,7 +5810,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.campr
     "long{contourLeadOut,backside,blocked}",
     "long{contourLeadOut,backside,blocked}",
     "long{contourLeadOut,backside,blocked}",
-    "long{ramp,contourLeadOut,backside,blocked}",
     "long{backside}",
     "long{backside}",
     "long{backside}",
@@ -5878,6 +5824,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.campr
     "long{contourLeadOut,backside,blocked}",
     "long{ramp,contourLeadOut,backside,blocked}",
     "long{pocketReposition,ramp,contourLeadOut,backside,blocked}",
+    "long{pocketReposition,ramp,contourLeadOut,backside,blocked}",
   ],
 }
 `;
@@ -5887,8 +5834,9 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.campr
   "Hlídání destičky: dokončování vynechá 14 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 2 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
-  "Hlídání geometrie (držák): 2 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Hlídání geometrie (držák): 1 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 7 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 102 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
 `;
@@ -6158,12 +6106,12 @@ N2270 G1 X22.508 Z74.291 F0.25
 N2280 G3 X24.602 Z73.488 CR=7.276 F0.25
 N2290 G1 X26.602 Z75.488
 ; Průchod 32 (oblouk G3)
-N2300 G0 X20.481 Z82.932
-N2310 G1 X18.681 F0.25
-N2320 G1 X16.790 Z75.875 ; Rampa 15.0°
-N2330 G1 Z75.825 F0.25
-N2340 G1 X18.837 Z75.275 F0.25
-N2350 G1 X20.837 Z77.275
+N2300 G0 X18.725 Z83.432
+N2310 G1 X16.925 F0.25
+N2320 G1 X15.027 Z76.347 ; Rampa 15.0°
+N2330 G1 Z76.297 F0.25
+N2340 G1 X17.077 Z75.747 F0.25
+N2350 G1 X19.077 Z77.747
 N2360 G0 X150.000 ; Výjezd nad konturu
 N2370 G0 Z5.000
 ; --- DOKONCOVANI ---
@@ -7728,50 +7676,60 @@ N3590 G1 Z74.897 F0.25
 N3600 G1 X22.702 Z74.247 F0.25
 N3610 G1 X24.702 Z76.247
 ; Průchod 52 (oblouk G3)
-N3620 G0 X20.481 Z82.932
-N3630 G1 X18.681 F0.25
-N3640 G1 X16.698 Z75.529 ; Rampa 15.0°
-N3650 G1 Z75.479 F0.25
-N3660 G1 X18.887 Z75.029 F0.25
-N3670 G1 X20.887 Z77.029
-N3680 G0 X150.000 ; Výjezd nad konturu
-N3690 G0 Z5.000
+N3620 G0 X18.725 Z83.432
+N3630 G1 X16.925 F0.25
+N3640 G1 X16.545 Z82.012 ; Rampa 15.0°
+N3650 G1 Z75.510 F0.25
+N3660 G1 X19.716 Z74.860 F0.25
+N3670 G1 X21.716 Z76.860
+; Průchod 53 (zanoření v kapse)
+N3680 G1 X23.716 Z78.860
+N3690 G0 Z82.012
+N3700 G0 X18.345
+N3710 G1 X16.545 F0.25
+N3720 G1 X14.917 Z75.936 ; Rampa 15.0°
+N3730 G1 Z75.886 F0.25
+N3740 G1 X16.637 Z75.486 F0.25
+N3750 G1 X18.637 Z77.486
+N3760 G0 X150.000 ; Výjezd nad konturu
+N3770 G0 Z5.000
 ; --- DOKONCOVANI ---
-N3700 G0 Z354.640
-N3710 G0 X2.000
-N3720 G1 X0.000 Z347.176 F0.25
-N3730 G1 X7.481 Z346.376
-N3740 G1 X9.917 Z345.977
-N3750 G1 X9.917 Z244.072
-N3760 G1 X10.459 Z243.672
-N3770 G1 X50.715 Z235.680
-N3780 G1 X50.881 Z235.280
-N3790 G1 X50.881 Z220.094
-N3800 G1 X50.881 Z219.094 ; Rovný průměr (zbytek nejde dokončit celý)
-N3810 G0 X69.217 ; Výjezd nad konturu
-N3820 G0 Z146.834
-N3830 G0 X11.543
-N3840 G1 X9.543 Z139.370
-N3850 G1 X12.077 Z138.970
-N3860 G1 X28.101 Z138.570
-N3870 G1 X39.268 Z138.171
-N3880 G1 X40.909 Z128.979
-N3890 G1 X40.918 Z124.184
-N3900 G1 X40.918 Z122.184 ; Rovný průměr (zbytek nejde dokončit celý)
-N3910 G0 X69.217 ; Výjezd nad konturu
-N3920 G0 Z82.494
-N3930 G0 X18.394
-N3940 G1 X16.394 Z75.030
-N3950 G1 X22.284 Z73.831
-N3960 G1 X23.640 Z73.431
-N3970 G3 X27.856 Z67.037 CR=6.803
-N3980 G1 X27.841 Z17.484
-N3990 G3 X31.366 Z9.491 CR=10.800
-N4000 G1 X31.366 Z-1.299
-N4010 G1 X31.366 Z-8.299 ; Rovný průměr (zbytek nejde dokončit celý)
-N4020 G0 X150.000 ; Výjezd nad konturu
-N4030 G0 Z5.000
-N4040 M30 ; Konec programu
+N3780 G0 Z354.640
+N3790 G0 X2.000
+N3800 G1 X0.000 Z347.176 F0.25
+N3810 G1 X7.481 Z346.376
+N3820 G1 X9.917 Z345.977
+N3830 G1 X9.917 Z244.072
+N3840 G1 X10.459 Z243.672
+N3850 G1 X50.715 Z235.680
+N3860 G1 X50.881 Z235.280
+N3870 G1 X50.881 Z220.094
+N3880 G1 X50.881 Z219.094 ; Rovný průměr (zbytek nejde dokončit celý)
+N3890 G0 X69.217 ; Výjezd nad konturu
+N3900 G0 Z146.834
+N3910 G0 X11.543
+N3920 G1 X9.543 Z139.370
+N3930 G1 X12.077 Z138.970
+N3940 G1 X28.101 Z138.570
+N3950 G1 X39.268 Z138.171
+N3960 G1 X40.909 Z128.979
+N3970 G1 X40.918 Z124.184
+N3980 G1 X40.918 Z122.184 ; Rovný průměr (zbytek nejde dokončit celý)
+N3990 G0 X69.217 ; Výjezd nad konturu
+N4000 G0 Z82.894
+N4010 G0 X16.730
+N4020 G1 X14.730 Z75.429
+N4030 G1 X16.394 Z75.030
+N4040 G1 X22.284 Z73.831
+N4050 G1 X23.640 Z73.431
+N4060 G3 X27.856 Z67.037 CR=6.803
+N4070 G1 X27.841 Z17.484
+N4080 G3 X31.366 Z9.491 CR=10.800
+N4090 G1 X31.366 Z-1.299
+N4100 G1 X31.366 Z-8.299 ; Rovný průměr (zbytek nejde dokončit celý)
+N4110 G0 X150.000 ; Výjezd nad konturu
+N4120 G0 Z5.000
+N4130 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -7837,7 +7795,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 52,
+  "passCount": 53,
   "passTags": [
     "long",
     "long",
@@ -7891,6 +7849,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
     "long{pocketReposition,ramp,contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{ramp,contourLeadOut,blocked}",
+    "long{pocketReposition,ramp,contourLeadOut,blocked}",
   ],
 }
 `;
@@ -9967,30 +9926,30 @@ N3440 G1 X20.554 Z181.762 F0.25
 N3450 G3 X22.016 Z181.117 CR=7.394 F0.25
 N3460 G1 X24.016 Z183.117
 ; Průchod 48 (oblouk G3)
-N3470 G0 X20.721 Z197.814
+N3470 G0 X20.721 Z199.314
 N3480 G1 X18.921 F0.25
-N3490 G1 X17.978 Z194.295 ; Rampa 15.0°
+N3490 G1 X17.978 Z195.795 ; Rampa 15.0°
 N3500 G1 Z182.679 F0.25
 N3510 G1 X20.084 Z181.929 F0.25
 N3520 G1 X22.084 Z183.929
 ; Průchod 49 (zanoření v kapse)
 N3530 G1 X24.084 Z185.929
-N3540 G0 Z194.295
+N3540 G0 Z195.795
 N3550 G0 X19.778
 N3560 G1 X17.978 F0.25
-N3570 G1 X15.978 Z186.831 ; Rampa 15.0°
+N3570 G1 X15.978 Z188.331 ; Rampa 15.0°
 N3580 G1 Z183.391 F0.25
 N3590 G1 X18.084 Z182.641 F0.25
 N3600 G1 X20.084 Z184.641
 ; Průchod 50 (zanoření v kapse)
 N3610 G1 X22.084 Z186.641
-N3620 G0 Z186.831
+N3620 G0 Z188.331
 N3630 G0 X17.778
 N3640 G1 X15.978 F0.25
-N3650 G1 X15.149 Z183.736 ; Rampa 15.0°
-N3660 G1 Z183.686 F0.25
-N3670 G1 X15.991 Z183.386 F0.25
-N3680 G1 X17.991 Z185.386
+N3650 G1 X14.782 Z183.867 ; Rampa 15.0°
+N3660 G1 Z183.817 F0.25
+N3670 G1 X16.046 Z183.367 F0.25
+N3680 G1 X18.046 Z185.367
 N3690 G0 X150.000 ; Výjezd nad konturu
 N3700 G0 Z5.000
 ; --- DOKONCOVANI ---
@@ -10763,12 +10722,12 @@ N1030 G1 X22.263 Z74.329 F0.25
 N1040 G3 X24.433 Z73.456 CR=7.079 F0.25
 N1050 G1 X26.433 Z75.456
 ; Průchod 15 (oblouk G3)
-N1060 G0 X20.393 Z82.950
-N1070 G1 X18.593 F0.25
-N1080 G1 X16.697 Z75.874 ; Rampa 15.0°
-N1090 G1 Z75.824 F0.25
-N1100 G1 X18.738 Z75.274 F0.25
-N1110 G1 X20.738 Z77.274
+N1060 G0 X18.704 Z83.450
+N1070 G1 X16.904 F0.25
+N1080 G1 X14.995 Z76.328 ; Rampa 15.0°
+N1090 G1 Z76.278 F0.25
+N1100 G1 X17.042 Z75.728 F0.25
+N1110 G1 X19.042 Z77.728
 N1120 G0 X150.000 ; Výjezd nad konturu
 N1130 G0 Z5.000
 N1140 M30 ; Konec programu

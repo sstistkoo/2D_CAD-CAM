@@ -30,6 +30,20 @@ const HOLDER_STOCK_GAP = 1.0;
 // Bezpečnostní odstup DRŽÁKU od offsetové čáry polotovaru při hledání kotvy
 // zanoření (přání uživatele 10. 8. 2026: „ať je držák tak 2 mm od té čáry").
 const HOLDER_ENTRY_STOCK_GAP = 2.0;
+// Kolik vnoření spodní hrany držáku (mm², sken po DZ_CAP) se ještě NEPOČÍTÁ
+// jako kolize.
+//
+// Proč 2,0 a ne 0,5 jako u validátoru: tenhle sken je hrubší model (povrch po
+// Z + profil spodní hrany) než polygonový průnik, kterým měří validátor
+// i HolderGouge, a systematicky NADHODNOCUJE. Změřeno proti přesnému modelu:
+//   part-13-zleva-flange  sken 0,63 mm²  → polygon 0
+//   part-17-long-parting  sken 1,09/0,61 → polygon 0,12 (a HEAD tam nemá kolizi)
+// Skutečné vady přitom vycházejí o řád výš:
+//   díl uživatele Z 41,2  sken 6,58 mm²  → polygon 9,29
+//   part-11-zleva         sken 26,16 mm² → polygon 131,67
+// Práh 2,0 tedy leží 2× nad stropem změřených artefaktů a 3× pod nejmenší
+// skutečnou vadou. S 0,5 padly na part-17 zbytečně 4,4 % úběru.
+const HOLDER_FIT_TOL = 2.0;
 // Nejmenší SMYSLUPLNÁ vrstva, jako zlomek Hloubky záběru. Skim vrstvy nad
 // nakresleným vrcholem/čelem (viz `planTopX` a `planEdgeZ`) se přidávají proto,
 // že materiál může sahat až na offsetovou čáru — jenže při malém Přídavku
@@ -1448,21 +1462,163 @@ export function genLongPasses(ctx) {
   // čáry polotovaru (přání uživatele: „ať je držák tak 2 mm od té čáry").
   // U špičky (spodní hrana ≈ 0) zůstává původní práh 0,05 mm — tam se
   // nástroj materiálu dotýká z podstaty.
-  const holderFitsAt = (z, top) => {
-    for (let s = z + holderZLoL; s <= z + holderZHiL + 1e-9; s += DZ_CAP) {
-      const t = stockTopTab(s);
-      if (t === null) continue;
-      const room = Math.max(holderBottomAt(s - z) - HOLDER_ENTRY_STOCK_GAP, 0.05);
-      if (t > top + room) return false;
+  // Zbytkový povrch v ose Z: dokud tudy nikdo neřezal, stojí syrový obrys;
+  // jakmile tudy projel průchod, leží povrch na jeho hloubce.
+  //
+  // DVA REŽIMY, protože průchody se NEPROVÁDÍ v pořadí, v jakém se plánují:
+  //   • běžně = LÍNĚ dosynchrovaný prefix `passes` (jediné napojení, žádné
+  //     zásahy do desítek míst, kde se průchod pushuje),
+  //   • `activeFloorTab` = explicitně podstrčená podlaha. Používá ji kontrola
+  //     ODLOŽENÝCH vjezdů na konci regionu (`__deferEntry` je posouvá až za
+  //     všechny ostatní průchody regionu), kde je prefix z okamžiku plánování
+  //     řádově pozadu za skutečností — na range-end-leadout hlásil 119 mm²
+  //     vnoření proti materiálu, který v době provedení dávno nestojí
+  //     (zapsaných 7 průchodů proti celému hotovému regionu).
+  let cutFloorTab = null;
+  let cutFloorSynced = 0;
+  let activeFloorTab = null;
+  const newFloorTab = () => (capTab ? new Float64Array(capTab.length).fill(Infinity) : null);
+  // Úsečka (z1,x1)→(z2,x2): podél ní nástroj řeže PŘESNĚ na svou x v daném z,
+  // takže se podlaha sráží lineární interpolací, ne obdélníkem.
+  const noteSegInto = (tab, z1, x1, z2, x2) => {
+    if (!tab || ![z1, x1, z2, x2].every(Number.isFinite)) return;
+    const iA = Math.max(0, Math.floor((Math.min(z1, z2) - capZ0) / DZ_CAP));
+    const iB = Math.min(tab.length - 1, Math.ceil((Math.max(z1, z2) - capZ0) / DZ_CAP));
+    const dz = z2 - z1;
+    for (let i = iA; i <= iB; i++) {
+      const z = capZ0 + i * DZ_CAP;
+      const t = Math.abs(dz) < 1e-9 ? 0 : Math.min(1, Math.max(0, (z - z1) / dz));
+      const x = x1 + (x2 - x1) * t;
+      if (x < tab[i]) tab[i] = x;
     }
-    return true;
   };
+  const notePassInto = (tab, p) => {
+    if (!tab || !p || p.type !== 'long' || !Number.isFinite(p.x)) return;
+    if (Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)) noteSegInto(tab, p.zStart, p.x, p.zEnd, p.x);
+    // RAMPA a SLEDOVÁNÍ KONTURY řežou taky — bez nich model tvrdí, že materiál
+    // pořád stojí, a hlídání pak zamítá vjezdy do prostoru, který je dávno
+    // vykopaný (na part-13-zleva-flange to stálo 29 % úběru).
+    if (p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
+    for (const key of ['contourLeadIn', 'contourLeadOut']) {
+      for (const sg of (p[key] || [])) noteSegInto(tab, sg.z1, sg.x1, sg.z2, sg.x2);
+    }
+  };
+  const syncCutFloor = () => {
+    if (!capTab) return;
+    if (!cutFloorTab) { cutFloorTab = newFloorTab(); cutFloorSynced = 0; }
+    for (; cutFloorSynced < passes.length; cutFloorSynced++) notePassInto(cutFloorTab, passes[cutFloorSynced]);
+  };
+  // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
+  // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
+  // k prázdné straně.
+  const residTopAt = (z) => {
+    const t = stockTopTab(z);
+    if (t === null) return null;
+    const tab = activeFloorTab || cutFloorTab;
+    if (!tab) return t;
+    const fi = (z - capZ0) / DZ_CAP;
+    let cut = Infinity;
+    for (const i of [Math.floor(fi), Math.floor(fi) + 1]) {
+      if (i < 0 || i >= tab.length) continue;
+      if (tab[i] < cut) cut = tab[i];
+    }
+    return Math.min(t, cut);
+  };
+  // `tipX` = hloubka, na které ŠPIČKA nakonec stojí — NE výška povrchu.
+  // Dokud se sem posílal povrch, kontrola odpovídala na otázku „vejde se
+  // držák, když se nástroj dotýká kůry?" — jenže rampa hned nato sjede o celou
+  // vrstvu níž a materiál vedle se tím stane VYŠŠÍM než nástroj. Naměřeno na
+  // dílu uživatele (krček Z 165,9–196,3 pod přírubou): špička na povrchu
+  // X 16,5 → 0,5 mm² držáku v materiálu, špička na dně X 7,9 → 117 mm².
+  //
+  // Měří se proti ZBYTKU, ne proti syrovému polotovaru: se syrovým obrysem
+  // vyjde „nevejde se" u každé hlubší kapsy a zanořování zmizí i tam, kde je
+  // nad nástrojem vzduch po mělčích vrstvách (změřeno: part-11-zleva
+  // a part-13-zleva-flange přišly o VŠECHNY rampované zákroky).
+  // DOSAH DESTIČKY od programovaného bodu. Obrys `holderLoopL` začíná ve
+  // špičce, takže jeho spodní hrana je u dz≈0 na úrovni hrotu — a test
+  // „materiál výš než hrot" by tam hlásil kolizi na KAŽDÉ vrstvě, protože
+  // těsně nad hrotem z definice stojí materiál, který právě řeže DESTIČKA.
+  // Naměřeno na part-13-zleva-flange: blokoval vzorek dz=0, resid 89,92 proti
+  // hrotu 84,92 — přesně jedno ap. Blízké pole proto do hlídání DRŽÁKU
+  // nepatří (táž mez jako u čelní strategie, viz insertReachZ).
+  const holderNearDz = Math.max(insertReachZ(prms, false), 0);
+  const holderFitArea = (z, tipX, gap = HOLDER_ENTRY_STOCK_GAP, ownCut = null) => {
+    if (!activeFloorTab) syncCutFloor();
+    let area = 0;
+    for (let s = z + holderZLoL; s <= z + holderZHiL + 1e-9; s += DZ_CAP) {
+      if (s - z < holderNearDz - 1e-9) continue;
+      const t = residTopAt(s);
+      // VLASTNÍ řez zákroku: než špička dosedne na cíl, projela rampou
+      // (a případně nájezdem po kontuře) — materiál pod nimi už nestojí.
+      // Bez toho se svislé i ŠIKMÉ zanoření posuzují stejně, přitom šikmá
+      // rampa si pás před držákem sama vykope (part-13-zleva-flange).
+      let tt = t;
+      if (ownCut) for (const sg of ownCut) {
+        const zA = Math.min(sg.z1, sg.z2), zB = Math.max(sg.z1, sg.z2);
+        if (s < zA - 1e-9 || s > zB + 1e-9) continue;
+        const dzs = sg.z2 - sg.z1;
+        const u = Math.abs(dzs) < 1e-9 ? 0 : Math.min(1, Math.max(0, (s - sg.z1) / dzs));
+        const xs = sg.x1 + (sg.x2 - sg.x1) * u;
+        if (xs < tt) tt = xs;
+      }
+      if (t === null) continue;
+      const room = Math.max(holderBottomAt(s - z) - gap, 0.05);
+      const d = tt - (tipX + room);
+      if (d > 0) area += d * DZ_CAP;   // plocha, ne hloubka — viz komentář u kapsového hlídání
+    }
+    return area;
+  };
+  // Co si zákrok vykope SÁM, než špička dosedne na cíl (rampa + nájezd po
+  // kontuře). Bez toho se svislé i šikmé zanoření posuzují stejně, přitom
+  // šikmá rampa si pás před držákem sama vyřízne.
+  const ownCutOf = (p, leadIn) => {
+    const own = [];
+    if (p.ramp && Number.isFinite(p.ramp.x0)) own.push({ z1: p.ramp.z0, x1: p.ramp.x0, z2: p.zStart, x2: p.x });
+    for (const sg of (leadIn || p.contourLeadIn || [])) own.push(sg);
+    return own;
+  };
+  // Největší vnoření držáku PODÉL celé rampy zákroku, ne jen v dosednutí.
+  // Dlouhá diagonála (na part-11-zleva 57 mm) je nejnebezpečnější na ZAČÁTKU:
+  // tam nástroj teprve vjíždí a vedle něj stojí všechno. Test jen v koncovém
+  // bodě to nevidí — vyšlo 0 mm², přitom přesný model našel 131 mm² a kolize
+  // začínala už na nájezdovém G0.
+  // Vzorkuje se po ~1 mm dráhy a vlastním řezem je vždy jen ta ČÁST rampy,
+  // kterou má nástroj v daném bodě za sebou.
+  const holderFitAreaAlong = (p, leadIn) => {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) return 0;
+    const r = p.ramp;
+    if (!r || !Number.isFinite(r.x0) || !Number.isFinite(r.z0)) {
+      return holderFitArea(p.zStart, p.x, 0, ownCutOf(p, leadIn));
+    }
+    const len = Math.hypot(p.zStart - r.z0, p.x - r.x0);
+    const n = Math.max(1, Math.min(64, Math.ceil(len)));
+    let worst = 0;
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      const zi = r.z0 + (p.zStart - r.z0) * t;
+      const xi = r.x0 + (p.x - r.x0) * t;
+      const own = [];
+      if (k > 0) own.push({ z1: r.z0, x1: r.x0, z2: zi, x2: xi });
+      for (const sg of (leadIn || p.contourLeadIn || [])) own.push(sg);
+      const a = holderFitArea(zi, xi, 0, own);
+      if (a > worst) worst = a;
+    }
+    return worst;
+  };
+  const holderFitsAt = (z, tipX, gap = HOLDER_ENTRY_STOCK_GAP, ownCut = null) => holderFitArea(z, tipX, gap, ownCut) <= HOLDER_FIT_TOL;
   const holderEntryCapZ = (X, zHi, zFloor) => {
     if (!capTab || zHi - zFloor < 0.1) return -Infinity;
     for (let z = zHi; z > zFloor; z -= DZ_CAP) {
       const top = stockTopTab(z);
       if (top === null || top <= X + 0.05) continue;              // vzduch / už pod hloubkou
       if (z - (top - X) / effPlungeTanL <= zFloor + 0.05) continue;   // (a) rampa se nevejde
+      // (b) vejde se DRŽÁK — a to V HLOUBCE, na kterou rampa dosedne.
+      // Rampa se tu ZÁMĚRNĚ nepočítá jako vlastní řez (na rozdíl od kapsy):
+      // vykope si jen svou čáru, kdežto držák je v ose Z 20 mm široký, takže
+      // odečíst mu celý pás je moc velkorysé — zkoušeno a zamítnuto, pustilo
+      // to kotvy, na kterých holder-region-roughing, part-15-finish-zprava
+      // a range-end-leadout vyrobily 4–6 nových kolizí (až 87,9 mm²).
       if (holderFitsAt(z, top)) return z;                          // (b) držák se vejde
     }
     return -Infinity;
@@ -1684,6 +1840,7 @@ export function genLongPasses(ctx) {
     return out;
   };
   let plungeShallowed = 0;
+  let deferredHolderSkips = 0;
 
   // ── Upichovák (parting) v podélném hrubování ──
   // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
@@ -2854,6 +3011,31 @@ export function genLongPasses(ctx) {
           const dx = pocketPass.ramp.x0 - (pocketPass.x + step);
           pocketPass.ramp = { x0: pocketPass.x + step, z0: pocketPass.ramp.z0 - dx / effPlungeTanL };
         }
+        // Kapsový roh se zanořoval BEZ hlídání držáku — `holderFitsAt` se ptaly
+        // jen kotvy řetězu (holderEntryCapZ / holderEntryReachZ). Rampa proto
+        // sjela na hloubku, vedle které stojí materiál vyšší, než kam sahá
+        // spodní hrana držáku. Naměřeno na dílu uživatele: zanoření na
+        // Z 41,218 → X 25,545 dalo 9,3 mm² vnoření. Ptát se musí na CÍL rampy,
+        // ne na roh — mezi nimi je právě ta vrstva, kvůli které se to stane.
+        // BEZ bezpečnostní vůle (gap 0): tohle není výběr z více kotev, ale
+        // TVRDÉ zamítnutí, které kapsu zahodí celou. Vůle 2 mm (přání
+        // uživatele „ať je držák tak 2 mm od té čáry") je preference pro
+        // volbu vjezdu — jako důvod k zahození materiálu je moc přísná:
+        // na part-13-zleva-flange padly na 0,63 mm průniku (méně než ta vůle)
+        // dva zákroky a s nimi 29 % úběru, přitom přesný polygonový model
+        // (HolderGouge) tam nehlásí ANI mm² vnoření.
+        // Kritérium je PLOCHA, ne hloubka. Sken po DZ_CAP umí vyrobit tenký
+        // proužek hned za koncem destičky (spodní hrana držáku tam ještě
+        // nestihla vystoupat) — na part-13-zleva-flange 0,63 mm hluboký, ale
+        // tak úzký, že přesný polygonový model (HolderGouge) v něm nenajde
+        // ANI mm². Zahodit kvůli němu kapsu stálo 29 % úběru. Práh 0,5 mm² je
+        // týž, jaký používá validátor i `rapidHitsStock`/`holderHitsStock`.
+        // Bez bezpečnostní vůle (gap 0): tohle není výběr z více kotev, ale
+        // tvrdé zamítnutí, které kapsu zahodí celou.
+        {
+          const _a = holderFitArea(pocketPass.zStart, pocketPass.x, 0, ownCutOf(pocketPass, leadInFinal));
+          if (_a > HOLDER_FIT_TOL) pocketPass.holderUnsafe = true;
+        }
         if (leadInFinal.length > 0) pocketPass.contourLeadIn = leadInFinal;
         if (withLeadOut && prms.noStepRoughing && !ivLocal.holderClamped) {
           // Bez schodků: po dně kapsy se dál sleduje kontura (G1/G2/G3)
@@ -2871,6 +3053,11 @@ export function genLongPasses(ctx) {
         const { pocketPass, leadIn } = buildPocketPass(currentX, zGapHi, iv, corner, !partingNoDress, true);
         // Nulový progres proti dřívější vrstvě u TÉHOŽ rohu → duplicitní
         // zákrok po stejné rampě, nic neodebere — vynech.
+        if (pocketPass.holderUnsafe) {
+          holderBlockedDepths.add(depthKey(currentX));
+          holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
+          return;
+        }
         const pbKey = `${corner.x.toFixed(1)},${corner.z.toFixed(1)}`;
         const pbBest = pocketBestX.get(pbKey);
         if (pbBest !== undefined && pocketPass.x >= pbBest - 0.05) return;
@@ -2921,6 +3108,13 @@ export function genLongPasses(ctx) {
         // hlubší cíl s posunutým rohem někdy MĚLČÍ dosah — takový zákrok
         // zahoď a ukonči bulk, zbytek dna dořeže fáze 2 (sledování kontury).
         if (!firstPlunge && pocketPass.x >= bestX - 0.05) break;
+        // Držák se do téhle hloubky nevejde — hlubší zákroky by na tom byly
+        // hůř, takže bulk končí tady (stejné vyústění jako holderSpanClamp).
+        if (pocketPass.holderUnsafe) {
+          holderBlockedDepths.add(depthKey(localX));
+          holderDroppedZones.push({ zHi: curIv.zStart, zLo: curIv.zEnd, x: localX });
+          break;
+        }
         // Zanořovací zákroky se NEODSKAKUJÍ 45° — řetězí se: nástroj zůstane
         // na dně zápichu a další zákrok ho rychloposuvem zvedne NAHORU PO
         // ZÁPICHU (po ose Z, ve vyříznutém vzduchu) ke konci rampy
@@ -3412,11 +3606,46 @@ export function genLongPasses(ctx) {
       (p.__deferEntry ? tail : head).push(p);
       delete p.__deferEntry;
     }
+    // ── DRŽÁK U ODLOŽENÝCH VJEZDŮ ────────────────────────────────────────
+    // Odložené zanoření se provede až ZA celým regionem, takže se musí
+    // posuzovat proti tomu, co po regionu ZBUDE — ne proti stavu v okamžiku
+    // plánování. Hlídat to už při hledání kotvy nejde: tam je zapsaná jen
+    // hrstka průchodů a model pak zamítá vjezdy do prostoru, který v době
+    // provedení dávno nestojí (na range-end-leadout 119 mm² „vnoření" proti
+    // materiálu, který tam není — stálo to 21 % úběru).
+    //
+    // Zahazuje se od PRVNÍHO nevyhovujícího dál: řada jde po klesajících
+    // průměrech, takže hlubší zákroky jsou na tom vždycky hůř, a useknutí
+    // konce nepřetrhne řetěz uprostřed (`noRetract`/`rampFeedFrom` míří
+    // dopředu, poslední průchod žádného následníka nepotřebuje).
+    if (tail.length > 0 && capTab) {
+      const floor = newFloorTab();
+      for (let i = 0; i < regionMark; i++) notePassInto(floor, passes[i]);
+      for (const p of head) notePassInto(floor, p);
+      activeFloorTab = floor;
+      let dropFrom = -1;
+      for (let i = 0; i < tail.length; i++) {
+        const p = tail[i];
+        if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) continue;
+        if (holderFitAreaAlong(p) > HOLDER_FIT_TOL) { dropFrom = i; break; }
+        notePassInto(floor, p);   // co projde, samo řeže pro ty za sebou
+      }
+      activeFloorTab = null;
+      if (dropFrom >= 0) {
+        deferredHolderSkips += tail.length - dropFrom;
+        tail.length = dropFrom;
+        // Líný prefixový model by si jinak nadál připisoval řezy zahozených
+        // průchodů — postavit ho znovu.
+        cutFloorTab = null; cutFloorSynced = 0;
+      }
+    }
     passes.length = regionMark;
     for (const p of head) passes.push(p);
     for (const p of tail) passes.push(p);
   }
   } // konec smyčky regionů
+  if (deferredHolderSkips > 0)
+    foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (partingNarrowPockets > 0)

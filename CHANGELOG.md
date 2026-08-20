@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CAM – zanoření už nesází držák do neobrobeného materiálu.** Hlídání držáku
+  u kotev zanoření (`holderFitsAt`) se ptalo, jestli se držák vejde, když
+  špička stojí na POVRCHU — jenže rampa hned nato sjede o celou vrstvu níž
+  a materiál vedle se tím stane vyšším než nástroj. Na dílu uživatele
+  (krček Z 165,9–196,3 pod přírubou) vycházelo na povrchu 0,5 mm² vnoření,
+  na dně 117 mm². Kapsový roh (`buildPocketPass`) přitom neměl hlídání držáku
+  ŽÁDNÉ. Nově se testuje HLOUBKA, na které špička skončí, a to:
+  - proti ZBYTKU, ne proti syrovému obrysu (podlaha po Z, srážená rampami
+    i sledováním kontury — bez toho zmizely všechny rampované zákroky na
+    `part-11-zleva` a `part-13-zleva-flange`),
+  - PODÉL celé rampy, ne jen v dosednutí (na `part-11-zleva` má rampa 57 mm
+    diagonály a kolize začínala už na nájezdovém G0: v koncovém bodě 0 mm²,
+    přesný model 131,67 mm²),
+  - u ODLOŽENÝCH vjezdů (`__deferEntry`) až ZA smyčkou regionu, proti tomu,
+    co po regionu zbude. Hlídat to při hledání kotvy nejde — tam je zapsaná
+    jen hrstka průchodů a model zamítá vjezdy do prostoru, který v době
+    provedení dávno nestojí (na `range-end-leadout` to stálo 21 % úběru).
+
+  Na dílu uživatele: oranžová 162,74 → 0,28 mm², ⛔ proti nakreslenému obrysu
+  20 → 0. Napříč 24 fixtures −0,25 % úběru a žádná nemá kolizi; `part-17`,
+  `range-end-leadout`, `part-11` i `part-15` jsou nad původním úběrem.
+  Zbývá doložená mez skenového modelu proti polygonovému (2× 2,32 mm² na
+  plánovacím standardu) — táž třída, jaká je už v `EXPECTED_PLAN` přijatá
+  pro `holder-region-roughing`.
+
 ### Changed
 - **CAM – malý Přídavek polotovaru už nevyrobí průchod naprázdno.** Skim vrstva
   nad nakresleným vrcholem/čelem se přidává proto, že materiál může sahat až na
