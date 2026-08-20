@@ -14,6 +14,15 @@
 //     PŘÍDAVEK je z hlediska plánování plný materiál a jezdí se posuvem
 //     (ÚKLID 8. 8. 2026, docs/geometry-libs-migration.md — reálný případ:
 //     pocket-wall-at-plunge-angle má dolík 0,68 mm při Vůli 1 mm).
+//     VÝJIMKA: pohyby, které emise sama označila `; Přejezd materiálem
+//     posuvem`, se neměří. Tenhle test modeluje nástroj jen DOSAHEM NOSU
+//     (`x − tipR`), kdežto emise se rozhoduje celou STOPOU DESTIČKY proti
+//     dynamickému zbytku — tělo destičky za nosem škrtne materiál i tam, kde
+//     je nos prokazatelně ve vzduchu. Takový posuv není plýtvání, ale vědomá
+//     volba „safe-but-slow" (týž práh 0,5 mm² jako descendTo, exit-split
+//     a validátor). Změřeno 20. 8. 2026 na holder-casting-slanted-face:
+//     44,1 mm nosového vzduchu v pohybu, jehož stopa přitom škrtne 0,9 mm²
+//     plánovacího materiálu.
 //
 //  2. Každý krok řetězu dorampování strmé stěny (`rampCompletion`) si při
 //     zapnutém „Hrubování bez schodků" dobírá svůj schod sám. Dřív dojížděl
@@ -60,13 +69,15 @@ function parseMoves(gcode) {
   const moves = [];
   let g = 0, x = 150, z = 5;
   for (const line of gcode.split('\n')) {
+    // Vlastní značka emise „tudy jedu posuvem schválně" — viz hlavička.
+    const thruStock = /Přejezd materiálem posuvem/.test(line);
     const t = line.replace(/;.*/, '').trim();
     if (!t.startsWith('N')) continue;
     const body = t.replace(/^N\d+\s*/, '');
     const gm = body.match(/G0?([0-3])\b/); if (gm) g = +gm[1];
     const xm = body.match(/X(-?[\d.]+)/), zm = body.match(/Z(-?[\d.]+)/);
     const nx = xm ? +xm[1] : x, nz = zm ? +zm[1] : z;
-    if (xm || zm) { moves.push({ g, x0: x, z0: z, x1: nx, z1: nz }); x = nx; z = nz; }
+    if (xm || zm) { moves.push({ g, x0: x, z0: z, x1: nx, z1: nz, thruStock }); x = nx; z = nz; }
   }
   return moves;
 }
@@ -83,6 +94,7 @@ describe('Dojezd „bez schodků"', () => {
       const worst = { len: 0, at: null };
       for (const m of parseMoves(gcode)) {
         if (m.g !== 1 || Math.abs(m.x1 - m.x0) > 1e-6) continue;   // jen axiální posuv
+        if (m.thruStock) continue;                                 // vědomý průjezd materiálem
         const reach = m.x1 - tipR;
         const n = Math.max(1, Math.ceil(Math.abs(m.z1 - m.z0) / 0.2));
         const dz = Math.abs(m.z1 - m.z0) / n;

@@ -28,18 +28,22 @@ Rozdíl mezi nimi **JE seznam práce** — a je konečný:
 |---|---|---|
 | syrový obrys (`planStock: false`, dnešní default) | **0** | 0 mm² |
 | offsetová čára (`planStock: true`) — výchozí stav 20. 8. | **46** | 185,2 mm² |
-| **po krocích 2 a 3** | **40** | **104,0 mm²** |
+| **po krocích 2 a 3** | 40 | 104,0 mm² |
+| **po kroku 4** | **23** | **91,9 mm²** |
 
-Rozpad dnešních 40: **28× `rapid`**, **12× `holder`**. Naměřeno 20. 8. 2026 na všech
+Rozpad dnešních 23: **11× `rapid`**, **12× `holder`** — a jsou to dvojice
+(rychloposuv k rampě + držák na téže rampě) u příruby, tedy krok 5. Naměřeno 20. 8. 2026 na všech
 24 fixtures (`tests/fixtures/cam/*.camprog`), `maxIssues: 400`, **jedna fixture =
 jeden proces** (ve sdíleném procesu vyjde 44 — singleton `S` kontaminuje).
 
-Fixtures už čisté i v offsetovém standardu: `part-10`…`part-14`, `pocket-wall`,
-`range-chain-steep-face`, `part-19` a nově **`face-casting` i `face-cylinder`**.
+Fixtures už čisté i v offsetovém standardu (16 z 24): `part-1`, `part-2`,
+`part-4`, `part-6`, `part-8`, `part-9`, `part-10`…`part-14`, `part-19`,
+`pocket-wall`, `range-chain-steep-face`, `face-casting`, `face-cylinder`,
+`holder-casting-slanted-face`.
 Nejhorší zbylé: `part-16-face-holder` (2 / 23,5 mm²),
 `range-end-leadout` (4 / 19,4 mm²), `part-18` (3 / 17,9 mm²).
 
-**HOTOVO = těch 40 je 0 a `tests/cam-collision-free` běží s `planStock: true`.**
+**HOTOVO = těch 23 je 0 a `tests/cam-collision-free` běží s `planStock: true`.**
 Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 
 > Pozor: „→ 0“ je metrika KOLIZÍ. Sama o sobě nestačí — viz
@@ -62,13 +66,14 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 | **dojezd podélného průchodu ven z polotovaru** | `offsetExitZ` — `cam/gcodeEmit.js:581` (viz krok 1) |
 | **vrchol hloubkové posloupnosti (skim vrstva)** | `planTopX` — `cam/roughingStrategies.js:1195` (krok 2) |
 | **čelo: první vrstva (skim vrstva)** | `planEdgeZ` — `cam/roughingStrategies.js:261` (krok 3) |
+| **axiální rychloposuv v těle průchodu** | `hitsStock` — `cam/gcodeEmit.js:1237` a `:1313` (krok 4) |
 
 ## Co na ní NENÍ
 
 1. **Čelní `castingOuterAtZ` pořád čte syrovou siluetu** pro `xSurface`
    a doběh — ale symptom pro to zatím není změřený (viz krok 3).
-2. **Dynamický zbytek `rapidStock` je syrový** → musel vedle vzniknout druhý,
-   plánovací (`rapidStockPlan`). To je ta dvojkolejnost, co má zmizet.
+2. **Dva dynamické modely vedle sebe** (`rapidStock` syrový + `rapidStockPlan`).
+   Rozhodování už je sjednocené (krok 4), zbývá jen sloučit kód → krok 8.
 3. **Validátor má dva standardy** — default je syrový.
 4. **Náhled kreslí na dvakrát** (světlý pás + jádro), ne jeden odstín.
 
@@ -132,7 +137,7 @@ používá k něčemu, co emise dorovnat NEUMÍ:
 ## Kroky
 
 Pořadí není libovolné: **nejdřív se hne řezná hranice (2–3, hotovo), pak se
-ladí přejezdy (4–5)**. Obráceně by se přejezdy ladily dvakrát.
+ladí přejezdy (4 hotovo, 5 zbývá)**. Obráceně by se přejezdy ladily dvakrát.
 
 **Před KAŽDÝM krokem** ověř probem nad `calcSim.simPath`, že symptom je vidět
 ve vygenerovaném G-kódu. Krok 1 se takhle celý rozpadl — viz níž.
@@ -270,28 +275,58 @@ generátoru, ale z DRŽÁKU nad levým čelem příruby
 (`N3570 G1 X19.043 Z175.932`) — to je krok 5. Podle pravidla „nejdřív ověř,
 že symptom existuje" se sem sahat nemá, dokud se nenajde díl, kde to vadí.
 
-### Krok 4 — jeden dynamický model zbytku ★ DALŠÍ
+### Krok 4 — dynamický model ✅ HOTOVO v měřitelné části (20. 8. 2026)
 
-**Co:** `gcodeEmit.js:429–477` drží `rapidStock` (syrový) i `rapidStockPlan`
-(offsetový) a k nim dvojici `rapidHitsStock` / `rapidHitsPlan`, které se
-v podmínkách střídají (ř. 880, 921). Tohle je jádro dvojkolejnosti.
+**Co bylo špatně:** tělo průchodu se seká na rychloposuv(vzduch)/posuv(materiál)
+(`airSplitAxial`), a ta pojistka se ptala jen SYROVÉHO dynamického zbytku.
+`G0` pod offsetovou čarou je přitom na nadměrném kuse náraz.
 
-**Jak:** `rapidStock` postavit rovnou nad `planLoopRef()`, `rapidStockPlan`
-a `rapidHitsPlan` smazat, volání sloučit. Ve stejném commitu přidat
-hardening `airSplitAxial` z `bd6d85c` (bez něj vzniknou nové kolize typu
-`G0 X39.545 Z195.278` = 3,6 mm² na `part-11`).
+**Řešení:** obě místa (`gcodeEmit.js` — tělo rampovaného kroku a tělo otevřeného
+průchodu) se teď ptají obou modelů:
+```js
+const hitsStock = s.kind === 'G0'
+  && (rapidHitsStock(x, cur.z, x, s.z) || rapidHitsPlan(x, cur.z, x, s.z));
+```
 
-**Riziko:** vysoké na DÉLKU programu — 28 ze 40 nálezů je `rapid`, ty se
-změní na posuv nebo objezd. `feedThroughStock` / EXIT-SPLIT / `descendTo`
-se všechny řídí `rapidHitsStock`.
-**Rozbije:** `cam-traversal-invariants`, `cam-leadout-air-rapid`,
-`cam-backside-mirror` (parita zrcadlení — každé číslo z offsetové smyčky
-MUSÍ projít `quantizeUp` na 0,01 mm), snapshoty.
-**Zisk:** největší jednotlivý — po tomhle by mělo ze 40 zbýt ≈ 12.
+**Změřeno (izolovaně, 24 fixtures):**
+- **kolize proti offsetové čáře 40 → 23, 104,0 → 91,9 mm²**,
+- nově úplně čisté: `part-1`, `part-2`, `part-4`, `part-6`, `part-8`, `part-9`,
+  `holder-casting-slanted-face` (celkem 17 nálezů pryč),
+- délka programu, počet průchodů ani odebraná plocha **beze změny** — mění se
+  jen 32 pohybů z `G0` na `G1`,
+- **cena: 29–84 mm posuvu navíc na díl** (2–13 % dráhy posuvu),
+- snapshoty: JEN těch 32 řádků, žádná strukturální změna,
+- sada **1327/1327**.
 
-### Krok 5 — držák jednotně proti offsetové čáře
+**`tests/cam-leadout-air-rapid` upraven** — vynechává pohyby označené
+`; Přejezd materiálem posuvem`. Test modeluje nástroj jen DOSAHEM NOSU
+(`x − tipR`), kdežto emise se rozhoduje celou STOPOU DESTIČKY: na
+`holder-casting-slanted-face` má pohyb 44,1 mm nosového vzduchu, ale jeho stopa
+škrtne 0,9 mm² plánovacího materiálu. Ne plýtvání, ale vědomé „safe-but-slow".
 
-**Co:** zbylých 12 nálezů typu `holder` — mimo jiné `part-16` (23,5 mm²)
+**ZAMÍTNUTO — `rapidHitsPlan` do zdvihové podmínky `safeRapidTo`** (ř. 921).
+Vypadá jako logické doplnění, ale nezískalo NIC (findings beze změny na všech
+dotčených fixtures) a `range-end-leadout` na tom ztratil úběr.
+
+**ZAMÍTNUTO — hardening rampového splitteru.** Rampa se dělí na `G0`/`G1` podle
+`planTopXAtZ`, tedy jen podle STATICKÉ siluety; stejná pojistka jako
+u `airSplitAxial` by tam logicky patřila. Jenže má **nulový efekt na všech
+24 fixtures** — nemám čím doložit, že funguje. Patch je triviální (ověřit každý
+`G0` úsek proti `rapidHitsStock || rapidHitsPlan`, pak sloučit sousední úseky
+téhož druhu); přidat AŽ s dílem, kde to vadí.
+
+**CO ZŮSTÁVÁ NEUDĚLANÉ: samotné sloučení modelů.** `rapidStock` (syrový)
+a `rapidStockPlan` (offsetový) pořád existují vedle sebe
+(`gcodeEmit.js:429–477`). Sloučit je = přepsat `rapidStock` na `planLoopRef()`,
+což mění EXIT-SPLIT, `descendTo` i strop zdvihu naráz a přepíše všech
+24 fixtures. **Zbývajících 23 nálezů to nevyřeší** — jsou to dvojice
+(rychloposuv k rampě + držák na rampě) u příruby, tedy krok 5. Sloučení je tedy
+čistě úklid kódu → patří ke kroku 8, ne sem.
+
+### Krok 5 — držák jednotně proti offsetové čáře ★ DALŠÍ
+
+**Co:** zbylých 23 nálezů = 12× `holder` + 11× `rapid`, a jsou to DVOJICE
+(rychloposuv k rampě + držák na téže rampě) u příruby — mimo jiné `part-16` (23,5 mm²)
 a `part-18` (17,9 mm²), oba na `Z175,932`. `HolderGouge.baseLoop`
 (`holderGouge.js:40`) i obálka v `toolEnvelope.js:135` staví na syrovém obrysu.
 **Známý zbytek:** přejezd nad levým čelem příruby, Z 195,28–195,88,
@@ -311,7 +346,7 @@ zbývá jen PREVENCE, a ta má vysoké riziko false positives.
 syrový standard se buď smaže, nebo zůstane jako `opts.rawStock` pro `opParts`.
 `tests/cam-collision-free` se přepne na offsetový standard.
 
-**Kdy:** až kroky 4–5 srazí 40 na 0. Tenhle krok NIC neopravuje, jen zamkne
+**Kdy:** až krok 5 srazí 23 na 0. Tenhle krok NIC neopravuje, jen zamkne
 dosažený stav. Dělat ho dřív = stěna červených testů bez informační hodnoty.
 
 ### Krok 7 — náhled jedním odstínem

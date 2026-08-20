@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – axiální rychloposuv nejede pásem mezi polotovarem a offsetovou
+  čarou.** Tělo průchodu se seká na rychloposuv(vzduch)/posuv(materiál) a ta
+  pojistka se dosud ptala jen SYROVÉHO dynamického zbytku. Přídavek X/Z (polo.)
+  je přitom v zadání proto, že odlitek MŮŽE být větší, takže `G0` pod offsetovou
+  čarou je na nadměrném kuse náraz. Nově se ptá obou modelů a při nárazu jede
+  posuvem (`; Přejezd materiálem posuvem`) — týž práh 0,5 mm² jako descendTo,
+  exit-split i validátor. Změřeno: kolize proti offsetové čáře 40 → 23 nálezů,
+  104,0 → 91,9 mm²; nově úplně čisté jsou `part-1`, `part-2`, `part-4`,
+  `part-6`, `part-8`, `part-9` a `holder-casting-slanted-face`. Délka programu,
+  počet průchodů ani odebraná plocha se nezměnily — mění se jen 32 pohybů
+  z `G0` na `G1`; cena 29–84 mm posuvu navíc na díl.
+  `tests/cam-leadout-air-rapid` takové pohyby nově vynechává: modeluje nástroj
+  jen dosahem NOSU, kdežto emise se rozhoduje celou stopou destičky.
 - **CAM – první ČELNÍ vrstva už nebere `ap + Vůle Z`.** Táž oprava jako
   u hloubkové posloupnosti podélného hrubování, jen v ose Z: march byl kotvený
   na hraně NAKRESLENÉHO polotovaru, takže první vrstva ukousla o Vůli Z víc,
