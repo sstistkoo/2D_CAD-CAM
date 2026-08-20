@@ -33,8 +33,9 @@ Rozdíl mezi nimi **JE seznam práce** — a je konečný:
 | po kroku 5a (`stairAt`) | 18 | 50,5 mm² |
 | **po kroku 5b (`stockTopTab`)** | **10** | **9,2 mm²** |
 
-Zbylých 10 je drobných (0,4–2,5 mm² každý) a všechny jsou **sweep rampy** —
-držák podél zátahu, ne v jeho kotvě (viz krok 5). Naměřeno 20. 8. 2026 na všech
+Ze zbylých 10 je **8 mělčích než 0,25 mm** (drift modelu zbytku, ne vada
+plánování) a **2 skutečné** — rampa do kapsy na `holder-region-roughing`
+(viz krok 5). Naměřeno 20. 8. 2026 na všech
 24 fixtures (`tests/fixtures/cam/*.camprog`), `maxIssues: 400`, **jedna fixture =
 jeden proces** (ve sdíleném procesu vyjde 44 — singleton `S` kontaminuje).
 
@@ -386,28 +387,41 @@ s pásem **10,30 mm²**.
 - `colRaw` 0 všude, čistých **20 z 24** fixtures,
 - sada **1327/1327**.
 
-#### ZBÝVÁ: 10 nálezů, všechny drobné
+#### ZBÝVÁ: 10 nálezů — z toho 8 je ŠUM MĚŘENÍ, 2 jsou skutečné
 
-`part-15` (2 / 1,3 mm²), `part-17` (2 / 1,3), `range-end-leadout` (2 / 1,7),
-`holder-region-roughing` (4 / 4,9). Zbytek je **sweep rampy**, ne kotva:
-sonda na konci rampy (`part-15`, špička r 14,545 / Z 163,596) ukazuje držák
-v pásu Z 163,60–174,38, X(r) 16,74–17,74 = 9,41 mm². `holderFitsAt` testuje
-jen STATICKOU polohu kotvy, ne celý zátah rampy. Kontrolovat sweep by
-znamenalo odmítnout podstatně víc ramp — než se do toho půjde, změřit, kolik
-úběru by to stálo.
+Zbylých 9,2 mm² se rozpadá podle HLOUBKY vnoření. Změřeno tak, že se nástroj
+ve validátoru postupně zmenšuje (`shrink`) — nález mělčí než zmenšení zmizí:
 
-**ZKOUŠENO A ZAHOZENO:** `holderFitsAt` do `stockEntryRamp` i přímo ke kotvě
-na ř. 2429 — obojí NULOVÝ efekt (kotva jde odjinud, resp. test už tam běží).
+| fixture | 0,05 mm | 0,10 mm | 0,15 mm | 0,25 mm |
+|---|---|---|---|---|
+| `part-15-finish-zprava` | 2 / 1,3 | 2 / 1,1 | **0** | 0 |
+| `part-17-long-parting` | 2 / 1,3 | 2 / 1,1 | **0** | 0 |
+| `range-end-leadout` | 2 / 1,7 | 2 / 1,4 | 2 / 1,2 | **0** |
+| `holder-region-roughing` | 4 / 4,9 | 4 / 3,3 | 2 / 1,6 | **2 / 1,3** |
 
-**Pozor na `HolderGouge`:** hlásí na té oblasti 0,00 mm² oranžové — a je to
-SPRÁVNĚ, ne neshoda, jak tvrdila starší poznámka. Proti nakreslenému odlitku
-tam kolize opravdu není, materiál je jen v pásu (červený `gougeBand`).
-Ta „neshoda“ vznikla porovnáním s ad-hoc probem na plný 200mm držák.
+**8 z 10 je mělčích než 0,25 mm** → to není vada plánování, ale DRIFT MODELU
+ZBYTKU: emise si vede `rapidStockPlan` po PLÁNOVANÉ geometrii průchodů
+(`noteCutPass`), kdežto validátor řeže po SKUTEČNĚ VYGENEROVANÉ dráze
+(`simPath`). Táž odchylka je u syrového modelu doložená a hlídaná
+(`tests/cam-residual-model`, ≤ 0,035 mm). Příklad: `part-15` `N2240 G0 X19.545`
+— radiální sjezd z r 69,217; `emitDescendX` se ptá obou modelů a nic nenajde,
+protože jeho model má ten proužek už odříznutý.
 
-**Past u sond:** fixtures `part-13`, `part-15` aj. jsou v režimu **RADIUS** —
-`X` v G-kódu je POLOMĚR, ne průměr. První sonda kvůli tomu měřila držák
-v poloviční poloze a svedla diagnózu na „vzdálený konec v přírubě“ místo
-na kvantizaci tabulky.
+**2 skutečné** (hlubší než 0,25 mm), obě na `holder-region-roughing`:
+```
+N1760 G1 X13.164 Z115.145 ; Rampa 15.0°     holder r14,99 Z122,0 = 0,6 mm²
+N1780 G1 X15.164 Z117.095                    holder r13,16 Z115,1 = 0,6 mm²
+```
+Rampa do kapsy a odskok po ní. Je to SWEEP rampy (držák podél zátahu), ale
+NE z větve `entryRampAnchor` — kandidáti jsou `pocketPass.ramp` (ř. 2818/2830)
+a burst řetěz. Zjistit instrumentací, jako u kroku 5b.
+
+**ZKOUŠENO A ZAHOZENO — `holderFitsAlong` (kontrola držáku po celém zátahu
+rampy)** na větvi `entryRampAnchor`: nálezy se NEZMĚNILY (ty rampy jdou
+odjinud) a úběr klesl — `part-15` −24,6 mm², `range-end-leadout` −24,0,
+`part-17` −4,4. Patch je jednoduchý (vzorkovat rampu po `DZ_CAP` a volat
+`holderFitsAt`); nasadit ho AŽ na tu větev, ze které ty dvě rampy opravdu jdou,
+a znovu změřit úběr.
 
 ### Krok 6 — překlopit default validátoru
 
@@ -415,8 +429,13 @@ na kvantizaci tabulky.
 syrový standard se buď smaže, nebo zůstane jako `opts.rawStock` pro `opParts`.
 `tests/cam-collision-free` se přepne na offsetový standard.
 
-**Kdy:** až krok 5 srazí 10 na 0. Tenhle krok NIC neopravuje, jen zamkne
-dosažený stav. Dělat ho dřív = stěna červených testů bez informační hodnoty.
+**Kdy:** už skoro teď. Reálná vada je JEDNA (2 nálezy / 1,3 mm² na
+`holder-region-roughing`); zbylých 8 nálezů je mělčích než 0,25 mm a zmizí,
+když se `shrink` validátoru zvedne z 0,05 na 0,25 mm. Rozhodnutí, které je
+potřeba udělat: buď se `cam-collision-free` přepne na `planStock` se `shrink`
+0,25 mm (a doloží se, že 0,25 mm je pod driftem modelu), nebo se nejdřív
+dorovná drift `rapidStockPlan` × validátor. Tenhle krok NIC neopravuje, jen
+zamkne dosažený stav.
 
 ### Krok 7 — náhled jedním odstínem
 
