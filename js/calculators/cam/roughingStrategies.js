@@ -30,6 +30,22 @@ const HOLDER_STOCK_GAP = 1.0;
 // Bezpečnostní odstup DRŽÁKU od offsetové čáry polotovaru při hledání kotvy
 // zanoření (přání uživatele 10. 8. 2026: „ať je držák tak 2 mm od té čáry").
 const HOLDER_ENTRY_STOCK_GAP = 2.0;
+// Nejmenší SMYSLUPLNÁ vrstva, jako zlomek Hloubky záběru. Skim vrstvy nad
+// nakresleným vrcholem/čelem (viz `planTopX` a `planEdgeZ`) se přidávají proto,
+// že materiál může sahat až na offsetovou čáru — jenže při malém Přídavku
+// polotovaru zbude pod skimem jen tenoučký zbytek a ten by jel jako plný
+// průchod naprázdno (Přídavek 0,05 při ap 3 → vrstva 0,05 mm, změřeno na
+// `part-1`). Zbytek tenčí než tenhle zlomek se proto NEODDĚLUJE a sebere ho
+// sousední průchod najednou.
+//
+// Je to VĚDOMÉ, OHRANIČENÉ přetížení: ten průchod vezme `ap + zbytek`, tedy
+// nejvýš `1,1 × ap`. Hloubka záběru není tvrdý strop, ale cíl s tolerancí —
+// 10 % je pod rozptylem, se kterým se stejně řeže. Bez toho by platila volba
+// „buď průchod naprázdno, nebo posun celé mřížky hloubek", a posun mřížky je
+// změřeně horší (viz krok 2 v docs/cam-sjednoceni-polotovaru.md: `part-8`
+// −5 průchodů a −337 mm² úběru).
+const SKIM_MIN_LAYER = 0.1;
+
 
 // Ořízne „bez schodků" dojezd (leadOut) tak, aby VODOROVNÉ čelo (konstantní Z)
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
@@ -258,10 +274,10 @@ export function genFacePasses(ctx) {
   const planEdgeZ = faceEdgeZ + (faceLeft ? -clrZPlanF : clrZPlanF);
   const zList = [];
   if (!faceLeft) {
-    for (let z = planEdgeZ - step; z > faceEdgeZ - step + 0.01; z -= step) if (z <= faceEdgeZ + 0.01) zList.push(z);
+    for (let z = planEdgeZ - step; z > faceEdgeZ - step + SKIM_MIN_LAYER * step; z -= step) if (z <= faceEdgeZ + 0.01) zList.push(z);
     for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zList.push(z);
   } else {
-    for (let z = planEdgeZ + step; z < faceEdgeZ + step - 0.01; z += step) if (z >= faceEdgeZ - 0.01) zList.push(z);
+    for (let z = planEdgeZ + step; z < faceEdgeZ + step - SKIM_MIN_LAYER * step; z += step) if (z >= faceEdgeZ - 0.01) zList.push(z);
     for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zList.push(z);
   }
   // Marchování začíná na marchStartZ (reference pro clamp leadOutu — zachováno
@@ -1271,7 +1287,7 @@ export function genLongPasses(ctx) {
   // `part-8` kvůli tomu přišel o 5 průchodů a 337 mm² úběru, `part-17`
   // dostal 2 tvrdé kolize proti nakreslenému odlitku. Takhle zůstanou
   // všechny dosavadní hloubky bitově stejné a přibude jen skim.
-  for (let d = planTopX - step; d > maxStockX - step + 0.005 && d > minPartX + 0.005; d -= step) depths.push(d);
+  for (let d = planTopX - step; d > maxStockX - step + SKIM_MIN_LAYER * step && d > minPartX + 0.005; d -= step) depths.push(d);
   for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
     depths.push(minPartX);

@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – malý Přídavek polotovaru už nevyrobí průchod naprázdno.** Skim vrstva
+  nad nakresleným vrcholem/čelem se přidává proto, že materiál může sahat až na
+  offsetovou čáru. Při malém Přídavku pod ní ale zbyla tenoučká vrstva, která
+  jela jako plný průchod skoro nic (Přídavek 0,05 mm při ap 3 → vrstva
+  0,05 mm, změřeno na `part-1`: 20 průchodů / 243 řádků). Zbytek tenčí než
+  **10 % Hloubky záběru** se teď neodděluje a sebere ho sousední průchod
+  najednou — vědomé, ohraničené přetížení na nejvýš 1,1 × ap (hloubka záběru
+  není tvrdý strop, ale cíl s tolerancí). Na tomtéž dílu 19 průchodů /
+  236 řádků. Při běžném Přídavku (1 mm) se nemění NIC — poměr 0,2–0,5 je nad
+  prahem, snapshoty obou regresních sad zůstaly bit po bitu shodné.
+  Záměr hlídá nový `tests/cam-skim-layer`.
 - **CAM – `buildStockLoop` přejmenován na `buildStockLoopRaw`, přibyl
   `stockPlanLoop`.** Starý název četl jako „obrys polotovaru", jenže pro
   PLÁNOVÁNÍ drah polotovar končí až na offsetové čáře — bylo tedy snadné sáhnout

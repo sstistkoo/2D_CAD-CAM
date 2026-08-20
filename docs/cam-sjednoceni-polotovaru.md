@@ -226,6 +226,20 @@ a údolím. Změřeno:
 - `part-11`/`12`/`14`: `colPlan` 0 → 2,
 - celkem 46 → **47** nálezů, 185,2 → 194,1 mm².
 
+**MEZ SKIM VRSTVY (`SKIM_MIN_LAYER` = 0,1; doplněno 20. 8. 2026 na podnět
+uživatele):** při MALÉM Přídavku zbyla pod skimem tenoučká vrstva a jela jako
+plný průchod skoro nic — Přídavek 0,05 mm (spodní mez `stockClearances`) při
+ap 3 dal vrstvu **0,05 mm** (`part-1`: 20 průchodů / 243 řádků). Zbytek tenčí
+než **10 % `ap`** se proto neodděluje a sebere ho sousední průchod najednou
+(`part-1` pak 19 / 236). Je to vědomé, OHRANIČENÉ přetížení na nejvýš
+`1,1 × ap` — hloubka záběru není tvrdý strop, ale cíl s tolerancí. Práh je
+RELATIVNÍ (zlomek `ap`), ne v mm: 10 % je pod rozptylem řezu bez ohledu na to,
+jestli `ap` je 0,5 nebo 5 mm. Při běžném Přídavku 1 mm se nemění NIC (poměr
+0,2–0,5 je nad prahem, snapshoty bit po bitu shodné). Platí i pro čelní march.
+Záměr hlídá `tests/cam-skim-layer`.
+ZAMÍTNUTA alternativa „rozpočítat celek na `ceil(celkem/ap)` stejných vrstev":
+je to přesně ten POSUN MŘÍŽKY, co je změřeně horší (viz výš).
+
 **Výsledek skim varianty (změřeno izolovaně, všech 24 fixtures):**
 - tříska prvního průchodu **nikde nepřesahuje `ap`**,
 - kolize `colRaw` i `colPlan` **beze změny na každé fixture** (46 / 185,2 mm²),
