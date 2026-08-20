@@ -905,10 +905,23 @@ export function genFacePasses(ctx) {
           // X16,85 proti povrchu 16,743, ale offsetová čára je 17,74).
           // HOTOVÉ dno průchodu zůstává svým `x` — to je skutečný povrch,
           // žádný přídavek tam nepatří (táž dělba jako u `enforceLayerDepth`).
+          //
+          // Čte se PŘÍMO plánovací smyčka, ne „syrový povrch + Vůle X“: to
+          // druhé je svislý posun, kdežto offset se posouvá KOLMO k hranici
+          // (týž antivzor jako u `rapidStartXAt` výš, viz offsetStockLoop).
+          // Před SVISLÝM ČELEM je rozdíl řádový: offsetová čára tam leží
+          // o Vůli Z PŘED čelem v celé jeho výšce, takže svislice těsně před
+          // přírubou protne plánovací obrys až na jejím vnějším průměru.
+          // Změřeno na part-16: v pásu Z 175,93–195,93 sahá plánovací obrys
+          // do X(r) 65,3, ale „povrch + Vůle X“ tam vydá 17,74 — držák tudy
+          // projel a validátor to hlásil jako 11,9 mm².
           let x;
           if (s.raw) {
-            const surf = castingOuterOrNull(zq);
-            x = surf === null ? null : surf + clrXFC;
+            x = planLoopFC ? topXOnLoop(planLoopFC, zq) : null;
+            if (x === null) {
+              const surf = castingOuterOrNull(zq);
+              x = surf === null ? null : surf + clrXFC;
+            }
           } else x = s.x;
           if (x !== null && (top === null || x > top)) top = x;
         }

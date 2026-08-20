@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – hlídání držáku čte plánovací obrys PŘÍMO, ne „povrch + Vůle X“.**
+  `stairAt` v čelním hlídání držáku aproximovalo offsetovou čáru svislým
+  posunem syrového povrchu o Vůli X. Před SVISLÝM ČELEM je to řádově vedle:
+  offsetová čára tam leží o Vůli Z PŘED čelem v celé jeho výšce, takže
+  svislice těsně před přírubou protne plánovací obrys až na jejím vnějším
+  průměru. Změřeno na `part-16`: v pásu Z 175,93–195,93 sahá plánovací obrys
+  do Ø130,6, ale „povrch + Vůle X“ tam vydalo Ø35,5 — vzdálený konec držáku
+  (20 mm axiálně) tudy projel. Čte se teď `topXOnLoop(planLoopFC, …)`; syrový
+  odhad zůstal jen jako fallback, když plánovací smyčka chybí.
+  Změřeno: kolize proti offsetové čáře 23 → 18 nálezů, 91,9 → 50,5 mm²
+  (`part-16` i `part-18` nově čisté). Cena: o 1 čelní průchod méně na obou
+  dílech, dohromady 44,6 mm² neodebraného materiálu — ⚠ panel to hlásí
+  („o 1 průchod víc vynecháno“).
 - **CAM – axiální rychloposuv nejede pásem mezi polotovarem a offsetovou
   čarou.** Tělo průchodu se seká na rychloposuv(vzduch)/posuv(materiál) a ta
   pojistka se dosud ptala jen SYROVÉHO dynamického zbytku. Přídavek X/Z (polo.)

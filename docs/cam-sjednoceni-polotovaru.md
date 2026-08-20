@@ -29,10 +29,12 @@ Rozdíl mezi nimi **JE seznam práce** — a je konečný:
 | syrový obrys (`planStock: false`, dnešní default) | **0** | 0 mm² |
 | offsetová čára (`planStock: true`) — výchozí stav 20. 8. | **46** | 185,2 mm² |
 | **po krocích 2 a 3** | 40 | 104,0 mm² |
-| **po kroku 4** | **23** | **91,9 mm²** |
+| **po kroku 4** | 23 | 91,9 mm² |
+| **po kroku 5 (částečném)** | **18** | **50,5 mm²** |
 
-Rozpad dnešních 23: **11× `rapid`**, **12× `holder`** — a jsou to dvojice
-(rychloposuv k rampě + držák na téže rampě) u příruby, tedy krok 5. Naměřeno 20. 8. 2026 na všech
+Rozpad dnešních 18: **9× `rapid`**, **9× `holder`** — všechny mají JEDNU
+příčinu: vzdálený konec držáku sedí v pásu před čelem příruby při kotvě rampy
+(viz krok 5). Naměřeno 20. 8. 2026 na všech
 24 fixtures (`tests/fixtures/cam/*.camprog`), `maxIssues: 400`, **jedna fixture =
 jeden proces** (ve sdíleném procesu vyjde 44 — singleton `S` kontaminuje).
 
@@ -40,10 +42,11 @@ Fixtures už čisté i v offsetovém standardu (16 z 24): `part-1`, `part-2`,
 `part-4`, `part-6`, `part-8`, `part-9`, `part-10`…`part-14`, `part-19`,
 `pocket-wall`, `range-chain-steep-face`, `face-casting`, `face-cylinder`,
 `holder-casting-slanted-face`.
-Nejhorší zbylé: `part-16-face-holder` (2 / 23,5 mm²),
-`range-end-leadout` (4 / 19,4 mm²), `part-18` (3 / 17,9 mm²).
+Nově čisté i `part-16` a `part-18`. Zbylé už jen: `range-end-leadout`
+(4 / 19,4 mm²), `part-15` (4 / 8,9), `part-17` (4 / 9,0),
+`range-chain-insert-shadow` (2 / 8,2), `holder-region-roughing` (4 / 5,0).
 
-**HOTOVO = těch 23 je 0 a `tests/cam-collision-free` běží s `planStock: true`.**
+**HOTOVO = těch 18 je 0 a `tests/cam-collision-free` běží s `planStock: true`.**
 Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 
 > Pozor: „→ 0“ je metrika KOLIZÍ. Sama o sobě nestačí — viz
@@ -66,7 +69,8 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 | **dojezd podélného průchodu ven z polotovaru** | `offsetExitZ` — `cam/gcodeEmit.js:581` (viz krok 1) |
 | **vrchol hloubkové posloupnosti (skim vrstva)** | `planTopX` — `cam/roughingStrategies.js:1195` (krok 2) |
 | **čelo: první vrstva (skim vrstva)** | `planEdgeZ` — `cam/roughingStrategies.js:261` (krok 3) |
-| **axiální rychloposuv v těle průchodu** | `hitsStock` — `cam/gcodeEmit.js:1237` a `:1313` (krok 4) |
+| **axiální rychloposuv v těle průchodu** | `hitsStock` — `cam/gcodeEmit.js:1240` a `:1319` (krok 4) |
+| **čelní hlídání držáku nad syrovým pásem** | `stairAt` — `cam/roughingStrategies.js:920` (krok 5) |
 
 ## Co na ní NENÍ
 
@@ -137,7 +141,7 @@ používá k něčemu, co emise dorovnat NEUMÍ:
 ## Kroky
 
 Pořadí není libovolné: **nejdřív se hne řezná hranice (2–3, hotovo), pak se
-ladí přejezdy (4 hotovo, 5 zbývá)**. Obráceně by se přejezdy ladily dvakrát.
+ladí přejezdy (4 hotovo, 5 částečně)**. Obráceně by se přejezdy ladily dvakrát.
 
 **Před KAŽDÝM krokem** ověř probem nad `calcSim.simPath`, že symptom je vidět
 ve vygenerovaném G-kódu. Krok 1 se takhle celý rozpadl — viz níž.
@@ -323,22 +327,55 @@ což mění EXIT-SPLIT, `descendTo` i strop zdvihu naráz a přepíše všech
 (rychloposuv k rampě + držák na rampě) u příruby, tedy krok 5. Sloučení je tedy
 čistě úklid kódu → patří ke kroku 8, ne sem.
 
-### Krok 5 — držák jednotně proti offsetové čáře ★ DALŠÍ
+### Krok 5 — držák ◐ ČÁSTEČNĚ (20. 8. 2026), zbývá jedna příčina
 
-**Co:** zbylých 23 nálezů = 12× `holder` + 11× `rapid`, a jsou to DVOJICE
-(rychloposuv k rampě + držák na téže rampě) u příruby — mimo jiné `part-16` (23,5 mm²)
-a `part-18` (17,9 mm²), oba na `Z175,932`. `HolderGouge.baseLoop`
-(`holderGouge.js:40`) i obálka v `toolEnvelope.js:135` staví na syrovém obrysu.
-**Známý zbytek:** přejezd nad levým čelem příruby, Z 195,28–195,88,
-X 25–46 = 12,36 mm² (`project_cam-rapid-stop-before-offset-line`).
+#### HOTOVO: `stairAt` četl „povrch + Vůle X“ místo plánovacího obrysu
 
-**Riziko:** NEJVYŠŠÍ v celém plánu. Odstranit ten přejezd znamená zvednout ho
-nad čelo příruby (X 46+), tedy vysoko a často.
-**Nejdřív vysvětlit neshodu:** ad-hoc probe s plným 200mm držákem a
-`HolderGouge` se o té oblasti neshodují (oranžová hlásí 0,00 mm²). Než se
-sáhne na dráhy, musí být jasné, který z těch dvou lže.
-**Souvisí:** `project_cam-holder-order-collisions` — detekce je hotová,
-zbývá jen PREVENCE, a ta má vysoké riziko false positives.
+Čelní hlídání držáku (`holderGuardFace`) aproximovalo offsetovou čáru
+SVISLÝM posunem syrového povrchu o Vůli X — týž antivzor, jaký
+`offsetStockLoop` v komentáři zakazuje. Před **svislým čelem** je to řádově
+vedle: offsetová čára tam leží o Vůli Z PŘED čelem v celé jeho výšce, takže
+svislice těsně před přírubou protne plánovací obrys až na jejím VNĚJŠÍM
+průměru.
+
+Změřeno na `part-16`: v pásu Z 175,93–195,93 sahá plánovací obrys do Ø130,6,
+ale „povrch + Vůle X“ tam vydalo Ø35,5 → vzdálený konec držáku tudy projel.
+Oprava (`roughingStrategies.js:920`) čte `topXOnLoop(planLoopFC, zq)`; syrový
+odhad zůstal jen jako fallback.
+
+- **23 → 18 nálezů, 91,9 → 50,5 mm²**; `part-16` i `part-18` nově čisté.
+- Cena: −1 čelní průchod na obou dílech, **44,6 mm² neodebraného materiálu**.
+  ⚠ panel to hlásí („o 1 průchod víc vynecháno“) — není to tiché zahození.
+- Snapshoty: `passCount` −1, jeden `face{blocked}` pryč, upravené hlášení. Nic
+  jiného. Sada 1327/1327.
+
+#### ZBÝVÁ: jedna příčina pro všech 18 zbylých nálezů
+
+Změřeno sondou nad `holderWorldLoop` (part-15, špička r 9,77 / Z 175,53):
+držák zabírá **Z 175,53–195,53**, tedy 20 mm axiálně, a jeho vzdálený konec
+sedí v 1mm pásu PŘED čelem příruby (pás tam jde od X(r) 16,74 až k 65,0).
+Průnik s pásem 31,96 mm², se SYROVÝM obrysem 0 (materiál tam už je obrobený).
+`part-16` měl týž obrázek (50,93 mm² v pásu). Všech 18 nálezů jsou **dvojice**
+„rychloposuv ke kotvě rampy + držák na téže rampě“ na `part-15`, `part-17`,
+`range-chain-insert-shadow`, `range-end-leadout`, `holder-region-roughing`.
+
+**Proč to nejde vyřešit zvednutím dráhy:** vadné místo je KOTVA RAMPY, tedy
+řezný pohyb. Aby držák pás minul, musela by špička být nad Ø130 — o dva řády
+výš než hloubka toho průchodu. Reálná cesta je posunout kotvu o ~1 mm od čela
+(mechanismus `holderEntryCapZ` + `holderFitsAt` to už umí).
+
+**ZKOUŠENO A ZAHOZENO:** přidat `holderFitsAt(q.z, q.x)` do `stockEntryRamp`
+(kotva se zvedá po přímce zanoření K OBROBENÉ STRANĚ, tedy blíž ke stěně).
+**Nulový efekt na všech 5 dotčených fixtures** — ty rampy tedy ze
+`stockEntryRamp` NEPOCHÁZEJÍ. **Další krok: zjistit, kdo tu kotvu vyrábí**
+(kandidáti: `buildPocketPass` / `findPlungeCorner`, `entryRampAnchor`,
+`cornerLocal` v burst větvi) a teprve pak přidat cap. Bez toho se střílí naslepo.
+
+**Pozor na `HolderGouge`:** hlásí na té oblasti 0,00 mm² oranžové — a je to
+SPRÁVNĚ, ne neshoda, jak tvrdila starší poznámka. Proti nakreslenému odlitku
+tam kolize opravdu není, materiál je jen v pásu (červený `gougeBand`).
+Ta „neshoda“ vznikla porovnáním s ad-hoc probem, který používal plný 200mm
+držák místo skutečného profilu.
 
 ### Krok 6 — překlopit default validátoru
 
@@ -346,7 +383,7 @@ zbývá jen PREVENCE, a ta má vysoké riziko false positives.
 syrový standard se buď smaže, nebo zůstane jako `opts.rawStock` pro `opParts`.
 `tests/cam-collision-free` se přepne na offsetový standard.
 
-**Kdy:** až krok 5 srazí 23 na 0. Tenhle krok NIC neopravuje, jen zamkne
+**Kdy:** až krok 5 srazí 18 na 0. Tenhle krok NIC neopravuje, jen zamkne
 dosažený stav. Dělat ho dřív = stěna červených testů bez informační hodnoty.
 
 ### Krok 7 — náhled jedním odstínem
