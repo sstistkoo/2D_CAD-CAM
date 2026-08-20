@@ -242,9 +242,31 @@ export function genFacePasses(ctx) {
   // straně (předchozí, mělčí průchod), aby se jen sloupl hřebínek a nezajelo
   // se do dosud neobrobeného polotovaru.
   const faceLeft = (prms.roughingSide === 'left');
+  // SKIM VRSTVA NAD NAKRESLENÝM ČELEM — táž oprava jako u hloubkové
+  // posloupnosti podélného hrubování, jen v ose Z. March je kotvený na hraně
+  // NAKRESLENÉHO polotovaru, jenže materiál může sahat až na offsetovou čáru,
+  // takže první vrstva ukousla `ap + VůleZ` (změřeno: part-16 / part-18 /
+  // part-19 při ap 3 → tříska 3,999, tedy o třetinu víc). Přičtení Vůle Z je
+  // EXAKTNÍ ze stejného důvodu jako u `planTopX`: offset je Minkowského součet
+  // s elipsou o poloose `clrZ` v Z, takže krajní Z roste přesně o `clrZ`.
+  //
+  // Vrstva se PŘIDÁVÁ, mřížka se NEPOSOUVÁ (posun celé posloupnosti je
+  // měřitelně horší — viz `planTopX` v genLongPasses).
+  //
+  // MEZ: vrstvy, které by ležely až ZA nakresleným čelem (nastane jen při
+  // Vůli Z > Hloubka záběru), se nepřidávají — `castingOuterAtZ` tam obrys
+  // MINE a vrátil by jmenovitý `sRad`, který u odlitku bývá úplně jinde.
+  const clrZPlanF = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z;
+  const faceEdgeZ = faceLeft ? marchEndZ : faceStartZ;
+  const planEdgeZ = faceEdgeZ + (faceLeft ? -clrZPlanF : clrZPlanF);
   const zList = [];
-  if (!faceLeft) { for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zList.push(z); }
-  else { for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zList.push(z); }
+  if (!faceLeft) {
+    for (let z = planEdgeZ - step; z > faceEdgeZ - step + 0.01; z -= step) if (z <= faceEdgeZ + 0.01) zList.push(z);
+    for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zList.push(z);
+  } else {
+    for (let z = planEdgeZ + step; z < faceEdgeZ + step - 0.01; z += step) if (z >= faceEdgeZ - 0.01) zList.push(z);
+    for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zList.push(z);
+  }
   // Marchování začíná na marchStartZ (reference pro clamp leadOutu — zachováno
   // pro L/R symetrii, ale clamp byl odstraněn: první průchod smí také dojíždět
   // po offsetu nahoru, jinak by jeho krok nad ním zůstal neobrobený).

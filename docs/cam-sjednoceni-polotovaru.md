@@ -27,21 +27,22 @@ Rozdíl mezi nimi **JE seznam práce** — a je konečný:
 | standard | nálezů | celkem |
 |---|---|---|
 | syrový obrys (`planStock: false`, dnešní default) | **0** | 0 mm² |
-| offsetová čára (`planStock: true`) | **46** | 185,2 mm² |
+| offsetová čára (`planStock: true`) — výchozí stav 20. 8. | **46** | 185,2 mm² |
+| **po krocích 2 a 3** | **40** | **104,0 mm²** |
 
-Rozpad těch 46: **33× `rapid`**, **13× `holder`**. Naměřeno 20. 8. 2026 na všech
+Rozpad dnešních 40: **28× `rapid`**, **12× `holder`**. Naměřeno 20. 8. 2026 na všech
 24 fixtures (`tests/fixtures/cam/*.camprog`), `maxIssues: 400`, **jedna fixture =
 jeden proces** (ve sdíleném procesu vyjde 44 — singleton `S` kontaminuje).
 
-Fixtures už čisté i v offsetovém standardu: `part-10`, `part-11`, `part-12`,
-`part-13`, `part-14`, `pocket-wall`, `range-chain-steep-face`.
-Nejhorší: `face-cylinder` (3 / 44,0 mm²), `face-casting` (2 / 33,4 mm²),
-`part-16-face-holder` (2 / 23,5 mm²), `range-end-leadout` (4 / 19,4 mm²).
+Fixtures už čisté i v offsetovém standardu: `part-10`…`part-14`, `pocket-wall`,
+`range-chain-steep-face`, `part-19` a nově **`face-casting` i `face-cylinder`**.
+Nejhorší zbylé: `part-16-face-holder` (2 / 23,5 mm²),
+`range-end-leadout` (4 / 19,4 mm²), `part-18` (3 / 17,9 mm²).
 
-**HOTOVO = těch 46 je 0 a `tests/cam-collision-free` běží s `planStock: true`.**
+**HOTOVO = těch 40 je 0 a `tests/cam-collision-free` běží s `planStock: true`.**
 Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 
-> Pozor: „46 → 0“ je metrika KOLIZÍ. Sama o sobě nestačí — viz
+> Pozor: „→ 0“ je metrika KOLIZÍ. Sama o sobě nestačí — viz
 > `feedback_measure-removal-not-just-collisions`. Ke každému kroku se měří
 > i **odebraná plocha** (mm²), ne jen počet nálezů a `passCount`.
 
@@ -60,10 +61,12 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 | náhled: pás + červený `gougeBand` | `MaterialRemoval(…, {planningOutline})`, `HolderGouge(…, {band})` |
 | **dojezd podélného průchodu ven z polotovaru** | `offsetExitZ` — `cam/gcodeEmit.js:581` (viz krok 1) |
 | **vrchol hloubkové posloupnosti (skim vrstva)** | `planTopX` — `cam/roughingStrategies.js:1195` (krok 2) |
+| **čelo: první vrstva (skim vrstva)** | `planEdgeZ` — `cam/roughingStrategies.js:261` (krok 3) |
 
 ## Co na ní NENÍ
 
-1. **Čelní generátor čte syrovou siluetu** (`castingOuterAtZ`).
+1. **Čelní `castingOuterAtZ` pořád čte syrovou siluetu** pro `xSurface`
+   a doběh — ale symptom pro to zatím není změřený (viz krok 3).
 2. **Dynamický zbytek `rapidStock` je syrový** → musel vedle vzniknout druhý,
    plánovací (`rapidStockPlan`). To je ta dvojkolejnost, co má zmizet.
 3. **Validátor má dva standardy** — default je syrový.
@@ -128,8 +131,8 @@ používá k něčemu, co emise dorovnat NEUMÍ:
 
 ## Kroky
 
-Pořadí není libovolné: **nejdřív se hne řezná hranice (3), pak se ladí
-přejezdy (4–5)**. Obráceně by se přejezdy ladily dvakrát.
+Pořadí není libovolné: **nejdřív se hne řezná hranice (2–3, hotovo), pak se
+ladí přejezdy (4–5)**. Obráceně by se přejezdy ladily dvakrát.
 
 **Před KAŽDÝM krokem** ověř probem nad `calcSim.simPath`, že symptom je vidět
 ve vygenerovaném G-kódu. Krok 1 se takhle celý rozpadl — viz níž.
@@ -219,27 +222,55 @@ a údolím. Změřeno:
   jsou bitově shodné ve scan-line i booleovské větvi.
 - sada **1327/1327**.
 
-### Krok 3 — čelní generátor na offsetovou čáru ★ DALŠÍ
+### Krok 3 — čelní generátor ✅ HOTOVO v měřitelné části (20. 8. 2026)
 
-**Co:** `castingOuterOrNull` / `castingOuterAtZ`
-(`roughingStrategies.js:77` a `:127`) čtou syrové `stockPathSegments`.
-Krmí `xSurface` (ř. 296 — kde začíná řez), celou logiku doběhu (ř. 553–888)
-a `rapidStartXAt`. Rychloposuv už si plánovací smyčku bere sám
-(`planLoopFC`, ř. 154) — je to tedy poslední syrový čtenář v čelní strategii.
+**Co bylo špatně:** march čelních vrstev je kotvený na hraně NAKRESLENÉHO
+polotovaru (`faceStartZ` = max `stockWorldPoints.zReal`, u válce `stockFace`;
+zleva `marchEndZ`). Materiál ale může sahat až na offsetovou čáru, takže první
+vrstva ukousla `ap + VůleZ` — přesný protějšek kroku 2, jen v ose Z.
 
-**Jak:** `planLoopFC` už v souboru je → `castingOuterAtZ` postavit nad ním
-(`topXOnLoop`) a `castingOuterOrNull` nechat syrový jen tam, kde jde o otázku
-„MINE svislice obrys?“ (rozlišení „materiál neznámé výšky“ × „žádný materiál“
-v zóně doběhu).
+**Ověření symptomu** (probe nad `calcSim.simPath`): `part-16`, `part-18`,
+`part-19` při `ap` 3 → tříska **3,999** (o třetinu víc). `face-casting`
+i `face-cylinder` vyšly „ok" — jejich mřížka na čelo nepadne, první vrstva je
+tenčí než `ap` sama od sebe.
 
-**Riziko:** střední. Povrch se zvedne o vůli → čelní vrstvy začínají řezat
-dřív (posuvem vzduchem). Doběh je citlivý — viz
-`project_cam-face-tilted-insert-rules` a `project_cam-face-tip-radius`.
-**Rozbije:** `cam-face-*` (5 souborů), `cam-face-insert-reach`.
-**Cena:** změřit čas i odebranou plochu. Čelní fixtures dnes drží
-33,4 / 23,5 / 17,9 mm² v offsetovém standardu — velká část ze 46 je tady.
+> POZOR na sondu: filtr „radiální řezný pohyb" chytá i pohyby PODÉLNÝCH
+> průchodů (zápichy, dojezdy „Rovný průměr"). Čísla jako `range-chain-steep-face`
+> 194 mm nebo `pocket-wall` 32 mm jsou artefakt, ne nález. Věrohodné je jen to,
+> kde `tříska syrová ≈ ap` a plánovací je o Vůli Z větší.
 
-### Krok 4 — jeden dynamický model zbytku
+**Řešení: SKIM VRSTVA, mřížka se NEPOSOUVÁ** (`roughingStrategies.js:261`):
+```js
+const faceEdgeZ = faceLeft ? marchEndZ : faceStartZ;
+const planEdgeZ = faceEdgeZ + (faceLeft ? -clrZPlanF : clrZPlanF);
+```
+**MEZ:** vrstvy, které by ležely až ZA nakresleným čelem (jen při Vůle Z >
+Hloubka záběru), se nepřidávají — `castingOuterAtZ` tam obrys MINE a vrátil by
+jmenovitý `sRad`, který u odlitku bývá úplně jinde.
+
+**Změřeno (izolovaně, všech 24 fixtures):**
+- první čelní vrstva **nikde nepřesahuje `ap`**,
+- **kolize proti offsetové čáře 46 → 40, 185,2 → 104,0 mm² (−44 %)** —
+  `face-casting` 2 → **0** (33,4 → 0), `face-cylinder` 3 → **0** (44,0 → 0),
+  `part-19` 1 → **0**. Rychloposuvy prvních vrstev přestaly projíždět pásem,
+  protože nad nimi teď leží odebraná vrstva,
+- `colRaw` 0 všude, odebraná plocha (syrová i plánovací) **beze změny**,
+- cena: **+1 průchod (≈ +6 řádků)** na 5 čelních fixtures, ostatní beze změny,
+- snapshoty: `passCount` +1, jeden `"face"` v `passTags`, přečíslování a jedno
+  hlášení (`part-19`: „40 → 41 dojezdů vynecháno"). Nic jiného.
+- sada **1327/1327**.
+
+**CO ZŮSTÁVÁ NEUDĚLANÉ** (a proč to není blokující): `castingOuterAtZ` pořád
+čte syrovou siluetu pro `xSurface` (ř. 296) a pro logiku doběhu (ř. 553–888).
+Přepsat ho na `planLoopFC` znamená zvednout povrch o vůli → čelní vrstvy
+začínají řezat dřív a doběh je citlivý (`project_cam-face-tilted-insert-rules`,
+`project_cam-face-tip-radius`). **Symptom pro to zatím není změřený** —
+zbývající nálezy na `part-16` (23,5 mm²) a `part-18` (17,9 mm²) NEJSOU z čelního
+generátoru, ale z DRŽÁKU nad levým čelem příruby
+(`N3570 G1 X19.043 Z175.932`) — to je krok 5. Podle pravidla „nejdřív ověř,
+že symptom existuje" se sem sahat nemá, dokud se nenajde díl, kde to vadí.
+
+### Krok 4 — jeden dynamický model zbytku ★ DALŠÍ
 
 **Co:** `gcodeEmit.js:429–477` drží `rapidStock` (syrový) i `rapidStockPlan`
 (offsetový) a k nim dvojici `rapidHitsStock` / `rapidHitsPlan`, které se
@@ -250,17 +281,18 @@ a `rapidHitsPlan` smazat, volání sloučit. Ve stejném commitu přidat
 hardening `airSplitAxial` z `bd6d85c` (bez něj vzniknou nové kolize typu
 `G0 X39.545 Z195.278` = 3,6 mm² na `part-11`).
 
-**Riziko:** vysoké na DÉLKU programu — 33 ze 46 nálezů je `rapid`, ty se
+**Riziko:** vysoké na DÉLKU programu — 28 ze 40 nálezů je `rapid`, ty se
 změní na posuv nebo objezd. `feedThroughStock` / EXIT-SPLIT / `descendTo`
 se všechny řídí `rapidHitsStock`.
 **Rozbije:** `cam-traversal-invariants`, `cam-leadout-air-rapid`,
 `cam-backside-mirror` (parita zrcadlení — každé číslo z offsetové smyčky
 MUSÍ projít `quantizeUp` na 0,01 mm), snapshoty.
-**Zisk:** největší jednotlivý — po tomhle by mělo ze 46 zbýt ≈ 13.
+**Zisk:** největší jednotlivý — po tomhle by mělo ze 40 zbýt ≈ 12.
 
 ### Krok 5 — držák jednotně proti offsetové čáře
 
-**Co:** zbylých 13 nálezů typu `holder`. `HolderGouge.baseLoop`
+**Co:** zbylých 12 nálezů typu `holder` — mimo jiné `part-16` (23,5 mm²)
+a `part-18` (17,9 mm²), oba na `Z175,932`. `HolderGouge.baseLoop`
 (`holderGouge.js:40`) i obálka v `toolEnvelope.js:135` staví na syrovém obrysu.
 **Známý zbytek:** přejezd nad levým čelem příruby, Z 195,28–195,88,
 X 25–46 = 12,36 mm² (`project_cam-rapid-stop-before-offset-line`).
@@ -279,7 +311,7 @@ zbývá jen PREVENCE, a ta má vysoké riziko false positives.
 syrový standard se buď smaže, nebo zůstane jako `opts.rawStock` pro `opParts`.
 `tests/cam-collision-free` se přepne na offsetový standard.
 
-**Kdy:** až kroky 2–5 srazí 46 na 0. Tenhle krok NIC neopravuje, jen zamkne
+**Kdy:** až kroky 4–5 srazí 40 na 0. Tenhle krok NIC neopravuje, jen zamkne
 dosažený stav. Dělat ho dřív = stěna červených testů bez informační hodnoty.
 
 ### Krok 7 — náhled jedním odstínem

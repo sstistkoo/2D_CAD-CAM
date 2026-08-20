@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – první ČELNÍ vrstva už nebere `ap + Vůle Z`.** Táž oprava jako
+  u hloubkové posloupnosti podélného hrubování, jen v ose Z: march byl kotvený
+  na hraně NAKRESLENÉHO polotovaru, takže první vrstva ukousla o Vůli Z víc,
+  než je nastavená Hloubka záběru (změřeno: `part-16`, `part-18`, `part-19`
+  při ap 3 → tříska 3,999). Nad mřížku se přidá skim vrstva; mřížka se
+  neposouvá. Vedlejší, změřený efekt: rychloposuvy prvních čelních vrstev
+  přestaly projíždět pásem mezi polotovarem a offsetovou čarou —
+  `face-casting` (2 nálezy / 33,4 mm²) a `face-cylinder` (3 / 44,0 mm²) jsou
+  proti offsetové čáře nově úplně čisté, `part-19` taky. Celkem přes všech
+  24 fixtures 46 → 40 nálezů, 185,2 → 104,0 mm². Odebraná plocha ani kolize
+  proti nakreslenému odlitku se nezměnily; cena +1 průchod (≈ +6 řádků) na
+  čelní fixture.
 - **CAM – první hrubovací průchod už nebere `ap + Vůle X`.** Posloupnost hloubek
   podélného hrubování byla kotvená na NAKRESLENÉM vrcholu polotovaru, jenže
   materiál může sahat až na offsetovou čáru (přídavek X/Z polotovaru je
