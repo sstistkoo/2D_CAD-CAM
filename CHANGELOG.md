@@ -7,7 +7,120 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAM – vjezd DRŽÁKU za offsetovou čaru se vybarví ČERVENĚ.** Oranžové
+  varování (`HolderGouge`) hlídalo jen vnoření do SYROVÉHO obrysu, takže držák
+  stojící za offsetovou čarou se nevybarvil nijak (nález uživatele: „držák mám
+  za offsetovou čarou a nic se nevybarvilo jako kolize“). Na nakresleném odlitku
+  tam nic není, na nadměrném ale ano — a přídavek polotovaru je v zadání právě
+  proto. `HolderGouge` proto s `{ band: true }` vede DRUHÝ, disjunktní záznam
+  (`gougeBand`) pro pás mezi oběma čarami; simulátor ho kreslí červeně, tvrdé
+  vnoření do materiálu zůstává oranžové. Pouhý DOTEK hranice se nepočítá
+  (držák zmenšený o 0,05 mm + zahození sliverů pod 0,02 mm²) — bez toho hlásil
+  každý přejezd na rapid-safe X 94 oblastí, z toho většinu s nulovou plochou.
+  Na dílu uživatele: 18 oblastí, 26,3 mm².
+- **CAM – náhled úběru vybarvuje i pás mezi polotovarem a offsetovou čarou.**
+  Přídavek X/Z (polo.) je v zadání proto, že odlitek MŮŽE být větší — materiál
+  až k té čáře reálně existovat může a dráhy se podle toho plánují
+  (`planLoopRef`). Náhled ale kreslil jen tečkovanou čaru, takže rychloposuv,
+  který za ni skočí, vypadal neškodně (nález uživatele: „odskok mi skočí za tu
+  offsetovou čáru“). Pás se teď vybarvuje světlejším tečkovaným tónem
+  a ubírá se stejně jako polotovar. `MaterialRemoval` k tomu má příznak
+  `{ planningOutline: true }`; odpověď na „narazil jsem FYZICKY?“
+  (`validateToolpath`) a úběr pro další část programu (`opParts`) zůstávají
+  na SYROVÉM obrysu — stejně jako mazání vybarvení, aby náhled nemazal
+  výplně nad nakresleným odlitkem.
+
+### Added
+- **CAM – nový parametr „Stop rychlop. před čarou“ (`rapidFeedGap`, výchozní
+  1 mm).** Rychloposuv se zastaví tuhle vzdálenost PŘED offsetovou (tečkovanou)
+  čarou a zbytek se dojede pracovním posuvem — pro VŠECHNY příjezdy. Dosud
+  platilo `rapidStopX` = Vůle + R nad SYROVÝM povrchem, takže spodek nosu
+  dosedl PŘESNĚ na offsetovou čaru a příjezd končil již v ní (nález uživatele
+  20. 8. 2026: `N2160 G0 X46.344` na šikmé stěně, kde je čára v X ještě výš než
+  povrch + Vůle, skončil 0,43 mm POD ní). Nově se měří přímo proti plánovací
+  smyčce, takže to platí i na šikminách. 0 = dosavadní chování.
+  Změřeno izolovaně (gap 0 vs 1) na 8 fixtures: **úběr shodný** (part-19
+  a part-8 dokonce o 0,2 a 3,6 mm² víc), **kolize bez změny**, program stejně
+  dlouhý nebo kratší (uživatelův díl 806 → 798 řádků).
+
 ### Fixed
+- **CAM – držák vjížděl do levého čela: hlídání měřilo syrový povrch, ne
+  offsetovou čaru.** Schodiště `stairAt` bralo u SYROVÝCH pásů (Z bez průchodu)
+  povrch odlitku tak, jak je nakreslený — držák tedy „prošel“ těsně nad ním
+  a přitom byl 1 mm v pásu. Na dojezdu prvního průchodu nového úseku
+  (`N3530 G1 X18.043 Z175.932`) vycházel spodek držáku X16,85 proti povrchu
+  16,743 — tedy 0,1 mm nad ním, ale offsetová čára je 17,74 (nález uživatele
+  20. 8. 2026: „vjíždí mi to držákem do toho levého čela“). Syrový pás se nově
+  měří na offsetové čáře (`povrch + Přídavek X`); HOTOVÉ dno průchodu zůstává
+  svým `x` — to je skutečný povrch (táž dělba jako u `enforceLayerDepth`).
+  **Cena, změřeno:** průchody se v těch místech zvednou, takže se ubere
+  **o ~38 mm² míň** (uživatelův díl 7854,20 → 7892,84; part-16 7742,61 →
+  7780,63; part-18 7542,04 → 7572,42). Držák v pásu: 15,03 → 12,45 mm²,
+  z toho zmíněný dojezd (13,07 mm² v per-segment měření) zmizel úplně.
+  Kolize validátoru 0, mění se jen čelní fixtures (part-16, part-18).
+- **CAM – zdvih přejezdu padal na globální bezpečné X.** Lokální strop se
+  počítal jen ze SYROVÉHO zbytku, ale `travelBlocked` už testuje i plánovací
+  model — strop pod ním zůstal a přejezd padal na `capX` (nález uživatele:
+  „N5680 G0 X30.523 — vyjíždí někde do bezpečné polohy v X, i když by to mělo
+  brát normálně nad polotovarem“). Nově `travelTopXAtZ` = vyšší z obou stropů;
+  přejezdy zase jdou těsně nad polotovarem (např. `G0 X30.989`), počet řádků
+  beze změny.
+- **CAM – `topXOnLoop` byl zkopírovaný dvakrát** (gcodeEmit + roughingStrategies);
+  sloučeno do `camMath.js`, kde ho používá i čelní generátor.
+- **CAM – čelní přejezd v Z se vedl POD offsetovou čarou.** Rozhodnutí, jestli
+  rychloposuv smí jít přímo, se testovalo proti dynamickému zbytku SYROVÉ
+  siluety — takže přejezd, který syrový odlitek minul, ale offsetovou čaru
+  projížděl, se povolil (uživatel 20. 8. 2026: „udělej to, ať to vyjede nad tu
+  offsetovou čaru“). Přídavek X/Z (polo.) je v zadání právě proto, že odlitek
+  MŮŽE být až u té čáry. Emise proto vede DRUHÝ dynamický model nad
+  plánovací (vůlí-posunutou) siluetou (`rapidStockPlan`, ubíraný týžě řezem)
+  a čelní přejezd se testuje i proti němu. Změřeno na dílu uživatele:
+  rychloposuvů v Z skrz pás **18 (22,2 mm²) → 0**, úběr beze změny, kolize 0.
+  Záměrně JEN čelní přejezd: přepnutí celého `rapidHitsStock` (EXIT-SPLIT,
+  výjezd posuvem, strop zdvihu) přepsalo všech 24 fixtures.
+- **CAM – doběh na konci úseku dělal dvě vrstvy tam, kde plátek zvládne jednu.**
+  Konec úseku potrebuje odříznout proužek na hraně materiálu a sjet po
+  offsetové čáře. Nos (2R = 1,6 mm) na to musí dvakrát, ale UPICHOVÁK šířky
+  5 mm obojí vezme najednou — nová šířka záběru `insCover` o tom rozhoduje
+  (uživatel 20. 8. 2026: „udělej to jako ten levý konec, vezme to najednou když
+  to jde“; ty dvě vrstvy byly od sebe 2,95 mm, tedy do jednoho ap).
+  Zároveň se nájezd počítá z povrchu pod CELÝM záběrem, ne jen na
+  programovaném Z — u čela příruby je tam za schodem povrch 16,7, ale plátek
+  leží tělem nad velkým čelem s povrchem 64,4, takže nájezd dřív vyšel jen 1 mm
+  nad koncem řezu (`G0 X47.376` → `G1 X46.376`) místo sjezdu z povrchu.
+  Uživatelův díl: −9 řádků, zbytek −0,47 mm² (bere víc), kolize 0; part-19
+  (natočená destička) si dvě vrstvy drží a má shodný úběr.
+- **CAM – čelní hrubování UPICHOVÁKEM nedojíždělo konce úseků.** Doběh na konci
+  úseku (`appendRegionRunOut`) se rozhoduje podle toho, jestli na dalším Z ještě
+  průchod JE — a právě ty průchody zahazuje hlídání držáku, které běželo AZ ZA
+  doběhem. U natočené destičky to vycházelo náhodou (`enforceLayerDepth` je
+  polygon-only a ty průchody zahodilo dřív), u upichováku hloubka vrstev neběží
+  vůbec, takže zůstaly tři nedojeté konce: čelo příruby (Z197,932), konec úseku
+  (Z110,932) a levý konec (Z−6,068). Hlídání držáku se nově volá **dvakrát**
+  a doběh běží mezi těmi voláními — druhé volání není kosmetika, průchod
+  přidaný za držákem bez jeho kontroly jsou změřené 3 kolize. Doběh se zároveň
+  povolil pro `toolShape: 'parting'` (`tanR` = `max(0, −toolAngle)`, tedy 0 —
+  vrstva navíc leží ve stejné hloubce a bere tím, že dojede dál v Z).
+  Úběr +29 mm² na dvou čelních fixtures, validator kolizií čistý.
+- **CAM – obálka upichováku převzorkovávala rovné úsečky na tětivy.**
+  `samplePartingEnvelope()` vzorkovala po 0,4 mm a zlomy předlohy na mřížku
+  nepadly: rovné čelo Z138,785→139,523 (29,6 mm v X) vyšlo jako tři tětivy
+  a poslední měla 4× větší sklon než čelo (`X9.943 Z139.807` místo Z139,523) —
+  dráha z rovné offsetové čáry vyjela na stranu vzduchu (nález uživatele:
+  „offsetová čára je rovná, ale dráha od ní utíká doprava"). Funkce nově bere
+  `breakZ` — mřížku doplní o Z zlomů vystopovaného dojezdu, kolineární redukce
+  zbytek slije zpátky do jedné úsečky. Vzorků nemůže ubýt, obálka se tedy
+  nikde nesníží.
+- **CAM – dojezd „bez schodků“ pokračoval po plášti, kde už schod nebyl.** Když
+  po sloupnutí schodu kontura zahne do stěny rovnoběžné s osou (konstantní X,
+  pohyb jen v Z), nůž tam už jen tře. Dojezd se v tom rohu utne — s přesahem
+  0,4 mm, který je numerická rezerva pro dynamický model polotovaru: při ořezu
+  přesně v rohu se stopy sousedních průchodů jen dotknou a v modelu zůstane
+  jehla, na kterou `finDeepCut` zahodí celý dokončovací úsek po kuželu
+  (19 mm² neobrobeného + falešné ⚠). Utíná se jen roh ZA sloupnutým schodem;
+  dojezd, který je osový už od začátku, materiál odebírá (zahození všech =
+  +75 mm² zbytku) a nechává se.
 - **CAM – ořez dojezdu se tiše zahazoval, když se ořízl POSLEDNÍ úsek.**
   `trimLeadOut` poznával změnu porovnáním POČTU úseků. Když se ořízl poslední
   a žádný nevypadl, počet zůstal stejný — funkce ohlásila „beze změny" a ořez

@@ -278,8 +278,22 @@ export function offsetStockLoop(loop, prms) {
  * jen nový úsek (inkrementálně), při přetočení zpět přepočítá od nuly.
  */
 export class MaterialRemoval {
-  constructor(prms, stockPathSegments) {
-    this.baseLoop = buildStockLoop(prms, stockPathSegments);
+  /**
+   * @param {object} prms parametry CAM
+   * @param {Array} stockPathSegments silueta odlitku (u válce se ignoruje)
+   * @param {{planningOutline?: boolean}} [opts] `planningOutline` = základem
+   *   je OFFSETOVÁ (vůlí-posunutá) čára, ne syrový obrys. Odlitek může být
+   *   až u té čáry — pro uživatele je to taky materiál na obrábění
+   *   („polotovar končí až kde je offsetová čára“, 19. 8. 2026), takže
+   *   náhled s tímhle příznakem ukáže i pás mezi oběma čárami. Odpověď na
+   *   otázku „narazil jsem FYZICKY?“ (`validateToolpath`) i úběr pro další
+   *   část programu (`opParts`) zůstávají na SYROVÉM obrysu — tam se
+   *   příznak nepoužívá.
+   */
+  constructor(prms, stockPathSegments, opts = {}) {
+    const raw = buildStockLoop(prms, stockPathSegments);
+    this.rawLoop = raw;
+    this.baseLoop = (opts.planningOutline && raw) ? (offsetStockLoop(raw, prms) || raw) : raw;
     this.foot = toolFootprintVisual(prms);
     this.reset();
   }

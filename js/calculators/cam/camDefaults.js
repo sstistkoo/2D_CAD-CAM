@@ -146,6 +146,11 @@ export function _defaultCamParams() {
     // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
     // (Legacy jednotná hodnota — viz stockClearX/stockClearZ níže.)
     rapidClearance: 1.0,
+    // Odstup, ve kterém rychloposuv nad plánovací (offsetovou) čarou KONČÍ
+    // a dál se jede pracovním posuvem. Bez něj se nos zastavil PŘESNĚ na té
+    // čáře (`rapidStopX` = Vůle + R), takže příjezd končil už v ní — a odlitek
+    // až u čáry reálně být může. 0 = dosavadní chování.
+    rapidFeedGap: 1.0,
     // Vůle nad polotovarem po osách: odsazení hranice pracovního posuvu
     // (a bezpečné zóny pro držák) od polotovaru — radiálně (X) a axiálně
     // (Z), analogicky k Přídavku X/Z u kontury. null = převzít

@@ -22,7 +22,7 @@
 // ruční AABB test.
 
 import { StockModel, toolSweep, polyOffset, polyArea } from '../../geom/geomCore.js';
-import { buildStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
+import { buildStockLoop, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
 
 /**
  * Uzavřený obrys držáku v PROFILOVÝCH souřadnicích ({x,z} vůči
@@ -137,7 +137,16 @@ function makeBroadPhase(collisions, stockLoop) {
 export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   const issues = [];
   if (!simPath || simPath.length < 2) return issues;
-  const stockLoop = buildStockLoop(prms, stockPathSegments);
+  // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE. Přídavek X/Z (polo.) je v zadání
+  // právě proto, že odlitek MŮŽE být větší — materiál až k té čáře tedy reálně
+  // existovat může, a náraz do něj je náraz (rozhodnutí uživatele 20. 8. 2026:
+  // „obrobek je celý i s tou offsetovou čarou… mělo by to tak být i dělané“).
+  // Dráhy se proti té čáře už plánují (`planLoopRef` v gcodeEmit) a náhled ji
+  // vybarvuje — validátor je poslední, kdo měřil jen syrový obrys.
+  // `opts.rawStock` vrátí původní chování (měření proti NAKRESLENÉMU odlitku).
+  const rawLoop = buildStockLoop(prms, stockPathSegments);
+  const stockLoop = (rawLoop && !opts.rawStock)
+    ? (offsetStockLoop(rawLoop, prms) || rawLoop) : rawLoop;
   if (!stockLoop) return issues;
 
   const tol = opts.tolerance ?? 0.5;

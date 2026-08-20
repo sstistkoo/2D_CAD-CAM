@@ -16,7 +16,7 @@
 //   pass-helpery: offsetXAt, traceOffsetPath, findPocketExitZ,
 //                 findLeadOutEndZ, hIntersect
 
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
+import { topXOnLoop, rapidFeedGap, quantizeUp, getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoop, offsetStockLoop, insertBodyZ } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
@@ -146,6 +146,17 @@ export function genFacePasses(ctx) {
   // U R 0,8 mm je okno neznatelné, u R 8 mm je to reálná kolize (rychloposuv
   // na xStart projel kuželem polotovaru).
   const clrXFC = stockClearances(prms).x;
+  // Plánovací (vůlí-posunutá) silueta — táž „tečkovaná" čára, jakou kreslí náhled
+  // a proti které plánuje emise. Odlitek může být až u ní, takže rychloposuv
+  // nesmí končit V ní (uživatel 20. 8. 2026: „N2160 G0 X46.344 — příjezd
+  // rychloposuvem končí již v té offsetové čáře“).
+  const planLoopFC = (() => {
+    try {
+      const raw = buildStockLoop(prms, stockPathSegments);
+      return raw ? (offsetStockLoop(raw, prms) || raw) : null;
+    } catch { return null; }
+  })();
+  const feedGapFC = rapidFeedGap(prms);
   const rapidStartXAt = (z, xHere, dirUncut) => {
     let need = xHere + rTipFC;
     const n = 8;
@@ -154,7 +165,22 @@ export function genFacePasses(ctx) {
       const cand = castingOuterAtZ(z + dirUncut * dz) + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz));
       if (cand > need) need = cand;
     }
-    return need + clrXFC;
+    need += clrXFC;
+    // ODSTUP NAD OFFSETOVOU ČÁROU. `xHere` je SYROVÝ povrch a `clrXFC` se k němu
+    // přičítá SVISLE — na šikmé stěně je ale offsetová čára v X výš (posouvá se
+    // KOLMO), takže takhle spočtený start ležel POD ní. Měří se proto přímo
+    // proti plánovací smyčce: střed nosu na `čára + R + gap`, a to i pro nos
+    // vysunutý o R do stran (táž obalová geometrie jako výš).
+    if (planLoopFC) {
+      for (let i = 0; i <= n; i++) {
+        const dz = rTipFC * (i / n);
+        const pt = topXOnLoop(planLoopFC, z + dirUncut * dz);
+        if (pt === null) continue;
+        const cand = quantizeUp(pt + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz)) + feedGapFC);
+        if (cand > need) need = cand;
+      }
+    }
+    return need;
   };
   // Mez DOTYKU pro střed nosu: nad ní průchod v tomto Z už nic neodebere
   // (nos se nedotkne polotovaru ani bokem). Táž geometrie jako rapidStartXAt,
@@ -688,24 +714,60 @@ export function genFacePasses(ctx) {
         if (Math.abs(zc - zList[i]) < 0.1) continue;   // nos to pokryl už sám
         z = zc; xEnd = p.xEnd + Math.abs(zc - zList[i]) * tanR; edgeZ = edge;
       }
-      const xSurface = castingOuterAtZ(z);
-      // Nájezd musí přijít NAD materiál, který hrana sloupne — ten stojí na
-      // obrobené straně, ne na tomhle Z (tam bývá povrch hluboko pod koncem
-      // řezu, viz čelo příruby: povrch 16,7 a konec řezu 62,1).
-      const xStart = Math.max(rapidStartXAt(z, xSurface, faceLeft ? 1 : -1), xEnd + clrXFC);
-      const np = { type: 'face', z, xStart, xSurface, xEnd, blocked: true, runOut: true };
-      if (faceLeft) np.faceLeft = true;
-      add.push({ after: p, pass: np });
+      // ŠÍŘKA ZÁBĚRU V Z. Programovaný bod je vedení břitu na straně, kde se
+      // řeže; tělo nástroje se táhne k obrobené straně. U UPICHOVÁKU řeže celá
+      // šířka plátku, u nosu (kulatá / natočená destička) jen jeho stopa ≈ 2R.
+      const insCover = prms.toolShape === 'parting'
+        ? Math.max(parseFloat(prms.toolLength) || 0, 2 * rTipFC)
+        : 2 * rTipFC;
+      // Povrch pod CELÝM záběrem, ne jen na programovaném Z. Široký plátek se
+      // opre o to nejvyšší, co pod ním stojí — u čela příruby je na
+      // programovaném Z povrch 16,7 (za schodem), ale plátek svým tělem leží
+      // nad velkým čelem s povrchem 64,4. Bez toho vyšel nájezd jen 1 mm nad
+      // koncem řezu (`G0 X47.376` → `G1 X46.376`) a přejezd v Z se vedl POD
+      // offsetovou čarou — uživatel 20. 8. 2026: „zanořování udělej jako ten
+      // levý konec, jede to tam nahoru".
+      const surfaceUnderInsert = (zq) => {
+        let m = castingOuterAtZ(zq);
+        const n = Math.max(1, Math.ceil(insCover / 0.4));
+        for (let k = 1; k <= n; k++) {
+          const v = castingOuterAtZ(zq - dirRO * insCover * (k / n));
+          if (v > m) m = v;
+        }
+        return m;
+      };
+      // JEDNA VRSTVA MÍSTO DVOU, když na to šířka záběru stačí. Konec úseku
+      // potřebuje dvě věci: odříznout proužek na HRANĚ materiálu a sjet po
+      // OFFSETOVÉ ČÁŘE (mez, kam až může sahat skutečný odlitek). Nos je na to
+      // moc úzký (2R = 1,6 mm) a musí to udělat na dvakrát — změřeno na
+      // part-19: vynechání prostřední vrstvy tam nechalo celý prstenec 3,7 mm
+      // + 3 kolize. Upichovák šírky 5 mm ale obojí zvládne najednou
+      // (uživatel 20. 8. 2026: „udělej to jako ten levý konec, vezme to
+      // najednou když to jde" — ty dvě vrstvy jsou od sebe 2,95 mm).
+      // Sloučit smí jen UPICHOVÁK: u něj řeže celá šířka plátku a je to
+      // změřené. U nosu je `insCover` jen šířka pro vzorkování povrchu —
+      // slíbit podle něj sloučení by u kulaté R8 dalo 16 mm záběru, což nikdo
+      // nezměřil (a stopa nosu v hloubče ap je mnohem užší než 2R).
+      const zFar = edgeZ !== null ? edgeZ + dirRO * faceOffsetOut : null;
+      const mergeOne = zFar !== null && prms.toolShape === 'parting'
+        && Math.abs(zFar - zList[i]) <= insCover + 0.01;
+      if (!mergeOne) {
+        const xSurface = surfaceUnderInsert(z);
+        const xStart = Math.max(rapidStartXAt(z, xSurface, faceLeft ? 1 : -1), xEnd + clrXFC);
+        const np = { type: 'face', z, xStart, xSurface, xEnd, blocked: true, runOut: true };
+        if (faceLeft) np.faceLeft = true;
+        add.push({ after: p, pass: np });
+      }
       // Za hranou materiálu je PRÁZDNO, takže tam střed nosu ještě smí sjet po
       // OFFSETOVÉ ČÁŘE polotovaru. Není to řez naprázdno: offsetová čára je
       // mez, kam až může sahat SKUTEČNÝ odlitek (nadměrný kus se přes ni
       // „nafoukne"), takže na jmenovitém kuse neubere nic a na větším ano.
-      // Musí jít AŽ ZA průchod na hraně materiálu — ten proužek napřed
-      // odřízne; při jízdě rovnou sem jel držák nad syrovým (3 kolize).
-      if (edgeZ !== null) {
-        const zf = edgeZ + dirRO * faceOffsetOut;
+      // U úZKÉHO nosu musí jít AŽ ZA průchod na hraně materiálu — ten proužek
+      // napřed odřízne; při jízdě rovnou sem jel držák nad syrovým (3 kolize).
+      if (zFar !== null) {
+        const zf = zFar;
         const xf = p.xEnd + Math.abs(zf - zList[i]) * tanR;
-        const sf = castingOuterAtZ(zf);
+        const sf = surfaceUnderInsert(zf);
         const pf = { type: 'face', z: zf, xEnd: xf, xSurface: sf, blocked: true, runOut: true,
           xStart: Math.max(rapidStartXAt(zf, sf, faceLeft ? 1 : -1), xf + clrXFC) };
         if (faceLeft) pf.faceLeft = true;
@@ -765,7 +827,19 @@ export function genFacePasses(ctx) {
         let top = null;
         for (const s of stair) {
           if (zq < s.zLo - 1e-9 || zq > s.zHi + 1e-9) continue;
-          const x = s.raw ? castingOuterOrNull(zq) : s.x;
+          // SYROVÝ pás se měří na OFFSETOVÉ ČÁŘE, ne na povrchu: přídavek X/Z
+          // (polo.) je v zadání právě proto, že odlitek MŮŽE být až u té čáry.
+          // Bez toho držák „projde“ 0,1 mm nad syrovým povrchem a přitom je
+          // 1 mm v pásu — nález uživatele 20. 8. 2026 na dojezdu prvního
+          // průchodu nového úseku (`N3530 G1 X18.043 Z175.932`: spodek držáku
+          // X16,85 proti povrchu 16,743, ale offsetová čára je 17,74).
+          // HOTOVÉ dno průchodu zůstává svým `x` — to je skutečný povrch,
+          // žádný přídavek tam nepatří (táž dělba jako u `enforceLayerDepth`).
+          let x;
+          if (s.raw) {
+            const surf = castingOuterOrNull(zq);
+            x = surf === null ? null : surf + clrXFC;
+          } else x = s.x;
           if (x !== null && (top === null || x > top)) top = x;
         }
         return top;
@@ -1150,19 +1224,6 @@ export function genLongPasses(ctx) {
   // Max X vůlí-posunuté siluety na dané Z (stejný vzor jako
   // planTopXAtZ v gcodeEmit.js, nad stockLoopOffsetL místo
   // stockLoop0OffsetRef) — offsetová čára pro vjezd na hranici rozsahu Z.
-  const topXOnLoop = (loop, z) => {
-    if (!loop) return null;
-    let top = null;
-    const n = loop.length;
-    for (let i = 0; i < n; i++) {
-      const a = loop[i], b = loop[(i + 1) % n];
-      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
-        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
-        if (top === null || x > top) top = x;
-      }
-    }
-    return top;
-  };
   const offsetStockTopXAtZ = (z) => topXOnLoop(stockLoopOffsetL, z);
 
   // ── Kde smí ZAČÍT zanořovací rampa (strop podle držáku) ───────────────

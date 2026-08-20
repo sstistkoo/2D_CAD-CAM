@@ -14,7 +14,7 @@ import { bridge } from '../bridge.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
+import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, rapidFeedGap, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { MaterialRemoval, buildStockLoop, offsetStockLoop, toolFootprint } from './cam/materialRemoval.js';
 import { validateToolpath } from './cam/collisionValidator.js';
@@ -396,6 +396,9 @@ export function openCamSimulator(initialContour, initialGCode) {
   // a to běží ještě při inicializaci, dávno před sekcí s getRemovalModel().
   let _removal = null;
   let _removalCalcRef = null;
+  // Druhý model nad OFFSETOVOU (vůlí-posunutou) čarou — jen pro vybarvení
+  // pásu mezi oběma čarami, viz getRemovalOuterModel().
+  let _removalOuter = null;
 
   // Otisk kontury, se kterou byly části programu vytvořené — podle něj se
   // pozná, že kontura z CAD je mezitím jiná (polotovary částí pak nemusí
@@ -811,7 +814,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       applyPartToState(part, S);
     }
     S.simRunning = false; S.simProgress = 0;
-    _removal = null; _removalCalcRef = null;
+    _removal = null; _removalCalcRef = null; _removalOuter = null;
   }
 
   function setOpView(view) {
@@ -1080,17 +1083,40 @@ export function openCamSimulator(initialContour, initialGCode) {
   // se i při přepnutí části programu, ještě před touto sekcí.)
   function getRemovalModel(calc) {
     if (!S.showRemoval || !calc || !calc.simPath || calc.simPath.length < 2) {
-      _removal = null; _removalCalcRef = null;
+      _removal = null; _removalCalcRef = null; _removalOuter = null;
       return null;
     }
     if (!_removal || _removalCalcRef !== calc) {
       _removal = new MaterialRemoval(S.params, calc.stockPathSegments);
       _removalCalcRef = calc;
+      _removalOuter = null;
     }
     if (!_removal.valid) return null;
     const fIdx = S.simProgress * (calc.simPath.length - 1);
     _removal.advanceTo(calc.simPath, fIdx);
     return _removal;
+  }
+
+  // ── PÁS MEZI POLOTOVAREM A OFFSETOVOU ČÁROU ─────────────────
+  // Přídavek X/Z (polo.) je v zadání právě proto, že odlitek MŮŽE být větší —
+  // materiál až k offsetové čáře tedy reálně existovat může a dráhy se podle
+  // toho plánují (`planLoopRef` v gcodeEmit.js). Náhled to ale kreslil jen
+  // tečkovanou čarou, takže rychloposuv, který za ni skočí, vypadal neškodně
+  // (nález uživatele 19. 8. 2026: „odskok mi skočí za tu offsetovou čáru“).
+  // Pás se proto vybarvuje světlejším odstínem a ubírá se stejně jako polotovar.
+  //
+  // Je to SAMOSTATNÝ model, ne základ toho hlavního: `_removal.baseLoop`
+  // slouží i jako parita pro mazání VYBARVENÍ (`fillClipPath`) a jako obrys
+  // pro části programu — kdyby zahrnoval pás, začalo by mazání žrát i výplně
+  // NAD syrovým polotovarem (obrobek, anotace), které tam mají zůstat.
+  function getRemovalOuterModel(calc, rm) {
+    if (!rm || stockClearanceIsZero(S.params)) return null;   // čáry splývají
+    if (!_removalOuter) {
+      _removalOuter = new MaterialRemoval(S.params, calc.stockPathSegments, { planningOutline: true });
+    }
+    if (!_removalOuter.valid) return null;
+    _removalOuter.advanceTo(calc.simPath, S.simProgress * (calc.simPath.length - 1));
+    return _removalOuter;
   }
 
   // ── Kolize držáku s materiálem (oranžové varování) ─────────────
@@ -1102,18 +1128,25 @@ export function openCamSimulator(initialContour, initialGCode) {
   // přes toScreen), nebo null.
   let _holderGouge = null;
   let _holderGougeCalcRef = null;
+  // Vrací { hard, band } — `hard` = vnoření do MATERIÁLU (oranžové, jako dosud),
+  // `band` = vjezd do PÁSU mezi syrovým obrysem a offsetovou čarou (červené).
+  // Odlitek může být až u té čáry, takže držák za ní je na nadměrném kusu
+  // kolize — na nakresleném odlitku se předtím nevybarvilo nic (nález uživatele
+  // 19. 8. 2026). Oba záznamy jsou disjunktní (pás = offset MÍNUS syrový obrys).
   function getHolderGouge(calc) {
     if (!S.showHolderCollision || S.simProgress <= 0 || !calc || !calc.simPath || calc.simPath.length < 2) {
       return null;
     }
     if (!_holderGouge || _holderGougeCalcRef !== calc) {
-      _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, roughingKey() === 'backside');
+      _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, roughingKey() === 'backside', { band: true });
       _holderGougeCalcRef = calc;
     }
     if (!_holderGouge.valid) return null;
     const fIdx = S.simProgress * (calc.simPath.length - 1);
     _holderGouge.advanceTo(calc.simPath, fIdx);
-    return _holderGouge.gouge.length ? _holderGouge.gouge : null;
+    const hard = _holderGouge.gouge.length ? _holderGouge.gouge : null;
+    const band = _holderGouge.gougeBand.length ? _holderGouge.gougeBand : null;
+    return (hard || band) ? { hard, band } : null;
   }
 
   function scheduleFrame(fn) {
@@ -1312,6 +1345,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     // takže projetý materiál vizuálně mizí.
     let remainPath = null;   // čistý zbytek materiálu (pro výplň polotovaru)
     let fillClipPath = null; // clip pro vybarvení: vše MIMO původní polotovar + zbytek
+    let bandPath = null;     // zbytek AŽ po offsetovou čáru (včetně pásu nad polotovarem)
+    let bandClip = null;     // clip „mimo syrový polotovar“ — aby pás nepřekryl jádro
     if (S.showRemoval) {
       const addLoop = (path, loop) => {
         if (!loop || loop.length < 3) return;
@@ -1327,6 +1362,18 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (rm) {
         remainPath = new Path2D();
         for (const loop of rm.model.loops) addLoop(remainPath, loop);
+        // Pás k offsetové čáře: vykreslí se zbytek OFFSETOVÉHO modelu, ale
+        // obříznutý na „mimo syrový polotovar“ — jádro tak zůstává přesně
+        // v dosavadním odstínu (výplně se na canvasu sčítají) a navíc je
+        // vidět, kde končí nakreslený odlitek a kde začíná pesimistický pás.
+        const rmOut = getRemovalOuterModel(calc, rm);
+        if (rmOut && rm.rawLoop) {
+          bandPath = new Path2D();
+          for (const loop of rmOut.model.loops) addLoop(bandPath, loop);
+          bandClip = new Path2D();
+          bandClip.rect(-10, -10, w + 20, h + 20);
+          addLoop(bandClip, rm.rawLoop);
+        }
       }
       // Materiál odebraný PŘEDCHOZÍMI operacemi je pryč nastálo — vybarvení se
       // tam proto nemá vracet ani při simProgress = 0 (čerstvě založená část
@@ -1353,6 +1400,18 @@ export function openCamSimulator(initialContour, initialGCode) {
     // objektů, protože jde jen o vizuální anotaci, ne obráběnou geometrii).
     // Stejné pořadí jako v CAD (js/render.js drawFills) — kreslí se pod vším.
     const camXZ = (cx, cy) => prms.machineStructure === 'carousel' ? [cx, cy] : [cy, cx];
+    // Pás mezi syrovým polotovarem a offsetovou čarou. Oddělená funkce, aby ji
+    // mohly zavolat oba režimy polotovaru (válec i odlitek) těsně před vlastní
+    // výplní zbytku — jádro se pak překreslí přes něj a odstín zůstane stejný.
+    function drawStockBand() {
+      if (!bandPath || !bandClip) return;
+      ctx.save();
+      ctx.clip(bandClip, 'evenodd');       // jen VNĚ nakresleného odlitku
+      ctx.fillStyle = 'rgba(250,179,135,0.10)';   // stejný tón jako tečkovaná čára
+      ctx.fill(bandPath, 'evenodd');
+      ctx.restore();
+    }
+
     if (fillClipPath) { ctx.save(); ctx.clip(fillClipPath, 'evenodd'); }
     state.objects.forEach((obj) => {
       if (obj.type !== 'fill' || !obj.loops || obj.loops.length === 0) return;
@@ -1386,6 +1445,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // filled area — při aktivním úběru se kreslí jen ZBÝVAJÍCÍ materiál
       ctx.fillStyle = 'rgba(108,112,134,0.12)';
       if (remainPath) {
+        drawStockBand();
         ctx.fill(remainPath, 'evenodd');
       } else {
         ctx.beginPath(); ctx.moveTo(sStart.x, sStart.y); ctx.lineTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath(); ctx.fill();
@@ -1441,6 +1501,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Odlitek: při aktivním úběru vyplnit zbývající materiál (válec má
       // výplň výš — tady se jinak kreslí jen obrys).
       if (remainPath) {
+        drawStockBand();
         ctx.fillStyle = 'rgba(108,112,134,0.12)';
         ctx.fill(remainPath, 'evenodd');
       }
@@ -1974,22 +2035,28 @@ export function openCamSimulator(initialContour, initialGCode) {
         const holderHit = getHolderGouge(calc);
         if (holderHit) {
           ctx.save();
-          ctx.fillStyle = 'rgba(250,140,50,0.55)';
-          ctx.strokeStyle = '#e8590c';
           ctx.lineWidth = 1.5;
-          for (const loop of holderHit) {
-            if (loop.length < 3) continue;
-            ctx.beginPath();
-            const p0 = toScreen(loop[0].x, loop[0].z);
-            ctx.moveTo(p0.x, p0.y);
-            for (let i = 1; i < loop.length; i++) {
-              const p = toScreen(loop[i].x, loop[i].z);
-              ctx.lineTo(p.x, p.y);
+          const paint = (loops, fill, stroke) => {
+            if (!loops) return;
+            ctx.fillStyle = fill; ctx.strokeStyle = stroke;
+            for (const loop of loops) {
+              if (loop.length < 3) continue;
+              ctx.beginPath();
+              const p0 = toScreen(loop[0].x, loop[0].z);
+              ctx.moveTo(p0.x, p0.y);
+              for (let i = 1; i < loop.length; i++) {
+                const p = toScreen(loop[i].x, loop[i].z);
+                ctx.lineTo(p.x, p.y);
+              }
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
             }
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-          }
+          };
+          // ČERVENĚ pás k offsetové čáře (kreslí se PRVNÍ, tvrdé vnoření do
+          // materiálu je nad ním), ORANŽOVĚ vnoření do materiálu — jako dosud.
+          paint(holderHit.band, 'rgba(231,76,60,0.55)', '#c0392b');
+          paint(holderHit.hard, 'rgba(250,140,50,0.55)', '#e8590c');
           ctx.restore();
         }
         ctx.fillStyle = C.insert; ctx.strokeStyle = C.text; ctx.lineWidth = 1;
@@ -3907,6 +3974,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field" title="Přídavek kolem polotovaru radiálně (osa X): vzdálenost od povrchu polotovaru, kde končí rychloposuv — sjezd přes ni už jede pracovním posuvem G1 a dráha na tuhle čáru na konci řezu i vyjíždí. Hranice se kreslí tečkovaně kolem polotovaru."><label>Přídavek X (polo.)</label><input type="number" step="0.1" min="0.05" data-p="stockClearX" value="${stockClearances(prms).x}"></div>
         <div class="cam-sim-field" title="Přídavek kolem polotovaru axiálně (osa Z): vzdálenost od čela/hran polotovaru, kde končí rychloposuv a začíná pracovní posuv G1 — a kam dráha vyjíždí na konci řezu. Hranice se kreslí tečkovaně kolem polotovaru."><label>Přídavek Z (polo.)</label><input type="number" step="0.1" min="0.05" data-p="stockClearZ" value="${stockClearances(prms).z}"></div>
+        <div class="cam-sim-field" title="Jak daleko PŘED offsetovou (tečkovanou) čarou skončí rychloposuv a dál se pojede pracovním posuvem G1. Měří se od HRANY nosu, ne od programovaného bodu. Bez něj (0) nos dosedne přesně na tu čaru — a odlitek až u ní reálně být může, takže příjezd končí již v materiálu. Platí pro VŠECHNY příjezdy rychloposuvem."><label>Stop rychlop. před čarou</label><input type="number" step="0.1" min="0" data-p="rapidFeedGap" value="${rapidFeedGap(prms)}"></div>
       </div>`;
     const zlOn = S.showZLimits === 'on';
     const zlLabel = zlOn ? 'Skrýt' : 'Zobrazit';

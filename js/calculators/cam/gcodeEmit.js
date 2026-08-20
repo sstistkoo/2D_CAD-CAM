@@ -9,7 +9,7 @@
 // harness ho zachytává přes hoisting (viz tests/helpers/camHeadless.mjs).
 
 import { StockModel, polyArea, polyDifference, polyOffset, polySimplify, toolSweep } from '../../geom/geomCore.js';
-import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, segEndPoint, segStartPoint, stockClearances } from './camMath.js';
+import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, quantizeUp, rapidFeedGap, segEndPoint, segStartPoint, stockClearances, topXOnLoop } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
 import { buildStockLoop, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
@@ -388,6 +388,11 @@ export function generateAutoGCode(S, calc) {
   const tipRGc = parseFloat(prms.toolRadius) || 0;
   const rapidStopX = rapidClrGc + tipRGc;
   const rapidStopZ = rapidClrZGc + tipRGc;
+  // ODSTUP, ve kterém rychloposuv nad plánovací (offsetovou) čarou končí.
+  // `rapidStopX` = Vůle + R znamená, že spodek nosu dosedne PŘESNĚ na tu čaru —
+  // příjezd tedy končil V ní, ačkoli odlitek až u ní reálně být může (nález
+  // uživatele 20. 8. 2026). Zbytek se dojede pracovním posuvem.
+  const feedGapGc = rapidFeedGap(prms);
   // Hloubka záběru (ap) = rozteč vrstev — zvednutí „o úroveň výš" (viz
   // přesun v kapse níž) se měří v jejích krocích.
   const stepGc = Math.max(0.1, parseFloat(prms.depthOfCut) || 1);
@@ -422,6 +427,14 @@ export function generateAutoGCode(S, calc) {
   // proti aktuálnímu zbytku — při kontaktu se jede nahoru přes polotovar
   // (stejný vzor jako u statických blockerů).
   let rapidStock = null;
+  // Týž dynamický model, ale nad PLÁNOVACÍ (vůlí-posunutou) siluetou. Podle
+  // něj se rozhoduje, jestli rychloposuv smí jít přímo — přídavek X/Z (polo.)
+  // je v zadání právě proto, že odlitek MŮŽE být až u té čáry, takže přejezd
+  // POD ní je na nadměrném kusu náraz (uživatel 20. 8. 2026: „udělej to, ať to
+  // vyjede nad tu offsetovou čaru“). Syrový `rapidStock` zůstává pro všechno
+  // ostatní — strop zdvihu, hloubka třísky u dokončování, EXIT-SPLIT — aby se
+  // ty (na zbytek citlivé) věci nezměnily.
+  let rapidStockPlan = null;
   let rapidFoot = null;
   let rapidFootSlim = null;
   let rapidStockCuts = 0;
@@ -439,6 +452,7 @@ export function generateAutoGCode(S, calc) {
       // Plánovací (vůlí-posunutá) silueta — sdílená implementace, viz
       // offsetStockLoop v materialRemoval.js.
       stockLoop0OffsetRef = offsetStockLoop(stockLoop0, prms);
+      if (stockLoop0OffsetRef) rapidStockPlan = new StockModel([stockLoop0OffsetRef]);
     }
   } catch (err) {
     console.warn('CAM: dynamický model polotovaru pro rychloposuvy selhal:', err);
@@ -449,6 +463,18 @@ export function generateAutoGCode(S, calc) {
     try {
       const sweep = toolSweep(rapidFootSlim, [{ x: x1, z: z1 }, { x: x2, z: z2 }]);
       return Math.abs(polyArea(rapidStock.collide(sweep))) > 0.5;
+    } catch { return false; }
+  };
+  // Totéž proti PLÁNOVACÍMU (vůlí-posunutému) zbytku. Používá se JEN
+  // u čelního přejezdu v Z — tam uživatel viděl držák pod offsetovou čarou
+  // (20. 8. 2026). Ostatní rozhodnutí (EXIT-SPLIT, výjezd posuvem, strop
+  // zdvihu) zůstávají na syrovém zbytku: jsou na něj citlivé a přepnutí
+  // všeho najednou přepsalo všech 24 fixtures.
+  const rapidHitsPlan = (x1, z1, x2, z2) => {
+    if (!rapidStockPlan) return false;
+    try {
+      const sweep = toolSweep(rapidFootSlim, [{ x: x1, z: z1 }, { x: x2, z: z2 }]);
+      return Math.abs(polyArea(rapidStockPlan.collide(sweep))) > 0.5;
     } catch { return false; }
   };
   // ── Dva modely „kde je materiál" a jejich dělba (ÚKLID 8. 8. 2026) ──────
@@ -465,21 +491,7 @@ export function generateAutoGCode(S, calc) {
   // soubor. `stockLoop0Ref` proto slouží už jen jako fallback, když offset
   // (Clipper) selže.
   //
-  // Max X (horní hrana) smyčky na axiální souřadnici `z`; null = smyčka tam
-  // materiál nemá (vzduch). Jedna implementace pro všechny modely.
-  const topXOnLoop = (loop, z) => {
-    if (!loop) return null;
-    let top = null;
-    const n = loop.length;
-    for (let i = 0; i < n; i++) {
-      const a = loop[i], b = loop[(i + 1) % n];
-      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
-        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
-        if (top === null || x > top) top = x;
-      }
-    }
-    return top;
-  };
+  // `topXOnLoop` (max X smyčky na daném z) je sdílený v camMath.js.
   // Z-souřadnice, kde smyčka protíná hloubku `x` (přechody vzduch↔materiál na
   // této hloubce), v otevřeném intervalu (zLo, zHi).
   const crossZOnLoop = (loop, x, zLo, zHi) => {
@@ -507,6 +519,43 @@ export function generateAutoGCode(S, calc) {
       if (t !== null && (top === null || t > top)) top = t;
     }
     return top;
+  };
+  // Totéž nad PLÁNOVACÍM (vůlí-posunutým) zbytkem. Strop zdvihu se musí počítat
+  // z něj: `travelBlocked` testuje i plánovací model, takže lokální strop
+  // spočtený jen ze SYROVÉHO zbytku zůstal pod ním a přejezd padal až na
+  // globální bezpečné X (nález uživatele 20. 8. 2026: „N5680 G0 X30.523 —
+  // vyjíždí někde do bezpečné polohy v X, i když by to mělo brát normálně
+  // nad polotovarem").
+  const planResidualTopXAtZ = (z) => {
+    if (!rapidStockPlan) return null;
+    let top = null;
+    for (const loop of rapidStockPlan.loops) {
+      const t = topXOnLoop(loop, z);
+      if (t !== null && (top === null || t > top)) top = t;
+    }
+    return top;
+  };
+  // Kde musí SJEZD zastavit rychloposuv. Dvě meze, bere se vyšší:
+  //   syrový zbytek + Vůle + R   (dosavadní pravidlo)
+  //   plánovací zbytek + R + gap  (odstup od offsetové čáry — exaktní i na šikmé
+  //                                stěně, kde je čára v X výš než povrch + Vůle)
+  const rapidStopXAt = (z) => {
+    const raw = residualTopXAtZ(z);
+    const plan = planResidualTopXAtZ(z);
+    let need = null;
+    if (raw !== null) need = raw + rapidStopX;
+    if (plan !== null) {
+      const cand = quantizeUp(plan + tipRGc + feedGapGc);
+      if (need === null || cand > need) need = cand;
+    }
+    return need;
+  };
+  // Vyšší z obou stropů — tak vysoko musí přejezd, aby prošel proti obojmu.
+  const travelTopXAtZ = (z) => {
+    const a = residualTopXAtZ(z), b = planResidualTopXAtZ(z);
+    if (a === null) return b;
+    if (b === null) return a;
+    return Math.max(a, b);
   };
   // Plánovací obrys: vůlí-posunutá silueta („tečkovaná" čára z náhledu).
   const planLoopRef = () => stockLoop0OffsetRef || stockLoop0Ref;
@@ -630,8 +679,15 @@ export function generateAutoGCode(S, calc) {
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;
     try {
-      rapidStock.cut(toolSweep(rapidFoot, pts));
-      if (++rapidStockCuts % 24 === 0) rapidStock.loops = polySimplify(rapidStock.loops, 0.002);
+      const cut = toolSweep(rapidFoot, pts);
+      rapidStock.cut(cut);
+      // Plánovací model se ubírá TÍMŽ ŘEZEM — jinak by zůstal stát celý
+      // a po prvních průchodech by zablokoval každý přejezd.
+      if (rapidStockPlan) rapidStockPlan.cut(cut);
+      if (++rapidStockCuts % 24 === 0) {
+        rapidStock.loops = polySimplify(rapidStock.loops, 0.002);
+        if (rapidStockPlan) rapidStockPlan.loops = polySimplify(rapidStockPlan.loops, 0.002);
+      }
     } catch { /* model je jen pro rychloposuvy — pokračovat bez řezu */ }
   };
   // Jeden SKUTEČNĚ VYDANÝ řezný pohyb (z aktuální polohy do cílové).
@@ -821,10 +877,10 @@ export function generateAutoGCode(S, calc) {
   // Polohu si volající nastaví sám (setPos).
   const emitDescendX = (fromX, tx, tz, touch) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
-    if (fromX - tx > 1e-6 && rapidHitsStock(fromX, tz, tx, tz)) {
-      const surf = residualTopXAtZ(tz);
+    if (fromX - tx > 1e-6 && (rapidHitsStock(fromX, tz, tx, tz) || rapidHitsPlan(fromX, tz, tx, tz))) {
+      const surf = rapidStopXAt(tz);
       if (surf !== null) {
-        const floorX = Math.min(fromX, Math.max(tx, surf + rapidStopX));
+        const floorX = Math.min(fromX, Math.max(tx, surf));
         if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
         if (floorX - tx > 1e-6) emit(`G1 X${xDia(tx)} F${prms.feed}`);
         return;
@@ -1356,14 +1412,15 @@ export function generateAutoGCode(S, calc) {
       {
         const zFrom = cur.z, zTo = pass.z;
         const travelBlocked = (x) => segmentHitsPath({ x, z: zFrom }, { x, z: zTo }, rapidBlockers)
-          || rapidHitsStock(x, zFrom, x, zTo);
+          || rapidHitsStock(x, zFrom, x, zTo)
+          || rapidHitsPlan(x, zFrom, x, zTo);
         const capX = Math.max(rapidTopX + rapidStopX, pass.xStart);
         let xTrav = pass.xStart;
         if (Math.abs(zTo - zFrom) > 1e-6 && travelBlocked(xTrav)) {
           let top = null;
           const n = 24;
           for (let i = 0; i <= n; i++) {
-            const t = residualTopXAtZ(zFrom + (zTo - zFrom) * (i / n));
+            const t = travelTopXAtZ(zFrom + (zTo - zFrom) * (i / n));
             if (t !== null && (top === null || t > top)) top = t;
           }
           xTrav = top !== null ? Math.min(capX, Math.max(pass.xStart, top + rapidStopX)) : capX;

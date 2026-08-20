@@ -343,6 +343,43 @@ export function stockClearances(prms) {
 // projekty). Jen JEDNA z hodnot nulová se taky nepočítá: anizotropní offset
 // se škáluje poměrem VůleX/VůleZ, který by s nulou zdegeneroval; tam dál
 // platí spodní mez 0,05 mm.
+// Max X (horní hrana) UZAVŘENÉ smyčky na axiální souřadnici `z`; null =
+// smyčka tam materiál nemá (vzduch). Jedna implementace pro všechny modely
+// (dřív dvě kopie — gcodeEmit.js a roughingStrategies.js).
+export function topXOnLoop(loop, z) {
+  if (!loop) return null;
+  let top = null;
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const a = loop[i], b = loop[(i + 1) % n];
+    if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+      const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+      if (top === null || x > top) top = x;
+    }
+  }
+  return top;
+}
+
+// Kde se má zastavit RYCHLOPOSUV nad plánovací (offsetovou) čarou: programovaný
+// bod je střed nosu, takže spodek nosu leží o R níž — pro odstup `gap` nad
+// čarou musí střed stát na `čara + R + gap`. `gap` = param `rapidFeedGap`
+// (uživatel 20. 8. 2026: „mělo by to zastavit rychloposuv 1–2 mm před tou
+// offsetovou čarou a zbytek pokračovat normálním posuvem“).
+// Kvantizace hodnoty odvozené z OFFSETOVÉ smyčky na 0,01 mm NAHORU. Clipper
+// není při zrcadlení v Z bitově přesný, takže totéž místo vyjde zleva a zprava
+// o ~1 µm jinak — a v emisi (3 desetinná místa) se to projeví jako `X46.169`
+// vs `X46.170`, což rozbíjí paritu zrcadlení (`tests/cam-backside-mirror`).
+// 10 µm je hluboko pod vším, co na poloze zastavení rychloposuvu záleží,
+// a zaokrouhlení NAHORU nikdy nejde blíž k materiálu.
+export function quantizeUp(x, q = 0.01) {
+  return Math.ceil(x / q - 1e-9) * q;
+}
+
+export function rapidFeedGap(prms) {
+  const v = parseFloat(prms.rapidFeedGap);
+  return Number.isFinite(v) && v >= 0 ? v : 1.0;
+}
+
 export function stockClearanceIsZero(prms) {
   const cx = parseFloat(prms.stockClearX);
   const cz = parseFloat(prms.stockClearZ);

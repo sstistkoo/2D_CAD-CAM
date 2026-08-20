@@ -54,6 +54,32 @@ describe('Čelně upichovákem (šířka 5 mm, natočení 0°)', () => {
     }
   }, 120000);
 
+  it('upichovák vezme konec úseku JEDNOU vrstvou, ne dvěma', async () => {
+    const { calc } = await runCamProgFile(fixture);
+    const ro = calc.passes.filter(p => p.type === 'face' && p.runOut);
+    // Konec úseku potřebuje odříznout proužek na hraně materiálu A sjet po
+    // offsetové čáře. Nos to musí na dvakrát, plátek šířky 5 mm ne — ty dvě
+    // vrstvy byly od sebe 2,95 mm (uživatel 20. 8. 2026: „vezme to najednou").
+    // Žádné dva doběhy proto nesmějí ležet blíž než šířka plátku.
+    const w = parseFloat(prms0.toolLength);
+    for (let i = 1; i < ro.length; i++)
+      expect(Math.abs(ro[i].z - ro[i - 1].z)).toBeGreaterThan(w - 0.01);
+    expect(ro.length).toBeGreaterThan(0);
+  }, 120000);
+
+  it('nájezd doběhu jde z povrchu pod CELÝM záběrem, ne z 1 mm nad řezem', async () => {
+    const { calc } = await runCamProgFile(fixture);
+    const ro = calc.passes.filter(p => p.type === 'face' && p.runOut);
+    expect(ro.length).toBeGreaterThan(0);
+    for (const p of ro) {
+      // Dřív `xSurface` bralo povrch jen na programovaném Z — u čela příruby
+      // je tam za schodem 16,7, takže nájezd skoňčil 1 mm nad koncem řezu
+      // (`G0 X47.376` → `G1 X46.376`). Plátek ale leží tělem nad velkým čelem.
+      expect(p.xSurface).toBeGreaterThan(p.xEnd + 1);
+      expect(p.xStart).toBeGreaterThan(p.xSurface);
+    }
+  }, 120000);
+
   it('program s doběhem nemá kolizi (doběh projde hlídáním držáku)', async () => {
     const { calc, calcSim, S } = await runCamProgFile(fixture);
     const issues = validateToolpath(calcSim.simPath, S.params, calc.stockPathSegments,

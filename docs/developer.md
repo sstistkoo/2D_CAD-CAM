@@ -773,6 +773,29 @@ Totéž platí na konci KAŽDÉHO ÚSEKU, ne jen celé marche — za stěnou neb
 příruby úsek skončí a schodek zůstane stejně. `appendRegionRunOut()` přidá na
 konec úseku **právě jednu** vrstvu s `xEnd = předchozí + krok·tan φ`.
 
+**JEDNA vrstva místo dvou, když na to šířka záběru stačí.** Konec úseku
+potřebuje dvě věci — odříznout proužek na HRANĚ materiálu a sjet po OFFSETOVÉ
+ČÁŘE. Nos je na to úzký (stopa ≈ 2R = 1,6 mm) a musí to udělat na dvakrát;
+UPICHOVÁK šířky 5 mm obojí zvládne najednou. Rozhoduje `insCover`
+(= `toolLength` u upichováku, jinak `2R`): když `|zFar − zList[i]| ≤ insCover`,
+vydá se jen ta vzdálenější vrstva. Na `part-19` (natočená destička) tedy zůstávají
+dvě — vynechání prostřední tam nechalo celý prstenec 3,7 mm a 3 kolize.
+
+Nájezd těch vrstev se počítá z povrchu pod **celým záběrem**
+(`surfaceUnderInsert`), ne jen na programovaném Z: u čela příruby je za schodem
+povrch 16,7, ale plátek leží tělem nad velkým čelem s povrchem 64,4. Bez toho
+vyšel nájezd jen 1 mm nad koncem řezu (`G0 X47.376` → `G1 X46.376`) a přejezd
+v Z se vedl pod offsetovou čarou.
+
+**Syrový pás se v hlídání držáku měří na OFFSETOVÉ ČÁŘE.** `stairAt` vrací pro
+Z-pásy BEZ průchodu `povrch + Přídavek X`, ne samotný povrch — odlitek může být
+až u té čáry. Bez toho držák „projde“ 0,1 mm nad nakresleným povrchem a přitom
+je 1 mm v pásu (dojezd prvního průchodu nového úseku: spodek držáku X16,85,
+povrch 16,743, offsetová čára 17,74). HOTOVÉ dno průchodu zůstává svým `x` —
+to je skutečný obrobený povrch, žádný přídavek tam nepatří (táž dělba jako
+u `enforceLayerDepth`, viz bod 7 výš). **Cena je reálná:** průchody se zvednou
+a ubere se o ~38 mm² míň (změřeno na třech dílech).
+
 **POŘADÍ hlídání je součástí algoritmu.** Doběh se rozhoduje podle toho, jestli
 na dalším Z ještě průchod JE („úsek pokračuje sám“) — a právě ty průchody
 zahazuje hlídání držáku. Proto se `holderGuardFace()` volá **dvakrát**, doběh
@@ -855,6 +878,67 @@ vypadající dráhy v rozích (nález uživatele 19. 8. 2026):
    na `part-16` (včetně výjezdu po kuželu, který na osový úsek navazuje).
    Přesah se NEVÁŽE na rádius nosu: u kulaté destičky R8 by spolkl celý osový
    úsek a ořez by na `part-18` nikdy nenastal.
+
+#### Náhled úběru: pás k offsetové čáře
+
+`MaterialRemoval` bere volitelnou třetí hodnotu `{ planningOutline: true }` —
+základem pak není syrová silueta, ale OFFSETOVÁ (vůlí-posunutá) čára
+(`offsetStockLoop`). Přídavek X/Z (polo.) je v zadání právě proto, že odlitek
+MŮŽE být větší, a dráhy se podle té čáry plánují (`planLoopRef`) — náhled ji
+ale kreslil jen tečkovaně, takže rychloposuv za ni vypadal neškodně (nález
+uživatele 19. 8. 2026). CAM simulátor proto drží DVA modely:
+
+| model | základ | k čemu |
+|---|---|---|
+| `_removal` | syrová silueta | výplň polotovaru + parita pro mazání VYBARVENÍ |
+| `_removalOuter` | offsetová čára | jen vybarvení pÁSU mezi oběma čarami |
+
+**Rychloposuv se zastaví PŘED offsetovou čarou** — parametr
+„Stop rychlop. před čarou“ (`rapidFeedGap`, výchozní 1 mm; 0 = dosavadní
+chování). Dosud platilo `rapidStopX` = Vůle + R nad SYROVÝM povrchem, což
+znamená, že spodek nosu dosedl PŘESNĚ na offsetovou čaru — příjezd tedy končil
+už v ní, ačkoli odlitek až u ní reálně být může. Na ŠIKMINĚ je to horší: čára
+se posouvá KOLMO, takže v X leží výš než `povrch + Vůle`, a start vyšel až
+0,43 mm POD ní. Měří se proto přímo proti plánovací smyčce:
+
+| kde | mez |
+|---|---|
+| `rapidStopXAt` (gcodeEmit) | max(syrový zbytek + Vůle + R, plánovací zbytek + R + gap) |
+| `rapidStartXAt` (čelní generátor) | totéž, navíc přes obalovou geometrii nosu (±R) |
+
+Hodnota odvozená z offsetové smyčky se **kvantizuje nahoru na 0,01 mm**
+(`quantizeUp`): Clipper není při zrcadlení v Z bitově přesný, takže totéž místo
+vyšlo zleva a zprava o ~1 µm jinak — v emisi na 3 desetinná místa to dělalo
+`X46.169` vs `X46.170` a padala parita zrcadlení (`tests/cam-backside-mirror`).
+
+**Čelní přejezd v Z se testuje i proti PLÁNOVACÍMU zbytku.** Emise vede druhý
+dynamický model `rapidStockPlan` — týž jako `rapidStock`, ale nad vůlí-posunutou
+siluetou a ubíraný týžě řezem. `rapidHitsPlan()` se používá **jen** v `travelBlocked`
+u čelního přejezdu: předtím se rozhodovalo proti syrovému zbytku, takže přejezd,
+který syrový odlitek minul, ale offsetovou čaru projížděl, se povolil. Změřeno:
+rychloposuvů v Z skrz pás **18 (22,2 mm²) → 0**, úběr beze změny.
+Přepnout na plánovací model celý `rapidHitsStock` NEJDE: rozhoduje i o EXIT-SPLITu,
+výjezdu posuvem a stropu zdvihu — změřeno, přepsáno všech 24 fixtures.
+
+Stejné rozdělení má i **kolize držáku**: `HolderGouge` s `{ band: true }` vede
+DVA disjunktní záznamy — `gouge` (vnoření do syrového materiálu, ORANŽOVÉ, jako
+dosud) a `gougeBand` (vjezd do pásu k offsetové čáře, ČERVENÉ). Držák za
+offsetovou čarou se předtím nevybarvil vůbec, i když na nadměrném odlitku naráží.
+Pouhý DOTEK hranice se nepočítá: držák se pro test pásu zmenší o 0,05 mm
+(`holderSlim`, týž trik jako `holderShrunk` v gcodeEmit.js) a slivery pod
+0,02 mm² se zahazují — bez toho hlásil každý přejezd na rapid-safe X (leží
+přesně na offsetové čáře) vjezd, změřeno 94 oblastí proti 18 skutečným.
+
+Pás se kreslí jako zbytek offsetového modelu, ale oříznutý na „mimo syrový
+polotovar“ (`bandClip`, parita evenodd), a až po něm se překreslí jádro — odstín
+jádra tak zůstává přesně jako dosud a navíc je vidět, kde končí nakreslený
+odlitek. Offsetový model **nesmí** být základem toho hlavního: `_removal.baseLoop`
+slouží i jako parita pro mazání vybarvení a jako obrys pro části programu —
+s pásem by mazání začalo žrát i výplně NAD syrovým polotovarem (obrobek,
+anotace). Ze stejného důvodu zůstávají na syrovém obrysu `validateToolpath`
+i `opParts` — ty odpovídají na „narazil jsem FYZICKY?“ a „co zbylo pro další
+operaci?“. Nulový Přídavek X i Z = čáry splývají a pás se nepočítá vůbec
+(`stockClearanceIsZero`).
 
 #### Dva modely nástroje pro úběr
 
