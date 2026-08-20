@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Invariant „generátor nevyrábí kolize“ hlídá i OFFSETOVOU ČÁRU.**
+  `tests/cam-collision-free` dosud měřil jen proti nakreslenému odlitku.
+  Nově pouští každý program ještě jednou proti plánovací hranici
+  (`planStock: true`) — tedy proti tomu, co uživatel vidí v ⛔ panelu a co
+  platí, když je odlitek nadměrný. Syrový standard zůstává beze změny
+  (`shrink` 0,05, žádná fixture, žádná kolize); tenhle blok nic neoslabuje,
+  jen přidává. Plánovací standard běží se `shrink` 0,25 mm, protože obě strany
+  diskretizují hranici jinak (emise vede model zbytku po plánované geometrii
+  průchodů, validátor po skutečně vygenerované dráze) — v hlavičce testu je
+  naměřená tabulka, nad kterou zbývají jen skutečné vady. Ověřeno, že invariant
+  má zuby: na stavu před opravou `stockTopTab` by `range-end-leadout` spadl
+  (2 nálezy / 1,7 mm² i při zmenšení 0,25 mm).
+
 ### Fixed
 - **CAM – hlídání držáku přehlédlo SVISLÉ ČELO ležící mezi vzorky tabulky.**
   `stockTopTab` (vyhledávací tabulka povrchu po 0,25 mm, ze které se rozhoduje,

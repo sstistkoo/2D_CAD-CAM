@@ -79,7 +79,7 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
    a doběh — ale symptom pro to zatím není změřený (viz krok 3).
 2. **Dva dynamické modely vedle sebe** (`rapidStock` syrový + `rapidStockPlan`).
    Rozhodování už je sjednocené (krok 4), zbývá jen sloučit kód → krok 8.
-3. **Validátor má dva standardy** — default je syrový.
+3. ~~**Validátor má dva standardy**~~ → hlídají se OBA (krok 6).
 4. **Náhled kreslí na dvakrát** (světlý pás + jádro), ne jeden odstín.
 
 ---
@@ -423,21 +423,34 @@ odjinud) a úběr klesl — `part-15` −24,6 mm², `range-end-leadout` −24,0,
 `holderFitsAt`); nasadit ho AŽ na tu větev, ze které ty dvě rampy opravdu jdou,
 a znovu změřit úběr.
 
-### Krok 6 — překlopit default validátoru
+### Krok 6 — zamknout stav testem ✅ HOTOVO (20. 8. 2026)
 
-**Co:** `collisionValidator.js:154` — `planStock` přestane být opt-in,
-syrový standard se buď smaže, nebo zůstane jako `opts.rawStock` pro `opParts`.
-`tests/cam-collision-free` se přepne na offsetový standard.
+**Provedeno:** `tests/cam-collision-free` pouští každý program **dvakrát** —
+proti nakreslenému odlitku (beze změny: `shrink` 0,05, žádná fixture, žádná
+kolize) a nově proti OFFSETOVÉ ČÁŘE (`planStock: true`, `shrink` 0,25).
+Syrový standard se nezrušil ani neoslabil; přibyl druhý.
 
-**Kdy:** už skoro teď. Reálná vada je JEDNA (2 nálezy / 1,3 mm² na
-`holder-region-roughing`); zbylých 8 nálezů je mělčích než 0,25 mm a zmizí,
-když se `shrink` validátoru zvedne z 0,05 na 0,25 mm. Rozhodnutí, které je
-potřeba udělat: buď se `cam-collision-free` přepne na `planStock` se `shrink`
-0,25 mm (a doloží se, že 0,25 mm je pod driftem modelu), nebo se nejdřív
-dorovná drift `rapidStockPlan` × validátor. Tenhle krok NIC neopravuje, jen
-zamkne dosažený stav.
+**Proč `shrink` 0,25 a ne 0,05:** plánovací hranice je sama konstrukce
+„± vůle“ a obě strany ji diskretizují jinak — emise vede `rapidStockPlan` po
+PLÁNOVANÉ geometrii průchodů (`noteCutPass`), validátor řeže po SKUTEČNĚ
+vygenerované dráze (`simPath`). Naměřená tabulka hloubek je v hlavičce testu;
+nad 0,25 mm zbývají jen skutečné vady. Ověřeno i to, že emise počítá správně:
+u `part-15` `N2240 G0 X19.545` vyjde její mez sjezdu 18,38 = zbytek 16,579
++ R + Vůle, tedy přesně.
 
-### Krok 7 — náhled jedním odstínem
+**Invariant má zuby** (ověřeno na stavu před opravou `stockTopTab`):
+`range-end-leadout` by spadl — 2 nálezy / 1,7 mm² i při zmenšení 0,25 mm.
+Není to tedy test, který jen potvrzuje sám sebe.
+
+**`EXPECTED_PLAN` obsahuje jedinou položku:** `holder-region-roughing`
+(2× 0,6 mm², držák na rampě do kapsy). Není to vada dráhy, ale **mez hlídání**:
+`holderFitsAt` modeluje držák skenem povrchu po Z + profilem spodní hrany,
+validátor počítá s celým polygonem — první systematicky podceňuje. Srovnat je
+znamená nasadit polygonový test (Minkowski, jako `makeHolderClamp`) i na kotvu
+a zátah rampy. To je samostatná práce; **čtyři pokusy doladit to prahem nebo
+skenem selhaly** (viz krok 5).
+
+### Krok 7 — náhled jedním odstínem ★ DALŠÍ
 
 **Co:** `camSimulator.js` drží `_removal` (syrový) a `_removalOuter`
 (offsetový) a kreslí pás světlejším tónem, oříznutý přes `bandClip`.
