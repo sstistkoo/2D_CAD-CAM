@@ -286,9 +286,10 @@ export function offsetStockLoop(loop, prms) {
  * uživatele 20. 8. 2026: *„obrobek je celý i s tou offsetovou čarou"*).
  *
  * Zkratka za `offsetStockLoop(buildStockLoopRaw(…))` s fallbackem na syrový
- * obrys, když Clipper selže. Ta dvojice se dřív psala ad hoc na čtyřech
- * místech (`planLoopFC`, validátor, tečkovaná čára v náhledu, MaterialRemoval)
- * a pokaždé se musel znovu ošetřit null.
+ * obrys, když Clipper selže. Ta dvojice se dřív psala ad hoc na třech místech
+ * (`planLoopFC`, validátor, tečkovaná čára v náhledu) a pokaždé si znovu
+ * ošetřovala null. `MaterialRemoval` a `gcodeEmit` si drží OBĚ smyčky, takže
+ * tam zůstal explicitní zápis.
  *
  * Nulový Přídavek X i Z → `offsetStockLoop` vrací vstup, obě čáry splývají.
  *

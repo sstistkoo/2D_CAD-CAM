@@ -1,9 +1,11 @@
 # Sjednocení polotovaru na offsetovou čáru
 
-> Stav k 20. 8. 2026: kroky 1–4 a 6–8 uzavřené, krok 5 ze dvou třetin.
+> Stav k 20. 8. 2026: **plán uzavřen, kroky 1–8 vyřízené.**
 > Kolize proti offsetové čáře **46 → 10 nálezů, 185,2 → 9,2 mm²**; z těch 10 je
 > 8 mělčích než 0,25 mm (diskretizace obou modelů zbytku) a 2 jsou doložená
-> mez hlídání držáku. Navazuje na `docs/geometry-libs-migration.md`
+> mez hlídání držáku (`EXPECTED_PLAN` v `tests/cam-collision-free`), u které je
+> změřeno, že každé zpřísnění stojí o dva řády víc materiálu, než kolik ušetří.
+> Navazuje na `docs/geometry-libs-migration.md`
 > (ÚKLID bod 1, 10. 8. 2026).
 
 ## Zadání
@@ -145,7 +147,7 @@ používá k něčemu, co emise dorovnat NEUMÍ:
 ## Kroky
 
 Pořadí není libovolné: **nejdřív se hne řezná hranice (2–3, hotovo), pak se
-ladí přejezdy (4 hotovo, 5 částečně)**. Obráceně by se přejezdy ladily dvakrát.
+ladí přejezdy (4 i 5 hotové)**. Obráceně by se přejezdy ladily dvakrát.
 
 **Před KAŽDÝM krokem** ověř probem nad `calcSim.simPath`, že symptom je vidět
 ve vygenerovaném G-kódu. Krok 1 se takhle celý rozpadl — viz níž.
@@ -331,7 +333,7 @@ což mění EXIT-SPLIT, `descendTo` i strop zdvihu naráz a přepíše všech
 (rychloposuv k rampě + držák na rampě) u příruby, tedy krok 5. Sloučení je tedy
 čistě úklid kódu → patří ke kroku 8, ne sem.
 
-### Krok 5 — držák ◐ ČÁSTEČNĚ (20. 8. 2026) — dvě opravy, zbývá sweep rampy
+### Krok 5 — držák ✅ UZAVŘEN (20. 8. 2026) — dvě opravy + doložená mez
 
 #### HOTOVO: `stairAt` četl „povrch + Vůle X“ místo plánovacího obrysu
 
@@ -419,12 +421,45 @@ Rampa do kapsy a odskok po ní. Je to SWEEP rampy (držák podél zátahu), ale
 NE z větve `entryRampAnchor` — kandidáti jsou `pocketPass.ramp` (ř. 2818/2830)
 a burst řetěz. Zjistit instrumentací, jako u kroku 5b.
 
-**ZKOUŠENO A ZAHOZENO — `holderFitsAlong` (kontrola držáku po celém zátahu
-rampy)** na větvi `entryRampAnchor`: nálezy se NEZMĚNILY (ty rampy jdou
-odjinud) a úběr klesl — `part-15` −24,6 mm², `range-end-leadout` −24,0,
-`part-17` −4,4. Patch je jednoduchý (vzorkovat rampu po `DZ_CAP` a volat
-`holderFitsAt`); nasadit ho AŽ na tu větev, ze které ty dvě rampy opravdu jdou,
-a znovu změřit úběr.
+#### UZAVŘENO: kotva JE nalezená, ale zpřísnit hlídání se NEVYPLATÍ
+
+**Kdo vyrábí tu rampu** (instrumentace všech míst s `.ramp =`, filtr na
+`z0 ≈ 121,951`): **uzavírací krok zanořovacího řetězu** —
+`finalPass.ramp` v bisekci na `roughingStrategies.js:3180`, ne `entryRampAnchor`
+z hloubkové smyčky a ne `stockEntryRamp`. Ten krok běží AŽ PO celé hloubkové
+smyčce a držáka po rampě nekontroluje vůbec.
+
+**Geometrie** (sonda nad `holderWorldLoop`, `holder-region-roughing`):
+
+| poloha špičky | průnik se syrovým | průnik s pásem |
+|---|---|---|
+| kotva rampy (r 14,988 / Z 121,951) | 0,00 mm² | **0,00 mm²** |
+| konec rampy (r 13,164 / Z 115,145) | 0,68 mm² | **23,64 mm²** @ Z 105,15–106,18 |
+| odskok (r 15,164 / Z 117,095) | 0,00 mm² | 0,00 mm² |
+
+Kolize je na **dz ≈ −10**, tedy na straně PŘED špičkou, kde polotovar stoupá
+na Ø94. V kotvě čisto, na dně rampy ne — proto ji statický test kotvy minul.
+
+**Zkoušeno: `holderFitsAlong` přímo v PREDIKÁTU bisekce** (řetěz by se jen
+nezanořil tak hluboko, místo aby průchod vypadl — nejšetrnější možná varianta).
+Změřeno:
+
+| fixture | úběr | nálezy |
+|---|---|---|
+| `part-15-finish-zprava` | **−135 mm²**, 32 → 30 průchodů | beze změny |
+| `range-end-leadout` | **−145 mm²**, 15 → 12 průchodů | beze změny |
+| `part-17-long-parting` | −27 mm², 52 → 50 | beze změny |
+| `holder-region-roughing` | −3,0 mm² | 4,9 → 4,3 mm² |
+
+**Celkem −310 mm² úběru za 0,6 mm² kolize.** ZAHOZENO.
+
+**Závěr po PĚTI pokusech** (`stockEntryRamp`, kotva na ř. 2429,
+`holderFitsAlong` na `entryRampAnchor`, tentýž v bisekci uzavíracího kroku,
+zpřísnění prahu): každé zpřísnění hlídání stojí o DVA ŘÁDY víc materiálu, než
+kolik kolize ušetří. Ty 2 nálezy proto zůstávají v `EXPECTED_PLAN` jako doložená
+mez, ne jako nedodělek. Otevřít to má smysl jen s JINÝM modelem — polygonovým
+testem držáku proti DYNAMICKÉMU zbytku (plánovač dnes žádný nemá; je to
+„přeplánování pořadí", odložené už z Fáze 4).
 
 ### Krok 6 — zamknout stav testem ✅ HOTOVO (20. 8. 2026)
 
