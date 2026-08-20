@@ -30,7 +30,7 @@ const Z_INF = 1e6;
 
 /**
  * Navzorkuje segment offsetu (line/arc) na posloupnost bodů {x, z}.
- * Oblouky po ~`chord` mm tětivy (shodně s buildStockLoop). Vrací body
+ * Oblouky po ~`chord` mm tětivy (shodně s buildStockLoopRaw). Vrací body
  * VČETNĚ počátku i konce segmentu.
  */
 function sampleSegment(seg, chord = 0.2) {
@@ -106,7 +106,7 @@ export function sampleOffsetRegion(offsetXAt, zMax, zMin, dz = 0.2, axisX = 0) {
 
 /**
  * Zbytkový materiál = polotovar − oblast (dílec + přídavek).
- * `stockLoop` = uzavřená smyčka polotovaru (buildStockLoop). `regionLoop`
+ * `stockLoop` = uzavřená smyčka polotovaru (buildStockLoopRaw). `regionLoop`
  * = offsetRegionLoop(offsetPath). Vrací pole smyček zbytku (může být
  * prázdné, když je díl ≥ polotovar).
  */
@@ -290,7 +290,7 @@ export function extractLayerComponents(residualLoops, xLo, xHi, zLo = -Z_INF, zH
  * computeRegions. Detekuje „údolí" = lokální minima HORNÍ HRANY zadaných
  * smyček (max X na dané Z) s prominencí `minDrop` na OBOU stranách.
  *
- * Produkce jí předává SILUETU polotovaru (`[buildStockLoop(...)]`): signál
+ * Produkce jí předává SILUETU polotovaru (`[buildStockLoopRaw(...)]`): signál
  * pro odlitkové hrby je horní hrana polotovaru, stejně jako u manuálu, takže
  * bez regrese pokrytí. POZOR: NEpředávat zbytek stock−dílec — jeho komponenty
  * mají i opačný směr splynutí (kapsa dílu: oddělena hluboko, splyne mělko),

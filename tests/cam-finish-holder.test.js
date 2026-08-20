@@ -27,7 +27,7 @@ import { runCamProg } from './helpers/camHeadless.mjs';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 import { roughingKey } from '../js/calculators/cam/calculatePipeline.js';
 import { StockModel, toolSweep, polyArea } from '../js/geom/geomCore.js';
-import { buildStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, 'fixtures', 'cam');
@@ -183,7 +183,7 @@ describe('CAM: nájezd a výjezd dokončování', () => {
       // „Rovný průměr" níž). Bez držáku zůstává pravidlo přísné.
       if ((errors || []).some(e => /Hlídání držáku \(čelně\)/.test(e.msg || '')))
         alw = Math.max(alw, parseFloat(S.params.depthOfCut) || 0);
-      const stock = new StockModel([buildStockLoop(S.params, calcSim.stockPathSegments)]);
+      const stock = new StockModel([buildStockLoopRaw(S.params, calcSim.stockPathSegments)]);
       const foot = toolFootprint(S.params);
       // Bloky simPath = po sobě jdoucí body se stejným řádkem a typem.
       let cur = null; const blocks = [];

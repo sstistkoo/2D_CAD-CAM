@@ -7,10 +7,10 @@ import { describe, it, expect } from 'vitest';
 import {
   offsetRegionLoop, buildResidual, extractLayerComponents, layerZIntervalsAtX,
 } from '../js/calculators/cam/booleanRoughing.js';
-import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw } from '../js/calculators/cam/materialRemoval.js';
 
 // Válcový polotovar r=20, z ∈ [0, −50].
-const stock = buildStockLoop(
+const stock = buildStockLoopRaw(
   { stockMode: 'cylinder', stockDiameter: 40, stockLength: 50, stockFace: 0 }, null);
 
 describe('extractLayerComponents — komponenty vrstvy + spodní hrana', () => {

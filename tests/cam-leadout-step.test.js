@@ -19,7 +19,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw } from '../js/calculators/cam/materialRemoval.js';
 import { stockClearances, intersectVerticalLineSegment, intersectVerticalLineArc, isAngleBetween } from '../js/calculators/cam/camMath.js';
 import { polyOffset } from '../js/geom/geomCore.js';
 
@@ -222,7 +222,7 @@ describe('výjezd z materiálu končí na offsetové čáře polotovaru', () => 
     it(`${name}: žádný řez nekončí uvnitř přídavkového pásma`, async () => {
       const prog = JSON.parse(readFileSync(file, 'utf8'));
       const { calc, gcode, S } = await runCamProg(prog);
-      const loop = buildStockLoop(S.params, calc.stockPathSegments);
+      const loop = buildStockLoopRaw(S.params, calc.stockPathSegments);
       const { x: clrX, z: clrZ } = stockClearances(S.params);
       const off = Math.abs(clrX - clrZ) < 1e-6
         ? polyOffset([loop], clrX)[0]

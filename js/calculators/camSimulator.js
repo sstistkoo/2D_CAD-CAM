@@ -16,7 +16,7 @@ import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, rapidFeedGap, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
-import { MaterialRemoval, buildStockLoop, offsetStockLoop, toolFootprint } from './cam/materialRemoval.js';
+import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from './cam/materialRemoval.js';
 import { validateToolpath } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
@@ -1400,7 +1400,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const partBase = partsActive() && S.opParts[0] ? S.opParts[0].baseStockLoop : null;
       const clipBase = partBase || (rm ? rm.baseLoop : null);
       const remainLoops = rm ? rm.model.loops
-        : (partBase ? [buildStockLoop(prms, calc.stockPathSegments)].filter(Boolean) : null);
+        : (partBase ? [buildStockLoopRaw(prms, calc.stockPathSegments)].filter(Boolean) : null);
       if (clipBase && remainLoops) {
         // Parity trik (evenodd): celé plátno + původní obrys polotovaru +
         // zbylé smyčky → vyplněná oblast = mimo polotovar ∪ zbytek. Vybarvení
@@ -1530,9 +1530,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b3.x, b3.y);
       } else if (calc.stockPathSegments.length > 0) {
         // Odlitek: kreslí se PŘESNĚ ta smyčka, se kterou plánuje hrubování
-        // i emise (`offsetStockLoop` nad `buildStockLoop` — týž helper, co
-        // stojí za `planLoopRef` v gcodeEmit.js). Náhled tak nemůže tvrdit
-        // něco jiného než dráhy.
+        // i emise (`stockPlanLoop` — týž helper, co stojí za `planLoopRef`
+        // v gcodeEmit.js). Náhled tak nemůže tvrdit něco jiného než dráhy.
         //
         // DŘÍV se tady offset dopočítával ZVLÁŠŤ: obrys se navzorkoval a každý
         // bod se posunul po své vlastní normále (z pPrev→pNext). To ale NENÍ
@@ -1542,8 +1541,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Reálný nález uživatele: u konce polotovaru (S26→S27) se „offsetová
         // čára ke konci zužuje místo aby držela stejnou vzdálenost", ačkoli
         // plánovací smyčka má odstup přesně 1,000 mm po celé délce úseku.
-        const rawLoop = buildStockLoop(prms, calc.stockPathSegments);
-        const offLoop = rawLoop ? offsetStockLoop(rawLoop, prms) : null;
+        const offLoop = stockPlanLoop(prms, calc.stockPathSegments);
         if (offLoop && offLoop.length > 1) {
           offLoop.forEach((q, i) => {
             const p = toScreen(q.x, q.z);

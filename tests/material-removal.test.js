@@ -2,7 +2,7 @@
 // ║  CAM – vizuální úběr materiálu (Fáze 1 migrace na Clipper2)  ║
 // ╚══════════════════════════════════════════════════════════════╝
 import { describe, it, expect } from 'vitest';
-import { MaterialRemoval, buildStockLoop, offsetStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
+import { MaterialRemoval, buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
 import { polyArea, pointInLoop } from '../js/geom/geomCore.js';
 
 const cylinderPrms = {
@@ -10,9 +10,9 @@ const cylinderPrms = {
   toolRadius: 0.8,
 };
 
-describe('buildStockLoop', () => {
+describe('buildStockLoopRaw', () => {
   it('válec → obdélník od osy po poloměr', () => {
-    const loop = buildStockLoop(cylinderPrms, []);
+    const loop = buildStockLoopRaw(cylinderPrms, []);
     expect(loop.length).toBe(4);
     expect(Math.abs(polyArea([loop]))).toBeCloseTo(20 * 52, 6); // r=20, z ∈ [2,−50]
   });
@@ -24,14 +24,14 @@ describe('buildStockLoop', () => {
       { type: 'line', p1: { x: 15, z: -30 }, p2: { x: 25, z: -30 } },
       { type: 'line', p1: { x: 25, z: -30 }, p2: { x: 25, z: -60 } },
     ];
-    const loop = buildStockLoop({ stockMode: 'casting' }, segs);
+    const loop = buildStockLoopRaw({ stockMode: 'casting' }, segs);
     // konec (25,−60) není na ose → uzavřít přes (0,−60) a start je na ose
     expect(Math.abs(polyArea([loop]))).toBeCloseTo(15 * 35 + 25 * 30, 4);
   });
 
   it('vrací null bez polotovaru', () => {
-    expect(buildStockLoop({ stockMode: 'casting' }, [])).toBeNull();
-    expect(buildStockLoop({ ...cylinderPrms, stockDiameter: 0 }, [])).toBeNull();
+    expect(buildStockLoopRaw({ stockMode: 'casting' }, [])).toBeNull();
+    expect(buildStockLoopRaw({ ...cylinderPrms, stockDiameter: 0 }, [])).toBeNull();
   });
 });
 
@@ -101,7 +101,7 @@ describe('MaterialRemoval.advanceTo', () => {
 
 describe('offsetStockLoop (plánovací obrys polotovaru)', () => {
   // Válec r20, z ∈ [2, −50] — obdélník od osy.
-  const loop = buildStockLoop(cylinderPrms, []);
+  const loop = buildStockLoopRaw(cylinderPrms, []);
 
   it('Přídavky (polo.) = 0 → vrací PŘÍMO polotovar, žádný offset', () => {
     const same = offsetStockLoop(loop, { ...cylinderPrms, stockClearX: 0, stockClearZ: 0 });

@@ -22,7 +22,7 @@
 // ruční AABB test.
 
 import { StockModel, toolSweep, polyOffset, polyArea } from '../../geom/geomCore.js';
-import { buildStockLoop, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
+import { buildStockLoopRaw, stockPlanLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
 
 /**
  * Uzavřený obrys držáku v PROFILOVÝCH souřadnicích ({x,z} vůči
@@ -151,9 +151,9 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   //     co je nakreslené?“. Na tom stojí tvrdý plošný invariant
   //     `tests/cam-collision-free` (žádná fixture, žádná kolize) a dráhy jsou na
   //     něj odladěné. Rozdíl mezi těmi dvěma standardy JE seznam práce.
-  const rawLoop = buildStockLoop(prms, stockPathSegments);
-  const stockLoop = (rawLoop && opts.planStock)
-    ? (offsetStockLoop(rawLoop, prms) || rawLoop) : rawLoop;
+  const stockLoop = opts.planStock
+    ? stockPlanLoop(prms, stockPathSegments)
+    : buildStockLoopRaw(prms, stockPathSegments);
   if (!stockLoop) return issues;
 
   const tol = opts.tolerance ?? 0.5;

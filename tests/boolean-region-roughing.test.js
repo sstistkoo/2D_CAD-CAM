@@ -15,7 +15,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { buildStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
 import { StockModel, toolSweep, polyArea } from '../js/geom/geomCore.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,7 @@ const longMetrics = (calc) => {
 
 // Zbytkový materiál po projetí celé simulované dráhy (calcSim.simPath).
 const remainingArea = (prms, stockSegs, simPath) => {
-  const loop = buildStockLoop(prms, stockSegs);
+  const loop = buildStockLoopRaw(prms, stockSegs);
   if (!loop) return NaN;
   const foot = toolFootprint(prms);
   const model = new StockModel([loop]);

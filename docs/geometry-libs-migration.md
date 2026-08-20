@@ -172,7 +172,7 @@ Co tím odpadne:
   8. 8. musela přišroubovat pojistka `rapidHitsStock` na `G0` uvnitř řezu).
 
 **POZOR — co se inflatovat NESMÍ:** `validateToolpath` (`collisionValidator.js`)
-a vizuální úběr (`MaterialRemoval`/`buildStockLoop`) odpovídají na jinou otázku
+a vizuální úběr (`MaterialRemoval`/`buildStockLoopRaw`) odpovídají na jinou otázku
 („narazil jsem fyzicky?" / „co je vidět"), ne „kde může být materiál". Tam
 zůstává SYROVÝ obrys, jinak by validátor hlásil kolize v přídavkovém pásmu
 a v simulaci by materiál nemizel. Po úklidu tedy zůstanou dva modely
@@ -617,7 +617,7 @@ odstranění rozbité source-map reference, náhrada
 *Nízké riziko, nemění G-kód ani snapshoty.*
 
 Implementace: `js/calculators/cam/materialRemoval.js`
-(`MaterialRemoval`, `buildStockLoop`, `toolFootprint`) +
+(`MaterialRemoval`, `buildStockLoopRaw`, `toolFootprint`) +
 integrace v `camSimulator.js` (`getRemovalModel`, `remainPath` v `draw()`).
 
 - Polotovar → `StockModel` (válec = obdélník od osy; odlitek =
@@ -899,7 +899,7 @@ do dalšího .camprog → flaky snapshot drift; latentní od zapojení příznak
 odhaleno až přeuspořádáním workerů).
 
 **KLÍČOVÉ ROZHODNUTÍ (BOUNDED varianta): detekce bere SILUETU polotovaru
-(`buildStockLoop`), NE zbytek `stock−dílec`.** Komponenty zbytku mají u features
+(`buildStockLoopRaw`), NE zbytek `stock−dílec`.** Komponenty zbytku mají u features
 dílu OPAČNÝ směr splynutí (kapsa dílu: oddělena hluboko, splyne mělko), který
 legacy region model (`zHiSurf`/`zLoSurf` jen pro odlitkový hrb — oddělen mělce,
 splyne v kůře) NEUMÍ → složení celého zbytku nechalo stát materiál (na

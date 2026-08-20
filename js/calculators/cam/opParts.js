@@ -26,7 +26,7 @@ import { mergePrograms } from './gcodeMerge.js';
 const SIMPLIFY_EPS = 0.05;
 
 // Bod na ose — profil polotovaru je otevřený a končí na ose, viz
-// generateDefaultStock() / buildStockLoop(). Tolerance musí pokrýt odsazení
+// generateDefaultStock() / buildStockLoopRaw(). Tolerance musí pokrýt odsazení
 // ven o SIMPLIFY_EPS (osová hrana se tím dostane na x ≈ −SIMPLIFY_EPS).
 const AXIS_EPS = SIMPLIFY_EPS * 1.5;
 

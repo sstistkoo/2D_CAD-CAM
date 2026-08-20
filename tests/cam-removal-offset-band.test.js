@@ -45,7 +45,7 @@ const signedArea = (loop) => {
 
 describe('MaterialRemoval — základ až po offsetovou čáru', () => {
   it('bez příznaku je základem SYROVÝ obrys — to je odpověď pro validator i části programu', () => {
-    // Válcový režim: `buildStockLoop` si vystačí s parametry, silueta odlitku
+    // Válcový režim: `buildStockLoopRaw` si vystačí s parametry, silueta odlitku
     // není potřeba, a pás je tedy jen zásluha `planningOutline`.
     const cyl = { ...prog.params, stockMode: 'cylinder', stockDiameter: 100, stockLength: 50, stockFace: 0 };
     const raw = new MaterialRemoval(cyl, []);

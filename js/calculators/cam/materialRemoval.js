@@ -185,12 +185,20 @@ export function toolFootprintSlim(prms, shrink = 0.05) {
 }
 
 /**
- * Uzavřená smyčka polotovaru: válec = obdélník od osy, odlitek =
+ * NAKRESLENÝ obrys polotovaru: válec = obdélník od osy, odlitek =
  * navzorkované stockPathSegments uzavřené k ose X=0 (otevřený profil
  * polotovaru končí na ose — viz stockTools.js). Vrací null, když
  * polotovar není k dispozici.
+ *
+ * ⚠ `Raw` v názvu je záměrné VAROVÁNÍ: pro PLÁNOVÁNÍ drah polotovar končí až
+ * na offsetové čáře (Přídavek X/Z je v zadání proto, že odlitek MŮŽE být
+ * větší), takže tam patří `stockPlanLoop` níž. Tenhle obrys odpovídá jen na
+ * otázky „co je nakreslené / co tam FYZICKY stojí": validátor v syrovém
+ * standardu, úběr pro další část programu (`opParts`), pás v `HolderGouge`.
+ * Dřív se helper jmenoval `buildStockLoop` a bylo snadné sáhnout po něm
+ * omylem — proto přejmenování (docs/cam-sjednoceni-polotovaru.md, krok 8).
  */
-export function buildStockLoop(prms, stockPathSegments) {
+export function buildStockLoopRaw(prms, stockPathSegments) {
   if (prms.stockMode === 'cylinder') {
     const sRad = (parseFloat(prms.stockDiameter) || 0) / 2;
     const sLen = parseFloat(prms.stockLength) || 0;
@@ -273,6 +281,25 @@ export function offsetStockLoop(loop, prms) {
 }
 
 /**
+ * POLOTOVAR PRO PLÁNOVÁNÍ = nakreslený obrys posunutý o Přídavek X/Z, tedy
+ * „tečkovaná" offsetová čára z náhledu. Tam polotovar KONČÍ (rozhodnutí
+ * uživatele 20. 8. 2026: *„obrobek je celý i s tou offsetovou čarou"*).
+ *
+ * Zkratka za `offsetStockLoop(buildStockLoopRaw(…))` s fallbackem na syrový
+ * obrys, když Clipper selže. Ta dvojice se dřív psala ad hoc na čtyřech
+ * místech (`planLoopFC`, validátor, tečkovaná čára v náhledu, MaterialRemoval)
+ * a pokaždé se musel znovu ošetřit null.
+ *
+ * Nulový Přídavek X i Z → `offsetStockLoop` vrací vstup, obě čáry splývají.
+ *
+ * @returns {Array<{x:number,z:number}>|null} null, když polotovar není
+ */
+export function stockPlanLoop(prms, stockPathSegments) {
+  const raw = buildStockLoopRaw(prms, stockPathSegments);
+  return raw ? (offsetStockLoop(raw, prms) || raw) : null;
+}
+
+/**
  * Stav úběru pro jeden výpočet drah (calc.simPath). Drží zbývající
  * polotovar a index, kam až je dráha „projetá"; advanceTo() dořeže
  * jen nový úsek (inkrementálně), při přetočení zpět přepočítá od nuly.
@@ -291,7 +318,7 @@ export class MaterialRemoval {
    *   příznak nepoužívá.
    */
   constructor(prms, stockPathSegments, opts = {}) {
-    const raw = buildStockLoop(prms, stockPathSegments);
+    const raw = buildStockLoopRaw(prms, stockPathSegments);
     this.rawLoop = raw;
     this.baseLoop = (opts.planningOutline && raw) ? (offsetStockLoop(raw, prms) || raw) : raw;
     this.foot = toolFootprintVisual(prms);

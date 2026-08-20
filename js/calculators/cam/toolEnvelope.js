@@ -20,7 +20,7 @@
 
 import { minkowskiSolidSum, polyIntersect, polyOffset, polyUnion } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
-import { buildStockLoop, insertWorldLoop } from './materialRemoval.js';
+import { buildStockLoopRaw, insertWorldLoop } from './materialRemoval.js';
 import { buildInsertProfileSegments } from './insertPreview.js';
 
 /**
@@ -132,7 +132,7 @@ export function buildObstacleLoops(path, prms, { stockPathSegments = null, openR
   const silhouette = offsetSilhouetteLoop(path);
   if (!silhouette) return null;
   let obstacleLoops = [silhouette];
-  const stockLoop = buildStockLoop(prms, stockPathSegments || []);
+  const stockLoop = buildStockLoopRaw(prms, stockPathSegments || []);
   if (stockLoop) {
     const clipped = polyIntersect([silhouette], polyOffset([stockLoop], 0.1, 'miter'));
     if (clipped.length > 0) obstacleLoops = clipped;

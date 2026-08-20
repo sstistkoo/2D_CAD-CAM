@@ -24,7 +24,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { StockModel, toolSweep } from '../js/geom/geomCore.js';
-import { buildStockLoop, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
 
 // Nejvyšší materiál na svislici Z (null = smyčky tam nesahají).
 function topAt(loops, z) {
@@ -44,7 +44,7 @@ function topAt(loops, z) {
 // Zbytek podle REÁLNĚ projeté dráhy — řezné bloky `simPath` do StockModelu,
 // stejně jako to dělá validateToolpath.
 function replayReality(calc, calcSim, prms) {
-  const stock = new StockModel([buildStockLoop(prms, calc.stockPathSegments)]);
+  const stock = new StockModel([buildStockLoopRaw(prms, calc.stockPathSegments)]);
   const foot = toolFootprint(prms);
   const sp = calcSim.simPath || [];
   let cur = null;
@@ -83,7 +83,7 @@ async function worstOvercut(name) {
   const { calc, calcSim, S } = run;
   const real = replayReality(calc, calcSim, S.params);
 
-  const loop0 = buildStockLoop(S.params, calc.stockPathSegments);
+  const loop0 = buildStockLoopRaw(S.params, calc.stockPathSegments);
   let zLo = Infinity, zHi = -Infinity;
   for (const p of loop0) { if (p.z < zLo) zLo = p.z; if (p.z > zHi) zHi = p.z; }
 

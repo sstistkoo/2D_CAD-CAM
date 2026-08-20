@@ -17,7 +17,7 @@
 //                 findLeadOutEndZ, hIntersect
 
 import { topXOnLoop, rapidFeedGap, quantizeUp, getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
-import { buildStockLoop, offsetStockLoop, insertBodyZ } from './materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, stockPlanLoop, insertBodyZ } from './materialRemoval.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
@@ -151,10 +151,7 @@ export function genFacePasses(ctx) {
   // nesmí končit V ní (uživatel 20. 8. 2026: „N2160 G0 X46.344 — příjezd
   // rychloposuvem končí již v té offsetové čáře“).
   const planLoopFC = (() => {
-    try {
-      const raw = buildStockLoop(prms, stockPathSegments);
-      return raw ? (offsetStockLoop(raw, prms) || raw) : null;
-    } catch { return null; }
+    try { return stockPlanLoop(prms, stockPathSegments); } catch { return null; }
   })();
   const feedGapFC = rapidFeedGap(prms);
   const rapidStartXAt = (z, xHere, dirUncut) => {
@@ -1295,7 +1292,7 @@ export function genLongPasses(ctx) {
   // `stockLoopFullL` = CELÝ polotovar (hlídání kolizí držáku, viz
   // holderEntryCapZ níž), `stockLoopL` = ořezaný rozsahem 📐 (plánování drah,
   // viz rangeClipZ výš).
-  const stockLoopFullL = prms.stockMode === 'casting' ? buildStockLoop(prms, stockPathSegments) : null;
+  const stockLoopFullL = prms.stockMode === 'casting' ? buildStockLoopRaw(prms, stockPathSegments) : null;
   // Ořez smyčky Z-pásem rozsahu (Clipper). Víc komponent = polotovar je
   // v pásu přerušený; bere se ta s největším rozpětím X (hlavní kus).
   const clipLoopToRange = (loop) => {

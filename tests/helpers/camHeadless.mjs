@@ -105,7 +105,7 @@ import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePoc
 import { drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from ${JSON.stringify(insertPreviewUrl)};
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from ${JSON.stringify(camToolPickerUrl)};
 import { ROUGHING_STRATEGIES } from ${JSON.stringify(strategiesUrl)};
-import { MaterialRemoval, buildStockLoop, offsetStockLoop, toolFootprint } from ${JSON.stringify(materialRemovalUrl)};
+import { MaterialRemoval, buildStockLoopRaw, offsetStockLoop, toolFootprint } from ${JSON.stringify(materialRemovalUrl)};
 import { validateToolpath } from ${JSON.stringify(collisionValidatorUrl)};
 import { makeHolderClamp } from ${JSON.stringify(toolEnvelopeUrl)};
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from ${JSON.stringify(interferenceGuidesUrl)};

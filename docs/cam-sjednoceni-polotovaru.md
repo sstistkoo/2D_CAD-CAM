@@ -1,7 +1,10 @@
 # Sjednocení polotovaru na offsetovou čáru
 
-> Rozpracovaný plán. Navazuje na `docs/geometry-libs-migration.md`
-> (ÚKLID bod 1, 10. 8. 2026). Stav k 20. 8. 2026.
+> Stav k 20. 8. 2026: kroky 1–4 a 6–8 uzavřené, krok 5 ze dvou třetin.
+> Kolize proti offsetové čáře **46 → 10 nálezů, 185,2 → 9,2 mm²**; z těch 10 je
+> 8 mělčích než 0,25 mm (diskretizace obou modelů zbytku) a 2 jsou doložená
+> mez hlídání držáku. Navazuje na `docs/geometry-libs-migration.md`
+> (ÚKLID bod 1, 10. 8. 2026).
 
 ## Zadání
 
@@ -86,7 +89,7 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 
 ## Proč NE velký třesk (a co s větví `wip/sjednoceni-polotovaru`)
 
-Na větvi leží hotová změna: `buildStockLoop()` vrací offsetovou smyčku,
+Na větvi leží hotová změna: `buildStockLoopRaw()` vrací offsetovou smyčku,
 `buildStockLoopRaw()` zůstává pro nakreslený obrys. Jedna hranice, všech
 6 konzumentů naráz.
 
@@ -108,14 +111,14 @@ Na větvi leží hotová změna: `buildStockLoop()` vrací offsetovou smyčku,
   materiál. Nově se každý úsek označený jako vzduch ověří dynamickým zbytkem
   a při nárazu se jede posuvem (`part-11` 13 → 11 nálezů). Patří do kroku 4.
 - `eb5340e` odhalil skutečnou chybu: `offsetLoopOf` byla identita, ale
-  `buildStockLoop` vracel syrový obrys → podélné plánování o offset **přišlo**.
+  `buildStockLoopRaw` vracel syrový obrys → podélné plánování o offset **přišlo**.
   Na `main` už neplatí, ale je to past, do které se dá spadnout znovu.
 
 ---
 
 ## Vedoucí myšlenka: hranice je dvouvrstvá — plánovač × emise
 
-Sjednocení NENÍ „přepiš všude `buildStockLoop` na offset". Hranice žije ve
+Sjednocení NENÍ „přepiš všude `buildStockLoopRaw` na offset". Hranice žije ve
 DVOU vrstvách a každá má svou roli:
 
 - **Plánovač** (`roughingStrategies.js`) pracuje se SYROVOU geometrií, protože
@@ -473,14 +476,32 @@ Headless to ověřit nešlo — jde o kreslení na canvas a Browser pane se v to
 prostředí nezobrazuje, takže screenshot vždy vypršel. Proto je invariant
 zapsaný jako test nad MODELEM, ne nad obrázkem.
 
-### Krok 8 — úklid API ★ DALŠÍ (poslední)
+### Krok 8 — úklid API ✅ HOTOVO (20. 8. 2026)
 
-Teprve teď má smysl `buildStockLoop` → `buildStockLoopRaw` + `stockPlanLoop()`
-a zrušit ad-hoc přestavby offsetové smyčky (dnes na 5 místech: `gcodeEmit`,
-`roughingStrategies` 2×, `holderGouge`, `camSimulator`). Čistý refaktor
-v okamžiku, kdy si každý konzument už vědomě vybírá.
+**Provedeno:**
+- `buildStockLoop` → **`buildStockLoopRaw`** (24 souborů). Starý název četl
+  jako „obrys polotovaru"; po celém sjednocení ale polotovar pro PLÁNOVÁNÍ
+  končí na offsetové čáře, takže bylo snadné sáhnout po syrovém obrysu omylem.
+  `Raw` je teď v názvu jako varování a v docstringu je vyjmenováno, kdo ho
+  legitimně chce (validátor v syrovém standardu, `opParts`, pás v `HolderGouge`).
+- Nový **`stockPlanLoop(prms, segs)`** = `offsetStockLoop(buildStockLoopRaw(…))`
+  s fallbackem. Nahradil ad-hoc dvojici na **třech** místech: čelní
+  `planLoopFC`, `validateToolpath` a tečkovaná čára v náhledu. `MaterialRemoval`
+  a `gcodeEmit` si drží OBĚ smyčky (syrovou i posunutou) — tam by helper nic
+  neušetřil, takže tam zůstal explicitní zápis.
 
----
+**Ověření (tvrdé):** snapshoty `cam-gcode-regression` i
+`cam-boolean-gcode-regression` zůstaly **bit po bitu shodné** — `git diff`
+na `tests/__snapshots__/` je prázdný. Sada **1327/1327**.
+
+**CO SE VĚDOMĚ NEUDĚLALO — sloučení `rapidStock` + `rapidStockPlan`.**
+Plán to sem přesunul z kroku 4, ale zůstává to nedotčené: rozhodování už je
+sjednocené (krok 4), takže sloučení modelů je čistě kosmetika kódu — a přitom
+by přepsalo EXIT-SPLIT, `descendTo` i strop zdvihu naráz přes všech 24 fixtures.
+**Bez měřitelného přínosu se do toho nemá jít** (týž důvod, proč v kroku 4
+padly `safeRapidTo` i hardening rampového splitteru). Kdyby se do toho někdo
+pustil: `gcodeEmit.js` řádky ~429–477 a pak měřit odebranou plochu, ne jen
+kolize.
 
 ## Co ZŮSTÁVÁ syrové (natrvalo)
 

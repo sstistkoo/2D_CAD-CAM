@@ -40,7 +40,7 @@ import { readdirSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { buildStockLoop, offsetStockLoop } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop } from '../js/calculators/cam/materialRemoval.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
@@ -87,7 +87,7 @@ describe('Dojezd „bez schodků"', () => {
     it(`${file}: axiální posuv nejede vzduchem`, async () => {
       const prog = JSON.parse(readFileSync(join(fxDir, file), 'utf8'));
       const { calc, gcode, S } = await runCamProg(prog);
-      const rawLoop = buildStockLoop(S.params, calc.stockPathSegments) || [];
+      const rawLoop = buildStockLoopRaw(S.params, calc.stockPathSegments) || [];
       if (rawLoop.length < 3) return;                 // bez siluety není co měřit
       const loop = offsetStockLoop(rawLoop, S.params) || rawLoop;
       const tipR = parseFloat(S.params.toolRadius) || 0;
@@ -157,7 +157,7 @@ describe('Dojezd „bez schodků"', () => {
     // siluetu, ne skončit na holé kůře odlitku.
     const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
     const { calc, gcode, S } = await runCamProg(prog);
-    const loop = buildStockLoop(S.params, calc.stockPathSegments) || [];
+    const loop = buildStockLoopRaw(S.params, calc.stockPathSegments) || [];
     const tipR = parseFloat(S.params.toolRadius) || 0;
     // Vůle je KOLMÁ vzdálenost — na strmé hraně ji podél X natáhne 1/sin(sklon),
     // takže „syrová hodnota + vůle" nestačí; hranice se musí spočítat offsetem

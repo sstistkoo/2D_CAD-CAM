@@ -12,7 +12,7 @@ import { StockModel, polyArea, polyDifference, polyOffset, polySimplify, toolSwe
 import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, quantizeUp, rapidFeedGap, segEndPoint, segStartPoint, stockClearances, topXOnLoop } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
-import { buildStockLoop, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { computeThreadPassCuts, partOffGeom, threadProfileDepth } from './threadHelpers.js';
 import { offsetSilhouetteLoop } from './toolEnvelope.js';
@@ -441,7 +441,7 @@ export function generateAutoGCode(S, calc) {
   let stockLoop0Ref = null;   // syrová silueta odlitku — jen FALLBACK pro planLoopRef()
   let stockLoop0OffsetRef = null;   // silueta posunutá o Vůli X/Z (tečkovaná hranice v náhledu)
   try {
-    const stockLoop0 = buildStockLoop(prms, calc.stockPathSegments);
+    const stockLoop0 = buildStockLoopRaw(prms, calc.stockPathSegments);
     if (stockLoop0) {
       stockLoop0Ref = stockLoop0;
       rapidStock = new StockModel([stockLoop0]);

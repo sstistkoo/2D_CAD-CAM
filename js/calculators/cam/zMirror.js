@@ -49,7 +49,7 @@ function mirrorSegReversed(seg) {
 /**
  * Pole segmentů, jejichž pořadí je KONVENCE (offsetPath, stockPathSegments,
  * contourSegments, machinableContour…). Zrcadlí i obrátí pořadí, takže
- * výsledek zase klesá v Z a uzavřená smyčka (buildStockLoop) si drží
+ * výsledek zase klesá v Z a uzavřená smyčka (buildStockLoopRaw) si drží
  * orientaci — Clipper by jinak offsetoval dovnitř.
  */
 export function mirrorSegPath(segs) {

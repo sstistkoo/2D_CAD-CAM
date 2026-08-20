@@ -9,7 +9,7 @@ import {
   makePart, partsAsMergeItems, partToolLabel, syncPartFromState,
 } from '../js/calculators/cam/opParts.js';
 import { mergePrograms, splitHeaderBody, classifyHeaderLine } from '../js/calculators/cam/gcodeMerge.js';
-import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw } from '../js/calculators/cam/materialRemoval.js';
 import { getArcParams } from '../js/calculators/cam/camMath.js';
 import { polyArea, pointInLoop } from '../js/geom/geomCore.js';
 
@@ -86,7 +86,7 @@ describe('makePart / syncPartFromState / applyPartToState', () => {
 
 describe('loopsToStockProfile', () => {
   it('obdélníkový polotovar → otevřený profil končící na ose', () => {
-    // Válec r=20, z ∈ ⟨2, −50⟩ (stejný tvar jako buildStockLoop).
+    // Válec r=20, z ∈ ⟨2, −50⟩ (stejný tvar jako buildStockLoopRaw).
     const loop = [{ x: 0, z: 2 }, { x: 20, z: 2 }, { x: 20, z: -50 }, { x: 0, z: -50 }];
     const { points } = loopsToStockProfile([loop]);
     expect(points.length).toBeGreaterThanOrEqual(3);
@@ -102,7 +102,7 @@ describe('loopsToStockProfile', () => {
     for (let i = 0; i < points.length - 1; i++) {
       segs.push({ type: 'line', p1: points[i], p2: points[i + 1] });
     }
-    const reclosed = buildStockLoop({ stockMode: 'casting' }, segs);
+    const reclosed = buildStockLoopRaw({ stockMode: 'casting' }, segs);
     // Odsazení o SIMPLIFY_EPS (0,05 mm) profil nepatrně nafoukne — proto tolerance.
     expect(Math.abs(polyArea([reclosed]))).toBeGreaterThan(20 * 52);
     expect(Math.abs(polyArea([reclosed]))).toBeLessThan(20 * 52 * 1.02);
@@ -141,7 +141,7 @@ describe('machinedStockPoints', () => {
     for (let i = 0; i < points.length - 1; i++) {
       segs.push({ type: 'line', p1: points[i], p2: points[i + 1] });
     }
-    const loop = buildStockLoop({ stockMode: 'casting' }, segs);
+    const loop = buildStockLoopRaw({ stockMode: 'casting' }, segs);
     expect(pointInLoop({ x: 18, z: -15 }, loop)).toBe('outside');  // odebráno
     expect(pointInLoop({ x: 10, z: -15 }, loop)).toBe('inside');   // zbylý materiál
     expect(pointInLoop({ x: 18, z: -45 }, loop)).toBe('inside');   // za koncem řezu

@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – `buildStockLoop` přejmenován na `buildStockLoopRaw`, přibyl
+  `stockPlanLoop`.** Starý název četl jako „obrys polotovaru", jenže pro
+  PLÁNOVÁNÍ drah polotovar končí až na offsetové čáře — bylo tedy snadné sáhnout
+  po syrovém obrysu omylem. `Raw` je teď v názvu jako varování a plánovací obrys
+  má vlastní helper. Ten navíc nahradil dvojici `offsetStockLoop(buildStockLoop(…))`,
+  která se psala ad hoc na čtyřech místech (čelní `planLoopFC`, validátor,
+  tečkovaná čára v náhledu, `MaterialRemoval`) a pokaždé si znovu ošetřovala
+  null. Čistý refaktor: snapshoty obou regresních sad zůstaly bit po bitu
+  shodné.
 - **CAM náhled – polotovar se vybarvuje JEDNÍM odstínem až po offsetovou
   čáru.** Pás mezi nakresleným odlitkem a offsetovou čarou se dosud kreslil
   zvlášť světlejším tónem přes clip „mimo syrový obrys“, takže díl vypadal jako

@@ -13,7 +13,7 @@
 // nezávislé na flipX/flipZ i machineStructure (řeší až toScreen).
 
 import { StockModel, toolSweep, polyIntersect, polyUnion, polyDifference, polyOffset, polyArea, polySimplify } from '../../geom/geomCore.js';
-import { buildStockLoop, offsetStockLoop, toolFootprint } from './materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from './materialRemoval.js';
 import { stockClearanceIsZero } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 
@@ -37,7 +37,7 @@ export class HolderGouge {
    *   odlišilo „tvrdé“ vnoření do materiálu od vjezdu do pesimistického pásu.
    */
   constructor(prms, stockPathSegments, backside = false, opts = {}) {
-    this.baseLoop = buildStockLoop(prms, stockPathSegments);
+    this.baseLoop = buildStockLoopRaw(prms, stockPathSegments);
     this.foot = toolFootprint(prms);            // stopa destičky (úběr materiálu)
     this.holder = holderWorldLoop(prms, backside); // obrys držáku rel. ke špičce
     // Pás = offsetová smyčka MÍNUS syrový obrys. Nulový Přídavek = čáry

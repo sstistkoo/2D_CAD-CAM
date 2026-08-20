@@ -7,10 +7,10 @@ import {
   offsetRegionLoop, buildResidual, sliceLayer, layerZIntervalsAtX,
   buildLayers, residualArea, computeResidualRegions,
 } from '../js/calculators/cam/booleanRoughing.js';
-import { buildStockLoop } from '../js/calculators/cam/materialRemoval.js';
+import { buildStockLoopRaw } from '../js/calculators/cam/materialRemoval.js';
 
 // Válcový polotovar r=20, z ∈ [0, −50] → obdélník 20×50 = 1000 mm².
-const stock = buildStockLoop(
+const stock = buildStockLoopRaw(
   { stockMode: 'cylinder', stockDiameter: 40, stockLength: 50, stockFace: 0 }, null);
 
 describe('offsetRegionLoop — uzavření dráhy středu špičky k ose', () => {
@@ -103,7 +103,7 @@ describe('computeResidualRegions — regiony z komponent siluety zbytku', () => 
   });
 
   it('hladký válcový polotovar (žádný hrb) → žádný split', () => {
-    const flat = buildStockLoop(
+    const flat = buildStockLoopRaw(
       { stockMode: 'cylinder', stockDiameter: 40, stockLength: 30, stockFace: 0 }, null);
     const res = buildResidual(flat, partRegion);
     expect(computeResidualRegions(res, 0, -30)).toEqual([]);
@@ -115,7 +115,7 @@ describe('computeResidualRegions — regiony z komponent siluety zbytku', () => 
   });
 
   it('surová silueta polotovaru (produkční vstup) → stejný split jako přes residual', () => {
-    // Produkce krmí funkci [buildStockLoop(...)], ne zbytek stock−dílec.
+    // Produkce krmí funkci [buildStockLoopRaw(...)], ne zbytek stock−dílec.
     const splits = computeResidualRegions([bumpyStock], 0, -30);
     expect(splits.length).toBe(1);
     expect(splits[0].z).toBeCloseTo(-15, 0);
