@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – hlídání držáku přehlédlo SVISLÉ ČELO ležící mezi vzorky tabulky.**
+  `stockTopTab` (vyhledávací tabulka povrchu po 0,25 mm, ze které se rozhoduje,
+  kde smí začít zanořovací rampa) brala nejbližší vzorek přes `Math.round`.
+  U svislého čela to znamená, že se hodnota přichytí k té PRÁZDNÉ straně:
+  na `part-15` leží plánovací čelo příruby na Z 195,28, ale vzorek 195,25
+  hlásí povrch X(r) 17,74 — takže kotva rampy pustila vzdálený konec držáku
+  (20 mm axiálně) do proužku Z 195,28–195,53, kde obrys sahá až na X(r) 65,0
+  (10,3 mm² vnoření). Nově se bere vyšší z obou sousedních vzorků; „nahoru“
+  nikdy nejde blíž k materiálu.
+  Změřeno: kolize proti offsetové čáře 18 → 10 nálezů, 50,5 → 9,2 mm², a to
+  BEZ ztráty úběru — naopak se celkem odebere o 6,0 mm² VÍC (`part-15` +10,4,
+  `part-17` +12,1, `range-end-leadout` +10,5; jediný `holder-region-roughing`
+  ztratil 22,9 mm² a jeden průchod, ⚠ panel to hlásí). `colRaw` zůstává 0.
+  Čistých je teď 20 z 24 fixtures.
 - **CAM – hlídání držáku čte plánovací obrys PŘÍMO, ne „povrch + Vůle X“.**
   `stairAt` v čelním hlídání držáku aproximovalo offsetovou čáru svislým
   posunem syrového povrchu o Vůli X. Před SVISLÝM ČELEM je to řádově vedle:

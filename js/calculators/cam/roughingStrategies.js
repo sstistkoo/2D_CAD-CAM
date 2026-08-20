@@ -1379,11 +1379,23 @@ export function genLongPasses(ctx) {
     }
   }
   // Výška offsetové čáry z tabulky; null = mimo polotovar (vzduch).
+  // Bere se VYŠŠÍ z obou sousedních vzorků, ne `Math.round`. Tabulka je po
+  // DZ_CAP (0,25 mm) a SVISLÉ ČELO ležící mezi vzorky se zaokrouhlením
+  // přichytilo k tomu PRÁZDNÉMU: na part-15 leží plánovací čelo příruby na
+  // Z 195,28, vzorek 195,25 hlásí povrch 17,74 — a hlídání držáku tak pustilo
+  // vzdálený konec držáku do proužku Z 195,28–195,53, kde plánovací obrys sahá
+  // až na X(r) 65,0 (změřeno 10,3 mm² vnoření). Zaokrouhlení „nahoru" nikdy
+  // nejde blíž k materiálu, takže je to bezpečná strana.
   const stockTopTab = (z) => {
     if (!capTab) return null;
-    const i = Math.round((z - capZ0) / DZ_CAP);
-    if (i < 0 || i >= capTab.length || capTab[i] === -Infinity) return null;
-    return capTab[i];
+    const f = (z - capZ0) / DZ_CAP;
+    const i0 = Math.floor(f), i1 = i0 + 1;
+    let top = null;
+    for (const i of [i0, i1]) {
+      if (i < 0 || i >= capTab.length || capTab[i] === -Infinity) continue;
+      if (top === null || capTab[i] > top) top = capTab[i];
+    }
+    return top;
   };
   // Spodní hrana obrysu DRŽÁKU v axiální vzdálenosti `dz` od špičky
   // (relativně k hrotu, tedy 0 u špičky a rostoucí dozadu). Tabulka, protože
