@@ -1185,6 +1185,14 @@ export function genLongPasses(ctx) {
     }
     if (maxStockX < 0) maxStockX = sRad;    // v rozsahu není polotovar vůbec
   }
+  // VRCH PLÁNOVACÍ (vůlí-posunuté) siluety — polotovar končí až na offsetové
+  // čáře, takže tam sahá i materiál, se kterým se musí počítat.
+  // Přičtení Vůle X je tu EXAKTNÍ (jinde by šlo o antivzor — viz
+  // offsetStockLoop): offset je Minkowského součet s elipsou o poloose `clrX`
+  // v X, takže GLOBÁLNÍ maximum v X roste přesně o `clrX` bez ohledu na tvar
+  // hranice. Platí i po ořezu rozsahem 📐 (offsetuje se až ořezaná smyčka).
+  const clrXPlanL = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x;
+  const planTopX = maxStockX + clrXPlanL;
 
   // Z-rozsah polotovaru na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
   // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce.
@@ -1218,6 +1226,20 @@ export function genLongPasses(ctx) {
   // Posloupnost hloubek: maxStockX−step, …, ≥ minPartX, vždy s vynuceným
   // posledním průjezdem PŘESNĚ na minPartX (nedořezaný hřebínek).
   const depths = [];
+  // SKIM VRSTVY NAD NAKRESLENÝM VRCHOLEM. Posloupnost je kotvená na siluetě
+  // odlitku, jenže materiál může sahat až na offsetovou čáru — první průchod
+  // proto ukousl `ap + VůleX` (změřeno na 17 fixtures přesně o Vůli X víc,
+  // tj. 20–50 % přetížení podle `ap`: part-11 ap 5 → tříska 6,0; pocket-wall
+  // ap 2 → 3,0). Sílu první třísky emise dorovnat neumí — tohle je jediné
+  // místo, kde to jde opravit.
+  //
+  // Vrstvy se PŘIDÁVAJÍ nad stávající mřížku, mřížka se NEPOSOUVÁ. Posunutí
+  // celé posloupnosti o Vůli X (první pokus, změřeno a zahozeno) je totiž
+  // čistá ztráta: každá hloubka padne jinam vůči schodům a údolím a
+  // `part-8` kvůli tomu přišel o 5 průchodů a 337 mm² úběru, `part-17`
+  // dostal 2 tvrdé kolize proti nakreslenému odlitku. Takhle zůstanou
+  // všechny dosavadní hloubky bitově stejné a přibude jen skim.
+  for (let d = planTopX - step; d > maxStockX - step + 0.005 && d > minPartX + 0.005; d -= step) depths.push(d);
   for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
     depths.push(minPartX);
@@ -1930,8 +1952,8 @@ export function genLongPasses(ctx) {
     let zMax = -Infinity, zMin = Infinity;
     for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
     const envelope = [
-      { x: 0, z: zMax }, { x: maxStockX, z: zMax },
-      { x: maxStockX, z: zMin }, { x: 0, z: zMin },
+      { x: 0, z: zMax }, { x: planTopX, z: zMax },
+      { x: planTopX, z: zMin }, { x: 0, z: zMin },
     ];
     const region = sampleOffsetRegion(offsetXAt, zMax, zMin, dzScan);
     _residualLoops = buildResidual(envelope, region);

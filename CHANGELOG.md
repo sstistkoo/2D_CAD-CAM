@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CAM – první hrubovací průchod už nebere `ap + Vůle X`.** Posloupnost hloubek
+  podélného hrubování byla kotvená na NAKRESLENÉM vrcholu polotovaru, jenže
+  materiál může sahat až na offsetovou čáru (přídavek X/Z polotovaru je
+  v zadání právě proto). První průchod proto ukousl o Vůli X víc, než je
+  nastavená Hloubka záběru — změřeno na 17 fixtures přesně o Vůli X, tedy
+  20–50 % přetížení podle `ap` (part-11: ap 5 → tříska 6,0 mm; pocket-wall:
+  ap 2 → 3,0 mm). Nad stávající mřížku hloubek se teď přidá SKIM vrstva, takže
+  žádný záběr nepřesáhne `ap`. Mřížka se záměrně NEPOSOUVÁ: posunutí celé
+  posloupnosti o Vůli X (změřeno a zahozeno) je čistá ztráta — každá hloubka
+  padne jinam vůči schodům a údolím, `part-8` kvůli tomu přišel o 5 průchodů
+  a 337 mm² úběru a `part-17` dostal 2 tvrdé kolize proti nakreslenému
+  odlitku. Cena přidané vrstvy: +1 průchod (≈ +7 řádků) na odlitkovou
+  fixture; kolize, odebraná plocha, obrobitelná kontura ani mezní čáry se
+  nezměnily na žádné z 24 fixtures.
+
 ### Added
 - **CAM – vjezd DRŽÁKU za offsetovou čaru se vybarví ČERVENĚ.** Oranžové
   varování (`HolderGouge`) hlídalo jen vnoření do SYROVÉHO obrysu, takže držák

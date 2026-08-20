@@ -59,15 +59,15 @@ Tohle číslo je průběžný ukazatel — po každém kroku se přeměří.
 | ⛔ panel v aplikaci | `camSimulator.js:1064` posílá `planStock: true` |
 | náhled: pás + červený `gougeBand` | `MaterialRemoval(…, {planningOutline})`, `HolderGouge(…, {band})` |
 | **dojezd podélného průchodu ven z polotovaru** | `offsetExitZ` — `cam/gcodeEmit.js:581` (viz krok 1) |
+| **vrchol hloubkové posloupnosti (skim vrstva)** | `planTopX` — `cam/roughingStrategies.js:1195` (krok 2) |
 
 ## Co na ní NENÍ
 
-1. **Hloubková posloupnost startuje ze SYROVÉHO vrcholu** (`maxStockX`).
-2. **Čelní generátor čte syrovou siluetu** (`castingOuterAtZ`).
-3. **Dynamický zbytek `rapidStock` je syrový** → musel vedle vzniknout druhý,
+1. **Čelní generátor čte syrovou siluetu** (`castingOuterAtZ`).
+2. **Dynamický zbytek `rapidStock` je syrový** → musel vedle vzniknout druhý,
    plánovací (`rapidStockPlan`). To je ta dvojkolejnost, co má zmizet.
-4. **Validátor má dva standardy** — default je syrový.
-5. **Náhled kreslí na dvakrát** (světlý pás + jádro), ne jeden odstín.
+3. **Validátor má dva standardy** — default je syrový.
+4. **Náhled kreslí na dvakrát** (světlý pás + jádro), ne jeden odstín.
 
 ---
 
@@ -119,7 +119,8 @@ dvojí aplikaci (emise ji posune ještě jednou) NEBO změnu topologie. Krok 1 n
 tom padl — obojí najednou. Zbylé kroky proto míří tam, kde plánovač hranici
 používá k něčemu, co emise dorovnat NEUMÍ:
 
-- **hloubková posloupnost** (`maxStockX`) — sílu první třísky emise neopraví,
+- ~~**hloubková posloupnost** (`maxStockX`) — sílu první třísky emise
+  neopraví~~ → krok 2, HOTOVO,
 - **čelní `castingOuterAtZ`** — povrch, od kterého se odvíjí celý doběh,
 - **`rapidStock`** — dynamický model, ze kterého emise sama rozhoduje.
 
@@ -127,7 +128,7 @@ používá k něčemu, co emise dorovnat NEUMÍ:
 
 ## Kroky
 
-Pořadí není libovolné: **nejdřív se hne řezná hranice (2–3), pak se ladí
+Pořadí není libovolné: **nejdřív se hne řezná hranice (3), pak se ladí
 přejezdy (4–5)**. Obráceně by se přejezdy ladily dvakrát.
 
 **Před KAŽDÝM krokem** ověř probem nad `calcSim.simPath`, že symptom je vidět
@@ -167,23 +168,58 @@ ne mezivýsledky plánovače.* Emise má vlastní vrstvu pravidel proti offsetov
 a plánovač jí do toho nesmí mluvit dvakrát. Než se sáhne na kterýkoli další
 bod, ověř TÍMTO způsobem, že symptom vůbec existuje.
 
-### Krok 2 — vrchol hloubkové posloupnosti na offsetovou čáru ★ ZAČÍT TADY
+### Krok 2 — vrchol hloubkové posloupnosti ✅ HOTOVO (20. 8. 2026)
 
-**Co:** `maxStockX` (`roughingStrategies.js:1174`) se bere ze syrových
-`stockWorldPoints` (u válce `sRad`). Posloupnost pak startuje na
-`maxStockX − step`, ale materiál může sahat až na `maxStockX + VůleX`
-→ **první průchod bere až `ap + Vůle` místo `ap`**. To je jediné místo, kde
-sjednocení mění SÍLU třísky, ne jen dráhu.
+**Co bylo špatně:** `maxStockX` (`roughingStrategies.js:1174`) se bral ze
+syrových `stockWorldPoints` (u válce `sRad`) a posloupnost startovala na
+`maxStockX − step`. Materiál ale může sahat až na `maxStockX + VůleX`, takže
+**první průchod ukousl `ap + Vůle` místo `ap`**. Jediné místo, kde sjednocení
+mění SÍLU třísky, ne jen dráhu — a emise to dorovnat neumí.
 
-**Jak:** vrchol brát z `stockLoopOffsetL` (resp. `sRad + clrX` u válce).
-Pozor na `rangeClipZ` — dnešní dobírání průsečíků na hranicích rozsahu
-(ř. 1180) musí jít po téže smyčce.
+**Ověření symptomu** (probe nad `calcSim.simPath` proti plánovací smyčce,
+`topXOnLoop` — sdílený helper): na **17 fixtures** vyšla tříska prvního
+průchodu přesně o Vůli X větší než `ap`, tedy 20–50 % přetížení podle `ap`:
 
-**Riziko:** přidá jeden průchod skoro každé odlitkové fixture.
-**Rozbije:** všechny snapshoty + testy počítající průchody.
-**Poznámka:** dá se pustit i samostatně jako „poctivé ap“, nezávisle na zbytku.
+| fixture | ap | tříska syrová | tříska plánovací |
+|---|---|---|---|
+| `part-11`…`part-15`, `range-chain-*` | 5 | 5,000 | **6,000** |
+| `part-1`, `part-2`, `part-17` | 3 | 3,000 | **4,000** |
+| `part-4`, `part-6`, `part-8`, `part-9` | 2,5 | 2,500 | **3,500** |
+| `holder-*`, `part-10`, `pocket-wall` | 2 | 2,000 | **3,000** |
 
-### Krok 3 — čelní generátor na offsetovou čáru
+`range-end-leadout` vyšel „ok" správně — vrch polotovaru je tam níž než `ap`.
+
+**Řešení: SKIM VRSTVA NAD MŘÍŽKU, mřížka se NEPOSOUVÁ.**
+```js
+const planTopX = maxStockX + clrXPlanL;   // exaktní: Minkowski v X
+for (let d = planTopX - step; d > maxStockX - step + 0.005 && d > minPartX + 0.005; d -= step) depths.push(d);
+for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);   // beze změny
+```
+`planTopX` jde i do obálky zbytku v `getResidualLoops` (booleovská větev by
+jinak skim vrstvu zahodila jako „nad polotovarem"). Přičtení Vůle X je tu
+EXAKTNÍ, ne antivzor: offset je Minkowského součet s elipsou o poloose `clrX`
+v X, takže GLOBÁLNÍ maximum v X roste přesně o `clrX` bez ohledu na tvar.
+
+**ZAMÍTNUTO — posunout celou posloupnost** (`maxStockX += clrX`). Vypadá to
+čistěji, ale je to čistá ztráta: každá hloubka padne jinam vůči schodům
+a údolím. Změřeno:
+- `part-8`: 24 → **19 průchodů**, zbytek +337,6 mm² (o tolik MÍŇ se odebralo),
+- `part-17`: `colRaw` **0 → 2** (tvrdá kolize proti nakreslenému odlitku),
+- `part-11`/`12`/`14`: `colPlan` 0 → 2,
+- celkem 46 → **47** nálezů, 185,2 → 194,1 mm².
+
+**Výsledek skim varianty (změřeno izolovaně, všech 24 fixtures):**
+- tříska prvního průchodu **nikde nepřesahuje `ap`**,
+- kolize `colRaw` i `colPlan` **beze změny na každé fixture** (46 / 185,2 mm²),
+- odebraná plocha (syrová i plánovací) **beze změny na každé fixture** —
+  ten pás bral už dřív první průchod, jen jedním hlubším záběrem,
+- cena: **+1 průchod (≈ +7 řádků)** na odlitkovou fixture,
+- snapshoty: mění se JEN `passCount` (+1), jeden `"long"` v `passTags`
+  a přečíslování N. `machinableContour`, `interferenceGuides` i `warnings`
+  jsou bitově shodné ve scan-line i booleovské větvi.
+- sada **1327/1327**.
+
+### Krok 3 — čelní generátor na offsetovou čáru ★ DALŠÍ
 
 **Co:** `castingOuterOrNull` / `castingOuterAtZ`
 (`roughingStrategies.js:77` a `:127`) čtou syrové `stockPathSegments`.
