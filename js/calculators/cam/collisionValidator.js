@@ -21,8 +21,8 @@
 // (Clipper2) se počítá jen při možném kontaktu. Bez knihovny se použije
 // ruční AABB test.
 
-import { StockModel, toolSweep, polyOffset, polyArea } from '../../geom/geomCore.js';
-import { buildStockLoopRaw, stockPlanLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
+import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
+import { buildStockLoopRaw, stockPlanLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 
 /**
  * Uzavřený obrys držáku v PROFILOVÝCH souřadnicích ({x,z} vůči
@@ -167,6 +167,32 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   const footShrunk = toolFootprintSlim(prms, shrink);
   const holderRaw = holderWorldLoop(prms, !!opts.backside);
   const holderShrunk = holderRaw ? (polyOffset([holderRaw], -shrink)[0] || holderRaw) : null;
+  // PROSTOR DESTIČKY NENÍ PROSTOR DRŽÁKU. Obrys držáku začíná ve ŠPIČCE
+  // (holderWorldLoop), takže se u hrotu překrývá s destičkou — u nože
+  // uživatele v pásu Z 0–4,2 × X 0–15 mm. Materiál, který tam je, ale
+  // ŘEŽE DESTIČKA; hlásit ho jako náraz držáku je falešný poplach
+  // (nález uživatele 21. 8. 2026: „vidím tam kolizi červenou, ale ten
+  // držák je za plátkem"). Na jeho dílu to dělalo polovinu zbylých
+  // nálezů proti offsetové čáře (9,1 → 4,9 mm²).
+  //
+  // Odečítá se `toolFootprintVisual` — TÝŽ obrys, jaký simulátor KRESLÍ.
+  // Se samotným `insertWorldLoop` zůstal u špičky výřez ve tvaru rohového
+  // rádiusu destičky (r 0,8): mezi obloukem a hranou tělesa je 3,3 mm²,
+  // které do obrysu nepatří, ale uvnitř nakresleného plátku leží — a přesně
+  // ty se pak vybarvily červeně uvnitř destičky (nález uživatele: „vidím
+  // výřez, jako bych udělal kružnici toho radiusu").
+  //
+  // PLATÍ JEN PRO ŘEZNÉ BLOKY. Při RYCHLOPOSUVU nemá v materiálu co dělat
+  // ani tělo destičky, a dnes to hlídá právě ta překrývající se část
+  // (stopa `toolFootprint` je jen tenký řezný profil, X −0,8…6 × Z −0,8…0,8,
+  // tělo destičky sahá na X 15 × Z 4,2). Odečíst ji plošně by tam udělalo
+  // slepé místo, takže u G0 se dál bere držák CELÝ.
+  const insLoop = holderRaw ? toolFootprintVisual(prms) : null;
+  let holderCut = holderRaw;
+  if (holderRaw && insLoop && insLoop.length >= 3) {
+    try { holderCut = polyDifference([holderRaw], [insLoop])[0] || holderRaw; } catch { holderCut = holderRaw; }
+  }
+  const holderCutShrunk = holderCut ? (polyOffset([holderCut], -shrink)[0] || holderCut) : null;
 
   const stock = new StockModel([stockLoop]);
   const broad = makeBroadPhase(opts.collisions, stockLoop);
@@ -219,8 +245,8 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
       const cut = toolSweep(foot, pts);
       if (cut.length > 0 && broad.mayHit(cut)) stock.cut(cut);
       // …pak zkontrolovat, že držák nejede ve zbývajícím materiálu
-      if (holderShrunk) {
-        const area = checkAgainstStock(holderShrunk, pts);
+      if (holderCutShrunk) {
+        const area = checkAgainstStock(holderCutShrunk, pts);
         if (area > tol) {
           issues.push({ lineIdx: block.lineIdx, kind: 'holder', x: pts[0].x, z: pts[0].z, area });
         }

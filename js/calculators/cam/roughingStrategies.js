@@ -2760,6 +2760,67 @@ export function genLongPasses(ctx) {
           // po čelní/radiální stěně vynechá — průchod skončí u stěny a
           // odskočí, schod dobere čelní operace.
           if (!prms.noStepRoughingFace && isFaceLeadOut(leadOut)) leadOut.length = 0;
+          // ── DODĚLAT VRSTVU (zadání uživatele 21. 8. 2026) ──────────────────
+          // `findLeadOutEndZ` zastaví dojezd, jakmile offset klesne na hloubku
+          // DALŠÍHO průchodu — s tím, že ten si zbytek vezme. Na STRMÉM BOKU
+          // ale offset propadne pod `nextX` hned na prvním milimetru a žádná
+          // hlubší vrstva se tam nedostane: kapsová větev ten interval zahodí,
+          // protože na jeho ZAČÁTKU (těsně za hrbem) se držák nevejde, a
+          // `holderClampZEnd` umí zkrátit jen KONEC, ne posunout začátek.
+          // Vrstva pak končí uprostřed úseku materiálu (na dílu uživatele
+          // 7,5 mm z 11,8 mm dlouhého úseku).
+          //
+          // Tohle není nový vjezd — nástroj na hloubce UŽ JE a stojí za hrbem,
+          // takže se jen dojede ROVNĚ doleva, dokud na téhle hloubce materiál
+          // sahá. Právě proto je to bezpečné tam, kde posouvání vjezdu není
+          // (to se 10. 8. 2026 třikrát nepovedlo, viz holderClampZEnd níž).
+          if (leadOut.length > 0 && capTab) {
+            const last = leadOut[leadOut.length - 1];
+            const xT = last.x2, zT = last.z2;
+            // Vrstva se dobírá na HLOUBCE VRSTVY, ne na X, kde zrovna skončilo
+            // sledování kontury. Dojezd sjede po obrysu klidně pod currentX
+            // (tady 37,5 proti vrstvě 40,5) a jet doleva tam dole by znamenalo
+            // brát dvojnásobný záběr — a hlavně by se tam nevešel držák
+            // (změřeno: na 37,5 drhne o hrb 0,5 mm, na 40,5 je čistý).
+            const xRun = Math.max(xT, currentX);
+            if (Number.isFinite(xT) && Number.isFinite(zT)) {
+              // Dobrat se smí jen ÚSEK, do kterého dojezd zajel — ne celá
+              // hloubka napříč dílem. Bez tohohle omezení dojezd na X 25,5
+              // dojel až na Z −9 (přes celý díl) a bral práci jiným vrstvám
+              // i regionům: dojezdy narostly z 1–3 na 10–13 segmentů.
+              const ivTail = intervals.find(q => q !== iv
+                && zT <= q.zStart + 1e-6 && zT >= q.zEnd - 1e-6);
+              // Kam až v tom úseku na téhle hloubce materiál sahá. Měří se
+              // proti PLÁNOVACÍMU obrysu (offsetová čára) jako všechno
+              // ostatní — co z toho je vzduch, rozdělí až emise
+              // (airSplitAxial).
+              const zStop = ivTail ? Math.max(ivTail.zEnd, effZMin) : zT;
+              let zTo = zT;
+              for (let z = zT - DZ_CAP; z > zStop - 1e-9; z -= DZ_CAP) {
+                const t = stockTopTab(z);
+                if (t === null || t <= xRun + 0.05) break;
+                zTo = z;
+              }
+              if (ivTail && zTo - DZ_CAP <= zStop && (stockTopTab(zStop) ?? -Infinity) > xRun + 0.05) zTo = zStop;
+              if (zT - zTo >= dzScan) {
+                // Vejde se držák po CELÉ té jízdě? Vlastním řezem je tělo
+                // průchodu, celý dojezd a ta část jízdy, kterou má nástroj
+                // v daném bodě za sebou — destička si cestu řeže sama.
+                const own = [{ z1: passObj.zStart, x1: currentX, z2: passObj.zEnd, x2: currentX }]
+                  .concat(leadOut.map(s => ({ z1: s.z1, x1: s.x1, z2: s.z2, x2: s.x2 })));
+                let ok = true;
+                const n = Math.max(1, Math.min(64, Math.ceil(zT - zTo)));
+                for (let k = 1; k <= n && ok; k++) {
+                  const z = zT + (zTo - zT) * (k / n);
+                  if (holderFitArea(z, xRun, 0, own.concat([{ z1: zT, x1: xRun, z2: z, x2: xRun }])) > HOLDER_FIT_TOL) ok = false;
+                }
+                if (ok) {
+                  if (xRun > xT + 1e-6) leadOut.push({ type: 'line', x1: xT, z1: zT, x2: xRun, z2: zT });
+                  leadOut.push({ type: 'line', x1: xRun, z1: zT, x2: xRun, z2: zTo });
+                }
+              }
+            }
+          }
           if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
         }
         passes.push(passObj);

@@ -8,6 +8,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – obálka upichováku už nepíše začátek oblouku úsečkou.** Vzorkovač
+  obálky (`samplePartingEnvelope`) měl mřížku rovnoměrnou v OSE Z, jenže tam,
+  kde předloha stoupá strmě v X, je tětiva mezi vzorky mnohem delší než krok:
+  na oblouku r 7,276 vyšla z kroku 0,36 mm v Z tětiva 1,2 mm. Její průhyb
+  0,025 mm přelezl toleranci zpětného proložení (`fitArcsToPolyline`, 0,02),
+  takže první kus oblouku se vydal ÚSEČKOU a teprve zbytek obloukem (nález
+  uživatele 21. 8. 2026: *„místo jednoho oblouku dvě úsečky a pak teprve
+  oblouk"*). Ironií je, že ta úsečka se od pravého oblouku odchýlí přesně
+  o těch 0,025 mm, které se tolerance snažila uhlídat.
+
+  Mřížka se proto půlí, dokud tětiva nespadne pod krok. Vzorků může jen
+  PŘIBÝT, takže obálka se nikde nesníží; na rovných úsecích je zpátky slije
+  kolineární redukce. Svislý skok (konstantní Z) se nepůlí.
+
+  `N2720 G1 X23.736 Z73.911` + `N2730 G3 …` → jediné `G3 X25.569 Z72.824
+  CR=7.276`. Napříč 24 fixtures −0,01 % úběru, mění se dvě
+  (`part-16-face-holder` −4 mm², `part-17-long-parting` −2 mm²), nikde kolize.
+
+- **CAM – prostor destičky se už nehlásí jako kolize držáku.** Obrys držáku
+  začíná ve ŠPIČCE (`holderWorldLoop`), takže se u hrotu překrývá s destičkou —
+  u nože uživatele v pásu Z 0–4,2 × X 0–15 mm. Materiál, který tam je, ale
+  ŘEŽE DESTIČKA; `HolderGouge` i `validateToolpath` ho přesto počítaly jako
+  náraz držáku (nález uživatele 21. 8. 2026: *„vidím tam kolizi červenou, ale
+  ten držák je za plátkem"*). Na jeho dílu to dělalo polovinu zbylých nálezů
+  proti offsetové čáře (9,1 → 4,9 mm²); po opravě je oranžová 0,28 → 0 mm²
+  a ⛔ 2 → 0.
+
+  Odečítá se `toolFootprintVisual` — TÝŽ obrys, jaký simulátor KRESLÍ. Se
+  samotným `insertWorldLoop` zůstal u špičky výřez ve tvaru rohového rádiusu
+  destičky (r 0,8): 3,3 mm² mezi obloukem a hranou tělesa, které do obrysu
+  nepatří, ale uvnitř nakresleného plátku leží — a přesně ty se pak vybarvily
+  červeně UVNITŘ destičky (nález uživatele: *„vidím výřez, jako bych udělal
+  kružnici toho radiusu"*). Skutečné oblasti zůstávají: na dílu uživatele
+  červená 2,94 → 2,46 mm² ve stejných třech místech.
+
+  Odečítá se JEN u ŘEZNÝCH bloků. Při rychloposuvu nemá v materiálu co dělat
+  ani tělo destičky, a dnes to hlídá právě ta překrývající se část — stopa
+  `toolFootprint` je jen tenký řezný profil (X −0,8…6 × Z −0,8…0,8), kdežto
+  tělo destičky sahá na X 15 × Z 4,2. Plošné odečtení by tam udělalo slepé
+  místo, takže u G0 se dál bere držák CELÝ.
+
+  Mění se jen to, co se HLÁSÍ a KRESLÍ — plánovač (`makeHolderClamp`,
+  `holderFitsAt`, mezní čáry) zůstává schválně pesimistický, takže žádná dráha
+  se nemění: napříč 24 fixtures nulový rozdíl v úběru i v počtu průchodů,
+  jediná změna je `part-17-long-parting` 0,12 → 0,08 mm² oranžové.
+  (V hlídání drah tenhle pás vyňatý už je — přes `insertReachZ`.)
+
+### Added
+- **CAM – hrubování dodělá vrstvu, než odskočí.** Dojezd „bez schodků" končil,
+  jakmile offset klesl na hloubku DALŠÍHO průchodu — s tím, že ten si zbytek
+  vezme. Na STRMÉM BOKU ale offset propadne pod tu hloubku hned na prvním
+  milimetru a žádná hlubší vrstva se tam nedostane: kapsová větev ten interval
+  zahodí, protože na jeho ZAČÁTKU (těsně za hrbem) se nevejde držák,
+  a `holderClampZEnd` umí zkrátit jen KONEC, ne posunout začátek. Vrstva pak
+  skončila uprostřed úseku materiálu (na dílu uživatele 7,5 mm z 11,8 mm
+  dlouhého úseku, `N1760 G3 X40.118 Z116.970`).
+
+  Nově se po dojezdu jede rovně doleva, dokud v TOM ÚSEKU na hloubce vrstvy
+  materiál sahá. Není to nový vjezd — nástroj na hloubce už je a stojí za
+  hrbem, takže odpadá problém, na kterém 10. 8. 2026 třikrát selhalo
+  „posunout vjezd dál do úseku" (10 kolizí / 1034 mm²). Dvě meze, obě
+  vynucené měřením:
+  - **jen ten jeden úsek** — bez omezení dojezd na X 25,5 dojel až na Z −9
+    přes celý díl a bral práci jiným vrstvám i regionům (dojezdy narostly
+    z 1–3 na 10–13 segmentů),
+  - **na hloubce vrstvy**, ne na X, kde skončilo sledování kontury: to sjede
+    po obrysu i pod hloubku průchodu (tady 37,5 proti vrstvě 40,5), kde by
+    šlo o dvojnásobný záběr a kde držák o hrb drhne 0,5 mm (na 40,5 je čistý).
+
+  Před přidáním se každá taková jízda prověří stopou držáku proti zbytku,
+  s tím, že si destička po cestě řeže vlastní stopu. Na dílu uživatele úběr
+  4359,8 → 4374,2 mm² (+14,4) beze změny kolizí; napříč 24 fixtures +0,01 %
+  a mění se jediná (`part-10-zapich-casting`, +10 mm²).
+
+### Fixed
 - **CAM – zanoření už nesází držák do neobrobeného materiálu.** Hlídání držáku
   u kotev zanoření (`holderFitsAt`) se ptalo, jestli se držák vejde, když
   špička stojí na POVRCHU — jenže rampa hned nato sjede o celou vrstvu níž

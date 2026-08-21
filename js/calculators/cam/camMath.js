@@ -55,14 +55,39 @@ export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol =
     }
     zs.sort((a, b) => (zTo >= zFrom ? a - b : b - a));
   }
-  const pts = [];
-  for (const z of zs) {
+  // Obálka v dané osové poloze = maximum předlohy přes šířku plátku.
+  const envAt = (z) => {
     let m = null;
     for (let j = 0; j <= inner; j++) {
       const x = xAt(z + dir * span * (j / inner));
       if (x !== null && (m === null || x > m)) m = x;
     }
-    if (m !== null) pts.push({ x: m, z });
+    return m;
+  };
+  const pts = [];
+  for (const z of zs) { const x = envAt(z); if (x !== null) pts.push({ x, z }); }
+  // ZJEMNĚNÍ PODLE TĚTIVY. Mřížka je rovnoměrná v Z, jenže tam, kde předloha
+  // stoupá strmě v X, je tětiva mezi vzorky mnohem delší než krok: na oblouku
+  // r 7,276 vyšla z kroku 0,36 mm v Z tětiva 1,2 mm a její průhyb 0,025 mm
+  // přelezl toleranci zpětného proložení (0,02) — první kus oblouku se pak
+  // vydal ÚSEČKOU a teprve zbytek obloukem (nález uživatele 21. 8. 2026:
+  // „místo jednoho oblouku dvě úsečky a pak teprve oblouk"). Krok se proto
+  // půlí, dokud tětiva nespadne pod `h`. Vzorků může jen PŘIBÝT, takže obálka
+  // se nikde nesníží; na rovných úsecích je zpátky slije kolineární redukce
+  // níž. Svislý skok (konstantní Z) se nepůlí — tam by dělení nikam nevedlo.
+  for (let guard = 0; guard < 8 && pts.length < 4000; guard++) {
+    let added = false;
+    for (let i = pts.length - 1; i > 0; i--) {
+      const p0 = pts[i - 1], p1 = pts[i];
+      if (Math.hypot(p1.x - p0.x, p1.z - p0.z) <= h) continue;
+      if (Math.abs(p1.z - p0.z) < 1e-4) continue;
+      const zm = (p0.z + p1.z) / 2;
+      const xm = envAt(zm);
+      if (xm === null) continue;
+      pts.splice(i, 0, { x: xm, z: zm });
+      added = true;
+    }
+    if (!added) break;
   }
   // Kolineární redukce — drž jen body, kde se směr láme o víc než tol.
   const out = [];

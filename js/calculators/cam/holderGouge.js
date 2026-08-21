@@ -13,7 +13,7 @@
 // nezávislé na flipX/flipZ i machineStructure (řeší až toScreen).
 
 import { StockModel, toolSweep, polyIntersect, polyUnion, polyDifference, polyOffset, polyArea, polySimplify } from '../../geom/geomCore.js';
-import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from './materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintVisual } from './materialRemoval.js';
 import { stockClearanceIsZero } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 
@@ -40,10 +40,39 @@ export class HolderGouge {
     this.baseLoop = buildStockLoopRaw(prms, stockPathSegments);
     this.foot = toolFootprint(prms);            // stopa destičky (úběr materiálu)
     this.holder = holderWorldLoop(prms, backside); // obrys držáku rel. ke špičce
+    // PROSTOR DESTIČKY NENÍ PROSTOR DRŽÁKU. Obrys držáku začíná ve ŠPIČCE
+    // (holderWorldLoop), takže se u hrotu překrývá s destičkou — u nože
+    // uživatele v pásu Z 0–4,2 × X 0–15 mm. Materiál, který tam je, ale
+    // ŘEŽE DESTIČKA; hlásit ho jako náraz držáku je falešný poplach
+    // (nález uživatele 21. 8. 2026: „vidím tam kolizi červenou, ale ten
+    // držák je za plátkem"). Na jeho dílu to dělalo polovinu zbylých
+    // nálezů proti offsetové čáře (9,1 → 4,9 mm²).
+    //
+    // Odečítá se `toolFootprintVisual` — TÝŽ obrys, jaký simulátor KRESLÍ.
+    // Se samotným `insertWorldLoop` zůstal u špičky výřez ve tvaru rohového
+    // rádiusu destičky (r 0,8): mezi obloukem a hranou tělesa je 3,3 mm²,
+    // které do obrysu nepatří, ale uvnitř nakresleného plátku leží — a přesně
+    // ty se pak vybarvily červeně uvnitř destičky (nález uživatele: „vidím
+    // výřez, jako bych udělal kružnici toho radiusu").
+    //
+    // PLATÍ JEN PRO ŘEZNÉ BLOKY. Při RYCHLOPOSUVU nemá v materiálu co dělat
+    // ani tělo destičky, a dnes to hlídá právě ta překrývající se část
+    // (stopa `toolFootprint` je jen tenký řezný profil, X −0,8…6 × Z −0,8…0,8,
+    // tělo destičky sahá na X 15 × Z 4,2). Odečíst ji plošně by tam udělalo
+    // slepé místo, takže u G0 se dál bere držák CELÝ.
+    this.holderCut = this.holder;
+    if (this.holder) {
+      const ins = toolFootprintVisual(prms);
+      if (ins && ins.length >= 3) {
+        try { this.holderCut = polyDifference([this.holder], [ins])[0] || this.holder; }
+        catch { this.holderCut = this.holder; }
+      }
+    }
     // Pás = offsetová smyčka MÍNUS syrový obrys. Nulový Přídavek = čáry
     // splývají a pás neexistuje.
     this.bandLoops = null;
     this.holderSlim = this.holder;
+    this.holderCutSlim = this.holderCut;
     if (opts.band && this.baseLoop && this.holder && !stockClearanceIsZero(prms)) {
       const off = offsetStockLoop(this.baseLoop, prms);
       if (off) {
@@ -57,6 +86,9 @@ export class HolderGouge {
       let sl = null;
       try { sl = polyOffset([this.holder], -0.05); } catch { sl = null; }
       this.holderSlim = (sl && sl[0]) ? sl[0] : this.holder;
+      let slc = null;
+      try { slc = polyOffset([this.holderCut], -0.05); } catch { slc = null; }
+      this.holderCutSlim = (slc && slc[0]) ? slc[0] : this.holderCut;
     }
     this.reset();
   }
@@ -115,14 +147,16 @@ export class HolderGouge {
       }
       // 2) stopa držáku podél úseku × zbývající materiál = vnoření
       if ((this.stock && this.stock.loops.length) || (this.band && this.band.loops.length)) {
-        const hsweep = toolSweep(this.holder, seg);
+        const hBody = cutting ? this.holderCut : this.holder;
+        const hSlim = cutting ? this.holderCutSlim : this.holderSlim;
+        const hsweep = toolSweep(hBody, seg);
         if (hsweep.length) {
           if (this.stock && this.stock.loops.length) {
             const hit = polyIntersect(hsweep, this.stock.loops);
             if (hit.length) newHits.push(...hit);
           }
           if (this.band && this.band.loops.length) {
-            const bsweep = this.holderSlim === this.holder ? hsweep : toolSweep(this.holderSlim, seg);
+            const bsweep = hSlim === hBody ? hsweep : toolSweep(hSlim, seg);
             const hitB = polyIntersect(bsweep, this.band.loops);
             // Slivery z pouhého DOTEKU hranice nejsou vjezd — zahodit.
             for (const l of hitB) if (Math.abs(polyArea([l])) > 0.02) newBandHits.push(l);
