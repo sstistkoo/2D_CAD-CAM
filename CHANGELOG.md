@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – skim vrstvy už nenechají na styku s mřížkou tenký zbytek.** Skim
+  posloupnost byla kotvená na `planTopX` (povrch + Vůle X) a hlavní mřížka na
+  `maxStockX`, obě krokovaly po `ap` — takže se o tu Vůli **rozešly** a na
+  jejich styku zbyla vrstva mimo záběr. Na dílu uživatele (ap 3, vůle 1):
+  65,545 → 62,545 (3,0) → 61,545 (**jen 1,0**) → 58,545 (3,0) — nález 21. 8. 2026
+  *„jedna vrstva zvrchu nedodržuje ap“* (`N230 G1 Z196.278`).
+
+  Skim pás se teď dělí ROVNOMĚRNĚ tak, aby dosedl PŘESNĚ na první hloubku
+  hlavní mřížky: `ceil(pás / ap)` stejných kroků. Na tom dílu 2 × 2,0 mm místo
+  3,0 + 1,0 — žádná vrstva ne přetěžuje `ap` a žádná není degenerovaný zbytek.
+  Hlavní mřížka zůstává kotvená dál na `maxStockX`, tedy bitově stejná — to je
+  podmínka z původního zápisu skim vrstev (posunutí celé posloupnosti bylo
+  změřeno a zahozeno: `part-8` −5 průchodů / −337 mm²).
+
+  Napříč 24 fixtures **0,00 % rozdílu v úběru**, žádná změna v kolizích a žádná
+  fixture nezměnila počet průchodů, řádků ani zanoření — posunuly se jen
+  souřadnice prvních dvou hloubek.
 - **CAM – rychloposuv na další vrstvu už nejede zešikma.** `safeRapidTo`
   měla dvě větve, které vydávaly jeden diagonální `G0 X… Z…`. Diagonála je
   bezpečná jen podle testu ÚSEČKY (`rapidHitsStock` / `holderHitsRapid`), jenže

@@ -78,7 +78,13 @@ plánovací obrys) + sweep, že nikde nepřibyla kolize.
 
 ---
 
-## Bod 2 — jedna vrstva zvrchu nedodržuje ap
+## Bod 2 — jedna vrstva zvrchu nedodržuje ap — **HOTOVO 21. 8. 2026**
+
+> Příčina byla jinde, než říkalo podezření níže: nebyl to práh `SKIM_MIN_LAYER`,
+> ale to, že skim mřížka je kotvená na `planTopX` a hlavní na `maxStockX` — o Vůli X
+> se rozešly. Skim pás se teď dělí rovnoměrně tak, aby dosedl na hlavní mřížku
+> (2 × 2,0 mm místo 3,0 + 1,0). Napříč 24 fixtures 0,00 % rozdílu v úběru,
+> žádná změna struktury. Detail v CHANGELOGu; níže původní zadání pro kontext.
 
 **Příznak:** `N230 G1 Z196.278` — vrstva, která nemá záběr ap.
 

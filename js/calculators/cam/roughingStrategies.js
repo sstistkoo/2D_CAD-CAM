@@ -1301,7 +1301,22 @@ export function genLongPasses(ctx) {
   // `part-8` kvůli tomu přišel o 5 průchodů a 337 mm² úběru, `part-17`
   // dostal 2 tvrdé kolize proti nakreslenému odlitku. Takhle zůstanou
   // všechny dosavadní hloubky bitově stejné a přibude jen skim.
-  for (let d = planTopX - step; d > maxStockX - step + SKIM_MIN_LAYER * step && d > minPartX + 0.005; d -= step) depths.push(d);
+  // Skim se ROZDĚLÍ ROVNOMĚRNĚ tak, aby dosedl PŘESNĚ na první hloubku hlavní
+  // mřížky. Dokud šel po `ap` od `planTopX`, obě mřížky se o Vůli X rozešly a
+  // na jejich styku zbyla tenká vrstva: na dílu uživatele 65,545 → 62,545 (3,0
+  // = ap) → 61,545 (jen 1,0), pak už zase 3,0 (nález 21. 8. 2026 „jedna vrstva
+  // zvrchu nedodržuje ap"). Rovnoměrné dělení dá 2 × 2,0 mm — každá vrstva je
+  // ≤ ap a hlavní mřížka zůstává bitově stejná (kotvená dál na `maxStockX`),
+  // což je podmínka z odstavce výš.
+  const firstMainX = maxStockX - step;
+  if (planTopX > firstMainX + SKIM_MIN_LAYER * step && firstMainX > minPartX + 0.005) {
+    const nSkim = Math.max(1, Math.ceil((planTopX - firstMainX) / step - 1e-9));
+    const hSkim = (planTopX - firstMainX) / nSkim;
+    for (let k = 1; k < nSkim; k++) {
+      const d = planTopX - k * hSkim;
+      if (d > minPartX + 0.005) depths.push(d);
+    }
+  }
   for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
     depths.push(minPartX);
