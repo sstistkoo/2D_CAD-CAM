@@ -975,14 +975,30 @@ export function generateAutoGCode(S, calc) {
       descendTo(cur.x);
     } else if (touch && cur.x - tx > 1e-6) {
       // Diagonální sjezd k materiálu: rychloposuvem jen na vůli nad cíl.
+      // NEJDŘÍV Z, PAK X. Diagonála je bezpečná jen podle testu ÚSEČKY
+      // (rapidHitsStock/holderHitsRapid výš), jenže mezi hloubkami umí projet
+      // polotovarem — nález uživatele 21. 8. 2026 na `G0 X19.543 Z175.282`
+      // („jede zešikma na další vrstvu a protne polotovar").
+      // Rozdělení je VŽDYCKY bezpečnější, ne jen jiné: přejezd v Z se udělá
+      // na PŮVODNÍ, tedy větší hloubce, takže leží celý nad diagonálou, a
+      // teprve pak se sjíždí svisle na cílovém Z.
       if (cur.x - tx > rapidStopX + 1e-6) {
-        emit(`G0 X${xDia(tx + rapidStopX)} Z${tz.toFixed(3)}`);
+        emit(`G0 Z${tz.toFixed(3)}`);
+        emit(`G0 X${xDia(tx + rapidStopX)}`);
         emit(`G1 X${xDia(tx)} F${prms.feed}`);
       } else {
+        // Zbytek je kratší než vůle — celý posuvem, jak byl.
         emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}`);
       }
+    } else if (cur.x - tx > 1e-6) {
+      // Čistý rychloposuv DO menšího průměru — táž úvaha: napřed přejet v Z
+      // nahoře, pak teprve sjet.
+      emit(`G0 Z${tz.toFixed(3)}`);
+      emit(`G0 X${xDia(tx)}`);
     } else {
-      emit(`G0 X${xDia(tx)} Z${tz.toFixed(3)}`);
+      // Ven z materiálu: opačné pořadí — nejdřív se zvednout, pak přejet.
+      emit(`G0 X${xDia(tx)}`);
+      emit(`G0 Z${tz.toFixed(3)}`);
     }
     setPos(tx, tz);
   };

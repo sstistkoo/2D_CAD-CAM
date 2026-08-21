@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – rychloposuv na další vrstvu už nejede zešikma.** `safeRapidTo`
+  měla dvě větve, které vydávaly jeden diagonální `G0 X… Z…`. Diagonála je
+  bezpečná jen podle testu ÚSEČKY (`rapidHitsStock` / `holderHitsRapid`), jenže
+  mezi hloubkami umí projít polotovarem — nález uživatele 21. 8. 2026 na
+  `G0 X19.543 Z175.282` (*„jede zešikma na další vrstvu a protne polotovar“*).
+
+  Nově se dělí podle směru: při SJEZDU do menšího průměru **nejdřív Z, pak X**,
+  při výjezdu ven opačně. U sjezdu je to vždycky BEZPEČNĚJŠÍ, ne jen jiné:
+  přejezd v Z se udělá na původní, tedy větší hloubce, takže leží celý nad
+  diagonálou. Krátký diagonální POSUV (zbytek kratší než Vůle) zůstává — ten
+  materiál odebírá a dělit ho by změnilo řez.
+
+  Čistě změna trasy: napříč 24 fixtures **0,00 % rozdílu v úběru**, žádná změna
+  v kolizích ani v počtu průchodů — jen o 1–5 řádků víc na ty rozdělené pohyby.
 - **CAM – obálka upichováku už nepíše začátek oblouku úsečkou.** Vzorkovač
   obálky (`samplePartingEnvelope`) měl mřížku rovnoměrnou v OSE Z, jenže tam,
   kde předloha stoupá strmě v X, je tětiva mezi vzorky mnohem delší než krok:
