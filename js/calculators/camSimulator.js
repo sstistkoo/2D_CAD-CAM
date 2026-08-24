@@ -17,7 +17,7 @@ import { openInsertCalc } from './insert.js';
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, rapidFeedGap, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from './cam/materialRemoval.js';
-import { validateToolpath } from './cam/collisionValidator.js';
+import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
@@ -1054,7 +1054,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     const p = S.params;
     const key = [
       S.manualGCode, p.toolRadius, p.depthOfCut, p.toolLength,
-      p.holderWidth, p.holderLength, JSON.stringify(p.holderProfile || null),
+      p.holderWidth, p.holderLength, p.holderInflate, p.holderInflateAll,
+      JSON.stringify(p.holderProfile || null),
       p.stockMode, p.stockDiameter, p.stockLength, p.stockFace,
       roughingKey(), (calc.stockPathSegments || []).length,
     ].join('');
@@ -3959,6 +3960,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <span class="cam-sim-machine-summary">
         <span class="cam-sim-machine-chip">Bp ${prms.safeX}<span style="color:#1e1e2e;font-weight:900">/</span>${prms.safeZ}</span>
         <span class="cam-sim-machine-chip">Přídavek X${stockClearances(prms).x} Z${stockClearances(prms).z}</span>
+        ${holderInflate(prms) > 0 ? `<span class="cam-sim-machine-chip" style="background:rgba(250,179,135,0.18);border-color:rgba(250,179,135,0.5);color:#fab387" title="Virtuální zvětšení držáku">Držák +${holderInflate(prms)}${holderInflateAll(prms) ? '' : (prms.roughingSide === 'left' ? ' ◀' : ' ▶')}</span>` : ''}
         <span class="cam-sim-machine-chip" style="display:inline-flex;gap:3px;align-items:center">
           <span style="color:${_chActive ? '#a6e3a1' : '#585b70'}" title="Čelisti">Č</span><span style="color:#45475a">/</span><span style="color:${_koActive ? '#a6e3a1' : '#585b70'}" title="Koník">K</span>
         </span>
@@ -3976,7 +3978,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field" title="Přídavek kolem polotovaru radiálně (osa X): vzdálenost od povrchu polotovaru, kde končí rychloposuv — sjezd přes ni už jede pracovním posuvem G1 a dráha na tuhle čáru na konci řezu i vyjíždí. Hranice se kreslí tečkovaně kolem polotovaru."><label>Přídavek X (polo.)</label><input type="number" step="0.1" min="0.05" data-p="stockClearX" value="${stockClearances(prms).x}"></div>
         <div class="cam-sim-field" title="Přídavek kolem polotovaru axiálně (osa Z): vzdálenost od čela/hran polotovaru, kde končí rychloposuv a začíná pracovní posuv G1 — a kam dráha vyjíždí na konci řezu. Hranice se kreslí tečkovaně kolem polotovaru."><label>Přídavek Z (polo.)</label><input type="number" step="0.1" min="0.05" data-p="stockClearZ" value="${stockClearances(prms).z}"></div>
+      </div>
+      <div class="cam-sim-row">
         <div class="cam-sim-field" title="Jak daleko PŘED offsetovou (tečkovanou) čarou skončí rychloposuv a dál se pojede pracovním posuvem G1. Měří se od HRANY nosu, ne od programovaného bodu. Bez něj (0) nos dosedne přesně na tu čaru — a odlitek až u ní reálně být může, takže příjezd končí již v materiálu. Platí pro VŠECHNY příjezdy rychloposuvem."><label>Stop rychlop. před čarou</label><input type="number" step="0.1" min="0" data-p="rapidFeedGap" value="${rapidFeedGap(prms)}"></div>
+        <div class="cam-sim-field" title="VIRTUÁLNÍ zvětšení držáku [mm]: jeho obrys se pro všechna hlídání — kolize, mezní čáry i plánování drah — zvětší o zadanou hodnotu, takže nůž drží od obrobku větší mezeru (házivost, otřep, dojezd těsně vedle čela). Sám nůž se nemění a 0 = obrys přesně jak je nakreslený.&#10;&#10;BEZ záškrtu (výchozí): přídavek JEN ze strany, kam se obrábí — spodní šikmá hrana se pod svým úhlem prodlouží a boční čelo odsune, špička i přední strana zůstanou. Při změně strany hrubování se překlopí s ní.&#10;SE záškrtem: kolem CELÉHO držáku. Pozor — pak přídavek vzniká i U ŠPIČKY, a navalí-li držák přímo na destičku, zakáže jí zajet níž (např. při upichování). POD úroveň hrotu se nenafoukne nikdy."><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="holder-inflate-all" ${holderInflateAll(prms) ? 'checked' : ''}><span>Virt. zvětšení držáku${holderInflateAll(prms) ? ' (vše)' : (prms.roughingSide === 'left' ? ' (zleva)' : ' (zprava)')}</span></label><input type="number" step="0.1" min="0" data-p="holderInflate" value="${holderInflate(prms)}"></div>
       </div>`;
     const zlOn = S.showZLimits === 'on';
     const zlLabel = zlOn ? 'Skrýt' : 'Zobrazit';
@@ -4279,7 +4284,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Parametry destičky ovlivňující interferenční čáry — při změně se smažou
   // čáry označené fromInsert:true (byly automaticky povýšeny z hlídání destičky).
   const INSERT_PARAMS = new Set(['toolAngle', 'toolTipAngle', 'toolShape', 'toolClearanceAngle',
-    'toolLength', 'holderWidth', 'holderLength']);
+    'toolLength', 'holderWidth', 'holderLength', 'holderInflate', 'holderInflateAll']);
 
   // Sdílený handler pro data-p pole — volaný z hlavního panelu (tabBody) i
   // z modalu Geometrie nástroje, aby obě UI zapisovaly do S.params stejně.
@@ -4522,6 +4527,21 @@ export function openCamSimulator(initialContour, initialGCode) {
     const zRangeChk = tabBody.querySelector('[data-act="zrange-active"]');
     if (zRangeChk) zRangeChk.addEventListener('change', () => {
       S.zLimits.rangeActive = zRangeChk.checked;
+      fullUpdate();
+    });
+    // Kam nafouknout virtuálně zvětšený držák: kolem celého (záškrt) vs. jen
+    // k obráběné straně. Mění geometrii držáku stejně jako `holderInflate`,
+    // takže prochází týmž úklidem promovaných mezních čar; `fullUpdate`
+    // překreslí i panel, tedy i název pole (vše / zprava / zleva).
+    const inflAllChk = tabBody.querySelector('[data-act="holder-inflate-all"]');
+    if (inflAllChk) inflAllChk.addEventListener('change', () => {
+      S.params.holderInflateAll = inflAllChk.checked;
+      if (S.params.respectInsertGeometry) {
+        const before = S.guideLines.length;
+        S.guideLines = S.guideLines.filter(g => !g.fromInsert);
+        if (S.guideLines.length < before)
+          showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
+      }
       fullUpdate();
     });
     const xRangeChk = tabBody.querySelector('[data-act="xrange-active"]');
@@ -5892,6 +5912,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Držák — ukládá se spolu s destičkou, aby ✅ Použít obnovilo celý nůž.
       holderLength: 200, holderWidth: 20, holderHand: 'R',
       knifeAngle: 270, holderAutoComplete: true, holderProfile: null,
+      holderInflate: 0, holderInflateAll: false,
     };
   }
 
@@ -5930,6 +5951,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (tool.holderHand !== undefined) slot.holderHand = tool.holderHand;
     if (tool.knifeAngle !== undefined) slot.knifeAngle = tool.knifeAngle;
     if (tool.holderAutoComplete !== undefined) slot.holderAutoComplete = tool.holderAutoComplete;
+    if (tool.holderInflate !== undefined) slot.holderInflate = tool.holderInflate;
+    if (tool.holderInflateAll !== undefined) slot.holderInflateAll = tool.holderInflateAll;
     slot.holderProfile = tool.holderProfile ? JSON.parse(JSON.stringify(tool.holderProfile)) : null;
     Object.assign(slot, MAG_CUT_DEFAULTS_BY_SHAPE[slot.shape] || {});
     return slot;
@@ -5976,6 +5999,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (slot.holderHand !== undefined) S.params.holderHand = slot.holderHand;
     if (slot.knifeAngle !== undefined) S.params.knifeAngle = slot.knifeAngle;
     if (slot.holderAutoComplete !== undefined) S.params.holderAutoComplete = slot.holderAutoComplete;
+    S.params.holderInflate = slot.holderInflate ?? 0;
+    S.params.holderInflateAll = slot.holderInflateAll === true;
     S.params.holderProfile = slot.holderProfile ? JSON.parse(JSON.stringify(slot.holderProfile)) : null;
     fullUpdate();
   }
@@ -6001,6 +6026,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     slot.holderHand    = S.params.holderHand;
     slot.knifeAngle    = S.params.knifeAngle;
     slot.holderAutoComplete = S.params.holderAutoComplete;
+    slot.holderInflate = holderInflate(S.params);
+    slot.holderInflateAll = holderInflateAll(S.params);
     slot.holderProfile = S.params.holderProfile ? JSON.parse(JSON.stringify(S.params.holderProfile)) : null;
   }
 

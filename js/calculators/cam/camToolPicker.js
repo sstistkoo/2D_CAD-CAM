@@ -7,7 +7,7 @@ import { bridge } from '../../bridge.js';
 export const CAM_TOOL_KEYS = ['toolShape', 'toolLength', 'toolAngle', 'toolTipAngle',
   'toolRadius', 'toolTipFlat', 'toolTipMirror', 'toolVbdCode',
   'holderLength', 'holderWidth', 'holderHand', 'holderProfile',
-  'knifeAngle', 'holderAutoComplete'];
+  'knifeAngle', 'holderAutoComplete', 'holderInflate', 'holderInflateAll'];
 let _savedCamTool = null;   // naposledy uložený/načtený nůž (mimo otevřené CAM)
 let _activeCamParams = null; // S.params živě otevřeného CAM (nebo null)
 

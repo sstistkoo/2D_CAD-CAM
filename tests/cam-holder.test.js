@@ -15,7 +15,7 @@
 // průchodů s držákem a bez něj pořád liší).
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
+import { validateToolpath, holderWorldLoop } from '../js/calculators/cam/collisionValidator.js';
 
 // Obdélníková kapsa (šířka 60 mm v Z, hloubka 20 mm v X) ve válci r40;
 // svislé stěny destička (natočení 15°, ε 90°) bočním ostřím neobrobí.
@@ -138,5 +138,98 @@ describe('držák plátku — zanoření do široké kapsy', () => {
       && Math.abs(s.p1.x - 20) < 0.01 && Math.abs(s.p2.x - 20) < 0.01);
     expect(bottom.length).toBe(0);
     expect(mc.some(s => s.fromInsert)).toBe(true);
+  });
+});
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  Virtuální zvětšení držáku (holderInflate)                    ║
+// ╚══════════════════════════════════════════════════════════════╝
+//
+// Nafouknutí obrysu držáku, aby nůž držel od obrobku větší mezeru, aniž by
+// se překresloval nůž (zadání uživatele 23. 8. 2026: „nejčastěji se to bude
+// používat, aby to nenarazilo do čela … kdyby tam byla házivost nebo otřep").
+// Hlídá se hlavně to, kam se nafouknout SMÍ a kam ne — obojí je změřená
+// hranice, ne opatrnost, viz inflateHolderLoop v collisionValidator.js.
+//
+// Vzor je upichovák uživatele: spodní hrana leží PŘÍMO na hrotu (profil
+// (0,0)–(2,0)) a pak stoupá k plné tloušťce 20 mm. Právě u něj je růst dolů
+// i dopředu zakázaný.
+const partingHolder = {
+  holderProfile: {
+    sideA: [
+      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
+      { x: 20, z: 200 }, { x: 0, z: 200 },
+    ],
+    sideB: [],
+  },
+  holderWidth: 20, holderLength: 200, toolLength: 5, toolRadius: 0.8,
+};
+const span = (loop) => ({
+  xLo: Math.min(...loop.map(p => p.x)), xHi: Math.max(...loop.map(p => p.x)),
+  zLo: Math.min(...loop.map(p => p.z)), zHi: Math.max(...loop.map(p => p.z)),
+});
+
+describe('virtuální zvětšení držáku', () => {
+  it('nula = obrys přesně jak je nakreslený (profil {x,z} → svět {z,x})', () => {
+    const loop = holderWorldLoop({ ...partingHolder, holderInflate: 0 }, false);
+    expect(loop).toEqual([
+      { x: 0, z: 0 }, { x: 0, z: 2 }, { x: 6.551464216791643, z: 20 },
+      { x: 200, z: 20 }, { x: 200, z: 0 },
+    ]);
+  });
+
+  it('jednostranně (výchozí): roste JEN k obráběné straně', () => {
+    const base = span(holderWorldLoop({ ...partingHolder, holderInflate: 0 }, false));
+    const inf = span(holderWorldLoop({ ...partingHolder, holderInflate: 1 }, false));
+    expect(inf.zHi).toBeCloseTo(base.zHi + 1, 9);   // boční čelo se odsune
+    expect(inf.zLo).toBeCloseTo(base.zLo, 9);       // přední strana stojí
+    expect(inf.xLo).toBeCloseTo(base.xLo, 9);       // špička stojí
+    expect(inf.xHi).toBeCloseTo(base.xHi, 9);       // délka se nemění
+  });
+
+  it('jednostranně: spodní šikmá hrana se prodlouží POD SVÝM úhlem', () => {
+    // Předloha: (0,2) → (6.5515,20), tedy dz/dx = 18/6.5515. Po posunu o 1 mm
+    // k obráběné straně musí ležet na TÉŽE přímce posunuté o +1 v z, čili
+    // začínat na (0,3) a končit na (6.5515,21) — ne se zlomit ani zaoblit.
+    const loop = holderWorldLoop({ ...partingHolder, holderInflate: 1 }, false);
+    // Tolerance 0,01 mm: Minkowského suma v geomCore jede na VÝCHOZÍ
+    // přesnosti Clipperu (2 des. místa), takže 6,5515 vyjde jako 6,55.
+    // 1,5 um je hluboko pod čímkoli, na čem u hlídání držáku záleží
+    // (HOLDER_FIT_TOL je 2 mm), a přesnost se tu schválně nezvedá —
+    // minkowskiSolidSum sdílí s obálkou držáku i její snapshoty.
+    const has = (x, z) => loop.some(p => Math.hypot(p.x - x, p.z - z) < 0.01);
+    expect(has(0, 3)).toBe(true);
+    expect(has(6.551464216791643, 21)).toBe(true);
+    // Ploška na úrovni hrotu se tím prodlouží z 2 na 3 mm, ale NEKLESNE.
+    expect(Math.min(...loop.filter(p => p.x < 1e-9).map(p => p.z))).toBeCloseTo(0, 9);
+  });
+
+  it('zrcadlí se se stranou hrubování (zleva = přesná negace v Z)', () => {
+    // Rám je kanonický (+z = obrobená strana), takže přídavek přeskočí na
+    // druhou stranu SÁM — uživatel ho po přepnutí zleva/zprava nepřenastavuje.
+    const prms = { ...partingHolder, holderInflate: 1 };
+    const right = holderWorldLoop(prms, false);
+    const left = holderWorldLoop(prms, true);
+    expect(left).toEqual(right.map(p => ({ x: p.x, z: -p.z })));
+  });
+
+  it('kolem celého držáku (záškrt) roste i nahoru, ale nikdy POD hrot', () => {
+    // Pod hrotem řeže destička; držák, který by tam klesl, hlásí kolizi na
+    // každém běžném řezu. Změřeno: nafouknutí o 1 mm PŘED špičku (na
+    // neobráběnou stranu) vyhnalo úběr 4381 → 10310 mm² a ⛔ 0 → 12.
+    const base = span(holderWorldLoop({ ...partingHolder, holderInflate: 0 }, false));
+    const all = span(holderWorldLoop(
+      { ...partingHolder, holderInflate: 1, holderInflateAll: true }, false));
+    expect(all.zHi).toBeCloseTo(base.zHi + 1, 9);
+    expect(all.xHi).toBeCloseTo(base.xHi + 1, 9);
+    expect(all.xLo).toBeCloseTo(base.xLo, 9);   // hrot drží
+    expect(all.zLo).toBeCloseTo(base.zLo, 9);   // neobráběná strana drží
+  });
+
+  it('bez držáku zůstává null i s nenulovým zvětšením', () => {
+    // polyOffset([null]) by spadl v toClipperLoop a shodil celý calculate().
+    const none = { holderWidth: 0, holderLength: 0, toolLength: 10, toolRadius: 0.8 };
+    expect(holderWorldLoop({ ...none, holderInflate: 0 }, false)).toBeNull();
+    expect(holderWorldLoop({ ...none, holderInflate: 2 }, false)).toBeNull();
+    expect(holderWorldLoop({ ...none, holderInflate: 2, holderInflateAll: true }, false)).toBeNull();
   });
 });

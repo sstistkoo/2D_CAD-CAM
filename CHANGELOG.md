@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAM – virtuální zvětšení držáku (nové pole „Virt. zvětšení držáku").**
+  V pravém panelu vedle „Stop rychlop. před čarou" (obojí je teď na vlastním
+  řádku). Obrys držáku se o zadanou hodnotu zvětší pro VŠECHNA hlídání —
+  kolize, mezní čáry i plánování drah — takže nůž drží od obrobku větší
+  mezeru, aniž by se překresloval. Zadání uživatele 21. 8. 2026: *„při záběru
+  nové vrstvy je to těsně vedle toho čela, co je z pravé strany držáku"*;
+  smysl je pokrýt házivost a otřepy. 0 (výchozí) = dosavadní chování,
+  snapshoty bit po bitu shodné.
+
+  Proč zvětšení OBRYSU a ne vůle uvnitř algoritmu: vůle byla vyzkoušená a
+  selhala obojím směrem — jako tvrdé zamítnutí smazala celý krček pod přírubou
+  (−79 mm²), jako preference byla úplný no-op (0,00 % napříč 24 fixtures),
+  protože kotva, o kterou šlo, je vjezd regionu a hlídáním s vůlí vůbec
+  neprochází. Obrys je naproti tomu reálný geometrický vstup, takže ho
+  `holderFitsAt`, `makeHolderClamp`, `HolderGouge`, `validateToolpath` i mezní
+  čáry vezmou konzistentně — všechny čtou tentýž `holderWorldLoop`.
+
+  **Výchozí je JEDNOSTRANNÉ zvětšení — jen k obráběné straně** (záškrt „vše"
+  před názvem pole přepne na zvětšení kolem celého držáku). Spodní šikmá hrana
+  se pod SVÝM úhlem prodlouží a boční čelo se odsune; špička, přední strana i
+  délka držáku zůstávají přesně na svém. Důvod je věcný, ne opatrnost: přídavek
+  u špičky a před ní překáží — když držák navazuje na destičku bez mezery,
+  zakázal by jí zajet níž, a upichovat by pak nešlo vůbec. Název pole se podle
+  strany hrubování sám přepisuje na „(zprava)" / „(zleva)"; **překlápí se i sám
+  přídavek**, protože obrys se staví v kanonickém rámu (+z = obráběná strana) a
+  `backside` ho zrcadlí až nakonec. Ověřeno paritním testem zleva/zprava
+  s nenulovou hodnotou.
+
+  Kam se nafouknout NESMÍ, je změřená hranice:
+
+  - **pod úroveň hrotu** (x < 0) — tam už řeže jen destička. U upichováku leží
+    spodní hrana držáku přímo na hrotu (profil (0,0)–(2,0)), takže by hlásil
+    kolizi na každém běžném řezu.
+  - **na neobráběnou stranu** — tam se kolize NEDÁ vyřešit zkrácením průchodu
+    (materiál stojí po celé délce řezu nezávisle na hloubce) a `makeHolderClamp`
+    ji proto vědomě nemodeluje. Nafouknutí o 1 mm na tu stranu z toho udělalo
+    katastrofu: ⛔ 0 → 12 a úběr 4381 → 10310 mm², protože průchody u osy
+    přestaly končit na čele (Z 346,9) a projely celý díl až na Z −9. Ruční
+    kontrola oddělila příčinu: samotná tloušťka 20 → 21 mm dá úběr 4380,8
+    (beze změny), tatáž tloušťka i s přesahem na z = −1 dá 10310,9.
+
+  Napříč 24 fixtures při hodnotě 1 mm: úběr jen KLESÁ (0 až −5 %, nikde
+  neroste) a **skutečný držák nikde nepřibral ani jednu kolizi** — dráhy jsou
+  proti dnešku výhradně opatrnější (`holder-region-roughing` ⛔ 4 → 2). Panel
+  ⛔ hlásí proti ZVĚTŠENÉMU obrysu, takže nález = „tady se požadovaná mezera
+  nedala udržet"; to je záměr, jinak by nešlo poznat, jestli se nastavení
+  vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
+
 ### Fixed
 - **CAM – skim vrstvy už nenechají na styku s mřížkou tenký zbytek.** Skim
   posloupnost byla kotvená na `planTopX` (povrch + Vůle X) a hlavní mřížka na

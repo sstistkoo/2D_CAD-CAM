@@ -64,6 +64,16 @@ export function _defaultCamParams() {
     // CAD plátně", když uživatel nakreslí jen dvě strany (otevřený obrys).
     // Vypnuto = uloží se přesně nakreslený tvar (i otevřený).
     holderAutoComplete: true,
+    // VIRTUÁLNÍ ZVĚTŠENÍ DRŽÁKU [mm]: o kolik se jeho obrys nafoukne pro
+    // všechna hlídání kolize i pro plánování drah — nástroj pak drží od
+    // obrobku větší mezeru, aniž by se překresloval nůž. 0 (výchozí) =
+    // obrys přesně jak je nakreslený, dosavadní chování.
+    holderInflate: 0,
+    // Kam se nafukuje: false (výchozí) = JEN K OBROBENÉ STRANĚ, tedy tam,
+    // kde držák dojede k čelu; true = kolem CELÉHO držáku. Jednostranné je
+    // výchozí proto, že přídavek U ŠPIČKY a PŘED ní překáží — destička na
+    // držák navazuje. Viz inflateHolderLoop v collisionValidator.js.
+    holderInflateAll: false,
     // Spodní strana závitového plátku [mm] — šířka rovné špičky (lichoběžník).
     // Metrické/palcové ~0,1; lichoběžníkové (Tr/Acme) ≈ 0,366×P (dno profilu).
     toolTipFlat: 0.1,

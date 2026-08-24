@@ -21,8 +21,27 @@
 // (Clipper2) se počítá jen při možném kontaktu. Bez knihovny se použije
 // ruční AABB test.
 
-import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
+import { StockModel, toolSweep, polyOffset, polyArea, polyDifference, minkowskiSolidSum } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, stockPlanLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
+
+/**
+ * Virtuální zvětšení držáku [mm na každou stranu] — o kolik se nafoukne
+ * jeho obrys pro VŠECHNA hlídání kolizí i pro plánování drah. 0 (výchozí)
+ * = dnešní chování, obrys přesně jak je nakreslený. Viz inflateHolderLoop.
+ */
+export function holderInflate(prms) {
+  const v = parseFloat(prms.holderInflate);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/**
+ * Nafukovat kolem CELÉHO držáku (true), nebo jen K OBROBENÉ STRANĚ (false =
+ * výchozí)? Jednostranné je to, o co šlo: mezera vzniká jen tam, kde držák
+ * dojíždí k čelu, a u špičky ani před ní se nic nemění.
+ */
+export function holderInflateAll(prms) {
+  return prms.holderInflateAll === true;
+}
 
 /**
  * Uzavřený obrys držáku v PROFILOVÝCH souřadnicích ({x,z} vůči
@@ -72,8 +91,133 @@ export function holderProfileLoop(prms) {
 export function holderWorldLoop(prms, backside = false) {
   const prof = holderProfileLoop(prms);
   if (!prof) return null;
-  const dir = backside ? -1 : 1;
-  return prof.map(p => ({ x: p.z, z: p.x * dir }));
+  const d = holderInflate(prms);
+  // KANONICKÝ rám (+z = k obrobené straně) — nafouknutí se musí rozhodovat
+  // podle toho, která strana držáku je která, a to jde jen tady. Zrcadlení
+  // pro `backside` až nad hotovým obrysem; bez nafouknutí je to bitově táž
+  // mapa jako dřív (`x: p.z, z: p.x * dir`).
+  let world = prof.map(p => ({ x: p.z, z: p.x }));
+  if (d > 0) {
+    world = (holderInflateAll(prms)
+      ? inflateHolderLoop(world, d)
+      : shiftHolderLoopToCutSide(world, d)) || world;
+  }
+  return backside ? world.map(p => ({ x: p.x, z: -p.z })) : world;
+}
+
+/**
+ * VIRTUÁLNÍ ZVĚTŠENÍ DRŽÁKU (param `holderInflate`, 0 = vypnuto).
+ *
+ * Uživatel chtěl větší mezeru mezi držákem a obrobkem při dojezdu na další
+ * vrstvu („je to těsně vedle toho čela, co je z pravé strany držáku",
+ * 21. 8. 2026). Vůle UVNITŘ algoritmu je slepá ulička — vyzkoušeno obojím
+ * směrem a obojí selhalo: jako tvrdé zamítnutí smazala celý krček pod
+ * přírubou (−79 mm²), jako preference byla úplný no-op, protože kotva, o
+ * kterou jde, je vjezd regionu a hlídáním s vůlí vůbec neprochází.
+ *
+ * NAFOUKNUTÍ OBRYSU je jiná věc: není to preference, ale reálný geometrický
+ * vstup, takže ho VŠECHNA hlídání vezmou konzistentně — `holderFitsAt`,
+ * `makeHolderClamp`, `HolderGouge`, `validateToolpath` i mezní čáry čtou
+ * tentýž `holderWorldLoop`.
+ *
+ * DVĚ VĚCI, KTERÉ SE MUSÍ OŠETŘIT:
+ *
+ * 1. ORIENTACE. Clipper offsetuje VEN jen u kladně orientované smyčky; u
+ *    obrácené by `+d` naopak zúžilo. `backside` obrys zrcadlí (dir = −1),
+ *    takže se znaménko plochy překlopí. Normalizuje se proto na kladnou a
+ *    po offsetu se vrátí PŮVODNÍ orientace — spotřebitelé si smyčku dál
+ *    sami zužují (`polyOffset(-0,05)`) a na orientaci jim záleží.
+ *
+ * 2. DVĚ STRANY SE NAFOUKNOUT NESMÍ (obojí ZMĚŘENO na dílu uživatele):
+ *
+ *    a) POD ÚROVEŇ HROTU (x < 0). Referenční bod destičky je x = 0; níž už
+ *       je jen to, co destička sama řeže. Kdyby tam držák klesl, hlásil by
+ *       kolizi na KAŽDÉM běžném řezu — u upichováku leží spodní hrana
+ *       držáku přímo na hrotu (profil (0,0)–(2,0)).
+ *
+ *    b) NA NEOBROBENOU STRANU (z pod původním minimem). Tam se kolize
+ *       NEDÁ vyřešit zkrácením průchodu — materiál stojí po celé délce
+ *       řezu nezávisle na hloubce — a `makeHolderClamp` ji proto vědomě
+ *       nemodeluje (viz jeho hlavička v toolEnvelope.js). Nafouknutí o
+ *       1 mm na tu stranu z toho udělalo katastrofu: ⛔ 0 → 12 a úběr
+ *       4381 → 10310 mm², protože průchody u osy přestaly končit na čele
+ *       (Z 346,9) a projely celý díl až na Z −9. Ruční kontrola oddělila
+ *       příčinu: samotná tloušťka 20 → 21 mm dá úběr 4380,8 (beze změny),
+ *       tatáž tloušťka i s přesahem na z = −1 dá 10310,9.
+ *
+ *    Zbývá tedy růst K OBROBENÉ STRANĚ (o to jde — mezera vedle čela) a
+ *    nahoru do délky (neškodné). U nože, jehož držák začíná až nad
+ *    destičkou, se sníží i spodek — tam je na to místo.
+ */
+function inflateHolderLoop(loop, d) {
+  const flip = polyArea([loop]) < 0;
+  const src = flip ? loop.slice().reverse() : loop;
+  let parts;
+  try { parts = polyOffset([src], d, 'miter'); } catch { return null; }
+  if (!parts || !parts.length) return null;
+  let best = null, bestA = -Infinity;
+  for (const l of parts) {
+    const a = Math.abs(polyArea([l]));
+    if (a > bestA) { best = l; bestA = a; }
+  }
+  if (!best) return null;
+  const floorX = Math.min(0, ...loop.map(p => p.x));
+  const floorZ = Math.min(...loop.map(p => p.z));
+  const out = [];
+  for (const p of best) {
+    const q = { x: Math.max(p.x, floorX), z: Math.max(p.z, floorZ) };
+    const l = out[out.length - 1];
+    if (!l || Math.hypot(l.x - q.x, l.z - q.z) > 1e-9) out.push(q);
+  }
+  while (out.length >= 2
+    && Math.hypot(out[0].x - out[out.length - 1].x, out[0].z - out[out.length - 1].z) < 1e-9) out.pop();
+  if (out.length < 3) return null;
+  return flip ? out.reverse() : out;
+}
+
+/**
+ * JEDNOSTRANNÉ nafouknutí — VÝCHOZÍ režim, a to, o co uživateli šlo
+ * (23. 8. 2026: *„nejčastěji se to bude používat jenom aby to nenarazilo do
+ * čela … kdyby tam byla házivost nebo otřep"*).
+ *
+ * Držák se posune JEN k obrobené straně: obrys se zamete o `d` ve směru +z
+ * (Minkowského suma s úsečkou), takže spodní šikmá hrana se pod SVÝM úhlem
+ * prodlouží o `d` a boční čelo se o `d` odsune. Špička, čelní strana (z = 0)
+ * i délka držáku zůstávají PŘESNĚ na svém.
+ *
+ * Proč to není jen hezčí varianta „vše": přídavek u ŠPIČKY a PŘED ní reálně
+ * PŘEKÁŽÍ. Když držák na destičku navazuje bez mezery, nafouknutí kolem
+ * dokola by mu zakázalo zajet níž než destička — a upichovat by pak nešlo
+ * vůbec, protože hlídání by tam „vidělo držák" (rozbor uživatele tamtéž).
+ *
+ * ZRCADLENÍ JE ZDARMA: rám je kanonický (+z = obrobená strana), takže
+ * `backside` (hrubování zleva) překlopí i tenhle přídavek — ověřeno na
+ * `part-11-zleva-casting` a `part-13-zleva-flange`.
+ */
+function shiftHolderLoopToCutSide(loop, d) {
+  let parts;
+  try { parts = minkowskiSolidSum(loop, [{ x: 0, z: 0 }, { x: 0, z: d }]); } catch { return null; }
+  if (!parts || !parts.length) return null;
+  let best = null, bestA = -Infinity;
+  for (const l of parts) {
+    const a = Math.abs(polyArea([l]));
+    if (a > bestA) { best = l; bestA = a; }
+  }
+  if (!best || best.length < 3) return null;
+  // Zametení nechá na obrysu nulové hrany (dvakrát tentýž vrchol) — samo o
+  // sobě neškodí, ale scany typu holderBottomProfile pak počítají segmenty
+  // délky 0. Sousední duplicity pryč, zbytek se nesahá.
+  const clean = [];
+  for (const q of best) {
+    const l = clean[clean.length - 1];
+    if (!l || Math.hypot(l.x - q.x, l.z - q.z) > 1e-9) clean.push(q);
+  }
+  while (clean.length >= 2
+    && Math.hypot(clean[0].x - clean[clean.length - 1].x, clean[0].z - clean[clean.length - 1].z) < 1e-9) clean.pop();
+  if (clean.length < 3) return null;
+  // minkowskiSolidSum sjednocuje na KLADNOU plochu; spotřebitelé si obrys
+  // dál zužují `polyOffset(-0,05)`, takže na orientaci jim záleží.
+  return (polyArea([loop]) < 0) === (polyArea([clean]) < 0) ? clean : clean.slice().reverse();
 }
 
 // AABB pomocníci (ruční broad-phase fallback)
