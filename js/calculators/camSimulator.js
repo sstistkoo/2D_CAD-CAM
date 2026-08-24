@@ -3981,7 +3981,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       </div>
       <div class="cam-sim-row">
         <div class="cam-sim-field" title="Jak daleko PŘED offsetovou (tečkovanou) čarou skončí rychloposuv a dál se pojede pracovním posuvem G1. Měří se od HRANY nosu, ne od programovaného bodu. Bez něj (0) nos dosedne přesně na tu čaru — a odlitek až u ní reálně být může, takže příjezd končí již v materiálu. Platí pro VŠECHNY příjezdy rychloposuvem."><label>Stop rychlop. před čarou</label><input type="number" step="0.1" min="0" data-p="rapidFeedGap" value="${rapidFeedGap(prms)}"></div>
-        <div class="cam-sim-field" title="VIRTUÁLNÍ zvětšení držáku [mm]: jeho obrys se pro všechna hlídání — kolize, mezní čáry i plánování drah — zvětší o zadanou hodnotu, takže nůž drží od obrobku větší mezeru (házivost, otřep, dojezd těsně vedle čela). Sám nůž se nemění a 0 = obrys přesně jak je nakreslený.&#10;&#10;BEZ záškrtu (výchozí): přídavek JEN ze strany, kam se obrábí — spodní šikmá hrana se pod svým úhlem prodlouží a boční čelo odsune, špička i přední strana zůstanou. Při změně strany hrubování se překlopí s ní.&#10;SE záškrtem: kolem CELÉHO držáku. Pozor — pak přídavek vzniká i U ŠPIČKY, a navalí-li držák přímo na destičku, zakáže jí zajet níž (např. při upichování). POD úroveň hrotu se nenafoukne nikdy."><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="holder-inflate-all" ${holderInflateAll(prms) ? 'checked' : ''}><span>Virt. zvětšení držáku${holderInflateAll(prms) ? ' (vše)' : (prms.roughingSide === 'left' ? ' (zleva)' : ' (zprava)')}</span></label><input type="number" step="0.1" min="0" data-p="holderInflate" value="${holderInflate(prms)}"></div>
+        <div class="cam-sim-field" title="VIRTUÁLNÍ zvětšení držáku [mm]: jeho obrys se pro všechna hlídání — kolize, mezní čáry i plánování drah — zvětší o zadanou hodnotu, takže nůž drží od obrobku větší mezeru (házivost, otřep, dojezd těsně vedle čela). Sám nůž se nemění, 0 = obrys přesně jak je nakreslený. Tlačítkem vedle přepínáš, KAM se přídavek dává."><label>Virt. zvětšení držáku</label><div style="display:flex;gap:4px"><input type="number" step="0.1" min="0" data-p="holderInflate" value="${holderInflate(prms)}" style="flex:1;min-width:0"><button data-act="holder-inflate-mode" class="cam-sim-btn ${holderInflateAll(prms) ? 'cam-sim-btn-purple' : 'cam-sim-btn-gray'}" style="width:auto;padding:4px 7px;font-size:11px;white-space:nowrap" title="${holderInflateAll(prms) ? 'Přídavek je KOLEM CELÉHO držáku. Pozor — vzniká i U ŠPIČKY, a navalí-li držák přímo na destičku, zakáže jí zajet níž (např. při upichování). Klepnutím přepneš na jednu stranu.' : 'Přídavek je JEN ze strany, kam se obrábí — boční čelo držáku se odsune, spodní šikmá hrana se jen prodlouží pod svým úhlem. Špička, přední strana ani spodek se nemění a při změně strany hrubování se přídavek překlopí s ní. Klepnutím přepneš na celý obvod.'}">${holderInflateAll(prms) ? '⭘ dokola' : (prms.roughingSide === 'left' ? '◀ zleva' : '▶ zprava')}</button></div></div>
       </div>`;
     const zlOn = S.showZLimits === 'on';
     const zlLabel = zlOn ? 'Skrýt' : 'Zobrazit';
@@ -4529,13 +4529,15 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.zLimits.rangeActive = zRangeChk.checked;
       fullUpdate();
     });
-    // Kam nafouknout virtuálně zvětšený držák: kolem celého (záškrt) vs. jen
-    // k obráběné straně. Mění geometrii držáku stejně jako `holderInflate`,
-    // takže prochází týmž úklidem promovaných mezních čar; `fullUpdate`
-    // překreslí i panel, tedy i název pole (vše / zprava / zleva).
-    const inflAllChk = tabBody.querySelector('[data-act="holder-inflate-all"]');
-    if (inflAllChk) inflAllChk.addEventListener('change', () => {
-      S.params.holderInflateAll = inflAllChk.checked;
+    // Kam nafouknout virtuálně zvětšený držák: kolem celého vs. jen k obráběné
+    // straně. Bylo to zaškrtávátko, ale v úzkém sloupci se název zalamoval do tří
+    // řádků a nebylo poznát, co je zapnuté (nález uživatele 24. 8. 2026) — teď je to
+    // tlačítko, které rovnou píše stav: ▶ zprava / ◀ zleva / ⭘ dokola.
+    // Mění geometrii držáku stejně jako `holderInflate`, takže prochází týmž
+    // úklidem promovaných mezních čar; `fullUpdate` překreslí i panel.
+    const inflModeBtn = tabBody.querySelector('[data-act="holder-inflate-mode"]');
+    if (inflModeBtn) inflModeBtn.addEventListener('click', () => {
+      S.params.holderInflateAll = !holderInflateAll(S.params);
       if (S.params.respectInsertGeometry) {
         const before = S.guideLines.length;
         S.guideLines = S.guideLines.filter(g => !g.fromInsert);
