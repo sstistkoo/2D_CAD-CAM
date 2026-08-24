@@ -126,11 +126,15 @@ v CHANGELOGu, ať nevrátíte, co řešil.
 ## Bod 3 — virtuální zvětšení tloušťky držáku — **HOTOVO 24. 8. 2026**
 
 > Nový parametr `holderInflate` + pole v pravém panelu vedle „Stop rychlop.
-> před čarou". Zvětšení je **jednostranné** (jen k obráběné straně), záškrt
-> „vše" přepne na celý obvod — nafouknutí na NEOBRÁBĚNOU stranu je
+> před čarou". Zvětšení je **jednostranné** (jen k obráběné straně),
+> tlačítko „⭘ dokola" přepne na celý obvod — nafouknutí na NEOBRÁBĚNOU stranu je
 > katastrofa (⛔ 0 → 12, úběr 4381 → 10310 mm²) a pod hrot se nafouknout
 > nesmí vůbec. Překlápí se se stranou hrubování samo. Napříč 24 fixtures
 > při 1 mm úběr jen klesá a skutečný držák nikde nepřibral kolizi.
+> Dvě dodatečné opravy 24. 8. na základě zpětné vazby: přepínač strany je
+> tlačítko místo zaškrtávátka (v úzkém sloupci nebylo poznát, co je zapnuté)
+> a jednostranné zvětšení SPODNÍ HRANU držáku posouvalo místo prodlužovalo,
+> čímž ji sráželo o 0,365 mm a ochuzovalo hloubku každého čelního průchodu.
 > Detail v CHANGELOGu; níže původní zadání pro kontext.
 
 **Zadání:** v pravém panelu dát „Stop rychlop. před čarou" na nový řádek a

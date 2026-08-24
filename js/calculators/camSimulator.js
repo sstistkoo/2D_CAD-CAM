@@ -3960,7 +3960,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <span class="cam-sim-machine-summary">
         <span class="cam-sim-machine-chip">Bp ${prms.safeX}<span style="color:#1e1e2e;font-weight:900">/</span>${prms.safeZ}</span>
         <span class="cam-sim-machine-chip">Přídavek X${stockClearances(prms).x} Z${stockClearances(prms).z}</span>
-        ${holderInflate(prms) > 0 ? `<span class="cam-sim-machine-chip" style="background:rgba(250,179,135,0.18);border-color:rgba(250,179,135,0.5);color:#fab387" title="Virtuální zvětšení držáku">Držák +${holderInflate(prms)}${holderInflateAll(prms) ? '' : (prms.roughingSide === 'left' ? ' ◀' : ' ▶')}</span>` : ''}
+        ${holderInflate(prms) > 0 ? `<span class="cam-sim-machine-chip" style="background:rgba(250,179,135,0.18);border-color:rgba(250,179,135,0.5);color:#fab387" title="Virtuální zvětšení držáku">Držák +${holderInflate(prms)} ${holderInflateAll(prms) ? '⭘' : (prms.roughingSide === 'left' ? '◀' : '▶')}</span>` : ''}
         <span class="cam-sim-machine-chip" style="display:inline-flex;gap:3px;align-items:center">
           <span style="color:${_chActive ? '#a6e3a1' : '#585b70'}" title="Čelisti">Č</span><span style="color:#45475a">/</span><span style="color:${_koActive ? '#a6e3a1' : '#585b70'}" title="Koník">K</span>
         </span>
