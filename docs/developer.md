@@ -893,6 +893,39 @@ uživatele 19. 8. 2026). CAM simulátor proto drží DVA modely:
 | `_removal` | syrová silueta | výplň polotovaru + parita pro mazání VYBARVENÍ |
 | `_removalOuter` | offsetová čára | jen vybarvení pÁSU mezi oběma čarami |
 
+**`toolSweep` zametá obrysem, ne po obrysu.** `minkowskiSumD` s otevřenou
+dráhou vydá jen stopu HRANICE — chybí jí člen `A + b₀`. Na dlouhém úseku to
+není vidět (hranice projde celým vnitřkem), na krátkém kroku ale zůstane
+uprostřed neodebraný ostrůvek, který v modelu vypadá jako materiál (obrys
+17 mm², krok 0,2 mm → zameteno 4,3 mm², tedy míň než obrys sám). Od 24. 8. 2026
+se proto doplňuje obrys na oba konce úseku, orientovaný kladně (`NonZero` by
+opačně orientovaný překryv vyrušil a udělal z něj díru). Kdo sahá na Minkowského
+sumy v `geomCore.js`, ať to nerozbije zpátky: `toolSweep` i `minkowskiSolidSum`
+musí vracet TĚLESO.
+
+**Virtuální zvětšení držáku** — parametr `holderInflate` (mm, výchozí 0) plus
+`holderInflateAll` (bool, výchozí `false` = jen k obráběné straně). Obrys se
+zvětšuje v `holderWorldLoop` (`collisionValidator.js`), tedy na JEDINÉM místě,
+odkud ho čtou všichni: `holderFitsAt`, `makeHolderClamp`, `HolderGouge`,
+`validateToolpath` i mezní čáry. Proto to funguje — vůle jako *preference*
+uvnitř algoritmu byla vyzkoušená a selhala obojím směrem (tvrdé zamítnutí
+smazalo krček pod přírubou, měkká varianta byla no-op, protože kotva, o kterou
+šlo, je vjezd regionu a hlídáním s vůlí neprochází).
+
+Obrys se staví v KANONICKÉM rámu (`+z` = obráběná strana) a `backside`
+zrcadlí až hotový výsledek — přídavek se tím překlápí se stranou hrubování
+sám. Dvě strany jsou zakázané, obojí změřeno:
+
+| kam | proč ne |
+|---|---|
+| pod úroveň hrotu (`x < 0`) | tam řeže destička; u upichováku leží spodní hrana držáku přímo na hrotu, takže by hlásil kolizi na každém řezu |
+| na neobráběnou stranu | kolizi tam nejde vyřešit zkrácením průchodu (materiál stojí po celé délce řezu) a `makeHolderClamp` ji vědomě nemodeluje — nafouknutí o 1 mm dalo ⛔ 0 → 12 a úběr 4381 → 10310 mm² |
+
+Jednostranné zvětšení se dělá zametením obrysu ve směru `+z`
+(`minkowskiSolidSum` s úsečkou), varianta „vše" `polyOffset` + clamp obou
+zakázaných stran. Klíč cache validátoru (`_validatedKey` v `camSimulator.js`)
+oba parametry obsahuje — bez toho by se ⛔ panel po jejich změně nepřepočítal.
+
 **Rychloposuv se zastaví PŘED offsetovou čarou** — parametr
 „Stop rychlop. před čarou“ (`rapidFeedGap`, výchozní 1 mm; 0 = dosavadní
 chování). Dosud platilo `rapidStopX` = Vůle + R nad SYROVÝM povrchem, což

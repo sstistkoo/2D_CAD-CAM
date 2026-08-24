@@ -523,6 +523,40 @@ obě by splynuly.
 Mezní čára hlídání geometrie destičky je vždycky **rovná úsečka** podél hrany
 plátku (žádné oblouky ani zlomy).
 
+### Virtuální zvětšení držáku
+
+Pole **Virt. zvětšení držáku** (v *Parametry → Bezpečná poloha*, vedle *Stop
+rychlop. před čarou*) zvětší obrys držáku o zadaný počet mm — ale **jen pro
+výpočet**. Nakreslený nůž se nemění; zvětšený obrys vezmou všechna hlídání
+(kolize, mezní čáry i plánování drah), takže se nástroj drží od obrobku dál.
+
+K čemu to je: když dojezd končí těsně vedle čela, stačí házivost nebo otřep
+a držák se ho dotkne. Zvětšením si tu mezeru vynutíš, aniž bys překresloval
+nůž nebo zvětšoval přídavky polotovaru.
+
+**Zaškrtávátko před názvem** rozhoduje, kam se přidává:
+
+- **nezaškrtnuto (výchozí)** — přídavek jen **ze strany, kam se obrábí**;
+  název pole se podle toho sám přepíše na *(zprava)* / *(zleva)*. Spodní
+  šikmá hrana se prodlouží pod svým úhlem a boční čelo se odsune; **špička,
+  přední strana i délka držáku zůstanou přesně na svém**. Při přepnutí strany
+  hrubování se přídavek překlopí s ní — nenastavuješ ho znovu.
+- **zaškrtnuto („vše")** — kolem celého držáku. Pozor: pak přídavek vzniká
+  i **u špičky**, a navazuje-li držák přímo na destičku, zakáže jí zajet níž
+  než ona sama (typicky vadí při upichování). Používej, jen když opravdu
+  potřebuješ mezeru ze všech stran.
+
+**Pod úroveň hrotu se držák nenafoukne nikdy** — tam řeže destička.
+
+Nenulová hodnota se ukazuje jako oranžový štítek **Držák +N** v souhrnu
+sekce (i když je sbalená), se šipkou ◀ / ▶ podle strany. Ukládá se do
+projektu i k noži v knihovně a zásobníku.
+
+**Co uvidíš v panelu ⛔:** hlídá se proti ZVĚTŠENÉMU obrysu, takže nález
+znamená „tady se požadovaná mezera nedala udržet". Je to záměr — jinak by
+nešlo poznat, jestli se nastavení vůbec projevilo. Dráhy samy jsou proti
+nule vždycky opatrnější, ne horší.
+
 ### Držák u čelního hrubování
 
 Se zapnutým **Hlídat geometrii (destička + držák)** se u čelního hrubování

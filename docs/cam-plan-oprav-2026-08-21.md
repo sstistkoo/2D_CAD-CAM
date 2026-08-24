@@ -1,5 +1,12 @@
 # CAM — plán oprav (zadání uživatele 21. 8. 2026)
 
+> **STAV: UZAVŘENO 24. 8. 2026.** Všechny čtyři body hotové (1 a 2 dne 21. 8.,
+> 3 a 4 dne 24. 8.), plus navazující nález `toolSweep` v `geomCore.js`. Sada
+> 1339/1339, SW cache v231, dokumentace v `user-guide.md` (Virtuální zvětšení
+> držáku) a `developer.md` (`holderInflate`, `toolSweep`). Otevřené zůstávají
+> jen dvě vědomě odložené věci dole — prostor za přírubou a kolmé zanoření
+> upichovákem —, a ty se neotvírají bez nového zadání.
+
 Čtyři samostatné body z jedné relace. Každý je **ověřený měřením**, ne odhad.
 Berte je po jednom — nesouvisí spolu a každý má vlastní riziko.
 
