@@ -21,7 +21,7 @@
 // (Clipper2) se počítá jen při možném kontaktu. Bez knihovny se použije
 // ruční AABB test.
 
-import { StockModel, toolSweep, polyOffset, polyArea, polyDifference, minkowskiSolidSum } from '../../geom/geomCore.js';
+import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, stockPlanLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 
 /**
@@ -176,48 +176,63 @@ function inflateHolderLoop(loop, d) {
 }
 
 /**
- * JEDNOSTRANNÉ nafouknutí — VÝCHOZÍ režim, a to, o co uživateli šlo
+ * JEDNOSTRANNÉ zvětšení — VÝCHOZÍ režim, a to, o co uživateli šlo
  * (23. 8. 2026: *„nejčastěji se to bude používat jenom aby to nenarazilo do
  * čela … kdyby tam byla házivost nebo otřep"*).
  *
- * Držák se posune JEN k obrobené straně: obrys se zamete o `d` ve směru +z
- * (Minkowského suma s úsečkou), takže spodní šikmá hrana se pod SVÝM úhlem
- * prodlouží o `d` a boční čelo se o `d` odsune. Špička, čelní strana (z = 0)
- * i délka držáku zůstávají PŘESNĚ na svém.
+ * Odsune se JEN boční čelo na obráběné straně. Spodní hrana držáku se přitom
+ * NEPOSOUVÁ — jen se PRODLOUŽÍ pod svým úhlem, přesně jak to uživatel popsal:
+ * *„protáhla by se čára spodní strany držáku, co je pod nějakým úhlem, BEZ
+ * PŘÍDAVKU, a pod tím úhlem by to protáhlo o ten 1 mm doprava a pak s tím
+ * přídavkem nahoru"*.
  *
- * Proč to není jen hezčí varianta „vše": přídavek u ŠPIČKY a PŘED ní reálně
- * PŘEKÁŽÍ. Když držák na destičku navazuje bez mezery, nafouknutí kolem
- * dokola by mu zakázalo zajet níž než destička — a upichovat by pak nešlo
- * vůbec, protože hlídání by tam „vidělo držák" (rozbor uživatele tamtéž).
+ * PROČ NE POSUNUTÍ CELÉ STRANY (první pokus, 24. 8. 2026): zametení obrysu ve
+ * směru +z sice dá správné boční čelo, ale šikmou hranu POSUNE — a tím ji na
+ * každé vzdálenosti od špičky SNÍŽÍ o `d · sklon`. Na noži uživatele to bylo
+ * 0,365 mm (1 × 6,5515/18) po celé délce hrany. `holderBottomProfile` z té
+ * hrany počítá, jak hluboko smí čelní průchod, takže se každý průchod o tolik
+ * ochudil — nález uživatele: *„prostor pro zanoření je mnohem větší, je tam
+ * nejspíš nějaká chyba, co to blbě počítá"*. Přídavek u špičky navíc PŘEKÁŽÍ:
+ * když držák na destičku navazuje bez mezery, zakázal by jí zajet níž a
+ * upichovat by pak nešlo vůbec.
+ *
+ * Vrcholy na obráběné straně se proto posouvají PO SVÉ HRANĚ (té, která k nim
+ * přichází z menšího z), takže leží na TÉŽE přímce jako předtím — spodní
+ * profil zůstane bod po bodu shodný a jen se prodlouží. Vrcholy blíž ke špičce
+ * se nehýbou vůbec.
+ *
+ * Dvě pojistky: vrchol nesmí klesnout pod svou původní výšku (u hrany, která
+ * ke konci klesá, by prodloužení jinak spustilo držák NÍŽ) ani přelézt
+ * nejvyšší bod držáku (u hrany skoro rovnoběžné s čelem by `d / dz` vystřelil).
  *
  * ZRCADLENÍ JE ZDARMA: rám je kanonický (+z = obrobená strana), takže
  * `backside` (hrubování zleva) překlopí i tenhle přídavek — ověřeno na
  * `part-11-zleva-casting` a `part-13-zleva-flange`.
  */
 function shiftHolderLoopToCutSide(loop, d) {
-  let parts;
-  try { parts = minkowskiSolidSum(loop, [{ x: 0, z: 0 }, { x: 0, z: d }]); } catch { return null; }
-  if (!parts || !parts.length) return null;
-  let best = null, bestA = -Infinity;
-  for (const l of parts) {
-    const a = Math.abs(polyArea([l]));
-    if (a > bestA) { best = l; bestA = a; }
+  const n = loop.length;
+  if (n < 3) return null;
+  const zMax = Math.max(...loop.map(p => p.z));
+  const xMax = Math.max(...loop.map(p => p.x));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const v = loop[i];
+    if (v.z < zMax - 1e-9) { out.push({ x: v.x, z: v.z }); continue; }
+    // Směr, kterým hrana k vrcholu přichází z menšího z — po ní se prodlužuje.
+    const prev = loop[(i - 1 + n) % n], next = loop[(i + 1) % n];
+    const from = prev.z < v.z - 1e-9 ? prev : (next.z < v.z - 1e-9 ? next : null);
+    if (!from) { out.push({ x: v.x, z: v.z + d }); continue; }
+    const x = v.x + (v.x - from.x) * (d / (v.z - from.z));
+    out.push({ x: Math.min(Math.max(x, v.x), xMax), z: v.z + d });
   }
-  if (!best || best.length < 3) return null;
-  // Zametení nechá na obrysu nulové hrany (dvakrát tentýž vrchol) — samo o
-  // sobě neškodí, ale scany typu holderBottomProfile pak počítají segmenty
-  // délky 0. Sousední duplicity pryč, zbytek se nesahá.
   const clean = [];
-  for (const q of best) {
+  for (const q of out) {
     const l = clean[clean.length - 1];
     if (!l || Math.hypot(l.x - q.x, l.z - q.z) > 1e-9) clean.push(q);
   }
   while (clean.length >= 2
     && Math.hypot(clean[0].x - clean[clean.length - 1].x, clean[0].z - clean[clean.length - 1].z) < 1e-9) clean.pop();
-  if (clean.length < 3) return null;
-  // minkowskiSolidSum sjednocuje na KLADNOU plochu; spotřebitelé si obrys
-  // dál zužují `polyOffset(-0,05)`, takže na orientaci jim záleží.
-  return (polyArea([loop]) < 0) === (polyArea([clean]) < 0) ? clean : clean.slice().reverse();
+  return clean.length >= 3 ? clean : null;
 }
 
 // AABB pomocníci (ruční broad-phase fallback)

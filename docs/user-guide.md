@@ -534,14 +534,14 @@ K čemu to je: když dojezd končí těsně vedle čela, stačí házivost nebo 
 a držák se ho dotkne. Zvětšením si tu mezeru vynutíš, aniž bys překresloval
 nůž nebo zvětšoval přídavky polotovaru.
 
-**Zaškrtávátko před názvem** rozhoduje, kam se přidává:
+**Tlačítko vedle hodnoty** ukazuje i přepíná, kam se přídavek dává:
 
-- **nezaškrtnuto (výchozí)** — přídavek jen **ze strany, kam se obrábí**;
-  název pole se podle toho sám přepíše na *(zprava)* / *(zleva)*. Spodní
-  šikmá hrana se prodlouží pod svým úhlem a boční čelo se odsune; **špička,
-  přední strana i délka držáku zůstanou přesně na svém**. Při přepnutí strany
-  hrubování se přídavek překlopí s ní — nenastavuješ ho znovu.
-- **zaškrtnuto („vše")** — kolem celého držáku. Pozor: pak přídavek vzniká
+- **▶ zprava / ◀ zleva (výchozí)** — přídavek jen ze strany, kam se obrábí.
+  Odsune se **boční čelo**; spodní šikmá hrana se jen **prodlouží pod svým
+  úhlem**, takže zůstane na téže přímce — špička, přední strana ani spodek
+  držáku se nemění a **hloubka zanoření se tím neochudí**. Při přepnutí
+  strany hrubování se přídavek překlopí s ní, nenastavuješ ho znovu.
+- **⭘ dokola** — kolem celého držáku. Pozor: pak přídavek vzniká
   i **u špičky**, a navazuje-li držák přímo na destičku, zakáže jí zajet níž
   než ona sama (typicky vadí při upichování). Používej, jen když opravdu
   potřebuješ mezeru ze všech stran.

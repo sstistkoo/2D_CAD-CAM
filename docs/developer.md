@@ -921,9 +921,13 @@ sám. Dvě strany jsou zakázané, obojí změřeno:
 | pod úroveň hrotu (`x < 0`) | tam řeže destička; u upichováku leží spodní hrana držáku přímo na hrotu, takže by hlásil kolizi na každém řezu |
 | na neobráběnou stranu | kolizi tam nejde vyřešit zkrácením průchodu (materiál stojí po celé délce řezu) a `makeHolderClamp` ji vědomě nemodeluje — nafouknutí o 1 mm dalo ⛔ 0 → 12 a úběr 4381 → 10310 mm² |
 
-Jednostranné zvětšení se dělá zametením obrysu ve směru `+z`
-(`minkowskiSolidSum` s úsečkou), varianta „vše" `polyOffset` + clamp obou
-zakázaných stran. Klíč cache validátoru (`_validatedKey` v `camSimulator.js`)
+Jednostranné zvětšení posouvá vrcholy na obráběné straně PO JEJICH HRANĚ
+(té, která k nim přichází z menšího `z`) — spodní profil držáku tak zůstane
+na TÉŽE přímce a jen se prodlouží. Zametení obrysu ve směru `+z` (první
+pokus) vypadá stejně, ale hranu POSUNE, a tím ji o `d · sklon` SRAZÍ
+(0,365 mm na noži uživatele); `holderBottomProfile` z ní počítá hloubku
+čelních průchodů, takže se každý o tolik ochudil. Varianta „dokola" je
+`polyOffset` + clamp obou zakázaných stran. Klíč cache validátoru (`_validatedKey` v `camSimulator.js`)
 oba parametry obsahuje — bez toho by se ⛔ panel po jejich změně nepřepočítal.
 
 **Rychloposuv se zastaví PŘED offsetovou čarou** — parametr

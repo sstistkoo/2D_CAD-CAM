@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { validateToolpath, holderWorldLoop } from '../js/calculators/cam/collisionValidator.js';
+import { holderBottomProfile } from '../js/calculators/cam/toolEnvelope.js';
 
 // Obdélníková kapsa (šířka 60 mm v Z, hloubka 20 mm v X) ve válci r40;
 // svislé stěny destička (natočení 15°, ε 90°) bočním ostřím neobrobí.
@@ -186,21 +187,36 @@ describe('virtuální zvětšení držáku', () => {
     expect(inf.xHi).toBeCloseTo(base.xHi, 9);       // délka se nemění
   });
 
-  it('jednostranně: spodní šikmá hrana se prodlouží POD SVÝM úhlem', () => {
-    // Předloha: (0,2) → (6.5515,20), tedy dz/dx = 18/6.5515. Po posunu o 1 mm
-    // k obráběné straně musí ležet na TÉŽE přímce posunuté o +1 v z, čili
-    // začínat na (0,3) a končit na (6.5515,21) — ne se zlomit ani zaoblit.
+  it('jednostranně: spodní šikmá hrana se PRODLOUŽÍ, neposune', () => {
+    // Předloha: (0,2) → (6,5515, 20). Po zvětšení o 1 mm musí ležet na TÉŽE
+    // PŘÍMCE, jen delší — tedy pořád začínat na (0,2) a končit na (6,9154, 21):
+    // 6,5515 + 6,5515/18. Kdyby se místo toho posunula (první pokus), měla by
+    // stejný sklon, ale byla by o 0,365 mm níž na každé vzdálenosti od špičky.
     const loop = holderWorldLoop({ ...partingHolder, holderInflate: 1 }, false);
-    // Tolerance 0,01 mm: Minkowského suma v geomCore jede na VÝCHOZÍ
-    // přesnosti Clipperu (2 des. místa), takže 6,5515 vyjde jako 6,55.
-    // 1,5 um je hluboko pod čímkoli, na čem u hlídání držáku záleží
-    // (HOLDER_FIT_TOL je 2 mm), a přesnost se tu schválně nezvedá —
-    // minkowskiSolidSum sdílí s obálkou držáku i její snapshoty.
-    const has = (x, z) => loop.some(p => Math.hypot(p.x - x, p.z - z) < 0.01);
-    expect(has(0, 3)).toBe(true);
-    expect(has(6.551464216791643, 21)).toBe(true);
-    // Ploška na úrovni hrotu se tím prodlouží z 2 na 3 mm, ale NEKLESNE.
-    expect(Math.min(...loop.filter(p => p.x < 1e-9).map(p => p.z))).toBeCloseTo(0, 9);
+    const has = (x, z) => loop.some(p => Math.hypot(p.x - x, p.z - z) < 1e-9);
+    expect(has(0, 2)).toBe(true);                       // začátek hrany stojí
+    expect(has(6.551464216791643 * (19 / 18), 21)).toBe(true);
+    expect(has(0, 3)).toBe(false);                      // ne posunutá varianta
+    // Ploška na úrovni hrotu se NEMĚNÍ ani nesjede níž.
+    expect(loop.filter(p => Math.abs(p.x) < 1e-9).map(p => p.z).sort((a, b) => a - b))
+      .toEqual([0, 2]);
+  });
+
+  it('jednostranně: spodní profil držáku zůstane bod po bodu shodný', () => {
+    // Tohle je ta věcná podmínka, ne kosmetika: `holderBottomProfile` z té hrany
+    // počítá, jak hluboko smí ČELNÍ průchod. Když ji zvětšení srazí (posunutá
+    // varianta: −0,365 mm po celé délce), ochudí se každý průchod o tolik
+    // hloubky — nález uživatele 24. 8. 2026 *„prostor pro zanoření je mnohem
+    // větší, je tam nejspíš nějaká chyba, co to blbě počítá"*.
+    const a = holderBottomProfile({ ...partingHolder, holderInflate: 0 });
+    const b = holderBottomProfile({ ...partingHolder, holderInflate: 1 });
+    expect(b.reach).toBeCloseTo(a.reach + 1, 9);
+    for (let d = 0; d <= a.reach; d += 0.25) {
+      expect(b.bottomAt(d), `d = ${d} mm`).toBeCloseTo(a.bottomAt(d), 9);
+    }
+    // Za původním dosahem hrana pokračuje pod TÝMŽ sklonem.
+    const slope = (a.bottomAt(a.reach) - a.bottomAt(a.reach - 1));
+    expect(b.bottomAt(a.reach + 1) - b.bottomAt(a.reach)).toBeCloseTo(slope, 9);
   });
 
   it('zrcadlí se se stranou hrubování (zleva = přesná negace v Z)', () => {

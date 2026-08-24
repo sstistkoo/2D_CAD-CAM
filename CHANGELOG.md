@@ -57,6 +57,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – jednostranné zvětšení držáku srazilo jeho spodní hranu.** Zápis
+  o něm níž slibuje, že *„spodní šikmá hrana se pod svým úhlem prodlouží"* —
+  implementace ji ale POSUNULA (zametení obrysu ve směru `+z`). Posunutá hrana
+  má sice týž sklon, jenže na každé vzdálenosti od špičky leží o `d · sklon`
+  níž: na noži uživatele 0,365 mm (1 × 6,5515/18) po celé délce.
+
+  `holderBottomProfile` z té hrany počítá, jak hluboko smí ČELNÍ průchod, takže
+  se každý průchod o tolik ochudil — nález uživatele 24. 8. 2026: *„podívej se,
+  kolik je místa u toho upichovacího nože a kolik to zajíždí; prostor pro
+  zanoření je mnohem větší, je tam nejspíš nějaká chyba, co to blbě počítá."*
+
+  Vrcholy na obráběné straně se nově posouvají PO SVÉ HRANĚ (té, která k nim
+  přichází z menšího z), takže zůstanou na TÉŽE přímce a spodní profil je bod
+  po bodu shodný — jen delší. Dvě pojistky: vrchol nesmí klesnout pod svou
+  původní výšku ani přelézt nejvyšší bod držáku.
+
+  Na čelním programu uživatele jdou průchody v průměru o **0,64 mm hlouběji**
+  (`X50.944` → `X50.580`, `X49.934` → `X48.478`) a kolize zůstávají na nule.
+  Na podélném (`projekt_2026-08-21 (4)`) je to ještě lepší: úběr 4340,7 →
+  4380,8 mm², ⛔ proti syrovému obrysu **2 → 0**, oranžová 0,68 → 0,42 a
+  červená 6,3 → 4,97 — správný model držáku znamená i míň falešných nálezů.
+  Napříč 24 fixtures **nulový rozdíl** (mají zvětšení 0, takže se jich to
+  netýká). Vedle toho odpadla i závislost na `minkowskiSolidSum` a s ní
+  štěrbina, kterou obrys po zametení míval.
+
+### Changed
+- **CAM – přepínač strany zvětšení držáku je tlačítko, ne zaškrtávátko.**
+  V úzkém sloupci panelu se název „Virt. zvětšení držáku (zprava)" zalamoval do
+  tří řádků a ze zaškrtávátka nešlo poznat, co je vlastně zapnuté (nález
+  uživatele 24. 8. 2026: *„ať jde jasně poznat, jestli to je jenom z té jedné
+  strany, nebo kolem celého"*). Vedle hodnoty je teď tlačítko, které stav rovnou
+  píše — **▶ zprava** / **◀ zleva** / **⭘ dokola** — a klepnutím se přepíná;
+  v režimu „dokola" navíc svítí fialově. Tooltip na něm vysvětluje, co která
+  volba dělá, včetně varování, že „dokola" přidává i u špičky.
+
+### Fixed
 - **CAM – `toolSweep` zametal jen po obrysu, ne obrysem.** Minkowského suma
   s otevřenou dráhou (`minkowskiSumD(…, false)`) vydá stopu HRANICE, ne
   zametené TĚLESO — chyběl jí člen `A + b₀`, tentýž, jaký o kus níž v témž
