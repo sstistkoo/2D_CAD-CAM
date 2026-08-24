@@ -20,6 +20,11 @@ import { runCamProgFile } from './helpers/camHeadless.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixture = join(__dirname, 'fixtures', 'cam', 'part-16-face-holder.camprog');
+// Díl, na kterém držák do pásu vjede i po opravě modelu materiálu
+// (24. 8. 2026 — `HolderGouge` ubírá tělem destičky, ne tenkým plánovacím
+// profilem). Na `part-16` byl vjezd 0,09 mm² a byl to právě ten artefakt:
+// materiál, který destička dávno odebrala. Tady je 1,01 mm², tedy o řád víc.
+const bandFixture = join(__dirname, 'fixtures', 'cam', 'part-17-long-parting.camprog');
 const prog = JSON.parse(readFileSync(fixture, 'utf8'));
 
 const area = (loop) => {
@@ -83,12 +88,16 @@ describe('HolderGouge — vjezd držáku do PÁSU (červeně)', () => {
     const ring = Math.abs(hg.bandLoops.reduce((a, l) => a + signedArea(l), 0));
     expect(ring).toBeGreaterThan(1);
     expect(ring).toBeLessThan(0.5 * Math.abs(signedArea(hg.baseLoop)));
-    hg.advanceTo(calcSim.simPath, calcSim.simPath.length - 1);
-    // Na tomhle dílu držák do pásu opravdu vjede — jinak by se nemělo co
-    // vybarvit a test by hlídal mrtvý kód (nález uživatele 19. 8. 2026).
-    expect(hg.gougeBand.length).toBeGreaterThan(0);
+    // Že se pás opravdu VYBARVUJE (a test nehlídá mrtvý kód, nález uživatele
+    // 19. 8. 2026), se ověří na dílu, kde do něj držák vjíždí měřitelně —
+    // viz bandFixture výš.
+    const band = await runCamProgFile(bandFixture);
+    const hgB = new HolderGouge(band.S.params, band.calcSim.stockPathSegments,
+      false, { band: true });
+    hgB.advanceTo(band.calcSim.simPath, band.calcSim.simPath.length - 1);
+    expect(hgB.gougeBand.length).toBeGreaterThan(0);
     // Záznamy jsou DISJUNKTNÍ: pás je mimo syrový obrys, tvrdé vnoření v něm.
-    for (const l of hg.gougeBand) expect(Math.abs(signedArea(l))).toBeGreaterThan(0.02);
+    for (const l of hgB.gougeBand) expect(Math.abs(signedArea(l))).toBeGreaterThan(0.02);
   }, 120000);
 
   it('offsetový zbytek OBSAHUJE syrový — náhled proto stačí vybarvit jednou', async () => {

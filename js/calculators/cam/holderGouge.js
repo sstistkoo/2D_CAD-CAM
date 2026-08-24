@@ -18,6 +18,30 @@ import { stockClearanceIsZero } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 
 /**
+ * Plocha zametená obrysem podél úseku, VČETNĚ obrysu samotného.
+ *
+ * `toolSweep` vrací jen stopu HRANICE (Minkowski bez členu `A + b₀`, viz
+ * `minkowskiSolidSum` v geomCore). Na dlouhém úseku to nevadí — hranice
+ * projde celým vnitřkem —, ale na krátkém kroku zbude uprostřed DÍRA:
+ * změřeno na tělese destičky 194,5 mm², krok 0,2 mm → zameteno jen 5,7 mm²
+ * ve 4 kusech. Neodebraný ostrůvek pak vypadá jako materiál a držák se do
+ * něj „vnoří" (na `part-11-zleva-casting` to dělalo 6,8 mm² oranžové
+ * z čistého nulového stavu).
+ *
+ * Doplňuje se JEN TADY, v modelu materiálu pro vybarvování. Táž oprava
+ * přímo v `toolSweep` je správná, ale sahá na úběr v CELÉ aplikaci včetně
+ * emise — změřeno, že hýbe i vygenerovaným G-kódem (`part-4`:
+ * `N840 G0 X52.690` → `X52.689`), takže patří do vlastní práce, ne sem.
+ */
+export function sweepSolid(loop, seg) {
+  const sw = toolSweep(loop, seg);
+  const at = (c) => loop.map(p => ({ x: p.x + c.x, z: p.z + c.z }));
+  const caps = [at(seg[0]), at(seg[1])]
+    .map(l => (polyArea([l]) < 0 ? l.slice().reverse() : l));
+  try { return polyUnion(sw, caps); } catch { return sw; }
+}
+
+/**
  * Akumulátor kolize držáku pro jeden výsledek calculate() (calc.simPath).
  * Drží vlastní kopii zbývajícího polotovaru (aby stopa držáku nehlásila
  * kanál, který destička legálně vyřezala) a sjednocenou oblast vnoření.
@@ -38,7 +62,16 @@ export class HolderGouge {
    */
   constructor(prms, stockPathSegments, backside = false, opts = {}) {
     this.baseLoop = buildStockLoopRaw(prms, stockPathSegments);
-    this.foot = toolFootprint(prms);            // stopa destičky (úběr materiálu)
+    // ÚBĚR TĚLEM DESTIČKY, ne tenkým plánovacím profilem. `toolFootprint` je
+    // aproximace pro PLÁNOVÁNÍ (stadion kolem nosu, u nože uživatele 10,6 mm²);
+    // materiál ve skutečnosti odebírá celé těleso plátku — týž obrys, jaký
+    // simulátor KRESLÍ jako odebraný (`MaterialRemoval` používá právě ten,
+    // 76,6 mm², tedy 7× víc). S tenkým profilem tady zůstával v modelu
+    // materiál, který je na plátně dávno pryč, a držák se do něj „vnořoval":
+    // na dílu uživatele největší z pěti oblastí červené (1,12 z 2,46 mm²,
+    // `N2290 G1 Z139.365`) — a protože HolderGouge je ZÁZNAM, zůstala
+    // vybarvená i po odjetí nože (nález 21. 8. 2026).
+    this.foot = toolFootprintVisual(prms);
     this.holder = holderWorldLoop(prms, backside); // obrys držáku rel. ke špičce
     // PROSTOR DESTIČKY NENÍ PROSTOR DRŽÁKU. Obrys držáku začíná ve ŠPIČCE
     // (holderWorldLoop), takže se u hrotu překrývá s destičkou — u nože
@@ -55,11 +88,19 @@ export class HolderGouge {
     // ty se pak vybarvily červeně uvnitř destičky (nález uživatele: „vidím
     // výřez, jako bych udělal kružnici toho radiusu").
     //
-    // PLATÍ JEN PRO ŘEZNÉ BLOKY. Při RYCHLOPOSUVU nemá v materiálu co dělat
-    // ani tělo destičky, a dnes to hlídá právě ta překrývající se část
-    // (stopa `toolFootprint` je jen tenký řezný profil, X −0,8…6 × Z −0,8…0,8,
-    // tělo destičky sahá na X 15 × Z 4,2). Odečíst ji plošně by tam udělalo
-    // slepé místo, takže u G0 se dál bere držák CELÝ.
+    // ODEČÍTÁ SE I U RYCHLOPOSUVU — tady, na rozdíl od validátoru drah.
+    // Tenhle soubor odpovídá na otázku „KUDY se vnořil DRŽÁK", a prostor,
+    // který zabírá destička, do odpovědi nepatří ani při G0. Dokud přes něj
+    // stojí nakreslený plátek, není to vidět; jakmile nástroj odjede, zůstane
+    // po něm vybarvená skvrna (HolderGouge je ZÁZNAM, viz hlavička souboru) —
+    // nález uživatele 21. 8. 2026: *„po odjetí nože se objeví červený
+    // lichoběžník od kolize, který by tam neměl být"*. Na jeho dílu to byla
+    // celá jedna z pěti oblastí červené (`N2780 G0 X19.545`, 0,66 z 2,46 mm²).
+    //
+    // SLEPÉ MÍSTO TO NEDĚLÁ: rychloposuv tělem destičky skrz materiál hlásí
+    // `validateToolpath` (⛔ „rychloposuv materiálem"), a ten si u G0 držák
+    // schválně bere CELÝ právě proto, aby tělo destičky pokryl. Tady jde jen
+    // o to, co se VYBARVÍ jako vnoření držáku, ne o to, co se hlásí.
     this.holderCut = this.holder;
     if (this.holder) {
       const ins = toolFootprintVisual(prms);
@@ -138,7 +179,7 @@ export class HolderGouge {
       // 1) destička nejdřív odebere materiál (jen řezné bloky) — držák se pak
       //    testuje proti tomu, co ZBYLO (kanál po destičce = žádná kolize).
       if (cutting) {
-        const cut = toolSweep(this.foot, seg);
+        const cut = sweepSolid(this.foot, seg);
         if (cut.length) {
           this.stock.cut(cut);
           // Pás ubírá táž destička — kudy legálně projela, tam už nic nestojí.
@@ -147,8 +188,9 @@ export class HolderGouge {
       }
       // 2) stopa držáku podél úseku × zbývající materiál = vnoření
       if ((this.stock && this.stock.loops.length) || (this.band && this.band.loops.length)) {
-        const hBody = cutting ? this.holderCut : this.holder;
-        const hSlim = cutting ? this.holderCutSlim : this.holderSlim;
+        // Držák BEZ prostoru destičky, i u rychloposuvu (viz konstruktor).
+        const hBody = this.holderCut;
+        const hSlim = this.holderCutSlim;
         const hsweep = toolSweep(hBody, seg);
         if (hsweep.length) {
           if (this.stock && this.stock.loops.length) {

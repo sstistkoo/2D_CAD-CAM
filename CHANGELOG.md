@@ -57,6 +57,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – červená kolize pod plátkem, která se odkryla po odjetí nože.**
+  `HolderGouge` je ZÁZNAM (jednou vybarvené místo tam zůstane i po přejetí —
+  je to úmysl), takže cokoli se vybarví omylem, se dřív nebo později odkryje.
+  Nález uživatele 21. 8. 2026: *„po odjetí nože se objeví červený lichoběžník
+  od kolize, který by tam neměl být."* Chyba byla v modelu MATERIÁLU, ne
+  v detekci — držák se testoval proti materiálu, který tam už dávno nebyl:
+
+  - **Ubíralo se tenkým PLÁNOVACÍM profilem, ne tělem destičky.**
+    `toolFootprint` je aproximace pro plánování (stadion kolem nosu, u nože
+    uživatele 10,6 mm²); materiál ve skutečnosti odebírá celé těleso plátku —
+    týž obrys, jaký simulátor KRESLÍ jako odebraný (`MaterialRemoval` bere
+    právě ten, 76,6 mm², tedy 7× víc). Rozdíl zůstával v modelu stát jako
+    materiál a držák se do něj „vnořoval".
+  - **`toolSweep` vrací jen stopu HRANICE** (Minkowski bez členu `A + b₀`,
+    na rozdíl od `minkowskiSolidSum`). Na dlouhém úseku to nevadí, na krátkém
+    kroku zbude uprostřed neodebraný ostrůvek: změřeno na tělese destičky
+    194,5 mm² a kroku 0,2 mm → zameteno 5,7 mm² ve 4 kusech. Bez doplnění
+    vyrobila oprava výš na `part-11-zleva-casting` 6,8 mm² oranžové z čistého
+    nulového stavu. Doplňuje se JEN v tomhle modelu (`sweepSolid`) — táž
+    oprava přímo v `toolSweep` je správná, ale sahá na úběr v CELÉ aplikaci
+    včetně emise a měřitelně hýbe vygenerovaným G-kódem (`part-4`
+    `N840 G0 X52.690` → `X52.689`), takže je to samostatná práce.
+
+  Na dílu uživatele červená **2,46 → 1,36 mm²** (největší z pěti oblastí,
+  `N2290 G1 Z139.365`, spadla z 1,12 na 0,02) a s virtuálním zvětšením držáku
+  8,61 → 6,28. Napříč 24 fixtures se zlepšily dvě (`part-16-face-holder`
+  0,09 → 0, `part-17-long-parting` oranžová 0,21 → 0 a červená 1,3 → 1,01),
+  ostatní beze změny. **Nálezy `validateToolpath` (⛔ panel) se nezměnily
+  nikde** — tvrdá pojistka zůstává přesně tam, kde byla; mění se jen to, co se
+  VYBARVUJE.
+- **CAM – prostor destičky se neodečítá jen u řezu, ale i u rychloposuvu.**
+  Držák se u G0 bral CELÝ, tedy včetně části, která se u hrotu překrývá
+  s destičkou (u nože uživatele pás X 0–15 × Z 0–4,2 mm) — u řezných bloků se
+  přitom odečítá od 21. 8. 2026. `HolderGouge` odpovídá na otázku „kudy se
+  vnořil DRŽÁK", a prostor destičky do té odpovědi nepatří ani při
+  rychloposuvu. Slepé místo to nedělá: rychloposuv tělem destičky skrz
+  materiál hlásí `validateToolpath`, a ten si u G0 držák schválně bere celý
+  právě proto, aby tělo destičky pokryl.
+
+  Poctivě: napříč 24 fixtures i na třech programech uživatele je tahle změna
+  sama o sobě **0,00 — nikde nevystřelí**. Je to oprava asymetrie, ne příčina
+  nálezu výš; ta byla v modelu materiálu.
+
+### Fixed
 - **CAM – skim vrstvy už nenechají na styku s mřížkou tenký zbytek.** Skim
   posloupnost byla kotvená na `planTopX` (povrch + Vůle X) a hlavní mřížka na
   `maxStockX`, obě krokovaly po `ap` — takže se o tu Vůli **rozešly** a na

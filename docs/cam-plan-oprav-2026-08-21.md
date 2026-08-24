@@ -163,7 +163,22 @@ Teprve pak zkoušet nenulovou hodnotu na dílu uživatele.
 
 ---
 
-## Bod 4 — červená pod plátkem se po odjetí zase objeví
+## Bod 4 — červená pod plátkem se po odjetí zase objeví — **HOTOVO 24. 8. 2026**
+
+> Postup níže (rozdělit hlídání na dvě tělesa) je provedený, ale sám o sobě
+> je **měřitelně no-op** — asymetrie u G0 nikde nevystřelí. Skutečná příčina
+> byla v MODELU MATERIÁLU: `HolderGouge` ubíral tenkým plánovacím profilem
+> (10,6 mm²) místo tělem destičky (76,6 mm²), takže držák narážel do
+> materiálu, který je na plátně dávno pryč. Navrch `toolSweep` vrací jen
+> stopu HRANICE a na krátkém kroku nechává uprostřed ostrůvek. Červená na
+> dílu uživatele 2,46 → 1,36 mm², nálezy ⛔ beze změny. Detail v CHANGELOGu.
+
+> **ZBÝVÁ (nové zjištění, samostatná práce):** `toolSweep` v `geomCore.js`
+> je děravý pro CELOU aplikaci — chybí mu člen `A + b₀`, takže stopa
+> 17 mm² zamete při kroku 0,2 mm jen 4,3 mm². Oprava je jednoduchá
+> (sjednotit s obrysem na obou koncích úseku), ale hýbe úběrem i emisí:
+> změřeno `part-4` `N840 G0 X52.690` → `X52.689`. Tady je obejitá lokálně
+> (`sweepSolid` v holderGouge.js), aby bod 4 nesahal na dráhy.
 
 **Příznak:** když nástroj do místa najede, je to dobře; když odjede, něco se tam
 zase objeví.
