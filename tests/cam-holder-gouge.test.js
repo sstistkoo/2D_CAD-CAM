@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HolderGouge, sweepSolid } from '../js/calculators/cam/holderGouge.js';
+import { HolderGouge } from '../js/calculators/cam/holderGouge.js';
 import { polyArea, toolSweep } from '../js/geom/geomCore.js';
 import { toolFootprint, toolFootprintVisual } from '../js/calculators/cam/materialRemoval.js';
 
@@ -89,16 +89,19 @@ describe('HolderGouge — model materiálu', () => {
   });
 
   it('zametená plocha obsahuje i obrys samotný (krátký krok nenechá díru)', () => {
-    // `toolSweep` sám vydá jen stopu hranice: na tělese 194,5 mm² a kroku
-    // 0,2 mm zamete 5,7 mm² ve 4 kusech. Doplněný sweep musí pokrýt aspoň
-    // celou stopu, a to v JEDNOM kuse.
+    // `toolSweep` dřív vracel jen stopu HRANICE: na tělese destičky 194,5 mm²
+    // a kroku 0,2 mm zametl 5,7 mm² ve 4 kusech a uprostřed nechal neodebraný
+    // ostrůvek, do kterého se držák „vnořil" (part-11-zleva-casting: 6,8 mm²
+    // oranžové z čisté nuly). Doplněno v geomCore 24. 8. 2026; obchůzka
+    // `sweepSolid`, která to řešila jen tady, tím padla.
     const loop = [{ x: 0, z: 0 }, { x: 10, z: 0 }, { x: 10, z: 4 }, { x: 0, z: 4 }];
-    const seg = [{ x: 20, z: 50 }, { x: 20, z: 49.8 }];
     const own = Math.abs(polyArea([loop]));
-    const boundaryOnly = toolSweep(loop, seg);
-    const solid = sweepSolid(loop, seg);
-    expect(Math.abs(polyArea(boundaryOnly))).toBeLessThan(own);   // doložení díry
-    expect(Math.abs(polyArea(solid))).toBeGreaterThanOrEqual(own);
-    expect(solid.length).toBe(1);
+    for (const step of [0.05, 0.2, 1, 5]) {
+      const sw = toolSweep(loop, [{ x: 20, z: 50 }, { x: 20, z: 50 - step }]);
+      expect(Math.abs(polyArea(sw)), `krok ${step} mm`).toBeGreaterThanOrEqual(own);
+      expect(sw.length, `krok ${step} mm`).toBe(1);
+    }
+    // Degenerovaná (jednobodová) dráha = obrys stojící na místě.
+    expect(Math.abs(polyArea(toolSweep(loop, [{ x: 20, z: 50 }])))).toBeCloseTo(own, 6);
   });
 });

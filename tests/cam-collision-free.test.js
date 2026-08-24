@@ -71,7 +71,11 @@ const EXPECTED_PLAN = {
   // `holderFitsAt` do `stockEntryRamp`, přímo ke kotvě, i `holderFitsAlong`
   // po celém zátahu — všechny tři BEZ efektu na nálezy, poslední navíc
   // sebrala úběr (part-15 −24,6 mm²).
-  'holder-region-roughing.camprog': 'držák na rampě do kapsy — mez modelu holderFitsAt (2× 0,6 mm²)',
+  // 24. 8. 2026: po doplnění `toolSweep` o vlastní plochu obrysu je stopa
+  // držáku úplná, takže se tatáž mez měří přesněji — 5 nálezů 0,79–0,92 mm²
+  // místo 4 nálezů 0,61–0,92 na týchž dvou místech (r 12,8–13,0, Z ≈ 115).
+  // Není to nová vada dráhy, jen doměřená stará.
+  'holder-region-roughing.camprog': 'držák na rampě do kapsy — mez modelu holderFitsAt (5× 0,8–0,9 mm²)',
 };
 
 const detailOf = (issues) => issues.map(i =>

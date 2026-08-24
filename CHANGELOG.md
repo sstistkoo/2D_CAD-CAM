@@ -57,6 +57,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – `toolSweep` zametal jen po obrysu, ne obrysem.** Minkowského suma
+  s otevřenou dráhou (`minkowskiSumD(…, false)`) vydá stopu HRANICE, ne
+  zametené TĚLESO — chyběl jí člen `A + b₀`, tentýž, jaký o kus níž v témž
+  souboru přidává `minkowskiSolidSum`. Na dlouhém úseku to nebylo vidět,
+  protože hranice cestou projde celým vnitřkem; na krátkém kroku ale zůstal
+  uprostřed neodebraný ostrůvek:
+
+  ```
+  obrys 17,0 mm²,  krok 0,2 mm →  4,3 mm²   (MÍŇ než obrys sám)
+  obrys 17,0 mm²,  krok 1,0 mm → 21,5 mm²   (má být 27,8)
+  těleso 194,5 mm², krok 0,2 mm →  5,7 mm² ve 4 kusech
+  ```
+
+  Ostrůvek pak v modelu vypadá jako materiál. Nejdřív se to projevilo na
+  vybarvování kolizí držáku (bod 4 plánu: přesnější model materiálu vyrobil
+  na `part-11-zleva-casting` 6,8 mm² oranžové z čisté nuly), ale netýkalo se
+  to jen jeho — `toolSweep` pohání úběr v CELÉ aplikaci: `MaterialRemoval`,
+  `validateToolpath` i `rapidStock` v emisi.
+
+  Doplňuje se obrys posazený na OBA konce úseku, orientovaný kladně (`NonZero`
+  by opačně orientovaný překryv vyrušil a udělal z něj díru — táž úvaha jako
+  v `minkowskiSolidSum`). Degenerovaná jednobodová dráha nově vrátí obrys
+  stojící na místě, dřív nevrátila nic.
+
+  Napříč 24 fixtures a třemi programy uživatele: **G-kód se změnil na jediné
+  fixture a na jediném řádku** (`holder-region-roughing`, `N840 G0 X52.690` →
+  `X52.689`, tedy 1 µm; počet průchodů, řádků i varování beze změny). Úběr
+  vzrostl na dvou dílech o 0,42 % (`part-11-zleva-casting` 3431,4 → 3445,7,
+  `part-12-zleva-step` 3249,7 → 3263,7) — to je právě ten dřív minutý materiál.
+  Ostatních 20 programů je bit po bitu shodných. Stopa DRŽÁKU je teď taky
+  úplná, takže se `holder-region-roughing` doměřila jeho známá mez:
+  5 nálezů 0,79–0,92 mm² místo 4 nálezů 0,61–0,92 na týchž dvou místech —
+  přesnější měření staré meze, ne nová vada.
+
+### Removed
+- **CAM – obchůzka `sweepSolid` v `holderGouge.js`.** Doplňovala zametenou
+  plochu lokálně, aby oprava vybarvování nesahala na dráhy. `toolSweep` to
+  teď dělá sám, takže obchůzka padla bez náhrady.
+
+### Fixed
 - **CAM – červená kolize pod plátkem, která se odkryla po odjetí nože.**
   `HolderGouge` je ZÁZNAM (jednou vybarvené místo tam zůstane i po přejetí —
   je to úmysl), takže cokoli se vybarví omylem, se dřív nebo později odkryje.
@@ -77,8 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     vyrobila oprava výš na `part-11-zleva-casting` 6,8 mm² oranžové z čistého
     nulového stavu. Doplňuje se JEN v tomhle modelu (`sweepSolid`) — táž
     oprava přímo v `toolSweep` je správná, ale sahá na úběr v CELÉ aplikaci
-    včetně emise a měřitelně hýbe vygenerovaným G-kódem (`part-4`
-    `N840 G0 X52.690` → `X52.689`), takže je to samostatná práce.
+    včetně emise a měřitelně hýbe vygenerovaným G-kódem, takže se dělala
+    samostatně — viz zápis výš; obchůzka `sweepSolid` tím padla.
 
   Na dílu uživatele červená **2,46 → 1,36 mm²** (největší z pěti oblastí,
   `N2290 G1 Z139.365`, spadla z 1,12 na 0,02) a s virtuálním zvětšením držáku

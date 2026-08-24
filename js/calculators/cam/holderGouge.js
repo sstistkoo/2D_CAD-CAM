@@ -18,30 +18,6 @@ import { stockClearanceIsZero } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 
 /**
- * Plocha zametená obrysem podél úseku, VČETNĚ obrysu samotného.
- *
- * `toolSweep` vrací jen stopu HRANICE (Minkowski bez členu `A + b₀`, viz
- * `minkowskiSolidSum` v geomCore). Na dlouhém úseku to nevadí — hranice
- * projde celým vnitřkem —, ale na krátkém kroku zbude uprostřed DÍRA:
- * změřeno na tělese destičky 194,5 mm², krok 0,2 mm → zameteno jen 5,7 mm²
- * ve 4 kusech. Neodebraný ostrůvek pak vypadá jako materiál a držák se do
- * něj „vnoří" (na `part-11-zleva-casting` to dělalo 6,8 mm² oranžové
- * z čistého nulového stavu).
- *
- * Doplňuje se JEN TADY, v modelu materiálu pro vybarvování. Táž oprava
- * přímo v `toolSweep` je správná, ale sahá na úběr v CELÉ aplikaci včetně
- * emise — změřeno, že hýbe i vygenerovaným G-kódem (`part-4`:
- * `N840 G0 X52.690` → `X52.689`), takže patří do vlastní práce, ne sem.
- */
-export function sweepSolid(loop, seg) {
-  const sw = toolSweep(loop, seg);
-  const at = (c) => loop.map(p => ({ x: p.x + c.x, z: p.z + c.z }));
-  const caps = [at(seg[0]), at(seg[1])]
-    .map(l => (polyArea([l]) < 0 ? l.slice().reverse() : l));
-  try { return polyUnion(sw, caps); } catch { return sw; }
-}
-
-/**
  * Akumulátor kolize držáku pro jeden výsledek calculate() (calc.simPath).
  * Drží vlastní kopii zbývajícího polotovaru (aby stopa držáku nehlásila
  * kanál, který destička legálně vyřezala) a sjednocenou oblast vnoření.
@@ -179,7 +155,7 @@ export class HolderGouge {
       // 1) destička nejdřív odebere materiál (jen řezné bloky) — držák se pak
       //    testuje proti tomu, co ZBYLO (kanál po destičce = žádná kolize).
       if (cutting) {
-        const cut = sweepSolid(this.foot, seg);
+        const cut = toolSweep(this.foot, seg);
         if (cut.length) {
           this.stock.cut(cut);
           // Pás ubírá táž destička — kudy legálně projela, tam už nic nestojí.

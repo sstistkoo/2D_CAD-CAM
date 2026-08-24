@@ -120,10 +120,32 @@ export function polySimplify(loops, eps = 0.005) {
  * Vrátí smyčky pokrývající vše, čím nástroj po dráze projel — přesně to,
  * co se odečítá od polotovaru (vizuální odebírání materiálu) nebo protíná
  * s polotovarem (kontrola kolize držáku po celé dráze, ne jen v bodech).
+ *
+ * `minkowskiSumD` s otevřenou dráhou vydá jen stopu HRANICE obrysu, ne
+ * zametené TĚLESO — chybí mu člen `A + b₀` (tentýž, jaký o kus níž
+ * přidává `minkowskiSolidSum`). Na dlouhém úseku to není vidět, protože
+ * hranice cestou projde celým vnitřkem; na KRÁTKÉM kroku ale zůstane
+ * uprostřed neodebraný ostrůvek. Změřeno 24. 8. 2026: obrys 17,0 mm² a krok
+ * 0,2 mm → zameteno 4,3 mm², tedy MÍŇ než obrys sám; těleso destičky
+ * 194,5 mm² a týž krok → 5,7 mm² ve čtyřech kusech. Takový ostrůvek pak
+ * v modelu vypadá jako materiál a držák se do něj „vnoří" (na
+ * `part-11-zleva-casting` to dělalo 6,8 mm² oranžové z čisté nuly).
+ *
+ * Doplňuje se obrys posazený na OBA konce úseku. Uvnitř úseku je stopa
+ * hranice úplná už dnes, takže víc čepiček není potřeba. Orientace se
+ * srovnává na kladnou ze stejného důvodu jako v `minkowskiSolidSum`:
+ * `NonZero` by opačně orientovaný překryv vyrušil a udělal z něj díru.
  */
 export function toolSweep(toolLoop, pathPts) {
-  const swept = minkowskiSumD(toClipperLoop(toolLoop), toClipperLoop(pathPts), false);
-  return fromClipperLoops(unionD(swept, [], FillRule.NonZero, PRECISION));
+  const swept = minkowskiSumD(toClipperLoop(toolLoop), toClipperLoop(pathPts), false)
+    .map(path => (areaD(path) < 0 ? path.slice().reverse() : path));
+  const caps = [];
+  for (const c of [pathPts[0], pathPts[pathPts.length - 1]]) {
+    if (!c) continue;
+    const cap = toClipperLoop(toolLoop.map(p => ({ x: p.x + c.x, z: p.z + c.z })));
+    caps.push(areaD(cap) < 0 ? cap.slice().reverse() : cap);
+  }
+  return fromClipperLoops(unionD([...swept, ...caps], [], FillRule.NonZero, PRECISION));
 }
 
 /**

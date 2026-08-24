@@ -173,12 +173,12 @@ Teprve pak zkoušet nenulovou hodnotu na dílu uživatele.
 > stopu HRANICE a na krátkém kroku nechává uprostřed ostrůvek. Červená na
 > dílu uživatele 2,46 → 1,36 mm², nálezy ⛔ beze změny. Detail v CHANGELOGu.
 
-> **ZBÝVÁ (nové zjištění, samostatná práce):** `toolSweep` v `geomCore.js`
-> je děravý pro CELOU aplikaci — chybí mu člen `A + b₀`, takže stopa
-> 17 mm² zamete při kroku 0,2 mm jen 4,3 mm². Oprava je jednoduchá
-> (sjednotit s obrysem na obou koncích úseku), ale hýbe úběrem i emisí:
-> změřeno `part-4` `N840 G0 X52.690` → `X52.689`. Tady je obejitá lokálně
-> (`sweepSolid` v holderGouge.js), aby bod 4 nesahal na dráhy.
+> **NAVAZUJÍCÍ NÁLEZ — TAKÉ HOTOVO 24. 8. 2026:** `toolSweep` v
+> `geomCore.js` byl děravý pro CELOU aplikaci (chyběl mu člen `A + b₀`,
+> takže obrys 17 mm² zametl při kroku 0,2 mm jen 4,3 mm²). Opraveno
+> doplněním obrysu na oba konce úseku; G-kód se změnil na JEDINÉ fixtuře
+> a jediném řádku (`holder-region-roughing` o 1 µm), úběr vzrostl o 0,42 %
+> na dvou dílech. Lokální obchůzka `sweepSolid` tím padla.
 
 **Příznak:** když nástroj do místa najede, je to dobře; když odjede, něco se tam
 zase objeví.
