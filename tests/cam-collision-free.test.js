@@ -34,29 +34,30 @@ const fixtures = readdirSync(fixturesDir).filter(f => f.endsWith('.camprog')).so
 // Prázdné = všechny díly jedou čistě. Nepřidávat sem nic, co jde spravit
 // v generátoru — od toho je tenhle test.
 //
-// ── 25. 8. 2026: dva zápisy, které sem patřit NEMAJÍ a musí zmizet ────────
+// ── 25. 8. 2026: kontrola držáku u třetiny fixtures TIŠE NEDĚLALA NIC ──────
 // Do tohohle dne se validovalo `prog.params` (syrový obsah `.camprog`),
 // kdežto pipeline běžela nad `S.params` (doplněné výchozími). 9 z 24 fixtures
 // nemá v `.camprog` `holderWidth`/`holderLength`, takže `holderProfileLoop`
-// vrátila `null` a KONTROLA DRŽÁKU U NICH TIŠE NEDĚLALA NIC. Po opravě (test
-// i harness berou parametry z běhu) se ukázalo, co pod tím leželo.
-//
-// Obě položky mají JEDNU společnou příčinu a JEDNU opravu: náhradní
-// obdélníkový držák je vystředěný na špičku (`x ∈ [−hw/2, +hw/2]`
-// v `holderProfileLoop` / `holderRectProfile`), takže půlka trčí na
-// NEOBROBENOU stranu břitu, přímo do materiálu. Každý skutečný obrys —
-// nakreslený i všech šest nožů v DEFAULT_TOOL_MAGAZINE — má `x ∈ [0, hw]`.
-// Změřeno: posunutí TÉHOŽ obdélníku na jednu stranu srazí u obou dílů
-// nálezy z 12 na 0.
-//
-// Proč to ještě není opravené: ta oprava odemyká starší vadu, kterou dosud
-// držel zavřenou právě ten špatný tvar — vjezdy (rampa i zápich) do
-// nevyhrubovaného polotovaru, které `buildObstacleLoops` z principu nevidí
-// (staví překážku z HOTOVÉHO dílu). Na `part-8` je to 103,9 mm². Detaily,
-// čísla a tři změřené slepé uličky: docs/ + audit z 25. 8. 2026.
+// vrátila `null` a držák se u nich nekontroloval vůbec. Po opravě (test
+// i harness berou parametry z běhu) vyšlo najevo, že náhradní obdélníkový
+// držák byl VYSTŘEDĚNÝ na špičku (`x ∈ [−hw/2, +hw/2]`), takže půlka trčela
+// na neobrobenou stranu břitu, do materiálu. Posunutí na `x ∈ [0, hw]`
+// (jako má každý nakreslený obrys i všech šest nožů v DEFAULT_TOOL_MAGAZINE)
+// srazilo `face-casting` i `face-cylinder` z 12 nálezů do 195,8 mm² na nulu
+// a spravilo i `holder-region-roughing`.
 const EXPECTED = {
-  'face-casting.camprog': 'vystředěný náhradní držák — 12 nálezů do 172,6 mm² (jednostranný obdélník je srazí na 0)',
-  'face-cylinder.camprog': 'vystředěný náhradní držák — 12 nálezů do 195,8 mm² (jednostranný obdélník je srazí na 0)',
+  // 25. 8. 2026: `face-casting` a `face-cylinder` odtud ZMIZELY — náhradní
+  // obdélníkový držák se posunul celý na obrobenou stranu a jejich 12 nálezů
+  // do 195,8 mm² spadlo na nulu.
+  //
+  // Zbývá jediná položka a je to DOLOŽENÁ MEZ MODELU, ne vada dráhy: kotva
+  // a zátah RAMPY se hlídají `holderFitsAt` (sken povrchu po Z + profil spodní
+  // hrany), kdežto validátor počítá s celým polygonem držáku — ten první
+  // systematicky podceňuje. Srovnat je znamená nasadit polygonový test
+  // (Minkowski, jako `makeHolderClamp`) i na rampu; to je samostatná práce,
+  // ne dolaďování prahu. Táž mez dřív držela `holder-region-roughing`
+  // v EXPECTED_PLAN — tam po téže opravě zmizela.
+  'holder-casting-slanted-face.camprog': 'držák na rampě — mez modelu holderFitsAt (2× 0,6 a 1,6 mm²)',
 };
 
 // ── DRUHÝ STANDARD: polotovar končí až na OFFSETOVÉ ČÁŘE ────────────────────
@@ -99,11 +100,12 @@ const EXPECTED_PLAN = {
   // držáku úplná, takže se tatáž mez měří přesněji — 5 nálezů 0,79–0,92 mm²
   // místo 4 nálezů 0,61–0,92 na týchž dvou místech (r 12,8–13,0, Z ≈ 115).
   // Není to nová vada dráhy, jen doměřená stará.
-  'holder-region-roughing.camprog': 'držák na rampě do kapsy — mez modelu holderFitsAt (5× 0,8–0,9 mm²)',
-  // Táž příčina jako v EXPECTED výš (vystředěný náhradní držák) — proti
-  // offsetové čáře vyjdou tytéž nálezy o pár mm² větší. Zmizí stejnou opravou.
-  'face-casting.camprog': 'vystředěný náhradní držák — 12 nálezů do 175,3 mm², viz EXPECTED',
-  'face-cylinder.camprog': 'vystředěný náhradní držák — 12 nálezů do 197,6 mm², viz EXPECTED',
+  // 25. 8. 2026: `holder-region-roughing` odtud ZMIZEL (0/5 → 0/0) a s ním
+  // i `face-casting`/`face-cylinder` — všechny tři spravil jednostranný
+  // náhradní držák. Zbylé dvě položky jsou tytéž meze jako v EXPECTED výš,
+  // jen proti offsetové čáře vyjdou o pár mm² větší.
+  'holder-casting-slanted-face.camprog': 'držák na rampě — mez modelu holderFitsAt (3× do 3,5 mm²)',
+  'part-8.camprog': 'držák v přídavkové slupce nad pahýlem polotovaru (8× do 13,1 mm²) — proti nakreslené siluetě čistý',
 };
 
 const detailOf = (issues) => issues.map(i =>

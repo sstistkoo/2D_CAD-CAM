@@ -57,6 +57,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – Čelo polotovaru v Z 0 při hrubování zleva plánovalo dráhy 100 mm za
+  materiálem.** Dno pro sledování obrysu (dojezdy schodů, výjezdy z kapes, cíle
+  ramp) se v `genLongPasses` bralo z `(parseFloat(prms.stockLength) || 100) * -1`.
+  Nula je ale u obou rozměrů polotovaru **legitimní volba** — Čelo v Z 0 je
+  nejběžnější — a `||` ji spolkne stejně jako prázdné pole, které UI ukládá
+  právě jako nulu (`applyParamChange`).
+
+  Hrubování zleva to trefí naplno: `mirrorParamsZ` Čelo a Délku **prohodí**,
+  takže Čelo 0 se v zrcadle stane Délkou 0 → dno spadlo na −100.
+
+  Změřeno na válci Ø60 × 60, Čelo 0, zleva: **7 průchodů a G-kód až na Z 100**
+  (plus 4 hlášky hlídání držáku navíc), proti 3 průchodům a Z 0,01 při Čele
+  0,01 — tedy celý výsledek závisel na setině milimetru. Po opravě jsou obě
+  varianty shodné.
+
+  U odlitku rozměry válce neříkají nic, takže když Délka chybí, vezme se
+  nejlevější Z **siluety**, ne konstanta. Na reálných dílech to vychází na
+  totéž jako zadaná Délka (`part-1` i `part-11` mají G-kód bitově shodný).
+
+  Pokrytí tu nebylo žádné: mezi fixtures je jediná válcová (`face-cylinder`)
+  a ta jede čelní strategií, kde `cylStockZ` nefiguruje — kombinace
+  válec + podélně + zleva nebyla otestovaná vůbec.
+  `tests/cam-stock-zero-dimension.test.js`.
+- **CAM – odskok čelního průchodu zavezl DRŽÁK dál, než kam ho hlídání pustilo.**
+  Hlídání držáku sesadí hloubku čelního průchodu tak, aby se držák vešel **na
+  poloze průchodu**. Odskok pod 45° pak posune celý držák o *Vyjezd* dál na
+  obrobenou stranu a jen o tolikéž ven — u stěny strmější než úhel odskoku
+  (na nahlášeném dílu dx/dz ≈ 2,8) tím tu právě vyměřenou rezervu sní.
+
+  Kontrola odskoku ([gcodeEmit.js](js/calculators/cam/gcodeEmit.js)) přitom
+  znala jen ŠPIČKU: hotovou konturu pod diagonálou (`gcOffsetXAt`) a zbytek na
+  sousedních čelních rovinách do *Vyjezdu*, tedy 2 mm. Držák je ale v Z přes
+  20 mm tlustý a radiálně sahá stovky mm ven, takže stěna, o kterou jde, leží
+  desítky mm daleko — mimo dosah obojího.
+
+  Nahlášeno uživatelem na `N4750 G1 X18.641 Z82.932`: vnější zadní roh držáku
+  se otřel o přídavkovou slupku na stěně v pásu Z ≈ 100–108, kterou hlídání
+  nechalo stát (17 průchodů vynecháno). Náhled to vybarvil červeně, ⛔ panel
+  mlčel — 0,09 mm² je pod jeho prahem 0,5 mm².
+
+  Odskok se teď ptá na **přírůstek**: kolik zbytku drží držák na konci odskoku
+  proti tomu, kolik ho držel na schválené poloze průchodu. Absolutní dotyk se
+  testovat nedá — plánovací zbytek se ubírá `toolFootprint` po úsečce průchodu,
+  takže mezi vrstvami zůstávají fantomy, kterých se držák „dotýká" běžně
+  (změřeno: práh 0,02 mm² proti nule překlopil na svislý výjezd **všechny**
+  čelní odskoky na pěti fixtures). Při přírůstku se fantom vykrátí.
+
+  Náprava stojí **nula materiálu**: hloubka i počet průchodů zůstávají, jen se
+  místo diagonály vyjede svisle v X — zpátky do vlastní, právě vyříznuté stopy.
+  Na nahlášeném dílu se překlopil **1 odskok ze 112**, vnoření 0,09 → 0,00 mm²;
+  žádná z 24 stávajících fixtures nezměnila ani řádek G-kódu.
+
+  PAST PŘI MĚŘENÍ: chová se to **nemonotónně** ve *Virt. zvětšení držáku*. Při
+  0 a 2 mm je táž dráha čistá, při 1 mm ne — hlídání nechá pokaždé jinou
+  rezervu a odskok ji sní jen někdy. `tests/cam-face-retract-holder.test.js`
+  proto měří všechny tři, a měří je `HolderGouge` (tím se náhled **vybarvuje**),
+  ne validátorem, který má práh 0,5 mm².
+- **CAM – odlitek nakreslený jako uzavřená smyčka přišel o celé hloubky průchodů.**
+  `stockZRangeAt` hledá Z-pás, kde na dané hloubce stojí polotovar, skenem
+  **otevřeného** řetězu siluety: průsečíky vodorovnice + konce řetězu, ale ty jen
+  tehdy, když samy leží *nad* hloubkou. Odlitek, jehož obrys se uzavírá na ose,
+  tím o svou levou hranici přijde — vyjde jediné Z, vrátí se `null` a hloubka se
+  **přeskočí celá**.
+
+  Na `part-8` (silueta se v krčku propadá na r 17,9) takhle vypadlo sedm hloubek
+  16,978 … 1,978, ačkoli v pásu Z 258–266 stojí materiál od osy až na r 39,94.
+  Posloupnost pak skočila z 21,978 rovnou na vynucený průchod na `minPartX`, takže
+  **jeden záběr vzal 21,98 mm při ap 2,5**. S nakresleným nožem to znamenalo
+  121,8 mm² držáku v materiálu.
+
+  Když bodový sken nedá použitelný pás, dopočítají se průsečíky z **uzavřené**
+  smyčky (`buildStockLoopRaw`). Musí to být *všechny* průchody hranou, ne jen
+  krajní Z: u siluety, která hloubky dosáhne ve dvou oddělených místech, by pás
+  `[zHi, zLo]` přemostil mezeru mezi nimi.
+
+  Výsledek na part-8: **27 → 35 průchodů, úběr +332 mm²**, největší skok hloubek
+  21,98 → 5,00 mm, největší kolize s nakresleným nožem 121,8 → 15,3 mm².
+  Ostatních 23 dílů beze změny. `tests/cam-stock-span-depths.test.js`.
+- **CAM – model pro rychloposuvy si „odebíral" klín, který ve skutečnosti stál.**
+  `noteCutPass` zapisuje do zbytkového modelu geometrii z PLÁNU (rampa → dno),
+  aby model znal odebraný pás dřív, než se rozhodne o navazujícím rychloposuvu.
+  U průchodu s **nulovým dnem** (`zStart == zEnd`, vzniká dobráním zbytku menšího
+  než ap) ale žádné dno není a emise k němu najíždí úplně jinudy, než kudy vede
+  plánovaná rampa: na `part-8` plán tvrdil úsečku (20,12; 193,70) → (17,622;
+  184,37), kdežto program přijel od Z 220 a zapíchl se radiálně až dole.
+
+  Model tím „odebral" klín, který stojí — na Z 189 o **6,13 mm** víc, než kolik
+  dráha ubrala (`tests/cam-residual-model`, mez 0,05 mm). Degenerovaný průchod se
+  proto z plánu nezapisuje; skutečně projeté řezy si model zaznamená sám
+  (`noteCutMove`/`noteCutArc` u každého emitovaného pohybu).
+
+  Vedlejším ziskem se prodloužily dokončovací **rovné průměry**, které kvůli tomu
+  fantomu končily dřív: `part-1` `N2410 G1 X43.178` z `Z−2.500` na `Z−10.500`,
+  tedy o 8 mm blíž ke skutečnému konci materiálu.
+- **CAM – výchozí (nenakreslený) držák byl vystředěný na špičku.** Bez vlastního
+  obrysu se používá náhradní obdélník `holderWidth × holderLength`, a ten měl
+  v profilu `x ∈ [−hw/2, +hw/2]` — půlka držáku (u výchozích 20 mm celých 10)
+  tedy trčela na **neobrobenou** stranu břitu, přesně tam, kde stojí materiál.
+  Plánování to navíc ani nevidělo: `holderBottomProfile` prohledává jen `d ≥ 0`,
+  takže ta polovina byla pro hlídání neviditelná, zatímco ⛔ validátor (celý
+  polygon) ji hlásil. Generátor tedy uměl kolizi ukázat, ale ne se jí vyhnout.
+
+  Není to jen záplata na hlídání — takhle vypadá **každý skutečný nůž**: všechny
+  nakreslené obrysy i všech šest nožů v `DEFAULT_TOOL_MAGAZINE` mají `x ∈ [0, hw]`
+  (destička sedí v rohu držáku, ne uprostřed). Obdélník teď leží celý na obrobené
+  straně, v hlídání i v náhledu.
+
+  | fixture | průchodů | úběr mm² | kolize (silueta/offsetová čára) |
+  |---|---|---|---|
+  | face-casting | 43 | beze změny | **12/12 → 0/0** |
+  | face-cylinder | 29 | beze změny | **12/12 → 0/0** |
+  | holder-region-roughing | 36 → 40 | +118,2 | **0/5 → 0/0** |
+  | part-1 · part-2 | 20 → 27 | +205,7 | 0/0 |
+  | part-4 · part-6 | 24 → 33 | +218,9 | 0/0 |
+  | part-9 | 22 → 31 | +218,9 | 0/0 |
+  | pocket-wall-at-plunge-angle | 27 → 37 | +93,8 | 0/0 |
+  | part-8 | 25 → 27 | +148,9 | 0/0 → 0/9 |
+  | holder-casting-slanted-face | 15 → 19 | +35,0 | 0/0 → 2/3 |
+
+  **Celkem úběr +1464 mm² (+2,3 %)** a doložená mez u `holder-region-roughing`
+  z 20. 8. zmizela úplně. Dvě položky zbývají a obě jsou v `EXPECTED`
+  s naměřenými čísly: `holder-casting-slanted-face` (2 nálezy 0,6 a 1,6 mm² na
+  rampě — táž mez modelu `holderFitsAt`, jaká právě zmizela jinde) a `part-8`
+  proti offsetové čáře (9 nálezů do 13,1 mm² v přídavkové slupce nad pahýlem
+  polotovaru; proti nakreslené siluetě je čistý).
+- **CAM – vjezdová rampa na hranici úseku jela dnem až na konec okna.** Když sken
+  intervalů nevrátí nic, vyrobí se rampový vjezd z povrchu polotovaru — a jeho
+  dno mělo natvrdo `zEnd = effZMin`, tedy až na dno celého Z-okna, **aniž by se
+  kdokoli zeptal, kde kontura blokuje**. Dokud se sem chodilo jen tehdy, když pod
+  vjezdem opravdu bylo volno, sedělo to; jenže „žádné intervaly“ znamená i
+  *„jediný interval zahodila obálka držáku“* — a tam pod rampou kontura stoupá.
+
+  Odkryla to oprava tvaru držáku výš (mění, které intervaly obálka zahodí):
+  na `part-1` se zapnutým Zanořováním po regionech dosedla rampa na Z 194,83
+  a dno jelo až na Z −10, přestože offset je od Z 183,98 dolů nad 43 — tedy
+  **27,2 mm pod hotovní konturou**, a totéž na `part-2/4/6/9`. Dno se teď hledá
+  týmž krokem a týmž `blockedAt`/`refineEngageZ` jako v `scanIntervals`, takže
+  konec sedí na kontuře přesně jako u běžného průchodu. Hlídá to
+  `tests/cam-gouge-invariants` (bez téhle opravy padá na 5 dílech).
 - **CAM – ⛔ validátor hlásil kolize se stínem vlastního modelu.** Zbytkový
   polotovar si ubíral `toolFootprint` — *plánovací* aproximací destičky
   (rádius nosu + rovné tělo do výšky 2×ap). U nekulaté destičky po ní v modelu

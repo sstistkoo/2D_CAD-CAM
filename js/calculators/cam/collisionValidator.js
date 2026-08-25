@@ -67,8 +67,8 @@ export function holderProfileLoop(prms) {
     const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
     const z0 = Math.max(toolLen, r, 4);
     pts = [
-      { x: -hw / 2, z: z0 }, { x: hw / 2, z: z0 },
-      { x: hw / 2, z: z0 + l1 }, { x: -hw / 2, z: z0 + l1 },
+      { x: 0, z: z0 }, { x: hw, z: z0 },
+      { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 },
     ];
   }
   const loop = [];

@@ -622,6 +622,20 @@ nabízí se podélné hrubování, obrábění z druhé strany (Zleva) nebo št�
 nůž. S vypnutým hlídáním se dráhy vygenerují jako dřív, ale simulátor je
 oranžově označí jako vnoření držáku do materiálu.
 
+**Hlídá se i odskok.** Hloubku průchodu vyměří hlídání tak, aby se držák vešel
+**na poloze průchodu** — jenže odskok pod 45° pak posune celý držák o *Vyjezd*
+dál na obrobenou stranu a jen o tolikéž ven. U stěny strmější než úhel odskoku
+tím právě vyměřenou rezervu sní, a protože držák je v Z přes 20 mm tlustý,
+otře se o materiál desítky mm daleko od špičky. Takový odskok se proto vydá
+**svisle v ose X** — zpátky do vlastní, právě vyříznuté stopy:
+
+    N4740 G1 X16.641 F0.25
+    N4750 G1 X18.641 ; Výjezd v X (stěna)
+
+**Hloubku průchodu to nestojí nic** a v ⚠ panelu se to nehlásí — mění se jen
+posledních pár mm dráhy. Když nevíš, jestli se to na tvém dílu uplatnilo,
+hledej v programu komentář `Výjezd v X (stěna)`.
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu

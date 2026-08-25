@@ -445,8 +445,8 @@ export function holderRectProfile(prms) {
   const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
   const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
   const z0 = Math.max(toolLen, r, 4);
-  const bl = { x: -hw / 2, z: z0 }, br = { x: hw / 2, z: z0 };
-  return [bl, br, { x: hw / 2, z: z0 + l1 }, { x: -hw / 2, z: z0 + l1 }, { x: bl.x, z: bl.z }];
+  const bl = { x: 0, z: z0 }, br = { x: hw, z: z0 };
+  return [bl, br, { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 }, { x: bl.x, z: bl.z }];
 }
 
 // Vykreslí obrys DRŽÁKU (za destičkou) v hlavním simulačním náhledu — VOLAT

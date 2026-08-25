@@ -41,10 +41,13 @@ describe('holderProfileLoop / holderWorldLoop', () => {
 
   it('světová transformace: +z profilu → +x světa, backside zrcadlí z', () => {
     const w = holderWorldLoop(prms, false);
-    // profil z ∈ [10, 210] → svět x ∈ [10, 210]; profil x ±10 → svět z ±10
+    // profil z ∈ [10, 210] → svět x ∈ [10, 210]; profil x ∈ [0, 20] → svět z ∈ [0, 20].
+    // Náhradní obdélník leží CELÝ na obrobené straně (od 25. 8. 2026) — dřív byl
+    // vystředěný na špičku (±10) a půlkou trčel na neobrobenou stranu, do materiálu.
     expect(Math.min(...w.map(p => p.x))).toBeCloseTo(10, 6);
     expect(Math.max(...w.map(p => p.x))).toBeCloseTo(210, 6);
-    expect(Math.max(...w.map(p => p.z))).toBeCloseTo(10, 6);
+    expect(Math.min(...w.map(p => p.z))).toBeCloseTo(0, 6);
+    expect(Math.max(...w.map(p => p.z))).toBeCloseTo(20, 6);
     const asym = { ...prms, holderProfile: { sideA: [{ x: 1, z: 5 }, { x: 1, z: 50 }], sideB: [{ x: 5, z: 5 }, { x: 5, z: 50 }] } };
     const wr = holderWorldLoop(asym, false);
     const wb = holderWorldLoop(asym, true);

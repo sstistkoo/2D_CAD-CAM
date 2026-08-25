@@ -12,7 +12,7 @@ import { StockModel, polyArea, polyDifference, polyOffset, polySimplify, toolSwe
 import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, quantizeUp, rapidFeedGap, segEndPoint, segStartPoint, stockClearances, topXOnLoop } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
-import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim } from './materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { computeThreadPassCuts, partOffGeom, threadProfileDepth } from './threadHelpers.js';
 import { offsetSilhouetteLoop } from './toolEnvelope.js';
@@ -794,6 +794,48 @@ export function generateAutoGCode(S, calc) {
   // `rapidStock`, tedy na týž vstup, jaký uvidí validátor.
   const holderHitsRapid = (x1, z1, x2, z2) =>
     holderHitsStock([{ x: x1, z: z1 }, { x: x2, z: z2 }]);
+  // Týž obrys, ale BEZ PROSTORU DESTIČKY — pro ŘEZNÉ pohyby. U hrotu se
+  // držák s destičkou překrývá, jenže materiál, který tam je, ŘEŽE DESTIČKA;
+  // hlásit ho jako náraz držáku je falešný poplach (táž dělba jako
+  // `holderCutShrunk` ve validátoru). U čelního odskoku je to nutnost, ne
+  // kosmetika: řezné pohyby průchodu se do modelu zapisují až `noteCutPass`
+  // AŽ PO odskoku, takže bez odečtení destičky by test narazil do drážky,
+  // kterou týž průchod právě vyřízl.
+  let holderCutShrunkRef;
+  const holderCutShrunkLoop = () => {
+    if (holderCutShrunkRef === undefined) {
+      const hl = prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__
+        ? holderWorldLoop(prms, roughingKey(S) === 'backside') : null;
+      let cut = hl;
+      if (hl) {
+        const ins = toolFootprintVisual(prms);
+        if (ins && ins.length >= 3) {
+          try { cut = polyDifference([hl], [ins])[0] || hl; } catch { cut = hl; }
+        }
+      }
+      holderCutShrunkRef = cut ? (polyOffset([cut], -0.05)[0] || cut) : null;
+    }
+    return holderCutShrunkRef;
+  };
+  // Kolik PLÁNOVACÍHO (vůlí-posunutého) zbytku drží držák pod sebou, když
+  // špička stojí na (x, z)? Vrací plochu [mm²], null když se ptát nejde.
+  //
+  // ABSOLUTNÍ číslo z tohohle modelu NEMÁ SMYSL srovnávat s nulou. Plánovací
+  // zbytek se ubírá `toolFootprint` (stadion pro plánování) po ÚSEČCE
+  // průchodu, kdežto skutečně řeže celá destička po skutečné dráze — mezi
+  // vrstvami tak v modelu zůstávají fantomové zbytky, kterých se držák
+  // „dotýká" úplně běžně (zkusmo: práh 0,02 mm² proti nule překlopil na
+  // svislý výjezd VŠECHNY čelní odskoky na pěti fixtures).
+  //
+  // Použitelný je ROZDÍL dvou poloh téhož obrysu nad týmž modelem: fantom je
+  // v obou stejný a vykrátí se.
+  const holderPlanAreaAt = (x, z) => {
+    const h = holderCutShrunkLoop();
+    if (!h || !rapidStockPlan) return null;
+    try {
+      return Math.abs(polyArea(rapidStockPlan.collide([h.map(p => ({ x: x + p.x, z: z + p.z }))])));
+    } catch { return null; }
+  };
   const noteCutPass = (pass) => {
     if (!rapidStock) return;
     const pts = [];
@@ -807,10 +849,27 @@ export function generateAutoGCode(S, calc) {
       push(pass.xEnd, pass.z);
     } else {
       const bodyX = emitBodyX.get(pass) ?? pass.x;
-      if (pass.rampFeedFrom) {
-        push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
-      } else if (pass.ramp) {
-        push(pass.ramp.x0, pass.ramp.z0);
+      // PRŮCHOD S NULOVÝM DNEM (zStart == zEnd) NEMÁ CO PŘEDPOVÍDAT. Zápis
+      // z PLÁNU tu má smysl jen u průchodu, který opravdu jede rampu a za ní
+      // dno: model pak zná odebraný pás dřív, než se rozhodne o navazujícím
+      // rychloposuvu. U degenerovaného průchodu (dno nulové šířky — vzniká
+      // dobráním zbytku menšího než ap) ale žádné dno není a EMISE k němu
+      // najíždí úplně jinudy, než kudy vede plánovaná rampa: na `part-8`
+      // plán tvrdil úsečku (20,12; 193,70) → (17,622; 184,37), kdežto program
+      // přijel od Z 220 a zapíchl se radiálně až dole. Model tím „odebral"
+      // klín, který ve skutečnosti stojí — na Z 189 o 6,13 mm víc, než kolik
+      // dráha ubrala (`tests/cam-residual-model`, mez 0,05 mm).
+      //
+      // Nic se tím neztrácí: skutečně projeté řezy si model zapisuje sám
+      // (`noteCutMove`/`noteCutArc` u každého emitovaného pohybu), takže
+      // degenerovaný průchod je pokrytý tou cestou.
+      const noFloor = Math.abs(pass.zStart - pass.zEnd) < 1e-6;
+      if (!noFloor) {
+        if (pass.rampFeedFrom) {
+          push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
+        } else if (pass.ramp) {
+          push(pass.ramp.x0, pass.ramp.z0);
+        }
       }
       push(bodyX, pass.zStart);
       push(bodyX, pass.zEnd);
@@ -1539,10 +1598,41 @@ export function generateAutoGCode(S, calc) {
           if (p2.xEnd > cur.x + dz * rTan - 0.02) { retractGouges = true; break; }
         }
       }
+      const zRetractVal = clipZGc(clipFaceRetractZ(cur.z + (pass.faceLeft ? -rDistZ : rDistZ), pass));
+      // …a nakonec DRŽÁK. Obě kontroly výš znají jen ŠPIČKU: hotovou konturu
+      // pod diagonálou a zbytek na sousedních čelních rovinách do rDistZ
+      // (tedy 2 mm). Držák je ale v Z přes 20 mm tlustý a radiálně sahá
+      // stovky mm ven, takže stěna, o kterou jde, leží desítky mm daleko —
+      // mimo dosah obojího.
+      //
+      // Mechanismus (nález uživatele 25. 8. 2026, `N4750 G1 X18.641 Z82.932`):
+      // hlídání držáku sesadí hloubku průchodu tak, aby se držák VEŠEL NA
+      // POLOZE PRŮCHODU. Odskok pod 45° pak posune celý držák o rDistZ dál na
+      // obrobenou stranu a jen o rDist ven — u stěny strmější než úhel odskoku
+      // (tady dx/dz ≈ 2,8) tím tu právě vyměřenou rezervu sní. Že to vystřelí,
+      // závisí na tom, kolik rezervy hlídání zrovna nechalo, takže se to chová
+      // nemonotónně: při Virt. zvětšení držáku 0 a 2 mm je to čisté, při 1 mm
+      // se roh držáku otře o 0,09 mm².
+      //
+      // Náprava stojí NULA materiálu: hloubka průchodu zůstává, jen se místo
+      // diagonály vyjede svisle v X — tedy zpátky do vlastní, právě vyříznuté
+      // stopy. Vůči stěně na obrobené straně je svislý výjezd vždy alespoň
+      // tak dobrý jako diagonála (roh držáku jde o rDist ven a v Z nikam).
+      //
+      // Ptá se na PŘÍRŮSTEK, ne na dotyk: kolik zbytku drží držák na konci
+      // odskoku PROTI TOMU, kolik ho držel na poloze průchodu, kterou
+      // hlídání schválilo. Absolutní dotyk je v plánovacím modelu běžný
+      // (fantomy mezi vrstvami, viz `holderPlanAreaAt`), přírůstek ne.
+      // Průchod je v obou souřadnicích monotónní a překážka leží na obrobené
+      // straně, takže nejhorší bod je koncový — stačí porovnat konce.
+      if (!retractGouges && Math.abs(zRetractVal - cur.z) > 1e-6) {
+        const aNow = holderPlanAreaAt(cur.x, cur.z);
+        const aEnd = aNow === null ? null : holderPlanAreaAt(cur.x + rDist, zRetractVal);
+        if (aEnd !== null && aEnd > aNow + 0.02) retractGouges = true;
+      }
       if (retractGouges) {
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
       } else {
-        const zRetractVal = clipZGc(clipFaceRetractZ(cur.z + (pass.faceLeft ? -rDistZ : rDistZ), pass));
         simCounter += 1;
         if (Math.abs(zRetractVal - cur.z) < 1e-6) {
           // Odskok by vyjel z pásu 📐 → svisle v X, zpátky do vlastní stopy.

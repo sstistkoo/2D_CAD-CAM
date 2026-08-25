@@ -42,13 +42,20 @@ describe('spodní hrana držáku (holderBottomProfile)', () => {
     expect(hb.bottomAt(20.5)).toBeNull();       // za dosahem držáku
   });
 
-  it('výchozí obdélníkový držák sedí NAD špičkou a je oboustranný', () => {
-    // Bez vlastního obrysu = obdélník Tloušťka × Délka nad destičkou:
-    // spodní hrana je konstantní (z0), dosah = polovina tloušťky.
+  it('výchozí obdélníkový držák sedí NAD špičkou a CELÝ na obrobené straně', () => {
+    // Bez vlastního obrysu = obdélník Tloušťka × Délka nad destičkou, celý na
+    // OBROBENÉ straně (profil `x ∈ [0, tloušťka]`) — dosah v Z je tedy celá
+    // tloušťka, ne její polovina. Spodní hrana zůstává konstantní (z0).
+    //
+    // Do 25. 8. 2026 byl obdélník vystředěný (`±hw/2`) a půlka trčela na
+    // NEOBROBENOU stranu břitu, přímo do materiálu — čelně to dělalo 12 nálezů
+    // do 195,8 mm² na díl a plánování je ani nevidělo, protože `bottomAt`
+    // prohledává jen `d ≥ 0`. Každý skutečný obrys (nakreslený i všech šest
+    // nožů v DEFAULT_TOOL_MAGAZINE) má `x ∈ [0, 20]`.
     const hb = holderBottomProfile({ holderWidth: 20, holderLength: 100, toolLength: 10, toolRadius: 0.8 });
-    expect(hb.reach).toBeCloseTo(10, 3);
+    expect(hb.reach).toBeCloseTo(20, 3);
     expect(hb.bottomAt(0)).toBeCloseTo(10, 3);
-    expect(hb.bottomAt(9)).toBeCloseTo(10, 3);
+    expect(hb.bottomAt(19)).toBeCloseTo(10, 3);
   });
 
   it('bez držáku vrací null (nehlídá se nic)', () => {

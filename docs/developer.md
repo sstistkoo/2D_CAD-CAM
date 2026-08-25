@@ -529,6 +529,13 @@ zprava, takže se místo druhé implementace překlopí celý svět:
 1. `computeCalculation()` hned na vstupu zrcadlí `z → −z` — konturu,
    polotovar, parametry polotovaru (`stockFace` ↔ `stockLength`) i Z-limity
    (čelisti ↔ koník, rozsah obrábění). Strana se přepne na `'right'`.
+   **Pozor na `|| konstanta` nad rozměry polotovaru:** nula je u obou
+   legitimní hodnota (Čelo v Z 0 je nejběžnější volba a UI ukládá vymazané
+   číselné pole právě jako nulu — `applyParamChange`), a tenhle swap ji navíc
+   přenese z Čela na Délku. `(parseFloat(prms.stockLength) || 100) * -1`
+   v `genLongPasses` takhle plánovalo dráhy 100 mm za koncem materiálu
+   (opraveno 25. 8. 2026, `tests/cam-stock-zero-dimension.test.js`).
+   Chybí-li rozměr u odlitku, autorita je **silueta**, ne konstanta.
    Řetěz bodů se přitom i **obrací** (`mirrorPointChain`): offset úsečky se
    počítá z LEVÉ normály směru jízdy (`getNormal` = `{−dz, dx}`), takže leží
    vně jen u kontury kreslené od pravého čela doleva — a na téže konvenci

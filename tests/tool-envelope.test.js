@@ -78,13 +78,15 @@ describe('makeHolderClamp (integrace parametrů)', () => {
   it('zkrátí průchod před stěnou tak, aby držák nevjel do siluety', () => {
     const clamp = makeHolderClamp(holderPrms, stepOffsetPath);
     expect(clamp).not.toBeNull();
-    // Průchod na x=30 (r30): špička by volně dojela ke stěně, ale držák
-    // (spodek na x=40, z±10) narazí na šikmý přechod: silueta dosahuje
-    // výšky x=40 na z=−48 → levá hrana držáku (z_tip−10) se jí dotkne
-    // při z_tip = −38 → clamp ≈ −37,9 (s rezervou 0,1).
+    // Průchod na x=30 (r30): držák má spodek na x=40 a leží CELÝ na obrobené
+    // straně (z ∈ [z_tip, z_tip+20]) — od 25. 8. 2026, dřív byl vystředěný
+    // (z ± 10). Jeho LEVÁ hrana je proto sama špička, takže o šikmý přechod
+    // zavadí až tam, kde silueta dosahuje výšky x=40, tj. na z = −48
+    // → clamp ≈ −47,9 (s rezervou 0,1). S vystředěným obdélníkem to bylo
+    // −37,9, protože hrana předbíhala špičku o 10 mm.
     const nz = clamp(30, 0, -49);
-    expect(nz).toBeGreaterThan(-38.2);
-    expect(nz).toBeLessThan(-37.5);
+    expect(nz).toBeGreaterThan(-48.2);
+    expect(nz).toBeLessThan(-47.5);
     // Průchod na x=46 (nad vším) → beze změny
     expect(clamp(46, 0, -80)).toBe(-80);
   });

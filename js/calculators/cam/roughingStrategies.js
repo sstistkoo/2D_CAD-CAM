@@ -1264,7 +1264,31 @@ export function genLongPasses(ctx) {
   // Nájezd je rampovaný (G1 pod prms.entryAngle), ne svislý G0 plunge.
   // Pro monotonní tvar (kužel + rovný úsek) vyjde 1 průjezd na hloubku.
 
-  const cylStockZ = (parseFloat(prms.stockLength) || 100) * -1;
+  // LEVÝ KONEC POLOTOVARU — dno pro sledování obrysu (dojezdy schodů, výjezdy
+  // z kapes, cíle ramp). U válce je to −Délka.
+  //
+  // `|| 100` TU BÝT NESMÍ. Nula je u obou rozměrů polotovaru legitimní volba
+  // (Čelo v Z 0 je nejběžnější) a `||` ji spolkne stejně jako prázdné pole,
+  // které UI ukládá právě jako nulu (`applyParamChange` v camSimulator.js).
+  // Hrubování zleva navíc Čelo a Délku PROHODÍ (`mirrorParamsZ`), takže Čelo 0
+  // se v zrcadle stane Délkou 0 → dno spadlo na −100 a dráhy se plánovaly
+  // 100 mm za koncem materiálu. Změřeno na válci Ø60 × 60, Čelo 0, zleva:
+  // 7 průchodů a G-kód až na Z 100, proti 3 průchodům a Z 0,01 při Čele 0,01.
+  //
+  // U ODLITKU rozměry válce neříkají nic — autorita je silueta. Když Délka
+  // chybí, vezme se proto její nejlevější Z, ne konstanta.
+  const cylStockZ = (() => {
+    const len = parseFloat(prms.stockLength);
+    if (Number.isFinite(len) && len !== 0) return -len;
+    if (prms.stockMode === 'casting') {
+      let zMin = Infinity;
+      for (const p of stockWorldPoints || []) {
+        if (Number.isFinite(p.zReal)) zMin = Math.min(zMin, p.zReal);
+      }
+      if (Number.isFinite(zMin)) return zMin;
+    }
+    return 0;
+  })();
   // Konec rozsahu obrábění 📐 je TVRDÉ dno pro KAŽDÝ řezný pohyb, ne jen pro
   // samotný řez vrstvy. Ten drží effZMin (viz níž), ale sledování obrysu
   // (findLeadOutEndZ) i cíl rampy (findRampOutTarget) si za dno braly polotovar
@@ -1327,17 +1351,55 @@ export function genLongPasses(ctx) {
   const clrXPlanL = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x;
   const planTopX = maxStockX + clrXPlanL;
 
+  // ── UZAVŘENÁ SILUETA: záloha pro `stockZRangeAt` níž ───────────────────
+  // Bodový sken v `stockZRangeAt` čte OTEVŘENÝ řetěz siluety a jeho konce
+  // započítá, jen když samy leží NAD hloubkou X. Odlitek nakreslený jako
+  // UZAVŘENÁ smyčka (poslední bod dosedne na osu) tím o svou levou hranici
+  // přijde — a protože se pak vrátí `null`, hloubka se přeskočí CELÁ.
+  //
+  // Změřeno na `part-8` (silueta se v krčku propadá na r 17,9): pro hloubky
+  // 16,978 … 1,978 vyšlo jediné Z (pravé čelo, r 39,94), ačkoli v pásu
+  // Z 258–266 stojí materiál od osy až na r 39,94. Sedm vynechaných hloubek
+  // pak vzal jediný vynucený průchod na `minPartX` — 21,98 mm jedním záběrem
+  // při ap 2,5 — a držák skončil 121,8 mm² v materiálu.
+  let _stockLoopSpanMemo;
+  const stockLoopForSpan = () => {
+    if (_stockLoopSpanMemo === undefined) {
+      try { _stockLoopSpanMemo = buildStockLoopRaw(prms, stockPathSegments); }
+      catch { _stockLoopSpanMemo = null; }
+    }
+    return _stockLoopSpanMemo;
+  };
+  // VŠECHNY průchody uzavřené siluety hloubkou X — táž věc, jakou pro otevřený
+  // řetěz vrací `hIntersect`, jen nad smyčkou (a tedy i přes uzavírací hrany).
+  // KRAJNÍ Z BY NESTAČILA: u siluety, která hloubky X dosáhne ve dvou
+  // oddělených místech, by pás `[zHi, zLo]` přemostil mezeru mezi nimi.
+  const stockCrossingsFromLoop = (X) => {
+    const loop = stockLoopForSpan();
+    if (!loop || loop.length < 3) return null;
+    const zs = [];
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i], b = loop[(i + 1) % loop.length];
+      if ((a.x - X) * (b.x - X) < 0) {
+        zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
+      }
+    }
+    return zs.length >= 2 ? zs : null;
+  };
+
   // Z-rozsah polotovaru na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
-  // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce.
+  // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce,
+  // a když z toho nevyjde použitelný pás, uzavřená smyčka (viz výš).
   // Pro válec: [cylStockZ, stockFace].
   // Vrací { zMax, zMin, all } nebo null pokud na této X polotovar není.
   const stockZRangeAt = (X) => {
     if (prms.stockMode === 'casting') {
-      const zs = hIntersect(stockPathSegments, X, false);
+      let zs = hIntersect(stockPathSegments, X, false);
       const startP = stockWorldPoints[0];
       const endP = stockWorldPoints[stockWorldPoints.length - 1];
       if (startP && startP.xReal > X + 0.01) zs.push(startP.zReal);
       if (endP && endP.xReal > X + 0.01) zs.push(endP.zReal);
+      if (zs.length < 2) zs = stockCrossingsFromLoop(X) || zs;
       if (zs.length < 2) return null;
       zs.sort((a, b) => b - a);
       if (!rangeClipZ) return { zMax: zs[0], zMin: zs[zs.length - 1], all: zs };
@@ -3492,8 +3554,25 @@ export function genLongPasses(ctx) {
       if (surfX !== null && surfX > currentX + 0.05) {
         entryRampAnchor = { x: surfX, z: anchorZ, first: true };
         const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
-        if (zS > effZMin - 0.05) {
-          const passObj = { type: 'long', x: currentX, zStart: zS, zEnd: effZMin, blocked: true };
+        // DNO PRŮCHODU MUSÍ ZASTAVIT KONTURA, ne dno okna. Dokud se sem chodilo
+        // jen tehdy, když pod vjezdem opravdu bylo volno až na `effZMin`,
+        // `zEnd: effZMin` sedělo. Jenže `intervals.length === 0` znamená i
+        // „jediný interval zahodila obálka držáku" — a tam pod rampou kontura
+        // stoupá. Změřeno na part-1 (regionRoughing, hloubka 15,978): rampa
+        // dosedla na Z 194,83 a dno jelo až na Z −10, přestože offset je od
+        // Z 183,98 dolů nad 43 → zajezd 27,2 mm pod hotovní konturu
+        // (`tests/cam-gouge-invariants`; stejná vada na part-2/4/6/9).
+        // Hledá se týmž krokem a týmž `blockedAt`/`refineEngageZ` jako
+        // v `scanIntervals`, takže konec sedí na kontuře přesně jako u
+        // běžného průchodu.
+        let zEndRamp = effZMin;
+        if (!blockedAt(currentX, zS)) {
+          for (let zw = zS - dzScan; zw > effZMin; zw -= dzScan) {
+            if (blockedAt(currentX, zw)) { zEndRamp = refineEngageZ(currentX, zw + dzScan, zw); break; }
+          }
+        } else zEndRamp = zS;   // rampa dosedla rovnou na konturu → žádné dno
+        if (zS > effZMin - 0.05 && zS - zEndRamp > 0.05) {
+          const passObj = { type: 'long', x: currentX, zStart: zS, zEnd: zEndRamp, blocked: true };
           passObj.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
           passObj.entryRangeRamp = true;
           passObj.zStart = zS;
