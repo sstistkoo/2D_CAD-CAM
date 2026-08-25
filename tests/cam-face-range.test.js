@@ -64,11 +64,45 @@ async function runWith(file, { zLimits = {}, xLimits = {}, params = {} } = {}) {
   const facePasses = calc.passes.filter(p => p.type === 'face');
   const opts = { backside: prog.params.roughingSide === 'left' };
   return {
-    facePasses, gcode, prog,
+    facePasses, gcode, prog, calc,
+    finish: calc.finishOffsetPath || [],
     issues: validateToolpath(calcSim.simPath, prog.params, calcSim.stockPathSegments, opts),
     issuesPlan: validateToolpath(calcSim.simPath, prog.params, calcSim.stockPathSegments,
       { ...opts, planStock: true, shrink: 0.25 }),
   };
+}
+
+// Skutečné body na dokončovací dráze. Bounding box oblouku (cx ± r) tu NESTAČÍ:
+// popisuje celou kružnici, ne projetý výsek, takže by hlásil polohy, kudy dráha
+// vůbec nejede — a test by padal na vlastní měřicí chybu.
+function finishExtent(segs) {
+  let zLo = Infinity, zHi = -Infinity, xLo = Infinity, xHi = -Infinity, n = 0, len = 0;
+  for (const s of segs) {
+    if (s.isDegenerate) continue;
+    n++;
+    const pts = [];
+    if (s.type === 'line') {
+      for (let k = 0; k <= 20; k++) {
+        const t = k / 20;
+        pts.push({ x: s.p1.x + (s.p2.x - s.p1.x) * t, z: s.p1.z + (s.p2.z - s.p1.z) * t });
+      }
+      len += Math.hypot(s.p2.x - s.p1.x, s.p2.z - s.p1.z);
+    } else {
+      let a0 = s.startAngle, a1 = s.endAngle;
+      if (s.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+      if (s.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
+      for (let k = 0; k <= 40; k++) {
+        const a = a0 + (a1 - a0) * (k / 40);
+        pts.push({ x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r });
+      }
+      len += Math.abs(a1 - a0) * s.r;
+    }
+    for (const p of pts) {
+      zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z);
+      xLo = Math.min(xLo, p.x); xHi = Math.max(xHi, p.x);
+    }
+  }
+  return { n, len, zLo, zHi, xLo, xHi };
 }
 
 const detail = (iss) => iss.map(i => `${i.kind} @r${i.x.toFixed(2)} Z${i.z.toFixed(1)} = ${i.area.toFixed(1)} mm²`).join('; ');
@@ -131,6 +165,59 @@ describe('čelní hrubování respektuje rozsah obrábění X (📐)', () => {
       expect(band.issuesPlan.length, `${file} (offsetová čára): ${detail(band.issuesPlan)}`).toBe(0);
     }, 120000);
   }
+});
+
+describe('rozsah obrábění ořezává i DOKONČOVACÍ dráhu', () => {
+  // Rozsah není polorovina jako čelisti/koník, ale PÁS: může uříznout oba konce
+  // a nechat kus uprostřed. Ořezává se, nezahazuje — hranice pásu je volba
+  // uživatele („tady končí tenhle úsek“), ne mez dosažitelnosti nástroje.
+  const FIN = [
+    { file: 'part-15-finish-zprava.camprog', strategy: 'longitudinal', band: [100, 200], xBand: [20, 40] },
+    { file: 'part-14-finish-holder.camprog', strategy: 'longitudinal', band: [0, 120], xBand: [20, 40] },
+    { file: 'part-16-face-holder.camprog', strategy: 'face', band: [100, 200], xBand: [20, 40] },
+    { file: 'part-1.camprog', strategy: 'longitudinal', band: [100, 200], xBand: [20, 40] },
+  ];
+  for (const { file, strategy, band: [lo, hi], xBand: [xLo, xHi] } of FIN) {
+    it(`${file} — dokončování zůstane v pásu Z ${lo}…${hi}`, async () => {
+      const p = { roughingStrategy: strategy, doFinishing: true, finishOnly: false };
+      const free = finishExtent((await runWith(file, { params: p })).finish);
+      const band = finishExtent((await runWith(file, {
+        params: p, zLimits: { rangeActive: true, rangeStart: lo, rangeEnd: hi },
+      })).finish);
+
+      expect(free.n, `${file}: bez pásu není co dokončovat — případ nic netestuje`).toBeGreaterThan(0);
+      // Pás musí aspoň z jedné strany do dráhy zasahovat, jinak případ nic neměří.
+      expect(free.zLo < lo - 0.5 || free.zHi > hi + 0.5,
+        `${file}: dokončování (Z ${free.zLo.toFixed(1)}…${free.zHi.toFixed(1)}) leží celé v pásu — případ nic netestuje`).toBe(true);
+      expect(band.n, `${file}: pás smazal dokončování celé`).toBeGreaterThan(0);
+      expect(band.len, `${file}: pás dokončovací dráhu nezkrátil`).toBeLessThan(free.len - 0.5);
+      expect(band.zLo, `${file}: dokončování sahá na Z${band.zLo.toFixed(2)}, tedy pod pás`).toBeGreaterThanOrEqual(lo - 0.02);
+      expect(band.zHi, `${file}: dokončování sahá na Z${band.zHi.toFixed(2)}, tedy nad pás`).toBeLessThanOrEqual(hi + 0.02);
+    }, 120000);
+
+    it(`${file} — dokončování zůstane v pásu X ${xLo}…${xHi}`, async () => {
+      const p = { roughingStrategy: strategy, doFinishing: true, finishOnly: false };
+      const band = finishExtent((await runWith(file, {
+        params: p, xLimits: { active: true, rangeXMin: xLo, rangeXMax: xHi },
+      })).finish);
+      expect(band.n).toBeGreaterThan(0);
+      expect(band.xLo, `${file}: dokončování jde na r${band.xLo.toFixed(2)}, tedy pod pás`).toBeGreaterThanOrEqual(xLo - 0.02);
+      expect(band.xHi, `${file}: dokončování jde na r${band.xHi.toFixed(2)}, tedy nad pás`).toBeLessThanOrEqual(xHi + 0.02);
+    }, 120000);
+  }
+
+  it('ořez dokončování nepřidává kolize (part-16, pás Z 100…200)', async () => {
+    // Měřeno proti stavu BEZ ořezu: kolize, které u některých pásů vyskočí,
+    // pocházejí z hrubování omezeného pásem (materiál zůstane stát vedle),
+    // ne z ořezu dokončování — ten je vůči nim neutrální. Tady je fixture,
+    // kde je i hrubování v pásu čisté, takže se nula dá tvrdit natvrdo.
+    const r = await runWith('part-16-face-holder.camprog', {
+      params: { roughingStrategy: 'face', doFinishing: true, finishOnly: false },
+      zLimits: { rangeActive: true, rangeStart: 100, rangeEnd: 200 },
+    });
+    expect(r.issues.length, `(silueta): ${detail(r.issues)}`).toBe(0);
+    expect(r.issuesPlan.length, `(offsetová čára): ${detail(r.issuesPlan)}`).toBe(0);
+  }, 120000);
 });
 
 describe('rozsah, který díl celý obsáhne, nemění nic', () => {

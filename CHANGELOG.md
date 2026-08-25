@@ -57,6 +57,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – Rozsah obrábění Z i X (📐) ořezává i DOKONČOVACÍ dráhu.** Hrubování
+  pás respektuje (obě strategie), dokončování jelo pořád přes celý díl —
+  a mimo pás tedy po neohrubovaném materiálu. Měřeno na part-15: pás Z 100…200
+  nechal dokončování na Z −1…235, teď je 125,5…166,5.
+
+  Na rozdíl od čelistí a koníku není rozsah polorovina, ale **pás**: může
+  uříznout oba konce, nechat kus uprostřed, nebo z jednoho úseku kontury udělat
+  dva. Nešel proto použít dosavadní ořez (ten jede „všechno za první hranicí“);
+  ořezává se segment po segmentu, oblouky se trimují na výseku (ne zahazují),
+  a nový začátek úseku dostane přejezd.
+
+  **Ořezává se, nezahazuje** — pravidlo „celý, nebo vůbec“ (11. 8. 2026) tu
+  neplatí: to řeší úseky *nedosažitelné pro nástroj*, kde by zkrácení nechalo
+  schod uprostřed hotové plochy. Hranice pásu je proti tomu volba uživatele
+  a hrubování se na ní ořezává úplně stejně.
+
+  Ověřeno proti stavu bez ořezu: **nepřidává to ani jednu kolizi** (shodné počty
+  nálezů na 4 dílech × 4 pásech). Pozor — u některých pásů nálezy jsou, ale
+  pocházejí z hrubování omezeného pásem: vedle zůstane stát materiál a držák do
+  něj najede. Existuje to na HEAD i beze změny (part-14, pás Z 100…200: 6 nálezů;
+  part-1, pás X 20…40: 6 nálezů do 28,9 mm²) a je to samostatná věc k opravě.
+  Nové případy v `tests/cam-face-range.test.js` (na původním kódu padá 8 z 8).
 - **CAM – čelní hrubování ignorovalo Rozsah obrábění Z i X (📐).** Uživatel
   viděl v náhledu čáry „Start / Konec rozsahu“ a dráhy si jich nevšímaly:
   výstup byl se zapnutým i vypnutým rozsahem **bitově stejný** (part-16:

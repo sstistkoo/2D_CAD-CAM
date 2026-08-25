@@ -6,7 +6,7 @@
 // V camSimulator.js zůstává tenký wrapper calculate() → computeCalculation(S).
 
 import { bridge } from '../../bridge.js';
-import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint } from './camMath.js';
+import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
 import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
@@ -716,6 +716,110 @@ export function computeCalculation(S, lightOnly = false) {
     for (const op of operations) {
       const strategy = ROUGHING_STRATEGIES[op.kind] || ROUGHING_STRATEGIES.longitudinal;
       strategy.genPasses(passCtx, op);
+    }
+  }
+
+  // ── Rozsah obrábění Z / X (📐): ořez DOKONČOVACÍ dráhy ────────────────
+  // Díl se obrábí po ÚSECÍCH — hrubování pás respektuje (podélné i čelní),
+  // dokončování jelo pořád přes celý díl. Hrubovací strategie si rozsah
+  // vyzvedávají z `passCtx`, dokončovací dráha vzniká tady, takže se ořezává
+  // tady.
+  //
+  // NA ROZDÍL OD ČELISTÍ/KONÍKU NENÍ ROZSAH POLOROVINA, ALE PÁS: může uříznout
+  // oba konce a nechat kus uprostřed, případně z jednoho segmentu vyrobit dva.
+  // Proto se jde segment po segmentu a hledají se souvislé úseky uvnitř pásu,
+  // ne „všechno za první hranicí" jako u limitů níž.
+  //
+  // OŘEZÁVÁ SE, NEZAHAZUJE. Pravidlo „celý, nebo vůbec" (rozhodnutí uživatele
+  // 11. 8. 2026) tu neplatí: to řeší úseky NEDOSAŽITELNÉ pro nástroj, kde by
+  // zkrácení nechalo schod uprostřed hotové plochy. Hranice pásu je naproti
+  // tomu volba uživatele — „tady končí tenhle úsek, zbytek dodělá jiná
+  // operace" — a hrubování se na ní ořezává úplně stejně.
+  if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
+    const inBand = (p) =>
+      (!machiningRange || (p.z >= machiningRange.zLo - 1e-6 && p.z <= machiningRange.zHi + 1e-6))
+      && (!machiningRangeX || (p.x >= machiningRangeX.xLo - 1e-6 && p.x <= machiningRangeX.xHi + 1e-6));
+    // Rozvinutí oblouku do jízdního směru — táž normalizace jako u segSamplePts.
+    const sweepOf = (s) => {
+      let a0 = s.startAngle, a1 = s.endAngle;
+      if (s.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+      if (s.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
+      return [a0, a1];
+    };
+    const ptOn = (s, t) => {
+      if (s.type === 'line') return { x: s.p1.x + (s.p2.x - s.p1.x) * t, z: s.p1.z + (s.p2.z - s.p1.z) * t };
+      const [a0, a1] = sweepOf(s);
+      const a = a0 + (a1 - a0) * t;
+      return { x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r };
+    };
+    const lenOf = (s) => {
+      if (s.type === 'line') return Math.hypot(s.p2.x - s.p1.x, s.p2.z - s.p1.z);
+      const [a0, a1] = sweepOf(s);
+      return Math.abs(a1 - a0) * s.r;
+    };
+    const clipped = [];
+    let rangeClipped = 0;
+    let rangeBreak = false;   // předchozí kus vypadl → další je samostatný ostrov
+    for (const seg of finishOffsetPath) {
+      if (seg.isDegenerate) { clipped.push(seg); continue; }
+      const L = lenOf(seg);
+      const N = Math.max(8, Math.min(256, Math.ceil(L / 0.25)));
+      const flags = [];
+      let anyIn = false, allIn = true;
+      for (let k = 0; k <= N; k++) {
+        const f = inBand(ptOn(seg, k / N));
+        flags.push(f);
+        if (f) anyIn = true; else allIn = false;
+      }
+      if (allIn) {
+        if (rangeBreak) { seg.chainBreak = true; rangeBreak = false; }
+        clipped.push(seg);
+        continue;
+      }
+      rangeClipped++;
+      if (!anyIn) { rangeBreak = true; continue; }
+      // Přesná hranice v parametru t mezi dvěma vzorky s opačným stavem.
+      const bound = (t0, t1) => {
+        let lo = t0, hi = t1;
+        const s0 = inBand(ptOn(seg, t0));
+        for (let k = 0; k < 24; k++) {
+          const m = (lo + hi) / 2;
+          if (inBand(ptOn(seg, m)) === s0) lo = m; else hi = m;
+        }
+        return (lo + hi) / 2;
+      };
+      const runs = [];
+      let runStart = flags[0] ? 0 : null;
+      for (let k = 1; k <= N; k++) {
+        if (flags[k] === flags[k - 1]) continue;
+        const b = bound((k - 1) / N, k / N);
+        if (flags[k - 1]) { runs.push([runStart, b]); runStart = null; } else runStart = b;
+      }
+      if (runStart !== null) runs.push([runStart, 1]);
+      const keep = runs.filter(([a, b]) => (b - a) * L > 0.05);
+      keep.forEach(([a, b], i) => {
+        const out = { ...seg };
+        if (seg.type === 'line') {
+          out.p1 = ptOn(seg, a);
+          out.p2 = ptOn(seg, b);
+        } else {
+          const [a0, a1] = sweepOf(seg);
+          out.startAngle = a0 + (a1 - a0) * a;
+          out.endAngle = a0 + (a1 - a0) * b;
+          syncArcEndpoints(out);
+          if (seg.refP1 && seg.refP2) { out.refP1 = { ...out.p1 }; out.refP2 = { ...out.p2 }; }
+        }
+        if (a > 1e-6 || i > 0 || rangeBreak || seg.chainBreak) out.chainBreak = true;
+        clipped.push(out);
+      });
+      rangeBreak = keep.length === 0 || !flags[N];
+    }
+    if (rangeClipped > 0) {
+      finishOffsetPath = clipped;
+      foundErrors.push({
+        type: 'warning',
+        msg: `Rozsah obrábění (📐): dokončování ořezáno na zadaný úsek — ${rangeClipped} úsek(ů) zkráceno nebo vynecháno. Zbytek kontury dodělá operace pro sousední úsek.`,
+      });
     }
   }
 
