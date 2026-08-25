@@ -57,6 +57,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – čelní skim nechával na styku mřížek tenkou vrstvu.** Podélné
+  hrubování dostalo 21. 8. opravu, která skim nad nakresleným vrcholem rozdělí
+  **rovnoměrně** tak, aby dosedl přesně na první hloubku hlavní mřížky. Čelní
+  varianta zůstala u pevného kroku od plánovací hrany, takže se obě mřížky
+  o Vůli Z rozešly a mezi nimi zbyl průchod, který skoro nic nevzal:
+
+      part-18, ap 3:  369,932 → 366,932 (3,0) → 365,932 (jen 1,0) → 362,932 (3,0)
+
+  Rovnoměrné dělení dá 2 × 2,0 mm. Naměřené první rozteče:
+
+  | fixture | ap | dřív | teď |
+  |---|---|---|---|
+  | `part-16` / `part-18` / `part-19` | 3 | 1,000 | **2,000** |
+  | `face-cylinder` | 2 | 1,000 | **1,500** |
+  | `face-casting` | 2,5 | 1,000 | **1,750** |
+
+  **Nic to nestojí:** počet vrstev se nemění, jen se posunou — úběr vyšel na
+  všech 25 fixtures na **76 849,6 mm²** před i po, pass counts beze změny.
+  Zapíná se na TÉŽE hranici jako dřív (`SKIM_MIN_LAYER`), takže při Vůli Z
+  menší než desetina *ap* se dál nic nedělí a první vrstva mřížky vezme
+  `ap + zbytek` najednou; při nulové Vůli nevzniká skim vůbec.
+
+  Levá strana neměla mezi fixtures **žádné** zastoupení (všechny čelní jedou
+  zprava) — `tests/cam-face-skim-layer.test.js` ji testuje překlopením strany.
+  Ten test má i poznámku o pasti, na kterou při psaní narazil: harness si
+  Z/X-limity v singletonu `S` **merguje**, takže fixture bez některého klíče
+  podědí hodnotu po předchozím běhu v témže souboru — levá strana kvůli tomu
+  vyšla na 2,5 mm místo 1,75, a izolovaně přitom prošla.
 - **CAM – Čelo polotovaru v Z 0 při hrubování zleva plánovalo dráhy 100 mm za
   materiálem.** Dno pro sledování obrysu (dojezdy schodů, výjezdy z kapes, cíle
   ramp) se v `genLongPasses` bralo z `(parseFloat(prms.stockLength) || 100) * -1`.

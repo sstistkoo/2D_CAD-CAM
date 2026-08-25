@@ -286,12 +286,35 @@ export function genFacePasses(ctx) {
   const clrZPlanF = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z;
   const faceEdgeZ = faceLeft ? marchEndZ : faceStartZ;
   const planEdgeZ = faceEdgeZ + (faceLeft ? -clrZPlanF : clrZPlanF);
+  //
+  // Skim se ROZDĚLÍ ROVNOMĚRNĚ tak, aby dosedl PŘESNĚ na první vrstvu hlavní
+  // mřížky — táž oprava, jakou dostala hloubková posloupnost podélného
+  // hrubování 21. 8. 2026 (`planTopX` v genLongPasses). Dokud skim šel po `ap`
+  // od plánovací hrany, obě mřížky se o Vůli Z rozešly a na jejich styku
+  // zbyla tenká vrstva: part-16/18/19 při ap 3 → 369,932 → 366,932 (3,0)
+  // → 365,932 (jen 1,0), pak už zase 3,0. Rovnoměrné dělení dá 2 × 2,0.
+  //
+  // POČET vrstev se tím nemění, jen se posunou: `nSkim` se zapíná na TÉŽE
+  // hranici, na jaké se dřív zapínal ten jeden skim průchod. Zbytek tenčí než
+  // `SKIM_MIN_LAYER` se NEODDĚLUJE a sebere ho první vrstva mřížky najednou —
+  // vezme `ap + zbytek`, tedy nejvýš 1,1 × ap (viz `SKIM_MIN_LAYER`).
+  const sgnF = faceLeft ? 1 : -1;          // směr marche v ose Z
+  const firstMainZ = faceEdgeZ + sgnF * step;
+  const skimSpan = Math.abs(firstMainZ - planEdgeZ);   // = ap + Vůle Z
+  const nSkim = skimSpan > step * (1 + SKIM_MIN_LAYER)
+    ? Math.ceil(skimSpan / step - 1e-9)
+    : 1;
   const zListAll = [];
+  for (let k = 1; k < nSkim; k++) {
+    const z = planEdgeZ + sgnF * k * (skimSpan / nSkim);
+    // MEZ: vrstva, která by ležela až ZA nakresleným čelem (nastane jen při
+    // Vůli Z > Hloubka záběru), se nepřidává — `castingOuterAtZ` tam obrys
+    // MINE a vrátil by jmenovitý `sRad`, který u odlitku bývá úplně jinde.
+    if (sgnF * (z - faceEdgeZ) >= -0.01) zListAll.push(z);
+  }
   if (!faceLeft) {
-    for (let z = planEdgeZ - step; z > faceEdgeZ - step + SKIM_MIN_LAYER * step; z -= step) if (z <= faceEdgeZ + 0.01) zListAll.push(z);
     for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zListAll.push(z);
   } else {
-    for (let z = planEdgeZ + step; z < faceEdgeZ + step - SKIM_MIN_LAYER * step; z += step) if (z >= faceEdgeZ - 0.01) zListAll.push(z);
     for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zListAll.push(z);
   }
   // ── Rozsah obrábění Z (📐) ─────────────────────────────────────────────
