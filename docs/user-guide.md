@@ -479,12 +479,18 @@ pod dolní mez. Horní mez se čelně vynutit nedá: řez jde radiálně od povr
 k ose, takže materiál nad ní nástroj projede tak jako tak. (Podélně platí obě
 meze, protože tam se dá celá hloubka přeskočit.)
 
-**Dokončování se ořezává taky** — obojím rozsahem, Z i X. Na rozdíl od čelistí
-a koníku není rozsah polorovina, ale **pás**: může uříznout oba konce a nechat
-kus uprostřed, případně jeden úsek kontury rozdělit na dva. Dráha se **zkracuje,
-ne zahazuje** — hranice pásu je tvoje volba („tady končí tenhle úsek“), ne mez
-dosažitelnosti nástroje, takže se tu neuplatní pravidlo *celý, nebo vůbec*.
-Zbytek kontury dodělá operace pro sousední úsek; kolik se ořezalo, hlásí ⚠ panel.
+**Dokončování se ořezává taky** — obojím rozsahem, Z i X. Rozsah je **pás**:
+může uříznout oba konce a nechat kus uprostřed, případně jeden úsek kontury
+rozdělit na dva. Dráha se **zkracuje, ne zahazuje** — hranice pásu je tvoje
+volba („tady končí tenhle úsek“), ne mez dosažitelnosti nástroje, takže se tu
+neuplatní pravidlo *celý, nebo vůbec*. Zbytek kontury dodělá operace pro
+sousední úsek; kolik se ořezalo, hlásí ⚠ panel.
+
+**Čelisti a koník** ořezávají dokončování stejným způsobem — dovolená zóna
+`[čelisti, koník]` je taky pás. Dráha se u limitu **zkrátí a pokračuje dál**,
+včetně oblouku, který hranici přetíná (ten se ořízne na výseku, ne zahodí).
+Když ti po zapnutí koníku zmizí dokončování celé, není to limitem: podívej se,
+jestli vůbec něco z kontury leží uvnitř zóny.
 
 ### Zanořování za odlitkovým hrbem
 Když u odlitku stojí **napravo** od obráběné zóny hrb (velký průměr), do kterého

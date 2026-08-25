@@ -6,7 +6,7 @@
 // V camSimulator.js zůstává tenký wrapper calculate() → computeCalculation(S).
 
 import { bridge } from '../../bridge.js';
-import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, isAngleBetween, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
+import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
 import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
@@ -735,10 +735,18 @@ export function computeCalculation(S, lightOnly = false) {
   // zkrácení nechalo schod uprostřed hotové plochy. Hranice pásu je naproti
   // tomu volba uživatele — „tady končí tenhle úsek, zbytek dodělá jiná
   // operace" — a hrubování se na ní ořezává úplně stejně.
-  if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
-    const inBand = (p) =>
-      (!machiningRange || (p.z >= machiningRange.zLo - 1e-6 && p.z <= machiningRange.zHi + 1e-6))
-      && (!machiningRangeX || (p.x >= machiningRangeX.xLo - 1e-6 && p.x <= machiningRangeX.xHi + 1e-6));
+  //
+  // TÝŽ OŘEZ POUŽÍVAJÍ I ČELISTI S KONÍKEM (viz volání níž) — [chuck, tail] je
+  // taky pás, jen postavený z jiných čísel. Dokud měly vlastní implementaci,
+  // platilo v ní pravidlo „za prvním ořezem už jsme v zakázané zóně", což je
+  // pravda jen pro limit na KONCI jízdy: dokončování jede od velkého Z
+  // k malému, takže koník potká jako PRVNÍ — a smazal celou operaci místo
+  // zkrácení zprava (part-15 + koník Z200: 8 úseků → 0, čelisti Z100 přitom
+  // ořezaly správně na 5). Pásový ořez to řeší z principu: nezná pojem
+  // „za hranicí", jen „uvnitř / venku".
+  const clipFinishBand = (path, { zLo = -Infinity, zHi = Infinity, xLo = -Infinity, xHi = Infinity }) => {
+    const inBand = (p) => p.z >= zLo - 1e-6 && p.z <= zHi + 1e-6
+      && p.x >= xLo - 1e-6 && p.x <= xHi + 1e-6;
     // Rozvinutí oblouku do jízdního směru — táž normalizace jako u segSamplePts.
     const sweepOf = (s) => {
       let a0 = s.startAngle, a1 = s.endAngle;
@@ -757,11 +765,11 @@ export function computeCalculation(S, lightOnly = false) {
       const [a0, a1] = sweepOf(s);
       return Math.abs(a1 - a0) * s.r;
     };
-    const clipped = [];
-    let rangeClipped = 0;
-    let rangeBreak = false;   // předchozí kus vypadl → další je samostatný ostrov
-    for (const seg of finishOffsetPath) {
-      if (seg.isDegenerate) { clipped.push(seg); continue; }
+    const out = [];
+    let trimmed = 0, dropped = 0;
+    let bandBreak = false;   // předchozí kus vypadl → další je samostatný ostrov
+    for (const seg of path) {
+      if (seg.isDegenerate) { out.push(seg); continue; }
       const L = lenOf(seg);
       const N = Math.max(8, Math.min(256, Math.ceil(L / 0.25)));
       const flags = [];
@@ -772,12 +780,12 @@ export function computeCalculation(S, lightOnly = false) {
         if (f) anyIn = true; else allIn = false;
       }
       if (allIn) {
-        if (rangeBreak) { seg.chainBreak = true; rangeBreak = false; }
-        clipped.push(seg);
+        if (bandBreak) { seg.chainBreak = true; bandBreak = false; }
+        out.push(seg);
         continue;
       }
-      rangeClipped++;
-      if (!anyIn) { rangeBreak = true; continue; }
+      if (!anyIn) { dropped++; bandBreak = true; continue; }
+      trimmed++;
       // Přesná hranice v parametru t mezi dvěma vzorky s opačným stavem.
       const bound = (t0, t1) => {
         let lo = t0, hi = t1;
@@ -797,28 +805,39 @@ export function computeCalculation(S, lightOnly = false) {
       }
       if (runStart !== null) runs.push([runStart, 1]);
       const keep = runs.filter(([a, b]) => (b - a) * L > 0.05);
+      if (keep.length === 0) { trimmed--; dropped++; }
       keep.forEach(([a, b], i) => {
-        const out = { ...seg };
+        const seg2 = { ...seg };
         if (seg.type === 'line') {
-          out.p1 = ptOn(seg, a);
-          out.p2 = ptOn(seg, b);
+          seg2.p1 = ptOn(seg, a);
+          seg2.p2 = ptOn(seg, b);
         } else {
           const [a0, a1] = sweepOf(seg);
-          out.startAngle = a0 + (a1 - a0) * a;
-          out.endAngle = a0 + (a1 - a0) * b;
-          syncArcEndpoints(out);
-          if (seg.refP1 && seg.refP2) { out.refP1 = { ...out.p1 }; out.refP2 = { ...out.p2 }; }
+          seg2.startAngle = a0 + (a1 - a0) * a;
+          seg2.endAngle = a0 + (a1 - a0) * b;
+          syncArcEndpoints(seg2);
+          if (seg.refP1 && seg.refP2) { seg2.refP1 = { ...seg2.p1 }; seg2.refP2 = { ...seg2.p2 }; }
         }
-        if (a > 1e-6 || i > 0 || rangeBreak || seg.chainBreak) out.chainBreak = true;
-        clipped.push(out);
+        if (a > 1e-6 || i > 0 || bandBreak || seg.chainBreak) seg2.chainBreak = true;
+        out.push(seg2);
       });
-      rangeBreak = keep.length === 0 || !flags[N];
+      bandBreak = keep.length === 0 || !flags[N];
     }
-    if (rangeClipped > 0) {
-      finishOffsetPath = clipped;
+    return { path: out, trimmed, dropped };
+  };
+
+  if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
+    const res = clipFinishBand(finishOffsetPath, {
+      zLo: machiningRange ? machiningRange.zLo : -Infinity,
+      zHi: machiningRange ? machiningRange.zHi : Infinity,
+      xLo: machiningRangeX ? machiningRangeX.xLo : -Infinity,
+      xHi: machiningRangeX ? machiningRangeX.xHi : Infinity,
+    });
+    if (res.trimmed > 0 || res.dropped > 0) {
+      finishOffsetPath = res.path;
       foundErrors.push({
         type: 'warning',
-        msg: `Rozsah obrábění (📐): dokončování ořezáno na zadaný úsek — ${rangeClipped} úsek(ů) zkráceno nebo vynecháno. Zbytek kontury dodělá operace pro sousední úsek.`,
+        msg: `Rozsah obrábění (📐): dokončování ořezáno na zadaný úsek — ${res.trimmed} úsek(ů) zkráceno, ${res.dropped} vynecháno. Zbytek kontury dodělá operace pro sousední úsek.`,
       });
     }
   }
@@ -836,11 +855,6 @@ export function computeCalculation(S, lightOnly = false) {
   const tailLim  = (zLimits.tailActive  && typeof zLimits.tail  === 'number' && isFinite(zLimits.tail))  ? zLimits.tail  : null;
   if (chuckLim !== null || tailLim !== null) {
     const EPS = 0.05;
-    const zInBounds = (z) => {
-      if (chuckLim !== null && z < chuckLim - 0.0001) return false;
-      if (tailLim  !== null && z > tailLim  + 0.0001) return false;
-      return true;
-    };
     let droppedCount = 0;
     let clampedCount = 0;
     const clamped = [];
@@ -883,51 +897,33 @@ export function computeCalculation(S, lightOnly = false) {
     passes.length = 0;
     for (const p of clamped) passes.push(p);
 
-    // Ořez finishOffsetPath: lineární clip endpointu k limitu, oblouky
-    // překračující limit se zahodí. Vše po prvním ořezu se dropne, aby
-    // dráha nepokračovala do zakázané zóny.
-    let finishDropped = 0;
-    let finishClipped = 0;
-    let pastLimit = false;
-    for (const seg of finishOffsetPath) {
-      if (seg.isDegenerate) continue;
-      if (pastLimit) { seg.isDegenerate = true; finishDropped++; continue; }
-      if (seg.type === 'line') {
-        const inP1 = zInBounds(seg.p1.z);
-        const inP2 = zInBounds(seg.p2.z);
-        if (inP1 && inP2) continue;
-        if (!inP1 && !inP2) { seg.isDegenerate = true; finishDropped++; pastLimit = true; continue; }
-        // Jeden bod uvnitř, druhý venku → clip na limit.
-        const outZ = inP1 ? seg.p2.z : seg.p1.z;
-        const limit = (chuckLim !== null && outZ < chuckLim) ? chuckLim
-                     : (tailLim !== null && outZ > tailLim ? tailLim : null);
-        if (limit === null) { seg.isDegenerate = true; finishDropped++; pastLimit = true; continue; }
-        const dz = seg.p2.z - seg.p1.z;
-        const t = Math.abs(dz) > 1e-9 ? (limit - seg.p1.z) / dz : 0;
-        const tt = Math.max(0, Math.min(1, t));
-        const cx = seg.p1.x + tt * (seg.p2.x - seg.p1.x);
-        if (inP1) {
-          seg.p2 = { x: cx, z: limit };
-        } else {
-          seg.p1 = { x: cx, z: limit };
-        }
-        finishClipped++;
-        pastLimit = true;
-      } else {
-        // Arc: Z-rozsah SKUTEČNÉHO výseku (koncové body + extrém cz±r jen
-        // když úhel extrému leží ve výseku) — bounding box celé kružnice
-        // by u téměř rovných oblouků s velkým R (arc-fit obálky) zahazoval
-        // vše, i když výsek limity vůbec nepřekračuje.
-        const zS = seg.cz + Math.cos(seg.startAngle) * seg.r;
-        const zE = seg.cz + Math.cos(seg.endAngle) * seg.r;
-        let zMin = Math.min(zS, zE), zMax = Math.max(zS, zE);
-        if (isAngleBetween(0, seg.startAngle, seg.endAngle, seg.dir === 'G2')) zMax = seg.cz + seg.r;
-        if (isAngleBetween(Math.PI, seg.startAngle, seg.endAngle, seg.dir === 'G2')) zMin = seg.cz - seg.r;
-        if (!zInBounds(zMin) || !zInBounds(zMax)) {
-          seg.isDegenerate = true; finishDropped++; pastLimit = true;
-        }
-      }
-    }
+    // Ořez finishOffsetPath na dovolený PÁS [chuck, tail] — týž ořez jako
+    // u rozsahu obrábění (clipFinishBand výš). Tady byla vada, kterou opravuje
+    // právě přechod na pásový ořez:
+    //
+    // Dřív se na PRVNÍM ořezaném segmentu zvedl příznak „pastLimit" a všechno
+    // za ním se zahodilo, ať byl na vině kterýkoli z limitů. To dává smysl jen
+    // pro limit na KONCI jízdy: dokončování jede od velkého Z k malému, takže
+    // ČELISTI (levý konec) potká naposled — a ty se ořezávaly správně. KONÍK
+    // (pravý konec) ale dráha potká hned na začátku, takže se zahodila CELÁ.
+    // Změřeno na part-15 (dokončování Z −1,3…235,0):
+    //   koník Z200        → 0 úseků  (správně 5, zkrácené na Z ≤ 200)
+    //   čelisti Z100      → 5 úseků, Z 125,5…235,0  ✓
+    //   čelisti 100 + koník 200 → 0 úseků
+    // Uživatel přitom dostal jen obecné „dokončování ořezáno", takže zmizení
+    // celé operace vypadalo jako normální ořez.
+    //
+    // Pásový ořez pojem „za hranicí" vůbec nezná — ptá se jen „uvnitř, nebo
+    // venku?" — takže na pořadí limitů ani na směru jízdy nezáleží. Navíc
+    // oblouk na hranici TRIMUJE místo zahození (dřív padl celý, i když z něj
+    // uvnitř zůstávala většina).
+    const finLim = clipFinishBand(finishOffsetPath, {
+      zLo: chuckLim !== null ? chuckLim : -Infinity,
+      zHi: tailLim !== null ? tailLim : Infinity,
+    });
+    const finishClipped = finLim.trimmed;
+    const finishDropped = finLim.dropped;
+    if (finishClipped > 0 || finishDropped > 0) finishOffsetPath = finLim.path;
     if (droppedCount > 0 || clampedCount > 0 || finishDropped > 0 || finishClipped > 0) {
       const parts = [];
       if (clampedCount > 0) parts.push(`${clampedCount} hrubovacích zkráceno`);

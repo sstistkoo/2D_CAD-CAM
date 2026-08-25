@@ -57,6 +57,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **Testy – plošný invariant kolizí hlídal jiným nástrojem, než jakým se řezalo.**
+  `cam-collision-free` předával validátoru `prog.params` (syrový obsah `.camprog`),
+  kdežto pipeline běžela nad `S.params` (chybějící klíče doplněné výchozími).
+  Devět z dvaceti čtyř fixtures nemá v `.camprog` `holderWidth` ani `holderLength`,
+  takže `holderProfileLoop` vrátila `null` a **kontrola držáku u nich tiše nedělala
+  nic**. Invariant „žádná fixture, žádná kolize“ tedy u třetiny dílů neplatil —
+  jen to nebylo vidět. Postižené: `part-1/2/4/6/8/9`, `pocket-wall-at-plunge-angle`,
+  `face-casting`, `face-cylinder`.
+
+  Harness (`tests/helpers/camHeadless.mjs`) teď vrací `params` — kopii sady, se
+  kterou se opravdu generovalo — a test validuje ji.
+
+  **Druhá polovina téhož: `S` je singleton, takže fixture dědila každý klíč,
+  který sama neuvádí, od té PŘEDCHOZÍ.** Soubory se berou abecedně, takže
+  `part-19-face-tilted-insert` nastavil nakreslený `holderProfile` a
+  `part-2/4/6/8` ho pak zdědily, ačkoli žádný držák nemají. Výsledek závisel na
+  pořadí a aplikace se tak nikdy nechová (tam je vždy plná sada). Dřív se takhle
+  bodově izoloval jen `booleanRoughing`; teď se před každým během slije celá
+  výchozí sada. Následkem se přepsalo 35 snapshotů u sedmi dílů — ty staré
+  zamrazily G-kód vyrobený nástrojem, který fixture nedeklaruje.
+
+  Co pod tím leželo: `face-casting` a `face-cylinder` mají **12 nálezů do
+  195,8 mm²**. Příčina je jedna a je doložená — náhradní obdélníkový držák je
+  vystředěný na špičku (`x ∈ [−hw/2, +hw/2]`), takže půlka trčí na neobrobenou
+  stranu břitu; každý skutečný obrys (nakreslený i všech šest nožů
+  v `DEFAULT_TOOL_MAGAZINE`) má `x ∈ [0, hw]`. Posunutí téhož obdélníku na jednu
+  stranu srazí u obou dílů nálezy z 12 na 0. Zatím jsou proto v `EXPECTED`
+  s naměřenými čísly; oprava čeká na to, až se doplní hlídání vjezdů do
+  nevyhrubovaného polotovaru (`buildObstacleLoops` staví překážku z hotového
+  dílu, takže je z principu nevidí — na `part-8` je to 103,9 mm²).
+- **CAM – aktivní koník uvnitř dílu mazal CELÉ dokončování.** Ořez dokončovací
+  dráhy na `[čelisti, koník]` zvedal na PRVNÍM ořezaném segmentu příznak
+  „pastLimit“ a všechno za ním zahodil — ať už byl na vině kterýkoli z limitů.
+  To dává smysl jen pro limit na KONCI jízdy: dokončování jede od velkého Z
+  k malému, takže čelisti (levý konec) potká naposled, kdežto koník hned na
+  začátku. Naměřeno na part-15 (bez limitů Z 0,0…235,0):
+
+  | limity | před | po |
+  |---|---|---|
+  | koník Z200 | **0 úseků** | 7 úseků, Z 0,0…166,5 |
+  | koník Z120 | **0 úseků** | 3 úseky, Z 0,0…67,1 |
+  | čelisti Z100 | 5 úseků ✓ | 5 úseků ✓ |
+  | čelisti 100 + koník 200 | **0 úseků** | 4 úseky, Z 125,5…166,5 |
+
+  Na part-14 to shodilo dokončování i u samotných čelistí (0 místo 8): segment,
+  který se nedal ořezat „čistě“, strhl zbytek s sebou. Uživatel přitom dostal
+  jen obecné *„Z-limity: dokončování ořezáno“*, takže zmizení celé operace
+  vypadalo jako normální ořez.
+
+  Opraveno přechodem na PÁSOVÝ ořez, sdílený s rozsahem obrábění (`clipFinishBand`
+  — zápis níž): `[čelisti, koník]` je taky pás, jen z jiných čísel. Pásový ořez
+  pojem „za hranicí“ nezná, ptá se jen „uvnitř, nebo venku?“, takže na pořadí
+  limitů ani na směru jízdy nezáleží. Navíc oblouk na hranici TRIMUJE místo
+  zahození (dřív padl celý, i když z něj uvnitř zůstávala většina).
+
+  Ověřeno proti stavu před opravou: **nepřidává to ani jednu kolizi** — počty
+  nálezů jsou v každé z 20 měřených konfigurací shodné. Nálezy, které u limitů
+  jsou, pocházejí z hrubování ořezaného limity (materiál zůstane stát vedle),
+  ne z dokončování. `tests/cam-finish-limits.test.js` (na původním kódu padá
+  6 z 9 případů).
 - **CAM – Rozsah obrábění Z i X (📐) ořezává i DOKONČOVACÍ dráhu.** Hrubování
   pás respektuje (obě strategie), dokončování jelo pořád přes celý díl —
   a mimo pás tedy po neohrubovaném materiálu. Měřeno na part-15: pás Z 100…200

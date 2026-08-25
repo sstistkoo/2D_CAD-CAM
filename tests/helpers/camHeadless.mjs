@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
+import { _defaultCamParams } from '../../js/calculators/cam/camDefaults.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..', '..');
@@ -150,7 +151,16 @@ export async function runCamProg(prog) {
   const { S, calculate, generateAutoGCode } = await loadCam();
   // reset relevantního stavu (S je singleton napříč voláními)
   S.manualGCode = '';
-  Object.assign(S.params, prog.params);
+  // RESET NA VÝCHOZÍ, TEPRVE POTOM FIXTURE. `S` je singleton sdílený napříč
+  // voláními, takže bez resetu fixture ZDĚDÍ každý klíč, který sama neuvádí,
+  // od té předchozí — a protože se soubory berou abecedně, závisel výsledek
+  // na pořadí. Konkrétně: `part-19-face-tilted-insert` nastaví nakreslený
+  // `holderProfile` a `part-2/4/6/8` ho pak zdědily, ačkoli v `.camprog`
+  // žádný držák nemají. Aplikace se takhle nikdy nechová (tam je vždy plná
+  // sada), takže testy měřily stav, který uživatel nemá jak vyrobit.
+  // Dřív se takhle bodově izoloval jen `booleanRoughing`; tohle je totéž
+  // pravidlo pro VŠECHNY klíče.
+  Object.assign(S.params, _defaultCamParams(), prog.params);
   // Izolace experimentálních příznaků, které některé testy přepínají: fixtures
   // je v params nemají, takže by v singletonu S prosákla hodnota z předchozího
   // .camprog v témž workeru (booleanRoughing → jiná hrubovací cesta → falešný
@@ -183,7 +193,17 @@ export async function runCamProg(prog) {
   const calcSim = calculate();
   const errorsSim = (S.errors || []).slice();
   S.manualGCode = '';
-  return { calc, calcSim, gcode, errors, errorsSim, S };
+  // PARAMETRY, SE KTERÝMI SE OPRAVDU GENEROVALO. Fixture nemusí uvádět
+  // všechny klíče — `Object.assign(S.params, prog.params)` výš je slévá do
+  // sdíleného `S`, takže chybějící doplní VÝCHOZÍ hodnoty (držák 20 × 200 mm,
+  // vůle, …). Kdo pak dráhy kontroluje, musí použít tuhle sadu, ne
+  // `prog.params`: s neúplnou sadou vidí jiný nástroj, než jakým se řezalo.
+  // Konkrétně `holderProfileLoop` vrátí bez `holderWidth`/`holderLength`
+  // rovnou `null` a kontrola držáku pak tiše nedělá NIC — 9 z 24 fixtures
+  // takhle jelo bez hlídání držáku (nález 25. 8. 2026).
+  // Kopie, ne odkaz: `S` je singleton a další volání `runCamProg` ho přepíše.
+  const params = { ...S.params };
+  return { calc, calcSim, gcode, errors, errorsSim, params, S };
 }
 
 /** Načte .camprog ze souboru a spustí pipeline. */
