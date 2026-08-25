@@ -468,6 +468,17 @@ kolizí i model úběru pracují s neořezanou geometrií, takže nástroj do ma
 za hranicí rozsahu nenarazí (typicky se kvůli němu posune start zanoření — viz
 níž).
 
+**U čelního hrubování vybírá rozsah Z přímo VRSTVY** — marchuje se v ose Z,
+takže je to přesný protějšek toho, jak rozsah X vybírá hloubky v podélném
+hrubování. Krajní vrstva pásu odskakuje **svisle v ose X** místo obvyklé
+diagonály: za hranicí pásu tahle operace neobrábí, takže tam materiál pořád
+stojí a diagonální odskok by do něj zajel.
+
+**Rozsah obrábění X** drží u čelního hrubování **dno řezu** — nástroj nesjede
+pod dolní mez. Horní mez se čelně vynutit nedá: řez jde radiálně od povrchu
+k ose, takže materiál nad ní nástroj projede tak jako tak. (Podélně platí obě
+meze, protože tam se dá celá hloubka přeskočit.)
+
 ### Zanořování za odlitkovým hrbem
 Když u odlitku stojí **napravo** od obráběné zóny hrb (velký průměr), do kterého
 se v této operaci nezajíždí, nedá se na menší průměry vjet od jeho povrchu —

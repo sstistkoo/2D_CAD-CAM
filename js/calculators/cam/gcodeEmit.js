@@ -407,6 +407,16 @@ export function generateAutoGCode(S, calc) {
     if (gcChuckZ !== null && v < gcChuckZ) v = gcChuckZ;
     return v;
   };
+  // Mez pro ODSKOK čelního průchodu (`pass.retractCapZ`, viz genFacePasses).
+  // Vrstva na kraji pásu 📐 odskakuje 45° k obrobené straně, jenže tam v téhle
+  // operaci nikdo neobrábí — materiál stojí v plné výšce a diagonála do něj
+  // zajede. Mez smí nastavit jen strategie: ta jediná ví, jestli rozsah
+  // marchovací mřížku vůbec ořízl. Bez meze (mřížka celá) se nic nemění.
+  const clipFaceRetractZ = (z, pass) => {
+    const cap = pass.retractCapZ;
+    if (typeof cap !== 'number' || !isFinite(cap)) return z;
+    return pass.faceLeft ? Math.max(z, cap) : Math.min(z, cap);
+  };
 
   // ── Bezpečné rychloposuvy ──
   // Sledujeme reálnou polohu nástroje (X = rádius) a každý přejezd G0
@@ -1510,8 +1520,16 @@ export function generateAutoGCode(S, calc) {
       if (retractGouges) {
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
       } else {
-        const zRetractVal = clipZGc(cur.z + (pass.faceLeft ? -rDistZ : rDistZ));
-        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        const zRetractVal = clipZGc(clipFaceRetractZ(cur.z + (pass.faceLeft ? -rDistZ : rDistZ), pass));
+        simCounter += 1;
+        if (Math.abs(zRetractVal - cur.z) < 1e-6) {
+          // Odskok by vyjel z pásu 📐 → svisle v X, zpátky do vlastní stopy.
+          addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (hranice rozsahu)')}`, simCounter);
+          setPos(cur.x + rDist, cur.z);
+        } else {
+          addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter);
+          setPos(cur.x + rDist, zRetractVal);
+        }
       }
     }
     // Fáze 4: průchod je odsimulovaný — odebrat jeho materiál z modelu,

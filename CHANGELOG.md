@@ -57,6 +57,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – čelní hrubování ignorovalo Rozsah obrábění Z i X (📐).** Uživatel
+  viděl v náhledu čáry „Start / Konec rozsahu“ a dráhy si jich nevšímaly:
+  výstup byl se zapnutým i vypnutým rozsahem **bitově stejný** (part-16:
+  112 průchodů, Z −9,1…366,9, ať byl pás 250–320, 100–150, nebo X 20–40).
+  `genFacePasses` si `machiningRange` ani `machiningRangeX` z kontextu vůbec
+  nevyzvedlo — `calculatePipeline` je do `passCtx` předává, ale četl je jen
+  `genLongPasses`. Čelisti a koník fungovaly, protože ty se aplikují až
+  dodatečně na hotové pole průchodů.
+
+  Rozsah **Z** teď vybírá VRSTVY (marchovací osa čelního hrubování je Z —
+  přesný protějšek toho, jak rozsah X vybírá hloubky v podélném hrubování).
+  Rozsah **X** drží dno řezu (`xEnd ≥ xLo`).
+
+  Tři věci, které z toho vypadly jako změřená rozhodnutí, ne jako volba:
+
+  - **Horní mez rozsahu X se čelně vynutit nedá** a nepokoušíme se o to.
+    Podélně jde hloubku přeskočit (řez jede v konstantním X), čelně ne — řez
+    jde radiálně od povrchu. Vynechávat vrstvy, jejichž řez celý leží nad
+    pásem, bylo zkoušeno a zamítnuto: nechá uprostřed dílu stát neobrobené
+    plátky a nos je při nájezdu ořízne (part-18 s R8: 11,8 mm² kolize
+    rychloposuvu na `N2810 G0 X46.450`, kde bez toho byla nula).
+  - **Krajní vrstva pásu odskakuje svisle v X**, ne 45° k obrobené straně:
+    za pásem tahle operace neobrábí, takže materiál tam stojí v plné výšce
+    a diagonála do něj zajede (face-cylinder, pás Z 10…30: odskok na Z32
+    a navazující výjezd 5,7 mm² skrz polotovar). Mez je krajní VRSTVA, ne
+    hranice pásu — mřížka na hranici většinou nesedí a mezi poslední vrstvou
+    a hranicí zůstává neobrobený proužek (pás 25…45: vrstvy končí na Z44,
+    na Z45 stojí polotovar, 2,8 mm²). Nasadí se jen tam, kde rozsah mřížku
+    opravdu ořízl, takže rozsah přes celý díl dává bitově týž G-kód.
+  - **Hlídání držáku vidí dál CELOU marchovací mřížku** (`zListAll`), protože
+    za hranicí pásu stojí polotovar v plné výšce. Hlídání destičky
+    („nikdy hlouběji než předchozí vrstva“) naopak čte jen pás: popisuje
+    schodiště, které vyrábí tahle operace, a se syrovým povrchem za hranicí
+    jako „hotovou vrstvou“ se pás s natočenou destičkou skoro celý zahodil
+    (part-19, pás 300–360 → 0 průchodů; face-casting → 0 v každém pásu).
+    Táž dělba jako u podélného hrubování: rozsah ořezává PLÁNOVÁNÍ, kolize
+    se hlídají proti celému polotovaru.
+
+  Ověřeno validátorem na 25 kombinacích díl × pás (zprava i zleva): nula
+  nálezů proti nakreslené siluetě i proti offsetové čáře. Nový plošný test
+  `tests/cam-face-range.test.js` (na původním kódu padá 9 z 10 případů).
 - **CAM – jednostranné zvětšení držáku srazilo jeho spodní hranu.** Zápis
   o něm níž slibuje, že *„spodní šikmá hrana se pod svým úhlem prodlouží"* —
   implementace ji ale POSUNULA (zametení obrysu ve směru `+z`). Posunutá hrana

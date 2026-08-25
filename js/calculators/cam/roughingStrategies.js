@@ -83,7 +83,7 @@ function clipLeadOutToDepth(segs, maxX) {
 
 // ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře).
 export function genFacePasses(ctx) {
-  const { prms, sRad, stockFace, step, offsetPath, stockPathSegments, stockWorldPoints, worldPoints, passes, foundErrors, traceOffsetPath, offsetXAt } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockPathSegments, stockWorldPoints, worldPoints, passes, foundErrors, traceOffsetPath, offsetXAt, machiningRange, machiningRangeX } = ctx;
   // ── ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře) ──
   // Pro každou hloubku Z od (stockFace − step) po marchEndZ:
   //   1. xStart = stockOuter + rapidClr (= rapid-bezpečná X nad povrchem)
@@ -286,13 +286,58 @@ export function genFacePasses(ctx) {
   const clrZPlanF = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z;
   const faceEdgeZ = faceLeft ? marchEndZ : faceStartZ;
   const planEdgeZ = faceEdgeZ + (faceLeft ? -clrZPlanF : clrZPlanF);
-  const zList = [];
+  const zListAll = [];
   if (!faceLeft) {
-    for (let z = planEdgeZ - step; z > faceEdgeZ - step + SKIM_MIN_LAYER * step; z -= step) if (z <= faceEdgeZ + 0.01) zList.push(z);
-    for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zList.push(z);
+    for (let z = planEdgeZ - step; z > faceEdgeZ - step + SKIM_MIN_LAYER * step; z -= step) if (z <= faceEdgeZ + 0.01) zListAll.push(z);
+    for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zListAll.push(z);
   } else {
-    for (let z = planEdgeZ + step; z < faceEdgeZ + step - SKIM_MIN_LAYER * step; z += step) if (z >= faceEdgeZ - 0.01) zList.push(z);
-    for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zList.push(z);
+    for (let z = planEdgeZ + step; z < faceEdgeZ + step - SKIM_MIN_LAYER * step; z += step) if (z >= faceEdgeZ - 0.01) zListAll.push(z);
+    for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zListAll.push(z);
+  }
+  // ── Rozsah obrábění Z (📐) ─────────────────────────────────────────────
+  // Marchovací osa čelního hrubování je Z, takže rozsah tady vybírá VRSTVY —
+  // přesně tak, jak rozsah X vybírá hloubky v podélném hrubování. Díl se
+  // obrábí po úsecích: co je mimo pás, dělá tahle operace vzduchem.
+  //
+  // DVĚ MŘÍŽKY: `zList` = co tahle operace obrábí, `zListAll` = celá marche
+  // od kraje polotovaru. Dělba mezi nimi kopíruje pravidlo podélného
+  // hrubování (docs/user-guide.md § Obrábění po úsecích) — rozsah ořezává
+  // PLÁNOVÁNÍ, kolize se hlídají proti celému polotovaru:
+  //   • generování průchodů a doběh úseků → `zList` (jen pás),
+  //   • hlídání DRŽÁKU (`holderGuardFace`) → `zListAll`, protože za hranicí
+  //     pásu stojí polotovar v plné výšce a spodek držáku do něj zajede
+  //     úplně stejně jako do pásu bez průchodu.
+  // `enforceLayerDepth` (hrana destičky nesmí pod předchozí vrstvu) čte
+  // naopak `zList`: popisuje SCHODIŠTĚ, které vyrábí tahle operace, a se
+  // syrovým povrchem za hranicí pásu jako „hotovou vrstvou" se pás
+  // s natočenou destičkou skoro celý zahodil (změřeno: part-19 pás 300–360
+  // → 0 průchodů, pás 250–320 → 7 místo 9; face-casting → 0 průchodů
+  // v každém pásu). Že je to bezpečné, drží validátor: všech 25 měřených
+  // kombinací dílu × pásu jede na nulu proti syrové siluetě i offsetové čáře.
+  const zList = machiningRange
+    ? zListAll.filter(z => z >= machiningRange.zLo - 0.005 && z <= machiningRange.zHi + 0.005)
+    : zListAll;
+  if (machiningRange && zList.length === 0 && zListAll.length > 0)
+    foundErrors.push({ type: 'warning', msg: `Rozsah obrábění Z (${machiningRange.zLo}–${machiningRange.zHi} mm): žádná vrstva čelního hrubování neleží v zadaném intervalu — dráhy nebyly generovány.` });
+  // MEZ ODSKOKU NA KRAJI PÁSU. Krajní vrstva odskakuje 45° k obrobené straně,
+  // jenže za pásem tahle operace neobrábí — materiál tam stojí v plné výšce
+  // a diagonála do něj zajede (změřeno na face-cylinder, pás Z 10…30: odskok
+  // na Z32 a navazující výjezd 5,7 mm² skrz polotovar).
+  //
+  // Mez je KRAJNÍ VRSTVA, ne hranice pásu: mřížka na hranici většinou nesedí,
+  // takže mezi poslední vrstvou a hranicí zůstává neobrobený proužek (pás
+  // 25…45: vrstvy končí na Z44, na Z45 stojí polotovar — 2,8 mm²). Za krajní
+  // vrstvu se odskok nesmí, protože dál nástroj v téhle operaci nebyl.
+  //
+  // Mez se nasadí JEN když rozsah opravdu ořízl mřížku na obrobené straně.
+  // Rozsah, který díl celý obsáhne (typicky uložený s výkresem), tím pádem
+  // nic nemění — jinak by se svislým výjezdem přepsal každý čelní snapshot.
+  let faceRetractCapZ = null;
+  if (machiningRange && zList.length > 0) {
+    let edge = zList[0];
+    for (const z of zList) edge = faceLeft ? Math.min(edge, z) : Math.max(edge, z);
+    const clippedOnCutSide = zListAll.some(z => faceLeft ? z < edge - 1e-6 : z > edge + 1e-6);
+    if (clippedOnCutSide) faceRetractCapZ = edge;
   }
   // Marchování začíná na marchStartZ (reference pro clamp leadOutu — zachováno
   // pro L/R symetrii, ale clamp byl odstraněn: první průchod smí také dojíždět
@@ -378,12 +423,34 @@ export function genFacePasses(ctx) {
         xEndBlocked = true;
       } else continue;
     }
+    // ── Rozsah obrábění X (📐) ────────────────────────────────────────
+    // Řezná osa čelního průchodu je X, takže rozsah tady ořezává HLOUBKU:
+    // pod dolní mez se nejede, `xEnd` se zvedne na `xLo`. Zvednutí `xEnd` je
+    // táž operace, jakou dělá hlídání držáku i destičky níž, takže se s nimi
+    // skládá bez pořadové závislosti.
+    //
+    // HORNÍ MEZ SE ČELNĚ VYNUTIT NEDÁ a nepokoušíme se o to. Podélně jde
+    // hloubku prostě přeskočit (řez jede v konstantním X), čelně ne — řez jde
+    // RADIÁLNĚ od povrchu, takže materiál nad horní mezí nástroj projede tak
+    // jako tak. Zkoušeno a ZAMÍTNUTO: vynechat vrstvy, jejichž řez celý leží
+    // nad pásem (`xEnd >= xHi`), nechá uprostřed dílu stát neobrobené plátky
+    // a nos je při nájezdu ořízne — na part-18 (R8) přesně 11,8 mm² kolize
+    // rychloposuvu na `N2810 G0 X46.450`, kde bez toho byla nula.
+    let rangeXClamped = false;
+    if (machiningRangeX && xEnd < machiningRangeX.xLo - 1e-9) {
+      xEnd = machiningRangeX.xLo;
+      xEndBlocked = true;
+      rangeXClamped = true;
+    }
     const xStartLocal = rapidStartXAt(currentZ, xSurface, faceLeft ? 1 : -1);
     if (xEnd >= xTouch - 0.01) continue;   // nos se polotovaru nedotkne = řez vzduchem
     const pass = { type: 'face', z: currentZ, xStart: xStartLocal, xSurface, xEnd, blocked: xEndBlocked };
     if (faceLeft) pass.faceLeft = true;
+    if (faceRetractCapZ !== null) pass.retractCapZ = faceRetractCapZ;
     passes.push(pass);
-    if (prms.noStepRoughing && prms.noStepRoughingFace && xEndBlocked) {
+    // Dojezd „bez schodků" jde po KONTUŘE, a ta leží pod dolní mezí rozsahu X —
+    // u zkráceného průchodu by tedy sjel přesně tam, kam se nesmí. Vynechat.
+    if (prms.noStepRoughing && prms.noStepRoughingFace && xEndBlocked && !rangeXClamped) {
       // Schod se dojíždí OPAČNĚ než march, k předchozímu (mělčímu) průchodu:
       //   zprava → DOPRAVA (+Z), zleva → DOLEVA (−Z). Ta strana je už obrobená,
       //   takže se jen sloupne hřebínek; opačně by se zajelo do polotovaru.
@@ -740,6 +807,10 @@ export function genFacePasses(ctx) {
     const insReachRO = insertReachZ(prms, faceLeft);
     const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
     const add = [];
+    // Mřížka je tu ta OŘEZANÁ rozsahem (`zList`, ne `zListAll`): doběh přidává
+    // vrstvu ZA poslední průchod úseku, takže s celou mřížkou by na hranici
+    // rozsahu 📐 vyrobil vrstvu mimo pás. Konec pásu tím doběh nedostane —
+    // stejně jako ho nedostává konec marche (smyčka končí na předposledním).
     for (let i = 0; i < zList.length - 1; i++) {
       const p = byZ.get(zList[i].toFixed(3));
       if (!p || p.runOut) continue;                       // řetězit doběh na doběh ne
@@ -961,7 +1032,7 @@ export function genFacePasses(ctx) {
       // takovým pásem (reálný nález: 30 mm neobrobené stěny, 91 mm² kolize).
       {
         const have = new Set(faceArr.map(p => p.z.toFixed(3)));
-        for (const z of zList) {
+        for (const z of zListAll) {
           if (have.has(z.toFixed(3))) continue;
           const zB = z + dirM * step;
           stair.push({ zLo: Math.min(z, zB), zHi: Math.max(z, zB), raw: true });

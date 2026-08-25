@@ -129,6 +129,7 @@ export function mirrorPass(pass) {
   if (typeof pass.zStart === 'number') out.zStart = -pass.zStart;
   if (typeof pass.zEnd === 'number') out.zEnd = -pass.zEnd;
   if (typeof pass.z === 'number') { out.z = -pass.z; out.faceLeft = true; }   // čelní průchod
+  if (typeof pass.retractCapZ === 'number') out.retractCapZ = -pass.retractCapZ;   // mez odskoku na kraji pásu 📐
   if (pass.ramp) out.ramp = { ...pass.ramp, z0: -pass.ramp.z0 };
   if (pass.rampFeedFrom) out.rampFeedFrom = { ...pass.rampFeedFrom, z: -pass.rampFeedFrom.z };
   if (pass.contourLeadIn) out.contourLeadIn = mirrorTraceSegs(pass.contourLeadIn);
