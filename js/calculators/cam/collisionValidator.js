@@ -22,7 +22,7 @@
 // ruční AABB test.
 
 import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
-import { buildStockLoopRaw, stockPlanLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
+import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 
 /**
  * Virtuální zvětšení držáku [mm na každou stranu] — o kolik se nafoukne
@@ -322,7 +322,34 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
 
   // PLNÝ obrys odebírá materiál, ZÚŽENÝ testuje dotyk — táž dělba jako
   // v emisi (viz toolFootprintSlim v materialRemoval.js).
-  const foot = toolFootprint(prms);
+  //
+  // ODEBÍRÁ SE SKUTEČNÝM OBRYSEM DESTIČKY, ne plánovacím stadionem.
+  // `toolFootprint` je aproximace pro PLÁNOVÁNÍ (rádius nosu + rovné tělo do
+  // výšky 2×ap); u nekluaté destičky proto po odebrání zůstávaly rádiusy
+  // i tam, kde reálně řeže rovná hrana — viz hlavička `toolFootprintVisual`.
+  // Validátor ale nic neplánuje, jen HLÁSÍ, takže si tu nepřesnost dovolit
+  // nemůže: fantomový materiál v modelu se pak vydává za náraz DRŽÁKU do
+  // něčeho, co destička ve skutečnosti odvezla. Změřeno 25. 8. 2026 na
+  // dílech s aktivním omezením (tam vzniká nejvíc stojícího materiálu):
+  //
+  //   part-15 + koník Z200        74 nálezů / 2073,7 mm²  →  39 / 1381,7
+  //   part-1  + rozsah X 20…40    32 / 36,3               →  15 / 18,9
+  //   part-15 + čelisti Z100      13 / 199,4              →  13 / 97,3
+  //   part-15 + rozsah Z 150…240   3 / 39,0               →   2 / 7,8
+  //
+  // Tedy zhruba polovina hlášení byl stín modelu, ne dráha. Bez omezení
+  // (dnešní fixtures) vycházejí obě varianty na nulu, takže se plošný
+  // invariant nemění.
+  //
+  // Směr je bezpečný: přesnější obrys odebere VÍC, takže hlášení může jen
+  // ubýt, nikdy přibýt. A je konzistentní s tím, co se testuje — během řezu
+  // je prostor, kterým destička projela, z definice prázdný; hlídá se
+  // výhradně držák (`holderCutShrunk` níž má destičku odečtenou).
+  //
+  // POZOR, do PLÁNOVÁNÍ tenhle obrys pořád nepatří (viz tamtéž): tam by jen
+  // vyrobil hlášení, která plánovač neumí obejít, dokud `rapidStopX` neumí
+  // spodní hranu destičky.
+  const foot = toolFootprintVisual(prms);
   const footShrunk = toolFootprintSlim(prms, shrink);
   const holderRaw = holderWorldLoop(prms, !!opts.backside);
   const holderShrunk = holderRaw ? (polyOffset([holderRaw], -shrink)[0] || holderRaw) : null;

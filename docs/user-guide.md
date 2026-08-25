@@ -463,10 +463,34 @@ z vrchu polotovaru **uvnitř** rozsahu a vjezdy míří na povrch, který tam
 skutečně je. Díl si tak můžeš rozdělit na úseky a každý odhrubovat zvlášť
 stejnou logikou — hotová část vedle už do plánování nemluví.
 
-**Kolize se hlídají dál proti celému polotovaru.** Obálka držáku, validátor
-kolizí i model úběru pracují s neořezanou geometrií, takže nástroj do materiálu
-za hranicí rozsahu nenarazí (typicky se kvůli němu posune start zanoření — viz
-níž).
+> ⚠ **Za hranicí rozsahu si držák musíš pohlídat sám.** Dřív tu stálo, že
+> nástroj do materiálu za hranicí nenarazí — **to není pravda** a bylo to
+> ověřeno měřením (25. 8. 2026).
+>
+> Jak to je: **validátor kolizí (⛔ panel) i model úběru** pracují s celým,
+> neořezaným polotovarem, takže náraz **uvidíš**. **Obálka držáku, která dráhy
+> plánuje, ale ne** — ta si překážku staví z *hotového dílu*, takže materiál,
+> který tahle operace za hranicí záměrně nechává stát, pro ni neexistuje.
+> Generátor se mu proto nevyhne.
+>
+> Naměřené příklady (držák 20 mm za špičkou): `part-14` s pásem Z 100–200 vjede
+> do materiálu pod dolní hranicí **401 mm²** (rampa z hranice dolů), s rozsahem
+> X 20–40 je to **222 mm²**, se zapnutými čelistmi Z=100 **60 mm²**.
+>
+> **Co s tím prakticky:**
+> - Úseky obráběj v **pořadí, kdy sousední úsek na obrobené straně už je hotový**
+>   — pravým nožem tedy zprava doleva. Držák míří za špičku k obrobené straně,
+>   takže tam pak žádný materiál nestojí a hlášení je bezpředmětné.
+> - **Po každé změně rozsahu se podívej do ⛔ panelu.** Ten měří proti celému
+>   polotovaru a nálezy u hranice pásu jsou skutečné, pokud sousední úsek ještě
+>   není odebraný.
+> - **Rozsah X** je na tohle nejcitlivější: k poloměrům uvnitř pásu se nástroj
+>   nedostane jinak než držákem skrz materiál nad horní mezí. Bez předchozí
+>   operace, která ho odebere, ten pás fyzikálně nedává smysl.
+>
+> Zkoušená oprava (přidat materiál za pásem do obálky držáku) je **změřená
+> a zamítnutá**: jeden díl spravila (401 → 5 mm²), dva jiné rozbila
+> (0 → 213 mm²) a úběrem házela o ±30 %. Detaily v CHANGELOGu.
 
 **U čelního hrubování vybírá rozsah Z přímo VRSTVY** — marchuje se v ose Z,
 takže je to přesný protějšek toho, jak rozsah X vybírá hloubky v podélném

@@ -57,6 +57,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Fixed
+- **CAM – ⛔ validátor hlásil kolize se stínem vlastního modelu.** Zbytkový
+  polotovar si ubíral `toolFootprint` — *plánovací* aproximací destičky
+  (rádius nosu + rovné tělo do výšky 2×ap). U nekulaté destičky po ní v modelu
+  zůstávaly rádiusy i tam, kde reálně řeže rovná hrana (je to popsané přímo
+  v hlavičce `toolFootprintVisual`), a držák pak „narážel“ do materiálu, který
+  destička ve skutečnosti odvezla.
+
+  Validátor ale nic neplánuje, jen hlásí — tuhle nepřesnost si dovolit nemůže.
+  Odebírá se teď **skutečným obrysem destičky** (`toolFootprintVisual`).
+  Změřeno na dílech s aktivním omezením (tam vzniká nejvíc stojícího materiálu):
+
+  | případ | před | po |
+  |---|---|---|
+  | part-15 + koník Z200 | 74 nálezů / 2073,7 mm² | 39 / 1381,7 |
+  | part-1 + rozsah X 20–40 | 32 / 36,3 | 15 / 18,9 |
+  | part-15 + čelisti Z100 | 13 / 199,4 | 13 / 97,3 |
+  | part-15 + rozsah Z 150–240 | 3 / 39,0 | 2 / 7,8 |
+
+  Zhruba **polovina hlášení byl stín modelu, ne dráha.** Směr je bezpečný:
+  přesnější obrys odebere víc, takže hlášení může jen ubýt, nikdy přibýt — bez
+  omezení vycházejí obě varianty na nulu, takže se plošný invariant nemění.
+  Do **plánování** ten obrys pořád nepatří (viz tamtéž): tam by jen vyrobil
+  hlášení, která plánovač neumí obejít, dokud `rapidStopX` neumí spodní hranu
+  destičky.
+- **Dokumentace – příručka slibovala u rozsahu 📐 něco, co se nekoná.** Stálo
+  tam, že *„nástroj do materiálu za hranicí rozsahu nenarazí“*. Není to pravda:
+  ⛔ validátor i model úběru s celým polotovarem opravdu pracují, ale **obálka
+  držáku, podle které se dráhy plánují, ne** — ta si překážku staví z hotového
+  dílu, takže materiál, který operace za hranicí záměrně nechává stát, pro ni
+  neexistuje. Naměřeno: `part-14` s pásem Z 100–200 vjede držákem 401 mm² pod
+  dolní hranici, rozsah X 20–40 dá 222 mm², čelisti Z=100 dá 60 mm².
+
+  Sekce *Obrábění po úsecích* teď popisuje skutečný stav i to, co s tím dělat
+  (obrábět úseky v pořadí, kdy je sousední úsek na obrobené straně už hotový,
+  a po změně rozsahu se dívat do ⛔ panelu).
+
+  **Oprava byla zkoušena a zamítnuta:** přidat materiál za pásem do překážky
+  `makeHolderClamp` spraví `part-14` (401,7 → 4,8 mm²), ale `part-15` s pásem
+  Z 100–200 rozbije (0 → 213,3 mm²) a s pásem Z 0–120 taky (1,2 → 10,8);
+  úběr přitom skáče o ±30 % (part-14 1120,9 → 714,7, part-15 460,6 → 687,6).
+  Větší překážka totiž mění, které intervaly přežijí, a zanořování si pak najde
+  jiné vjezdy. Bez order-aware modelu zbytku to nejde spravit lokálně.
+- **CAM – zdvih při návratu v kapse jel rychloposuvem skrz její stěnu.** Při
+  `pocketReposition` se nástroj zvedá po úrovních vrstev, dokud není volný
+  *přejezd v ose Z*. Sám **zdvih** na tu výšku se ale netestoval proti ničemu —
+  a to je vlastní stěna kapsy: po odskoku o „Odskok“ v ní nástroj pořád stojí.
+
+  Při hloubce záběru uložené ve fixture zdvih náhodou vycházel do vzduchu, takže
+  to vypadalo čistě. **Stačilo `ap` zmenšit na polovinu** a šest z dvaceti čtyř
+  dílů začalo generovat rychloposuv stojícím materiálem:
+
+  | díl | ap | nález |
+  |---|---|---|
+  | part-4 · part-6 · part-9 | 2 → 1 | 3,0 mm² |
+  | pocket-wall-at-plunge-angle | 2 → 1 | 1,8 mm² |
+  | part-15-finish-zprava | 5 → 2,5 | 1,8 mm² *(jiné místo)* |
+  | range-end-leadout | 5 → 2,5 | 2,5 mm² *(jiné místo)* |
+
+  Důkaz (part-4, ap 1): `N2580 G1 X33.977 Z42.434` je odskok 45°, pořád v kapse,
+  a hned za ním `N2590 G0 X39.977` jel skrz stěnu. Nálezy přežily i zmenšení
+  nástroje o 0,5 mm, takže to nebyl drift modelu.
+
+  Opraveno zrcadlem `emitDescendX` — novým `emitLiftX`: když zdvih na zbytek
+  naráží, jede se posuvem až nad jeho povrch a teprve zbytek rychloposuvem.
+  Týž kód teď obsluhuje i „Výjezd nad konturu“ v `safeRapidTo`, kde tahle logika
+  už byla (jen zvlášť). Při výchozím `ap` se změnil **jediný řádek** (part-8,
+  rozdělený zdvih) a úběr je identický. Vedlejším ziskem zmizely obě `rapid`
+  kolize (4,1 a 2,1 mm²) i na part-8 s nakresleným nožem.
+
+  `tests/cam-pocket-lift.test.js` (na původním kódu padá 5 ze 6 případů) hlídá
+  i třetinové a pětinové `ap`, ne jen půlku.
+
+  **Poslední dva díly zůstávají a je to jiná příčina:** ne zdvih v kapse, ale
+  sjezd na hloubku průchodu (`G0 X…` po „Výjezd nad konturu“), který emise
+  vlastním modelem zbytku neuvidí — ta si ho vede po *plánované* geometrii
+  průchodů, kdežto validátor po skutečně vygenerované dráze. Nálezy 1,8 a
+  2,5 mm² mizí při zmenšení nástroje o 0,5 mm, tedy přesně na hranici toho
+  rozdílu; srovnat oba modely je samostatná práce.
 - **Testy – plošný invariant kolizí hlídal jiným nástrojem, než jakým se řezalo.**
   `cam-collision-free` předával validátoru `prog.params` (syrový obsah `.camprog`),
   kdežto pipeline běžela nad `S.params` (chybějící klíče doplněné výchozími).

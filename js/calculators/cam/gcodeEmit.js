@@ -903,6 +903,34 @@ export function generateAutoGCode(S, calc) {
       emit(`G0 X${xDia(tx)}`);
     }
   };
+  // ZDVIH v ose X (radiálně ven) z `fromX` na `toX` na Z = `z` — ZRCADLO
+  // `emitDescendX`. Svislý výjezd předpokládá nad nástrojem vzduch, jenže
+  // u odlitku může vést stojící kůrou: materiál nad nástrojem se ještě
+  // neobrobil (order-dependent). Když zdvih na zbytek naráží, jede se POSUVEM
+  // až nad jeho povrch (+ vůle) a teprve zbytek rychloposuvem. Endpoint se
+  // nemění — mění se jen JAK se k němu dojede.
+  //
+  // `rapidNote` = popiska čistě rychloposuvové varianty; volající, kteří ji
+  // dosud nepsali, předají prázdnou (jinak by se přepsaly snapshoty jen kvůli
+  // komentáři). `feedThroughStock=false` = zdvih nechat rychloposuvem i přes
+  // zbytek (čelní přejezdy, kde je dotyk sousedního Z inherentní šířkou nosu).
+  const emitLiftX = (fromX, toX, z, { feedThroughStock = true, rapidNote = '' } = {}) => {
+    if (!(toX > fromX + 1e-6)) return;
+    const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+    const surf = feedThroughStock && rapidStock && rapidHitsStock(fromX, z, toX, z)
+      ? residualTopXAtZ(z) : null;
+    if (surf !== null && surf > fromX + 1e-6) {
+      const feedTop = Math.min(toX, surf + rapidStopX);
+      emit(`G1 X${xDia(feedTop)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+      if (toX > feedTop + 1e-6) emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
+    } else if (surf !== null) {
+      // Zbytek zdvih protíná, ale povrch na tomto Z je neznámý/pod nástrojem
+      // → celý zdvih konzervativně posuvem (feed vzduchem je jen pomalý).
+      emit(`G1 X${xDia(toX)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+    } else {
+      emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
+    }
+  };
   // touch = true: cíl leží na kontuře/materiálu — poslední úsek sjezdu
   // (Vůle nad polotovarem) se jede pracovním posuvem, ne rychloposuvem.
   // forceUp = vždy vyjet NAD polotovar, přejet v Z a teprve najet (nikdy
@@ -955,21 +983,7 @@ export function generateAutoGCode(S, calc) {
       // POSUVEM až nad povrch zbytku (+ vůle), teprve pak zbytek rychloposuvem
       // vzduchem. Endpoint (xUp) i následný přejezd v Z beze změny — mění se jen
       // JAK se k xUp dojede (posuv místo rapidu skrz materiál).
-      if (xUp > cur.x + 1e-6) {
-        const surf = feedThroughStock && rapidStock && rapidHitsStock(cur.x, cur.z, xUp, cur.z)
-          ? residualTopXAtZ(cur.z) : null;
-        if (surf !== null && surf > cur.x + 1e-6) {
-          const feedTop = Math.min(xUp, surf + rapidStopX);
-          emit(`G1 X${xDia(feedTop)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
-          if (xUp > feedTop + 1e-6) emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
-        } else if (surf !== null) {
-          // Zbytek zdvih protíná, ale povrch na tomto Z je neznámý/pod nástrojem
-          // → celý zdvih konzervativně posuvem (feed vzduchem je jen pomalý).
-          emit(`G1 X${xDia(xUp)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
-        } else {
-          emit(`G0 X${xDia(xUp)}${note('', 'Výjezd nad konturu')}`);
-        }
-      }
+      emitLiftX(cur.x, xUp, cur.z, { feedThroughStock, rapidNote: 'Výjezd nad konturu' });
       if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
       // Fáze 4: čistě-Z přejezd, který se musel kvůli materiálu zvednout, se
       // NESMÍ sjet zpět na původní X — to X je přes tento Z právě to nebezpečné
@@ -1053,7 +1067,15 @@ export function generateAutoGCode(S, calc) {
           while (travX < capX - 1e-6 && rapidHitsStock(travX, cur.z, travX, tgt.z)) {
             travX = Math.min(capX, travX + Math.max(stepGc, rDist));
           }
-          if (travX > cur.x + 1e-6) { simCounter += 1; addN(`G0 X${xDia(travX)}`, simCounter); setPos(travX, cur.z); }
+          // Smyčka výš hledá, jak VYSOKO se zvednout, aby byl volný PŘEJEZD
+          // V Z. Sám ZDVIH na tu výšku se ale netestoval, a to je vlastní
+          // stěna kapsy: nástroj po odskoku pořád stojí v ní. Změřeno na
+          // `part-4` s ap 1 mm — `N2590 G0 X39.977` hned po odskoku
+          // `G1 X33.977 Z42.434` jel 1,8 mm² skrz stěnu (a s ap 2 ne, takže
+          // to vypadalo jako čisté). Zdvih proto přes `emitLiftX`, stejně
+          // jako výjezd nad konturu v `safeRapidTo`.
+          emitLiftX(cur.x, travX, cur.z);
+          if (travX > cur.x + 1e-6) setPos(travX, cur.z);
         }
         if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
         // Sjezd zpátky na pokračování rampy: poslední kousek (Vůle nad
