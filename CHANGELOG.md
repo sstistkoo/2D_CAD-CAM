@@ -56,7 +56,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nedala udržet"; to je záměr, jinak by nešlo poznat, jestli se nastavení
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
+### Measured and rejected
+- **CAM – rozšířit obálku držáku i na KAPSY (zanoření) je změřeně špatný obchod.**
+  Zbytek nálezu 09 (hlídání zná jen hotový díl, ne syrový zbytek) se projeví
+  jedině s NAKRESLENÝM nožem, a jen na `part-8`: 4 nálezy / 33,4 mm², všechny
+  na jednom průchodu — hlubokém vjezdu do úzké drážky (`#24`, r 17,649, rampa
+  na Z 184,5, pak sledování kontury přes celý díl).
+
+  Příčina je lokalizovaná: se skutečným nožem obálka **smaže mezilehlé
+  průchody** (r 26,978 a 24,478 v pásu Z 188–219, které s náhradním obdélníkem
+  vzniknou), ale **hluboký vjezd nechá projít** — kapsy `applyHolderClamp`
+  vědomě neořezává. Rameno na r 20–31 / Z 183–189 proto stojí a držák do něj
+  vjede tělem 0–4,4 mm za špičkou.
+
+  Doplnění obálky i na kapsy bylo změřeno na všech 25 fixtures:
+
+  | | úběr | kolize |
+  |---|---|---|
+  | dnes, nakreslený nůž | 76 663,8 mm² | 4 / 33,4 mm² |
+  | + clamp kapes | 72 471,3 mm² | 3 / 6,3 mm² |
+  | dnes, náhradní držák | 76 849,6 mm² | 2 / 2,3 mm² |
+  | + clamp kapes | 72 741,5 mm² | **3 / 3,0 mm²** |
+
+  Tedy **−4 192 mm² (−5,5 %) úběru za −27 mm² kolize**, a s náhradním držákem
+  dokonce o JEDEN NÁLEZ VÍC při téže ztrátě. Celou cenu přitom nese pravidlo
+  „zahoď interval se zakázaným startem" — samotné zkracování hlubokého konce
+  nestojí nic a nic nepřinese (obě varianty vyšly na tentýž řádek).
+
+  Zbytek nálezu 09 tedy **nejde spravit zpřísněním statické obálky**. Chce to
+  model zbytku, který zná POŘADÍ obrábění: obálka se staví z hotového dílu
+  (`buildObstacleLoops` = silueta offsetu ∩ polotovar), takže o materiálu,
+  který v tu chvíli ještě stojí, neví nic. Stav hlídá
+  `tests/cam-stock-span-depths.test.js` (part-8 s nožem z magazínu, max < 20 mm²).
+
 ### Fixed
+- **CAM – odstup rychloposuvu v Z posouval i DRŽÁK, takže nájezd narazil 20 mm
+  za špičkou.** Rychloposuv se před nájezdem zastaví `rapidStopZ` (Vůle + R)
+  před hranou materiálu, aby sjezd v X proběhl ve vzduchu. Tím se ale o tentýž
+  kus posune na neobrobenou stranu **celý držák**, a ten je v Z přes 20 mm
+  dlouhý: průchod, který se svou vlastní polohou vejde, narazí tělem o 20 mm
+  dál.
+
+  Změřeno na `range-end-leadout` při ap 2,5 — držák **2,47 mm²** v materiálu na
+  Z 103,8–105,2 už **staticky** na cíli (16,881; 85,268), kdežto na vlastním
+  `firstCutZ` 83,468 nula. Na `part-15-finish-zprava` totéž, 1,78 mm².
+
+  Že je kolize **polohová, ne trasová**, je i důvod, proč to vypadalo jako
+  neřešitelné: `safeRapidTo` ji pozná (`holderHitsRapid`), ale odpoví jediným,
+  co umí — zdvihem nad konturu. Ten s polohovou kolizí nehne, takže vznikla
+  zbytečná dvojice „nahoru na X68 a hned zpátky dolů" a sjezd do ní vjel
+  stejně (`emitDescendX` držák netestuje — a testovat by ho tam nemělo smysl,
+  kolizi držáku nejde vyřešit tím, že se pojede pomaleji).
+
+  Odstup se proto **zkrátí**, dokud se držák nevejde, nejvýš na `firstCutZ` —
+  tam, kde stejně bude tělo průchodu. Nájezd tím nikdy nepostaví držák nikam,
+  kam průchod sám nejde. Když ani na `firstCutZ` místo není, nemá zkracování
+  co získat a odstup zůstává.
+
+      dřív:  N1920 G0 Z85.268                        ← odstup 1,8 mm
+             N1930 G0 X68.046 ; Výjezd nad konturu   ← marný zdvih …
+             N1940 G0 X16.881                        ← … a sjezd do téže kolize
+      teď:   N1920 G0 Z84.368                        ← odstup 0,9 mm
+             N1930 G0 X16.881
+
+  **Cena nula, program je i kratší:** při výchozím ap se nezměnil ani řádek
+  (všech 51 snapshotů prošlo bez přepsání) a úběr zůstal na 76 849,6 mm².
+  Tím padly poslední dva díly nálezu *„poloviční ap vyráběl rychloposuv
+  materiálem"* — `tests/cam-pocket-lift.test.js` je teď hlídá spolu se
+  zbylými čtyřmi.
+
+  POZNÁMKA K DIAGNÓZE: první hypotéza zněla „rozdíl dvou modelů zbytku" (emise
+  po plánované geometrii × validátor po skutečné dráze) a **byla mylná** —
+  model emise tam říká přesně totéž co syrový polotovar (na Z 85,268 oba
+  r 15,58) a nález nebyl destička, ale držák. Že měl `kind: 'rapid'`, mate:
+  u rychloposuvu se hlásí `Math.max` z destičky a držáku pod jedním jménem.
 - **CAM – čelní skim nechával na styku mřížek tenkou vrstvu.** Podélné
   hrubování dostalo 21. 8. opravu, která skim nad nakresleným vrcholem rozdělí
   **rovnoměrně** tak, aby dosedl přesně na první hloubku hlavní mřížky. Čelní

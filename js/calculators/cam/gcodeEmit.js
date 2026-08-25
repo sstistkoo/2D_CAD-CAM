@@ -1403,7 +1403,40 @@ export function generateAutoGCode(S, calc) {
       // nástroj odjížděl desítky mm za dílem (reálný nález na díle uživatele).
       while (emitSegs.length > 0 && emitSegs[emitSegs.length - 1].kind === 'G0') emitSegs.pop();
       const bodyEndZ = emitSegs.length > 0 ? emitSegs[emitSegs.length - 1].z : firstCutZ;
-      const zApproachVal = clipZGc(firstCutZ - zDir * rapidStopZ);
+      let zApproachVal = clipZGc(firstCutZ - zDir * rapidStopZ);
+      // ODSTUP V Z POSOUVÁ I DRŽÁK. Rychloposuv se zastaví `rapidStopZ` před
+      // hranou materiálu, aby sjezd v X proběhl ve vzduchu — jenže tím se
+      // o tentýž kus posune na NEOBROBENOU stranu celý držák, a ten je v Z
+      // přes 20 mm dlouhý. Průchod, který se svou vlastní polohou vejde, tak
+      // může na odstupu narazit tělem o 20 mm dál: změřeno na
+      // `range-end-leadout` při ap 2,5 — sjezd `G0 X16.881` na Z 85,268 dal
+      // 2,48 mm² držáku v materiálu na Z 103,8–105,2, kdežto na vlastním
+      // `firstCutZ` 83,468 je čistý.
+      //
+      // ZDVIH NAD KONTURU TOMU NEPOMŮŽE: kolize je POLOHOVÁ, ne trasová —
+      // držák drží týchž 2,47 mm² i staticky na cíli, ať se k němu přijede
+      // odkudkoli. `safeRapidTo` ji sice pozná (`holderHitsRapid`), ale
+      // odpoví jediným, co umí: zdvihem. Vznikne zbytečná dvojice „nahoru na
+      // X68 a hned zpátky dolů" a následný sjezd do ní vjede stejně
+      // (`emitDescendX` držák netestuje — a testovat by ho tam nemělo smysl,
+      // protože kolizi držáku nejde vyřešit tím, že se pojede pomaleji).
+      //
+      // Odstup se proto ZKRÁTÍ tak daleko, aby se držák vešel — nejvýš na
+      // `firstCutZ`, tedy tam, kde stejně bude tělo průchodu. Nájezd tím
+      // nikdy nepostaví držák nikam, kam průchod sám nejde. Když ani na
+      // `firstCutZ` místo není, nemá zkracování co získat a odstup zůstává.
+      if (cur.x - pass.x > 1e-6 && Math.abs(zApproachVal - firstCutZ) > 1e-6) {
+        const holderAt = (z) => holderHitsStock([{ x: cur.x, z }, { x: pass.x, z }]);
+        if (holderAt(zApproachVal) && !holderAt(firstCutZ)) {
+          const full = zApproachVal - firstCutZ;
+          let shortened = firstCutZ;
+          for (let k = 3; k >= 1; k--) {
+            const zTry = clipZGc(firstCutZ + full * k / 4);
+            if (!holderAt(zTry)) { shortened = zTry; break; }
+          }
+          zApproachVal = shortened;
+        }
+      }
       // Přejezd v Z nad začátek polotovaru + sjezd v X (s kontrolou kolize —
       // po zanoření do kapsy může nástroj stát hluboko, přímý přejezd by řízl stěnu).
       safeRapidTo(cur.x, zApproachVal);

@@ -23,12 +23,24 @@
 // Opraveno zrcadlem `emitDescendX` — `emitLiftX`: když zdvih na zbytek naráží,
 // jede se posuvem až nad jeho povrch a teprve zbytek rychloposuvem.
 //
-// POSLEDNÍ DVA DÍLY ZŮSTÁVAJÍ a je to jiná příčina: tam nejde o zdvih v kapse,
-// ale o sjezd na hloubku průchodu (`G0 X…` po „Výjezd nad konturu"), který
-// emise vlastním modelem zbytku neuvidí — ta si ho vede po PLÁNOVANÉ geometrii
-// průchodů, kdežto validátor po skutečně vygenerované dráze. Nálezy 1,8 a
-// 2,5 mm² mizí při zmenšení nástroje o 0,5 mm, tedy přesně na hranici toho
-// rozdílu. Srovnat oba modely je samostatná práce, ne dolaďování prahu.
+// POSLEDNÍ DVA DÍLY měly JINOU PŘÍČINU (dohledáno a opraveno 25. 8. 2026) —
+// a nebyl to rozdíl obou modelů zbytku, jak to zprvu vypadalo. Model emise
+// tam říká přesně totéž co syrový polotovar (na Z 85,268 oba r 15,58); vadila
+// DÉLKA ODSTUPU V Z.
+//
+// Rychloposuv se zastaví `rapidStopZ` před hranou materiálu, aby sjezd v X
+// proběhl ve vzduchu. Tím se ale o tentýž kus posune na neobrobenou stranu
+// celý DRŽÁK, a ten je v Z přes 20 mm dlouhý: průchod, který se svou vlastní
+// polohou vejde, narazí tělem o 20 mm dál. Změřeno na `range-end-leadout`,
+// ap 2,5 — držák 2,47 mm² v materiálu na Z 103,8–105,2 STATICKY na cíli
+// (16,881; 85,268), kdežto na vlastním `firstCutZ` 83,468 nula.
+//
+// Že to bylo POLOHOVÉ, ne trasové, je i důvod, proč to vypadalo jako slepá
+// ulička: `safeRapidTo` kolizi pozná, ale odpoví jediným, co umí — zdvihem
+// nad konturu. Ten s polohovou kolizí nehne, takže vznikla zbytečná dvojice
+// „nahoru na X68 a hned zpátky dolů" a sjezd do ní vjel stejně. Náprava je
+// zkrátit odstup, dokud se držák nevejde, nejvýš na `firstCutZ` — tam, kde
+// stejně bude tělo průchodu.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -57,7 +69,8 @@ async function runAtAp(file, divisor) {
 const detail = (iss) => iss.map(i => `${i.kind} @r${i.x.toFixed(2)} Z${i.z.toFixed(1)} = ${i.area.toFixed(1)} mm²`).join('; ');
 
 describe('poloviční hloubka záběru nevyrobí rychloposuv materiálem', () => {
-  for (const file of ['part-4.camprog', 'part-6.camprog', 'part-9.camprog', 'pocket-wall-at-plunge-angle.camprog']) {
+  for (const file of ['part-4.camprog', 'part-6.camprog', 'part-9.camprog', 'pocket-wall-at-plunge-angle.camprog',
+    'part-15-finish-zprava.camprog', 'range-end-leadout.camprog']) {
     it(`${file} — ap/2 jede čistě`, async () => {
       const half = await runAtAp(file, 2);
       expect(half.passes, 'poloviční ap nevygeneroval žádné průchody').toBeGreaterThan(0);
@@ -72,6 +85,23 @@ describe('poloviční hloubka záběru nevyrobí rychloposuv materiálem', () =>
       expect(r.issues.length, `part-4 (ap ${r.ap}): ${detail(r.issues)}`).toBe(0);
     }
   }, 180000);
+
+  it('odstup v Z se zkrátí, když se na něm nevejde držák (range-end-leadout)', async () => {
+    // Přímý otisk druhé opravy. Před ní vypadal nájezd 28. průchodu takhle:
+    //   N1920 G0 Z85.268                        ← odstup 1,8 mm
+    //   N1930 G0 X68.046 ; Výjezd nad konturu   ← marný zdvih …
+    //   N1940 G0 X16.881                        ← … a sjezd do téže kolize
+    // Po opravě je odstup 0,9 mm a zdvih zmizel, protože kolize zmizela s ním:
+    //   N1920 G0 Z84.368
+    //   N1930 G0 X16.881
+    const r = await runAtAp('range-end-leadout.camprog', 2);
+    const L = r.gcode.split('\n');
+    const i = L.findIndex(l => l.trim() === '; Průchod 28 (bez schodků)');
+    expect(i, 'průchod 28 se nenašel — fixture nebo číslování se změnily').toBeGreaterThan(0);
+    expect(L[i + 1]).toContain('Z84.368');
+    expect(L[i + 2].trim()).toBe('N1930 G0 X16.881');
+    expect(L[i + 3]).toContain('G1 Z83.468');
+  }, 120000);
 
   it('zdvih v kapse vyjíždí z materiálu posuvem, ne rychloposuvem (part-8)', async () => {
     // Přímý otisk opravy: na part-8 se dva zdvihy v kapse změnily z `G0`
