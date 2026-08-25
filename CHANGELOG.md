@@ -89,6 +89,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   který v tu chvíli ještě stojí, neví nic. Stav hlídá
   `tests/cam-stock-span-depths.test.js` (part-8 s nožem z magazínu, max < 20 mm²).
 
+  **Plán, jak na to, je v repu:** `docs/cam-order-aware-holder.md` — 6 kroků
+  s vlastními akceptačními čísly, změřeným rozpočtem (rebuild obálky 157–382 ms
+  proti přímému dotazu 0,142 ms, tedy ~1000×) a seznamem statických proxy
+  (`stair`, mezní čáry `fromInsert`, `isForbiddenSoft`), jejichž zrušením se
+  ztráta úběru splácí. Bez toho je nový model čistá ztráta — `zbytek ⊇ hotový
+  díl`, takže sám o sobě může jen ubrat.
+
 ### Fixed
 - **CAM – odstup rychloposuvu v Z posouval i DRŽÁK, takže nájezd narazil 20 mm
   za špičkou.** Rychloposuv se před nájezdem zastaví `rapidStopZ` (Vůle + R)
