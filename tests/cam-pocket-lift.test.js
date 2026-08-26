@@ -94,13 +94,26 @@ describe('poloviční hloubka záběru nevyrobí rychloposuv materiálem', () =>
     // Po opravě je odstup 0,9 mm a zdvih zmizel, protože kolize zmizela s ním:
     //   N1920 G0 Z84.368
     //   N1930 G0 X16.881
+    //
+    // ČÍSLA SE 26. 8. 2026 POSUNULA, invariant ne. Order-aware kontrola nájezdu
+    // (krok 7 v docs/cam-order-aware-holder.md) posouvá vjezd tam, kde se vedle
+    // něj nevejde držák, takže odstup vyšel ještě kratší (83,518) a sjezd se
+    // rozdělil na rychloposuv k offsetové čáře + zbytek posuvem:
+    //   N1920 G0 Z83.518
+    //   N1930 G0 X18.640
+    //   N1940 G1 X16.881 F0.25
+    // Podstatné je pořád totéž: ŽÁDNÝ marný „Výjezd nad konturu" a nula nálezů.
     const r = await runAtAp('range-end-leadout.camprog', 2);
     const L = r.gcode.split('\n');
     const i = L.findIndex(l => l.trim() === '; Průchod 28 (bez schodků)');
     expect(i, 'průchod 28 se nenašel — fixture nebo číslování se změnily').toBeGreaterThan(0);
-    expect(L[i + 1]).toContain('Z84.368');
-    expect(L[i + 2].trim()).toBe('N1930 G0 X16.881');
-    expect(L[i + 3]).toContain('G1 Z83.468');
+    // Odstup je KRATŠÍ než původních 1,8 mm (hrana materiálu je na 83,468).
+    const zApproach = parseFloat((L[i + 1].match(/Z([\d.]+)/) || [])[1]);
+    expect(zApproach).toBeGreaterThan(83.468);
+    expect(zApproach).toBeLessThan(85.268);
+    // Nájezd nesmí obsahovat marný zdvih nad konturu.
+    expect(L.slice(i + 1, i + 4).join('\n')).not.toContain('Výjezd nad konturu');
+    expect(r.issues, detail(r.issues)).toEqual([]);
   }, 120000);
 
   it('zdvih v kapse vyjíždí z materiálu posuvem, ne rychloposuvem (part-8)', async () => {

@@ -88,7 +88,13 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // snapshoty, tady je bodová kontrola na dílu s vlastním obrysem držáku.
     const own = JSON.parse(readFileSync(join(fixturesDir, 'part-15-finish-zprava.camprog'), 'utf8'));
     const r = await run('part-15-finish-zprava.camprog', own.params.holderProfile);
-    expect(r.passes.length).toBe(32);
+    // 32 → 33 dne 26. 8. 2026: NE regrese téhle opravy. Order-aware kontrola
+    // nájezdu (krok 7 v docs/cam-order-aware-holder.md) posune vjezd o pár
+    // desetin tam, kde se vedle něj nevejde držák, a díl tím získal jeden
+    // průchod navíc (celá sada +67,2 mm² úběru při 0 nálezech). Kontrolní
+    // podmínka téhle opravy je „bez nálezů", ne konkrétní počet — ten je tu
+    // jen jako bodový otisk.
+    expect(r.passes.length).toBe(33);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });
