@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CAM panel – „Booleovské hrubování" a „Hrubovat po regionech" v čelním
+  režimu.** Oba příznaky čte výhradně `genLongPasses`; čelní strategie je
+  nikde nesahá (změřeno: G-kód `part-16-face-holder`, `part-18-face-big-radius`
+  je se zapnutým i vypnutým příznakem bajt po bajtu identický). V panelu ale
+  vypadaly jako plnohodnotně zapnuté — uživatel je měl zaškrtnuté a ony nic
+  nedělaly. Nově se při čelním hrubování zašedí, zamknou a doplní „(jen
+  podélně)", stejně jako to od dřívějška dělá Zanořování.
+
+- **CAM panel – falešné varování „⚠ α" u úhlu zanoření.** UI si neořízlý úhel
+  počítalo vlastním vzorcem (pro nepolygonální destičku napevno 45°), jenže
+  `getEffectivePlungeAngle` úhel hřbetu α uplatňuje jen u polygonální destičky
+  (upichovák vrací 90°, kulatá a závitová 45°). S nastaveným α tak u upichováku
+  svítilo „Omezeno úhlem hřbetu α" vedle hodnoty, kterou nic neomezilo. Podmínka
+  se teď ptá přímo `getEffectivePlungeAngle` (kolik by auto vydalo bez α) a
+  varování svítí jen při skutečném oříznutí. Tooltipy doplněny o to, že se α
+  do úhlu zanoření u kulaté, upichovací a závitové destičky nepromítá.
+
 ## [1.8.0] - 2026-08-26
 
 ### Added

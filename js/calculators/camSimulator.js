@@ -4196,27 +4196,37 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span>Hrub. bez schodků</span>
         ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
       </div>`;
-      html += `<div class="cam-sim-checkbox-row" data-tooltip="Experimentální (migrace Fáze 3): řezné intervaly podélného hrubování se počítají z booleovské geometrie (Clipper2 zbytkový materiál) místo ručního scan-line. Výchozí VYPNUTO = ověřená původní cesta. Zapnuto odebere stejný materiál — slouží k ověření a dalšímu vývoji.">
-        <input type="checkbox" id="cam-sim-boolean" ${prms.booleanRoughing ? 'checked' : ''}>
-        <span>Booleovské hrubování (exp.)</span>
+      // Booleovské intervaly i regiony čte VÝHRADNĚ genLongPasses — čelní
+      // strategie ani jeden příznak nikde nesahá (změřeno: G-kód čelního
+      // hrubování je se zapnutým i vypnutým příznakem bajt po bajtu stejný).
+      // Zaškrtnuté, ale nic nedělající políčko mate, proto se v čelním režimu
+      // zašedí a zamkne — stejný vzor jako Zanořování níž.
+      const longOnlyNA = prms.roughingStrategy === 'face';
+      html += `<div class="cam-sim-checkbox-row"${longOnlyNA ? ' style="opacity:.45"' : ''} data-tooltip="${longOnlyNA ? 'NEPLATÍ pro ČELNÍ hrubování — booleovské intervaly umí jen podélná strategie (čelní G-kód je s příznakem i bez něj identický).&#10;&#10;' : ''}Experimentální (migrace Fáze 3): řezné intervaly podélného hrubování se počítají z booleovské geometrie (Clipper2 zbytkový materiál) místo ručního scan-line. Výchozí VYPNUTO = ověřená původní cesta. Zapnuto odebere stejný materiál — slouží k ověření a dalšímu vývoji.">
+        <input type="checkbox" id="cam-sim-boolean" ${prms.booleanRoughing ? 'checked' : ''}${longOnlyNA ? ' disabled' : ''}>
+        <span>Booleovské hrubování ${longOnlyNA ? '(jen podélně)' : '(exp.)'}</span>
       </div>`;
       if (prms.stockMode === 'casting') {
-        html += `<div class="cam-sim-checkbox-row" data-tooltip="Jen odlitek: každý výstupek polotovaru (mezi „údolími", kde se povrch blíží kontuře) se vyhrubuje shora dolů SAMOSTATNĚ; mezi regiony rychloposuv nad polotovar. Nástroj nepřejíždí po kontuře napříč celým dílem. Vypnuto = průchody po hloubkách přes celý díl.">
-          <input type="checkbox" id="cam-sim-region" ${prms.regionRoughing ? 'checked' : ''}>
-          <span>Hrubovat po regionech</span>
+        html += `<div class="cam-sim-checkbox-row"${longOnlyNA ? ' style="opacity:.45"' : ''} data-tooltip="${longOnlyNA ? 'NEPLATÍ pro ČELNÍ hrubování — na regiony se dělí jen Z-rozsah podélných průchodů.&#10;&#10;' : ''}Jen odlitek: každý výstupek polotovaru (mezi „údolími", kde se povrch blíží kontuře) se vyhrubuje shora dolů SAMOSTATNĚ; mezi regiony rychloposuv nad polotovar. Nástroj nepřejíždí po kontuře napříč celým dílem. Vypnuto = průchody po hloubkách přes celý díl.">
+          <input type="checkbox" id="cam-sim-region" ${prms.regionRoughing ? 'checked' : ''}${longOnlyNA ? ' disabled' : ''}>
+          <span>Hrubovat po regionech${longOnlyNA ? ' (jen podélně)' : ''}</span>
         </div>`;
       }
       const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
       const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
-      const rawPlunge = prms.toolShape === 'polygon'
-        ? (prms.roughingStrategy === 'face' ? Math.abs((parseFloat(prms.toolAngle)||0) + (parseFloat(prms.toolTipAngle)||90) - 90) : Math.abs(parseFloat(prms.toolAngle)||0))
-        : 45;
-      const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && clearDegUI < rawPlunge;
+      // Značka „⚠ α" smí svítit jen tehdy, když úhel hřbetu VÁŽNĚ srazil auto
+      // hodnotu. Dřív si UI počítalo neořízlý úhel vlastním vzorcem (pro
+      // nepolygonální destičku napevno 45°), jenže getEffectivePlungeAngle na
+      // ně α vůbec neuplatňuje (upichovák 90°, kulatá 45°) → s nastaveným α
+      // svítilo varování u hodnoty, kterou nic neomezilo. Ptáme se proto
+      // rovnou zdroje pravdy: kolik by auto vydalo BEZ α.
+      const plungeAutoNoAlpha = getEffectivePlungeAngle({ ...prms, entryAngleAuto: true, toolClearanceAngle: 0 });
+      const plungeClampedByAlpha = prms.entryAngleAuto && clearDegUI > 0 && effPlunge < plungeAutoNoAlpha - 0.05;
       // Zanořování rampou umí jen PODÉLNÉ hrubování — čelní jede radiálně na
       // dané Z, žádná rampa v něm není. Přepínač proto v čelním režimu zůstává
       // vidět (ať je jasné, že existuje), ale je zašedlý a neaktivní: dokud
       // vypadal jako zapnutý, vypadalo to, že se nastavený úhel ignoruje.
-      const plungeNA = prms.roughingStrategy === 'face';
+      const plungeNA = longOnlyNA;
       html += `<div class="cam-sim-row" style="align-items:center">
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label>
           <label class="cam-sim-checkbox-item"${plungeNA ? ' style="opacity:.45"' : ''} data-tooltip="${plungeNA ? 'Neplatí pro ČELNÍ hrubování — to jede radiálně na danou hloubku Z, rampou se nezanořuje. Úhel zanoření se v čelním režimu použije jen na nájezd dokončování.' : 'Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.'}">
@@ -4224,8 +4234,8 @@ export function openCamSimulator(initialContour, initialGCode) {
             <span>Zanořování${plungeNA ? ' (jen podélně)' : ''}</span>
           </label>
         </div>
-        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes).${plungeNA ? ' POZOR: při ČELNÍM hrubování se úhel uplatní jen na nájezd dokončování — samotné čelní průchody jedou radiálně, bez rampy.' : ''} Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°). Je-li nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
-        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky, omezeno úhlem hřbetu α je-li nastaven">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
+        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes).${plungeNA ? ' POZOR: při ČELNÍM hrubování se úhel uplatní jen na nájezd dokončování — samotné čelní průchody jedou radiálně, bez rampy.' : ''} Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°; upichovák: 90° = svisle). Je-li u POLYGONÁLNÍ destičky nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření; u kulaté, upichovací a závitové destičky se α do úhlu zanoření nepromítá."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky (u polygonální destičky omezeno úhlem hřbetu α, je-li nastaven)">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
       </div>`;
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
         <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
