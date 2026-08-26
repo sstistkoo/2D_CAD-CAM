@@ -14,3 +14,6 @@ npm-debug.log*
 
 # Coverage / build
 coverage/
+
+# Měření CAM sweepu (scripts/cam_sweep.mjs --save/--diff) — lokální baseline
+.cam-sweep-*.json

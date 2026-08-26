@@ -17,7 +17,8 @@
 //                 findLeadOutEndZ, hIntersect
 
 import { topXOnLoop, rapidFeedGap, quantizeUp, getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
-import { buildStockLoopRaw, offsetStockLoop, stockPlanLoop, insertBodyZ } from './materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, stockPlanLoop, insertBodyZ, toolFootprint } from './materialRemoval.js';
+import { ResidualTracker } from './residualTracker.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
@@ -1665,11 +1666,29 @@ export function genLongPasses(ctx) {
   };
   const notePassInto = (tab, p) => {
     if (!tab || !p || p.type !== 'long' || !Number.isFinite(p.x)) return;
-    if (Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)) noteSegInto(tab, p.zStart, p.x, p.zEnd, p.x);
+    // PRŮCHOD S NULOVÝM DNEM (zStart == zEnd) NEMÁ CO PŘEDPOVÍDAT — táž
+    // výjimka, jakou má `noteCutPass` v gcodeEmit.js, a ze stejného důvodu.
+    // Degenerovaný průchod (dno nulové šířky; vzniká dobráním zbytku menšího
+    // než ap) žádné dno nemá a EMISE k němu najíždí úplně jinudy, než kudy
+    // vede plánovaná rampa. Model tím „odebere" klín, který ve skutečnosti
+    // stojí — a protože podle NĚJ se pouští zanoření a odložené zákroky, je
+    // to nebezpečný směr.
+    //
+    // Změřeno na part-8 (`tests/cam-strategy-residual`): rampa zanoření #27
+    // (dno 184,37 = 184,37) srazila model na r 17,99 v pásu Z 117,5–192,5,
+    // kde dráha nechala stát až r 30,78 — tedy až 12,8 mm pod realitou.
+    // Emise tutéž vadu měla a byla opravena 12. 8. 2026 (6,13 mm na Z 189).
+    //
+    // Nic se tím neztrácí: co si takový průchod opravdu vykope, zapíšou jeho
+    // vlastní nájezd/dojezd po kontuře níž.
+    const noFloor = Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)
+      && Math.abs(p.zStart - p.zEnd) < 1e-6;
+    if (!noFloor && Number.isFinite(p.zStart) && Number.isFinite(p.zEnd))
+      noteSegInto(tab, p.zStart, p.x, p.zEnd, p.x);
     // RAMPA a SLEDOVÁNÍ KONTURY řežou taky — bez nich model tvrdí, že materiál
     // pořád stojí, a hlídání pak zamítá vjezdy do prostoru, který je dávno
     // vykopaný (na part-13-zleva-flange to stálo 29 % úběru).
-    if (p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
+    if (!noFloor && p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
     for (const key of ['contourLeadIn', 'contourLeadOut']) {
       for (const sg of (p[key] || [])) noteSegInto(tab, sg.z1, sg.x1, sg.z2, sg.x2);
     }
@@ -4163,6 +4182,53 @@ export function genLongPasses(ctx) {
     }
     if (adjusted > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
+  }
+  // Diagnostický seam (v produkci no-op, vzor `__RAPID_STOCK_DUMP__`
+  // v gcodeEmit.js): MODEL ZBYTKU, podle kterého strategie rozhoduje
+  // o vjezdech, zanořeních a odložených zákrocích (`residTopAt`). Test
+  // `cam-strategy-residual` ho porovnává s reálně projetou dráhou —
+  // rozejít se smějí jen tam, kde je to změřené a přišpendlené.
+  //
+  // Staví se ZNOVU z hotového `passes`, ne z běhového `cutFloorTab`: ten je
+  // líný prefix (`syncCutFloor`) a `passes` se za jeho značkou ještě mění —
+  // dobírací řetězy se vkládají `splice` doprostřed a konec regionu pořadí
+  // přeskládá. Dump je proto stav „po všech průchodech", což je přesně to,
+  // co má smysl porovnávat s dojetým programem.
+  if (globalThis.__FLOOR_TAB_DUMP__ && capTab) {
+    const tab = newFloorTab();
+    for (const p of passes) notePassInto(tab, p);
+    globalThis.__FLOOR_TAB_DUMP__.push({
+      z0: capZ0, dz: DZ_CAP, stock: Array.from(capTab), floor: Array.from(tab),
+    });
+  }
+  // ── POLYGONOVÝ model zbytku (docs/cam-order-aware-holder.md, krok 1) ────
+  // Výškové pole výš neumí TUNEL: když zanoření nebo dojezd po kontuře
+  // podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu.
+  // Změřeno na part-8 (11,2 mm) a holder-casting-slanted-face (13,6 mm) —
+  // právě na těch dvou dílech, kde zůstávají doložené kolize držáku.
+  //
+  // Plní se AŽ TADY, z hotového `passes`: pole se za běhu ještě mění
+  // (dobírací řetězy se vkládají `splice` doprostřed, konec regionu pořadí
+  // přeskládá), takže „pořadí obrábění" je až tenhle finální stav. Krok 2,
+  // který se bude ptát UPROSTŘED plánování, si bude muset vzít prefix —
+  // a tenhle rozdíl je potřeba mít na paměti.
+  //
+  // Zatím se ho NIKDO NEPTÁ (krok 1) — staví se jen se zapnutým příznakem
+  // nebo pro měřicí seam, takže v produkci nestojí nic.
+  if (prms.orderAwareHolder || globalThis.__RESIDUAL_TRACKER_DUMP__) {
+    const tracker = new ResidualTracker(prms, stockPathSegments, {
+      seedLoop: stockLoopOffsetFullL || undefined,
+      footprint: toolFootprint(prms),
+    });
+    tracker.noteAll(passes);
+    ctx.residualTracker = tracker;
+    if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
+      globalThis.__RESIDUAL_TRACKER_DUMP__.push({
+        loops: tracker.loops.map(l => l.map(q => ({ x: q.x, z: q.z }))),
+        seed: tracker.seedLoop ? tracker.seedLoop.map(q => ({ x: q.x, z: q.z })) : null,
+        count: tracker.count,
+      });
+    }
   }
 }
 

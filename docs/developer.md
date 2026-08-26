@@ -342,6 +342,7 @@ User selects CAM tool
 | `calculators/camEditor.js` | Editor CAM strategií |
 | `calculators/camSimulator.js` | Náhled obrysů obrábění |
 | `calculators/contourOffset.js` | Offset kontur pro obrábění |
+| `calculators/cam/residualTracker.js` | Model ZBYTKU se znalostí pořadí obrábění (polygony, `StockModel`). Strategie si vede levné výškové pole `cutFloorTab`; to ale neumí TUNEL — když zanoření/dojezd podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu (změřeno 11–14 mm na `part-8` a `holder-casting-slanted-face`). Za příznakem `orderAwareHolder`, viz `docs/cam-order-aware-holder.md` |
 | `calculators/thread.js` | Parametry závitů |
 | `calculators/threadData.js` | Data pro generování závitů |
 | `calculators/roughness.js` | Povrchová kvalita |
@@ -1349,6 +1350,28 @@ describe('objects', () => {
 ```
 
 > Poznámka: v testech používáme `fake-indexeddb` pro simulaci IndexedDB.
+
+### Měření CAM drah napříč fixtures (`scripts/cam_sweep.mjs`)
+
+Testy odpovídají „ano/ne". U zásahů do hrubování je ale potřeba i „za kolik" —
+přísnější hlídání kolizí skoro vždy stojí ODEBRANÝ MATERIÁL a validátor ani
+počet průchodů to neukáže. Na to je sweep:
+
+```bash
+node scripts/cam_sweep.mjs                       # celá sada (~60 s), obě varianty držáku
+node scripts/cam_sweep.mjs part-8 range          # jen fixtures dle podřetězce
+node scripts/cam_sweep.mjs --save=.cam-sweep-baseline.json   # před změnou
+node scripts/cam_sweep.mjs --diff=.cam-sweep-baseline.json   # po změně
+```
+
+Pro každou fixture vydá úběr [mm²] a nálezy `validateToolpath` ve dvou
+variantách držáku (`magazine` = nakreslený nůž z `DEFAULT_TOOL_MAGAZINE`
+vnucený všem, `own` = sada jak je; `--holder=all` přidá `rect`) a ve dvou
+standardech polotovaru (syrová silueta × offsetová čára). Běží jeden proces
+na (fixture × varianta) — singleton `S` v `tests/helpers/camHeadless.mjs`
+jinak kontaminuje mezi díly.
+
+Podrobnosti a zapsaná baseline: `docs/cam-order-aware-holder.md`, krok 0.
 
 ---
 

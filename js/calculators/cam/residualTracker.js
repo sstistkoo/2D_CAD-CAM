@@ -1,0 +1,193 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CAM – model ZBYTKU se znalostí pořadí obrábění               ║
+// ╚══════════════════════════════════════════════════════════════╝
+//
+// Krok 1 plánu `docs/cam-order-aware-holder.md`.
+//
+// Strategie dnes rozhoduje o vjezdech a zanořeních podle VÝŠKOVÉHO POLE
+// (`cutFloorTab` v roughingStrategies.js): jedno číslo na svislici Z, do
+// kterého se zapisuje MINIMUM přes všechny dosud naplánované průchody.
+// To je levné a pro běžné vrstvení správné, ale neumí popsat TUNEL: když
+// zanoření nebo dojezd po kontuře podjede pod stojícím materiálem, výškové
+// pole srazí celý sloupec na hloubku tunelu a tvrdí, že nad ním nic není.
+//
+// Změřeno (`tests/cam-strategy-residual`, 26. 8. 2026):
+//   part-8                        model až 11,2 mm POD realitou, pás Z 117,5–183
+//   holder-casting-slanted-face   model až 13,6 mm POD realitou, pás Z 68,8–100,3
+// Obě jsou přesně ty fixtures, na kterých zůstávají doložené kolize držáku
+// (part-8 4 nálezy / 33,4 mm²; holder-casting 2 / 2,3 mm²) — a obě chyby jsou
+// v NEBEZPEČNÉM směru: model tvrdí, že je vykopáno, tak tam hlídání držák
+// pustí. Rozdíl NENÍ v hlídání držáku, ale v modelu materiálu.
+//
+// Tenhle tracker drží zbytek jako POLYGONY (`StockModel`), takže tunel i
+// převis popsat umí. Stojí za to jen tam, kde na tom někdo staví rozhodnutí —
+// proto se seed i footprint sdílí s `materialRemoval.js` a `gcodeEmit.js`,
+// aby v repu nevznikl třetí, vlastní model polotovaru.
+//
+// ── CENA (naměřeno 26. 8. 2026, `noteAll` nad hotovým `passes`) ────────────
+//   part-8               35 průchodů → 223 ms   (6,4 ms/průchod)
+//   part-15-finish-zprava 32          →  90 ms   (2,8)
+//   part-16-face-holder  112          → 112 ms   (1,0)
+// Plán počítal s 0,36 ms na řez (`rapidStock` v emisi) — jenže tam je jeden
+// řez KRÁTKÝ POHYB, kdežto tady celý průchod: tělo + rampa + nájezd/dojezd
+// po kontuře s navzorkovanými oblouky, tedy `toolSweep` přes stovky bodů.
+// Cenu nese `toolSweep`, ne velikost modelu: `polySimplify` po 1 / 4 / 8 / 24
+// řezech vyšel na týž čas (±3 %). Pořád je to řádově míň než rebuild obálky
+// NA KAŽDOU HLOUBKU (20–26 × 160 ms = 3–4 s), ale zadarmo to není — proto
+// příznak `orderAwareHolder`.
+import { StockModel, toolSweep, polySimplify } from '../../geom/geomCore.js';
+import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from './materialRemoval.js';
+
+/** Body průchodu ve stejné konvenci, jakou má `noteCutPass` v gcodeEmit.js. */
+export function passCutPolylines(pass) {
+  if (!pass) return [];
+  const out = [];
+  const chain = [];
+  const push = (x, z) => {
+    const l = chain[chain.length - 1];
+    if (Number.isFinite(x) && Number.isFinite(z)
+      && (!l || Math.hypot(l.x - x, l.z - z) > 1e-6)) chain.push({ x, z });
+  };
+  if (pass.type === 'face') {
+    push(pass.xStart, pass.z);
+    push(pass.xEnd, pass.z);
+  } else {
+    // PRŮCHOD S NULOVÝM DNEM NEMÁ CO PŘEDPOVÍDAT — táž výjimka jako
+    // v `noteCutPass` i v `notePassInto`. Degenerovaný průchod (dno nulové
+    // šířky) žádné dno nemá a emise k němu najíždí jinudy, než kudy vede
+    // plánovaná rampa; zápis z plánu by odebral klín, který ve skutečnosti
+    // stojí. Co si takový průchod opravdu vykope, popíšou jeho vlastní
+    // nájezd/dojezd po kontuře níž.
+    const noFloor = Number.isFinite(pass.zStart) && Number.isFinite(pass.zEnd)
+      && Math.abs(pass.zStart - pass.zEnd) < 1e-6;
+    if (!noFloor) {
+      if (pass.rampFeedFrom) push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
+      else if (pass.ramp) push(pass.ramp.x0, pass.ramp.z0);
+      push(pass.x, pass.zStart);
+      push(pass.x, pass.zEnd);
+    }
+  }
+  if (chain.length >= 2) out.push(chain);
+  // Sledování kontury je taky řez. V emisi ho model dostane přes
+  // `noteCutMove`/`noteCutArc` u každého vydaného pohybu; tady je to jediné
+  // místo, kde se o něm ví.
+  for (const key of ['contourLeadIn', 'contourLeadOut']) {
+    const segs = pass[key];
+    if (!Array.isArray(segs) || segs.length === 0) continue;
+    const run = [];
+    for (const s of segs) {
+      if (![s.z1, s.x1, s.z2, s.x2].every(Number.isFinite)) continue;
+      const l = run[run.length - 1];
+      if (!l || Math.hypot(l.x - s.x1, l.z - s.z1) > 1e-6) run.push({ x: s.x1, z: s.z1 });
+      pushArcOrChord(run, s);
+    }
+    if (run.length >= 2) out.push(run);
+  }
+  return out;
+}
+
+/**
+ * Oblouk se do modelu NESMÍ zapsat tětivou — u vypuklého tvaru leží hlouběji
+ * v materiálu než skutečná dráha, takže model „odebere" pásek o výšce sagitty,
+ * který ve skutečnosti stojí. Táž oprava, jakou dostal `noteCutArc`
+ * v gcodeEmit.js 12. 8. 2026 (tam to dělalo 0,30–0,47 mm); v trackeru to
+ * na fixtures dělalo 0,30–0,74 mm. Bez středu/úhlů zůstane tětiva.
+ */
+function pushArcOrChord(run, s) {
+  if (s.type !== 'arc' || !Number.isFinite(s.cx) || !Number.isFinite(s.cz) || !(s.r > 0)
+    || !Number.isFinite(s.startAngle) || !Number.isFinite(s.endAngle)) {
+    run.push({ x: s.x2, z: s.z2 });
+    return;
+  }
+  const a0 = s.startAngle;
+  let a1 = s.endAngle;
+  if (s.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+  if (s.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
+  const n = Math.max(2, Math.min(64, Math.ceil(Math.abs(a1 - a0) * s.r / 0.1)));
+  for (let i = 1; i <= n; i++) {
+    const a = a0 + (a1 - a0) * (i / n);
+    run.push({ x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r });
+  }
+}
+
+export class ResidualTracker {
+  /**
+   * @param {object} prms parametry CAM
+   * @param {Array} stockPathSegments silueta odlitku (u válce se ignoruje)
+   * @param {{seedLoop?: Array, raw?: boolean, footprint?: Array}} [opts]
+   *   `seedLoop` — hotová výchozí smyčka (strategie si drží vlastní, přes
+   *     CELÝ polotovar bez ořezu rozsahem 📐: držák narazí i do materiálu za
+   *     hranicí rozsahu, ten se jen neobrábí).
+   *   `raw` — základem je SYROVÁ silueta místo offsetové čáry. Výchozí je
+   *     offsetová: odlitek může být až u ní, takže pro hlídání je to jediná
+   *     bezpečná strana (rozhodnutí 20. 8. 2026, viz collisionValidator.js).
+   *     Plán psal `buildStockLoopRaw`; syrový základ by byl MÉNĚ přísný než
+   *     dnešní výškové pole, které se staví nad offsetovou čarou.
+   */
+  constructor(prms, stockPathSegments, opts = {}) {
+    let seed = opts.seedLoop || null;
+    if (!seed) {
+      const raw = buildStockLoopRaw(prms, stockPathSegments);
+      seed = raw ? (opts.raw ? raw : (offsetStockLoop(raw, prms) || raw)) : null;
+    }
+    this.seedLoop = seed;
+    this.foot = opts.footprint || toolFootprint(prms);
+    this.model = seed ? new StockModel([seed]) : null;
+    this.count = 0;      // kolik průchodů je zapsáno
+    this._cuts = 0;      // počítadlo řezů kvůli periodickému simplify
+  }
+
+  get valid() { return !!this.model; }
+
+  /** Aktuální zbytek jako smyčky (prázdné pole, když model není). */
+  get loops() { return this.model ? this.model.loops : []; }
+
+  /**
+   * Zapíše JEDEN průchod v pořadí, v jakém se bude obrábět.
+   * Vrací `true`, když se něco odebralo.
+   */
+  notePass(pass) {
+    if (!this.model) return false;
+    const runs = passCutPolylines(pass);
+    if (runs.length === 0) return false;
+    const cutLoops = [];
+    for (const r of runs) {
+      // Model je jen měřidlo — jeden nevydařený sweep nesmí shodit výpočet.
+      try { cutLoops.push(...toolSweep(this.foot, r)); } catch { /* dál */ }
+    }
+    if (cutLoops.length === 0) return false;
+    try { this.model.cut(cutLoops); } catch { return false; }
+    this.count++;
+    // Rozdíly postupně přidávají vrcholy — periodicky zjednodušit, ať další
+    // řezy i dotazy zůstanou rychlé (ε hluboko pod řeznou tolerancí).
+    if (++this._cuts % 24 === 0) this.model.loops = polySimplify(this.model.loops, 0.002);
+    return true;
+  }
+
+  /** Postaví model znovu z celého pole průchodů (pořadí = pořadí v poli). */
+  noteAll(passes) {
+    if (!this.model) return this;
+    this.model = new StockModel([this.seedLoop]);
+    this.count = 0; this._cuts = 0;
+    for (const p of passes || []) this.notePass(p);
+    return this;
+  }
+
+  /**
+   * Nejvyšší materiál na svislici Z (null = zbytek tam nesahá).
+   * Na rozdíl od výškového pole vrací SKUTEČNÝ povrch i nad tunelem.
+   */
+  topAt(z) {
+    let top = null;
+    for (const loop of this.loops) {
+      for (let i = 0; i < loop.length; i++) {
+        const a = loop[i], b = loop[(i + 1) % loop.length];
+        if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+          const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+          if (top === null || x > top) top = x;
+        }
+      }
+    }
+    return top;
+  }
+}

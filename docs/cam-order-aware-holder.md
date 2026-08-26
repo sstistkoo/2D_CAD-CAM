@@ -1,6 +1,8 @@
 # Hlídání držáku podle POŘADÍ obrábění — plán
 
-> Stav: **návrh**, nic z toho není nasazené. Poslední aktualizace 25. 8. 2026.
+> Stav: **kroky 0 a 1 hotové** (za příznakem `orderAwareHolder`, výchozí
+> vypnuto — G-kód se nezměnil ani o řádek), kroky 2–5 návrh.
+> Poslední aktualizace 26. 8. 2026.
 > Navazuje na nález 09 z auditu drah (viz CHANGELOG, sekce *Measured and rejected*).
 
 ## Co je špatně
@@ -87,43 +89,160 @@ už žije.
 
 Každý krok má vlastní měření a je samostatně zahoditelný.
 
-### Krok 0 — měřicí nástroj
+### Krok 0 — měřicí nástroj ✅ HOTOVO (26. 8. 2026)
 
-`scripts/cam_sweep.mjs`: přes všechny fixtures vydá **úběr** a **nálezy validátoru**
-ve dvou variantách držáku (nakreslený nůž z `DEFAULT_TOOL_MAGAZINE` × náhradní
-obdélník) a ve dvou standardech (syrová silueta × offsetová čára).
+`scripts/cam_sweep.mjs`: přes všechny fixtures vydá **úběr** a **nálezy
+validátoru** ve dvou variantách držáku a ve dvou standardech polotovaru
+(syrová silueta × offsetová čára). Jeden proces na (fixture × varianta),
+paralelně; celá sada ~60 s na 4 jádrech.
 
-Bez tohohle nástroje nejde žádný další krok posoudit. Dnešní baseline, kterou
-musí vytisknout:
+```bash
+node scripts/cam_sweep.mjs                       # celá sada, obě varianty
+node scripts/cam_sweep.mjs part-8 range          # jen fixtures dle podřetězce
+node scripts/cam_sweep.mjs --save=.cam-sweep-baseline.json
+node scripts/cam_sweep.mjs --diff=.cam-sweep-baseline.json
+```
+
+Zapsaná baseline se reprodukuje **do posledního místa** (běh 26. 8. 2026 nad
+`02a125b`):
 
 ```
-nakreslený nůž  úběr 76 663,8 mm²   kolize 4 / 33,4 mm²
-náhradní držák  úběr 76 849,6 mm²   kolize 2 /  2,3 mm²
+nakreslený nůž  úběr 76 663,8 mm²   kolize 4 / 33,4 mm²      ✔ shoda
+náhradní držák  úběr 76 849,6 mm²   kolize 2 /  2,3 mm²      ✔ shoda
 ```
 
-**Past:** singleton `S` v harnessu kontaminuje — jeden proces na fixture, a
-`zLimits`/`xLimits` doplnit na plnou sadu (harness je MERGUJE, ne přepisuje).
+**Co „náhradní držák" v baseline znamená — vyjasněno měřením.** Je to sada
+**jak je**: vlastní nakreslený obrys tam, kde ho fixture má (14 z 25), náhradní
+obdélník jinde. NENÍ to obdélník vnucený všem — ta varianta (`--holder=all`,
+klíč `rect`) dá `85 457,9 mm² / 22 nálezů / 9 355,2 mm²`, protože na
+`part-13-zleva-flange` je to úplně jiná úloha (15 nálezů / 9 273 mm², úběr
+11 777 → 17 757). Držte se dvojice `magazine` + `own`, na tu je baseline
+zapsaná; `rect` je diagnostika „vadí tvar držáku, nebo ten díl?".
 
-### Krok 1 — akumulátor zbytku ve strategii
+Nástroj tiskne i **offsetový standard**, který v plánu dosud zapsaný nebyl:
 
-Nová třída (nový soubor, `js/calculators/cam/residualTracker.js`):
+| varianta | syrová silueta | offsetová čára |
+|---|---|---|
+| nakreslený nůž (`magazine`) | 76 663,8 mm² · 4 / 33,4 | 84 682,4 mm² · 4 / 41,6 |
+| náhradní držák (`own`) | 76 849,6 mm² · 2 / 2,3 | 84 889,3 mm² · 11 / 76,6 |
+
+Offsetových 11 nálezů = přesně `EXPECTED_PLAN` v `tests/cam-collision-free`
+(`holder-casting-slanted-face` 3× + `part-8` 8×), takže nástroj a sada měří
+totéž.
+
+Vedlejší zjištění: rozdíl 185,8 mm² mezi oběma variantami nese jen **trojice**
+fixtures — `holder-casting-slanted-face` (321,9 → 414,5), `holder-region-roughing`
+(854,8 → 924,3) a `part-8` (2 529,0 → 2 552,7). Všechny tři jsou přesně ty bez
+nakresleného obrysu, na kterých držák rozhoduje. `part-1/2/4/6` se liší jen
+počtem průchodů, úběr mají na desetinu stejný.
+
+**Pasti zapracované do nástroje:**
+- singleton `S` v harnessu kontaminuje → jeden PROCES na (fixture × varianta),
+  ne jeden na sadu;
+- `zLimits`/`xLimits` harness MERGUJE (`Object.assign`), ne přepisuje → posílá
+  se plná sada klíčů (`ZL0`/`XL0`);
+- `maxIssues` je zvednuté z výchozích 12 na 64. Dnešní maximum na fixture jsou
+  4 nálezy, takže se baseline nemění — ale propad v kroku 3–4 nezůstane
+  zamaskovaný stropem.
+
+Baseline pro kroky 1–4 se drží přes `--save`/`--diff` (soubory `.cam-sweep-*.json`
+jsou v `.gitignore`) — tím odpadá past „baseline měřená přes `git checkout --`",
+protože se porovnávají naměřená ČÍSLA, ne dva stavy stromu.
+
+### Krok 1 — akumulátor zbytku ve strategii ✅ HOTOVO (26. 8. 2026)
+
+`js/calculators/cam/residualTracker.js` + seam a test
+`tests/cam-strategy-residual`. Úběr ani G-kód se nezměnily (ověřeno
+`cam_sweep --diff`: Δ 0,0 mm² / 0 nálezů; sada 1408/1408; se zapnutým
+příznakem vyjde na `part-8`, `part-13` i `holder-region-roughing` BAJT PO
+BAJTU týž program).
+
+#### Zjištění, které krok 1 přerámovalo: akumulátor UŽ EXISTOVAL
+
+`genLongPasses` si vede `cutFloorTab` — **výškové pole** po 0,25 mm v ose Z,
+plněné líně z prefixu `passes[]` (`notePassInto` → `residTopAt`). Ptá se ho
+hlídání zanoření (`holderFitArea`, `holderFitAreaAlong`) i kontrola odložených
+vjezdů na konci regionu. Order-aware model zbytku tedy v repu je; chybí jen
+`applyHolderClamp`, který pořád jede na statické obálce z HOTOVÉHO dílu.
+
+Jenže výškové pole je JEDNO ČÍSLO NA SLOUPEC, takže **neumí tunel**: když
+zanoření nebo dojezd po kontuře podjede pod stojícím materiálem, srazí celý
+sloupec na hloubku tunelu. Změřeno proti reálně projeté dráze:
+
+| fixture | výškové pole | ResidualTracker |
+|---|---|---|
+| `part-8` | **−11,2 mm** (93 vzorků, pás Z 117,5–183) | ≤ 0,05 mm |
+| `holder-casting-slanted-face` | **−13,6 mm** (10 vzorků, pás Z 68,8–100,3) | ≤ 0,05 mm |
+| `part-1` / `part-4` / `holder-region-roughing` | v mezi | ≤ 0,05 mm |
+| `part-13-zleva-flange` | v mezi | 0,30 mm (doložená mez, viz níž) |
+
+**To jsou přesně ty dva díly, na kterých zůstávají doložené kolize držáku**
+(4 / 33,4 mm² a 2 / 2,3 mm²) — a chyba je v NEBEZPEČNÉM směru: model tvrdí, že
+je vykopáno, tak tam hlídání držák pustí. Dosavadní vysvětlení („mez modelu
+`holderFitsAt`, který držák modeluje skenem povrchu místo polygonem", zapsané
+v `EXPECTED` u `cam-collision-free`) tedy **není celé**: vedle modelu DRŽÁKU
+je vedle i model MATERIÁLU. Tracker je proto potřeba — není to dražší kopie
+výškového pole, je to jiná reprezentace.
+
+#### Co je nasazené
 
 ```js
-new ResidualTracker(prms, stockPathSegments)   // seed = buildStockLoopRaw
-tracker.notePass(pass)                         // cut(toolSweep(toolFootprint, ptsOf(pass)))
-tracker.loops                                  // aktuální zbytek
+new ResidualTracker(prms, stockPathSegments, { seedLoop, raw, footprint })
+tracker.notePass(pass)     // cut(toolSweep(footprint, passCutPolylines(pass)))
+tracker.noteAll(passes)    // postaví znovu z celého pole
+tracker.loops              // zbytek jako polygony
+tracker.topAt(z)           // povrch zbytku — správně i NAD tunelem
 ```
 
-Body průchodu se berou **stejnou konvencí jako `noteCutPass` v `gcodeEmit`**
-(rampová kotva → dno), včetně výjimky pro průchod s nulovým dnem — jinak se
-model rozejde s emisí. Volá se z `genLongPasses` na místě, kde se průchod
-push-uje do `passes`, protože **`passes[]` JE pořadí obrábění** (ověřeno na
-part-8: `#1..#32` odpovídá pořadí v G-kódu, ramp/kapsové průchody se do něj
-zařazují mezi hloubkové).
+Odchylky od původního zadání, každá změřená:
 
-**Akceptace:** `tests/cam-residual-model` musí platit i pro nový tracker —
-model nesmí být NÍŽ než realita (mez 0,05 mm). Úběr ani G-kód se v tomhle kroku
-nesmí změnit ani o řádek (tracker jen počítá, nikdo se ho neptá).
+1. **Seed je OFFSETOVÁ čára, ne `buildStockLoopRaw`.** Syrový základ by byl
+   MÉNĚ přísný než dnešní výškové pole, které se staví nad
+   `stockLoopOffsetFullL`. Strategie svou smyčku předává přes `seedLoop`
+   (celý polotovar, bez ořezu rozsahem 📐 — držák narazí i za hranicí rozsahu).
+2. **Oblouky se vzorkují, ne píší tětivou.** Táž oprava, jakou dostal
+   `noteCutArc` v emisi 12. 8. 2026. Bez ní byl tracker 0,30–0,74 mm pod
+   realitou na čtyřech fixtures; s ní ≤ 0,05.
+3. **Výjimka pro průchod s nulovým dnem** platí i pro staré výškové pole.
+   `notePassInto` ji neměla, a právě rampa degenerovaného zanoření #27 dělala
+   na `part-8` pás Z 183–192,5. Oprava stála **nula** (`cam_sweep --diff`:
+   Δ 0,0 mm² a žádná změněná fixture) — na dnešních dílech na tom nikdy žádné
+   rozhodnutí nestálo.
+
+#### Doložená mez: `part-13-zleva-flange` 0,30 mm
+
+35 vzorků z 1936, výhradně v pásech Z 173–176 a 181–186, a všechny sedí na
+`contourLeadOut` průchodů #8/#11. Příčina je systémová, ne vada: **tracker zná
+PLÁN, ne EMISI.** Mezi nimi je ještě `envify`, zpětné prokládání oblouků, ořezy
+držáku a `emitBodyX`. Zpřesnit to jde jedině plněním modelu až v emisi — což je
+přesně `rapidStock` v `gcodeEmit.js` a strategii to nepomůže, protože ta se
+musí rozhodnout dřív.
+
+#### Cena — plán ji podstřelil
+
+| fixture | průchodů | `noteAll` |
+|---|---|---|
+| `part-8` | 35 | **223 ms** (6,4 ms/průchod) |
+| `part-15-finish-zprava` | 32 | 90 ms (2,8) |
+| `part-16-face-holder` | 112 | 112 ms (1,0) |
+
+Rozpočet níž počítal s 0,36 ms na řez — jenže tam je řez KRÁTKÝ POHYB
+(`rapidStock`), kdežto tady celý průchod: tělo + rampa + nájezd/dojezd
+s navzorkovanými oblouky, tedy `toolSweep` přes stovky bodů. Cenu nese
+`toolSweep`, ne velikost modelu (`polySimplify` po 1 / 4 / 8 / 24 řezech vyšel
+na týž čas ±3 %). Pořád je to řádově míň než rebuild obálky NA KAŽDOU HLOUBKU
+(3–4 s), ale zadarmo to není — proto příznak.
+
+#### ⚠ Pro krok 2: `passes[]` je pořadí obrábění až ve FINÁLNÍM stavu
+
+Plán psal „volá se na místě, kde se průchod push-uje do `passes`". To nejde:
+pole se za běhu ještě přeskládá — dobírací řetězy se vkládají `passes.splice(at, …)`
+DOPROSTŘED a konec regionu odsouvá odložená zanoření (`__deferEntry`) na konec.
+Tracker se proto plní až z hotového pole (`noteAll`). Krok 2, který se bude ptát
+UPROSTŘED plánování, si musí vzít prefix — a ten prefix NENÍ totéž co finální
+pořadí. Táž díra je mimochodem i v dnešním líném `syncCutFloor`: co se vloží
+`splice` PŘED jeho značku, se do výškového pole nikdy nezapíše (směr je
+bezpečný — model pak tvrdí, že materiál stojí).
 
 ### Krok 2 — dotaz místo obálky
 

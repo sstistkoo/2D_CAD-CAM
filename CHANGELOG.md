@@ -8,6 +8,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – `ResidualTracker`: polygonový model zbytku se znalostí pořadí
+  obrábění.** Krok 1 plánu `docs/cam-order-aware-holder.md`. Za příznakem
+  `orderAwareHolder` (výchozí vypnuto); zatím se ho nikdo neptá, takže G-kód
+  je bit po bitu týž — ověřeno `cam_sweep --diff` (Δ 0,0 mm², žádná změněná
+  fixture) i přímým porovnáním se zapnutým příznakem na `part-8`, `part-13`
+  a `holder-region-roughing`.
+
+  **Krok 1 se přitom přerámoval: akumulátor zbytku UŽ V REPU BYL.**
+  `genLongPasses` si vede `cutFloorTab` — výškové pole po 0,25 mm v ose Z,
+  plněné z prefixu `passes[]` — a ptá se ho hlídání zanoření
+  (`holderFitArea`/`holderFitAreaAlong`) i kontrola odložených vjezdů.
+  Order-aware model tedy existuje; nemá ho jen `applyHolderClamp`, který pořád
+  jede na statické obálce z hotového dílu.
+
+  Jenže jedno číslo na sloupec **neumí tunel**: když zanoření nebo dojezd po
+  kontuře podjede pod stojícím materiálem, srazí celý sloupec na hloubku
+  tunelu. Nový test `tests/cam-strategy-residual` to změřil proti reálně
+  projeté dráze:
+
+  | fixture | výškové pole | ResidualTracker |
+  |---|---|---|
+  | `part-8` | **−11,2 mm** (pás Z 117,5–183) | ≤ 0,05 mm |
+  | `holder-casting-slanted-face` | **−13,6 mm** (pás Z 68,8–100,3) | ≤ 0,05 mm |
+
+  To jsou přesně ty dva díly se zbylými doloženými kolizemi držáku (4 / 33,4
+  a 2 / 2,3 mm²), a chyba je v NEBEZPEČNÉM směru — model tvrdí, že je
+  vykopáno, tak tam hlídání držák pustí. Dosavadní vysvětlení („mez modelu
+  `holderFitsAt`", zapsané v `EXPECTED` u `cam-collision-free`) tedy není
+  celé: vedle modelu DRŽÁKU je vedle i model MATERIÁLU.
+
+  Tracker seedu je OFFSETOVÁ čára (syrová silueta by byla méně přísná než
+  dnešní výškové pole), oblouky se vzorkují místo tětivy (bez toho 0,30–0,74
+  mm pod realitou — táž oprava, jakou dostal `noteCutArc` v emisi) a průchod
+  s nulovým dnem se nezapisuje. Zbývá jedna doložená mez: `part-13-zleva-flange`
+  0,30 mm na dojezdech po kontuře, protože tracker zná PLÁN, ne EMISI (mezi
+  nimi je `envify`, prokládání oblouků, ořezy držáku, `emitBodyX`).
+
+  Cena `noteAll`: 90–223 ms na díl (1,0–6,4 ms na průchod). Plán počítal
+  s 0,36 ms na řez, jenže tam je řez krátký pohyb, kdežto tady celý průchod
+  s navzorkovanými oblouky. Cenu nese `toolSweep`, ne velikost modelu
+  (`polySimplify` po 1 / 4 / 8 / 24 řezech vyšel na týž čas).
+
+- **CAM – `scripts/cam_sweep.mjs`: úběr × kolize přes celou sadu fixtures.**
+  Krok 0 plánu `docs/cam-order-aware-holder.md`. Pro každou fixture vydá
+  ODEBRANOU PLOCHU a NÁLEZY VALIDÁTORU ve dvou variantách držáku
+  (`magazine` = nakreslený nůž ze slotu 2 `DEFAULT_TOOL_MAGAZINE` vnucený
+  všem × `own` = sada, jak je) a ve dvou standardech polotovaru (syrová
+  silueta × offsetová čára, `planStock` + `shrink` 0,25).
+
+  Proč nástroj, a ne další test: order-aware model držáku je
+  `zbytek ⊇ hotový díl`, tedy vždy alespoň tak přísný jako dnešní statická
+  obálka — sám o sobě může úběr jen UBRAT. Rozhodnout se dá jedině z dvojice
+  „kolik se odebralo" × „kolik zbylo kolizí" napříč celou sadou. Tři ze čtyř
+  dosud zamítnutých nápadů padly právě na úběru, ne na kolizích, a validátor
+  ani počet průchodů to neukážou.
+
+  Baseline z plánu se reprodukuje do posledního místa: nakreslený nůž
+  **76 663,8 mm² / 4 nálezy / 33,4 mm²**, náhradní držák
+  **76 849,6 mm² / 2 / 2,3 mm²**. Nově je změřený i offsetový standard
+  (84 682,4 / 4 / 41,6 a 84 889,3 / 11 / 76,6); těch 11 nálezů je přesně
+  `EXPECTED_PLAN` v `tests/cam-collision-free`, takže nástroj a sada měří totéž.
+
+  Měřením se přitom vyjasnilo, co „náhradní držák" v baseline znamená: je to
+  sada **jak je** (vlastní obrys u 14 z 25 fixtures, obdélník jinde), NE
+  obdélník vnucený všem. Ta varianta je dostupná jako `--holder=all` (klíč
+  `rect`) a dá 85 457,9 mm² / 22 / 9 355,2 — na `part-13-zleva-flange` je to
+  jiná úloha, ne jiný držák (15 nálezů / 9 273 mm², úběr 11 777 → 17 757).
+
+  Pasti zapracované dovnitř: jeden PROCES na (fixture × varianta), protože
+  singleton `S` v harnessu kontaminuje; plná sada `zLimits`/`xLimits`, protože
+  je harness MERGUJE; `maxIssues` 64 místo výchozích 12, aby propad
+  v pozdějších krocích nezůstal zamaskovaný stropem. `--save`/`--diff`
+  porovnávají naměřená ČÍSLA, takže odpadá past „baseline přes
+  `git checkout --`"; soubory `.cam-sweep-*.json` jsou v `.gitignore`.
 - **CAM – virtuální zvětšení držáku (nové pole „Virt. zvětšení držáku").**
   V pravém panelu vedle „Stop rychlop. před čarou" (obojí je teď na vlastním
   řádku). Obrys držáku se o zadanou hodnotu zvětší pro VŠECHNA hlídání —
@@ -97,6 +171,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   díl`, takže sám o sobě může jen ubrat.
 
 ### Fixed
+- **CAM – model zbytku ve strategii si připisoval rampu průchodu S NULOVÝM
+  DNEM.** `notePassInto` (výškové pole `cutFloorTab`) zapisovala rampu každého
+  průchodu, i degenerovaného — takového, kde `zStart == zEnd`, tedy bez dna.
+  Emise tutéž výjimku má od 12. 8. 2026 (`noteCutPass`) a ze stejného důvodu:
+  k degenerovanému průchodu se najíždí úplně jinudy, než kudy vede plánovaná
+  rampa, takže model „odebere" klín, který ve skutečnosti stojí.
+
+  Na `part-8` to bylo zanoření #27 (dno 184,37 = 184,37): model srazilo na
+  r 17,99 v pásu Z 183–192,5, kde dráha nechala stát až r 30,78. Podle toho
+  modelu se přitom pouští zanoření a odložené zákroky, takže směr byl
+  nebezpečný.
+
+  Oprava stála **nulu** — `cam_sweep --diff` napříč 25 fixtures × 2 variantami
+  držáku: Δ 0,0 mm² úběru, 0 změněných nálezů, žádná změněná fixture. Na
+  dnešních dílech na tom tedy nikdy žádné rozhodnutí nestálo; do modelu to
+  patří kvůli krokům 2–4.
 - **CAM – odstup rychloposuvu v Z posouval i DRŽÁK, takže nájezd narazil 20 mm
   za špičkou.** Rychloposuv se před nájezdem zastaví `rapidStopZ` (Vůle + R)
   před hranou materiálu, aby sjezd v X proběhl ve vzduchu. Tím se ale o tentýž
