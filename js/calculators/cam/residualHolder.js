@@ -25,6 +25,23 @@
 //
 // Vedlejší efekt je rychlost: volný interval (drtivá většina) stojí JEDEN
 // dotaz místo stovek, blokovaný ~13 (půlení na 0,01 mm).
+//
+// ── CO Z TOHO JE ZAPOJENÉ (26. 8. 2026) ───────────────────────────────────
+//   `holderAreaAlongResidual`  ANO — hlídá VJEZD kapsového zákroku
+//                              (`residEntryArea` v roughingStrategies, za
+//                              příznakem `orderAwareHolder`). Tam byla zbylá
+//                              vada nálezu 09 a tam se to vyplácí: `part-8`
+//                              4 nálezy / 33,4 mm² → 0 za 328 mm² úběru.
+//   `makeResidualClamp`        NE — má vlastní akceptační test (parita
+//                              s Minkowského obálkou), ale jeho ZAMÝŠLENÉ
+//                              MÍSTO, ořez Z-intervalů v `applyHolderClamp`,
+//                              bylo změřeno a zamítnuto ve třech variantách:
+//                              náhrada obálky dala úběr −14 % a kolize 4 → 67,
+//                              „jen zkrátit" pak +3 nálezy / 2 578 mm² na
+//                              `part-10` a `part-8` beze změny. Důvod je
+//                              v komentáři u `applyHolderClamp`. Necháno jako
+//                              stavební kámen, kdyby se revidovaly kapsy nebo
+//                              regiony — NE jako živý kód.
 import { polyArea, polyIntersect, polyOffset, polyDifference, toolSweep } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { toolFootprintVisual } from './materialRemoval.js';
@@ -78,6 +95,56 @@ export function holderAreaInResidual(loops, holderLoop, x, z) {
 /** Vejde se držák se špičkou na (x, z) do zbytku? */
 export function holderFitsInResidual(loops, holderLoop, x, z, tol = RESIDUAL_FIT_TOL) {
   return holderAreaInResidual(loops, holderLoop, x, z) <= tol;
+}
+
+/**
+ * Nejhorší vnoření držáku PODÉL dráhy (rampa, nájezd po kontuře) [mm²].
+ *
+ * Polygonový protějšek `holderFitAreaAlong` v roughingStrategies.js a se
+ * stejnou konvencí: vzorkuje se po dráze a VLASTNÍM ŘEZEM je vždy jen ta
+ * ČÁST, kterou má nástroj v daném bodě UŽ ZA SEBOU. Zametená stopa přes celou
+ * rampu by byla moc velkorysá — držák je v ose Z přes 20 mm široký, kdežto
+ * rampa si vykope jen svou čáru (tatáž úvaha jako u `holderEntryCapZ`).
+ *
+ * @param {Array} pts dráha špičky {x, z}, v pořadí jízdy
+ * @param {{ownFoot?: Array, step?: number, maxSamples?: number}} [opts]
+ */
+export function holderAreaAlongResidual(loops, holderLoop, pts, {
+  ownFoot = null, step = 1, maxSamples = 64,
+} = {}) {
+  if (!loops || loops.length === 0 || !holderLoop || !Array.isArray(pts) || pts.length < 2) return 0;
+  // Délka dráhy → počet vzorků (po ~1 mm, jako holderFitAreaAlong).
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+  const n = Math.max(1, Math.min(maxSamples, Math.ceil(len / Math.max(step, 0.05))));
+  // Bod na dráze v poměrné vzdálenosti t ∈ [0,1] + prefix dráhy k němu.
+  const at = (t) => {
+    let want = len * t, prev = pts[0];
+    const pre = [prev];
+    for (let i = 1; i < pts.length; i++) {
+      const d = Math.hypot(pts[i].x - prev.x, pts[i].z - prev.z);
+      if (want <= d || i === pts.length - 1) {
+        const u = d < 1e-9 ? 0 : Math.min(1, want / d);
+        const q = { x: prev.x + (pts[i].x - prev.x) * u, z: prev.z + (pts[i].z - prev.z) * u };
+        pre.push(q);
+        return { q, pre };
+      }
+      want -= d; prev = pts[i]; pre.push(prev);
+    }
+    return { q: pts[pts.length - 1], pre: pts.slice() };
+  };
+  let worst = 0;
+  for (let k = 0; k <= n; k++) {
+    const { q, pre } = at(k / n);
+    let stand = loops;
+    if (ownFoot && k > 0 && pre.length >= 2) {
+      try { stand = polyDifference(loops, toolSweep(ownFoot, pre)); } catch { stand = loops; }
+    }
+    if (!stand || stand.length === 0) continue;
+    const a = holderAreaInResidual(stand, holderLoop, q.x, q.z);
+    if (a > worst) worst = a;
+  }
+  return worst;
 }
 
 /**

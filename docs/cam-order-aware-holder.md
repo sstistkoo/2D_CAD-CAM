@@ -1,9 +1,10 @@
 # Hlídání držáku podle POŘADÍ obrábění — plán
 
-> Stav: **kroky 0–3 hotové, ZAPNOUT SE NEDOPORUČUJE** (příznak
-> `orderAwareHolder`, výchozí vypnuto — s vypnutým se G-kód nezměnil ani
-> o řádek). Krok 3 svůj cíl NESPLNIL a je změřeno proč; kroky 4–5 tím
-> ztratily zadání, dokud se nerozhodne o pokračování níž.
+> Stav: **kroky 0–3 hotové, akceptace SPLNĚNA** (příznak `orderAwareHolder`,
+> výchozí vypnuto — s vypnutým se G-kód nezměnil ani o řádek). Se zapnutým
+> jdou nálezy s nakresleným nožem **4 / 33,4 mm² → 0** za 328 mm² úběru
+> (−0,43 %) a mění se JEDINÝ díl (`part-8`). Rozhodnutí o výchozím zapnutí
+> je krok 5 níž.
 > Poslední aktualizace 26. 8. 2026.
 > Navazuje na nález 09 z auditu drah (viz CHANGELOG, sekce *Measured and rejected*).
 
@@ -325,77 +326,90 @@ Kdyby se to zapojilo proti zastaralému stavu, hlídání zamítne násobně ví
 má — a přesně to je způsob, jakým všechny čtyři zamítnuté nápady v tabulce výš
 přišly o úběr.
 
-### Krok 3 — zapojit za příznakem ⚠ HOTOVO, ALE CÍL NESPLNĚN (26. 8. 2026)
+### Krok 3 — zapojit za příznakem ✅ HOTOVO (26. 8. 2026)
 
-Zapojeno v `genLongPasses` za příznakem `orderAwareHolder` (výchozí `false`):
-tracker se plní LÍNĚ z prefixu `passes` a `applyHolderClamp` se ptá jeho
-ořezu. Akceptace ale **neprošla** — a je změřeno proč.
+Zapojeno v `genLongPasses` za příznakem `orderAwareHolder` (výchozí `false`).
 
-#### Výsledek (celá sada, obě varianty držáku)
+**Rozhodující zjištění: zbytek patří k HLÍDÁNÍ VJEZDU, ne k ořezu intervalů.**
+Plán chtěl nahradit `holderClampZEnd` v `applyHolderClamp`. To bylo zkoušeno
+ve třech variantách a všechny jsou změřeně horší (tabulka níž). Zbylá vada
+nálezu 09 tam totiž vůbec není: `part-8` krvácí na VJEZDU do kapsy
+(`#23`, `pocketEntry`, r 17,65, rampa na Z 184,5), který hlídá
+`holderFitArea` u `buildPocketPass` — a ten čte VÝŠKOVÉ POLE, o kterém krok 1
+změřil, že je právě v pásu Z 117,5–183 až **11,2 mm pod realitou**.
+
+Nasazeno je proto tohle: u kapsového vjezdu se vedle skenu ptá i polygonový
+zbytek podél CELÉHO vjezdu (`residEntryArea` → `holderAreaAlongResidual`),
+prahem `RESIDUAL_FIT_TOL` (0,5 mm²). Na tom vjezdu najde **30,1 mm²** vnoření
+držáku a zákrok zahodí.
+
+#### Výsledek se zapnutým příznakem
 
 | | úběr | kolize |
 |---|---|---|
-| nakreslený nůž, baseline | 76 663,8 mm² | 4 / 33,4 mm² |
-| nakreslený nůž, **zapnuto** | **78 145,6** (+1 481,8) | **7 / 2 611,2** |
-| náhradní držák, baseline | 76 849,6 mm² | 2 / 2,3 mm² |
-| náhradní držák, **zapnuto** | **78 082,2** (+1 232,6) | **3 / 2 577,8** |
+| nakreslený nůž, dnes | 76 663,8 mm² | 4 / 33,4 mm² |
+| nakreslený nůž, **zapnuto** | 76 335,8 (−328,0; −0,43 %) | **0 / 0,0** ✅ |
+| náhradní držák, dnes | 76 849,6 mm² | 2 / 2,3 mm² |
+| náhradní držák, **zapnuto** | 76 518,4 (−331,2; −0,43 %) | 2 / 2,3 (beze změny) |
 
-Úběr tedy naopak VZROSTL (krok 4 by neměl co splácet), ale:
+Mění se **jediný díl — `part-8`**; ostatních 24 fixtures je bit po bitu
+shodných. Zbylé 2 nálezy u náhradního držáku jsou
+`holder-casting-slanted-face`, což je jiná, dávno doložená mez
+(`holderFitsAt` na rampě, viz `EXPECTED` v `tests/cam-collision-free`).
+Proti offsetové čáře navíc `part-8` s náhradním držákem spadl z 8 / 69,5
+na 5 / 57,3.
 
-- **`part-8` se nezměnil ANI O ŘÁDEK** (32 průchodů, 2 529,0 mm², 4 / 33,4) —
-  a to byl celý cíl. Ořez tam nevystřelí ani jednou.
-- **`part-10-zapich-casting` je nová vada**: úběr 1 307,8 → 2 765,3
-  (+1 457,5) a **3 nálezy / 2 577,8 mm²**.
-- `holder-casting-slanted-face` se naopak spravil (2 / 2,3 → **0**).
-- Ostatní fixtures: drobné pohyby úběru, žádné nové nálezy.
+Akceptace kroku 3 zněla „4 / 33,4 → 0, ostatní fixtures beze změny" —
+splněno. Cena je jeden zahozený zákrok, ne rozpadlý program.
 
-#### PROČ `part-8` ne: ořez intervalů je špatné místo
+#### Co bylo zkoušeno a ZMĚŘENĚ ZAMÍTNUTO
 
-Zbylé 4 nálezy sedí na VJEZDU do kapsy (`#27`, `pocketEntry`, degenerovaný
-průchod s nulovým dnem) — na jeho RAMPĚ a kotvě. `applyHolderClamp` ale
-ořezává Z-INTERVALY hloubkových průchodů; rampovou kotvu plánuje
-`stockEntryRamp` a hlídá `holderFitArea`/`holderFitAreaAlong`. Polygonový
-model se tedy zapojil tam, kde díra není.
+Nezkoušet znovu; všechno je naměřené na celé sadě.
 
-A tohle je ta pointa: `holderFitArea` čte VÝŠKOVÉ POLE, o kterém krok 1
-změřil, že je na `part-8` až **11,2 mm pod realitou** — a to přesně v pásu
-Z 117,5–183, kde ty nálezy jsou. Další pokus proto patří **ke kotvě rampy**,
-ne k ořezu intervalů. (Plán to jednou zkoušel a odepsal jako „bez efektu" —
-jenže tehdy s tím výškovým polem, o kterém teď víme, že tam lže.)
+| Varianta | Výsledek |
+|---|---|
+| Zbytek NAHRAZUJE obálku v `applyHolderClamp` | úběr 76 664 → **65 979 mm² (−14 %)**, kolize **4 → 67** (31 138 mm²) |
+| Zbytek se s obálkou SKLÁDÁ (přísnější z obou) | prakticky totéž — zbytek je dominantní |
+| + smí jen ZKRÁTIT, ne zrušit | úběr +1 482 mm², ale `part-10-zapich-casting` +1 457 mm² a **3 nálezy / 2 578 mm²** navíc; `part-8` **beze změny** |
+| Ořez i na KAPSOVÉ intervaly (`k > 0`) | po odečtení vlastního řezu **inertní** — identický výsledek na všech 25 fixtures |
 
-#### Tři opravy, které si měření vynutilo
+Společný důvod, proč ořez intervalů nefunguje: **zkrácený ani zahozený
+interval materiál NEODEBERE, jen ho nechá stát** — a další, hlubší průchod ho
+pak vezme najednou a projede držákem skrz. Na `part-17` to bylo vidět nejlíp:
+průchodů 53 → 44, ale úběr 4 933 → 10 183 mm² a 26 nálezů. Obálka si zahození
+dovolit může (modeluje HOTOVÝ DÍL, tedy překážku, která nezmizí); zbytek je
+PŘECHODNÝ a správná odpověď na „nevejde se teď" je přeplánovat POŘADÍ, což je
+vědomě mimo rozsah.
 
-Každá je zapsaná v kódu i s čísly, ať se nezkoušejí znovu.
+#### Dvě opravy, bez kterých to nešlo
 
-1. **Nahrazení obálky je špatně; ORDER-AWARE SE S NÍ SKLÁDÁ.**
-   Se záměnou (jak plán psal) vyšlo úběr 76 664 → **65 979 mm² (−14 %)**
-   a kolize **4 → 67 (31 138 mm²)**.
-2. **Zbytek smí průchod ZKRÁTIT, ne ZRUŠIT.** Obálka si zahození dovolit může
-   — modeluje HOTOVÝ DÍL, tedy překážku, která nezmizí. Zbytek je PŘECHODNÝ:
-   „nevejde se teď" znamená „ještě ne". A zahozená hloubka materiál
-   NEODEBERE, jen ho nechá stát, takže ho další, hlubší průchod vezme
-   najednou a projede skrz. Změřeno na `part-17`: průchodů 53 → 44, ale úběr
-   4 933 → 10 183 mm² a 26 nálezů.
-3. **Musí se odečíst VLASTNÍ ŘEZ průchodu.** Držák se táhne v drážce, kterou
-   ten průchod právě řeže, a jeho obrys začíná u hrotu (u upichováku i u nožů
+1. **Musí se odečíst VLASTNÍ ŘEZ zákroku.** Držák se táhne v drážce, kterou
+   ten zákrok právě řeže, a jeho obrys začíná u hrotu (u upichováku i u nožů
    z magazínu doslova na něm). Bez odečtení „stojí" materiál těsně za špičkou
-   při každém běžném řezu: `part-17` +5 287 mm² a 36 nálezů, `part-10`
-   +1 458, `part-8` +2 176. Táž úvaha jako `ownCut` u `holderFitArea`.
+   při každém běžném řezu: `part-17` +5 287 mm² a 36 nálezů, `part-8` +2 176.
+   Vlastním řezem je vždy jen ta ČÁST dráhy, kterou má nástroj UŽ ZA SEBOU —
+   zametená stopa přes celou rampu je moc velkorysá (táž úvaha jako
+   u `holderEntryCapZ`).
+2. **Model se rozchází, když se `passes` ZKRÁTÍ.** Líný prefix (vzor
+   `syncCutFloor`) nestačí: pole se za běhu i zkracuje
+   (`tail.length = dropFrom`, `passes.splice(pi, 1)`). Model umí jen ubírat,
+   takže si připisoval řezy zákroků, které nakonec nikdo neudělá.
+   `syncResidual()` proto při zkrácení staví model ZNOVU. Splice doprostřed
+   se tím neřeší, ale ten je na bezpečné straně.
 
-Po opravě 3 je **kapsová větev inertní** — na všech 25 fixtures dává
-identický výsledek se zapnutou i vypnutou. V kódu zůstala (je to bezpečnostní
-hlídání, ne optimalizace; „na téhle sadě nevystřelí" není důkaz, že nevystřelí
-na dílu uživatele), ale je potřeba vědět, že ji sada NEMĚŘÍ.
+#### Cena
 
-#### Model se rozchází, když se `passes` ZKRÁTÍ
+Celý přepočet (`calculate()` × 2 v harnessu) se zapnutým příznakem:
 
-Líný prefix (týž vzor jako `syncCutFloor`) nestačí: pole se za běhu nejen
-plní, ale i zkracuje (`tail.length = dropFrom` u odložených zákroků,
-`passes.splice(pi, 1)` u rampy). Model umí jen ubírat, ne vracet materiál
-zpět, takže si připisoval řezy průchodů, které nakonec nikdo neudělá.
-`residualClamp()` proto při zkrácení pole staví model ZNOVU. Splice doprostřed
-se tím neřeší, ale ten je na bezpečné straně (model pak tvrdí, že materiál
-stojí).
+| fixture | vypnuto | zapnuto |
+|---|---|---|
+| `part-8` | 692 ms | 736 ms (+6 %) |
+| `part-15-finish-zprava` | 550 ms | 946 ms (+72 %) |
+| `part-13-zleva-flange` | 285 ms | 641 ms (+124 %) |
+
+Nese to stavba trackeru (`toolSweep` přes navzorkované oblouky, viz krok 1),
+ne samotné dotazy. Aplikace přepočítává při každé změně parametru, takže
+tohle je hlavní argument proti výchozímu zapnutí.
 
 ### Krok 4 — splatit ztrátu zrušením proxy
 
@@ -414,23 +428,25 @@ Postupně, každou zvlášť a se změřením:
 `tests/cam-collision-free` zelený v obou standardech, `tests/cam-gcode-regression`
 přepsaný vědomě.
 
-### Krok 5 — rozhodnout → ZATÍM NE
+### Krok 5 — rozhodnout
 
-Podmínka zněla „zapnout jen při splnění kroku 4". Krok 3 svůj cíl nesplnil
-(`part-8` beze změny) a přinesl novou vadu (`part-10`, 2 578 mm²), takže se
-**nezapíná**. Příznak zůstává výchozí vypnutý, jako `regionRoughing`
-a `booleanRoughing`, a naměřená čísla jsou zapsaná výš.
+Akceptace kroku 3 je splněná (4 / 33,4 → 0, mění se jediný díl), ale podmínka
+pro výchozí zapnutí zněla „úběr ≥ baseline". Ten je **−328 mm² (−0,43 %)**,
+takže formálně chybí krok 4 — jenže ten teď nemá co splácet v řádu, v jakém
+byl psaný (ztráta je 0,43 %, ne 5,5 %).
 
-Co dává smysl zkusit dál, v tomhle pořadí:
+Otevřené rozhodnutí, obě strany s čísly:
 
-1. **Kotva rampy proti POLYGONOVÉMU zbytku.** Tam `part-8` skutečně krvácí
-   a výškové pole je tam změřeně 11,2 mm vedle. Tohle je jediný krok, který
-   míří na doložený cíl.
-2. **`part-10-zapich-casting`** — zjistit, proč tam ořez přidá 1 458 mm²
-   úběru a 3 kolize při NEZMĚNĚNÉM počtu průchodů (průchody se tedy jen
-   prodloužily, což clamp sám o sobě neumí; jde o následek).
-3. Teprve potom krok 4 (rušení proxy) — a ten teď navíc nemá co splácet,
-   protože úběr se zapnutým příznakem neklesl, ale vzrostl.
+- **Zapnout výchozí:** vyplatí 4 nálezy / 33,4 mm² kolizí za 0,43 % úběru.
+  Cena je +6 až +124 % času přepočtu (tabulka výš) — to je hlavní argument
+  proti, protože aplikace počítá při každé změně parametru.
+- **Nechat vypnuté:** stav zůstává jako u `regionRoughing` a `booleanRoughing`
+  a `part-8` si dál nese 4 nálezy, které jsou v `tests/cam-stock-span-depths`
+  přišpendlené prahem 20 mm².
+
+Než se zapne, stojí za to zlevnit stavbu trackeru — dominuje `toolSweep`
+přes navzorkované oblouky, a hrubší vzorkování (0,4 mm místo 0,1) by se dalo
+změřit proti `tests/cam-strategy-residual`.
 
 ## Mimo rozsah
 

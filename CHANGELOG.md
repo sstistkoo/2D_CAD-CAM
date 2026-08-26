@@ -167,39 +167,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Measured and rejected
-- **CAM – order-aware hlídání držáku v `applyHolderClamp` (krok 3) svůj cíl
-  NESPLNILO.** Zapojeno za příznakem `orderAwareHolder` (výchozí vypnuto,
-  s vypnutým je G-kód bit po bitu týž). Změřeno na celé sadě:
+- **CAM – order-aware zbytek při OŘEZU Z-INTERVALŮ (`applyHolderClamp`) je
+  změřeně špatný obchod ve všech třech zkoušených variantách.** Plán chtěl
+  zbytkem nahradit statickou obálku právě tam; napříč celou sadou vyšlo:
 
-  | | úběr | kolize |
+  | varianta | úběr | kolize |
   |---|---|---|
-  | nakreslený nůž, dnes | 76 663,8 mm² | 4 / 33,4 mm² |
-  | nakreslený nůž, zapnuto | 78 145,6 (+1 481,8) | **7 / 2 611,2** |
-  | náhradní držák, dnes | 76 849,6 mm² | 2 / 2,3 mm² |
-  | náhradní držák, zapnuto | 78 082,2 (+1 232,6) | **3 / 2 577,8** |
+  | dnes, nakreslený nůž | 76 663,8 mm² | 4 / 33,4 mm² |
+  | zbytek NAHRAZUJE obálku | 65 979 (−14 %) | **67 / 31 138 mm²** |
+  | zbytek se s obálkou SKLÁDÁ | prakticky totéž (zbytek je dominantní) | |
+  | + smí jen ZKRÁTIT, ne zrušit | 78 146 (+1 482) | 7 / 2 611 — `part-8` **beze změny**, `part-10` **+3 nálezy / 2 578 mm²** |
 
-  Úběr tedy vzrostl (krok 4 by neměl co splácet), ale **`part-8` se nezměnil
-  ani o řádek** — a to byl celý cíl — a `part-10-zapich-casting` je nová vada
-  (+1 457,5 mm² úběru, 3 nálezy / 2 577,8 mm²). `holder-casting-slanted-face`
-  se naopak spravil (2 / 2,3 → 0).
+  Společná příčina: **zkrácený ani zahozený interval materiál NEODEBERE, jen
+  ho nechá stát** — a další, hlubší průchod ho vezme najednou a projede
+  držákem skrz. Na `part-17` průchodů 53 → 44, ale úběr 4 933 → 10 183 mm²
+  a 26 nálezů. Obálka si zahození dovolit může (modeluje HOTOVÝ DÍL, tedy
+  překážku, která nezmizí), zbytek je PŘECHODNÝ — správná odpověď na
+  „nevejde se teď" je přeplánovat POŘADÍ, což je mimo rozsah.
 
-  **Proč `part-8` ne:** jeho 4 nálezy sedí na VJEZDU do kapsy (`#27`,
-  `pocketEntry`, nulové dno) — na rampě a kotvě. `applyHolderClamp` ale
-  ořezává Z-intervaly hloubkových průchodů; kotvu plánuje `stockEntryRamp`
-  a hlídá `holderFitArea`, který čte VÝŠKOVÉ POLE. A právě o tom krok 1
-  změřil, že je na `part-8` až 11,2 mm pod realitou, přesně v tom pásu.
-  Polygonový model se tedy zapojil tam, kde díra není.
+  Ořez i na KAPSOVÉ intervaly (`k > 0`), který plán žádal, je po odečtení
+  vlastního řezu **inertní** — identický výsledek na všech 25 fixtures.
 
-  Cestou si měření vynutilo tři opravy návrhu (všechny zapsané v kódu):
-  nahrazení obálky je špatně a order-aware se s ní musí SKLÁDAT (se záměnou
-  úběr −14 % a kolize 4 → 67); zbytek smí průchod jen ZKRÁTIT, ne zrušit
-  (zahozená hloubka materiál neodebere, jen ho nechá stát pro hlubší průchod —
-  part-17 průchodů 53 → 44, ale úběr 4 933 → 10 183 a 26 nálezů); a musí se
-  odečíst VLASTNÍ ŘEZ průchodu, protože držák se táhne v drážce, kterou ten
-  průchod právě řeže (bez toho part-17 +5 287 mm², part-8 +2 176).
-
-  Příznak zůstává vypnutý. Další pokus patří KE KOTVĚ RAMPY, ne k ořezu
-  intervalů — podrobnosti a pořadí v `docs/cam-order-aware-holder.md`, krok 5.
+  Vada nálezu 09 tam totiž vůbec nebyla: `part-8` krvácí na VJEZDU do kapsy.
+  Nasazené řešení je proto u vjezdu (viz *Fixed*).
 - **CAM – rozšířit obálku držáku i na KAPSY (zanoření) je změřeně špatný obchod.**
   Zbytek nálezu 09 (hlídání zná jen hotový díl, ne syrový zbytek) se projeví
   jedině s NAKRESLENÝM nožem, a jen na `part-8`: 4 nálezy / 33,4 mm², všechny
@@ -240,6 +230,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   díl`, takže sám o sobě může jen ubrat.
 
 ### Fixed
+- **CAM – hluboký vjezd do úzké drážky zavezl DRŽÁK do materiálu, který tam
+  ještě stál (zbytek nálezu 09).** Za příznakem `orderAwareHolder` (výchozí
+  vypnuto; s vypnutým je G-kód bit po bitu týž).
+
+  Kapsový vjezd hlídá `holderFitArea` u `buildPocketPass` — a ten čte VÝŠKOVÉ
+  POLE `cutFloorTab`, jedno číslo na svislici Z. To neumí popsat TUNEL: když
+  zanoření nebo dojezd po kontuře podjede pod stojícím materiálem, srazí celý
+  sloupec na hloubku tunelu. Na `part-8` je to změřeně až **11,2 mm pod
+  realitou**, a to přesně v pásu Z 117,5–183, kde ten problémový vjezd je
+  (`#23`, `pocketEntry`, r 17,65, rampa na Z 184,5). Sken ho proto pustil.
+
+  Se zapnutým příznakem se u kapsového vjezdu ptá i POLYGONOVÝ zbytek, a to
+  podél celého vjezdu (`residEntryArea` → `holderAreaAlongResidual`, práh
+  `RESIDUAL_FIT_TOL` 0,5 mm²). Ten v něm najde **30,1 mm²** vnoření držáku
+  a zákrok zahodí:
+
+  | | úběr | kolize |
+  |---|---|---|
+  | nakreslený nůž, dnes | 76 663,8 mm² | 4 / 33,4 mm² |
+  | nakreslený nůž, zapnuto | 76 335,8 (−328,0; −0,43 %) | **0 / 0,0** |
+  | náhradní držák, zapnuto | 76 518,4 (−331,2) | 2 / 2,3 (beze změny) |
+
+  Mění se **jediný díl — `part-8`**; ostatních 24 fixtures je bit po bitu
+  shodných. Cena je jeden zahozený zákrok, ne rozpadlý program. Zbylé 2 nálezy
+  u náhradního držáku jsou `holder-casting-slanted-face`, tedy jiná, dávno
+  doložená mez (`holderFitsAt` na rampě).
+
+  Nutné k tomu byly dvě věci: odečíst zákroku VLASTNÍ ŘEZ (držák se táhne
+  v drážce, kterou ten zákrok právě řeže — bez toho `part-17` +5 287 mm²
+  a 36 nálezů), a to jen tu ČÁST dráhy, kterou má nástroj už za sebou; a stavět
+  model znovu, když se `passes` ZKRÁTÍ (`tail.length = dropFrom`,
+  `passes.splice(pi, 1)`) — jinak si připisuje řezy zákroků, které nakonec
+  nikdo neudělá.
+
+  Výchozí zapnutí zatím NE: přepočet se prodlouží o 6–124 % (`part-13`
+  285 → 641 ms), a aplikace počítá při každé změně parametru. Rozhodnutí
+  a čísla obou stran v `docs/cam-order-aware-holder.md`, krok 5.
+
 - **CAM – broad-phase validátoru kolizí TIŠE ZAHAZOVAL kolize na složitém
   obrysu.** Nález uživatele: konzole aplikace se plnila hláškami
   `quickDecomp: max level (100) reached.` se stackem

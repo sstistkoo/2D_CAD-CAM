@@ -164,28 +164,65 @@ describe('tolerance', () => {
 });
 
 // ── Zapojení do strategie (krok 3, příznak orderAwareHolder) ───────────────
-// Sweep měří dopad; tenhle test hlídá jen to, že ta cesta VŮBEC ŽIJE — bez
-// něj by ji sada nikdy nepustila a příznak by mohl tiše shnít.
+// Zbytek se ptá u VJEZDU zákroku (`residEntryArea` → `holderAreaAlongResidual`),
+// NE při ořezu Z-intervalů. Ta druhá varianta byla zkoušena a změřeně zamítnuta
+// (viz komentář u `applyHolderClamp` a docs/cam-order-aware-holder.md).
 describe('orderAwareHolder v genLongPasses', () => {
-  it('zapnutý příznak projde pipeline a nezhorší nálezy na part-1', async () => {
+  const MAGAZINE_HOLDER = {
+    sideA: [
+      { x: 0, z: 0 }, { x: 2, z: 0 }, { x: 20, z: 6.551464216791643 },
+      { x: 20, z: 200 }, { x: 0, z: 200 }, { x: 0, z: 0 },
+    ],
+    sideB: [],
+  };
+  const ZL0 = { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false };
+  const XL0 = { rangeXMin: null, rangeXMax: null, active: false };
+
+  async function run(file, orderAware, holderProfile) {
     const { runCamProg } = await import('./helpers/camHeadless.mjs');
     const { validateToolpath } = await import('../js/calculators/cam/collisionValidator.js');
     const { readFileSync } = await import('fs');
     const { join, dirname } = await import('path');
     const { fileURLToPath } = await import('url');
     const dir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'cam');
-    const load = () => JSON.parse(readFileSync(join(dir, 'part-1.camprog'), 'utf8'));
+    const prog = JSON.parse(readFileSync(join(dir, file), 'utf8'));
+    prog.params = { ...prog.params, orderAwareHolder: orderAware };
+    if (holderProfile) prog.params.holderProfile = holderProfile;
+    prog.zLimits = { ...ZL0, ...(prog.zLimits || {}) };
+    prog.xLimits = { ...XL0, ...(prog.xLimits || {}) };
+    const r = await runCamProg(prog);
+    return {
+      passes: r.calc.passes.length,
+      issues: validateToolpath(r.calcSim.simPath, r.params, r.calcSim.stockPathSegments,
+        { backside: r.params.roughingSide === 'left', maxIssues: 64 }),
+    };
+  }
 
-    const off = load();
-    off.params = { ...off.params, orderAwareHolder: false };
-    const a = await runCamProg(off);
-    const on = load();
-    on.params = { ...on.params, orderAwareHolder: true };
-    const b = await runCamProg(on);
+  // AKCEPTACE kroku 3. `part-8` je jediný díl, kde zbylá vada nálezu 09 žije:
+  // hluboký vjezd do úzké drážky (`pocketEntry`, r 17,65, rampa na Z 184,5).
+  // Dnešní hlídání ho pustí, protože čte VÝŠKOVÉ POLE, které o tunelu neví
+  // (krok 1 to tam změřil na 11,2 mm). Polygonový zbytek v tom vjezdu najde
+  // 30,1 mm² vnoření držáku a zákrok zahodí.
+  it('part-8 s nakresleným nožem: 4 nálezy / 33,4 mm² → 0', async () => {
+    const off = await run('part-8.camprog', false, MAGAZINE_HOLDER);
+    const on = await run('part-8.camprog', true, MAGAZINE_HOLDER);
+    const fmt = (r) => r.issues.map(i => `${i.kind}@r${i.x.toFixed(1)}Z${i.z.toFixed(1)}=${i.area.toFixed(1)}`).join('; ');
+    // Bez příznaku ta vada JE — kdyby zmizela jinudy, tenhle test by tiše
+    // přestal měřit, co má.
+    expect(off.issues.length, `bez příznaku: ${fmt(off)}`).toBeGreaterThan(0);
+    expect(on.issues.length, `s příznakem: ${fmt(on)}`).toBe(0);
+    // Cena je JEDEN zahozený zákrok, ne rozpadlý program.
+    expect(off.passes - on.passes).toBeLessThanOrEqual(2);
+  }, 120000);
 
-    expect(b.calc.passes.length, 'se zapnutým příznakem nevznikly průchody').toBeGreaterThan(0);
-    const issues = (r) => validateToolpath(r.calcSim.simPath, r.params, r.calcSim.stockPathSegments,
-      { backside: r.params.roughingSide === 'left', maxIssues: 64 }).length;
-    expect(issues(b), 'příznak přidal kolize').toBeLessThanOrEqual(issues(a));
+  it('ostatní díly se příznakem nehnou (part-1, holder-region-roughing)', async () => {
+    // Změřeno sweepem: se zapnutým příznakem se napříč 25 fixtures × 2
+    // variantami držáku změnil JEDINÝ díl — part-8. Tady jsou dva zástupci.
+    for (const f of ['part-1.camprog', 'holder-region-roughing.camprog']) {
+      const off = await run(f, false, MAGAZINE_HOLDER);
+      const on = await run(f, true, MAGAZINE_HOLDER);
+      expect(on.passes, `${f}: počet průchodů`).toBe(off.passes);
+      expect(on.issues.length, `${f}: nálezy`).toBe(off.issues.length);
+    }
   }, 120000);
 });
