@@ -27,6 +27,7 @@ import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 import { _defaultCamParams } from '../js/calculators/cam/camDefaults.js';
+import { insertBodyZ } from '../js/calculators/cam/materialRemoval.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, 'fixtures', 'cam');
@@ -254,4 +255,98 @@ describe('čelní hrubování ZLEVA respektuje rozsah stejně', () => {
     }
     expect(band.issues.length, `(silueta): ${detail(band.issues)}`).toBe(0);
   }, 120000);
+});
+
+describe('rozsah 📐 vymezuje OBROBENOU PLOCHU, ne programovaný bod', () => {
+  // Destička má šířku: řez sahá o rádius nosu PŘED programovaný bod a o tělo
+  // (`insertBodyZ` — u upichováku šířka plátku bez rádiusu, jinak `ap`) ZA něj.
+  // Hranice pásu se proto měří na ŘEZU:
+  //   • žádný průchod nesmí řezat za hranici (dovnitř sousedního úseku),
+  //   • na konci marche musí řez na hranici DOJET — mřížka kotvená na kraji
+  //     polotovaru tam sama nesedne a nechávala proužek až `ap` široký.
+  // Nález uživatele 26. 8. 2026 (upichovák 5 mm, pás od Z311,76): první průchod
+  // na Z308,932 řezal až na Z313,932, tedy 2,17 mm za startem rozsahu.
+  const reachOf = (p) => {
+    const r = Math.max(parseFloat(p.toolRadius) || 0.8, 0.05);
+    return { lead: r, trail: Math.max(r, insertBodyZ(p, r)) };
+  };
+
+  // Zleva se čelně svět NEzrcadlí, ale marche jde opačně a s ní i obě strany
+  // stopy destičky — proto je v seznamu i případ `roughingSide: 'left'`.
+  // Znaménko se v `genFacePasses` řídí `sgnF` a kraj polotovaru na straně
+  // startu je `faceEdgeZ` (zleva DRUHÝ konec dílu); s `faceStartZ` se klamp
+  // startu zleva vůbec nenasadil.
+  const SIDES = [...CASES.map(c => ({ ...c, side: 'right' })),
+    { file: 'part-19-face-tilted-insert.camprog', band: [250, 320], side: 'left' }];
+  for (const { file, band: [lo, hi], side } of SIDES) {
+    it(`${file} (${side}) — řez zůstane v pásu Z ${lo}…${hi} a dojede na jeho konec`, async () => {
+      const free = await runWith(file, { params: { roughingSide: side } });
+      const band = await runWith(file, { params: { roughingSide: side }, zLimits: { rangeActive: true, rangeStart: lo, rangeEnd: hi } });
+      const prms = band.prog.params;
+      const { lead, trail } = reachOf(prms);
+      // Zprava marche klesá (čelo řezu je na −Z, záď na +Z), zleva obráceně.
+      const left = prms.roughingSide === 'left';
+      const cutLead = (p) => left ? p.z + lead : p.z - lead;
+      const cutTail = (p) => left ? p.z - trail : p.z + trail;
+      const bndEnd = left ? hi : lo;
+      const bndStart = left ? lo : hi;
+
+      expect(band.facePasses.length).toBeGreaterThan(0);
+      // 1) Nic nepřeteče ven z pásu — ani čelo řezu, ani jeho záď.
+      for (const p of band.facePasses) {
+        for (const v of [cutLead(p), cutTail(p), p.z]) {
+          expect(v, `${file}: řez průchodu Z${p.z.toFixed(2)} sahá na Z${v.toFixed(2)}, tedy pod pás`).toBeGreaterThanOrEqual(lo - 0.01);
+          expect(v, `${file}: řez průchodu Z${p.z.toFixed(2)} sahá na Z${v.toFixed(2)}, tedy nad pás`).toBeLessThanOrEqual(hi + 0.01);
+        }
+      }
+      // 2) Na konci marche řez na hranici DOJEDE (bez pásu se za ni jezdí,
+      //    takže je co dorovnávat).
+      //    VÝJIMKA `face-casting`: vrstva na hranici se do mřížky přidá, ale
+      //    průchod z ní nevznikne — schodišťové pravidlo vede hloubku od první
+      //    vrstvy pásu a u dolní meze je řez už nad povrchem odlitku, tedy
+      //    vzduch (zbývá 1,2 mm). Kdyby to někdy dosáhlo, je to zlepšení:
+      //    přepiš výjimku, netlum test.
+      const beyond = free.facePasses.some(p => Math.abs(cutLead(p) - bndEnd) > 0.01
+        && (left ? cutLead(p) > hi : cutLead(p) < lo));
+      expect(beyond, `${file}: bez pásu se za hranici Z${bndEnd} stejně nejede — případ nic netestuje`).toBe(true);
+      if (file !== 'face-casting.camprog') {
+        const gap = Math.min(...band.facePasses.map(p => Math.abs(cutLead(p) - bndEnd)));
+        expect(gap, `${file}: řez končí ${gap.toFixed(2)} mm před hranicí Z${bndEnd}`).toBeLessThanOrEqual(0.01);
+      }
+      // 3) Start pásu leží uvnitř materiálu, takže se o něj první průchod
+      //    opřel — záď řezu na něm musí sedět (ne za ním, ne o `ap` dřív).
+      const gapS = Math.min(...band.facePasses.map(p => Math.abs(cutTail(p) - bndStart)));
+      expect(gapS, `${file}: řez začíná ${gapS.toFixed(2)} mm za startem pásu Z${bndStart}`).toBeLessThanOrEqual(0.01);
+
+      expect(band.issues.length, `${file} (silueta): ${detail(band.issues)}`).toBe(0);
+      expect(band.issuesPlan.length, `${file} (offsetová čára): ${detail(band.issuesPlan)}`).toBe(0);
+    }, 120000);
+  }
+
+  // Podélně je řezná osa Z a mřížkou jsou HLOUBKY, takže hranici dorovnává
+  // rozsah X — a jen jeho DOLNÍ mez (dno pásu). Nad horní mezí se v tomhle
+  // úseku neobrábí vůbec; tu hloubku dělá sousední úsek, jehož dnem je právě
+  // ona, takže průchod na ní by z ničeho neubral.
+  const XCASES = [
+    { file: 'part-1.camprog', xLo: 20, xHi: 40 },
+    { file: 'part-15-finish-zprava.camprog', xLo: 20, xHi: 40 },
+    { file: 'part-14-finish-holder.camprog', xLo: 20, xHi: 40 },
+  ];
+  for (const { file, xLo, xHi } of XCASES) {
+    it(`${file} — podélné hloubky dojedou na dno pásu X ${xLo}…${xHi}`, async () => {
+      const params = { roughingStrategy: 'longitudinal' };
+      const free = await runWith(file, { params });
+      const band = await runWith(file, { params, xLimits: { active: true, rangeXMin: xLo, rangeXMax: xHi } });
+      const longsOf = (r) => (r.calc.passes || []).filter(p => p.type === 'long');
+      expect(longsOf(free).some(p => p.x < xLo - 1e-6),
+        `${file}: bez pásu se pod dolní mez vůbec nejede — případ nic netestuje`).toBe(true);
+      const longs = longsOf(band);
+      expect(longs.length).toBeGreaterThan(0);
+      const deepest = Math.min(...longs.map(p => p.x));
+      expect(deepest, `${file}: nejhlubší průchod je na r${deepest.toFixed(2)}, tedy ${(deepest - xLo).toFixed(2)} mm nad dnem pásu`)
+        .toBeCloseTo(xLo, 2);
+      for (const p of longs)
+        expect(p.x, `${file}: průchod na r${p.x.toFixed(2)} leží pod dnem pásu`).toBeGreaterThanOrEqual(xLo - 0.01);
+    }, 120000);
+  }
 });

@@ -5,7 +5,7 @@ programů (CAM) pro CNC soustruhy a karusely. Běží plně v prohlížeči jako
 client-side SPA bez backendu a bez build kroků (vanilla JS + ES moduly, 0 runtime
 závislostí).
 
-> Verze: 1.7.0 | Licence: ISC | Jazyk UI/dokumentace: čeština
+> Verze: 1.8.0 | Licence: ISC | Jazyk UI/dokumentace: čeština
 
 ## Podporované řídicí systémy (CAM výstup)
 - **Sinumerik** (Siemens 840D sl a kompatibilní) – subprogramy, hlavičky dle předvoleb

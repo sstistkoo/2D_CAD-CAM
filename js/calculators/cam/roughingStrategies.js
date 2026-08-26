@@ -344,6 +344,61 @@ export function genFacePasses(ctx) {
     : zListAll;
   if (machiningRange && zList.length === 0 && zListAll.length > 0)
     foundErrors.push({ type: 'warning', msg: `Rozsah obrábění Z (${machiningRange.zLo}–${machiningRange.zHi} mm): žádná vrstva čelního hrubování neleží v zadaném intervalu — dráhy nebyly generovány.` });
+  // ── HRANICE PÁSU SE MĚŘÍ NA ŘEZU, NE NA PROGRAMOVANÉM BODU ────────────
+  // Dvě věci najednou, obě o tomtéž: kam až sahá OBROBENÁ PLOCHA.
+  //
+  // 1) DOJEZD. Mřížka vrstev je kotvená na kraji polotovaru, takže na hranici
+  //    rozsahu skoro nikdy nesedí — mezi poslední vrstvou a hranicí zůstával
+  //    stát neobrobený proužek až `ap` široký (face-cylinder, pás 25…45:
+  //    marche končí na Z26, na Z25 stojí polotovar). Přidá se proto vrstva
+  //    navíc; poslední tříska je tenčí než `ap`, takže nic nepřetěžuje.
+  //
+  // 2) ŠÍŘKA DESTIČKY. Řez sahá o rádius nosu PŘED programovaný bod a o tělo
+  //    destičky ZA něj (`insertBodyZ`: u upichováku šířka plátku bez rádiusu,
+  //    jinak `ap`) — přesně ta stopa, kterou ubírá `toolFootprint`, takže se
+  //    plánování drží téhož modelu jako úběr a validátor. Průchod postavený
+  //    přesně na hranici by tedy řezal ještě
+  //    kus za ní, do sousedního úseku, který je buď hotový, nebo přijde na
+  //    řadu s vlastním nastavením. Vrstvy se proto posadí tak, aby na hranici
+  //    dosedl ŘEZ: na konci marche jeho čelo, na začátku jeho záď.
+  //    Nález uživatele 26. 8. 2026 (upichovák 5 mm, pás od Z311,76): první
+  //    průchod na Z308,932 řezal až na Z313,932, tedy 2,17 mm za startem.
+  //
+  // Obojí se nasadí, jen když pás v dané ose OPRAVDU ukrajuje: na konci když
+  // za hranicí leží vrstva, kterou tahle operace nedělá, na začátku když
+  // hranice leží uvnitř materiálu (před čelem polotovaru). Pás, který díl celý
+  // obsáhne — typicky ten uložený s výkresem — tím pádem nemění nic; na tom
+  // stojí stabilita čelních snapshotů (táž logika jako `faceRetractCapZ` níž).
+  if (machiningRange && zList.length > 0) {
+    const rNose = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
+    const lead = rNose;                                 // řez před programovaným bodem
+    const trail = Math.max(rNose, insertBodyZ(prms, rNose));   // řez za ním (tělo destičky)
+    const bndStart = faceLeft ? machiningRange.zLo : machiningRange.zHi;
+    const bndEnd = faceLeft ? machiningRange.zHi : machiningRange.zLo;
+    const zStartLim = bndStart + sgnF * trail;   // blíž ke startu pásu už průchod nesmí
+    const zEndLim = bndEnd - sgnF * lead;        // dál v marchi už průchod nesmí
+    // Kraj polotovaru na straně STARTU marche je `faceEdgeZ` (zleva je to
+    // druhý konec dílu, ne `faceStartZ` — na tom se dá snadno seknout).
+    const startBites = sgnF * (bndStart - faceEdgeZ) > 1e-6;
+    const endClips = zListAll.some(z => sgnF * (z - bndEnd) > 1e-6);
+    // Pás užší než stopa destičky se dodržet NEDÁ — řez z něj přeteče tak jako
+    // tak. Radši to řekni, než aby uživatel čekal, že hranice platí.
+    if (startBites && endClips && (machiningRange.zHi - machiningRange.zLo) < lead + trail - 1e-6)
+      foundErrors.push({ type: 'warning', msg: `Rozsah obrábění Z (${machiningRange.zLo}–${machiningRange.zHi} mm) je užší než stopa destičky (${(lead + trail).toFixed(2)} mm) — řez přesáhne za hranici pásu.` });
+    const clamped = zList.map(z => {
+      if (startBites && sgnF * (z - zStartLim) < 0) z = zStartLim;
+      if (endClips && sgnF * (zEndLim - z) < 0) z = zEndLim;
+      return z;
+    });
+    if (endClips) clamped.push(zEndLim);
+    // Setřídit ve směru marche (klamp může vrstvu přesunout za sousední)
+    // a slít ty, co po posunu splynuly.
+    clamped.sort((a, b) => sgnF * (a - b));
+    const eps = Math.max(0.02, step * 0.02);
+    const out = [];
+    for (const z of clamped) if (!out.length || Math.abs(out[out.length - 1] - z) >= eps) out.push(z);
+    zList.splice(0, zList.length, ...out);
+  }
   // MEZ ODSKOKU NA KRAJI PÁSU. Krajní vrstva odskakuje 45° k obrobené straně,
   // jenže za pásem tahle operace neobrábí — materiál tam stojí v plné výšce
   // a diagonála do něj zajede (změřeno na face-cylinder, pás Z 10…30: odskok
@@ -1484,6 +1539,23 @@ export function genLongPasses(ctx) {
     const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
     if (filtered.length === 0 && depths.length > 0)
       foundErrors.push({ type: 'warning', msg: `X-rozsah obrábění (${machiningRangeX.xLo}–${machiningRangeX.xHi} mm): žádné hloubky průchodů neleží v zadaném intervalu — dráhy nebyly generovány.` });
+    // DNO PÁSU. Mřížka hloubek je kotvená na povrchu polotovaru, takže na
+    // dolní mezi pásu nesedí — pod poslední hloubkou zůstával neobrobený
+    // prstenec až `ap` silný (part-1, pás X 20…40: hloubky končí na r21,98).
+    // Přidá se proto průchod PŘESNĚ na `xLo`, ale jen když mřížka pod mez
+    // opravdu pokračovala (materiál tam tedy je) — pás, který díl celý
+    // obsáhne, tím pádem nemění nic. Je to táž výjimka z kroku `ap`, jakou
+    // dělá vynucený poslední průchod na `minPartX` výš.
+    //
+    // Horní mez se takhle dorovnat nedá ani nemusí: hloubka nad `xHi` se
+    // v tomhle úseku neobrábí (patří sousednímu úseku, jehož dno je právě
+    // `xHi`) a průchod na `xHi` by z ní nic neubral.
+    if (filtered.length > 0) {
+      const deepest = filtered[filtered.length - 1];
+      const below = depths.some(d => d < machiningRangeX.xLo - 1e-6);
+      if (below && deepest - machiningRangeX.xLo > Math.max(0.02, step * 0.02))
+        filtered.push(machiningRangeX.xLo);
+    }
     depths.splice(0, depths.length, ...filtered);
   }
 

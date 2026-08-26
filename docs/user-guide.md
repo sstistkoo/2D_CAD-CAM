@@ -503,6 +503,48 @@ pod dolní mez. Horní mez se čelně vynutit nedá: řez jde radiálně od povr
 k ose, takže materiál nad ní nástroj projede tak jako tak. (Podélně platí obě
 meze, protože tam se dá celá hloubka přeskočit.)
 
+**Hranice pásu vymezuje OBROBENOU PLOCHU, ne programovaný bod.** Destička má
+šířku: řez sahá o *rádius nosu* před programovaný bod a o tělo destičky za něj
+(u upichováku celá šířka plátku bez rádiusu, jinak *Hloubka záběru*). Průchod
+postavený přesně na čáru by proto ještě kus za ní řezal — do sousedního úseku,
+který je buď hotový, nebo přijde na řadu s vlastním nastavením. Čelní vrstvy se
+proto **posadí tak, aby na čáru dosedl řez**:
+
+- na **konci marche** jeho čelo (nos) — a to i tehdy, když tam mřížka žádnou
+  vrstvu nemá: mřížka je kotvená na kraji polotovaru a krok drží ap, takže na
+  hranici sama nesedne a zůstával za ní proužek až `ap` široký. Vrstva navíc
+  ho sebere (poslední tříska je tenčí než ap, nic se nepřetěžuje).
+- na **začátku marche** jeho záď (tělo destičky) — první vrstva se posune
+  dovnitř pásu. Příklad z praxe: upichovák 5 mm, pás od Z311,76 → první průchod
+  na Z308,932 řezal až na Z313,932, tedy 2,17 mm za čárou; teď stojí na
+  Z307,560 a plátek končí přesně na Z311,76.
+
+**Podélně** platí totéž na dolní mezi rozsahu X (dno pásu) — průchod dojede
+přesně na ni. Horní mez to nepotřebuje: hloubky nad ní se v tomhle úseku
+neobrábí a dělá je sousední úsek, jehož dnem je právě ona.
+
+Nasadí se to jen tam, kde pás opravdu ukrajuje (konec: za hranicí leží vrstva,
+kterou operace nedělá; start: hranice leží uvnitř materiálu). Pás, který díl
+celý obsáhne — typicky ten uložený s výkresem — dráhy nemění.
+
+> **Pozor u velkého rádiusu nosu.** Čím širší stopa, tím víc musí vrstvy
+> ustoupit dovnitř pásu — a schodiště natočené destičky se tím zkrátí, takže
+> úsek vyjde mělčí. Změřeno na `part-18` (nos R8, ap 3, pás Z 100…150): dno
+> řezu r17,2 → r36,2 a v pásu zůstane o 221 mm² materiálu víc. Když je sousední
+> úsek už hotový (řeže se tam do vzduchu), posuň si hranici o rádius nosu ven.
+> U běžných destiček je to naopak čistý zisk: u čtyř z pěti měřených pásů
+> zbytek v pásu **klesl** (−5 až −40 mm²) a úběr povyrostl.
+
+**Tažení mezních čar snapuje.** Čáry (čelisti, koník, rozsah Z i X) se při
+tažení po plátně chytají na souřadnice snapovatelných bodů — vrcholů kontury
+i polotovaru, středů úseček, středů a vrcholů oblouků, konců konstrukčních čar
+a počátku. Chytne se **jen bod, u kterého zrovna jsi myší**: čára na něj dosedne
+souřadnicí v ose tažení (svislá na Z bodu, vodorovná na jeho X), ale musí být
+zároveň blízko kurzoru i kolmo na tu osu. Body, kolem kterých čára jen projede
+o kus dál, ji tedy nepřitáhnou. Přichycený bod ukáže obvyklý SNAP indikátor.
+Vypíná se týmž magnetem 🧲 jako snap při kreslení — s vypnutým se čára jako
+dřív posouvá volně po 0,01 mm. Po puštění čáry se dráhy hned přepočítají.
+
 **Dokončování se ořezává taky** — obojím rozsahem, Z i X. Rozsah je **pás**:
 může uříznout oba konce a nechat kus uprostřed, případně jeden úsek kontury
 rozdělit na dva. Dráha se **zkracuje, ne zahazuje** — hranice pásu je tvoje

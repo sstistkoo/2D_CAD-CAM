@@ -23,6 +23,12 @@ function collectFiles(dir, base = ROOT) {
   let files = [];
   for (const entry of entries) {
     if (IGNORE.has(entry)) continue;
+    // Tečkové soubory a složky do cache NEPATŘÍ: nejsou verzované ani
+    // nasazované (GitHub Pages je navíc přes Jekyll vynechává úplně),
+    // a `cache.addAll` je ATOMICKÉ — jediný 404 shodí instalaci Service
+    // Workeru a s ní celý offline režim. Chytlo se na `.cam-sweep-baseline.json`,
+    // což je lokální měřicí soubor, ne asset aplikace.
+    if (entry.startsWith('.')) continue;
     const full = join(dir, entry);
     const stat = statSync(full);
     if (stat.isDirectory()) {

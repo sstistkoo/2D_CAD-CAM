@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-26
+
 ### Added
+- **CAM – snap při tažení mezních čar (rozsah 📐, čelisti, koník).** Čára se
+  na plátně chytá na souřadnice týchž bodů jako kreslení: vrcholy kontury
+  i polotovaru, středy úseček, středy a vrcholy oblouků, konce konstrukčních
+  čar a počátek. Mezní čára je nekonečná přímka, takže na bod dosedá jen jeho
+  souřadnicí v ose tažení (svislá na Z, vodorovná na X) — chytá se ale **jen na
+  bod u kurzoru**: v ose tažení do 10 px, kolmo na ni do 18 px (tytéž tolerance
+  jako hrany a body v `camSnap`). Bez té druhé podmínky přitáhl čáru každý bod
+  se správnou souřadnicí, i když ležel přes celé plátno jinde — táhls s čárou
+  dole a skočila na bod nahoře (nález uživatele 26. 8. 2026). Ve shluku (rozdíl
+  v ose do 1 px) vyhraje bod blíž ke kurzoru. Přichycený bod ukáže obvyklý SNAP
+  indikátor, vypíná se týmž magnetem 🧲.
+
+  Tažení se přitom sčítá do **nezaokrouhlené** polohy — jinak by se čára po
+  přichycení posouvala od snapnuté hodnoty a snap by nešel „pustit“. Bez snapu
+  zůstává původní krok 0,01 mm.
+
+  Zároveň se po přetažení **rozsahu** přepočítají dráhy (dosud jen po čelisti
+  a koníku): od 25. 8. 2026 rozsah ořezává hrubování i dokončování, takže čára
+  skočila jinam, ale dráhy zůstaly podle staré polohy.
+
 - **CAM – `scripts/cam_sweep.mjs --set=klíč=hodnota`.** Přepíše parametr
   ve všech fixtures, takže se dá změřit dopad příznaku (`--set=orderAwareHolder=true`)
   jedním během. Se `--set` se netiskne porovnání se zapsanou baseline — ta
@@ -171,6 +193,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nedala udržet"; to je záměr, jinak by nešlo poznat, jestli se nastavení
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
+### Changed
+- **CAM – rozsah 📐 vymezuje OBROBENOU PLOCHU, ne programovaný bod.** Dvě věci
+  o tomtéž:
+
+  **1) Dojezd.** Mřížka průchodů je kotvená na kraji polotovaru a krok drží
+  `ap`, takže na hranici pásu nesedne — mezi posledním průchodem a čarou
+  zůstával stát neobrobený proužek až `ap` široký (`face-cylinder`, pás Z 25…45:
+  marche končila na Z26). Nově se přidá vrstva navíc; poslední tříska je tenčí
+  než `ap`. Podélně totéž na dolní mezi rozsahu X (dno pásu); horní mez to
+  nepotřebuje, hloubky nad ní dělá sousední úsek, jehož dnem je právě ona.
+
+  **2) Šířka destičky** (nález uživatele 26. 8. 2026). Řez sahá o rádius nosu
+  PŘED programovaný bod a o tělo destičky ZA něj (`insertBodyZ`: u upichováku
+  šířka plátku bez rádiusu, jinak `ap`) — přesně stopa `toolFootprint`, takže
+  plánování drží týž model jako úběr i validátor. Průchod postavený na hranici
+  proto řezal ještě kus za ní: upichovák 5 mm, pás od Z311,76 → první průchod
+  na Z308,932 řezal až na Z313,932, tedy 2,17 mm do sousedního úseku. Čelní
+  vrstvy se nově posadí tak, aby na hranici dosedl ŘEZ — na konci marche jeho
+  čelo, na začátku jeho záď (týž průchod teď stojí na Z307,560 a plátek končí
+  přesně na Z311,76).
+
+  Nasadí se jen tam, kde pás opravdu ukrajuje (konec: za hranicí leží vrstva,
+  kterou operace nedělá; start: hranice leží uvnitř materiálu — a tou hranou je
+  `faceEdgeZ`, tedy ZLEVA druhý konec dílu; s `faceStartZ` se klamp startu zleva
+  vůbec nenasadil a řez přetekl 3 mm pod pás, hlídá to nový případ v testu),
+  takže pás přes
+  celý díl nemění nic — na tom stojí stabilita snapshotů, všechny prošly beze
+  změny.
+
+  Měřeno na 16 kombinacích dílu × pásu proti HEAD, nově i **zbytkem UVNITŘ
+  pásu** (samotný úběr nestačí: přestat řezat za hranicí se v něm tváří jako
+  ztráta). Čelně u čtyř z pěti pásů zbytek v pásu KLESL — `part-16` −26,7,
+  `part-19` −40,1, `face-cylinder` −5,3, `face-casting` −20,5 mm² — a úběr
+  povyrostl. Podélně +8,3 / +142,7 / +485,0 mm² úběru. Kolize 0 u všech čelních
+  pásů, u `part-1` a `part-8` dokonce o nález méně (hlubší průchod odebere
+  materiál, o který se dřív otíral držák). U `part-15` přibudou 4 hlášení
+  držáku (30,5 mm² z 1 189) — tentýž, už dřív zdokumentovaný případ „za hranicí
+  pásu stojí materiál a držák do něj najede“, jen o hloubku níž.
+
+  **Změřená cena u velkého rádiusu nosu:** čím širší stopa, tím dál musí vrstvy
+  ustoupit dovnitř pásu a schodiště natočené destičky se zkrátí. `part-18`
+  (nos R8, ap 3, pás Z 100…150): dno řezu r17,2 → r36,2 a v pásu zůstane
+  o 220,7 mm² víc. Je to fyzika sekání po úsecích, ne vada — kdo má sousední
+  úsek hotový, posune si hranici o rádius nosu ven. Menší dosah (jen tělo
+  destičky bez nosu) by tu sice ušetřil, ale u R8 by se pořád 5 mm řezalo za
+  čárou, což je přesně to, co se opravuje.
+
 ### Measured and rejected
 - **CAM – order-aware zbytek při OŘEZU Z-INTERVALŮ (`applyHolderClamp`) je
   změřeně špatný obchod ve všech třech zkoušených variantách.** Plán chtěl
@@ -235,6 +304,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   díl`, takže sám o sobě může jen ubrat.
 
 ### Fixed
+- **PWA – generátor SW assetů bral i tečkové soubory.** `npm run sw` zapsal do
+  cache `./.cam-sweep-baseline.json` — lokální měřicí soubor, který není
+  verzovaný ani nasazovaný (GitHub Pages ho přes Jekyll vynechá tak jako tak).
+  `cache.addAll` je ATOMICKÉ, takže jediný 404 shodí instalaci Service Workeru
+  a s ní celý offline režim. Generátor teď tečkové soubory i složky přeskakuje.
+  Při té příležitosti se do cache dostaly `residualHolder.js`
+  a `residualTracker.js`, které v ní od svého přidání chyběly (SW v233).
+
 - **CAM – kontrola order-aware hlídání držáku: dvě vady nalezené revizí.**
   Ani jedna se na fixtures neprojevila (`cam_sweep --diff` je před opravou
   i po ní na nule), obě ale byly reálné.

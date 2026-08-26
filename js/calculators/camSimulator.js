@@ -319,6 +319,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // podél projeté dráhy (HolderGouge) — zůstává i po přejetí.
     showHolderCollision: true,
     draggedLimit: null, // 'chuck' | 'tail' | 'rangeStart' | 'rangeEnd' | 'rangeXMin' | 'rangeXMax' nebo null
+    _limitDragRaw: null, // nezaokrouhlená poloha tažené mezní čáry (kvůli snapu)
     simRunning: false, simProgress: 0,
     manualGCode: '',
     generatedCode: [], errors: [],
@@ -2700,6 +2701,69 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     return best;
   }
+  // ── SNAP MEZNÍCH ČAR (rozsah 📐, čelisti, koník) ──────────────────────
+  // Body, na které se mezní čára smí chytit: táž nabídka jako v camSnap
+  // (počátek, vrcholy kontury i polotovaru, konce a středy úseček, středy
+  // oblouků a vrcholy jejich výseku, konce konstrukčních čar). Průsečíky se
+  // sem záměrně neberou — čára se chytá jen JEDNOU souřadnicí, takže by
+  // nabídku jen zahustily o polohy, které v ní stejně už jsou.
+  function limitSnapPoints() {
+    const calc = S._cachedCalc;
+    if (!calc) return [];
+    const pts = [{ x: 0, z: 0 }];
+    (calc.worldPoints || []).forEach(p => pts.push({ x: p.xReal, z: p.zReal }));
+    (calc.stockWorldPoints || []).forEach(p => pts.push({ x: p.xReal, z: p.zReal }));
+    const guides = getAllGuideLines().map(g => ({ type: 'line', p1: { x: g.x1, z: g.z1 }, p2: { x: g.x2, z: g.z2 } }));
+    const segs = [...(calc.contourSegments || []), ...(calc.stockPathSegments || []),
+      ...guides, ...getGuideOffsetLines()].filter(s => s && !s.isDegenerate);
+    for (const s of segs) {
+      if (s.type === 'arc') {
+        pts.push({ x: s.cx, z: s.cz });
+        const onArc = (a) => pts.push({ x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r });
+        onArc(s.startAngle); onArc(s.endAngle);
+        // Vrcholy výseku (nejzazší X a Z oblouku) – tam mez typicky patří.
+        for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2])
+          if (isAngleBetween(a, s.startAngle, s.endAngle, s.dir === 'G2')) onArc(a);
+      } else if (s.p1 && s.p2) {
+        pts.push({ x: s.p1.x, z: s.p1.z }, { x: s.p2.x, z: s.p2.z },
+          { x: (s.p1.x + s.p2.x) / 2, z: (s.p1.z + s.p2.z) / 2 });
+      }
+    }
+    return pts;
+  }
+  // Přichycení tažené mezní čáry (axis 'z' = svislá čára Z, 'x' = vodorovná
+  // čára X). Čára je nekonečná přímka, ale chytá se jako v CAD: bod musí být
+  // u KURZORU, ne kdekoli na čáře. Platí proto DVĚ podmínky:
+  //   • v ose tažení do 10 px (tam čára na bod dosedne — jako hrany v camSnap),
+  //   • KOLMO na ni do 18 px od kurzoru (táž tolerance jako body v camSnap).
+  // Bez té druhé se čára chytala na každý bod se správnou souřadnicí — táhls
+  // s ní dole a skočila na bod úplně nahoře (nález uživatele 26. 8. 2026).
+  // Ve shluku (rozdíl v ose do 1 px) vyhraje bod blíž ke kurzoru.
+  // Vrací hodnotu, nebo null (nic v dosahu).
+  function snapLimitValue(axis, raw, clientX, clientY) {
+    S._snap = null;
+    if (!S.snapEnabled || S.simRunning || !S._cachedCalc) return null;
+    const rect = canvas.getBoundingClientRect();
+    const cur = _gToWorld(clientX - rect.left, clientY - rect.top);
+    const tol = 10 / S.view.scale;            // v ose tažení
+    const perp = 18 / S.view.scale;           // kolmo ke kurzoru
+    const cands = [];
+    for (const p of limitSnapPoints()) {
+      const v = axis === 'x' ? p.x : p.z;
+      if (v == null || !isFinite(v)) continue;
+      const d = Math.abs(v - raw);
+      if (d > tol) continue;
+      const other = Math.abs((axis === 'x' ? p.z : p.x) - (axis === 'x' ? cur.z : cur.x));
+      if (other > perp) continue;             // bod je jinde na čáře, ne u kurzoru
+      cands.push({ p, d, other });
+    }
+    if (cands.length === 0) return null;
+    const tie = 1 / S.view.scale;             // rozdíl do 1 px = „stejně blízko"
+    cands.sort((a, b) => (Math.round(a.d / tie) - Math.round(b.d / tie)) || (a.other - b.other));
+    const best = cands[0].p;
+    S._snap = { x: best.x, z: best.z, type: 'point' };   // indikátor + popisek
+    return Math.round((axis === 'x' ? best.x : best.z) * 1000) / 1000;
+  }
   // Úhlový snap (jako v CAD): přichytí směr ref→bod na násobek 90°
   // (vodorovně/kolmo) s tolerancí ±1°, projekcí na úhlovou přímku.
   const ANGLE_SNAP_TOL = 1 * Math.PI / 180;
@@ -4506,9 +4570,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         const key = inp.dataset.zlim;
         const v = inp.value.trim();
         S.zLimits[key] = v === '' ? null : (parseFloat(v) || 0);
-        // Chuck/koník ovlivňují generování drah → recalc; range slouží
-        // jen jako vizuální vodítko, takže by stačil draw, ale pro
-        // konzistenci děláme fullUpdate i tam.
+        // Čelisti/koník i rozsah 📐 ovlivňují generování drah (rozsah od
+        // 25. 8. 2026 ořezává hrubování i dokončování) → vždy přepočítat.
         fullUpdate();
       });
     });
@@ -8619,14 +8682,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     const zKey = getZLimitAt(e.clientX, e.clientY);
     if (zKey !== null) {
       pushHistory();
-      S.draggedLimit = zKey; S.isDragging = true;
+      S.draggedLimit = zKey; S.isDragging = true; S._limitDragRaw = null;
       lastMousePos = { x: e.clientX, y: e.clientY };
       return;
     }
     const xKey = getXLimitAt(e.clientX, e.clientY);
     if (xKey !== null) {
       pushHistory();
-      S.draggedLimit = xKey; S.isDragging = true;
+      S.draggedLimit = xKey; S.isDragging = true; S._limitDragRaw = null;
       lastMousePos = { x: e.clientX, y: e.clientY };
       return;
     }
@@ -8879,19 +8942,19 @@ export function openCamSimulator(initialContour, initialGCode) {
     lastMousePos = { x: e.clientX, y: e.clientY };
     if (S.draggedLimit) {
       const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
-      if (S.draggedLimit in S.xLimits) {
+      const isX = S.draggedLimit in S.xLimits;
+      const store = isX ? S.xLimits : S.zLimits;
+      // Tažení se sčítá do NEZAOKROUHLENÉ hodnoty: jinak by se snap nedal
+      // zase pustit (čára by se po přichycení posouvala od snapnuté polohy,
+      // ne od místa, kam kurzor doopravdy odjel).
+      if (S._limitDragRaw === null) S._limitDragRaw = parseFloat(store[S.draggedLimit]) || 0;
+      S._limitDragRaw += isX
         // X-rozsah: tažení v ose X — soustruh dy, karusel dx
-        const dX = S.params.machineStructure === 'carousel'
-          ? (hS * dx / S.view.scale)
-          : (dy / (vS * S.view.scale));
-        const cur = parseFloat(S.xLimits[S.draggedLimit]) || 0;
-        S.xLimits[S.draggedLimit] = Math.round((cur + dX) * 100) / 100;
-      } else {
+        ? (S.params.machineStructure === 'carousel' ? (hS * dx / S.view.scale) : (dy / (vS * S.view.scale)))
         // Z-rozsah: tažení v ose Z — soustruh dx, karusel vS*dy
-        const dZ = S.params.machineStructure === 'carousel' ? (vS * dy / S.view.scale) : (hS * dx / S.view.scale);
-        const cur = parseFloat(S.zLimits[S.draggedLimit]) || 0;
-        S.zLimits[S.draggedLimit] = Math.round((cur + dZ) * 100) / 100;
-      }
+        : (S.params.machineStructure === 'carousel' ? (vS * dy / S.view.scale) : (hS * dx / S.view.scale));
+      const snapped = snapLimitValue(isX ? 'x' : 'z', S._limitDragRaw, e.clientX, e.clientY);
+      store[S.draggedLimit] = snapped !== null ? snapped : Math.round(S._limitDragRaw * 100) / 100;
       scheduleFrame(draw);
       return;
     }
@@ -9095,7 +9158,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     if (S.draggedLimit) {
       // Po přetažení čelisti/koníka přepočítat dráhy (chuck/tail ořezává cuts).
-      const needRecalc = S.draggedLimit === 'chuck' || S.draggedLimit === 'tail';
+      // Aktivní rozsah 📐 ořezává dráhy stejně, takže i on musí přepočítat —
+      // jinak čára skočí jinam, ale dráhy zůstanou podle staré polohy.
+      const k = S.draggedLimit;
+      const needRecalc = k === 'chuck' || k === 'tail'
+        || ((k === 'rangeStart' || k === 'rangeEnd') && S.zLimits.rangeActive)
+        || ((k === 'rangeXMin' || k === 'rangeXMax') && S.xLimits.active);
       saveState(); renderTab();
       if (needRecalc) fullUpdate();
     }
@@ -9108,7 +9176,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; _draggingStockPt = false;
     _draggingPartOff = null;
-    _draggedContourSeg = null; S.draggedLimit = null;
+    _draggedContourSeg = null; S.draggedLimit = null; S._limitDragRaw = null;
     S.draggedGNode = null; S._draggedGSeg = null; S._gdragNeedHistory = false;
     S._draggedGuideEnd = null; S._snap = null;
     S._angleSnapLine = null;
@@ -9448,11 +9516,18 @@ export function openCamSimulator(initialContour, initialGCode) {
       saveState(); renderCodeArea(); renderTab();
     }
     if (S.draggedLimit) {
-      const needRecalc = S.draggedLimit === 'chuck' || S.draggedLimit === 'tail';
+      // Po přetažení čelisti/koníka přepočítat dráhy (chuck/tail ořezává cuts).
+      // Aktivní rozsah 📐 ořezává dráhy stejně, takže i on musí přepočítat —
+      // jinak čára skočí jinam, ale dráhy zůstanou podle staré polohy.
+      const k = S.draggedLimit;
+      const needRecalc = k === 'chuck' || k === 'tail'
+        || ((k === 'rangeStart' || k === 'rangeEnd') && S.zLimits.rangeActive)
+        || ((k === 'rangeXMin' || k === 'rangeXMax') && S.xLimits.active);
       saveState(); renderTab();
       if (needRecalc) fullUpdate();
     }
     S.isDragging = false; S.draggedPointId = null; _draggingStock = false; S.draggedLimit = null; lastPinchDist = null;
+    S._limitDragRaw = null; S._snap = null;
     draw();
   });
 
