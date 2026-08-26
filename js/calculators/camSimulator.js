@@ -33,6 +33,7 @@ import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePoc
 import { PARTING_BODY_MIN_H_MM, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { computeCalculation, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
+import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, decideChange } from './cam/gcodeSync.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
 import { applyPartToState, buildCombinedProgram, machinedStockPoints, makePart, partsAsMergeItems, partToolLabel, syncPartFromState, STOCK_PARAM_KEYS } from './cam/opParts.js';
 import { setEditorMergeQueue } from './camEditor.js';
@@ -144,7 +145,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-code-bar">
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
-          <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů (přepíše ruční úpravy G-kódu)">🔄 Dráhy</button>
+          <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů.">🔄 Dráhy</button>
           <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ <span class="cam-sim-op-full">Operace</span><span class="cam-sim-op-short">Ope.</span></button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
@@ -322,6 +323,15 @@ export function openCamSimulator(initialContour, initialGCode) {
     _limitDragRaw: null, // nezaokrouhlená poloha tažené mezní čáry (kvůli snapu)
     simRunning: false, simProgress: 0,
     manualGCode: '',
+    // Do programu někdo ručně sáhl (textarea, CAM Editor, tažení uzlů dráhy,
+    // Prodl/Ořez, poznámka z CAD). Takový program NIKDY nepřepíše automatika —
+    // jen vědomé „🔄 Dráhy", a to se předtím zeptá. Viz markGCodeEdited.
+    gcodeDirty: false,
+    // Otisk vstupů (parametry + kontura + polotovar + meze), ze kterých byl
+    // program naposled vygenerován. Nesedí-li s aktuálním, jsou dráhy
+    // v programu NEAKTUÁLNÍ — náhled na plátně ukazuje něco jiného než
+    // program v editoru. Viz pathInputsKey/gcodeStale.
+    gcodeKey: null,
     generatedCode: [], errors: [],
     past: [], future: [],
     draggedPointId: null, hoverPointId: null,
@@ -410,6 +420,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     ).join('|');
   }
 
+  // Otisk vstupů uložený spolu s programem (viz pathInputsKey). Drží se stranou,
+  // dokud se nedoloží celý načítaný stav — teprve pak se zapíše do S.gcodeKey.
+  // null = neznámý (program přišel odjinud) → dopočítá se z aktuálních vstupů.
+  let _savedGcodeKey = null;
+
   // Load from localStorage
   const STORAGE_KEY = 'skica-cam-simulator';
   try {
@@ -429,7 +444,15 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Uložené dráhy použij jen když odpovídají AKTUÁLNÍ verzi logiky
       // generování (jinak jsou zastaralé) — prázdný manualGCode se níž
       // (řádek ~3270) automaticky přegeneruje z kontury/parametrů.
-      if (p.manualGCode && p.pathLogicVersion === PATH_LOGIC_VERSION) S.manualGCode = p.manualGCode;
+      if (p.manualGCode && p.pathLogicVersion === PATH_LOGIC_VERSION) {
+        S.manualGCode = p.manualGCode;
+        // Ruční zásah v uloženém programu přežije zavření appky — jinak by ho
+        // po dalším otevření beze slova přepsala první auto-regenerace.
+        // Stejně tak otisk: kdo zavřel appku s neaktuálními dráhami, musí
+        // puntík u „🔄 Dráhy" vidět i po jejím dalším otevření.
+        S.gcodeDirty = !!p.gcodeDirty;
+        _savedGcodeKey = typeof p.gcodeKey === 'string' ? p.gcodeKey : null;
+      }
       // flipX/flipZ se načítají výhradně ze state.flipX/flipZ (sdílený stav s CAD); ignorujeme localStorage
       if (Array.isArray(p.profileOriginal)) S._profileOriginal = p.profileOriginal;
       if (Array.isArray(p.guideLines)) S.guideLines = p.guideLines;
@@ -580,6 +603,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (state.objects[camNoteIdx].gcode) {
       _gcodeFromNote = state.objects[camNoteIdx].gcode;
       S.manualGCode = _gcodeFromNote;
+      // Poznámka nese i to, jestli v programu byl ruční zásah (starší
+      // poznámky ten údaj nemají → false, jako dřív).
+      S.gcodeDirty = !!state.objects[camNoteIdx].gcodeDirty;
+      _savedGcodeKey = typeof state.objects[camNoteIdx].gcodeKey === 'string'
+        ? state.objects[camNoteIdx].gcodeKey : null;
     }
     state.objects.splice(camNoteIdx, 1);
   }
@@ -597,7 +625,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.activePart = 0;
       _partsCollapsedByEditor = true;
     }
-    if (S.opParts.length === 0) S.manualGCode = initialGCode;
+    if (S.opParts.length === 0) {
+      S.manualGCode = initialGCode;
+      // Z CAM Editoru se vrací program, do kterého se dalo libovolně zasáhnout
+      // → od teď je chráněný před automatickým přegenerováním.
+      markGCodeEdited();
+      _savedGcodeKey = null;
+    }
   }
 
   // Části: živý stav (parametry/polotovar/G-kód) vždy dorovnat podle aktivní
@@ -622,6 +656,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   if ((!S.manualGCode || !S.manualGCode.trim()) && S.opParts.length === 0) {
     S.manualGCode = generateAutoGCode(calculate()).map(l => l.text).join('\n');
   }
+  // Otisk vstupů, ze kterých program pochází — teprve od téhle chvíle má smysl
+  // hlásit „dráhy neaktuální". Program se sem dostal spolu se svými parametry
+  // (localStorage / část / poznámka z CAD), takže k nim ze své podstaty sedí;
+  // rozejde se až první změnou v panelu. Změněná KONTURA z CAD má vlastní
+  // hlášení (viz _partsContourChanged).
+  S.gcodeKey = _savedGcodeKey || pathInputsKey();
 
   // ── DOM refs ──
   const root = overlay.querySelector('.cam-sim-root');
@@ -639,6 +679,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const errorsDiv = root.querySelector('.cam-sim-errors');
   const tabBody = root.querySelector('.cam-sim-tab-body');
   const partsBar = root.querySelector('.cam-sim-parts-bar');
+  const refreshBtn = root.querySelector('[data-code="refresh"]');
   // Refresh callback modalu "⚙️ Geometrie", pokud je otevřený — viz fullUpdate().
   // Záměrně NE na S (S.params se snapshotuje/serializuje, funkce tam nepatří).
   let toolGeomModalRefresh = null;
@@ -692,6 +733,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       stock: JSON.parse(JSON.stringify(S.stockPoints)),
       guides: JSON.parse(JSON.stringify(S.guideLines || [])),
       gcode: S.manualGCode,
+      gcodeDirty: S.gcodeDirty,
+      gcodeKey: S.gcodeKey,
       // Parametry + zásobník/limity — zejména kvůli "🔄 Resetovat vše",
       // ať jde vzít zpět tlačítkem ↩ Zpět.
       params: JSON.parse(JSON.stringify(S.params)),
@@ -713,6 +756,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.stockPoints = s.stock;
     if (s.guides) S.guideLines = s.guides;
     if (typeof s.gcode === 'string') S.manualGCode = s.gcode;
+    // Program se vrací i se svými stavy — jinak by Zpět vrátilo ručně upravené
+    // dráhy, ale příznak ochrany už ne (a otisk by hlásil cizí neaktuálnost).
+    if ('gcodeDirty' in s) S.gcodeDirty = !!s.gcodeDirty;
+    if ('gcodeKey' in s) S.gcodeKey = s.gcodeKey;
     if (s.params) S.params = s.params;
     if (Array.isArray(s.toolMagazine)) S.toolMagazine = s.toolMagazine;
     if ('activeMagazineSlot' in s) S.activeMagazineSlot = s.activeMagazineSlot;
@@ -773,8 +820,24 @@ export function openCamSimulator(initialContour, initialGCode) {
         showRemoval: S.showRemoval, showHolderCollision: S.showHolderCollision,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
         opParts: S.opParts, activePart: S.activePart, opContourKey: S.opContourKey,
+        gcodeDirty: S.gcodeDirty, gcodeKey: S.gcodeKey,
       }));
     } catch (_) { /* quota */ }
+  }
+
+  // ── STAV PROGRAMU: ručně upravený × neaktuální ─────────────────
+  // Pravidlo i otisk vstupů žijí v cam/gcodeSync.js (čisté funkce nad S) —
+  // tady jsou jen obálky, aby se v panelu volalo bez opakovaného předávání S.
+  function pathInputsKey() { return _pathInputsKey(S); }
+  function markGCodeGenerated() { _markGCodeGenerated(S); }
+  function markGCodeEdited() { _markGCodeEdited(S); }
+  function gcodeStale() { return _gcodeStale(S); }
+
+  /** Obnova po změně nastavení — JEDINÉ pravidlo pro všechny ovládací prvky
+   *  panelu (viz decideChange v cam/gcodeSync.js). */
+  function applyChange(opts) {
+    if (decideChange(S, opts) === 'regen') _regenGCode();
+    else fullUpdate();
   }
 
   // ── ČÁSTI PROGRAMU (operace) ───────────────────────────────────
@@ -814,6 +877,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else {
       applyPartToState(part, S);
     }
+    // Program části přišel i se svými parametry, takže k nim sedí — otisk se
+    // musí přenastavit, jinak by se po přepnutí části hlásily cizí dráhy jako
+    // neaktuální (a naopak by se skryla neaktuálnost té nově nahrané).
+    S.gcodeKey = pathInputsKey();
     S.simRunning = false; S.simProgress = 0;
     _removal = null; _removalCalcRef = null; _removalOuter = null;
   }
@@ -912,6 +979,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.activePart = 0;
       S.opView = 'part';
       S.manualGCode = '';
+      markGCodeGenerated();   // prázdný program: není co chránit ani co hlásit
     } else {
       S.activePart = Math.min(S.activePart >= idx ? S.activePart - 1 : S.activePart, S.opParts.length - 1);
       if (S.activePart < 0) S.activePart = 0;
@@ -2887,6 +2955,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       lines[ed.lineIdx] = line;
     }
     S.manualGCode = lines.join('\n');
+    markGCodeEdited();   // ruční úprava dráhy — automatika ji už nepřepíše
     // Během tažení uzlu/úsečky (Dráhy) sloučit přepočet+překreslení do jednoho
     // snímku a NEpřekreslovat G-kód panel (přestavba DOM podkladu + zvýraznění
     // je drahá a běžela by na každý snímek) — panel se obnoví až po puštění
@@ -2907,6 +2976,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (lineIdx == null || lineIdx < 0 || lineIdx >= lines.length) return;
     lines.splice(lineIdx, 1);
     S.manualGCode = lines.join('\n');
+    markGCodeEdited();   // ruční úprava dráhy — automatika ji už nepřepíše
     S._cachedCalc = calculate();
     S.generatedCode = generateGCode(S._cachedCalc);
     renderCodeArea(); draw(); saveState();
@@ -2932,6 +3002,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (move.type !== 'G0') line += ` F${S.params.feed}`;   // řezné pohyby = posuv
     lines.splice(afterLineIdx + 1, 0, line);
     S.manualGCode = lines.join('\n');
+    markGCodeEdited();   // ruční úprava dráhy — automatika ji už nepřepíše
     S._cachedCalc = calculate();
     S.generatedCode = generateGCode(S._cachedCalc);
     S._gcodeFocusLine = afterLineIdx + 1;
@@ -3700,7 +3771,26 @@ export function openCamSimulator(initialContour, initialGCode) {
       : 'Zde můžete psát vlastní G-kód...';
     renderCodeBackdrop();
     updateCodeHighlight();
+    updateRefreshBtn();
     renderPartsBar();
+  }
+
+  // Stav tlačítka „🔄 Dráhy": puntík = program v editoru pochází z jiných
+  // parametrů, než jaké jsou teď v panelu (náhled na plátně už ukazuje něco
+  // jiného). Bez téhle značky by změna nastavení vypadala jako hotová věc,
+  // ačkoli program čeká na přegenerování. Zámek 🔒 = v programu jsou ruční
+  // úpravy, takže se před přepsáním zeptáme.
+  function updateRefreshBtn() {
+    if (!refreshBtn) return;
+    const stale = gcodeStale();
+    const locked = S.gcodeDirty;
+    refreshBtn.classList.toggle('cam-sim-btn-stale', stale);
+    refreshBtn.textContent = `🔄 Dráhy${stale ? ' ●' : ''}${locked ? ' 🔒' : ''}`;
+    refreshBtn.title = [
+      'Přegenerovat dráhy z aktuální kontury a parametrů.',
+      stale ? '● Dráhy v programu jsou NEAKTUÁLNÍ — nastavení se od jejich vygenerování změnilo.' : '',
+      locked ? '🔒 Program má ruční úpravy — před přepsáním se zeptám.' : '',
+    ].filter(Boolean).join('\n');
   }
 
   // ── UI: lišta částí programu (operací) ──
@@ -4174,12 +4264,30 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-machtab="upich" class="${_machSubTab === 'upich' ? 'cam-sim-active' : ''}">Upich</button>
       <button data-machtab="zavit" class="${_machSubTab === 'zavit' ? 'cam-sim-active' : ''}">Závit</button>
     </div>`;
-    // Aktivní závitování NAHRAZUJE hrubování/dokončování (viz generateAutoGCode)
-    // — mimo záložku Závit to ale nebylo nikde vidět a uživatel se divil,
-    // proč se místo hrubovacích drah generuje závitovací cyklus.
-    if (prms.threadActive && _machSubTab !== 'zavit') {
-      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ Je aktivní <b>závitování</b> (${prms.threadName || `⌀${prms.threadDiameter}×${prms.threadPitch}`}) — program obsahuje jen závitovací cyklus, hrubování/dokončování se negeneruje.
-        <button data-act="thread-deactivate" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">Vypnout závit</button></small>`;
+    // ── Režim z jiné záložky, který PŘEBÍJÍ hrubování ────────────────────
+    // Závit i upichnutí mají v emisi early-return (generateAutoGCode) a vydají
+    // JEN svůj cyklus; „jen dokončení" (Hot.) hrubovací průchody vynechá. Mimo
+    // svou záložku to nebylo vidět a uživatel se divil, proč se místo
+    // hrubovacích drah generuje cizí cyklus — nebo nic (nález 26. 8. 2026,
+    // dosud hlásil jen závit). Pořadí odpovídá pořadí early-returnů v emisi,
+    // takže se ukáže vždy jen ten režim, který program OPRAVDU řídí.
+    const _poActiveNote = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+    const _modeNote = prms.threadActive ? {
+      tab: 'zavit',
+      text: `Je aktivní <b>závitování</b> (${prms.threadName || `⌀${prms.threadDiameter}×${prms.threadPitch}`}) — program obsahuje jen závitovací cyklus, hrubování/dokončování se negeneruje.`,
+      act: 'thread-deactivate', label: 'Vypnout závit',
+    } : _poActiveNote ? {
+      tab: 'upich',
+      text: `Je aktivní <b>upichnutí</b> (Z=${parseFloat(prms.partOffZ).toFixed(2)}) — program obsahuje jen upichovací cyklus, hrubování/dokončování se negeneruje.`,
+      act: 'partoff-clear', label: 'Zrušit upich',
+    } : prms.finishOnly ? {
+      tab: 'hot',
+      text: 'Je zapnutá <b>jen dokončovací operace</b> (záložka Hot.) — hrubovací průchody se negenerují, jede se jediný průchod po kontuře.',
+      act: 'finishonly-off', label: 'Vypnout',
+    } : null;
+    if (_modeNote && _machSubTab !== _modeNote.tab) {
+      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ ${_modeNote.text}
+        <button data-act="${_modeNote.act}" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">${_modeNote.label}</button></small>`;
     }
     if (prms.toolShape === 'polygon') {
       const insertGuideCount = (S.guideLines || []).filter(g => g.fromInsert).length;
@@ -4381,19 +4489,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (S.guideLines.length < before)
         showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
     }
-    // Aktivní upichnutí: peck/posuv, přídavky a rozměry plátku mění cyklus
-    // (dojezd v X, Z-offset, korekce rádiusu) → přegenerovat hned.
-    if (S.params.partOffZ != null
-        && ['partingApproachFeed', 'retractDistance', 'feed',
-            'allowanceX', 'allowanceZ', 'finishAllowance', 'partOffStartX', 'partOffZ',
-            'toolRadius', 'toolLength'].includes(key)) {
-      _regenGCode();
-    } else if (S.params.threadActive && key.startsWith('thread')) {
-      // Aktivní závitování: parametry závitu mění celý cyklus → přegenerovat.
-      _regenGCode();
-    } else {
-      fullUpdate();
-    }
+    applyChange();
   }
 
   // Sdílený handler pro přepnutí tvaru destičky — volaný z hlavního panelu
@@ -4431,15 +4527,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.toolRadius = 0;
       }
     }
-    // Aktivní upichnutí: tvar plátku mění zápichový cyklus (rádius/šířka)
-    // i podporu (polygon → bez drah) → přegenerovat hned.
-    if (S.params.partOffZ != null) _regenGCode();
-    else fullUpdate();
+    applyChange();
   }
 
   // Přehodí, na kterou stranu od Natočení se v náhledu otevírá vrcholový
   // úhel destičky (jen kosmetika kreslení, viz toolTipMirror u defaultů).
   function applyTipMirrorToggle() {
+    // Kosmetika náhledu destičky — do drah nevstupuje (a proto ani do
+    // `pathInputsKey`), takže se tu ZÁMĚRNĚ nevolá applyChange().
     S.params.toolTipMirror = !S.params.toolTipMirror;
     fullUpdate();
   }
@@ -4479,7 +4574,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           S._preUpichStrategy = null;
         }
         S.machiningSubTab = nextTab;
-        fullUpdate();
+        applyChange();
       });
     });
     const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');
@@ -4503,7 +4598,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       renderTab();
     });
     tabBody.querySelectorAll('[data-struct]').forEach(btn => {
-      btn.addEventListener('click', () => { S.params.machineStructure = btn.dataset.struct; fullUpdate(); });
+      btn.addEventListener('click', () => { S.params.machineStructure = btn.dataset.struct; applyChange(); });
     });
     tabBody.querySelectorAll('[data-ctrl]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -4514,17 +4609,22 @@ export function openCamSimulator(initialContour, initialGCode) {
         // syntaxi nového systému — hlavička/závěr se přegenerují, tělo se
         // jen převede (komentáře, CR=/R). Regenerace od nuly z kontury
         // zůstává na tlačítku "🔄 Dráhy".
+        const wasCurrent = !gcodeStale();
         if (S.manualGCode && S.manualGCode.trim()) {
           S.manualGCode = convertGCodeControlSystem(S.manualGCode, oldCtrl, newCtrl, S.params, S.flipX, S.flipZ);
         }
         S.params.controlSystem = newCtrl;
+        // Program se převedl NA MÍSTĚ (i s ručními úpravami), takže dráhám dál
+        // odpovídá — přerazit otisk, jinak by převod sám hlásil „neaktuální".
+        // Byl-li neaktuální už předtím, ať to hlásí dál.
+        if (wasCurrent) S.gcodeKey = pathInputsKey();
         fullUpdate();
         const ctrlLabel = newCtrl === 'sinumerik' ? 'Sinumerik' : newCtrl === 'fanuc' ? 'Fanuc' : 'Heidenhain';
         showToast(`Program převeden na ${ctrlLabel}`);
       });
     });
     tabBody.querySelectorAll('[data-pmode]').forEach(btn => {
-      btn.addEventListener('click', () => { S.params.mode = btn.dataset.pmode; fullUpdate(); });
+      btn.addEventListener('click', () => { S.params.mode = btn.dataset.pmode; applyChange(); });
     });
     tabBody.querySelectorAll('[data-p]').forEach(inp => {
       inp.addEventListener('change', () => applyParamChange(inp.dataset.p, inp));
@@ -4546,7 +4646,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (m) {
           S.selectedMaterial = btn.dataset.mat;
           S.params.speed = m.speed; S.params.feed = m.feed; S.params.depthOfCut = m.depth;
-          fullUpdate();
+          applyChange();
         }
       });
     });
@@ -4563,15 +4663,13 @@ export function openCamSimulator(initialContour, initialGCode) {
           const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
           S.params.toolAngle = btn.dataset.rough === 'face' ? -mag : mag;
         }
-        fullUpdate();
+        applyChange();
       });
     });
     tabBody.querySelectorAll('[data-side]').forEach(btn => {
       btn.addEventListener('click', () => {
         S.params.roughingSide = btn.dataset.side;
-        // Strana mění znaménko Z-offsetu upichu → přegenerovat cyklus hned.
-        if (S.params.partOffZ != null) _regenGCode();
-        else fullUpdate();
+        applyChange();
       });
     });
     // Z-limity – numerické vstupy a tlačítka
@@ -4582,7 +4680,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.zLimits[key] = v === '' ? null : (parseFloat(v) || 0);
         // Čelisti/koník i rozsah 📐 ovlivňují generování drah (rozsah od
         // 25. 8. 2026 ořezává hrubování i dokončování) → vždy přepočítat.
-        fullUpdate();
+        applyChange();
       });
     });
     const zlToggle = tabBody.querySelector('[data-act="zlimits-toggle"]');
@@ -4616,12 +4714,12 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (S.guideLines.length < before)
           showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
       }
-      fullUpdate();
+      applyChange();
     });
     const xRangeChk = tabBody.querySelector('[data-act="xrange-active"]');
     if (xRangeChk) xRangeChk.addEventListener('change', () => {
       S.xLimits.active = xRangeChk.checked;
-      fullUpdate();
+      applyChange();
     });
     // X-rozsah – numerické vstupy
     tabBody.querySelectorAll('[data-xlim]').forEach(inp => {
@@ -4629,7 +4727,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         const key = inp.dataset.xlim;
         const v = inp.value.trim();
         S.xLimits[key] = v === '' ? null : parseFloat(v);
-        fullUpdate();
+        applyChange();
       });
     });
     const zlClear = tabBody.querySelector('[data-act="zlimits-clear"]');
@@ -4646,55 +4744,48 @@ export function openCamSimulator(initialContour, initialGCode) {
     const finCb = tabBody.querySelector('#cam-sim-fin');
     if (finCb) finCb.addEventListener('change', () => {
       S.params.doFinishing = finCb.checked;
-      // Upichnutí: dokončování přidává/ubírá dokončovací zápich → přegenerovat.
-      if (S.params.partOffZ != null) _regenGCode();
-      else fullUpdate();
+      applyChange();
     });
     const finOnlyCb = tabBody.querySelector('#cam-sim-finonly');
     if (finOnlyCb) finOnlyCb.addEventListener('change', () => {
       S.params.finishOnly = finOnlyCb.checked;
-      fullUpdate();
+      applyChange();
     });
     const partOffSmoothCb = tabBody.querySelector('#cam-sim-partoff-smooth');
     if (partOffSmoothCb) partOffSmoothCb.addEventListener('change', () => {
       S.params.partOffSmooth = partOffSmoothCb.checked;
-      // Plynule/peck mění hlavní zápichový cyklus → přegenerovat hned.
-      if (S.params.partOffZ != null) _regenGCode();
-      else fullUpdate();
+      applyChange();
     });
     const finSlotSel = tabBody.querySelector('#cam-sim-fin-slot');
     if (finSlotSel) finSlotSel.addEventListener('change', () => {
       S.params.finishingSlot = finSlotSel.value === '' ? null : parseInt(finSlotSel.value);
-      fullUpdate();
+      applyChange();
     });
     const respCb = tabBody.querySelector('#cam-sim-respect-insert');
-    if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; fullUpdate(); });
+    if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; applyChange(); });
     const clearInsertGuidesBtn = tabBody.querySelector('[data-act="clear-insert-guides"]');
     if (clearInsertGuidesBtn) clearInsertGuidesBtn.addEventListener('click', () => {
       const count = S.guideLines.length;
       S.guideLines = [];
       showToast(`Smazáno ${count} konstrukční čar ✓`);
-      saveState(); fullUpdate();
+      saveState(); applyChange();
     });
     const plungeCb = tabBody.querySelector('#cam-sim-plunge');
-    if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; fullUpdate(); });
+    if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; applyChange(); });
     const noStepCb = tabBody.querySelector('#cam-sim-nostep');
-    if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; fullUpdate(); });
+    if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; applyChange(); });
     const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');
-    if (noStepFaceCb) noStepFaceCb.addEventListener('change', () => { S.params.noStepRoughingFace = noStepFaceCb.checked; fullUpdate(); });
+    if (noStepFaceCb) noStepFaceCb.addEventListener('change', () => { S.params.noStepRoughingFace = noStepFaceCb.checked; applyChange(); });
     const regionCb = tabBody.querySelector('#cam-sim-region');
     if (regionCb) regionCb.addEventListener('change', () => {
       S.params.regionRoughing = regionCb.checked;
-      // Strategický přepínač → přegenerovat dráhy hned (editor + simulace),
-      // ne jen překreslit náhled pasů (jinak by editor držel starý G-kód).
-      _regenGCode();
+      applyChange();
       showToast(regionCb.checked ? 'Hrubování po regionech zapnuto' : 'Hrubování po regionech vypnuto');
     });
     const booleanCb = tabBody.querySelector('#cam-sim-boolean');
     if (booleanCb) booleanCb.addEventListener('change', () => {
       S.params.booleanRoughing = booleanCb.checked;
-      // Strategický přepínač (mění dráhy) → přegenerovat G-kód hned.
-      _regenGCode();
+      applyChange();
       showToast(booleanCb.checked ? 'Booleovské hrubování zapnuto (exp.)' : 'Booleovské hrubování vypnuto');
     });
     const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
@@ -4704,7 +4795,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // aby šla ručně doladit od smysluplného výchozího čísla.
       if (!S.params.entryAngleAuto)
         S.params.entryAngle = getEffectivePlungeAngle({ ...S.params, entryAngleAuto: true });
-      fullUpdate();
+      applyChange();
     });
     const partOffPickBtn = tabBody.querySelector('[data-act="partoff-pick"]');
     if (partOffPickBtn) partOffPickBtn.addEventListener('click', () => {
@@ -4720,7 +4811,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       const wasActive = S.params.partOffZ != null;
       S.params.partOffZ = null; S.partOffPickMode = false;
       showToast('Upichnutí zrušeno — zpět na zapichování/hrubování tvaru');
-      if (wasActive) _regenGCode(); else { renderTab(); draw(); }
+      // Zrušení je změna REŽIMU (`cycle`) — program pořád obsahuje upichovací
+      // cyklus, i když už upichnutí neběží, takže se musí přepsat.
+      if (wasActive) applyChange({ cycle: true }); else { renderTab(); draw(); }
     });
     const toolLibBtn = tabBody.querySelector('[data-act="tool-library"]');
     if (toolLibBtn) toolLibBtn.addEventListener('click', () => {
@@ -4758,21 +4851,33 @@ export function openCamSimulator(initialContour, initialGCode) {
     const threadToggleBtn = tabBody.querySelector('[data-act="thread-toggle"]');
     if (threadToggleBtn) threadToggleBtn.addEventListener('click', () => {
       S.params.threadActive = !S.params.threadActive;
-      showToast(S.params.threadActive ? `Závitování ${S.params.threadName || ''} aktivní — dráhy přegenerovány` : 'Závitování vypnuto — zpět na hrubování');
-      _regenGCode();
+      // Ruční zásah v programu má přednost — pak se dráhy nepřegenerují samy
+      // a čekají na „🔄 Dráhy" (tlačítko svítí jako neaktuální).
+      const regen = !S.gcodeDirty;
+      showToast(S.params.threadActive
+        ? `Závitování ${S.params.threadName || ''} aktivní${regen ? ' — dráhy přegenerovány' : ' — program má ruční úpravy, dráhy vygeneruj přes 🔄 Dráhy'}`
+        : `Závitování vypnuto — zpět na hrubování${regen ? '' : ' (dráhy vygeneruj přes 🔄 Dráhy)'}`);
+      applyChange({ cycle: true });
     });
     // Rychlé vypnutí závitování z varování v záložkách Hrub./Hot./Upich.
     const threadOffBtn = tabBody.querySelector('[data-act="thread-deactivate"]');
     if (threadOffBtn) threadOffBtn.addEventListener('click', () => {
       S.params.threadActive = false;
-      showToast('Závitování vypnuto — zpět na hrubování');
-      _regenGCode();
+      showToast(`Závitování vypnuto — zpět na hrubování${S.gcodeDirty ? ' (dráhy vygeneruj přes 🔄 Dráhy)' : ''}`);
+      applyChange({ cycle: true });
+    });
+    // Rychlé vypnutí „jen dokončení" z varování v ostatních záložkách.
+    const finOnlyOffBtn = tabBody.querySelector('[data-act="finishonly-off"]');
+    if (finOnlyOffBtn) finOnlyOffBtn.addEventListener('click', () => {
+      S.params.finishOnly = false;
+      showToast('Jen dokončení vypnuto — hrubování se zase generuje');
+      applyChange();
     });
     tabBody.querySelectorAll('[data-thinfeed]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (S.params.threadInfeed === btn.dataset.thinfeed) return;
         S.params.threadInfeed = btn.dataset.thinfeed;
-        if (S.params.threadActive) _regenGCode(); else fullUpdate();
+        applyChange();
       });
     });
     tabBody.querySelectorAll('[data-thext]').forEach(btn => {
@@ -4782,7 +4887,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.threadExternal = ext;
         // Vnější/vnitřní mění hloubku profilu (60°: 0,6134P vs 0,5413P).
         S.params.threadDepth = Math.round(threadProfileDepth(S.params.threadType, parseFloat(S.params.threadPitch) || 0, ext) * 1000) / 1000;
-        if (S.params.threadActive) _regenGCode(); else fullUpdate();
+        applyChange();
       });
     });
     const toolGeomBtn = tabBody.querySelector('[data-act="open-tool-geometry"]');
@@ -4815,6 +4920,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.toolConfigOpen = false;
         S.machiningConfigOpen = false;
         S.manualGCode = '';
+        markGCodeGenerated();   // reset = žádné ruční úpravy, co chránit
         // Části programu drží vlastní kopie parametrů — po resetu by
         // neodpovídaly ničemu; zpět do jednooperačního režimu.
         S.opParts = [];
@@ -5086,7 +5192,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         pushHistory();
         S.params.holderProfile = translateHolderProfile(S.params.holderProfile, dx, dz);
         rectMoveSel = null;
-        fullUpdate();
+        applyChange();
         showToast('Držák přesunut ✓');
         return;
       }
@@ -5107,7 +5213,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.holderProfile[best.side] = [{ x: best.wx, z: best.wz }];
       }
       currentDrawSide = best.side;
-      fullUpdate();
+      applyChange();
       showHolderSidePopup(best.side);
     }
 
@@ -5144,7 +5250,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         pushHistory();
         S.params.holderProfile.sideA = chamferProfileCorner(S.params.holderProfile.sideA, corner, d, isFinite(ang) ? ang : 45);
         popup.remove();
-        fullUpdate();
+        applyChange();
         showToast('Roh sražen ✓');
       };
       popup.querySelector('#geom-chamfer-ok').addEventListener('click', apply);
@@ -5187,12 +5293,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       const angInp = popup.querySelector('#geom-rotate-angle');
       angInp.addEventListener('change', withHistory(() => {
         S.params.toolAngle = parseFloat(angInp.value) || 0;
-        fullUpdate();
+        applyChange();
       }));
       wireAngleCompass(popup.querySelector('#geom-rotate-compass'), angInp, () => {
         pushHistory();
         S.params.toolAngle = parseFloat(angInp.value) || 0;
-        fullUpdate();
+        applyChange();
       });
       popup.querySelector('#geom-rotate-close').addEventListener('click', () => popup.remove());
       popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
@@ -5227,12 +5333,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       const angInp = popup.querySelector('#geom-knife-angle');
       angInp.addEventListener('change', withHistory(() => {
         S.params.knifeAngle = parseFloat(angInp.value) || 0;
-        fullUpdate();
+        applyChange();
       }));
       wireAngleCompass(popup.querySelector('#geom-knife-compass'), angInp, () => {
         pushHistory();
         S.params.knifeAngle = parseFloat(angInp.value) || 0;
-        fullUpdate();
+        applyChange();
       });
       popup.querySelector('#geom-knife-close').addEventListener('click', () => popup.remove());
       popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
@@ -5288,7 +5394,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         const rad = ang * Math.PI / 180;
         pushHistory();
         cur.push({ x: last.x + Math.cos(rad) * len, z: last.z + Math.sin(rad) * len });
-        fullUpdate();
+        applyChange();
         popup.remove();
         showHolderSidePopup(side);
       }
@@ -5300,7 +5406,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (cur.length <= 1) return; // anchor bod (první) se nemaže — "Zrušit stranu" místo toho
         pushHistory();
         cur.pop();
-        fullUpdate();
+        applyChange();
         popup.remove();
         showHolderSidePopup(side);
       });
@@ -5308,7 +5414,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         pushHistory();
         S.params.holderProfile[side] = [];
         currentDrawSide = null;
-        fullUpdate();
+        applyChange();
         popup.remove();
         redrawCanvas();
       });
@@ -5793,7 +5899,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const toggleHandBtn = dlg.querySelector('[data-act="geom-toggle-hand"]');
       if (toggleHandBtn) toggleHandBtn.addEventListener('click', withHistory(() => {
         S.params.holderHand = S.params.holderHand === 'L' ? 'R' : 'L';
-        fullUpdate();
+        applyChange();
       }));
       const openRotateInsertBtn = dlg.querySelector('[data-act="geom-open-rotate-insert"]');
       if (openRotateInsertBtn) openRotateInsertBtn.addEventListener('click', () => showRotateToolPopup());
@@ -5802,7 +5908,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const autoCompleteChk = dlg.querySelector('#geom-holder-autocomplete');
       if (autoCompleteChk) autoCompleteChk.addEventListener('change', withHistory(() => {
         S.params.holderAutoComplete = autoCompleteChk.checked;
-        fullUpdate();
+        applyChange();
       }));
       const toggleDrawBtn = dlg.querySelector('[data-act="geom-toggle-draw"]');
       if (toggleDrawBtn) toggleDrawBtn.addEventListener('click', () => {
@@ -5814,7 +5920,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const clearProfileBtn = dlg.querySelector('[data-act="geom-clear-profile"]');
       if (clearProfileBtn) clearProfileBtn.addEventListener('click', withHistory(() => {
         S.params.holderProfile = null;
-        fullUpdate();
+        applyChange();
       }));
       const drawOnCadBtn = dlg.querySelector('[data-act="geom-draw-on-cad"]');
       if (drawOnCadBtn) drawOnCadBtn.addEventListener('click', () => startHolderCadDraw());
@@ -5844,7 +5950,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (rectResetBtn) rectResetBtn.addEventListener('click', withHistory(() => {
         rectMoveSel = null; chamferPickMode = false;
         S.params.holderProfile = { sideA: holderRectProfile(S.params), sideB: [] };
-        fullUpdate();
+        applyChange();
         showToast('Obdélník obnoven');
       }));
 
@@ -5973,7 +6079,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.machiningSubTab = 'zavit';
     const taperNote = typeDef.taper ? ' — kuželový 1:16 (nastaveno, ⌀ D platí na Z startu)' : '';
     showToast(`Závit ${S.params.threadName}: P=${P} mm, H=${S.params.threadDepth} mm, ${typeDef.angle}°${taperNote}`);
-    if (S.params.threadActive) _regenGCode(); else fullUpdate();
+    applyChange();
   }
 
   // ── magazine dialog ──
@@ -6553,6 +6659,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       // „SPOJ G-KÓD" v editoru, která z .camprog čte právě tohle pole);
       // opParts drží jednotlivé části pro další editaci.
       manualGCode: outputGCode(),
+      gcodeDirty: S.gcodeDirty,
+      gcodeKey: S.gcodeKey,
       opParts: S.opParts,
       activePart: S.activePart,
       opContourKey: S.opContourKey,
@@ -6616,9 +6724,15 @@ export function openCamSimulator(initialContour, initialGCode) {
         // protože prázdný manualGCode → generateAutoGCode).
         if (typeof data.manualGCode === 'string' && data.pathLogicVersion === PATH_LOGIC_VERSION) {
           S.manualGCode = data.manualGCode;
+          // Ruční úpravy uložené v projektu zůstávají chráněné i po načtení;
+          // otisk vstupů taky, ať se nečerstvé dráhy hlásí i po otevření souboru.
+          S.gcodeDirty = !!data.gcodeDirty;
+          _savedGcodeKey = typeof data.gcodeKey === 'string' ? data.gcodeKey : null;
         } else {
           S._cachedCalc = calculate();
           S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+          S.gcodeDirty = false;
+          _savedGcodeKey = null;   // dráhy právě vznikly z aktuálních vstupů
         }
         if (typeof data.flipX === 'boolean') { S.flipX = data.flipX; state.flipX = S.flipX; persistSettings(); }
         if (typeof data.flipZ === 'boolean') { S.flipZ = data.flipZ; state.flipZ = S.flipZ; persistSettings(); }
@@ -6653,6 +6767,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Části: živý stav přepsat záznamem aktivní části (manualGCode v
         // souboru je CELÝ složený program — ten by jako „část" nesedělo).
         if (partsActive()) applyView();
+        // Program přišel se svými parametry (applyView si u částí otisk přerazí
+        // sám) — od načtení se hlásí až rozdíl proti tomu, co je v souboru.
+        else S.gcodeKey = _savedGcodeKey || pathInputsKey();
         fullUpdate();
         showToast(partsActive()
           ? `Projekt načten — ${S.opParts.length} částí programu`
@@ -6849,7 +6966,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     // takže ruční úpravy drah přežijí cestu CAM → CAD → CAM.
     state.objects.push({
       type: 'camNote', id: state.nextId++, isCamPathNote: true,
-      gcode: S.manualGCode, layer: state.activeLayer
+      // I s příznakem ruční úpravy — jinak by se ochrana ztratila cestou
+      // přes CAD a první auto-regenerace by úpravy beze slova přepsala.
+      gcode: S.manualGCode, gcodeDirty: S.gcodeDirty, gcodeKey: S.gcodeKey,
+      layer: state.activeLayer
     });
 
     calculateAllIntersections();
@@ -7371,6 +7491,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     _updateProfileButtons();
     S._cachedCalc = calculate();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    markGCodeGenerated();
     fullUpdate();
     showToast('Profil použit ✓ — ❌ ho smaže a vrátí původní konturu');
   }
@@ -7396,6 +7517,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     _updateProfileButtons();
     S._cachedCalc = calculate();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    markGCodeGenerated();
     fullUpdate();
     showToast('Profil smazán — obnovena původní kontura');
   }
@@ -7450,12 +7572,18 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (toolGeomModalRefresh) toolGeomModalRefresh();
   }
 
-  // Přegeneruje S.manualGCode z aktuální kontury+parametrů (přepíše ruční
-  // úpravy). Používá se u operací, které samy definují dráhu — např. upichnutí
-  // (part-off), kde chceme cyklus vidět hned, ne až po „🔄 Autorefresh".
+  // Přegeneruje S.manualGCode z aktuální kontury+parametrů. Volat JEN přes
+  // applyChange() (nebo z „🔄 Dráhy" po potvrzení) — ruční zásah v programu
+  // má přednost a tahle funkce ho zahazuje.
   function _regenGCode() {
     S._cachedCalc = calculate();
+    // Do historie se tady ZÁMĚRNĚ nepíše: applyChange() sem pustí jen program
+    // BEZ ručních úprav (auto-vygenerovaný), takže není co zachraňovat — a
+    // tažení úchopu upichnutí by jinak sypalo do neomezeného undo stacku
+    // plnou kopii stavu na každé puštění. Ruční program chrání dirty gate,
+    // jeho vědomý přepis přes „🔄 Dráhy" pushHistory() má.
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    markGCodeGenerated();
     fullUpdate();
   }
 
@@ -7813,10 +7941,16 @@ export function openCamSimulator(initialContour, initialGCode) {
       return;
     }
     const what = partsActive() ? `části „${S.opParts[S.activePart].name}"` : 'aktuální kontury';
-    const ok = await camConfirm(`Přegenerovat dráhy ${what} z kontury a parametrů? Ruční úpravy G-kódu budou přepsány.`);
+    // Ptát se jen tehdy, když je co ztratit. V automaticky vygenerovaném
+    // programu ruční úpravy nejsou, tak neotravovat dialogem při každém kliku.
+    const ok = !S.gcodeDirty
+      || await camConfirm(`Přegenerovat dráhy ${what} z kontury a parametrů? Ruční úpravy G-kódu budou přepsány.`);
     if (!ok) return;
     S._cachedCalc = calculate();
-    S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    const next = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+    if (next !== S.manualGCode) pushHistory();   // přepis jde vzít Zpět
+    S.manualGCode = next;
+    markGCodeGenerated();
     syncActivePart();
     refreshAutoPartName();
     fullUpdate();
@@ -7869,10 +8003,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.opView === 'all') { manualTa.value = S.manualGCode; return; }
     S._gcodeFocusLine = null;
     S.manualGCode = manualTa.value;
+    markGCodeEdited();   // od teď program chráněný před auto-přegenerováním
     S._cachedCalc = calculate();
     S.generatedCode = generateGCode(S._cachedCalc);
     renderCodeBackdrop();
     updateCodeHighlight();
+    updateRefreshBtn();
     draw();
     saveState();
   });
@@ -8525,8 +8661,10 @@ export function openCamSimulator(initialContour, initialGCode) {
           const stTop = (S._cachedCalc && parseFloat(S._cachedCalc.stockTopX)) || (parseFloat(S.params.stockDiameter) || 0) / 2;
           if (stTop > 0) S.params.partOffStartX = Math.round(stTop * 100) / 100;
         }
-        showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}`);
-        _regenGCode();   // upichovací cyklus se projeví hned
+        showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
+        // Zapnutí režimu → cyklus se projeví hned (pokud v programu nejsou
+        // ruční úpravy, které mají přednost).
+        applyChange({ cycle: true });
       }
       e.stopPropagation();
       return;
@@ -9156,7 +9294,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Puštění úchopu upichnutí → přegenerovat dráhy z nového Dojezd X / Start X
       // (a obnovit panel s hodnotami polí).
       _draggingPartOff = null; S.isDragging = false;
-      _regenGCode();
+      applyChange();
       return;
     }
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock || _draggedContourSeg !== null)) {

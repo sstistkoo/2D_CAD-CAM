@@ -344,6 +344,7 @@ User selects CAM tool
 | `calculators/contourOffset.js` | Offset kontur pro obrábění |
 | `calculators/cam/residualTracker.js` | Model ZBYTKU se znalostí pořadí obrábění (polygony, `StockModel`). Strategie si vede levné výškové pole `cutFloorTab`; to ale neumí TUNEL — když zanoření/dojezd podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu (změřeno 11–14 mm na `part-8` a `holder-casting-slanted-face`). Za příznakem `orderAwareHolder`, viz `docs/cam-order-aware-holder.md` |
 | `calculators/cam/residualHolder.js` | Hlídání DRŽÁKU proti modelu zbytku (za příznakem `orderAwareHolder`). ZAPOJENÉ je `holderAreaAlongResidual` — nejhorší vnoření držáku podél VJEZDU zákroku, s odečteným vlastním řezem; tím se řeší zbylá vada nálezu 09 na `part-8`. `makeResidualClamp` (ořez Z-intervalu, shodné rozhraní jako `clamp` z `makeHolderClamp`) je otestovaný, ale NEZAPOJENÝ — jeho místo v `applyHolderClamp` bylo změřeno a zamítnuto |
+| `calculators/cam/gcodeSync.js` | Pravidlo, kdy se po změně nastavení přepíše PROGRAM (`S.manualGCode`) a kdy jen NÁHLED — viz „CAM: náhled × program" níže |
 | `calculators/thread.js` | Parametry závitů |
 | `calculators/threadData.js` | Data pro generování závitů |
 | `calculators/roughness.js` | Povrchová kvalita |
@@ -354,6 +355,42 @@ User selects CAM tool
 | `calculators/vkCommit.js` | „📥 Vložit do výkresu" (`bridge.commitVkToDrawing`) – VK syntaxe → běžné objekty `line`/`arc` v `state.objects`. Čistá část `vkSegmentsToDrawObjects()` je bez DOM i bez `state` zápisu, takže jde testovat samostatně |
 | `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
 | `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec, plus oblouk jako první prvek fronty přes `tangentArcEndOnRay()` (kat. 2), esíčko – dva tečné oblouky s daným bodem zlomu, nebo bez něj navázané na hotovou geometrii přes `twoTangentArcsFromDirection()` (kat. 3), netečné napojení na kružnici kolem VPOL (kat. 4). Počítá ve skutečné rovině **(Z, poloměr)**, viz níže. `chooseSolution()` je společné pravidlo výběru mezi víc řešeními (VPOL1/VPOL2, nebo auto při rozdílu ≥ `AUTO_PICK_MIN_RATIO`) |
+
+### CAM: náhled × program (`cam/gcodeSync.js`)
+
+V CAM simulátoru žijí **dvě dráhy vedle sebe** a každá se obnovuje jinak:
+
+| | zdroj | kdy se obnoví | co z ní vychází |
+|---|---|---|---|
+| **NÁHLED** | `S._cachedCalc` z `calculate()` | po KAŽDÉ změně v panelu | šrafování hrubovacích průchodů, offsetová čára, mezní čáry |
+| **PROGRAM** | `S.manualGCode` (řetězec) | jen při vědomé regeneraci | editor, export (`generateGCode` ho jen rozseká na řádky), **simulovaná dráha `simPath` a hlídání kolizí** |
+
+Program se tedy sám nepřepočítává. Odtud dva stavy, které drží `gcodeSync.js`:
+
+- **`S.gcodeDirty`** — v programu je ruční zásah (textarea, CAM Editor, tažení
+  uzlů dráhy, Prodl/Ořez, poznámka z CAD). Takový program **nikdy nepřepíše
+  automatika**; jen „🔄 Dráhy", a to se předtím zeptá. Příznak se ukládá
+  s programem (localStorage, `.camprog`, záznam části, poznámka na výkrese) —
+  jinak by ochrana zmizela při první cestě přes CAD nebo po restartu.
+- **`S.gcodeKey`** (`pathInputsKey`) — otisk vstupů, ze kterých program vznikl.
+  Nesedí-li s aktuálním, jsou dráhy **neaktuální** a „🔄 Dráhy" to hlásí
+  puntíkem. `toolTipMirror` je z otisku vyňatý (jen kosmetika náhledu).
+
+**Jediné pravidlo obnovy** (`decideChange`, v panelu obálka `applyChange()`):
+program se přegeneruje sám jen když **(a)** by změna jinak nebyla vidět — běží
+nebo se mění *cyklový režim* (závit / upich; ty nemají vlastní náhled drah) —
+**a zároveň (b)** program není `dirty`. Jinak se překreslí jen náhled.
+`applyChange({ cycle: true })` předává změna samotného režimu (zapnutí/vypnutí
+závitu, naklikání/zrušení upichnutí), kde se (a) posuzuje podle toho, že se
+režim mění, ne podle toho, jestli je zrovna zapnutý.
+
+> **Nové ovládací prvky panelu volají `applyChange()`, ne `fullUpdate()`.**
+> Dřív si to řešil každý po svém — „Booleovské hrubování" a „Hrubovat po
+> regionech" program bez ptaní přepisovaly, zatímco stejně strategické
+> „Čelně/Podélně" ne. Regenerace nezapisuje do historie a `saveState()` ji hned
+> uloží, takže ruční úpravy mizely nenávratně.
+
+Testy: `tests/cam-gcode-sync.test.js`.
 
 ### VK: jednotky osy X (past, na kterou pozor)
 

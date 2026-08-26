@@ -187,6 +187,13 @@ export function injectCSS() {
 }
 .cam-sim-code-bar button:hover { background: #45475a; }
 .cam-sim-code-bar button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
+/* „🔄 Dráhy" s puntíkem = program pochází z jiných parametrů, než jaké jsou
+   teď v panelu (náhled na plátně už ukazuje něco jiného) — viz
+   updateRefreshBtn v camSimulator.js. */
+.cam-sim-code-bar button.cam-sim-btn-stale {
+  background: #fab387; color: #1e1e2e; border-color: #fab387; font-weight: 600;
+}
+.cam-sim-code-bar button.cam-sim-btn-stale:hover { background: #f9c99a; }
 .cam-sim-code-bar button[data-code="editor"] { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
 .cam-sim-code-bar button[data-code="add-op"] { background: #fab387; color: #1e1e2e; border-color: #fab387; }
 .cam-sim-code-bar .cam-sim-op-full, .cam-sim-code-bar .cam-sim-op-short { color: #1e1e2e; }

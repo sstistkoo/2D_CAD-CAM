@@ -68,6 +68,10 @@ export function makePart(S, { name, gcode } = {}) {
     id: nextId(),
     name: name || `Část ${idx} – ${partToolLabel(S)}`,
     gcode: gcode !== undefined ? gcode : (S.manualGCode || ''),
+    // Ruční zásah do drah patří té části, ve které vznikl — jinak by se po
+    // přepnutí částí ochrana ztratila a automatika by úpravy přepsala.
+    // Vlastní dráhy (`gcode` zvenčí) jsou naopak čerstvě vygenerované.
+    gcodeDirty: gcode !== undefined ? false : !!S.gcodeDirty,
     params: clone(S.params),
     zLimits: clone(S.zLimits),
     xLimits: clone(S.xLimits),
@@ -81,6 +85,7 @@ export function makePart(S, { name, gcode } = {}) {
 export function syncPartFromState(part, S) {
   if (!part) return part;
   part.gcode = S.manualGCode || '';
+  part.gcodeDirty = !!S.gcodeDirty;
   part.params = clone(S.params);
   part.zLimits = clone(S.zLimits);
   part.xLimits = clone(S.xLimits);
@@ -102,6 +107,7 @@ export function applyPartToState(part, S) {
   if (part.selectedMaterial) S.selectedMaterial = part.selectedMaterial;
   S.activeMagazineSlot = part.activeMagazineSlot ?? null;
   S.manualGCode = part.gcode || '';
+  S.gcodeDirty = !!part.gcodeDirty;
 }
 
 // ── Obrobený polotovar (co zbylo po části) ─────────────────────

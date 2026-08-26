@@ -7,7 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM – jednotné pravidlo, kdy se přepíše G-kód programu.** Doteď se každý
+  ovládací prvek panelu choval jinak: „Booleovské hrubování" a „Hrubovat po
+  regionech" přegenerovaly `manualGCode` bez ptaní (a tím zahodily ruční
+  úpravy — regenerace nešla vzít Zpět a `saveState()` ji hned uložila),
+  zatímco stejně strategické „Čelně/Podélně", „Hrub. bez schodků" nebo
+  „Hlídat geometrii" měnily jen náhled a program v editoru zůstal starý.
+
+  Nově platí jedno pravidlo (`js/calculators/cam/gcodeSync.js`,
+  `decideChange`): **program se přegeneruje sám jen tehdy, když (a) by změna
+  jinak nebyla vidět — běží nebo se mění cyklový režim (závit / upich, které
+  nemají vlastní náhled drah) — a zároveň (b) v programu nejsou ruční
+  úpravy.** Jinak se překreslí jen náhled a program počká na „🔄 Dráhy".
+
+  - **Ruční zásah je chráněný.** `S.gcodeDirty` se zapne psaním do editoru,
+    návratem z CAM Editoru, tažením uzlů dráhy, Prodl/Ořez i poznámkou z CAD;
+    ukládá se spolu s programem (localStorage, `.camprog`, záznam části,
+    poznámka na výkrese), takže přežije restart i cestu přes CAD. Automatika
+    takový program nepřepíše vůbec; „🔄 Dráhy" se předtím zeptá a přepis
+    zapíše do historie (Zpět ho vrátí).
+  - **Na dotaz se ptá jen když je co ztratit.** V automaticky vygenerovaném
+    programu ruční úpravy nejsou, takže „🔄 Dráhy" jede rovnou.
+  - **Vidět, že náhled ≠ program.** Tlačítko „🔄 Dráhy" se rozsvítí a dostane
+    puntík, jakmile se od poslední regenerace změní cokoli, co ovlivňuje dráhy
+    (otisk `pathInputsKey`: parametry, kontura, polotovar, meze, konstrukční
+    čáry, flip os, nůž ze zásobníku); zámek 🔒 hlásí ruční úpravy. Bez téhle
+    značky by změna nastavení vypadala jako hotová věc, ačkoli simulovaná
+    dráha i hlídání kolizí pořád běží nad starým programem.
+
 ### Fixed
+- **CAM – vjezd na hranici rozsahu 📐 už není kolmý zápich (kolize držáku).**
+  Když rozsah obrábění začíná uvnitř polotovaru, stojí napravo od hranice dál
+  materiál, a proto se tam podélné hrubování nezapichuje kolmo, ale zanořuje
+  **rampou** pod úhlem zanoření. Při úhlu 90° (upichovák + Auto) ale rampa na
+  kolmý zápich degeneruje: `tan(90°)` je 1,6e16, posun v Z vyjde nula a vydá se
+  `G1 X… Z<hranice> ; Rampa 90.0°`, které na hranici jen zapíchne — držák pak
+  sjede do stojícího materiálu. Guard byl sám proti sobě.
+
+  Svislý vjezd na UMĚLOU hranici (rozsah 📐 i hranice regionu) proto neplatí za
+  rampu: kotva se nezaloží, hloubka se řeší stejně jako „rampa se sem nevejde“
+  (dál se zanořuje jen po vrstvách, kam rampa doopravdy dosáhne).
+
+  Změřeno na dílu uživatele (podélné hrubování, upichovák, Start rozsahu
+  Z=333,06 uvnitř odlitku): **kolize 403,5 → 7,4 mm²** (−98 %), 5 svislých
+  „ramp“ na hranici a 2 na hranicích regionů → **0**. Cenou je 1 201 mm²
+  materiálu, který u hranice zůstane stát (vrstvy, na které se rampa nevejde) —
+  tam nástroj s 90° zanořením prostě vjet nemůže. Celá sada 25 fixtures se
+  **nezměnila ani o 0,1 mm²** (`scripts/cam_sweep.mjs --diff`: Δ +0,0 mm²,
+  0 nálezů) — žádná z nich tuhle kombinaci nemá. Regrese:
+  `tests/cam-range-parting-plunge.test.js` nad `tests/fixtures/cam-cases/`.
+
+- **CAM – program bez jediného řezného pohybu se teď ohlásí.** „Jen
+  dokončovací operace" (záložka Hot.) nad **neobrobeným odlitkem** vynechá
+  všechny dokončovací úseky — na dráze stojí víc materiálu než hloubka třísky,
+  takže je strop hloubky dokončovacího řezu zahodí. Rozhodnutí je správné
+  (jedním průchodem by to nešlo uříznout) a emise hlásila „17 úsek(ů)
+  zkráceno/vynecháno", jenže že jich bylo VŠECHNO poznat nešlo: vznikl
+  program s hlavičkou, sekcí `--- DOKONCOVANI ---` a `M30`, který vypadá hotově
+  a nic neobrobí. Nově se v takovém případě přidá hlášení „Program NEOBSAHUJE
+  ŽÁDNÝ ŘEZNÝ POHYB" — u „jen dokončení" i s návodem (nastavit polotovar na
+  tvar po hrubování, nebo použít ➕ Operace). Ověřeno na všech 25 fixtures, že
+  u normálních programů nehlásí nic (`tests/cam-empty-program.test.js`).
+
+- **CAM panel – varování, že hrubování přebíjí jiný režim.** Že program
+  obsahuje jen závitovací cyklus, hlásil panel od dřívějška; **upichnutí**
+  (aktivní `partOffZ`) a **„jen dokončovací operace"** ze záložky Hot.
+  (`finishOnly`) přitom hrubování ruší úplně stejně — v emisi má upichnutí
+  vlastní early-return a `finishOnly` hrubovací průchody přeskočí (změřeno na
+  `part-1`: 297 → 39 řádků, hlavička `--- HRUBOVANI ---` zmizí) — a v záložce
+  Hrub. o tom nebylo ani slovo. Nově se varování ukazuje pro všechny tři
+  režimy, včetně tlačítka na rychlé vypnutí. Zobrazí se vždy jen ten režim,
+  který program **opravdu** řídí: pořadí kopíruje pořadí early-returnů v emisi
+  (závit → upich → jen dokončení), ověřeno headless během se dvěma režimy
+  zapnutými naráz.
+
 - **CAM panel – „Booleovské hrubování" a „Hrubovat po regionech" v čelním
   režimu.** Oba příznaky čte výhradně `genLongPasses`; čelní strategie je
   nikde nesahá (změřeno: G-kód `part-16-face-holder`, `part-18-face-big-radius`

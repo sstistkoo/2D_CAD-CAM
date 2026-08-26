@@ -328,6 +328,48 @@ nezapisuje, `G0` rychlost neuvádí — slouží pro odhad času a simulaci).
 Tlačítky **−/+** u rychlosti se dá přehrávání zrychlit až 64× (dlouhý
 program nemusíš sledovat v reálném čase).
 
+### 3a. Kdy se přepíše program (🔄 Dráhy, ● a 🔒)
+V simulátoru jsou vidět **dvě dráhy najednou** a je dobré vědět, která je
+která:
+
+- **Náhled na plátně** (šrafování průchodů, offsetové čáry) se překreslí po
+  **každé** změně v panelu — hned vidíš, co nastavení udělá.
+- **Program v editoru** (G-kód, který se exportuje, přehrává v simulaci a
+  kontroluje na kolize) se **sám nepřepočítává**. Vygeneruje ho tlačítko
+  **🔄 Dráhy**.
+
+Změna nastavení proto program NEPŘEPÍŠE — jen se u tlačítka rozsvítí
+**● (dráhy neaktuální)**: náhled už ukazuje něco jiného, než co je
+v programu. Klikni na **🔄 Dráhy** a dráhy se vygenerují.
+
+Jakmile do programu **ručně sáhneš** (píšeš do editoru, vrátíš ho z CAM
+Editoru, táhneš uzel dráhy, použiješ Prodl/Ořez), objeví se **🔒**. Takový
+program už automatika nepřepíše vůbec a **🔄 Dráhy** se před přepsáním
+zeptá. Zámek se ukládá spolu s programem, takže platí i po restartu appky
+a po cestě přes CAD.
+
+Výjimka, kde se program přegeneruje sám: **závit** a **upichnutí**. Ty
+program celý nahrazují svým cyklem a nemají vlastní náhled — bez
+přegenerování by po jejich zapnutí nebylo na plátně vidět nic. I tady ale
+platí zámek: je‑li v programu ruční úprava, cyklus se nevygeneruje sám a
+počká na **🔄 Dráhy**.
+
+**„Jen dokončovací operace" potřebuje polotovar PO hrubování.** Počítá s tím,
+že díl už někdo vyhrubil — kde na dráze stojí víc materiálu než hloubka třísky
+(ap), se dokončovací úsek zahodí, protože by ho nůž bral naráz. Nad syrovým
+odlitkem tak vypadnou úseky všechny a vznikne program, který nic neobrobí;
+panel ⚠ to hlásí větou **„Program NEOBSAHUJE ŽÁDNÝ ŘEZNÝ POHYB"**. Řešení:
+nastav polotovar na tvar po hrubování, nebo použij **➕ Operace** (další část
+si obrobený polotovar spočítá sama).
+
+**Proč se negenerují hrubovací dráhy?** Tři nastavení hrubování přebíjejí, a
+každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
+(naklikané upichnutí) a **Hot.** („jen dokončovací operace"). Když je některé
+z nich zapnuté, ukáže se v ostatních záložkách oranžové varování s tlačítkem
+na jeho rychlé vypnutí. Ukazuje se vždy jen ten režim, který program opravdu
+řídí — mají mezi sebou pořadí: závit přebíjí upichnutí a upichnutí přebíjí
+„jen dokončení".
+
 ### 3b. Více operací na jednom kuse (➕ Operace)
 Jeden díl se často obrábí na několik operací: nejdřív se vyhrubuje jedním
 nožem, pak se jiným udělají drážky, zápich nebo závit. V liště nad G-kódem
@@ -578,6 +620,18 @@ záměrně omezit na kratší úsek.
 stěnou kontury z obou stran uprostřed dílu) podélné hrubování nezajíždí — ani se
 zapnutým Zanořováním. Ten materiál se musí obrobit jiným nástrojem/upnutím nebo
 zápichem.
+
+**Úhel zanoření 90° a hranice rozsahu.** Vjezd na hranici (rozsah 📐 nebo
+hranice úseku u odlitku) se dělá právě proto rampou, že napravo od ní materiál
+dál stojí. Se svislým zanořením (90° — u upichováku to dá **Auto**) žádná
+rampa neexistuje, takže se na takovou hranici vjet nedá: hloubky, na které se
+rampa nevejde, hrubování vynechá a materiál u hranice zůstane stát. Je to
+záměr — kolmý zápich na hranici by tam zavezl **držák** do neobrobeného
+polotovaru. Potřebuješ‑li ten materiál dostat pryč, posuň hranici rozsahu ven
+z polotovaru (pak se najíždí přes hranu, ne přes umělou mez), nebo ho nech
+jiné operaci / jinému nástroji. *Ruční úhel zanoření místo Auto je sice
+technicky možný, ale prověř si po něm ⚠ panel: mělčí rampa vjíždí dovnitř
+dílu a může narazit držákem jinde.*
 
 ### Hrubování bez schodků a „i u čelního"
 **Hrub. bez schodků** = po dojezdu vrstvy na offset nástroj místo okamžitého

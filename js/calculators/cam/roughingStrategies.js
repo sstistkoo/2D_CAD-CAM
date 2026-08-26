@@ -1561,6 +1561,17 @@ export function genLongPasses(ctx) {
 
   const effPlungeDegL = getEffectivePlungeAngle(prms);
   const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
+  // Vjezd na UMĚLÉ hranici (rozsah 📐 / hranice regionu) se dělá RAMPOU právě
+  // proto, že napravo od ní materiál dál STOJÍ — kolmý zápich by do něj sjel
+  // i s držákem. Při úhlu zanoření 90° ale rampa na kolmý zápich degeneruje:
+  // tan(90°) je 1,6e16, posun v Z vyjde nula a vydá se `G1 X… Z<hranice>`
+  // označené „Rampa 90.0°“, které na hranici jen zapíchne. Guard tak byl
+  // sám proti sobě.
+  // Reálný nález na díle uživatele 26. 8. 2026 (upichovák, Auto = 90°):
+  // 8 nálezů držáku / 393 mm² přesně na Startu rozsahu Z=333,06; s úhlem 45°
+  // ten shluk zmizel úplně. Svislý vjezd na umělou hranici proto neplatí za
+  // rampu a hloubka se řeší jako „rampa se sem nevejde“ (viz !rampOk níž).
+  const entryRampIsPlunge = effPlungeDegL >= 89.5;
 
   // Uzavřená smyčka polotovaru (odlitek) — zvedání rampových kotev kapes
   // na hranici materiálu + vůli X; null = válec (rampy kotví postaru).
@@ -2970,8 +2981,12 @@ export function genLongPasses(ctx) {
           // Kotva rampy = povrch nad vjezdem. Ještě NEPOUŽITÁ kotva (first)
           // z jiného Z se přepíše: vjezd se mezitím mohl posunout doleva na
           // místo, kde zanořování opravdu začíná (entryZ výš).
-          if (!entryRampAnchor
-              || (entryRampAnchor.first && Math.abs(entryRampAnchor.z - entryZ) > 1e-6)) {
+          // Kotva se při svislém zanoření (90°) NEZAKLÁDÁ vůbec — jinak by z ní
+          // stavěly „rampu" i navazující kroky řetězu (dokončení zbytku pod
+          // Hloubku ap bisekcí níž), a ta by byla zase jen zápich na hranici.
+          if (!entryRampIsPlunge
+              && (!entryRampAnchor
+                || (entryRampAnchor.first && Math.abs(entryRampAnchor.z - entryZ) > 1e-6))) {
             // Kotvu posuň ZA hranici úseku, kam až pustí držák — jinak rampa
             // vjede doprostřed údolí a jeho druhá půlka zůstane stát
             // (holderEntryReachZ výš; strop = vzdálenější ústí údolí).
@@ -3771,7 +3786,9 @@ export function genLongPasses(ctx) {
     // Pokud je Z-rozsah aktivní a jeho horní hrana je uvnitř polotovaru
     // (scanIntervals nevrátí žádné intervaly), vygenerujte rampový
     // vjezd od hranice rozsahu z povrchu polotovaru.
-    if (entryCapped
+    // `entryRampIsPlunge`: při 90° by i tahle rampa byla kolmý zápich přesně
+    // na hranici — viz komentář u jeho definice (nález 26. 8. 2026).
+    if (entryCapped && !entryRampIsPlunge
         && intervals.length === 0 && !entryRampAnchor) {
       // Válcová obdoba offsetové čáry (bez smyčky není co offsetovat).
       // Přídavky (polo.) = 0 → povrchem je přímo poloměr polotovaru.

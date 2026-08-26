@@ -2065,5 +2065,20 @@ export function generateAutoGCode(S, calc) {
   if (globalThis.__RAPID_STOCK_DUMP__ && rapidStock) {
     globalThis.__RAPID_STOCK_DUMP__.push(rapidStock.loops.map(l => l.map(q => ({ x: q.x, z: q.z }))));
   }
+  // ── POJISTKA: program bez JEDINÉHO řezného pohybu ─────────────────────
+  // Hlášení výš mluví o „N vynechaných úsecích", ale že jich bylo VŠECHNO
+  // a na stroj by odjel program, který nic neobrobí, z nich poznat nejde:
+  // hlavička, `--- DOKONCOVANI ---` i M30 se vypíšou úplně stejně.
+  // Reálný nález 26. 8. 2026: „jen dokončení" (Hot.) nad NEOBROBENÝM odlitkem
+  // vynechá všech 17 dokončovacích úseků (stojí tam víc materiálu než hloubka
+  // třísky), takže vznikne prázdný program — a uživatel to pozná až na stroji.
+  if (S.genNotes) {
+    const cutMoves = lines.filter(l => /^N\d+\s+G0?[123]\b/.test(l.text || '')).length;
+    if (cutMoves === 0) {
+      S.genNotes.push({ type: 'warning', msg: prms.finishOnly
+        ? 'Program NEOBSAHUJE ŽÁDNÝ ŘEZNÝ POHYB — všechny dokončovací úseky vypadly (viz hlášení výš). „Jen dokončovací operace" počítá s tím, že díl je už vyhrubovaný: nastavte polotovar na tvar PO hrubování (nebo použijte ➕ Operace), jinak není co dokončovat.'
+        : 'Program NEOBSAHUJE ŽÁDNÝ ŘEZNÝ POHYB — všechny dráhy vypadly (viz hlášení výš). Zkontrolujte nástroj, polotovar a rozsah obrábění.' });
+    }
+  }
   return lines;
 }
