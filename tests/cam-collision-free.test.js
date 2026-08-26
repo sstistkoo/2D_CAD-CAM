@@ -105,7 +105,7 @@ const EXPECTED_PLAN = {
   // náhradní držák. Zbylé dvě položky jsou tytéž meze jako v EXPECTED výš,
   // jen proti offsetové čáře vyjdou o pár mm² větší.
   'holder-casting-slanted-face.camprog': 'držák na rampě — mez modelu holderFitsAt (3× do 3,5 mm²)',
-  'part-8.camprog': 'držák v přídavkové slupce nad pahýlem polotovaru (8× do 13,1 mm²) — proti nakreslené siluetě čistý',
+  'part-8.camprog': 'držák v přídavkové slupce nad pahýlem polotovaru (5× do 13,1 mm²) — proti nakreslené siluetě čistý; od zapnutí `orderAwareHolder` 26. 8. 2026 jich je 5 místo 8, protože zmizel kapsový vjezd',
 };
 
 const detailOf = (issues) => issues.map(i =>

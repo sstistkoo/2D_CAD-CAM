@@ -152,12 +152,22 @@ export function _defaultCamParams() {
     // původní scan-line cesta (regresní snapshoty beze změny). Zapnuto =
     // experimentální booleovská cesta (zatím jen podélné hrubování).
     booleanRoughing: false,
-    // Hlídání držáku podle POŘADÍ obrábění (docs/cam-order-aware-holder.md):
-    // místo statické Minkowského obálky z HOTOVÉHO dílu (`makeHolderClamp`)
-    // se hloubkové intervaly posuzují proti ZBYTKU, který v tu chvíli opravdu
-    // stojí (`ResidualTracker`). PŘÍZNAK — default false = dosavadní obálka.
-    // Zapnutý zatím jen STAVÍ model (krok 1); nikdo se ho neptá.
-    orderAwareHolder: false,
+    // Hlídání držáku podle POŘADÍ obrábění (docs/cam-order-aware-holder.md).
+    // Vjezd kapsového zákroku se posuzuje proti ZBYTKU, který v tu chvíli
+    // opravdu stojí (`ResidualTracker` + `holderAreaAlongResidual`), ne jen
+    // proti výškovému poli `cutFloorTab`. To pole neumí popsat TUNEL — když
+    // zanoření podjede pod stojícím materiálem, srazí celý sloupec na hloubku
+    // tunelu (na `part-8` změřeně až 11,2 mm pod realitou).
+    //
+    // VÝCHOZÍ ZAPNUTO od 26. 8. 2026. Změřeno na 25 fixtures × 2 variantách
+    // držáku: kolize s nakresleným nožem 4 / 33,4 mm² → 0 za 328 mm² úběru
+    // (−0,43 %), a mění se JEDINÝ díl (part-8) — ten zákrok vjížděl držákem
+    // 30,1 mm² do stojícího materiálu, takže ho zahodit je správně; uživatel
+    // se to dozví z hlášení „úsek polotovaru zůstal NEOBROBEN". Přepočet
+    // +0 až +25 % (na part-8 −12 %).
+    //
+    // Vypnout = dosavadní chování (jen statická obálka `makeHolderClamp`).
+    orderAwareHolder: true,
     // Vůle nad polotovarem pro rychloposuvy v Z. Default 1 mm =
     // dráha rychloposuvu se táhne co nejtěsněji vedle polotovaru.
     // (Legacy jednotná hodnota — viz stockClearX/stockClearZ níže.)

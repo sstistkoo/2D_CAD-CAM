@@ -2746,7 +2746,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
 ]
 `;
 
@@ -3118,7 +3118,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
 ]
 `;
 
@@ -3544,7 +3544,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
 ]
 `;
 
@@ -3970,7 +3970,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
 ]
 `;
 
@@ -4239,110 +4239,81 @@ N2310 G1 Z266.014 F0.25
 N2320 G1 Z258.224 F0.25
 N2330 G1 X19.478 Z258.214 F0.25
 N2340 G1 X21.478 Z260.214
-; Průchod 28 (oblouk G3)
-N2350 G0 X93.011 ; Výjezd nad konturu
-N2360 G0 Z258.214
-N2370 G0 X2.200
-N2380 G1 X0.000 F0.25
-N2390 G1 X32.140 Z258.214 F0.25
-N2400 G1 X32.140 Z238.548 F0.25
-N2410 G1 X32.133 Z238.524 F0.25
-N2420 G1 X27.261 Z220.339 ; Rampa 15.0°
-N2430 G0 X93.011 ; Výjezd nad konturu
-N2440 G0 Z184.367
-N2450 G0 X32.980
-N2460 G1 X17.622 F0.25
-N2470 G1 X20.856 Z182.987 F0.25
-N2480 G3 X26.611 Z174.828 CR=8.660 F0.25
-N2490 G1 X26.611 Z162.031 F0.25
-N2500 G1 X35.263 Z147.045 F0.25
-N2510 G3 X35.657 Z143.147 CR=4.771 F0.25
-N2520 G1 X28.901 Z117.934 F0.25
-N2530 G2 X35.864 Z111.430 CR=17.100 F0.25
-N2540 G3 X39.810 Z105.008 CR=7.200 F0.25
-N2550 G1 X39.810 Z70.607 F0.25
-N2560 G3 X39.514 Z68.562 CR=7.200 F0.25
-N2570 G1 X31.922 Z40.231 F0.25
-N2580 G2 X41.646 Z24.475 CR=29.337 F0.25
-N2590 G3 X44.178 Z19.054 CR=7.069 F0.25
-N2600 G1 X44.178 Z-0.290 F0.25
-N2610 G1 X43.936 Z-1.192 F0.25
+; Průchod 28 (bez schodků)
+N2350 G0 Z268.214
+N2360 G0 X14.478
+N2370 G1 Z266.014 F0.25
+N2380 G1 Z258.224 F0.25
+N2390 G1 X16.978 Z258.214 F0.25
+N2400 G1 X18.978 Z260.214
 ; Průchod 29 (bez schodků)
-N2620 G0 X93.011 ; Výjezd nad konturu
-N2630 G0 Z268.214
-N2640 G0 X14.478
-N2650 G1 Z266.014 F0.25
-N2660 G1 Z258.224 F0.25
-N2670 G1 X16.978 Z258.214 F0.25
-N2680 G1 X18.978 Z260.214
+N2410 G0 Z268.214
+N2420 G0 X11.978
+N2430 G1 Z266.014 F0.25
+N2440 G1 Z258.224 F0.25
+N2450 G1 X14.478 Z258.214 F0.25
+N2460 G1 X16.478 Z260.214
 ; Průchod 30 (bez schodků)
-N2690 G0 Z268.214
-N2700 G0 X11.978
-N2710 G1 Z266.014 F0.25
-N2720 G1 Z258.224 F0.25
-N2730 G1 X14.478 Z258.214 F0.25
-N2740 G1 X16.478 Z260.214
+N2470 G0 Z268.214
+N2480 G0 X9.478
+N2490 G1 Z266.014 F0.25
+N2500 G1 Z258.224 F0.25
+N2510 G1 X11.978 Z258.214 F0.25
+N2520 G1 X13.978 Z260.214
 ; Průchod 31 (bez schodků)
-N2750 G0 Z268.214
-N2760 G0 X9.478
-N2770 G1 Z266.014 F0.25
-N2780 G1 Z258.224 F0.25
-N2790 G1 X11.978 Z258.214 F0.25
-N2800 G1 X13.978 Z260.214
+N2530 G0 Z268.214
+N2540 G0 X6.978
+N2550 G1 Z266.014 F0.25
+N2560 G1 Z258.224 F0.25
+N2570 G1 X9.478 Z258.214 F0.25
+N2580 G1 X11.478 Z260.214
 ; Průchod 32 (bez schodků)
-N2810 G0 Z268.214
-N2820 G0 X6.978
-N2830 G1 Z266.014 F0.25
-N2840 G1 Z258.224 F0.25
-N2850 G1 X9.478 Z258.214 F0.25
-N2860 G1 X11.478 Z260.214
+N2590 G0 Z268.214
+N2600 G0 X4.478
+N2610 G1 Z266.014 F0.25
+N2620 G1 Z258.224 F0.25
+N2630 G1 X6.978 Z258.214 F0.25
+N2640 G1 X8.978 Z260.214
 ; Průchod 33 (bez schodků)
-N2870 G0 Z268.214
-N2880 G0 X4.478
-N2890 G1 Z266.014 F0.25
-N2900 G1 Z258.224 F0.25
-N2910 G1 X6.978 Z258.214 F0.25
-N2920 G1 X8.978 Z260.214
+N2650 G0 Z268.214
+N2660 G0 X1.978
+N2670 G1 Z266.014 F0.25
+N2680 G1 Z258.224 F0.25
+N2690 G1 X4.478 Z258.214 F0.25
+N2700 G1 X6.478 Z260.214
 ; Průchod 34 (bez schodků)
-N2930 G0 Z268.214
-N2940 G0 X1.978
-N2950 G1 Z266.014 F0.25
-N2960 G1 Z258.224 F0.25
-N2970 G1 X4.478 Z258.214 F0.25
-N2980 G1 X6.478 Z260.214
-; Průchod 35 (bez schodků)
-N2990 G0 Z268.214
-N3000 G0 X0.000
-N3010 G1 Z266.014 F0.25
-N3020 G1 Z258.224 F0.25
-N3030 G1 X1.978 Z258.214 F0.25
-N3040 G1 X3.978 Z260.214
-N3050 G0 X150.000 ; Výjezd nad konturu
-N3060 G0 Z5.000
+N2710 G0 Z268.214
+N2720 G0 X0.000
+N2730 G1 Z266.014 F0.25
+N2740 G1 Z258.224 F0.25
+N2750 G1 X1.978 Z258.214 F0.25
+N2760 G1 X3.978 Z260.214
+N2770 G0 X150.000 ; Výjezd nad konturu
+N2780 G0 Z5.000
 ; --- DOKONCOVANI ---
-N3070 G0 Z264.678
-N3080 G0 X2.000
-N3090 G1 X0.000 Z257.214 F0.25
-N3100 G1 X31.140 Z257.214
-N3110 G1 X31.140 Z238.838
-N3120 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
-N3130 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
-N3140 G0 Z110.538
-N3150 G0 X37.190
-N3160 G1 X35.412 F0.25
-N3170 G3 X38.810 Z105.008 CR=6.200
-N3180 G1 X38.810 Z70.607
-N3190 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
-N3200 G0 X93.011 ; Výjezd nad konturu
-N3210 G0 Z31.172
-N3220 G0 X43.004
-N3230 G1 X41.004 Z23.708
-N3240 G3 X43.178 Z19.054 CR=6.069
-N3250 G1 X43.178 Z0.000
-N3260 G1 X43.178 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
-N3270 G0 X150.000 ; Výjezd nad konturu
-N3280 G0 Z5.000
-N3290 M30 ; Konec programu
+N2790 G0 Z264.678
+N2800 G0 X2.000
+N2810 G1 X0.000 Z257.214 F0.25
+N2820 G1 X31.140 Z257.214
+N2830 G1 X31.140 Z238.838
+N2840 G1 X31.140 Z237.338 ; Rovný průměr (zbytek nejde dokončit celý)
+N2850 G1 X93.011 F0.25 ; Výjezd materiálem posuvem
+N2860 G0 Z108.508
+N2870 G0 X40.480
+N2880 G1 X38.810 F0.25
+N2890 G1 X38.810 Z105.008 ; Rovný průměr (nájezd hranou materiálu)
+N2900 G1 X38.810 Z70.607
+N2910 G1 X38.810 Z67.107 ; Rovný průměr (zbytek nejde dokončit celý)
+N2920 G0 X93.011 ; Výjezd nad konturu
+N2930 G0 Z31.172
+N2940 G0 X43.004
+N2950 G1 X41.004 Z23.708
+N2960 G3 X43.178 Z19.054 CR=6.069
+N2970 G1 X43.178 Z0.000
+N2980 G1 X43.178 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
+N2990 G0 X150.000 ; Výjezd nad konturu
+N3000 G0 Z5.000
+N3010 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -4397,7 +4368,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabiln�
     "L (41.98,19.05)->(41.98,0.00)",
     "L (41.98,0.00)->(41.72,-0.97) {ins}",
   ],
-  "passCount": 35,
+  "passCount": 34,
   "passTags": [
     "long",
     "long",
@@ -4426,7 +4397,6 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabiln�
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
-    "long{pocketEntry,ramp,contourLeadIn,contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
@@ -4443,7 +4413,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
   "Hlídání geometrie (držák): 8 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 8 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
   "Hlídání destičky: 3 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
@@ -4857,7 +4827,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
   "Hlídání destičky: dokončování vynechá 6 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
 ]
 `;
 
@@ -10790,7 +10760,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle
   "Hlídání destičky: dokončování vynechá 7 úsek(ů), kam destička nedosáhne (přejezd G0).",
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 7 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
-  "POZNÁMKA: Zanořování — 2 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
+  "POZNÁMKA: Zanořování — 1 průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod 15.0° pokračuje dalším krokem).",
 ]
 `;
 

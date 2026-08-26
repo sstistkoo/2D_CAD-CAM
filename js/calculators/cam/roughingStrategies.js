@@ -1712,7 +1712,8 @@ export function genLongPasses(ctx) {
   // `passes.splice` PŘED značku, se do modelu nedostane. Směr je bezpečný —
   // model pak tvrdí, že materiál stojí.)
   const orderAware = !!prms.orderAwareHolder;
-  let residTracker = null, residHolderL = null, residSynced = 0;
+  let residTracker = null, residHolderL = null;
+  let residNoted = [];   // průchody, které už jsou v modelu (reference, v pořadí)
   if (orderAware && stockLoopOffsetFullL) {
     residHolderL = holderLoopL ? residualHolderLoop(prms, false) : null;
     if (residHolderL) {
@@ -1725,14 +1726,30 @@ export function genLongPasses(ctx) {
   // Dosynchronizuje model na aktuální `passes` a vrátí ho (nebo null).
   const syncResidual = () => {
     if (!residTracker) return null;
-    // `passes` se za běhu nejen plní, ale i ZKRACUJE (useknutí odložených
-    // zákroků `tail.length = dropFrom`, `passes.splice(pi, 1)` u rampy) a na
-    // konci regionu přeskládává. Model umí jen ubírat, ne vracet materiál
-    // zpátky, takže při zkrácení pole se musí postavit ZNOVU — jinak si
-    // připisuje řezy průchodů, které nakonec nikdo neudělá, a hlídání pak
-    // pustí držák do materiálu, co tam pořád stojí.
-    if (passes.length < residSynced) { residTracker.noteAll([]); residSynced = 0; }
-    for (; residSynced < passes.length; residSynced++) residTracker.notePass(passes[residSynced]);
+    // `passes` se za běhu nejen PLNÍ. Dobírací řetězy se vkládají
+    // `passes.splice(at, …)` DOPROSTŘED, konec regionu pořadí přeskládá
+    // (`__deferEntry`) a odložené zákroky se usekávají (`tail.length =
+    // dropFrom`, `passes.splice(pi, 1)` u rampy). Model umí jen ubírat, ne
+    // vracet materiál zpátky, takže jakmile se prefix ROZEJDE s tím, co je
+    // zapsané, musí se postavit znovu — jinak si nese řezy zákroků, které
+    // nakonec nikdo neudělá, a hlídání pustí držák do materiálu, co tam
+    // pořád stojí.
+    //
+    // Porovnává se IDENTITA objektů, ne jen délka pole: `passes.length`
+    // sama o sobě neodhalí zkrácení, po kterém pole zase naroste, ani
+    // vložení doprostřed. Je to O(n) porovnání referencí u hrstky volání,
+    // tedy nic proti jednomu `polyDifference`.
+    let inSync = residNoted.length <= passes.length;
+    if (inSync) {
+      for (let i = 0; i < residNoted.length; i++) {
+        if (passes[i] !== residNoted[i]) { inSync = false; break; }
+      }
+    }
+    if (!inSync) { residTracker.noteAll([]); residNoted = []; }
+    for (let i = residNoted.length; i < passes.length; i++) {
+      residTracker.notePass(passes[i]);
+      residNoted.push(passes[i]);
+    }
     return residTracker;
   };
   // Nejhorší vnoření držáku PODÉL VJEZDU zákroku (rampa + nájezd po kontuře),
@@ -1753,8 +1770,18 @@ export function genLongPasses(ctx) {
       if (Number.isFinite(sg.x2) && Number.isFinite(sg.z2)) pts.push({ x: sg.x2, z: sg.z2 });
     }
     if (pts.length < 2) return 0;
+    // Krok 2 mm, ne 1 jako u `holderFitAreaAlong`: držák je v ose Z přes
+    // 20 mm široký, takže sousední polohy se překrývají z 90 %. Ověřeno —
+    // se `step: 0,5` a stropem 256 vyjde na všech 25 fixtures TENTÝŽ
+    // výsledek, a jedničku to stojí dvojnásobek režie (part-13 +17 %
+    // proti +6 %).
+    //
+    // Strop 128 (ne 24) proto, aby DLOUHÝ nájezd po kontuře nezředil vzorky
+    // RAMPY, na které to celé stojí: `n = min(strop, délka/krok)`, takže
+    // s nízkým stropem se u 70mm dráhy krok protáhne na 3 mm. Se 128 je plné
+    // rozlišení až do dráhy 256 mm, tedy prakticky vždy.
     return holderAreaAlongResidual(t.loops, residHolderL, pts,
-      { ownFoot: toolFootprint(prms), step: 2, maxSamples: 24 });
+      { ownFoot: toolFootprint(prms), step: 2, maxSamples: 128 });
   };
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
@@ -4306,22 +4333,22 @@ export function genLongPasses(ctx) {
   // který se bude ptát UPROSTŘED plánování, si bude muset vzít prefix —
   // a tenhle rozdíl je potřeba mít na paměti.
   //
-  // Zatím se ho NIKDO NEPTÁ (krok 1) — staví se jen se zapnutým příznakem
-  // nebo pro měřicí seam, takže v produkci nestojí nic.
-  if (prms.orderAwareHolder || globalThis.__RESIDUAL_TRACKER_DUMP__) {
+  // POUZE PRO SEAM. Hlídání běží nad `residTracker` výš, který se plní líně
+  // za jízdy; tenhle blok staví model ZNOVU a celý, což má smysl jen pro
+  // měření (test potřebuje stav „po všech průchodech"). V produkci by to byla
+  // druhá, zahozená stavba téhož — a od zapnutí `orderAwareHolder` výchozí
+  // by běžela při každém přepočtu.
+  if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
     const tracker = new ResidualTracker(prms, stockPathSegments, {
       seedLoop: stockLoopOffsetFullL || undefined,
       footprint: toolFootprint(prms),
     });
     tracker.noteAll(passes);
-    ctx.residualTracker = tracker;
-    if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
-      globalThis.__RESIDUAL_TRACKER_DUMP__.push({
-        loops: tracker.loops.map(l => l.map(q => ({ x: q.x, z: q.z }))),
-        seed: tracker.seedLoop ? tracker.seedLoop.map(q => ({ x: q.x, z: q.z })) : null,
-        count: tracker.count,
-      });
-    }
+    globalThis.__RESIDUAL_TRACKER_DUMP__.push({
+      loops: tracker.loops.map(l => l.map(q => ({ x: q.x, z: q.z }))),
+      seed: tracker.seedLoop ? tracker.seedLoop.map(q => ({ x: q.x, z: q.z })) : null,
+      count: tracker.count,
+    });
   }
 }
 

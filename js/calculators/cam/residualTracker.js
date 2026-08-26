@@ -132,7 +132,7 @@ export class ResidualTracker {
   /**
    * @param {object} prms parametry CAM
    * @param {Array} stockPathSegments silueta odlitku (u válce se ignoruje)
-   * @param {{seedLoop?: Array, raw?: boolean, footprint?: Array}} [opts]
+   * @param {{seedLoop?: Array, raw?: boolean, footprint?: Array, arcTol?: number}} [opts]
    *   `seedLoop` — hotová výchozí smyčka (strategie si drží vlastní, přes
    *     CELÝ polotovar bez ořezu rozsahem 📐: držák narazí i do materiálu za
    *     hranicí rozsahu, ten se jen neobrábí).
@@ -141,6 +141,9 @@ export class ResidualTracker {
    *     bezpečná strana (rozhodnutí 20. 8. 2026, viz collisionValidator.js).
    *     Plán psal `buildStockLoopRaw`; syrový základ by byl MÉNĚ přísný než
    *     dnešní výškové pole, které se staví nad offsetovou čarou.
+   *   `arcTol` — nejvyšší dovolená SAGITTA při vzorkování oblouků
+   *     (výchozí `ARC_SAGITTA_TOL`). Hrubší = rychlejší, ale model se vzdálí
+   *     realitě; mez hlídá `tests/cam-strategy-residual`.
    */
   constructor(prms, stockPathSegments, opts = {}) {
     this.arcTol = Number.isFinite(opts.arcTol) ? opts.arcTol : ARC_SAGITTA_TOL;

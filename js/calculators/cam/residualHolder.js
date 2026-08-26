@@ -196,7 +196,10 @@ export function makeResidualClamp(loops, holderLoop, {
       if (!stand || stand.length === 0) return 0;
       return Math.abs(polyArea(polyIntersect(stand, swept)));
     } catch {
-      // Bez stopy zbývá aspoň konzervativní odhad z obou konců.
+      // Nouzový odhad z obou konců. POZOR, je to DOLNÍ mez (mezi konci může
+      // být víc), takže je OPTIMISTICKÝ — ne konzervativní. Přijatelné jen
+      // proto, že sem se dostane jedině spadlý Clipper; kdyby se `clamp`
+      // někdy zapojil do produkce, patří sem rozhodnutí „nevím = blokuj".
       return Math.max(areaAt(X, z1), areaAt(X, z2));
     }
   };

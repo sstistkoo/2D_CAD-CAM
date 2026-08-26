@@ -1,10 +1,10 @@
 # Hlídání držáku podle POŘADÍ obrábění — plán
 
-> Stav: **kroky 0–3 hotové, akceptace SPLNĚNA** (příznak `orderAwareHolder`,
-> výchozí vypnuto — s vypnutým se G-kód nezměnil ani o řádek). Se zapnutým
-> jdou nálezy s nakresleným nožem **4 / 33,4 mm² → 0** za 328 mm² úběru
-> (−0,43 %) a mění se JEDINÝ díl (`part-8`). Rozhodnutí o výchozím zapnutí
-> je krok 5 níž.
+> Stav: **UZAVŘENO 26. 8. 2026.** Kroky 0–3 hotové, `orderAwareHolder` je
+> od téhož dne **výchozí ZAPNUTÝ**. Nálezy s nakresleným nožem
+> **4 / 33,4 mm² → 0** za 328 mm² úběru (−0,43 %); G-kód se změnil na
+> JEDINÉM dílu (`part-8`, jeden zahozený kapsový vjezd). Krok 4 (rušení
+> statických proxy) se NEDĚLÁ — neměl by co splácet.
 > Poslední aktualizace 26. 8. 2026.
 > Navazuje na nález 09 z auditu drah (viz CHANGELOG, sekce *Measured and rejected*).
 
@@ -405,8 +405,11 @@ Celý přepočet (`calculate()` × 2 v harnessu, 5 opakování, minimum):
 |---|---|---|---|
 | `part-8` | 692 ms | 609 ms (**−12 %**) | +6 % |
 | `part-16-face-holder` | 1 052 ms | 1 056 ms (+0 %) | — |
-| `part-15-finish-zprava` | 601 ms | 705 ms (+17 %) | +72 % |
-| `part-13-zleva-flange` | 306 ms | 382 ms (+25 %) | +124 % |
+| `part-15-finish-zprava` | 541 ms | 579 ms (**+7 %**) | +72 % |
+| `part-13-zleva-flange` | 286 ms | 329 ms (**+15 %**) | +124 % |
+
+(Poslední sloupec je stav před přechodem na sagittu; mezitím ještě revize
+odstranila druhou, zahozenou stavbu modelu — viz CHANGELOG.)
 
 `part-8` je se zapnutým příznakem RYCHLEJŠÍ, protože zahodí jeden zákrok
 a s ním kus programu.
@@ -431,41 +434,48 @@ horší — postupné `polyDifference` nabaluje modelu vrcholy, takže každý d
 rozdíl je dražší než jeden rozdíl proti původnímu obrysu (`part-13`
 10,4 → 30,8 ms na dotaz).
 
-### Krok 4 — splatit ztrátu zrušením proxy
+### Krok 4 — splatit ztrátu zrušením proxy → NEDĚLÁ SE
 
-Postupně, každou zvlášť a se změřením:
+Zadání znělo „zrušit `stair`, mezní čáry `fromInsert` a `isForbiddenSoft`,
+aby se splatil propad úběru". Propad ale nenastal: nasazené řešení stojí
+**0,43 %** (328 mm²), ne předpokládaných 5,5 %, a je to JEDEN vědomě zahozený
+zákrok, který vjížděl držákem do materiálu. Rušit kvůli tomu tři funkční
+statické proxy by byl obchod bez důvodu — každá z nich hlídá něco jiného
+a všechny tři mají vlastní změřenou historii.
 
-1. `stair` (`opts.mainStair` + `clamp.noteMainEnd`) — vypnout, když je
-   `orderAwareHolder` zapnutý.
-2. Mezní čáry z `interferenceGuides` (`fromInsert: true`) — nechat jen ty, které
-   uživatel nakreslil ručně.
-3. `isForbiddenSoft` v `holderTrimLeadIn/Out` — nahradit tvrdým testem proti
-   zbytku (soft byl kompromis kvůli tomu, že tvrdý test nad hotovým dílem zahazoval
-   dno kapsy; nad zbytkem ten důvod odpadá).
+Kdyby se k tomu někdy vracelo: proxy jsou vyjmenované v sekci *Co UŽ JE
+ZMĚŘENO A ZAMÍTNUTO* výš a pořadí měření je `stair` → mezní čáry →
+`isForbiddenSoft`, každá zvlášť a přes `cam_sweep --diff`.
 
-**Akceptace celku:** úběr **≥ 76 663,8 mm²** (nakreslený nůž) a **≥ 76 849,6 mm²**
-(náhradní držák), tedy žádná ztráta proti dnešku, při nulových nálezech.
-`tests/cam-collision-free` zelený v obou standardech, `tests/cam-gcode-regression`
-přepsaný vědomě.
+### Krok 5 — rozhodnout ✅ ZAPNUTO VÝCHOZÍ (26. 8. 2026)
 
-### Krok 5 — rozhodnout
+`orderAwareHolder: true` v `camDefaults.js`. Rozhodnutí uživatele s těmito
+čísly na stole:
 
-Akceptace kroku 3 je splněná (4 / 33,4 → 0, mění se jediný díl), ale podmínka
-pro výchozí zapnutí zněla „úběr ≥ baseline". Ten je **−328 mm² (−0,43 %)**,
-takže formálně chybí krok 4 — jenže ten teď nemá co splácet v řádu, v jakém
-byl psaný (ztráta je 0,43 %, ne 5,5 %).
+| | dřív | teď |
+|---|---|---|
+| kolize, nakreslený nůž | 4 / 33,4 mm² | **0 / 0,0** |
+| kolize, náhradní držák | 2 / 2,3 mm² | 2 / 2,3 (jiná, doložená mez) |
+| úběr, nakreslený nůž | 76 663,8 mm² | 76 335,8 (−0,43 %) |
+| čas přepočtu | — | +0 až +25 %, na `part-8` −12 % |
 
-Otevřené rozhodnutí, obě strany s čísly:
+Co to znamená v praxi: zákrok, který na `part-8` vjížděl **30,1 mm² držáku**
+do stojícího materiálu, se už neudělá. Uživatel se o tom dozví z existujícího
+hlášení „*Hlídání geometrie (držák): N úsek(ů) polotovaru zůstalo NEOBROBENO
+— držák se k nim nedostane*", takže materiál nemizí tiše.
 
-- **Zapnout výchozí:** vyplatí 4 nálezy / 33,4 mm² kolizí za 0,43 % úběru
-  a +0 až +25 % času přepočtu (na `part-8` je to dokonce −12 %).
-- **Nechat vypnuté:** stav zůstává jako u `regionRoughing` a `booleanRoughing`
-  a `part-8` si dál nese 4 nálezy, které jsou v `tests/cam-stock-span-depths`
-  přišpendlené prahem 20 mm².
+Co se muselo přepsat: snapshoty `cam-gcode-regression`
+a `cam-boolean-gcode-regression`. Zkontrolováno položku po položce —
+na `part-8` ubyl přesně jeden průchod
+(`long{pocketEntry,ramp,contourLeadIn,contourLeadOut,blocked}`, `passCount`
+35 → 34), na šesti dalších dílech je G-kód BIT PO BITU shodný a mění se jen
+počet v poznámce „Zanořování — N průchodů do kapsy nedosáhlo plné cílové
+hloubky" (2 → 1), protože kapsová smyčka končí o jeden zamítnutý pokus dřív.
 
-Zlevnění už proběhlo (viz *Cena* v kroku 3): nejhorší případ spadl
-z +124 % na +25 % a `part-8` je se zapnutým příznakem dokonce rychlejší.
-Argument „je to drahé" tím z velké části padá; zůstává jen ta 0,43 %.
+**Past, kterou to odhalilo:** `cam_sweep --diff` hlásil „mění se jediný díl",
+protože porovnával jen úběr a nálezy. Změnu, která nehne ani jedním, přehlédl
+— těch šest dílů ukázaly až snapshoty. Kritérium proto nově zahrnuje i POČET
+PRŮCHODŮ.
 
 ## Mimo rozsah
 

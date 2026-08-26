@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   jedním během. Se `--set` se netiskne porovnání se zapsanou baseline — ta
   platí pro výchozí parametry.
 
+  `--diff` nově porovnává i **počet průchodů**. Bez toho přehlédl změnu, která
+  nehne ani úběrem, ani nálezy: zapnutí `orderAwareHolder` vypadalo jako
+  „mění se jediný díl", ale snapshoty ukázaly, že se na šesti dalších změnil
+  počet zanořovacích pokusů.
+
 - **CAM – `residualHolder.js`: hlídání držáku dotazem nad zbytkem místo
   Minkowského obálky.** Krok 2 plánu `docs/cam-order-aware-holder.md`. Modul
   zatím nikdo neimportuje — zapojení do `applyHolderClamp` je krok 3.
@@ -230,9 +235,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   díl`, takže sám o sobě může jen ubrat.
 
 ### Fixed
+- **CAM – kontrola order-aware hlídání držáku: dvě vady nalezené revizí.**
+  Ani jedna se na fixtures neprojevila (`cam_sweep --diff` je před opravou
+  i po ní na nule), obě ale byly reálné.
+
+  1. **Model zbytku se stavěl DVAKRÁT.** Blok na konci `genLongPasses`, který
+     ho staví celý znovu pro měřicí seam, běžel při `prms.orderAwareHolder` —
+     tedy od zapnutí výchozího příznaku při KAŽDÉM přepočtu, a jeho výsledek
+     nikdo nečetl (`ctx.residualTracker` nemá konzumenta). Hlídání přitom jede
+     nad líně plněným `residTracker`. Blok je nově vázaný jen na seam:
+     `part-13` +25 % → **+15 %**, `part-15` +17 % → **+7 %**.
+  2. **Detekce rozejití modelu s `passes` byla děravá.** Test
+     `passes.length < residSynced` odhalí zkrácení pole, ale NE zkrácení,
+     po kterém pole zase naroste, ani vložení `splice` doprostřed. Model si
+     pak nese řezy zákroků, které nakonec nikdo neudělá → tvrdí, že je
+     vykopáno → nebezpečný směr. Nově se porovnává IDENTITA objektů v prefixu
+     (O(n) referencí u hrstky volání, nic proti jednomu `polyDifference`).
+
+  Doladěno i vzorkování dotazu na vjezd: strop 24 vzorků mohl u DLOUHÉHO
+  nájezdu zředit vzorky RAMPY, na které to celé stojí (`n = min(strop,
+  délka/krok)`, takže u 70mm dráhy by se krok protáhl na 3 mm). Strop je
+  nově 128, tedy plné rozlišení do dráhy 256 mm. Krok 2 mm zůstává —
+  ověřeno, že se `step: 0,5` a stropem 256 vyjde na všech 25 fixtures TENTÝŽ
+  výsledek, a jednomilimetrový krok stojí dvojnásobek režie.
 - **CAM – hluboký vjezd do úzké drážky zavezl DRŽÁK do materiálu, který tam
-  ještě stál (zbytek nálezu 09).** Za příznakem `orderAwareHolder` (výchozí
-  vypnuto; s vypnutým je G-kód bit po bitu týž).
+  ještě stál (zbytek nálezu 09).** Opraveno a **výchozí ZAPNUTO**
+  (`orderAwareHolder`); vypnutím se vrátí dosavadní chování.
 
   Kapsový vjezd hlídá `holderFitArea` u `buildPocketPass` — a ten čte VÝŠKOVÉ
   POLE `cutFloorTab`, jedno číslo na svislici Z. To neumí popsat TUNEL: když
@@ -284,8 +312,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   horší — postupné `polyDifference` nabaluje modelu vrcholy (`part-13`
   10,4 → 30,8 ms na dotaz).
 
-  Výchozí zapnutí zatím NE — zbývá 0,43 % úběru. Rozhodnutí a čísla obou stran
-  v `docs/cam-order-aware-holder.md`, krok 5.
+  **Výchozí zapnuto.** Zákrok, který na `part-8` vjížděl 30,1 mm² držáku do
+  stojícího materiálu, se už neudělá; uživatel se to dozví z existujícího
+  hlášení „Hlídání geometrie (držák): N úsek(ů) polotovaru zůstalo NEOBROBENO",
+  takže materiál nemizí tiše. Cena je 0,43 % úběru.
+
+  Snapshoty `cam-gcode-regression` a `cam-boolean-gcode-regression` přepsány
+  vědomě a zkontrolovány položku po položce: na `part-8` ubyl přesně jeden
+  průchod (`long{pocketEntry,ramp,contourLeadIn,contourLeadOut,blocked}`,
+  `passCount` 35 → 34), na šesti dalších dílech je G-kód BIT PO BITU shodný
+  a mění se jen počet v poznámce „Zanořování — N průchodů do kapsy nedosáhlo
+  plné cílové hloubky" (2 → 1), protože kapsová smyčka končí o jeden zamítnutý
+  pokus dřív.
 
 - **CAM – broad-phase validátoru kolizí TIŠE ZAHAZOVAL kolize na složitém
   obrysu.** Nález uživatele: konzole aplikace se plnila hláškami

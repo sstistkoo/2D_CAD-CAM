@@ -86,12 +86,16 @@ const HOLDERS = {
 // Výchozí dvojice = ta, na kterou je zapsaná baseline v plánu.
 const DEFAULT_HOLDERS = ['magazine', 'own'];
 
-// Zapsaná baseline z docs/cam-order-aware-holder.md (25. 8. 2026, HEAD bez
-// order-aware modelu). Tiskne se jako kontrolní řádek — rozdíl NENÍ chyba
-// nástroje, je to výsledek měřené změny.
+// Zapsaná baseline (docs/cam-order-aware-holder.md). Tiskne se jako kontrolní
+// řádek — rozdíl NENÍ chyba nástroje, je to výsledek měřené změny.
+//
+// Platí pro VÝCHOZÍ parametry, tedy od 26. 8. 2026 se zapnutým
+// `orderAwareHolder`. Předtím to bylo `magazine` 76 663,8 / 4 / 33,4
+// a `own` 76 849,6 / 2 / 2,3; rozdíl je jeden zahozený kapsový vjezd
+// na `part-8` (−328 mm², −4 nálezy).
 const BASELINE = {
-  magazine: { removed: 76663.8, issues: 4, area: 33.4 },
-  own: { removed: 76849.6, issues: 2, area: 2.3 },
+  magazine: { removed: 76335.8, issues: 0, area: 0.0 },
+  own: { removed: 76518.4, issues: 2, area: 2.3 },
 };
 
 // Nad 12 (výchozí `maxIssues` validátoru) proto, aby propad v kroku 3–4 šlo
@@ -290,8 +294,13 @@ function printDiffRows(rows, prev) {
   const before = new Map(prev.map(r => [key(r), r]));
   const changed = rows.filter(r => {
     const p = before.get(key(r));
+    // POZOR na počet průchodů: bez něj tahle detekce přehlédne změnu, která
+    // úběr ani nálezy nehne. Reálný nález 26. 8. 2026 — zapnutí
+    // `orderAwareHolder` vypadalo jako „mění se jediný díl", ale snapshoty
+    // ukázaly, že se na šesti dalších změnil počet zanořovacích pokusů.
     return p && !p.error && !r.error &&
-      (Math.abs((r.removedRaw || 0) - (p.removedRaw || 0)) > 0.05 || r.raw.n !== p.raw.n || r.plan.n !== p.plan.n);
+      (Math.abs((r.removedRaw || 0) - (p.removedRaw || 0)) > 0.05
+        || r.raw.n !== p.raw.n || r.plan.n !== p.plan.n || r.passes !== p.passes);
   });
   console.log('\n── ZMĚNĚNÉ FIXTURES proti --diff ' + '─'.repeat(38));
   if (changed.length === 0) { console.log('  (žádná)'); return; }
@@ -299,6 +308,7 @@ function printDiffRows(rows, prev) {
     const p = before.get(key(r));
     console.log(`  ${padE(r.file.replace('.camprog', ''), 30)} ${padE(HOLDERS[r.holder].label, 15)} ` +
       `úběr ${nf(p.removedRaw)} → ${nf(r.removedRaw)} (${sf(r.removedRaw - p.removedRaw)})  ` +
+      (r.passes !== p.passes ? `průch. ${p.passes} → ${r.passes}  ` : '') +
       `⛔ ${p.raw.n}/${nf(p.raw.area)} → ${r.raw.n}/${nf(r.raw.area)}  ` +
       `offset ${p.plan.n}/${nf(p.plan.area)} → ${r.plan.n}/${nf(r.plan.area)}`);
   }
