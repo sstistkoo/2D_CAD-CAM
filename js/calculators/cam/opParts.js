@@ -18,6 +18,7 @@
 import { polyOffset, polySimplify } from '../../geom/geomCore.js';
 import { fitArcsToPolyline, getArcParams } from './camMath.js';
 import { MaterialRemoval } from './materialRemoval.js';
+import { stripCodeOwnedParams } from './camDefaults.js';
 import { mergePrograms } from './gcodeMerge.js';
 
 // Zjednodušení odvozeného profilu [mm]. Profil se nejdřív odsadí VEN o
@@ -100,7 +101,9 @@ export function applyPartToState(part, S) {
   if (!part) return;
   const shared = {};
   SHARED_PARAM_KEYS.forEach(k => { shared[k] = S.params[k]; });
-  S.params = Object.assign(clone(part.params) || {}, shared);
+  // Interní příznaky (orderAwareHolder) se ze záznamu ČÁSTI neberou — část
+  // uložená před překlopením výchozí hodnoty by je jinak vrátila zpět.
+  S.params = Object.assign(stripCodeOwnedParams(clone(part.params)) || {}, shared);
   S.zLimits = clone(part.zLimits) || S.zLimits;
   S.xLimits = clone(part.xLimits) || S.xLimits;
   S.stockPoints = clone(part.stockPoints) || [];

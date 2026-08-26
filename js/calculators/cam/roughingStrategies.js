@@ -46,6 +46,13 @@ const HOLDER_ENTRY_STOCK_GAP = 2.0;
 // Práh 2,0 tedy leží 2× nad stropem změřených artefaktů a 3× pod nejmenší
 // skutečnou vadou. S 0,5 padly na part-17 zbytečně 4,4 % úběru.
 const HOLDER_FIT_TOL = 2.0;
+// Jak daleko se smí posunout NÁJEZD průchodu, aby se vedle něj vešel držák
+// (order-aware kontrola v hloubkové smyčce genLongPasses). Strop je tu proto,
+// že daleký posun mění i PŘÍJEZDOVOU cestu k vjezdu: bez něj se na
+// `range-end-leadout` objevilo sedm nových průchodů na Z≈173 a s nimi zdvih
+// „Výjezd nad konturu" skrz kůru odlitku — 1 100 mm² kolizí, které tam
+// předtím nebyly. Nenajde-li se v tomhle okně místo, vjezd zůstane, jak byl.
+const ENTRY_SHIFT_MAX = 3.0;
 // Nejmenší SMYSLUPLNÁ vrstva, jako zlomek Hloubky záběru. Skim vrstvy nad
 // nakresleným vrcholem/čelem (viz `planTopX` a `planEdgeZ`) se přidávají proto,
 // že materiál může sahat až na offsetovou čáru — jenže při malém Přídavku
@@ -1880,6 +1887,19 @@ export function genLongPasses(ctx) {
     return residEntryArea({ x: X, zStart, zEnd, ramp: { x0: surfX, z0: zStart } }, [])
       <= RESIDUAL_FIT_TOL;
   };
+  /**
+   * Vnoření DRŽÁKU při SJEZDU na hloubku `X` v ose `z` (mm²), proti zbytku se
+   * znalostí pořadí. Na rozdíl od `plungeHolderFitsAt` nepotřebuje, aby nad
+   * bodem stál materiál — sjezd se popíše jako svislice z povrchu (je-li nad
+   * ním) nebo aspoň o jeden zákrok výš. Bez order-aware modelu vrací 0
+   * (statická obálka tuhle otázku spolehlivě nezodpoví — viz krok 6 plánu).
+   */
+  const entryHolderArea = (X, z) => {
+    if (!orderAware || !residHolderL) return 0;
+    const surfX = offsetStockTopXAtZ(z);
+    const x0 = Math.max(surfX === null ? -Infinity : surfX, X + step);
+    return residEntryArea({ x: X, zStart: z, zEnd: z, ramp: { x0, z0: z } }, []);
+  };
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
   // k prázdné straně.
@@ -2971,6 +2991,39 @@ export function genLongPasses(ctx) {
     const entryCapped = (entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
       || regionCapped;
+    // ── DRŽÁK NA NÁJEZDU PRŮCHODU (order-aware) ──────────────────────────
+    // Poloha, ze které průchod sjíždí na hloubku, se proti držáku nekontroluje
+    // vůbec — `holderEntryCapZ` běží jen v zanořovací větvi. I „normální" vjezd
+    // do ÚDOLÍ má ale 20 mm držáku nad sebou v +Z a tam může stoupat kůra
+    // odlitku (nález uživatele 26. 8. 2026: oranžová stopa 0,42 mm² na Z≈105
+    // od sjezdu na Z≈84). Kolizní je SAMA POLOHA, ne cesta k ní — zdvih nad
+    // konturu ji změřeně nechal beze změny, takže to nejde spravit přejezdem.
+    //
+    // Kontroluje se poloha NÁJEZDU (`zStart + Vůle Z + R`, viz rapidStopZ
+    // v gcodeEmit.js), protože tam držák dosahuje nejdál v +Z. Vjezd se posune
+    // doleva po `DZ_CAP`, dokud držák neprojde; když se nenajde nic, interval
+    // se zahodí. Se STATICKOU obálkou tohle stálo −3 948 mm² úběru a vyrobilo
+    // nové kolize (změřeno) — proto jen s order-aware modelem.
+    if (orderAware && residHolderL && intervals.length > 0) {
+      const approachDz = (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z)
+        + (parseFloat(prms.toolRadius) || 0);
+      const iv0 = intervals[0];
+      // Posun je OMEZENÝ: dál než pár milimetrů se vjezd stěhovat nesmí, jinak
+      // se změní i to, KUDY se k němu přijíždí — na `range-end-leadout` daleký
+      // posun vyrobil sedm nových průchodů na Z≈173 a s nimi zdvih skrz kůru
+      // (1 100 mm² kolizí, které tam předtím nebyly). Kde se v tom okně místo
+      // nenajde, vjezd zůstane, jak byl.
+      const zFloorEntry = Math.max(iv0.zEnd + dzScan, iv0.zStart - ENTRY_SHIFT_MAX);
+      let zTry = iv0.zStart;
+      while (zTry > zFloorEntry && entryHolderArea(currentX, zTry + approachDz) > RESIDUAL_FIT_TOL) {
+        zTry -= DZ_CAP;
+      }
+      // Nenašlo se v okně nic → vjezd zůstane, jak byl. Zahodit interval (natož
+      // celou hloubku) se ZMĚŘENĚ nevyplácí: shodit `firstOpen` přeznačí zbytek
+      // na KAPSU a spustí jinou větev — na `range-end-leadout` to samo o sobě
+      // stálo dalších 340 mm² úběru.
+      if (zTry > zFloorEntry && zTry < iv0.zStart - 1e-9) iv0.zStart = zTry;
+    }
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
       if (iv.zStart - iv.zEnd < dzScan) return;

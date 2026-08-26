@@ -186,3 +186,30 @@ export function _defaultCamParams() {
     stockClearZ: null
   };
 }
+
+/**
+ * Parametry, které VLASTNÍ KÓD, ne uložený soubor.
+ *
+ * `orderAwareHolder` nemá (a nikdy neměl) ovládací prvek v UI — je to interní
+ * příznak bezpečnostního modelu, jehož výchozí hodnota se 26. 8. 2026 překlopila
+ * na `true`. Jenže `S.params` se ukládá CELÉ (localStorage, `.camprog`, záznam
+ * části), takže každý projekt uložený před tím datem si v sobě veze `false`
+ * a `Object.assign` s ním při načtení novou výchozí hodnotu přepíše.
+ *
+ * Důsledek: bezpečnostní oprava nasazená jako „výchozí zapnuto" byla ve VŠECH
+ * starších projektech tiše vypnutá — uživatel dál viděl kolizi držáku, kterou
+ * ta oprava odstraňuje, a neměl jak ji zapnout (nález 26. 8. 2026).
+ *
+ * Takové klíče se proto z načtených parametrů vyhazují a platí výchozí hodnota
+ * z kódu. Stejný vzor jako flipX/flipZ, které se taky berou odjinud než
+ * z localStorage.
+ */
+export const CODE_OWNED_PARAMS = ['orderAwareHolder'];
+
+/** Kopie `loaded` bez klíčů, které vlastní kód (viz CODE_OWNED_PARAMS). */
+export function stripCodeOwnedParams(loaded) {
+  if (!loaded) return loaded;
+  const out = { ...loaded };
+  for (const k of CODE_OWNED_PARAMS) delete out[k];
+  return out;
+}

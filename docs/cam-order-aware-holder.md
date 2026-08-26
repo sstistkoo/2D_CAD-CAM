@@ -511,6 +511,45 @@ Zbylé 2 nálezy toho dílu jsou u ÚDOLÍ (Z≈84,6), ne na hranici, a jsou to
 grazy proti offsetové čáře (proti syrové siluetě 0) — viz
 `project_cam-entry-holder-approach` v paměti.
 
+### Krok 7 — nájezd průchodu ✅ HOTOVO (26. 8. 2026)
+
+Druhé využití modelu. Poloha, ze které průchod sjíždí na hloubku, se proti
+držáku nekontrolovala vůbec (`holderEntryCapZ` běží jen v zanořovací větvi).
+Nález uživatele: oranžová stopa `HolderGouge` 0,42 mm² na Z≈105 od sjezdu na
+Z≈84 — vzdálený konec držáku ve stoupající kůře odlitku.
+
+**Kolizní je SAMA POLOHA, ne cesta k ní.** Zdvih nad konturu před přejezdem ji
+změřeně nechal beze změny, takže `safeRapidTo` na to nestačí; opravit to jde
+jen tím, kde průchod začíná.
+
+`entryHolderArea(X, z)` popíše sjezd jako svislici z offsetové čáry a pošle ho
+do `residEntryArea`. Nájezd se posune doleva po `DZ_CAP`, dokud držák neprojde.
+
+**Strop posunu `ENTRY_SHIFT_MAX` = 3 mm je nutný**, ne kosmetika: bez něj se
+na `range-end-leadout` posunul vjezd tak daleko, že se změnila i příjezdová
+cesta — sedm nových průchodů na Z≈173 a s nimi zdvih „Výjezd nad konturu"
+skrz kůru, **1 100 mm² kolizí a −647 mm² úběru**. Varianta „nenašlo se →
+zahodit interval" je horší ještě jinak: shodit `firstOpen` přeznačí zbytek na
+KAPSU a spustí jinou větev (dalších −340 mm²). Správně je **nechat vjezd, jak
+byl**.
+
+| | úběr | kolize |
+|---|---|---|
+| sada, nakreslený nůž | 76 335,8 → **76 403,0** (+67,2) | 0 / 0,0 beze změny |
+| sada, náhradní držák | 76 518,4 → **76 573,2** (+54,8) | 2 / 2,3 beze změny |
+| díl uživatele | 2 555 → **2 633** (+78) | oranžová 0,42 → **0,00**; ⛔ 2/5,1 → **0/0,0** |
+
+Zisk na obou stranách — na rozdíl od pěti pokusů se STATICKOU obálkou
+(`docs/cam-sjednoceni-polotovaru.md`, krok 5), kde tatáž oprava stála
+−3 948 mm² a vyráběla nové kolize. Přepsané snapshoty (5 dílů): dvěma
+průchodům zmizel příznak `ramp`/`pocketReposition` — posunutý vjezd rampu už
+nepotřebuje.
+
+**Poučení pro měření:** ⛔ panel (`validateToolpath`) a ORANŽOVÁ stopa na plátně
+(`HolderGouge`) jsou DVA různé detektory. Validátor tenhle nález nehlásil
+(0,42 mm² je pod jeho prahem 0,5), zatímco `HolderGouge` ho kreslí. Kdo měří
+„co uživatel vidí", musí sáhnout po `HolderGouge`, ne po validátoru.
+
 ## Mimo rozsah
 
 - **Čelní hrubování** má vlastní hlídání (`holderGuardFace` + `holderBottomProfile`,

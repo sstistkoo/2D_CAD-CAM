@@ -36,7 +36,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     značky by změna nastavení vypadala jako hotová věc, ačkoli simulovaná
     dráha i hlídání kolizí pořád běží nad starým programem.
 
+### Fixed
+- **CAM – bezpečnostní příznak `orderAwareHolder` byl ve všech starších
+  projektech tiše vypnutý.** Nemá (a nikdy neměl) ovládací prvek v UI — je to
+  interní příznak, jehož výchozí hodnota se 26. 8. 2026 překlopila na `true`.
+  Jenže `S.params` se ukládá CELÉ (localStorage, `.camprog`, záznam části),
+  takže každý projekt uložený před tím datem si v sobě veze `false` a
+  `Object.assign` s ním při načtení novou výchozí hodnotu přepsal.
+
+  Výsledek: hlídání držáku podle pořadí obrábění — a s ním i obě opravy nad ním
+  postavené — v žádném existujícím projektu neběželo. Uživatel dál viděl
+  oranžovou stopu držáku a neměl jak ji zapnout.
+
+  Nově se takové klíče z načtených parametrů vyhazují (`stripCodeOwnedParams`
+  v `camDefaults.js`, aplikováno na localStorage, `.camprog` i záznam části) a
+  platí výchozí hodnota z kódu — stejný vzor jako flipX/flipZ. Ověřeno na
+  projektu uživatele: po načtení `orderAwareHolder = true`, oranžová stopa
+  držáku **0,42 → 0,00 mm²**, ⛔ panel **0 / 0,0**.
+
 ### Changed
+- **CAM – nájezd průchodu se hlídá proti držáku (order-aware).** Poloha, ze
+  které podélný průchod sjíždí na hloubku, se proti držáku nekontrolovala vůbec
+  — `holderEntryCapZ` běží jen v zanořovací větvi. I „normální" vjezd do údolí
+  má ale 20 mm držáku nad sebou v +Z a tam může stoupat kůra odlitku: na dílu
+  uživatele od toho zůstávala **oranžová stopa 0,42 mm² na Z≈105** (sjezd na
+  Z≈84). Kolizní je **sama poloha, ne cesta k ní** — zdvih nad konturu ji
+  změřeně nechal beze změny, takže to nešlo spravit přejezdem.
+
+  Nájezd (`zStart + Vůle Z + R`) se proto testuje proti polygonovému zbytku se
+  znalostí pořadí (`entryHolderArea`) a posune se doleva, dokud se držák vejde.
+  Posun je **omezený na 3 mm** (`ENTRY_SHIFT_MAX`): daleký posun mění i
+  příjezdovou cestu a bez stropu vyrobil na `range-end-leadout` sedm nových
+  průchodů na Z≈173 i se zdvihem skrz kůru — 1 100 mm² kolizí, které tam
+  předtím nebyly. Nenajde-li se v okně místo, vjezd zůstane, jak byl.
+
+  Změřeno na dílu uživatele: oranžová **0,42 → 0,00 mm²**, ⛔ panel **2 / 5,1 →
+  0 / 0,0**, a přitom úběr **2 555 → 2 633 mm²** (+78) a o dva průchody víc.
+  Sada 25 fixtures: kolize **0 / 0,0 beze změny** a úběr **+67,2 mm²**
+  (náhradní držák +54,8) — je to tedy zisk na obou stranách, ne výměna.
+  Přepsané snapshoty (5 dílů): dvěma průchodům zmizel příznak `ramp`
+  / `pocketReposition`, protože posunutý vjezd rampu už nepotřebuje.
+
+  Bez `orderAwareHolder` se nic nemění: statická obálka na tuhle otázku
+  spolehlivě neodpoví a se STATICKÝM modelem tatáž oprava změřeně stála
+  −3 948 mm² úběru a vyrobila nové kolize.
+
 - **CAM – kolmé zanoření na hranici rozsahu 📐 se povolí tam, kde držák projde.**
   Upichovák zapichuje kolmo — to je jeho normální provoz, ne vada. Plošný zákaz
   na každé umělé hranici (rozsah 📐 / hranice úseku), zavedený předchozí opravou,

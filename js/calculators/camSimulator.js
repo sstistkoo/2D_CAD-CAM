@@ -25,7 +25,7 @@ import { HolderGouge } from './cam/holderGouge.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 import { camConfirm, camCloseConfirm, camOffsetDialog, camAddMoveDialog } from './cam/camSimulatorDialogs.js';
 import { injectCSS } from './cam/camSimulatorStyles.js';
-import { _defaultCamParams } from './cam/camDefaults.js';
+import { _defaultCamParams, stripCodeOwnedParams } from './cam/camDefaults.js';
 import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
@@ -431,7 +431,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const p = JSON.parse(saved);
-      if (p.params) Object.assign(S.params, p.params);
+      // `stripCodeOwnedParams`: interní příznaky (orderAwareHolder) se z uloženého
+      // stavu NEBEROU — jejich výchozí hodnotu vlastní kód, viz camDefaults.js.
+      if (p.params) Object.assign(S.params, stripCodeOwnedParams(p.params));
       if (Array.isArray(p.toolMagazine)) S.toolMagazine = p.toolMagazine;
       if (p.activeMagazineSlot !== undefined) S.activeMagazineSlot = p.activeMagazineSlot;
       // Migrace: dřívější roughingStrategy 'backside' → podélně + směr zleva.
@@ -6698,7 +6700,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (!data || !data.params || !data.contourPoints) {
           alert('Soubor neobsahuje platný projekt (.camprog).'); return;
         }
-        if (data.params) S.params = data.params;
+        if (data.params) S.params = Object.assign(_defaultCamParams(), stripCodeOwnedParams(data.params));
         if (data.contourPoints) S.contourPoints = data.contourPoints;
         if (data.stockPoints) S.stockPoints = data.stockPoints;
         // Části programu (operace) — jen s odpovídající verzí logiky drah,
