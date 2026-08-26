@@ -133,6 +133,11 @@ export function holderAreaAlongResidual(loops, holderLoop, pts, {
     }
     return { q: pts[pts.length - 1], pre: pts.slice() };
   };
+  // Vlastní řez se odečítá z PŮVODNÍHO zbytku, pro každý vzorek zvlášť.
+  // Vypadá to kvadraticky a hromadit ho přírůstkově se nabízí — ZKOUŠENO
+  // A ZMĚŘENO 26. 8. 2026, je to HORŠÍ: postupné `polyDifference` nabaluje
+  // modelu vrcholy, takže každý další rozdíl je dražší než jeden rozdíl
+  // proti původnímu (part-13 10,4 → 30,8 ms na dotaz).
   let worst = 0;
   for (let k = 0; k <= n; k++) {
     const { q, pre } = at(k / n);

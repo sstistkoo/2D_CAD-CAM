@@ -397,19 +397,39 @@ vědomě mimo rozsah.
    `syncResidual()` proto při zkrácení staví model ZNOVU. Splice doprostřed
    se tím neřeší, ale ten je na bezpečné straně.
 
-#### Cena
+#### Cena — po zrychlení +0 až +25 %
 
-Celý přepočet (`calculate()` × 2 v harnessu) se zapnutým příznakem:
+Celý přepočet (`calculate()` × 2 v harnessu, 5 opakování, minimum):
 
-| fixture | vypnuto | zapnuto |
-|---|---|---|
-| `part-8` | 692 ms | 736 ms (+6 %) |
-| `part-15-finish-zprava` | 550 ms | 946 ms (+72 %) |
-| `part-13-zleva-flange` | 285 ms | 641 ms (+124 %) |
+| fixture | vypnuto | zapnuto | před zrychlením |
+|---|---|---|---|
+| `part-8` | 692 ms | 609 ms (**−12 %**) | +6 % |
+| `part-16-face-holder` | 1 052 ms | 1 056 ms (+0 %) | — |
+| `part-15-finish-zprava` | 601 ms | 705 ms (+17 %) | +72 % |
+| `part-13-zleva-flange` | 306 ms | 382 ms (+25 %) | +124 % |
 
-Nese to stavba trackeru (`toolSweep` přes navzorkované oblouky, viz krok 1),
-ne samotné dotazy. Aplikace přepočítává při každé změně parametru, takže
-tohle je hlavní argument proti výchozímu zapnutí.
+`part-8` je se zapnutým příznakem RYCHLEJŠÍ, protože zahodí jeden zákrok
+a s ním kus programu.
+
+Zrychlení udělaly dvě věci, obě čistě ve vzorkování:
+
+1. **Oblouky se vzorkují SAGITTOU, ne pevnou délkou tětivy**
+   (`ARC_SAGITTA_TOL` v `residualTracker.js`). Emise vzorkuje po 0,1 mm bez
+   ohledu na rádius, takže na velkém oblouku sype vzorky, které nic nepřinesou
+   (sagitta 0,1mm tětivy na r 50 je 0,000025 mm). Z `L²/(8r) ≤ tol` plyne
+   `L ≤ √(8·r·tol)`; chyba je tím shora omezená a počet vzorků klesá
+   s odmocninou rádiusu. Na `noteAll`: `part-8` 459 bodů / 82 ms → 249 / 30,
+   `part-13` 163 / 18 → 88 / 7. Tolerance **0,01 mm** je nejhrubší, která
+   drží mez testu: při 0,04 by `part-15` vyjel na 0,057 mm (mez 0,05).
+2. **Dotaz na vjezd vzorkuje po 2 mm, ne po 1** (`step: 2`, `maxSamples: 24`).
+   Držák je v ose Z přes 20 mm široký, takže sousední polohy se překrývají
+   z 90 % — na výsledku se to neprojevilo vůbec (sweep bit po bitu shodný).
+
+**Zkoušeno a ZAMÍTNUTO:** hromadit vlastní řez PŘÍRŮSTKOVĚ (jen poslední úsek
+místo celého prefixu). Vypadá to, že to ruší kvadratickou složitost, ale je to
+horší — postupné `polyDifference` nabaluje modelu vrcholy, takže každý další
+rozdíl je dražší než jeden rozdíl proti původnímu obrysu (`part-13`
+10,4 → 30,8 ms na dotaz).
 
 ### Krok 4 — splatit ztrátu zrušením proxy
 
@@ -437,16 +457,15 @@ byl psaný (ztráta je 0,43 %, ne 5,5 %).
 
 Otevřené rozhodnutí, obě strany s čísly:
 
-- **Zapnout výchozí:** vyplatí 4 nálezy / 33,4 mm² kolizí za 0,43 % úběru.
-  Cena je +6 až +124 % času přepočtu (tabulka výš) — to je hlavní argument
-  proti, protože aplikace počítá při každé změně parametru.
+- **Zapnout výchozí:** vyplatí 4 nálezy / 33,4 mm² kolizí za 0,43 % úběru
+  a +0 až +25 % času přepočtu (na `part-8` je to dokonce −12 %).
 - **Nechat vypnuté:** stav zůstává jako u `regionRoughing` a `booleanRoughing`
   a `part-8` si dál nese 4 nálezy, které jsou v `tests/cam-stock-span-depths`
   přišpendlené prahem 20 mm².
 
-Než se zapne, stojí za to zlevnit stavbu trackeru — dominuje `toolSweep`
-přes navzorkované oblouky, a hrubší vzorkování (0,4 mm místo 0,1) by se dalo
-změřit proti `tests/cam-strategy-residual`.
+Zlevnění už proběhlo (viz *Cena* v kroku 3): nejhorší případ spadl
+z +124 % na +25 % a `part-8` je se zapnutým příznakem dokonce rychlejší.
+Argument „je to drahé" tím z velké části padá; zůstává jen ta 0,43 %.
 
 ## Mimo rozsah
 

@@ -264,9 +264,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `passes.splice(pi, 1)`) — jinak si připisuje řezy zákroků, které nakonec
   nikdo neudělá.
 
-  Výchozí zapnutí zatím NE: přepočet se prodlouží o 6–124 % (`part-13`
-  285 → 641 ms), a aplikace počítá při každé změně parametru. Rozhodnutí
-  a čísla obou stran v `docs/cam-order-aware-holder.md`, krok 5.
+  Přepočet se se zapnutým příznakem prodlouží o **0 až 25 %** (`part-13`
+  306 → 382 ms), `part-8` je dokonce o 12 % RYCHLEJŠÍ, protože zahodí jeden
+  zákrok. Původně to bylo +6 až +124 %; zlevnily to dvě věci ve vzorkování:
+
+  - **Oblouky se vzorkují SAGITTOU, ne pevnou délkou tětivy.** Emise vzorkuje
+    po 0,1 mm bez ohledu na rádius, takže na velkém oblouku sype vzorky, které
+    nic nepřinesou (sagitta 0,1mm tětivy na r 50 je 0,000025 mm). Z `L²/(8r) ≤ tol`
+    plyne `L ≤ √(8·r·tol)` — chyba je shora omezená a počet vzorků klesá
+    s odmocninou rádiusu. Na `noteAll`: `part-8` 459 bodů / 82 ms → 249 / 30 ms,
+    `part-13` 163 / 18 → 88 / 7. Tolerance 0,01 mm je nejhrubší, která drží mez
+    `tests/cam-strategy-residual` (0,05 mm): při 0,04 by `part-15` vyjel
+    na 0,057.
+  - **Dotaz na vjezd vzorkuje po 2 mm místo 1** — držák je v ose Z přes 20 mm
+    široký, sousední polohy se překrývají z 90 %. Výsledek se nezměnil vůbec.
+
+  Zkoušeno a ZAMÍTNUTO: hromadit vlastní řez přírůstkově místo odečítání
+  celého prefixu. Vypadá to jako odstranění kvadratické složitosti, ale je to
+  horší — postupné `polyDifference` nabaluje modelu vrcholy (`part-13`
+  10,4 → 30,8 ms na dotaz).
+
+  Výchozí zapnutí zatím NE — zbývá 0,43 % úběru. Rozhodnutí a čísla obou stran
+  v `docs/cam-order-aware-holder.md`, krok 5.
 
 - **CAM – broad-phase validátoru kolizí TIŠE ZAHAZOVAL kolize na složitém
   obrysu.** Nález uživatele: konzole aplikace se plnila hláškami

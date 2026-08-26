@@ -24,22 +24,32 @@
 // proto se seed i footprint sdílí s `materialRemoval.js` a `gcodeEmit.js`,
 // aby v repu nevznikl třetí, vlastní model polotovaru.
 //
-// ── CENA (naměřeno 26. 8. 2026, `noteAll` nad hotovým `passes`) ────────────
-//   part-8               35 průchodů → 223 ms   (6,4 ms/průchod)
-//   part-15-finish-zprava 32          →  90 ms   (2,8)
-//   part-16-face-holder  112          → 112 ms   (1,0)
-// Plán počítal s 0,36 ms na řez (`rapidStock` v emisi) — jenže tam je jeden
-// řez KRÁTKÝ POHYB, kdežto tady celý průchod: tělo + rampa + nájezd/dojezd
-// po kontuře s navzorkovanými oblouky, tedy `toolSweep` přes stovky bodů.
-// Cenu nese `toolSweep`, ne velikost modelu: `polySimplify` po 1 / 4 / 8 / 24
-// řezech vyšel na týž čas (±3 %). Pořád je to řádově míň než rebuild obálky
-// NA KAŽDOU HLOUBKU (20–26 × 160 ms = 3–4 s), ale zadarmo to není — proto
-// příznak `orderAwareHolder`.
+// ── CENA ──────────────────────────────────────────────────────────────────
+// Cenu nese `toolSweep`, tedy POČET BODŮ dráhy, ne velikost modelu:
+// `polySimplify` po 1 / 4 / 8 / 24 řezech vyšel na týž čas (±3 %). Proto se
+// oblouky vzorkují sagittou (viz `pushArcOrChord`) — změřeno na `noteAll`:
+//
+//   tolerance   part-8              part-15            part-13
+//   0,001 mm    459 bodů /  82 ms   233 / 33 ms        163 / 18 ms
+//   0,01  mm    249 bodů /  30 ms   157 / 24 ms         88 /  7 ms
+//   0,04  mm    203 bodů /  22 ms   140 / 20 ms         71 /  5 ms
+//
+// a přesnost (model pod realitou, mez testu 0,05 mm): 0,013 / 0,035 / 0,304
+// při 0,01 mm, ale 0,030 / **0,057** / 0,304 při 0,04 — část-15 by mez
+// přetekla. Proto `ARC_SAGITTA_TOL = 0,01`.
+//
+// Celý přepočet se zapnutým `orderAwareHolder` (5 opakování, minimum):
+//   part-8 −12 %, part-16 +0 %, part-15 +17 %, part-13 +25 %
+// (před přechodem na sagittu to bylo +6 / +72 / +124 %.)
 import { StockModel, toolSweep, polySimplify } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from './materialRemoval.js';
 
+// Jak přesně se vzorkují OBLOUKY v nájezdech/dojezdech [mm]: nejvyšší
+// dovolená SAGITTA mezi vzorkem a skutečným obloukem. Viz `pushArcOrChord`.
+export const ARC_SAGITTA_TOL = 0.01;
+
 /** Body průchodu ve stejné konvenci, jakou má `noteCutPass` v gcodeEmit.js. */
-export function passCutPolylines(pass) {
+export function passCutPolylines(pass, arcTol = ARC_SAGITTA_TOL) {
   if (!pass) return [];
   const out = [];
   const chain = [];
@@ -79,7 +89,7 @@ export function passCutPolylines(pass) {
       if (![s.z1, s.x1, s.z2, s.x2].every(Number.isFinite)) continue;
       const l = run[run.length - 1];
       if (!l || Math.hypot(l.x - s.x1, l.z - s.z1) > 1e-6) run.push({ x: s.x1, z: s.z1 });
-      pushArcOrChord(run, s);
+      pushArcOrChord(run, s, arcTol);
     }
     if (run.length >= 2) out.push(run);
   }
@@ -92,8 +102,15 @@ export function passCutPolylines(pass) {
  * který ve skutečnosti stojí. Táž oprava, jakou dostal `noteCutArc`
  * v gcodeEmit.js 12. 8. 2026 (tam to dělalo 0,30–0,47 mm); v trackeru to
  * na fixtures dělalo 0,30–0,74 mm. Bez středu/úhlů zůstane tětiva.
+ *
+ * Krok dělí SAGITTA, ne pevná délka tětivy. `noteCutArc` v emisi vzorkuje po
+ * 0,1 mm nezávisle na rádiusu, takže na velkém oblouku sype vzorky, které
+ * nikomu nic nepřinesou (sagitta 0,1 mm tětivy na r 50 je 0,000025 mm),
+ * a na malém jich má málo. Z L²/(8r) ≤ tol plyne L ≤ √(8·r·tol) — chyba je
+ * tím shora omezená a počet vzorků klesá s druhou odmocninou rádiusu.
+ * Cena `toolSweep` je přitom lineární v počtu bodů dráhy.
  */
-function pushArcOrChord(run, s) {
+function pushArcOrChord(run, s, arcTol = ARC_SAGITTA_TOL) {
   if (s.type !== 'arc' || !Number.isFinite(s.cx) || !Number.isFinite(s.cz) || !(s.r > 0)
     || !Number.isFinite(s.startAngle) || !Number.isFinite(s.endAngle)) {
     run.push({ x: s.x2, z: s.z2 });
@@ -103,7 +120,8 @@ function pushArcOrChord(run, s) {
   let a1 = s.endAngle;
   if (s.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
   if (s.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
-  const n = Math.max(2, Math.min(64, Math.ceil(Math.abs(a1 - a0) * s.r / 0.1)));
+  const maxChord = Math.sqrt(8 * s.r * Math.max(arcTol, 1e-6));
+  const n = Math.max(2, Math.min(64, Math.ceil(Math.abs(a1 - a0) * s.r / maxChord)));
   for (let i = 1; i <= n; i++) {
     const a = a0 + (a1 - a0) * (i / n);
     run.push({ x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r });
@@ -125,6 +143,7 @@ export class ResidualTracker {
    *     dnešní výškové pole, které se staví nad offsetovou čarou.
    */
   constructor(prms, stockPathSegments, opts = {}) {
+    this.arcTol = Number.isFinite(opts.arcTol) ? opts.arcTol : ARC_SAGITTA_TOL;
     let seed = opts.seedLoop || null;
     if (!seed) {
       const raw = buildStockLoopRaw(prms, stockPathSegments);
@@ -148,7 +167,7 @@ export class ResidualTracker {
    */
   notePass(pass) {
     if (!this.model) return false;
-    const runs = passCutPolylines(pass);
+    const runs = passCutPolylines(pass, this.arcTol);
     if (runs.length === 0) return false;
     const cutLoops = [];
     for (const r of runs) {

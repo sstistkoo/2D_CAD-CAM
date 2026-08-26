@@ -1754,7 +1754,7 @@ export function genLongPasses(ctx) {
     }
     if (pts.length < 2) return 0;
     return holderAreaAlongResidual(t.loops, residHolderL, pts,
-      { ownFoot: toolFootprint(prms), maxSamples: 32 });
+      { ownFoot: toolFootprint(prms), step: 2, maxSamples: 24 });
   };
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
