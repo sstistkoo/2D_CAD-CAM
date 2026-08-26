@@ -343,6 +343,7 @@ User selects CAM tool
 | `calculators/camSimulator.js` | Náhled obrysů obrábění |
 | `calculators/contourOffset.js` | Offset kontur pro obrábění |
 | `calculators/cam/residualTracker.js` | Model ZBYTKU se znalostí pořadí obrábění (polygony, `StockModel`). Strategie si vede levné výškové pole `cutFloorTab`; to ale neumí TUNEL — když zanoření/dojezd podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu (změřeno 11–14 mm na `part-8` a `holder-casting-slanted-face`). Za příznakem `orderAwareHolder`, viz `docs/cam-order-aware-holder.md` |
+| `calculators/cam/residualHolder.js` | Hlídání DRŽÁKU proti modelu zbytku: `makeResidualClamp` (shodné rozhraní jako `clamp` z `makeHolderClamp`), `holderFitsInResidual`, `residualHolderLoop`. Místo skenu po krocích testuje STOPU držáku přes celý interval — ta predikce je monotónní, takže půlení nemá díry a úzká překážka se nepřeskočí. Za příznakem `orderAwareHolder` |
 | `calculators/thread.js` | Parametry závitů |
 | `calculators/threadData.js` | Data pro generování závitů |
 | `calculators/roughness.js` | Povrchová kvalita |

@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – `residualHolder.js`: hlídání držáku dotazem nad zbytkem místo
+  Minkowského obálky.** Krok 2 plánu `docs/cam-order-aware-holder.md`. Modul
+  zatím nikdo neimportuje — zapojení do `applyHolderClamp` je krok 3.
+
+  `makeResidualClamp(loops, holderLoop)` vrací `clamp(X, zStart, zEnd)` se
+  **shodným rozhraním** jako `clamp` z `makeHolderClamp` (`null` = zakázaný
+  start, jinak posunutý `zEnd`), takže se dá vyměnit za sebe. K tomu bodové
+  `holderFitsInResidual` / `holderAreaInResidual` a `residualHolderLoop`
+  (obrys držáku bez prostoru destičky, zeštíhlený o 0,05 mm — vzor
+  `holderCutShrunkLoop` v gcodeEmit.js; bez odečtení destičky by test narazil
+  do drážky, kterou týž průchod právě vyřízl).
+
+  **Sken po krocích nahrazen ZAMETENÝM držákem.** Zadání psalo „hrubý sken po
+  0,2 mm + půlení", jenže sken po krocích může přeskočit překážku užší než
+  krok — nebezpečný směr. Testuje se proto stopa držáku přes celý zbývající
+  interval (`toolSweep`), a ta predikce je MONOTÓNNÍ (kratší interval má stopu
+  podmnožinou delší), takže půlení je přesné a nemá díry. Hlídá to test
+  s žebrem 0,4 mm. Vedle bezpečnosti je to i rychlejší: volný interval stojí
+  JEDEN dotaz místo stovek, zkrácený ~13.
+
+  Tolerance je validátorových `0,5 mm²`, ne `2,0` jako `HOLDER_FIT_TOL`
+  v roughingStrategies — ta dvojka je kompenzace hrubého skenového modelu
+  (`part-13` sken 0,63 mm² → polygon 0), a nad polygonovým průnikem by se
+  dědila jen ta chyba, kterou kompenzuje.
+
+  Akceptace (`tests/cam-residual-clamp`, 17 testů): proti
+  `clampZTowardNegative` na umělé geometrii dávají obě varianty totéž
+  **±0,2 mm** všude, kde je zbytek roven překážce. Cena na reálných dílech:
+  4–31 ms za celý sešup dotazů (0,21–1,94 ms na dotaz) proti 42–72 ms za
+  JEDEN rebuild obálky, který by při hlídání po hloubkách musel proběhnout
+  20–26×.
 - **CAM – `ResidualTracker`: polygonový model zbytku se znalostí pořadí
   obrábění.** Krok 1 plánu `docs/cam-order-aware-holder.md`. Za příznakem
   `orderAwareHolder` (výchozí vypnuto); zatím se ho nikdo neptá, takže G-kód

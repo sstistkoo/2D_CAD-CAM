@@ -1,7 +1,7 @@
 # Hlídání držáku podle POŘADÍ obrábění — plán
 
-> Stav: **kroky 0 a 1 hotové** (za příznakem `orderAwareHolder`, výchozí
-> vypnuto — G-kód se nezměnil ani o řádek), kroky 2–5 návrh.
+> Stav: **kroky 0, 1 a 2 hotové** (za příznakem `orderAwareHolder`, výchozí
+> vypnuto — G-kód se nezměnil ani o řádek), kroky 3–5 návrh.
 > Poslední aktualizace 26. 8. 2026.
 > Navazuje na nález 09 z auditu drah (viz CHANGELOG, sekce *Measured and rejected*).
 
@@ -244,22 +244,84 @@ pořadí. Táž díra je mimochodem i v dnešním líném `syncCutFloor`: co se 
 `splice` PŘED jeho značku, se do výškového pole nikdy nezapíše (směr je
 bezpečný — model pak tvrdí, že materiál stojí).
 
-### Krok 2 — dotaz místo obálky
+### Krok 2 — dotaz místo obálky ✅ HOTOVO (26. 8. 2026)
+
+`js/calculators/cam/residualHolder.js` + `tests/cam-residual-clamp` (17 testů).
+Modul zatím **nikdo neimportuje** — zapojení do `applyHolderClamp` je krok 3.
 
 ```js
-holderFitsInResidual(prms, loops, x, z, backside)   // 1× polyIntersect, ~0,14 ms
-clampZByResidual(loops, X, zStart, zEnd, margin)    // hrubý sken + půlení
+residualHolderLoop(prms, backside, { subtractInsert, shrink })  // obrys pro dotazy
+holderAreaInResidual(loops, holderLoop, x, z)                   // mm²
+holderFitsInResidual(loops, holderLoop, x, z, tol)              // bool
+makeResidualClamp(loops, holderLoop, { margin, tol, eps })      // → clamp(X, zStart, zEnd)
 ```
 
-`clampZByResidual` má vrátit **totéž rozhraní** jako dnešní `clamp(X, zStart, zEnd)`:
-`null` = start je zakázaný, jinak posunutý `zEnd`. Tím se dá vyměnit za sebe.
+`clamp` má **shodné rozhraní** s tím z `makeHolderClamp`: `null` = zakázaný
+start, jinak posunutý `zEnd` (≥ původní). Navíc `.area(x, z)`,
+`.isForbidden(x, z)`, `.sweptArea(X, z1, z2)`. Rezerva se přičítá stejně
+(`hranice + margin`), takže pravidlo v `applyHolderClamp` — zkrátit jen když
+`nz − margin` leží ZA koncem intervalu — platí beze změny.
 
-Obrys držáku se testuje **zeštíhlený o 0,05 mm** a **s odečtenou destičkou**
-u řezných dotazů (`holderCutShrunkLoop` v `gcodeEmit` je vzor) — bez toho test
-narazí do drážky, kterou týž průchod právě vyřízl.
+`.span` (ořez na první povolenou KOMPONENTU, dnešní `clampSpanTowardNegative`
+pro kapsy) tu **schválně není**. Hledání „první povolené komponenty" není
+monotónní, takže by potřebovalo vzorkování — a jestli ho kapsy vůbec chtějí,
+je rozhodnutí kroku 3, kde se to dá změřit.
 
-**Akceptace:** jednotkový test proti `clampZTowardNegative` na umělé geometrii —
-tam, kde je zbytek roven hotovému dílu, musí obě varianty dát totéž ±0,2 mm.
+#### Sken po krocích byl nahrazen ZAMETENÝM držákem
+
+Zadání psalo „hrubý sken po `dzScan` (0,2 mm) a dopřesnění půlením". Sken po
+krocích ale může **přeskočit překážku užší než krok** — a to je nebezpečný
+směr. Místo toho se testuje STOPA držáku přes celý zbývající interval
+(`toolSweep(holderLoop, [(X,z1),(X,z2)])`) a ta predikce je **monotónní**:
+kratší interval má stopu podmnožinou delší, takže plocha průniku roste s délkou
+intervalu. Půlení nad monotónní predikcí je přesné a nemá díry — hlídá to test
+„ÚZKÁ překážka se nepřeskočí" (žebro 0,4 mm).
+
+Vedlejší efekt je rychlost: volný interval (drtivá většina) stojí **jeden**
+dotaz místo stovek, blokovaný ~13 (půlení na 0,01 mm).
+
+#### Tolerance je 0,5 mm², ne 2,0
+
+`RESIDUAL_FIT_TOL = 0.5` jako u validátoru. `HOLDER_FIT_TOL = 2.0`
+v `roughingStrategies.js` je vědomá kompenzace HRUBÉHO modelu (sken povrchu
+po Z + profil spodní hrany), který systematicky nadhodnocuje — změřeno tamtéž:
+`part-13` sken 0,63 mm² → polygon 0; `part-17` sken 1,09/0,61 → polygon 0,12.
+Tady se měří polygonovým průnikem, takže se dvojka nedědí; dědila by se jen
+chyba, kterou kompenzuje.
+
+#### Akceptace: parita s obálkou
+
+Jednotkový test proti `clampZTowardNegative` na umělé geometrii (dvě překážky,
+6 hloubek): tam, kde je zbytek roven překážce, dávají obě varianty **totéž
+±0,2 mm**. Parita se měří s tolerancí u nuly, protože obálka hlásí kolizi při
+DOTYKU, kdežto dotaz nad zbytkem až nad `tol` — na překážce široké `w` je to
+posun právě `tol / w` (změřeno: 0,05 mm při w = 10, 0,25 mm při w = 2). To je
+vlastnost tolerance, ne ořezu, a má vlastní test.
+
+#### Cena — dotaz je opravdu levný
+
+Změřeno na zbytku po polovině průchodů, dotazy = hloubky a Z-rozsahy zbývajících
+průchodů:
+
+| fixture | dotazů | celkem | na dotaz | `makeHolderClamp` rebuild |
+|---|---|---|---|---|
+| `part-8` | 17 | 3,6 ms | 0,21 ms | 42 ms |
+| `part-15-finish-zprava` | 16 | 31,1 ms | 1,94 ms | 72 ms |
+| `holder-region-roughing` | 20 | 7,5 ms | 0,37 ms | 1 ms |
+
+Rozptyl dělá počet zkrácených intervalů: volný interval = 1 dotaz, zkrácený
+~13 (půlení). Celý sešup dotazů tedy stojí 4–31 ms na díl — proti rebuildu
+obálky NA KAŽDOU HLOUBKU (20–26 × ≈ 1–2 s) je to pořád ta správná strana.
+
+#### ⚠ Pro krok 3: pořadí není detail, je to celá věc
+
+V sondě výš vrátil `clamp` na `part-8` **null u 8 ze 17** zbývajících průchodů.
+Není to předpověď kroku 3 — sonda odřezala prvních 50 % průchodů a pak se
+ptala na celý zbytek proti TOMU JEDNOMU stavu. Skutečné zapojení musí tracker
+plnit PRŮBĚŽNĚ, aby se každý průchod posuzoval proti zbytku ve svém okamžiku.
+Kdyby se to zapojilo proti zastaralému stavu, hlídání zamítne násobně víc, než
+má — a přesně to je způsob, jakým všechny čtyři zamítnuté nápady v tabulce výš
+přišly o úběr.
 
 ### Krok 3 — zapojit za příznakem
 
