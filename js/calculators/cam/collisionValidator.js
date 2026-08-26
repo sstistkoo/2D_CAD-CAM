@@ -16,10 +16,9 @@
 // geometrie.
 //
 // Souřadnice: stejné jako simPath ({x = poloměr, z = axiálně} v mm).
-// Broad-phase: volitelně Detect-Collisions (opts.collisions) — rychlé
-// AABB/SAT odmítnutí proti PŮVODNÍMU polotovaru; přesný průnik
-// (Clipper2) se počítá jen při možném kontaktu. Bez knihovny se použije
-// ruční AABB test.
+// Broad-phase: AABB odmítnutí proti PŮVODNÍMU polotovaru; přesný průnik
+// (Clipper2) se počítá jen při možném kontaktu. SAT přes Detect-Collisions
+// tu byl do 26. 8. 2026 — proč zmizel, viz komentář u makeBroadPhase.
 
 import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
@@ -249,36 +248,42 @@ function bboxOverlap(a, b) {
 }
 
 /**
- * Broad-phase filtr proti PŮVODNÍMU polotovaru. S Detect-Collisions
- * (module z ensureCollisions()) staví SAT System, jinak ruční AABB.
+ * Broad-phase filtr proti PŮVODNÍMU polotovaru: AABB.
  * Vrací { mayHit(loops) } — false = kontakt vyloučen, přesný průnik
  * netřeba počítat.
+ *
+ * ── PROČ NE Detect-Collisions (SAT), jak to tu bylo do 26. 8. 2026 ────────
+ * Ta knihovna si konkávní polygon rozloží na konvexní kusy (`quickDecomp`
+ * z poly-decomp). Při složitém obrysu narazí na strop rekurze a v tu chvíli
+ * **vrátí, co stihla** — zbytek polygonu tiše zahodí:
+ *
+ *     if (o++ > maxlevel) { console.warn("quickDecomp: max level (100) reached."); return t; }
+ *
+ * SAT pak testuje proti MÉNĚ dílům, než polygon má, takže `mayHit` vrátí
+ * `false` na skutečném překryvu. A protože tenhle filtr rozhoduje o dvou
+ * věcech, je to nebezpečné dvakrát:
+ *   • `checkAgainstStock` skončí nulou → KOLIZE SE NEOHLÁSÍ,
+ *   • `stock.cut()` se přeskočí → v modelu zůstane materiál, který dráha
+ *     odvezla → fantomové nálezy na dalších blocích.
+ *
+ * Změřeno 26. 8. 2026 na hřebenu (zuby po 2 mm): při 82 vrcholech ještě
+ * `mayHit=true`, při **242 vrcholech `mayHit=false`** na čtverci, který
+ * uvnitř nesporně leží (a konzole hlásila `quickDecomp: max level`).
+ * Přesně to viděl uživatel na svém dílu.
+ *
+ * A hlavně: ten filtr nic nepřinášel. Napříč pěti fixtures byl SAT
+ * POMALEJŠÍ než prosté AABB při shodných nálezech —
+ * part-8 271 × 151 ms, part-15 167 × 132, part-13 77 × 58,
+ * holder-casting 46 × 35, face-casting 62 × 43. Konvexní obálka by ho
+ * spravila, jenže u soustružnického polotovaru se obálka od AABB skoro
+ * neliší, takže by zbyla jen režie navíc.
+ *
+ * Pozor při čtení testů: sada tuhle větev nikdy nepustila (nikdo
+ * `opts.collisions` nepředával kromě jednoho testu s VÁLCEM, tedy
+ * čtyřvrcholovým obrysem), takže byla celou dobu zelená.
  */
-function makeBroadPhase(collisions, stockLoop) {
+function makeBroadPhase(stockLoop) {
   const stockBox = bboxOf([stockLoop]);
-  if (collisions && collisions.System && collisions.Polygon) {
-    try {
-      const system = new collisions.System();
-      system.insert(new collisions.Polygon({ x: 0, y: 0 },
-        stockLoop.map(p => ({ x: p.z, y: p.x }))));
-      return {
-        mayHit(loops) {
-          if (!bboxOverlap(bboxOf(loops), stockBox)) return false;
-          for (const loop of loops) {
-            if (loop.length < 3) continue;
-            const body = new collisions.Polygon({ x: 0, y: 0 },
-              loop.map(p => ({ x: p.z, y: p.x })));
-            system.insert(body);
-            let hit = false;
-            system.checkOne(body, () => { hit = true; return true; });
-            system.remove(body);
-            if (hit) return true;
-          }
-          return false;
-        },
-      };
-    } catch (_) { /* fallback na AABB níž */ }
-  }
   return { mayHit: (loops) => bboxOverlap(bboxOf(loops), stockBox) };
 }
 
@@ -290,8 +295,7 @@ function makeBroadPhase(collisions, stockLoop) {
  *
  * opts: backside (zrcadlení držáku), tolerance [mm², default 0.5],
  * shrink [mm, default 0.05 — zmenšení obrysů proti falešným dotykům],
- * maxIssues (default 12), maxBlocks (default 6000),
- * collisions (modul Detect-Collisions pro broad-phase, jinak AABB).
+ * maxIssues (default 12), maxBlocks (default 6000).
  */
 export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   const issues = [];
@@ -381,7 +385,7 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   const holderCutShrunk = holderCut ? (polyOffset([holderCut], -shrink)[0] || holderCut) : null;
 
   const stock = new StockModel([stockLoop]);
-  const broad = makeBroadPhase(opts.collisions, stockLoop);
+  const broad = makeBroadPhase(stockLoop);
 
   // Bloky = po sobě jdoucí body simPath se stejným řádkem G-kódu a typem
   const blocks = [];

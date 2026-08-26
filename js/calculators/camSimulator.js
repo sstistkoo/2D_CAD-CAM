@@ -20,7 +20,7 @@ import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from
 import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
-import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
+import { StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
 import { HolderGouge } from './cam/holderGouge.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 import { camConfirm, camCloseConfirm, camOffsetDialog, camAddMoveDialog } from './cam/camSimulatorDialogs.js';
@@ -1026,10 +1026,10 @@ export function openCamSimulator(initialContour, initialGCode) {
   let _rafId = null, _rafFn = null;
   // ── Validace kolizí držáku/destičky (Fáze 2 migrace na Clipper2) ──
   // Nezávislá křížová kontrola vygenerovaných drah: běží debounced po
-  // fullUpdate(), výsledky přidává do S.errors (⚠ panel). Broad-phase
-  // Detect-Collisions se načítá lazy — do té doby ruční AABB filtr.
-  let _collisionsMod = null;
-  ensureCollisions().then(m => { _collisionsMod = m; });
+  // fullUpdate(), výsledky přidává do S.errors (⚠ panel). Broad-phase je
+  // AABB — SAT přes Detect-Collisions odtud 26. 8. 2026 zmizel, protože
+  // na složitém obrysu TIŠE ZAHAZOVAL kolize (viz makeBroadPhase
+  // v collisionValidator.js) a přitom byl pomalejší než AABB.
   let _validateTimer = null;
   let _validatedKey = null;
   function scheduleCollisionValidation() {
@@ -1064,7 +1064,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       try {
         _lastIssues = validateToolpath(calc.simPath, p, calc.stockPathSegments, {
           backside: toolMirrored(),
-          collisions: _collisionsMod,
           // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE — dráhy se proti ní plánují
           // a náhled ji vybarvuje; ⛔ panel byl poslední, kdo měřil jen
           // nakreslený obrys.

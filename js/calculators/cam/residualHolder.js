@@ -96,6 +96,7 @@ export function holderFitsInResidual(loops, holderLoop, x, z, tol = RESIDUAL_FIT
  */
 export function makeResidualClamp(loops, holderLoop, {
   margin = HOLDER_CLAMP_MARGIN, tol = RESIDUAL_FIT_TOL, eps = 0.01, maxSteps = 24,
+  ownFoot = null,
 } = {}) {
   if (!Array.isArray(loops) || loops.length === 0) return null;
   if (!holderLoop || holderLoop.length < 3) return null;
@@ -107,9 +108,21 @@ export function makeResidualClamp(loops, holderLoop, {
   const sweptArea = (X, z1, z2) => {
     if (Math.abs(z1 - z2) < 1e-9) return areaAt(X, z1);
     try {
-      const swept = toolSweep(holderLoop, [{ x: X, z: z1 }, { x: X, z: z2 }]);
+      const path = [{ x: X, z: z1 }, { x: X, z: z2 }];
+      const swept = toolSweep(holderLoop, path);
       if (!swept || swept.length === 0) return 0;
-      return Math.abs(polyArea(polyIntersect(loops, swept)));
+      // VLASTNÍ ŘEZ PRŮCHODU. Držák se táhne V DRÁŽCE, kterou tenhle průchod
+      // právě řeže — obrys držáku začíná u hrotu (u upichováku i u nožů
+      // z magazínu doslova na něm), takže bez odečtení vlastní stopy „stojí"
+      // materiál těsně za špičkou při KAŽDÉM běžném řezu. Táž úvaha jako
+      // `ownCut` u `holderFitArea` v roughingStrategies.js.
+      //
+      // Změřeno bez toho (26. 8. 2026): part-17 úběr 4 933 → 10 220 mm²
+      // a 36 nálezů, part-10 +1 458 mm², part-8 +2 176 — clamp zkracoval
+      // podle materiálu, který týž průchod odveze.
+      const stand = ownFoot ? polyDifference(loops, toolSweep(ownFoot, path)) : loops;
+      if (!stand || stand.length === 0) return 0;
+      return Math.abs(polyArea(polyIntersect(stand, swept)));
     } catch {
       // Bez stopy zbývá aspoň konzervativní odhad z obou konců.
       return Math.max(areaAt(X, z1), areaAt(X, z2));

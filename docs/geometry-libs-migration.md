@@ -600,7 +600,7 @@ musí buď nechat snapshoty beze změny, nebo je změnit **vědomě** (`-u`).
 | Úloha | Knihovna | Funkce adaptéru |
 |---|---|---|
 | polotovar − projetá dráha (vizuální odebírání) | Clipper2 | `StockModel.cut(toolSweep(...))` |
-| kolize držáku/plátku × zbytkový polotovar | Detect-Collisions (broad-phase) → Clipper2 (přesně) | `ensureCollisions()` → `polyIntersect` |
+| kolize držáku/plátku × zbytkový polotovar | AABB (broad-phase) → Clipper2 (přesně) | `polyIntersect` — Detect-Collisions odtud 26. 8. 2026 ODSTRANĚN, `quickDecomp` na složitém obrysu tiše zahazoval kusy polygonu a filtr pak podhlásil kolizi; navíc byl pomalejší než AABB (viz CHANGELOG) |
 | offset kontury o rádius špičky + přídavky | Clipper2 | `polyOffset(loops, R + přídavek)` |
 | vrstvy hrubování, regiony, zbytkový materiál | Clipper2 | `polyIntersect` s pásem vrstvy |
 | vzdálenost bodu od kontury, nejbližší bod, uvnitř/vně | Turf.js | `getTurf()` → `pointToLineDistance`, `nearestPointOnLine`, `booleanPointInPolygon` |
@@ -649,7 +649,7 @@ v `camSimulator.js` (`runCollisionValidation`, debounce 600 ms po
   i držák (rychloposuv materiálem = havárie). Obrysy pro testy zmenšeny
   o 0,05 mm a tolerance průniku 0,5 mm² — proti falešným dotykům.
 - Broad-phase: Detect-Collisions SAT `System` proti původnímu polotovaru
-  (lazy přes `ensureCollisions()`), fallback ruční AABB.
+  — ZRUŠENO 26. 8. 2026, zůstal ruční AABB (viz CHANGELOG, `quickDecomp`).
 - Nálezy jdou do „⚠ Nalezeny problémy“ s N-číslem řádku, X/Z pozicí
   a plochou průniku; cache podle klíče vstupů (G-kód + nástroj + držák +
   polotovar), plná validace jen při změně.

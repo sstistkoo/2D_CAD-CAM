@@ -19,6 +19,7 @@
 import { topXOnLoop, rapidFeedGap, quantizeUp, getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from './camMath.js';
 import { buildStockLoopRaw, offsetStockLoop, stockPlanLoop, insertBodyZ, toolFootprint } from './materialRemoval.js';
 import { ResidualTracker } from './residualTracker.js';
+import { makeResidualClamp, residualHolderLoop } from './residualHolder.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from './booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../geom/geomCore.js';
 import { holderWorldLoop } from './collisionValidator.js';
@@ -1698,6 +1699,42 @@ export function genLongPasses(ctx) {
     if (!cutFloorTab) { cutFloorTab = newFloorTab(); cutFloorSynced = 0; }
     for (; cutFloorSynced < passes.length; cutFloorSynced++) notePassInto(cutFloorTab, passes[cutFloorSynced]);
   };
+  // ── POLYGONOVÝ zbytek pro hlídání držáku (příznak orderAwareHolder) ─────
+  // Krok 3 plánu `docs/cam-order-aware-holder.md`. Výškové pole výš neumí
+  // TUNEL (zanoření/dojezd podjede pod stojícím materiálem a sloupec se
+  // celý srazí na hloubku tunelu — na part-8 to dělalo 11,2 mm, na
+  // holder-casting 13,6 mm). Pro ořez HLOUBKOVÝCH intervalů se proto ptáme
+  // polygonového modelu.
+  //
+  // Plní se LÍNĚ z prefixu `passes` — týmž vzorem jako `syncCutFloor` a ze
+  // stejného důvodu: průchod se musí posuzovat proti zbytku ve SVÉM
+  // okamžiku, ne proti stavu na konci. (Známá mez obou: co se vloží
+  // `passes.splice` PŘED značku, se do modelu nedostane. Směr je bezpečný —
+  // model pak tvrdí, že materiál stojí.)
+  const orderAware = !!prms.orderAwareHolder;
+  let residTracker = null, residHolderL = null, residSynced = 0;
+  if (orderAware && stockLoopOffsetFullL) {
+    residHolderL = holderLoopL ? residualHolderLoop(prms, false) : null;
+    if (residHolderL) {
+      residTracker = new ResidualTracker(prms, stockPathSegments, {
+        seedLoop: stockLoopOffsetFullL, footprint: toolFootprint(prms),
+      });
+      if (!residTracker.valid) residTracker = null;
+    }
+  }
+  // Ořez proti zbytku k TOMUTO okamžiku, nebo null (hlídání se nekoná).
+  const residualClamp = () => {
+    if (!residTracker) return null;
+    // `passes` se za běhu nejen plní, ale i ZKRACUJE (useknutí odložených
+    // zákroků `tail.length = dropFrom`, `passes.splice(pi, 1)` u rampy) a na
+    // konci regionu přeskládává. Model umí jen ubírat, ne vracet materiál
+    // zpátky, takže při zkrácení pole se musí postavit ZNOVU — jinak si
+    // připisuje řezy průchodů, které nakonec nikdo neudělá, a hlídání pak
+    // pustí držák do materiálu, co tam pořád stojí.
+    if (passes.length < residSynced) { residTracker.noteAll([]); residSynced = 0; }
+    for (; residSynced < passes.length; residSynced++) residTracker.notePass(passes[residSynced]);
+    return makeResidualClamp(residTracker.loops, residHolderL, { ownFoot: toolFootprint(prms) });
+  };
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
   // k prázdné straně.
@@ -2277,7 +2314,39 @@ export function genLongPasses(ctx) {
   // MĚLČÍ průchody. holderClamped potlačí sledování kontury z konce průchodu
   // (leadOut). Bez definovaného držáku vrací vstup beze změny.
   const applyHolderClamp = (intervals, firstOpen, X, mainScan) => {
-    if (!holderClampZEnd) return { intervals, firstOpen };
+    // ORDER-AWARE (příznak): ořez proti ZBYTKU k tomuto okamžiku. SKLÁDÁ SE
+    // s obálkou, NENAHRAZUJE ji — bere se PŘÍSNĚJŠÍ z obou.
+    //
+    // Nahrazení bylo změřeno 26. 8. 2026 a je špatně v obou směrech: úběr
+    // 76 664 → 65 979 mm² (−14 %) a kolize 4 → 67 (31 138 mm²). Mechanismus:
+    // zahozený mělký interval materiál NEODEBERE, jen ho nechá stát — a další
+    // hlubší průchod ho pak vezme najednou (part-17: průchodů 53 → 44, ale
+    // úběr 4 933 → 10 183 mm² a 26 nálezů). Obálka tomu bránila proxy `stair`
+    // (pásy od mělčích konců), kterou zbytek sám o sobě nenahradí, protože
+    // o zahozených intervalech nic neví.
+    //
+    // Skládáním může úběr jen klesat a nálezy jen ubývat — každé hlídání
+    // vidí něco jiného a obě omezení platí.
+    const resid = residualClamp();
+    if (!holderClampZEnd && !resid) return { intervals, firstOpen };
+    // ZBYTEK SMÍ PRŮCHOD ZKRÁTIT, NE ZRUŠIT. Obálka si zahození dovolit může:
+    // modeluje HOTOVÝ DÍL, tedy překážku, která nikdy nezmizí. Zbytek je ale
+    // PŘECHODNÝ — „nevejde se teď" znamená „ještě ne", ne „nikdy". A zahození
+    // hloubky materiál NEODEBERE, jen ho nechá stát: další, hlubší průchod ho
+    // pak vezme najednou a projede držákem skrz. Změřeno 26. 8. 2026, když
+    // `null` ze zbytku hloubku rušil:
+    //   celá sada  úběr 76 664 → 65 979 mm² (−14 %), kolize 4 → 67 (31 138 mm²)
+    //   part-17    průchodů 53 → 44, ale úběr 4 933 → 10 183 a 26 nálezů
+    // Správná odpověď na „nevejde se" je PŘEPLÁNOVAT POŘADÍ, a to je vědomě
+    // mimo rozsah tohohle plánu (viz docs/cam-order-aware-holder.md).
+    const clampAt = (X2, zS, zE, mainStair) => {
+      const a = holderClampZEnd ? holderClampZEnd(X2, zS, zE, { mainStair }) : zE;
+      if (a === null) return null;
+      if (!resid) return a;
+      const b = resid(X2, zS, zE);
+      if (b === null) return a;                 // ne „nikdy", jen „ne teď"
+      return Math.max(a, b);   // vyšší zEnd = kratší průchod = přísnější
+    };
     const out = [];
     let firstSurvived = firstOpen;
     for (let k = 0; k < intervals.length; k++) {
@@ -2285,7 +2354,7 @@ export function genLongPasses(ctx) {
       if (k === 0 && firstOpen) {
         // OTEVŘENÝ vjezd: zakázaný start = nelze bezpečně vjet → vynechat;
         // jinak jen zkrátit hluboký konec (+ schodová podmínka).
-        const nz = holderClampZEnd(X, iv.zStart, iv.zEnd, { mainStair: mainScan });
+        const nz = clampAt(X, iv.zStart, iv.zEnd, mainScan);
         if (nz === null) {
           firstSurvived = false;
           if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderBlockedDepths.add(depthKey(X));
@@ -2305,12 +2374,27 @@ export function genLongPasses(ctx) {
         if (nz - HOLDER_CLAMP_MARGIN > iv.zEnd + 0.01) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
         if (iv.zStart - iv.zEnd < dzScan) { firstSurvived = false; continue; }
       }
-      // KAPSY (k>0 / zanoření) obálka NEOŘEZÁVÁ: lomené mezní čáry guides v2
+      // KAPSY (k>0 / zanoření) OBÁLKA NEOŘEZÁVÁ: lomené mezní čáry guides v2
       // („stěna − holderWidth") už drží držák uvnitř kapsy a jsou zapracované
       // do obrobitelné kontury. Druhá (statická) restrikce přes span by přes
       // přídavkovou slupku zkracovala rampy a bránila digu na dno (široká
       // kapsa, cam-holder test). Nájezd/výjezd kapes hlídá holderTrimLeadIn/Out;
       // zbytek pokryje validátor (⚠ panel).
+      //
+      // ORDER-AWARE model tuhle výhradu NEMÁ: nezkracuje přes přídavkovou
+      // slupku, ale přes to, co v kapse OPRAVDU stojí — a právě tady je dnes
+      // ta díra, kterou zbylé nálezy na `part-8` prolezou (hluboký vjezd do
+      // úzké drážky, kapsy `k > 0` se neořezávají, takže rameno nikdo
+      // neodebere a vjezd do něj nikdo nezakáže).
+      if (resid) {
+        // Táž zásada jako výš: zkrátit ano, zahodit ne. Na `part-1` stálo
+        // zahazování kapes 1 011 mm² úběru (2 339 → 1 328).
+        const nzP = resid(X, iv.zStart, iv.zEnd);
+        if (nzP !== null && nzP - HOLDER_CLAMP_MARGIN > iv.zEnd + 0.01) {
+          iv.zEnd = nzP; iv.blocked = true; iv.holderClamped = true;
+        }
+        if (iv.zStart - iv.zEnd < dzScan) continue;
+      }
       out.push(iv);
     }
     return { intervals: out, firstOpen: firstSurvived };

@@ -35,6 +35,8 @@
 //   node scripts/cam_sweep.mjs part-8 range       jen fixtures dle podřetězce
 //   node scripts/cam_sweep.mjs --holder=magazine  jen jedna varianta držáku
 //   node scripts/cam_sweep.mjs --holder=all       + obdélník vnucený všem
+//   node scripts/cam_sweep.mjs --set=orderAwareHolder=true   přepsat parametr
+//                                                 (lze opakovat; true/false/číslo/text)
 //   node scripts/cam_sweep.mjs --jobs=8           paralelizace (výchozí = CPU/2)
 //   node scripts/cam_sweep.mjs --save=a.json      uložit měření
 //   node scripts/cam_sweep.mjs --diff=a.json      porovnat s uloženým měřením
@@ -112,7 +114,18 @@ const sf = (n, dec = 1) => (n > 0 ? '+' : '') + nf(n, dec);
 
 // ── WORKER: jedna fixture × jedna varianta držáku ─────────────────────────
 
-async function measure(file, holderKey) {
+/** `--set=k=v` → hodnota do prog.params (true/false/číslo/jinak text). */
+function applyOverrides(prog, sets) {
+  for (const kv of sets) {
+    const i = kv.indexOf('=');
+    if (i < 0) continue;
+    const k = kv.slice(0, i), raw = kv.slice(i + 1);
+    prog.params[k] = raw === 'true' ? true : raw === 'false' ? false
+      : (raw !== '' && Number.isFinite(Number(raw))) ? Number(raw) : raw;
+  }
+}
+
+async function measure(file, holderKey, sets = []) {
   const { runCamProg } = await import('../tests/helpers/camHeadless.mjs');
   const { validateToolpath } = await import('../js/calculators/cam/collisionValidator.js');
   const { MaterialRemoval } = await import('../js/calculators/cam/materialRemoval.js');
@@ -123,6 +136,7 @@ async function measure(file, holderKey) {
   // `keep` = obrys fixture se NEsahá (varianta `own`). Jinak se vnutí — i null,
   // což `holderProfileLoop` vyhodnotí jako náhradní obdélník.
   if (!HOLDERS[holderKey].keep) prog.params.holderProfile = HOLDERS[holderKey].profile;
+  applyOverrides(prog, sets);
   prog.zLimits = { ...ZL0, ...(prog.zLimits || {}) };
   prog.xLimits = { ...XL0, ...(prog.xLimits || {}) };
 
@@ -163,10 +177,10 @@ async function measure(file, holderKey) {
 
 const MARK = '##SWEEP##';
 
-async function runWorker(file, holderKey) {
+async function runWorker(file, holderKey, sets) {
   let out;
   try {
-    out = await measure(file, holderKey);
+    out = await measure(file, holderKey, sets);
   } catch (e) {
     out = { file, holder: holderKey, error: String(e && e.stack || e).split('\n').slice(0, 3).join(' | ') };
   }
@@ -175,9 +189,11 @@ async function runWorker(file, holderKey) {
 
 // ── PARENT: rozdělit práci do procesů ─────────────────────────────────────
 
-function spawnOne(file, holderKey) {
+function spawnOne(file, holderKey, sets) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [__filename, '--one=' + file, '--holder-run=' + holderKey],
+    const args = [__filename, '--one=' + file, '--holder-run=' + holderKey,
+      ...sets.map(kv => '--set=' + kv)];
+    const child = spawn(process.execPath, args,
       { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
     let buf = '', err = '';
     child.stdout.on('data', d => { buf += d; });
@@ -191,13 +207,13 @@ function spawnOne(file, holderKey) {
   });
 }
 
-async function pool(jobs, limit, onDone) {
+async function pool(jobs, limit, sets, onDone) {
   const out = [];
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) {
       const job = jobs[next++];
-      const r = await spawnOne(job.file, job.holder);
+      const r = await spawnOne(job.file, job.holder, sets);
       out.push(r);
       onDone(r, out.length, jobs.length);
     }
@@ -293,10 +309,12 @@ function printDiffRows(rows, prev) {
 async function main() {
   const argv = process.argv.slice(2);
 
+  const sets = argv.filter(a => a.startsWith('--set=')).map(a => a.slice('--set='.length));
+
   const one = argv.find(a => a.startsWith('--one='));
   if (one) {
     const holderKey = (argv.find(a => a.startsWith('--holder-run=')) || '').split('=')[1] || 'rect';
-    return runWorker(one.slice('--one='.length), holderKey);
+    return runWorker(one.slice('--one='.length), holderKey, sets);
   }
 
   const flag = (name, dflt) => {
@@ -324,10 +342,12 @@ async function main() {
   if (!asJson) {
     console.log(`CAM SWEEP · ${fixtures.length} fixtures × ${holderKeys.length} ` +
       `${holderKeys.length === 1 ? 'varianta' : 'varianty'} držáku × 2 standardy polotovaru` +
-      `  (${jobsLimit} paralelně, jeden proces na běh)`);
+      `  (${jobsLimit} paralelně, jeden proces na běh)` +
+      (sets.length ? `
+  parametry: ${sets.join(', ')}` : ''));
   }
   const t0 = Date.now();
-  const rows = await pool(jobs, jobsLimit, (r, done, total) => {
+  const rows = await pool(jobs, jobsLimit, sets, (r, done, total) => {
     if (asJson) return;
     process.stderr.write(`\r  ${done}/${total}  ${padE(r.file.replace('.camprog', '') + ' · ' + r.holder, 46)}`);
   });
@@ -357,7 +377,7 @@ async function main() {
   if (prev) printDiffRows(rows, prev);
 
   // Souhrn ve formátu, v jakém je baseline zapsaná v plánu.
-  const full = filters.length === 0;
+  const full = filters.length === 0 && sets.length === 0;
   console.log('\n── SOUHRN (formát docs/cam-order-aware-holder.md, krok 0) ' + '─'.repeat(14));
   for (const holder of holderKeys) {
     const t = totals[holder];

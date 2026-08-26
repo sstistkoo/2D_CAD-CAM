@@ -118,23 +118,75 @@ describe('validateToolpath', () => {
     expect(validateToolpath(plunge, p2, [])).toEqual([]);
   });
 
-  it('detect-collisions broad-phase dává stejné výsledky', async () => {
-    const collisions = await import('../lib/detect-collisions.js');
+  // ── PROČ TU UŽ NENÍ SAT BROAD-PHASE (26. 8. 2026) ─────────────────────
+  // Do tohohle dne uměl validátor volitelně použít Detect-Collisions
+  // (`opts.collisions`) jako rychlý filtr. Ta knihovna si konkávní polygon
+  // rozloží `quickDecomp`em na konvexní kusy, a když narazí na strop
+  // rekurze, VRÁTÍ JEN TO, CO STIHLA — zbytek polygonu tiše zahodí. SAT pak
+  // testuje proti méně dílům, než polygon má, takže filtr odpoví „kontakt
+  // vyloučen" na skutečném překryvu. Ve validátoru to znamená ZMEŠKANOU
+  // KOLIZI (checkAgainstStock vrátí nulu) i přeskočený `stock.cut()`.
+  //
+  // Původní test tuhle větev pustil s VÁLCEM, tedy čtyřvrcholovým obrysem —
+  // proto byl roky zelený. Tady je geometrie, na které to praskne.
+  it('DŮVOD ODSTRANĚNÍ: Detect-Collisions podhlásí překryv na složitém obrysu', async () => {
+    const dc = await import('../lib/detect-collisions.js');
+    // Hřeben: zuby po 2 mm, hřbet u osy. Roste jen počet vrcholů, tvar je
+    // pořád stejně „nafouknutý" — čtvereček uvnitř prvního zubu leží uvnitř
+    // vždy, ať je zubů kolik chce.
+    const comb = (teeth) => {
+      const pts = [];
+      for (let i = 0; i < teeth; i++) {
+        const z = i * 2;
+        pts.push({ x: 5, z }, { x: 30, z }, { x: 30, z: z + 1 }, { x: 5, z: z + 1 });
+      }
+      pts.push({ x: 0, z: (teeth - 1) * 2 + 1 }, { x: 0, z: 0 });
+      return pts;
+    };
+    const probe = [{ x: 12, z: 0.1 }, { x: 20, z: 0.1 }, { x: 20, z: 0.8 }, { x: 12, z: 0.8 }];
+    const satSaysHit = (stockLoop) => {
+      const system = new dc.System();
+      system.insert(new dc.Polygon({ x: 0, y: 0 }, stockLoop.map(p => ({ x: p.z, y: p.x }))));
+      const body = new dc.Polygon({ x: 0, y: 0 }, probe.map(p => ({ x: p.z, y: p.x })));
+      system.insert(body);
+      let hit = false;
+      system.checkOne(body, () => { hit = true; return true; });
+      system.remove(body);
+      return hit;
+    };
+    const quiet = console.warn;
+    console.warn = () => {};   // knihovna hlásí `quickDecomp: max level`
+    try {
+      // 82 vrcholů ještě projde…
+      expect(satSaysHit(comb(20)), '20 zubů').toBe(true);
+      // …242 vrcholů už NE, a to je ta tichá chyba.
+      expect(satSaysHit(comb(60)), '60 zubů (242 vrcholů)').toBe(false);
+    } finally {
+      console.warn = quiet;
+    }
+  });
+
+  it('AABB broad-phase najde kolizi i na tom samém obrysu', () => {
+    // Táž geometrie jako výš, ale přes validátor: zápich do hřebenu musí
+    // kolizi ohlásit. S SAT filtrem by ji `mayHit` zahodilo.
+    const segs = [];
+    const pts = [];
+    for (let i = 0; i < 60; i++) {
+      const z = -i * 2;
+      pts.push({ x: 5, z }, { x: 30, z }, { x: 30, z: z - 1 }, { x: 5, z: z - 1 });
+    }
+    for (let i = 0; i + 1 < pts.length; i++) {
+      segs.push({ type: 'line', p1: pts[i], p2: pts[i + 1] });
+    }
+    const p2 = { ...prms, stockMode: 'casting' };
+    // Zápich doprostřed hřebenu: držák (z ∈ [z, z+20]) přejede přes deset
+    // zubů, takže kolize je jistá — pokud ji filtr nezahodí.
     const plunge = [
-      { x: 40, z: -30, type: 'G0' },
-      { x: 31, z: -30, type: 'G0', originalLineIdx: 1 },
-      { x: 10, z: -30, type: 'G1', originalLineIdx: 2 },
+      { x: 40, z: -30.5, type: 'G0' },
+      { x: 31, z: -30.5, type: 'G0', originalLineIdx: 1 },
+      { x: 10, z: -30.5, type: 'G1', originalLineIdx: 2 },
     ];
-    const a = validateToolpath(plunge, prms, []);
-    const b = validateToolpath(plunge, prms, [], { collisions });
-    expect(b.length).toBe(a.length);
-    expect(b[0].kind).toBe('holder');
-    // čistá dráha zůstává čistá i s broad-phase
-    const clean = [
-      { x: 40, z: 10, type: 'G0' },
-      { x: 29.5, z: 5, type: 'G0', originalLineIdx: 1 },
-      { x: 29.5, z: -55, type: 'G1', originalLineIdx: 2 },
-    ];
-    expect(validateToolpath(clean, prms, [], { collisions })).toEqual([]);
+    const issues = validateToolpath(plunge, p2, segs);
+    expect(issues.length, 'zápich do hřebenu neohlásil nic').toBeGreaterThan(0);
   });
 });

@@ -162,3 +162,30 @@ describe('tolerance', () => {
     }
   });
 });
+
+// ── Zapojení do strategie (krok 3, příznak orderAwareHolder) ───────────────
+// Sweep měří dopad; tenhle test hlídá jen to, že ta cesta VŮBEC ŽIJE — bez
+// něj by ji sada nikdy nepustila a příznak by mohl tiše shnít.
+describe('orderAwareHolder v genLongPasses', () => {
+  it('zapnutý příznak projde pipeline a nezhorší nálezy na part-1', async () => {
+    const { runCamProg } = await import('./helpers/camHeadless.mjs');
+    const { validateToolpath } = await import('../js/calculators/cam/collisionValidator.js');
+    const { readFileSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const dir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'cam');
+    const load = () => JSON.parse(readFileSync(join(dir, 'part-1.camprog'), 'utf8'));
+
+    const off = load();
+    off.params = { ...off.params, orderAwareHolder: false };
+    const a = await runCamProg(off);
+    const on = load();
+    on.params = { ...on.params, orderAwareHolder: true };
+    const b = await runCamProg(on);
+
+    expect(b.calc.passes.length, 'se zapnutým příznakem nevznikly průchody').toBeGreaterThan(0);
+    const issues = (r) => validateToolpath(r.calcSim.simPath, r.params, r.calcSim.stockPathSegments,
+      { backside: r.params.roughingSide === 'left', maxIssues: 64 }).length;
+    expect(issues(b), 'příznak přidal kolize').toBeLessThanOrEqual(issues(a));
+  }, 120000);
+});

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – `scripts/cam_sweep.mjs --set=klíč=hodnota`.** Přepíše parametr
+  ve všech fixtures, takže se dá změřit dopad příznaku (`--set=orderAwareHolder=true`)
+  jedním během. Se `--set` se netiskne porovnání se zapsanou baseline — ta
+  platí pro výchozí parametry.
+
 - **CAM – `residualHolder.js`: hlídání držáku dotazem nad zbytkem místo
   Minkowského obálky.** Krok 2 plánu `docs/cam-order-aware-holder.md`. Modul
   zatím nikdo neimportuje — zapojení do `applyHolderClamp` je krok 3.
@@ -162,6 +167,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vůbec projevilo. Ukládá se do `.camprog` i do knihovny nožů a zásobníku.
 
 ### Measured and rejected
+- **CAM – order-aware hlídání držáku v `applyHolderClamp` (krok 3) svůj cíl
+  NESPLNILO.** Zapojeno za příznakem `orderAwareHolder` (výchozí vypnuto,
+  s vypnutým je G-kód bit po bitu týž). Změřeno na celé sadě:
+
+  | | úběr | kolize |
+  |---|---|---|
+  | nakreslený nůž, dnes | 76 663,8 mm² | 4 / 33,4 mm² |
+  | nakreslený nůž, zapnuto | 78 145,6 (+1 481,8) | **7 / 2 611,2** |
+  | náhradní držák, dnes | 76 849,6 mm² | 2 / 2,3 mm² |
+  | náhradní držák, zapnuto | 78 082,2 (+1 232,6) | **3 / 2 577,8** |
+
+  Úběr tedy vzrostl (krok 4 by neměl co splácet), ale **`part-8` se nezměnil
+  ani o řádek** — a to byl celý cíl — a `part-10-zapich-casting` je nová vada
+  (+1 457,5 mm² úběru, 3 nálezy / 2 577,8 mm²). `holder-casting-slanted-face`
+  se naopak spravil (2 / 2,3 → 0).
+
+  **Proč `part-8` ne:** jeho 4 nálezy sedí na VJEZDU do kapsy (`#27`,
+  `pocketEntry`, nulové dno) — na rampě a kotvě. `applyHolderClamp` ale
+  ořezává Z-intervaly hloubkových průchodů; kotvu plánuje `stockEntryRamp`
+  a hlídá `holderFitArea`, který čte VÝŠKOVÉ POLE. A právě o tom krok 1
+  změřil, že je na `part-8` až 11,2 mm pod realitou, přesně v tom pásu.
+  Polygonový model se tedy zapojil tam, kde díra není.
+
+  Cestou si měření vynutilo tři opravy návrhu (všechny zapsané v kódu):
+  nahrazení obálky je špatně a order-aware se s ní musí SKLÁDAT (se záměnou
+  úběr −14 % a kolize 4 → 67); zbytek smí průchod jen ZKRÁTIT, ne zrušit
+  (zahozená hloubka materiál neodebere, jen ho nechá stát pro hlubší průchod —
+  part-17 průchodů 53 → 44, ale úběr 4 933 → 10 183 a 26 nálezů); a musí se
+  odečíst VLASTNÍ ŘEZ průchodu, protože držák se táhne v drážce, kterou ten
+  průchod právě řeže (bez toho part-17 +5 287 mm², part-8 +2 176).
+
+  Příznak zůstává vypnutý. Další pokus patří KE KOTVĚ RAMPY, ne k ořezu
+  intervalů — podrobnosti a pořadí v `docs/cam-order-aware-holder.md`, krok 5.
 - **CAM – rozšířit obálku držáku i na KAPSY (zanoření) je změřeně špatný obchod.**
   Zbytek nálezu 09 (hlídání zná jen hotový díl, ne syrový zbytek) se projeví
   jedině s NAKRESLENÝM nožem, a jen na `part-8`: 4 nálezy / 33,4 mm², všechny
@@ -202,6 +240,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   díl`, takže sám o sobě může jen ubrat.
 
 ### Fixed
+- **CAM – broad-phase validátoru kolizí TIŠE ZAHAZOVAL kolize na složitém
+  obrysu.** Nález uživatele: konzole aplikace se plnila hláškami
+  `quickDecomp: max level (100) reached.` se stackem
+  `mayHit → checkAgainstStock → validateToolpath`.
+
+  `validateToolpath` uměl volitelně použít Detect-Collisions (`opts.collisions`)
+  jako rychlý filtr před přesným Clipper průnikem. Ta knihovna si konkávní
+  polygon rozloží `quickDecomp`em na konvexní kusy, a když narazí na strop
+  rekurze, **vrátí jen to, co stihla** — zbytek polygonu zahodí:
+
+  ```js
+  if (o++ > maxlevel) { console.warn("quickDecomp: max level (" + r + ") reached."); return t; }
+  ```
+
+  SAT pak testuje proti méně dílům, než polygon má, takže filtr odpoví
+  „kontakt vyloučen" na skutečném překryvu. Ve validátoru to znamená dvě věci
+  a obě špatně: `checkAgainstStock` vrátí nulu, takže se **KOLIZE NEOHLÁSÍ**,
+  a přeskočí se `stock.cut()`, takže v modelu zůstane materiál, který dráha
+  odvezla → fantomové nálezy na dalších blocích.
+
+  Změřeno na hřebenu (zuby po 2 mm): při 82 vrcholech ještě `mayHit=true`,
+  při **242 vrcholech `mayHit=false`** na čtverci, který uvnitř nesporně leží.
+
+  Filtr přitom nic nepřinášel — napříč pěti fixtures byl SAT **pomalejší** než
+  prosté AABB při shodných nálezech: part-8 271 × 151 ms, part-15 167 × 132,
+  part-13 77 × 58, holder-casting 46 × 35, face-casting 62 × 43. Konvexní
+  obálka by ho spravila, jenže u soustružnického polotovaru se obálka od AABB
+  skoro neliší, takže by zbyla jen režie. **Odstraněn**; zůstává AABB.
+
+  Proč to sada nechytila: `opts.collisions` nikdo nepředával kromě jednoho
+  testu s VÁLCEM, tedy čtyřvrcholovým obrysem. Nový test v
+  `collision-validator.test.js` drží obojí — důkaz, že knihovna na 242
+  vrcholech podhlásí, i to, že AABB cesta kolizi na témž obrysu najde.
+
 - **CAM – model zbytku ve strategii si připisoval rampu průchodu S NULOVÝM
   DNEM.** `notePassInto` (výškové pole `cutFloorTab`) zapisovala rampu každého
   průchodu, i degenerovaného — takového, kde `zStart == zEnd`, tedy bez dna.
