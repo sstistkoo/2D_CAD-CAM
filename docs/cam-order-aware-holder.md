@@ -477,6 +477,40 @@ protože porovnával jen úběr a nálezy. Změnu, která nehne ani jedním, př
 — těch šest dílů ukázaly až snapshoty. Kritérium proto nově zahrnuje i POČET
 PRŮCHODŮ.
 
+### Krok 6 — kolmé zanoření na umělé hranici ✅ HOTOVO (26. 8. 2026)
+
+První využití modelu MIMO kapsový vjezd. Předchozí oprava zakázala svislé
+zanoření (90°, upichovák + Auto) na každé umělé hranici plošně, protože
+`entryRangeRamp` při 90° degeneruje na kolmý zápich přesně na hranici a vozí
+držák do stojícího materiálu (viz CHANGELOG). Plošný zákaz byl ale jen náhrada
+za chybějící model — uživatel 26. 8. 2026: *„zanořování udělej tak, že to půjde
+kolmě u toho upichováku, ale hlídat kolizi a nepovolit ho tak, aby držák vjel
+do materiálu"*.
+
+`plungeHolderFitsAt(X, zStart, zEnd)` (roughingStrategies.js) popíše svislý
+sjezd jako rampu z offsetové čáry kolmo dolů a pošle ho do `residEntryArea` —
+tedy do `holderAreaAlongResidual` proti polygonovému zbytku. Práh
+`RESIDUAL_FIT_TOL` (0,5 mm²) jako u validátoru. Bez `orderAwareHolder` vrací
+`false`: statická obálka na tuhle otázku odpovědět neumí a mlčky ji povolit by
+znamenalo vrátit původní kolizi.
+
+**Změřeno** na dílu uživatele (`tests/fixtures/cam-cases/range-parting-plunge`,
+podélně + upichovák + Start rozsahu uvnitř odlitku):
+
+| | úběr | průchodů | kolize (offsetová čára) |
+|---|---|---|---|
+| bez příznaku | 2 310 mm² | 31 | 2 / 5,1 mm² |
+| s příznakem | **2 365 mm²** | 32 | 2 / 5,1 mm² |
+
+Na reálném projektu uživatele 2 555 → 2 610 mm². Sada 25 fixtures beze změny
+(`cam_sweep --diff` Δ +0,0 mm², 0 nálezů) — kombinaci „podélně + upichovák +
+Auto 90° + umělá hranice uvnitř polotovaru" žádná z nich nemá. Regrese:
+`tests/cam-range-parting-plunge.test.js`.
+
+Zbylé 2 nálezy toho dílu jsou u ÚDOLÍ (Z≈84,6), ne na hranici, a jsou to
+grazy proti offsetové čáře (proti syrové siluetě 0) — viz
+`project_cam-entry-holder-approach` v paměti.
+
 ## Mimo rozsah
 
 - **Čelní hrubování** má vlastní hlídání (`holderGuardFace` + `holderBottomProfile`,

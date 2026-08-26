@@ -623,11 +623,13 @@ zápichem.
 
 **Úhel zanoření 90° a hranice rozsahu.** Vjezd na hranici (rozsah 📐 nebo
 hranice úseku u odlitku) se dělá právě proto rampou, že napravo od ní materiál
-dál stojí. Se svislým zanořením (90° — u upichováku to dá **Auto**) žádná
-rampa neexistuje, takže se na takovou hranici vjet nedá: hloubky, na které se
-rampa nevejde, hrubování vynechá a materiál u hranice zůstane stát. Je to
-záměr — kolmý zápich na hranici by tam zavezl **držák** do neobrobeného
-polotovaru. Potřebuješ‑li ten materiál dostat pryč, posuň hranici rozsahu ven
+dál stojí. Se svislým zanořením (90° — u upichováku to dá **Auto**) žádná rampa
+neexistuje, takže se rozhoduje podle **držáku**: se zapnutým *Hlídáním držáku
+dle pořadí* se projede obrys držáku podél svislého sjezdu proti tomu, co v tu
+chvíli opravdu stojí (materiál odebraný předchozími průchody se odečte). Kde
+držák projde, **kolmý zápich se povolí** — upichovák tak upichuje a je to jeho
+normální provoz. Kde neprojde, hloubka se vynechá a materiál u hranice zůstane
+stát: kolmý zápich by tam zavezl držák do neobrobeného polotovaru. Potřebuješ‑li ten materiál dostat pryč, posuň hranici rozsahu ven
 z polotovaru (pak se najíždí přes hranu, ne přes umělou mez), nebo ho nech
 jiné operaci / jinému nástroji. *Ruční úhel zanoření místo Auto je sice
 technicky možný, ale prověř si po něm ⚠ panel: mělčí rampa vjíždí dovnitř

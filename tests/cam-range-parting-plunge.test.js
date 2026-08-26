@@ -60,6 +60,28 @@ describe('CAM: hranice rozsahu 📐 + svislé zanoření (upichovák)', () => {
     expect(area).toBe(0);
   });
 
+  it('s order-aware modelem se kolmý vjezd povolí tam, kde držák projde', async () => {
+    // Upichovák zapichuje kolmo — to je jeho normální provoz. Plošný zákaz na
+    // umělé hranici je jen náhradní řešení za chybějící model: statická obálka
+    // (výškové pole) na otázku „vejde se tam držák?" odpovědět neumí.
+    // S `orderAwareHolder` se ptá POLYGONOVÝ zbytek, který zná pořadí obrábění,
+    // a kde držák projde, vjezd se povolí (viz plungeHolderFitsAt).
+    const off = await runCamProg(loadProg());
+    const progOn = loadProg();
+    progOn.params.orderAwareHolder = true;
+    const on = await runCamProg(progOn);
+
+    // Povolený vjezd = o průchod víc a víc odebraného materiálu…
+    expect(on.calc.passes.length).toBeGreaterThan(off.calc.passes.length);
+    // …a pořád BEZ svislé „rampy" na hranici (vjezd je kolmý zápich, ne rampa).
+    expect(on.gcode.split('\n').filter(l => /Rampa/.test(l))).toEqual([]);
+
+    // Hranice rozsahu zůstává bez nálezu držáku.
+    const issues = validateToolpath(on.calcSim.simPath, on.params, on.calc.stockPathSegments,
+      { planStock: true, shrink: 0.25 });
+    expect(issues.filter(i => (i.z ?? 0) > 300)).toEqual([]);
+  });
+
   it('mimo hranici rozsahu zůstává dílu jen doložený zbytkový nález', async () => {
     // Pojistka proti opačnému extrému: kdyby oprava spolkla dráhy plošně,
     // tenhle práh by ji nechytil — proto se hlídá i to, že se pořád hrubuje.

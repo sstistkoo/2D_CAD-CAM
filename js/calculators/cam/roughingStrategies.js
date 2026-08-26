@@ -1866,6 +1866,20 @@ export function genLongPasses(ctx) {
     return holderAreaAlongResidual(t.loops, residHolderL, pts,
       { ownFoot: toolFootprint(prms), step: 2, maxSamples: 128 });
   };
+  /**
+   * Projde DRŽÁK podél SVISLÉHO zanoření na `z` až na hloubku `X`?
+   * Týž dotaz jako `residEntryArea`, jen pro vjezd, který ještě nemá `pass` —
+   * sjezd se popíše jako rampa z povrchu (offsetová čára) svisle dolů.
+   * Bez order-aware modelu vrací false: statická obálka na tuhle otázku
+   * odpovědět neumí (viz komentář u `plungeEntryOk` v hloubkové smyčce).
+   */
+  const plungeHolderFitsAt = (X, zStart, zEnd) => {
+    if (!orderAware || !residHolderL) return false;
+    const surfX = offsetStockTopXAtZ(zStart);
+    if (surfX === null || !(surfX > X + 0.05)) return false;
+    return residEntryArea({ x: X, zStart, zEnd, ramp: { x0: surfX, z0: zStart } }, [])
+      <= RESIDUAL_FIT_TOL;
+  };
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
   // k prázdné straně.
@@ -2976,7 +2990,18 @@ export function genLongPasses(ctx) {
         // díle uživatele: to zbytečně přejíždělo/dobíralo už hotovou
         // horní část rampy a po pár hloubkách se úplně vzdalo, zbytek
         // Z-rozsahu zůstal bez jakéhokoli dojezdu).
-        if (entryCapped
+        // ORDER-AWARE svislé zanoření (docs/cam-order-aware-holder.md).
+        // Upichovák zapichuje KOLMO — to je jeho normální provoz, ne vada
+        // (rozhodnutí uživatele 26. 8. 2026). Zakázat mu to na každé umělé
+        // hranici plošně je moc hrubé: nebezpečné je jen tam, kde do stojícího
+        // materiálu vjede DRŽÁK. Statická obálka (`holderFitsAt`, výškové pole)
+        // na to nestačí — neumí tunel a její tolerance 2 mm² je kompenzace
+        // vlastní hrubosti. Ptáme se proto POLYGONOVÉHO zbytku, který zná
+        // pořadí obrábění: kde držák podél svislého sjezdu projde, vjezd se
+        // povolí a rampa není potřeba; kde ne, platí dál „rampa, nebo vrstvu
+        // vynechat" (viz !rampOk níž).
+        const plungeEntryOk = entryRampIsPlunge && plungeHolderFitsAt(currentX, iv.zStart, iv.zEnd);
+        if (entryCapped && !plungeEntryOk
             && iv.zStart >= entryZ - 1e-6) {
           // Kotva rampy = povrch nad vjezdem. Ještě NEPOUŽITÁ kotva (first)
           // z jiného Z se přepíše: vjezd se mezitím mohl posunout doleva na

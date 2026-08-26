@@ -36,6 +36,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     značky by změna nastavení vypadala jako hotová věc, ačkoli simulovaná
     dráha i hlídání kolizí pořád běží nad starým programem.
 
+### Changed
+- **CAM – kolmé zanoření na hranici rozsahu 📐 se povolí tam, kde držák projde.**
+  Upichovák zapichuje kolmo — to je jeho normální provoz, ne vada. Plošný zákaz
+  na každé umělé hranici (rozsah 📐 / hranice úseku), zavedený předchozí opravou,
+  byl jen náhradou za chybějící model: statická obálka (výškové pole
+  `holderFitsAt`) neumí tunel a její tolerance 2 mm² je kompenzace vlastní
+  hrubosti, takže na otázku „vejde se tam držák?" spolehlivě odpovědět nešlo.
+
+  Nově se ptá **polygonový model zbytku se znalostí pořadí obrábění**
+  (`orderAwareHolder`, `docs/cam-order-aware-holder.md`): `plungeHolderFitsAt`
+  projede držák podél svislého sjezdu proti tomu, co v tu chvíli opravdu stojí,
+  s prahem `RESIDUAL_FIT_TOL` (0,5 mm²) jako validátor. Kde projde, vjezd se
+  povolí a rampa není potřeba; kde ne, platí dál „rampa, nebo vrstvu vynechat".
+
+  Změřeno na dílu uživatele (podélně, upichovák, Start rozsahu uvnitř odlitku):
+  úběr **2 555 → 2 610 mm²** (+55) a o průchod víc, **kolize beze změny**
+  (5,1 mm², a to je graze proti offsetové čáře u údolí, ne na hranici).
+  Sada 25 fixtures: `cam_sweep --diff` **Δ +0,0 mm², 0 nálezů** — žádná z nich
+  tuhle kombinaci nemá. Bez `orderAwareHolder` (starší uložené projekty) se
+  chování nemění: statická obálka na to nestačí, takže se vjezd dál nepovolí.
+
 ### Fixed
 - **CAM – vjezd na hranici rozsahu 📐 už není kolmý zápich (kolize držáku).**
   Když rozsah obrábění začíná uvnitř polotovaru, stojí napravo od hranice dál
