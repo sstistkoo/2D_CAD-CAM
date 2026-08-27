@@ -31,6 +31,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – generátor drah rozdělen podle PLÁTKU a podle OPERACE.** Jeden soubor
+  `roughingStrategies.js` měl 4 670 řádků a tvar destičky se v něm řešil na
+  23 místech jako `prms.toolShape === '…'`. Znamenalo to, že zásah kvůli jednomu
+  plátku může změnit dráhy jinému — což se 27. 8. 2026 též stalo (úprava pro
+  upichovák rozvedla obe větve na dílu s POLYGONÁLNÍ destičkou).
+
+  Nově:
+  - `cam/inserts/` — **každý plátek má svůj soubor** s pravidly (`parting.js`,
+    `polygon.js`, `round.js`, `threading.js` + rozcestník; 163 ř. celkem).
+    Generátor se jich ptá — dotazů na tvar v něm zůstalo **0**.
+  - `cam/ops/` — **každá operace má svůj soubor**: `roughFace.js` (čelně),
+    `roughLong.js` (podélně), `shared.js` (společné meze).
+  - `roughingStrategies.js` zbyl jako **rozcestník (30 řádků)**.
+
+  Čistý refaktor: G-kód všech 26 fixtures je **bit po bitu shodný**.
+  Zprava/zleva se nedělí záměrně — „zleva“ není algoritmus, ale ZRCADLO téže
+  cesty (`mirZ` v `calculatePipeline.js`, `zMirror.js`); vlastní soubor by
+  znamenal duplikát celého generátoru a každou budoucí opravu dvakrát.
+
 - **CAD – automatické popisy R/⌀ se v režimu kót „Průsečíky“ už nezobrazují.**
   Poloměry u oblouků a kružnic, rozměry obdélníku a délka polyline se kreslily
   ve všech režimech kromě „Skryté“, takže v režimu „Průsečíky“ zůstávaly na
@@ -42,6 +61,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – vrstva pokračuje přes nízký hrb místo odskoku a nového zápichu.**
+  Vrstva rozdělená hrbem se vždycky přerušila: průchod dojel k hrbu, odskočil,
+  vyjel nad konturu a ZA hrbem se znovu zapíchl. Když ale dojezd „bez schodků“
+  na vrchol hrbu stejně vyjede, nemá se otáčet — sjede po obrysu na druhou
+  stranu a pokračuje v téže vrstvě (přání uživatele 27. 8. 2026: „napřed se
+  dojede to, co je ve směru dráhy“; jeho příklad `N500 G1 X51.281 Z218.418`).
+
+  Tři věci, které to muselo splnit, všechny vzešly z měření: sjezd jde PO OBRYSU
+  (kolmý udělá schod tam, kde je stěna šikmá nebo oblouková); u upichováku po
+  OBÁLCE plátku, ne po holem offsetu (jinak tělo vjede do stěny — 19 mm²
+  zajezdu do hotového dílu); a řez od dosednutí dolů musí být celý otevřený
+  (bez té kontroly projela rovná dráha stojícím dílem — 428 vzorků zajezdu).
+
+  Změřeno na díle uživatele: úběr **beze změny** (5 407 mm²), kolize 0, zajezd
+  do hotového dílu 0, o jeden zápich a jeden výjezd nad konturu míně. Platí
+  zatím jen pro UPICHOVÁK: první verze se u ostatních tvarů spouštěla na drobných
+  rozdílech hranic intervalů a rozvedla booleovskou a scan-line větev na
+  `part-1` (polygon) o 22 mm² úběru — chytil to `boolean-roughing-wiring`.
+
 - **CAM – upichovací plátek zajížděl TĚLEM do hotovní kontury.** Sken řezných
   intervalů zná jen bod špičky, jenže upichovák řeže CELOU spodní hranou šířky b.
   Když průchod začal těsně pod stoupající stěnou, jeho zadní část (b − R za
