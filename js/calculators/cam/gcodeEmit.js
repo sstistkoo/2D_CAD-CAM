@@ -1014,9 +1014,25 @@ export function generateAutoGCode(S, calc) {
     // Rychloposuvová část cíle: s touch končí rapid o vůli výš (zbytek
     // sjede posuvem) — proti zbytkovému polotovaru se testuje jen ona.
     const rTx = touch ? tx + rapidStopX : tx;
+    // KDE RYCHLOPOSUV OPRAVDU SKONČÍ. `rTx` je jen „cíl + vůle"; sjezd v X ale
+    // dojede `descendTo` → `emitDescendX`, a ten při náraze na zbytek zastaví
+    // rychloposuv už na povrchu (+ Stop rychlop. před čarou) a zbytek dojede
+    // POSUVEM. Guard, který testoval `rTx`, se tak ptal na bod, kam se nikdy
+    // nejede — a kvůli „kolizi" v něm poslal nástroj na zbytečnou cestu nad
+    // konturu a hned zpátky dolů.
+    // Nález uživatele 27. 8. 2026 (`N2340 G0 X68.478 ; Výjezd nad konturu`):
+    // vydaný rychloposuv končí na X 21,150 a je čistý (0,00 mm² proti oběma
+    // obrysům), kdežto testovaný bod X 18,345 hlásil 1,27 mm².
+    const surfStop = (cur.x - tx > 1e-6) ? rapidStopXAt(tz) : null;
+    const rTxReal = surfStop === null ? rTx : Math.min(cur.x, Math.max(rTx, surfStop));
     if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
-        || rapidHitsStock(cur.x, cur.z, rTx, tz)
-        || holderHitsRapid(cur.x, cur.z, rTx, tz)) {
+        // DESTIČKA: stačí testovat rychloposuvovou část — zbytek dojede
+        // `descendTo` posuvem. DRŽÁK: testuje se CELÝ sjezd až na `tx`, protože
+        // `emitDescendX` držák neřeší vůbec; bez toho zmizel zdvih, který na
+        // `part-8` s náhradním držákem opravdu chránil (56,6 mm² rychloposuvu
+        // + 121,9 mm² držáku v materiálu, změřeno cam_sweep).
+        || rapidHitsStock(cur.x, cur.z, rTxReal, tz)
+        || holderHitsRapid(cur.x, cur.z, tx, tz)) {
       const xUp = Math.max(rapidTopX + rapidStopX, cur.x, tx);
       // Diagnostický seam (guarded, v produkci no-op — stejný vzor jako
       // `__REGION_LOG__`): svislý zdvih „Výjezd nad konturu" v X předpokládá nad

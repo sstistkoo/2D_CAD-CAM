@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CAM – zbytečný „Výjezd nad konturu" před sjezdem na hloubku.** `safeRapidTo`
+  se ptal, jestli přejezd narazí, na bodě `cíl + Vůle` (`rTx`) — jenže sjezd v X
+  dojede `emitDescendX`, a ten při náraze na zbytek zastaví rychloposuv už na
+  povrchu plus **Stop rychloposuvu před čarou** a zbytek dojede posuvem. Guard
+  se tedy ptal na místo, kam se nikdy nejede, a kvůli „kolizi" v něm posílal
+  nástroj nahoru nad konturu a hned zpátky dolů.
+
+  Nález uživatele 27. 8. 2026 (`N2340 G0 X68.478 ; Výjezd nad konturu`):
+  rychloposuv, který se opravdu vydá, končí na X 21,150 a je čistý (0,00 mm²
+  proti syrové siluetě i offsetové čáře), zatímco testovaný bod X 18,345 hlásil
+  1,27 mm². Nově se testuje skutečný konec rychloposuvu (`rapidStopXAt`).
+
+  **Držák se přitom dál testuje na CELÝ sjezd** až na cílovou hloubku —
+  `emitDescendX` ho neřeší vůbec. Bez toho zmizel i zdvih, který na `part-8`
+  s náhradním držákem opravdu chránil (změřeno: 56,6 mm² rychloposuvu a
+  121,9 mm² držáku v materiálu).
+
+  Změřeno: na dílu uživatele zdvihy 4 → 3 a program o 2 řádky kratší, oranžová
+  stopa držáku i ⛔ panel zůstávají na nule; `holder-region-roughing` přišel
+  o dva takové zdvihy (přepsané snapshoty). Sada 25 fixtures: kolize beze
+  změny (0 / 0,0 nakreslený nůž, 2 / 2,3 náhradní držák), úběr +67,2 mm².
+
 ### Changed
 - **CAM – jednotné pravidlo, kdy se přepíše G-kód programu.** Doteď se každý
   ovládací prvek panelu choval jinak: „Booleovské hrubování" a „Hrubovat po

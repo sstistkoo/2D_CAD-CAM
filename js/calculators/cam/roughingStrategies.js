@@ -53,6 +53,8 @@ const HOLDER_FIT_TOL = 2.0;
 // „Výjezd nad konturu" skrz kůru odlitku — 1 100 mm² kolizí, které tam
 // předtím nebyly. Nenajde-li se v tomhle okně místo, vjezd zůstane, jak byl.
 const ENTRY_SHIFT_MAX = 3.0;
+// Prah pro vnoreni drzaku pri VJEZDU (mm2) — MERENI.
+const ENTRY_FIT_TOL = 0.1;
 // Nejmenší SMYSLUPLNÁ vrstva, jako zlomek Hloubky záběru. Skim vrstvy nad
 // nakresleným vrcholem/čelem (viz `planTopX` a `planEdgeZ`) se přidávají proto,
 // že materiál může sahat až na offsetovou čáru — jenže při malém Přídavku
@@ -1885,7 +1887,7 @@ export function genLongPasses(ctx) {
     const surfX = offsetStockTopXAtZ(zStart);
     if (surfX === null || !(surfX > X + 0.05)) return false;
     return residEntryArea({ x: X, zStart, zEnd, ramp: { x0: surfX, z0: zStart } }, [])
-      <= RESIDUAL_FIT_TOL;
+      <= ENTRY_FIT_TOL;
   };
   /**
    * Vnoření DRŽÁKU při SJEZDU na hloubku `X` v ose `z` (mm²), proti zbytku se
@@ -3015,7 +3017,7 @@ export function genLongPasses(ctx) {
       // nenajde, vjezd zůstane, jak byl.
       const zFloorEntry = Math.max(iv0.zEnd + dzScan, iv0.zStart - ENTRY_SHIFT_MAX);
       let zTry = iv0.zStart;
-      while (zTry > zFloorEntry && entryHolderArea(currentX, zTry + approachDz) > RESIDUAL_FIT_TOL) {
+      while (zTry > zFloorEntry && entryHolderArea(currentX, zTry + approachDz) > ENTRY_FIT_TOL) {
         zTry -= DZ_CAP;
       }
       // Nenašlo se v okně nic → vjezd zůstane, jak byl. Zahodit interval (natož
