@@ -537,6 +537,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 
 | Modul | Účel |
 |-------|------|
+| `cam/gcodeCollapse.js` | Post-úprava emise: slévá navazující přímé bloky do jednoho (nájezd + řez + doběh po jedné přímce = jeden `G1`). Na geometrii nesahá, každé sloučení ověřuje dopočtem polohy |
 | `cam/calculatePipeline.js` | Výpočetní jádro `computeCalculation(S, …)` (bývalé `calculate()`) + `roughingKey`/`getRoughingOperations` — z kontury/parametrů staví dráhy, offsety, hrubovací průchody a simPath |
 | `cam/gcodeEmit.js` | Emise G-kódu `generateAutoGCode(S, calc)` + hlavička/závěr dle řídicího systému (`buildControlHeaderLines`/`Tail`, `ctrlCmt`, `controlArcFormatter`, `renumberGCodeLines`) a rychlý převod mezi systémy (`convertGCodeControlSystem`) |
 | `cam/camMath.js` | Základní geometrické primitivy (úsečka/oblouk, průsečíky, segmentové helpery) sdílené napříč CAM |

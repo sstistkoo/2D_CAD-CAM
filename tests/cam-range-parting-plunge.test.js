@@ -92,9 +92,13 @@ describe('CAM: hranice rozsahu 📐 + svislé zanoření (upichovák)', () => {
   it('mimo hranici rozsahu zůstává dílu jen doložený zbytkový nález', async () => {
     // Pojistka proti opačnému extrému: kdyby oprava spolkla dráhy plošně,
     // tenhle práh by ji nechytil — proto se hlídá i to, že se pořád hrubuje.
+    //
+    // MĚŘÍ SE POČET PRŮCHODŮ, ne řádků G-kódu: od 27. 8. 2026 se navazující
+    // přímé bloky slévají do jednoho (`cam/gcodeCollapse.js`), takže stejná
+    // dráha je teď 96 bloků místo 104 — podlaha na řádcích by hlídala
+    // formátování výstupu, ne to, jestli se opravdu obrábí.
     const run = await runCamProg(loadProg());
-    const cuts = run.gcode.split('\n').filter(l => /^\s*N\d+\s+G0?[123]\b/.test(l)).length;
-    expect(cuts).toBeGreaterThan(100);
+    expect(run.calc.passes.length).toBeGreaterThan(25);
 
     const issues = validateToolpath(run.calcSim.simPath, run.params, run.calc.stockPathSegments,
       { planStock: true });

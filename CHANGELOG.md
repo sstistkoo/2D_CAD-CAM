@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – navazující přímé bloky se slévají do jednoho (program o 13 % kratší).**
+  Generátor skládá jeden rovný pohyb ze tří etap, které o sobě nevědí —
+  nájezd posuvem k materiálu, vlastní řez a doběh za hranu polotovaru — a ve
+  výstupu z toho byly tři bloky po JEDNÉ PŘÍMCE (nález uživatele 27. 8. 2026):
+
+  ```
+  N280 G1 Z258.373 F0.25          N280 G1 Z195.278 F0.25
+  N290 G1 Z196.278 F0.25    →
+  N300 G1 Z195.278 F0.25
+  ```
+
+  Nový `cam/gcodeCollapse.js` je POST-ÚPRAVA TEXTU na konci emise: nesahá na
+  geometrii, jen slévá bloky, jejichž spojením vznikne doslova stejná dráha.
+  Neslučuje se nic s komentářem (`; Rampa 90.0°`, `; Výjezd nad konturu`),
+  oblouky, různý (modálně platný) posuv, G0 s G1 ani obrat směru; každé
+  sloučení se navíc ověří dopočtem polohy a při nesouhlasu se běh nechá
+  rozepsaný.
+
+  Změřeno na 27 dílech: **8 058 → 6 991 pohybových bloků (−1 067, −13,2 %)**,
+  na dílu uživatele 495 → 430. Dráha je prokazatelně TOTOŽNÁ — nová je
+  podposloupností staré a každý vypuštěný bod leží na spojnici sousedů
+  (nejhorší odchylka 1 µm, což je hranice tisku souřadnic). `cam_sweep`
+  nehlásí ANI JEDNU změněnou fixture: úběr i kolize sedí na milimetr
+  v obou standardech polotovaru. Samo slévání stojí 0,9 ms.
+
+  Na dobu výpočtu drah to nemá vliv — běží až za plánováním. Zkrátí se
+  program, blokové krokování simulace odpovídá tomu, co stroj opravdu jede,
+  a o něco zlevní parsování programu na simulovanou stopu.
 - **CAM – díl se dělí na úseky i podle HRBŮ KONTURY, ne jen podle údolí
   polotovaru.** Vrstvu přeruší schod, osazení nebo obloukové údolí na hotovní
   kontuře stejně dobře jako údolí odlitku — jenže z toho dosud žádný úsek

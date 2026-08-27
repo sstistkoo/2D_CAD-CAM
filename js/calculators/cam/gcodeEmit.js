@@ -17,6 +17,7 @@ import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { computeThreadPassCuts, partOffGeom, threadProfileDepth } from './threadHelpers.js';
 import { offsetSilhouetteLoop } from './toolEnvelope.js';
 import { roughingKey } from './calculatePipeline.js';
+import { mergeCollinearMoves } from './gcodeCollapse.js';
 
 export function generateGCode(S, calc) {
   return S.manualGCode.split('\n').map((line, idx) => ({ text: line, simIdx: idx }));
@@ -2123,5 +2124,11 @@ export function generateAutoGCode(S, calc) {
         : 'Program NEOBSAHUJE ŽÁDNÝ ŘEZNÝ POHYB — všechny dráhy vypadly (viz hlášení výš). Zkontrolujte nástroj, polotovar a rozsah obrábění.' });
     }
   }
-  return lines;
+  // ── SLUČOVÁNÍ NAVAZUJÍCÍCH PŘÍMÝCH BLOKŮ (cam/gcodeCollapse.js) ────
+  // AŽ ÚPLNĚ NAKONEC: hlášení výš počítají řezné pohyby a některá se vážou
+  // na pořadí etap emise — sloučení je post-úprava textu, která na dráze
+  // nemění vůbec nic (nájezd + řez + doběh po jedné přímce = jeden blok).
+  const merged = mergeCollinearMoves(lines);
+  const renumbered = renumberGCodeLines(merged.map(l => l.text), 10, 10);
+  return merged.map((l, i) => ({ ...l, text: renumbered[i] }));
 }

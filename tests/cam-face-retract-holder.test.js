@@ -67,8 +67,18 @@ describe('čelní odskok nezavleče držák do stojícího materiálu', () => {
     const L = r.gcode.split('\n');
     const i = L.findIndex(l => l.trim() === '; Průchod 82');
     expect(i).toBeGreaterThan(0);
-    expect(L[i + 4].trim()).toBe('N4740 G1 X16.641 F0.25');
-    expect(L[i + 5]).toContain('X18.641');
-    expect(L[i + 5], 'diagonála se musí nahradit svislým výjezdem').not.toMatch(/Z\d/);
+    // ČTE SE CELÝ PRŮCHOD, ne pevný offset ani N-číslo: od 27. 8. 2026 se
+    // navazující přímé bloky slévají (`cam/gcodeCollapse.js`), takže táž dráha
+    // má míň řádků. Invariant je pořád ten samý: průchod dojede na X16,641
+    // a odskočí SVISLE v X (zpátky do vlastní stopy), ne šikmo.
+    let end = i + 1;
+    while (end < L.length && !/^\s*;\s*Průchod /.test(L[end])) end++;
+    const pass = L.slice(i + 1, end).map(l => l.trim());
+    const cuts = pass.filter(l => /^N\d+\s+G0?1\b/.test(l));
+    const xs = cuts.map(l => parseFloat((l.match(/X(-?[\d.]+)/) || [])[1]));
+    expect(Math.min(...xs), pass.join(' | ')).toBeCloseTo(16.641, 3);
+    const out = cuts[cuts.length - 1];
+    expect(out).toMatch(/^N\d+ G1 X18\.641 ; Výjezd v X/);
+    expect(out, 'diagonála se musí nahradit svislým výjezdem').not.toMatch(/Z\d/);
   }, 180000);
 });
