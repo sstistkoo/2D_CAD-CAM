@@ -21,7 +21,7 @@ export function makeRegions(deps) {
   const {
     prms, depths, dzScan, offsetXAt, machiningRange, interferenceGuides,
     stockWorldPoints, stockLoopFullL, stockCrossingsAt, stockZRangeAt,
-    passEntryZ, scan, stockLoopL, holderEntryReachZ,
+    passEntryZ, scan, stockLoopL, holderEntryReachZ, step, holderFitsOverContour,
   } = deps;
   // ── Regiony (opt-in, jen odlitek) ──────────────────────────────────────
   // Polotovar odlitku má „výstupky" (bosses) oddělené „údolími", kde se
@@ -46,17 +46,17 @@ export function makeRegions(deps) {
   const assembleRegions = (splits) => {
     if (!splits || splits.length === 0) return FULL_REGION;
     const regions = [];
-    let hi = Infinity, hiSurf, hiMouth, hiValleyTop;
+    let hi = Infinity, hiSurf, hiMouth, hiValleyTop, hiKind;
     for (const s of splits) {
       regions.push({
-        zHi: hi, zHiSurf: hiSurf, zHiMouth: hiMouth, zHiValleyTop: hiValleyTop,
-        zLo: s.z, zLoSurf: s.xSurf, zLoMouth: s.zHi,
+        zHi: hi, zHiSurf: hiSurf, zHiMouth: hiMouth, zHiValleyTop: hiValleyTop, zHiKind: hiKind,
+        zLo: s.z, zLoSurf: s.xSurf, zLoMouth: s.zHi, zLoKind: s.kind,
       });
-      hi = s.z; hiSurf = s.xSurf; hiMouth = s.zLo; hiValleyTop = s.zHi;
+      hi = s.z; hiSurf = s.xSurf; hiMouth = s.zLo; hiValleyTop = s.zHi; hiKind = s.kind;
     }
     regions.push({
-      zHi: hi, zHiSurf: hiSurf, zHiMouth: hiMouth, zHiValleyTop: hiValleyTop,
-      zLo: -Infinity, zLoSurf: undefined, zLoMouth: undefined,
+      zHi: hi, zHiSurf: hiSurf, zHiMouth: hiMouth, zHiValleyTop: hiValleyTop, zHiKind: hiKind,
+      zLo: -Infinity, zLoSurf: undefined, zLoMouth: undefined, zLoKind: undefined,
     });
     return regions;
   };
@@ -87,6 +87,51 @@ export function makeRegions(deps) {
     for (const p of stockLoopL) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
     return computeResidualRegions([stockLoopL], zMax, zMin, dzScan);
   };
+  // ── ZLOMY Z KONTURY: hrb, který přeruší vrstvu (27. 8. 2026) ─────────
+  // `regionSplits` výš chodí po ÚDOLÍCH POLOTOVARU. Jenže vrstvu stejně dobře
+  // přeruší HRB NA HOTOVNÍ KONTUŘE — schod, osazení, obloukové údolí — a to
+  // dosud žádný úsek nezakladálo: průchody se pak v každé hloubce střídaly
+  // zprava doleva a zpátky (nález uživatele 27. 8. 2026 na levé části dílu).
+  //
+  // JE TO ZRCADLO ÚDOLÍ, ne táž věc: u údolí polotovaru se úseky oddělí NAD
+  // dnem a v kůře pod ním splynou; u hrbu kontury vrstva NAD hrbem projede
+  // vcelku a trhá se až POD ním. Zlom si proto nese `kind` a testy se podle
+  // něj otočí (viz `splitIsNeeded`).
+  //
+  // Práh: hrb musí čnít aspoň o jednu Hloubku záběru nad nižší ze svých dvou
+  // údolí — drobné hrbolky vrstvu reálně netrhají a dělit se kvůli nim nemá.
+  const contourPeakSplits = () => {
+    if (!stockLoopL || stockLoopL.length < 3) return [];
+    let zMax = -Infinity, zMin = Infinity;
+    for (const q of stockLoopL) { if (q.z > zMax) zMax = q.z; if (q.z < zMin) zMin = q.z; }
+    if (machiningRange) { zMax = Math.min(zMax, machiningRange.zHi); zMin = Math.max(zMin, machiningRange.zLo); }
+    if (!(zMax > zMin + 1e-6)) return [];
+    const h = Math.max(dzScan, 0.2);
+    const pts = [];
+    for (let z = zMax; z >= zMin - 1e-9; z -= h) {
+      const x = offsetXAt(z);
+      pts.push({ z, x: x === null ? -Infinity : x });
+    }
+    const prom = Math.max(step, 0.5);
+    const out = [];
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (!(pts[i].x > pts[i - 1].x - 1e-9) || !(pts[i].x >= pts[i + 1].x - 1e-9)) continue;
+      // vrchol plošiny: vzít její střed
+      let j = i;
+      while (j + 1 < pts.length && Math.abs(pts[j + 1].x - pts[i].x) < 1e-9) j++;
+      if (j + 1 < pts.length && pts[j + 1].x > pts[i].x + 1e-9) { i = j; continue; }
+      // výrazné aspoň o `prom` na OBĚ strany
+      let loL = pts[i].x, loR = pts[i].x;
+      for (let k = i - 1; k >= 0 && pts[k].x <= pts[i].x + 1e-9; k--) loL = Math.min(loL, pts[k].x);
+      for (let k = j + 1; k < pts.length && pts[k].x <= pts[i].x + 1e-9; k++) loR = Math.min(loR, pts[k].x);
+      if (!(pts[i].x - loL >= prom && pts[i].x - loR >= prom)) { i = j; continue; }
+      const zPeak = (pts[i].z + pts[j].z) / 2;
+      out.push({ z: zPeak, xSurf: pts[i].x, kind: 'peak' });
+      i = j;
+    }
+    return out;
+  };
+
   // ── Dělí to údolí opravdu díl na úseky? (mezní čára hlídání destičky) ──
   // PRVNÍ (a nejlevnější) test, který `splitIsNeeded` níž pouští na každý
   // kandidátní split. Údolí odlitku samo o sobě hranici NEDĚLÁ. Signál je DOSAH
@@ -149,11 +194,42 @@ export function makeRegions(deps) {
   // zprava doleva než zleva doprava — proto je nad ním `guideStaysInStock`.
   const splitIsNeeded = (splits, i) => {
     const s = splits[i];
-    if (guideStaysInStock(s)) return false;
+    if (s.kind !== 'peak' && guideStaysInStock(s)) return false;
+    // HRB: vrstvu opravdu přeruší, ale ÚSEK Z NĚJ ZATÍM NEVZNIKÁ — změřeno
+    // 27. 8. 2026. Rozdělením se mění POŘADÍ obrábění: když se jeden úsek
+    // dodělá celý, vedle pořád stojí materiál a ZANOŘENÍ DO KAPSY do něj vjede
+    // držákem (7 fixtures, 5,8–43,6 mm² — vždy na „Rampa…°“ / „zanoření v kapse“).
+    // Na díle uživatele je přitom výsledek ČISTÝ a lepší (úběr +100 mm²,
+    // výjezdů nad konturu 39 → 12), takže to není vlastnost pravidla, ale
+    // toho, že hlídání zanoření neumí říct „v tomhle pořadí se držák nevejde“.
+    // `orderAwareHolder` to nerozliší — je to code-owned parametr s výchozí
+    // hodnotou true, takže ho mají zapnutý všechny.
+    // ZBÝVÁ: skutečný test proveditelnosti na každý kandidát (naplánovat obojí
+    // a porovnat nálezy držáku), pak tenhle řádek zmizí.
+    // HRB: vrstvu opravdu přeruší, ale úsek z něj vznikne jen tehdy, když se za
+    // hranici VEJDE DRŽÁK. Rozdělením se soused obrobí jen do své hloubky, takže
+    // tam zůstane stát stěna až do kontury — a nástroj pracující u hranice přes
+    // ni přejíždí držákem (viz holderFitsOverContour v roughLong).
+    if (s.kind === 'peak') {
+      if (prms.__noPeakSplits) return false;   // druhý pokus plánování bez dělení
+      // Držák je široký desítky mm, takže přes hranici dosáhne i z místa hluboko
+      // uvnitř úseku — test proto projde CELÝ PÁS do vzdálenosti držáku od
+      // hranice, ne jen hranici samotnou (na `part-10` byl nález 17 mm od ní).
+      if (typeof holderFitsOverContour !== 'function') return false;
+      const band = Math.max(parseFloat(prms.holderWidth) || 0, 20);
+      for (let z = s.z; z >= s.z - band - 1e-9; z -= 1) {
+        const tip = offsetXAt(z);
+        if (tip === null) continue;
+        if (!holderFitsOverContour(z, tip)) return false;
+      }
+      return true;
+    }
     const zTop = i > 0 ? splits[i - 1].z : Infinity;
     const zBot = i + 1 < splits.length ? splits[i + 1].z : -Infinity;
     for (const X of depths) {
-      if (X <= s.xSurf + 0.01) continue;          // tady hranice stejně splývá
+      // ÚDOLÍ: pod dnem hranice splývá. HRB: nad ním vrstva projede vcelku,
+      // trhá se až pod ním — test se proto otočí.
+      if (s.kind === 'peak' ? X >= s.xSurf - 0.01 : X <= s.xSurf + 0.01) continue;
       const sz = stockZRangeAt(X);
       if (!sz) continue;
       const zHiWin = Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, zTop);
@@ -206,7 +282,14 @@ export function makeRegions(deps) {
 
   const computeRegions = () => {
     if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL_REGION;
-    const rawSplits = regionSplits();
+    // Dva zdroje zlomů: úDOLÍ POLOTOVARU a HRBY KONTURY (viz výš). Seřazí se
+    // shora dolů a blízké dvojice splynou — údolí má přednost, protože o něm
+    // rozhodují starší, změřené testy.
+    const rawSplits = [
+      ...regionSplits().map(q => (q.kind ? q : { ...q, kind: 'valley' })),
+      ...contourPeakSplits(),
+    ].sort((a, b) => b.z - a.z)
+      .filter((q, k, arr) => k === 0 || Math.abs(q.z - arr[k - 1].z) > Math.max(2 * dzScan, 1));
     const splits = rawSplits.filter((_, i) => splitIsNeeded(rawSplits, i));
     const regions = orderRegions(assembleRegions(splits));
 

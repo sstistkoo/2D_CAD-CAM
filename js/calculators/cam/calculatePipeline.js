@@ -13,6 +13,7 @@ import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
+import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
@@ -38,7 +39,25 @@ export function getRoughingOperations(S) {
 }
 
 // ── CALCULATED DATA (memoized) ──
-export function computeCalculation(S, lightOnly = false) {
+/**
+ * Simulovaná dráha (+ čas a délka) SAMOTNÁ, bez plánování průchodů.
+ *
+ * Plán dráh na TEXTU programu nezávisí — `S.manualGCode` do něj vstupuje
+ * jediným místem, a to až tady, na konci. Po přegenerování programu proto
+ * stačí obnovit tuhle stopu a nechat plán stát (viz `fullUpdate()` v panelu).
+ *
+ * @param {object} S    stav simulátoru
+ * @param {object} prms už vyřešené parametry (zrcadlené u „zleva“); dopočítají
+ *                      se samy, když se nepředají
+ */
+export function computeSimPath(S, prms = null) {
+  const p = prms || (roughingKey(S) === 'backside' ? mirrorParamsZ(S.params) : S.params);
+  const simPath = parseManualGCodeToPath(S.manualGCode, p, S.flipX !== S.flipZ);
+  const { seconds, length } = pathTimeSeconds(simPath, p);
+  return { simPath, estimatedTimeSeconds: seconds, totalPathLength: length };
+}
+
+export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // „Dobrat naráz" odstraněno z UI (Fáze 5): kapsu je vždy potřeba
   // dobrat až na dno (postupné dotahování mělčími průchody dno hluboké
   // úzké kapsy nedosáhne — rampa z rohu je omezená šířkou kapsy). Proto
@@ -711,11 +730,52 @@ export function computeCalculation(S, lightOnly = false) {
   // (= 1 operace); persistentní seznam + UI přijdou s druhou stranou.
   // Jen dokončení („Hot."): hrubovací průchody se negenerují — passes zůstane
   // prázdné a objede se jen dokončovací offset (finishOffsetPath).
-  if (!prms.finishOnly) {
+  //
+  // `skipRoughing` dělá totéž dočasně: geometrie (kontura, offsety, mezní
+  // čáry) stojí 51 ms, samé hrubování 740 (měřeno na part-11), takže dokud
+  // uživatel dráhy nepřepočítá, počítá panel jen tu levnou část.
+  if (!prms.finishOnly && !skipRoughing) {
     const operations = getRoughingOperations(S);
-    for (const op of operations) {
-      const strategy = ROUGHING_STRATEGIES[op.kind] || ROUGHING_STRATEGIES.longitudinal;
-      strategy.genPasses(passCtx, op);
+    const runOps = () => {
+      for (const op of operations) {
+        const strategy = ROUGHING_STRATEGIES[op.kind] || ROUGHING_STRATEGIES.longitudinal;
+        strategy.genPasses(passCtx, op);
+      }
+    };
+    runOps();
+    // ── DĚLENÍ NA ÚSEKY PODLE HRBŮ KONTURY: naplánovat a ZMĚŘIT ─────────
+    // Rozdělení dílu v místě, kde hrb kontury přeruší vrstvu, odstraní
+    // přejíždění zprava doleva a zpátky v každé vrstvě (přání uživatele
+    // 27. 8. 2026). Jenže každý úsek se pak obrobí jen do SVÉ hloubky a vedle
+    // zůstane stát stěna, do které může vjet DRŽÁK — a jestli k tomu dojde,
+    // se staticky rozhodnout nedá: zkoušeny čtyři různé testy, žádný nerozlišil
+    // díly, kde je výsledek čistý, od těch, kde ne (změřeno 27. 8. 2026).
+    //
+    // Rozhodne se tedy MĚŘENÍM: naplánuje se s dělením, změří se vnoření
+    // držáku do zbytku (`holderIntrusionArea`) a když je větší než bez dělení,
+    // plán se zahodí a jede se původní. Platí se tím druhým plánováním, ale
+    // jen na dílech, kde nějaký hrb vůbec je.
+    if (passCtx.usedPeakSplit) {
+      // POROVNÁNÍ, ne absolutní práh: měřítko dává nenulové číslo i na plánech,
+      // které validátor považuje za čisté (na díle uživatele 2,44 mm² při nule
+      // nálezů) — smysl dává jen rozdíl mezi oběma variantami. Dělení se nechá,
+      // dokud držák není HORŠÍ než bez něj.
+      const withSplit = planQuality(passes, prms, stockPathSegments);
+      const keptPasses = passes.slice(), keptErrors = foundErrors.slice();
+      passes.length = 0; foundErrors.length = 0;
+      passCtx.usedPeakSplit = false;
+      prms.__noPeakSplits = true;
+      try {
+        runOps();
+        const without = planQuality(passes, prms, stockPathSegments);
+        // Dělení se nechá, jen když není horší ANI pro držák, ANI ve zbytku
+        // materiálu (jinak by dokončování dobíralo, co mělo vzít hrubování).
+        if (withSplit.holder <= without.holder + HOLDER_INTRUSION_TOL
+            && withSplit.residual <= without.residual + HOLDER_INTRUSION_TOL) {
+          passes.length = 0; passes.push(...keptPasses);
+          foundErrors.length = 0; foundErrors.push(...keptErrors);
+        }
+      } finally { delete prms.__noPeakSplits; }
     }
   }
 
@@ -941,11 +1001,10 @@ export function computeCalculation(S, lightOnly = false) {
   // Simulační dráha se vždy počítá z (ručně editovatelného) G-kódu —
   // viz [[feedback_flip-axis-gcode]] a tlačítko "🔄 Autorefresh drah",
   // které přepíše S.manualGCode čerstvě vygenerovaným kódem z kontury/parametrů.
-  const simPath = parseManualGCodeToPath(S.manualGCode, prms, S.flipX !== S.flipZ);
   // Čas i délka ze skutečných rychlostí pohybu (rychloposuv z parametrů,
   // řezný posuv F × otáčky v daném průměru) — stejný výpočet pohání
   // přehrávání simulace v reálném čase, viz cam/feedRates.js.
-  const { seconds: estimatedTimeSeconds, length: totalPathLength } = pathTimeSeconds(simPath, prms);
+  const { simPath, estimatedTimeSeconds, totalPathLength } = computeSimPath(S, prms);
 
   // Vrch polotovaru v X (pro bezpečné rapid přejezdy nad materiálem).
   let stockTopX = sRad;

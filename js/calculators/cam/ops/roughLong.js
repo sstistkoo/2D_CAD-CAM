@@ -4,6 +4,7 @@ import { getInsert } from '../inserts/index.js';
 import { mergeLayersOverHump } from './long/humpMerge.js';
 import { envelopePartingLeads } from './long/partingEnvelope.js';
 import { makeRegions } from './long/regions.js';
+import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from '../camMath.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
@@ -542,7 +543,7 @@ export function genLongPasses(ctx) {
   // čte výškové pole — a to o tunelech nic neví: krok 1 změřil, že je na
   // `part-8` až 11,2 mm pod realitou právě v pásu Z 117,5–183, kde ten
   // problémový vjezd je.
-  const residEntryArea = (p, leadIn) => {
+  const residEntryArea = (p, leadIn, abortAbove = Infinity) => {
     if (!residHolderL) return 0;
     const t = syncResidual();
     if (!t) return 0;
@@ -566,7 +567,7 @@ export function genLongPasses(ctx) {
     // s nízkým stropem se u 70mm dráhy krok protáhne na 3 mm. Se 128 je plné
     // rozlišení až do dráhy 256 mm, tedy prakticky vždy.
     return holderAreaAlongResidual(t.loops, residHolderL, pts,
-      { ownFoot: toolFootprint(prms), step: 2, maxSamples: 128 });
+      { ownFoot: toolFootprint(prms), step: 2, maxSamples: 128, abortAbove });
   };
   /**
    * Projde DRŽÁK podél SVISLÉHO zanoření na `z` až na hloubku `X`?
@@ -579,7 +580,7 @@ export function genLongPasses(ctx) {
     if (!orderAware || !residHolderL) return false;
     const surfX = offsetStockTopXAtZ(zStart);
     if (surfX === null || !(surfX > X + 0.05)) return false;
-    return residEntryArea({ x: X, zStart, zEnd, ramp: { x0: surfX, z0: zStart } }, [])
+    return residEntryArea({ x: X, zStart, zEnd, ramp: { x0: surfX, z0: zStart } }, [], ENTRY_FIT_TOL)
       <= ENTRY_FIT_TOL;
   };
   /**
@@ -593,7 +594,7 @@ export function genLongPasses(ctx) {
     if (!orderAware || !residHolderL) return 0;
     const surfX = offsetStockTopXAtZ(z);
     const x0 = Math.max(surfX === null ? -Infinity : surfX, X + step);
-    return residEntryArea({ x: X, zStart: z, zEnd: z, ramp: { x0, z0: z } }, []);
+    return residEntryArea({ x: X, zStart: z, zEnd: z, ramp: { x0, z0: z } }, [], ENTRY_FIT_TOL);
   };
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
@@ -1334,13 +1335,42 @@ export function genLongPasses(ctx) {
   // Výběr cesty dle příznaku (default scan-line → snapshoty beze změny).
   const scan = prms.booleanRoughing ? booleanScanIntervals : scanIntervals;
 
+  // ── VEJDE SE DRŽÁK ZA HRANICI ÚSEKU? (27. 8. 2026) ──────────────────
+  // Rozdělením na úseky se každý obrobí jen do SVÉ vlastní hloubky — vedle
+  // pak zůstane stát stěna až do své hotovní kontury. Když nástroj pracuje
+  // těsně u hranice na své největší hloubce, držák přes tu stěnu přejíždí —
+  // a právě tam vznikaly nálezy (změřeno: 7 fixtures, 5,8–43,6 mm², vždy na
+  // zanoření do kapsy). Tenhle test se ptá na FINÁLNÍ stav sousedního úseku
+  // (kontura), ne na živý model zbytku — ten při rozhodování o zlomu ještě
+  // není naplněný.
+  const holderFitsOverContour = (z, tipX) => {
+    if (!holderLoopL) return true;
+    let area = 0;
+    for (let q = z + holderZLoL; q <= z + holderZHiL + 1e-9; q += DZ_CAP) {
+      if (q - z < holderNearDz - 1e-9) continue;
+      const t = offsetXAt(q);
+      if (t === null) continue;
+      const room = Math.max(holderBottomAt(q - z) - HOLDER_ENTRY_STOCK_GAP, 0.05);
+      const d = t - (tipX + room);
+      if (d > 0) area += d * DZ_CAP;
+    }
+    return area <= HOLDER_FIT_TOL;
+  };
+
   // Regiony (kde se díl trhá na úseky a v jakém pořadí jedou) — ops/long/regions.js.
   const { FULL_REGION, computeRegions } = makeRegions({
     prms, depths, dzScan, offsetXAt, machiningRange, interferenceGuides,
     stockWorldPoints, stockLoopFullL, stockCrossingsAt, stockZRangeAt,
-    passEntryZ, scan, stockLoopL, holderEntryReachZ,
+    passEntryZ, scan, stockLoopL, holderEntryReachZ, step, holderFitsOverContour,
   });
   const _regions = computeRegions();
+  // Pipeline pak změří, jestli se dělení podle hrbu vyplatilo (holderCheck.js).
+  const _peakZs = [];
+  for (const q of _regions) {
+    if (q.zHiKind === 'peak' && Number.isFinite(q.zHi)) _peakZs.push(q.zHi);
+    if (q.zLoKind === 'peak' && Number.isFinite(q.zLo)) _peakZs.push(q.zLo);
+  }
+  if (_peakZs.length > 0) { ctx.usedPeakSplit = true; ctx.peakSplitZs = _peakZs; }
 
   for (const _region of _regions) {
   // Schodová evidence obálky držáku platí v rámci jednoho regionu —
@@ -1570,9 +1600,23 @@ export function genLongPasses(ctx) {
       // (1 100 mm² kolizí, které tam předtím nebyly). Kde se v tom okně místo
       // nenajde, vjezd zůstane, jak byl.
       const zFloorEntry = Math.max(iv0.zEnd + dzScan, iv0.zStart - ENTRY_SHIFT_MAX);
+      // HRUBĚ A PAK DOJEMNA. Dotaz na držák proti zbytku stojí polygonové
+      // operace a tahle smyčka ho volá až 12× na každý interval a hloubku —
+      // v profilu 27. 8. 2026 je to přes polovinu času plánování. Nejdřív se
+      // proto skáče po 1 mm a teprve poslední krok se dojemní po DZ_CAP,
+      // takže vyjde TÁŽ hodnota za zlomek dotazů (ověřeno otiskem 26 fixtures).
+      const COARSE = Math.max(DZ_CAP * 4, 1);
       let zTry = iv0.zStart;
       while (zTry > zFloorEntry && entryHolderArea(currentX, zTry + approachDz) > ENTRY_FIT_TOL) {
-        zTry -= DZ_CAP;
+        zTry -= COARSE;
+      }
+      // Zpátky nahoru po jemném kroku: hledá se PRVNÍ z shora, kde se držák vejde.
+      if (zTry < iv0.zStart - 1e-9) {
+        let zFine = Math.min(iv0.zStart, zTry + COARSE - DZ_CAP);
+        while (zFine > zTry && entryHolderArea(currentX, zFine + approachDz) > ENTRY_FIT_TOL) {
+          zFine -= DZ_CAP;
+        }
+        if (zFine > zTry) zTry = zFine;
       }
       // Nenašlo se v okně nic → vjezd zůstane, jak byl. Zahodit interval (natož
       // celou hloubku) se ZMĚŘENĚ nevyplácí: shodit `firstOpen` přeznačí zbytek
@@ -2124,7 +2168,7 @@ export function genLongPasses(ctx) {
           // `HOLDER_FIT_TOL` (2,0) je kompenzace hrubosti TOHO skenu, ne
           // vlastnost jevu.
           if (!pocketPass.holderUnsafe
-              && residEntryArea(pocketPass, leadInFinal) > RESIDUAL_FIT_TOL) {
+              && residEntryArea(pocketPass, leadInFinal, RESIDUAL_FIT_TOL) > RESIDUAL_FIT_TOL) {
             pocketPass.holderUnsafe = true;
           }
         }
@@ -2846,118 +2890,13 @@ export function genLongPasses(ctx) {
     }
   }
 
-  // ── Hlídání geometrie destičky (podélně) ──
-  // Čelní hrana destičky se nad špičkou naklání o φ = natočení + ε − 90
-  // za svislici → průchody končící u zdi (levé stěny) se zastavují
-  // postupně dál vpravo, takže boční ostří nezajede do kontury
-  // (zbytek tvoří schodiště pod úhlem hrany). Spodní hrana (natočení)
-  // totéž zrcadlově u pravých stěn kapes při zanořování.
+  // Hlídání geometrie destičky — viz ops/long/insertFlankGuard.js.
   if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
-    let adjusted = 0;
-    const rotDeg = parseFloat(prms.toolAngle) || 0;
-    const tipDeg = parseFloat(prms.toolTipAngle) || 90;
-    const phiDeg = rotDeg + tipDeg - 90;
-    if (phiDeg > 0.01) {
-      // Dojezd se počítá přesně proti offsetové dráze: rohy (koncové
-      // body segmentů) klasicky přes tanφ, oblouky navíc TEČNOU čelní
-      // hrany na kružnici — jinak by hrana mezi vzorky zajela do
-      // vyduté/vypouklé stěny oblouku.
-      const phiRad = Math.min(89.5, phiDeg) * Math.PI / 180;
-      const tanPhi = Math.tan(phiRad);
-      const betaRad = phiRad + Math.PI / 2;          // směr čelní hrany (od +Z)
-      const eX = Math.sin(betaRad), eZ = Math.cos(betaRad); // hrana míří nahoru-doleva
-      for (let pi = passes.length - 1; pi >= 0; pi--) {
-        const p = passes[pi];
-        if (p.type !== 'long') continue;
-        // Průchody sledující konturu (leadOut) zeď obrábějí přímo po
-        // obrysu — posun zEnd by jen rozsynchronizoval navazující dráhu.
-        if (p.contourLeadOut) continue;
-        // Dobrat kapsu najednou: zanořovací/dokončovací průchody kapsy už
-        // respektují úhel zanoření i konturu — post-hoc posun by je
-        // rozsynchronizoval s navazujícím přejezdem v kapse.
-        if (p.pocketEntry || p.pocketReposition || p.pocketClean) continue;
-        let zE = p.zEnd;
-        for (const seg of offsetPath) {
-          if (seg.isDegenerate) continue;
-          if (seg.type === 'line') {
-            for (const q of [seg.p1, seg.p2]) {
-              if (q.x <= p.x + 0.05 || q.z > p.zStart + 0.01) continue;
-              const cand = q.z + (q.x - p.x) * tanPhi;
-              if (cand > zE) zE = cand;
-            }
-          } else {
-            const a1 = { x: seg.cx + Math.sin(seg.startAngle) * seg.r, z: seg.cz + Math.cos(seg.startAngle) * seg.r };
-            const a2 = { x: seg.cx + Math.sin(seg.endAngle) * seg.r, z: seg.cz + Math.cos(seg.endAngle) * seg.r };
-            for (const q of [a1, a2]) {
-              if (q.x <= p.x + 0.05 || q.z > p.zStart + 0.01) continue;
-              const cand = q.z + (q.x - p.x) * tanPhi;
-              if (cand > zE) zE = cand;
-            }
-            // Tečna hrany na oblouk: přímka hrany špičky (p.x, zT) se
-            // směrem e musí mít od středu vzdálenost r. Dotyk musí
-            // ležet nad špičkou, vlevo od startu pasu a v rozsahu oblouku.
-            for (const sgn of [1, -1]) {
-              const zT = seg.cz - ((seg.cx - p.x) * eZ - sgn * seg.r) / eX;
-              const t = (seg.cx - p.x) * eX + (seg.cz - zT) * eZ; // projekce středu na hranu
-              if (t <= 0.05) continue;
-              const Px = p.x + eX * t, Pz = zT + eZ * t;
-              if (Px <= p.x + 0.05 || Pz > p.zStart + 0.01) continue;
-              const ang = Math.atan2(Px - seg.cx, Pz - seg.cz);
-              if (!isAngleBetween(ang, seg.startAngle, seg.endAngle, seg.dir === 'G2')) continue;
-              if (zT > zE) zE = zT;
-            }
-          }
-        }
-        if (zE > p.zEnd + 0.01) {
-          adjusted++;
-          if (zE >= p.zStart - 0.05) { passes.splice(pi, 1); continue; }
-          p.zEnd = zE;
-        }
-      }
-    }
-    // Pravé stěny kapes: spodní hrana destičky stoupá od špičky pod
-    // úhlem natočení — hlubší zanořovací průchody musí začínat o
-    // dx/tan(natočení) víc vlevo, jinak by hrana nad špičkou zajela
-    // do pravé stěny kapsy.
-    // Průchody s contourLeadIn mají rampu zavěšenou na pevném
-    // tečném bodě kontury (stejný pro všechny hloubky) — ten je už
-    // sledováním kontury bezkolizní, tato heuristika by ho jen
-    // chybně prodloužila, takže se na ně nevztahuje.
-    if (rotDeg > 0.01) {
-      const tanRot = Math.tan(Math.min(89.5, rotDeg) * Math.PI / 180);
-      // Vjezd na hranici rozsahu Z (entryRangeRamp) ani dorampování strmé
-      // stěny (rampCompletion) NENÍ pravá stěna kapsy — obojí je řetězená
-      // posloupnost ramp NAD SEBOU podél téže hranice/stěny, ne nezávislý
-      // boss. Bez vyloučení tahle heuristika brala mělčí krok řetězu jako
-      // „pravou stěnu" hlubšího kroku, umělé zúžení smazalo z0 pod zEnd a
-      // celý krok zmizel (reálný nález na díle uživatele — první krok řetězu
-      // chyběl; u rampCompletion navíc přes CELÝ díl: krok řetězu v jednom
-      // údolí smazal krok řetězu v jiném, o 120 mm dál, a osiřelý
-      // `pocketReposition` pak přejel rychloposuvem skrz polotovar).
-      const rightWalls = passes.filter(p => p.type === 'long' && p.ramp && !p.contourLeadIn && !p.pocketReposition && !p.entryRangeRamp && !p.rampCompletion).map(p => ({ x: p.x, z: p.ramp.z0 }));
-      for (let pi = passes.length - 1; pi >= 0; pi--) {
-        const p = passes[pi];
-        if (p.type !== 'long' || !p.ramp || p.contourLeadIn || p.entryRangeRamp || p.rampCompletion) continue;
-        // Dobrat kapsu najednou: zanořovací zákroky kapsy se neupravují (viz výše).
-        if (p.pocketEntry || p.pocketReposition || p.pocketClean) continue;
-        let z0 = p.ramp.z0;
-        for (const w of rightWalls) {
-          if (w.x <= p.x + 1e-6) continue;
-          const cand = w.z - (w.x - p.x) / tanRot;
-          if (cand < z0) z0 = cand;
-        }
-        if (z0 < p.ramp.z0 - 0.01) {
-          adjusted++;
-          const dzRamp = p.ramp.z0 - p.zStart;
-          p.ramp.z0 = z0;
-          p.zStart = z0 - dzRamp;
-          if (p.zStart - p.zEnd < 0.05) passes.splice(pi, 1);
-        }
-      }
-    }
+    const adjusted = guardInsertFlankLong(passes, prms, offsetPath);
     if (adjusted > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
   }
+
   // Diagnostický seam (v produkci no-op, vzor `__RAPID_STOCK_DUMP__`
   // v gcodeEmit.js): MODEL ZBYTKU, podle kterého strategie rozhoduje
   // o vjezdech, zanořeních a odložených zákrocích (`residTopAt`). Test

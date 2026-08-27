@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – díl se dělí na úseky i podle HRBŮ KONTURY, ne jen podle údolí
+  polotovaru.** Vrstvu přeruší schod, osazení nebo obloukové údolí na hotovní
+  kontuře stejně dobře jako údolí odlitku — jenže z toho dosud žádný úsek
+  nevznikal a průchody se v každé hloubce střídaly zprava doleva a zpátky
+  (nález uživatele 27. 8. 2026). Je to ZRCADLO údolí: nad hrbem vrstva projede
+  vcelku, trhá se až pod ním — zlom si proto nese `kind` a testy se podle něj
+  otočí (`contourPeakSplits` v `ops/long/regions.js`, práh = jedna Hloubka záběru).
+
+  **ROZHODUJE SE MĚŘENÍM, NE PRAVIDLEM.** Rozdělením se každý úsek obrobí jen do
+  své hloubky, vedle zůstane stát stěna a do té může vjet držák. Jestli k tomu
+  dojde, se staticky rozhodnout NELZE — zkoušeny čtyři testy (schodová evidence,
+  `orderAwareHolder`, pořadí zprava doleva, držák nad konturou u hranice) a žádný
+  neodělil díly s čistým výsledkem od těch s kolizemi. Plánuje se proto DVAKRÁT
+  (s dělením i bez) a porovná se kvalita: vnoření držáku do zbytku a zbylý
+  materiál pro dokončování (`ops/long/holderCheck.js`). Dělení se nechá, jen když
+  není horší ani v jednom.
+
+  Změřeno na díle uživatele: levá část se teď jede po částech (Z 61–95 celá,
+  pak prohlubeň Z 4–61, pak konec Z −8–4) místo střídání; kolize 0, zajezd do
+  hotového dílu 0, výjezdů nad konturu 39 → 37. Cena: na dílech s hrbem se
+  plánuje dvakrát (4,2 s → 9,5 s na dílu uživatele); díly bez hrbu se nemění
+  ani časem (`part-1` 869 ms).
+
 - **CAD – indikátory ve stavovém řádku jsou klikací přepínače.** Indikátory
   `SOU/KAR`, `ABS/INC`, `R/⌀`, `#`, `∠` a `📐` jen zrcadlily hodnoty z ⚙️ Nastavení;
   přepnout se daly výhradně tlačítkem v toolbaru, klávesovou zkratkou nebo
@@ -31,6 +54,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – plán dráh se počítá, až když je potřeba (panel přestal sekat).**
+  Každá obnova panelu (`fullUpdate()`, volá ji čtyřicítka míst) spouštěla CELÝ
+  výpočet — i tam, kde se žádný vstup nezměnil: přechod z CAD do CAM,
+  přepnutí části programu, obnova UI. Na reálném díle to bylo přes sekundu
+  za každý takový klik (nahlášeno uživatelem 27. 8. 2026). Nově se náhled
+  počítá ve třech úrovních:
+
+  | situace | co se počítá | měřeno (part-11) |
+  |---|---|---|
+  | vstupy beze změny | nic, použije se keš | **0,3 ms** × 786 ms |
+  | změna v panelu, dráhy ještě nepřepočítané | vše kromě hrubování | **49 ms** × 786 ms |
+  | „🔄 Dráhy“ / potvrzená změna | celý plán (jednou, ne dvakrát) | 786 ms |
+
+  Keš (`S._cachedCalc` + otisk vstupů) má vlastní klíč, ne `pathInputsKey`:
+  do něj patří navíc `operations`, a naopak do něj NEPATŘÍ text programu —
+  plán na něm nezávisí (vzniká z něj jen simulovaná stopa, nově samostatná
+  `computeSimPath()`), takže přegenerování programu už nespouští druhý běh
+  téhož výpočtu. Dokud si uživatel dráhy nepřepočítá, kreslí se kontura,
+  polotovar, offsety, mezní čáry i stopa stávajícího programu (a běží nad ní
+  hlídání kolize) — zmizí jen šrafování průchodů, které by stejně ukázalo
+  něco jiného, než co je v poli.
+
+  ZKOUŠENO A ZAMÍTNUTO: memoizace uvnitř `calculate()` přes `pathInputsKey`.
+  Rozbila 9 souborů testů — otisk nepokrývá všechny vstupy plánu a diagnostické
+  seamy se plní až za běhu. Keš, která může vrátit zastaralé dráhy, je horší
+  než pomalý výpočet; proto žije v panelu, ne v pipeline.
+
 - **CAM – úseky se jedou od NEJVĚTŠÍHO PRůMĚRU, ne shora dolů podle Z.**
   Region (Z-okno, které se vyhrubuje samostatně) se dosud bral v pořadí, jak
   leží v ose Z. Na díle, kde největší průměr leží na opačném konci, se tak
@@ -82,6 +132,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – práh vnoření držáku při VJEZDU byl přísnější než kterékoli měřítko
+  (čtyři díly přišly o celý průchod).** `ENTRY_FIT_TOL` zůstal na hodnotě 0,1 mm²
+  z měření, kdežto validátor i zbytek pipeline pracují s 0,5 mm²
+  (`RESIDUAL_FIT_TOL`). Vjezdy s vnořením mezi těmi dvěma čísly se proto
+  zamítaly, ačkoli je žádné hlídání nehlásí.
+
+  Změřeno sadou 25 fixtures v obou standardech polotovaru (`cam_sweep`):
+  návrat na 0,5 mm² dá **+103,6 mm² úběru** s nakresleným nožem a **+29,7 mm²**
+  s náhradním držákem, **kolize se nezměnily vůbec** (0 / 0,0 mm², resp.
+  2 / 2,3 mm² před i po). Po dílech: `part-18` +58,5 mm² (43 → 44 průchodů),
+  `range-end-leadout` +23,7, `part-15` +20,4 (32 → 33), `part-10` +0,3;
+  `holder-region-roughing` s náhradním držákem −14,6 mm² (40 → 39) při nule
+  nálezů. Tím jsou zase zelené `cam-pocket-lift` a `cam-stock-span-depths`,
+  které na tenhle úbytek narazily už 27. 8. (33 → 32 průchodů, odstup
+  83,518 → 83,018) — nebyla to zastaralá čísla testů, ale skutečný úbytek.
+  Přepsané snapshoty: 8 fixtures (posun vjezdu o 0,25 mm, jinde průchod navíc).
 - **CAM – vrstva pokračuje přes nízký hrb místo odskoku a nového zápichu.**
   Vrstva rozdělená hrbem se vždycky přerušila: průchod dojel k hrbu, odskočil,
   vyjel nad konturu a ZA hrbem se znovu zapíchl. Když ale dojezd „bez schodků“

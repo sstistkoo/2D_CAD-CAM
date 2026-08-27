@@ -31,8 +31,12 @@ export const HOLDER_FIT_TOL = 2.0;
 // „Výjezd nad konturu" skrz kůru odlitku — 1 100 mm² kolizí, které tam
 // předtím nebyly. Nenajde-li se v tomhle okně místo, vjezd zůstane, jak byl.
 export const ENTRY_SHIFT_MAX = 3.0;
-// Prah pro vnoreni drzaku pri VJEZDU (mm2) — MERENI.
-export const ENTRY_FIT_TOL = 0.1;
+// Práh pro vnoření DRŽÁKU při VJEZDU průchodu [mm²]. Stejný jako
+// `RESIDUAL_FIT_TOL`, tedy jako u validatorů — přísnější práh zamítá vjezdy,
+// které žádné měřítko nehlásí, a platí se za ně materiálem: při 0,1 mm²
+// (zkoušeno 27. 8. 2026) přišla sada o 103,6 mm² úběru a čtyři díly o celý
+// průchod, aniž by ubyla jediná kolize — v obou standardech polotovaru.
+export const ENTRY_FIT_TOL = 0.5;
 // Nejmenší SMYSLUPLNÁ vrstva, jako zlomek Hloubky záběru. Skim vrstvy nad
 // nakresleným vrcholem/čelem (viz `planTopX` a `planEdgeZ`) se přidávají proto,
 // že materiál může sahat až na offsetovou čáru — jenže při malém Přídavku

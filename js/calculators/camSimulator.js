@@ -32,8 +32,8 @@ import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, p
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
 import { PARTING_BODY_MIN_H_MM, buildInsertProfileSegments, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
-import { computeCalculation, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
-import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, decideChange } from './cam/gcodeSync.js';
+import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
+import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
 import { applyPartToState, buildCombinedProgram, machinedStockPoints, makePart, partsAsMergeItems, partToolLabel, syncPartFromState, STOCK_PARAM_KEYS } from './cam/opParts.js';
 import { setEditorMergeQueue } from './camEditor.js';
@@ -835,6 +835,52 @@ export function openCamSimulator(initialContour, initialGCode) {
   function markGCodeEdited() { _markGCodeEdited(S); }
   function gcodeStale() { return _gcodeStale(S); }
 
+  /**
+   * Otisk vstupů NÁHLEDU (`S._cachedCalc`). Není to `pathInputsKey()`:
+   * ten popsává vstupy PROGRAMU (pod něj patnáctý puntik „neaktuální“) a
+   * dvě věci v něm schází schválně, ačkoli výsledek `calculate()` ovlivňují:
+   * explicitní seznam operací — v otisku programu by hlásil program
+   * neaktuální sám proti sobě. Text programu v klíči NENÍ schválně: plán
+   * na něm nezávisí, vzniká z něj jen simulovaná stopa (`computeSimPath`).
+   *
+   * Slouží JEN k tomu, aby se náhled nepočítal znovu, když se žádný z jeho
+   * vstupů nezměnil: `fullUpdate()` volá čtyřicítka míst v panelu (přepnutí
+   * části, návrat z CAD, obnova UI…) a plán stojí na reálném dílu sekundy.
+   */
+  function calcCacheKey() {
+    return _pathInputsKey(S) + ' ' + JSON.stringify(S.operations || null);
+  }
+
+  /**
+   * Přepočítat náhled TEď a zapsat ho do keše i s otiskem vstupů — následný
+   * `fullUpdate()` už ho jen použije místo druhého běhu téhož výpočtu.
+   * Každý zápis do `S._cachedCalc` vede sem, jinak by keš neseděla na obsah.
+   */
+  function recalcNow() {
+    S._cachedCalc = calculate();
+    S._calcCacheKey = calcCacheKey();
+    S._calcErrors = S.errors.slice();
+    return S._cachedCalc;
+  }
+
+  /**
+   * Čeká se s plánem na „🔄 Dráhy“?
+   *
+   * Změna v panelu program NEPŘEPÍŠE (viz `decideChange`) — jen ho označí
+   * puntikem „neaktuální“. Počítat k tomu ještě celý nový plán je práce
+   * navíc: na reálném díle přes sekundu za každý klik v panelu, a výsledek
+   * stejně není to, co pojede — to je pořád starý program. Dokud uživatel
+   * dráhy nepřepočítá, kreslí se proto jen kontura, polotovar a stopa
+   * programu; šrafování průchodů se schová (lživé by bylo horší než žádné).
+   *
+   * Cyklový režim (závit/upichnutí) sem nepatří: ten se přegeneruje sám,
+   * a bez programu (čerstvá část) se plán počítá dál — není co jiného ukázat.
+   */
+  function previewDeferred() {
+    return gcodeStale() && !_cycleModeActive(S.params)
+      && !!(S.manualGCode && S.manualGCode.trim());
+  }
+
   /** Obnova po změně nastavení — JEDINÉ pravidlo pro všechny ovládací prvky
    *  panelu (viz decideChange v cam/gcodeSync.js). */
   function applyChange(opts) {
@@ -1041,7 +1087,17 @@ export function openCamSimulator(initialContour, initialGCode) {
   // hlídaly proti zrcadlovému obrazu. `tests/cam-collision-free` už správně
   // používá `roughingSide === 'left'`.
   const toolMirrored = () => (S.params.roughingSide || 'right') === 'left';
-  function calculate(lightOnly = false) { return computeCalculation(S, lightOnly); }
+  // POZNÁMKA K VÝKONU (27. 8. 2026): `calculate()` volá dvacítka míst v UI
+  // a každé spustí CELÝ výpočet (na reálném díle ~2,3 s). Memoizace přes
+  // `pathInputsKey` byla ZKOUŠENA a ZAMÍTNUTA: sama o sobě rozbila 9 souborů
+  // testů, protože diagnostické seamy (`globalThis.__…`) se plní až při běhu
+  // výpočtu; po jejich vyjmutí zůstalo 6 dalších, kde dvě varianty téhož dílu
+  // vyšly shodně, ačkoli se jejich otisky liší — příčina nedohledána. Cache,
+  // která může vrátit zastaralé dráhy, je horší než pomalý výpočet.
+  // Správné řešení je nepočítat při každé akci v UI, ale až na „Dráhy“.
+  function calculate(lightOnly = false, skipRoughing = false) {
+    return computeCalculation(S, lightOnly, skipRoughing);
+  }
   function generateGCode(calc) { return _generateGCode(S, calc); }
   function generateAutoGCode(calc) { return _generateAutoGCode(S, calc); }
   function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ) {
@@ -2970,7 +3026,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // je drahá a běžela by na každý snímek) — panel se obnoví až po puštění
     // (handleMouseUp). Mimo tažení (klik Prodl/Ořez) provést rovnou.
     const commit = () => {
-      S._cachedCalc = calculate();
+      recalcNow();
       S.generatedCode = generateGCode(S._cachedCalc);
       if (!S.isDragging) renderCodeArea();   // renderCodeArea volá i backdrop+highlight
       draw();
@@ -2986,7 +3042,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     lines.splice(lineIdx, 1);
     S.manualGCode = lines.join('\n');
     markGCodeEdited();   // ruční úprava dráhy — automatika ji už nepřepíše
-    S._cachedCalc = calculate();
+    recalcNow();
     S.generatedCode = generateGCode(S._cachedCalc);
     renderCodeArea(); draw(); saveState();
   }
@@ -3012,7 +3068,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     lines.splice(afterLineIdx + 1, 0, line);
     S.manualGCode = lines.join('\n');
     markGCodeEdited();   // ruční úprava dráhy — automatika ji už nepřepíše
-    S._cachedCalc = calculate();
+    recalcNow();
     S.generatedCode = generateGCode(S._cachedCalc);
     S._gcodeFocusLine = afterLineIdx + 1;
     renderCodeArea(); draw(); saveState();
@@ -3674,7 +3730,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // Posun simulace o jeden G-kód blok vpřed (+1) nebo zpět (-1).
   function seekToAdjacentBlock(direction) {
-    if (!S._cachedCalc) S._cachedCalc = calculate();
+    if (!S._cachedCalc) recalcNow();
     const calc = S._cachedCalc;
     const total = calc.simPath.length - 1;
     if (total <= 0) return;
@@ -4605,7 +4661,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.flipX = !S.flipX;
       state.flipX = S.flipX;
       persistSettings();
-      if (!S._cachedCalc) S._cachedCalc = calculate();
+      if (!S._cachedCalc) recalcNow();
       draw(); saveState();
       showToast(S.flipX ? 'Osa X otočena – X+ dolů (ruční kód – G2/G3 nepřepisuji)' : 'Osa X – X+ nahoru');
       renderTab();
@@ -4615,7 +4671,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.flipZ = !S.flipZ;
       state.flipZ = S.flipZ;
       persistSettings();
-      if (!S._cachedCalc) S._cachedCalc = calculate();
+      if (!S._cachedCalc) recalcNow();
       draw(); saveState();
       showToast(S.flipZ ? 'Osa Z otočena – Z+ vlevo (ruční kód – G2/G3 nepřepisuji)' : 'Osa Z – Z+ vpravo');
       renderTab();
@@ -6658,7 +6714,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           S.gcodeDirty = !!data.gcodeDirty;
           _savedGcodeKey = typeof data.gcodeKey === 'string' ? data.gcodeKey : null;
         } else {
-          S._cachedCalc = calculate();
+          recalcNow();
           S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
           S.gcodeDirty = false;
           _savedGcodeKey = null;   // dráhy právě vznikly z aktuálních vstupů
@@ -7418,7 +7474,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     S._previewContour = null;
     S._refContour = null;
     _updateProfileButtons();
-    S._cachedCalc = calculate();
+    recalcNow();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
     markGCodeGenerated();
     fullUpdate();
@@ -7444,7 +7500,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // neprofiluje/potvrdí znovu (viz _applyPreviewContour).
     S._traceConfirmedOnce = false;
     _updateProfileButtons();
-    S._cachedCalc = calculate();
+    recalcNow();
     S.manualGCode = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
     markGCodeGenerated();
     fullUpdate();
@@ -7453,7 +7509,25 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── FULL UPDATE (recalc + redraw + re-render UI) ──
   function fullUpdate() {
-    S._cachedCalc = calculate();
+    const _ck = calcCacheKey();
+    if (S._cachedCalc && S._calcCacheKey === _ck) {
+      // Vstupy náhledu se nezměnily — plán zůstává platný. `S.errors` se
+      // obnoví z kopie pořízené při výpočtu: `calculate()` je normálně přepíše
+      // od nuly a bez toho by se hlášení emise i validátoru vrstvila.
+      S.errors = S._calcErrors ? S._calcErrors.slice() : [];
+      // Program se mohl mezitím přegenerovat nebo ručně upravit — z něj vzniká
+      // simulovaná stopa, takže ta se obnoví vždy (je to jen parser, ne plán).
+      Object.assign(S._cachedCalc, computeSimPath(S));
+    } else if (previewDeferred()) {
+      // Plán čeká na „🔄 Dráhy“ — spočítá se všechno KROMĚ hrubovacích
+      // průchodů: kontura, offsety, mezní čáry i stopa programu se kreslí dál
+      // (a hlídání kolize toho, co je opravdu v poli, běží taky) — jen šrafování
+      // průchodů zmizí, dokud si uživatel dráhy nepřepočítá.
+      S._cachedCalc = calculate(false, true);
+      S._calcCacheKey = null;
+    } else {
+      recalcNow();
+    }
     // Aktivní upichnutí (part-off) = reálný program je JEN zapichovací cyklus
     // (viz partOffActive v generateAutoGCode). Teoretický náhled hrubování
     // (offsetPath/passes) se ale počítá vždy nezávisle na tom, z aktuálních
@@ -7505,7 +7579,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // applyChange() (nebo z „🔄 Dráhy" po potvrzení) — ruční zásah v programu
   // má přednost a tahle funkce ho zahazuje.
   function _regenGCode() {
-    S._cachedCalc = calculate();
+    recalcNow();
     // Do historie se tady ZÁMĚRNĚ nepíše: applyChange() sem pustí jen program
     // BEZ ručních úprav (auto-vygenerovaný), takže není co zachraňovat — a
     // tažení úchopu upichnutí by jinak sypalo do neomezeného undo stacku
@@ -7746,7 +7820,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (S.simProgress >= 1) S.simProgress = 0;
         // V single-block módu: spočítat cíl = konec dalšího G-kód bloku.
         if (S.singleBlock) {
-          if (!S._cachedCalc) S._cachedCalc = calculate();
+          if (!S._cachedCalc) recalcNow();
           const calc = S._cachedCalc;
           const total = calc.simPath.length - 1;
           const currentSimIdx = Math.floor(S.simProgress * total);
@@ -7875,7 +7949,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const ok = !S.gcodeDirty
       || await camConfirm(`Přegenerovat dráhy ${what} z kontury a parametrů? Ruční úpravy G-kódu budou přepsány.`);
     if (!ok) return;
-    S._cachedCalc = calculate();
+    recalcNow();
     const next = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
     if (next !== S.manualGCode) pushHistory();   // přepis jde vzít Zpět
     S.manualGCode = next;
@@ -7933,7 +8007,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     S._gcodeFocusLine = null;
     S.manualGCode = manualTa.value;
     markGCodeEdited();   // od teď program chráněný před auto-přegenerováním
-    S._cachedCalc = calculate();
+    recalcNow();
     S.generatedCode = generateGCode(S._cachedCalc);
     renderCodeBackdrop();
     updateCodeHighlight();
@@ -9058,7 +9132,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Během tažení jen lehký náhled (body + kontura) — plynulé i u složité
       // kontury. Plný přepočet drah proběhne po puštění (handleMouseUp); dráhy
       // se po dobu tažení skryjí a po puštění se zase ukážou.
-      scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
+      scheduleFrame(() => { S._cachedCalc = calculate(true); S._calcCacheKey = null; draw(); });
     } else if (S.draggedPointId !== null) {
       let dX_unit = 0, dZ_unit = 0;
       const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
@@ -9110,7 +9184,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Během tažení jen lehký náhled (body + kontura) — plynulé i u složité
       // kontury. Plný přepočet drah proběhne po puštění (handleMouseUp); dráhy
       // se po dobu tažení skryjí a po puštění se zase ukážou.
-      scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
+      scheduleFrame(() => { S._cachedCalc = calculate(true); S._calcCacheKey = null; draw(); });
     } else if (_draggedContourSeg !== null) {
       // Tažení celé úsečky: oba krajní body se posunou spolu, s zamčením na osu.
       const seg = _draggedContourSeg;
@@ -9129,7 +9203,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (pt1) { pt1.x = parseFloat(pt1.x) + dX_unit; pt1.z = parseFloat(pt1.z) + dZ_unit; }
       // INC bod: pt1 se posunulo, pt2 sleduje automaticky (je relativní k pt1)
       if (pt2 && pt2.mode !== 'INC') { pt2.x = parseFloat(pt2.x) + dX_unit; pt2.z = parseFloat(pt2.z) + dZ_unit; }
-      scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
+      scheduleFrame(() => { S._cachedCalc = calculate(true); S._calcCacheKey = null; draw(); });
     } else {
       S.view.panX += dx; S.view.panY += dy;
       scheduleFrame(draw);   // posun pohledu: sloučit překreslení do snímku
@@ -9229,7 +9303,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock || _draggedContourSeg !== null)) {
       // Po puštění TEĎ jednou přepočítat kompletní dráhy z nové polohy bodů
       // (během tažení běžel jen lehký náhled) → dráhy se zase ukážou.
-      S._cachedCalc = calculate();
+      recalcNow();
       S.generatedCode = generateGCode(S._cachedCalc);
       saveState(); renderCodeArea(); renderTab();
     }
@@ -9464,7 +9538,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
         S.params.stockDiameter = Math.round(S.params.stockDiameter * 100) / 100;
         // Tažení (touch): jen lehký náhled, plný přepočet až po puštění.
-        scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
+        scheduleFrame(() => { S._cachedCalc = calculate(true); S._calcCacheKey = null; draw(); });
       } else if (S.draggedPointId !== null) {
         let dX_unit = 0, dZ_unit = 0;
         const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
@@ -9514,7 +9588,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
 
         // Tažení (touch): jen lehký náhled, plný přepočet až po puštění.
-        scheduleFrame(() => { S._cachedCalc = calculate(true); draw(); });
+        scheduleFrame(() => { S._cachedCalc = calculate(true); S._calcCacheKey = null; draw(); });
       } else {
         S.view.panX += dx; S.view.panY += dy;
         scheduleFrame(draw);   // posun pohledu (touch): sloučit do snímku
@@ -9588,7 +9662,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.isDragging && (S.draggedPointId !== null || _draggingStock)) {
       // Po puštění TEĎ jednou přepočítat kompletní dráhy z nové polohy bodů
       // (během tažení běžel jen lehký náhled) → dráhy se zase ukážou.
-      S._cachedCalc = calculate();
+      recalcNow();
       S.generatedCode = generateGCode(S._cachedCalc);
       saveState(); renderCodeArea(); renderTab();
     }

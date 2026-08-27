@@ -110,7 +110,7 @@ export function holderFitsInResidual(loops, holderLoop, x, z, tol = RESIDUAL_FIT
  * @param {{ownFoot?: Array, step?: number, maxSamples?: number}} [opts]
  */
 export function holderAreaAlongResidual(loops, holderLoop, pts, {
-  ownFoot = null, step = 1, maxSamples = 64,
+  ownFoot = null, step = 1, maxSamples = 64, abortAbove = Infinity,
 } = {}) {
   if (!loops || loops.length === 0 || !holderLoop || !Array.isArray(pts) || pts.length < 2) return 0;
   // Délka dráhy → počet vzorků (po ~1 mm, jako holderFitAreaAlong).
@@ -148,6 +148,11 @@ export function holderAreaAlongResidual(loops, holderLoop, pts, {
     if (!stand || stand.length === 0) continue;
     const a = holderAreaInResidual(stand, holderLoop, q.x, q.z);
     if (a > worst) worst = a;
+    // PŘEDCASNÝ KONEC: všichni volající jen porovnávají s mezí a funkce vrací
+    // MAXIMUM přes vzorky — jakmile je nad ní, další vzorky odpověď nezmění.
+    // Každý vzorek stojí polygonovou operaci, a tohle místo je 65 % času
+    // plánování (profil 27. 8. 2026).
+    if (worst > abortAbove) return worst;
   }
   return worst;
 }

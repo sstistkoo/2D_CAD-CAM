@@ -362,7 +362,7 @@ V CAM simulátoru žijí **dvě dráhy vedle sebe** a každá se obnovuje jinak:
 
 | | zdroj | kdy se obnoví | co z ní vychází |
 |---|---|---|---|
-| **NÁHLED** | `S._cachedCalc` z `calculate()` | po KAŽDÉ změně v panelu | šrafování hrubovacích průchodů, offsetová čára, mezní čáry |
+| **NÁHLED** | `S._cachedCalc` z `calculate()` | když se změní jeho vstupy (viz tři úrovně níž) | šrafování hrubovacích průchodů, offsetová čára, mezní čáry |
 | **PROGRAM** | `S.manualGCode` (řetězec) | jen při vědomé regeneraci | editor, export (`generateGCode` ho jen rozseká na řádky), **simulovaná dráha `simPath` a hlídání kolizí** |
 
 Program se tedy sám nepřepočítává. Odtud dva stavy, které drží `gcodeSync.js`:
@@ -383,6 +383,31 @@ nebo se mění *cyklový režim* (závit / upich; ty nemají vlastní náhled dr
 `applyChange({ cycle: true })` předává změna samotného režimu (zapnutí/vypnutí
 závitu, naklikání/zrušení upichnutí), kde se (a) posuzuje podle toho, že se
 režim mění, ne podle toho, jestli je zrovna zapnutý.
+
+#### Tři úrovně výpočtu náhledu (`fullUpdate()`)
+
+Plán dráh stojí na reálném díle přes sekundu a `fullUpdate()` volá čtyřicítka
+míst v panelu, takže se ROZHODUJE, kolik práce je potřeba:
+
+| kdy | co se počítá | měřeno (part-11) |
+|---|---|---|
+| vstupy náhledu beze změny (`S._calcCacheKey`) | nic — jen se obnoví stopa programu | 0,3 ms |
+| `previewDeferred()` — dráhy nejsou přepočítané (puntik u „🔄 Dráhy“) | `calculate(false, true)`: vše kromě hrubovacích průchodů | 49 ms |
+| jinak (`recalcNow()`) | celý plán | 786 ms |
+| tažení bodu na plátně | `calculate(true)` — jen kontura a polotovar | 1 ms |
+
+- **Klíč keše není `pathInputsKey`.** `calcCacheKey()` přidává `S.operations`
+  a naopak vynechává TEXT PROGRAMU: plán na něm nezávisí, vzniká z něj jen
+  simulovaná stopa (`computeSimPath()` v `calculatePipeline.js`), která se
+  při trefe v keši obnoví zvlášť. Bez toho by každé „🔄 Dráhy“ počítala
+  plán dvakrát (jednou pro emisi, podruhé v následném `fullUpdate()`).
+- **Každý zápis do `S._cachedCalc` vede přes `recalcNow()`** (nebo nastaví
+  `S._calcCacheKey = null` u lehkého výpočtu při tažení) — jinak by v keši
+  zůstal výsledek, který otisku neodpovídá.
+- **Memoizace uvnitř `calculate()` byla zkoušena a zamítnuta** (27. 8. 2026):
+  `pathInputsKey` nepokrývá všechny vstupy plánu a diagnostické seamy
+  (`globalThis.__…`) se plní až za běhu — rozbila 9 souborů testů. Keš
+  proto žije v PANELU, kde je výsledek jen náhled, ne v pipeline.
 
 > **Nové ovládací prvky panelu volají `applyChange()`, ne `fullUpdate()`.**
 > Dřív si to řešil každý po svém — „Booleovské hrubování" a „Hrubovat po
