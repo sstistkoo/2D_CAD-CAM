@@ -41,7 +41,7 @@ vi.mock('../js/ui.js', () => ({
   updateObjectList: vi.fn(), updateProperties: vi.fn(),
   updateLayerList: vi.fn(), updateStatusProject: vi.fn(),
   updateMachineTypeBtn: vi.fn(), updateXDisplayBtn: vi.fn(),
-  updateNullPointUI: vi.fn(),
+  updateNullPointUI: vi.fn(), updateDimsBtn: vi.fn(),
 }));
 
 // Mock geometry.js

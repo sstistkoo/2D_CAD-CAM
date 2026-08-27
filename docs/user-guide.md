@@ -64,9 +64,27 @@ Herní nástroje seskupené do sekcí:
 - Aktuální nástroj
 - Indikátory stroje/souřadnic: SOU/KAR (typ stroje), ABS/INC, R/⌀ (zobrazení osy X)
 - Přiblížení (zoom)
-- Indikátory mřížky/úhlu/kót (# ∠ 📐) – zobrazí se jen když je daná funkce aktivní
+- Indikátory mřížky/úhlu/kót (# ∠ 📐) – vypnutá funkce je ztlumená, ne skrytá
 - Tlačítka: ⊕ Centr (vycentrovat výkres), 🔢 (zadání objektu – číselně / VK
   kontura), ⚙️ Nastavení
+
+#### Klikací indikátory
+Všechny indikátory (v dolní liště na desktopu i v horní liště na mobilu) jsou
+zároveň přepínače – **klik přepne dané nastavení na další hodnotu**, takže se
+kvůli přepnutí nemusí otvírat ⚙️ Nastavení:
+
+| Indikátor | Klik přepíná |
+|-----------|--------------|
+| SOU / KAR | typ stroje – soustruh ↔ karusel |
+| ABS / INC | absolutní ↔ inkrementální souřadnice |
+| R / ⌀     | osa X jako poloměr ↔ průměr |
+| #         | snap na mřížku ON ↔ OFF |
+| ∠         | úhlový snap ON ↔ OFF |
+| 📐        | režim kót: vše → průsečíky → kóty → skryté → vše |
+
+Indikátor kót nese i písmeno aktuálního režimu: **📐V** vše, **📐P** průsečíky,
+**📐K** kóty, **📐–** skryté. Popisek (tooltip, na mobilu i precision pointer)
+vždy ukazuje aktuální hodnotu a co klik udělá.
 
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky
@@ -231,6 +249,21 @@ zvoleného typu (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`, `Konstr`)
 ### Asociativní kóty
 - Kóty zůstanou přirozené i po úpravě objektů
 - Smazáním objektu smaž i jeho kóty
+
+### Režimy zobrazení kót
+Přepínají se tlačítkem **📐 Kóty**, klávesou `D`, klikem na indikátor 📐 ve
+stavovém řádku nebo v ⚙️ Nastavení → 📐 Kóty:
+
+| Režim | Explicitní kóty | Automatické popisy (R/⌀ u oblouků a kružnic, rozměr obdélníku, délka polyline) | Průsečíky |
+|-------|-----------------|-------------------------------------------------------------------------------|-----------|
+| **Vše** (📐V)       | ano | ano | ano |
+| **Průsečíky** (📐P) | ne  | ne  | ano |
+| **Kóty** (📐K)      | ano | ano | ne  |
+| **Skryté** (📐–)    | ne  | ne  | ne  |
+
+Automatické popisy R/⌀ jsou kóty, proto se v režimu **Průsečíky** nezobrazují –
+tam zůstanou na plátně jen samotné průsečíky. Stejné pravidlo platí i pro export
+do SVG.
 
 ---
 

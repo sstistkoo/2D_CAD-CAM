@@ -2961,13 +2961,16 @@ export function updateSnapGridBtn() {
   document.getElementById("btnSnapGrid")?.classList.toggle("active", state.snapToGrid);
 }
 
-document.getElementById("btnSnapGrid")?.addEventListener("click", () => {
+/** Přepne snap na mřížku ON ↔ OFF (tlačítko i indikátor ve stavovém řádku). */
+export function toggleSnapGrid() {
   state.snapToGrid = !state.snapToGrid;
   updateSnapGridBtn();
   bridge.updateCoordBarIndicators?.();
   renderAll();
   showToast(state.snapToGrid ? `Snap na mřížku: ON (${state.gridSize})` : "Snap na mřížku: OFF");
-});
+}
+
+document.getElementById("btnSnapGrid")?.addEventListener("click", toggleSnapGrid);
 
 document.getElementById("btnSnapGrid")?.addEventListener("contextmenu", (e) => {
   e.preventDefault();
@@ -2980,13 +2983,16 @@ export function updateAngleSnapBtn() {
   document.getElementById("btnAngleSnap")?.classList.toggle("active", state.angleSnap);
 }
 
-document.getElementById("btnAngleSnap")?.addEventListener("click", () => {
+/** Přepne úhlový snap ON ↔ OFF (tlačítko i indikátor ve stavovém řádku). */
+export function toggleAngleSnap() {
   state.angleSnap = !state.angleSnap;
   updateAngleSnapBtn();
   bridge.updateCoordBarIndicators?.();
   renderAll();
   showToast(state.angleSnap ? `Úhlový snap: ON (${state.angleSnapStep}°)` : "Úhlový snap: OFF");
-});
+}
+
+document.getElementById("btnAngleSnap")?.addEventListener("click", toggleAngleSnap);
 
 document.getElementById("btnAngleSnap")?.addEventListener("contextmenu", (e) => {
   e.preventDefault();
@@ -3013,8 +3019,8 @@ export function updateDimsBtn() {
   // 'none' → výchozí neaktivní vzhled
 }
 
-document.getElementById("btnDims")?.addEventListener("click", () => {
-  // Cyklus: all → intersections → dimensions → none → all
+/** Posune režim kót na další hodnotu: all → intersections → dimensions → none → all. */
+export function cycleDimsMode() {
   const cycle = { all: 'intersections', intersections: 'dimensions', dimensions: 'none', none: 'all' };
   state.showDimensions = cycle[state.showDimensions] || 'all';
   const labels = { all: 'Kóty: vše', intersections: 'Kóty: pouze průsečíky', dimensions: 'Kóty: pouze kóty', none: 'Kóty: skryté' };
@@ -3022,7 +3028,9 @@ document.getElementById("btnDims")?.addEventListener("click", () => {
   updateDimsBtn();
   bridge.updateCoordBarIndicators?.();
   renderAll();
-});
+}
+
+document.getElementById("btnDims")?.addEventListener("click", cycleDimsMode);
 
 // ── Smazat kóty tlačítko ──
 document.getElementById("btnDeleteDims").addEventListener("click", () => {
@@ -3066,6 +3074,9 @@ export function updateCoordModeBtn() {
   document.querySelectorAll(".ind-coordmode").forEach((ind) => {
     ind.textContent = state.coordMode === 'inc' ? 'INC' : 'ABS';
     ind.classList.toggle('alt', state.coordMode === 'inc');
+    ind.title = state.coordMode === 'inc'
+      ? 'Souřadnice: INC (inkrementální) – klik přepne na ABS'
+      : 'Souřadnice: ABS (absolutní) – klik přepne na INC';
   });
 }
 
@@ -3099,6 +3110,9 @@ export function updateXDisplayBtn() {
   document.querySelectorAll(".ind-xdisplay").forEach((ind) => {
     ind.textContent = state.xDisplayMode === 'diameter' ? '⌀' : 'R';
     ind.classList.toggle('alt', state.xDisplayMode === 'diameter');
+    ind.title = state.xDisplayMode === 'diameter'
+      ? 'Osa X: Průměr (⌀) – klik přepne na Poloměr'
+      : 'Osa X: Poloměr (R) – klik přepne na Průměr';
   });
 }
 
@@ -3132,6 +3146,9 @@ export function updateMachineTypeBtn() {
   document.querySelectorAll(".ind-machine").forEach((ind) => {
     ind.textContent = state.machineType === 'karusel' ? 'KAR' : 'SOU';
     ind.classList.toggle('alt', state.machineType === 'karusel');
+    ind.title = state.machineType === 'karusel'
+      ? 'Typ stroje: Karusel – klik přepne na Soustruh'
+      : 'Typ stroje: Soustruh – klik přepne na Karusel';
   });
 }
 
@@ -3147,6 +3164,27 @@ export function toggleMachineType() {
 }
 
 document.getElementById("btnMachineType")?.addEventListener("click", toggleMachineType);
+
+// ── Klikací indikátory nastavení (statusbar na desktopu + mobilní coord bar) ──
+// Indikátory SOU/KAR, ABS/INC, R/⌀, #, ∠ a 📐 ukazují hodnoty z Nastavení.
+// Klik na indikátor přepne na další hodnotu, aby se kvůli přepnutí nemusel
+// otevírat dialog Nastavení. Vypnutý indikátor zůstává viditelný (ztlumený) –
+// jinak by po vypnutí nešlo kliknout zpátky (viz .coord-ind v style.css).
+document.addEventListener("click", (e) => {
+  const ind = e.target.closest?.(".coord-ind");
+  if (!ind) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const cls = ind.classList;
+  if (cls.contains("ind-machine")) toggleMachineType();
+  else if (cls.contains("ind-coordmode")) toggleCoordMode();
+  else if (cls.contains("ind-xdisplay")) toggleXDisplay();
+  else if (cls.contains("ind-grid")) toggleSnapGrid();
+  else if (cls.contains("ind-angle")) toggleAngleSnap();
+  else if (cls.contains("ind-dims")) cycleDimsMode();
+  else return;
+  persistSettings();
+});
 
 // ── Nul. bod tlačítko – nastavení/zrušení nulového bodu ──
 
@@ -4912,13 +4950,9 @@ function showSettingsDialog() {
     btn.textContent = `# Mřížka: ${state.snapToGrid ? 'ON' : 'OFF'}`;
   }
   overlay.querySelector('#settSnapGrid').addEventListener('click', () => {
-    state.snapToGrid = !state.snapToGrid;
-    updateSnapGridBtn();
-    bridge.updateCoordBarIndicators?.();
+    toggleSnapGrid();
     updateSnapGridSettBtn();
-    renderAll();
     persistSettings();
-    showToast(state.snapToGrid ? `Snap na mřížku: ON (${state.gridSize})` : "Snap na mřížku: OFF");
   });
 
   // ── Úhlový snap ON/OFF ──
@@ -4928,13 +4962,9 @@ function showSettingsDialog() {
     btn.textContent = `∠ Úhel: ${state.angleSnap ? 'ON' : 'OFF'}`;
   }
   overlay.querySelector('#settAngleSnap').addEventListener('click', () => {
-    state.angleSnap = !state.angleSnap;
-    updateAngleSnapBtn();
-    bridge.updateCoordBarIndicators?.();
+    toggleAngleSnap();
     updateAngleSnapSettBtn();
-    renderAll();
     persistSettings();
-    showToast(state.angleSnap ? `Úhlový snap: ON (${state.angleSnapStep}°)` : "Úhlový snap: OFF");
   });
 
   // ── Mřížka ──

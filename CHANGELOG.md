@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAD – indikátory ve stavovém řádku jsou klikací přepínače.** Indikátory
+  `SOU/KAR`, `ABS/INC`, `R/⌀`, `#`, `∠` a `📐` jen zrcadlily hodnoty z ⚙️ Nastavení;
+  přepnout se daly výhradně tlačítkem v toolbaru, klávesovou zkratkou nebo
+  otevřením dialogu Nastavení (přání uživatele 27. 8. 2026). Klik na indikátor
+  teď posune dané nastavení na další hodnotu — u 📐 projde celý cyklus
+  *vše → průsečíky → kóty → skryté*. Platí pro dolní statusbar na desktopu
+  i horní coord bar na mobilu (společná delegovaná obsluha nad `.coord-ind`
+  v `js/ui.js`), včetně long-press precision pointeru (`.coord-ind` přibylo do
+  `CLICKABLE_SEL` v `js/touch.js`).
+
+  Vypnutý indikátor se proto už **neskrývá**, jen ztlumí (`opacity: .4`) —
+  s `display: none` by po vypnutí nebylo na co kliknout zpátky. Indikátor kót
+  má 4 stavy, takže nese i písmeno režimu: **📐V / 📐P / 📐K / 📐–**; tooltip
+  u všech indikátorů hlásí aktuální hodnotu i to, co klik udělá.
+
+  Při té příležitosti se sjednotily trojmo opsané přepínače do
+  `toggleSnapGrid()`, `toggleAngleSnap()` a `cycleDimsMode()` (`js/ui.js`),
+  které teď volá toolbar, klávesy `G`/`Shift+G`/`D` i dialog Nastavení. Klávesy
+  `G` a `D` tím konečně aktualizují i indikátory ve stavovém řádku a `D`
+  zobrazí toast s novým režimem. `openProject()` nově dorovná i tlačítko a
+  indikátor kót (režim kót je součástí uloženého projektu).
+
+### Changed
+- **CAD – automatické popisy R/⌀ se v režimu kót „Průsečíky“ už nezobrazují.**
+  Poloměry u oblouků a kružnic, rozměry obdélníku a délka polyline se kreslily
+  ve všech režimech kromě „Skryté“, takže v režimu „Průsečíky“ zůstávaly na
+  plátně přes celý výkres, i když explicitní kóty byly schované (nález
+  uživatele 27. 8. 2026). Jsou to kóty, takže patří jen do režimů **Vše** a
+  **Kóty** — `js/render.js` i SVG export (`js/storage/exportImage.js`) je teď
+  testují stejnou podmínkou. Ověřeno na oblouku R14, kružnici R10 a obdélníku
+  30×20: *vše* → `R14, R10, ⌀20` + rozměry + průsečík, *průsečíky* → jen
+  průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
+
 ### Fixed
 - **CAD – v panelu nástrojů chyběla tlačítka Oříz, Prodl. a Obdélník.** Refaktor
   toolbaru (`47e7606`, 3. 8. 2026) vypustil z `index.html` tlačítka

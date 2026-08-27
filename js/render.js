@@ -670,8 +670,12 @@ function renderObjects() {
     }
     ctx.setLineDash([]);
 
-    // Kóty – skrýt když jsou zapnutá čísla objektů
-    if (state.showDimensions !== 'none' && !isConstr && !state.showObjectNumbers) drawDimension(obj);
+    // Automatické popisy rozměrů (R/⌀ u oblouků a kružnic, šířka×výška
+    // obdélníku, délka polyline) jsou KÓTY – patří jen do režimů „Vše" a
+    // „Kóty". V režimu „Průsečíky" (a „Skryté") se stejně jako explicitní
+    // kóty nezobrazují. Skrýt i když jsou zapnutá čísla objektů.
+    if ((state.showDimensions === 'all' || state.showDimensions === 'dimensions')
+      && !isConstr && !state.showObjectNumbers) drawDimension(obj);
   });
 
   // ── Náhled zrcadlení kontury kolem osy rotace (y=0) ──

@@ -7,7 +7,7 @@ import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } fro
 import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap, getSelectionCounterLabel } from './render.js';
 import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
-import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, updateDimsBtn, toggleCoordMode, updateCoordModeBtn, updateSnapGridBtn, updateAngleSnapBtn, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
+import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, cycleDimsMode, toggleCoordMode, updateCoordModeBtn, toggleSnapGrid, toggleAngleSnap, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
 import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
 import { showCombinedModal, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
 import { saveProject, showExportImageDialog, showProjectsDialog, showSaveAsDialog } from './storage.js';
@@ -628,10 +628,7 @@ document.addEventListener("keydown", (e) => {
     showToast(state.snapToPoints ? "Snap k bodům: ON" : "Snap k bodům: OFF");
   }
   if (e.key.toLowerCase() === "d") {
-    const cycle = { all: 'intersections', intersections: 'dimensions', dimensions: 'none', none: 'all' };
-    state.showDimensions = cycle[state.showDimensions] || 'all';
-    updateDimsBtn();
-    renderAll();
+    cycleDimsMode();
   }
 
   if (e.key.toLowerCase() === "i") {
@@ -646,17 +643,8 @@ document.addEventListener("keydown", (e) => {
     }
   }
   if (e.key.toLowerCase() === "g") {
-    if (e.shiftKey) {
-      state.angleSnap = !state.angleSnap;
-      updateAngleSnapBtn();
-      renderAll();
-      showToast(state.angleSnap ? `Úhlový snap: ON (${state.angleSnapStep}°)` : "Úhlový snap: OFF");
-    } else {
-      state.snapToGrid = !state.snapToGrid;
-      updateSnapGridBtn();
-      renderAll();
-      showToast(state.snapToGrid ? `Snap na mřížku: ON (${state.gridSize})` : "Snap na mřížku: OFF");
-    }
+    if (e.shiftKey) toggleAngleSnap();
+    else toggleSnapGrid();
   }
   if (e.key === "Delete" && (state.selected !== null || state.multiSelected.size > 0)) {
     const obj = state.selected !== null ? state.objects[state.selected] : null;

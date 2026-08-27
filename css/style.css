@@ -2414,22 +2414,36 @@ body {
   gap: 4px;
   flex-shrink: 0;
 }
+/* Indikátory nastavení ve stavovém řádku – klikací (přepínají nastavení).
+   Vypnutý indikátor se NESKRÝVÁ (jen ztlumí), jinak by nešel znovu zapnout. */
 .coord-ind {
-  display: none;
+  display: inline-block;
   font-size: 11px;
-  padding: 1px 4px;
+  padding: 2px 5px;
   border-radius: 3px;
   background: var(--ctp-surface1);
   color: var(--ctp-subtext0);
+  cursor: pointer;
+  opacity: 0.4;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.12s, background 0.12s;
+}
+.coord-ind:hover {
+  opacity: 0.75;
 }
 .coord-ind.active {
-  display: inline-block;
+  opacity: 1;
   background: #11111b;
   color: #cdd6f4;
 }
 .coord-ind.active.alt {
   background: var(--ctp-blue);
   color: var(--ctp-base);
+}
+.coord-ind:active {
+  transform: scale(0.92);
 }
 .cb-hi {
   padding: 1px 4px;

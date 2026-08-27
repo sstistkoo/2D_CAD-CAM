@@ -138,11 +138,28 @@ export function updateMobileCoords(wx, wy, extra) {
   updateCoordBarIndicators();
 }
 
+// Režim kót má 4 hodnoty, takže samotná ikona 📐 nestačí – indikátor nese
+// i písmeno režimu (Vše / Průsečíky / Kóty / skryté).
+const DIM_IND_LETTER = { all: 'V', intersections: 'P', dimensions: 'K', none: '–' };
+const DIM_IND_TITLE = { all: 'vše', intersections: 'pouze průsečíky', dimensions: 'pouze kóty', none: 'skryté' };
+
 /** Aktualizuje indikátory mřížky, úhlu a kót (mobile coord bar i desktop statusbar). */
 export function updateCoordBarIndicators() {
-  document.querySelectorAll(".ind-grid").forEach(el => el.classList.toggle("active", !!state.snapToGrid));
-  document.querySelectorAll(".ind-angle").forEach(el => el.classList.toggle("active", !!state.angleSnap));
-  document.querySelectorAll(".ind-dims").forEach(el => el.classList.toggle("active", state.showDimensions !== 'none'));
+  document.querySelectorAll(".ind-grid").forEach(el => {
+    el.classList.toggle("active", !!state.snapToGrid);
+    el.title = `Mřížka (snap): ${state.snapToGrid ? 'ON' : 'OFF'} (${state.gridSize}) – klik přepne`;
+  });
+  document.querySelectorAll(".ind-angle").forEach(el => {
+    el.classList.toggle("active", !!state.angleSnap);
+    el.title = `Úhlový snap: ${state.angleSnap ? 'ON' : 'OFF'} (${state.angleSnapStep}°) – klik přepne`;
+  });
+  const dm = state.showDimensions;
+  document.querySelectorAll(".ind-dims").forEach(el => {
+    el.textContent = `📐${DIM_IND_LETTER[dm] || 'V'}`;
+    el.classList.toggle("active", dm !== 'none');
+    el.classList.toggle("alt", dm === 'intersections');
+    el.title = `Kóty: ${DIM_IND_TITLE[dm] || ''} – klik přepne na další`;
+  });
 }
 
 // ── Mobile: Numerický vstup tlačítko ──
@@ -1138,7 +1155,7 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
   const gpEl = document.getElementById("globalPrecisionPointer");
   const GLOBAL_OFFSET_Y = -60; // pointer se ukáže NAD prstem (výchozí)
   const gpLabel = gpEl.querySelector(".sp-label");
-  const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card";
+  const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card, .coord-ind";
   let gpTimer = null;
   let gpActive = false;
   let gpStartX = 0, gpStartY = 0;

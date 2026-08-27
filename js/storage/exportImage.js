@@ -316,8 +316,8 @@ function exportSVGLegacy(background) {
       }
     }
 
-    // Kóty jako text
-    if (state.showDimensions !== 'none' && obj.type !== 'constr') {
+    // Kóty jako text – stejně jako na plátně jen v režimech „Vše" a „Kóty"
+    if ((state.showDimensions === 'all' || state.showDimensions === 'dimensions') && obj.type !== 'constr') {
       const dimText = getDimensionText(obj);
       if (dimText) {
         const t = document.createElementNS(ns, 'text');

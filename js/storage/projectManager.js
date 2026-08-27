@@ -4,7 +4,7 @@
 
 import { state, showToast, pushUndo, ensureStockLayer } from '../state.js';
 import { COLORS } from '../constants.js';
-import { updateObjectList, updateProperties, updateLayerList, updateStatusProject, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI } from '../ui.js';
+import { updateObjectList, updateProperties, updateLayerList, updateStatusProject, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI, updateDimsBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects, setMeta, getMeta } from '../idb.js';
 import { deepClone, expandPolylineObjects } from '../utils.js';
@@ -110,6 +110,9 @@ function _loadProjectData(data) {
   updateMachineTypeBtn();
   updateXDisplayBtn();
   updateNullPointUI();
+  // Projekt nese i režim kót – indikátor 📐 ve stavovém řádku musí sedět
+  updateDimsBtn();
+  bridge.updateCoordBarIndicators?.();
 }
 
 // ── Save / Load ──
