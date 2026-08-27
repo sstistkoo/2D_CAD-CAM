@@ -30,7 +30,7 @@ import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapse
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
-import { PARTING_BODY_MIN_H_MM, buildInsertProfileSegments, completeTwoSidedProfile, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
+import { PARTING_BODY_MIN_H_MM, buildInsertProfileSegments, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { computeCalculation, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, decideChange } from './cam/gcodeSync.js';
@@ -5533,58 +5533,59 @@ export function openCamSimulator(initialContour, initialGCode) {
       return null;
     }
 
+    // Spoji nakreslene objekty do retezcu bodu. Vraci VSECHNY retezy — co se
+    // nespoji, se NEZAHAZUJE (drive se bral jen prvni retez a zbytek kresby
+    // tise zmizel).
     function chainHolderPoints(objs) {
       const segs = objs.map(_objChainPoints).filter(Boolean);
-      if (!segs.length) return null;
+      if (!segs.length) return [];
       const TOL = 0.05; // mm
       const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) <= TOL;
       const used = new Array(segs.length).fill(false);
-      used[0] = true;
-      let chain = segs[0].pts.slice();
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (let i = 0; i < segs.length; i++) {
-          if (used[i]) continue;
-          const pts = segs[i].pts;
-          const a = pts[0], b = pts[pts.length - 1];
-          const head = chain[0], tail = chain[chain.length - 1];
-          if (near(tail, a)) { chain = chain.concat(pts.slice(1)); used[i] = true; changed = true; }
-          else if (near(tail, b)) { chain = chain.concat(pts.slice().reverse().slice(1)); used[i] = true; changed = true; }
-          else if (near(head, b)) { chain = pts.slice(0, -1).concat(chain); used[i] = true; changed = true; }
-          else if (near(head, a)) { chain = pts.slice().reverse().slice(0, -1).concat(chain); used[i] = true; changed = true; }
+      const chains = [];
+      for (let start = 0; start < segs.length; start++) {
+        if (used[start]) continue;
+        used[start] = true;
+        let chain = segs[start].pts.slice();
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (let i = 0; i < segs.length; i++) {
+            if (used[i]) continue;
+            const pts = segs[i].pts;
+            const a = pts[0], b = pts[pts.length - 1];
+            const head = chain[0], tail = chain[chain.length - 1];
+            if (near(tail, a)) { chain = chain.concat(pts.slice(1)); used[i] = true; changed = true; }
+            else if (near(tail, b)) { chain = chain.concat(pts.slice().reverse().slice(1)); used[i] = true; changed = true; }
+            else if (near(head, b)) { chain = pts.slice(0, -1).concat(chain); used[i] = true; changed = true; }
+            else if (near(head, a)) { chain = pts.slice().reverse().slice(0, -1).concat(chain); used[i] = true; changed = true; }
+          }
         }
+        chains.push(chain);
       }
-      return chain;
+      return chains;
     }
 
     // Sejme obrys držáku z vrstvy Držák → holderProfile {sideA, sideB}.
-    // Vrací null, když není co uložit. Rozlišuje režim A (uzavřený obrys) a
-    // režim B (otevřené dvě strany → auto-doplnění 45° dle l1/tloušťky).
+    // Uloží se PŘESNĚ to, co je nakreslené — nic se nedoplňuje, neuzavírá ani
+    // netvaruje. (Do 27. 8. 2026 se otevřený obrys „auto-doplnil“ pod 45° na
+    // l1/tloušťku — uživateli to přikreslovalo držák, který nenakreslil.)
+    // Nespojené části: první řetěz = strana A, druhý = strana B; víc jich model
+    // držáku (sideA/sideB) neunese — pak se to řekne, ať nic nezmizí potichu.
     function captureHolderProfile(mode) {
       const holderObjs = state.objects.filter(o => o.layer === mode.holderLayerId
         && (o.type === 'line' || o.type === 'arc' || o.type === 'polyline'));
       if (holderObjs.length === 0) return null;
-      const chain = chainHolderPoints(holderObjs);
-      if (!chain || chain.length < 2) return null;
-      const TOL = 0.05;
-      const closed = Math.hypot(chain[0].x - chain[chain.length - 1].x, chain[0].y - chain[chain.length - 1].y) <= TOL;
-      const prof = chain.map(p => worldToProf(p.x, p.y));
-      if (closed) {
-        // Režim A — uzavřený obrys je přímo profil.
-        return { sideA: prof, sideB: [] };
+      const chains = chainHolderPoints(holderObjs).filter(c => c && c.length >= 2);
+      if (!chains.length) return null;
+      const prof = (c) => c.map(p => worldToProf(p.x, p.y));
+      if (chains.length > 2) {
+        chains.sort((a, b) => b.length - a.length);
+        showToast(`Obrys má ${chains.length} nespojených částí — uloží se dvě největší`);
       }
-      // Otevřený obrys: auto-doplnit 45° (režim B) jen když je zaškrtnuto
-      // „Auto-doplnit držák"; jinak uložit přesně nakreslený (otevřený) tvar.
-      if (S.params.holderAutoComplete === false) {
-        return { sideA: prof, sideB: [] };
-      }
-      return completeTwoSidedProfile(prof, S.params, mode.editSide);
+      return { sideA: prof(chains[0]), sideB: chains[1] ? prof(chains[1]) : [] };
     }
 
-    // Režim B (auto-doplnění otevřeného obrysu pod 45° na l1/tloušťku) bydlí
-    // u ostatních profilových pomocníků v cam/insertPreview.js —
-    // `completeTwoSidedProfile(prof, prms, editSide)`.
 
 
     // Záloha CAD před vstupem do režimu (obnoví se při ✕ i ✓).
@@ -5627,7 +5628,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const hadHolder = holderObjs.length > 0;
       state.holderDrawMode = {
         backup, insertIds: insertObjs.map(o => o.id),
-        plateLayerId, holderLayerId, editSide: 'auto',
+        plateLayerId, holderLayerId,
       };
       overlay.style.display = 'none';
       dlg.style.display = 'none';
@@ -5689,13 +5690,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       finishHolderCadDraw(res);
     };
     bridge.cancelHolderDraw = () => finishHolderCadDraw(null);
-    // Přepínač upravované strany pro režim B (dolní lišta / holder tab).
-    bridge.toggleHolderDrawSide = () => {
-      const mode = state.holderDrawMode;
-      if (!mode) return;
-      mode.editSide = mode.editSide === 'A' ? 'B' : mode.editSide === 'B' ? 'auto' : 'A';
-      showToast(`Upravovaná strana: ${mode.editSide === 'auto' ? 'auto (dál od středu)' : mode.editSide}`);
-    };
 
     function render() {
       const prms = S.params;
@@ -5746,10 +5740,6 @@ export function openCamSimulator(initialContour, initialGCode) {
                 <button data-act="geom-open-rotate-knife" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení celého nože (destička i držák). Šipka ukazuje směrem k destičce. 270° = destička dole / držák nahoru.">↻ Natočení nože (${prms.knifeAngle ?? 270}°)</button>
               </div>
               <div class="cam-sim-row" style="align-items:center">
-                <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;flex:0 0 auto" title="Když nakreslíte na CAD plátně jen dvě strany (otevřený obrys), auto-doplní se pod 45° podle Délky a Tloušťky. Vypnuto = uloží se přesně nakreslený tvar.">
-                  <input type="checkbox" id="geom-holder-autocomplete" ${prms.holderAutoComplete !== false ? 'checked' : ''}>
-                  Auto
-                </label>
                 <div class="cam-sim-field"><label title="Funkční délka l1 — stejné pole jako Délka držáku dole v panelu Nástroj">Délka držáku (l1)</label><input type="number" step="10" min="0" data-p="holderLength" value="${prms.holderLength ?? 200}"></div>
                 <div class="cam-sim-field"><label title="Tloušťka (šířka v ose Z) držáku plátku — používá se pro hlídání geometrie destičky">Tloušťka držáku</label><input type="number" step="1" min="0" data-p="holderWidth" value="${prms.holderWidth ?? 20}"></div>
               </div>
@@ -5831,11 +5821,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (openRotateInsertBtn) openRotateInsertBtn.addEventListener('click', () => showRotateToolPopup());
       const openRotateKnifeBtn = dlg.querySelector('[data-act="geom-open-rotate-knife"]');
       if (openRotateKnifeBtn) openRotateKnifeBtn.addEventListener('click', () => showRotateKnifePopup());
-      const autoCompleteChk = dlg.querySelector('#geom-holder-autocomplete');
-      if (autoCompleteChk) autoCompleteChk.addEventListener('change', withHistory(() => {
-        S.params.holderAutoComplete = autoCompleteChk.checked;
-        applyChange();
-      }));
       const toggleDrawBtn = dlg.querySelector('[data-act="geom-toggle-draw"]');
       if (toggleDrawBtn) toggleDrawBtn.addEventListener('click', () => {
         drawModeActive = !drawModeActive;
@@ -6017,7 +6002,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       vc: 200, f: 0.25, ap: 2.0,
       // Držák — ukládá se spolu s destičkou, aby ✅ Použít obnovilo celý nůž.
       holderLength: 200, holderWidth: 20, holderHand: 'R',
-      knifeAngle: 270, holderAutoComplete: true, holderProfile: null,
+      knifeAngle: 270, holderProfile: null,
       holderInflate: 0, holderInflateAll: false,
     };
   }
@@ -6056,7 +6041,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (tool.holderWidth !== undefined) slot.holderWidth = tool.holderWidth;
     if (tool.holderHand !== undefined) slot.holderHand = tool.holderHand;
     if (tool.knifeAngle !== undefined) slot.knifeAngle = tool.knifeAngle;
-    if (tool.holderAutoComplete !== undefined) slot.holderAutoComplete = tool.holderAutoComplete;
     if (tool.holderInflate !== undefined) slot.holderInflate = tool.holderInflate;
     if (tool.holderInflateAll !== undefined) slot.holderInflateAll = tool.holderInflateAll;
     slot.holderProfile = tool.holderProfile ? JSON.parse(JSON.stringify(tool.holderProfile)) : null;
@@ -6104,7 +6088,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (slot.holderWidth !== undefined) S.params.holderWidth = slot.holderWidth;
     if (slot.holderHand !== undefined) S.params.holderHand = slot.holderHand;
     if (slot.knifeAngle !== undefined) S.params.knifeAngle = slot.knifeAngle;
-    if (slot.holderAutoComplete !== undefined) S.params.holderAutoComplete = slot.holderAutoComplete;
     S.params.holderInflate = slot.holderInflate ?? 0;
     S.params.holderInflateAll = slot.holderInflateAll === true;
     S.params.holderProfile = slot.holderProfile ? JSON.parse(JSON.stringify(slot.holderProfile)) : null;
@@ -6131,7 +6114,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     slot.holderWidth   = S.params.holderWidth;
     slot.holderHand    = S.params.holderHand;
     slot.knifeAngle    = S.params.knifeAngle;
-    slot.holderAutoComplete = S.params.holderAutoComplete;
     slot.holderInflate = holderInflate(S.params);
     slot.holderInflateAll = holderInflateAll(S.params);
     slot.holderProfile = S.params.holderProfile ? JSON.parse(JSON.stringify(S.params.holderProfile)) : null;
