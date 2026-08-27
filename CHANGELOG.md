@@ -31,6 +31,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – úseky se jedou od NEJVĚTŠÍHO PRůMĚRU, ne shora dolů podle Z.**
+  Region (Z-okno, které se vyhrubuje samostatně) se dosud bral v pořadí, jak
+  leží v ose Z. Na díle, kde největší průměr leží na opačném konci, se tak
+  začínalo od nejmenšího. Nové pravidlo (zadání uživatele 27. 8. 2026):
+  **větší průměr má přednost**, při shodě má přednost **pravá strana** (vyšší Z).
+
+  Zleva se neřeší zvlášť — hrubování zleva je zrcadlo téže cesty (`mirZ`),
+  takže „vyšší Z“ v zrcadleném světě je levá strana reálného dílu a pravidlo
+  se otočí samo. Změřeno na `part-11-zleva-casting` (obrábění zleva): úseky
+  teď jedou v pořadí průměrů **64,5 → 48,1 → 38,6 mm**, dřív obráceně.
+
+  Dotčené tři fixtures (`part-11-zleva-casting`, `part-12-zleva-step`,
+  `part-14-finish-holder`): úběr beze změny, počet průchodů beze změny,
+  všechny invarianty (kolize, zrcadlení, zajezd, regiony) procházejí.
+  Pravidlo bydlí v `ops/long/regions.js` (`orderRegions`).
+
 - **CAM – generátor drah rozdělen podle PLÁTKU a podle OPERACE.** Jeden soubor
   `roughingStrategies.js` měl 4 670 řádků a tvar destičky se v něm řešil na
   23 místech jako `prms.toolShape === '…'`. Znamenalo to, že zásah kvůli jednomu
@@ -46,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `roughingStrategies.js` zbyl jako **rozcestník (30 řádků)**.
 
   Čistý refaktor: G-kód všech 26 fixtures je **bit po bitu shodný**.
+
+  Dál rozdělené z `roughLong.js` (každý krok ověřen na shodu G-kódu):
+  `ops/long/regions.js` (200 ř.) — **kde se díl trhá na úseky a v jakém pořadí
+  jedou** (tady se bude měnit pravidlo „nejdřív celá pravá strana“),
+  `ops/long/humpMerge.js` (110 ř.) a `ops/long/partingEnvelope.js` (87 ř.).
   Zprava/zleva se nedělí záměrně — „zleva“ není algoritmus, ale ZRCADLO téže
   cesty (`mirZ` v `calculatePipeline.js`, `zMirror.js`); vlastní soubor by
   znamenal duplikát celého generátoru a každou budoucí opravu dvakrát.
