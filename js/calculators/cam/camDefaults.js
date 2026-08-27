@@ -63,7 +63,6 @@ export function _defaultCamParams() {
     // Auto-doplnění obrysu držáku pod 45° dle l1/tloušťky při „📐 Kreslit na
     // CAD plátně", když uživatel nakreslí jen dvě strany (otevřený obrys).
     // Vypnuto = uloží se přesně nakreslený tvar (i otevřený).
-    holderAutoComplete: true,
     // VIRTUÁLNÍ ZVĚTŠENÍ DRŽÁKU [mm]: o kolik se jeho obrys nafoukne pro
     // všechna hlídání kolize i pro plánování drah — nástroj pak drží od
     // obrobku větší mezeru, aniž by se překresloval nůž. 0 (výchozí) =

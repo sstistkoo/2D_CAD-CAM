@@ -502,16 +502,15 @@ Místo automatické ISO geometrie se obrys držáku kreslí ručně, dvěma způ
   plátno se vyčistí a založí se dvě vrstvy — **Plátek** (zamčená, červená
   destička jako reálná geometrie, jde na ni snapovat) a **Držák** (kreslíš na
   ni). Destička je uprostřed (počátek 0,0). Režim přežije přepnutí nástroje a
-  ukončíš ho jen dolní lištou: **✕ Zrušit** / **✓ Potvrdit** (a **⇄ Strana**).
+  ukončíš ho jen dolní lištou: **✕ Zrušit** / **✓ Potvrdit**.
   Během kreslení nelze přepnout do CAM (jen upozornění). Při **✓ Potvrdit** se
-  obrys uloží do držáku dvěma způsoby:
-  - **Celý uzavřený obrys** kolem destičky → použije se přímo.
-  - **Jen dvě strany** (otevřená lomená čára) → automaticky se uzavře pod 45°
-    dle polí **Délka držáku (l1)** a **Tloušťka držáku**; tlačítkem **⇄ Strana**
-    přepínáš, který konec se doplňuje (auto → A → B). Doplnit se jde ve
-    **směru, kterým je držák nakreslený** — nakreslíš-li ho nahoru od destičky,
-    jde nahoru i délka l1 (tloušťka napříč). Nechceš-li doplňovat vůbec, odškrtni
-    v Držák tabu **Auto** — uloží se přesně nakreslený (otevřený) tvar.
+  uloží **PŘESNĚ to, co je nakreslené** — nic se nedoplňuje, neuzavírá ani
+  netvaruje, ať je obrys uzavřený nebo otevřený. (Do 27. 8. 2026 se otevřený
+  obrys „auto-doplnil“ pod 45° na Délku držáku l1 — přikreslovalo to držák,
+  který uživatel nenakreslil; funkce byla zrušena i s přepínači **Auto**
+  a **⇄ Strana**.) Nespojené části kresby se nezahazují: první řetěz je
+  strana A, druhý strana B; když jich je víc, aplikace to řekne toastem.
+
   Když už držák uložený máš a klikneš **📐** znovu, načte se zpět na vrstvu
   Držák jako **editovatelné** čáry (vedle zamčené destičky) — můžeš ho tak
   doupravit místo kreslení od nuly.

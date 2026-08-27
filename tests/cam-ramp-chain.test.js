@@ -34,7 +34,8 @@ describe('Zanořovací řetěz: pocketReposition navazuje na předchozí krok', 
   for (const file of fixtures) {
     it(`${file} → žádný osiřelý pocketReposition`, async () => {
       const prog = JSON.parse(readFileSync(join(fixturesDir, file), 'utf8'));
-      const { calc } = await runCamProg(prog);
+      const { calc, S } = await runCamProg(prog);
+      const isParting = S.params.toolShape === 'parting';
       const passes = calc.passes || [];
       const orphans = [];
       passes.forEach((p, i) => {
@@ -43,9 +44,18 @@ describe('Zanořovací řetěz: pocketReposition navazuje na předchozí krok', 
         // Předchůdce musí existovat a stát PŘESNĚ na kotvě řetězu: konec jeho
         // rampy = (prev.x, prev.zStart) = rampFeedFrom. Tolerance je jen na
         // zaokrouhlení — kotva se kopíruje, nepočítá znovu.
+        // Upichovák řetězí JINAK (viz roughingStrategies.js, větev `isParting`):
+        // přesun jde v úrovni PŘEDCHOZÍHO dna (x = prev.x) rovnou na NOVÉ
+        // zápichové Z (z = zStart TOHOTO kroku) a odtud svísle dolů — šikmý
+        // přejezd po sdílené rampě by tělem plátku hobloval pravou stěnu.
+        // Společné pro oba tvary řetězu je X: kotva leží na hloubce předchůdce.
+        // (U upichováku může kotva vzejít z obou míst — podle toho, který zdroj
+        // `pocketReposition` krok vyrobil; oba drží X na hloubce předchůdce.)
+        const zOk = prev && Math.abs(prev.zStart - p.rampFeedFrom.z) < 0.01
+          || (isParting && Math.abs(p.zStart - p.rampFeedFrom.z) < 0.01);
         const linked = prev
           && Math.abs(prev.x - p.rampFeedFrom.x) < 0.01
-          && Math.abs(prev.zStart - p.rampFeedFrom.z) < 0.01;
+          && zOk;
         if (!linked) {
           orphans.push(`[${i}] x=${p.x.toFixed(3)} rampFeedFrom=(${p.rampFeedFrom.x.toFixed(3)},${p.rampFeedFrom.z.toFixed(3)})`
             + ` prev=${prev ? `x=${prev.x.toFixed(3)} zStart=${prev.zStart.toFixed(3)}` : 'ŽÁDNÝ'}`);

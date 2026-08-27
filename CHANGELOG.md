@@ -42,6 +42,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – upichovací plátek zajížděl TĚLEM do hotovní kontury.** Sken řezných
+  intervalů zná jen bod špičky, jenže upichovák řeže CELOU spodní hranou šířky b.
+  Když průchod začal těsně pod stoupající stěnou, jeho zadní část (b − R za
+  špičkou) ležela UŽ V TÉ STĚNĚ, tedy v hotovém díle. Nález uživatele
+  27. 8. 2026 (`N2710 G1 X34.545 Z115.088 ; Rampa 90.0°` a všechny podobné
+  pod ní) — a Čelní strategie na to guard už měla („Hlídání upichováku:
+  22 čelních průchodů zkráceno“), podélná ne.
+
+  Začátek intervalu se nově odsune o šířku těla, ale JEN když ho shora
+  ohraničuje kontura (`blockedAt` těsně nad ním); když interval začíná ve
+  vzduchu (konec polotovaru, hranice rozsahu), nemění se nic. Změřeno na díle
+  uživatele: zajezd do dílu **190 vzorků (největší 33,6 mm²) → 0**, úběr
+  5835 → 5407 mm² (materiál u stěny, na který široký plátek fyzicky
+  nedosáhne), kolize zůstávají 0. Na `part-17-long-parting` úběr BEZE ZMĚNY
+  (4920,3 mm², +1 průchod), na `range-parting-plunge` také beze změny.
+  Vynechané vrstvy hlásí varování, ne ticho.
+
+- **CAM – „Výjezd nad konturu“ jezdil skoro vždy až nad vrch polotovaru.**
+  `safeRapidTo` zvedalo nástroj natvrdo na `rapidTopX + vůle`, tedy nad
+  NEJVYŠŠÍ místo dílu, i když přejezd v Z potřeboval překonat jen nízký schod
+  (nález uživatele 27. 8. 2026: „skoro pořád to vyjíždí až nahoru, i když
+  nemusí“). Čelní strategie už správný vzor měla: navzorkovat strop
+  (`travelTopXAtZ`) po celém rozpětí přejezdu a zvednout jen tam — podélná
+  cesta ho teď používá také, včetně OVĚŘENÍ týmiž predikáty (destička,
+  plánovací obrys, držák); když nižší zdvih neprojde, platí dál vrch polotovaru.
+
+  Změřeno na díle uživatele: z 37 výjezdů jich **36 jelo na X68,5**; nově
+  6× ~30 mm, 14× ~40, 11× ~50, 8× ~70 a jeden závěrečný na X150. Program
+  615 → 588 řádků, úběr i kolize beze změny.
+
+  Výška se KVANTIZUJE na 0,01 mm: `travelTopXAtZ` vzorkuje offsetovou smyčku
+  a při zrcadlení (hrubování zleva) padnou vzorky na zrcadlená Z, takže bez
+  kvantizace vyšla výška o 1 µm jinak a padla parita (`X46.170` × `X46.169`).
+
+- **CAM – nesmyslný výjezd `G0 X486708894.740` při úhlu zanoření 90°.** Kotva
+  rampy (`stockEntryRamp`, zrcadlově `findRampOutTarget`) se krokovala po Δz
+  a X dopočítávala jako `t × tan(úhel)`. U upichováku je Auto = **90°**,
+  a tan(90°) = 1,6·10¹⁶ — „krok 0,5 mm v Z“ tedy znamenal skok 8·10¹⁵ mm v X
+  a přesně to se vydalo do NC programu (nález uživatele 27. 8. 2026, 21 tako-
+  vých řádků v jednom programu).
+
+  Nově se přímka zanoření krokuje **jednotkovým směrovým vektorem** podle
+  dominantní osy: do 45° vyjde krok přesně 0,5 mm v Z (bod po bodu totéž co
+  dřív, takže stávající díly se nehnuly), nad 45° se skenuje po 0,5 mm v X
+  a při 90° vyjde čistý svíslý zápich. Na díle uživatele vychází místo
+  `X486708909.740` správných `X65.435` (povrch polotovaru v daném Z),
+  kolize zůstávají na nule. Zamčeno plošným invariantem
+  `tests/cam-gcode-sane-coords.test.js` (žádná souřadnice nad 10 m) nad všemi
+  fixtures včetně nové `part-18-parting-90-ramp` — díl uživatele.
+
+  Nová fixture rovnou ukázala, že invariant `cam-ramp-chain` neznal řetězení
+  UPICHOVÁKU (přesun jde v úrovni předchozího dna rovnou na nové zápichové Z
+  a odtud svísle dolů — šikmý přejezd po sdílené rampě by tělem plátku
+  hobloval pravou stěnu). Doplněn model TESTU, generátor se neměnil.
+
+- **CAM – plátek měnil při oddálení velikost i tvar a držák neseděl na jeho
+  hranu.** Destička se kreslila s pixelovými PODLAHAMI na jednotlivé rozměry
+  (v náhledu „⚙️ Geometrie“ R ≥ 2,5 px a šířka ≥ 8 px, na simulačním plátně
+  R ≥ 6 px a šířka ≥ 20 px). Každá podlaha se zapínala při jiném zoomu, takže
+  se plátek při oddálení nafukoval a měnil poměry — a hlavně se rozcházel
+  s obrysem DRŽÁKU, který se kreslí v pravém měřítku: nakreslený držák pak
+  nezačínal na hraně plátku, ale kus uvnitř něj (naměřeno 1,58 a 1,75 px
+  při šířce plátku 5 mm; nález uživatele 27. 8. 2026).
+
+  Plátek se teď kreslí **v měřítku výkresu, bez podlah** — drží velikost,
+  tvar i návaznost na držák při jakémkoli zoomu; polohu nástroje na
+  simulačním plátně drží křížek s minimální pixelovou velikostí. Zamčeno
+  testem v `tests/cam-holder-editor.test.js` (konce obrysu držáku musí ležet
+  na horních rozích plátku s přesností 0,01 px).
+
+- **CAM – „📐 Kreslit na CAD plátně“ uloží přesně to, co nakreslíte.**
+  Auto-doplnění otevřeného obrysu pod 45° (přepínače **Auto** a **⇄ Strana**)
+  bylo **zrušeno** — přikreslovalo držák, který uživatel nenakreslil, a nedal
+  se ho zbavit. Zrušen také parametr `holderAutoComplete` (staré projekty se
+  načtou dál, klíč se ignoruje).
+
+  Současně se přestalo TICHE ZAHAZOVAT to, co se nespojilo: `chainHolderPoints`
+  brál jen první řetězec a zbytek kresby zmizel. Teď vrací všechny řetězce
+  (první = strana A, druhý = strana B) a při více částech to řekne toastem.
+
 - **CAD – v panelu nástrojů chyběla tlačítka Oříz, Prodl. a Obdélník.** Refaktor
   toolbaru (`47e7606`, 3. 8. 2026) vypustil z `index.html` tlačítka
   `data-tool="trim"`, `data-tool="extend"` a `data-tool="rect"`. Samotné

@@ -1570,6 +1570,18 @@ export function genLongPasses(ctx) {
 
   const effPlungeDegL = getEffectivePlungeAngle(prms);
   const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
+  // Směr přímky zanoření jako JEDNOTKOVÝ vektor (ux v X, uz v Z) + krok skenu
+  // podle DOMINANTNÍ osy. U mělkých úhlů (≤ 45°) vyjde krok přesně 0,5 mm
+  // v Z, tedy bod po bodu totéž co dřívější parametrizace přes Δz; u strmých
+  // se skenuje po 0,5 mm v X. Bez toho se při úhlu 90° (upichovák, Auto)
+  // parametrizace přes Δz rozpadla: `t * tan(90°)` = 0,5 × 1,6e16, takže kotva
+  // rampy vyšla na X 486 708 909 a přesně to se vydalo do G-kódu
+  // (nález uživatele 27. 8. 2026: `N560 G0 X486708909.740`).
+  const plungeDirL = (() => {
+    const a = effPlungeDegL * Math.PI / 180;
+    const ux = Math.abs(Math.sin(a)), uz = Math.abs(Math.cos(a));
+    return { ux, uz, step: 0.5 / Math.max(ux, uz, 1e-9) };
+  })();
   // Vjezd na UMĚLÉ hranici (rozsah 📐 / hranice regionu) se dělá RAMPOU právě
   // proto, že napravo od ní materiál dál STOJÍ — kolmý zápich by do něj sjel
   // i s držákem. Při úhlu zanoření 90° ale rampa na kolmý zápich degeneruje:
@@ -2055,11 +2067,11 @@ export function genLongPasses(ctx) {
   const stockEntryRamp = (X, zEntry) => {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
-    const at = (t) => ({ x: X + t * effPlungeTanL, z: zEntry + t });
+    const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
     let t = 0;
     for (let i = 0; i < 300; i++) {
       const tPrev = t;
-      t += 0.5;
+      t += plungeDirL.step;
       const p = at(t);
       // HRANICÍ JE I HOTOVNÍ KONTURA (stejně jako u findRampOutTarget níž):
       // stoupá-li přímka zanoření do materiálu, který po hrubování ZŮSTÁVÁ
@@ -2102,15 +2114,16 @@ export function genLongPasses(ctx) {
   const findRampOutTarget = (cx, cz) => {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
-    const at = (t) => ({ x: cx - t * effPlungeTanL, z: cz - t });
+    const at = (t) => ({ x: cx - t * plungeDirL.ux, z: cz - t * plungeDirL.uz });
     // Konec rozsahu obrábění 📐 je stejná zeď jako kontura: rampa se na něm
     // zastaví (a dál pokračuje leda rovný úsek uvnitř rozsahu), místo aby ho
     // přejela.
-    const tMax = cz - rangeZLoL;
+    // Svíslý zápich (90°) se v Z nehne — na konec rozsahu nikdy nedojede.
+    const tMax = plungeDirL.uz > 1e-9 ? (cz - rangeZLoL) / plungeDirL.uz : Infinity;
     let t = 0;
     for (let i = 0; i < 300; i++) {
       const tPrev = t;
-      t += 0.5;
+      t += plungeDirL.step;
       if (t >= tMax) return tMax > 1e-6 ? at(tMax) : null;
       const p = at(t);
       if (blockedAt(p.x, p.z)) {
@@ -2542,6 +2555,33 @@ export function genLongPasses(ctx) {
     }
     return { intervals: out, firstOpen: firstSurvived };
   };
+  // ŠÍŘKA UPICHOVACÍHO PLÁTKU U STĚNY (27. 8. 2026).
+  // Upichovák řeže CELOU spodní hranou šířky b: když začne průchod těsně pod
+  // stoupající stěnou, jeho ZADNÍ část (b − R za špičkou) leží UŽ V TÉ STĚNĚ —
+  // tedy v HOTOVÉM díle. Sken intervalů zná jen bod špičky, takže vjezdy seděly
+  // přesně na konturu a tělo plátku ji ujdalo (nález uživatele 27. 8. 2026:
+  // `N2710 G1 X34.545 Z115.088 ; Rampa 90.0°` a všechny podobné pod ní).
+  //
+  // Začátek intervalu se proto odsune o šířku těla, ale JEN když ho shora
+  // ohraničuje kontura (`blockedAt` těsně nad ním). Když interval začíná ve
+  // vzduchu (konec polotovaru, hranice rozsahu), plátek nemá do čeho narazit
+  // a nic se nemění. Materiál, který tím u stěny zůstane, je fyzikální mez
+  // širokého plátku — dobere ho dokončovací nástroj, ne zajezd do dílu.
+  const partingBodyZ = isParting ? Math.max(0, wInsL - rInsL) : 0;
+  let partingWallClamps = 0, partingWallDropped = 0;
+  const clampPartingBody = (intervals, X) => {
+    if (partingBodyZ <= 0) return intervals;
+    const out = [];
+    for (const iv of intervals) {
+      if (!blockedAt(X, iv.zStart + 0.05)) { out.push(iv); continue; }
+      const zs = iv.zStart - partingBodyZ;
+      if (zs - iv.zEnd < dzScan) { partingWallDropped++; continue; }
+      partingWallClamps++;
+      out.push({ ...iv, zStart: zs, partingWallClamped: true });
+    }
+    return out;
+  };
+
   const scanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
     const intervals = [];
     let zScan = zHiBound;
@@ -2560,7 +2600,7 @@ export function genLongPasses(ctx) {
       }
     }
     if (inRun) intervals.push({ zStart: runStartZ, zEnd: zLoBound, blocked: false });
-    return applyHolderClamp(intervals, firstOpen, X, mainScan);
+    return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
   };
 
   // ── Booleovská cesta hledání intervalů (migrace Fáze 3, za příznakem) ──
@@ -2608,7 +2648,7 @@ export function genLongPasses(ctx) {
       intervals.push({ zStart: zHi, zEnd: zLo, blocked: zLo > zLoBound + eps });
     }
     const firstOpen = !blockedAt(X, zHiBound);
-    return applyHolderClamp(intervals, firstOpen, X, mainScan);
+    return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
   };
   // Výběr cesty dle příznaku (default scan-line → snapshoty beze změny).
   const scan = prms.booleanRoughing ? booleanScanIntervals : scanIntervals;
@@ -4205,6 +4245,8 @@ export function genLongPasses(ctx) {
     foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
+  if (partingWallDropped > 0)
+    foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingWallDropped} vrstva/vrstev u stěny vynechána — široký plátek (${wInsL} mm) by do ní zajel tělem.` });
   if (partingNarrowPockets > 0)
     foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
   if (pocketHolderSkips > 0)

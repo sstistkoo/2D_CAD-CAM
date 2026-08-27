@@ -2091,7 +2091,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         const tRad = parseFloat(prms.toolRadius) || 0.8;
         // −0.75px = polovina šířky konturové čáry (lineWidth 1.5), aby okraj
         // plátku nepřekrýval vykreslenou čáru kontury.
-        const rPix = Math.max(tRad * S.view.scale, 6) - 0.75;
+        // ŽÁDNÉ pixelové podlahy: plátek drží velikost i tvar v měřítku výkresu
+        // (a tím i poměr k držáku, který se kreslí v pravém měřítku). Dřív měl
+        // R podlahu 6 px a šířka/délka 20 px, každá se zapínala při jiném zoomu,
+        // takže se plátek při oddálení nafoukl a deformoval (nález uživatele
+        // 27. 8. 2026). Polohu nástroje drží křížek níž, který má minimální
+        // pixelovou velikost.
+        const rPix = Math.max(tRad * S.view.scale - 0.75, 0.1);
         // Držák (za destičkou) — stejné zrcadlení jako destička (strana
         // obrábění/flipZ vodorovně, flipX svisle), ale BEZ natočení
         // specifického pro tvar destičky (toolAngle), stejně jako v dialogu
@@ -2141,7 +2147,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           // boky stoupají symetricky ±ε/2 od svislice. Rádius se nepoužívá.
           const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
           const half = (tipAngDeg / 2) * (Math.PI / 180);
-          const lenPix = Math.max((parseFloat(prms.toolLength) || 4) * S.view.scale, 20);
+          const lenPix = (parseFloat(prms.toolLength) || 4) * S.view.scale;
           const w2 = Math.max(((parseFloat(prms.toolTipFlat) || 0) * S.view.scale) / 2, 0.75);
           const dx = Math.sin(half) * lenPix;
           const dy = Math.cos(half) * lenPix;
@@ -2157,7 +2163,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         } else if (prms.toolShape === 'polygon') {
           const tipAngDeg = parseFloat(prms.toolTipAngle) || 90;
           const effAngleDeg = parseFloat(prms.toolAngle) || 0;
-          const lenPix = Math.max((parseFloat(prms.toolLength) || 10) * S.view.scale, 20);
+          const lenPix = (parseFloat(prms.toolLength) || 10) * S.view.scale;
           const rotRad = -effAngleDeg * (Math.PI / 180);
           const tipAng = tipAngDeg * (Math.PI / 180);
           const a1 = rotRad, a2 = rotRad - tipAng;
@@ -2215,7 +2221,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           // (jako u polygonu): zprava = levý roh plátku, zleva = pravý roh.
           // Lokálně kreslíme vždy levý roh v počátku s tělem doprava (do už
           // obrobené zóny); stranu obrábění řeší zrcadlení níže.
-          const wPix = Math.max((parseFloat(prms.toolLength) || 10) * S.view.scale, 20);
+          const wPix = (parseFloat(prms.toolLength) || 10) * S.view.scale;
           const rotRad = -(parseFloat(prms.toolAngle) || 0) * (Math.PI / 180);
           const r = Math.min(rPix, wPix / 2);        // rádius nesmí být širší než půl plátku
           const w2 = wPix - 2 * r;                   // rovná část spodního ostří
@@ -2250,8 +2256,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
         // crosshair at tool center
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(pt.x - rPix - 4, pt.y); ctx.lineTo(pt.x + rPix + 4, pt.y); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(pt.x, pt.y - rPix - 4); ctx.lineTo(pt.x, pt.y + rPix + 4); ctx.stroke();
+        const crossPix = Math.max(rPix + 4, 7);   // poloha nástroje zůstane vidět i při oddálení
+        ctx.beginPath(); ctx.moveTo(pt.x - crossPix, pt.y); ctx.lineTo(pt.x + crossPix, pt.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pt.x, pt.y - crossPix); ctx.lineTo(pt.x, pt.y + crossPix); ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2); ctx.fill();
       }
     }

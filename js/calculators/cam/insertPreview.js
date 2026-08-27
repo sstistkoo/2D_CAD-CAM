@@ -166,7 +166,13 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   // Minimum jen jako pojistka proti degenerovaně malé/nulové velikosti —
   // NESMÍ dominovat nad skutečným měřítkem (dřívější 20 px minimum dělalo
   // destičku vizuálně větší než držák, když byl scale kvůli dlouhému l1 malý).
-  const rPix = Math.max((parseFloat(prms.toolRadius) || 0.8) * scale, 2.5);
+  // Destička se kreslí v PRAVÉM MĚŘÍTKU — žádné pixelové podlahy. Každý rozměr
+  // měl dřív své vlastní minimum (R 2,5 px, délka/šířka 8 px), takže při
+  // oddálení plátek narůstal, MĚNIL POMĚRY (jiný poměr R : šířka) a hlavně se
+  // rozcházel s obrysem DRŽÁKU, který se kreslí v pravém měřítku — nakreslený
+  // držák pak neseděl na hraně plátku (nález uživatele 27. 8. 2026).
+  // Detail u hrany si uživatel přiblíží zoomem náhledu (+ / −).
+  const rPix = (parseFloat(prms.toolRadius) || 0.8) * scale;
   ctx.save(); ctx.translate(ox, oy); ctx.scale(mirror, 1);
 
   if (shape === 'round') {
@@ -174,7 +180,7 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   } else if (shape === 'threading') {
     const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
     const half = (tipAngDeg / 2) * (Math.PI / 180);
-    const lenPix = Math.max(toolLen * scale, 8);
+    const lenPix = toolLen * scale;
     const w2 = Math.max(((parseFloat(prms.toolTipFlat) || 0) * scale) / 2, 0.75);
     const dx = Math.sin(half) * lenPix, dy = Math.cos(half) * lenPix;
     ctx.beginPath();
@@ -189,7 +195,7 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   } else if (shape === 'polygon') {
     const tipAngDeg = parseFloat(prms.toolTipAngle) || 90;
     const effAngleDeg = parseFloat(prms.toolAngle) || 0;
-    const lenPix = Math.max(toolLen * scale, 8);
+    const lenPix = toolLen * scale;
     const rotRad = -effAngleDeg * (Math.PI / 180);
     const tipAng = tipAngDeg * (Math.PI / 180);
     // Na kterou stranu od Natočení se 2. hrana otevírá — dvě geometricky
@@ -225,7 +231,7 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     texts.push({ x: ox + mirror * angLx, y: oy + angLy, text: `∠${effAngleDeg}°`, color: '#f9e2af', align: 'center' });
     labels.toolAngle = { x: ox + mirror * angLx, y: oy + angLy };
   } else if (shape === 'parting') {
-    const wPix = Math.max(toolLen * scale, 8);
+    const wPix = toolLen * scale;
     const effAngleDeg = parseFloat(prms.toolAngle) || 0;
     const rotRad = -effAngleDeg * (Math.PI / 180);
     const r = Math.min(rPix, wPix / 2);
@@ -455,53 +461,6 @@ export function holderRectProfile(prms) {
   const z0 = Math.max(toolLen, r, 4);
   const bl = { x: 0, z: z0 }, br = { x: hw, z: z0 };
   return [bl, br, { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 }, { x: bl.x, z: bl.z }];
-}
-
-// Auto-doplnění OTEVŘENÉHO obrysu držáku (režim B v „Kreslit na CAD plátně“,
-// zaškrtnuté „Auto“): z nakreslené lomané čáry {x,z}[] dopočte 45° roh a
-// uzavře tvar na tloušťku `holderWidth` a funkční délku `holderLength` (l1).
-//
-// OSU DRŽÁKU bere z NAKRESLENÉHO tvaru — délka jde tam, kam obrys nejdál sahá
-// od referenčního bodu destičky (0,0), tloušťka napříč. Dřív byla délka natvrdo
-// v ose x: u držáku nakresleného SVISLE (kanonická orientace — destička dole,
-// tělo nahoru = +z) vyšel 45° roh o celé rozpětí obrysu a doplněná noha odjela
-// o l1 mm do strany — v náhledu to vypadalo jako DRUHÝ držák zprava doleva
-// (nález uživatele 27. 8. 2026). Natočení nože (`knifeAngle`) se tím NEMĚNÍ —
-// profil je vždy v kanonické orientaci a úhel se na něj aplikuje až při použití.
-//
-// `editSide`: 'A' = upravuje se první bod, 'B' = poslední, jinak auto (konec
-// dál od středu v ose délky).
-export function completeTwoSidedProfile(prof, prms, editSide) {
-  if (!prof || prof.length < 2) return { sideA: prof || [], sideB: [] };
-  const l1 = Math.max(parseFloat(prms.holderLength) || 0, 0);
-  const thick = Math.max(parseFloat(prms.holderWidth) || 0, 0.1);
-  const pts = prof.slice();
-  const reach = (k) => Math.max(...pts.map(p => Math.abs(p[k])));
-  const alongZ = reach('z') > reach('x');
-  const A = alongZ ? 'z' : 'x';            // osa DÉLKY (l1)
-  const B = alongZ ? 'x' : 'z';            // osa TLOUŠŤKY
-  const mk = (a, b) => (alongZ ? { x: b, z: a } : { x: a, z: b });
-  const first = pts[0], last = pts[pts.length - 1];
-  const editLast = editSide === 'B'
-    ? true
-    : editSide === 'A'
-      ? false
-      : Math.abs(last[A]) >= Math.abs(first[A]);
-  const anchor = editLast ? first : last;
-  const moving = editLast ? last : first;
-  // Cílová tloušťka = rozteč obou konců napříč osou délky; 45° hrana
-  // z pohyblivého konce, pak uzavření zpět k anchoru.
-  const targetB = anchor[B] + (moving[B] >= anchor[B] ? thick : -thick);
-  const dB = targetB - moving[B];
-  const corner = mk(moving[A] + Math.sign(dB || 1) * Math.abs(dB), targetB);
-  const closeA = l1 > 0 ? (moving[A] >= 0 ? l1 : -l1) : corner[A];
-  const endPt = mk(closeA, targetB);
-  return {
-    sideA: editLast
-      ? [...pts, corner, endPt, mk(closeA, anchor[B]), anchor]
-      : [anchor, mk(closeA, anchor[B]), endPt, corner, ...pts],
-    sideB: [],
-  };
 }
 
 // Vykreslí obrys DRŽÁKU (za destičkou) v hlavním simulačním náhledu — VOLAT

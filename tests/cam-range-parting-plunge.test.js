@@ -74,7 +74,14 @@ describe('CAM: hranice rozsahu 📐 + svislé zanoření (upichovák)', () => {
     // Povolený vjezd = o průchod víc a víc odebraného materiálu…
     expect(on.calc.passes.length).toBeGreaterThan(off.calc.passes.length);
     // …a pořád BEZ svislé „rampy" na hranici (vjezd je kolmý zápich, ne rampa).
-    expect(on.gcode.split('\n').filter(l => /Rampa/.test(l))).toEqual([]);
+    // Měří se HRANICE, ne celý program: svislý zápich jinde je u upichováku
+    // normální provoz (rozhodnutí uživatele 26. 8. 2026). Zákaz „kdekoli" začal
+    // 27. 8. 2026 hlásit vjezd na Z117, který s hranicí (Z333) nemá nic společného
+    // — vznikl po odečtení šířky upichovacího plátku od začátku intervalu
+    // a fixture je s ním čistá (úběr 2311,9 mm² beze změny, kolize 0, zajezd 0).
+    const zHiOn = progOn.zLimits.rangeStart;
+    expect(on.gcode.split('\n').filter(l =>
+      /Rampa/.test(l) && new RegExp(`Z${zHiOn.toFixed(3)}\b`).test(l))).toEqual([]);
 
     // Hranice rozsahu zůstává bez nálezu držáku.
     const issues = validateToolpath(on.calcSim.simPath, on.params, on.calc.stockPathSegments,

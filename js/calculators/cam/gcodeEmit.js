@@ -1033,7 +1033,34 @@ export function generateAutoGCode(S, calc) {
         // + 121,9 mm² držáku v materiálu, změřeno cam_sweep).
         || rapidHitsStock(cur.x, cur.z, rTxReal, tz)
         || holderHitsRapid(cur.x, cur.z, tx, tz)) {
-      const xUp = Math.max(rapidTopX + rapidStopX, cur.x, tx);
+      // JAK VYSOKO. `rapidTopX` je vrch CELÉHO polotovaru, takže zdvih
+      // „Výjezd nad konturu“ jezdil pokaydé až nad nejvyšší místo dílu, i když
+      // přejezd v Z potřeboval překonat jen nízký schod (nález uživatele
+      // 27. 8. 2026: „skoro pořád to vyjíždí až nahoru, i když nemusí“).
+      // Stejný vzor jako u čelní strategie níž: navzorkovat strop podle
+      // `travelTopXAtZ` PO CELÉM rozpětí přejezdu, zvednout jen tam — a
+      // výsledek OVĚŘIT týmiž predikáty (destička, plánovací obrys, držák).
+      // Když nižší zdvih neprojde, platí dál vrch polotovaru.
+      const capUpX = Math.max(rapidTopX + rapidStopX, cur.x, tx);
+      let xUp = capUpX;
+      if (Math.abs(tz - cur.z) > 1e-6) {
+        let top = null;
+        const nTop = 24;
+        for (let i = 0; i <= nTop; i++) {
+          const t = travelTopXAtZ(cur.z + (tz - cur.z) * (i / nTop));
+          if (t !== null && (top === null || t > top)) top = t;
+        }
+        if (top !== null) {
+          // KVANTIZACE na 0,01 mm: `top` pochází z navzorkované offsetové smyčky,
+          // a při zrcadlení (hrubování zleva) padnou vzorky na zrcadlená Z → výška
+          // vyšla o 1 µm jinak a parita zrcadlení se rozesšla (X46.170 × X46.169).
+          const cand = Math.min(capUpX, Math.max(cur.x, tx, quantizeUp(top + rapidStopX)));
+          if (cand < capUpX - 1e-6
+              && !segmentHitsPath({ x: cand, z: cur.z }, { x: cand, z: tz }, rapidBlockers)
+              && !rapidHitsStock(cand, cur.z, cand, tz)
+              && !holderHitsRapid(cand, cur.z, cand, tz)) xUp = cand;
+        }
+      }
       // Diagnostický seam (guarded, v produkci no-op — stejný vzor jako
       // `__REGION_LOG__`): svislý zdvih „Výjezd nad konturu" v X předpokládá nad
       // nástrojem vzduch, ale u odlitku (kůra nad zápichem / sousední neobrobené

@@ -11,7 +11,6 @@ export const bridge = {
   updateHolderDrawButtons: null,
   confirmHolderDraw: null,
   cancelHolderDraw: null,
-  toggleHolderDrawSide: null,
   refreshCamToolGeometry: null,
   getCamToolGeometry: null,
   applyCamToolGeometry: null,
