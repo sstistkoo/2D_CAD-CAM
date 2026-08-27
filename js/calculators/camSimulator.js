@@ -4511,9 +4511,23 @@ export function openCamSimulator(initialContour, initialGCode) {
         toolLength: S.params.toolLength, toolAngle: S.params.toolAngle,
         toolTipAngle: S.params.toolTipAngle, toolClearanceAngle: S.params.toolClearanceAngle,
         toolRadius: S.params.toolRadius, toolTipFlat: S.params.toolTipFlat,
+        holderProfile: S.params.holderProfile,
       };
       S.params.toolShape = next;
       const mem = S._shapeGeomMem[next];
+      // OBRYS DRŽÁKU PATŘÍ K TVARU DESTIČKY. Profil se ukládá v souřadnicích
+      // ŠPIČKY — jeho spodní hrana sedí na vrchu TĚLA té destičky. Při výměně
+      // tvaru se špička vůči držáku posune, takže držák nakreslený pro upichovák
+      // (spodní hrana z=15) zůstával u kulaté destičky viset 11 mm od ní — hlídání
+      // pak bylo volnější, než má být, a aplikace o tom neřekla ani slovo
+      // (nález uživatele 27. 8. 2026, změřeno na jeho díle: 0 → 4 kolize / 51 mm²).
+      // Každý tvar si proto drží svůj obrys a při návratu ho dostane zpátky;
+      // tvar, který žádný nemá, spadne na výchozí obdélník — a řekne se to.
+      if (mem && mem.holderProfile) S.params.holderProfile = mem.holderProfile;
+      else if (S.params.holderProfile) {
+        S.params.holderProfile = null;
+        showToast('Obrys držáku byl nakreslený pro předchozí tvar plátku — vrácen výchozí obdélník; nakresli ho znovu.');
+      }
       if (mem) {
         // Obnovit dřívější hodnoty tohoto tvaru.
         S.params.toolLength = mem.toolLength; S.params.toolAngle = mem.toolAngle;
