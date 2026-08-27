@@ -2,6 +2,7 @@
 // (obdélník → přesun rohu na bod destičky + sražení rohu).
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadCamInternals } from './helpers/camInternals.mjs';
+import { completeTwoSidedProfile } from '../js/calculators/cam/insertPreview.js';
 
 let M;
 beforeAll(async () => { M = await loadCamInternals(); });
@@ -38,6 +39,32 @@ describe('holderBottomHandles', () => {
     expect(h[1].x).toBeCloseTo(10);
     expect(h[2].x).toBeCloseTo(20);
     expect(h.every(p => near(p.z, 10))).toBe(true);
+  });
+});
+
+describe('completeTwoSidedProfile (auto-doplnění otevřeného obrysu držáku)', () => {
+  const prms = { holderLength: 200, holderWidth: 20 };
+
+  it('svisle nakreslený držák se doplní SVISLE, ne ramenem do strany', () => {
+    // Regrese 27. 8. 2026: délka (l1) byla natvrdo v ose x, takže u držáku
+    // nakresleného nahoru (kanonická orientace) odjela doplněná noha 200 mm
+    // do strany — v náhledu to vypadalo jako DRUHÝ držák zprava doleva.
+    const drawn = [{ x: -6, z: 0 }, { x: -6, z: 210 }, { x: 6, z: 210 }, { x: 6, z: 30 }];
+    const { sideA } = completeTwoSidedProfile(drawn, prms, 'auto');
+    // Nic nesmí odét do strany dál než na tloušťku držáku.
+    expect(Math.max(...sideA.map(p => Math.abs(p.x)))).toBeLessThanOrEqual(prms.holderWidth);
+    // Délka jde tam, kam byl držák nakreslený (nahoru, +z).
+    expect(Math.max(...sideA.map(p => p.z))).toBeGreaterThanOrEqual(prms.holderLength);
+    // Uzavřeno zpět na anchor.
+    expect(sideA[sideA.length - 1]).toEqual(sideA[0]);
+  });
+
+  it('vodorovně nakreslený držák se doplní jako dřív (délka v ose x)', () => {
+    const drawn = [{ x: 0, z: -6 }, { x: 210, z: -6 }, { x: 210, z: 6 }, { x: 30, z: 6 }];
+    const { sideA } = completeTwoSidedProfile(drawn, prms, 'auto');
+    expect(sideA.slice(drawn.length)).toEqual([
+      { x: 38, z: 14 }, { x: 200, z: 14 }, { x: 200, z: -6 }, { x: 0, z: -6 },
+    ]);
   });
 });
 

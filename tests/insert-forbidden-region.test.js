@@ -8,6 +8,7 @@
 // oblasti sjednotí do čistých smyček. Viz docs/geometry-libs-migration.md.
 import { describe, it, expect } from 'vitest';
 import { insertWorldLoop, buildToolForbiddenRegion, buildTipForbiddenRegion } from '../js/calculators/cam/toolEnvelope.js';
+import { buildInsertProfileSegments, PARTING_BODY_MIN_H_MM } from '../js/calculators/cam/insertPreview.js';
 import { holderWorldLoop } from '../js/calculators/cam/collisionValidator.js';
 import { polyArea } from '../js/geom/geomCore.js';
 
@@ -35,6 +36,30 @@ describe('insertWorldLoop — obrys destičky ve světě', () => {
     // Šířka plátku b=5 → z rozsah ~ toolLength.
     expect(e.zMax - e.zMin).toBeGreaterThan(4);
     expect(area(loop)).toBeGreaterThan(50);
+  });
+
+  it('parting → uzavřený souměrný obrys s OBĚMA boky (rovná plocha, ne půlkruh)', () => {
+    // Regrese: pravý rádius mířil rovnou na horní roh těla, který na kružnici
+    // NELEŽÍ — z pravé strany plátku vyšel půlkruh místo rovného boku a obrys
+    // zůstal otevřený (nález uživatele při „Kreslit držák na CAD plátně“).
+    const b = 5, R = 0.8;
+    const segs = buildInsertProfileSegments({ toolShape: 'parting', toolLength: b, toolRadius: R, toolAngle: 0 });
+    // Řetěz musí navazovat a uzavřít se.
+    segs.forEach((sg, i) => {
+      const nx = segs[(i + 1) % segs.length];
+      expect(Math.hypot(sg.to.x - nx.from.x, sg.to.z - nx.from.z)).toBeLessThan(1e-9);
+    });
+    // Oba rádiusy jsou ČTVRTOBLOUKY — oba konce leží na své kružnici.
+    const arcs = segs.filter(sg => sg.type === 'arc');
+    expect(arcs).toHaveLength(2);
+    arcs.forEach(sg => [sg.from, sg.to].forEach(pt =>
+      expect(Math.hypot(pt.x - sg.cx, pt.z - sg.cz)).toBeCloseTo(sg.r, 9)));
+    // Plocha = obdélník b × výška těla bez dvou rohových výřezů. Bez pravého
+    // boku vycházela menší (73,18 místo 78,71 mm²).
+    const h = Math.max(b * 0.6, R + PARTING_BODY_MIN_H_MM);
+    const corner = R * R - Math.PI * R * R / 4;
+    const loop = insertWorldLoop({ toolShape: 'parting', toolLength: b, toolRadius: R, toolAngle: 0 });
+    expect(area(loop)).toBeCloseTo(b * h - 2 * corner, 1);
   });
 
   it('polygon → nenulový konvexní obrys', () => {

@@ -8,6 +8,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAD – v panelu nástrojů chyběla tlačítka Oříz, Prodl. a Obdélník.** Refaktor
+  toolbaru (`47e7606`, 3. 8. 2026) vypustil z `index.html` tlačítka
+  `data-tool="trim"`, `data-tool="extend"` a `data-tool="rect"`. Samotné
+  nástroje zůstaly plně funkční (`js/tools/trimClick.js`, `extendClick.js`,
+  `rectClick.js`, včetně `trimFromSelection` / `extendFromSelection` a větve
+  ve `switch` v `js/events.js`) — šlo se k nim dostat už jen klávesovou
+  zkratkou **X**, **E** a **R**, což na mobilu/dotykově nejde vůbec
+  (nález uživatele 27. 8. 2026).
+
+  Tlačítka jsou zpět: **Oříz** a **Prodl.** hned za **Vybarvit**, tedy na řádku
+  s rozbalovacím **▾ Úpravy** — a hlavně opět jako PŘÍMÝ potomek `#topbar`.
+  Na tom závisí mobilní rozložení: `css/style.css` má v
+  `@media (max-width: 900px) and (orientation: landscape)` pravidla
+  `[data-tool="trim"] { order: 3 }` / `[data-tool="extend"] { order: 4 }`,
+  která od refaktoru neměla na co působit (`order` platí jen mezi sourozenci
+  v témže flex kontejneru). Naležatu teď zase vychází dokumentovaný řádek
+  **Výběr | Kóta | Tl.Kon | Smaž | Oříz | Prodl. | ▾ Více**.
+  **Obdélník** je v kreslicí řadě za **Kružnicí**. Ikony i popisky odpovídají
+  původním, tooltip navíc nese
+  zkratku. Audit všech větví `setTool` proti `data-tool` v `index.html`
+  potvrdil, že další nástroj bez ovládacího prvku již není (`deleteObj`,
+  `measure` mají vlastní tlačítka podle `id`, `vkDraw` se zapíná z okna VK).
+
+  Na mobilu na výšku navíc toolbar drží **pevné řádky** – dřív se tlačítka
+  přelévala podle šířky displeje, takže návrat Obdélníku a Oříz/Prodl. posunul
+  celé rozvržení a Tužka se vecpala ke skupině Vybarvit. `.toolbar-row-break`
+  (dosud jen naležato) má teď základní stav `display: none` a zapíná se zvlášť
+  v `@media (max-width: 900px) and (orientation: portrait)`; dva nové zlomy
+  `.toolbar-row-break-p` (naležato skryté, aby nerozbily řazení přes `order`)
+  dělí kreslicí tlačítka. Rozvržení je pak stejné na 375 i 780 px:
+
+  ```
+  Bod | Úsečka | Kontura | p. uhel
+  Kruh | Obdélník | Tečna | za/zk
+  Vybarvit | Oříz | Prodl. | ▾ Úpravy
+  Tužka | Detekce | Profil | př/pl | ▾ Více
+  ```
+
+- **CAM – auto-doplnění držáku přikreslilo „druhý držák“ do strany.** Když se
+  v „📐 Kreslit na CAD plátně“ potvrdí OTEVŘENÝ obrys a je zaškrtnuté **Auto**,
+  `completeTwoSidedProfile()` ho uzavře pod 45° na **Délku držáku (l1)** a
+  **Tloušťku**. Délku ale měřil natvrdo v ose x — u držáku nakresleného SVISLE
+  (kanonická orientace: destička dole, tělo nahoru = +z, „Natočení nože 270°“)
+  z toho vyšel 45° roh o celé rozpětí obrysu a doplněná noha odjela o l1 mm do
+  strany — v náhledu to vypadalo jako druhý držák zprava doleva, kterého se
+  nedalo zbavit (nález uživatele 27. 8. 2026, panel hlásil „Tvar držáku (8 úseků)“).
+
+  Nově se osa bere **z nakresleného tvaru** — délka jde tam, kam obrys nejdál
+  sahá od referenčního bodu destičky, tloušťka napříč. Změřeno na svislém
+  držáku (x −6…6 mm, z 0…210 mm, l1 200 / tl. 20): dřív doplnění skončilo na
+  x −200 mm, teď nejdál na x 14 mm a délka jde nahoru na z 200 mm. Vodorovně
+  nakreslený držák se doplňuje **beze změny** (bod po bodu shodně s původním
+  kódem). „Natočení nože“ se tím nemění — profil se ukládá v kanonické
+  orientaci a úhel se na něj aplikuje až při použití.
+
+  Funkce se zároveň přestěhovala z uzavření `openCamSimulator()` do
+  `cam/insertPreview.js` k ostatním profilovým pomocníkům (`holderRectProfile`
+  aj.), aby šla testovat přímo — viz `tests/cam-holder-editor.test.js`.
+
+- **CAM – nakreslený upichovací plátek neměl pravou plochu.** Obrys destičky pro
+  „📐 Kreslit na CAD plátně“ (a s ním i kolizní obálka nástroje) vedl u upichováku
+  pravý rádius rovnou na horní roh těla — jenže ten na kružnici neleží, takže
+  z pravé strany plátku vyšel půlkruh místo rovného boku a obrys zůstal otevřený.
+  Nález uživatele 27. 8. 2026 při dokreslování držáku — v náhledu („⚙️ Geometrie“
+  i simulaci) byl plátek přitom celý správně.
+
+  Nově je obrys SOUMĚRNÝ a shodný s náhledem: levý bok → čtvrtoblouk R → rovné
+  dno → čtvrtoblouk R → **pravý bok** → vrch. Změřeno na plátku š. 5 mm / R0,8:
+  plocha obrysu 73,18 → 78,71 mm² (přesně 5 × 15,8 mm bez dvou rohů). G-kód
+  fixtures s upichovákem (`part-17-long-parting`, `face-parting-retract-holder`,
+  `part-16-face-holder`, `part-10-zapich-casting`) zůstal **beze změny** — oprava
+  se týká kreslení a hlídání, ne plánování drah.
+
+  Zároveň zmizela KOPIE `buildInsertProfileSegments()` v `camSimulator.js` —
+  právě rozejítí obou verzí tuhle vadu vyrobilo; kreslení do CADu teď používá
+  sdílenou funkci z `cam/insertPreview.js` (jak to popisuje
+  `docs/geometry-libs-migration.md`).
+
 - **CAM – zbytečný „Výjezd nad konturu" před sjezdem na hloubku.** `safeRapidTo`
   se ptal, jestli přejezd narazí, na bodě `cíl + Vůle` (`rTx`) — jenže sjezd v X
   dojede `emitDescendX`, a ten při náraze na zbytek zastaví rychloposuv už na

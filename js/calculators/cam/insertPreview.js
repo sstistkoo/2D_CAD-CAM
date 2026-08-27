@@ -418,15 +418,23 @@ export function buildInsertProfileSegments(prms) {
       x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
       z: -(x * Math.sin(rotRad) + y * Math.cos(rotRad)),
     });
+    // Obrys je SOUMĚRNÝ — stejný jako kreslení plátku v draw() a v dialogu
+    // „⚙️ Geometrie“: levý bok → levý rádius → rovné dno → pravý rádius →
+    // PRAVÝ BOK → vrch. Oba rádiusy jsou ČTVRTOBLOUKY končící na patě boku
+    // (pBotL / pBotR). Dřív pravý oblouk mířil rovnou na horní roh (pTopR),
+    // který na kružnici neleží — vyšel z toho půlkruh místo boku, takže
+    // nakreslený plátek neměl pravou plochu (Kreslit na CAD plátně).
     const pTopL = rot(-r, r - bodyH);
     const pBotL = rot(-r, 0);
     const pTopArcL = rot(0, r);
     const pFlatEnd = rot(w2, r);
+    const pBotR = rot(w2 + r, 0);
     const pTopR = rot(w2 + r, r - bodyH);
     segs.push({ type: 'line', from: pTopL, to: pBotL });
     segs.push({ type: 'arc', cx: rot(0, 0).x, cz: rot(0, 0).z, r, from: pBotL, to: pTopArcL });
     segs.push({ type: 'line', from: pTopArcL, to: pFlatEnd });
-    segs.push({ type: 'arc', cx: rot(w2, 0).x, cz: rot(w2, 0).z, r, from: pFlatEnd, to: pTopR });
+    segs.push({ type: 'arc', cx: rot(w2, 0).x, cz: rot(w2, 0).z, r, from: pFlatEnd, to: pBotR });
+    segs.push({ type: 'line', from: pBotR, to: pTopR });
     segs.push({ type: 'line', from: pTopR, to: pTopL });
     return segs;
   }
@@ -447,6 +455,53 @@ export function holderRectProfile(prms) {
   const z0 = Math.max(toolLen, r, 4);
   const bl = { x: 0, z: z0 }, br = { x: hw, z: z0 };
   return [bl, br, { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 }, { x: bl.x, z: bl.z }];
+}
+
+// Auto-doplnění OTEVŘENÉHO obrysu držáku (režim B v „Kreslit na CAD plátně“,
+// zaškrtnuté „Auto“): z nakreslené lomané čáry {x,z}[] dopočte 45° roh a
+// uzavře tvar na tloušťku `holderWidth` a funkční délku `holderLength` (l1).
+//
+// OSU DRŽÁKU bere z NAKRESLENÉHO tvaru — délka jde tam, kam obrys nejdál sahá
+// od referenčního bodu destičky (0,0), tloušťka napříč. Dřív byla délka natvrdo
+// v ose x: u držáku nakresleného SVISLE (kanonická orientace — destička dole,
+// tělo nahoru = +z) vyšel 45° roh o celé rozpětí obrysu a doplněná noha odjela
+// o l1 mm do strany — v náhledu to vypadalo jako DRUHÝ držák zprava doleva
+// (nález uživatele 27. 8. 2026). Natočení nože (`knifeAngle`) se tím NEMĚNÍ —
+// profil je vždy v kanonické orientaci a úhel se na něj aplikuje až při použití.
+//
+// `editSide`: 'A' = upravuje se první bod, 'B' = poslední, jinak auto (konec
+// dál od středu v ose délky).
+export function completeTwoSidedProfile(prof, prms, editSide) {
+  if (!prof || prof.length < 2) return { sideA: prof || [], sideB: [] };
+  const l1 = Math.max(parseFloat(prms.holderLength) || 0, 0);
+  const thick = Math.max(parseFloat(prms.holderWidth) || 0, 0.1);
+  const pts = prof.slice();
+  const reach = (k) => Math.max(...pts.map(p => Math.abs(p[k])));
+  const alongZ = reach('z') > reach('x');
+  const A = alongZ ? 'z' : 'x';            // osa DÉLKY (l1)
+  const B = alongZ ? 'x' : 'z';            // osa TLOUŠŤKY
+  const mk = (a, b) => (alongZ ? { x: b, z: a } : { x: a, z: b });
+  const first = pts[0], last = pts[pts.length - 1];
+  const editLast = editSide === 'B'
+    ? true
+    : editSide === 'A'
+      ? false
+      : Math.abs(last[A]) >= Math.abs(first[A]);
+  const anchor = editLast ? first : last;
+  const moving = editLast ? last : first;
+  // Cílová tloušťka = rozteč obou konců napříč osou délky; 45° hrana
+  // z pohyblivého konce, pak uzavření zpět k anchoru.
+  const targetB = anchor[B] + (moving[B] >= anchor[B] ? thick : -thick);
+  const dB = targetB - moving[B];
+  const corner = mk(moving[A] + Math.sign(dB || 1) * Math.abs(dB), targetB);
+  const closeA = l1 > 0 ? (moving[A] >= 0 ? l1 : -l1) : corner[A];
+  const endPt = mk(closeA, targetB);
+  return {
+    sideA: editLast
+      ? [...pts, corner, endPt, mk(closeA, anchor[B]), anchor]
+      : [anchor, mk(closeA, anchor[B]), endPt, corner, ...pts],
+    sideB: [],
+  };
 }
 
 // Vykreslí obrys DRŽÁKU (za destičkou) v hlavním simulačním náhledu — VOLAT

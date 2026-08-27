@@ -475,7 +475,10 @@ Místo automatické ISO geometrie se obrys držáku kreslí ručně, dvěma způ
   - **Celý uzavřený obrys** kolem destičky → použije se přímo.
   - **Jen dvě strany** (otevřená lomená čára) → automaticky se uzavře pod 45°
     dle polí **Délka držáku (l1)** a **Tloušťka držáku**; tlačítkem **⇄ Strana**
-    přepínáš, který konec se doplňuje (auto → A → B).
+    přepínáš, který konec se doplňuje (auto → A → B). Doplnit se jde ve
+    **směru, kterým je držák nakreslený** — nakreslíš-li ho nahoru od destičky,
+    jde nahoru i délka l1 (tloušťka napříč). Nechceš-li doplňovat vůbec, odškrtni
+    v Držák tabu **Auto** — uloží se přesně nakreslený (otevřený) tvar.
   Když už držák uložený máš a klikneš **📐** znovu, načte se zpět na vrstvu
   Držák jako **editovatelné** čáry (vedle zamčené destičky) — můžeš ho tak
   doupravit místo kreslení od nuly.

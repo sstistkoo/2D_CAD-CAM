@@ -84,6 +84,12 @@ body {
   margin: 0 4px;
 }
 
+/* Neviditelný zlom řádku toolbaru. Ve výchozím stavu (desktop) nedělá nic –
+   zapíná se až v mobilních media query níž, kde drží pevné pořadí řádků. */
+.toolbar-row-break {
+  display: none;
+}
+
 /* ── Rozbalovací sekce toolbaru ── */
 .toolbar-more {
   display: none;
@@ -2950,10 +2956,17 @@ body {
      místě – bez něj by se Oříz podle volného místa občas vešel ještě na
      ten samý řádek (řádky by se míchaly podle šířky obrazovky). */
   .toolbar-row-break {
+    display: block;
     flex-basis: 100%;
     width: 0;
     height: 0;
     order: 2;
+  }
+
+  /* Zlomy, které dělí řádky jen na výšku – naležato by rozbily
+     přeuspořádání přes order výš. */
+  .toolbar-row-break-p {
+    display: none;
   }
 
   /* Oříz/Prodl./"Více" – společně na řádek za tlačítka kreslení, na
@@ -2984,6 +2997,23 @@ body {
   .toolbar-more,
   .toolbar-mid {
     order: 10;
+  }
+}
+
+/* ── Mobil na výšku (portrait): pevné řádky toolbaru ──
+   Bez zlomů se tlačítka přelévají podle šířky displeje, takže po každé
+   změně šířky (jiný telefon, rozdělená obrazovka) sedí jinde. Zlomy drží
+   rozvržení vždy stejné:
+     Bod | Úsečka | Kontura | p. uhel
+     Kruh | Obdélník | Tečna | za/zk
+     Vybarvit | Oříz | Prodl. | ▾ Úpravy
+     Tužka | Detekce | Profil | př/pl | ▾ Více                            */
+@media (max-width: 900px) and (orientation: portrait) {
+  .toolbar-row-break {
+    display: block;
+    flex-basis: 100%;
+    width: 0;
+    height: 0;
   }
 }
 
