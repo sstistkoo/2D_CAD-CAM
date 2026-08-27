@@ -132,6 +132,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – zvýrazněný řádek G-kódu šel o BLOK POZADU za nástrojem.**
+  `getActiveCodeLineIdx()` zaokrouhlovala polohu simulace DOLŮ, jenže bod
+  `simPath` nese číslo řádku, který ho VYROBIL — bod pod aktuální pozicí tedy
+  patří bloku, který už dojel. Svítilo `N130 G0 X150 Z5`, když nástroj už jel
+  `N140 G0 Z258.386` (nález uživatele 27. 8. 2026); pruh pod plátnem přitom
+  ukazoval správný pohyb, protože `showMotionInfo` bere `pNext`. Zaokrouhluje
+  se nahoru, takže stojí-li simulace PŘESNĚ na uzlu (krok po blocích), svítí
+  pořád blok, který tam dojel.
+
+### Added
+- **CAM – klik na řádek v G-kódu přesune simulaci na ten blok** (přání
+  uživatele 27. 8. 2026). Nástroj se postaví na KONEC bloku — stejně jako po
+  kroku šipkami, takže obojí nechá program i nástroj ve stejném stavu.
+  Řádky bez pohybu (komentář, M-kód, `G96`…) v dráze žádný bod nemají, na ty
+  se simulace nehne (`seekToLine` vrátí `false`).
 - **CAM – práh vnoření držáku při VJEZDU byl přísnější než kterékoli měřítko
   (čtyři díly přišly o celý průchod).** `ENTRY_FIT_TOL` zůstal na hodnotě 0,1 mm²
   z měření, kdežto validátor i zbytek pipeline pracují s 0,5 mm²

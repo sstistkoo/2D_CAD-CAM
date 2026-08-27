@@ -3762,6 +3762,33 @@ export function openCamSimulator(initialContour, initialGCode) {
     draw(); updateCodeHighlight(); updateProgressBar();
   }
 
+  /**
+   * Postavit simulaci na KONEC bloku na řádku `li` (klik do G-kódu).
+   *
+   * Konec, ne začátek: krok po blocích (`seekToAdjacentBlock`) parkuje taky na
+   * konci, takže klik i šipky nechají nástroj na stejném místě a zvýrazní
+   * stejný řádek. Řádky BEZ pohybu (komentář, M-kód, `G96`…) v `simPath`
+   * žádný bod nemají — na ty se simulace nehne, jen se do nich postaví kurzor.
+   *
+   * @returns {boolean} povedlo se najet
+   */
+  function seekToLine(li) {
+    if (!S._cachedCalc) recalcNow();
+    const calc = S._cachedCalc;
+    const total = (calc.simPath || []).length - 1;
+    if (total <= 0 || li == null) return false;
+    let targetIdx = -1;
+    for (let i = total; i >= 0; i--) {
+      if (calc.simPath[i].originalLineIdx === li) { targetIdx = i; break; }
+    }
+    if (targetIdx < 0) return false;
+    S.simRunning = false; S.simBlockTarget = null; playBtn.textContent = '▶';
+    S._gcodeFocusLine = null;   // zvýraznění řídí poloha simulace, ne klik
+    S.simProgress = targetIdx / total;
+    draw(); updateCodeHighlight(); updateProgressBar();
+    return true;
+  }
+
   function startSimLoop() {
     if (S._animId) return;
     S._simLastTs = null;
@@ -3901,10 +3928,22 @@ export function openCamSimulator(initialContour, initialGCode) {
   // nejbližší následující bod simPath s originalLineIdx (viz
   // parseManualGCodeToPath). Používá se pro zvýraznění i skok kurzoru
   // v CAM Editoru na stejný řádek.
+  //
+  // ZAOKROUHLUJE SE NAHORU, ne dolů. Bod `simPath` nese číslo řádku, který ho
+  // VYROBIL, takže bod pod aktuální pozicí patří bloku, který už DOJEL — právě
+  // jedoucí blok končí až v bodě NAD ní. Se zaokrouhlením dolů šlo zvýraznění
+  // o blok pozadu za nástrojem i za údajem v pruhu pod plátnem (ten bere
+  // `pNext`, viz `showMotionInfo`) — nález uživatele 27. 8. 2026: svítilo
+  // `N130 G0 X150 Z5`, když nástroj už jel `N140 G0 Z258.386`.
+  //
+  // Stojí-li simulace PŘESNĚ na uzlu (krok po blocích, klik na řádek), vyjde
+  // ceil na ten uzel a zvýrazní se blok, který tam dojel — což je přesně to,
+  // co uživatel odkrokoval. Epsilon jen kryje dělení a násobné `idx / total`.
   function getActiveCodeLineIdx() {
     const calc = S._cachedCalc;
     if (!calc || calc.simPath.length < 2) return null;
-    const currentSimIdx = Math.floor(S.simProgress * (calc.simPath.length - 1));
+    const total = calc.simPath.length - 1;
+    const currentSimIdx = Math.max(0, Math.min(total, Math.ceil(S.simProgress * total - 1e-9)));
     for (let i = currentSimIdx; i < calc.simPath.length; i++) {
       if (calc.simPath[i].originalLineIdx != null) return calc.simPath[i].originalLineIdx;
     }
@@ -7999,6 +8038,18 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // manual textarea
   manualTa.addEventListener('mousedown', () => { S._gcodeFocusLine = null; });
+  // Klik na řádek programu přesune simulaci na ten blok (přání uživatele
+  // 27. 8. 2026). Až na `click`, ne `mousedown` — dřív textarea ještě nemá
+  // přesunutý kurzor, takže by se četl řádek z minulého kliknutí.
+  manualTa.addEventListener('click', () => {
+    const caret = manualTa.selectionStart;
+    if (caret == null) return;
+    let li = 0;
+    for (let i = 0; i < caret && i < manualTa.value.length; i++) {
+      if (manualTa.value.charCodeAt(i) === 10) li++;
+    }
+    seekToLine(li);
+  });
   manualTa.addEventListener('input', () => {
     // Náhled celého programu je jen ke čtení — složený kód se generuje z částí,
     // ruční úprava by se při dalším přepnutí ztratila (textarea má readonly,
