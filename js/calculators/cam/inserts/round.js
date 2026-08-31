@@ -27,6 +27,6 @@ export function roundInsert(prms) {
     // Sjezdy/dojezdy po OBÁLCE plátku (široký bok) — jen upichovák.
     envelopeAlongContour: false,
     // Sloučení vrstvy přes nízký hrb — změřeno zatím jen u upichováku.
-    mergesOverHump: false,
+    mergesOverHump: true,
   };
 }

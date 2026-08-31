@@ -215,13 +215,15 @@ export function makeRegions(deps) {
       // Držák je široký desítky mm, takže přes hranici dosáhne i z místa hluboko
       // uvnitř úseku — test proto projde CELÝ PÁS do vzdálenosti držáku od
       // hranice, ne jen hranici samotnou (na `part-10` byl nález 17 mm od ní).
-      if (typeof holderFitsOverContour !== 'function') return false;
-      const band = Math.max(parseFloat(prms.holderWidth) || 0, 20);
-      for (let z = s.z; z >= s.z - band - 1e-9; z -= 1) {
-        const tip = offsetXAt(z);
-        if (tip === null) continue;
-        if (!holderFitsOverContour(z, tip)) return false;
-      }
+      // POZOR: tady BYVAL test, ze se pres hranici vejde DRZAK
+      // (holderFitsOverContour po celem pasu sirky drzaku pod splitem). Kdyz
+      // se nevesel, split se ZAHODIL — a vrstvy se pak zase stridaly vpravo
+      // a vlevo od hrbu, presne to, na co si uzivatel stezoval.
+      //
+      // ZRUSENO 28. 8. 2026 na jeho pokyn: „neprejizdet, dokud neni cela prava
+      // strana hotova“ (docs/cam-pravidla-drah.md §6.0) je PODMINKA, ne
+      // optimalizace — heuristika ji nesmi prebit. Cena je zmerena a zapsana
+      // v CHANGELOGu; komentar vys popisuje, proc ten test kdysi vznikl.
       return true;
     }
     const zTop = i > 0 ? splits[i - 1].z : Infinity;
@@ -281,7 +283,10 @@ export function makeRegions(deps) {
   };
 
   const computeRegions = () => {
-    if (!prms.regionRoughing || prms.stockMode !== 'casting' || stockWorldPoints.length < 3) return FULL_REGION;
+    // Zadne dalsi podminky: pravidlo „dojet vrstvu, pak celou jednu stranu“
+    // (docs/cam-pravidla-drah.md §6.0) plati VZDY — i na valci. Jedina zbyla
+    // podminka je technicka: bez siluety se zlomy spocitat nedaji.
+    if (!stockLoopL || stockLoopL.length < 3) return FULL_REGION;
     // Dva zdroje zlomů: úDOLÍ POLOTOVARU a HRBY KONTURY (viz výš). Seřazí se
     // shora dolů a blízké dvojice splynou — údolí má přednost, protože o něm
     // rozhodují starší, změřené testy.

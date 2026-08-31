@@ -26,6 +26,6 @@ export function polygonInsert(prms) {
     hasFlankGeometry: true,
     tiltedFlank: tiltDeg > 0.01,
     envelopeAlongContour: false,
-    mergesOverHump: false,
+    mergesOverHump: true,
   };
 }

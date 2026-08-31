@@ -291,7 +291,10 @@ export function genLongPasses(ctx) {
   // `stockLoopFullL` = CELÝ polotovar (hlídání kolizí držáku, viz
   // holderEntryCapZ níž), `stockLoopL` = ořezaný rozsahem 📐 (plánování drah,
   // viz rangeClipZ výš).
-  const stockLoopFullL = prms.stockMode === 'casting' ? buildStockLoopRaw(prms, stockPathSegments) : null;
+  // Silueta polotovaru se staví i pro VÁLEC (obdélník) — pravidlo „dojet vrstvu,
+  // pak celou jednu stranu“ (docs/cam-pravidla-drah.md §6.0) musí platit vždy, ne jen
+  // u odlitku. buildStockLoopRaw pro 'cylinder' vrací obdélník sRad × (Celo…−Delka).
+  const stockLoopFullL = buildStockLoopRaw(prms, stockPathSegments);
   // Ořez smyčky Z-pásem rozsahu (Clipper). Víc komponent = polotovar je
   // v pásu přerušený; bere se ta s největším rozpětím X (hlavní kus).
   const clipLoopToRange = (loop) => {

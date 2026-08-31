@@ -99,7 +99,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="removal" title="Úběr materiálu: při simulaci vizuálně odebírat projetý materiál z polotovaru">⛏</button>
       <button data-act="holdercol" title="Kolize držáku: oranžově obarví oblast, kudy se držák při simulaci vnořil do polotovaru/obrobku (stopa zůstává i po přejetí)">🟧</button>
-      <button data-act="snap" title="SNAP: přichytávání k bodům a hranám kontury/polotovaru (jako v CAD) – konce, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
+      <button data-act="snap" title="SNAP: přichytávání k bodům a hranám (jako v CAD) – kontura, polotovar i jeho offsetová čára, KONCE DRAH, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
       <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
@@ -1642,40 +1642,30 @@ export function openCamSimulator(initialContour, initialGCode) {
     // o Vůli X (radiálně) a Vůli Z (axiálně). Sem končí rychloposuv (G0) a
     // začíná pracovní posuv (G1); zároveň bezpečná zóna pro držák.
     {
-      const clr = stockClearances(prms);
       ctx.save();
       ctx.strokeStyle = 'rgba(250,179,135,0.75)';
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 4]);
       ctx.beginPath();
-      if (prms.stockMode === 'cylinder') {
-        const bRad = (parseFloat(prms.stockDiameter) || 0) / 2 + clr.x;
-        const bFace = (parseFloat(prms.stockFace) || 0) + clr.z;
-        const bLen = (parseFloat(prms.stockLength) || 0) + clr.z;
-        const b0 = toScreen(0, bFace), b1 = toScreen(bRad, bFace),
-          b2 = toScreen(bRad, -bLen), b3 = toScreen(0, -bLen);
-        ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b3.x, b3.y);
-      } else if (calc.stockPathSegments.length > 0) {
-        // Odlitek: kreslí se PŘESNĚ ta smyčka, se kterou plánuje hrubování
-        // i emise (`stockPlanLoop` — týž helper, co stojí za `planLoopRef`
-        // v gcodeEmit.js). Náhled tak nemůže tvrdit něco jiného než dráhy.
-        //
-        // DŘÍV se tady offset dopočítával ZVLÁŠŤ: obrys se navzorkoval a každý
-        // bod se posunul po své vlastní normále (z pPrev→pNext). To ale NENÍ
-        // offset polygonu a v rozích i na koncích se čára přitahovala k
-        // polotovaru — normála v rohu půlí úhel (chybí prodloužení hrany), a
-        // v prvním/posledním vzorku se počítala jen z poloviny intervalu.
-        // Reálný nález uživatele: u konce polotovaru (S26→S27) se „offsetová
-        // čára ke konci zužuje místo aby držela stejnou vzdálenost", ačkoli
-        // plánovací smyčka má odstup přesně 1,000 mm po celé délce úseku.
-        const offLoop = stockPlanLoop(prms, calc.stockPathSegments);
-        if (offLoop && offLoop.length > 1) {
-          offLoop.forEach((q, i) => {
-            const p = toScreen(q.x, q.z);
-            if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-          });
-          ctx.closePath();     // smyčka je uzavřená (na rozdíl od bývalé polylinie)
-        }
+      // Kreslí se PŘESNĚ ta smyčka, se kterou plánuje hrubování i emise
+      // (`stockPlanLoop`), a na kterou se chytá SNAP — jeden zdroj, viz
+      // getStockPlanOutline() níž.
+      //
+      // DŘÍV se offset dopočítával ZVLÁŠŤ: obrys se navzorkoval a každý bod
+      // se posunul po své vlastní normále. To ale NENÍ offset polygonu a
+      // v rozích i na koncích se čára přitahovala k polotovaru — normála
+      // v rohu půlí úhel (chybí prodloužení hrany) a v prvním/posledním
+      // vzorku se počítala jen z poloviny intervalu. Reálný nález uživatele:
+      // u konce polotovaru se „offsetová čára ke konci zužuje místo aby
+      // držela stejnou vzdálenost“.
+      const planOutline = getStockPlanOutline(calc);
+      if (planOutline.length > 1) {
+        planOutline.forEach((q, i) => {
+          const p = toScreen(q.x, q.z);
+          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        });
+        // Válec = otevřená polylinie od osy k ose; odlitek = uzavřená smyčka.
+        if (prms.stockMode !== 'cylinder') ctx.closePath();
       }
       ctx.stroke();
       ctx.restore();
@@ -2760,6 +2750,46 @@ export function openCamSimulator(initialContour, initialGCode) {
     t = Math.max(0, Math.min(1, t));
     return { x: x1 + t * dx, z: z1 + t * dz };
   }
+  // Obrys, na kterém končí rychloposuv („tečkovaná“ čára v náhledu): povrch
+  // polotovaru posunutý o Vůli X (radiálně) a Vůli Z (axiálně). JEDEN zdroj
+  // pro KRESLENÍ i pro SNAP — kdyby si to každý počítal sám, mohl by náhled
+  // ukazovat jinou čáru, než na kterou se přichytává (a než se kterou
+  // plánují dráhy: `stockPlanLoop` je týž helper, co stojí za `planLoopRef`
+  // v gcodeEmit.js).
+  //
+  // Vrací body smyčky; ZAVŘENÍ řeší volající — u válce je to otevřená
+  // polylinie od osy k ose, u odlitku uzavřená smyčka.
+  function getStockPlanOutline(calc) {
+    const prms = S.params;
+    if (prms.stockMode === 'cylinder') {
+      const clr = stockClearances(prms);
+      const sRad = (parseFloat(prms.stockDiameter) || 0) / 2;
+      // Žádný polotovar — žádná čára. Bez téhle kontroly by při průměru 0 vyšel
+      // offset o pouhé Vůli X a v náhledu se kreslil fantom kolem ničeho.
+      if (!(sRad > 0)) return [];
+      const bRad = sRad + clr.x;
+      const bFace = (parseFloat(prms.stockFace) || 0) + clr.z;
+      const bLen = (parseFloat(prms.stockLength) || 0) + clr.z;
+      return [{ x: 0, z: bFace }, { x: bRad, z: bFace },
+        { x: bRad, z: -bLen }, { x: 0, z: -bLen }];
+    }
+    if (!calc || !(calc.stockPathSegments || []).length) return [];
+    return stockPlanLoop(prms, calc.stockPathSegments) || [];
+  }
+  /** Úsečky téhož obrysu — pro SNAP na hranu. U válce se úsek po ose
+   *  vynechává, stejně jako se nekreslí. */
+  function getStockPlanSegs(calc) {
+    const pts = getStockPlanOutline(calc);
+    if (pts.length < 2) return [];
+    const closed = S.params.stockMode !== 'cylinder';
+    const n = closed ? pts.length : pts.length - 1;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      out.push({ type: 'line', p1: { x: a.x, z: a.z }, p2: { x: b.x, z: b.z } });
+    }
+    return out;
+  }
   // Vrátí {x,z,type:'point'|'edge'} nebo null. Body: počátek, vrcholy kontury
   // i polotovaru, středy oblouků, středy úseček (přednost). Hrany: nejbližší
   // bod na úsečce/oblouku.
@@ -2782,7 +2812,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     (calc.stockWorldPoints || []).forEach(p => tryPt(p.xReal, p.zReal));
     // Uzly drah (koncové body pohybů G-kódu) – jen v režimu úpravy drah,
     // kdy jsou viditelné a tažitelné.
-    if (S.gcodeEditEnabled) getGNodes().forEach(n => tryPt(n.x, n.z));
+    // KONCE DRAH (uzly G-kódu). Dřív jen v režimu úpravy drah — jenže ukázat
+    // na konec dráhy („sem to má dojet“) je potřeba i mimo něj; bez toho snap
+    // sebral nejbližší bod POLOTOVARU (nález uživatele 31. 8. 2026).
+    getGNodes().forEach(n => tryPt(n.x, n.z));
+    // Vrcholy offsetové čáry POLOTOVARU (kam dojede rychloposuv).
+    getStockPlanOutline(calc).forEach(q => tryPt(q.x, q.z));
     // Konstrukční / pomocné čáry + jejich offsetové čáry (dráha středu plátku)
     // – koncové body (tečné body, průsečíky) jsou snapovatelné jako úsečky.
     const guides = getAllGuideLines().map(g => ({ type: 'line', p1: { x: g.x1, z: g.z1 }, p2: { x: g.x2, z: g.z2 } }));
@@ -2809,7 +2844,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         for (const q of segPairIntersections(interSegs[ii], interSegs[jj])) tryPt(q.x, q.z);
     if (best) return best;   // body mají přednost před hranami
     // Hrany: kontura + polotovar + konstrukční čáry + offsetové dráhy.
-    const segs = [...baseSegs, ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishRefPath || []), ...(calc.finishUnreachablePath || [])].filter(s => s && !s.isDegenerate);
+    const segs = [...baseSegs, ...getStockPlanSegs(calc), ...(calc.offsetPath || []), ...(calc.finishOffsetPath || []), ...(calc.finishRefPath || []), ...(calc.finishUnreachablePath || [])].filter(s => s && !s.isDegenerate);
     for (const s of segs) {
       let px, pz, dist;
       if (s.type === 'line') {

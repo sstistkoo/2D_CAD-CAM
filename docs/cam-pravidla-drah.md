@@ -155,10 +155,12 @@ existovat může a náraz do něj je náraz *(rozhodnutí uživatele 20. 8. 2026
 
 ## 6. Pravidla, která vyslovil uživatel
 
-### 6.0 DOJET VRSTVU, PAK CELOU JEDNU STRANU — PLATÍ VŽDY (28. 8. 2026)
+### 6.0 „NEPŘEJÍŽDĚT, DOKUD NENÍ CELÁ PRAVÁ STRANA HOTOVÁ" — PLATÍ VŽDY
 
-> **Toto je závazná podmínka, ne optimalizace.** Uživatel ji vyslovil
-> 28. 8. 2026 se slovy „to je podmínka, co musí být vždy dodržena".
+> ## Nepřejíždět, dokud není celá pravá strana hotová.
+>
+> **Závazné znění pravidla** (uživatel, 28. 8. 2026: *„to je podmínka, co musí
+> být vždy dodržena"*). Není to optimalizace ani volba — je to podmínka.
 
 Když vrstvu přeruší hotovní kontura (hrb, boss, stěna kapsy):
 
@@ -168,28 +170,63 @@ Když vrstvu přeruší hotovní kontura (hrb, boss, stěna kapsy):
 2. **Pak se dodělá CELÁ TA STRANA až na dno** — všechny hloubky.
 3. **Teprve potom se přejíždí na druhou stranu.** Nepřejíždí se tam a zpátky
    po hloubkách.
+4. **Po přejezdu se dodělá VŠECHNO, co na té straně zbylo neobrobené —
+   a teprve pak se jede dál.** Strana se nikdy neopouští rozdělaná.
+   *(doplněno 28. 8. 2026: „až pak se pojede dál")*
 
 „Ta strana" = ta, ze které nástroj přijíždí — u standardního podélného
 hrubování zprava doleva tedy PRAVÁ. U hrubování zleva je svět zrcadlený
 (§1.3), takže je to zrcadlená pravá, tedy fyzicky levá.
 
+**Pravidlo je REKURZIVNÍ.** Neplatí jen pro první dvojici stran: každý úsek,
+na který se přejede, se dodělá celý, než se pokračuje na další. Zakázaný vzor
+je jakékoli **střídání po vrstvách** mezi dvěma místy dílu — ať už je to
+pravá/levá strana hrbu, nebo dva úseky za sebou.
+
+> **Kontrola v náhledu:** projeď simulaci a sleduj, jestli se nástroj vrací na
+> místo, kde už jednou byl, do hloubky, kterou tam ještě nedobral. Pokud ano,
+> pravidlo je porušené — nezáleží na tom, že celkový úběr sedí.
+
 **Proč:** přejíždění napříč dílem v každé vrstvě je zbytečná dráha a nástroj
 se veze po kontuře přes hotový tvar.
 
-#### Stav implementace — POZOR, pravidlo NENÍ splněno vždy
+#### Stav implementace (28. 8. 2026)
 
-Dnešní kód ho splňuje jen za těchto podmínek:
+Pravidlo bylo do té doby splněné jen ve dvou úzkých případech. Na pokyn
+uživatele *„jestli tam je nějaká jiná podmínka, tak ji smaž — tohle je jediné,
+co se bude dělat"* padly **tři gaty**:
 
-| část pravidla | dělá to | omezení |
+| co bylo podmíněné | čím | stav |
 |---|---|---|
-| dojet vrstvu přes hrb do rohu | `ops/long/humpMerge.js` | **jen UPICHOVÁK** (`mergesOverHump`). Pro polygon a kulatou vypnuto — první pokus hnul `part-1` o 22 mm² |
-| celá strana až na dno, pak druhá | `ops/long/regions.js` + smyčka regionů v `roughLong.js:518` | **jen ODLITEK** (`stockMode === 'casting'`) a jen se zaškrtnutým **„Dělit na úseky"**. Na válci regiony nevzniknou a každá vrstva jede přes celý díl |
-| pořadí stran | `orderRegions` | řadí podle **největšího průměru**, ne „napřed pravá". Má-li levá strana větší průměr, jde první |
+| dojet vrstvu přes hrb | `mergesOverHump` jen u upichováku | ZRUŠENO — platí pro polygon i kulatou (`inserts/*.js`) |
+| dělení na úseky | jen ODLITEK + zaškrtnuté „Dělit na úseky" | ZRUŠENO — silueta se staví i pro válec, checkbox už negatuje (`ops/roughLong.js`, `ops/long/regions.js`) |
+| dělení u HRBU kontury | heuristika „vejde se přes hranici držák?" split ZAHODILA | ZRUŠENO — `splitIsNeeded` u `kind === 'peak'` vrací rovnou `true` |
 
-**Otevřené tedy zůstává:** rozšířit obojí mimo ty dvě úzké podmínky — merge
-přes hrb na všechny tvary destičky a dělení na úseky i pro válcový polotovar.
-Obojí je měřitelné otiskem + sweepem (§8). Zapsáno jako otevřená položka
-v `docs/cam-plan-2026-08-28.md`.
+Zbývá jediná technická podmínka: bez siluety polotovaru se zlomy spočítat
+nedají (`!stockLoopL || stockLoopL.length < 3`). To není politika, to je
+nemožnost.
+
+**Změřená cena** (sweep, 26 fixtures × 2 držáky):
+
+| | úběr | kolize |
+|---|---|---|
+| **nakreslený nůž** | 80 786 → **82 810 mm²** (+2 025) | **0 → 0** |
+| náhradní obdélníkový držák | 81 984 → **84 687 mm²** (+2 703) | 2 → **20** (+87 mm²) |
+
+S reálným nakresleným nožem je to tedy čistá výhra. Osmnáct nálezů navíc je
+na NÁHRADNÍM obdélníku (používá se tam, kde nůž nakreslený není — je hrubší
+a pesimističtější), soustředěných na `part-1/2/4/6/9` kolem Z 257–258
+a na `part-8`.
+
+> **Zrušení heuristiky u hrbu nestálo nic.** Starý komentář v `splitIsNeeded`
+> varoval před „7 fixtures, 5,8–43,6 mm²" — po zrušení předchozích dvou gatů
+> se to už neprojevilo: úběr +204 mm² a **žádný nový nález**. Ta výstraha
+> platila pro jiný stav kódu.
+
+**Co ještě není ověřené:** pořadí stran pořád řídí `orderRegions` podle
+NEJVĚTŠÍHO PRŮMĚRU, ne „napřed ta, ze které přijíždím". Na dílech sady to
+vychází stejně (tie-break je vyšší Z, tedy pravá), ale na dílu, kde má levá
+strana větší průměr, by šla první.
 
 ### 6.1 Ostatní
 
