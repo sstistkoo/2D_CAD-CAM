@@ -322,6 +322,12 @@ bridge.gearFromSelection = gearFromSelection;
 
 CAM generátory jsou v `js/calculators/`.
 
+> **Pravidla, která dráha musí splňovat, jsou v `docs/cam-pravidla-drah.md`.**
+> Tahle kapitola popisuje ARCHITEKTURU (který modul co dělá); ten dokument
+> popisuje PODMÍNKY (jak se dráha smí generovat, kde smí začít vjezd, jaké
+> jsou prahy hlídání, co je doložená mez). Před zásahem do hrubování si ho
+> přečti — ušetří to opakování slepých uliček.
+
 ### Základní struktura
 
 ```
@@ -1466,6 +1472,32 @@ na (fixture × varianta) — singleton `S` v `tests/helpers/camHeadless.mjs`
 jinak kontaminuje mezi díly.
 
 Podrobnosti a zapsaná baseline: `docs/cam-order-aware-holder.md`, krok 0.
+
+### Koho všeho se moje oprava dotkla? (`scripts/cam_fingerprint.mjs`)
+
+Moduly v `cam/ops/` sdílejí DATA, ne jen soubory: `offsetXAt` čte 12 modulů,
+do pole `passes` zapisuje 12 modulů, obálku držáku vidí 6. Oprava na jednom
+místě se proto může projevit na dílu, o který vůbec nešlo — a rozdělení
+generátoru do modulů ten dosah nezmenšilo, jen zpřehlednilo.
+
+```bash
+node scripts/cam_fingerprint.mjs --save=pred.json    # PŘED zásahem (~35 s)
+# …oprava…
+node scripts/cam_fingerprint.mjs --diff=pred.json    # PO zásahu
+```
+
+Vypíše, u kterých z 26 fixtures se PROGRAM změnil, a u každé první odlišný
+řádek G-kódu (`--full` vypíše všechny). Je-li mezi nimi díl, kterého se oprava
+týkat neměla, zasáhla něco sdíleného.
+
+**Rozdíl proti sweepu:** sweep měří ÚBĚR a KOLIZE, tedy jestli je výsledek
+DOBRÝ. Fingerprint měří SHODU PROGRAMU, tedy jestli se vůbec něco změnilo —
+stejný úběr může vzniknout z jiné dráhy, což sweep neukáže. U refaktoringu
+(přesun kódu beze změny chování) musí být otisk shodný BAJT PO BAJTU; tak se
+28. 8. 2026 ověřovalo všech patnáct řezů při rozdělení generátoru.
+
+Otisk je deterministický (ověřeno dvěma běhy po sobě). Z programu se vyhazuje
+řádek `Datum:` — jinak by se lišil každý den.
 
 ---
 

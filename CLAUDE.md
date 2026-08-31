@@ -50,8 +50,15 @@ závislostí).
 ```bash
 npm test              # spustit všechny testy (vitest run)
 npm run test:watch    # watch mód
-npm run test:coverage # coverage
+npm run test:coverage # coverage — POZOR: instrumentace zpomalí CAM ~4× a šest
+                      #   testů spadne na SVÉ vlastní timeouty; není to regrese
 npm run sw            # vygenerovat SW assety (scripts/generate-sw-assets.js)
+                      #   PO PŘIDÁNÍ JS SOUBORU SPUSTIT — jinak chybí v offline cache
+
+# CAM – „koho všeho se moje oprava dotkla?" (~35 s, viz hlavička skriptu)
+node scripts/cam_fingerprint.mjs --save=pred.json   # PŘED zásahem
+node scripts/cam_fingerprint.mjs --diff=pred.json   # PO zásahu → seznam změněných dílů
+node scripts/cam_sweep.mjs                          # úběr × kolize (jestli je to k lepšímu)
 # lokální běh (ES moduly vyžadují server, ne file://):
 npx serve .          # nebo: python -m http.server 8080
 ```
@@ -142,6 +149,10 @@ docs/                 # developer.md, user-guide.md
 ## Odkazy a dokumentace
 - `README.md` – přehled funkcí a struktury
 - `docs/developer.md` – architektura, přidání nástroje, CAM pipeline, DXF
+- `docs/cam-pravidla-drah.md` – **PODMÍNKY generování drah**: pořadí obrábění,
+  vjezd a zanoření, prahy hlídání destičky/držáku, kde končí polotovar,
+  pravidla vyslovená uživatelem, doložené meze. **Číst PŘED zásahem do
+  hrubování** — developer.md říká, který modul co dělá, tenhle CO MUSÍ PLATIT.
 - `docs/user-guide.md` – uživatelská příručka
 - `CONTRIBUTING.md` – pravidla přispívání
 - `CHANGELOG.md` – deník změn (Keep a Changelog / SemVer)

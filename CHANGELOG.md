@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`docs/cam-pravidla-drah.md` — podmínky, které musí dráha splňovat.**
+  Pravidla generování byla dosud jen v komentářích u kódu (`ops/` má 45 %
+  řádků komentář a 70 odkazů na konkrétní nález na díle) — dobré pro údržbu,
+  ale nedalo se podle nich zkontrolovat změna. Nový dokument je sbírá na jedno
+  místo: pořadí obrábění, podmínky vjezdu a zanoření (úhel podle tvaru
+  plátku), prahy hlídání destičky a držáku i s odůvodněním jejich hodnot,
+  „polotovar končí na offsetové čáře", pravidla vyslovená uživatelem („celý,
+  nebo vůbec", „napřed se dojede to, co je ve směru dráhy", …) a doložené
+  meze, které se nemají znovu otevírat. Každé pravidlo má odkaz na místo
+  v kódu, kde skutečně žije; autorita zůstává kód.
+- **`scripts/cam_fingerprint.mjs` — „koho všeho se moje oprava dotkla?"**
+  Moduly v `cam/ops/` sdílejí DATA, ne jen soubory (`offsetXAt` čte 12 modulů,
+  do `passes` zapisuje 12, obálku držáku vidí 6), takže se oprava může
+  projevit na dílu, o který vůbec nešlo. Skript vezme otisk G-kódu všech
+  26 fixtures (~35 s, jeden proces na fixture kvůli singletonu `S`) a po
+  změně vypíše, u kterých se program změnil — u každé i první odlišný řádek:
+
+  ```bash
+  node scripts/cam_fingerprint.mjs --save=pred.json
+  node scripts/cam_fingerprint.mjs --diff=pred.json
+  ```
+
+  Doplňuje `cam_sweep.mjs`, nenahrazuje ho: sweep měří ÚBĚR a KOLIZE (jestli
+  je výsledek dobrý), fingerprint SHODU PROGRAMU (jestli se vůbec něco
+  změnilo) — stejný úběr může vzniknout z jiné dráhy. U refaktoringu musí být
+  otisk shodný bajt po bajtu; takhle se ověřilo všech patnáct řezů při
+  rozdělení generátoru.
 - **CAM – navazující přímé bloky se slévají do jednoho (program o 13 % kratší).**
   Generátor skládá jeden rovný pohyb ze tří etap, které o sobě nevědí —
   nájezd posuvem k materiálu, vlastní řez a doběh za hranu polotovaru — a ve
