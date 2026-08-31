@@ -840,7 +840,7 @@ export function generateAutoGCode(S, calc) {
   // Emise HRUBOVÁNÍ — celá operace v ops/roughEmit.js. `E` je sdílené
   // emisní prostředí; z něj se vrací jen to, co musí přetéct do dokončování.
   const _E = {
-    S, calc, prms, addCmt, addN, note, arcR, flipArc, xDia,
+    calc, prms, addCmt, addN, note, arcR, flipArc, xDia,
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
@@ -848,7 +848,7 @@ export function generateAutoGCode(S, calc) {
     rapidStopX, rapidStopZ, rapidClrZGc,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
-    entryAngleDegGc, entryRadGc, stepGc, tipRGc, rDist, rDistZ,
+    entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
     simCounter, holderShallowBodies,
   };
   ({ simCounter, holderShallowBodies } = emitRoughing(_E));
@@ -857,7 +857,7 @@ export function generateAutoGCode(S, calc) {
   emitFinish({
     S, calc, prms, addCmt, addN, note, arcR, flipArc, xDia, clipZGc,
     safeRapidTo, setPos, cur, rapidStock, rapidFoot, residualTopXAtZ,
-    maxXOnSegsAt, holderShallowBodies, entryRadGc, simCounter,
+    maxXOnSegsAt, entryRadGc, simCounter,
   });
 
   buildControlTailLines(prms.controlSystem).forEach(line => addN(line));

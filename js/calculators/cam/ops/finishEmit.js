@@ -30,7 +30,7 @@ export function emitFinish(E) {
   const {
     S, calc, prms, addCmt, addN, note, arcR, flipArc, xDia, clipZGc,
     safeRapidTo, setPos, cur, rapidStock, rapidFoot, residualTopXAtZ,
-    maxXOnSegsAt, holderShallowBodies, entryRadGc,
+    maxXOnSegsAt, entryRadGc,
   } = E;
   let simCounter = E.simCounter;
 // Dokončování: u druhé strany (zleva) se kontura trasuje OPAČNĚ —

@@ -565,6 +565,8 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/face/holderGuard.js` | `makeHolderGuardFace()` — hlídání držáku u čelních průchodů |
 | `cam/ops/roughLong.js` | Generátor průchodů — PODÉLNÉ hrubování (zleva = totéž zrcadleně přes `zMirror`). Pomocné vrstvy jsou v `ops/long/` a skládají se v PEVNÉM pořadí: `runScan` → `depthTabs` → `residualGuard` → `holderFit` → `entryRamp` → `intervalScan` |
 | `cam/ops/shared.js` | Prahy a vůle sdílené oběma generátory (`HOLDER_FIT_TOL`, `ENTRY_FIT_TOL`, …) |
+| `cam/ops/long/openPass.js` | `emitOpenInterval()` — první větev hloubkové smyčky: otevřený vjezd zprava. Kotvu rampy dostává v objektu `rampSt` (tělo má `return;` uprostřed) |
+| `cam/ops/long/pocketPass.js` | `emitPocketInterval()` — druhá větev: kapsa za bossem se zanořením rampou. Počítadla dostává v objektu `cnt`; `iv` je uvnitř `let`, protože se přepisuje |
 | `cam/ops/long/segUtils.js` | Čisté funkce nad poli segmentů — bez vazby na stav generátoru |
 | `cam/ops/long/runScan.js` | `makeRunScan()` — „stojí tam překážka?" a „kam až se dá jet rovně?"; závisí jen na offsetu kontury a siluetě, staví se PRVNÍ |
 | `cam/ops/long/depthTabs.js` | `makeDepthTabs()` — výškové tabulky po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha vyříznutá průchody |

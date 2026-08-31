@@ -487,7 +487,7 @@ export function genFacePasses(ctx) {
   // Hlídání DRŽÁKU (čelně) — viz ops/face/holderGuard.js.
   const holderGuardFace = makeHolderGuardFace({
     prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt,
-    offsetXAt, castingOuterOrNull, clrXFC, planLoopFC, enforceLayerDepth });
+    offsetXAt, castingOuterOrNull, clrXFC, planLoopFC });
   const runOutAdded = appendRegionRunOut();
   if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.` });
   holderGuardFace(true);

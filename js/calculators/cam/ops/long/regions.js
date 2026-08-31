@@ -20,8 +20,8 @@ import { computeResidualRegions } from '../../booleanRoughing.js';
 export function makeRegions(deps) {
   const {
     prms, depths, dzScan, offsetXAt, machiningRange, interferenceGuides,
-    stockWorldPoints, stockLoopFullL, stockCrossingsAt, stockZRangeAt,
-    passEntryZ, scan, stockLoopL, holderEntryReachZ, step, holderFitsOverContour,
+    stockWorldPoints, stockLoopFullL, stockZRangeAt,
+    passEntryZ, scan, stockLoopL, step, holderFitsOverContour,
   } = deps;
   // ── Regiony (opt-in, jen odlitek) ──────────────────────────────────────
   // Polotovar odlitku má „výstupky" (bosses) oddělené „údolími", kde se

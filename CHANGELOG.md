@@ -82,6 +82,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – úklid po dekompozici: šest mrtvých parametrů pryč.** Kontrola
+  vyňatých modulů našla destrukturovaná jména, která se v tělech vůbec
+  nepoužívají a jen matou čtenáře (ze signatury to vypadá, že se volají):
+  `enforceLayerDepth` v `ops/face/holderGuard.js`, `holderShallowBodies`
+  v `ops/finishEmit.js`, `S` a `entryRadGc` v `ops/roughEmit.js`,
+  `stockCrossingsAt` a `holderEntryReachZ` v `ops/long/regions.js`. Odstraněno
+  i z volajících stran. Otisk G-kódu beze změny, sada 1525/1525.
+- **CAM – hlavní smyčka vrstev rozříznuta na dvě větve.** `ops/roughLong.js`
+  2 060 → **1 256 ř.** Šev vede po dvou větvích `intervals.forEach`, které
+  dělají opravdu jinou práci: `cam/ops/long/openPass.js` (293 ř., otevřený
+  vjezd zprava) a `cam/ops/long/pocketPass.js` (583 ř., kapsa za bossem se
+  zanořením rampou).
+
+  Mutovaný stav jde dovnitř v objektu, ne návratovou hodnotou: obě těla jsou
+  plná `return;` (dohromady čtrnáct), takže se předává `rampSt` (kotva rampy)
+  a `cnt` (tři počítadla). `iv` je v kapsové větvi `let`, protože se přepisuje
+  při postupu do další kapsy.
+
+  Otisk G-kódu beze změny, sada 1525/1525.
 - **CAM – emise hrubování má vlastní soubor.** `gcodeEmit.js` 1 494 → **906 ř.**;
   smyčka přes `calc.passes` je v `cam/ops/roughEmit.js` (643 ř.) a dostává
   totéž sdílené emisní prostředí `E` jako `finishEmit`. Vrací `simCounter`

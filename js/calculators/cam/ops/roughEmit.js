@@ -24,7 +24,7 @@ import { segmentHitsPath } from '../contourBuild.js';
  */
 export function emitRoughing(E) {
   const {
-    S, calc, prms, addCmt, addN, note, arcR, flipArc, xDia,
+    calc, prms, addCmt, addN, note, arcR, flipArc, xDia,
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
@@ -32,7 +32,7 @@ export function emitRoughing(E) {
     rapidStopX, rapidStopZ, rapidClrZGc,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
-    entryAngleDegGc, entryRadGc, stepGc, tipRGc, rDist, rDistZ,
+    entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
   } = E;
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;

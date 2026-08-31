@@ -12,7 +12,7 @@ import { HOLDER_CLAMP_MARGIN, holderBottomProfile } from '../../toolEnvelope.js'
 export function makeHolderGuardFace(deps) {
   const {
     prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt,
-    offsetXAt, castingOuterOrNull, clrXFC, planLoopFC, enforceLayerDepth,
+    offsetXAt, castingOuterOrNull, clrXFC, planLoopFC,
   } = deps;
 // ── Hlídání DRŽÁKU (čelně) ────────────────────────────────────────
 // Čelní průchod jede radiálně k ose a držák se veze na UŽ OBROBENÉ
