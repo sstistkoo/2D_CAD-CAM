@@ -82,6 +82,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – podélné hrubování rozděleno do modulů (bez jakékoli změny dráhy).**
+  `ops/roughLong.js` měl 2 954 řádků a rostl dál. Vyňaty čtyři soudržné celky:
+
+  | nový soubor | ř. | co dělá |
+  |---|---|---|
+  | `cam/ops/long/segUtils.js` | 74 | čisté funkce nad poli segmentů (dělení, slučování kolineárních, test navazujícího dojezdu) |
+  | `cam/ops/long/depthTabs.js` | 180 | `makeDepthTabs()` — výškové tabulky vzorkované po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha už vyříznutá průchody |
+  | `cam/ops/long/residualGuard.js` | 145 | `makeResidualGuard()` — polygonový model zbytku pro order-aware hlídání držáku |
+  | `cam/ops/long/holderFit.js` | 123 | `makeHolderFit()` — „vejde se držák?" plošně nad těmi tabulkami |
+
+  Generátor je po řezech **2 549 řádků**. Chování se nezměnilo o jediný bajt:
+  každý ze čtyř řezů byl zvlášť ověřen otiskem G-kódu (sha1 výstupu všech
+  26 fixtures bez řádku `Datum:`) a celá sada je 1525/1525.
+
+  Shluky se stavem se vyjmuly jako **továrny** (`makeX(deps)` → objekt), ne
+  jako volné funkce. Mutované členy (`activeFloorTab`, `cutFloorTab`,
+  `cutFloorSynced`) přitom musely zůstat NA vráceném objektu a číst se přes
+  něj — destrukturací by zamrzly na `null` a hlídání by přestalo vidět
+  podlahu, kterou mu podstrkuje kontrola odložených vjezdů.
 - **CAM – plán dráh se počítá, až když je potřeba (panel přestal sekat).**
   Každá obnova panelu (`fullUpdate()`, volá ji čtyřicítka míst) spouštěla CELÝ
   výpočet — i tam, kde se žádný vstup nezměnil: přechod z CAD do CAM,
@@ -160,6 +179,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **PWA – offline cache neobsahovala CAM generátory hrubování.** Seznam
+  `ASSETS` v `sw.js` se od rozdělení strategií do `cam/ops/` a `cam/inserts/`
+  neregeneroval, takže v něm **19 souborů chybělo** — celý strom `ops/`
+  (včetně obou generátorů průchodů), všech pět `inserts/` a `gcodeCollapse.js`.
+  Online se nic neprojevilo (nekešované moduly se prostě stáhly ze sítě),
+  offline by se ale CAM hrubování nenačetlo. Opraveno `npm run sw`
+  (cache `skica-v236` → `v237`). Pro příště: **po přidání JS souboru spustit
+  `npm run sw`.**
 - **CAM – zvýrazněný řádek G-kódu šel o BLOK POZADU za nástrojem.**
   `getActiveCodeLineIdx()` zaokrouhlovala polohu simulace DOLŮ, jenže bod
   `simPath` nese číslo řádku, který ho VYROBIL — bod pod aktuální pozicí tedy

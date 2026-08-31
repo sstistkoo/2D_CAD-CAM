@@ -550,7 +550,20 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/threadHelpers.js` | Závitování a upichnutí — sdílená geometrie |
 | `cam/camSimulatorDialogs.js` | Vlastní confirm/offset/add-move dialogy |
 | `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
-| `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) |
+| `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) — jen mapa klíč → generátor |
+| `cam/inserts/` | Pravidla PLÁTKU podle tvaru (`parting`, `polygon`, `round`, `threading`) + `index.js` s `getInsert(prms)` |
+| `cam/ops/roughFace.js` | Generátor průchodů — ČELNÍ hrubování |
+| `cam/ops/roughLong.js` | Generátor průchodů — PODÉLNÉ hrubování (zleva = totéž zrcadleně přes `zMirror`) |
+| `cam/ops/shared.js` | Prahy a vůle sdílené oběma generátory (`HOLDER_FIT_TOL`, `ENTRY_FIT_TOL`, …) |
+| `cam/ops/long/segUtils.js` | Čisté funkce nad poli segmentů — bez vazby na stav generátoru |
+| `cam/ops/long/depthTabs.js` | `makeDepthTabs()` — výškové tabulky po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha vyříznutá průchody |
+| `cam/ops/long/residualGuard.js` | `makeResidualGuard()` — polygonový model zbytku (order-aware hlídání držáku); umí TUNEL, který výškové pole neumí |
+| `cam/ops/long/holderFit.js` | `makeHolderFit()` — „vejde se držák?" plošně nad tabulkami z `depthTabs.js` |
+| `cam/ops/long/regions.js` | Dělení úseků podle hrbů kontury + jejich pořadí (od největšího průměru) |
+| `cam/ops/long/holderCheck.js` | Kontrola držáku při dělení regionů |
+| `cam/ops/long/insertFlankGuard.js` | Hlídání boku destičky v podélném hrubování |
+| `cam/ops/long/humpMerge.js` | Vrstva pokračuje přes nízký hrb místo přerušení (zatím jen upichovák) |
+| `cam/ops/long/partingEnvelope.js` | Obálka plátku upichováku pro nájezdy/dojezdy |
 | `cam/passHelpers.js` | Dotazy nad offsetem kontury pro strategie (`offsetXAt`, `traceOffsetPath`, `findLeadOutEndZ`, `findPocketExitZ`) — továrna `makePassHelpers(offsetPath)` |
 | `cam/zMirror.js` | Zrcadlení CAM světa v ose Z (hrubování „zleva" = zrcadlo pravé strany) |
 | `cam/toolOffset.js` | Offset kontury o rádius plátku + přídavky (`buildRawOffsets`) — hrubovací (`offsetPath`) i hotovní referenční (`finishRefPath`). Nezaměňovat s `calculators/contourOffset.js` (CAD: polotovar z kontury) |
@@ -702,7 +715,7 @@ oblasti + `HOLDER_CLAMP_MARGIN` (0,1 mm)**. Zakázaná oblast je ale
 `silueta offsetu ⊕ (−držák)`, takže obsahuje i samotnou siluetu — clamp proto
 „najde překážku" i tam, kde průchod prostě končí **na stěně kontury**.
 Rezerva patří DRŽÁKU, ne špičce (přídavek je už v offsetu), takže
-`applyHolderClamp()` v `roughingStrategies.js` zkracuje interval jen tehdy,
+`applyHolderClamp()` v `cam/ops/roughLong.js` zkracuje interval jen tehdy,
 když **místo překážky** (`nz − HOLDER_CLAMP_MARGIN`) leží za koncem intervalu
 o víc než řezná tolerance 0,01 mm (hranice po Clipperu a offsetová silueta se
 liší v řádu 1e-3 mm). Bez toho končila každá vrstva 0,1 mm před offsetovou

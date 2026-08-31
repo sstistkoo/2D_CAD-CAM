@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v236';
+const CACHE_NAME = 'skica-v237';
 const ASSETS = [
   './',
   './index.html',
@@ -22,15 +22,33 @@ const ASSETS = [
   './js/calculators/cam/collisionValidator.js',
   './js/calculators/cam/contourBuild.js',
   './js/calculators/cam/feedRates.js',
+  './js/calculators/cam/gcodeCollapse.js',
   './js/calculators/cam/gcodeEmit.js',
   './js/calculators/cam/gcodeMerge.js',
   './js/calculators/cam/gcodeParser.js',
   './js/calculators/cam/gcodeSync.js',
   './js/calculators/cam/holderGouge.js',
   './js/calculators/cam/insertPreview.js',
+  './js/calculators/cam/inserts/index.js',
+  './js/calculators/cam/inserts/parting.js',
+  './js/calculators/cam/inserts/polygon.js',
+  './js/calculators/cam/inserts/round.js',
+  './js/calculators/cam/inserts/threading.js',
   './js/calculators/cam/interferenceGuides.js',
   './js/calculators/cam/materialRemoval.js',
   './js/calculators/cam/opParts.js',
+  './js/calculators/cam/ops/long/depthTabs.js',
+  './js/calculators/cam/ops/long/holderFit.js',
+  './js/calculators/cam/ops/long/holderCheck.js',
+  './js/calculators/cam/ops/long/humpMerge.js',
+  './js/calculators/cam/ops/long/insertFlankGuard.js',
+  './js/calculators/cam/ops/long/partingEnvelope.js',
+  './js/calculators/cam/ops/long/regions.js',
+  './js/calculators/cam/ops/long/residualGuard.js',
+  './js/calculators/cam/ops/long/segUtils.js',
+  './js/calculators/cam/ops/roughFace.js',
+  './js/calculators/cam/ops/roughLong.js',
+  './js/calculators/cam/ops/shared.js',
   './js/calculators/cam/passHelpers.js',
   './js/calculators/cam/residualHolder.js',
   './js/calculators/cam/residualTracker.js',
