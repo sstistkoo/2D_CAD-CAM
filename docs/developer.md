@@ -539,7 +539,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 |-------|------|
 | `cam/gcodeCollapse.js` | Post-úprava emise: slévá navazující přímé bloky do jednoho (nájezd + řez + doběh po jedné přímce = jeden `G1`). Na geometrii nesahá, každé sloučení ověřuje dopočtem polohy |
 | `cam/calculatePipeline.js` | Výpočetní jádro `computeCalculation(S, …)` (bývalé `calculate()`) + `roughingKey`/`getRoughingOperations` — z kontury/parametrů staví dráhy, offsety, hrubovací průchody a simPath |
-| `cam/gcodeEmit.js` | Emise G-kódu `generateAutoGCode(S, calc)` + hlavička/závěr dle řídicího systému (`buildControlHeaderLines`/`Tail`, `ctrlCmt`, `controlArcFormatter`, `renumberGCodeLines`) a rychlý převod mezi systémy (`convertGCodeControlSystem`) |
+| `cam/gcodeEmit.js` | Emise G-kódu `generateAutoGCode(S, calc)` — po rozdělení podle operací už jen SDÍLENÉ EMISNÍ PROSTŘEDÍ: dva modely „kde je materiál", bezpečné rychloposuvy, `emitDescendX`/`emitBodyX`/… Vlastní operace volá z `ops/` (`thread`, `partOff`, `roughEmit`, `finishEmit`); dialekt řídicího systému reexportuje z `controlDialect.js` |
 | `cam/camMath.js` | Základní geometrické primitivy (úsečka/oblouk, průsečíky, segmentové helpery) sdílené napříč CAM |
 | `cam/contourBuild.js` | Pipeline "obráběné kontury" — `buildMachinableContour`, mosty/ořez smyček, `normalizeContourDirection`, `trimAndRemoveLoops` |
 | `cam/gcodeParser.js` | Parsování ručního/importovaného G-kódu zpět na dráhu/konturu (včetně modálního F/S a G94…G99 do bodů dráhy) |
@@ -556,6 +556,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
 | `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku), `finishPartingEnvelope()`, `clipFinishBand()` |
+| `cam/ops/roughEmit.js` | OPERACE hrubování, EMISE — `emitRoughing(E)`; vrací `simCounter` a `holderShallowBodies`, které musí přetéct do dokončování |
 | `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku) |
 | `cam/ops/roughFace.js` | Generátor průchodů — ČELNÍ hrubování; post-procesy jsou v `ops/face/` a volají se v POŘADÍ destička → hloubka vrstev → doběh úseku → držák |
 | `cam/ops/face/insertGuard.js` | `guardInsertFace()` — hlídání geometrie destičky čelně (polygon i upichovák) |

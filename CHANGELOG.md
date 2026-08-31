@@ -82,6 +82,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – emise hrubování má vlastní soubor.** `gcodeEmit.js` 1 494 → **906 ř.**;
+  smyčka přes `calc.passes` je v `cam/ops/roughEmit.js` (643 ř.) a dostává
+  totéž sdílené emisní prostředí `E` jako `finishEmit`. Vrací `simCounter`
+  a `holderShallowBodies` — obojí musí přetéct do dokončování. V `gcodeEmit.js`
+  zbyla jen infrastruktura: hlavička, dva modely „kde je materiál", bezpečné
+  rychloposuvy a závěrečné slučování bloků. Otisk G-kódu beze změny,
+  sada 1525/1525.
 - **CAM – čelní hrubování rozděleno do modulů.** `ops/roughFace.js`
   1 251 → **566 ř.**; čtyři post-procesy nad hotovým polem průchodů jdou do
   `cam/ops/face/`: `insertGuard.js` (182 ř., hlídání geometrie destičky),
