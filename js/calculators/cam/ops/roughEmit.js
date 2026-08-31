@@ -36,6 +36,29 @@ export function emitRoughing(E) {
   } = E;
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;
+  // KONTINUITA DOJEZDU. Řetěz „bez schodků" začíná NA OBRYSU, ale průchod
+  // končí na SVÉ hloubce — a `emitLeadOutLine` (i větev oblouku) jede
+  // z aktuální polohy rovnou na KONEC úseku. Když tedy první stopa řetězu
+  // leží nad nástrojem na TÉMŽ Z, vznikne DIAGONÁLA, která ten roh uřízne.
+  // Stává se to na SVISLÉ STĚNĚ (čelo dílu): trasa obrysu se v ní nedá
+  // vyjádřit jako funkce Z, takže sledování začíná až na jejím VRŠKU.
+  // Nález na dílu uživatele (podélně zleva, průchody X 28,5/25,5/22,5
+  // dobírající odřezek před čelem): `G1 X31.766 Z13.180` z X28,545 —
+  // dráha protla rameno Z 0…13 a šla 3–9 mm pod hotovní konturu.
+  //
+  // Řešení je totéž, co by udělal soustružník: k místu, kde sledování
+  // začíná, VYJET PO TÉ STĚNĚ (radiálně, konstantní Z). Jen ven z materiálu
+  // (x1 nad aktuální hloubkou) — sjezd dolů je zanoření a to má vlastní
+  // pravidla (rampa/zápich), sem nepatří.
+  const leadOutClimb = (segs) => {
+    const s0 = segs && segs[0];
+    if (!s0 || !Number.isFinite(s0.x1) || !Number.isFinite(s0.z1)) return;
+    if (Math.abs(s0.z1 - cur.z) > 1e-6) return;      // mezera není čistě radiální
+    if (s0.x1 <= cur.x + 1e-6) return;               // řetěz začíná v hloubce průchodu
+    const fx = cur.x, fz = cur.z;
+    simCounter += 1; addN(`G1 X${xDia(s0.x1)} F${prms.feed}`, simCounter); setPos(s0.x1, fz);
+    noteCutMove(fx, fz, s0.x1, fz);
+  };
 calc.passes.forEach((pass, i) => {
   addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
   // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
@@ -308,7 +331,9 @@ calc.passes.forEach((pass, i) => {
       // hranu materiálu (`trimLeadOutToStock`) je tu ze stejného důvodu
       // jako u otevřeného průchodu níž: dojezd kroku dorampování může po
       // kontuře dojet až tam, kde nad nástrojem polotovar dávno nesahá.
-      for (const seg of trimLeadOutToStock(pass.contourLeadOut, tipRGc)) {
+      const loSegs = trimLeadOutToStock(pass.contourLeadOut, tipRGc);
+      leadOutClimb(loSegs);
+      for (const seg of loSegs) {
         if (seg.type === 'line') {
           emitLeadOutLine(seg);
         } else {
@@ -444,6 +469,7 @@ calc.passes.forEach((pass, i) => {
     if (hasLeadOut) {
       // Bez schodků: dál po kontuře (G1/G2/G3) až na hloubku dalšího
       // průchodu místo okamžitého odskoku — schod se obrobí přímo.
+      leadOutClimb(leadOutSegs);
       for (const seg of leadOutSegs) {
         if (seg.type === 'line') {
           // AXIÁLNÍ úsek (konstantní hloubka — typicky rovné pokračování

@@ -1244,7 +1244,23 @@ export function genLongPasses(ctx) {
       if (!end || !Number.isFinite(end.x) || !Number.isFinite(end.z)) continue;
       if (end.z <= zFloorEnd + 0.05) continue;              // už je na dně okna
       if (offsetXAt(end.z - 0.2) !== null) continue;        // profil pokračuje dál
-      const zRun = stockRunEndZ(end.x, end.z, zFloorEnd);
+      // KONEC PROFILU NENÍ KONEC DÍLU. Test výš kouká jen 0,2 mm dopředu,
+      // takže „profil skončil" platí i pro ČELO, za kterým dál ve směru řezu
+      // leží CELÝ zbytek dílu. Při hrubování ZLEVA průchod dobírá odřezek
+      // PŘED čelem (na dílu uživatele Z−8…−2,2) a profil od Z 0 dál mu leží
+      // v cestě — jenže `stockRunEndZ` se ptá jen siluety POLOTOVARU, a ta
+      // o kontuře neví. Doběh pak projel dílem po celé délce: 7 průchodů
+      // X 16,5…0 od Z−9,8 na Z+368, tedy díl uříznutý až na osu
+      // (⌀111 × 350, upichovák, „Podélně zleva").
+      //
+      // Doběh proto končí tím, co přijde DŘÍV — hranou polotovaru, nebo
+      // STĚNOU KONTURY. `straightRunEndZ` je táž mez, jakou používá konec
+      // běžného zablokovaného průchodu, takže se skončí přesně na dotyku
+      // s offsetovou čarou; kde kontura nestojí, vrátí dno okna a doběh
+      // dojede na siluetu jako dřív (part-17 beze změny).
+      const zRun = Math.max(
+        stockRunEndZ(end.x, end.z, zFloorEnd),
+        straightRunEndZ(end.x, end.z, zFloorEnd));
       if (!(end.z - zRun > 0.2)) continue;                  // za koncem už není materiál
       const seg = { type: 'line', x1: end.x, z1: end.z, x2: end.x, z2: zRun };
       if (lo && lo.length > 0) lo.push(seg); else p.contourLeadOut = [seg];
