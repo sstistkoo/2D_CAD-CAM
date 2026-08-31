@@ -82,25 +82,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **CAM – čelní hrubování rozděleno do modulů.** `ops/roughFace.js`
+  1 251 → **566 ř.**; čtyři post-procesy nad hotovým polem průchodů jdou do
+  `cam/ops/face/`: `insertGuard.js` (182 ř., hlídání geometrie destičky),
+  `layerDepth.js` (176 ř., vrstva nikdy hlouběji než předchozí),
+  `regionRunOut.js` (176 ř., doběh na konci úseku) a `holderGuard.js`
+  (237 ř., hlídání držáku). Pořadí jejich volání je závazné — `regionRunOut`
+  i `holderGuard` samy volají `enforceLayerDepth`, takže ho dostávají
+  parametrem. Otisk G-kódu beze změny, sada 1525/1525.
+- **CAM – každá obráběcí operace má vlastní soubor.** Závitování a upichnutí
+  byly early-return větve uvnitř `gcodeEmit.js`, dokončování bylo rozeseté
+  v `calculatePipeline.js` a `gcodeEmit.js`. Nově:
+
+  | nový soubor | ř. | co |
+  |---|---|---|
+  | `cam/ops/thread.js` | 116 | `emitThread()` — závitování |
+  | `cam/ops/partOff.js` | 95 | `emitPartOff()` — upichnutí |
+  | `cam/ops/finish.js` | 461 | dokončovací DRÁHA (`buildFinishPath`, `finishPartingEnvelope`, `clipFinishBand`) |
+  | `cam/ops/finishEmit.js` | 389 | dokončovací PRŮCHOD v G-kódu (`emitFinish`) |
+  | `cam/controlDialect.js` | 144 | hlavička/závěr/převod řídicího systému |
+
+  `gcodeEmit.js` 2 134 → 1 494 ř., `calculatePipeline.js` 1 028 → 627 ř.
+  `controlDialect.js` musel vzniknout kvůli cyklu: moduly operací potřebují
+  `buildControlTailLines`, který byl v `gcodeEmit.js`. Nemá vlastní importy,
+  takže z něj smí čerpat kdokoli; `gcodeEmit.js` ho reexportuje.
+
+  Chování se nezměnilo: otisk G-kódu všech 26 fixtures je bajt po bajtu
+  stejný a sada je 1525/1525.
 - **CAM – podélné hrubování rozděleno do modulů (bez jakékoli změny dráhy).**
-  `ops/roughLong.js` měl 2 954 řádků a rostl dál. Vyňaty čtyři soudržné celky:
+  `ops/roughLong.js` měl 2 954 řádků a rostl dál. Vyňato osm soudržných celků:
 
   | nový soubor | ř. | co dělá |
   |---|---|---|
   | `cam/ops/long/segUtils.js` | 74 | čisté funkce nad poli segmentů (dělení, slučování kolineárních, test navazujícího dojezdu) |
+  | `cam/ops/long/runScan.js` | 81 | `makeRunScan()` — „stojí tam překážka?" a „kam až se dá jet rovně?" |
   | `cam/ops/long/depthTabs.js` | 180 | `makeDepthTabs()` — výškové tabulky vzorkované po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha už vyříznutá průchody |
   | `cam/ops/long/residualGuard.js` | 145 | `makeResidualGuard()` — polygonový model zbytku pro order-aware hlídání držáku |
   | `cam/ops/long/holderFit.js` | 123 | `makeHolderFit()` — „vejde se držák?" plošně nad těmi tabulkami |
+  | `cam/ops/long/entryRamp.js` | 197 | `makeEntryRamp()` — kde smí začít a kam smí dojet zanořovací rampa |
+  | `cam/ops/long/intervalScan.js` | 250 | `makeIntervalScan()` — hledání intervalů na hloubce, obě souběžné cesty |
+  | `cam/ops/long/holderTrim.js` | 53 | `makeHolderTrim()` — ořez leadIn/leadOut obálkou držáku |
+  | `cam/ops/long/plungeLines.js` | 52 | `makePlungeLines()` — paměť přímek zanoření |
 
-  Generátor je po řezech **2 549 řádků**. Chování se nezměnilo o jediný bajt:
-  každý ze čtyř řezů byl zvlášť ověřen otiskem G-kódu (sha1 výstupu všech
-  26 fixtures bez řádku `Datum:`) a celá sada je 1525/1525.
+  Generátor je po řezech **2 060 řádků (−30 %)** a všechno kolem hlavní smyčky
+  vrstev je venku. Chování se nezměnilo o jediný bajt: každý z osmi řezů byl
+  zvlášť ověřen otiskem G-kódu (sha1 výstupu všech 26 fixtures bez řádku
+  `Datum:`) a celá sada je 1525/1525.
 
   Shluky se stavem se vyjmuly jako **továrny** (`makeX(deps)` → objekt), ne
-  jako volné funkce. Mutované členy (`activeFloorTab`, `cutFloorTab`,
-  `cutFloorSynced`) přitom musely zůstat NA vráceném objektu a číst se přes
-  něj — destrukturací by zamrzly na `null` a hlídání by přestalo vidět
-  podlahu, kterou mu podstrkuje kontrola odložených vjezdů.
+  jako volné funkce, a skládají se v pevném pořadí `runScan` → `depthTabs` →
+  `residualGuard` → `holderFit` → `entryRamp` → `intervalScan`. Mutované členy
+  (`activeFloorTab`, `cutFloorTab`, `cutFloorSynced`) přitom musely zůstat NA
+  vráceném objektu a číst se přes něj — destrukturací by zamrzly na `null`
+  a hlídání by přestalo vidět podlahu, kterou mu podstrkuje kontrola
+  odložených vjezdů.
 - **CAM – plán dráh se počítá, až když je potřeba (panel přestal sekat).**
   Každá obnova panelu (`fullUpdate()`, volá ji čtyřicítka míst) spouštěla CELÝ
   výpočet — i tam, kde se žádný vstup nezměnil: přechod z CAD do CAM,
@@ -184,8 +219,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   neregeneroval, takže v něm **19 souborů chybělo** — celý strom `ops/`
   (včetně obou generátorů průchodů), všech pět `inserts/` a `gcodeCollapse.js`.
   Online se nic neprojevilo (nekešované moduly se prostě stáhly ze sítě),
-  offline by se ale CAM hrubování nenačetlo. Opraveno `npm run sw`
-  (cache `skica-v236` → `v237`). Pro příště: **po přidání JS souboru spustit
+  offline by se ale CAM hrubování nenačetlo. Opraveno `npm run sw` (cache
+  `skica-v236` → `v238`; seznam teď sedí i na všech 14 souborů
+  v `cam/ops/long/`). Pro příště: **po přidání JS souboru spustit
   `npm run sw`.**
 - **CAM – zvýrazněný řádek G-kódu šel o BLOK POZADU za nástrojem.**
   `getActiveCodeLineIdx()` zaokrouhlovala polohu simulace DOLŮ, jenže bod

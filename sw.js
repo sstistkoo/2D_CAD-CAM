@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v237';
+const CACHE_NAME = 'skica-v240';
 const ASSETS = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const ASSETS = [
   './js/calculators/cam/camToolPicker.js',
   './js/calculators/cam/collisionValidator.js',
   './js/calculators/cam/contourBuild.js',
+  './js/calculators/cam/controlDialect.js',
   './js/calculators/cam/feedRates.js',
   './js/calculators/cam/gcodeCollapse.js',
   './js/calculators/cam/gcodeEmit.js',
@@ -37,18 +38,31 @@ const ASSETS = [
   './js/calculators/cam/interferenceGuides.js',
   './js/calculators/cam/materialRemoval.js',
   './js/calculators/cam/opParts.js',
+  './js/calculators/cam/ops/face/holderGuard.js',
+  './js/calculators/cam/ops/face/insertGuard.js',
+  './js/calculators/cam/ops/face/layerDepth.js',
+  './js/calculators/cam/ops/face/regionRunOut.js',
+  './js/calculators/cam/ops/finish.js',
+  './js/calculators/cam/ops/finishEmit.js',
   './js/calculators/cam/ops/long/depthTabs.js',
+  './js/calculators/cam/ops/long/entryRamp.js',
   './js/calculators/cam/ops/long/holderFit.js',
   './js/calculators/cam/ops/long/holderCheck.js',
+  './js/calculators/cam/ops/long/holderTrim.js',
   './js/calculators/cam/ops/long/humpMerge.js',
   './js/calculators/cam/ops/long/insertFlankGuard.js',
+  './js/calculators/cam/ops/long/intervalScan.js',
   './js/calculators/cam/ops/long/partingEnvelope.js',
+  './js/calculators/cam/ops/long/plungeLines.js',
   './js/calculators/cam/ops/long/regions.js',
   './js/calculators/cam/ops/long/residualGuard.js',
+  './js/calculators/cam/ops/long/runScan.js',
   './js/calculators/cam/ops/long/segUtils.js',
+  './js/calculators/cam/ops/partOff.js',
   './js/calculators/cam/ops/roughFace.js',
   './js/calculators/cam/ops/roughLong.js',
   './js/calculators/cam/ops/shared.js',
+  './js/calculators/cam/ops/thread.js',
   './js/calculators/cam/passHelpers.js',
   './js/calculators/cam/residualHolder.js',
   './js/calculators/cam/residualTracker.js',

@@ -17,6 +17,11 @@ import { depthKey, subdivideLineSegs, mergeCollinearSegs, traceIfContinuous, isF
 import { makeDepthTabs } from './long/depthTabs.js';
 import { makeResidualGuard } from './long/residualGuard.js';
 import { makeHolderFit } from './long/holderFit.js';
+import { makeEntryRamp } from './long/entryRamp.js';
+import { makeIntervalScan } from './long/intervalScan.js';
+import { makeRunScan } from './long/runScan.js';
+import { makeHolderTrim } from './long/holderTrim.js';
+import { makePlungeLines } from './long/plungeLines.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -324,6 +329,10 @@ export function genLongPasses(ctx) {
   // stockLoop0OffsetRef) — offsetová čára pro vjezd na hranici rozsahu Z.
   const offsetStockTopXAtZ = (z) => topXOnLoop(stockLoopOffsetL, z);
 
+  // Sken překážek a konce rovných úseků — viz ops/long/runScan.js.
+  const { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ } =
+    makeRunScan({ offsetXAt, stockLoopOffsetFullL });
+
   // ── Kde smí ZAČÍT zanořovací rampa (strop podle držáku) ───────────────
   // Vjezd průchodu se dosud řídil jen tím, kde na dané hloubce začíná
   // polotovar (passEntryZ), plus ručním „Startem rozsahu Z" (📐). U odlitku,
@@ -352,206 +361,13 @@ export function genLongPasses(ctx) {
   // Vejde se držák? — viz ops/long/holderFit.js.
   const { residTopAt, holderNearDz, holderFitArea, ownCutOf, holderFitAreaAlong,
     holderFitsAt } = makeHolderFit({ T, prms });
-  const holderEntryCapZ = (X, zHi, zFloor) => {
-    if (!capTab || zHi - zFloor < 0.1) return -Infinity;
-    for (let z = zHi; z > zFloor; z -= DZ_CAP) {
-      const top = stockTopTab(z);
-      if (top === null || top <= X + 0.05) continue;              // vzduch / už pod hloubkou
-      if (z - (top - X) / effPlungeTanL <= zFloor + 0.05) continue;   // (a) rampa se nevejde
-      // (b) vejde se DRŽÁK — a to V HLOUBCE, na kterou rampa dosedne.
-      // Rampa se tu ZÁMĚRNĚ nepočítá jako vlastní řez (na rozdíl od kapsy):
-      // vykope si jen svou čáru, kdežto držák je v ose Z 20 mm široký, takže
-      // odečíst mu celý pás je moc velkorysé — zkoušeno a zamítnuto, pustilo
-      // to kotvy, na kterých holder-region-roughing, part-15-finish-zprava
-      // a range-end-leadout vyrobily 4–6 nových kolizí (až 87,9 mm²).
-      if (holderFitsAt(z, top)) return z;                          // (b) držák se vejde
-    }
-    return -Infinity;
-  };
-  // Protipól `holderEntryCapZ`: kam až se kotva zanoření smí posunout ZA
-  // hranici úseku, aby sebrala co nejvíc materiálu.
-  //
-  // Hranice úseku leží ve STŘEDU dna údolí, takže kotva na ní vjíždí
-  // doprostřed volného prostoru a půlka údolí zůstane stát — opakovaný nález
-  // uživatele („bere to od prostředka"). Posunout SAMOTNOU HRANICI se dvakrát
-  // nepovedlo (viz „ZBÝVÁ — hranice úseku" v docs/geometry-libs-migration.md):
-  // hranice určuje, komu materiál PATŘÍ, a její posun rozbíjel pokrytí jinde.
-  // Tohle vlastnictví nemění — posouvá jen KOTVU RAMPY. Je to bezpečné, protože
-  // úseky jdou po řadě odshora: materiál za hranicí (větší z) UŽ JE OBROBENÝ,
-  // takže rampa tudy jede vzduchem a do vrstvy vjede od kraje údolí místo
-  // z jeho středu.
-  const holderEntryReachZ = (X, zFrom, zCeil, zFloor) => {
-    if (!capTab || !(zCeil > zFrom)) return zFrom;
-    let best = zFrom;
-    for (let z = zFrom + DZ_CAP; z <= zCeil + 1e-9; z += DZ_CAP) {
-      const top = stockTopTab(z);
-      if (top === null || top <= X + 0.05) break;      // vzduch / pod hloubkou → dál nemá smysl
-      if (z - (top - X) / effPlungeTanL <= zFloor + 0.05) break;   // rampa by se nevešla
-      if (!holderFitsAt(z, top)) break;                // dál už na držák není místo
-      best = z;
-    }
-    return best;
-  };
+  // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
+  const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
+    findSteepCorner } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
+      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt });
 
-  // Rampa od hranice polotovaru: když vstup průchodu leží v KŮŘE odlitku,
-  // kotva se zvedne po přímce zanoření až NA PLÁNOVACÍ OBRYS (vůlí-posunutou
-  // siluetu) — posuv začíná na tečkované hranici a kůra se řeže pod úhlem
-  // zanoření (žádný kolmý sjezd doprostřed kůry). Null = vstup je ve vzduchu.
-  //
-  // Testuje se přímo proti OFFSETOVÉ smyčce, žádné ruční přičtení vůle na
-  // konci nalezené přímky: to na diagonále není totéž co posun KOLMO
-  // k hranici (přesně stejná oprava jako u zrcadlového findRampOutTarget
-  // níž). Konec se dopřesní půlením, ať kotva sedne PŘESNĚ na čáru, ne
-  // o krok skenu (0,5 mm) dál.
-  const stockEntryRamp = (X, zEntry) => {
-    if (!stockLoopOffsetL) return null;
-    if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
-    const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
-    let t = 0;
-    for (let i = 0; i < 300; i++) {
-      const tPrev = t;
-      t += plungeDirL.step;
-      const p = at(t);
-      // HRANICÍ JE I HOTOVNÍ KONTURA (stejně jako u findRampOutTarget níž):
-      // stoupá-li přímka zanoření do materiálu, který po hrubování ZŮSTÁVÁ
-      // (boss mezi vstupem a povrchem), vedla by rampa skrz díl. Dřív se
-      // testovala jen silueta polotovaru — u kapsy za bossem to dalo rampu
-      // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
-      // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
-      if (blockedAt(p.x, p.z)) return null;
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside') {
-        let lo = tPrev, hi = t;
-        for (let k = 0; k < 24; k++) {
-          const m = (lo + hi) / 2;
-          if (pointInLoop(at(m), stockLoopOffsetL) === 'outside') hi = m; else lo = m;
-        }
-        const q = at(hi);
-        return { x0: q.x, z0: q.z };
-      }
-    }
-    return null;
-  };
-  // Zrcadlo stockEntryRamp: z rohu (kde sklon obrysu dosáhl úhlu zanoření,
-  // viz findSteepCorner níže) se pokračuje DOLŮ/DOVNITŘ přímkou pod úhlem
-  // zanoření, dokud neopustí VŮLÍ-POSUNUTOU siluetu odlitku (stockLoopOffsetL
-  // — stejnou offsetovou čáru jako v náhledu/simulátoru, viz
-  // planTopXAtZ v gcodeEmit.js). Používá se pro dojezd „bez
-  // schodků" u strmé stěny, kde by sledování PŘESNÉHO obrysu
-  // (traceOffsetPath) muselo kopírovat celou výšku stěny (reálný nález na
-  // díle uživatele — stěna skoro svislá desítky mm, teprve při dně strmě
-  // padá). Testuje se přímo proti OFFSETOVÉ siluetě (žádné ruční odečítání
-  // vůle na konci) — dřívější verze počítala proti syrové siluetě a na
-  // konci odečetla skalární vůli, což na diagonále není totéž co posun
-  // KOLMO k hranici → systematicky minula offsetovou čáru.
-  // HRANICÍ RAMPY JE I HOTOVNÍ KONTURA: dřív se testovala JEN silueta
-  // polotovaru, takže na dílu, kde za údolím kontura zase stoupá, rampa
-  // (a navazující dokončovací kroky) vedla přímkou SKRZ díl — reálný nález na
-  // díle uživatele: zajezd až 18 mm pod offsetovou čáru hotovní kontury.
-  // Latentní od zavedení dojezdu rampou; naplno se projeví, až když rampa může
-  // přejet celé údolí (sloučené regiony). Konec se dopřesní půlením, ať rampa
-  // dosedne PŘESNĚ na konturu, ne o krok skenu dřív.
-  const findRampOutTarget = (cx, cz) => {
-    if (!stockLoopOffsetL) return null;
-    if (pointInLoop({ x: cx - 0.05, z: cz - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
-    const at = (t) => ({ x: cx - t * plungeDirL.ux, z: cz - t * plungeDirL.uz });
-    // Konec rozsahu obrábění 📐 je stejná zeď jako kontura: rampa se na něm
-    // zastaví (a dál pokračuje leda rovný úsek uvnitř rozsahu), místo aby ho
-    // přejela.
-    // Svíslý zápich (90°) se v Z nehne — na konec rozsahu nikdy nedojede.
-    const tMax = plungeDirL.uz > 1e-9 ? (cz - rangeZLoL) / plungeDirL.uz : Infinity;
-    let t = 0;
-    for (let i = 0; i < 300; i++) {
-      const tPrev = t;
-      t += plungeDirL.step;
-      if (t >= tMax) return tMax > 1e-6 ? at(tMax) : null;
-      const p = at(t);
-      if (blockedAt(p.x, p.z)) {
-        let lo = tPrev, hi = t;
-        for (let k = 0; k < 24; k++) {
-          const m = (lo + hi) / 2;
-          const q = at(m);
-          if (blockedAt(q.x, q.z)) hi = m; else lo = m;
-        }
-        return lo > 1e-6 ? at(lo) : null;
-      }
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside') return p;
-    }
-    return null;
-  };
-  // Bod, kde sklon OBRYSU (ne naivní sken po 0,05 mm — viz komentář u volání)
-  // dosáhne úhlu zanoření a VYDRŽÍ (min. 1 mm), ne jen okrajový hrot na
-  // vstupu (napojení currentX → offset kontury bývá krátký a strmý samo o
-  // sobě — zaoblení/přechod).
-  // Mez sklonu se porovnává s malou tolerancí, a to NENÍ kosmetika: stěna
-  // vzniklá GEOMETRIÍ PLÁTKU (mezní čára „stínu" břitu, kterou vkládá
-  // buildMachinableContour místo nedosažitelného oblouku) klesá PŘESNĚ pod
-  // úhlem zanoření — u automatického úhlu je totiž effPlungeDeg = |Natočení|
-  // plátku (getEffectivePlungeAngle), tedy TÝŽ úhel, pod kterým se mezní čára
-  // konstruuje. Ostré porovnání (>=) na ní kvůli zaokrouhlení dopadalo o ~1e-5
-  // relativně POD mez, takže se roh nenašel NIKDY a dojezd „bez schodků" sjel
-  // celou stěnu jedním nekontrolovaným úsekem místo rampy ořízlé na Hloubku
-  // (ap) — reálný nález na díle uživatele: zajezd 4,5 mm v X pod hloubku
-  // vrstvy a záběr proti polotovaru přes ap. Tolerance 0,1 % tangenty ≈ 0,06°
-  // při 15°, tj. fyzikálně nic, ale okrajový případ spolehlivě chytí.
-  const steepTanTol = effPlungeTanL * 1e-3;
-  const findSteepCorner = (zFrom, zStop) => {
-    const h = 0.05, minRun = 20; // 20×0,05 = 1 mm trvalého sklonu
-    let runLen = 0, runX = null, runZ = null;
-    for (let z = zFrom; z > zStop + h; z -= h) {
-      const xa = offsetXAt(z), xb = offsetXAt(z - h);
-      if (xa === null || xb === null) { runLen = 0; continue; }
-      if ((xa - xb) / h >= effPlungeTanL - steepTanTol) {
-        if (runLen === 0) { runX = xa; runZ = z; }
-        if (++runLen >= minRun) return { x: runX, z: runZ };
-      } else {
-        runLen = 0;
-      }
-    }
-    return null;
-  };
-
-  // ── Fáze 3b: ořez sledování kontury (leadIn/leadOut) obálkou držáku ──
-  // traceOffsetPath umí vydat trasu přes celou konturu (např. nájezd kapsy
-  // od osy přes čelo) — úseky, kde by špička ležela v zakázané oblasti
-  // (silueta ⊕ −držák), se z trasy vyříznou: leadIn (končí v cíli) zahodí
-  // PREFIX po poslední blokovaný úsek, leadOut (začíná na konci řezu)
-  // zahodí SUFFIX od prvního blokovaného. Vzorkování po ~0,5 mm (tětiva).
-  // Test úseku trasy proti zakázané oblasti. `soft` = měkká oblast
-  // (erodovaná o dosah špičky + 1 mm): drhnutí o přídavkovou slupku
-  // podél stěn toleruje — používá se JEN pro dočišťovací trasy kapes
-  // (guides v2 tam vědomě pouští držák těsně podél stěn, dno musí
-  // zůstat dosažitelné). Vše ostatní testuje tvrdou oblast.
-  const _traceSegBlocked = (s, soft) => {
-    const test = soft ? holderClampZEnd?.isForbiddenSoft : holderClampZEnd?.isForbidden;
-    if (!test) return false;
-    const n = Math.max(1, Math.min(32, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.5)));
-    for (let k = 0; k <= n; k++) {
-      const t = k / n;
-      if (test(s.x1 + (s.x2 - s.x1) * t, s.z1 + (s.z2 - s.z1) * t)) return true;
-    }
-    return false;
-  };
-  const holderTrimLeadIn = (li, soft = false) => {
-    if (globalThis.__DISABLE_HOLDER_TRIMS__) return li;
-    if (!holderClampZEnd || !holderClampZEnd.isForbidden || li.length === 0) return li;
-    let lastBad = -1;
-    for (let i = 0; i < li.length; i++) if (_traceSegBlocked(li[i], soft)) lastBad = i;
-    if (globalThis.__HOLDER_CLAMP_DEBUG__ && lastBad >= 0)
-      console.log(`[trimIn${soft ? '/soft' : ''}] ${li.length} segů → ${li.length - lastBad - 1} (od (${li[0].x1?.toFixed(1)},${li[0].z1?.toFixed(1)}))`);
-    return lastBad >= 0 ? li.slice(lastBad + 1) : li;
-  };
-  const holderTrimLeadOut = (lo, soft = false) => {
-    if (globalThis.__DISABLE_HOLDER_TRIMS__) return lo;
-    if (!holderClampZEnd || !holderClampZEnd.isForbidden || lo.length === 0) return lo;
-    for (let i = 0; i < lo.length; i++) {
-      if (_traceSegBlocked(lo[i], soft)) {
-        if (globalThis.__HOLDER_CLAMP_DEBUG__)
-          console.log(`[trimOut${soft ? '/soft' : ''}] ${lo.length} segů → ${i} (blok u (${lo[i].x1?.toFixed(1)},${lo[i].z1?.toFixed(1)}))`);
-        return lo.slice(0, i);
-      }
-    }
-    return lo;
-  };
+  // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
+  const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
   let plungeShallowed = 0;
   let deferredHolderSkips = 0;
 
@@ -651,284 +467,14 @@ export function genLongPasses(ctx) {
   // ustoupil ve prospěch téže — potlačené — kapsy).
   const cornerAlreadyRampedOut = (cx, cz, depthX) =>
     rampedOutCorners.some(c => Math.abs(c.x - cx) < 2 && Math.abs(c.z - cz) < 2 && c.reachedX <= depthX + 0.5);
-  // Bez „dobrat najednou": sdílená rampa z rohu kapsy nemusí dosáhnout dál
-  // (strmá stěna z hlídání držáku, úzké dno) — hlubší vrstvy by pak emitovaly
-  // STEJNÝ zákrok znovu a znovu (nulový progres). Pamatuj si nejlepší
-  // dosaženou hloubku na roh a duplicitní zákroky potlač.
-  const pocketBestX = new Map();
-  const dzScan = 0.2;
-  const blockedAt = (X, z) => {
-    const offX = offsetXAt(z);
-    return offX !== null && offX > X + 0.01;
-  };
-  // Mezi otevřeným krokem (offset ≤ X) a zablokovaným (offset > X) najdi
-  // PŘESNÉ Z dotyku kontury (offset = X), aby průchod skončil rovnou na
-  // kontuře a nemusel pak zajíždět pod průměr ("dip") před navazujícím
-  // obloukem.
-  const refineEngageZ = (X, zOpen, zBlocked) => {
-    let hi = zOpen, lo = zBlocked;
-    for (let k = 0; k < 24; k++) {
-      const m = (hi + lo) / 2;
-      const x = offsetXAt(m);
-      // null = vzduch (nad čelní stěnou) → patří na otevřenou stranu (hi),
-      // aby dotyk konvergoval na první Z, kde kontura skutečně začíná.
-      if (x === null) { hi = m; continue; }
-      if (x > X + 1e-6) lo = m; else hi = m;
-    }
-    return hi;
-  };
-  // Kam až smí jet ROVNĚ (na hloubce X) směrem doleva z bodu zFrom: po první
-  // stěnu kontury, jinak na dno okna (zFloor). Stejná sémantika jako konec
-  // běžného průchodu ve scanIntervals, jen z jiného výchozího Z — používá
-  // dojezd „bez schodků" po dosednutí rampy.
-  const straightRunEndZ = (X, zFrom, zFloor) => {
-    let z = zFrom;
-    while (z > zFloor + dzScan) {
-      const zn = z - dzScan;
-      if (blockedAt(X, zn)) return refineEngageZ(X, z, zn);
-      z = zn;
-    }
-    // NIKDY ZPÁTKY: dno okna může ležet ZA výchozím bodem (rampa dosedne až
-    // za koncem polotovaru — na dílu uživatele dosedla na Z−8,473, zatímco
-    // dno okna je Z−8,000). Bez clampu vrátí funkce dno a volající z toho
-    // postaví rovný úsek PROTI směru řezu: `G1 Z−8.473` a hned zpátky
-    // `G1 Z−8.000`. Řež jede zprava doleva, takže konec nesmí být výš než
-    // začátek; když už není kam pokračovat, vrátí se výchozí bod (nulová
-    // délka) a volající takový úsek zahodí.
-    return Math.min(zFloor, zFrom);
-  };
-  const stockRunEndZ = (X, zFrom, zFloor) => {
-    const solid = (z) => { const t = topXOnLoop(stockLoopOffsetFullL, z); return t !== null && t > X; };
-    if (!stockLoopOffsetFullL) return zFloor;
-    let prev = zFrom;
-    for (let z = zFrom - dzScan; z > zFloor + dzScan; z -= dzScan) {
-      if (!solid(z)) {
-        let lo = z, hi = prev;                       // lo = vzduch, hi = materiál
-        for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (solid(m)) hi = m; else lo = m; }
-        return hi;
-      }
-      prev = z;
-    }
-    return zFloor;
-  };
 
-  // ── Vjezd průchodu tam, kde SKUTEČNĚ začíná polotovar ─────────────────
-  // Okno REGIONU (odlitek, viz níž) i rozsah obrábění 📐 můžou začínat ve
-  // VZDUCHU — nad údolím odlitku nebo v mezeře mezi hrby. Průchod pak „vjížděl"
-  // desítky mm mimo materiál: emise ten kus sice přeletí rychloposuvem
-  // (dynamický rapidStock v gcodeEmit.js), ale obálka DRŽÁKU posuzovala vjezd
-  // v místě, kam nástroj vůbec nesjede — a fyzicky v pořádku průchod zahodila
-  // (reálný nález na díle uživatele: celá vrstva u NEJVĚTŠÍHO průměru vypadla).
-  // Region bez materiálu na dané hloubce navíc vydával prázdný průchod, z něhož
-  // v G-kódu zbyl jen dojezd = „trojúhelník" uprostřed údolí.
-  //
-  // Měří se na VŮLÍ-POSUNUTÉ siluetě (stockLoopOffsetL — tečkovaná hranice
-  // v náhledu, přesně tam začíná posuv, viz planTopXAtZ v
-  // gcodeEmit.js). Syrový obrys by vjezd posadil až ZA vůli a průchod by u
-  // šikmé stěny začal řezat o vůli později → klínek stojícího materiálu
-  // (ověřeno na holder-region-roughing). Bez posunuté siluety fallback na
-  // průsečíky syrového obrysu (sz.all).
-  // Parita: obrys je uzavřený, takže lichý počet průsečíků NAD zHi znamená, že
-  // zHi leží v materiálu. Null = v okně na téhle hloubce materiál není.
-  const stockCrossingsAt = (X, sz) => {
-    if (!stockLoopOffsetL) return (sz && sz.all) || [];
-    const zs = [];
-    const n = stockLoopOffsetL.length;
-    for (let i = 0; i < n; i++) {
-      const a = stockLoopOffsetL[i], b = stockLoopOffsetL[(i + 1) % n];
-      if ((a.x <= X && b.x > X) || (b.x <= X && a.x > X))
-        zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
-    }
-    if (zs.length < 2) return (sz && sz.all) || [];
-    zs.sort((p, q) => q - p);
-    return zs;
-  };
-  const passEntryZ = (zHiRaw, zLo, sz, X) => {
-    if (prms.stockMode !== 'casting') return zHiRaw;
-    const all = stockCrossingsAt(X, sz);
-    if (all.length < 2) return zHiRaw;
-    let above = 0;
-    for (const z of all) if (z > zHiRaw + 1e-9) above++;
-    if (above % 2 === 1) return zHiRaw;                    // vjezd je v materiálu
-    for (const z of all) {
-      if (z > zHiRaw + 1e-9 || z <= zLo + 1e-9) continue;
-      // Materiál začíná až ZA stěnou kontury (offset nad hloubkou průchodu):
-      // vjet se tam nedá, ale průchod má pořád smysl jako dojezd „bez schodků"
-      // po stěně — nechá se původní kraj okna, jako dřív.
-      return blockedAt(X, z) ? zHiRaw : z;
-    }
-    return null;
-  };
-  // Skenem zprava doleva najde všechny volné intervaly (offset nepřekračuje
-  // X) v Z∈[zLoBound,zHiBound]. První interval (od pravé hrany polotovaru) =
-  // klasický otevřený vjezd. Každý další interval je kapsa za "bossem"
-  // kontury. Sdíleno hlavní smyčkou hloubek X i dobíráním kapsy najednou.
-  // Obálka držáku (Fáze 3a, Clipper2) — společné post-zpracování intervalů
-  // pro obě cesty hledání (scan-line i booleovskou). Špička nesmí vjet do
-  // zakázané oblasti (silueta offsetu ⊕ −držák): interval se zkrátí na první
-  // vstup do ní. U hlavního otevřeného vjezdu navíc schodová podmínka
-  // (mainStair) — držák nesmí najet do materiálu, který nechaly stát zkrácené
-  // MĚLČÍ průchody. holderClamped potlačí sledování kontury z konce průchodu
-  // (leadOut). Bez definovaného držáku vrací vstup beze změny.
-  const applyHolderClamp = (intervals, firstOpen, X, mainScan) => {
-    // ORDER-AWARE ZBYTEK SEM NEPATŘÍ — ZMĚŘENO 26. 8. 2026.
-    // Plán chtěl tímhle ořezem nahradit obálku. Vyšlo to špatně ve třech
-    // po sobě jdoucích variantách:
-    //   • náhrada obálky        úběr 76 664 → 65 979 mm² (−14 %), kolize 4 → 67
-    //   • složení s obálkou     prakticky totéž (zbytek je dominantní)
-    //   • jen zkrácení, ne zrušení + odečtený vlastní řez
-    //                           úběr +1 482 mm², ale `part-10-zapich-casting`
-    //                           +1 457 mm² a 3 nálezy / 2 578 mm² NAVÍC
-    // Důvod je pořád tentýž: zkrácený nebo zahozený interval materiál
-    // NEODEBERE, jen ho nechá stát — a další, hlubší průchod ho pak vezme
-    // najednou a projede držákem skrz (part-17: průchodů 53 → 44, ale úběr
-    // 4 933 → 10 183 mm² a 26 nálezů). Správná odpověď na „nevejde se teď"
-    // je PŘEPLÁNOVAT POŘADÍ, což je vědomě mimo rozsah plánu.
-    //
-    // Zbytek se místo toho ptá u VJEZDU zákroku (`residEntryArea` výš) —
-    // tam díra opravdu je a tam se to změřeně vyplácí: `part-8` 4 nálezy /
-    // 33,4 mm² → 0 za 328 mm² úběru, `part-10` beze změny.
-    if (!holderClampZEnd) return { intervals, firstOpen };
-    const clampAt = (X2, zS, zE, mainStair) => holderClampZEnd(X2, zS, zE, { mainStair });
-    const out = [];
-    let firstSurvived = firstOpen;
-    for (let k = 0; k < intervals.length; k++) {
-      const iv = intervals[k];
-      if (k === 0 && firstOpen) {
-        // OTEVŘENÝ vjezd: zakázaný start = nelze bezpečně vjet → vynechat;
-        // jinak jen zkrátit hluboký konec (+ schodová podmínka).
-        const nz = clampAt(X, iv.zStart, iv.zEnd, mainScan);
-        if (nz === null) {
-          firstSurvived = false;
-          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderBlockedDepths.add(depthKey(X));
-          continue;
-        }
-        // Rezerva obálky (HOLDER_CLAMP_MARGIN) patří DRŽÁKU, ne špičce:
-        // clamp vrací „první vstup do zakázané oblasti + rezerva", a protože
-        // tou oblastí je i samotná silueta offsetu, vyšlo to i tam, kde
-        // průchod stejně končí — na STĚNĚ KONTURY. Každý zablokovaný průchod
-        // pak končil o rezervu (0,1 mm) dřív, než kam na offsetovou čáru
-        // dojet smí (reálný nález na díle uživatele: dráhy u čela nedojely
-        // k offsetové čáře a nechávaly 0,1 mm navíc). Zkrátit se proto smí,
-        // jen když MÍSTO překážky (nz − rezerva) leží ZA koncem intervalu, a
-        // to o víc než řezná tolerance (0,01 mm jako v blockedAt — hranice
-        // zakázané oblasti a offsetová silueta se po Clipperu liší v řádu
-        // 1e-3 mm). Uvnitř tolerance jde o TUTÉŽ stěnu → konec zůstane přesný.
-        if (nz - HOLDER_CLAMP_MARGIN > iv.zEnd + 0.01) { iv.zEnd = nz; iv.blocked = true; iv.holderClamped = true; }
-        if (iv.zStart - iv.zEnd < dzScan) { firstSurvived = false; continue; }
-      }
-      // KAPSY (k>0 / zanoření) OBÁLKA NEOŘEZÁVÁ: lomené mezní čáry guides v2
-      // („stěna − holderWidth") už drží držák uvnitř kapsy a jsou zapracované
-      // do obrobitelné kontury. Druhá (statická) restrikce přes span by přes
-      // přídavkovou slupku zkracovala rampy a bránila digu na dno (široká
-      // kapsa, cam-holder test). Nájezd/výjezd kapes hlídá holderTrimLeadIn/Out;
-      // zbytek pokryje validátor (⚠ panel).
-      //
-      // Ani ORDER-AWARE ořez sem nepomohl: po odečtení vlastního řezu byl na
-      // všech 25 fixtures INERTNÍ (identický výsledek se zapnutým i vypnutým),
-      // a bez něj bral úběr. Zbylá vada na `part-8` se řeší u VJEZDU zákroku
-      // (`residEntryArea`), ne ořezem intervalu.
-      out.push(iv);
-    }
-    return { intervals: out, firstOpen: firstSurvived };
-  };
-  // ŠÍŘKA UPICHOVACÍHO PLÁTKU U STĚNY (27. 8. 2026).
-  // Upichovák řeže CELOU spodní hranou šířky b: když začne průchod těsně pod
-  // stoupající stěnou, jeho ZADNÍ část (b − R za špičkou) leží UŽ V TÉ STĚNĚ —
-  // tedy v HOTOVÉM díle. Sken intervalů zná jen bod špičky, takže vjezdy seděly
-  // přesně na konturu a tělo plátku ji ujdalo (nález uživatele 27. 8. 2026:
-  // `N2710 G1 X34.545 Z115.088 ; Rampa 90.0°` a všechny podobné pod ní).
-  //
-  // Začátek intervalu se proto odsune o šířku těla, ale JEN když ho shora
-  // ohraničuje kontura (`blockedAt` těsně nad ním). Když interval začíná ve
-  // vzduchu (konec polotovaru, hranice rozsahu), plátek nemá do čeho narazit
-  // a nic se nemění. Materiál, který tím u stěny zůstane, je fyzikální mez
-  // širokého plátku — dobere ho dokončovací nástroj, ne zajezd do dílu.
-  const partingBodyZ = isParting ? Math.max(0, wInsL - rInsL) : 0;
-  let partingWallClamps = 0, partingWallDropped = 0;
-  const clampPartingBody = (intervals, X) => {
-    if (partingBodyZ <= 0) return intervals;
-    const out = [];
-    for (const iv of intervals) {
-      if (!blockedAt(X, iv.zStart + 0.05)) { out.push(iv); continue; }
-      const zs = iv.zStart - partingBodyZ;
-      if (zs - iv.zEnd < dzScan) { partingWallDropped++; continue; }
-      partingWallClamps++;
-      out.push({ ...iv, zStart: zs, partingWallClamped: true });
-    }
-    return out;
-  };
-
-  const scanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
-    const intervals = [];
-    let zScan = zHiBound;
-    let inRun = !blockedAt(X, zScan);
-    const firstOpen = inRun;
-    let runStartZ = zScan;
-    while (zScan > zLoBound + dzScan) {
-      zScan -= dzScan;
-      const blocked = blockedAt(X, zScan);
-      if (inRun && blocked) {
-        intervals.push({ zStart: runStartZ, zEnd: refineEngageZ(X, zScan + dzScan, zScan), blocked: true });
-        inRun = false;
-      } else if (!inRun && !blocked) {
-        runStartZ = zScan;
-        inRun = true;
-      }
-    }
-    if (inRun) intervals.push({ zStart: runStartZ, zEnd: zLoBound, blocked: false });
-    return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
-  };
-
-  // ── Booleovská cesta hledání intervalů (migrace Fáze 3, za příznakem) ──
-  // Zbytkový materiál = polotovar − oblast dílce (offset kontury uzavřený
-  // k ose, booleanRoughing.js). Řezné intervaly na hloubce X = průnik zbytku
-  // s vodorovnou čárou x=X, oříznuté na [zLoBound, zHiBound] (rozsah obrábění
-  // / region / polotovar). blocked/firstOpen se klasifikují STEJNÝMI helpery
-  // (blockedAt) jako scan-line, takže navazující emise (rampy, leadIn/Out,
-  // obálka držáku) funguje beze změny. Spočte se JEDNOU (memoizace zbytku).
-  let _residualLoops = null;
-  const getResidualLoops = () => {
-    if (_residualLoops !== null) return _residualLoops;
-    const stockLoop = stockLoopL;
-    if (!stockLoop) { _residualLoops = []; return _residualLoops; }
-    // Z-rozsah z obrysu polotovaru; radiální rozsah do maxStockX (vrch
-    // polotovaru). Zbytek se počítá proti PLNÉMU obdélníkovému POLOTOVAROVÉMU
-    // OBALU [0..maxStockX] × [zMin..zMax], NE proti skutečné siluetě odlitku:
-    // scan-line záměrně obrys polotovaru IGNORUJE („Stopuje JEN kontura",
-    // rychloposuv vzduchem tam, kde odlitek chybí) — proti siluetě by se
-    // intervaly u úzkých míst rozpadly na nesmyslné vnitřní „kapsy", které
-    // emise neobrobí → zůstal by stát materiál. Oblast dílce vzorkuje offsetXAt
-    // (přesně jako scan-line blockedAt) → intervaly SEDÍ se scan-line.
-    let zMax = -Infinity, zMin = Infinity;
-    for (const p of stockLoop) { if (p.z > zMax) zMax = p.z; if (p.z < zMin) zMin = p.z; }
-    const envelope = [
-      { x: 0, z: zMax }, { x: planTopX, z: zMax },
-      { x: planTopX, z: zMin }, { x: 0, z: zMin },
-    ];
-    const region = sampleOffsetRegion(offsetXAt, zMax, zMin, dzScan);
-    _residualLoops = buildResidual(envelope, region);
-    return _residualLoops;
-  };
-  const booleanScanIntervals = (X, zHiBound, zLoBound, mainScan = false) => {
-    const residual = getResidualLoops();
-    // Pojistka: bez zbytku (chybí polotovar/offset) zpět na scan-line.
-    if (!residual || residual.length === 0) return scanIntervals(X, zHiBound, zLoBound, mainScan);
-    const eps = 1e-4;
-    const intervals = [];
-    for (const iv of layerZIntervalsAtX(residual, X)) {
-      const zHi = Math.min(iv.zStart, zHiBound);
-      const zLo = Math.max(iv.zEnd, zLoBound);
-      if (zHi - zLo < dzScan) continue;
-      // blocked = levý konec bounduje kontura (nedosáhl spodní meze rozsahu) —
-      // stejná sémantika jako u scan-line (jen poslední otevřený běh je false).
-      intervals.push({ zStart: zHi, zEnd: zLo, blocked: zLo > zLoBound + eps });
-    }
-    const firstOpen = !blockedAt(X, zHiBound);
-    return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
-  };
-  // Výběr cesty dle příznaku (default scan-line → snapshoty beze změny).
-  const scan = prms.booleanRoughing ? booleanScanIntervals : scanIntervals;
+  // Hledání intervalů na hloubce — viz ops/long/intervalScan.js.
+  const { stockCrossingsAt, passEntryZ, scanIntervals, scan,
+    counters: scanCounters } = makeIntervalScan({
+      prms, offsetXAt, holderClampZEnd, stockLoopL, stockLoopOffsetL, planTopX,
+      isParting, wInsL, rInsL, dzScan,
+      blockedAt, refineEngageZ,
+      holderBlockedDepths });
 
   // ── VEJDE SE DRŽÁK ZA HRANICI ÚSEKU? (27. 8. 2026) ──────────────────
   // Rozdělením na úseky se každý obrobí jen do SVÉ vlastní hloubky — vedle
@@ -978,44 +524,9 @@ export function genLongPasses(ctx) {
   // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
   // neobrobený — nic dalšího už tam nezajíždí).
   const pendingRampCompletions = [];
-  // ── Kam už někdo sjel po TÉŽE přímce zanoření ──────────────────────────────
-  // Ořízlá rampa dojezdu (pendingRampCompletions výš) a kapsa za bossem
-  // (buildPocketPass níž) se v údolí potkávají na JEDNÉ přímce zanoření: roh
-  // strmé stěny je pro obě týž bod. Kapsa ho ale sjíždí UVNITŘ hloubkové
-  // smyčky (na hlubší vrstvě), zatímco dokončení rampy až po ní — takže se
-  // tentýž klín vyřízl DVAKRÁT (reálný nález na díle uživatele: „Průchod 9
-  // jede od začátku zanoření místo aby pokračoval tam, kde zanoření
-  // skončilo"; průchody 9/10 byly doslovná kopie 4/5).
-  // Přímku identifikuje její konstanta c = z − x/tg(úhel zanoření): všechny
-  // body jednoho zanořování ji mají stejnou. Evidují se ale celé X-INTERVALY,
-  // ne jen nejhlubší dosah: po jedné a téže nekonečné přímce mohou ležet DVA
-  // nesouvislé útvary (naměřeno na holder-casting-slanted-face — kapsa sjela
-  // po úseku X 39–45, dokončovací krok patřil úseku X 52,3–53,0 nad ním).
-  // „Sjelo se hlouběji" by ten druhý úsek chybně smazalo.
-  // `lineX/lineZ` = kterýkoli bod přímky, `fromX`..`toX` = úsek, který se po ní
-  // OPRAVDU vyřezal. Rozdíl je podstatný: rampa kapsy se kotví nejvýš o Hloubku
-  // (ap) nad svým dnem (viz „Jeden průchod nesmí sebrat víc než Hloubka (ap)"),
-  // takže sjíždí jen KUS přímky vedoucí od rohu — hlásit celý rozsah od rohu by
-  // smazalo dobírací krok, který patří jinému (mělčímu) úseku téže přímky
-  // (naměřeno na holder-casting-slanted-face: zmizel krok X 52,3–53,0,
-  // přestože kapsa sjížděla až od X 45).
-  const plungeLineRuns = [];
-  const plungeLineC = (x, z) => z - x / effPlungeTanL;
-  const notePlungeRun = (lineX, lineZ, fromX, toX) => {
-    const c = plungeLineC(lineX, lineZ);
-    const lo = Math.min(fromX, toX), hi = Math.max(fromX, toX);
-    const hit = plungeLineRuns.find(e => Math.abs(e.c - c) < 0.1
-      && lo <= e.hi + 0.05 && hi >= e.lo - 0.05);            // navazuje/překrývá
-    if (hit) { hit.lo = Math.min(hit.lo, lo); hit.hi = Math.max(hit.hi, hi); }
-    else plungeLineRuns.push({ c, lo, hi });
-  };
-  // Je krok rampy (od curX dolů na stepX) už celý pokrytý dřívějším sjezdem
-  // po TÉŽE přímce?
-  const plungeRunCovers = (x0, z0, stepX, curX) => {
-    const c = plungeLineC(x0, z0);
-    return plungeLineRuns.some(e => Math.abs(e.c - c) < 0.1
-      && stepX >= e.lo - 0.05 && curX <= e.hi + 0.05);
-  };
+  // Paměť přímek zanoření — viz ops/long/plungeLines.js.
+  const { plungeLineRuns, notePlungeRun, plungeRunCovers } =
+    makePlungeLines({ effPlungeTanL });
   // Začátek průchodů TOHOTO regionu — odložené zanoření se řadí na konec
   // svého regionu, ne až za celý program (viz konec smyčky regionů).
   const regionMark = passes.length;
@@ -2399,8 +1910,8 @@ export function genLongPasses(ctx) {
     foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
-  if (partingWallDropped > 0)
-    foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingWallDropped} vrstva/vrstev u stěny vynechána — široký plátek (${wInsL} mm) by do ní zajel tělem.` });
+  if (scanCounters.partingWallDropped > 0)
+    foundErrors.push({ type: 'warning', msg: `Upichovák: ${scanCounters.partingWallDropped} vrstva/vrstev u stěny vynechána — široký plátek (${wInsL} mm) by do ní zajel tělem.` });
   if (partingNarrowPockets > 0)
     foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
   if (pocketHolderSkips > 0)

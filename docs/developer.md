@@ -552,13 +552,27 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
 | `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) — jen mapa klíč → generátor |
 | `cam/inserts/` | Pravidla PLÁTKU podle tvaru (`parting`, `polygon`, `round`, `threading`) + `index.js` s `getInsert(prms)` |
-| `cam/ops/roughFace.js` | Generátor průchodů — ČELNÍ hrubování |
-| `cam/ops/roughLong.js` | Generátor průchodů — PODÉLNÉ hrubování (zleva = totéž zrcadleně přes `zMirror`) |
+| `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`) |
+| `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
+| `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
+| `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku), `finishPartingEnvelope()`, `clipFinishBand()` |
+| `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku) |
+| `cam/ops/roughFace.js` | Generátor průchodů — ČELNÍ hrubování; post-procesy jsou v `ops/face/` a volají se v POŘADÍ destička → hloubka vrstev → doběh úseku → držák |
+| `cam/ops/face/insertGuard.js` | `guardInsertFace()` — hlídání geometrie destičky čelně (polygon i upichovák) |
+| `cam/ops/face/layerDepth.js` | `makeEnforceLayerDepth()` — vrstva nikdy nejde hlouběji než předchozí |
+| `cam/ops/face/regionRunOut.js` | `makeRegionRunOut()` — doběh na konci úseku (natočená destička / upichovák) |
+| `cam/ops/face/holderGuard.js` | `makeHolderGuardFace()` — hlídání držáku u čelních průchodů |
+| `cam/ops/roughLong.js` | Generátor průchodů — PODÉLNÉ hrubování (zleva = totéž zrcadleně přes `zMirror`). Pomocné vrstvy jsou v `ops/long/` a skládají se v PEVNÉM pořadí: `runScan` → `depthTabs` → `residualGuard` → `holderFit` → `entryRamp` → `intervalScan` |
 | `cam/ops/shared.js` | Prahy a vůle sdílené oběma generátory (`HOLDER_FIT_TOL`, `ENTRY_FIT_TOL`, …) |
 | `cam/ops/long/segUtils.js` | Čisté funkce nad poli segmentů — bez vazby na stav generátoru |
+| `cam/ops/long/runScan.js` | `makeRunScan()` — „stojí tam překážka?" a „kam až se dá jet rovně?"; závisí jen na offsetu kontury a siluetě, staví se PRVNÍ |
 | `cam/ops/long/depthTabs.js` | `makeDepthTabs()` — výškové tabulky po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha vyříznutá průchody |
 | `cam/ops/long/residualGuard.js` | `makeResidualGuard()` — polygonový model zbytku (order-aware hlídání držáku); umí TUNEL, který výškové pole neumí |
 | `cam/ops/long/holderFit.js` | `makeHolderFit()` — „vejde se držák?" plošně nad tabulkami z `depthTabs.js` |
+| `cam/ops/long/entryRamp.js` | `makeEntryRamp()` — kde smí ZAČÍT a kam smí DOJET zanořovací rampa (kotva vjezdu, `findRampOutTarget`, `findSteepCorner`) |
+| `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; obě souběžné cesty (klasický sken × booleovská za příznakem `booleanRoughing`) |
+| `cam/ops/long/holderTrim.js` | `makeHolderTrim()` — ořez sledování kontury (leadIn/leadOut) obálkou držáku |
+| `cam/ops/long/plungeLines.js` | `makePlungeLines()` — paměť, kdo kudy už sjel po téže přímce zanoření |
 | `cam/ops/long/regions.js` | Dělení úseků podle hrbů kontury + jejich pořadí (od největšího průměru) |
 | `cam/ops/long/holderCheck.js` | Kontrola držáku při dělení regionů |
 | `cam/ops/long/insertFlankGuard.js` | Hlídání boku destičky v podélném hrubování |
