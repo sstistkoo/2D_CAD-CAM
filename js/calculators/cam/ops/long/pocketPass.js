@@ -26,6 +26,26 @@ export function emitPocketInterval(D) {
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
+  // Nájezd po kontuře se OŘEŽE na to, co neleží pod hloubkou průchodu.
+  //
+  // `traceOffsetPath` vrací větev kontury mezi dvěma Z — u kapsy/zápichu jich
+  // ale na tomtéž Z leží víc a trasa může skočit na jinou. Na `part-9` z toho
+  // vznikl nájezd, který od r 27,98 sjel PŘÍMO NA OSU (`G1 X0.000`) a hned
+  // zpátky na r 32,14; validátor to hlásil jako pět kolizí držáku na Z 258,2.
+  //
+  // OŘEZÁVÁ SE, NEZAHAZUJE. Pravidlo „celý, nebo vůbec“ patří DOKONČOVÁNÍ
+  // (rozhodnutí uživatele 11. 8. 2026, viz ops/finish.js) — tam by zkrácený
+  // úsek nechal schod uprostřed hotové plochy. U hrubování takový důvod není:
+  // co se nedojede tady, vezme jiná vrstva.
+  //
+  // Bere se POSLEDNÍ souvislý úsek trasy — nájezd musí končit v rohu, odkud
+  // se rampuje. Prefix, který se propadl pod hloubku, se zahodí a nástroj
+  // najede rychloposuvem rovnou na začátek toho zbytku.
+  const clipLeadInToDepth = (segs, X) => {
+    let k = segs.length;
+    while (k > 0 && Math.min(segs[k - 1].x1, segs[k - 1].x2) >= X - 0.02) k--;
+    return k === 0 ? segs : segs.slice(k);
+  };
 if (!prms.plungeRoughing) return;
 // Když je úplně první interval blokovaný (idx===0, !firstOpen),
 // neexistuje předchozí interval → horní hranice mezery = okraj
@@ -116,7 +136,7 @@ if (!iv.blocked) {
     // (sledování kontury by vedlo kůrou — vynechá se).
     passOpen.ramp = erOpen;
   } else if (!partingNoDress) {
-    const liOpen = holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart));
+    const liOpen = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart)), currentX);
     linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
     passOpen.contourLeadIn = liOpen;
   }
@@ -153,7 +173,7 @@ if (!corner) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice.
     passFlat.ramp = erFlat;
   } else if (!partingNoDress) {
-    const liFlat = holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart));
+    const liFlat = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart)), currentX);
     linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
     passFlat.contourLeadIn = liFlat;
   }
@@ -175,7 +195,8 @@ if (!corner) {
 // jen na samotnou kapsu, místo aby zajížděla za ni do navazujícího
 // úseku kontury.
 const buildPocketPass = (X, gapHi, ivLocal, cornerLocal, withLeadIn, withLeadOut) => {
-  const leadIn = withLeadIn ? holderTrimLeadIn(traceOffsetPath(gapHi, cornerLocal.z)) : [];
+  const leadIn = withLeadIn
+    ? clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(gapHi, cornerLocal.z)), X) : [];
   const dzRampFull = (cornerLocal.x - X) / effPlungeTanL;
   const availWidth = cornerLocal.z - ivLocal.zEnd;
   const dzRamp = Math.min(dzRampFull, availWidth);

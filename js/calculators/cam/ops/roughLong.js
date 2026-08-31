@@ -610,10 +610,66 @@ export function genLongPasses(ctx) {
     // prostředka") je u hloubek POD dnem, kam tahle změna nesahá, a vjezd na
     // ústí se bez capu držáku stane nehlídaným → nové kolize držáku na
     // 5 fixtures. NEZKOUŠET ZNOVU BEZ ŘEŠENÍ VLASTNICTVÍ ÚDOLÍ.
-    const dissolveEdge = !prms.plungeRoughing;
-    if (dissolveEdge && _region.zHi !== Infinity && _region.zHiSurf !== undefined && currentX <= _region.zHiSurf + 0.01) continue;
-    const regZHi = (!dissolveEdge || _region.zHiSurf === undefined || currentX > _region.zHiSurf + 0.01) ? _region.zHi : Infinity;
-    const regZLo = (!dissolveEdge || _region.zLoSurf === undefined || currentX > _region.zLoSurf + 0.01) ? _region.zLo : -Infinity;
+    // Hranice úseku neplatí na KAŽDÉ hloubce — záleží, čím vznikla:
+    //
+    //  • ÚDOLÍ polotovaru: úseky jsou oddělené NAD dnem údolí a v jeho KŮŘE
+    //    (currentX ≤ xSurf) splynou. Rozpouští se ale jen BEZ zanořování:
+    //    kolmo do kůry dna se sjet nedá, takže hloubku přebere region nad ní.
+    //    Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni řeší rampa.
+    //
+    //  • HRB kontury: ZRCADLOVĚ. NAD hrbem (currentX > xSurf) vrstva projede
+    //    vcelku — hrb ji tam vůbec nepřerušuje — takže hranice NESMÍ platit,
+    //    a to BEZ OHLEDU na zanořování: přejet nad hrbem žádné zanoření
+    //    nepotřebuje. Trhá se až POD ním.
+    //
+    //    Bez téhle výjimky se vrstvy nad hrbem sekly vejpůl uprostřed jeho
+    //    plošiny (nález uživatele 31. 8. 2026: průchody na r 52–63 končily
+    //    na Z 228,132 místo aby dojely k offsetové čáře polotovaru). Pravidlo
+    //    „nepřejíždět, dokud není celá pravá strana hotová“ tím bylo porušené
+    //    hned dvakrát: vrstva nedojela a půlky se pak střídaly.
+    //    Viz docs/cam-pravidla-drah.md §6.0.
+    const dissolveValley = !prms.plungeRoughing;
+    const edgeDissolved = (surf, kind, zEdge) => {
+      if (surf === undefined) return false;
+      if (kind !== 'peak') return dissolveValley && currentX <= surf + 0.01;
+      // NAD hrbem hranice neplatí — ale jen když tudy PROJDE DRŽÁK.
+      //
+      // Sloučená vrstva veze držák PŘES stojící hrb, a `applyHolderClamp` umí
+      // zkrátit jen KONEC intervalu, ne obejít překážku uprostřed. Bez téhle
+      // podmínky nadělá sloučení 30 kolizí držáku na sadě, která byla čistá
+      // (změřeno 31. 8. 2026), za pouhých 0,4 mm² úběru navíc.
+      //
+      // Tohle NENÍ heuristika, kterou by pravidlo §6.0 přebíjelo: nad hrbem,
+      // kudy se držák fyzicky nevejde, vrstva vcelku projet NEMŮŽE. Kde se
+      // vejde, tam sloučení proběhne a pravidlo platí.
+      if (!(currentX > surf + 0.01)) return false;
+      if (typeof holderFitsOverContour !== 'function') return true;
+      // Držák musí projít po CELÉ DÉLCE sloučené vrstvy, ne jen u hranice.
+      //
+      // Dvakrát jsem to zkoušel jinak a obojí bylo měřitelně k ničemu:
+      // test v samotné hranici i test v okně, kde hrb padá do dosahu držáku,
+      // nechaly 30 kolizí beze změny. Vypsané nálezy ukázaly proč — kolize
+      // NEJSOU u hrbu: na `part-1` sedí na řádcích 21–28 programu v pásu
+      // Z 52…−5, tedy na DRUHÉM KONCI dílu. Rozpuštěná hranice natáhne horní
+      // vrstvy přes celý díl a držák najede do materiálu až tam.
+      //
+      // Kontroluje se proto celý rozsah, do kterého se vrstva po sloučení
+      // roztáhne — okno polotovaru na téhle hloubce, ořezané rozsahem 📐.
+      const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, sz.zMax);
+      const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, sz.zMin);
+      if (!(zHiChk > zLoChk)) return true;
+      const stepChk = Math.max(DZ_CAP, (zHiChk - zLoChk) / 96);
+      for (let z = zLoChk; z <= zHiChk + 1e-9; z += stepChk) {
+        if (!holderFitsOverContour(z, currentX)) return false;
+      }
+      return true;    };
+    const hiDissolved = edgeDissolved(_region.zHiSurf, _region.zHiKind, _region.zHi);
+    const loDissolved = edgeDissolved(_region.zLoSurf, _region.zLoKind, _region.zLo);
+    // Hloubku, na které se rozpustila HORNÍ hranice, bere region NAD ní —
+    // jinak by ji obě poloviny vydaly dvakrát.
+    if (hiDissolved && _region.zHi !== Infinity) continue;
+    const regZHi = hiDissolved ? Infinity : _region.zHi;
+    const regZLo = loDissolved ? -Infinity : _region.zLo;
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
     // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
     // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.

@@ -138,18 +138,48 @@ posuzuje, se nedá obhájit.
 
 ## 5. Kde končí polotovar
 
-**Na OFFSETOVÉ ČÁŘE, ne na nakresleném obrysu.** Přídavek X/Z (polo.) je
-v zadání právě proto, že odlitek může být větší — materiál až k té čáře reálně
-existovat může a náraz do něj je náraz *(rozhodnutí uživatele 20. 8. 2026:
-„obrobek je celý i s tou offsetovou čarou… mělo by to tak být i dělané")*.
+> ## Syrová čára polotovaru NEEXISTUJE. Bere se jedině offsetová čára.
+> ## Není-li offsetová čára, teprve pak platí syrový obrys.
+>
+> **Závazné znění pravidla** (uživatel, 31. 8. 2026). Pro GENEROVÁNÍ DRAH je
+> polotovarem offsetová čára — syrový nakreslený obrys se neuvažuje vůbec.
+> Jediná výjimka je degenerace: **Přídavek X/Z (polo.) = 0**, kdy žádná
+> offsetová čára nevzniká a obě čáry splývají; teprve tam platí obrys tak,
+> jak je nakreslený (vědomé zadání „polotovar je přesně tady").
+
+**Proč:** přídavek X/Z je v zadání právě proto, že odlitek MŮŽE být větší.
+Materiál až k té čáře tedy reálně existovat může a náraz do něj je náraz
+*(rozhodnutí uživatele 20. 8. 2026: „obrobek je celý i s tou offsetovou
+čarou… mělo by to tak být i dělané")*.
 
 - Dráhy se proti té čáře plánují, náhled ji vybarvuje, validátor ji měří.
-- **Přídavek 0 → žádná offsetová čára**; plánovacím obrysem je polotovar tak,
-  jak je nakreslený (vědomé zadání „polotovar je přesně tady").
 - Rychloposuv **staví PŘED ní**, o `rapidFeedGap` (výchozí 1 mm); zbytek se
   dojede pracovním posuvem.
+- Snap se na ni chytá (vrcholy i hrany) — od 31. 8. 2026.
+- Náhled i snap berou tutéž smyčku jako plánování (`getStockPlanOutline`
+  v `camSimulator.js` → `stockPlanLoop`), aby nemohly tvrdit každý něco jiného.
 
 `collisionValidator.js:303`, `materialRemoval.js:269`, `camMath.js:403`.
+
+### 5.1 Kde se syrový obrys ZATÍM ještě používá (audit 31. 8. 2026)
+
+Sjednocení popisuje `docs/cam-sjednoceni-polotovaru.md` a je z větší části
+hotové. Legitimní zbytek je jediný: **z čeho se offset počítá** —
+`buildStockLoopRaw()` musí syrovou smyčku vyrobit, aby ji `offsetStockLoop()`
+měl co posunout (`ops/roughLong.js:297`). To není „použití pro generování".
+
+Skutečně otevřená místa, kde o dráze rozhoduje SYROVÝ obrys:
+
+| místo | co podle něj rozhoduje |
+|---|---|
+| `ops/roughLong.js:120` | `maxStockX` — od jaké hloubky vůbec začínají vrstvy (průsečíky na hranicích rozsahu 📐) |
+| `ops/roughLong.js:191` | `stockZRangeAt` — Z-okno řezu na hranicích rozsahu 📐 |
+| `ops/roughLong.js:149` | `_stockLoopSpanMemo` — rozpětí pro kapsový span |
+| `gcodeEmit.js:162` | `rapidStock` = model ze SYROVÉ smyčky; plánovací `rapidStockPlan` je vedle něj samostatně |
+
+**Pozor při opravě:** u prvních tří jde o hranice rozsahu 📐 a posun na offset
+tam znamená, že vrstvy začnou o Vůli X výš a Z-okno bude o Vůli Z širší —
+tedy ZMĚNA DRAH, ne refaktor. Měřit otiskem i sweepem.
 
 ---
 
@@ -222,6 +252,39 @@ a na `part-8`.
 > varoval před „7 fixtures, 5,8–43,6 mm²" — po zrušení předchozích dvou gatů
 > se to už neprojevilo: úběr +204 mm² a **žádný nový nález**. Ta výstraha
 > platila pro jiný stav kódu.
+
+#### ZMĚŘENO A ODLOŽENO: rozpuštění hranice u HRBU (31. 8. 2026)
+
+Vrstvy NAD hrbem se pořád sekají vejpůl uprostřed jeho plošiny — hranice
+úseku tam platí, i když hrb vrstvu vůbec nepřerušuje. Příčina je
+v `ops/roughLong.js`:
+
+```js
+const dissolveEdge = !prms.plungeRoughing;   // se Zanořováním hranice DRŽÍ
+```
+
+Rozpouštění je podmíněné vypnutým Zanořováním. To dává smysl u ÚDOLÍ
+polotovaru (kolmo do kůry dna se sjet nedá), ale ne u HRBU: přejet nad hrbem
+žádné zanoření nepotřebuje.
+
+**Oprava byla napsaná a změřená** — rozlišit `kind === 'peak'` a nad hrbem
+hranici zrušit bez ohledu na zanořování. Na dílu uživatele fungovala přesně
+podle pravidla (průchody r 52–63 dojely na Z 195,278 místo Z 228,132, program
+577 → 517 řádků). **Na sadě je ale neúnosná:**
+
+| | úběr | kolize |
+|---|---|---|
+| bez opravy | 82 810,4 | **0 / 0,0 mm²** |
+| s opravou | 82 810,8 (**+0,4**) | **30 / 240,8 mm²** |
+
+Za 0,4 mm² materiálu třicet kolizí držáku na konfiguraci, která byla čistá.
+Odloženo, **ne zahozeno** — leží v `git stash@{0}` („WIP on main“ nad
+`4cd0d15`).
+
+**Kde hledat dál:** rozšířený průchod se plánuje přes obě strany hrbu, ale
+ořez obálkou držáku (`applyHolderClamp` / `holderClampZEnd`) zřejmě neplatí
+na celý nový rozsah. Příští pokus musí ověřit, že se držák vejde po CELÉ
+délce sloučené vrstvy, ne jen v jejím původním úseku.
 
 **Co ještě není ověřené:** pořadí stran pořád řídí `orderRegions` podle
 NEJVĚTŠÍHO PRŮMĚRU, ne „napřed ta, ze které přijíždím". Na dílech sady to
