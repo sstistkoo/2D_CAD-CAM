@@ -19,7 +19,17 @@ import { runCamProg } from './helpers/camHeadless.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, 'fixtures', 'cam');
-const fixtures = readdirSync(fixturesDir).filter(f => f.endsWith('.camprog')).sort();
+const allFixtures = readdirSync(fixturesDir).filter(f => f.endsWith('.camprog')).sort();
+const hasFlag = (f) =>
+  !!(JSON.parse(readFileSync(join(fixturesDir, f), 'utf8')).params || {}).booleanRoughing;
+// JEN FIXTURES, KDE PŘÍZNAK NENÍ UŽ ZAPNUTÝ. U ostatních „vynucení“ nemění nic,
+// takže se tu ukládal BAJT PO BAJTU týž program jako v `cam-gcode-regression`
+// a pipeline se kvůli tomu proháněl dvakrát. Změřeno 1. 9. 2026: z 27 fixtures
+// mělo 15 příznak zapnutý, 17 snapshotů bylo shodných v obou souborech —
+// 6 363 z 19 976 řádků G-kódu (32 %) leželo v gitu dvakrát.
+// Pokrytí tím neklesá: u zapnutých fixtures hlídá booleovskou větev už
+// běžný snapshot, protože ta větev je u nich ta jediná, kterou jedou.
+const fixtures = allFixtures.filter(f => !hasFlag(f));
 
 // Kompaktní shrnutí struktury pipeline (shodné s cam-gcode-regression) —
 // napoví, KDE se booleovská cesta případně pohnula (kontura vs dráhy).
@@ -49,6 +59,18 @@ const EXPECTED_HARD = {
 };
 
 describe('CAM booleovská hrubovací větev — regrese (booleanRoughing=on)', () => {
+  // POJISTKA PROTI NÁVRATU DUPLICITY. Když se u některé fixture příznak
+  // zapne (v `.camprog`), její booleovský snapshot přestane měřit cokoli
+  // navíc — a `vitest -u` ho sám nesmaže, jen ho přestane obnovovat. Tenhle
+  // test na takový zbytek upozorní, aby se soubor zase nenafoukl.
+  it('snapshot neobsahuje fixtures, které mají příznak zapnutý v zadání', () => {
+    const snap = join(__dirname, '__snapshots__', 'cam-boolean-gcode-regression.test.js.snap');
+    let text = '';
+    try { text = readFileSync(snap, 'utf8'); } catch { return; }   // ještě neexistuje
+    const stale = allFixtures.filter(f => hasFlag(f) && text.includes(`> ${f} `));
+    expect(stale, `zbytečné snapshoty (příznak je už v zadání): ${stale.join(', ')}`)
+      .toEqual([]);
+  });
   for (const file of fixtures) {
     it(`${file} → stabilní booleovský G-kód`, async () => {
       const prog = JSON.parse(readFileSync(join(fixturesDir, file), 'utf8'));

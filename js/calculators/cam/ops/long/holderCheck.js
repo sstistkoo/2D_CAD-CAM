@@ -22,7 +22,7 @@ export const HOLDER_INTRUSION_TOL = 0.5;
 
 /**
  * Vrátí `{ holder, residual }`:
- *   `holder`   — největší plocha, kterou držák projede stojícím materiálem,
+ *   `holder`   — SOUČET ploch, kterými držák projede stojícím materiálem,
  *   `residual` — kolik materiálu po hrubování zůstane (dobírá dokončování).
  * `passes` se nemění. Obě čísla dávají smysl jen v POROVNÁNÍ dvou plánů téhož
  * dílu — absolutní hodnota je nenulová i u plánu, který validátor bere jako
@@ -37,13 +37,18 @@ export function planQuality(passes, prms, stockPathSegments) {
   let tracker;
   try { tracker = new ResidualTracker(prms, stockPathSegments, { footprint: foot }); }
   catch { return bad; }
+  // SOUČET, ne maximum. `max` nedokáže dva plány téhož dílu rozlišit, jakmile
+  // mají společný jeden velký zákrok: na `part-1` s nakresleným nožem vyšlo
+  // 272,84 mm² pro plán S dělením i BEZ něj, ačkoli validátor jednomu
+  // napočítal 20 nálezů / 103,7 mm² a druhému nulu. Pojistka na to slepě
+  // pouštěla plán, který se nevejde (nález 1. 9. 2026). Součet přes všechny
+  // průchody ten rozdíl ukáže a je pořád monotónní — víc vnoření = horší.
   let worst = 0, reported = false;
   for (const p of passes) {
     try {
       if (holderLoop) {
         for (const pts of passCutPolylines(p)) {
-          const a = holderAreaAlongResidual(tracker.loops, holderLoop, pts, {});
-          if (a > worst) worst = a;
+          worst += holderAreaAlongResidual(tracker.loops, holderLoop, pts, {});
         }
       }
       tracker.notePass(p);

@@ -57,7 +57,11 @@ const EXPECTED = {
   // (Minkowski, jako `makeHolderClamp`) i na rampu; to je samostatná práce,
   // ne dolaďování prahu. Táž mez dřív držela `holder-region-roughing`
   // v EXPECTED_PLAN — tam po téže opravě zmizela.
-  'holder-casting-slanted-face.camprog': 'držák na rampě — mez modelu holderFitsAt (2× 0,6 a 1,6 mm²)',
+  // 1. 9. 2026: `holder-casting-slanted-face` odtud ZMIZEL a `part-8`
+  // z EXPECTED_PLAN taky — obojí spravilo dělení podle hrbů, které se nově
+  // nezahazuje kvůli ceně (viz calculatePipeline.js) a nevydává duplicitní
+  // okna regionů (ops/roughLong.js). Sada spadla ze 47 nálezů / 207,9 mm²
+  // na NULU (náhradní držák) a z 9 / 15,8 na 2 / 4,9 (nakreslený nůž).
 };
 
 // ── DRUHÝ STANDARD: polotovar končí až na OFFSETOVÉ ČÁŘE ────────────────────
@@ -104,8 +108,6 @@ const EXPECTED_PLAN = {
   // i `face-casting`/`face-cylinder` — všechny tři spravil jednostranný
   // náhradní držák. Zbylé dvě položky jsou tytéž meze jako v EXPECTED výš,
   // jen proti offsetové čáře vyjdou o pár mm² větší.
-  'holder-casting-slanted-face.camprog': 'držák na rampě — mez modelu holderFitsAt (3× do 3,5 mm²)',
-  'part-8.camprog': 'držák v přídavkové slupce nad pahýlem polotovaru (5× do 13,1 mm²) — proti nakreslené siluetě čistý; od zapnutí `orderAwareHolder` 26. 8. 2026 jich je 5 místo 8, protože zmizel kapsový vjezd',
 };
 
 const detailOf = (issues) => issues.map(i =>

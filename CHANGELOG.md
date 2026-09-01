@@ -109,6 +109,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **Testy – booleovský snapshot ukládal třetinu G-kódu dvakrát.**
+  `cam-boolean-gcode-regression` pouštěl VŠECHNY fixtures s vynuceným
+  `booleanRoughing = true`, jenže **15 z 27 ho má zapnutý už ve svém
+  `.camprog`** — u nich se tedy ukládal bajt po bajtu týž program jako
+  v `cam-gcode-regression` a celý CAM pipeline se kvůli tomu proháněl
+  dvakrát. Změřeno: 17 z 27 snapshotů bylo shodných v obou souborech,
+  tj. **6 363 z 19 976 řádků G-kódu (32 %) leželo v gitu dvakrát**.
+
+  Test teď iteruje jen fixtures, které příznak zapnutý NEMAJÍ (12 z 27) —
+  tam booleovská větev opravdu měří něco jiného. Snapshot spadl
+  z 11 381 na 4 959 řádků (−56 %) a soubor běží 40 → 24 s. Pokrytí
+  neklesá: u zapnutých fixtures je booleovská cesta ta jediná, kterou
+  jedou, takže ji pinuje už běžný snapshot.
+
+  Přibyla POJISTKA proti návratu: test hlásí osiřelé snapshoty fixtures,
+  které příznak mezitím dostaly do zadání (`vitest -u` je sám nemaže,
+  jen je přestane obnovovat).
 - **CAM – úklid po dekompozici: šest mrtvých parametrů pryč.** Kontrola
   vyňatých modulů našla destrukturovaná jména, která se v tělech vůbec
   nepoužívají a jen matou čtenáře (ze signatury to vypadá, že se volají):
@@ -267,6 +284,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – pravidlo „nepřejíždět, dokud není celá strana hotová" (§6.0)
+  se zahazovalo měřením.** Od 27. 8. 2026 se hrubování plánovalo dvakrát —
+  s dělením podle hrbů kontury a bez něj — a `planQuality` rozhodla, který
+  plán se nechá. Na dílu uživatele (⌀111 × 350, upichovák, podélně zleva)
+  padalo pravidlo pokaždé: dělení se spočítalo (8 úseků) a pak vyhodilo,
+  takže se vrstvy kolem každého hrbu střídaly vlevo–vpravo–vlevo. Uživatel to
+  hlásil opakovaně; **24 takových návratů** v jednom programu.
+
+  Příčiny byly tři a všechny na straně toho měření:
+
+  1. **Duplicitní okna úseků.** Rozpuštěná DOLNÍ hranice regionu sahala rovnou
+     na −∞, takže okno přeskočilo i hranice, které drží, a týž interval vydal
+     ještě jeden region níž. Z 112 průchodů bylo **6 duplicitních** — `X63.545
+     Z196.3…256.6` vydaly dva různé regiony. Nově se jde po sousedech dolů
+     jen po PRVNÍ hranici, která drží (`ops/roughLong.js`).
+  2. **Metrika neuměla plány rozlišit.** `planQuality` brala MAXIMUM přes
+     průchody, takže jeden velký zákrok společný oběma plánům ji nasytil:
+     na `part-1` vyšlo 272,84 mm² pro plán s dělením i bez něj, ačkoli
+     validátor jednomu napočítal 20 nálezů / 103,7 mm² a druhému nulu.
+     Nově se plochy SČÍTAJÍ (`ops/long/holderCheck.js`).
+  3. **Vetovala i cena.** Plán s dělením je z principu o něco dražší (každý
+     úsek se dodělá do své hloubky a u hranic zůstane materiál pro jinou
+     operaci), takže ho kritérium `residual` zamítalo, i když byl čistý —
+     na dílu uživatele −399 mm² proti NULE kolizí. Vetovat smí nově jen
+     DRŽÁK, tedy proveditelnost (`calculatePipeline.js`).
+
+  Změřeno (sweep, 27 fixtures × 2 držáky):
+
+  | | úběr | kolize |
+  |---|---|---|
+  | náhradní držák | 88 726,1 → **88 232,1** mm² (−494) | **47 / 207,9 → 0 / 0,0** |
+  | nakreslený nůž | 85 235,9 → **85 235,9** mm² (0) | **9 / 15,8 → 2 / 4,9** |
+
+  Na dílu uživatele alternace **24 → 0** při nule kolizí (průchodů 69 → 75,
+  úběr −399 mm², které ⚠ panel hlásí jako pět vynechaných odložených
+  zanoření). `tests/cam-collision-free` je poprvé zelený s PRÁZDNÝM seznamem
+  výjimek — odtud zmizel `holder-casting-slanted-face` i `part-8`.
+
+  Pořadí úseků se neměnilo: seřadit je po směru jízdy místo „největší průměr
+  první" bylo změřeno a ZAMÍTNUTO (samo o sobě 122 nálezů, po opravě metriky
+  0 / 0,0 → 2 / 1,5).
 - **CAM – upichovák zajel tělem do hotového dílu na mírném kuželu.** Hlídání
   šířky plátku u stěny (`clampPartingBody` v `ops/long/intervalScan.js`)
   testovalo překážku JEDINÝM bodem 0,05 mm nad začátkem intervalu. Na kuželu

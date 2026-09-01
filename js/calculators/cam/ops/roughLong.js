@@ -510,6 +510,12 @@ export function genLongPasses(ctx) {
     passEntryZ, scan, stockLoopL, step, holderFitsOverContour,
   });
   const _regions = computeRegions();
+  // Pořadí OBRÁBĚNÍ (`_regions`) řadí `orderRegions` podle největšího průměru,
+  // ale rozpouštění hranic potřebuje pořadí GEOMETRICKÉ (shora dolů): když se
+  // dolní hranice rozpustí, okno pokračuje do SOUSEDNÍHO úseku pod ní, ne
+  // rovnou na −∞ (viz regZLo v hloubkové smyčce).
+  const _geoRegions = _regions.slice().sort((a, b) => (b.zHi ?? Infinity) - (a.zHi ?? Infinity));
+  const _geoIdx = new Map(_geoRegions.map((r, i) => [r, i]));
   // Pipeline pak změří, jestli se dělení podle hrbu vyplatilo (holderCheck.js).
   const _peakZs = [];
   for (const q of _regions) {
@@ -664,12 +670,24 @@ export function genLongPasses(ctx) {
       }
       return true;    };
     const hiDissolved = edgeDissolved(_region.zHiSurf, _region.zHiKind, _region.zHi);
-    const loDissolved = edgeDissolved(_region.zLoSurf, _region.zLoKind, _region.zLo);
     // Hloubku, na které se rozpustila HORNÍ hranice, bere region NAD ní —
     // jinak by ji obě poloviny vydaly dvakrát.
     if (hiDissolved && _region.zHi !== Infinity) continue;
-    const regZHi = hiDissolved ? Infinity : _region.zHi;
-    const regZLo = loDissolved ? -Infinity : _region.zLo;
+    const regZHi = _region.zHi;
+    // DOLNÍ hranice: rozpustí-li se, okno pokračuje do sousedního úseku —
+    // ale jen po PRVNÍ hranici, která drží. Dřív se sahalo rovnou na −∞,
+    // takže okno přeskočilo i platné hranice a TÝŽ interval vydal podruhé
+    // ještě některý region níž. Projevilo se to teprve s dělením podle hrbů
+    // (u samotných údolí se hranice nerozpouští, takže duplicita nevznikla):
+    // na dílu uživatele 1. 9. 2026 bylo z 112 průchodů ŠEST duplicitních —
+    // `X63.545 Z196.3…256.6` vydaly dva různé regiony, protože oběma se
+    // okno rozpustilo až za sebe.
+    let _walk = _region;
+    while (_walk && _walk.zLo !== -Infinity
+           && edgeDissolved(_walk.zLoSurf, _walk.zLoKind, _walk.zLo)) {
+      _walk = _geoRegions[(_geoIdx.get(_walk) ?? -1) + 1];
+    }
+    const regZLo = _walk ? _walk.zLo : -Infinity;
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
     // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
     // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.

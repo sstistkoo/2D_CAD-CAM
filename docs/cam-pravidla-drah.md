@@ -265,6 +265,39 @@ a na `part-8`.
 > se to už neprojevilo: úběr +204 mm² a **žádný nový nález**. Ta výstraha
 > platila pro jiný stav kódu.
 
+#### GATE, KTERÝ PRAVIDLO PŘEBÍJEL — ZRUŠEN 1. 9. 2026
+
+Od 27. 8. 2026 se plán počítal DVAKRÁT — s dělením podle hrbů a bez něj —
+a `planQuality` rozhodla, který se nechá. Na dílu uživatele (⌀111 × 350,
+upichovák, podélně zleva) tím pravidlo padalo pokaždé: dělení se spočítalo
+(8 úseků, zlomy Z 4,1 / 67,2 / 127,2 / 228,1) a pak se zahodilo. Uživatel to
+viděl jako **24 návratů „vlevo–vpravo–vlevo"** kolem každého hrbu.
+
+Příčiny byly TŘI a všechny na straně toho měření, ne pravidla:
+
+| co | jak se to projevilo | kde |
+|---|---|---|
+| **duplicitní okna úseků** | rozpuštěná DOLNÍ hranice sahala rovnou na −∞, takže okno přeskočilo i hranice, které drží, a týž interval vydal ještě jeden region níž — z 112 průchodů bylo 6 duplicitních (`X63.545 Z196.3…256.6` dvakrát) | `ops/roughLong.js`, `regZLo` |
+| **metrika neuměla plány rozlišit** | `planQuality` brala MAXIMUM přes průchody; jeden velký zákrok společný oběma plánům ho nasytil. Na `part-1` vyšlo 272,84 mm² pro plán s dělením i bez něj, ačkoli validátor jednomu napočítal 20 nálezů a druhému nulu | `ops/long/holderCheck.js` |
+| **vetovala i CENA** | plán s dělením je z principu o něco dražší (každý úsek se dodělá do své hloubky, u hranic zůstane materiál pro jinou operaci) — kritérium `residual` ho zamítalo, i když byl čistý: na dílu uživatele −399 mm² proti NULE kolizí | `calculatePipeline.js` |
+
+Po opravě smí plán s dělením vetovat **jen DRŽÁK** (proveditelnost), nikdy
+úběr. Změřeno (sweep, 27 fixtures × 2 držáky):
+
+| | úběr | kolize |
+|---|---|---|
+| náhradní držák | 88 726,1 → **88 232,1** mm² (−494) | **47 / 207,9 → 0 / 0,0** |
+| nakreslený nůž | 85 235,9 → **85 235,9** mm² (0) | **9 / 15,8 → 2 / 4,9** |
+
+Na dílu uživatele: alternace **24 → 0**, kolize 0 → 0, průchodů 69 → 75,
+úběr 4 034,5 → 3 635,9 mm² (těch −399 hlásí ⚠ panel jako pět vynechaných
+odložených zanoření — držák se do nich po obrobení úseku nevejde).
+`tests/cam-collision-free` je poprvé zelený s PRÁZDNÝM seznamem výjimek.
+
+> **Pořadí úseků se NEMĚNILO.** Zkoušeno seřadit je po směru jízdy místo
+> „největší průměr první" (zadání 27. 8. 2026) — samo o sobě to nepomohlo
+> (nakreslený nůž 122 nálezů) a po opravě metriky bylo měřitelně HORŠÍ
+> (náhradní držák 2 / 1,5 proti 0 / 0,0). Zamítnuto, pravidlo o průměru platí.
 #### ZMĚŘENO A ODLOŽENO: rozpuštění hranice u HRBU (31. 8. 2026)
 
 Vrstvy NAD hrbem se pořád sekají vejpůl uprostřed jeho plošiny — hranice
@@ -321,7 +354,7 @@ strana větší průměr, by šla první.
 
 | věc | proč je to mez |
 |---|---|
-| dělení úseku ve středu údolí | dvakrát zamítnuto; nejde o pokrytí, ale o KOTVU ZANOŘENÍ |
+| dělení úseku ve středu údolí | **TŘIKRÁT** zamítnuto (8. 8., 10. 8. a 1. 9. 2026); nejde o pokrytí, ale o KOTVU ZANOŘENÍ — čísla níž |
 | horní mez rozsahu 📐 u čelního hrubování | vynutit nejde (−11,8 mm² pokus) |
 | přísnější hlídání držáku u `holder-region-roughing` | každé zpřísnění stojí o dva řády víc materiálu (−310 mm² za 0,6 mm²) |
 | zrcadlení držáku u upichováku | nezrcadlit = 332 kolizí čelně zleva |
@@ -330,6 +363,56 @@ strana větší průměr, by šla první.
 | `applyHolderClamp` na kapsové intervaly | −4 192 mm² úběru a s náhradním držákem o nález VÍC |
 | memoizace uvnitř `calculate()` | `pathInputsKey` nepokrývá všechny vstupy; rozbilo 9 souborů testů |
 
+### 7.1 Hranice ve STŘEDU ÚDOLÍ — přeměřeno 1. 9. 2026
+
+Uživatel na to upozornil znovu: *„vezme to prostě odprostředka toho údolí“*.
+Vidí správnou věc — zlom polotovaru je definovaný jako **střed údolí**
+(`regions.js`), takže na jeho dílu padl na Z 172,5 doprostřed plochého dna
+X 16,74 (Z 149,5…196,3) a vrstva se tam rozřízne svislým zápichem.
+
+Pod dnem údolí je materiál souvislý, takže se hranice rozpouští — ale jen
+`!prms.plungeRoughing`. Se zapnutým Zanořováním DRŽÍ. Zkusil jsem ji rozpustit
+vždy (`dissolveValley = true`) a změřil to na celé sadě:
+
+| | úběr | kolize |
+|---|---|---|
+| dnes | náhradní držák **88 232,1** mm² | **0 / 0,0** |
+| s rozpuštěním | náhradní držák **85 529,5** mm² (−2 703) | **2 / 4,6** |
+| | nakreslený nůž 85 235,9 → **83 000,1** (−2 236) | 2 / 4,9 → 2 / 4,9 |
+
+Na dílu uživatele samotném je to naopak +280 mm² (3 635,9 → 3 915,6), ale za
+cenu dvou nálezů 2,3 mm² v ÚDOLÍ (Z ≈ 154, `G1 X9.943`) — tedy přesně tam,
+kam se držák nevejde. Napříč sadou tedy platí stará výstraha z kódu: po
+rozpuštění hranice **zůstane dno vybrání stát**, protože region nad ní na něj
+dosáhne jen svým PRVNÍM intervalem.
+
+**Zkoušen i POSUN KOTVY místo posunu hranice** (1. 9. 2026). `holderEntryReachZ`
+na to existuje a je psaný přesně na tuhle stížnost, jenže se u 90° zápichu
+vůbec nespustí: `plungeEntryOk` (zápich se na hranici vejde) přeskočí celý
+blok. Po odblokování se kotva opravdu posunula — zápich Z 170,7 → **162,75**,
+tedy o 8 mm blíž ústí. Cena ale byla vyšší než výnos:
+
+| | průchodů | úběr | ⚠ |
+|---|---|---|---|
+| dnes | 75 | **3 635,9** mm² | 5 odložených zanoření |
+| s posunem kotvy | 72 | 3 474,3 (−162) | 11 odložených + **12 vrstev u stěny** |
+| + strop o šířku plátku | 72 | 3 428,3 (−208) | totéž |
+
+Důvod je fyzikální: kotva se posune ke stěně hrbu a 5mm upichovák se tam
+tělem nevejde (`clampPartingBody`), takže vrstvy vypadnou. **Poloha uprostřed
+dna tedy není svévole — je to nejzazší místo, kam se ten nůž s držákem vejde.**
+Užší plátek nebo obrobení téhle poloviny z druhé strany je jediná cesta dál;
+přesně to ⚠ panel hlásí („držák se k nim nedostane… obrobte je z druhé strany“).
+**Co z toho plyne pro příští pokus:** nesahat na `dissolveValley`, dokud
+nebude vyřešené VLASTNICTVÍ ÚDOLÍ — tedy aby sloučený region pokryl i
+intervaly za bývalou hranicí, ne jen ten první. Teprve pak má smysl měřit
+znovu; samotné přepnutí příznaku je měřitelně horší.
+
+Materiál, který na dílu uživatele v levé půlce údolí zůstává (X 16,74 proti
+kontuře 8,74 na Z 149,5…167), přitom **není** důsledek té hranice: leží tam
+proto, že se do něj nevejde držák, a ⚠ panel to hlásí jako „5 odložených
+zanoření vynecháno“. Rozpuštění hranice ho vezme jen tak, že do té stěny
+držákem drhne.
 Plný kontext: `docs/cam-plan-2026-08-28.md` §4, `docs/cam-order-aware-holder.md`,
 `docs/cam-sjednoceni-polotovaru.md`, `docs/geometry-libs-migration.md`.
 
