@@ -3047,7 +3047,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     return best;
   }
   // Úsečkové pohyby (G0/G1) jako celé úsečky — pro tažení celé dráhy.
-  function getGSegmentAt(clientX, clientY, force = false) {
+  // `includeArcs` přibere i OBLOUKY (G2/G3) — jen pro NAJITÍ řádku, ne pro
+  // tažení (vrací se bez p1/p2, viz níž).
+  function getGSegmentAt(clientX, clientY, force = false, includeArcs = false) {
     if ((!S.gcodeEditEnabled && !force) || S.simRunning) return null;
     const calc = S._cachedCalc;
     if (!calc || !calc.simPath) return null;
@@ -3076,6 +3078,39 @@ export function openCamSimulator(initialContour, initialGCode) {
         minD = d;
         best = { simIdx: i, lineIdx: li, type: sp[i].type, startIdx: sp[i - 1].originalLineIdx,
                  p1: { x: sp[i - 1].x, z: sp[i - 1].z }, p2: { x: sp[i].x, z: sp[i].z } };
+      }
+    }
+    // OBLOUKY (G2/G3): v simPath je oblouk ŘETĚZ bodů se stejným
+    // `originalLineIdx`, takže ho smyčka výš minula dvakrát — filtrem na
+    // G0/G1 i podmínkou „ne vnitřek oblouku". Klik doprostřed oblouku proto
+    // nenašel nic a v G-kódu se nezvýraznil žádný řádek, ačkoli u úseček to
+    // fungovalo (nález uživatele 1. 9. 2026). Hit-test = vzdálenost od lomené
+    // čáry celého řetězu (včetně vstupního bodu = počátku oblouku).
+    //
+    // Vrací se BEZ `p1`/`p2` a s `isArc: true`: tažení oblouku by muselo
+    // přepočítat i poloměr (CR/I,K), takže se sem tahání schválně nepouští —
+    // volající si oblouk vezme jen pro `_gcodeFocusLine`.
+    if (includeArcs) {
+      for (let i = 1; i < sp.length; i++) {
+        const li = sp[i].originalLineIdx;
+        if (li == null) continue;
+        const t = sp[i].type;
+        if (t !== 'G2' && t !== 'G3') continue;
+        if (sp[i - 1].originalLineIdx === li) continue;   // jen začátek řetězu
+        let j = i;
+        while (j < sp.length && sp[j].originalLineIdx === li) j++;
+        let a = _gToScreen(sp[i - 1].x, sp[i - 1].z);
+        let d = Infinity;
+        for (let k = i; k < j; k++) {
+          const b = _gToScreen(sp[k].x, sp[k].z);
+          d = Math.min(d, distSeg(mx, my, a.x, a.y, b.x, b.y));
+          a = b;
+        }
+        if (d < 6 && d < minD) {
+          minD = d;
+          best = { simIdx: j - 1, lineIdx: li, type: t, isArc: true };
+        }
+        i = j - 1;
       }
     }
     return best;
@@ -8948,6 +8983,12 @@ export function openCamSimulator(initialContour, initialGCode) {
             lastMousePos = { x: e.clientX, y: e.clientY };
             return;
           }
+          // Oblouk (G2/G3): tažení neumíme (musel by se s ním přepočítat
+          // i poloměr), ale klik má aspoň označit jeho řádek — stejně jako
+          // u úseček. Bez `return`, ať klik dál propadne na tažení bodu
+          // kontury pod obloukem.
+          const garc = getGSegmentAt(e.clientX, e.clientY, false, true);
+          if (garc) { S._gcodeFocusLine = garc.lineIdx; updateCodeHighlight(); }
         }
         // jinak (vrchol kontury) spadne na tažení bodu kontury níže
       }
@@ -8957,7 +8998,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // takže tažením lze dál posouvat pohled (pan).
     if (!S.gcodeEditEnabled && !S.simRunning) {
       const gn = getGNodeAt(e.clientX, e.clientY, true);
-      const gs = gn ? null : getGSegmentAt(e.clientX, e.clientY, true);
+      const gs = gn ? null : getGSegmentAt(e.clientX, e.clientY, true, true);
       if (gn || gs) { S._gcodeFocusLine = (gn || gs).lineIdx; updateCodeHighlight(); }
     }
     // Z/X-limity – mají přednost před ostatními body, lze tahat i bez odemčení.

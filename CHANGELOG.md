@@ -304,6 +304,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Simulátor – klik na OBLOUK dráhy (G2/G3) nenašel svůj řádek G-kódu.**
+  U úseček klik označí a v panelu zvýrazní odpovídající řádek; oblouk je ale
+  v `simPath` ŘETĚZ bodů se stejným `originalLineIdx`, takže ho hit-test
+  (`getGSegmentAt`) minul dvakrát — filtrem na G0/G1 i podmínkou „ne vnitřek
+  oblouku" (nález uživatele 1. 9. 2026: *„na klik to nereaguje a v G-CODE to
+  nevyhledá příslušný řádek"*). Nově se oblouk testuje jako lomená čára celého
+  řetězu. Změřeno kliknutím doprostřed každého oblouku: `part-1` 17 oblouků —
+  dřív 13× nic a 4× označený CIZÍ (sousední) řádek, teď 17/17 správně;
+  `part-4` 20/20, `part-15` 7/7. Tažením se oblouk hýbat pořád nedá (musel by
+  se s ním přepočítat i poloměr), proto se vrací bez `p1`/`p2` a s `isArc`.
+  Pokrývá `tests/cam-path-pick-arc.test.js`.
 - **CAM – hrubování vydávalo doslovné KOPIE právě provedeného řezu a najíždělo
   na ně desítkami milimetrů „rampy" ze surového odlitku.** Nález uživatele
   1. 9. 2026 na dílu ⌀129 × 355 (podélně zprava, polygon 15°, odlitek).
