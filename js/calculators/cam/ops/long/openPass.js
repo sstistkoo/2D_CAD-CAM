@@ -277,6 +277,50 @@ export function emitOpenInterval(D) {
         }
       }
     }
+    // ── CO DOJEZD UŽ DOBRAL, SE NEVYDÁ PODRUHÉ ────────────────────────────
+    // Dojezd „bez schodků" nekončí na `iv.zEnd`: dorampování strmé stěny
+    // (`straightContinueZ`) i „dodělat vrstvu" (`ivTail` výš) ho vědomě
+    // protáhnou ROVNĚ na hloubce vrstvy dál doleva — tedy skrz NÁSLEDUJÍCÍ
+    // interval téže hloubky. Ten se ale o pár řádků dál (`intervals.forEach`)
+    // vydal ještě jednou jako vlastní průchod: doslovná kopie právě
+    // provedeného řezu. A protože takový interval končí ve vzduchu
+    // (`blocked === false`), sháněl si vjezd přes `stockEntryRamp`, tedy
+    // rampu kotvenou na SYROVÉ siluetě odlitku desítky mm nad vrstvou, kterou
+    // mělčí průchody dávno odebraly.
+    //
+    // Reálný nález uživatele 1. 9. 2026 — tři případy na jednom díle:
+    //   „Průchod 7"  X49,545 Z214,472→196,278 = konec dojezdu „Průchodu 6",
+    //                najížděný 44mm rampou pod 15° z Z258,4,
+    //   „Průchod 31" X40,545 Z121,117→110,790 = konec dojezdu „Průchodu 30",
+    //   „Průchod 49" X31,545 Z−1,009→−8,000  = konec dojezdu „Průchodu 48".
+    // Odebráno tím 3 průchody a úběr se NEHNUL ani o setinu mm² (7 645,6).
+    //
+    // Ořezává se jen podle KONCOVÝCH úseků dojezdu na hloubce vrstvy
+    // (`currentX`): co dojezd projel po kontuře výš, vrstvu nedobralo a
+    // interval si to má vzít sám.
+    let coverLo = null, coverHi = null;
+    for (let k = leadOut.length - 1; k >= 0; k--) {
+      const s = leadOut[k];
+      if (Math.abs(s.x1 - currentX) > 0.02 || Math.abs(s.x2 - currentX) > 0.02) break;
+      const lo = Math.min(s.z1, s.z2), hi = Math.max(s.z1, s.z2);
+      coverLo = coverLo === null ? lo : Math.min(coverLo, lo);
+      coverHi = coverHi === null ? hi : Math.max(coverHi, hi);
+    }
+    if (coverLo !== null) {
+      for (const q of intervals) {
+        // Tolerance je `dzScan`, ne epsilon: začátek intervalu a konec rampy
+        // dojezdu vznikají KAŽDÝ JINOU cestou (sken × `findRampOutTarget`,
+        // v booleovské větvi navíc z polygonu zbytku), takže na téže hraně
+        // sedí o mikrometry vedle — na `part-8` o 1,2 µm, a scan-line větev
+        // duplicitu zahodila, kdežto booleovská ne. Zbytek nad dojezdem je
+        // kratší než krok skenu, takže by stejně nikdy nebyl vlastním
+        // intervalem; dobere ho dojezd hlubší vrstvy jako každý jiný schod.
+        if (q === iv || q.zStart > coverHi + dzScan || q.zStart <= coverLo + 1e-6) continue;
+        // Zbytek pod dojezdem zůstává intervalu; dobraný celý → `zStart`
+        // dosedne na `zEnd` a smyčka ho vynechá (filtr `< dzScan`).
+        q.zStart = coverLo <= q.zEnd + dzScan ? q.zEnd : coverLo;
+      }
+    }
     if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
   }
   passes.push(passObj);

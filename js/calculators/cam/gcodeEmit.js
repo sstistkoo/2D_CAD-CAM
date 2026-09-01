@@ -821,8 +821,18 @@ export function generateAutoGCode(S, calc) {
         emit(`G0 X${xDia(tx + rapidStopX)}`);
         emit(`G1 X${xDia(tx)} F${prms.feed}`);
       } else {
-        // Zbytek je kratší než vůle — celý posuvem, jak byl.
-        emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}`);
+        // ZBYTEK V X je kratší než vůle → ten opravdu patří posuvu. PŘEJEZD
+        // V Z ale ne: „zbytek" se měří jen v X a v Z může jít o milimetry,
+        // takže se celá diagonála vydávala pracovním posuvem. Reálný nález
+        // uživatele 1. 9. 2026: `N3520 G1 X16.925 Z83.432 F0.25` — 1,79 mm
+        // sjezdu v X (těsně pod vůlí 1,8) a k tomu 5,6 mm cesty v Z, celé
+        // posuvem 0,25 mm/ot. a vzhledem k směru „dozadu" to na plátně
+        // vypadá jako řez.
+        // Rozdělení je i tady BEZPEČNĚJŠÍ, ne jen jiné (týž argument jako ve
+        // větvi nad ní): přejezd v Z se udělá na PŮVODNÍ, tedy větší hloubce,
+        // takže leží celý nad diagonálou, kterou guard výš prověřil.
+        if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
+        emit(`G1 X${xDia(tx)} F${prms.feed}`);
       }
     } else if (cur.x - tx > 1e-6) {
       // Čistý rychloposuv DO menšího průměru — táž úvaha: napřed přejet v Z

@@ -82,6 +82,39 @@ strana. Vlastní soubor by znamenal druhou kopii generátoru
 - Nájezd se smí posunout nejvýš o **`ENTRY_SHIFT_MAX` = 3 mm**; dál ne, protože
   se tím mění i příjezdová cesta (`ops/shared.js:33`).
 
+> ⚠ **OTEVŘENÁ VADA (1. 9. 2026): posunutý vjezd přijde o rampu.**
+> Bránu rampy v `ops/long/openPass.js` tvoří `iv.zStart >= entryZ - 1e-6` —
+> „vjezd sedí přesně na umělé hranici". Jenže hlídání držáku přesune
+> `intervals[0].zStart` DOLEVA (`iv0.zStart = zTry` v `roughLong.js`) ještě
+> před `intervals.forEach`, takže brána propadne a průchod se zanoří **kolmo
+> (90°)**, i když je Zanořování zapnuté a úhel je 15°. Změřeno na dílu
+> uživatele (⌀129 × 355), údolí Z 74–84:
+>
+> | hloubka X | `iv.zStart` | `entryZ` | `entryCapped` | brána | vjezd |
+> |---|---|---|---|---|---|
+> | 19,545 | 82,756 | 82,756 | ne | ✓ | ve vzduchu |
+> | 16,545 | **81,682** | 83,432 | **ano** | ✗ | kolmý sjezd 2,1 mm |
+> | 13,545 | **80,682** | 83,432 | **ano** | ✗ | kolmý sjezd `N3200 G1 X13.545 F0.25` |
+> | 10,545 | 83,432 | 83,432 | ano | ✓ | rampa |
+>
+> **Tři pokusy o opravu, všechny ZMĚŘENÉ a zamítnuté** (proti stavu
+> po opravách z 1. 9., tedy 80 307,5 / 83 265,7 mm²):
+>
+> | varianta | úběr | kolize |
+> |---|---|---|
+> | brána přijme posunutý vjezd, kotva z `stockEntryRamp`, při nezdaru vrstvu vynechat | −254,6 / −290,5 mm² | +4 nálezy offset (`pocket-wall-at-plunge-angle`, 1,9 / 2,3 mm²) |
+> | totéž, ale vrstvu NEvynechávat (fallback na dnešní kolmý vjezd) | −254,6 / −290,5 mm² | tytéž +4 |
+> | kotva jen LOKÁLNĚ (řetěz `rampSt` se nedotýká) | na dílu uživatele −58 mm² a 3 průchody | + hlášení „2 odložená zanoření vynechána" |
+>
+> Ztráta není v tom údolí — vzniká o kus dál: kotva se **ŘETĚZÍ přes hloubky**
+> (`rampSt.anchor`), takže rampa nalezená pro posunutý vjezd vstoupí do řetězu
+> a hlubší (už NEposunuté) vrstvy pak na ní ztroskotají a vypadnou
+> (`holder-casting-slanted-face` 35 → 33 průchodů, `part-10-zapich-casting`
+> 38 → 35, `part-15-finish-zprava` 33 → 31). Opravit se to dá až spolu
+> s tím řetězem a s hlídáním držáku PODÉL rampy (dnes se držák měří jen
+> v poloze špičky na hloubce průchodu, ne během sjezdu) — samotné otevření
+> brány nestačí.
+
 ### 3.2 Úhel zanoření podle tvaru plátku — UZAVŘENO 26. 8. 2026
 
 | plátek | úhel | proč |
@@ -125,6 +158,28 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
   destičky leží v axiální vzdálenosti `dz` o `dz·tan(natočení)` níž — hlubší řez
   by jí zajel do hotové vrstvy. Běží **až po hlídání držáku**, protože co držák
   zvedne, už by žádná kontrola destičky neviděla (`ops/face/layerDepth.js:17`).
+
+> ⚠ **LATENTNÍ VADA (1. 9. 2026): „pravé stěny kapes" nemají lokalitu.**
+> Druhý blok `ops/long/insertFlankGuard.js` (heuristika `rotDeg`) bere za
+> „pravou stěnu" **kotvu rampy KTERÉHOKOLI jiného průchodu na dílu** a posune
+> podle ní začátek každého hlubšího — bez jediné podmínky, že spolu ty dva
+> průchody geometricky souvisejí. První blok (`phiDeg`) se přitom ptá
+> SKUTEČNÉ kontury (`offsetPath`); tahle asymetrie je ta vada.
+>
+> Doloženo na dílu uživatele 1. 9. 2026 (spočítáno ručně, sedí na µm):
+> `Průchod 9` (X46,545) dostal začátek posunutý o 11,2 mm podle
+> `Průchodu 7` — ležícího **60 mm daleko v Z a za jinou částí kontury**
+> (258,436 − 3,000/tg 15° = 247,240 = přesně vydaná kotva). Vjezd se tím
+> dostal MIMO materiál a emise vydala `N580 G0 Z172.532` + dojezd
+> `N590 G1 X48.545 Z174.532` 20 mm od místa, kde řez skončil. Totéž
+> `Průchod 33` ← `Průchod 31` (142,875 − 3,000/tg 15° = 131,679).
+>
+> Opravami z 1. 9. 2026 (duplicitní průchody, kotva na zbytku) ty falešné
+> „stěny" na tomto dílu **zmizely** — blok už na něm nesáhne ani na jeden
+> průchod (hlášení „6 průchodů zkráceno" → „4", a všechny 4 jsou z bloku
+> `phiDeg`). Vada tím není opravená, jen se přestala spouštět. Než se na ni
+> sáhne, je potřeba případ, na kterém se projeví — jinak se nedá změřit,
+> jestli podmínka lokality něco nepokazí.
 
 ### 4.2 Držák
 
@@ -192,6 +247,15 @@ Skutečně otevřená místa, kde o dráze rozhoduje SYROVÝ obrys:
 **Pozor při opravě:** u prvních tří jde o hranice rozsahu 📐 a posun na offset
 tam znamená, že vrstvy začnou o Vůli X výš a Z-okno bude o Vůli Z širší —
 tedy ZMĚNA DRAH, ne refaktor. Měřit otiskem i sweepem.
+
+> **Doplněk 1. 9. 2026 — nejde jen o „syrový × offsetový" obrys.** Kotva
+> zanoření (`stockEntryRamp`) používala offsetovou čáru správně, a přesto
+> vyráběla 44mm rampy: offsetová čára je pořád obrys PŮVODNÍHO odlitku a neví
+> nic o tom, co mělčí vrstvy už odebraly. Správná mez pro kotvu je **povrch
+> ZBYTKU** — tedy nižší z offsetové čáry a už vyříznuté podlahy
+> (`cutFloorTab`). Tatáž otázka platí i pro `rapidStopXAt`: kde se rychloposuv
+> zastaví před sjezdem na hloubku (na dílu uživatele to dělalo rozdíl
+> X 20,550 proti X 17,740, tedy 2,8 mm sjezdu posuvem navíc).
 
 ---
 
@@ -362,6 +426,7 @@ strana větší průměr, by šla první.
 | nájezd průchodu × držák (poloha) | na sadě −3 948 mm² a +1 127 mm² nových kolizí → zahozeno |
 | `applyHolderClamp` na kapsové intervaly | −4 192 mm² úběru a s náhradním držákem o nález VÍC |
 | memoizace uvnitř `calculate()` | `pathInputsKey` nepokrývá všechny vstupy; rozbilo 9 souborů testů |
+| rampa pro POSUNUTÝ vjezd (samotné otevření brány) | −255 až −291 mm² a +4 nálezy offset; kotva se řetězí přes hloubky, viz §3.1 |
 
 ### 7.1 Hranice ve STŘEDU ÚDOLÍ — přeměřeno 1. 9. 2026
 

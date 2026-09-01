@@ -284,6 +284,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – hrubování vydávalo doslovné KOPIE právě provedeného řezu a najíždělo
+  na ně desítkami milimetrů „rampy" ze surového odlitku.** Nález uživatele
+  1. 9. 2026 na dílu ⌀129 × 355 (podélně zprava, polygon 15°, odlitek).
+  Čtyři nezávislé příčiny, všechny se sešly na jednom programu:
+
+  1. **Dojezd „bez schodků" dobral NÁSLEDUJÍCÍ interval a ten se vydal ještě
+     jednou.** Dorampování strmé stěny i „dodělat vrstvu" protahují dojezd
+     rovně na hloubce vrstvy dál doleva — tedy skrz další interval téže
+     hloubky. `intervals.forEach` ho ale hned nato zpracoval jako vlastní
+     průchod: `Průchod 7` (X49,545 Z214,472→196,278) byl znak po znaku konec
+     dojezdu `Průchodu 6`, totéž na X40,545 a X31,545. Dojezd teď svůj dosah
+     na hloubce vrstvy zaznamená a pokryté intervaly ořízne
+     (`ops/long/openPass.js`).
+  2. **Kotva zanořovací rampy se hledala na SYROVÉ siluetě odlitku.**
+     `stockEntryRamp` nevěděl nic o pořadí, takže se šplhal na povrch
+     odlitku i tam, kde mělčí vrstvy dávno odebraly materiál — `N450 G1
+     X49.545 Z214.472 ; Rampa 15.0°` startoval na Z 258,4 (44 mm pracovním
+     posuvem vzduchem). Kotva se nově zastaví na povrchu ZBYTKU
+     (`ops/long/entryRamp.js`, tabulka `cutFloorTab` jako u hlídání držáku).
+  3. **Otevřený vjezd s rampou nehlásil sjetou přímku zanoření**, takže týž
+     klín sjelo znovu dokončení ořízlé rampy (`ops/long/pocketPass.js`
+     → `notePlungeRun`).
+  4. **Krátký sjezd v X se vydával i s celým přejezdem v Z pracovním
+     posuvem.** „Zbytek kratší než vůle" se měří jen v X; v Z to bylo
+     `N3520 G1 X16.925 Z83.432 F0.25`, tedy 1,79 mm sjezdu a k tomu 5,6 mm
+     cesty posuvem 0,25 mm/ot. (`gcodeEmit.js`).
+
+  Dohromady o **12 průchodů méně na sadě fixtures při NEZMĚNĚNÉM úběru**
+  (88 232,1 → 88 232,1 mm², kolize 0/0 v obou standardech; na dílu uživatele
+  59 → 54 průchodů a zbytek 7 645,6 mm² beze změny).
+- **CAM – vizuální úběr odebíral i prostor pod břitem, kde nástroj není.**
+  `toolFootprintVisual` sjednocoval obrys destičky s OBDÉLNÍKEM přes celý její
+  Z-rozsah. U nakloněné destičky (natočení 15°, hrana 10 mm → Z-rozsah 12,2 mm)
+  tím vyplnil klín hřbetu: 2 mm vlevo od špičky sahá skutečný obrys na
+  r + 4,4 mm, obdélník tam „odebral" všechno od úrovně špičky. Nález uživatele
+  1. 9. 2026 („odebírání v simulaci nesouhlasí tvaru plátku, dole to vypadá,
+  jako by tam byl nějaký obdélník"). Nešlo jen o obrázek — týmž obrysem odečítá
+  materiál i `residualHolder`, `HolderGouge` a validátor, takže model tvrdil,
+  že je pryč materiál, který stojí. Tělo nad břitem se teď ZAMETÁ v ose X
+  (`toolSweep`), takže drží spodní hranu i hřbet destičky. G-kód se nezměnil
+  ani na jedné fixture, zbytek na dílu uživatele 7 645,6 → 8 022,0 mm²
+  (o tolik model dosud lhal), kolize 0/0.
 - **CAM – pravidlo „nepřejíždět, dokud není celá strana hotová" (§6.0)
   se zahazovalo měřením.** Od 27. 8. 2026 se hrubování plánovalo dvakrát —
   s dělením podle hrbů kontury a bez něj — a `planQuality` rozhodla, který

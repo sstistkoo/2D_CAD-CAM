@@ -85,9 +85,46 @@ export function makeEntryRamp({
   // k hranici (přesně stejná oprava jako u zrcadlového findRampOutTarget
   // níž). Konec se dopřesní půlením, ať kotva sedne PŘESNĚ na čáru, ne
   // o krok skenu (0,5 mm) dál.
+  //
+  // ── KOTVA PATŘÍ NA POVRCH ZBYTKU, NE NA SYROVÝ ODLITEK (1. 9. 2026) ─────
+  // Silueta odlitku neví nic o POŘADÍ: nad vrstvou, kterou právě plánujeme,
+  // je po mělčích průchodech vzduch, ale `stockLoopOffsetL` tam pořád hlásí
+  // plný materiál. Kotva se proto šplhala až na povrch surového odlitku a
+  // rampa odtud vyšla desítky mm dlouhá — celá vzduchem, pracovním posuvem.
+  // Reálný nález uživatele 1. 9. 2026: `N450 G1 X49.545 Z214.472 ; Rampa
+  // 15.0°` začínal na Z 258,4 (44 mm), `N2860 G1 X31.545 Z−1.009` na Z 19,1
+  // (20 mm) — „rampy jedou odzhora, což je blbost".
+  //
+  // `residTopSafe` = povrch ZBÝVAJÍCÍHO materiálu: nižší z offsetové čáry
+  // polotovaru a už vyříznuté podlahy (`cutFloorTab`, tentýž líný prefix
+  // `passes`, jaký používá hlídání držáku). Ze dvou sousedních vzorků se bere
+  // VYŠŠÍ hodnota podlahy — kotva tak radši vyjede o kus výš, než aby sedla
+  // POD povrch, kam pak nesmí rychloposuv (opačné zaokrouhlení než
+  // `residTopAt` v holderFit.js, kde je bezpečná strana ta druhá).
+  const residTopSafe = (z) => {
+    const t = stockTopTab(z);
+    if (t === null) return null;
+    if (!T.activeFloorTab) T.syncCutFloor();
+    const tab = T.activeFloorTab || T.cutFloorTab;
+    if (!tab) return t;
+    const fi = (z - T.capZ0) / DZ_CAP;
+    let cut = -Infinity;
+    for (const i of [Math.floor(fi), Math.floor(fi) + 1]) {
+      if (i < 0 || i >= tab.length) continue;
+      if (tab[i] > cut) cut = tab[i];
+    }
+    return cut === -Infinity ? t : Math.min(t, cut);
+  };
+  const atResidTop = (q) => {
+    const top = residTopSafe(q.z);
+    return top !== null && q.x >= top - 0.02;
+  };
   const stockEntryRamp = (X, zEntry) => {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
+    // Vstup leží NAD zbytkem (mělčí vrstvy ho odebraly) → žádná kůra k
+    // prorampování není; volající si najede po kontuře jako jindy.
+    if (atResidTop({ x: X + 0.05, z: zEntry - 0.05 })) return null;
     const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
     let t = 0;
     for (let i = 0; i < 300; i++) {
@@ -101,11 +138,12 @@ export function makeEntryRamp({
       // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
       // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
       if (blockedAt(p.x, p.z)) return null;
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside') {
+      if (pointInLoop(p, stockLoopOffsetL) === 'outside' || atResidTop(p)) {
         let lo = tPrev, hi = t;
         for (let k = 0; k < 24; k++) {
           const m = (lo + hi) / 2;
-          if (pointInLoop(at(m), stockLoopOffsetL) === 'outside') hi = m; else lo = m;
+          const q = at(m);
+          if (pointInLoop(q, stockLoopOffsetL) === 'outside' || atResidTop(q)) hi = m; else lo = m;
         }
         const q = at(hi);
         return { x0: q.x, z0: q.z };

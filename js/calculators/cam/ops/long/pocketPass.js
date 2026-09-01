@@ -140,6 +140,13 @@ if (!iv.blocked) {
     linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
     passOpen.contourLeadIn = liOpen;
   }
+  // TUHLE PŘÍMKU ZANOŘENÍ UŽ NIKDO SJÍŽDĚT NEMUSÍ. Otevřené pokračování
+  // s rampou sjíždí TÝŽ klín jako dokončení ořízlé rampy
+  // (`pendingRampCompletions` v roughLong.js) — roh strmé stěny je pro obě
+  // týž bod. Zapsané kapsy to hlásily odjakživa (`notePlungeRun` níž), tahle
+  // větev ne, takže se týž řez vydal DVAKRÁT: „Průchod 8" (rampa do údolí)
+  // a hned za ním „Průchod 9" se stejným cílem (nález uživatele 1. 9. 2026).
+  if (passOpen.ramp) notePlungeRun(passOpen.ramp.x0, passOpen.ramp.z0, passOpen.ramp.x0, passOpen.x);
   passes.push(passOpen);
   if (holderClampZEnd && holderClampZEnd.noteMainEnd && holderClampedOpen) {
     holderClampZEnd.noteMainEnd(currentX, currentX + step, zEndEff);
@@ -177,6 +184,9 @@ if (!corner) {
     linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
     passFlat.contourLeadIn = liFlat;
   }
+  // Táž evidence jako u `passOpen` výš — přímka je sjetá, ať ji sjel
+  // kterýkoli z těch dvou vjezdů.
+  if (passFlat.ramp) notePlungeRun(passFlat.ramp.x0, passFlat.ramp.z0, passFlat.ramp.x0, passFlat.x);
   passes.push(passFlat);
   return;
 }

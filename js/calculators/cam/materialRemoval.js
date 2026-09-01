@@ -12,7 +12,7 @@
 // Souřadnice: stejné jako simPath — {x = poloměr [mm], z = axiálně [mm]},
 // nezávislé na flipX/flipZ i machineStructure (to řeší až toScreen).
 
-import { StockModel, toolSweep, polySimplify, polyOffset, polyUnion } from '../../geom/geomCore.js';
+import { StockModel, toolSweep, polySimplify, polyOffset } from '../../geom/geomCore.js';
 import { stockClearances, stockClearanceIsZero } from './camMath.js';
 import { buildInsertProfileSegments } from './insertPreview.js';
 
@@ -139,8 +139,27 @@ export function toolFootprint(prms) {
  * `toolFootprint` je plánovací aproximace (stadion) — u nekulaté destičky
  * proto zůstávaly po odebrání rádiusy i tam, kde řeže rovná hrana („mám
  * čtvereček, ale po odebrání vidím rádius"). Vizualizace může jít po
- * skutečném obrysu (`insertWorldLoop`) sjednoceném s obdélníkem nahoru
- * (tělo nad břitem, odstřihne hřebínky mezi průchody).
+ * skutečném obrysu (`insertWorldLoop`) doplněném o TĚLO NAD BŘITEM
+ * (odstřihne hřebínky mezi průchody).
+ *
+ * ── TĚLO NAD BŘITEM SE ZAMETÁ, NEPŘILEPUJE SE OBDÉLNÍK (1. 9. 2026) ──────
+ * Do 1. 9. 2026 se k obrysu sjednocoval OBDÉLNÍK `x ∈ [0, H]` přes CELÝ
+ * Z-rozsah destičky. To sedí jen destičce s vodorovnou horní hranou —
+ * u NAKLONĚNÉ (natočení 15°, hrana 10 mm) je Z-rozsah 12,2 mm a obdélník
+ * vyplnil i klín POD břitem na obrobené straně, tedy prostor hřbetu, kde
+ * nástroj fyzicky NENÍ: 2 mm vlevo od špičky sahá obrys destičky až na
+ * r+4,4 mm, kdežto obdélník tam „odebral" všechno od úrovně špičky.
+ * Nález uživatele 1. 9. 2026 („odebírání v simulaci nesouhlasí tvaru
+ * plátku, dole to vypadá, jako by tam byl nějaký obdélník").
+ *
+ * Nešlo jen o obrázek: týž obrys odečítá materiál i `residualHolder`,
+ * `HolderGouge` a validátor, takže model tvrdil, že je pryč materiál, který
+ * ve skutečnosti stojí — a to je ta NEBEZPEČNÁ strana. Na dílu uživatele
+ * to dělalo 376 mm² (7 645,6 → 8 022,0 mm² zbytku) při nezměněném G-kódu.
+ *
+ * Správné tělo nad břitem = obrys ZAMETENÝ v ose X o `H` (`toolSweep`),
+ * takže drží spodní hranu destičky i její hřbet. Kolize se tím nezhoršily
+ * (celá sada 0/0 v obou standardech).
  *
  * PROČ NE I PRO PLÁNOVÁNÍ: skutečný obrys nakloněné destičky visí až
  * o (b·sin|natočení|) POD programovaným bodem — u b 10 mm a −15° je to
@@ -155,9 +174,7 @@ export function toolFootprintVisual(prms) {
   const body = insertWorldLoop(prms, prms.roughingSide === 'left');
   if (!body || body.length < 3) return toolFootprint(prms);
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
-  const zMax = Math.max(...body.map(p => p.z)), zMin = Math.min(...body.map(p => p.z));
-  const cap = [{ x: H, z: zMax }, { x: H, z: zMin }, { x: 0, z: zMin }, { x: 0, z: zMax }];
-  const merged = polyUnion([body], [cap]);
+  const merged = toolSweep(body, [{ x: 0, z: 0 }, { x: H, z: 0 }]);
   return (merged.length === 1 && merged[0].length >= 3) ? merged[0] : body;
 }
 
