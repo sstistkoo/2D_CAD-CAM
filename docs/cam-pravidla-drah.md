@@ -109,6 +109,18 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
 - Úseky, kam boční ostří nedosáhne, se **vynechají** — nezkracují se.
 - Hrana destičky má **konečný dosah** (`insertReachZ`); za koncem břitu přebírá
   hlídání držák.
+- **Upichovák: každý test překážky se ptá CELÉHO OKNA TĚLA** (−R … b−R od
+  špičky), ne bodu špičky — plátek řeže celou spodní hranou šířky b
+  (`inserts/parting.js`). Bodový test to na MÍRNÉ šikmině neuvidí: na kuželu
+  ~10° od osy stoupne offset za 0,05 mm o 0,009 mm, tedy pod řeznou tolerancí
+  0,01 mm. Nález 1. 9. 2026: zápich seděl na offsetu na tisícinu přesně
+  a plátek o 4,2 mm dál ukrojil 0,18 mm² z hotového dílu
+  (`ops/long/intervalScan.js`, `clampPartingBody`).
+- **Zajezd do HOTOVÉHO tvaru validátor nehlásí.** ⛔ panel měří polotovar
+  a držák („narazil jsem do něčeho, co tam stojí"); že nástroj ukrojil kus
+  dílu, je opačná otázka a hlídají ji invarianty:
+  `cam-gouge-invariants` (střed nosu) a `cam-parting-body-gouge` (obrys
+  upichováku).
 - **Čelně: vrstva nikdy nejde hlouběji než předchozí.** Hrana nakloněné
   destičky leží v axiální vzdálenosti `dz` o `dz·tan(natočení)` níž — hlubší řez
   by jí zajel do hotové vrstvy. Běží **až po hlídání držáku**, protože co držák

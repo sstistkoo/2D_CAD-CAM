@@ -267,6 +267,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **CAM – upichovák zajel tělem do hotového dílu na mírném kuželu.** Hlídání
+  šířky plátku u stěny (`clampPartingBody` v `ops/long/intervalScan.js`)
+  testovalo překážku JEDINÝM bodem 0,05 mm nad začátkem intervalu. Na kuželu
+  ~10° od osy tam offset stoupne o 0,009 mm, tedy pod řeznou tolerancí
+  0,01 mm — stěna se minula **o 1,1 µm** (40,5539 proti prahu 40,555)
+  a odsun se nespustil, ačkoli obrys plátku o 4,2 mm dál ležel 0,33 mm
+  v kontuře.
+
+  Nález uživatele 1. 9. 2026 (⌀111 × 350, upichovák b = 5, podélně zleva):
+  `N1770 G1 X40.545 Z133.314 ; Rampa 90.0°` — špička seděla na offsetu na
+  tisícinu přesně (40,545 = 40,545) a plátek přitom ukrojil **0,18 mm²**
+  z hotového dílu na Z 129,1. ⛔ panel to neukáže: validátor hlídá polotovar
+  a držák, tedy „narazil jsem do něčeho, co tam stojí" — zajezd do HOTOVÉHO
+  tvaru je opačná otázka.
+
+  Test se ptá **celého okna těla** (−R … b−R od špičky), jak zní pravidlo
+  v `inserts/parting.js`: „maximum předlohy přes celé to okno, ne jen bod
+  špičky". Detekce se jen rozšiřuje (bod 0,05 mm v okně zůstává) a velikost
+  odsunu se nemění, takže dosud chytané případy jedou stejně. Změřeno:
+  **otisk všech 26 fixtures bajt po bajtu shodný**, sweep beze změny
+  (úběr i kolize), na dílu uživatele 1 → **0** zásahů plátku do dílu za
+  cenu 2,4 mm² úběru.
+
+  Nová fixture `part-20-zleva-parting-taper` (díl uživatele) a plošný
+  invariant `tests/cam-parting-body-gouge.test.js` nad všemi upichovacími
+  fixtures: obrys plátku nesmí zasáhnout do hotového dílu (< 0,05 mm²;
+  nález, kvůli kterému test vznikl, byl o dva řády vyšší).
 - **PWA – offline cache neobsahovala CAM generátory hrubování.** Seznam
   `ASSETS` v `sw.js` se od rozdělení strategií do `cam/ops/` a `cam/inserts/`
   neregeneroval, takže v něm **19 souborů chybělo** — celý strom `ops/`
