@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Simulace: zajetí do hotové kontury se vybarví ČERVENĚ** (`ContourGouge`,
+  `js/calculators/cam/contourGouge.js`). Když nůž ukousl kus hotového tvaru,
+  vypadalo to na plátně stejně jako legitimní řez — materiál prostě zmizel
+  (nález uživatele: *„simulace odebere materiál, ale není zobrazeno, že to
+  zajelo do hotovní kontury"*). Nově se ta část dílu obarví červeně a
+  **zůstane** obarvená i po odjetí nástroje.
+  Počítá se ze STEJNÉHO modelu, jaký kreslí úběr — díl (`offsetSilhouetteLoop`
+  kontury) MÍNUS zbývající materiál — takže se vybarví přesně to, co je na
+  plátně vidět jako odebrané. Silueta dílu se zmenší o 0,05 mm (dokončovací
+  průchod jede PO kontuře a z definice se jí dotýká) a ořízne na syrový
+  polotovar (kontura vyčnívající před polotovar nikdy materiálem nebyla);
+  slivery pod 0,02 mm² se zahazují. Pokrývá `tests/cam-contour-gouge.test.js`.
+
 - **`docs/cam-pravidla-drah.md` — podmínky, které musí dráha splňovat.**
   Pravidla generování byla dosud jen v komentářích u kódu (`ops/` má 45 %
   řádků komentář a 70 odkazů na konkrétní nález na díle) — dobré pro údržbu,
@@ -109,6 +122,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **Kolizní vybarvení v simulaci se už nedá vypnout.** Tlačítka 🟧 (kolize
+  držáku) i 🟥 (zajetí do kontury) jsou z panelu pryč a obě hlídání běží
+  natvrdo (rozhodnutí uživatele 1. 9. 2026: kolize se nemá dát omylem
+  vypnout). Zmizel tím i stav `showHolderCollision` z localStorage a
+  z `.camprog` — starší soubory s `showHolderCollision: false` se prostě
+  ignorují. Vizuální úběr materiálu (⛏) přepínač má dál; hlídání zajetí do
+  kontury na něm nezávisí (s vypnutým úběrem si vede vlastní model).
 - **Testy – booleovský snapshot ukládal třetinu G-kódu dvakrát.**
   `cam-boolean-gcode-regression` pouštěl VŠECHNY fixtures s vynuceným
   `booleanRoughing = true`, jenže **15 z 27 ho má zapnutý už ve svém

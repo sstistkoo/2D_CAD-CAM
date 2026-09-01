@@ -348,6 +348,21 @@ CAM část ti umožní generovat NC programy pro obrábění.
 4. Klikni **Spustit** – uvidíš simulaci dráhy nástroje
 5. Červená destička = aktuální pozice
 
+**Barvy varování při simulaci** (obojí se hlídá **vždy**, nedá se to vypnout —
+vybarvená oblast navíc **zůstane** i po odjetí nástroje, ať je vidět, že se to
+stalo):
+
+| Barva | Význam |
+|-------|--------|
+| 🟠 oranžová | **držák se vnořil do materiálu** – projel polotovarem/obrobkem tam, kde má řezat jen destička |
+| 🔴 červená (uvnitř dílu) | **nůž zajel do hotové kontury** – simulace odebrala materiál pod hotovým tvarem, díl by byl zmetek |
+| 🔴 červená (u okraje polotovaru) | držák vjel do **pásu k offsetové čáře** – na nadměrném odlitku by narazil |
+
+Červené zajetí do kontury se počítá ze **stejného modelu, jaký kreslí úběr**:
+vybarví se přesně ta část dílu, kterou simulace ubrala. Dotyk kontury (třeba
+dokončovací průchod, který po ní jede) se nepočítá — teprve řez hlubší než
+0,05 mm.
+
 **Rychlost přehrávání = rychlost stroje.** Při **1×** jede simulace přesně
 tak rychle, jak by to jelo na stroji: rychloposuvem tam, kde je `G0`, a
 řezným posuvem tam, kde se obrábí. Posuv se počítá z **Posuvu (F)**

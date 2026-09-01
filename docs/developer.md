@@ -595,6 +595,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
 | `cam/collisionValidator.js` | Validace kolizí držáku na hotové dráze |
 | `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |
+| `cam/contourGouge.js` | Zajetí nástroje do hotové kontury (červené varování) — odebraná část hotového dílu |
 | `cam/opParts.js` | Skládání programu z více operací (částí) — záznam části, obrobený polotovar pro další operaci, složení celého programu |
 | `cam/gcodeMerge.js` | Spojení programů do jednoho (`mergePrograms`) — sdíleno s frontou „SPOJ G-KÓD" v CAM Editoru |
 
@@ -1073,6 +1074,29 @@ Pouhý DOTEK hranice se nepočítá: držák se pro test pásu zmenší o 0,05 m
 (`holderSlim`, týž trik jako `holderShrunk` v gcodeEmit.js) a slivery pod
 0,02 mm² se zahazují — bez toho hlásil každý přejezd na rapid-safe X (leží
 přesně na offsetové čáře) vjezd, změřeno 94 oblastí proti 18 skutečným.
+
+### Zajetí do hotové kontury (`cam/contourGouge.js`)
+
+Třetí vybarvení, ČERVENÉ **uvnitř dílu**: části hotového tvaru, které simulace
+odebrala. Do 1. 9. 2026 vypadal řez pod konturou na plátně stejně jako
+legitimní obrábění — materiál prostě zmizel (nález uživatele: *„simulace odebere
+materiál, ale není zobrazeno, že to zajelo do hotovní kontury"*).
+
+`ContourGouge` nepočítá vlastní stopu nástroje. Odpovídá ze **STEJNÉHO modelu,
+jaký kreslí úběr**: `polyDifference(díl, MaterialRemoval.model.loops)`, kde díl
+je `offsetSilhouetteLoop(contourSegments)` **zmenšená o 0,05 mm** (dokončovací
+průchod jede PO kontuře a z definice se jí dotýká) a **oříznutá na syrový
+polotovar** (kontura vyčnívající před polotovar nikdy materiálem nebyla).
+Tím je zaručeno, že se vybarví přesně to, co uživatel vidí jako ukousnuté — ne
+odpověď druhého, rozcházejícího se modelu nástroje. Akumulace je implicitní
+(materiál se nevrací), výsledek se cachuje podle identity pole `model.loops`,
+takže pan/zoom boolean operaci neopakuje.
+
+Hlídání běží **vždy** — od 1. 9. 2026 nemá ani ono, ani kolize držáku přepínač
+v panelu (tlačítko 🟧 `showHolderCollision` bylo odstraněno na přání uživatele:
+kolize se nemá dát omylem vypnout). Model úběru se sdílí s vybarvením
+(`_removal`); s vypnutým ⛏ si `ContourGouge` vede vlastní, jinak identický
+(`_gougeRemoval`).
 
 Pás se kreslí jako zbytek offsetového modelu, ale oříznutý na „mimo syrový
 polotovar“ (`bandClip`, parita evenodd), a až po něm se překreslí jádro — odstín
