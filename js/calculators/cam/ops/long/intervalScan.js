@@ -162,11 +162,30 @@ export function makeIntervalScan({
   // širokého plátku — dobere ho dokončovací nástroj, ne zajezd do dílu.
   const partingBodyZ = isParting ? Math.max(0, wInsL - rInsL) : 0;
   const counters = { partingWallClamps: 0, partingWallDropped: 0 };
+  // STĚNU NEMUSÍ BÝT VIDĚT HNED VEDLE ŠPIČKY. Test jediným bodem 0,05 mm nad
+  // začátkem intervalu vyhodnotí MÍRNOU šikminu jako volno: na kuželu ~10° od
+  // osy stoupne offset za těch 0,05 mm o 0,009 mm, tedy POD řeznou tolerancí
+  // 0,01 mm — a tělo plátku přitom o 4,2 mm dál leží 0,75 mm v kontuře.
+  // Reálný nález uživatele 1. 9. 2026 (`N1770 G1 X40.545 Z133.314 ; Rampa
+  // 90.0°`): špička sedí na offsetu přesně (40,545 = 40,545), test minul
+  // stěnu o 1,1 µm (40,5539 proti prahu 40,555) a obrys plátku ukrojil
+  // 0,18 mm² z HOTOVÉHO dílu na Z 129,1.
+  //
+  // Ptá se proto CELÉ OKNO TĚLA — přesně jak zní pravidlo v `inserts/parting.js`:
+  // „Kdykoli se počítá obálka nebo se někam ZAPICHUJE, musí se brát maximum
+  // předlohy přes celé to okno, ne jen bod špičky." Detekce se tím jen
+  // ROZŠIŘUJE (bod 0,05 mm v okně zůstává), takže dosud chytané případy
+  // se nemění; velikost odsunu (celá šířka těla) zůstává taky.
+  const bodyHitsWall = (X, z0) => {
+    const step = Math.min(dzScan, 0.2);
+    for (let d = 0.05; d < partingBodyZ; d += step) if (blockedAt(X, z0 + d)) return true;
+    return blockedAt(X, z0 + partingBodyZ);
+  };
   const clampPartingBody = (intervals, X) => {
     if (partingBodyZ <= 0) return intervals;
     const out = [];
     for (const iv of intervals) {
-      if (!blockedAt(X, iv.zStart + 0.05)) { out.push(iv); continue; }
+      if (!bodyHitsWall(X, iv.zStart)) { out.push(iv); continue; }
       const zs = iv.zStart - partingBodyZ;
       if (zs - iv.zEnd < dzScan) { counters.partingWallDropped++; continue; }
       counters.partingWallClamps++;
