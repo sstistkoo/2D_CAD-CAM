@@ -19,8 +19,8 @@ export function emitOpenInterval(D) {
     findRampOutTarget, findSteepCorner, holderClampZEnd, holderEntryReachZ,
     holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
-    rampedOutCorners, residEntryArea, stockEntryRamp, stockTopTab, straightRunEndZ,
-    traceOffsetPath, rampSt,
+    rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
+    straightRunEndZ, traceOffsetPath, rampSt,
   } = D;
   // Otevřený vjezd zprava přes hranu polotovaru.
   const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
@@ -80,7 +80,13 @@ export function emitOpenInterval(D) {
   //     samo nestačí — o tunelech neví a na `pocket-wall-at-plunge-angle`
   //     rampu pustilo, načež ji validátor v OFFSETOVÉM standardu nahlásil
   //     (1,9 / 2,3 mm²). Rampa je vjezd, takže má projít testem vjezdu.
-  if (entryCapped && !plungeEntryOk && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
+  //
+  // NEPLATÍ PRO SVISLÉ ZANOŘENÍ (90°). Tam žádná rampa neexistuje — `plungeDirL`
+  // má `uz = 0`, takže by `stockEntryRamp` vydal svislici označenou „Rampa" —
+  // a hlavně: upichováku je kolmý zápich vlastní (rozhodnutí uživatele
+  // 26. 8. 2026, viz `plungeEntryOk` výš). Ten se tedy řídí dál `plungeHolderFitsAt`.
+  if (entryCapped && !plungeEntryOk && !entryRampIsPlunge
+      && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
     const er = stockEntryRamp(currentX, iv.zStart);
     const cand = { x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, ramp: er };
     if (er && er.x0 > currentX + 0.05
@@ -104,6 +110,13 @@ export function emitOpenInterval(D) {
       // CENA JE ZNÁMÁ a uživatel ji zvolil vědomě: co se nedá vzít rampou,
       // zůstane stát pro dokončování — na sadě **−183,8 / −200,5 mm²** úběru
       // (0,2 %) při NEZMĚNĚNÝCH kolizích (0/0 v obou standardech).
+      //
+      // A MUSÍ TO BÝT VIDĚT. Tiché zahazování průchodů je v tomhle generátoru
+      // opakovaná past (`holderClampZEnd`: na `part-13-zleva-flange` takhle
+      // zmizelo 17 průchodů celé pravé strany a v ⚠ panelu nebylo ani slovo,
+      // takže to vypadalo jako chyba geometrie). Vrstva, která zmizí kvůli
+      // pravidlu, se proto počítá a hlásí.
+      skipCounters.plungeForbidden++;
       return;
     }
   }

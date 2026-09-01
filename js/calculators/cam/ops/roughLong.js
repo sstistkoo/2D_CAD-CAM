@@ -375,6 +375,9 @@ export function genLongPasses(ctx) {
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
   let plungeShallowed = 0;
   let deferredHolderSkips = 0;
+  // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
+  // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
+  const skipCounters = { plungeForbidden: 0 };
 
   // ── Upichovák (parting) v podélném hrubování ──
   // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
@@ -826,8 +829,8 @@ export function genLongPasses(ctx) {
           findRampOutTarget, findSteepCorner, holderClampZEnd, holderEntryReachZ,
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
-          rampedOutCorners, residEntryArea, stockEntryRamp, stockTopTab, straightRunEndZ,
-          traceOffsetPath, rampSt,
+          rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
+          straightRunEndZ, traceOffsetPath, rampSt,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;
@@ -1186,6 +1189,11 @@ export function genLongPasses(ctx) {
 
   if (deferredHolderSkips > 0)
     foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
+  if (skipCounters.plungeForbidden > 0) {
+    const n = skipCounters.plungeForbidden;
+    const phrase = n === 1 ? '1 vrstva vynechána' : (n < 5 ? `${n} vrstvy vynechány` : `${n} vrstev vynecháno`);
+    foundErrors.push({ type: 'warning', msg: `Zanořování: ${phrase} — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.` });
+  }
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (scanCounters.partingWallDropped > 0)

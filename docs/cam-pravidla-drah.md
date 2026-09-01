@@ -116,6 +116,18 @@ zůstane stát, si vezme dokončování. Na `part-15-finish-zprava` a
 `holder-region-roughing` to znamená o 2–3 průchody míň; otisky počtů
 v `cam-stock-span-depths` a `cam-residual-clamp` jsou k tomu datu upravené.
 
+**A JE TO VIDĚT V ⚠ PANELU** — *„Zanořování: N vrstev vynecháno…"*. Tiché
+zahazování průchodů je v tomhle generátoru opakovaná past (`holderClampZEnd`
+takhle na `part-13-zleva-flange` nechal zmizet 17 průchodů celé pravé strany
+a v panelu nebylo ani slovo), takže každá vrstva, která padne kvůli tomuhle
+pravidlu, se počítá a hlásí.
+
+Pravidlo se NEVZTAHUJE na svislé zanoření (90°, typicky upichovák): tam žádná
+rampa neexistuje (`plungeDirL.uz = 0`) a kolmý zápich je vlastní provoz plátku
+— řídí ho dál `plungeHolderFitsAt` (§6.1, rozhodnutí 26. 8. 2026). Blok se
+taky nespustí bez `orderAwareHolder`, protože bez něj se vjezd vůbec
+neposouvá; tam platí bez rozdílu brána o řádek níž.
+
 > **Příznak `orderAwareHolder` tím přestal být inertní mimo `part-8`.** Rampa
 > posunutého vjezdu se ptá OBOU modelů držáku a polygonový (`residEntryArea`)
 > existuje jen se zapnutým příznakem — vypnutý vrací 0. Se zapnutým proto

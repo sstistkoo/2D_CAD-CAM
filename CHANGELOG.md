@@ -326,7 +326,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Cena je změřená a zvolená vědomě: **−183,8 / −200,5 mm² úběru** na sadě
   (0,2 %) při **nezměněných kolizích** (0/0 v obou standardech). Materiál si
-  vezme dokončování. Otisky počtů průchodů v `cam-stock-span-depths`
+  vezme dokončování — a **⚠ panel to hlásí** („Zanořování: N vrstev
+  vynecháno…"), protože tiché zahazování průchodů je v tomhle generátoru
+  opakovaná past. Svislého zanoření (90°, upichovák) se pravidlo netýká: tam
+  rampa neexistuje a kolmý zápich je vlastní provoz plátku. Otisky počtů průchodů v `cam-stock-span-depths`
   a `cam-residual-clamp` jsou k tomu datu upravené — u druhého jmenovaného
   přestal být `orderAwareHolder` inertní mimo `part-8` (polygonový model
   najde konflikty, které výškové pole nevidí; podrobně

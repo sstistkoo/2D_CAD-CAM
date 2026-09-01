@@ -1846,6 +1846,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
+  "Zanořování: 2 vrstvy vynechány — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 10 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 21 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 26 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
@@ -2212,6 +2213,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
+  "Zanořování: 2 vrstvy vynechány — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 10 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 21 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 26 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
@@ -5314,7 +5316,11 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camp
 }
 `;
 
-exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > warnings 1`] = `[]`;
+exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > warnings 1`] = `
+[
+  "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
+]
+`;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D
@@ -6972,6 +6978,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.campr
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.camprog → stabilní G-kód > warnings 1`] = `
 [
+  "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 14 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 23 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
 `;
@@ -11804,6 +11811,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle
 
 exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle.camprog → stabilní G-kód > warnings 1`] = `
 [
+  "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 11 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
@@ -12486,6 +12494,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog �
 
 exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog → stabilní G-kód > warnings 1`] = `
 [
+  "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 3 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 14 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 24 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
