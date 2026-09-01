@@ -36,6 +36,14 @@ const fixtures = readdirSync(fixturesDir).filter(f => f.endsWith('.camprog')).so
 const load = (name) => JSON.parse(readFileSync(join(fixturesDir, name), 'utf8'));
 const FIN_MARK = 'DOKONCOVANI';
 
+// POZOR na per-test timeouty: testy, které projedou VŠECHNY fixtures, běží
+// desítky sekund (na zatíženém stroji 40–66 s). Tři z nich tu měly vlastní
+// `}, 60000)`, což PŘEBÍJELO globálních 120 s z `vitest.config.js` směrem
+// dolů — a při souběžné zátěži padal „dokončovací dráha nemá nulové úseky"
+// na timeout, který vypadal jako regrese drah (1. 9. 2026: izolovaně červený,
+// na předchozím commitu zelený, sám o sobě zase zelený). Timeout tu proto
+// nepřepisuj; když test doopravdy trvá déle, patří to do konfigurace.
+
 describe('CAM: dokončování a obálka držáku', () => {
   it('part-14-finish-holder: zaškrtnuté dokončování se do programu opravdu dostane', async () => {
     const prog = load('part-14-finish-holder.camprog');
@@ -129,7 +137,7 @@ describe('CAM: nájezd a výjezd dokončování', () => {
           .toBeCloseTo(parseFloat(prev[1]), 3);
       });
     }
-  }, 60000);
+  });
 
   // Nulový úsek (p1 ≡ p2) z ořezu kolineárních segmentů: neobrábí nic, ale
   // projde filtry a v emisi kolem sebe vyrobí nájezd i odjezd. Na part-15
@@ -155,7 +163,7 @@ describe('CAM: nájezd a výjezd dokončování', () => {
       }
       expect(dup).toEqual([]);
     }
-  }, 60000);
+  });
 
   // ── Dokončování nesmí zajíždět do materiálu ────────────────────────
   // Dokončovací nůž má sundat PŘÍDAVEK, nic víc. Kde hrubování nedosáhlo
@@ -286,5 +294,5 @@ describe('CAM: nájezd a výjezd dokončování', () => {
         Math.hypot(a.cx - b.cx, a.cz - b.cz) < 1e-6 && Math.abs(a.r - b.r) < 1e-6));
       expect(split.map(a => `${name}: c(${a.cx.toFixed(2)},${a.cz.toFixed(2)}) r=${a.r.toFixed(2)}`)).toEqual([]);
     }
-  }, 60000);
+  });
 });
