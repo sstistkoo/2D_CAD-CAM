@@ -94,7 +94,11 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // průchod navíc (celá sada +67,2 mm² úběru při 0 nálezech). Kontrolní
     // podmínka téhle opravy je „bez nálezů", ne konkrétní počet — ten je tu
     // jen jako bodový otisk.
-    expect(r.passes.length).toBe(33);
+    // 33 → 32 dne 1. 9. 2026: taky NE regrese. Kolmé zanoření je u plátku
+    // s úhlem < 90° zakázané (rozhodnutí uživatele, viz
+    // docs/cam-pravidla-drah.md §3.1) — vrstva, na kterou se nedá vjet
+    // rampou, se vynechá místo aby se do ní nůž zapíchl radiálně.
+    expect(r.passes.length).toBe(32);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });

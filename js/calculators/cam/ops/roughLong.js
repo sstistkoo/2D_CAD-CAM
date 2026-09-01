@@ -807,7 +807,11 @@ export function genLongPasses(ctx) {
       // celou hloubku) se ZMĚŘENĚ nevyplácí: shodit `firstOpen` přeznačí zbytek
       // na KAPSU a spustí jinou větev — na `range-end-leadout` to samo o sobě
       // stálo dalších 340 mm² úběru.
-      if (zTry > zFloorEntry && zTry < iv0.zStart - 1e-9) iv0.zStart = zTry;
+      // `entryShifted`: vjezd UŽ NELEŽÍ na umělé hranici (`entryZ`), takže
+      // brána rampy v `openPass.js` by propadla a průchod by se zanořil
+      // kolmo — i když napravo od něj materiál dál stojí. Značka jí dovolí
+      // najít vlastní kotvu (viz tam).
+      if (zTry > zFloorEntry && zTry < iv0.zStart - 1e-9) { iv0.zStart = zTry; iv0.entryShifted = true; }
     }
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
@@ -820,9 +824,10 @@ export function genLongPasses(ctx) {
           entryZ, entryCapped, entryRampIsPlunge, effZMin, effPlungeTanL,
           traceFloorL, depthIdx, depths, _region, chainTipIs, findLeadOutEndZ,
           findRampOutTarget, findSteepCorner, holderClampZEnd, holderEntryReachZ,
-          holderFitArea, holderTrimLeadOut, offsetStockTopXAtZ,
+          holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
-          rampedOutCorners, stockTopTab, straightRunEndZ, traceOffsetPath, rampSt,
+          rampedOutCorners, residEntryArea, stockEntryRamp, stockTopTab, straightRunEndZ,
+          traceOffsetPath, rampSt,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;

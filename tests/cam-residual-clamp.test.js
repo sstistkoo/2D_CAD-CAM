@@ -215,10 +215,19 @@ describe('orderAwareHolder v genLongPasses', () => {
     expect(off.passes - on.passes).toBeLessThanOrEqual(2);
   }, 120000);
 
-  it('ostatní díly se příznakem nehnou (part-1, holder-region-roughing)', async () => {
+  it('ostatní díly se příznakem nehnou (part-1)', async () => {
     // Změřeno sweepem: se zapnutým příznakem se napříč 25 fixtures × 2
     // variantami držáku změnil JEDINÝ díl — part-8. Tady jsou dva zástupci.
-    for (const f of ['part-1.camprog', 'holder-region-roughing.camprog']) {
+    //
+    // OD 1. 9. 2026 UŽ TO NENÍ ÚPLNÁ PRAVDA a `holder-region-roughing` je
+    // proto ven. Zákaz kolmého zanoření (docs/cam-pravidla-drah.md §3.1)
+    // se ptá na rampu posunutého vjezdu OBOU modelů držáku, a polygonový
+    // (`residEntryArea`) existuje jen se zapnutým příznakem: vrátí 0, když
+    // je vypnutý. Se zapnutým tedy najde konflikty, které výškové pole
+    // nevidí, a dvě vrstvy se místo kolmého zápichu vynechají (−60,3 mm²).
+    // To je ROZDÍL MODELŮ, ne vada příznaku — a přesně to, k čemu je.
+    // `part-1` (bez posunutých vjezdů) zůstává inertní a hlídá to dál.
+    for (const f of ['part-1.camprog']) {
       const off = await run(f, false, MAGAZINE_HOLDER);
       const on = await run(f, true, MAGAZINE_HOLDER);
       expect(on.passes, `${f}: počet průchodů`).toBe(off.passes);

@@ -9,7 +9,7 @@
 // `closed`) — je to objekt, protože tělo má `return;` uprostřed.
 
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
-import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
+import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 
 export function emitOpenInterval(D) {
   const {
@@ -17,9 +17,10 @@ export function emitOpenInterval(D) {
     entryZ, entryCapped, entryRampIsPlunge, effZMin, effPlungeTanL,
     traceFloorL, depthIdx, depths, _region, chainTipIs, findLeadOutEndZ,
     findRampOutTarget, findSteepCorner, holderClampZEnd, holderEntryReachZ,
-    holderFitArea, holderTrimLeadOut, offsetStockTopXAtZ,
+    holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
-    rampedOutCorners, stockTopTab, straightRunEndZ, traceOffsetPath, rampSt,
+    rampedOutCorners, residEntryArea, stockEntryRamp, stockTopTab, straightRunEndZ,
+    traceOffsetPath, rampSt,
   } = D;
   // Otevřený vjezd zprava přes hranu polotovaru.
   const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
@@ -47,6 +48,65 @@ export function emitOpenInterval(D) {
   // povolí a rampa není potřeba; kde ne, platí dál „rampa, nebo vrstvu
   // vynechat" (viz !rampOk níž).
   const plungeEntryOk = entryRampIsPlunge && plungeHolderFitsAt(currentX, iv.zStart, iv.zEnd);
+  // ── VJEZD POSUNUTÝ OBÁLKOU DRŽÁKU MÁ TAKY DOSTAT RAMPU ────────────────
+  // Brána bloku pod tímhle (`iv.zStart >= entryZ`) říká „vjezd sedí přesně
+  // na umělé hranici". Jenže hlídání držáku posune `intervals[0].zStart`
+  // DOLEVA (`iv0.zStart = zTry` v roughLong.js) ještě před `intervals
+  // .forEach`, takže brána propadne — a průchod se zanoří KOLMO (90°),
+  // přestože je Zanořování zapnuté a úhel je třeba 15°. Nález uživatele
+  // 1. 9. 2026: `N3190 G0 X20.550 / N3200 G1 X13.545 F0.25` = 3 mm
+  // radiálního zápichu polygonem natočeným o 15°.
+  //
+  // Kotva se hledá `stockEntryRamp` (přímka zanoření SKRZ skutečný vjezd),
+  // ne `offsetStockTopXAtZ(entryZ)` jako v bloku níž: ta by mířila zpátky na
+  // PŮVODNÍ hranici, tedy tam, odkud hlídání držáku vjezd právě odsunulo.
+  // Protože kotva leží na téže přímce, `zStart` se nemění vůbec — mění se
+  // jen JAK se na hloubku dojede.
+  //
+  // DVĚ VĚCI, KTERÉ SE TU DĚLAT NESMÍ (obě změřené 1. 9. 2026):
+  //  1. Sáhnout na ŘETĚZ `rampSt`. Kotva odtud je čistě LOKÁLNÍ; puštěná do
+  //     řetězu shodí hlubší (už neposunuté) vrstvy, které na ní ztroskotají
+  //     — na sadě −255 až −291 mm² (`part-10-zapich` 38 → 35 průchodů).
+  //  2. Vydat rampu bez kontroly DRŽÁKU PODÉL NÍ. Vjezd byl posunutý právě
+  //     kvůli držáku, takže rampa míří do místa, které mu bylo zakázáno —
+  //     bez ní to na `pocket-wall-at-plunge-angle` udělalo 4 nové nálezy
+  //     (1,0–2,3 mm²) a přes odložené vjezdy sebralo další průchody. Bodový
+  //     test nestačí: držák je v ose Z 20 mm dlouhý.
+  //
+  // Ptají se OBA modely, každý na svou polovinu:
+  //   • `holderFitAreaAlong` = výškové pole (funguje i bez order-aware),
+  //   • `residEntryArea` = POLYGONOVÝ zbytek se znalostí pořadí, TÝMŽ prahem
+  //     `ENTRY_FIT_TOL`, jakým se posuzoval ten posun vjezdu. Výškové pole
+  //     samo nestačí — o tunelech neví a na `pocket-wall-at-plunge-angle`
+  //     rampu pustilo, načež ji validátor v OFFSETOVÉM standardu nahlásil
+  //     (1,9 / 2,3 mm²). Rampa je vjezd, takže má projít testem vjezdu.
+  if (entryCapped && !plungeEntryOk && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
+    const er = stockEntryRamp(currentX, iv.zStart);
+    const cand = { x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, ramp: er };
+    if (er && er.x0 > currentX + 0.05
+        && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
+        && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
+      passObj.ramp = { x0: er.x0, z0: er.z0 };
+      passObj.entryRangeRamp = true;
+    } else {
+      // KOLMÉ ZANOŘENÍ JE PRO TENHLE PLÁTEK ZAKÁZANÉ — vrstva se VYNECHÁ.
+      // Vjezd je `entryCapped`, takže napravo od něj materiál stojí; bez
+      // rampy by se na hloubku sjelo radiálně, tedy „jako upichovákem".
+      // U plátku, jehož úhel zanoření je < 90° (`entryRampIsPlunge` false),
+      // to zakázal uživatel 1. 9. 2026: *„ať to nezajíždí kolmo, to je
+      // zakázané při takovém plátku; když tak ať to vynechá tu dráhu"* —
+      // reálně `N3210 G1 X13.545 F0.25`, 3 mm radiálního záběru polygonem
+      // natočeným o 15°.
+      //
+      // Je to TÁŽ větev, jakou má vjezd na hranici rozsahu níž
+      // (`if (!rampOk) … return;`) — jen se dosud nevztahovala na vjezd
+      // posunutý obálkou držáku, protože ten se do bloku vůbec nedostal.
+      // CENA JE ZNÁMÁ a uživatel ji zvolil vědomě: co se nedá vzít rampou,
+      // zůstane stát pro dokončování — na sadě **−183,8 / −200,5 mm²** úběru
+      // (0,2 %) při NEZMĚNĚNÝCH kolizích (0/0 v obou standardech).
+      return;
+    }
+  }
   if (entryCapped && !plungeEntryOk
       && iv.zStart >= entryZ - 1e-6) {
     // Kotva rampy = povrch nad vjezdem. Ještě NEPOUŽITÁ kotva (first)

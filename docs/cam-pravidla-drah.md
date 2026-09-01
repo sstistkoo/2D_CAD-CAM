@@ -82,38 +82,60 @@ strana. Vlastní soubor by znamenal druhou kopii generátoru
 - Nájezd se smí posunout nejvýš o **`ENTRY_SHIFT_MAX` = 3 mm**; dál ne, protože
   se tím mění i příjezdová cesta (`ops/shared.js:33`).
 
-> ⚠ **OTEVŘENÁ VADA (1. 9. 2026): posunutý vjezd přijde o rampu.**
-> Bránu rampy v `ops/long/openPass.js` tvoří `iv.zStart >= entryZ - 1e-6` —
-> „vjezd sedí přesně na umělé hranici". Jenže hlídání držáku přesune
-> `intervals[0].zStart` DOLEVA (`iv0.zStart = zTry` v `roughLong.js`) ještě
-> před `intervals.forEach`, takže brána propadne a průchod se zanoří **kolmo
-> (90°)**, i když je Zanořování zapnuté a úhel je 15°. Změřeno na dílu
-> uživatele (⌀129 × 355), údolí Z 74–84:
+**POSUNUTÝ VJEZD MÁ TAKY DOSTAT RAMPU — opraveno 1. 9. 2026.** Brána rampy
+v `ops/long/openPass.js` byla `iv.zStart >= entryZ - 1e-6` („vjezd sedí přesně
+na umělé hranici"). Jenže hlídání držáku přesune `intervals[0].zStart` DOLEVA
+(`iv0.zStart = zTry` v `roughLong.js`, značka `entryShifted`) ještě před
+`intervals.forEach`, takže brána propadla a průchod se zanořil **kolmo (90°)**,
+i když bylo Zanořování zapnuté a úhel 15°. Nález uživatele na dílu ⌀129 × 355,
+údolí Z 74–84:
+
+| hloubka X | `iv.zStart` | `entryZ` | `entryCapped` | brána | vjezd |
+|---|---|---|---|---|---|
+| 19,545 | 82,756 | 82,756 | ne | ✓ | ve vzduchu |
+| 16,545 | **81,682** | 83,432 | **ano** | ✗ | kolmý sjezd 2,1 mm → **teď rampa 15°** |
+| 13,545 | **80,682** | 83,432 | **ano** | ✗ | `N3200 G1 X13.545 F0.25`; rampa tam neexistuje, zůstává zápich |
+| 10,545 | 83,432 | 83,432 | ano | ✓ | rampa |
+
+Posunutý vjezd si hledá **vlastní kotvu** `stockEntryRamp(currentX, iv.zStart)`
+— přímku zanoření skrz SKUTEČNÝ vjezd, takže `zStart` se nemění a úhel sedí
+přesně. Hlídá `tests/cam-shifted-entry-ramp.test.js` (na `part-17-long-parting`,
+kde je táž geometrie).
+
+**KDYŽ RAMPA NENÍ, VRSTVA SE VYNECHÁ — rozhodnutí uživatele 1. 9. 2026.**
+*„Ať to nezajíždí kolmo, to je zakázané při takovém plátku; když tak ať to
+vynechá tu dráhu… když to nejde, tak to nemůže dělat, jako by to byl
+upichovák."* U plátku, jehož úhel zanoření je < 90° (`entryRampIsPlunge`
+false), se tedy `entryCapped` vjezd bez rampy NEVYDÁ — je to táž větev, jakou
+už měl vjezd na hranici rozsahu (`if (!rampOk) … return`), jen se dosud
+nevztahovala na vjezd posunutý obálkou držáku.
+
+Cena je změřená a uživatel ji zvolil vědomě: **−183,8 / −200,5 mm² úběru** na
+sadě (0,2 %), kolize beze změny (0/0 v obou standardech). Materiál, který tím
+zůstane stát, si vezme dokončování. Na `part-15-finish-zprava` a
+`holder-region-roughing` to znamená o 2–3 průchody míň; otisky počtů
+v `cam-stock-span-depths` a `cam-residual-clamp` jsou k tomu datu upravené.
+
+> **Příznak `orderAwareHolder` tím přestal být inertní mimo `part-8`.** Rampa
+> posunutého vjezdu se ptá OBOU modelů držáku a polygonový (`residEntryArea`)
+> existuje jen se zapnutým příznakem — vypnutý vrací 0. Se zapnutým proto
+> najde konflikty, které výškové pole nevidí, a vrstva se místo kolmého
+> zápichu vynechá (na `holder-region-roughing` dvě, −60,3 mm²). Je to rozdíl
+> MODELŮ, ne vada příznaku.
+
+> **TŘI VĚCI, KTERÉ SE U TÉHLE RAMPY DĚLAT NESMÍ** — všechny změřené proti
+> stavu 80 307,5 / 83 265,7 mm²; správná varianta stojí **0,0 mm² a 0 nálezů**:
 >
-> | hloubka X | `iv.zStart` | `entryZ` | `entryCapped` | brána | vjezd |
-> |---|---|---|---|---|---|
-> | 19,545 | 82,756 | 82,756 | ne | ✓ | ve vzduchu |
-> | 16,545 | **81,682** | 83,432 | **ano** | ✗ | kolmý sjezd 2,1 mm |
-> | 13,545 | **80,682** | 83,432 | **ano** | ✗ | kolmý sjezd `N3200 G1 X13.545 F0.25` |
-> | 10,545 | 83,432 | 83,432 | ano | ✓ | rampa |
+> | co | cena |
+> |---|---|
+> | pustit kotvu do ŘETĚZU `rampSt` | −254,6 / −290,5 mm²; hlubší (už NEposunuté) vrstvy na zděděné kotvě ztroskotají a vypadnou (`holder-casting-slanted-face` 35 → 33 průchodů, `part-10-zapich` 38 → 35, `part-15-finish-zprava` 33 → 31) |
+> | vynechat vrstvu, když rampa nevyjde („rampa, nebo nic") | tytéž stovky mm²; fallback na dnešní kolmý vjezd je změřeně čistý |
+> | vydat rampu bez hlídání držáku PODÉL ní | +4 nálezy v OFFSETOVÉM standardu (`pocket-wall-at-plunge-angle`, 1,0–2,3 mm²) a přes odložené vjezdy další ztráta průchodů |
 >
-> **Tři pokusy o opravu, všechny ZMĚŘENÉ a zamítnuté** (proti stavu
-> po opravách z 1. 9., tedy 80 307,5 / 83 265,7 mm²):
->
-> | varianta | úběr | kolize |
-> |---|---|---|
-> | brána přijme posunutý vjezd, kotva z `stockEntryRamp`, při nezdaru vrstvu vynechat | −254,6 / −290,5 mm² | +4 nálezy offset (`pocket-wall-at-plunge-angle`, 1,9 / 2,3 mm²) |
-> | totéž, ale vrstvu NEvynechávat (fallback na dnešní kolmý vjezd) | −254,6 / −290,5 mm² | tytéž +4 |
-> | kotva jen LOKÁLNĚ (řetěz `rampSt` se nedotýká) | na dílu uživatele −58 mm² a 3 průchody | + hlášení „2 odložená zanoření vynechána" |
->
-> Ztráta není v tom údolí — vzniká o kus dál: kotva se **ŘETĚZÍ přes hloubky**
-> (`rampSt.anchor`), takže rampa nalezená pro posunutý vjezd vstoupí do řetězu
-> a hlubší (už NEposunuté) vrstvy pak na ní ztroskotají a vypadnou
-> (`holder-casting-slanted-face` 35 → 33 průchodů, `part-10-zapich-casting`
-> 38 → 35, `part-15-finish-zprava` 33 → 31). Opravit se to dá až spolu
-> s tím řetězem a s hlídáním držáku PODÉL rampy (dnes se držák měří jen
-> v poloze špičky na hloubce průchodu, ne během sjezdu) — samotné otevření
-> brány nestačí.
+> Ptají se proto OBA modely: `holderFitAreaAlong` (výškové pole, jede i bez
+> order-aware) a `residEntryArea` s prahem `ENTRY_FIT_TOL` — tedy TÝMŽ prahem,
+> jakým se posuzoval ten posun vjezdu. Výškové pole samo nestačí: o tunelech
+> neví a přesně tu rampu na `pocket-wall-at-plunge-angle` pustilo.
 
 ### 3.2 Úhel zanoření podle tvaru plátku — UZAVŘENO 26. 8. 2026
 
@@ -409,6 +431,7 @@ strana větší průměr, by šla první.
 | **„Ať je držák tak 2 mm od té čáry"** (10. 8. 2026) | `HOLDER_ENTRY_STOCK_GAP` | `ops/shared.js:11` |
 | **„Dodělat vrstvu"** (21. 8. 2026) | Na strmém boku offset propadne pod hloubku dalšího průchodu hned na prvním milimetru a žádná hlubší vrstva se tam nedostane — dojezd musí pokračovat. | `ops/long/openPass.js:219` |
 | **Kolmý zápich upichováku není vada** (26. 8. 2026) | Zakázat ho plošně na každé umělé hranici je moc hrubé; nebezpečný je jen tam, kde do stojícího materiálu vjede DRŽÁK. | `ops/long/openPass.js:41` |
+| **U ostatních plátků je kolmý zápich ZAKÁZANÝ** (1. 9. 2026) | *„Ať to nezajíždí kolmo… když to nejde, tak to nemůže dělat, jako by to byl upichovák."* Vjezd na umělé hranici bez rampy se nevydá — vrstva se vynechá. Cena −184/−201 mm², kolize beze změny. | `ops/long/openPass.js` (viz §3.1) |
 | **Hranice úseku 📐 = volba uživatele** | „Tady končí tenhle úsek, zbytek dodělá jiná operace." Proto se **ořezává, nezahazuje** — na rozdíl od nedosažitelných úseků. | `ops/finish.js:367` |
 | **Hrubování bez schodků / „i u čelního"** | Po dojezdu na offset se pokračuje po kontuře na hloubku dalšího průchodu. Přepínač „i u čelního" řídí jen radiální stěny; kužely a válce jedou vždy. | `docs/user-guide.md:673` |
 
@@ -426,7 +449,8 @@ strana větší průměr, by šla první.
 | nájezd průchodu × držák (poloha) | na sadě −3 948 mm² a +1 127 mm² nových kolizí → zahozeno |
 | `applyHolderClamp` na kapsové intervaly | −4 192 mm² úběru a s náhradním držákem o nález VÍC |
 | memoizace uvnitř `calculate()` | `pathInputsKey` nepokrývá všechny vstupy; rozbilo 9 souborů testů |
-| rampa pro POSUNUTÝ vjezd (samotné otevření brány) | −255 až −291 mm² a +4 nálezy offset; kotva se řetězí přes hloubky, viz §3.1 |
+| rampa posunutého vjezdu puštěná do ŘETĚZU kotev | −255 až −291 mm² a +4 nálezy offset; správně je LOKÁLNÍ kotva, viz §3.1 |
+| zahazovat „uzavírací krok řetězu, co nic neodebere" | viz §7.2 — nedá se odlišit od kroku, který odebere 13–44 mm² |
 
 ### 7.1 Hranice ve STŘEDU ÚDOLÍ — přeměřeno 1. 9. 2026
 
@@ -480,6 +504,33 @@ zanoření vynecháno“. Rozpuštění hranice ho vezme jen tak, že do té st�
 držákem drhne.
 Plný kontext: `docs/cam-plan-2026-08-28.md` §4, `docs/cam-order-aware-holder.md`,
 `docs/cam-sjednoceni-polotovaru.md`, `docs/geometry-libs-migration.md`.
+
+### 7.2 „Uzavírací krok řetězu, co nic neodebere" — OTEVŘENÉ, 1. 9. 2026
+
+Uživatel na svém dílu ukázal `Průchod 54`: celý nájezd, rampa 15° a odjezd
+kvůli řezu **0,05 mm** (*„ten blbej podpich, který odstraň"*). Vzniká
+v bisekci uzavírající řetěz zanoření (`roughLong.js`), když v celém intervalu
+není hloubka se skutečným řezem — bisekce pak dosedne na svůj vlastní
+epsilon 0,05 a takový krok vydá.
+
+**Zahodit je plošně NEJDE.** Celá hodnota takového kroku je v DOJEZDU, ne
+v řezu, a ten dojezd jinde dobírá schod za stovky mm². Zkoušené a zamítnuté:
+
+| kritérium | co dělalo |
+|---|---|
+| plocha řezu ≥ `ENTRY_FIT_TOL` | −196,6 / −192,8 mm² na sadě — bere i kroky s velkým dojezdem |
+| rozsah v Z ≤ `Odskok` | totéž; rozsah v Z o dojezdu po strmé stěně nic neříká |
+| výstup dojezdu v X < `ap` | `range-chain-insert-shadow` (ap 5, výstup 4,665) padá těsně |
+| výstup dojezdu v X < 0,8 · `ap` | zabije `range-chain-steep-face` — tam táž „nulová" konstrukce odebere **13,3 mm²** a hlídá ji `tests/cam-leadout-step` |
+
+Změřené hodnoty (26 fixtures) ukazují, proč: mezi „nesmyslem" a „prací" NENÍ
+geometrický předěl. `part-17` má výstup dojezdu 2,21 mm a odebere 12,5 mm²;
+uživatelův podpich má 2,05 mm a odebere ~6 mm². **Rozhodnout to umí jen
+skutečný model zbytku**, ne odhad z geometrie průchodu — a ten v plánovači
+zatím není (týž závěr jako u `docs/cam-order-aware-holder.md`).
+
+Než se do toho půjde, je potřeba od uživatele mez v mm² („pod tolik to nemá
+smysl"), nebo pořadí-znalý model úběru v plánovači.
 
 ---
 

@@ -314,6 +314,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Dohromady o **12 průchodů méně na sadě fixtures při NEZMĚNĚNÉM úběru**
   (88 232,1 → 88 232,1 mm², kolize 0/0 v obou standardech; na dílu uživatele
   59 → 54 průchodů a zbytek 7 645,6 mm² beze změny).
+- **CAM – kolmé zanoření je u plátku s úhlem < 90° zakázané; vrstva se místo
+  něj vynechá.** Rozhodnutí uživatele 1. 9. 2026: *„ať to nezajíždí kolmo, to
+  je zakázané při takovém plátku; když tak ať to vynechá tu dráhu… když to
+  nejde, tak to nemůže dělat, jako by to byl upichovák."* Vjezd stojící na
+  umělé hranici (rozsah 📐, hranice úseku, posunutý start zanoření), pro který
+  se nenajde rampa, se proto nevydá — je to táž větev, jakou vjezd na hranici
+  rozsahu má odjakživa, jen se dosud nevztahovala na vjezd posunutý obálkou
+  držáku. Na dílu uživatele zmizel `N3210 G1 X13.545 F0.25`, tedy 3 mm
+  radiálního záběru polygonem natočeným o 15°.
+
+  Cena je změřená a zvolená vědomě: **−183,8 / −200,5 mm² úběru** na sadě
+  (0,2 %) při **nezměněných kolizích** (0/0 v obou standardech). Materiál si
+  vezme dokončování. Otisky počtů průchodů v `cam-stock-span-depths`
+  a `cam-residual-clamp` jsou k tomu datu upravené — u druhého jmenovaného
+  přestal být `orderAwareHolder` inertní mimo `part-8` (polygonový model
+  najde konflikty, které výškové pole nevidí; podrobně
+  v `docs/cam-pravidla-drah.md` §3.1).
+- **CAM – vjezd posunutý obálkou držáku se zanořoval KOLMO, i když je
+  Zanořování zapnuté.** Bránu rampy tvořilo `iv.zStart >= entryZ`, tedy „vjezd
+  sedí přesně na umělé hranici". Hlídání držáku ale posune začátek prvního
+  intervalu doleva (`iv0.zStart = zTry`), takže brána propadla a průchod sjel
+  na hloubku radiálně — na dílu uživatele `N3190 G0 X20.550 / N3200 G1 X13.545
+  F0.25`, tedy 3 mm zápichu polygonem natočeným o 15° (nález 1. 9. 2026:
+  *„jede mi tam plátek přímo dolů v ose X a mám zanořování 15 stupňů"*).
+
+  Posunutý vjezd si teď hledá **vlastní kotvu** `stockEntryRamp` — přímku
+  zanoření skrz skutečný vjezd, ne zpátky na hranici, odkud ho držák odsunul —
+  takže `zStart` zůstává a úhel rampy je přesně úhel zanoření. Kotva je
+  ZÁMĚRNĚ lokální (nevstupuje do řetězu `rampSt`), při nezdaru se vrstva
+  nevynechává a rampa musí projít hlídáním držáku PODÉL sebe, a to oběma
+  modely (`holderFitAreaAlong` + `residEntryArea` s prahem `ENTRY_FIT_TOL`).
+  Bez kterékoli z těch tří podmínek to stálo 255–291 mm² úběru nebo přidalo
+  4 nálezy držáku — čísla a měření v `docs/cam-pravidla-drah.md` §3.1.
+
+  Takhle je to **na celé sadě zdarma**: úběr 80 307,5 / 83 265,7 mm² beze
+  změny, kolize beze změny, mění se jen ZPŮSOB vjezdu (`part-17-long-parting`
+  a díl uživatele). Hlídá `tests/cam-shifted-entry-ramp.test.js`.
 - **CAM – vizuální úběr odebíral i prostor pod břitem, kde nástroj není.**
   `toolFootprintVisual` sjednocoval obrys destičky s OBDÉLNÍKEM přes celý její
   Z-rozsah. U nakloněné destičky (natočení 15°, hrana 10 mm → Z-rozsah 12,2 mm)
