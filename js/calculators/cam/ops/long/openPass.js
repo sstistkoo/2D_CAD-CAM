@@ -8,6 +8,7 @@
 // `rampSt` nese stav kotvy rampy PŘES intervaly i hloubky (`anchor`,
 // `closed`) — je to objekt, protože tělo má `return;` uprostřed.
 
+import { intersectHorizontalLineArc } from '../../camMath.js';
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
 import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 
@@ -371,13 +372,55 @@ export function emitOpenInterval(D) {
     // Ořezává se jen podle KONCOVÝCH úseků dojezdu na hloubce vrstvy
     // (`currentX`): co dojezd projel po kontuře výš, vrstvu nedobralo a
     // interval si to má vzít sám.
+    //
+    // DOBRANÉ JE I TO, KUDY DOJEZD PROJEL POD HLOUBKOU VRSTVY (2. 9. 2026).
+    // Původně se braly jen segmenty PŘESNĚ na `currentX` a chůze zpět se
+    // zastavila na prvním, který na ní neležel. Dojezd ale běžně sjede po
+    // obrysu do prohlubně POD hloubku vrstvy a zase vyleze (`humpMerge`) —
+    // materiál vrstvy tam odebral, jen ne na kótě `currentX`. Guard takový
+    // úsek přehlédl a interval, který v prohlubni začínal, vydal celý znovu.
+    //
+    // Reálný nález uživatele 2. 9. 2026, hloubka r 40,545:
+    //   dojezd  …41,32/−128,98 → 39,74/−137,81 → 39,73/−137,85
+    //           → 40,55/−134,82 → 40,55/−172,50
+    //   cover   [−172,50 … −134,815]   (jen poslední rovný úsek)
+    //   iv2     zS −133,314 → −172,50  ⇒ −133,314 > −134,815+0,2 ⇒ NEOŘEZÁN
+    // Přitom dojezd protne hloubku vrstvy přesně na −133,314 (hranice
+    // intervalu JE místo, kde offset kříží `currentX`), takže interval
+    // dobral celý. Vydal se podruhé jako „Průchod 27" — 24,9 mm posuvu
+    // po vlastní čerstvé dráze.
+    //
+    // Zpětná chůze proto pokračuje přes VŠECHNY segmenty na hloubce vrstvy
+    // nebo pod ní a končí až na tom, který stoupl nad ni; ten se započítá
+    // jen po průsečík s `currentX`.
+    const zAtDepth = (s, X) => {
+      if (s.type === 'arc') {
+        const zLo = Math.min(s.z1, s.z2), zHi = Math.max(s.z1, s.z2);
+        for (const z of intersectHorizontalLineArc(X, { x: s.cx, z: s.cz }, s.r))
+          if (z >= zLo - 1e-6 && z <= zHi + 1e-6) return z;
+        return null;
+      }
+      const dx = s.x2 - s.x1;
+      if (Math.abs(dx) < 1e-9) return null;
+      return s.z1 + (X - s.x1) / dx * (s.z2 - s.z1);
+    };
     let coverLo = null, coverHi = null;
     for (let k = leadOut.length - 1; k >= 0; k--) {
       const s = leadOut[k];
-      if (Math.abs(s.x1 - currentX) > 0.02 || Math.abs(s.x2 - currentX) > 0.02) break;
-      const lo = Math.min(s.z1, s.z2), hi = Math.max(s.z1, s.z2);
+      const above1 = s.x1 > currentX + 0.02, above2 = s.x2 > currentX + 0.02;
+      if (above1 && above2) break;                 // celý nad vrstvou — nic nedobral
+      let lo, hi;
+      if (!above1 && !above2) {
+        lo = Math.min(s.z1, s.z2); hi = Math.max(s.z1, s.z2);
+      } else {
+        const zc = zAtDepth(s, currentX);
+        if (zc === null) break;
+        const zIn = above1 ? s.z2 : s.z1;          // konec, který leží na hloubce/pod ní
+        lo = Math.min(zc, zIn); hi = Math.max(zc, zIn);
+      }
       coverLo = coverLo === null ? lo : Math.min(coverLo, lo);
       coverHi = coverHi === null ? hi : Math.max(coverHi, hi);
+      if (above1 || above2) break;                 // za průsečíkem už dojezd vrstvu nedobral
     }
     if (coverLo !== null) {
       for (const q of intervals) {

@@ -468,6 +468,49 @@ strana větší průměr, by šla první.
 | **U ostatních plátků je kolmý zápich ZAKÁZANÝ** (1. 9. 2026) | *„Ať to nezajíždí kolmo… když to nejde, tak to nemůže dělat, jako by to byl upichovák."* Vjezd na umělé hranici bez rampy se nevydá — vrstva se vynechá. Cena −184/−201 mm², kolize beze změny. | `ops/long/openPass.js` (viz §3.1) |
 | **Hranice úseku 📐 = volba uživatele** | „Tady končí tenhle úsek, zbytek dodělá jiná operace." Proto se **ořezává, nezahazuje** — na rozdíl od nedosažitelných úseků. | `ops/finish.js:367` |
 | **Hrubování bez schodků / „i u čelního"** | Po dojezdu na offset se pokračuje po kontuře na hloubku dalšího průchodu. Přepínač „i u čelního" řídí jen radiální stěny; kužely a válce jedou vždy. | `docs/user-guide.md:673` |
+| **PO PROJETÉ DRÁZE SE PODRUHÉ NEJEZDÍ** (2. 9. 2026) | *„Projíždí to dvakrát stejnou dráhu, i když už je to obrobené."* Řetězy po kontuře jsou výřezy JEDNÉ `offsetPath` — dva s překrytým Z-pásmem vydají doslova tutéž dráhu. Evidence: `cutRegistry.js`. Ořezává se KONEC dojezdu u dobrání kapsy a vypouští se nájezd, který celý vede po projeté dráze. | `ops/long/cutRegistry.js` (viz §6.2) |
+| **Vrstva dojíždí až na offsetovou čáru polotovaru** (2. 9. 2026) | *„Chtělo by to, aby to protáhl tu vrstvu až na konec k té offsetové čáře od polotovaru."* Výjezd z kapsy se zastaví, jakmile offset klesne na hloubku průchodu — když v tom Z-okně žádná hlubší vrstva nepřijde, dojede se rovně na siluetu. | `ops/roughLong.js` (doběh přes konec profilu) |
+
+---
+
+### 6.2 Co všechno se eviduje jako „už projeté"
+
+Bez evidence se týž řez vydá dvakrát. Historicky ji měly jen tři věci; od
+2. 9. 2026 je jich pět:
+
+| co | kde | proti čemu chrání |
+|---|---|---|
+| přímky zanoření | `plungeLineRuns` / `notePlungeRun` | dobrání ořízlé rampy po témž klínu |
+| rohy sjeté rampou | `rampedOutCorners` / `cornerAlreadyRampedOut` | kapsa za bossem zopakuje roh, co už sjel dojezd |
+| dobrané kapsy | `pocketDoneRanges` | hlubší hloubky zkoušejí tutéž kapsu znovu |
+| **konce dojezdu na hloubce vrstvy** | `openPass.js` (`coverLo`/`coverHi`) | interval, kterým dojezd projel, se vydá jako vlastní průchod. **Počítá se i to, kudy dojezd projel POD hloubkou vrstvy** — sjezd do prohlubně a zpět vrstvu odebral taky |
+| **řetězy po kontuře** | `cutRegistry.js` (`makeChainRegistry`) | výjezd z kapsy jede znovu za každý zákrok bursteu |
+| **rovný řez na hloubce z jiného REGIONU** | `cutRegistry.js` (`depthCutClampZ`) | doběh přeletí údolí a dojede na stěnu, kterou už soused obrobil |
+
+**Kde doběh po stopce KONČÍ:** na offsetové čáře polotovaru — poslední hraně
+materiálu před stopkou (`stockRunBackZ` v `ops/long/runScan.js`). Ne na
+stopce samotné (za údolím by zbyl rychloposuv 24 mm a pahýl řezu 0,29 mm) a
+ne na první mezeře (`stockRunEndZ` vrátí vrstvu na Z 31,96 — mezery se
+přeletět MAJÍ, viz „Dodělat vrstvu"). U stopky materiál zpravidla JE (sousední
+úsek dílu, jen už obrobený — silueta polotovaru o tom neví), takže se ten
+pruh přeskočí a hledá se hrana až za první mezerou.
+
+**Doložené meze evidence** (obojí změřeno 2. 9. 2026, nezkoušet znovu bez
+nového nápadu):
+
+- **Stopka „u čehokoli, co je hotové" je moc hrubá.** Ostrůvek 1,36 mm
+  uprostřed 108mm doběhu utne celou jízdu → −153,7 mm² na `part-8`. Stopku
+  dělá jen úsek, ve kterém doběh KONČÍ.
+- **Nájezd se neořezává po částech.** Není to jen řez, ale i cesta k rampě —
+  z půlky řetězu by se na její začátek muselo rychloposuvem po tětivě, tedy
+  skrz konturu. Buď je celý duplicitní a zmizí celý (průchod pak najede
+  `safeRapidTo`), nebo zůstane. Vypustit ho smí jen průchod s RAMPOU: bez ní
+  by `safeRapidTo` mířila na `(pass.x, pass.zStart)`, tedy kolmý zápich (§3.1).
+- **Plošný ořez dojezdů dělá kolize.** Dojezd nejen řeže, taky VYVÁŽÍ NÁSTROJ
+  VEN; jeho zkrácení posune 45° odskok do místa, kde už držák místo nemá
+  (`part-18-parting-90-ramp`: nová kolize 1,0 mm² při nezměněném úběru).
+  Ořezává se proto jen dobrání kapsy (`pocketClean`), kde je opakování
+  vlastností zadání — poslední zákrok bursteu i dobrání míří na týž `exitZ`.
 
 ---
 

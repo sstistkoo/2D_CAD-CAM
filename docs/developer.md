@@ -582,6 +582,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; obě souběžné cesty (klasický sken × booleovská za příznakem `booleanRoughing`) |
 | `cam/ops/long/holderTrim.js` | `makeHolderTrim()` — ořez sledování kontury (leadIn/leadOut) obálkou držáku |
 | `cam/ops/long/plungeLines.js` | `makePlungeLines()` — paměť, kdo kudy už sjel po téže přímce zanoření |
+| `cam/ops/long/cutRegistry.js` | Evidence PROJETÝCH ÚSEKŮ: `depthCutSpans`/`depthCutClampZ` (rovný řez na hloubce vrstvy) a `makeChainRegistry` (řetězy po kontuře). Čisté funkce nad `passes` — bez skrytého stavu. Přehled celé evidence viz `docs/cam-pravidla-drah.md` §6.2 |
 | `cam/ops/long/regions.js` | Dělení úseků podle hrbů kontury + jejich pořadí (od největšího průměru) |
 | `cam/ops/long/holderCheck.js` | Kontrola držáku při dělení regionů |
 | `cam/ops/long/insertFlankGuard.js` | Hlídání boku destičky v podélném hrubování |

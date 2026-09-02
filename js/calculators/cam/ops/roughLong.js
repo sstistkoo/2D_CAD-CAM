@@ -24,6 +24,7 @@ import { makeHolderTrim } from './long/holderTrim.js';
 import { makePlungeLines } from './long/plungeLines.js';
 import { emitOpenInterval } from './long/openPass.js';
 import { emitPocketInterval } from './long/pocketPass.js';
+import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -335,7 +336,7 @@ export function genLongPasses(ctx) {
   const offsetStockTopXAtZ = (z) => topXOnLoop(stockLoopOffsetL, z);
 
   // Sken překážek a konce rovných úseků — viz ops/long/runScan.js.
-  const { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ } =
+  const { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ, stockRunBackZ } =
     makeRunScan({ offsetXAt, stockLoopOffsetFullL });
 
   // ── Kde smí ZAČÍT zanořovací rampa (strop podle držáku) ───────────────
@@ -1097,7 +1098,42 @@ export function genLongPasses(ctx) {
       // Zůstává jen `straightRunEndZ` — STĚNA HOTOVNÍ KONTURY, tedy jediná
       // mez, kterou překročit nesmí. Změřeno: +153,6 mm² úběru na sadě,
       // kolize 0/0 v obou standardech, zajezd pod konturu dál 0.
-      const stepEndZ = isLastStep ? stepZ : straightRunEndZ(stepX, stepZ, traceFloorL);
+      // ── ALE NE PŘES TO, CO TATÁŽ HLOUBKA UŽ MÁ ZA SEBOU (2. 9. 2026) ──
+      // „Jako vrstvy nad tím" neznamená „přes celý díl". Údolí, kterým vede
+      // HRANICE REGIONŮ, doběh přeletí (`airSplitAxial` z něj udělá
+      // rychloposuv) a zastaví se až o stěnu na druhé straně — jenže tu
+      // stěnu už sousední region na TÉŽE hloubce obrobil svým vlastním
+      // průchodem. Nález uživatele 2. 9. 2026: „Průchod 40" r 28,545 dojel
+      // na Z 112,92, přesně tam, kde skončil „Průchod 32" r 28,545 (jiný
+      // region) — 11,8 mm posuvu po hotové dráze.
+      //
+      // Mezí NENÍ dno okna regionu: to samo o sobě stálo −197 mm² úběru
+      // (změřeno) na dílech, kde vrstvy nad doběhem sahají dál než hranice.
+      // Mezí je EVIDENCE — kam až na téhle hloubce dojel JINÝ REGION, a to
+      // jen tehdy, když doběh v jeho úseku KONČÍ (viz depthCutClampZ:
+      // ostrůvek uprostřed jízdy stopku nedělá, to stálo dalších 153,7 mm²).
+      //
+      // Proč jen jiný region: uvnitř SVÉHO regionu je „přeletět mezeru
+      // a pokračovat" právě to, co doběh dělat MÁ (rozhodnutí 1. 9. 2026,
+      // +153,6 mm²) — tam vrstvy teprve vznikají. Sousední region už svou
+      // hloubkovou smyčku dojel celou, takže co je tam na téhle hloubce
+      // obrobené, zůstane obrobené — a projet to znovu je čistá duplicita.
+      //
+      // A když stopka padne, doběh KONČÍ U OFFSETOVÉ ČÁRY POLOTOVARU, ne až
+      // za mezerou. Pravidlo „mezera doběh neukončuje" má smysl, dokud za ní
+      // něco zbývá — když je to obrobené, přeletět údolí znamená rychloposuv
+      // přes 24 mm a za ním pahýl 0,3 mm. Uživatel 2. 9. 2026: *„tady to jede
+      // zas na druhou stranu, místo aby to končilo u offsetové čáry od
+      // polotovaru"*. `stockRunBackZ` je POSLEDNÍ hrana materiálu před stopkou
+      // — mezery po cestě se přeletí dál (to je pravidlo z 1. 9. 2026), jen
+      // se nepokračuje ZA ni. Uživatel místo ukázal snapem: X 28,822 Z 79,975.
+      const rawEndZ = straightRunEndZ(stepX, stepZ, traceFloorL);
+      const rcFloor = Math.max(traceFloorL,
+        depthCutClampZ(passes.slice(0, regionMark), stepX, stepZ, rawEndZ));
+      const stepEndZ = isLastStep ? stepZ
+        : (rcFloor > traceFloorL
+          ? Math.max(straightRunEndZ(stepX, stepZ, rcFloor), stockRunBackZ(stepX, stepZ, rcFloor))
+          : rawEndZ);
       const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: stepEndZ, blocked: true };
       // Řetěz dorampování strmé stěny — stejná povaha jako entryRangeRamp:
       // kroky leží NAD SEBOU podél TÉŽE stěny, nejsou to nezávislé bossy.
@@ -1275,7 +1311,72 @@ export function genLongPasses(ctx) {
   // Sjezdy/dojezdy upichováku po OBÁLCE — viz ops/long/partingEnvelope.js.
   if (ins.envelopeAlongContour) envelopePartingLeads(passes, offsetXAt, w2RL);
 
+  // ── ŘETĚZ PO KONTUŘE SE NEJEZDÍ DVAKRÁT (2. 9. 2026) ──────────────────
+  // `traceOffsetPath` je VÝŘEZ jedné sdílené `offsetPath` podle Z, takže dva
+  // řetězy s překrytým Z-pásmem nevydají podobnou dráhu, ale DOSLOVA TUTÉŽ —
+  // bez ohledu na to, který průchod, hloubka nebo region je vyrobil. Evidenci
+  // měly jen přímky zanoření a rohy; řetězy žádnou, a tak se výjezd z kapsy
+  // jezdil znovu za každý zákrok bursteu (nález uživatele 2. 9. 2026:
+  // „Průchod 43" opakoval 28,3 mm výjezdu „Průchodu 42", segment po segmentu).
+  //
+  // Dojezd (`contourLeadOut`) se ořezává po SUFIXU — konec řetězu smí zmizet,
+  // nástroj tam prostě dřív odjede.
+  //
+  // Nájezd (`contourLeadIn`) se NEŘEŽE po částech: není to jen řez, ale i
+  // CESTA k rampě, a z půlky řetězu by se na její začátek muselo
+  // rychloposuvem po tětivě, tedy skrz konturu. Buď je celý po projeté dráze
+  // — pak zmizí celý a průchod najede standardně `safeRapidTo` (výjezd nad
+  // konturu → přejezd v Z → sjezd), což je táž cesta jako u kteréhokoli
+  // zákroku bez nájezdu — nebo zůstane, jak je. Podmínkou je RAMPA: bez ní
+  // by `safeRapidTo` mířila na `(pass.x, pass.zStart)`, tedy kolmý zápich na
+  // hloubku, který je u plátků s úhlem < 90° zakázaný (§3.1 pravidel drah).
+  //
+  // A ořezává se jen u DOBRÁNÍ KAPSY (`pocketClean`) — tam je opakování
+  // vlastností zadání: poslední zákrok bursteu i dobrání sledují `exitZ`
+  // z `findPocketExitZ`, tedy TÝŽ bod na téže kontuře. U běžných průchodů
+  // dojezd nejen řeže, ale i VYVÁŽÍ NÁSTROJ VEN; jeho zkrácení posune 45°
+  // odskok do místa, kde už držák místo nemá (změřeno: plošný ořez udělal
+  // na `part-18-parting-90-ramp` novou kolizi držáku 1,0 mm² při nezměněném
+  // úběru — táž povaha jako nález „Odskok/odstup vs. držák").
+  //
+  // Běží až TADY, nad hotovým `passes` v pořadí obrábění: producentů řetězů
+  // je sedm (otevřený průchod, kapsa, burst, dobrání kapsy, dobrání rampy,
+  // doběh na konec profilu, mezikrok řetězu) a evidence se musí sbírat v tom
+  // pořadí, ve kterém se opravdu jede.
+  {
+    const reg = makeChainRegistry();
+    let trimmed = 0, dropped = 0;
+    for (const p of passes) {
+      if (!p || p.type !== 'long') continue;
+      const li = p.contourLeadIn;
+      if (Array.isArray(li) && li.length > 0) {
+        if (p.ramp && reg.duplicatePrefix(li) === li.length) { delete p.contourLeadIn; dropped++; }
+        else reg.note(li);
+      }
+      const lo = p.contourLeadOut;
+      if (Array.isArray(lo) && lo.length > 0) {
+        const n = p.pocketClean ? reg.duplicateSuffix(lo) : 0;
+        if (n > 0) { lo.length = lo.length - n; trimmed += n; }
+        if (lo.length === 0) delete p.contourLeadOut;
+        else reg.note(lo);
+      }
+    }
+    if (trimmed > 0 || dropped > 0)
+      foundErrors.push({ type: 'warning', msg: `Bez schodků: vypuštěno ${trimmed} úseků dojezdu a ${dropped} nájezdů — vedly po dráze, kterou už dřívější průchod projel.` });
+  }
+
+  // Hlídání geometrie destičky — viz ops/long/insertFlankGuard.js.
+  if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
+    const adjusted = guardInsertFlankLong(passes, prms, offsetPath);
+    if (adjusted > 0)
+      foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
+  }
+
   // ── Doběh přes KONEC PROFILU do konce polotovaru ───────────────────
+  // POŘADÍ: běží AŽ ZA hlídáním destičky. `guardInsertFlankLong` přeskakuje
+  // průchody, které mají `contourLeadOut` — kdyby doběh běžel před ním,
+  // znamenalo by přidání doběhu, že se na ten průchod hlídání boční hrany
+  // vůbec nepodívá (ani na ty, které ho dostaly nově; 2. 9. 2026).
   // Kontura končí čelem (poslední prvek profilu), takže offsetová čára
   // skončí v jeho rohu — jenže polotovar tam ještě pokračuje (odřezek
   // ve sklíčidle). Průchod, který na ten roh dojel, tam nechá stát
@@ -1294,14 +1395,59 @@ export function genLongPasses(ctx) {
       stockLoopOffsetFullL ? Math.min(...stockLoopOffsetFullL.map(p => p.z)) - 1 : -1e4,
       rangeZLoL);
     for (const p of passes) {
-      if (p.type !== 'long' || p.noRetract) continue;
+      if (p.type !== 'long') continue;
+      // `noRetract` = průchod se ŘETĚZÍ do dalšího zákroku beze změny polohy.
+      // Prodloužení konce profilu (odřezek ve sklíčidle) by mu ten řetěz
+      // rozvázalo, proto se ho původně netýkalo. Návrat na hloubku vrstvy
+      // (`backAtDepth` níž) je jiná situace: tam doběh JE ta vrstva a další
+      // zákrok se stejně napolohuje sám (`pocketReposition`/`safeRapidTo`).
+      const chained = !!p.noRetract;
       const lo = p.contourLeadOut;
       const end = (lo && lo.length > 0)
         ? { x: lo[lo.length - 1].x2, z: lo[lo.length - 1].z2 }
         : (Number.isFinite(p.x) && Number.isFinite(p.zEnd) ? { x: p.x, z: p.zEnd } : null);
       if (!end || !Number.isFinite(end.x) || !Number.isFinite(end.z)) continue;
       if (end.z <= zFloorEnd + 0.05) continue;              // už je na dně okna
-      if (offsetXAt(end.z - 0.2) !== null) continue;        // profil pokračuje dál
+      // ── „PROFIL POKRAČUJE" MUSÍ ZNAMENAT „V TÉHLE VÝŠCE" (2. 9. 2026) ───
+      // Test se ptal jen, jestli offsetová čára v dalších 0,2 mm vůbec
+      // existuje. Jenže existovat může HLUBOKO POD hloubkou vrstvy — pak
+      // sledování obrysu skončí (`findPocketExitZ` se vrátí, jakmile offset
+      // klesne na hloubku průchodu: „zbytek si vezme hlubší vrstva") a žádná
+      // hlubší vrstva v tom Z-okně nepřijde. Vrstva pak stojí uprostřed
+      // materiálu.
+      //
+      // Nález uživatele 2. 9. 2026 (mezní čára destičky u krčku Z 82):
+      // dojezd r 25,545 skončil na Z 78,17, ale plánovací silueta drží nad
+      // stopou nástroje až do Z 81,6 — 3,4 mm vrstvy zůstalo stát,
+      // *„chtělo by to, aby to protáhl tu vrstvu až na konec k té offsetové
+      // čáře od polotovaru"*.
+      //
+      // Doběh se proto přidá i tehdy, když offset před nástrojem sice je,
+      // ale LEŽÍ POD ním — v té výšce už není co sledovat. Kam až se dojede,
+      // rozhoduje beze změny `stockRunEndZ`/`straightRunEndZ` níž: stěna
+      // kontury, nebo vůlí-posunutá silueta polotovaru.
+      //
+      // PODMÍNKA: dojezd musí končit NA HLOUBCE SVÉ VRSTVY. Řetěz, který
+      // vyšplhal po obrysu nahoru, končí na jiném průměru a rovný doběh
+      // odtud není prodloužení vrstvy, ale NOVÝ řez ve výšce, kterou nikdo
+      // neplánoval — změřeno: na `part-10` a `part-20` takový doběh
+      // spustil hlídání boční hrany destičky, to zahodilo CELÝ dojezd
+      // průchodu a stálo −42 a −398 mm².
+      //
+      // A platí jen pro VÝJEZD Z KAPSY, který se po obrysu vrátil na svou
+      // hloubku. Právě `findPocketExitZ` má pravidlo „offset klesl na hloubku
+      // průchodu → zbytek si vezme hlubší vrstva"; u ostatních dojezdů konec
+      // určuje `findLeadOutEndZ` proti sousedním hloubkám a doplňovat mu
+      // doběh není co. Změřeno, proč tak úzce: bez podmínky na kapsu je test
+      // splněný skoro vždycky (průchod bez dojezdu končí `end.x === p.x`
+      // z definice) — hnulo se 21 z 28 fixtures; jen s podmínkou na dojezd
+      // pořád `part-10` prodělal 50,4 mm².
+      const offAhead = offsetXAt(end.z - 0.2);
+      const backAtDepth = offAhead !== null && offAhead < end.x - 0.02
+        && lo && lo.length > 0 && (p.pocketEntry || p.pocketClean)
+        && Number.isFinite(p.x) && Math.abs(end.x - p.x) <= 0.05;
+      if (offAhead !== null && !backAtDepth) continue;
+      if (chained && !backAtDepth) continue;
       // KONEC PROFILU NENÍ KONEC DÍLU. Test výš kouká jen 0,2 mm dopředu,
       // takže „profil skončil" platí i pro ČELO, za kterým dál ve směru řezu
       // leží CELÝ zbytek dílu. Při hrubování ZLEVA průchod dobírá odřezek
@@ -1325,12 +1471,6 @@ export function genLongPasses(ctx) {
     }
   }
 
-  // Hlídání geometrie destičky — viz ops/long/insertFlankGuard.js.
-  if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
-    const adjusted = guardInsertFlankLong(passes, prms, offsetPath);
-    if (adjusted > 0)
-      foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
-  }
 
   // Diagnostický seam (v produkci no-op, vzor `__RAPID_STOCK_DUMP__`
   // v gcodeEmit.js): MODEL ZBYTKU, podle kterého strategie rozhoduje

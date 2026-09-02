@@ -77,5 +77,31 @@ export function makeRunScan({ offsetXAt, stockLoopOffsetFullL }) {
     return zFloor;
   };
 
-  return { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ };
+  // Konec POSLEDNÍHO souvislého materiálu PŘED `zStop` (jede se od `zFrom`
+  // dolů a za `zStop` už je hotovo). Zrcadlo `stockRunEndZ`: ten hledá PRVNÍ
+  // mezeru, tenhle POSLEDNÍ hranu materiálu — a to je čára, u které má doběh
+  // skončit, když za ní pokračovat nemá smysl.
+  //
+  // PROČ NE `stockRunEndZ`: mezery se přeletět MAJÍ (rozhodnutí 1. 9. 2026,
+  // +153,6 mm²) — zastavit na první z nich vrátí vrstvu na Z 31,96, přestože
+  // materiál drží až do Z 80,57. Zastavit se má až na TÉ POSLEDNÍ hraně.
+  const stockRunBackZ = (X, zFrom, zStop) => {
+    if (!stockLoopOffsetFullL) return zStop;
+    const solid = (z) => { const t = topXOnLoop(stockLoopOffsetFullL, z); return t !== null && t > X; };
+    // U stopky materiál ZPRAVIDLA JE — je to sousední úsek dílu, jen už
+    // obrobený, a silueta polotovaru o tom neví. Ten pruh se proto přeskočí
+    // a hledá se hrana až ZA první mezerou; bez toho by test „stojí tam
+    // materiál?" hned na stopce uspěl a doběh by k ní dojel jako dřív.
+    let air = null;
+    for (let z = zStop; z <= zFrom + 1e-9; z += dzScan) {
+      if (!solid(z)) { air = z; continue; }
+      if (air === null) continue;                // ještě pruh u stopky
+      let a = air, b = z;                        // a = vzduch, b = materiál
+      for (let i = 0; i < 24; i++) { const m = (a + b) / 2; if (solid(m)) b = m; else a = m; }
+      return b;
+    }
+    return zStop;                                // souvisle až ke stopce
+  };
+
+  return { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ, stockRunBackZ };
 }

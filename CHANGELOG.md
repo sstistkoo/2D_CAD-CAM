@@ -304,6 +304,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Hrubování jezdilo po vlastní čerstvé dráze — 85,8 mm z 1 604 mm řezu.**
+  Nález uživatele 2. 9. 2026 (*„můžeš se podívat, kde všude mně to tam projíždí
+  dvakrát stejnou dráhu"*). Čtyři různé příčiny, změřeno na jeho dílu:
+  - **Dojezd, který sjel POD hloubku vrstvy, se nezapočítal jako dobraný.**
+    Pojistka „co dojezd už dobral, se nevydá podruhé" (`ops/long/openPass.js`)
+    počítala pokrytí jen ze segmentů PŘESNĚ na hloubce vrstvy a zpětnou chůzi
+    zastavila na prvním jiném. Dojezd ale běžně sjede po obrysu do prohlubně
+    a zase vyleze — vrstvu tam odebral, jen ne na kótě. Interval, který
+    v prohlubni začínal, se pak vydal celý znovu („Průchod 27", 24,9 mm).
+    Nově se počítá i to, kudy dojezd projel pod hloubkou, a segment, který ji
+    protíná, po průsečík.
+  - **Dobrání ořízlé rampy přeletělo údolí do sousedního REGIONU** a zastavilo
+    se o stěnu, kterou ten region na téže hloubce už obrobil (11,8 mm).
+    Nová evidence `ops/long/cutRegistry.js` (`depthCutClampZ`) doběh zastaví —
+    ale jen když v cizím úseku KONČÍ; ostrůvek uprostřed jízdy stopku nedělá
+    (to stálo 153,7 mm² úběru). Doběh pak končí U OFFSETOVÉ ČÁRY POLOTOVARU
+    (`stockRunBackZ` v `ops/long/runScan.js` — poslední hrana materiálu před
+    stopkou), ne až za údolím: *„tady to jede zas na druhou stranu, místo aby
+    to končilo u offsetové čáry od polotovaru"*. Bez toho zbyl rychloposuv
+    přes 24 mm a za ním pahýl řezu 0,29 mm. Mezery po cestě se pořád přeletí
+    (pravidlo z 1. 9. 2026) — `stockRunEndZ` by vrstvu vrátil na Z 31,96.
+  - **Výjezd z kapsy jel znovu za každý zákrok.** Řetězy po kontuře jsou
+    výřezy JEDNÉ `offsetPath`, takže dva s překrytým Z-pásmem vydají doslova
+    tutéž dráhu; evidenci měly jen přímky zanoření a rohy. Nový registr
+    (`makeChainRegistry`) ořízne duplicitní konec dojezdu u dobrání kapsy
+    (28,4 mm) a vypustí nájezd, který celý vede po projeté dráze (19,9 mm).
+  - Zbylo 1,1 mm (0,1 %) na hranicích segmentů. Úběr se na sadě 28 fixtures
+    NEHNUL (86 114,8 mm²), kolize 0/0 v obou standardech.
+
+- **Vrstva nedojela k offsetové čáře polotovaru.** Výjezd z kapsy končí, jakmile
+  offset klesne na hloubku průchodu („zbytek si vezme hlubší vrstva") — jenže
+  v tom Z-okně žádná hlubší vrstva nepřijde a vrstva stojí uprostřed materiálu
+  (nález uživatele 2. 9. 2026: dojezd r 25,545 skončil na Z 78,17, přestože
+  materiál drží nad stopou nástroje až do Z 81,6). Doběh na konec polotovaru
+  se nově přidá i tehdy, když offsetová čára před nástrojem sice pokračuje, ale
+  LEŽÍ POD hloubkou vrstvy. Přísně jen pro výjezd z kapsy, který se po obrysu
+  vrátil na svou hloubku — širší podmínka hnula 21 z 28 fixtures a stála úběr.
+  Blok se navíc přesunul AŽ ZA hlídání geometrie destičky: to přeskakuje
+  průchody s dojezdem, takže přidání doběhu jim dřív hlídání vypnulo.
+
 - **Simulátor – klik na OBLOUK dráhy (G2/G3) nenašel svůj řádek G-kódu.**
   U úseček klik označí a v panelu zvýrazní odpovídající řádek; oblouk je ale
   v `simPath` ŘETĚZ bodů se stejným `originalLineIdx`, takže ho hit-test
