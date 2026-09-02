@@ -345,6 +345,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Dohromady o **12 průchodů méně na sadě fixtures při NEZMĚNĚNÉM úběru**
   (88 232,1 → 88 232,1 mm², kolize 0/0 v obou standardech; na dílu uživatele
   59 → 54 průchodů a zbytek 7 645,6 mm² beze změny).
+- **CAM – krok řetězu zanoření se zastavil na první mezeře v odlitku, takže
+  materiál za ní vzala až o `ap` hlubší vrstva (dvojnásobný záběr).** Vrstvy
+  NAD ním mezeru běžně přeletí — jejich konec sahá na konec regionu a emise
+  (`airSplitAxial`) si vzduch sama rozseká na rychloposuv. Jen krok
+  `pendingRampCompletions` končil na `stockRunEndZ`, tedy na konci SOUVISLÉHO
+  materiálu.
+
+  Nález uživatele 1. 9. 2026 (podélně zleva, `N2510 G1 Z31.957`): vrstva
+  r 28,545 skončila na Z 31,96, přestože r 31,545 nad ní jede až na Z 92 —
+  silueta odlitku mezi Z 28,6 a 41,5 klesne pod r 28,5, ale za mezerou
+  materiál pokračuje do Z 112. Krok teď končí jen na STĚNĚ HOTOVNÍ KONTURY
+  (`straightRunEndZ`), tedy na jediné mezi, kterou překročit nesmí:
+  **+153,6 mm² úběru** na sadě, kolize 0/0 v obou standardech, zajezd pod
+  konturu dál 0.
 - **CAM – kapsový průchod bez rampy i bez nájezdu sjížděl na hloubku
   radiálně.** `traceOffsetPath` může vrátit PRÁZDNÉ pole a to se přiřadilo
   jako `contourLeadIn` stejně jako neprázdné — jenže `[]` je v JS pravdivé,

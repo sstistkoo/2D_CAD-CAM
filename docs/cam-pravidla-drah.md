@@ -539,6 +539,60 @@ držákem drhne.
 Plný kontext: `docs/cam-plan-2026-08-28.md` §4, `docs/cam-order-aware-holder.md`,
 `docs/cam-sjednoceni-polotovaru.md`, `docs/geometry-libs-migration.md`.
 
+### 7.4 KRČEK Z 84–99 — MEZ DESTIČKY, ne směru (změřeno 2. 9. 2026)
+
+Uživatel opakovaně hlásil, že vrstva u krčku „nedojede až k offsetové čáře
+a nechá tam zbytek". Změřeno **6,72 mm nad konturou v pásu Z 85–99** — a je
+to mez plátku, ne vada plánování:
+
+| měření | výsledek |
+|---|---|
+| zleva | 6,72 mm |
+| **zprava (tentýž díl)** | **6,72 mm — identicky** |
+| zleva s VYPNUTÝM hlídáním držáku | 6,72 mm — beze změny |
+| zleva s vypnutým `respectInsertGeometry` | pás zmizí |
+
+Takže rozhoduje GEOMETRIE DESTIČKY. Krček je v Z dlouhý 15,58 mm
+(Z 84,177…99,757) a hluboký 8,00 mm (ústí r 15,579 → dno r 7,579). Zadní bok
+plátku stoupá pod natočením 15°, takže na plnou hloubku potřebuje
+**8 / tg 15° = 29,9 mm** v ose Z. K dispozici je 15,58 mm → plátek dosáhne
+nejvýš ~4,2 mm a zbytek nechá stát. Otočení strany obrábění s tím nehne —
+bok je pod 15° tak jako tak.
+
+Zbytek tam patří jinému nástroji (užší plátek, zapichovák), ne jinému směru.
+
+### 7.3 KONEC DÍLU ZLEVA — VJEZD SE NENAJDE, i když místo je (2. 9. 2026)
+
+Na dílu uživatele zůstává rukáv **Z 243–345** (silueta r 21,8, kontura r 9,1)
+zleva celý neobrobený: **žádná hloubka pod r 43,5 nejde za Z 265.**
+
+**Region tam JE** — poslední geometrický region běží od Z 227,6 do +∞, takže
+rukáv do něj patří celý. Chybí VJEZD.
+
+A místo pro něj existuje. Změřeno tak, jak by se to dělalo — obálka držáku
+položená do rukávu proti ZBYTKU PO CELÉM PROGRAMU (`holderWorldLoop`
+× `MaterialRemoval`), vnoření v mm²:
+
+| Z \ špička | r 19 | r 16 | r 13 | r 10 |
+|---|---|---|---|---|
+| 250 | 421 | 484 | 547 | 610 |
+| 270 | 270 | 331 | 394 | 457 |
+| 280 | 106 | 137 | 172 | 225 |
+| **300** | **0,0** | **0,0** | **0,0** | 37,9 |
+| **340** | **0,0** | **0,0** | **0,0** | 37,9 |
+
+Od **Z ≈ 290** je držák čistý. (Uživatel nezávisle ukázal myší Z 293,1 —
+sedí.) Těch 37,9 mm² u r 10 je držák otírající se o rukáv, který za ním
+teprve zbývá odebrat — mizí s pořadím, jak průchody postupují.
+
+**Dřívější závěr „zleva to nejde, protože držák nepřejde přírubu" platí jen
+pro Z < 285.** Pro zbytek rukávu neplatí a byl chybný.
+
+Chybí tedy jediné: aby se v tomhle regionu vjezd POSUNUL na Z ≈ 290 a zanořil
+se tam rampou — přesně to, co `holderEntryCapZ` dělá v údolích a co uživatel
+ukazuje na obrázku („mělo by se to jak v tom údolí začít za tím zanořovat").
+Proč tam ta cesta nedojede, není dohledáno.
+
 ### 7.2 „Uzavírací krok řetězu, co nic neodebere" — OTEVŘENÉ, 1. 9. 2026
 
 Uživatel na svém dílu ukázal `Průchod 54`: celý nájezd, rampa 15° a odjezd

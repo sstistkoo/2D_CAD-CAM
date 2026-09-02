@@ -712,6 +712,9 @@ export function genLongPasses(ctx) {
     // bez problému. Stopuje JEN kontura.
     const passMark = passes.length;
     let entryZ = effZMax;
+    const __LOG = globalThis.__DEPTH__ && _region && Math.abs((_region.zHi ?? 0) + 227.6) < 1;
+    if (__LOG) globalThis.__DEPTH__.push({ fáze: 'start', x: +currentX.toFixed(3),
+      effZMax: +effZMax.toFixed(2), effZMin: +effZMin.toFixed(2), regZHi: +(+regZHi).toFixed(2), regZLo: +(+regZLo).toFixed(2) });
     let { intervals, firstOpen } = scan(currentX, entryZ, effZMin, true);
     // ── Zanořování (📥 „Zanořování"): najdi, KDE se dá začít ──────────────
     // Na tuhle hloubku se nedá vjet zprava — vjezd zahodila obálka DRŽÁKU
@@ -763,6 +766,8 @@ export function genLongPasses(ctx) {
     // Hranice REGIONU je umělá stejně jako hranice rozsahu 📐: napravo od ní
     // materiál dál stojí (patří sousednímu regionu), takže se na ni nesmí
     // kolmo zapíchnout — vjezd tam patří rampě.
+    if (__LOG) globalThis.__DEPTH__.push({ fáze: 'po scan', x: +currentX.toFixed(3),
+      entryZ: +entryZ.toFixed(2), firstOpen, ivs: intervals.map(v => `${v.zStart.toFixed(1)}→${v.zEnd.toFixed(1)}${v.blocked ? 'B' : ''}`).join(' ') });
     const regionCapped = regionCappedRaw;
     const entryCapped = (entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
@@ -1073,11 +1078,26 @@ export function genLongPasses(ctx) {
       // končil nasucho uprostřed materiálu, přestože vrstva nad ním
       // (o Hloubku ap mělčí) byla obrobená až daleko za tím bodem — reálný
       // nález na díle uživatele.
-      // Doběh končí tím, co přijde DŘÍV: stěna hotovní kontury (straightRunEndZ),
-      // nebo konec souvislého materiálu (stockRunEndZ výš).
-      const stepEndZ = isLastStep ? stepZ : Math.max(
-        straightRunEndZ(stepX, stepZ, traceFloorL),
-        stockRunEndZ(stepX, stepZ, traceFloorL));
+      // ── MEZERA V MATERIÁLU DOBĚH NEUKONČUJE (1. 9. 2026) ─────────────────
+      // Do 1. 9. 2026 se bralo `max(straightRunEndZ, stockRunEndZ)`, tedy „co
+      // přijde dřív: stěna kontury, nebo konec SOUVISLÉHO materiálu". Jenže
+      // vrstvy NAD tímhle krokem mezeru běžně přeletí: jejich `zEnd` sahá až
+      // na konec regionu a emise (`airSplitAxial`) si vzduch sama rozseká na
+      // rychloposuv. Krok řetězu se tak jediný zastavoval na první mezeře —
+      // a materiál za ní pak musela vzít až o Hloubku (ap) hlubší vrstva,
+      // tedy DVOJNÁSOBNÝM záběrem.
+      //
+      // Nález uživatele 1. 9. 2026 (podélně zleva, `N2510 G1 Z31.957`):
+      // vrstva r 28,545 skončila na Z 31,96, přestože r 31,545 nad ní jede
+      // až na Z 92. Silueta odlitku tam mezi Z 28,6 a 41,5 klesne pod r 28,5
+      // (oblouk R16,5 se středem 43,72) — za tou mezerou ale materiál zase
+      // je, až do Z 112. *„Ať to projede přes celé stejně jak ty vrstvy nad
+      // tím až do konce."*
+      //
+      // Zůstává jen `straightRunEndZ` — STĚNA HOTOVNÍ KONTURY, tedy jediná
+      // mez, kterou překročit nesmí. Změřeno: +153,6 mm² úběru na sadě,
+      // kolize 0/0 v obou standardech, zajezd pod konturu dál 0.
+      const stepEndZ = isLastStep ? stepZ : straightRunEndZ(stepX, stepZ, traceFloorL);
       const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: stepEndZ, blocked: true };
       // Řetěz dorampování strmé stěny — stejná povaha jako entryRangeRamp:
       // kroky leží NAD SEBOU podél TÉŽE stěny, nejsou to nezávislé bossy.
