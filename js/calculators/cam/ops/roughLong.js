@@ -375,6 +375,8 @@ export function genLongPasses(ctx) {
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
   let plungeShallowed = 0;
   let deferredHolderSkips = 0;
+  // Kapsové průchody bez rampy i bez nájezdu — viz `noEntrySkips` v pocketPass.js.
+  let noEntrySkips = 0;
   // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
   // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
   const skipCounters = { plungeForbidden: 0 };
@@ -836,7 +838,7 @@ export function genLongPasses(ctx) {
         return;
       }
       // Kapsa za bossem kontury — viz ops/long/pocketPass.js.
-      const cnt = { partingNarrowPockets, plungeShallowed, pocketHolderSkips };
+      const cnt = { partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips };
       emitPocketInterval({
         prms, passes, step, dzScan, currentX, idx, intervals, effZMin,
         effPlungeTanL, traceFloorL, maxStockX, isParting, partingNoDress, w2RL,
@@ -846,7 +848,7 @@ export function genLongPasses(ctx) {
         notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
         residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
       });
-      ({ partingNarrowPockets, plungeShallowed, pocketHolderSkips } = cnt);
+      ({ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips } = cnt);
     });
     // Pokud je Z-rozsah aktivní a jeho horní hrana je uvnitř polotovaru
     // (scanIntervals nevrátí žádné intervaly), vygenerujte rampový
@@ -1189,6 +1191,11 @@ export function genLongPasses(ctx) {
 
   if (deferredHolderSkips > 0)
     foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
+  if (noEntrySkips > 0) {
+    const phrase = noEntrySkips === 1 ? '1 vrstva vynechána'
+      : (noEntrySkips < 5 ? `${noEntrySkips} vrstvy vynechány` : `${noEntrySkips} vrstev vynecháno`);
+    foundErrors.push({ type: 'warning', msg: `Zanořování: ${phrase} — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.` });
+  }
   if (skipCounters.plungeForbidden > 0) {
     const n = skipCounters.plungeForbidden;
     const phrase = n === 1 ? '1 vrstva vynechána' : (n < 5 ? `${n} vrstvy vynechány` : `${n} vrstev vynecháno`);

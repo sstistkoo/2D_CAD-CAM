@@ -59,6 +59,36 @@ export function emitRoughing(E) {
     simCounter += 1; addN(`G1 X${xDia(s0.x1)} F${prms.feed}`, simCounter); setPos(s0.x1, fz);
     noteCutMove(fx, fz, s0.x1, fz);
   };
+  // ── ZAJEL BY ODSKOK POD 45° DO KONTURY? ────────────────────────────────
+  // Odskok jde ŠIKMO: na Z-posun `dz` připadá X-zdvih `dz·(rDist/rDistZ)`.
+  // Míří na už obrobenou stranu, takže tam obvykle nic není — ale ne vždy.
+  // Nález uživatele 1. 9. 2026 (podélně ZLEVA): `N2040 G1 X33.545 Z143.293`
+  // a `N3030 G1 X21.545 Z80.919` zajely **4,85 mm POD hotovní konturu**,
+  // protože odskok couvl do pásu, kde leží MEZNÍ ČÁRA plátku (stín břitu,
+  // který tam vložil `buildMachinableContour` místo nedosažitelného rohu) —
+  // a tam kontura vystoupá na r 38,2, kdežto průchod stojí na r 31,5.
+  // Průchod sám je čistý; vadí až couvnutí za jeho začátek.
+  //
+  // Čelní strategie tenhle test má odjakživa (viz `retractGouges` níž);
+  // podélná ho NEMĚLA. `tests/cam-gouge-invariants` přitom podélné fixtures
+  // hlídá všechny včetně „zleva" — jen žádná z nich tuhle geometrii neměla
+  // (mezní čára plátku těsně nad koncem kapsového průchodu). Proto je díl
+  // uživatele v sadě jako `part-21-zleva-insert-shadow.camprog`.
+  //
+  // Náprava stojí NULA materiálu: hloubka i délka řezu zůstávají, jen se
+  // místo diagonály vyjede SVISLE v X — tedy zpátky do vlastní, právě
+  // vyříznuté stopy. Na sadě −11,0 mm² u náhradního držáku; to jsou přesně
+  // ty odřezky, které diagonála brala z hotové kontury.
+  const retractHitsContour = (x, z, dirZ) => {
+    if (!(rDistZ > 1e-9)) return false;        // 90° odskok je svislý sám
+    const rTan = rDist / rDistZ;
+    for (let i = 1; i <= 8; i++) {
+      const dz = rDistZ * i / 8;
+      const ox = gcOffsetXAt(z + dirZ * dz);
+      if (ox !== null && ox > x + dz * rTan - 0.02) return true;
+    }
+    return false;
+  };
 calc.passes.forEach((pass, i) => {
   addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
   // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
@@ -345,7 +375,13 @@ calc.passes.forEach((pass, i) => {
     }
     if (!pass.noRetract) {
       const zRetractVal = clipZGc(cur.z - zDir * rDistZ);
-      simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+      // Šikmý odskok by couvl pod konturu (viz `retractHitsContour` výš) →
+      // ven svisle v X, zpátky do vlastní stopy.
+      if (Math.abs(zRetractVal - cur.z) > 1e-6 && retractHitsContour(cur.x, cur.z, -zDir)) {
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
+      } else {
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+      }
     }
   } else if (pass.type === 'long') {
     // Otevřený podélný průchod (standardně vpravo → vlevo, u druhé strany
@@ -507,7 +543,13 @@ calc.passes.forEach((pass, i) => {
     }
     if (!pass.noRetract) {
       const zRetractVal = clipZGc(cur.z - zDir * rDistZ);
-      simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+      // Šikmý odskok by couvl pod konturu (viz `retractHitsContour` výš) →
+      // ven svisle v X, zpátky do vlastní stopy.
+      if (Math.abs(zRetractVal - cur.z) > 1e-6 && retractHitsContour(cur.x, cur.z, -zDir)) {
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
+      } else {
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+      }
     }
   } else {
     // Čelní hrubování (vzor shodný se sim cestou). Per-Z hodnoty:

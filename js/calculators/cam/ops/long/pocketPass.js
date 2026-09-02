@@ -138,6 +138,8 @@ if (!iv.blocked) {
   } else if (!partingNoDress) {
     const liOpen = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart)), currentX);
     linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
+    // PRÁZDNÝ NÁJEZD NENÍ NÁJEZD — podrobně u `passFlat` níž.
+    if (liOpen.length === 0) { cnt.noEntrySkips++; return; }
     passOpen.contourLeadIn = liOpen;
   }
   // TUHLE PŘÍMKU ZANOŘENÍ UŽ NIKDO SJÍŽDĚT NEMUSÍ. Otevřené pokračování
@@ -182,6 +184,23 @@ if (!corner) {
   } else if (!partingNoDress) {
     const liFlat = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart)), currentX);
     linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
+    // ── PRÁZDNÝ NÁJEZD NENÍ NÁJEZD ────────────────────────────────────────
+    // `traceOffsetPath` (nebo ořez držákem) může vrátit PRÁZDNÉ pole. Dosud
+    // se přiřadilo stejně — a `[]` je v JS pravdivé, takže průchod dál
+    // vypadal jako „kapsa po kontuře": emise vzala větev s nájezdem, ta
+    // nenašla žádný segment, spadla na `{ x: pass.x, z: pass.zStart }`
+    // a sjela na hloubku RADIÁLNĚ. Vznikl tak průchod bez rampy i bez
+    // nájezdu — přesně to, co je u plátku s úhlem < 90° zakázané.
+    //
+    // Nález uživatele 1. 9. 2026 (podélně zleva): `N2020 G1 X31.545 F0.25`
+    // (6,4 mm radiálně, aby se uříznul pás 1,45 mm) a `N3010 G1 X19.545
+    // F0.25` (4,2 mm radiálně na pás 0,66 mm) — *„ty dráhy tu vůbec nemají
+    // co dělat, jsou to chyby"*. Obě navíc odskokem zajížděly pod konturu,
+    // dokud to nezachytil `retractHitsContour` (ops/roughEmit.js).
+    //
+    // Vrstva se proto vynechá — táž volba jako u vjezdu bez rampy
+    // (docs/cam-pravidla-drah.md §3.1) — a nahlásí se.
+    if (liFlat.length === 0) { cnt.noEntrySkips++; return; }
     passFlat.contourLeadIn = liFlat;
   }
   // Táž evidence jako u `passOpen` výš — přímka je sjetá, ať ji sjel

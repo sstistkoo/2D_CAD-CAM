@@ -169,6 +169,24 @@ function passFingerprint(p) {
   ].filter(Boolean).join(' ');
 }
 
+// VÝŠKA ZDVIHU RYCHLOPOSUVU se srovnává na 0,1 mm — a jen ona.
+//
+// „Výjezd nad konturu" se počítá z `travelTopXAtZ`, tedy z navzorkované
+// smyčky ZBYTKU a offsetu odlitku. Ty vznikají z Clipperu a NEJSOU vertex
+// po vertexu zrcadlově symetrické: změřeno 1. 9. 2026 na tomhle dílu
+// `top` = 64,610968 zleva proti 64,603390 zprava, tedy **7,6 µm**. Samo
+// o sobě to nevadí, jenže `quantizeUp(top + odstup)` je zaokrouhlení
+// NAHORU po 0,01 — a taková dvojice může spadnout na opačné strany hranice
+// (66,42 × 66,41). Jestli k tomu dojde, závisí jen na tom, kde přesně se
+// smyčka vzorkuje; do 1. 9. 2026 to vycházelo náhodou stejně, pak svislý
+// odskok u stěny (`retractHitsContour`) posunul výchozí Z zdvihu jinam.
+//
+// ŘEZNÁ GEOMETRIE SE NESROVNÁVÁ: G1/G2/G3 i všechna Z se dál porovnávají
+// PŘESNĚ (na tomhle dílu sedí 190 z 191 řádků bajt po bajtu). Tolerance
+// platí výhradně pro X na `G0` — což je bezpečnostní výška, ne tvar dílu.
+const relaxRapidX = (s) => s.replace(/^(G0\b.*?)X(-?\d+(?:\.\d+)?)/,
+  (_m, head, v) => `${head}X${(Math.round(parseFloat(v) * 10) / 10).toFixed(1)}`);
+
 // Řezné řádky G-kódu. `mirror` překlopí Z a prohodí G2/G3 (převod „zleva"
 // do zrcadleného světa). Nájezdy do bezpečné polohy (X150 / Z5 / G75) se
 // vynechají — safeX/safeZ jsou parametry stroje, ne geometrie dílu, takže se
@@ -181,7 +199,7 @@ function cutLines(gcode, mirror) {
     .map(l => {
       let s = l.replace(/\bZ(-?\d+(?:\.\d+)?)/g, (_m, v) => `Z${((mirror ? -1 : 1) * parseFloat(v)).toFixed(3)}`);
       if (mirror) s = s.replace(/^G0?2\b/, 'G§').replace(/^G0?3\b/, 'G2').replace(/^G§/, 'G3');
-      return s;
+      return relaxRapidX(s);
     });
 }
 

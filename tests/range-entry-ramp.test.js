@@ -122,14 +122,21 @@ describe('zanoření za odlitkovým hrbem', () => {
 
   it('není to vacuum: s vypnutým hlídáním držáku kolize BÝT musí', async () => {
     // Bez `holderLoopL` (a tedy bez holderEntryCapZ/ReachZ) jede program do
-    // hrbu: naměřeno 21 nálezů držáku, 27–284 mm². Zároveň zmizí i všechna
-    // tři zanoření za hrbem — ta hloubka se bez clampu vůbec nenajde, což je
-    // právě ta zásluha, kterou test výš hlídá. Neasertuje se, aby budoucí
-    // lepší vjezd (bez clampu) nepadal na pojistce.
+    // hrbu. Zároveň zmizí i všechna tři zanoření za hrbem — ta hloubka se bez
+    // clampu vůbec nenajde, což je právě ta zásluha, kterou test výš hlídá.
+    // Neasertuje se, aby budoucí lepší vjezd (bez clampu) nepadal na pojistce.
+    //
+    // 21 → 5 nálezů dne 1. 9. 2026, a NENÍ to oslabení hlídání držáku:
+    // většinu těch průchodů teď nevyrobí ani bez něj, protože je zastaví JINÉ
+    // pravidlo — kapsový průchod bez rampy i bez nájezdu se nevydá
+    // (`ops/long/pocketPass.js`, viz docs/cam-pravidla-drah.md §3.1). Se
+    // zapnutým clampem je fixture dál čistá (asserty výš), takže clamp pořád
+    // odstraňuje těch zbylých pět — vacuum to není. Práh je proto 2, ne 10:
+    // hlídá, že scénář vůbec něco produkuje, ne konkrétní historické číslo.
     globalThis.__DISABLE_HOLDER_CLAMP__ = true;
     try {
       const { issues } = await runAndValidate();
-      expect(issues.filter(i => i.kind === 'holder').length).toBeGreaterThan(10);
+      expect(issues.filter(i => i.kind === 'holder').length).toBeGreaterThan(2);
     } finally {
       delete globalThis.__DISABLE_HOLDER_CLAMP__;
     }

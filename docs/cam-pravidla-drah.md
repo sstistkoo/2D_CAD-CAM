@@ -102,6 +102,16 @@ Posunutý vjezd si hledá **vlastní kotvu** `stockEntryRamp(currentX, iv.zStart
 přesně. Hlídá `tests/cam-shifted-entry-ramp.test.js` (na `part-17-long-parting`,
 kde je táž geometrie).
 
+**TÉŽ PRAVIDLO PLATÍ PRO KAPSU** (`ops/long/pocketPass.js`): kapsový průchod,
+který nemá ani rampu (`stockEntryRamp` vrátil null), ani NEPRÁZDNÝ nájezd po
+kontuře, se nevydá. `traceOffsetPath` umí vrátit prázdné pole a to se dosud
+přiřadilo stejně — jenže `[]` je v JS pravdivé, takže průchod dál vypadal jako
+„kapsa po kontuře", emise nenašla žádný segment, spadla na `{x: pass.x,
+z: pass.zStart}` a sjela na hloubku RADIÁLNĚ. Nález uživatele 1. 9. 2026:
+`N2020 G1 X31.545 F0.25` (6,4 mm radiálně kvůli pásu 1,45 mm) a `N3010 G1
+X19.545 F0.25` (4,2 mm kvůli 0,66 mm) — *„ty dráhy tu vůbec nemají co dělat,
+jsou to chyby"*. Hlásí se jako „do kapsy nevede ani rampa, ani nájezd".
+
 **KDYŽ RAMPA NENÍ, VRSTVA SE VYNECHÁ — rozhodnutí uživatele 1. 9. 2026.**
 *„Ať to nezajíždí kolmo, to je zakázané při takovém plátku; když tak ať to
 vynechá tu dráhu… když to nejde, tak to nemůže dělat, jako by to byl
@@ -192,6 +202,18 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
   destičky leží v axiální vzdálenosti `dz` o `dz·tan(natočení)` níž — hlubší řez
   by jí zajel do hotové vrstvy. Běží **až po hlídání držáku**, protože co držák
   zvedne, už by žádná kontrola destičky neviděla (`ops/face/layerDepth.js:17`).
+- **ODSKOK POD 45° SE TESTUJE PROTI KONTUŘE** (`retractHitsContour`
+  v `ops/roughEmit.js`). Míří na obrobenou stranu, takže tam obvykle nic
+  není — jenže couvne i za ZAČÁTEK průchodu, a tam může stát MEZNÍ ČÁRA
+  plátku (stín břitu vložený `buildMachinableContour` místo nedosažitelného
+  rohu). Nález uživatele 1. 9. 2026 (podélně ZLEVA): `N2040 G1 X33.545
+  Z143.293` a `N3030 G1 X21.545 Z80.919` zajely **4,85 mm pod konturu** —
+  průchod stojí na r 31,5, kontura tam vystoupá na r 38,2.
+  Když by diagonála podjela, vyjede se SVISLE v X (zpátky do vlastní stopy).
+  Čelní strategie tenhle test měla odjakživa; podélná ne. Stojí to 0 mm²
+  úběru u nakresleného nože a −11,0 mm² u náhradního držáku — a to jsou právě
+  ty odřezky z hotové kontury. Hlídá `part-21-zleva-insert-shadow.camprog`
+  v `tests/cam-gouge-invariants` (bez opravy 4,85 mm, s ní 0).
 
 > ⚠ **LATENTNÍ VADA (1. 9. 2026): „pravé stěny kapes" nemají lokalitu.**
 > Druhý blok `ops/long/insertFlankGuard.js` (heuristika `rotDeg`) bere za

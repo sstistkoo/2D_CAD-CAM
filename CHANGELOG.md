@@ -345,6 +345,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Dohromady o **12 průchodů méně na sadě fixtures při NEZMĚNĚNÉM úběru**
   (88 232,1 → 88 232,1 mm², kolize 0/0 v obou standardech; na dílu uživatele
   59 → 54 průchodů a zbytek 7 645,6 mm² beze změny).
+- **CAM – kapsový průchod bez rampy i bez nájezdu sjížděl na hloubku
+  radiálně.** `traceOffsetPath` může vrátit PRÁZDNÉ pole a to se přiřadilo
+  jako `contourLeadIn` stejně jako neprázdné — jenže `[]` je v JS pravdivé,
+  takže průchod dál vypadal jako „kapsa po kontuře": emise vzala větev
+  s nájezdem, nenašla v ní žádný segment, spadla na `{x: pass.x,
+  z: pass.zStart}` a sjela na hloubku kolmo. Nález uživatele 1. 9. 2026
+  (podélně zleva): `N2020 G1 X31.545 F0.25` — 6,4 mm radiálního záběru, aby
+  se uříznul pás 1,45 mm — a `N3010 G1 X19.545 F0.25` (4,2 mm kvůli 0,66 mm).
+
+  Takový průchod se nevydá (a hlásí se), stejně jako vjezd bez rampy podle
+  `docs/cam-pravidla-drah.md` §3.1. Na dílu uživatele 52 → 50 průchodů,
+  +100 mm² zůstane pro dokončování; na sadě se hnuly tři fixtures, kolize
+  beze změny (`part-20-zleva-parting-taper` s náhradním držákem dokonce
+  +397,7 mm² úběru při 8 průchodech méně).
+- **CAM – odskok pod 45° zajížděl 4,85 mm pod hotovní konturu (podélně
+  zleva).** Odskok míří na obrobenou stranu, takže tam obvykle nic není —
+  jenže couvne i za ZAČÁTEK průchodu, a tam může stát MEZNÍ ČÁRA plátku (stín
+  břitu, který `buildMachinableContour` vkládá místo nedosažitelného rohu).
+  Nález uživatele 1. 9. 2026: `N2040 G1 X33.545 Z143.293` a `N3030 G1 X21.545
+  Z80.919` — průchod stojí na r 31,5, kontura tam vystoupá na r 38,2.
+
+  Čelní strategie tenhle test má odjakživa (`retractGouges`), podélná ho
+  neměla. Teď ho mají obě: když by diagonála podjela konturu, vyjede se
+  SVISLE v X, tedy zpátky do vlastní právě vyříznuté stopy. Náprava stojí
+  **0 mm²** úběru u nakresleného nože a **−11,0 mm²** u náhradního držáku —
+  a to jsou přesně ty odřezky, které diagonála brala z hotové kontury.
+
+  Sada podélné fixtures na zajezd hlídá všechny včetně „zleva", jen žádná
+  tuhle geometrii neměla; díl uživatele je proto v sadě jako
+  **`part-21-zleva-insert-shadow.camprog`** (bez opravy 4,85 mm, s ní 0).
 - **CAM – kolmé zanoření je u plátku s úhlem < 90° zakázané; vrstva se místo
   něj vynechá.** Rozhodnutí uživatele 1. 9. 2026: *„ať to nezajíždí kolmo, to
   je zakázané při takovém plátku; když tak ať to vynechá tu dráhu… když to
