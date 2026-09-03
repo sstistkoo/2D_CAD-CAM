@@ -1011,6 +1011,47 @@ export function genLongPasses(ctx) {
             && (passes[at].pocketReposition || passes[at].cleanApproach
                 || (at > passMark && passes[at - 1].noRetract))) at = passes.length;
         passes.splice(at, 0, finalPass);
+        // JEDNO ap = JEDEN PRUCHOD, i kdyz se do nej sjizdi nadvakrat.
+        // Uzaviraci krok NENI samostatna vrstva: je to jen mezikrok sjezdu
+        // do vrstvy pod nim (12,803 minus ap 3 = 9,803). Zanori se na 10,307,
+        // popojede v Z a odtud se dozanori na 9,803 - a teprve tam se jede
+        // cela vrstva. Vydat obojí jako plnohodnotny pruchod znamena sjet
+        // jedno ap DVAKRAT (uzivatel 3. 9. 2026).
+        const below = passes[at + 1];
+        if (below && below.ramp && !below.entryRangeRamp
+            && Number.isFinite(below.x) && Number.isFinite(below.zStart)
+            && below.x < bestX - 1e-6) {
+          // Kotva se DOPOCITA z uhlu, ne hleda v modelu zbytku: ma sedet
+          // PRESNE na konci mezikroku, aby mezi ne emise nevkladala odjezd
+          // a prisun (rozdil 0,02 mm stacil na G0 X68.591 a zpatky).
+          // Rampa jede k NIZSIMU z, takze jeji zacatek lezi VYS.
+          const z0 = below.zStart + (bestX - below.x) / effPlungeTanL;
+          if (z0 < finalPass.zStart - 1e-6 && z0 > finalPass.zEnd + 1e-6) {
+            // POUZE EMISNI ZNACKY. `zEnd` ani `ramp` se NEMENI: obojí cte
+            // model zbytku (a v booleovske vetvi i sken intervalu), takze by
+            // se posunul start NEJHLUBSI vrstvy - zmereno, ta se scvrkla
+            // z 9,4 mm na 0,21 mm a na dilu zustalo o 18 mm2 vic. Emise
+            // proto jen zkrati telo mezikroku, potlaci odjezd a dalsi
+            // pruchod necha rampovat rovnou z mista, kde nuz stoji.
+            finalPass.emitZEnd = z0;
+            finalPass.noRetract = true;
+            below.emitChainFrom = true;
+          }
+        }
+        // ── NEJEZDIT NA KONEC A ZPÁTKY, ALE PLYNULE DOLŮ ───────────────────
+        // Uživatel 3. 9. 2026: *„to by nemělo jet na konec, ale mělo by to
+        // dojet jenom tam, kde mám ten snap, a pak dolů dojet na hloubku ap
+        // a pokračovat."* Průchod POD uzavíracím krokem bere TÝŽ pás Z jen
+        // o `ap` níž, takže dojet nahoře až na konec, odskočit a vrátit se
+        // rychloposuvem na novou rampu je práce navíc — a ta rampa navíc jde
+        // desítky mm vzduchem, protože kotvu si hledala, když uzavírací krok
+        // ještě neexistoval. Uzavírací krok proto skončí PŘESNĚ tam, kde
+        // rampa toho hlubšího začíná, a nůž pokračuje bez odjezdu.
+        //
+        // Kotva se hledá proti PREFIXU BEZ TOHO PRŮCHODU: líný model by
+        // započítal i jeho vlastní řez a `stockEntryRamp` by odpověděla
+        // „start už je nad zbytkem" (změřeno — `residTop` vyšel přesně na
+        // jeho hloubku) a vrátila null.
       }
     }
     // ── Poslední (kratší) vrstva před nedosažitelnou hranicí ───────────────

@@ -128,6 +128,10 @@ export function mirrorPass(pass) {
   const out = { ...pass, backside: true };
   if (typeof pass.zStart === 'number') out.zStart = -pass.zStart;
   if (typeof pass.zEnd === 'number') out.zEnd = -pass.zEnd;
+  // Emisni znacka mezikroku sjezdu (viz roughLong.js / roughEmit.js): je to
+  // syrove Z, takze se musi preklopit stejne jako zStart/zEnd - jinak se
+  // pri hrubovani ZLEVA vyda dno v zrcadlene souradnici (G1 Z-9.000).
+  if (typeof pass.emitZEnd === 'number') out.emitZEnd = -pass.emitZEnd;
   if (typeof pass.z === 'number') { out.z = -pass.z; out.faceLeft = true; }   // čelní průchod
   if (typeof pass.retractCapZ === 'number') out.retractCapZ = -pass.retractCapZ;   // mez odskoku na kraji pásu 📐
   if (pass.ramp) out.ramp = { ...pass.ramp, z0: -pass.ramp.z0 };

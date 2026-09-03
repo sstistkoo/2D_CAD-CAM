@@ -104,6 +104,11 @@ calc.passes.forEach((pass, i) => {
     const entry = li.length > 0
       ? { x: li[0].x1, z: li[0].z1 }
       : (pass.ramp ? { x: pass.ramp.x0, z: pass.ramp.z0 } : { x: pass.x, z: pass.zStart });
+    // `emitChainFrom`: predchozi pruchod byl MEZIKROK sjezdu do TEHLE vrstvy
+    // (jedno `ap`, dve zanoreni) a skoncil presne tam, odkud ma rampa
+    // pokracovat - nuz tam stoji, takze zadny najezd. Ciste emisni znacka,
+    // plan ji nezna (viz roughLong.js, uzaviraci krok).
+    if (pass.emitChainFrom) { entry.x = cur.x; entry.z = cur.z; }
     if (pass.pocketReposition) {
       // Dobrat kapsu najednou — návrat v kapse na pokračování rampy:
       //   1) ODSKOK pod 45° pryč od kontury o vzdálenost Odskok (stejně
@@ -332,7 +337,10 @@ calc.passes.forEach((pass, i) => {
       // na rychloposuv(vzduch)/posuv(materiál) podle siluety odlitku: krok
       // řetězu dorampování běží až na stěnu kontury a po cestě může přejet
       // celé údolí, kde nástroj nemá co řezat.
-      const rampBody = airSplitAxial(bodyX, pass.zStart, pass.zEnd, Math.sign(pass.zEnd - pass.zStart) || zDir);
+      // `emitZEnd`: mezikrok sjezdu nedojizdi na konec vrstvy - dojede jen
+      // tam, odkud se dozanoruje na plne `ap` (viz emitChainFrom vys).
+      const rampEndZ = Number.isFinite(pass.emitZEnd) ? pass.emitZEnd : pass.zEnd;
+      const rampBody = airSplitAxial(bodyX, pass.zStart, rampEndZ, Math.sign(rampEndZ - pass.zStart) || zDir);
       // KONCOVÝ vzduch se nejezdí (stejně jako u otevřeného průchodu níž):
       // za posledním řezem už polotovar nesahá a cíl kroku může ležet
       // desítky mm v prázdnu (reálný nález na díle uživatele: `G0 Z349`
