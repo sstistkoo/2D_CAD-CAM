@@ -923,13 +923,44 @@ export function genLongPasses(ctx) {
       // udržuje invariant loX=selže, hiX=projde a sbíhá k hranici odshora.
       let loX = currentX, hiX = entryRampAnchor.x;
       let bestCiv = null, bestX = null;
+      // ── SKEN TU ŽÁDNÉ INTERVALY NEVRACÍ ──────────────────────────────────
+      // Test „scan() ještě pustí" nemohl v tomhle režimu projít NIKDY. Řetěz
+      // vzniká právě tehdy, když `scan` vrátí PRÁZDNO (proto ta rampa od
+      // hranice rozsahu vůbec je), takže `midIv` bylo pokaždé null, bisekce
+      // jen sunula `loX` a uzavírací krok se nevydal.
+      //
+      // Nález uživatele 3. 9. 2026: rozsah Z uprostřed hřídele, žebřík hloubek
+      // 12,803 → 9,803. Na hřídeli je hrubovací offset 10,317, takže vrstva
+      // 9,803 tam nesmí — a mezi 12,803 a offsetem zůstalo 2,49 mm stát.
+      //
+      // V prázdném režimu se proto ptáme TÝMŽ způsobem jako hlavní blok rampy:
+      // pustí přímka zanoření z kotvy na hloubku `mid` a je pod ní kus okna,
+      // kde kontura nebrání? DVĚ MEZE, bez kterých to vyrábí smetí: krok musí
+      // být MĚLČÍ než hloubka, na které řetěz selhal (jinak bisekce skončí na
+      // `bestX === currentX`, tedy na hloubce, o které víme, že nejde), a okno
+      // musí být delší než krok skenu (`holder-casting-slanted-face` dostal
+      // průchod dlouhý 0,13 mm, `part-1` 0,05 mm).
+      const stepWindow = (mid) => {
+        if (!(mid - currentX > 0.05)) return null;
+        const zS = entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL;
+        if (!(zS > effZMin - 0.05)) return null;
+        if (blockedAt(mid, zS)) return null;      // rampa dosedne rovnou na konturu
+        let zEnd = effZMin;
+        for (let zw = zS - dzScan; zw > effZMin; zw -= dzScan) {
+          if (blockedAt(mid, zw)) { zEnd = refineEngageZ(mid, zw + dzScan, zw); break; }
+        }
+        return (zS - zEnd > dzScan) ? { zStart: zS, zEnd } : null;
+      };
       for (let k = 0; k < 20; k++) {
         const mid = (loX + hiX) / 2;
         const midScan = scan(mid, entryZ, effZMin, true);
         const midIv = (midScan.firstOpen && midScan.intervals.length > 0) ? midScan.intervals[0] : null;
         const zSmid = midIv ? entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL : null;
+        const win = midIv ? null : (midScan.intervals.length === 0 ? stepWindow(mid) : null);
         if (midIv && zSmid > midIv.zEnd + 0.05) {
           bestCiv = midIv; bestX = mid; hiX = mid;
+        } else if (win) {
+          bestCiv = win; bestX = mid; hiX = mid;
         } else {
           loX = mid;
         }
@@ -970,7 +1001,16 @@ export function genLongPasses(ctx) {
           clipLeadOutToDepth(lo, entryRampAnchor.x);
           if (lo.length > 0) finalPass.contourLeadOut = lo;
         }
-        passes.push(finalPass);
+        // Uzavírací krok je MĚLČÍ než hloubka, na které se řetěz zavřel,
+        // takže patří PŘED průchody, které tahle hloubka právě vydala — táž
+        // hloubková monotonie a táž ochrana řetězu jako u odloženého zanoření.
+        let at = passes.length;
+        while (at > passMark && Number.isFinite(passes[at - 1].x)
+               && passes[at - 1].x < bestX - 1e-6) at--;
+        if (at < passes.length
+            && (passes[at].pocketReposition || passes[at].cleanApproach
+                || (at > passMark && passes[at - 1].noRetract))) at = passes.length;
+        passes.splice(at, 0, finalPass);
       }
     }
     // ── Poslední (kratší) vrstva před nedosažitelnou hranicí ───────────────
