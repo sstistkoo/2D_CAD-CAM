@@ -43,21 +43,62 @@ const prog = {
 describe('rozsah Z uprostřed polotovaru', () => {
   it('průchody vjíždějí rampou od hranice polotovaru, ne kolmým zápichem', async () => {
     const { calc, gcode } = await runCamProg(prog);
+    const tan = Math.tan(30 * Math.PI / 180);
     const ramped = calc.passes.filter(p => p.type === 'long' && p.ramp);
     expect(ramped.length).toBeGreaterThan(0);
-    for (const p of ramped) {
-      // kotva rampy: začátek rozsahu (z=−30), povrch + vůle X (30+1=31)
-      expect(p.ramp.z0).toBeCloseTo(-30, 4);
-      expect(p.ramp.x0).toBeCloseTo(31, 4);
-      // rampa má úhel zanoření: Δz = Δx / tan(30°)
-      const dz = p.ramp.z0 - p.zStart;
-      const dx = p.ramp.x0 - p.x;
-      expect(dz).toBeCloseTo(dx / Math.tan(30 * Math.PI / 180), 2);
-    }
+
+    // ── KOTVA SE ŘETĚZÍ, NERESTARTUJE ─────────────────────────────────────
+    // Assertion přepsána 2. 9. 2026. Test dřív žádal kotvu (31, −30) pro
+    // KAŽDOU hloubku, tedy „každá vrstva ramuje znovu od povrchu". Ten model
+    // opustil `fcc0def` (27. 8. 2026) — a vědomě: kdyby hlubší vrstva začínala
+    // na povrchu, prorampovala by znovu i ten klín, který vyřízla vrstva nad
+    // ní (reálný nález na díle uživatele, viz `entryRampAnchor` v
+    // ops/roughLong.js). Kotva proto sjíždí PO SDÍLENÉ PŘÍMCE zanoření a každá
+    // další sedí na hloubce a začátku té předchozí — tedy na povrchu, který
+    // předchozí vrstva právě obrobila.
+    //
+    // Zástupná aritmetika tím zastarala a test padal 24 commitů (kotva
+    // −32,598 proti očekávaným −30), přestože dráha je správně. Měří se proto
+    // to, co hlavička souboru odjakživa slibuje — „všechny hloubky sdílejí
+    // tutéž přímku" — plus samo navázání řetězu.
+    const [first] = ramped;
+    // První kotva = průsečík čáry začátku rozsahu (z=−30) s povrchem
+    // polotovaru + vůle X (30+1=31).
+    expect(first.ramp.z0).toBeCloseTo(-30, 4);
+    expect(first.ramp.x0).toBeCloseTo(31, 4);
+
+    ramped.forEach((p, i) => {
+      // (a) kotva leží na TÉŽE přímce zanoření jako ta první
+      expect((31 - p.ramp.x0)).toBeCloseTo((-30 - p.ramp.z0) * tan, 4);
+      // (b) rampa z kotvy na hloubku má úhel zanoření
+      expect(p.ramp.z0 - p.zStart).toBeCloseTo((p.ramp.x0 - p.x) / tan, 2);
+      // (c) řetěz: kotva sedí na hloubce a začátku PŘEDCHOZÍ vrstvy, takže
+      //     sjezd k ní jde po už obrobeném povrchu, ne skrz materiál
+      if (i > 0) {
+        expect(p.ramp.x0).toBeCloseTo(ramped[i - 1].x, 6);
+        expect(p.ramp.z0).toBeCloseTo(ramped[i - 1].zStart, 6);
+      }
+    });
+
     expect(gcode).toContain('Rampa');
-    // Žádný kolmý zápich na hranici: dřívější vzor G0 Z(−30+vůle) → G1 X(hloubka)
-    // uvnitř materiálu se u rampovaných průchodů nevyskytuje — vjezd jde po
-    // rampě z povrchu. (Kontrola: v kódu není G1 X.. bez Z na z≈−29.)
+
+    // ── ŽÁDNÝ KOLMÝ ZÁPICH ────────────────────────────────────────────────
+    // Hlavička tuhle podmínku slibovala od začátku, ale nikdy se neměřila.
+    // Nález uživatele 2. 9. 2026 ukázal, proč má: přeskupení pořadí průchodů
+    // dokáže kotvu nechat viset pod povrchem a sjezd k ní se pak prořeže
+    // plným materiálem (tam 11,8 a 14,8 mm radiálně). Radiální posuv smí být
+    // jen přísun přes vůli — tady vychází 1,8 mm.
+    let x = null, deepest = 0;
+    for (const line of gcode.split('\n')) {
+      const body = line.replace(/;.*/, '').trim();
+      if (!body.startsWith('N')) continue;
+      const xm = body.match(/X(-?[\d.]+)/);
+      const isFeed = /\bG0?1\b/.test(body);
+      const hasZ = /Z(-?[\d.]+)/.test(body);
+      if (xm && isFeed && !hasZ && x !== null) deepest = Math.max(deepest, x - +xm[1]);
+      if (xm) x = +xm[1];
+    }
+    expect(deepest, `nejhlubší kolmý posuv v X: ${deepest.toFixed(3)} mm`).toBeLessThan(2.5);
   }, 30000);
 });
 

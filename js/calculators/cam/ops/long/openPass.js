@@ -8,7 +8,6 @@
 // `rampSt` nese stav kotvy rampy PŘES intervaly i hloubky (`anchor`,
 // `closed`) — je to objekt, protože tělo má `return;` uprostřed.
 
-import { intersectHorizontalLineArc } from '../../camMath.js';
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
 import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 
@@ -393,16 +392,34 @@ export function emitOpenInterval(D) {
     // Zpětná chůze proto pokračuje přes VŠECHNY segmenty na hloubce vrstvy
     // nebo pod ní a končí až na tom, který stoupl nad ni; ten se započítá
     // jen po průsečík s `currentX`.
+    // Z, ve kterém segment protne hloubku vrstvy `X`. U OBLOUKU se hledá
+    // půlením PO ÚHLU, ne přes průsečík kružnice s vodorovnou čarou: kružnice
+    // má na jedné hloubce dvě řešení a obě můžou padnout do Z-rozsahu výseku
+    // (oblouk delší než čtvrtkruh). Vzít „první v rozsahu" znamená u poloviny
+    // takových oblouků vzít TU DRUHOU STRANU a nahlásit pokrytí, které tam
+    // není — a to je směr, který stojí materiál. Segment sem chodí jen
+    // PŘEKLENUJÍCÍ (jeden konec nad hloubkou, druhý pod), takže půlení je
+    // jednoznačné.
     const zAtDepth = (s, X) => {
-      if (s.type === 'arc') {
-        const zLo = Math.min(s.z1, s.z2), zHi = Math.max(s.z1, s.z2);
-        for (const z of intersectHorizontalLineArc(X, { x: s.cx, z: s.cz }, s.r))
-          if (z >= zLo - 1e-6 && z <= zHi + 1e-6) return z;
-        return null;
+      const zLo = Math.min(s.z1, s.z2), zHi = Math.max(s.z1, s.z2);
+      const clamp = (z) => Math.max(zLo, Math.min(zHi, z));
+      if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+        const at = (t) => {
+          const a = s.startAngle + (s.endAngle - s.startAngle) * t;
+          return { x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r };
+        };
+        let lo = 0, hi = 1;
+        const above0 = at(0).x > X;
+        if (above0 === (at(1).x > X)) return null;      // neprotíná
+        for (let i = 0; i < 32; i++) {
+          const m = (lo + hi) / 2;
+          if ((at(m).x > X) === above0) lo = m; else hi = m;
+        }
+        return clamp(at((lo + hi) / 2).z);
       }
       const dx = s.x2 - s.x1;
       if (Math.abs(dx) < 1e-9) return null;
-      return s.z1 + (X - s.x1) / dx * (s.z2 - s.z1);
+      return clamp(s.z1 + (X - s.x1) / dx * (s.z2 - s.z1));
     };
     let coverLo = null, coverHi = null;
     for (let k = leadOut.length - 1; k >= 0; k--) {

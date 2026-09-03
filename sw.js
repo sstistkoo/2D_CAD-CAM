@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v253';
+const CACHE_NAME = 'skica-v256';
 const ASSETS = [
   './',
   './index.html',

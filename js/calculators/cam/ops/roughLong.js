@@ -1050,6 +1050,9 @@ export function genLongPasses(ctx) {
   // výjezdu nesmí přejet konec průchodu — a řez by skončil o vůli dřív
   // (hlídá tests/cam-leadout-step na range-chain-insert-shadow).
 
+  // Průchody PŘEDCHOZÍCH regionů — konstantní po celý tenhle blok, takže
+  // se krájí jednou, ne v každém kroku každého řetězu (viz depthCutClampZ).
+  const priorPasses = passes.slice(0, regionMark);
   for (const rc of pendingRampCompletions) {
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
     const rcSteps = [];
@@ -1129,7 +1132,7 @@ export function genLongPasses(ctx) {
       // se nepokračuje ZA ni. Uživatel místo ukázal snapem: X 28,822 Z 79,975.
       const rawEndZ = straightRunEndZ(stepX, stepZ, traceFloorL);
       const rcFloor = Math.max(traceFloorL,
-        depthCutClampZ(passes.slice(0, regionMark), stepX, stepZ, rawEndZ));
+        depthCutClampZ(priorPasses, stepX, stepZ, rawEndZ));
       const stepEndZ = isLastStep ? stepZ
         : (rcFloor > traceFloorL
           ? Math.max(straightRunEndZ(stepX, stepZ, rcFloor), stockRunBackZ(stepX, stepZ, rcFloor))
@@ -1241,7 +1244,35 @@ export function genLongPasses(ctx) {
     }
     passes.length = regionMark;
     for (const p of head) passes.push(p);
-    for (const p of tail) passes.push(p);
+    // ── ODLOŽIT SE SMÍ JEN ZA MĚLČÍ, NE ZA HLUBŠÍ (2. 9. 2026) ───────────
+    // „Co je nahoře, má přednost" platí, dokud se odkládá za VĚTŠÍ průměry.
+    // Když ale v `head` zůstane vrstva HLUBŠÍ než odložená skupina, přesun
+    // na konec regionu pořadí obrátí — a to není jen kosmetika: kotvy ramp
+    // se hledají proti modelu zbytku v POŘADÍ PLÁNOVÁNÍ, takže kotva průchodu
+    // z `head` může sedět na hloubce, kterou teprve odebere odložená skupina.
+    // Sjezd k ní se pak musí prořezat plným materiálem KOLMO DOLŮ, což je
+    // u plátku s úhlem < 90° zakázané (§3.1 pravidel drah).
+    //
+    // Nález uživatele 2. 9. 2026 (rozsah Z uprostřed polotovaru): pořadí
+    // vyšlo r 9,803 → 6,803 → 18,803 → 15,803 → 12,803 a kotva první vrstvy
+    // seděla na r 12,783 = přesně zbytek po vrstvě r 12,803, která jede AŽ
+    // POTOM. Výsledek `N160 G1 X12.783` — 11,8 mm radiálně do plného kusu.
+    //
+    // Skupina se proto vloží tam, kam patří hloubkově — týž postup, jakým se
+    // řadí dobírací řetěz ramp o pár řádků výš (včetně ochrany řetězu).
+    if (tail.length > 0) {
+      let deepestTailX = Infinity;
+      for (const p of tail) if (Number.isFinite(p.x) && p.x < deepestTailX) deepestTailX = p.x;
+      let at = passes.length;
+      if (Number.isFinite(deepestTailX)) {
+        while (at > regionMark && Number.isFinite(passes[at - 1].x)
+               && passes[at - 1].x < deepestTailX - 1e-6) at--;
+        if (at < passes.length
+            && (passes[at].pocketReposition || passes[at].cleanApproach
+                || (at > regionMark && passes[at - 1].noRetract))) at = passes.length;
+      }
+      passes.splice(at, 0, ...tail);
+    }
   }
   } // konec smyčky regionů
 
@@ -1488,6 +1519,9 @@ export function genLongPasses(ctx) {
     for (const p of passes) notePassInto(tab, p);
     globalThis.__FLOOR_TAB_DUMP__.push({
       z0: capZ0, dz: DZ_CAP, stock: Array.from(capTab), floor: Array.from(tab),
+      // Viz `len` u trackeru níž — generátor běží víckrát a jen jeden běh
+      // skončí v `calc`, podle kterého se emituje G-kód.
+      len: passes.length,
     });
   }
 
@@ -1522,6 +1556,13 @@ export function genLongPasses(ctx) {
       loops: tracker.loops.map(l => l.map(q => ({ x: q.x, z: q.z }))),
       seed: tracker.seedLoop ? tracker.seedLoop.map(q => ({ x: q.x, z: q.z })) : null,
       count: tracker.count,
+      // KTERÝ BĚH TO JE. `calculate()` pouští generátor VÍCKRÁT (a headless
+      // runner volá `calculate()` dvakrát), přičemž jednotlivé běhy nemusí
+      // vydat totéž — do `calc`, ze kterého se pak emituje G-kód, se dostane
+      // jen jeden z nich. Bez tohohle čísla si měřicí test nemá jak vybrat
+      // ten správný a porovnává model z jednoho běhu s dráhou z jiného
+      // (na `part-8` to vypadalo jako „model lže o 5,786 mm").
+      len: passes.length,
     });
   }
 }

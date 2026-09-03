@@ -304,6 +304,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Model zbytku „lhal o 5,786 mm" — ve skutečnosti se porovnávaly DVA RŮZNÉ
+  BĚHY.** `cam-strategy-residual` bral tracker z `trk[0]` s odůvodněním
+  „pipeline běží dvakrát, model z prvního běhu je ten, podle kterého se
+  plánovalo". Generátor ale běží v každém `calculate()` VÍCKRÁT a jednotlivé
+  běhy se liší: na `part-8` vydaly 44 a 41 průchodů a do `calc` (tedy do
+  G-kódu, ze kterého se replayuje realita) šel ten se 41. Rozdíl modelů
+  21,565 − 15,779 = **5,786 mm** — přesně to, co test hlásil jako vadu
+  materiálového modelu.
+
+  Seamy `__RESIDUAL_TRACKER_DUMP__` i `__FLOOR_TAB_DUMP__` nově nesou `len`
+  (délka pole průchodů toho běhu) a test si podle ní vybere běh shodný
+  s `calc.passes`. Po opravě je tracker proti reálně projeté dráze na
+  0,012–0,046 mm (mez 0,05) na všech měřených dílech — **model nelže**.
+
+- **Akceptační testy kroku 3 přesměrovány — kritérium je splněné.**
+  `cam-residual-clamp > part-8: 4 nálezy / 33,4 mm² → 0` padal na vlastní
+  pojistce „bez příznaku ta vada JE": `part-8` je dnes čistý s příznakem
+  `orderAwareHolder` i bez něj (0 nálezů, 40 průchodů v obou) — ty čtyři
+  nálezy odstranily jiné opravy. Přeměřeno na celé sadě: příznak mění program
+  na sedmi fixtures, ale kolize nikde. Test nově hlídá, co pravda JE a co by
+  regrese porušila — příznak nesmí kolize zhoršit a nesmí být tichý no-op.
+  Ze stejného důvodu vypadl `holder-casting-slanted-face` z porovnání
+  „tracker je proti výškovému poli měřitelně lepší" (pole tam podřezává
+  0,000 mm, tunel v dnešním programu nevzniká); `part-8` ho měří dál a
+  pořádně — 9,366 mm proti 0,012 mm.
+
+- **`tests/range-entry-ramp` měřil opuštěný model — 24 commitů červený.**
+  Test žádal kotvu rampy `(31, −30)` pro KAŽDOU hloubku, tedy „každá vrstva
+  ramuje znovu od povrchu". Ten model opustil `fcc0def` (27. 8. 2026), a
+  vědomě: hlubší vrstva by jinak prorampovala i klín, který vyřízla vrstva nad
+  ní. Kotva se od té doby ŘETĚZÍ po sdílené přímce zanoření. Dráha je celou
+  dobu správná, zastaralá byla zástupná aritmetika v testu.
+
+  Asserty přepsány na to, co hlavička testu odjakživa slibuje: první kotva =
+  průsečík hranice rozsahu s povrchem, každá další leží na TÉŽE přímce
+  zanoření a navazuje na hloubku i začátek předchozí vrstvy. Ověřeno, že
+  nejde o vacuum — s rozbitým řetězem padá 10 assertů. Přibyla i kontrola
+  „žádný kolmý zápich" (hlavička ji slibovala, ale nikdy se neměřila):
+  radiální posuv smí být jen přísun přes vůli, tady 1,8 mm.
+
+- **Dvě dráhy zajížděly KOLMO do plného materiálu — odložené zanoření
+  přeskočilo hlubší vrstvy.** Nález uživatele 2. 9. 2026 (rozsah Z uprostřed
+  polotovaru): *„proč mně tam takhle dvě dráhy kolmo zajíždějí"* —
+  `N160 G1 X12.783` sjel 11,8 mm radiálně do neobrobeného kusu, `N230
+  G1 X9.783` dalších 14,8 mm.
+
+  Pravidlo „co je nahoře, má přednost" odsouvá zanoření na konec regionu
+  (`__deferEntry`), aby se nejdřív odebraly větší průměry. Odsouvalo je ale
+  BEZ KONTROLY, jestli v `head` nezůstala vrstva HLUBŠÍ — a přesně to se
+  stalo: pořadí vyšlo r 9,803 → 6,803 → 18,803 → 15,803 → 12,803, tedy
+  nejhlubší napřed. Kotvy ramp se přitom hledají proti modelu zbytku
+  v POŘADÍ PLÁNOVÁNÍ (tam bylo pořadí správné), takže kotva první vrstvy
+  seděla na r 12,783 = zbytku po vrstvě r 12,803, která jede až potom.
+  Sjezd ke kotvě se pak musel prořezat plným materiálem kolmo dolů — u plátku
+  s úhlem < 90 ° zakázaný zápich (§3.1 pravidel drah).
+
+  Odložená skupina se nově vkládá tam, kam patří hloubkově — týmž postupem
+  (a s toutéž ochranou proti rozříznutí řetězu `noRetract`/`pocketReposition`),
+  jakým se řadí dobírací řetěz ramp. Pořadí je r 18,803 → 15,803 → 12,803 →
+  9,803 → 6,803 a všechny sjezdy jsou 1,8 mm (Vůle), ne 11–15 mm.
+  Úběr i kolize na sadě BEZE ZMĚNY (86 117,7 mm², 0/0 a 2/4,9), hnuly se dvě
+  fixtures o jeden řádek. Opravilo to i
+  `tests/cam-finish-holder > hrubování nemá zpětné axiální řezy`, který
+  obrácené pořadí shazovalo.
+
 - **Hrubování jezdilo po vlastní čerstvé dráze — 85,8 mm z 1 604 mm řezu.**
   Nález uživatele 2. 9. 2026 (*„můžeš se podívat, kde všude mně to tam projíždí
   dvakrát stejnou dráhu"*). Čtyři různé příčiny, změřeno na jeho dílu:

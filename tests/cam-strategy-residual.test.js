@@ -108,9 +108,21 @@ async function measure(name) {
   }
   expect(trk.length, 'seam nevydal tracker — strategie ho přestala plnit').toBeGreaterThan(0);
   expect(tabs.length, 'seam nevydal výškové pole').toBeGreaterThan(0);
-  // Pipeline běží dvakrát (druhý průchod staví simPath z vygenerovaného
-  // G-kódu). Model z PRVNÍHO běhu je ten, podle kterého se plánovalo.
-  const dump = trk[0], tab = tabs[0];
+  // ── VYBRAT BĚH, ZE KTERÉHO OPRAVDU VZNIKL G-KÓD ────────────────────────
+  // Opraveno 2. 9. 2026. Test dřív bral `trk[0]` s odůvodněním „pipeline běží
+  // dvakrát, model z prvního běhu je ten, podle kterého se plánovalo". To
+  // neplatí: generátor běží v každém `calculate()` VÍCKRÁT a jednotlivé běhy
+  // se liší. Na `part-8` vydaly 44 a 41 průchodů — a do `calc` (a tedy do
+  // G-kódu, ze kterého se replayuje realita) šel ten se 41. Porovnával se
+  // proto model jednoho běhu s dráhou jiného: rozdíl 21,565 − 15,779 =
+  // 5,786 mm, přesně to, co test hlásil jako „model lže".
+  //
+  // Vybírá se podle `len` (délka pole průchodů v tom běhu) shodné s
+  // `calc.passes` — a POSLEDNÍ takový, protože emituje se z posledního běhu
+  // prvního `calculate()`. Nesedne-li žádný, vezme se první a test měří jako
+  // dřív (raději hlásit rozdíl než tiše měřit nesmysl).
+  const pick = (arr) => arr.filter(d => d.len === run.calc.passes.length).pop() || arr[0];
+  const dump = pick(trk), tab = pick(tabs);
   expect(dump.seed, 'tracker nemá výchozí smyčku').toBeTruthy();
 
   // HRUBOVÁNÍ ZLEVA JE ZRCADLO. `computeCalculation` překlopí celý svět
@@ -177,7 +189,15 @@ describe('ResidualTracker nelže o materiálu', () => {
 
   // Smysl celého kroku 1: polygonový model umí TUNEL, výškové pole ne.
   // Kdyby tahle nerovnost padla, tracker je jen dražší kopie pole.
-  for (const name of ['part-8', 'holder-casting-slanted-face']) {
+  //
+  // `holder-casting-slanted-face` ze seznamu VEN (2. 9. 2026). Původně tu byl
+  // s naměřeným −13,6 mm; po opravě výběru běhu (viz `pick` v `measure`) je
+  // tam výškové pole na 0,000 mm — ten tunel v dnešním programu prostě
+  // nevzniká. Nerovnost pak neměří přínos trackeru, jen náhodu na jednom
+  // dílu. `part-8` ho měří dál a měří ho pořádně: pole podřezává 9,366 mm
+  // proti trackeru 0,012 mm. V testu „model není níž než realita" výš
+  // `holder-casting-slanted-face` ZŮSTÁVÁ — tam pořád hlídá.
+  for (const name of ['part-8']) {
     it(`${name}: tracker je proti výškovému poli měřitelně lepší`, async () => {
       const { worstTrk, worstTab } = await measure(name);
       // Naměřeno 26. 8. 2026: výškové pole −11,2 (part-8) a −13,6 mm

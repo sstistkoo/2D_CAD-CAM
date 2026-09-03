@@ -65,6 +65,7 @@ strana. Vlastní soubor by znamenal druhou kopii generátoru
 | **Vrstvy jdou od největšího průměru dolů.** | `ops/roughLong.js` (`depths`) |
 | **Úseky (regiony) se řadí podle své nejmělčí dosažené hloubky** — kdo má větší průměr, jde první. | `ops/long/regions.js:276` (`orderRegions`) |
 | **Odložené vjezdy se řadí na konec SVÉHO regionu**, ne až za celý program. Materiál nad zanořeným nástrojem musí zmizet dřív. | `ops/roughLong.js` (`__deferEntry`) |
+| **…ale JEN ZA MĚLČÍ, nikdy za hlubší.** Hloubková posloupnost musí zůstat monotónní i po přeskupení. Kotvy ramp se hledají proti modelu zbytku v POŘADÍ PLÁNOVÁNÍ — přeskočí-li odložená skupina hlubší vrstvu, kotva té vrstvy sedí na materiálu, který teprve zmizí, a sjezd k ní se prořeže plným kusem KOLMO DOLŮ (§3.1 to zakazuje). Nález 2. 9. 2026: pořadí 9,8 → 6,8 → 18,8 → 15,8 → 12,8 a `N160 G1 X12.783` = 11,8 mm radiálně do plného. | `ops/roughLong.js` (vkládání `tail`) |
 | **Dělení na úseky podle hrbů kontury** odstraňuje přejíždění zprava doleva a zpátky v každé vrstvě. | `calculatePipeline.js:450` (přání uživatele 27. 8. 2026) |
 
 ---

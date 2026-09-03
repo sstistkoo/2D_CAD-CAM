@@ -203,17 +203,44 @@ describe('orderAwareHolder v genLongPasses', () => {
   // Dnešní hlídání ho pustí, protože čte VÝŠKOVÉ POLE, které o tunelu neví
   // (krok 1 to tam změřil na 11,2 mm). Polygonový zbytek v tom vjezdu najde
   // 30,1 mm² vnoření držáku a zákrok zahodí.
-  it('part-8 s nakresleným nožem: 4 nálezy / 33,4 mm² → 0', async () => {
-    const off = await run('part-8.camprog', false, MAGAZINE_HOLDER);
-    const on = await run('part-8.camprog', true, MAGAZINE_HOLDER);
+  // ── PŘESMĚROVÁNO 2. 9. 2026 ────────────────────────────────────────────
+  // Test se jmenoval „part-8 s nakresleným nožem: 4 nálezy / 33,4 mm² → 0"
+  // a padal na vlastní pojistce `expect(off.issues.length).toBeGreaterThan(0)`
+  // — tedy na kontrole „bez příznaku ta vada JE; kdyby zmizela jinudy, tenhle
+  // test by tiše přestal měřit, co má". Pojistka zafungovala: `part-8` je
+  // dnes čistý S PŘÍZNAKEM I BEZ NĚJ (0 nálezů, 40 průchodů v obou), protože
+  // ty čtyři nálezy odstranily jiné opravy. Původní akceptační kritérium
+  // kroku 3 (`docs/cam-order-aware-holder.md`) je tím SPLNĚNÉ.
+  //
+  // Přeměřeno na celé sadě: příznak dnes mění program na sedmi fixtures
+  // (±1–2 průchody), ale kolize NIKDE nemění — všude 0/0 (part-20 má 2 /
+  // 4,9 mm² s ním i bez něj). Tvrdit „→ 0" už tedy nejde na ničem.
+  //
+  // Zůstávají dvě věci, které pravda JSOU a které by regrese porušila:
+  // příznak nesmí kolize ZHORŠIT a nesmí být tichý no-op. Přínos modelu
+  // (tunel, který výškové pole neumí) měří dál `cam-strategy-residual`
+  // — na `part-8` pole podřezává 9,366 mm proti trackeru 0,012 mm.
+  it('příznak nezhorší kolize a není tichý no-op', async () => {
+    const FIXTURES = ['part-8.camprog', 'holder-region-roughing.camprog',
+      'holder-casting-slanted-face.camprog'];
     const fmt = (r) => r.issues.map(i => `${i.kind}@r${i.x.toFixed(1)}Z${i.z.toFixed(1)}=${i.area.toFixed(1)}`).join('; ');
-    // Bez příznaku ta vada JE — kdyby zmizela jinudy, tenhle test by tiše
-    // přestal měřit, co má.
-    expect(off.issues.length, `bez příznaku: ${fmt(off)}`).toBeGreaterThan(0);
-    expect(on.issues.length, `s příznakem: ${fmt(on)}`).toBe(0);
-    // Cena je JEDEN zahozený zákrok, ne rozpadlý program.
-    expect(off.passes - on.passes).toBeLessThanOrEqual(2);
-  }, 120000);
+    let changed = 0;
+    for (const f of FIXTURES) {
+      const off = await run(f, false, MAGAZINE_HOLDER);
+      const on = await run(f, true, MAGAZINE_HOLDER);
+      const area = (r) => r.issues.reduce((a, i) => a + i.area, 0);
+      // (a) s příznakem nesmí být kolizí víc ani větší plocha
+      expect(on.issues.length, `${f} s příznakem: ${fmt(on)} × bez: ${fmt(off)}`)
+        .toBeLessThanOrEqual(off.issues.length);
+      expect(area(on), `${f} plocha s příznakem`).toBeLessThanOrEqual(area(off) + 0.05);
+      // (b) cena je nejvýš pár zákroků, ne rozpadlý program
+      expect(Math.abs(off.passes - on.passes), `${f}: rozdíl počtu průchodů`)
+        .toBeLessThanOrEqual(2);
+      if (off.passes !== on.passes || off.issues.length !== on.issues.length) changed++;
+    }
+    // (c) není to no-op — aspoň někde se program s příznakem liší
+    expect(changed, 'příznak nezměnil ani jeden z měřených dílů').toBeGreaterThan(0);
+  }, 240000);
 
   it('ostatní díly se příznakem nehnou (part-1)', async () => {
     // Změřeno sweepem: se zapnutým příznakem se napříč 25 fixtures × 2
