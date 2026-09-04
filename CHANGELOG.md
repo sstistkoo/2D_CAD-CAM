@@ -304,6 +304,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Dráhy končily 1,007 mm PŘED offsetovou čárou — rampový průchod neměl
+  dojezd** (`ops/roughEmit.js`). „Polotovar končí až na offsetové čáře"
+  (§5 pravidel drah) platí i pro konec dráhy, a otevřený průchod to odjakživa
+  dělá (`offsetExitZ`). RAMPOVÝ ho ale nemá — a se zapnutým Zanořováním jsou
+  rampové skoro všechny, takže dráhy končily PŘESNĚ na syrovém obrysu.
+  Nález uživatele 4. 9. 2026 (*„k tomu to má jet až k té offsetové čáře od
+  polotovaru, proč to jede jenom k tomu polotovaru?"*), změřeno na jeho dílu:
+
+  | hloubka | dojezd | syrový obrys | offsetová čára |
+  |---|---|---|---|
+  | 18,803 | 366,721 | 366,721 | 367,728 |
+  | 15,803 | 367,074 | 367,074 | 368,081 |
+  | 12,803 | 367,426 | 367,426 | 368,433 |
+  | 9,803 | 367,779 | 367,779 | 368,786 |
+  | 6,803 | 368,132 | 368,132 | 369,139 |
+
+  Po opravě dojede každá z nich PŘESNĚ na offsetovou čáru. Je to čistě EMISE —
+  plán (`pass.zEnd`, intervaly, regiony) se nemění, takže nevznikají nové
+  kapsy ani vjezdy: **kolize 0 / 0,0 a 2 / 4,9 mm² beze změny**, úběr
+  86 175,6 / 82 975,7 mm² (−2,9 mm², 0,003 %), otisk 12 z 28 fixtures.
+
+  **Dvě věci, které to blokovaly:**
+
+  | co | proč se vypustilo |
+  |---|---|
+  | rampová větev `offsetExitZ` neměla vůbec | doplněna se stejnými podmínkami (`!blocked`, bez dojezdu po kontuře) + navíc `emitZEnd` (mezikrok sjezdu záměrně končí dřív, dozanořuje se z něj další vrstva) |
+  | `rapidHitsStock` dojezd vetoval | hlídá RYCHLOPOSUV, tohle je řezný `G1` a materiál mezi obrysem a offsetovou čárou je přesně to, co se má odebrat. S ním dojela na čáru 1 hloubka z 5 |
+
+  **ZAMĚŘENO A ZAMÍTNUTO: posunout na offsetovou čáru rovnou PLÁNOVACÍ Z-okno**
+  (`stockZRangeAt` měřený na plánovací siluetě místo syrových segmentů — bod
+  z auditu §5.1). Dá sice **+6 820 mm² úběru** (86 178 → 92 998), ale vyrobí
+  **3 nové kolize / 240,2 mm²**: širší okno vytvoří kapsy, jejichž nájezd po
+  kontuře začíná desítky mm daleko (na `part-21` 61 mm, radiální sjezd
+  r 24,6 → 10,3 a držák 110 mm² na Z 284,3). Hlídání to nezachytí, protože
+  plánovací model v tom místě materiál už nevidí (mělčí vrstvy ho v jeho
+  pořadí odebraly), kdežto validátor přehrává skutečnou dráhu — je to tentýž
+  order-aware rozdíl jako v `docs/cam-order-aware-holder.md`. Přidat kontrolu
+  držáku na ZAČÁTEK nájezdu kapsy bylo zkoušeno a nálezy to nezměnilo.
+
+- **Pod poslední vrstvou žebříku zůstával stát materiál — rampa teď pokračuje
+  až dolů** (`ops/roughLong.js`). Hloubkový žebřík jde po celé Hloubce (`ap`)
+  od povrchu, takže poslední krok přestřelí hranici, za kterou geometrie
+  nepustí. U NEZAKRYTÉHO vjezdu to dobírá blok „poslední (kratší) vrstva";
+  u `entryCapped` (vjezd na hranici rozsahu 📐 nebo regionu) se spoléhalo na
+  uzavírací krok řetězu — jenže ten je **jednorázový** (`entryRampClosed`).
+  Jakmile se zavřel, hlubší hloubky neměly ŽÁDNÝ mechanismus a vypadly celé.
+
+  Změřeno na dílu uživatele (rozsah Z 283–458, podélně zleva, polygon 15°):
+  řetěz se zavřel na hloubce 9,803, hloubky 3,803 / 0,803 / 0,054 vydaly
+  NULU a pod vrstvou r 6,803 zůstalo **2,52 mm nad offsetem** v pásu
+  Z 362–368. Zadání uživatele 4. 9. 2026: *„ať to pokračuje až dolů i na
+  rampě a dobere všechny vrstvy."*
+
+  Nový blok proto bisekcí hledá NEJHLUBŠÍ X, na kterém sken ještě vydá
+  interval. Hledá se ve smyčce (každý nalezený krok posune strop), takže se
+  dobere i tvar, na který jedna rovná vrstva nestačí; krok přitom nikdy
+  nepřesáhne `ap` a musí něco ODEBRAT (≥ `0,25 · ap`) — bez té druhé meze
+  blok při každé další příčce žebříku ukrojil další slupku 0,118 mm
+  s degenerovanou rampou (nález uživatele: *„ta poslední vrstva nejde úplně
+  dolů a nezanořuje se správně, ale je jenom kousek od té předposlední"*),
+  protože okno `effZMin` se s hloubkou rozšiřuje a pokaždé projde o kousek
+  hlubší X.
+
+  Dno okna se pro tenhle blok měří na PLÁNOVACÍ siluetě, ne na syrovém obrysu:
+  klín mezi nimi u čela zbytek jinak vůbec nezná a poslední vrstva se
+  zastavila na r 4,233, ačkoli hrubovací kontura tam začíná na **r 4,061**.
+  Je to lokální jen pro tenhle blok — globální posun `stockZRangeAt` je
+  změřený a zamítnutý (viz výš). Po opravě jede poslední vrstva na r 4,114
+  jedním krokem 2,69 mm s rampou z r 6,783 pod 15°.
+
+  **Rampa je povinná** — týž pár testů (`holderFitAreaAlong` + `residEntryArea`)
+  jako u posunutého vjezdu v `openPass.js` (pravidlo uživatele z 1. 9. 2026,
+  §3.1 pravidel drah). Blok se proto **netýká svislého zanoření** (upichovák,
+  90°): pustit ho i tam stálo změřeně **−121,3 mm² úběru** na sadě při
+  nezměněných kolizích — vzalo to o průchod míň a rozhodilo dva díly
+  s upichovákem.
+
+  Krok nikdy nepřesáhne `ap` (mezi poslední vrstvou s průchody a `currentX`
+  může být víc prázdných příček — na `part-11-zleva-casting` 15 mm při ap 5)
+  a musí být MĚLČÍ než hloubka, na které hlavní smyčka selhala; bez toho
+  bisekce sbíhá přesně na ni, tedy na hloubku, o které už víme, že nejde
+  (z 11 vynechání na třech fixtures jich 8 bylo právě tohle).
+
+  **Dvě věci, které blok NESMÍ dělat** — obě chytila regresní sada:
+
+  | co | proč |
+  |---|---|
+  | nechat po sobě sondy v `holderBlockedDepths` | `scan` s `mainScan = true` zapisuje do ŽIVÉ množiny, ze které se hlásí ⚠ „N hloubek se nedá obrobit" — počet vystřelil na 19 z 28 fixtures (`part-1`: 11 → 42) při bajt po bajtu stejném G-kódu. Množina se proto kolem bloku obnoví. (`mainScan = false` není náhrada: příznak jde dál do `holderClampZEnd` jako `mainStair` a mění, co clamp vrátí.) |
+  | hlásit neúspěch do ⚠ panelu | bonusový pokus NAD rámec žebříku nic nezahazuje, a hlásil by CIZÍ VĚTOU: změřeno, že důvod je buď „`stockEntryRamp` = null" (vjezd už je nad zbytkem, není ČÍM rampovat), nebo obálka držáku (part-10 27,5 mm², holder-region 168,1 mm²) — a tu hlásí vlastní počítadlo |
+
+  Na dílu uživatele: zbytek v pásu Z 355–369 **2,52 → 0,00 mm** (plocha
+  7,1 → 0,0 mm²), o dva průchody víc. Otisk celé sady je **bajt po bajtu
+  shodný** — žádná fixture tenhle stav nemá, proto přibyla
+  `part-22-zleva-deep-ramp` a `tests/cam-deep-ramp-layers.test.js`.
+
+  Poslední vrstvu z těch dvou vydá až detail, který je snadné přehlédnout:
+  strop pro příští příčku žebříku musí být NEJHLUBŠÍ SKUTEČNĚ OBROBENÁ
+  hloubka, ne `currentX`. Na `currentX` hlavní smyčka právě selhala, takže
+  o ní neplatí „tam to jde" — a bisekce i `clipLeadOutToDepth` ji berou jako
+  vrstvu nad sebou. Bez toho zůstalo v pásu ještě 0,24 mm.
+
+- **Kotva zanořovací rampy šplhala o desítky mm dál, než měla — vzorek
+  podlahy ze špatné strany** (`ops/long/entryRamp.js`). Povrch zbytku nad
+  plánovanou vrstvou tvoří dojezd předchozí vrstvy po kontuře a ten klesá
+  PŘESNĚ pod úhlem zanoření (mezní čára „stínu" břitu se konstruuje pod týmž
+  úhlem, viz `findSteepCorner`). Rampa je s ním rovnoběžná a drží se ho
+  přesně — jenže `residTopSafe` bere z dvojice sousedních vzorků (krok
+  `DZ_CAP` = 0,25 mm) VYŠŠÍ hodnotu, takže hlášená podlaha je proti rampě
+  systematicky výš o `DZ_CAP · tan(úhel)` = 0,067 mm při 15°. Dotyk se proto
+  nevyhodnotil NIKDY a kotva pokračovala, dokud povrch nezploštěl.
+
+  Změřeno na dílu uživatele (rozsah Z 283–458, polygon 15°): kotva vyšla
+  `[10,267; −345,766]` místo rohu `[6,80; −358,69]` — o 13 mm dál a 3,5 mm
+  výš, rampa 21,9 mm místo 9,0 mm. A protože o výsledku rozhodovala jen FÁZE
+  vzorkování, přeskakoval: z 24 zkoušených hloubek jich 5 kotvu trefilo a 19
+  minulo. Po opravě dosedne kotva na podlahu poslední vrstvy u všech 24
+  a radiální rozsah rampy klesl pod `ap`.
+
+  Chůze rampy proto čte vzorek POD bodem (odkud rampa přilétá), ne vyšší
+  z dvojice; `residTopSafe` zůstává beze změny tam, kde se ptá rychloposuv.
+  U SCHODU je vzorek zespodu táž bezpečná strana: kotva dosedne na nižší
+  podlahu PŘED schodem, kudy rychloposuv opravdu projde, kdežto vyšší vzorek
+  ji pošle až za něj. Varianta „povolit rampě 0,087 mm pod hlášenou podlahou"
+  (týž účinek, jiná cesta) posadí kotvu POD skutečný povrch a hne 11 fixtures
+  místo 5 — zamítnuta.
+
+  Dopad na sadu: 5 z 28 fixtures (`part-4`, `part-6`, `part-8`, `part-9`,
+  `part-21-zleva-insert-shadow`), pokaždé ZKRÁCENÍM rampy; úběr i kolize beze
+  změny (86 178,5 / 82 975,7 mm², 0 / 0,0 a 2 / 4,9 mm²), sada 1544/1544.
+
+- **Osiřelé ladicí logování v `ops/roughLong.js` odstraněno.** `globalThis.__DEPTH__`
+  s natvrdo zadanou konstantou jednoho regionu (`+227.6`) se do repa dostalo
+  s commitem `7581e63`; nic ho nenastavovalo, takže to byl mrtvý kód.
+
 - **Model zbytku „lhal o 5,786 mm" — ve skutečnosti se porovnávaly DVA RŮZNÉ
   BĚHY.** `cam-strategy-residual` bral tracker z `trk[0]` s odůvodněním
   „pipeline běží dvakrát, model z prvního běhu je ten, podle kterého se

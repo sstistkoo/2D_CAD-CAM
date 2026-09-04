@@ -119,6 +119,41 @@ export function makeEntryRamp({
     const top = residTopSafe(q.z);
     return top !== null && q.x >= top - 0.02;
   };
+  // ── VZOREK ZE STRANY, ODKUD RAMPA PŘILÉTÁ (4. 9. 2026) ─────────────────
+  // `residTopSafe` bere z dvojice sousedních vzorků VYŠŠÍ hodnotu. Pro dotaz
+  // „smí sem rychloposuv?" je to správně, pro STOUPAJÍCÍ RAMPU ne: povrch
+  // zbytku nad vrstvou tvoří dojezd předchozí vrstvy po kontuře a ten klesá
+  // PŘESNĚ pod úhlem zanoření (mezní čára „stínu" břitu se konstruuje pod
+  // týmž úhlem — viz `findSteepCorner` níž). Rampa je s ním rovnoběžná a drží
+  // se ho přesně, jenže hlášená podlaha je proti ní posunutá o
+  // (vzorek − z)·sklon, tedy až `DZ_CAP · tan(úhel)` = 0,067 mm při 15°.
+  // Dotyk se pak nevyhodnotí NIKDY a kotva šplhá dál, dokud povrch nezploští.
+  //
+  // Změřeno na dílu uživatele (rozsah Z 283–458, polygon 15°): kotva vyšla
+  // [10,267; −345,766] místo rohu [6,80; −358,69] — o 13 mm dál a 3,5 mm výš,
+  // rampa 21,9 mm místo 9,0 mm. A protože o tom rozhodovala jen FÁZE
+  // vzorkování, výsledek přeskakoval: ze 24 zkoušených hloubek jich 5 kotvu
+  // trefilo a 19 minulo.
+  //
+  // Vzorek POD bodem je proti stoupající rampě správná strana i u SCHODU:
+  // kotva dosedne na nižší podlahu PŘED schodem, kudy rychloposuv opravdu
+  // projde, kdežto vyšší vzorek ji pošle až za něj. Práh 0,02 se NEMĚNÍ —
+  // povolit rampě 0,087 mm pod hlášenou podlahou (varianta se stejným
+  // účinkem) posadí kotvu POD skutečný povrch a hne 11 fixtures místo 5.
+  const residTopFrom = (z) => {
+    const t = stockTopTab(z);
+    if (t === null) return null;
+    if (!T.activeFloorTab) T.syncCutFloor();
+    const tab = T.activeFloorTab || T.cutFloorTab;
+    if (!tab) return t;
+    const i = Math.floor((z - T.capZ0) / DZ_CAP);
+    const cut = (i >= 0 && i < tab.length) ? tab[i] : -Infinity;
+    return cut === -Infinity ? t : Math.min(t, cut);
+  };
+  const atResidTopRamp = (q) => {
+    const top = residTopFrom(q.z);
+    return top !== null && q.x >= top - 0.02;
+  };
   const stockEntryRamp = (X, zEntry) => {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
@@ -138,12 +173,12 @@ export function makeEntryRamp({
       // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
       // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
       if (blockedAt(p.x, p.z)) return null;
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside' || atResidTop(p)) {
+      if (pointInLoop(p, stockLoopOffsetL) === 'outside' || atResidTopRamp(p)) {
         let lo = tPrev, hi = t;
         for (let k = 0; k < 24; k++) {
           const m = (lo + hi) / 2;
           const q = at(m);
-          if (pointInLoop(q, stockLoopOffsetL) === 'outside' || atResidTop(q)) hi = m; else lo = m;
+          if (pointInLoop(q, stockLoopOffsetL) === 'outside' || atResidTopRamp(q)) hi = m; else lo = m;
         }
         const q = at(hi);
         return { x0: q.x, z0: q.z };

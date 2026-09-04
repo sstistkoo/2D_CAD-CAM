@@ -363,6 +363,38 @@ calc.passes.forEach((pass, i) => {
         setPos(bodyX, s.z);
       }
     }
+    // ── DOJEZD AŽ NA OFFSETOVOU ČÁRU I U RAMPOVÉHO PRŮCHODU ───────────────
+    // Otevřený průchod níž tohle dělá odjakživa (`offsetExitZ`), rampový ne —
+    // a protože se zanořováním jsou rampové skoro všechny, končily dráhy
+    // PŘESNĚ na syrovém obrysu. Změřeno na dílu uživatele (rozsah Z 283–458):
+    // hloubky 18,803 / 15,803 / 12,803 / 9,803 / 6,803 dojely na 366,721 /
+    // 367,074 / 367,426 / 367,779 / 368,132 — tedy vždy **1,007 mm** před
+    // offsetovou čárou. „Polotovar končí až na offsetové čáře" (§5 pravidel),
+    // takže tam patří i konec dráhy.
+    //
+    // Je to čistě EMISE: plán (`pass.zEnd`, intervaly, regiony) se nemění,
+    // takže nevznikají nové kapsy ani vjezdy. Posunout kvůli tomu plánovací
+    // Z-okno (`stockZRangeAt` na plánovací siluetu) bylo změřeno a ZAMÍTNUTO:
+    // dá sice +6 820 mm² úběru, ale vyrobí 3 nové kolize / 240 mm² (part-21:
+    // radiální sjezd 14,3 mm a držák 110 mm² na Z 284,3), protože širší okno
+    // vytvoří kapsy, jejichž nájezd začíná 61 mm daleko tam, kde držák nestojí.
+    //
+    // `emitZEnd` = mezikrok sjezdu; ten záměrně končí dřív (dozanořuje se
+    // z něj další vrstva), takže se neprodlužuje.
+    if (!pass.blocked && !pass.contourLeadOut && rapidStock
+        && !Number.isFinite(pass.emitZEnd)) {
+      const zEdge = offsetExitZ(pass.x, cur.z, zDir) ?? -zDir * Infinity;
+      const zExit = clipZGc(zDir < 0
+        ? Math.min(cur.z - rapidClrZGc, zEdge)
+        : Math.max(cur.z + rapidClrZGc, zEdge));
+      // `rapidHitsStock` se tu NEPTÁ: hlídá RYCHLOPOSUV, kdežto tohle je
+      // řezný `G1` — a materiál mezi syrovým obrysem a offsetovou čárou je
+      // přesně to, co se má odebrat. Změřeno: bez toho dojede na offsetovou
+      // čáru jediná hloubka z pěti (9,803), zbytek zůstane 1,007 mm před ní.
+      if (zDir * (zExit - cur.z) > 1e-6) {
+        simCounter += 1; addN(`G1 Z${zExit.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, zExit);
+      }
+    }
     if (pass.contourLeadOut) {
       // Bez schodků / dobrání kapsy: po dně dál po kontuře (G1/G2/G3)
       // místo odskoku — druhá stěna se obrobí přímo po obrysu. Ořez na
