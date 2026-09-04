@@ -304,6 +304,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Hlídání boční hrany destičky promítalo hranu PŘES CELÝ DÍL a maazalo tím
+  průchody na druhém konci** (`ops/long/insertFlankGuard.js`). Hrana je přitom
+  dlouhá jen `toolLength`, takže radiálně sahá `toolLength · sin(natočení)` —
+  u destičky 10 mm natočené o 15° jsou to **2,59 mm**, ne 56.
+
+  Nález uživatele 4. 9. 2026 (rozsah Z 226,35): „pravá stěna" na Ø63,545
+  v Z 233,5 posunula kotvu průchodu na Ø7,545 u ČELA (Z ≈ 358) až na Z 24,5 —
+  tedy o **334 mm** — průchod tím zdegeneroval a byl SMAZÁN. Totéž potkalo
+  Ø4,545. V ⚠ panelu se to hlásilo jako *„2 hrubovací průchody ZKRÁCENY"*,
+  ačkoli zmizely celé, a na výkrese to vypadalo, že se konec dílu neobrobil.
+
+  Komentář přímo v tom bloku tenhle jev popisuje (*„krok řetězu v jednom údolí
+  smazal krok řetězu v jiném, o 120 mm dál"*) a řešil ho tehdy vyloučením
+  `rampCompletion` z „pravých stěn" — jenže NEOMEZENÝ DOSAH zůstal a chytal
+  i obyčejné průchody.
+
+  Dopad na sadu: **+733,3 mm² úběru** (86 175,6 → 86 908,9), kolize
+  **0 / 0,0 a 2 / 4,9 beze změny**, otisk se hnul na JEDINÉ fixture —
+  `part-21-zleva-insert-shadow`, která má tutéž vadu (+131 řádků). Na dílu
+  uživatele se obrobí konec (8 průchodů místo 6, dráhy až na Z 368,4); cenou
+  jsou dva nálezy `holder @r7,54` po 5 mm² **jen v offsetovém standardu**,
+  v syrovém je díl beze změny.
+
+- **Fronta odložených zanoření se utínala CELÁ po prvním nevyhovujícím**
+  (`ops/roughLong.js`). Odůvodnění v komentáři znělo „řada jde po klesajících
+  průměrech, takže hlubší jsou na tom vždycky hůř" — jenže fronta míchá RŮZNÉ
+  PÁSY Z, takže průchod u čela mohl zmizet kvůli nevyhovujícímu průchodu
+  o desítky mm dřív. Nově vypadne jen to, co se opravdu nevejde.
+
+  Řetěz se přitom nesmí nechat viset na zahozeném článku: následník počítá
+  s tím, že nůž stojí na konci předchůdce (`pocketReposition`, `rampFeedFrom`,
+  `emitChainFrom`), předchůdce s tím, že následník naváže (`noRetract`
+  a `emitZEnd`, který mu zkracuje tělo). U přeskočeného článku se obojí ruší.
+
+  Otisk sady i sweep **beze změny** — a na dílu, kvůli kterému se to hledalo,
+  taky: tam je ta fronta PRÁZDNÁ a konec zastavuje obálka držáku (viz
+  `docs/cam-plan-2026-09-03.md` §2c).
+
+- **Kotva zanořovací rampy utíkala ZA konec rozsahu 📐** (`ops/long/entryRamp.js`).
+  Zrcadlová funkce `findRampOutTarget` tuhle mez má od začátku („konec rozsahu
+  obrábění je stejná zeď jako kontura"), `stockEntryRamp` ne — a přitom k mezi
+  STOUPÁ, takže jí utekla ven. Za mezí nikdo neobrábí, materiál tam stojí
+  v plné výšce a nájezd tam postaví i držák.
+
+  Nález uživatele 4. 9. 2026 (rozsah končí na Z 226,35): kotva vyšla
+  `[53,910; 225,345]`, tedy **1,005 mm za mezí**; `N420 G0 Z225.345` a k ní
+  kolmý sjezd 13,34 mm posuvem. Rampa z takové kotvy navíc brala 4,365 mm,
+  víc než `ap`. Kotva teď dosedne PŘESNĚ na mez.
+
+  Otisk sady je **bajt po bajtu shodný** (žádná fixture tenhle stav nemá)
+  a úběr i kolize beze změny.
+
+  **CO TO NEŘEŠÍ:** kolizi držáku u té meze (29,4 / 47,2 mm²) ne — ta je
+  vlastností POLOHY nájezdu, ne toho milimetru za mezí. Doražení kotvy na mez
+  ji posune o milimetr a nominálně zvětší (29,4 → 35,8 mm²), a žádat na mezi
+  navíc místo pro držák (`holderFitsAt`) je HORŠÍ: volající pak nesáhne po
+  „vrstvu vynechat", ale po jiném vjezdu — změřeno **29,4 → 83,6 mm²**.
+  Patří to do hlídání držáku na nájezdu (order-aware model, viz
+  `docs/cam-order-aware-holder.md`), ne do hledání kotvy.
+
 - **Dráhy končily 1,007 mm PŘED offsetovou čárou — rampový průchod neměl
   dojezd** (`ops/roughEmit.js`). „Polotovar končí až na offsetové čáře"
   (§5 pravidel drah) platí i pro konec dráhy, a otevřený průchod to odjakživa

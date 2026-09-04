@@ -88,7 +88,25 @@ export function guardInsertFlankLong(passes, prms, offsetPath) {
   // sledováním kontury bezkolizní, tato heuristika by ho jen
   // chybně prodloužila, takže se na ně nevztahuje.
   if (rotDeg > 0.01) {
-    const tanRot = Math.tan(Math.min(89.5, rotDeg) * Math.PI / 180);
+    const rotRad = Math.min(89.5, rotDeg) * Math.PI / 180;
+    const tanRot = Math.tan(rotRad);
+    // ── DOSAH BOČNÍ HRANY JE KONEČNÝ (4. 9. 2026) ───────────────────────
+    // Hrana se promítala přes CELÝ díl. Je ale dlouhá jen `toolLength`,
+    // takže radiálně sahá `toolLength · sin(natočení)` — u destičky 10 mm
+    // natočené o 15° jsou to **2,59 mm**, ne 56.
+    //
+    // Nález uživatele 4. 9. 2026 (rozsah Z 226,35): „stěna" na Ø63,545
+    // v Z 233,5 posunula kotvu průchodu na Ø7,545 u ČELA (Z ≈ 358) až na
+    // Z 24,5 — tedy o 334 mm — průchod tím zdegeneroval a byl SMAZÁN.
+    // Totéž potkalo Ø4,545. V panelu se to hlásilo jako „2 průchody
+    // ZKRÁCENY", ačkoli zmizely celé, a na výkrese to vypadalo, že se konec
+    // dílu prostě neobrobil.
+    //
+    // Komentář níž tenhle jev popisuje („krok řetězu v jednom údolí smazal
+    // krok řetězu v jiném, o 120 mm dál") a řešil ho tehdy vyloučením
+    // `rampCompletion` z „pravých stěn" — jenže neomezený dosah zůstal
+    // a chytal i obyčejné průchody.
+    const flankReachX = Math.max(0.5, (parseFloat(prms.toolLength) || 0) * Math.sin(rotRad));
     // Vjezd na hranici rozsahu Z (entryRangeRamp) ani dorampování strmé
     // stěny (rampCompletion) NENÍ pravá stěna kapsy — obojí je řetězená
     // posloupnost ramp NAD SEBOU podél téže hranice/stěny, ne nezávislý
@@ -106,7 +124,7 @@ export function guardInsertFlankLong(passes, prms, offsetPath) {
       if (p.pocketEntry || p.pocketReposition || p.pocketClean) continue;
       let z0 = p.ramp.z0;
       for (const w of rightWalls) {
-        if (w.x <= p.x + 1e-6) continue;
+        if (w.x <= p.x + 1e-6 || w.x - p.x > flankReachX) continue;
         const cand = w.z - (w.x - p.x) / tanRot;
         if (cand < z0) z0 = cand;
       }

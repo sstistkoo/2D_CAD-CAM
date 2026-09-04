@@ -26,12 +26,13 @@ import { pointInLoop } from '../../../../geom/geomCore.js';
  * @param plungeDirL         směr přímky zanoření + krok skenu
  * @param effPlungeTanL      tangenta efektivního úhlu zanoření
  * @param rangeZLoL          dolní mez rozsahu obrábění 📐
+ * @param rangeZHiL          horní mez rozsahu obrábění 📐
  * @param offsetXAt          hloubka offsetu kontury na Z
  * @param blockedAt          (x, z) => je tam překážka? — viz hlavička
  */
 export function makeEntryRamp({
   T, holderFitsAt, stockLoopOffsetL, plungeDirL, effPlungeTanL, rangeZLoL,
-  offsetXAt, blockedAt,
+  rangeZHiL = Infinity, offsetXAt, blockedAt,
 }) {
   const { DZ_CAP, capTab, stockTopTab } = T;
   const holderEntryCapZ = (X, zHi, zFloor) => {
@@ -161,10 +162,33 @@ export function makeEntryRamp({
     // prorampování není; volající si najede po kontuře jako jindy.
     if (atResidTop({ x: X + 0.05, z: zEntry - 0.05 })) return null;
     const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
+    // ── KONEC ROZSAHU 📐 JE ZEĎ I PRO KOTVU (4. 9. 2026) ───────────────────
+    // Zrcadlo `findRampOutTarget` níž tuhle mez má od začátku („konec rozsahu
+    // obrábění je stejná zeď jako kontura"), kotva ne — a stoupá k NĚMU,
+    // takže mu utekla ven. Za mezí nikdo neobrábí, materiál tam stojí v plné
+    // výšce a nájezd tam postaví i držák.
+    //
+    // Nález uživatele 4. 9. 2026 (rozsah končí na Z 226,35): kotva vyšla
+    // [53,910; 225,345], tedy 1,005 mm ZA mezí; nájezd k ní byl kolmý sjezd
+    // 13,34 mm posuvem a držák tam měl 29,4 mm² v materiálu (r 67,3 a r 53,9).
+    // Rampa z takové kotvy navíc brala 4,365 mm, víc než `ap`.
+    const tWall = plungeDirL.uz > 1e-9 ? (rangeZHiL - zEntry) / plungeDirL.uz : Infinity;
+    if (tWall <= 1e-6) return null;
     let t = 0;
     for (let i = 0; i < 300; i++) {
       const tPrev = t;
       t += plungeDirL.step;
+      if (t >= tWall) {
+        // Kotva dosedne PŘESNĚ na mez rozsahu — dál je zeď.
+        //
+        // ŽÁDAT TU NAVÍC MÍSTO PRO DRŽÁK (`holderFitsAt`) SE NEOSVĚDČILO:
+        // volající pak nesáhne po „vrstvu vynechat", ale po jiném vjezdu, a
+        // ten je horší — na dílu uživedele 29,4 → 83,6 mm². Kolize u meze je
+        // vlastnost POLOHY nájezdu, ne toho milimetru za mezí, a patří do
+        // hlídání držáku na nájezdu, ne sem.
+        const q = at(tWall);
+        return blockedAt(q.x, q.z) ? null : { x0: q.x, z0: q.z };
+      }
       const p = at(t);
       // HRANICÍ JE I HOTOVNÍ KONTURA (stejně jako u findRampOutTarget níž):
       // stoupá-li přímka zanoření do materiálu, který po hrubování ZŮSTÁVÁ

@@ -78,6 +78,8 @@ export function genLongPasses(ctx) {
   // o desítky mm (reálný nález na díle uživatele: dojezd na Z42 a rampa až na
   // Z21 při konci rozsahu Z61,1).
   const rangeZLoL = machiningRange ? machiningRange.zLo : -Infinity;
+  // HORNÍ mez rozsahu je zeď stejně jako dolní — viz `stockEntryRamp`.
+  const rangeZHiL = machiningRange ? machiningRange.zHi : Infinity;
   const traceFloorL = Math.max(cylStockZ, rangeZLoL);
 
   // X-bounds offsetu
@@ -370,7 +372,7 @@ export function genLongPasses(ctx) {
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
-      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt });
+      effPlungeTanL, rangeZLoL, rangeZHiL, offsetXAt, blockedAt });
 
   // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
@@ -1414,26 +1416,48 @@ export function genLongPasses(ctx) {
     // provedení dávno nestojí (na range-end-leadout 119 mm² „vnoření" proti
     // materiálu, který tam není — stálo to 21 % úběru).
     //
-    // Zahazuje se od PRVNÍHO nevyhovujícího dál: řada jde po klesajících
-    // průměrech, takže hlubší zákroky jsou na tom vždycky hůř, a useknutí
-    // konce nepřetrhne řetěz uprostřed (`noRetract`/`rampFeedFrom` míří
-    // dopředu, poslední průchod žádného následníka nepotřebuje).
+    // ZAHAZUJE SE JEN TO, CO SE OPRAVDU NEVEJDE — ne celý zbytek fronty.
+    // Dřív se řada usekla od PRVNÍHO nevyhovujícího dál s odůvodněním „jde po
+    // klesajících průměrech, takže hlubší jsou na tom vždycky hůř". Ten
+    // předpoklad neplatí: fronta míchá RŮZNÉ PÁSY Z. Nález uživatele
+    // 4. 9. 2026 (rozsah Z 226,35, náhradní držák 20 × 200): průchody na
+    // r 7,545 a 4,545 u ČELA se vygenerovaly správně, ale zmizely kvůli
+    // nevyhovujícímu průchodu o 40 mm dřív — panel hlásil „8 úseků
+    // polotovaru zůstalo NEOBROBENO, nejdelší 102 mm".
+    //
+    // Řetěz se ale nesmí nechat viset na zahozeném článku: následník počítá
+    // s tím, že nůž stojí na konci svého předchůdce (`pocketReposition`,
+    // `rampFeedFrom`, `emitChainFrom`), předchůdce zase s tím, že následník
+    // naváže (`noRetract`, a s ním `emitZEnd`, který mu zkracuje tělo).
+    // U přeskočeného článku se proto obojí zruší a průchod si najede sám.
     if (tail.length > 0 && capTab) {
       const floor = newFloorTab();
       for (let i = 0; i < regionMark; i++) notePassInto(floor, passes[i]);
       for (const p of head) notePassInto(floor, p);
       T.activeFloorTab = floor;
-      let dropFrom = -1;
-      for (let i = 0; i < tail.length; i++) {
-        const p = tail[i];
-        if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) continue;
-        if (holderFitAreaAlong(p) > HOLDER_FIT_TOL) { dropFrom = i; break; }
+      const kept = new Set();
+      let droppedN = 0;
+      for (const p of tail) {
+        if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) { kept.add(p); continue; }
+        if (holderFitAreaAlong(p) > HOLDER_FIT_TOL) { droppedN++; continue; }
         notePassInto(floor, p);   // co projde, samo řeže pro ty za sebou
+        kept.add(p);
       }
       T.activeFloorTab = null;
-      if (dropFrom >= 0) {
-        deferredHolderSkips += tail.length - dropFrom;
-        tail.length = dropFrom;
+      if (droppedN > 0) {
+        deferredHolderSkips += droppedN;
+        for (let i = 0; i < tail.length; i++) {
+          const p = tail[i];
+          if (!p || !kept.has(p)) continue;
+          const prev = i > 0 ? tail[i - 1] : null;
+          if (prev && !kept.has(prev)) {
+            delete p.pocketReposition; delete p.rampFeedFrom; delete p.emitChainFrom;
+          }
+          const next = i + 1 < tail.length ? tail[i + 1] : null;
+          if (next && !kept.has(next)) { delete p.noRetract; delete p.emitZEnd; }
+        }
+        const survivors = tail.filter(p => kept.has(p));
+        tail.length = 0; tail.push(...survivors);
         // Líný prefixový model by si jinak nadál připisoval řezy zahozených
         // průchodů — postavit ho znovu.
         T.cutFloorTab = null; T.cutFloorSynced = 0;

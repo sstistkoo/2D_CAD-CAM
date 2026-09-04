@@ -91,6 +91,13 @@ strana. Vlastní soubor by znamenal druhou kopii generátoru
   (`ops/long/entryRamp.js`, `holderEntryCapZ`).
 - Nájezd se smí posunout nejvýš o **`ENTRY_SHIFT_MAX` = 3 mm**; dál ne, protože
   se tím mění i příjezdová cesta (`ops/shared.js:33`).
+- **Konec rozsahu 📐 je zeď i pro KOTVU rampy** (`stockEntryRamp`, 4. 9. 2026).
+  Zrcadlový `findRampOutTarget` ji měl od začátku, kotva ne — a stoupá k ní,
+  takže jí utíkala ven (nález: kotva `[53,910; 225,345]` při mezi 226,35,
+  a k ní kolmý sjezd 13,34 mm posuvem). **Kolizi držáku u meze to neřeší** —
+  ta je vlastností polohy nájezdu; žádat na mezi navíc `holderFitsAt` je
+  změřeně horší (29,4 → 83,6 mm², volající sáhne po jiném vjezdu místo aby
+  vrstvu vynechal).
 
 **POSUNUTÝ VJEZD MÁ TAKY DOSTAT RAMPU — opraveno 1. 9. 2026.** Brána rampy
 v `ops/long/openPass.js` byla `iv.zStart >= entryZ - 1e-6` („vjezd sedí přesně
@@ -266,6 +273,14 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
 > `phiDeg`). Vada tím není opravená, jen se přestala spouštět. Než se na ni
 > sáhne, je potřeba případ, na kterém se projeví — jinak se nedá změřit,
 > jestli podmínka lokality něco nepokazí.
+
+**DOSAH BOČNÍ HRANY JE KONEČNÝ** (`ops/long/insertFlankGuard.js`, 4. 9. 2026).
+Hrana je dlouhá `toolLength`, takže radiálně sahá jen
+`toolLength · sin(natočení)` — u 10 mm destičky natočené o 15° **2,59 mm**.
+Bez té meze se promítala přes celý díl: stěna na Ø63,5 v Z 233 posunula kotvu
+průchodu na Ø7,5 u čela o **334 mm**, průchod zdegeneroval a byl smazán
+(panel přitom hlásil „zkráceno"). Oprava dala **+733,3 mm²** úběru na sadě při
+nezměněných kolizích.
 
 ### 4.2 Držák
 
