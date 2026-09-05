@@ -368,7 +368,7 @@ export function genLongPasses(ctx) {
       offsetStockTopXAtZ, step });
   // Vejde se držák? — viz ops/long/holderFit.js.
   const { residTopAt, holderNearDz, holderFitArea, ownCutOf, holderFitAreaAlong,
-    holderFitsAt } = makeHolderFit({ T, prms });
+    holderFitsAt, firstHolderHitOnPath } = makeHolderFit({ T, prms });
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
@@ -838,7 +838,7 @@ export function genLongPasses(ctx) {
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-          straightRunEndZ, traceOffsetPath, rampSt,
+          straightRunEndZ, traceOffsetPath, rampSt, residTopAt,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;
@@ -852,7 +852,7 @@ export function genLongPasses(ctx) {
         holderBlockedDepths, holderClampZEnd, holderDroppedZones, holderFitArea,
         holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
         notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
-        residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
+        residEntryArea, residTopAt, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
       });
       ({ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips } = cnt);
     });
@@ -1342,6 +1342,36 @@ export function genLongPasses(ctx) {
       // Značka je vyloučí z heuristiky „pravých stěn kapes" níž (viz tam).
       stepPass.rampCompletion = true;
       if (first) {
+        // ── PRVNÍ KROK NAJÍŽDÍ ZVENČÍ → KOTVA MUSÍ NA POVRCH (5. 9. 2026) ──
+        // Mezikroky se k sobě jen ODSKOČÍ (`pocketReposition` níž) — nůž na
+        // předchozí kotvě opravdu stojí. PRVNÍ krok tam ale teprve přijíždí,
+        // a `safeRapidTo` je bezpečná proti KONTUŘE, ne proti stojícímu
+        // POLOTOVARU: rychloposuv na vnitřní bod (r 46,5 na Z 252,85, kde
+        // zbytek sahá po r 52,5) projede 6 mm materiálu. Nálezy 5. 9. 2026:
+        // `rapid @r51.55 Z252.8` (part-21/23), `@r25.99 Z190.9`
+        // (pocket-wall-at-plunge-angle). Bez dělení podle hrbů se ten krok
+        // dostane na místa, kam ho dřív hranice úseku nepustila.
+        //
+        // Kotva se zvedne na povrch a JEJÍ Z se posune tak, aby úhel
+        // zanoření zůstal stejný — jinak by se rampa zestrměla nad
+        // nastavenou hodnotu. Rampa pak projede tím, co už odebrala mělčí
+        // vrstva (vzduchem), a zakousne se až dole.
+        // ── ZKOUŠENO A ZAMÍTNUTO 5. 9. 2026: zvednout kotvu na povrch ───────
+        // PRVNÍ krok řetězu na kotvu teprve PŘIJÍŽDÍ (mezikroky se k ní jen
+        // odskočí), a `safeRapidTo` je bezpečná proti KONTUŘE, ne proti
+        // stojícímu POLOTOVARU — rychloposuv tedy může jít skrz materiál
+        // (`part-21`/`part-23`: `rapid @r51.55 Z252.8 = 1,5 mm²`). Zvednout
+        // kotvu po rampové přímce až na povrch to sice spraví, ale rozbije
+        // dvě jiné podmínky:
+        //   • rampa pak sebere celý rozdíl JEDNÍM záběrem — na
+        //     `cam-leadout-step` 20 mm při ap 5;
+        //   • posunutá kotva osiří následující `pocketReposition`
+        //     (`cam-ramp-chain`, `holder-casting-slanted-face`).
+        // Omezit zdvih na `ap` nepomůže: kde je povrch výš než ap, kotva
+        // zůstane pod ním a rychloposuv jde skrz dál.
+        //
+        // Správné řešení je PRODLOUŽIT ŘETĚZ nahoru až na povrch po krocích
+        // ≤ ap, ne posouvat kotvu jednoho kroku. To je vlastní kus práce.
         stepPass.ramp = { x0: curX, z0: curZ };
         first = false;
       } else {
@@ -1801,6 +1831,74 @@ export function genLongPasses(ctx) {
 
   // Vrstva pokračuje přes nízký hrb — viz ops/long/humpMerge.js.
   const hummockMerges = mergeLayersOverHump(passes, ins, offsetXAt, dzScan, DZ_CAP);
+
+  // ── ORDER-AWARE OŘEZ DRŽÁKU PODÉL CELÉ DRÁHY (5. 9. 2026) ──────────────
+  // `docs/cam-order-aware-holder.md`, krok 2. Do teď se držák hlídal jen
+  // u VJEZDU (`holderFitAreaAlong`) a u konců intervalů (`holderClampZEnd`);
+  // KONEC dojezdu po kontuře nehlídal nikdo. Fungovalo to jen proto, že
+  // takový průchod dřív utnula hranice úseku od hrbu — což pravidlo §6.0a
+  // ruší, a hlídání to musí unést samo.
+  //
+  // Běží AŽ TADY, jako poslední: model zbytku je „co zbylo po předchozích
+  // průchodech", a to je až finální pořadí (`splice` dobíracích řetězů,
+  // přeskládání konce regionu, sloučení přes hrb výš).
+  //
+  // OŘEZÁVÁ, NEZAHAZUJE. Zahodit celý průchod stojí materiál, který se pak
+  // nemá kdo vzít; zkrácení nechá nůž udělat tolik, kolik se držák pustí.
+  // Zahodí se jen zákrok, ze kterého po ořezu nic nezbude.
+  if (orderAware && residHolderL && capTab && typeof firstHolderHitOnPath === 'function') {
+    const floor = newFloorTab();
+    T.activeFloorTab = floor;
+    let droppedN = 0;
+    for (let i = 0; i < passes.length; i++) {
+      const p = passes[i];
+      if (p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) { notePassInto(floor, p); continue; }
+      // Dráha zákroku v pořadí jízdy: nájezd po kontuře → tělo → dojezd.
+      const segs = [];
+      for (const sg of (p.contourLeadIn || [])) segs.push({ ...sg, __part: 'in', __ref: sg });
+      if (Number.isFinite(p.zEnd) && Math.abs(p.zEnd - p.zStart) > 1e-9)
+        segs.push({ z1: p.zStart, x1: p.x, z2: p.zEnd, x2: p.x, __part: 'body' });
+      for (const sg of (p.contourLeadOut || [])) segs.push({ ...sg, __part: 'out', __ref: sg });
+      // ZÁMĚRNĚ JEN DOJEZD. První verze ořezávala i TĚLO a zahazovala zákroky,
+      // u nichž držák nepustil ani nájezd — a vyrobila tím 9 nálezů na
+      // part-11/12/14 (Z 260,3 a Z 38,0). Důvod je strukturální: tělo a nájezd
+      // drží řetěz (`noRetract`, `emitZEnd`, navazující `pocketReposition`),
+      // takže jejich zkrácení posune polohu NÁSLEDUJÍCÍHO zákroku — a ten pak
+      // najíždí odjinud, než pro co ho hlídání schválilo. Dojezd je proti tomu
+      // koncový: za ním následuje jen odskok.
+      const hit = firstHolderHitOnPath(segs, p.ramp);
+      // DOBRÁNÍ KAPSY se smí zahodit celé. Je to úklidový zákrok (bere ~0,5mm
+      // hřebínky po rampách), nikdo na něj nenavazuje a systém jeho vynechání
+      // už umí (`pocketHolderSkips`). Když do kapsy nepustí držák ani na
+      // začátku nájezdu, nemá co dělat nic z toho zákroku — přesně tenhle
+      // případ dělal 6 nálezů / 196 mm² na dílu uživatele (r 7,9, Z 162–198).
+      if (hit && p.pocketClean && segs[hit.i].__part !== 'out') {
+        // ŘETĚZ SE NESMÍ NECHAT VISET NA ZAHOZENÉM ČLÁNKU. Následník počítá
+        // s tím, že nůž stojí na konci svého předchůdce (`pocketReposition`,
+        // `rampFeedFrom`, `emitChainFrom`) — po jeho vypuštění musí najet sám,
+        // jinak vznikne osiřelé zanoření (`cam-ramp-chain`). Táž oprava jako
+        // u zahazování odložených vjezdů výš.
+        const next = passes[i + 1];
+        if (next) { delete next.pocketReposition; delete next.rampFeedFrom; delete next.emitChainFrom; }
+        const prev = passes[i - 1];
+        if (prev) { delete prev.noRetract; delete prev.emitZEnd; }
+        passes.splice(i, 1); i--; droppedN++; continue;
+      }
+      // OŘEZ DOJEZDU: ZKOUŠENO A VYJMUTO 5. 9. 2026. Zkrácení dojezdu tam,
+      // kde držák nevyhoví, na dnešních fixtures NIC nezlepší (kolize beze
+      // změny, `part-14-finish-holder` má s ním i bez něj 31 průchodů a 0
+      // nálezů) a přitom sebere jeden řetězový nájezd, který hlídá
+      // `cam-finish-holder` („žádný řetěz nedosedá svisle na plochu": 3 → 2).
+      // Model zbytku a validátor se tu rozcházejí — dokud není jasné, kdo má
+      // pravdu, platí „nehas, co tě nepálí". Zahazuje se jen dobrání kapsy
+      // výš, kde je vnoení držáku dosložené (6 → 1 nález s pravidlem §6.0a).
+
+      notePassInto(floor, p);
+    }
+    T.activeFloorTab = null;
+    if (droppedN > 0)
+      foundErrors.push({ type: 'warning', msg: `Hlídání držáku (pořadí obrábění): ${droppedN} dobrání kapsy vynecháno — držák by za nástrojem vjel do materiálu, který v tu chvíli ještě stojí.` });
+  }
 
   if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
     const tracker = new ResidualTracker(prms, stockPathSegments, {

@@ -304,6 +304,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Kotva rampy nesmí ležet v materiálu — nájezd na ni jde rychloposuvem**
+  (`ops/roughLong.js`, `ops/long/openPass.js`, `ops/long/pocketPass.js`).
+  Tři místa stavěla kotvu zanoření na bod UVNITŘ odlitku a spoléhala, že tam
+  nůž už stojí. Když tam nestojí (řetěz se přetrhl, mělčí vrstva to místo
+  nevzala), vede `safeRapidTo` rychloposuv skrz stojící materiál:
+
+  - `pendingRampCompletions` — PRVNÍ krok řetězu najíždí zvenčí, ne odskokem;
+  - `openPass.js` — mezi kroky se vklínil jiný zákrok, kotva osiřela;
+  - `pocketPass.js` — spuštění kotvy na `x + ap` stojí na předpokladu
+    „materiál nad ní vzala mělčí vrstva", který neplatí vždy.
+
+  **Opraven jen třetí případ** (`pocketPass.js`): kotva se spustí nejvýš na
+  povrch modelu zbytku (`residTopAt`). První dva jsou ZAMÍTNUTÉ pokusy —
+  zdvih kotvy na povrch je sice spravil, ale rozbil dvě jiné podmínky: rampa
+  pak sebrala 20 mm při ap 5 (`cam-leadout-step`) a zřetězené zanoření
+  osiřelo (`cam-ramp-chain` na `holder-casting-slanted-face`). Nepomohlo ani
+  omezit zdvih na `ap`, ani vyjmout živý řetěz. Správné řešení je PRODLOUŽIT
+  ŘETĚZ nahoru po krocích ≤ ap, ne posouvat kotvu jednoho kroku; důvody
+  i naměřená čísla jsou u kódu.
+
+  Ze stejného důvodu zůstala ZAMÍTNUTÁ i mez „jeden zákrok ≤ ap" v otevřené
+  větvi (kapsová ji má): u 90° zanoření je bez ní jeden záběr **24,6 mm**
+  (`part-20-zleva-parting-taper`: `G0 X24.610` → `G1 X1.525`), ale její
+  zavedení mění, které průchody vzniknou, a řetěz se rozpadne jinde.
+
+- **Hlídání držáku podél CELÉ dráhy zákroku** (`ops/long/holderFit.js`,
+  `firstHolderHitOnPath`). `holderFitAreaAlong` testovalo jen VJEZD — rampu
+  a dosednutí špičky; tělo a dojezd nehlídal nikdo. Nový test projde dráhu
+  bod po bodu proti modelu zbytku (vlastní řez se průběžně odečítá) a vrátí
+  první místo, kde se držák nevejde. Ořezává se DOJEZD; dobrání kapsy, do
+  které se držák nevejde, se vynechá celé.
+
+  **Tělo ani nájezd se ořezávat NESMÍ** — drží řetěz (`noRetract`,
+  `emitZEnd`, `pocketReposition`), takže jejich zkrácení posune polohu
+  následujícího zákroku (změřeno: 9 nových nálezů na `part-11/12/14`).
+
+  Měřeno: `cam-collision-free` 31/31, kolize na sadě beze změny
+  (nakreslený nůž 5 / 117,3 mm², náhradní držák 0 / 0,0), úběr −0,11 %.
+  Ten úbytek je materiál, který se bral rychloposuvem skrz odlitek nebo
+  jedním záběrem přes `ap`.
+
 - **Dojezd na offsetovou čáru se NEVYDÁ nad materiálem** (`ops/roughEmit.js`).
   Rampový průchod dostal 4. 9. 2026 dojezd až na offsetovou čáru
   (*„polotovar končí až na offsetové čáře"*, §5 pravidel drah) a ten se

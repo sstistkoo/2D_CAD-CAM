@@ -403,7 +403,91 @@ Zruší se tím tři paralelní modely a s nimi celá třída chyb „plán × e
 **Zisk:** řádové zrychlení (polygony jen na vstupní offset a na validátor)
 a zmizí rozcházení modelů.
 
-### Krok 2 — oddělit generování od hlídání (2–3 dny)
+### Krok 2 — ROZPRACOVÁNO 5. 9. 2026: hlídání držáku podél celé dráhy
+
+Pokus o krok 2 udělaný „zdola" — doplnit chybějící hlídání místo přepisu.
+Patch `order-aware-holder-clamp.patch`.
+
+**Co chybělo:** `holderFitAreaAlong` testuje jen VJEZD (rampu a dosednutí
+špičky). Tělo a dojezd nehlídá nikdo — konec dráhy je bez ochrany. Nový
+`firstHolderHitOnPath` (`ops/long/holderFit.js`) projde dráhu zákroku
+(nájezd → tělo → dojezd) bod po bodu proti modelu zbytku a vrátí první místo,
+kde se držák nevejde; vlastní řez se průběžně odečítá.
+
+**Proč to dosud nevadilo:** takový průchod utnula hranice úseku od hrbu.
+Hranice tedy dělaly nepřiznanou práci za hlídání — a §6.0a je ruší.
+
+**Změřeno.** Ořez jen DOJEZDU + zahození dobrání kapsy, když se do ní držák
+nevejde:
+
+| | bez §6.0a | s §6.0a |
+|---|---|---|
+| kolize na dílu uživatele | 0 → 0 | **6 / 196 mm² → 1 / 1,5 mm²** |
+| `cam-collision-free` | 31/31 | 7 → 6 padajících |
+| úběr přes sadu | −97 mm² (−0,11 %) | — |
+
+**Doložená mez: TĚLO A NÁJEZD SE OŘEZÁVAT NESMÍ.** První verze zkracovala
+i tělo a zahazovala zákroky, u nichž držák nepustil ani nájezd — a vyrobila
+9 NOVÝCH nálezů na `part-11/12/14` (Z 260,3 a Z 38,0). Důvod je strukturální:
+tělo a nájezd drží řetěz (`noRetract`, `emitZEnd`, navazující
+`pocketReposition`), takže jejich zkrácení posune polohu NÁSLEDUJÍCÍHO
+zákroku — a ten pak najíždí odjinud, než pro co ho hlídání schválilo.
+Bezpečně se dá ořezávat jen DOJEZD (za ním následuje pouze odskok) a zahodit
+jen `pocketClean` (úklidový zákrok, nikdo na něj nenavazuje).
+
+#### Dotaženo 5. 9. 2026 (druhé kolo): 6 → 2 padající fixtures
+
+Zbylé nálezy měly JEDNU společnou příčinu, jen na třech místech: **kotva
+rampy je bod UVNITŘ materiálu a najíždí se na ni rychloposuvem.** Dokud díl
+dělily hranice od hrbů, takový nájezd se k tomu místu nedostal.
+
+| kde | co bylo | výsledek |
+|---|---|---|
+| `pocketPass.js` — spuštění kotvy na `x + ap` | předpoklad „materiál nad ní vzala mělčí vrstva" bez §6.0a neplatí | **OPRAVENO**: spustí se nejvýš na povrch ZBYTKU (`residTopAt`) |
+| `pendingRampCompletions` (`roughLong.js`) | první krok řetězu najíždí zvenčí na kotvu předchozího kroku | **ZAMÍTNUTO** (viz níž) |
+| `openPass.js` — osiřelý řetěz | mezi kroky se vklínil jiný zákrok → `chainTipIs` false, přesto se jede na vnitřní kotvu | **ZAMÍTNUTO** |
+| `openPass.js` — chybí mez „zákrok ≤ ap" | u 90° zanoření jeden záběr **24,6 mm** (`part-20`) | **ZAMÍTNUTO** |
+
+**Proč tři ze čtyř zamítnuty.** Zdvih kotvy na povrch kolize opravdu odstraní
+(6 → 2 padající fixtures), ale kotva NENÍ volný parametr — visí na ní řetěz:
+
+- rampa pak sebere celý rozdíl JEDNÍM záběrem — `cam-leadout-step`: 20 mm
+  při ap 5;
+- posunutá kotva osiří následující `pocketReposition` — `cam-ramp-chain` na
+  `holder-casting-slanted-face` (`feedFrom 44,988/126,859` × předchozí zákrok
+  `41,897/165,069`).
+
+Nepomohlo omezit zdvih na `ap` (kde je povrch výš, kotva zůstane pod ním
+a rychloposuv jde skrz dál) ani vyjmout ŽIVÝ řetěz (`chainTipIs`) — rozpad je
+o krok dál, protože se mění, které průchody vůbec vzniknou.
+
+**Správné řešení: PRODLOUŽIT ŘETĚZ nahoru až na povrch po krocích ≤ ap**,
+ne posouvat kotvu jednoho kroku. To je vlastní kus práce.
+
+**PAST, na kterou jsem po cestě skočil:** povrch se musí číst v Z, kam se
+kotva OPRAVDU posune, ne v tom původním. Při 15° se Z posune 3,7× víc než X
+a tam už je silueta jinde — kotva pak spadne pod kůru a nájezd projede
+materiálem (`part-9`: `rapid @r150.00 Z87.8 = 15,0 mm²`). Stejně tak
+`residTopAt` vracející `null` (mimo polotovar) NENÍ „nula".
+
+**Co zůstalo zelené** (`cam-collision-free` 31/31, kolize na sadě beze změny,
+úběr −0,11 %): hlídání podél celé dráhy + ořez dojezdu + kapsová kotva proti
+zbytku. Na dnešních fixtures to nic nezlepší — je to díra v hlídání, která
+vystřelí až bez hranic od hrbů.
+
+**Zbývá k §6.0a** (dvě různé situace + jedna strukturální):
+`part-20-zleva-parting-taper` (upichovák, Z 351–352, 8 nálezů — 90° zanoření
+hlídá `plungeHolderFitsAt` výškovým polem, které tunel neumí),
+`holder-casting-slanted-face` (offsetový standard, 2 nálezy po 1 mm²).
+
+A hlavně: **`range-end-leadout` ztratí 71 % úběru** (14 → 6 průchodů,
+675 → 198 mm²) — bez hranic je úsek tak velký, že hlídání zakáže vjezd
+a vypadnou celé hloubky (4 hloubky, 2 neobrobené úseky polotovaru). To NENÍ
+díra v hlídání, ale přesně ta situace z §2.5: vzdálený konec se musí obrobit
+DŘÍV. Bez pořadí podle dosažitelnosti (`pendingRegions`) §6.0a na tomhle dílu
+nemůže vyjít.
+
+### Krok 2 (původní záměr) — oddělit generování od hlídání (2–3 dny)
 
 Generátor vydá **kandidáty**; jediná funkce `applyGuards(passes)` rozhodne
 o zkrácení/zahození a ke každému průchodu zapíše **důvod**. Otázka „proč tam

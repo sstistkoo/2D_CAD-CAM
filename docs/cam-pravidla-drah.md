@@ -536,6 +536,105 @@ NEJVĚTŠÍHO PRŮMĚRU, ne „napřed ta, ze které přijíždím". Na dílech 
 vychází stejně (tie-break je vyšší Z, tedy pravá), ale na dílu, kde má levá
 strana větší průměr, by šla první.
 
+### 6.0a CO JE HRANICE ÚSEKU — mezní čára, která VYJEDE Z POLOTOVARU
+
+> ## Úsek nekončí na hrbu ani v údolí. Úsek končí tam, kde mezní čára hlídání
+> ## geometrie destičky vyjede z polotovaru.
+>
+> **Závazné znění pravidla** (uživatel, 5. 9. 2026: *„tak by to ale nemělo
+> rozdělovat úseky podle hrbu nebo podle údolí, ale podle toho, když mi čára
+> od hlídání geometrie plátku vyjede z polotovaru“*). Podmínka, ne heuristika.
+
+Odůvodnění je fyzické, ne estetické: mezní čára říká, kam destička tímhle
+natočením nedosáhne. Dokud čára zůstává UVNITŘ polotovaru, materiál nad ní
+i pod ní se dá vzít jedním zátahem — rozdělit ho znamená nechat na druhé
+straně velký přídavek. Teprve když čára z polotovaru VYJEDE, je nad ní
+prostor, na který se z téhle strany nedá dosáhnout, a začíná jiný úsek.
+
+*„Ta čára od hlídání geometrie nevyjíždí z polotovaru, tak se to musí vzít
+jako jeden úsek, jinak by mi vpravo zůstal velký přídavek.“*
+
+**Doloženo na dílu uživatele (⌀111 × 350, podélně zleva, 5. 9. 2026).**
+Mezní čáry a jejich vztah k polotovaru:
+
+| druh | od X / Z | do X / Z | v polotovaru? |
+|---|---|---|---|
+| dojezd | −0,26 / −8,26 | 30,57 / 0,00 | **vyjíždí ven** → hranice |
+| zanoření | 21,38 / 45,10 | 30,18 / 12,25 | celá uvnitř → NEdělit |
+| zanoření | 23,30 / 81,89 | 26,71 / 69,16 | **vyjíždí ven** → hranice |
+| zanoření | 36,97 / 143,49 | 38,57 / 137,51 | **vyjíždí ven** → hranice |
+| zanoření | 6,74 / 171,41 | 8,74 / 163,94 | celá uvnitř → NEdělit |
+| dojezd | 6,74 / 198,74 | 30,16 / 205,01 | celá uvnitř → NEdělit |
+| zanoření | 42,00 / 265,16 | 50,08 / 234,99 | **vyjíždí ven** → hranice |
+| zanoření | 2,90 / 368,59 | 9,12 / 345,40 | **vyjíždí ven** → hranice |
+
+Proti tomu dnešní rozklad (tentýž díl, zleva): hrby Z 4,20 / 61,80 / 127,20 /
+227,60 a údolí Z 92,00 / 172,50. **Ani jedna hranice se s mezní čárou
+neshoduje.** Uživatel to na plátně vidí jako vrstvy useknuté „uprostřed
+kontury“ na Z 4,2 a Z 62,8 — změřeno 12 předčasně zastavených průchodů,
+136,6 mm nedojeto (viz §6.0b).
+
+**Stav v kódu (5. 9. 2026): NEODPOVÍDÁ.** `guideStaysInStock`
+(`ops/long/regions.js`) test mezní čáry umí, ale `splitIsNeeded` ho pouští
+jen na ÚDOLÍ (`if (s.kind !== 'peak' && guideStaysInStock(s)) return false;`).
+Hrb od 28. 8. 2026 dělí VŽDY (`if (s.kind === 'peak') … return true;`).
+Pravidlo se tedy na hrby vůbec neaplikuje.
+
+> **ÚBĚR NENÍ KRITÉRIUM** (uživatel, 5. 9. 2026): *„to, že to sebere míň,
+> neznamená, že je to špatně — pokud to, co bere, je špatně, tak by to nemělo
+> brát, a z toho vychází, že to sebere míň, ale je to správně."*
+>
+> Platí na všechna měření v tomhle dokumentu: kleslý úběr sám o sobě není
+> důvod opravu zahodit. Důvodem je jedině KOLIZE nebo nedodržená podmínka.
+
+**Známá mez při opravě:** plná náhrada detekce údolí mezními čárami byla
+měřena 7. 8. 2026 a vyšla hůř (`range-end-leadout` +545 mm² zbytku, 14 → 4
+průchody; `part-11` −390 mm² úběru); patch je v repu jako
+`useky-podle-meznich-car.patch`. To měření se ale týkalo ÚDOLÍ, ne hrbů,
+a pravidlo výš je podmínka — když plán s ním vyjde hůř, opravuje se PŘÍČINA,
+ne pravidlo (totéž rozhodnutí jako 28. 8. 2026).
+
+### 6.0b ROZKLAD NA ÚSEKY NESMÍ ZÁVISET NA SMĚRU OBRÁBĚNÍ
+
+> ## Týž díl musí dát tytéž úseky zleva i zprava.
+
+Hranice úseku je vlastnost GEOMETRIE dílu. Dnes to neplatí — detekce jede
+jednosměrným sweepem, takže odpoví podle toho, ze které strany narazí na
+stěnu kontury. Změřeno na dílu uživatele (5. 9. 2026):
+
+| ZLEVA | ZPRAVA |
+|---|---|
+| **Z 4,20 hrb** | **— neexistuje** |
+| Z 61,80 hrb | Z 61,33 hrb |
+| Z 92,00 údolí | Z 91,93 údolí |
+| — | **Z 106,33 hrb** |
+| Z 127,20 hrb | Z 126,53 hrb |
+| Z 172,50 údolí | Z 172,53 údolí |
+| Z 227,60 hrb | Z 228,53 hrb |
+
+Zprava 53 průchodů (uživatel: *„jede docela dobře“*), zleva 64 a *„nepořádek“*.
+Hranice Z 4,20, která začátek kouskuje, zprava NEEXISTUJE.
+
+### 6.0c MŘÍŽKA HLOUBEK JE VLASTNOST DÍLU, NE ZVOLENÉHO ROZSAHU
+
+> ## Týž úsek musí vyjít vždy stejně, ať je rozsah 📐 nastavený jakkoli.
+
+*(uživatel, 5. 9. 2026: „mělo by to udělat pokaždé stejné dráhy, jedná se
+o jeden úsek, který by se měl počítat vždy stejně“)*
+
+Dnes se `maxStockX` počítá jen z polotovaru UVNITŘ rozsahu, a protože z něj
+vychází posloupnost hloubek, posune se s každou změnou rozsahu celý žebřík.
+Změřeno na třech programech TÉHOŽ dílu (rozsah od Z 284,35 / 385,89 / 98,61):
+v pásu Z −17,9…98,6 bylo ze 45 různých průchodů shodné ve všech třech
+**jediný**. Rozsah do Z 98,61 vynechá přírubu r 64,5 → kotva spadne na 38,6
+a mřížka se posune z …/37,545/34,545/… na …/37,566/35,566/32,566/…
+
+Oprava (kotva z celého polotovaru, skim dál od povrchu v rozsahu) je změřená:
+týž úsek pak dá stejných 17 vrstev, 12 bajt po bajtu, zbylých 5 se liší jen
+koncem (za rozsahem stojí materiál — legitimní). Úběr beze změny, zamčené
+testy zelené. **Cena:** `part-22-zleva-deep-ramp` +2 kolize / +138 mm²
+s nakresleným nožem. Odloženo k rozhodnutí.
+
 ### 6.1 Ostatní
 
 | pravidlo | co znamená | kde |
