@@ -394,7 +394,70 @@ střídavě**, jinak se dá obhájit skoro cokoli.
 > (`airSplitAxial`); rampa, odjezd a dojezd po kontuře ne — a přesně z nich
 > pochází 6 z 9 nálezů uživatele z 5. 9. 2026.
 
-### Krok 1 — JEDEN model zbytku (1–2 dny) — ZAČÍNÁ SE TÍMHLE
+### Krok 1 — ZMĚŘENO 5. 9. 2026: páka je PŘEDPOVĚĎ, ne reprezentace
+
+Než přepisovat reprezentaci zbytku (návrh níž), změřilo se, ČÍM přesně se
+model emise (`rapidStock` v `gcodeEmit.js`) rozchází s validátorem. Odpověď
+není „schodový × polygonový", ale **`noteCutPass`**: ten do modelu zapisuje
+PLÁNOVANÝ průchod dopředu, aby navazující rychloposuv věděl, že je pás pryč.
+Když se plán a emise rozejdou, model je OPTIMISTICKÝ a pustí rychloposuv skrz
+stojící materiál.
+
+**Čtyři hypotézy, čtyři plná měřicí kola, tři nuly:**
+
+| hypotéza | výsledek |
+|---|---|
+| zúžená stopa u sjezdu v X → zkusit plnou | beze změny |
+| hlídání testuje úhlopříčku, stroj jede do L | beze změny |
+| zúžená stopa u přejezdu v Z → zkusit plnou | beze změny |
+| tělo se zapisuje z PLÁNU → zapsat skutečně vydané řezy | beze změny |
+| rampa se zapisuje z plánu → vynechat ji | beze změny |
+| **vynechat `noteCutPass` CELÝ** | **kolize 2 → 0** |
+
+Rozchod tedy NENÍ v jednom členu — je strukturální. To potvrzuje, že jeden
+sdílený model je správná odpověď; a zároveň dává jeho levnou aproximaci:
+**nepředpovídat.**
+
+**Změřeno na sadě** (26 fixtures, syrový standard, práh validátoru):
+
+| | úběr | kolize |
+|---|---|---|
+| dnes | 91 084 mm² | 0 |
+| bez předpovědi | 89 876 (−1 208) | 0 |
+| pořadí podle dosažitelnosti | 91 229 (+145) | **2 / 1,5 mm²** |
+| **pořadí + bez předpovědi** | 90 019 (−1 065) | **0** |
+
+**S pravidlem §6.0a** (tam se to teprve vyplatí):
+
+| | úběr | kolize |
+|---|---|---|
+| §6.0a | 87 046 mm² | 16 / 159,8 |
+| §6.0a + bez předpovědi | 86 645 | 14 / 156,9 |
+| §6.0a + pořadí | 87 661 | 16 / 159,8 |
+| **§6.0a + pořadí + bez předpovědi** | **87 261** | **14 / 156,9** |
+
+**A na dílu uživatele stojí „bez předpovědi" NULU:**
+
+| §6.0a + | průchodů | úběr | kolize |
+|---|---|---|---|
+| — | 43 | 3 062 | 1 / 1,5 |
+| bez předpovědi | 43 | 3 062 | **0** |
+| pořadí | 51 | 3 265 | 1 / 1,5 |
+| **pořadí + bez předpovědi** | **51** | **3 265** | **0** |
+
+Ztráta −1 208 mm² z „bez předpovědi" je tedy jinde na sadě, ne na jeho dílu:
+model se stane PESIMISTICKÝM (myslí si, že materiál stojí, i když ho průchod
+právě odebral), takže se emise zbytečně zvedá a řeže míň.
+
+**Co z toho plyne pro krok 1.** Cíl není „schodový model" sám o sobě, ale
+**odstranit předpověď**: model musí vědět o řezu v tom okamžiku, kdy ho emise
+opravdu vydá. Dnes to nejde, protože tělo průchodu se do modelu dostane JEN
+přes `noteCutPass` (emisní smyčka těla `noteCutMove` nevolá) — a ta se volá
+buď příliš brzy (predikce), nebo by musela běžet po každém pohybu. Sjednocení
+modelu je tedy hlavně o TOM: jedna cesta zápisu, volaná z emise, po každém
+vydaném pohybu. Reprezentace (schody × polygony) je až druhá otázka.
+
+### Krok 1 (původní návrh) — JEDEN model zbytku (1–2 dny)
 
 Schodový model: na každé hloubce setříděný seznam Z-intervalů, aktualizovaný
 přírůstkově po každém průchodu. Všechny dotazy „stojí tam materiál" přes něj.
