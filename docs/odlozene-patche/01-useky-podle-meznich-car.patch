@@ -1,0 +1,122 @@
+diff --git a/js/calculators/cam/ops/long/regions.js b/js/calculators/cam/ops/long/regions.js
+index 83777fd..51c87b7 100644
+--- a/js/calculators/cam/ops/long/regions.js
++++ b/js/calculators/cam/ops/long/regions.js
+@@ -132,6 +132,49 @@ export function makeRegions(deps) {
+     return out;
+   };
+ 
++  // ── HRANICE ÚSEKU = MEZNÍ ČÁRA, KTERÁ VYJEDE Z POLOTOVARU (§6.0a) ──────
++  // ZÁVAZNÉ PRAVIDLO uživatele (5. 9. 2026): *„tak by to ale nemělo
++  // rozdělovat úseky podle hrbu nebo podle údolí, ale podle toho, když mi
++  // čára od hlídání geometrie plátku vyjede z polotovaru."*
++  //
++  // Odůvodnění je fyzické: mezní čára říká, kam destička tímhle natočením
++  // nedosáhne. Dokud zůstává UVNITŘ polotovaru, materiál nad ní i pod ní se
++  // dá vzít jedním zátahem — rozdělit ho znamená nechat na druhé straně
++  // velký přídavek (*„jinak bych vpravo zůstal velký přídavek"*). Teprve
++  // když čára VYJEDE, je za ní z téhle strany nedostupný prostor a začíná
++  // jiný úsek.
++  //
++  // Hranice leží tam, kde čára PROTNE obrys polotovaru, ne v jejím koncovém
++  // bodě: za obrysem je vzduch a ten dělit nemá co. Průsečík se hledá
++  // půlením, aby sedl na obrys přesně (o krok vzorkování vedle by hranice
++  // spadla do vzduchu nebo naopak do materiálu).
++  //
++  // Bere se `stockLoopFullL` (celý polotovar, bez ořezu rozsahem 📐): jestli
++  // čára vyjede do vzduchu, je vlastnost DÍLU, ne zvoleného úseku obrábění —
++  // proto vyjde týž rozklad při jakémkoli rozsahu (§6.0c).
++  // Jen `kind: 'zanoreni'` — 'dojezd' je opačná strana břitu a o dělení
++  // úseků nevypovídá (totéž pravidlo jako v `guideStaysInStock` níž).
++  const guideSplits = () => {
++    if (!stockLoopFullL || !Array.isArray(interferenceGuides)) return [];
++    const inStock = (p) => { try { return pointInLoop(p, stockLoopFullL) !== 'outside'; } catch { return true; } };
++    const out = [];
++    for (const g of interferenceGuides) {
++      if (g.kind !== 'zanoreni') continue;
++      const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
++      if (![a.x, a.z, b.x, b.z].every(Number.isFinite)) continue;
++      const ia = inStock(a), ib = inStock(b);
++      // Celá uvnitř = NEDĚLÍ (to je jádro pravidla). Celá venku = není co dělit.
++      if (ia === ib) continue;
++      let lo = ia ? a : b, hi = ia ? b : a;      // lo uvnitř, hi venku
++      for (let k = 0; k < 40; k++) {
++        const m = { x: (lo.x + hi.x) / 2, z: (lo.z + hi.z) / 2 };
++        if (inStock(m)) lo = m; else hi = m;
++      }
++      out.push({ z: (lo.z + hi.z) / 2, xSurf: (lo.x + hi.x) / 2, kind: 'guide' });
++    }
++    return out;
++  };
++
+   // ── Dělí to údolí opravdu díl na úseky? (mezní čára hlídání destičky) ──
+   // PRVNÍ (a nejlevnější) test, který `splitIsNeeded` níž pouští na každý
+   // kandidátní split. Údolí odlitku samo o sobě hranici NEDĚLÁ. Signál je DOSAH
+@@ -194,6 +237,9 @@ export function makeRegions(deps) {
+   // zprava doleva než zleva doprava — proto je nad ním `guideStaysInStock`.
+   const splitIsNeeded = (splits, i) => {
+     const s = splits[i];
++    // §6.0a: hranici dělá mezní čára, která vyjela z polotovaru — a nic jiného.
++    // Kandidát z `guideSplits()` JE ta čára, takže se o něm dál nerozhoduje.
++    if (s.kind === 'guide') return true;
+     if (s.kind !== 'peak' && guideStaysInStock(s)) return false;
+     // HRB: vrstvu opravdu přeruší, ale ÚSEK Z NĚJ ZATÍM NEVZNIKÁ — změřeno
+     // 27. 8. 2026. Rozdělením se mění POŘADÍ obrábění: když se jeden úsek
+@@ -287,14 +333,26 @@ export function makeRegions(deps) {
+     // (docs/cam-pravidla-drah.md §6.0) plati VZDY — i na valci. Jedina zbyla
+     // podminka je technicka: bez siluety se zlomy spocitat nedaji.
+     if (!stockLoopL || stockLoopL.length < 3) return FULL_REGION;
+-    // Dva zdroje zlomů: úDOLÍ POLOTOVARU a HRBY KONTURY (viz výš). Seřazí se
+-    // shora dolů a blízké dvojice splynou — údolí má přednost, protože o něm
+-    // rozhodují starší, změřené testy.
+-    const rawSplits = [
++    // JEDINÝ zdroj zlomů: mezní čára, která vyjede z polotovaru (§6.0a).
++    //
++    // Do 5. 9. 2026 to byly ÚDOLÍ POLOTOVARU a HRBY KONTURY. Uživatel to
++    // zamítl: *„nemělo by to rozdělovat úseky podle hrbu nebo podle údolí"*.
++    // Změřeno na jeho dílu — ani jedna z tehdejších hranic (hrby Z 4,20 /
++    // 61,80 / 127,20 / 227,60, údolí Z 92,00 / 172,50) se s mezní čárou
++    // neshodovala, a hranice Z 4,20 vedla přesně přes čáru, která z polotovaru
++    // NEvyjíždí. Na plátně to viděl jako vrstvy useknuté „uprostřed kontury".
++    //
++    // Údolí a hrby se dál POČÍTAJÍ (jsou to signály pro diagnostiku a starší
++    // testy je čtou přes `__REGION_LOG__`), ale hranici z nich nedělá nic:
++    // `splitIsNeeded` propustí jen `kind: 'guide'`.
++    const legacySplits = [
+       ...regionSplits().map(q => (q.kind ? q : { ...q, kind: 'valley' })),
+       ...contourPeakSplits(),
+     ].sort((a, b) => b.z - a.z)
+       .filter((q, k, arr) => k === 0 || Math.abs(q.z - arr[k - 1].z) > Math.max(2 * dzScan, 1));
++    const rawSplits = guideSplits()
++      .sort((a, b) => b.z - a.z)
++      .filter((q, k, arr) => k === 0 || Math.abs(q.z - arr[k - 1].z) > Math.max(2 * dzScan, 1));
+     const splits = rawSplits.filter((_, i) => splitIsNeeded(rawSplits, i));
+     const regions = orderRegions(assembleRegions(splits));
+ 
+@@ -302,7 +360,8 @@ export function makeRegions(deps) {
+     // roughing.test.js jím ověřuje separaci regionů ruční vs booleovské cesty.
+     if (globalThis.__REGION_LOG__) globalThis.__REGION_LOG__.push({
+       bool: !!prms.booleanRoughing,
+-      raw: rawSplits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
++      raw: legacySplits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
++      guides: rawSplits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
+       splits: splits.map(s => ({ z: +s.z.toFixed(1), xSurf: +s.xSurf.toFixed(1) })),
+       // Ústí údolí (zHi/zLo) — hranice úseku je nad dnem právě u nich.
+       mouths: splits.map(s => ({ zHi: +(s.zHi ?? NaN).toFixed(1), zLo: +(s.zLo ?? NaN).toFixed(1) })),
+diff --git a/js/calculators/cam/ops/roughLong.js b/js/calculators/cam/ops/roughLong.js
+index b296a10..53b94c8 100644
+--- a/js/calculators/cam/ops/roughLong.js
++++ b/js/calculators/cam/ops/roughLong.js
+@@ -648,6 +648,12 @@ export function genLongPasses(ctx) {
+     const dissolveValley = !prms.plungeRoughing;
+     const edgeDissolved = (surf, kind, zEdge) => {
+       if (surf === undefined) return false;
++      // `guide` = hranice z mezní čáry (§6.0a). NEROZPOUŠTÍ SE: čára říká, kam
++      // destička nedosáhne, a to platí v každé hloubce. Zkoušeno chovat ji
++      // jako hrb (rozpustit nad průsečíkem) — 12 kolizí / 1 164 mm² na díle
++      // uživatele proti nule, protože sloučená vrstva veze držák přes materiál
++      // sousedního úseku, který ještě stojí.
++      if (kind === 'guide') return false;
+       if (kind !== 'peak') return dissolveValley && currentX <= surf + 0.01;
+       // NAD hrbem hranice neplatí — ale jen když tudy PROJDE DRŽÁK.
+       //

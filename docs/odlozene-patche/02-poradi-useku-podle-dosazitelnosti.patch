@@ -1,0 +1,5 @@
+--- a/js/calculators/cam/ops/long/regions.js
++++ b/js/calculators/cam/ops/long/regions.js
+@@
+-    keyed.sort((a, b) => (b.x - a.x) || (b.r.zHi - a.r.zHi) || (a.i - b.i));
++    keyed.sort((a, b) => (b.r.zHi - a.r.zHi) || (b.x - a.x) || (a.i - b.i));

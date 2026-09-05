@@ -1,0 +1,70 @@
+diff --git a/js/calculators/cam/ops/roughLong.js b/js/calculators/cam/ops/roughLong.js
+index b296a10..657f9e3 100644
+--- a/js/calculators/cam/ops/roughLong.js
++++ b/js/calculators/cam/ops/roughLong.js
+@@ -135,6 +135,31 @@ export function genLongPasses(ctx) {
+   const clrXPlanL = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x;
+   const planTopX = maxStockX + clrXPlanL;
+ 
++  // ── MŘÍŽKA HLOUBEK JE VLASTNOST DÍLU, NE ZVOLENÉHO ROZSAHU (5. 9. 2026) ─
++  // `maxStockX` výš je ořezaný rozsahem 📐 — a protože se z něj odvíjí i
++  // posloupnost hloubek, POSUNUL se s každou změnou rozsahu celý žebřík.
++  // Uživatel dělá díl po úsecích a čeká, že týž úsek vyjde vždy stejně;
++  // místo toho dostal pokaždé jiné vrstvy. Změřeno na jeho třech programech
++  // TÉHOŽ dílu (rozsah od Z 284,35 / 385,89 / 98,61): v pásu Z −17,9…98,6
++  // bylo ze 45 různých průchodů shodné ve všech třech JEDINÝ, protože
++  // rozsah do Z 98,61 vynechá přírubu r 64,5 → `maxStockX` spadne na 38,6
++  // a mřížka se posune z …/37,545/34,545/… na …/37,566/35,566/32,566/…
++  //
++  // Kotva se proto bere z CELÉHO polotovaru. Hloubky nad materiálem, který
++  // v rozsahu je, tím nevzniknou: `stockZRangeAt` je pořád ořezaná rozsahem
++  // a na takové hloubce vrátí `null`, takže se přeskočí (to je ta pojistka,
++  // kvůli které ořez `maxStockX` původně vznikl — „rozsah Z 108–195,6
++  // vygeneroval průchody na X≈65“; ta hloubka se teď jen tiše přeskočí).
++  // Ostatní použití `maxStockX` (planTopX, roh zanoření v pocketPass)
++  // ZŮSTÁVAJÍ ořezaná: ta jsou o tom, kde materiál v tomhle úseku je.
++  let ladderTopX = sRad;
++  if (prms.stockMode === 'casting' && stockWorldPoints.length > 0) {
++    ladderTopX = -9999;
++    stockWorldPoints.forEach(p => { if (p.xReal > ladderTopX) ladderTopX = p.xReal; });
++    if (ladderTopX < 0) ladderTopX = sRad;
++  }
++
++
+   // ── UZAVŘENÁ SILUETA: záloha pro `stockZRangeAt` níž ───────────────────
+   // Bodový sken v `stockZRangeAt` čte OTEVŘENÝ řetěz siluety a jeho konce
+   // započítá, jen když samy leží NAD hloubkou X. Odlitek nakreslený jako
+@@ -225,8 +250,22 @@ export function genLongPasses(ctx) {
+   // zvrchu nedodržuje ap"). Rovnoměrné dělení dá 2 × 2,0 mm — každá vrstva je
+   // ≤ ap a hlavní mřížka zůstává bitově stejná (kotvená dál na `maxStockX`),
+   // což je podmínka z odstavce výš.
+-  const firstMainX = maxStockX - step;
+-  if (planTopX > firstMainX + SKIM_MIN_LAYER * step && firstMainX > minPartX + 0.005) {
++  // SKIM PATŘÍ K POVRCHU V ROZSAHU, MŘÍŽKA K DÍLU. Skim řeší sílu PRVNÍ
++  // třísky, a ta se odvíjí od povrchu, který v tomhle úseku opravdu je
++  // (`planTopX`, ořezaný rozsahem) — kdežto mřížka musí zůstat vlastností
++  // dílu (`ladderTopX`, viz výš). Když se skim omylem navázal na globální
++  // vrch, přestal v ořezaném úseku dělat cokoli a `part-22-zleva-deep-ramp`
++  // za to zaplatil 2 novými kolizemi držáku (+138 mm², změřeno sweepem):
++  // první záběr v rozsahu spadl z ~1,1 mm rovnou na 2,66 mm.
++  //
++  // Skim se proto klade mezi povrch V ROZSAHU a první hloubku GLOBÁLNÍ
++  // mřížky pod ním — dosedne přesně na ni, takže mřížka zůstává bitově
++  // stejná a první tříska je zase dělená.
++  let firstMainX = null;
++  for (let d = ladderTopX - step; d > minPartX + 0.005; d -= step) {
++    if (d < planTopX - 1e-9) { firstMainX = d; break; }
++  }
++  if (firstMainX !== null && planTopX > firstMainX + SKIM_MIN_LAYER * step) {
+     const nSkim = Math.max(1, Math.ceil((planTopX - firstMainX) / step - 1e-9));
+     const hSkim = (planTopX - firstMainX) / nSkim;
+     for (let k = 1; k < nSkim; k++) {
+@@ -234,7 +273,7 @@ export function genLongPasses(ctx) {
+       if (d > minPartX + 0.005) depths.push(d);
+     }
+   }
+-  for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
++  for (let d = ladderTopX - step; d > minPartX + 0.005; d -= step) depths.push(d);
+   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
+     depths.push(minPartX);
+   }
