@@ -304,6 +304,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Dojezd na offsetovou čáru se NEVYDÁ nad materiálem** (`ops/roughEmit.js`).
+  Rampový průchod dostal 4. 9. 2026 dojezd až na offsetovou čáru
+  (*„polotovar končí až na offsetové čáře"*, §5 pravidel drah) a ten se
+  záměrně neptal `rapidHitsStock` — materiál mezi syrovým obrysem a offsetovou
+  čárou je přesně to, co se má odebrat. Jenže když `offsetExitZ` v tom směru
+  žádnou čáru nenajde, vrátí `null`, `zEdge` se stane nekonečnem opačného
+  směru a z `min`/`max` vypadne holé `cur.z ± Vůle Z` — tedy slepý milimetr
+  posuvem do prázdna.
+
+  Nález uživatele 5. 9. 2026 (`projekt_2026-09-05 (4)`): `N4010 G1 Z93.000`
+  a `N4100 G1 Z93.000` na r 31,5, kde polotovar sahá po **r 16,58** — nůž
+  řezal 15 mm nad materiálem. Nově se celá dráha dojezdu ověří proti
+  plánovacímu obrysu (`moveIsAir`, práh 0,01 mm); na offsetové čáře samotné
+  vrací `moveIsAir` false, takže měřený případ ze 4. 9. zůstává beze změny.
+
+- **Výjezd v X (stěna) jede rychloposuvem, když je celý ve vzduchu**
+  (`ops/roughEmit.js`, 3 místa). Odskok, který by couvl pod konturu, se
+  nahrazuje svislým výjezdem v X — ten ale zůstával `G1` i vysoko nad
+  odlitkem. Bez toho se navíc oprava dojezdu výš projevila jako zhoršení:
+  na `part-1`/`part-2` přibyl 1 řez ve vzduchu (2,0 mm), protože se konec
+  průchodu posunul do místa, kde už materiál není.
+
+  Změřeno `scripts/cam_air.mjs` přes celou sadu: **209 → 198 řezů ve vzduchu,
+  1 506,0 → 1 495,0 mm**, žádná fixture si nepohoršila. `scripts/cam_sweep.mjs`:
+  kolize beze změny (nakreslený nůž 5 / 117,3 mm², náhradní držák 0 / 0,0),
+  úběr +2,9 mm². Na díle uživatele 9 → 7 řezů ve vzduchu (8,1 → 6,1 mm).
+
+- **Průchod, který CELÝ jede vzduchem, se už nevydá** (`ops/roughLong.js`).
+  Booleovský sken staví zbytek proti OBDÉLNÍKOVÉMU obalu (`intervalScan.js`:
+  *„scan-line záměrně obrys polotovaru IGNORUJE"*), takže plánuje průchody
+  i tam, kde odlitek dávno není. Emise vzduch v TĚLE přejede rychloposuvem,
+  jenže zákrok, který je nad materiálem CELÝ — i s rampou a dojezdy — nic
+  neodebere a v G-kódu vypadá jako nesmysl.
+
+  Nález uživatele 5. 9. 2026: `N4170 G1 X27.977 Z91.950 ; Rampa 15.0°`
+  + `N4180 G1 Z92.000 F0.25` v pásu Z 89,8–92,0, kde je polotovar **r16,58**,
+  tedy 11 mm pod nožem. Po opravě 64 průchodů místo 65 a program končí
+  o 8 řádků dřív.
+
+  Měří se proti PLÁNOVACÍ siluetě a bere se CELÝ rozsah zákroku včetně kotvy
+  rampy a obou dojezdů; stačí JEDINÝ vzorek, kde materiál je, a průchod
+  zůstane — proto zbylých 9 „převážně vzduchových" průchodů na tom dílu
+  zůstává (část z nich opravdu řeže). Hlásí se do ⚠ panelu.
+
+  Na sadě **beze změny**: úběr 82 975,7 / 86 908,9 mm², kolize 2 / 4,9
+  a 0 / 0,0, otisk nezměněn — žádná fixture takový průchod nemá.
+
+- **Odjezd jel pracovním posuvem i desítky mm NAD materiálem**
+  (`ops/roughEmit.js`). Tělo průchodu si vzduch odděluje samo
+  (`airSplitAxial`) — odjezd ne. Sken staví zbytek proti OBDÉLNÍKOVÉMU obalu
+  (`intervalScan.js`), takže plánuje průchody i tam, kde odlitek dávno není,
+  a emise to má dorovnat; dělala to ale jen u těla.
+
+  Nález uživatele 5. 9. 2026: `N4110 G1 X30.545 Z91.000` a `N4190 G1 X29.977
+  Z90.000` v pásu, kde je polotovar **r16,58** — tedy 14 mm pod nožem.
+  Odjezd se nově vydá rychloposuvem, když je CELÝ nad plánovacím obrysem.
+
+  | | před | po |
+  |---|---|---|
+  | posuv ve vzduchu (díl uživatele) | 21 pohybů / 35,6 mm | **12 / 10,2 mm** |
+  | posuv ve vzduchu (`part-1`) | 13 / 59,4 mm | **6 / 39,6 mm** |
+  | úběr na sadě | 82 975,7 / 86 908,9 mm² | **beze změny** |
+  | kolize | 2 / 4,9 a 0 / 0,0 | **beze změny** |
+
+  Otisk se hnul na 19 z 28 fixtures — vždy jen záměnou `G1` za `G0` tam, kde
+  je prokazatelně vzduch.
+
+  **RAMPY SE TO NETÝKÁ, a je to správně:** rampa začíná V MATERIÁLU (i když
+  může skončit nad ním), takže test vrací false a zůstane posuvem. Že cíl
+  rampy leží nad povrchem (`N3500`, `N3990` na dílu uživatele) je vada PLÁNU —
+  vjezd míří tam, kde není co brát — ne emise.
+
 - **Hlídání boční hrany destičky promítalo hranu PŘES CELÝ DÍL a maazalo tím
   průchody na druhém konci** (`ops/long/insertFlankGuard.js`). Hrana je přitom
   dlouhá jen `toolLength`, takže radiálně sahá `toolLength · sin(natočení)` —

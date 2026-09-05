@@ -330,6 +330,22 @@ Materiál až k té čáře tedy reálně existovat může a náraz do něj je n
   a pás mezi obrysem a offsetovou čárou je přesně to, co se má odebrat.
   Výjimka: `emitZEnd` (mezikrok sjezdu končí dřív, dozanořuje se z něj další
   vrstva).
+  **Druhá výjimka (5. 9. 2026): NAD MATERIÁLEM SE NEDOJÍŽDÍ.** Když
+  `offsetExitZ` v tom směru žádnou čáru nenajde, vrátí `null` a `zEdge` se
+  stane nekonečnem opačného směru — z `min`/`max` pak vypadne holé
+  `cur.z ± Vůle Z`, tedy slepý milimetr posuvem do prázdna (nález uživatele:
+  `G1 Z93.000` na r 31,5, kde polotovar sahá po r 16,58). Dojezd má smysl
+  jen tam, kde se dojíždí NA něco, proto se ověřuje `moveIsAir`; na
+  offsetové čáře samotné vrací false (práh 0,01 mm), takže pravidlo výš
+  platí beze změny.
+- **Řezný pohyb se nevydává tam, kde plánovací obrys materiál nemá.** Tělo
+  průchodu to řeší `airSplitAxial`, ODJEZD nově taky (`moveIsAir`
+  v `ops/roughEmit.js`, 5. 9. 2026) — dřív jel posuvem i 14 mm nad odlitkem.
+  Rampy se to NEtýká: ta začíná v materiálu, takže když její cíl leží nad
+  povrchem, je to vada PLÁNU, ne emise.
+  Týká se to i **výjezdu v X u stěny** (`Výjezd v X (stěna)`, 3 místa):
+  svislý výjezd nahrazuje šikmý odskok, který by couvl pod konturu, ale
+  `G1` zůstával i vysoko nad odlitkem.
 - Rychloposuv **staví PŘED ní**, o `rapidFeedGap` (výchozí 1 mm); zbytek se
   dojede pracovním posuvem.
 - Snap se na ni chytá (vrcholy i hrany) — od 31. 8. 2026.

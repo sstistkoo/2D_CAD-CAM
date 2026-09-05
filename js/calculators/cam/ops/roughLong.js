@@ -1617,6 +1617,41 @@ export function genLongPasses(ctx) {
       foundErrors.push({ type: 'warning', msg: `Bez schodků: vypuštěno ${trimmed} úseků dojezdu a ${dropped} nájezdů — vedly po dráze, kterou už dřívější průchod projel.` });
   }
 
+  // ── PRŮCHOD, KTERÝ CELÝ JEDE VZDUCHEM, SE NEVYDÁ (5. 9. 2026) ──────────
+  // Booleovský sken staví zbytek proti OBDÉLNÍKOVÉMU obalu
+  // (`intervalScan.js`: „scan-line záměrně obrys polotovaru IGNORUJE"), takže
+  // plánuje průchody i tam, kde odlitek dávno není. Emise vzduch v TĚLE
+  // přejede rychloposuvem, jenže zákrok, který je nad materiálem CELÝ — i
+  // s rampou a dojezdy — nemá důvod existovat: nic neodebere a v G-kódu
+  // vypadá jako nesmysl.
+  //
+  // Nález uživatele 5. 9. 2026: `N4170 G1 X27.977 Z91.950 ; Rampa 15.0°`
+  // + `N4180 G1 Z92.000 F0.25` v pásu Z 89,8–92,0, kde je polotovar r16,58 —
+  // tedy **11 mm pod nožem**.
+  //
+  // Měří se proti PLÁNOVACÍ siluetě (polotovar končí až na offsetové čáře) a
+  // bere se CELÝ rozsah zákroku včetně kotvy rampy a obou dojezdů; stačí
+  // JEDINÝ vzorek, kde materiál je, a průchod zůstane.
+  if (stockLoopOffsetFullL && stockLoopOffsetFullL.length >= 3) {
+    const airOnly = (p) => {
+      if (p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) return false;
+      let zLo = Math.min(p.zStart, p.zEnd), zHi = Math.max(p.zStart, p.zEnd);
+      if (p.ramp && Number.isFinite(p.ramp.z0)) { zLo = Math.min(zLo, p.ramp.z0); zHi = Math.max(zHi, p.ramp.z0); }
+      for (const key of ['contourLeadIn', 'contourLeadOut'])
+        for (const sg of (p[key] || [])) { zLo = Math.min(zLo, sg.z1, sg.z2); zHi = Math.max(zHi, sg.z1, sg.z2); }
+      const kroku = Math.max(8, Math.ceil((zHi - zLo) / dzScan));
+      for (let i = 0; i <= kroku; i++) {
+        const top = topXOnLoop(stockLoopOffsetFullL, zLo + (zHi - zLo) * i / kroku);
+        if (top !== null && top > p.x + 0.01) return false;   // někde je materiál
+      }
+      return true;
+    };
+    let vzduch = 0;
+    for (let i = passes.length - 1; i >= 0; i--) if (airOnly(passes[i])) { passes.splice(i, 1); vzduch++; }
+    if (vzduch > 0)
+      foundErrors.push({ type: 'warning', msg: `Hrubování: ${vzduch} průchod(ů) vynecháno — celý zákrok včetně rampy leží nad polotovarem, nic by neodebral.` });
+  }
+
   // Hlídání geometrie destičky — viz ops/long/insertFlankGuard.js.
   if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
     const adjusted = guardInsertFlankLong(passes, prms, offsetPath);
