@@ -394,7 +394,7 @@ střídavě**, jinak se dá obhájit skoro cokoli.
 > (`airSplitAxial`); rampa, odjezd a dojezd po kontuře ne — a přesně z nich
 > pochází 6 z 9 nálezů uživatele z 5. 9. 2026.
 
-### Krok 1 — ZMĚŘENO 5. 9. 2026: páka je PŘEDPOVĚĎ, ne reprezentace
+### Krok 1 — ZMĚŘENO 5. 9. 2026: rozdíl emise × validátor NENÍ v jednom členu
 
 Než přepisovat reprezentaci zbytku (návrh níž), změřilo se, ČÍM přesně se
 model emise (`rapidStock` v `gcodeEmit.js`) rozchází s validátorem. Odpověď
@@ -449,13 +449,36 @@ Ztráta −1 208 mm² z „bez předpovědi" je tedy jinde na sadě, ne na jeho 
 model se stane PESIMISTICKÝM (myslí si, že materiál stojí, i když ho průchod
 právě odebral), takže se emise zbytečně zvedá a řeže míň.
 
-**Co z toho plyne pro krok 1.** Cíl není „schodový model" sám o sobě, ale
-**odstranit předpověď**: model musí vědět o řezu v tom okamžiku, kdy ho emise
-opravdu vydá. Dnes to nejde, protože tělo průchodu se do modelu dostane JEN
-přes `noteCutPass` (emisní smyčka těla `noteCutMove` nevolá) — a ta se volá
-buď příliš brzy (predikce), nebo by musela běžet po každém pohybu. Sjednocení
-modelu je tedy hlavně o TOM: jedna cesta zápisu, volaná z emise, po každém
-vydaném pohybu. Reprezentace (schody × polygony) je až druhá otázka.
+#### OPRAVA ZÁVĚRU (tentýž den, po dalším ověření)
+
+Výše uvedený závěr „páka je předpověď, stačí zapisovat pravdivě" **NEPLATÍ**.
+Dohledáno:
+
+- `noteCutMove` volá `noteCutPts` s TÝMŽ obrysem (`rapidFoot`) jako zápis
+  z plánu — mezi „zapsat plán" a „zapsat vydaný řez" tedy není geometrický
+  rozdíl, a měření to potvrdilo (varianta „skutečně vydané řezy těla":
+  beze změny).
+- Vynechání RAMPY samotné: beze změny. Vynechání TĚLA je to jediné, co s tím
+  hne.
+
+Takže vynechání `noteCutPass` model **nezpravdivuje — dělá ho PESIMISTICKÝM**
+(myslí si, že materiál stojí, i když ho průchod právě odebral). Kolize mizí
+proto, že pesimismus spustí ochranný zdvih, ne proto, že by se model srovnal
+s realitou. Ta ztráta −1 208 mm² je přesně cena té pesimistické opatrnosti.
+
+**Rozdíl emise × validátor tím zůstává NEVYSVĚTLENÝ.** Šest hypotéz, šest
+měřicích kol; emise v tom místě měří < 0,5 mm² (i plnou stopou), validátor
+0,8 mm². Kandidáti, na které se nedostalo: validátor si model staví
+PŘEHRÁNÍM celého `simPath` od začátku, kdežto `rapidStock` se plní za jízdy
+a každých 24 řezů se prohání `polySimplify(…, 0,002)` — dvě různé akumulace
+téhož.
+
+**Co z toho plyne pro krok 1.** Ladit rozdíl dvou implementací po jednotlivých
+nálezech je slepá ulička (šest kol, jeden funkční ale VEDLEJŠÍ efekt). Krok 1
+musí být doslovný: **validátor a hlídání v emisi musí sdílet JEDNU
+implementaci zbytku**, aby „co vidí hlídání" a „co počítá validátor" bylo
+totéž z konstrukce. Reprezentace (schody × polygony) je až druhá otázka —
+první je, že to má být jeden kód, ne dva.
 
 ### Krok 1 (původní návrh) — JEDEN model zbytku (1–2 dny)
 
