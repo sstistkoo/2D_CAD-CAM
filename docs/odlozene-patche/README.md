@@ -11,8 +11,13 @@ ukázal jako vada v emisi, ne rozdíl modelů (celý příběh
 v `docs/cam-architektura-analyza.md`, „Krok 1 → HOTOVO"). Zbytek téhle
 stránky je STAV KAŽDÉHO PATCHE po tom, co blokátor zmizel.
 
-Nasazují se `git apply --3way docs/odlozene-patche/<soubor>`
-(`git apply` bez `--3way` na 01 a 02 neprojde — mají hunky bez čísel řádků).
+Nasazují se `git apply --3way docs/odlozene-patche/<soubor>` (patch 01 má
+hunky bez čísel řádků, takže `git apply` bez `--3way` na něm neprojde).
+
+⚠ `git apply --3way` STAGUJE. `git checkout -- <soubor>` pak obnoví ZE STAGE,
+ne z HEAD — patch se tím dá tiše vézt v commitu, který o něm nemluví. Varianty
+měř přes `--save`/`--diff` fingerprintu, ne přes `git stash` (v repu leží dva
+starší stashe a `pop` sáhne po nich).
 
 ---
 
@@ -37,31 +42,28 @@ vlastnost pravidla, ne vada).
 kotva v materiálu) jsou už opravené v `main`, takže čísla výš jsou ke
 staršímu základu a chtějí přeměřit.
 
-## 02 — Pořadí úseků podle dosažitelnosti — **ODBLOKOVÁN, čeká na rozhodnutí**
+## ~~02 — Pořadí úseků podle dosažitelnosti~~ — **NASAZENO 5. 9. 2026**
 
-Jeden řádek: úseky se řadí podle blízkosti k nájezdu, průměr až jako tiebreak.
+Úseky se řadí podle blízkosti k nájezdu (`zHi`), průměr až jako tiebreak
+(`orderRegions` v `ops/long/regions.js`).
 
-Změřeno na `main` 5. 9. 2026 (30 fixtures, obě varianty držáku):
-
-| | bez patche | s patchem |
+| | před | po |
 |---|---|---|
-| úběr (náhradní držák) | 91 089,6 mm² | **91 228,5 (+144,3)** |
-| kolize — SYROVÝ standard (hlídá `cam-collision-free`) | 0 / 0,0 | **0 / 0,0** |
+| úběr (náhradní držák) | 91 089,6 mm² | **91 233,9 (+144,3)** |
+| kolize — SYROVÝ standard | 0 / 0,0 | **0 / 0,0** |
 | kolize — offsetový standard | 0 / 0,0 | 1 nález / 0,9 mm² |
 | díl uživatele (part-21/23) | 3 437,9 mm² | **3 494,7 (+56,8)**, 64 → 66 průchodů |
 
 Dva nálezy `rapid @r42.25 Z110.8 = 0,8 mm²` (`part-1`, `part-2`), které tenhle
-patch dřív blokovaly, **zmizely** — byla to vada v `emitDescendX`, ne pořadí
-(viz analýza).
+patch blokovaly, zmizely — byla to vada v `emitDescendX`, ne pořadí.
 
-**Co zbývá k rozhodnutí:**
-1. `holder @r28.55 Z112.9 = 0,9 mm²` na `part-21`/`part-23` (týž díl dvakrát)
-   v OFFSETOVÉM standardu. Ten standard není za gatem — je to „seznam práce"
-   (viz `validateToolpath`, `opts.planStock`) —, ale nález to je.
-2. Patch přeskládá pořadí, takže se mění TEXT programu u většiny fixtures
-   (snapshoty `cam-gcode-regression` +/− ~7 000 řádků) při skoro nezměněných
-   číslech. Není to regrese, ale je to velká viditelná změna a README plánu
-   říká, že 01 a 02 patří k sobě.
+**Doložená mez, se kterou to jde do provozu:**
+`holder @r28.55 Z112.9 = 0,9 mm²` na `part-21`/`part-23` v offsetovém
+standardu. Leží mezi prahem generátoru (sken, 2,0 mm²) a prahem validátoru
+(polygon, 0,5 mm²), takže ho generátor z definice nevidí. Zapsáno
+v `EXPECTED_PLAN` (`tests/cam-collision-free.test.js`) a rozebráno
+v `docs/cam-pravidla-drah.md` §7.5 — i s měřením, proč se to nespraví
+záměnou prahu.
 
 ## 03 — Mřížka hloubek je vlastnost dílu, ne zvoleného rozsahu — **STÁLE BLOKOVÁN**
 
@@ -87,12 +89,13 @@ kolize 0 v obou standardech, otisk se hnul na 3 fixtures.
 
 ## Pořadí nasazení, co zbylo
 
-1. **02** — rozhodnout o těch dvou bodech výš (je to jediný patch, který je
-   měřitelně připravený).
-2. **01** — potřebuje přeměřit na dnešním `main` a pak dořešit `part-20`
-   (90° zanoření upichováku hlídá `plungeHolderFitsAt` výškovým polem, které
-   tunel neumí) a `range-end-leadout`.
-3. **03** — až po 01, protože oba sahají na skladbu hloubek.
+1. **01** — potřebuje přeměřit na dnešním `main` (02 i 04 jsou už uvnitř)
+   a pak dořešit `part-20` (90° zanoření upichováku hlídá `plungeHolderFitsAt`
+   výškovým polem, které tunel neumí) a `range-end-leadout`.
+2. **03** — až po 01, protože oba sahají na skladbu hloubek.
+
+Nadpis téhle stránky je tím z půlky splacený: ze čtyř patchů jsou dva v `main`
+a zbylé dva čekají na SVÉHO blokátora, ne na společného.
 
 Patch `useky-podle-meznich-car.patch` v kořeni repa je STARŠÍ pokus ze
 7. 8. 2026 (náhrada detekce údolí čárami) a s těmito nesouvisí.

@@ -136,6 +136,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indikátor kót (režim kót je součástí uloženého projektu).
 
 ### Changed
+- **Pořadí úseků podle DOSAŽITELNOSTI, ne podle průměru**
+  (`ops/long/regions.js`, `orderRegions`). Úseky se řadily `(b.x - a.x)`, tedy
+  od největšího průměru — kritérium, které o přístupu k úseku nevypovídá nic.
+  Zavedené soustružnické CAM systémy řadí topologicky: úsek se smí začít, až
+  zmizí materiál, který brání přístupu k němu. `zHi` (nejblíž nájezdu první)
+  je z toho ta levná, ale správným směrem mířící část — vzdálený konec dílu se
+  obrábí DŘÍV, ne až po zbytku dílu.
+
+  Přes sadu (30 fixtures, obě varianty držáku): úběr 91 089,6 → 91 233,9 mm²
+  (**+144,3**), kolize v SYROVÉM standardu 0 → 0. Na dílu uživatele
+  (part-21/23) **+56,8 mm² a 64 → 66 průchodů**.
+
+  Doložená mez, se kterou to jde do provozu: v OFFSETOVÉM standardu přibyl
+  jeden nález `holder @r28.55 Z112.9 = 0,9 mm²` (part-21/23, týž díl dvakrát).
+  Leží mezi prahem generátoru (sken výškových tabulek, 2,0 mm²) a prahem
+  validátoru (polygon, 0,5 mm²), takže ho generátor z definice nevidí; záměna
+  prahu to nespraví (měření v `docs/cam-pravidla-drah.md` §7.5).
+
 - **Kolizní vybarvení v simulaci se už nedá vypnout.** Tlačítka 🟧 (kolize
   držáku) i 🟥 (zajetí do kontury) jsou z panelu pryč a obě hlídání běží
   natvrdo (rozhodnutí uživatele 1. 9. 2026: kolize se nemá dát omylem

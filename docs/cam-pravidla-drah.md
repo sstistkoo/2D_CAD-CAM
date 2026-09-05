@@ -717,6 +717,7 @@ nového nápadu):
 | memoizace uvnitř `calculate()` | `pathInputsKey` nepokrývá všechny vstupy; rozbilo 9 souborů testů |
 | rampa posunutého vjezdu puštěná do ŘETĚZU kotev | −255 až −291 mm² a +4 nálezy offset; správně je LOKÁLNÍ kotva, viz §3.1 |
 | zahazovat „uzavírací krok řetězu, co nic neodebere" | viz §7.2 — nedá se odlišit od kroku, který odebere 13–44 mm² |
+| polygonové hlídání držáku na DOJEZDU s prahem 0,5 mm² | absolutní číslo z modelu zbytku se s nulou srovnávat nedá — viz §7.5 |
 
 ### 7.1 Hranice ve STŘEDU ÚDOLÍ — přeměřeno 1. 9. 2026
 
@@ -851,6 +852,47 @@ zatím není (týž závěr jako u `docs/cam-order-aware-holder.md`).
 
 Než se do toho půjde, je potřeba od uživatele mez v mm² („pod tolik to nemá
 smysl"), nebo pořadí-znalý model úběru v plánovači.
+
+### 7.5 DRŽÁK NA DOJEZDU: sken 2,0 mm² × polygon 0,5 mm² (5. 9. 2026)
+
+Generátor hlídá držák **skenem výškových tabulek** s prahem
+`HOLDER_FIT_TOL = 2,0 mm²` (`ops/shared.js`), validátor **polygonem** s prahem
+0,5 mm². Ten rozdíl není nedbalost: hrubý sken systematicky NADHODNOCUJE
+(změřené artefakty do 1,09 mm² tam, kde polygon vidí 0–0,12), takže s prahem
+0,5 by zahazoval průchody, které žádné měřítko nehlásí — a platilo by se za
+ně materiálem (`part-17` −4,4 % úběru).
+
+**Nález, který v tom pásu bydlí.** Po nasazení pořadí úseků podle
+dosažitelnosti hlásí validátor v OFFSETOVÉM standardu
+`holder @r28.55 Z112.9 = 0,9 mm²` na `part-21-zleva-insert-shadow`
+a `part-23-zleva-cely-rozsah` (týž díl dvakrát). Je to DOJEZD průchodu #5 —
+`contourLeadOut` (28,55; 112,92) → (31,63; 114,02), blok `N510`. 0,91 mm²
+leží mezi oběma prahy, takže generátor ho z definice nevidí.
+
+**Proč to nespraví „prostě použít polygon".** Zkusit se to musí proti modelu
+zbytku, a jeho ABSOLUTNÍ číslo se s nulou srovnávat nedá (plánovací zbytek
+nese fantomový materiál — viz `holderPlanAreaAt` v `gcodeEmit.js`). Změřeno
+na TOMHLE dojezdu, `holderAreaAlongResidual`:
+
+| obrys držáku | plocha |
+|---|---|
+| `residualHolderLoop(prms, false)` — jak ho generátor používá | **189,0 mm²** |
+| `residualHolderLoop(prms, true)` | 7,5 mm² |
+| `holderWorldLoop(prms, false)` | 202,9 mm² |
+| `holderWorldLoop(prms, true)` — jak měří validátor zleva | 14,9 mm² |
+
+S prahem 0,5 mm² by se tedy zahazoval skoro každý dojezd. Použitelný je jen
+ROZDÍL dvou poloh téhož obrysu nad týmž modelem; postavit na tom hlídání je
+vlastní práce, ne záměna prahu.
+
+**Souvisí:** ořez dojezdu tím skenem byl zkoušen a vyjmut týž den
+(`ops/roughLong.js`) — na dnešních fixtures nic nezlepšil a sebral
+`cam-finish-holder` jeden řetězový nájezd (3 → 2).
+
+Nález je proto zapsaný v `EXPECTED_PLAN` v `tests/cam-collision-free.test.js`.
+**Co by ho zavřelo:** hlídání držáku, které měří PŘÍRŮSTEK proti modelu
+zbytku místo absolutní plochy — tedy táž věc, kterou potřebuje i §7 řádek
+„nájezd průchodu × držák".
 
 ---
 
