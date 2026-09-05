@@ -487,6 +487,44 @@ díra v hlídání, ale přesně ta situace z §2.5: vzdálený konec se musí o
 DŘÍV. Bez pořadí podle dosažitelnosti (`pendingRegions`) §6.0a na tomhle dílu
 nemůže vyjít.
 
+### Krok 1 — POTVRZENO MĚŘENÍM 5. 9. 2026: pořadí úseků blokuje rozdíl modelů
+
+Pořadí úseků podle dosažitelnosti je JEDEN řádek (`orderRegions`
+v `ops/long/regions.js`): řadit podle `zHi` (nejblíž nájezdu první) a průměr
+nechat až jako tiebreak. Změřeno na celé sadě:
+
+| | dnešní pořadí (podle průměru) | podle dosažitelnosti |
+|---|---|---|
+| úběr — náhradní držák | 91 084 mm² | **91 229 mm² (+145)** |
+| kolize — náhradní držák | **0 / 0,0** | **2 / 1,5 mm²** |
+| díl uživatele (part-21/23) | 3 437,9 mm² | **3 494,7 (+57)** |
+| díl uživatele S §6.0a | 43 průchodů / 3 062 mm² | **51 průchodů / 3 265 mm² (+203)** |
+
+`range-end-leadout` (ztráta 71 % úběru s §6.0a) se pořadím **NEMĚNÍ**
+(6 průchodů / 198 mm² v obou) — dřívější domněnka, že jde o pořadí, je tím
+**vyvrácena**. Ten díl má s §6.0a 3 úseky, ne jeden; blokuje ho hlídání
+držáku (4 zakázané hloubky, 2 neobrobené úseky polotovaru).
+
+**Zbylé 2 kolize jsou obě `rapid @r42.25 Z110.8 = 0,8 mm²` na `part-1`/`part-2`**
+(+ 1 nález `holder @r28.55 Z112.9 = 0,9 mm²` na part-21/23 v OFFSETOVÉM
+standardu). Vypadá to jako díra v hlídání nájezdu. NENÍ. Tři hypotézy,
+všechny vyvrácené měřením:
+
+| hypotéza | výsledek |
+|---|---|
+| sjezd v X se testuje ZÚŽENOU stopou → zkusit plnou (`emitDescendX`) | **beze změny** |
+| hlídání testuje ÚHLOPŘÍČKU, stroj jede do L → testovat obě nohy zvlášť | **beze změny** |
+| přejezd v Z se testuje zúženou stopou → zkusit plnou (`safeRapidTo`) | **beze změny** |
+
+Emise v tom místě **žádné vnoření nevidí** (`rapidStock`, práh 0,5 mm²),
+validátor tam měří 0,8 mm². Je to tedy ROZDÍL DVOU MODELŮ zbytku, ne chybějící
+test — přesně to, co má odstranit **krok 1 (jeden model zbytku)** níž. Dokud
+oba modely nesouhlasí, je hledání jednotlivých nálezů hádání: každá hypotéza
+stojí jedno plné měřicí kolo a všechny tři výše skončily na nule.
+
+**Závěr: pořadí úseků je hotové a měřitelně přínosné, ale nasadit ho nejde
+před krokem 1.**
+
 ### Krok 2 (původní záměr) — oddělit generování od hlídání (2–3 dny)
 
 Generátor vydá **kandidáty**; jediná funkce `applyGuards(passes)` rozhodne
