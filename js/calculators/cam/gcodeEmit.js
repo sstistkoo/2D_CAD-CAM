@@ -620,12 +620,41 @@ export function generateAutoGCode(S, calc) {
   // (na part-10-zapich ~13 mm² grazing). Práh `rapidHitsStock` je stejný jako
   // jinde → skin-grazing pod ním se nechytá (part-1..9 beze změny).
   // Polohu si volající nastaví sám (setPos).
+  // KAM AŽ SMÍ SJEZD RYCHLOPOSUVEM, když ho hlídání zamítlo: nejhlubší X,
+  // ve kterém táž STOPA, jaká sjezd zamítla, ještě nehlásí dotyk. Půlí se
+  // interval ⟨tx, fromX⟩ — plocha stopy roste monotónně s délkou sjezdu.
+  //
+  // PROČ TO NESTAČÍ VZÍT Z `rapidStopXAt`: ta odpovídá na tutéž otázku
+  // BODOVÝM dotazem na jednom Z (`topXOnLoop`), jenže destička je v Z široká
+  // a materiál, do kterého sjezd narazí, může stát na SOUSEDNÍM Z. Bodová mez
+  // pak vyjde POD cílem, `floorX` se o cíl zarazí a „ochranná" větev vydá
+  // přesně ten holý rychloposuv, který právě zamítla. Změřeno na `part-1`
+  // a `part-2` (pořadí úseků podle dosažitelnosti): `G0 X35.643` na Z 110,807
+  // — hlídání tam měří 0,77 mm² v materiálu, `rapidStopXAt` vrátí 35,37,
+  // tedy 0,27 mm POD cílem 35,643. Tentýž nález hlásí validátor jako
+  // `rapid @r42.25 Z110.8 = 0,8 mm²`.
+  //
+  // Kvantizace na 0,01 mm NAHORU (= od materiálu): číslo je odvozené
+  // z Clipperem počítaného zbytku a bez ní se zrcadlené hrubování rozešlo
+  // s nezrcadleným o mikrometry (táž past jako u `travelTopXAtZ`).
+  const rapidDescendFloor = (fromX, tx, tz) => {
+    const hits = (x) => rapidHitsStock(fromX, tz, x, tz) || rapidHitsPlan(fromX, tz, x, tz);
+    let lo = tx;          // zamítnuto (sem se sjezdem rychloposuvem nesmíme)
+    let hi = fromX;       // odsud se vyjíždí, tam se stojí
+    for (let i = 0; i < 12 && hi - lo > 1e-3; i++) {
+      const mid = (lo + hi) / 2;
+      if (hits(mid)) lo = mid; else hi = mid;
+    }
+    return Math.min(fromX, Math.max(tx, quantizeUp(hi)));
+  };
   const emitDescendX = (fromX, tx, tz, touch) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     if (fromX - tx > 1e-6 && (rapidHitsStock(fromX, tz, tx, tz) || rapidHitsPlan(fromX, tz, tx, tz))) {
       const surf = rapidStopXAt(tz);
       if (surf !== null) {
-        const floorX = Math.min(fromX, Math.max(tx, surf));
+        let floorX = Math.min(fromX, Math.max(tx, surf));
+        // Bodová mez neuťala nic → zeptat se stopou (viz rapidDescendFloor).
+        if (floorX - tx <= 1e-6) floorX = rapidDescendFloor(fromX, tx, tz);
         if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
         if (floorX - tx > 1e-6) emit(`G1 X${xDia(tx)} F${prms.feed}`);
         return;
