@@ -480,6 +480,52 @@ implementaci zbytku**, aby „co vidí hlídání" a „co počítá validátor"
 totéž z konstrukce. Reprezentace (schody × polygony) je až druhá otázka —
 první je, že to má být jeden kód, ne dva.
 
+#### HOTOVO 5. 9. 2026 — a rovnou vyvrátilo vlastní premisu
+
+`js/calculators/cam/residualStock.js` (třída `ResidualStock`) je ta jedna
+akumulace; emise, validátor i `ResidualTracker` ji od té doby sdílejí. Čím se
+liší, jsou POJMENOVANÉ PARAMETRY jednoho modelu (tabulka v hlavičce souboru).
+Zavedení nic nezměnilo: otisk 30/30 fixtures shodný, sada zelená.
+
+**A pak se ukázalo, že žádný „rozdíl dvou modelů" neexistoval.** Se sdíleným
+modelem šlo replay validátoru přepínat po jednom knoflíku (guarded seam:
+replay nejdřív vydal TÝŽ nález, 0,77 mm²). Výsledek na `part-1`:
+
+| nastavení | `rapid @r42.25 Z110.8` |
+|---|---|
+| jak měří validátor | **0,77 mm²** |
+| ubírá se plánovací stopou (jako emise) | 0,77 |
+| testuje se nezúženou stopou (jako emise) | 0,85 |
+| zjednodušení po 24 řezech (jako emise) | 0,77 |
+| bez broad-phase (jako emise) | 0,77 |
+| **všechno naráz = přesné nastavení emise** | **0,85** |
+
+Model to tedy nebyl v žádném z těch šesti smyslů. Sonda do emise (log každého
+zápisu i dotazu do `ResidualStock`) pak ukázala, že **emise si na tentýž
+pohyb sáhla a naměřila 0,767 mm²** — tedy TOTÉŽ co validátor, nad prahem
+0,5 — a rychloposuv přesto vydala:
+
+```
+#341 probe area 0.767  (r42.250, Z110.807) → (r35.643, Z110.807)
+...
+N2800 G0 X35.643
+```
+
+Příčina je v `emitDescendX`: guard sepnul, ale mez, KDE má rychloposuv
+zastavit, si vzal z `rapidStopXAt`, a to je **bodový dotaz na jednom Z**
+(`topXOnLoop`). Destička je v Z široká, materiál stál na sousedním Z, bodová
+mez vyšla 35,37 — o 0,27 mm POD cílem 35,643 — takže `floorX` se o cíl
+zarazil a „ochranná" větev vydala přesně ten holý rychloposuv, který právě
+zamítla. Opraveno půlením intervalu TOUŽ STOPOU, jaká sjezd zamítla
+(`rapidDescendFloor`).
+
+**Poučení, které stojí za víc než ta oprava:** šest měřicích kol hledalo
+rozdíl mezi dvěma modely, protože se nedalo levně zjistit, co si emise
+o tom místě myslí. Jakmile byl model JEDEN, stačila na to jedna sonda
+a otázka se rozpadla za dvě minuty. Hodnota kroku 1 není v tom, že sjednotil
+čísla — ta byla shodná celou dobu —, ale v tom, že se ta shoda dala
+**vůbec ověřit**.
+
 ### Krok 1 (původní návrh) — JEDEN model zbytku (1–2 dny)
 
 Schodový model: na každé hloubce setříděný seznam Z-intervalů, aktualizovaný

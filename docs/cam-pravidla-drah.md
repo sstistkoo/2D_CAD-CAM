@@ -691,6 +691,16 @@ nového nápadu):
   Ořezává se proto jen dobrání kapsy (`pocketClean`), kde je opakování
   vlastností zadání — poslední zákrok bursteu i dobrání míří na týž `exitZ`.
 
+  > ⚠ **DEMONSTRÁTOR TÉHLE MEZE PADL (5. 9. 2026) — mez je tím NEDOLOŽENÁ,
+  > ne vyvrácená.** Ta kolize 1,0 mm² na `part-18` nevznikla tím, že by
+  > „držák neměl místo": rozdělená diagonála v `safeRapidTo` končila
+  > rychloposuv na PEVNÉ vůli `tx + rapidStopX` místo na mezi `rTxReal`,
+  > kterou o kus výš spočítal guard — a ta byla o 0,9 mm výš. Po opravě
+  > (`gcodeEmit.js`) je `part-18` na nule v obou standardech.
+  > Jestli plošný ořez dojezdů kolize dělá, se tím **nezměřilo znovu**:
+  > jediný důkaz, který mez měla, byl tenhle a už neplatí. Kdo ji bude chtít
+  > otevřít, musí ji přeměřit od začátku — a kdo ji bude chtít nechat, taky.
+
 ---
 
 ## 7. Doložené meze — NEOTEVÍRAT bez nového nápadu

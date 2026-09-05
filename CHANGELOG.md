@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`js/calculators/cam/residualStock.js` — JEDEN model zbytkového polotovaru.**
+  „Co z polotovaru ještě stojí" si dosud počítala emise (`rapidStock`
+  v `gcodeEmit.js`), validátor kolizí a strategie (`ResidualTracker`) každý
+  po svém — tři akumulace téhož. Rozdíl mezi prvními dvěma blokoval čtyři
+  hotové změny odložené v `docs/odlozene-patche/`. Nová třída `ResidualStock`
+  je ta jedna akumulace (seed → `toolSweep` → `StockModel.cut/collide`,
+  periodické `polySimplify`, broad-phase, `topAt`); čím se emise a validátor
+  liší, jsou od teď POJMENOVANÉ PARAMETRY jednoho modelu (tabulka v hlavičce
+  souboru) — co v ní není, v tom se ty dva lišit nemohou.
+  Zavedení nezměnilo chování: otisk 30/30 fixtures shodný, sada zelená.
+  Hned se to vyplatilo: rozdíl, který se šesti hypotézami nedařilo vysvětlit,
+  se ukázal jako *ne*rozdíl modelů — emise měřila TOTÉŽ co validátor
+  (0,767 mm²), jen na to nezareagovala (viz Fixed).
+
 - **Simulace: zajetí do hotové kontury se vybarví ČERVENĚ** (`ContourGouge`,
   `js/calculators/cam/contourGouge.js`). Když nůž ukousl kus hotového tvaru,
   vypadalo to na plátně stejně jako legitimní řez — materiál prostě zmizel
@@ -304,6 +318,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Rychloposuv smí sjet jen tam, kam ho pustilo hlídání** (`gcodeEmit.js`).
+  Dvě místa v emisi zamítla sjezd správně, ale mez, KDE má rychloposuv
+  zastavit, si vzala odjinud než z toho, co zamítnutí spočítalo:
+
+  - `emitDescendX` bral mez z `rapidStopXAt`, což je BODOVÝ dotaz na jednom Z
+    (`topXOnLoop`). Destička je ale v Z široká a materiál, do kterého sjezd
+    narazí, může stát na sousedním Z; bodová mez pak vyjde POD cílem, ořez se
+    o cíl zarazí a „ochranná" větev vydá přesně ten holý rychloposuv, který
+    právě zamítla. Nově se v tom degenerovaném případě půlením intervalu
+    zeptá TOUŽ STOPOU, jaká sjezd zamítla (`rapidDescendFloor`).
+  - Rozdělená diagonála (`safeRapidTo`, „nejdřív Z, pak X") končila
+    rychloposuv na PEVNÉ vůli `tx + rapidStopX`, ačkoli o kus výš už guard
+    spočítal `rTxReal` — proti ZBYTKU, tedy se znalostí pořadí obrábění.
+    Na `part-18-parting-90-ramp` guard sjezd uzavřel úplně a přesto se vydalo
+    `G0 X24.651`, tedy 0,9 mm do stojícího materiálu.
+
+  Obojí je výhradně ZKRÁCENÍ rychloposuvu (zbytek dojede posuvem):
+  přes celou sadu úběr **beze změny** (91 084,2 mm²) a kolize 0 → 0 v obou
+  standardech polotovaru; v otisku se hnulo 21 z 30 programů, drtivě
+  o jednotky µm. Nálezy, které tím padly: `rapid @r42.25 Z110.8 = 0,8 mm²`
+  (part-1/part-2 při pořadí úseků podle dosažitelnosti) a
+  `rapid @r25.54 Z42.0 = 1,0 mm²` (part-18 se stropem dojezdu z kapsy).
+
+- **Strop dojezdu z kapsy** (`passHelpers.js`, `ops/long/pocketPass.js`).
+  `findPocketExitZ` neměl jinou zarážku než dno okna: šplhal po protilehlé
+  stěně kapsy, a když se kontura na hloubku průchodu nikdy nevrátila, dojel
+  až na konec kontury. Dnešní hranice úseků od hrbů to schovávají; jakmile je
+  zruší pravidlo §6.0a, vyjede dobrání kapsy přes celý díl (na dílu uživatele
+  100 mm po kontuře, s držákem skrz stojící materiál drážky). Strop = hloubka
+  předchozí, mělčí vrstvy. Přes sadu +5,4 mm² úběru, kolize 0 → 0.
+
 - **Kotva rampy nesmí ležet v materiálu — nájezd na ni jde rychloposuvem**
   (`ops/roughLong.js`, `ops/long/openPass.js`, `ops/long/pocketPass.js`).
   Tři místa stavěla kotvu zanoření na bod UVNITŘ odlitku a spoléhala, že tam

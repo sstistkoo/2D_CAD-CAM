@@ -1,14 +1,22 @@
-# Odložené patche — hotové, změřené, čekají na sdílený model zbytku
+# Odložené patche — hotové, změřené, čekají na svého blokátora
 
-Čtyři změny z 5. 9. 2026. **Všechny jsou dopsané a změřené**, žádná není
-rozpracovaná. Neleží v `main` proto, že každá naráží na TÉHOŽ blokátora:
-hlídání v emisi a validátor kolizí mají každý svůj model zbytku a rozcházejí
-se (viz `docs/cam-architektura-analyza.md`, krok 1).
+Původně čtyři změny z 5. 9. 2026. **Všechny jsou dopsané a změřené**, žádná
+není rozpracovaná. Ležely mimo `main` proto, že každá narážela na TÉHOŽ
+blokátora: hlídání v emisi a validátor kolizí měly každý svůj model zbytku
+a rozcházely se.
 
-Nasazují se `git apply docs/odlozene-patche/<soubor>`; k 5. 9. 2026 všechny
-sedí na HEAD.
+**Ten blokátor padl 5. 9. 2026** — `js/calculators/cam/residualStock.js`
+je teď jediná implementace zbytku pro obojí, a rozdíl, který blokoval, se
+ukázal jako vada v emisi, ne rozdíl modelů (celý příběh
+v `docs/cam-architektura-analyza.md`, „Krok 1 → HOTOVO"). Zbytek téhle
+stránky je STAV KAŽDÉHO PATCHE po tom, co blokátor zmizel.
 
-## 01 — Úseky se dělí podle mezní čáry, ne podle hrbů a údolí
+Nasazují se `git apply --3way docs/odlozene-patche/<soubor>`
+(`git apply` bez `--3way` na 01 a 02 neprojde — mají hunky bez čísel řádků).
+
+---
+
+## 01 — Úseky se dělí podle mezní čáry, ne podle hrbů a údolí — **STÁLE BLOKOVÁN**
 
 Zavádí podmínku **§6.0a** z `docs/cam-pravidla-drah.md` (pravidlo uživatele):
 hranici úseku dělá jen mezní čára hlídání destičky, která VYJEDE z polotovaru.
@@ -20,22 +28,42 @@ neviditelných čarách Z 4,20 a Z 62,80.
 
 **Blokuje:** `cam-collision-free` padá na `part-20-zleva-parting-taper`
 (8 nálezů, 90° zanoření upichováku) a `holder-casting-slanted-face` (2 × 1 mm²
-v offsetovém standardu). Přes sadu −3 400 mm² úběru (úseky nechávají materiál
-na svých hranicích — vlastnost pravidla, ne vada).
+v offsetovém standardu); k tomu `range-end-leadout` ztratí 71 % úběru (bez
+hranic je úsek tak velký, že hlídání zakáže vjezd a vypadnou celé hloubky).
+Přes sadu −3 400 mm² úběru (úseky nechávají materiál na svých hranicích —
+vlastnost pravidla, ne vada).
 
-## 02 — Pořadí úseků podle dosažitelnosti
+**Poznámka po 5. 9.:** dva z těch blokátorů (100mm dojezd z kapsy a rampová
+kotva v materiálu) jsou už opravené v `main`, takže čísla výš jsou ke
+staršímu základu a chtějí přeměřit.
+
+## 02 — Pořadí úseků podle dosažitelnosti — **ODBLOKOVÁN, čeká na rozhodnutí**
 
 Jeden řádek: úseky se řadí podle blízkosti k nájezdu, průměr až jako tiebreak.
 
-Přes sadu **+145 mm²**; na dílu uživatele **+57 mm²**, a s patchem 01
-**+203 mm² a 43 → 51 průchodů**.
+Změřeno na `main` 5. 9. 2026 (30 fixtures, obě varianty držáku):
 
-**Blokuje:** 2 nálezy po 0,8 mm² (`part-1`, `part-2`) — `rapid @r42.25 Z110.8`.
-Šest hypotéz, co to NENÍ, je v analýze; emise tam měří < 0,5 mm², validátor
-0,8. Zmizí to, když se vynechá `noteCutPass` — ale to jen udělá model
-pesimistickým, nespraví příčinu.
+| | bez patche | s patchem |
+|---|---|---|
+| úběr (náhradní držák) | 91 089,6 mm² | **91 228,5 (+144,3)** |
+| kolize — SYROVÝ standard (hlídá `cam-collision-free`) | 0 / 0,0 | **0 / 0,0** |
+| kolize — offsetový standard | 0 / 0,0 | 1 nález / 0,9 mm² |
+| díl uživatele (part-21/23) | 3 437,9 mm² | **3 494,7 (+56,8)**, 64 → 66 průchodů |
 
-## 03 — Mřížka hloubek je vlastnost dílu, ne zvoleného rozsahu
+Dva nálezy `rapid @r42.25 Z110.8 = 0,8 mm²` (`part-1`, `part-2`), které tenhle
+patch dřív blokovaly, **zmizely** — byla to vada v `emitDescendX`, ne pořadí
+(viz analýza).
+
+**Co zbývá k rozhodnutí:**
+1. `holder @r28.55 Z112.9 = 0,9 mm²` na `part-21`/`part-23` (týž díl dvakrát)
+   v OFFSETOVÉM standardu. Ten standard není za gatem — je to „seznam práce"
+   (viz `validateToolpath`, `opts.planStock`) —, ale nález to je.
+2. Patch přeskládá pořadí, takže se mění TEXT programu u většiny fixtures
+   (snapshoty `cam-gcode-regression` +/− ~7 000 řádků) při skoro nezměněných
+   číslech. Není to regrese, ale je to velká viditelná změna a README plánu
+   říká, že 01 a 02 patří k sobě.
+
+## 03 — Mřížka hloubek je vlastnost dílu, ne zvoleného rozsahu — **STÁLE BLOKOVÁN**
 
 Kotva posloupnosti hloubek se bere z CELÉHO polotovaru, ne z ořezaného
 rozsahem 📐 (podmínka **§6.0c**). Skim zůstává u povrchu v rozsahu, ale dosedne
@@ -48,23 +76,23 @@ S patchem mají tytéž hloubky a 12 z 17 průchodů je bajt v bajt stejných.
 **Blokuje:** `part-22-zleva-deep-ramp` +2 kolize / +138 mm² s nakresleným
 nožem (posun mřížky přeskládá průchody a na tom dílu to padne hůř).
 
-## 04 — Strop dojezdu z kapsy
+## ~~04 — Strop dojezdu z kapsy~~ — **NASAZENO 5. 9. 2026**
 
-`findPocketExitZ` nemá jinou zarážku než dno okna: šplhá po protilehlé stěně
-kapsy, a když se kontura na hloubku průchodu nevrátí, dojede až na konec.
-S patchem 01 (bez hranic od hrbů) z toho byl dojezd **100 mm napříč dílem**.
-
-**Blokuje:** `part-18-parting-90-ramp`, 1 nález 1,0 mm² typu `rapid` — zkrácení
-dojezdu posune 45° odskok do místa, kde už držák místo nemá. Je to doložená
-mez zapsaná v `docs/cam-pravidla-drah.md` §6.2.
+`findPocketExitZ` dostal strop šplhání. Jeho jediný blokátor
+(`part-18-parting-90-ramp`, 1 nález 1,0 mm² typu `rapid`) byl opravená vada
+v emisi, ne vlastnost patche. Po nasazení: +5,4 mm² úběru přes sadu,
+kolize 0 v obou standardech, otisk se hnul na 3 fixtures.
 
 ---
 
-## Pořadí nasazení, až bude sdílený model
+## Pořadí nasazení, co zbylo
 
-1. sdílený model zbytku (krok 1 analýzy) — **odemyká zbytek**
-2. patch 01 (pravidlo uživatele) + patch 02 (pořadí) — patří k sobě
-3. patch 04, pak 03
+1. **02** — rozhodnout o těch dvou bodech výš (je to jediný patch, který je
+   měřitelně připravený).
+2. **01** — potřebuje přeměřit na dnešním `main` a pak dořešit `part-20`
+   (90° zanoření upichováku hlídá `plungeHolderFitsAt` výškovým polem, které
+   tunel neumí) a `range-end-leadout`.
+3. **03** — až po 01, protože oba sahají na skladbu hloubek.
 
 Patch `useky-podle-meznich-car.patch` v kořeni repa je STARŠÍ pokus ze
 7. 8. 2026 (náhrada detekce údolí čárami) a s těmito nesouvisí.

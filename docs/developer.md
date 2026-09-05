@@ -348,6 +348,7 @@ User selects CAM tool
 | `calculators/camEditor.js` | Editor CAM strategií |
 | `calculators/camSimulator.js` | Náhled obrysů obrábění |
 | `calculators/contourOffset.js` | Offset kontur pro obrábění |
+| `calculators/cam/residualStock.js` | **JEDEN model zbytkového polotovaru** — sdílená akumulace pro emisi (`rapidStock` v `gcodeEmit.js`), validátor kolizí i `residualTracker.js`. Do 5. 9. 2026 to byly TŘI vlastní implementace téhož a rozdíl mezi prvními dvěma blokoval čtyři hotové změny; čím se od sebe liší, jsou od té doby pojmenované parametry jedné třídy (tabulka v hlavičce souboru) |
 | `calculators/cam/residualTracker.js` | Model ZBYTKU se znalostí pořadí obrábění (polygony, `StockModel`). Strategie si vede levné výškové pole `cutFloorTab`; to ale neumí TUNEL — když zanoření/dojezd podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu (změřeno 11–14 mm na `part-8` a `holder-casting-slanted-face`). Za příznakem `orderAwareHolder`, viz `docs/cam-order-aware-holder.md` |
 | `calculators/cam/residualHolder.js` | Hlídání DRŽÁKU proti modelu zbytku (za příznakem `orderAwareHolder`). ZAPOJENÉ je `holderAreaAlongResidual` — nejhorší vnoření držáku podél VJEZDU zákroku, s odečteným vlastním řezem; tím se řeší zbylá vada nálezu 09 na `part-8`. `makeResidualClamp` (ořez Z-intervalu, shodné rozhraní jako `clamp` z `makeHolderClamp`) je otestovaný, ale NEZAPOJENÝ — jeho místo v `applyHolderClamp` bylo změřeno a zamítnuto |
 | `calculators/cam/gcodeSync.js` | Pravidlo, kdy se po změně nastavení přepíše PROGRAM (`S.manualGCode`) a kdy jen NÁHLED — viz „CAM: náhled × program" níže |
@@ -594,6 +595,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky (VŽDY rovná úsečka) |
 | `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna): `makeHolderClamp` = mez v ose Z pro PODÉLNÉ průchody, `holderBottomProfile` = spodní hrana držáku pro ČELNÍ (mez v hloubce X) |
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
+| `cam/residualStock.js` | Jeden model zbytku pro emisi i validátor (viz výš) |
 | `cam/collisionValidator.js` | Validace kolizí držáku na hotové dráze |
 | `cam/holderGouge.js` | Akumulátor kolizí držáku (oranžové varování) |
 | `cam/contourGouge.js` | Zajetí nástroje do hotové kontury (červené varování) — odebraná část hotového dílu |
