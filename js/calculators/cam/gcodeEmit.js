@@ -812,7 +812,15 @@ export function generateAutoGCode(S, calc) {
       // teprve pak se sjíždí svisle na cílovém Z.
       if (cur.x - tx > rapidStopX + 1e-6) {
         emit(`G0 Z${tz.toFixed(3)}`);
-        emit(`G0 X${xDia(tx + rapidStopX)}`);
+        // KDE SMÍ RYCHLOPOSUV SKONČIT, spočítal guard výš (`rTxReal`) — a to
+        // proti ZBYTKU, tedy se znalostí pořadí obrábění. Pevná vůle
+        // `tx + rapidStopX` o něm neví a umí sjet POD něj: na
+        // `part-18-parting-90-ramp` guard uzavřel sjezd úplně (`rTxReal`
+        // = cur.x, povrch je na úrovni nástroje), přesto se vydalo
+        // `G0 X24.651`, tedy 0,9 mm do stojícího materiálu — validátor to
+        // hlásí jako `rapid @r25.54 Z42.0 = 1,0 mm²`. `rTxReal` je v téhle
+        // větvi vždy ≥ `tx + rapidStopX`, takže je to jen ZKRÁCENÍ rapidu.
+        if (cur.x - rTxReal > 1e-6) emit(`G0 X${xDia(rTxReal)}`);
         emit(`G1 X${xDia(tx)} F${prms.feed}`);
       } else {
         // ZBYTEK V X je kratší než vůle → ten opravdu patří posuvu. PŘEJEZD

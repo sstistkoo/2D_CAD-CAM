@@ -153,7 +153,19 @@ export function makePassHelpers(offsetPath) {
   // (G2/G3) až dokud znovu neklesne na řeznou hloubku depthX (tam pokračuje
   // hlubší průchod), nebo dokud kontura nekončí. Tím se obrobí celá druhá
   // stěna kapsy přímo po obrysu místo odskoku.
-  const findPocketExitZ = (zFrom, depthX, zFloor) => {
+  // `xCeil` = STROP ŠPLHÁNÍ. Bez něj má trasa jedinou zarážku — dno okna
+  // (`zFloor`) — a když se kontura na hloubku průchodu už NIKDY nevrátí
+  // (protilehlá stěna kapsy pokračuje nahoru a nekončí), doleze až tam.
+  // S hranicí úseku poblíž to nebylo vidět, protože `zFloor` byl hned vedle;
+  // jakmile hranice zmizí (§6.0a), vyjede dobrání kapsy přes celý díl:
+  // nález na dílu uživatele 5. 9. 2026 — „Průchod 14 (kapsa bez schodků)"
+  // sjel kolmo na Z 162,5 a jel po kontuře 100 mm až na Z 265,2, přičemž
+  // vezl držák skrz stojící materiál drážky (6 kolizí / 196 mm²).
+  //
+  // Strop je hloubka PŘEDCHOZÍ (mělčí) vrstvy: co je nad ní, vzal už průchod
+  // před tímhle — stejná úvaha, jakou dělá `findLeadOutEndZ` u otevřeného
+  // průchodu. Bez stropu (`undefined`) se chová jako dřív.
+  const findPocketExitZ = (zFrom, depthX, zFloor, xCeil) => {
     const h = 0.05;
     let z = zFrom, leftPocket = false;
     for (let i = 0; i < 8000; i++) {
@@ -161,6 +173,7 @@ export function makePassHelpers(offsetPath) {
       if (zNext < zFloor - 1e-6) break;
       const x = offsetXAt(zNext);
       if (x === null) break;                       // konec kontury
+      if (xCeil !== undefined && x > xCeil) break; // vylezli jsme nad svou vrstvu
       if (x > depthX + 0.01) leftPocket = true;    // stoupáme po druhé stěně
       else if (leftPocket && x <= depthX + 1e-6) return zNext; // zpět na hloubku
       z = zNext;

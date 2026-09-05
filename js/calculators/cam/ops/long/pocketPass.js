@@ -366,7 +366,7 @@ const buildPocketPass = (X, gapHi, ivLocal, cornerLocal, withLeadIn, withLeadOut
     // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
     // (holderClamped: konec zkrácen obálkou držáku — pokračovat po
     // stěně by znamenalo vjet držákem do materiálu.)
-    const zExitOut = findPocketExitZ(ivLocal.zEnd, X, traceFloorL);
+    const zExitOut = findPocketExitZ(ivLocal.zEnd, X, traceFloorL, X + step);
     const leadOut = holderTrimLeadOut(traceOffsetPath(ivLocal.zEnd, zExitOut), true);
     if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
   }
@@ -517,7 +517,11 @@ while (safety++ < 500) {
 // leadOut = druhá stěna ze dna VEN (G2/G3 → úsečka) — sleduje konturu,
 // dokud se po druhé stěně nevrátí na vstupní hloubku (u kapsy
 // uprostřed), případně až ke konci kontury (u kapsy na konci dílu).
-const exitZ = findPocketExitZ(pocketBottomZ, currentX, traceFloorL);
+// Strop šplhání se počítá ze DNA KAPSY, ne z hloubky vrstvy: dobrání jede
+// po dně kapsy (`pocketBottomX`), zatímco `currentX` je hloubka, ve které
+// smyčka právě je — a ta může být o desítky mm mělčí. Se stropem odvozeným
+// z `currentX` trasa vylezla až na r 40,5 a dojela 45 mm za kapsu.
+const exitZ = findPocketExitZ(pocketBottomZ, currentX, traceFloorL, pocketBottomX + step);
 // Zahoď degenerované mikro-úseky (< 0,05 mm) — vznikají na švu
 // můstku a oblouku machinable kontury; jinak by se v G-kódu objevil
 // nulový oblouk (např. CR=8.5 přes 0,02 mm) a simulace by na něm
