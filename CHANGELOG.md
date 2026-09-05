@@ -336,6 +336,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **U odlitku je autorita SILUETA — i když je Délka vyplněná**
+  (`ops/roughLong.js`, `cylStockZ`). Sledovací dno (dojezdy schodů, výjezdy
+  z kapes, cíle ramp) se ptalo siluety až tehdy, když bylo pole Délka
+  prázdné; s vyplněnou Délkou dno OŘÍZLO. Na `part-1` stálo na −5, ačkoli
+  odlitek sahá na −10, a dojezdy se o tu neexistující zeď opíraly 5 mm nad
+  koncem materiálu (`part-11-zleva-casting`: −5 proti siluetě −8,499).
+  Komentář nad tou funkcí to celou dobu říkal správně, rozcházel se s ním
+  kód. Přes sadu **+3,2 mm² úběru**, kolize 0 → 0 v obou standardech,
+  otisk se hnul na 8 z 30 programů.
+
+  Neprojevovalo se to proto, že `tests/cam-stock-zero-dimension` porovnával
+  program s Délkou a bez ní na dvou odlitcích, u kterých se o dno žádná
+  dráha neopřela. Test teď pinuje silnější tvrzení: tři různé Délky (0, 5,
+  500) musí dát JEDEN A TÝŽ program.
+
 - **Rychloposuv smí sjet jen tam, kam ho pustilo hlídání** (`gcodeEmit.js`).
   Dvě místa v emisi zamítla sjezd správně, ale mez, KDE má rychloposuv
   zastavit, si vzala odjinud než z toho, co zamítnutí spočítalo:

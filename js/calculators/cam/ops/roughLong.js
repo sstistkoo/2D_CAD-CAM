@@ -59,9 +59,19 @@ export function genLongPasses(ctx) {
   //
   // U ODLITKU rozměry válce neříkají nic — autorita je silueta. Když Délka
   // chybí, vezme se proto její nejlevější Z, ne konstanta.
+  // U ODLITKU JE AUTORITA SILUETA — VŽDYCKY, ne jen když je pole prázdné
+  // (opraveno 5. 9. 2026). Do té doby se silueta ptala až za `len !== 0`,
+  // takže zadaná Délka dno OŘÍZLA: na `part-1` stálo sledovací dno na −5,
+  // ačkoli odlitek sahá na −10, a dojezdy se o tu neexistující zeď opíraly
+  // 5 mm nad koncem materiálu. Komentář nad touhle funkcí to přitom říkal
+  // celou dobu správně; rozcházel se s ním kód.
+  //
+  // Proč se to tak dlouho neprojevilo: `tests/cam-stock-zero-dimension`
+  // porovnával program s Délkou a bez ní na dvou odlitcích, u kterých se
+  // o dno žádná dráha neopřela — rozdíl −5 × −10 se tím nedal poznat.
+  // Odkrylo ho až pořadí úseků podle dosažitelnosti, které tam jeden dojezd
+  // dovedlo.
   const cylStockZ = (() => {
-    const len = parseFloat(prms.stockLength);
-    if (Number.isFinite(len) && len !== 0) return -len;
     if (prms.stockMode === 'casting') {
       let zMin = Infinity;
       for (const p of stockWorldPoints || []) {
@@ -69,6 +79,8 @@ export function genLongPasses(ctx) {
       }
       if (Number.isFinite(zMin)) return zMin;
     }
+    const len = parseFloat(prms.stockLength);
+    if (Number.isFinite(len) && len !== 0) return -len;
     return 0;
   })();
   // Konec rozsahu obrábění 📐 je TVRDÉ dno pro KAŽDÝ řezný pohyb, ne jen pro
