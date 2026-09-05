@@ -21,7 +21,7 @@ starší stashe a `pop` sáhne po nich).
 
 ---
 
-## 01 — Úseky se dělí podle mezní čáry, ne podle hrbů a údolí — **STÁLE BLOKOVÁN**
+## 01 — Úseky se dělí podle mezní čáry, ne podle hrbů a údolí — **BLOKOVÁN**
 
 Zavádí podmínku **§6.0a** z `docs/cam-pravidla-drah.md` (pravidlo uživatele):
 hranici úseku dělá jen mezní čára hlídání destičky, která VYJEDE z polotovaru.
@@ -31,16 +31,56 @@ Na dílu uživatele: předčasně zastavených průchodů **12 → 3**, nedojeto
 **136,6 → 4,0 mm**; na samotném prvním úseku **0**. Vrstvy přestanou končit na
 neviditelných čarách Z 4,20 a Z 62,80.
 
-**Blokuje:** `cam-collision-free` padá na `part-20-zleva-parting-taper`
-(8 nálezů, 90° zanoření upichováku) a `holder-casting-slanted-face` (2 × 1 mm²
-v offsetovém standardu); k tomu `range-end-leadout` ztratí 71 % úběru (bez
-hranic je úsek tak velký, že hlídání zakáže vjezd a vypadnou celé hloubky).
-Přes sadu −3 400 mm² úběru (úseky nechávají materiál na svých hranicích —
-vlastnost pravidla, ne vada).
+### PŘEMĚŘENO 5. 9. 2026 na dnešním `main` (78f042a)
 
-**Poznámka po 5. 9.:** dva z těch blokátorů (100mm dojezd z kapsy a rampová
-kotva v materiálu) jsou už opravené v `main`, takže čísla výš jsou ke
-staršímu základu a chtějí přeměřit.
+Původní čísla v tomhle souboru byla ke staršímu základu; 02 i 04 jsou od té
+doby uvnitř. Nové měření (30 fixtures, náhradní držák, syrový standard):
+
+| | bez patche | s patchem |
+|---|---|---|
+| úběr | 91 237,1 mm² | **87 241,7 (−3 995,4)** |
+| kolize | **0 / 0,0** | **12 / 136,4 mm²** |
+| díl uživatele (part-21/23) | 3 494,7 mm², 66 průchodů | 3 264,7 (−230,0), 51 průchodů, 0 kolizí |
+
+Úběr sám o sobě patch nediskvalifikuje (pravidlo §6.0a je uživatelovo a
+`docs/cam-pravidla-drah.md` §6.0a říká, že úseky materiál na svých hranicích
+nechávají). **Diskvalifikuje ho těch 12 kolizí.** Kde jsou:
+
+| fixture | nálezy | co to je |
+|---|---|---|
+| `part-20-zleva-parting-taper` | 8 / 68,4 mm², Z 351,4–352,0 | 90° zanoření upichováku — `plungeHolderFitsAt` hlídá výškovým polem, které TUNEL neumí (známé) |
+| `part-15-finish-zprava` | 4 / 68,0 mm², Z −8,5…−7,0 | **NOVÉ** — zákrok za čelem (záporné Z), držák za ním trčí do materiálu u čela |
+| `holder-casting-slanted-face` | 2 / 2,1 mm² (jen offsetový standard) | známá mez |
+
+Velké ztráty úběru jsou soustředěné: `part-18` −1 247, `part-17` −1 192,
+`range-end-leadout` −477 (71 %), `range-chain-insert-shadow` −358,
+`holder-region-roughing` −310. Naopak `part-11` +387, `part-12` +497,
+`part-14` +494.
+
+### ZMĚŘENO A ZAMÍTNUTO (5. 9. 2026): zahodit zákrok, na kterém nevisí řetěz
+
+Nápad: `firstHolderHitOnPath` už umí najít první místo dráhy, kde se držák
+nevejde, ale zahodí jen dobrání kapsy (`pocketClean`). Rozšířit to na každý
+zákrok, do jehož NÁJEZDU se držák nevejde a na kterém NEVISÍ ŘETĚZ
+(`noRetract`, `emitZEnd`, `pocketReposition`, `rampFeedFrom`, `emitChainFrom`
+ani u něj, ani u souseda) — řetěz byl přece ten doložený důvod, proč se
+zahazování muselo vyjmout.
+
+**Je to horší, ne lepší:**
+
+| | s patchem 01 | + zahazování |
+|---|---|---|
+| úběr | 87 241,7 mm² | **82 684,0 (−4 557,7)** |
+| kolize | 12 / 136,4 mm² | 12 / **306,4 mm²** |
+
+Plocha kolizí se víc než zdvojnásobila. Zahozený zákrok nechá stát materiál,
+kterým pak jede držák u zákroku o kus dál — příčina není v řetězu, ale v tom,
+že se ten materiál musí VZÍT, ne obejít.
+
+**Co patch 01 opravdu potřebuje:** aby o zahození/zkrácení rozhodovalo JEDNO
+místo se známým důvodem (krok 2 v `docs/cam-architektura-analyza.md` —
+oddělit generování od hlídání). Dokud hlídání sedí ve 42 místech ve 12
+souborech, každý pokus tohohle typu jen přesune kolizi jinam.
 
 ## ~~02 — Pořadí úseků podle dosažitelnosti~~ — **NASAZENO 5. 9. 2026**
 
@@ -89,9 +129,10 @@ kolize 0 v obou standardech, otisk se hnul na 3 fixtures.
 
 ## Pořadí nasazení, co zbylo
 
-1. **01** — potřebuje přeměřit na dnešním `main` (02 i 04 jsou už uvnitř)
-   a pak dořešit `part-20` (90° zanoření upichováku hlídá `plungeHolderFitsAt`
-   výškovým polem, které tunel neumí) a `range-end-leadout`.
+1. **01** — přeměřeno (viz výš). Nejde nasadit, dokud o zahození/zkrácení
+   průchodu nerozhoduje JEDNO místo se známým důvodem: dnes to dělá 42 míst
+   ve 12 souborech a každá lokální záplata jen přesune kolizi jinam
+   (změřeno). Je to krok 2 v `docs/cam-architektura-analyza.md`.
 2. **03** — až po 01, protože oba sahají na skladbu hloubek.
 
 Nadpis téhle stránky je tím z půlky splacený: ze čtyř patchů jsou dva v `main`
