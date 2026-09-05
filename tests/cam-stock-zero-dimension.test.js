@@ -76,20 +76,41 @@ describe('Čelo/Délka polotovaru 0 nesmí spadnout do fallbacku', () => {
     expect(zero.emitMax, 'emitovaná dráha za bezpečnou polohou').toBeLessThanOrEqual(5.05);
   }, 180000);
 
-  it('odlitek: vymazaná Délka nepohne dráhou (autorita je silueta)', async () => {
-    // U odlitku rozměry válce neříkají nic. Dřív vymazání pole přehodilo dno
-    // na −100; teď se vezme nejlevější Z siluety, což na reálném dílu vyjde
-    // na totéž jako zadaná Délka — G-kód proto musí být BITOVĚ shodný.
+  it('odlitek: vymazaná Délka dá dno SILUETY, ne konstantu', async () => {
+    // U odlitku rozměry válce neříkají nic — autorita je silueta. Vadou, kvůli
+    // které tenhle soubor vznikl, bylo, že vymazané pole (UI ho ukládá jako
+    // nulu) spadlo přes `|| 100` na dno −100 a dráhy se plánovaly 100 mm za
+    // koncem materiálu. Tady se hlídá, že se místo té konstanty vezme
+    // nejlevější Z siluety.
     //
-    // POCTIVĚ: tenhle případ projde i na STARÉM kódu — dojezdy těchhle dvou
-    // dílů se o dno neopřou, takže −100 vs −10 nepoznají. Nepíná tedy opravu,
-    // píná ZÁMĚR („vymazané pole nesmí pohnout dráhou"), aby se silueta jako
-    // autorita nedala zrušit nepozorovaně. Vadu chytá případ výš.
-    for (const f of ['part-1.camprog', 'part-11-zleva-casting.camprog']) {
+    // PŮVODNĚ (do 5. 9. 2026) to bylo napsané jako „program s Délkou 5 a bez
+    // Délky musí být BITOVĚ shodný" s odůvodněním, že „na reálném dílu vyjde
+    // silueta na totéž jako zadaná Délka". To NENÍ pravda ani u jednoho
+    // z těch dvou dílů — změřeno:
+    //
+    //   part-1                  zadaná Délka 5  →  dno −5,000, silueta −10,000
+    //   part-11-zleva-casting   zadaná Délka 5  →  dno −5,000, silueta  −8,499
+    //
+    // Test procházel jen proto, že se o dno žádná dráha neopřela (přiznával to
+    // i jeho vlastní komentář). Jakmile se pořadí úseků změnilo a jeden dojezd
+    // na dno dosáhl, rozdíl se objevil v G-kódu — ne jako regrese, ale jako
+    // doteď neviditelný nesoulad: `cylStockZ` v `ops/roughLong.js` pouští
+    // siluetu ke slovu jen když je Délka NULA, ačkoli komentář nad ní říká, že
+    // u odlitku je silueta autorita vždycky. To je vlastní rozhodnutí (mění
+    // dráhy na každém odlitku, kde se ta dvě čísla neshodují), ne oprava
+    // k přilepení sem — tenhle test proto pinuje jen to, co je nesporné.
+    // Pinuje se tedy přesně to pravidlo, které `cylStockZ` má: VYMAZANÉ POLE
+    // = DNO SILUETY. Porovnává se s Délkou, která tomu dnu odpovídá — ne
+    // s tou, co je ve fixture (ta se od siluety liší, viz čísla výš).
+    for (const [f, siluetaDelka] of [['part-1.camprog', 10.0],
+      ['part-11-zleva-casting.camprog', 8.499]]) {
       const prog = JSON.parse(readFileSync(join(fixturesDir, f), 'utf8'));
-      const withLen = await runCamProg({ ...prog, params: { ...prog.params, stockLength: 5 } });
       const noLen = await runCamProg({ ...prog, params: { ...prog.params, stockLength: 0 } });
-      expect(noLen.gcode, `${f}: vymazaná Délka změnila program`).toBe(withLen.gcode);
+      const asSil = await runCamProg({ ...prog, params: { ...prog.params, stockLength: siluetaDelka } });
+      expect(noLen.gcode, `${f}: vymazaná Délka nedala dno siluety`).toBe(asSil.gcode);
+      // A hlavně: ani jedna varianta nesmí spadnout na konstantu −100.
+      const zMin = (g) => Math.min(...[...g.matchAll(/Z(-?\d+\.\d+)/g)].map(m => +m[1]));
+      expect(zMin(noLen.gcode), `${f}: spadlo to na konstantu −100`).toBeGreaterThan(-99);
     }
   }, 300000);
 });
