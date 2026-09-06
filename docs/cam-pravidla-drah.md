@@ -78,26 +78,10 @@ strana. Vlastní soubor by znamenal druhou kopii generátoru
   regionu i rozsah 📐 můžou začínat ve vzduchu (`passEntryZ`).
 - Kotva rampy se hledá na **vůlí-posunuté siluetě** (offsetová čára), ne na
   syrovém obrysu.
-- **Kam až kotva vyjede, rozhoduje povrch ZBYTKU, a ten se čte vzorkem ze
-  strany, ODKUD rampa přilétá** (`residTopFrom` v `ops/long/entryRamp.js`,
-  4. 9. 2026). Nad plánovanou vrstvou leží dojezd té předchozí po kontuře
-  a ten klesá přesně pod úhlem zanoření, takže rampa je s ním ROVNOBĚŽNÁ.
-  Podlaha je vzorkovaná po `DZ_CAP` (0,25 mm) a „vyšší ze dvou sousedních
-  vzorků" (`residTopSafe`, správné pro dotaz rychloposuvu) je proti takové
-  rampě posunuté o `DZ_CAP · tan(úhel)` = 0,067 mm při 15° — dotyk se pak
-  nevyhodnotí nikdy a kotva šplhá až tam, kde povrch zploští. Vzorek zespodu
-  je správná strana i u SCHODU: kotva dosedne na nižší podlahu PŘED ním.
 - Vedle vjezdu se musí **vejít držák** v celém svém axiálním dosahu
   (`ops/long/entryRamp.js`, `holderEntryCapZ`).
 - Nájezd se smí posunout nejvýš o **`ENTRY_SHIFT_MAX` = 3 mm**; dál ne, protože
   se tím mění i příjezdová cesta (`ops/shared.js:33`).
-- **Konec rozsahu 📐 je zeď i pro KOTVU rampy** (`stockEntryRamp`, 4. 9. 2026).
-  Zrcadlový `findRampOutTarget` ji měl od začátku, kotva ne — a stoupá k ní,
-  takže jí utíkala ven (nález: kotva `[53,910; 225,345]` při mezi 226,35,
-  a k ní kolmý sjezd 13,34 mm posuvem). **Kolizi držáku u meze to neřeší** —
-  ta je vlastností polohy nájezdu; žádat na mezi navíc `holderFitsAt` je
-  změřeně horší (29,4 → 83,6 mm², volající sáhne po jiném vjezdu místo aby
-  vrstvu vynechal).
 
 **POSUNUTÝ VJEZD MÁ TAKY DOSTAT RAMPU — opraveno 1. 9. 2026.** Brána rampy
 v `ops/long/openPass.js` byla `iv.zStart >= entryZ - 1e-6` („vjezd sedí přesně
@@ -175,26 +159,6 @@ neposouvá; tam platí bez rozdílu brána o řádek níž.
 > order-aware) a `residEntryArea` s prahem `ENTRY_FIT_TOL` — tedy TÝMŽ prahem,
 > jakým se posuzoval ten posun vjezdu. Výškové pole samo nestačí: o tunelech
 > neví a přesně tu rampu na `pocket-wall-at-plunge-angle` pustilo.
-
-**ŽEBŘÍK POKRAČUJE AŽ DOLŮ I NA RAMPĚ — 4. 9. 2026.** Poslední krok
-posloupnosti hloubek přestřelí hranici, za kterou geometrie nepustí, takže pod
-ní zůstane stát až celé `ap`. U nezakrytého vjezdu to dobírá blok „poslední
-(kratší) vrstva", u `entryCapped` nově blok „pokračovat rampou až dolů"
-(`ops/roughLong.js`) — dosavadní uzavírací krok řetězu je totiž JEDNORÁZOVÝ
-(`entryRampClosed`) a po zavření neměly hlubší hloubky žádný mechanismus.
-
-Platí pro něj tři meze, každá změřená:
-
-| mez | proč |
-|---|---|
-| jde na NEJHLUBŠÍ X, dno okna měřené na PLÁNOVACÍ siluetě | jinak se vrstva zastaví na syrovém obrysu (r 4,233) místo na hrubovací kontuře (r 4,061); lokálně jen pro tenhle blok |
-| krok musí něco ODEBRAT (≥ `0,25 · ap`) | okno `effZMin` se s hloubkou rozšiřuje, takže bez toho blok při každé příčce ukrojí slupku 0,118 mm s degenerovanou rampou |
-| krok ≤ `ap` a MĚLČÍ než hloubka, kde smyčka selhala | mezi poslední vrstvou a `currentX` bývá víc prázdných příček (15 mm při ap 5); bez druhé meze bisekce sbíhá na hloubku, o které víme, že nejde |
-| rampa POVINNÁ (týž pár testů jako posunutý vjezd) | bez ní radiální sjezd do stojícího materiálu — zakázáno 1. 9. 2026 |
-| NEplatí pro svislé zanoření (upichovák) | pustit ho tam stálo **−121,3 mm²** úběru na sadě při nezměněných kolizích |
-| sondy se NESMÍ propsat do `holderBlockedDepths` ani do ⚠ panelu | `scan(…, mainScan)` zapisuje do živé množiny → ⚠ hlásilo 42 místo 11 hloubek při stejném G-kódu; a neúspěch bloku má cizí důvod (není čím rampovat / držák), který hlásí jiné počítadlo |
-
-Hlídá `tests/cam-deep-ramp-layers.test.js` na `part-22-zleva-deep-ramp`.
 
 ### 3.2 Úhel zanoření podle tvaru plátku — UZAVŘENO 26. 8. 2026
 
@@ -274,14 +238,6 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
 > sáhne, je potřeba případ, na kterém se projeví — jinak se nedá změřit,
 > jestli podmínka lokality něco nepokazí.
 
-**DOSAH BOČNÍ HRANY JE KONEČNÝ** (`ops/long/insertFlankGuard.js`, 4. 9. 2026).
-Hrana je dlouhá `toolLength`, takže radiálně sahá jen
-`toolLength · sin(natočení)` — u 10 mm destičky natočené o 15° **2,59 mm**.
-Bez té meze se promítala přes celý díl: stěna na Ø63,5 v Z 233 posunula kotvu
-průchodu na Ø7,5 u čela o **334 mm**, průchod zdegeneroval a byl smazán
-(panel přitom hlásil „zkráceno"). Oprava dala **+733,3 mm²** úběru na sadě při
-nezměněných kolizích.
-
 ### 4.2 Držák
 
 | práh | hodnota | proč |
@@ -321,15 +277,6 @@ Materiál až k té čáře tedy reálně existovat může a náraz do něj je n
 čarou… mělo by to tak být i dělané")*.
 
 - Dráhy se proti té čáře plánují, náhled ji vybarvuje, validátor ji měří.
-- **Dráha na ni DOJÍŽDÍ — i rampový průchod** (`offsetExitZ` v
-  `ops/roughEmit.js`, doplněno 4. 9. 2026). Otevřený průchod to uměl
-  odjakživa, rampový ne — a se zapnutým Zanořováním jsou rampové skoro
-  všechny, takže dráhy končily PŘESNĚ na syrovém obrysu, o **1,007 mm** dřív
-  (nález uživatele na dílu rozsah Z 283–458, všech pět hloubek). Dojezd se
-  NEptá `rapidHitsStock` — ten hlídá rychloposuv, kdežto tohle je řezný `G1`
-  a pás mezi obrysem a offsetovou čárou je přesně to, co se má odebrat.
-  Výjimka: `emitZEnd` (mezikrok sjezdu končí dřív, dozanořuje se z něj další
-  vrstva).
 - Rychloposuv **staví PŘED ní**, o `rapidFeedGap` (výchozí 1 mm); zbytek se
   dojede pracovním posuvem.
 - Snap se na ni chytá (vrcholy i hrany) — od 31. 8. 2026.
@@ -357,16 +304,6 @@ Skutečně otevřená místa, kde o dráze rozhoduje SYROVÝ obrys:
 **Pozor při opravě:** u prvních tří jde o hranice rozsahu 📐 a posun na offset
 tam znamená, že vrstvy začnou o Vůli X výš a Z-okno bude o Vůli Z širší —
 tedy ZMĚNA DRAH, ne refaktor. Měřit otiskem i sweepem.
-
-> **ZMĚŘENO A ZAMÍTNUTO 4. 9. 2026 — `stockZRangeAt` na plánovací siluetě.**
-> Úběr **+6 820 mm²** (86 178 → 92 998), ale **3 nové kolize / 240,2 mm²**.
-> Širší okno vyrobí kapsy, jejichž nájezd po kontuře začíná desítky mm daleko
-> (`part-21`: 61 mm, radiální sjezd r 24,6 → 10,3, držák 110 mm² na Z 284,3).
-> Hlídání to nevidí: plánovací model tam materiál v pořadí už nemá, validátor
-> přehrává skutečnou dráhu (týž order-aware rozdíl jako
-> `docs/cam-order-aware-holder.md`). Kontrola držáku na ZAČÁTKU nájezdu kapsy
-> nálezy nezměnila. **To, co uživatel na drahách vidí, řeší EMISE** — dojezd
-> `offsetExitZ` i pro rampový průchod (§5 níž), a ten je bez kolizí.
 
 > **Doplněk 1. 9. 2026 — nejde jen o „syrový × offsetový" obrys.** Kotva
 > zanoření (`stockEntryRamp`) používala offsetovou čáru správně, a přesto

@@ -26,13 +26,12 @@ import { pointInLoop } from '../../../../geom/geomCore.js';
  * @param plungeDirL         směr přímky zanoření + krok skenu
  * @param effPlungeTanL      tangenta efektivního úhlu zanoření
  * @param rangeZLoL          dolní mez rozsahu obrábění 📐
- * @param rangeZHiL          horní mez rozsahu obrábění 📐
  * @param offsetXAt          hloubka offsetu kontury na Z
  * @param blockedAt          (x, z) => je tam překážka? — viz hlavička
  */
 export function makeEntryRamp({
   T, holderFitsAt, stockLoopOffsetL, plungeDirL, effPlungeTanL, rangeZLoL,
-  rangeZHiL = Infinity, offsetXAt, blockedAt,
+  offsetXAt, blockedAt,
 }) {
   const { DZ_CAP, capTab, stockTopTab } = T;
   const holderEntryCapZ = (X, zHi, zFloor) => {
@@ -120,41 +119,6 @@ export function makeEntryRamp({
     const top = residTopSafe(q.z);
     return top !== null && q.x >= top - 0.02;
   };
-  // ── VZOREK ZE STRANY, ODKUD RAMPA PŘILÉTÁ (4. 9. 2026) ─────────────────
-  // `residTopSafe` bere z dvojice sousedních vzorků VYŠŠÍ hodnotu. Pro dotaz
-  // „smí sem rychloposuv?" je to správně, pro STOUPAJÍCÍ RAMPU ne: povrch
-  // zbytku nad vrstvou tvoří dojezd předchozí vrstvy po kontuře a ten klesá
-  // PŘESNĚ pod úhlem zanoření (mezní čára „stínu" břitu se konstruuje pod
-  // týmž úhlem — viz `findSteepCorner` níž). Rampa je s ním rovnoběžná a drží
-  // se ho přesně, jenže hlášená podlaha je proti ní posunutá o
-  // (vzorek − z)·sklon, tedy až `DZ_CAP · tan(úhel)` = 0,067 mm při 15°.
-  // Dotyk se pak nevyhodnotí NIKDY a kotva šplhá dál, dokud povrch nezploští.
-  //
-  // Změřeno na dílu uživatele (rozsah Z 283–458, polygon 15°): kotva vyšla
-  // [10,267; −345,766] místo rohu [6,80; −358,69] — o 13 mm dál a 3,5 mm výš,
-  // rampa 21,9 mm místo 9,0 mm. A protože o tom rozhodovala jen FÁZE
-  // vzorkování, výsledek přeskakoval: ze 24 zkoušených hloubek jich 5 kotvu
-  // trefilo a 19 minulo.
-  //
-  // Vzorek POD bodem je proti stoupající rampě správná strana i u SCHODU:
-  // kotva dosedne na nižší podlahu PŘED schodem, kudy rychloposuv opravdu
-  // projde, kdežto vyšší vzorek ji pošle až za něj. Práh 0,02 se NEMĚNÍ —
-  // povolit rampě 0,087 mm pod hlášenou podlahou (varianta se stejným
-  // účinkem) posadí kotvu POD skutečný povrch a hne 11 fixtures místo 5.
-  const residTopFrom = (z) => {
-    const t = stockTopTab(z);
-    if (t === null) return null;
-    if (!T.activeFloorTab) T.syncCutFloor();
-    const tab = T.activeFloorTab || T.cutFloorTab;
-    if (!tab) return t;
-    const i = Math.floor((z - T.capZ0) / DZ_CAP);
-    const cut = (i >= 0 && i < tab.length) ? tab[i] : -Infinity;
-    return cut === -Infinity ? t : Math.min(t, cut);
-  };
-  const atResidTopRamp = (q) => {
-    const top = residTopFrom(q.z);
-    return top !== null && q.x >= top - 0.02;
-  };
   const stockEntryRamp = (X, zEntry) => {
     if (!stockLoopOffsetL) return null;
     if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
@@ -162,33 +126,10 @@ export function makeEntryRamp({
     // prorampování není; volající si najede po kontuře jako jindy.
     if (atResidTop({ x: X + 0.05, z: zEntry - 0.05 })) return null;
     const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
-    // ── KONEC ROZSAHU 📐 JE ZEĎ I PRO KOTVU (4. 9. 2026) ───────────────────
-    // Zrcadlo `findRampOutTarget` níž tuhle mez má od začátku („konec rozsahu
-    // obrábění je stejná zeď jako kontura"), kotva ne — a stoupá k NĚMU,
-    // takže mu utekla ven. Za mezí nikdo neobrábí, materiál tam stojí v plné
-    // výšce a nájezd tam postaví i držák.
-    //
-    // Nález uživatele 4. 9. 2026 (rozsah končí na Z 226,35): kotva vyšla
-    // [53,910; 225,345], tedy 1,005 mm ZA mezí; nájezd k ní byl kolmý sjezd
-    // 13,34 mm posuvem a držák tam měl 29,4 mm² v materiálu (r 67,3 a r 53,9).
-    // Rampa z takové kotvy navíc brala 4,365 mm, víc než `ap`.
-    const tWall = plungeDirL.uz > 1e-9 ? (rangeZHiL - zEntry) / plungeDirL.uz : Infinity;
-    if (tWall <= 1e-6) return null;
     let t = 0;
     for (let i = 0; i < 300; i++) {
       const tPrev = t;
       t += plungeDirL.step;
-      if (t >= tWall) {
-        // Kotva dosedne PŘESNĚ na mez rozsahu — dál je zeď.
-        //
-        // ŽÁDAT TU NAVÍC MÍSTO PRO DRŽÁK (`holderFitsAt`) SE NEOSVĚDČILO:
-        // volající pak nesáhne po „vrstvu vynechat", ale po jiném vjezdu, a
-        // ten je horší — na dílu uživedele 29,4 → 83,6 mm². Kolize u meze je
-        // vlastnost POLOHY nájezdu, ne toho milimetru za mezí, a patří do
-        // hlídání držáku na nájezdu, ne sem.
-        const q = at(tWall);
-        return blockedAt(q.x, q.z) ? null : { x0: q.x, z0: q.z };
-      }
       const p = at(t);
       // HRANICÍ JE I HOTOVNÍ KONTURA (stejně jako u findRampOutTarget níž):
       // stoupá-li přímka zanoření do materiálu, který po hrubování ZŮSTÁVÁ
@@ -197,12 +138,12 @@ export function makeEntryRamp({
       // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
       // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
       if (blockedAt(p.x, p.z)) return null;
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside' || atResidTopRamp(p)) {
+      if (pointInLoop(p, stockLoopOffsetL) === 'outside' || atResidTop(p)) {
         let lo = tPrev, hi = t;
         for (let k = 0; k < 24; k++) {
           const m = (lo + hi) / 2;
           const q = at(m);
-          if (pointInLoop(q, stockLoopOffsetL) === 'outside' || atResidTopRamp(q)) hi = m; else lo = m;
+          if (pointInLoop(q, stockLoopOffsetL) === 'outside' || atResidTop(q)) hi = m; else lo = m;
         }
         const q = at(hi);
         return { x0: q.x, z0: q.z };

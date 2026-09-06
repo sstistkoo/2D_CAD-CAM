@@ -78,8 +78,6 @@ export function genLongPasses(ctx) {
   // o desítky mm (reálný nález na díle uživatele: dojezd na Z42 a rampa až na
   // Z21 při konci rozsahu Z61,1).
   const rangeZLoL = machiningRange ? machiningRange.zLo : -Infinity;
-  // HORNÍ mez rozsahu je zeď stejně jako dolní — viz `stockEntryRamp`.
-  const rangeZHiL = machiningRange ? machiningRange.zHi : Infinity;
   const traceFloorL = Math.max(cylStockZ, rangeZLoL);
 
   // X-bounds offsetu
@@ -372,7 +370,7 @@ export function genLongPasses(ctx) {
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
-      effPlungeTanL, rangeZLoL, rangeZHiL, offsetXAt, blockedAt });
+      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt });
 
   // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
@@ -383,9 +381,6 @@ export function genLongPasses(ctx) {
   // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
   // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
   const skipCounters = { plungeForbidden: 0 };
-  // Interval, který STOJÍ ZA VLASTNÍ VJEZD (viz blok „pokračovat rampou až
-  // dolů" v hloubkové smyčce). Laditelné jen tady, ať se měří jedna hodnota.
-  const WORTH_LEN = dzScan;
 
   // ── Upichovák (parting) v podélném hrubování ──
   // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
@@ -718,6 +713,9 @@ export function genLongPasses(ctx) {
     // bez problému. Stopuje JEN kontura.
     const passMark = passes.length;
     let entryZ = effZMax;
+    const __LOG = globalThis.__DEPTH__ && _region && Math.abs((_region.zHi ?? 0) + 227.6) < 1;
+    if (__LOG) globalThis.__DEPTH__.push({ fáze: 'start', x: +currentX.toFixed(3),
+      effZMax: +effZMax.toFixed(2), effZMin: +effZMin.toFixed(2), regZHi: +(+regZHi).toFixed(2), regZLo: +(+regZLo).toFixed(2) });
     let { intervals, firstOpen } = scan(currentX, entryZ, effZMin, true);
     // ── Zanořování (📥 „Zanořování"): najdi, KDE se dá začít ──────────────
     // Na tuhle hloubku se nedá vjet zprava — vjezd zahodila obálka DRŽÁKU
@@ -769,6 +767,8 @@ export function genLongPasses(ctx) {
     // Hranice REGIONU je umělá stejně jako hranice rozsahu 📐: napravo od ní
     // materiál dál stojí (patří sousednímu regionu), takže se na ni nesmí
     // kolmo zapíchnout — vjezd tam patří rampě.
+    if (__LOG) globalThis.__DEPTH__.push({ fáze: 'po scan', x: +currentX.toFixed(3),
+      entryZ: +entryZ.toFixed(2), firstOpen, ivs: intervals.map(v => `${v.zStart.toFixed(1)}→${v.zEnd.toFixed(1)}${v.blocked ? 'B' : ''}`).join(' ') });
     const regionCapped = regionCappedRaw;
     const entryCapped = (entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
@@ -1095,125 +1095,7 @@ export function genLongPasses(ctx) {
         passes.push(closePass);
       }
     }
-    // ── POKRAČOVAT RAMPOU AŽ DOLŮ A DOBRAT VŠECHNY VRSTVY ─────────────────
-    // Uživatel 4. 9. 2026: *„ať to pokračuje až dolů i na rampě a dobere
-    // všechny vrstvy."*
-    //
-    // Blok výš platí jen pro NEZAKRYTÝ vjezd. U `entryCapped` (vjezd na
-    // hranici rozsahu 📐 / regionu) se dosud spoléhalo na uzavírací krok
-    // řetězu — jenže ten je JEDNORÁZOVÝ (`entryRampClosed`): jakmile se
-    // jednou zavře, hlubší hloubky už nemají ŽÁDNÝ mechanismus a materiál
-    // pod poslední vrstvou zůstane stát. Změřeno na dílu uživatele (rozsah
-    // Z 283–458, polygon 15°): řetěz se zavřel na hloubce 9,803, takže
-    // hloubky 3,803 / 0,803 / 0,054 vydaly NULU a pod vrstvou r 6,803
-    // zůstalo až 1,69 mm nad offsetem.
-    //
-    // Bisekce hledá nejhlubší X, na kterém sken ještě vydá interval, KTERÝ
-    // STOJÍ ZA VLASTNÍ VJEZD — délka ≥ `ap`, ne ≥ krok skenu. „Nejhlubší X"
-    // samo je špatné kritérium: na tomtéž dílu dojde na r 4,233, kde je řez
-    // 0,2 mm a rampa k němu 22 mm. `firstOpen` se tu NEvyžaduje — vjezd je
-    // z definice zakrytý, jinak by se sem blok nedostal.
-    //
-    // A protože jedna rovná vrstva zbytek nevybere, když pod ní kontura dál
-    // klesá, hledá se ve smyčce: každý nalezený krok posune strop a hledá se
-    // znovu, dokud je co brát. Krok proto nikdy nepřesáhne `ap`.
-    //
-    // RAMPA JE POVINNÁ — táž podmínka a týž pár testů jako u posunutého
-    // vjezdu v `openPass.js` (§3.1 pravidel): bez ní by se na hloubku sjelo
-    // radiálně do stojícího materiálu, což uživatel 1. 9. 2026 zakázal.
-    //
-    // NEHLÁSÍ SE DO ⚠ PANELU, a to není výjimka z pravidla „tiché zahazování
-    // průchodů je past". Tenhle blok je BONUSOVÝ pokus NAD rámec žebříku:
-    // když neuspěje, zůstane přesně stav, jaký byl před ním — nic se
-    // nezahazuje. A hlásit by se muselo CIZÍ VĚTOU: změřeno na 13 fixtures,
-    // kde blok neuspěl, je důvod buď `stockEntryRamp` = null (vjezd už je nad
-    // zbytkem, tedy NENÍ ČÍM rampovat — o kolmém vjezdu tam vůbec nejde řeč),
-    // nebo obálka držáku (part-10 27,5 mm², holder-region 168,1 mm²) — a tu
-    // hlásí vlastní počítadlo `holderBlockedDepths` o pár řádků níž. Přičíst
-    // to k „vjezd by musel být kolmý" by na 13 dílech ohlásilo problém, který
-    // tam není, při BAJT PO BAJTU stejném G-kódu.
-    let deepBlockAdded = false;
-    if (passes.length === passMark && entryCapped && !entryRampIsPlunge
-        && lastDepthWithPasses !== null && lastDepthWithPasses - currentX > 0.1) {
-      // Bisekce SONDUJE hloubky, které se nikdy neobrábí. `scan` s
-      // `mainScan = true` ale zapisuje zablokované hloubky do ŽIVÉ množiny
-      // `holderBlockedDepths`, ze které se hlásí ⚠ „N hloubek se nedá
-      // obrobit" — bez obnovy počet vystřelil na 19 z 28 fixtures (part-1:
-      // 11 → 42) při BAJT PO BAJTU stejném G-kódu, tedy čisté fantomy.
-      // `mainScan = false` je špatná náhrada: příznak jde dál do
-      // `holderClampZEnd` jako `mainStair` a mění, co clamp vrátí — sonda by
-      // pak měřila jinou geometrii než skutečný průchod.
-      // DNO OKNA SE TU MĚŘÍ NA PLÁNOVACÍ SILUETĚ. `effZMin` vychází ze
-      // syrového obrysu, takže klín mezi ním a offsetovou čárou u čela zbytek
-      // vůbec nezná — na dílu uživatele se poslední vrstva zastavila na
-      // r 4,233, ačkoli hrubovací kontura tam začíná na r 4,061 a materiál
-      // sahá až na offsetovou čáru. Je to LOKÁLNÍ jen pro tenhle blok:
-      // posunout `stockZRangeAt` globálně bylo změřeno a ZAMÍTNUTO (+6 820 mm²
-      // úběru, ale 3 nové kolize / 240,2 mm² — širší okno vyrobí kapsy
-      // s nájezdem desítky mm daleko). Meze rozsahu 📐 a regionu platí dál.
-      const planZFloor = (() => {
-        const loop = stockLoopOffsetFullL;
-        if (!loop || loop.length < 3) return effZMin;
-        let zMin = Infinity;
-        for (const q of loop) if (q.z < zMin) zMin = q.z;
-        return Math.max(zMin, machiningRange ? machiningRange.zLo : -Infinity, regZLo, -1e9);
-      })();
-      const zFloorBlock = Math.min(effZMin, planZFloor);
-      const blockedBefore = new Set(holderBlockedDepths);
-      let ceilX = lastDepthWithPasses;
-      for (let round = 0; round < 8; round++) {
-        // DVĚ MEZE, obě převzaté z uzavíracího kroku řetězu výš:
-        //   • krok nesmí přesáhnout `ap` — mezi `lastDepthWithPasses`
-        //     a `currentX` může být víc prázdných příček žebříku (na
-        //     `part-11-zleva-casting` 15 mm při ap 5), a bez stropu by
-        //     jedna vrstva sjela všechny najednou,
-        //   • a musí být MĚLČÍ než hloubka, na které hlavní smyčka právě
-        //     selhala: bisekce jinak sbíhá přesně na `currentX`, tedy na
-        //     hloubku, o které už víme, že nejde. Měřeno: z 11 vynechání
-        //     na třech fixtures jich 8 bylo právě tohle.
-        let loX = Math.max(currentX, ceilX - step), hiX = ceilX;
-        if (hiX - loX <= 0.1) break;
-        let bestIv = null, bestX = null;
-        for (let k = 0; k < 20; k++) {
-          const mid = (loX + hiX) / 2;
-          const ms = scan(mid, entryZ, zFloorBlock, true);
-          const iv0 = ms.intervals.find(v => v.zStart - v.zEnd >= WORTH_LEN) || null;
-          if (iv0) { bestIv = iv0; bestX = mid; hiX = mid; } else loX = mid;
-        }
-        // Krok musí něco ODEBRAT. Bez toho blok při každé další příčce
-        // žebříku ukrojí další slupku (změřeno 0,118 mm): okno `effZMin`
-        // se s hloubkou rozšiřuje, takže pokaždé projde o kousek hlubší X.
-        if (!bestIv || ceilX - bestX <= Math.max(0.1, 0.25 * step)
-            || bestX - currentX <= 0.05) break;
-        const er = stockEntryRamp(bestX, bestIv.zStart);
-        const cand = { x: bestX, zStart: bestIv.zStart, zEnd: bestIv.zEnd, ramp: er };
-        if (!(er && er.x0 > bestX + 0.05
-              && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
-              && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL)) break;
-        const deepPass = { type: 'long', x: bestX, zStart: bestIv.zStart, zEnd: bestIv.zEnd, blocked: bestIv.blocked };
-        deepPass.ramp = { x0: er.x0, z0: er.z0 };
-        deepPass.entryRangeRamp = true;
-        if (prms.noStepRoughing && bestIv.blocked) {
-          const lo = holderTrimLeadOut(
-            traceOffsetPath(bestIv.zEnd, findLeadOutEndZ(bestIv.zEnd, ceilX, -Infinity, traceFloorL)), true);
-          while (lo.length > 0 && lo[0].x2 <= bestX + 0.02) lo.shift();
-          clipLeadOutToDepth(lo, ceilX);
-          if (!prms.noStepRoughingFace && isFaceLeadOut(lo)) lo.length = 0;
-          if (lo.length > 0) deepPass.contourLeadOut = lo;
-        }
-        passes.push(deepPass);
-        deepBlockAdded = true;
-        ceilX = bestX;
-      }
-      holderBlockedDepths.clear();
-      for (const k of blockedBefore) holderBlockedDepths.add(k);
-      // Strop pro příští příčku žebříku musí být NEJHLUBŠÍ SKUTEČNĚ OBROBENÁ
-      // hloubka, ne `currentX`: na té hlavní smyčka právě selhala, takže
-      // o ní neplatí „tam to jde" — a bisekce i `clipLeadOutToDepth` výš ji
-      // berou jako vrstvu NAD sebou. Řádek pod blokem se proto přeskočí.
-      if (deepBlockAdded) lastDepthWithPasses = ceilX;
-    }
-    if (passes.length > passMark && !deepBlockAdded) lastDepthWithPasses = currentX;
+    if (passes.length > passMark) lastDepthWithPasses = currentX;
     // Zanoření se stropem držáku (entryZ posunutý doleva, viz výš) bere
     // MENŠÍ průměr, než na jaký v tomhle Z-okně dosáhly ostatní regiony —
     // v pořadí se proto odloží až za ně, ať hrubování jde odshora dolů
@@ -1416,48 +1298,26 @@ export function genLongPasses(ctx) {
     // provedení dávno nestojí (na range-end-leadout 119 mm² „vnoření" proti
     // materiálu, který tam není — stálo to 21 % úběru).
     //
-    // ZAHAZUJE SE JEN TO, CO SE OPRAVDU NEVEJDE — ne celý zbytek fronty.
-    // Dřív se řada usekla od PRVNÍHO nevyhovujícího dál s odůvodněním „jde po
-    // klesajících průměrech, takže hlubší jsou na tom vždycky hůř". Ten
-    // předpoklad neplatí: fronta míchá RŮZNÉ PÁSY Z. Nález uživatele
-    // 4. 9. 2026 (rozsah Z 226,35, náhradní držák 20 × 200): průchody na
-    // r 7,545 a 4,545 u ČELA se vygenerovaly správně, ale zmizely kvůli
-    // nevyhovujícímu průchodu o 40 mm dřív — panel hlásil „8 úseků
-    // polotovaru zůstalo NEOBROBENO, nejdelší 102 mm".
-    //
-    // Řetěz se ale nesmí nechat viset na zahozeném článku: následník počítá
-    // s tím, že nůž stojí na konci svého předchůdce (`pocketReposition`,
-    // `rampFeedFrom`, `emitChainFrom`), předchůdce zase s tím, že následník
-    // naváže (`noRetract`, a s ním `emitZEnd`, který mu zkracuje tělo).
-    // U přeskočeného článku se proto obojí zruší a průchod si najede sám.
+    // Zahazuje se od PRVNÍHO nevyhovujícího dál: řada jde po klesajících
+    // průměrech, takže hlubší zákroky jsou na tom vždycky hůř, a useknutí
+    // konce nepřetrhne řetěz uprostřed (`noRetract`/`rampFeedFrom` míří
+    // dopředu, poslední průchod žádného následníka nepotřebuje).
     if (tail.length > 0 && capTab) {
       const floor = newFloorTab();
       for (let i = 0; i < regionMark; i++) notePassInto(floor, passes[i]);
       for (const p of head) notePassInto(floor, p);
       T.activeFloorTab = floor;
-      const kept = new Set();
-      let droppedN = 0;
-      for (const p of tail) {
-        if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) { kept.add(p); continue; }
-        if (holderFitAreaAlong(p) > HOLDER_FIT_TOL) { droppedN++; continue; }
+      let dropFrom = -1;
+      for (let i = 0; i < tail.length; i++) {
+        const p = tail[i];
+        if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) continue;
+        if (holderFitAreaAlong(p) > HOLDER_FIT_TOL) { dropFrom = i; break; }
         notePassInto(floor, p);   // co projde, samo řeže pro ty za sebou
-        kept.add(p);
       }
       T.activeFloorTab = null;
-      if (droppedN > 0) {
-        deferredHolderSkips += droppedN;
-        for (let i = 0; i < tail.length; i++) {
-          const p = tail[i];
-          if (!p || !kept.has(p)) continue;
-          const prev = i > 0 ? tail[i - 1] : null;
-          if (prev && !kept.has(prev)) {
-            delete p.pocketReposition; delete p.rampFeedFrom; delete p.emitChainFrom;
-          }
-          const next = i + 1 < tail.length ? tail[i + 1] : null;
-          if (next && !kept.has(next)) { delete p.noRetract; delete p.emitZEnd; }
-        }
-        const survivors = tail.filter(p => kept.has(p));
-        tail.length = 0; tail.push(...survivors);
+      if (dropFrom >= 0) {
+        deferredHolderSkips += tail.length - dropFrom;
+        tail.length = dropFrom;
         // Líný prefixový model by si jinak nadál připisoval řezy zahozených
         // průchodů — postavit ho znovu.
         T.cutFloorTab = null; T.cutFloorSynced = 0;
