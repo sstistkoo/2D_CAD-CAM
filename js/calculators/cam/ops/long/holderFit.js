@@ -119,49 +119,5 @@ export function makeHolderFit({ T, prms }) {
   };
   const holderFitsAt = (z, tipX, gap = HOLDER_ENTRY_STOCK_GAP, ownCut = null) => holderFitArea(z, tipX, gap, ownCut) <= HOLDER_FIT_TOL;
 
-  // ── DRŽÁK PODÉL CELÉ DRÁHY ZÁKROKU (5. 9. 2026) ───────────────────────
-  // `holderFitAreaAlong` výš testuje jen VJEZD — rampu a dosednutí špičky.
-  // Konec dráhy nehlídá nikdo: kapsový průchod jede po dně drážky a držák,
-  // v ose Z přes 20 mm dlouhý, trčí ZA ním do materiálu, který tam pořád
-  // stojí. Nález uživatele 5. 9. 2026 („Průchod 14 — kapsa bez schodků",
-  // 6 nálezů / 196 mm² na Z 162–198): nůž na r 7,9 dojel na Z 197,7, kde
-  // hned vedle začíná příruba r 64,4. Dokud díl dělily hranice od hrbů,
-  // takový průchod se k tomu místu nedostal — hranice ho utnula. Pravidlo
-  // §6.0a ty hranice ruší, takže hlídání musí dělat hlídání.
-  //
-  // Vrací PRVNÍ místo dráhy, kde se držák nevejde, jako `{ i, t }` (index
-  // segmentu a parametr 0..1 na něm), nebo null. Vlastní řez se přitom
-  // průběžně odečítá — co má nůž za sebou, tam materiál nestojí, jinak by
-  // si každý průchod stínil sám sebou.
-  //
-  // Oblouky se berou tětivou, stejně jako v `_traceSegBlocked` (ops/long/
-  // holderTrim.js) — na hlídání držáku je to dost přesné a levné.
-  const firstHolderHitOnPath = (segs, ramp) => {
-    if (!Array.isArray(segs) || segs.length === 0) return null;
-    const own = [];
-    if (ramp && Number.isFinite(ramp.x0) && Number.isFinite(ramp.z0))
-      own.push({ z1: ramp.z0, x1: ramp.x0, z2: segs[0].z1, x2: segs[0].x1 });
-    for (let i = 0; i < segs.length; i++) {
-      const s = segs[i];
-      if (![s.z1, s.x1, s.z2, s.x2].every(Number.isFinite)) continue;
-      const len = Math.hypot(s.z2 - s.z1, s.x2 - s.x1);
-      const n = Math.max(1, Math.min(64, Math.ceil(len)));
-      // Průběžný (rostoucí) kus TOHOTO segmentu drží jedna položka, která se
-      // přepisuje — jinak by `own` rostlo kvadraticky a dotaz s ním.
-      const cur = own.length;
-      own.push({ z1: s.z1, x1: s.x1, z2: s.z1, x2: s.x1 });
-      for (let k = 0; k <= n; k++) {
-        const t = k / n;
-        const z = s.z1 + (s.z2 - s.z1) * t;
-        const x = s.x1 + (s.x2 - s.x1) * t;
-        own[cur] = { z1: s.z1, x1: s.x1, z2: z, x2: x };
-        if (holderFitArea(z, x, 0, own) > HOLDER_FIT_TOL) return { i, t };
-      }
-      own[cur] = { z1: s.z1, x1: s.x1, z2: s.z2, x2: s.x2 };
-    }
-    return null;
-  };
-
-  return { residTopAt, holderNearDz, holderFitArea, ownCutOf, holderFitAreaAlong,
-    holderFitsAt, firstHolderHitOnPath };
+  return { residTopAt, holderNearDz, holderFitArea, ownCutOf, holderFitAreaAlong, holderFitsAt };
 }

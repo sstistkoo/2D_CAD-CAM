@@ -22,7 +22,7 @@ export function emitPocketInterval(D) {
     holderBlockedDepths, holderClampZEnd, holderDroppedZones, holderFitArea,
     holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
-    residEntryArea, residTopAt, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
+    residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -301,26 +301,9 @@ const buildPocketPass = (X, gapHi, ivLocal, cornerLocal, withLeadIn, withLeadOut
   // spustí zpátky na ap nad dno průchodu; materiál nad ní vzala mělčí
   // vrstva (hloubková smyčka jde odshora dolů) nebo ho vezme další krok
   // řetězu. Hlídá tests/cam-leadout-step.test.js.
-  // ── … ALE JEN TAM, KAM PUSTÍ SKUTEČNÝ ZBYTEK (5. 9. 2026) ─────────────
-  // Spuštění kotvy stojí na předpokladu „materiál nad ní vzala mělčí vrstva".
-  // Ten neplatí vždy: bez dělení podle hrbů (§6.0a) se kapsa dostane na
-  // místa, kam mělčí vrstva nedosáhla, a kotva pak leží UVNITŘ materiálu —
-  // rychloposuv na ni jde skrz. Nález 5. 9. 2026 na
-  // `pocket-wall-at-plunge-angle`: `rapid @r25.99 Z190.9 = 3,6 mm²`, kotva
-  // r 18,401 na Z 190,86, kde zbytek sahá po r 26.
-  //
-  // Kotva se proto spustí nejvýš na povrch ZBYTKU. Když je zbytek výš než
-  // `x + ap`, vezme rampa víc než jednu hloubku — to je ale poctivé: ten
-  // materiál tam opravdu stojí a nikdo jiný ho nevzal.
   if (pocketPass.ramp && pocketPass.ramp.x0 > pocketPass.x + step + 1e-6) {
-    const dxFull = pocketPass.ramp.x0 - (pocketPass.x + step);
-    const z0Low = pocketPass.ramp.z0 - dxFull / effPlungeTanL;
-    const resid = typeof residTopAt === 'function' ? residTopAt(z0Low) : null;
-    const target = Math.max(pocketPass.x + step, resid === null ? -Infinity : resid);
-    if (target < pocketPass.ramp.x0 - 1e-6) {
-      const dx = pocketPass.ramp.x0 - target;
-      pocketPass.ramp = { x0: target, z0: pocketPass.ramp.z0 - dx / effPlungeTanL };
-    }
+    const dx = pocketPass.ramp.x0 - (pocketPass.x + step);
+    pocketPass.ramp = { x0: pocketPass.x + step, z0: pocketPass.ramp.z0 - dx / effPlungeTanL };
   }
   // Kapsový roh se zanořoval BEZ hlídání držáku — `holderFitsAt` se ptaly
   // jen kotvy řetězu (holderEntryCapZ / holderEntryReachZ). Rampa proto
@@ -366,7 +349,7 @@ const buildPocketPass = (X, gapHi, ivLocal, cornerLocal, withLeadIn, withLeadOut
     // místo okamžitého odskoku — druhá stěna kapsy se obrobí přímo.
     // (holderClamped: konec zkrácen obálkou držáku — pokračovat po
     // stěně by znamenalo vjet držákem do materiálu.)
-    const zExitOut = findPocketExitZ(ivLocal.zEnd, X, traceFloorL, X + step);
+    const zExitOut = findPocketExitZ(ivLocal.zEnd, X, traceFloorL);
     const leadOut = holderTrimLeadOut(traceOffsetPath(ivLocal.zEnd, zExitOut), true);
     if (leadOut.length > 0) pocketPass.contourLeadOut = leadOut;
   }
@@ -517,11 +500,7 @@ while (safety++ < 500) {
 // leadOut = druhá stěna ze dna VEN (G2/G3 → úsečka) — sleduje konturu,
 // dokud se po druhé stěně nevrátí na vstupní hloubku (u kapsy
 // uprostřed), případně až ke konci kontury (u kapsy na konci dílu).
-// Strop šplhání se počítá ze DNA KAPSY, ne z hloubky vrstvy: dobrání jede
-// po dně kapsy (`pocketBottomX`), zatímco `currentX` je hloubka, ve které
-// smyčka právě je — a ta může být o desítky mm mělčí. Se stropem odvozeným
-// z `currentX` trasa vylezla až na r 40,5 a dojela 45 mm za kapsu.
-const exitZ = findPocketExitZ(pocketBottomZ, currentX, traceFloorL, pocketBottomX + step);
+const exitZ = findPocketExitZ(pocketBottomZ, currentX, traceFloorL);
 // Zahoď degenerované mikro-úseky (< 0,05 mm) — vznikají na švu
 // můstku a oblouku machinable kontury; jinak by se v G-kódu objevil
 // nulový oblouk (např. CR=8.5 přes 0,02 mm) a simulace by na něm

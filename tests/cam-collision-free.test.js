@@ -108,32 +108,6 @@ const EXPECTED_PLAN = {
   // i `face-casting`/`face-cylinder` — všechny tři spravil jednostranný
   // náhradní držák. Zbylé dvě položky jsou tytéž meze jako v EXPECTED výš,
   // jen proti offsetové čáře vyjdou o pár mm² větší.
-  //
-  // 5. 9. 2026 — POŘADÍ ÚSEKŮ PODLE DOSAŽITELNOSTI (`orderRegions`
-  // v ops/long/regions.js). Týž díl ve dvou fixtures, jeden nález
-  // `holder @r28.55 Z112.9 = 0,9 mm²` na DOJEZDU průchodu #5
-  // (`contourLeadOut` (28,55; 112,92) → (31,63; 114,02), `N510`).
-  // Je to TÁŽ MEZ jako u položek výš, jen ji nově odkryje jiné pořadí:
-  // generátor hlídá držák skenem výškových tabulek s prahem
-  // `HOLDER_FIT_TOL = 2,0 mm²`, kdežto validátor polygonem s prahem
-  // 0,5 mm². Ten rozdíl NENÍ nedbalost — hrubý sken systematicky
-  // NADHODNOCUJE (změřené artefakty do 1,09 mm², viz ops/shared.js),
-  // takže s prahem 0,5 by zahazoval průchody, které žádné měřítko nehlásí.
-  // Nález 0,91 mm² padne přesně do toho pásu.
-  //
-  // ZMĚŘENO A ZAMÍTNUTO týž den: nahradit ten sken na dojezdu polygonovým
-  // `holderAreaAlongResidual` a měřit prahem 0,5. Absolutní číslo z toho
-  // modelu se s nulou srovnávat nedá — na TOMHLE dojezdu vyjde 7,5 mm²
-  // (zrcadlený držák) až 189 mm² (nezrcadlený), protože v plánovacím
-  // zbytku stojí fantomový materiál. Použitelný je jen ROZDÍL dvou poloh
-  // téhož obrysu; postavit na tom hlídání je vlastní práce, ne záměna
-  // prahu. (Ořez dojezdu tímhle skenem byl zkoušen a vyjmut už 5. 9. 2026 —
-  // viz komentář v `ops/roughLong.js`; bere `cam-finish-holder` jeden
-  // řetězový nájezd a na dnešních fixtures nic nezlepší.)
-  'part-21-zleva-insert-shadow.camprog':
-    'mez hlídání držáku na dojezdu (sken 2,0 mm² × polygon 0,5 mm²) — viz komentář výš',
-  'part-23-zleva-cely-rozsah.camprog':
-    'mez hlídání držáku na dojezdu (sken 2,0 mm² × polygon 0,5 mm²) — viz komentář výš',
 };
 
 const detailOf = (issues) => issues.map(i =>

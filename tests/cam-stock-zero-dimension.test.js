@@ -76,28 +76,20 @@ describe('Čelo/Délka polotovaru 0 nesmí spadnout do fallbacku', () => {
     expect(zero.emitMax, 'emitovaná dráha za bezpečnou polohou').toBeLessThanOrEqual(5.05);
   }, 180000);
 
-  it('odlitek: Délka dráhou NEPOHNE, ať je jakákoli (autorita je silueta)', async () => {
-    // Po opravě `cylStockZ` (5. 9. 2026) je u odlitku silueta autorita VŽDYCKY,
-    // ne jen když je pole prázdné. Rozměry válce o odlitku neříkají nic, takže
-    // s nimi nesmí jít hnout dráhou — a to je tvrzení, které se dá pinnout
-    // NATVRDO: tři různé Délky, jeden a týž program.
+  it('odlitek: vymazaná Délka nepohne dráhou (autorita je silueta)', async () => {
+    // U odlitku rozměry válce neříkají nic. Dřív vymazání pole přehodilo dno
+    // na −100; teď se vezme nejlevější Z siluety, což na reálném dílu vyjde
+    // na totéž jako zadaná Délka — G-kód proto musí být BITOVĚ shodný.
     //
-    // Naměřené hodnoty dna, aby bylo vidět, o kolik ta oprava hýbe:
-    //   part-1                  Délka 5 dávala dno −5,000, silueta je −10,000
-    //   part-11-zleva-casting   Délka 5 dávala dno −5,000, silueta je  −8,499
+    // POCTIVĚ: tenhle případ projde i na STARÉM kódu — dojezdy těchhle dvou
+    // dílů se o dno neopřou, takže −100 vs −10 nepoznají. Nepíná tedy opravu,
+    // píná ZÁMĚR („vymazané pole nesmí pohnout dráhou"), aby se silueta jako
+    // autorita nedala zrušit nepozorovaně. Vadu chytá případ výš.
     for (const f of ['part-1.camprog', 'part-11-zleva-casting.camprog']) {
       const prog = JSON.parse(readFileSync(join(fixturesDir, f), 'utf8'));
-      // POSTUPNĚ, ne `Promise.all` — harness běží nad singletonem `S`
-      // a soubězí běhy si do něj lezou (viz hlavička scripts/cam_sweep.mjs).
-      const run = (stockLength) => runCamProg({ ...prog, params: { ...prog.params, stockLength } });
-      const none = await run(0);
-      const short = await run(5);
-      const long = await run(500);
-      expect(short.gcode, `${f}: Délka 5 pohnula dráhou`).toBe(none.gcode);
-      expect(long.gcode, `${f}: Délka 500 pohnula dráhou`).toBe(none.gcode);
-      // A hlavně: ani jedna varianta nesmí spadnout na konstantu −100.
-      const zMin = Math.min(...[...none.gcode.matchAll(/Z(-?\d+\.\d+)/g)].map(m => +m[1]));
-      expect(zMin, `${f}: spadlo to na konstantu −100`).toBeGreaterThan(-99);
+      const withLen = await runCamProg({ ...prog, params: { ...prog.params, stockLength: 5 } });
+      const noLen = await runCamProg({ ...prog, params: { ...prog.params, stockLength: 0 } });
+      expect(noLen.gcode, `${f}: vymazaná Délka změnila program`).toBe(withLen.gcode);
     }
   }, 300000);
 });

@@ -36,28 +36,6 @@ export function emitRoughing(E) {
   } = E;
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;
-  // ── ŘEZNÝ POHYB SE NEVYDÁVÁ TAM, KDE MATERIÁL NENÍ (5. 9. 2026) ─────────
-  // Tělo průchodu si vzduch odděluje samo (`airSplitAxial`), ODJEZD ne — a jel
-  // pracovním posuvem i desítky mm nad odlitkem. Sken totiž staví zbytek proti
-  // OBDÉLNÍKOVÉMU obalu (viz `intervalScan.js`), takže plánuje průchody i tam,
-  // kde odlitek dávno není; emise to má dorovnat, ale dělala to jen u těla.
-  //
-  // Nález uživatele 5. 9. 2026: `N4110 G1 X30.545 Z91.000` a `N4190 G1
-  // X29.977 Z90.000` v pásu, kde je polotovar r16,58 — tedy **14 mm pod nožem**.
-  //
-  // Je-li CELÝ pohyb nad plánovacím obrysem, vydá se rychloposuvem. Práh
-  // 0,01 mm: dotyk povrchu je pořád řez. Rampy se to NETÝKÁ — ta začíná
-  // v materiálu (i když může skončit nad ním), takže `moveIsAir` u ní vrací
-  // false a zůstane posuvem; její vada je v PLÁNU, ne v emisi.
-  const moveIsAir = (x1, z1, x2, z2) => {
-    for (let i = 0; i <= 8; i++) {
-      const t = i / 8;
-      const top = planTopXAtZ(z1 + (z2 - z1) * t);
-      if (top === null) continue;                          // mimo obrys = vzduch
-      if (x1 + (x2 - x1) * t < top + 0.01) return false;   // někde je materiál
-    }
-    return true;
-  };
   // KONTINUITA DOJEZDU. Řetěz „bez schodků" začíná NA OBRYSU, ale průchod
   // končí na SVÉ hloubce — a `emitLeadOutLine` (i větev oblouku) jede
   // z aktuální polohy rovnou na KONEC úseku. Když tedy první stopa řetězu
@@ -142,7 +120,7 @@ calc.passes.forEach((pass, i) => {
       // nad polotovar ani na roh (ten by jel skrz boss nad zápichem).
       const tgt = pass.rampFeedFrom || entry;
       const odskokZ = clipZGc(cur.z - zDir * rDistZ);
-      simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, odskokZ) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
+      simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
       // Odskok o „Odskok" (rDist) NEMUSÍ nástroj dostat nad materiál: při
       // Hloubce (ap) větší než Odskok zůstane pod úrovní předchozí vrstvy
       // a přejezd v Z by projel stojícím materiálem (reálný nález na díle
@@ -178,7 +156,7 @@ calc.passes.forEach((pass, i) => {
         // začátek nedobraného zbytku a přisune se k němu — žádný výjezd nad
         // boss ani přejezd přes už obrobenou stěnu.
         const odskokZ = clipZGc(cur.z - zDir * rDistZ);
-        simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, odskokZ) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
         if (Math.abs(cur.z - entry.z) > 1e-6) { simCounter += 1; addN(`G0 Z${entry.z.toFixed(3)}`, simCounter); setPos(cur.x, entry.z); }
         if (Math.abs(cur.x - entry.x) > 1e-6) { simCounter += 1; addN(`G0 X${xDia(entry.x)}`, simCounter); setPos(entry.x, entry.z); }
       } else if (needMove) {
@@ -413,19 +391,7 @@ calc.passes.forEach((pass, i) => {
       // řezný `G1` — a materiál mezi syrovým obrysem a offsetovou čárou je
       // přesně to, co se má odebrat. Změřeno: bez toho dojede na offsetovou
       // čáru jediná hloubka z pěti (9,803), zbytek zůstane 1,007 mm před ní.
-      //
-      // NAD MATERIÁLEM SE ALE NEDOJÍŽDÍ (5. 9. 2026). `offsetExitZ` vrátí
-      // `null` všude, kde offsetová čára v tom směru už není — a `zEdge` se
-      // pak stane nekonečnem OPAČNÉHO směru, takže z `min`/`max` vypadne
-      // holé `cur.z ± Vůle Z`. Když tělo průchodu skončilo ve vzduchu
-      // (`airSplitAxial` ho celé přejelo rychloposuvem), je tenhle milimetr
-      // řez do prázdna: nález uživatele 5. 9. 2026 — `N4010 G1 Z93.000`
-      // a `N4100 G1 Z93.000` na r 31,5, kde polotovar sahá jen po r 16,58,
-      // tedy **15 mm pod nožem**. Dojezd má smysl jen tam, kde se opravdu
-      // dojíždí NA něco, proto se celá dráha dojezdu ověří proti plánovacímu
-      // obrysu; na offsetové čáře samotné `moveIsAir` vrací false (práh
-      // 0,01 mm), takže měřený případ z 4. 9. 2026 zůstává beze změny.
-      if (zDir * (zExit - cur.z) > 1e-6 && !moveIsAir(pass.x, cur.z, pass.x, zExit)) {
+      if (zDir * (zExit - cur.z) > 1e-6) {
         simCounter += 1; addN(`G1 Z${zExit.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, zExit);
       }
     }
@@ -452,9 +418,9 @@ calc.passes.forEach((pass, i) => {
       // Šikmý odskok by couvl pod konturu (viz `retractHitsContour` výš) →
       // ven svisle v X, zpátky do vlastní stopy.
       if (Math.abs(zRetractVal - cur.z) > 1e-6 && retractHitsContour(cur.x, cur.z, -zDir)) {
-        simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, cur.z) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
       } else {
-        simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, zRetractVal) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       }
     }
   } else if (pass.type === 'long') {
@@ -620,9 +586,9 @@ calc.passes.forEach((pass, i) => {
       // Šikmý odskok by couvl pod konturu (viz `retractHitsContour` výš) →
       // ven svisle v X, zpátky do vlastní stopy.
       if (Math.abs(zRetractVal - cur.z) > 1e-6 && retractHitsContour(cur.x, cur.z, -zDir)) {
-        simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, cur.z) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
       } else {
-        simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, zRetractVal) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
+        simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);
       }
     }
   } else {
@@ -756,7 +722,7 @@ calc.passes.forEach((pass, i) => {
       if (aEnd !== null && aEnd > aNow + 0.02) retractGouges = true;
     }
     if (retractGouges) {
-      simCounter += 1; addN(`${moveIsAir(cur.x, cur.z, cur.x + rDist, cur.z) ? 'G0' : 'G1'} X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
+      simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
     } else {
       simCounter += 1;
       if (Math.abs(zRetractVal - cur.z) < 1e-6) {

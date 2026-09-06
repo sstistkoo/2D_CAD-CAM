@@ -4,8 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // NEZÁVISLÁ kontrola vygenerovaných drah: projde celý simPath blok po
-// bloku (řádek G-kódu), udržuje si zbytkový polotovar (`ResidualStock` —
-// TÝŽ model, jaký si během emise vede `rapidStock`, viz residualStock.js) a
+// bloku (řádek G-kódu), udržuje si zbytkový polotovar (StockModel) a
 // kontroluje dvě věci:
 //   1. ŘEZNÉ bloky (G1/G2/G3): stopa DRŽÁKU po bloku nesmí protínat
 //      zbývající materiál (destička řeže, držák nikdy).
@@ -21,9 +20,8 @@
 // (Clipper2) se počítá jen při možném kontaktu. SAT přes Detect-Collisions
 // tu byl do 26. 8. 2026 — proč zmizel, viz komentář u makeBroadPhase.
 
-import { polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
+import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
-import { ResidualStock } from './residualStock.js';
 
 /**
  * Virtuální zvětšení držáku [mm na každou stranu] — o kolik se nafoukne
@@ -386,17 +384,8 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   }
   const holderCutShrunk = holderCut ? (polyOffset([holderCut], -shrink)[0] || holderCut) : null;
 
-  // JEDNA implementace zbytku, sdílená s emisí (residualStock.js) — čím se
-  // od jejího nastavení liší, je v tabulce v hlavičce toho souboru. Tady se
-  // ubírá SKUTEČNÝM obrysem destičky a nezjednodušuje se (validátor běží nad
-  // hotovým simPath, takže na periodickém `polySimplify` nic neušetří).
+  const stock = new StockModel([stockLoop]);
   const broad = makeBroadPhase(stockLoop);
-  const stock = new ResidualStock(stockLoop, {
-    cutFootprint: foot,
-    probeFootprint: footShrunk,
-    tolerance: tol,
-    broadPhase: (loops) => broad.mayHit(loops),
-  });
 
   // Bloky = po sobě jdoucí body simPath se stejným řádkem G-kódu a typem
   const blocks = [];
@@ -422,7 +411,11 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
     return out;
   };
 
-  const checkAgainstStock = (bodyLoop, pts) => stock.probe(bodyLoop, pts);
+  const checkAgainstStock = (bodyLoop, pts) => {
+    const sweep = toolSweep(bodyLoop, pts);
+    if (sweep.length === 0 || !broad.mayHit(sweep)) return 0;
+    return Math.abs(polyArea(stock.collide(sweep)));
+  };
 
   let n = 0;
   for (const block of blocks) {
@@ -439,7 +432,8 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
       }
     } else {
       // Řezný blok: nejdřív odebrat materiál stopou destičky…
-      stock.cutPolyline(pts);
+      const cut = toolSweep(foot, pts);
+      if (cut.length > 0 && broad.mayHit(cut)) stock.cut(cut);
       // …pak zkontrolovat, že držák nejede ve zbývajícím materiálu
       if (holderCutShrunk) {
         const area = checkAgainstStock(holderCutShrunk, pts);

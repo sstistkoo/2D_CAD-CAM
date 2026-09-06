@@ -20,7 +20,7 @@ export function emitOpenInterval(D) {
     holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
     rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-    straightRunEndZ, traceOffsetPath, rampSt, residTopAt,
+    straightRunEndZ, traceOffsetPath, rampSt,
   } = D;
   // Otevřený vjezd zprava přes hranu polotovaru.
   const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
@@ -146,46 +146,14 @@ export function emitOpenInterval(D) {
       }
     }
     let rampOk = false;
-    // ── PŘETRŽENÝ ŘETĚZ → KOTVA MUSÍ NA POVRCH (5. 9. 2026) ───────────────
-    // Kotva zřetězené rampy je KONEC rampy předchozí hloubky, tedy bod
-    // UVNITŘ materiálu. Dokud tam nůž opravdu stojí (`chainTipIs`), je to
-    // v pořádku — přisune se odskokem (`pocketReposition`). Jenže když se
-    // mezi kroky vklínil jiný zákrok, kotva osiří a přijíždí se k ní
-    // ZVENČÍ: `safeRapidTo` pak vede rychloposuv na vnitřní bod, tedy skrz
-    // stojící materiál. Nálezy 5. 9. 2026: `rapid @r51.55 Z252.8`
-    // (part-21/part-23) a `rapid @r25.99 Z190.9` (pocket-wall-at-plunge-angle).
-    //
-    // Zdvih kotvy na POVRCH v jejím Z to řeší u příčiny: rampa odtud projede
-    // materiálem, který už odebrala mělčí vrstva (tedy vzduchem), a zakousne
-    // se až dole. Zvednout ji smí jen tam, kde je povrch OPRAVDU výš —
-    // jinak zůstane, jak byla.
-    // ZKOUŠENO A ZAMÍTNUTO 5. 9. 2026: zvednout osiřelou kotvu na povrch
-    // (`!anch.first && !chainTipIs(anch)` = mezi kroky se vklínil jiný zákrok,
-    // takže se k ní přijíždí ZVENČÍ a rychloposuv jde skrz materiál). Zdvih
-    // to spraví, ale posunutá kotva osiří NÁSLEDUJÍCÍ `pocketReposition`
-    // (`cam-ramp-chain` na `holder-casting-slanted-face`) a rampa může sebrat
-    // víc než `ap`. Řešení patří do řetězu jako celku, ne do jednoho kroku.
-    let anch = rampSt.anchor;
-    // ── ZKOUŠENO A ZAMÍTNUTO 5. 9. 2026: mez „jeden zákrok ≤ ap“ ─────
-    // Kapsová větev ji má (`pocketPass.js`), otevřená ne — u 90° zanoření
-    // z toho je jeden záběr 24,6 mm (`part-20-zleva-parting-taper`,
-    // `G0 X24.610` → `G1 X1.525`, 8 nálezů držáku na Z 351–352).
-    //
-    // Spustit kotvu na `ap` nad hloubku ale MĚNÍ, které průchody vzniknou,
-    // a zřetězené zanoření se pak rozpadne jinde: `cam-ramp-chain` na
-    // `holder-casting-slanted-face` hlásí osiřelý `pocketReposition`
-    // (feedFrom 44,988/126,859 × předchozí zákrok 41,897/165,069). Nepomohlo
-    // ani vyjmout ŽIVÝ řetěz (`chainTipIs`) — rozpad je o krok dál. Mez tedy
-    // patří až k přeuspořádání řetězu jako celku.
-
-    if (anch && anch.x > currentX + 0.05) {
-      const zS = anch.z - (anch.x - currentX) / effPlungeTanL;
+    if (rampSt.anchor && rampSt.anchor.x > currentX + 0.05) {
+      const zS = rampSt.anchor.z - (rampSt.anchor.x - currentX) / effPlungeTanL;
       if (zS > iv.zEnd + 0.05) {
-        passObj.ramp = { x0: anch.x, z0: anch.z };
+        passObj.ramp = { x0: rampSt.anchor.x, z0: rampSt.anchor.z };
         passObj.entryRangeRamp = true;
-        if (!anch.first && chainTipIs(anch)) {
+        if (!rampSt.anchor.first && chainTipIs(rampSt.anchor)) {
           passObj.pocketReposition = true;
-          passObj.rampFeedFrom = { x: anch.x, z: anch.z };
+          passObj.rampFeedFrom = { x: rampSt.anchor.x, z: rampSt.anchor.z };
         }
         passObj.zStart = zS;
         rampSt.anchor = { x: currentX, z: zS, first: false };

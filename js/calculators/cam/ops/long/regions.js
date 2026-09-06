@@ -275,25 +275,10 @@ export function makeRegions(deps) {
     }
     return -Infinity;
   };
-  // POŘADÍ ÚSEKŮ = PODLE DOSAŽITELNOSTI, ne podle průměru (5. 9. 2026).
-  // Do té doby se řadilo `(b.x - a.x)`, tedy od největšího průměru — a to je
-  // kritérium, které o přístupu k úseku nevypovídá nic. Zavedené soustružnické
-  // CAM systémy řadí topologicky: úsek se smí začít, až zmizí materiál, co
-  // brání přístupu k němu (viz docs/cam-architektura-analyza.md §2.5).
-  // `zHi` (nejblíž nájezdu první) je z toho ta levná, ale správným směrem
-  // mířící část: vzdálený konec dílu se obrábí DŘÍV, ne až po zbytku dílu.
-  // Průměr zůstává jako tiebreak, index jako poslední (stabilita).
-  //
-  // Změřeno přes celou sadu (30 fixtures, obě varianty držáku, oba standardy):
-  // úběr 91 089,6 → 91 233,9 mm² (+144,3), kolize v SYROVÉM standardu 0 → 0.
-  // Na dílu uživatele (part-21/23) +56,8 mm² a 64 → 66 průchodů.
-  // Doložená mez: v OFFSETOVÉM standardu přibyl jeden nález
-  // `holder @r28.55 Z112.9 = 0,9 mm²` (part-21/23, týž díl dvakrát) — viz
-  // docs/cam-pravidla-drah.md §7.
   const orderRegions = (regions) => {
     if (!regions || regions.length < 2) return regions;
     const keyed = regions.map((r, i) => ({ r, i, x: regionMaxX(r) }));
-    keyed.sort((a, b) => (b.r.zHi - a.r.zHi) || (b.x - a.x) || (a.i - b.i));
+    keyed.sort((a, b) => (b.x - a.x) || (b.r.zHi - a.r.zHi) || (a.i - b.i));
     return keyed.map(k => k.r);
   };
 

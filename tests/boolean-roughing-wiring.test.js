@@ -80,19 +80,7 @@ describe('Fáze 3 napojení: booleanRoughing ≈ scan-line (podélné)', () => {
       expect(mb.zLo).toBeCloseTo(ms.zLo, 1);
       // Booleovská cesta smí mít jen o málo MÉNĚ průchodů (vynechá no-opy),
       // nikdy výrazně víc.
-      //
-      // Okno −5 → −6 dne 5. 9. 2026 (pořadí úseků podle dosažitelnosti).
-      // Na `part-1`/`part-2` scan-line přibraly 4 průchody, booleovská cesta
-      // zůstala na 36 — a NEZTRATILA tím nic, změřeno `cam_sweep`:
-      //
-      //   booleovská   36 průchodů   2 816,4 mm²   0 kolizí
-      //   scan-line    42 průchodů   2 815,9 mm²   0 kolizí
-      //
-      // Šest průchodů navíc tedy odebere o 0,5 mm² MÍŇ — jsou to no-opy,
-      // přesně to, co má tohle okno tolerovat. Kdyby se muselo rozšiřovat
-      // znovu, otázka nezní „o kolik", ale „drží pořád materiálová parita?" —
-      // tu měří test níž a ta je tou skutečnou pojistkou.
-      expect(mb.count).toBeGreaterThanOrEqual(ms.count - 6);
+      expect(mb.count).toBeGreaterThanOrEqual(ms.count - 5);
       expect(mb.count).toBeLessThanOrEqual(ms.count + 1);
     });
   }

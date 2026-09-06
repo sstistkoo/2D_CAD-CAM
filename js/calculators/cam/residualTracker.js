@@ -41,8 +41,8 @@
 // Celý přepočet se zapnutým `orderAwareHolder` (5 opakování, minimum):
 //   part-8 −12 %, part-16 +0 %, part-15 +17 %, part-13 +25 %
 // (před přechodem na sagittu to bylo +6 / +72 / +124 %.)
+import { StockModel, toolSweep, polySimplify } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from './materialRemoval.js';
-import { ResidualStock } from './residualStock.js';
 
 // Jak přesně se vzorkují OBLOUKY v nájezdech/dojezdech [mm]: nejvyšší
 // dovolená SAGITTA mezi vzorkem a skutečným obloukem. Viz `pushArcOrChord`.
@@ -154,47 +154,43 @@ export class ResidualTracker {
     }
     this.seedLoop = seed;
     this.foot = opts.footprint || toolFootprint(prms);
-    // Vlastní akumulace tu byla do 5. 9. 2026; od té doby je to TÝŽ kód, jaký
-    // používá emise i validátor (`residualStock.js`) — tenhle soubor zůstává
-    // jako převod PRŮCHODU na lomené čáry (`passCutPolylines`).
-    this.stock = new ResidualStock(seed, {
-      cutFootprint: this.foot,
-      simplifyEvery: 24,
-      countEmptyCuts: false,
-    });
+    this.model = seed ? new StockModel([seed]) : null;
     this.count = 0;      // kolik průchodů je zapsáno
+    this._cuts = 0;      // počítadlo řezů kvůli periodickému simplify
   }
 
-  get valid() { return this.stock.valid; }
-
-  /** Podkladový model — kvůli volajícím, kteří sahali na `tracker.model`. */
-  get model() { return this.stock.model; }
+  get valid() { return !!this.model; }
 
   /** Aktuální zbytek jako smyčky (prázdné pole, když model není). */
-  get loops() { return this.stock.loops; }
+  get loops() { return this.model ? this.model.loops : []; }
 
   /**
    * Zapíše JEDEN průchod v pořadí, v jakém se bude obrábět.
    * Vrací `true`, když se něco odebralo.
    */
   notePass(pass) {
-    if (!this.valid) return false;
+    if (!this.model) return false;
     const runs = passCutPolylines(pass, this.arcTol);
     if (runs.length === 0) return false;
     const cutLoops = [];
-    // Model je jen měřidlo — jeden nevydařený sweep nesmí shodit výpočet.
-    for (const r of runs) cutLoops.push(...this.stock.sweep(r, this.foot));
+    for (const r of runs) {
+      // Model je jen měřidlo — jeden nevydařený sweep nesmí shodit výpočet.
+      try { cutLoops.push(...toolSweep(this.foot, r)); } catch { /* dál */ }
+    }
     if (cutLoops.length === 0) return false;
-    if (!this.stock.cutSweeps(cutLoops)) return false;
+    try { this.model.cut(cutLoops); } catch { return false; }
     this.count++;
+    // Rozdíly postupně přidávají vrcholy — periodicky zjednodušit, ať další
+    // řezy i dotazy zůstanou rychlé (ε hluboko pod řeznou tolerancí).
+    if (++this._cuts % 24 === 0) this.model.loops = polySimplify(this.model.loops, 0.002);
     return true;
   }
 
   /** Postaví model znovu z celého pole průchodů (pořadí = pořadí v poli). */
   noteAll(passes) {
-    if (!this.valid) return this;
-    this.stock.reset();
-    this.count = 0;
+    if (!this.model) return this;
+    this.model = new StockModel([this.seedLoop]);
+    this.count = 0; this._cuts = 0;
     for (const p of passes || []) this.notePass(p);
     return this;
   }
@@ -203,5 +199,17 @@ export class ResidualTracker {
    * Nejvyšší materiál na svislici Z (null = zbytek tam nesahá).
    * Na rozdíl od výškového pole vrací SKUTEČNÝ povrch i nad tunelem.
    */
-  topAt(z) { return this.stock.topAt(z); }
+  topAt(z) {
+    let top = null;
+    for (const loop of this.loops) {
+      for (let i = 0; i < loop.length; i++) {
+        const a = loop[i], b = loop[(i + 1) % loop.length];
+        if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+          const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+          if (top === null || x > top) top = x;
+        }
+      }
+    }
+    return top;
+  }
 }
