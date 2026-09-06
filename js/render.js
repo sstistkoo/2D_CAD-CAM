@@ -332,12 +332,14 @@ function renderAxes() {
     }
   }
 
-  // Popisky os
+  // Popisky os – pod vodorovnou a vlevo od svislé osy (kreslí se hlavně
+  // do pravého horního kvadrantu, takže tam popisky nezasahují do výkresu).
   const startX = state.panX % drawStep,
     startY = state.panY % drawStep;
   g.font = "13px Consolas";
   g.fillStyle = COLORS.textMuted;
   const labelPad = 6; // min mezera mezi popisky
+  const hLabelY = state.panY + 16; // pod vodorovnou osou
   let lastLabelEndX = -Infinity;
   for (let x = startX; x < w; x += drawStep) {
     const [wx] = screenToWorld(x, 0);
@@ -348,9 +350,11 @@ function renderAxes() {
     const tw = g.measureText(txt).width;
     const drawX = x + 2;
     if (drawX < lastLabelEndX + labelPad) continue; // přeskočit – překrývalo by se
-    g.fillText(txt, drawX, state.panY - 5);
+    g.fillText(txt, drawX, hLabelY);
     lastLabelEndX = drawX + tw;
   }
+  g.textAlign = 'right';
+  const vLabelX = state.panX - 6; // vlevo od svislé osy
   let lastLabelEndY = -Infinity;
   for (let y = startY; y < h; y += drawStep) {
     const [, wy] = screenToWorld(0, y);
@@ -359,12 +363,13 @@ function renderAxes() {
     const dispLabel = isKarusel ? label : displayX(label);
     const drawY = y - 3;
     if (drawY < lastLabelEndY + labelPad) continue; // přeskočit – překrývalo by se
-    g.fillText(dispLabel.toString(), state.panX + 4, drawY);
+    g.fillText(dispLabel.toString(), vLabelX, drawY);
     lastLabelEndY = drawY + 13; // přibližná výška fontu 13px
   }
   g.fillStyle = COLORS.selected;
   g.font = "14px Consolas";
-  g.fillText("0", state.panX + 4, state.panY - 5);
+  g.fillText("0", vLabelX, hLabelY);
+  g.textAlign = 'left';
 
   // Origin marker – terčík na 0,0
   g.strokeStyle = COLORS.selected + '88';

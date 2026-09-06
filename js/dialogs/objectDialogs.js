@@ -9,75 +9,73 @@ import { state, showToast, axisLabels } from '../state.js';
 import { typeLabel, safeEvalMath } from '../utils.js';
 import { drawCanvas, screenToWorld, snapPt } from '../canvas.js';
 
-// ── Dialog pro offset ──
+// ── Dialog pro offset (paralelní kopie / posun o úhel) ──
 /**
- * @param {import('../types.js').DrawObject} obj
- * @param {function(number): void} onSideClick
+ * @param {string} label - popis objektu/výběru (např. "3 objekty")
+ * @param {function('parallel'|'polar', number, number): void} callback
+ *   (mode, dist, angleDeg) – u 'parallel' je angleDeg vždy 0 a stranu
+ *   určí až následný klik do plátna (viz offsetClick.js).
  */
-export function showOffsetDialog(obj, onSideClick) {
+export function showOffsetDialog(label, callback) {
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
-      <h3>Offset – paralelní kopie</h3>
-      <label>Objekt: ${obj.name || typeLabel(obj.type)}</label>
-      <label>Vzdálenost offsetu (mm):</label>
-      <input type="text" id="dlgOffsetDist" value="5" inputmode="decimal" autofocus>
-      <div class="btn-row">
-        <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
-        <button class="btn-ok" id="dlgOffsetOk">OK – klikni na stranu</button>
-      </div>
-    </div>`);
-  const inp = overlay.querySelector("#dlgOffsetDist");
-  inp.focus();
-  inp.select();
-
-  function accept() {
-    const dist = safeEvalMath(inp.value);
-    if (isNaN(dist) || dist <= 0) { showToast("Zadejte kladnou vzdálenost"); return; }
-    overlay.remove();
-    onSideClick(dist);
-  }
-  overlay.querySelector("#dlgOffsetOk").addEventListener("click", accept);
-  inp.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") accept();
-    if (e.key === "Escape") overlay.remove();
-    e.stopPropagation();
-  });
-}
-
-// ── Dialog pro offset s polárním úhlem (multi-select) ──
-/**
- * @param {string} label - popis výběru (např. "3 objekty")
- * @param {function(number, number): void} callback - (dist, angleDeg)
- */
-export function showOffsetAngleDialog(label, callback) {
-  const overlay = makeInputOverlay(`
-    <div class="input-dialog">
-      <h3>Offset – směrová kopie</h3>
+      <h3>Offset</h3>
       <label>${label}</label>
+      <div class="btn-row" style="margin:8px 0;gap:4px">
+        <button class="btn-ok off-mode-btn active" data-mode="parallel" style="flex:1;font-size:0.85em">∥ Paralelní</button>
+        <button class="btn-cancel off-mode-btn" data-mode="polar" style="flex:1;font-size:0.85em">↗ Posun o úhel</button>
+      </div>
       <label>Vzdálenost (mm):</label>
       <input type="text" id="dlgOffDist" value="5" inputmode="decimal" autofocus>
-      <label>Úhel směru (°):</label>
-      <input type="text" id="dlgOffAngle" value="90" inputmode="decimal">
-      <div style="font-size:11px;opacity:0.6;margin:4px 0">0°=vpravo, 90°=nahoru, 180°=vlevo, 270°=dolů</div>
+      <div id="dlgOffAngleRow" style="display:none">
+        <label>Úhel směru (°):</label>
+        <input type="text" id="dlgOffAngle" value="90" inputmode="decimal">
+        <div style="font-size:11px;opacity:0.6;margin:4px 0">0°=vpravo, 90°=nahoru, 180°=vlevo, 270°=dolů</div>
+      </div>
+      <div id="dlgOffParallelHint" style="font-size:11px;opacity:0.6;margin:4px 0">
+        Skutečná paralelní kopie (obrys ve stejné vzdálenosti). Po potvrzení
+        klepněte na stranu, kam má kopie jít.
+      </div>
       <div class="btn-row">
         <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
-        <button class="btn-ok" id="dlgOffAngleOk">Vytvořit offset</button>
+        <button class="btn-ok" id="dlgOffOk">OK – klikni na stranu</button>
       </div>
     </div>`);
   const inpDist = overlay.querySelector("#dlgOffDist");
   const inpAngle = overlay.querySelector("#dlgOffAngle");
+  const angleRow = overlay.querySelector("#dlgOffAngleRow");
+  const parallelHint = overlay.querySelector("#dlgOffParallelHint");
+  const okBtn = overlay.querySelector("#dlgOffOk");
+  let mode = 'parallel';
   inpDist.focus();
   inpDist.select();
 
+  overlay.querySelectorAll(".off-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      overlay.querySelectorAll(".off-mode-btn").forEach(b => {
+        b.className = b === btn ? 'btn-ok off-mode-btn active' : 'btn-cancel off-mode-btn';
+      });
+      mode = btn.dataset.mode;
+      const parallel = mode === 'parallel';
+      angleRow.style.display = parallel ? 'none' : '';
+      parallelHint.style.display = parallel ? '' : 'none';
+      okBtn.textContent = parallel ? 'OK – klikni na stranu' : 'Vytvořit offset';
+      inpDist.focus();
+    });
+  });
+
   function accept() {
     const dist = safeEvalMath(inpDist.value);
-    const angle = safeEvalMath(inpAngle.value);
     if (isNaN(dist) || dist <= 0) { showToast("Zadejte kladnou vzdálenost"); return; }
-    if (isNaN(angle)) { showToast("Zadejte úhel"); return; }
+    let angle = 0;
+    if (mode === 'polar') {
+      angle = safeEvalMath(inpAngle.value);
+      if (isNaN(angle)) { showToast("Zadejte úhel"); return; }
+    }
     overlay.remove();
-    callback(dist, angle);
+    callback(mode, dist, angle);
   }
-  overlay.querySelector("#dlgOffAngleOk").addEventListener("click", accept);
+  okBtn.addEventListener("click", accept);
   const handleKey = (e) => {
     if (e.key === "Enter") accept();
     if (e.key === "Escape") overlay.remove();

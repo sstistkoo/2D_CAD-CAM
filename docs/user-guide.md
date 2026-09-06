@@ -211,10 +211,24 @@ zvoleného typu (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`, `Konstr`)
 4. Tečna se vytvoří automaticky
 
 ### Offset (vnější/vnitřní křivka)
+Dialog nabízí dva režimy:
+
+**∥ Paralelní** (výchozí) – skutečná paralelní kopie, tedy obrys ve stále
+stejné vzdálenosti od originálu:
 1. Vyber **Offset**
-2. Klikni na objekt
-3. Zadej vzdálenost v dialogu
-4. Vytvoří se nový paralelní objekt
+2. Klikni na objekt (nebo si objekty předvyber a zmáčkni Offset)
+3. Zadej vzdálenost a potvrď
+4. Klepni na tu stranu, kam má kopie jít – podle kliknutí se určí směr
+   (u kružnice tak klik dovnitř zmenší, klik ven zvětší)
+
+Kontura si zachová zaoblené rohy: obloukový segment se posune souosle
+(změní se jen poloměr), nezploští se na úsečku. Když je offset větší než
+poloměr oblouku, takový segment zanikne.
+
+**↗ Posun o úhel** – kopie posunutá o zadanou vzdálenost pod zadaným úhlem
+(0°=vpravo, 90°=nahoru); tvar se nemění, jen se posune.
+
+> Rozdělaný výběr strany zrušíš klávesou **Esc** nebo přepnutím nástroje.
 
 ### Pole (Array)
 - **Lineární pole**: zadání počtu kusů, vzdálenost X/Y, úhel

@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Nástroj Offset umí konečně SKUTEČNÝ paralelní offset** (dosud dělal
+  navzdory názvu i vlastní dokumentaci jen posun kopie o vzdálenost pod
+  úhlem). Dialog má nově dva režimy: **∥ Paralelní** (výchozí – obrys ve
+  stále stejné vzdálenosti; po potvrzení se klepnutím určí strana) a
+  **↗ Posun o úhel** (původní chování). Kontura si přitom zachová zaoblené
+  rohy – obloukový segment se posouvá souosle, nezplošťuje se.
+
+  Feature byla v repu rozestavěná ze dvou třetin a nikdy nezapojená:
+  `offsetObject()` (geometrie, `js/geometry.js`) i dialog
+  „Offset – paralelní kopie" existovaly, ale nevolal je nikdo – klikací
+  vrstva chyběla. Doplněno: `pickOffsetSide()` určí stranu tím, ke které
+  z obou variant má klik blíž (funguje stejně pro úsečku, oblouk, obdélník
+  i konturu – rozhoduje výsledek, ne typ), oba dialogy se sloučily do
+  jednoho s přepínačem, rozdělaný výběr strany se drží v
+  `state._offsetPendingSide` (uklidí ho Esc i přepnutí nástroje) a celá
+  operace běží ve `withUndoBatch`, takže jedno Zpět vrátí i offset více
+  objektů najednou. Spuštění z výběru navíc musí přepnout nástroj
+  (`setTool('offset')`) dřív, než uloží stav – tlačítko v liště jinak
+  `setTool` obchází a druhý klik by neobsloužil nikdo.
+
+  Při zapojování se opravila i vada, která tím přestala být teoretická:
+  offset natočeného obdélníku zahazoval `rotation`, takže z něj vypadl
+  osově zarovnaný obdélník.
+
 - **Zásobník nástrojů: tlačítka 👁 Ukázat a ✏️ Upravit** u každého slotu
   (nad *✅ Použít jako aktivní* / *🗑 Smazat*). **👁 Ukázat** otevře náhled nože
   — destička **i s držákem** tak, jak vypadá v simulaci (`showToolSlotPreviewDialog`,
@@ -318,6 +342,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Popisky os v CAD zasahovaly do výkresu; v CAM simulátoru byly skoro
+  nečitelné.** Uživatelský nález (skládá se s předchozím o kontrastu):
+  1. **CAD (`renderAxes` v `js/render.js`):** číselné popisky na vodorovné
+     ose se kreslily NAD osou a na svislé ose VPRAVO od ní. Kdo kreslí
+     hlavně do pravého horního kvadrantu (typický případ), měl popisky
+     přímo v cestě výkresu. Přehozeno: vodorovná osa teď popisky kreslí
+     POD sebe, svislá osa VLEVO od sebe (stejná strana, na kterou to CAM
+     simulátor už dělal správně).
+  2. **CAM simulátor (`js/calculators/camSimulator.js:1506`):** popisky
+     mřížky používaly natvrdo `#585b70` (Catppuccin `surface2`) — stejná
+     barva, která dělala nečitelné popisky i v CSS dialozích výše, tady
+     jen zapsaná přímo v JS canvasu, ne přes proměnnou. Nahrazeno
+     `#a6adc8` (`subtext0`, ~7:1 kontrastu) a zvětšeno z 10px na 12px, ať
+     jsou vizuálně srovnatelné s CAD popisky (13px).
+
+- **Nečitelné popisky na tmavém pozadí (nedostatečný kontrast textu).**
+  Uživatelský nález: kategorie „METRICKÉ / TRUBKOVÉ / PALCOVÉ" v kalkulačce
+  Závity (`.thr-cat-label`) byly skoro nečitelné. Příčina: barva
+  `--ctp-surface2` použitá jako text na tmavém pozadí (`--ctp-mantle` apod.)
+  dává kontrastní poměr jen ~2,6:1 — pod hranicí čitelnosti (WCAG AA žádá
+  4,5:1 pro běžný text, 3:1 jako úplné minimum). `--ctp-surface2` je barva
+  určená pro okraje/rámečky, ne pro text.
+  Prošlo se celé `css/style.css` a opraveno všude, kde šlo o skutečný
+  popisek/nadpis (ne jen podružná nápověda): nevybraná tlačítka přepínačů
+  (`.tol-toggle` — Závity i Tolerance), kategorie v nápovědě závitů
+  (`.thr-help-cat`), šipka v Převodníku (`.conv-arrow`), kód třídy drsnosti
+  (`.rough-class-val`), název historie kalkulačky (`.calc-hist-title`),
+  popisky tabulky CNC kalkuladeček (`.cnc-table-label`), popisky polí
+  v Převodníku (`.conv-label`) a popisek náhledu G-kódu ve VK (`.vk-gcode-label`).
+  Všude nahrazeno `--ctp-subtext0` (kontrast ~7,9:1), stejný odstín, jaký
+  projekt už jinde pro sekundární popisky používá. Ověřeno v obou motivech
+  (tmavý i světlý) — `--ctp-subtext0` je definované pro oba.
+  Ponecháno beze změny: drobné podružné nápovědy vedle primárního textu
+  (`.copy-hint`, `.vbd-rev-header small`) a dekorativní ikony/šipky
+  (`::before` u rozbalovacích nadpisů) — tam nízký kontrast slouží k vizuální
+  hierarchii, ne k utajení obsahu, který je potřeba přečíst.
+
 - **Audit CAD kódu (geometrie/canvas/render/DXF/nástroje) — devět nálezů.**
   Paralelní průzkum `js/geometry.js`, `js/canvas.js`, `js/render.js`,
   `js/objects.js`, `js/dxf.js` a nástrojů v `js/tools/`; opraveno, co bylo
@@ -419,8 +480,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     barvy o pár řádků výš — nález agenta / rychlá kontrola nestačí, vždycky
     nejdřív zkontrolovat existující testy/komentáře na záměr.
 
-  Zbývá otevřené: `offsetObject` s bulge segmentem (viz výše, dosud
-  nejrizikovější položka, plán na to je samostatný).
+  5. **`offsetObject()` u kontury s obloukovým (bulge) segmentem offsetoval
+     tětivou** – oblouk se zplošťoval na úsečku a výstup měl natvrdo
+     `bulges: fill(0)`. Nově se obloukový segment posouvá SOUSTŘEDNĚ (mění
+     jen poloměr: při jízdě CCW je „vlevo" ke středu → `r−d`, při CW → `r+d`,
+     platí i pro reflexní oblouky), rohy se řeší průsečíkem úsečka/oblouk
+     v libovolné kombinaci (`joinOffsetElems` nad existujícími
+     `intersectLineCircle`/`intersectCircleCircle`) a výsledný bulge se
+     dopočítá z OŘEZANÝCH konců, ne z originálu. Offset větší než poloměr
+     oblouku segment zahodí místo pádu.
+     Pozn.: v době opravy byla `offsetObject()` v aplikaci NEPOUŽITÁ (CAD
+     nástroj Offset dělal polární posun, CAM přídavek jde přes
+     `offsetContour()` v `js/calculators/contourOffset.js`, který oblouky
+     umí odjakživa) – oprava tedy tehdy neměla dopad na běh. Zapojena byla
+     vzápětí, viz „Nástroj Offset umí konečně SKUTEČNÝ paralelní offset"
+     v sekci Added.
 
 - **Kontrola cesty „vytvoření nože" (destička + držák) — šest nálezů.**
   1. **Úhel hřbetu α se do uloženého nože vůbec nedostal.** `toolClearanceAngle`

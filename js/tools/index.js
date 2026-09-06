@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 export { handleTangentClick, tangentFromSelection } from './tangentClick.js';
-export { handleOffsetClick, offsetFromSelection } from './offsetClick.js';
+export { handleOffsetClick, offsetFromSelection, resetOffsetState } from './offsetClick.js';
 export { handleTrimClick, trimFromSelection, resetTrimState } from './trimClick.js';
 export { handleExtendClick, extendFromSelection } from './extendClick.js';
 export { handlePerpClick, perpFromSelection } from './perpClick.js';

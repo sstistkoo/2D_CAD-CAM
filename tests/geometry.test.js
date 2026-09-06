@@ -19,6 +19,7 @@ import {
   distToObject,
   projectPointToLine,
   offsetObject,
+  pickOffsetSide,
   mirrorObject,
   linearArray,
   rotateObject,
@@ -646,6 +647,145 @@ describe('offsetObject', () => {
     const obj = { type: 'arc', cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: PI / 2, ccw: false, name: 'A1' };
     const result = offsetObject(obj, 5, 1);
     expect(result.ccw).toBe(false);
+  });
+});
+
+// ════════════════════════════════════════
+// ── offsetObject – kontura s obloukem (bulge) ──
+// ════════════════════════════════════════
+describe('offsetObject – polyline s bulge', () => {
+  // 90° CCW oblouk z (0,0) do (10,0): střed (5,5), r = 5√2 ≈ 7,0710678.
+  // Offset o 1 „doleva" (u CCW oblouku = ke středu) → r = 6,0710678,
+  // konce zůstanou na stejných radiálách: (0,7071;0,7071) a (9,2929;0,7071).
+  const B90 = Math.tan(PI / 8); // ≈ 0.41421356
+
+  it('obloukový segment zůstane obloukem (soustředný posun), ne tětivou', () => {
+    const obj = {
+      type: 'polyline',
+      vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }],
+      bulges: [B90], closed: false, name: 'PL1',
+    };
+    const result = offsetObject(obj, 1, 1);
+    expect(result).not.toBeNull();
+    expect(result.vertices).toHaveLength(2);
+    expect(result.vertices[0].x).toBeCloseTo(0.7071068, 6);
+    expect(result.vertices[0].y).toBeCloseTo(0.7071068, 6);
+    expect(result.vertices[1].x).toBeCloseTo(9.2928932, 6);
+    expect(result.vertices[1].y).toBeCloseTo(0.7071068, 6);
+    // Zaoblení zůstane zaoblením – 90° sweep se offsetem nemění
+    expect(result.bulges[0]).toBeCloseTo(B90, 6);
+  });
+
+  it('CW oblouk (bulge<0) se offsetem doleva vzdaluje od středu (r+d)', () => {
+    const obj = {
+      type: 'polyline',
+      vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }],
+      bulges: [-B90], closed: false, name: 'PL1',
+    };
+    const result = offsetObject(obj, 1, 1);
+    // Zrcadlově: střed (5,−5), r 7,0710678 → 8,0710678
+    const cx = 5, cy = -5, newR = 5 * Math.SQRT2 + 1;
+    for (const v of result.vertices) {
+      expect(Math.hypot(v.x - cx, v.y - cy)).toBeCloseTo(newR, 6);
+    }
+    expect(result.bulges[0]).toBeCloseTo(-B90, 6);
+    expect(result.bulges[0]).toBeLessThan(0); // směr zatáčení se nemění
+  });
+
+  it('roh úsečka↔oblouk leží na OBOU offsetnutých prvcích', () => {
+    // Rovný segment (−10,0)→(0,0), pak 90° CCW oblouk (0,0)→(10,0).
+    const obj = {
+      type: 'polyline',
+      vertices: [{ x: -10, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 }],
+      bulges: [0, B90], closed: false, name: 'PL1',
+    };
+    const result = offsetObject(obj, 1, 1);
+    expect(result.vertices).toHaveLength(3);
+    // Offset rovného segmentu leží na y = +1 (levá normála směru +x)
+    const corner = result.vertices[1];
+    expect(corner.y).toBeCloseTo(1, 6);
+    // …a zároveň na offsetnuté kružnici (střed (5,5), r 6,0710678)
+    expect(Math.hypot(corner.x - 5, corner.y - 5)).toBeCloseTo(5 * Math.SQRT2 - 1, 6);
+    // Obloukový segment má pořád nenulový bulge (nezplošťuje se)
+    expect(Math.abs(result.bulges[1])).toBeGreaterThan(0.1);
+  });
+
+  it('rovná kontura beze změny (regrese původního chování)', () => {
+    const obj = {
+      type: 'polyline',
+      vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }],
+      bulges: [0, 0], closed: false, name: 'PL1',
+    };
+    const result = offsetObject(obj, 2, 1);
+    expect(result.vertices).toHaveLength(3);
+    expect(result.vertices[0]).toEqual({ x: 0, y: 2 });
+    expect(result.vertices[1]).toEqual({ x: 8, y: 2 });
+    expect(result.vertices[2]).toEqual({ x: 8, y: 10 });
+    expect(result.bulges).toEqual([0, 0]);
+  });
+
+  it('offset natočeného obdélníku si nechá rotation (jinak zploští na osově zarovnaný)', () => {
+    const obj = { type: 'rect', x1: 0, y1: 0, x2: 10, y2: 4, rotation: PI / 6, name: 'R1' };
+    const result = offsetObject(obj, 1, 1);
+    expect(result.rotation).toBeCloseTo(PI / 6, 8);
+    // Lokální box se rozšíří o 1 na každou stranu
+    expect(result.x2 - result.x1).toBeCloseTo(12, 8);
+    expect(result.y2 - result.y1).toBeCloseTo(6, 8);
+  });
+
+  it('offset větší než poloměr oblouku segment zahodí, nespadne', () => {
+    const obj = {
+      type: 'polyline',
+      vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }],
+      bulges: [B90, 0], closed: false, name: 'PL1',
+    };
+    // r oblouku je 7,07 – offset 20 ke středu ho celý „přejede"
+    const result = offsetObject(obj, 20, 1);
+    expect(result === null || Array.isArray(result.vertices)).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════
+// ── pickOffsetSide – strana podle kliknutí ──
+// ════════════════════════════════════════
+describe('pickOffsetSide', () => {
+  it('úsečka: klik nad ní vybere stranu, kde offset skutečně leží', () => {
+    const line = { type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+    const side = pickOffsetSide(line, 3, 5, 8);      // klik nahoře (y>0)
+    const res = offsetObject(line, 3, side);
+    expect(res.y1).toBeCloseTo(3, 8);                // offset šel nahoru
+  });
+
+  it('úsečka: klik pod ní vybere opačnou stranu', () => {
+    const line = { type: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+    const side = pickOffsetSide(line, 3, 5, -8);     // klik dole
+    const res = offsetObject(line, 3, side);
+    expect(res.y1).toBeCloseTo(-3, 8);
+  });
+
+  it('kružnice: klik vně zvětší, klik uvnitř zmenší', () => {
+    const c = { type: 'circle', cx: 0, cy: 0, r: 10 };
+    expect(offsetObject(c, 2, pickOffsetSide(c, 2, 20, 0)).r).toBeCloseTo(12, 8);
+    expect(offsetObject(c, 2, pickOffsetSide(c, 2, 1, 0)).r).toBeCloseTo(8, 8);
+  });
+
+  it('kontura: klik určí stranu i u obloukového segmentu', () => {
+    const pl = {
+      type: 'polyline',
+      vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }],
+      bulges: [Math.tan(PI / 8)], closed: false,
+    };
+    // Oblouk se vydouvá pod tětivu (nejnižší bod y ≈ −2,07), střed je (5,5).
+    // Klik ještě NÍŽ musí offset poslat od středu, tj. poloměr zvětšit.
+    const side = pickOffsetSide(pl, 1, 5, -6);
+    const res = offsetObject(pl, 1, side);
+    const rNew = Math.hypot(res.vertices[0].x - 5, res.vertices[0].y - 5);
+    expect(rNew).toBeCloseTo(5 * Math.SQRT2 + 1, 6);
+  });
+
+  it('když offset nejde na žádnou stranu, vrátí null', () => {
+    // Bod offsetObject nepodporuje → obě strany null
+    expect(pickOffsetSide({ type: 'point', x: 0, y: 0 }, 5, 1, 1)).toBeNull();
   });
 });
 

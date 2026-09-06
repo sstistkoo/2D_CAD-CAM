@@ -189,6 +189,7 @@ export function resetDrawingState() {
   state._selectedConstraint = null;
   state._trimLine = null;
   state._extendLine = null;
+  state._offsetPendingSide = null;
   state._filletFirstLine = null;
   state._dimFirstLine = null;
   state._dimSecondLine = null;

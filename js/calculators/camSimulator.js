@@ -1503,7 +1503,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     ctx.stroke();
 
     // grid labels
-    ctx.fillStyle = '#585b70'; ctx.font = '10px sans-serif';
+    // #585b70 (Catppuccin surface2) na tomhle pozadí padá pod 3:1 kontrastu
+    // – prakticky nečitelné (viz stejná oprava v css/style.css). subtext0
+    // (#a6adc8) dává ~7:1 a čísla jsou i o něco větší, ať jsou srovnatelná s CAD.
+    ctx.fillStyle = '#a6adc8'; ctx.font = '12px sans-serif';
     for (let v = gx0; v <= gx1; v += gridStep) {
       if (Math.abs(v) < gridStep * 0.01) continue;
       const label = Number.isInteger(v) ? v.toString() : v.toFixed(1);
