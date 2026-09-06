@@ -659,6 +659,34 @@ describe('parseDXF – TEXT/MTEXT', () => {
     const { entities } = parseDXF(dxf);
     expect(entities).toHaveLength(0);
   });
+
+  it('TEXT s nedefaultním zarovnáním (72≠0) použije druhý bod (11/21), ne 10/20', () => {
+    const dxf = makeDXF([
+      '0', 'TEXT',
+      '10', '0', '20', '0',    // legacy bod – u center-justify neaktuální
+      '11', '30', '21', '15',  // skutečná kotva
+      '40', '10',
+      '72', '1',                // center-justified
+      '1', 'Centered',
+    ]);
+    const { entities } = parseDXF(dxf);
+    expect(entities).toHaveLength(1);
+    expect(entities[0].x).toBe(30);
+    expect(entities[0].y).toBe(15);
+  });
+
+  it('TEXT s výchozím zarovnáním (72=0, 73=0) ignoruje 11/21 a použije 10/20', () => {
+    const dxf = makeDXF([
+      '0', 'TEXT',
+      '10', '5', '20', '7',
+      '11', '99', '21', '99',  // nemá se použít
+      '40', '10',
+      '1', 'Left',
+    ]);
+    const { entities } = parseDXF(dxf);
+    expect(entities[0].x).toBe(5);
+    expect(entities[0].y).toBe(7);
+  });
 });
 
 // ════════════════════════════════════════

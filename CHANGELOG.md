@@ -318,6 +318,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Audit CAD kódu (geometrie/canvas/render/DXF/nástroje) — devět nálezů.**
+  Paralelní průzkum `js/geometry.js`, `js/canvas.js`, `js/render.js`,
+  `js/objects.js`, `js/dxf.js` a nástrojů v `js/tools/`; opraveno, co bylo
+  potvrzeno konkrétním scénářem, zbytek (viz níže) ponechán.
+  1. **Zaoblený/zkosený/posunutý obdélník ztrácel natočení.** `rotateObject`,
+     `mirrorObject`, `flipObject` a `scaleObject` u `type:'rect'` počítaly
+     jen s `x1/y1/x2/y2` jako s nezávislými rohovými body a `obj.rotation`
+     nechávaly být — `getRectCorners` ale staví box kolem VLASTNÍHO STŘEDU
+     a teprve pak ho o `rotation` natáčí, takže po rotaci/zrcadlení/škálování
+     natočeného obdélníku vznikl úplně jiný, osově zarovnaný tvar. Oprava
+     transformuje střed (ne rohy) a dopočítá `rotation` (zrcadlení/překlopení
+     odráží úhel jako `2·θ_osy − A`, záporný scale faktor přičte π) —
+     ověřeno numericky mimo test i v `tests/geometry.test.js`.
+  2. **Offset CW oblouku (`ccw:false`) ztrácel směr.** `offsetObject` u
+     `type:'arc'` nekopíroval `obj.ccw` — `isAngleBetween`/vykreslení pak bez
+     tohoto příznaku bere výchozí CCW sweep, takže výsledný oblouk mohl mířit
+     úplně jinam než originál.
+  3. **`chamferLineAndArc` nekontroloval, že zkosení na oblouku (`dist2`)
+     nepřesahuje jeho úhlový rozsah** (na rozdíl od `dist1` u úsečky, kde
+     kontrola byla) — moc velký `dist2` posunul konec oblouku za druhý
+     původní konec a vrátil `ok:true` s poškozenou geometrií.
+  4. **`autoCenterView` (canvas.js) počítal bounding box CW oblouku špatně**
+     — volání `isAngleBetween` bez 4. parametru `ccw` vždy předpokládá CCW
+     sweep, takže se u `ccw:false` oblouku ořízl kus, který ve skutečnosti
+     leží na dráze (auto-center pak useknul kus výkresu).
+  5. **Text psaný podél oblouku (`pathMode:'arc'`) se při zapnutém otočení
+     osy X/Z (`state.flipX`/`flipZ`) kreslil na špatném úhlu** —
+     `_drawTextAlongArc` v render.js počítal úhly ručním `-angle` místo
+     sdílené `screenAngle()`, která jediná zohledňuje obě otočení.
+  6. **Přesun textu po kruhové dráze (`pathMode:'circle'`) skákal, když měl
+     bod X nebo Y přesně 0** — `obj.y || pathObj.cy` bere `0` jako
+     "nezadáno" (typický `||` na čísle); opraveno na `??`.
+  7. **Zaoblení/rozdělení kraje kontury (Trim auto-mód) přehlíželo konce
+     oblouků a kružnic jako hranice řezu** — `if (!circ.startAngle !==
+     undefined)` je vždy `true` (přednost operátorů), takže se funkce vždy
+     vrátila hned na začátku; opraveno na `circ.startAngle === undefined`.
+  8. **Spojení (J) a rozdělení (Break) úsečky/oblouku/kontury rozbíjelo
+     Zpět.** Obě volaly `pushUndo()` samy a pak i `addObject()`, který
+     `pushUndo()` volá znovu — jedno Ctrl+Z tak vrátilo jen mezistav (staré
+     objekty smazané, nový ještě nepřidaný), ne původní stav; teprve druhé
+     Ctrl+Z vrátilo výkres doopravdy. Opraveno přes `withUndoBatch()`
+     (existující mechanismus přesně pro tenhle případ).
+  9. **Zakotvené objekty šlo posunout/otočit obchvatem.** Přesun více
+     vybraných objektů (`moveClick.js`) anchor vůbec nekontroloval (na
+     rozdíl od přesunu jednoho objektu) a nástroj Rovnoběžka
+     (`parallelClick.js`) kotvu ignoroval úplně — zakotvený konec se mohl
+     tiše posunout. Doplněna stejná kontrola/hlášení jako u Rotace a
+     ostatních vazebních nástrojů.
+
+  **Vědomě NEopraveno tehdy** (nález potvrzen, ale riziko/rozsah zásahu na tu
+  session moc velké — zůstalo jako TODO): `offsetObject` u kontury s
+  obloukovým (bulge) segmentem nabízí jen tětivový offset, oblouk zplošťuje
+  na úsečku; DXF import ignoruje zarovnání TEXT/MTEXT (kódy 72/73/11/21) a u
+  zrcadleného INSERTu neobrací směr oblouku/bulge; v dialozích (`mobileEdit.js`,
+  `objectDialogs.js`, `polarDrawing.js`) je několik úniků event listenerů.
+  Barva objektu (kód 62) se v DXF exportu záměrně nezapisuje — potvrzeno
+  testem/komentářem jako součást „minimálního AC1009 formátu" pro Fusion 360,
+  proto ponecháno beze změny.
+
+- **Doladění nálezů z auditu výše — plán v `docs/` odpracován, dvě položky
+  se ukázaly jako planý poplach.**
+  1. **Únik posluchačů canvasu (Kruhové pole, Polární kreslení)** – tlačítko
+     „🎯 vyber bod z výkresu" schová dialog a pověsí `click`/`touchend` na
+     `drawCanvas`; cleanup se volal jen z OK/Zavřít tlačítek, ne při Escape
+     nebo kliku mimo (ty jdou přes globální `makeInputOverlay` mechanismus,
+     co o pick-listeneru neví). Zaregistrováno do existujícího
+     `onOverlayRemoved()` (`js/dialogFactory.js`), který se spustí, ať dialog
+     zmizí jakkoliv.
+  2. **Zastaralý index při editaci objektu přes globální Zpět.**
+     `mobileEdit.js`/`measure.js` si při otevření zapamatují `idx` a Save/
+     Delete ho později použijí bez ověření – Ctrl+Z (nebo klik na toolbar
+     Zpět) mezitím může `state.objects` vyměnit a mazat/upravit se pak jiný
+     objekt, než uživatel vidí otevřený. Ctrl+Z/Y teď respektuje `isEditable`
+     (stejně jako sousední Home/Ctrl+0), a hlavně: Save/Delete si těsně před
+     zápisem znovu dohledají objekt podle stabilního `id`, ne podle `idx`.
+  3. **DXF import: TEXT/MTEXT se zarovnáním jinam než vlevo/baseline** (kódy
+     72/73) používal jako kotvu vždy kód 10/20, i když skutečná pozice je
+     v kódu 11/21 – text se importoval na úplně jiné místo.
+  4. **DXF import: zrcadlený INSERT (`sx*sy<0`, typicky dveře/okno v CAD
+     knihovně) neobracel směr oblouku/bulge** – `transformEntity` u ARC jen
+     přičítal rotaci k oběma úhlům místo transformace skutečných koncových
+     bodů, takže u odstředěného oblouku vyšla i POLOHA špatně, nejen
+     křivost. Opraveno stejnou konvencí, jakou `mirrorObject()` v
+     `geometry.js` má pro `arc`/`polyline` (transformovat koncové body,
+     při reflexi je prohodit / obrátit bulge).
+
+  **Planý poplach (nebylo co opravovat):**
+  - „Nekonzistence Celkové délky" u 2D lineárního pole (`objectDialogs.js`)
+    – `linearArray()` má `count` (hlavní osa) = počet KOPIÍ (`count+1`
+    pozic), `count2` (vedlejší osa) = počet ŘAD CELKEM (`count2` pozic);
+    dělení `dx/count` a `dx2/(count2-1)` je pro OBĚ osy matematicky správné
+    (ověřeno numericky). Nikdy to nebyla chyba, jen asymetrická konvence
+    dvou vstupních polí.
+  - Osová vzdálenost páru ozubených kol bez korekce na posunutí profilu –
+    `tests/gearPair.test.js` má test s výslovným komentářem, že `axis =
+    r1+r2` i s korekcí `x1/x2` je VĚDOMÉ zjednodušení pro CAD/CAM účely
+    (přesný pracovní úhel záběru se řeší jinak). Oprava byla naimplementovaná
+    a hned zase vrácena, jakmile se ukázal ten test. Stejná past jako u DXF
+    barvy o pár řádků výš — nález agenta / rychlá kontrola nestačí, vždycky
+    nejdřív zkontrolovat existující testy/komentáře na záměr.
+
+  Zbývá otevřené: `offsetObject` s bulge segmentem (viz výše, dosud
+  nejrizikovější položka, plán na to je samostatný).
+
 - **Kontrola cesty „vytvoření nože" (destička + držák) — šest nálezů.**
   1. **Úhel hřbetu α se do uloženého nože vůbec nedostal.** `toolClearanceAngle`
      chyběl v `CAM_TOOL_KEYS`, přestože ho čte `buildMachinableContour`

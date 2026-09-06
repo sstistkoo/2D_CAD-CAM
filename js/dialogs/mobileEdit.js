@@ -94,6 +94,11 @@ export function showMobileEditDialog() {
 export function showEditObjectDialog(idx) {
   const obj = state.objects[idx];
   if (!obj) { showToast("Objekt nenalezen"); return; }
+  // Zachytit stabilní id – idx/obj se použije jen pro vyplnění formuláře;
+  // Save/Delete si těsně před zápisem objekt dohledají znovu podle id, pro
+  // případ že mezitím proběhlo Zpět (jinou cestou než Ctrl+Z v poli) a
+  // state.objects se vyměnilo (jinak by mutovaly/mazaly špatný objekt).
+  const objId = obj.id;
 
   // Textový objekt → přesměrovat na plný textový dialog
   if (obj.type === 'text') {
@@ -453,6 +458,9 @@ export function showEditObjectDialog(idx) {
 
   // Save
   overlay.querySelector("#editOk").addEventListener("click", () => {
+    const curIdx = state.objects.findIndex(o => o.id === objId);
+    if (curIdx === -1) { showToast("Objekt mezitím zmizel (Zpět?) – úprava zrušena"); overlay.remove(); return; }
+    const obj = state.objects[curIdx];
     pushUndo();
     obj.name = overlay.querySelector("#editName").value;
     switch (obj.type) {
@@ -511,10 +519,12 @@ export function showEditObjectDialog(idx) {
 
   // Delete
   overlay.querySelector("#editDelete").addEventListener("click", () => {
+    const curIdx = state.objects.findIndex(o => o.id === objId);
+    if (curIdx === -1) { showToast("Objekt mezitím zmizel (Zpět?)"); overlay.remove(); return; }
     pushUndo();
-    state.objects.splice(idx, 1);
-    if (state.selected === idx) state.selected = null;
-    else if (state.selected > idx) state.selected--;
+    state.objects.splice(curIdx, 1);
+    if (state.selected === curIdx) state.selected = null;
+    else if (state.selected > curIdx) state.selected--;
     updateObjectList();
     updateProperties();
     calculateAllIntersections();

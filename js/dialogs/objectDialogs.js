@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { makeInputOverlay } from '../dialogFactory.js';
+import { makeInputOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { state, showToast, axisLabels } from '../state.js';
 import { typeLabel, safeEvalMath } from '../utils.js';
 import { drawCanvas, screenToWorld, snapPt } from '../canvas.js';
@@ -611,6 +611,12 @@ export function showCircularArrayDialog(obj, callback) {
     </div>`);
   overlay.querySelector("#dlgCircArrCount").focus();
 
+  // Únik posluchače canvasu, když se okno zavře jinak než dokončením picku
+  // (Escape/klik mimo jdou přes globální mechanismus v makeInputOverlay,
+  // který o pick-listeneru neví) – onOverlayRemoved je zavolá vždy.
+  let _pickCleanup = null;
+  onOverlayRemoved(overlay, () => { if (_pickCleanup) _pickCleanup(); });
+
   function accept() {
     const count = parseInt(overlay.querySelector("#dlgCircArrCount").value);
     const totalAngle = safeEvalMath(overlay.querySelector("#dlgCircArrAngle").value);
@@ -633,7 +639,6 @@ export function showCircularArrayDialog(obj, callback) {
   });
 
   // ── Pick středu z plátna ──
-  let _pickCleanup = null;
   overlay.querySelector("#dlgCircArrPick").addEventListener("click", (e) => {
     e.preventDefault();
     overlay.style.display = "none";

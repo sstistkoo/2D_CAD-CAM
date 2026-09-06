@@ -1666,6 +1666,7 @@ export function offsetObject(obj, dist, side) {
         type: 'arc',
         cx: obj.cx, cy: obj.cy, r: newR,
         startAngle: obj.startAngle, endAngle: obj.endAngle,
+        ccw: obj.ccw,
         name: `${obj.name || 'Oblouk'} (offset)`,
         color: obj.color,
       };
@@ -1761,6 +1762,12 @@ export function mirrorObject(obj, axis, p1, p2) {
   const npAngle = (state.nullPointActive && state.nullPointAngle)
     ? (state.nullPointAngle * Math.PI / 180) : 0;
 
+  // Směrový úhel zrcadlící přímky – potřebný pro obdélník (viz 'rect' níže):
+  // odraz úhlu natočení A přes přímku se směrem theta je 2*theta - A.
+  const axisAngle = axis === 'x' ? npAngle
+    : axis === 'z' ? npAngle + Math.PI / 2
+    : Math.atan2((p2?.y ?? 0) - (p1?.y ?? 0), (p2?.x ?? 0) - (p1?.x ?? 0));
+
   function mirrorPoint(px, py) {
     if (axis === 'x') {
       // Zrcadlení přes vodorovnou osu (otočenou o npAngle)
@@ -1824,10 +1831,15 @@ export function mirrorObject(obj, axis, p1, p2) {
       break;
     }
     case 'rect': {
-      const m1 = mirrorPoint(copy.x1, copy.y1);
-      const m2 = mirrorPoint(copy.x2, copy.y2);
-      copy.x1 = m1.x; copy.y1 = m1.y;
-      copy.x2 = m2.x; copy.y2 = m2.y;
+      // Zrcadlit STŘED (ne rohové body zvlášť) a zachovat půl-rozměry –
+      // getRectCorners staví box z x1..y2 kolem jeho vlastního středu a
+      // teprve pak ho natáčí o rotation, takže rohy nejsou nezávislé body.
+      const cx0 = (copy.x1 + copy.x2) / 2, cy0 = (copy.y1 + copy.y2) / 2;
+      const hw = (copy.x2 - copy.x1) / 2, hh = (copy.y2 - copy.y1) / 2;
+      const c = mirrorPoint(cx0, cy0);
+      copy.x1 = c.x - hw; copy.x2 = c.x + hw;
+      copy.y1 = c.y - hh; copy.y2 = c.y + hh;
+      copy.rotation = 2 * axisAngle - (obj.rotation || 0);
       break;
     }
     case 'polyline': {
@@ -1925,8 +1937,16 @@ export function rotateObject(obj, cx, cy, angle) {
       break;
     }
     case 'rect': {
-      const m1 = rp(obj.x1, obj.y1), m2 = rp(obj.x2, obj.y2);
-      obj.x1 = m1.x; obj.y1 = m1.y; obj.x2 = m2.x; obj.y2 = m2.y; break;
+      // Otočit STŘED kolem pivotu a zachovat půl-rozměry – x1..y2 nejsou
+      // nezávislé rohové body, ale (spolu s rotation) definice boxu kolem
+      // jeho vlastního středu (viz getRectCorners v utils.js).
+      const cx0 = (obj.x1 + obj.x2) / 2, cy0 = (obj.y1 + obj.y2) / 2;
+      const hw = (obj.x2 - obj.x1) / 2, hh = (obj.y2 - obj.y1) / 2;
+      const c = rp(cx0, cy0);
+      obj.x1 = c.x - hw; obj.x2 = c.x + hw;
+      obj.y1 = c.y - hh; obj.y2 = c.y + hh;
+      obj.rotation = (obj.rotation || 0) + angle;
+      break;
     }
     case 'polyline': {
       obj.vertices = obj.vertices.map(v => rp(v.x, v.y));
@@ -1972,8 +1992,20 @@ export function flipObject(obj, cx, cy, axis) {
       break;
     }
     case 'rect': {
-      const m1 = fp(obj.x1, obj.y1), m2 = fp(obj.x2, obj.y2);
-      obj.x1 = m1.x; obj.y1 = m1.y; obj.x2 = m2.x; obj.y2 = m2.y; break;
+      // Překlopit STŘED a zachovat půl-rozměry (viz stejná poznámka u
+      // rotateObject/mirrorObject výše).
+      const cx0 = (obj.x1 + obj.x2) / 2, cy0 = (obj.y1 + obj.y2) / 2;
+      const hw = (obj.x2 - obj.x1) / 2, hh = (obj.y2 - obj.y1) / 2;
+      const c = fp(cx0, cy0);
+      obj.x1 = c.x - hw; obj.x2 = c.x + hw;
+      obj.y1 = c.y - hh; obj.y2 = c.y + hh;
+      // Stejná konvence jako u 'arc' výše: překlopení obrací úhel natočení.
+      if (axis === 'Z') {
+        obj.rotation = Math.PI - (obj.rotation || 0);
+      } else {
+        obj.rotation = -(obj.rotation || 0);
+      }
+      break;
     }
     case 'polyline': {
       obj.vertices = obj.vertices.map(v => fp(v.x, v.y));
@@ -2045,8 +2077,18 @@ export function scaleObject(obj, cx, cy, factor) {
       break;
     }
     case 'rect': {
-      const m1 = sp(obj.x1, obj.y1), m2 = sp(obj.x2, obj.y2);
-      obj.x1 = m1.x; obj.y1 = m1.y; obj.x2 = m2.x; obj.y2 = m2.y; break;
+      // Škálovat STŘED a půl-rozměry (viz stejná poznámka u rotateObject).
+      const cx0 = (obj.x1 + obj.x2) / 2, cy0 = (obj.y1 + obj.y2) / 2;
+      const hw = (obj.x2 - obj.x1) / 2 * Math.abs(factor);
+      const hh = (obj.y2 - obj.y1) / 2 * Math.abs(factor);
+      const c = sp(cx0, cy0);
+      obj.x1 = c.x - hw; obj.x2 = c.x + hw;
+      obj.y1 = c.y - hh; obj.y2 = c.y + hh;
+      // Záporný faktor je bodová souměrnost (rotace o 180°) – promítne se
+      // i do úhlu natočení, jinak by se dvojice rohů reinterpretovala jako
+      // jiný (axis-aligned) obdélník – viz getRectCorners.
+      if (factor < 0) obj.rotation = ((obj.rotation || 0) + Math.PI) % (2 * Math.PI);
+      break;
     }
     case 'polyline': {
       obj.vertices = obj.vertices.map(v => sp(v.x, v.y));
@@ -2327,6 +2369,10 @@ export function chamferLineAndArc(line, arc, dist1, dist2) {
   // Úhlová vzdálenost na oblouku odpovídající dist2
   const dAngle = dist2 / arc.r;
   const arcCCW = arc.ccw !== false;
+  const arcSweep = arcCCW
+    ? ((arc.endAngle - arc.startAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
+    : ((arc.startAngle - arc.endAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  if (dAngle > arcSweep + 1e-6) return { ok: false, msg: "Vzdálenost zkosení přesahuje délku oblouku" };
   let newArcAngle;
   if (best.aEnd === 'start') {
     // Roh je na začátku oblouku → jdeme DO oblouku

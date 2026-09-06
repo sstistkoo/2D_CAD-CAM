@@ -2619,8 +2619,8 @@ function _drawTextAlongArc(text, arcObj, screenSize, spacing, pathOffset, pathSt
   const sr = arcObj.r * state.zoom;
   if (sr < 1) return;
 
-  let startAngle = -arcObj.startAngle;
-  let endAngle = -arcObj.endAngle;
+  let startAngle = screenAngle(arcObj.startAngle);
+  let endAngle = screenAngle(arcObj.endAngle);
   if (endAngle > startAngle) {
     const tmp = startAngle;
     startAngle = endAngle;

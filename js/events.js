@@ -484,12 +484,12 @@ document.addEventListener("keydown", (e) => {
     resetHint();
   }
 
-  if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+  if (!isEditable && (e.ctrlKey || e.metaKey) && e.key === "z") {
     e.preventDefault();
     undo();
     return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+  if (!isEditable && (e.ctrlKey || e.metaKey) && e.key === "y") {
     e.preventDefault();
     redo();
     return;

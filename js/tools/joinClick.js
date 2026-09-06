@@ -2,7 +2,7 @@
 // ║  Spojení dvou úseček ve společném bodě – click logika        ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast } from '../state.js';
+import { state, withUndoBatch, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { calculateAllIntersections } from '../geometry.js';
@@ -56,16 +56,17 @@ export function handleJoinClick(wx, wy) {
       if (diff > Math.PI) diff = 2 * Math.PI - diff;
       if (diff > ANGLE_TOL) continue;
 
-      pushUndo();
-      const [loIdx, hiIdx] = a.idx < b.idx ? [a.idx, b.idx] : [b.idx, a.idx];
-      state.objects.splice(hiIdx, 1);
-      state.objects.splice(loIdx, 1);
+      withUndoBatch(() => {
+        const [loIdx, hiIdx] = a.idx < b.idx ? [a.idx, b.idx] : [b.idx, a.idx];
+        state.objects.splice(hiIdx, 1);
+        state.objects.splice(loIdx, 1);
 
-      addObject({
-        type: a.obj.type,
-        x1: aFar.x, y1: aFar.y,
-        x2: bFar.x, y2: bFar.y,
-        ...(a.obj.color ? { color: a.obj.color } : {}),
+        addObject({
+          type: a.obj.type,
+          x1: aFar.x, y1: aFar.y,
+          x2: bFar.x, y2: bFar.y,
+          ...(a.obj.color ? { color: a.obj.color } : {}),
+        });
       });
 
       calculateAllIntersections();

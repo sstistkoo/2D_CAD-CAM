@@ -224,6 +224,40 @@ describe('parseDXF – INSERT/BLOCK', () => {
     expect(r.entities.find(e => e.type === 'circle').cx).toBe(50);
     expect(r.entities.find(e => e.type === 'circle').cy).toBe(50);
   });
+
+  it('zrcadlený INSERT (41=-1) obrátí směr oblouku, ne jen jeho polohu', () => {
+    // Blok: čtvrtkružnice střed (5,0) r=5, 0°→90° (body (10,0)→(5,5)).
+    const dxf = wrapDXF(
+      [[
+        '0', 'INSERT', '2', 'B',
+        '10', '0', '20', '0',
+        '41', '-1',
+      ]],
+      [[
+        '0', 'BLOCK', '2', 'B', '10', '0', '20', '0',
+        '0', 'ARC', '10', '5', '20', '0', '40', '5', '50', '0', '51', '90',
+        '0', 'ENDBLK',
+      ]],
+    );
+    const r = parseDXF(dxf);
+    expect(r.errors).toEqual([]);
+    expect(r.entities).toHaveLength(1);
+    const arc = r.entities[0];
+    expect(arc.type).toBe('arc');
+    // Střed se zrcadlí přes osu Y: (5,0) → (-5,0)
+    expect(arc.cx).toBeCloseTo(-5, 6);
+    expect(arc.cy).toBeCloseTo(0, 6);
+    expect(arc.r).toBeCloseTo(5, 6);
+    // Skutečné mirrorované koncové body musí být (-10,0) a (-5,5) – NE
+    // (0,0)/(-5,5), což by vyšlo z pouhého "přičti rotaci k oběma úhlům"
+    // (špatný start bod i špatná křivost).
+    const sx = arc.cx + arc.r * Math.cos(arc.startAngle);
+    const sy = arc.cy + arc.r * Math.sin(arc.startAngle);
+    const ex = arc.cx + arc.r * Math.cos(arc.endAngle);
+    const ey = arc.cy + arc.r * Math.sin(arc.endAngle);
+    const pts = [[sx, sy], [ex, ey]].map(p => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).sort();
+    expect(pts).toEqual(['-10.000,0.000', '-5.000,5.000']);
+  });
 });
 
 // ── Mix s ostatními entitami ──

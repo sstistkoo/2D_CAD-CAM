@@ -822,7 +822,7 @@ function collectSegmentBoundaries(idx, obj, proj) {
 
   // Helper: přidej bod a zkontroluj zda leží na objektu v parametru p ∈ (eps, max-eps)
   const addEndpoints = (circ, v1, v2, dx, dy, lenSq, eps) => {
-    if (!circ.startAngle !== undefined) return;
+    if (circ.startAngle === undefined) return;
     for (const ep of [
       { x: circ.cx + circ.r * Math.cos(circ.startAngle), y: circ.cy + circ.r * Math.sin(circ.startAngle) },
       { x: circ.cx + circ.r * Math.cos(circ.endAngle),   y: circ.cy + circ.r * Math.sin(circ.endAngle) },

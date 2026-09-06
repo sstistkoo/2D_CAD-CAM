@@ -224,6 +224,7 @@ export function showPolarDrawingDialog() {
     _openOverlay = null;
     _activeStop = null;
     stopAnglePicking();
+    if (_polPickCleanup) _polPickCleanup();
     polarBtn?.classList.remove('active');
     refreshToolbarActive();
   });

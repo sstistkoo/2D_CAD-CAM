@@ -237,8 +237,8 @@ export function moveObject(obj, dx, dy) {
             const curAngle = Math.atan2(dy, dx);
             // Obecný tangent/radial rozklad kolem středu
             const fromCenter = Math.atan2(
-              (obj.y || pathObj.cy) - pathObj.cy,
-              (obj.x || pathObj.cx) - pathObj.cx
+              (obj.y ?? pathObj.cy) - pathObj.cy,
+              (obj.x ?? pathObj.cx) - pathObj.cx
             );
             const rx = Math.cos(fromCenter), ry = Math.sin(fromCenter);
             const tx = -Math.sin(fromCenter), ty = Math.cos(fromCenter);

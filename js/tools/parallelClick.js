@@ -8,6 +8,7 @@ import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { getLineSegment, setConstraint, propagateConstraints, analyzeSelection } from './helpers.js';
+import { isAnchored } from './anchorClick.js';
 
 export function handleParallelClick(wx, wy) {
   if (!state.drawing) {
@@ -50,14 +51,26 @@ export function handleParallelClick(wx, wy) {
         if (diff2 < diff1) targetAngle = alt;
 
         const len = Math.hypot(refSeg.seg.x2 - refSeg.seg.x1, refSeg.seg.y2 - refSeg.seg.y1);
-        // Kotevní bod = konec bližší k prvnímu kliknutí (zachová propojení kontury)
-        const cx = state._parallelClickX, cy = state._parallelClickY;
-        const d1 = Math.hypot(cx - refSeg.seg.x1, cy - refSeg.seg.y1);
-        const d2 = Math.hypot(cx - refSeg.seg.x2, cy - refSeg.seg.y2);
+
+        // Kontrola kotev – zakotvený konec musí zůstat fixní (viz perpClick.js)
+        const a1 = isAnchored(refSeg.seg.x1, refSeg.seg.y1);
+        const a2 = isAnchored(refSeg.seg.x2, refSeg.seg.y2);
+        if (a1 && a2) { showToast("Oba konce jsou zakotveny – nelze vyrovnat"); return; }
+
+        let fixP1;
+        if (a1) { fixP1 = true; }
+        else if (a2) { fixP1 = false; }
+        else {
+          // Kotevní bod = konec bližší k prvnímu kliknutí (zachová propojení kontury)
+          const cx = state._parallelClickX, cy = state._parallelClickY;
+          const d1 = Math.hypot(cx - refSeg.seg.x1, cy - refSeg.seg.y1);
+          const d2 = Math.hypot(cx - refSeg.seg.x2, cy - refSeg.seg.y2);
+          fixP1 = d1 <= d2;
+        }
 
         pushUndo();
         let movedEnd;
-        if (d1 <= d2) {
+        if (fixP1) {
           // P1 je kotva
           refSeg.setP2(refSeg.seg.x1 + len * Math.cos(targetAngle), refSeg.seg.y1 + len * Math.sin(targetAngle));
           movedEnd = 'p2';
@@ -138,11 +151,24 @@ export function parallelFromSelection() {
 
     const len = Math.hypot(ls1.seg.x2 - ls1.seg.x1, ls1.seg.y2 - ls1.seg.y1);
 
+    // Kontrola kotev – zakotvený konec musí zůstat fixní (viz perpFromSelection)
+    const sa1 = isAnchored(ls1.seg.x1, ls1.seg.y1);
+    const sa2 = isAnchored(ls1.seg.x2, ls1.seg.y2);
+    if (sa1 && sa2) { showToast("Oba konce jsou zakotveny – nelze vyrovnat"); return true; }
+
     pushUndo();
-    // Kotva je P1
-    ls1.setP2(ls1.seg.x1 + len * Math.cos(targetAngle), ls1.seg.y1 + len * Math.sin(targetAngle));
+    let movedEnd;
+    if (sa2) {
+      // P2 je zakotvený → kotva je P2
+      ls1.setP1(ls1.seg.x2 - len * Math.cos(targetAngle), ls1.seg.y2 - len * Math.sin(targetAngle));
+      movedEnd = 'p1';
+    } else {
+      // Výchozí: kotva je P1
+      ls1.setP2(ls1.seg.x1 + len * Math.cos(targetAngle), ls1.seg.y1 + len * Math.sin(targetAngle));
+      movedEnd = 'p2';
+    }
     setConstraint(obj1, ls1.segIdx, 'parallel');
-    propagateConstraints(obj1, ls1.segIdx, 'p2');
+    propagateConstraints(obj1, ls1.segIdx, movedEnd);
     calculateAllIntersections();
     renderAll();
     showToast("Otočeno do rovnoběžnosti ✓");

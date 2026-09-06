@@ -421,7 +421,7 @@ export function autoCenterView() {
         // Check cardinal angles (0, 90, 180, 270) within sweep
         for (let ca = 0; ca < 4; ca++) {
           const ang = ca * Math.PI / 2;
-          if (isAngleBetween(ang, obj.startAngle, obj.endAngle)) {
+          if (isAngleBetween(ang, obj.startAngle, obj.endAngle, obj.ccw !== false)) {
             pts.push({ x: obj.cx + obj.r * Math.cos(ang), y: obj.cy + obj.r * Math.sin(ang) });
           }
         }

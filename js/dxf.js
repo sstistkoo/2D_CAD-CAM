@@ -386,15 +386,28 @@ function parseEntity(type, data) {
 
     case 'TEXT':
     case 'MTEXT': {
-      const x = safeFloat(data.find(p => p.code === 10)?.value);
-      const y = safeFloat(data.find(p => p.code === 20)?.value);
-      let text = data.find(p => p.code === 1)?.value || '';
-      // MTEXT continuation text (kód 3) – připoj další části textu
+      // Kód 10/20 je "první" bod (u výchozího levého/baseline zarovnání
+      // JE kotva). Když je zarovnání (72 horizontální, 73 vertikální)
+      // cokoli jiného než výchozí, skutečná kotva je "druhý bod
+      // zarovnání" (11/21) – 10/20 pak bývá neaktuální/0,0.
+      const x10 = safeFloat(data.find(p => p.code === 10)?.value);
+      const y10 = safeFloat(data.find(p => p.code === 20)?.value);
+      const hAlign = parseInt(data.find(p => p.code === 72)?.value || '0', 10);
+      const vAlign = parseInt(data.find(p => p.code === 73)?.value || '0', 10);
+      const p11 = data.find(p => p.code === 11);
+      const p21 = data.find(p => p.code === 21);
+      const useSecondPt = (hAlign !== 0 || vAlign !== 0) && p11 && p21;
+      const x = useSecondPt ? safeFloat(p11.value) : x10;
+      const y = useSecondPt ? safeFloat(p21.value) : y10;
+      // MTEXT continuation text (kód 3, max 250 znaků/blok) předchází
+      // v souboru finálnímu kódu 1 – skládat v pořadí výskytu, ne obráceně.
+      let text = '';
       if (type === 'MTEXT') {
         for (const p of data) {
-          if (p.code === 3) text = p.value + text;
+          if (p.code === 3) text += p.value;
         }
       }
+      text += data.find(p => p.code === 1)?.value || '';
       const height = safeFloat(data.find(p => p.code === 40)?.value) || 14;
       const rotation = safeFloat(data.find(p => p.code === 50)?.value) || 0;
       // MTEXT může mít formátovací kódy – odstraň je
@@ -553,11 +566,20 @@ function transformEntity(obj, t) {
     case 'arc': {
       const c = pt(obj.cx, obj.cy);
       const r = obj.r * (Math.abs(t.sx) + Math.abs(t.sy)) / 2;
-      const rot = Math.atan2(t.sin, t.cos);
+      // Zrcadlený INSERT (sx*sy<0, např. mirrored blok dveří/okna) obrací
+      // smysl zatáčení – nestačí jen přičíst rotaci k oběma úhlům (to by
+      // otočilo POZICI, ale ne KŘIVOST). Transformovat skutečné koncové
+      // body a při reflexi je prohodit – stejná konvence jako mirrorObject
+      // v js/geometry.js.
+      const sP = pt(obj.cx + obj.r * Math.cos(obj.startAngle), obj.cy + obj.r * Math.sin(obj.startAngle));
+      const eP = pt(obj.cx + obj.r * Math.cos(obj.endAngle),   obj.cy + obj.r * Math.sin(obj.endAngle));
+      const mirrored = (t.sx * t.sy) < 0;
+      const a1 = Math.atan2(sP.y - c.y, sP.x - c.x);
+      const a2 = Math.atan2(eP.y - c.y, eP.x - c.x);
       return {
         ...obj, cx: c.x, cy: c.y, r,
-        startAngle: obj.startAngle + rot,
-        endAngle: obj.endAngle + rot,
+        startAngle: mirrored ? a2 : a1,
+        endAngle: mirrored ? a1 : a2,
       };
     }
     case 'rect': {

@@ -25,11 +25,16 @@ export function handleMoveClick(wx, wy) {
       state.dragObjIdx = -1; // signál pro multi-drag
       state.dragStartWorld = { x: wx, y: wy };
 
-      // Indexy vybraných ne-kót
+      // Indexy vybraných ne-kót (zakotvené objekty se z přesunu vynechají,
+      // stejně jako u rotate/mirror – viz handleRotateClick v events.js).
+      let anyAnchored = false;
       const selectedIndices = [...state.multiSelected].filter(i => {
         const o = state.objects[i];
-        return o && !o.isDimension && !o.isCoordLabel;
+        if (!o || o.isDimension || o.isCoordLabel) return false;
+        if (hasAnchoredPoint(o)) { anyAnchored = true; return false; }
+        return true;
       });
+      if (anyAnchored) showToast("Zakotvené objekty se nepřesunou");
 
       // Najít ID vybraných objektů
       const selectedIds = new Set(selectedIndices.map(i => state.objects[i].id).filter(id => id != null));

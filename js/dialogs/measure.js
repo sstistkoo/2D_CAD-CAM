@@ -125,6 +125,10 @@ export function showMeasureObjectInfo(obj, wx, wy, objIdx) {
 }
 
 function buildObjectInfoDialog(obj, objIdx) {
+  // Stabilní id pro Delete – objIdx se použije jen k tomu, ABY se tlačítka
+  // vůbec zobrazila (viz níže); mazání samo si pozici dohledá znovu podle
+  // id těsně před zápisem, pro případ mezitímního Zpět (viz mobileEdit.js).
+  const objId = obj.id;
   const { H, V, Hp, Vp, fH, fV } = coordHelpers();
   let rows = "";
   rows += `<tr><td style="color:${COLORS.label}">Typ:</td><td style="color:${COLORS.text}">${typeLabel(obj.type)}</td></tr>`;
@@ -302,15 +306,17 @@ function buildObjectInfoDialog(obj, objIdx) {
     const delDimBtn = overlay.querySelector("#objDeleteDim");
     if (delDimBtn && objIdx !== undefined) {
       delDimBtn.addEventListener("click", () => {
+        const curIdx = state.objects.findIndex(o => o.id === objId);
+        if (curIdx === -1) { showToast("Kóta mezitím zmizela (Zpět?)"); overlay.remove(); return; }
         pushUndo();
-        removeAnchorsForObject(state.objects[objIdx]);
-        state.objects.splice(objIdx, 1);
-        if (state.selected === objIdx) state.selected = null;
-        else if (state.selected > objIdx) state.selected--;
+        removeAnchorsForObject(state.objects[curIdx]);
+        state.objects.splice(curIdx, 1);
+        if (state.selected === curIdx) state.selected = null;
+        else if (state.selected > curIdx) state.selected--;
         const newMulti = new Set();
         for (const mi of state.multiSelected) {
-          if (mi < objIdx) newMulti.add(mi);
-          else if (mi > objIdx) newMulti.add(mi - 1);
+          if (mi < curIdx) newMulti.add(mi);
+          else if (mi > curIdx) newMulti.add(mi - 1);
         }
         state.multiSelected = newMulti;
         updateObjectList();

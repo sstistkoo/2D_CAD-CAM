@@ -22,6 +22,9 @@ import {
   mirrorObject,
   linearArray,
   rotateObject,
+  flipObject,
+  scaleObject,
+  chamferLineAndArc,
   filletTwoLines,
   circlePositionsTangentToLine,
   circlePositionsTangentToTwoLines,
@@ -34,6 +37,7 @@ import {
   calculateAllIntersections,
 } from '../js/geometry.js';
 import { state } from '../js/state.js';
+import { getRectCorners } from '../js/utils.js';
 
 const PI = Math.PI;
 
@@ -637,6 +641,12 @@ describe('offsetObject', () => {
     expect(result.startAngle).toBe(0);
     expect(result.endAngle).toBe(PI);
   });
+
+  it('offset CW oblouku zachová ccw – jinak by isAngleBetween sweep obrátil', () => {
+    const obj = { type: 'arc', cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: PI / 2, ccw: false, name: 'A1' };
+    const result = offsetObject(obj, 5, 1);
+    expect(result.ccw).toBe(false);
+  });
 });
 
 // ════════════════════════════════════════
@@ -687,13 +697,26 @@ describe('mirrorObject', () => {
     expect(result.r).toBe(3); // poloměr se nemění
   });
 
-  it('zrcadlení obdélníku', () => {
+  it('zrcadlení obdélníku (přes skutečné rohy z getRectCorners)', () => {
+    // x1/y1/x2/y2 samy o sobě nejsou závazné rohy (viz getRectCorners),
+    // takže se ověřuje výsledný TVAR, ne konkrétní pořadí/znaménko polí.
     const result = mirrorObject(
       { type: 'rect', x1: 1, y1: 2, x2: 5, y2: 8, name: 'R1' },
       'x'
     );
-    expect(result.y1).toBeCloseTo(-2, 8);
-    expect(result.y2).toBeCloseTo(-8, 8);
+    const corners = getRectCorners(result)
+      .map(c => `${c.x.toFixed(6)},${c.y.toFixed(6)}`)
+      .sort();
+    expect(corners).toEqual(['1.000000,-8.000000', '1.000000,-2.000000', '5.000000,-8.000000', '5.000000,-2.000000'].sort());
+  });
+
+  it('zrcadlení natočeného obdélníku odráží i úhel natočení', () => {
+    // Přes osu X (vodorovnou, směr 0°) se úhel A odráží na -A.
+    const result = mirrorObject(
+      { type: 'rect', x1: 1, y1: 2, x2: 5, y2: 8, rotation: PI / 6, name: 'R1' },
+      'x'
+    );
+    expect(result.rotation).toBeCloseTo(-PI / 6, 8);
   });
 
   it('zrcadlení polyline obrací bulge', () => {
@@ -718,6 +741,37 @@ describe('mirrorObject', () => {
   it('výsledek nemá id', () => {
     const result = mirrorObject({ type: 'point', x: 5, y: 10, id: 99, name: 'P1' }, 'x');
     expect(result.id).toBeUndefined();
+  });
+});
+
+// ════════════════════════════════════════
+// ── flipObject / scaleObject – rotace obdélníku ──
+// ════════════════════════════════════════
+describe('flipObject – rect.rotation', () => {
+  it('flip kolem svislé osy (Z) odráží úhel na π - A', () => {
+    const obj = { type: 'rect', x1: 0, y1: 0, x2: 10, y2: 4, rotation: PI / 6 };
+    flipObject(obj, 0, 0, 'Z');
+    expect(obj.rotation).toBeCloseTo(PI - PI / 6, 8);
+  });
+
+  it('flip kolem vodorovné osy (X) odráží úhel na -A', () => {
+    const obj = { type: 'rect', x1: 0, y1: 0, x2: 10, y2: 4, rotation: PI / 6 };
+    flipObject(obj, 0, 0, 'X');
+    expect(obj.rotation).toBeCloseTo(-PI / 6, 8);
+  });
+});
+
+describe('scaleObject – rect.rotation', () => {
+  it('kladný faktor zachová úhel natočení', () => {
+    const obj = { type: 'rect', x1: 0, y1: 0, x2: 10, y2: 4, rotation: PI / 6 };
+    scaleObject(obj, 5, 2, 2);
+    expect(obj.rotation).toBeCloseTo(PI / 6, 8);
+  });
+
+  it('záporný faktor (bodová souměrnost) přičte π k úhlu natočení', () => {
+    const obj = { type: 'rect', x1: 0, y1: 0, x2: 10, y2: 4, rotation: PI / 6 };
+    scaleObject(obj, 5, 2, -1);
+    expect(obj.rotation).toBeCloseTo(PI / 6 + PI, 8);
   });
 });
 
@@ -853,6 +907,43 @@ describe('rotateObject', () => {
     rotateObject(obj, 0, 0, PI / 2);
     expect(same.x).toBeCloseTo(0, 6);
     expect(same.y).toBeCloseTo(10, 6);
+  });
+
+  it('rotace obdélníku aktualizuje i obj.rotation, ne jen rohové body', () => {
+    // getRectCorners staví box z x1/y1-x2/y2 a AŽ POTOM ho natáčí o
+    // obj.rotation kolem jeho vlastního středu – pokud rotateObject
+    // otočí jen rohy a zapomene na rotation, výsledný tvar je jiný
+    // (osově zarovnaný) obdélník, ne pootočená kopie původního.
+    const obj = { type: 'rect', x1: 0, y1: 0, x2: 10, y2: 4, rotation: 0 };
+    const before = getRectCorners(obj);
+    rotateObject(obj, 5, 2, PI / 6);
+    const after = getRectCorners(obj);
+    const cos = Math.cos(PI / 6), sin = Math.sin(PI / 6);
+    for (let i = 0; i < 4; i++) {
+      const dx = before[i].x - 5, dy = before[i].y - 2;
+      expect(after[i].x).toBeCloseTo(5 + dx * cos - dy * sin, 6);
+      expect(after[i].y).toBeCloseTo(2 + dx * sin + dy * cos, 6);
+    }
+  });
+});
+
+// ════════════════════════════════════════
+// ── chamferLineAndArc ──
+// ════════════════════════════════════════
+describe('chamferLineAndArc', () => {
+  it('odmítne dist2 přesahující délku oblouku (na rozdíl od dist1 u chamferTwoLines)', () => {
+    const line = { x1: 10, y1: 0, x2: 30, y2: 0 };
+    const arc = { cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: PI / 2, ccw: true };
+    // Oblouk má délku r*(π/2) ≈ 15,7 – dist2=20 je za jeho koncem
+    const result = chamferLineAndArc(line, arc, 5, 20);
+    expect(result.ok).toBe(false);
+  });
+
+  it('přijme dist2 v mezích délky oblouku', () => {
+    const line = { x1: 10, y1: 0, x2: 30, y2: 0 };
+    const arc = { cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: PI / 2, ccw: true };
+    const result = chamferLineAndArc(line, arc, 5, 5);
+    expect(result.ok).toBe(true);
   });
 });
 
