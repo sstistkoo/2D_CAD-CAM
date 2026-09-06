@@ -593,57 +593,50 @@ export function genLongPasses(ctx) {
   // pozná, že posloupnost přestřelila nedosažitelnou hranici (viz uzavírací
   // vrstva na konci hloubkové smyčky).
   let lastDepthWithPasses = null;
-  for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
-    const currentX = depths[depthIdx];
-    const sz = stockZRangeAt(currentX);
-    if (!sz) continue;
-
-    // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval;
-    // + Z-okno regionu (region roughing).
-    // Hranice regionu platí jen NAD povrchem svého údolí (zHiSurf/zLoSurf):
-    // v hloubce kůry dna se sousední regiony spojí — průchod jede přes celé
-    // údolí od skutečného kraje materiálu (žádné kolmé sjezdy doprostřed kůry).
-    // Po rozpuštění HORNÍ hranice patří hloubka regionu NAD ní (ten už ji
-    // vzal se svou rozpuštěnou dolní hranicí) — jinak duplicitní průchody.
-    // Rozpouštění hranice platí jen BEZ zanořování: kolmo do kůry dna se sjet
-    // nedá, takže hloubku přebere region NAD ní — jenže ten na ni dosáhne jen
-    // svým prvním intervalem a materiál za hranicí (dno vybrání) zůstane stát
-    // (reálný nález na díle uživatele: pod vrstvou Ø19,5 se ve vybrání už nic
-    // nevzalo). Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni se řeší
-    // RAMPOU pod úhlem zanoření (entryCapped níž) — přesně jako na hranici
-    // rozsahu 📐, kterou si uživatel dosud musel nastavovat ručně.
-    //
-    // ZKOUŠENO A ZAMÍTNUTO (10. 8. 2026) — posunout hranici na ÚSTÍ údolí
-    // (`zHiMouth`/`zLoMouth`, dnes jen v diagnostickém logu) tam, kde je nad
-    // dnem uvnitř údolí vzduch, a střed dna nechat jen pro kůru. Vypadá to
-    // jako správné rozdělení dvou rolí, ale měření to nepotvrdilo — detaily
-    // a čísla v docs/geometry-libs-migration.md, sekce „ZBÝVÁ — hranice úseku
-    // leží ve STŘEDU údolí". Krátce: symptom uživatele („bere to od
-    // prostředka") je u hloubek POD dnem, kam tahle změna nesahá, a vjezd na
-    // ústí se bez capu držáku stane nehlídaným → nové kolize držáku na
-    // 5 fixtures. NEZKOUŠET ZNOVU BEZ ŘEŠENÍ VLASTNICTVÍ ÚDOLÍ.
-    // Hranice úseku neplatí na KAŽDÉ hloubce — záleží, čím vznikla:
-    //
-    //  • ÚDOLÍ polotovaru: úseky jsou oddělené NAD dnem údolí a v jeho KŮŘE
-    //    (currentX ≤ xSurf) splynou. Rozpouští se ale jen BEZ zanořování:
-    //    kolmo do kůry dna se sjet nedá, takže hloubku přebere region nad ní.
-    //    Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni řeší rampa.
-    //
-    //  • HRB kontury: ZRCADLOVĚ. NAD hrbem (currentX > xSurf) vrstva projede
-    //    vcelku — hrb ji tam vůbec nepřerušuje — takže hranice NESMÍ platit,
-    //    a to BEZ OHLEDU na zanořování: přejet nad hrbem žádné zanoření
-    //    nepotřebuje. Trhá se až POD ním.
-    //
-    //    Bez téhle výjimky se vrstvy nad hrbem sekly vejpůl uprostřed jeho
-    //    plošiny (nález uživatele 31. 8. 2026: průchody na r 52–63 končily
-    //    na Z 228,132 místo aby dojely k offsetové čáře polotovaru). Pravidlo
-    //    „nepřejíždět, dokud není celá pravá strana hotová“ tím bylo porušené
-    //    hned dvakrát: vrstva nedojela a půlky se pak střídaly.
-    //    Viz docs/cam-pravidla-drah.md §6.0.
-    const dissolveValley = !prms.plungeRoughing;
-    const edgeDissolved = (surf, kind, zEdge) => {
+  // Hranice regionu platí jen NAD povrchem svého údolí (zHiSurf/zLoSurf):
+  // v hloubce kůry dna se sousední regiony spojí — průchod jede přes celé
+  // údolí od skutečného kraje materiálu (žádné kolmé sjezdy doprostřed kůry).
+  // Po rozpuštění HORNÍ hranice patří hloubka regionu NAD ní (ten už ji
+  // vzal se svou rozpuštěnou dolní hranicí) — jinak duplicitní průchody.
+  // Rozpouštění hranice platí jen BEZ zanořování: kolmo do kůry dna se sjet
+  // nedá, takže hloubku přebere region NAD ní — jenže ten na ni dosáhne jen
+  // svým prvním intervalem a materiál za hranicí (dno vybrání) zůstane stát
+  // (reálný nález na díle uživatele: pod vrstvou Ø19,5 se ve vybrání už nic
+  // nevzalo). Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni se řeší
+  // RAMPOU pod úhlem zanoření (entryCapped níž) — přesně jako na hranici
+  // rozsahu 📐, kterou si uživatel dosud musel nastavovat ručně.
+  //
+  // ZKOUŠENO A ZAMÍTNUTO (10. 8. 2026) — posunout hranici na ÚSTÍ údolí
+  // (`zHiMouth`/`zLoMouth`, dnes jen v diagnostickém logu) tam, kde je nad
+  // dnem uvnitř údolí vzduch, a střed dna nechat jen pro kůru. Vypadá to
+  // jako správné rozdělení dvou rolí, ale měření to nepotvrdilo — detaily
+  // a čísla v docs/geometry-libs-migration.md, sekce „ZBÝVÁ — hranice úseku
+  // leží ve STŘEDU údolí". Krátce: symptom uživatele („bere to od
+  // prostředka") je u hloubek POD dnem, kam tahle změna nesahá, a vjezd na
+  // ústí se bez capu držáku stane nehlídaným → nové kolize držáku na
+  // 5 fixtures. NEZKOUŠET ZNOVU BEZ ŘEŠENÍ VLASTNICTVÍ ÚDOLÍ.
+  // Hranice úseku neplatí na KAŽDÉ hloubce — záleží, čím vznikla:
+  //
+  //  • ÚDOLÍ polotovaru: úseky jsou oddělené NAD dnem údolí a v jeho KŮŘE
+  //    (depthX ≤ xSurf) splynou. Rozpouští se ale jen BEZ zanořování:
+  //    kolmo do kůry dna se sjet nedá, takže hloubku přebere region nad ní.
+  //    Se zapnutým Zanořováním hranice DRŽÍ a vjezd na ni řeší rampa.
+  //
+  //  • HRB kontury: ZRCADLOVĚ. NAD hrbem (depthX > xSurf) vrstva projede
+  //    vcelku — hrb ji tam vůbec nepřerušuje — takže hranice NESMÍ platit,
+  //    a to BEZ OHLEDU na zanořování: přejet nad hrbem žádné zanoření
+  //    nepotřebuje. Trhá se až POD ním.
+  //
+  //    Bez téhle výjimky se vrstvy nad hrbem sekly vejpůl uprostřed jeho
+  //    plošiny (nález uživatele 31. 8. 2026: průchody na r 52–63 končily
+  //    na Z 228,132 místo aby dojely k offsetové čáře polotovaru). Pravidlo
+  //    „nepřejíždět, dokud není celá pravá strana hotová“ tím bylo porušené
+  //    hned dvakrát: vrstva nedojela a půlky se pak střídaly.
+  //    Viz docs/cam-pravidla-drah.md §6.0.
+  const dissolveValley = !prms.plungeRoughing;
+  const edgeDissolved = (surf, kind, zEdge, depthX, szD) => {
       if (surf === undefined) return false;
-      if (kind !== 'peak') return dissolveValley && currentX <= surf + 0.01;
+      if (kind !== 'peak') return dissolveValley && depthX <= surf + 0.01;
       // NAD hrbem hranice neplatí — ale jen když tudy PROJDE DRŽÁK.
       //
       // Sloučená vrstva veze držák PŘES stojící hrb, a `applyHolderClamp` umí
@@ -654,7 +647,7 @@ export function genLongPasses(ctx) {
       // Tohle NENÍ heuristika, kterou by pravidlo §6.0 přebíjelo: nad hrbem,
       // kudy se držák fyzicky nevejde, vrstva vcelku projet NEMŮŽE. Kde se
       // vejde, tam sloučení proběhne a pravidlo platí.
-      if (!(currentX > surf + 0.01)) return false;
+      if (!(depthX > surf + 0.01)) return false;
       if (typeof holderFitsOverContour !== 'function') return true;
       // Držák musí projít po CELÉ DÉLCE sloučené vrstvy, ne jen u hranice.
       //
@@ -667,33 +660,42 @@ export function genLongPasses(ctx) {
       //
       // Kontroluje se proto celý rozsah, do kterého se vrstva po sloučení
       // roztáhne — okno polotovaru na téhle hloubce, ořezané rozsahem 📐.
-      const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, sz.zMax);
-      const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, sz.zMin);
+      const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, szD.zMax);
+      const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, szD.zMin);
       if (!(zHiChk > zLoChk)) return true;
       const stepChk = Math.max(DZ_CAP, (zHiChk - zLoChk) / 96);
       for (let z = zLoChk; z <= zHiChk + 1e-9; z += stepChk) {
-        if (!holderFitsOverContour(z, currentX)) return false;
+        if (!holderFitsOverContour(z, depthX)) return false;
       }
       return true;    };
-    const hiDissolved = edgeDissolved(_region.zHiSurf, _region.zHiKind, _region.zHi);
+  // DOLNÍ hranice okna úseku na hloubce `depthX`: rozpustí-li se, okno
+  // pokračuje do sousedního úseku — ale jen po PRVNÍ hranici, která drží.
+  // Dřív se sahalo rovnou na −∞, takže okno přeskočilo i platné hranice a TÝŽ
+  // interval vydal podruhé ještě některý region níž. Projevilo se to teprve
+  // s dělením podle hrbů (u samotných údolí se hranice nerozpouští, takže
+  // duplicita nevznikla): na dílu uživatele 1. 9. 2026 bylo z 112 průchodů
+  // ŠEST duplicitních — `X63.545 Z196.3…256.6` vydaly dva různé regiony,
+  // protože oběma se okno rozpustilo až za sebe.
+  const regionFloorZ = (region, depthX, szD) => {
+    let walk = region;
+    while (walk && walk.zLo !== -Infinity
+           && edgeDissolved(walk.zLoSurf, walk.zLoKind, walk.zLo, depthX, szD)) {
+      walk = _geoRegions[(_geoIdx.get(walk) ?? -1) + 1];
+    }
+    return walk ? walk.zLo : -Infinity;
+  };
+  for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
+    const currentX = depths[depthIdx];
+    const sz = stockZRangeAt(currentX);
+    if (!sz) continue;
+    // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval;
+    // + Z-okno regionu (region roughing).
+    const hiDissolved = edgeDissolved(_region.zHiSurf, _region.zHiKind, _region.zHi, currentX, sz);
     // Hloubku, na které se rozpustila HORNÍ hranice, bere region NAD ní —
     // jinak by ji obě poloviny vydaly dvakrát.
     if (hiDissolved && _region.zHi !== Infinity) continue;
     const regZHi = _region.zHi;
-    // DOLNÍ hranice: rozpustí-li se, okno pokračuje do sousedního úseku —
-    // ale jen po PRVNÍ hranici, která drží. Dřív se sahalo rovnou na −∞,
-    // takže okno přeskočilo i platné hranice a TÝŽ interval vydal podruhé
-    // ještě některý region níž. Projevilo se to teprve s dělením podle hrbů
-    // (u samotných údolí se hranice nerozpouští, takže duplicita nevznikla):
-    // na dílu uživatele 1. 9. 2026 bylo z 112 průchodů ŠEST duplicitních —
-    // `X63.545 Z196.3…256.6` vydaly dva různé regiony, protože oběma se
-    // okno rozpustilo až za sebe.
-    let _walk = _region;
-    while (_walk && _walk.zLo !== -Infinity
-           && edgeDissolved(_walk.zLoSurf, _walk.zLoKind, _walk.zLo)) {
-      _walk = _geoRegions[(_geoIdx.get(_walk) ?? -1) + 1];
-    }
-    const regZLo = _walk ? _walk.zLo : -Infinity;
+    const regZLo = regionFloorZ(_region, currentX, sz);
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
     // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
     // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.
@@ -1191,17 +1193,31 @@ export function genLongPasses(ctx) {
       // na Z 112,92, přesně tam, kde skončil „Průchod 32" r 28,545 (jiný
       // region) — 11,8 mm posuvu po hotové dráze.
       //
-      // Mezí NENÍ dno okna regionu: to samo o sobě stálo −197 mm² úběru
-      // (změřeno) na dílech, kde vrstvy nad doběhem sahají dál než hranice.
-      // Mezí je EVIDENCE — kam až na téhle hloubce dojel JINÝ REGION, a to
-      // jen tehdy, když doběh v jeho úseku KONČÍ (viz depthCutClampZ:
-      // ostrůvek uprostřed jízdy stopku nedělá, to stálo dalších 153,7 mm²).
+      // Meze jsou DVĚ. První je DNO OKNA SVÉHO ÚSEKU (`regionFloorZ`, totéž,
+      // čím se řídí hloubková smyčka výš) — přidáno 6. 9. 2026. Bez něj krok
+      // řetězu přeletěl údolí a dodělával vrstvu na druhé straně hranice:
+      // na dílu uživatele jel „Průchod 9" r 47,045 rovnou Z 205,142 → −5,000,
+      // tedy 210 mm přes CELÝ díl a přes obě hranice úseků, a materiál za
+      // hranicí pak vzal ještě podruhé vlastní průchod sousedního úseku
+      // (r 47,045 Z 142,828 → 119,340). Tím padalo pravidlo §6.0
+      // „nepřejíždět, dokud není celá pravá strana hotová" — a to je
+      // PODMÍNKA, ne optimalizace.
       //
-      // Proč jen jiný region: uvnitř SVÉHO regionu je „přeletět mezeru
-      // a pokračovat" právě to, co doběh dělat MÁ (rozhodnutí 1. 9. 2026,
-      // +153,6 mm²) — tam vrstvy teprve vznikají. Sousední region už svou
-      // hloubkovou smyčku dojel celou, takže co je tam na téhle hloubce
-      // obrobené, zůstane obrobené — a projet to znovu je čistá duplicita.
+      // Dno okna bylo jako mez zamítnuté 2. 9. 2026 kvůli −197 mm² úběru.
+      // Jenže úběr tady vetovat nesmí: `docs/cam-pravidla-drah.md:405`
+      // („plán s dělením smí vetovat jen DRŽÁK, nikdy úběr") — hranice úseku
+      // vzniká tam, kde mezní čára hlídání destičky VYJEDE Z POLOTOVARU,
+      // takže za ni se materiál z téhle strany nedá vzít a patří sousedovi.
+      //
+      // Druhá mez je EVIDENCE — kam až na téhle hloubce dojel JINÝ REGION, a
+      // to jen tehdy, když doběh v jeho úseku KONČÍ (viz depthCutClampZ:
+      // ostrůvek uprostřed jízdy stopku nedělá, to stálo dalších 153,7 mm²).
+      // Zůstává i po přidání dna okna: pokrývá hranice, které se na téhle
+      // hloubce ROZPUSTILY (v kůře dna údolí), kde okno samo nezastaví.
+      //
+      // Uvnitř SVÉHO okna je „přeletět mezeru a pokračovat" pořád to, co
+      // doběh dělat MÁ (rozhodnutí 1. 9. 2026, +153,6 mm²) — tam vrstvy
+      // teprve vznikají.
       //
       // A když stopka padne, doběh KONČÍ U OFFSETOVÉ ČÁRY POLOTOVARU, ne až
       // za mezerou. Pravidlo „mezera doběh neukončuje" má smysl, dokud za ní
@@ -1212,8 +1228,10 @@ export function genLongPasses(ctx) {
       // — mezery po cestě se přeletí dál (to je pravidlo z 1. 9. 2026), jen
       // se nepokračuje ZA ni. Uživatel místo ukázal snapem: X 28,822 Z 79,975.
       const rawEndZ = straightRunEndZ(stepX, stepZ, traceFloorL);
+      const szStep = stockZRangeAt(stepX);
       const rcFloor = Math.max(traceFloorL,
-        depthCutClampZ(priorPasses, stepX, stepZ, rawEndZ));
+        depthCutClampZ(priorPasses, stepX, stepZ, rawEndZ),
+        szStep ? regionFloorZ(_region, stepX, szStep) : -Infinity);
       const stepEndZ = isLastStep ? stepZ
         : (rcFloor > traceFloorL
           ? Math.max(straightRunEndZ(stepX, stepZ, rcFloor), stockRunBackZ(stepX, stepZ, rcFloor))
