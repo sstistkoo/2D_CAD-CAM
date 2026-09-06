@@ -76,13 +76,18 @@ describe('gcodeSync – otisk vstupů (neaktuální dráhy)', () => {
     expect(gcodeStale(S)).toBe(true);
   });
 
-  it('toolTipMirror je jen kosmetika náhledu → neaktuálnost NEhlásí', () => {
+  // Do 6. 9. 2026 tu stál OPAČNÝ test („kosmetika náhledu → neaktuálnost
+  // NEhlásí"). Ten předpoklad přestal platit s migrací na geometrické
+  // knihovny: přehození strany čte buildInsertProfileSegments →
+  // insertWorldLoop (úběr, validátor, hlídání držáku, mezní čáry).
+  // Změřeno na fixture part-19-face-tilted-insert: G-kód se posune o
+  // 0,2 mm v X a hlídání destičky vynechá 13 průchodů místo 7.
+  it('toolTipMirror mění obrys destičky → neaktuálnost HLÁSÍ', () => {
     const S = mkState();
     markGCodeGenerated(S);
     S.params.toolTipMirror = true;
-    expect(gcodeStale(S)).toBe(false);
-    // ...ale otisk sám o sobě se jím nesmí lišit ani při přímém porovnání
-    expect(pathInputsKey(S)).toBe(S.gcodeKey);
+    expect(gcodeStale(S)).toBe(true);
+    expect(pathInputsKey(S)).not.toBe(S.gcodeKey);
   });
 
   it('ruční úprava neaktuálnost NEschová (otisk zůstává)', () => {

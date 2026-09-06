@@ -39,12 +39,17 @@ function hash32(str) {
  * Otisk všeho, z čeho `generateAutoGCode()` staví dráhy. Liší-li se od
  * `S.gcodeKey`, pochází program z jiného nastavení, než jaké je teď v panelu.
  *
- * `toolTipMirror` je vyňatý schválně: je to jen kosmetika náhledu destičky
- * (viz camDefaults), do drah nevstupuje — jinak by jeho přepnutí hlásilo
- * program jako neaktuální.
+ * `toolTipMirror` tu dřív VYŇATÝ byl s odůvodněním „jen kosmetika náhledu".
+ * To přestalo platit s migrací na geometrické knihovny: přehození strany
+ * čte `buildInsertProfileSegments` → `insertWorldLoop`, a z toho žije úběr
+ * materiálu, validátor kolizí, hlídání držáku i mezní čáry. Změřeno na
+ * fixture `part-19-face-tilted-insert`: přehození posune řezy o 0,2 mm v X
+ * a změní hlídání (7 → 13 vynechaných průchodů). Vynětí proto znamenalo,
+ * že se plán ani NEPŘEPOČÍTAL (calcCacheKey stojí na tomhle otisku) —
+ * náhled destičky se překlopil, dráhy zůstaly podle té staré.
  */
 export function pathInputsKey(S) {
-  const { toolTipMirror, ...p } = S.params;
+  const p = S.params;
   // Klíče se řadí: POŘADÍ vlastností v `S.params` se liší podle toho, odkud
   // stav přišel (`Object.assign` nad výchozími hodnotami z localStorage ×
   // klon záznamu části), a otisk se nesmí rozejít jen kvůli tomu — hlásil by

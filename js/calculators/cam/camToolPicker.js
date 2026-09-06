@@ -6,6 +6,10 @@ import { bridge } from '../../bridge.js';
 // otevřený simulátor, drží se poslední známá sada zde na úrovni modulu.
 export const CAM_TOOL_KEYS = ['toolShape', 'toolLength', 'toolAngle', 'toolTipAngle',
   'toolRadius', 'toolTipFlat', 'toolTipMirror', 'toolVbdCode',
+  // Úhel hřbetu α patří ke GEOMETRII destičky: čte ho buildMachinableContour
+  // (cam/contourBuild.js) i výpočet úhlu zanoření (cam/camMath.js). Bez něj
+  // se uložený/načtený nůž vracel s α předchozího nože (nebo 0).
+  'toolClearanceAngle',
   'holderLength', 'holderWidth', 'holderHand', 'holderProfile',
   'knifeAngle', 'holderInflate', 'holderInflateAll'];
 let _savedCamTool = null;   // naposledy uložený/načtený nůž (mimo otevřené CAM)
@@ -33,8 +37,18 @@ export function getCamToolGeometry() {
 export function applyCamToolGeometry(tool) {
   const picked = _pickCamTool(tool);
   if (!picked) return false;
+  // Obrys držáku patří k TVARU destičky (je v souřadnicích špičky — viz
+  // applyShapeChange). Nůž ze staršího projektu/souboru nemusí holderProfile
+  // obsahovat vůbec; pak by se přenesl jen nový tvar a obrys nakreslený pro
+  // ten předchozí by u něj zůstal viset — hlídání by bylo volnější, než má být.
+  const shapeChanged = (prev) => picked.toolShape !== undefined && prev
+    && prev.toolShape !== undefined && prev.toolShape !== picked.toolShape
+    && picked.holderProfile === undefined;
+  if (shapeChanged(_savedCamTool)) _savedCamTool = { ..._savedCamTool, holderProfile: null };
+  const dropProfile = shapeChanged(_activeCamParams);
   _savedCamTool = { ...(_savedCamTool || {}), ...picked };
   if (_activeCamParams) {
+    if (dropProfile) _activeCamParams.holderProfile = null;
     for (const k of CAM_TOOL_KEYS) if (picked[k] !== undefined) _activeCamParams[k] = picked[k];
     if (bridge.refreshCamToolGeometry) bridge.refreshCamToolGeometry();
   }

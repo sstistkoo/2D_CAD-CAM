@@ -310,7 +310,10 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     Object.keys(labels).forEach(k => { const r = rotScr(labels[k].x, labels[k].y); labels[k] = r; });
   }
 
-  return { labels, anchorHits, handleHits, texts };
+  // origin = referenční bod nože (špička destičky) ve screen souřadnicích —
+  // volající podle něj umí zoomovat kolem břitu, ne kolem středu plátna
+  // (náhled ze zásobníku, viz toolSlotPreview.js).
+  return { labels, anchorHits, handleHits, texts, origin: { x: ox, y: oy } };
 }
 
 // Klikatelné anchor body na destičce, odkud se dá spustit kreslení jedné
@@ -514,10 +517,11 @@ export function holderBottomHandles(profile) {
   ];
 }
 
-// Posune celý obrys (obě strany) o (dx,dz).
+// Posune celý obrys (obě strany) o (dx,dz). Chybějící obrys (null) = prázdný
+// výsledek — volající editor si obdélník zakládá sám při zapnutí.
 export function translateHolderProfile(profile, dx, dz) {
   const move = arr => (arr || []).map(p => ({ x: p.x + dx, z: p.z + dz }));
-  return { sideA: move(profile.sideA), sideB: move(profile.sideB) };
+  return { sideA: move(profile && profile.sideA), sideB: move(profile && profile.sideB) };
 }
 
 // Počet úseček uloženého obrysu držáku (0, pokud žádný vlastní obrys není)

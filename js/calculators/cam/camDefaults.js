@@ -29,10 +29,11 @@ export function _defaultCamParams() {
     stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
     machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
     toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
-    // Na kterou stranu od Natočení se otevírá vrcholový úhel destičky v
-    // náhledu (jen kosmetika dialogu Geometrie — nemění interferenční
-    // výpočet, který má svůj vlastní, na Natočení symetrický model).
+    // Na kterou stranu od Natočení se otevírá vrcholový úhel destičky.
     // false = 2. hrana na Natočení−ε (výchozí), true = na Natočení+ε.
+    // POZOR: není to jen kosmetika náhledu (jak tu stálo do 6. 9. 2026) —
+    // stranu čte buildInsertProfileSegments → insertWorldLoop, takže mění
+    // úběr, kolize i mezní čáry (změřeno na part-19-face-tilted-insert).
     toolTipMirror: false,
     toolVbdCode: '', toolClearanceAngle: 0,
     // Držák plátku — svislé těleso nad destičkou (kolmé upnutí, jako na

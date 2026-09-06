@@ -2,7 +2,7 @@
 // ║  Zaoblení / Zkosení (Fillet / Chamfer) – sdružený nástroj  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, STOCK_LAYER_ID } from '../state.js';
 import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
@@ -35,6 +35,8 @@ function mkArcDesc(obj) {
     setStartAngle: (a) => { obj.startAngle = a; },
     setEndAngle:   (a) => { obj.endAngle   = a; },
     segIdx: null,
+    isStock: !!obj.isStock,
+    layer: obj.layer,
   };
 }
 
@@ -58,6 +60,8 @@ function findCornerAt(wx, wy) {
         setP1: (x, y) => { obj.x1 = x; obj.y1 = y; },
         setP2: (x, y) => { obj.x2 = x; obj.y2 = y; },
         segIdx: null,
+        isStock: !!obj.isStock,
+        layer: obj.layer,
       });
       const d1 = Math.hypot(obj.x1 - wx, obj.y1 - wy);
       if (d1 < threshold) candidates.push({ idx: i, desc: mkLs(), ep: { x: obj.x1, y: obj.y1 }, dist: d1 });
@@ -87,6 +91,8 @@ function findCornerAt(wx, wy) {
           setP1: (x, y) => { pa.x = x; pa.y = y; },
           setP2: (x, y) => { pb.x = x; pb.y = y; },
           segIdx: si,
+          isStock: !!obj.isStock,
+          layer: obj.layer,
         });
         const da = Math.hypot(pa.x - wx, pa.y - wy);
         if (da < threshold) candidates.push({ idx: i, desc: mkLs(), ep: { x: pa.x, y: pa.y }, dist: da });
@@ -125,7 +131,7 @@ function findCornerAt(wx, wy) {
 function getSegDesc(obj, wx, wy) {
   // Úsečka / polyline segment
   const ls = getLineSegment(obj, wx, wy);
-  if (ls) return { kind: 'line', ...ls };
+  if (ls) return { kind: 'line', ...ls, isStock: !!obj.isStock, layer: obj.layer };
 
   // Oblouk
   if (obj.type === 'arc') return mkArcDesc(obj);
@@ -171,6 +177,10 @@ function applyFilletChamfer(mode, p1, p2, s1, s2) {
 function _applyTwoLines(mode, p1, p2, s1, s2) {
   const proxy1 = { x1: s1.seg.x1, y1: s1.seg.y1, x2: s1.seg.x2, y2: s1.seg.y2 };
   const proxy2 = { x1: s2.seg.x1, y1: s2.seg.y1, x2: s2.seg.x2, y2: s2.seg.y2 };
+  // Výsledný prvek patří tam, kde jsou oba spojované segmenty – pokud je
+  // alespoň jeden z nich polotovar, je i výsledek polotovar (nezávisle na
+  // aktuálním globálním přepínači „kreslím polotovar/konturu").
+  const stockTag = !!(s1.isStock || s2.isStock);
 
   pushUndo();
   let out = null;
@@ -183,6 +193,7 @@ function _applyTwoLines(mode, p1, p2, s1, s2) {
     if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
     if (!isAnchored(s2.seg.x2, s2.seg.y2)) s2.setP2(proxy2.x2, proxy2.y2);
     result.arc.name = `Zaoblení R${p1}`;
+    if (stockTag) { result.arc.isStock = true; result.arc.layer = STOCK_LAYER_ID; }
     addObject(result.arc);
     showToast(`Zaoblení R${p1} vytvořeno ✓`);
     out = { arc: result.arc };
@@ -195,6 +206,7 @@ function _applyTwoLines(mode, p1, p2, s1, s2) {
     if (!isAnchored(s2.seg.x2, s2.seg.y2)) s2.setP2(proxy2.x2, proxy2.y2);
     result.line.color = state.currentColor;
     result.line.name = `Zkosení ${p1}×${p2}`;
+    if (stockTag) { result.line.isStock = true; result.line.layer = STOCK_LAYER_ID; }
     addObject(result.line);
     showToast(`Zkosení ${p1}×${p2} vytvořeno ✓`);
     out = { line: result.line };
@@ -220,6 +232,8 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
     x: arcProxy.cx + arcProxy.r * Math.cos(arcProxy.endAngle),
     y: arcProxy.cy + arcProxy.r * Math.sin(arcProxy.endAngle),
   };
+  // Viz poznámka v _applyTwoLines – výsledek dědí isStock od segmentů.
+  const stockTag = !!(sLine.isStock || sArc.isStock);
 
   pushUndo();
   let out = null;
@@ -237,6 +251,7 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
     if (!isAnchored(origEndPt.x,   origEndPt.y))   sArc.setEndAngle(arcProxy.endAngle);
 
     result.arc.name = `Zaoblení R${distLine}`;
+    if (stockTag) { result.arc.isStock = true; result.arc.layer = STOCK_LAYER_ID; }
     addObject(result.arc);
     showToast(`Zaoblení R${distLine} vytvořeno ✓`);
     out = { arc: result.arc };
@@ -251,6 +266,7 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
 
     result.line.color = state.currentColor;
     result.line.name  = `Zkosení ${distLine}×${distArc}`;
+    if (stockTag) { result.line.isStock = true; result.line.layer = STOCK_LAYER_ID; }
     addObject(result.line);
     showToast(`Zkosení ${distLine}×${distArc} vytvořeno ✓`);
     out = { line: result.line };
@@ -383,19 +399,19 @@ export function filletChamferFromSelection() {
     const v = obj1.vertices, si = info1.segIdx, n = v.length;
     const pa = v[si], pb = v[(si + 1) % n];
     if ((obj1.bulges?.[si] || 0) !== 0) { showToast("Obloukový segment není podporován"); return true; }
-    ls1 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si };
+    ls1 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si, isStock: !!obj1.isStock, layer: obj1.layer };
   } else {
     const raw = getLineSegment(obj1, (obj1.x1 + obj1.x2) / 2, (obj1.y1 + obj1.y2) / 2);
-    ls1 = raw ? { kind: 'line', ...raw } : null;
+    ls1 = raw ? { kind: 'line', ...raw, isStock: !!obj1.isStock, layer: obj1.layer } : null;
   }
   if (obj2.type === 'polyline' && info2.segIdx !== null) {
     const v = obj2.vertices, si = info2.segIdx, n = v.length;
     const pa = v[si], pb = v[(si + 1) % n];
     if ((obj2.bulges?.[si] || 0) !== 0) { showToast("Obloukový segment není podporován"); return true; }
-    ls2 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si };
+    ls2 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si, isStock: !!obj2.isStock, layer: obj2.layer };
   } else {
     const raw = getLineSegment(obj2, (obj2.x1 + obj2.x2) / 2, (obj2.y1 + obj2.y2) / 2);
-    ls2 = raw ? { kind: 'line', ...raw } : null;
+    ls2 = raw ? { kind: 'line', ...raw, isStock: !!obj2.isStock, layer: obj2.layer } : null;
   }
   if (!ls1 || !ls2) return false;
 

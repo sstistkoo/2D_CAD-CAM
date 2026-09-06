@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Zásobník nástrojů: tlačítka 👁 Ukázat a ✏️ Upravit** u každého slotu
+  (nad *✅ Použít jako aktivní* / *🗑 Smazat*). **👁 Ukázat** otevře náhled nože
+  — destička **i s držákem** tak, jak vypadá v simulaci (`showToolSlotPreviewDialog`,
+  nový `js/calculators/cam/toolSlotPreview.js`); kreslí ho stejná funkce jako
+  náhled v ⚙️ Geometrii (`drawInsertAndHolderPreview`), takže sedí 1:1, ale do
+  `S.params` nesahá. Zoom (kolečko / ＋ － ⟲) jde **kolem špičky destičky** —
+  `drawInsertAndHolderPreview` nově vrací `origin`, bez toho by při přiblížení
+  zůstal v okně jen dřík držáku (břit leží u spodní hrany náhledu).
+  **✏️ Upravit** načte nůž jako aktivní a otevře ⚙️ **Geometrii nástroje**
+  (ta umí editovat jen `S.params`); po jejím zavření se změny **vrátí zpět do
+  slotu** (`flushMagSlotEdit`, drží se reference na slot, ne index — ten se
+  posune smazáním nebo 🔄 Seřazením). Když je Geometrie už otevřená, druhý
+  modal se nezakládá a rozdělaná úprava jiného slotu se před přepnutím uloží.
+
 - **Simulace: zajetí do hotové kontury se vybarví ČERVENĚ** (`ContourGouge`,
   `js/calculators/cam/contourGouge.js`). Když nůž ukousl kus hotového tvaru,
   vypadalo to na plátně stejně jako legitimní řez — materiál prostě zmizel
@@ -304,6 +318,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Kontrola cesty „vytvoření nože" (destička + držák) — šest nálezů.**
+  1. **Úhel hřbetu α se do uloženého nože vůbec nedostal.** `toolClearanceAngle`
+     chyběl v `CAM_TOOL_KEYS`, přestože ho čte `buildMachinableContour`
+     i výpočet úhlu zanoření — 💾 Uložit do PC / 📂 Načíst z PC, projekt,
+     import do zásobníku i obnova nože po zavření CAM ho tiše zahodily
+     (nůž se vrátil s α předchozího nože, typicky 0).
+  2. **VBD dekodér obcházel pravidlo „obrys držáku patří k tvaru destičky".**
+     Zapisoval `toolShape` napřímo, takže po dekódování kulaté destičky
+     zůstal viset držák nakreslený pro předchozí čtyřstrannou — přesně vada
+     opravená 27. 8. 2026 u tlačítek tvaru, jen jinou cestou. Teď jde přes
+     `applyShapeChange` (s `{defer:true}`, aby pipeline neběžel dvakrát).
+     Stejné pravidlo dostala i **karta slotu v zásobníku** (tlačítka tvaru
+     i dekodér, `_setMagSlotShape`) a **načtení nože bez `holderProfile`**
+     ze staršího projektu/souboru (`applyCamToolGeometry`, import z PC).
+  3. **`toolTipMirror` (⇄ Přehodit stranu) nebyl „jen kosmetika náhledu".**
+     Byl schválně vyňatý z `pathInputsKey`, jenže od migrace na geometrické
+     knihovny ho čte `buildInsertProfileSegments` → `insertWorldLoop`, a z toho
+     žije úběr, validátor kolizí, hlídání držáku i mezní čáry. Protože na tom
+     otisku stojí i `calcCacheKey`, přepnutí plán ani NEPŘEPOČÍTALO — destička
+     se v náhledu překlopila, dráhy zůstaly podle staré. Změřeno na fixture
+     `part-19-face-tilted-insert`: řezy o 0,2 mm jinde a hlídání destičky
+     vynechá 13 průchodů místo 7. Otisk ho teď obsahuje, tlačítko volá
+     `applyChange()`; test v `cam-gcode-sync` pinoval starý předpoklad → otočen.
+  4. **Editor obdélníku zůstal zapnutý bez obrysu.** Klikací body se kreslí jen
+     k existujícímu obrysu, takže po 🗑 Smazat obrys / ↩ Zpět / výměně tvaru
+     destičky byl editor „zapnutý", ale nešlo v něm na nic kliknout. Teď se
+     sám vypne. (Obrys si nedomýšlí: hlídání by to nezměnilo —
+     `holderProfileLoop` staví bez obrysu týž obdélník — ale náhled ano,
+     ten bez obrysu kreslí pás na obě strany.)
+  5. **Náhled nože se nepřekreslil při změně velikosti okna.** Backing store
+     plátna se sáhne jednou podle naměřené šířky; po zvětšení/zmenšení okna
+     (nebo když plátno dostane rozměr až po vložení dialogu) zůstal starý
+     a nůž se kreslil roztažený z malého plátna. `ResizeObserver` v obou
+     náhledech (⚙️ Geometrie i 👁 Ukázat) překreslí, jakmile plátno velikost
+     změní.
+  6. **Prázdné jméno nástroje přepsalo název slotu** (`_syncParamsToSlot`),
+     a **✏️ Upravit tiše měnilo ruku držáku**: Geometrie ji při otevření
+     odvozuje ze směru hrubování, takže pouhé otevření a zavření uložilo
+     do slotu odvozenou hodnotu. Zpět se zapíše, jen když ji uživatel
+     opravdu přepnul tlačítkem ⇄ Ruka.
+
+- **Zásobník ztrácel přehození strany vrcholového úhlu destičky.**
+  `toolTipMirror` je součást geometrie nože (`CAM_TOOL_KEYS`), ale slot
+  zásobníku ho neměl — uložený nůž se po *✅ Použít* vrátil s destičkou
+  otočenou na druhou stranu. Slot ho teď drží jako `tipMirror`
+  (`_defaultMagSlot`/`_applyMagSlot`/`_syncParamsToSlot`/`_buildMagSlotFromTool`).
+
 - **Model zbytku „lhal o 5,786 mm" — ve skutečnosti se porovnávaly DVA RŮZNÉ
   BĚHY.** `cam-strategy-residual` bral tracker z `trk[0]` s odůvodněním
   „pipeline běží dvakrát, model z prvního běhu je ten, podle kterého se

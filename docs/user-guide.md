@@ -488,7 +488,10 @@ pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
   hrany, polární úhel, vrcholový úhel (ε) a rádius (R); dekódování VBD kódu.
   U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
   polárního úhlu — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
-  stranu** ji překlopí bez nutnosti přepočítávat úhly ručně.
+  stranu** ji překlopí bez nutnosti přepočítávat úhly ručně. **Není to jen
+  obrázek:** přehozená strana mění obrys destičky, ze kterého se počítá úběr,
+  kolize, hlídání držáku i mezní čáry — dráhy se proto přepočítají a program
+  se označí jako neaktuální.
 - **natočeni PU(°)** (polární úhel; dřív "Natočení") má vedle sebe tlačítko **✛** — otevře
   kompas 3×3 pro rychlou volbu po 45° (stejná komponenta jako v CAD dialogu
   🔢 Číselné zadání objektu).
@@ -539,6 +542,20 @@ Místo automatické ISO geometrie se obrys držáku kreslí ručně, dvěma způ
   nohu z úhlu rohu). **🗑 Vymazat:** vrátí čistý obdélník.
 - **🗑 Smazat obrys** vrátí zpět na prostý obdélník (holderWidth × holderLength).
 
+> **Obrys držáku patří k TVARU destičky.** Profil se ukládá v souřadnicích
+> špičky, takže po výměně tvaru plátku by seděl jinam, než kde destička
+> doopravdy je (a hlídání by bylo volnější, než má být). Při každé změně
+> tvaru — tlačítky tvaru, **VBD dekodérem**, kartou v zásobníku i načtením
+> staršího nože z projektu/souboru bez uloženého obrysu — se proto obrys
+> zahodí a aplikace to řekne toastem. Každý tvar si přitom pamatuje svůj
+> vlastní obrys: při návratu k němu se vrátí i držák.
+
+Když obrys zmizí (🗑 Smazat obrys, ↩ Zpět, výměna tvaru), **🔧 Upravit
+obdélník se sám vypne** — jeho klikací body se kreslí jen k existujícímu
+obrysu, jinak by tlačítko svítilo a nešlo by na nic kliknout. Na hlídání to
+nic nemění: bez vlastního obrysu se počítá stejný obdélník, jaký editor
+zakládá.
+
 Ruční kreslení v dialogu (✏️) je zatím podporované jen pro kulatou a
 čtyřstrannou destičku; kreslení na CAD plátně (📐) zvládá i upichovák.
 
@@ -546,6 +563,23 @@ Ruční kreslení v dialogu (✏️) je zatím podporované jen pro kulatou a
 Geometrie nástroje (destička + držák) se ukládá do **projektu** (JSON). Při
 načtení projektu se nůž automaticky **přenese do CAM** (do živého i příště
 otevřeného simulátoru), takže si projekty můžeš ukládat jako knihovnu nožů.
+
+#### Zásobník nástrojů (🔧)
+Vedle knihovny je **zásobník** — seznam nožů T1, T2… (v Držák tabu tlačítko
+**🔧 Zásobník**). Každý slot drží celý nůž: destičku, držák (i vlastní obrys)
+a řezné podmínky. Klik na kartu ji rozbalí a pod poli jsou tlačítka:
+
+- **👁 Ukázat** — okno s náhledem nože, **destička i s držákem**, přesně jak
+  vypadá v simulaci. Jen na koukání — aktivní nástroj se nemění. Kolečko nebo
+  **＋ / － / ⟲** zoomují **kolem špičky destičky** (aby ti břit z okna
+  neutekl), tažením se posouvá. Pod náhledem je souhrn: tvar, R, l1, tloušťka,
+  ruka, natočení nože, jestli má vlastní obrys, a Vc/f/ap.
+- **✏️ Upravit** — otevře **⚙️ Geometrii nástroje** s tímhle nožem, takže se dá
+  upravit stejně jako aktivní nástroj (včetně kreslení obrysu držáku). Nůž se
+  tím **stane aktivním** (Geometrie umí editovat jen aktivní nastavení) a po
+  zavření Geometrie se **změny uloží zpět do slotu**. Když je Geometrie už
+  otevřená, druhé okno se nezakládá — jen se do ní načte vybraný nůž.
+- **✅ Použít jako aktivní** / **🗑 Smazat** — jako dřív.
 
 ### Obrábění po úsecích (rozsah Z 📐)
 **Rozsah obrábění Z** neomezuje jen řezné pohyby — pro podélné hrubování

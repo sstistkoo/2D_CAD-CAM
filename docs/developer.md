@@ -380,7 +380,13 @@ Program se tedy sám nepřepočítává. Odtud dva stavy, které drží `gcodeSy
   jinak by ochrana zmizela při první cestě přes CAD nebo po restartu.
 - **`S.gcodeKey`** (`pathInputsKey`) — otisk vstupů, ze kterých program vznikl.
   Nesedí-li s aktuálním, jsou dráhy **neaktuální** a „🔄 Dráhy" to hlásí
-  puntíkem. `toolTipMirror` je z otisku vyňatý (jen kosmetika náhledu).
+  puntíkem. **Nic z `S.params` z něj není vyňaté** — `toolTipMirror` vyňatý byl
+  („kosmetika náhledu"), ale od migrace na geometrické knihovny ho čte
+  `buildInsertProfileSegments` → `insertWorldLoop` (úběr, validátor, držák,
+  mezní čáry). Na tomhle otisku stojí i `calcCacheKey`, takže vynětí navíc
+  znamenalo, že se po přepnutí NEPŘEPOČÍTAL ani plán. Měřeno na fixture
+  `part-19-face-tilted-insert` (viz CHANGELOG 6. 9. 2026). Vyjímat parametr
+  z otisku proto jen tehdy, když je doložené, že do geometrie nevstupuje.
 
 **Jediné pravidlo obnovy** (`decideChange`, v panelu obálka `applyChange()`):
 program se přegeneruje sám jen když **(a)** by změna jinak nebyla vidět — běží
@@ -551,6 +557,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/gcodeParser.js` | Parsování ručního/importovaného G-kódu zpět na dráhu/konturu (včetně modálního F/S a G94…G99 do bodů dráhy) |
 | `cam/feedRates.js` | Reálné rychlosti pohybu [mm/min] — otáčky v daném ⌀, posuv, rychloposuv, odhad času (`pathTimeSeconds`), ubíhající čas (`buildTimeProfile`/`elapsedAtProgress`) a posun přehrávání strojním časem (`advanceAlongPath`) |
 | `cam/insertPreview.js` | Kreslení destičky + držáku (dialog "⚙️ Geometrie") a HTML pole tvaru nástroje |
+| `cam/toolSlotPreview.js` | Náhled nože ze zásobníku (👁 Ukázat) — slot → `S.params` tvar (`paramsFromMagSlot`) + read-only okno nad `drawInsertAndHolderPreview` |
 | `cam/camToolPicker.js` | Sdílená geometrie nástroje pro knihovnu nožů/zásobník (`getCamToolGeometry`/`applyCamToolGeometry`) |
 | `cam/camDefaults.js` | Výchozí CAM parametry (`_defaultCamParams`) |
 | `cam/threadHelpers.js` | Závitování a upichnutí — sdílená geometrie |
