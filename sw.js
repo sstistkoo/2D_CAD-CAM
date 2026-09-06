@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v261';
+const CACHE_NAME = 'skica-v262';
 const ASSETS = [
   './',
   './index.html',
@@ -175,7 +175,6 @@ const ASSETS = [
   './js/tools/dimensionClick.js',
   './js/tools/extendClick.js',
   './js/tools/fillClick.js',
-  './js/tools/filletClick.js',
   './js/tools/filletChamferClick.js',
   './js/tools/gearClick.js',
   './js/tools/gearGenerator.js',
@@ -185,7 +184,6 @@ const ASSETS = [
   './js/tools/helpers.js',
   './js/tools/horizontalClick.js',
   './js/tools/chainDimensionClick.js',
-  './js/tools/chamferClick.js',
   './js/tools/index.js',
   './js/tools/joinClick.js',
   './js/tools/lineClick.js',

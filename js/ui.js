@@ -2723,10 +2723,6 @@ document.querySelectorAll("[data-tool]").forEach((btn) => {
     if (btn.dataset.tool === 'trim' && bridge.trimFromSelection && bridge.trimFromSelection()) return;
     // Prodloužení: pokud je výběr → okamžitě provést
     if (btn.dataset.tool === 'extend' && bridge.extendFromSelection && bridge.extendFromSelection()) return;
-    // Zaoblení: pokud je výběr → okamžitě provést
-    if (btn.dataset.tool === 'fillet' && bridge.filletFromSelection && bridge.filletFromSelection()) return;
-    // Zkosení: pokud je výběr → okamžitě provést
-    if (btn.dataset.tool === 'chamfer' && bridge.chamferFromSelection && bridge.chamferFromSelection()) return;
     // Závit: pokud je vybraná vodorovná úsečka → rovnou otevřít dialog
     if (btn.dataset.tool === 'thread' && bridge.threadFromSelection && bridge.threadFromSelection()) return;
     // Kolmost: pokud je výběr → okamžitě provést

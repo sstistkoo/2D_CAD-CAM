@@ -91,7 +91,7 @@ export function handleThreadClick(wx, wy) {
   openDialog(buildCtx(idx, wx));
 }
 
-/** Aktivace nástroje s už vybranou úsečkou (jako chamferFromSelection). */
+/** Aktivace nástroje s už vybranou úsečkou (jako filletChamferFromSelection). */
 export function threadFromSelection() {
   if (state.selected === null) return false;
   const o = state.objects[state.selected];

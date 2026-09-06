@@ -48,8 +48,6 @@ export const bridge = {
   offsetFromSelection: null,
   trimFromSelection: null,
   extendFromSelection: null,
-  filletFromSelection: null,
-  chamferFromSelection: null,
   threadFromSelection: null,
   perpFromSelection: null,
   horizontalFromSelection: null,
