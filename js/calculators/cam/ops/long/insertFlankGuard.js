@@ -14,8 +14,10 @@ import { isAngleBetween } from '../../camMath.js';
  * Zkrátí konce průchodů a kotvy ramp tak, aby boční a hřbetní hrana destičky
  * nezajela do kontury. Mění pole průchodů na místě; vrací počet úprav.
  * Volá se jen pro plátky s bokem/hřbetem (cam/inserts → hasFlankGeometry).
+ * `hasStock(x, zHi, zLo)` = stojí v tom okně na té hloubce materiál (plánovací
+ * silueta); posun kotvy nesmí průchod odsunout mimo záběr — viz níž.
  */
-export function guardInsertFlankLong(passes, prms, offsetPath) {
+export function guardInsertFlankLong(passes, prms, offsetPath, hasStock) {
 
   let adjusted = 0;
   const rotDeg = parseFloat(prms.toolAngle) || 0;
@@ -115,7 +117,23 @@ export function guardInsertFlankLong(passes, prms, offsetPath) {
         const dzRamp = p.ramp.z0 - p.zStart;
         p.ramp.z0 = z0;
         p.zStart = z0 - dzRamp;
-        if (p.zStart - p.zEnd < 0.05) passes.splice(pi, 1);
+        // Posun kotvy TAHÁ S SEBOU CELOU RAMPU, takže o `dzRamp` odjede
+        // doleva i `zStart` — a s ním celý průchod. Když ho to odsune ZA
+        // materiál, zůstane sice dlouhý, ale jede vzduchem.
+        //
+        // Nález uživatele 7. 9. 2026 („Průchod 11", r 44,545): kotva se
+        // posunula Z 220,848 → 211,518 a zStart s ní 195,812 → 186,654.
+        // Materiál na té hloubce přitom končí na Z 195,3 — v novém okně
+        // 186,654…172,532 má odlitek jen r 17,74. Vyšel z toho rychloposuv
+        // nad konturu, rampa 16 mm vzduchem, řez 0,05 mm a přejezd údolí:
+        // „Nemá to tam co dělat, mají být jenom vrstvy."
+        //
+        // Stará pojistka `< 0.05` hlídala jen GEOMETRICKÝ kolaps rozpětí,
+        // kterým 14 mm prošlo. Rozšířeno na „zbylo vůbec co brát" — týž
+        // důvod, jen měřený materiálem místo délkou.
+        const collapsed = p.zStart - p.zEnd < 0.05;
+        const empty = typeof hasStock === 'function' && !hasStock(p.x, p.zStart, p.zEnd);
+        if (collapsed || empty) passes.splice(pi, 1);
       }
     }
   }

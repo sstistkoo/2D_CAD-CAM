@@ -339,6 +339,31 @@ export function genLongPasses(ctx) {
   const { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ, stockRunBackZ } =
     makeRunScan({ offsetXAt, stockLoopOffsetFullL });
 
+  // ── Stojí na téhle hloubce v tom Z-okně vůbec materiál? ──────────────
+  // `scan` v hloubkové smyčce hledá volné intervaly JEN proti hotovní
+  // kontuře; polotovar ÚMYSLNĚ ignoruje, aby průchod směl přeletět mezeru
+  // v odlitku (viz komentář u `scan`). Kdo ale průchodem POSOUVÁ, musí si
+  // ověřit, že mu pod nástrojem vůbec něco zůstalo — jinak vyjede dráha
+  // vzduchem. Dnes to potřebuje hlídání boční hrany destičky, které tahá
+  // kotvu rampy doleva (viz ops/long/insertFlankGuard.js).
+  //
+  // Měří se PLÁNOVACÍ (vůlí-posunutou) siluetou: přídavek X/Z je v zadání
+  // právě proto, že odlitek MŮŽE být až u té čáry. Prahem je `dzScan` —
+  // týž, kterým emise zahazuje průchody, co „nic neuříznou"; jen se přiloží
+  // na délku ZÁBĚRU místo na délku okna. Stačí materiál kdekoli v okně:
+  // přeletět mezeru uvnitř průchodu se dál smí.
+  const intervalHasStock = (X, zHi, zLo) => {
+    if (!stockLoopOffsetL) return true;
+    const h = Math.max(dzScan / 4, 0.01);
+    let run = 0, best = 0;
+    for (let z = zLo; z <= zHi + 1e-9; z += h) {
+      const top = offsetStockTopXAtZ(z);
+      if (top !== null && top >= X - 1e-9) { run += h; if (run > best) best = run; }
+      else run = 0;
+    }
+    return best >= dzScan;
+  };
+
   // ── Kde smí ZAČÍT zanořovací rampa (strop podle držáku) ───────────────
   // Vjezd průchodu se dosud řídil jen tím, kde na dané hloubce začíná
   // polotovar (passEntryZ), plus ručním „Startem rozsahu Z" (📐). U odlitku,
@@ -1497,7 +1522,7 @@ export function genLongPasses(ctx) {
 
   // Hlídání geometrie destičky — viz ops/long/insertFlankGuard.js.
   if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
-    const adjusted = guardInsertFlankLong(passes, prms, offsetPath);
+    const adjusted = guardInsertFlankLong(passes, prms, offsetPath, intervalHasStock);
     if (adjusted > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
   }
