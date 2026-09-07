@@ -533,6 +533,70 @@ nového nápadu):
 
 ---
 
+## 6.5 ZÁVĚREČNÁ KONTROLA PLÁNU (7. 9. 2026)
+
+Pravidla v tomhle dokumentu jsou vlastnosti CELÉHO programu, ale v kódu je
+**nikdo nevlastní**: vznikají jako vedlejší produkt hloubkové smyčky a pak na
+hotové průchody sahá dalších ~36 míst v šesti souborech (`roughLong`,
+`depthTabs`, `humpMerge`, `insertFlankGuard`, `openPass`, `residualGuard`).
+Každé řeší svůj legitimní problém a žádné už nekontroluje, jestli tím
+pravidlo neporušilo. Proto z jednoduchých podmínek lezou složité vady a
+nacházel je uživatel očima v G-kódu, ne generátor.
+
+`ops/long/planCheck.js` běží **až za všemi zásahy** (za `mergeLayersOverHump`),
+dráhy NEMĚNÍ a hlásí do ⚠ panelu s konkrétním r/Z:
+
+| kontrola | co je porušený invariant |
+|---|---|
+| **průchod jede vzduchem** | na jeho hloubce nad ním nikde nestojí materiál (plánovací silueta), nejdelší souvislý záběr < `dzScan`. Výjimky: dojezd/nájezd po kontuře (§7.2 — hodnota kroku je v dojezdu) a RAMPA (ta sama řeže) |
+| **průchod přejel hranici svého úseku** | §6.0. Bere se jen hranice, která na dané hloubce opravdu platí (`edgeDissolved` — v kůře dna údolí se úseky spojují) |
+
+**Kontrola musí být nevakuová.** Ověřuje se tak, že se oprava vypne a hlášky
+musí naskočit — u obou vad ze 7. 9. 2026 to platí a obě pojmenuje přesně.
+Falešné poplachy do ní NEPATŘÍ: každá kontrola je psaná jako skutečný
+invariant a výjimka se doplňuje s doloženým důvodem, ne vypnutím kontroly.
+
+**Co odkryla hned:** tři dosud neznámé vady na sadě (`holder-casting-slanted-face`
+a `holder-region-roughing` — jízda vzduchem; `part-21-zleva-insert-shadow` —
+přejezd hranice). Po opravách téhož dne zbývá poslední.
+
+### 6.5a Kotva řetězu leží v materiálu → rampa se PRODLOUŽÍ, ne kotva zvedne
+
+`safeRapidTo` je bezpečná jen proti KONTUŘE, ne proti polotovaru. U odlitku
+proto sjede rychloposuvem dovnitř odlitku a zbytek na kotvu dojede RADIÁLNĚ —
+kolmý zápich, který §3.1 u plátků s úhlem zanoření < 90° zakazuje. Nález
+uživatele 7. 9. 2026: `N700 G0 X46.345` + `N710 G1 X44.545 F0.25` na
+Z 195,812, kde má plánovací silueta r 65,2 (1,8 mm radiálně do plného kusu).
+
+Kotvu **zvednout nelze** (visí na ní celý řetěz — viz „kotva rampy leží
+v materiálu"). Řešením je prodloužit RAMPU po téže přímce zanoření až na
+povrch, ale **nejvýš o jednu Hloubku záběru**: výš už materiál sebrala
+předchozí vrstva. Bez toho stropu rampa začínala na PŮVODNÍM povrchu odlitku
+a jela 63 mm v Z posuvem místem, které je dávno obrobené.
+
+### 6.5b Rampa, která nedosáhne na svou hloubku, NENÍ průchod
+
+Emise ustřihne rampu tam, kde vyjede z materiálu. Když tím nedosáhne na
+hloubku průchodu, uřízne jen pás v hloubkách MĚLČÍCH vrstev — a ty ho už
+vzaly. Je to tedy zopakovaná rampa, ne nový záběr, a průchod se zahodí; práci
+odvede řetěz dorampování, který navazuje o Hloubku záběru výš. (Nález
+uživatele: „Průchod 11" rampoval X 51,207 → 46,837 a odjel, aniž by dosáhl na
+svou hloubku 44,545 — těsně vedle rampy „Průchodu 9" X 51,253 → 47,045.)
+
+**Změřeno u 6.5a + 6.5b dohromady:** otisk 19 z 28 fixtures (všechny
+KRATŠÍ), ale úběr 82 822,0 → 82 823,7 a 86 178,5 → 86 163,1 mm², tedy
+−15,4 mm² z 86 000 (0,018 %), a kolize beze změny. Zkrácení nejsou ubrané
+řezy, ale ubrané přejezdy, nájezdy a duplicitní rampy.
+
+> **Pozor na to, co otisk umí.** `cam_fingerprint` a snapshoty pinují
+> CHOVÁNÍ, ne správnost — byl-li výstup dřív špatný, pinují tu chybu (tři
+> řádky „Přejezd materiálem posuvem" v nich seděly měsíce jako správný
+> výsledek). „Změnilo se 19 dílů" tedy neznamená „rozbil jsem 19 dílů".
+> Rozhodnout umí jen geometrie: ÚBĚR a KOLIZE ze `cam_sweep`, plus tyhle
+> invarianty.
+
+---
+
 ## 7. Doložené meze — NEOTEVÍRAT bez nového nápadu
 
 | věc | proč je to mez |

@@ -341,7 +341,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   30×20: *vše* → `R14, R10, ⌀20` + rozměry + průsečík, *průsečíky* → jen
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
+### Added
+- **Závěrečná kontrola plánu drah** (`js/calculators/cam/ops/long/planCheck.js`).
+  Pravidla v `docs/cam-pravidla-drah.md` jsou vlastnosti CELÉHO programu, ale
+  v kódu je nikdo nevlastnil — vznikaly jako vedlejší produkt hloubkové smyčky
+  a pak na hotové průchody sahalo dalších ~36 míst v šesti souborech. Každé
+  řešilo svůj problém a žádné nekontrolovalo, jestli tím pravidlo neporušilo.
+  Za tři měsíce práce na drahách proto uživatel nacházel vadu za vadou OČIMA
+  v G-kódu, přičemž plán byl pokaždé správný.
+
+  Kontrola běží až za všemi zásahy, dráhy NEMĚNÍ a hlásí dvě věci s konkrétním
+  r/Z: **průchod jede vzduchem** (na jeho hloubce nad ním nikde nestojí
+  materiál; výjimka pro dojezd/nájezd a rampu — ty samy řežou) a **průchod
+  přejel hranici svého úseku** (§6.0; jen hranice, která na dané hloubce
+  opravdu platí — v kůře dna údolí se úseky spojují).
+
+  Není vakuová: na obou dnešních vadách spadne a obě pojmenuje přesně
+  (`r 44.545 Z 186.654…172.532`, resp. všechny tři přejezdy hranice
+  `Z 172.532`/`91.932`). Na sadě odkryla **3 dosud neznámé vady** téže
+  dvojice tříd — `holder-casting-slanted-face`, `holder-region-roughing`
+  (jízda vzduchem) a `part-21-zleva-insert-shadow` (přejezd hranice).
+  Po opravách níž jsou první dvě vyřešené, zbývá jedna.
+
 ### Fixed
+- **Řetěz dorampování zajížděl na kotvu KOLMO do plného materiálu.**
+  Uživatelský nález: `N700 G0 X46.345` + `N710 G1 X44.545 F0.25` na
+  Z 195,812, kde má plánovací silueta odlitku r 65,2 — tedy 1,8 mm radiálně
+  do plného kusu. *„Tohle jede kolmo do materiálu, protože mi tam chybí
+  dodělat to zanořování."* §3.1 kolmý zápich u tohohle plátku zakazuje.
+
+  Příčina je popsaná už v poznámce „kotva rampy leží v materiálu":
+  `safeRapidTo` je bezpečná jen proti KONTUŘE, ne proti polotovaru, takže
+  u odlitku sjede rychloposuvem dovnitř a zbytek na kotvu dojede radiálně.
+  Kotva se zvedat nesmí (visí na ní celý řetěz), takže se místo toho
+  **prodlouží RAMPA po téže přímce zanoření až na povrch** — nejvýš ale
+  o jednu Hloubku záběru, protože výš už materiál sebrala předchozí vrstva
+  (bez toho stropu rampa začínala na původním povrchu odlitku a jela 63 mm
+  v Z posuvem místem, které je dávno obrobené).
+- **Rampa, která nedosáhne na svou hloubku, se vydávala jako průchod.**
+  Takový průchod není vrstvou na své hloubce: emise mu rampu ustřihne tam,
+  kde vyjede z materiálu, takže uřízne jen pás v hloubkách MĚLČÍCH vrstev,
+  které ho už vzaly. Na dílu uživatele „Průchod 11" rampoval X 51,207 →
+  46,837 a odjel, aniž by na svou hloubku 44,545 dosáhl — těsně vedle rampy
+  „Průchodu 9" (X 51,253 → 47,045). *„N670 tady tohle tu vůbec nemá být."*
+  Práci za něj odvede řetěz dorampování, který navazuje o Hloubku záběru výš.
+
+  Obojí změřeno: `cam_fingerprint` 19 z 28 fixtures (všechny KRATŠÍ),
+  ale `cam_sweep` **úběr 82 822,0 → 82 823,7 a 86 178,5 → 86 163,1 mm²**
+  (−15,4 mm² z 86 000, tedy 0,018 %) a **kolize beze změny** (2/4,9 a 0/0,0
+  — ty dva nálezy jsou starý `part-20`). Zkrácení tedy nejsou ubrané řezy,
+  ale ubrané přejezdy, nájezdy a duplicitní rampy; závěrečná kontrola plánu
+  na sadě spadla z 3 nálezů na 1.
 - **Hlídání boční hrany destičky odsunulo průchod mimo materiál a ten pak
   jel vzduchem.** Uživatelský nález: „Průchod 11" na r 44,545 najel
   rychloposuvem nad konturu, sjel rampou 15° šestnáct milimetrů vzduchem,
