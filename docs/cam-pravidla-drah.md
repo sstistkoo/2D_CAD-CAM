@@ -496,6 +496,24 @@ přeletět MAJÍ, viz „Dodělat vrstvu"). U stopky materiál zpravidla JE (sou
 úsek dílu, jen už obrobený — silueta polotovaru o tom neví), takže se ten
 pruh přeskočí a hledá se hrana až za první mezerou.
 
+**Stopku dělá i DNO OKNA VLASTNÍHO ÚSEKU** (6. 9. 2026, `regionFloorZ`).
+Evidence výš je order-dependent: úseky jedou od největšího průměru, takže
+ten první je naplánovaný dřív, než nějaká evidence vznikne, a doběh mu pak
+nic nezastaví. Na dílu uživatele jel krok řetězu r 47,045 rovnou
+Z 205,142 → −5,000 — 210 mm přes celý díl a přes obě hranice úseků — a
+materiál za hranicí vzal podruhé vlastní průchod souseda
+(r 47,045 Z 142,828 → 119,340). V G-kódu to bylo vidět jako
+`G1 Z142.876 F0.25 ; Přejezd materiálem posuvem`, tedy soustružení vzduchu
+posuvem přes 52 mm. Okno úseku je proto další mez vedle evidence; evidence
+zůstává, protože pokrývá hranice, které se na dané hloubce ROZPUSTILY
+(v kůře dna údolí), kde okno samo nezastaví.
+
+> **Pozor na měřicí gate.** Dno okna bylo jako mez zamítnuté 2. 9. 2026 za
+> −197 mm² úběru. To zamítnutí neplatí: §6.0 je PODMÍNKA a úběr ji vetovat
+> nesmí (viz řádek „plán s dělením smí vetovat jen DRŽÁK, nikdy úběr" výš).
+> Změřeno navíc bez ceny — 3 z 28 fixtures se hnuly, všechny jen o mizející
+> „Přejezd materiálem posuvem", úběr i počet průchodů beze změny, kolize 0/0.
+
 **Doložené meze evidence** (obojí změřeno 2. 9. 2026, nezkoušet znovu bez
 nového nápadu):
 

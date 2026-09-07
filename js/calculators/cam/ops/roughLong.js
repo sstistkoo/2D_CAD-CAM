@@ -635,39 +635,39 @@ export function genLongPasses(ctx) {
   //    Viz docs/cam-pravidla-drah.md §6.0.
   const dissolveValley = !prms.plungeRoughing;
   const edgeDissolved = (surf, kind, zEdge, depthX, szD) => {
-      if (surf === undefined) return false;
-      if (kind !== 'peak') return dissolveValley && depthX <= surf + 0.01;
-      // NAD hrbem hranice neplatí — ale jen když tudy PROJDE DRŽÁK.
-      //
-      // Sloučená vrstva veze držák PŘES stojící hrb, a `applyHolderClamp` umí
-      // zkrátit jen KONEC intervalu, ne obejít překážku uprostřed. Bez téhle
-      // podmínky nadělá sloučení 30 kolizí držáku na sadě, která byla čistá
-      // (změřeno 31. 8. 2026), za pouhých 0,4 mm² úběru navíc.
-      //
-      // Tohle NENÍ heuristika, kterou by pravidlo §6.0 přebíjelo: nad hrbem,
-      // kudy se držák fyzicky nevejde, vrstva vcelku projet NEMŮŽE. Kde se
-      // vejde, tam sloučení proběhne a pravidlo platí.
-      if (!(depthX > surf + 0.01)) return false;
-      if (typeof holderFitsOverContour !== 'function') return true;
-      // Držák musí projít po CELÉ DÉLCE sloučené vrstvy, ne jen u hranice.
-      //
-      // Dvakrát jsem to zkoušel jinak a obojí bylo měřitelně k ničemu:
-      // test v samotné hranici i test v okně, kde hrb padá do dosahu držáku,
-      // nechaly 30 kolizí beze změny. Vypsané nálezy ukázaly proč — kolize
-      // NEJSOU u hrbu: na `part-1` sedí na řádcích 21–28 programu v pásu
-      // Z 52…−5, tedy na DRUHÉM KONCI dílu. Rozpuštěná hranice natáhne horní
-      // vrstvy přes celý díl a držák najede do materiálu až tam.
-      //
-      // Kontroluje se proto celý rozsah, do kterého se vrstva po sloučení
-      // roztáhne — okno polotovaru na téhle hloubce, ořezané rozsahem 📐.
-      const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, szD.zMax);
-      const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, szD.zMin);
-      if (!(zHiChk > zLoChk)) return true;
-      const stepChk = Math.max(DZ_CAP, (zHiChk - zLoChk) / 96);
-      for (let z = zLoChk; z <= zHiChk + 1e-9; z += stepChk) {
-        if (!holderFitsOverContour(z, depthX)) return false;
-      }
-      return true;    };
+    if (surf === undefined) return false;
+    if (kind !== 'peak') return dissolveValley && depthX <= surf + 0.01;
+    // NAD hrbem hranice neplatí — ale jen když tudy PROJDE DRŽÁK.
+    //
+    // Sloučená vrstva veze držák PŘES stojící hrb, a `applyHolderClamp` umí
+    // zkrátit jen KONEC intervalu, ne obejít překážku uprostřed. Bez téhle
+    // podmínky nadělá sloučení 30 kolizí držáku na sadě, která byla čistá
+    // (změřeno 31. 8. 2026), za pouhých 0,4 mm² úběru navíc.
+    //
+    // Tohle NENÍ heuristika, kterou by pravidlo §6.0 přebíjelo: nad hrbem,
+    // kudy se držák fyzicky nevejde, vrstva vcelku projet NEMŮŽE. Kde se
+    // vejde, tam sloučení proběhne a pravidlo platí.
+    if (!(depthX > surf + 0.01)) return false;
+    if (typeof holderFitsOverContour !== 'function') return true;
+    // Držák musí projít po CELÉ DÉLCE sloučené vrstvy, ne jen u hranice.
+    //
+    // Dvakrát jsem to zkoušel jinak a obojí bylo měřitelně k ničemu:
+    // test v samotné hranici i test v okně, kde hrb padá do dosahu držáku,
+    // nechaly 30 kolizí beze změny. Vypsané nálezy ukázaly proč — kolize
+    // NEJSOU u hrbu: na `part-1` sedí na řádcích 21–28 programu v pásu
+    // Z 52…−5, tedy na DRUHÉM KONCI dílu. Rozpuštěná hranice natáhne horní
+    // vrstvy přes celý díl a držák najede do materiálu až tam.
+    //
+    // Kontroluje se proto celý rozsah, do kterého se vrstva po sloučení
+    // roztáhne — okno polotovaru na téhle hloubce, ořezané rozsahem 📐.
+    const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, szD.zMax);
+    const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, szD.zMin);
+    if (!(zHiChk > zLoChk)) return true;
+    const stepChk = Math.max(DZ_CAP, (zHiChk - zLoChk) / 96);
+    for (let z = zLoChk; z <= zHiChk + 1e-9; z += stepChk) {
+      if (!holderFitsOverContour(z, depthX)) return false;
+    }
+    return true;    };
   // DOLNÍ hranice okna úseku na hloubce `depthX`: rozpustí-li se, okno
   // pokračuje do sousedního úseku — ale jen po PRVNÍ hranici, která drží.
   // Dřív se sahalo rovnou na −∞, takže okno přeskočilo i platné hranice a TÝŽ

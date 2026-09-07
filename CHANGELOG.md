@@ -342,6 +342,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Dorampování strmé stěny přejíždělo přes údolí a soustružilo vzduch
+  posuvem.** Uživatelský nález: v jeho programu byly tři řádky
+  `G1 Z… F0.25 ; Přejezd materiálem posuvem`, které jely desítky milimetrů
+  čistým vzduchem — a materiál za údolím pak vzal ještě jednou vlastní
+  průchod sousedního úseku. Příčina byla v `ops/roughLong.js`: rovný úsek
+  za rampou (`rampCompletion`) se omezoval jen stěnou hotovní kontury a
+  „evidencí", kam už na téhle hloubce dojel JINÝ úsek. Úseky ale jedou od
+  největšího průměru, takže ten první je naplánovaný dřív, než nějaká
+  evidence vůbec vznikne — a nic ho pak nezastavilo. Konkrétně jel
+  „Průchod 9" r 47,045 rovnou Z 205,142 → −5,000, tedy **210 mm přes celý
+  díl a přes obě hranice úseků**.
+
+  Nově krok řetězu respektuje i **dno okna svého úseku** (`regionFloorZ` —
+  totéž pravidlo, kterým se řídí hloubková smyčka, vytažené nad ni, aby na
+  ně dosáhly obě). Tím platí podmínka `docs/cam-pravidla-drah.md` §6.0
+  („nepřejíždět, dokud není celá pravá strana hotová") i pro dorampování.
+  Hranice úseku vzniká tam, kde mezní čára hlídání geometrie destičky
+  VYJEDE Z POLOTOVARU — za ní se materiál z téhle strany vzít nedá.
+
+  Dno okna bylo jako mez zamítnuté 2. 9. 2026 kvůli −197 mm² úběru; to
+  zamítnutí neplatí, protože úběr tady vetovat nesmí (§6.0, řádek 405
+  pravidel: „plán s dělením smí vetovat jen DRŽÁK, nikdy úběr"). Změřeno
+  ostatně bez ceny: fingerprint 3 z 28 fixtures (part-15-finish-zprava,
+  part-17-long-parting, range-chain-insert-shadow) a všechny změny jsou
+  právě mizející řádky „Přejezd materiálem posuvem"; sweep na těch třech
+  dílech **úběr 12 595,7 / 13 839,5 mm² beze změny, kolize 0/0, stejný
+  počet průchodů**.
 - **Popisky os v CAD zasahovaly do výkresu; v CAM simulátoru byly skoro
   nečitelné.** Uživatelský nález (skládá se s předchozím o kontrastu):
   1. **CAD (`renderAxes` v `js/render.js`):** číselné popisky na vodorovné
