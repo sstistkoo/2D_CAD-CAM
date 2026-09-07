@@ -1870,6 +1870,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face
   "Hlídání držáku: 1 odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.",
   "Zanořování: 2 vrstvy vynechány — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 22 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
+  "Kontrola plánu: 1 průchod(ů) jede VZDUCHEM — na té hloubce nad nimi nikde nestojí materiál (r 44.988 Z 126.859…119.269). Dráhy jsou vydané, ale nic neodeberou.",
 ]
 `;
 
@@ -2235,6 +2236,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
   "Zanořování: 2 vrstvy vynechány — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 10 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 21 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 26 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
+  "Kontrola plánu: 1 průchod(ů) jede VZDUCHEM — na té hloubce nad nimi nikde nestojí materiál (r 44.988 Z 123.048…119.269). Dráhy jsou vydané, ale nic neodeberou.",
 ]
 `;
 
@@ -11801,6 +11803,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-21-zleva-insert-shadow
   "Hlídání geometrie (držák): 14 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Bez schodků: vypuštěno 3 úseků dojezdu a 1 nájezdů — vedly po dráze, kterou už dřívější průchod projel.",
   "Hlídání destičky: 4 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
+  "Kontrola plánu: 1 průchod(ů) PŘEJELO hranici svého úseku (r 16.545 Z -171.221…-200.023 přes Z -172.500). Podmínka „nepřejíždět, dokud není celá strana hotová" (docs/cam-pravidla-drah.md §6.0) je porušená.",
 ]
 `;
 

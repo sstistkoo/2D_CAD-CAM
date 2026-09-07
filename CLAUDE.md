@@ -121,12 +121,27 @@ docs/                 # developer.md, user-guide.md
   úpravě. Během ladění stačí cílený/izolovaný test
   (`npx vitest run tests/nazev.test.js`). Celou sadu spustit až na závěr
   (potvrzení hotové práce) a před PR/push.
-  - **Výjimka (bezpečnost):** u zásahů do hrubování/kolizí/materiálu
-    (`js/calculators/cam/**`) vždy pustit aspoň cílené
-    `tests/collision-validator.test.js` a `tests/material-removal.test.js`
-    (případně `tests/cam-traversal-invariants.test.js`) — tohle se
-    nepřeskakuje kvůli úspoře. Šetří se na opakování CELÉ sady, ne na
-    ověření bezpečnosti/parity.
+  - **Bezpečnostní testy podle DŮKAZU, ne preventivně** (upraveno 7. 9. 2026
+    na pokyn uživatele: *„aby se ty testy nedělaly jenom když je to potřeba,
+    ne preventivně pokaždé"*). U zásahů do hrubování/kolizí/materiálu
+    (`js/calculators/cam/**`) rozhoduje otisk, ne pocit:
+
+    ```bash
+    node scripts/cam_fingerprint.mjs --save=pred.json   # PŘED zásahem
+    node scripts/cam_fingerprint.mjs --diff=pred.json   # PO zásahu
+    ```
+
+    - **Otisk SHODNÝ u všech fixtures** → `collision-validator`,
+      `material-removal` ani `cam-traversal-invariants` se NEPOUŠTÍ. Měří
+      dráhy; když se ani jedna dráha nezměnila, nemají čím spadnout — otisk
+      je silnější důkaz než ony. Pustit jen test, na který změna reálně
+      sahá (u nové ⚠ hlášky třeba jen snapshot `cam-gcode-regression`).
+    - **Otisk se HNUL** → pustit cílené `tests/collision-validator.test.js`
+      a `tests/material-removal.test.js` (případně
+      `cam-traversal-invariants`). Tohle se pak nepřeskakuje kvůli úspoře.
+
+    Nejde o změkčení: gate je MĚŘENÍ, ne odhad. Bez otisku (nebo když ho
+    nelze pořídit) platí přísnější varianta — testy pustit.
   - **Sada je deterministická — jeden běh stačí.** „Historická nestabilita"
     (`boolean-roughing-wiring` aj.) byla 13. 8. 2026 vysvětlena: NEbyl to
     nedeterminismus, ale VÝCHOZÍ 5s timeout vitestu. CAM testy pouští celý

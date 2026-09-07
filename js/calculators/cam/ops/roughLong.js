@@ -5,6 +5,7 @@ import { mergeLayersOverHump } from './long/humpMerge.js';
 import { envelopePartingLeads } from './long/partingEnvelope.js';
 import { makeRegions } from './long/regions.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
+import { checkPlanInvariants } from './long/planCheck.js';
 import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from '../camMath.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
@@ -352,16 +353,33 @@ export function genLongPasses(ctx) {
   // týž, kterým emise zahazuje průchody, co „nic neuříznou"; jen se přiloží
   // na délku ZÁBĚRU místo na délku okna. Stačí materiál kdekoli v okně:
   // přeletět mezeru uvnitř průchodu se dál smí.
-  const intervalHasStock = (X, zHi, zLo) => {
+  const intervalHasStock = (X, zHi, zLo, ramp) => {
     if (!stockLoopOffsetL) return true;
     const h = Math.max(dzScan / 4, 0.01);
-    let run = 0, best = 0;
-    for (let z = zLo; z <= zHi + 1e-9; z += h) {
-      const top = offsetStockTopXAtZ(z);
-      if (top !== null && top >= X - 1e-9) { run += h; if (run > best) best = run; }
-      else run = 0;
-    }
-    return best >= dzScan;
+    const span = (zA, zB, xAt) => {
+      let run = 0, best = 0;
+      for (let z = zA; z <= zB + 1e-9; z += h) {
+        const top = offsetStockTopXAtZ(z);
+        if (top !== null && top >= xAt(z) - 1e-9) { run += h; if (run > best) best = run; }
+        else run = 0;
+      }
+      return best;
+    };
+    if (span(zLo, zHi, () => X) >= dzScan) return true;
+    // RAMPA TAKY ŘEŽE. `G1 … ; Rampa 15.0°` je posuvová dráha, ne přejezd —
+    // krok, jehož ROVNÝ úsek nic nebere, může mít celou hodnotu v rampě.
+    // Týž vzor jako u dojezdu (docs/cam-pravidla-drah.md §7.2: „celá hodnota
+    // takového kroku je v DOJEZDU, ne v řezu"), jen na druhém konci průchodu.
+    //
+    // Nález uživatele 7. 9. 2026: první verze téhle kontroly rampu neuměla,
+    // zahodila celý průchod i s ní a uživatel viděl, že po posledním kuželu
+    // *„nesjelo to po rampě… není tam dráha, ale jenom tečkovaná čára"*.
+    if (!ramp || !Number.isFinite(ramp.x0) || !Number.isFinite(ramp.z0)) return false;
+    const dz = ramp.z0 - zHi;
+    if (!(Math.abs(dz) > 1e-9)) return false;
+    const dx = ramp.x0 - X;
+    const zA = Math.min(ramp.z0, zHi), zB = Math.max(ramp.z0, zHi);
+    return span(zA, zB, (z) => X + dx * ((z - zHi) / dz)) >= dzScan;
   };
 
   // ── Kde smí ZAČÍT zanořovací rampa (strop podle držáku) ───────────────
@@ -547,77 +565,9 @@ export function genLongPasses(ctx) {
   // rovnou na −∞ (viz regZLo v hloubkové smyčce).
   const _geoRegions = _regions.slice().sort((a, b) => (b.zHi ?? Infinity) - (a.zHi ?? Infinity));
   const _geoIdx = new Map(_geoRegions.map((r, i) => [r, i]));
-  // Pipeline pak změří, jestli se dělení podle hrbu vyplatilo (holderCheck.js).
-  const _peakZs = [];
-  for (const q of _regions) {
-    if (q.zHiKind === 'peak' && Number.isFinite(q.zHi)) _peakZs.push(q.zHi);
-    if (q.zLoKind === 'peak' && Number.isFinite(q.zLo)) _peakZs.push(q.zLo);
-  }
-  if (_peakZs.length > 0) { ctx.usedPeakSplit = true; ctx.peakSplitZs = _peakZs; }
-
-  for (const _region of _regions) {
-  // Schodová evidence obálky držáku platí v rámci jednoho regionu —
-  // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
-  if (holderClampZEnd && holderClampZEnd.resetStair) holderClampZEnd.resetStair();
-  // Strmé stěny, kde rampa (viz níž) byla oříznuta na currentX (Hloubka
-  // ap) — po skončení hloubkové smyčky TOHOTO regionu se sem doplní
-  // dokončovací zákrok, který strmou stěnu dorampuje na její původní
-  // (neořízlý) cíl, než se přejede na další region (reálný nález na díle
-  // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
-  // neobrobený — nic dalšího už tam nezajíždí).
-  const pendingRampCompletions = [];
-  // Paměť přímek zanoření — viz ops/long/plungeLines.js.
-  const { plungeLineRuns, notePlungeRun, plungeRunCovers } =
-    makePlungeLines({ effPlungeTanL });
-  // Začátek průchodů TOHOTO regionu — odložené zanoření se řadí na konec
-  // svého regionu, ne až za celý program (viz konec smyčky regionů).
-  const regionMark = passes.length;
-  // Vjezd na hranici rozsahu Z (machiningRange.zHi): kotva rampy se
-  // ŘETĚZÍ mezi hloubkami (viz níž), ne restartuje pokaždé od povrchu —
-  // jinak by každá hlubší vrstva znovu rampovala i tu ČÁST, kterou už
-  // vyřízla vrstva PŘEDCHOZÍ (reálný nález na díle uživatele — druhá
-  // rampa mířila zpátky nad povrch místo napojení na konec první).
-  let entryRampAnchor = null;
-  // Jakmile řetěz narazí na hranici (kontura/blokace), zbytek MÉNĚ než
-  // Hloubka (ap) do skutečné cílové kontury se dořeže jedním kratším
-  // krokem (níž), ne zahodí — pak se řetěz uzavře (nezkoušet znovu na
-  // každé další, ještě hlubší vrstvě).
-  let entryRampClosed = false;
-  // Stojí nástroj OPRAVDU na kotvě řetězu? `pocketReposition` emituje přesun
-  // z AKTUÁLNÍ polohy uvnitř kapsy (odskok → G0 Z → sjezd), ne nájezd zvenčí —
-  // je bezpečný jen tehdy, když je kotva koncem PRÁVĚ VYDANÉHO průchodu.
-  // Řetěz vjezdové rampy běží napříč hloubkami, takže se mezi jeho kroky může
-  // vklínit průchod odjinud (typicky zanoření do kapsy na téže hloubce). Pak
-  // kotva osiří a týž rychloposuv vede skrz stojící materiál — v takovém
-  // případě se krok vydá jako normální vjezd (rampa od kotvy zůstává, jen se
-  // k ní najede zvenčí). Hlídá tests/cam-ramp-chain.test.js.
-  const chainTipIs = (anchor) => {
-    const last = passes[passes.length - 1];
-    return !!last && last.zStart !== undefined
-      && Math.abs(last.x - anchor.x) < 0.01 && Math.abs(last.zStart - anchor.z) < 0.01;
-  };
-  // ── Obálka DRŽÁKU pro kapsový SPAN (Fáze 3b) ───────────────────────────────
-  // Scan intervaly kapes vědomě neořezává (`holderClampZEnd` platí pro
-  // jednostranně otevřený řez), takže by se do kapsy mezi dvě stěny pustil celý
-  // interval a držák by se opřel o stěnu nad sebou. `clamp.span` vrací okno,
-  // kam se držák mezi stěny opravdu vejde; null = kapsa je pro něj moc úzká
-  // (patří jinému nástroji, ne podélnému hrubování).
-  // MUSÍ se volat na KAŽDÉM místě, kde se kapsový interval bere ze `scan()` —
-  // tedy i uvnitř bursteu „dobrat kapsu najednou", který si intervaly na každé
-  // nové hloubce skenuje ZNOVU. Bez toho burst sjížděl ap po ap do kapsy širší
-  // než držák a opíral se o stěnu (naměřeno na tests/cam-holder: 7 kolizí,
-  // 12–32 mm² každá).
-  const holderSpanClamp = (X, iv) => {
-    if (!iv || !iv.blocked || !holderClampZEnd || !holderClampZEnd.span) return iv;
-    const sp = holderClampZEnd.span(X, iv.zStart, iv.zEnd);
-    if (!sp) return null;
-    const out = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
-    return (out.zStart - out.zEnd < dzScan) ? null : out;
-  };
-  // Nejmělčí… vlastně naposledy ÚSPĚŠNÁ hloubka tohohle regionu — proti ní se
-  // pozná, že posloupnost přestřelila nedosažitelnou hranici (viz uzavírací
-  // vrstva na konci hloubkové smyčky).
-  let lastDepthWithPasses = null;
+  // Rozpouštění hranic úseku + dolní mez okna. Leží ZÁMĚRNĚ tady, ve
+  // funkčním rozsahu, a ne u hloubkové smyčky: kromě ní se na ně ptá
+  // i dorampování strmé stěny a závěrečná kontrola plánu (planCheck.js).
   // Hranice regionu platí jen NAD povrchem svého údolí (zHiSurf/zLoSurf):
   // v hloubce kůry dna se sousední regiony spojí — průchod jede přes celé
   // údolí od skutečného kraje materiálu (žádné kolmé sjezdy doprostřed kůry).
@@ -709,6 +659,78 @@ export function genLongPasses(ctx) {
     }
     return walk ? walk.zLo : -Infinity;
   };
+
+  // Pipeline pak změří, jestli se dělení podle hrbu vyplatilo (holderCheck.js).
+  const _peakZs = [];
+  for (const q of _regions) {
+    if (q.zHiKind === 'peak' && Number.isFinite(q.zHi)) _peakZs.push(q.zHi);
+    if (q.zLoKind === 'peak' && Number.isFinite(q.zLo)) _peakZs.push(q.zLo);
+  }
+  if (_peakZs.length > 0) { ctx.usedPeakSplit = true; ctx.peakSplitZs = _peakZs; }
+
+  for (const _region of _regions) {
+  // Schodová evidence obálky držáku platí v rámci jednoho regionu —
+  // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
+  if (holderClampZEnd && holderClampZEnd.resetStair) holderClampZEnd.resetStair();
+  // Strmé stěny, kde rampa (viz níž) byla oříznuta na currentX (Hloubka
+  // ap) — po skončení hloubkové smyčky TOHOTO regionu se sem doplní
+  // dokončovací zákrok, který strmou stěnu dorampuje na její původní
+  // (neořízlý) cíl, než se přejede na další region (reálný nález na díle
+  // uživatele: bez toho zůstal klín materiálu pod ořízlou rampou navždy
+  // neobrobený — nic dalšího už tam nezajíždí).
+  const pendingRampCompletions = [];
+  // Paměť přímek zanoření — viz ops/long/plungeLines.js.
+  const { plungeLineRuns, notePlungeRun, plungeRunCovers } =
+    makePlungeLines({ effPlungeTanL });
+  // Začátek průchodů TOHOTO regionu — odložené zanoření se řadí na konec
+  // svého regionu, ne až za celý program (viz konec smyčky regionů).
+  const regionMark = passes.length;
+  // Vjezd na hranici rozsahu Z (machiningRange.zHi): kotva rampy se
+  // ŘETĚZÍ mezi hloubkami (viz níž), ne restartuje pokaždé od povrchu —
+  // jinak by každá hlubší vrstva znovu rampovala i tu ČÁST, kterou už
+  // vyřízla vrstva PŘEDCHOZÍ (reálný nález na díle uživatele — druhá
+  // rampa mířila zpátky nad povrch místo napojení na konec první).
+  let entryRampAnchor = null;
+  // Jakmile řetěz narazí na hranici (kontura/blokace), zbytek MÉNĚ než
+  // Hloubka (ap) do skutečné cílové kontury se dořeže jedním kratším
+  // krokem (níž), ne zahodí — pak se řetěz uzavře (nezkoušet znovu na
+  // každé další, ještě hlubší vrstvě).
+  let entryRampClosed = false;
+  // Stojí nástroj OPRAVDU na kotvě řetězu? `pocketReposition` emituje přesun
+  // z AKTUÁLNÍ polohy uvnitř kapsy (odskok → G0 Z → sjezd), ne nájezd zvenčí —
+  // je bezpečný jen tehdy, když je kotva koncem PRÁVĚ VYDANÉHO průchodu.
+  // Řetěz vjezdové rampy běží napříč hloubkami, takže se mezi jeho kroky může
+  // vklínit průchod odjinud (typicky zanoření do kapsy na téže hloubce). Pak
+  // kotva osiří a týž rychloposuv vede skrz stojící materiál — v takovém
+  // případě se krok vydá jako normální vjezd (rampa od kotvy zůstává, jen se
+  // k ní najede zvenčí). Hlídá tests/cam-ramp-chain.test.js.
+  const chainTipIs = (anchor) => {
+    const last = passes[passes.length - 1];
+    return !!last && last.zStart !== undefined
+      && Math.abs(last.x - anchor.x) < 0.01 && Math.abs(last.zStart - anchor.z) < 0.01;
+  };
+  // ── Obálka DRŽÁKU pro kapsový SPAN (Fáze 3b) ───────────────────────────────
+  // Scan intervaly kapes vědomě neořezává (`holderClampZEnd` platí pro
+  // jednostranně otevřený řez), takže by se do kapsy mezi dvě stěny pustil celý
+  // interval a držák by se opřel o stěnu nad sebou. `clamp.span` vrací okno,
+  // kam se držák mezi stěny opravdu vejde; null = kapsa je pro něj moc úzká
+  // (patří jinému nástroji, ne podélnému hrubování).
+  // MUSÍ se volat na KAŽDÉM místě, kde se kapsový interval bere ze `scan()` —
+  // tedy i uvnitř bursteu „dobrat kapsu najednou", který si intervaly na každé
+  // nové hloubce skenuje ZNOVU. Bez toho burst sjížděl ap po ap do kapsy širší
+  // než držák a opíral se o stěnu (naměřeno na tests/cam-holder: 7 kolizí,
+  // 12–32 mm² každá).
+  const holderSpanClamp = (X, iv) => {
+    if (!iv || !iv.blocked || !holderClampZEnd || !holderClampZEnd.span) return iv;
+    const sp = holderClampZEnd.span(X, iv.zStart, iv.zEnd);
+    if (!sp) return null;
+    const out = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
+    return (out.zStart - out.zEnd < dzScan) ? null : out;
+  };
+  // Nejmělčí… vlastně naposledy ÚSPĚŠNÁ hloubka tohohle regionu — proti ní se
+  // pozná, že posloupnost přestřelila nedosažitelnou hranici (viz uzavírací
+  // vrstva na konci hloubkové smyčky).
+  let lastDepthWithPasses = null;
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX);
@@ -1267,7 +1289,33 @@ export function genLongPasses(ctx) {
       // Značka je vyloučí z heuristiky „pravých stěn kapes" níž (viz tam).
       stepPass.rampCompletion = true;
       if (first) {
-        stepPass.ramp = { x0: curX, z0: curZ };
+        // KOTVA PRVNÍHO KROKU ŘETĚZU LEŽÍ V MATERIÁLU. Sem nástroj teprve
+        // PŘIJÍŽDÍ zvenčí, a `safeRapidTo` je bezpečná jen proti KONTUŘE, ne
+        // proti polotovaru — u odlitku proto sjede rychloposuvem dovnitř
+        // odlitku a zbytek na kotvu dojede RADIÁLNĚ. To je kolmý zápich,
+        // který §3.1 u tohohle plátku zakazuje.
+        //
+        // Nález uživatele 7. 9. 2026: `N700 G0 X46.345` + `N710 G1 X44.545`
+        // na Z 195,812, kde má plánovací silueta r 65,2 — tedy 1,8 mm
+        // radiálně do plného materiálu. *„Tohle jede kolmo do materiálu,
+        // protože mi tam chybí dodělat to zanořování."*
+        //
+        // Řešení podle poznámky „kotva rampy leží v materiálu": kotvu
+        // NEZVEDAT (na ní visí celý řetěz), ale PRODLOUŽIT RAMPU po TÉŽE
+        // přímce zanoření až na povrch. Nástroj pak vjíždí do materiálu
+        // pod úhlem zanoření od jeho hrany, ne kolmo z jeho nitra.
+        // Prodloužit se smí nejvýš o JEDNU Hloubku záběru (ap): výš už
+        // materiál sebrala předchozí vrstva, takže tam nástroj vjíždí
+        // vyčištěným prostorem. Bez tohohle stropu rampa začínala na PŮVODNÍM
+        // povrchu odlitku a jela pak 63 mm v Z posuvem místem, které je
+        // dávno obrobené (změřeno na díle uživatele: start až Z 258,668).
+        const surf = offsetStockTopXAtZ(curZ);
+        const x0 = (surf !== null && surf > curX + 0.05)
+          ? Math.min(surf, curX + step)
+          : curX;
+        stepPass.ramp = (x0 > curX + 0.05)
+          ? { x0, z0: curZ + (x0 - curX) / effPlungeTanL }
+          : { x0: curX, z0: curZ };
         first = false;
       } else {
         stepPass.ramp = { x0: curX, z0: curZ };
@@ -1523,6 +1571,27 @@ export function genLongPasses(ctx) {
   // Hlídání geometrie destičky — viz ops/long/insertFlankGuard.js.
   if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
     const adjusted = guardInsertFlankLong(passes, prms, offsetPath, intervalHasStock);
+    // ── RAMPA, KTERÁ NEDOSÁHNE NA SVOU HLOUBKU = DUPLICITA ────────────────
+    // Průchod, jehož rovný úsek nic nebere a jehož rampa navíc DOSEDÁ VE
+    // VZDUCHU, není vrstvou na své hloubce: emise mu rampu stejně ustřihne
+    // tam, kde vyjede z materiálu, takže uřízne jen pás mezi svým startem
+    // a tím výjezdem — a ten leží v hloubkách MĚLČÍCH vrstev, které ho už
+    // vzaly. Je to tedy zopakovaná rampa, ne nový záběr.
+    //
+    // Nález uživatele 7. 9. 2026: „Průchod 11" rampoval X 51,207 → 46,837
+    // (Z 211,5 → 195,2) a odjel, aniž by na svou hloubku 44,545 dosáhl —
+    // těsně vedle rampy „Průchodu 9" (X 51,253 → 47,045). *„N670 tady tohle
+    // tu vůbec nemá být."* Práci za něj odvede řetěz dorampování, který
+    // navazuje o Hloubku záběru výš.
+    for (let i = passes.length - 1; i >= 0; i--) {
+      const q = passes[i];
+      if (!q || q.type !== 'long' || !q.ramp) continue;
+      if (q.contourLeadOut || q.contourLeadIn || q.rampCompletion) continue;
+      if (intervalHasStock(q.x, q.zStart, q.zEnd)) continue;      // rovný úsek bere
+      const land = offsetStockTopXAtZ(q.zStart);
+      if (land !== null && land >= q.x - 1e-9) continue;           // rampa dosedla v materiálu
+      passes.splice(i, 1);
+    }
     if (adjusted > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání destičky: ${adjusted} hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.` });
   }
@@ -1669,6 +1738,16 @@ export function genLongPasses(ctx) {
 
   // Vrstva pokračuje přes nízký hrb — viz ops/long/humpMerge.js.
   const hummockMerges = mergeLayersOverHump(passes, ins, offsetXAt, dzScan, DZ_CAP);
+
+  // ── ZÁVĚREČNÁ KONTROLA PLÁNU — viz ops/long/planCheck.js ──────────────
+  // Až TADY, za všemi zásahy do drah (hlídání destičky i držáku, dojezdy,
+  // dorampování, přeskupení, slučování přes hrb). Dřív by kontrolovala stav,
+  // který ještě někdo přepíše — a přesně tím vznikly obě vady ze 7. 9. 2026.
+  // Nic nemění, jen hlásí.
+  for (const msg of checkPlanInvariants({
+    passes, regions: _regions, edgeDissolved, stockZRangeAt,
+    hasStock: intervalHasStock, dzScan,
+  })) foundErrors.push({ type: 'warning', msg });
 
   if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
     const tracker = new ResidualTracker(prms, stockPathSegments, {

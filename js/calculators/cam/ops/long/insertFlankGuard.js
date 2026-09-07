@@ -131,9 +131,18 @@ export function guardInsertFlankLong(passes, prms, offsetPath, hasStock) {
         // Stará pojistka `< 0.05` hlídala jen GEOMETRICKÝ kolaps rozpětí,
         // kterým 14 mm prošlo. Rozšířeno na „zbylo vůbec co brát" — týž
         // důvod, jen měřený materiálem místo délkou.
-        const collapsed = p.zStart - p.zEnd < 0.05;
-        const empty = typeof hasStock === 'function' && !hasStock(p.x, p.zStart, p.zEnd);
-        if (collapsed || empty) passes.splice(pi, 1);
+        //  • rozpětí zkolabovalo            → průchod zahodit (stará pojistka),
+        //  • nebere ani rovný úsek, ani rampa → zahodit,
+        //  • nebere rovný úsek, ale RAMPA ANO → nechat, ale UKONČIT na konci
+        //    rampy. Tohle je ta správná třetí možnost: mazat celý průchod
+        //    vezme i rampu (uživatel 7. 9. 2026: *„nesjelo to po rampě tu
+        //    poslední, není tam dráha"*), nechat ho celý zase znamená, že
+        //    dojede do údolí jen proto, aby se tam odjel.
+        if (p.zStart - p.zEnd < 0.05) { passes.splice(pi, 1); continue; }
+        if (typeof hasStock === 'function' && !hasStock(p.x, p.zStart, p.zEnd)) {
+          if (!hasStock(p.x, p.zStart, p.zEnd, p.ramp)) passes.splice(pi, 1);
+          else p.zEnd = p.zStart;
+        }
       }
     }
   }

@@ -342,6 +342,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průsečík, *kóty* → popisy bez průsečíku, *skryté* → nic.
 
 ### Fixed
+- **Hlídání boční hrany destičky odsunulo průchod mimo materiál a ten pak
+  jel vzduchem.** Uživatelský nález: „Průchod 11" na r 44,545 najel
+  rychloposuvem nad konturu, sjel rampou 15° šestnáct milimetrů vzduchem,
+  uřízl 0,05 mm a přejel údolí — *„nemá to tam co dělat, mají být jenom
+  vrstvy"*. Průchod se přitom rodí správně (Z 195,812…172,532, pokrývá
+  slupku materiálu na Z 195,3…195,8). Rozbije ho až
+  `ops/long/insertFlankGuard.js`: kvůli stínu boční hrany posune kotvu
+  rampy Z 220,848 → 211,518 a protože posun **tahá s sebou celou rampu**,
+  odjede s ní i `zStart` na Z 186,654 — tedy ZA materiál, do údolí, kde má
+  odlitek jen r 17,74.
+
+  Stará pojistka `zStart - zEnd < 0.05` hlídala jen geometrický kolaps
+  rozpětí, kterým 14 mm vzduchu prošlo. Rozšířena na „zbylo vůbec co brát":
+  nový helper `intervalHasStock` (v `ops/roughLong.js`, předává se do
+  hlídání) měří nejdelší souvislý záběr proti PLÁNOVACÍ (vůlí-posunuté)
+  siluetě a porovnává ho s `dzScan` — týmž prahem, kterým emise zahazuje
+  průchody, co „nic neuříznou". Není to nový práh, jen se přiloží na
+  materiál místo na délku okna.
+
+  Změřeno: `cam_fingerprint` **shodný u všech 28 fixtures** (oprava se
+  dotkla jen dílu uživatele — 62 → 61 průchodů, 472 → 464 řádků);
+  `collision-validator`, `material-removal`, `cam-traversal-invariants`,
+  `insert-forbidden-region`, `cam-ramp-chain` a `cam-face-insert-reach`
+  zelené; celá sada 1567/1567.
 - **Dorampování strmé stěny přejíždělo přes údolí a soustružilo vzduch
   posuvem.** Uživatelský nález: v jeho programu byly tři řádky
   `G1 Z… F0.25 ; Přejezd materiálem posuvem`, které jely desítky milimetrů
