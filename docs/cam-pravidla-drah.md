@@ -170,6 +170,26 @@ neposouvá; tam platí bez rozdílu brána o řádek níž.
 
 `camMath.js:12` (`getEffectivePlungeAngle`). **Neotvírat bez nového nápadu.**
 
+**Ten úhel je zároveň MEZNÍ ČÁRA** (7. 9. 2026). U polygonu vede čára
+`'zanoreni'` odjakživa pod `|natočení|` — což je TÝŽ úhel, jaký vrací
+`getEffectivePlungeAngle`, jen se tam bral z tvaru destičky. Kulatá destička
+tvar nemá (`getToolClearanceRange` pro ni vrací `null`, takže jí nevznikla ani
+jedna čára), a přesto totéž omezení má. `getPlungeGuardRange`
+(`contourBuild.js`) proto z pole **„Úhel zanoření (°)"** postaví týž úhlový
+rozsah, jaký polygon dostává ze svého tvaru, jen JEDNOSTRANNÝ:
+
+| | `'dojezd'` (čelní hrana) | `'zanoreni'` (sjezd) |
+|---|---|---|
+| **polygon** | ano, pod `natočení + vrchol` | ano, pod `natočení` |
+| **kulatá** | **ne** — čelní hranu nemá (rozhodnutí uživatele) | ano, pod **Úhlem zanoření** |
+
+**Čára kulaté destičky je HRANICE, ne ŘEZ.** Do `buildMachinableContour` se
+NEPOSÍLÁ (`plungeLimit: true`): u polygonu most nahrazuje úsek, kam se hrot
+NEDOSTANE, ale kulatý nos se na tutéž stěnu dostane — jen se k ní nesjede
+rampou. Přemostit ji by umazalo materiál, který nástroj vzít umí. Ze stejného
+důvodu ji přeskakuje `guideStaysInStock` (`ops/long/regions.js`). Ověřeno
+otiskem: na 28 fixtures se program nezměnil.
+
 ### 3.3 Kapsa za bossem
 
 Interval, do kterého se zprava vjet nedá, se obsluhuje jen se **zapnutým
@@ -184,6 +204,84 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
 
 ### 4.1 Destička
 
+- **HLOUBKA (ap) SE MĚŘÍ OD BŘITU, NE OD PROGRAMOVANÉHO BODU** (7. 9. 2026).
+  Hloubky průchodů jsou v souřadnicích DRÁHY (střed nosu), silueta polotovaru
+  v souřadnicích POVRCHU — liší se přesně o rádius nosu. U polygonu
+  (R 0,4–1,2) je to pod rozlišením, u KULATÉ destičky R 10 brala první tříska
+  `ap + R`: na válci r 50 při ap 2,5 vyšel první průchod na X 49,25, tedy břit
+  na r 39,25 → **10,75 mm místo 2,5**. Klíč je `noseLiftX` v `cam/inserts/`
+  (R u kulaté, **0 u ostatních**, aby se jejich mřížka nepohnula) a musí sedět
+  na TŘECH místech:
+  1. kotva posloupnosti (`ladderTopX` v `ops/roughLong.js`),
+  2. `stockZRangeAt` — „sahá sem polotovar?" se ptá na hloubku břitu,
+  3. strop obdélníkového obalu booleovské větve (`planTopX` do
+     `makeIntervalScan`) **a** `stockCrossingsAt`, které hledá vjezd.
+
+  Bez bodu 3 se opraví jen válec: na odlitku začaly průchody 24,5 / 27,0 /
+  29,5 až na kuželu a přes válec r 21,803 se pak přejelo JEDINÝM průchodem —
+  tříska 9,76 mm (`N1310 G1 Z251.257`). Měřeno tloušťkou třísky z modelu
+  úběru, ne rozestupem drah.
+
+  > **ZBÝVÁ (změřeno a odloženo 8. 9. 2026):** týž člen patří i do
+  > `offsetStockTopXAtZ`, ze které se staví KOTVA RAMPY. Bez něj sedí kotva na
+  > povrchu, břit je hned na dně a řetěz nemá kam sestupovat — kapsa Z 167…196
+  > (9,6 mm materiálu) dostane jediný průchod. S opravou: průchodů 61 → 71,
+  > úběr 4 865,8 → 5 051,2 mm², největší tříska 9,00 → 7,60 mm. **Ale přibude
+  > tvrdá kolize:** `G0 Z` z konce průchodu 63 (r 42,97, Z −3 → 30) projede
+  > 4,25 mm² stojícího materiálu, a to i proti modelu se znalostí pořadí —
+  > není to tedy stín vlastního řezu.
+  >
+  > **VYVRÁCENÁ HYPOTÉZA (8. 9. 2026):** nezpůsobuje to `noteCutPass`.
+  > Vypadalo to na něj — předpovídá odebraný pás ROVNOU ÚSEČKOU `zStart→zEnd`
+  > na `bodyX`, kdežto konec toho průchodu jede po oblouku jinam, takže by
+  > model mohl hlásit vzduch tam, kde materiál stojí. Změřeno vypnutím té
+  > předpovědi (skutečné řezy si model zapisuje dál přes
+  > `noteCutMove`/`noteCutArc`): **kolize zůstala beze změny 4,25 mm²** a
+  > navíc se objevila tříska 47,6 mm — ta předpověď je nosná, ne škodlivá.
+  >
+  > **DOHLEDÁNO 8. 9. 2026 — KOTVU BLOKUJE JINÁ, ZÁVAŽNĚJŠÍ VADA.**
+  > Emituje to `safeRapidTo`, větev `sameX` (`gcodeEmit.js`, volání
+  > `roughEmit.js:461` = čistý přejezd v Z na SOUČASNÉ hloubce). Hlídání je
+  > tam umístěné i parametrizované správně — `rapidHitsStock(cur.x, cur.z,
+  > cur.x, tz)` — jen dostane špatnou odpověď, protože model zbytku je v pásu
+  > Z 13…25 posazený až o 7,7 mm níž než skutečnost (na Z 19: model r 26,15
+  > × skutečnost r 33,87; nos má dno na 32,97).
+  >
+  > **Proč je model níž:** `noteCutArc` vzorkuje oblouk od `seg.startAngle`,
+  > tedy od PŮVODNÍHO začátku, a zapíše i hlavu oblouku, kterou nástroj
+  > neprojel. Jenže to je jen následek — příčina je, že se ten `G3` vůbec
+  > vydá ze špatného místa:
+  >
+  > ```
+  > N3690 G1 Z35.032            ← nástroj na (37,446; 35,032)
+  > N3700 G3 X40.966 Z9.503 CR=20.545
+  >     střed oblouku (20,421; 9,511), r = 20,545
+  >     vzdálenost startu od středu = 30,679  →  START LEŽÍ 10,1 mm MIMO OBLOUK
+  > ```
+  >
+  > Takový blok řízení interpretuje jako úplně jinou křivku, než je zamýšlená.
+  > **Tohle je vada G-kódu, ne jen modelu**, a je vážnější než nezvednutá
+  > kotva — opravovat se má ona, ne hlídání kolem ní.
+  >
+  > **Změřeno a ZAMÍTNUTO cestou:** (a) vypnutí předpovědi pásu v
+  > `noteCutPass` — kolize beze změny 4,25 mm² a navíc tříska 47,6 mm, ta
+  > předpověď je nosná; (b) oprava `noteCutArc` na vzorkování od skutečné
+  > polohy — kolizi neřeší (start na oblouku NELEŽÍ, takže se použije
+  > záložní `startAngle`) a na `part-20-zleva-parting-taper` snížila zdvih
+  > 35,310 → 32,770, tedy do NEBEZPEČNÉ strany.
+  >
+  > Kotva zůstává nezvednutá, dokud se nespraví ten start oblouku.
+- **RAMPA SE TESTUJE PROTI KONTUŘE PO CELÉ DÉLCE**, ne jen v dosedacím bodě
+  (`rampClearOfContour` v `ops/long/entryRamp.js`). `stockEntryRamp`
+  i `findRampOutTarget` si přímku samy konstruují, a proto se cestou ptají
+  `blockedAt`; uzavírací krok řetězu ji ale jen DOPOČÍTÁ z kotvy a hloubky —
+  a ptal se leda na dosedací bod, ve větvi s intervalem ze `scan` na nic.
+  Nález 7. 9. 2026 (kulatá R 10): `Rampa 45.0°` z (35,77; 52,53) na
+  (29,64; 46,40) jela celou délkou pod offsetem kontury a ukrojila
+  **36,8 mm²** hotového dílu; kotva sama ležela 1,4 mm pod offsetem, protože
+  v tom místě je vnitřní rádius menší než nos. Hlídá
+  `part-22-round-r10.camprog` v `tests/cam-gouge-invariants` (bez opravy
+  42,0 mm², s ní 0).
 - Úseky, kam boční ostří nedosáhne, se **vynechají** — nezkracují se.
 - Hrana destičky má **konečný dosah** (`insertReachZ`); za koncem břitu přebírá
   hlídání držák.

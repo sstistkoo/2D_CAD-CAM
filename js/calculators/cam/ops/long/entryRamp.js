@@ -230,6 +230,32 @@ export function makeEntryRamp({
     return null;
   };
 
+  // Vede přímka zanoření z kotvy na dosednutí VZDUCHEM (nad hotovní
+  // konturou)? Vzorkuje se CELÁ úsečka včetně obou konců, protože rampa je
+  // ŘEZNÝ pohyb: kde protne offset kontury, tam ukrojí hotový tvar.
+  //
+  // Proč to tu chybělo: `stockEntryRamp` i `findRampOutTarget` si přímku samy
+  // KONSTRUUJÍ, a proto se cestou ptají `blockedAt`. Uzavírací krok řetězu
+  // (`roughLong.js`) naproti tomu přímku jen DOPOČÍTÁ z kotvy a hloubky —
+  // a ptal se leda na dosedací bod (`stepWindow`), nebo na nic (větev
+  // s intervalem ze `scan`). Nález na díle uživatele 7. 9. 2026 (kulatá
+  // destička R10): `N2250 G1 X29.635 Z46.401 ; Rampa 45.0°` vedla celou svou
+  // délkou pod offsetem kontury (37,20 → 34,76 proti dráze 35,77 → 29,64)
+  // a ukrojila 36,8 mm² hotového dílu. Kotva sama ležela 1,4 mm pod offsetem:
+  // v tom místě je vnitřní rádius menší než nos destičky, takže se tam
+  // nástroj nedostane vůbec — správná odpověď je průchod nevydat.
+  const rampClearOfContour = (x0, z0, x1, z1) => {
+    const dx = x1 - x0, dz = z1 - z0;
+    const len = Math.hypot(dx, dz);
+    if (!(len > 1e-9)) return !blockedAt(x0, z0);
+    const n = Math.max(2, Math.ceil(len / 0.2));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      if (blockedAt(x0 + dx * t, z0 + dz * t)) return false;
+    }
+    return true;
+  };
+
   return { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
-    findSteepCorner };
+    findSteepCorner, rampClearOfContour };
 }

@@ -52,6 +52,10 @@ const EXPECTED_HARD = {
   // R 8 mm do zaoblení R 6 mm se nevejde. Fixture je tu kvůli velkému
   // rádiusu nosu (viz tests/cam-face-tip-radius.test.js), ne kvůli tomuhle.
   'part-18-face-big-radius.camprog': ['Rádius kontury menší než nástroj'],
+  // Týž díl PODÉLNĚ a s KULATOU destičkou R 10: do vnitřních zaoblení R 6
+  // (a přesně na R 10) se nos nevejde. Vlastnost zadání — fixture je tu kvůli
+  // mezní čáře zanoření u kulaté destičky a kvůli `ap` měřenému od BŘITU.
+  'part-22-round-r10.camprog': ['Rádius kontury menší než nástroj'],
 };
 
 describe('CAM pipeline regrese (G-kód + struktura)', () => {

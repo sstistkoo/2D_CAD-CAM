@@ -24,7 +24,7 @@ import { depthKey } from './segUtils.js';
  */
 export function makeIntervalScan({
   prms, offsetXAt, holderClampZEnd,
-  stockLoopL, stockLoopOffsetL, planTopX,
+  stockLoopL, stockLoopOffsetL, planTopX, noseLiftX = 0,
   isParting, wInsL, rInsL,
   dzScan, blockedAt, refineEngageZ, holderBlockedDepths,
 }) {
@@ -48,12 +48,20 @@ export function makeIntervalScan({
   // zHi leží v materiálu. Null = v okně na téhle hloubce materiál není.
   const stockCrossingsAt = (X, sz) => {
     if (!stockLoopOffsetL) return (sz && sz.all) || [];
+    // `X` je poloha DRÁHY (střed nosu), silueta je POVRCH — ptát se musí
+    // o `noseLiftX` níž (u kulaté destičky rádius nosu, jinde 0). Bez toho se
+    // vjezd hledal tam, kde je kraj materiálu na hloubce STŘEDU nosu, ačkoli
+    // BŘIT je pod povrchem už dávno předtím. Nález uživatele 7. 9. 2026:
+    // na válci r 21,803 začaly průchody 24,545 / 27,045 / 29,545 až na kuželu
+    // (Z ≈ 282) a přes celý válec se pak přejelo JEDINÝM průchodem na
+    // r 22,045 — tříska 9,76 mm místo ap 2,5 (`N1310 G1 Z251.257`).
     const zs = [];
     const n = stockLoopOffsetL.length;
+    const xs = X - noseLiftX;
     for (let i = 0; i < n; i++) {
       const a = stockLoopOffsetL[i], b = stockLoopOffsetL[(i + 1) % n];
-      if ((a.x <= X && b.x > X) || (b.x <= X && a.x > X))
-        zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
+      if ((a.x <= xs && b.x > xs) || (b.x <= xs && a.x > xs))
+        zs.push(a.z + (b.z - a.z) * ((xs - a.x) / (b.x - a.x)));
     }
     if (zs.length < 2) return (sz && sz.all) || [];
     zs.sort((p, q) => q - p);

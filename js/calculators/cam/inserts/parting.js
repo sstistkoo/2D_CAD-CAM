@@ -33,6 +33,15 @@ export function partingInsert(prms) {
     // kladné = hrana hřbetu u pravých stěn kapes).
     hasFlankGeometry: false,
     tiltedFlank: false,
+    // Hlídání geometrie destičky se pro tenhle tvar nepočítá (getToolClearanceRange
+    // ani getPlungeGuardRange ho nevydají) — klíč je tu jen pro úplnost.
+    guideKinds: [], plungeGuide: false,
+    // Zvednutí programovaného bodu nad řezaný povrch (viz round.js): rádius
+    // nosu je tu 0,4–1,2 mm, tedy pod rozlišením, na kterém jsou dráhy
+    // těchto plátků odladěné. Ponecháno na 0, aby se hloubková
+    // posloupnost nepohnula — posun celé mřížky je měřeně ztrátový
+    // (viz komentář u `depths` v ops/roughLong.js).
+    noseLiftX: 0,
     envelopeAlongContour: true,
     // Sloučení vrstvy přes nízký hrb (27. 8. 2026). U ostatních tvarů zatím
     // vypnuté: spouštělo se na drobných rozdílech hranic intervalů a rozvedlo

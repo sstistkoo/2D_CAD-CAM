@@ -165,6 +165,9 @@ export function makeRegions(deps) {
       // Jen čáry zanoření (kam destička nedosáhne při sjíždění do údolí);
       // 'dojezd' je opačná strana břitu a o dělení úseků nevypovídá.
       if (g.kind !== 'zanoreni') continue;
+      // Čára meze ZANOŘENÍ (kulatá destička) mluví o úhlu sjezdu, ne
+      // o dosahu břitu — o dělení na úseky nerozhoduje.
+      if (g.plungeLimit) continue;
       const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
       // Leží čára v ústí TOHOTO údolí?
       if (Math.max(a.z, b.z) < s.zLo - 1e-9 || Math.min(a.z, b.z) > s.zHi + 1e-9) continue;

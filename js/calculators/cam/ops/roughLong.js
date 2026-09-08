@@ -170,12 +170,21 @@ export function genLongPasses(ctx) {
     return zs.length >= 2 ? zs : null;
   };
 
+  // O kolik leží programovaný bod (dráha) nad povrchem, který skutečně řeže —
+  // u kulaté destičky rádius nosu, jinde 0 (viz `noseLiftX` v cam/inserts/).
+  // Hloubky průchodů jsou v souřadnicích DRÁHY, silueta polotovaru v
+  // souřadnicích POVRCHU; tenhle člen ty dvě soustavy srovnává.
+  const noseLiftL = ins.noseLiftX || 0;
+
   // Z-rozsah polotovaru na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
+  // `X` je poloha DRÁHY (střed nosu); řeže se o `noseLiftL` níž, takže se
+  // silueta ptá na tu hlubší hodnotu.
   // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce,
   // a když z toho nevyjde použitelný pás, uzavřená smyčka (viz výš).
   // Pro válec: [cylStockZ, stockFace].
   // Vrací { zMax, zMin, all } nebo null pokud na této X polotovar není.
-  const stockZRangeAt = (X) => {
+  const stockZRangeAt = (Xpath) => {
+    const X = Xpath - noseLiftL;
     if (prms.stockMode === 'casting') {
       let zs = hIntersect(stockPathSegments, X, false);
       const startP = stockWorldPoints[0];
@@ -222,18 +231,28 @@ export function genLongPasses(ctx) {
   // na jejich styku zbyla tenká vrstva: na dílu uživatele 65,545 → 62,545 (3,0
   // = ap) → 61,545 (jen 1,0), pak už zase 3,0 (nález 21. 8. 2026 „jedna vrstva
   // zvrchu nedodržuje ap"). Rovnoměrné dělení dá 2 × 2,0 mm — každá vrstva je
-  // ≤ ap a hlavní mřížka zůstává bitově stejná (kotvená dál na `maxStockX`),
+  // ≤ ap a hlavní mřížka zůstává bitově stejná (kotvená dál na `ladderTopX`),
   // což je podmínka z odstavce výš.
-  const firstMainX = maxStockX - step;
-  if (planTopX > firstMainX + SKIM_MIN_LAYER * step && firstMainX > minPartX + 0.005) {
-    const nSkim = Math.max(1, Math.ceil((planTopX - firstMainX) / step - 1e-9));
-    const hSkim = (planTopX - firstMainX) / nSkim;
+  //
+  // POSLOUPNOST JE V SOUŘADNICÍCH DRÁHY (střed nosu), kotva `maxStockX` ale
+  // v souřadnicích POVRCHU polotovaru. U malého nosu (0,4–1,2 mm) je ten
+  // rozdíl pod rozlišením a nikdo si ho nevšiml; u KULATÉ destičky R10 to
+  // znamenalo první třísku `ap + R`: nález uživatele 7. 9. 2026 — válec r50,
+  // ap 2,5 → první průchod na X 49,25, tedy břit na r 39,25 a tříska
+  // 10,75 mm. Kotva se proto zvedne o `noseLiftX` daného plátku (0 u všech
+  // ostatních, takže jejich mřížka zůstává bitově stejná).
+  const ladderTopX = maxStockX + noseLiftL;
+  const ladderPlanTopX = planTopX + noseLiftL;
+  const firstMainX = ladderTopX - step;
+  if (ladderPlanTopX > firstMainX + SKIM_MIN_LAYER * step && firstMainX > minPartX + 0.005) {
+    const nSkim = Math.max(1, Math.ceil((ladderPlanTopX - firstMainX) / step - 1e-9));
+    const hSkim = (ladderPlanTopX - firstMainX) / nSkim;
     for (let k = 1; k < nSkim; k++) {
-      const d = planTopX - k * hSkim;
+      const d = ladderPlanTopX - k * hSkim;
       if (d > minPartX + 0.005) depths.push(d);
     }
   }
-  for (let d = maxStockX - step; d > minPartX + 0.005; d -= step) depths.push(d);
+  for (let d = ladderTopX - step; d > minPartX + 0.005; d -= step) depths.push(d);
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
     depths.push(minPartX);
   }
@@ -334,6 +353,27 @@ export function genLongPasses(ctx) {
   // Max X vůlí-posunuté siluety na dané Z (stejný vzor jako
   // planTopXAtZ v gcodeEmit.js, nad stockLoopOffsetL místo
   // stockLoop0OffsetRef) — offsetová čára pro vjezd na hranici rozsahu Z.
+  // ── ZDE BY MĚL BÝT `+ noseLiftL` — ZMĚŘENO A ODLOŽENO 8. 9. 2026 ───────
+  // Funkce vrací POVRCH, ale všichni odběratelé z ní staví KOTVU RAMPY, tedy
+  // polohu programovaného bodu — a ten leží o rádius nosu výš. Bez toho sedí
+  // kotva rovnou na povrchu, břit je hned na DNĚ a zanořovací řetěz nemá kam
+  // sestupovat: kapsa Z 167…196 (9,6 mm materiálu) dostane JEDINÝ průchod,
+  // který ji vezme celou místo po vrstvách `ap` (nález uživatele 7. 9. 2026,
+  // kulatá destička R 10).
+  //
+  // S opravou (`t + noseLiftL`) se to spraví: průchodů 61 → 71, úběr
+  // 4 865,8 → 5 051,2 mm², největší tříska 9,00 → 7,60 mm. JENŽE přibude
+  // TVRDÁ KOLIZE: `G0 Z` z konce průchodu 63 (r 42,97, Z −3 → 30) projede
+  // 4,25 mm² stojícího materiálu — a to i proti modelu, který zná pořadí,
+  // takže to není stín vlastního řezu.
+  //
+  // Proč to hlídání nechytí: `safeRapidTo` se ptá `rapidHitsStock`, tedy
+  // zbytku, který si emise po každém průchodu odebírá `noteCutPass` —
+  // a ten ubírá PLÁNOVACÍ aproximaci pasu, ne skutečnou stopu dráhy, takže
+  // ubere víc a v modelu je vzduch tam, kde materiál stojí. Dokud tenhle
+  // rozpor trvá, oprava kotvy vyrábí kolize rychleji, než opravuje třísky.
+  // Odemyká ji sjednocení zbytku emise se skutečnou dráhou (viz
+  // `project_cam-shared-residual-model-next`), ne další podmínka tady.
   const offsetStockTopXAtZ = (z) => topXOnLoop(stockLoopOffsetL, z);
 
   // Sken překážek a konce rovných úseků — viz ops/long/runScan.js.
@@ -412,7 +452,7 @@ export function genLongPasses(ctx) {
     holderFitsAt } = makeHolderFit({ T, prms });
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
-    findSteepCorner } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
+    findSteepCorner, rampClearOfContour } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
       effPlungeTanL, rangeZLoL, offsetXAt, blockedAt });
 
   // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
@@ -525,7 +565,14 @@ export function genLongPasses(ctx) {
   // Hledání intervalů na hloubce — viz ops/long/intervalScan.js.
   const { stockCrossingsAt, passEntryZ, scanIntervals, scan,
     counters: scanCounters } = makeIntervalScan({
-      prms, offsetXAt, holderClampZEnd, stockLoopL, stockLoopOffsetL, planTopX,
+      // `ladderPlanTopX` (= planTopX + rádius nosu) je tu ZÁMĚRNĚ: booleovská
+      // větev z něj staví STROP obdélníkového obalu, ze kterého se krájejí
+      // vrstvy. Strop v souřadnicích POVRCHU zahodí právě ty hloubky, kde nos
+      // leží nad polotovarem a bere první třísku — posloupnost pak sice
+      // začínala správně, ale sken jí horní vrstvy smazal a první tříska
+      // zůstala `ap + R` (viz `noseLiftX` v cam/inserts/).
+      prms, offsetXAt, holderClampZEnd, stockLoopL, stockLoopOffsetL,
+      planTopX: ladderPlanTopX, noseLiftX: noseLiftL,
       isParting, wInsL, rInsL, dzScan,
       blockedAt, refineEngageZ,
       holderBlockedDepths });
@@ -993,7 +1040,10 @@ export function genLongPasses(ctx) {
         if (!(mid - currentX > 0.05)) return null;
         const zS = entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL;
         if (!(zS > effZMin - 0.05)) return null;
-        if (blockedAt(mid, zS)) return null;      // rampa dosedne rovnou na konturu
+        // CELÁ přímka zanoření, ne jen dosedací bod: rampa je řezný pohyb,
+        // takže kde protne offset kontury, tam ukrojí hotový tvar (viz
+        // rampClearOfContour v entryRamp.js).
+        if (!rampClearOfContour(entryRampAnchor.x, entryRampAnchor.z, mid, zS)) return null;
         let zEnd = effZMin;
         for (let zw = zS - dzScan; zw > effZMin; zw -= dzScan) {
           if (blockedAt(mid, zw)) { zEnd = refineEngageZ(mid, zw + dzScan, zw); break; }
@@ -1006,7 +1056,8 @@ export function genLongPasses(ctx) {
         const midIv = (midScan.firstOpen && midScan.intervals.length > 0) ? midScan.intervals[0] : null;
         const zSmid = midIv ? entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL : null;
         const win = midIv ? null : (midScan.intervals.length === 0 ? stepWindow(mid) : null);
-        if (midIv && zSmid > midIv.zEnd + 0.05) {
+        if (midIv && zSmid > midIv.zEnd + 0.05
+            && rampClearOfContour(entryRampAnchor.x, entryRampAnchor.z, mid, zSmid)) {
           bestCiv = midIv; bestX = mid; hiX = mid;
         } else if (win) {
           bestCiv = win; bestX = mid; hiX = mid;

@@ -7,7 +7,7 @@
 
 import { bridge } from '../../bridge.js';
 import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
-import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getToolClearanceRange, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
+import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getPlungeGuardRange, getToolClearanceRange, markDominatedGuides, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
@@ -271,6 +271,41 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   let interferenceGuides = (clearance && prms.respectInsertGeometry)
     ? computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints)
     : [];
+
+  // ── MEZ ZANOŘENÍ U KULATÉ DESTIČKY ─────────────────────────────────────
+  // Celý břit je nos, takže `clearance` je pro ni null a čáry jí nevznikaly
+  // žádné. Omezení má ale jedno — ÚHEL ZANOŘENÍ: stěnu strmější, než jakou
+  // stihne sjet, nedokáže obsloužit. Vydá se tedy TÁŽ čára 'zanoreni' jako
+  // u polygonu, jen pod úhlem z pole „Úhel zanoření (°)" a bez protějšku
+  // 'dojezd' (kulatá destička čelní hranu nemá).
+  //
+  // ČÁRY JSOU ZATÍM JEN HRANICE, NE ŘEZ. Do `buildMachinableContour` se
+  // NEPOSÍLAJÍ: u polygonu most nahrazuje úsek, kam se hrot NEDOSTANE, ale
+  // kulatý nos se na tutéž stěnu dostane — jen se k ní nesjede rampou.
+  // Přemostit ji by znamenalo umazat z kontury materiál, který nástroj vzít
+  // umí. Značka `plungeLimit` je i pro `guideStaysInStock` (dělení na úseky
+  // v ops/long/regions.js), aby se dosah destičky neposuzoval podle čáry,
+  // která o dosahu nic neříká.
+  const plungeClearance = getPlungeGuardRange(prms, S.flipX);
+  if (plungeClearance && prms.respectInsertGeometry) {
+    const plungeSegs = [];
+    rawContourForInterference.forEach(seg => {
+      if (segInterferesWithTool(seg, plungeClearance) === 'tip') plungeSegs.push(seg);
+    });
+    if (plungeSegs.length > 0) {
+      const pg = computeInterferenceGuides(plungeSegs, rawContourForInterference,
+        plungeClearance, prms, worldPoints, stockWorldPoints);
+      // Kotvu hledá KAŽDÝ segment sám, takže na jednom útvaru vznikne několik
+      // rovnoběžek nad sebou. Ve stínu té nejvyšší už žádná nic neohraničuje —
+      // zahodit je (týž filtr, jaký polygonu dělá buildMachinableContour).
+      const dom = markDominatedGuides(pg, new Set());
+      pg.forEach((g, i) => {
+        if (dom.has(i)) return;
+        g.plungeLimit = true;
+        interferenceGuides.push(g);
+      });
+    }
+  }
 
 
   // Kontura PŘED vložením mostů z hlídání destičky/držáku. Mostové čáry

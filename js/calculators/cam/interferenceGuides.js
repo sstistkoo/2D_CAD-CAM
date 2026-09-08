@@ -236,6 +236,12 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
 
   const rotDegG = parseFloat(prms.toolAngle) || 0;
   const tipDegG = parseFloat(prms.toolTipAngle) || 90;
+  // Které druhy čar tenhle plátek vydává a pod jakým úhlem leží ta zanořovací.
+  // Polygon (výchozí, `kinds` neuvedeno) beze změny: obě čáry, zanoření pod
+  // natočením destičky. Kulatá destička dodá `kinds: ['zanoreni']` a vlastní
+  // `plungeBetaDeg` = Úhel zanoření (getPlungeGuardRange v contourBuild.js).
+  const wantKindG = (k) => !clearance.kinds || clearance.kinds.includes(k);
+  const betaZanoreniG = clearance.plungeBetaDeg !== undefined ? clearance.plungeBetaDeg : rotDegG;
   const stockTopXG = (prms.stockMode === 'casting' && stockWorldPoints.length > 0)
     ? Math.max(...stockWorldPoints.map(p => p.xReal))
     : (parseFloat(prms.stockDiameter) || 100) / 2;
@@ -590,13 +596,13 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
     // přesnou tečnou). Čáry, které pak leží ve stínu jiné (rovnoběžné, výš),
     // potlačí markDominatedGuides v contourBuild.js — zbydou jen ty, které
     // opravdu něco ohraničují.
-    for (const s of grp) {
+    if (wantKindG('dojezd')) for (const s of grp) {
       const lp = low ? violatingPts(s, true) : [];
       if (lp.length) addGuide(rotDegG + tipDegG, 'dojezd', lp, [s]);
     }
-    for (const s of grp) {
+    if (wantKindG('zanoreni')) for (const s of grp) {
       const hp = high ? violatingPts(s, false) : [];
-      if (hp.length) addGuide(rotDegG, 'zanoreni', hp, [s]);
+      if (hp.length) addGuide(betaZanoreniG, 'zanoreni', hp, [s]);
     }
   }
   return interferenceGuides;

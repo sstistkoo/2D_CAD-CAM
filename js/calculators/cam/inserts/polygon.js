@@ -25,6 +25,16 @@ export function polygonInsert(prms) {
     // kladné = hrana hřbetu u pravých stěn kapes).
     hasFlankGeometry: true,
     tiltedFlank: tiltDeg > 0.01,
+    // Obě mezní čáry: čelní hrana ('dojezd', natočení + vrchol) i spodní
+    // ('zanoreni', natočení). Beze změny — tady je hlídání hotové.
+    guideKinds: ['dojezd', 'zanoreni'],
+    plungeGuide: false,
+    // Zvednutí programovaného bodu nad řezaný povrch (viz round.js): rádius
+    // nosu je tu 0,4–1,2 mm, tedy pod rozlišením, na kterém jsou dráhy
+    // těchto plátků odladěné. Ponecháno na 0, aby se hloubková
+    // posloupnost nepohnula — posun celé mřížky je měřeně ztrátový
+    // (viz komentář u `depths` v ops/roughLong.js).
+    noseLiftX: 0,
     envelopeAlongContour: false,
     mergesOverHump: true,
   };

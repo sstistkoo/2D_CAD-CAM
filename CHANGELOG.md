@@ -7,7 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CAM – kulatá destička: Hloubka (ap) se počítala od STŘEDU nosu, ne od
+  břitu.** Hloubky průchodů jsou v souřadnicích dráhy (střed nosu), silueta
+  polotovaru v souřadnicích povrchu — dvě soustavy lišící se přesně o rádius
+  nosu. U polygonálních plátků (R 0,4–1,2) to bylo pod rozlišením, u kulaté
+  R 10 brala první tříska `ap + R`: na válci r 50 při ap 2,5 vyšel první
+  průchod na X 49,25, tedy břit na r 39,25 → **10,75 mm místo 2,5**. Nově se
+  kotva posloupnosti zvedá o `noseLiftX` (`js/calculators/cam/inserts/
+  round.js`) a oba dotazy „sahá sem polotovar?" — `stockZRangeAt` i strop
+  obalu booleovské větve s `stockCrossingsAt` — se ptají na hloubku BŘITU.
+  Na dílu z odlitku měřená tloušťka třísky: **10,74 → 0,74 / 1,76 / 2,50 /
+  2,50 …** (první dvě jsou skimové vrstvy nad nakreslenou siluetou, ty jsou
+  tenčí záměrně) a tříska 9,76 mm přes válec r 21,803 zmizela úplně.
+  Ostatní tvary mají `noseLiftX: 0`, takže se jejich mřížka nehnula.
+- **CAM – zanořovací rampa mohla projet skrz hotovou konturu.** Uzavírací krok
+  zanořovacího řetězu přímku jen dopočítal z kotvy a hloubky; testoval nanejvýš
+  dosedací bod, ve větvi s intervalem ze skenu nic. Na dílu s kulatou destičkou
+  R 10 tak `Rampa 45,0°` jela celou délkou pod offsetem kontury a ukrojila
+  **36,8 mm²** hotového tvaru (celkem 42,0 mm² zajetí). Nově se testuje celá
+  úsečka rampy (`rampClearOfContour` v `js/calculators/cam/ops/long/
+  entryRamp.js`).
+
 ### Added
+- **CAM – mezní čáry hlídání geometrie i pro kulatou destičku.** Dosud jí
+  nevznikala ani jedna (`getToolClearanceRange` vrací pro nepolygonální tvary
+  `null`), přestože omezení má: pod stěnu strmější, než jakou stihne sjet, se
+  nedostane. Nově se z pole **„Úhel zanoření (°)"** odvodí táž čára
+  `zanoreni`, jakou dostává polygon ze svého natočení — a jen ona: čelní hranu
+  („dojezd") kulatý plátek nemá, tak se nehlídá. Čára je HRANICE, ne řez —
+  konturu nepřemosťuje ani nedělí na úseky (`getPlungeGuardRange`
+  v `js/calculators/cam/contourBuild.js`, pravidla v `cam/inserts/round.js`).
+- **CAM – regresní fixture pro kulatou destičku v podélném hrubování**
+  (`tests/fixtures/cam/part-22-round-r10.camprog`). Z 28 fixtures byla dosud
+  kulatá destička jen v jedné, a ta jede ČELNÍ strategií — podélné hrubování
+  kulatým plátkem nehlídalo nic.
+
+  Otisk (`scripts/cam_fingerprint.mjs`) je u všech 28 původních fixtures
+  **shodný** — žádná z těchto změn nemění dráhy jiných plátků.
 - **Nástroj Offset umí konečně SKUTEČNÝ paralelní offset** (dosud dělal
   navzdory názvu i vlastní dokumentaci jen posun kopie o vzdálenost pod
   úhlem). Dialog má nově dva režimy: **∥ Paralelní** (výchozí – obrys ve

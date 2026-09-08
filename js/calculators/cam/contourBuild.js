@@ -3,9 +3,10 @@ import {
   intersectLinesInfinite, findSegIntersection, getSegEnd, getSegStart,
   setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint,
   segStartPoint, syncArcEndpoints, reverseSeg, pointOnSegInterior,
-  _locateOnContour, intersectSegAtZ, TRIM_TOL, LOOP_INTERIOR_MIN,
+  _locateOnContour, intersectSegAtZ, getEffectivePlungeAngle, TRIM_TOL, LOOP_INTERIOR_MIN,
 } from './camMath.js';
 import { guidePolyPoints, guideBridgePts, mkBridgeSegs } from './interferenceGuides.js';
+import { getInsert } from './inserts/index.js';
 
 // Úhlový rozsah normál kontury, který destička daného tvaru pokryje bez
 // záběru bočním ostřím (vrcholový úhel ε omezuje, jak moc se může povrch
@@ -20,6 +21,36 @@ export function getToolClearanceRange(prms, flipX) {
   const clearRad = (parseFloat(prms.toolClearanceAngle) || 0) * Math.PI / 180;
   return { bisector, halfRange, clearRad };
 }
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MEZ ZANOŘENÍ — destička bez nakloněného boku (kulatá)         ║
+// ╚══════════════════════════════════════════════════════════════╝
+// Kulatá destička je celá nos: nemá rovnou hranu, která by šla o konturu,
+// takže `getToolClearanceRange` pro ni vrací null a mezní čáry jí dosud
+// nevznikaly ŽÁDNÉ. Omezení ale má — ÚHEL ZANOŘENÍ: pod stěnu strmější, než
+// jakou stihne sjet, se nedostane. Tahle funkce z toho úhlu udělá TÝŽ
+// úhlový rozsah, jaký polygon dostává ze svého tvaru, jen JEDNOSTRANNÝ:
+//   • horní mez = úhel zanoření + 90° → vydá se čára 'zanoreni' pod úhlem
+//     zanoření (přesně jako u polygonu, kde je ten úhel = |natočení|),
+//   • dolní mez se nehlídá — čelní hrana neexistuje, takže žádný 'dojezd'
+//     (rozhodnutí uživatele 7. 9. 2026).
+// Úhel bere `getEffectivePlungeAngle`, tedy POLE „Úhel zanoření (°)" —
+// auto 45° u kulaté, nebo ručně zadanou hodnotu.
+export function getPlungeGuardRange(prms, flipX) {
+  const ins = getInsert(prms);
+  if (!ins.plungeGuide) return null;
+  const plungeDeg = getEffectivePlungeAngle(prms);
+  const plungeRad = plungeDeg * Math.PI / 180;
+  return {
+    bisector: flipX ? -plungeRad : plungeRad,
+    halfRange: Math.PI / 2,
+    clearRad: 0,
+    // Jen horní strana rozsahu — viz `highOnly` v segInterferesWithTool.
+    highOnly: true,
+    kinds: ins.guideKinds || ['zanoreni'],
+    plungeBetaDeg: plungeDeg,
+  };
+}
+
 // Test jednoho segmentu kontury proti úhlovému rozsahu destičky —
 // true = destička by při sledování segmentu špičkou zajela bočním
 // ostřím do materiálu (normála segmentu mimo pokrytý rozsah).
@@ -35,13 +66,17 @@ const INSERT_REACH_TOL = 1.5 * Math.PI / 180;
 // ale v tomto "bonusovém" pásmu koliduje hřbet s materiálem.
 // clearRad = 0 (negativní plátka, α=0) → chování beze změny, žádná flank zóna.
 export function segInterferesWithTool(seg, clearance) {
-  const { bisector, halfRange, clearRad = 0 } = clearance;
+  const { bisector, halfRange, clearRad = 0, highOnly = false } = clearance;
   // Bez vůle: geometrická mez + tolerance. S vůlí: rozšířeno o clearRad.
   const tipLim   = halfRange + clearRad + INSERT_REACH_TOL;  // za touto mezí ani s α nedosáhne
   const flankLim = halfRange + INSERT_REACH_TOL;             // bez α nedosáhne, s α dosáhne (flank zóna)
 
   function checkNormal(normAngle) {
-    const diff = Math.abs(normalizeAngle(normAngle - bisector));
+    // `highOnly` = rozsah je jednostranný (mez zanoření u kulaté destičky):
+    // odchylka se bere SE ZNAMÉNKEM, takže normály POD dolní mezí — čelní
+    // stěny, na které nos dosáhne bez problémů — nic nespustí.
+    const dev = normalizeAngle(normAngle - bisector);
+    const diff = highOnly ? dev : Math.abs(dev);
     if (diff > tipLim) return 'tip';
     if (clearRad > 0 && diff > flankLim) return 'flank';
     return null;
