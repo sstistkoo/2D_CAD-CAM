@@ -1901,8 +1901,11 @@ export function openCamSimulator(initialContour, initialGCode) {
           });
           // Čelní mezní čára končící na polotovaru (downOnStock) = PLNÁ (mění
           // obrobitelnou konturu); ostatní mezní čáry čárkovaně.
+          // PLNÁ je i mez ZANOŘENÍ kulaté destičky (`plungeLimit`): konturu
+          // sice nemění, ale je to stejně platná mez jako u polygonu a
+          // uživatel ji chce vidět stejně (rozhodnutí 8. 9. 2026).
           ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-          ctx.setLineDash(g.downOnStock ? [] : [8, 4]); ctx.stroke(); ctx.setLineDash([]);
+          ctx.setLineDash((g.downOnStock || g.plungeLimit) ? [] : [8, 4]); ctx.stroke(); ctx.setLineDash([]);
           // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X).
           // Dva offsety jako u kontury: dokončovací (jen R) a hrubovací
           // (R + Přídavek X/Z + Přídavek na hotovo) — po jednotlivých úsecích.
