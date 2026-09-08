@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – kulatá destička sjížděla na hloubku KOLMO.** Poslední kousek příjezdu
+  se dojíždí posuvem a jeho délka je `Vůle + rádius nosu` — u R 5 tedy 6 mm
+  svislého zápichu, u R 10 rovných 11, bez ohledu na nastavený **Úhel zanoření**.
+  Nově se ten kousek u kulaté destičky sjíždí ŠIKMO pod úhlem zanoření: nástroj
+  couvne v Z o `dx/tg(úhel)` do už obrobeného prostoru a odtud dojede diagonálou
+  přesně na cíl (cíl se nemění, mění se jen cesta k němu). Couvnutí je
+  rychloposuv a testuje se proti zbytku, plánovacímu obrysu **i držáku** — bez
+  té poslední podmínky přibyla tvrdá kolize, protože držák je v Z přes 20 mm
+  dlouhý a couvnutí ho odsune na neobrobenou stranu. Když test neprojde, zůstane
+  dnešní radiální sjezd.
+- **CAM – kotva zanořovací rampy seděla na povrchu polotovaru, ne na dráze.**
+  `offsetStockTopXAtZ` vrací povrch, ale odběratelé z ní staví polohu
+  programovaného bodu, který leží o rádius nosu výš — sjíždělo se tedy až
+  o `R` pod kotvu.
+
+  Měřeno na dílu uživatele (kulatá R 5, ap 2,5, úhel zanoření 45°): řezné
+  pohyby strmější než zadaný úhel **57 → 43**, úběr **5 002,3 → 5 232,4 mm²**,
+  zajetí do hotové kontury 0, tvrdé kolize beze změny. Obě změny jdou přes
+  pravidla plátku (`rampedApproach`, `noseLiftX` v `cam/inserts/`), takže otisk
+  ostatních 28 dílů je beze změny.
+
+### Fixed
 - **CAM – hrubování jelo tytéž dráhy víckrát.** Průchody „kapsa po kontuře"
   sledují JEDNU sdílenou offsetovou dráhu, takže hlubší průchod měl s mělčím
   vždycky společnou HLAVU nájezdu — a tu projel znovu. Ořez duplicit v repu

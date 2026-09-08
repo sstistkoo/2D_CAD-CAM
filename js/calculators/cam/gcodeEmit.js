@@ -13,6 +13,7 @@ import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLin
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
+import { getInsert } from './inserts/index.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { roughingKey } from './calculatePipeline.js';
 import { mergeCollinearMoves } from './gcodeCollapse.js';
@@ -652,6 +653,49 @@ export function generateAutoGCode(S, calc) {
   // (na part-10-zapich ~13 mm² grazing). Práh `rapidHitsStock` je stejný jako
   // jinde → skin-grazing pod ním se nechytá (part-1..9 beze změny).
   // Polohu si volající nastaví sám (setPos).
+  // ── SJEZD NA HLOUBKU POD ÚHLEM ZANOŘENÍ ────────────────────────────────
+  // Poslední kousek příjezdu se dojíždí POSUVEM. Dosud vždycky radiálně,
+  // tedy 90° — a jeho délka je `Vůle + R`, takže u kulaté destičky R 5 to
+  // je 6 mm svislého zápichu a u R 10 rovných 11. Plátek, který má úhel
+  // zanoření < 90°, tohle dělat nemá (opakovaný nález uživatele:
+  // `N4700 G1 X17.045` = 6 mm kolmo při nastavených 45°).
+  //
+  // Místo svislice se sjede ŠIKMO pod úhlem zanoření: nástroj nejdřív
+  // couvne v Z o `dx/tg(úhel)` PROTI směru řezu (tam, odkud přijel, tedy
+  // do už obrobeného prostoru) a odtud dojede diagonálou přesně na cíl.
+  // Cíl se tím NEMĚNÍ — mění se jen, jak se k němu dojede.
+  //
+  // Couvnutí je RYCHLOPOSUV a testuje se proti zbytku i plánovacímu obrysu;
+  // když na cokoli narazí, zůstane dnešní radiální sjezd. Zapnuté je jen
+  // pro plátky s `rampedApproach` (kulatá) — ostatní mají ten kousek 1,8 mm
+  // a dráhy jsou na něj odladěné.
+  const insEmit = getInsert(prms);
+  const rampedApproachOn = !!insEmit.rampedApproach && entryAngleDegGc < 89.5;
+  const approachZDir = roughingKey(S) === 'backside' ? -1 : 1;
+  const emitFeedToDepth = (fromX2, tx, tz) => {
+    const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+    const dx = fromX2 - tx;
+    const tanA = Math.tan(entryRadGc);
+    if (rampedApproachOn && dx > 0.05 && tanA > 1e-9) {
+      const dz = dx / tanA;
+      const zBack = clipZGc(tz + approachZDir * dz);
+      // DRŽÁK SE COUVNUTÍM POSUNE TAKY, a je v Z přes 20 mm dlouhý — couvnutí
+      // ho odsune na NEOBROBENOU stranu (táž past jako u „odstup v Z posouvá
+      // i držák" níž). Bez téhle podmínky přibyla na dílu uživatele jedna
+      // tvrdá kolize držáku (4 → 5) a další se prohloubila. Testuje se jak
+      // samotné couvnutí, tak diagonála z něj na cíl.
+      if (Math.abs(zBack - tz) > 1e-6
+          && !rapidHitsStock(fromX2, tz, fromX2, zBack)
+          && !rapidHitsPlan(fromX2, tz, fromX2, zBack)
+          && !holderHitsRapid(fromX2, tz, fromX2, zBack)
+          && !holderHitsRapid(fromX2, zBack, tx, tz)) {
+        emit(`G0 Z${zBack.toFixed(3)}`);
+        emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}${note('', `Zanoření ${entryAngleDegGc.toFixed(1)}°`)}`);
+        return;
+      }
+    }
+    emit(`G1 X${xDia(tx)} F${prms.feed}`);
+  };
   const emitDescendX = (fromX, tx, tz, touch) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     if (fromX - tx > 1e-6 && (rapidHitsStock(fromX, tz, tx, tz) || rapidHitsPlan(fromX, tz, tx, tz))) {
@@ -659,13 +703,14 @@ export function generateAutoGCode(S, calc) {
       if (surf !== null) {
         const floorX = Math.min(fromX, Math.max(tx, surf));
         if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
-        if (floorX - tx > 1e-6) emit(`G1 X${xDia(tx)} F${prms.feed}`);
+        if (floorX - tx > 1e-6) emitFeedToDepth(floorX, tx, tz);
         return;
       }
     }
     if (touch && fromX - tx > 1e-6) {
-      if (fromX - tx > rapidStopX + 1e-6) emit(`G0 X${xDia(tx + rapidStopX)}`);
-      emit(`G1 X${xDia(tx)} F${prms.feed}`);
+      const startX = fromX - tx > rapidStopX + 1e-6 ? tx + rapidStopX : fromX;
+      if (startX < fromX - 1e-6) emit(`G0 X${xDia(startX)}`);
+      emitFeedToDepth(startX, tx, tz);
     } else if (Math.abs(fromX - tx) > 1e-6) {
       emit(`G0 X${xDia(tx)}`);
     }

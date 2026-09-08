@@ -374,7 +374,16 @@ export function genLongPasses(ctx) {
   // rozpor trvá, oprava kotvy vyrábí kolize rychleji, než opravuje třísky.
   // Odemyká ji sjednocení zbytku emise se skutečnou dráhou (viz
   // `project_cam-shared-residual-model-next`), ne další podmínka tady.
-  const offsetStockTopXAtZ = (z) => topXOnLoop(stockLoopOffsetL, z);
+  // Vrací polohu DRÁHY (středu nosu), ne povrch: odběratelé z ní staví KOTVU
+  // RAMPY, tedy místo, kam nástroj postaví programovaný bod — a ten leží
+  // o rádius nosu nad plochou, kterou řeže. Bez `noseLiftL` sedí kotva
+  // rovnou na povrchu, takže se k ní sjíždí `vůle + R` KOLMO (u R 5 šest
+  // milimetrů) — opakovaný nález uživatele „kolmý vjezd, nemám 90°
+  // zanořování".
+  const offsetStockTopXAtZ = (z) => {
+    const t = topXOnLoop(stockLoopOffsetL, z);
+    return t === null ? null : t + noseLiftL;
+  };
 
   // Sken překážek a konce rovných úseků — viz ops/long/runScan.js.
   const { pocketBestX, dzScan, blockedAt, refineEngageZ, straightRunEndZ, stockRunEndZ, stockRunBackZ } =
@@ -961,7 +970,7 @@ export function genLongPasses(ctx) {
         && intervals.length === 0 && !entryRampAnchor) {
       // Válcová obdoba offsetové čáry (bez smyčky není co offsetovat).
       // Přídavky (polo.) = 0 → povrchem je přímo poloměr polotovaru.
-      const stockSurfX = sRad + (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x);
+      const stockSurfX = sRad + noseLiftL + (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x);
       // Kotvu posuň ZA hranici úseku, kam až pustí držák (holderEntryReachZ) —
       // jinak rampa vjíždí doprostřed údolí a jeho druhá půlka zůstane stát.
       // Strop je ÚSTÍ údolí (`zHiMouth`): dál už údolí není, tam by se kotva

@@ -42,6 +42,8 @@ export function partingInsert(prms) {
     // posloupnost nepohnula — posun celé mřížky je měřeně ztrátový
     // (viz komentář u `depths` v ops/roughLong.js).
     noseLiftX: 0,
+    // Sjezd na hloubku zůstává radiální (viz `rampedApproach` v round.js).
+    rampedApproach: false,
     envelopeAlongContour: true,
     // Sloučení vrstvy přes nízký hrb (27. 8. 2026). U ostatních tvarů zatím
     // vypnuté: spouštělo se na drobných rozdílech hranic intervalů a rozvedlo

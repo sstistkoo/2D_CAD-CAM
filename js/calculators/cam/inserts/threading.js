@@ -29,6 +29,8 @@ export function threadingInsert(prms) {
     // posloupnost nepohnula — posun celé mřížky je měřeně ztrátový
     // (viz komentář u `depths` v ops/roughLong.js).
     noseLiftX: 0,
+    // Sjezd na hloubku zůstává radiální (viz `rampedApproach` v round.js).
+    rampedApproach: false,
     envelopeAlongContour: false,
     mergesOverHump: false,
   };

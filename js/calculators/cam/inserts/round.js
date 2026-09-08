@@ -46,6 +46,13 @@ export function roundInsert(prms) {
     // U kulaté destičky je to celý rádius (R 8–12 běžně), takže nález
     // uživatele 7. 9. 2026: ap 2,5 a R10 → první tříska 10,75 mm.
     noseLiftX: R,
+    // SJEZD NA HLOUBKU JDE POD ÚHLEM ZANOŘENÍ, NE KOLMO. Poslední kousek
+    // příjezdu se dosud dojížděl radiálně o `Vůle + R` — u kulaté R 5 tedy
+    // 6 mm svisle, u R 10 rovných 11. To je zápich, a ten tenhle plátek
+    // dělat nemá (opakovaný nález uživatele). Ostatní tvary si drží dnešní
+    // chování, dokud pro ně nebude vlastní měření — u nich je ten kousek
+    // 1,8 mm a dráhy jsou na něj odladěné.
+    rampedApproach: true,
     // Sjezdy/dojezdy po OBÁLCE plátku (široký bok) — jen upichovák.
     envelopeAlongContour: false,
     // Sloučení vrstvy přes nízký hrb — změřeno zatím jen u upichováku.
