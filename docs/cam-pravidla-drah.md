@@ -186,9 +186,47 @@ rozsah, jaký polygon dostává ze svého tvaru, jen JEDNOSTRANNÝ:
 **Čára kulaté destičky je HRANICE, ne ŘEZ.** Do `buildMachinableContour` se
 NEPOSÍLÁ (`plungeLimit: true`): u polygonu most nahrazuje úsek, kam se hrot
 NEDOSTANE, ale kulatý nos se na tutéž stěnu dostane — jen se k ní nesjede
-rampou. Přemostit ji by umazalo materiál, který nástroj vzít umí. Ze stejného
-důvodu ji přeskakuje `guideStaysInStock` (`ops/long/regions.js`). Ověřeno
+rampou. Přemostit ji by umazalo materiál, který nástroj vzít umí. Ověřeno
 otiskem: na 28 fixtures se program nezměnil.
+
+**Na DĚLENÍ ÚSEKŮ se ale počítá** (`guideStaysInStock`, `ops/long/regions.js`).
+Nejdřív tu byla přeskakovaná; uživatel to 8. 9. 2026 opravil — pravidlo
+*„dělí jen čára, co VYJEDE z polotovaru"* je jedno pro všechny plátky.
+Zároveň se opravil jeho opačný konec: **není-li v ústí údolí ŽÁDNÁ čára,
+nic tam dosah neomezuje, takže hranice NEPLATÍ.** Dokud se vracelo `found`,
+znamenala nepřítomnost čáry pravý opak. U polygonu to nebylo vidět (při
+úhlu zanoření 15° čára v ústí skoro vždycky je), kulatá při 45° žádnou
+nevydá — a konec dílu se jí proto rozpadl na dva úseky, ačkoli polygon
+tentýž tvar bere vcelku a mezeru přeletí rychloposuvem.
+
+Změřeno na `part-22-round-r10` (ústí Z 31,9…52,5): úseky 4 → 3, průchodů
+61 → 59, úběr 4 865,8 → 4 804,7 mm², zajetí do kontury 0, tvrdé kolize 0.
+Otisk: změnil se JEN tenhle díl. Cena je 2 nové nálezy v pesimistickém
+offsetovém standardu (rapid @r40,10 = 2× 1,47 mm²) — přejezd v Z na řezné
+hloubce, tedy táž otevřená věc jako u `safeRapidTo` níž.
+
+### 3.2b Dojezd na hranu materiálu stojí „vůle + RÁDIUS NOSU"
+
+Rychloposuv se před hranou materiálu zastaví o `rapidStopZ = Vůle Z + R`
+a zbytek se dojede POSUVEM („bezpečný dotek", `ops/roughEmit.js`). Je to
+geometricky správně — nos se hranou dotkne, až když jeho střed dojede o R
+blíž — ale s velkým rádiusem to dominuje programu:
+
+| | polygon R 0,8 | kulatá R 10 |
+|---|---|---|
+| pohybů posuvem jedoucích vzduchem | 17 | **47** |
+| celkem | **26,5 mm** | **457,7 mm** |
+| na jeden průchod | ~2 mm | **~11 mm** |
+
+Uživatel to 8. 9. 2026 nahlásil jako *„teď to přejíždí všechno posuvem"*
+(u polygonu se tentýž vzduch přeletí rychloposuvem). **OTEVŘENÉ.** Pozor
+při opravě: část těch 11 mm je SKUTEČNÝ ZÁBĚR (nos se do stěny zavaluje
+postupně), ne vzduch — měřítko „dno nosu vs. obrys na Z středu" to
+nadhodnocuje. Bezpečná cesta je rozsekat i ten dojezd přes
+`airSplitAxial`, ne zkrátit `rapidStopZ`: to by pustilo rychloposuv na
+stěnu.
+
+---
 
 ### 3.3 Kapsa za bossem
 

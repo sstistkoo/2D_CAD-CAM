@@ -165,16 +165,24 @@ export function makeRegions(deps) {
       // Jen čáry zanoření (kam destička nedosáhne při sjíždění do údolí);
       // 'dojezd' je opačná strana břitu a o dělení úseků nevypovídá.
       if (g.kind !== 'zanoreni') continue;
-      // Čára meze ZANOŘENÍ (kulatá destička) mluví o úhlu sjezdu, ne
-      // o dosahu břitu — o dělení na úseky nerozhoduje.
-      if (g.plungeLimit) continue;
+      // MEZ ZANOŘENÍ KULATÉ DESTIČKY SE POČÍTÁ TAKY. Nejdřív tu stálo, že
+      // mluví o úhlu sjezdu, ne o dosahu břitu — uživatel to 8. 9. 2026
+      // opravil: pravidlo je jedno pro všechny plátky.
       const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
       // Leží čára v ústí TOHOTO údolí?
       if (Math.max(a.z, b.z) < s.zLo - 1e-9 || Math.min(a.z, b.z) > s.zHi + 1e-9) continue;
       if (!inStock(a) || !inStock(b)) return false;   // vyjíždí ven → hranice platí
       found = true;
     }
-    return found;
+    // ŽÁDNÁ ČÁRA V ÚSTÍ = NIC TU DOSAH NEOMEZUJE → hranice neplatí.
+    // Pravidlo zní „dělí jen čára, co VYJEDE z polotovaru"; dokud se
+    // vracelo `found`, znamenala NEPŘÍTOMNOST čáry pravý opak (hranice
+    // zůstala). U polygonu to nebylo vidět — při úhlu zanoření 15° čára
+    // v ústí skoro vždycky je. Kulatá destička při 45° žádnou nevydá,
+    // takže se jí konec dílu rozpadl na dva úseky, ačkoli polygon tentýž
+    // tvar bere vcelku a mezeru přeletí rychloposuvem (nález uživatele
+    // 8. 9. 2026, ústí Z 31,9…52,5).
+    return true;
   };
   // ── Který split je opravdu potřeba ────────────────────────────────────
   // Druhý test: i údolí, které destička nedělí, je jen SIGNÁL, ne důvod dělit

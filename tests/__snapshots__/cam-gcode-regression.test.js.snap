@@ -12187,51 +12187,41 @@ N3140 G1 Z82.494 F0.25
 N3150 G1 X27.052 F0.25
 N3160 G3 X29.559 Z81.244 CR=16.476 F0.25
 N3170 G1 X31.559 Z83.244
-; Průchod 56 (kapsa po kontuře)
-N3180 G0 X38.460 ; Výjezd nad konturu
-N3190 G0 Z61.332
-N3200 G1 X37.456 F0.25
-N3210 G1 X37.456 Z55.471 F0.25
-N3220 G3 X34.554 Z46.099 CR=16.557 F0.25
-N3230 G1 X34.545 F0.25
-N3240 G1 Z35.032 F0.25
-N3250 G1 X36.545 Z37.032
+; Průchod 56
+N3180 G0 X40.100 ; Výjezd nad konturu
+N3190 G0 Z29.957
+N3200 G0 X47.045
+N3210 G1 Z-9.000 F0.25
+N3220 G1 X49.045 Z-7.000
 ; Průchod 57 (kapsa po kontuře)
-N3260 G0 X38.460 ; Výjezd nad konturu
-N3270 G0 Z61.332
-N3280 G1 X37.456 F0.25
-N3290 G1 X37.456 Z55.471 F0.25
-N3300 G3 X33.246 Z44.431 CR=16.557 F0.25
-N3310 G2 X32.035 Z42.894 CR=13.925 F0.25
-N3320 G1 Z35.032 F0.25
-N3330 G1 X34.045 Z37.032
-; Průchod 58
-N3340 G0 X75.545 ; Výjezd nad konturu
-N3350 G0 Z29.957
-N3360 G0 X47.045
-N3370 G1 Z-9.000 F0.25
-N3380 G1 X49.045 Z-7.000
-; Průchod 59
-N3390 G0 Z33.369
-N3400 G0 X44.545
-N3410 G1 Z-9.000 F0.25
-N3420 G1 X46.545 Z-7.000
-; Průchod 60
-N3430 G0 Z35.887
-N3440 G0 X42.045
-N3450 G1 Z-9.000 F0.25
-N3460 G1 X44.045 Z-7.000
-; Průchod 61 (bez schodků)
-N3470 G0 Z39.818
-N3480 G0 X39.545
-N3490 G1 Z17.007 F0.25
-N3500 G1 X39.550 F0.25
-N3510 G3 X40.966 Z9.503 CR=20.545 F0.25
-N3520 G1 X40.966 Z-4.993 F0.25
-N3530 G1 X42.966 Z-2.993
-N3540 G0 X150.000 ; Výjezd nad konturu
-N3550 G0 Z5.000
-N3560 M30 ; Konec programu
+N3230 G0 Z61.332
+N3240 G0 X48.456
+N3250 G1 X37.456 F0.25
+N3260 G1 X37.456 Z55.471 F0.25
+N3270 G3 X37.050 Z51.819 CR=16.557 F0.25
+N3280 G1 X37.045 F0.25
+N3290 G1 Z21.581 F0.25
+N3300 G1 X39.045 Z23.581
+; Průchod 58 (kapsa po kontuře)
+N3310 G0 Z61.332
+N3320 G1 X37.456 F0.25
+N3330 G1 X37.456 Z55.471 F0.25
+N3340 G3 X34.554 Z46.099 CR=16.557 F0.25
+N3350 G1 X34.545 F0.25
+N3360 G1 Z24.427 F0.25
+N3370 G1 X36.545 Z26.427
+; Průchod 59 (kapsa po kontuře)
+N3380 G0 X38.460 ; Výjezd nad konturu
+N3390 G0 Z61.332
+N3400 G1 X37.456 F0.25
+N3410 G1 X37.456 Z55.471 F0.25
+N3420 G3 X33.246 Z44.431 CR=16.557 F0.25
+N3430 G2 X32.035 Z42.894 CR=13.925 F0.25
+N3440 G1 Z27.232 F0.25
+N3450 G1 X34.045 Z29.232
+N3460 G0 X150.000 ; Výjezd nad konturu
+N3470 G0 Z5.000
+N3480 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -12299,7 +12289,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 61,
+  "passCount": 59,
   "passTags": [
     "long",
     "long",
@@ -12356,12 +12346,10 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
     "long{contourLeadOut,blocked}",
-    "long{contourLeadIn}",
-    "long{contourLeadIn}",
     "long",
-    "long",
-    "long",
-    "long{contourLeadOut,blocked}",
+    "long{contourLeadIn,blocked}",
+    "long{contourLeadIn,blocked}",
+    "long{contourLeadIn,blocked}",
   ],
 }
 `;
@@ -12376,7 +12364,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
   "HARD: KOLIZE (Řádek 25): Rádius kontury menší než nástroj.",
   "POZNÁMKA: V 2 místech nedojde ke kompletnímu obrobení.",
   "Hlídání geometrie (držák): 1 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
-  "Kontrola plánu: 13 průchod(ů) jede VZDUCHEM — na té hloubce nad nimi nikde nestojí materiál (r 73.795 Z 256.496…196.278; r 72.045 Z 257.122…196.278; r 69.545 Z 258.016…196.278; …). Dráhy jsou vydané, ale nic neodeberou.",
+  "Kontrola plánu: 11 průchod(ů) jede VZDUCHEM — na té hloubce nad nimi nikde nestojí materiál (r 73.795 Z 256.496…196.278; r 72.045 Z 257.122…196.278; r 69.545 Z 258.016…196.278; …). Dráhy jsou vydané, ale nic neodeberou.",
   "Kontrola plánu: 1 průchod(ů) PŘEJELO hranici svého úseku (r 17.134 Z 174.673…170.473 přes Z 172.532). Podmínka „nepřejíždět, dokud není celá strana hotová" (docs/cam-pravidla-drah.md §6.0) je porušená.",
   "Z-limity (čelisti/koník): 7 hrubovacích vynecháno.",
 ]

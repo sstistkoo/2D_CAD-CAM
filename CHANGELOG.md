@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – konec dílu se u kulaté destičky rozpadal na dva úseky.** Pravidlo
+  „dělí jen čára hlídání geometrie, která VYJEDE z polotovaru" mělo
+  obrácený druhý konec: když v ústí údolí nebyla ŽÁDNÁ čára,
+  `guideStaysInStock` hranici ponechal, ačkoli tam nic dosah neomezuje.
+  U polygonálních plátků to nebylo vidět (při úhlu zanoření 15° čára
+  v ústí skoro vždycky je), kulatá destička při 45° žádnou nevydá — konec
+  dílu se jí proto obráběl na dvakrát, místo aby se vzal vcelku a mezera
+  přeletěla rychloposuvem, jak to dělá polygon. Zároveň se do rozhodování
+  začala počítat i mez zanoření kulaté destičky (dřív se přeskakovala).
+  Změřeno na `part-22-round-r10`: úseky 4 → 3, průchodů 61 → 59, zajetí do
+  hotové kontury 0, tvrdé kolize 0; otisk ostatních 28 dílů beze změny.
+
+### Fixed
 - **CAM – kulatá destička: Hloubka (ap) se počítala od STŘEDU nosu, ne od
   břitu.** Hloubky průchodů jsou v souřadnicích dráhy (střed nosu), silueta
   polotovaru v souřadnicích povrchu — dvě soustavy lišící se přesně o rádius
