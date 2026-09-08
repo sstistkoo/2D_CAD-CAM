@@ -1604,8 +1604,31 @@ export function genLongPasses(ctx) {
       if (!p || p.type !== 'long') continue;
       const li = p.contourLeadIn;
       if (Array.isArray(li) && li.length > 0) {
-        if (p.ramp && reg.duplicatePrefix(li) === li.length) { delete p.contourLeadIn; dropped++; }
-        else reg.note(li);
+        // ── NÁJEZD SE ORÁZÁVÁ I ČÁSTEČNĚ ───────────────────────────────
+        // „Kapsa po kontuře" sleduje JEDNU sdílenou offsetovou dráhu, takže
+        // hlubší průchod má s mělčím vždycky společnou HLAVU — a ta se
+        // jela znovu. Nález uživatele 8. 9. 2026 (kulatá R 5): 65 řezných
+        // pohybů se jelo víckrát (oblouk `G3 X35.966 Z9.503` pětkrát) a
+        // 404 ze 694 řezných pohybů neubralo NIC — 730 mm posuvu naprázdno.
+        //
+        // PROČ JE ČÁSTEČNÝ OŘEZ BEZPEČNÝ I BEZ RAMPY. Duplicitní prefix je
+        // z definice dráha, kterou už dřívější průchod PROJEL — prostor
+        // podél ní je tedy vyříznutý. Nový začátek navíc leží pořád NA
+        // KONTUŘE (`entry` se bere z `li[0]`, viz ops/roughEmit.js), takže
+        // se k němu dojede běžným `safeRapidTo(…, touch)`: výjezd nad
+        // konturu, přejezd v Z, sjezd na povrch. To je něco jiného než
+        // ZAHOZENÍ CELÉHO nájezdu — tam `entry` spadne na `(pass.x,
+        // pass.zStart)`, tedy na vlastní hloubku průchodu, a nájezd by byl
+        // kolmý zápich (§3.1). Proto u celého zahození podmínka rampy
+        // zůstává, u částečného ořezu ne.
+        const np = reg.duplicatePrefix(li);
+        if (np === li.length) {
+          if (p.ramp) { delete p.contourLeadIn; dropped++; }
+          else reg.note(li);
+        } else {
+          if (np > 0) { li.splice(0, np); trimmed += np; }
+          reg.note(li);
+        }
       }
       const lo = p.contourLeadOut;
       if (Array.isArray(lo) && lo.length > 0) {

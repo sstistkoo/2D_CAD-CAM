@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – hrubování jelo tytéž dráhy víckrát.** Průchody „kapsa po kontuře"
+  sledují JEDNU sdílenou offsetovou dráhu, takže hlubší průchod měl s mělčím
+  vždycky společnou HLAVU nájezdu — a tu projel znovu. Ořez duplicit v repu
+  byl, ale jen jako **všechno-nebo-nic** a podmíněný rampou, takže na tyhle
+  případy nedosáhl. Nově se nájezd ořezává i ČÁSTEČNĚ: bezpečné to je proto,
+  že duplicitní prefix je z definice dráha, kterou už dřívější průchod projel
+  (prostor podél ní je vyříznutý), a nový začátek zůstává NA KONTUŘE, takže se
+  k němu dojede běžným `safeRapidTo` — na rozdíl od zahození CELÉHO nájezdu,
+  kde by vjezd spadl na vlastní hloubku průchodu a byl by z něj kolmý zápich
+  (proto tam podmínka rampy zůstává).
+
+  Změřeno na dílu uživatele (kulatá R 5): duplicitní řezné pohyby **65 → 48**,
+  pohyby, které nic neuberou, **404 → 373**, posuv naprázdno **730 → 548 mm**
+  (−25 %). Úběr na všech 9 dotčených fixtures **beze změny do 0,1 mm²**, tvrdé
+  kolize 0 na všech 29 dílech, zajetí do hotové kontury 0.
+
+### Fixed
 - **CAM – konec dílu se u kulaté destičky rozpadal na dva úseky.** Pravidlo
   „dělí jen čára hlídání geometrie, která VYJEDE z polotovaru" mělo
   obrácený druhý konec: když v ústí údolí nebyla ŽÁDNÁ čára,
