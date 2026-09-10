@@ -12,6 +12,7 @@ import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
+import { bridgePlungeGuidesIntoContour } from './plungeContourBridge.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
@@ -364,6 +365,15 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
              _locateOnContour(machinableContour, { x: g.x2, z: g.z2 }))));
       }
     }
+  }
+
+  // Mezní čára zanoření jako kontura materiálu — viz `plungeContourBridge.js`
+  // (vlastní soubor, protože pravidlo platí JEN pro plátek, který ho má
+  // v `inserts/*.js`; dvakrát se takový zásah rozlil do ostatních tvarů).
+  {
+    const br = bridgePlungeGuidesIntoContour(
+      prms, plungeClearance, machinableContour, contourSegments, interferenceGuides);
+    if (br) ({ machinableContour, contourSegments, interferenceGuides } = br);
   }
 
   // 1. raw offsets — per-axis pro lines (alX v X, alZ v Z), uniformní pro arcs

@@ -23,6 +23,8 @@ export function threadingInsert(prms) {
     // Hlídání geometrie destičky se pro tenhle tvar nepočítá (getToolClearanceRange
     // ani getPlungeGuardRange ho nevydají) — klíč je tu jen pro úplnost.
     guideKinds: [], plungeGuide: false,
+    // Mezní čáru zanoření nevydává, takže konturu řezat nemá čím.
+    plungeGuideCutsContour: false,
     // Zvednutí programovaného bodu nad řezaný povrch (viz round.js): rádius
     // nosu je tu 0,4–1,2 mm, tedy pod rozlišením, na kterém jsou dráhy
     // těchto plátků odladěné. Ponecháno na 0, aby se hloubková

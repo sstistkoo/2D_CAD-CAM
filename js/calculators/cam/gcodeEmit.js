@@ -672,6 +672,32 @@ export function generateAutoGCode(S, calc) {
   const insEmit = getInsert(prms);
   const rampedApproachOn = !!insEmit.rampedApproach && entryAngleDegGc < 89.5;
   const approachZDir = roughingKey(S) === 'backside' ? -1 : 1;
+  // ── SJEZD NA HLOUBKU POD ÚHLEM ZANOŘENÍ ────────────────────────────────
+  // Poslední kousek příjezdu se dojíždí POSUVEM a je dlouhý `Vůle X + R` —
+  // u kulaté destičky R 5 tedy 6 mm svislého zápichu, u R 10 rovných 11.
+  // Plátek, který má úhel zanoření < 90°, tohle dělat nemá (opakovaný nález
+  // uživatele). Místo svislice se sjede ŠIKMO: nástroj couvne v Z
+  // o `dx/tg(úhel)` PROTI směru řezu (do už obrobeného) a odtud dojede
+  // diagonálou přesně na cíl. Cíl se NEMĚNÍ, mění se jen cesta k němu.
+  //
+  // DRŽÁK SE COUVNUTÍM POSUNE TAKY, a je v Z přes 20 mm dlouhý — couvnutí
+  // ho odsune na NEOBROBENOU stranu. Bez téhle podmínky přibyla na dílu
+  // uživatele tvrdá kolize držáku (4 → 5). Testuje se jak samotné couvnutí,
+  // tak diagonála z něj na cíl. Když neprojde, zůstane radiální sjezd.
+  //
+  // ZMĚŘENO A ZAMÍTNUTO 9. 9. 2026 — dvě varianty, jak sjet i tam, kde
+  // couvnutí neprojde (u KONCE DÍLU tam stojí čelo):
+  //   • couvnout na DRUHOU stranu (za konec dílu) a šikmo zpátky — nástroj
+  //     přejede týž kousek třikrát a rampy stojí přímo pod sebou; reálná
+  //     stížnost uživatele („vidíš to, že to je přímo pod sebou“).
+  //   • rampovat DOPŘEDU, do řezu — hloubky se dosáhne o `dz` dál a za
+  //     rampou zůstane klín. Ten pak vezme příští vrstva JEDNOU TŘÍSKOU
+  //     3,9 mm (ap 2,5) a přibude tvrdá kolize rychloposuvu 2,3 mm².
+  //     Nepomohlo ani rampovat jen ŘEZNOU část sjezdu (bez vzduchové vůle
+  //     nahoře): tříska 3,16 mm, kolize 1,1 mm². `ap` je vyslovená podmínka
+  //     uživatele a porušená podmínka opravu ruší.
+  // Na konci dílu tedy zůstává radiální sjezd; průchod je tam kratší
+  // (2,51 mm), než kolik rampa u R 5 potřebuje (3,495 mm).
   const emitFeedToDepth = (fromX2, tx, tz) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     const dx = fromX2 - tx;
@@ -679,11 +705,6 @@ export function generateAutoGCode(S, calc) {
     if (rampedApproachOn && dx > 0.05 && tanA > 1e-9) {
       const dz = dx / tanA;
       const zBack = clipZGc(tz + approachZDir * dz);
-      // DRŽÁK SE COUVNUTÍM POSUNE TAKY, a je v Z přes 20 mm dlouhý — couvnutí
-      // ho odsune na NEOBROBENOU stranu (táž past jako u „odstup v Z posouvá
-      // i držák" níž). Bez téhle podmínky přibyla na dílu uživatele jedna
-      // tvrdá kolize držáku (4 → 5) a další se prohloubila. Testuje se jak
-      // samotné couvnutí, tak diagonála z něj na cíl.
       if (Math.abs(zBack - tz) > 1e-6
           && !rapidHitsStock(fromX2, tz, fromX2, zBack)
           && !rapidHitsPlan(fromX2, tz, fromX2, zBack)
@@ -861,10 +882,19 @@ export function generateAutoGCode(S, calc) {
       // Rozdělení je VŽDYCKY bezpečnější, ne jen jiné: přejezd v Z se udělá
       // na PŮVODNÍ, tedy větší hloubce, takže leží celý nad diagonálou, a
       // teprve pak se sjíždí svisle na cílovém Z.
+      // POSLEDNÍ KOUSEK JDE PŘES `emitFeedToDepth`, NE SYROVÝM `G1 X`.
+      // Tahle větev si sjezd na hloubku emitovala SAMA, takže pravidlo
+      // „sjezd pod úhlem zanoření“ (rampedApproach, viz emitFeedToDepth
+      // výš) ji míjelo — a přitom sem padá většina vjezdů do kapsy.
+      // Nález uživatele 9. 9. 2026 (kulatá R 5, úhel 45°): pět svislých
+      // zápichů, z toho DVA po 6 mm (`N3340 G1 X22.388`, `N4730 G1
+      // X19.911`) — přesně `Vůle X + R`. `emitFeedToDepth` má všechna
+      // hlídání i fallback na dnešní radiální sjezd, takže tvary bez
+      // `rampedApproach` se nehnou.
       if (cur.x - tx > rapidStopX + 1e-6) {
         emit(`G0 Z${tz.toFixed(3)}`);
         emit(`G0 X${xDia(tx + rapidStopX)}`);
-        emit(`G1 X${xDia(tx)} F${prms.feed}`);
+        emitFeedToDepth(tx + rapidStopX, tx, tz);
       } else {
         // ZBYTEK V X je kratší než vůle → ten opravdu patří posuvu. PŘEJEZD
         // V Z ale ne: „zbytek" se měří jen v X a v Z může jít o milimetry,
@@ -877,7 +907,7 @@ export function generateAutoGCode(S, calc) {
         // větvi nad ní): přejezd v Z se udělá na PŮVODNÍ, tedy větší hloubce,
         // takže leží celý nad diagonálou, kterou guard výš prověřil.
         if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
-        emit(`G1 X${xDia(tx)} F${prms.feed}`);
+        emitFeedToDepth(cur.x, tx, tz);
       }
     } else if (cur.x - tx > 1e-6) {
       // Čistý rychloposuv DO menšího průměru — táž úvaha: napřed přejet v Z

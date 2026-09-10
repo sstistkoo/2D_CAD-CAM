@@ -29,6 +29,9 @@ export function polygonInsert(prms) {
     // ('zanoreni', natočení). Beze změny — tady je hlídání hotové.
     guideKinds: ['dojezd', 'zanoreni'],
     plungeGuide: false,
+    // Mezní čára zanoření je u tohohle tvaru jen HRANICE, ne kontura
+    // materiálu — dráhy jsou na to odladěné (viz round.js).
+    plungeGuideCutsContour: false,
     // Zvednutí programovaného bodu nad řezaný povrch (viz round.js): rádius
     // nosu je tu 0,4–1,2 mm, tedy pod rozlišením, na kterém jsou dráhy
     // těchto plátků odladěné. Ponecháno na 0, aby se hloubková

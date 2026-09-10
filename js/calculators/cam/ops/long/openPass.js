@@ -452,6 +452,13 @@ export function emitOpenInterval(D) {
         // Zbytek pod dojezdem zůstává intervalu; dobraný celý → `zStart`
         // dosedne na `zEnd` a smyčka ho vynechá (filtr `< dzScan`).
         q.zStart = coverLo <= q.zEnd + dzScan ? q.zEnd : coverLo;
+        // ZAČÁTEK UŽ NELEŽÍ NA KONTUŘE. Posunul ho DOJEZD, ne geometrie —
+        // kontura v novém `zStart` může být dávno POD hloubkou vrstvy
+        // (tady byla o 4,3 mm). Nájezd po kontuře do takového bodu vede pod
+        // vrstvu a `clipLeadInToDepth` z něj nenechá nic; značka dovolí
+        // `pocketPass.js` zkrátit trasu tam, kde kontura hloubku opouští,
+        // místo aby se vrstva zahodila (viz tam).
+        q.leadOutCoveredTo = coverLo;
       }
     }
     if (leadOut.length > 0) passObj.contourLeadOut = leadOut;

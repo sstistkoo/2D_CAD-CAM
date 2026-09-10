@@ -160,6 +160,72 @@ neposouvá; tam platí bez rozdílu brána o řádek níž.
 > jakým se posuzoval ten posun vjezdu. Výškové pole samo nestačí: o tunelech
 > neví a přesně tu rampu na `pocket-wall-at-plunge-angle` pustilo.
 
+**VÝJIMKA: ZAČÁTEK, KTERÝ POSUNUL DOJEZD — opraveno 9. 9. 2026.** Pravidlo
+„prázdný nájezd = vynechat vrstvu“ platí jen tam, kde nájezd chybí kvůli
+GEOMETRII. Je ale ještě druhá cesta, jak zůstat s prázdnem v ruce, a ta
+o vrstvě nic neříká:
+
+1. Dojezd MĚLČÍHO průchodu („bez schodků“) sleduje konturu dál za konec
+   svého intervalu a kus NÁSLEDUJÍCÍHO intervalu tím na téže hloubce už
+   obrobí. `ops/long/openPass.js` proto tomu intervalu posune začátek dolů
+   (`q.zStart = coverLo`) — správně, ten kus je hotový.
+2. Jenže nový `zStart` **už neleží na kontuře**. Kontura v něm může být
+   dávno POD hloubkou vrstvy (na dílu uživatele o 4,3 mm).
+3. `traceOffsetPath(zGapHi, iv.zStart)` tedy vede pod vrstvu,
+   `clipLeadInToDepth` z něj nenechá nic — a vrstva se zahodila celá.
+
+Nález uživatele 8. 9. 2026 (kulatá R 5, ap 2,5, podélně zprava, odlitek):
+vrstva **r 32,045 v pásu Z 45,5…19,8 nevzala nic** a materiál po ní sebrala
+až r 29,545 — **jednou třískou 5,00 mm, tedy 2× ap**. Pravidlo uživatele je
+přitom jednoznačné: *materiál se má dál brát, jen žádná vrstva nesmí ukrojit
+2× ap* — vrstvu tedy ROZDĚLIT, ne vynechat.
+
+Trasa nájezdu se proto u TAKTO POSUNUTÉHO intervalu (značka
+`leadOutCoveredTo`) zkrátí na poslední Z, kde je kontura ještě na hloubce
+vrstvy (`contourTouchZ`, bisekce nad `offsetXAt`). Nástroj po ní sjede na
+hloubku a tělo průchodu pokračuje odtud dolů — **přesně týmž tvarem, jakým
+o vrstvu níž jede r 29,545**. Nikde se nezanořuje kolmo, takže §3.1 zůstává
+v platnosti.
+
+| měřítko (díl uživatele) | před | po |
+|---|---|---|
+| největší tříska | **5,00 mm** (2× ap) | **2,52 mm** |
+| třísky nad `ap` | 2 | **0** |
+| úběr | 5 002,2 mm² | 5 002,3 mm² |
+| tvrdé kolize (syrová / offset) | 4 / 2 | 4 / 2 (tytéž, pre-existující) |
+| průchody | 78 | 80 |
+| duplicitní dvojice bodů | 42 | 53 |
+
+Duplicity jsou cena, ne vada: nová trasa vede po témže kusu kontury jako
+dojezd, který interval zkrátil, a `makeChainRegistry` ji NEZAHAZUJE — u
+nájezdu bez rampy je zahození celé trasy zakázané (§6.2, spadl by na kolmý
+zápich). Za −2,48 mm třísky to stojí +56 mm jízdy v už vyříznutém prostoru.
+
+> **DVĚ PODMÍNKY, BEZ KTERÝCH TO NEFUNGUJE — obojí změřeno 9. 9. 2026.**
+>
+> 1. **Jen u intervalu se značkou `leadOutCoveredTo`.** Bez toho (tedy
+>    „zkracuj trasu vždycky, když vyjde prázdná“) se pravidlo chytlo i tam,
+>    kde nájezd chybí právem: `part-20-zleva-parting-taper` −395,7 mm²
+>    úběru, `part-18-parting-90-ramp` přepsané dráhy.
+> 2. **Nikdy u UPICHOVÁKU.** `contourTouchZ` hledá bod, kde je na hloubce
+>    vrstvy ŠPIČKA; upichovák ale řeže celou spodní hranou šířky `b`, takže
+>    jeho tělo tam ještě leží ve stěně. Sken si kvůli tomu odsouvá začátek
+>    intervalu o `partingBodyZ` (`clampPartingBody`) a zkrácený nájezd by
+>    ten odsun obešel: na `part-20-zleva-parting-taper` zajel obrys plátku
+>    **0,153 mm² do HOTOVÉHO dílu** na X 40,545 Z 133,426 (práh 0,05,
+>    `tests/cam-parting-body-gouge`). Kolize to nebyla a otisk to ukázal
+>    jen jako „jiné dráhy“ — chytila to až plná sada.
+>
+> S obojím je **OTISK VŠECH 29 FIXTURES SHODNÝ** — pravidlo se na sadě
+> neprojeví vůbec a mění jen díly, kde ta situace nastane.
+
+> **VYVRÁCENÁ DIAGNÓZA z předávky 8. 9. 2026:** *„není to `noEntrySkips`,
+> ten hlásí 2 vrstvy, ale obě na r 44,545“*. **Je to `noEntrySkips`.**
+> `roughLong` běží na jedno `calculate()` DVAKRÁT a pokaždé s jiným
+> dělením na úseky (7 × 3 regiony); v prvním běhu se průchod vytvoří,
+> v druhém — tom, který se emituje — padne. Kdo počítá hlášení z prvního
+> běhu, vidí jiné dvě vrstvy než ty, které skutečně zmizely.
+
 ### 3.2 Úhel zanoření podle tvaru plátku — UZAVŘENO 26. 8. 2026
 
 | plátek | úhel | proč |
@@ -225,6 +291,98 @@ postupně), ne vzduch — měřítko „dno nosu vs. obrys na Z středu" to
 nadhodnocuje. Bezpečná cesta je rozsekat i ten dojezd přes
 `airSplitAxial`, ne zkrátit `rapidStopZ`: to by pustilo rychloposuv na
 stěnu.
+
+---
+
+### 3.2c SJEZD NA HLOUBKU JDE POD ÚHLEM ZANOŘENÍ — VŠUDE (9. 9. 2026)
+
+Poslední kousek příjezdu na hloubku se dojíždí POSUVEM a je dlouhý
+`rapidStopX = Vůle X + R`. U plátku s `rampedApproach` (kulatá destička) se
+nesjíždí radiálně, ale ŠIKMO pod úhlem zanoření: nástroj couvne v Z
+o `dx/tg(úhel)` PROTI směru řezu (do už obrobeného) a odtud dojede
+diagonálou přesně na cíl (`emitFeedToDepth` v `gcodeEmit.js`). Cíl se nemění,
+mění se jen cesta k němu.
+
+**DÍRA V TOM PRAVIDLE — opravená 9. 9. 2026** (nález uživatele: *„zanořování
+ani jednou neudělalo to, co by mělo, a není dodrženo, že se má zanořovat pod
+úhlem 45 stupňů“*): **`safeRapidTo` si sjezd emitovala SAMA.** Její větev
+„diagonální sjezd k materiálu“ vydávala rovnou `G1 X…` a `emitFeedToDepth`
+úplně minula — a přitom tudy chodí většina vjezdů do kapsy. Na dílu uživatele
+to bylo PĚT svislých zápichů, z toho dva po **6,000 mm** (`N3340 G1 X22.388`,
+`N4730 G1 X19.911`), tedy přesně `Vůle X + R` u R 5.
+
+| díl uživatele (kulatá R 5, ap 2,5, 45°) | před | po |
+|---|---|---|
+| řezy strmější než 45° | 39 | **32** |
+| z toho hlubší než 1 mm | 15 | **8** |
+| svislé (90°) řezy | 18 | **11** — šest z nich pod 0,02 mm (µm doklepnutí konce nájezdu, ne zápich) |
+| úběr / největší tříska / zajetí do kontury | 5 002,3 mm² / 2,52 mm / 0 | **beze změny** |
+| tvrdé kolize (syrová / offset) | 4 / 2 | **beze změny** |
+
+Na sadě se hne JEDINÁ fixture (`part-22-round-r10`, +1 řádek — poloha jednoho
+rychloposuvu) a `cam_sweep` hlásí **0 změn v úběru i kolizích**.
+
+#### Zbylých pět svislých sjezdů a proč tam zůstávají
+
+| kde | hloubka | proč nejde šikmo |
+|---|---|---|
+| Z 201,348 a Z 198,848 | 2,000 mm | couvnutí i diagonála vjedou DRŽÁKEM do materiálu (týž kořen jako čtyři tvrdé kolize držáku na tomhle dílu) |
+| Z −5,49 / −5,50 (3×) | 3,495 mm | průchod je na konci dílu dlouhý jen **2,51 mm**, rampa u R 5 potřebuje **3,495 mm** |
+
+> **DVĚ VARIANTY, JAK TO PŘESTO SJET — ZMĚŘENO A ZAMÍTNUTO 9. 9. 2026.**
+> Obě řeší úhel, obě porušují něco důležitějšího:
+>
+> | pokus | co udělal |
+> |---|---|
+> | couvnout na DRUHOU stranu (za konec dílu) a šikmo zpátky | nástroj přejede týž kousek TŘIKRÁT a rampy stojí přímo pod sebou — reálná stížnost uživatele (*„vidíš to, že to je přímo pod sebou“*) |
+> | rampovat DOPŘEDU, do řezu | za rampou zůstane klín; příští vrstva ho vezme JEDNOU TŘÍSKOU **3,91 mm** (ap 2,5) a přibude tvrdá kolize rychloposuvu **2,3 mm²** |
+> | totéž, ale rampovat jen ŘEZNOU část sjezdu (vzduchová vůle nahoře svisle) | tříska **3,16 mm**, kolize **1,1 mm²** — klín se jen zmenšil, nezmizel |
+>
+> `ap` je vyslovená podmínka uživatele; porušená podmínka opravu ruší, i když
+> jinak vypadá líp (viz i §6.1). Radiální sjezd tam proto zůstává.
+
+> **POLYGON NENÍ LEPŠÍ VZOR — změřeno 9. 9. 2026.** Uživatel navrhl
+> inspirovat se polygonem (*„tam je to dobré to zanořování“*). Týž díl
+> s polygonem R 0,8 má ale **12 svislých sjezdů**, většinu přesně
+> **1,800 mm** = `Vůle X + R` — je to TÝŽ kód a týž radiální sjezd, jen
+> osmkrát kratší, takže na plátně není vidět. Kulatá destička je po téhle
+> opravě na tom LÍP než polygon (5 skutečných svislých sjezdů proti 12).
+
+---
+
+### 3.2d POLE „ÚHEL ZANOŘENÍ (°)" MĚNÍ I MEZNÍ ČÁRU (10. 9. 2026)
+
+Mez zanoření se u polygonu brala VÝHRADNĚ z geometrie plátku. Když si
+uživatel v „Hlídání geometrie" přepnul úhel na 5°, dráhy sice rampovaly pod
+5° (`getEffectivePlungeAngle`), ale ČÁRA zůstala na 15° — dvě různá čísla pro
+tutéž mez. Nález uživatele: *„ať to mění i tu čáru a ne ať je tam pořád těch
+15 stupňů"*.
+
+Bere se **PŘÍSNĚJŠÍ z obou** (`tightenByPlungeAngle` v `contourBuild.js`):
+ručně zadaný MENŠÍ úhel nástroj opravdu víc omezuje, větší než co dovolí tvar
+plátku nepřidá nic. Úhel vydané čáry jde přes `plungeBetaDeg`, ať se kreslí
+tam, kam hlídání dosáhne.
+
+| polygon, díl uživatele, úhel 10° | před | po |
+|---|---|---|
+| řezy strmější než zadaných 10° | **19** | **8** |
+| doslovné duplicity (táž dvojice bodů) | 1 | **0** |
+| řezné pohyby bez úbytku | 106 (279 mm) | 96 (243 mm) |
+| kolize / zajetí do kontury | 0 / 0 | **0 / 0** |
+| úběr | 4 545,3 | 4 507,8 mm² |
+
+**Otisk celé sady je SHODNÝ** — fixtures mají buď `entryAngleAuto`, nebo
+`entryAngle` rovný |natočení|, nebo úhel VĚTŠÍ (`part-19-face-tilted-insert`:
+45° proti natočení −15°), takže se jich přísnější mez netýká.
+
+> **KTERÁ HRANICE ROZSAHU JE ZANOŘENÍ — TA DÁL OD NULY.** Rozsah normál je
+> `bisector ± halfRange`, u polygonu `[natočení + vrchol − 90°, natočení +
+> 90°]`. Mez ZANOŘENÍ je ta vzdálenější (`|natočení| + 90°`) — týž tvar, jaký
+> má kulatá v `getPlungeGuardRange`. Ta bližší je DOJEZD (čelní hrana).
+> Posunul jsem nejdřív tu špatnou: rozsah se **rozšířil** místo zúžení,
+> hlídání pustilo víc a dráhy **zajely 4,11 mm² do hotového dílu** (na `HEAD`
+> 0,00). Menší úhel musí rozsah ZÚŽIT — když po zásahu `halfRange` vzroste,
+> je to obráceně.
 
 ---
 

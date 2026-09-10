@@ -19,8 +19,56 @@ export function getToolClearanceRange(prms, flipX) {
   const bisector = flipX ? (-toolAngleRad - tipRad / 2) : (toolAngleRad + tipRad / 2);
   const halfRange = (Math.PI - tipRad) / 2;
   const clearRad = (parseFloat(prms.toolClearanceAngle) || 0) * Math.PI / 180;
-  return { bisector, halfRange, clearRad };
+  return tightenByPlungeAngle({ bisector, halfRange, clearRad }, prms);
 }
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  POLE „ÚHEL ZANOŘENÍ (°)" MĚNÍ I MEZNÍ ČÁRU                   ║
+// ╚══════════════════════════════════════════════════════════════╝
+// Mez zanoření se u polygonu brala VÝHRADNĚ z geometrie plátku. Když si
+// uživatel v „Hlídání geometrie" přepnul úhel na 5°, dráhy sice rampovaly
+// pod 5° (`getEffectivePlungeAngle`), ale ČÁRA zůstala na 15° — dvě různá
+// čísla pro tutéž mez (nález 9. 9. 2026: *„ať to mění i tu čáru a ne ať je
+// tam pořád těch 15 stupňů"*).
+//
+// KTERÁ HRANICE ROZSAHU JE ZANOŘENÍ — POZOR, JE TO TA VZDÁLENĚJŠÍ OD NULY.
+// Rozsah normál, které plátek pokryje, je `bisector ± halfRange`; u polygonu
+// vyjde `[natočení + vrchol − 90°, natočení + 90°]`. Mez ZANOŘENÍ je horní
+// (|natočení| + 90°) — přesně stejný tvar, jaký má kulatá destička
+// v `getPlungeGuardRange` (`plungeRad + 90°`). Dolní je DOJEZD, čelní hrana.
+//
+// Menší úhel zanoření musí rozsah ZÚŽIT (nástroj toho zvládne míň). Když se
+// spletete a posunete tu druhou hranici, rozsah se naopak ROZŠÍŘÍ, hlídání
+// pustí víc — změřeno 10. 9. 2026: zajetí do hotového dílu 0 → 4,11 mm².
+//
+// Bere se PŘÍSNĚJŠÍ z obou: ručně zadaný MENŠÍ úhel nástroj opravdu víc
+// omezuje; větší, než co dovolí tvar plátku, nepřidá nic. Díky tomu je to
+// na celé sadě fixtures NO-OP — mají buď `entryAngleAuto`, nebo `entryAngle`
+// rovný |natočení|, nebo úhel VĚTŠÍ (`part-19-face-tilted-insert`: 45° proti
+// natočení −15°).
+function tightenByPlungeAngle(range, prms) {
+  const { bisector, halfRange } = range;
+  const lo = bisector - halfRange, hi = bisector + halfRange;
+  // Zanoření = hranice DÁL od nuly; dojezd = ta bližší.
+  const zanIsHi = Math.abs(hi) > Math.abs(lo);
+  const zan = zanIsHi ? hi : lo;
+  const doj = zanIsHi ? lo : hi;
+  // Úhel, který ta hranice reprezentuje: |zan| = úhel zanoření + 90°.
+  const ownDeg = Math.abs(zan) * 180 / Math.PI - 90;
+  const plungeDeg = getEffectivePlungeAngle(prms);
+  if (!(plungeDeg < ownDeg - 1e-9)) return range;          // není přísnější
+  const target = (zan < 0 ? -1 : 1) * (plungeDeg * Math.PI / 180 + Math.PI / 2);
+  const nLo = Math.min(target, doj), nHi = Math.max(target, doj);
+  return {
+    ...range,
+    bisector: (nLo + nHi) / 2,
+    halfRange: (nHi - nLo) / 2,
+    // Úhel VYDANÉ čáry musí sedět s mezí, jinak by se kreslila jinde, než kam
+    // hlídání dosáhne (`betaZanoreniG` v interferenceGuides.js).
+    plungeBetaDeg: plungeDeg,
+  };
+}
+
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  MEZ ZANOŘENÍ — destička bez nakloněného boku (kulatá)         ║
 // ╚══════════════════════════════════════════════════════════════╝

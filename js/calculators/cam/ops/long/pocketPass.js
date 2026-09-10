@@ -46,6 +46,60 @@ export function emitPocketInterval(D) {
     while (k > 0 && Math.min(segs[k - 1].x1, segs[k - 1].x2) >= X - 0.02) k--;
     return k === 0 ? segs : segs.slice(k);
   };
+
+  // ── KDYŽ ZAČÁTEK INTERVALU POSUNUL DOJEZD, NÁJEZD KONČÍ DŘÍV ──────────
+  // `iv.zStart` normálně leží tam, kde kontura klesá pod hloubku vrstvy —
+  // nájezd po kontuře tedy dojede přesně na hloubku a odtud pokračuje tělo.
+  // Když ale kus intervalu shora obrobil DOJEZD mělčího průchodu, posune
+  // `openPass.js` začátek dolů (`q.zStart = coverLo`, značka
+  // `leadOutCoveredTo`) — a to už je bod, kde je kontura POD vrstvou.
+  // `traceOffsetPath(zGapHi, iv.zStart)` pak vede pod hloubku a
+  // `clipLeadInToDepth` z něj nenechá NIC, takže se vrstva zahodila celá
+  // jako „bez vjezdu“.
+  //
+  // Nález uživatele 8. 9. 2026 (kulatá R 5): vrstva r 32,045 v pásu
+  // Z 45,5…19,8 nevzala nic a materiál po ní sebrala až r 29,545 —
+  // JEDNOU TŘÍSKOU 5,00 mm, tedy 2× ap. Vrstva se proto nezahazuje: trasa
+  // se zkrátí na poslední Z, kde kontura ještě na hloubce vrstvy je,
+  // nástroj po ní sjede na hloubku a tělo pokračuje odtud dolů — přesně
+  // týmž tvarem, jakým o vrstvu níž jede r 29,545.
+  //
+  // Jen pro takto POSUNUTÉ intervaly: jinde je prázdný nájezd skutečně
+  // „není kudy“ a vrstva se má vynechat (§3.1 pravidel drah). Změřeno —
+  // bez té podmínky se pravidlo chytlo i na `part-20-zleva-parting-taper`,
+  // kde přidalo dva průchody a přišlo o 395,7 mm² úběru.
+  //
+  // A NIKDY U UPICHOVÁKU. `contourTouchZ` hledá bod, kde je na hloubce
+  // vrstvy ŠPIČKA — jenže upichovák řeže celou spodní hranou šířky `b`,
+  // takže jeho tělo v tu chvíli ještě leží ve stěně. Sken si kvůli tomu
+  // odsouvá začátek intervalu o `partingBodyZ` (`clampPartingBody`
+  // v `intervalScan.js`) a zkrácený nájezd by ten odsun obešel. Změřeno
+  // 9. 9. 2026: na `part-20-zleva-parting-taper` obrys plátku zajel
+  // 0,153 mm² do HOTOVÉHO dílu na X 40,545 Z 133,426 (práh 0,05,
+  // `tests/cam-parting-body-gouge`). U upichováku tedy platí dál pravidlo
+  // „prázdný nájezd = vynechat vrstvu“.
+  const contourTouchZ = (zHi, zLo, X) => {
+    if (typeof offsetXAt !== 'function' || !(zHi > zLo + 1e-9)) return null;
+    const above = (z) => { const v = offsetXAt(z); return v !== null && v >= X - 0.02; };
+    if (!above(zHi)) return null;          // kontura je pod hloubkou hned na startu
+    const step = Math.max(dzScan, 0.05);
+    let zAbove = zHi;
+    for (let z = zHi - step; ; z -= step) {
+      const zc = Math.max(z, zLo);
+      if (above(zc)) { zAbove = zc; if (zc <= zLo + 1e-9) return null; continue; }
+      let lo = zc, hi = zAbove;            // hi je nad hloubkou, lo pod ní
+      for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (above(m)) hi = m; else lo = m; }
+      return hi;
+    }
+  };
+  /** Nájezd po kontuře; u intervalu posunutého dojezdem zkrácený na hloubku. */
+  const traceLeadInTo = (zHi, iv2, X) => {
+    const li = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zHi, iv2.zStart)), X);
+    if (li.length > 0 || isParting || !Number.isFinite(iv2.leadOutCoveredTo)) return li;
+    const zT = contourTouchZ(zHi, iv2.zStart, X);
+    if (!Number.isFinite(zT) || zT <= iv2.zStart + 1e-6) return li;
+    return clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zHi, zT)), X);
+  };
 if (!prms.plungeRoughing) return;
 // Když je úplně první interval blokovaný (idx===0, !firstOpen),
 // neexistuje předchozí interval → horní hranice mezery = okraj
@@ -136,7 +190,7 @@ if (!iv.blocked) {
     // (sledování kontury by vedlo kůrou — vynechá se).
     passOpen.ramp = erOpen;
   } else if (!partingNoDress) {
-    const liOpen = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart)), currentX);
+    const liOpen = traceLeadInTo(zGapHi, iv, currentX);
     linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
     // PRÁZDNÝ NÁJEZD NENÍ NÁJEZD — podrobně u `passFlat` níž.
     if (liOpen.length === 0) { cnt.noEntrySkips++; return; }
@@ -182,7 +236,7 @@ if (!corner) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice.
     passFlat.ramp = erFlat;
   } else if (!partingNoDress) {
-    const liFlat = clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zGapHi, iv.zStart)), currentX);
+    const liFlat = traceLeadInTo(zGapHi, iv, currentX);
     linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
     // ── PRÁZDNÝ NÁJEZD NENÍ NÁJEZD ────────────────────────────────────────
     // `traceOffsetPath` (nebo ořez držákem) může vrátit PRÁZDNÉ pole. Dosud

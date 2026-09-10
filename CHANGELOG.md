@@ -8,6 +8,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – pole „Úhel zanoření (°)" neměnilo mezní čáru.** Mez se u polygonu
+  brala výhradně z geometrie plátku, takže po přepnutí úhlu na 5° dráhy
+  rampovaly pod 5°, ale čára zůstala na 15° — dvě různá čísla pro tutéž mez.
+  Nově se bere přísnější z obou (`tightenByPlungeAngle` v `contourBuild.js`)
+  a úhel vydané čáry jde přes `plungeBetaDeg`.
+
+  Měřeno na dílu uživatele (polygon R 0,8, ap 2,5, úhel 10°): řezy strmější
+  než zadaný úhel **19 → 8**, doslovné duplicity **1 → 0**, řezné pohyby bez
+  úbytku 106 → 96 (279 → 243 mm), kolize i zajetí do kontury **0 / 0** beze
+  změny, úběr 4 545,3 → 4 507,8 mm². **Otisk celé sady je SHODNÝ** — fixtures
+  mají buď `entryAngleAuto`, nebo `entryAngle` = |natočení|, nebo úhel větší.
+
+### Fixed
+- **CAM – kulatá destička se pořád zanořovala KOLMO, ne pod úhlem zanoření.**
+  Pravidlo „poslední kousek na hloubku jde šikmo“ (`emitFeedToDepth`) sice
+  existovalo, ale **`safeRapidTo` si sjezd emitovala sama** — její větev
+  „diagonální sjezd k materiálu“ vydávala rovnou `G1 X…` a to pravidlo
+  míjela, přitom tudy chodí většina vjezdů do kapsy. Na dílu uživatele to
+  bylo pět svislých zápichů, dva z nich po **6,000 mm** (= `Vůle X + R`
+  u R 5): `N3340 G1 X22.388`, `N4730 G1 X19.911`.
+
+  Měřeno na dílu uživatele (kulatá R 5, ap 2,5, úhel 45°): řezy strmější než
+  zadaný úhel **39 → 32**, z toho hlubší než 1 mm **15 → 8**, svislých (90°)
+  řezů **18 → 11** — a šest ze zbylých jedenácti je pod 0,02 mm (doklepnutí
+  konce nájezdu, ne zápich). Úběr, největší tříska, zajetí do hotové kontury
+  i tvrdé kolize **beze změny**. Na sadě se hne jediná fixture
+  (`part-22-round-r10`, +1 řádek) a `cam_sweep` hlásí **0 změn v úběru
+  i kolizích**.
+
+  Pět svislých sjezdů zůstává a je to doložené: dva (2,000 mm) proto, že
+  šikmá varianta vjede DRŽÁKEM do materiálu, tři (3,495 mm) proto, že
+  průchod je na konci dílu dlouhý jen 2,51 mm. Dvě varianty, jak to obejít
+  (couvnout na druhou stranu; rampovat dopředu), jsou změřené a zamítnuté —
+  první vozí nástroj třikrát přes týž kousek, druhá nechá klín, který
+  příští vrstva vezme třískou 3,9 mm při `ap` 2,5. Detail
+  v `docs/cam-pravidla-drah.md` §3.2c.
+
+- **CAM – vrstva vypadla celá a další po ní ukrojila 2× `ap`.** Dojezd
+  mělčího průchodu („bez schodků“) sleduje konturu za konec svého intervalu
+  a kus toho následujícího na téže hloubce už obrobí; `openPass.js` proto
+  tomu intervalu posune začátek dolů. Jenže posunutý začátek **už neleží na
+  kontuře** — kontura v něm může být hluboko POD hloubkou vrstvy. Nájezd po
+  kontuře do takového bodu vede pod vrstvu, ořez na hloubku z něj nenechal
+  nic, a protože „prázdný nájezd není nájezd“, celá vrstva se zahodila.
+
+  Na dílu uživatele (kulatá R 5, ap 2,5, podélně zprava, odlitek) tak vrstva
+  **r 32,045 v pásu Z 45,5…19,8 nevzala nic** a materiál po ní sebrala až
+  r 29,545 — **jedinou třískou 5,00 mm, tedy 2× ap**. Nově se u takto
+  posunutého intervalu (a jen u něj — značka `leadOutCoveredTo`) trasa
+  nájezdu zkrátí na poslední Z, kde je kontura ještě na hloubce vrstvy;
+  nástroj po ní sjede na hloubku a tělo pokračuje odtud dolů. Kolmo se
+  nezanořuje nikde, pravidlo §3.1 pravidel drah platí dál.
+
+  Pravidlo platí JEN pro takto posunutý interval a **nikdy u upichováku**:
+  `contourTouchZ` hledá bod, kde je na hloubce ŠPIČKA, ale upichovák řeže
+  celou spodní hranou, takže jeho tělo tam ještě leží ve stěně (změřeno:
+  0,153 mm² v hotovém dílu na `part-20-zleva-parting-taper`).
+
+  Měřeno na dílu uživatele: největší tříska **5,00 → 2,52 mm**, třísky nad
+  `ap` **2 → 0**, úběr 5 002,2 → 5 002,3 mm², zajetí do hotové kontury 0,
+  tvrdé kolize beze změny (4 syrová / 2 offset, tytéž pre-existující),
+  průchody 78 → 80. **Otisk všech 29 fixtures je SHODNÝ** — na sadě se
+  nezmění ani bajt.
+
+### Fixed
 - **CAM – kulatá destička sjížděla na hloubku KOLMO.** Poslední kousek příjezdu
   se dojíždí posuvem a jeho délka je `Vůle + rádius nosu` — u R 5 tedy 6 mm
   svislého zápichu, u R 10 rovných 11, bez ohledu na nastavený **Úhel zanoření**.
