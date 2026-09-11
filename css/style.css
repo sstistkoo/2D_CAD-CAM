@@ -1597,6 +1597,26 @@ body {
   flex: 1;
 }
 
+/* Souřadnicová pole (X/Z, X1/Z1…) v Číselném zadání – popisek vedle pole
+   na jednom řádku místo nad ním (viz `.input-dialog label { display:
+   block }` výše), ať se ušetří výška a je vidět víc řádků najednou. */
+.input-dialog .num-coord-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.input-dialog .num-coord-field label {
+  display: inline;
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.input-dialog .num-coord-field input {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
 .input-dialog .btn-row {
   display: flex;
   gap: 8px;
@@ -5789,7 +5809,15 @@ body {
 .num-corner-inline-row { align-items: center; margin-top: 4px; gap: 8px; }
 .num-corner-inline-toggle { display: flex; gap: 4px; flex: 0 0 auto; }
 .num-corner-inline-toggle .vk-toggle { padding: 6px 9px; font-size: 15px; }
-.num-corner-inline-row > div:last-child { flex: 1; min-width: 0; }
+/* Pole jen na „R / sražení" – nemusí táhnout celý zbytek řádku (flex:1
+   zněj dřív dělalo zbytečně dlouhý obdélník) a `margin-bottom` zděděný
+   z `.input-dialog input` ho posouval mimo střed řádku s tlačítky
+   vedle – zrušeno, ať sedí na stejné výšce. */
+.num-corner-inline-row .num-corner-input-col { flex: 0 1 auto; min-width: 0; }
+.num-corner-inline-row .num-corner-input-col input {
+  width: 132px;
+  margin-bottom: 0;
+}
 .vk-combined-window .cnc-fields { gap: 6px; margin-bottom: 6px; }
 .vk-section { margin-bottom: 6px; }
 .vk-section-title {

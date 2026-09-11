@@ -177,6 +177,12 @@ const CONSTR_ICON = '<svg class="num-type-svg" viewBox="0 0 20 20" aria-hidden="
   + '<line x1="3" y1="17" x2="17" y2="3" stroke="currentColor" stroke-width="2"'
   + ' stroke-dasharray="4 3" stroke-linecap="round"/></svg>';
 
+// Sražený roh – dvě stěny „L" s uříznutou špičkou (diagonála místo bodu).
+// Nahrazuje znak „⌿" (APL slash bar), co na sražení vůbec nevypadal.
+const CHAMFER_ICON = '<svg class="num-type-svg" viewBox="0 0 20 20" aria-hidden="true">'
+  + '<path d="M3 17 L3 9 L9 3 L17 3" fill="none" stroke="currentColor" stroke-width="2"'
+  + ' stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 const NUM_TYPES = [
   { key: 'line',   icon: '/',          label: 'Úsečka' },
   { key: 'circle', icon: '○',          label: 'Kružnice' },
@@ -185,9 +191,10 @@ const NUM_TYPES = [
   { key: 'arc',    icon: '⌒',          label: 'Oblouk' },
 ];
 
-// Po otevření okna je vybraný Bod: má nejmíň polí, takže na pole pro zápis
-// G-kódu zbyde nejvíc místa a je vidět celé bez rolování.
-const DEFAULT_NUM_TYPE = 'point';
+// Po otevření okna je vybraná Úsečka – nejčastěji zadávaný typ (na pokyn
+// uživatele; dřív tu byl Bod kvůli nejmíň polím, ale to se v praxi
+// nepoužívalo tak často, aby to vyvážilo nutnost přepínat).
+const DEFAULT_NUM_TYPE = 'line';
 
 // Pole na ruční zápis G-kódu zůstává PRÁZDNÉ – není to zrcadlo pravého CNC
 // panelu, ale škrtací blok, ze kterého se kód vykreslí na plátno (a teprve
@@ -480,7 +487,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
       <span class="num-corner-label">Roh s předchozí úsečkou:</span>
       <div class="pick-col">
         <button type="button" class="btn-ok num-corner-btn" data-corner="fillet" title="Zaoblit roh">⌒</button>
-        <button type="button" class="btn-ok num-corner-btn" data-corner="chamfer" title="Zkosit roh">⌿</button>
+        <button type="button" class="btn-ok num-corner-btn" data-corner="chamfer" title="Zkosit roh">${CHAMFER_ICON}</button>
       </div>
     </div>`;
   }
@@ -504,9 +511,9 @@ export function initNumericalTab(container, { picker = null } = {}) {
     return `<div class="input-row num-corner-inline-row">
       <div class="num-corner-inline-toggle">
         <button type="button" class="vk-toggle${cornerInlineMode === 'fillet' ? ' active' : ''}" data-corner-mode="fillet" title="Zaoblit roh s předchozí úsečkou">⌒</button>
-        <button type="button" class="vk-toggle${cornerInlineMode === 'chamfer' ? ' active' : ''}" data-corner-mode="chamfer" title="Zkosit roh s předchozí úsečkou">⌿</button>
+        <button type="button" class="vk-toggle${cornerInlineMode === 'chamfer' ? ' active' : ''}" data-corner-mode="chamfer" title="Zkosit roh s předchozí úsečkou">${CHAMFER_ICON}</button>
       </div>
-      <div><label>Roh s předchozí (nepovinné):</label><input type="text" id="ncorner" value="" placeholder="R / vzdálenost"></div>
+      <div class="num-corner-input-col"><input type="text" id="ncorner" value="" placeholder="R / sražení" aria-label="Roh s předchozí (nepovinné)"></div>
     </div>`;
   }
 
@@ -747,8 +754,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
     switch (t) {
       case "point":
         html = `<div class="input-row">${axisPair(
-                  `<div><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
-                  `<div><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "point")}${okBtn()}</div></div>
                 ${hasChain ? `<div id="numChainInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>` : ''}`;
@@ -756,26 +763,26 @@ export function initNumericalTab(container, { picker = null } = {}) {
       case "line":
       case "constr":
         html = `<div class="input-row">${axisPair(
-                  `<div><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
-                  `<div><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯1", "p1")}</div></div>
                 <div class="input-row">${axisPair(
-                  `<div><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
-                  `<div><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
+                  `<div class="num-coord-field"><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div class="num-coord-field"><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
-                ${cornerInlineFieldHTML()}
                 <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
                 <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
                 <div class="pick-col">${angleCompassBtn()}${okBtn()}</div></div>
+                ${cornerInlineFieldHTML()}
                 ${cornerToolsHTML()}`;
         break;
       case "circle":
         html = `<div class="input-row">${axisPair(
-                  `<div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
-                  `<div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
                 <div class="input-row"><div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
@@ -790,18 +797,18 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 </div>`;
         const shapeRows = arcMode === 'endpoints'
           ? `<div class="input-row">${axisPair(
-                  `<div><label>${lbl('Start '+H)}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
-                  `<div><label>${lbl('Start '+V)}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl('Start '+H)}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Start '+V)}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯1", "p1")}</div></div>
                 <div class="input-row">${axisPair(
-                  `<div><label>${lbl('Konec '+H)}:</label><input type="text" id="nx2" value=""></div>`,
-                  `<div><label>${lbl('Konec '+V)}:</label><input type="text" id="ny2" value=""></div>`
+                  `<div class="num-coord-field"><label>${lbl('Konec '+H)}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Konec '+V)}:</label><input type="text" id="ny2" value=""></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>`
           : `<div class="input-row">${axisPair(
-                  `<div><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
-                  `<div><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
                 <div class="input-row">

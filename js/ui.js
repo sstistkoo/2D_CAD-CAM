@@ -4069,9 +4069,16 @@ calcBtn.addEventListener("click", (e) => {
   openCalculator();
 });
 // Tlačítko kalkulačky má být vidět jen na CAD plátně – schovat ho,
-// kdykoli je otevřené jakékoli overlay okno (jinak prosakuje přes něj).
+// kdykoli je otevřené jakékoli BLOKUJÍCÍ overlay okno (jinak prosakuje
+// přes něj), nebo kalkulačka sama (druhé kliknutí by stejně jen narazilo
+// na pojistku proti duplicitě v makeOverlay()). Ostatní plovoucí okna
+// (`.calc-overlay-float`, např. VK/Číselné zadání) nechávají plátno pod
+// sebou klikatelné, takže se s nimi dá kreslit i počítat zároveň –
+// tlačítko tam zůstává použitelné.
 function updateCalcBtnVisibility() {
-  const overlayOpen = document.querySelector(".calc-overlay, .input-overlay");
+  const overlayOpen = document.querySelector(
+    '.calc-overlay:not(.calc-overlay-float), .calc-overlay[data-type="calc"], .input-overlay'
+  );
   calcBtn.style.display = overlayOpen ? "none" : "";
 }
 updateCalcBtnVisibility();

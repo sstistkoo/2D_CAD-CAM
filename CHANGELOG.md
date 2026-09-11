@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Mobil – kalkulačka zmizela, když bylo otevřené VK/Číselné zadání.**
+  `updateCalcBtnVisibility()` schovávala plovoucí tlačítko 🔢 při JAKÉMKOLI
+  otevřeném `.calc-overlay` – včetně nového nemodálního okna „VK/Číselné
+  zadání", které (na rozdíl od starých blokujících dialogů) nechává plátno
+  pod sebou klikatelné. Teď se schovává jen u BLOKUJÍCÍCH oken (a u
+  kalkulačky samotné – druhé otevření by stejně jen narazilo na pojistku
+  proti duplicitě), takže zůstává dostupná i s otevřeným VK/Číselným
+  zadáním a jde z ní přes ⤓ vložit výsledek přímo do rozepsaného pole
+  (X/Z) – ověřeno, kalkulačka se po vložení sama zavře, VK zůstane otevřené.
+
+
 - **Mobil – dlouhé podržení (precision pointer) nereagovalo na plovoucí
   tlačítka (kalkulačka, centrování…).** Křížek se kvůli offsetu od prstu
   (`GLOBAL_OFFSET_Y`) hledá `elementFromPoint` NAD/POD skutečnou pozicí
@@ -57,6 +68,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   import G-kódu.
 
 ### Changed
+- **Číselné zadání – kompaktnější a přehlednější formulář úsečky.**
+  Na pokyn uživatele: výchozí typ po otevření okna je teď Úsečka (dřív
+  Bod). Sražená ikona rohu (dřív unicode „⌿", vypadala jako přeškrtnutá
+  čára) je nahrazená SVG piktogramem – L roh s uříznutou špičkou. Pole
+  „Roh s předchozí" ztratilo popisek nad sebou (kontext dávají už tlačítka
+  Zaoblit/Zkosit vedle), placeholder je teď „R / sražení" místo obecného
+  „R / vzdálenost" (zkrácené na `.num-corner-input-col` pole, ať zabírá
+  jen tolik, kolik potřebuje na text – dřív `flex:1` táhlo obdélník přes
+  zbytek řádku – a bez zděděného `margin-bottom`, který ho svisle
+  vyosoval proti tlačítkům Zaoblit/Zkosit vedle), a celý řádek se
+  přesunul AŽ POD Délka/Úhel (dřív mezi X2/Z2 a Délka/Úhel). Souřadnicová
+  pole (X1/Z1, X2/Z2 aj.) mají popisek
+  vedle pole na stejném řádku místo nad ním (nová třída `.num-coord-field`
+  – záměrná výjimka z `.input-dialog label { display:block }`, viz
+  komentář v `style.css`) – formulář je o pár řádků nižší, na mobilu je
+  vidět víc najednou bez scrollování.
+
 - **Mobil – horní lišta přehledněji.** Indikátory SOU/ABS/R a #/∠/📐 jsou
   teď skutečná dotyková tlačítka (`min-height` ~26 px, viditelné pozadí a
   okraj) místo drobných odznaků, a souřadnice (X/Z) + přiblížení se z lišty
