@@ -13,7 +13,7 @@ import { getInsert } from './inserts/index.js';
 // odklánět od osy destičky). Pro kulatou destičku (toolShape !== 'polygon')
 // omezení neplatí.
 export function getToolClearanceRange(prms, flipX) {
-  if (prms.toolShape !== 'polygon') return null;
+  if (!getInsert(prms).hasFlankGeometry) return null;
   const toolAngleRad = (parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
   const tipRad = (parseFloat(prms.toolTipAngle) || 90) * Math.PI / 180;
   const bisector = flipX ? (-toolAngleRad - tipRad / 2) : (toolAngleRad + tipRad / 2);

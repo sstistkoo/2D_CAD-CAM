@@ -51,5 +51,27 @@ export function partingInsert(prms) {
     // vypnuté: spouštělo se na drobných rozdílech hranic intervalů a rozvedlo
     // booleovskou a scan-line větev (na `part-1` o 22 mm² úběru).
     mergesOverHump: true,
+    // ── ROZHODNUTÍ, KTERÁ DŘÍV ŽILA MIMO (audit 10. 9. 2026) ─────────────
+    // Devět míst v generátoru se ptalo přímo `prms.toolShape === '…'`, takže
+    // zásah pro jeden tvar sahal na ostatní (dvakrát se to letos stalo).
+    // Teď jsou to klíče tady; sdílený kód se ptá jen jich.
+    //   footprintIsNoseOnly     — stopa pro model úběru je JEN nos, ne tělo
+    //   bodyInCollisionEnvelope — tělo plátku se počítá do kolizní oblasti
+    //   faceBodyZFromWidth      — čelně: dosah těla v +Z ze ŠÍŘKY, ne z ap
+    //   plungeAngleMaxDeg       — strop úhlu zanoření
+    //   autoPlungeAngleDeg      — auto úhel (null = spočítá se z tvaru)
+    //   canPartOff              — umí upíchnout (zápich po svislé úsečce)
+    //   hasGrooveProfile        — má vůbec definovaný zápichový profil
+    //   partOffCornerR          — pracovní rádius při upichování
+    //   finishAlongEnvelope     — dokončování po obálce plátku, ne po offsetu
+    footprintIsNoseOnly: false,
+    bodyInCollisionEnvelope: true,
+    faceBodyZFromWidth: true,
+    plungeAngleMaxDeg: 90,
+    autoPlungeAngleDeg: 90,
+    canPartOff: true,
+    hasGrooveProfile: true,
+    partOffCornerR: r,
+    finishAlongEnvelope: true,
   };
 }

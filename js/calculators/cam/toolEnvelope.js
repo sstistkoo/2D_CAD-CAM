@@ -22,6 +22,7 @@ import { minkowskiSolidSum, polyIntersect, polyOffset, polyUnion } from '../../g
 import { holderWorldLoop } from './collisionValidator.js';
 import { buildStockLoopRaw, insertWorldLoop } from './materialRemoval.js';
 import { buildInsertProfileSegments } from './insertPreview.js';
+import { getInsert } from './inserts/index.js';
 
 /**
  * Silueta offsetu kontury jako uzavřená smyčka: navzorkuje segmenty
@@ -82,12 +83,12 @@ export { insertWorldLoop } from './materialRemoval.js';
  * Vrací { forbidden, reachX } — reachX = max radiální dosah nástroje pod
  * špičkou (pro vzorkování hranice). forbidden=[] a reachX=0, když není co hlídat.
  */
-// Tvary destičky, jejichž TĚLO (bok bez úlevu) se počítá do kolizní oblasti.
-const BODY_COLLISION_SHAPES = new Set(['parting']);
+// Jestli se TĚLO (bok bez úlevu) počítá do kolizní oblasti, říká plátek sám
+// (`bodyInCollisionEnvelope`) — dřív to byla množina tvarů přímo tady.
 
 export function buildToolForbiddenRegion(obstacleLoops, prms, { backside = false } = {}) {
   const holder = holderWorldLoop(prms, backside);
-  const insert = BODY_COLLISION_SHAPES.has(prms.toolShape)
+  const insert = getInsert(prms).bodyInCollisionEnvelope
     ? insertWorldLoop(prms, backside) : null;
   const holderParts = [], insertParts = [];
   let reachX = 0;

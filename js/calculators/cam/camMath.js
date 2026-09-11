@@ -4,18 +4,21 @@
 // Čisté funkce vytažené z camSimulator.js, aby je mohly sdílet i
 // strategie generování drah (cam/roughingStrategies.js a další).
 // Startovní množina — modul může postupně absorbovat další pure helpery.
+import { getInsert } from './inserts/index.js';
 
 // Efektivní úhel zanoření (ramp-in): auto z tvaru destičky (podélně =
 // natočení, čelně = |natočení + vrchol − 90|), nebo ruční entryAngle.
 // Pokud je nastaven úhel hřbetu α > 0, omezuje výsledek shora — hřbet destičky
 // kontaktuje materiál při zanořování strmějším než α.
 export function getEffectivePlungeAngle(prms) {
-  // Upichovák smí zanořit kolmo k ose (přímo k Z) → strop 90° místo 89°.
-  const parting = prms.toolShape === 'parting';
-  const clampA = (v) => Math.max(0.5, Math.min(parting ? 90 : 89, v));
+  // Strop i auto hodnota patří PLÁTKU (upichovák smí kolmo k ose → 90°
+  // místo 89°; kulatá jede auto 45°). Dřív to tu stálo jako `=== 'parting'`
+  // a `!== 'polygon'` a zásah pro jeden tvar tak sahal na ostatní.
+  const ins = getInsert(prms);
+  const clampA = (v) => Math.max(0.5, Math.min(ins.plungeAngleMaxDeg, v));
   if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
-  if (parting) return 90;               // auto = svislé zanoření (part-off)
-  if (prms.toolShape !== 'polygon') return 45;
+  // null = auto se počítá z geometrie plátku (jen polygon, viz níž).
+  if (ins.autoPlungeAngleDeg !== null) return ins.autoPlungeAngleDeg;
   const rot = parseFloat(prms.toolAngle) || 0;
   const tip = parseFloat(prms.toolTipAngle) || 90;
   const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;

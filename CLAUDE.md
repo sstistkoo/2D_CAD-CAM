@@ -168,6 +168,10 @@ docs/                 # developer.md, user-guide.md
   vjezd a zanoření, prahy hlídání destičky/držáku, kde končí polotovar,
   pravidla vyslovená uživatelem, doložené meze. **Číst PŘED zásahem do
   hrubování** — developer.md říká, který modul co dělá, tenhle CO MUSÍ PLATIT.
+- `docs/cam-tvar-platku-v-generatoru.md` – **kde tvar plátku vstupuje do
+  generátoru**: co je vytažené do `cam/inserts/*.js`, kdo se na která
+  pravidla ptá a co se ještě může plést do jiných plátků. Číst PŘED
+  zásahem, který se týká jednoho tvaru destičky.
 - `docs/user-guide.md` – uživatelská příručka
 - `CONTRIBUTING.md` – pravidla přispívání
 - `CHANGELOG.md` – deník změn (Keep a Changelog / SemVer)

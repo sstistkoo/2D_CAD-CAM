@@ -45,6 +45,7 @@ import {
   stockClearances,
   _locateOnContour,
 } from './camMath.js';
+import { getInsert } from './inserts/index.js';
 
 // POZN.: funkce NENÍ zapojená do pipeline mezních čar — mezní čára musí být
 // rovná (viz invariant v hlavičce souboru), takže lomení podél hranice držáku
@@ -351,7 +352,7 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
   // touž mezí bylo změřeno a zamítnuto: mosty zmizely a 7 dílů zajelo).
   // Jen polygonální destička — kulatá žádnou rovnou hranu nemá.
   const insEdgeReachG = (() => {
-    if (prms.toolShape !== 'polygon') return Infinity;
+    if (!getInsert(prms).hasFlankGeometry) return Infinity;
     const loop = insertWorldLoop(prms, false);
     if (!loop || loop.length < 3) return Infinity;
     return Math.max(...loop.map(p => Math.hypot(p.x, p.z)));

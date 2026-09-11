@@ -54,6 +54,8 @@ Na dílu uživatele: 80 průchodů, úběr 5 002,3 mm², zajetí do hotové kont
 | `8de7665` | **zpět** zvednutí kotvy rampy — porušovalo ap | překročení ap 5 → 1 |
 | (9. 9.) | **vrstva, které dojezd posunul začátek, se už nezahazuje** | tříska 5,00 → 2,52 mm; nad ap 2 → 0 |
 | (9. 9.) | **sjezd na hloubku jde pod úhlem zanoření i ze `safeRapidTo`** | strmé řezy 39 → 32, hlubší než 1 mm 15 → 8, svislé 18 → 11 |
+| `cf1a221` | **pole „Úhel zanoření (°)“ mění i mezní čáru** | polygon 10°: strmé řezy 19 → 8, duplicity 1 → 0 |
+| (10. 9.) | **tvar plátku vytažen z generátoru do `cam/inserts/*.js`** (9 rozhodnutí) | otisk SHODNÝ + G-kód 3 uživatelových souborů bajt po bajtu stejný |
 
 ## Vyřešeno 9. 9. 2026 — tříska 2× ap
 
@@ -206,6 +208,67 @@ Skript na to je jednorázový (`dup.mjs`): projít `calcSim.simPath`, počítat
 (a) shodné dvojice bodů, (b) řezné pohyby, po kterých neklesne plocha
 `MaterialRemoval`, a slévat je do souvislých úseků.
 
+## Hotovo 10. 9. 2026 — tvar plátku vytažen z generátoru
+
+Devět rozhodnutí o tvaru destičky žilo mimo `cam/inserts/` jako
+`prms.toolShape === '…'` a sahalo do drah. Teď jsou to klíče v pravidlech
+plátku; sdílený kód se ptá `getInsert(prms)`. Přehled, kdo co čte a **co se
+ještě může plést**, je v `docs/cam-tvar-platku-v-generatoru.md`.
+
+Refaktor je čistý: otisk 29 fixtures **SHODNÝ** a G-kód tří uživatelových
+`.camprog` (polygon 5°/10°, kulatá 45°) bajt po bajtu stejný proti `HEAD`
+ve worktree.
+
+## NOVÝ NÁLEZ 10. 9. 2026 — malý úhel zanoření rozhodí konec dílu
+
+Polygon, `ap 2,5`, R 0,8, uživatelovy soubory:
+
+| úhel | úběr | největší tříska | třísek nad ap | duplicity | kolize |
+|---|---|---|---|---|---|
+| 15° | 4 627,6 mm² | 3,053 mm | 2 | 0 | 0 / 0 |
+| 10° | 4 507,8 mm² | 3,053 mm | 1 | 0 | 0 / 0 |
+| **5°** | 4 358,5 mm² | **10,023 mm** | **7** | 0 | 0 / 0 |
+
+**Příčina:** rampa dodělání (`rampCompletion`, `ops/roughLong.js`) se
+kontroluje proti HOTOVNÍ KONTUŘE (`rampClearOfContour`), ale proti
+ZBÝVAJÍCÍMU MATERIÁLU vůbec — a její strop „nejvýš jedna Hloubka (ap)“
+platí jen v ose X. Při 5° je `ap / tg(5°)` = 28,6 mm v ose Z, takže rozjezd
+přeletí celý sousední hrb, kterého se žádná mělčí vrstva nedotkla:
+`N2560 G1 X25.257 Z20.914 ; Rampa 5.0°` vede 49 mm v Z a v Z 20,9 zabírá
+10,02 mm (r 34,48 → 24,46). Při 15° tatáž rampa měří 16 mm a zůstane ve
+vykopaném prostoru — proto si toho nikdo nevšiml.
+
+**Pozor na past:** strop `ap` na rampu proti zbytku (přerušit řetěz tam, kde
+se nevejde) vypadá jako přímé vynucení podmínky, ale řetěz dodělání je
+právě to, co `ap` jinde HLÍDÁ — po přerušení vezme klín až hlubší vrstva
+jedním záběrem. Změřeno a zamítnuto, viz tabulka zamítnutých pokusů níž.
+
+## Hotovo 10. 9. 2026 — polygon se zanořuje pod úhlem, ne kolmo
+
+`rampedApproach` (sjezd na hloubku šikmo) měla zapnutou jen kulatá. U polygonu
+se poslední kousek — dlouhý `Vůle X + R` — sjížděl radiálně pod 90°, i když
+měl uživatel nastavených 10°. Zapnuto i pro polygon:
+
+| | R 0,8 | R 1,3 |
+|---|---|---|
+| řezy strmější než 10° | 8 → **4** | 9 → **5** |
+| z toho svislých (90°) | 7 → **3** | 9 → **5** |
+| tříska / nad ap / duplicity / kolize | beze změny | beze změny |
+
+Sada: `cam_sweep` kolize **7 / 121,3 mm² beze změny** (nakreslený nůž),
+**0 / 0,0** (náhradní držák), úběr +0,7 mm² z 87 424. Otisk se hnul u 19 z 29
+fixtures (všechny polygonální), safety testy 81/81.
+
+## NOVÝ NÁLEZ 10. 9. 2026 — rádius plátku prosakuje do struktury drah
+
+Týž díl, jen R 0,8 → R 1,3: třísek nad ap **1 → 4**, největší tříska
+3,053 → 3,553 mm, duplicitní dráhy **0 → 1**. Vzniká navíc „Průchod 37 (kapsa
+po kontuře)“, jehož nájezd znovu projede dojezd Průchodu 32
+(`X40.043 Z138.972 → X41.818 Z129.028`), ujede 40 mm posuvem naprázdno a pak
+spadne **6,822 mm radiálně** (`N2050 G1 X32.045`), z toho 3,18 mm do
+materiálu. Rozbor a proč to `makeChainRegistry` nechytí:
+`docs/cam-tvar-platku-v-generatoru.md`.
+
 ## Co zbývá — v pořadí, jak to dává smysl
 
 ### 1. Kulatá se NEDOSTANE do hlubokého krku, polygon ano
@@ -346,6 +409,9 @@ zkrátit `rapidStopZ`.
 | couvnout před sjezdem na DRUHOU stranu (za konec dílu) | nástroj přejede týž kousek třikrát, rampy stojí přímo pod sebou (9. 9. 2026) |
 | rampovat sjezd DOPŘEDU, do řezu | klín za rampou vezme příští vrstva třískou 3,91 mm při ap 2,5 + kolize rychloposuvu 2,3 mm² |
 | totéž jen pro řeznou část sjezdu | tříska 3,16 mm, kolize 1,1 mm² — klín se jen zmenšil |
+| strop `ap` na rampu dodělání proti zbytku (`rampEngageOk`, přerušit řetěz) | třísek nad ap: 10° 1 → 5, 15° 2 → 6, kulatá 0 → 5 (7,60 mm) — řetěz je právě to, co `ap` hlídá (10. 9. 2026) |
+| `noseLiftX: R` u polygonu (jako u kulaté) | posune celou hloubkovou mřížku: třísek nad ap 10° 1 → 2, 15° 2 → 3, 5° 7 → 10 (10. 9. 2026) |
+| zrušit zúžení `getToolClearanceRange` úhlem zanoření | 5° se nespraví (třísky 7 → 6, největší pořád 10,02 mm) a 10°/15° se nezmění — vada není tady |
 
 ## Dlouhodobě červené testy (předchází této práci — nezametat)
 
@@ -362,5 +428,19 @@ tedy skutečně pre-existující, ne následek téhle práce:
 | `cam-pocket-burst-depth` | `part-11-zleva: skok mezi kapsovými kroky > ap` | v předávce z 8. 9. chyběl |
 
 Celkem **19** červených testů na čistém `HEAD` (sada 1 575 testů).
+
+**Po zapnutí `rampedApproach` u polygonu (10. 9. 2026) je jich 17.**
+Snapshot `cam-gcode-regression` se musel obnovit (změna je záměrná, hnula 19
+z 29 fixtures) a spolu s tím se posvětil starší drift `part-15-finish-zprava`
+a `range-chain-insert-shadow` — obojího se změna opravdu týkala.
+`part-17-long-parting` a `part-22-round-r10` byly ze snapshotu VRÁCENY na
+`HEAD`, protože se jich změna netýká (otisk je nehlásil) a jejich drift má
+zůstat vidět.
+
+`tests/cam-leadout-air-rapid` (přesun v kapse) bylo potřeba upravit: filtr
+chytal i nové COUVNUTÍ PŘED ZANOŘENÍM (taky `G0 Z` s konstantním X) a čekal
+sjezd ve tvaru `G0 X` → `G1 X`. Teď rozlišuje obojí podle toho, co následuje,
+a připouští mezi rychloposuv a poslední řezný kousek couvnutí. Měřený
+invariant se nezměnil.
 
 Zbytek sady je zelený.

@@ -698,40 +698,90 @@ export function generateAutoGCode(S, calc) {
   //     uživatele a porušená podmínka opravu ruší.
   // Na konci dílu tedy zůstává radiální sjezd; průchod je tam kratší
   // (2,51 mm), než kolik rampa u R 5 potřebuje (3,495 mm).
-  const emitFeedToDepth = (fromX2, tx, tz) => {
-    const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+  // ── PLÁN se počítá ZVLÁŠŤ od emise ────────────────────────────────────
+  // Dokud si couvnutí emitovala `emitFeedToDepth` sama, vypadal příjezd takhle
+  // (nález uživatele 10. 9. 2026, „šílené dráhy, co by tu vůbec neměly být"):
+  //     G0 Z273.724   ← přejezd na CÍL
+  //     G0 X25.110
+  //     G0 Z291.107   ← a hned couvnutí ZPÁTKY, 17 mm okružní jízdy
+  //     G1 X22.045 Z273.724 ; Zanoření 10.0°
+  // Volající, který teprve přijíždí (`safeRapidTo`), přece může přejet rovnou
+  // na začátek rampy. Proto se plán vydá dopředu (`planFeedToDepth`) a emise
+  // ho jen provede; kdo hoistovat nemůže, dostane couvnutí jako dřív.
+  //
+  // `approachX` = odkud se bude sjíždět v X, když se přejezd hoistne (u
+  // hoistu se totiž ten sjezd udělá až na `zBack`, ne na `tz` — a to je nová
+  // dráha, kterou musí projít týmiž testy).
+  // Couvnutí rampy navazuje na přejezd v Z, který udělal volající — dva
+  // rychloposuvy jen v Z hned za sebou se proto SLOUČÍ do jednoho. Při
+  // konstantním X projede a→b→c vždycky nadmnožinu toho, co a→c, takže je to
+  // bezpečné; číslování bloků zůstane souvislé (přepisuje se text, nemaže
+  // se řádek).
+  const emitBackoffZ = (z) => {
+    const last = lines[lines.length - 1];
+    const m = last && /^(N\d+ G0 Z)(-?[\d.]+)$/.exec(last.text);
+    if (m) { last.text = `${m[1]}${z.toFixed(3)}`; return; }
+    simCounter += 1; addN(`G0 Z${z.toFixed(3)}`, simCounter);
+  };
+  const planFeedToDepth = (fromX2, tx, tz, approachX = null) => {
     const dx = fromX2 - tx;
     const tanA = Math.tan(entryRadGc);
-    if (rampedApproachOn && dx > 0.05 && tanA > 1e-9) {
-      const dz = dx / tanA;
-      const zBack = clipZGc(tz + approachZDir * dz);
-      if (Math.abs(zBack - tz) > 1e-6
-          && !rapidHitsStock(fromX2, tz, fromX2, zBack)
-          && !rapidHitsPlan(fromX2, tz, fromX2, zBack)
-          && !holderHitsRapid(fromX2, tz, fromX2, zBack)
-          && !holderHitsRapid(fromX2, zBack, tx, tz)) {
-        emit(`G0 Z${zBack.toFixed(3)}`);
-        emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}${note('', `Zanoření ${entryAngleDegGc.toFixed(1)}°`)}`);
-        return;
-      }
+    if (!(rampedApproachOn && dx > 0.05 && tanA > 1e-9)) return null;
+    // RAMPUJE SE JEN TAM, KDE SE OPRAVDU ZANOŘUJE DO MATERIÁLU. Když sjezd
+    // vede vzduchem (materiál nad vrstvou vzala mělčí vrstva), není co
+    // rampovat — šikmá dráha by jen protáhla posuv o desítky milimetrů po
+    // dráze, kterou už někdo projel. Nález uživatele 10. 9. 2026:
+    // `N3060 G1 X24.545 Z30.897 ; Zanoření 10.0°` jelo 13,2 mm posuvem
+    // a neubralo NIC („jede to přes projetou dráhu").
+    if (!rapidHitsStock(fromX2, tz, tx, tz)) return null;
+    const zBack = clipZGc(tz + approachZDir * (dx / tanA));
+    if (!(Math.abs(zBack - tz) > 1e-6)) return null;
+    if (rapidHitsStock(fromX2, tz, fromX2, zBack)) return null;
+    if (rapidHitsPlan(fromX2, tz, fromX2, zBack)) return null;
+    if (holderHitsRapid(fromX2, tz, fromX2, zBack)) return null;
+    if (holderHitsRapid(fromX2, zBack, tx, tz)) return null;
+    if (approachX !== null && approachX > fromX2 + 1e-6) {
+      if (rapidHitsStock(approachX, zBack, fromX2, zBack)) return null;
+      if (rapidHitsPlan(approachX, zBack, fromX2, zBack)) return null;
+      if (holderHitsRapid(approachX, zBack, fromX2, zBack)) return null;
+    }
+    return { zBack };
+  };
+  // `plan` = předpočítaný plán (jinak se spočítá tady). `atZBack` říká, že
+  // volající už na začátku rampy STOJÍ, takže couvnutí emitovat nemá.
+  const emitFeedToDepth = (fromX2, tx, tz, plan = undefined, atZBack = false) => {
+    const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+    const p = plan === undefined ? planFeedToDepth(fromX2, tx, tz) : plan;
+    if (p) {
+      if (!atZBack) emit(`G0 Z${p.zBack.toFixed(3)}`);
+      emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}${note('', `Zanoření ${entryAngleDegGc.toFixed(1)}°`)}`);
+      return;
     }
     emit(`G1 X${xDia(tx)} F${prms.feed}`);
   };
   const emitDescendX = (fromX, tx, tz, touch) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+    // COUVNUTÍ RAMPY PATŘÍ PŘED SJEZD V X. Dokud se emitovalo až za ním,
+    // vypadal příjezd takhle (nález uživatele 10. 9. 2026, „šílené dráhy"):
+    //     G0 Z273.724   ← volající přejel na CÍL
+    //     G0 X25.110
+    //     G0 Z291.107   ← a hned couvnutí ZPÁTKY, 17 mm okružní jízdy
+    //     G1 X22.045 Z273.724 ; Zanoření 10.0°
+    // Teď se couvnutí vydá první a `emitBackoffZ` ho slije s přejezdem
+    // volajícího; sjezd v X se pak udělá až na `zBack` (proto ten bod
+    // `planFeedToDepth` testuje zvlášť přes `approachX`).
+    const descend = (startX) => {
+      const plan = startX - tx > 1e-6 ? planFeedToDepth(startX, tx, tz, fromX) : null;
+      if (plan) emitBackoffZ(plan.zBack);
+      if (fromX - startX > 1e-6) emit(`G0 X${xDia(startX)}`);
+      if (startX - tx > 1e-6) emitFeedToDepth(startX, tx, tz, plan, !!plan);
+    };
     if (fromX - tx > 1e-6 && (rapidHitsStock(fromX, tz, tx, tz) || rapidHitsPlan(fromX, tz, tx, tz))) {
       const surf = rapidStopXAt(tz);
-      if (surf !== null) {
-        const floorX = Math.min(fromX, Math.max(tx, surf));
-        if (fromX - floorX > 1e-6) emit(`G0 X${xDia(floorX)}`);
-        if (floorX - tx > 1e-6) emitFeedToDepth(floorX, tx, tz);
-        return;
-      }
+      if (surf !== null) { descend(Math.min(fromX, Math.max(tx, surf))); return; }
     }
     if (touch && fromX - tx > 1e-6) {
-      const startX = fromX - tx > rapidStopX + 1e-6 ? tx + rapidStopX : fromX;
-      if (startX < fromX - 1e-6) emit(`G0 X${xDia(startX)}`);
-      emitFeedToDepth(startX, tx, tz);
+      descend(fromX - tx > rapidStopX + 1e-6 ? tx + rapidStopX : fromX);
     } else if (Math.abs(fromX - tx) > 1e-6) {
       emit(`G0 X${xDia(tx)}`);
     }
@@ -892,9 +942,13 @@ export function generateAutoGCode(S, calc) {
       // hlídání i fallback na dnešní radiální sjezd, takže tvary bez
       // `rampedApproach` se nehnou.
       if (cur.x - tx > rapidStopX + 1e-6) {
-        emit(`G0 Z${tz.toFixed(3)}`);
-        emit(`G0 X${xDia(tx + rapidStopX)}`);
-        emitFeedToDepth(tx + rapidStopX, tx, tz);
+        // Přejezd v Z rovnou na začátek rampy — tahle větev si sjezd emituje
+        // sama, takže reorder z `emitDescendX` na ni nedosáhne.
+        const startX = tx + rapidStopX;
+        const plan = planFeedToDepth(startX, tx, tz, cur.x);
+        emit(`G0 Z${(plan ? plan.zBack : tz).toFixed(3)}`);
+        emit(`G0 X${xDia(startX)}`);
+        emitFeedToDepth(startX, tx, tz, plan, !!plan);
       } else {
         // ZBYTEK V X je kratší než vůle → ten opravdu patří posuvu. PŘEJEZD
         // V Z ale ne: „zbytek" se měří jen v X a v Z může jít o milimetry,
@@ -906,8 +960,10 @@ export function generateAutoGCode(S, calc) {
         // Rozdělení je i tady BEZPEČNĚJŠÍ, ne jen jiné (týž argument jako ve
         // větvi nad ní): přejezd v Z se udělá na PŮVODNÍ, tedy větší hloubce,
         // takže leží celý nad diagonálou, kterou guard výš prověřil.
-        if (Math.abs(tz - cur.z) > 1e-6) emit(`G0 Z${tz.toFixed(3)}`);
-        emitFeedToDepth(cur.x, tx, tz);
+        const plan = planFeedToDepth(cur.x, tx, tz, null);
+        const zGo = plan ? plan.zBack : tz;
+        if (Math.abs(zGo - cur.z) > 1e-6) emit(`G0 Z${zGo.toFixed(3)}`);
+        emitFeedToDepth(cur.x, tx, tz, plan, !!plan);
       }
     } else if (cur.x - tx > 1e-6) {
       // Čistý rychloposuv DO menšího průměru — táž úvaha: napřed přejet v Z

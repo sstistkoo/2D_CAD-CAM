@@ -1,4 +1,5 @@
 // ── ZÁVITOVÁNÍ: sdílené výpočty ───────────────────────────────────────────
+import { getInsert } from './inserts/index.js';
 // Hloubka profilu závitu [mm, radiálně] podle typu (stejné vzorce jako
 // kalkulačka Závity v CAD — detailMetric/detailG/detailTr/… v thread.js).
 export function threadProfileDepth(typeKey, P, external) {
@@ -32,10 +33,11 @@ export function computeThreadPassCuts(totalDepth, forcedPasses) {
 export function partOffGeom(prms, calc) {
   const pz = parseFloat(prms.partOffZ);
   const shape = prms.toolShape;
+  const ins = getInsert(prms);
   const R = Math.max(0, parseFloat(prms.toolRadius) || 0);
   const wIns = Math.max(0, parseFloat(prms.toolLength) || 0);
   // Pracovní rádius: kulatý plátek = R; upichovák = rohový rádius (≤ půl šířky).
-  const rIns = shape === 'parting' ? Math.min(R, wIns > 0 ? wIns / 2 : R) : R;
+  const rIns = ins.partOffCornerR;
   const allowX = parseFloat(prms.allowanceX) || 0;          // Dojezd X (spodní hrana)
   // Přídavek Z = TRVALÝ přídavek v ose Z — poslední/jediná dráha ho nechá stát
   // (NEodebírá se dokončováním). Přídavek na hotovo = přídavek NA HOTOVO, který
@@ -56,7 +58,7 @@ export function partOffGeom(prms, calc) {
   const zRough = zFinal + dir * finAllow;                   // hrubovací rovina (o Přídavek na hotovo dál)
   const doFinish = !!prms.doFinishing && finAllow > 1e-6;   // plynulá dokončovací dráha (jen s Přídavkem na hotovo)
   let canCut = true, reason = '';
-  if (shape !== 'round' && shape !== 'parting') {
+  if (!ins.canPartOff) {
     canCut = false; reason = '! Upichnutí podporuje jen kulatý / upichovací plátek – dráhy nevygenerovány.';
   } else if (allowX >= xStockTop - 1e-4) {
     canCut = false; reason = '! Dojezd (Dojezd X) leží nad polotovarem – nic k obrobení.';

@@ -44,7 +44,24 @@ export function emitPocketInterval(D) {
   const clipLeadInToDepth = (segs, X) => {
     let k = segs.length;
     while (k > 0 && Math.min(segs[k - 1].x1, segs[k - 1].x2) >= X - 0.02) k--;
-    return k === 0 ? segs : segs.slice(k);
+    const out = k === 0 ? segs : segs.slice(k);
+    // ── NÁJEZD, KTERÝ SKONČÍ VÍC NEŽ `ap` NAD VRSTVOU, NENÍ NÁJEZD ───────
+    // Nájezd po kontuře smí skončit VÝŠ než vrstva (kontura tam prostě je
+    // výš) a zbytek dojede `emitDescendX`. Jenže ten zbytek je RADIÁLNÍ ŘEZ
+    // a nikdo mu nehlídal hloubku: při R 1,3 z toho na dílu uživatele vyšlo
+    // `N2070 G1 X32.045` — **6,822 mm kolmo** (3,18 mm do materiálu, tedy
+    // nad `ap` 2,5) a k tomu tvrdá kolize. Celý ten nájezd navíc doslova
+    // znovu projel dojezd jiného průchodu a 40 mm posuvu neubralo nic.
+    //
+    // Když se zbytek nevejde do JEDNÉ Hloubky (ap), nájezd se zahodí celý:
+    // průchod se pak najede normálně (`safeRapidTo` s dotykem), tedy ŠIKMO
+    // pod úhlem zanoření. Materiál, který by ten nájezd sebral, si vezme
+    // jiná vrstva nebo dokončování — `ap` je podmínka, úběr kritérium není.
+    if (out.length > 0) {
+      const endX = out[out.length - 1].x2;
+      if (Number.isFinite(endX) && endX - X > step + 0.05) return [];
+    }
+    return out;
   };
 
   // ── KDYŽ ZAČÁTEK INTERVALU POSUNUL DOJEZD, NÁJEZD KONČÍ DŘÍV ──────────

@@ -17,6 +17,7 @@ import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
+import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
@@ -135,7 +136,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   // Upichnutí (part-off): polygonální destička nemá definovaný zápichový
   // profil → varovat a nevytvářet dráhy (viz partOffGeom / generateAutoGCode).
-  if (prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)) && prms.toolShape === 'polygon') {
+  if (prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)) && !getInsert(prms).hasGrooveProfile) {
     foundErrors.push({ type: 'warning', msg: 'Upichnutí: polygonální (kosočtvercová) destička není podporována — zvol kulatý nebo upichovací plátek. Dráhy nevygenerovány.' });
   }
 

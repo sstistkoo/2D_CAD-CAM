@@ -15,6 +15,7 @@
 import { StockModel, toolSweep, polySimplify, polyOffset } from '../../geom/geomCore.js';
 import { stockClearances, stockClearanceIsZero } from './camMath.js';
 import { buildInsertProfileSegments } from './insertPreview.js';
+import { getInsert } from './inserts/index.js';
 
 /**
  * Zásah těla destičky v ose Z (od programovaného bodu k UŽ OBROBENÉ
@@ -43,7 +44,9 @@ import { buildInsertProfileSegments } from './insertPreview.js';
  */
 export function insertBodyZ(prms, r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05)) {
   if ((prms.roughingStrategy || 'longitudinal') !== 'face') return 0;
-  if (prms.toolShape === 'parting') {
+  // Ze ŠÍŘKY plátku (ne z ap) to bere jen tvar, který si to řekne
+  // v pravidlech — `faceBodyZFromWidth`.
+  if (getInsert(prms).faceBodyZFromWidth) {
     const w = parseFloat(prms.toolLength) || 0;
     return w > 0 ? Math.max(w - r, 0) : 0;
   }
@@ -170,7 +173,7 @@ export function toolFootprint(prms) {
  * geometrie umět spodní hranu destičky; teprve pak sem.
  */
 export function toolFootprintVisual(prms) {
-  if (prms.toolShape === 'round') return toolFootprint(prms);
+  if (getInsert(prms).footprintIsNoseOnly) return toolFootprint(prms);
   const body = insertWorldLoop(prms, prms.roughingSide === 'left');
   if (!body || body.length < 3) return toolFootprint(prms);
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);

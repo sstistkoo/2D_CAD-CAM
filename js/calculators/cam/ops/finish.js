@@ -23,6 +23,7 @@ import { machinableRangeOf, segInterferesWithTool, trimAndRemoveLoops } from '..
 import { makeFinishTipGuard } from '../toolEnvelope.js';
 import { fitArcsToPolyline, samplePartingEnvelope } from '../camMath.js';
 import { maxXAt } from '../passHelpers.js';
+import { getInsert } from '../inserts/index.js';
 
 /**
  * @param ctx  vstupy z `computeCalculation()` — viz destrukturace níž
@@ -322,7 +323,7 @@ export function finishPartingEnvelope(prms, finishOffsetPath) {
 // rádius plátku, na klesajících aktivní roh; vršky přejíždí rovné dno.
 // Do úzkých kapes (užší než plátek) obálka nezajede — zbytek je
 // nedosažitelný stejně jako u hlídání geometrie destičky.
-if (prms.toolShape === 'parting' && (prms.doFinishing || prms.finishOnly) && finishOffsetPath.length > 0) {
+if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly) && finishOffsetPath.length > 0) {
   const wInsF = parseFloat(prms.toolLength) || 0;
   const rInsF = Math.min(parseFloat(prms.toolRadius) || 0, wInsF / 2);
   const w2RF = Math.max(0, wInsF - 2 * rInsF);

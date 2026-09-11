@@ -7,6 +7,12 @@ pravidla** — je to soupis toho, co generátor dnes dělá a proč, na jednom m
 Neřekne, jestli správně. Tenhle dokument je ten druhý díl: seznam podmínek,
 proti kterému se dá změna odškrtat.
 
+**Tvar plátku má vlastní soubor.** Rozhodnutí, která se liší podle tvaru
+destičky, patří do `js/calculators/cam/inserts/*.js`; sdílený kód se ptá
+`getInsert(prms)`, **nikdy `prms.toolShape`**. Co je vytažené, kdo se na to
+ptá a co se ještě může plést do jiných plátků, je v
+`docs/cam-tvar-platku-v-generatoru.md`.
+
 **Autorita je kód, ne tenhle text.** Každé pravidlo má odkaz na místo, kde
 opravdu žije; když se rozejdou, platí kód a tenhle soubor je potřeba opravit.
 Pravidla v kódu jsou hustá schválně — `ops/` má 45 % řádků komentář a je v nich

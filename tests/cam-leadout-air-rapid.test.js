@@ -135,8 +135,14 @@ describe('Dojezd „bez schodků"', () => {
     const moves = parseMoves(gcode);
     // Přejezdy v Z (konstantní X) uvnitř kapsy v údolí Z≈29–60, které se
     // VRACEJÍ na začátek dalšího kroku rampy (z0 < z1, tedy zpátky „nahoru").
-    const trav = moves.filter(m => m.g === 0 && Math.abs(m.x1 - m.x0) < 1e-6
-      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 29 && m.z1 < 60 && m.z0 < m.z1 && m.x1 < 60);
+    // POZOR na dvě různá `G0 Z` se stejným tvarem (od 10. 9. 2026, kdy
+    // `rampedApproach` dostal i polygon): přesun v kapse je následován
+    // přesunem v X (`G0 X…`), kdežto COUVNUTÍ PŘED ZANOŘENÍM vede rovnou na
+    // šikmý sjezd (`G1 X… Z… ; Zanoření`). Couvnutí sem nepatří — nezvedá se
+    // nad předchozí řez, protože se ani nikam nepřesouvá.
+    const trav = moves.filter((m, i) => m.g === 0 && Math.abs(m.x1 - m.x0) < 1e-6
+      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 29 && m.z1 < 60 && m.z0 < m.z1 && m.x1 < 60
+      && moves[i + 1] && moves[i + 1].g === 0 && Math.abs(moves[i + 1].x1 - m.x1) > 1e-6);
     expect(trav.length, 'přejezd v kapse zpět na pokračování rampy').toBeGreaterThan(0);
     for (const m of trav) {
       const idx = moves.indexOf(m);
@@ -145,10 +151,14 @@ describe('Dojezd „bez schodků"', () => {
       // modelem (co už průchody odebraly) validátor kolizí — syrová silueta by
       // tady lhala, materiál nad nástrojem je v tu chvíli dávno pryč.
       expect(m.x1, 'přejezd nad úrovní předchozího řezu').toBeGreaterThan(moves[idx - 1].x0);
-      // Sjezd zpátky: rychloposuv a teprve pak posuv na cílovou hloubku.
-      expect(moves[idx + 1].g, 'sjezd rychloposuvem').toBe(0);
-      expect(moves[idx + 2].g, 'poslední kousek sjezdu posuvem').toBe(1);
-      expect(moves[idx + 1].x1 - moves[idx + 2].x1).toBeGreaterThan(0);
+      // Sjezd zpátky: rychloposuvem, a teprve POSLEDNÍ kousek posuvem. Mezi
+      // ně smí vstoupit couvnutí v Z (rychloposuv) — sjezd na hloubku jde
+      // u plátku s `rampedApproach` šikmo, ne kolmo.
+      let k = idx + 1;
+      while (moves[k] && moves[k].g === 0) k++;
+      expect(k, 'sjezd rychloposuvem').toBeGreaterThan(idx + 1);
+      expect(moves[k] && moves[k].g, 'poslední kousek sjezdu posuvem').toBe(1);
+      expect(moves[k - 1].x1 - moves[k].x1, 'rychloposuv končí nad cílovou hloubkou').toBeGreaterThan(0);
     }
   }, 30000);
 

@@ -8,6 +8,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – polygonální plátek se pořád zanořoval KOLMO.** Pravidlo „poslední
+  kousek na hloubku jde šikmo pod úhlem zanoření“ (`rampedApproach`) měla
+  zapnuté jen kulatá destička. U polygonu se ten kousek — dlouhý `Vůle X + R` —
+  sjížděl radiálně, tedy pod 90°, i když měl uživatel nastavených 10°.
+  A protože jeho délka je `Vůle X + R`, **rostl s rádiusem plátku**: 1,80 mm
+  při R 0,8, 2,30 mm při R 1,3. Nález uživatele 10. 9. 2026
+  (`N2550 G1 X49.525`, `N2390 G1 X17.045`, …).
+
+  Měřeno na obou jeho souborech (polygon, ap 2,5, úhel zanoření 10°):
+
+  | | R 0,8 | R 1,3 |
+  |---|---|---|
+  | řezy strmější než 10° | 8 → **4** | 9 → **5** |
+  | z toho svislých (90°) | 7 → **3** | 9 → **5** |
+  | největší tříska | 3,053 mm (beze změny) | 3,553 mm (beze změny) |
+  | třísek nad ap | 1 (beze změny) | 4 (beze změny) |
+  | duplicitní dráhy | 0 (beze změny) | 1 (beze změny) |
+  | kolize syrové/offsetové | 0 / 0 (beze změny) | 0 / 0 (beze změny) |
+
+  Na celé sadě: `cam_sweep` hlásí **kolize 7 / 121,3 mm² beze změny**
+  (nakreslený nůž) a **0 / 0,0 mm²** (náhradní držák), úběr +0,7 mm²
+  z 87 424 (šum). Otisk se hnul u 19 z 29 fixtures (všechny polygonální);
+  `collision-validator`, `material-removal` i `cam-traversal-invariants`
+  81/81 zeleně. Snapshot `cam-gcode-regression` obnoven — kromě
+  `part-17-long-parting` a `part-22-round-r10`, kterých se změna netýká
+  a jejichž starší drift zůstává červený schválně.
+
+  **Zbylé svislé sjezdy jsou doložené:** couvnutí v Z tam neprojde testem
+  proti materiálu/držáku, takže zůstává radiální sjezd (týž doložený zbytek
+  jako u kulaté).
+
+### Known issues
+- **CAM – změna rádiusu plátku zhorší výsledek (polygon).** Týž díl, jen
+  R 0,8 → R 1,3: třísek nad `ap` **1 → 4**, největší tříska 3,053 → 3,553 mm,
+  duplicitní dráhy **0 → 1**. Konkrétně vzniká navíc „Průchod 37 (kapsa po
+  kontuře)“, jehož nájezd **doslova znovu projede dojezd Průchodu 32**
+  (`X40.043 Z138.972 → X41.818 Z129.028`) a pak spadne **6,822 mm radiálně**
+  (`N2050 G1 X32.045`) — z toho 3,18 mm do materiálu, tedy nad `ap` 2,5.
+  `makeChainRegistry` to nezachytí, protože ořezává jen souvislý PREFIX
+  nájezdu a duplicitní část leží až za prvním (nepřekrytým) úsekem.
+### Changed
+- **CAM – tvar plátku už do generátoru drah nezasahuje napřímo.** Audit našel
+  **devět rozhodnutí** o tvaru destičky, která žila MIMO `cam/inserts/`
+  a sahala do generování drah (`prms.toolShape === '…'` v `camMath.js`,
+  `contourBuild.js`, `interferenceGuides.js`, `materialRemoval.js`,
+  `toolEnvelope.js`, `calculatePipeline.js`, `ops/finish.js`,
+  `threadHelpers.js`). Kvůli nim mohla oprava pro jeden plátek přepsat dráhy
+  ostatním — letos se to stalo dvakrát. Nově jsou to klíče v pravidlech plátku
+  (`plungeAngleMaxDeg`, `autoPlungeAngleDeg`, `hasFlankGeometry`,
+  `faceBodyZFromWidth`, `footprintIsNoseOnly`, `bodyInCollisionEnvelope`,
+  `hasGrooveProfile`, `finishAlongEnvelope`, `canPartOff`, `partOffCornerR`)
+  a sdílený kód se ptá jen jich.
+
+  **Čistý refaktor, doloženo měřením:** otisk 29 fixtures **SHODNÝ** a G-kód
+  tří uživatelových `.camprog` (polygon 5°/10°, kulatá 45°) bajt po bajtu
+  stejný proti `HEAD` ve worktree.
+
+  Nový přehled `docs/cam-tvar-platku-v-generatoru.md`: co je vytažené, kdo se
+  na která pravidla ptá a **co se ještě může plést** — parametry tvaru
+  (`toolAngle`, `toolTipAngle`, `toolLength`) se v osmi sdílených modulech
+  pořád čtou napřímo a tři z nich to nemají čím zarazit.
+
+### Known issues
+- **CAM – malý úhel zanoření rozhodí konec dílu (polygon).** Rampa dodělání
+  se kontroluje proti hotovní kontuře, ale ne proti ZBÝVAJÍCÍMU materiálu,
+  a její strop „nejvýš jedna Hloubka (ap)“ platí jen v ose X. Při 5° je to
+  v ose Z 28,6 mm, takže rampa přeletí sousední hrb: na dílu uživatele
+  `N2560 G1 X25.257 Z20.914 ; Rampa 5.0°` zabírá **10,02 mm při ap 2,5**.
+  Při 10°/15° je největší tříska 3,05 mm. Dvě opravy změřeny a zamítnuty
+  (obě zhoršily počet třísek nad ap na VŠECH úhlech i u kulaté) — rozbor
+  v `docs/cam-tvar-platku-v-generatoru.md`.
+
+### Fixed
 - **CAM – pole „Úhel zanoření (°)" neměnilo mezní čáru.** Mez se u polygonu
   brala výhradně z geometrie plátku, takže po přepnutí úhlu na 5° dráhy
   rampovaly pod 5°, ale čára zůstala na 15° — dvě různá čísla pro tutéž mez.
