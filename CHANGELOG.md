@@ -8,6 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – dráha končila na kůře odlitku, ne na offsetové čáře.** Na otázku
+  „kde má průchod skončit" odpovídaly DVĚ nezávislé logiky s různým modelem
+  polotovaru: plán (`stockZRangeAt` v `ops/roughLong.js`) četl SYROVÝ řetěz
+  obrysu, kdežto emise (`offsetExitZ` v `gcodeEmit.js`) konec dodatečně
+  prodlužovala na offsetovou čáru — ale jen v okně **4× Přídavek**. Na hraně
+  skoro rovnoběžné s osou Z se kolmý posun o Vůli podél Z natáhne
+  1/sin(sklon), okno nestačí a průchod zůstane stát na kůře. Nález uživatele
+  11. 9. 2026 (oblouk R18, Vůle 1 mm): `N1580 G1 Z119.340` místo Z 116,835,
+  tedy **2,5 mm** neobrobeno; o hloubku vedle, kde vzdálenost vyšla 1,6 mm,
+  dráha na čáru dojela — proto to vypadalo nahodile.
+
+  Opraveno na JEDNOM místě, jak zní pravidlo v `docs/cam-pravidla-drah.md`
+  §5 („syrová čára polotovaru neexistuje"):
+  - `stockZRangeAt` měří na **vůlí-posunuté siluetě** (`stockLoopOffsetFullL`)
+    — dno i vjezd průchodu tedy sedí na téže čáře jako všechny výjezdy.
+  - Booleovský obal zbytku (`ops/long/intervalScan.js`) bere Z-rozpětí rovněž
+    z offsetové smyčky; jeho X-mez (`planTopX`) offsetová už byla, takže obal
+    končil o Vůli Z dřív než dno průchodu (levý konec dílu dojel na Z −8,000
+    místo Z −9,000).
+  - Prodloužení v emisi (`ops/roughEmit.js`) dostalo strop `pass.zEnd`:
+    odsazení „ještě o Vůli Z" je jen náhradník pro nenalezenou hranu a bez
+    stropu se přičítalo i tam, kde průchod na čáře už stál — výjezd ji pak
+    přejel o celou Vůli Z (naměřeno 1,000 mm na každém otevřeném konci).
+
+  Měřeno na 29 fixtures (`scripts/cam_fingerprint.mjs` + `scripts/cam_sweep.mjs`):
+  otisk se hnul u **23**, úběr **+349,6 mm²** (nakreslený nůž) a
+  **+182,9 mm²** (náhradní držák), **kolize beze změny** — 7 / 121,3 mm²,
+  resp. 0 / 0,0 mm². `collision-validator`, `material-removal` i
+  `cam-traversal-invariants` 81/81 zeleně; snapshoty `cam-gcode-regression`
+  a `cam-boolean-gcode-regression` obnoveny záměrně.
+
+  Filtr v `tests/cam-leadout-air-rapid` („přesun v kapse") dostal podmínku
+  `m.z0 > 20`: bral i NÁJEZD dalšího průchodu zvenčí, který teď stojí před
+  offsetovou čarou a sjíždí proto celý rychloposuvem (prokazatelně vzduch).
+  Tři skutečné přesuny v údolí Z≈29–60 zůstávají beze změny.
 - **CAM – polygonální plátek se pořád zanořoval KOLMO.** Pravidlo „poslední
   kousek na hloubku jde šikmo pod úhlem zanoření“ (`rampedApproach`) měla
   zapnuté jen kulatá destička. U polygonu se ten kousek — dlouhý `Vůle X + R` —

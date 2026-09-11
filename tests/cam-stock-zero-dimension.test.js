@@ -72,7 +72,12 @@ describe('Čelo/Délka polotovaru 0 nesmí spadnout do fallbacku', () => {
     expect(zero.emitMax).toBeCloseTo(eps.emitMax, 1);
     // A hlavně: ani jedna varianta nesmí mířit za konec materiálu. Nejdál
     // smí bezpečná poloha (safeZ = 5), materiál končí na Čele.
-    expect(zero.planMax, 'plánovaná dráha za koncem materiálu').toBeLessThanOrEqual(0.05);
+    // Mez = Vůle Z (Přídavek polotovaru; bez `stockClearX/Z` dědí
+    // `rapidClearance` = 1 mm). Od 11. 9. 2026 končí polotovar pro plánování
+    // na OFFSETOVÉ čáře (§5 docs/cam-pravidla-drah.md), takže o Vůli za Čelo
+    // plán sahat SMÍ — a dál ne. Fallback, který tenhle test hlídá, mířil na
+    // Z +100, takže rozdíl mezi „správně" a „vada" zůstává o dva řády.
+    expect(zero.planMax, 'plánovaná dráha za koncem materiálu').toBeLessThanOrEqual(1.05);
     expect(zero.emitMax, 'emitovaná dráha za bezpečnou polohou').toBeLessThanOrEqual(5.05);
   }, 180000);
 

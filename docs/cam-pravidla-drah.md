@@ -594,16 +594,47 @@ měl co posunout (`ops/roughLong.js:297`). To není „použití pro generován�
 
 Skutečně otevřená místa, kde o dráze rozhoduje SYROVÝ obrys:
 
-| místo | co podle něj rozhoduje |
-|---|---|
-| `ops/roughLong.js:120` | `maxStockX` — od jaké hloubky vůbec začínají vrstvy (průsečíky na hranicích rozsahu 📐) |
-| `ops/roughLong.js:191` | `stockZRangeAt` — Z-okno řezu na hranicích rozsahu 📐 |
-| `ops/roughLong.js:149` | `_stockLoopSpanMemo` — rozpětí pro kapsový span |
-| `gcodeEmit.js:162` | `rapidStock` = model ze SYROVÉ smyčky; plánovací `rapidStockPlan` je vedle něj samostatně |
+| místo | co podle něj rozhoduje | stav |
+|---|---|---|
+| `ops/roughLong.js` `maxStockX` | od jaké hloubky vůbec začínají vrstvy | **otevřené** (mřížka je kotvená na kůře, skim ji dorovnává na `planTopX`) |
+| `ops/roughLong.js` `stockZRangeAt` | **Z-okno řezu = KDE PRŮCHOD KONČÍ** | **HOTOVO 11. 9. 2026** — viz §5.2 |
+| `ops/long/intervalScan.js` `getResidualLoops` | Z-rozpětí booleovského obalu zbytku | **HOTOVO 11. 9. 2026** — viz §5.2 |
+| `ops/roughLong.js` `_stockLoopSpanMemo` | rozpětí pro kapsový span | **otevřené** |
+| `ops/roughLong.js` `cylStockZ` | `traceFloorL` — dno pro sledování obrysu | **otevřené** |
+| `ops/long/regions.js` `regionSplits` | kde jsou údolí = hranice ÚSEKŮ | **otevřené** (je to „kde dělit", ne „kde končit") |
+| `gcodeEmit.js:162` | `rapidStock` = model ze SYROVÉ smyčky; plánovací `rapidStockPlan` je vedle něj samostatně | záměrná dvojice |
 
-**Pozor při opravě:** u prvních tří jde o hranice rozsahu 📐 a posun na offset
-tam znamená, že vrstvy začnou o Vůli X výš a Z-okno bude o Vůli Z širší —
-tedy ZMĚNA DRAH, ne refaktor. Měřit otiskem i sweepem.
+**Pozor při opravě:** jde o ZMĚNU DRAH, ne refaktor — vrstvy začnou o Vůli X
+výš a Z-okno bude o Vůli Z širší. Měřit otiskem i sweepem.
+
+### 5.2 Dno průchodu (`effZMin`) — sjednoceno 11. 9. 2026
+
+Do 11. 9. 2026 odpovídaly na otázku **„kde má dráha skončit"** DVĚ nezávislé
+logiky s různým modelem polotovaru:
+
+1. **Plán** — `stockZRangeAt` v `ops/roughLong.js` četl SYROVÝ řetěz
+   (`hIntersect(stockPathSegments)`) a z něj stavěl `effZMin`, tedy dno
+   průchodu. Booleovský obal zbytku (`getResidualLoops`) bral Z-rozpětí
+   rovněž ze syrové smyčky, i když jeho X-mez (`planTopX`) už offsetová byla.
+2. **Emise** — `offsetExitZ` v `gcodeEmit.js` ten rozdíl dorovnávala až
+   dodatečně: konec řezu prodloužila na offsetovou čáru, ale jen v okně
+   **4× Přídavek**.
+
+Na hraně skoro rovnoběžné s osou Z okno nestačí — kolmý posun o Vůli se podél
+Z natáhne 1/sin(sklon). Reálný nález (díl uživatele 11. 9. 2026, oblouk R18,
+Vůle 1 mm): `N1580 G1 Z119.340` místo Z 116,835, tedy **2,5 mm** stojícího
+materiálu před tečkovanou čarou. Na sousední hloubce, kde vzdálenost vyšla
+1,6 mm, se dráha do okna vešla a na čáru dojela — proto to vypadalo náhodně.
+
+**Platí jediná logika: dno průchodu se měří na VŮLÍ-POSUNUTÉ siluetě.**
+Prodloužení v emisi zůstává jako pojistka pro konec zkrácený dosahem nosu
+(`airSplitAxial` pracuje na hloubce `x − R`), ale **nesmí přejet `pass.zEnd`** —
+bez toho stropu se odsazení „ještě o Vůli Z" přičítalo i tam, kde průchod na
+čáře už stál, a výjezd ji přejel o celou Vůli Z (naměřeno 1,000 mm).
+
+Změřeno na 29 fixtures (`cam_fingerprint` + `cam_sweep`): otisk se hnul u 23,
+úběr **+349,6 mm²** (nakreslený nůž) / **+182,9 mm²** (náhradní držák),
+**kolize beze změny** (7 / 121,3 mm², resp. 0 / 0,0).
 
 > **Doplněk 1. 9. 2026 — nejde jen o „syrový × offsetový" obrys.** Kotva
 > zanoření (`stockEntryRamp`) používala offsetovou čáru správně, a přesto

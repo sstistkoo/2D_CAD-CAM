@@ -58,8 +58,12 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     const r = await run('part-8.camprog', MAGAZINE_HOLDER);
     // Pás Z 258–266 = pahýl polotovaru za koncem kontury; materiál tam stojí
     // od osy až na r 39,94, takže hloubky musí jít postupně dolů.
+    // Horní mez 270, ne 267: od 11. 9. 2026 se `stockZRangeAt` měří na
+    // OFFSETOVÉ čáře, takže vjezd stojí o Vůli Z dál (zStart 266,014 → 267,014)
+    // a se starým oknem sem nespadl ANI JEDEN průchod. Pokrytí hloubek se
+    // přitom nezhoršilo — naopak, 13 → 14 hloubek, největší skok 2,5 mm.
     const stub = r.passes
-      .filter(p => p.zStart > 258 && p.zStart < 267 && p.zEnd > 255)
+      .filter(p => p.zStart > 258 && p.zStart < 270 && p.zEnd > 255)
       .map(p => +p.x.toFixed(3))
       .sort((a, b) => b - a);
     let maxJump = 0;
@@ -98,7 +102,10 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // s úhlem < 90° zakázané (rozhodnutí uživatele, viz
     // docs/cam-pravidla-drah.md §3.1) — vrstva, na kterou se nedá vjet
     // rampou, se vynechá místo aby se do ní nůž zapíchl radiálně.
-    expect(r.passes.length).toBe(32);
+    // 32 → 33 dne 11. 9. 2026: taky NE regrese. Dno i vjezd průchodu se
+    // měří na offsetové čáře (§5.2 docs/cam-pravidla-drah.md), takže hloubková
+    // posloupnost má o jednu vrstvu víc. Podmínka „bez nálezů" drží dál.
+    expect(r.passes.length).toBe(33);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });

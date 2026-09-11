@@ -502,10 +502,16 @@ calc.passes.forEach((pass, i) => {
       // co je dál (u druhé strany se „dál" počítá v +Z, proto max místo min).
       // Bez nalezené hrany zůstane jen odsazení o Vůli Z (neutrální prvek
       // pro min/max je opačný nekonečno než směr řezu).
+      // STROP JE `pass.zEnd` — tam podle PLÁNU končí polotovar (dno průchodu
+      // se od 11. 9. 2026 měří na vůlí-posunuté siluetě, viz stockZRangeAt
+      // v ops/roughLong.js). Odsazení „ještě o Vůli Z" je jen náhradník pro
+      // případ, že se hrana nenajde; bez stropu se přičetlo I TAM, kde
+      // průchod na offsetové čáře už stojí, a výjezd ji přejel o celou Vůli Z
+      // (naměřeno 1,000 mm na každém otevřeném konci dílu uživatele).
       const zExitEdge = offsetExitZ(pass.x, bodyEndZ, zDir) ?? -zDir * Infinity;
       const zExit = clipZGc(zDir < 0
-        ? Math.min(bodyEndZ - rapidClrZGc, zExitEdge)
-        : Math.max(bodyEndZ + rapidClrZGc, zExitEdge));
+        ? Math.max(pass.zEnd, Math.min(bodyEndZ - rapidClrZGc, zExitEdge))
+        : Math.min(pass.zEnd, Math.max(bodyEndZ + rapidClrZGc, zExitEdge)));
       if (zDir * (zExit - bodyEndZ) > 1e-6 && !rapidHitsStock(pass.x, bodyEndZ, pass.x, zExit)) {
         simCounter += 1; addN(`G1 Z${zExit.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, zExit);
       }

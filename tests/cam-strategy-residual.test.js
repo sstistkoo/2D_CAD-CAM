@@ -194,16 +194,27 @@ describe('ResidualTracker nelže o materiálu', () => {
   // s naměřeným −13,6 mm; po opravě výběru běhu (viz `pick` v `measure`) je
   // tam výškové pole na 0,000 mm — ten tunel v dnešním programu prostě
   // nevzniká. Nerovnost pak neměří přínos trackeru, jen náhodu na jednom
-  // dílu. `part-8` ho měří dál a měří ho pořádně: pole podřezává 9,366 mm
-  // proti trackeru 0,012 mm. V testu „model není níž než realita" výš
-  // `holder-casting-slanted-face` ZŮSTÁVÁ — tam pořád hlídá.
-  for (const name of ['part-8']) {
+  // dílu. V testu „model není níž než realita" výš ZŮSTÁVÁ — tam pořád hlídá.
+  //
+  // `part-8` ze seznamu VEN a mez 1,0 → 0,5 dne 11. 9. 2026 — ZE STEJNÉHO
+  // DŮVODU. Sjednocení polotovaru na offsetovou čáru (§5.2
+  // docs/cam-pravidla-drah.md) ten převis na `part-8` vyhrubovalo: pole tam
+  // podřezávalo 9,366 mm, teď 0,000 (a `holder-casting-slanted-face`, který se
+  // mezitím vrátil, taky 1,x → 0,000). Změřeno na všech šesti fixtures —
+  // jediná, kde tunel zbyl, je `part-13-zleva-flange`: pole podřezává
+  // **0,849 mm** proti trackeru ≤ 0,35 (jeho doložená mez výš). Nerovnost tedy
+  // pořád platí a pořád se měří, jen na dílu, který ten tvar ještě má.
+  //
+  // POZOR: tohle NENÍ povolení mez snižovat dál. Až i `part-13` spadne na
+  // nulu, patří sem NOVÁ fixture s převisem, ne menší číslo.
+  const TAB_MIN = 0.5;
+  for (const name of ['part-13-zleva-flange']) {
     it(`${name}: tracker je proti výškovému poli měřitelně lepší`, async () => {
       const { worstTrk, worstTab } = await measure(name);
       // Naměřeno 26. 8. 2026: výškové pole −11,2 (part-8) a −13,6 mm
       // (holder-casting) proti realitě; tracker do 0,05 mm.
       expect(worstTab, `výškové pole podřezává jen o ${worstTab.toFixed(3)} mm`)
-        .toBeGreaterThan(1);
+        .toBeGreaterThan(TAB_MIN);
       expect(worstTrk).toBeLessThan(worstTab);
     }, 120000);
   }

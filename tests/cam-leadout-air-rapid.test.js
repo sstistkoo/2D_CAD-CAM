@@ -140,8 +140,14 @@ describe('Dojezd „bez schodků"', () => {
     // přesunem v X (`G0 X…`), kdežto COUVNUTÍ PŘED ZANOŘENÍM vede rovnou na
     // šikmý sjezd (`G1 X… Z… ; Zanoření`). Couvnutí sem nepatří — nezvedá se
     // nad předchozí řez, protože se ani nikam nepřesouvá.
+    // `m.z0 > 20` = nástroj UŽ STOJÍ V ÚDOLÍ. Bez toho filtr bral i NÁJEZD
+    // dalšího průchodu zvenčí (odskok z předchozího na Z −9 → G0 Z do údolí),
+    // což žádný „přesun v kapse" není — a od 11. 9. 2026, kdy nájezd stojí
+    // před OFFSETOVOU čarou a ne na kůře odlitku, tam sjezd správně jede celý
+    // rychloposuvem (je to prokazatelně vzduch), takže by test padal na vlastní
+    // záměně. Tři skutečné přesuny v údolí Z≈29–60 to nechává beze změny.
     const trav = moves.filter((m, i) => m.g === 0 && Math.abs(m.x1 - m.x0) < 1e-6
-      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 29 && m.z1 < 60 && m.z0 < m.z1 && m.x1 < 60
+      && Math.abs(m.z1 - m.z0) > 5 && m.z1 > 29 && m.z1 < 60 && m.z0 < m.z1 && m.z0 > 20 && m.x1 < 60
       && moves[i + 1] && moves[i + 1].g === 0 && Math.abs(moves[i + 1].x1 - m.x1) > 1e-6);
     expect(trav.length, 'přejezd v kapse zpět na pokračování rampy').toBeGreaterThan(0);
     for (const m of trav) {

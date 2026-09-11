@@ -30,7 +30,7 @@ import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -134,80 +134,61 @@ export function genLongPasses(ctx) {
   const clrXPlanL = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x;
   const planTopX = maxStockX + clrXPlanL;
 
-  // ── UZAVŘENÁ SILUETA: záloha pro `stockZRangeAt` níž ───────────────────
-  // Bodový sken v `stockZRangeAt` čte OTEVŘENÝ řetěz siluety a jeho konce
-  // započítá, jen když samy leží NAD hloubkou X. Odlitek nakreslený jako
-  // UZAVŘENÁ smyčka (poslední bod dosedne na osu) tím o svou levou hranici
-  // přijde — a protože se pak vrátí `null`, hloubka se přeskočí CELÁ.
-  //
-  // Změřeno na `part-8` (silueta se v krčku propadá na r 17,9): pro hloubky
-  // 16,978 … 1,978 vyšlo jediné Z (pravé čelo, r 39,94), ačkoli v pásu
-  // Z 258–266 stojí materiál od osy až na r 39,94. Sedm vynechaných hloubek
-  // pak vzal jediný vynucený průchod na `minPartX` — 21,98 mm jedním záběrem
-  // při ap 2,5 — a držák skončil 121,8 mm² v materiálu.
-  let _stockLoopSpanMemo;
-  const stockLoopForSpan = () => {
-    if (_stockLoopSpanMemo === undefined) {
-      try { _stockLoopSpanMemo = buildStockLoopRaw(prms, stockPathSegments); }
-      catch { _stockLoopSpanMemo = null; }
-    }
-    return _stockLoopSpanMemo;
-  };
-  // VŠECHNY průchody uzavřené siluety hloubkou X — táž věc, jakou pro otevřený
-  // řetěz vrací `hIntersect`, jen nad smyčkou (a tedy i přes uzavírací hrany).
-  // KRAJNÍ Z BY NESTAČILA: u siluety, která hloubky X dosáhne ve dvou
-  // oddělených místech, by pás `[zHi, zLo]` přemostil mezeru mezi nimi.
-  const stockCrossingsFromLoop = (X) => {
-    const loop = stockLoopForSpan();
-    if (!loop || loop.length < 3) return null;
-    const zs = [];
-    for (let i = 0; i < loop.length; i++) {
-      const a = loop[i], b = loop[(i + 1) % loop.length];
-      if ((a.x - X) * (b.x - X) < 0) {
-        zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
-      }
-    }
-    return zs.length >= 2 ? zs : null;
-  };
-
   // O kolik leží programovaný bod (dráha) nad povrchem, který skutečně řeže —
   // u kulaté destičky rádius nosu, jinde 0 (viz `noseLiftX` v cam/inserts/).
   // Hloubky průchodů jsou v souřadnicích DRÁHY, silueta polotovaru v
   // souřadnicích POVRCHU; tenhle člen ty dvě soustavy srovnává.
   const noseLiftL = ins.noseLiftX || 0;
 
-  // Z-rozsah polotovaru na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
+  // Z-rozsah POLOTOVARU na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
   // `X` je poloha DRÁHY (střed nosu); řeže se o `noseLiftL` níž, takže se
   // silueta ptá na tu hlubší hodnotu.
-  // Pro casting: rightmost/leftmost intersection řetězce + otevřené konce,
-  // a když z toho nevyjde použitelný pás, uzavřená smyčka (viz výš).
-  // Pro válec: [cylStockZ, stockFace].
-  // Vrací { zMax, zMin, all } nebo null pokud na této X polotovar není.
+  // Vrací { zMax, zMin, all } nebo null, pokud na této X polotovar není.
+  //
+  // MĚŘÍ SE NA VŮLÍ-POSUNUTÉ (OFFSETOVÉ) SILUETĚ — polotovar pro plánování
+  // končí až tam (`stockPlanLoop` v materialRemoval.js, rozhodnutí uživatele
+  // 20. 8. 2026). Syrový obrys tu do 11. 9. 2026 zůstal jako poslední
+  // plánovací čtení `hIntersect(stockPathSegments)` a byl to DRUHÝ, rozporný
+  // model „kde končí materiál": dno průchodu (`effZMin`) sedělo na kůře
+  // odlitku, kdežto všechny výjezdy míří na offsetovou čáru. Emise ten rozdíl
+  // dorovnávala až dodatečně (`offsetExitZ` v gcodeEmit.js), ale jen v okně
+  // 4× Přídavek — na hraně skoro rovnoběžné s osou Z (oblouk R18 na dílu
+  // uživatele) okno nestačilo a průchod zůstal stát na kůře:
+  // `N1580 G1 Z119.340` místo Z 116,835, tedy 2,5 mm před tečkovanou čarou.
+  const planLoopSpan = () => stockLoopOffsetFullL;
   const stockZRangeAt = (Xpath) => {
     const X = Xpath - noseLiftL;
-    if (prms.stockMode === 'casting') {
-      let zs = hIntersect(stockPathSegments, X, false);
-      const startP = stockWorldPoints[0];
-      const endP = stockWorldPoints[stockWorldPoints.length - 1];
-      if (startP && startP.xReal > X + 0.01) zs.push(startP.zReal);
-      if (endP && endP.xReal > X + 0.01) zs.push(endP.zReal);
-      if (zs.length < 2) zs = stockCrossingsFromLoop(X) || zs;
-      if (zs.length < 2) return null;
-      zs.sort((a, b) => b - a);
-      if (!rangeClipZ) return { zMax: zs[0], zMin: zs[zs.length - 1], all: zs };
-      // Ořez na rozsah: hranice se přidají jako průsečíky tam, kde přes ně
-      // materiál pokračuje, aby parita v passEntryZ zůstala konzistentní.
-      const inR = zs.filter(z => z >= rangeClipZ.zLo - 1e-9 && z <= rangeClipZ.zHi + 1e-9);
-      for (const zB of [rangeClipZ.zHi, rangeClipZ.zLo]) {
-        const xB = stockOuterXAtZ(prms, sRad, stockPathSegments, zB);
-        if (xB !== null && xB > X + 0.01) inR.push(zB);
-      }
-      if (inR.length < 2) return null;      // v rozsahu na téhle hloubce nic není
-      inR.sort((a, b) => b - a);
-      return { zMax: inR[0], zMin: inR[inR.length - 1], all: inR };
+    const loop = planLoopSpan();
+    // Bez siluety (degenerovaný polotovar) totéž pravidlo z rozměrů válce.
+    if (!loop || loop.length < 3) {
+      const clrZ = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z;
+      const clrX = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x;
+      if (X > sRad + clrX + 0.01) return null;
+      return { zMax: stockFace + clrZ, zMin: cylStockZ - clrZ,
+        all: [stockFace + clrZ, cylStockZ - clrZ] };
     }
-    if (X > sRad + 0.01) return null;
-    return { zMax: stockFace, zMin: cylStockZ, all: [stockFace, cylStockZ] };
+    // Půlotevřené porovnání (jako `stockCrossingsAt` v intervalScan.js):
+    // vrchol ležící přesně na X se započítá právě jednou, takže parita
+    // „lichý počet nad Z = jsme v materiálu" v `passEntryZ` platí dál.
+    const zs = [];
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i], b = loop[(i + 1) % loop.length];
+      if ((a.x <= X && b.x > X) || (b.x <= X && a.x > X))
+        zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
+    }
+    if (zs.length < 2) return null;
+    zs.sort((a, b) => b - a);
+    if (!rangeClipZ) return { zMax: zs[0], zMin: zs[zs.length - 1], all: zs };
+    // Ořez na rozsah: hranice se přidají jako průsečíky tam, kde přes ně
+    // materiál pokračuje, aby parita v passEntryZ zůstala konzistentní.
+    const inR = zs.filter(z => z >= rangeClipZ.zLo - 1e-9 && z <= rangeClipZ.zHi + 1e-9);
+    for (const zB of [rangeClipZ.zHi, rangeClipZ.zLo]) {
+      const xB = topXOnLoop(loop, zB);
+      if (xB !== null && xB > X + 0.01) inR.push(zB);
+    }
+    if (inR.length < 2) return null;      // v rozsahu na téhle hloubce nic není
+    inR.sort((a, b) => b - a);
+    return { zMax: inR[0], zMin: inR[inR.length - 1], all: inR };
   };
 
   // Posloupnost hloubek: maxStockX−step, …, ≥ minPartX, vždy s vynuceným

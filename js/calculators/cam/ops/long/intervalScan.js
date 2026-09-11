@@ -233,7 +233,12 @@ export function makeIntervalScan({
   let _residualLoops = null;
   const getResidualLoops = () => {
     if (_residualLoops !== null) return _residualLoops;
-    const stockLoop = stockLoopL;
+    // Z-rozpětí obalu se bere z VŮLÍ-POSUNUTÉ siluety — polotovar končí až na
+    // offsetové čáře, takže `planTopX` (X) a tenhle Z-rozsah musí mluvit
+    // o TÉŽE čáře. Se syrovým rozpětím obal končil o Vůli Z dřív než dno
+    // průchodu (`effZMin`) a interval se o ten kus zkrátil: na dílu uživatele
+    // 11. 9. 2026 dojel levý konec na Z −8,000 (kůra odlitku) místo Z −9,000.
+    const stockLoop = stockLoopOffsetL || stockLoopL;
     if (!stockLoop) { _residualLoops = []; return _residualLoops; }
     // Z-rozsah z obrysu polotovaru; radiální rozsah do maxStockX (vrch
     // polotovaru). Zbytek se počítá proti PLNÉMU obdélníkovému POLOTOVAROVÉMU
