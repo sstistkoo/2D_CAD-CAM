@@ -24,6 +24,7 @@ import { updateObjectList } from './ui.js';
 import { renderAll } from './render.js';
 import { bulgeToArc } from './utils.js';
 import { offsetContour } from './calculators/contourOffset.js';
+import { fitViewToWorldBounds } from './canvas.js';
 
 // ── Sběr segmentů kontury z plátna ─────────────────────────────
 function _objectsToSegments(objs) {
@@ -171,6 +172,12 @@ function _chainSegments(segs, leftoverOut) {
 //  - konce hlavního řetězu, pokud netvoří uzavřenou smyčku,
 //  - koncové body segmentů, které se do hlavního řetězu nepodařilo napojit.
 // Prázdné pole = kontura je v pořádku (uzavřená a souvislá).
+//
+// Volný konec ležící NA OSE ROTACE (cad_y ≈ 0) se nepočítá jako mezera –
+// profil se soustružnicky kreslí jen z jedné strany (od osy k ose), osa
+// samotná se nekreslí jako objekt, ale rotačně kus uzavírá stejně jako
+// kdyby tam byla nakreslená úsečka (na pokyn uživatele: „osa uzavřela
+// tvar"). Skutečná přerušení mimo osu se hlásí beze změny.
 export function findContourGaps() {
   const objs = _contourObjects();
   if (objs.length === 0) return [];
@@ -178,6 +185,7 @@ export function findContourGaps() {
   if (segs.length === 0) return [];
   const tol = 0.01;
   const eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < tol;
+  const onAxis = (p) => Math.abs(p.y) < tol;
 
   // Sbírej všechny koncové body všech segmentů
   const pts = [];
@@ -200,9 +208,26 @@ export function findContourGaps() {
       }
     }
     counted[i] = true;
-    if (count === 1) gaps.push({ x: pts[i].x, y: pts[i].y });
+    if (count === 1 && !onAxis(pts[i])) gaps.push({ x: pts[i].x, y: pts[i].y });
   }
   return gaps;
+}
+
+/**
+ * Přiblíží/vycentruje CAD plátno na zadané body mezer (viz `findContourGaps()`),
+ * aby si uživatel nemusel přerušení hledat sám ve výkresu – volá se z akce u
+ * hlášky „kontura má mezery" (zvoneček v horní liště na mobilu, viz showToast
+ * opts.onClick v state.js).
+ * @param {{x:number,y:number}[]} gaps
+ */
+export function jumpToContourGaps(gaps) {
+  if (!gaps || gaps.length === 0) return;
+  const xs = gaps.map(g => g.x), ys = gaps.map(g => g.y);
+  fitViewToWorldBounds({
+    minX: Math.min(...xs), maxX: Math.max(...xs),
+    minY: Math.min(...ys), maxY: Math.max(...ys),
+  });
+  renderAll();
 }
 
 // Segment ležící celý na ose rotace (cad_y ≈ 0 na obou koncích) reprezentuje
@@ -420,7 +445,11 @@ export function generateCylinderStock({ allowanceX, allowanceZ, asContour = fals
   state.contourGaps = gaps;
   if (gaps.length > 0) {
     renderAll();
-    showToast('Pozor: kontura má mezery (vyznačeno červeně) — válcový polotovar bude vytvořen, ale obrys zkontrolujte.');
+    showToast(
+      'Pozor: kontura má mezery (vyznačeno červeně) — válcový polotovar bude vytvořen, ale obrys zkontrolujte.',
+      undefined,
+      { onClick: () => jumpToContourGaps(gaps) },
+    );
   }
 
   // Bbox: xMin, xMax (osa Z), yMax (max poloměr). Osu rotace bereme jako y=0.

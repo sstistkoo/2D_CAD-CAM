@@ -2511,9 +2511,19 @@ body {
   font-size: 12px;
   color: var(--ctp-text);
   padding: 6px 8px;
+  border-radius: 5px;
 }
 .mobile-notify-item + .mobile-notify-item {
   border-top: 1px solid var(--ctp-surface0);
+}
+/* Položka s akcí (`onClick` u showToast) – např. „skoč na mezeru v
+   kontuře". Zbytek beze změny zůstává jen text, nic se neděje po kliku. */
+.mobile-notify-item-action {
+  cursor: pointer;
+  color: var(--ctp-blue);
+}
+.mobile-notify-item-action:active {
+  background: var(--ctp-surface0);
 }
 .mobile-notify-empty {
   font-size: 12px;

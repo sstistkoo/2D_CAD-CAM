@@ -19,7 +19,7 @@ export function setPushUndoHook(fn) { _pushUndoHook = fn; }
 // sám nezobrazí klepnutím. Na desktopu se nic nemění – toast je dost
 // stranou, aby nevadil.
 const DEFERRED_NOTIFY_MAX = 6;
-/** @type {string[]} */
+/** @type {{msg: string, onClick: (()=>void)|null}[]} */
 let _deferredNotifications = [];
 let _notifyWired = false;
 
@@ -41,9 +41,22 @@ function escapeHtml(str) {
 function renderNotifyPanel() {
   const panel = document.getElementById('mobileNotifyPanel');
   if (!panel) return;
-  panel.innerHTML = _deferredNotifications.length
-    ? _deferredNotifications.slice().reverse().map(m => `<div class="mobile-notify-item">${escapeHtml(m)}</div>`).join('')
-    : '<div class="mobile-notify-empty">Žádné hlášky</div>';
+  if (!_deferredNotifications.length) {
+    panel.innerHTML = '<div class="mobile-notify-empty">Žádné hlášky</div>';
+    return;
+  }
+  // Nejnovější nahoře; položky s akcí (`onClick`, viz showToast opts.onClick
+  // – např. „skoč na mezeru v kontuře") dostanou terčík a jdou kliknout.
+  panel.innerHTML = _deferredNotifications
+    .slice()
+    .reverse()
+    .map((n, i) => {
+      const idx = _deferredNotifications.length - 1 - i;
+      const cls = n.onClick ? 'mobile-notify-item mobile-notify-item-action' : 'mobile-notify-item';
+      const prefix = n.onClick ? '🎯 ' : '';
+      return `<div class="${cls}" data-notify-idx="${idx}">${prefix}${escapeHtml(n.msg)}</div>`;
+    })
+    .join('');
 }
 
 /** Zapojí klik na zvoneček/panel – jen jednou, líně (až je poprvé co ukázat). */
@@ -62,6 +75,15 @@ function wireNotifyBadge() {
       badge.classList.remove('has-unread');
     }
   });
+  panel.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-notify-idx]');
+    if (!item) return;
+    const n = _deferredNotifications[Number(item.dataset.notifyIdx)];
+    if (n && n.onClick) {
+      panel.hidden = true;
+      n.onClick();
+    }
+  });
   document.addEventListener('click', (e) => {
     if (panel.hidden) return;
     if (badge.contains(e.target) || panel.contains(e.target)) return;
@@ -69,9 +91,13 @@ function wireNotifyBadge() {
   });
 }
 
-function deferToast(msg) {
+/**
+ * @param {string} msg
+ * @param {(()=>void)|null} [onClick]
+ */
+function deferToast(msg, onClick) {
   wireNotifyBadge();
-  _deferredNotifications.push(msg);
+  _deferredNotifications.push({ msg, onClick: onClick || null });
   if (_deferredNotifications.length > DEFERRED_NOTIFY_MAX) _deferredNotifications.shift();
   const badge = document.getElementById('mobileNotifyBadge');
   if (badge) {
@@ -103,12 +129,15 @@ function flashSaveIndicator() {
 /**
  * @param {string} msg
  * @param {number} [duration=2000]
- * @param {{quiet?: boolean}} [opts] `quiet` = časté nízko-prioritní potvrzení
- *   (např. autosave „Projekt uložen" – běží po každé editaci), co na mobilu
- *   nepatří ani do klasického toastu, ani do fronty zvonečku (jen by ji
- *   zbytečně plnilo) – místo toho jen mihne 💾 vedle zvonečku. Na desktopu
- *   (a na mobilu mimo kreslení/otevřené okno, kde toast nevadí) se chová
- *   jako normální hláška.
+ * @param {{quiet?: boolean, onClick?: ()=>void}} [opts] `quiet` = časté
+ *   nízko-prioritní potvrzení (např. autosave „Projekt uložen" – běží po
+ *   každé editaci), co na mobilu nepatří ani do klasického toastu, ani do
+ *   fronty zvonečku (jen by ji zbytečně plnilo) – místo toho jen mihne 💾
+ *   vedle zvonečku. Na desktopu (a na mobilu mimo kreslení/otevřené okno,
+ *   kde toast nevadí) se chová jako normální hláška.
+ *   `onClick` = akce k dispozici jen když se hláška odloží do fronty
+ *   zvonečku (`#mobileNotifyPanel`) – klik na položku ji spustí a frontu
+ *   zavře. Klasický toast dole zůstává neklikací (`pointer-events:none`).
  */
 export function showToast(msg, duration = 2000, opts = {}) {
   if (opts.quiet && typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT) {
@@ -116,7 +145,7 @@ export function showToast(msg, duration = 2000, opts = {}) {
     return;
   }
   if (shouldDeferToast()) {
-    deferToast(msg);
+    deferToast(msg, opts.onClick);
     return;
   }
   let t = document.querySelector(".toast");

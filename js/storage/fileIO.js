@@ -14,7 +14,7 @@ import { bridge } from '../bridge.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
 import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
-import { findContourGaps } from '../stockTools.js';
+import { findContourGaps, jumpToContourGaps } from '../stockTools.js';
 import { renderAll } from '../render.js';
 
 // ── Export / Import ──
@@ -691,7 +691,11 @@ function runCncExport() {
   state.contourGaps = gaps;
   if (gaps.length > 0) {
     renderAll();
-    showToast('Pozor: kontura má mezery (vyznačeno červeně) — zkontrolujte výkres před použitím G-kódu.');
+    showToast(
+      'Pozor: kontura má mezery (vyznačeno červeně) — zkontrolujte výkres před použitím G-kódu.',
+      undefined,
+      { onClick: () => jumpToContourGaps(gaps) },
+    );
   }
 
   const isInc = state.cncOutputMode === 'inc';

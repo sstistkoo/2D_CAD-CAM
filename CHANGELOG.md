@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kontrola „kontura má mezery" bere osu rotace jako uzávěr tvaru.**
+  Profil se soustružnicky kreslí jen z jedné strany (od osy k ose) – osu
+  samotnou (cad_y=0) uživatel nekreslí jako objekt, ale rotačně kus
+  uzavírá stejně, jako kdyby tam ležela úsečka. `findContourGaps()`
+  (`js/stockTools.js`) dřív takové dva volné konce na ose hlásila jako
+  mezery u KAŽDÉHO běžně nakresleného profilu. Teď se volný konec ležící
+  na ose (tolerance 0,01 mm) nepočítá jako mezera; skutečná přerušení
+  mimo osu (i jen jeden konec mimo ni) se hlásí beze změny.
+
+  K tomu: hláška „kontura má mezery" (`fileIO.js` export G-kódu i
+  `stockTools.js` válcový polotovar) má teď u položky ve frontě
+  zvonečku (viz níže) 🎯 akci – klik přiblíží/vycentruje CAD plátno
+  přesně na nalezené mezery (`jumpToContourGaps()`), takže je není
+  třeba hledat ručně ve výkresu.
+
 - **Mobil – hlášky (toast) při kreslení/otevřeném okně nezasahují do
   formuláře.** Klasický toast dole na obrazovce (`showToast()`) při
   rozdělaném kreslení nebo s otevřeným plovoucím oknem (VK/Číselné
@@ -18,6 +33,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   posledních až 6 hlášek v panelu pod ním (`#mobileNotifyPanel`,
   `js/state.js: shouldDeferToast()/deferToast()`). Mimo tyhle dvě
   situace a na desktopu se nic nemění.
+
+  Doplněno na další nahlášený případ: `shouldDeferToast()` zprvu
+  kontrolovalo jen rozdělané kreslení a otevřené okno, ne vysunutý panel
+  nástrojů (#topbar.mobile-open) ani boční panel Objekty
+  (#sidebar.mobile-open) – toast přes ně skákal úplně stejně, jen se to
+  nestihlo odchytit napoprvé. A protože autosave volá „Projekt uložen"
+  po KAŽDÉ editaci (3 s debounce), i doručené do zvonečku by frontu
+  zbytečně plnilo desítkami nízko-prioritních položek – `showToast()`
+  má nový parametr `{quiet: true}`, po kterém jen mihne 💾 vedle
+  zvonečku bez nároku na klik (`#mobileSaveFlash`, `flashSaveIndicator()`
+  v state.js). Používá ho jen autosave (`storage/autoSave.js`) – ruční
+  uložení (Ctrl+S, tlačítko Uložit v Nastavení) zůstává viditelné/ve
+  frontě jako dřív.
 
 ### Fixed
 - **Mobil – kalkulačka zmizela, když bylo otevřené VK/Číselné zadání.**
