@@ -102,10 +102,12 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // s úhlem < 90° zakázané (rozhodnutí uživatele, viz
     // docs/cam-pravidla-drah.md §3.1) — vrstva, na kterou se nedá vjet
     // rampou, se vynechá místo aby se do ní nůž zapíchl radiálně.
-    // 32 → 33 dne 11. 9. 2026: taky NE regrese. Dno i vjezd průchodu se
-    // měří na offsetové čáře (§5.2 docs/cam-pravidla-drah.md), takže hloubková
-    // posloupnost má o jednu vrstvu víc. Podmínka „bez nálezů" drží dál.
-    expect(r.passes.length).toBe(33);
+    // 32 → 33 → 32 dne 11. 9. 2026: ani jedno NENÍ regrese. Nejdřív se dno
+    // i vjezd přesunuly na offsetovou čáru (§5.2 docs/cam-pravidla-drah.md),
+    // pak dostal každý úsek vlastní žebřík hloubek (§5.3) a mřížka se srovnala
+    // na přesné `ap`. Podmínka téhle opravy je „bez nálezů", ne konkrétní
+    // počet — ten je tu jen jako bodový otisk.
+    expect(r.passes.length).toBe(32);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });

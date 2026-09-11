@@ -74,11 +74,30 @@ describe('klik na oblouk dráhy (G2/G3) najde svůj řádek', () => {
   });
 
   it('střed KAŽDÉHO oblouku vrátí právě jeho řádek', () => {
+    // SHODNÉ OBLOUKY JSOU ZAMĚNITELNÉ (11. 9. 2026). Program může tentýž kus
+    // kontury projet víckrát — na `part-1` sjíždí zanořovací řetěz v kapse
+    // třemi kroky a každý si dobírá svůj schod TOUTÉŽ trasou (`G2 X35.548
+    // Z110.806` / `G3 X39.110 Z105.008` / `G3 X38.840 Z68.753` na řádcích
+    // 87/101/114). Klik doprostřed takového oblouku nemůže z principu
+    // rozhodnout, KTERÝ z nich to je — picker vrací ten první a je to
+    // správně. Test proto uznává řádek se SHODNOU geometrií.
+    //
+    // Ty duplicity samy jsou doložená otevřená věc, ne vada pickeru: dojezdy
+    // kroků zanořovacího řetězu (`ops/long/pocketPass.js`) se neořezávají na
+    // hloubku předchozího kroku, jak to dělá otevřený průchod
+    // (`clipLeadOutToDepth` v `openPass.js`), a evidence projetých drah
+    // (`makeChainRegistry`) je smí zahodit jen u `pocketClean` — plošný ořez
+    // byl změřen a zamítnut (nová kolize držáku na `part-18-parting-90-ramp`).
+    const key = (li) => {
+      const a = arcs.find(q => q.lineIdx === li);
+      return a ? `${a.type}|${a.mid.x.toFixed(3)}|${a.mid.z.toFixed(3)}` : `?${li}`;
+    };
     const misses = [];
     for (const a of arcs) {
       const pt = { x: 100 + a.mid.z * SCALE, y: 300 - a.mid.x * SCALE };
       const hit = pick(pt.x, pt.y, true, true);
-      if (!hit || hit.lineIdx !== a.lineIdx || !hit.isArc) misses.push(a.lineIdx);
+      if (!hit || !hit.isArc) { misses.push(a.lineIdx); continue; }
+      if (hit.lineIdx !== a.lineIdx && key(hit.lineIdx) !== key(a.lineIdx)) misses.push(a.lineIdx);
     }
     expect(misses).toEqual([]);
   });

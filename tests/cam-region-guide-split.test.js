@@ -50,9 +50,18 @@ describe('Úseky hrubování: dělí jen mezní čára, která opustí polotovar
 
     // Důsledek: nejvyšší průměr nad údolím se bere JEDNÍM průchodem přes obě
     // strany (vzduch mezi nimi přeletí rychloposuv při emisi), ne dvěma úseky.
-    const outer = (calc.passes || []).filter(p => p.type === 'long' && Math.abs(p.x - 34.545) < 0.01);
+    // Hloubka se NEPÍŠE NATVRDO: od 11. 9. 2026 si každý úsek staví vlastní
+    // žebřík (§5.3 docs/cam-pravidla-drah.md), takže konkrétní hodnota se
+    // posunula (34,545 → 34,566). Pravidlo je o TOPOLOGII, ne o čísle —
+    // bere se nejvyšší průměr, který do okna údolí vůbec zasáhne.
+    const inWindow = (calc.passes || []).filter(p => p.type === 'long'
+      && Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)
+      && Math.max(p.zStart, p.zEnd) > 0 && Math.min(p.zStart, p.zEnd) < 80);
+    expect(inWindow.length, 'v okně údolí nejsou žádné průchody').toBeGreaterThan(0);
+    const topX = Math.max(...inWindow.map(p => p.x));
+    const outer = inWindow.filter(p => Math.abs(p.x - topX) < 0.01);
     const spanning = outer.filter(p => Math.min(p.zStart, p.zEnd) < 20 && Math.max(p.zStart, p.zEnd) > 60);
-    expect(spanning.length, `průchod přes celé údolí: ${JSON.stringify(outer.map(p => [p.zStart, p.zEnd]))}`).toBe(1);
+    expect(spanning.length, `průchod přes celé údolí (x=${topX.toFixed(3)}): ${JSON.stringify(outer.map(p => [p.zStart, p.zEnd]))}`).toBe(1);
   }, 30000);
 
   it('range-end-leadout: údolí BEZ mezní čáry si hranici drží (nezahodit naslepo)', async () => {

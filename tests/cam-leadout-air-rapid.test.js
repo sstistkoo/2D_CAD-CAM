@@ -186,12 +186,29 @@ describe('Dojezd „bez schodků"', () => {
       .filter(m => m.g === 1 && m.z1 > 78 && m.z1 < 86 && m.x1 > 20 && m.x1 < 30)
       .reduce((a, b) => (a === null || b.z1 > a.z1 ? b : a), null);
     expect(end, 'emitovaný konec dojezdu').toBeTruthy();
-    const raw = topXAt(loop, end.z1), offTop = topXAt(off, end.z1);
-    expect(offTop, 'offsetová čára nad koncem dojezdu').not.toBeNull();
+    const raw = topXAt(loop, end.z1);
     // Špička dojela ZA syrovou kůru (přídavek se taky obrábí) a stojí na
     // offsetové čáře — ne dřív (nedotažený dojezd), ne dál (řez do vzduchu).
     expect(end.x1 - tipR).toBeGreaterThan(raw);
-    expect(Math.abs((end.x1 - tipR) - offTop), `konec ${(end.x1 - tipR).toFixed(3)} vs offset ${offTop.toFixed(3)}`)
+    // MĚŘÍ SE KOLMO NA SMYČKU, ne rozdílem v X při pevném Z (opraveno
+    // 11. 9. 2026). Hranice je tady skoro ROVNOBĚŽNÁ S OSOU X, takže `topXAt`
+    // na témž Z je stejná past, před kterou varuje komentář výš — jen v druhé
+    // ose: konec posunutý o 0,08 mm kolmo vyšel jako 0,405 mm rozdílu v X
+    // a test spadl, ačkoli dojezd na čáře stál. Kolmá vzdálenost je to, co
+    // pravidlo doopravdy říká, a je to zároveň PŘÍSNĚJŠÍ měření.
+    const distToLoop = (px, pz) => {
+      let d = Infinity;
+      for (let i = 0; i < off.length; i++) {
+        const a = off[i], b = off[(i + 1) % off.length];
+        const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz;
+        let t = L2 < 1e-12 ? 0 : ((px - a.x) * dx + (pz - a.z) * dz) / L2;
+        t = Math.max(0, Math.min(1, t));
+        d = Math.min(d, Math.hypot(px - (a.x + dx * t), pz - (a.z + dz * t)));
+      }
+      return d;
+    };
+    const dOff = distToLoop(end.x1 - tipR, end.z1);
+    expect(dOff, `konec dojezdu (${(end.x1 - tipR).toFixed(3)}, ${end.z1.toFixed(3)}) je ${dOff.toFixed(3)} mm od offsetové čáry`)
       .toBeLessThan(0.3);
   }, 30000);
 

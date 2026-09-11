@@ -50,10 +50,25 @@ export function emitRoughing(E) {
   // začíná, VYJET PO TÉ STĚNĚ (radiálně, konstantní Z). Jen ven z materiálu
   // (x1 nad aktuální hloubkou) — sjezd dolů je zanoření a to má vlastní
   // pravidla (rampa/zápich), sem nepatří.
-  const leadOutClimb = (segs) => {
+  //
+  // TOLERANCE, NE `1e-6` (11. 9. 2026). Konec průchodu vychází ze SKENU
+  // (`refineEngageZ` po `dzScan`), kdežto začátek dojezdu z ANALYTICKÉHO
+  // offsetu — na svislém čele se ty dvě hodnoty liší o setiny: `part-1`
+  // konec 257,524 proti začátku dojezdu 257,514, tedy **0,010 mm**. Přesná
+  // podmínka radiální výjezd zahodila a emise místo něj nakreslila přesně tu
+  // DIAGONÁLU, které má tenhle helper bránit: `G1 X31.440 Z238.641`
+  // z X 28,940 — **14,4 mm² do hotové kontury** (r 29,94, `part-1`/`part-2`).
+  //
+  // Vyjet se smí jen tam, kde konec průchodu leží ve SMĚRU ŘEZU PŘED
+  // začátkem dojezdu (`zDir`): pak je ten kousek Z na už obrobené / volné
+  // straně a výjezd po stěně jde vzduchem. Opačně by se tolerancí vjelo
+  // o ty setiny DO stěny.
+  const LEADOUT_CLIMB_DZ = 0.05;
+  const leadOutClimb = (segs, zDir) => {
     const s0 = segs && segs[0];
     if (!s0 || !Number.isFinite(s0.x1) || !Number.isFinite(s0.z1)) return;
-    if (Math.abs(s0.z1 - cur.z) > 1e-6) return;      // mezera není čistě radiální
+    if (Math.abs(s0.z1 - cur.z) > LEADOUT_CLIMB_DZ) return;   // mezera není radiální
+    if (zDir * (s0.z1 - cur.z) < -1e-9) return;               // a to na bezpečné straně
     if (s0.x1 <= cur.x + 1e-6) return;               // řetěz začíná v hloubce průchodu
     const fx = cur.x, fz = cur.z;
     simCounter += 1; addN(`G1 X${xDia(s0.x1)} F${prms.feed}`, simCounter); setPos(s0.x1, fz);
@@ -370,7 +385,7 @@ calc.passes.forEach((pass, i) => {
       // jako u otevřeného průchodu níž: dojezd kroku dorampování může po
       // kontuře dojet až tam, kde nad nástrojem polotovar dávno nesahá.
       const loSegs = trimLeadOutToStock(pass.contourLeadOut, tipRGc);
-      leadOutClimb(loSegs);
+      leadOutClimb(loSegs, zDir);
       for (const seg of loSegs) {
         if (seg.type === 'line') {
           emitLeadOutLine(seg);
@@ -519,7 +534,7 @@ calc.passes.forEach((pass, i) => {
     if (hasLeadOut) {
       // Bez schodků: dál po kontuře (G1/G2/G3) až na hloubku dalšího
       // průchodu místo okamžitého odskoku — schod se obrobí přímo.
-      leadOutClimb(leadOutSegs);
+      leadOutClimb(leadOutSegs, zDir);
       for (const seg of leadOutSegs) {
         if (seg.type === 'line') {
           // AXIÁLNÍ úsek (konstantní hloubka — typicky rovné pokračování

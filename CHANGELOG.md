@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM – hloubková mřížka je PER ÚSEK, ne jedna pro celý díl.** Žebřík byl
+  kotvený na největším průměru CELÉHO dílu, takže úsek s nižším vrchem dostal
+  první vrstvu tak silnou, jak zrovna padla globální mřížka. Na dílu uživatele
+  11. 9. 2026 vyšla vlevo (polotovar r 38,566, offsetová čára 39,566) první
+  hloubka 39,545 — **tříska 0,021 mm**: *„lízne kvůli tomu jenom tu vrchní
+  dráhu"*. Druhý příznak: shodné hloubky v různých úsecích (`X47.045` v prvním
+  i druhém).
+
+  Každý úsek si teď staví vlastní žebřík od vrchu SVÉ offsetové čáry
+  (`buildDepths` + `loopTopXIn` v `ops/roughLong.js`), takže první tříska je
+  rovnou `ap` a skim vrstva degeneruje na nulu. Globální žebřík zůstal bitově
+  stejný pro DETEKCI ÚSEKŮ (`regions.js`) — dělení dílu se měnit nemělo.
+
+  Vedlejší efekt na dílu uživatele: zmizel průchod „kapsa po kontuře“ v Z
+  107–124 (`N2010 G1 X39.045 ; Výjezd v X (stěna)`), který z těch 17 mm dráhy
+  vyřezal 1,96 mm² a zbytek jel po dráze předchozí rampy.
+
+  Změřeno na 29 fixtures (`cam_sweep`): **kolize 7 / 121,3 mm² → 3 / 5,8 mm²**
+  (nakreslený nůž), 0 / 0,0 beze změny (náhradní držák); průchodů 1402 → 1381;
+  **zajetí do hotové kontury 84,1 → 48,9 mm²**; úběr −16,2 / −508,9 mm². Ten
+  pokles je ve DVOU dílech a oba jsou rozebrané v `docs/cam-pravidla-drah.md`
+  §5.3: `part-13-zleva-flange` −220,8 (poslední vrstva nedosedne na dno úseku,
+  doložená mez) a `part-20-zleva-parting-taper` −305,3 (přestal vznikat jediný
+  zápich 15,2 mm kolmo při ap 3). Otisk se hnul u 23 fixtures; snapshoty
+  obnoveny záměrně.
+
+- **CAM – u odlitku četlo sledovací dno pole Délka dřív než siluetu.**
+  `cylStockZ` (`ops/roughLong.js`) se ptalo siluety až za podmínkou
+  `len !== 0`, takže vyplněná Délka dno OŘÍZLA — `part-1` Délka 5 → dno
+  −5,000, ačkoli silueta končí na −10,000. Dojezdy schodů, výjezdy z kapes
+  i cíle ramp se opíraly o zeď 5 mm nad koncem materiálu. U odlitku rozměry
+  válce neříkají nic, takže se teď silueta ptá PRVNÍ. Roky to nebylo vidět,
+  protože se o dno žádná dráha neopřela — odkryl to vlastní žebřík úseku.
+
+- **CAM – výjezd na začátek dojezdu se zahazoval na `1e-6` a emise místo něj
+  nakreslila diagonálu skrz konturu.** Konec průchodu je ze SKENU
+  (`refineEngageZ`), začátek dojezdu z ANALYTICKÉHO offsetu — na svislém čele
+  se liší o setiny (`part-1`: 257,524 proti 257,514, tedy 0,010 mm). Přesná
+  podmínka v `leadOutClimb` (`ops/roughEmit.js`) radiální výjezd zahodila
+  a `emitLeadOutLine` pak jela z konce průchodu rovnou na konec prvního úseku
+  dojezdu: `G1 X31.440 Z238.641` z X 28,940 = **14,4 mm² do hotové kontury**
+  r 29,94 (`part-1`, `part-2`). Tolerance je teď `LEADOUT_CLIMB_DZ` 0,05 mm
+  a jen na bezpečné straně ve směru řezu. Hlídá `tests/cam-gouge-invariants`.
+
+- **CAM (test) – dojezd proti offsetové čáře se měřil 1-D.**
+  `tests/cam-leadout-air-rapid` porovnával X při pevném Z; kde je hranice
+  skoro rovnoběžná s osou X, z posunu 0,08 mm KOLMO vyjde 0,405 mm v X
+  a test spadl, ačkoli dojezd na čáře stál. Měří se teď kolmá vzdálenost od
+  offsetové smyčky — přísnější a bez té pasti.
+
 ### Fixed
 - **CAM – dráha končila na kůře odlitku, ne na offsetové čáře.** Na otázku
   „kde má průchod skončit" odpovídaly DVĚ nezávislé logiky s různým modelem

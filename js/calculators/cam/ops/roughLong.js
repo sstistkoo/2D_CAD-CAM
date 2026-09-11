@@ -61,8 +61,16 @@ export function genLongPasses(ctx) {
   // U ODLITKU rozměry válce neříkají nic — autorita je silueta. Když Délka
   // chybí, vezme se proto její nejlevější Z, ne konstanta.
   const cylStockZ = (() => {
-    const len = parseFloat(prms.stockLength);
-    if (Number.isFinite(len) && len !== 0) return -len;
+    // U ODLITKU JE AUTORITA SILUETA — VŽDYCKY, ne jen když je Délka prázdná.
+    // Ptát se na siluetu až ZA podmínkou `len !== 0` znamenalo, že vyplněná
+    // Délka sledovací dno OŘÍZLA, ačkoli o odlitku rozměry válce nic neříkají:
+    // `part-1` Délka 5 → dno −5,000, ale silueta končí na −10,000. Dojezdy
+    // schodů, výjezdy z kapes i cíle ramp se pak opíraly o zeď 5 mm nad
+    // skutečným koncem materiálu.
+    // Roky to nebylo vidět, protože se o dno u těchhle dílů žádná dráha
+    // neopřela (`tests/cam-stock-zero-dimension` si to sám přiznával
+    // v komentáři); odkryl to až vlastní žebřík hloubek úseku (11. 9. 2026),
+    // který tam jeden dojezd dovedl — `Z-4.978` proti `Z-9.978`.
     if (prms.stockMode === 'casting') {
       let zMin = Infinity;
       for (const p of stockWorldPoints || []) {
@@ -70,6 +78,8 @@ export function genLongPasses(ctx) {
       }
       if (Number.isFinite(zMin)) return zMin;
     }
+    const len = parseFloat(prms.stockLength);
+    if (Number.isFinite(len) && len !== 0) return -len;
     return 0;
   })();
   // Konec rozsahu obrábění 📐 je TVRDÉ dno pro KAŽDÝ řezný pohyb, ne jen pro
@@ -191,8 +201,22 @@ export function genLongPasses(ctx) {
     return { zMax: inR[0], zMin: inR[inR.length - 1], all: inR };
   };
 
-  // Posloupnost hloubek: maxStockX−step, …, ≥ minPartX, vždy s vynuceným
+  // Posloupnost hloubek: topSurfX−step, …, ≥ minPartX, vždy s vynuceným
   // posledním průjezdem PŘESNĚ na minPartX (nedořezaný hřebínek).
+  //
+  // ── KOTVA JE PER ÚSEK (11. 9. 2026, pokyn uživatele) ──────────────────
+  // Žebřík byl JEDEN pro celý díl, kotvený na NEJVYŠŠÍM průměru dílu. Úsek,
+  // jehož vlastní vrch leží níž, pak dostal první vrstvu jen tak silnou, jak
+  // zrovna padla globální mřížka — na dílu uživatele 11. 9. 2026 vyšel vlevo
+  // (polotovar r 38,566, offsetová čára 39,566) první průchod na r 39,545,
+  // tedy tříska **0,021 mm**: *„lízne kvůli tomu jenom tu vrchní dráhu"*.
+  // Zároveň byly hloubky v různých úsecích shodné (`X47.045` v prvním
+  // i druhém úseku), což je přesně ten příznak.
+  //
+  // Každý úsek si proto staví VLASTNÍ žebřík od SVÉHO nejvyššího průměru.
+  // Kotva je OFFSETOVÁ čára (tam končí materiál — viz §5 docs/cam-pravidla-drah.md),
+  // takže první tříska je rovnou `ap` a skim vrstvy nad mřížkou nejsou potřeba.
+  const buildDepths = (topSurfX, planSurfX, reportRangeX = false) => {
   const depths = [];
   // SKIM VRSTVY NAD NAKRESLENÝM VRCHOLEM. Posloupnost je kotvená na siluetě
   // odlitku, jenže materiál může sahat až na offsetovou čáru — první průchod
@@ -222,8 +246,8 @@ export function genLongPasses(ctx) {
   // ap 2,5 → první průchod na X 49,25, tedy břit na r 39,25 a tříska
   // 10,75 mm. Kotva se proto zvedne o `noseLiftX` daného plátku (0 u všech
   // ostatních, takže jejich mřížka zůstává bitově stejná).
-  const ladderTopX = maxStockX + noseLiftL;
-  const ladderPlanTopX = planTopX + noseLiftL;
+  const ladderTopX = topSurfX + noseLiftL;
+  const ladderPlanTopX = planSurfX + noseLiftL;
   const firstMainX = ladderTopX - step;
   if (ladderPlanTopX > firstMainX + SKIM_MIN_LAYER * step && firstMainX > minPartX + 0.005) {
     const nSkim = Math.max(1, Math.ceil((ladderPlanTopX - firstMainX) / step - 1e-9));
@@ -240,7 +264,7 @@ export function genLongPasses(ctx) {
   // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
   if (machiningRangeX) {
     const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
-    if (filtered.length === 0 && depths.length > 0)
+    if (reportRangeX && filtered.length === 0 && depths.length > 0)
       foundErrors.push({ type: 'warning', msg: `X-rozsah obrábění (${machiningRangeX.xLo}–${machiningRangeX.xHi} mm): žádné hloubky průchodů neleží v zadaném intervalu — dráhy nebyly generovány.` });
     // DNO PÁSU. Mřížka hloubek je kotvená na povrchu polotovaru, takže na
     // dolní mezi pásu nesedí — pod poslední hloubkou zůstával neobrobený
@@ -261,6 +285,28 @@ export function genLongPasses(ctx) {
     }
     depths.splice(0, depths.length, ...filtered);
   }
+  return depths;
+  };
+  // Globální žebřík — jen pro detekci ÚSEKŮ (regions.js se ptá „vzal by tenhle
+  // split na některé hloubce něco?"), aby dělení dílu na úseky zůstalo stejné.
+  const depthsAll = buildDepths(maxStockX, planTopX, true);
+
+  // Vrch smyčky v Z-okně úseku: vrcholy uvnitř okna + průsečíky na jeho
+  // hranicích (týž vzor jako `maxStockX` výš).
+  const loopTopXIn = (loop, zLo, zHi) => {
+    if (!loop || loop.length < 3) return null;
+    let top = -Infinity;
+    for (const p of loop) {
+      if (p.z < zLo - 0.01 || p.z > zHi + 0.01) continue;
+      if (p.x > top) top = p.x;
+    }
+    for (const zB of [zLo, zHi]) {
+      if (!Number.isFinite(zB)) continue;
+      const t = topXOnLoop(loop, zB);
+      if (t !== null && t > top) top = t;
+    }
+    return top > -Infinity ? top : null;
+  };
 
   const effPlungeDegL = getEffectivePlungeAngle(prms);
   const effPlungeTanL = Math.tan(effPlungeDegL * Math.PI / 180);
@@ -559,7 +605,7 @@ export function genLongPasses(ctx) {
       // začínala správně, ale sken jí horní vrstvy smazal a první tříska
       // zůstala `ap + R` (viz `noseLiftX` v cam/inserts/).
       prms, offsetXAt, holderClampZEnd, stockLoopL, stockLoopOffsetL,
-      planTopX: ladderPlanTopX, noseLiftX: noseLiftL,
+      planTopX: planTopX + noseLiftL, noseLiftX: noseLiftL,
       isParting, wInsL, rInsL, dzScan,
       blockedAt, refineEngageZ,
       holderBlockedDepths });
@@ -588,7 +634,7 @@ export function genLongPasses(ctx) {
 
   // Regiony (kde se díl trhá na úseky a v jakém pořadí jedou) — ops/long/regions.js.
   const { FULL_REGION, computeRegions } = makeRegions({
-    prms, depths, dzScan, offsetXAt, machiningRange, interferenceGuides,
+    prms, depths: depthsAll, dzScan, offsetXAt, machiningRange, interferenceGuides,
     stockWorldPoints, stockLoopFullL, stockZRangeAt,
     passEntryZ, scan, stockLoopL, step, holderFitsOverContour,
   });
@@ -703,6 +749,17 @@ export function genLongPasses(ctx) {
   if (_peakZs.length > 0) { ctx.usedPeakSplit = true; ctx.peakSplitZs = _peakZs; }
 
   for (const _region of _regions) {
+  // ── VLASTNÍ ŽEBŘÍK HLOUBEK TOHOTO ÚSEKU (viz buildDepths výš) ──────────
+  const _zHiR = Math.min(_region.zHi, rangeClipZ ? rangeClipZ.zHi : Infinity);
+  const _zLoR = Math.max(_region.zLo, rangeClipZ ? rangeClipZ.zLo : -Infinity);
+  // Kotvou je OFFSETOVÁ čára úseku (tam končí materiál) — mřížka pak jde po
+  // přesných `ap` a skim vrstva je zbytečná (degeneruje na nulu). Bez
+  // offsetové smyčky (Clipper selhal) se dopočte z vůle X.
+  const _regRawTop = loopTopXIn(stockLoopL, _zLoR, _zHiR);
+  const _regPlanTop = loopTopXIn(stockLoopOffsetL, _zLoR, _zHiR)
+    ?? (_regRawTop === null ? null : _regRawTop + clrXPlanL);
+  const depths = _regPlanTop === null ? depthsAll : buildDepths(_regPlanTop, _regPlanTop);
+  if (depths.length === 0) continue;
   // Schodová evidence obálky držáku platí v rámci jednoho regionu —
   // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
   if (holderClampZEnd && holderClampZEnd.resetStair) holderClampZEnd.resetStair();

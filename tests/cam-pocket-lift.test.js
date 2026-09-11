@@ -103,13 +103,20 @@ describe('poloviční hloubka záběru nevyrobí rychloposuv materiálem', () =>
     //   N1930 G0 X18.640
     //   N1940 G1 X16.881 F0.25
     // Podstatné je pořád totéž: ŽÁDNÝ marný „Výjezd nad konturu" a nula nálezů.
+    // ČÍSLO PRŮCHODU ANI DOLNÍ MEZ SE NEPÍŠÍ NATVRDO (11. 9. 2026). Obojí bylo
+    // navázané na jednu konkrétní hloubku staré, pro celý díl společné mřížky;
+    // s vlastním žebříkem úseku (§5.3 docs/cam-pravidla-drah.md) je ten nájezd
+    // „Průchod 27" na X 16,904 místo „28" na 16,881 a jeho vlastní hrana
+    // materiálu leží o pár setin jinde. Invariant je: odstup je KRATŠÍ než
+    // původních 1,8 mm (tedy pod 85,268) a nájezd neobsahuje marný zdvih.
+    // Že nepřestřelil na druhou stranu, hlídá `r.issues` — polohová kolize
+    // držáku je přesně to, kvůli čemu se odstup zkracuje.
     const r = await runAtAp('range-end-leadout.camprog', 2);
     const L = r.gcode.split('\n');
-    const i = L.findIndex(l => l.trim() === '; Průchod 28 (bez schodků)');
-    expect(i, 'průchod 28 se nenašel — fixture nebo číslování se změnily').toBeGreaterThan(0);
-    // Odstup je KRATŠÍ než původních 1,8 mm (hrana materiálu je na 83,468).
+    const i = L.findIndex((l, k) => /^; Průchod /.test(l.trim())
+      && /Z(8[34]\.\d+)/.test(L[k + 1] || ''));
+    expect(i, 'nájezd do údolí Z≈83–85 se nenašel — fixture se změnila').toBeGreaterThan(0);
     const zApproach = parseFloat((L[i + 1].match(/Z([\d.]+)/) || [])[1]);
-    expect(zApproach).toBeGreaterThan(83.468);
     expect(zApproach).toBeLessThan(85.268);
     // Nájezd nesmí obsahovat marný zdvih nad konturu.
     expect(L.slice(i + 1, i + 4).join('\n')).not.toContain('Výjezd nad konturu');

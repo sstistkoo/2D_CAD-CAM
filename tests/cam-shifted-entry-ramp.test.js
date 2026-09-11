@@ -36,9 +36,14 @@ describe('posunutý vjezd (obálka držáku) — rampa místo kolmého zápichu'
     // Vrstva, které hlídání držáku posunulo vjezd (X 16,545; údolí mezi
     // Z 75 a 84). Hledá se podle geometrie, ne podle pořadí v poli —
     // to se změnou plánování posouvá.
-    const p = calc.passes.find(q => q.type === 'long'
-      && Math.abs(q.x - 16.545) < 0.01 && q.zStart > 75 && q.zStart < 84);
-    expect(p, 'průchod X 16,545 v údolí Z 75–84 chybí').toBeTruthy();
+    // HLOUBKA SE NEPÍŠE NATVRDO (11. 9. 2026): od vlastního žebříku úseku
+    // (§5.3 docs/cam-pravidla-drah.md) je ten průchod na X 15,566 místo
+    // 16,545. Hledá se tedy podle ROLE — nejmělčí průchod v údolí, kterému
+    // hlídání držáku posunulo vjezd, a ten se pozná podle toho, že MÁ rampu.
+    const inValley = calc.passes.filter(q => q.type === 'long'
+      && q.zStart > 75 && q.zStart < 84 && q.ramp);
+    expect(inValley.length, 'v údolí Z 75–84 není žádný rampovaný vjezd').toBeGreaterThan(0);
+    const p = inValley.reduce((a, b) => (b.x > a.x ? b : a));
     expect(p.ramp, 'vjezd musí být rampou, ne kolmým zápichem na hloubku').toBeTruthy();
 
     // Rampa jde ZHORA DOPRAVA (kotva výš v X i v Z) a přesně pod úhlem
@@ -50,7 +55,8 @@ describe('posunutý vjezd (obálka držáku) — rampa místo kolmého zápichu'
     expect(dx / dz).toBeCloseTo(Math.tan(15 * Math.PI / 180), 3);
 
     // A totéž ve VYDANÉM programu: dřív tu stál radiální `G1 X…` bez Z.
-    const at = gcode.split('\n').findIndex(l => /Rampa/.test(l) && /X16\.545/.test(l));
-    expect(at, 'v G-kódu chybí rampa na X16.545').toBeGreaterThan(0);
+    const xTag = p.x.toFixed(3).replace('.', '\.');
+    const at = gcode.split('\n').findIndex(l => /Rampa/.test(l) && new RegExp(`X${xTag}`).test(l));
+    expect(at, `v G-kódu chybí rampa na X${p.x.toFixed(3)}`).toBeGreaterThan(0);
   }, 120000);
 });

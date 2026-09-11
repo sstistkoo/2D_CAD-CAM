@@ -71,8 +71,22 @@ describe('CAM: hranice rozsahu 📐 + svislé zanoření (upichovák)', () => {
     progOn.params.orderAwareHolder = true;
     const on = await runCamProg(progOn);
 
-    // Povolený vjezd = o průchod víc a víc odebraného materiálu…
-    expect(on.calc.passes.length).toBeGreaterThan(off.calc.passes.length);
+    // Povolený vjezd = nesmí ubrat průchody…
+    //
+    // DŘÍV TU BYLO `toBeGreaterThan` (11. 9. 2026 zmírněno na `>=`). Fixture
+    // ty dva režimy už NEROZLIŠÍ: s vlastním žebříkem hloubek úseku (§5.3
+    // docs/cam-pravidla-drah.md) se materiál dobere i bez order-aware
+    // povolení. Naměřeno na `range-parting-plunge`:
+    //   globální mřížka   vyp 30 průchodů / zbytek 10 444,0 mm²
+    //                     zap 33 průchodů / zbytek 10 267,7 mm²
+    //   per-úsek          vyp 32 průchodů / zbytek 10 279,7 mm²
+    //                     zap 32 průchodů / zbytek 10 279,7 mm²
+    // Vypnutý příznak tedy dnes dosáhne prakticky na totéž, na co dřív
+    // potřeboval zapnutý. Co test pořád měří, jsou DVĚ podmínky pod tímhle
+    // řádkem — na hranici rozsahu žádná svislá „rampa" a žádný nález držáku.
+    // Kdyby se našla fixture, kde se režimy zase rozejdou, patří sem zpátky
+    // ostrá nerovnost.
+    expect(on.calc.passes.length).toBeGreaterThanOrEqual(off.calc.passes.length);
     // …a pořád BEZ svislé „rampy" na hranici (vjezd je kolmý zápich, ne rampa).
     // Měří se HRANICE, ne celý program: svislý zápich jinde je u upichováku
     // normální provoz (rozhodnutí uživatele 26. 8. 2026). Zákaz „kdekoli" začal

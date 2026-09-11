@@ -254,11 +254,22 @@ describe('orderAwareHolder v genLongPasses', () => {
     // nevidí, a dvě vrstvy se místo kolmého zápichu vynechají (−60,3 mm²).
     // To je ROZDÍL MODELŮ, ne vada příznaku — a přesně to, k čemu je.
     // `part-1` (bez posunutých vjezdů) zůstává inertní a hlídá to dál.
+    // OD 11. 9. 2026 NENÍ INERTNÍ ANI `part-1` — a je to TÁŽ věc jako
+    // u `holder-region-roughing` výš, ne nová. S vlastním žebříkem hloubek
+    // úseku (§5.3 docs/cam-pravidla-drah.md) má díl posunuté vjezdy, takže
+    // se polygonový model (`residEntryArea`) dostane ke slovu: najde konflikt,
+    // který výškové pole nevidí, a jedna vrstva se místo kolmého zápichu
+    // vynechá (34 → 33 průchodů). Rozdíl modelů, ne vada příznaku.
+    //
+    // Co se tedy pine dál: příznak smí průchod jen UBRAT (nikdy nepřidat —
+    // polygonový model je z definice aspoň tak přísný jako obálka) a NESMÍ
+    // přidat nález.
     for (const f of ['part-1.camprog']) {
       const off = await run(f, false, MAGAZINE_HOLDER);
       const on = await run(f, true, MAGAZINE_HOLDER);
-      expect(on.passes, `${f}: počet průchodů`).toBe(off.passes);
-      expect(on.issues.length, `${f}: nálezy`).toBe(off.issues.length);
+      expect(on.passes, `${f}: počet průchodů`).toBeLessThanOrEqual(off.passes);
+      expect(off.passes - on.passes, `${f}: příznak ubral víc než jednu vrstvu`).toBeLessThanOrEqual(1);
+      expect(on.issues.length, `${f}: nálezy`).toBeLessThanOrEqual(off.issues.length);
     }
   }, 120000);
 });

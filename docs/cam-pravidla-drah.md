@@ -647,6 +647,89 @@ Změřeno na 29 fixtures (`cam_fingerprint` + `cam_sweep`): otisk se hnul u 23,
 
 ---
 
+### 5.3 Hloubková mřížka je PER ÚSEK (11. 9. 2026)
+
+> **Každý úsek bere `ap` od SVÉHO nejvyššího průměru.** Kotvou je offsetová
+> čára toho úseku, ne největší průměr celého dílu.
+
+Do 11. 9. 2026 byl žebřík hloubek **jeden pro celý díl**, kotvený na
+`maxStockX` (+ skim vrstvy k offsetové čáře). Úsek, jehož vlastní vrch leží
+níž, pak dostal první vrstvu tak silnou, jak zrovna padla globální mřížka —
+od plného `ap` po **nic**:
+
+| díl uživatele, levý úsek | |
+|---|---|
+| polotovar r | 38,566 |
+| offsetová čára | 39,566 |
+| první hloubka z globální mřížky | 39,545 |
+| **tříska** | **0,021 mm** — *„lízne kvůli tomu jenom tu vrchní dráhu"* |
+
+Druhý příznak téhož: hloubky se mezi úseky opakovaly (`X47.045` v prvním
+i druhém úseku), protože mřížka byla jedna.
+
+**Jak to je teď** (`buildDepths` v `ops/roughLong.js`):
+- `depthsAll` = původní globální žebřík, **jen pro detekci ÚSEKŮ**
+  (`regions.js` se ptá „vzal by tenhle split na některé hloubce něco?").
+  Zůstal bitově stejný schválně — dělení dílu na úseky se měnit nemělo.
+- Uvnitř smyčky úseků se staví **vlastní žebřík** od `loopTopXIn` — vrchu
+  OFFSETOVÉ smyčky v Z-okně toho úseku. Mřížka jde po přesných `ap` a skim
+  vrstva degeneruje na nulu (kotva už NA offsetové čáře leží).
+
+**Změřeno na 29 fixtures** (`cam_sweep`, i se dvěma opravami níž): kolize
+**7 / 121,3 mm² → 3 / 5,8 mm²** (nakreslený nůž), **0 / 0,0** beze změny
+(náhradní držák); průchodů 1402 → 1381; úběr −16,2 mm² / −508,9 mm².
+**Zajetí do hotové kontury (`ContourGouge`) přes celou sadu 84,1 → 48,9 mm².**
+
+**Kde se úběr ztratil (a proč to není důvod k zamítnutí):**
+- `part-13-zleva-flange` −220,8 mm²: poslední vrstva sedne o 1 mm výš
+  (54,922 → 55,922) a na dno úseku nedosedne. Je to TÁŽ mez jako u dna pásu
+  `machiningRangeX.xLo` — uzavírací bisekce (`lastDepthWithPasses`) je
+  vypnutá u zakrytého vjezdu (`!entryCapped`). **Otevřené.**
+- `part-20-zleva-parting-taper` −305,3 mm²: v Z 340–372 přestal vznikat
+  JEDEN zápich `X24,610 → X7,545` označený „Rampa 90.0°“, tedy **15,2 mm
+  kolmo** při `ap` 3. Že zmizel, není ztráta dráhy, o kterou by kdo stál.
+
+### 5.3a Co přeskupení mřížky ODKRYLO (11. 9. 2026)
+
+Tři vady, které v repu byly dávno — jen je stará mřížka míjela. Všechny tři
+jsou opravené a **žádná z nich není důsledek per-úsek žebříku**:
+
+1. **`cylStockZ` četl pole Délka dřív než siluetu.** U odlitku o něm rozměry
+   válce neříkají nic (§ komentář přímo nad tou funkcí), ale silueta se brala
+   až ZA podmínkou `len !== 0`: `part-1` Délka 5 → sledovací dno −5,000,
+   ačkoli silueta končí na −10,000. Dojezdy se opíraly o zeď 5 mm nad koncem
+   materiálu. Hlídá `tests/cam-stock-zero-dimension`; ten to roky nechytil,
+   protože se o dno žádná dráha neopřela — teď se opřela.
+2. **Radiální výjezd na začátek dojezdu se zahazoval na `1e-6`.** Konec
+   průchodu je ze SKENU (`refineEngageZ`), začátek dojezdu z ANALYTICKÉHO
+   offsetu, takže se na svislém čele liší o setiny (`part-1`: 257,524 proti
+   257,514 = **0,010 mm**). Přesná podmínka výjezd zahodila a emise místo
+   něj nakreslila DIAGONÁLU z konce průchodu rovnou na konec prvního úseku
+   dojezdu — **14,4 mm² skrz hotovou konturu** r 29,94. `leadOutClimb`
+   v `ops/roughEmit.js` má proto toleranci `LEADOUT_CLIMB_DZ` 0,05 mm
+   a podmínku „jen na bezpečné straně ve směru řezu".
+3. **Měření dojezdu proti offsetové čáře bylo 1-D.** `tests/cam-leadout-air-rapid`
+   porovnával X při pevném Z; tam, kde je hranice skoro ROVNOBĚŽNÁ S OSOU X,
+   z posunu 0,08 mm kolmo vyjde 0,405 mm v X. Měří se teď KOLMÁ vzdálenost —
+   je to zároveň přísnější.
+
+### 5.3b Otevřené po 11. 9. 2026
+
+- **`part-1`/`part-2`: 3,05 → 18,09 mm² v pásu Z −9,95…−2,43.** Tam už
+  polotovar nesahá (končí na Z −10), ale OBROBITELNÁ kontura ano — pipeline ji
+  k jeho konci protahuje. Průchod na hloubce 37,978 tam sjede do pásu mezi
+  koncem polotovaru a offsetovou čarou (Z −11), nic neodebere a TĚLEM plátku
+  škrtne čelo dílu (Ø 41,978). Správná odpověď je protáhnout obrobitelnou
+  konturu na konec OFFSETOVÉ čáry, ne polotovaru — táž věta jako §5.
+- **Duplicitní dojezdy zanořovacího řetězu.** Kroky řetězu v kapse
+  (`ops/long/pocketPass.js`) si dojezd neořezávají na hloubku předchozího
+  kroku, jak to dělá otevřený průchod (`clipLeadOutToDepth` v `openPass.js`) —
+  na `part-1` projedou tři kroky TOUTÉŽ trasou (řádky 87/101/114). Evidence
+  projetých drah (`makeChainRegistry`) je smí zahodit jen u `pocketClean`;
+  plošný ořez byl změřen a zamítnut (nová kolize držáku na
+  `part-18-parting-90-ramp`). `clipLeadOutToDepth` navíc krátí jen RADIÁLNÍ
+  úseky, a tahle trasa žádný nemá.
+
 ## 6. Pravidla, která vyslovil uživatel
 
 ### 6.0 „NEPŘEJÍŽDĚT, DOKUD NENÍ CELÁ PRAVÁ STRANA HOTOVÁ" — PLATÍ VŽDY
