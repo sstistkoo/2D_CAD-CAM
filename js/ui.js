@@ -13,7 +13,7 @@ import { addObject } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openInsertCalc, openSinumerikHub, openCamSimulator } from './cnc-calcs.js';
 import { showCombinedModal } from './dialogs/combinedModal.js';
-import { makeOverlay, makeInputOverlay } from './dialogFactory.js';
+import { makeOverlay, makeInputOverlay, focusInput } from './dialogFactory.js';
 import { openAIPanel } from './ai/aiPanel.js';
 import { getMeta, setMeta } from './idb.js';
 import { showEditObjectDialog, showMobileEditDialog } from './dialogs/mobileEdit.js';
@@ -3260,8 +3260,8 @@ function showNullPointDialog() {
   const inputV = overlay.querySelector('#nullPtV');
   const inputAngle = overlay.querySelector('#nullPtAngle');
 
-  // Auto-focus
-  setTimeout(() => inputH.focus(), 50);
+  // Auto-focus (na mobilu ne – vytáhl by klávesnici přes dialog)
+  setTimeout(() => focusInput(inputH), 50);
 
   // -- Pick from map (stejný vzor jako v číselném zadání) --
   function pickFromMap(callback) {
@@ -4523,7 +4523,7 @@ export function showGridSizeDialog() {
     <div class="input-dialog">
       <h3># Velikost mřížky</h3>
       <label>Velikost kroku (mm):</label>
-      <input type="number" id="dlgGridSize" step="0.1" min="0.1" value="${state.gridSize}" inputmode="decimal" autofocus>
+      <input type="number" id="dlgGridSize" step="0.1" min="0.1" value="${state.gridSize}" inputmode="decimal">
       <div class="btn-row">
         <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
         <button class="btn-ok" id="dlgGridOk">OK</button>
@@ -4531,8 +4531,7 @@ export function showGridSizeDialog() {
     </div>`;
   document.body.appendChild(overlay);
   const inp = overlay.querySelector("#dlgGridSize");
-  inp.focus();
-  inp.select();
+  focusInput(inp, { select: true });
   function confirm() {
     const v = safeEvalMath(inp.value);
     if (!isNaN(v) && v > 0) {
@@ -4565,7 +4564,7 @@ export function showAngleSnapDialog() {
         <button class="btn-cancel angle-preset" data-deg="90">90°</button>
       </div>
       <label>Vlastní krok (°):</label>
-      <input type="number" id="dlgAngleStep" step="1" min="1" max="180" value="${state.angleSnapStep}" inputmode="decimal" autofocus>
+      <input type="number" id="dlgAngleStep" step="1" min="1" max="180" value="${state.angleSnapStep}" inputmode="decimal">
       <label style="margin-top:8px">Tolerance přichycení (°):</label>
       <input type="number" id="dlgAngleTol" step="1" min="1" max="45" value="${state.angleSnapTolerance}" inputmode="decimal">
       <div class="btn-row">
@@ -4575,8 +4574,7 @@ export function showAngleSnapDialog() {
     </div>`;
   document.body.appendChild(overlay);
   const inp = overlay.querySelector("#dlgAngleStep");
-  inp.focus();
-  inp.select();
+  focusInput(inp, { select: true });
 
   overlay.querySelectorAll(".angle-preset").forEach(btn => {
     btn.addEventListener("click", () => {

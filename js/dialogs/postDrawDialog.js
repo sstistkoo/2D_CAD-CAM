@@ -4,7 +4,7 @@
 // ║  a možností úpravy.                                         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { makeInputOverlay } from '../dialogFactory.js';
+import { makeInputOverlay, focusInput } from '../dialogFactory.js';
 import { state, pushUndo, showToast, axisLabels, displayX, inputX, xPrefix } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { calculateAllIntersections } from '../geometry.js';
@@ -156,8 +156,7 @@ export function showPostDrawLineDialog(obj) {
 
   overlay.querySelector('#pdOk').addEventListener('click', accept);
   _wireKeys(overlay, accept);
-  h1.focus();
-  h1.select();
+  focusInput(h1, { select: true });
 }
 
 /**
@@ -206,8 +205,7 @@ export function showPostDrawPointDialog(obj) {
 
   overlay.querySelector('#pdOk').addEventListener('click', accept);
   _wireKeys(overlay, accept);
-  hInp.focus();
-  hInp.select();
+  focusInput(hInp, { select: true });
 }
 
 /**
@@ -278,8 +276,7 @@ export function showPostDrawCircleDialog(obj) {
 
   overlay.querySelector('#pdOk').addEventListener('click', accept);
   _wireKeys(overlay, accept);
-  rInp.focus();
-  rInp.select();
+  focusInput(rInp, { select: true });
 }
 
 /**
@@ -422,8 +419,7 @@ export function showPostDrawRectDialog(obj) {
 
   overlay.querySelector('#pdOk').addEventListener('click', accept);
   _wireKeys(overlay, accept);
-  h1.focus();
-  h1.select();
+  focusInput(h1, { select: true });
 }
 
 /**
@@ -501,7 +497,7 @@ export function showPostDrawPolylineDialog(obj) {
   overlay.querySelector('#pdOk').addEventListener('click', accept);
   _wireKeys(overlay, accept);
   const firstInp = overlay.querySelector('.pd-vh');
-  if (firstInp) { firstInp.focus(); firstInp.select(); }
+  focusInput(firstInp, { select: true });
 }
 
 // ── Helpers ──
@@ -715,6 +711,5 @@ export function showPolylineSegmentDialog() {
     e.stopPropagation();
   });
 
-  h2.focus();
-  h2.select();
+  focusInput(h2, { select: true });
 }

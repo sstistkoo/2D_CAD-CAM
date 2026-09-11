@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { makeInputOverlay, onOverlayRemoved } from '../dialogFactory.js';
+import { makeInputOverlay, onOverlayRemoved, focusInput } from '../dialogFactory.js';
 import { state, showToast, axisLabels } from '../state.js';
 import { typeLabel, safeEvalMath } from '../utils.js';
 import { drawCanvas, screenToWorld, snapPt } from '../canvas.js';
@@ -47,8 +47,7 @@ export function showOffsetDialog(label, callback) {
   const parallelHint = overlay.querySelector("#dlgOffParallelHint");
   const okBtn = overlay.querySelector("#dlgOffOk");
   let mode = 'parallel';
-  inpDist.focus();
-  inpDist.select();
+  focusInput(inpDist, { select: true });
 
   overlay.querySelectorAll(".off-mode-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -60,7 +59,7 @@ export function showOffsetDialog(label, callback) {
       angleRow.style.display = parallel ? 'none' : '';
       parallelHint.style.display = parallel ? '' : 'none';
       okBtn.textContent = parallel ? 'OK – klikni na stranu' : 'Vytvořit offset';
-      inpDist.focus();
+      focusInput(inpDist);
     });
   });
 
@@ -163,7 +162,7 @@ export function showLinearArrayDialog(obj, callback) {
         <button class="btn-ok" id="dlgArrayOk">Vytvořit</button>
       </div>
     </div>`);
-  overlay.querySelector("#dlgArrayCount").focus();
+  focusInput(overlay.querySelector("#dlgArrayCount"));
 
   let mode = '1d';
   let spacingMode = 'pitch';
@@ -264,8 +263,7 @@ export function showRotateDialog(obj, callback, flipCallback) {
       </div>
     </div>`);
   const inp = overlay.querySelector("#dlgRotateAngle");
-  inp.focus();
-  inp.select();
+  focusInput(inp, { select: true });
 
   function accept() {
     const deg = safeEvalMath(inp.value);
@@ -340,8 +338,8 @@ export function showFilletChamferDialog(callback, initialMode = 'fillet') {
     modeBtns.forEach(b => { b.classList.toggle("active", b === btn); b.classList.toggle("btn-ok", b === btn); b.classList.toggle("btn-cancel", b !== btn); });
     filletDiv.style.display = mode === 'fillet' ? '' : 'none';
     chamferDiv.style.display = mode === 'chamfer' ? '' : 'none';
-    if (mode === 'fillet') { const inp = overlay.querySelector("#dlgFcRadius"); inp.focus(); inp.select(); }
-    else { const inp = overlay.querySelector("#dlgFcD1"); inp.focus(); inp.select(); }
+    if (mode === 'fillet') focusInput(overlay.querySelector("#dlgFcRadius"), { select: true });
+    else focusInput(overlay.querySelector("#dlgFcD1"), { select: true });
   }));
 
   // Chamfer sub-mode (dd/da)
@@ -360,8 +358,7 @@ export function showFilletChamferDialog(callback, initialMode = 'fillet') {
     overlay.querySelector('.fc-mode-btn[data-mode="chamfer"]').click();
   } else {
     const firstInp = overlay.querySelector("#dlgFcRadius");
-    firstInp.focus();
-    firstInp.select();
+    focusInput(firstInp, { select: true });
   }
 
   function accept() {
@@ -412,8 +409,7 @@ export function showFilletDialog(callback) {
       </div>
     </div>`);
   const inp = overlay.querySelector("#dlgFilletRadius");
-  inp.focus();
-  inp.select();
+  focusInput(inp, { select: true });
 
   function accept() {
     const r = safeEvalMath(inp.value);
@@ -472,12 +468,11 @@ export function showChamferDialog(callback) {
     ddDiv.style.display = mode === 'dd' ? '' : 'none';
     daDiv.style.display = mode === 'da' ? '' : 'none';
     const first = mode === 'dd' ? overlay.querySelector("#dlgChamferD1") : overlay.querySelector("#dlgChamferDist");
-    first.focus(); first.select();
+    focusInput(first, { select: true });
   }));
 
   const inp1 = overlay.querySelector("#dlgChamferD1");
-  inp1.focus();
-  inp1.select();
+  focusInput(inp1, { select: true });
 
   function accept() {
     let d1, d2;
@@ -522,8 +517,7 @@ export function showScaleDialog(callback) {
       </div>
     </div>`);
   const inp = overlay.querySelector("#dlgScaleFactor");
-  inp.focus();
-  inp.select();
+  focusInput(inp, { select: true });
 
   function accept() {
     const f = safeEvalMath(inp.value);
@@ -607,7 +601,7 @@ export function showCircularArrayDialog(obj, callback) {
         <button class="btn-ok" id="dlgCircArrOk">Vytvořit</button>
       </div>
     </div>`);
-  overlay.querySelector("#dlgCircArrCount").focus();
+  focusInput(overlay.querySelector("#dlgCircArrCount"));
 
   // Únik posluchače canvasu, když se okno zavře jinak než dokončením picku
   // (Escape/klik mimo jdou přes globální mechanismus v makeInputOverlay,

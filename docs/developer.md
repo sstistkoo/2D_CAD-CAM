@@ -1419,6 +1419,29 @@ Rozměry plovoucího okna patří na jeho vlastní třídu
 (`.calc-overlay-float .moje-okno`), NIKDY se nepřepisuje
 `.calc-overlay-float .calc-window` – ta patří plovoucí kalkulačce.
 
+#### Focus polí × softwarová klávesnice (mobil)
+
+Dialog po kreslení má hodnoty PŘEDVYPLNĚNÉ – uživatel je typicky jen potvrdí.
+Automatický focus prvního pole (`inp.focus()` nebo atribut `autofocus`) ale
+na mobilu okamžitě vysune softwarovou klávesnici; ta zakryje dialog i tlačítko
+OK a uživatel ji musí nejdřív zavřít. Fokusuje se proto přes helper:
+
+```js
+import { focusInput } from '../dialogFactory.js';
+focusInput(inp, { select: true });   // desktop: focus + select, dotyk: nic
+```
+
+`focusInput()` neudělá nic, když `isTouchDevice()` – médiový dotaz
+`(pointer: coarse)`, tedy primární ukazovátko je prst. `makeOverlay()`
+i `makeInputOverlay()` navíc na dotykovém zařízení strhnou atribut
+`autofocus` JEŠTĚ PŘED vložením do DOM (po `appendChild` už je pozdě).
+Klávesnice tak na mobilu vyjede teprve klepnutím na pole – a protože
+`wireExprInputs()` při focusu obsah označí, psaní ho rovnou přepíše.
+Na desktopu se nemění nic.
+
+Výjimka jsou dialogy, jejichž JEDINÝ smysl je něco napsat (TEXT nástroj,
+„Uložit jako", import G-kódu) – tam focus zůstává.
+
 #### Dialog jako záložka sdíleného okna
 
 Když má dialog žít vedle jiného v jednom okně (viz `combinedModal.js`),

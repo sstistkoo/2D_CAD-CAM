@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Mobil – klávesnice už nevyskakuje přes dialog.** Po nakreslení úsečky se
+  otevře dialog s PŘEDVYPLNĚNÝMI hodnotami, ale `h1.focus()` (a u jiných
+  dialogů atribut `autofocus`) hned vytáhl softwarovou klávesnici. Ta zakryla
+  dialog včetně tlačítka OK, takže ji uživatel musel pokaždé nejdřív zavřít,
+  aby mohl potvrdit.
+
+  Nový helper `focusInput()` v `dialogFactory.js` fokusuje jen tam, kde tím
+  klávesnice nevyjede (`isTouchDevice()` = médiový dotaz `(pointer: coarse)`),
+  a `makeOverlay()`/`makeInputOverlay()` na dotykovém zařízení strhnou
+  `autofocus` před vložením do DOM. Na mobilu tak klávesnice vyjede teprve
+  klepnutím na pole, které chce uživatel změnit (klepnutí obsah pole zároveň
+  označí, takže ho psaní přepíše); **na desktopu se nemění nic** – první pole
+  je dál zaostřené a vybrané.
+
+  Opraveno ve všech dialozích kreslení a úprav: po nakreslení (úsečka, bod,
+  kružnice, obdélník, kontura i jednotlivý segment kontury), poloměr kružnice,
+  bulge, úsečka pod úhlem, polární kreslení, číselné zadání, tečna, offset,
+  pole (řadové i kruhové), rotace, zaoblení/sražení, měřítko, nulový bod,
+  velikost mřížky a krok úhlu. Zaostření po klepnutí na tlačítko režimu
+  (např. Zaoblení × Sražení) se řídí stejným pravidlem. Nedotčené zůstaly
+  dialogy, jejichž jediný smysl je psát text – TEXT nástroj, „Uložit jako",
+  import G-kódu.
+
 ### Changed
 - **CAM – po už projeté dráze se jede rychloposuvem.** Dojezd „bez schodků"
   se drží kontury, takže kroky zanořovacího řetězu v kapse přelezou týž hrb

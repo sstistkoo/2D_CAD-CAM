@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { makeInputOverlay } from '../dialogFactory.js';
+import { makeInputOverlay, focusInput } from '../dialogFactory.js';
 import { showToast, axisLabels } from '../state.js';
 import { safeEvalMath, radiusToBulge } from '../utils.js';
 
@@ -69,8 +69,7 @@ export function showBulgeDialog(p1, p2, currentBulge, onAccept) {
   dirSelect.addEventListener('change', updateInfo);
   updateInfo();
 
-  rInput.focus();
-  rInput.select();
+  focusInput(rInput, { select: true });
 
   const accept = () => {
     const r = safeEvalMath(rInput.value);

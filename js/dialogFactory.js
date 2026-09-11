@@ -10,6 +10,47 @@ function escHTML(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Dotyková zařízení: automatický focus vytáhne softwarovou klávesnici ──
+/**
+ * `true` tam, kde je primární ukazovátko prst (mobil/tablet). Na takovém
+ * zařízení focus do pole okamžitě vysune softwarovou klávesnici – ta zakryje
+ * dialog i tlačítko OK a uživatel ji musí nejdřív zavřít. Klávesnice má vyjet
+ * až když sám klepne na pole, které chce změnit.
+ * @returns {boolean}
+ */
+export function isTouchDevice() {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.matchMedia === 'function') {
+    try { return window.matchMedia('(pointer: coarse)').matches; } catch { /* fallback níže */ }
+  }
+  return ('ontouchstart' in window) ||
+    (typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 0);
+}
+
+/**
+ * Fokusuje (a volitelně označí) pole jen tam, kde tím nevyskočí softwarová
+ * klávesnice – tedy na desktopu. Na mobilu se nedělá nic; hodnoty jsou
+ * předvyplněné, takže uživatel jen potvrdí, případně klepne na pole sám.
+ * @param {HTMLElement|null} el
+ * @param {{select?: boolean}} [opts]
+ */
+export function focusInput(el, { select = false } = {}) {
+  if (!el || isTouchDevice()) return;
+  el.focus();
+  if (select && typeof el.select === 'function') el.select();
+}
+
+/**
+ * Odstraní atribut `autofocus` z polí dialogu na dotykových zařízeních –
+ * jinak prohlížeč pole zaostří sám při vložení do DOM (viz {@link focusInput}).
+ * Volat PŘED `appendChild`, jinak už je pozdě.
+ * @param {HTMLElement} root
+ */
+function stripAutofocusOnTouch(root) {
+  if (!isTouchDevice()) return;
+  root.querySelectorAll('[autofocus]').forEach(el => el.removeAttribute('autofocus'));
+}
+
 /**
  * @param {string} type   kl\u00ed\u010d overlaye (data-type) \u2013 z\u00e1rove\u0148 pojistka proti duplicit\u011b
  * @param {string} title  titulek do li\u0161ty
@@ -34,6 +75,7 @@ export function makeOverlay(type, title, bodyHTML, windowClass, opts = {}) {
       '<div class="calc-titlebar"><h3>' + escHTML(title) + '</h3><button class="calc-close-btn">\u2715</button></div>' +
       '<div class="calc-body">' + bodyHTML + '</div>' +
     '</div>';
+  stripAutofocusOnTouch(overlay);
   document.body.appendChild(overlay);
   overlay.querySelector(".calc-close-btn").addEventListener("click", () => overlay.remove());
   if (closeOnBackdrop) {
@@ -118,6 +160,7 @@ export function makeInputOverlay(innerHTML) {
   const overlay = document.createElement('div');
   overlay.className = 'input-overlay';
   overlay.innerHTML = innerHTML;
+  stripAutofocusOnTouch(overlay);
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.remove();

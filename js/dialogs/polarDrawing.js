@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS, SNAP_POINT_THRESHOLD } from '../constants.js';
-import { makeInputOverlay, onOverlayRemoved } from '../dialogFactory.js';
+import { makeInputOverlay, onOverlayRemoved, focusInput } from '../dialogFactory.js';
 import { state, showToast, axisLabels } from '../state.js';
 import { addObject } from '../objects.js';
 import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
@@ -428,8 +428,7 @@ export function showPolarDrawingDialog() {
       polRefZ.value = endZ.toFixed(3);
     }
 
-    polLen.focus();
-    polLen.select();
+    focusInput(polLen, { select: true });
     persistCurrentPrefs();
     showToast(`Segment #${segCount} přidán`);
   });
@@ -630,5 +629,5 @@ export function showPolarDrawingDialog() {
     }
   });
 
-  polLen.focus();
+  focusInput(polLen);
 }

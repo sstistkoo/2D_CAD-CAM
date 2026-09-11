@@ -7,7 +7,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { makeInputOverlay } from '../dialogFactory.js';
+import { makeInputOverlay, focusInput } from '../dialogFactory.js';
 import { state, showToast } from '../state.js';
 import { addObject } from '../objects.js';
 import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
@@ -240,6 +240,5 @@ export function showAngleLineDialog() {
     }
   });
 
-  angAngle.focus();
-  angAngle.select();
+  focusInput(angAngle, { select: true });
 }

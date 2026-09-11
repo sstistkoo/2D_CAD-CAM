@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { makeInputOverlay } from '../dialogFactory.js';
+import { makeInputOverlay, focusInput } from '../dialogFactory.js';
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 
@@ -84,7 +84,7 @@ export function showTangentNewCircleRadiusDialog(lastR, callback) {
       </div>
     </div>`);
   const inp = overlay.querySelector("#tcl-r");
-  inp.focus(); inp.select();
+  focusInput(inp, { select: true });
   const confirm = () => {
     const v = safeEvalMath(inp.value);
     if (isNaN(v) || v <= 0) { inp.style.borderColor = 'red'; return; }

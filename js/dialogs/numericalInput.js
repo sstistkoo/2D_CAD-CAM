@@ -8,6 +8,7 @@ import { addObject } from '../objects.js';
 import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
 import { normalizeGcodeText } from '../gcodeNormalize.js';
 import { wireExprInputs } from './mobileEdit.js';
+import { focusInput } from '../dialogFactory.js';
 import { showFilletChamferDialog } from './objectDialogs.js';
 import { bridge } from '../bridge.js';
 import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
@@ -885,7 +886,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
     });
 
     const first = fieldsDiv.querySelector("input");
-    if (first && !("ontouchstart" in window)) setTimeout(() => first.focus(), 50);
+    if (first) setTimeout(() => focusInput(first), 50);
 
     // Auto-select obsahu při kliknutí + vyhodnocení výrazu při opuštění pole
     wireExprInputs(fieldsDiv);

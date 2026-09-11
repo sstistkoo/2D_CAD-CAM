@@ -2,7 +2,7 @@
 // ║  SKICA – Dialogy / Poloměr kružnice                       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { makeInputOverlay } from '../dialogFactory.js';
+import { makeInputOverlay, focusInput } from '../dialogFactory.js';
 import { state, axisLabels } from '../state.js';
 import { addObject } from '../objects.js';
 import { safeEvalMath } from '../utils.js';
@@ -24,8 +24,7 @@ export function showCircleRadiusDialog() {
       </div>
     </div>`);
   const inp = overlay.querySelector("#dlgRadius");
-  inp.focus();
-  inp.select();
+  focusInput(inp, { select: true });
   const accept = () => {
     const r = safeEvalMath(inp.value);
     if (r > 0) {
