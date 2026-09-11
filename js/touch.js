@@ -111,8 +111,11 @@ drawCanvas.addEventListener("pointerdown", () => {
 // ── Mobile: coord bar ──
 const mobileCoordBar = document.getElementById("mobileCoordBar");
 
-// Tap na coord bar (info pouze)
+// Tap na coord bar – mimo klikací indikátory (SOU/ABS/R, #/∠/📐) jen
+// pohltí klik, aby neprobublal dál; indikátory potřebují klik doručit až
+// do document, kde je zpracuje delegovaný přepínač (viz ui.js).
 mobileCoordBar.addEventListener("click", (e) => {
+  if (e.target.closest(".coord-ind")) return;
   e.stopPropagation();
 });
 
@@ -1169,17 +1172,27 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     gpEl.style.left = px + "px";
     gpEl.style.top = py + "px";
     gpEl.style.display = "block";
-    highlightGlobalAt(px, py);
+    highlightGlobalAt(px, py, clientX, clientY);
   }
 
   function updateGlobalPointer(clientX, clientY) {
     const px = clientX, py = clientY + gpOffsetY;
     gpEl.style.left = px + "px";
     gpEl.style.top = py + "px";
-    highlightGlobalAt(px, py);
+    highlightGlobalAt(px, py, clientX, clientY);
   }
 
-  function highlightGlobalAt(x, y) {
+  /**
+   * Najde klikatelný prvek pod posunutým křížkem (přesné mířření mezi
+   * hustě natěsnanými prvky, např. SOU/ABS/R). Když tam nic není – typicky
+   * u větších, řídce rozmístěných tlačítek (kalkulačka, centrování…), kde
+   * offset křížku „přeletí" mimo ně – zkusí to ještě přímo pod prstem.
+   * @param {number} x offset (křížek) X
+   * @param {number} y offset (křížek) Y
+   * @param {number} [fx] skutečná X pozice prstu (fallback)
+   * @param {number} [fy] skutečná Y pozice prstu (fallback)
+   */
+  function highlightGlobalAt(x, y, fx, fy) {
     if (gpHighlighted) {
       gpHighlighted.style.outline = "";
       gpHighlighted.style.outlineOffset = "";
@@ -1188,27 +1201,29 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     gpLabel.style.display = "none";
     // Najít element pod pointerem (skrýt pointer, aby nebyl v cestě)
     gpEl.style.display = "none";
-    const el = document.elementFromPoint(x, y);
+    let el = document.elementFromPoint(x, y);
+    let clickable = el && el.closest(CLICKABLE_SEL);
+    if (!clickable && fx != null && fy != null) {
+      el = document.elementFromPoint(fx, fy);
+      clickable = el && el.closest(CLICKABLE_SEL);
+    }
     gpEl.style.display = "block";
-    if (el) {
-      const clickable = el.closest(CLICKABLE_SEL);
-      if (clickable) {
-        clickable.style.outline = "2px solid #f9e2af";
-        clickable.style.outlineOffset = "1px";
-        gpHighlighted = clickable;
-        // Zobrazit tooltip z title nebo aria-label
-        const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
-        if (tip) {
-          gpLabel.textContent = tip;
-          gpLabel.style.left = "14px";
-          gpLabel.style.right = "auto";
-          gpLabel.style.display = "block";
-          // Pokud přetéká přes pravý okraj, přepnout na levou stranu
-          const rect = gpLabel.getBoundingClientRect();
-          if (rect.right > window.innerWidth - 4) {
-            gpLabel.style.left = "auto";
-            gpLabel.style.right = "14px";
-          }
+    if (clickable) {
+      clickable.style.outline = "2px solid #f9e2af";
+      clickable.style.outlineOffset = "1px";
+      gpHighlighted = clickable;
+      // Zobrazit tooltip z title nebo aria-label
+      const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
+      if (tip) {
+        gpLabel.textContent = tip;
+        gpLabel.style.left = "14px";
+        gpLabel.style.right = "auto";
+        gpLabel.style.display = "block";
+        // Pokud přetéká přes pravý okraj, přepnout na levou stranu
+        const rect = gpLabel.getBoundingClientRect();
+        if (rect.right > window.innerWidth - 4) {
+          gpLabel.style.left = "auto";
+          gpLabel.style.right = "14px";
         }
       }
     }
@@ -1225,14 +1240,16 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     if (gpTimer) { clearTimeout(gpTimer); gpTimer = null; }
   }
 
-  function clickGlobalAt(x, y) {
+  function clickGlobalAt(x, y, fx, fy) {
     gpEl.style.display = "none";
-    const el = document.elementFromPoint(x, y);
-    gpEl.style.display = "block";
-    if (el) {
-      const clickable = el.closest(CLICKABLE_SEL);
-      if (clickable) clickable.click();
+    let el = document.elementFromPoint(x, y);
+    let clickable = el && el.closest(CLICKABLE_SEL);
+    if (!clickable && fx != null && fy != null) {
+      el = document.elementFromPoint(fx, fy);
+      clickable = el && el.closest(CLICKABLE_SEL);
     }
+    gpEl.style.display = "block";
+    if (clickable) clickable.click();
   }
 
   document.addEventListener("touchstart", (e) => {
@@ -1276,9 +1293,9 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     if (gpTimer) { clearTimeout(gpTimer); gpTimer = null; }
     if (gpActive) {
       e.preventDefault();
-      const px = (e.changedTouches[0]?.clientX || gpStartX);
-      const py = (e.changedTouches[0]?.clientY || gpStartY) + gpOffsetY;
-      clickGlobalAt(px, py);
+      const fx = (e.changedTouches[0]?.clientX ?? gpStartX);
+      const fy = (e.changedTouches[0]?.clientY ?? gpStartY);
+      clickGlobalAt(fx, fy + gpOffsetY, fx, fy);
       hideGlobalPointer();
     }
     gpActive = false;

@@ -1543,7 +1543,7 @@ function drawSelectionCounter() {
   const w = ctx.measureText(label).width + 16;
   const h = fontSize + 12;
   const x = (drawCanvas.width - w) / 2;
-  const y = 90;
+  const y = 124; // pod #mobileCanvasCoords (X/Z/zoom text nad tím, viz style.css)
   ctx.fillStyle = 'rgba(30,30,46,0.85)';
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 6);

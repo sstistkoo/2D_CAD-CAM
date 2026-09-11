@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Mobil – dlouhé podržení (precision pointer) nereagovalo na plovoucí
+  tlačítka (kalkulačka, centrování…).** Křížek se kvůli offsetu od prstu
+  (`GLOBAL_OFFSET_Y`) hledá `elementFromPoint` NAD/POD skutečnou pozicí
+  prstu – u hustě natěsnaných indikátorů (SOU/ABS/R) to dává smysl (přesné
+  míření mezi malými sousedy), ale u řídce rozmístěných kulatých tlačítek
+  (🔢 kalkulačka, ⊙ centrování…) posunutý bod často trefil jen prázdné
+  plátno a podržení „nic neudělalo" – žádný rámeček, žádná bublina s
+  názvem tlačítka. `highlightGlobalAt()`/`clickGlobalAt()` v `touch.js`
+  teď mají fallback: když na posunuté pozici nic klikatelného není, zkusí
+  to ještě přímo pod prstem. Přesné míření mezi hustými prvky zůstává
+  beze změny.
+
+- **Mobil – počítadlo výběru („N bodů") překrývalo nové souřadnice na
+  plátně.** Kreslilo se natvrdo na `y = 90` v canvasu, což je skoro
+  přesně tam, kam teď (viz níže) patří `#mobileCanvasCoords` – posunuto
+  na `y = 124`, ať jsou čitelné obě.
+
+- **Mobil – indikátory SOU/ABS/R a #/∠/📐 se konečně daly přepínat.**
+  `mobileCoordBar` měl vlastní `click` handler, co pro JAKÝKOLI klik v liště
+  volal `e.stopPropagation()` (komentář „Tap na coord bar (info pouze)" – z
+  doby, kdy lišta byla čistě informativní). Tím ale klik nikdy nedoběhl do
+  `document`, kde na něj čeká delegovaný přepínač (`ui.js`) sdílený s
+  desktopovým stavovým řádkem – klepnutí na SOU/ABS/R apod. tak na mobilu
+  nikdy nic nepřepnulo. Handler teď klik na `.coord-ind` propustí dál.
+
 - **Mobil – klávesnice už nevyskakuje přes dialog.** Po nakreslení úsečky se
   otevře dialog s PŘEDVYPLNĚNÝMI hodnotami, ale `h1.focus()` (a u jiných
   dialogů atribut `autofocus`) hned vytáhl softwarovou klávesnici. Ta zakryla
@@ -32,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   import G-kódu.
 
 ### Changed
+- **Mobil – horní lišta přehledněji.** Indikátory SOU/ABS/R a #/∠/📐 jsou
+  teď skutečná dotyková tlačítka (`min-height` ~26 px, viditelné pozadí a
+  okraj) místo drobných odznaků, a souřadnice (X/Z) + přiblížení se z lišty
+  přesunuly přímo na plátno – bílý text bez podkladu pod plovoucími tlačítky
+  (kalkulačka, magnet, centrování…), aby lišta zůstala jen na přepínače.
+
 - **CAM – po už projeté dráze se jede rychloposuvem.** Dojezd „bez schodků"
   se drží kontury, takže kroky zanořovacího řetězu v kapse přelezou týž hrb
   pokaždé znovu: `part-1` vydával **třikrát** `G1 X39.110 Z70.607` (3 × 34,4 mm

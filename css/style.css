@@ -1967,7 +1967,7 @@ body {
 #mobileAutoCenter {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   right: 8px;
   z-index: 60;
   background: var(--ctp-surface2);
@@ -1991,7 +1991,7 @@ body {
 #mobileCancel {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   left: 8px;
   z-index: 60;
   background: var(--ctp-red);
@@ -2205,7 +2205,7 @@ body {
 #mobileRectArm {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   left: 10px;
   z-index: 60;
   background: var(--ctp-surface2);
@@ -2240,7 +2240,7 @@ body {
 #mobileUndo {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   left: 56px;
   z-index: 60;
   background: var(--ctp-surface2);
@@ -2264,7 +2264,7 @@ body {
 #mobileRedo {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   left: 102px;
   z-index: 60;
   background: var(--ctp-surface2);
@@ -2288,7 +2288,7 @@ body {
 #canvasCalcBtn {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   right: 152px;
   z-index: 250;
   background: var(--ctp-surface2);
@@ -2315,7 +2315,7 @@ body {
 #canvasClipBtn {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   right: 104px;
   z-index: 250;
   background: var(--ctp-surface2);
@@ -2348,7 +2348,7 @@ body {
 #mobileSnap {
   display: none;
   position: fixed;
-  top: 28px;
+  top: 44px;
   right: 56px;
   z-index: 60;
   background: var(--ctp-surface2);
@@ -2393,26 +2393,45 @@ body {
   background: #11111bdd;
   color: var(--ctp-subtext0);
   font-family: "Consolas", monospace;
-  font-size: 12px;
-  padding: 4px 10px;
+  padding: 5px 8px;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
+  border-bottom: 1px solid #ffffff14;
+}
+#coordBarRow1 {
+  display: flex;
   justify-content: space-between;
   align-items: center;
 }
-#coordBarText {
-  flex: 1;
-  text-align: center;
-}
 #coordBarIndicators {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 #coordBarIndicators2 {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+/* Souřadnice + zoom – vypsané přímo na canvas (bez podkladu), pod
+   plovoucími tlačítky nástrojů, viz #mobileAutoCenter aj. výše. */
+#mobileCanvasCoords {
+  display: none;
+  position: fixed;
+  top: 92px;
+  left: 0;
+  right: 0;
+  z-index: 45;
+  text-align: center;
+  pointer-events: none;
+}
+#coordBarText {
+  font-family: "Consolas", monospace;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 1px rgba(0, 0, 0, 0.6);
 }
 /* Indikátory nastavení ve stavovém řádku – klikací (přepínají nastavení).
    Vypnutý indikátor se NESKRÝVÁ (jen ztlumí), jinak by nešel znovu zapnout. */
@@ -2600,7 +2619,43 @@ body {
 @media (max-width: 900px) {
   /* Safe area pro telefony s vÃ½Å™ezem */
   #mobileCoordBar {
-    padding-top: max(4px, env(safe-area-inset-top));
+    padding-top: max(5px, env(safe-area-inset-top));
+  }
+
+  /* Souřadnice + zoom vypsané přímo na canvas (viz #mobileCanvasCoords) */
+  #mobileCanvasCoords {
+    display: block;
+  }
+
+  /* Indikátory SOU/ABS/R a #/∠/📐 jako plnohodnotná dotyková tlačítka
+     (stejný vizuál jako .statusbar-btn na desktopu), ne drobné odznaky. */
+  #mobileCoordBar .coord-ind {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    min-height: 26px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    background: var(--ctp-surface0);
+    border: 1px solid var(--ctp-surface1);
+    color: var(--ctp-subtext0);
+    opacity: 1;
+  }
+  #mobileCoordBar .coord-ind.active {
+    background: var(--ctp-blue);
+    border-color: var(--ctp-blue);
+    color: var(--ctp-base);
+  }
+  #mobileCoordBar .coord-ind.active.alt {
+    background: var(--ctp-peach);
+    border-color: var(--ctp-peach);
+    color: var(--ctp-base);
+  }
+  #mobileCoordBar .coord-ind:active {
+    transform: scale(0.94);
   }
 
   /* Settings dialog: titlebar vždy viditelný na mobilu */
