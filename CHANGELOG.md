@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Mobil – hlášky (toast) při kreslení/otevřeném okně nezasahují do
+  formuláře.** Klasický toast dole na obrazovce (`showToast()`) při
+  rozdělaném kreslení nebo s otevřeným plovoucím oknem (VK/Číselné
+  zadání, kalkulačka…) skákal přes právě používaný formulář/tlačítko OK.
+  Na pokyn uživatele: v těchto dvou situacích (a jen na mobilu) se teď
+  hláška místo toho jen naznačí zvonečkem 🔔 v horní liště vedle
+  SOU/ABS/R/#/∠/📐 (`#mobileNotifyBadge`) – klepnutím se zobrazí
+  posledních až 6 hlášek v panelu pod ním (`#mobileNotifyPanel`,
+  `js/state.js: shouldDeferToast()/deferToast()`). Mimo tyhle dvě
+  situace a na desktopu se nic nemění.
+
 ### Fixed
 - **Mobil – kalkulačka zmizela, když bylo otevřené VK/Číselné zadání.**
   `updateCalcBtnVisibility()` schovávala plovoucí tlačítko 🔢 při JAKÉMKOLI

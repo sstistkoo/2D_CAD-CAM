@@ -117,12 +117,17 @@ function _loadProjectData(data) {
 
 // ── Save / Load ──
 
-/** Uloží aktuální projekt do IndexedDB. */
-export async function saveProject() {
+/**
+ * Uloží aktuální projekt do IndexedDB.
+ * @param {{quiet?: boolean}} [opts] `quiet` = jen tiché potvrzení (viz
+ *   showToast() v state.js) – pro autosave, co běží po každé editaci;
+ *   ruční uložení (Ctrl+S, tlačítko Uložit) zůstává viditelné.
+ */
+export async function saveProject({ quiet = false } = {}) {
   const data = _buildProjectData();
   await setMeta('currentProjectData', data);
   await _saveToProjects(state.projectName, data);
-  showToast("Projekt uložen");
+  showToast("Projekt uložen", undefined, { quiet });
   updateStatusProject();
 }
 

@@ -10,7 +10,7 @@ let _autoSaveTimer = null;
 function scheduleAutoSave() {
   if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(() => {
-    saveProject();
+    saveProject({ quiet: true });
   }, 3000);
 }
 

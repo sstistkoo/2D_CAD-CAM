@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { bridge } from './bridge.js';
-import { COLORS } from './constants.js';
+import { COLORS, MOBILE_BREAKPOINT } from './constants.js';
 
 // ── Hook pro rozšíření pushUndo (autosave) ──
 let _pushUndoHook = null;
@@ -11,11 +11,114 @@ let _pushUndoHook = null;
 export function setPushUndoHook(fn) { _pushUndoHook = fn; }
 
 // ── Toast notifikace ──
+// Klasický toast dole na obrazovce (position:fixed, bottom) při kreslení
+// nebo s otevřeným plovoucím oknem (VK/Číselné zadání, kalkulačka…) skáče
+// přes rozdělanou práci – na mobilu není kam uhnout. V tom případě se
+// hláška jen naznačí zvonečkem v horní liště (#mobileNotifyBadge, viz
+// index.html) a čeká se v `#mobileNotifyPanel`, dokud si ji uživatel
+// sám nezobrazí klepnutím. Na desktopu se nic nemění – toast je dost
+// stranou, aby nevadil.
+const DEFERRED_NOTIFY_MAX = 6;
+/** @type {string[]} */
+let _deferredNotifications = [];
+let _notifyWired = false;
+
+function shouldDeferToast() {
+  if (typeof window === 'undefined' || window.innerWidth > MOBILE_BREAKPOINT) return false;
+  if (state.drawing) return true;
+  // Vysunutý panel nástrojů (#topbar.mobile-open) nebo boční panel Objekty
+  // (#sidebar.mobile-open) zrcadlí stav na <body> (viz touch.js) – toast
+  // přes ně stejně tak skáče jako přes okno.
+  const b = document.body.classList;
+  if (b.contains('toolbar-open') || b.contains('sidebar-open')) return true;
+  return !!document.querySelector('.calc-overlay, .input-overlay');
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderNotifyPanel() {
+  const panel = document.getElementById('mobileNotifyPanel');
+  if (!panel) return;
+  panel.innerHTML = _deferredNotifications.length
+    ? _deferredNotifications.slice().reverse().map(m => `<div class="mobile-notify-item">${escapeHtml(m)}</div>`).join('')
+    : '<div class="mobile-notify-empty">Žádné hlášky</div>';
+}
+
+/** Zapojí klik na zvoneček/panel – jen jednou, líně (až je poprvé co ukázat). */
+function wireNotifyBadge() {
+  if (_notifyWired) return;
+  const badge = document.getElementById('mobileNotifyBadge');
+  const panel = document.getElementById('mobileNotifyPanel');
+  if (!badge || !panel) return;
+  _notifyWired = true;
+  badge.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willShow = panel.hidden;
+    panel.hidden = !willShow;
+    if (willShow) {
+      renderNotifyPanel();
+      badge.classList.remove('has-unread');
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (panel.hidden) return;
+    if (badge.contains(e.target) || panel.contains(e.target)) return;
+    panel.hidden = true;
+  });
+}
+
+function deferToast(msg) {
+  wireNotifyBadge();
+  _deferredNotifications.push(msg);
+  if (_deferredNotifications.length > DEFERRED_NOTIFY_MAX) _deferredNotifications.shift();
+  const badge = document.getElementById('mobileNotifyBadge');
+  if (badge) {
+    badge.hidden = false;
+    badge.classList.add('has-unread');
+  }
+  const panel = document.getElementById('mobileNotifyPanel');
+  if (panel && !panel.hidden) renderNotifyPanel();
+}
+
+let _saveFlashTimer = null;
+/** Krátce mihne 💾 vedle zvonečku – pro tichá potvrzení (viz `quiet` u showToast). */
+function flashSaveIndicator() {
+  const el = document.getElementById('mobileSaveFlash');
+  if (!el) return;
+  el.hidden = false;
+  // Vynutit reflow, ať prohlížeč `opacity:0 → .show` fakt animuje i při
+  // opakovaném bleskutí (jinak by druhé volání jen zrušilo/nastartovalo
+  // tutéž tranzici beze změny a nic by se nezopakovalo).
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(_saveFlashTimer);
+  _saveFlashTimer = setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => { el.hidden = true; }, 260);
+  }, 1200);
+}
+
 /**
  * @param {string} msg
  * @param {number} [duration=2000]
+ * @param {{quiet?: boolean}} [opts] `quiet` = časté nízko-prioritní potvrzení
+ *   (např. autosave „Projekt uložen" – běží po každé editaci), co na mobilu
+ *   nepatří ani do klasického toastu, ani do fronty zvonečku (jen by ji
+ *   zbytečně plnilo) – místo toho jen mihne 💾 vedle zvonečku. Na desktopu
+ *   (a na mobilu mimo kreslení/otevřené okno, kde toast nevadí) se chová
+ *   jako normální hláška.
  */
-export function showToast(msg, duration = 2000) {
+export function showToast(msg, duration = 2000, opts = {}) {
+  if (opts.quiet && typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT) {
+    flashSaveIndicator();
+    return;
+  }
+  if (shouldDeferToast()) {
+    deferToast(msg);
+    return;
+  }
   let t = document.querySelector(".toast");
   if (!t) {
     t = document.createElement("div");

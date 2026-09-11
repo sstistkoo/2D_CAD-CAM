@@ -2434,6 +2434,93 @@ body {
   flex-shrink: 0;
 }
 
+/* Odložené hlášky (showToast) – při kreslení nebo s otevřeným oknem
+   (VK/kalkulačka…) by klasický toast dole na obrazovce skočil přes
+   rozdělanou práci. Místo toho se rozsvítí tenhle zvoneček v horní
+   liště; klik ukáže poslední hlášky v panelu pod ním. Viz shouldDeferToast()
+   v state.js. */
+/* Bez `display` v základním pravidle – atribut [hidden] (viz JS: badge.hidden)
+   musí zůstat jediným rozhodčím viditelnosti, jinak by ho vlastní `display`
+   se stejnou specificitou přebilo (autorské styly vyhrávají nad UA výchozím
+   `[hidden]{display:none}` i při shodné specificitě). Kruh centruje text
+   přes line-height/text-align jako ostatní kulatá tlačítka (#mobileSnap aj.). */
+.mobile-notify-badge {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-subtext0);
+  font-size: 13px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mobile-notify-badge.has-unread {
+  background: var(--ctp-red);
+  border-color: var(--ctp-red);
+  color: var(--ctp-base);
+  animation: mobileNotifyPulse 1.4s ease-in-out infinite;
+}
+@keyframes mobileNotifyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(243, 139, 168, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(243, 139, 168, 0); }
+}
+/* Tichá potvrzení (např. „Projekt uložen" z autosave – běží při každé
+   editaci po 3 s, na rozdíl od varování je nechceme ve frontě zvonečku).
+   Jen se samo krátce mihne vedle zvonečku, nic se neukládá, nevyžaduje
+   klik. Viz flashSaveIndicator() v state.js. Bez `display` ze stejného
+   důvodu jako .mobile-notify-badge výše. */
+.mobile-save-flash {
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  color: var(--ctp-green);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.mobile-save-flash.show {
+  opacity: 1;
+}
+.mobile-notify-panel {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  margin-top: 6px;
+  min-width: 190px;
+  max-width: 270px;
+  max-height: 45vh;
+  overflow-y: auto;
+  background: #11111bf2;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 8px;
+  padding: 6px;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  /* Nad plovoucími tlačítky nástrojů (#canvasCalcBtn aj. mají z-index 250),
+     jinak by panel „prosvítal" pod nimi. */
+  z-index: 260;
+}
+.mobile-notify-item {
+  font-size: 12px;
+  color: var(--ctp-text);
+  padding: 6px 8px;
+}
+.mobile-notify-item + .mobile-notify-item {
+  border-top: 1px solid var(--ctp-surface0);
+}
+.mobile-notify-empty {
+  font-size: 12px;
+  color: var(--ctp-subtext0);
+  padding: 6px 8px;
+}
+
 /* Souřadnice + zoom – vypsané přímo na canvas (bez podkladu), pod
    plovoucími tlačítky nástrojů, viz #mobileAutoCenter aj. výše. */
 #mobileCanvasCoords {
