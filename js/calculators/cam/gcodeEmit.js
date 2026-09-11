@@ -615,7 +615,41 @@ export function generateAutoGCode(S, calc) {
   // podle siluety odlitku — stejné pravidlo jako u těla průchodu
   // (`airSplitAxial` níž; definice až po planCrossZ, volá se ale jen
   // za běhu emise, takže na pořadí nezáleží).
+  // ── ÚSEK DOJEZDU PO UŽ PROJETÉ DRÁZE = RYCHLOPOSUV ────────────────────
+  // Dojezd „bez schodků" se drží kontury, takže kroky zanořovacího řetězu
+  // v kapse přelezou TÝŽ hrb pokaždé znovu: na `part-1` vydá emise třikrát
+  // `G1 X39.110 Z70.607`, tedy 3 × 34,4 mm posuvu, z něhož dva neuberou nic
+  // (celá sada: 47 doslovných duplicit, 983 mm).
+  //
+  // GEOMETRIE SE NEMĚNÍ — tentýž bod A → tentýž bod B, mění se jen DRUH
+  // pohybu. Nemůže tedy vzniknout žádná nová kolize (nástroj ani držák se
+  // nedostanou nikam, kam by se při posuvu nedostaly); jediné riziko by bylo
+  // řezat rychloposuvem, a právě na to se ptá DYNAMICKÝ zbytek PLNOU stopou
+  // destičky (`rapidFoot`, ne zeštíhlená) s přísným prahem 0,01 mm² — řádově
+  // pod 0,5 mm², se kterým pracuje `rapidHitsStock`.
+  //
+  // Jen JEDNOOSÝ pohyb: `G0 X… Z…` může na některých řídicích systémech jet
+  // nelineárně (každá osa svou rychlostí), takže by se dráha mezi A a B
+  // změnila — a tím padá celý argument výš. Zbytek programu to dodržuje taky
+  // (`safeRapidTo` vydává `G0 X` a `G0 Z` zvlášť).
+  const leadOutAlreadyCut = (x1, z1, x2, z2) => {
+    if (!rapidStock) return false;
+    try {
+      const sweep = toolSweep(rapidFoot, [{ x: x1, z: z1 }, { x: x2, z: z2 }]);
+      return Math.abs(polyArea(rapidStock.collide(sweep))) <= 0.01;
+    } catch { return false; }
+  };
   const emitLeadOutLine = (seg) => {
+    const dXc = Math.abs(seg.x2 - cur.x), dZc = Math.abs(seg.z2 - cur.z);
+    const pureZ = dXc < 1e-6 && dZc > 1e-9;
+    const pureX = dZc < 1e-6 && dXc > 1e-9;
+    if (seg.overCut && (pureZ || pureX) && leadOutAlreadyCut(cur.x, cur.z, seg.x2, seg.z2)) {
+      simCounter += 1;
+      addN(pureZ ? `G0 Z${seg.z2.toFixed(3)}${note('', 'Po už projeté dráze')}`
+        : `G0 X${xDia(seg.x2)}${note('', 'Po už projeté dráze')}`, simCounter);
+      setPos(seg.x2, seg.z2);
+      return;
+    }
     const axial = Math.abs(seg.x2 - seg.x1) < 1e-6;
     const segs = axial ? airSplitAxial(seg.x2, seg.z1, seg.z2, Math.sign(seg.z2 - seg.z1) || 1) : null;
     // KONCOVÝ vzduch se nejezdí vůbec: dojezd končí na hraně materiálu

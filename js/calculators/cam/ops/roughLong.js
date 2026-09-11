@@ -1676,6 +1676,32 @@ export function genLongPasses(ctx) {
       }
       const lo = p.contourLeadOut;
       if (Array.isArray(lo) && lo.length > 0) {
+        // ZNAČKA PRO EMISI: úsek vede po dráze, kterou už někdo projel.
+        // Zahodit se nesmí (viz odstavec o `pocketClean` výš), ale emise ho
+        // přejede RYCHLOPOSUVEM místo posuvem — geometrie se nemění, jen
+        // druh pohybu (docs/cam-pravidla-drah.md §5.4). Značí se PŘED
+        // `reg.note(lo)`, jinak by se úsek označil sám sebou.
+        //
+        // PROČ ZNAČKA A NE JEN DOTAZ V EMISI: ten dotaz je polygonová operace
+        // proti celému zbytku a v emisi by běžel na KAŽDÝ úsek dojezdu. Tady
+        // se pokrytí počítá jednou, vzorkovaně, a emise drahý test pustí jen
+        // na tu hrstku označených.
+        //
+        // A ptá se JEN na úsečky delší než 2 mm — `isDuplicate` sám vzorkuje
+        // po 0,3 mm a na oblouku ani na milimetrovém kousku ho emise stejně
+        // nevyužije (§5.4). Bez obojího přetekl `tests/cam-finish-holder`
+        // v PLNÉ SADĚ vlastní 90s timeout; izolovaně přitom běžel 52 s
+        // (a `cam_fingerprint` hlásil šum), takže standalone měření ten rozdíl
+        // NEUKÁŽE — pozná se až na plné sadě.
+        //
+        // Jednoosost se tu ZÁMĚRNĚ netestuje: emise ji posuzuje proti SVÉ
+        // aktuální poloze (`cur`), která po radiálním výjezdu nemusí sedět na
+        // `s.x1/z1`. Test tady by pár převodů zahodil (změřeno na part-1/2/20).
+        for (const s of lo) {
+          if (s.type !== 'line') continue;
+          if (Math.hypot(s.x2 - s.x1, s.z2 - s.z1) < 2) continue;
+          if (reg.isDuplicate(s)) s.overCut = true;
+        }
         const n = p.pocketClean ? reg.duplicateSuffix(lo) : 0;
         if (n > 0) { lo.length = lo.length - n; trimmed += n; }
         if (lo.length === 0) delete p.contourLeadOut;

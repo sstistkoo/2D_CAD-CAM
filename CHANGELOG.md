@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – po už projeté dráze se jede rychloposuvem.** Dojezd „bez schodků"
+  se drží kontury, takže kroky zanořovacího řetězu v kapse přelezou týž hrb
+  pokaždé znovu: `part-1` vydával **třikrát** `G1 X39.110 Z70.607` (3 × 34,4 mm
+  posuvu), přes celou sadu **47 doslovných duplicit a 983 mm**. Zahodit ty
+  úseky nejde (ořez dojezdu posune 45° odskok — změřeno a zamítnuto, viz
+  `docs/cam-pravidla-drah.md` §5.3b), ale jet je posuvem není třeba.
+
+  Úsek, který podle DYNAMICKÉHO zbytku nemá co ubrat, se teď přejede
+  rychloposuvem (`; Po už projeté dráze`). **Geometrie se nemění** — tentýž
+  bod A → tentýž bod B, mění se jen druh pohybu, takže nemůže vzniknout žádná
+  nová kolize. Podmínky jsou tři: značka z plánovací evidence duplicit
+  (výkonová brána — bez ní šel `tests/cam-finish-holder` z 52 s na přes 90 s),
+  dotaz na zbytek PLNOU stopou destičky s prahem 0,01 mm² (řádově pod
+  0,5 mm² u `rapidHitsStock`) a JEN JEDNOOSÝ pohyb — `G0 X… Z…` může na
+  některých řídicích systémech jet nelineárně, čímž by se trasa mezi A a B
+  změnila.
+
+  Změřeno: duplicity **47 → 19** pohybů a **983 → 133 mm**, posuv naprázdno
+  přes sadu **8 109 → 7 201 mm** (16,9 % → 15,3 %). `cam_sweep` bajt po bajtu
+  stejný (úběr 87 757,5 / 90 507,7 mm², kolize 3 / 5,8 a 0 / 0,0) a
+  `ContourGouge` 48,91 mm² beze změny — přesně jak vyplývá z nezměněné
+  geometrie. Podrobně `docs/cam-pravidla-drah.md` §5.4.
+
+
+### Changed
 - **CAM – hloubková mřížka je PER ÚSEK, ne jedna pro celý díl.** Žebřík byl
   kotvený na největším průměru CELÉHO dílu, takže úsek s nižším vrchem dostal
   první vrstvu tak silnou, jak zrovna padla globální mřížka. Na dílu uživatele

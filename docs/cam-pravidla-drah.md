@@ -721,14 +721,63 @@ jsou opravené a **žádná z nich není důsledek per-úsek žebříku**:
   koncem polotovaru a offsetovou čarou (Z −11), nic neodebere a TĚLEM plátku
   škrtne čelo dílu (Ø 41,978). Správná odpověď je protáhnout obrobitelnou
   konturu na konec OFFSETOVÉ čáry, ne polotovaru — táž věta jako §5.
-- **Duplicitní dojezdy zanořovacího řetězu.** Kroky řetězu v kapse
-  (`ops/long/pocketPass.js`) si dojezd neořezávají na hloubku předchozího
-  kroku, jak to dělá otevřený průchod (`clipLeadOutToDepth` v `openPass.js`) —
-  na `part-1` projedou tři kroky TOUTÉŽ trasou (řádky 87/101/114). Evidence
-  projetých drah (`makeChainRegistry`) je smí zahodit jen u `pocketClean`;
-  plošný ořez byl změřen a zamítnut (nová kolize držáku na
-  `part-18-parting-90-ramp`). `clipLeadOutToDepth` navíc krátí jen RADIÁLNÍ
-  úseky, a tahle trasa žádný nemá.
+- **Duplicitní dojezdy zanořovacího řetězu — ZMÍRNĚNO 11. 9. 2026, viz §5.4.**
+  Kroky řetězu v kapse (`ops/long/pocketPass.js`) si dojezd neořezávají na
+  hloubku předchozího kroku, jak to dělá otevřený průchod
+  (`clipLeadOutToDepth` v `openPass.js`) — na `part-1` projedou tři kroky
+  TOUTÉŽ trasou. Zahodit je nejde: evidence projetých drah
+  (`makeChainRegistry`) je smí zahodit jen u `pocketClean` a plošný ořez byl
+  změřen a zamítnut (nová kolize držáku na `part-18-parting-90-ramp`);
+  `clipLeadOutToDepth` navíc krátí jen RADIÁLNÍ úseky, a tahle trasa žádný
+  nemá. **Dráha tedy zůstává, jen se po ní jede rychloposuvem.** Že tam
+  z principu VEDOU, je pořád otevřené.
+
+---
+
+## 5.4 Po už projeté dráze se jede RYCHLOPOSUVEM (11. 9. 2026)
+
+> Úsek dojezdu, který podle DYNAMICKÉHO zbytku nemá co ubrat, se přejede
+> rychloposuvem. **Geometrie se nemění — tentýž bod A → tentýž bod B.**
+
+Dojezd „bez schodků" se drží kontury, takže kroky zanořovacího řetězu v kapse
+přelezou týž hrb pokaždé znovu: `part-1` vydával **třikrát** `G1 X39.110
+Z70.607`, tedy 3 × 34,4 mm posuvu. Přes celou sadu **47 doslovných duplicit
+a 983 mm posuvu**.
+
+**Proč je to bezpečné (a proč to NENÍ totéž co ořez dojezdu):**
+- Mění se jen DRUH pohybu, ne trasa. Nástroj ani držák se nedostanou nikam,
+  kam by se při posuvu nedostaly → **žádná nová kolize vzniknout nemůže**.
+  Změřeno: `cam_sweep` vyšel bajt po bajtu stejně (úběr 87 757,5 / 90 507,7
+  mm², kolize 3 / 5,8 a 0 / 0,0), `ContourGouge` 48,91 mm² beze změny.
+- Ořez dojezdu tohle tvrdit NEMŮŽE — ten trasu zkracuje a posune 45° odskok
+  (proto je zamítnutý, viz §5.3b).
+
+**Tři podmínky, všechny nutné:**
+1. **Značka z plánovací evidence** — `reg.isDuplicate(s)` v `ops/roughLong.js`
+   označí `s.overCut`. Je to VÝKONOVÁ brána, ne bezpečnostní: bez ní běžel
+   polygonový dotaz níž na KAŽDÝ úsek dojezdu a `tests/cam-finish-holder`
+   v PLNÉ SADĚ přetekl vlastní 90s timeout. Značka se počítá jednou,
+   vzorkovaně, a je zároveň užší — projde jí 92 % zisku.
+   `isDuplicate` sám vzorkuje po 0,3 mm, takže se ptá **jen na úsečky delší
+   než 2 mm** (kratší ani oblouk emise stejně nepřevede).
+   **PAST V MĚŘENÍ:** izolovaně ten test běžel 52 s a `cam_fingerprint` hlásil
+   šum (27 s proti 29 s) — fixtures jedou v paralelních procesech a dominuje
+   jim start. Zpomalení tohohle druhu se pozná AŽ NA PLNÉ SADĚ.
+2. **Dynamický zbytek PLNOU stopou destičky** (`leadOutAlreadyCut`
+   v `gcodeEmit.js`; `rapidFoot`, ne zeštíhlená) a práh **0,01 mm²** — řádově
+   pod 0,5 mm², se kterým pracuje `rapidHitsStock`. Tohle je ta BEZPEČNOSTNÍ
+   podmínka: značka mluví o PLÁNOVANÝCH drahách, kdežto emise je ještě ořezává
+   (`trimLeadOutToStock`, ořezy držáku), takže poslední slovo má skutečný
+   zbytek.
+3. **Jen JEDNOOSÝ pohyb.** `G0 X… Z…` může na některých řídicích systémech
+   jet nelineárně (každá osa svou rychlostí) — tím by se dráha mezi A a B
+   změnila a padl by argument z odstavce výš. Zbytek emise to dodržuje taky
+   (`safeRapidTo` vydává `G0 X` a `G0 Z` zvlášť). Oblouky proto zůstávají
+   posuvem vždycky (`G0` po oblouku neexistuje).
+
+**Výsledek:** duplicity **47 → 19** pohybů, **983 → 133 mm**; posuv naprázdno
+přes celou sadu **8 109 → 7 203 mm** (16,9 % → 15,3 % veškerého posuvu).
+Označeno v G-kódu jako `; Po už projeté dráze`.
 
 ## 6. Pravidla, která vyslovil uživatel
 
