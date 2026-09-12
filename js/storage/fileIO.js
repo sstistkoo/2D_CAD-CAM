@@ -1205,6 +1205,15 @@ document.getElementById("btnCncEdit").addEventListener("click", () => {
   if (!code) { runCncExport(); code = document.getElementById("cncOutput").value; }
   openCncEditor(code);
 });
+// Otisk kontury odstraněné posledním 🔄 (nahradit) – ať to jde vrátit, když
+// uživatel hned nato klikne ✓ (přidat). Reálný případ: uživatel omylem
+// stiskne 🔄 místo ✓, kontura zmizí až na to, co právě napsal, a ✓ pak
+// zdánlivě "nic nedělá", protože přidává do už vyprázdněného výkresu.
+// `undoStackLen` je otisk `state.undoStack.length` PO vlastním pushUndo()
+// téhle funkce – když mezi 🔄 a ✓ neproběhla ŽÁDNÁ jiná undo-schopná akce,
+// délka zásobníku po ✓ vlastním pushUndo() bude přesně o 1 vyšší.
+let lastReplacedSnapshot = null; // { objects: object[], undoStackLen: number } | null
+
 /**
  * Naparsuje CNC kód a vykreslí ho jako objekty na canvas.
  * @param {string} code
@@ -1213,6 +1222,8 @@ document.getElementById("btnCncEdit").addEventListener("click", () => {
  *   uživatel chce ručně psaným G-kódem dokreslit už existující výkres, ne ho
  *   nahradit. Bez toho (výchozí, `renderCncCodeToCanvas`) se kontura přepíše
  *   – zůstává chování 🔄, na které jsou zvyklí ostatní volání (CNC Editor aj.).
+ *   Navazuje-li ✓ PŘÍMO na předchozí 🔄 (nic mezi tím), nejdřív vrátí, co 🔄
+ *   smazalo, a teprve pak přidá nové – viz `lastReplacedSnapshot` výš.
  */
 function renderCncCodeToCanvas(code, { append = false } = {}) {
   if (!code) { showToast("CNC kód je prázdný"); return; }
@@ -1221,7 +1232,13 @@ function renderCncCodeToCanvas(code, { append = false } = {}) {
     if (!objs.length && !warnings.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
     pushUndo();
     if (!append) {
+      lastReplacedSnapshot = { objects: state.objects.slice(), undoStackLen: state.undoStack.length };
       state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
+    } else {
+      if (lastReplacedSnapshot && lastReplacedSnapshot.undoStackLen === state.undoStack.length - 1) {
+        state.objects = lastReplacedSnapshot.objects;
+      }
+      lastReplacedSnapshot = null;
     }
     // Objekty naparsované z G-kódu dřív neměly .layer vůbec (obcházely addObject()),
     // takže byly imunní vůči skrývání vrstev a ignorovaly barvu nastavenou u vrstvy
