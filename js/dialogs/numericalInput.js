@@ -11,7 +11,7 @@ import { wireExprInputs } from './mobileEdit.js';
 import { focusInput } from '../dialogFactory.js';
 import { showFilletChamferDialog } from './objectDialogs.js';
 import { openLineStyleDialog } from './lineStyleDialog.js';
-import { activeLineProps, activeLineStyle } from '../lineStyles.js';
+import { activeLineProps, activeLineStyle, lineContinuationProps, getLineStyle } from '../lineStyles.js';
 import { bridge } from '../bridge.js';
 import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
 
@@ -331,6 +331,17 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // smysl nabízet zaoblení/zkosení a jen tehdy je roh jednoznačný.
   let prevLineEnd = null;
   let lastLineCorner = null;
+  // Skutečný objekt poslední vytvořené úsečky (řetězení v TÉTO záložce) –
+  // navazující úsečka z něj převezme typ čáry/barvu (`lineContinuationProps()`),
+  // ne aktuální globální volbu „Typ čáry". Odděleně od `prevLineEnd`, protože
+  // ten nese jen souřadnice.
+  let prevLineObj = null;
+  // Zdrojový objekt bodu vybraného přes 🎯 pro X1/Z1 (`state.mouse.snappedObject`
+  // v okamžiku kliku, viz pick-btn handler níž) – umožní navázat stylem i
+  // rohem na úsečku, která NENÍ součástí řetězu z týhle záložky (např.
+  // nakreslená nástrojem Úsečka na plátně nebo z načteného projektu).
+  // Spotřebuje/vynuluje se v `createObject()`.
+  let pickedP1SnapSource = null;
 
   // Jak se zadává oblouk: 'center' = střed + úhly, 'endpoints' = začátek,
   // konec, R a smysl (zápis jako v G-kódu, navazuje na předchozí prvek).
@@ -372,9 +383,11 @@ export function initNumericalTab(container, { picker = null } = {}) {
         break;
       case 'line':
         if (!continuesFrom(g.x1, g.y1)) lines.push(`G00 ${fmt(g.x1, g.y1)}`);
-        // Pomocná/konstrukční čára (viz „Typ čáry") se v zápisu označí
-        // komentářem, ať jde v textu poznat od běžné úsečky kontury.
-        lines.push(`G01 ${fmt(g.x2, g.y2)}${state.lineStyle.aux ? ' ; konstr' : ''}`);
+        // Pomocná/konstrukční čára (viz „Typ čáry", případně zděděná
+        // navázáním – `prevLineObj` je v tomhle okamžiku VŽDY právě
+        // vytvořený objekt, volá se hned po `createObject()`) se v zápisu
+        // označí komentářem, ať jde v textu poznat od běžné úsečky kontury.
+        lines.push(`G01 ${fmt(g.x2, g.y2)}${prevLineObj?.type === 'constr' ? ' ; konstr' : ''}`);
         newEnd = { x: g.x2, y: g.y2 };
         break;
       case 'circle':
@@ -890,6 +903,10 @@ export function initNumericalTab(container, { picker = null } = {}) {
               break;
             case "p1":
               setPair("#nx1", "#ny1");
+              // `snapPt()` (canvasPick.js) nastavilo `state.mouse.snappedObject`
+              // přesně na tenhle klik – zachytit HNED, `createObject()` ho
+              // pak použije pro typ čáry/barvu i nabídku rohu (viz níž).
+              pickedP1SnapSource = state.mouse.snappedObject || null;
               updateLineInfo();
               break;
             case "p2":
@@ -1058,13 +1075,27 @@ export function initNumericalTab(container, { picker = null } = {}) {
   container.addEventListener("input", scheduleNumPreview);
   container.addEventListener("change", scheduleNumPreview);
 
+  // Ruční přepsání X1/Z1 PO výběru z mapy ruší navázání na ten bod – jinak
+  // by `createObject()` klidně převzalo styl/roh objektu, na kterém už
+  // souřadnice vůbec neleží. `setPair()` (🎯) mění `.value` napřímo, takže
+  // sem nedosáhne (nedispatchuje `input`) a `pickedP1SnapSource` zůstane
+  // platné až do skutečného vložení.
+  container.addEventListener("input", (e) => {
+    if (e.target.id === 'nx1' || e.target.id === 'ny1') pickedP1SnapSource = null;
+  });
+
+  // Typy, na které má smysl nabízet zaoblení/zkosení (roh = dva segmenty).
+  const CORNER_CAPABLE_TYPES = new Set(['line', 'constr', 'polyline', 'arc']);
+
   function createObject() {
     const t = typeSelect.value;
     if (t !== 'line') {
       // Cokoli jiného než úsečka řetěz přerušuje – roh by pak ukazoval
       // na dvojici, která spolu už nesouvisí.
       prevLineEnd = null;
+      prevLineObj = null;
       lastLineCorner = null;
+      pickedP1SnapSource = null;
     }
     try {
       switch (t) {
@@ -1078,22 +1109,33 @@ export function initNumericalTab(container, { picker = null } = {}) {
         case "line": {
           const g = readFormGeometry();
           if (!g.valid) { showToast("Zadejte cílový bod (X2/Z2, nebo Délka a Úhel)"); return false; }
-          // Vzhled i výsledný typ (line/constr) určuje volba z „Typ čáry"
-          // (⌗ v řádku ikon výš) – stejná cesta jako kreslení na plátně.
-          addObject({
-            ...activeLineProps(),
-            x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
-            name: `${state.lineStyle.aux ? activeLineStyle().label : "Úsečka"} ${state.nextId}`,
-          });
-          // Roh je jen tam, kde nová úsečka fakt začíná na konci předchozí.
-          // Tolerance 1e-3 (ne 1e-6 – viz stejný komentář u appendGcodeForObject
-          // výš): počáteční pole se přednaplňuje zaokrouhleně na 3 des.
-          // místa, takže i beze změny uživatelem vznikne rozdíl řádu 1e-4 –
-          // s 1e-6 by roh přestal být rozpoznaný hned u druhé navazující
-          // úsečky v řadě (přesně tohle uživatel hlásil).
+          // Roh/navázání je jen tam, kde nová úsečka fakt začíná na konci
+          // předchozí. Tolerance 1e-3 (ne 1e-6 – viz stejný komentář u
+          // appendGcodeForObject výš): počáteční pole se přednaplňuje
+          // zaokrouhleně na 3 des. místa, takže i beze změny uživatelem
+          // vznikne rozdíl řádu 1e-4 – s 1e-6 by se navázání přestalo
+          // poznat hned u druhé navazující úsečky v řadě.
           const joinsPrevious = prevLineEnd
             && Math.hypot(prevLineEnd.x - g.x1, prevLineEnd.y - g.y1) < 1e-3;
-          lastLineCorner = joinsPrevious ? { x: g.x1, y: g.y1 } : null;
+          // Na co navazuje: řetěz z TÉTO záložky (`prevLineObj`) má přednost,
+          // jinak bod vybraný přes 🎯 z výkresu (`pickedP1SnapSource`) – ať
+          // je to úsečka nakreslená nástrojem na plátně, nebo z načteného
+          // projektu. Typ čáry/barva se od něj přebírá stejně jako při
+          // navázání kreslení na plátně (`lineContinuationProps()`).
+          const continueFromObj = joinsPrevious ? prevLineObj : pickedP1SnapSource;
+          const styleProps = continueFromObj ? lineContinuationProps(continueFromObj) : activeLineProps();
+          const styleLabel = continueFromObj
+            ? getLineStyle(styleProps.lineStyle).label
+            : (state.lineStyle.aux ? activeLineStyle().label : "Úsečka");
+          const newObj = addObject({
+            ...styleProps,
+            x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
+            name: `${styleLabel} ${state.nextId}`,
+          });
+          const cornerCandidate = continueFromObj && CORNER_CAPABLE_TYPES.has(continueFromObj.type);
+          lastLineCorner = cornerCandidate ? { x: g.x1, y: g.y1 } : null;
+          pickedP1SnapSource = null;
+          prevLineObj = newObj;
           prevLineEnd = { x: g.x2, y: g.y2 };
           state.numDialogChain = { x: g.x2, y: g.y2 };
           break;
