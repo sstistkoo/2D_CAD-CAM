@@ -343,6 +343,14 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // Spotřebuje/vynuluje se v `createObject()`.
   let pickedP1SnapSource = null;
 
+  // Typy, na které má smysl nabízet zaoblení/zkosení (roh = dva segmenty).
+  const CORNER_CAPABLE_TYPES = new Set(['line', 'constr', 'polyline', 'arc']);
+  /** @returns {boolean} má „Roh s předchozí" smysl nabídnout UŽ TEĎ – dřív,
+   *   než appka jistě ví, že se roh fakt vytvoří (to se pozná až po OK). */
+  function hasEarlyCornerCandidate() {
+    return !!(pickedP1SnapSource && CORNER_CAPABLE_TYPES.has(pickedP1SnapSource.type));
+  }
+
   // Jak se zadává oblouk: 'center' = střed + úhly, 'endpoints' = začátek,
   // konec, R a smysl (zápis jako v G-kódu, navazuje na předchozí prvek).
   let arcMode = 'endpoints';
@@ -560,13 +568,16 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
   /**
    * Nepovinný řádek „Roh s předchozí" přímo ve formuláři úsečky – zobrazí
-   * se, kdykoli existuje předchozí úsečka (`prevLineEnd`), i než appka ví,
-   * jestli tahle nová na ni fakt naváže (to se pozná až po vytvoření).
-   * Když roh nakonec nevznikne (uživatel změnil počáteční bod jinam),
-   * appka o tom po OK jen informuje toastem – nic se tiše neaplikuje jinam.
+   * se, kdykoli existuje předchozí úsečka (`prevLineEnd`, řetěz v týhle
+   * záložce) NEBO byl bod 1 právě vybrán přes 🎯 na existující úsečku/
+   * oblouk (`hasEarlyCornerCandidate()`) – v obou případech dřív, než appka
+   * jistě ví, že tahle nová úsečka na ni fakt naváže (to se pozná až po
+   * vytvoření). Když roh nakonec nevznikne (uživatel změnil počáteční bod
+   * jinam), appka o tom po OK jen informuje toastem – nic se tiše
+   * neaplikuje jinam.
    */
   function cornerInlineFieldHTML() {
-    if (!prevLineEnd) return '';
+    if (!prevLineEnd && !hasEarlyCornerCandidate()) return '';
     return `<div class="input-row num-corner-inline-row">
       <div class="num-corner-inline-toggle">
         <button type="button" class="vk-toggle${cornerInlineMode === 'fillet' ? ' active' : ''}" data-corner-mode="fillet" title="Zaoblit roh s předchozí úsečkou">⌒</button>
@@ -574,6 +585,22 @@ export function initNumericalTab(container, { picker = null } = {}) {
       </div>
       <div class="num-corner-input-col"><input type="text" id="ncorner" value="" placeholder="R / sražení" aria-label="Roh s předchozí (nepovinné)"></div>
     </div>`;
+  }
+
+  /**
+   * Přepočte JEN řádek „Roh s předchozí" (`#numCornerInlineSlot`) podle
+   * `hasEarlyCornerCandidate()`/`prevLineEnd` – volá se po výběru bodu 1
+   * přes 🎯 (i po jeho ručním přepsání), aby se nabídka objevila/schovala
+   * OKAMŽITĚ. Záměrně NE přes `updateFields()`: ten by celý formulář
+   * úsečky přestavěl z `startDispX/Y` (odvozené z `state.numDialogChain`/
+   * `state.lastClickPoint`, ne z právě vybraného bodu) a smazal by tak
+   * čerstvě vyplněné X1/Z1 – přesně tenhle risk `updateLineInfo()` (volaná
+   * z pick handleru) nemá, protože nic nepřekresluje.
+   */
+  function refreshCornerInlineRow() {
+    if (typeSelect.value !== 'line') return;
+    const slot = fieldsDiv.querySelector('#numCornerInlineSlot');
+    if (slot) slot.innerHTML = cornerInlineFieldHTML();
   }
 
   /**
@@ -833,7 +860,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
                 <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
                 <div class="pick-col">${angleCompassBtn()}${okBtn()}</div></div>
-                ${cornerInlineFieldHTML()}
+                <div id="numCornerInlineSlot">${cornerInlineFieldHTML()}</div>
                 ${cornerToolsHTML()}`;
         break;
       case "circle":
@@ -919,6 +946,9 @@ export function initNumericalTab(container, { picker = null } = {}) {
               // přesně na tenhle klik – zachytit HNED, `createObject()` ho
               // pak použije pro typ čáry/barvu i nabídku rohu (viz níž).
               pickedP1SnapSource = state.mouse.snappedObject || null;
+              // Nabídka „Roh s předchozí" ať se objeví hned, na pokyn
+              // uživatele – nečekat, až se úsečka fakt vytvoří (OK).
+              refreshCornerInlineRow();
               updateLineInfo();
               break;
             case "p2":
@@ -1093,11 +1123,11 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // sem nedosáhne (nedispatchuje `input`) a `pickedP1SnapSource` zůstane
   // platné až do skutečného vložení.
   container.addEventListener("input", (e) => {
-    if (e.target.id === 'nx1' || e.target.id === 'ny1') pickedP1SnapSource = null;
+    if (e.target.id === 'nx1' || e.target.id === 'ny1') {
+      pickedP1SnapSource = null;
+      refreshCornerInlineRow();
+    }
   });
-
-  // Typy, na které má smysl nabízet zaoblení/zkosení (roh = dva segmenty).
-  const CORNER_CAPABLE_TYPES = new Set(['line', 'constr', 'polyline', 'arc']);
 
   function createObject() {
     const t = typeSelect.value;
