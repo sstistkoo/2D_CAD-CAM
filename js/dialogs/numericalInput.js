@@ -1127,11 +1127,18 @@ export function initNumericalTab(container, { picker = null } = {}) {
           const styleLabel = continueFromObj
             ? getLineStyle(styleProps.lineStyle).label
             : (state.lineStyle.aux ? activeLineStyle().label : "Úsečka");
+          // Navázání na bod polotovaru zapne `drawStockMode` jen na tenhle
+          // jeden `addObject()` – nikdy nesnižuje explicitní volbu uživatele
+          // zpátky na konturu, jen ji podle potřeby na chvíli zapne (stejný
+          // vzor jako `lineClick.js`/`vkContour.js`).
+          const prevStockMode = state.drawStockMode;
+          if (continueFromObj?.isStock) state.drawStockMode = true;
           const newObj = addObject({
             ...styleProps,
             x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
             name: `${styleLabel} ${state.nextId}`,
           });
+          if (continueFromObj?.isStock) state.drawStockMode = prevStockMode;
           const cornerCandidate = continueFromObj && CORNER_CAPABLE_TYPES.has(continueFromObj.type);
           lastLineCorner = cornerCandidate ? { x: g.x1, y: g.y1 } : null;
           pickedP1SnapSource = null;
