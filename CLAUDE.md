@@ -48,7 +48,10 @@ závislostí).
 
 ## Příkazy
 ```bash
-npm test              # spustit všechny testy (vitest run)
+npm test              # spustit všechny testy (vitest run) — před PR/push VŽDY tenhle
+npm run test:cad      # stejná sada BEZ CAM pipeline testů (~10 s místo ~13 min) —
+                      #   použij při práci mimo js/calculators/cam/**, ať CAM testy
+                      #   nedělají zbytečný šum/čas; seznam vzorů viz vitest.cad.config.js
 npm run test:watch    # watch mód
 npm run test:coverage # coverage — POZOR: instrumentace zpomalí CAM ~4× a šest
                       #   testů spadne na SVÉ vlastní timeouty; není to regrese
@@ -121,6 +124,13 @@ docs/                 # developer.md, user-guide.md
   úpravě. Během ladění stačí cílený/izolovaný test
   (`npx vitest run tests/nazev.test.js`). Celou sadu spustit až na závěr
   (potvrzení hotové práce) a před PR/push.
+  - **Práce mimo `js/calculators/cam/**` (CAD nástroje, dialogy, mobil, UI):**
+    použij `npm run test:cad` místo `npm test` — stejná sada bez testů CAM
+    pipeline (na pokyn uživatele 12. 9. 2026: CAM testy jsou při čisté CAD
+    práci šum a někdy padají na svých vlastních, nesouvisejících věcech —
+    viz „Sada je deterministická" níž, případ od případu si to ale žádá
+    ověření fingerprintem, ne slepé přeskočení). `npm test` (plná sada)
+    zůstává povinné před PR/push bez ohledu na to, čeho se změna týkala.
   - **Bezpečnostní testy podle DŮKAZU, ne preventivně** (upraveno 7. 9. 2026
     na pokyn uživatele: *„aby se ty testy nedělaly jenom když je to potřeba,
     ne preventivně pokaždé"*). U zásahů do hrubování/kolizí/materiálu
