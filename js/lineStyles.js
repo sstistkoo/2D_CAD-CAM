@@ -149,12 +149,16 @@ export function activeLineProps() {
  * pokračuje stejným typem čáry a barvou jako to, na co navazuje, místo
  * aktuální globální volby `state.lineStyle`. Bez `obj.lineStyle` (starší
  * objekty založené jen přes `dashed`/`type:'constr'`) se odvodí typ čáry
- * z toho: konstrukční → `DEFAULT_LINE_STYLE`, jinak plná tlustá.
+ * z toho: konstrukční → `DEFAULT_LINE_STYLE`, jinak `solidThin` – TenTO
+ * (ne `solidThick`) proto, že `objWidthMul()` bez `obj.lineStyle` vrací
+ * násobek 1, tedy stejnou tloušťku jako `solidThin` (width:1). Návrat
+ * `solidThick` (width:2) by novou úsečku vykreslil o polovinu silnější,
+ * než je zdroj, na který navazuje – přesně tohle uživatel nahlásil.
  * @param {{type?:string, lineStyle?:string, dashed?:boolean, color?:string}} obj
  * @returns {Record<string, any>}
  */
 export function lineContinuationProps(obj) {
-  const key = obj.lineStyle || ((obj.type === 'constr' || obj.dashed) ? DEFAULT_LINE_STYLE : 'solidThick');
+  const key = obj.lineStyle || ((obj.type === 'constr' || obj.dashed) ? DEFAULT_LINE_STYLE : 'solidThin');
   const st = getLineStyle(key);
   const aux = obj.type === 'constr';
   /** @type {Record<string, any>} */
