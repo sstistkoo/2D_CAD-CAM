@@ -9,7 +9,6 @@ import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
 import { normalizeGcodeText } from '../gcodeNormalize.js';
 import { wireExprInputs } from './mobileEdit.js';
 import { focusInput, showConfirmDialog } from '../dialogFactory.js';
-import { showFilletChamferDialog } from './objectDialogs.js';
 import { openLineStyleDialog } from './lineStyleDialog.js';
 import { activeLineProps, activeLineStyle, lineContinuationProps, getLineStyle } from '../lineStyles.js';
 import { bridge } from '../bridge.js';
@@ -547,23 +546,9 @@ export function initNumericalTab(container, { picker = null } = {}) {
     return true;
   }
 
-  /** Tlačítka ⌒/⌿ – jen když je co zaoblit (dvě navazující úsečky). */
-  function cornerToolsHTML() {
-    if (!lastLineCorner) return '';
-    return `<div class="input-row num-corner-row">
-      <span class="num-corner-label">Roh s předchozí úsečkou:</span>
-      <div class="pick-col">
-        <button type="button" class="btn-ok num-corner-btn" data-corner="fillet" title="Zaoblit roh">⌒</button>
-        <button type="button" class="btn-ok num-corner-btn" data-corner="chamfer" title="Zkosit roh">${CHAMFER_ICON}</button>
-      </div>
-    </div>`;
-  }
-
   // Typ rohu pro NEPOVINNÉ pole „Roh s předchozí" – vyplní se hned při
   // zadávání navazující úsečky, takže OK v jednom kroku vytvoří úsečku
-  // I zaoblí/zkosí roh s tou předchozí (místo dvou kroků: čára, pak zvlášť
-  // ⌒/⌿ v `cornerToolsHTML()` výše, která zůstává jako záložní cesta,
-  // když se pole nevyplní předem).
+  // I zaoblí/zkosí roh s tou předchozí.
   let cornerInlineMode = 'fillet';
 
   /**
@@ -601,32 +586,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
     if (typeSelect.value !== 'line') return;
     const slot = fieldsDiv.querySelector('#numCornerInlineSlot');
     if (slot) slot.innerHTML = cornerInlineFieldHTML();
-  }
-
-  /**
-   * Zaoblí/zkosí roh mezi poslední a předposlední úsečkou – stejná operace
-   * jako nástroj Zaoblení/Zkosení na plátně, jen se na roh nemusí klikat.
-   * @param {'fillet'|'chamfer'} mode
-   */
-  function applyCornerTool(mode) {
-    const corner = lastLineCorner;
-    if (!corner) return;
-    showFilletChamferDialog((chosenMode, p1, p2) => {
-      const result = bridge.filletChamferAtCorner?.(chosenMode, p1, p2, corner.x, corner.y);
-      if (!result) {
-        showToast('Roh se nenašel – úsečky už asi nenavazují');
-        return;
-      }
-      // Vzdálený (neořezaný) konec úsečky za rohem – appka jinak nemá jak
-      // poznat, který konec zaoblení/zkosení patří „za roh" (viz komentář
-      // u applyCornerGcode). Chain pořád ukazuje na konec téhle úsečky,
-      // protože se od jejího vytvoření nezměnil (jinak by tenhle záložní
-      // řádek nebyl vidět – zmizí při vytvoření další úsečky).
-      applyCornerGcode(result, corner.x, corner.y, { x: state.numDialogChain.x, y: state.numDialogChain.y });
-      // Roh je zpracovaný; druhý pokus by zaobloval už zaoblené.
-      lastLineCorner = null;
-      updateFields();
-    }, mode);
   }
 
   function wireAngleCompass(container, angleInputId) {
@@ -860,8 +819,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
                 <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
                 <div class="pick-col">${angleCompassBtn()}${okBtn()}</div></div>
-                <div id="numCornerInlineSlot">${cornerInlineFieldHTML()}</div>
-                ${cornerToolsHTML()}`;
+                <div id="numCornerInlineSlot">${cornerInlineFieldHTML()}</div>`;
         break;
       case "circle":
         html = `<div class="input-row">${axisPair(
@@ -1259,9 +1217,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
   /**
    * Zaoblí/zkosí roh HNED, když ho uživatel vyplnil v nepovinném řádku
    * „Roh s předchozí" přímo u zadávání této úsečky – jedno OK místo dvou
-   * kroků (čára, pak zvlášť ⌒/⌿). Volá se vždy po `createObject()`; když
-   * pole zůstalo prázdné nebo roh (ještě) nevznikl, jen tiše skončí – roh
-   * pak nabídne `cornerToolsHTML()` jako záložní krok navíc.
+   * kroků. Volá se vždy po `createObject()`; když pole zůstalo prázdné
+   * nebo roh (ještě) nevznikl, jen tiše skončí.
    * @param {object} g geometrie právě vytvořené úsečky (z `readFormGeometry()`)
    *   – `g.x2,g.y2` je vzdálený konec, potřeba pro `applyCornerGcode()`.
    */
@@ -1284,8 +1241,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
   // přepíše – proto delegace na kontejner, ne listener na konkrétní prvek.
   container.addEventListener("click", (e) => {
     if (e.target.closest("#numOk")) { createAnother(); return; }
-    const cornerBtn = e.target.closest("[data-corner]");
-    if (cornerBtn) { applyCornerTool(cornerBtn.dataset.corner); return; }
     const arcModeBtn = e.target.closest("[data-arc-mode]");
     if (arcModeBtn && arcModeBtn.dataset.arcMode !== arcMode) {
       arcMode = arcModeBtn.dataset.arcMode;

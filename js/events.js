@@ -18,6 +18,7 @@ import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
+import { isAnyPickerArmed } from './dialogs/canvasPick.js';
 
 // Registrace measureSelection na bridge (aby ui.js nemusel importovat přímo – kruhová závislost)
 bridge.measureSelection = measureSelection;
@@ -286,6 +287,12 @@ drawCanvas.addEventListener("mousedown", (e) => {
     return;
   }
   if (e.button !== 0) return;
+  // 🎯 „Vybrat z mapy" (Číselné zadání/VK) má na tenhle klik výhradní právo –
+  // jeho vlastní 'click' listener (canvasPick.js) běží AŽ PO mouseup, takže
+  // bez týhle pojistky by handleCanvasClick() níž ještě PŘED tím vybral
+  // vrchol/objekt aktivním nástrojem (typicky Výběr) a ten zůstal viset
+  // zvýrazněný na plátně i po vyplnění pole.
+  if (isAnyPickerArmed()) return;
 
   // Desktop statusbar – souřadnice posledního kliknutí (na rozdíl od plovoucího
   // okénka u kurzoru se neaktualizuje průběžně při pohybu myši); stejná hodnota

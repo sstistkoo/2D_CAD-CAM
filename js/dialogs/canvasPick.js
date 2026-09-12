@@ -20,6 +20,20 @@ import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
  * @property {() => boolean} isArmed
  */
 
+// Kolik odběrů je právě nabitých – napříč VŠEMI instancemi (číselné zadání
+// i VK mají svou vlastní). V praxi nejvýš jeden, ale čítač je bezpečnější
+// než bool proti dvojímu odzbrojení stejné instance.
+// `events.js` (mousedown → handleCanvasClick, AKTIVNÍ NÁSTROJ) podle
+// `isAnyPickerArmed()` klik při nabitém odběru přeskočí – jinak by stejný
+// klik zároveň zapsal bod SEM (přes 'click' níž) A vybral vrchol/objekt
+// nástrojem Výběr (mousedown běží dřív), takže by po výběru z mapy zůstal
+// viset zvýrazněný bod na plátně (uživatel to nahlásil).
+let armedCount = 0;
+/** @returns {boolean} je právě nabitý libovolný odběr (kdekoli v appce)? */
+export function isAnyPickerArmed() {
+  return armedCount > 0;
+}
+
 /**
  * Vyrobí odběr kliku na plátno. Jedna instance na okno – nové `pick()`
  * přebije to předchozí, takže nikdy nejsou nabité dva odběry naráz.
@@ -45,6 +59,7 @@ export function createCanvasPicker() {
       document.removeEventListener('touchend', onTouch, true);
       fields.forEach(el => el.classList.remove('pick-armed'));
       cleanup = null;
+      armedCount--;
     }
 
     function resolveWorld(wx, wy) {
@@ -85,6 +100,7 @@ export function createCanvasPicker() {
     // capture, takže na plátně by se sem už žádná pozice křížku nedostala.
     document.addEventListener('touchend', onTouch, true);
     cleanup = done;
+    armedCount++;
   }
 
   return {

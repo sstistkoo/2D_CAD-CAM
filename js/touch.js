@@ -408,6 +408,22 @@ const precisionEl = document.getElementById("precisionCrosshair");
 const precisionLabel = precisionEl.querySelector(".ch-label");
 
 /**
+ * Popisek křížku „X.. Z..". Osy se NEMAPUJÍ 1:1 na world x/y – u soustruhu
+ * je (stejně jako ve `fmtStatusCoords()` v state.js) X radiální = world Y
+ * a Z axiální = world X (karusel je naopak, tam sedí přímo). Bez tyhle
+ * záměny popisek u soustruhu ukazoval prohozené hodnoty – uživatel to
+ * odhalil porovnáním s X1/Z1 v Číselném zadání, kam se stejný bod zapsal
+ * správně (přes `toCanvas()`/`axisLabels()`, ne přes tuhle funkci).
+ * @param {{x: number, y: number}} dp `toDisplayCoords()` výstup (world, jen ABS/INC)
+ * @param {string} prefix `'Δ'` v INC režimu, jinak `''`
+ */
+function fmtPrecisionLabel(dp, prefix) {
+  const isKarusel = state.machineType === 'karusel';
+  const [xVal, zVal] = isKarusel ? [dp.x, dp.y] : [dp.y, dp.x];
+  return `${prefix}X${fmtNum(xVal)} ${prefix}Z${fmtNum(zVal)}`;
+}
+
+/**
  * Zveřejní pozici křížku do `state.touchPrecision`, aby ji viděly i odběry
  * kliku mimo tenhle modul (canvasPick.js – 🎯 v okně „Zadání objektu").
  * Bez toho brala jejich `touchend` obsluha souřadnice PRSTU, ne křížku,
@@ -452,7 +468,7 @@ function showPrecisionCrosshair(touch) {
   precisionEl.style.top = touch.clientY + CROSSHAIR_OFFSET_Y + "px";
   const dp = toDisplayCoords(wx, wy);
   const pf = state.coordMode === 'inc' ? 'Δ' : '';
-  precisionLabel.textContent = `${pf}X${fmtNum(dp.x)} ${pf}Z${fmtNum(dp.y)}`;
+  precisionLabel.textContent = fmtPrecisionLabel(dp, pf);
   precisionEl.style.display = "block";
   updateMobileCoords(wx, wy);
   renderAll();
@@ -489,7 +505,7 @@ function updatePrecisionCrosshair(touch) {
   precisionEl.style.top = touch.clientY + CROSSHAIR_OFFSET_Y + "px";
   const dp2 = toDisplayCoords(wx, wy);
   const pf2 = state.coordMode === 'inc' ? 'Δ' : '';
-  precisionLabel.textContent = `${pf2}X${fmtNum(dp2.x)} ${pf2}Z${fmtNum(dp2.y)}`;
+  precisionLabel.textContent = fmtPrecisionLabel(dp2, pf2);
 
   let extra = "";
   if (state.drawing && state.tempPoints.length > 0) {
