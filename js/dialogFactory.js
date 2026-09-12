@@ -170,3 +170,28 @@ export function makeInputOverlay(innerHTML) {
   onOverlayRemoved(overlay, () => document.removeEventListener('keydown', _escHandler));
   return overlay;
 }
+
+/**
+ * Potvrzovací okno v barvách appky – náhrada nativního `confirm()`, který
+ * ukazuje adresu stránky ("Web … říká") a nejde nijak stylovat. `onConfirm`
+ * se zavolá JEN při potvrzení (Zrušit/✕/klik mimo/Escape ho nikdy nezavolá).
+ * @param {string} message
+ * @param {() => void} onConfirm
+ * @param {{confirmLabel?: string, danger?: boolean}} [opts] `danger` (výchozí
+ *   true) obarví potvrzovací tlačítko červeně – pro nevratné akce (smazání).
+ *   `false` u méně dramatických potvrzení (běžná modrá jako `.btn-ok` jinde).
+ */
+export function showConfirmDialog(message, onConfirm, { confirmLabel = 'Smazat', danger = true } = {}) {
+  const overlay = makeInputOverlay(`
+    <div class="input-dialog confirm-dialog">
+      <p class="confirm-dialog-message">${escHTML(message)}</p>
+      <div class="btn-row">
+        <button type="button" class="btn-cancel btn-cancel-overlay">Zrušit</button>
+        <button type="button" class="btn-ok${danger ? ' btn-danger' : ''}" id="confirmDialogOk">${escHTML(confirmLabel)}</button>
+      </div>
+    </div>`);
+  overlay.querySelector('#confirmDialogOk').addEventListener('click', () => {
+    overlay.remove();
+    onConfirm();
+  });
+}

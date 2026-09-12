@@ -1638,9 +1638,28 @@ body {
   border-color: var(--ctp-blue);
 }
 
+/* Nevratná akce (smazání) – červená místo výchozí modré `.btn-ok`, viz
+   `showConfirmDialog()` v dialogFactory.js. */
+.input-dialog .btn-ok.btn-danger {
+  background: var(--ctp-red);
+  border-color: var(--ctp-red);
+}
+
 .input-dialog .btn-cancel {
   background: var(--ctp-surface0);
   color: var(--ctp-text);
+}
+
+/* Potvrzovací okno (showConfirmDialog) – malé, jen zpráva + dvě tlačítka. */
+.confirm-dialog {
+  width: min(360px, 88vw);
+}
+.confirm-dialog-message {
+  margin: 0 0 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ctp-text);
+  white-space: pre-line;
 }
 
 /* ── Anchor-point radio (pin fixed point) ── */

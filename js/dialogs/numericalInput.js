@@ -8,7 +8,7 @@ import { addObject } from '../objects.js';
 import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
 import { normalizeGcodeText } from '../gcodeNormalize.js';
 import { wireExprInputs } from './mobileEdit.js';
-import { focusInput } from '../dialogFactory.js';
+import { focusInput, showConfirmDialog } from '../dialogFactory.js';
 import { showFilletChamferDialog } from './objectDialogs.js';
 import { openLineStyleDialog } from './lineStyleDialog.js';
 import { activeLineProps, activeLineStyle, lineContinuationProps, getLineStyle } from '../lineStyles.js';
@@ -1238,6 +1238,17 @@ export function initNumericalTab(container, { picker = null } = {}) {
     appendGcodeForObject(typeSelect.value, g);
     applyInlineCornerIfRequested(g);
     picker?.cancel();
+    // Přesunout vizuální SNAP značku (render.js: drawSnapIndicator, kreslí
+    // se podle state.mouse.x/y) z PŮVODNĚ vybraného bodu na nový konec
+    // řetězu – jinak by na plátně zůstala viset tam, kam uživatel naposled
+    // klikl myší/přes 🎯, i když se `state.numDialogChain` (odkud se
+    // pokračuje) mezitím posunul dál.
+    if (state.numDialogChain.x !== null) {
+      state.mouse.x = state.numDialogChain.x;
+      state.mouse.y = state.numDialogChain.y;
+      state.mouse.snapped = true;
+      state.mouse.snapType = 'point';
+    }
     // Vycentrovat plátno na celý výkres po každém přidaném prvku – při
     // řetězení „bod za bodem" jinak snadno vyjede mimo viditelnou plochu.
     autoCenterView();
@@ -1356,12 +1367,15 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
   container.querySelector('[data-act="gcode-clear"]').addEventListener('click', () => {
     if (!gcodeEl.value.trim()) return;
-    if (!confirm('Opravdu smazat zapsaný G-kód?')) return;
-    pendingClearedGcode = { text: gcodeEl.value, undoStackLen: state.undoStack.length };
-    gcodeEl.value = '';
-    try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, ''); } catch { /* ignore */ }
-    lastAppendedGcodeEnd = null;
-    showToast('G-kód smazán (Zpět na plátně ho vrátí)');
+    // Vlastní okno místo nativního confirm() – ten ukazuje adresu stránky
+    // ("Web … říká") a nejde stylovat do vzhledu appky.
+    showConfirmDialog('Opravdu smazat zapsaný G-kód?', () => {
+      pendingClearedGcode = { text: gcodeEl.value, undoStackLen: state.undoStack.length };
+      gcodeEl.value = '';
+      try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, ''); } catch { /* ignore */ }
+      lastAppendedGcodeEnd = null;
+      showToast('G-kód smazán (Zpět na plátně ho vrátí)');
+    });
   });
 
   return {
