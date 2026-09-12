@@ -381,15 +381,27 @@ export function initNumericalTab(container, { picker = null } = {}) {
       case 'point':
         lines.push(`; Bod ${fmt(g.x, g.y)}`);
         break;
-      case 'line':
+      case 'line': {
+        // Polotovar (zděděný navázáním na bod polotovaru, viz createObject())
+        // se v zápisu označí STEJNÝMI markery jako plný export (runCncExport())
+        // – jinak by 🔄/✓ ("Vykreslit zapsaný G-kód") při zpětném naparsování
+        // (parseGcodeToObjects – `inStock` se čte jen z nich) přišlo o to, že
+        // jde o polotovar, a vykreslilo by konturu místo něj.
+        const isStockLine = prevLineObj?.isStock;
+        if (isStockLine) lines.push('; STOCK_START');
         if (!continuesFrom(g.x1, g.y1)) lines.push(`G00 ${fmt(g.x1, g.y1)}`);
         // Pomocná/konstrukční čára (viz „Typ čáry", případně zděděná
         // navázáním – `prevLineObj` je v tomhle okamžiku VŽDY právě
         // vytvořený objekt, volá se hned po `createObject()`) se v zápisu
         // označí komentářem, ať jde v textu poznat od běžné úsečky kontury.
+        // Pozor: `parseGcodeToObjects()` tenhle komentář zpět NEČTE (jen
+        // STOCK_START/END výš) – vzhled (typ čáry/barva) se tak i po téhle
+        // opravě po 🔄/✓ ztrácí, jen typ line/polotovar zůstane zachovaný.
         lines.push(`G01 ${fmt(g.x2, g.y2)}${prevLineObj?.type === 'constr' ? ' ; konstr' : ''}`);
+        if (isStockLine) lines.push('; STOCK_END');
         newEnd = { x: g.x2, y: g.y2 };
         break;
+      }
       case 'circle':
         lines.push(`; Kružnice střed ${fmt(g.cx, g.cy)} R${g.r.toFixed(3)}`);
         break;
