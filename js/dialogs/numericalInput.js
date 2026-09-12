@@ -2,7 +2,7 @@
 // ║  SKICA – Dialogy / Numerický vstup                        ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS, LINE_WIDTH, PREVIEW_DASH } from '../constants.js';
+import { COLORS, LINE_WIDTH, PREVIEW_DASH, NUM_GCODE_STORAGE_KEY } from '../constants.js';
 import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../state.js';
 import { addObject } from '../objects.js';
 import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
@@ -10,6 +10,8 @@ import { normalizeGcodeText } from '../gcodeNormalize.js';
 import { wireExprInputs } from './mobileEdit.js';
 import { focusInput } from '../dialogFactory.js';
 import { showFilletChamferDialog } from './objectDialogs.js';
+import { openLineStyleDialog } from './lineStyleDialog.js';
+import { activeLineProps, activeLineStyle } from '../lineStyles.js';
 import { bridge } from '../bridge.js';
 import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
 
@@ -56,8 +58,7 @@ function renderNumPreviewOnCad(c) {
     case 'point':
       dot(data.x, data.y, 4);
       break;
-    case 'line':
-    case 'constr': {
+    case 'line': {
       const [sx1, sy1] = worldToScreen(data.x1, data.y1);
       const [sx2, sy2] = worldToScreen(data.x2, data.y2);
       c.beginPath();
@@ -123,8 +124,7 @@ function numPreviewWorldBounds(data) {
   const pts = [];
   switch (data.type) {
     case 'point': pts.push([data.x, data.y]); break;
-    case 'line':
-    case 'constr': pts.push([data.x1, data.y1], [data.x2, data.y2]); break;
+    case 'line': pts.push([data.x1, data.y1], [data.x2, data.y2]); break;
     case 'circle':
     case 'arc':
       pts.push([data.cx - data.r, data.cy - data.r], [data.cx + data.r, data.cy + data.r]);
@@ -171,25 +171,30 @@ bridge.fitNumPreviewView = fitCadViewToNumPreview;
 // Typy objektů zadávané číselně. Obdélník a kontura tu schválně nejsou –
 // obdélník se číselně nekreslí a kontura vzniká řetězením úseček (každé
 // „OK" navazuje na konec předchozí). Ikony sedí s panelem nástrojů.
-// Konstrukční čára je „úsečka, ale čárkovaně" – žádný znak přerušovanou
-// diagonálu nemá, takže je z SVG (velikost i barvu dědí z tlačítka).
-const CONSTR_ICON = '<svg class="num-type-svg" viewBox="0 0 20 20" aria-hidden="true">'
-  + '<line x1="3" y1="17" x2="17" y2="3" stroke="currentColor" stroke-width="2"'
-  + ' stroke-dasharray="4 3" stroke-linecap="round"/></svg>';
-
-// Sražený roh – dvě stěny „L" s uříznutou špičkou (diagonála místo bodu).
-// Nahrazuje znak „⌿" (APL slash bar), co na sražení vůbec nevypadal.
+// Dřív tu byla ještě samostatná ikona „Konstrukční čára" (jen zapnout/
+// vypnout čárkování) – nahradilo ji tlačítko `LINE_STYLE_ICON` níž, co
+// otevře stejný dialog „Typ čáry" jako hlavní plátno (víc stylů i barva,
+// ne jen ano/ne).
 const CHAMFER_ICON = '<svg class="num-type-svg" viewBox="0 0 20 20" aria-hidden="true">'
   + '<path d="M3 17 L3 9 L9 3 L17 3" fill="none" stroke="currentColor" stroke-width="2"'
   + ' stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const NUM_TYPES = [
-  { key: 'line',   icon: '/',          label: 'Úsečka' },
-  { key: 'circle', icon: '○',          label: 'Kružnice' },
-  { key: 'point',  icon: '·',          label: 'Bod' },
-  { key: 'constr', icon: CONSTR_ICON,  label: 'Konstrukční čára' },
-  { key: 'arc',    icon: '⌒',          label: 'Oblouk' },
+  { key: 'line',   icon: '/',  label: 'Úsečka' },
+  { key: 'circle', icon: '○',  label: 'Kružnice' },
+  { key: 'point',  icon: '·',  label: 'Bod' },
+  { key: 'arc',    icon: '⌒',  label: 'Oblouk' },
 ];
+
+// Poslední ikona v řádku typů NENÍ typ objektu (nemění `typeSelect`) – otevře
+// dialog „Typ čáry" (stejný jako hlavní plátno, `js/dialogs/lineStyleDialog.js`),
+// jehož volba (`state.lineStyle`) pak určuje vzhled i typ (line/constr přes
+// `aux`) další vytvořené úsečky, viz `activeLineProps()` v `createObject()`.
+// Ikona je stejná diagonála jako `#btnLineStyle` v hlavním panelu nástrojů
+// (`index.html`), jen bez popisku – do úzkého řádku ikon by se nevešel.
+const LINE_STYLE_ICON = '<svg class="num-type-svg" viewBox="0 0 24 24" aria-hidden="true">'
+  + '<line x1="2" y1="22" x2="22" y2="2" stroke="currentColor" stroke-width="1.5"'
+  + ' stroke-dasharray="3 2"/></svg>';
 
 // Po otevření okna je vybraná Úsečka – nejčastěji zadávaný typ (na pokyn
 // uživatele; dřív tu byl Bod kvůli nejmíň polím, ale to se v praxi
@@ -201,7 +206,32 @@ const DEFAULT_NUM_TYPE = 'line';
 // pak ho panel vygeneruje sám). Placeholder ukazuje formát, ve kterém to
 // pravý panel vypisuje, aby se ručně psaný kód s ním rovnou potkal.
 const GCODE_PLACEHOLDER = 'G00 X0.000 Z0.000\nG01 X20.000 Z-30.000\nG03 X25.000 Z-40.000 R5.000';
-const NUM_GCODE_STORAGE_KEY = 'skica-num-gcode';
+
+// ── Vrácení smazaného ručního G-kódu přes „Zpět" na plátně ──
+// Modulová proměnná (NE uvnitř initNumericalTab) – na rozdíl od
+// `lastAppendedGcodeEnd` aj., co se záměrně zakládá znovu při každém
+// otevření okna, tahle schránka musí přežít i zavření dialogu (uživatel
+// smaže, zavře okno, pak teprve stiskne Zpět na plátně).
+// `undoStackLen` je otisk `state.undoStack.length` v okamžiku smazání –
+// jediný spolehlivý způsob, jak poznat „mezitím se nestalo nic jiného, co
+// by šlo vrátit", bez zavádění druhého plnohodnotného undo zásobníku jen
+// pro tenhle jeden textarea.
+let pendingClearedGcode = null; // { text: string, undoStackLen: number } | null
+
+/** @returns {boolean} true = spotřebováno (Zpět vrátil text, neběžet normální undo) */
+bridge.consumeGcodeClearUndo = () => {
+  if (!pendingClearedGcode || pendingClearedGcode.undoStackLen !== state.undoStack.length) {
+    pendingClearedGcode = null;
+    return false;
+  }
+  const { text } = pendingClearedGcode;
+  pendingClearedGcode = null;
+  try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, text); } catch { /* ignore */ }
+  const el = document.querySelector('[data-id="num-gcode"]');
+  if (el) el.value = text;
+  showToast('Smazaný G-kód vrácen zpět');
+  return true;
+};
 
 /**
  * Markup záložky „Číselné zadání". Čistá funkce – jen HTML.
@@ -219,6 +249,7 @@ export function renderNumericalTab() {
       <div class="tab-scroll">
         <div class="num-type-row">
           ${NUM_TYPES.map(t => `<button type="button" class="num-type-btn" data-num-type="${t.key}" title="${t.label}">${t.icon}</button>`).join('')}
+          <button type="button" class="num-type-btn" data-act="num-line-style" title="Typ čáry – tloušťka, čárkování a barva další úsečky">${LINE_STYLE_ICON}</button>
         </div>
         <select id="numType" hidden>
           ${NUM_TYPES.map(t => `<option value="${t.key}"${t.key === DEFAULT_NUM_TYPE ? ' selected' : ''}>${t.label}</option>`).join('')}
@@ -226,10 +257,12 @@ export function renderNumericalTab() {
         <div id="numFields"></div>
       <div class="vk-gcode-box vk-gcode-box-bare">
         <div class="vk-gcode-corner-btns">
-          <button type="button" class="vk-header-btn vk-header-btn-red" data-act="gcode-clear"
-            title="Smazat zapsaný G-kód">🗑</button>
           <button type="button" class="vk-header-btn" data-act="gcode-apply"
             title="Vykreslit zapsaný G-kód na plátno (nahradí objekty výkresu) – nebo Ctrl+Enter">🔄</button>
+          <button type="button" class="vk-header-btn vk-header-btn-green" data-act="gcode-apply-add"
+            title="Vykreslit zapsaný G-kód na plátno a PŘIDAT ho k existujícím objektům (nic nesmaže) – pro dokreslení už hotového výkresu">✓</button>
+          <button type="button" class="vk-header-btn vk-header-btn-red vk-gcode-clear-btn" data-act="gcode-clear"
+            title="Smazat zapsaný G-kód (zeptá se na potvrzení)">🗑</button>
         </div>
         <textarea class="vk-gcode-textarea" data-id="num-gcode" spellcheck="false"
           placeholder="${GCODE_PLACEHOLDER}" aria-label="Ruční zápis G-kódu"></textarea>
@@ -316,7 +349,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
    * Bod a kružnice nejsou skutečný pohyb nástroje – zapíšou se jako
    * komentář, aby zápis zůstal čitelný a validní (parser komentáře
    * ignoruje, takže nevadí ani při zpětném 🔄 vykreslení).
-   * @param {string} t typ z `readFormGeometry()` ('point'|'line'|'constr'|'circle'|'arc')
+   * @param {string} t typ z `readFormGeometry()` ('point'|'line'|'circle'|'arc')
    * @param {object} g geometrie vrácená `readFormGeometry()`
    */
   function appendGcodeForObject(t, g) {
@@ -338,9 +371,10 @@ export function initNumericalTab(container, { picker = null } = {}) {
         lines.push(`; Bod ${fmt(g.x, g.y)}`);
         break;
       case 'line':
-      case 'constr':
         if (!continuesFrom(g.x1, g.y1)) lines.push(`G00 ${fmt(g.x1, g.y1)}`);
-        lines.push(`G01 ${fmt(g.x2, g.y2)}${t === 'constr' ? ' ; konstr' : ''}`);
+        // Pomocná/konstrukční čára (viz „Typ čáry") se v zápisu označí
+        // komentářem, ať jde v textu poznat od běžné úsečky kontury.
+        lines.push(`G01 ${fmt(g.x2, g.y2)}${state.lineStyle.aux ? ' ; konstr' : ''}`);
         newEnd = { x: g.x2, y: g.y2 };
         break;
       case 'circle':
@@ -672,8 +706,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
         const p = toAbs(val("#nx"), val("#ny"));
         return { type: "point", valid: finite2(p.x, p.y), x: p.x, y: p.y };
       }
-      case "line":
-      case "constr": {
+      case "line": {
         const p1 = toAbs(val("#nx1"), val("#ny1"));
         const len = val("#nlen"), ang = val("#nang");
         let p2;
@@ -761,7 +794,6 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 ${hasChain ? `<div id="numChainInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>` : ''}`;
         break;
       case "line":
-      case "constr":
         html = `<div class="input-row">${axisPair(
                   `<div class="num-coord-field"><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
                   `<div class="num-coord-field"><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
@@ -957,7 +989,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
     syncLenAngToCoords();
 
     // Wire angle compass – jen pro aktuální typ
-    if (typeSelect.value === 'line' || typeSelect.value === 'constr') {
+    if (typeSelect.value === 'line') {
       wireAngleCompass(fieldsDiv, 'nang');
     }
 
@@ -1011,6 +1043,13 @@ export function initNumericalTab(container, { picker = null } = {}) {
   updateFields();
   announceChainContinuation();
 
+  // ⌗ Typ čáry – neni typ objektu, jen otevře stejný dialog jako hlavní
+  // plátno (`#btnLineStyle`). Volba se uloží do `state.lineStyle` (sdílené
+  // s plátnem) a `createObject()` ji pak čte přes `activeLineProps()`.
+  container.querySelector('[data-act="num-line-style"]').addEventListener('click', () => {
+    openLineStyleDialog({});
+  });
+
   // Živý náhled – jeden delegovaný listener na `container` chytí psaní
   // do jakéhokoli pole i přepínač směru oblouku (narcDir), bez ohledu na
   // to, že `fieldsDiv.innerHTML` se při každém updateFields() přepisuje.
@@ -1021,7 +1060,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
   function createObject() {
     const t = typeSelect.value;
-    if (t !== 'line' && t !== 'constr') {
+    if (t !== 'line') {
       // Cokoli jiného než úsečka řetěz přerušuje – roh by pak ukazoval
       // na dvojici, která spolu už nesouvisí.
       prevLineEnd = null;
@@ -1036,15 +1075,15 @@ export function initNumericalTab(container, { picker = null } = {}) {
           state.numDialogChain = { x: g.x, y: g.y };
           break;
         }
-        case "line":
-        case "constr": {
+        case "line": {
           const g = readFormGeometry();
           if (!g.valid) { showToast("Zadejte cílový bod (X2/Z2, nebo Délka a Úhel)"); return false; }
+          // Vzhled i výsledný typ (line/constr) určuje volba z „Typ čáry"
+          // (⌗ v řádku ikon výš) – stejná cesta jako kreslení na plátně.
           addObject({
-            type: t,
+            ...activeLineProps(),
             x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
-            name: `${t === "constr" ? "Konstr" : "Úsečka"} ${state.nextId}`,
-            dashed: t === "constr",
+            name: `${state.lineStyle.aux ? activeLineStyle().label : "Úsečka"} ${state.nextId}`,
           });
           // Roh je jen tam, kde nová úsečka fakt začíná na konci předchozí.
           // Tolerance 1e-3 (ne 1e-6 – viz stejný komentář u appendGcodeForObject
@@ -1181,12 +1220,17 @@ export function initNumericalTab(container, { picker = null } = {}) {
   prevLineEnd = restoredPoint;
   gcodeEl.addEventListener('input', () => {
     try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, gcodeEl.value); } catch { /* ignore */ }
+    // Uživatel zase píše – nabídka „Zpět vrátí smazaný text" už neplatí,
+    // jinak by mu Zpět přepsal to, co si mezitím rozepsal.
+    pendingClearedGcode = null;
   });
 
-  /** 🔄 – srovná zápis do kanonického tvaru a pošle ho na plátno. Sdílené
-   *  tlačítkem i klávesovou zkratkou (Ctrl+Enter), ať nedělají dvě mírně
-   *  odlišné věci. */
-  function applyGcodeText() {
+  /** 🔄/✓ – srovná zápis do kanonického tvaru a pošle ho na plátno. Sdílené
+   *  oběma tlačítky i klávesovou zkratkou (Ctrl+Enter), ať nedělají dvě
+   *  mírně odlišné věci.
+   *  @param {boolean} [append] true = ✓ (PŘIDAT, nic nesmazat), false = 🔄
+   *    (nahradit konturu, původní chování). */
+  function applyGcodeText(append = false) {
     if (!gcodeEl.value.trim()) { showToast('Zapište nejdřív G-kód'); return; }
     // Ručně psaný kód se nejdřív srovná do kanonického tvaru a přepíše se
     // i v poli – uživatel tak vidí, jak byl jeho zápis pochopen, a text je
@@ -1196,24 +1240,29 @@ export function initNumericalTab(container, { picker = null } = {}) {
       gcodeEl.value = normalized;
       gcodeEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    bridge.renderCncCodeToCanvas?.(normalized);
+    bridge.renderCncCodeToCanvas?.(normalized, { append });
   }
-  container.querySelector('[data-act="gcode-apply"]').addEventListener('click', applyGcodeText);
+  container.querySelector('[data-act="gcode-apply"]').addEventListener('click', () => applyGcodeText(false));
+  container.querySelector('[data-act="gcode-apply-add"]').addEventListener('click', () => applyGcodeText(true));
 
-  // Ctrl+Enter vykreslí – obyčejný Enter musí zůstat normální nový řádek,
-  // program má typicky víc řádků a psalo by se s ním jinak nedalo.
+  // Ctrl+Enter vykreslí (nahradí) – obyčejný Enter musí zůstat normální nový
+  // řádek, program má typicky víc řádků a psalo by se s ním jinak nedalo.
+  // Ctrl+Shift+Enter dělá totéž jako ✓ (přidat, nic nesmazat).
   gcodeEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      applyGcodeText();
+      applyGcodeText(e.shiftKey);
     }
   });
 
   container.querySelector('[data-act="gcode-clear"]').addEventListener('click', () => {
     if (!gcodeEl.value.trim()) return;
+    if (!confirm('Opravdu smazat zapsaný G-kód?')) return;
+    pendingClearedGcode = { text: gcodeEl.value, undoStackLen: state.undoStack.length };
     gcodeEl.value = '';
     try { localStorage.setItem(NUM_GCODE_STORAGE_KEY, ''); } catch { /* ignore */ }
     lastAppendedGcodeEnd = null;
+    showToast('G-kód smazán (Zpět na plátně ho vrátí)');
   });
 
   return {

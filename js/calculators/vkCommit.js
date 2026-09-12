@@ -77,9 +77,13 @@ export function vkSegmentsToDrawObjects(segments) {
  * `pushUndo()` a `calculateAllIntersections()` pro každý segment zvlášť.
  *
  * @param {string} code obsah pole „Generovaná VK syntaxe"
+ * @param {Record<string, any>} [styleProps] typ čáry/barva zděděné z bodu,
+ *   na který kontura navazuje (`lineContinuationProps()` v vkContour.js) –
+ *   sloučí se do KAŽDÉHO vloženého segmentu. Bez toho (výchozí) se chová
+ *   jako dřív – žádný `lineStyle`/`color`, jen typ podle `state.drawStockMode`.
  * @returns {number} počet vložených objektů (0 = nic se nevložilo)
  */
-export function commitVkToDrawing(code) {
+export function commitVkToDrawing(code, styleProps = null) {
   const text = String(code || '');
   if (!text.trim()) {
     showToast('VK syntaxe je prázdná – není co vložit');
@@ -111,6 +115,17 @@ export function commitVkToDrawing(code) {
     obj.name = obj.type === 'arc' ? `Oblouk ${obj.id}` : `Úsečka ${obj.id}`;
     obj.layer = layer;
     if (stockTag) obj.isStock = true;
+    if (styleProps) {
+      if (obj.type === 'arc') {
+        // `type`/`finite` z `styleProps` platí jen pro úsečky – oblouk
+        // zůstává 'arc', zdědí jen vzhled (typ čáry, barva).
+        if (styleProps.lineStyle) obj.lineStyle = styleProps.lineStyle;
+        if (styleProps.dashed) obj.dashed = true;
+        if (styleProps.color) obj.color = styleProps.color;
+      } else {
+        Object.assign(obj, styleProps);
+      }
+    }
     state.objects.push(obj);
   }
 

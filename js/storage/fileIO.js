@@ -1205,14 +1205,24 @@ document.getElementById("btnCncEdit").addEventListener("click", () => {
   if (!code) { runCncExport(); code = document.getElementById("cncOutput").value; }
   openCncEditor(code);
 });
-/** Naparsuje CNC kód a vykreslí ho jako objekty na canvas (nahradí konturu). */
-function renderCncCodeToCanvas(code) {
+/**
+ * Naparsuje CNC kód a vykreslí ho jako objekty na canvas.
+ * @param {string} code
+ * @param {{append?: boolean}} [opts] `append: true` NEMAŽE stávající kresbu
+ *   (jen k ní přidá nové objekty) – pro „✓ Přidat" v číselném zadání, kdy si
+ *   uživatel chce ručně psaným G-kódem dokreslit už existující výkres, ne ho
+ *   nahradit. Bez toho (výchozí, `renderCncCodeToCanvas`) se kontura přepíše
+ *   – zůstává chování 🔄, na které jsou zvyklí ostatní volání (CNC Editor aj.).
+ */
+function renderCncCodeToCanvas(code, { append = false } = {}) {
   if (!code) { showToast("CNC kód je prázdný"); return; }
   try {
     const { objs, warnings } = parseGcodeToObjects(code);
     if (!objs.length && !warnings.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
     pushUndo();
-    state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
+    if (!append) {
+      state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
+    }
     // Objekty naparsované z G-kódu dřív neměly .layer vůbec (obcházely addObject()),
     // takže byly imunní vůči skrývání vrstev a ignorovaly barvu nastavenou u vrstvy
     // Kontura/Polotovar (kreslily se natvrdo COLORS.primary / COLORS.stock).
@@ -1222,6 +1232,7 @@ function renderCncCodeToCanvas(code) {
     updateProperties();
     autoCenterView();
     runCncExport();
+    const verb = append ? 'Přidáno' : 'Vykresleno';
     if (warnings.length > 0) {
       // Geometricky nemožný řádek (typicky R menší než půlka vzdálenosti
       // bodů) se dřív tiše přeskočil beze stopy – teď to appka řekne, i s
@@ -1230,9 +1241,9 @@ function renderCncCodeToCanvas(code) {
       console.warn('G-kód – geometricky nemožné řádky:', warnings);
       const first = warnings[0];
       const rest = warnings.length > 1 ? ` (+${warnings.length - 1} další)` : '';
-      showToast(`Vykresleno ${objs.length} objektů – řádek ${first.line} přeskočen: ${first.reason}${rest}`);
+      showToast(`${verb} ${objs.length} objektů – řádek ${first.line} přeskočen: ${first.reason}${rest}`);
     } else {
-      showToast(`Vykresleno ${objs.length} objektů z CNC kódu`);
+      showToast(`${verb} ${objs.length} objektů z CNC kódu`);
     }
   } catch (e) {
     showToast("Chyba při parsování kódu: " + e.message);

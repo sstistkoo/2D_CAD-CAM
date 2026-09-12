@@ -144,6 +144,31 @@ export function activeLineProps() {
 }
 
 /**
+ * Vlastnosti pro úsečku, která NAVAZUJE na kliknutý bod existujícího
+ * objektu (`state.mouse.snappedObject` v `snapPt()`) – nová čára tak
+ * pokračuje stejným typem čáry a barvou jako to, na co navazuje, místo
+ * aktuální globální volby `state.lineStyle`. Bez `obj.lineStyle` (starší
+ * objekty založené jen přes `dashed`/`type:'constr'`) se odvodí typ čáry
+ * z toho: konstrukční → `DEFAULT_LINE_STYLE`, jinak plná tlustá.
+ * @param {{type?:string, lineStyle?:string, dashed?:boolean, color?:string}} obj
+ * @returns {Record<string, any>}
+ */
+export function lineContinuationProps(obj) {
+  const key = obj.lineStyle || ((obj.type === 'constr' || obj.dashed) ? DEFAULT_LINE_STYLE : 'solidThick');
+  const st = getLineStyle(key);
+  const aux = obj.type === 'constr';
+  /** @type {Record<string, any>} */
+  const props = {
+    type: aux ? 'constr' : 'line',
+    lineStyle: key,
+    dashed: st.dash.length > 0,
+  };
+  if (aux && !st.infinite) props.finite = true;
+  if (obj.color) props.color = obj.color;
+  return props;
+}
+
+/**
  * Vlastnosti pro libovolný jiný nově kreslený objekt (kružnice, oblouk,
  * obdélník, kontura), když je aktivní volba „Typ čáry" (`state.lineStyleActive`).
  * Na rozdíl od `activeLineProps()` neřeší `type`/`aux` (mimo konturu a CAM) –

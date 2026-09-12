@@ -5863,7 +5863,7 @@ body {
 }
 /* ○ je ve fontu drobné – vedle ostatních ikon by se ztratilo. */
 .input-dialog .num-type-btn[data-num-type="circle"] { font-size: 24px; }
-/* Konstrukční čára = čárkovaná diagonála (SVG, barvu dědí z tlačítka). */
+/* Ikony z SVG (Sražení, Typ čáry aj.) – barvu dědí z tlačítka. */
 .num-type-svg { width: 18px; height: 18px; vertical-align: middle; }
 /* Přepínač způsobu zadání oblouku (start+konec / střed+úhly). */
 .num-arc-modes { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -6087,11 +6087,21 @@ body {
   font-size: 16px;
 }
 .vk-header-btn:hover { background: var(--ctp-surface1); }
-.vk-header-btn-red {
+/* `button.` prefix (ne jen `.vk-header-btn-red`): uvnitř číselného zadání
+   (`.input-dialog button { border: ... }`, specificita 0-1-1) by holé
+   `.vk-header-btn-red` (0-1-0) na border-color prohrálo bez ohledu na
+   pořadí v souboru – i tady je pak vidět jen šedý orámovaný knoflík. Ve VK
+   záložce (bez `.input-dialog`) na tom nic nemění, tam už to fungovalo. */
+button.vk-header-btn-red {
   border-color: var(--ctp-red);
   color: var(--ctp-red);
 }
 .vk-header-btn-red:hover { background: var(--ctp-red); color: var(--ctp-base); }
+button.vk-header-btn-green {
+  border-color: var(--ctp-green);
+  color: var(--ctp-green);
+}
+.vk-header-btn-green:hover { background: var(--ctp-green); color: var(--ctp-base); }
 .vk-nav-pos {
   font-size: 10.5px; color: var(--ctp-overlay0);
   min-width: 44px; text-align: center;
@@ -6126,8 +6136,10 @@ body {
 }
 .vk-gcode-box-bare .vk-gcode-textarea {
   min-height: 100%;
-  /* Místo pro plovoucí tlačítka v rohu, ať jim první řádek textu nemizí pod nimi. */
-  padding-right: 68px;
+  /* Místo pro plovoucí tlačítka v rohu (🔄/✓/🗑), ať jim první řádek textu
+     nemizí pod nimi. 3× 28px + 4px gap (🔄↔✓) + 14px odstup (✓↔🗑) + 6px
+     odstup od okraje. */
+  padding-right: 116px;
 }
 .vk-gcode-corner-btns {
   position: absolute;
@@ -6139,6 +6151,15 @@ body {
 }
 .vk-gcode-corner-btns .vk-header-btn { opacity: 0.7; }
 .vk-gcode-corner-btns .vk-header-btn:hover { opacity: 1; }
+/* 🗑 maže nenávratně (jen s potvrzením, viz numericalInput.js) – dál od
+   🔄/✓ a v plné síle barvy, ať se nepřehlédne a nedojde k nechtěnému
+   překlepnutí z těch dvou vedlejších. Selektor musí mít aspoň stejnou
+   specificitu jako `.vk-gcode-corner-btns .vk-header-btn` (dvě třídy) výš,
+   jinak by proti němu `opacity: 1` prohrálo bez ohledu na pořadí v souboru. */
+.vk-gcode-corner-btns .vk-gcode-clear-btn {
+  margin-left: 14px;
+  opacity: 1;
+}
 .vk-gcode-textarea {
   width: 100%;
   flex: 1 1 auto;

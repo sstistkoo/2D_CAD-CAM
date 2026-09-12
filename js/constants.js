@@ -113,3 +113,9 @@ export const ARC_OUTSIDE_PENALTY  = 100;  // penalizace vzdálenosti mimo oblouk
 // ── Ostatní ─────────────────────────────────────────────────
 export const PASTE_OFFSET        = 10;    // px posun při vložení
 export const AUTO_CENTER_PADDING = 0.15;  // 15 % padding při zoomToFit
+
+// localStorage klíč pro ručně psaný G-kód v číselném zadání (numericalInput.js).
+// Sdílené s state.js, aby undo/redo mohlo tenhle text vzít s sebou stejně
+// jako `state.objects` – proto konstanta tady, ne u jednoho z modulů, co ji
+// používají (kvůli cyklickým importům, viz CLAUDE.md o bridge.js).
+export const NUM_GCODE_STORAGE_KEY = 'skica-num-gcode';

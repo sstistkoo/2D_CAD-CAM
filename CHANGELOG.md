@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mobil – vycentrování plátna počítá s horní HUD lištou.** `visibleCanvasRect()`
+  (`js/canvas.js`) dřív rámovala jen pod ukotvenými panely dole (vysunutý
+  panel nástrojů, okno „Zadání objektu"); nahoře na mobilu ale sedí ještě
+  `#mobileCoordBar`/`#mobileCanvasCoords` a plovoucí kolečka mezi nimi
+  (↩️↪️🧮⊙), do kterých se výkres i popisky bodů/kót mačkaly. Vycentrování
+  (⊙, i ⤢ ve VK okně) teď rámuje pod ně, s rezervou navíc pro popisky
+  rostoucí nad bodem.
+- **Číselné zadání – tlačítko „✓ Přidat" u ručního G-kódu.** Vedle 🔄
+  (nahradí konturu) přibylo ✓, které naparsovaný G-kód jen PŘIDÁ k
+  existujícím objektům (`renderCncCodeToCanvas(code, {append: true})` v
+  `js/storage/fileIO.js`) – pro dokreslení už hotového výkresu bez rizika
+  ztráty práce. 🗑 (smazat zapsaný text) se přesunulo úplně doprava s
+  odstupem od 🔄/✓, dostalo potvrzovací dialog a stiskem „Zpět" na plátně
+  jde smazaný text vrátit (`bridge.consumeGcodeClearUndo`, `js/state.js`).
+- **Číselné zadání – „Typ čáry" místo prosté Konstrukční čáry.** Řádek ikon
+  typů objektu ztratil samostatnou ikonu Konstrukční čáry (nahradil ji
+  přesun Oblouku) a přibylo tlačítko, které otevře stejný dialog „Typ čáry"
+  jako hlavní plátno (6 stylů ČSN EN ISO 128 + barva); zvolený styl pak
+  určuje vzhled i typ (`line`/`constr`) další číselně zadané úsečky.
+- **Navázání kreslení na existující bod přebírá jeho vzhled.** Začne-li se
+  kreslení úsečky (nástroj Úsečka i VK volná kontura) kliknutím/snapem na
+  bod existujícího objektu, nová geometrie zdědí jeho typ čáry, barvu a –
+  jde-li o polotovar – i to, že se má vložit jako polotovar místo kontury
+  (`js/lineStyles.js: lineContinuationProps()`, `js/canvas.js:
+  state.mouse.snappedObject`, `js/tools/lineClick.js`, `js/calculators/
+  vkContour.js` + `vkCommit.js`). Nikdy nesnižuje explicitní volbu
+  „Polotovar" zpátky na konturu – jen ji podle potřeby na chvíli zapne.
 - **Kontrola „kontura má mezery" bere osu rotace jako uzávěr tvaru.**
   Profil se soustružnicky kreslí jen z jedné strany (od osy k ose) – osu
   samotnou (cad_y=0) uživatel nekreslí jako objekt, ale rotačně kus

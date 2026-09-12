@@ -17,6 +17,7 @@ import { state, showToast, displayX, inputX } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { bridge } from '../bridge.js';
 import { showVkHelpModal } from './vkHelp.js';
+import { lineContinuationProps } from '../lineStyles.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunctionCandidates, chooseSolution,
   tangentCircleTouchPoints, tangentCircleBetweenRays, twoTangentArcsBetweenRays,
@@ -1062,6 +1063,9 @@ export function initVkTab(container, { picker = null } = {}) {
     const zInput = q('val-z2');
     picker.pick((wx, wy) => {
       const pt = worldToVk(wx, wy);
+      // Zachytit PŘI kliku, ne až se skutečně vloží (uživatel může „Vložit
+      // prvek" kliknout až o pár chvil později) – viz `addPointFromCanvas`.
+      pendingCanvasSnapSource = state.mouse.snappedObject || null;
       setUnknownField('val-x2', fmt(pt.x));
       setUnknownField('val-z2', fmt(pt.z));
       rememberVkFieldValue('val-x2', fmt(pt.x));
@@ -1223,6 +1227,20 @@ export function initVkTab(container, { picker = null } = {}) {
   let firstElement = null; // první vložený prvek (počáteční bod), viditelný v navigaci
   let chainStarted = false; // false, dokud nebyl vložen počáteční bod (i jako "?")
   let cursor = null;      // index do pendingQueue, nebo -1 = firstElement, null = nové zadání
+
+  // ── Navázání na existující objekt (klik/🎯 na jeho bod) ──
+  // `pendingCanvasSnapSource` zachytí `state.mouse.snappedObject` PŘESNĚ v
+  // okamžiku kliku (kreslení myší nebo 🎯 Vybrat bod) – čte se a maže až
+  // v `insertElementFromForm()`, ať mezitím pohyb myši nesmaže, co bylo
+  // pod kurzorem PŘI kliknutí. Zůstává `null` u ručního zápisu X/Z (žádné
+  // odvozování ze staré/náhodné polohy kurzoru).
+  // `chainSourceObject` je totéž, ale zafixované pro CELÝ řetěz (jen první
+  // bod ho nastaví, viz `insertElementFromForm()`) – „Vložit konturu do
+  // výkresu" z něj vezme typ čáry/barvu (`lineContinuationProps()`) i
+  // polotovar/kontura (`isStock`), na pokyn uživatele „ať to dokresluje i
+  // polotovar, když od něj pokračuju".
+  let pendingCanvasSnapSource = null;
+  let chainSourceObject = null;
 
   /** Nastaví pole na „?" (neznámé) nebo na konkrétní hodnotu – sdíleno mezi ❓ přepínačem a načtením prvku. */
   function setUnknownField(id, val) {
@@ -1494,6 +1512,7 @@ export function initVkTab(container, { picker = null } = {}) {
   function resetChain() {
     startPoint = null; vpolPoint = null; lastPoint = null; pendingQueue = []; firstElement = null; nextElId = 1;
     chainStarted = false; cursor = null;
+    chainSourceObject = null; pendingCanvasSnapSource = null;
     solveInfo.textContent = '';
     updateFormMode();
     updateVkPreview();
@@ -1554,7 +1573,7 @@ export function initVkTab(container, { picker = null } = {}) {
       const [removed] = pendingQueue.splice(idx, 1);
       gcodeEl.value = gcodeEl.value.split('\n').filter(l => l !== removed.lineText).join('\n');
       vkSave();
-      if (removed.wasFirstEver && lastPoint === null) chainStarted = false;
+      if (removed.wasFirstEver && lastPoint === null) { chainStarted = false; chainSourceObject = null; }
     }
     cursor = null;
     resetFormToNewEntry();
@@ -1591,6 +1610,11 @@ export function initVkTab(container, { picker = null } = {}) {
    * mírně odlišné větve generování syntaxe.
    */
   function insertElementFromForm() {
+    // Spotřebovat HNED (ne až u `startPoint===null` větve níž) – i mimo
+    // první bod řetězu musí zmizet, jinak by ho „uviděl" až další klik,
+    // kdy už reálně patří jinému místu.
+    const snapSource = pendingCanvasSnapSource;
+    pendingCanvasSnapSource = null;
     const editingIndex = cursor;
     const isFirstEver = editingIndex === -1
       ? true
@@ -1755,7 +1779,10 @@ export function initVkTab(container, { picker = null } = {}) {
       if (pendingQueue.length > 3) pendingQueue.shift(); // jen poslední 3 se dopočítávají (kat. 3 = A + 2 oblouky)
     }
 
-    if (startPoint === null && lastPoint !== null) startPoint = { ...lastPoint };
+    if (startPoint === null && lastPoint !== null) {
+      startPoint = { ...lastPoint };
+      chainSourceObject = snapSource;
+    }
     chainStarted = true;
     cursor = null;
     resetFormToNewEntry();
@@ -1821,6 +1848,10 @@ export function initVkTab(container, { picker = null } = {}) {
       resetFormToNewEntry();
       updateFormMode();
     }
+    // Zachytit PŘESNĚ teď – `insertElementFromForm()` proběhne hned za tím
+    // ve stejném synchronním běhu, ale `state.mouse.snappedObject` by se
+    // dalším pohybem myši přepsalo.
+    pendingCanvasSnapSource = state.mouse.snappedObject || null;
     const pt = worldToVk(wx, wy);
     setUnknownField('val-x2', fmt(pt.x));
     setUnknownField('val-z2', fmt(pt.z));
@@ -1876,7 +1907,16 @@ export function initVkTab(container, { picker = null } = {}) {
     lastPoint = data.lastPoint ? { z: data.lastPoint.z, x: toSolverX(data.lastPoint.x) } : null;
     startPoint = data.startPoint ? { z: data.startPoint.z, x: toSolverX(data.startPoint.x) } : null;
     chainStarted = lastPoint !== null;
-    if (!chainStarted) firstElement = null;
+    if (!chainStarted) {
+      firstElement = null;
+      // Řetěz je prázdný – žádný „zdrojový" bod k dědění nezbyl.
+      chainSourceObject = null;
+    }
+    // Pozor: `chainSourceObject` se JINAK nemaže jen proto, že se text
+    // změnil (např. odebrání POSLEDNÍHO bodu přes ⌫ – řetěz pořád začíná
+    // od stejného prvního bodu, takže dědění pořád platí). Ruční editaci
+    // textu do jiného řetězu (nebo vložení cizího zápisu) nejde od pouhého
+    // odebrání bodu odlišit, tohle je záměrně konzervativní kompromis.
   }
 
   drawModeBtn?.addEventListener('click', () => {
@@ -1919,7 +1959,18 @@ export function initVkTab(container, { picker = null } = {}) {
   const COMMIT_ICON = '📥';
   let commitResetTimer = null;
   commitBtn.addEventListener('click', () => {
-    const inserted = bridge.commitVkToDrawing?.(gcodeEl.value) || 0;
+    // Kontura navázaná na klikutý bod existujícího objektu zdědí jeho typ
+    // čáry/barvu (`chainSourceObject`, zachyceno v `insertElementFromForm()`
+    // při založení prvního bodu) a – pokud šlo o polotovar – i to, že se má
+    // vložit jako polotovar. Druhé se dělá dočasným přepnutím
+    // `state.drawStockMode`, ne úpravou vlastního výběru uživatele: NIKDY
+    // nesnižuje explicitní volbu „Polotovar" zpátky na konturu, jen ji
+    // podle potřeby na chvíli zapne.
+    const styleProps = chainSourceObject ? lineContinuationProps(chainSourceObject) : null;
+    const prevStockMode = state.drawStockMode;
+    if (chainSourceObject?.isStock) state.drawStockMode = true;
+    const inserted = bridge.commitVkToDrawing?.(gcodeEl.value, styleProps) || 0;
+    if (chainSourceObject?.isStock) state.drawStockMode = prevStockMode;
     if (!inserted) return;
     // Vložené objekty leží přesně pod náhledem, takže samotné plátno
     // úspěch nepřizná – zpětná vazba musí přijít z tlačítka (jinak by

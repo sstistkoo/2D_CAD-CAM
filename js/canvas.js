@@ -113,6 +113,12 @@ export function screenToWorld(sx, sy) {
  */
 export function snapPt(wx, wy) {
   let objX = null, objY = null, objD = Infinity;
+  // Objekt, ze kterého pochází vítězný bod (jen pro `getObjectSnapPoints`
+  // smyčku níž) – umožní navazujícímu kreslení převzít jeho vzhled (typ
+  // čáry/barvu), viz `state.mouse.snappedObject` a `handleLineClick()`.
+  // Počátek/nulový bod/průsečíky/rozkreslená kontura žádný "svůj" objekt
+  // nemají, proto se u nich vždy vynuluje.
+  let objSource = null;
   state.mouse.onZAxis = false;
 
   // Snap k bodům objektů a průsečíkům – větší poloměr zachycení
@@ -125,6 +131,7 @@ export function snapPt(wx, wy) {
       objD = dOrigin;
       objX = 0;
       objY = 0;
+      objSource = null;
     }
 
     // Snap k nulovému bodu (incReference) – pokud je aktivní a jinde než v počátku
@@ -134,6 +141,7 @@ export function snapPt(wx, wy) {
         objD = dNP;
         objX = state.incReference.x;
         objY = state.incReference.y;
+        objSource = null;
       }
     }
 
@@ -148,6 +156,7 @@ export function snapPt(wx, wy) {
           objD = d;
           objX = p.x;
           objY = p.y;
+          objSource = obj;
         }
       }
     }
@@ -159,6 +168,7 @@ export function snapPt(wx, wy) {
           objD = d;
           objX = obj.dimCenterX;
           objY = obj.dimCenterY;
+          objSource = null;
         }
       }
     }
@@ -170,6 +180,7 @@ export function snapPt(wx, wy) {
           objD = d;
           objX = p.x;
           objY = p.y;
+          objSource = null;
         }
       }
     }
@@ -180,6 +191,7 @@ export function snapPt(wx, wy) {
         objD = d;
         objX = pt.x;
         objY = pt.y;
+        objSource = null;
       }
     }
   }
@@ -192,6 +204,7 @@ export function snapPt(wx, wy) {
     }
     state.mouse.snapped = true;
     state.mouse.snapType = 'point';
+    state.mouse.snappedObject = objSource;
     return [objX, objY];
   }
 
@@ -230,6 +243,7 @@ export function snapPt(wx, wy) {
       state.mouse.snapped = true;
       state.mouse.snapType = 'edge';
       state.mouse.onZAxis = snappedToAxis;
+      state.mouse.snappedObject = null;
       return [edgeX, edgeY];
     }
   }
@@ -263,11 +277,13 @@ export function snapPt(wx, wy) {
     }
     state.mouse.snapped = true;
     state.mouse.snapType = 'grid';
+    state.mouse.snappedObject = null;
     return [gx, gy];
   }
 
   state.mouse.snapped = false;
   state.mouse.snapType = '';
+  state.mouse.snappedObject = null;
   return [wx, wy];
 }
 
@@ -317,6 +333,24 @@ const VIEW_OBSTRUCTIONS = [
   '.calc-overlay-float .vk-combined-window',
 ];
 
+// Horní HUD na mobilu: #mobileCoordBar (SOU/ABS/R/#/∠ odznaky, top:0) a pod
+// ním #mobileCanvasCoords (řádek „X: … Z: … | zoom%", top:92px). Mezi nimi
+// sedí plovoucí kolečka ↩️↪️🧮⊙ (viz #mobileAutoCenter aj.) – ta ale nejsou
+// přes celou šířku, takže je VIEW_OBSTRUCTIONS/EDGE_TOLERANCE výše nechytí
+// a mezera mezi oběma lištami je širší, než na kolik je ta tolerance
+// myšlená (drobný posun kvůli vstupní animaci, ne desítky px mezi
+// samostatně umístěnými prvky). Bere se proto přímo spodní hrana nižší
+// z obou lišt bez testu „dotýká se okraje" – ta jediná už kolečka mezi
+// nimi pokryje taky.
+const MOBILE_TOP_HUD = ['#mobileCoordBar', '#mobileCanvasCoords'];
+
+// Popisky bodů/kót (VK náhled, kóty) se kreslí NAD bodem, ne pod – rostou
+// tedy nahoru z vlastní geometrie a do jejího world AABB se nepočítají.
+// Bez rezervy by se štítek nejvyššího bodu otíral o #mobileCanvasCoords
+// hned nad ním. Číslo je odhad (výška ~2 řádků popisku), ne měření –
+// klidně dál doladit, kdyby bylo pořád málo/moc.
+const MOBILE_TOP_LABEL_ALLOWANCE = 56;
+
 /**
  * Viditelná část plátna v px (bez oblasti pod ukotvenými panely).
  * @returns {{width: number, top: number, height: number, centerY: number}}
@@ -344,6 +378,18 @@ export function visibleCanvasRect() {
     if (relBottom >= bottom - EDGE_TOLERANCE) bottom = Math.min(bottom, relTop);
     else if (relTop <= top + EDGE_TOLERANCE) top = Math.max(top, relBottom);
   }
+
+  let mobileHudFound = false;
+  for (const selector of MOBILE_TOP_HUD) {
+    const el = document.querySelector(selector);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    mobileHudFound = true;
+    const relBottom = Math.min(drawCanvas.height, rect.bottom - canvasRect.top);
+    top = Math.max(top, relBottom);
+  }
+  if (mobileHudFound) top = Math.min(drawCanvas.height, top + MOBILE_TOP_LABEL_ALLOWANCE);
 
   const height = Math.max(80, bottom - top);
   return { width: drawCanvas.width, top, height, centerY: top + height / 2 };

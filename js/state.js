@@ -184,7 +184,7 @@ export const state = {
   panY: 0,
   drawing: false,
   tempPoints: [],
-  mouse: { x: 0, y: 0, rawX: 0, rawY: 0, sx: 0, sy: 0, snapped: false, snapType: '' },
+  mouse: { x: 0, y: 0, rawX: 0, rawY: 0, sx: 0, sy: 0, snapped: false, snapType: '', snappedObject: null },
   intersections: [],
   nextId: 1,
   showDimensions: 'all',  // 'all' | 'intersections' | 'dimensions' | 'none'
@@ -425,7 +425,12 @@ function _serializeState() {
 
 /** Vrátí poslední změnu (undo). */
 export function undo() {
-  // Během kreslení kontury: vrátit poslední bod místo globálního undo
+  // Během kreslení kontury: vrátit poslední bod místo globálního undo.
+  // MUSÍ být před `consumeGcodeClearUndo` níž – rozkreslená kontura
+  // nepřidává vlastní undo záznamy, takže by jinak Zpět uprostřed kreslení
+  // klidně "spotřebovalo" starší nabídku vrácení smazaného G-kódu, místo
+  // aby odebralo poslední bod (otisk `undoStack.length` by se mezitím
+  // vůbec nezměnil).
   if (state.drawing && state.tool === "polyline") {
     if (state.tempPoints.length > 1) {
       state.tempPoints.pop();
@@ -448,6 +453,12 @@ export function undo() {
     if (bridge.renderAll) bridge.renderAll();
     return;
   }
+
+  // 🗑 v číselném zadání smaže ruční G-kód, aniž by se dotkl `state.objects`
+  // – vlastní jednorázová schránka (numericalInput.js), ne tenhle zásobník.
+  // Platí, jen pokud mezitím nepřibyla žádná jiná undo-schopná akce.
+  if (bridge.consumeGcodeClearUndo?.()) return;
+
   if (state.undoStack.length === 0) return;
 
   // Krokové undo pro právě vytvořenou konturu:
