@@ -1160,11 +1160,14 @@ export function initNumericalTab(container, { picker = null } = {}) {
           const joinsPrevious = prevLineEnd
             && Math.hypot(prevLineEnd.x - g.x1, prevLineEnd.y - g.y1) < 1e-3;
           // Na co navazuje: řetěz z TÉTO záložky (`prevLineObj`) má přednost,
-          // jinak bod vybraný přes 🎯 z výkresu (`pickedP1SnapSource`) – ať
-          // je to úsečka nakreslená nástrojem na plátně, nebo z načteného
-          // projektu. Typ čáry/barva se od něj přebírá stejně jako při
-          // navázání kreslení na plátně (`lineContinuationProps()`).
-          const continueFromObj = joinsPrevious ? prevLineObj : pickedP1SnapSource;
+          // ALE jen když je fakt platný – po zavření/znovuotevření okna se
+          // `prevLineEnd` obnoví z uloženého textu (`gcodeTextLastPoint()`
+          // níž), ale `prevLineObj` ne (žádný zpětný převod text→objekt).
+          // Bez týhle pojistky by `joinsPrevious` samo o sobě ukázalo na
+          // `null`, i když 🎯 mezitím správně chytilo `pickedP1SnapSource`
+          // (uživatel klikl přesně na konec téhle znovunačtené úsečky) –
+          // úsečka i roh by pak potichu zůstaly bez navázání.
+          const continueFromObj = (joinsPrevious && prevLineObj) ? prevLineObj : pickedP1SnapSource;
           const styleProps = continueFromObj ? lineContinuationProps(continueFromObj) : activeLineProps();
           const styleLabel = continueFromObj
             ? getLineStyle(styleProps.lineStyle).label
@@ -1181,7 +1184,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
             name: `${styleLabel} ${state.nextId}`,
           });
           if (continueFromObj?.isStock) state.drawStockMode = prevStockMode;
-          const cornerCandidate = continueFromObj && CORNER_CAPABLE_TYPES.has(continueFromObj.type);
+          // Roh nabídnout, kdykoli je geometricky jednoznačný – řetěz v týhle
+          // záložce (`joinsPrevious`, NEZÁVISLE na `prevLineObj` výš – na roh
+          // stačí vědět, že něco končí přesně tady, `filletChamferAtCorner()`
+          // si stejně najde oba segmenty v reálné geometrii) nebo čerstvý 🎯
+          // pick na vhodný typ.
+          const cornerCandidate = joinsPrevious || hasEarlyCornerCandidate();
           lastLineCorner = cornerCandidate ? { x: g.x1, y: g.y1 } : null;
           pickedP1SnapSource = null;
           prevLineObj = newObj;
