@@ -1201,7 +1201,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
     if (!createObject()) return;
     const g = readFormGeometry();
     appendGcodeForObject(typeSelect.value, g);
-    applyInlineCornerIfRequested(g);
+    const cornerOk = applyInlineCornerIfRequested(g);
     picker?.cancel();
     // Přesunout vizuální SNAP značku (render.js: drawSnapIndicator, kreslí
     // se podle state.mouse.x/y) z PŮVODNĚ vybraného bodu na nový konec
@@ -1216,32 +1216,49 @@ export function initNumericalTab(container, { picker = null } = {}) {
     }
     // Vycentrovat plátno na celý výkres po každém přidaném prvku – při
     // řetězení „bod za bodem" jinak snadno vyjede mimo viditelnou plochu.
-    autoCenterView();
+    // Potichu (quiet=true): "Pohled vycentrován" by stejně hned přepsalo
+    // varování o rohu nebo hlášku o pokračování řetězu níž (jeden toast slot).
+    autoCenterView(true);
     updateFields();
-    announceChainContinuation();
+    // Toast je jeden slot – když applyInlineCornerIfRequested() právě
+    // ukázala varování, nepřepisovat ho hned zprávou o pokračování řetězu
+    // (uživatel by tak varování nikdy fakticky neviděl).
+    if (cornerOk) announceChainContinuation();
   }
 
   /**
    * Zaoblí/zkosí roh HNED, když ho uživatel vyplnil v nepovinném řádku
    * „Roh s předchozí" přímo u zadávání této úsečky – jedno OK místo dvou
-   * kroků. Volá se vždy po `createObject()`; když pole zůstalo prázdné
-   * nebo roh (ještě) nevznikl, jen tiše skončí.
+   * kroků. Volá se vždy po `createObject()`; když pole zůstalo prázdné,
+   * jen tiše skončí (nic se nežádalo).
    * @param {object} g geometrie právě vytvořené úsečky (z `readFormGeometry()`)
    *   – `g.x2,g.y2` je vzdálený konec, potřeba pro `applyCornerGcode()`.
+   * @returns {boolean} false = ukázala varování, že roh (už) nevznikl, které
+   *   by hned přepsal toast „Pokračování od…" (`createAnother()` ho v tom
+   *   případě přeskočí, ať si uživatel varování stihne přečíst – toast je
+   *   jen jeden slot).
    */
   function applyInlineCornerIfRequested(g) {
-    if (!lastLineCorner) return;
     const input = container.querySelector('#ncorner');
     const value = input ? safeEvalMath(input.value) : NaN;
-    if (!isFinite(value) || value <= 0) return;
+    if (!isFinite(value) || value <= 0) return true;
+    // Řádek zůstává vidět, i když se mezitím X1/Z1 přepsalo pryč z navázání
+    // (viz `cornerInlineFieldHTML()` – gate hlídá jen `prevLineEnd`, ne
+    // aktuální shodu) – bez týhle hlášky by appka vyplněnou hodnotu potichu
+    // zahodila, přesně proti tomu, co slibuje komentář u `applyInlineCornerIfRequested`.
+    if (!lastLineCorner) {
+      showToast('Roh se nenašel – úsečky už asi nenavazují');
+      return false;
+    }
     const corner = lastLineCorner;
     const result = bridge.filletChamferAtCorner?.(cornerInlineMode, value, value, corner.x, corner.y);
     if (!result) {
       showToast('Roh se nenašel – úsečky už asi nenavazují');
-      return;
+      return false;
     }
     applyCornerGcode(result, corner.x, corner.y, { x: g.x2, y: g.y2 });
     lastLineCorner = null;
+    return true;
   }
 
   // OK i tlačítka rohu žijí uvnitř #numFields, který updateFields() pokaždé

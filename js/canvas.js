@@ -418,7 +418,13 @@ export function fitViewToWorldBounds(bounds, { padding = AUTO_CENTER_PADDING, mi
 
 // ── Auto-center: vycentrovat pohled na všechny objekty ──
 /** Vycentruje pohled tak, aby byly vidět všechny objekty. */
-export function autoCenterView() {
+/**
+ * @param {boolean} [quiet] true = bez toastu – pro AUTOMATICKÉ vycentrování
+ *   po každém přidaném prvku (numericalInput.js), kde by "Pohled vycentrován"
+ *   stejně hned přepsal důležitější toast (varování o rohu, pokračování
+ *   řetězu) – toast je jeden sdílený slot, ne fronta.
+ */
+export function autoCenterView(quiet = false) {
   if (state.objects.length === 0) {
     // Nic nakresleno – reset na výchozí pozici (střed viditelné části plátna)
     const view = visibleCanvasRect();
@@ -428,7 +434,7 @@ export function autoCenterView() {
     const zoomEl = document.getElementById("statusZoom");
     if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
     renderAll();
-    showToast("Pohled vycentrován (prázdný)");
+    if (!quiet) showToast("Pohled vycentrován (prázdný)");
     return;
   }
 
@@ -505,7 +511,7 @@ export function autoCenterView() {
 
   fitViewToWorldBounds({ minX, maxX, minY, maxY });
   renderAll();
-  showToast("Pohled vycentrován");
+  if (!quiet) showToast("Pohled vycentrován");
 }
 
 /**

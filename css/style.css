@@ -5931,20 +5931,6 @@ body {
   font-size: 12px;
   font-weight: 700;
 }
-/* Zaoblit / zkosit roh navázaných úseček – stejná operace jako nástroj
-   Zaoblení/Zkosení na plátně, jen bez trefování se na roh. */
-.num-corner-row { align-items: center; margin-top: 4px; }
-.num-corner-row .pick-col { justify-content: flex-end; padding-bottom: 0; }
-.num-corner-label {
-  font-size: 11px;
-  color: var(--ctp-subtext0);
-  flex: 1;
-}
-.num-corner-btn {
-  padding: 4px 10px;
-  font-size: 14px;
-  font-weight: 700;
-}
 /* Nepovinný řádek „Roh s předchozí" přímo ve formuláři úsečky (⌒/⌿ + R). */
 .num-corner-inline-row { align-items: center; margin-top: 4px; gap: 8px; }
 .num-corner-inline-toggle { display: flex; gap: 4px; flex: 0 0 auto; }
@@ -6288,10 +6274,11 @@ button.vk-header-btn-green {
   }
   /* G-kód: 168px z desktopu na malém displeji zabíralo většinu okna a
      formulář/OK se dostaly pod okraj, dosažitelné jen rolováním celé
-     záložky. Textarea sama roluje svůj obsah, když se nevejde do menší
-     výšky – nic se neschová nenávratně. */
+     záložky. 90px je kompromis – je vidět víc řádků najednou, a když
+     G-kód nevejde ani do tohohle, doroluje se k němu (`.tab-scroll`
+     i textarea samotná scrollují svůj obsah, nic se neschová natrvalo). */
   .vk-combined-window .vk-gcode-box {
-    min-height: 46px;
+    min-height: 90px;
   }
   /* Záložky Číselné zadání/Volná kontura – taky ubírají výšku oknu,
      který je teď jen 34vh (viz .calc-overlay-float media níž). */
