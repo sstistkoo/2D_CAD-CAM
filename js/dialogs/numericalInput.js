@@ -823,8 +823,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 )}
                 <div class="pick-col">${pickBtn("🎯", "p2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
-                <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
-                <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
+                <div class="input-row"><div class="num-coord-field"><label>Délka:</label><input type="text" id="nlen" value=""></div>
+                <div class="num-coord-field"><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
                 <div class="pick-col">${angleCompassBtn()}${okBtn()}</div></div>
                 <div id="numCornerInlineSlot">${cornerInlineFieldHTML()}</div>`;
         break;
@@ -834,7 +834,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
                   `<div class="num-coord-field"><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
-                <div class="input-row"><div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
+                <div class="input-row"><div class="num-coord-field"><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
                 <div class="pick-col">${pickBtn("📏 R", "radius")}${okBtn()}</div></div>`;
         break;
       case "arc": {
@@ -861,14 +861,14 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 )}
                 <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
                 <div class="input-row">
-                <div><label>Start (°):</label><input type="text" id="nsa" value="0"></div>
-                <div><label>Konec (°):</label><input type="text" id="nea" value="90"></div>
+                <div class="num-coord-field"><label>Start (°):</label><input type="text" id="nsa" value="0"></div>
+                <div class="num-coord-field"><label>Konec (°):</label><input type="text" id="nea" value="90"></div>
                 <div class="pick-col">${pickBtn("📐 S", "startAngle")}${pickBtn("📐 E", "endAngle")}</div></div>`;
         html = `${modeRow}
                 ${shapeRows}
                 <div class="input-row">
-                <div><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
-                <div><label>Směr:</label><select id="narcDir">
+                <div class="num-coord-field"><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
+                <div class="num-coord-field"><label>Směr:</label><select id="narcDir">
                   <option value="cw">↻ CW (po směru)</option>
                   <option value="ccw">↺ CCW (proti směru)</option>
                 </select></div>
