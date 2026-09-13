@@ -27,6 +27,14 @@ import '../calculators/vkCommit.js';
 
 const OVERLAY_TYPE = 'vk-combined';
 
+// ⚠️ DOČASNÉ: viditelná značka verze appky v liště okna – jediný spolehlivý
+// způsob, jak na mobilu poznat, jestli Service Worker fakt stáhl poslední
+// nasazenou verzi, nebo pořád servíruje starý cache (bez týhle značky se to
+// zvenku nedalo poznat vůbec – uživatel čekal 20 min a nevěděl, jestli se
+// vůbec něco stalo). Zvýšit při každém nasazení spolu s CACHE_NAME v sw.js;
+// smazat, až přestane být potřeba (přechodná diagnostika, ne trvalá UI věc).
+const BUILD_TAG = 'b268';
+
 /** @type {{ key: string, label: string, title: string }[]} */
 const TABS = [
   { key: 'vk', label: '📐 Volná kontura', title: '📐 VK – Volná kontura' },
@@ -146,7 +154,10 @@ export function showCombinedModal(initialTab = 'num') {
   const titlebar = overlay.querySelector('.calc-titlebar');
   titlebar.classList.add('calc-titlebar-tabs');
   titlebar.querySelector('h3')?.remove();
-  titlebar.querySelector('.calc-close-btn').insertAdjacentHTML('beforebegin', titlebarControlsHTML());
+  titlebar.querySelector('.calc-close-btn').insertAdjacentHTML(
+    'beforebegin',
+    titlebarControlsHTML() + `<span class="vk-build-tag" title="Verze appky – pro ověření, že se po aktualizaci fakt načetly poslední změny">${BUILD_TAG}</span>`,
+  );
 
   // Jeden sdílený odběr kliku na plátno pro obě záložky – nikdy nemůžou
   // být nabité dva naráz.
