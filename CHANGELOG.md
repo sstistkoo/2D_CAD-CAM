@@ -75,6 +75,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   frontě jako dřív.
 
 ### Fixed
+- **Mobil – vycentrování končilo z poloviny pod oknem „Zadání objektu".**
+  `visibleCanvasRect()` (`js/canvas.js`) si ukotvený panel musela nejdřív
+  „ověřit" testem, jestli sedí na spodním okraji plátna. Na mobilu ten test
+  neplatí: plátno je tam vyšší než displej (`100vh` na Androidu je výška se
+  SCHOVANÝM adresním řádkem), kdežto panel je `fixed; bottom: 0`, takže se
+  drží spodku VIDITELNÉ plochy – o ten kus výš. Hrany si neodpovídaly, panel
+  se vůbec nezapočítal jako překážka a rámovalo se doprostřed celého plátna.
+  V emulaci na desktopu se to neprojevilo (tam se plátno s displejem kryje),
+  takže to vypadalo jako chyba „jen na mobilu". Test je pryč – měřená HORNÍ
+  hrana panelu je rovnou spodní hrana kreslicí plochy (+8 px odstup), což
+  platí bez ohledu na adresní řádek, výšku okna i výšku panelu. Výřez se
+  navíc ořezává vizuálním viewportem, takže kresba nezaleze pod adresní
+  řádek ani bez otevřeného panelu, a `resizeCanvases()` posloucháme i na
+  `visualViewport` (posun adresního řádku `resize` okna nevyvolá).
+  Když na výšku nezbývá místo (nízký displej naležato), ubírá se NAHOŘE –
+  spodní hranice panelu se nikdy neposouvá dolů.
+- **⤢ ve VK okně rámovalo podle zastaralého textu G-kódu, ne podle kresby.**
+  Pole „Ruční zápis G-kódu" je scratch pad nezávislý na plátně
+  (`appendGcodeForObject()` do něj jen PŘIDÁVÁ, Zpět/smazání objektu z něj
+  nic neubere), takže po pár úpravách obsahovalo text, který s aktuální
+  kresbou nesouvisel – a `fitCadViewToNumPreview()` dávalo přednost jemu.
+  Teď má přednost `state.objects` (přes stejné `autoCenterView()` jako běžné
+  vycentrování); textarea/živý náhled zůstávají jen pro prázdné plátno.
+- **Mobil – písmenková klávesnice místo číselné v Číselném zadání.** Pole
+  dostávala `inputmode="decimal"` jen z globálního hlídače v `js/dialogs.js`,
+  který sahá na overlay v okamžiku vložení do DOM. Formulář se ale překresluje
+  při každé změně typu prvku i po každém OK, takže nově vzniklá pole ho už
+  neměla. `updateFields()` ho teď aplikuje sám.
+- **Číselné zadání – vyplněné „R / sražení" se potichu zahodilo.** Když roh
+  nevznikl (např. po 🎯 výběru se X1/Z1 přepsalo jinam, řádek ale zůstává
+  vidět), `applyInlineCornerIfRequested()` skončila bez jediného slova.
+  Teď hlásí „Roh se nenašel…" – a `createAnother()` tu hlášku nepřepíše
+  hláškou o pokračování řetězu ani „Pohled vycentrován" (`autoCenterView()`
+  dostala nepovinný `quiet`), takže si ji uživatel stihne přečíst.
+- **Mobil – popisky tlačítek panelu nástrojů se lámaly na dva řádky.**
+  `.tool-btn` dostal `white-space: nowrap` a fluidní `font-size` přes
+  `clamp()` místo pevných 10 px – řádky po 4 tlačítkách drží na širším
+  i užším telefonu, na opravdu úzkém displeji se raději rozdělí řádek,
+  než aby se zalomil text.
+- **PWA – nasazené opravy se k uživatelům nedostaly.** `sw.js` se od února
+  neměnil, a protože prohlížeč hlídá aktualizaci Service Workeru porovnáním
+  BYTŮ tohohle jediného souboru, o nových verzích JS/CSS se vůbec nedozvěděl
+  a dál servíroval starý cache. Cache verze se teď zvyšuje spolu s nasazením
+  (`npm run sw`); do ASSETS zároveň přibyl dřív nezaregistrovaný
+  `vitest.cad.config.js`.
+
 - **Mobil – kalkulačka zmizela, když bylo otevřené VK/Číselné zadání.**
   `updateCalcBtnVisibility()` schovávala plovoucí tlačítko 🔢 při JAKÉMKOLI
   otevřeném `.calc-overlay` – včetně nového nemodálního okna „VK/Číselné

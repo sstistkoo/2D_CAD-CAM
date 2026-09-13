@@ -364,12 +364,9 @@ const OBSTRUCTION_GAP = 8;
 // Horní HUD na mobilu: #mobileCoordBar (SOU/ABS/R/#/∠ odznaky, top:0) a pod
 // ním #mobileCanvasCoords (řádek „X: … Z: … | zoom%", top:92px). Mezi nimi
 // sedí plovoucí kolečka ↩️↪️🧮⊙ (viz #mobileAutoCenter aj.) – ta ale nejsou
-// přes celou šířku, takže je VIEW_OBSTRUCTIONS/EDGE_TOLERANCE výše nechytí
-// a mezera mezi oběma lištami je širší, než na kolik je ta tolerance
-// myšlená (drobný posun kvůli vstupní animaci, ne desítky px mezi
-// samostatně umístěnými prvky). Bere se proto přímo spodní hrana nižší
-// z obou lišt bez testu „dotýká se okraje" – ta jediná už kolečka mezi
-// nimi pokryje taky.
+// přes celou šířku, takže je VIEW_OBSTRUCTIONS výše nechytí (test na 80 %
+// šířky plátna). Bere se proto přímo spodní hrana nižší z obou lišt – ta
+// jediná už kolečka mezi nimi pokryje taky.
 const MOBILE_TOP_HUD = ['#mobileCoordBar', '#mobileCanvasCoords'];
 
 // Popisky bodů/kót (VK náhled, kóty) se kreslí NAD bodem, ne pod – rostou
@@ -417,7 +414,11 @@ export function visibleCanvasRect() {
     // spodní hrana kreslicí plochy. Žádný test „sedí na okraji plátna?" –
     // ten na mobilu selhával, tohle platí bez ohledu na adresní řádek,
     // výšku okna i to, jak vysoký zrovna panel je.
-    bottom = Math.min(bottom, rect.top - canvasRect.top - OBSTRUCTION_GAP);
+    const relTop = rect.top - canvasRect.top;
+    // Zasunutý panel (výsuvný #topbar má `translateY(100%)`, tj. celý pod
+    // spodní hranou) nic nezakrývá – jinak by ukrajoval i zavřený.
+    if (relTop >= bottom) continue;
+    bottom = Math.min(bottom, relTop - OBSTRUCTION_GAP);
   }
 
   let mobileHudFound = false;
@@ -432,10 +433,18 @@ export function visibleCanvasRect() {
   }
   if (mobileHudFound) top = Math.min(bottom, top + MOBILE_TOP_LABEL_ALLOWANCE);
 
+  // Když na výšku nezbývá skoro nic (nízký displej naležato + vysoký panel),
+  // ubírat se musí NAHOŘE. Rezerva na horní HUD je jen komfort, kdežto spodní
+  // hrana je hranice panelu – posunout ji dolů znamená kreslit pod modal,
+  // přesně to, co se opravovalo. Dřív to dělal `Math.max(80, …)` níž: výřez
+  // dofoukl na minimum směrem DOLŮ a spodek se dostal pod modal.
+  const MIN_BAND = 80;
+  if (bottom - top < MIN_BAND) top = Math.max(0, bottom - MIN_BAND);
+
   // CSS px → buffer px (na desktopu poměr 1:1, viz komentář výš).
   const scaleY = cssH ? drawCanvas.height / cssH : 1;
   const topPx = top * scaleY;
-  const heightPx = Math.max(80, (bottom - top) * scaleY);
+  const heightPx = Math.max(MIN_BAND, (bottom - top) * scaleY);
   return { width: drawCanvas.width, top: topPx, height: heightPx, centerY: topPx + heightPx / 2 };
 }
 
