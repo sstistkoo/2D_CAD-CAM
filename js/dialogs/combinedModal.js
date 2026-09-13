@@ -33,7 +33,7 @@ const OVERLAY_TYPE = 'vk-combined';
 // zvenku nedalo poznat vůbec – uživatel čekal 20 min a nevěděl, jestli se
 // vůbec něco stalo). Zvýšit při každém nasazení spolu s CACHE_NAME v sw.js;
 // smazat, až přestane být potřeba (přechodná diagnostika, ne trvalá UI věc).
-const BUILD_TAG = 'b268';
+const BUILD_TAG = 'b269';
 
 /** @type {{ key: string, label: string, title: string }[]} */
 const TABS = [

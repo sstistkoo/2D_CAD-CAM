@@ -33,6 +33,9 @@ export function safeVibrate(pattern) {
 export function resizeCanvases() {
   const w = wrap.clientWidth,
     h = wrap.clientHeight;
+  // Beze změny nic nepřekreslovat – `visualViewport` níž umí střílet i při
+  // pouhém posunu adresního řádku, kdy se rozměry vůbec nemění.
+  if (drawCanvas.width === w && drawCanvas.height === h) return;
   drawCanvas.width = w;
   drawCanvas.height = h;
   if (state.panX === 0 && state.panY === 0) {
@@ -43,6 +46,13 @@ export function resizeCanvases() {
 }
 
 window.addEventListener("resize", resizeCanvases);
+// Mobilní prohlížeče (Brave/Chrome na Androidu) při skrytí/zobrazení adresního
+// řádku mění VIZUÁLNÍ viewport, ale `resize` okna spolehlivě nepadne – buffer
+// plátna pak zůstane na staré výšce a rozejde se s tím, co je fakt vidět
+// (dopad: `visibleCanvasRect()` přestalo poznávat spodní ukotvené okno jako
+// překážku a vycentrování skončilo z poloviny pod ním). `visualViewport` je
+// jediná událost, která tuhle změnu hlásí.
+window.visualViewport?.addEventListener("resize", resizeCanvases);
 
 // ── Souřadnicové transformace ──
 /**
@@ -357,8 +367,36 @@ const MOBILE_TOP_LABEL_ALLOWANCE = 56;
  */
 export function visibleCanvasRect() {
   const canvasRect = drawCanvas.getBoundingClientRect();
-  let top = 0;
-  let bottom = drawCanvas.height;
+
+  // ⚠️ PLÁTNO BÝVÁ VYŠŠÍ NEŽ TO, CO JE VIDĚT. Na Androidu (Brave/Chrome)
+  // znamená `100vh` výšku se SCHOVANÝM adresním řádkem, takže když je řádek
+  // vidět, spodní kus plátna leží mimo obrazovku. Ukotvené okno VK je
+  // `position: fixed; bottom: 0`, drží se tedy spodku VIDITELNÉ plochy –
+  // o ten kus výš, než je spodní hrana plátna. Test „dotýká se spodní hrany"
+  // pak neprošel, okno se vůbec nepoznalo jako překážka a vycentrovalo se
+  // doprostřed CELÉHO plátna → kresba skončila dole, z poloviny pod modalem
+  // (nahlášeno z Brave na Androidu; v emulaci na desktopu se to neprojeví,
+  // tam se plátno s viditelnou plochou kryje).
+  //
+  // Řešení: spodek (i vršek) výřezu se ořízne vizuálním viewportem, a hrany
+  // se pak posuzují proti TOMUHLE ořezu, ne proti plné výšce plátna. Bere se
+  // `visualViewport` – jediné, co na mobilu zná skutečně viditelnou plochu;
+  // na desktopu vyjde totožně jako dosud.
+  //
+  // Druhá soustava: `drawCanvas.width/height` je BUFFER plátna, kdežto
+  // `getBoundingClientRect()` vrací CSS px. Celý výpočet běží v CSS px a na
+  // buffer se převádí až návratová hodnota (volající s ní počítá pan/zoom).
+  const cssW = canvasRect.width || drawCanvas.width;
+  const cssH = canvasRect.height || drawCanvas.height;
+  const vv = window.visualViewport;
+  const vvTop = vv ? vv.offsetTop : 0;
+  const vvBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  let top = Math.max(0, Math.min(cssH, vvTop - canvasRect.top));
+  let bottom = Math.max(top, Math.min(cssH, vvBottom - canvasRect.top));
+  // Hrany VIDITELNÉ části – proti nim se posuzuje „ukotveno dole/nahoře"
+  // (ne proti hranám plátna, viz komentář výš).
+  const visibleTop = top;
+  const visibleBottom = bottom;
 
   // Tolerance k okrajům: okna mají vstupní animaci (scale), takže hrana
   // ukotveného panelu nemusí sedět na pixel.
@@ -372,11 +410,11 @@ export function visibleCanvasRect() {
     // Výřez zmenšují jen panely přes (skoro) celou šířku plátna. Úzké
     // plovoucí okno u kraje (desktop) kresbu nezakrývá, takže se ignoruje.
     const overlap = Math.min(rect.right, canvasRect.right) - Math.max(rect.left, canvasRect.left);
-    if (overlap < drawCanvas.width * 0.8) continue;
-    const relTop = Math.max(0, rect.top - canvasRect.top);
-    const relBottom = Math.min(drawCanvas.height, rect.bottom - canvasRect.top);
-    if (relBottom >= bottom - EDGE_TOLERANCE) bottom = Math.min(bottom, relTop);
-    else if (relTop <= top + EDGE_TOLERANCE) top = Math.max(top, relBottom);
+    if (overlap < cssW * 0.8) continue;
+    const relTop = Math.max(visibleTop, rect.top - canvasRect.top);
+    const relBottom = Math.min(visibleBottom, rect.bottom - canvasRect.top);
+    if (relBottom >= visibleBottom - EDGE_TOLERANCE) bottom = Math.min(bottom, relTop);
+    else if (relTop <= visibleTop + EDGE_TOLERANCE) top = Math.max(top, relBottom);
   }
 
   let mobileHudFound = false;
@@ -386,13 +424,16 @@ export function visibleCanvasRect() {
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) continue;
     mobileHudFound = true;
-    const relBottom = Math.min(drawCanvas.height, rect.bottom - canvasRect.top);
+    const relBottom = Math.min(visibleBottom, rect.bottom - canvasRect.top);
     top = Math.max(top, relBottom);
   }
-  if (mobileHudFound) top = Math.min(drawCanvas.height, top + MOBILE_TOP_LABEL_ALLOWANCE);
+  if (mobileHudFound) top = Math.min(visibleBottom, top + MOBILE_TOP_LABEL_ALLOWANCE);
 
-  const height = Math.max(80, bottom - top);
-  return { width: drawCanvas.width, top, height, centerY: top + height / 2 };
+  // CSS px → buffer px (na desktopu poměr 1:1, viz komentář výš).
+  const scaleY = cssH ? drawCanvas.height / cssH : 1;
+  const topPx = top * scaleY;
+  const heightPx = Math.max(80, (bottom - top) * scaleY);
+  return { width: drawCanvas.width, top: topPx, height: heightPx, centerY: topPx + heightPx / 2 };
 }
 
 /**

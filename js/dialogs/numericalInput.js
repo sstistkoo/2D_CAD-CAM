@@ -7,7 +7,7 @@ import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../
 import { addObject } from '../objects.js';
 import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
 import { normalizeGcodeText } from '../gcodeNormalize.js';
-import { wireExprInputs } from './mobileEdit.js';
+import { wireExprInputs, applyMobileInputMode } from './mobileEdit.js';
 import { focusInput, showConfirmDialog } from '../dialogFactory.js';
 import { openLineStyleDialog } from './lineStyleDialog.js';
 import { activeLineProps, activeLineStyle, lineContinuationProps, getLineStyle } from '../lineStyles.js';
@@ -963,6 +963,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
     // Auto-select obsahu při kliknutí + vyhodnocení výrazu při opuštění pole
     wireExprInputs(fieldsDiv);
+    // `inputmode="decimal"` → na mobilu naskočí číselná klávesnice, ne písmena.
+    // Globální hlídač v dialogs.js sahá jen na overlay v okamžiku vložení do
+    // DOM, kdežto tenhle formulář se přepisuje znovu při každé změně typu i po
+    // každém OK – nová pole by jinak inputmode neměla a vyjela by písmenková
+    // klávesnice (uživatel nahlásil).
+    applyMobileInputMode(fieldsDiv);
 
     // Auto-update info pro úsečky/konstr.
     function updateLineInfo() {
