@@ -308,11 +308,18 @@ export function initNumericalTab(container, { picker = null } = {}) {
    * Tlačítko „vybrat bod z výkresu". `role` říká, které pole klik naplní –
    * dřív se to poznávalo podle POŘADÍ tlačítka v DOM, takže přeskládání
    * řádků formuláře tiše přehodilo význam kliku.
+   * Popisek je jen ikona bez čísla 1/2 (na mobilu zbytečně zvětšovalo
+   * tlačítko/zalamovalo text) – které pole se vyplní, řeší `title` níž.
    * @param {string} label
    * @param {'point'|'p1'|'p2'|'center'|'radius'|'startAngle'|'endAngle'} role
    */
   function pickBtn(label, role) {
-    return `<button type="button" class="pick-btn" data-pick="${role}" title="Vybrat z mapy">${label}</button>`;
+    const titles = {
+      p1: 'Vybrat bod 1 z mapy', p2: 'Vybrat bod 2 z mapy',
+      center: 'Vybrat střed z mapy',
+      startAngle: 'Vybrat počáteční úhel z mapy', endAngle: 'Vybrat koncový úhel z mapy',
+    };
+    return `<button type="button" class="pick-btn" data-pick="${role}" title="${titles[role] || 'Vybrat z mapy'}">${label}</button>`;
   }
 
   function angleCompassBtn() {
@@ -809,12 +816,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
                   `<div class="num-coord-field"><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
                   `<div class="num-coord-field"><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯1", "p1")}</div></div>
+                <div class="pick-col">${pickBtn("🎯", "p1")}</div></div>
                 <div class="input-row">${axisPair(
                   `<div class="num-coord-field"><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
                   `<div class="num-coord-field"><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>
+                <div class="pick-col">${pickBtn("🎯", "p2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
                 <div class="input-row"><div><label>Délka:</label><input type="text" id="nlen" value=""></div>
                 <div><label>Úhel (°):</label><input type="text" id="nang" value=""></div>
@@ -842,12 +849,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
                   `<div class="num-coord-field"><label>${lbl('Start '+H)}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
                   `<div class="num-coord-field"><label>${lbl('Start '+V)}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯1", "p1")}</div></div>
+                <div class="pick-col">${pickBtn("🎯", "p1")}</div></div>
                 <div class="input-row">${axisPair(
                   `<div class="num-coord-field"><label>${lbl('Konec '+H)}:</label><input type="text" id="nx2" value=""></div>`,
                   `<div class="num-coord-field"><label>${lbl('Konec '+V)}:</label><input type="text" id="ny2" value=""></div>`
                 )}
-                <div class="pick-col">${pickBtn("🎯2", "p2")}</div></div>`
+                <div class="pick-col">${pickBtn("🎯", "p2")}</div></div>`
           : `<div class="input-row">${axisPair(
                   `<div class="num-coord-field"><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
                   `<div class="num-coord-field"><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`

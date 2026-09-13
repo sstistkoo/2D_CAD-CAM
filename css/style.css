@@ -6217,6 +6217,56 @@ button.vk-header-btn-green {
   .vk-nav-pos { min-width: 28px; font-size: 10px; }
 }
 
+/* ── Číselné zadání na mobilu: zhuštění ──
+   Obecné `.input-dialog input/select/button` pravidlo (@media max-width:
+   900px výš, ř. ~3110) je psané pro řídké dialogy a na mobilu záměrně
+   zvětšuje dotykové plochy (padding 10px, min-height 40px) – v tomhle
+   nabitém formuláři (X1/Z1, X2/Z2, Délka/Úhel na pár řádcích) z toho ale
+   dělá zbytečně vysoké bloky. Horší: kvůli vyšší specificitě (`.input-dialog
+   button` = třída+element) to přebilo i vlastní menší rozměry `.pick-btn`
+   (jen třída) – tlačítka „vybrat z mapy" dostala padding 10/18px do
+   38px širokého tlačítka, takže se popisek zalomil na dva řádky (uživatel
+   nahlásil „🎯" nad „1"). Přebíjí se o třídu navíc (`.vk-combined-window
+   .input-dialog …`); font-size u inputů necháváme 16px z pravidla výš,
+   jinak by iOS Safari při focusu zoomoval. */
+@media (max-width: 900px) {
+  .vk-combined-window .input-dialog input,
+  .vk-combined-window .input-dialog select {
+    padding: 5px 7px;
+  }
+  .vk-combined-window .input-dialog button {
+    padding: 6px 10px;
+    min-height: 32px;
+  }
+  .vk-combined-window .input-dialog .num-type-btn {
+    padding: 4px 0;
+    font-size: 15px;
+  }
+  .vk-combined-window .input-dialog .num-type-btn[data-num-type="circle"] {
+    font-size: 20px;
+  }
+  /* Zvýšená specificita nad `.input-dialog button` výš – jinak by se sem
+     vrátil stejný problém, který zalomil popisek "🎯" na dva řádky. */
+  .vk-combined-window .input-dialog .pick-btn {
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    min-height: 0;
+    font-size: 13px;
+  }
+  .vk-combined-window .pick-col {
+    min-width: 34px;
+    padding-bottom: 6px;
+  }
+  /* G-kód: 168px z desktopu na malém displeji zabíralo většinu okna a
+     formulář/OK se dostaly pod okraj, dosažitelné jen rolováním celé
+     záložky. Textarea sama roluje svůj obsah, když se nevejde do menší
+     výšky – nic se neschová nenávratně. */
+  .vk-combined-window .vk-gcode-box {
+    min-height: 70px;
+  }
+}
+
 /* ── Nápověda VK (obsah dialogu vkHelp.js) ── */
 /* Zapnutý přepínač (✏️ kreslení myší) – nástroj běží na plátně, i když
    je okno v pozadí, takže musí být vidět na první pohled. */
