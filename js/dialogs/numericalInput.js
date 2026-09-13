@@ -143,19 +143,29 @@ function numPreviewWorldBounds(data) {
  * ⤢ v liště okna nad záložkou 🔢 – vycentruje plátno na to, s čím uživatel
  * právě pracuje.
  *
- * Přednost má **ruční zápis G-kódu**, pokud není prázdný – jinak by ⤢ po
- * 🔄 (to samo vycentruje správně na to, co se vykreslilo) přeskočilo na
- * ZASTARALÝ bod z formulářových polí (ten se nemění tím, co se píše do
- * editoru, drží si vlastní – třeba zbylou – hodnotu) a vypadalo by to, že
- * se vykreslení „ztratilo". Editor se rámuje přes `bridge.gcodeTextBounds()`
- * (stejný parser jako 🔄, bez vedlejších účinků), takže funguje i PŘED
- * odesláním na plátno. Až když je editor prázdný, dává smysl padnout na
- * živý náhled formuláře (`numPreviewWorldBounds`) a nakonec na běžné
- * vycentrování výkresu – obojí rámuje jen VIDITELNOU část plátna, ne
- * oblast pod oknem.
+ * Přednost má **to, co je fakticky nakreslené na plátně** (`state.objects`
+ * – stejná bbox logika jako běžné `autoCenterView()`, přesná i pro
+ * oblouky/polylinie). Dřív měl přednost ruční zápis G-kódu (textarea), což
+ * vypadalo logicky hned po 🔄 (ten samo vycentruje na to, co se vykreslilo
+ * – textarea v tu chvíli přesně odpovídá plátnu), ALE textarea je scratch
+ * pad nezávislý na plátně (`appendGcodeForObject()` do ní jen PŘIDÁVÁ, Zpět/
+ * smazání objektu z ní nic neubere) – po pár Zpět/smazáních tak snadno
+ * zůstane obsahovat starý, s plátnem už nesouvisející text, a ⤢ se pak
+ * vycentrovalo na tenhle přízrak místo na to, co uživatel doopravdy vidí
+ * (nahlášeno: plátno prázdné/jinde, i když bylo něco nakreslené). `state.
+ * objects` naproti tomu NIKDY nemůže být neaktuální – je to přímo ta kresba.
+ *
+ * Editor/živý náhled formuláře zůstávají jako fallback pro prázdné plátno
+ * (nic nakresleno, ale rozepsaný G-kód nebo formulář stojí za zarámování
+ * PŘED odesláním na plátno) – `bridge.gcodeTextBounds()` je stejný parser
+ * jako 🔄, bez vedlejších účinků.
  * @returns {boolean}
  */
 export function fitCadViewToNumPreview() {
+  if (state.objects.length > 0) {
+    autoCenterView();
+    return true;
+  }
   const gcodeEl = document.querySelector('[data-tab-content="num"] [data-id="num-gcode"]');
   const gcodeBounds = gcodeEl ? bridge.gcodeTextBounds?.(gcodeEl.value) : null;
   const bounds = gcodeBounds || numPreviewWorldBounds(state.numPreview?.data);
