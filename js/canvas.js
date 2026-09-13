@@ -338,10 +338,28 @@ export function applyAngleSnap(wx, wy, refPoint) {
 // (vysunutý #topbar dole, okno „Zadání objektu"). Centrovat doprostřed
 // CELÉHO plátna by kresbu schovalo pod ně – proto se rámuje jen do toho,
 // co je fakt vidět.
+//
+// Oba panely jsou na mobilu ukotvené DOLE (`position: fixed; bottom: 0`),
+// takže jejich HORNÍ hrana je přímo spodní hrana kreslicí plochy – bere se
+// natvrdo, bez hádání „dotýká se ten panel spodního okraje plátna?". Přesně
+// ten test dřív na mobilu selhával: plátno je tam vyšší než viditelná plocha
+// (`100vh` na Androidu = výška se SCHOVANÝM adresním řádkem), panel se drží
+// spodku VIDITELNÉ plochy, tedy o kus výš než spodní hrana plátna – hrany si
+// neodpovídaly, panel se nepoznal jako překážka vůbec a vycentrovalo se
+// doprostřed celého plátna, tj. z poloviny pod modal. Měřená horní hrana
+// panelu je proti tomu údaj, který platí vždycky a všude stejně.
+//
+// Desktopové plovoucí okno (nahoře vpravo, max 420 px) se sem nepočítá –
+// odfiltruje ho test na 80 % šířky plátna níž, protože tam je plátno vždycky
+// aspoň 769 px široké (pod tím už má okno ukotvenou mobilní podobu).
 const VIEW_OBSTRUCTIONS = [
   '#topbar.mobile-open',
   '.calc-overlay-float .vk-combined-window',
 ];
+
+// Odstup kresby od horní hrany ukotveného panelu, ať se jí popisky/body
+// netisknou přímo na hranu.
+const OBSTRUCTION_GAP = 8;
 
 // Horní HUD na mobilu: #mobileCoordBar (SOU/ABS/R/#/∠ odznaky, top:0) a pod
 // ním #mobileCanvasCoords (řádek „X: … Z: … | zoom%", top:92px). Mezi nimi
@@ -368,20 +386,12 @@ const MOBILE_TOP_LABEL_ALLOWANCE = 56;
 export function visibleCanvasRect() {
   const canvasRect = drawCanvas.getBoundingClientRect();
 
-  // ⚠️ PLÁTNO BÝVÁ VYŠŠÍ NEŽ TO, CO JE VIDĚT. Na Androidu (Brave/Chrome)
-  // znamená `100vh` výšku se SCHOVANÝM adresním řádkem, takže když je řádek
-  // vidět, spodní kus plátna leží mimo obrazovku. Ukotvené okno VK je
-  // `position: fixed; bottom: 0`, drží se tedy spodku VIDITELNÉ plochy –
-  // o ten kus výš, než je spodní hrana plátna. Test „dotýká se spodní hrany"
-  // pak neprošel, okno se vůbec nepoznalo jako překážka a vycentrovalo se
-  // doprostřed CELÉHO plátna → kresba skončila dole, z poloviny pod modalem
-  // (nahlášeno z Brave na Androidu; v emulaci na desktopu se to neprojeví,
-  // tam se plátno s viditelnou plochou kryje).
-  //
-  // Řešení: spodek (i vršek) výřezu se ořízne vizuálním viewportem, a hrany
-  // se pak posuzují proti TOMUHLE ořezu, ne proti plné výšce plátna. Bere se
-  // `visualViewport` – jediné, co na mobilu zná skutečně viditelnou plochu;
-  // na desktopu vyjde totožně jako dosud.
+  // Plátno bývá VYŠŠÍ než viditelná plocha: `100vh` na Androidu je výška se
+  // SCHOVANÝM adresním řádkem, takže když je řádek vidět, spodní kus plátna
+  // leží mimo obrazovku. Vršek/spodek výřezu se proto ořízne vizuálním
+  // viewportem – jediné, co na mobilu zná skutečně viditelnou plochu; na
+  // desktopu vyjde totožně jako celé plátno. Drží to kresbu nad adresním
+  // řádkem i tehdy, když žádný panel otevřený není.
   //
   // Druhá soustava: `drawCanvas.width/height` je BUFFER plátna, kdežto
   // `getBoundingClientRect()` vrací CSS px. Celý výpočet běží v CSS px a na
@@ -393,14 +403,6 @@ export function visibleCanvasRect() {
   const vvBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
   let top = Math.max(0, Math.min(cssH, vvTop - canvasRect.top));
   let bottom = Math.max(top, Math.min(cssH, vvBottom - canvasRect.top));
-  // Hrany VIDITELNÉ části – proti nim se posuzuje „ukotveno dole/nahoře"
-  // (ne proti hranám plátna, viz komentář výš).
-  const visibleTop = top;
-  const visibleBottom = bottom;
-
-  // Tolerance k okrajům: okna mají vstupní animaci (scale), takže hrana
-  // ukotveného panelu nemusí sedět na pixel.
-  const EDGE_TOLERANCE = 24;
 
   for (const selector of VIEW_OBSTRUCTIONS) {
     const el = document.querySelector(selector);
@@ -411,10 +413,11 @@ export function visibleCanvasRect() {
     // plovoucí okno u kraje (desktop) kresbu nezakrývá, takže se ignoruje.
     const overlap = Math.min(rect.right, canvasRect.right) - Math.max(rect.left, canvasRect.left);
     if (overlap < cssW * 0.8) continue;
-    const relTop = Math.max(visibleTop, rect.top - canvasRect.top);
-    const relBottom = Math.min(visibleBottom, rect.bottom - canvasRect.top);
-    if (relBottom >= visibleBottom - EDGE_TOLERANCE) bottom = Math.min(bottom, relTop);
-    else if (relTop <= visibleTop + EDGE_TOLERANCE) top = Math.max(top, relBottom);
+    // Panel je ukotvený dole (viz VIEW_OBSTRUCTIONS) → jeho horní hrana JE
+    // spodní hrana kreslicí plochy. Žádný test „sedí na okraji plátna?" –
+    // ten na mobilu selhával, tohle platí bez ohledu na adresní řádek,
+    // výšku okna i to, jak vysoký zrovna panel je.
+    bottom = Math.min(bottom, rect.top - canvasRect.top - OBSTRUCTION_GAP);
   }
 
   let mobileHudFound = false;
@@ -424,10 +427,10 @@ export function visibleCanvasRect() {
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) continue;
     mobileHudFound = true;
-    const relBottom = Math.min(visibleBottom, rect.bottom - canvasRect.top);
+    const relBottom = Math.min(bottom, rect.bottom - canvasRect.top);
     top = Math.max(top, relBottom);
   }
-  if (mobileHudFound) top = Math.min(visibleBottom, top + MOBILE_TOP_LABEL_ALLOWANCE);
+  if (mobileHudFound) top = Math.min(bottom, top + MOBILE_TOP_LABEL_ALLOWANCE);
 
   // CSS px → buffer px (na desktopu poměr 1:1, viz komentář výš).
   const scaleY = cssH ? drawCanvas.height / cssH : 1;

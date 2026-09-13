@@ -5745,15 +5745,6 @@ body {
 }
 .calc-titlebar-tabs .tab-btn { flex: 1 1 auto; min-width: 0; }
 .calc-titlebar-tabs .calc-close-btn { flex: 0 0 auto; }
-/* ⚠️ DOČASNÉ – viz BUILD_TAG v combinedModal.js. */
-.vk-build-tag {
-  flex: 0 0 auto;
-  font-size: 9px;
-  color: var(--ctp-overlay0);
-  padding: 0 4px;
-  align-self: center;
-  white-space: nowrap;
-}
 .tab-btn {
   background: none;
   border: 0;
