@@ -9,6 +9,21 @@
 // Komentář k M-kódu vřetena při znovuzapnutí mezi částmi.
 const SPINDLE_CMT = { 3: 'Vřeteno CW', 4: 'Vřeteno CCW' };
 
+// ── DIALEKT SPOJOVANÉHO KÓDU ───────────────────────────────────
+// Spojování si dopisuje vlastní řádky (značka části, M3/M8/M5/M9, STOPRE).
+// Do 15. 9. 2026 byly natvrdo v sinumerikovském zápisu, takže spojení
+// fanucovských částí vyrobilo program s `;` komentáři a se `STOPRE`, což
+// FANUC neumí ani jedno — řízení by ho odmítlo. Dialekt se proto odvodí
+// z kódu první části: Fanuc píše komentáře do závorek, ostatní za středník.
+function detectDialect(code) {
+  const text = String(code || '');
+  const hasSemi = /(^|\s);/m.test(text);
+  const hasParen = /\([^)]*\)/.test(text);
+  return (!hasSemi && hasParen) ? 'fanuc' : 'sinumerik';
+}
+
+const mergeCmt = (ctrl) => (text) => ctrl === 'fanuc' ? `( ${text} )` : `; ${text}`;
+
 // Rozdělí kód na "hlavičku" (úvodní nastavení stroje – rovina, G90/91,
 // nulový bod, posuv, otáčky, nástroj…) a "tělo" (vlastní dráhy). Hranice
 // se hledá primárně podle dělicího komentáře "; ---" (tímto stylem
@@ -91,7 +106,9 @@ export function renumberLines(lines, start = 10, step = 10) {
 // Mění-li část NÁSTROJ, vypíše se navíc vždy nájezd do referenčního bodu
 // (G75/G28/G74) a startovní bezpečná poloha, i kdyby se oproti předchozí
 // části nezměnily — viz TOOL_CHANGE_FORCED.
-export function mergePrograms(items) {
+export function mergePrograms(items, ctrl = null) {
+  const dialect = ctrl || detectDialect(items && items[0] && items[0].code);
+  const cmt = mergeCmt(dialect);
   const state = {};
   const out = [];
   const isM30 = line => /^(N\d+\s*)?M30\b/i.test(line.replace(/[;(].*/, '').trim());
@@ -110,7 +127,7 @@ export function mergePrograms(items) {
     const isLast = idx === items.length - 1;
     const { header, body } = splitHeaderBody(item.code);
 
-    out.push(`; ===== ${item.name} =====`);
+    out.push(cmt(`===== ${item.name} =====`));
 
     // Nejdřív zjistit, jestli tahle část mění nástroj — pak se nájezd do
     // ref. bodu / bezpečné polohy vypíše i tehdy, když je shodný s předchozí.
@@ -129,7 +146,9 @@ export function mergePrograms(items) {
       if (isFirst || changed || forced) {
         // Před výměnou nástroje (M6) musí být STOPRE, jinak by se mohlo
         // předzpracování bloků dostat dál, než stroj fyzicky vymění nástroj.
-        if (!isFirst && keys.some(([k]) => k === 'tool' || k === 'dcorr')) out.push('STOPRE');
+        // Je to SINUMERIKOVÉ slovo — Fanuc ho nezná (a nepotřebuje, u něj
+        // výměnu synchronizuje samo M6).
+        if (dialect !== 'fanuc' && !isFirst && keys.some(([k]) => k === 'tool' || k === 'dcorr')) out.push('STOPRE');
         keys.forEach(([k, v]) => { state[k] = v; });
         out.push(line);
       }
@@ -137,13 +156,13 @@ export function mergePrograms(items) {
 
     if (!isFirst) {
       const dir = state.spdir || 'M3';
-      out.push(`${dir} ; ${SPINDLE_CMT[dir.slice(1)] || 'Vřeteno ZAP'}`);
-      out.push('M8 ; Chlazení ZAP');
+      out.push(`${dir} ${cmt(SPINDLE_CMT[dir.slice(1)] || 'Vřeteno ZAP')}`);
+      out.push(`M8 ${cmt('Chlazení ZAP')}`);
     }
 
     const bodyLines = isLast ? body : body.filter(l => !isM30(l));
     if (!isLast) {
-      const stopLines = ['M5 ; Vřeteno STOP', 'M9 ; Chlazení VYP'];
+      const stopLines = [`M5 ${cmt('Vřeteno STOP')}`, `M9 ${cmt('Chlazení VYP')}`];
       const ci = lastCodeIndex(bodyLines);
       if (ci >= 0) bodyLines.splice(ci, 0, ...stopLines);
       else bodyLines.push(...stopLines);

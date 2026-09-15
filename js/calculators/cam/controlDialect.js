@@ -21,6 +21,24 @@ export function ctrlCmt(ctrl) {
   return (text) => ctrl === 'fanuc' ? `( ${text} )` : `; ${text}`;
 }
 
+// PRŮMĚR × POLOMĚR U SYSTÉMŮ BEZ DIAMON/DIAMOF.
+// Souřadnice X se podle `prms.mode` emitují buď jako průměr (DIAMON), nebo
+// jako poloměr (DIAMOF) — viz `xDia` v gcodeEmit.js. Sinumerik to v hlavičce
+// vysloví slovem DIAMON/DIAMOF, jenže Fanuc ani Heidenhain ISO na to žádný
+// G-kód nemají: rozhoduje strojní parametr (u Fanuca č. 1006 bit 3 pro osu X).
+// Program tedy nemá jak si režim vynutit a při nesouladu by se všechny
+// radiální rozměry lišily dvojnásobně. Zapíše se proto alespoň do hlavičky,
+// v jakém zápisu je psaný — a když je to poloměr (nezvyklý případ, který na
+// soustruhu nikdo nečeká), řekne se to důrazně.
+//
+// Bez závorek uvnitř textu: Fanuc komentář vymezuje právě jimi a vnořené
+// zavření by ho ukončilo dřív, takže by zbytek věty spadl do kódu.
+function diaModeNote(ctrl, prms) {
+  if (prms.mode === 'DIAMON') return 'X = PRŮMĚR, diametrální zápis';
+  const where = ctrl === 'fanuc' ? 'parametr 1006 bit 3' : 'strojní parametr';
+  return `POZOR: X = POLOMĚR, řízení musí být v radiálním režimu, ${where}`;
+}
+
 export function buildControlHeaderLines(ctrl, prms, flipX, flipZ) {
   const cmt = ctrlCmt(ctrl);
   const note = (text) => ` ${cmt(text)}`;
@@ -34,12 +52,14 @@ export function buildControlHeaderLines(ctrl, prms, flipX, flipZ) {
   if (ctrl === 'fanuc') {
     lines.push(`G21${note('Metrický vstup')}`, `G40${note('Zrušení kompenzace')}`);
     lines.push(`G99${note('Posuv mm/ot')}`, `G18${note('Rovina ZX')}`);
+    lines.push(cmt(diaModeNote(ctrl, prms)));
     lines.push(`G28 U0 W0${note('Referenční bod')}`, `G50 S2000${note('Max otáčky')}`);
     lines.push(`G96 S${prms.speed} M3${note('Konst. řezná rychlost')}`);
     lines.push(`T0101${note('Nástroj 1 / Korekce 1')}`, `M8${note('Chlazení ZAP')}`);
   } else if (ctrl === 'heidenhain') {
     lines.push(`G18${note('Rovina ZX')}`, `G90${note('Absolutní')}`);
     lines.push(`G71${note('Metrický systém')}`, `G54${note('Nulový bod')}`);
+    lines.push(cmt(diaModeNote(ctrl, prms)));
     lines.push(`G96 S${prms.speed} M3${note('Řezná rychlost')}`);
     lines.push(`T1 M6${note('Nástroj')}`, 'M8');
   } else {
@@ -100,9 +120,17 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
   // Konec hlavičky: dělicí komentář "--- ... ---" (obě varianty stylu),
   // jinak záložně první řezný/kruhový pohyb G1/G2/G3.
   let bodyStart = lines.findIndex(l => /^\s*[;(]\s*-{2,}/.test(l));
+  // Když se hlavička nedá rozpoznat ANI podle dělicího komentáře, ANI podle
+  // prvního řezného pohybu, NENÍ co vyměnit — celý text je pak tělo a nová
+  // hlavička se nepředřazuje. Do 15. 9. 2026 se v tom případě `bodyStart`
+  // nastavil na `lines.length`, takže tělo vyšlo prázdné a převod (pouhé
+  // přepnutí „Řídicí systém" v panelu Parametry) uživateli SMAZAL celý
+  // program — stačilo, aby v něm nebyl žádný G1/G2/G3 (např. jen rychloposuvy
+  // a M-kódy) a chyběl dělicí komentář.
+  let headerFound = true;
   if (bodyStart === -1) {
     bodyStart = lines.findIndex(l => /\bG[123]\b/i.test(l.replace(/^\s*N\d+\s*/i, '').replace(/[;(].*$/, '')));
-    if (bodyStart === -1) bodyStart = lines.length;
+    if (bodyStart === -1) { bodyStart = 0; headerFound = false; }
   }
   const body = lines.slice(bodyStart);
 
@@ -136,7 +164,7 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
     return out;
   };
 
-  const newHeader = buildControlHeaderLines(newCtrl, prms, flipX, flipZ);
+  const newHeader = headerFound ? buildControlHeaderLines(newCtrl, prms, flipX, flipZ) : [];
   const newTail = hasTail ? buildControlTailLines(newCtrl) : [];
 
   const assembled = [...newHeader, ...middle.map(convLine), ...newTail, ...trailing.map(convLine)];

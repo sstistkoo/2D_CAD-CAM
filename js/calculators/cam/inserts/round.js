@@ -39,19 +39,24 @@ export function roundInsert(prms) {
     // (getEffectivePlungeAngle → auto 45°, nebo ručně zadaná hodnota).
     guideKinds: ['zanoreni'],
     plungeGuide: true,
-    // MEZNÍ ČÁRA ZANOŘENÍ JE KONTURA MATERIÁLU (uživatel 9. 9. 2026:
-    // *„udělej normálně z té čáry od úhlu zanoření konturu materiálu“*).
-    // Do 9. 9. 2026 to byla jen VIZUALIZACE — hrubování po ní nezastavilo
-    // a stěnu strmější než úhel zanoření sjíždělo PO KONTUŘE, tedy strměji,
-    // než kulatý nos smí. Teď se posílá do `buildMachinableContour` jako
-    // most (`calculatePipeline.js`).
+    // ŘEŽE MEZNÍ ČÁRA ZANOŘENÍ KONTURU? U kulaté NE — a je to VĚDOMÉ
+    // rozhodnutí, ne nedodělek. Čáry se do `buildMachinableContour`
+    // NEPOSÍLAJÍ (`bridgePlungeGuidesIntoContour` je proto dnes bez
+    // odběratele) a `guideStaysInStock` je přeskakuje.
+    //
+    // Důvod: u polygonu most nahrazuje úsek, kam se HROT vůbec nedostane,
+    // kdežto kulatý nos se na tutéž stěnu dostane — jen se k ní nesjede
+    // rampou. Přemostit ji by tedy umazalo materiál, který nástroj vzít umí.
+    // (Jednodenní pokus 9. 9. 2026 opačným směrem — „udělej z té čáry
+    // konturu materiálu" — se vrátil zpět.) Zapnout to je změna chování,
+    // ne oprava; chce vlastní měření úběru.
     //
     // JE TO KLÍČ PLÁTKU, NE GLOBÁLNÍ PŘEPÍNAČ. Mezní čáru zanoření vydává
     // i polygon a ten ji jako konturu NECHCE — jeho dráhy jsou na dnešní
     // chování odladěné. Bez tohohle klíče stačilo, aby se podmínka opřela
     // o `plungeClearance` (tu má i polygon), a zásah pro kulatou by mu
     // přepsal dráhy.
-    plungeGuideCutsContour: false,   // DOČASNĚ VYPNUTO — viz níž
+    plungeGuideCutsContour: false,
     // O KOLIK LEŽÍ PROGRAMOVANÝ BOD NAD ŘEZANÝM POVRCHEM (v ose X).
     // Dráha je STŘED nosu, takže na válcové ploše řeže o R níž, než kam
     // se programuje. Hloubková posloupnost je přitom kotvená na POVRCHU

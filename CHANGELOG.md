@@ -75,6 +75,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   frontě jako dřív.
 
 ### Fixed
+- **CAM – vypuklý oblouk s rozvinem 180° a víc se odsazoval na OPAČNOU stranu.**
+  `buildRawOffsets()` (`js/calculators/cam/toolOffset.js`) rozlišoval konvexní
+  od konkávního porovnáním středu kružnice se středem TĚTIVY. Tětiva ale leží
+  mezi středem kružnice a obloukem jen do rozvinu 180°: přesně na 180° splyne
+  se středem kružnice a nad 180° se převáží na druhou stranu. Půlkulový hrb
+  (konce oblouku i střed kružnice na stejném X – běžný tvar) se proto
+  vyhodnotil jako drážka a dráha šla dovnitř materiálu: na r 5 s plátkem
+  R 0,8 vyšel offset r 4,200 místo r 5,800, tedy 1,6 mm POD hotovou konturu.
+  Rozhoduje teď střed OBLOUKU, který od středu kružnice leží na straně
+  vypuklosti v každém rozvinu. Pod 180° je to bitově táž odpověď jako dřív
+  (otisk 29 fixtures beze změny), mění se výhradně oblouky ≥ 180°.
+- **CAM/Fanuc – `G28 U0 W0` se simulovalo jako přejezd na X0 Z0 skrz obrobek.**
+  `parseManualGCodeToPath()` (`js/calculators/cam/gcodeParser.js`) četl
+  přírůstkové adresy `U`/`W` jednou třídou znaků s absolutními `X`/`Z`
+  (`[XU]`, `[ZW]`), takže nulový PŘÍRŮSTEK bral jako absolutní NULU. Fanucká
+  hlavička i závěr programu (`controlDialect.js`) ten blok vydávají, takže
+  každý, kdo si přepnul „Řídicí systém" na Fanuc, dostal v simulaci hned na
+  začátku rychloposuv do osy a na konci programu dokonce POSUV (dědil se
+  modální G1) – tedy falešné zajetí v ⛔ panelu i nesmyslný odhad času
+  a délky dráhy. `U`/`W` se teď čtou jako přírůstek k aktuální poloze
+  (v režimu DIAMON je `U` průměr, stejně jako `X`).
+- **CAM – přepnutí řídicího systému mohlo smazat celý program.**
+  `convertGCodeControlSystem()` hledá konec hlavičky podle dělicího
+  komentáře, jinak podle prvního G1/G2/G3. Když nenašel ani jedno (program
+  bez řezných pohybů – jen rychloposuvy, cykly a M-kódy – a bez dělicího
+  komentáře), nastavil začátek těla na konec souboru, tělo vyšlo prázdné
+  a z programu zbyla jen nově vygenerovaná hlavička. Teď se v tom případě
+  hlavička nevyměňuje a text zůstává celý.
+- **CAM – prázdná „Bezpečná poloha Z" dělala v dráze `NaN`.** `safeX` mělo
+  `|| 0`, `safeZ` ne; první bod simulované dráhy pak měl `z: NaN` a odtud to
+  teklo do délky, času i do kontroly prvního bloku.
+- **CAM – import kontury z G-kódu četl souřadnice z komentářů.**
+  `_parseGCodeRange()` neodřezával komentář za kódem, takže `G0 Z2 ; najedeme
+  nad X50` dalo bod X50 Z2 místo pouhého Z2.
+- **CAM – Fanuc/Heidenhain hlavička neřekla, jestli je X průměr, nebo poloměr.**
+  Souřadnice X se podle přepínače „Průměr/Poloměr" emitují dvojím způsobem,
+  ale DIAMON/DIAMOF je sinumerikové slovo – u Fanuca ani u Heidenhainu ISO na
+  to G-kód není (rozhoduje strojní parametr, u Fanuca č. 1006 bit 3). Program
+  si režim nemá jak vynutit a při nesouladu by všechny radiální rozměry vyšly
+  dvojnásobně jinak. Hlavička to teď aspoň vysloví komentářem, a je-li program
+  psaný v POLOMĚRECH, řekne to důrazně. (Není to záruka – tu dá jen správně
+  nastavené řízení.)
+- **CAM – spojení fanuckých částí vyrobilo nepřeložitelný program.**
+  `mergePrograms()` (`js/calculators/cam/gcodeMerge.js`) dopisuje vlastní
+  řádky (značka části, M3/M8/M5/M9, `STOPRE` před výměnou nástroje) a měla je
+  natvrdo v sinumerikovském zápisu. Fanuc neumí ani `;` komentáře, ani
+  `STOPRE`. Dialekt se teď odvodí z kódu první části (lze i předat parametrem).
+- **CAM – `camSimulator.js` byl pro git a grep binární soubor.** V klíči keše
+  (`calcCacheKey`) byl jako oddělovač zapsaný SUROVÝ NUL bajt místo escape
+  sekvence. Git kvůli němu soubor nediffoval, negrepoval a jako jediný
+  v repozitáři ho ukládal s CRLF konci řádků. (První commit po téhle opravě
+  proto ukáže normalizaci konců řádků přes celý soubor; skutečná změna obsahu
+  je jediný řádek – `git diff --ignore-cr-at-eol` to ukáže.)
 - **Mobil – vycentrování končilo z poloviny pod oknem „Zadání objektu".**
   `visibleCanvasRect()` (`js/canvas.js`) si ukotvený panel musela nejdřív
   „ověřit" testem, jestli sedí na spodním okraji plátna. Na mobilu ten test

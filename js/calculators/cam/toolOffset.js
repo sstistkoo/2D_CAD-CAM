@@ -54,9 +54,32 @@ export function buildRawOffsets(contourSegments, tipR, aX, aZ, fin) {
       // Důvod: pokud byl arc nakreslen s "obrácenou" CW/CCW volbou
       // (canvas má flipnutou Y), export má prohozený G2/G3 a offset by
       // se pak posílal na špatnou stranu.
-      // OUTER (konvexní): |center.x| < |chord_midpoint.x| → offset ven.
-      // INNER (konkávní): |center.x| > |chord_midpoint.x| → offset dovnitř.
-      const midAbsX = Math.abs((seg.p1.x + seg.p2.x) / 2);
+      // OUTER (konvexní): |center.x| < |midpoint.x| → offset ven.
+      // INNER (konkávní): |center.x| > |midpoint.x| → offset dovnitř.
+      //
+      // MĚŘÍ SE STŘED OBLOUKU, NE STŘED TĚTIVY. Tětiva leží mezi středem
+      // kružnice a obloukem jen do rozvinu 180°; přesně na 180° splyne
+      // se středem kružnice (rozdíl = 0) a nad 180° se převáží na DRUHOU
+      // stranu. Vypuklý půlkulový hrb (konce i střed kružnice na stejném X)
+      // se tak klasifikoval jako konkávní a offset šel opačným směrem —
+      // změřeno na r 5 s R 0,8: dráha vyšla r 4,200 místo r 5,800, tedy
+      // 1,6 mm POD hotovou konturu. Střed oblouku leží od středu kružnice
+      // vždy na straně vypuklosti, takže rozhodne i nad 180°.
+      //
+      // Pro rozviny < 180° je to BITOVĚ TÁŽ odpověď jako dřív: oba body
+      // leží na stejné polopřímce ze středu (tětiva blíž o cos(rozvin/2) > 0),
+      // takže mají stejné znaménko odchylky. Mění se výhradně ≥ 180°.
+      //
+      // `dir` se tu používá jen k rozvinutí úhlů (který z dvojice oblouků to
+      // je), ne ke straně odsazení: `reverseSeg` prohazuje start↔konec A
+      // překlápí G2↔G3 zároveň, takže střed oblouku vyjde stejně v obou
+      // směrech průchodu. Autodetekce zůstává nezávislá na směru jízdy.
+      let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+      let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+      if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      const midArcX = seg.cx + Math.sin((sA + eA) / 2) * seg.r;
+      const midAbsX = Math.abs(Number.isFinite(midArcX) ? midArcX : (seg.p1.x + seg.p2.x) / 2);
       const centerAbsX = Math.abs(seg.cx);
       const isOuter = centerAbsX < midAbsX;
       // Per-axis offset stejně jako u úseček: bod oblouku s normálou
@@ -73,10 +96,7 @@ export function buildRawOffsets(contourSegments, tipR, aX, aZ, fin) {
       } else {
         // Elipsu navzorkovat (hustě, chord error << tol) a proložit zpět
         // oblouky/úsečkami (tol 0,02) — G-kód zůstane kompaktní (G2/G3).
-        let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-        let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-        if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-        if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+        // sA/eA jsou spočítané výš (rozvin je potřeba i pro OUTER/INNER).
         const rMax = Math.max(rx, rz);
         const dTheta = Math.sqrt(8 * 0.002 / rMax);
         const steps = Math.max(4, Math.min(256, Math.ceil(Math.abs(eA - sA) / dTheta)));

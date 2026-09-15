@@ -565,7 +565,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
 | `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) — jen mapa klíč → generátor |
 | `cam/inserts/` | Pravidla PLÁTKU podle tvaru (`parting`, `polygon`, `round`, `threading`) + `index.js` s `getInsert(prms)` |
-| `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`) |
+| `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
 | `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku), `finishPartingEnvelope()`, `clipFinishBand()` |
@@ -597,7 +597,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/long/partingEnvelope.js` | Obálka plátku upichováku pro nájezdy/dojezdy |
 | `cam/passHelpers.js` | Dotazy nad offsetem kontury pro strategie (`offsetXAt`, `traceOffsetPath`, `findLeadOutEndZ`, `findPocketExitZ`) — továrna `makePassHelpers(offsetPath)` |
 | `cam/zMirror.js` | Zrcadlení CAM světa v ose Z (hrubování „zleva" = zrcadlo pravé strany) |
-| `cam/toolOffset.js` | Offset kontury o rádius plátku + přídavky (`buildRawOffsets`) — hrubovací (`offsetPath`) i hotovní referenční (`finishRefPath`). Nezaměňovat s `calculators/contourOffset.js` (CAD: polotovar z kontury) |
+| `cam/toolOffset.js` | Offset kontury o rádius plátku + přídavky (`buildRawOffsets`) — hrubovací (`offsetPath`) i hotovní referenční (`finishRefPath`). Strana odsazení (konvexní ven × konkávní dovnitř) se určuje porovnáním středu kružnice se **středem oblouku**, ne tětivy — tětiva to nad rozvinem 180° obrátí, viz `tests/cam-arc-offset-side.test.js`. Nezaměňovat s `calculators/contourOffset.js` (CAD: polotovar z kontury) |
 | `cam/interferenceGuides.js` | Mezní čáry hlídání geometrie destičky (VŽDY rovná úsečka) |
 | `cam/toolEnvelope.js` | Obálka držáku (kolizní zóna): `makeHolderClamp` = mez v ose Z pro PODÉLNÉ průchody, `holderBottomProfile` = spodní hrana držáku pro ČELNÍ (mez v hloubce X) |
 | `cam/materialRemoval.js` | Vizuální úběr materiálu při simulaci |
@@ -739,6 +739,39 @@ celý složený program; `buildCombinedProgram()` používá `mergePrograms()`
 z `cam/gcodeMerge.js`, který při **výměně nože** vypíše i nájezd do
 referenčního bodu (`G75`/`G28`/`G74`) a startovní polohu, i když se oproti
 předchozí části nemění (`TOOL_CHANGE_FORCED`).
+
+#### Dialekt řídicího systému — tři místa, kde na něm záleží
+
+Sinumerik / Fanuc / Heidenhain ISO se v tomhle projektu liší jen ve třech
+věcech, a všechny tři mají jedno místo v kódu:
+
+1. **Styl komentáře.** Fanuc `( … )`, ostatní `; …` (`ctrlCmt`). Platí to
+   i pro řádky, které si **dopisuje spojování částí** (`mergePrograms` —
+   značka části, `M3`/`M8`/`M5`/`M9`): dialekt se tam odvodí z kódu první
+   části (`detectDialect`), protože do CAM Editoru se nahrávají i cizí
+   soubory, u kterých žádné `S.params` nejsou. `STOPRE` před výměnou nože
+   je **sinumerikové slovo** — u Fanuca se nevypisuje.
+   Fanucký komentář nesmí obsahovat závorku, uzavřela by ho dřív.
+2. **Zápis poloměru oblouku.** `CR=` (Sinumerik) × `R` (ostatní) —
+   `controlArcFormatter`, a v převodu `convertGCodeControlSystem`.
+3. **Průměr × poloměr v ose X.** `DIAMON`/`DIAMOF` **existuje jen na
+   Sinumeriku**. Fanuc i Heidenhain to řeší strojním parametrem (Fanuc
+   č. 1006 bit 3), takže program si režim nemá jak vynutit — hlavička ho
+   proto aspoň vysloví komentářem (`diaModeNote`) a u poloměrového zápisu
+   varuje. Hodnoty samotné převádí `xDia` v `gcodeEmit.js`.
+
+**Převod existujícího kódu** (`convertGCodeControlSystem`, volá se při
+přepnutí „Řídicí systém") mění jen hlavičku, závěrečný `M30` blok a styl
+komentářů/oblouků; dráhy a ruční úpravy nechává být. Hlavičku hledá podle
+dělicího komentáře `; ---`, záložně podle prvního `G1/G2/G3`. **Když
+nenajde ani jedno, hlavičku nevyměňuje** a celý text bere jako tělo — jinak
+by program bez řezných pohybů (jen rychloposuvy a M-kódy) celý zmizel.
+
+**Čtení zpátky** (`parseManualGCodeToPath`): `X`/`Z` jsou absolutní adresy,
+`U`/`W` **přírůstkové** (Fanuc). V režimu DIAMON je `U` průměr stejně jako
+`X`. Bez toho by fanucké `G28 U0 W0` z hlavičky i závěru vyšlo jako přejezd
+na absolutní X0 Z0, tedy skrz obrobek do osy. Pokrývá
+`tests/cam-dialect-parser.test.js`.
 
 #### Konec hrubovacího průchodu: stěna vs. obálka držáku
 

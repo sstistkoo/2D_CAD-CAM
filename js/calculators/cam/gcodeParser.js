@@ -16,7 +16,10 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
   // ačkoli program začíná `G0 X150` nad polotovarem Ø219,8).
   // Stejná konvence jako `setPos(...)` na začátku generateAutoGCode.
   let currentX = (parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1);
-  let currentZ = parseFloat(prms.safeZ);
+  // `|| 0` stejně jako u safeX (a jako setPos v generateAutoGCode / emitFinish):
+  // prázdné pole „Bezpečná poloha Z" dávalo `NaN`, ten se propsal do prvního
+  // bodu dráhy a odtud do délky/času i do kolizního testu prvního bloku.
+  let currentZ = parseFloat(prms.safeZ) || 0;
   let lastMoveType = 'G0';
   // Modální stav posuvu/vřetene — přenáší se do bodů dráhy, aby simulace i
   // odhad času uměly jet REÁLNOU rychlostí (viz cam/feedRates.js).
@@ -73,14 +76,29 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
       const kPitch = thrMatch ? clean.match(/\bK(\d*\.?\d+)/) : null;
       if (kPitch) modalFeed = parseFloat(kPitch[1]);
     }
-    const xMatch = clean.match(/[XU]([-]?\d*\.?\d+)/);
-    const zMatch = clean.match(/[ZW]([-]?\d*\.?\d+)/);
+    // X/Z = ABSOLUTNÍ adresa, U/W = PŘÍRŮSTKOVÁ (Fanuc). Do 15. 9. 2026 se
+    // četly jednou třídou znaků (`[XU]`, `[ZW]`) a přírůstek se tedy bral jako
+    // absolutní souřadnice. Nejvíc to bolelo na `G28 U0 W0`, které FANUC
+    // hlavička i závěr vydávají (viz controlDialect.js): simulace z něj udělala
+    // přejezd na ABSOLUTNÍ X0 Z0, tedy skrz celý obrobek do osy — a na konci
+    // programu dokonce POSUVEM, protože se dědil modální G1. Falešné zajetí
+    // v ⛔ panelu i nesmyslný odhad času a délky dráhy měl každý, kdo si
+    // přepnul řídicí systém na Fanuc.
+    const xMatch = clean.match(/X([-]?\d*\.?\d+)/);
+    const zMatch = clean.match(/Z([-]?\d*\.?\d+)/);
+    const uMatch = clean.match(/U([-]?\d*\.?\d+)/);
+    const wMatch = clean.match(/W([-]?\d*\.?\d+)/);
     const rMatch = clean.match(/(?:R|CR=)([-]?\d*\.?\d+)/);
     const iMatch = clean.match(/I([-]?\d*\.?\d+)/);
     const kMatch = clean.match(/K([-]?\d*\.?\d+)/);
     let targetX = currentX, targetZ = currentZ, hasMove = false;
-    if (xMatch) { targetX = prms.mode === 'DIAMON' ? parseFloat(xMatch[1]) / 2 : parseFloat(xMatch[1]); hasMove = true; }
+    // Přírůstek v ose X je stejná veličina jako X, takže v režimu DIAMON je
+    // to taky PRŮMĚR (Fanuc: U = 2× radiální přírůstek).
+    const xScale = prms.mode === 'DIAMON' ? 0.5 : 1;
+    if (xMatch) { targetX = parseFloat(xMatch[1]) * xScale; hasMove = true; }
+    else if (uMatch) { targetX = currentX + parseFloat(uMatch[1]) * xScale; hasMove = true; }
     if (zMatch) { targetZ = parseFloat(zMatch[1]); hasMove = true; }
+    else if (wMatch) { targetZ = currentZ + parseFloat(wMatch[1]); hasMove = true; }
     if (gMatch || thrMatch) lastMoveType = type;
     if (hasMove) {
       if (type === 'G0' || type === 'G1') {
@@ -278,8 +296,16 @@ export function _parseGCodeRange(lines, startLine, endLine, idBase) {
   let currentType = 'G1', idCounter = idBase, lastX = 100, lastZ = 0;
   for (let i = startLine; i < endLine; i++) {
     const line = lines[i];
-    const clean = (line || '').toUpperCase().trim();
+    let clean = (line || '').toUpperCase().trim();
     if (!clean || clean.startsWith(';') || clean.startsWith('(') || clean.startsWith('%')) continue;
+    // Komentář ZA kódem se musí odříznout stejně jako v parseManualGCodeToPath.
+    // Bez toho se souřadnice četly i z textu komentáře — `G0 Z2 ; najedeme nad
+    // X50` dalo bod X50 Z2 místo pouhého Z2 (import kontury z G-kódu).
+    const semiIdx = clean.indexOf(';');
+    if (semiIdx >= 0) clean = clean.substring(0, semiIdx).trim();
+    const parenIdx = clean.indexOf('(');
+    if (parenIdx >= 0) clean = clean.substring(0, parenIdx).trim();
+    if (!clean) continue;
     const gMatch = clean.match(/\bG0?([0-3])\b/);
     if (gMatch) currentType = 'G' + gMatch[1];
     const xMatch = clean.match(/X([-]?\d+\.?\d*)/);
