@@ -865,7 +865,7 @@ export function openCamSimulator(initialContour, initialGCode) {
    * části, návrat z CAD, obnova UI…) a plán stojí na reálném dílu sekundy.
    */
   function calcCacheKey() {
-    return _pathInputsKey(S) + ' ' + JSON.stringify(S.operations || null);
+    return _pathInputsKey(S) + '\u0000' + JSON.stringify(S.operations || null);
   }
 
   /**
