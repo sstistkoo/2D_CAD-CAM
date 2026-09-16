@@ -42,7 +42,14 @@ export function roundInsert(prms) {
     // ŘEŽE MEZNÍ ČÁRA ZANOŘENÍ KONTURU? U kulaté NE — a je to VĚDOMÉ
     // rozhodnutí, ne nedodělek. Čáry se do `buildMachinableContour`
     // NEPOSÍLAJÍ (`bridgePlungeGuidesIntoContour` je proto dnes bez
-    // odběratele) a `guideStaysInStock` je přeskakuje.
+    // odběratele).
+    //
+    // POZOR, NEPLETY SI TO S DĚLENÍM ÚSEKŮ: tam se čára kulaté destičky
+    // POČÍTÁ jako u každého jiného plátku (`guideStaysInStock`,
+    // `ops/long/regions.js`) — pravidlo „dělí jen čára, co VYJEDE
+    // z polotovaru" je jedno pro všechny (uživatel 8. 9. 2026,
+    // `docs/cam-pravidla-drah.md` §3.2a). „Neposílá se do kontury"
+    // a „nepočítá se na úseky" jsou DVĚ RŮZNÉ věci; platí jen to první.
     //
     // Důvod: u polygonu most nahrazuje úsek, kam se HROT vůbec nedostane,
     // kdežto kulatý nos se na tutéž stěnu dostane — jen se k ní nesjede

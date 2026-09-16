@@ -61,9 +61,17 @@ export function _defaultCamParams() {
     // míří destička od držáku (kompas ukazuje k destičce). 270° = svisle dolů
     // = výchozí (destička dole, držák nahoru, bez pootočení). Jen náhled.
     knifeAngle: 270,
-    // Auto-doplnění obrysu držáku pod 45° dle l1/tloušťky při „📐 Kreslit na
-    // CAD plátně", když uživatel nakreslí jen dvě strany (otevřený obrys).
-    // Vypnuto = uloží se přesně nakreslený tvar (i otevřený).
+    // POZOR, DVA OSIŘELÉ KLÍČE V ULOŽENÝCH SOUBORECH (nález 15. 9. 2026):
+    //   `holderAutoComplete` — auto-doplnění obrysu držáku pod 45° při
+    //     „📐 Kreslit na CAD plátně". Z kódu ODSTRANĚNO v `7d0ae64`
+    //     (27. 8. 2026), ale komentář tu po něm zůstal viset a četl se jako
+    //     dokumentace k `holderInflate` níž — to jsou DVĚ RŮZNÉ věci.
+    //   `guideOnlyRegions` — v `js/` nebyl NIKDY (`git log -S` nenajde nic).
+    // Oba se pořád vozí ve starších `.camprog` (a tedy i v `S.params`), ale
+    // NIKDO JE NEČTE a žádné zaškrtávátko pro ně v `index.html` není.
+    // Nepřidávat je zpátky bez rozhodnutí, co mají dělat — jsou to ghosty,
+    // ne vypnuté funkce.
+    //
     // VIRTUÁLNÍ ZVĚTŠENÍ DRŽÁKU [mm]: o kolik se jeho obrys nafoukne pro
     // všechna hlídání kolize i pro plánování drah — nástroj pak drží od
     // obrobku větší mezeru, aniž by se překresloval nůž. 0 (výchozí) =
