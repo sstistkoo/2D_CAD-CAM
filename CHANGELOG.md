@@ -83,6 +83,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   uložení (Ctrl+S, tlačítko Uložit v Nastavení) zůstává viditelné/ve
   frontě jako dřív.
 
+### Removed
+- **Ladicí zbytky z repa.** `debug_crossing.mjs`, `debug_internal_gear.mjs`,
+  `scripts/_nobridge.mjs`, `scripts/_cam_face_debug_new.mjs`,
+  `scripts/_noबridge.mjs` (rozbitý název souboru – devanágarí znak místo
+  „b") a nepoužitá fixture `scripts/user_face_new.camprog` – nikde v repu
+  na ně nic neodkazovalo.
+
 ### Fixed
 - **CAM – hloubky u hranice regionu se zahazovaly celé, i když šlo obrobit
   narovinu.** Vjezd, který sedí přesně na hranici mezi dvěma sousedními
@@ -266,6 +273,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   import G-kódu.
 
 ### Changed
+- **CNC Editor – „🔗 Spojit do jednoho" umí i Fanuc/Heidenhain, ne jen
+  Sinumerik.** `cncEditor.js` měl vlastní, dřív nezávisle udržovaný fork
+  spojování programů (`splitHeaderBody`/`classifyHeaderLine`/
+  `renumberLines`/`mergePrograms`) – chybělo mu rozpoznání dialektu,
+  vynucený nájezd do referenčního bodu při výměně nástroje
+  (`TOOL_CHANGE_FORCED`) a fanucké `( … )` komentáře, které dostal sdílený
+  `cam/gcodeMerge.js` (CAM Editor/Simulátor) postupně od 15. 9. 2026. Fork
+  smazán, CNC Editor teď importuje `cam/gcodeMerge.js` a předává mu
+  aktuální řídicí systém.
 - **Číselné zadání – kompaktnější a přehlednější formulář úsečky.**
   Na pokyn uživatele: výchozí typ po otevření okna je teď Úsečka (dřív
   Bod). Sražená ikona rohu (dřív unicode „⌿", vypadala jako přeškrtnutá
