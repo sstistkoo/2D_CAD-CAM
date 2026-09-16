@@ -428,6 +428,13 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
       let area = checkAgainstStock(footShrunk, pts);
       if (area <= tol && holderShrunk) area = Math.max(area, checkAgainstStock(holderShrunk, pts));
       if (area > tol) {
+        // POZOR NA JMÉNO: `kind` říká, KDY se naráží, ne ČÍM. `'rapid'` je
+        // náraz BĚHEM rychloposuvu — a může být destičkou NEBO DRŽÁKEM
+        // (řádek výš). `'holder'` níž je držák během ŘEZNÉHO bloku.
+        // Sloupec „kolize rapid" v `scripts/cam_quality.mjs` tedy NENÍ
+        // „kolize destičkou": u malé destičky s náhradním držákem 20 × 200
+        // jsou to fakticky všechno nálezy držáku (16. 9. 2026 změřeno na
+        // dílu uživatele — 10 nálezů, destička 0,000 mm², držák 10,139 mm²).
         issues.push({ lineIdx: block.lineIdx, kind: 'rapid', x: pts[0].x, z: pts[0].z, area });
       }
     } else {
