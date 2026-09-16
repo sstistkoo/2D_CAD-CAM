@@ -75,6 +75,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   frontě jako dřív.
 
 ### Fixed
+- **CAM – mezní čára zanoření končila na SYROVÉM polotovaru, ne na
+  offsetové čáře.** `computeInterferenceGuides` (`js/calculators/cam/
+  interferenceGuides.js`) ořezávala mezní čáry syrovou siluetou odlitku
+  a přičítala vůli jen v ose X, ačkoli offsetová čára (Přídavek X/Z
+  polotovaru) je anizotropní – čára tak končila dřív, než kde materiál
+  doopravdy je. Nově se ořezává o vůlí-posunutou smyčku polotovaru;
+  zrušena i výjimka pro zadní čelo, kde platilo totéž. Na díle uživatele
+  úběr +2 012 mm², kolize „nakreslený nůž" beze změny (3/5,8 mm²).
 - **CAM – vypuklý oblouk s rozvinem 180° a víc se odsazoval na OPAČNOU stranu.**
   `buildRawOffsets()` (`js/calculators/cam/toolOffset.js`) rozlišoval konvexní
   od konkávního porovnáním středu kružnice se středem TĚTIVY. Tětiva ale leží
