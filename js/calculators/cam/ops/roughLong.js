@@ -426,6 +426,19 @@ export function genLongPasses(ctx) {
   // týž, kterým emise zahazuje průchody, co „nic neuříznou"; jen se přiloží
   // na délku ZÁBĚRU místo na délku okna. Stačí materiál kdekoli v okně:
   // přeletět mezeru uvnitř průchodu se dál smí.
+  //
+  // ── STŘED NOSU × POVRCH (oprava 16. 9. 2026) ───────────────────────────
+  // `X` je poloha DRÁHY (střed nosu), silueta mluví o POVRCHU — u kulaté
+  // destičky se ty dvě soustavy liší o `noseLiftL` (rádius nosu). Bez toho
+  // se otázka ptala „sahá materiál až ke STŘEDU nosu?", jenže ŘEŽE BŘIT,
+  // který je o rádius níž. U R 10 z toho plynulo, že průchod, který reálně
+  // ubírá (emise ho sama značí `; Přejezd materiálem posuvem` a model úběru
+  // na něm naměří desítky mm²), se hlásil jako „jede VZDUCHEM". Proto ten
+  // sloupec seděl na nule jen u polygonu (`noseLiftX = 0`) a rostl
+  // s rádiusem: R 5 → 4, R 8 → 13, R 10 → 14 „vzduchových" průchodů.
+  // Sousední `stockZRangeAt` (výš) i `stockCrossingsAt`
+  // (`long/intervalScan.js`) tenhle člen odečítají odjakživa — tahle funkce
+  // jako jediná ne. Viz [[project_cam-tool-centre-vs-surface]].
   const intervalHasStock = (X, zHi, zLo, ramp) => {
     if (!stockLoopOffsetL) return true;
     const h = Math.max(dzScan / 4, 0.01);
@@ -433,7 +446,7 @@ export function genLongPasses(ctx) {
       let run = 0, best = 0;
       for (let z = zA; z <= zB + 1e-9; z += h) {
         const top = offsetStockTopXAtZ(z);
-        if (top !== null && top >= xAt(z) - 1e-9) { run += h; if (run > best) best = run; }
+        if (top !== null && top >= xAt(z) - noseLiftL - 1e-9) { run += h; if (run > best) best = run; }
         else run = 0;
       }
       return best;

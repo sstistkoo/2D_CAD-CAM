@@ -91,6 +91,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   na ně nic neodkazovalo.
 
 ### Fixed
+- **CAM – falešná hláška „průchody jedou VZDUCHEM" u kulatých destiček.**
+  Kontrola `intervalHasStock()` (`js/calculators/cam/ops/roughLong.js`) se
+  ptala siluety polotovaru, jestli materiál sahá až ke STŘEDU NOSU – řeže
+  ale břit, který je u kulaté destičky o rádius nosu níž. Průchody, které
+  reálně ubíraly (model úběru na nich naměří desítky mm² a emise je sama
+  značí „Přejezd materiálem posuvem"), se proto hlásily jako jízda
+  naprázdno. Bylo to vidět i z toho, že polygon měl vždy 0 a u kulaté počet
+  rostl s rádiusem (R 5 → 4, R 8 → 13, R 10 → 14). Sousední `stockZRangeAt`
+  i `stockCrossingsAt` ten člen odečítaly odjakživa; teď i tahle kontrola.
+  Dráhy se nemění (otisk 29 fixtures shodný), mizí jen ta hláška.
 - **CAM/Heidenhain – spojení programů dopisovalo sinumerikové `STOPRE`.**
   `mergePrograms()` (`js/calculators/cam/gcodeMerge.js`) vynechávala `STOPRE`
   před výměnou nástroje jen u Fanuca (`dialect !== 'fanuc'`), ačkoli
