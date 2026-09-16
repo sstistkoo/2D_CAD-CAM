@@ -89,6 +89,17 @@ strana. Vlastní soubor by znamenal druhou kopii generátoru
 - Nájezd se smí posunout nejvýš o **`ENTRY_SHIFT_MAX` = 3 mm**; dál ne, protože
   se tím mění i příjezdová cesta (`ops/shared.js:33`).
 
+**`holderEntryCapZ` selhat ≠ vjezd je nebezpečný — opraveno 16. 9. 2026.**
+`holderEntryCapZ` hledá kotvu RAMPY (místo, kde nad hloubkou řezu STOJÍ
+materiál a odkud rampa dosáhne až na dno okna). Na rovné/kuželové stěně bez
+bosu takové místo neexistuje nikdy, takže vrátí `-Infinity`, i když je vjezd
+BEZ rampy (`holderFitsAt(entryZ, currentX)`) pro držák naprosto bezpečný.
+U vjezdu na **hranici regionu** (`regionCappedRaw` v `ops/roughLong.js`) se
+proto nejdřív zeptá narovinou — a jen když je i tohle nebezpečné, vrstva se
+v celém úseku vynechá (`holderBlockedDepths`). Nález uživatele: hloubky
+44,566/42,066/39,566 mm zahazovala v CELÉM úseku 145 mm dlouhém, přestože
+druhý konec od hranice byl 70 mm daleko a bez problému.
+
 **POSUNUTÝ VJEZD MÁ TAKY DOSTAT RAMPU — opraveno 1. 9. 2026.** Brána rampy
 v `ops/long/openPass.js` byla `iv.zStart >= entryZ - 1e-6` („vjezd sedí přesně
 na umělé hranici"). Jenže hlídání držáku přesune `intervals[0].zStart` DOLEVA

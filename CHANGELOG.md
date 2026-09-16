@@ -75,6 +75,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   frontě jako dřív.
 
 ### Fixed
+- **CAM – hloubky u hranice regionu se zahazovaly celé, i když šlo obrobit
+  narovinu.** Vjezd, který sedí přesně na hranici mezi dvěma sousedními
+  úseky (region roughing, odlitek), procházel hledáním kotvy RAMPY
+  (`holderEntryCapZ` v `ops/long/entryRamp.js`) – tá hledá místo, kde nad
+  hloubkou řezu ještě STOJÍ materiál, aby se dalo šikmo zajet. Na rovné
+  nebo kuželové stěně bez „bosu" (přesně nález uživatele: hloubky
+  44,566/42,066/39,566 mm v úseku dlouhém 145 mm) žádné takové místo
+  neexistuje, takže hledání selhalo VŽDY – i když byl vjezd samotný
+  (bez rampy) pro držák bezpečný – a `ops/roughLong.js` i navazující
+  `emitOpenInterval` (`ops/long/openPass.js`) celou vrstvu v CELÉM úseku
+  zahodily. Teď se nejdřív zeptá narovinu (`holderFitsAt(entryZ,
+  currentX)`); jen když je i tohle nebezpečné, vrstva se vynechá jako dřív.
+  Na díle uživatele (kulatá destička R 10/12) úběr materiálu +1,9 procentního
+  bodu, kolize beze změny (`scripts/cam_quality.mjs`, `scripts/cam_sweep.mjs`,
+  `tests/collision-validator`, `tests/material-removal`).
 - **CAM – mezní čára zanoření končila na SYROVÉM polotovaru, ne na
   offsetové čáře.** `computeInterferenceGuides` (`js/calculators/cam/
   interferenceGuides.js`) ořezávala mezní čáry syrovou siluetou odlitku

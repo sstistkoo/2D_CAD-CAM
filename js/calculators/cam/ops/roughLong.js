@@ -879,6 +879,12 @@ export function genLongPasses(ctx) {
     // NOVÉ kolize držáku na 5 fixtures — držák je široký a dosáhne přes údolí
     // na protilehlý hrb, i když přímo za hranicí vzduch je.
     const regionCappedRaw = regZHi !== Infinity && Math.abs(effZMax - regZHi) < 1e-6;
+    // Vjezd na hranici regionu, u kterého se potvrdilo (níž), že žádnou
+    // rampu nepotřebuje — viz `noRampNeeded` níž. Ovlivňuje jen to, jestli
+    // `emitOpenInterval` na tomhle vjezdu VYNUCUJE rampu (`entryCapped`);
+    // pořadí obrábění (`regionCapped`, řádek s `__deferEntry` níž) se tím
+    // nemění — hranice pořád patří regionu, jen se přes ni nejezdí šikmo.
+    let noRampNeeded = false;
     if (prms.plungeRoughing) {
       const surf0 = offsetStockTopXAtZ(entryZ);
       const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
@@ -889,10 +895,32 @@ export function genLongPasses(ctx) {
         // stojí sousední region), takže bez takového místa by rampa vjela
         // bokem do neobrobeného odlitku — reálný nález na díle uživatele:
         // zanoření uprostřed vybrání mezi dvěma hrby, oranžová kolize držáku
-        // 87 mm². Tam se hloubka v tomhle regionu radši vynechá (jako před
-        // zavedením zanořování na hranici); zanoření zůstane jen tam, kde je
-        // pro držák prokazatelně místo.
-        if (regionCappedRaw && !isFinite(zCap)) { holderBlockedDepths.add(depthKey(currentX)); continue; }
+        // 87 mm².
+        // POZOR: `zCap === -Infinity` NEZNAMENÁ „všude nebezpečno". `zCap`
+        // hledá kotvu RAMPY — místo, kde ještě STOJÍ materiál (nad currentX)
+        // a odkud rampa sjede až na `effZMin`. Když v celém okně žádný takový
+        // hrb není (rovná/kuželová stěna bez bossu — přesně tenhle případ:
+        // reálný nález na díle uživatele, hloubky 44,566/42,066/39,566
+        // v úseku [−83,5…61,3] — `holderEntryCapZ` nenašel ani JEDNO `z`, kde
+        // by materiál nad currentX vůbec stál), hledání selže VŽDY, i když
+        // je hranice samotná pro držák bez problému. Přímý (nerampovaný)
+        // vjezd totiž rampu vůbec nepotřebuje — do prázdna rampovat netřeba.
+        // Proto se nejdřív zeptá NAROVINO, jestli se vjezd, jak je (na
+        // `entryZ`, hloubka `currentX`), do držáku vejde — a jen když NE,
+        // zahodí se (jako dřív) celá hloubka.
+        if (regionCappedRaw && !isFinite(zCap)) {
+          if (!holderFitsAt(entryZ, currentX)) {
+            holderBlockedDepths.add(depthKey(currentX));
+            continue;
+          }
+          // Přímý vjezd na `entryZ` je bezpečný — `emitOpenInterval` níž ale
+          // o tomhle testu neví a u KAŽDÉHO `entryCapped` vjezdu si vynucuje
+          // rampu (jinou, samostatnou kotvu); bez kůry, do které by se dalo
+          // rampovat, by ji nenašla a vrstvu by zahodila znovu, jen o kus
+          // dál. `noRampNeeded` jí donesený přes `entryCapped` (níž) řekne
+          // „tenhle vjezd už je hlídaný, nezkoušej stavět rampu".
+          noRampNeeded = true;
+        }
         if (isFinite(zCap) && zCap < entryZ - 1e-6) {
           const reScan = scan(currentX, zCap, effZMin, true);
           if (reScan.firstOpen && reScan.intervals.length > 0) {
@@ -910,9 +938,9 @@ export function genLongPasses(ctx) {
     if (__LOG) globalThis.__DEPTH__.push({ fáze: 'po scan', x: +currentX.toFixed(3),
       entryZ: +entryZ.toFixed(2), firstOpen, ivs: intervals.map(v => `${v.zStart.toFixed(1)}→${v.zEnd.toFixed(1)}${v.blocked ? 'B' : ''}`).join(' ') });
     const regionCapped = regionCappedRaw;
-    const entryCapped = (entryZ !== effZMax)
+    const entryCapped = !noRampNeeded && ((entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
-      || regionCapped;
+      || regionCapped);
     // ── DRŽÁK NA NÁJEZDU PRŮCHODU (order-aware) ──────────────────────────
     // Poloha, ze které průchod sjíždí na hloubku, se proti držáku nekontroluje
     // vůbec — `holderEntryCapZ` běží jen v zanořovací větvi. I „normální" vjezd
