@@ -231,7 +231,7 @@ export function camRayIntersection(sx, sz, dirX, dirZ, exclude, calc) {
 // (natočení + ε), zanoření = spodní hrana (natočení). Od bodu dotyku se
 // protáhne podél hrany k průsečíkům s konturou. Modulová, testovatelná
 // funkce — vrací pole {x1,z1,x2,z2,kind}.
-export function computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints) {
+export function computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints, stockPlanLoopG = null) {
   const interferenceGuides = [];
   if (!clearance || !interferenceSegments || interferenceSegments.length === 0) return interferenceGuides;
 
@@ -302,7 +302,26 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
   // hranici polotovaru + vůle X. Bez ořezu by se táhla vzduchem přes
   // údolí, mergePocketGuides by ji spároval s protější stěnou a most by
   // z ní udělal falešnou konturu (hrubování by „obrábělo" vzduch).
-  const stockLoopG2 = (() => {
+  // ── OFFSETOVÁ ČÁRA JE HRANICE, NE SYROVÝ POLOTOVAR (16. 9. 2026) ──────
+  // Pravidlo uživatele: *„ta čára od zanořování by měla jet až k offsetové
+  // čáře od polotovaru… polotovar by to vůbec nemělo brát na zřetel, když je
+  // tam offsetová čára od Přídavek X (polo.) a Přídavek Z (polo.)"*.
+  //
+  // Dosud se ořezávalo SYROVOU siluetou a k výstupu se pak přičetla vůle
+  // JEN V OSE X (`clrExitG` níž). Offsetová čára je přitom anizotropní
+  // (X × Z zvlášť), takže čára končila jinde, než kde materiál doopravdy
+  // končí — na levém čele dílu uživatele přesně na Z −8,000, tedy na syrové
+  // hraně. Oba její konce tím padly DOVNITŘ polotovaru, `guideStaysInStock`
+  // (`ops/long/regions.js`) z toho usoudil „hranice úseku neplatí", levý
+  // konec nedostal vlastní úsek a DVĚ ZE TŘÍ VRSTEV jeho žebříku nevznikly
+  // (změřeno 16. 9. 2026 — viz `docs/cam-plan-2026-09-15.md` bod 3).
+  //
+  // Když je offsetová smyčka k dispozici, je hranicí ONA a `clrExitG` se
+  // nepřičítá — přídavek v ní už je, v obou osách. Bez ní (Clipper selhal)
+  // zůstává staré chování beze změny.
+  const usePlanLoopG = Array.isArray(stockPlanLoopG) && stockPlanLoopG.length >= 3
+    && prms.stockMode === 'casting';
+  const stockLoopG2 = usePlanLoopG ? stockPlanLoopG : (() => {
     if (prms.stockMode !== 'casting' || !stockWorldPoints || stockWorldPoints.length < 3) return null;
     const pts = [];
     const pushP = (x, z) => {
@@ -342,7 +361,9 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
     }
     return parity === 1;
   };
-  const clrExitG = stockClearances(prms).x;
+  // Vůle se přičítá jen u SYROVÉ hranice; offsetová smyčka ji už obsahuje
+  // (a v obou osách) — viz komentář u `stockLoopG2` výš.
+  const clrExitG = usePlanLoopG ? 0 : stockClearances(prms).x;
   // Dosah BŘITU destičky = nejvzdálenější vrchol jejího obrysu od špičky.
   // HORNÍ (kotevní) konec mezní čáry se za něj neprotahuje: stín nad kotvou
   // dělá hrana destičky a ta je konečná. Bez meze paprsek přeletí desítky mm
@@ -488,7 +509,19 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
         let tExit = stockExitOnSeg(a, ux, uz, tHit !== null ? tHit : rayLen, true);
         if (tExit !== null) {
           const ex = { x: a.x + ux * tExit, z: a.z + uz * tExit };
-          if (ex.x < 0.5 || ex.z < minPartZG - 0.5) tExit = null;
+          // OSA (x≈0) hranicí není nikdy — to je uzavírací hrana smyčky.
+          //
+          // ZADNÍ ČELO ale hranice JE, jakmile je hranicí offsetová čára.
+          // Výjimka `ex.z < minPartZG − 0,5` vznikla proti SYROVÉ siluetě:
+          // konec dílce opravdu hranicí není, protože polotovar za ním
+          // pokračuje o přídavek na čelo. Offsetová čára je jiný případ —
+          // tam materiál KONČÍ (rozhodnutí uživatele 20. 8. 2026 i 16. 9.
+          // 2026: *„polotovar by to vůbec nemělo brát na zřetel, když je tam
+          // offsetová čára od Přídavek X (polo.) a Přídavek Z (polo.)"*),
+          // takže se čára má ořezat právě o ni. Na levém čele dílu uživatele
+          // to je Z −9,000 místo dnešní syrové hrany Z −8,000.
+          const backFaceIsBoundary = usePlanLoopG;
+          if (ex.x < 0.5 || (!backFaceIsBoundary && ex.z < minPartZG - 0.5)) tExit = null;
         }
         if (tExit !== null && (tHit === null || tExit < tHit - 1e-6)) {
           const tEnd = tExit + clrExitG;

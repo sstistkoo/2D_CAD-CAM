@@ -21,6 +21,7 @@ import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
+import { stockPlanLoop } from './materialRemoval.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
@@ -270,8 +271,13 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   // Automatické mezní čáry: jen při zapnutém Hlídání geometrie (jinak by
   // zůstaly vykreslené i po vypnutí). Ruční čáry (S.guideLines) netknuté.
+  // Hranice pro ořez mezních čar = OFFSETOVÁ čára polotovaru (Přídavek X/Z
+  // polo.), ne syrová silueta — pravidlo uživatele 16. 9. 2026, podrobně
+  // u `stockLoopG2` v interferenceGuides.js. `null` (Clipper selhal) =
+  // staré chování.
+  const guideStockLoop = stockPlanLoop(prms, stockPathSegments);
   let interferenceGuides = (clearance && prms.respectInsertGeometry)
-    ? computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints)
+    ? computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints, guideStockLoop)
     : [];
 
   // ── MEZ ZANOŘENÍ U KULATÉ DESTIČKY ─────────────────────────────────────
@@ -296,7 +302,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     });
     if (plungeSegs.length > 0) {
       const pg = computeInterferenceGuides(plungeSegs, rawContourForInterference,
-        plungeClearance, prms, worldPoints, stockWorldPoints);
+        plungeClearance, prms, worldPoints, stockWorldPoints, guideStockLoop);
       // Kotvu hledá KAŽDÝ segment sám, takže na jednom útvaru vznikne několik
       // rovnoběžek nad sebou. Ve stínu té nejvyšší už žádná nic neohraničuje —
       // zahodit je (týž filtr, jaký polygonu dělá buildMachinableContour).
@@ -347,7 +353,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     if (profileInterferenceSegs.length > 0) {
       const profileGuides = computeInterferenceGuides(
         profileInterferenceSegs, contourSegments.map(s => structuredClone(s)),
-        clearance, prms, worldPoints, stockWorldPoints
+        clearance, prms, worldPoints, stockWorldPoints, guideStockLoop
       );
       if (profileGuides.length > 0) {
         const bridgeProfileGuides = profileGuides.filter(g => !g._dominated);
@@ -509,8 +515,11 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     // měřicí heuristika ji přebíjet nesmí (totéž rozhodnutí jako 28. 8. 2026,
     // kdy padly tři gaty před ním). Správná odpověď na „s dělením se držák
     // nevejde" je opravit PŘÍČINU (držák nesmí zajet do úseku, který se ještě
-    // nehruboval — viz `pendingRegions` v ops/roughLong.js), ne vrátit se
-    // k plánu, který pravidlo porušuje.
+    // nehruboval), ne vrátit se k plánu, který pravidlo porušuje.
+    // POZOR: do 15. 9. 2026 tu stálo „viz `pendingRegions` v ops/roughLong.js".
+    // Takový symbol v repu NENÍ (`grep -r pendingRegions js/` najde jen tenhle
+    // komentář) — je to NÁVRH, ne existující kód, a odkaz sváděl hledat
+    // hotové řešení tam, kde žádné není.
     //
     // Odpadlo tím i druhé plánování celého dílu (dřív se `runOps()` volalo
     // dvakrát na každém díle, kde nějaký hrb je).
