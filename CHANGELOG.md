@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – přepínač REF pro referenční (nejízdné) čáry v náhledu.** V CAM
+  simulátoru se dřív bezpodmínečně kreslily i dvě čáry, po kterých se
+  nejede: tečkovaná plánovací hranice polotovaru (Vůle X/Z) a `finishRefPath`
+  (hotovní offset, jen rádius plátku) – u velkého rádiusu leží jen desetiny
+  mm od skutečné hrubovací dráhy a splývaly s ní v „dvojčáru" (rozhodnutí
+  uživatele 15. 9. 2026). Nové tlačítko REF (`js/calculators/camSimulator.js`,
+  `S.showRefGuides`) je obě sjednotí pod jeden přepínač, výchozí VYPNUTO;
+  SNAP na ně funguje i skryté. Čistě vykreslovací změna – G-kód/dráhy
+  se nemění (otisk 29 fixtures shodný).
 - **Mobil – vycentrování plátna počítá s horní HUD lištou.** `visibleCanvasRect()`
   (`js/canvas.js`) dřív rámovala jen pod ukotvenými panely dole (vysunutý
   panel nástrojů, okno „Zadání objektu"); nahoře na mobilu ale sedí ještě

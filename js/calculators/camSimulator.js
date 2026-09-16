@@ -100,6 +100,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="removal" title="Úběr materiálu: při simulaci vizuálně odebírat projetý materiál z polotovaru">⛏</button>
+      <button data-act="refguides" title="Referenční čáry (jen náhled, dráhy po nich nejedou): hotovní offset plátku (tečkovaně) a plánovací obrys polotovaru (Vůle X/Z, kam končí rychloposuv)" style="font-size:11px;font-weight:bold">REF</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám (jako v CAD) – kontura, polotovar i jeho offsetová čára, KONCE DRAH, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
@@ -317,6 +318,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Vizuální úběr materiálu při simulaci (Clipper2) — zbývající polotovar
     // ořezává vybarvení, takže je vidět, co už nástroj odebral.
     showRemoval: true,
+    // Referenční čáry, po kterých se NEJEDE (jen náhled): hotovní offset
+    // (finishRefPath, jen rádius plátku) a plánovací obrys polotovaru
+    // (Vůle X/Z, kam končí rychloposuv). Výchozí VYPNUTO — u velkého
+    // rádiusu plátku leží finishRefPath jen 0,4 mm od skutečné hrubovací
+    // dráhy a při běžném zoomu s ní splývá v "dvojčáru" (rozhodnutí
+    // uživatele 15. 9. 2026, docs/cam-plan-2026-09-15.md bod 5).
+    showRefGuides: false,
     // POZN.: obě kolizní vybarvení — oranžová stopa vnoření držáku
     // (HolderGouge) i červené zajetí do hotové kontury (ContourGouge) —
     // jsou natvrdo ZAPNUTÁ a přepínač nemají. Do 1. 9. 2026 měl držák
@@ -489,6 +497,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         else if (['all', 'cut', 'none'].includes(p.showSimPath)) S.showSimPath = p.showSimPath;
       }
       if (typeof p.showRemoval === 'boolean') S.showRemoval = p.showRemoval;
+      if (typeof p.showRefGuides === 'boolean') S.showRefGuides = p.showRefGuides;
       // Části programu (operace) — jen když sedí verze logiky drah, stejně
       // jako u manualGCode; jinak by se skládaly zastaralé dráhy.
       if (Array.isArray(p.opParts) && p.opParts.length > 0 && p.pathLogicVersion === PATH_LOGIC_VERSION) {
@@ -733,6 +742,9 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Sync removal toggle button to persisted state
   const removalBtn = toolbar.querySelector('[data-act="removal"]');
   if (removalBtn) removalBtn.classList.toggle('cam-sim-active', !!S.showRemoval);
+  // Sync reference-guides toggle button to persisted state
+  const refGuidesBtn = toolbar.querySelector('[data-act="refguides"]');
+  if (refGuidesBtn) refGuidesBtn.classList.toggle('cam-sim-active', !!S.showRefGuides);
   // Sync sim-path toggle button to persisted state (all/cut/none)
   const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
   if (simPathBtn) {
@@ -836,7 +848,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         stockPoints: S.stockPoints, manualGCode: S.manualGCode,
         flipX: S.flipX, flipZ: S.flipZ, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
-        showRemoval: S.showRemoval,
+        showRemoval: S.showRemoval, showRefGuides: S.showRefGuides,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
         opParts: S.opParts, activePart: S.activePart, opContourKey: S.opContourKey,
         gcodeDirty: S.gcodeDirty, gcodeKey: S.gcodeKey,
@@ -1699,7 +1711,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Tečkovaná hranice pracovního posuvu kolem polotovaru: offset povrchu
     // o Vůli X (radiálně) a Vůli Z (axiálně). Sem končí rychloposuv (G0) a
     // začíná pracovní posuv (G1); zároveň bezpečná zóna pro držák.
-    {
+    // Jen náhled (REF přepínač, výchozí vypnuto) — po téhle čáře se nejede,
+    // dráhy jedou po `offsetPath` níž (docs/cam-plan-2026-09-15.md bod 5).
+    if (S.showRefGuides) {
       ctx.save();
       ctx.strokeStyle = 'rgba(250,179,135,0.75)';
       ctx.lineWidth = 1;
@@ -1969,7 +1983,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // ten hrubovací). Čistá GEOMETRIE „kam dojede střed plátku na hotovo",
     // ne dráha — kreslí se i s vypnutým Dokončováním. Prázdné pole, když
     // žádný přídavek není (pak by splynula s hrubovacím offsetem).
-    if (S.showSimPath !== 'none' && (calc.finishRefPath || []).length > 0) {
+    if (S.showRefGuides && S.showSimPath !== 'none' && (calc.finishRefPath || []).length > 0) {
       ctx.beginPath();
       calc.finishRefPath.forEach((seg, i) => {
         if (seg.isDegenerate) return;
@@ -6965,7 +6979,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       showZLimits: S.showZLimits,
       xLimits: S.xLimits,
       showSimPath: S.showSimPath,
-      showRemoval: S.showRemoval
+      showRemoval: S.showRemoval,
+      showRefGuides: S.showRefGuides,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -7055,6 +7070,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.xLimits) S.xLimits = Object.assign({ rangeXMin: null, rangeXMax: null, active: false }, data.xLimits);
         if (data.showSimPath) S.showSimPath = data.showSimPath;
         if (typeof data.showRemoval === 'boolean') S.showRemoval = data.showRemoval;
+        if (typeof data.showRefGuides === 'boolean') S.showRefGuides = data.showRefGuides;
         S.simRunning = false; S.simProgress = 0;
         // Části: živý stav přepsat záznamem aktivní části (manualGCode v
         // souboru je CELÝ složený program — ten by jako „část" nesedělo).
@@ -8031,6 +8047,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       draw();
       saveState();
       showToast(S.showRemoval ? 'Úběr materiálu při simulaci zapnut' : 'Úběr materiálu vypnut');
+    } else if (act === 'refguides') {
+      S.showRefGuides = !S.showRefGuides;
+      btn.classList.toggle('cam-sim-active', S.showRefGuides);
+      draw();
+      saveState();
+      showToast(S.showRefGuides ? 'Referenční čáry zobrazeny' : 'Referenční čáry skryty');
     } else if (act === 'zlimits') {
       // Prostý on/off – co se zobrazuje řídí checkboxy v parametrech.
       S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on';
