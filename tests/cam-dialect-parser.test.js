@@ -149,4 +149,24 @@ describe('mergePrograms – dopisované řádky v dialektu spojovaného kódu', 
     expect(out).toContain('; ===== B =====');
     expect(out).toContain('M5 ; Vřeteno STOP');
   });
+
+  // `detectDialect` umí jen fanuc × sinumerik (podle typu komentáře), takže
+  // 'heidenhain' sem chodí VÝHRADNĚ parametrem — od 16. 9. 2026 z CNC
+  // Editoru (`mergePrograms(queue, getControlSystem())`). STOPRE je
+  // sinumerikové slovo; Heidenhain ho nezná stejně jako Fanuc a generátor
+  // hlaviček ho tam taky nepíše („Heidenhain (ISO dialekt): bez STOPRE").
+  it('heidenhainské části se spojí BEZ STOPRE (středníky ano)', () => {
+    const hh = (tool, cut) => [
+      '; Vygenerovaný kód HEIDENHAIN', 'G18 ; Rovina ZX', 'G74 Z+0 ; Ref. bod',
+      `T${tool} M6`, 'G97 S500 M4', 'M8', 'G0 X150 Z5', '; --- HRUBOVANI ---',
+      cut, 'G0 X150 Z5', 'M30 ; Konec programu',
+    ].join('\n');
+    const out = mergePrograms([
+      { name: 'A', code: hh('1', 'G1 X40 Z-10 F0.25') },
+      { name: 'B', code: hh('3', 'G1 X30 Z-20 F0.12') },
+    ], 'heidenhain');
+    expect(out).not.toContain('STOPRE');
+    expect(out).toContain('; ===== B =====');   // komentář středníkem, ne závorkou
+    expect(out).toContain('M5 ; Vřeteno STOP');
+  });
 });

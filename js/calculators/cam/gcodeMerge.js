@@ -146,9 +146,14 @@ export function mergePrograms(items, ctrl = null) {
       if (isFirst || changed || forced) {
         // Před výměnou nástroje (M6) musí být STOPRE, jinak by se mohlo
         // předzpracování bloků dostat dál, než stroj fyzicky vymění nástroj.
-        // Je to SINUMERIKOVÉ slovo — Fanuc ho nezná (a nepotřebuje, u něj
-        // výměnu synchronizuje samo M6).
-        if (dialect !== 'fanuc' && !isFirst && keys.some(([k]) => k === 'tool' || k === 'dcorr')) out.push('STOPRE');
+        // Je to SINUMERIKOVÉ slovo — Fanuc ani Heidenhain ho neznají
+        // (a nepotřebují, u obou výměnu synchronizuje samo M6). Podmínka
+        // proto zní „JEN sinumerik", ne „všechno kromě fanuca": `ctrl` sem
+        // od 16. 9. 2026 chodí i z CNC Editoru (`getControlSystem()`), takže
+        // 'heidenhain' je dosažitelná hodnota — `detectDialect` ji sama
+        // nikdy nevrátí. Generátor hlaviček to má stejně: „Heidenhain
+        // (ISO dialekt): bez STOPRE" (cncEditor.js).
+        if (dialect === 'sinumerik' && !isFirst && keys.some(([k]) => k === 'tool' || k === 'dcorr')) out.push('STOPRE');
         keys.forEach(([k, v]) => { state[k] = v; });
         out.push(line);
       }

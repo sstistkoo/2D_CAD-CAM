@@ -909,7 +909,20 @@ export function genLongPasses(ctx) {
         // `entryZ`, hloubka `currentX`), do držáku vejde — a jen když NE,
         // zahodí se (jako dřív) celá hloubka.
         if (regionCappedRaw && !isFinite(zCap)) {
-          if (!holderFitsAt(entryZ, currentX)) {
+          // DVĚ podmínky, obě nutné:
+          //  (1) nad hloubkou řezu ve vjezdu opravdu NIC NESTOJÍ — jen tehdy
+          //      platí odůvodnění „není do čeho rampovat". Když tam materiál
+          //      JE (a `zCap` selhal jen proto, že se rampa nevejde do okna),
+          //      byl by z toho svislý sjezd do NEOBROBENÉHO materiálu; přesně
+          //      to zakazuje bisekce `!entryCapped` níž („obyčejná vrstva by
+          //      se zapíchla svisle") a u upichováku to hlídá order-aware
+          //      `plungeHolderFitsAt`, který tudy obejít nesmíme. Tam platí
+          //      původní chování: hloubku v tomhle úseku vynechat.
+          //  (2) vjezd, jak je (na `entryZ`, ŠPIČKA na hloubce `currentX` —
+          //      přísnější dotaz než `holderEntryCapZ`, který se ptá na
+          //      špičku na POVRCHU), se vejde do držáku.
+          const nothingToRampInto = surf0 === null || surf0 <= currentX + 0.05;
+          if (!nothingToRampInto || !holderFitsAt(entryZ, currentX)) {
             holderBlockedDepths.add(depthKey(currentX));
             continue;
           }

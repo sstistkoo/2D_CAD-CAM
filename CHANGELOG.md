@@ -91,6 +91,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   na ně nic neodkazovalo.
 
 ### Fixed
+- **CAM/Heidenhain – spojení programů dopisovalo sinumerikové `STOPRE`.**
+  `mergePrograms()` (`js/calculators/cam/gcodeMerge.js`) vynechávala `STOPRE`
+  před výměnou nástroje jen u Fanuca (`dialect !== 'fanuc'`), ačkoli
+  Heidenhain ho nezná úplně stejně – generátor hlaviček to má v repu správně
+  („Heidenhain (ISO dialekt): bez STOPRE"). Dosud to nešlo vyvolat, protože
+  automatická detekce dialektu umí jen Fanuc × Sinumerik; dosažitelné to je
+  od chvíle, kdy CNC Editor předává skutečný řídicí systém parametrem (viz
+  níž). Podmínka teď zní „jen Sinumerik"; hlídá `tests/cam-dialect-parser`.
 - **CAM – hloubky u hranice regionu se zahazovaly celé, i když šlo obrobit
   narovinu.** Vjezd, který sedí přesně na hranici mezi dvěma sousedními
   úseky (region roughing, odlitek), procházel hledáním kotvy RAMPY
