@@ -64,6 +64,14 @@ export function roundInsert(prms) {
     // o `plungeClearance` (tu má i polygon), a zásah pro kulatou by mu
     // přepsal dráhy.
     plungeGuideCutsContour: false,
+    // NAPOJUJE SE OFFSETOVÁ ČÁRA NA MEZNÍ ČÁRU ZANOŘENÍ? U kulaté ANO.
+    // Konturu ta čára neřeže (klíč výš), ale DRÁHA ji respektovat musí:
+    // pod daným úhlem zanoření plátek strmější stěnu nesjede, takže offset
+    // u ní nesmí kopírovat povrch — ořízne se offsetem mezní čáry a napojí
+    // na sousední offsetové čáry (pravidlo uživatele 17. 9. 2026, detaily
+    // v `guideOffsetJoin.js`). Polygonu se to netýká: jeho mezní čáry
+    // konturu mostí, takže jejich offset vzniká napojený už z kontury.
+    plungeGuideJoinsOffset: true,
     // O KOLIK LEŽÍ PROGRAMOVANÝ BOD NAD ŘEZANÝM POVRCHEM (v ose X).
     // Dráha je STŘED nosu, takže na válcové ploše řeže o R níž, než kam
     // se programuje. Hloubková posloupnost je přitom kotvená na POVRCHU

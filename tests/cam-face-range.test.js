@@ -163,7 +163,7 @@ describe('čelní hrubování respektuje rozsah obrábění X (📐)', () => {
       }
 
       expect(band.issues.length, `${file} (silueta): ${detail(band.issues)}`).toBe(0);
-      expect(band.issuesPlan.length, `${file} (offsetová čára): ${detail(band.issuesPlan)}`).toBe(0);
+expect(band.issuesPlan.length, `${file} (offsetová čára): ${detail(band.issuesPlan)}`).toBe(0);
     }, 120000);
   }
 });

@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Fixed
+- **CAM – offsetová čára se napojuje na mezní čáru zanoření, místo aby
+  kopírovala povrch.** U kulaté destičky sjížděla hrubovací offsetová čára po
+  stěně strmější, než jakou plátek pod zadaným úhlem zanoření stihne sjet
+  (na dílu uživatele 3 řezy pod 20,5° proti zadaným 45°), a offset samotné
+  mezní čáry visel oběma konci ve vzduchu — kolmý posun bez napojení na
+  sousední offsetové čáry. Nový `js/calculators/cam/guideOffsetJoin.js`
+  ořízne offsetový řetěz offsetem mezní čáry, takže vznikne spojité
+  „vodorovně → pod úhlem zanoření → dolů" (pravidlo uživatele 17. 9. 2026,
+  `docs/cam-pravidla-drah.md` §3.2e). **Kontura se nemění**, jen dráha středu
+  plátku; rozsah drží klíč plátku `plungeGuideJoinsOffset` (`inserts/*.js`),
+  dnes `true` jen u kulaté. Napojení se hledá JEN v okolí nakreslené mezní
+  čáry; nenajde-li se, offsetový řetěz se nemění a čára končí na offsetu
+  vlastního konce — přesně jako u polygonálního plátku, na který uživatel
+  ukázal jako na vzor. (Mezikrok, který hledal napojení i za koncem čáry,
+  přeřízl u oblouku R10 celé údolí a byl vrácen.) Změřeno na 29 fixtures:
+  otisk se hnul jen na obou kulatých dílech, úběr +94,6 mm², **kolize BEZE
+  ZMĚNY na obou standardech polotovaru**.
+
+### Changed
+- **CAM – obě offsetové čáry (s přídavkem i na hotovo) se kreslí všude.**
+  `finishRefPath` (hotovní offset kontury) byl od 15. 9. pod přepínačem REF,
+  takže kolem kontury byla vidět jen jedna čára; REF od teď řídí už jen
+  tečkovanou plánovací hranici polotovaru (rozhodnutí uživatele 17. 9. 2026).
+- **CAM – offsety mezních čar se kreslí OBA, ale napojené.** Mezní čáry
+  hlídání geometrie mají dva offsety (hrubovací R + Přídavek X/Z + na hotovo,
+  a hotovní jen R); dřív obě visely KOLMĚ od čáry s konci ve vzduchu. Teď obě
+  kopírují napojený průběh (`offRough`/`offFinish`), takže navážou na sousední
+  offsetové čáry — stejně, jako to už dělá polygonální plátek, jehož mezní
+  čáry mostí konturu. Platí pro všechny tvary plátku, SNAP beze změny.
 - **CAM – přepínač REF pro referenční (nejízdné) čáry v náhledu.** V CAM
   simulátoru se dřív bezpodmínečně kreslily i dvě čáry, po kterých se
   nejede: tečkovaná plánovací hranice polotovaru (Vůle X/Z) a `finishRefPath`
@@ -91,6 +120,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   na ně nic neodkazovalo.
 
 ### Fixed
+- **CAM – vrstvy v úseku nešly od vrchu a kužel polotovaru sebral jeden
+  průchod „přes celý plátek".** Vjezd, který zůstal stát na hranici úseku
+  proto, že se na nalezené kotvě (`zCap`) nedal vést řez, si dál vynucoval
+  rampu; ta kotvu nenašla a hloubka tiše vypadla
+  (`js/calculators/cam/ops/roughLong.js`). Na dílu uživatele tak z úseku
+  Z 127,6…172,5 zmizely hloubky 46,618 až 31,618 a celý kužel Z 148…159 pak
+  vzala uzavírací bisekce na X 30,715 – **78,7 mm² jedním 11mm pohybem,
+  tříska 7,0 mm = 2,8× ap** (`N2020 G1 Z148.208`), plus 42,8 mm radiálního
+  výjezdu pracovním posuvem. Escape „na hranici úseku je nad břitem vzduch,
+  rampa není potřeba" teď pokrývá i tenhle případ (s přísnějším testem:
+  povrch musí být pod BŘITEM, ne pod středem nosu) a zároveň ruší odložení
+  vjezdu na konec úseku – kvůli němu jely vrstvy AŽ ZA hlubší bisekcí a
+  naprázdno. Žebřík jde 49,118 → 46,618 → … → 19,143, každý průchod ukrojí
+  0,04–1,79 mm; radiální výjezd posuvem zmizel. Úběr 76,4 → 76,5 %,
+  průchodů 63 → 70, kolize 0/0 beze změny. Otisk 29 fixtures se hnul jen
+  u `part-22-round-r10`. Podrobnosti `docs/cam-pravidla-drah.md` §3.1.
+- **CAM – žebřík vrstev se u kulaté destičky uprostřed úseku tiše utnul.**
+  Kotva rampy pro vjezd na hranici úseku se hledala testem `surfX >
+  currentX` (`js/calculators/cam/ops/long/openPass.js` a jeho dvojče
+  v `ops/roughLong.js`), jenže `surfX` je POVRCH offsetové čáry a
+  `currentX` poloha DRÁHY (střed nosu) – u kulaté destičky se liší
+  o rádius nosu (`noseLiftX`, u ostatních tvarů 0). Kotva se proto
+  zamítla pokaždé, když povrch ležel mezi břitem a středem nosu, a
+  `if (!rampOk) return` zahodil celou hloubku i s materiálem pod ní.
+  Na dílu uživatele (kulatá R 10, odlitek) žebřík v úseku Z 127,6…172,5
+  skončil na `N1930 G1 Z137.603` (X 49,118) a hloubky 26,618 / 24,118 /
+  21,618 vypadly – pod nimi zůstal stát celý Ø33,5. Teď vrstvy pokračují
+  po `ap` dolů a na každou se zanořuje rampou 45°. Úběr 75,0 → 76,4 %,
+  největší tříska 16,5 → 10,0 mm, kolize 0/0 beze změny. Zmizel při tom
+  jediný průchod, který ten pás bral celý najednou (tříska 9,6 mm ≈ 4× ap)
+  a přejížděl přes hranici svého úseku (porušení
+  `docs/cam-pravidla-drah.md` §6.0). Otisk 29 fixtures se hnul jen
+  u `part-22-round-r10`; ostatní tvary plátku jsou bajt po bajtu stejné.
+  Podrobnosti `docs/cam-pravidla-drah.md` §3.1.
 - **CAM – falešná hláška „průchody jedou VZDUCHEM" u kulatých destiček.**
   Kontrola `intervalHasStock()` (`js/calculators/cam/ops/roughLong.js`) se
   ptala siluety polotovaru, jestli materiál sahá až ke STŘEDU NOSU – řeže

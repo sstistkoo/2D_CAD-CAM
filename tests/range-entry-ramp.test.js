@@ -62,14 +62,23 @@ describe('rozsah Z uprostřed polotovaru', () => {
     // to, co hlavička souboru odjakživa slibuje — „všechny hloubky sdílejí
     // tutéž přímku" — plus samo navázání řetězu.
     const [first] = ramped;
-    // První kotva = průsečík čáry začátku rozsahu (z=−30) s povrchem
-    // polotovaru + vůle X (30+1=31).
+    // ── KOTVA JE V SOUŘADNICÍCH DRÁHY (17. 9. 2026) ───────────────────────
+    // Kotva = průsečík čáry začátku rozsahu (z=−30) s povrchem polotovaru
+    // + vůle X (30+1=31) — ale `ramp.x0` je poloha DRÁHY (střed nosu), takže
+    // vychází o rádius nosu VÝŠ: 31 + 0,8 = 31,8. Nos tím sedne PŘESNĚ na
+    // offsetovou čáru; do 17. 9. 2026 se test (i kód) ptal na povrch, takže
+    // se ke kotvě sjíždělo `vůle + R` KOLMO. U R 0,8 to bylo 0,8 mm a nikdo
+    // si toho nevšiml, u R 10 to byl kolmý zápich 10 mm do stojícího
+    // materiálu posuvem. Viz `noseLiftX` v cam/inserts/ a
+    // docs/cam-pravidla-drah.md §3.1.
+    const noseLift = 0.8;   // = toolRadius, kulatá destička
+    const anchorX0 = 30 + 1 + noseLift;
     expect(first.ramp.z0).toBeCloseTo(-30, 4);
-    expect(first.ramp.x0).toBeCloseTo(31, 4);
+    expect(first.ramp.x0).toBeCloseTo(anchorX0, 4);
 
     ramped.forEach((p, i) => {
       // (a) kotva leží na TÉŽE přímce zanoření jako ta první
-      expect((31 - p.ramp.x0)).toBeCloseTo((-30 - p.ramp.z0) * tan, 4);
+      expect((anchorX0 - p.ramp.x0)).toBeCloseTo((-30 - p.ramp.z0) * tan, 4);
       // (b) rampa z kotvy na hloubku má úhel zanoření
       expect(p.ramp.z0 - p.zStart).toBeCloseTo((p.ramp.x0 - p.x) / tan, 2);
       // (c) řetěz: kotva sedí na hloubce a začátku PŘEDCHOZÍ vrstvy, takže

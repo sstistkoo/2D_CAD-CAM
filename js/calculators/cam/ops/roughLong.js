@@ -953,6 +953,32 @@ export function genLongPasses(ctx) {
             entryZ = zCap; intervals = reScan.intervals; firstOpen = reScan.firstOpen;
           }
         }
+        // ── KOTVA SE NAŠLA, ALE ŘEZAT SE NA NÍ NEDÁ (17. 9. 2026) ──────────
+        // Blok výš řeší jen `zCap === -Infinity` („kotva neexistuje"). Je ale
+        // ještě druhý způsob, jak zůstat s vjezdem na hranici úseku: `zCap`
+        // VYJDE, jenže na něm kontura nepustí řez (`reScan` nevrátí žádný
+        // interval), takže `entryZ` zůstane, kde byl. `entryCapped` níž pak
+        // vynutí rampu, ta nenajde kotvu a `if (!rampOk) return`
+        // (ops/long/openPass.js) hloubku tiše zahodí i s materiálem pod ní.
+        //
+        // Nález uživatele 17. 9. 2026 (kulatá R 10, `part-22-round-r10`):
+        // v úseku Z 127,6…172,5 vypadly hloubky 46,618 až 31,618 a celý kužel
+        // Z 148…159 pak sebral JEDINÝ průchod uzavírací bisekce na X 30,715 —
+        // 78,7 mm² jedním 11mm pohybem, tříska 7,0 mm = 2,8× ap. *„Zajíždí to
+        // tam přes celý plátek."*
+        //
+        // Podmínka je PŘÍSNĚJŠÍ než u bloku výš a schválně: tam se ptá
+        // `surf0 <= currentX` (povrch proti DRÁZE, tedy se připouští svislý
+        // sjezd až o rádius nosu — změřené chování z 16. 9., viz levý úsek
+        // dílu uživatele), tady se ptá na skutečný VZDUCH — povrch musí být
+        // pod BŘITEM (`currentX - noseLiftL`). Volnější varianta tady sebrala
+        // rampu i hloubkám, kde na hranici materiál stojí, a udělala z nich
+        // čtyři svislé sjezdy po `ap`.
+        if (regionCappedRaw && !noRampNeeded && Math.abs(entryZ - effZMax) < 1e-9
+            && surf0 !== null && surf0 <= currentX - noseLiftL + 0.05
+            && holderFitsAt(entryZ, currentX)) {
+          noRampNeeded = true;
+        }
       }
     }
     // Vjezd stojí na UMĚLÉ hranici — rozsah 📐 nebo posunutý start zanoření —
@@ -1032,7 +1058,7 @@ export function genLongPasses(ctx) {
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-          straightRunEndZ, traceOffsetPath, rampSt,
+          straightRunEndZ, traceOffsetPath, rampSt, noseLiftX: noseLiftL,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;
@@ -1068,7 +1094,12 @@ export function genLongPasses(ctx) {
       const anchorZ = (_region.zHiValleyTop !== undefined && Math.abs(entryZ - _region.zHi) < 1e-6)
         ? holderEntryReachZ(currentX, entryZ, _region.zHiValleyTop, effZMin)
         : entryZ;
-      const surfX = stockLoopL ? offsetStockTopXAtZ(anchorZ) : stockSurfX;
+      // Kotva je v souřadnicích DRÁHY (střed nosu) — táž oprava a týž důvod
+      // jako u dvojčete v `openPass.js` (17. 9. 2026). `stockSurfX` je taky
+      // povrch (válcová obdoba offsetové čáry), takže se `noseLiftL` přičítá
+      // oběma větvím.
+      const surfX0 = stockLoopL ? offsetStockTopXAtZ(anchorZ) : stockSurfX;
+      const surfX = surfX0 === null ? null : surfX0 + noseLiftL;
       if (surfX !== null && surfX > currentX + 0.05) {
         entryRampAnchor = { x: surfX, z: anchorZ, first: true };
         const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
@@ -1302,7 +1333,15 @@ export function genLongPasses(ctx) {
     // „co je nahoře, má přednost" — nejdřív se odeberou všechny větší průměry
     // a teprve pak se rampou sjede pod hranicí do menšího (jinak by nad
     // zanořeným nástrojem stál materiál, který se teprve bude brát).
-    if (entryZ !== effZMax || regionCapped) {
+    // `noRampNeeded` = na hranici úseku je nad břitem VZDUCH (viz výš).
+    // Pak neplatí ani důvod k odložení: odkládá se proto, aby nad zanořeným
+    // nástrojem nestál materiál, který se teprve bude brát — a tady žádný
+    // nestojí. Bez téhle výjimky skončily vrstvy 46,618…31,618 AŽ ZA
+    // uzavírací bisekcí na X 30,715, tedy za HLUBŠÍM průchodem: ten pak vzal
+    // celý kužel sám (78,7 mm², tříska 7,0 mm) a vrstvy po něm jely naprázdno.
+    // Pořadí uvnitř úseku musí jít po klesajících průměrech — „co je nahoře,
+    // má přednost" (docs/cam-pravidla-drah.md §6.0).
+    if (entryZ !== effZMax || (regionCapped && !noRampNeeded)) {
       for (let i = passMark; i < passes.length; i++) passes[i].__deferEntry = true;
     }
   }

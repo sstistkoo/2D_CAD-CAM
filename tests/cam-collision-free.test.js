@@ -108,6 +108,7 @@ const EXPECTED_PLAN = {
   // i `face-casting`/`face-cylinder` — všechny tři spravil jednostranný
   // náhradní držák. Zbylé dvě položky jsou tytéž meze jako v EXPECTED výš,
   // jen proti offsetové čáře vyjdou o pár mm² větší.
+
 };
 
 const detailOf = (issues) => issues.map(i =>

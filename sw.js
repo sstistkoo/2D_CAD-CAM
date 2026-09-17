@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v274';
+const CACHE_NAME = 'skica-v277';
 const ASSETS = [
   './',
   './index.html',
@@ -29,6 +29,7 @@ const ASSETS = [
   './js/calculators/cam/gcodeMerge.js',
   './js/calculators/cam/gcodeParser.js',
   './js/calculators/cam/gcodeSync.js',
+  './js/calculators/cam/guideOffsetJoin.js',
   './js/calculators/cam/holderGouge.js',
   './js/calculators/cam/insertPreview.js',
   './js/calculators/cam/inserts/index.js',

@@ -144,9 +144,15 @@ export function mirrorPass(pass) {
 /** Mezní čáry (interferenceGuides) — úsečky s průjezdovými body. */
 export function mirrorGuides(guides) {
   if (!Array.isArray(guides)) return guides;
+  // Napojená offsetová čára (`offRough`/`offFinish`, guideOffsetJoin.js) je
+  // taky geometrie v Z — bez překlopení by se v náhledu kreslila na druhé
+  // straně dílu než čára, ke které patří.
+  const mirLine = (l) => (l ? { p1: { ...l.p1, z: -l.p1.z }, p2: { ...l.p2, z: -l.p2.z } } : l);
   return guides.map(g => ({
     ...g, z1: -g.z1, z2: -g.z2,
     via: Array.isArray(g.via) ? g.via.map(p => ({ ...p, z: -p.z })) : g.via,
+    ...(g.offRough ? { offRough: mirLine(g.offRough) } : {}),
+    ...(g.offFinish ? { offFinish: mirLine(g.offFinish) } : {}),
   }));
 }
 

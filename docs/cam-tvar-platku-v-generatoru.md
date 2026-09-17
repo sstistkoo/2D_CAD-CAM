@@ -78,6 +78,7 @@ bajtu stejný (SHA-1 `b8e3f947…`, `6e4058e2…`, `173b2a46…` před i po).
 | `tiltedFlank` | `ops/roughFace` |
 | `guideKinds`, `plungeGuide` | `contourBuild` |
 | `plungeGuideCutsContour` | `plungeContourBridge` |
+| `plungeGuideJoinsOffset` | `guideOffsetJoin` (přes `calculatePipeline`) |
 | `rampedApproach` | `gcodeEmit` |
 | `footprintIsNoseOnly`, `faceBodyZFromWidth` | `materialRemoval` |
 | `bodyInCollisionEnvelope` | `toolEnvelope` |

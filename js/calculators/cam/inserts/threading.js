@@ -25,6 +25,8 @@ export function threadingInsert(prms) {
     guideKinds: [], plungeGuide: false,
     // Mezní čáru zanoření nevydává, takže konturu řezat nemá čím.
     plungeGuideCutsContour: false,
+    // Offset na mezní čáru zanoření se nenapojuje — viz round.js.
+    plungeGuideJoinsOffset: false,
     // Zvednutí programovaného bodu nad řezaný povrch (viz round.js): rádius
     // nosu je tu 0,4–1,2 mm, tedy pod rozlišením, na kterém jsou dráhy
     // těchto plátků odladěné. Ponecháno na 0, aby se hloubková

@@ -13,6 +13,7 @@ import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { bridgePlungeGuidesIntoContour } from './plungeContourBridge.js';
+import { joinPlungeGuideOffsets } from './guideOffsetJoin.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
@@ -388,7 +389,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   let incompleteMachiningCount = rough.incompleteCount;
 
   // 2. trimming + loop removal (shared helper handles all segment combos)
-  const offsetPath = dropTinyArcs(trimAndRemoveLoops(rough.rawOffsets));
+  let offsetPath = dropTinyArcs(trimAndRemoveLoops(rough.rawOffsets));
 
   // ── Referenční HOTOVNÍ offset (jen rádius plátku, bez přídavků) ──
   // Čistě GEOMETRICKÁ čára „kam dojede střed plátku na hotovo" — kreslí se
@@ -398,9 +399,28 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // podle dosažitelnosti destičky/držáku, gouge-clamp, Z-limity) a bez
   // zaškrtnutého „Dokončování" vůbec nevzniká — tahle čára je jen
   // reference, do G-kódu nevstupuje.
-  const finishRefPath = (tipR > 0 && (allowanceX > 1e-9 || allowanceZ > 1e-9 || finishAllowance > 1e-9))
+  let finishRefPath = (tipR > 0 && (allowanceX > 1e-9 || allowanceZ > 1e-9 || finishAllowance > 1e-9))
     ? dropTinyArcs(trimAndRemoveLoops(buildRawOffsets(contourSegments, tipR, 0, 0, 0).rawOffsets))
     : [];
+
+  // ── NAPOJENÍ OFFSETU NA MEZNÍ ČÁRU ZANOŘENÍ ────────────────────────────
+  // Offsetová čára nesmí u strmé stěny kopírovat povrch — pod daným úhlem
+  // zanoření tam plátek nesjede. Řetěz se proto ořízne offsetem mezní čáry
+  // (viz `guideOffsetJoin.js`). Kontura se NEMĚNÍ, jen dráha středu plátku.
+  {
+    const ins = getInsert(prms);
+    const pgs = ins.plungeGuideJoinsOffset
+      ? interferenceGuides.filter(g => g.plungeLimit && !g._dominated)
+      : [];
+    if (pgs.length > 0 && tipR > 0) {
+      offsetPath = joinPlungeGuideOffsets(offsetPath, pgs,
+        tipR + allowanceX + finishAllowance, tipR + allowanceZ + finishAllowance,
+        'offRough', contourSegments);
+      if (finishRefPath.length > 0)
+        finishRefPath = joinPlungeGuideOffsets(finishRefPath, pgs, tipR, tipR,
+          'offFinish', contourSegments);
+    }
+  }
 
   // ── Fáze 3a/3b (Clipper2): obálka držáku ──────────────────────
   // Zakázaná oblast špičky = silueta offsetu ⊕ (−obrys držáku)

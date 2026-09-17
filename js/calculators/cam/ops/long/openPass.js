@@ -20,7 +20,7 @@ export function emitOpenInterval(D) {
     holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
     rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-    straightRunEndZ, traceOffsetPath, rampSt,
+    straightRunEndZ, traceOffsetPath, rampSt, noseLiftX,
   } = D;
   // Otevřený vjezd zprava přes hranu polotovaru.
   const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
@@ -137,7 +137,21 @@ export function emitOpenInterval(D) {
       const anchorZ = (_region.zHiValleyTop !== undefined && Math.abs(entryZ - _region.zHi) < 1e-6)
         ? holderEntryReachZ(currentX, entryZ, _region.zHiValleyTop, iv.zEnd)
         : entryZ;
-      const surfX = offsetStockTopXAtZ(anchorZ);
+      // ── KOTVA JE V SOUŘADNICÍCH DRÁHY, NE POVRCHU (17. 9. 2026) ───────
+      // `offsetStockTopXAtZ` vrací POVRCH offsetové čáry, `currentX` je
+      // poloha DRÁHY (střed nosu) — u kulaté destičky se liší o `noseLiftX`
+      // (rádius nosu). Bez toho test `surfX > currentX` zamítl kotvu
+      // pokaždé, když povrch ležel MEZI břitem a středem nosu: nástroj do
+      // materiálu sjíždí o R níž, takže rampovat JE do čeho.
+      //
+      // Reálný nález na díle uživatele 17. 9. 2026 (kulatá R 10, odlitek):
+      // v úseku Z 127,6…172,5 skončil žebřík na X 49,118 (`N1930 G1
+      // Z137.603`) a hloubky 26,618 / 24,118 / 21,618 se tiše zahodily
+      // (`if (!rampOk) return` níž) — pod nimi zůstal stát celý průměr
+      // Ø33,5. Práh se lámal přesně tam, kde povrch (17,743) míjel hloubku,
+      // tedy o `noseLiftX` vedle. Viz docs/cam-pravidla-drah.md §3.1.
+      const surfX0 = offsetStockTopXAtZ(anchorZ);
+      const surfX = surfX0 === null ? null : surfX0 + (noseLiftX || 0);
       if (surfX !== null && surfX > currentX + 0.05) {
         rampSt.anchor = { x: surfX, z: anchorZ, first: true };
         // Jiné Z = jiný řetěz zanořování: uzavření toho předchozího

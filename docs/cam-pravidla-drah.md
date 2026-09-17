@@ -243,6 +243,107 @@ zápich). Za −2,48 mm třísky to stojí +56 mm jízdy v už vyříznutém pro
 > v druhém — tom, který se emituje — padne. Kdo počítá hlášení z prvního
 > běhu, vidí jiné dvě vrstvy než ty, které skutečně zmizely.
 
+**KOTVA RAMPY JE V SOUŘADNICÍCH DRÁHY, NE POVRCHU — opraveno 17. 9. 2026.**
+`offsetStockTopXAtZ` vrací **povrch** offsetové čáry, `currentX` je poloha
+**dráhy** (střed nosu). U kulaté destičky se ty dvě soustavy liší o `noseLiftX`
+(= rádius nosu, u ostatních tvarů 0), takže test *„stojí nad hloubkou
+materiál, do kterého se dá rampovat?"* (`surfX > currentX + 0.05`
+v `ops/long/openPass.js` a jeho dvojče v `ops/roughLong.js`) se lámal
+o `R` vedle: kotva se zamítla pokaždé, když povrch ležel MEZI břitem
+a středem nosu — tedy přesně v pásu `R` pod povrchem, kde rampovat JE do čeho.
+Bez kotvy pak `if (!rampOk) return` **tiše zahodil celou hloubku**.
+
+Nález uživatele 17. 9. 2026 (kulatá R 10, odlitek, `part-22-round-r10`):
+v úseku Z 127,6…172,5 skončil žebřík na `N1930 G1 Z137.603` (X 49,118)
+a další ho navázal až na X 30,715 — mezi tím se zahodily hloubky
+26,618 / 24,118 / 21,618 a pod nimi zůstal stát celý Ø33,5. *„Po téhle dráze
+by to mělo pořád jet dolů po vrstvách a dole se zanořit."*
+
+| měřítko (díl uživatele, `cam_quality`) | před | po |
+|---|---|---|
+| úběr | 75,0 % | **76,4 %** |
+| průchody | 58 | 63 |
+| největší tříska | **16,5 mm** | **10,0 mm** |
+| nejhlubší strmý sjezd | 11,0 mm | 7,5 mm |
+| kolize (rychloposuv / držák) | 0 / 0 | 0 / 0 |
+| zbývající materiál v pásu Z 130…160 | 252,3 mm² | **54,4 mm²** |
+
+**Co při tom zmizelo a proč je to správně:** jediný průchod `X17.134
+Z 174,673…170,473`, který ten pás bral **celý najednou (tříska 9,6 mm ≈ 4× ap)**
+a k tomu porušoval §6.0 — přejel hranici svého úseku (Z 172,532) a hlásil to
+i „Kontrola plánu". Jeho vjezd `N2070 G1 X17.743` navíc vezl střed nosu až NA
+offsetovou čáru, tedy břit **10 mm pod ni** — 11 mm radiálně do stojícího
+materiálu posuvem. Zbytek po něm (Z 170…190, +105 mm²) si musí vzít
+dokončování; celkově zbývá o 92 mm² MÍŇ.
+
+**Na sadě:** otisk 29 fixtures se hnul u JEDINÉ (`part-22-round-r10` — táž
+geometrie), úběr +92,3 / +92,6 mm², průchodů 1388 → 1393, **kolize beze změny**
+(3 / 5,8 mm² nakreslený nůž, 1 / 3,0 mm² náhradní držák — tytéž nálezy, jen
+posunutá čísla řádků). Ostatní tvary plátku mají `noseLiftX = 0`, takže jsou
+bajt po bajtu stejné.
+
+> **ZBYLO OTEVŘENÉ:** řetěz se v tom úseku uzavře na X 19,143 (dno koridoru
+> Ø17,5) a na koridor Ø13,5 v Z 165,9…172,5 (dno 17,144) už nedosáhne —
+> uzavírací bisekce hledá NEJMĚLČÍ mez celého okna. Tentýž pás z druhé strany
+> (úsek Z 172,5…228,7) nevezme hlídání držáku. Souvisí s bodem 7 plánu
+> (artefakt náhradního držáku 20 × 200).
+
+**KOTVA VYJDE, ALE ŘEZAT SE NA NÍ NEDÁ — opraveno 17. 9. 2026.** Escape
+z předchozího odstavce (`holderEntryCapZ` selhat ≠ nebezpečno) běžel jen na
+`zCap === -Infinity`. Jenže vjezd zůstane stát na hranici úseku i tehdy, když
+`zCap` VYJDE a teprve `reScan` na něm nevrátí žádný interval (kontura tam řez
+nepustí). `entryCapped` pak vynutí rampu, ta nenajde kotvu a `if (!rampOk)
+return` hloubku zahodí — tiše.
+
+Nález uživatele 17. 9. 2026 (`part-22-round-r10`): v úseku Z 127,6…172,5
+vypadly hloubky **46,618 až 31,618** a kužel polotovaru v Z 148…159 pak sebral
+jediný průchod uzavírací bisekce na X 30,715 — **78,7 mm² jedním 11mm
+pohybem, tříska 7,0 mm = 2,8× ap**, a k tomu 42,8 mm radiálního VÝJEZDU
+posuvem (`emitLiftX` jel konzervativně celý zdvih `G1`). *„Nejdou od vrchu ty
+vrstvy a zajíždí to tam přes celý plátek… pak dráha nahoru úplně zbytečně."*
+
+Escape se proto rozšířil i na tenhle případ, ale s **přísnější podmínkou**:
+
+| případ | test „není do čeho rampovat" | proč |
+|---|---|---|
+| `zCap` neexistuje (16. 9.) | `surf0 <= currentX` — povrch proti DRÁZE | změřené chování, připouští svislý sjezd až o rádius nosu; drží levý úsek dílu uživatele (hloubky 44,566 / 42,066 / 39,566) |
+| `zCap` je, ale řez na něm ne (17. 9.) | `surf0 <= currentX − noseLiftX` — povrch pod BŘITEM | skutečný VZDUCH. S volnější variantou ztratily rampu i hloubky 26,618…19,118, kde na hranici materiál stojí → čtyři svislé sjezdy po `ap` |
+
+**A s tím ruku v ruce POŘADÍ.** Vjezd na hranici úseku se odkládá na konec
+úseku (`__deferEntry`), aby se napřed vzaly větší průměry. Když je ale nad
+břitem vzduch, ten důvod neplatí — a odložení pak vyrobilo přesně to, čemu má
+bránit: vrstvy 46,618…31,618 skončily AŽ ZA hlubší uzavírací bisekcí
+X 30,715, ta vzala celý kužel sama a vrstvy po ní jely naprázdno (0,0–2,0 mm²
+na průchod). `noRampNeeded` proto odložení ruší; pořadí v úseku jde zase po
+klesajících průměrech (§6.0).
+
+| měřítko (díl uživatele, `cam_quality`) | před 17. 9. | po kotvě (ráno) | po tomhle |
+|---|---|---|---|
+| úběr | 75,0 % | 76,4 % | **76,5 %** |
+| průchody | 58 | 63 | **70** |
+| největší tříska v Z 148…172 | 7,0 mm | 7,0 mm | **1,8 mm** |
+| radiální výjezd posuvem | 42,8 mm | 42,8 mm | **0** |
+| kolize (rychloposuv / držák) | 0 / 0 | 0 / 0 | **0 / 0** |
+
+Žebřík v úseku teď jde 49,118 → 46,618 → 44,118 → 41,618 → 39,118 → 36,618 →
+34,118 → 31,618 → 30,715 → 26,618 → 24,118 → 21,618 → 19,143 a každý průchod
+ukrojí 0,04–1,79 mm. **Otisk 29 fixtures: změněná JEDINÁ** (`part-22-round-r10`),
+úběr +5,7 / +4,6 mm², průchodů 1393 → 1400, **kolize beze změny**.
+
+> **ZKOUŠENO A ZAMÍTNUTO (17. 9. 2026):**
+> - *Sjednotit obě podmínky na `surf0 <= currentX − noseLiftX`.* Shodí
+>   escape z 16. 9. — v levém úseku [−83,5…61,3] zmizí hloubky
+>   44,566 / 42,066 / 39,566, tedy přesně to, co ten escape opravoval.
+> - *Sjednotit je na `surf0 <= currentX`.* Hloubky 26,618…19,118 ztratí
+>   rampu (na hranici jim materiál STOJÍ) → 4 svislé sjezdy navíc
+>   a +32 třísek nad `ap` v pásu Z −20…20.
+> - *Zastropovat uzavírací bisekci na jednu `ap`* (`loX = max(currentX,
+>   lastDepthWithPasses − step)`). Samo o sobě to X 30,715 neodstraní (po
+>   opravě pořadí je legitimní „zbytek pod ap") a bez opravy pořadí jen
+>   přesune tu velkou třísku na hloubku 26,618 (4,19 → 5,46 mm). Blok
+>   slibuje „zbytek MÉNĚ než ap" a strop tam chybí — **zůstává otevřené**,
+>   měřeno jako neutrální (107 → 109 třísek nad ap).
+
 ### 3.2 Úhel zanoření podle tvaru plátku — UZAVŘENO 26. 8. 2026
 
 | plátek | úhel | proč |
@@ -400,6 +501,99 @@ tam, kam hlídání dosáhne.
 > hlídání pustilo víc a dráhy **zajely 4,11 mm² do hotového dílu** (na `HEAD`
 > 0,00). Menší úhel musí rozsah ZÚŽIT — když po zásahu `halfRange` vzroste,
 > je to obráceně.
+
+---
+
+### 3.2e OFFSETOVÁ ČÁRA SE NA MEZNÍ ČÁRU ZANOŘENÍ NAPOJUJE (17. 9. 2026)
+
+Nález uživatele ze tří fotek náhledu. Dvě věci najednou:
+
+**1. Obě offsetové čáry, ale NAPOJENÉ.** Ke každé mezní čáře se kreslí DVA
+offsety — hrubovací (R + Přídavek X/Z + na hotovo) a HOTOVNÍ (jen R). Uživateli vadilo, že obě visely KOLMĚ od čáry s konci ve vzduchu, ne že jsou dvě.
+
+> **POZOR — TOHLE JSEM 17. 9. 2026 PŘEČETL ŠPATNĚ.** Z věty *„mám jednu čáru
+> a přitom dvě dráhy… jednu pro dráhu na hotovo, i když se nejede"* jsem
+> vyvodil, že hotovní čára patří pod přepínač **REF**, a schoval ji. Uživatel to
+> týž den vrátil: *„přidej tam i tu hotovní"*. Směr je tedy opačný — kreslí se
+> obě, jen musí být napojené. Bez přídavků obě splývají a zůstává jediná.
+> Platí pro **všechny tvary plátku** (je to vykreslení).
+>
+> **DVĚ ČÁRY PLATÍ I KOLEM KONTURY** (17. 9. 2026, třetí kolo):
+> uživatel: „ať jsou tam ty dvě offsetové čáry, jedna od přídavku na hotovo
+> a další na hotovo — je tam většinou jenom jedna“. `finishRefPath` proto už
+> není pod přepínačem **REF**; ten řídí už jen tečkovanou PLÁNOVACÍ hranici
+> polotovaru.
+>
+> **VZOREM JE POLYGON.** Jeho mezní čáry konturu MOSTÍ, takže `offsetPath`
+> i `finishRefPath` po nich jedou samy a napojují se běžným ořezem sousedů.
+> Kulatá to teď dělá totéž — jen na úrovni OFFSETU (`guideOffsetJoin.js`),
+> ne kontury.
+
+**2. Offset u strmé stěny NEKOPÍRUJE POVRCH.** *„když je dané zanořování,
+nemají jít offsetové čáry kolmo od ní, ale mají se napojovat… nemůže
+kopírovat povrch, ale musí se přizpůsobit tomu zanoření."* Je to totéž, co
+už stálo v bodě D plánu 16. 9. (*„vodorovně → 45° podle zanořování →
+dolů"*).
+
+Zákrok: `js/calculators/cam/guideOffsetJoin.js` ořízne offsetový řetěz
+(`offsetPath`, `finishRefPath`) offsetovou čarou mezní čáry — úsek mezi
+PRVNÍM a POSLEDNÍM průsečíkem se nahradí rovnou úsečkou po té přímce.
+**Kontura se nemění** (na rozdíl od `plungeContourBridge.js`), mění se jen
+dráha středu plátku. Klíč plátku `plungeGuideJoinsOffset`, dnes `true` jen
+u kulaté — polygon svými mezními čarami konturu MOSTÍ, takže jeho offset
+vzniká napojený už z kontury.
+
+Dvě pojistky, obě vynucené měřením na dílu uživatele:
+- **`MIN_DIP` 0,02 mm** — mezní čára se dílu často jen DOTÝKÁ (u oblouku je
+  tečná), takže její offset protne offsetový oblouk ve dvou bodech pár desetin
+  od sebe. Bez prahu z toho vznikla tětiva 0,68 mm (prohnutí 0,003 mm).
+- **prohnutí se měří JEN mezi napojeními** — krajní segment pokračuje i ZA
+  napojením a tam mez porušená být nemusí. Na čele dílu to jinak vyrobilo
+  falešný nález (svislá offsetová čára mez překračuje 5 mm NAD napojením,
+  ale nahrazovaný kus pod ním leží celý na straně vzduchu).
+
+| díl uživatele (kulatá R10, ap 2,5, 45°) | před | po |
+|---|---|---|
+| zanoření strmější než 45° v Z 192–225 | **3× 20,5°** | **0** (místo nich 3× přesně 45°) |
+| napojení offsetu nahoře / dole | viselo ve vzduchu | `r60,481 Z216,756` / `r38,234 Z194,509` |
+| úběr (29 fixtures, nakreslený nůž) | 88 776,5 | **88 837,4 mm² (+60,9)** |
+| kolize (obojí standard polotovaru) | 3 / 5,8 mm² | **3 / 5,8 mm² (beze změny)** |
+
+Otisk se hnul na **2 z 29 fixtures** — `part-22-round-r10` a
+`part-18-face-big-radius`, tedy PŘESNĚ na obou kulatých; žádná jiná se
+nedotkla. `part-18` navíc zkrátil o dva průchody míň kvůli držáku a odebral
++22,8 mm².
+
+**DRUHÉ A TŘETÍ KOLO 17. 9. 2026 — KAM AŽ NAPOJENÍ SAHAT SMÍ.**
+První verze napojila jen čáru u příruby; u oblouku R10 a u čela uživatel
+hlásil „vůbec to na to nereaguje". Zkusil jsem proto hledat napojení i ZA
+koncem nakreslené mezní čáry (čára je oříznutá polotovarem, kdežto kužel
+zanoření pokračuje). **BYLO TO ŠPATNĚ A UŽIVATEL TO VRÁTIL:** u oblouku R10
+se řetěz vrací až 14 mm za koncem čáry, takže náhrada **přeřízla celé údolí**
+(„jde v tom údolí až na druhou stranu").
+
+**PLATÍ TEDY: napojení se hledá JEN v okolí nakreslené čáry** — o velikost
+offsetu za její konce, o tolik totiž offset zaoblí roh u kotvy. Nenajde-li se,
+řetěz se NEMĚNÍ a v náhledu se kreslí prostý kolmý offset končící na offsetu
+vlastního konce čáry.
+
+**TOHLE JE SCHVÁLENÝ VZOR — DĚLÁ TO TAK POLYGON.** Změřeno na dílu uživatele
+(polygon, natočení 15°, R 1): jeho mezní čára `(39,650 Z122,440)` →
+`(35,576 Z107,236)` konturu mostí a offset mostu jde `(41,518 Z123,976)` →
+`(36,929 Z106,848)`. Ten spodní bod je PROSTĚ offset konce mezní čáry
+(`+ n·(R + Přídavek)`), nic prodlouženého; do údolí pokračuje dál normální
+offset oblouku a krku.
+
+| díl uživatele, kulatá R10 | 1. kolo | 2. kolo (zamítnuto) | 3. kolo |
+|---|---|---|---|
+| čára u příruby | napojena | napojena | **napojena** |
+| čára u čela | nedělala nic | napojena | **napojena** |
+| čára u oblouku R10 | konce ve vzduchu | přeřízla údolí ⛔ | **konec na offsetu vlastního konce** |
+
+**CENA (29 fixtures proti stavu před §3.2e):** otisk se hnul jen na obou
+kulatých dílech, úběr **+94,6 mm²** (`part-22` +86,1, `part-18` +37,5),
+**kolize BEZE ZMĚNY na obou standardech polotovaru** — včetně `part-18`
+0/0,0, kterému 2. kolo přidávalo 0,54 mm².
 
 ---
 

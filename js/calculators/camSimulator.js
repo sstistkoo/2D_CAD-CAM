@@ -1920,28 +1920,46 @@ export function openCamSimulator(initialContour, initialGCode) {
           // uživatel ji chce vidět stejně (rozhodnutí 8. 9. 2026).
           ctx.strokeStyle = col; ctx.lineWidth = 1.5;
           ctx.setLineDash((g.downOnStock || g.plungeLimit) ? [] : [8, 4]); ctx.stroke(); ctx.setLineDash([]);
-          // offset dráhy středu plátku (korekce R) na stranu vzduchu (+X).
-          // Dva offsety jako u kontury: dokončovací (jen R) a hrubovací
-          // (R + Přídavek X/Z + Přídavek na hotovo) — po jednotlivých úsecích.
+          // Offset dráhy středu plátku (korekce R) na stranu vzduchu (+X).
+          // DVĚ ČÁRY: hrubovací (R + Přídavek X/Z + Přídavek na hotovo) a
+          // HOTOVNÍ (jen R). Obě, i když se dokončování nejede — uživatel je
+          // chce vidět obě (17. 9. 2026: *„přidej tam i tu hotovní"*), protože
+          // jsou to hranice, ne dráhy. Bez přídavků obě splývají a zůstává
+          // jediná.
+          // (Mezitím byla hotovní schovaná pod přepínač REF. To bylo špatné
+          // čtení dřívější připomínky: uživateli vadilo, že obě visely KOLMO
+          // od čáry s konci ve vzduchu, ne že jsou dvě.)
+          // Napojenou (oříznutou) podobu si mezní čára nese z výpočtu
+          // (`offRough`/`offFinish`, guideOffsetJoin.js) — pak se kreslí
+          // přesně ta, kterou má v sobě offsetový řetěz.
           if (tipROff > 0) {
             const aX = parseFloat(prms.allowanceX) || 0;
             const aZ = parseFloat(prms.allowanceZ) || 0;
             const fin = parseFloat(prms.finishAllowance) || 0;
-            const drawOff = (rOff, aXo, aZo) => {
+            const hasRough = aX > 1e-9 || aZ > 1e-9 || fin > 1e-9;
+            const drawOff = (rOff, aXo, aZo, joined) => {
               ctx.beginPath();
-              for (let k = 0; k + 1 < poly.length; k++) {
-                let n = getNormal(poly[k], poly[k + 1]);
-                if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
-                const ox = n.x * (rOff + aXo), oz = n.z * (rOff + aZo);
-                const o1 = toScreen(poly[k].x + ox, poly[k].z + oz);
-                const o2 = toScreen(poly[k + 1].x + ox, poly[k + 1].z + oz);
+              if (joined) {
+                const o1 = toScreen(joined.p1.x, joined.p1.z);
+                const o2 = toScreen(joined.p2.x, joined.p2.z);
                 ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
+              } else {
+                for (let k = 0; k + 1 < poly.length; k++) {
+                  let n = getNormal(poly[k], poly[k + 1]);
+                  if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
+                  const ox = n.x * (rOff + aXo), oz = n.z * (rOff + aZo);
+                  const o1 = toScreen(poly[k].x + ox, poly[k].z + oz);
+                  const o2 = toScreen(poly[k + 1].x + ox, poly[k + 1].z + oz);
+                  ctx.moveTo(o1.x, o1.y); ctx.lineTo(o2.x, o2.y);
+                }
               }
               ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
             };
-            drawOff(tipROff, 0, 0);
-            if (aX > 1e-9 || aZ > 1e-9 || fin > 1e-9)
-              drawOff(tipROff + fin, aX, aZ);
+            // Bez přídavků je hrubovací offset zároveň ten hotovní — kreslí
+            // se jednou a napojenou podobu si nese pod `offRough`.
+            if (hasRough) drawOff(tipROff + fin, aX, aZ, g.offRough);
+            else drawOff(tipROff, 0, 0, g.offRough);
+            if (hasRough) drawOff(tipROff, 0, 0, g.offFinish);
           }
           // koncové body (PŮVODNÍ konce) — viditelné a uchopitelné (tažení po
           // čáře = prodloužit/zkrátit; "+" vloží bod kontury v tečném bodě)
@@ -1977,13 +1995,18 @@ export function openCamSimulator(initialContour, initialGCode) {
       ctx.strokeStyle = C.offset; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // Referenční HOTOVNÍ offset kontury (jen rádius plátku, bez přídavků) —
-    // druhá tečkovaná čára vedle hrubovacího offsetu, přesně jako u mezních
-    // čar hlídání destičky (ty svoje dva offsety měly vždycky, kontura jen
-    // ten hrubovací). Čistá GEOMETRIE „kam dojede střed plátku na hotovo",
+    // HOTOVNÍ offset kontury (jen rádius plátku, bez přídavků) — druhá
+    // tečkovaná čára vedle hrubovacího offsetu, stejně jako u mezních čar
+    // hlídání destičky. Čistá GEOMETRIE „kam dojede střed plátku na hotovo",
     // ne dráha — kreslí se i s vypnutým Dokončováním. Prázdné pole, když
     // žádný přídavek není (pak by splynula s hrubovacím offsetem).
-    if (S.showRefGuides && S.showSimPath !== 'none' && (calc.finishRefPath || []).length > 0) {
+    //
+    // KRESLÍ SE VŽDY (rozhodnutí uživatele 17. 9. 2026: *„ať jsou tam ty dvě
+    // offsetové čáry, jedna od přídavku na hotovo a další na hotovo — je tam
+    // většinou jenom jedna"*). Přepínač REF, pod který spadla 15. 9., řídí od
+    // teď už jen tečkovanou PLÁNOVACÍ hranici polotovaru — ta zůstává
+    // referencí, po které se opravdu nejezdí.
+    if (S.showSimPath !== 'none' && (calc.finishRefPath || []).length > 0) {
       ctx.beginPath();
       calc.finishRefPath.forEach((seg, i) => {
         if (seg.isDegenerate) return;
@@ -3415,20 +3438,35 @@ export function openCamSimulator(initialContour, initialGCode) {
     const hasRough = aX > 1e-9 || aZ > 1e-9 || fin > 1e-9;
     const out = [];
     for (const g of getAllGuideLines()) {
+      // Napojená podoba z výpočtu má přednost — SNAP tak nabízí přesně ty
+      // body, kde offset mezní čáry navazuje na okolní offsetové čáry
+      // (guideOffsetJoin.js). Kreslení i SNAP tím čtou jednu geometrii.
+      // `offRough` je hrubovací offset (bez přídavků zároveň hotovní),
+      // `offFinish` hotovní reference. Co je napojené, kolmý dopočet
+      // už nepotřebuje.
+      const roughKind = hasRough ? 'rough' : 'finish';
+      if (g.offRough) out.push({ type: 'line', kind: roughKind, p1: { ...g.offRough.p1 }, p2: { ...g.offRough.p2 } });
+      if (g.offFinish) out.push({ type: 'line', kind: 'finish', p1: { ...g.offFinish.p1 }, p2: { ...g.offFinish.p2 } });
+      const needRough = !g.offRough;
+      const needFinish = hasRough && !g.offFinish;
+      if (!needRough && !needFinish) continue;
       // Po úsecích — lomené (via) čáry z hlídání držáku mají offset za segment.
       const pts = guidePolyPoints(g);
       for (let k = 0; k + 1 < pts.length; k++) {
         const a = pts[k], b = pts[k + 1];
         let n = getNormal(a, b);
         if (n.x < 0 || (Math.abs(n.x) < 1e-9 && n.z < 0)) n = { x: -n.x, z: -n.z };
-        out.push({ type: 'line', kind: 'finish',
-          p1: { x: a.x + n.x * tipROff, z: a.z + n.z * tipROff },
-          p2: { x: b.x + n.x * tipROff, z: b.z + n.z * tipROff } });
-        if (hasRough) {
-          const dxR = n.x * (tipROff + aX + fin), dzR = n.z * (tipROff + aZ + fin);
-          out.push({ type: 'line', kind: 'rough',
+        if (needRough) {
+          const dxR = n.x * (tipROff + (hasRough ? aX + fin : 0));
+          const dzR = n.z * (tipROff + (hasRough ? aZ + fin : 0));
+          out.push({ type: 'line', kind: roughKind,
             p1: { x: a.x + dxR, z: a.z + dzR },
             p2: { x: b.x + dxR, z: b.z + dzR } });
+        }
+        if (needFinish) {
+          out.push({ type: 'line', kind: 'finish',
+            p1: { x: a.x + n.x * tipROff, z: a.z + n.z * tipROff },
+            p2: { x: b.x + n.x * tipROff, z: b.z + n.z * tipROff } });
         }
       }
     }

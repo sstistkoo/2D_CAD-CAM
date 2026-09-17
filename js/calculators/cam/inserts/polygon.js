@@ -32,6 +32,8 @@ export function polygonInsert(prms) {
     // Mezní čára zanoření je u tohohle tvaru jen HRANICE, ne kontura
     // materiálu — dráhy jsou na to odladěné (viz round.js).
     plungeGuideCutsContour: false,
+    // Offset na mezní čáru zanoření se nenapojuje — viz round.js.
+    plungeGuideJoinsOffset: false,
     // Zvednutí programovaného bodu nad řezaný povrch (viz round.js): rádius
     // nosu je tu 0,4–1,2 mm, tedy pod rozlišením, na kterém jsou dráhy
     // těchto plátků odladěné. Ponecháno na 0, aby se hloubková
