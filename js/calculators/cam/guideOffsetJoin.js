@@ -251,7 +251,9 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
       hits.push({ i, t: h.t, pt: h.pt, s });
     }
   }
-  if (hits.length < 2) return null;
+  // Stačí JEDINÝ průsečík — kotva u horního konce čáry. Druhý konec může
+  // vzniknout i svislým dojezdem (`buildDrop`), který po přímce nejde.
+  if (hits.length < 1) return null;
   hits.sort((p, q) => (p.i - q.i) || (p.t - q.t));
   const first = hits[0];
   // Napojení NAHOŘE musí sedět u kotvy — tam mezní čára vyrůstá z kontury.

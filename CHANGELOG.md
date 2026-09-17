@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – zanoření už nesjede 21 mm naráz.** Krok zanořovacího řetězu
+  označený `pocketReposition` slibuje emisi, že nástroj stojí na konci
+  předchozího kroku; emise podle toho vydá přesun v aktuální hloubce bez
+  výjezdu nad konturu. Řetěz se staví správně (osm kroků po `ap`), jenže ho
+  roztrhne ořez podle Z-limitů (čelisti/koník) — a osiřelý krok pak z toho
+  přesunu udělal jednu rampu plným materiálem: na dílu uživatele 21 mm
+  hloubky a **269 mm² v jedné třísce** při ap 2,5. Nový
+  `js/calculators/cam/ops/long/chainRelink.js` běží až za tím ořezem a
+  osiřelý krok buď zahodí (když mu zbyl jen nájezd — poslat kvůli němu
+  nástroj na hloubku stálo změřených 189 mm² vnoření držáku), nebo přepíše na
+  samostatný vjezd s rampou nejvýš o jednu Hloubku záběru. Největší tříska
+  nad `ap` klesla z 269,1 na 24,4 mm², součet z 315 na 97 mm²; otisk se hnul
+  na jediné fixture, kolize beze změny, `tests/cam-ramp-chain` zezelenal
+  (`docs/cam-pravidla-drah.md` §3.2f).
 - **CAM – offsetová čára se napojuje na mezní čáru zanoření, místo aby
   kopírovala povrch.** U kulaté destičky sjížděla hrubovací offsetová čára po
   stěně strmější, než jakou plátek pod zadaným úhlem zanoření stihne sjet
@@ -19,12 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/cam-pravidla-drah.md` §3.2e). **Kontura se nemění**, jen dráha středu
   plátku; rozsah drží klíč plátku `plungeGuideJoinsOffset` (`inserts/*.js`),
   dnes `true` jen u kulaté. Napojení se hledá JEN v okolí nakreslené mezní
-  čáry; nenajde-li se, offsetový řetěz se nemění a čára končí na offsetu
-  vlastního konce — přesně jako u polygonálního plátku, na který uživatel
-  ukázal jako na vzor. (Mezikrok, který hledal napojení i za koncem čáry,
-  přeřízl u oblouku R10 celé údolí a byl vrácen.) Změřeno na 29 fixtures:
-  otisk se hnul jen na obou kulatých dílech, úběr +94,6 mm², **kolize BEZE
-  ZMĚNY na obou standardech polotovaru**.
+  čáry; když se tam nenajde, náhrada jde po čáře až na její konec a odtud
+  KOLMO DOLŮ k prvnímu segmentu řetězu pod sebou — offsetové čáry pod mezí se
+  vyhodí, protože se z nich generovaly dráhy podjíždějící úhel zanoření
+  (pravidlo uživatele 17. 9. 2026). Po přímce se za konec čáry nepokračuje:
+  u oblouku R10 by to přeřízlo celé údolí. Změřeno na 29 fixtures: otisk se
+  hnul jen na obou kulatých dílech, úběr +164,1 mm², **tvrdé kolize beze
+  změny**; jediná cena je měkký nález 0,54 mm² na `part-18` (jen proti
+  offsetové čáře — neshoda plánovače a validátoru na výšce odskoku), zapsaný
+  v `tests/cam-collision-free` i `tests/cam-face-range`.
 
 ### Changed
 - **CAM – obě offsetové čáry (s přídavkem i na hotovo) se kreslí všude.**

@@ -104,27 +104,34 @@ describe('offset mezní čáry zanoření — napojení na okolní řetěz', () 
     expect(near(res.to.z, -10.5)).toBe(true);
   });
 
-  it('ZA konec nakreslené čáry se napojení NEHLEDÁ', () => {
-    // Mezní čára končí tam, kde vyjela z materiálu. Protahovat její offset
-    // k prvnímu, co potká, znamená přeříznout celé údolí — nález uživatele
-    // 17. 9. 2026 na dílu s kulatou R10: *„jde v tom údolí až na druhou
-    // stranu"*. Polygon to nedělá: jeho offsetová čára končí na offsetu
-    // vlastního konce. `far` se vrací k mezi až daleko za `limit.p2` (Z100).
+  it('bez napojení jde řetěz po čáře a pak KOLMO DOLŮ', () => {
+    // Pravidlo uživatele 17. 9. 2026: *„protáhl bych to jen tam, kde by to
+    // mělo smysl, a pak spustil kolmo dolů ty offsetové čáry, a ty pod tím
+    // bych odstranil — páč z toho se generujou dráhy a to by nemělo, protože
+    // to podjíždí úhel zanoření."* Náhrada tedy NIKDY nejde po přímce za
+    // konec čáry (to by přeřízlo údolí); u konce se zlomí do svislice.
     const far = [line(12, -4, 9, 2), line(9, 2, 9, 150), line(9, 150, 14, 170)];
-    expect(joinChainToGuideOffset(far, limit, 5)).toBeNull();
-    // PROTIPŘÍKLAD: když se řetěz vrátí JEŠTĚ v okolí čáry, napojí se.
-    const nearBack = [line(12, -4, 9, 2), line(9, 2, 9, 90), line(9, 90, 14, 110)];
-    const res = joinChainToGuideOffset(nearBack, limit, 20);
+    const res = joinChainToGuideOffset(far, limit, 5);
     expect(res).not.toBeNull();
-    expect(near(res.to.x, 10)).toBe(true);
+    // Konec čáry = `limit.p2`, odtud svisle dolů (konstantní Z).
+    expect(near(res.to.x, limit.p2.x)).toBe(true);
+    expect(near(res.to.z, limit.p2.z)).toBe(true);
+    expect(res.drop).toBeTruthy();
+    expect(near(res.drop.z, res.to.z)).toBe(true);      // svisle = konstantní Z
+    expect(res.drop.x).toBeLessThan(res.to.x);          // dolů
+    // Řetěz je spojitý a segment pod mezí (x = 9 nad Z100) je pryč.
+    const c = res.chain;
+    for (let k = 1; k < c.length; k++) {
+      expect(near(c[k].p1.x, c[k - 1].p2.x)).toBe(true);
+      expect(near(c[k].p1.z, c[k - 1].p2.z)).toBe(true);
+    }
   });
 
-  it('napojení, které by zajelo do dílu, se odmítne', () => {
-    // `bridgeClears` hlídá, že náhrada nepřijde ke kontuře blíž než `minDist`.
-    const back = [line(12, -4, 9, 2), line(9, 2, 9, 90), line(9, 90, 14, 110)];
-    const contour = [line(5, 20, 5, 80)];
-    expect(joinChainToGuideOffset(back, limit, 20, { contour, minDist: 6 })).toBeNull();
-    expect(joinChainToGuideOffset(back, limit, 20, { contour, minDist: 3 })).not.toBeNull();
+  it('svislý dojezd, který by zajel do dílu, se odmítne', () => {
+    const far = [line(12, -4, 9, 2), line(9, 2, 9, 150), line(9, 150, 14, 170)];
+    const contour = [line(8.5, 60, 8.5, 140)];
+    expect(joinChainToGuideOffset(far, limit, 5, { contour, minDist: 3 })).toBeNull();
+    expect(joinChainToGuideOffset(far, limit, 5, { contour, minDist: 0.4 })).not.toBeNull();
   });
 
   it('pravidlo je KLÍČ PLÁTKU — nemá ho nikdo než kulatá', () => {
@@ -136,19 +143,22 @@ describe('offset mezní čáry zanoření — napojení na okolní řetěz', () 
   it('celý pipeline: offsetPath dílu s kulatou vede po mezní čáře', async () => {
     const { calc } = await runCamProg(load('part-22-round-r10.camprog'));
     const bridged = (calc.offsetPath || []).filter(s => s.fromGuideOffset);
-    // Napojí se ty mezní čáry, u kterých se řetěz k mezi VRÁTÍ ještě v jejich
-    // okolí — na tomhle dílu příruba a čelo. Čára u oblouku R10 se nenapojuje
-    // ZÁMĚRNĚ: řetěz se k ní vrací až 14 mm za jejím koncem, takže by náhrada
-    // přeřízla celé údolí (nález uživatele 17. 9. 2026). Její offset zůstává
-    // prostý kolmý posun končící na offsetu vlastního konce — jako u polygonu.
-    expect(bridged.length).toBe(2);
-    expect((calc.interferenceGuides || []).filter(g => g.offRough).length).toBe(2);
-    // Náhrada nesmí přeříznout údolí: žádná není delší než mezní čára + offset.
+    // Všechny tři mezní čáry dílu. U dvou se řetěz k mezi vrátí ještě u čáry
+    // (příruba, čelo); u oblouku R10 ne, a tam se náhrada u konce čáry zlomí
+    // SVISLE dolů — nikdy nepokračuje po přímce přes údolí.
+    expect(bridged.length).toBe(3);
+    expect((calc.interferenceGuides || []).filter(g => g.offRough).length).toBe(3);
+    // Žádná náhrada po mezní čáře není delší než sama čára (+ zaoblení rohu).
     for (const g of calc.interferenceGuides || []) {
       if (!g.offRough) continue;
       const lg = Math.hypot(g.x2 - g.x1, g.z2 - g.z1);
       const lo = Math.hypot(g.offRough.p2.x - g.offRough.p1.x, g.offRough.p2.z - g.offRough.p1.z);
       expect(lo, `náhrada ${lo.toFixed(1)} mm proti čáře ${lg.toFixed(1)} mm`).toBeLessThanOrEqual(lg + 25);
+    }
+    // Svislý dojezd: konstantní Z, klesající X.
+    for (const s2 of calc.offsetPath.filter(q => q.fromGuideDrop)) {
+      expect(near(s2.p1.z, s2.p2.z)).toBe(true);
+      expect(s2.p2.x).toBeLessThan(s2.p1.x);
     }
     // Napojení leží na sousedních segmentech řetězu — žádný konec ve vzduchu.
     const idx = calc.offsetPath.findIndex(s => s.fromGuideOffset);

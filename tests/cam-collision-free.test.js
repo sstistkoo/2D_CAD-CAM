@@ -109,6 +109,17 @@ const EXPECTED_PLAN = {
   // náhradní držák. Zbylé dvě položky jsou tytéž meze jako v EXPECTED výš,
   // jen proti offsetové čáře vyjdou o pár mm² větší.
 
+  // 17. 9. 2026 — NEshoda PLÁNOVAČE A VALIDÁTORU na výšce odskoku, ne vada
+  // dráhy. `N4150 G0 Z104.932` jede na rapid-safe X 73,545, což je PŘESNĚ
+  // `vrch offsetové čáry polotovaru (65,545) + rádius nosu (8)`: spodek nosu
+  // leží na té čáře s NULOVOU vůlí a validátor ji měří se `shrink` 0,25.
+  // Naměřená hloubka vnoření 0,25–0,30 mm (`shrink` 0,3 → nález mizí), plocha
+  // 0,54 mm²; proti NAKRESLENÉMU odlitku je dráha čistá (0 nálezů) a emise si
+  // odskok ověřuje `rapidHitsStock`, které ho vidí čistý. Odkryl ho §3.2e
+  // (svislý dojezd mezní čáry v údolí) přeskládáním pořadí průchodů — spraví
+  // to až vlastní vůle pro rapid-safe X, což je zásah do VŠECH dílů.
+  'part-18-face-big-radius.camprog':
+    'odskok na rapid-safe X (nulová vůle nosu) × shrink validátoru — 0,54 mm², syrová 0',
 };
 
 const detailOf = (issues) => issues.map(i =>

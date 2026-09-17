@@ -6,7 +6,8 @@
 // V camSimulator.js zůstává tenký wrapper calculate() → computeCalculation(S).
 
 import { bridge } from '../../bridge.js';
-import { _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
+import { topXOnLoop, _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
+import { getEffectivePlungeAngle } from './camMath.js';
 import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getPlungeGuardRange, getToolClearanceRange, markDominatedGuides, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { buildRawOffsets } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
@@ -14,6 +15,7 @@ import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { bridgePlungeGuidesIntoContour } from './plungeContourBridge.js';
 import { joinPlungeGuideOffsets } from './guideOffsetJoin.js';
+import { relinkOrphanChainSteps } from './ops/long/chainRelink.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
@@ -573,6 +575,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     }
   }
 
+
   // Pásový ořez dokončovací dráhy (rozsah 📐 i čelisti/koník) — ops/finish.js.
 
   if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
@@ -645,6 +648,32 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     }
     passes.length = 0;
     for (const p of clamped) passes.push(p);
+
+  // ── OSIŘELÝ KROK ZANOŘOVACÍHO ŘETĚZU ───────────────────────────────────
+  // Krok `pocketReposition` slibuje emisi, že nástroj stojí na konci
+  // předchozího kroku téhož řetězu; emise podle toho vydá přesun v aktuální
+  // hloubce BEZ výjezdu nad konturu. Když předchůdce v poli není, udělá
+  // `emitFeedToDepth` z toho přesunu jednu dlouhou rampu plným materiálem —
+  // na dílu uživatele 21 mm hloubky a 269 mm² v jediné třísce při ap 2,5
+  // (nález 17. 9. 2026: „tady mně to zanořuje naráz… taky chybí dodržení ap").
+  //
+  // POŘADÍ JE PODSTATNÉ: běží to AŽ TADY, nad HOTOVÝM polem. Uvnitř
+  // `genLongPasses` je řetěz ještě celý a navázaný (změřeno — tam to hlásí
+  // nula osiřelých); osiří ho až přeskupení, kterým pole prochází potom
+  // (dělení na úseky, doběhy, přeplánování bez hrbů).
+  {
+    const nRelink = relinkOrphanChainSteps(passes, {
+      step,
+      plungeTan: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
+      surfaceXAtZ: (z) => {
+        const loop = stockPlanLoop(prms, stockPathSegments);
+        return loop ? topXOnLoop(loop, z) : null;
+      },
+      isParting: getInsert(prms).cutsFullWidth,
+    });
+    if (nRelink > 0) foundErrors.push({ type: 'warning',
+      msg: `POZNÁMKA: ${nRelink} zanořovacích kroků nemělo na co navázat — vjíždějí samostatně, nejvýš o Hloubku záběru.` });
+  }
 
     // Ořez finishOffsetPath na dovolený PÁS [chuck, tail] — týž ořez jako
     // u rozsahu obrábění (clipFinishBand výš). Tady byla vada, kterou opravuje

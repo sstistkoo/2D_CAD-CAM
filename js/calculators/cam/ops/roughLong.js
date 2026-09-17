@@ -26,6 +26,7 @@ import { makePlungeLines } from './long/plungeLines.js';
 import { emitOpenInterval } from './long/openPass.js';
 import { emitPocketInterval } from './long/pocketPass.js';
 import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
+import { relinkOrphanChainSteps } from './long/chainRelink.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -1985,6 +1986,24 @@ export function genLongPasses(ctx) {
     passes, regions: _regions, edgeDissolved, stockZRangeAt,
     hasStock: intervalHasStock, dzScan,
   })) foundErrors.push({ type: 'warning', msg });
+
+  // ── OSIŘELÝ KROK ZANOŘOVACÍHO ŘETĚZU ──────────────────────────────
+  // POŘADÍ: AŽ ÚPLNĚ NAKONEC. Kotva řetězu je vazba na SOUSEDA v poli, a to
+  // pole ještě přeskládají doběhy a dělení regionů (`passes.splice` níž) —
+  // krok, který byl v půlce plánování navázaný, tím osiří. Kontrolovat to
+  // dřív znamená nezjistit nic (změřeno: na dílu uživatele to v tomhle místě
+  // hlásilo nula osiřelých a v `calc.passes` byl jeden).
+  // Krok označený `pocketReposition` slibuje emisi, že nástroj stojí na konci
+  // předchozího kroku téhož řetězu. Když ten předchůdce v `passes` není, je
+  // to lež a emise z přesunu udělá dlouhou rampu plným materiálem (na dílu
+  // uživatele 21 mm hloubky a 269 mm² v jedné třísce). Přepsat na samostatný
+  // vjezd s rampou nejvýš o Hloubku záběru — viz `long/chainRelink.js`.
+  {
+    const n = relinkOrphanChainSteps(passes, {
+      step, plungeTan: effPlungeTanL, surfaceXAtZ: offsetStockTopXAtZ, isParting,
+    });
+    if (n > 0) foundErrors.push({ type: 'warning', msg: `POZNÁMKA: ${n} zanořovacích kroků nemělo na co navázat — vjíždějí samostatně, nejvýš o Hloubku záběru.` });
+  }
 
   if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
     const tracker = new ResidualTracker(prms, stockPathSegments, {

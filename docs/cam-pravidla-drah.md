@@ -572,10 +572,15 @@ zanoření pokračuje). **BYLO TO ŠPATNĚ A UŽIVATEL TO VRÁTIL:** u oblouku R
 se řetěz vrací až 14 mm za koncem čáry, takže náhrada **přeřízla celé údolí**
 („jde v tom údolí až na druhou stranu").
 
-**PLATÍ TEDY: napojení se hledá JEN v okolí nakreslené čáry** — o velikost
-offsetu za její konce, o tolik totiž offset zaoblí roh u kotvy. Nenajde-li se,
-řetěz se NEMĚNÍ a v náhledu se kreslí prostý kolmý offset končící na offsetu
-vlastního konce čáry.
+**PLATÍ TEDY: po mezní čáře, pak KOLMO DOLŮ.** Napojení se hledá jen v okolí
+nakreslené čáry (o velikost offsetu za její konce — o tolik offset zaoblí roh
+u kotvy). Když se tam nenajde, náhrada jde po čáře až na její konec a **odtud
+svisle dolů** (konstantní Z, klesající X) k prvnímu segmentu řetězu pod sebou;
+všechno mezi kotvou a tím bodem se z řetězu VYHODÍ. Pravidlo uživatele:
+*„protáhl bych to jen tam, kde by to mělo smysl, a pak spustil kolmo dolů ty
+offsetové čáry, a ty pod tím bych odstranil — páč z toho se generujou dráhy
+a to by nemělo, protože to podjíždí úhel zanoření."* Obě části náhrady musí
+projít `bridgeClears` (od kontury nejméně `R + menší z přídavků`).
 
 **TOHLE JE SCHVÁLENÝ VZOR — DĚLÁ TO TAK POLYGON.** Změřeno na dílu uživatele
 (polygon, natočení 15°, R 1): jeho mezní čára `(39,650 Z122,440)` →
@@ -588,12 +593,63 @@ offset oblouku a krku.
 |---|---|---|---|
 | čára u příruby | napojena | napojena | **napojena** |
 | čára u čela | nedělala nic | napojena | **napojena** |
-| čára u oblouku R10 | konce ve vzduchu | přeřízla údolí ⛔ | **konec na offsetu vlastního konce** |
+| čára u oblouku R10 | konce ve vzduchu | přeřízla údolí ⛔ | **po čáře a pak kolmo dolů** |
 
 **CENA (29 fixtures proti stavu před §3.2e):** otisk se hnul jen na obou
-kulatých dílech, úběr **+94,6 mm²** (`part-22` +86,1, `part-18` +37,5),
-**kolize BEZE ZMĚNY na obou standardech polotovaru** — včetně `part-18`
-0/0,0, kterému 2. kolo přidávalo 0,54 mm².
+kulatých dílech, úběr **+164,1 mm²** (`part-22` +86,1, `part-18` +78,0),
+**tvrdé kolize BEZE ZMĚNY** (0/0,0 resp. 1/0,8 jako předtím). Cenou zůstává
+jeden měkký nález na `part-18` — 0,54 mm² jen proti offsetové čáře: odskok
+jede na rapid-safe X, což je přesně `vrch offsetové čáry + rádius nosu`, tedy
+s NULOVOU vůlí pod nosem, a validátor měří se `shrink` 0,25 (při 0,3 nález
+mizí); `rapidHitsStock` v emisi ho vidí čistý. Zapsáno ve dvou testech, které
+na tenž rychloposuv sahají — `EXPECTED_PLAN` v `tests/cam-collision-free`
+a výjimka u `part-18` v `tests/cam-face-range`. Spraví to až vlastní vůle pro
+rapid-safe X, což je zásah do VŠECH dílů.
+
+---
+
+### 3.2f OSIŘELÝ KROK ŘETĚZU ZANOŘENÍ = 21 mm TŘÍSKA (17. 9. 2026)
+
+Nález uživatele: `N850 G1 X40.545 Z196.820 F0.25 ; Zanoření 45.0°` sjede
+POSUVEM o **21 mm hloubky naráz** a odebere při tom **269 mm²** — při ap 2,5
+tedy osminásobek. *„Tady mně to zanořuje naráz a sjede celé zanoření po pár
+vrstvách naráz, taky chybí dodržení ap."*
+
+**Řetěz se přitom staví správně.** Změřeno: osm kroků po 2,5 mm
+(55,545 → 53,045 → … → 40,545 → 38,984). Do výsledných `passes` se ale
+dostane jen ten POSLEDNÍ. Krok označený `pocketReposition` slibuje emisi, že
+nástroj stojí na konci předchozího kroku téhož řetězu — a emise podle toho
+vydá přesun v aktuální hloubce BEZ výjezdu nad konturu. Bez předchůdce je
+ten slib lež a `emitFeedToDepth` z přesunu udělá jednu dlouhou rampu plným
+materiálem.
+
+**KDO ŘETĚZ ROZTRHNE:** ořez podle **Z-LIMITŮ (čelisti/koník)** v
+`calculatePipeline.js` — na dílu uživatele vyhodí 7 průchodů a mezi nimi
+i kroky řetězu. Kontrolovat vazbu dřív nemá smysl: uvnitř `genLongPasses`
+i hned za plánováním hlásí NULA osiřelých, protože tam je řetěz ještě celý.
+Náprava proto běží **až za tím ořezem** (`ops/long/chainRelink.js`).
+
+Dvě větve podle toho, co kroku zbylo:
+
+| stav osiřelého kroku | co s ním | proč |
+|---|---|---|
+| `zStart ≈ zEnd` — zbyl jen nájezd | **zahodit** | poslat nástroj na hloubku kvůli nulovému řezu stálo **189 mm² vnoření DRŽÁKU** (změřeno, náhradní obdélník) |
+| má vlastní řez | **samostatný vjezd** | rampa od povrchu offsetové čáry, nejvýš o jednu `ap` — týž strop jako u PRVNÍHO kroku řetězu |
+
+| díl uživatele (kulatá R10, ap 2,5) | před | po |
+|---|---|---|
+| největší tříska nad ap | **269,13 mm²** (21 mm) | **24,39 mm²** (7,52 mm) |
+| součet třísek nad ap | 315 mm² | **97 mm²** |
+| kolize, náhradní držák | 0 / 0,0 | **0 / 0,0** |
+| `tests/cam-ramp-chain` | ČERVENÝ (osiřelý krok) | **ZELENÝ** |
+
+Otisk se hnul na **1 z 29 fixtures** (`part-22-round-r10`), úběr s nakresleným
+nožem +86,1 mm², s náhradním držákem −91,5 mm².
+
+**ZBÝVÁ OTEVŘENÉ:** šest pohybů pořád bere radiálně víc než `ap` (11–24 mm²).
+Jsou to průchody „kapsa po kontuře", které sjíždějí po offsetu mezní čáry pod
+úhlem zanoření — tedy mez DODRŽUJÍ, ale radiální záběr při tom překročí `ap`.
+Je to jiná úloha než tahle (jiný zdroj průchodů), ne nedodělek téhle.
 
 ---
 
