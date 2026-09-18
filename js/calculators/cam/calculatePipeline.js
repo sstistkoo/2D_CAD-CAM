@@ -15,7 +15,7 @@ import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { bridgePlungeGuidesIntoContour } from './plungeContourBridge.js';
 import { joinPlungeGuideOffsets } from './guideOffsetJoin.js';
-import { relinkOrphanChainSteps } from './ops/long/chainRelink.js';
+import { relinkOrphanChainSteps, capRampsThroughAir } from './ops/long/chainRelink.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
@@ -649,32 +649,6 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     passes.length = 0;
     for (const p of clamped) passes.push(p);
 
-  // ── OSIŘELÝ KROK ZANOŘOVACÍHO ŘETĚZU ───────────────────────────────────
-  // Krok `pocketReposition` slibuje emisi, že nástroj stojí na konci
-  // předchozího kroku téhož řetězu; emise podle toho vydá přesun v aktuální
-  // hloubce BEZ výjezdu nad konturu. Když předchůdce v poli není, udělá
-  // `emitFeedToDepth` z toho přesunu jednu dlouhou rampu plným materiálem —
-  // na dílu uživatele 21 mm hloubky a 269 mm² v jediné třísce při ap 2,5
-  // (nález 17. 9. 2026: „tady mně to zanořuje naráz… taky chybí dodržení ap").
-  //
-  // POŘADÍ JE PODSTATNÉ: běží to AŽ TADY, nad HOTOVÝM polem. Uvnitř
-  // `genLongPasses` je řetěz ještě celý a navázaný (změřeno — tam to hlásí
-  // nula osiřelých); osiří ho až přeskupení, kterým pole prochází potom
-  // (dělení na úseky, doběhy, přeplánování bez hrbů).
-  {
-    const nRelink = relinkOrphanChainSteps(passes, {
-      step,
-      plungeTan: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
-      surfaceXAtZ: (z) => {
-        const loop = stockPlanLoop(prms, stockPathSegments);
-        return loop ? topXOnLoop(loop, z) : null;
-      },
-      isParting: getInsert(prms).cutsFullWidth,
-    });
-    if (nRelink > 0) foundErrors.push({ type: 'warning',
-      msg: `POZNÁMKA: ${nRelink} zanořovacích kroků nemělo na co navázat — vjíždějí samostatně, nejvýš o Hloubku záběru.` });
-  }
-
     // Ořez finishOffsetPath na dovolený PÁS [chuck, tail] — týž ořez jako
     // u rozsahu obrábění (clipFinishBand výš). Tady byla vada, kterou opravuje
     // právě přechod na pásový ořez:
@@ -713,6 +687,50 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
         msg: `Z-limity (čelisti/koník): ${parts.join(', ')}.`
       });
     }
+  }
+
+  // ── OSIŘELÝ KROK ZANOŘOVACÍHO ŘETĚZU ───────────────────────────────────
+  // Krok `pocketReposition` slibuje emisi, že nástroj stojí na konci
+  // předchozího kroku téhož řetězu; emise podle toho vydá přesun v aktuální
+  // hloubce BEZ výjezdu nad konturu. Když předchůdce v poli není, udělá
+  // `emitFeedToDepth` z toho přesunu jednu dlouhou rampu plným materiálem —
+  // na dílu uživatele 21 mm hloubky a 269 mm² v jediné třísce při ap 2,5
+  // (nález 17. 9. 2026: „tady mně to zanořuje naráz… taky chybí dodržení ap").
+  //
+  // POŘADÍ JE PODSTATNÉ: běží to AŽ TADY, nad HOTOVÝM polem. Uvnitř
+  // `genLongPasses` je řetěz ještě celý a navázaný (změřeno — tam to hlásí
+  // nula osiřelých); osiří ho až přeskupení, kterým pole prochází potom
+  // (dělení na úseky, doběhy, přeplánování bez hrbů).
+  // A MUSÍ TO BÝT MIMO BLOK Z-LIMITŮ. Když to běželo uvnitř, spustilo se jen
+  // s aktivními čelistmi/koníkem — a `tests/cam-finish-limits` ukázal, co to
+  // znamená: limity daleko MIMO díl pak měnily G-kód, ačkoli se ničeho
+  // nedotýkají.
+  {
+    const nRelink = relinkOrphanChainSteps(passes, {
+      step,
+      plungeTan: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
+      surfaceXAtZ: (z) => {
+        const loop = stockPlanLoop(prms, stockPathSegments);
+        return loop ? topXOnLoop(loop, z) : null;
+      },
+      isParting: getInsert(prms).cutsFullWidth,
+    });
+    if (nRelink > 0) foundErrors.push({ type: 'warning',
+      msg: `POZNÁMKA: ${nRelink} zanořovacích kroků nemělo na co navázat — vjíždějí samostatně, nejvýš o Hloubku záběru.` });
+  }
+
+  // ── RAMPA VYČIŠTĚNÝM PROSTOREM ─────────────────────────────────────────
+  // Kotva rampy sedí na povrchu polotovaru; u hlubší vrstvy je ale nad ní
+  // dávno vyhrubováno, takže rampa jela desítky mm posuvem a neodebrala nic
+  // (na dílu uživatele `N1670 … ; Rampa 45.0°`: 15 mm hloubky, 0,00 mm²).
+  // Zkrátit na nejvýš jednu Hloubku záběru — jen tam, kde je nad rampou
+  // opravdu vyčištěno (viz `capRampsThroughAir`).
+  {
+    const nCap = capRampsThroughAir(passes, {
+      step, plungeTan: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
+    });
+    if (nCap > 0) foundErrors.push({ type: 'warning',
+      msg: `POZNÁMKA: ${nCap} ramp zkráceno — vedly vyhrubovaným prostorem.` });
   }
 
   // Sim path

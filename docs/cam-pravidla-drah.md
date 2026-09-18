@@ -651,6 +651,47 @@ Jsou to průchody „kapsa po kontuře", které sjíždějí po offsetu mezní �
 úhlem zanoření — tedy mez DODRŽUJÍ, ale radiální záběr při tom překročí `ap`.
 Je to jiná úloha než tahle (jiný zdroj průchodů), ne nedodělek téhle.
 
+### 3.2g RAMPA VYČIŠTĚNÝM PROSTOREM + PROČ VRSTVY V KAPSE NEJDOU NÍŽ
+
+**Rampa, co nic neodebere (17. 9. 2026).** `N1670 G1 X60.471 Z215.239
+; Rampa 45.0°` začínala na `x0` = 75,464, tedy **15 mm nad** hloubkou
+průchodu, a odebrala **0,00 mm²** — materiál tam vzaly mělčí vrstvy. Kotva
+rampy sedí na povrchu polotovaru (kde se nos dotkne), což je správně pro
+PRVNÍ vrstvu; u hlubší je nad ní dávno vyhrubováno. `capRampsThroughAir`
+(`ops/long/chainRelink.js`) rampu zkrátí na nejvýš jednu `ap`, ale **jen
+tam, kde je nad ní opravdu vyčištěno** — tedy když nějaký dřívější průchod
+přes týž Z-rozsah šel na `x + ap` nebo hloub. Bez té podmínky by se zkrátila
+i rampa vrstvy, která teprve vjíždí do plného materiálu, a nos by zapíchl
+kolmo. Na dílu uživatele zkráceny 4 rampy (15,0 a 3× 8,6 mm). Na sadě 29 fixtures
+to navíc **sebralo poslední kolizi náhradního držáku**: 1 / 3,0 → **0 / 0,0 mm²**
+(`holder-region-roughing` přestal jít rychloposuvem přes materiál).
+
+**PAST PŘI ZAŘAZENÍ:** oba zásahy (`relinkOrphanChainSteps` i
+`capRampsThroughAir`) musí běžet **MIMO blok Z-limitů**. Když byly uvnitř,
+spustily se jen s aktivními čelistmi/koníkem — a `tests/cam-finish-limits`
+to chytl: limity daleko MIMO díl pak měnily G-kód, ačkoli se ničeho
+nedotýkají.
+
+**Proč se vrstvy v kapse zastaví (změřeno, NEOPRAVENO).** Uživatel:
+*„držák tam má spoustu místa, aby vrstvy pokračovaly."* Má pravdu — a je to
+doložené: dráha vygenerovaná tak, aby vrstvy sjely až dolů (r 37,96 místo
+r 52,96), má proti PLNÉMU náhradnímu držáku 20 × 200 **nula nálezů držáku**
+v obou standardech polotovaru.
+
+Zastavuje je `holderClampZEnd` v `ops/long/pocketPass.js` (větev
+`if (nz === null)`) — STATICKÁ obálka nad siluetou. Vyzkoušený „druhý názor"
+jemnějším modelem `holderFitArea` (měří proti ZBYTKU) pustil o jednu vrstvu
+víc (r 40,46) a **stálo to tvrdou kolizi 0 → 5,2 mm²** na `part-22`; zahozeno.
+
+**Proč to nestačí:** vrstvy musí sjet VŠECHNY, ne o jednu víc. Plán,
+ve kterém je celý žebřík, má jinak posazené intervaly i rampy a je čistý;
+plán, kde obálka drží zbytek a jedna vrstva proklouzne, čistý není. Tohle
+tedy není doladění prahu, ale přepracování hlídání držáku v kapse jako celku
+(varování přímo v kódu z 10. 8. 2026: tři pokusy, nejlepší z nich
+0 → 10 kolizí / 1034 mm²). Samostatná práce s vlastním měřením.
+
+---
+
 ---
 
 ### 3.3 Kapsa za bossem
@@ -810,6 +851,54 @@ zanoření. Bez zanořování se vynechá (`ops/long/pocketPass.js`).
 
 `ops/shared.js`. **Poučení:** práh přísnější než měřítko, kterým se výsledek
 posuzuje, se nedá obhájit.
+
+#### 4.2a PŘEKÁŽKA DRŽÁKU JE VE SVĚTĚ, NE V SOUŘADNICÍCH DRÁHY (18. 9. 2026)
+
+**Podmínka, která musí platit:** obrys držáku (`holderWorldLoop`) je ve
+SVĚTOVÝCH souřadnicích a sedí na programovaném bodě. Překážka, proti které se
+porovnává, musí být proto taky ve světě — tedy POVRCH materiálu, ne čára
+vedená STŘEDEM NOSU.
+
+`makeHolderClamp` (`toolEnvelope.js`) stavěl překážku ze siluety
+`offsetPath`, což je dráha středu nosu. U kulaté destičky leží ta čára o
+`noseLiftX` = R nad povrchem, takže se podmínka *„spodní hrana držáku nad
+materiálem"* tiše zpřísnila na *„STŘED NOSU nad materiálem"* — u R 10 o
+celých 10 mm. Polygon, upichovák i závitník mají `noseLiftX = 0`, takže se
+jich to nikdy netýkalo; je to další případ vzorce „kulatá rozbitá, polygon
+čistý" (`docs/cam-plan-2026-09-15.md` §0) a téhož rozporu jako
+§3.1 „KOTVA RAMPY JE V SOUŘADNICÍCH DRÁHY".
+
+**Jak se to projevilo** (nález uživatele 18. 9. 2026, *„ať mi ty vrstvy po ap
+jdou až dolů a ne jenom pár vrstev"*, kulatá R 10, `ap` 2,5): v údolí vedle
+hrbu Ø 100 skončil žebřík hloubek PŘESNĚ na úrovni hrbu (X 52,96 ≈ vrch
+offsetu 60,48 − R), ačkoli kapsa pokračuje o 20 mm níž. Ze 22 hloubek úseku
+Z 172…230 jich vypadlo 14, a všechny na jediném `return` v
+`ops/long/pocketPass.js` (větev `nz === null`, otevřené pokračování).
+
+**Oprava:** `buildObstacleLoops` dostal `dropX` a `makeHolderClamp` mu
+předává `getInsert(prms).noseLiftX`. Silueta se posouvá SVISLE, ne po
+normále — u kuželů a svislých stěn tím zůstane na bezpečné straně.
+
+**Odečítá se JEN `noseLiftX`, ne celý `tipR + přídavek`.** Zbytek nafouknutí
+je vědomá rezerva statického modelu: silueta je jen DOLNÍ odhad toho, co
+v okamžiku průchodu stojí (co ještě nikdo neodebral, model nezná — viz §4.3).
+Varianta „překážka = povrch + přídavek" (tedy `tipR` pryč) byla ZMĚŘENA a
+ZAMÍTNUTA: 29 fixtures dalo 7 kolizí / 1 027 mm² (`part-11-zleva-casting`
+806 mm², `range-end-leadout` 175 mm², `part-13-zleva-flange` 43 mm²) — a ty
+díly kulatou destičku vůbec nemají.
+
+**Změřeno (nasazená varianta):** otisk se hnul na 1 z 29 fixtures
+(`part-22-round-r10`, jediná s kulatou destičkou), úběr sady 91 836,7 →
+91 972,3 mm², kolize náhradního držáku 0 → 0, u nakresleného nože 3 / 5,8 →
+2 / 4,9 mm² (zmizel nález `part-22-round-r10 · rapid`). Na dílu uživatele
+(matice `cam_quality`): kulatá R 10 úběr 75,1 → 77,2 %, kolize 0 → 0, v tom
+údolí 4 → 9 vrstev po přesných `ap`. Polygonové řádky matice bajt po bajtu
+stejné.
+
+**Co tím NEZMIZÍ:** zbytek údolí pod X 40,5 drží MEZNÍ ČÁRA ZANOŘENÍ (§3.2d),
+ne držák — offset je na ni napojený (§3.2e), takže hlouběji se kulatá pod
+45° prostě nedostane. Strmější úhel to nespraví (změřeno: při 80° skončí
+žebřík ještě dřív, na X 50,46).
 
 ### 4.3 Dva modely materiálu
 

@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – u kulaté destičky jdou vrstvy po `ap` až dolů, ne jen pár.** Obálka
+  držáku (`makeHolderClamp`) se stavěla ze siluety offsetové čáry, tedy
+  z dráhy STŘEDU NOSU, kdežto obrys držáku je ve světových souřadnicích.
+  U kulaté destičky je mezi tím `noseLiftX` = R, takže se podmínka „spodní
+  hrana držáku nad materiálem" zpřísnila na „střed nosu nad materiálem" —
+  u R 10 o celých 10 mm. V údolí vedle hrbu Ø 100 proto žebřík hloubek
+  skončil přesně na úrovni hrbu (na dílu uživatele `N1620 G1 X52.964`) a ze
+  22 hloubek úseku jich 14 vypadlo na jediném `return` v `pocketPass.js`.
+  Nově se silueta před stavbou překážky posune o `noseLiftX` dolů
+  (`buildObstacleLoops({ dropX })`); polygon, upichovák i závitník mají
+  `noseLiftX = 0`, takže se pro ně nezměnilo nic. Na dílu uživatele 4 → 9
+  vrstev po přesných `ap` a úběr 75,1 → 77,2 % bez jediné nové kolize; na
+  sadě 29 fixtures se hnul otisk jediné fixture (`part-22-round-r10`), úběr
+  +135,6 mm² a kolizí o jednu MÍŇ. Varianta „překážka = povrch + přídavek"
+  (odečíst celý `tipR`) byla změřena a zamítnuta — 7 kolizí / 1 027 mm²
+  na dílech, které kulatou destičku vůbec nemají
+  (`docs/cam-pravidla-drah.md` §4.2a).
+- **CAM – rampa už nejede desítky mm vyhrubovaným prostorem.** Kotva rampy
+  sedí na povrchu polotovaru, takže u hlubší vrstvy začínala vysoko nad
+  vlastní hloubkou a neodebrala nic (na dílu uživatele `N1670 … ; Rampa 45.0°`
+  15 mm hloubky, 0,00 mm²; v náhledu z toho byla dlouhá čára nad skutečným
+  zanořením). `capRampsThroughAir` ji zkrátí na nejvýš jednu Hloubku záběru —
+  jen tam, kde nad ní dřívější průchod opravdu vyhruboval, aby se nezkrátila
+  rampa vrstvy vjíždějící do plného materiálu. Na dílu uživatele 4 rampy
+  (15,0 a 3× 8,6 mm); na sadě 29 fixtures navíc zmizela poslední kolize
+  náhradního držáku (1 / 3,0 → 0 / 0,0 mm²). `docs/cam-pravidla-drah.md` §3.2g.
 - **CAM – zanoření už nesjede 21 mm naráz.** Krok zanořovacího řetězu
   označený `pocketReposition` slibuje emisi, že nástroj stojí na konci
   předchozího kroku; emise podle toho vydá přesun v aktuální hloubce bez

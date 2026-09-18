@@ -101,3 +101,55 @@ export function relinkOrphanChainSteps(passes, { step, plungeTan, surfaceXAtZ, i
   }
   return fixed;
 }
+
+/**
+ * Zkrátí RAMPU, která vede vyčištěným prostorem.
+ *
+ * Nález uživatele 17. 9. 2026: `N1670 G1 X60.471 Z215.239 ; Rampa 45.0°`
+ * začíná na `x0` = 75,464, tedy 15 mm nad hloubkou průchodu, a **neodebere
+ * nic** (změřeno 0,00 mm²) — materiál tam vzaly mělčí vrstvy. Je to 21 mm
+ * posuvu vzduchem a v náhledu z toho vznikne dlouhá čára nad skutečným
+ * zanořením. *„Odstraň tu čáru zanořování, co je nad tím zanořováním."*
+ *
+ * Kotva rampy leží na povrchu polotovaru (tam, kde se nos dotkne), což je
+ * správně pro PRVNÍ vrstvu. U hlubší vrstvy je ale prostor nad ní už
+ * vyhrubovaný, takže rampa smí začít nejvýš o `step` (ap) nad vlastní
+ * hloubkou — týž strop, jaký má první krok zanořovacího řetězu
+ * (`roughLong.js`, větev `first`).
+ *
+ * BEZPEČNOSTNÍ PODMÍNKA: zkrátit se smí JEN tam, kde je nad rampou opravdu
+ * vyčištěno — tedy když nějaký DŘÍVĚJŠÍ průchod přes týž Z-rozsah šel až
+ * na `x + step` nebo hloub. Bez toho by se rampa zkrátila i u vrstvy, která
+ * do plného materiálu teprve vjíždí, a nos by tam zapíchl kolmo.
+ *
+ * @param {Array} passes průchody (mění se na místě)
+ * @param {object} o
+ * @param {number} o.step      Hloubka záběru (ap)
+ * @param {number} o.plungeTan tangens úhlu zanoření
+ * @returns {number} kolik ramp se zkrátilo
+ */
+export function capRampsThroughAir(passes, { step, plungeTan }) {
+  if (!Array.isArray(passes) || !(step > 0) || !(plungeTan > 1e-9)) return 0;
+  let fixed = 0;
+  for (let i = 0; i < passes.length; i++) {
+    const p = passes[i];
+    if (!p || p.type !== 'long' || !p.ramp) continue;
+    if (!(p.ramp.x0 - p.x > step + 0.05)) continue;
+    const zLo = Math.min(p.zStart, p.ramp.z0), zHi = Math.max(p.zStart, p.ramp.z0);
+    // Kam až se nad rampou UŽ obrobilo (nejmenší hloubka dřívějšího průchodu
+    // přes týž Z-rozsah).
+    let cut = Infinity;
+    for (let k = 0; k < i; k++) {
+      const q = passes[k];
+      if (!q || q.type !== 'long' || q.x === undefined) continue;
+      const qLo = Math.min(q.zStart, q.zEnd), qHi = Math.max(q.zStart, q.zEnd);
+      if (Math.min(qHi, zHi) - Math.max(qLo, zLo) <= 0.5) continue;   // neleží nad sebou
+      if (q.x < cut) cut = q.x;
+    }
+    const x0 = Math.max(p.x + step, cut);
+    if (!(x0 < p.ramp.x0 - 0.05)) continue;    // není co zkracovat
+    p.ramp = { x0, z0: p.zStart + (x0 - p.x) / plungeTan };
+    fixed++;
+  }
+  return fixed;
+}

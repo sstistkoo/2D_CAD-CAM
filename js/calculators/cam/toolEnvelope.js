@@ -128,10 +128,19 @@ export function buildToolForbiddenRegion(obstacleLoops, prms, { backside = false
  *
  * Vrací pole smyček, nebo null když silueta nedává smysl / po otevření
  * nic nezbude (celá překážka byla jen slupka).
+ *
+ * `dropX` — o kolik se silueta POSUNE DOLŮ v X, než se z ní staví překážka.
+ * Slouží k převodu čáry vedené STŘEDEM NOSU na POVRCH, když spotřebitel
+ * pracuje ve světových souřadnicích (viz `makeHolderClamp`). Posouvá se
+ * svisle, ne po normále: u kuželů a svislých stěn tím zůstane silueta na
+ * bezpečné straně (výš / širší v Z), než skutečný povrch.
  */
-export function buildObstacleLoops(path, prms, { stockPathSegments = null, openR = 0 } = {}) {
-  const silhouette = offsetSilhouetteLoop(path);
-  if (!silhouette) return null;
+export function buildObstacleLoops(path, prms, { stockPathSegments = null, openR = 0, dropX = 0 } = {}) {
+  const silhouette0 = offsetSilhouetteLoop(path);
+  if (!silhouette0) return null;
+  const silhouette = dropX > 0
+    ? silhouette0.map(p => ({ x: Math.max(0, p.x - dropX), z: p.z }))
+    : silhouette0;
   let obstacleLoops = [silhouette];
   const stockLoop = buildStockLoopRaw(prms, stockPathSegments || []);
   if (stockLoop) {
@@ -266,7 +275,28 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
     + Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
     + (parseFloat(prms.finishAllowance) || 0) + 0.1,
     0.3);
-  const obstacleLoops = buildObstacleLoops(offsetPath, prms, { stockPathSegments, openR });
+  // ── PŘEKÁŽKA MUSÍ BÝT VE SVĚTĚ, NE V SOUŘADNICÍCH DRÁHY (18. 9. 2026) ───
+  // `offsetPath` vede STŘEDEM NOSU, kdežto `holder` (holderWorldLoop) je
+  // obrys ve SVĚTĚ, posazený na programovaný bod. Držák se tedy porovnával
+  // se siluetou nafouknutou o `noseLiftX` — u kulaté R 10 o CELÝCH 10 mm.
+  // Podmínka „spodní hrana držáku nad materiálem" se tím zpřísnila na „STŘED
+  // NOSU nad materiálem": v údolí vedle hrbu Ø100 tak žebřík hloubek skončil
+  // přesně na úrovni hrbu (nález uživatele 18. 9. 2026 — „vrstvy po ap mají
+  // jít až dolů, ne jen pár": v úseku Z 172…230 vypadlo 14 z 22 hloubek).
+  // Polygon/upichovák/závitník mají `noseLiftX = 0`, takže se jich to nikdy
+  // netýkalo — přesně ten vzorec „kulatá rozbitá, polygon čistý"
+  // (docs/cam-plan-2026-09-15.md §0).
+  //
+  // ODEČÍTÁ SE JEN `noseLiftX`, ne celý `tipR + přídavek`. Zbytek nafouknutí
+  // je VĚDOMÁ rezerva statického modelu: silueta je jen DOLNÍ odhad toho, co
+  // v okamžiku průchodu stojí (co ještě nikdo neodebral, model nezná).
+  // Zkoušeno i naostro (překážka = povrch + přídavek, tedy `tipR` pryč): na
+  // sadě 29 fixtures z toho bylo 7 kolizí / 1 027 mm² (part-11-zleva-casting
+  // 806 mm², range-end-leadout 175 mm², part-13-zleva-flange 43 mm²) —
+  // a ty díly kulatou destičku vůbec nemají. Rezervu proto nechat.
+  const noseLiftX = Math.max(0, getInsert(prms).noseLiftX || 0);
+  const obstacleLoops = buildObstacleLoops(offsetPath, prms,
+    { stockPathSegments, openR, dropX: noseLiftX });
   if (!obstacleLoops) return null;
   const forbidden = buildTipForbiddenRegion(obstacleLoops, holder);
   if (forbidden.length === 0) return null;
