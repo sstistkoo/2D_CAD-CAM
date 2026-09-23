@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – vrstvy po `ap` dojedou až na osu; destička smí přejet střed.**
+  Hloubková posloupnost končila `noseLiftX` (u kulaté = R) nad osou: dráha je
+  v souřadnicích středu nosu, povrch se z ní počítá odečtením `noseLiftX`, a
+  jakmile vyšel záporný, silueta polotovaru (ta žije jen na x ≥ 0) neměla co
+  protnout — `stockZRangeAt` vrátilo `null` a hloubka se zahodila i s
+  materiálem pod ní. Na dílu uživatele tak u čela na ose zůstal stát sloupec
+  r 0–9,5 × Z 22,6 mm (přesah nad dílem 36,3 mm² → po opravě 7,5 mm²),
+  ačkoli dalších pět hloubek bylo připravených (žebřík skončil
+  na `N1400 G1 Z355.803`). Nově se povrch pod osou čte na ose — pod osou je
+  řez pořád platný, destička jde nosem skrz střed a bere celý průřez (pokyn
+  uživatele 18. 9. 2026: *„nevadí, že plátek bude z půlky pod osou"*). Ptá se
+  jen hloubková smyčka; detekce úseků zůstává bitově stejná. Na dílu
+  uživatele 79 → 84 průchodů a úběr 77,2 → 77,6 % bez jediné nové kolize
+  (`docs/cam-pravidla-drah.md` §4.2b).
+- **CAM – konec zanořovací rampy se u kulaté destičky přestal hledat o R vedle.**
+  `cutFloorTab` si zapisuje `p.x`, tedy střed nosu, ale průchod vykope až na
+  `p.x − R`; `residTopSafe` proto hlásilo o celé R víc stojícího materiálu.
+  `atResidTop` pak tvrdilo „je čím rampovat" i tam, kde je dávno vzduch,
+  `stockEntryRamp` vydal rampu dlouhou 0,24 mm a sjezd k jejímu začátku se
+  emitoval RADIÁLNĚ — na dílu uživatele sedm 90° sjezdů po ~2 mm místo
+  nájezdu po kontuře. Sjezdy strmější než úhel zanoření u kulaté R 10 klesly
+  7 → 0 (R 8: 8 → 1, R 2: 8 → 5), úběr i kolize beze změny
+  (`docs/cam-pravidla-drah.md` §4.2c).
 - **CAM – u kulaté destičky jdou vrstvy po `ap` až dolů, ne jen pár.** Obálka
   držáku (`makeHolderClamp`) se stavěla ze siluety offsetové čáry, tedy
   z dráhy STŘEDU NOSU, kdežto obrys držáku je ve světových souřadnicích.

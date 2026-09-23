@@ -900,6 +900,100 @@ ne držák — offset je na ni napojený (§3.2e), takže hlouběji se kulatá p
 45° prostě nedostane. Strmější úhel to nespraví (změřeno: při 80° skončí
 žebřík ještě dřív, na X 50,46).
 
+#### 4.2b DESTIČKA SMÍ PŘEJET OSU (18. 9. 2026, pokyn uživatele)
+
+> *„Nevadí, že plátek bude z půlky pod osou, na obrábění by to nemělo mít
+> vliv — po `N1400 G1 Z355.803` aby to pokračovalo s `ap` až dolů."*
+
+**Podmínka:** hloubková posloupnost nesmí končit `noseLiftX` nad osou. Dráha
+je v souřadnicích STŘEDU NOSU; povrch se z ní počítá odečtením `noseLiftX`,
+takže jakmile střed klesne pod rádius, vyjde povrch ZÁPORNÝ — a silueta
+polotovaru, která žije jen na x ≥ 0, nemá co protnout. `stockZRangeAt` vrátí
+`null` a `if (!sz) continue` zahodí hloubku i s materiálem pod ní.
+
+Na dílu uživatele tak u čela na ose zůstal stát pahýl **r 0–9,5 × Z 22,6 mm**
+(zbytek v pásu Z 340–375 přesahoval díl o **36,3 mm²**): žebřík
+skončil na X 10,545 (= `ap` mřížka nejblíž nad R 10), ačkoli `minPartX` byl
+−0,125 a dalších pět hloubek bylo připravených.
+
+**Oprava:** `stockZRangeAt(Xpath, crossAxis)` čte povrch na ose
+(`Math.max(0, …)`). Pod osou je řez pořád platný — destička jde nosem skrz
+střed a bere celý průřez.
+
+**Ptá se JEN hloubková smyčka.** Detekce úseků (`regions.js`) a
+`checkPlanInvariants` se ptají dál beze změny, aby dělení dílu zůstalo
+bitově stejné (§5.3). **Změřeno, ne odhadnuto:** varianta, kde `crossAxis`
+platí GLOBÁLNĚ pro všechny volající, dala na 29 fixtures otisk SHODNÝ
+a na dílu uživatele G-kód bajt po bajtu stejný — nasazená je proto ta
+cílená, protože nemá jak hnout dělením na úseky.
+
+**Druhý volající — `stockZRangeAt(stepX)` v dokončení ořízlých ramp
+(`pendingRampCompletions`) — zůstal ZÁMĚRNĚ beze změny.** Přeposlání
+`crossAxis` i tam bylo změřeno: otisk 29 fixtures SHODNÝ a G-kód dílu
+uživatele bajt po bajtu stejný, takže by to byla změna bez efektu. Kdyby se
+tam někdy pod osu dostal krok řetězu, `szStep === null` tam znamená jen
+vypuštění jednoho ze tří členů `Math.max` pro podlahu úseku.
+
+**Změřeno:** otisk se hnul na 1 z 29 fixtures (`part-22-round-r10`), úběr
+sady 91 972,3 → 92 001,2 mm², kolize beze změny (náhradní držák 0 / 0,
+nakreslený nůž 2 / 4,9 mm² — týž seznam nálezů). Na dílu uživatele kulatá
+R 10: 79 → 84 průchodů, úběr 77,2 → 77,6 %, kolize 0.
+
+#### 4.2c PODLAHA `cutFloorTab` JE DRÁHA, NE POVRCH (18. 9. 2026)
+
+Šesté místo rozporu „střed nosu × povrch" (§4.2a, [[project_cam-tool-centre-vs-surface]]).
+`cutFloorTab` (`ops/long/depthTabs.js`) si zapisuje `p.x`, tedy STŘED NOSU —
+jenže průchod vykope až na `p.x − noseLiftX` (nos je koule R). `residTopSafe`
+v `ops/long/entryRamp.js` z toho hlásil o celé R víc stojícího materiálu,
+než tam je.
+
+Projevilo se to až s §4.2b. **Naměřeno** na témže bodě (X 57,96 Z 214,19,
+díl uživatele): před §4.2b vrátil `residTopSafe` **40,545**, po ní **60,464**
+— přitom skutečná podlaha po průchodu X 60,464 leží na 50,46 (střed nosu
+mínus R). Obě čísla tedy byla špatně, jen jinak; 40,545 navíc neodpovídá
+žádnému průchodu v tom pásu Z, takže hodnota nepřišla z líného prefixu, ale
+z podstrčené podlahy (`activeFloorTab`) — *tahle část je odvozená, ne
+změřená*. Jisté je, že po §4.2b se čte 60,464 a to je právě o R vedle.
+Důsledek: `atResidTop` řeklo „vstup je pod
+povrchem, je čím rampovat" i tam, kde je dávno vzduch, `stockEntryRamp` vydal
+rampu dlouhou **0,24 mm** a sjezd k jejímu začátku se emitoval RADIÁLNĚ — na
+dílu uživatele sedm 90° sjezdů po ~2 mm místo nájezdu po kontuře.
+
+**Oprava:** `residTopSafe` odečte `noseLiftX` od hodnoty z podlahy. Ostatní
+tvary mají `noseLiftX = 0`, takže se jich to nedotkne — **změřeno
+IZOLOVANĚ** (jen tahle oprava, bez §4.2b): otisk se hnul u JEDINÉ fixture,
+`part-22-round-r10`, a to při shodné délce programu (555 → 555 řádků, jiný
+obsah). Zbylých 28 fixtures bajt po bajtu stejně.
+
+`residTopSafe` má JEDINÉHO konzumenta — `atResidTop`, a ten se používá jen
+uvnitř `stockEntryRamp` a jeho půlení. Hlídání DRŽÁKU tudy NEVEDE (má vlastní
+`residTopAt` v `holderFit.js`), takže dosah téhle opravy končí u kotvy rampy.
+Směr je navíc ten bezpečný: nižší podlaha → `atResidTop` je častěji `true` →
+rampa se spíš NEvydá (a když ano, je kratší), takže se jede normální nájezd
+po kontuře.
+
+**Změřeno na dílu uživatele** (sjezdy strmější než úhel zanoření; „po §4.2b"
+= jen s opravou žebříku přes osu, „po §4.2c" = s oběma):
+
+| R | před oběma | po §4.2b | po §4.2c |
+|---|---|---|---|
+| 0,8 | 5 | 5 | **4** |
+| 2 | 8 | 8 | **5** |
+| 5 | 7 | 8 | 7 |
+| 8 | 8 | 8 | **1** |
+| 10 | 0 | **7** | **0** |
+| 12 | 0 | **3** | **0** |
+
+Sedmičku u R 10 vyrobila §4.2b (odkryla vadu, kterou dotud stínila
+`activeFloorTab`); §4.2c ji srovnala a k tomu snížila sjezdy i tam, kde byly
+odjakživa. Třísek nad `ap` u R 10: 95 → 101 (§4.2b) → **94**. Kolize a úběr
+beze změny ve všech třech stavech.
+
+**Neopravené zůstává, že tutéž podlahu čte i hlídání DRŽÁKU**
+(`holderFit.js`, `residTopAt`) — tam je bezpečná strana opačná (raději hlásit
+víc materiálu), takže se to nedá přepsat jedním odečtením. Samostatné
+rozhodnutí, ne vedlejší efekt téhle opravy.
+
 ### 4.3 Dva modely materiálu
 
 - **Výškové tabulky** (`ops/long/depthTabs.js`) — levné, vzorkované po 0,25 mm.

@@ -167,8 +167,21 @@ export function genLongPasses(ctx) {
   // uživatele) okno nestačilo a průchod zůstal stát na kůře:
   // `N1580 G1 Z119.340` místo Z 116,835, tedy 2,5 mm před tečkovanou čarou.
   const planLoopSpan = () => stockLoopOffsetFullL;
-  const stockZRangeAt = (Xpath) => {
-    const X = Xpath - noseLiftL;
+  // `crossAxis` — DESTIČKA SMÍ PŘEJET OSU (pokyn uživatele 18. 9. 2026:
+  // *„nevadí, že plátek bude z půlky pod osou, na obrábění by to nemělo mít
+  // vliv"*). Dráha je v souřadnicích STŘEDU NOSU, povrch se z ní dopočítá
+  // odečtením `noseLiftX`; jakmile střed klesne pod rádius, vyjde povrch
+  // ZÁPORNÝ a silueta polotovaru (ta žije jen na x ≥ 0) nemá co protnout →
+  // `zs.length < 2` → hloubka se zahodí. U kulaté R 10 tak žebřík skončil
+  // 10 mm nad osou, ačkoli u čela na ose stál sloupec materiálu (na dílu
+  // uživatele Ø 18 × 22 mm za `N1400 G1 Z355.803`).
+  // Pod osou je ale řez pořád platný — destička jde nosem skrz střed a bere
+  // celý průřez, takže se povrch v takovém případě čte na ose (x = 0).
+  // Ptá se JEN hloubková smyčka; detekce ÚSEKŮ (`regions.js`) a kontrola
+  // plánu se ptají dál beze změny, aby dělení dílu zůstalo bitově stejné
+  // (měřeno: obě varianty daly týž G-kód, tahle je z nich ta konzervativní).
+  const stockZRangeAt = (Xpath, crossAxis = false) => {
+    const X = crossAxis ? Math.max(0, Xpath - noseLiftL) : (Xpath - noseLiftL);
     const loop = planLoopSpan();
     // Bez siluety (degenerovaný polotovar) totéž pravidlo z rozměrů válce.
     if (!loop || loop.length < 3) {
@@ -500,7 +513,7 @@ export function genLongPasses(ctx) {
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner, rampClearOfContour } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
-      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt });
+      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt, noseLiftX: noseLiftL });
 
   // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
@@ -838,7 +851,7 @@ export function genLongPasses(ctx) {
   let lastDepthWithPasses = null;
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
-    const sz = stockZRangeAt(currentX);
+    const sz = stockZRangeAt(currentX, true);   // destička smí přejet osu — viz výš
     if (!sz) continue;
     // Rozsah obrábění (📐): ořízne Z-zónu na uživatelem zadaný interval;
     // + Z-okno regionu (region roughing).

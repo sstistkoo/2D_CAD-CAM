@@ -28,10 +28,12 @@ import { pointInLoop } from '../../../../geom/geomCore.js';
  * @param rangeZLoL          dolní mez rozsahu obrábění 📐
  * @param offsetXAt          hloubka offsetu kontury na Z
  * @param blockedAt          (x, z) => je tam překážka? — viz hlavička
+ * @param noseLiftX          zvednutí programovaného bodu nad řezaný povrch
+ *                           (`cam/inserts/*`; R u kulaté, 0 u ostatních)
  */
 export function makeEntryRamp({
   T, holderFitsAt, stockLoopOffsetL, plungeDirL, effPlungeTanL, rangeZLoL,
-  offsetXAt, blockedAt,
+  offsetXAt, blockedAt, noseLiftX = 0,
 }) {
   const { DZ_CAP, capTab, stockTopTab } = T;
   const holderEntryCapZ = (X, zHi, zFloor) => {
@@ -113,7 +115,18 @@ export function makeEntryRamp({
       if (i < 0 || i >= tab.length) continue;
       if (tab[i] > cut) cut = tab[i];
     }
-    return cut === -Infinity ? t : Math.min(t, cut);
+    // PODLAHA JE DRÁHA, POVRCH JE O `noseLiftX` NÍŽ (18. 9. 2026).
+    // `cutFloorTab` si zapisuje `p.x`, tedy STŘED NOSU. U kulaté destičky
+    // ale průchod vykope až na `p.x − R` (nos je koule R), takže model
+    // hlásil o celé R víc stojícího materiálu, než tam je. Důsledek:
+    // `atResidTop` řeklo „vstup je pod povrchem, je čím rampovat" i tam, kde
+    // je dávno vzduch, `stockEntryRamp` vydal rampu dlouhou 0,24 mm a sjezd
+    // k jejímu začátku se emitoval RADIÁLNĚ — na dílu uživatele z toho bylo
+    // sedm 90° sjezdů po ~2 mm místo nájezdu po kontuře.
+    // Šesté místo téhož rozporu, viz docs/cam-pravidla-drah.md §4.2a
+    // a [[project_cam-tool-centre-vs-surface]]. Ostatní tvary mají
+    // `noseLiftX = 0`, takže se jich to nedotkne.
+    return cut === -Infinity ? t : Math.min(t, cut - noseLiftX);
   };
   const atResidTop = (q) => {
     const top = residTopSafe(q.z);

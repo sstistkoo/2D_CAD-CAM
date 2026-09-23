@@ -76,18 +76,39 @@ describe('makeHolderClamp (integrace parametrů)', () => {
   });
 
   it('zkrátí průchod před stěnou tak, aby držák nevjel do siluety', () => {
-    const clamp = makeHolderClamp(holderPrms, stepOffsetPath);
+    // BEZ ZVEDNUTÍ PROGRAMOVANÉHO BODU (polygon má `noseLiftX = 0`), takže
+    // `stepOffsetPath` je rovnou povrch a platí původní čistě geometrická
+    // úvaha: průchod na x=30 (r30) má držák se spodkem na x=40 a ten leží
+    // CELÝ na obrobené straně (z ∈ [z_tip, z_tip+20]) — od 25. 8. 2026, dřív
+    // byl vystředěný (z ± 10). Jeho LEVÁ hrana je proto sama špička, takže
+    // o šikmý přechod zavadí až tam, kde silueta dosahuje výšky x=40, tj. na
+    // z = −48 → clamp ≈ −47,9 (s rezervou 0,1). S vystředěným obdélníkem to
+    // bylo −37,9, protože hrana předbíhala špičku o 10 mm.
+    const clamp = makeHolderClamp({ ...holderPrms, toolShape: 'polygon' }, stepOffsetPath);
     expect(clamp).not.toBeNull();
-    // Průchod na x=30 (r30): držák má spodek na x=40 a leží CELÝ na obrobené
-    // straně (z ∈ [z_tip, z_tip+20]) — od 25. 8. 2026, dřív byl vystředěný
-    // (z ± 10). Jeho LEVÁ hrana je proto sama špička, takže o šikmý přechod
-    // zavadí až tam, kde silueta dosahuje výšky x=40, tj. na z = −48
-    // → clamp ≈ −47,9 (s rezervou 0,1). S vystředěným obdélníkem to bylo
-    // −37,9, protože hrana předbíhala špičku o 10 mm.
     const nz = clamp(30, 0, -49);
-    expect(nz).toBeGreaterThan(-48.2);
+    expect(nz).toBeGreaterThan(-48.0);
     expect(nz).toBeLessThan(-47.5);
     // Průchod na x=46 (nad vším) → beze změny
     expect(clamp(46, 0, -80)).toBe(-80);
+  });
+
+  it('u KULATÉ destičky se silueta sníží o rádius nosu (18. 9. 2026)', () => {
+    // `makeHolderClamp` dostává offsetovou čáru, která vede STŘEDEM NOSU,
+    // kdežto obrys držáku je ve SVĚTĚ. Překážka se proto staví ze siluety
+    // snížené o `noseLiftX` (u kulaté = R) — jinak by se podmínka „spodní
+    // hrana držáku nad materiálem" četla jako „střed nosu nad materiálem"
+    // a u velkého R by zahazovala celé hloubky
+    // (`docs/cam-pravidla-drah.md` §4.2a).
+    //
+    // Na tomhle schodu je přechod kuželem se sklonem dz/dx = −10/25 = −0,4,
+    // takže snížení siluety o R 0,8 posune mez přesně o 0,4 × 0,8 = 0,32 mm.
+    const flat = makeHolderClamp({ ...holderPrms, toolShape: 'polygon' }, stepOffsetPath);
+    const round = makeHolderClamp({ ...holderPrms, toolShape: 'round' }, stepOffsetPath);
+    expect(round).not.toBeNull();
+    expect(round(30, 0, -49) - flat(30, 0, -49)).toBeCloseTo(-0.32, 2);
+    // Neznámý tvar spadne na kulatou (viz getInsert), takže se chová stejně.
+    const dflt = makeHolderClamp(holderPrms, stepOffsetPath);
+    expect(dflt(30, 0, -49)).toBeCloseTo(round(30, 0, -49), 6);
   });
 });
