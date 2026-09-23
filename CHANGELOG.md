@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – v žebříku hloubek už nezůstane díra širší než `ap`.** `passEntryZ`
+  umí vjezd stáhnout z kraje Z-okna tam, kde skutečně začíná polotovar, ale
+  neptá se, jestli se od toho místa dá vést řez — zastupoval to test
+  `blockedAt` na jediném `Z`. Když okno pod posunutým vjezdem vyšlo kratší
+  než řezný krok, hloubka nevydala nic a nastoupila uzavírací bisekce
+  s degenerovaným průchodem. Na dílu uživatele tak vypadla hloubka X 29,118
+  a mezi `N2730 G1 Z148.208` a `N2780 G1 Z148.310` zůstal krok **4,097 mm**
+  při `ap` 2,5. Nově se na posunutém vjezdu jednou skenuje a při prázdném
+  výsledku platí původní kraj okna. Žebřík úseku je po opravě
+  34,118 → 31,618 → **29,118** → 26,618 → … po přesných `ap`; porušení kroku
+  na celém dílu 2 → 1 a to zbylé jsou dva průchody v RŮZNÝCH úsecích
+  (překryv v Z −29,7 mm), tedy ne díra. Otisk 1 z 29 fixtures
+  (`part-22-round-r10`, +1 ř.), úběr i kolize sady beze změny
+  (`docs/cam-pravidla-drah.md` §4.2d).
 - **CAM – vrstvy po `ap` dojedou až na osu; destička smí přejet střed.**
   Hloubková posloupnost končila `noseLiftX` (u kulaté = R) nad osou: dráha je
   v souřadnicích středu nosu, povrch se z ní počítá odečtením `noseLiftX`, a

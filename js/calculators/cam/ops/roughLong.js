@@ -865,8 +865,30 @@ export function genLongPasses(ctx) {
     // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
     // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.
     // Null = na téhle hloubce v okně žádný materiál není.
-    const effZMax = passEntryZ(
-      Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, regZHi), effZMin, sz, currentX);
+    const rawZHi = Math.min(machiningRange ? Math.min(sz.zMax, machiningRange.zHi) : sz.zMax, regZHi);
+    let effZMax = passEntryZ(rawZHi, effZMin, sz, currentX);
+    // ── POSUNUTÝ VJEZD, NA KTERÉM SE NEDÁ ŘEZAT (23. 9. 2026) ──────────────
+    // `passEntryZ` umí vjezd stáhnout z kraje okna na místo, kde SKUTEČNĚ
+    // začíná polotovar. Jestli se od toho místa dá vést řez, se ale neptá —
+    // zastupuje to test `blockedAt` na tom jednom Z, a ten rozhoduje jen
+    // podle kontury POD krajem materiálu. Když okno pod posunutým vjezdem
+    // vyjde kratší než řezný krok, hloubka nevydá NIC a v žebříku zůstane
+    // díra širší než Hloubka záběru.
+    //
+    // Nález uživatele 23. 9. 2026 (kulatá R 10, `ap` 2,5): v úseku
+    // Z 127,6…172,5 vypadla hloubka X 29,118 a mezi `N2730 G1 Z148.208`
+    // (X 30,715) a `N2780 G1 Z148.310` (X 26,618) zůstal krok **4,097 mm**.
+    // Sousední hloubky 31,618 a 26,618 přitom jedou normálně od kraje úseku
+    // (Z 172,53) — jen u 29,118 padl kraj materiálu (Z 148,41) o vlásek NAD
+    // offset čelní stěny, takže `blockedAt` řekl „volno" a okno pod vjezdem
+    // vyšlo 0,1 mm. Místo vrstvy pak nastoupila uzavírací bisekce s
+    // degenerovaným průchodem 0,2 mm (X 30,715).
+    //
+    // Ptáme se proto NAROVINO — jeden sken navíc, a jen tam, kde se vjezd
+    // opravdu posunul. Když na posunutém vjezdu žádný interval není, platí
+    // původní kraj okna, tedy přesně to, co dělá větev `blockedAt` vedle.
+    if (effZMax !== null && effZMax < rawZHi - 1e-9
+        && scan(currentX, effZMax, effZMin, true).intervals.length === 0) effZMax = rawZHi;
     if (effZMax === null || effZMax - effZMin < 0.1) continue;
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
     // nepřekračuje currentX). První interval (od pravé hrany

@@ -994,6 +994,56 @@ beze změny ve všech třech stavech.
 víc materiálu), takže se to nedá přepsat jedním odečtením. Samostatné
 rozhodnutí, ne vedlejší efekt téhle opravy.
 
+#### 4.2d POSUNUTÝ VJEZD, NA KTERÉM SE NEDÁ ŘEZAT (23. 9. 2026)
+
+**Podmínka:** mezi sousedními hloubkami jednoho úseku nesmí vzniknout krok
+větší než Hloubka záběru (`ap`).
+
+`passEntryZ` (`ops/long/intervalScan.js`) umí vjezd stáhnout z kraje
+Z-okna na místo, kde SKUTEČNĚ začíná polotovar — okno úseku i rozsah 📐
+můžou začínat ve vzduchu. Jestli se od toho místa dá vést řez, se ale
+neptá; zastupuje to `blockedAt` na tom jednom `Z`, a ten se dívá jen na
+konturu POD krajem materiálu. Když okno pod posunutým vjezdem vyjde kratší
+než řezný krok, hloubka nevydá NIC — a v žebříku zůstane díra.
+
+**Nález uživatele 23. 9. 2026** (kulatá R 10, `ap` 2,5): v úseku
+Z 127,6…172,5 vypadla hloubka **X 29,118** a mezi `N2730 G1 Z148.208`
+(X 30,715) a `N2780 G1 Z148.310` (X 26,618) zůstal krok **4,097 mm**.
+Sousední hloubky 31,618 i 26,618 přitom jedou normálně od kraje úseku
+(Z 172,53); jen u 29,118 padl kraj materiálu (Z 148,41) o vlásek NAD offset
+čelní stěny, takže `blockedAt` řekl „volno" a okno pod vjezdem vyšlo 0,1 mm.
+Místo vrstvy pak nastoupila **uzavírací bisekce** a vydala degenerovaný
+průchod dlouhý 0,2 mm (X 30,715) — ten díru zamaskoval, ale nezaplnil.
+
+**Oprava:** jeden sken navíc, a jen tam, kde se vjezd opravdu posunul. Když
+na posunutém vjezdu není žádný interval, platí původní kraj okna — přesně
+to, co dělá větev `blockedAt` vedle. Tím se zachová i `entryCapped`
+a `regionCapped`, takže hloubka jede stejnou větví jako její sousedé.
+
+> **ZAMÍTNUTÁ VARIANTA:** přeskočit `passEntryZ` až po prvním prázdném skenu
+> a jen přepsat `entryZ`. Vypadá jako totéž, ale `entryZ !== effZMax` zapne
+> `entryCapped`, což mimo jiné VYPÍNÁ uzavírací bisekci — na dílu uživatele
+> z toho byl krok 5,0 mm místo 4,097 mm, tedy horší než před opravou.
+> Posunout se musí `effZMax`, ne `entryZ`.
+
+**Změřeno:** žebřík úseku je po opravě 34,118 → 31,618 → **29,118** →
+26,618 → 24,118 → 21,618 → 19,143, tedy krok přesně `ap` (poslední 2,475 je
+vynucená vrstva na `minPartX`). Na celém dílu klesla porušení kroku
+**2 → 1**, a ta zbylá (60,471 → 56,618 = 3,853) není díra v žebříku: ty dva
+průchody leží v RŮZNÝCH úsecích (Z 195–215 vs. 116–143, překryv −29,7 mm),
+a žebřík je per úsek (§5.3). Otisk se hnul u 1 z 29 fixtures
+(`part-22-round-r10`, +1 řádek), úběr sady i kolize **bajt po bajtu stejné**
+(89 062,8 / 2 / 4,9 mm² a 92 001,2 / 0 / 0,0). Matice `cam_quality` na dílu
+uživatele beze změny ve všech sloupcích kromě počtu řezných pohybů u R 10
+(261 → 262).
+
+**POZOROVÁNÍ, které oprava přinesla a NEŘEŠÍ:** nová vrstva dostane týž
+dojezd po kontuře jako vrstva pod ní (`N2740` i `N2800` jedou
+`G1 X29.777 Z148.232`), takže se 0,66 mm dojezdu vydá dvakrát. Je to práce
+pro dedup „bez schodků", který takové úseky jinak vypouští — sem nedosáhl.
+Není to kolize ani porušená podmínka, takže to opravu neblokuje; patří to
+k [[project_cam-duplicate-paths]] a je to samostatné rozhodnutí.
+
 ### 4.3 Dva modely materiálu
 
 - **Výškové tabulky** (`ops/long/depthTabs.js`) — levné, vzorkované po 0,25 mm.
