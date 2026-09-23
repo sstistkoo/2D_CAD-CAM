@@ -939,6 +939,15 @@ sady 91 972,3 → 92 001,2 mm², kolize beze změny (náhradní držák 0 / 0,
 nakreslený nůž 2 / 4,9 mm² — týž seznam nálezů). Na dílu uživatele kulatá
 R 10: 79 → 84 průchodů, úběr 77,2 → 77,6 %, kolize 0.
 
+**CENA V ČASE — tohle je z celé série ten drahý krok.** Hloubky pod
+`noseLiftX` dřív padaly hned na `if (!sz) continue`; teď projdou CELÝM tělem
+smyčky. Na dílu uživatele to je **183 → 215 hloubek** v těle (z toho bez
+jediného průchodu 45 → 67) a **838 → 1024 volání `scan`**. Generování
+zdraželo o ~0,3 s. Je to zaplacené za 5 vrstev navíc u čela na ose, které si
+uživatel vyžádal — ale kdyby se čas jednou hledal, začíná se TADY: většina
+těch 22 nových prázdných hloubek leží v úsecích, kde u osy stejně nic
+nezbývá.
+
 #### 4.2c PODLAHA `cutFloorTab` JE DRÁHA, NE POVRCH (18. 9. 2026)
 
 Šesté místo rozporu „střed nosu × povrch" (§4.2a, [[project_cam-tool-centre-vs-surface]]).
@@ -1036,6 +1045,21 @@ a žebřík je per úsek (§5.3). Otisk se hnul u 1 z 29 fixtures
 (89 062,8 / 2 / 4,9 mm² a 92 001,2 / 0 / 0,0). Matice `cam_quality` na dílu
 uživatele beze změny ve všech sloupcích kromě počtu řezných pohybů u R 10
 (261 → 262).
+
+**ČAS GENEROVÁNÍ — POZOR NA SONDU NAVÍC.** První verze téhle opravy volala
+`scan` jako SAMOSTATNOU sondu před hlavním skenem. Na každé posunuté hloubce
+se tím `scan` (u `booleanRoughing` jede přes Clipper) pustil DVAKRÁT
+s týmiž argumenty a generování dílu uživatele zdražilo o **13 %**
+(5,37 → 6,08 s, medián ze 3 běhů). Opraveno tak, že se rozhoduje až podle
+výsledku hlavního skenu — druhý sken se zaplatí jen tam, kde by hloubka
+jinak nevydala nic. Výsledný G-kód je bajt po bajtu týž a volání `scan`
+kleslo **1024 → 986** (o jednu uzavírací bisekci míň, a ta stojí až 20
+skenů). Změřeno interleaved, min z 5 běhů: před/po opravou nerozeznatelné
+(5,02/5,04/4,99 vs 5,03/4,97/5,02 s).
+
+**Měřit `scan` počítadlem, ne stopkami.** Stopky na téhle mašině kolísaly
+o ±1,5 s mezi běhy a dvakrát ukázaly opak pravdy; počet volání `scan` je
+deterministický.
 
 **POZOROVÁNÍ, které oprava přinesla a NEŘEŠÍ:** nová vrstva dostane týž
 dojezd po kontuře jako vrstva pod ní (`N2740` i `N2800` jedou
@@ -1413,6 +1437,99 @@ délce sloučené vrstvy, ne jen v jejím původním úseku.
 NEJVĚTŠÍHO PRŮMĚRU, ne „napřed ta, ze které přijíždím". Na dílech sady to
 vychází stejně (tie-break je vyšší Z, tedy pravá), ale na dílu, kde má levá
 strana větší průměr, by šla první.
+
+#### KULATÁ DESTIČKA: KONEC DÍLU PO VRSTVÁCH JAKO POLYGON (23. 9. 2026)
+
+Nález uživatele na jeho dílu (Z 0…90, dva soubory lišící se jen tvarem
+plátku): *polygon jede dobře, ber ho jako vzor, jak to má jet po vrstvách*.
+Kulatá R 10 tentýž konec rozsekala na tři úseky (hranice Z 61,3 a Z 2,5),
+vrstvy X 47 / 44,5 / 42 se přetrhly v Z 2,5 a kus Z 2,5 → −9 se dojížděl až
+úplně nakonec; vrstvy nad hrbem Z 55–67 končily uprostřed jeho plošiny
+a pod plošinou u čela se táž dráha objížděla znovu.
+
+**VŠECHNY OPRAVY VISÍ NA KLÍČÍCH PLÁTKU** (`inserts/round.js` zapnuto,
+polygon / upichovák / závitový vypnuto). Uživatel: *„plátky by měly mít svůj
+soubor — jestli oprava pohne i polygonálním plátkem, refaktoruj to, aby to
+nemělo nic společného"*. První verze byla ve sdíleném kódu a hnula dvěma
+polygonovými a dvěma upichovacími fixtures; zúžený test držáku (bod 4)
+přepnul polygonu na jeho dílu volbu plánu a stál ho 2,2 % úběru. Proto klíče.
+
+1. **Falešný hrb za čelem dílu** — `peakSearchWithinPart`
+   (`ops/long/regions.js`, `contourPeakSplits`). Za posledním bodem kontury
+   offsetová čára klesá jen proto, že se nos ODVALUJE přes roh čela; u R 10
+   o 3,4 mm > ap → hrb. Hrby se teď hledají jen v Z-rozsahu kontury
+   (+ Přídavek Z).
+2. **Test „vejde se držák přes hrb" bral dráhu místo povrchu**
+   (`holderFitsOverContour`): `offsetXAt − noseLiftX`, stejně jako
+   `residTopAt` v `holderFit.js`. Klíč netřeba — ostatní plátky mají
+   `noseLiftX = 0`, takže se u nich nic nemění. Sedmé místo rozporu „střed
+   nosu × povrch" (§4.2a, šesté je `cutFloorTab` v §4.2c).
+3. **Hloubky NAD hrbem ze společné mřížky** — `sharedLadderAbovePeak`. Bez
+   toho se sousední úseky rozešly (43,556 × 44,566), dolní přenechal hloubku
+   hornímu, který ji neměl, a vrchní vrstvy vypadly (tříska 5 mm). Pod hrbem
+   zůstává vlastní mřížka úseku; na styku se krok rozdělí rovnoměrně
+   (39,566 → 37,066 → 36,056), aby nepřesáhl ap. **Styk leží POD hrbem:**
+   první verze dala mezivrstvu 37,811 nad hrbem, ta se jako každá hloubka
+   nad hrbem rozpustila do souseda s jinou mřížkou a vedle sebe vznikly
+   vrstvy 37,811 / 37,446 / 37,066 (Z ≈ 21, nález uživatele). Skupinová
+   mřížka proto pokračuje i pod hrb. *Zamítnuto:* společná
+   mřížka pro všechny hloubky (na `part-22` s nakresleným nožem přidala
+   kolizi rychloposuvu 0,8 mm²).
+4. **Test držáku jen po hranice, které dál drží** —
+   `holderFitPeakGroupWindow`. Kontroloval celé okno polotovaru přes díl
+   (Z −9 … 269) a padal na osazení v Z 202, za údolím Z 91,9, kam se
+   sloučená vrstva nikdy nedostane. Teď jen skupina úseků spojených hranami
+   hrbu (a údolími, jen když se na té hloubce rozpouštějí). **U polygonu
+   vypnuto** — tam to přepne volbu plánu na plán po úsecích a odkryje
+   starší vadu níž.
+5. **„Kapsa po kontuře", co nic nového neuřízne, se nevydá** —
+   `skipPocketsCuttingNothing` (`ops/long/alreadyCut.js`,
+   `ops/long/pocketPass.js`). Ptá se na CELÝ průchod (nájezd + tělo) proti
+   podlaze už naplánovaných drah, s nosem jako kružnicí R; práh 0,01 mm²
+   (týž jako rychloposuv po projeté dráze). Ptát se jen na tělo intervalu
+   bylo špatně: na `part-8` bere materiál právě NÁJEZD (4 mm²). A u polygonu
+   (R = 0) musí nos zasáhnout aspoň půl sloupce tabulky, jinak vyjde 0 všude.
+6. **Nájezd po už projeté dráze = rychloposuv** — `leadInRapidOverCut`
+   (značka `overCut` jako u dojezdu, `emitOverCutRapid` v `gcodeEmit.js`).
+   Průchod X 37,066 opravdu bere proužek (1,6 mm²), takže zůstává, ale
+   plošinu Z 9,5 … −4,4 přejede `G0`. Když je projetý CELÝ nájezd (bez
+   rampy), nechá se z něj jen POSLEDNÍ úsek — začíná v rohu, kde kontura
+   zahne, ne uprostřed plošiny hrbu na hranici úseku (`G0 Z61.271 / G1
+   X37.456`, *„ať to nezačíná nikde uprostřed toho hrbolu"*).
+7. **Kapsa dojede svůj schod** — `pocketLeadOutNoStep`
+   (`ops/long/pocketPass.js`). Kapsový průchod, který narazí na stěnu,
+   dojede po obrysu nahoru k předchozí vrstvě stejně jako otevřený
+   (`openPass.js`). Dosud odskočil hned a na levém boku údolí Z 16…27 zůstaly
+   schody (`G1 Z24.407`, `G1 Z27.203` bez dojezdu).
+8. **Uzavírací rampa, která nic nevezme, se vynechá** (týž klíč jako bod 5):
+   rampa X 37,446 jela vedle hotové vrstvy X 37,066 a znovu sjela sjezd u
+   čela — model 0 mm², úběr po vynechání beze změny.
+
+*Zamítnuto:* hranici úseku u hrbu posunout ze středu plošiny na její KONEC
+(kde kontura zahne). Začátky uprostřed zmizely, ale u osazení Z 195–216
+pak kontrola odložených vjezdů zahodila 4 hloubky kapsy (úběr 77,6 → 76,2 %).
+Začátek nájezdu se proto řeší ořezem projetého nájezdu (bod 6), ne hranicí.
+Stejně zamítnuto: u kulaté hrb na úseky nedělit vůbec (jako polygon) —
+na konci dílu hezké, ale jinde rychloposuv do kapsy za hrbem Z 127 (27 mm²).
+
+**Změřeno proti stavu na začátku sezení** (otisk 29 fixtures, sweep × 2
+držáky): změnil se JEN `part-22-round-r10`. Náhradní držák: průchodů
+84 → 73, úběr 5 094,0 → 5 094,9, nálezy proti offsetové čáře 2 → 0.
+Nakreslený nůž: průchodů 80 → 67, úběr 5 120,8 → 4 987,3, nálezy proti
+offsetové čáře 0 → 2 (1,4 + 1,4 mm², syrová silueta 0) — viz vada níž.
+Díl uživatele R 10: úběr 77,6 → 77,7 %, průchodů 84 → 73, kolize 0.
+Polygon uživatele bajt po bajtu beze změny.
+
+**OTEVŘENÉ — kapsa za hrbem v plánu po úsecích.** Když se hranice úseku
+položí na vrchol hrbu, dolní úsek na ní nenajde kotvu rampy (stojí tam hrb)
+a hloubku zahodí celou (`regionCappedRaw && !isFinite(zCap)` → `continue`
+v `ops/roughLong.js`), i když materiál za hrbem je obyčejná kapsa. Plán bez
+dělení ji bere kapsovou větví s nájezdem přes hrb. Odtud ztráta u
+`part-22` s nakresleným nožem (chybí hloubky X 44,1 → 34,1 v úseku
+Z 91,9…127,6) a u polygonu uživatele by to byla kapsa u osazení Z 195–220.
+*Zamítnuto:* pustit takovou hloubku do kapsové větve (`behindPeak`) — polygon
+tím dostal třísku 7,5 mm, strmý sjezd a kolizi rychloposuvu, kulatou to
+nezměnilo.
 
 ### 6.1 Ostatní
 

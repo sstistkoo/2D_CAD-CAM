@@ -32,10 +32,8 @@ export function computeThreadPassCuts(totalDepth, forcedPasses) {
 // partOffActive v generateAutoGCode pro sémantiku přídavků.
 export function partOffGeom(prms, calc) {
   const pz = parseFloat(prms.partOffZ);
-  const shape = prms.toolShape;
   const ins = getInsert(prms);
   const R = Math.max(0, parseFloat(prms.toolRadius) || 0);
-  const wIns = Math.max(0, parseFloat(prms.toolLength) || 0);
   // Pracovní rádius: kulatý plátek = R; upichovák = rohový rádius (≤ půl šířky).
   const rIns = ins.partOffCornerR;
   const allowX = parseFloat(prms.allowanceX) || 0;          // Dojezd X (spodní hrana)
@@ -63,7 +61,7 @@ export function partOffGeom(prms, calc) {
   } else if (allowX >= xStockTop - 1e-4) {
     canCut = false; reason = '! Dojezd (Dojezd X) leží nad polotovarem – nic k obrobení.';
   }
-  return { pz, shape, rIns, allowX, allowZ, finAllow, dir, xStockTop, xBottomEdge: allowX,
+  return { pz, rIns, allowX, allowZ, finAllow, dir, xStockTop, xBottomEdge: allowX,
            startEdgeX: xCenterStart - rIns,   // spodní hrana v místě startu posuvu (=povrch, když neaktivní)
            xCenterTop, xCenterStart, xCenterTarget, zRough, zFinal, doFinish, canCut, reason };
 }

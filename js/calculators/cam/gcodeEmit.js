@@ -639,17 +639,23 @@ export function generateAutoGCode(S, calc) {
       return Math.abs(polyArea(rapidStock.collide(sweep))) <= 0.01;
     } catch { return false; }
   };
-  const emitLeadOutLine = (seg) => {
+  // Vydá úsek jako rychloposuv, když je označený `overCut` a zbytek to
+  // potvrdí; jinak neudělá nic a vrátí false. Sdílí dojezd i NÁJEZD po
+  // kontuře (`ops/roughEmit.js`) — obojí sleduje tutéž offsetovou dráhu.
+  const emitOverCutRapid = (seg) => {
+    if (!seg.overCut) return false;
     const dXc = Math.abs(seg.x2 - cur.x), dZc = Math.abs(seg.z2 - cur.z);
     const pureZ = dXc < 1e-6 && dZc > 1e-9;
     const pureX = dZc < 1e-6 && dXc > 1e-9;
-    if (seg.overCut && (pureZ || pureX) && leadOutAlreadyCut(cur.x, cur.z, seg.x2, seg.z2)) {
-      simCounter += 1;
-      addN(pureZ ? `G0 Z${seg.z2.toFixed(3)}${note('', 'Po už projeté dráze')}`
-        : `G0 X${xDia(seg.x2)}${note('', 'Po už projeté dráze')}`, simCounter);
-      setPos(seg.x2, seg.z2);
-      return;
-    }
+    if (!(pureZ || pureX) || !leadOutAlreadyCut(cur.x, cur.z, seg.x2, seg.z2)) return false;
+    simCounter += 1;
+    addN(pureZ ? `G0 Z${seg.z2.toFixed(3)}${note('', 'Po už projeté dráze')}`
+      : `G0 X${xDia(seg.x2)}${note('', 'Po už projeté dráze')}`, simCounter);
+    setPos(seg.x2, seg.z2);
+    return true;
+  };
+  const emitLeadOutLine = (seg) => {
+    if (emitOverCutRapid(seg)) return;
     const axial = Math.abs(seg.x2 - seg.x1) < 1e-6;
     const segs = axial ? airSplitAxial(seg.x2, seg.z1, seg.z2, Math.sign(seg.z2 - seg.z1) || 1) : null;
     // KONCOVÝ vzduch se nejezdí vůbec: dojezd končí na hraně materiálu
@@ -1017,7 +1023,7 @@ export function generateAutoGCode(S, calc) {
   const _E = {
     calc, prms, addCmt, addN, note, arcR, flipArc, xDia,
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
-    emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, airSplitAxial,
+    emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
     rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc,

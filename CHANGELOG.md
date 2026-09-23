@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAM – nový jednoduchý generátor podélného hrubování** (`ops/simpleLong.js`,
+  `docs/cam-novy-generator.md`): soustružnický cyklus po vrstvách v prostoru
+  středu nástroje, strom zón (pravá strana celá, pak levá), vjezd do kapsy
+  rampou (u kulaté cik-cak), dojezd schodů a kontrola držáku proti zbytku
+  materiálu v pořadí obrábění. **Není výchozí** — zapíná se `pathGenerator:
+  'simple'`. Na dílu uživatele ještě jede posuvem přes vzduch a dělá šikmé
+  dojezdy přes údolí; výchozím se stane až po kontrolách požadavků uživatele
+  a jeho souhlasu (`docs/cam-novy-generator.md` §7a).
+
+### Fixed
+- **CAM – kulatá destička bere konec dílu po vrstvách jako polygon.** Na dílu
+  uživatele (Z 0…90, R 10) se konec rozpadl na tři úseky, vrstvy X 47 / 44,5 / 42
+  se přetrhly v Z 2,5, vrstvy nad hrbem Z 55–67 končily uprostřed jeho plošiny
+  a pod plošinou u čela se táž dráha objížděla znovu. Opravy (falešný hrb
+  za čelem, test držáku proti povrchu a jen po hranice, které drží, společná
+  mřížka hloubek nad hrbem, vynechání „kapsy po kontuře", co nic neuřízne,
+  nájezd po projeté dráze rychloposuvem a bez startu uprostřed hrbu, dojezd
+  schodu i u kapsových průchodů, vynechání prázdné uzavírací rampy). Díl
+  uživatele: průchodů 84 → 73, úběr 77,6 → 77,7 %, kolize 0. **Všechny visí na klíčích
+  plátku** (`inserts/round.js`) — polygon, upichovák i závitový plátek bajt po
+  bajtu beze změny; otisk se hnul jen u `part-22-round-r10`
+  (`docs/cam-pravidla-drah.md` §6.0).
+
+### Changed
+- **CAM – plátek nesahá do plátku (audit oddělení).** Výška náhradního držáku
+  nad destičkou (`holderSeatZ`), úhly mezních čar (`guideRotDeg`/`guideTipDeg`)
+  a vzorec auto úhlu zanoření polygonu se přestěhovaly ze sdíleného kódu do
+  `inserts/*.js`; odebrán nečtený klíč `tiltDeg` a mrtvý kód v `partOffGeom`.
+  Čistý refaktor — otisk 29 fixtures beze změny. Nový test
+  `tests/cam-insert-isolation.test.js` hlídá stejnou sadu klíčů u všech
+  plátků, žádné `toolShape` v kódu drah, seznam dovolených čtení parametrů
+  tvaru a oddělení podélných/čelních operací
+  (`docs/cam-tvar-platku-v-generatoru.md`, „Audit 23. 9. 2026").
+
 ### Fixed
 - **CAM – v žebříku hloubek už nezůstane díra širší než `ap`.** `passEntryZ`
   umí vjezd stáhnout z kraje Z-okna tam, kde skutečně začíná polotovar, ale

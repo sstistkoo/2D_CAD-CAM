@@ -17,15 +17,9 @@ export function getEffectivePlungeAngle(prms) {
   const ins = getInsert(prms);
   const clampA = (v) => Math.max(0.5, Math.min(ins.plungeAngleMaxDeg, v));
   if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
-  // null = auto se počítá z geometrie plátku (jen polygon, viz níž).
-  if (ins.autoPlungeAngleDeg !== null) return ins.autoPlungeAngleDeg;
-  const rot = parseFloat(prms.toolAngle) || 0;
-  const tip = parseFloat(prms.toolTipAngle) || 90;
-  const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
-  const rawAngle = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
-  // clearDeg > 0 → pozitivní plátka, hřbet omezuje max. zanoření na α
-  const a = clearDeg > 0 ? Math.min(rawAngle, clearDeg) : rawAngle;
-  return clampA(a);
+  // Auto hodnotu počítá každý plátek SÁM (polygon z natočení/ε/α, viz
+  // inserts/polygon.js) — sdílený kód se na parametry tvaru neptá.
+  return ins.autoPlungeAngleDeg;
 }
 
 // Obálka dna upichováku: x(z) = max offsetu pod celou rovnou částí dna

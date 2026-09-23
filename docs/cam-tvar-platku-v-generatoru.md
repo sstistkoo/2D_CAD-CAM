@@ -55,9 +55,8 @@ bajtu stejný (SHA-1 `b8e3f947…`, `6e4058e2…`, `173b2a46…` před i po).
   ho k upichnutí nepustí, ale varování z `calculatePipeline` nedostane —
   hlášku vydá až `ops/partOff.js` z `geom.reason`. Polygon dostane hlášky dvě.
   Sjednocení by změnilo pole `errors`, tedy i snapshot — je to vědomě odloženo.
-* `tiltDeg` se z `polygon.js` vydává, ale **nikdo se na něj neptá** (slouží jen
-  k výpočtu vlastního `tiltedFlank`). Kdo ho uvidí, ať nepředpokládá, že
-  natočení jde do drah tudy — jde tam napřímo přes `prms.toolAngle`, viz níž.
+* ~~`tiltDeg` se z `polygon.js` vydává, ale nikdo se na něj neptá~~ —
+  **odebráno 23. 9. 2026** (sada klíčů musí být u všech plátků stejná).
 * **Neznámý `toolShape`** (poškozený/ručně upravený projekt) se nově chová
   jako KULATÁ i ve `toolFootprintVisual` a `partOffGeom` — dřív tam padal do
   větve „ne-kulatá“ / „neumí upíchnout“. Je to v souladu s dokumentovaným
@@ -86,11 +85,63 @@ bajtu stejný (SHA-1 `b8e3f947…`, `6e4058e2…`, `173b2a46…` před i po).
 | `canPartOff`, `partOffCornerR` | `threadHelpers` |
 | `hasGrooveProfile` | `calculatePipeline` |
 | `finishAlongEnvelope` | `ops/finish` |
-| `tiltDeg` | **nikdo** |
+| `holderSeatZ` | `collisionValidator` (náhradní držák), `insertPreview` (náhled) |
+| `guideRotDeg`, `guideTipDeg` | `interferenceGuides` |
+| `peakSearchWithinPart`, `sharedLadderAbovePeak`, `holderFitPeakGroupWindow`, `skipPocketsCuttingNothing`, `leadInRapidOverCut`, `pocketLeadOutNoStep` | `ops/roughLong` (+ `ops/long/regions`, `ops/long/pocketPass`) — dnes zapnuté jen u kulaté |
+
+## Audit 23. 9. 2026 — plátek do plátku ani operace do operace
+
+Uživatel 23. 9. 2026: *„plátky by měly mít svůj soubor — jestli oprava pohne
+nebo upraví i polygonální plátek, refaktoruj to, aby to nemělo nic společného"*
+a *„udělej kontrolu, jestli opravdu už nezasahuje žádný plátek ani žádná
+operace do jiných operací a plátků"*. Spouštěč: šest oprav konce dílu pro
+kulatou R 10 bylo nejdřív ve sdíleném kódu a pohnuly dvěma polygonovými
+(`holder-casting-slanted-face`, `holder-region-roughing`) a dvěma
+upichovacími fixtures; jedna z nich přepnula polygonu uživatele volbu plánu
+(úběr 85,7 → 83,5 %). Teď visí na klíčích plátku (tabulka výš) a otisk proti
+stavu před zásahem se hne JEN u `part-22-round-r10`.
+
+**Co se při auditu přestěhovalo do `inserts/*.js`** (čistý refaktor — otisk
+29 fixtures i oba uživatelovy soubory bajt po bajtu stejné):
+
+| Kde to bylo | Co | Teď |
+|---|---|---|
+| `collisionValidator.js:65`, `insertPreview.js` `holderRectProfile` | výška náhradního držáku nad destičkou z `toolLength` pro KAŽDÝ tvar (u kulaté tak rozhodovala délka hrany polygonu) | `holderSeatZ` — každý plátek svůj vzorec (zatím všude týž) |
+| `interferenceGuides.js:238` | `toolAngle`/`toolTipAngle` čtené pro každý tvar | `guideRotDeg`/`guideTipDeg` — jen polygon z parametrů, ostatní 0 / 90 (čáry z nich nevydávají) |
+| `camMath.js` `getEffectivePlungeAngle` | vzorec auto úhlu polygonu (natočení, ε, α, druh operace) ve sdíleném souboru | `autoPlungeAngleDeg` v `polygon.js` počítá úhel sám |
+| `polygon.js` | klíč `tiltDeg` bez jediného čtenáře | odebrán |
+| `threadHelpers.js` `partOffGeom` | mrtvé `shape = prms.toolShape`, `wIns` | odebráno |
+
+**Hlídání natrvalo — `tests/cam-insert-isolation.test.js`:**
+1. všechny plátky definují STEJNOU sadu klíčů (nový klíč nejde přidat jen
+   jednomu a nechat ostatní zdědit sdílené chování — hned při prvním běhu
+   to našlo `tiltDeg`),
+2. kód drah (`js/calculators/cam/**` mimo `inserts/` a UI) se neptá na
+   `toolShape`,
+3. parametry tvaru (`toolAngle`, `toolTipAngle`, `toolClearanceAngle`,
+   `toolLength`) čtou jen soubory na seznamu v testu, každý s klíčem, který
+   čtení zapíná jen jednomu tvaru,
+4. `ops/long/*` a `ops/face/*` si navzájem nic neimportují,
+5. na druh operace (`roughingStrategy`) se mimo rozcestník
+   (`calculatePipeline.js`) ptá jen `materialRemoval.js` (tělo upichováku
+   v modelu úběru jen čelně).
+
+**Výsledek kontroly operací:** podélné, čelní, dokončování, závit
+i upichnutí mají vlastní moduly a sdílejí jen obecnou geometrii (`camMath`,
+`ops/shared.js`) a emisi (`gcodeEmit`/`roughEmit`). Zásah do emise tak pořád
+dosáhne na všechny operace — to test nehlídá, to hlídá otisk (29 fixtures
+pokrývá podélné, čelní i upichovací).
 
 ## Co se ještě může plést (ZBÝVÁ)
 
 ### 1. Parametry tvaru se čtou napřímo, mimo pravidla
+
+> **Stav 23. 9. 2026:** tři nechráněná místa z tabulky níž jsou vyřešená
+> (`interferenceGuides` → `guideRotDeg`/`guideTipDeg`, `collisionValidator`
+> → `holderSeatZ`) nebo ověřená jako chráněná (`regionRunOut` běží jen při
+> `tiltedFlank || cutsFullWidth`, `insertFlankGuard` jen za
+> `hasFlankGeometry` u volajícího). Seznam dovolených čtení drží test
+> `cam-insert-isolation`. Tabulka níž je stav z 10. 9.
 
 `prms.toolAngle` (natočení) se čte v OSMI sdílených modulech, `toolTipAngle`
 ve čtyřech, `toolClearanceAngle` ve dvou, `toolLength` ve třech. U kulaté

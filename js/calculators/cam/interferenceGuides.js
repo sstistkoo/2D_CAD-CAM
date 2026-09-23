@@ -235,8 +235,11 @@ export function computeInterferenceGuides(interferenceSegments, rawContourForInt
   const interferenceGuides = [];
   if (!clearance || !interferenceSegments || interferenceSegments.length === 0) return interferenceGuides;
 
-  const rotDegG = parseFloat(prms.toolAngle) || 0;
-  const tipDegG = parseFloat(prms.toolTipAngle) || 90;
+  // Úhly hran destičky patří PLÁTKU (inserts/*.js) — dřív se tu četly
+  // `toolAngle`/`toolTipAngle` pro každý tvar (audit 23. 9. 2026).
+  const insG = getInsert(prms);
+  const rotDegG = insG.guideRotDeg;
+  const tipDegG = insG.guideTipDeg;
   // Které druhy čar tenhle plátek vydává a pod jakým úhlem leží ta zanořovací.
   // Polygon (výchozí, `kinds` neuvedeno) beze změny: obě čáry, zanoření pod
   // natočením destičky. Kulatá destička dodá `kinds: ['zanoreni']` a vlastní

@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v281';
+const CACHE_NAME = 'skica-v284';
 const ASSETS = [
   './',
   './index.html',
@@ -46,6 +46,7 @@ const ASSETS = [
   './js/calculators/cam/ops/face/regionRunOut.js',
   './js/calculators/cam/ops/finish.js',
   './js/calculators/cam/ops/finishEmit.js',
+  './js/calculators/cam/ops/long/alreadyCut.js',
   './js/calculators/cam/ops/long/cutRegistry.js',
   './js/calculators/cam/ops/long/depthTabs.js',
   './js/calculators/cam/ops/long/entryRamp.js',
@@ -70,6 +71,7 @@ const ASSETS = [
   './js/calculators/cam/ops/roughFace.js',
   './js/calculators/cam/ops/roughLong.js',
   './js/calculators/cam/ops/shared.js',
+  './js/calculators/cam/ops/simpleLong.js',
   './js/calculators/cam/ops/thread.js',
   './js/calculators/cam/passHelpers.js',
   './js/calculators/cam/plungeContourBridge.js',

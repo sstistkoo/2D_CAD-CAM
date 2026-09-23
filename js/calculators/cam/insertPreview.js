@@ -2,6 +2,8 @@
 // aktivním rádiem — sdíleno mezi drawInsertAndHolderPreview(), getInsertAnchorPoints()
 // a buildInsertProfileSegments() (📐 Kreslit na CAD plátně), ať plátek v náhledu,
 // anchor bodech i reálně nakreslené CAD geometrii vypadá stejně vysoký.
+import { getInsert } from './inserts/index.js';
+
 export const PARTING_BODY_MIN_H_MM = 15;
 
 // ── Náhled geometrie destičky + držáku (dialog "⚙️ Geometrie") ────
@@ -459,9 +461,9 @@ export function holderRectProfile(prms) {
   const l1 = Math.max(parseFloat(prms.holderLength) || 200, 1);
   // Spodní hrana NAD destičkou (z0 > 0), ať střední bod (0,z0) nekryje anchor
   // „Střed R" v (0,0) a ať je obdélník vizuálně nad destičkou.
-  const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
-  const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
-  const z0 = Math.max(toolLen, r, 4);
+  // Výšku nad destičkou určuje plátek (`holderSeatZ`, inserts/*.js) —
+  // tatáž hodnota jako v collisionValidator.js, ať náhled sedí s kolizemi.
+  const z0 = getInsert(prms).holderSeatZ;
   const bl = { x: 0, z: z0 }, br = { x: hw, z: z0 };
   return [bl, br, { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 }, { x: bl.x, z: bl.z }];
 }

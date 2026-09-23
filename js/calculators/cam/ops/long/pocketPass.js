@@ -11,7 +11,7 @@
 // takže vracet je návratovou hodnotou by znamenalo ošetřit dvanáct míst.
 
 import { depthKey, mergeCollinearSegs, subdivideLineSegs } from './segUtils.js';
-import { HOLDER_FIT_TOL } from '../shared.js';
+import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 import { RESIDUAL_FIT_TOL } from '../../residualHolder.js';
 
 export function emitPocketInterval(D) {
@@ -23,6 +23,7 @@ export function emitPocketInterval(D) {
     holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
     residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
+    newCutArea, pocketLeadOut,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -95,6 +96,43 @@ export function emitPocketInterval(D) {
   // 0,153 mm² do HOTOVÉHO dílu na X 40,545 Z 133,426 (práh 0,05,
   // `tests/cam-parting-body-gouge`). U upichováku tedy platí dál pravidlo
   // „prázdný nájezd = vynechat vrstvu“.
+  // ── PRŮCHOD, KTERÝ NIC NOVÉHO NEUŘÍZNE, SE NEVYDÁ (23. 9. 2026) ─────────
+  // „Kapsa po kontuře" se k intervalu dostává nájezdem po obrysu — i když
+  // interval i celý nájezd leží v už vyříznutém. Nález uživatele (kulatá
+  // R 10): vrstva X 39,566 svým dojezdem sjela po 45° až na X 37,347
+  // Z −7,997 a nos tím vybral celý výběh Z −8 … −9; zbytek intervalu se
+  // přesto vydal jako samostatný průchod a znovu objel plošinu Z 9,5 … −4,4.
+  // Ptá se na CELOU dráhu (nájezd + tělo) a jen na průchody bez rampy:
+  // rampa si bere materiál sama a její kotvu hlídají jiná pravidla.
+  // Práh je týž jako u rychloposuvu po projeté dráze v emisi (0,01 mm²) —
+  // tady jde o „nic", ne o „málo": na `part-8` bere nájezd kapsy 1,7 mm²
+  // a na dílu uživatele X 37,066 1,6 mm², plochou se od sebe nedají odlišit.
+  const cutsNothingNew = (pass) => {
+    if (!pass.contourLeadIn || pass.ramp || typeof newCutArea !== 'function') return false;
+    const body = { type: 'line', x1: pass.x, z1: pass.zStart, x2: pass.x, z2: pass.zEnd };
+    return newCutArea(pass.contourLeadIn.concat([body])) <= 0.01;
+  };
+  // ── KAPSA TAKY DOJEDE SVŮJ SCHOD (klíč plátku `pocketLeadOutNoStep`) ────
+  // Otevřený průchod, který narazí na stěnu, dojíždí „bez schodků" po obrysu
+  // nahoru k předchozí vrstvě (`openPass.js`). Kapsový průchod to dosud
+  // neuměl: skončil u stěny a odskočil, takže na boku údolí zůstaly schody
+  // po celé výšce `ap`. Nález uživatele 23. 9. 2026 (kulatá R 10, levý bok
+  // údolí Z 16…27): `G1 Z24.407` a `G1 Z27.203` bez dojezdu — *„špatně
+  // dojíždění schodku, takže to nemám na konci dojeté"*. Tvar dojezdu je
+  // týž jako u otevřeného průchodu: po offsetové dráze od konce těla po
+  // `findLeadOutEndZ` (sousední hloubky), bez úvodního kousku pod vrstvou
+  // a oříznutý na předchozí hloubku (`clipLeadOutToDepth`).
+  const attachStepLeadOut = (pass) => {
+    if (!pocketLeadOut || !iv.blocked || pass.contourLeadOut) return;
+    const { prevX, nextX, findLeadOutEndZ } = pocketLeadOut;
+    if (typeof findLeadOutEndZ !== 'function' || !Number.isFinite(prevX)) return;
+    const zOut = findLeadOutEndZ(pass.zEnd, prevX, nextX, traceFloorL);
+    if (!Number.isFinite(zOut) || zOut >= pass.zEnd - 1e-6) return;
+    const lo = holderTrimLeadOut(traceOffsetPath(pass.zEnd, zOut), true);
+    while (lo.length > 0 && lo[0].x2 <= currentX + 0.02) lo.shift();
+    clipLeadOutToDepth(lo, prevX);
+    if (lo.length > 0) pass.contourLeadOut = lo;
+  };
   const contourTouchZ = (zHi, zLo, X) => {
     if (typeof offsetXAt !== 'function' || !(zHi > zLo + 1e-9)) return null;
     const above = (z) => { const v = offsetXAt(z); return v !== null && v >= X - 0.02; };
@@ -220,6 +258,8 @@ if (!iv.blocked) {
   // větev ne, takže se týž řez vydal DVAKRÁT: „Průchod 8" (rampa do údolí)
   // a hned za ním „Průchod 9" se stejným cílem (nález uživatele 1. 9. 2026).
   if (passOpen.ramp) notePlungeRun(passOpen.ramp.x0, passOpen.ramp.z0, passOpen.ramp.x0, passOpen.x);
+  if (cutsNothingNew(passOpen)) return;
+  attachStepLeadOut(passOpen);
   passes.push(passOpen);
   if (holderClampZEnd && holderClampZEnd.noteMainEnd && holderClampedOpen) {
     holderClampZEnd.noteMainEnd(currentX, currentX + step, zEndEff);
@@ -277,6 +317,8 @@ if (!corner) {
   // Táž evidence jako u `passOpen` výš — přímka je sjetá, ať ji sjel
   // kterýkoli z těch dvou vjezdů.
   if (passFlat.ramp) notePlungeRun(passFlat.ramp.x0, passFlat.ramp.z0, passFlat.ramp.x0, passFlat.x);
+  if (cutsNothingNew(passFlat)) return;
+  attachStepLeadOut(passFlat);
   passes.push(passFlat);
   return;
 }

@@ -19,7 +19,9 @@ export function polygonInsert(prms) {
     flatSpanZ: 0,
     bodyZ: { lo: 0, hi: 0 },
     faceCoverZ: (rTip) => 2 * rTip,
-    tiltDeg,
+    // `tiltDeg` se dřív vydával jako klíč, ale nikdo ho nečetl — jen tady
+    // slouží k `tiltedFlank`. Odebráno 23. 9. 2026 (sada klíčů musí být
+    // u všech plátků stejná, tests/cam-insert-isolation.test.js).
     // Má BOK A HŘBET, jejichž sklon se musí hlídat proti kontuře: hlídaní
     // uvnitř si pak samo řeší znaménko natočení (záporné = čelní hrana,
     // kladné = hrana hřbetu u pravých stěn kapes).
@@ -76,10 +78,56 @@ export function polygonInsert(prms) {
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
     plungeAngleMaxDeg: 89,
-    autoPlungeAngleDeg: null,
+    // Auto úhel zanoření = úhel spodní hrany destičky (podélně natočení,
+    // čelně natočení + ε − 90), shora omezený úhlem hřbetu α. Dřív se to
+    // počítalo v camMath.js pod `autoPlungeAngleDeg === null` — vzorec
+    // polygonu tak žil ve sdíleném souboru (audit 23. 9. 2026).
+    autoPlungeAngleDeg: (() => {
+      const rot = parseFloat(prms.toolAngle) || 0;
+      const tip = parseFloat(prms.toolTipAngle) || 90;
+      const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
+      const rawAngle = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
+      const a = clearDeg > 0 ? Math.min(rawAngle, clearDeg) : rawAngle;
+      return Math.max(0.5, Math.min(89, a));
+    })(),
     canPartOff: false,
     hasGrooveProfile: false,
     partOffCornerR: R,
     finishAlongEnvelope: false,
+    // ── OPRAVY Z 23. 9. 2026 PRO KULATOU — TADY VYPNUTÉ ──────────────────
+    // Klíče existují u každého plátku (hlídá tests/cam-insert-keys.test.js),
+    // aby se žádné rozhodnutí nedalo zdědit ze sdíleného kódu. Význam viz
+    // round.js; zapnout je pro tenhle plátek je změna chování, která chce
+    // vlastní měření na jeho fixtures.
+    peakSearchWithinPart: false,
+    sharedLadderAbovePeak: false,
+    holderFitPeakGroupWindow: false,
+    skipPocketsCuttingNothing: false,
+    leadInRapidOverCut: false,
+    pocketLeadOutNoStep: false,
+    // NOVÝ JEDNODUCHÝ GENERÁTOR podélného hrubování (ops/simpleLong.js,
+    // docs/cam-novy-generator.md). Zapnuto u tvarů, jejichž hrot popisuje
+    // offsetová dráha (kulatá, polygon); upichovák a závitový zatím jedou
+    // původním generátorem.
+    // Zatím VYPNUTO (23. 9. 2026): na dílu uživatele nový generátor 79,5 %
+    // úběru proti 85,7 % původního (kapsy za hrby pod 15° rampou), bez
+    // kolizí. Polygon jede původním, dokud ho nový ve všem nedožene.
+    simpleLongGenerator: false,
+    // Cik-cak rampa do kapsy — viz round.js; tenhle plátek řeže jen k −Z.
+    rampBothWays: false,
+    // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
+    //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
+    //                  držáku (obdélník, když není nakreslený obrys). Dřív
+    //                  jeden vzorec v collisionValidator.js a insertPreview.js
+    //                  pro VŠECHNY tvary z `toolLength` — tedy z délky hrany
+    //                  polygonu / šířky upichováku i u kulaté. Hodnota je zatím
+    //                  všude tatáž, ale změnit ji jde už jen pro jeden plátek.
+    //   guideRotDeg, guideTipDeg — úhly hran pro mezní čáry
+    //                  (interferenceGuides.js). Čte je jen plátek, který čáry
+    //                  z vlastních hran vydává (polygon); ostatní mají
+    //                  neutrální 0 / 90 a jejich čáry z nich nevznikají.
+    holderSeatZ: Math.max(Math.max(parseFloat(prms.toolLength) || 10, 1), Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1), 4),
+    guideRotDeg: parseFloat(prms.toolAngle) || 0,
+    guideTipDeg: parseFloat(prms.toolTipAngle) || 90,
   };
 }

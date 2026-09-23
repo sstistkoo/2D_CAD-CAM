@@ -26,7 +26,7 @@ export function emitRoughing(E) {
   const {
     calc, prms, addCmt, addN, note, arcR, flipArc, xDia,
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
-    emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, airSplitAxial,
+    emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
     rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc,
@@ -191,6 +191,11 @@ calc.passes.forEach((pass, i) => {
     }
     for (const seg of li) {
       const fx = cur.x, fz = cur.z;
+      // Úsek nájezdu po už projeté dráze (`overCut`, viz roughLong.js) =
+      // rychloposuv, stejně jako u dojezdu. Kulatá R 10 na dílu uživatele
+      // tak znovu objížděla plošinu Z 9,5 … −4,4 posuvem jen proto, aby
+      // se dostala k proužku za ní (23. 9. 2026).
+      if (seg.type === 'line' && emitOverCutRapid(seg)) continue;
       if (seg.type === 'line') {
         simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutMove(fx, fz, seg.x2, seg.z2);

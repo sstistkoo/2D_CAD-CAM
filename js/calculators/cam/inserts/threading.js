@@ -59,5 +59,37 @@ export function threadingInsert(prms) {
     hasGrooveProfile: true,
     partOffCornerR: Math.max(parseFloat(prms.toolRadius) || 0, 0),
     finishAlongEnvelope: false,
+    // ── OPRAVY Z 23. 9. 2026 PRO KULATOU — TADY VYPNUTÉ ──────────────────
+    // Klíče existují u každého plátku (hlídá tests/cam-insert-keys.test.js),
+    // aby se žádné rozhodnutí nedalo zdědit ze sdíleného kódu. Význam viz
+    // round.js; zapnout je pro tenhle plátek je změna chování, která chce
+    // vlastní měření na jeho fixtures.
+    peakSearchWithinPart: false,
+    sharedLadderAbovePeak: false,
+    holderFitPeakGroupWindow: false,
+    skipPocketsCuttingNothing: false,
+    leadInRapidOverCut: false,
+    pocketLeadOutNoStep: false,
+    // NOVÝ JEDNODUCHÝ GENERÁTOR podélného hrubování (ops/simpleLong.js,
+    // docs/cam-novy-generator.md). Zapnuto u tvarů, jejichž hrot popisuje
+    // offsetová dráha (kulatá, polygon); upichovák a závitový zatím jedou
+    // původním generátorem.
+    simpleLongGenerator: false,
+    // Cik-cak rampa do kapsy — viz round.js; tenhle plátek řeže jen k −Z.
+    rampBothWays: false,
+    // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
+    //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
+    //                  držáku (obdélník, když není nakreslený obrys). Dřív
+    //                  jeden vzorec v collisionValidator.js a insertPreview.js
+    //                  pro VŠECHNY tvary z `toolLength` — tedy z délky hrany
+    //                  polygonu / šířky upichováku i u kulaté. Hodnota je zatím
+    //                  všude tatáž, ale změnit ji jde už jen pro jeden plátek.
+    //   guideRotDeg, guideTipDeg — úhly hran pro mezní čáry
+    //                  (interferenceGuides.js). Čte je jen plátek, který čáry
+    //                  z vlastních hran vydává (polygon); ostatní mají
+    //                  neutrální 0 / 90 a jejich čáry z nich nevznikají.
+    holderSeatZ: Math.max(Math.max(parseFloat(prms.toolLength) || 10, 1), Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1), 4),
+    guideRotDeg: 0,
+    guideTipDeg: 90,
   };
 }

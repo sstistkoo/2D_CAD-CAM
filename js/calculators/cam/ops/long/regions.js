@@ -21,7 +21,7 @@ export function makeRegions(deps) {
   const {
     prms, depths, dzScan, offsetXAt, machiningRange, interferenceGuides,
     stockWorldPoints, stockLoopFullL, stockZRangeAt,
-    passEntryZ, scan, stockLoopL, step, holderFitsOverContour,
+    passEntryZ, scan, stockLoopL, step, holderFitsOverContour, partZRange,
   } = deps;
   // ── Regiony (opt-in, jen odlitek) ──────────────────────────────────────
   // Polotovar odlitku má „výstupky" (bosses) oddělené „údolími", kde se
@@ -105,6 +105,14 @@ export function makeRegions(deps) {
     let zMax = -Infinity, zMin = Infinity;
     for (const q of stockLoopL) { if (q.z > zMax) zMax = q.z; if (q.z < zMin) zMin = q.z; }
     if (machiningRange) { zMax = Math.min(zMax, machiningRange.zHi); zMin = Math.max(zMin, machiningRange.zLo); }
+    // HRB SE HLEDÁ JEN PODÉL DÍLU, ne za jeho čelem (23. 9. 2026). Za
+    // posledním bodem kontury offsetová čára klesá jen proto, že se nos
+    // destičky ODVALUJE přes roh čela — tvar dílu tam žádný hrb nemá. U kulaté
+    // R 10 to spadlo o 3,4 mm (> ap) a vznikl falešný zlom Z 2,5 na dílu
+    // uživatele: vrstvy X 47 / 44,5 / 42 se v něm přetrhly a kus Z 2,5 → −9
+    // se dojížděl až po celém zbytku dílu. Polygon tam klesá jen po mezní
+    // čáře zanoření (2,47 mm < ap), proto ho to dosud minulo — o 0,03 mm.
+    if (partZRange) { zMax = Math.min(zMax, partZRange.zHi); zMin = Math.max(zMin, partZRange.zLo); }
     if (!(zMax > zMin + 1e-6)) return [];
     const h = Math.max(dzScan, 0.2);
     const pts = [];

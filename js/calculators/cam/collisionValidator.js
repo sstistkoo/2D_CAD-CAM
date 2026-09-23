@@ -22,6 +22,7 @@
 
 import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
+import { getInsert } from './inserts/index.js';
 
 /**
  * Virtuální zvětšení držáku [mm na každou stranu] — o kolik se nafoukne
@@ -60,11 +61,10 @@ export function holderProfileLoop(prms) {
     const hw = Math.max(parseFloat(prms.holderWidth) || 0, 0);
     const l1 = Math.max(parseFloat(prms.holderLength) || 0, 0);
     if (hw <= 0 || l1 <= 0) return null;
-    // Stejné umístění jako holderRectProfile v camSimulator.js:
-    // spodní hrana nad destičkou (z0 = max(délka hrany, R, 4 mm)).
-    const toolLen = Math.max(parseFloat(prms.toolLength) || 10, 1);
-    const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1);
-    const z0 = Math.max(toolLen, r, 4);
+    // Stejné umístění jako holderRectProfile v insertPreview.js: spodní
+    // hrana nad destičkou o `holderSeatZ` — hodnotu určuje PLÁTEK
+    // (inserts/*.js), ne sdílený vzorec.
+    const z0 = getInsert(prms).holderSeatZ;
     pts = [
       { x: 0, z: z0 }, { x: hw, z: z0 },
       { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 },

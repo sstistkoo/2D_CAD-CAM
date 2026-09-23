@@ -13,6 +13,7 @@ import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from '../booleanRoughing.js';
 import { pointInLoop, polyIntersect } from '../../../geom/geomCore.js';
 import { HOLDER_CLAMP_MARGIN, insertReachZ } from '../toolEnvelope.js';
+import { makeAlreadyCut } from './long/alreadyCut.js';
 import { HOLDER_ENTRY_STOCK_GAP, HOLDER_FIT_TOL, ENTRY_SHIFT_MAX, ENTRY_FIT_TOL, SKIM_MIN_LAYER, clipLeadOutToDepth } from './shared.js';
 import { depthKey, subdivideLineSegs, mergeCollinearSegs, traceIfContinuous, isFaceLeadOut } from './long/segUtils.js';
 import { makeDepthTabs } from './long/depthTabs.js';
@@ -622,6 +623,9 @@ export function genLongPasses(ctx) {
   const cornerAlreadyRampedOut = (cx, cz, depthX) =>
     rampedOutCorners.some(c => Math.abs(c.x - cx) < 2 && Math.abs(c.z - cz) < 2 && c.reachedX <= depthX + 0.5);
 
+  // Kolik by průchod uřízl navíc proti už naplánovaným — viz ops/long/alreadyCut.js.
+  const { newCutArea } = makeAlreadyCut({ T, noseLiftX: noseLiftL });
+
   // Hledání intervalů na hloubce — viz ops/long/intervalScan.js.
   const { stockCrossingsAt, passEntryZ, scanIntervals, scan,
     counters: scanCounters } = makeIntervalScan({
@@ -650,8 +654,16 @@ export function genLongPasses(ctx) {
     let area = 0;
     for (let q = z + holderZLoL; q <= z + holderZHiL + 1e-9; q += DZ_CAP) {
       if (q - z < holderNearDz - 1e-9) continue;
-      const t = offsetXAt(q);
-      if (t === null) continue;
+      const tPath = offsetXAt(q);
+      if (tPath === null) continue;
+      // POVRCH kontury, ne dráha. `offsetXAt` je střed nosu, kdežto spodek
+      // držáku (`holderBottomAt`) se měří od dráhy nahoru a naráží na
+      // povrch — týž vzor jako `residTopAt` v holderFit.js. S dráhou tu
+      // u kulaté R 10 chybělo 10 mm místa, držák „se nevešel" všude
+      // a vrstvy NAD hrbem se sekaly na jeho hraně (nález uživatele
+      // 23. 9. 2026: polygon týž konec dílu bere vcelku). `t − R` leží
+      // vždy NAD povrchem (střed nosu je od povrchu ≥ R), strana je bezpečná.
+      const t = tPath - noseLiftL;
       const room = Math.max(holderBottomAt(q - z) - HOLDER_ENTRY_STOCK_GAP, 0.05);
       const d = t - (tipX + room);
       if (d > 0) area += d * DZ_CAP;
@@ -659,11 +671,28 @@ export function genLongPasses(ctx) {
     return area <= HOLDER_FIT_TOL;
   };
 
+  // Z-rozsah dílu (kontury) — hrby se hledají jen v něm, viz regions.js.
+  // Přídavek Z je v tom proto, že offsetová čára končí o něj za konturou.
+  // Klíč plátku `peakSearchWithinPart` (dnes jen kulatá, viz inserts/round.js).
+  const partZRange = !ins.peakSearchWithinPart ? null : (() => {
+    const wp = ctx.worldPoints;
+    if (!Array.isArray(wp) || wp.length < 2) return null;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of wp) {
+      if (!Number.isFinite(p.zReal)) continue;
+      if (p.zReal < lo) lo = p.zReal;
+      if (p.zReal > hi) hi = p.zReal;
+    }
+    if (!(hi > lo)) return null;
+    const pad = Math.max(+prms.allowanceZ || 0, 0) + 1e-6;
+    return { zLo: lo - pad, zHi: hi + pad };
+  })();
+
   // Regiony (kde se díl trhá na úseky a v jakém pořadí jedou) — ops/long/regions.js.
   const { FULL_REGION, computeRegions } = makeRegions({
     prms, depths: depthsAll, dzScan, offsetXAt, machiningRange, interferenceGuides,
     stockWorldPoints, stockLoopFullL, stockZRangeAt,
-    passEntryZ, scan, stockLoopL, step, holderFitsOverContour,
+    passEntryZ, scan, stockLoopL, step, holderFitsOverContour, partZRange,
   });
   const _regions = computeRegions();
   // Pořadí OBRÁBĚNÍ (`_regions`) řadí `orderRegions` podle největšího průměru,
@@ -742,8 +771,31 @@ export function genLongPasses(ctx) {
     //
     // Kontroluje se proto celý rozsah, do kterého se vrstva po sloučení
     // roztáhne — okno polotovaru na téhle hloubce, ořezané rozsahem 📐.
-    const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, szD.zMax);
-    const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, szD.zMin);
+    //
+    // …U KULATÉ JEN PO HRANICE, KTERÉ DÁL DRŽÍ (klíč plátku
+    // `holderFitPeakGroupWindow`, 23. 9. 2026). Okno polotovaru `szD` je
+    // jediný interval přes CELÝ díl, takže test padal tam, kam se sloučená
+    // vrstva nikdy nedostane — za hranicí údolí, která na té hloubce platí
+    // dál. Na dílu uživatele (R 10) padal hrb Z 61,3 na osazení v Z 202, za
+    // údolím Z 91,9, a vrstvy X 42 / 39,6 / 37,8 končily uprostřed plošiny
+    // hrbu. Skupina se rozšiřuje přes všechny hrany HRBU (i nerozpuštěné —
+    // bezpečná strana) a přes údolí, jen když se na téhle hloubce rozpouští.
+    // U polygonu to ZAPNUTÉ NENÍ: tam to přepnulo volbu plánu na plán po
+    // úsecích a u osazení Z 195–220 zůstala nevyhrubovaná kapsa za hrbem
+    // (úběr 85,7 → 83,5 %) — starší vada plánu po úsecích, §6.0.
+    let zHiGrp = Infinity, zLoGrp = -Infinity;
+    const kUp = ins.holderFitPeakGroupWindow ? _geoRegions.findIndex(r => r.zLo === zEdge) : -1;
+    if (kUp >= 0 && kUp + 1 < _geoRegions.length) {
+      const joins = (kind, s) => kind === 'peak'
+        || (s !== undefined && dissolveValley && depthX <= s + 0.01);
+      let hi = kUp, lo = kUp + 1;
+      while (hi > 0 && joins(_geoRegions[hi].zHiKind, _geoRegions[hi].zHiSurf)) hi--;
+      while (lo < _geoRegions.length - 1 && joins(_geoRegions[lo].zLoKind, _geoRegions[lo].zLoSurf)) lo++;
+      zHiGrp = _geoRegions[hi].zHi;
+      zLoGrp = _geoRegions[lo].zLo;
+    }
+    const zHiChk = Math.min(machiningRange ? machiningRange.zHi : Infinity, szD.zMax, zHiGrp);
+    const zLoChk = Math.max(machiningRange ? machiningRange.zLo : -Infinity, szD.zMin, zLoGrp);
     if (!(zHiChk > zLoChk)) return true;
     const stepChk = Math.max(DZ_CAP, (zHiChk - zLoChk) / 96);
     for (let z = zLoChk; z <= zHiChk + 1e-9; z += stepChk) {
@@ -785,7 +837,52 @@ export function genLongPasses(ctx) {
   const _regRawTop = loopTopXIn(stockLoopL, _zLoR, _zHiR);
   const _regPlanTop = loopTopXIn(stockLoopOffsetL, _zLoR, _zHiR)
     ?? (_regRawTop === null ? null : _regRawTop + clrXPlanL);
-  const depths = _regPlanTop === null ? depthsAll : buildDepths(_regPlanTop, _regPlanTop);
+  let depths = _regPlanTop === null ? depthsAll : buildDepths(_regPlanTop, _regPlanTop);
+  // ── NAD HRBEM SPOLEČNÁ MŘÍŽKA (23. 9. 2026) ──────────────────────────
+  // Nad hrbem kontury se hranice úseku rozpouští (`edgeDissolved`) a vrstva
+  // má projet vcelku přes oba sousedy. S mřížkou kotvenou na vrchu KAŽDÉHO
+  // úseku zvlášť se ale sousedé o hloubky rozejdou (na dílu uživatele
+  // 43,556 × 44,566): dolní úsek hloubku přenechá hornímu, který ji nemá,
+  // a vrchní vrstvy nad hrbem prostě vypadnou. Hloubky NAD hrbem se proto
+  // berou z mřížky celé skupiny úseků spojených hranou hrbu, POD ním zůstává
+  // vlastní mřížka úseku (celou skupinovou mřížkou se na `part-22` s nakresleným
+  // nožem překlopila pojistka plánu a přibyla kolize rychloposuvu). Na styku
+  // obou mřížek se krok rozdělí rovnoměrně, aby žádná vrstva nepřesáhla `ap`.
+  // Klíč plátku `sharedLadderAbovePeak` (dnes jen kulatá, viz inserts/round.js).
+  if (ins.sharedLadderAbovePeak) {
+    let pkSurf = -Infinity;
+    if (_region.zHiKind === 'peak' && _region.zHiSurf !== undefined) pkSurf = Math.max(pkSurf, _region.zHiSurf);
+    if (_region.zLoKind === 'peak' && _region.zLoSurf !== undefined) pkSurf = Math.max(pkSurf, _region.zLoSurf);
+    if (pkSurf > -Infinity && _regPlanTop !== null) {
+      let gHi = _region.zHi, gLo = _region.zLo;
+      for (let k = _geoIdx.get(_region); k > 0 && _geoRegions[k].zHiKind === 'peak'; k--) gHi = _geoRegions[k - 1].zHi;
+      for (let k = _geoIdx.get(_region); k < _geoRegions.length - 1 && _geoRegions[k].zLoKind === 'peak'; k++) gLo = _geoRegions[k + 1].zLo;
+      gHi = Math.min(gHi, rangeClipZ ? rangeClipZ.zHi : Infinity);
+      gLo = Math.max(gLo, rangeClipZ ? rangeClipZ.zLo : -Infinity);
+      const gTop = loopTopXIn(stockLoopOffsetL, gLo, gHi);
+      if (gTop !== null && gTop > _regPlanTop + 1e-6) {
+        const gAll = buildDepths(gTop, gTop);
+        const above = gAll.filter(d => d > pkSurf + 0.01);
+        const below = depths.filter(d => d <= pkSurf + 0.01);
+        // STYK MŘÍŽEK LEŽÍ POD HRBEM, ne nad ním. Mezivrstva nad `pkSurf`
+        // by se jako každá hloubka nad hrbem rozpustila do souseda, který
+        // má jinou mřížku — na dílu uživatele tak vedle sebe vznikly
+        // vrstvy 37,811 / 37,446 / 37,066 (Z ≈ 21, nález 23. 9. 2026).
+        // Skupinová mřížka proto pokračuje i POD hrb, dokud nedosedne na
+        // vlastní mřížku úseku; zbytek dorovná rovnoměrné dělení níž.
+        const seam = below.length > 0
+          ? gAll.filter(d => d <= pkSurf + 0.01 && d > below[0] + 1e-6)
+          : [];
+        const lastUp = seam.length > 0 ? seam[seam.length - 1] : above[above.length - 1];
+        if (above.length > 0 && below.length > 0) {
+          const gap = lastUp - below[0];
+          const n = Math.ceil(gap / step - 1e-9);
+          for (let k = 1; k < n; k++) seam.push(lastUp - k * gap / n);
+        }
+        depths = above.concat(seam, below);
+      }
+    }
+  }
   if (depths.length === 0) continue;
   // Schodová evidence obálky držáku platí v rámci jednoho regionu —
   // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
@@ -884,11 +981,13 @@ export function genLongPasses(ctx) {
     // vyšlo 0,1 mm. Místo vrstvy pak nastoupila uzavírací bisekce s
     // degenerovaným průchodem 0,2 mm (X 30,715).
     //
-    // Ptáme se proto NAROVINO — jeden sken navíc, a jen tam, kde se vjezd
-    // opravdu posunul. Když na posunutém vjezdu žádný interval není, platí
-    // původní kraj okna, tedy přesně to, co dělá větev `blockedAt` vedle.
-    if (effZMax !== null && effZMax < rawZHi - 1e-9
-        && scan(currentX, effZMax, effZMin, true).intervals.length === 0) effZMax = rawZHi;
+    // Ptáme se proto NAROVINO — ale NE skenem navíc: opravuje se až podle
+    // VÝSLEDKU prvního skenu (níž, `scan0`), který se stejně musí udělat.
+    // Zvlášť volaná sonda by na každé posunuté hloubce spustila `scan`
+    // s týmiž argumenty DVAKRÁT — na dílu uživatele to stálo +13 % času
+    // generování (5,37 → 6,08 s), a to `booleanScanIntervals` jede přes
+    // Clipper. Takhle se druhý sken zaplatí jen tam, kde by hloubka jinak
+    // nevydala nic.
     if (effZMax === null || effZMax - effZMin < 0.1) continue;
     // Skenem zprava doleva najdeme všechny volné intervaly (offset
     // nepřekračuje currentX). První interval (od pravé hrany
@@ -905,7 +1004,17 @@ export function genLongPasses(ctx) {
     const __LOG = globalThis.__DEPTH__ && _region && Math.abs((_region.zHi ?? 0) + 227.6) < 1;
     if (__LOG) globalThis.__DEPTH__.push({ fáze: 'start', x: +currentX.toFixed(3),
       effZMax: +effZMax.toFixed(2), effZMin: +effZMin.toFixed(2), regZHi: +(+regZHi).toFixed(2), regZLo: +(+regZLo).toFixed(2) });
-    let { intervals, firstOpen } = scan(currentX, entryZ, effZMin, true);
+    let scan0 = scan(currentX, entryZ, effZMin, true);
+    // POSUNUTÝ VJEZD, NA KTERÉM SE NEDÁ ŘEZAT (viz `rawZHi` výš): sken se
+    // vrátil prázdný a vjezd nesedí na kraji okna → platí původní kraj,
+    // přesně jako ve větvi `blockedAt` uvnitř `passEntryZ`. Opravuje se
+    // i `effZMax`, ne jen `entryZ` — na `entryZ` visí `entryCapped`, ten
+    // vypíná uzavírací bisekci a díra by vyšla VĚTŠÍ (5,0 místo 4,097 mm).
+    if (scan0.intervals.length === 0 && entryZ < rawZHi - 1e-9) {
+      effZMax = rawZHi; entryZ = rawZHi;
+      scan0 = scan(currentX, entryZ, effZMin, true);
+    }
+    let { intervals, firstOpen } = scan0;
     // ── Zanořování (📥 „Zanořování"): najdi, KDE se dá začít ──────────────
     // Na tuhle hloubku se nedá vjet zprava — vjezd zahodila obálka DRŽÁKU
     // (napravo stojí materiál, do kterého by narazil) nebo se do okna
@@ -1109,6 +1218,14 @@ export function genLongPasses(ctx) {
         holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
         notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
         residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
+        // Klíč plátku `skipPocketsCuttingNothing` (dnes jen kulatá).
+        newCutArea: ins.skipPocketsCuttingNothing ? newCutArea : null,
+        // Klíč plátku `pocketLeadOutNoStep` (dnes jen kulatá): dojezd schodu.
+        pocketLeadOut: ins.pocketLeadOutNoStep && prms.noStepRoughing ? {
+          prevX: depthIdx > 0 ? depths[depthIdx - 1] : null,
+          nextX: depthIdx + 1 < depths.length ? depths[depthIdx + 1] : -Infinity,
+          findLeadOutEndZ,
+        } : null,
       });
       ({ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips } = cnt);
     });
@@ -1770,6 +1887,34 @@ export function genLongPasses(ctx) {
   // je sedm (otevřený průchod, kapsa, burst, dobrání kapsy, dobrání rampy,
   // doběh na konec profilu, mezikrok řetězu) a evidence se musí sbírat v tom
   // pořadí, ve kterém se opravdu jede.
+  // ── UZAVÍRACÍ RAMPA, KTERÁ NIC NOVÉHO NEVEZME (klíč plátku
+  // `skipPocketsCuttingNothing`, dnes jen kulatá) ─────────────────────────
+  // Uzavírací vrstva na konci úseku (`entryRangeRamp`) se plánuje dřív, než
+  // je jasné, co pod ní vezmou hlubší kapsové průchody. Na dílu uživatele
+  // (23. 9. 2026, R 10) tak zůstala rampa X 37,446 Z 52,7 → 21,0 hned vedle
+  // hotové vrstvy X 37,066 a pak znovu sjela 45° sjezd u čela — celá dráha
+  // po už vyříznutém (model: 0 mm²). Posuzuje se proti podlaze VŠECH
+  // průchodů před ní v pořadí obrábění, celou dráhou (rampa, tělo, nájezd,
+  // dojezd), stejným modelem jako „kapsa po kontuře" (`alreadyCut.js`).
+  if (ins.skipPocketsCuttingNothing) {
+    for (let i = passes.length - 1; i >= 0; i--) {
+      const q = passes[i];
+      if (!q || q.type !== 'long' || !q.entryRangeRamp) continue;
+      const segs = [];
+      if (q.ramp && Number.isFinite(q.ramp.x0)) segs.push({ type: 'line', x1: q.ramp.x0, z1: q.ramp.z0, x2: q.x, z2: q.zStart });
+      for (const sg of q.contourLeadIn || []) segs.push(sg);
+      segs.push({ type: 'line', x1: q.x, z1: q.zStart, x2: q.x, z2: q.zEnd });
+      for (const sg of q.contourLeadOut || []) segs.push(sg);
+      const floor = T.newFloorTab();
+      for (let j = 0; j < i; j++) T.notePassInto(floor, passes[j]);
+      const saved = T.activeFloorTab;
+      T.activeFloorTab = floor;
+      const a = newCutArea(segs);
+      T.activeFloorTab = saved;
+      if (a <= 0.01) passes.splice(i, 1);
+    }
+    T.cutFloorTab = null; T.cutFloorSynced = 0;
+  }
   {
     const reg = makeChainRegistry();
     let trimmed = 0, dropped = 0;
@@ -1794,12 +1939,39 @@ export function genLongPasses(ctx) {
         // pass.zStart)`, tedy na vlastní hloubku průchodu, a nájezd by byl
         // kolmý zápich (§3.1). Proto u celého zahození podmínka rampy
         // zůstává, u částečného ořezu ne.
+        // Co z nájezdu zůstane a vede po projeté dráze, se značí pro emisi
+        // stejně jako u dojezdu níž (`overCut` → rychloposuv). Prefix se
+        // ořízne, ale projetý úsek UPROSTŘED nájezdu (plošina mezi schodem
+        // a sjezdem) ořezat nejde — průchod se k dalšímu kusu musí dostat.
+        // Klíč plátku `leadInRapidOverCut` (dnes jen kulatá, viz inserts/round.js).
+        const markOverCut = (segs) => {
+          if (!ins.leadInRapidOverCut) return;
+          for (const s of segs) {
+            if (s.type !== 'line') continue;
+            if (Math.hypot(s.x2 - s.x1, s.z2 - s.z1) < 2) continue;
+            if (reg.isDuplicate(s)) s.overCut = true;
+          }
+        };
         const np = reg.duplicatePrefix(li);
         if (np === li.length) {
           if (p.ramp) { delete p.contourLeadIn; dropped++; }
-          else reg.note(li);
+          else if (ins.leadInRapidOverCut && li.length > 1) {
+            // CELÝ NÁJEZD PO PROJETÉ DRÁZE, BEZ RAMPY (klíč plátku,
+            // dnes jen kulatá). Zahodit ho celý nejde (kolmý zápich, §3.1),
+            // ale jeho začátek nemusí ležet tam, kde začal plánovaný řetěz —
+            // typicky UPROSTŘED plošiny hrbu na hranici úseku. Nález
+            // uživatele 23. 9. 2026: `G0 Z61.271 / G1 X37.456` na plošině
+            // Z 55,5…67,1 — *„ať to nezačíná nikde uprostřed toho hrbolu"*.
+            // Nechá se jen POSLEDNÍ úsek: začíná v rohu, kde kontura zahne,
+            // a vede na hloubku průchodu.
+            trimmed += li.length - 1;
+            li.splice(0, li.length - 1);
+            markOverCut(li); reg.note(li);
+          }
+          else { markOverCut(li); reg.note(li); }
         } else {
           if (np > 0) { li.splice(0, np); trimmed += np; }
+          markOverCut(li);
           reg.note(li);
         }
       }
