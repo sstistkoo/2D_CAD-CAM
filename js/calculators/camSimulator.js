@@ -4608,6 +4608,14 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Zaškrtnuté, ale nic nedělající políčko mate, proto se v čelním režimu
       // zašedí a zamkne — stejný vzor jako Zanořování níž.
       const longOnlyNA = prms.roughingStrategy === 'face';
+      // NOVÝ JEDNODUCHÝ GENERÁTOR (docs/cam-novy-generator.md) — jen podélně
+      // a jen kulatá destička (klíč `simpleLongGenerator` v inserts/*.js).
+      // Výchozí VYPNUTO: uživatel si ho porovná a rozhodne sám.
+      const simpleNA = longOnlyNA || prms.toolShape !== 'round';
+      html += `<div class="cam-sim-checkbox-row"${simpleNA ? ' style="opacity:.45"' : ''} data-tooltip="${simpleNA ? 'Zatím jen PODÉLNĚ a jen KULATÁ destička.&#10;&#10;' : ''}Nový jednoduchý generátor hrubování (soustružnický cyklus po vrstvách): zóny se dodělají celé shora dolů zprava doleva, kapsy rampou, schody se dojedou, držák se hlídá proti zbytku materiálu. Vypnuto = původní generátor.">
+        <input type="checkbox" id="cam-sim-simplegen" ${prms.pathGenerator === 'simple' ? 'checked' : ''}${simpleNA ? ' disabled' : ''}>
+        <span>Nový generátor drah (test)</span>
+      </div>`;
       html += `<div class="cam-sim-checkbox-row"${longOnlyNA ? ' style="opacity:.45"' : ''} data-tooltip="${longOnlyNA ? 'NEPLATÍ pro ČELNÍ hrubování — booleovské intervaly umí jen podélná strategie (čelní G-kód je s příznakem i bez něj identický).&#10;&#10;' : ''}Experimentální (migrace Fáze 3): řezné intervaly podélného hrubování se počítají z booleovské geometrie (Clipper2 zbytkový materiál) místo ručního scan-line. Výchozí VYPNUTO = ověřená původní cesta. Zapnuto odebere stejný materiál — slouží k ověření a dalšímu vývoji.">
         <input type="checkbox" id="cam-sim-boolean" ${prms.booleanRoughing ? 'checked' : ''}${longOnlyNA ? ' disabled' : ''}>
         <span>Booleovské hrubování ${longOnlyNA ? '(jen podélně)' : '(exp.)'}</span>
@@ -5097,6 +5105,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       S.params.regionRoughing = regionCb.checked;
       applyChange();
       showToast(regionCb.checked ? 'Hrubování po regionech zapnuto' : 'Hrubování po regionech vypnuto');
+    });
+    const simpleGenCb = tabBody.querySelector('#cam-sim-simplegen');
+    if (simpleGenCb) simpleGenCb.addEventListener('change', () => {
+      S.params.pathGenerator = simpleGenCb.checked ? 'simple' : 'legacy';
+      applyChange();
+      showToast(simpleGenCb.checked ? 'Nový generátor drah zapnut (test)' : 'Původní generátor drah');
     });
     const booleanCb = tabBody.querySelector('#cam-sim-boolean');
     if (booleanCb) booleanCb.addEventListener('change', () => {

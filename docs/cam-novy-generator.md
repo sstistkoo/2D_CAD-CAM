@@ -282,3 +282,23 @@ Zapnout `simpleLongGenerator` v `inserts/polygon.js`, až ho dožene.
   `cam-pocket-burst-depth`).
 - Tyto opravy se v novém generátoru nepřenášejí — patří k modulům ze
   seznamu „ZAHODIT".
+
+## 9. Porovnání v aplikaci (23. 9. 2026, pozdě večer)
+
+V panelu CAM Simulátoru je zaškrtávátko **„Nový generátor drah (test)"**
+(`pathGenerator: 'simple'`, jen podélně a kulatá). Výchozí VYPNUTO.
+
+Po opravách podle nálezů uživatele (vzduch posuvem, šikmý dojezd přes
+údolí, střídání zón po vrstvách, kolmý vjezd pod stojící materiál):
+
+| díl uživatele (kulatá) | generátor | čas | úběr | třísek > ap (max) | strmé | kolize |
+|---|---|---|---|---|---|---|
+| R 10 zprava | původní | 4,3 s | 77,7 % | 75 (7,4) | 0 | 0 |
+| R 10 zprava | nový | 1,8 s | 81,2 % | 34 (7,5) | 0 | 0 |
+| R 10 zleva | původní | 5,2 s | 51,8 % | 156 (18,0) | 6 | 2 |
+| R 10 zleva | nový | 1,6 s | 71,9 % | 43 (8,0) | 0 | 0 |
+| R 0,8 zprava | původní | 6,5 s | 79,4 % | 28 (4,5) | 4 | 33 |
+| R 0,8 zprava | nový | 0,7 s | 73,2 % | 4 (5,8) | 0 | 0 |
+
+Posuv přes vůli 1 mm nad polotovarem (offsetová čára = plánovací obrys)
+mají oba generátory stejně — to je pravidlo repa, ne chyba nového.

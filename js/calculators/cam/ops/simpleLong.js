@@ -234,23 +234,37 @@ export function genSimpleLongPasses(ctx) {
   // Od konce řezu vlevo stoupá stěna; jede se po ní, dokud nedosáhne vrstvy
   // nad (tam je materiál už pryč), nebo dokud stěna nepřestane stoupat.
   const stairLeadOut = (node, Xup) => {
-    if (!Number.isFinite(Xup)) return null;
-    let i = node.iL + 1, prev = F[node.iL];
-    while (i < N && F[i] < Xup - EPS && F[i] >= prev - 1e-4) { prev = F[i]; i++; }
-    const zTop = i >= N ? zAt(N - 1) : (F[i] >= Xup - EPS ? crossZ(i - 1, i, Xup) : zAt(i - 1));
-    if (!(node.zL - zTop > DZ)) return null;
-    const segs = traceOffsetPath(node.zL, zTop);
-    while (segs.length && Math.max(segs[0].x1, segs[0].x2) <= node.X + 0.02) segs.shift();
-    return segs.length ? segs : null;
+    if (!Number.isFinite(Xup) || node.iL + 1 >= N) return null;
+    // Stěna musí stoupat HNED za koncem řezu — jinak to není schod.
+    if (!(F[node.iL + 1] > node.X + EPS)) return null;
+    const pts = [{ x: node.X, z: node.zL }];
+    let prev = F[node.iL];
+    for (let i = node.iL + 1; i < N; i++) {
+      if (F[i] < prev - 1e-4) break;                   // stěna přestala stoupat
+      if (F[i] >= Xup - EPS) { pts.push({ x: Xup, z: crossZ(i - 1, i, Xup) }); break; }
+      pts.push({ x: F[i], z: zAt(i) });
+      prev = F[i];
+    }
+    return pts.length > 1 ? simplify(pts) : null;
   };
 
-  // ── Materiál na vrstvě uvnitř úseku (odkud kam je co řezat) ──────────────
-  const materialSpan = (node) => {
-    let a = -1, b = -1;
+  // ── Materiál na vrstvě uvnitř úseku ──────────────────────────────────────
+  // Souvislé kusy materiálu (zprava doleva). Mezera vzduchu delší než
+  // AIR_GAP rozdělí vrstvu na samostatné řezy — přes vzduch se nejede
+  // posuvem, mezi řezy přejede emise rychloposuvem.
+  const AIR_GAP = 1.0;
+  const materialPieces = (node) => {
+    const out = [];
+    let a = -1, b = -1, gap = 0;
     for (let i = node.iR; i <= node.iL; i++) {
-      if (S[i] > node.X + 1e-3) { if (a < 0) a = i; b = i; }
+      if (S[i] > node.X + 1e-3) {
+        if (a < 0) a = i;
+        else if (gap * DZ > AIR_GAP) { out.push({ a, b }); a = i; }
+        b = i; gap = 0;
+      } else if (a >= 0) gap++;
     }
-    return a < 0 ? null : { a, b };
+    if (a >= 0) out.push({ a, b });
+    return out;
   };
 
   let pocketSkips = 0, skippedSubtrees = 0, partialRamps = 0, holderSkips = 0;
@@ -301,6 +315,18 @@ export function genSimpleLongPasses(ctx) {
   // Držák se kontroluje po cestě průchodu; zbytek se přitom snižuje
   // průběžně — co hrot na začátku průchodu vyřízne, držáku dál nepřekáží.
   const passHitsHolder = (pass) => {
+    // Začátek průchodu musí ležet ve VZDUCHU: nástroj k němu přijíždí shora
+    // (rychloposuv + dojezd na hloubku) a pod ním nesmí stát materiál,
+    // který žádná vrstva nad ním nevzala — jinak by to byl kolmý zápich.
+    const p0 = pass.contourLeadIn && pass.contourLeadIn.length
+      ? { x: pass.contourLeadIn[0].x1, z: pass.contourLeadIn[0].z1 } : { x: pass.x, z: pass.zStart };
+    const i0 = idxOf(p0.z);
+    for (let i = Math.max(0, i0 - kR); i <= Math.min(N - 1, i0 + kR); i++) {
+      const d = Math.abs(zAt(i) - p0.z);
+      if (d > R + DZ / 2) continue;
+      const low = p0.x - Math.sqrt(Math.max(R * R - d * d, 0));
+      if (Rtop[i] > low + 0.05) return true;
+    }
     const save = Rtop.slice();
     let hit = false;
     for (const p of passPoints(pass)) {
@@ -311,59 +337,76 @@ export function genSimpleLongPasses(ctx) {
     return hit;
   };
 
-  const emit = (node, Xup, zCutUp) => {
+  // ── ZÓNY: každý souvislý kus materiálu na vrstvě je uzel stromu ─────────
+  // Rodič kusu = kus na nejbližší vyšší vrstvě, který se s ním v Z překrývá
+  // (a leží ve stejném volném úseku). Zóna se tak dojede CELÁ shora dolů,
+  // než se jde na další zónu vlevo — nikdy se nestřídá po vrstvách mezi
+  // dvěma místy dílu (pravidlo uživatele §6.0).
+  const pieceLv = levels.map(lv => lv.flatMap(run => materialPieces(run).map(pc => ({ run, a: pc.a, b: pc.b, kids: [] }))));
+  const roots = [];
+  for (let lvl = 0; lvl < pieceLv.length; lvl++) {
+    for (const c of pieceLv[lvl]) {
+      let parent = null;
+      for (let up = lvl - 1; up >= 0 && !parent; up--) {
+        let best = 0;
+        for (const q of pieceLv[up]) {
+          if (!(q.run.iR <= c.run.iR && q.run.iL >= c.run.iL)) continue;
+          const ov = Math.min(q.b, c.b) - Math.max(q.a, c.a);
+          if (ov >= 0 && (parent === null || ov > best)) { parent = q; best = ov; }
+        }
+      }
+      if (parent) parent.kids.push(c); else roots.push(c);
+    }
+  }
+  const byRight = (x, y) => x.a - y.a;
+  roots.sort(byRight);
+  for (const lv of pieceLv) for (const n of lv) n.kids.sort(byRight);
+
+  const emit = (pc, zCutUp) => {
+    const node = pc.run;
+    const Xup = node.lvl > 0 ? depths[node.lvl - 1] : top;
     // `zCutHere`: nejpravější místo, odkud smí začít rampa hlubší vrstvy.
     // Rampa nechává u stěny trojúhelník (mez úhlu zanoření) a ten tam stojí
-    // i pro všechny vrstvy pod ní — omezení se proto DĚDÍ, dokud ho vlastní
-    // rampa neposune ještě víc doleva.
-    let zCutHere = zCutUp, emitted = false;
-    const span = materialSpan(node);
-    if (span) {
-      const toWallR = node.wallR && span.a === node.iR;
-      const toWallL = node.wallL && span.b === node.iL;
-      const zStart = toWallR ? node.zR : Math.min(zAt(span.a) + DZ, node.zR);
-      const zEnd = toWallL ? node.zL : Math.max(zAt(span.b) - DZ, node.zL);
-      const pass = { type: 'long', x: node.X, zStart, zEnd, blocked: toWallL };
-      let ok = true;
-      if (toWallR) {
-        // Zprava stěna → kapsa. Vjíždí se z vrstvy nad ní.
-        const li = prms.plungeRoughing && Number.isFinite(Xup) ? pocketEntry(node, Xup, zCutUp) : null;
-        const zLand = li && li.length ? li[li.length - 1].z2 : NaN;
-        if (li && li.partial) {
-          // Neúplná rampa: jen sjezd, bez těla; hlubší vrstvy pod ní ne.
-          const last = li[li.length - 1];
-          const pr = { type: 'long', x: last.x2, zStart: last.z2, zEnd: last.z2, blocked: true, contourLeadIn: li };
-          if (!passHitsHolder(pr)) {
-            passes.push(pr);
-            cutPass(pr);
-            partialRamps++;
-          }
-          ok = false;
-        } else if (li && li.length && zLand <= node.zR + DZ) {
-          pass.contourLeadIn = li;
-          pass.zStart = zLand;
-        } else if (!(li && li.partial)) { ok = false; pocketSkips++; }
-      }
-      if (ok && passHitsHolder(pass)) { ok = false; holderSkips++; }
-      if (ok && pass.zStart - pass.zEnd > DZ) {
-        if (toWallL && prms.noStepRoughing) {
-          const lo = stairLeadOut(node, Xup);
-          if (lo) pass.contourLeadOut = lo;
-        }
-        passes.push(pass);
-        cutPass(pass);
-        emitted = true;
-        if (pass.contourLeadIn) {
-          zCutHere = Number.isFinite(zCutUp) ? Math.min(zCutUp, pass.zStart) : pass.zStart;
-        }
-      }
+    // i pro všechny vrstvy pod ní — omezení se proto DĚDÍ.
+    let zCutHere = zCutUp, ok = true;
+    const toWallR = node.wallR && pc.a === node.iR;
+    const toWallL = node.wallL && pc.b === node.iL;
+    const zStart = toWallR ? node.zR : Math.min(zAt(pc.a) + DZ, node.zR);
+    const zEnd = toWallL ? node.zL : Math.max(zAt(pc.b) - DZ, node.zL);
+    const pass = { type: 'long', x: node.X, zStart, zEnd, blocked: toWallL };
+    if (toWallR) {
+      // Zprava stěna → kapsa. Vjíždí se z vrstvy nad ní.
+      const li = prms.plungeRoughing && Number.isFinite(Xup) ? pocketEntry(node, Xup, zCutUp) : null;
+      const zLand = li && li.length ? li[li.length - 1].z2 : NaN;
+      if (li && li.partial) {
+        // Neúplná rampa: jen sjezd, bez těla; hlubší vrstvy pod ní ne.
+        const last = li[li.length - 1];
+        const pr = { type: 'long', x: last.x2, zStart: last.z2, zEnd: last.z2, blocked: true, contourLeadIn: li };
+        if (!passHitsHolder(pr)) { passes.push(pr); cutPass(pr); partialRamps++; }
+        ok = false;
+      } else if (li && li.length && zLand <= node.zR + DZ) {
+        pass.contourLeadIn = li;
+        pass.zStart = zLand;
+      } else { ok = false; pocketSkips++; }
     }
-    // Vrstva s materiálem, která se vynechat MUSELA: hlubší vrstvy by
-    // najely do materiálu, který nad nimi zůstal stát → vynechat i je.
-    if (span && !emitted) { skippedSubtrees++; return; }
-    for (const c of node.kids) emit(c, node.X, zCutHere);
+    if (ok && passHitsHolder(pass)) { ok = false; holderSkips++; }
+    if (ok && pass.zStart - pass.zEnd > DZ) {
+      if (toWallL && prms.noStepRoughing) {
+        const lo = stairLeadOut(node, Xup);
+        if (lo) pass.contourLeadOut = lo;
+      }
+      passes.push(pass);
+      cutPass(pass);
+      if (pass.contourLeadIn) zCutHere = Number.isFinite(zCutUp) ? Math.min(zCutUp, pass.zStart) : pass.zStart;
+    } else if (!ok) {
+      // Kus s materiálem, který se vynechat MUSEL: hlubší vrstvy téže zóny
+      // by najely do materiálu, který nad nimi zůstal stát → vynechat i je.
+      skippedSubtrees++;
+      return;
+    }
+    for (const c of pc.kids) emit(c, zCutHere);
   };
-  for (const root of (levels[0] || [])) emit(root, top, NaN);
+  for (const r of roots) emit(r, NaN);
   if (holderSkips > 0) {
     foundErrors.push({ type: 'warning', msg: `Hrubování: ${holderSkips} × průchod vynechán — držák by narazil do materiálu, který zůstal u stěny (mez úhlu zanoření).` });
   }
