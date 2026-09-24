@@ -45,28 +45,63 @@ tenčí, je ta poslední — a ta se udělá vždy.**
 
 ---
 
-## Pravidlo 4 — Začátek a konec vrstvy — NÁVRH
+## Pravidlo 4 — Začátek a konec vrstvy ✅ schváleno
 
 **Vrstva začíná a končí jen tam, kde začíná nebo končí její materiál
 (u stěny, na hraně polotovaru, na hranici úseku). Nikdy uprostřed hrbu ani
 uprostřed rovné plochy.**
 
-## Pravidlo 5 — Posuv jen v materiálu — NÁVRH
+## Pravidlo 5 — Posuv jen v materiálu ✅ schváleno
 
 **Posuvem (G1) se jede jen tam, kde se řeže. Přes vzduch a přes už
 obrobené místo se jede rychloposuvem nad materiálem.**
 
-## Pravidlo 6 — Zanoření — NÁVRH
+## Pravidlo 6 — Zanoření do plného materiálu ✅ schváleno
 
-**Kolmo (radiálně) do materiálu smí jen upichovák. Ostatní destičky
-vjíždějí rampou pod úhlem zanoření, nejvýš o jednu vrstvu (ap).**
+**Do plného materiálu se zanořuje pod úhlem z nastavení „Úhel zanoření".
+Kolmo jen tehdy, když je v nastavení kolmo (90°).**
 
-## Pravidlo 7 — Konec dílu — NÁVRH
+- **Polygon:** nikdy strměji než spodní hrana plátku (spodní úhel), ať je
+  v nastavení cokoli.
+- **Kulatá:** přednastaveno 45°; smí i kolmo, pokud je tak nastaveno.
+- **Upichovák:** kolmo (to je jeho normální zanoření).
+- Rampa nikdy nevezme víc než jednu vrstvu (ap) — viz pravidlo 3.
 
-**Konec dílu se obrobí celý: každá vrstva dojede až na konec polotovaru
-nebo ke stěně dílu. Na konci nesmí zůstat víc než přídavek.**
+## Pravidlo 7 — Vrstva jede až na konec, pravá strana nejdřív ✅ schváleno
 
-## Pravidlo 8 — Pořadí úseků — NÁVRH
+**Každá vrstva jede až na konec, dokud nenarazí na hotovní konturu. Když
+kontura vystoupí (hrb), vrstva kopíruje její tvar a pokračuje dál až na
+konec. Pak se vrátí na začátek a jede další vrstva.**
 
-**Největší průměr se obrábí první.** (Nevyjasněno: co když se pak držák
-nevejde k sousednímu, ještě neobrobenému úseku.)
+- Nejdřív se dodělá **celá pravá strana** (před hrbem) vrstvu po vrstvě až
+  dolů.
+- Teprve když je pravá strana hotová, přejede se přes hrb a dodělá se
+  zbytek na druhé straně, zase po vrstvách až dolů.
+- Přes hrb se nepřejíždí, dokud pravá strana není hotová.
+
+Příklad (díl uživatele 24. 9. 2026, `projekt_2026-09-24 (3).camprog`,
+polygon): vrstva, která jede až na konec a kopíruje hrb:
+
+```
+N360 G1 Z236.412 F0.25
+N370 G1 X51.481 Z236.161 F0.25
+N380 G1 X51.481 Z220.925 F0.25
+N390 G1 X51.477 Z220.912 F0.25
+N400 G1 X50.545 Z217.432 F0.25
+N410 G1 X50.545 Z195.278 F0.25
+N420 G1 X52.545 Z197.278
+```
+
+Pak pravá strana po vrstvách (N450 Z237.082, N560 Z237.751, N690 Z238.421 …)
+až úplně dolů, a teprve potom za hrbem (N510 G1 Z195.278 a dál dolů).
+
+## Pravidlo 8 — Pořadí úseků ✅ schváleno
+
+**Začíná se u největšího průměru a jede se po vrstvách (ap). Jakmile vrstvy
+dojdou na výšku dalšího největšího průměru vpravo, přejde se na ten pravý
+úsek a dodělá se; úsek vlevo se zatím vynechá a dodělá se potom.**
+
+- Platí jen mezi úseky, které odděluje čára zanoření vyjíždějící
+  z materiálu (pravidlo 1). Kde čára vyjíždí až na konci (údolí, ze kterého
+  čára nevyjede uprostřed), se bere vcelku jako teď — dělit tam by rozbilo
+  hlídání ap.
