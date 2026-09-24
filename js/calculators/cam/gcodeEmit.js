@@ -269,22 +269,6 @@ export function generateAutoGCode(S, calc) {
     }
     return need;
   };
-  // KDE SMÍ SVISLÝ SJEZD RYCHLOPOSUVEM ZASTAVIT (z `fromX` na Z = tz, cíl tx).
-  // Povrch ve SLOUPCI nad cílem nestačí: nástroj je široký (kulatá: kruh R)
-  // a bokem zajede do stěny vedle (díl uživatele 23. 9. 2026, R 10 u stěny
-  // kapsy). Když rychloposuv na výšku sloupce pořád naráží, zastaví se
-  // půlením tam, kde už STOPA NÁSTROJE nic nezasáhne. null = není kde.
-  const footClearStop = (fromX, stop, tz) => {
-    const hits = (x) => rapidHitsStock(fromX, tz, x, tz) || rapidHitsPlan(fromX, tz, x, tz);
-    if (!(fromX - stop > 1e-6) || !hits(stop)) return stop;
-    let lo = stop, hi = fromX;
-    for (let k = 0; k < 16 && hi - lo > 0.01; k++) { const m = (lo + hi) / 2; if (hits(m)) lo = m; else hi = m; }
-    return Math.min(fromX, hi + rapidStopX);   // rychloposuv končí o vůli PŘED materiálem
-  };
-  const descentStopX = (fromX, tx, tz) => {
-    const surf = rapidStopXAt(tz);
-    return surf === null ? null : footClearStop(fromX, Math.min(fromX, Math.max(tx, surf)), tz);
-  };
   // Vyšší z obou stropů — tak vysoko musí přejezd, aby prošel proti obojmu.
   const travelTopXAtZ = (z) => {
     const a = residualTopXAtZ(z), b = planResidualTopXAtZ(z);
@@ -833,11 +817,11 @@ export function generateAutoGCode(S, calc) {
       if (startX - tx > 1e-6) emitFeedToDepth(startX, tx, tz, plan, !!plan);
     };
     if (fromX - tx > 1e-6 && (rapidHitsStock(fromX, tz, tx, tz) || rapidHitsPlan(fromX, tz, tx, tz))) {
-      const stop = descentStopX(fromX, tx, tz);
-      if (stop !== null) { descend(stop); return; }
+      const surf = rapidStopXAt(tz);
+      if (surf !== null) { descend(Math.min(fromX, Math.max(tx, surf))); return; }
     }
     if (touch && fromX - tx > 1e-6) {
-      descend(footClearStop(fromX, fromX - tx > rapidStopX + 1e-6 ? tx + rapidStopX : fromX, tz));
+      descend(fromX - tx > rapidStopX + 1e-6 ? tx + rapidStopX : fromX);
     } else if (Math.abs(fromX - tx) > 1e-6) {
       emit(`G0 X${xDia(tx)}`);
     }
@@ -903,7 +887,7 @@ export function generateAutoGCode(S, calc) {
     // Nález uživatele 27. 8. 2026 (`N2340 G0 X68.478 ; Výjezd nad konturu`):
     // vydaný rychloposuv končí na X 21,150 a je čistý (0,00 mm² proti oběma
     // obrysům), kdežto testovaný bod X 18,345 hlásil 1,27 mm².
-    const surfStop = (cur.x - tx > 1e-6) ? descentStopX(cur.x, tx, tz) : null;
+    const surfStop = (cur.x - tx > 1e-6) ? rapidStopXAt(tz) : null;
     const rTxReal = surfStop === null ? rTx : Math.min(cur.x, Math.max(rTx, surfStop));
     if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
         // DESTIČKA: stačí testovat rychloposuvovou část — zbytek dojede
@@ -912,9 +896,6 @@ export function generateAutoGCode(S, calc) {
         // `part-8` s náhradním držákem opravdu chránil (56,6 mm² rychloposuvu
         // + 121,9 mm² držáku v materiálu, změřeno cam_sweep).
         || rapidHitsStock(cur.x, cur.z, rTxReal, tz)
-        // Vydá se pohyb do L (nejdřív Z ve stávající výšce) — i tu nohu testovat
-        // (part-21: přejezd v Z po dojezdu přes stojící klín).
-        || (cur.x - tx > 1e-6 && !sameZ && rapidHitsStock(cur.x, cur.z, cur.x, tz))
         || holderHitsRapid(cur.x, cur.z, tx, tz)) {
       // JAK VYSOKO. `rapidTopX` je vrch CELÉHO polotovaru, takže zdvih
       // „Výjezd nad konturu“ jezdil pokaydé až nad nejvyšší místo dílu, i když
@@ -1003,7 +984,7 @@ export function generateAutoGCode(S, calc) {
       if (cur.x - tx > rapidStopX + 1e-6) {
         // Přejezd v Z rovnou na začátek rampy — tahle větev si sjezd emituje
         // sama, takže reorder z `emitDescendX` na ni nedosáhne.
-        const startX = footClearStop(cur.x, tx + rapidStopX, tz);
+        const startX = tx + rapidStopX;
         const plan = planFeedToDepth(startX, tx, tz, cur.x);
         emit(`G0 Z${(plan ? plan.zBack : tz).toFixed(3)}`);
         emit(`G0 X${xDia(startX)}`);

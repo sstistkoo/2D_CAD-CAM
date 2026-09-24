@@ -322,7 +322,7 @@ bridge.gearFromSelection = gearFromSelection;
 
 CAM generátory jsou v `js/calculators/`.
 
-> **Pravidla, která dráha musí splňovat, jsou v `docs/cam-pravidla-drah.md`.**
+> **Pravidla, která dráha musí splňovat, jsou v `docs/cam-pravidla.md`.**
 > Tahle kapitola popisuje ARCHITEKTURU (který modul co dělá); ten dokument
 > popisuje PODMÍNKY (jak se dráha smí generovat, kde smí začít vjezd, jaké
 > jsou prahy hlídání, co je doložená mez). Před zásahem do hrubování si ho
@@ -348,7 +348,7 @@ User selects CAM tool
 | `calculators/camEditor.js` | Editor CAM strategií |
 | `calculators/camSimulator.js` | Náhled obrysů obrábění |
 | `calculators/contourOffset.js` | Offset kontur pro obrábění |
-| `calculators/cam/residualTracker.js` | Model ZBYTKU se znalostí pořadí obrábění (polygony, `StockModel`). Strategie si vede levné výškové pole `cutFloorTab`; to ale neumí TUNEL — když zanoření/dojezd podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu (změřeno 11–14 mm na `part-8` a `holder-casting-slanted-face`). Za příznakem `orderAwareHolder`, viz `docs/cam-order-aware-holder.md` |
+| `calculators/cam/residualTracker.js` | Model ZBYTKU se znalostí pořadí obrábění (polygony, `StockModel`). Strategie si vede levné výškové pole `cutFloorTab`; to ale neumí TUNEL — když zanoření/dojezd podjede pod stojícím materiálem, srazí celý sloupec na hloubku tunelu (změřeno 11–14 mm na `part-8` a `holder-casting-slanted-face`). |
 | `calculators/cam/residualHolder.js` | Hlídání DRŽÁKU proti modelu zbytku (za příznakem `orderAwareHolder`). ZAPOJENÉ je `holderAreaAlongResidual` — nejhorší vnoření držáku podél VJEZDU zákroku, s odečteným vlastním řezem; tím se řeší zbylá vada nálezu 09 na `part-8`. `makeResidualClamp` (ořez Z-intervalu, shodné rozhraní jako `clamp` z `makeHolderClamp`) je otestovaný, ale NEZAPOJENÝ — jeho místo v `applyHolderClamp` bylo změřeno a zamítnuto |
 | `calculators/cam/gcodeSync.js` | Pravidlo, kdy se po změně nastavení přepíše PROGRAM (`S.manualGCode`) a kdy jen NÁHLED — viz „CAM: náhled × program" níže |
 | `calculators/thread.js` | Parametry závitů |
@@ -589,7 +589,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; obě souběžné cesty (klasický sken × booleovská za příznakem `booleanRoughing`) |
 | `cam/ops/long/holderTrim.js` | `makeHolderTrim()` — ořez sledování kontury (leadIn/leadOut) obálkou držáku |
 | `cam/ops/long/plungeLines.js` | `makePlungeLines()` — paměť, kdo kudy už sjel po téže přímce zanoření |
-| `cam/ops/long/cutRegistry.js` | Evidence PROJETÝCH ÚSEKŮ: `depthCutSpans`/`depthCutClampZ` (rovný řez na hloubce vrstvy) a `makeChainRegistry` (řetězy po kontuře). Čisté funkce nad `passes` — bez skrytého stavu. Přehled celé evidence viz `docs/cam-pravidla-drah.md` §6.2 |
+| `cam/ops/long/cutRegistry.js` | Evidence PROJETÝCH ÚSEKŮ: `depthCutSpans`/`depthCutClampZ` (rovný řez na hloubce vrstvy) a `makeChainRegistry` (řetězy po kontuře). Čisté funkce nad `passes` — bez skrytého stavu. Přehled celé evidence viz `docs/cam-pravidla.md` |
 | `cam/ops/long/regions.js` | Dělení úseků podle hrbů kontury + jejich pořadí (od největšího průměru) |
 | `cam/ops/long/holderCheck.js` | Kontrola držáku při dělení regionů |
 | `cam/ops/long/insertFlankGuard.js` | Hlídání boku destičky v podélném hrubování |
@@ -1559,7 +1559,7 @@ standardech polotovaru (syrová silueta × offsetová čára). Běží jeden pro
 na (fixture × varianta) — singleton `S` v `tests/helpers/camHeadless.mjs`
 jinak kontaminuje mezi díly.
 
-Podrobnosti a zapsaná baseline: `docs/cam-order-aware-holder.md`, krok 0.
+
 
 ### Koho všeho se moje oprava dotkla? (`scripts/cam_fingerprint.mjs`)
 

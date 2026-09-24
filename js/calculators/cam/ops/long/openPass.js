@@ -86,25 +86,12 @@ export function emitOpenInterval(D) {
   // a hlavně: upichováku je kolmý zápich vlastní (rozhodnutí uživatele
   // 26. 8. 2026, viz `plungeEntryOk` výš). Ten se tedy řídí dál `plungeHolderFitsAt`.
   if (entryCapped && !plungeEntryOk && !entryRampIsPlunge
-      && iv.entryShifted && (iv.zStart < entryZ - 1e-6 || iv.ruleTwo)) {
-    // PRAVIDLO 2 (docs/cam-pravidla.md): když se s rampou nevejde držák,
-    // vjezd couvne doleva (po 1 mm), dokud se nevejde CELÁ rampa — vrstva se
-    // nezahazuje. Kus u stěny, kam držák nesmí, zůstane stát.
-    // Rampa začíná nejvýš o ap nad vrstvou — výš už materiál vzala mělčí
-    // vrstva (týž strop, jaký rampě pak vnutí pipeline; bez něj plán i kontrola
-    // držáku počítaly s řezem, který G-kód nikdy neudělá).
-    const rampFits = (zS) => {
-      let er = stockEntryRamp(currentX, zS);
-      if (er && er.x0 - currentX > step) er = { x0: currentX + step, z0: zS + step / effPlungeTanL };
-      const cand = { x: currentX, zStart: zS, zEnd: iv.zEnd, ramp: er };
-      return (er && er.x0 > currentX + 0.05
+      && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
+    const er = stockEntryRamp(currentX, iv.zStart);
+    const cand = { x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, ramp: er };
+    if (er && er.x0 > currentX + 0.05
         && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
-        && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) ? er : null;
-    };
-    let zS = iv.zStart, er = rampFits(zS);
-    while (!er && zS - 1 > iv.zEnd + 1) { zS -= 1; er = rampFits(zS); }
-    if (er) {
-      passObj.zStart = zS;
+        && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
       passObj.ramp = { x0: er.x0, z0: er.z0 };
       passObj.entryRangeRamp = true;
     } else {
@@ -491,5 +478,14 @@ export function emitOpenInterval(D) {
     if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
   }
   passes.push(passObj);
+  // Schodová evidence (Fáze 3a): JEN ZKRÁCENÉ konce. Nezkrácený
+  // průchod končí na stěně offsetu — ta už je v siluetě zakázané
+  // oblasti a evidovat ji znovu by přes bbox držáku falešně škrtala
+  // vzdálené intervaly (např. pásy u čela). Zkrácený konec ale nechal
+  // stát materiál NAD siluetou — hlubší průchody podle něj drží
+  // levou hranu držáku před schodem.
+  if (holderClampZEnd && holderClampZEnd.noteMainEnd && iv.holderClamped) {
+    holderClampZEnd.noteMainEnd(currentX, currentX + step, iv.zEnd);
+  }
   return;
 }

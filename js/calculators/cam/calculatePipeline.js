@@ -21,7 +21,7 @@ import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
 import { getInsert } from './inserts/index.js';
-import { makeFinishTipGuard } from './toolEnvelope.js';
+import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 import { stockPlanLoop } from './materialRemoval.js';
@@ -424,6 +424,23 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     }
   }
 
+  // ── Fáze 3a/3b (Clipper2): obálka držáku ──────────────────────
+  // Zakázaná oblast špičky = silueta offsetu ⊕ (−obrys držáku)
+  // (Minkowski). Hrubování: scanIntervals průchody zkrátí, aby držák
+  // nikdy nevjel do materiálu, který po hrubování zůstává (silueta =
+  // minimum toho, co v okamžiku průchodu stojí → bezpečně konzervativní
+  // vůči guides; nikdy neprodlužuje, jen zkracuje). Dokončování (3b):
+  // úseky se špičkou v zakázané oblasti se přeskočí (isForbidden).
+  // Jen se zapnutým „Hlídat geometrii" a definovaným držákem.
+  let holderClampZEnd = null;
+  if (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+    try {
+      holderClampZEnd = makeHolderClamp(prms, offsetPath, { backside: false, stockPathSegments });
+    } catch (err) {
+      console.warn('CAM: obálku držáku se nepodařilo sestavit:', err);
+    }
+  }
+
   // Dokončovací dráha — celá operace v ops/finish.js.
   if (prms.doFinishing || prms.finishOnly) {
     finishOffsetPath = buildFinishPath({
@@ -484,7 +501,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     stockWorldPoints, worldPoints, passes, foundErrors,
     offsetXAt, traceOffsetPath, findPocketExitZ,
     findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ,
-    interferenceGuides,
+    holderClampZEnd, interferenceGuides,
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
   // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy

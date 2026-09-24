@@ -23,7 +23,7 @@ export function emitPocketInterval(D) {
     holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
     residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
-    newCutArea, pocketLeadOut, xFloor = -Infinity,
+    newCutArea, pocketLeadOut,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -261,6 +261,9 @@ if (!iv.blocked) {
   if (cutsNothingNew(passOpen)) return;
   attachStepLeadOut(passOpen);
   passes.push(passOpen);
+  if (holderClampZEnd && holderClampZEnd.noteMainEnd && holderClampedOpen) {
+    holderClampZEnd.noteMainEnd(currentX, currentX + step, zEndEff);
+  }
   return;
 }
 // Upichovák: svislý zápich — roh = pravý okraj kapsy − (w−2r), druhý
@@ -505,8 +508,6 @@ for (let z = zGapHi; z >= iv.zEnd - 0.3; z -= 0.1) {
   const ox = offsetXAt(z);
   if (ox !== null && ox < pocketBottomX) { pocketBottomX = ox; pocketBottomZ = z; }
 }
-// Dobírání kapsy nesmí pod dno rozsahu X (📐).
-pocketBottomX = Math.max(pocketBottomX, xFloor);
 
 // Fáze 1 — rampované zanořovací zákroky.
 let localX = currentX, curGapHi = zGapHi, curIv = iv, curCorner = corner;

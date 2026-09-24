@@ -58,6 +58,8 @@ npm run test:coverage # coverage — POZOR: instrumentace zpomalí CAM ~4× a š
 npm run sw            # vygenerovat SW assety (scripts/generate-sw-assets.js)
                       #   PO PŘIDÁNÍ JS SOUBORU SPUSTIT — jinak chybí v offline cache
 
+# CAM – KONTROLA PODLE PRAVIDEL (docs/cam-pravidla.md): porušení s čísly N…
+node scripts/cam_rules_check.mjs soubor.camprog [--generator=simple] [--all]
 # CAM – „koho všeho se moje oprava dotkla?" (~35 s, viz hlavička skriptu)
 node scripts/cam_fingerprint.mjs --save=pred.json   # PŘED zásahem
 node scripts/cam_fingerprint.mjs --diff=pred.json   # PO zásahu → seznam změněných dílů
@@ -174,14 +176,9 @@ docs/                 # developer.md, user-guide.md
 ## Odkazy a dokumentace
 - `README.md` – přehled funkcí a struktury
 - `docs/developer.md` – architektura, přidání nástroje, CAM pipeline, DXF
-- `docs/cam-pravidla-drah.md` – **PODMÍNKY generování drah**: pořadí obrábění,
-  vjezd a zanoření, prahy hlídání destičky/držáku, kde končí polotovar,
-  pravidla vyslovená uživatelem, doložené meze. **Číst PŘED zásahem do
-  hrubování** — developer.md říká, který modul co dělá, tenhle CO MUSÍ PLATIT.
-- `docs/cam-tvar-platku-v-generatoru.md` – **kde tvar plátku vstupuje do
-  generátoru**: co je vytažené do `cam/inserts/*.js`, kdo se na která
-  pravidla ptá a co se ještě může plést do jiných plátků. Číst PŘED
-  zásahem, který se týká jednoho tvaru destičky.
+- `docs/cam-pravidla.md` – **JEDINÝ zdroj pravidel CAM drah** (schvaluje
+  uživatel, jedno pravidlo = jedna ověřitelná podmínka). Číst PŘED každým
+  zásahem do generování drah. Nic, co tam není, neplatí.
 - `docs/user-guide.md` – uživatelská příručka
 - `CONTRIBUTING.md` – pravidla přispívání
 - `CHANGELOG.md` – deník změn (Keep a Changelog / SemVer)
