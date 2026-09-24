@@ -17,9 +17,12 @@
 //   P3  tenká vrstva uprostřed — průchod v Z ubral nejvýš ap − 0,3 mm, a přesto
 //                              na tomtéž místě později jela ještě hlubší vrstva
 //   P5  posuv vzduchem       — G1 delší než 3 mm, který skoro nic neubere
-//   P6  kolmé zanoření       — posuv k ose strmější než úhel zanoření, který
-//                              řeže materiál (upichovák smí)
-//   P4  (NÁVRH) vrstva končí uprostřed materiálu — hned za koncem průchodu
+//   P6  zanoření strměji než dovoleno — posuv k ose, který řeže, strmější než
+//                              „Úhel zanoření"; polygon navíc nikdy strměji než
+//                              spodní hrana (neřezat dvěma stranami). Upichovák smí.
+//   P7  přejezd přes hrb dřív, než je pravá strana hotová   (scripts/lib/camRuleOrder.mjs)
+//   P8  úsek hlouběji než vrch nehotového úseku vpravo       (scripts/lib/camRuleOrder.mjs)
+//   P4  vrstva končí uprostřed materiálu — hned za koncem průchodu
 //                              stojí materiál téže vrstvy a nebrání tomu díl
 // P1 (úseky) se z G-kódu ověřit nedá — hlídá ho test `cam-region-guide-split`.
 
@@ -36,7 +39,8 @@ const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js')
 const { getEffectivePlungeAngle, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
-const { polyOffset } = await imp('js/geom/geomCore.js');
+const { polyOffset, pointInLoop } = await imp('js/geom/geomCore.js');
+const { makeOrderChecks } = await imp('scripts/lib/camRuleOrder.mjs');
 
 // ── Tolerance (jedna místo, ať je vidět, s čím se měří) ──────────────
 const TOL_AP = 0.05;        // mm nad ap, než je to porušení
@@ -69,8 +73,11 @@ async function check(file) {
   const ap = parseFloat(P.depthOfCut);
   // Břit = nejnižší bod stopy nástroje pod programovaným bodem (kulatá R, polygon rádius nosu).
   const lift = Math.max(0, -Math.min(...toolFootprint(P).map(q => q.x)));
-  const plungeDeg = getEffectivePlungeAngle(P);
-  const partingOk = !!getInsert(P).cutsFullWidth;
+  const ins = getInsert(P);
+  const partingOk = !!ins.cutsFullWidth;
+  // P6: dovolený úhel posuvu k ose. Polygon nikdy strměji než spodní hrana.
+  const plungeLimit = partingOk ? 90
+    : (P.toolShape === 'polygon' ? Math.min(getEffectivePlungeAngle(P), ins.autoPlungeAngleDeg) : getEffectivePlungeAngle(P));
   const allowX = parseFloat(P.allowanceX) || 0;
   const sp = r.calcSim.simPath;
   const lines = r.gcode.split('\n');
@@ -81,6 +88,15 @@ async function check(file) {
   const part = offsetSilhouetteLoop(r.calc.contourSegments);
   // Kam až smí dráha (střed nosu) dojet — offsetová dráha i s přídavky.
   const { offsetXAt } = makePassHelpers(r.calc.offsetPath || []);
+  // Přídavek se měří KOLMO od dílu (jako offset), ne svisle — na šikmé
+  // stěně je svislá vzdálenost k přídavkové čáře mnohem větší než Přídavek X.
+  const allow = Math.max(allowX, parseFloat(P.allowanceZ) || 0);
+  let allowLoop = part;
+  try { const o = polyOffset([part], allow); if (o && o[0]) allowLoop = o.sort((u, v) => v.length - u.length)[0]; } catch { /* bez offsetu */ }
+  const dir = P.roughingSide === 'left' ? -1 : 1;
+  const order = makeOrderChecks({ ap, part, allowLoop, stockLoop: rm.baseLoop, guides: r.calc.interferenceGuides,
+    cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop });
+  let afterRapid = true;
   const found = { chip: [], air: [], plunge: [], endMid: [], thin: [] };
   const thinCand = [];
   const pendingEnd = [];
@@ -111,7 +127,12 @@ async function check(file) {
       const dx = b.x - a.x, dz = b.z - a.z;
       if (!partingOk && dx < -0.2 && cut > 0.1) {
         const deg = Math.abs(dz) < 1e-9 ? 90 : Math.atan(Math.abs(dx) / Math.abs(dz)) * 180 / Math.PI;
-        if (deg > plungeDeg + 1) found.plunge.push({ i, v: deg });
+        if (deg > plungeLimit + 1) found.plunge.push({ i, v: deg, lim: plungeLimit });
+      }
+      // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
+      if (afterRapid && Math.abs(dx) < 1e-6 && Math.abs(dz) > 1) {
+        order.onPassStart(i, b.x, a.z, b.x - lift, loopsBefore);
+        afterRapid = false;
       }
       // P4 (návrh) — konec vrstvy: posuv v Z, po něm rychloposuv nebo odjezd
       // nahoru, a hned za koncem (1 mm dál ve směru jízdy) stojí materiál
@@ -131,6 +152,7 @@ async function check(file) {
           found.endMid.push({ i: q.i, v: top - q.edge });
       }
       pendingEnd.length = 0;
+      afterRapid = true;
       rm.advanceTo(sp, i);
     }
   }
@@ -146,11 +168,6 @@ async function check(file) {
   let run = null;
   let zLo = Infinity, zHi = -Infinity;
   for (const p of part) { zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z); }
-  // Přídavek se měří KOLMO od dílu (jako offset), ne svisle — na šikmé
-  // stěně je svislá vzdálenost k přídavkové čáře mnohem větší než Přídavek X.
-  const allow = Math.max(allowX, parseFloat(P.allowanceZ) || 0);
-  let allowLoop = part;
-  try { const o = polyOffset([part], allow); if (o && o[0]) allowLoop = o.sort((u, v) => v.length - u.length)[0]; } catch { /* bez offsetu */ }
   for (let z = zLo + 0.25; z < zHi; z += 0.25) {
     const pt = topXOnLoop(allowLoop, z), top = topAt(rm.model.loops, z);
     const over = (pt !== null && top !== null) ? top - pt : 0;
@@ -163,7 +180,7 @@ async function check(file) {
   const coll = validateToolpath(sp, P, r.calcSim.stockPathSegments,
     { backside: P.roughingSide === 'left', maxIssues: 200 });
 
-  return { name: basename(file), P, ap, found, floors, coll, N, txt };
+  return { name: basename(file), P, ap, found, floors, coll, N, txt, order };
 }
 
 const fmtList = (arr, fmt) => (showAll ? arr : arr.slice(0, 8)).map(fmt).join('\n      ')
@@ -182,10 +199,12 @@ for (const f of files) {
   row('P3 tříska větší než ap', F.chip, (q) => `${c.N(q.i)}: ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 tenká vrstva uprostřed', F.thin, (q) => `${c.N(q.i)}: jen ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem`);
-  row('P5 posuv vzduchem (návrh)', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
-  row('P6 kolmé zanoření (návrh)', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}°   | ${c.txt(q.i)}`);
-  row('P4 vrstva končí uprostřed materiálu (návrh)', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
-  total += c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length;
+  row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
+  row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)   | ${c.txt(q.i)}`);
+  row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
+  row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);
+  row('P4 vrstva končí uprostřed materiálu', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
+  total += c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length;
 }
 console.log(`\nCELKEM porušení: ${total}`);
 console.log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');
