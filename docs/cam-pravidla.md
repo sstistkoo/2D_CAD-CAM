@@ -61,8 +61,12 @@ obrobené místo se jede rychloposuvem nad materiálem.**
 **Do plného materiálu se zanořuje pod úhlem z nastavení „Úhel zanoření".
 Kolmo jen tehdy, když je v nastavení kolmo (90°).**
 
-- **Polygon:** nikdy strměji než spodní hrana plátku (spodní úhel), ať je
-  v nastavení cokoli.
+- **Polygon: plátek nesmí řezat dvěma stranami najednou.** Řeže jen přední
+  (hlavní) hrana a špička. Žádný posuv k ose — rampa, zanoření ani sjíždění
+  po kontuře dolů — nesmí být strmější než spodní (vedlejší) hrana plátku,
+  jinak by řezala i ona. Platí při zanořování i při podélném hrubování, ať
+  je v nastavení cokoli. Materiál, kam by musela sáhnout spodní hrana,
+  zůstane stát a nahlásí se.
 - **Kulatá:** přednastaveno 45°; smí i kolmo, pokud je tak nastaveno.
 - **Upichovák:** kolmo (to je jeho normální zanoření).
 - Rampa nikdy nevezme víc než jednu vrstvu (ap) — viz pravidlo 3.
