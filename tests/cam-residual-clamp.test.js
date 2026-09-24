@@ -220,26 +220,19 @@ describe('orderAwareHolder v genLongPasses', () => {
   // příznak nesmí kolize ZHORŠIT a nesmí být tichý no-op. Přínos modelu
   // (tunel, který výškové pole neumí) měří dál `cam-strategy-residual`
   // — na `part-8` pole podřezává 9,366 mm proti trackeru 0,012 mm.
-  it('příznak nezhorší kolize a není tichý no-op', async () => {
+  // Od 23. 9. 2026 je v podélném hrubování JEDINÁ kontrola držáku
+  // (ops/long/holderGuard.js) a ta zná pořadí obrábění vždy — příznak
+  // `orderAwareHolder` už nic nepřepíná. Místo „příznak něco změnil" se
+  // proto hlídá samotné pravidlo 2: na dílech, kvůli kterým order-aware
+  // vzniklo, nesmí zůstat jediná kolize.
+  it('jediná kontrola držáku: měřené díly bez kolize', async () => {
     const FIXTURES = ['part-8.camprog', 'holder-region-roughing.camprog',
       'holder-casting-slanted-face.camprog'];
     const fmt = (r) => r.issues.map(i => `${i.kind}@r${i.x.toFixed(1)}Z${i.z.toFixed(1)}=${i.area.toFixed(1)}`).join('; ');
-    let changed = 0;
     for (const f of FIXTURES) {
-      const off = await run(f, false, MAGAZINE_HOLDER);
       const on = await run(f, true, MAGAZINE_HOLDER);
-      const area = (r) => r.issues.reduce((a, i) => a + i.area, 0);
-      // (a) s příznakem nesmí být kolizí víc ani větší plocha
-      expect(on.issues.length, `${f} s příznakem: ${fmt(on)} × bez: ${fmt(off)}`)
-        .toBeLessThanOrEqual(off.issues.length);
-      expect(area(on), `${f} plocha s příznakem`).toBeLessThanOrEqual(area(off) + 0.05);
-      // (b) cena je nejvýš pár zákroků, ne rozpadlý program
-      expect(Math.abs(off.passes - on.passes), `${f}: rozdíl počtu průchodů`)
-        .toBeLessThanOrEqual(2);
-      if (off.passes !== on.passes || off.issues.length !== on.issues.length) changed++;
+      expect(on.issues.length, `${f}: ${fmt(on)}`).toBe(0);
     }
-    // (c) není to no-op — aspoň někde se program s příznakem liší
-    expect(changed, 'příznak nezměnil ani jeden z měřených dílů').toBeGreaterThan(0);
   }, 240000);
 
   it('ostatní díly se příznakem nehnou (part-1)', async () => {

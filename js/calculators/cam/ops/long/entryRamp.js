@@ -14,14 +14,14 @@
 //
 // `blockedAt` přichází z `runScan.js`, který se staví DŘÍV (závisí jen na
 // offsetu kontury a siluetě polotovaru). Pořadí továren v generátoru proto
-// není libovolné: runScan → depthTabs → residualGuard → holderFit →
+// není libovolné: runScan → depthTabs → holderGuard →
 // entryRamp → intervalScan.
 
 import { pointInLoop } from '../../../../geom/geomCore.js';
 
 /**
  * @param T                  výškové tabulky z `makeDepthTabs()`
- * @param holderFitsAt       test „vejde se držák?" z `makeHolderFit()`
+ * @param holderFitsAt       test „vejde se držák?" — jediná kontrola, ops/long/holderGuard.js
  * @param stockLoopOffsetL   vůlí-posunutá silueta polotovaru (v rozsahu 📐)
  * @param plungeDirL         směr přímky zanoření + krok skenu
  * @param effPlungeTanL      tangenta efektivního úhlu zanoření
@@ -40,7 +40,10 @@ export function makeEntryRamp({
     if (!capTab || zHi - zFloor < 0.1) return -Infinity;
     for (let z = zHi; z > zFloor; z -= DZ_CAP) {
       const top = stockTopTab(z);
-      if (top === null || top <= X + 0.05) continue;              // vzduch / už pod hloubkou
+      // BŘIT je o `noseLiftX` pod dráhou `X` (kulatá R, jinde 0): materiál nad
+      // břitem je materiál, i když leží pod středem nosu (díl uživatele 23. 9.:
+      // celé údolí 10 mm se bralo jako vzduch a vrstvy v něm vypadly).
+      if (top === null || top <= X - noseLiftX + 0.05) continue;  // vzduch / už pod hloubkou
       if (z - (top - X) / effPlungeTanL <= zFloor + 0.05) continue;   // (a) rampa se nevejde
       // (b) vejde se DRŽÁK — a to V HLOUBCE, na kterou rampa dosedne.
       // Rampa se tu ZÁMĚRNĚ nepočítá jako vlastní řez (na rozdíl od kapsy):
@@ -101,8 +104,7 @@ export function makeEntryRamp({
   // polotovaru a už vyříznuté podlahy (`cutFloorTab`, tentýž líný prefix
   // `passes`, jaký používá hlídání držáku). Ze dvou sousedních vzorků se bere
   // VYŠŠÍ hodnota podlahy — kotva tak radši vyjede o kus výš, než aby sedla
-  // POD povrch, kam pak nesmí rychloposuv (opačné zaokrouhlení než
-  // `residTopAt` v holderFit.js, kde je bezpečná strana ta druhá).
+  // POD povrch, kam pak nesmí rychloposuv.
   const residTopSafe = (z) => {
     const t = stockTopTab(z);
     if (t === null) return null;

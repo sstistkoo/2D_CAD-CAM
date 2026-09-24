@@ -14,11 +14,10 @@ import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualR
 import { pointInLoop, polyIntersect } from '../../../geom/geomCore.js';
 import { HOLDER_CLAMP_MARGIN, insertReachZ } from '../toolEnvelope.js';
 import { makeAlreadyCut } from './long/alreadyCut.js';
-import { HOLDER_ENTRY_STOCK_GAP, HOLDER_FIT_TOL, ENTRY_SHIFT_MAX, ENTRY_FIT_TOL, SKIM_MIN_LAYER, clipLeadOutToDepth } from './shared.js';
+import { HOLDER_FIT_TOL, ENTRY_SHIFT_MAX, ENTRY_FIT_TOL, SKIM_MIN_LAYER, clipLeadOutToDepth } from './shared.js';
 import { depthKey, subdivideLineSegs, mergeCollinearSegs, traceIfContinuous, isFaceLeadOut } from './long/segUtils.js';
 import { makeDepthTabs } from './long/depthTabs.js';
-import { makeResidualGuard } from './long/residualGuard.js';
-import { makeHolderFit } from './long/holderFit.js';
+import { makeHolderGuard, HOLDER_TOL } from './long/holderGuard.js';
 import { makeEntryRamp } from './long/entryRamp.js';
 import { makeIntervalScan } from './long/intervalScan.js';
 import { makeRunScan } from './long/runScan.js';
@@ -32,7 +31,7 @@ import { relinkOrphanChainSteps } from './long/chainRelink.js';
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange, machiningRangeX, interferenceGuides } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -104,6 +103,16 @@ export function genLongPasses(ctx) {
       minPartX = Math.min(minPartX, os.cx - os.r);
       maxPartX = Math.max(maxPartX, os.cx + os.r);
     }
+  });
+  // ROVNÁ DNA A SCHODY (pokyn uživatele 23. 9. 2026: „dodělávat i poslední
+  // vrstvu, i když není na celý záběr ap"). Každá vodorovná úsečka dráhy
+  // (≥ 1 mm) dostane vlastní vrstvu přesně na své výšce — jinak na ní zůstane
+  // stát až ap materiálu, když žebřík po ap na její výšku nepadne.
+  const floorXs = [];
+  offsetPath.forEach(os => {
+    if (os.isDegenerate || os.type !== 'line') return;
+    if (Math.abs(os.p1.x - os.p2.x) > 1e-6 || Math.abs(os.p1.z - os.p2.z) < 1) return;
+    if (!floorXs.some(x => Math.abs(x - os.p1.x) < 0.01)) floorXs.push(os.p1.x);
   });
 
   // ── Rozsah obrábění 📐 ořezává i GEOMETRII, ze které se plánuje ────────
@@ -273,6 +282,10 @@ export function genLongPasses(ctx) {
     }
   }
   for (let d = ladderTopX - step; d > minPartX + 0.005; d -= step) depths.push(d);
+  for (const f of floorXs) {
+    if (f < ladderTopX - 0.01 && f > minPartX + 0.005 && !depths.some(d => Math.abs(d - f) < 0.01)) depths.push(f);
+  }
+  depths.sort((a, b) => b - a);
   if (depths.length === 0 || Math.abs(depths[depths.length - 1] - minPartX) > 0.005) {
     depths.push(minPartX);
   }
@@ -502,15 +515,46 @@ export function genLongPasses(ctx) {
   // Výsledek se pak zanořuje rampou úplně stejně jako vjezd na hranici
   // rozsahu Z — sdílí s ním i celý řetěz kotev (entryRampAnchor níž).
   const T = makeDepthTabs({ prms, stockLoopOffsetFullL, passes });
-  const { DZ_CAP, holderLoopL, holderZLoL, holderZHiL, capZ0, capTab,
-    stockTopTab, holderBottomAt, newFloorTab, notePassInto, syncCutFloor } = T;
-  // Polygonový model zbytku pro hlídání držáku — viz ops/long/residualGuard.js.
-  const { orderAware, residHolderL, residEntryArea, plungeHolderFitsAt, entryHolderArea } =
-    makeResidualGuard({ prms, stockPathSegments, stockLoopOffsetFullL, holderLoopL, passes,
-      offsetStockTopXAtZ, step });
-  // Vejde se držák? — viz ops/long/holderFit.js.
-  const { residTopAt, holderNearDz, holderFitArea, ownCutOf, holderFitAreaAlong,
-    holderFitsAt } = makeHolderFit({ T, prms });
+  const { DZ_CAP, capZ0, capTab, stockTopTab, newFloorTab, notePassInto, syncCutFloor } = T;
+  // ── JEDINÁ KONTROLA DRŽÁKU (pravidlo 2) — ops/long/holderGuard.js ─────
+  // Všechna jména níž jsou jen jiné tvary TÉHOŽ dotazu; každé místo
+  // generátoru se ptá stejného modelu se stejnou tolerancí.
+  const guard = makeHolderGuard({ prms, stockPathSegments, seedLoop: stockLoopOffsetFullL, passes });
+  const holderClampZEnd = guard.clamp;
+  const orderAware = guard.active, residHolderL = guard.active;
+  // Dráha špičky při vjezdu zákroku: začátek rampy → vjezd → nájezd po kontuře.
+  const entryPath = (p, leadIn) => {
+    const pts = [];
+    if (p.ramp && Number.isFinite(p.ramp.x0) && Number.isFinite(p.ramp.z0)) pts.push({ x: p.ramp.x0, z: p.ramp.z0 });
+    if (Number.isFinite(p.x) && Number.isFinite(p.zStart)) pts.push({ x: p.x, z: p.zStart });
+    for (const sg of (leadIn || p.contourLeadIn || [])) {
+      if (Number.isFinite(sg.x2) && Number.isFinite(sg.z2)) pts.push({ x: sg.x2, z: sg.z2 });
+    }
+    return pts;
+  };
+  const residEntryArea = (p, leadIn, abortAbove = Infinity) =>
+    (p ? guard.areaAlong(entryPath(p, leadIn), abortAbove) : 0);
+  const holderFitAreaAlong = (p, leadIn) => residEntryArea(p, leadIn);
+  // Svislé zanoření z povrchu (offsetová čára) na hloubku X.
+  const plungeHolderFitsAt = (X, zStart, zEnd) => {
+    const surfX = offsetStockTopXAtZ(zStart);
+    if (surfX === null || !(surfX > X + 0.05)) return false;
+    return residEntryArea({ x: X, zStart, zEnd, ramp: { x0: surfX, z0: zStart } }) <= HOLDER_TOL;
+  };
+  const entryHolderArea = (X, z) => {
+    const surfX = offsetStockTopXAtZ(z);
+    const x0 = Math.max(surfX === null ? -Infinity : surfX, X + step);
+    return residEntryArea({ x: X, zStart: z, zEnd: z, ramp: { x0, z0: z } });
+  };
+  const holderFitArea = (z, tipX, _gap, ownCut = null) => guard.area(tipX, z, ownCut);
+  const holderFitsAt = (z, tipX, _gap, ownCut = null) => guard.fits(tipX, z, ownCut);
+  // Co si zákrok vykope SÁM, než špička dosedne na cíl (rampa + nájezd).
+  const ownCutOf = (p, leadIn) => {
+    const own = [];
+    if (p.ramp && Number.isFinite(p.ramp.x0)) own.push({ z1: p.ramp.z0, x1: p.ramp.x0, z2: p.zStart, x2: p.x });
+    for (const sg of (leadIn || p.contourLeadIn || [])) own.push(sg);
+    return own;
+  };
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner, rampClearOfContour } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
@@ -649,27 +693,7 @@ export function genLongPasses(ctx) {
   // zanoření do kapsy). Tenhle test se ptá na FINÁLNÍ stav sousedního úseku
   // (kontura), ne na živý model zbytku — ten při rozhodování o zlomu ještě
   // není naplněný.
-  const holderFitsOverContour = (z, tipX) => {
-    if (!holderLoopL) return true;
-    let area = 0;
-    for (let q = z + holderZLoL; q <= z + holderZHiL + 1e-9; q += DZ_CAP) {
-      if (q - z < holderNearDz - 1e-9) continue;
-      const tPath = offsetXAt(q);
-      if (tPath === null) continue;
-      // POVRCH kontury, ne dráha. `offsetXAt` je střed nosu, kdežto spodek
-      // držáku (`holderBottomAt`) se měří od dráhy nahoru a naráží na
-      // povrch — týž vzor jako `residTopAt` v holderFit.js. S dráhou tu
-      // u kulaté R 10 chybělo 10 mm místa, držák „se nevešel" všude
-      // a vrstvy NAD hrbem se sekaly na jeho hraně (nález uživatele
-      // 23. 9. 2026: polygon týž konec dílu bere vcelku). `t − R` leží
-      // vždy NAD povrchem (střed nosu je od povrchu ≥ R), strana je bezpečná.
-      const t = tPath - noseLiftL;
-      const room = Math.max(holderBottomAt(q - z) - HOLDER_ENTRY_STOCK_GAP, 0.05);
-      const d = t - (tipX + room);
-      if (d > 0) area += d * DZ_CAP;
-    }
-    return area <= HOLDER_FIT_TOL;
-  };
+  const holderFitsOverContour = (z, tipX) => guard.fits(tipX, z);
 
   // Z-rozsah dílu (kontury) — hrby se hledají jen v něm, viz regions.js.
   // Přídavek Z je v tom proto, že offsetová čára končí o něj za konturou.
@@ -886,7 +910,6 @@ export function genLongPasses(ctx) {
   if (depths.length === 0) continue;
   // Schodová evidence obálky držáku platí v rámci jednoho regionu —
   // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
-  if (holderClampZEnd && holderClampZEnd.resetStair) holderClampZEnd.resetStair();
   // Strmé stěny, kde rampa (viz níž) byla oříznuta na currentX (Hloubka
   // ap) — po skončení hloubkové smyčky TOHOTO regionu se sem doplní
   // dokončovací zákrok, který strmou stěnu dorampuje na její původní
@@ -935,11 +958,21 @@ export function genLongPasses(ctx) {
   // nové hloubce skenuje ZNOVU. Bez toho burst sjížděl ap po ap do kapsy širší
   // než držák a opíral se o stěnu (naměřeno na tests/cam-holder: 7 kolizí,
   // 12–32 mm² každá).
+  // Od 23. 9. 2026 táž jediná kontrola jako všude jinde (pravidlo 2).
   const holderSpanClamp = (X, iv) => {
-    if (!iv || !iv.blocked || !holderClampZEnd || !holderClampZEnd.span) return iv;
-    const sp = holderClampZEnd.span(X, iv.zStart, iv.zEnd);
-    if (!sp) return null;
-    const out = { ...iv, zStart: Math.min(iv.zStart, sp.zStart), zEnd: Math.max(iv.zEnd, sp.zEnd) };
+    if (!iv || !iv.blocked || !holderClampZEnd) return iv;
+    // Začátek u stěny, kam se držák nevejde → kapsa začne dál (pravidlo 2),
+    // nezahodí se celá.
+    let zS = iv.zStart;
+    let nz = holderClampZEnd(X, zS, iv.zEnd);
+    if (nz === null) {
+      const zFit = guard.firstFitZ(X, zS, iv.zEnd + dzScan);
+      if (zFit === null) return null;
+      zS = zFit;
+      nz = holderClampZEnd(X, zS, iv.zEnd);
+      if (nz === null) return null;
+    }
+    const out = { ...iv, zStart: zS, zEnd: Math.max(iv.zEnd, nz) };
     return (out.zStart - out.zEnd < dzScan) ? null : out;
   };
   // Nejmělčí… vlastně naposledy ÚSPĚŠNÁ hloubka tohohle regionu — proti ní se
@@ -1001,9 +1034,6 @@ export function genLongPasses(ctx) {
     // bez problému. Stopuje JEN kontura.
     const passMark = passes.length;
     let entryZ = effZMax;
-    const __LOG = globalThis.__DEPTH__ && _region && Math.abs((_region.zHi ?? 0) + 227.6) < 1;
-    if (__LOG) globalThis.__DEPTH__.push({ fáze: 'start', x: +currentX.toFixed(3),
-      effZMax: +effZMax.toFixed(2), effZMin: +effZMin.toFixed(2), regZHi: +(+regZHi).toFixed(2), regZLo: +(+regZLo).toFixed(2) });
     let scan0 = scan(currentX, entryZ, effZMin, true);
     // POSUNUTÝ VJEZD, NA KTERÉM SE NEDÁ ŘEZAT (viz `rawZHi` výš): sken se
     // vrátil prázdný a vjezd nesedí na kraji okna → platí původní kraj,
@@ -1043,10 +1073,27 @@ export function genLongPasses(ctx) {
     // pořadí obrábění (`regionCapped`, řádek s `__deferEntry` níž) se tím
     // nemění — hranice pořád patří regionu, jen se přes ni nejezdí šikmo.
     let noRampNeeded = false;
+    // Vjezd posunutý pravidlem 2 — dál už ho posuzuje jen `openPass`
+    // (rampa + couvání doleva, dokud se nevejde i ona), ne staré větve níž.
+    let ruleTwoShifted = false;
     if (prms.plungeRoughing) {
       const surf0 = offsetStockTopXAtZ(entryZ);
       const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
       if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05 || regionCappedRaw) {
+        // PRAVIDLO 2 (docs/cam-pravidla.md): kde se na vjezdu nevejde držák,
+        // vrstva začne o tolik dál, aby se vešel — nezahodí se celá.
+        if (!guard.fits(currentX, entryZ)) {
+          const zFit = guard.firstFitZ(currentX, entryZ, effZMin + dzScan);
+          if (zFit !== null) {
+            const re = scan(currentX, zFit, effZMin, true);
+            if (re.firstOpen && re.intervals.length > 0) {
+              entryZ = zFit; intervals = re.intervals; firstOpen = re.firstOpen;
+              intervals[0].entryShifted = true;
+              intervals[0].ruleTwo = true;
+              ruleTwoShifted = true;
+            }
+          }
+        }
         const zCap = holderEntryCapZ(currentX, entryZ, effZMin);
         // Zanoření na hranici REGIONU smí vzniknout jen tam, kde se vedle
         // vjezdu vejde DRŽÁK. Hranice leží uprostřed materiálu (napravo od ní
@@ -1066,7 +1113,7 @@ export function genLongPasses(ctx) {
         // Proto se nejdřív zeptá NAROVINO, jestli se vjezd, jak je (na
         // `entryZ`, hloubka `currentX`), do držáku vejde — a jen když NE,
         // zahodí se (jako dřív) celá hloubka.
-        if (regionCappedRaw && !isFinite(zCap)) {
+        if (!ruleTwoShifted && regionCappedRaw && !isFinite(zCap)) {
           // DVĚ podmínky, obě nutné:
           //  (1) nad hloubkou řezu ve vjezdu opravdu NIC NESTOJÍ — jen tehdy
           //      platí odůvodnění „není do čeho rampovat". Když tam materiál
@@ -1092,7 +1139,7 @@ export function genLongPasses(ctx) {
           // „tenhle vjezd už je hlídaný, nezkoušej stavět rampu".
           noRampNeeded = true;
         }
-        if (isFinite(zCap) && zCap < entryZ - 1e-6) {
+        if (!ruleTwoShifted && isFinite(zCap) && zCap < entryZ - 1e-6) {
           const reScan = scan(currentX, zCap, effZMin, true);
           if (reScan.firstOpen && reScan.intervals.length > 0) {
             entryZ = zCap; intervals = reScan.intervals; firstOpen = reScan.firstOpen;
@@ -1132,8 +1179,6 @@ export function genLongPasses(ctx) {
     // Hranice REGIONU je umělá stejně jako hranice rozsahu 📐: napravo od ní
     // materiál dál stojí (patří sousednímu regionu), takže se na ni nesmí
     // kolmo zapíchnout — vjezd tam patří rampě.
-    if (__LOG) globalThis.__DEPTH__.push({ fáze: 'po scan', x: +currentX.toFixed(3),
-      entryZ: +entryZ.toFixed(2), firstOpen, ivs: intervals.map(v => `${v.zStart.toFixed(1)}→${v.zEnd.toFixed(1)}${v.blocked ? 'B' : ''}`).join(' ') });
     const regionCapped = regionCappedRaw;
     const entryCapped = !noRampNeeded && ((entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
@@ -1220,6 +1265,7 @@ export function genLongPasses(ctx) {
         residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
         // Klíč plátku `skipPocketsCuttingNothing` (dnes jen kulatá).
         newCutArea: ins.skipPocketsCuttingNothing ? newCutArea : null,
+        xFloor: machiningRangeX ? machiningRangeX.xLo : -Infinity,
         // Klíč plátku `pocketLeadOutNoStep` (dnes jen kulatá): dojezd schodu.
         pocketLeadOut: ins.pocketLeadOutNoStep && prms.noStepRoughing ? {
           prevX: depthIdx > 0 ? depths[depthIdx - 1] : null,
@@ -1525,6 +1571,8 @@ export function genLongPasses(ctx) {
   // se krájí jednou, ne v každém kroku každého řetězu (viz depthCutClampZ).
   const priorPasses = passes.slice(0, regionMark);
   for (const rc of pendingRampCompletions) {
+    // Řetěz nesmí pod dno rozsahu X (📐) — hloubky pod ním se neobrábí.
+    if (machiningRangeX && rc.targetX < machiningRangeX.xLo) rc.targetX = machiningRangeX.xLo;
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
     const rcSteps = [];
     while (curX > rc.targetX + 1e-6) {

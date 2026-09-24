@@ -23,7 +23,9 @@ export const HOLDER_ENTRY_STOCK_GAP = 2.0;
 //   part-11-zleva         sken 26,16 mm² → polygon 131,67
 // Práh 2,0 tedy leží 2× nad stropem změřených artefaktů a 3× pod nejmenší
 // skutečnou vadou. S 0,5 padly na part-17 zbytečně 4,4 % úběru.
-export const HOLDER_FIT_TOL = 2.0;
+// OD 23. 9. 2026 NEPLATÍ: výškový sken nahradila jediná polygonová kontrola
+// (ops/long/holderGuard.js), takže práh je jeden — týž jako ve validátoru.
+export const HOLDER_FIT_TOL = 0.5;
 // Jak daleko se smí posunout NÁJEZD průchodu, aby se vedle něj vešel držák
 // (order-aware kontrola v hloubkové smyčce genLongPasses). Strop je tu proto,
 // že daleký posun mění i PŘÍJEZDOVOU cestu k vjezdu: bez něj se na

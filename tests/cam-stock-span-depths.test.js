@@ -107,7 +107,10 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // pak dostal každý úsek vlastní žebřík hloubek (§5.3) a mřížka se srovnala
     // na přesné `ap`. Podmínka téhle opravy je „bez nálezů", ne konkrétní
     // počet — ten je tu jen jako bodový otisk.
-    expect(r.passes.length).toBe(32);
+    // 32 → 39 dne 24. 9. 2026: NE regrese. Každé rovné dno a schod dostal
+    // vlastní poslední vrstvu (pokyn uživatele: „dodělávat i poslední vrstvu,
+    // i když není na celý záběr ap"), a díl se dělí jen podle čar zanoření.
+    expect(r.passes.length).toBe(39);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });

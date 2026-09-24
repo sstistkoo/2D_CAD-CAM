@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM – pravidla drah na jednom místě** (`docs/cam-pravidla.md`, schvaluje
+  uživatel). **Pravidlo 1:** díl se dělí na úseky JEN na patě čáry zanoření,
+  která vyjede z materiálu — dělení uprostřed údolí a uprostřed hrbu je
+  zrušené (`ops/long/regions.js`, 333 → 133 ř.). **Pravidlo 2:** držák se
+  musí vejít vždy — 12 různých kontrol držáku (3 modely materiálu, tolerance
+  0,5 / 2,0 mm², statická obálka) nahradila JEDNA (`ops/long/holderGuard.js`):
+  obrys držáku i s „Virt. zvětšením" proti materiálu, který v tu chvíli stojí.
+  Kde se nevejde, vrstva začne dál (nezahodí se celá). Smazáno
+  `residualGuard.js`, `holderFit.js`, statická obálka v `calculatePipeline.js`.
+  Na 29 fixtures kolize 21 / 666 mm² (samotné pravidlo 1) → 0; díly
+  uživatele (5)/(6)/(7): úběr 77,7→78,4 / 50,7→64,4 / 82,4→80,1 %, 0 kolizí.
+
+### Fixed
+- **CAM – kulatá destička bokem do stěny:** rychloposuv sjezdu i přejezd
+  na začátek rampy se posuzovaly jen podle povrchu pod středem nosu; R 10
+  bokem zasáhl stěnu vedle (`gcodeEmit.js`, `roughEmit.js`). Kotva rampy
+  brala materiál pod středem nosu za vzduch (`entryRamp.js`) — celé údolí
+  10 mm vypadlo. Vjezd, kde se rampa nevejde k držáku, couvne doleva místo
+  zahození vrstvy (`openPass.js`).
+
 ### Added
 - **CAM – nový jednoduchý generátor podélného hrubování** (`ops/simpleLong.js`,
   `docs/cam-novy-generator.md`): soustružnický cyklus po vrstvách v prostoru

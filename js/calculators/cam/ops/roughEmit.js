@@ -248,7 +248,10 @@ calc.passes.forEach((pass, i) => {
           // posuv sahá až k vůli-zóně kolem materiálu (souhlasí s tím, kde končí
           // rychloposuv jinde: descendTo/safeRapidTo, exit-split u increment 1).
           const ct = planTopXAtZ(midZ);
-          const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
+          // Vzduch jen když ani BOK nástroje (kulatá: kruh R) nic nezasáhne —
+          // sloupec pod středem nestačí, vedle může stát stěna (part-22).
+          const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4)
+            && !rapidHitsStock(pts[s - 1].x, pts[s - 1].z, pts[s].x, pts[s].z);
           const kind = air ? 'G0' : 'G1';
           if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].pt = pts[s];
           else segs.push({ kind, pt: pts[s] });
