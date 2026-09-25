@@ -212,6 +212,17 @@ calc.passes.forEach((pass, i) => {
         // náběhu) musí jít BEZPEČNĚ NAD bossem — z dna kapsy přímo nahoru
         // by se řezalo skrz materiál. safeRapidTo zvedne v X nad konturu,
         // přejede v Z a teprve pak sjede k rohu.
+        // Předchozí průchod skončil BEZ ODSKOKU (`noRetract`, navazoval na
+        // tenhle) a stojí na stěně, kterou právě zahladil. Bez odskoku jel
+        // `safeRapidTo` rychloposuvem rovnou podél ní (zleva úsek 1,
+        // 25. 9. 2026: `N1130 G0 Z38.860` 0,3 mm nad obrobenou plochou —
+        // *„nemá odskok, ale odjíždí po zahlazení rychloposuvem"*). Nejdřív
+        // proto odskok pod úhlem odskoku, jako za každým průchodem.
+        const prevP = i > 0 ? calc.passes[i - 1] : null;
+        if (prevP && prevP.noRetract) {
+          const odskokZ = clipZGc(cur.z - zDir * rDistZ);
+          simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${odskokZ.toFixed(3)}`, simCounter); setPos(cur.x + rDist, odskokZ);
+        }
         safeRapidTo(entry.x, entry.z, true);
       }
     } else if (Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6) {

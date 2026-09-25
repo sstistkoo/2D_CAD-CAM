@@ -2017,10 +2017,62 @@ export function genLongPasses(ctx) {
   }
   {
     const reg = makeChainRegistry();
+    // RAMPY zvlášť — viz „NÁJEZD DOKONČENÍ KAPSY PO RAMPÁCH" níž.
+    const rampReg = makeChainRegistry();
     let trimmed = 0, dropped = 0;
     for (const p of passes) {
       if (!p || p.type !== 'long') continue;
       const li = p.contourLeadIn;
+      // ── NÁJEZD DOKONČENÍ KAPSY PO RAMPÁCH SE NEOPAKUJE (25. 9. 2026) ─────
+      // Dokončení kapsy („kapsa bez schodků") sjíždí šikmou čarou pod úhlem
+      // zanoření od vrcholu stěny až na dno. Tutéž přímku ale už kus po kusu
+      // projely rampy zanořovacích vrstev (každá o ap níž, konec jedné =
+      // začátek další), takže nájezd jel celý řetěz posuvem znovu. Nález
+      // uživatele (zleva úsek 1): `N1160 G1 X22.967 Z44.968` od Z12,5, přitom
+      // rampy vrstev X29,566 / 27,066 / 24,566 dojely až na Z39,005 —
+      // *„zabere úplně zhora a projíždí celé zanořování znova místo aby
+      // pokračovala v zanořování tam, kde skončila"*. Nájezd se proto ořízne
+      // (i uprostřed úsečky) na první bod, kudy rampa ani řetěz nejel, a
+      // navazuje tam. Sjede se k němu svisle — jen když je ten sloupec nad
+      // ním už vybraný (dráha nic neuřízne).
+      // Totéž u přejezdu přes hrb (`pocketHumpSplit.js`): plošinu vrcholu
+      // mohl mezitím projet kus téže vrstvy za hrbem (zleva úsek 1:
+      // `N1330 G1 X28.556 Z68.053` znovu po `N1240`).
+      if ((p.pocketClean || p.humpCrossing) && !p.ramp && T && Array.isArray(li) && li.length > 0) {
+        const done = (x, z) => rampReg.hasPoint(x, z) || reg.hasPoint(x, z);
+        let k = 0, cutAt = null;
+        while (k < li.length) {
+          const s = li[k];
+          const n = Math.max(1, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.3));
+          let first = -1;
+          const arc = s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle);
+          for (let j = 0; j <= n; j++) {
+            const t = j / n;
+            let x, z;
+            if (arc) {
+              const a = s.startAngle + (s.endAngle - s.startAngle) * t;
+              x = s.cx + Math.sin(a) * s.r; z = s.cz + Math.cos(a) * s.r;
+            } else { x = s.x1 + (s.x2 - s.x1) * t; z = s.z1 + (s.z2 - s.z1) * t; }
+            if (!done(x, z)) { first = j; break; }
+          }
+          if (first < 0) { k++; continue; }           // celý úsek projetý
+          if (first > 0 && s.type === 'line') cutAt = { k, t: (first - 1) / n };
+          else if (k > 0) cutAt = { k, t: 0 };
+          break;
+        }
+        if (cutAt && k < li.length) {
+          const s = li[cutAt.k];
+          const x0 = s.x1 + (s.x2 - s.x1) * cutAt.t, z0 = s.z1 + (s.z2 - s.z1) * cutAt.t;
+          const head = s.type === 'line' ? { ...s, x1: x0, z1: z0 } : s;
+          const drop = { type: 'line', x1: x0 + 2 * step, z1: z0, x2: x0, z2: z0 };
+          if (newCutArea([drop]) <= 0.01 && Math.hypot(head.x2 - head.x1, head.z2 - head.z1) > 0.05) {
+            trimmed += cutAt.k;
+            li.splice(0, cutAt.k + 1, head);
+          }
+        }
+      }
+      if (p.ramp && Number.isFinite(p.ramp.x0) && Number.isFinite(p.ramp.z0))
+        rampReg.note([{ type: 'line', x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart }]);
       if (Array.isArray(li) && li.length > 0) {
         // ── NÁJEZD SE ORÁZÁVÁ I ČÁSTEČNĚ ───────────────────────────────
         // „Kapsa po kontuře" sleduje JEDNU sdílenou offsetovou dráhu, takže
@@ -2105,6 +2157,46 @@ export function genLongPasses(ctx) {
         }
         const n = p.pocketClean ? reg.duplicateSuffix(lo) : 0;
         if (n > 0) { lo.length = lo.length - n; trimmed += n; }
+        // ── DOJEZD DOKONČENÍ KAPSY KONČÍ, KDE NAJEDE NA PROJETOU STĚNU ──────
+        // `duplicateSuffix` bere jen CELÉ úseky. Oblouk stěny ale začíná
+        // dole, kam mělčí vrstva nedosáhla, a jeho horní část už projel
+        // dojezd té vrstvy — celý tedy „projetý" není a jel se znovu až
+        // nahoru (zleva úsek 1, 25. 9. 2026: `N1170 G3 X26.631 Z50.453`
+        // a `N1180 G2 X28.553 Z55.241` po stopě `N1110`/`N1120` —
+        // *„ta vrstva poslední to zas projíždí až nahoru"*). Poslední úsek
+        // se proto zkrátí v prvním bodě, kde najede na projetou dráhu — když
+        // je projetý i zbytek za ním (≥ 90 %; konec se od stopy smí lišit
+        // o desetiny, dojezd končí o kousek dál než ta mělčí).
+        if (p.pocketClean && lo.length > 0) {
+          const pts = [];
+          lo.forEach((sg, k) => {
+            const arcS = sg.type === 'arc' && Number.isFinite(sg.startAngle) && Number.isFinite(sg.endAngle);
+            const m = Math.max(2, Math.ceil(Math.hypot(sg.x2 - sg.x1, sg.z2 - sg.z1) / 0.2));
+            for (let j = k === 0 ? 0 : 1; j <= m; j++) {
+              const t = j / m;
+              if (arcS) {
+                const an = sg.startAngle + (sg.endAngle - sg.startAngle) * t;
+                pts.push({ k, t, a: an, x: sg.cx + Math.sin(an) * sg.r, z: sg.cz + Math.cos(an) * sg.r });
+              } else pts.push({ k, t, x: sg.x1 + (sg.x2 - sg.x1) * t, z: sg.z1 + (sg.z2 - sg.z1) * t });
+            }
+          });
+          const on = pts.map(q => reg.hasPoint(q.x, q.z));
+          let cut = -1;
+          for (let j = 1; j < pts.length - 1; j++) {
+            if (!on[j] || on[j - 1]) continue;
+            const rest = on.slice(j);
+            if (rest.filter(Boolean).length >= 0.9 * rest.length) { cut = j; break; }
+          }
+          if (cut > 0) {
+            const q = pts[cut], sg = lo[q.k];
+            const part = sg.type === 'arc' && q.a !== undefined
+              ? { ...sg, x2: q.x, z2: q.z, endAngle: q.a } : { ...sg, x2: q.x, z2: q.z };
+            const keep = lo.slice(0, q.k);
+            if (Math.hypot(part.x2 - part.x1, part.z2 - part.z1) > 0.05) keep.push(part);
+            trimmed += lo.length - keep.length;
+            lo.length = 0; lo.push(...keep);
+          }
+        }
         if (lo.length === 0) delete p.contourLeadOut;
         else reg.note(lo);
       }

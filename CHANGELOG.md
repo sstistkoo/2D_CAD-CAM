@@ -143,7 +143,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
-- **CAM – přes hrb, jehož vrchol už projela mělčí vrstva, se nepřejíždí hned**
+- **CAM – první vrstva, která narazí na hrb, dojede přes něj až na konec**
+  (uživatel 25. 9. 2026). Kapsová vrstva, jejíž dojezd vede přes vrchol hrbu,
+  který dosud nikdo neprojel, se už nestříhá: kus téže vrstvy za hrbem se
+  připojí k dojezdu (zleva úsek 1: X27.066 po `N1040 G2 X28.545 Z55.070`
+  pokračuje až na Z80.884, pak odskok). Hlubší vrstvy přijdou k projetému
+  vrcholu a přes hrb jedou až po dokončení údolí (`pocketHumpSplit.js`).
+- **CAM – dokončení kapsy navazuje na konec řetězu ramp.** Šikmá čára pod
+  úhlem zanoření na dně údolí („kapsa bez schodků") jela od vrcholu stěny
+  znovu celou přímku, kterou už kus po kusu projely rampy zanořovacích
+  vrstev (zleva úsek 1: `N1160 G1 X22.967 Z44.968` od Z12,5, 33,5 mm
+  posuvem). Nájezd se teď ořízne na první bod, kudy rampa nejela, a sjede
+  se k němu svisle vybraným sloupcem — na úseku 1 zbude 6,3 mm, úběr stejný.
+  Dojezd dokončení kapsy navíc končí tam, kde najede na stěnu projetou
+  mělčí vrstvou (dřív `N1170 G3`/`N1180 G2` znovu až nahoru), před
+  nájezdem po průchodu bez odskoku (`noRetract`) se odskočí (dřív
+  `N1130 G0 Z38.860` rychloposuvem 0,3 mm nad obrobenou plochou) a přejezd
+  přes hrb se ořízne o plošinu, kterou už projel kus téže vrstvy.- **CAM – přes hrb, jehož vrchol už projela mělčí vrstva, se nepřejíždí hned**
   (rozhodnutí uživatele 25. 9. 2026). Vrstva spojená přes nízký hrb
   (`humpMerge`) jela posuvem znovu po těle mělčí vrstvy (zleva úsek 1:
   `N340 G1 X32.066 Z9.049` po `N260` na X32.066) a přes osazení dřív, než

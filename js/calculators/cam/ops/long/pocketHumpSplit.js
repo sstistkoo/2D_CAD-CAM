@@ -100,6 +100,38 @@ function findCut(lo, prevX) {
   return null;
 }
 
+/**
+ * Projel už vrchol dojezdu `lo` některý průchod PŘED `list[upTo]`? Vrchol =
+ * nejvyšší bod dojezdu; „projel" = tělo, nájezd, dojezd nebo rampa dřívějšího
+ * průchodu tam vedly na jeho výšce nebo níž.
+ */
+function peakTouched(list, upTo, lo) {
+  let pk = null;
+  for (const s of lo) {
+    for (let i = 0; i <= N_SAMPLE; i++) {
+      const q = segAt(s, i / N_SAMPLE);
+      if (!pk || q.x > pk.x + 1e-9) pk = q;
+    }
+  }
+  if (!pk) return true;
+  const near = (x, z) => Math.abs(z - pk.z) <= 0.3 && x <= pk.x + 0.05;
+  for (let m = 0; m < upTo; m++) {
+    const q = list[m];
+    if (!q || q.type !== 'long' || !Number.isFinite(q.x)) continue;
+    if (Number.isFinite(q.zStart) && Number.isFinite(q.zEnd)
+        && pk.z <= Math.max(q.zStart, q.zEnd) + 0.05 && pk.z >= Math.min(q.zStart, q.zEnd) - 0.05
+        && q.x <= pk.x + 0.05) return true;
+    const segs = [...(q.contourLeadIn || []), ...(q.contourLeadOut || [])];
+    if (q.ramp && Number.isFinite(q.ramp.x0))
+      segs.push({ type: 'line', x1: q.ramp.x0, z1: q.ramp.z0, x2: q.x, z2: q.zStart });
+    for (const s of segs) {
+      const n = Math.max(2, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.2));
+      for (let i = 0; i <= n; i++) { const r = segAt(s, i / n); if (near(r.x, r.z)) return true; }
+    }
+  }
+  return false;
+}
+
 /** Zahodí z nájezdu `q` všechno před `zCut` (jízda k nižšímu Z). */
 function trimLeadInBefore(q, zCut) {
   const li = q.contourLeadIn;
@@ -126,14 +158,45 @@ function trimLeadInBefore(q, zCut) {
 export function splitPocketLeadOutsOverHumps(list, step) {
   if (!Array.isArray(list) || !(step > 0)) return list;
   const rems = [];
-  for (const p of list) {
-    if (!p || p.type !== 'long' || !Number.isFinite(p.x)) continue;
+  const drop = new Set();
+  for (let pi = 0; pi < list.length; pi++) {
+    const p = list[pi];
+    if (!p || drop.has(p) || p.type !== 'long' || !Number.isFinite(p.x)) continue;
     if (!(p.pocketEntry || p.pocketReposition || p.pocketClean)) continue;
     const lo = p.contourLeadOut;
     if (!Array.isArray(lo) || lo.length === 0) continue;
     // Dokončení kapsy (`pocketClean`) nemá „mělčí vrstvu" — jeho x je dno.
     const cut = findCut(lo, p.pocketClean ? NaN : p.x + step);
     if (!cut) continue;
+    // ── PRVNÍ VRSTVA, KTERÁ SE HRBU DOTKNE, JEDE PŘES NĚJ (uživatel 25. 9. 2026)
+    // Vrchol hrbu, po kterém dojezd jede, dosud nikdo neprojel (mělčí vrstvy
+    // jely nad ním) — tahle vrstva je první, která na hrb narazí, a má dojet
+    // až na konec: *„by měla dojet vrstvu než se vrátí na dodělání toho, co je
+    // zleva"* (zleva úsek 1: `N1040 G2 X28.545 Z55.070` má pokračovat až na
+    // Z80.884). Hlubší vrstvy už přijdou k projetému vrcholu a zastaví se.
+    // Totéž pravidlo jako `topTouched` v humpOrder.js pro vrstvu přes osazení.
+    if (!p.pocketClean && !peakTouched(list, pi, lo)) {
+      const e = lo[lo.length - 1];
+      const own = list.find(q => q !== p && q && !drop.has(q) && q.type === 'long' && Number.isFinite(q.x)
+        && Math.abs(q.x - e.x2) <= 0.05 && Number.isFinite(q.zStart) && Math.abs(q.zStart - e.z2) <= 0.5
+        && Number.isFinite(q.zEnd) && q.zEnd < q.zStart && !q.ramp);
+      if (own) {
+        // Kus téže vrstvy za hrbem jel jako samostatný průchod s nájezdem
+        // přes týž hrb — připojí se k dojezdu a sám se nevydá.
+        // Setinový rozdíl mezi koncem dojezdu a začátkem kusu (každý z jiného
+        // skenu) se nevydává jako vlastní pohyb — rovně se jede z konce dojezdu.
+        const segs = lo.slice();
+        const gap = Math.hypot(own.x - e.x2, own.zStart - e.z2) > 0.1;
+        const bx = gap ? own.x : e.x2, bz = gap ? own.zStart : e.z2;
+        if (gap) segs.push({ type: 'line', x1: e.x2, z1: e.z2, x2: own.x, z2: own.zStart });
+        segs.push({ type: 'line', x1: bx, z1: bz, x2: bx, z2: own.zEnd });
+        if (Array.isArray(own.contourLeadOut)) segs.push(...own.contourLeadOut);
+        p.contourLeadOut = segs;
+        p.humpFirstTouch = true;
+        drop.add(own);
+      }
+      continue;
+    }
     const s = lo[cut.k];
     const head = lo.slice(0, cut.k);
     const tail = [];
@@ -157,13 +220,22 @@ export function splitPocketLeadOutsOverHumps(list, step) {
       // Jeho nájezd začíná dole u konce těla průchodu `p` a jede po stěně,
       // kterou `p` právě dojel (hlava dojezdu) — posuvem po obrobeném
       // (pravidlo 5). Začne proto až tam, kde hlava skončila.
-      if (!own.ramp) trimLeadInBefore(own, cutZ);
+      // Víc průchodů údolí může končit u téhož kusu: nájezd se zkrátí jen
+      // po ten, který skončil NEJDŘÍV — dál už stěnu nikdo nevyjel a kolmý
+      // sjezd by do ní řízl (zleva úsek 1: `G1 X28.553` 90°, 0,16 mm²).
+      if (!own.ramp) own.__humpTrimZ = Math.max(own.__humpTrimZ ?? -Infinity, cutZ);
       continue;
     }
     rems.push({ type: 'long', x: end.x2, zStart: end.z2, zEnd: end.z2, blocked: true,
       contourLeadIn: tl, humpCrossing: true });
   }
-  if (rems.length === 0) return list;
+  for (const q of list) {
+    if (!q || q.__humpTrimZ === undefined) continue;
+    trimLeadInBefore(q, q.__humpTrimZ);
+    delete q.__humpTrimZ;
+  }
+  const out = drop.size > 0 ? list.filter(q => !drop.has(q)) : list;
+  if (rems.length === 0) return out;
   rems.sort((a, b) => b.x - a.x);
-  return list.concat(rems);
+  return out.concat(rems);
 }

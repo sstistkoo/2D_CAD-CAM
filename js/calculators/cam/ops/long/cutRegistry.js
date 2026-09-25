@@ -166,6 +166,8 @@ export function makeChainRegistry(tol = 0.05) {
       return n;
     },
     isDuplicate,
+    /** Leží bod na některém zapsaném řetězu? */
+    hasPoint,
   };
 
   /** Vede segment CELÝ po už projeté dráze? */
