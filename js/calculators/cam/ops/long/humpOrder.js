@@ -67,6 +67,41 @@ function topTouched(keyed, upTo, end) {
   return false;
 }
 
+// Totéž pro VRCHOL HRBU mezi dvěma kusy vrstvy: projela ho už dřívější
+// dráha — tělem, nájezdem, dojezdem nebo rampou — na jeho výšce nebo níž?
+// První vrstva, která na hrb narazí, přes něj vede dojezdem (ne tělem), takže
+// test jen na těla to nepoznal a další vrstva se s kusem za hrbem spárovala
+// (zprava úsek 1, 25. 9. 2026: průchod 6 X50.545 přejel osazení dojezdem
+// `N390 G1 X51.581 Z220.938`, a přesto `N530 … N540 G1 Z195.278` na X48.045
+// jel za hrb dřív, než byla hotová pravá strana).
+function humpRidden(keyed, upTo, a, b, humps) {
+  const zHi = Math.max(a.zEnd, b.zStart), zLo = Math.min(a.zEnd, b.zStart);
+  const h = humps.find(q => q.zBack <= zHi + 0.5 && q.zBack >= zLo - 0.5);
+  if (!h) return false;
+  const near = (x, z) => Math.abs(z - h.zBack) <= 0.5 && x <= h.top + 0.05;
+  const at = (sg, t) => {
+    if (sg.type === 'arc' && Number.isFinite(sg.startAngle) && Number.isFinite(sg.endAngle)) {
+      const an = sg.startAngle + (sg.endAngle - sg.startAngle) * t;
+      return { x: sg.cx + Math.sin(an) * sg.r, z: sg.cz + Math.cos(an) * sg.r };
+    }
+    return { x: sg.x1 + (sg.x2 - sg.x1) * t, z: sg.z1 + (sg.z2 - sg.z1) * t };
+  };
+  for (let m = 0; m < upTo; m++) {
+    const q = keyed[m].p;
+    if (!q || q.type !== 'long' || !Number.isFinite(q.x)) continue;
+    if (Number.isFinite(q.zStart) && Number.isFinite(q.zEnd) && q.x <= h.top + 0.05
+        && h.zBack <= Math.max(q.zStart, q.zEnd) + 0.05 && h.zBack >= Math.min(q.zStart, q.zEnd) - 0.05) return true;
+    const segs = [...(q.contourLeadIn || []), ...(q.contourLeadOut || [])];
+    if (q.ramp && Number.isFinite(q.ramp.x0)) segs.push({ type: 'line', x1: q.ramp.x0, z1: q.ramp.z0, x2: q.x, z2: q.zStart });
+    for (const sg of segs) {
+      if (![sg.x1, sg.z1, sg.x2, sg.z2].every(Number.isFinite)) continue;
+      const n = Math.max(2, Math.ceil(Math.hypot(sg.x2 - sg.x1, sg.z2 - sg.z1) / 0.2));
+      for (let i = 0; i <= n; i++) { const r = at(sg, i / n); if (near(r.x, r.z)) return true; }
+    }
+  }
+  return false;
+}
+
 /**
  * Přeřadí průchody úseku podle pravidla 7. Vrací nové pole; když by se tím
  * roztrhl řetěz průchodů (kapsa: `pocketReposition`/`cleanApproach` navazují
@@ -103,7 +138,8 @@ export function orderByHumps(list, offsetXAt) {
     const pair = !deferredSeen && a.type === 'long' && b.type === 'long' && Math.abs(a.x - b.x) <= 1e-6
       && !(b.contourLeadIn || b.pocketReposition || b.pocketEntry)
       && lo && lo.length > 0 && lo[lo.length - 1].x2 > a.x + 0.01
-      && !topTouched(keyed, n - 1, lo[lo.length - 1]);
+      && !topTouched(keyed, n - 1, lo[lo.length - 1])
+      && !humpRidden(keyed, n - 1, a, b, humps);
     if (pair) keyed[n].k = keyed[n - 1].k;
     else if (keyed[n].k > keyed[n - 1].k) deferredSeen = true;
   }

@@ -143,6 +143,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – vrchol hrbu projetý dojezdem se taky počítá jako „dotčený".**
+  První vrstva přes hrb vede dojezdem, ne tělem; `orderByHumps` to nepoznal
+  a další vrstvu spároval s kusem za hrbem, takže se za hrb jelo dřív, než
+  byla hotová pravá strana (zprava úsek 1: `N540 G1 Z195.278` na X48.045 hned
+  po `N390 G1 X51.581 Z220.938`). Test teď bere i nájezdy, dojezdy a rampy
+  (`humpRidden` v `humpOrder.js`).
 - **CAM – první vrstva, která narazí na hrb, dojede přes něj až na konec**
   (uživatel 25. 9. 2026). Kapsová vrstva, jejíž dojezd vede přes vrchol hrbu,
   který dosud nikdo neprojel, se už nestříhá: kus téže vrstvy za hrbem se
