@@ -8,13 +8,15 @@
 // čáry nad polotovar … u prostředního úseku od bodu jako olovnici").
 // Nad polotovarem je u každého úseku jeho číslo a kroky, ve kterých se pojede
 // (pravidlo 8), např. „Ú2: 1 → Ø90.0, 3", a pod tím ZBYTEK po drahách
-// (sectionLeftover.js): broskvově „nedojeto" — i klín pod čarou zanoření.
+// (sectionLeftover.js): broskvově „nedojeto" — i klín pod čarou zanoření —
+// a červeně čárkovaně obrys polotovaru, který po programu zbyl.
 
 const COL = '#cba6f7';    // Catppuccin mauve — odlišná od mezních čar (teal)
 const HALO = '#1e1e2e';   // Catppuccin base — obrys písma, ať je čitelné přes dráhy
 const RISE = 12;          // o kolik mm nad nejvyšší polotovar čáry sahají
 const LEFT_FILL = 'rgba(250,179,135,0.35)';   // zbytek „nedojeto" — Catppuccin peach
 const LEFT_LINE = '#fab387';
+const REST_LINE = '#e74c3c';   // obrys zbývajícího polotovaru — barva polotovaru, čárkovaně
 
 /**
  * @param ctx       2D kontext plátna
@@ -30,6 +32,18 @@ export function drawSectionPlan(ctx, plan, toScreen, leftover = null) {
   const xTop = top + RISE;
 
   ctx.save();
+  // Obrys polotovaru, který po programu ZBYL — u obrobených míst jde po vrstvě
+  // přídavku nad konturou (uživatel 25. 9. 2026: „dokreslit čarou, ať jde
+  // poznat, kde zůstane polotovar").
+  if (leftover && leftover.remaining) {
+    ctx.strokeStyle = REST_LINE; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+    for (const l of leftover.remaining) {
+      ctx.beginPath();
+      l.forEach((pt, i) => { const s2 = toScreen(pt.x, pt.z); if (i === 0) ctx.moveTo(s2.x, s2.y); else ctx.lineTo(s2.x, s2.y); });
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
   if (leftover) {
     ctx.lineWidth = 1;
     for (const v of leftover.perSection.values()) for (const q of v.pieces) {

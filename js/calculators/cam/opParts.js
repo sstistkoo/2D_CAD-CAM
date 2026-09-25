@@ -15,7 +15,7 @@
 // Souřadnice: {x = poloměr [mm], z = axiálně [mm]}, stejně jako simPath —
 // stockPoints se ale ukládají v UŽIVATELSKÉM zápisu (DIAMON → ⌀).
 
-import { polyOffset, polySimplify } from '../../geom/geomCore.js';
+import { polyOffset, polySimplify, polyUnion } from '../../geom/geomCore.js';
 import { fitArcsToPolyline, getArcParams } from './camMath.js';
 import { MaterialRemoval } from './materialRemoval.js';
 import { stripCodeOwnedParams } from './camDefaults.js';
@@ -151,6 +151,31 @@ function loopArea(loop) {
  * Vrací { points: [{x,z}], dropped } — `dropped` = počet zahozených menších
  * smyček (upíchnutý kus, oddělené zbytky).
  */
+/**
+ * Kus materiálu, který se osy NEDOTÝKÁ (visí nad dílem, třeba zbytek pod
+ * čarou zanoření oddělený drahou), se k polotovaru připojí i se vším pod
+ * sebou až k ose. Dřív se zahodil jako „oddělený zbytek" a další část
+ * o něm nevěděla — držák by do něj mohl vjet (uživatel 25. 9. 2026: „jestli
+ * to nesmí dělat u automatu, nemělo by to dělat ani v ručním"). Počítá se
+ * s víc materiálem, než je — nanejvýš se kus projede naprázdno.
+ * Kus oddělený v OSE Z, který osy dosáhne (upíchnutý), zůstává zahozený.
+ */
+function attachFloatingPieces(loops) {
+  const minX = (l) => Math.min(...l.map(p => p.x));
+  const shadows = [];
+  for (const l of loops) {
+    const xl = minX(l);
+    if (xl <= AXIS_EPS) continue;                       // dotýká se osy
+    const zs = l.map(p => p.z), zl = Math.min(...zs), zh = Math.max(...zs);
+    shadows.push([{ x: 0, z: zl }, { x: xl + SIMPLIFY_EPS, z: zl }, { x: xl + SIMPLIFY_EPS, z: zh }, { x: 0, z: zh }]);
+  }
+  if (shadows.length === 0) return loops;
+  try {
+    const merged = polyUnion(loops, shadows);
+    return merged && merged.length ? merged : loops;
+  } catch { return loops; }
+}
+
 export function loopsToStockProfile(loops) {
   if (!loops || loops.length === 0) return { points: [], dropped: 0 };
 
@@ -163,6 +188,7 @@ export function loopsToStockProfile(loops) {
     simplified = polySimplify(polyOffset(loops, SIMPLIFY_EPS), 0.005);
   } catch { /* fallback: syrové smyčky */ }
   if (!simplified || simplified.length === 0) simplified = loops;
+  if (simplified.length > 1) simplified = attachFloatingPieces(simplified);
 
   const best = simplified.slice().sort((a, b) => Math.abs(loopArea(b)) - Math.abs(loopArea(a)))[0];
   const dropped = simplified.length - 1;

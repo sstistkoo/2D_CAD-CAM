@@ -122,6 +122,16 @@ describe('loopsToStockProfile', () => {
     expect(dropped).toBe(1);
     expect(Math.max(...points.map(p => p.x))).toBeGreaterThan(15);
   });
+
+  it('kus visící nad dílem se nezahodí — připojí se i s tím, co je pod ním', () => {
+    // Zbytek nad dílem, který dráha oddělila od těla (osy se nedotýká):
+    // další část o něm musí vědět, jinak by do něj vjel držák.
+    const body = [{ x: 0, z: 0 }, { x: 10, z: 0 }, { x: 10, z: -50 }, { x: 0, z: -50 }];
+    const island = [{ x: 14, z: -20 }, { x: 18, z: -20 }, { x: 18, z: -30 }, { x: 14, z: -30 }];
+    const { points, dropped } = loopsToStockProfile([body, island]);
+    expect(dropped).toBe(0);
+    expect(Math.max(...points.map(p => p.x))).toBeGreaterThan(17.9);
+  });
 });
 
 describe('machinedStockPoints', () => {

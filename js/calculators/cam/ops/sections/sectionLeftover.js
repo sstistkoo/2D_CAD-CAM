@@ -29,8 +29,9 @@ const MIN_PIECE = 0.5;
 /**
  * @param prms, calc  parametry a výsledek výpočtu (calc.simPath, calc.sectionPlan,
  *                    calc.partSegments, calc.stockPathSegments)
- * @returns `{ perSection: Map<id, { area, pieces }>, total }` nebo null;
- *          kus = `{ loop, area }`
+ * @returns `{ perSection: Map<id, { area, pieces }>, total, remaining }` nebo
+ *          null; kus = `{ loop, area }`, remaining = smyčky polotovaru, který
+ *          po celém programu zbyl (obrys se kreslí, ať je vidět vrstva přídavku)
  */
 export function sectionLeftover(prms, calc) {
   const plan = calc && calc.sectionPlan;
@@ -76,7 +77,7 @@ export function sectionLeftover(prms, calc) {
     perSection.set(s.id, { area, pieces });
     total += area;
   }
-  return { perSection, total };
+  return { perSection, total, remaining: rm.model.loops };
 }
 
 // Nakreslená kontura smí úsek zopakovat (uživatelův díl: na konci znovu
