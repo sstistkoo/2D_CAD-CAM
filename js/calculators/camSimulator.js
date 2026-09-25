@@ -19,6 +19,7 @@ import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from './cam/materialRemoval.js';
 import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
+import { drawSectionPlan } from './cam/ops/sections/drawSections.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
 import { HolderGouge } from './cam/holderGouge.js';
@@ -100,7 +101,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
       <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
       <button data-act="removal" title="Úběr materiálu: při simulaci vizuálně odebírat projetý materiál z polotovaru">⛏</button>
-      <button data-act="refguides" title="Referenční čáry (jen náhled, dráhy po nich nejedou): hotovní offset plátku (tečkovaně) a plánovací obrys polotovaru (Vůle X/Z, kam končí rychloposuv)" style="font-size:11px;font-weight:bold">REF</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám (jako v CAD) – kontura, polotovar i jeho offsetová čára, KONCE DRAH, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
@@ -743,8 +743,6 @@ export function openCamSimulator(initialContour, initialGCode) {
   const removalBtn = toolbar.querySelector('[data-act="removal"]');
   if (removalBtn) removalBtn.classList.toggle('cam-sim-active', !!S.showRemoval);
   // Sync reference-guides toggle button to persisted state
-  const refGuidesBtn = toolbar.querySelector('[data-act="refguides"]');
-  if (refGuidesBtn) refGuidesBtn.classList.toggle('cam-sim-active', !!S.showRefGuides);
   // Sync sim-path toggle button to persisted state (all/cut/none)
   const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
   if (simPathBtn) {
@@ -1711,9 +1709,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Tečkovaná hranice pracovního posuvu kolem polotovaru: offset povrchu
     // o Vůli X (radiálně) a Vůli Z (axiálně). Sem končí rychloposuv (G0) a
     // začíná pracovní posuv (G1); zároveň bezpečná zóna pro držák.
-    // Jen náhled (REF přepínač, výchozí vypnuto) — po téhle čáře se nejede,
-    // dráhy jedou po `offsetPath` níž (docs/cam-plan-2026-09-15.md bod 5).
-    if (S.showRefGuides) {
+    // Po téhle čáře se nejede, dráhy jedou po `offsetPath` níž.
+    // KRESLÍ SE VŽDY (uživatel 25. 9. 2026: *„chybí mi tam offsetová čára
+    // kolem polotovaru jako přídavek, který tam mám"*) — do té doby byla
+    // schovaná pod přepínačem REF (výchozí vypnuto), který tím zanikl.
+    {
       ctx.save();
       ctx.strokeStyle = 'rgba(250,179,135,0.75)';
       ctx.lineWidth = 1;
@@ -2573,6 +2573,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         });
       }
     }
+
+    // Úseky podélného hrubování (pravidla 1 a 8) — čáry hranic a pořadí.
+    if (S.showSections !== false) drawSectionPlan(ctx, calc.sectionPlan, toScreen);
 
     // Z-limity (čelisti, koník, rozsah obrábění)
     if (S.showZLimits && S.showZLimits !== 'off') {
@@ -8057,12 +8060,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       draw();
       saveState();
       showToast(S.showRemoval ? 'Úběr materiálu při simulaci zapnut' : 'Úběr materiálu vypnut');
-    } else if (act === 'refguides') {
-      S.showRefGuides = !S.showRefGuides;
-      btn.classList.toggle('cam-sim-active', S.showRefGuides);
-      draw();
-      saveState();
-      showToast(S.showRefGuides ? 'Referenční čáry zobrazeny' : 'Referenční čáry skryty');
     } else if (act === 'zlimits') {
       // Prostý on/off – co se zobrazuje řídí checkboxy v parametrech.
       S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on';

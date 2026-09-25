@@ -142,6 +142,16 @@ export function mirrorPass(pass) {
 }
 
 /** Mezní čáry (interferenceGuides) — úsečky s průjezdovými body. */
+/** Plán úseků (ops/sections/sectionPlan.js): z → −z, zHi/zLo se prohodí. */
+export function mirrorSectionPlan(plan) {
+  if (!plan) return plan;
+  return {
+    ...plan,
+    edges: plan.edges.map(e => ({ ...e, z: -e.z })),
+    sections: plan.sections.map(s => ({ ...s, zHi: -s.zLo, zLo: -s.zHi })),
+  };
+}
+
 export function mirrorGuides(guides) {
   if (!Array.isArray(guides)) return guides;
   // Napojená offsetová čára (`offRough`/`offFinish`, guideOffsetJoin.js) je
@@ -195,5 +205,6 @@ export function mirrorCalcZ(calc) {
   }
   if (calc.interferenceGuides) out.interferenceGuides = mirrorGuides(calc.interferenceGuides);
   if (calc.passes) out.passes = calc.passes.map(mirrorPass);
+  if (calc.sectionPlan) out.sectionPlan = mirrorSectionPlan(calc.sectionPlan);
   return out;
 }

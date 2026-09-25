@@ -18,6 +18,7 @@ import { joinPlungeGuideOffsets } from './guideOffsetJoin.js';
 import { relinkOrphanChainSteps, capRampsThroughAir } from './ops/long/chainRelink.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
+import { planSections } from './ops/sections/sectionPlan.js';
 import { partOffGeom } from './threadHelpers.js';
 import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
@@ -490,6 +491,17 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // továrny staví sadu nad ZRCADLENÝM offsetem (viz genBacksidePasses).
   const { offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ } = makePassHelpers(offsetPath);
 
+  // Úseky podélného hrubování (pravidla 1 a 8) — simulátor je kreslí jako
+  // čáry na díle, aby šlo dělení zkontrolovat před drahami (sectionPlan.js).
+  let sectionPlan = null;
+  if (roughingKey(S) !== 'face') {
+    try {
+      sectionPlan = planSections({ prms, interferenceGuides, stockPathSegments, offsetXAt, worldPoints });
+    } catch (err) {
+      console.warn('CAM: plán úseků se nepodařilo sestavit:', err);
+    }
+  }
+
   // Dokončování upichovákem po obálce plátku — viz ops/finish.js.
   finishOffsetPath = finishPartingEnvelope(prms, finishOffsetPath);
 
@@ -706,7 +718,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
-  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
+  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
   // Zpět do reálného světa (simPath se nezrcadlí — je z reálného G-kódu).
   return mirZ ? mirrorCalcZ(calcOut) : calcOut;
 }
