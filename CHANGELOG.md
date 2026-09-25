@@ -143,6 +143,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – přes hrb, jehož vrchol už projela mělčí vrstva, se nepřejíždí hned**
+  (rozhodnutí uživatele 25. 9. 2026). Vrstva spojená přes nízký hrb
+  (`humpMerge`) jela posuvem znovu po těle mělčí vrstvy (zleva úsek 1:
+  `N340 G1 X32.066 Z9.049` po `N260` na X32.066) a přes osazení dřív, než
+  byly hotové vrstvy čela. Když dojezd vyjede na výšku, po které už mělčí
+  vrstva jela rovně, `orderByHumps` vrstvu přes hrb nespojí: nejdřív strana
+  před hrbem, pak vrstva za ním vjede rampou z vrcholu.
 - **CAM – vrstva přes vzduchovou mezeru jede dál (pravidlo 7).** Kus vrstvy
   za mezerou v polotovaru (`splitPocketsAtAir`) se dřív vždy vydal jako nový
   průchod — nástroj uprostřed vrstvy odskočil a zbytek dojel až po čele

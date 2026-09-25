@@ -48,6 +48,25 @@ export function findHumps(offsetXAt, zLo, zHi) {
   return humps;
 }
 
+// VRCHOL HRBU UŽ PROJELA MĚLČÍ VRSTVA (rozhodnutí uživatele 25. 9. 2026).
+// Dojezd vyjel až na výšku, po které už dřív jel rovně průchod mělčí vrstvy
+// — ten se hrbu „dotkl" a jeho vrchol je hotový. Pak se přes hrb nepřejíždí
+// hned: nejdřív se dodělá strana před hrbem a teprve potom vrstva za ním.
+// Jinak přejezd jel posuvem znovu po těle mělčí vrstvy (zleva úsek 1:
+// `N330 G1 X32.066 Z-1.151` / `N340 … Z9.049` po `N260 G1 Z26.132` na X32.066)
+// a přes hrb se jelo dřív, než byly hotové vrstvy čela.
+function topTouched(keyed, upTo, end) {
+  if (!end || !Number.isFinite(end.x2) || !Number.isFinite(end.z2)) return false;
+  for (let m = 0; m < upTo; m++) {
+    const q = keyed[m].p;
+    if (!q || q.type !== 'long' || !Number.isFinite(q.x)) continue;
+    if (!Number.isFinite(q.zStart) || !Number.isFinite(q.zEnd)) continue;
+    if (Math.abs(q.x - end.x2) > 0.05) continue;
+    if (end.z2 <= Math.max(q.zStart, q.zEnd) + 0.05 && end.z2 >= Math.min(q.zStart, q.zEnd) - 0.05) return true;
+  }
+  return false;
+}
+
 /**
  * Přeřadí průchody úseku podle pravidla 7. Vrací nové pole; když by se tím
  * roztrhl řetěz průchodů (kapsa: `pocketReposition`/`cleanApproach` navazují
@@ -83,7 +102,8 @@ export function orderByHumps(list, offsetXAt) {
     const lo = a.contourLeadOut;
     const pair = !deferredSeen && a.type === 'long' && b.type === 'long' && Math.abs(a.x - b.x) <= 1e-6
       && !(b.contourLeadIn || b.pocketReposition || b.pocketEntry)
-      && lo && lo.length > 0 && lo[lo.length - 1].x2 > a.x + 0.01;
+      && lo && lo.length > 0 && lo[lo.length - 1].x2 > a.x + 0.01
+      && !topTouched(keyed, n - 1, lo[lo.length - 1]);
     if (pair) keyed[n].k = keyed[n - 1].k;
     else if (keyed[n].k > keyed[n - 1].k) deferredSeen = true;
   }
