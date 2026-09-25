@@ -11,6 +11,19 @@ export function polygonInsert(prms) {
   const R = Math.max(parseFloat(prms.toolRadius) || 0, 0);
   // Natočení: záporné = čelní hrana stoupá od špičky (odtud to hlídání).
   const tiltDeg = -(parseFloat(prms.toolAngle) || 0);
+  // Úhel SPODNÍ (vedlejší) hrany destičky: podélně natočení PU, čelně
+  // natočení + ε − 90, shora omezený úhlem hřbetu α. Auto úhel zanoření
+  // i jeho STROP (pravidlo 6: polygon nesmí zanořovat strměji než spodní
+  // hrana, ať je v nastavení cokoli — uživatel 25. 9. 2026: „ať se nastavuje
+  // podle natočení PU, teda spodní strany plátku").
+  const bottomEdgeDeg = (() => {
+    const rot = parseFloat(prms.toolAngle) || 0;
+    const tip = parseFloat(prms.toolTipAngle) || 90;
+    const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
+    const rawAngle = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
+    const a = clearDeg > 0 ? Math.min(rawAngle, clearDeg) : rawAngle;
+    return Math.max(0.5, Math.min(89, a));
+  })();
   return {
     shape: 'polygon',
     cutsFullWidth: false,
@@ -77,19 +90,16 @@ export function polygonInsert(prms) {
     footprintIsNoseOnly: false,
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
-    plungeAngleMaxDeg: 89,
+    plungeAngleMaxDeg: bottomEdgeDeg,
+    // Ruční úhel zanoření platí, jen ne strměji než spodní hrana (strop výš).
+    plungeFixed: false,
+    // Smí hrubovat podélně (u upichováku ne, viz parting.js).
+    longRoughing: true,
     // Auto úhel zanoření = úhel spodní hrany destičky (podélně natočení,
     // čelně natočení + ε − 90), shora omezený úhlem hřbetu α. Dřív se to
     // počítalo v camMath.js pod `autoPlungeAngleDeg === null` — vzorec
     // polygonu tak žil ve sdíleném souboru (audit 23. 9. 2026).
-    autoPlungeAngleDeg: (() => {
-      const rot = parseFloat(prms.toolAngle) || 0;
-      const tip = parseFloat(prms.toolTipAngle) || 90;
-      const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
-      const rawAngle = prms.roughingStrategy === 'face' ? Math.abs(rot + tip - 90) : Math.abs(rot);
-      const a = clearDeg > 0 ? Math.min(rawAngle, clearDeg) : rawAngle;
-      return Math.max(0.5, Math.min(89, a));
-    })(),
+    autoPlungeAngleDeg: bottomEdgeDeg,
     canPartOff: false,
     hasGrooveProfile: false,
     partOffCornerR: R,

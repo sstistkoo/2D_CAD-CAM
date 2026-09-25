@@ -147,7 +147,7 @@ export function mirrorSectionPlan(plan) {
   if (!plan) return plan;
   return {
     ...plan,
-    edges: plan.edges.map(e => ({ ...e, z: -e.z })),
+    edges: plan.edges.map(e => ({ ...e, z: -e.z, line: { ...e.line, z1: -e.line.z1, z2: -e.line.z2 } })),
     sections: plan.sections.map(s => ({ ...s, zHi: -s.zLo, zLo: -s.zHi })),
   };
 }

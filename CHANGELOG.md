@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – upichovák podélně nehrubuje.** Plátek s `longRoughing: false`
+  (upichovák) jede vždy čelně (`enforceInsertStrategy` v calculatePipeline.js),
+  tlačítko Podélně je u něj zamčené; starý projekt se přepne sám. Smazány
+  testy čistě podélného upichováku (`cam-parting-envelope`,
+  `cam-shifted-entry-ramp`). Čelní odskok hlídá celé rovné dno plátku
+  (`flatSpanZ`), ne jen špičku — part-18 čelně zajížděl dnem do šikminy.
+- **CAM – offset kulaté destičky jde po čáře zanoření u každého rádiusu.**
+  S malým R (R1) offset čáry zanoření minul roh stěny pod sebou a jediný
+  průsečík byl offsetový roh u kotvy — napojení vyšlo 1 mm dlouhé a offset
+  dál kopíroval konturu. `guideOffsetJoin.js` teď zkouší: vzdálené napojení
+  → po čáře a kolmo dolů → teprve pak krátké napojení u kotvy.
+- **CAM – úhel zanoření podle plátku.** Polygon: auto i strop = spodní hrana
+  (natočení PU, pravidlo 6); kulatá auto 45°; upichovák vždy kolmo
+  (`plungeFixed`, pole zamčené). Přepnutí tvaru plátku vrací Auto — ruční
+  úhel se dřív nesl na další plátek.
+- **CAM simulátor – plán úseků.** Fialové dělicí čáry po offsetu polotovaru
+  (od místa, kde čára zanoření vyjede na offset polotovaru) + pořadí úseků
+  (pravidlo 8) — `ops/sections/`. Offsetová čára polotovaru (Vůle X/Z) se
+  kreslí vždy; přepínač REF zrušen.
 - **CAM – pravidlo 7: pravá strana hrbu celá dřív, než se přes hrb přejede.**
   Průchody úseku se na konci stabilně přeřadí podle hrbů dráhy
   (`ops/long/humpOrder.js`, táž definice hrbu jako kontrola pravidel):

@@ -16,6 +16,7 @@ export function getEffectivePlungeAngle(prms) {
   // a `!== 'polygon'` a zásah pro jeden tvar tak sahal na ostatní.
   const ins = getInsert(prms);
   const clampA = (v) => Math.max(0.5, Math.min(ins.plungeAngleMaxDeg, v));
+  if (ins.plungeFixed) return ins.autoPlungeAngleDeg;   // upichovák: vždy kolmo
   if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
   // Auto hodnotu počítá každý plátek SÁM (polygon z natočení/ε/α, viz
   // inserts/polygon.js) — sdílený kód se na parametry tvaru neptá.

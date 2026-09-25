@@ -20,6 +20,7 @@ import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from
 import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { drawSectionPlan } from './cam/ops/sections/drawSections.js';
+import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
 import { HolderGouge } from './cam/holderGouge.js';
@@ -4534,7 +4535,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     <div class="cam-sim-machine-body${_machOpen ? '' : ' cam-sim-collapsed'}">
       <div class="cam-sim-toggle-row">
         <button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}">↓ Čelně (X)</button>
-        <button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}">↔ Podélně (Z)</button>
+        ${getInsert(prms).longRoughing === false ? '' : `<button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}">↔ Podélně (Z)</button>`}
       </div>
       <div class="cam-sim-toggle-row">
         <button data-side="left" class="${prms.roughingSide === 'left' ? 'cam-sim-active' : ''}" title="Druhá strana — zaber zleva doprava (zprava nelze, narazil by držák / geometrie destičky), omezeno 📐 Rozsahem obrábění">→ Zleva</button>
@@ -4606,6 +4607,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
       </div>`;
       const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
+      // Upichovák zanořuje vždy kolmo (klíč `plungeFixed` plátku) — řádek se skryje.
+      const plungeFixedUI = !!getInsert(prms).plungeFixed;
       const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
       // Značka „⚠ α" smí svítit jen tehdy, když úhel hřbetu VÁŽNĚ srazil auto
       // hodnotu. Dřív si UI počítalo neořízlý úhel vlastním vzorcem (pro
@@ -4620,7 +4623,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       // vidět (ať je jasné, že existuje), ale je zašedlý a neaktivní: dokud
       // vypadal jako zapnutý, vypadalo to, že se nastavený úhel ignoruje.
       const plungeNA = prms.roughingStrategy === 'face';
-      html += `<div class="cam-sim-row" style="align-items:center">
+      // Upichovák zanořuje vždy kolmo a podélně nehrubuje — řádek zanoření
+      // se mu neukazuje vůbec (uživatel 25. 9. 2026: „ať to nezabírá místo").
+      if (!plungeFixedUI) html += `<div class="cam-sim-row" style="align-items:center">
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label>
           <label class="cam-sim-checkbox-item"${plungeNA ? ' style="opacity:.45"' : ''} data-tooltip="${plungeNA ? 'Neplatí pro ČELNÍ hrubování — to jede radiálně na danou hloubku Z, rampou se nezanořuje. Úhel zanoření se v čelním režimu použije jen na nájezd dokončování.' : 'Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.'}">
             <input type="checkbox" id="cam-sim-plunge" ${prms.plungeRoughing ? 'checked' : ''}${plungeNA ? ' disabled' : ''}>
@@ -4792,6 +4797,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         holderProfile: S.params.holderProfile,
       };
       S.params.toolShape = next;
+      // ÚHEL ZANOŘENÍ PATŘÍ K TVARU: nový plátek začne na svém Auto (polygon =
+      // natočení PU, tj. spodní hrana; kulatá 45°; upichovák kolmo). Ruční
+      // úhel odcházejícího tvaru se dřív nesl dál — uživatel 25. 9. 2026 měl
+      // u upichováku 15° zbylých z polygonu: „zachovává si to někde úhel".
+      S.params.entryAngleAuto = true;
       const mem = S._shapeGeomMem[next];
       // OBRYS DRŽÁKU PATŘÍ K TVARU DESTIČKY. Profil se ukládá v souřadnicích
       // ŠPIČKY — jeho spodní hrana sedí na vrchu TĚLA té destičky. Při výměně

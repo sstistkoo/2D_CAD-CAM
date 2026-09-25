@@ -8,8 +8,11 @@
 // pořadí se úseky pojedou. Simulátor to kreslí jako čáry na díle, aby uživatel
 // dělení zkontroloval dřív, než se nad ním postaví dráhy.
 //
-// Hranice = `sectionEdges` (ops/long/sectionFeet.js) — TÁŽ funkce, podle
-// které měří `scripts/cam_rules_check.mjs`.
+// Hranice = čára zanoření, která vede od kontury šikmo dolů a VYJEDE na
+// offsetovou čáru polotovaru (Přídavek X/Z polo.) — tam úsek končí. Čára,
+// která skončí na kontuře (v materiálu), nedělí. Simulátor hranici kreslí
+// jako svislici z bodu výjezdu nad polotovar (drawSections.js). Čáry dodá sectionGuides.js
+// (upichovák 45°). Upřesnění uživatele 25. 9. 2026.
 //
 // Pracuje v už zrcadleném světě (hrubování zleva = zrcadlo, u = z, vyšší z =
 // blíž začátku obrábění); zpátky překlápí `mirrorCalcZ` (zMirror.js).
@@ -17,22 +20,24 @@
 import { pointInLoop } from '../../../../geom/geomCore.js';
 import { topXOnLoop } from '../../camMath.js';
 import { buildStockLoopRaw } from '../../materialRemoval.js';
-import { getInsert } from '../../inserts/index.js';
-import { sectionEdges } from '../long/sectionFeet.js';
 
 const DZ = 0.5;   // krok vzorkování vrchu polotovaru v úseku [mm]
-const NEAR = 2;   // okolí hranice pro vrch její čáry [mm]
 
 /**
+ * @param guides     dělicí čáry (sectionGuides.js)
+ * @param planLoop   offsetová čára polotovaru (stockPlanLoop), null = syrový
  * @returns `{ edges, sections, steps }` nebo null (není co dělit)
- *   edges    – hranice `{ z, xFoot, xTop, kind }` (kind 'zanoreni' | 'stena')
+ *   edges    – hranice `{ z, x, line }`: (x, z) = kde čára zanoření vyjede
+ *              na offset polotovaru, line = ta čára,
+ *              end = true u krajní čáry (konec prvního/posledního úseku)
  *   sections – úseky `{ id, zHi, zLo, top }` zprava doleva, top = vrch polotovaru
  *   steps    – pořadí obrábění `{ id, xFrom, xTo }` (pravidlo 8): úsek `id`
  *              se hrubuje po vrstvách od X `xFrom` do `xTo` (−∞ = až na dno)
  */
-export function planSections({ prms, interferenceGuides, stockPathSegments, offsetXAt, worldPoints }) {
+export function planSections({ prms, guides, stockPathSegments, planLoop, worldPoints }) {
   const stockLoop = buildStockLoopRaw(prms, stockPathSegments);
   if (!stockLoop || !Array.isArray(worldPoints) || worldPoints.length < 2) return null;
+  const loop = planLoop && planLoop.length > 2 ? planLoop : stockLoop;
 
   // Z-rozsah dílu (+ přídavek Z — offsetová čára končí o něj za konturou).
   let zLo = Infinity, zHi = -Infinity;
@@ -44,43 +49,30 @@ export function planSections({ prms, interferenceGuides, stockPathSegments, offs
   const pad = Math.max(+prms.allowanceZ || 0, 0) + 1e-6;
   zLo -= pad; zHi += pad;
 
-  const inStock = (p) => { try { return pointInLoop(p, stockLoop) !== 'outside'; } catch { return true; } };
-  const isParting = !!getInsert(prms).cutsFullWidth;
-  const raw = sectionEdges({
-    guides: interferenceGuides,
-    isOutside: (p) => !inStock(p),
-    parting: isParting ? { offsetXAt, uLo: zLo, uHi: zHi } : null,
-  }).filter(e => e.u > zLo + 1e-6 && e.u < zHi - 1e-6);
-
-  // Pata na kontuře: u čáry zanoření její spodní bod, u stěny offset.
-  const footOf = (u) => {
-    for (const g of interferenceGuides || []) {
-      if (!g || g.kind !== 'zanoreni') continue;
-      const lo = g.x1 <= g.x2 ? { x: g.x1, z: g.z1 } : { x: g.x2, z: g.z2 };
-      if (Math.abs(lo.z - u) < 1e-6) return lo.x;
-    }
-    return offsetXAt(u);
-  };
-  const stockTop = (z) => topXOnLoop(stockLoop, z);
-  // Vrch čáry = nejvyšší polotovar KOLEM hranice: pata leží u stěny a čelo
-  // odlitku bývá kousek vedle (díl uživatele 24. 9.: pata Z 195,3, čelo
-  // Z 196,3 — přímo nad patou je už údolí X 16,7).
-  const stockTopNear = (z) => {
-    let top = null;
-    for (let d = -NEAR; d <= NEAR + 1e-9; d += DZ / 2) {
-      const t = stockTop(z + d);
-      if (t !== null && (top === null || t > top)) top = t;
-    }
-    return top;
-  };
-  const edges = raw.map(e => {
-    const sTop = stockTopNear(e.u);
-    const xTop = Number.isFinite(e.top) ? (sTop === null ? e.top : Math.min(e.top, sTop)) : sTop;
-    return { z: e.u, xFoot: footOf(e.u), xTop, kind: Number.isFinite(e.top) ? 'stena' : 'zanoreni' };
-  });
+  // Konec čáry na offsetu polotovaru (ne uvnitř) = vyjede z materiálu.
+  const onEdge = (p) => { try { return pointInLoop(p, loop) !== 'inside'; } catch { return false; } };
+  const edges = [];
+  for (const g of guides || []) {
+    const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
+    const out = onEdge(a) ? a : onEdge(b) ? b : null;
+    if (!out) continue;
+    const inn = out === a ? b : a;
+    edges.push({ z: out.z, x: out.x, line: { x1: inn.x, z1: inn.z, x2: out.x, z2: out.z } });
+  }
+  edges.sort((p, q) => p.z - q.z);
+  // Čára, která vyjede až ZA koncem dílu, nedělí — ale ukazuje, kde končí
+  // krajní úsek (uživatel: „dodělej čáru i na konci vlevo, ať vím, kde to
+  // končí poslední úsek"). Bere se nejbližší za každým koncem.
+  const endLo = edges.filter(e => e.z <= zLo + 1e-6).pop();
+  const endHi = edges.find(e => e.z >= zHi - 1e-6);
+  if (endLo) { zLo = endLo.z; endLo.end = true; }
+  if (endHi) { zHi = endHi.z; endHi.end = true; }
+  const inner = edges.filter(e => e.z > zLo + 1e-6 && e.z < zHi - 1e-6);
+  const merged = inner.filter((e, k) => k === 0 || e.z - inner[k - 1].z > 1);
 
   // Úseky zprava doleva (vyšší z = blíž začátku obrábění).
-  const cuts = [zHi, ...raw.map(e => e.u).sort((a, b) => b - a), zLo];
+  const stockTop = (z) => topXOnLoop(stockLoop, z);
+  const cuts = [zHi, ...merged.map(e => e.z).reverse(), zLo];
   const sections = [];
   for (let k = 0; k + 1 < cuts.length; k++) {
     let top = -Infinity;
@@ -91,7 +83,8 @@ export function planSections({ prms, interferenceGuides, stockPathSegments, offs
     sections.push({ id: sections.length + 1, zHi: cuts[k], zLo: cuts[k + 1], top });
   }
 
-  return { edges, sections, steps: orderSteps(sections) };
+  const drawn = [...(endLo ? [endLo] : []), ...merged, ...(endHi ? [endHi] : [])];
+  return { edges: drawn, sections, steps: orderSteps(sections) };
 }
 
 /**

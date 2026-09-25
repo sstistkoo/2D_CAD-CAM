@@ -737,10 +737,26 @@ calc.passes.forEach((pass, i) => {
     // Sklon diagonály: na Z-posun dz připadá X-zdvih dz·(rDist/rDistZ);
     // u 90° (rDistZ=0) je odskok svislý a kontrola bezpředmětná.
     const rTan = rDistZ > 1e-9 ? rDist / rDistZ : Infinity;
+    // ROVNÉ DNO PLÁTKU (`flatSpanZ`, jen upichovák a závitový) leží za
+    // špičkou na obrobené straně a jede diagonálou s ní — kontura pod ním
+    // nesmí vystoupit nad jeho úroveň stejně jako pod špičkou. Dřív se
+    // ptala jen špička: part-18 čelně upichovákem `N4410 G1 X26.103
+    // Z109.932` zajel dnem 1,27 mm² do šikminy vpravo (25. 9. 2026, když se
+    // upichovák přepnul z podélného na čelní hrubování).
+    const bodySpanZ = insGc.flatSpanZ || 0;
+    const maxOffsetUnder = (zc) => {
+      let m = gcOffsetXAt(zc);
+      const n = Math.ceil(bodySpanZ / 0.25);
+      for (let k = 1; k <= n; k++) {
+        const o = gcOffsetXAt(zc + dirZR * bodySpanZ * k / n);
+        if (o !== null && (m === null || o > m)) m = o;
+      }
+      return m;
+    };
     let retractGouges = false;
     for (let i = 1; i <= 8 && rDistZ > 1e-9 && !retractGouges; i++) {
       const dz = rDistZ * i / 8;
-      const ox = gcOffsetXAt(cur.z + dirZR * dz);
+      const ox = maxOffsetUnder(cur.z + dirZR * dz);
       if (ox !== null && ox > cur.x + dz * rTan - 0.02) retractGouges = true;
     }
     // Zbytek materiálu na sousedních čelních rovinách (xEnd > offset).

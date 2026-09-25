@@ -352,8 +352,18 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
   //    fotka z dílu s kulatou R10 — „jde v tom údolí až na druhou stranu").
   //    Tohle dělá i POLYGON: jeho offsetová čára končí na offsetu vlastního
   //    konce mezní čáry.
+  //    Průsečík v ZAOBLENÍ KOTVY (blíž ke kotvě než velikost offsetu) má
+  //    přednost AŽ PO svislém dojezdu (krok 2): s malým rádiusem (kulatá R1)
+  //    offset čáry projde nad rohem stěny pod ní a jediný zásah v okně byl
+  //    offsetový roh u horní kotvy — vznikla 1mm „náhrada" a řetěz dál
+  //    kopíroval konturu, místo aby šel po čáře a kolmo dolů (nález
+  //    uživatele 25. 9. 2026: „proč se to pořád předělává na konturu … mělo
+  //    by to dělat u každého rádiusu"). Krátké napojení zůstává, kde dojezd
+  //    nejde (roh u čela, mělký důlek).
   const inWindow = hits.slice(1).filter(h => h.s <= L + maxExtend);
+  const isFar = (h) => h.s > first.s + maxExtend;
   for (let k = inWindow.length - 1; k >= 0; k--) {
+    if (!isFar(inWindow[k])) continue;
     const res = build(inWindow[k]);
     if (res) return res;
   }
@@ -364,7 +374,15 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
   //    Řetěz tedy jde po mezní čáře až na její konec, odtud SVISLE dolů
   //    (konstantní Z, klesající X — tam už materiál chrání polotovar, ne
   //    mez zanoření) a offsetové čáry POD mezí se z řetězu vyhodí.
-  return buildDrop();
+  const drop = buildDrop();
+  if (drop) return drop;
+  // 3) Krátké napojení u kotvy.
+  for (let k = inWindow.length - 1; k >= 0; k--) {
+    if (isFar(inWindow[k])) continue;
+    const res = build(inWindow[k]);
+    if (res) return res;
+  }
+  return null;
 }
 
 /**

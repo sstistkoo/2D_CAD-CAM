@@ -19,6 +19,7 @@ import { relinkOrphanChainSteps, capRampsThroughAir } from './ops/long/chainReli
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { planSections } from './ops/sections/sectionPlan.js';
+import { sectionGuides } from './ops/sections/sectionGuides.js';
 import { partOffGeom } from './threadHelpers.js';
 import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
@@ -31,10 +32,18 @@ import { stockPlanLoop } from './materialRemoval.js';
 //   čelně   + zprava → face             čelně   + zleva → face (zatím
 //   bez zrcadlené varianty — TODO genFaceLeft).
 export function roughingKey(S) {
+  enforceInsertStrategy(S.params);
   const type = S.params.roughingStrategy || 'longitudinal';
   const left = (S.params.roughingSide || 'right') === 'left';
   if (type === 'longitudinal') return left ? 'backside' : 'longitudinal';
   return 'face';
+}
+
+// Plátek, který podélně hrubovat nesmí (`longRoughing: false` — upichovák),
+// jede vždy čelně. Opraví se přímo stav, aby panel, pipeline, model úběru
+// i emise viděly totéž; starý projekt s upichovákem podélně se tím přepne.
+export function enforceInsertStrategy(params) {
+  if (params && getInsert(params).longRoughing === false) params.roughingStrategy = 'face';
 }
 
 // Seznam operací hrubování (operations[] model). Dokud neexistuje
@@ -496,7 +505,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   let sectionPlan = null;
   if (roughingKey(S) !== 'face') {
     try {
-      sectionPlan = planSections({ prms, interferenceGuides, stockPathSegments, offsetXAt, worldPoints });
+      const guides = sectionGuides({ prms, interferenceGuides });
+      sectionPlan = planSections({ prms, guides, stockPathSegments, planLoop: guideStockLoop, worldPoints });
     } catch (err) {
       console.warn('CAM: plán úseků se nepodařilo sestavit:', err);
     }

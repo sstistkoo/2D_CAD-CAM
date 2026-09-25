@@ -70,6 +70,14 @@ export function partingInsert(prms) {
     bodyInCollisionEnvelope: true,
     faceBodyZFromWidth: true,
     plungeAngleMaxDeg: 90,
+    // Zanoření je VŽDY kolmo — ruční „Úhel zanoření" se nepoužije (pravidlo 6:
+    // „Upichovák: kolmo"; uživatel 25. 9. 2026 viděl u upichováku 15°, které
+    // v poli zůstalo z polygonu).
+    plungeFixed: true,
+    // Podélně se upichovákem NEHRUBUJE (rozhodnutí uživatele 25. 9. 2026):
+    // hrubuje se čelně zápichy, na konci objede tvar na hotovo. Podélné
+    // hrubování upichovákem dělalo v generátoru nejvíc problémů.
+    longRoughing: false,
     autoPlungeAngleDeg: 90,
     canPartOff: true,
     hasGrooveProfile: true,

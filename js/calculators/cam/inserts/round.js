@@ -107,6 +107,10 @@ export function roundInsert(prms) {
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
     plungeAngleMaxDeg: 89,
+    // Ruční úhel zanoření platí (viz parting.js).
+    plungeFixed: false,
+    // Smí hrubovat podélně (u upichováku ne, viz parting.js).
+    longRoughing: true,
     autoPlungeAngleDeg: 45,
     canPartOff: true,
     hasGrooveProfile: true,

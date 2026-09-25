@@ -2,12 +2,16 @@
 // ║  Náhled úseků v simulátoru — čáry hranic + pořadí obrábění      ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
-// Kreslí plán z `sectionPlan.js`: každá hranice úseku je čára od paty na
-// kontuře nahoru k polotovaru (u stěny upichováku jen po vrchol stěny —
-// nad ním hranice neplatí). Nad každým úsekem je jeho číslo a kroky, ve
-// kterých se pojede (pravidlo 8), např. „Ú2: 1 → Ø90.0, 3".
+// Kreslí plán z `sectionPlan.js`. Každá hranice úseku je SVISLICE („olovnice")
+// z bodu, kde čára zanoření vyjede na offset polotovaru (velká tečka), až NAD
+// polotovar — mezi drahami by se ztratila (uživatel 25. 9. 2026: „vytáhnout ty
+// čáry nad polotovar … u prostředního úseku od bodu jako olovnici").
+// Nad polotovarem je u každého úseku jeho číslo a kroky, ve kterých se pojede
+// (pravidlo 8), např. „Ú2: 1 → Ø90.0, 3".
 
-const COL = '#cba6f7';   // Catppuccin mauve — odlišná od mezních čar (teal)
+const COL = '#cba6f7';    // Catppuccin mauve — odlišná od mezních čar (teal)
+const HALO = '#1e1e2e';   // Catppuccin base — obrys písma, ať je čitelné přes dráhy
+const RISE = 12;          // o kolik mm nad nejvyšší polotovar čáry sahají
 
 /**
  * @param ctx       2D kontext plátna
@@ -16,17 +20,18 @@ const COL = '#cba6f7';   // Catppuccin mauve — odlišná od mezních čar (tea
  */
 export function drawSectionPlan(ctx, plan, toScreen) {
   if (!plan || !plan.sections || plan.sections.length === 0) return;
+  let top = -Infinity;
+  for (const s of plan.sections) if (Number.isFinite(s.top)) top = Math.max(top, s.top);
+  if (!Number.isFinite(top)) return;
+  const xTop = top + RISE;
+
   ctx.save();
   ctx.strokeStyle = COL; ctx.fillStyle = COL; ctx.lineWidth = 2;
-
   for (const e of plan.edges) {
-    if (!Number.isFinite(e.xFoot) || !Number.isFinite(e.xTop)) continue;
-    const a = toScreen(e.xFoot, e.z), b = toScreen(Math.max(e.xTop, e.xFoot), e.z);
-    ctx.setLineDash(e.kind === 'stena' ? [6, 3] : []);
+    const a = toScreen(e.x, e.z), b = toScreen(xTop, e.z);
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.beginPath(); ctx.arc(a.x, a.y, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.setLineDash([]);
 
   // Pořadí: kroky číslované 1…n; úsek může mít víc kroků (přeruší se, když
   // vrstvy dojdou na vrch úseku vpravo).
@@ -36,14 +41,16 @@ export function drawSectionPlan(ctx, plan, toScreen) {
     if (!byId.has(st.id)) byId.set(st.id, []);
     byId.get(st.id).push(txt);
   });
-  ctx.font = 'bold 12px sans-serif';
+  ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 4; ctx.strokeStyle = HALO; ctx.lineJoin = 'round';
   for (const s of plan.sections) {
     if (!Number.isFinite(s.top)) continue;
     const zHi = Number.isFinite(s.zHi) ? s.zHi : s.zLo, zLo = Number.isFinite(s.zLo) ? s.zLo : s.zHi;
-    const p = toScreen(s.top, (zHi + zLo) / 2);
-    const steps = byId.get(s.id) || [];
-    ctx.fillText(`Ú${s.id}: ${steps.join(', ')}`, p.x, p.y - 6);
+    const p = toScreen(xTop, (zHi + zLo) / 2);
+    const txt = `Ú${s.id}: ${(byId.get(s.id) || []).join(', ')}`;
+    ctx.strokeText(txt, p.x, p.y - 4);
+    ctx.fillText(txt, p.x, p.y - 4);
   }
   ctx.restore();
 }

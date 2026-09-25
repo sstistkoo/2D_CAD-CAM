@@ -729,9 +729,13 @@ držák projde, **kolmý zápich se povolí** — upichovák tak upichuje a je t
 normální provoz. Kde neprojde, hloubka se vynechá a materiál u hranice zůstane
 stát: kolmý zápich by tam zavezl držák do neobrobeného polotovaru. Potřebuješ‑li ten materiál dostat pryč, posuň hranici rozsahu ven
 z polotovaru (pak se najíždí přes hranu, ne přes umělou mez), nebo ho nech
-jiné operaci / jinému nástroji. *Ruční úhel zanoření místo Auto je sice
-technicky možný, ale prověř si po něm ⚠ panel: mělčí rampa vjíždí dovnitř
-dílu a může narazit držákem jinde.*
+jiné operaci / jinému nástroji.
+
+**Úhel zanoření podle plátku.** Po přepnutí tvaru plátku se úhel vrátí na
+**Auto**: polygon = natočení PU (spodní hrana plátku — strměji zanořit
+nesmí ani ručně), kulatá 45° (ručně jde změnit), upichovák vždy kolmo 90°
+(pole je zamčené). **Upichovákem se podélně nehrubuje** — hrubuje se čelně
+a tvar objede dokončení; tlačítko *Podélně* je u něj zamčené.
 
 ### Hrubování bez schodků a „i u čelního"
 **Hrub. bez schodků** = po dojezdu vrstvy na offset nástroj místo okamžitého

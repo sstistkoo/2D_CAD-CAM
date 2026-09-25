@@ -19,9 +19,8 @@ z materiálu.**
 - Čára, která z materiálu nevyjede, díl nedělí.
 - Materiál = nakreslený polotovar.
 - Jiné dělení neexistuje — **nikdy** uprostřed údolí ani uprostřed hrbu.
-- **Upichovák:** čáry zanoření nemá, bere se **svislá čára** z paty strmé
-  stěny. Pozvolné (kruhové) údolí stěnu nemá a díl nedělí. Nad vrcholem
-  stěny hranice neplatí a vrstva jde vcelku.
+- **Upichovák podélně nehrubuje** (rozhodnutí uživatele 25. 9. 2026) —
+  hrubuje se jím jen čelně, tvar objede dokončení. Úseky proto nemá.
 
 ## Pravidlo 2 — Držák se musí vejít ✅ schváleno
 
