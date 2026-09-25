@@ -6,6 +6,7 @@ import { envelopePartingLeads } from './long/partingEnvelope.js';
 import { makeRegions } from './long/regions.js';
 import { orderByHumps } from './long/humpOrder.js';
 import { splitPocketsAtAir } from './long/airPieces.js';
+import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
 import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from '../camMath.js';
@@ -1066,6 +1067,7 @@ export function genLongPasses(ctx) {
           if (!(zTry > zFloorEntry)) { holderBlockedDepths.add(depthKey(currentX)); return; }
           if (zTry < iv.zStart - 1e-9) { iv.zStart = zTry; iv.entryShifted = true; }
         }
+        const nBefore = passes.length;
         emitOpenInterval({
           prms, passes, step, dzScan, DZ_CAP, capTab, currentX, iv, intervals,
           entryZ: iv.zStart, entryCapped: false, entryRampIsPlunge, effZMin, effPlungeTanL,
@@ -1076,6 +1078,32 @@ export function genLongPasses(ctx) {
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
           straightRunEndZ, traceOffsetPath, blockedAt, rampSt: { anchor: null, closed: false }, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
         });
+        // ── VRSTVA JEDE PŘES VZDUCH DÁL (pravidlo 7) ────────────────────
+        // Kus za vzduchovou mezerou má vlastní vjezd jen proto, aby se
+        // neztratil, když se na PRVNÍ kus vjet nedá. Když ale první kus téže
+        // vrstvy vyjel a skončil ve vzduchu (bez dojezdu, bez zablokování),
+        // pokračuje se v něm dál — přes vzduch jede emise rychloposuvem,
+        // stejně jako u otevřeného průchodu. Jinak průchod odskočil uprostřed
+        // vrstvy a zbytek dojel až po čele jako nový průchod (nález uživatele
+        // 25. 9. 2026, zleva úsek 1: `N370 G1 X29.566 Z28.772` + odskok,
+        // zbytek vrstvy až `N1000 G1 Z79.494`). Spojí se jen tehdy, když tím
+        // držák nepřibude oproti oběma kusům zvlášť.
+        if (passes.length === nBefore + 1 && nBefore > 0) {
+          const q = passes[nBefore], p = passes[nBefore - 1];
+          const gapHi = idx > 0 ? intervals[idx - 1].zEnd : null;
+          if (p && q && p.type === 'long' && q.type === 'long'
+              && Math.abs(p.x - q.x) < 1e-6 && Math.abs(p.x - currentX) < 1e-6
+              && !p.blocked && !p.contourLeadOut && !p.noRetract && !q.pocketReposition
+              && gapHi !== null && Math.abs(p.zEnd - gapHi) < 0.05 && q.zStart < p.zEnd) {
+            const joined = { ...p, zEnd: q.zEnd, blocked: q.blocked };
+            if (q.contourLeadOut) joined.contourLeadOut = q.contourLeadOut;
+            if (q.holderClamped) joined.holderClamped = true;
+            if (holderFitAreaAlong(joined) <= Math.max(holderFitAreaAlong(p), holderFitAreaAlong(q)) + 0.01) {
+              passes.length = nBefore - 1;
+              passes.push(joined);
+            }
+          }
+        }
         return;
       }
       if (idx === 0 && firstOpen) {
@@ -1826,7 +1854,9 @@ export function genLongPasses(ctx) {
     }
     // Pravidlo 7: pravá strana hrbu celá dřív, než se přes hrb přejede —
     // ops/long/humpOrder.js.
-    const ordered = orderByHumps(passes.slice(regionMark), offsetXAt);
+    // Dojezd z kapsy nepřejíždí hrb dřív, než je údolí hotové —
+    // ops/long/pocketHumpSplit.js.
+    const ordered = orderByHumps(splitPocketLeadOutsOverHumps(passes.slice(regionMark), step), offsetXAt);
     passes.length = regionMark;
     // DRŽÁK PO PŘEŘAZENÍ. Průchod odsunutý za hrb jede po jiném materiálu,
     // než s jakým ho hlídání držáku plánovalo (v původním pořadí). Prověří se

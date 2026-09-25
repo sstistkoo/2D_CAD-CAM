@@ -112,7 +112,9 @@ export function orderByHumps(list, offsetXAt) {
     const e = sorted[n];
     // S rampou ne: ta začíná tam, kam ji nájezd dovezl, a bez něj by se k ní
     // sjíždělo kolmo do materiálu (part-1/2: `G1 X35.638`, pravidlo 6).
-    if (!e.p.contourLeadIn || e.p.ramp || e.k === 0) continue;
+    // Přejezd přes hrb (`pocketHumpSplit.js`) nájezd NEPOSTRÁDÁ — nájezd
+    // po vrcholu a sjezd za něj JE celý jeho řez.
+    if (!e.p.contourLeadIn || e.p.ramp || e.k === 0 || e.p.humpCrossing) continue;
     if (n > 0 && sorted[n - 1].i === e.i - 1) continue;
     delete e.p.contourLeadIn;
     e.p.leadInDropped = true;

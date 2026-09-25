@@ -594,6 +594,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/long/sectionFeet.js` | Hranice úseků = pata čáry zanoření, která vyjede z materiálu (upichovák: pata strmé stěny, nad jejím vrcholem neplatí). Táž funkce pro generátor i `scripts/cam_rules_check.mjs` |
 | `cam/ops/long/insertFlankGuard.js` | Hlídání boku destičky v podélném hrubování |
 | `cam/ops/long/humpMerge.js` | Vrstva pokračuje přes nízký hrb místo přerušení (zatím jen upichovák) |
+| `cam/ops/long/pocketHumpSplit.js` | Pravidlo 7: dojezd kapsového průchodu končí po zahlazení schodku (mělčí vrstva / vrchol hrbu); přejezd přes hrb se vydá zvlášť a `orderByHumps` ho zařadí až za údolí |
 | `cam/ops/long/partingEnvelope.js` | Obálka plátku upichováku pro nájezdy/dojezdy |
 | `cam/passHelpers.js` | Dotazy nad offsetem kontury pro strategie (`offsetXAt`, `traceOffsetPath`, `findLeadOutEndZ`, `findPocketExitZ`) — továrna `makePassHelpers(offsetPath)` |
 | `cam/zMirror.js` | Zrcadlení CAM světa v ose Z (hrubování „zleva" = zrcadlo pravé strany) |

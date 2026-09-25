@@ -143,6 +143,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – vrstva přes vzduchovou mezeru jede dál (pravidlo 7).** Kus vrstvy
+  za mezerou v polotovaru (`splitPocketsAtAir`) se dřív vždy vydal jako nový
+  průchod — nástroj uprostřed vrstvy odskočil a zbytek dojel až po čele
+  (zleva úsek 1: `N370 G1 X29.566 Z28.772` + odskok). Když první kus vyjel
+  a skončil ve vzduchu, kus za mezerou se k němu teď připojí (přes vzduch
+  rychloposuv), pokud tím nepřibude držák.
+- **CAM – dojezd z údolí nepřejíždí hrb dřív, než je údolí hotové
+  (pravidlo 7).** Kapsový průchod po zahlazení schodku jel po obrobené
+  stěně dál přes hrb a za ním ubíral hlubší vrstvu (`N1150 G1 Z47.780` →
+  `G1 X24.851 Z81.881`), údolí se dobíralo až potom a kus vrstvy za hrbem
+  jel znovu celý vzduchem. Dojezd teď končí na mělčí vrstvě (nebo vrcholu
+  hrbu) odskokem; přejezd se vydá zvlášť za údolím
+  (`ops/long/pocketHumpSplit.js`). Dojezd, který za hrbem vede do dalšího
+  údolí, zůstává. Fixtures: tříska > ap 7 → 5 (part-4/6/8/9), úběr i kolize
+  beze změny.
 - **CAM – zleva „✂ Po úsecích" nezanořil úsek 4.** Ručně zadaný rozsah
   (původní polotovar) jel 6 vrstev, po úsecích nic — po úseku 3 zbyla u meze
   nižší šikmina a kotva zanoření sedla na mez nad ní (rampa přes 7 vrstev →
