@@ -728,7 +728,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
-  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
+  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, partSegments: rawContourForInterference, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
   // Zpět do reálného světa (simPath se nezrcadlí — je z reálného G-kódu).
   return mirZ ? mirrorCalcZ(calcOut) : calcOut;
 }

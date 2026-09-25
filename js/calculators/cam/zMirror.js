@@ -200,7 +200,7 @@ export function mirrorCalcZ(calc) {
   }
   for (const key of ['contourSegments', 'machinableContour', 'offsetPath', 'finishOffsetPath',
     'finishRefPath', 'finishUnreachablePath', 'stockPathSegments', 'interferenceSegments',
-    'flankSegments', 'rawContourForProfile']) {
+    'flankSegments', 'rawContourForProfile', 'partSegments']) {
     if (calc[key]) out[key] = mirrorSegPath(calc[key]);
   }
   if (calc.interferenceGuides) out.interferenceGuides = mirrorGuides(calc.interferenceGuides);

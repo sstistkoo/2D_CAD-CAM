@@ -20,6 +20,7 @@ import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from
 import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisionValidator.js';
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { drawSectionPlan } from './cam/ops/sections/drawSections.js';
+import { sectionLeftover } from './cam/ops/sections/sectionLeftover.js';
 import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
@@ -418,6 +419,19 @@ export function openCamSimulator(initialContour, initialGCode) {
   // takhle brzo, protože ho invaliduje i applyView() při přepnutí části —
   // a to běží ještě při inicializaci, dávno před sekcí s getRemovalModel().
   let _removal = null;
+  // Zbytek materiálu po úsecích (sectionLeftover.js) — jednou na výpočet.
+  let _secLeft = null, _secLeftCalc = null;
+  function getSectionLeftover(calc) {
+    if (_secLeftCalc !== calc) {
+      _secLeftCalc = calc;
+      try {
+        _secLeft = calc && calc.sectionPlan
+          ? sectionLeftover(S.params, calc)
+          : null;
+      } catch (err) { console.warn('CAM: zbytek po úsecích:', err); _secLeft = null; }
+    }
+    return _secLeft;
+  }
   let _removalCalcRef = null;
   // Druhý model nad OFFSETOVOU (vůlí-posunutou) čarou — jen pro vybarvení
   // pásu mezi oběma čarami, viz getRemovalOuterModel().
@@ -2576,7 +2590,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
 
     // Úseky podélného hrubování (pravidla 1 a 8) — čáry hranic a pořadí.
-    if (S.showSections !== false) drawSectionPlan(ctx, calc.sectionPlan, toScreen);
+    if (S.showSections !== false) drawSectionPlan(ctx, calc.sectionPlan, toScreen, getSectionLeftover(calc));
 
     // Z-limity (čelisti, koník, rozsah obrábění)
     if (S.showZLimits && S.showZLimits !== 'off') {

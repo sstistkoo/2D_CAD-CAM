@@ -7,18 +7,22 @@
 // polotovar — mezi drahami by se ztratila (uživatel 25. 9. 2026: „vytáhnout ty
 // čáry nad polotovar … u prostředního úseku od bodu jako olovnici").
 // Nad polotovarem je u každého úseku jeho číslo a kroky, ve kterých se pojede
-// (pravidlo 8), např. „Ú2: 1 → Ø90.0, 3".
+// (pravidlo 8), např. „Ú2: 1 → Ø90.0, 3", a pod tím ZBYTEK po drahách
+// (sectionLeftover.js): broskvově „nedojeto" — i klín pod čarou zanoření.
 
 const COL = '#cba6f7';    // Catppuccin mauve — odlišná od mezních čar (teal)
 const HALO = '#1e1e2e';   // Catppuccin base — obrys písma, ať je čitelné přes dráhy
 const RISE = 12;          // o kolik mm nad nejvyšší polotovar čáry sahají
+const LEFT_FILL = 'rgba(250,179,135,0.35)';   // zbytek „nedojeto" — Catppuccin peach
+const LEFT_LINE = '#fab387';
 
 /**
  * @param ctx       2D kontext plátna
  * @param plan      `calc.sectionPlan` (už v reálném světě)
  * @param toScreen  (x, z) → { x, y } v pixelech
+ * @param leftover  výsledek `sectionLeftover` (nebo null — pak jen čáry)
  */
-export function drawSectionPlan(ctx, plan, toScreen) {
+export function drawSectionPlan(ctx, plan, toScreen, leftover = null) {
   if (!plan || !plan.sections || plan.sections.length === 0) return;
   let top = -Infinity;
   for (const s of plan.sections) if (Number.isFinite(s.top)) top = Math.max(top, s.top);
@@ -26,6 +30,16 @@ export function drawSectionPlan(ctx, plan, toScreen) {
   const xTop = top + RISE;
 
   ctx.save();
+  if (leftover) {
+    ctx.lineWidth = 1;
+    for (const v of leftover.perSection.values()) for (const q of v.pieces) {
+      ctx.beginPath();
+      q.loop.forEach((pt, i) => { const s2 = toScreen(pt.x, pt.z); if (i === 0) ctx.moveTo(s2.x, s2.y); else ctx.lineTo(s2.x, s2.y); });
+      ctx.closePath();
+      ctx.fillStyle = LEFT_FILL; ctx.fill();
+      ctx.strokeStyle = LEFT_LINE; ctx.stroke();
+    }
+  }
   ctx.strokeStyle = COL; ctx.fillStyle = COL; ctx.lineWidth = 2;
   for (const e of plan.edges) {
     const a = toScreen(e.x, e.z), b = toScreen(xTop, e.z);
@@ -49,8 +63,15 @@ export function drawSectionPlan(ctx, plan, toScreen) {
     const zHi = Number.isFinite(s.zHi) ? s.zHi : s.zLo, zLo = Number.isFinite(s.zLo) ? s.zLo : s.zHi;
     const p = toScreen(xTop, (zHi + zLo) / 2);
     const txt = `Ú${s.id}: ${(byId.get(s.id) || []).join(', ')}`;
-    ctx.strokeText(txt, p.x, p.y - 4);
-    ctx.fillText(txt, p.x, p.y - 4);
+    const v = leftover && leftover.perSection.get(s.id);
+    const lines = [txt];
+    if (v && v.area > 0) lines.push(`zbytek: nedojeto ${v.area.toFixed(0)} mm²`);
+    lines.forEach((t, k) => {
+      const y = p.y - 4 - (lines.length - 1 - k) * 16;
+      ctx.fillStyle = k === 0 ? COL : LEFT_LINE;
+      ctx.strokeText(t, p.x, y);
+      ctx.fillText(t, p.x, y);
+    });
   }
   ctx.restore();
 }
