@@ -100,9 +100,14 @@ až úplně dolů, a teprve potom za hrbem (N510 G1 Z195.278 a dál dolů).
 
 ## Pravidlo 8 — Pořadí úseků ✅ schváleno
 
-**Začíná se u největšího průměru a jede se po vrstvách (ap). Jakmile vrstvy
-dojdou na výšku dalšího největšího průměru vpravo, přejde se na ten pravý
-úsek a dodělá se; úsek vlevo se zatím vynechá a dodělá se potom.**
+**Úseky se obrábějí po řadě od strany, odkud se obrábí — Ú1, Ú2, Ú3, … —
+každý celý najednou (po vrstvách ap až dolů), pak další.**
+
+- Změněno uživatelem 25. 9. 2026 (dřív: začínalo se u největšího průměru
+  a úsek se přerušoval na výšce sousedního — vznikalo víc částí než úseků,
+  „mám 4 úseky, mají být 4 části").
+- Číslování úseků: od strany, odkud se obrábí (zprava: Ú1 vpravo; zleva:
+  Ú1 vlevo).
 
 - Platí jen mezi úseky, které odděluje čára zanoření vyjíždějící
   z materiálu (pravidlo 1). Kde čára vyjíždí až na konci (údolí, ze kterého

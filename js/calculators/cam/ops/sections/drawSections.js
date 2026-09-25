@@ -6,8 +6,8 @@
 // z bodu, kde čára zanoření vyjede na offset polotovaru (velká tečka), až NAD
 // polotovar — mezi drahami by se ztratila (uživatel 25. 9. 2026: „vytáhnout ty
 // čáry nad polotovar … u prostředního úseku od bodu jako olovnici").
-// Nad polotovarem je u každého úseku jeho číslo a kroky, ve kterých se pojede
-// (pravidlo 8), např. „Ú2: 1 → Ø90.0, 3", a pod tím ZBYTEK po drahách
+// Nad polotovarem je u každého úseku jeho číslo („Ú2" — úseky se číslují od
+// strany, odkud se obrábí, a v tom pořadí se i jedou) a pod tím ZBYTEK po drahách
 // (sectionLeftover.js): broskvově „nedojeto" — i klín pod čarou zanoření —
 // a červeně čárkovaně obrys polotovaru, který po programu zbyl.
 
@@ -61,14 +61,6 @@ export function drawSectionPlan(ctx, plan, toScreen, leftover = null) {
     ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Pořadí: kroky číslované 1…n; úsek může mít víc kroků (přeruší se, když
-  // vrstvy dojdou na vrch úseku vpravo).
-  const byId = new Map();
-  plan.steps.forEach((st, i) => {
-    const txt = `${i + 1}` + (Number.isFinite(st.xTo) ? ` → Ø${(2 * st.xTo).toFixed(1)}` : '');
-    if (!byId.has(st.id)) byId.set(st.id, []);
-    byId.get(st.id).push(txt);
-  });
   ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
   ctx.lineWidth = 4; ctx.strokeStyle = HALO; ctx.lineJoin = 'round';
@@ -76,7 +68,7 @@ export function drawSectionPlan(ctx, plan, toScreen, leftover = null) {
     if (!Number.isFinite(s.top)) continue;
     const zHi = Number.isFinite(s.zHi) ? s.zHi : s.zLo, zLo = Number.isFinite(s.zLo) ? s.zLo : s.zHi;
     const p = toScreen(xTop, (zHi + zLo) / 2);
-    const txt = `Ú${s.id}: ${(byId.get(s.id) || []).join(', ')}`;
+    const txt = `Ú${s.id}`;
     const v = leftover && leftover.perSection.get(s.id);
     const lines = [txt];
     if (v && v.area > 0) lines.push(`zbytek: nedojeto ${v.area.toFixed(0)} mm²`);

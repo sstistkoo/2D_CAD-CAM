@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM simulátor – podržení 📏 otevře nastavení rozsahů.** Dlouhé
+  podržení tlačítka Z-limitů otevře pravý panel (Parametry), rozbalí skupinu
+  čelisti/koník/rozsah a posune se k „Rozsah Z — aktivovat"; krátký klik dál
+  jen zapíná/vypíná zobrazení limitů.
 - **CAM – „✂ Po úsecích" (generátor po úsecích).** Pro každý úsek z plánu
   (`ops/sections/sectionRanges.js`, pořadí pravidlo 8) se nastaví rozsah 📐 na
   jeho hranice, vygenerují dráhy stávajícím hrubováním a obrobený polotovar se
@@ -21,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   polotovaru, který po programu zbyl.
 
 ### Changed
+- **CAM simulátor – úběr materiálu vždy zapnutý.** Tlačítko ⛏ v horní liště
+  zrušeno; uložené `showRemoval: false` se ignoruje.
+- **CAM – pravidlo 8 změněno: úseky po řadě, každý celý.** Na pokyn
+  uživatele se úseky obrábějí od strany, odkud se obrábí (Ú1, Ú2, …), každý
+  najednou — dřív se začínalo největším průměrem a úsek se přerušoval, takže
+  „✂ Po úsecích" vyrábělo víc částí než úseků (4 úseky → 6 částí). Popisek
+  úseku je jen „Úx". `docs/cam-pravidla.md` pravidlo 8 přepsáno.
+- **CAM – plán úseků pozná čáru zanoření, která končí přesně na offsetu
+  polotovaru.** Test bod/mnohoúhelník dával na hraně jednou „na hraně",
+  jednou „uvnitř" — zleva tak chyběla hranice u Z 265,4 (4. úsek) i krajní
+  čára vpravo. Teď tolerance 0,05 mm (`sectionPlan.js`).
 - **CAM – vrstvy s rampou se zbytečně nezahazují.** (1) Pravidlo „rampa
   nevezme víc než jednu vrstvu" se měří MATERIÁLEM (offsetová čára +
   noseLiftX), ne výškou středu nosu — kus rampy nad čarou jede vzduchem.

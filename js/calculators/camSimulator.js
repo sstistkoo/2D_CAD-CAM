@@ -102,8 +102,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="fit" title="Centrovat">🎯</button>
 
       <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
-      <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry)">📏</button>
-      <button data-act="removal" title="Úběr materiálu: při simulaci vizuálně odebírat projetý materiál z polotovaru">⛏</button>
+      <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry). Podržet = otevřít nastavení rozsahů v pravém panelu.">📏</button>
       <button data-act="snap" title="SNAP: přichytávání k bodům a hranám (jako v CAD) – kontura, polotovar i jeho offsetová čára, KONCE DRAH, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
       <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
@@ -514,7 +513,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (typeof p.showSimPath === 'boolean') S.showSimPath = p.showSimPath ? 'all' : 'none';
         else if (['all', 'cut', 'none'].includes(p.showSimPath)) S.showSimPath = p.showSimPath;
       }
-      if (typeof p.showRemoval === 'boolean') S.showRemoval = p.showRemoval;
+      // Úběr materiálu se zobrazuje VŽDY (tlačítko ⛏ zrušeno 25. 9. 2026) —
+      // uložené `showRemoval: false` se ignoruje.
       if (typeof p.showRefGuides === 'boolean') S.showRefGuides = p.showRefGuides;
       // Části programu (operace) — jen když sedí verze logiky drah, stejně
       // jako u manualGCode; jinak by se skládaly zastaralé dráhy.
@@ -762,8 +762,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     zlimBtn.textContent = cfg.icon;
   }
   // Sync removal toggle button to persisted state
-  const removalBtn = toolbar.querySelector('[data-act="removal"]');
-  if (removalBtn) removalBtn.classList.toggle('cam-sim-active', !!S.showRemoval);
   // Sync reference-guides toggle button to persisted state
   // Sync sim-path toggle button to persisted state (all/cut/none)
   const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
@@ -7227,7 +7225,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
         if (data.xLimits) S.xLimits = Object.assign({ rangeXMin: null, rangeXMax: null, active: false }, data.xLimits);
         if (data.showSimPath) S.showSimPath = data.showSimPath;
-        if (typeof data.showRemoval === 'boolean') S.showRemoval = data.showRemoval;
         if (typeof data.showRefGuides === 'boolean') S.showRefGuides = data.showRefGuides;
         S.simRunning = false; S.simProgress = 0;
         // Části: živý stav přepsat záznamem aktivní části (manualGCode v
@@ -8198,13 +8195,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       draw();
       saveState();
       showToast(cfg.toast);
-    } else if (act === 'removal') {
-      S.showRemoval = !S.showRemoval;
-      _removal = null; _removalCalcRef = null;
-      btn.classList.toggle('cam-sim-active', S.showRemoval);
-      draw();
-      saveState();
-      showToast(S.showRemoval ? 'Úběr materiálu při simulaci zapnut' : 'Úběr materiálu vypnut');
     } else if (act === 'zlimits') {
       // Prostý on/off – co se zobrazuje řídí checkboxy v parametrech.
       S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on';
@@ -8472,6 +8462,42 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (sidebar.style.display === 'flex') hideSidebar(); else showSidebar();
   });
   root.querySelector('[data-act="hide-sidebar"]').addEventListener('click', hideSidebar);
+
+  // DLOUHÉ PODRŽENÍ 📏 → pravý panel rovnou u Z-limitů / rozsahu (uživatel
+  // 25. 9. 2026: rozsah byl vypnutý a nebylo vidět, kde se zapíná). Krátký
+  // klik dál jen zapíná/vypíná zobrazení limitů (handler `act === 'zlimits'`).
+  {
+    const zlBtn = toolbar.querySelector('[data-act="zlimits"]');
+    let holdTimer = null, held = false;
+    const openRangeSettings = () => {
+      S.activeTab = 'params';
+      S.safetyConfigOpen = true;
+      showSidebar();
+      const target = sidebar.querySelector('[data-act="zrange-active"]');
+      if (target) {
+        const box = target.closest('label') || target;
+        box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        box.style.transition = 'background-color .6s';
+        box.style.backgroundColor = 'rgba(249,226,175,0.25)';
+        setTimeout(() => { box.style.backgroundColor = ''; }, 1200);
+      }
+    };
+    if (zlBtn) {
+      zlBtn.addEventListener('pointerdown', () => {
+        held = false;
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => { held = true; openRangeSettings(); }, 550);
+      });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
+        zlBtn.addEventListener(ev, () => clearTimeout(holdTimer));
+      }
+      // Po podržení se klik nesmí propsat jako přepnutí zobrazení limitů.
+      zlBtn.addEventListener('click', (e) => {
+        if (held) { held = false; e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
+      zlBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+  }
 
   // manual textarea
   manualTa.addEventListener('mousedown', () => { S._gcodeFocusLine = null; });

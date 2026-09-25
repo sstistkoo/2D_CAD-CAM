@@ -442,7 +442,8 @@ je na to tlačítko **➕ Operace**.
    zmizí z plátna. Zůstane kontura a **polotovar obrobený předchozí částí** —
    program si tedy pamatuje, co už se odebralo, a další operace na tom staví.
 3. V pravém panelu (**⚙ Nast.**) si vyber jiný nůž a nastav parametry i
-   **rozsah obrábění** (📏) jen na tu část dílu, kterou chceš dělat.
+   **rozsah obrábění** (📏) jen na tu část dílu, kterou chceš dělat. *Tip: podržením tlačítka 📏
+   se pravý panel otevře rovnou u nastavení rozsahů.*
 4. Klikni **🔄 Dráhy** — vygeneruje se **další část** programu. Kroky 2–4
    opakuj, kolikrát potřebuješ.
 

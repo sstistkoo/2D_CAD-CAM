@@ -627,7 +627,7 @@ integrace v `camSimulator.js` (`getRemovalModel`, `remainPath` v `draw()`).
   přetočení zpět = přepočet od nuly, periodický `polySimplify`.
 - Zbývající polotovar ořezává (clip) CAD vybarvení i výplň polotovaru
   v `draw()` → materiál vizuálně mizí.
-- Přepínač ⛏ v horní liště simulátoru (persistovaný, default zapnuto).
+- Přepínač ⛏ v horní liště simulátoru (persistovaný, default zapnuto) — od 25. 9. 2026 zrušen, úběr se zobrazuje vždy.
 - V1 aproximace špičky = kružnice rádiusu R; celý polygon destičky
   (+ upichovák šířky b) přijde s Fází 2.
 - Testy: `tests/material-removal.test.js`.

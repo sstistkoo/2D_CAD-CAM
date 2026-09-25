@@ -50,7 +50,24 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
   zLo -= pad; zHi += pad;
 
   // Konec čáry na offsetu polotovaru (ne uvnitř) = vyjede z materiálu.
-  const onEdge = (p) => { try { return pointInLoop(p, loop) !== 'inside'; } catch { return false; } };
+  // Konec čáry na offsetu polotovaru — test bod/mnohoúhelník NESTAČÍ: konec
+  // leží PŘESNĚ na hraně a numericky vyjde jednou „na hraně", jednou „uvnitř"
+  // (zleva tak chyběla hranice u Z 265,4 i krajní čára vpravo; 25. 9. 2026).
+  const EDGE_TOL = 0.05;
+  const distToLoop = (p) => {
+    let d = Infinity;
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i], b = loop[(i + 1) % loop.length];
+      const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / L2));
+      d = Math.min(d, Math.hypot(a.x + dx * t - p.x, a.z + dz * t - p.z));
+    }
+    return d;
+  };
+  const onEdge = (p) => {
+    try { if (pointInLoop(p, loop) !== 'inside') return true; } catch { return false; }
+    return distToLoop(p) <= EDGE_TOL;
+  };
   const edges = [];
   for (const g of guides || []) {
     const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
@@ -88,28 +105,13 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
 }
 
 /**
- * Pravidlo 8: začne se u největšího průměru a jede se po vrstvách; když
- * vrstvy dojdou na vrch největšího NEhotového úseku vpravo, přejde se na něj
- * a dodělá se (s tímtéž pravidlem pro jeho pravou stranu). Pak se vrátí
- * a pokračuje. Úseky vlevo počkají, až bude hotové všechno vpravo.
- * Při shodě průměrů má přednost pravá strana.
+ * Pravidlo 8 (změněno uživatelem 25. 9. 2026): úseky se obrábějí PO ŘADĚ od
+ * strany, odkud se obrábí (Ú1, Ú2, …), každý CELÝ najednou — žádné
+ * přerušování na průměru sousedního úseku („mám 4 úseky, mají být 4 části").
+ * `sections` jsou už seřazené od strany obrábění (id 1 = první).
  */
 export function orderSteps(sections) {
-  const steps = [];
-  const done = new Set();
-  const live = sections.filter(s => Number.isFinite(s.top));
-  const pickMax = (list) => list.reduce((b, s) => (!b || s.top > b.top + 1e-9
-    || (Math.abs(s.top - b.top) <= 1e-9 && s.zHi > b.zHi) ? s : b), null);
-  const run = (S, xFrom) => {
-    done.add(S);
-    let x = xFrom;
-    for (;;) {
-      const R = pickMax(live.filter(s => !done.has(s) && s.zLo >= S.zHi - 1e-6));
-      if (!R) { steps.push({ id: S.id, xFrom: x, xTo: -Infinity }); return; }
-      if (R.top < x - 1e-9) { steps.push({ id: S.id, xFrom: x, xTo: R.top }); x = R.top; }
-      run(R, R.top);
-    }
-  };
-  for (let S = pickMax(live); S; S = pickMax(live.filter(s => !done.has(s)))) run(S, S.top);
-  return steps;
+  return sections
+    .filter(s => Number.isFinite(s.top))
+    .map(s => ({ id: s.id, xFrom: s.top, xTo: -Infinity }));
 }

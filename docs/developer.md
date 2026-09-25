@@ -1136,7 +1136,7 @@ takže pan/zoom boolean operaci neopakuje.
 Hlídání běží **vždy** — od 1. 9. 2026 nemá ani ono, ani kolize držáku přepínač
 v panelu (tlačítko 🟧 `showHolderCollision` bylo odstraněno na přání uživatele:
 kolize se nemá dát omylem vypnout). Model úběru se sdílí s vybarvením
-(`_removal`); s vypnutým ⛏ si `ContourGouge` vede vlastní, jinak identický
+(`_removal`); s vypnutým úběrem (přepínač ⛏ zrušen 25. 9. 2026, úběr je vždy zapnutý) si `ContourGouge` vede vlastní, jinak identický
 (`_gougeRemoval`).
 
 Pás se kreslí jako zbytek offsetového modelu, ale oříznutý na „mimo syrový
