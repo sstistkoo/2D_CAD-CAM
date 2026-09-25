@@ -16,6 +16,8 @@
 // „u" = souřadnice ve směru, ODKUD se obrábí (zprava: u = z, zleva: u = −z).
 // Vyšší u = blíž začátku obrábění („vpravo").
 
+import { sectionFeet } from '../../js/calculators/cam/ops/long/sectionFeet.js';
+
 const DZ = 0.5;          // krok vzorkování sloupců [mm]
 const HUMP_MIN = 1;      // hrb musí na obě strany klesnout aspoň o 1 mm
 const TOL = 0.1;         // mm pod vrcholem = „níž než"
@@ -49,26 +51,14 @@ export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFu
     i = j;
   }
 
-  // ── Úseky (pravidlo 1) ─────────────────────────────────────────────
-  const feet = [];
+  // ── Úseky (pravidlo 1) — TÁŽ funkce jako v generátoru ─────────────
   const inStock = (pt) => { try { return pointInLoop(pt, stockLoop) !== 'outside'; } catch { return true; } };
-  for (const g of guides || []) {
-    if (g.kind !== 'zanoreni') continue;
-    const a = { x: g.x1, z: g.z1 }, b = { x: g.x2, z: g.z2 };
-    if (inStock(a) && inStock(b)) continue;
-    feet.push((a.x <= b.x ? a : b).z * dir);
-  }
-  if (cutsFullWidth) {
-    // Upichovák: pata STRMÉ stěny (≥ 1 mm na 0,5 mm), za kterou kontura
-    // proti směru obrábění spadne.
-    for (let u = uLo + DZ; u < uHi - DZ; u += 0.25) {
-      const x = offsetXAt(zOf(u)), xF = offsetXAt(zOf(u + 0.5)), xB = offsetXAt(zOf(u - 0.25));
-      if (x === null || xF === null || xB === null) continue;
-      if (xF >= x + 1 && xB >= x - 0.02 && xB <= x + 0.02) feet.push(u);
-    }
-  }
-  feet.sort((p, q) => p - q);
-  const cuts = [uLo, ...feet.filter((u, k) => k === 0 || u - feet[k - 1] > 1), uHi];
+  const feet = sectionFeet({
+    guides: (guides || []).map(g => ({ ...g, z1: g.z1 * dir, z2: g.z2 * dir })),
+    isOutside: (pt) => !inStock({ x: pt.x, z: zOf(pt.z) }),
+    parting: cutsFullWidth ? { offsetXAt: (u) => offsetXAt(zOf(u)), uLo, uHi } : null,
+  });
+  const cuts = [uLo, ...feet, uHi];
   const stockTop = (u) => topXOnLoop(stockLoop, zOf(u));
   const sections = [];
   for (let k = 0; k + 1 < cuts.length; k++) {

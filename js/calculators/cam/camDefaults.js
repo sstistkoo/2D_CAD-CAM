@@ -67,7 +67,10 @@ export function _defaultCamParams() {
     //     (27. 8. 2026), ale komentář tu po něm zůstal viset a četl se jako
     //     dokumentace k `holderInflate` níž — to jsou DVĚ RŮZNÉ věci.
     //   `guideOnlyRegions` — v `js/` nebyl NIKDY (`git log -S` nenajde nic).
-    // Oba se pořád vozí ve starších `.camprog` (a tedy i v `S.params`), ale
+    //   `regionRoughing`, `booleanRoughing`, `pathGenerator` — přepínače
+    //     generátoru, zrušené 24. 9. 2026 (jeden generátor: regiony a
+    //     booleovské intervaly platí vždy, pokusný „nový generátor" smazán).
+    // Všechny se pořád vozí ve starších `.camprog` (a tedy i v `S.params`), ale
     // NIKDO JE NEČTE a žádné zaškrtávátko pro ně v `index.html` není.
     // Nepřidávat je zpátky bez rozhodnutí, co mají dělat — jsou to ghosty,
     // ne vypnuté funkce.
@@ -148,18 +151,6 @@ export function _defaultCamParams() {
     noStepRoughing: false,
     // Stejné chování i pro čelní (X) hrubování.
     noStepRoughingFace: false,
-    // Hrubovat po regionech (jen odlitek): každý výstupek polotovaru
-    // (mezi „údolími", kde se polotovar blíží kontuře) se vyhrubuje shora
-    // dolů SAMOSTATNĚ, mezi regiony rychloposuv nad polotovar. false =
-    // původní globální sweep po hloubkách přes celý díl.
-    regionRoughing: false,
-    // Booleovské hrubování (migrace Fáze 3, docs/geometry-libs-migration.md):
-    // řezné Z-intervaly podélných průchodů se odvozují ze zbytkového
-    // materiálu (polotovar − offset kontury) přes Clipper2 (booleanRoughing.js)
-    // místo ručního scan-line (scanIntervals). PŘÍZNAK — default false =
-    // původní scan-line cesta (regresní snapshoty beze změny). Zapnuto =
-    // experimentální booleovská cesta (zatím jen podélné hrubování).
-    booleanRoughing: false,
     // Hlídání držáku podle POŘADÍ obrábění (docs/cam-order-aware-holder.md).
     // Vjezd kapsového zákroku se posuzuje proti ZBYTKU, který v tu chvíli
     // opravdu stojí (`ResidualTracker` + `holderAreaAlongResidual`), ne jen

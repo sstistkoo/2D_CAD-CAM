@@ -17,7 +17,6 @@ import { bridgePlungeGuidesIntoContour } from './plungeContourBridge.js';
 import { joinPlungeGuideOffsets } from './guideOffsetJoin.js';
 import { relinkOrphanChainSteps, capRampsThroughAir } from './ops/long/chainRelink.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
-import { planQuality, HOLDER_INTRUSION_TOL } from './ops/long/holderCheck.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { partOffGeom } from './threadHelpers.js';
 import { getInsert } from './inserts/index.js';
@@ -521,58 +520,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       }
     };
     runOps();
-    // ── DĚLENÍ NA ÚSEKY PODLE HRBŮ KONTURY ─────────────────────────────
-    // Hrb kontury přeruší vrstvu → každá strana je vlastní úsek a dodělá se
-    // celá, než se přejede na druhou (`docs/cam-pravidla-drah.md` §6.0).
-    //
-    // TADY BÝVAL GATE. Od 27. 8. 2026 se plánovalo DVAKRÁT — s dělením a bez
-    // něj — a `planQuality` rozhodla, který plán se nechá: když dělení
-    // zhoršilo vnoření držáku nebo zbytek materiálu, zahodilo se. Na dílu
-    // uživatele (⌀111 × 350, podélně zleva) tím pravidlo padalo pokaždé:
-    // dělení se spočítalo (8 úseků, zlomy Z 4,1 / 67,2 / 127,2 / 228,1)
-    // a pak se vyhodilo, protože držák vyšel 30,10 proti 4,78 mm². Výsledek
-    // uživatel viděl jako 24 návratů „vlevo–vpravo–vlevo" kolem každého hrbu.
-    //
-    // ZRUŠENO 1. 9. 2026 na jeho pokyn: §6.0 je PODMÍNKA, ne optimalizace —
-    // měřicí heuristika ji přebíjet nesmí (totéž rozhodnutí jako 28. 8. 2026,
-    // kdy padly tři gaty před ním). Správná odpověď na „s dělením se držák
-    // nevejde" je opravit PŘÍČINU (držák nesmí zajet do úseku, který se ještě
-    // nehruboval), ne vrátit se k plánu, který pravidlo porušuje.
-    // POZOR: do 15. 9. 2026 tu stálo „viz `pendingRegions` v ops/roughLong.js".
-    // Takový symbol v repu NENÍ (`grep -r pendingRegions js/` najde jen tenhle
-    // komentář) — je to NÁVRH, ne existující kód, a odkaz sváděl hledat
-    // hotové řešení tam, kde žádné není.
-    //
-    // Odpadlo tím i druhé plánování celého dílu (dřív se `runOps()` volalo
-    // dvakrát na každém díle, kde nějaký hrb je).
-    // POJISTKA, ne gate: plán s dělením se zahodí JEN tehdy, když by držák
-    // vjel do stojícího materiálu — tedy když je pravidlo fyzicky
-    // neproveditelné, ne když je jen „dražší". Rozhoduje TÁŽ dvojice čísel
-    // jako dřív, ale plán s dělením k ní teď přichází OPRAVENÝ (duplicitní
-    // okna regionů, viz ops/roughLong.js) — na dílu uživatele proto projde
-    // a §6.0 platí, kdežto dřív padal na vlastní vadě.
-    if (passCtx.usedPeakSplit) {
-      const withSplit = planQuality(passes, prms, stockPathSegments);
-      const keptPasses = passes.slice(), keptErrors = foundErrors.slice();
-      passes.length = 0; foundErrors.length = 0;
-      passCtx.usedPeakSplit = false;
-      prms.__noPeakSplits = true;
-      try {
-        runOps();
-        const without = planQuality(passes, prms, stockPathSegments);
-        // VETO SMÍ MÍT JEN DRŽÁK. Zbytek materiálu (`residual`) tu do
-        // 1. 9. 2026 vetoval taky — a právě na něm §6.0 padalo: plán
-        // s dělením je z principu o něco „dražší" (každý úsek se dodělá do
-        // své hloubky a u hranic zůstane materiál, který dobere jiná
-        // operace), takže ho kritérium úběru zamítlo, i když byl čistý.
-        // Na dílu uživatele to bylo −399 mm² proti NULE kolizí; pravidlo
-        // se tím zahazovalo kvůli ceně, ne kvůli proveditelnosti.
-        if (withSplit.holder <= without.holder + HOLDER_INTRUSION_TOL) {
-          passes.length = 0; passes.push(...keptPasses);
-          foundErrors.length = 0; foundErrors.push(...keptErrors);
-        }
-      } finally { delete prms.__noPeakSplits; }
-    }
+    // Úseky dělí jen pravidlo 1 (ops/long/sectionFeet.js) a plánuje se jednou.
+    // Do 24. 9. 2026 se tu díl s hrbem plánoval dvakrát (s dělením uprostřed
+    // hrbu a bez něj) a `planQuality` vybírala — obojí zrušeno s dělením
+    // uprostřed hrbu.
   }
 
 

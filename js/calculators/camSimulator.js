@@ -4602,30 +4602,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span>Hrub. bez schodků</span>
         ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
       </div>`;
-      // Booleovské intervaly i regiony čte VÝHRADNĚ genLongPasses — čelní
-      // strategie ani jeden příznak nikde nesahá (změřeno: G-kód čelního
-      // hrubování je se zapnutým i vypnutým příznakem bajt po bajtu stejný).
-      // Zaškrtnuté, ale nic nedělající políčko mate, proto se v čelním režimu
-      // zašedí a zamkne — stejný vzor jako Zanořování níž.
-      const longOnlyNA = prms.roughingStrategy === 'face';
-      // NOVÝ JEDNODUCHÝ GENERÁTOR (docs/cam-novy-generator.md) — jen podélně
-      // a jen kulatá destička (klíč `simpleLongGenerator` v inserts/*.js).
-      // Výchozí VYPNUTO: uživatel si ho porovná a rozhodne sám.
-      const simpleNA = longOnlyNA || prms.toolShape !== 'round';
-      html += `<div class="cam-sim-checkbox-row"${simpleNA ? ' style="opacity:.45"' : ''} data-tooltip="${simpleNA ? 'Zatím jen PODÉLNĚ a jen KULATÁ destička.&#10;&#10;' : ''}Nový jednoduchý generátor hrubování (soustružnický cyklus po vrstvách): zóny se dodělají celé shora dolů zprava doleva, kapsy rampou, schody se dojedou, držák se hlídá proti zbytku materiálu. Vypnuto = původní generátor.">
-        <input type="checkbox" id="cam-sim-simplegen" ${prms.pathGenerator === 'simple' ? 'checked' : ''}${simpleNA ? ' disabled' : ''}>
-        <span>Nový generátor drah (test)</span>
-      </div>`;
-      html += `<div class="cam-sim-checkbox-row"${longOnlyNA ? ' style="opacity:.45"' : ''} data-tooltip="${longOnlyNA ? 'NEPLATÍ pro ČELNÍ hrubování — booleovské intervaly umí jen podélná strategie (čelní G-kód je s příznakem i bez něj identický).&#10;&#10;' : ''}Experimentální (migrace Fáze 3): řezné intervaly podélného hrubování se počítají z booleovské geometrie (Clipper2 zbytkový materiál) místo ručního scan-line. Výchozí VYPNUTO = ověřená původní cesta. Zapnuto odebere stejný materiál — slouží k ověření a dalšímu vývoji.">
-        <input type="checkbox" id="cam-sim-boolean" ${prms.booleanRoughing ? 'checked' : ''}${longOnlyNA ? ' disabled' : ''}>
-        <span>Booleovské hrubování ${longOnlyNA ? '(jen podélně)' : '(exp.)'}</span>
-      </div>`;
-      if (prms.stockMode === 'casting') {
-        html += `<div class="cam-sim-checkbox-row"${longOnlyNA ? ' style="opacity:.45"' : ''} data-tooltip="${longOnlyNA ? 'NEPLATÍ pro ČELNÍ hrubování — na regiony se dělí jen Z-rozsah podélných průchodů.&#10;&#10;' : ''}Jen odlitek: každý výstupek polotovaru (mezi „údolími", kde se povrch blíží kontuře) se vyhrubuje shora dolů SAMOSTATNĚ; mezi regiony rychloposuv nad polotovar. Nástroj nepřejíždí po kontuře napříč celým dílem. Vypnuto = průchody po hloubkách přes celý díl.">
-          <input type="checkbox" id="cam-sim-region" ${prms.regionRoughing ? 'checked' : ''}${longOnlyNA ? ' disabled' : ''}>
-          <span>Hrubovat po regionech${longOnlyNA ? ' (jen podélně)' : ''}</span>
-        </div>`;
-      }
       const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
       const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
       // Značka „⚠ α" smí svítit jen tehdy, když úhel hřbetu VÁŽNĚ srazil auto
@@ -4640,7 +4616,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // dané Z, žádná rampa v něm není. Přepínač proto v čelním režimu zůstává
       // vidět (ať je jasné, že existuje), ale je zašedlý a neaktivní: dokud
       // vypadal jako zapnutý, vypadalo to, že se nastavený úhel ignoruje.
-      const plungeNA = longOnlyNA;
+      const plungeNA = prms.roughingStrategy === 'face';
       html += `<div class="cam-sim-row" style="align-items:center">
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label>
           <label class="cam-sim-checkbox-item"${plungeNA ? ' style="opacity:.45"' : ''} data-tooltip="${plungeNA ? 'Neplatí pro ČELNÍ hrubování — to jede radiálně na danou hloubku Z, rampou se nezanořuje. Úhel zanoření se v čelním režimu použije jen na nájezd dokončování.' : 'Podélné hrubování smí rampou pod úhlem zanoření sjet i do kapes v kontuře.'}">
@@ -5100,24 +5076,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; applyChange(); });
     const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');
     if (noStepFaceCb) noStepFaceCb.addEventListener('change', () => { S.params.noStepRoughingFace = noStepFaceCb.checked; applyChange(); });
-    const regionCb = tabBody.querySelector('#cam-sim-region');
-    if (regionCb) regionCb.addEventListener('change', () => {
-      S.params.regionRoughing = regionCb.checked;
-      applyChange();
-      showToast(regionCb.checked ? 'Hrubování po regionech zapnuto' : 'Hrubování po regionech vypnuto');
-    });
-    const simpleGenCb = tabBody.querySelector('#cam-sim-simplegen');
-    if (simpleGenCb) simpleGenCb.addEventListener('change', () => {
-      S.params.pathGenerator = simpleGenCb.checked ? 'simple' : 'legacy';
-      applyChange();
-      showToast(simpleGenCb.checked ? 'Nový generátor drah zapnut (test)' : 'Původní generátor drah');
-    });
-    const booleanCb = tabBody.querySelector('#cam-sim-boolean');
-    if (booleanCb) booleanCb.addEventListener('change', () => {
-      S.params.booleanRoughing = booleanCb.checked;
-      applyChange();
-      showToast(booleanCb.checked ? 'Booleovské hrubování zapnuto (exp.)' : 'Booleovské hrubování vypnuto');
-    });
     const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
     if (plungeAutoBtn) plungeAutoBtn.addEventListener('click', () => {
       S.params.entryAngleAuto = !S.params.entryAngleAuto;

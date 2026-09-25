@@ -13,6 +13,7 @@
 import { depthKey, mergeCollinearSegs, subdivideLineSegs } from './segUtils.js';
 import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 import { RESIDUAL_FIT_TOL } from '../../residualHolder.js';
+import { getInsert } from '../../inserts/index.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -23,7 +24,7 @@ export function emitPocketInterval(D) {
     holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
     residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
-    newCutArea, pocketLeadOut,
+    newCutArea, pocketLeadOut, gapAtSectionEdge,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -240,6 +241,9 @@ if (!iv.blocked) {
   const passOpen = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: zEndEff, blocked: iv.blocked };
   if (holderClampedOpen) passOpen.holderClamped = true;
   const erOpen = stockEntryRamp(currentX, iv.zStart);
+  // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
+  // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
+  if (erOpen && erOpen.x0 - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
   if (erOpen) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice
     // (sledování kontury by vedlo kůrou — vynechá se).
@@ -248,8 +252,13 @@ if (!iv.blocked) {
     const liOpen = traceLeadInTo(zGapHi, iv, currentX);
     linkToPrev(liOpen);   // bez zbytečného odskoku+návratu (všechny tvary)
     // PRÁZDNÝ NÁJEZD NENÍ NÁJEZD — podrobně u `passFlat` níž.
-    if (liOpen.length === 0) { cnt.noEntrySkips++; return; }
-    passOpen.contourLeadIn = liOpen;
+    // Upichovák se zanořuje KOLMO (jeho normální vjezd, pravidlo 6) — když
+    // nájezd po kontuře vyjde prázdný (hrb jen o setiny nad vrstvou), vjede
+    // na začátek kusu shora, místo aby se kus zahodil. Bez toho zůstal bok
+    // za hrbem neobrobený a dobírání dna do něj vjelo držákem
+    // (part-20-zleva-parting-taper, 24. 9. 2026: 4 kolize, 12,5 mm²).
+    if (liOpen.length === 0 && !isParting) { cnt.noEntrySkips++; return; }
+    if (liOpen.length > 0) passOpen.contourLeadIn = liOpen;
   }
   // TUHLE PŘÍMKU ZANOŘENÍ UŽ NIKDO SJÍŽDĚT NEMUSÍ. Otevřené pokračování
   // s rampou sjíždí TÝŽ klín jako dokončení ořízlé rampy
@@ -273,6 +282,15 @@ if (isParting) {
   const cz = iv.zStart - w2RL;
   if (cz <= iv.zEnd + 0.05) { cnt.partingNarrowPockets++; return; }
   corner = { x: Math.min(maxStockX, currentX + step), z: cz };
+} else if (idx === 0 && gapAtSectionEdge) {
+  // MEZERA ZAČÍNÁ NA HRANICI ÚSEKU (pravidlo 1), ne za bossem. Vpravo od
+  // ní stojí jen nedosažitelný materiál pod čarou zanoření — žádný roh,
+  // od kterého by se dalo rampovat. `findPlungeCorner` by za roh vzal
+  // patu té čáry a rampa by jela po ní, nedojela a zbytek by se táhl po
+  // kontuře (nález uživatele 24. 9. 2026: X 14,6, kapsa Z 76…86, rampa
+  // z Z 107,2, pak sjezd 71° a posuv vzduchem až na Z −8). Vjezd patří
+  // rampě z POVRCHU polotovaru nad kapsou (větev bez rohu níž).
+  corner = null;
 } else {
   corner = findPlungeCorner(zGapHi, iv.zStart);
 }
@@ -289,6 +307,9 @@ if (!corner) {
   // projede po kontuře na currentX, žádná rampa.
   const passFlat = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
   const erFlat = stockEntryRamp(currentX, iv.zStart);
+  // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
+  // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
+  if (erFlat && erFlat.x0 - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
   if (erFlat) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice.
     passFlat.ramp = erFlat;
@@ -719,6 +740,20 @@ const cleanLeadOut = mergeCollinearSegs(holderTrimLeadOut(subdivideLineSegs(_raw
 // tedy „správně"), ale držák drhnul o přídavek na protilehlé stěně,
 // 40 mm² oranžové / 3 nálezy validátoru; dokončování tu prohlubeň
 // přemosťovalo rovným průměrem X27,85.
+// TĚLO UPICHOVÁKU NA DNĚ KAPSY (24. 9. 2026). Dno se hledá podle dráhy
+// ŠPIČKY; plátek je ale `bodyZ` široký a na dně úzké kapsy by zajel do
+// hotového dílu (part-20-zleva-parting-taper: 3,65 mm² u rohu krku, když
+// společný žebřík úseků posunul hloubku). Kde by tělo stálo pod offsetem,
+// dobírání dna se nevydá.
+if (!skipRiskyPocketEmit && isParting) {
+  const bz = getInsert(prms).bodyZ;
+  if (bz) {
+    for (let d = bz.lo; d <= bz.hi + 1e-9; d += 0.1) {
+      const ox = offsetXAt(pocketBottomZ + d);
+      if (ox !== null && ox > pocketBottomX + 0.01) { skipRiskyPocketEmit = true; cnt.partingNarrowPockets++; break; }
+    }
+  }
+}
 if (!skipRiskyPocketEmit && holderClampZEnd?.isForbidden?.(pocketBottomX, pocketBottomZ)) {
   skipRiskyPocketEmit = true;
   cnt.pocketHolderSkips++;

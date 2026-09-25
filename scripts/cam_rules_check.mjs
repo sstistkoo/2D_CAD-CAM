@@ -5,7 +5,6 @@
 // a vypíše porušení pravidel s čísly řádků G-kódu (N…). Hotovo = 0.
 //
 //   node scripts/cam_rules_check.mjs soubor.camprog [další.camprog …]
-//   node scripts/cam_rules_check.mjs soubor.camprog --generator=simple
 //   node scripts/cam_rules_check.mjs soubor.camprog --all      (vypsat všechny řádky)
 //
 // Co se měří (materiál = model úběru ze skutečně vydané dráhy, jako simulátor):
@@ -53,9 +52,8 @@ const SAMPLE = 0.5;         // krok vzorkování podél pohybu [mm]
 const args = process.argv.slice(2);
 const files = args.filter(a => !a.startsWith('--'));
 const showAll = args.includes('--all');
-const genArg = (args.find(a => a.startsWith('--generator=')) || '').split('=')[1];
 if (files.length === 0) {
-  console.log('Použití: node scripts/cam_rules_check.mjs soubor.camprog [--generator=simple] [--all]');
+  console.log('Použití: node scripts/cam_rules_check.mjs soubor.camprog [--all]');
   process.exit(1);
 }
 
@@ -67,7 +65,6 @@ const topAt = (loops, z) => {
 
 async function check(file) {
   const prog = JSON.parse(readFileSync(file, 'utf8'));
-  if (genArg) prog.params.pathGenerator = genArg;
   const r = await runCamProg(prog);
   const P = r.params;
   const ap = parseFloat(P.depthOfCut);
@@ -190,7 +187,7 @@ let total = 0;
 for (const f of files) {
   const c = await check(f);
   const { found: F } = c;
-  console.log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'}, ${c.P.pathGenerator || 'legacy'})`);
+  console.log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'})`);
   const row = (label, arr, fmt) => {
     console.log(`  ${arr.length === 0 ? '✓' : '✗'} ${label}: ${arr.length}`);
     if (arr.length) console.log('      ' + fmtList(arr, fmt));

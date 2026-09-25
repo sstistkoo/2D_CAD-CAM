@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v285';
+const CACHE_NAME = 'skica-v289';
 const ASSETS = [
   './',
   './index.html',
@@ -46,14 +46,15 @@ const ASSETS = [
   './js/calculators/cam/ops/face/regionRunOut.js',
   './js/calculators/cam/ops/finish.js',
   './js/calculators/cam/ops/finishEmit.js',
+  './js/calculators/cam/ops/long/airPieces.js',
   './js/calculators/cam/ops/long/alreadyCut.js',
   './js/calculators/cam/ops/long/cutRegistry.js',
   './js/calculators/cam/ops/long/depthTabs.js',
   './js/calculators/cam/ops/long/entryRamp.js',
   './js/calculators/cam/ops/long/holderFit.js',
-  './js/calculators/cam/ops/long/holderCheck.js',
   './js/calculators/cam/ops/long/holderTrim.js',
   './js/calculators/cam/ops/long/humpMerge.js',
+  './js/calculators/cam/ops/long/humpOrder.js',
   './js/calculators/cam/ops/long/chainRelink.js',
   './js/calculators/cam/ops/long/insertFlankGuard.js',
   './js/calculators/cam/ops/long/intervalScan.js',
@@ -65,13 +66,13 @@ const ASSETS = [
   './js/calculators/cam/ops/long/regions.js',
   './js/calculators/cam/ops/long/residualGuard.js',
   './js/calculators/cam/ops/long/runScan.js',
+  './js/calculators/cam/ops/long/sectionFeet.js',
   './js/calculators/cam/ops/long/segUtils.js',
   './js/calculators/cam/ops/partOff.js',
   './js/calculators/cam/ops/roughEmit.js',
   './js/calculators/cam/ops/roughFace.js',
   './js/calculators/cam/ops/roughLong.js',
   './js/calculators/cam/ops/shared.js',
-  './js/calculators/cam/ops/simpleLong.js',
   './js/calculators/cam/ops/thread.js',
   './js/calculators/cam/passHelpers.js',
   './js/calculators/cam/plungeContourBridge.js',

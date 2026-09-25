@@ -118,8 +118,8 @@ const EXPECTED_PLAN = {
   // odskok ověřuje `rapidHitsStock`, které ho vidí čistý. Odkryl ho §3.2e
   // (svislý dojezd mezní čáry v údolí) přeskládáním pořadí průchodů — spraví
   // to až vlastní vůle pro rapid-safe X, což je zásah do VŠECH dílů.
-  'part-18-face-big-radius.camprog':
-    'odskok na rapid-safe X (nulová vůle nosu) × shrink validátoru — 0,54 mm², syrová 0',
+  // 24. 9. 2026: ODSTRANĚNO — `rapidStopXAt` teď hlídá celou šířku nosu
+  // (±R v Z), ne jen jeho osu, a nález zmizel (0 proti offsetové čáře).
 };
 
 const detailOf = (issues) => issues.map(i =>

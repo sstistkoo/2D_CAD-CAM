@@ -1,21 +1,18 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  Hranice úseku = mezní čára, která VYJEDE z polotovaru        ║
+// ║  Úseky = pravidlo 1: pata čáry zanoření, která VYJEDE z materiálu ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
-// Údolí odlitku samo o sobě díl na úseky NEDĚLÍ. Dělí ho až DOSAH DESTIČKY:
-// mezní čára hlídání geometrie (kind 'zanoreni') musí volným koncem vyjet
-// Z POLOTOVARU do vzduchu — teprve pak je za ní materiál z téhle strany
-// nedostupný a začíná další úsek. Čára, která končí uvnitř polotovaru
-// (na hotovní kontuře), hranici nedělá: sweep pokračuje dál a vzduch nad
-// údolím přeletí rychloposuvem.
+// docs/cam-pravidla.md, pravidlo 1: „Díl se rozdělí na úseky. Úsek končí
+// tam, kde čára zanoření vyjede z materiálu." Hranice leží na PATĚ té čáry;
+// čára, která z materiálu nevyjede, díl nedělí; jiné dělení neexistuje —
+// nikdy uprostřed údolí ani uprostřed hrbu.
 //
-// Reálný nález na díle uživatele (part-11/12-zleva, údolí Z≈35): řezalo se
-// na dva úseky, takže hluboké průchody prvního zajížděly do Z-zóny druhého,
-// kde nad nimi ještě stál materiál → záběr přes Hloubku (ap). Zprava doleva
-// se přitom TÝŽ díl bral vcelku (splitIsNeeded hranici zahodil) — asymetrie
-// jen podle toho, jestli sweep narazí na stěnu kontury před údolím, nebo za.
+// Do 24. 9. 2026 se dělilo i uprostřed údolí polotovaru (Z≈92 / 172 na
+// obou fixtures níž) a uprostřed hrbu kontury. Tenhle test hlídá, že to
+// nevrátí: hranice jsou PŘESNĚ paty čar, které vyjedou.
 //
-// Implementace: `guideStaysInStock` v js/calculators/cam/roughingStrategies.js.
+// Implementace: js/calculators/cam/ops/long/sectionFeet.js (táž funkce
+// měří i scripts/cam_rules_check.mjs).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -25,52 +22,26 @@ import { runCamProg } from './helpers/camHeadless.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
 
-// Splity z guarded diagnostického háčku v computeRegions (Z je ve VNITŘNÍCH
+// Hranice z guarded diagnostického háčku v computeRegions (Z je ve VNITŘNÍCH
 // souřadnicích strategie — u hrubování zleva zrcadlených, viz zMirror.js).
-async function runWithSplits(prog) {
+async function splitsOf(name) {
+  const prog = JSON.parse(readFileSync(join(fxDir, name), 'utf8'));
   globalThis.__REGION_LOG__ = [];
   const res = await runCamProg(prog);
   const splits = (globalThis.__REGION_LOG__[globalThis.__REGION_LOG__.length - 1] || {}).splits || [];
   globalThis.__REGION_LOG__ = undefined;
-  return { ...res, splits };
+  return { ...res, zs: splits.map(s => s.z).sort((a, b) => b - a) };
 }
 
-describe('Úseky hrubování: dělí jen mezní čára, která opustí polotovar', () => {
-  it('part-11-zleva: údolí Z≈35 (čára končí v materiálu) úsek NEDĚLÍ, Z≈92/172 ano', async () => {
-    const prog = JSON.parse(readFileSync(join(fxDir, 'part-11-zleva-casting.camprog'), 'utf8'));
-    expect(prog.params.regionRoughing).toBe(true);
-    expect(prog.params.respectInsertGeometry).toBe(true);
-    const { calc, splits } = await runWithSplits(prog);
+describe('Úseky hrubování: jen pata čáry zanoření, která vyjede z materiálu', () => {
+  it('part-11-zleva: hranice na patách Z 82 / 143,6 / 265,4 — v údolích Z 35 / 92 / 172 ne', async () => {
+    const { zs } = await splitsOf('part-11-zleva-casting.camprog');
+    // Zrcadlené Z (hrubování zleva).
+    expect(zs).toEqual([-82, -143.6, -265.4]);
+  }, 60000);
 
-    // Zrcadlené Z (hrubování zleva): −35,1 / −92 / −172,5 ≡ reálné 35 / 92 / 172.
-    const at = (z) => splits.some(s => Math.abs(s.z - z) < 3);
-    expect(at(-35), `údolí Z≈35 nesmí být hranicí úseku: ${JSON.stringify(splits)}`).toBe(false);
-    expect(at(-92), `údolí Z≈92 hranicí zůstává: ${JSON.stringify(splits)}`).toBe(true);
-    expect(at(-172.5), `údolí Z≈172 hranicí zůstává: ${JSON.stringify(splits)}`).toBe(true);
-
-    // Důsledek: nejvyšší průměr nad údolím se bere JEDNÍM průchodem přes obě
-    // strany (vzduch mezi nimi přeletí rychloposuv při emisi), ne dvěma úseky.
-    // Hloubka se NEPÍŠE NATVRDO: od 11. 9. 2026 si každý úsek staví vlastní
-    // žebřík (§5.3 docs/cam-pravidla-drah.md), takže konkrétní hodnota se
-    // posunula (34,545 → 34,566). Pravidlo je o TOPOLOGII, ne o čísle —
-    // bere se nejvyšší průměr, který do okna údolí vůbec zasáhne.
-    const inWindow = (calc.passes || []).filter(p => p.type === 'long'
-      && Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)
-      && Math.max(p.zStart, p.zEnd) > 0 && Math.min(p.zStart, p.zEnd) < 80);
-    expect(inWindow.length, 'v okně údolí nejsou žádné průchody').toBeGreaterThan(0);
-    const topX = Math.max(...inWindow.map(p => p.x));
-    const outer = inWindow.filter(p => Math.abs(p.x - topX) < 0.01);
-    const spanning = outer.filter(p => Math.min(p.zStart, p.zEnd) < 20 && Math.max(p.zStart, p.zEnd) > 60);
-    expect(spanning.length, `průchod přes celé údolí (x=${topX.toFixed(3)}): ${JSON.stringify(outer.map(p => [p.zStart, p.zEnd]))}`).toBe(1);
-  }, 30000);
-
-  it('range-end-leadout: údolí BEZ mezní čáry si hranici drží (nezahodit naslepo)', async () => {
-    // Pojistka proti opačnému extrému (nahradit údolí čistě mezními čarami):
-    // tady v ústí údolí Z≈92 žádná čára zanoření neleží → pravidlo nesmí
-    // sáhnout na hranici, jinak vypadnou celé průchody a zůstane materiál.
-    const prog = JSON.parse(readFileSync(join(fxDir, 'range-end-leadout.camprog'), 'utf8'));
-    const { splits } = await runWithSplits(prog);
-    expect(splits.some(s => Math.abs(s.z - 92) < 3), JSON.stringify(splits)).toBe(true);
-    expect(splits.some(s => Math.abs(s.z - 172.6) < 3), JSON.stringify(splits)).toBe(true);
-  }, 30000);
+  it('range-end-leadout: hranice na patách Z 195,3 / 107,2 — v údolích Z 92 / 172,6 ne', async () => {
+    const { zs } = await splitsOf('range-end-leadout.camprog');
+    expect(zs).toEqual([195.3, 107.2]);
+  }, 60000);
 });

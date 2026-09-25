@@ -8,23 +8,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – pravidlo 7: pravá strana hrbu celá dřív, než se přes hrb přejede.**
+  Průchody úseku se na konci stabilně přeřadí podle hrbů dráhy
+  (`ops/long/humpOrder.js`, táž definice hrbu jako kontrola pravidel):
+  průchod začínající za hrbem pod jeho vrcholem jde až po všech před ním;
+  vrstva, která hrb kopíruje (upichovák, `humpMerge`), zůstává spojená.
+  Kapsa za hrbem přes vzduch se dělí na kusy se vjezdem ze vzduchu
+  (`ops/long/airPieces.js`) — dřív se zahodila i s bossy dál vlevo.
+  Vrchol stěny upichováku (pravidlo 1) = konec STRMÉ části (rozhodnutí
+  uživatele). Rampy z povrchu (nový řetěz, uzavírací krok, rampa k posunutému
+  vjezdu, kapsa) nesmí vzít víc než jednu vrstvu (pravidlo 3). Odstup
+  zápichu upichováku hlídá tělo plátku. Známé: `part-20-zleva-parting-taper`
+  4 kolize držáku (bok za hrbem vybíral jen spojený dojezd) — rozpracováno.
+- **CAM – úseky jen podle pravidla 1.** Díl se dělí jedině na patě čáry
+  zanoření, která vyjede z materiálu (u upichováku na patě strmé stěny,
+  nad jejím vrcholem hranice neplatí) — `ops/long/sectionFeet.js`, táž
+  funkce jako v kontrole pravidel. Zrušeno dělení uprostřed údolí polotovaru
+  a uprostřed hrbu kontury i s dvojím plánováním a výběrem plánu
+  (`holderCheck.js`). Aby nové hranice nerozbily dráhy (díl uživatele (4):
+  chyběla kapsa u krku i skoro celý úsek pod Z 107), upraveno: vjezd, který
+  na hranici úseku leží v nedosažitelném materiálu pod čarou zanoření,
+  přeskočí na první místo, kde materiál začíná ze vzduchu; vjezd blokovaný
+  stěnou se posune jen k prvnímu volnému místu, ne na kraj okna; rampa na
+  vjezdu posunutém držákem může na něm i ZAČÍT (a kotva řetězu pokračuje
+  z jejího konce); kapsa začínající na hranici úseku najíždí rampou
+  z povrchu, ne od paty čáry; přejezd vzduchem jede posuvem jen tam, kde
+  rychloposuv opravdu naráží. Měřeno `cam_rules_check` na 29 fixtures:
+  1256 → 1225 porušení, kolize 0 → 0; díly uživatele: polygon 12 → 10,
+  upichovák 16 → 8, kulatá 37 → 42 (vzduch v kapse za hrbem — P7).
+- **CAM – jeden generátor drah.** Z panelu zmizely přepínače „Nový generátor
+  drah (test)", „Booleovské hrubování (exp.)" a „Hrubovat po regionech".
+  Podélné hrubování má jedinou cestu: původní generátor s booleovskými
+  intervaly (dřív za přepínačem) — regiony platily vždy už od 4cd0d15 a
+  přepínač nic nedělal. Pokusný generátor `ops/simpleLong.js` (jen kulatá)
+  smazán: na dílech uživatele 24. 9. 2026 vycházel hůř (42 × 37 porušení
+  pravidel). Bez booleovské cesty měl díl s kulatou třísku 19,9 mm a polygon
+  kolmé zanoření 90°. Díly, které měly booleovskou cestu vypnutou, se
+  změnily (10 z 29 fixtures, 7 lépe / 1 stejně / 2 hůř podle
+  `cam_rules_check`; `holder-region-roughing` má teď třísku 4,95 mm a
+  posuv vzduchem jako `holder-casting-slanted-face`).
 - **CAM – pravidla drah na jednom místě:** `docs/cam-pravidla.md` je jediný
   zdroj (schvaluje uživatel). Staré dokumenty (pravidla-drah, plány, předávky)
   smazány. Pokus 23.–24. 9. zavést pravidla 1–2 záplatami do starého generátoru
   dráhy uživatele zhoršil (polygon, upichovák) → kód generátoru vrácen na 2337bf6;
-  pravidla se budou plnit přes kontrolní skript a nový generátor.
-
-### Added
-- **CAM – nový jednoduchý generátor podélného hrubování** (`ops/simpleLong.js`,
-  `docs/cam-novy-generator.md`): soustružnický cyklus po vrstvách v prostoru
-  středu nástroje, strom zón (pravá strana celá, pak levá), vjezd do kapsy
-  rampou (u kulaté cik-cak), dojezd schodů a kontrola držáku proti zbytku
-  materiálu v pořadí obrábění. **Není výchozí** — zapíná se `pathGenerator:
-  'simple'`. Na dílu uživatele ještě jede posuvem přes vzduch a dělá šikmé
-  dojezdy přes údolí; výchozím se stane až po kontrolách požadavků uživatele
-  a jeho souhlasu (`docs/cam-novy-generator.md` §7a).
+  pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – model zbytku zapisoval oblouk dojezdu z plánovaného, ne vydaného
+  startu.** Když tělo průchodu skončí o kousek dřív než plánovaný oblouk
+  (vzorkovaný booleovský interval), řídicí systém jede oblouk ze skutečné
+  polohy; model si ale odebral oblouk o 0,11 mm níž a byl o 0,085 mm pod
+  realitou (part-10, `cam-residual-model`). `noteCutArc` teď dopočte střed
+  z vydaných koncových bodů. G-kód fixtures beze změny.
 - **CAM – kulatá destička bere konec dílu po vrstvách jako polygon.** Na dílu
   uživatele (Z 0…90, R 10) se konec rozpadl na tři úseky, vrstvy X 47 / 44,5 / 42
   se přetrhly v Z 2,5, vrstvy nad hrbem Z 55–67 končily uprostřed jeho plošiny

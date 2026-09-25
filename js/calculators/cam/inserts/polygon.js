@@ -99,22 +99,9 @@ export function polygonInsert(prms) {
     // aby se žádné rozhodnutí nedalo zdědit ze sdíleného kódu. Význam viz
     // round.js; zapnout je pro tenhle plátek je změna chování, která chce
     // vlastní měření na jeho fixtures.
-    peakSearchWithinPart: false,
-    sharedLadderAbovePeak: false,
-    holderFitPeakGroupWindow: false,
     skipPocketsCuttingNothing: false,
     leadInRapidOverCut: false,
     pocketLeadOutNoStep: false,
-    // NOVÝ JEDNODUCHÝ GENERÁTOR podélného hrubování (ops/simpleLong.js,
-    // docs/cam-novy-generator.md). Zapnuto u tvarů, jejichž hrot popisuje
-    // offsetová dráha (kulatá, polygon); upichovák a závitový zatím jedou
-    // původním generátorem.
-    // Zatím VYPNUTO (23. 9. 2026): na dílu uživatele nový generátor 79,5 %
-    // úběru proti 85,7 % původního (kapsy za hrby pod 15° rampou), bez
-    // kolizí. Polygon jede původním, dokud ho nový ve všem nedožene.
-    simpleLongGenerator: false,
-    // Cik-cak rampa do kapsy — viz round.js; tenhle plátek řeže jen k −Z.
-    rampBothWays: false,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

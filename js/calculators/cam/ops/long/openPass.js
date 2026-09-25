@@ -85,15 +85,50 @@ export function emitOpenInterval(D) {
   // má `uz = 0`, takže by `stockEntryRamp` vydal svislici označenou „Rampa" —
   // a hlavně: upichováku je kolmý zápich vlastní (rozhodnutí uživatele
   // 26. 8. 2026, viz `plungeEntryOk` výš). Ten se tedy řídí dál `plungeHolderFitsAt`.
-  if (entryCapped && !plungeEntryOk && !entryRampIsPlunge
+  // POSUNUTÝ VJEZD VE VZDUCHU rampu nepotřebuje: nad břitem nic nestojí,
+  // svislý sjezd není zanoření. Bez toho se zahodily celé vrstvy X 29,4…17,4
+  // nad bossem part-17 (vjezd posunutý držákem na Z 194 nad krkem, polotovar
+  // tam X 16,7) a hlubší vrstva pak vjela pod bok bossu — tříska 17,8 mm.
+  const shiftedSurf = iv.entryShifted ? offsetStockTopXAtZ(iv.zStart) : null;
+  const shiftedInAir = iv.entryShifted && shiftedSurf !== null
+    && shiftedSurf + (noseLiftX || 0) <= currentX + 0.05;
+  if (entryCapped && !plungeEntryOk && !entryRampIsPlunge && !shiftedInAir
       && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
     const er = stockEntryRamp(currentX, iv.zStart);
     const cand = { x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, ramp: er };
-    if (er && er.x0 > currentX + 0.05
+    // RAMPA, KTERÁ NA POSUNUTÉM VJEZDU ZAČÍNÁ (24. 9. 2026). Rampa výš na
+    // posunutém vjezdu KONČÍ, takže začíná o (povrch − X)/tan(úhel) víc
+    // vpravo — tedy zpátky tam, odkud držák vjezd právě odsunul, a držák ji
+    // tam znovu zamítne. Druhá možnost je sjet z povrchu NAD posunutým
+    // vjezdem doleva: držák stojí na místě, které hlídání už pustilo, a
+    // klesá od něj. Nález uživatele 24. 9. 2026 (polygon, úsek Z 107,2…195,3
+    // podle pravidla 1): kapsa u krku Z 146…175 vypadla celá (4 vrstvy
+    // jako kolmý vjezd), protože vjezd posunutý na Z 175,3 od zbytku za
+    // hrbem dostal rampu začínající na Z 178,4.
+    const surfS0 = offsetStockTopXAtZ(iv.zStart);
+    const surfS = surfS0 === null ? null : surfS0 + (noseLiftX || 0);
+    const zS = surfS === null ? NaN : iv.zStart - (surfS - currentX) / effPlungeTanL;
+    // Rampa nesmí vzít víc než jednu vrstvu (pravidlo 3): z povrchu výš než
+    // o ap by ubrala víc (part-17: 7,8 mm naráz při ap 3 a držák v materiálu).
+    const candS = surfS !== null && surfS > currentX + 0.05 && surfS - currentX <= step + 0.05
+      && zS > iv.zEnd + 0.05
+      ? { x: currentX, zStart: zS, zEnd: iv.zEnd, ramp: { x0: surfS, z0: iv.zStart } } : null;
+    if (er && er.x0 > currentX + 0.05 && er.x0 - currentX <= step + 0.05
         && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
         && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
       passObj.ramp = { x0: er.x0, z0: er.z0 };
       passObj.entryRangeRamp = true;
+    } else if (candS
+        && holderFitAreaAlong(candS) <= HOLDER_FIT_TOL
+        && residEntryArea(candS, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
+      passObj.ramp = { ...candS.ramp };
+      passObj.zStart = zS;
+      passObj.entryRangeRamp = true;
+      // Řetěz pokračuje z KONCE této rampy. Stará kotva leží v klínu, který
+      // tahle rampa nechala stát, a hlubší vrstva by k ní sjela kolmo
+      // (part-11-zleva: `G1 X15.545` 90°).
+      rampSt.anchor = { x: currentX, z: zS, first: false };
+      rampSt.closed = false;
     } else {
       // KOLMÉ ZANOŘENÍ JE PRO TENHLE PLÁTEK ZAKÁZANÉ — vrstva se VYNECHÁ.
       // Vjezd je `entryCapped`, takže napravo od něj materiál stojí; bez
@@ -160,7 +195,12 @@ export function emitOpenInterval(D) {
       }
     }
     let rampOk = false;
-    if (rampSt.anchor && rampSt.anchor.x > currentX + 0.05) {
+    // Nový řetěz z POVRCHU smí vzít nejvýš jednu vrstvu (pravidlo 3). Když
+    // mělčí vrstvy tady nejely (vypadly), rampa z povrchu by brala naráz
+    // víc — part-17: X 17,7 → 9,9 při ap 3 a držák v materiálu. Vrstva se
+    // pak vynechá jako každá, kam rampa nedosáhne.
+    const freshTooDeep = rampSt.anchor && rampSt.anchor.first && rampSt.anchor.x - currentX > step + 0.05;
+    if (rampSt.anchor && rampSt.anchor.x > currentX + 0.05 && !freshTooDeep) {
       const zS = rampSt.anchor.z - (rampSt.anchor.x - currentX) / effPlungeTanL;
       if (zS > iv.zEnd + 0.05) {
         passObj.ramp = { x0: rampSt.anchor.x, z0: rampSt.anchor.z };

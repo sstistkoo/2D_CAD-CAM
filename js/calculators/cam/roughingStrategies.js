@@ -12,8 +12,6 @@
 //      v camSimulator.js (ořez Z-limitů, emise G-kódu, vykreslení).
 import { genFacePasses } from './ops/roughFace.js';
 import { genLongPasses } from './ops/roughLong.js';
-import { genSimpleLongPasses } from './ops/simpleLong.js';
-import { getInsert } from './inserts/index.js';
 
 export { genFacePasses, genLongPasses };
 // genPasses(ctx) naplní ctx.passes; label se použije v hlavičce G-kódu.
@@ -25,17 +23,12 @@ export { genFacePasses, genLongPasses };
 // v zrcadle jede standardně zprava doleva. Zleva tak platí beze zbytku
 // všechno, co umí pravá strana: kapsy, zanořovací rampy, dojezdy „bez
 // schodků", hlídání geometrie destičky i obálka držáku.
-// NOVÝ JEDNODUCHÝ GENERÁTOR (23. 9. 2026, docs/cam-novy-generator.md):
-// soustružnický cyklus po vrstvách (ops/simpleLong.js). NENÍ VÝCHOZÍ — jede
-// jen s `pathGenerator: 'simple'` a jen u plátků s `simpleLongGenerator`.
-// Výchozím se smí stát až po projití kontrol požadavků uživatele na jeho
-// dílech (obrábění vzduchu, ap, kolize…) a po jeho souhlasu. Na výchozí ho
-// přepnout před tím byla chyba (23. 9. 2026: vzduch posuvem, šikmé tahy).
-const genLongAuto = (ctx, op) => (ctx.prms.pathGenerator === 'simple' && getInsert(ctx.prms).simpleLongGenerator)
-  ? genSimpleLongPasses(ctx, op)
-  : genLongPasses(ctx, op);
+//
+// JEDEN GENERÁTOR (24. 9. 2026): pokusný „nový generátor" (ops/simpleLong.js,
+// jen kulatá) byl na dílech uživatele horší a byl odstraněn; podélné
+// hrubování má jedinou cestu — genLongPasses s booleovskými intervaly.
 export const ROUGHING_STRATEGIES = {
-  longitudinal: { genPasses: genLongAuto, label: 'PODELNE' },
+  longitudinal: { genPasses: genLongPasses, label: 'PODELNE' },
   face: { genPasses: genFacePasses, label: 'CELNI' },
-  backside: { genPasses: genLongAuto, label: 'PODELNE ZLEVA' },
+  backside: { genPasses: genLongPasses, label: 'PODELNE ZLEVA' },
 };

@@ -5,12 +5,8 @@
 // CHOVÁNÍ — otisk G-kódu 26 fixtures zůstal bajt po bajtu stejný.
 //
 // „Kde se na hloubce X dá řezat?" — od vjezdu přes ořez obálkou držáku až po
-// dvě souběžné cesty hledání (klasický sken × booleovská, za příznakem
-// `booleanRoughing`). Volba mezi nimi je `scan`.
-//
-// POZOR na paritu obou cest: rozdíl v hranicích intervalů se projeví až
-// o dva kroky dál (`humpMerge` slučoval jen v booleovské větvi a `part-1`
-// se hnul o 22 mm² — hlídá `boolean-roughing-wiring`).
+// hledání intervalů. Jede se VŽDY booleovsky (`scan`); klasický sken
+// (`scanIntervals`) je jen pojistka, když chybí polotovar/offset.
 
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX } from '../../booleanRoughing.js';
 import { HOLDER_CLAMP_MARGIN } from '../../toolEnvelope.js';
@@ -73,13 +69,45 @@ export function makeIntervalScan({
     if (all.length < 2) return zHiRaw;
     let above = 0;
     for (const z of all) if (z > zHiRaw + 1e-9) above++;
-    if (above % 2 === 1) return zHiRaw;                    // vjezd je v materiálu
+    if (above % 2 === 1) {                                 // vjezd je v materiálu
+      if (!blockedAt(X, zHiRaw)) return zHiRaw;
+      // NEDOSAŽITELNÝ KUS NA HRANICI ÚSEKU (24. 9. 2026). Hranice podle
+      // pravidla 1 leží na patě čáry zanoření — materiál hned pod ní (pod
+      // čarou) zprava vzít nejde, `blockedAt` to ví. Dřív se vjezd přesto
+      // nechal na hranici, rampa se tam nevešla a vypadla CELÁ vrstva, i když
+      // o kus vlevo materiál začíná ze vzduchu. Nález uživatele 24. 9. 2026
+      // (polygon, úsek Z −9…107,2): vrstvy X 34,6 / 32,1 chyběly a další
+      // vrstva brala třísku 6,5–7,5 mm. Nedosažitelný kus se přeskočí
+      // (zůstane stát, kontrola ho nahlásí) a vjezd je na prvním místě,
+      // kde materiál začíná ze vzduchu a nic ho neblokuje.
+      let inMat = true;
+      for (const z of all) {
+        if (z > zHiRaw + 1e-9) continue;
+        if (z <= zLo + 1e-9) break;
+        inMat = !inMat;
+        if (inMat && !blockedAt(X, z)) return z;
+      }
+      return zHiRaw;
+    }
     for (const z of all) {
       if (z > zHiRaw + 1e-9 || z <= zLo + 1e-9) continue;
       // Materiál začíná až ZA stěnou kontury (offset nad hloubkou průchodu):
       // vjet se tam nedá, ale průchod má pořád smysl jako dojezd „bez schodků"
-      // po stěně — nechá se původní kraj okna, jako dřív.
-      return blockedAt(X, z) ? zHiRaw : z;
+      // po stěně. Vjezd je na prvním VOLNÉM místě vpravo od stěny (+1 mm
+      // vzduchu), ne na kraji okna: hranice úseku podle pravidla 1 může
+      // ležet desítky mm vpravo, kde držák narazí do zbytku sousedního
+      // úseku a celá hloubka se zahodí. Nález 24. 9. 2026 (kulatá R 10,
+      // úsek Z 101,9…195,3): vjezd na Z 195,3 zamítl držák, otevřená část
+      // vrstvy vypadla a dojezd po kontuře pak rychloposuvem vjel do
+      // šikmého polotovaru Z 142…146, který měla vzít ona (kolize 13 mm²).
+      if (!blockedAt(X, z)) return z;
+      // Upichovák: hranice úseku leží u paty stěny sama (pravidlo 1) a tělo
+      // plátku `blockedAt` nezná — posunutý vjezd ho zapíchl do stěny
+      // (part-18-parting-90-ramp, 0,16 mm²). Platí kraj okna, jako dřív.
+      if (isParting) return zHiRaw;
+      let zFree = z;
+      while (zFree < zHiRaw && blockedAt(X, zFree)) zFree += dzScan;
+      return Math.min(zHiRaw, zFree + 1);
     }
     return null;
   };
@@ -121,7 +149,21 @@ export function makeIntervalScan({
       if (k === 0 && firstOpen) {
         // OTEVŘENÝ vjezd: zakázaný start = nelze bezpečně vjet → vynechat;
         // jinak jen zkrátit hluboký konec (+ schodová podmínka).
-        const nz = clampAt(X, iv.zStart, iv.zEnd, mainScan);
+        let nz = clampAt(X, iv.zStart, iv.zEnd, mainScan);
+        // ZAKÁZANÝ JEN ZAČÁTEK, NE CELÝ KUS (24. 9. 2026). Vjezd na hranici
+        // úseku podle pravidla 1 může ležet u stěny, kde držák přečnívá nad
+        // hrb sousedního úseku — a dřív se tím zahodil CELÝ první kus vrstvy,
+        // i když byl 86 mm dlouhý a o pár mm dál se držák vejde (part-17,
+        // upichovák u stěny Z 205: 26 hloubek pryč, neobrobený krk i boss).
+        // Začátek se posune doleva na první místo, kde držák projde; kus
+        // u stěny zůstane stát a hlásí se jako dřív.
+        if (nz === null && mainScan && iv.zStart - iv.zEnd > 4 * dzScan) {
+          const stepS = Math.max(dzScan, 0.5);
+          for (let zS = iv.zStart - stepS; zS > iv.zEnd + dzScan; zS -= stepS) {
+            const nz2 = clampAt(X, zS, iv.zEnd, mainScan);
+            if (nz2 !== null) { iv.zStart = zS; iv.entryShifted = true; nz = nz2; holderBlockedDepths.add(depthKey(X)); break; }
+          }
+        }
         if (nz === null) {
           firstSurvived = false;
           if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderBlockedDepths.add(depthKey(X));
@@ -275,8 +317,11 @@ export function makeIntervalScan({
     const firstOpen = !blockedAt(X, zHiBound);
     return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
   };
-  // Výběr cesty dle příznaku (default scan-line → snapshoty beze změny).
-  const scan = prms.booleanRoughing ? booleanScanIntervals : scanIntervals;
+  // Jediná cesta (24. 9. 2026, sjednocení generátorů): booleovské intervaly.
+  // Scan-line zůstává jen jako pojistka uvnitř `booleanScanIntervals`.
+  // Změřeno na dílech uživatele: bez booleovské cesty tříska 19,9 mm
+  // (kulatá) a kolmé zanoření 90° u polygonu.
+  const scan = booleanScanIntervals;
 
   return { stockCrossingsAt, passEntryZ, scanIntervals, scan, counters };
 }

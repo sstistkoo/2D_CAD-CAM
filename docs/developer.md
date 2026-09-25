@@ -586,12 +586,12 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/long/residualGuard.js` | `makeResidualGuard()` — polygonový model zbytku (order-aware hlídání držáku); umí TUNEL, který výškové pole neumí |
 | `cam/ops/long/holderFit.js` | `makeHolderFit()` — „vejde se držák?" plošně nad tabulkami z `depthTabs.js` |
 | `cam/ops/long/entryRamp.js` | `makeEntryRamp()` — kde smí ZAČÍT a kam smí DOJET zanořovací rampa (kotva vjezdu, `findRampOutTarget`, `findSteepCorner`) |
-| `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; obě souběžné cesty (klasický sken × booleovská za příznakem `booleanRoughing`) |
+| `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; vždy booleovsky (zbytek polotovar − díl); klasický sken jen jako pojistka. Přepínače `booleanRoughing`/`regionRoughing`/`pathGenerator` zrušeny 24. 9. 2026 — jeden generátor |
 | `cam/ops/long/holderTrim.js` | `makeHolderTrim()` — ořez sledování kontury (leadIn/leadOut) obálkou držáku |
 | `cam/ops/long/plungeLines.js` | `makePlungeLines()` — paměť, kdo kudy už sjel po téže přímce zanoření |
 | `cam/ops/long/cutRegistry.js` | Evidence PROJETÝCH ÚSEKŮ: `depthCutSpans`/`depthCutClampZ` (rovný řez na hloubce vrstvy) a `makeChainRegistry` (řetězy po kontuře). Čisté funkce nad `passes` — bez skrytého stavu. Přehled celé evidence viz `docs/cam-pravidla.md` |
-| `cam/ops/long/regions.js` | Dělení úseků podle hrbů kontury + jejich pořadí (od největšího průměru) |
-| `cam/ops/long/holderCheck.js` | Kontrola držáku při dělení regionů |
+| `cam/ops/long/regions.js` | Úseky podle pravidla 1 (docs/cam-pravidla.md) + jejich pořadí (od největšího průměru; úsek pod stěnou upichováku až po úseku nad ní) |
+| `cam/ops/long/sectionFeet.js` | Hranice úseků = pata čáry zanoření, která vyjede z materiálu (upichovák: pata strmé stěny, nad jejím vrcholem neplatí). Táž funkce pro generátor i `scripts/cam_rules_check.mjs` |
 | `cam/ops/long/insertFlankGuard.js` | Hlídání boku destičky v podélném hrubování |
 | `cam/ops/long/humpMerge.js` | Vrstva pokračuje přes nízký hrb místo přerušení (zatím jen upichovák) |
 | `cam/ops/long/partingEnvelope.js` | Obálka plátku upichováku pro nájezdy/dojezdy |

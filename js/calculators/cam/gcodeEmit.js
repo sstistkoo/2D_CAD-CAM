@@ -258,13 +258,41 @@ export function generateAutoGCode(S, calc) {
   //   syrový zbytek + Vůle + R   (dosavadní pravidlo)
   //   plánovací zbytek + R + gap  (odstup od offsetové čáry — exaktní i na šikmé
   //                                stěně, kde je čára v X výš než povrch + Vůle)
+  let _partingSpan;
+  const partingBodySpanGc = () => {
+    if (_partingSpan === undefined) {
+      const ins = getInsert(prms);
+      _partingSpan = ins.cutsFullWidth && ins.bodyZ
+        ? Math.max(Math.abs(ins.bodyZ.lo), Math.abs(ins.bodyZ.hi)) : 0;
+    }
+    return _partingSpan;
+  };
   const rapidStopXAt = (z) => {
     const raw = residualTopXAtZ(z);
-    const plan = planResidualTopXAtZ(z);
     let need = null;
     if (raw !== null) need = raw + rapidStopX;
-    if (plan !== null) {
-      const cand = quantizeUp(plan + tipRGc + feedGapGc);
+    // CELÁ ŠÍŘKA NOSU, ne jen jeho osa (24. 9. 2026). Nos R zasahuje ±R
+    // v Z; vedle na svahu polotovaru leží plánovací obrys výš než pod osou.
+    // U polygonu (R < 1) je to jedno, u kulaté R 10 rychloposuv dolů těsně
+    // vedle svahu najel 0,6 mm² do offsetové čáry (`part-22-round-r10`,
+    // `G0 X27.580` na Z 94,3 — vjezd vrstvy u stěny kontury).
+    const R = Math.max(tipRGc, 0);
+    const n = Math.max(0, Math.ceil(R / 0.5));
+    for (let k = -n; k <= n; k++) {
+      const dz = n > 0 ? R * k / n : 0;
+      const plan = planResidualTopXAtZ(z + dz);
+      if (plan === null) continue;
+      const cand = quantizeUp(plan + Math.sqrt(Math.max(R * R - dz * dz, 0)) + feedGapGc);
+      if (need === null || cand > need) need = cand;
+    }
+    // TĚLO UPICHOVÁKU: rovné dno plátku je `bodyZ` široké, ne jen nos R.
+    // Bere se na obě strany (souměrně — parita zrcadlení zleva/zprava).
+    // part-17: `G0 X17.381` těsně u svahu polotovaru, 2,5 mm² proti offsetové čáře.
+    const span = partingBodySpanGc();
+    for (let d = -span; span > 0 && d <= span + 1e-9; d += 0.5) {
+      const plan = planResidualTopXAtZ(z + d);
+      if (plan === null) continue;
+      const cand = quantizeUp(plan + feedGapGc);
       if (need === null || cand > need) need = cand;
     }
     return need;
@@ -432,15 +460,33 @@ export function generateAutoGCode(S, calc) {
       noteCutMove(fx, fz, seg.x2, seg.z2);
       return;
     }
-    const a0 = seg.startAngle;
-    let a1 = seg.endAngle;
+    // Řídicí systém jede oblouk z AKTUÁLNÍ polohy (fx, fz) do (x2, z2)
+    // s poloměrem r — střed si dopočte sám. Když plán začíná jinde (tělo
+    // průchodu skončilo o kousek dřív, booleovský interval je vzorkovaný),
+    // je vydaný oblouk jiný než plánovaný a model musí dostat ten vydaný.
+    // Změřeno 24. 9. 2026 na part-10: plánovaný start o 0,114 mm níž →
+    // model o 0,085 mm níž než realita.
+    let { cx, cz } = seg;
+    const moved = Math.hypot(fx - seg.x1, fz - seg.z1) > 1e-6;
+    if (moved) {
+      const mx = (fx + seg.x2) / 2, mz = (fz + seg.z2) / 2;
+      const dx = seg.x2 - fx, dz = seg.z2 - fz, d = Math.hypot(dx, dz);
+      if (!(d > 1e-9) || d > 2 * seg.r) { noteCutMove(fx, fz, seg.x2, seg.z2); return; }
+      const h = Math.sqrt(seg.r * seg.r - (d / 2) * (d / 2));
+      const c1 = { x: mx - dz / d * h, z: mz + dx / d * h }, c2 = { x: mx + dz / d * h, z: mz - dx / d * h };
+      // Ze dvou možných středů ten blíž plánovanému (liší se o zlomky mm).
+      const pick = Math.hypot(c1.x - cx, c1.z - cz) <= Math.hypot(c2.x - cx, c2.z - cz) ? c1 : c2;
+      cx = pick.x; cz = pick.z;
+    }
+    const a0 = moved ? Math.atan2(fx - cx, fz - cz) : seg.startAngle;
+    let a1 = moved ? Math.atan2(seg.x2 - cx, seg.z2 - cz) : seg.endAngle;
     if (seg.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
     if (seg.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
     const n = Math.max(2, Math.min(64, Math.ceil(Math.abs(a1 - a0) * seg.r / 0.1)));
     const pts = [];
     for (let i = 0; i <= n; i++) {
       const a = a0 + (a1 - a0) * (i / n);
-      pts.push({ x: seg.cx + Math.sin(a) * seg.r, z: seg.cz + Math.cos(a) * seg.r });
+      pts.push({ x: cx + Math.sin(a) * seg.r, z: cz + Math.cos(a) * seg.r });
     }
     noteCutPts(pts);
   };
@@ -843,7 +889,10 @@ export function generateAutoGCode(S, calc) {
     const surf = feedThroughStock && rapidStock && rapidHitsStock(fromX, z, toX, z)
       ? residualTopXAtZ(z) : null;
     if (surf !== null && surf > fromX + 1e-6) {
-      const feedTop = Math.min(toX, surf + rapidStopX);
+      // Zaokrouhleno NAHORU na setiny jako výšky rychloposuvů (`quantizeUp`):
+      // zbytek z Clipperu není pro zrcadlenou geometrii souměrný na µm a výjezd
+      // zleva vycházel X26,153 proti X26,151 zprava (tests/cam-backside-mirror).
+      const feedTop = Math.min(toX, quantizeUp(surf + rapidStopX));
       emit(`G1 X${xDia(feedTop)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
       if (toX > feedTop + 1e-6) emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
     } else if (surf !== null) {
@@ -889,13 +938,24 @@ export function generateAutoGCode(S, calc) {
     // obrysům), kdežto testovaný bod X 18,345 hlásil 1,27 mm².
     const surfStop = (cur.x - tx > 1e-6) ? rapidStopXAt(tz) : null;
     const rTxReal = surfStop === null ? rTx : Math.min(cur.x, Math.max(rTx, surfStop));
-    if (forceUp || segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
+    // ČISTÝ SJEZD V X DOLŮ se nezvedá (24. 9. 2026): po „Výjezdu nad konturu"
+    // by následoval TENTÝŽ svislý sjezd, jen delší — zdvih nic nechrání.
+    // `descendTo` si náraz do zbytku řeší sám (posuv). Nález uživatele:
+    // `G0 X75.545 ; Výjezd nad konturu` a hned `G0 X46.909` na Z 113,829
+    // (sjezd končil přesně na offsetu boku hrbu a dotyk se bral jako náraz).
+    const pureDescent = sameZ && tx < cur.x - 1e-6;
+    if (forceUp || (!pureDescent && segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers))
         // DESTIČKA: stačí testovat rychloposuvovou část — zbytek dojede
         // `descendTo` posuvem. DRŽÁK: testuje se CELÝ sjezd až na `tx`, protože
         // `emitDescendX` držák neřeší vůbec; bez toho zmizel zdvih, který na
         // `part-8` s náhradním držákem opravdu chránil (56,6 mm² rychloposuvu
         // + 121,9 mm² držáku v materiálu, změřeno cam_sweep).
         || rapidHitsStock(cur.x, cur.z, rTxReal, tz)
+        // Přejezd v Z hlídá i PLÁNOVACÍ obrys (offsetovou čáru polotovaru) —
+        // odlitek smí být až tak velký. Dřív se přejíždělo jen podle syrového
+        // obrysu a výška odskoku vedla vůlí nafouknutým bokem bossu (díl
+        // uživatele s upichovákem, 24. 9. 2026: `G0 Z176.125` na X 26,4, 9,5 mm²).
+        || (!sameX ? false : rapidHitsPlan(cur.x, cur.z, rTxReal, tz))
         || holderHitsRapid(cur.x, cur.z, tx, tz)) {
       // JAK VYSOKO. `rapidTopX` je vrch CELÉHO polotovaru, takže zdvih
       // „Výjezd nad konturu“ jezdil pokaydé až nad nejvyšší místo dílu, i když

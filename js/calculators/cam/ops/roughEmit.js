@@ -17,6 +17,7 @@
 // Všechno ostatní se mutuje na místě (`cur` je objekt, modely materiálu taky).
 
 import { segmentHitsPath } from '../contourBuild.js';
+import { getInsert } from '../inserts/index.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -34,8 +35,40 @@ export function emitRoughing(E) {
     noteCutMove, noteCutArc, noteCutPass,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
   } = E;
+  const insGc = getInsert(prms);
+  const isPartingGc = !!insGc.cutsFullWidth;
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;
+  // PŘEJEZD VZDUCHEM SE DOTÝKÁ JEN MÍSTY (24. 9. 2026). Mezera ve vzduchu
+  // se dřív jela CELÁ posuvem, jakmile rychloposuv kdekoli narazil do
+  // zbytku — typicky jen u vůlí nafouknutých rohů polotovaru na jejích
+  // koncích. Nález 24. 9. 2026 (upichovák, vrstva přes stěnu podle
+  // pravidla 1): 50 mm vzduchu posuvem (pravidlo 5). Přejezd se teď dělí po
+  // 1 mm a posuvem jedou jen úseky, kde rychloposuv naráží (táž dvojice
+  // modelů jako dřív); krátké mezery mezi nimi (< 2 mm) se jedou posuvem.
+  // První blok vydá s aktuálním čítačem, další si čítač posunou samy.
+  const emitAirZ = (X, zTo) => {
+    const z0 = cur.z;
+    const n = Math.max(1, Math.ceil(Math.abs(zTo - z0)));
+    const runs = [];
+    for (let k = 0; k < n; k++) {
+      const za = z0 + (zTo - z0) * k / n, zb = z0 + (zTo - z0) * (k + 1) / n;
+      const hit = rapidHitsStock(X, za, X, zb) || rapidHitsPlan(X, za, X, zb);
+      const last = runs[runs.length - 1];
+      if (last && last.hit === hit) last.z = zb; else runs.push({ hit, z: zb, z0: za });
+    }
+    for (let k = 1; k < runs.length - 1; k++) if (!runs[k].hit && Math.abs(runs[k].z - runs[k].z0) < 2) runs[k].hit = true;
+    const merged = [];
+    for (const r of runs) {
+      const last = merged[merged.length - 1];
+      if (last && last.hit === r.hit) last.z = r.z; else merged.push({ ...r });
+    }
+    merged.forEach((r, k) => {
+      if (k > 0) simCounter += 1;
+      addN(r.hit ? `G1 Z${r.z.toFixed(3)} F${prms.feed} ; Přejezd materiálem posuvem` : `G0 Z${r.z.toFixed(3)}`, simCounter);
+      setPos(X, r.z);
+    });
+  };
   // KONTINUITA DOJEZDU. Řetěz „bez schodků" začíná NA OBRYSU, ale průchod
   // končí na SVÉ hloubce — a `emitLeadOutLine` (i větev oblouku) jede
   // z aktuální polohy rovnou na KONEC úseku. Když tedy první stopa řetězu
@@ -375,6 +408,7 @@ calc.passes.forEach((pass, i) => {
         // Ptá se OBOU zbytků — syrového i PLÁNOVACÍHO (vůlí-posunutého):
         // polotovar končí až na offsetové čáře, takže `G0` pod ní je na
         // nadměrném kuse náraz.
+        if (s.kind === 'G0') { emitAirZ(bodyX, s.z); continue; }
         const hitsStock = s.kind === 'G0'
           && (rapidHitsStock(bodyX, cur.z, bodyX, s.z) || rapidHitsPlan(bodyX, cur.z, bodyX, s.z));
         addN(s.kind === 'G0' && !hitsStock
@@ -464,6 +498,40 @@ calc.passes.forEach((pass, i) => {
     // `firstCutZ`, tedy tam, kde stejně bude tělo průchodu. Nájezd tím
     // nikdy nepostaví držák nikam, kam průchod sám nejde. Když ani na
     // `firstCutZ` místo není, nemá zkracování co získat a odstup zůstává.
+    // TOTÉŽ PRO TĚLO UPICHOVÁKU (24. 9. 2026). Plátek je `toolLength` široký
+    // a sahá od programového bodu na NEOBROBENOU stranu; offsetová dráha
+    // hlídá jen špičku (tělo řeší `clampPartingBody` na začátku průchodu).
+    // Odstup posunul svislý zápich o 1,8 mm ke stěně a tělo do ní vjelo
+    // (`part-18-parting-90-ramp`: 0,16 mm² v díle u stěny Z 205). Odstup se
+    // zkrátí tak, aby celé tělo stálo tam, kam průchod pustí špičku.
+    // Odstup nesmí stát v KONTUŘE: začíná-li řez u stěny (kapsa za hrbem po
+    // přeřazení, pravidlo 7), leží „o rapidStopZ před materiálem" už v boku
+    // hrbu. Zkrátí se na místo, kde je dráha nad offsetem.
+    if (Math.abs(zApproachVal - firstCutZ) > 1e-6) {
+      const inWall = (z) => { const ox = gcOffsetXAt(z); return ox !== null && ox > pass.x + 1e-3; };
+      if (inWall(zApproachVal)) {
+        let lo = 0, hi = 1;
+        for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (inWall(firstCutZ + (zApproachVal - firstCutZ) * m)) hi = m; else lo = m; }
+        zApproachVal = clipZGc(firstCutZ + (zApproachVal - firstCutZ) * lo);
+      }
+    }
+    if (isPartingGc && Math.abs(zApproachVal - firstCutZ) > 1e-6) {
+      // Rozpětí těla plátku kolem špičky (vnitřní +Z = neobrobená strana,
+      // ve světě −zDir) — týž klíč plátku jako v humpMerge.js.
+      const bLo = insGc.bodyZ ? insGc.bodyZ.lo : 0, bHi = insGc.bodyZ ? insGc.bodyZ.hi : 0;
+      const bodyHits = (z) => {
+        for (let d = bLo; d <= bHi + 1e-9; d += 0.25) {
+          const ox = gcOffsetXAt(z - zDir * d);
+          if (ox !== null && ox > pass.x + 1e-3) return true;
+        }
+        return false;
+      };
+      if (bodyHits(zApproachVal)) {
+        let lo = 0, hi = 1;                  // podíl odstupu: lo = volno
+        for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (bodyHits(firstCutZ + (zApproachVal - firstCutZ) * m)) hi = m; else lo = m; }
+        zApproachVal = clipZGc(firstCutZ + (zApproachVal - firstCutZ) * lo);
+      }
+    }
     if (cur.x - pass.x > 1e-6 && Math.abs(zApproachVal - firstCutZ) > 1e-6) {
       const holderAt = (z) => holderHitsStock([{ x: cur.x, z }, { x: pass.x, z }]);
       if (holderAt(zApproachVal) && !holderAt(firstCutZ)) {
@@ -496,6 +564,7 @@ calc.passes.forEach((pass, i) => {
       // polotovar končí až na offsetové čáře, takže `G0` pod ní je na
       // nadměrném kuse náraz (změřeno: 17 takových přejezdů na 7 fixtures,
       // 12,1 mm² v offsetovém standardu; cena 29–84 mm posuvu navíc na díl).
+      if (s.kind === 'G0') { emitAirZ(pass.x, s.z); continue; }
       const hitsStock = s.kind === 'G0'
         && (rapidHitsStock(pass.x, cur.z, pass.x, s.z) || rapidHitsPlan(pass.x, cur.z, pass.x, s.z));
       addN(s.kind === 'G0' && !hitsStock

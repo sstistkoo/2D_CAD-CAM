@@ -119,32 +119,14 @@ export function roundInsert(prms) {
     // klíči; ostatní plátky mají tentýž klíč VYPNUTÝ a jejich dráhy se
     // nehnou (ověřeno otiskem 29 fixtures). Popis v docs/cam-pravidla-drah.md
     // §6.0 „Kulatá destička: hrb u čela…".
-    //   peakSearchWithinPart     — hrb kontury hledat jen v Z-rozsahu dílu,
-    //                              ne za čelem (nos se tam jen odvaluje)
-    //   sharedLadderAbovePeak    — hloubky NAD hrbem ze společné mřížky
-    //                              obou sousedních úseků
-    //   holderFitPeakGroupWindow — test držáku pro spojení vrstvy přes hrb
-    //                              jen po hranice, které dál drží
     //   skipPocketsCuttingNothing — „kapsa po kontuře", co nic nového
     //                              neuřízne, se nevydá
     //   leadInRapidOverCut       — nájezd po už projeté dráze rychloposuvem
-    peakSearchWithinPart: true,
-    sharedLadderAbovePeak: true,
-    holderFitPeakGroupWindow: true,
     skipPocketsCuttingNothing: true,
     leadInRapidOverCut: true,
     //   pocketLeadOutNoStep      — kapsový průchod dojede schod po obrysu
     //                              k předchozí vrstvě (jako otevřený)
     pocketLeadOutNoStep: true,
-    // NOVÝ JEDNODUCHÝ GENERÁTOR podélného hrubování (ops/simpleLong.js,
-    // docs/cam-novy-generator.md). Zapnuto u tvarů, jejichž hrot popisuje
-    // offsetová dráha (kulatá, polygon); upichovák a závitový zatím jedou
-    // původním generátorem.
-    simpleLongGenerator: true,
-    // Smí se rampovat do kapsy tam i zpět (cik-cak)? Jen plátek, který
-    // řeže oběma směry v Z — kulatý. Pravý polygonový nůž by zpětným tahem
-    // táhl zadní hranu materiálem (změřeno 23. 9. 2026: třísky 5–5,8 mm).
-    rampBothWays: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív
