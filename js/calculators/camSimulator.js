@@ -21,6 +21,7 @@ import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisi
 import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { drawSectionPlan } from './cam/ops/sections/drawSections.js';
 import { sectionLeftover } from './cam/ops/sections/sectionLeftover.js';
+import { sectionRanges } from './cam/ops/sections/sectionRanges.js';
 import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset } from '../geom/geomCore.js';
@@ -150,6 +151,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
           <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů.">🔄 Dráhy</button>
+          <button data-code="section-paths" title="Dráhy po úsecích: pro každý úsek (fialové čáry) se nastaví rozsah 📐 na jeho hranice, vygenerují se dráhy a obrobený polotovar se předá dalšímu úseku — výsledek jsou části programu Úsek 1, 2, … v pořadí podle pravidla 8">✂ <span class="cam-sim-op-full">Po úsecích</span><span class="cam-sim-op-short">Úseky</span></button>
+          <button data-code="reset-parts" title="Reset: zrušit rozdělení programu na části (Po úsecích / ➕ Operace) — vrátí se původní polotovar a rozsah, dráhy částí se smažou (jde vzít zpět přes ↩ Zpět)">↺ Reset</button>
           <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ <span class="cam-sim-op-full">Operace</span><span class="cam-sim-op-short">Ope.</span></button>
           <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
           <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
@@ -963,6 +966,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       const first = S.opParts[0];
       S.stockPoints = JSON.parse(JSON.stringify(first.stockPoints || []));
       STOCK_PARAM_KEYS.forEach(k => { if (k in first.params) S.params[k] = first.params[k]; });
+      // Po „✂ Po úsecích" ukazuje celý program uživatelův rozsah, ne rozsah
+      // aktivního úseku (jinak se čáry rozsahu „přemístily" na hranici úseku).
+      if (first.baseLimits) {
+        S.zLimits = JSON.parse(JSON.stringify(first.baseLimits.z));
+        S.xLimits = JSON.parse(JSON.stringify(first.baseLimits.x));
+      }
       S.manualGCode = buildCombinedProgram(S.opParts);
     } else {
       applyPartToState(part, S);
@@ -1057,6 +1066,103 @@ export function openCamSimulator(initialContour, initialGCode) {
     fullUpdate();
     const dropped = machined.dropped ? ` (${machined.dropped} oddělených zbytků zahozeno)` : '';
     showToast(`Nová část ${S.opParts.length} — nastavte nůž a parametry, pak „🔄 Dráhy"${dropped}`, 4000);
+  }
+
+  // „✂ Po úsecích" — generátor po úsecích (ops/sections/sectionRanges.js):
+  // totéž, co uživatel dělal ručně přes „➕ Operace", jen automaticky.
+  // Každý úsek = jedna část programu; její rozsah 📐 = hranice úseku, její
+  // polotovar = to, co zbylo po předchozích úsecích (hlídání držáku tak vidí,
+  // co opravdu stojí a kde je už obrobeno).
+  async function handleSectionPaths() {
+    if (partsActive()) {
+      const ok = await camConfirm('Dráhy po úsecích nahradí stávající části programu. Začne se na polotovaru první části. Pokračovat?');
+      if (!ok) return;
+      syncActivePart();
+      S.opView = 'part';
+      const first = S.opParts[0];
+      applyPartToState(first, S);
+      // Rozsah ČÁSTI není uživatelův rozsah — z něj by zbyl jen první úsek
+      // (nález 25. 9. 2026: druhé spuštění vyrobilo jen „Úsek 1"). Po „Po
+      // úsecích" se vrátí rozsah z doby před rozdělením; u ručních částí
+      // (➕ Operace) se bere celý díl.
+      if (first.baseLimits) {
+        S.zLimits = JSON.parse(JSON.stringify(first.baseLimits.z));
+        S.xLimits = JSON.parse(JSON.stringify(first.baseLimits.x));
+      } else {
+        S.zLimits = { ...S.zLimits, rangeActive: false };
+        S.xLimits = { ...S.xLimits, active: false };
+      }
+    }
+    recalcNow();
+    const calc0 = S._cachedCalc;
+    const plan = calc0 && calc0.sectionPlan;
+    if (!plan || plan.sections.length === 0) {
+      showToast('Úseky nejsou — dráhy po úsecích jen pro podélné hrubování kulatou/polygonem.', 4000);
+      return;
+    }
+    const zs = (calc0.stockWorldPoints || []).map(p => p.zReal).filter(Number.isFinite);
+    if (zs.length === 0) { showToast('Chybí polotovar.', 3000); return; }
+    const zl = S.zLimits;
+    const userRange = zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
+      ? { zLo: Math.min(zl.rangeStart, zl.rangeEnd), zHi: Math.max(zl.rangeStart, zl.rangeEnd) } : null;
+    const steps = sectionRanges(plan, { lo: Math.min(...zs), hi: Math.max(...zs) }, userRange);
+    if (steps.length === 0) { showToast('Žádný úsek neleží v rozsahu obrábění.', 3000); return; }
+
+    pushHistory();
+    const baseStock = JSON.parse(JSON.stringify(S.stockPoints));
+    const baseLimits = { z: JSON.parse(JSON.stringify(S.zLimits)), x: JSON.parse(JSON.stringify(S.xLimits)) };
+    const parts = [];
+    let baseLoop = null, warned = '';
+    for (const st of steps) {
+      S.zLimits = { ...baseLimits.z, rangeStart: st.zHi, rangeEnd: st.zLo, rangeActive: true };
+      S.xLimits = st.xTo !== null
+        ? { ...baseLimits.x, rangeXMin: st.xTo, rangeXMax: 1e4, active: true }
+        : { ...baseLimits.x };
+      _regenGCode();
+      const calc = S._cachedCalc;
+      parts.push(makePart(S, { name: st.name, gcode: S.manualGCode }));
+      const machined = machinedStockPoints(S.params, calc.stockPathSegments, calc.simPath);
+      if (!baseLoop && machined.baseLoop) baseLoop = machined.baseLoop;
+      if (machined.points && machined.points.length >= 2) {
+        S.stockPoints = machined.points;
+        S.params.stockMode = 'casting';
+      } else {
+        warned = ` — po „${st.name}" se obrobený polotovar nepodařilo spočítat, další úsek začal na stejném`;
+      }
+    }
+    S.opParts = parts;
+    // Rozsahy PŘED rozdělením — ↺ Reset se k nim vrátí.
+    S.opParts[0].baseLimits = baseLimits;
+    if (baseLoop) S.opParts[0].baseStockLoop = baseLoop.map(p => ({ x: Math.round(p.x * 1000) / 1000, z: Math.round(p.z * 1000) / 1000 }));
+    S.opParts[0].stockPoints = baseStock;
+    S.activePart = 0;
+    S.opView = 'all';
+    applyView();
+    fullUpdate();
+    showToast(`Dráhy po úsecích: ${parts.length} ${parts.length === 1 ? 'část' : 'částí'} (${steps.map(s => s.name).join(', ')})${warned}`, 5000);
+  }
+
+  // „↺ Reset" — zruší rozdělení na části: zpět k jednooperačnímu režimu na
+  // POLOTOVARU PRVNÍ ČÁSTI (původním) a rozsazích před „✂ Po úsecích".
+  async function handleResetParts() {
+    if (!partsActive()) { showToast('Program nemá části — není co resetovat.', 3000); return; }
+    const ok = await camConfirm('Zrušit rozdělení na části? Vrátí se původní polotovar a rozsah, dráhy všech částí se smažou (jde vzít zpět přes ↩ Zpět).');
+    if (!ok) return;
+    pushHistory();
+    syncActivePart();
+    const first = S.opParts[0];
+    S.opView = 'part';
+    applyPartToState(first, S);
+    if (first.baseLimits) {
+      S.zLimits = JSON.parse(JSON.stringify(first.baseLimits.z));
+      S.xLimits = JSON.parse(JSON.stringify(first.baseLimits.x));
+    }
+    S.opParts = [];
+    S.activePart = 0;
+    S.manualGCode = '';
+    markGCodeGenerated();
+    fullUpdate();
+    showToast('Části zrušeny — původní polotovar a rozsah. Dráhy vygeneruj přes 🔄 Dráhy nebo ✂ Po úsecích.', 4000);
   }
 
   async function handleDeletePart(idx) {
@@ -8315,6 +8421,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       : 'Dráhy přegenerovány z kontury a parametrů');
   });
   root.querySelector('[data-code="add-op"]').addEventListener('click', handleAddOperation);
+  root.querySelector('[data-code="section-paths"]').addEventListener('click', handleSectionPaths);
+  root.querySelector('[data-code="reset-parts"]').addEventListener('click', handleResetParts);
   root.querySelector('[data-code="editor"]').addEventListener('click', handlePartsToEditor);
 
   // Lišta částí programu (chipy + přepínač náhledu)

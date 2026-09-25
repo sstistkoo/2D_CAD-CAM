@@ -446,6 +446,19 @@ je na to tlačítko **➕ Operace**.
 4. Klikni **🔄 Dráhy** — vygeneruje se **další část** programu. Kroky 2–4
    opakuj, kolikrát potřebuješ.
 
+**✂ Po úsecích** udělá kroky 2–4 automaticky pro podélné hrubování (kulatá,
+polygon). Díl se rozdělí na úseky podle fialových čar (tam, kde čára zanoření
+vyjede na offset polotovaru), úseky se seřadí od největšího průměru a každý
+dostane vlastní část programu (**Úsek 1, 2, …**) s rozsahem 📐 na své hranice.
+Polotovar každého úseku je to, co zbylo po předchozích úsecích — hlídání držáku
+tak ví, kde je už obrobeno. Tvůj rozsah 📐 (je‑li zapnutý) se respektuje.
+Nad každým úsekem je vidět **zbytek** („nedojeto" v mm², broskvově) a
+červeně čárkovaně obrys polotovaru, který po programu zůstal. Kus materiálu,
+který dráha oddělí a který visí nad dílem, se do dalšího polotovaru počítá
+i s tím, co je pod ním (nezahazuje se).
+**↺ Reset** zruší rozdělení na části (po „✂ Po úsecích“ i „➕ Operace“):
+vrátí původní polotovar a rozsah, dráhy částí smaže (jde vzít zpět přes ↩ Zpět).
+
 Pod lištou tlačítek se objeví **lišta částí**:
 - **Chip s číslem a nožem** – klik přepne na tu část (načte se její nůž,
   parametry, rozsahy i polotovar), **dvojklik** ji přejmenuje.

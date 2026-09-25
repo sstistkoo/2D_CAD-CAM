@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAM – „✂ Po úsecích" (generátor po úsecích).** Pro každý úsek z plánu
+  (`ops/sections/sectionRanges.js`, pořadí pravidlo 8) se nastaví rozsah 📐 na
+  jeho hranice, vygenerují dráhy stávajícím hrubováním a obrobený polotovar se
+  předá dalšímu úseku — automaticky to, co šlo dřív ručně přes „➕ Operace".
+  Výsledkem jsou části „Úsek 1, 2, …". Na dílech uživatele stejný nebo menší
+  zbytek než najednou, 0 zajetí do dílu, 0 kolizí.
+  **↺ Reset** vrátí jednooperační režim na původním polotovaru a rozsahu.
+- **CAM simulátor – zbytek po úsecích** (`ops/sections/sectionLeftover.js`):
+  broskvově „nedojeto" v mm² nad každým úsekem (měří se proti nakreslené
+  kontuře, tedy i klín pod čarou zanoření) a červeně čárkovaně obrys
+  polotovaru, který po programu zbyl.
+
 ### Changed
+- **CAM – obrobený polotovar nezahazuje visící kusy.** Kus materiálu, který
+  dráha oddělí a který se osy nedotýká, se k polotovaru další části připojí
+  i s tím, co je pod ním (`opParts.js` `attachFloatingPieces`) — dřív se
+  zahodil a držák další části o něm nevěděl.
 - **CAM – upichovák podélně nehrubuje.** Plátek s `longRoughing: false`
   (upichovák) jede vždy čelně (`enforceInsertStrategy` v calculatePipeline.js),
   tlačítko Podélně je u něj zamčené; starý projekt se přepne sám. Smazány

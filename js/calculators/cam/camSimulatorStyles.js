@@ -197,6 +197,8 @@ export function injectCSS() {
 .cam-sim-code-bar button[data-code="editor"] { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
 .cam-sim-code-bar button[data-code="add-op"] { background: #fab387; color: #1e1e2e; border-color: #fab387; }
 .cam-sim-code-bar .cam-sim-op-full, .cam-sim-code-bar .cam-sim-op-short { color: #1e1e2e; }
+/* „✂ Po úsecích" — mauve jako čáry úseků; tmavé písmo z .cam-sim-op-* sedí */
+.cam-sim-code-bar button[data-code="section-paths"] { background: #cba6f7; color: #1e1e2e; border-color: #cba6f7; }
 .cam-sim-op-short { display: none; }
 /* ── Lišta částí programu (operací) — viz cam/opParts.js ────────── */
 .cam-sim-parts-bar {
@@ -495,6 +497,15 @@ export function injectCSS() {
   .cam-sim-speed-group { padding: 2px 4px; gap: 2px; }
   .cam-sim-speed-label { min-width: 26px; font-size: 10px; }
   .cam-sim-code-bar > span { display: none; }
+  /* Lišta tlačítek nad G-kódem: menší tlačítka, ikona + text na jednom
+     řádku, a když se nevejdou, zalomí se do další řady přes celou šířku —
+     nic nesmí vytéct za okraj (po přidání „Úseky"/„Reset" vytékalo). */
+  .cam-sim-code-bar { padding: 3px 4px; }
+  .cam-sim-code-bar .cam-sim-code-btns { flex-wrap: wrap; width: 100%; gap: 3px; }
+  .cam-sim-code-bar .cam-sim-code-btns > button {
+    flex: 1 1 auto; min-width: 0; padding: 4px 5px; font-size: 11px;
+    white-space: nowrap; line-height: 1.2;
+  }
   .cam-sim-op-full { display: none; }
   .cam-sim-op-short { display: inline; }
 }
