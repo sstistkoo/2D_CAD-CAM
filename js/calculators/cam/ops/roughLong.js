@@ -1132,7 +1132,7 @@ export function genLongPasses(ctx) {
       const surfX = surfX0 === null ? null : surfX0 + anchorLiftL;
       // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — part-17
       // (upichovák, ap 3): X 17,7 → 9,9 naráz a držák v materiálu.
-      if (surfX !== null && surfX > currentX + 0.05 && surfX - currentX <= step + 0.05) {
+      if (surfX !== null && surfX > currentX + 0.05 && surfX0 + noseLiftL - currentX <= step + 0.05) {
         entryRampAnchor = { x: surfX, z: anchorZ, first: true };
         const zS = entryRampAnchor.z - (entryRampAnchor.x - currentX) / effPlungeTanL;
         // DNO PRŮCHODU MUSÍ ZASTAVIT KONTURA, ne dno okna. Dokud se sem chodilo
@@ -1672,6 +1672,95 @@ export function genLongPasses(ctx) {
               dropped.push({ x: p.x, zHi: Math.max(p.zStart, zS), zLo: Math.min(p.zStart, zS) });
               p.zStart = zS; p.entryShifted = true;
               break;
+            }
+          }
+        }
+        // RAMPA, KTEROU ZABLOKOVAL DRŽÁK, SE POSUNE DOLEVA (25. 9. 2026). Držák
+        // sahá od špičky 20 mm na stranu obrábění, takže na začátku rampy u
+        // šikminy polotovaru narazí (úsek 3 uživatele: X 14,67, rampa z Z 93,7,
+        // 89 mm²) a celá vrstva se zahodila. Vrstva se ale vejde víc vlevo:
+        // rampa se posouvá po 0,5 mm, její horní bod se přepočítá na spodek
+        // nosu na offsetové čáře, nesmí vzít víc než jednu vrstvu materiálu
+        // a držák musí být volný (přísně — „hlavně ať nevjede držákem do
+        // polotovaru"). Kus vpravo, kam se nedostane, se zahodí a hlásí jako dřív.
+        if (!under && !chained && p.ramp && Number.isFinite(p.ramp.x0) && !p.contourLeadIn
+            && !p.pocketReposition && !p.cleanApproach && holderFitAreaAlong(p) > HOLDER_FIT_TOL) {
+          const dir = p.zStart > p.zEnd ? -1 : 1;
+          for (let d = 0.5; d < 60; d += 0.5) {
+            const z0 = p.ramp.z0 + dir * d;
+            const top = offsetStockTopXAtZ(z0);
+            if (top === null) continue;
+            if (top + noseLiftL - p.x > step + 0.05) break;          // víc než vrstva — dál už jen hůř
+            const x0 = Math.max(p.ramp.x0, top + anchorLiftL);
+            const zS = z0 + dir * (x0 - p.x) / effPlungeTanL;
+            if (dir < 0 ? zS <= p.zEnd + dzScan : zS >= p.zEnd - dzScan) break;
+            const cand = { ...p, zStart: zS, ramp: { x0, z0 } };
+            if (holderFitAreaAlong(cand) <= 0.05) {
+              dropped.push({ x: p.x, zHi: Math.max(p.zStart, zS), zLo: Math.min(p.zStart, zS) });
+              p.zStart = zS; p.ramp = { x0, z0 }; p.entryShifted = true; p.rampAllFeed = true;
+              break;
+            }
+          }
+        }
+        // ČÁSTEČNÝ KROK ŘETĚZU (25. 9. 2026). Když se ani posunutá rampa nevejde
+        // (držák vpravo + stěna kontury vlevo), vrstva se nezahodí celá: z konce
+        // rampy předchozí, mělčí vrstvy se sjede dál pod úhlem zanoření, dokud
+        // rampa nenarazí na konturu (nebo nedojde na hloubku vrstvy) — i když to
+        // není celé ap. Týž tvar, jaký dělá řetěz u levé stěny údolí úseku 2
+        // (uživatel: „i kdyby to nebylo celé ap, ať se to udělá").
+        if (!under && !chained && p.ramp && Number.isFinite(p.ramp.x0) && !p.contourLeadIn
+            && !p.pocketReposition && !p.cleanApproach && holderFitAreaAlong(p) > HOLDER_FIT_TOL) {
+          const dir = p.zStart > p.zEnd ? -1 : 1;
+          const zHiQ = Math.max(p.zStart, p.zEnd), zLoQ = Math.min(p.zStart, p.zEnd);
+          let q = null;
+          for (const c of [...head, ...keep]) {
+            if (!c || c.type !== 'long' || !c.ramp || !Number.isFinite(c.x)) continue;
+            if (!(c.x > p.x + 0.05 && c.x - p.x <= step + 0.05)) continue;
+            if (!(c.zStart < zHiQ && c.zStart > zLoQ)) continue;
+            if (!q || c.x < q.x) q = c;
+          }
+          if (q) {
+            // Rampa jede, dokud nenarazí na OFFSETOVOU čáru kontury (stěnu) —
+            // ne jen do konce intervalu původní hloubky: na mělčí hloubce je
+            // stěna dál (uživatel: „není to úplně dojeté").
+            let xL = q.x, zL = q.zStart;
+            const ds = 0.1;
+            for (let k = 0; k < 2000; k++) {
+              const zN = zL + dir * ds, xN = xL - ds * effPlungeTanL;
+              if (xN <= p.x) { zL += dir * (xL - p.x) / effPlungeTanL; xL = p.x; break; }
+              if (dir < 0 ? zN < rangeZLoL : false) break;
+              if (blockedAt(xN, zN)) {
+                let lo = 0, hi = ds;                    // dosednout PŘESNĚ na čáru
+                for (let b = 0; b < 20; b++) {
+                  const m = (lo + hi) / 2;
+                  if (blockedAt(xL - m * effPlungeTanL, zL + dir * m)) hi = m; else lo = m;
+                }
+                xL -= lo * effPlungeTanL; zL += dir * lo;
+                break;
+              }
+              xL = xN; zL = zN;
+            }
+            if (q.x - xL > 0.3) {
+              const full = xL <= p.x + 1e-6;
+              const cand = { ...p, x: xL, zStart: zL, zEnd: full ? p.zEnd : zL, ramp: { x0: q.x, z0: q.zStart } };
+              if (!full) {
+                // DOBRAT SCHODEK: po stěně (offsetu) nahoru až na hloubku
+                // předchozí vrstvy, teprve pak odjet — týž dojezd jako kroky
+                // dobíracího řetězu výš (uživatel: „chybí dobrat schodek,
+                // vyjetí nahoru a teprve pak pryč").
+                delete cand.contourLeadOut;
+                const lo = holderTrimLeadOut(traceIfContinuous(
+                  traceOffsetPath(zL, findLeadOutEndZ(zL, q.x, -Infinity, traceFloorL)),
+                  xL, zL), true);
+                while (lo.length > 0 && lo[0].x2 <= xL + 0.02) lo.shift();
+                clipLeadOutToDepth(lo, q.x);
+                if (lo.length > 0) cand.contourLeadOut = lo;
+              }
+              if (holderFitAreaAlong(cand) <= 0.05) {
+                if (!full && !cand.contourLeadOut) delete p.contourLeadOut;
+                Object.assign(p, cand);
+                p.entryShifted = true; p.rampAllFeed = true;
+              }
             }
           }
         }

@@ -167,7 +167,10 @@ export function makeEntryRamp({
           if (!inStockBand(q) || atResidTop(q)) hi = m; else lo = m;
         }
         const q = at(hi);
-        return { x0: q.x, z0: q.z };
+        // `surfX` = výška MATERIÁLU na začátku rampy (střed nosu zmenšený
+        // o kus nad offsetovou čarou, který jede vzduchem) — podle ní se
+        // posuzuje „rampa nevezme víc než jednu vrstvu" (pravidlo 3).
+        return { x0: q.x, z0: q.z, surfX: q.x - noseR + noseLiftX };
       }
     }
     return null;

@@ -243,7 +243,7 @@ if (!iv.blocked) {
   const erOpen = stockEntryRamp(currentX, iv.zStart);
   // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
   // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
-  if (erOpen && erOpen.x0 - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
+  if (erOpen && (erOpen.surfX ?? erOpen.x0) - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
   if (erOpen) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice
     // (sledování kontury by vedlo kůrou — vynechá se).
@@ -309,7 +309,7 @@ if (!corner) {
   const erFlat = stockEntryRamp(currentX, iv.zStart);
   // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
   // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
-  if (erFlat && erFlat.x0 - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
+  if (erFlat && (erFlat.surfX ?? erFlat.x0) - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
   if (erFlat) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice.
     passFlat.ramp = erFlat;

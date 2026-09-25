@@ -10,6 +10,7 @@
 
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
 import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
+import { stockClearanceIsZero, stockClearances } from '../../camMath.js';
 
 export function emitOpenInterval(D) {
   const {
@@ -113,7 +114,10 @@ export function emitOpenInterval(D) {
     const zS = surfS === null ? NaN : iv.zStart - (surfS - currentX) / effPlungeTanL;
     // Rampa nesmí vzít víc než jednu vrstvu (pravidlo 3): z povrchu výš než
     // o ap by ubrala víc (part-17: 7,8 mm naráz při ap 3 a držák v materiálu).
-    const candS = surfS !== null && surfS > currentX + 0.05 && surfS - currentX <= step + 0.05
+    // Měří se MATERIÁL (offsetová čára + noseLiftX), ne výška středu nosu —
+    // kus rampy nad čarou jede vzduchem (25. 9. 2026).
+    const candS = surfS !== null && surfS > currentX + 0.05
+      && surfS0 + (noseLiftX || 0) - currentX <= step + 0.05
       && zS > iv.zEnd + 0.05
       ? { x: currentX, zStart: zS, zEnd: iv.zEnd, ramp: { x0: surfS, z0: iv.zStart } } : null;
     // NAVÁZÁNÍ NA KONEC RAMPY PŘEDCHOZÍ VRSTVY (25. 9. 2026). Posunutý vjezd
@@ -132,7 +136,7 @@ export function emitOpenInterval(D) {
       if (!(zC > iv.zEnd + 0.05)) continue;
       if (!candC || q.x < candC.ramp.x0) candC = { x: currentX, zStart: zC, zEnd: iv.zEnd, ramp: { x0: q.x, z0: q.zStart } };
     }
-    if (er && er.x0 > currentX + 0.05 && er.x0 - currentX <= step + 0.05
+    if (er && er.x0 > currentX + 0.05 && (er.surfX ?? er.x0) - currentX <= step + 0.05
         && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
         && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
       passObj.ramp = { x0: er.x0, z0: er.z0 };
@@ -543,6 +547,51 @@ export function emitOpenInterval(D) {
       }
     }
     if (leadOut.length > 0) passObj.contourLeadOut = leadOut;
+  }
+  // ── SVISLÝ SJEZD ZE VZDUCHU: ZASTAVIT VYSOKO, PAK RAMPA (25. 9. 2026) ─────
+  // Vjezd bez rampy i bez nájezdu po kontuře sjíždí na hloubku SVISLE. Pravidla
+  // uživatele: offsetová čára polotovaru JE začátek polotovaru (spodek nosu
+  // pod ni svisle nesmí) a držák nesmí vjet do polotovaru ANI O KOUSEK —
+  // `ENTRY_FIT_TOL` (0,5 mm²) tu pouštěl 0,36 mm² do šikminy vpravo (úsek 3,
+  // `G1 X17.166`, v simulaci červeně). Sjezd se proto zastaví tam, kde je držák
+  // volný a spodek nosu nad čarou, a na hloubku se jde rampou pod úhlem
+  // zanoření doleva. Nevejde-li se (víc než vrstva, stěna, držák na rampě),
+  // vrstva se vynechá — menší úběr je v pořádku, kolize ne.
+  if (!passObj.ramp && !passObj.contourLeadIn && !entryRampIsPlunge) {
+    const STRICT = 0.01;
+    // Sjíždí se o NÁJEZD vpravo od začátku průchodu (Vůle Z + R, viz
+    // rapidStopZ v gcodeEmit.js) a k materiálu se přijede posuvem — tam
+    // stojí držák, tam se tedy hlídá.
+    const approachDz = (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z) + (parseFloat(prms.toolRadius) || 0);
+    const z0 = passObj.zStart + approachDz, R = anchorLiftX || 0;
+    const top = offsetStockTopXAtZ(z0 + 0.01);
+    const bandTop = top !== null ? top + R : -Infinity;
+    const areaAt = (x) => residEntryArea({ x, zStart: z0, zEnd: z0, ramp: { x0: x, z0 } }, [], Infinity);
+    const inBand = bandTop > currentX + 0.01;
+    const holderHit = areaAt(currentX) > STRICT;
+    if (inBand || holderHit) {
+      let xFree = currentX;
+      if (holderHit) {
+        let lo = currentX, hi = currentX + step;
+        if (areaAt(hi) > STRICT) { skipCounters.plungeForbidden++; return; }
+        for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (areaAt(m) > STRICT) lo = m; else hi = m; }
+        xFree = hi;
+      }
+      const x0 = Math.max(xFree, bandTop);
+      const zS = z0 - (x0 - currentX) / effPlungeTanL;
+      const cand = { x: currentX, zStart: zS, zEnd: passObj.zEnd, ramp: { x0, z0 } };
+      const matTop = top !== null ? top + (noseLiftX || 0) : x0;   // materiál, ne vzduch nad ním
+      if (matTop - currentX > step + 0.05 || !(zS > passObj.zEnd + 0.05)
+          || residEntryArea(cand, [], Infinity) > STRICT
+          || holderFitAreaAlong(cand) > HOLDER_FIT_TOL) {
+        skipCounters.plungeForbidden++;
+        return;
+      }
+      passObj.ramp = { x0, z0 };
+      passObj.zStart = zS;
+      passObj.entryRangeRamp = true;
+      passObj.rampAllFeed = true;
+    }
   }
   passes.push(passObj);
   // Schodová evidence (Fáze 3a): JEN ZKRÁCENÉ konce. Nezkrácený

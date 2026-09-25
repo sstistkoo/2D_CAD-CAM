@@ -282,7 +282,10 @@ calc.passes.forEach((pass, i) => {
           // rychloposuv jinde: descendTo/safeRapidTo, exit-split u increment 1).
           const ct = planTopXAtZ(midZ);
           const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
-          const kind = air ? 'G0' : 'G1';
+          // `rampAllFeed` (openPass: sjezd zastavený nad polotovarem kvůli
+          // držáku) — rampa jde těsně u polotovaru, ve vůli; rychloposuv
+          // tam validátor hlásí jako kolizi. Celá jede posuvem.
+          const kind = (air && !pass.rampAllFeed) ? 'G0' : 'G1';
           if (segs.length && segs[segs.length - 1].kind === kind) segs[segs.length - 1].pt = pts[s];
           else segs.push({ kind, pt: pts[s] });
         }

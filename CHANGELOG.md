@@ -21,6 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   polotovaru, který po programu zbyl.
 
 ### Changed
+- **CAM – vrstvy s rampou se zbytečně nezahazují.** (1) Pravidlo „rampa
+  nevezme víc než jednu vrstvu" se měří MATERIÁLEM (offsetová čára +
+  noseLiftX), ne výškou středu nosu — kus rampy nad čarou jede vzduchem.
+  (2) Odloženou rampu, kterou zablokoval držák, generátor posune doleva (po
+  0,5 mm, horní bod = spodek nosu na offsetové čáře, držák volný ≤ 0,05 mm²)
+  místo zahození celé vrstvy. Sweep proti HEAD: úběr +223,5 mm², kolize 0/0.
+  (3) Nevejde-li se ani posunutá rampa (držák vpravo + stěna vlevo), sjede
+  se z konce rampy mělčí vrstvy pod úhlem zanoření až na offset stěny —
+  i když to není celé ap — a schodek se dobere po stěně nahoru na hloubku
+  předchozí vrstvy (úsek 3 uživatele: X 17,17 → 15,91 u stěny Z 76,27).
+- **CAM – svislý vjezd ze vzduchu se zastaví nad polotovarem a jde rampou.**
+  Sjezd na místě nájezdu (začátek + Vůle Z + R) smí skončit jen tam, kde je
+  držák ÚPLNĚ volný (0,01 mm² proti zbytku — dřív pouštěl 0,5 mm², úsek 3:
+  0,36 mm² do šikminy, v simulaci červeně) a spodek nosu nad offsetovou čarou;
+  na hloubku se pak jde rampou pod úhlem zanoření, celou posuvem
+  (`rampAllFeed`). Nevejde-li se, vrstva se vynechá a nahlásí.
+  Sweep proti HEAD: úběr +9,6 mm², kolize 0/0.
 - **CAM – v režimu částí se hlídá držák podle pořadí; údolí se přesto dojede.**
   `applyPartToState` zahazoval interní `orderAwareHolder` (nahrazuje celé
   `S.params`) → v částech hlídání vypnuté a držák vjížděl do šikminy polotovaru
