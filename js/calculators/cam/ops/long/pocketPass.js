@@ -28,6 +28,51 @@ export function emitPocketInterval(D) {
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
+  // NAVÁZÁNÍ NA KONEC RAMPY MĚLČÍ VRSTVY (25. 9. 2026). Kapsa bez rampy
+  // z povrchu (brala by víc než vrstvu) a bez nájezdu po kontuře se dřív
+  // zahodila. Leží-li ale v jejím intervalu konec rampy vrstvy o jednu výš,
+  // dá se z něj pokračovat rampou o vrstvu níž — týž řetěz, jaký dělá
+  // dobírání kapsy (`pocketReposition`). Bez toho výsledek závisel na pár
+  // desetinách meze rozsahu: zleva úsek 4 uživatele s mezí Z 265,761 jel
+  // 6 vrstev, s mezí 265,373 (hranice úseku) jen 2 — řetěz se přetrhl.
+  const chainFromPrev = (X, ivq) => {
+    const hi = Math.max(ivq.zStart, ivq.zEnd), lo = Math.min(ivq.zStart, ivq.zEnd);
+    const dir = ivq.zStart > ivq.zEnd ? -1 : 1;
+    let best = null;
+    for (const q of passes) {
+      if (!q || q.type !== 'long' || !Number.isFinite(q.x) || !Number.isFinite(q.zStart)) continue;
+      if (!(q.x > X + 0.05 && q.x - X <= step + 0.05)) continue;
+      // Rozhoduje, kde rampa DOSEDNE (uvnitř intervalu), ne kde začíná.
+      let z0 = q.zStart;
+      let zC = z0 + dir * (q.x - X) / effPlungeTanL;
+      // Dosedla by kousek PŘED začátkem intervalu (do kontury) → rampa začne
+      // dál po podlaze mělčího průchodu, aby dosedla přesně na začátek.
+      // Zleva úsek 4, pravý konec: o 0,06 mm, a vrstva X 7,78 za čarou
+      // zanoření vypadla celá („chybí tam nějaké vrstvy").
+      if (dir < 0 ? zC > hi : zC < lo) {
+        const zS0 = ivq.zStart - dir * (q.x - X) / effPlungeTanL;
+        const qLo = Math.min(q.zStart, q.zEnd ?? q.zStart), qHi = Math.max(q.zStart, q.zEnd ?? q.zStart);
+        if (zS0 >= qLo - 1e-6 && zS0 <= qHi + 1e-6) { z0 = zS0; zC = ivq.zStart; }
+      }
+      if (!(zC <= hi + 1e-6 && zC >= lo - 1e-6)) continue;
+      if (dir < 0 ? !(zC > ivq.zEnd + 0.05) : !(zC < ivq.zEnd - 0.05)) continue;
+      if (!best || q.x < best.ramp.x0) best = { zStart: zC, ramp: { x0: q.x, z0 } };
+    }
+    if (!best) return null;
+    const cand = { type: 'long', x: X, zStart: best.zStart, zEnd: ivq.zEnd, ramp: best.ramp };
+    if (holderFitArea(best.zStart, X, 0, ownCutOf(cand)) > HOLDER_FIT_TOL) return null;
+    // Držák PODÉL rampy přísně („ani o kousek") — týž dotaz jako
+    // `holderFitAreaAlong` v openPass (tam RAMP_FIT_TOL 0,05 mm²).
+    const r = best.ramp, len = Math.hypot(best.zStart - r.z0, X - r.x0);
+    const n = Math.max(1, Math.min(64, Math.ceil(len)));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n, zi = r.z0 + (best.zStart - r.z0) * t, xi = r.x0 + (X - r.x0) * t;
+      const own = k > 0 ? [{ z1: r.z0, x1: r.x0, z2: zi, x2: xi }] : [];
+      if (holderFitArea(zi, xi, 0, own) > 0.05) return null;
+    }
+    if (residEntryArea && residEntryArea(cand, [], Infinity) > 0.05) return null;
+    return best;
+  };
   // Nájezd po kontuře se OŘEŽE na to, co neleží pod hloubkou průchodu.
   //
   // `traceOffsetPath` vrací větev kontury mezi dvěma Z — u kapsy/zápichu jich
@@ -243,8 +288,13 @@ if (!iv.blocked) {
   const erOpen = stockEntryRamp(currentX, iv.zStart);
   // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
   // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
-  if (erOpen && (erOpen.surfX ?? erOpen.x0) - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
-  if (erOpen) {
+  const openTooDeep = erOpen && (erOpen.surfX ?? erOpen.x0) - currentX > step + 0.05;
+  let chainOpen = openTooDeep ? chainFromPrev(currentX, iv) : null;
+  if (openTooDeep && !chainOpen) { cnt.noEntrySkips++; return; }
+  if (chainOpen) {
+    passOpen.zStart = chainOpen.zStart;
+    passOpen.ramp = chainOpen.ramp;
+  } else if (erOpen) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice
     // (sledování kontury by vedlo kůrou — vynechá se).
     passOpen.ramp = erOpen;
@@ -257,7 +307,12 @@ if (!iv.blocked) {
     // na začátek kusu shora, místo aby se kus zahodil. Bez toho zůstal bok
     // za hrbem neobrobený a dobírání dna do něj vjelo držákem
     // (part-20-zleva-parting-taper, 24. 9. 2026: 4 kolize, 12,5 mm²).
-    if (liOpen.length === 0 && !isParting) { cnt.noEntrySkips++; return; }
+    if (liOpen.length === 0 && !isParting) {
+      chainOpen = chainFromPrev(currentX, iv);
+      if (!chainOpen) { cnt.noEntrySkips++; return; }
+      passOpen.zStart = chainOpen.zStart;
+      passOpen.ramp = chainOpen.ramp;
+    }
     if (liOpen.length > 0) passOpen.contourLeadIn = liOpen;
   }
   // TUHLE PŘÍMKU ZANOŘENÍ UŽ NIKDO SJÍŽDĚT NEMUSÍ. Otevřené pokračování
@@ -309,8 +364,13 @@ if (!corner) {
   const erFlat = stockEntryRamp(currentX, iv.zStart);
   // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
   // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
-  if (erFlat && (erFlat.surfX ?? erFlat.x0) - currentX > step + 0.05) { cnt.noEntrySkips++; return; }
-  if (erFlat) {
+  const flatTooDeep = erFlat && (erFlat.surfX ?? erFlat.x0) - currentX > step + 0.05;
+  let chainFlat = flatTooDeep ? chainFromPrev(currentX, iv) : null;
+  if (flatTooDeep && !chainFlat) { cnt.noEntrySkips++; return; }
+  if (chainFlat) {
+    passFlat.zStart = chainFlat.zStart;
+    passFlat.ramp = chainFlat.ramp;
+  } else if (erFlat) {
     // Vstup leží v kůře odlitku → rampa od tečkované hranice.
     passFlat.ramp = erFlat;
   } else if (!partingNoDress) {
@@ -332,8 +392,12 @@ if (!corner) {
     //
     // Vrstva se proto vynechá — táž volba jako u vjezdu bez rampy
     // (docs/cam-pravidla-drah.md §3.1) — a nahlásí se.
-    if (liFlat.length === 0) { cnt.noEntrySkips++; return; }
-    passFlat.contourLeadIn = liFlat;
+    if (liFlat.length === 0) {
+      chainFlat = chainFromPrev(currentX, iv);
+      if (!chainFlat) { cnt.noEntrySkips++; return; }
+      passFlat.zStart = chainFlat.zStart;
+      passFlat.ramp = chainFlat.ramp;
+    } else passFlat.contourLeadIn = liFlat;
   }
   // Táž evidence jako u `passOpen` výš — přímka je sjetá, ať ji sjel
   // kterýkoli z těch dvou vjezdů.

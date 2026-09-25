@@ -32,18 +32,50 @@ import { pointInLoop } from '../../../../geom/geomCore.js';
  *                           (`cam/inserts/*`; R u kulaté, 0 u ostatních)
  * @param noseR              rádius nosu (`cornerR`) — kotva rampy se měří
  *                           SPODKEM nosu, ne programovaným bodem (střed)
+ * @param step               Hloubka (ap) — rampa z kotvy nesmí vzít víc
  */
 export function makeEntryRamp({
   T, holderFitsAt, stockLoopOffsetL, plungeDirL, effPlungeTanL, rangeZLoL,
-  offsetXAt, blockedAt, noseLiftX = 0, noseR = 0,
+  offsetXAt, blockedAt, noseLiftX = 0, noseR = 0, step = Infinity,
 }) {
   const { DZ_CAP, capTab, stockTopTab } = T;
-  const holderEntryCapZ = (X, zHi, zFloor) => {
+  const holderEntryCapZ = (X, zHi, zFloor, loose = false) => {
     if (!capTab || zHi - zFloor < 0.1) return -Infinity;
+    // Záloha = kotva podle PŮVODNÍCH podmínek (bez a2). Když kotva do jedné
+    // vrstvy neexistuje, platí dál ona: rampa z ní se v odložených zanořeních
+    // mění na částečný krok řetězu (part-15: X 11,23 a 15,70 by jinak zmizely).
+    // `loose` = rovnou ji (volající ji zkusí, když na přísné nejde řezat).
+    let fallback = -Infinity;
     for (let z = zHi; z > zFloor; z -= DZ_CAP) {
       const top = stockTopTab(z);
       if (top === null || top <= X + 0.05) continue;              // vzduch / už pod hloubkou
-      if (z - (top - X) / effPlungeTanL <= zFloor + 0.05) continue;   // (a) rampa se nevejde
+      if (fallback === -Infinity && z - (top - X) / effPlungeTanL > zFloor + 0.05
+          && holderFitsAt(z, top)) { fallback = z; if (loose) return z; }
+      if (loose) continue;
+      // Rampa začíná na ZBÝVAJÍCÍM materiálu — kde mělčí vrstva už ubrala,
+      // je kratší (viz a2 níž; bez toho se hlubší vrstvy téhož úseku
+      // ptaly na rampu z neobrobeného povrchu a vypadly).
+      // Zbytek se zjišťuje jen tam, kde syrová offsetová čára podmínku
+      // nesplní — `residTopSafe` synchronizuje model podlahy (`syncCutFloor`)
+      // a volaný na každém vzorku měnil pořadí synchronizace (part-15:
+      // zmizel dobírací krok X 11,23).
+      const rawRampOk = z - (top - X) / effPlungeTanL > zFloor + 0.05;
+      const rawLayerOk = top + noseLiftX - X <= step + 0.05;
+      const mat = rawRampOk && rawLayerOk ? top : residTopSafe(z);
+      const rampTop = mat !== null && mat > X + 0.05 ? mat : top;
+      if (z - (rampTop - X) / effPlungeTanL <= zFloor + 0.05) continue;   // (a) rampa se nevejde
+      // (a2) rampa by vzala víc než JEDNU vrstvu (pravidlo 3, měří se
+      // materiálem) — takovou kotvu stejně zamítne `emitOpenInterval`
+      // a hloubka by vypadla celá. Nález uživatele 25. 9. 2026 (zleva,
+      // „✂ Po úsecích", úsek 4): po úseku 3 zbyla u meze šikmina jen do
+      // X 42,8 (místo 64,5), držák se na ni vešel, kotva sedla na mez
+      // X 40,3 nad vrstvou X 22,8 a čtyři horní vrstvy zmizely — ručně
+      // zadaný rozsah nad původním polotovarem jel 6 vrstev.
+      // Měří se ZBÝVAJÍCÍ materiál (`residTopSafe`): kde mělčí vrstva už
+      // ubrala, je nad touto vrstvou jen jedna vrstva, i když offsetová čára
+      // polotovaru leží o kousek výš (tamtéž: X 22,95 nad vrstvami 22,78
+      // a 20,28 → 2,67 mm, ale po vrstvě 22,78 zbývá 2,5).
+      if (mat !== null && mat + noseLiftX - X > step + 0.05) continue;
       // (b) vejde se DRŽÁK — a to V HLOUBCE, na kterou rampa dosedne.
       // Rampa se tu ZÁMĚRNĚ nepočítá jako vlastní řez (na rozdíl od kapsy):
       // vykope si jen svou čáru, kdežto držák je v ose Z 20 mm široký, takže
@@ -52,7 +84,7 @@ export function makeEntryRamp({
       // a range-end-leadout vyrobily 4–6 nových kolizí (až 87,9 mm²).
       if (holderFitsAt(z, top)) return z;                          // (b) držák se vejde
     }
-    return -Infinity;
+    return fallback;
   };
   // Protipól `holderEntryCapZ`: kam až se kotva zanoření smí posunout ZA
   // hranici úseku, aby sebrala co nejvíc materiálu.

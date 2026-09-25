@@ -223,9 +223,15 @@ export function loopsToStockProfile(loops) {
   }
   if (bestLen >= n) return { points: [], dropped };
 
-  // Řetěz = body za osovým úsekem, v pořadí smyčky.
-  const chain = [];
+  // Řetěz = body za osovým úsekem, v pořadí smyčky — i s OBĚMA krajními
+  // body osového úseku. Bez nich zmizela šikmá čela: pravé čelo odlitku
+  // (0; 368,9) → (21,8; 366,4) se po „✂ Po úsecích" stalo svislým na Z 366,5
+  // a dráhy úseku 4 končily kolmo místo na offsetové čáře (uživatel 25. 9. 2026).
+  // Jediný bod na ose (hrot) krajní body nemá — řetěz by začal i skončil v něm.
+  const keepEnds = bestLen >= 2;
+  const chain = keepEnds ? [pts[(bestStart + bestLen - 1) % n]] : [];
   for (let k = 0; k < n - bestLen; k++) chain.push(pts[(bestStart + bestLen + k) % n]);
+  if (keepEnds) chain.push(pts[bestStart]);
   if (chain.length < 2) return { points: [], dropped };
 
   // Konvence profilu: začátek u pravého čela (větší Z), konec vlevo na ose.
@@ -256,8 +262,11 @@ export function loopsToStockProfile(loops) {
     if (s.type === 'arc') out.push({ x: s.p2.x, z: s.p2.z, type: s.dir, r: s.r, cx: s.cx, cz: s.cz });
     else out.push({ x: s.p2.x, z: s.p2.z, type: 'G1', r: 0 });
   }
-  // Uzavření k ose je vždy rovné (osový úsek se do profilu nepíše).
-  out.push({ x: 0, z: out[out.length - 1].z, type: 'G1', r: 0 });
+  // Uzavření k ose (osový úsek se do profilu nepíše) — konec už na ose leží.
+  const tail = out[out.length - 1];
+  if (tail.x > AXIS_EPS) out.push({ x: 0, z: tail.z, type: 'G1', r: 0 });
+  else tail.x = 0;
+  out[0].x = out[0].x <= AXIS_EPS ? 0 : out[0].x;
 
   return { points: out, dropped, arcs: segs.filter(s => s.type === 'arc').length };
 }

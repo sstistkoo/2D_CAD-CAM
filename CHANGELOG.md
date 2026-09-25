@@ -143,6 +143,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – zleva „✂ Po úsecích" nezanořil úsek 4.** Ručně zadaný rozsah
+  (původní polotovar) jel 6 vrstev, po úsecích nic — po úseku 3 zbyla u meze
+  nižší šikmina a kotva zanoření sedla na mez nad ní (rampa přes 7 vrstev →
+  zamítnuta, vrstvy zmizely). Hledání kotvy (`holderEntryCapZ`,
+  `ops/long/entryRamp.js`) teď dodržuje „rampa max 1 vrstva" a měří
+  ZBÝVAJÍCÍ materiál; řetěz vrstev (`openPass` candC, `pocketPass`
+  `chainFromPrev`) navazuje na začátek průchodu o vrstvu výš. Úsek 4: 6 vrstev,
+  0 kolizí; sada fixtures úběr +669 mm², kolize 0/0.
+- **CAM – zleva: konec úseku 4 a údolí úseku 2.** Rampa navázaná na mělčí
+  vrstvu smí začít kdekoli na její podlaze (dosedla o 0,06 mm před interval
+  za čarou zanoření a vrstvy X 7,78/5,28 vypadly). Zakázaný kolmý vjezd
+  zkusí ČÁSTEČNÝ KROK ŘETĚZU i v `openPass` (kolmo nad místo vzduchem, rampa
+  na offset stěny, schodek nahoru). Rampy posunutého vjezdu hlídají držák
+  přísně (0,05 mm² místo 2 mm²) a když se nevejdou, posunou se po průchodu —
+  kolize 2,17 mm² v úseku 2 (Z 94,15) zmizela. Po úsecích zleva 0 kolizí;
+  sada fixtures úběr +684 mm², kolize 0/0.
+- **CAM – obrobený polotovar ztrácel šikmé čelo u osy.** `loopsToStockProfile`
+  zahazoval celý osový úsek smyčky i s rohem čela na ose, takže šikmé pravé
+  čelo odlitku bylo v dalším úseku svislé a dráhy tam končily kolmo místo na
+  offsetové čáře. Krajní body osového úseku se teď zachovají.
+- **CAM – kontrola po opravách zleva (25. 9.).** Kotva „do jedné vrstvy"
+  má zálohu: nedá-li se na ní řezat, platí původní kotva (part-15 by jinak
+  ztratil dobírací krok). Řetěz v `pocketPass` hlídá držák podél rampy přísně
+  (0,05 mm²). Částečný krok v `openPass` jen pro nedojetou hloubku. Profil
+  polotovaru s jediným bodem na ose se chová jako dřív. Sada fixtures úběr
+  +769 mm² proti HEAD, kolize 0/0, žádný díl neubírá méně než o 1,1 mm².
 - **CAM – model zbytku zapisoval oblouk dojezdu z plánovaného, ne vydaného
   startu.** Když tělo průchodu skončí o kousek dřív než plánovaný oblouk
   (vzorkovaný booleovský interval), řídicí systém jede oblouk ze skutečné

@@ -521,7 +521,7 @@ export function genLongPasses(ctx) {
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner, rampClearOfContour } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
-      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt, noseLiftX: noseLiftL, noseR: ins.cornerR || 0 });
+      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt, noseLiftX: noseLiftL, noseR: ins.cornerR || 0, step });
 
   // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
@@ -885,7 +885,7 @@ export function genLongPasses(ctx) {
       const surf0 = offsetStockTopXAtZ(entryZ);
       const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
       if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05 || regionCappedRaw) {
-        const zCap = holderEntryCapZ(currentX, entryZ, effZMin);
+        let zCap = holderEntryCapZ(currentX, entryZ, effZMin);
         // Zanoření na hranici REGIONU smí vzniknout jen tam, kde se vedle
         // vjezdu vejde DRŽÁK. Hranice leží uprostřed materiálu (napravo od ní
         // stojí sousední region), takže bez takového místa by rampa vjela
@@ -931,7 +931,17 @@ export function genLongPasses(ctx) {
           noRampNeeded = true;
         }
         if (isFinite(zCap) && zCap < entryZ - 1e-6) {
-          const reScan = scan(currentX, zCap, effZMin, true);
+          let reScan = scan(currentX, zCap, effZMin, true);
+          // Na kotvě „do jedné vrstvy" nejde řezat → původní kotva (její rampa
+          // se v odložených zanořeních mění na částečný krok řetězu; part-15:
+          // bez toho zmizel dobírací krok X 11,23).
+          if (!(reScan.firstOpen && reScan.intervals.length > 0)) {
+            const zLoose = holderEntryCapZ(currentX, entryZ, effZMin, true);
+            if (isFinite(zLoose) && zLoose < entryZ - 1e-6 && Math.abs(zLoose - zCap) > 1e-9) {
+              const rs = scan(currentX, zLoose, effZMin, true);
+              if (rs.firstOpen && rs.intervals.length > 0) { zCap = zLoose; reScan = rs; }
+            }
+          }
           if (reScan.firstOpen && reScan.intervals.length > 0) {
             entryZ = zCap; intervals = reScan.intervals; firstOpen = reScan.firstOpen;
           }
@@ -1064,7 +1074,7 @@ export function genLongPasses(ctx) {
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-          straightRunEndZ, traceOffsetPath, rampSt: { anchor: null, closed: false }, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
+          straightRunEndZ, traceOffsetPath, blockedAt, rampSt: { anchor: null, closed: false }, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
         });
         return;
       }
@@ -1079,7 +1089,7 @@ export function genLongPasses(ctx) {
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-          straightRunEndZ, traceOffsetPath, rampSt, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
+          straightRunEndZ, traceOffsetPath, blockedAt, rampSt, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;

@@ -107,7 +107,10 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // pak dostal každý úsek vlastní žebřík hloubek (§5.3) a mřížka se srovnala
     // na přesné `ap`. Podmínka téhle opravy je „bez nálezů", ne konkrétní
     // počet — ten je tu jen jako bodový otisk.
-    expect(r.passes.length).toBe(32);
+    // 32 → 33 dne 25. 9. 2026: NE regrese. Zakázaný kolmý vjezd zkusí
+    // částečný krok řetězu (openPass `partialChainStep`) — přibyl dobírací
+    // krok X 18,04 u stěny, žádný průchod nezmizel.
+    expect(r.passes.length).toBe(33);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });

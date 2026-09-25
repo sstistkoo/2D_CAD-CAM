@@ -22,7 +22,59 @@ export function emitOpenInterval(D) {
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
     rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
     straightRunEndZ, traceOffsetPath, rampSt, noseLiftX, anchorLiftX = noseLiftX,
+    blockedAt = null,
   } = D;
+  // Částečný krok řetězu (viz použití u zakázaného kolmého vjezdu níž).
+  function partialChainStep() {
+    if (!blockedAt) return null;
+    const dir = iv.zStart > iv.zEnd ? -1 : 1;
+    let q = null;
+    for (const c of passes) {
+      if (!c || c.type !== 'long' || !Number.isFinite(c.x) || !Number.isFinite(c.zStart)) continue;
+      if (!(c.x > currentX + 0.05 && c.x - currentX <= step + 0.05)) continue;
+      // Rampa z jeho začátku musí vjet do intervalu (ne skončit před ním).
+      const zC = c.zStart + dir * (c.x - currentX) / effPlungeTanL;
+      if (dir < 0 ? !(zC <= iv.zStart + 1e-6 && c.zStart > iv.zEnd + 0.05)
+                  : !(zC >= iv.zStart - 1e-6 && c.zStart < iv.zEnd - 0.05)) continue;
+      if (!q || c.x < q.x) q = c;
+    }
+    if (!q) return null;
+    let xL = q.x, zL = q.zStart;
+    const ds = 0.1;
+    for (let k = 0; k < 2000; k++) {
+      const zN = zL + dir * ds, xN = xL - ds * effPlungeTanL;
+      if (xN <= currentX) { zL += dir * (xL - currentX) / effPlungeTanL; xL = currentX; break; }
+      if (blockedAt(xN, zN)) {
+        let lo = 0, hi = ds;                    // dosednout PŘESNĚ na čáru
+        for (let b = 0; b < 20; b++) {
+          const m = (lo + hi) / 2;
+          if (blockedAt(xL - m * effPlungeTanL, zL + dir * m)) hi = m; else lo = m;
+        }
+        xL -= lo * effPlungeTanL; zL += dir * lo;
+        break;
+      }
+      xL = xN; zL = zN;
+    }
+    if (!(q.x - xL > 0.3)) return null;
+    // Celá hloubka = úkol candC výš (i s hlídáním těla průchodu); tady jen
+    // ČÁSTEČNÝ krok, jehož tělo je nulové.
+    const full = xL <= currentX + 1e-6;
+    if (full) return null;
+    const cand = { type: 'long', x: xL, zStart: zL, zEnd: full ? iv.zEnd : zL, blocked: true,
+      ramp: { x0: q.x, z0: q.zStart }, entryShifted: true, rampAllFeed: true };
+    if (!full) {
+      // Dobrat schodek po stěně nahoru na hloubku mělčí vrstvy, pak pryč.
+      const lo = holderTrimLeadOut(traceIfContinuous(
+        traceOffsetPath(zL, findLeadOutEndZ(zL, q.x, -Infinity, traceFloorL)),
+        xL, zL), true);
+      while (lo.length > 0 && lo[0].x2 <= xL + 0.02) lo.shift();
+      clipLeadOutToDepth(lo, q.x);
+      if (lo.length > 0) cand.contourLeadOut = lo;
+    }
+    if (holderFitAreaAlong(cand) > 0.05) return null;
+    if (residEntryArea && residEntryArea(cand, [], ENTRY_FIT_TOL) > ENTRY_FIT_TOL) return null;
+    return cand;
+  }
   // Otevřený vjezd zprava přes hranu polotovaru.
   const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
   // ── Vjezd na hranici rozsahu Z rampou (Fáze 4) ──────
@@ -129,31 +181,59 @@ export function emitOpenInterval(D) {
     // údolí úseku 2 (polygon, Z 146…176) nedojelo dno — X 11,73 a 11,09 chyběly.
     let candC = null;
     for (const q of passes) {
-      if (!q || q.type !== 'long' || !q.ramp) continue;
+      // Kotvou je začátek JAKÉHOKOLI průchodu o vrstvu výš (i bez rampy) —
+      // nástroj tam na té hloubce už byl a materiál kolem vybral.
+      if (!q || q.type !== 'long' || !Number.isFinite(q.x) || !Number.isFinite(q.zStart)) continue;
       if (!(q.x > currentX + 0.05 && q.x - currentX <= step + 0.05)) continue;
-      if (!(q.zStart <= iv.zStart + 1e-6 && q.zStart > iv.zEnd + 0.05)) continue;
+      // Rozhoduje, kde rampa DOSEDNE (uvnitř intervalu), ne kde začíná: konec
+      // mělčí rampy smí ležet i kousek za posunutým vjezdem (zleva úsek 4:
+      // o 1 mm) — držák se hlídá podél celé rampy níž.
       const zC = q.zStart - (q.x - currentX) / effPlungeTanL;
-      if (!(zC > iv.zEnd + 0.05)) continue;
+      if (!(q.zStart > iv.zEnd + 0.05 && zC <= iv.zStart + 1e-6 && zC > iv.zEnd + 0.05)) continue;
       if (!candC || q.x < candC.ramp.x0) candC = { x: currentX, zStart: zC, zEnd: iv.zEnd, ramp: { x0: q.x, z0: q.zStart } };
     }
+    // DRŽÁK NA RAMPĚ POSUNUTÉHO VJEZDU PŘÍSNĚ (25. 9. 2026): „držák do
+    // polotovaru ani o kousek". Obecná HOLDER_FIT_TOL (2 mm²) pustila rampu,
+    // na které simulátor hlásil kolizi 2,17 mm² (zleva úsek 2, Z 94,15).
+    // Nevejde-li se rampa z povrchu, posune se po průchodu dál (`candSh`).
+    const RAMP_FIT_TOL = 0.05;
+    let candSh = null;
+    if (candS && holderFitAreaAlong(candS) > RAMP_FIT_TOL) {
+      const dirR = iv.zStart > iv.zEnd ? -1 : 1;
+      for (let d = 0.5; d < 40; d += 0.5) {
+        const z0 = iv.zStart + dirR * d;
+        if (dirR < 0 ? z0 <= iv.zEnd + dzScan : z0 >= iv.zEnd - dzScan) break;
+        const top0 = offsetStockTopXAtZ(z0);
+        if (top0 === null) continue;
+        if (top0 + (noseLiftX || 0) - currentX > step + 0.05) break;
+        const x0 = top0 + (anchorLiftX || 0);
+        if (!(x0 > currentX + 0.05)) continue;
+        const zR = z0 + dirR * (x0 - currentX) / effPlungeTanL;
+        if (dirR < 0 ? zR <= iv.zEnd + 0.05 : zR >= iv.zEnd - 0.05) break;
+        const c = { x: currentX, zStart: zR, zEnd: iv.zEnd, ramp: { x0, z0 } };
+        if (holderFitAreaAlong(c) <= RAMP_FIT_TOL && residEntryArea(c, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) { candSh = c; break; }
+      }
+    }
     if (er && er.x0 > currentX + 0.05 && (er.surfX ?? er.x0) - currentX <= step + 0.05
-        && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
+        && holderFitAreaAlong(cand) <= RAMP_FIT_TOL
         && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
       passObj.ramp = { x0: er.x0, z0: er.z0 };
       passObj.entryRangeRamp = true;
-    } else if (candS
-        && holderFitAreaAlong(candS) <= HOLDER_FIT_TOL
-        && residEntryArea(candS, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
-      passObj.ramp = { ...candS.ramp };
-      passObj.zStart = zS;
+    } else if ((candS
+        && holderFitAreaAlong(candS) <= RAMP_FIT_TOL
+        && residEntryArea(candS, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) || candSh) {
+      const cs = candSh || candS;
+      passObj.ramp = { ...cs.ramp };
+      passObj.zStart = cs.zStart;
+      if (candSh) passObj.rampAllFeed = true;
       passObj.entryRangeRamp = true;
       // Řetěz pokračuje z KONCE této rampy. Stará kotva leží v klínu, který
       // tahle rampa nechala stát, a hlubší vrstva by k ní sjela kolmo
       // (part-11-zleva: `G1 X15.545` 90°).
-      rampSt.anchor = { x: currentX, z: zS, first: false };
+      rampSt.anchor = { x: currentX, z: cs.zStart, first: false };
       rampSt.closed = false;
     } else if (candC
-        && holderFitAreaAlong(candC) <= HOLDER_FIT_TOL
+        && holderFitAreaAlong(candC) <= RAMP_FIT_TOL
         && residEntryArea(candC, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
       passObj.ramp = { ...candC.ramp };
       passObj.zStart = candC.zStart;
@@ -182,6 +262,16 @@ export function emitOpenInterval(D) {
       // zmizelo 17 průchodů celé pravé strany a v ⚠ panelu nebylo ani slovo,
       // takže to vypadalo jako chyba geometrie). Vrstva, která zmizí kvůli
       // pravidlu, se proto počítá a hlásí.
+      //
+      // ČÁSTEČNÝ KROK ŘETĚZU (25. 9. 2026) — dvojče větve v roughLong
+      // (odložená zanoření). Rampa z konce mělčí vrstvy by dosedla až ZA
+      // stěnou (candC výš), takže se sjede pod úhlem zanoření jen dokud
+      // nenarazí na offset kontury, dobere se schodek po stěně nahoru a pryč.
+      // Nástroj přijede kolmo nad začátek rampy vzduchem (vrstva nad ním je
+      // vybraná). Nález uživatele 25. 9. 2026 (zleva, údolí úseku 2 u S16–S17):
+      // „není problém aby to dojelo, jenom musí přijet kolmo nad to místo".
+      const part = partialChainStep();
+      if (part) { passes.push(part); rampSt.closed = true; return; }
       skipCounters.plungeForbidden++;
       return;
     }

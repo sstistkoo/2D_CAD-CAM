@@ -123,6 +123,18 @@ describe('loopsToStockProfile', () => {
     expect(Math.abs(polyArea([reclosed]))).toBeLessThan(20 * 52 * 1.02);
   });
 
+  it('šikmé čelo u osy zůstane šikmé (roh čela na ose se nezahodí)', () => {
+    // Pravé čelo odlitku (0; 10) → (20; 7) — po „✂ Po úsecích" z něj bylo
+    // svislé čelo na Z 7 a dráhy dalšího úseku končily kolmo (25. 9. 2026).
+    const loop = [{ x: 0, z: 10 }, { x: 20, z: 7 }, { x: 20, z: -50 }, { x: 0, z: -50 }];
+    const { points } = loopsToStockProfile([loop]);
+    expect(Math.abs(points[0].x)).toBeLessThan(1e-6);
+    expect(points[0].z).toBeGreaterThan(9.9);
+    expect(points[1].x).toBeGreaterThan(19.9);
+    expect(points[1].z).toBeLessThan(7.2);
+    expect(Math.abs(points[points.length - 1].x)).toBeLessThan(1e-6);
+  });
+
   it('smyčka bez bodu na ose (trubka) profilem nejde zapsat', () => {
     const ring = [{ x: 5, z: 0 }, { x: 20, z: 0 }, { x: 20, z: -10 }, { x: 5, z: -10 }];
     const res = loopsToStockProfile([ring]);
