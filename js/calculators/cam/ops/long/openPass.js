@@ -20,7 +20,7 @@ export function emitOpenInterval(D) {
     holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
     rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-    straightRunEndZ, traceOffsetPath, rampSt, noseLiftX,
+    straightRunEndZ, traceOffsetPath, rampSt, noseLiftX, anchorLiftX = noseLiftX,
   } = D;
   // Otevřený vjezd zprava přes hranu polotovaru.
   const passObj = { type: 'long', x: currentX, zStart: iv.zStart, zEnd: iv.zEnd, blocked: iv.blocked };
@@ -91,7 +91,7 @@ export function emitOpenInterval(D) {
   // tam X 16,7) a hlubší vrstva pak vjela pod bok bossu — tříska 17,8 mm.
   const shiftedSurf = iv.entryShifted ? offsetStockTopXAtZ(iv.zStart) : null;
   const shiftedInAir = iv.entryShifted && shiftedSurf !== null
-    && shiftedSurf + (noseLiftX || 0) <= currentX + 0.05;
+    && shiftedSurf + (anchorLiftX || 0) <= currentX + 0.05;
   if (entryCapped && !plungeEntryOk && !entryRampIsPlunge && !shiftedInAir
       && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
     const er = stockEntryRamp(currentX, iv.zStart);
@@ -106,7 +106,10 @@ export function emitOpenInterval(D) {
     // jako kolmý vjezd), protože vjezd posunutý na Z 175,3 od zbytku za
     // hrbem dostal rampu začínající na Z 178,4.
     const surfS0 = offsetStockTopXAtZ(iv.zStart);
-    const surfS = surfS0 === null ? null : surfS0 + (noseLiftX || 0);
+    // Spodek NOSU na offsetové čáře polotovaru, ne střed (`anchorLiftX` =
+    // rádius nosu; uživatel 25. 9. 2026: „špička spodku rádiusu by měla dojet
+    // k offsetové čáře, kde je začátek polotovaru, a tady se začít zanořovat").
+    const surfS = surfS0 === null ? null : surfS0 + (anchorLiftX || 0);
     const zS = surfS === null ? NaN : iv.zStart - (surfS - currentX) / effPlungeTanL;
     // Rampa nesmí vzít víc než jednu vrstvu (pravidlo 3): z povrchu výš než
     // o ap by ubrala víc (part-17: 7,8 mm naráz při ap 3 a držák v materiálu).
@@ -186,7 +189,7 @@ export function emitOpenInterval(D) {
       // Ø33,5. Práh se lámal přesně tam, kde povrch (17,743) míjel hloubku,
       // tedy o `noseLiftX` vedle. Viz docs/cam-pravidla-drah.md §3.1.
       const surfX0 = offsetStockTopXAtZ(anchorZ);
-      const surfX = surfX0 === null ? null : surfX0 + (noseLiftX || 0);
+      const surfX = surfX0 === null ? null : surfX0 + (anchorLiftX || 0);
       if (surfX !== null && surfX > currentX + 0.05) {
         rampSt.anchor = { x: surfX, z: anchorZ, first: true };
         // Jiné Z = jiný řetěz zanořování: uzavření toho předchozího

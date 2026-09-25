@@ -153,6 +153,11 @@ export function genLongPasses(ctx) {
   // Hloubky průchodů jsou v souřadnicích DRÁHY, silueta polotovaru v
   // souřadnicích POVRCHU; tenhle člen ty dvě soustavy srovnává.
   const noseLiftL = ins.noseLiftX || 0;
+  // KOTVA RAMPY z povrchu = spodek NOSU na offsetové čáře polotovaru: střed
+  // o rádius nosu výš (25. 9. 2026). U kulaté = noseLiftL; u polygonu, kde
+  // noseLiftX zůstává 0 kvůli hloubkové mřížce, tu je R — jinak střed sjel
+  // svisle o celé R do pásma polotovaru, než začala rampa.
+  const anchorLiftL = ins.cornerR || 0;
 
   // Z-rozsah POLOTOVARU na zadané hloubce X (ořezaný rozsahem 📐 — viz výš).
   // `X` je poloha DRÁHY (střed nosu); řeže se o `noseLiftL` níž, takže se
@@ -516,7 +521,7 @@ export function genLongPasses(ctx) {
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner, rampClearOfContour } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
-      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt, noseLiftX: noseLiftL });
+      effPlungeTanL, rangeZLoL, offsetXAt, blockedAt, noseLiftX: noseLiftL, noseR: ins.cornerR || 0 });
 
   // Ořez sledování kontury obálkou držáku — viz ops/long/holderTrim.js.
   const { holderTrimLeadIn, holderTrimLeadOut } = makeHolderTrim({ holderClampZEnd });
@@ -1059,7 +1064,7 @@ export function genLongPasses(ctx) {
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-          straightRunEndZ, traceOffsetPath, rampSt: { anchor: null, closed: false }, noseLiftX: noseLiftL,
+          straightRunEndZ, traceOffsetPath, rampSt: { anchor: null, closed: false }, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
         });
         return;
       }
@@ -1074,7 +1079,7 @@ export function genLongPasses(ctx) {
           holderFitArea, holderFitAreaAlong, holderTrimLeadOut, offsetStockTopXAtZ,
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
-          straightRunEndZ, traceOffsetPath, rampSt, noseLiftX: noseLiftL,
+          straightRunEndZ, traceOffsetPath, rampSt, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;
@@ -1124,7 +1129,7 @@ export function genLongPasses(ctx) {
       // povrch (válcová obdoba offsetové čáry), takže se `noseLiftL` přičítá
       // oběma větvím.
       const surfX0 = stockLoopL ? offsetStockTopXAtZ(anchorZ) : stockSurfX;
-      const surfX = surfX0 === null ? null : surfX0 + noseLiftL;
+      const surfX = surfX0 === null ? null : surfX0 + anchorLiftL;
       // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — part-17
       // (upichovák, ap 3): X 17,7 → 9,9 naráz a držák v materiálu.
       if (surfX !== null && surfX > currentX + 0.05 && surfX - currentX <= step + 0.05) {

@@ -30,10 +30,12 @@ import { pointInLoop } from '../../../../geom/geomCore.js';
  * @param blockedAt          (x, z) => je tam překážka? — viz hlavička
  * @param noseLiftX          zvednutí programovaného bodu nad řezaný povrch
  *                           (`cam/inserts/*`; R u kulaté, 0 u ostatních)
+ * @param noseR              rádius nosu (`cornerR`) — kotva rampy se měří
+ *                           SPODKEM nosu, ne programovaným bodem (střed)
  */
 export function makeEntryRamp({
   T, holderFitsAt, stockLoopOffsetL, plungeDirL, effPlungeTanL, rangeZLoL,
-  offsetXAt, blockedAt, noseLiftX = 0,
+  offsetXAt, blockedAt, noseLiftX = 0, noseR = 0,
 }) {
   const { DZ_CAP, capTab, stockTopTab } = T;
   const holderEntryCapZ = (X, zHi, zFloor) => {
@@ -132,9 +134,15 @@ export function makeEntryRamp({
     const top = residTopSafe(q.z);
     return top !== null && q.x >= top - 0.02;
   };
+  // KOTVU URČUJE SPODEK NOSU, NE STŘED (uživatel 25. 9. 2026): offsetová čára
+  // polotovaru JE začátek polotovaru a rampa má začít tam, kde se jí spodek
+  // rádiusu dotkne. Programovaný bod je střed nosu — měřený přímo proti čáře
+  // sjel svisle o celé R do pásma polotovaru (`N2340 G1 X17.794` s R1, čára
+  // na X17,743, spodek nosu 16,794) a teprve pak začala rampa.
+  const inStockBand = (p) => pointInLoop({ x: p.x - noseR, z: p.z }, stockLoopOffsetL) !== 'outside';
   const stockEntryRamp = (X, zEntry) => {
     if (!stockLoopOffsetL) return null;
-    if (pointInLoop({ x: X + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
+    if (pointInLoop({ x: X - noseR + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
     // Vstup leží NAD zbytkem (mělčí vrstvy ho odebraly) → žádná kůra k
     // prorampování není; volající si najede po kontuře jako jindy.
     if (atResidTop({ x: X + 0.05, z: zEntry - 0.05 })) return null;
@@ -151,12 +159,12 @@ export function makeEntryRamp({
       // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
       // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
       if (blockedAt(p.x, p.z)) return null;
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside' || atResidTop(p)) {
+      if (!inStockBand(p) || atResidTop(p)) {
         let lo = tPrev, hi = t;
         for (let k = 0; k < 24; k++) {
           const m = (lo + hi) / 2;
           const q = at(m);
-          if (pointInLoop(q, stockLoopOffsetL) === 'outside' || atResidTop(q)) hi = m; else lo = m;
+          if (!inStockBand(q) || atResidTop(q)) hi = m; else lo = m;
         }
         const q = at(hi);
         return { x0: q.x, z0: q.z };

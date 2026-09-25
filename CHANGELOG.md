@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   polotovaru, který po programu zbyl.
 
 ### Changed
+- **CAM – rampa z povrchu začíná spodkem nosu na offsetové čáře polotovaru.**
+  Kotva rampy (`roughLong.js`, `openPass.js`, `entryRamp.js`) se počítala
+  středem nosu na offsetové čáře, takže plátek nejdřív sjel svisle o celé R do
+  pásma polotovaru (`N2340 G1 X17.794`, čára na X17,743, R1) a teprve pak
+  rampoval. Teď střed = čára + rádius nosu (`cornerR`). U kulaté beze změny
+  (cornerR = noseLiftX); pohnulo se 18 polygonových fixtures, bezpečnostní
+  testy 134/134.
 - **CAM – obrobený polotovar nezahazuje visící kusy.** Kus materiálu, který
   dráha oddělí a který se osy nedotýká, se k polotovaru další části připojí
   i s tím, co je pod ním (`opParts.js` `attachFloatingPieces`) — dřív se
