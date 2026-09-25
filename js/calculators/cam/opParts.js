@@ -18,7 +18,7 @@
 import { polyOffset, polySimplify, polyUnion } from '../../geom/geomCore.js';
 import { fitArcsToPolyline, getArcParams } from './camMath.js';
 import { MaterialRemoval } from './materialRemoval.js';
-import { stripCodeOwnedParams } from './camDefaults.js';
+import { CODE_OWNED_PARAMS, _defaultCamParams, stripCodeOwnedParams } from './camDefaults.js';
 import { mergePrograms } from './gcodeMerge.js';
 
 // Zjednodušení odvozeného profilu [mm]. Profil se nejdřív odsadí VEN o
@@ -103,7 +103,14 @@ export function applyPartToState(part, S) {
   SHARED_PARAM_KEYS.forEach(k => { shared[k] = S.params[k]; });
   // Interní příznaky (orderAwareHolder) se ze záznamu ČÁSTI neberou — část
   // uložená před překlopením výchozí hodnoty by je jinak vrátila zpět.
-  S.params = Object.assign(stripCodeOwnedParams(clone(part.params)) || {}, shared);
+  // Jejich hodnotu ale musí DOPLNIT kód: `S.params` se tu nahrazuje celé,
+  // takže bez toho klíč zmizel a v režimu částí se generovalo s VYPNUTÝM
+  // hlídáním držáku podle pořadí — držák pak vjížděl do šikminy polotovaru
+  // (úsek 3, `G1 X17.166`, 3 kolize; nález uživatele 25. 9. 2026).
+  const defaults = _defaultCamParams();
+  const owned = {};
+  CODE_OWNED_PARAMS.forEach(k => { owned[k] = defaults[k]; });
+  S.params = Object.assign(owned, stripCodeOwnedParams(clone(part.params)) || {}, shared);
   S.zLimits = clone(part.zLimits) || S.zLimits;
   S.xLimits = clone(part.xLimits) || S.xLimits;
   S.stockPoints = clone(part.stockPoints) || [];

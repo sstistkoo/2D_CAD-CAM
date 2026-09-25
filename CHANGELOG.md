@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   polotovaru, který po programu zbyl.
 
 ### Changed
+- **CAM – v režimu částí se hlídá držák podle pořadí; údolí se přesto dojede.**
+  `applyPartToState` zahazoval interní `orderAwareHolder` (nahrazuje celé
+  `S.params`) → v částech hlídání vypnuté a držák vjížděl do šikminy polotovaru
+  (úsek 3, 3 kolize). Teď se klíče z `CODE_OWNED_PARAMS` doplní. Aby se tím
+  nerozbilo zanořování v údolí úseku 2, posunutý vjezd (`openPass.js`) umí
+  navázat na konec rampy předchozí vrstvy v témž intervalu — dřív se vrstva
+  zahodila jako „kolmé zanoření". Díl uživatele po úsecích: 0 kolizí, otisk
+  fixtures beze změny.
+- **CAM – „✂ Po úsecích" / „↺ Reset" berou nastavení z panelu.** Při
+  opakovaném spuštění se nahrávala celá první část — úpravy parametrů
+  a vypnuté rozsahy se vracely. Teď platí, co je v panelu; z první části jen
+  původní polotovar. Rozsahy z náhledu celého programu se ukládají a projekt
+  z „Po úsecích" se po obnovení otevře v náhledu celého programu (dřív vždy
+  rozsah úseku 1).
 - **CAM – rampa z povrchu začíná spodkem nosu na offsetové čáře polotovaru.**
   Kotva rampy (`roughLong.js`, `openPass.js`, `entryRamp.js`) se počítala
   středem nosu na offsetové čáře, takže plátek nejdřív sjel svisle o celé R do

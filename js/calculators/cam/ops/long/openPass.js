@@ -116,6 +116,22 @@ export function emitOpenInterval(D) {
     const candS = surfS !== null && surfS > currentX + 0.05 && surfS - currentX <= step + 0.05
       && zS > iv.zEnd + 0.05
       ? { x: currentX, zStart: zS, zEnd: iv.zEnd, ramp: { x0: surfS, z0: iv.zStart } } : null;
+    // NAVÁZÁNÍ NA KONEC RAMPY PŘEDCHOZÍ VRSTVY (25. 9. 2026). Posunutý vjezd
+    // (hlídání držáku podle pořadí) leží tam, kde nad vrstvou stojí celý
+    // polotovar — rampa z povrchu by vzala víc vrstev naráz. Mělčí vrstva ale
+    // v témž intervalu sjela rampou níž doleva a její konec je místo, odkud
+    // tahle vrstva může pokračovat o jednu vrstvu níž (týž řetěz, jaký dělá
+    // vjezd bez posunu). Bez toho se vrstva zahodila jako „kolmé zanoření":
+    // údolí úseku 2 (polygon, Z 146…176) nedojelo dno — X 11,73 a 11,09 chyběly.
+    let candC = null;
+    for (const q of passes) {
+      if (!q || q.type !== 'long' || !q.ramp) continue;
+      if (!(q.x > currentX + 0.05 && q.x - currentX <= step + 0.05)) continue;
+      if (!(q.zStart <= iv.zStart + 1e-6 && q.zStart > iv.zEnd + 0.05)) continue;
+      const zC = q.zStart - (q.x - currentX) / effPlungeTanL;
+      if (!(zC > iv.zEnd + 0.05)) continue;
+      if (!candC || q.x < candC.ramp.x0) candC = { x: currentX, zStart: zC, zEnd: iv.zEnd, ramp: { x0: q.x, z0: q.zStart } };
+    }
     if (er && er.x0 > currentX + 0.05 && er.x0 - currentX <= step + 0.05
         && holderFitAreaAlong(cand) <= HOLDER_FIT_TOL
         && residEntryArea(cand, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
@@ -131,6 +147,14 @@ export function emitOpenInterval(D) {
       // tahle rampa nechala stát, a hlubší vrstva by k ní sjela kolmo
       // (part-11-zleva: `G1 X15.545` 90°).
       rampSt.anchor = { x: currentX, z: zS, first: false };
+      rampSt.closed = false;
+    } else if (candC
+        && holderFitAreaAlong(candC) <= HOLDER_FIT_TOL
+        && residEntryArea(candC, [], ENTRY_FIT_TOL) <= ENTRY_FIT_TOL) {
+      passObj.ramp = { ...candC.ramp };
+      passObj.zStart = candC.zStart;
+      passObj.entryRangeRamp = true;
+      rampSt.anchor = { x: currentX, z: candC.zStart, first: false };
       rampSt.closed = false;
     } else {
       // KOLMÉ ZANOŘENÍ JE PRO TENHLE PLÁTEK ZAKÁZANÉ — vrstva se VYNECHÁ.

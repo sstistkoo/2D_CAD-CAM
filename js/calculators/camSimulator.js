@@ -677,6 +677,10 @@ export function openCamSimulator(initialContour, initialGCode) {
   if (S.opParts.length > 0) {
     S.activePart = Math.min(Math.max(0, S.activePart), S.opParts.length - 1);
     applyPartToState(S.opParts[S.activePart], S);
+    // Program z „✂ Po úsecích" se otevře v náhledu CELÉHO programu s rozsahy
+    // uživatele — v zobrazení části by se rozsah vždy „přestěhoval" na
+    // hranice úseku 1 (nález 25. 9. 2026).
+    if (S.opParts[0].baseLimits && !_gcodeFromNote) { S.opView = 'all'; applyView(); }
     // Dráhy upravené během výletu přes CAD („📐 Kreslit" → poznámka na
     // výkrese) patří té části, ze které se odcházelo — applyPartToState je
     // právě přepsal uloženou verzí, tak je vrátit zpět (i do záznamu části).
@@ -854,6 +858,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── SAVE ──
   function saveState() {
     syncActivePart();
+    // Rozsahy nastavené v náhledu CELÉHO programu jsou uživatelovy (po „✂ Po
+    // úsecích" se tam zobrazuje rozsah před rozdělením) — uložit je k první
+    // části, jinak by je obnovení stránky zahodilo.
+    if (partsActive() && S.opView === 'all' && S.opParts[0].baseLimits) {
+      S.opParts[0].baseLimits = { z: JSON.parse(JSON.stringify(S.zLimits)), x: JSON.parse(JSON.stringify(S.xLimits)) };
+    }
     // Otisk kontury drží krok s úpravami provedenými v CAM — porovnává se až
     // s konturou, která příště přijde z CAD (viz _partsContourChanged).
     if (partsActive()) S.opContourKey = contourKey(S.contourPoints);
@@ -1073,25 +1083,37 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Každý úsek = jedna část programu; její rozsah 📐 = hranice úseku, její
   // polotovar = to, co zbylo po předchozích úsecích (hlídání držáku tak vidí,
   // co opravdu stojí a kde je už obrobeno).
+  // Základ pro nové rozdělení / reset: nastavení, které má uživatel PRÁVĚ
+  // v panelu (parametry i rozsahy), a jen POLOTOVAR z první části. Dřív se
+  // nahrávala celá první část — úpravy z panelu a vypnuté rozsahy se tím
+  // tiše vrátily (nález uživatele 25. 9. 2026). Rozsah ČÁSTI (v zobrazení
+  // jedné části) ale není uživatelův rozsah: tam platí rozsah uložený před
+  // rozdělením, u ručních částí celý díl.
+  function restoreBaseFromLive() {
+    const clone = (v) => JSON.parse(JSON.stringify(v));
+    const wasAll = S.opView === 'all';
+    syncActivePart();
+    const live = { params: clone(S.params), z: clone(S.zLimits), x: clone(S.xLimits) };
+    const first = S.opParts[0];
+    S.opView = 'part';
+    applyPartToState(first, S);                 // polotovar první části
+    S.params = live.params;
+    STOCK_PARAM_KEYS.forEach(k => { if (k in first.params) S.params[k] = first.params[k]; });
+    if (wasAll) {
+      S.zLimits = live.z; S.xLimits = live.x;
+    } else if (first.baseLimits) {
+      S.zLimits = clone(first.baseLimits.z); S.xLimits = clone(first.baseLimits.x);
+    } else {
+      S.zLimits = { ...live.z, rangeActive: false };
+      S.xLimits = { ...live.x, active: false };
+    }
+  }
+
   async function handleSectionPaths() {
     if (partsActive()) {
       const ok = await camConfirm('Dráhy po úsecích nahradí stávající části programu. Začne se na polotovaru první části. Pokračovat?');
       if (!ok) return;
-      syncActivePart();
-      S.opView = 'part';
-      const first = S.opParts[0];
-      applyPartToState(first, S);
-      // Rozsah ČÁSTI není uživatelův rozsah — z něj by zbyl jen první úsek
-      // (nález 25. 9. 2026: druhé spuštění vyrobilo jen „Úsek 1"). Po „Po
-      // úsecích" se vrátí rozsah z doby před rozdělením; u ručních částí
-      // (➕ Operace) se bere celý díl.
-      if (first.baseLimits) {
-        S.zLimits = JSON.parse(JSON.stringify(first.baseLimits.z));
-        S.xLimits = JSON.parse(JSON.stringify(first.baseLimits.x));
-      } else {
-        S.zLimits = { ...S.zLimits, rangeActive: false };
-        S.xLimits = { ...S.xLimits, active: false };
-      }
+      restoreBaseFromLive();
     }
     recalcNow();
     const calc0 = S._cachedCalc;
@@ -1149,14 +1171,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const ok = await camConfirm('Zrušit rozdělení na části? Vrátí se původní polotovar a rozsah, dráhy všech částí se smažou (jde vzít zpět přes ↩ Zpět).');
     if (!ok) return;
     pushHistory();
-    syncActivePart();
-    const first = S.opParts[0];
-    S.opView = 'part';
-    applyPartToState(first, S);
-    if (first.baseLimits) {
-      S.zLimits = JSON.parse(JSON.stringify(first.baseLimits.z));
-      S.xLimits = JSON.parse(JSON.stringify(first.baseLimits.x));
-    }
+    restoreBaseFromLive();
     S.opParts = [];
     S.activePart = 0;
     S.manualGCode = '';

@@ -66,6 +66,21 @@ describe('makePart / syncPartFromState / applyPartToState', () => {
     expect(S.params.feed).toBe(0.4);                   // operační: převzato
   });
 
+  it('applyPartToState doplní interní příznaky z kódu (orderAwareHolder)', () => {
+    // Záznam části interní příznak nemá (strip při ukládání/načítání), a
+    // `S.params` se nahrazuje celé — bez doplnění se v režimu částí generovalo
+    // s vypnutým hlídáním držáku podle pořadí a držák vjel do šikminy
+    // polotovaru (nález 25. 9. 2026).
+    const S = mkState();
+    const part = makePart(S, {});
+    delete part.params.orderAwareHolder;
+    applyPartToState(part, S);
+    expect(S.params.orderAwareHolder).toBe(true);
+    part.params.orderAwareHolder = false;
+    applyPartToState(part, S);
+    expect(S.params.orderAwareHolder).toBe(true);
+  });
+
   it('applyPartToState nesdílí reference (úprava části neteče do stavu)', () => {
     const S = mkState();
     const part = makePart(S, {});
