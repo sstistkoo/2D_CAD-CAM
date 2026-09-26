@@ -25,8 +25,15 @@ const AIR_MARGIN = 1;    // vjezd kusu začíná tolik ve vzduchu před materiá
  * @param crossings  průsečíky polotovaru na hloubce, sestupně (`stockCrossingsAt`)
  * @returns nové pole intervalů
  */
-export function splitPocketsAtAir(intervals, firstOpen, crossings) {
-  if (!Array.isArray(crossings) || crossings.length < 4) return intervals;
+export function splitPocketsAtAir(intervals, firstOpen, crossings, opts = {}) {
+  // `airLead` (kulatá destička, průsečíky pro kružnici nosu): stačí JEDEN kus
+  // materiálu — když před ním celý začátek kapsy leží ve vzduchu, kus se
+  // najede ze vzduchu jako otevřený průchod. Bez toho se taková „kapsa"
+  // posílala do kapsové větve, která chce rampu nebo nájezd po kontuře, a
+  // když žádný nebyl, zahodila celou vrstvu (zleva, úsek 2 uživatele
+  // 26. 9. 2026: blok za stěnou drážky, vrstvy 38,1 … 28,1).
+  const airLead = !!opts.airLead;
+  if (!Array.isArray(crossings) || crossings.length < (airLead ? 2 : 4)) return intervals;
   const spans = [];
   for (let k = 0; k + 1 < crossings.length; k += 2) spans.push({ hi: crossings[k], lo: crossings[k + 1] });
   const out = [];
@@ -40,6 +47,11 @@ export function splitPocketsAtAir(intervals, firstOpen, crossings) {
     for (const s of inside) {
       const last = merged[merged.length - 1];
       if (last && last.lo - s.hi < MIN_GAP) last.lo = s.lo; else merged.push({ ...s });
+    }
+    if (merged.length === 1 && airLead && merged[0].hi < iv.zStart - MIN_GAP) {
+      out.push({ zStart: Math.min(merged[0].hi + AIR_MARGIN, iv.zStart), zEnd: iv.zEnd,
+        blocked: iv.blocked, airEntry: true });
+      return;
     }
     if (merged.length < 2) { out.push(iv); return; }
     merged.forEach((s, k) => {

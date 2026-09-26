@@ -107,7 +107,8 @@ function humpRidden(keyed, upTo, a, b, humps) {
  * roztrhl řetěz průchodů (kapsa: `pocketReposition`/`cleanApproach` navazují
  * na předchůdce), vrátí původní pořadí beze změny.
  */
-export function orderByHumps(list, offsetXAt) {
+export function orderByHumps(list, offsetXAt, opts = {}) {
+  const tailStep = opts.tailStep > 0 ? opts.tailStep : 0;
   if (!Array.isArray(list) || list.length < 2) return list;
   let zLo = Infinity, zHi = -Infinity;
   for (const p of list) {
@@ -172,8 +173,65 @@ export function orderByHumps(list, offsetXAt) {
     // po vrcholu a sjezd za něj JE celý jeho řez.
     if (!e.p.contourLeadIn || e.p.ramp || e.k === 0 || e.p.humpCrossing) continue;
     if (n > 0 && sorted[n - 1].i === e.i - 1) continue;
+    // ── OCAS NÁJEZDU POD MĚLČÍ VRSTVOU SE NECHÁ (kulatá, 26. 9. 2026) ─────
+    // Konec nájezdu, který leží níž než jedna Hloubka (ap) nad vrstvou, je
+    // ŘEZ té vrstvy: sjíždí po kontuře dna tam, kam mělčí vrstva nedosáhla.
+    // Bez něj se do kapsy sjelo zanořením pod 45° a mezi ním a mírnější
+    // konturou zůstal klín — nález uživatele 26. 9. 2026 (vybrání R 24,5
+    // mezi body 25–24: poslední vrstva na dně nechala na pravém boku čočky
+    // 1,5 mm). Nájezd tak začne tam, kde začíná řez (pravidlo 4), a po už
+    // obrobeném boku nejede (pravidlo 5).
+    const tail = tailStep > 0 ? leadInTail(e.p.contourLeadIn, e.p.x + tailStep) : null;
+    if (tail) {
+      e.p.contourLeadIn = tail;
+      e.p.leadInTrimmed = true;
+      continue;
+    }
     delete e.p.contourLeadIn;
     e.p.leadInDropped = true;
   }
   return out;
+}
+
+// Konec nájezdu po kontuře od posledního místa, kde klesne pod `xTop`
+// (a dál už pod ním zůstane). Null, když takový konec není nebo je kratší
+// než 0,05 mm.
+export function leadInTail(li, xTop) {
+  if (!Array.isArray(li) || li.length === 0) return null;
+  const at = (s, t) => {
+    if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+      const a = s.startAngle + (s.endAngle - s.startAngle) * t;
+      return { x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r, a };
+    }
+    return { x: s.x1 + (s.x2 - s.x1) * t, z: s.z1 + (s.z2 - s.z1) * t };
+  };
+  const last = li[li.length - 1];
+  if (!(last.x2 <= xTop + 0.01)) return null;
+  for (let k = li.length - 1; k >= 0; k--) {
+    const s = li[k];
+    if (s.x1 <= xTop + 0.01 && k > 0) continue;
+    if (s.x1 <= xTop + 0.01) return li.slice();
+    const n = Math.max(8, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.05));
+    let t0 = 1;
+    for (let j = n; j >= 0; j--) {
+      if (at(s, j / n).x > xTop + 0.01) {
+        // Přesně na úrovni `xTop` (bisekcí): začátek pod ní by se sjížděl
+        // svisle o setiny do materiálu (pravidlo 6).
+        let lo = j / n, hi = Math.min(1, (j + 1) / n);
+        for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (at(s, m).x > xTop) lo = m; else hi = m; }
+        t0 = hi;
+        break;
+      }
+    }
+    const q = at(s, t0);
+    const head = { ...s, x1: q.x, z1: q.z };
+    if (q.a !== undefined) head.startAngle = q.a;
+    const out = [];
+    if (Math.hypot(head.x2 - head.x1, head.z2 - head.z1) > 1e-3) out.push(head);
+    out.push(...li.slice(k + 1));
+    let len = 0;
+    for (const g of out) len += Math.hypot(g.x2 - g.x1, g.z2 - g.z1);
+    return len > 0.05 ? out : null;
+  }
+  return null;
 }

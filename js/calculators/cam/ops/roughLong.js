@@ -4,7 +4,7 @@ import { getInsert } from '../inserts/index.js';
 import { mergeLayersOverHump } from './long/humpMerge.js';
 import { envelopePartingLeads } from './long/partingEnvelope.js';
 import { makeRegions } from './long/regions.js';
-import { orderByHumps } from './long/humpOrder.js';
+import { orderByHumps, leadInTail } from './long/humpOrder.js';
 import { splitPocketsAtAir } from './long/airPieces.js';
 import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
@@ -14,7 +14,7 @@ import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../materialRe
 import { ResidualTracker } from '../residualTracker.js';
 import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from '../booleanRoughing.js';
-import { pointInLoop, polyIntersect } from '../../../geom/geomCore.js';
+import { pointInLoop, polyIntersect, polyOffset } from '../../../geom/geomCore.js';
 import { HOLDER_CLAMP_MARGIN, insertReachZ } from '../toolEnvelope.js';
 import { makeAlreadyCut } from './long/alreadyCut.js';
 import { HOLDER_ENTRY_STOCK_GAP, HOLDER_FIT_TOL, ENTRY_SHIFT_MAX, ENTRY_FIT_TOL, SKIM_MIN_LAYER, clipLeadOutToDepth } from './shared.js';
@@ -690,6 +690,79 @@ export function genLongPasses(ctx) {
     return walk ? walk.zLo : -Infinity;
   };
 
+  // ── PRŮSEČÍKY POLOTOVARU PRO KRUŽNICI NOSU (kulatá, 26. 9. 2026) ─────────
+  // Plánovací silueta polotovaru rozšířená o rádius nosu (Minkowského součet
+  // s kružnicí R): střed nosu na hloubce X je v ní právě tehdy, když se
+  // kružnice nosu dotýká polotovaru. `stockCrossingsAt` se ptá jen na sloupec
+  // pod SPODKEM nosu — materiál vedle (za stěnou, kde vrstva končí) nevidí,
+  // přestože ho bok destičky bere. Nález uživatele 26. 9. 2026 (zleva, úsek
+  // 2): blok Z 196…205 za stěnou drážky vzala až vrstva X 25,595 bokem
+  // nosu najednou, vrstvy 38,1 … 28,1 nad ní chyběly.
+  let _stockCircleLoop;
+  const stockCrossingsCircleAt = (X) => {
+    if (_stockCircleLoop === undefined) {
+      _stockCircleLoop = null;
+      try {
+        const off = stockLoopOffsetL ? polyOffset([stockLoopOffsetL], noseLiftL) : null;
+        if (off && off.length) _stockCircleLoop = off.slice().sort((u, v) => v.length - u.length)[0];
+      } catch { _stockCircleLoop = null; }
+    }
+    if (!_stockCircleLoop) return [];
+    const zs = [];
+    const L = _stockCircleLoop, n = L.length;
+    for (let i = 0; i < n; i++) {
+      const a = L[i], b = L[(i + 1) % n];
+      if ((a.x <= X && b.x > X) || (b.x <= X && a.x > X)) zs.push(a.z + (b.z - a.z) * ((X - a.x) / (b.x - a.x)));
+    }
+    zs.sort((p, q) => q - p);
+    return zs;
+  };
+  // ── NÁJEZD PO KONTUŘE JEN POD MĚLČÍ VRSTVOU (kulatá, 26. 9. 2026) ───────
+  // Část nájezdu nad předchozí vrstvou jede po kontuře, kterou mělčí vrstvy
+  // už obrobily — posuv vzduchem (pravidlo 5): nález uživatele 26. 9. 2026,
+  // poslední vrstva ve vybrání R 24,5 sjížděla k nájezdu 3,4 mm posuvem.
+  // Zkrátí se na ocas pod `xTop`, ale jen když jeho začátek leží na dráze,
+  // kterou už projel dřívější průchod (tam je nad ním jistě obrobeno —
+  // jinak by k němu sjezd shora jel do materiálu, pravidlo 6).
+  const pathNear = (q, xs, zs, tol) => {
+    const segs = [];
+    if (q.ramp) segs.push({ x1: q.ramp.x0, z1: q.ramp.z0, x2: q.x, z2: q.zStart });
+    segs.push({ x1: q.x, z1: q.zStart, x2: q.x, z2: q.zEnd });
+    for (const g of (q.contourLeadIn || []).concat(q.contourLeadOut || [])) segs.push(g);
+    for (const g of segs) {
+      if (!Number.isFinite(g.x1) || !Number.isFinite(g.z1) || !Number.isFinite(g.x2) || !Number.isFinite(g.z2)) continue;
+      const arc = g.type === 'arc' && Number.isFinite(g.startAngle) && Number.isFinite(g.endAngle);
+      const n = Math.max(2, Math.ceil(Math.hypot(g.x2 - g.x1, g.z2 - g.z1) / 0.05));
+      for (let j = 0; j <= n; j++) {
+        const t = j / n;
+        let x, z;
+        if (arc) { const an = g.startAngle + (g.endAngle - g.startAngle) * t; x = g.cx + Math.sin(an) * g.r; z = g.cz + Math.cos(an) * g.r; }
+        else { x = g.x1 + (g.x2 - g.x1) * t; z = g.z1 + (g.z2 - g.z1) * t; }
+        if (Math.hypot(x - xs, z - zs) <= tol) return true;
+      }
+    }
+    return false;
+  };
+  let regionMarkForTrim = 0;
+  const trimLeadInTails = (from, xTop) => {
+    if (!Number.isFinite(xTop)) return;
+    for (let i = from; i < passes.length; i++) {
+      const p = passes[i];
+      if (!p || p.type !== 'long' || !Array.isArray(p.contourLeadIn) || p.contourLeadIn.length === 0) continue;
+      const li = p.contourLeadIn;
+      const tail = leadInTail(li, xTop);
+      if (!tail || (tail.length === li.length && tail[0].x1 === li[0].x1 && tail[0].z1 === li[0].z1)) continue;
+      const xs = tail[0].x1, zs = tail[0].z1;
+      let covered = false;
+      for (let k = regionMarkForTrim; k < from && !covered; k++) {
+        const q = passes[k];
+        if (q && q.type === 'long' && Number.isFinite(q.x) && pathNear(q, xs, zs, 0.1)) covered = true;
+      }
+      if (!covered) continue;
+      p.contourLeadIn = tail;
+      p.leadInTrimmed = true;
+    }
+  };
   for (const _region of _regions) {
   // ── VLASTNÍ ŽEBŘÍK HLOUBEK TOHOTO ÚSEKU (viz buildDepths výš) ──────────
   const _zHiR = Math.min(_region.zHi, rangeClipZ ? rangeClipZ.zHi : Infinity);
@@ -740,6 +813,7 @@ export function genLongPasses(ctx) {
   // Začátek průchodů TOHOTO regionu — odložené zanoření se řadí na konec
   // svého regionu, ne až za celý program (viz konec smyčky regionů).
   const regionMark = passes.length;
+  regionMarkForTrim = regionMark;
   // Vjezd na hranici rozsahu Z (machiningRange.zHi): kotva rampy se
   // ŘETĚZÍ mezi hloubkami (viz níž), ne restartuje pokaždé od povrchu —
   // jinak by každá hlubší vrstva znovu rampovala i tu ČÁST, kterou už
@@ -786,8 +860,88 @@ export function genLongPasses(ctx) {
   // pozná, že posloupnost přestřelila nedosažitelnou hranici (viz uzavírací
   // vrstva na konci hloubkové smyčky).
   let lastDepthWithPasses = null;
-  // Hloubky, za kterými už se dno hledalo (viz „POSLEDNÍ VRSTVA NA DNĚ" níž).
-  const floorClosedAfter = new Set();
+  // Dna, která už se do žebříku vložila (viz „POSLEDNÍ VRSTVA NA DNĚ" níž).
+  const floorsDone = new Set();
+  // Dna mezi hloubkou `currentX` a poslední vrstvou (`lastDepthWithPasses`),
+  // která leží pod průchody té vrstvy: VODOROVNÉ úseky offsetové dráhy
+  // a nejnižší body vydutých oblouků. Hloubka jde o 0,02 mm nad dno: přesně
+  // na něm leží vodorovná čára skenu na hraně oblasti dílce. Projdou celou
+  // běžnou cestou — vjezd, řetěz ramp, držák. Nález uživatele 26. 9. 2026
+  // (R 10, úsek 2): vrstva X 19,409 nad dnem X 19,243 a drážka X 17,244 —
+  // „vynechává poslední vrstvu, když nemá hloubku ap". Polygon ji dělá
+  // (uzavírací krok řetězu), kulatá ne; polygon má uzavírání vlastní a jeho
+  // otisk se nemá hnout.
+  // `bowl`: jen dna v MISCE — z obou stran stoupá offset až k poslední
+  // vrstvě (nebo k hranici úseku), takže je hlubší vrstva nemůže objet
+  // dojezdem. Okno dna = souvislé Z kolem dna, kde hloubka `currentX`
+  // NEPROJDE (offset nad ní).
+  const collectFloors = (currentX, regZLo, regZHi, bowl) => {
+    const prevSpans = [];
+    for (let i = regionMark; i < passes.length; i++) {
+      const q = passes[i];
+      if (q && q.type === 'long' && Math.abs(q.x - lastDepthWithPasses) < 1e-6
+          && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd))
+        prevSpans.push({ lo: Math.min(q.zStart, q.zEnd), hi: Math.max(q.zStart, q.zEnd) });
+    }
+    const h = 0.25;
+    const side = (z0, dir) => {
+      // +1 stěna (až k poslední vrstvě / hranice úseku), −1 propad pod
+      // `currentX`, a konec okna.
+      let z = z0;
+      for (let k = 0; k < 4000; k++) {
+        const zn = z + dir * h;
+        if (zn < regZLo || zn > regZHi) return { wall: true, edge: dir > 0 ? Math.min(zn, regZHi) : Math.max(zn, regZLo) };
+        const x = offsetXAt(zn);
+        if (x === null || !(x > currentX + 1e-3)) return { wall: false, edge: zn };
+        if (x >= lastDepthWithPasses - 1e-3) return { wall: true, edge: zn };
+        z = zn;
+      }
+      return { wall: false, edge: z };
+    };
+    const floors = [];
+    const addFloor = (F, zA, zB) => {
+      if (!(F > currentX + 0.05 && F < lastDepthWithPasses - 0.1)) return;
+      if (floorsDone.has(F.toFixed(4))) return;
+      if (!prevSpans.some(sp => sp.lo < zB && sp.hi > zA)) return;
+      const lo = side(zA, -1), hi = side(zB, +1);
+      if (bowl && !(lo.wall && hi.wall)) return;
+      const w = { lo: lo.edge, hi: hi.edge };
+      const old = floors.find(f => Math.abs(f.F - F) < 1e-3);
+      if (old) old.wins.push(w);
+      else floors.push({ F, wins: [w] });
+    };
+    for (const sg of offsetPath || []) {
+      if (!sg.p1 || !sg.p2) continue;
+      if (sg.type === 'line') {
+        if (Math.abs(sg.p1.x - sg.p2.x) > 1e-6) continue;
+        const zA = Math.max(Math.min(sg.p1.z, sg.p2.z), regZLo), zB = Math.min(Math.max(sg.p1.z, sg.p2.z), regZHi);
+        if (zB - zA < dzScan) continue;
+        addFloor(sg.p1.x + 0.02, zA, zB);
+        continue;
+      }
+      // ── DNO V OBLOUKU (kruhové vybrání, 26. 9. 2026) ─────────────────────
+      // Vydutý oblouk má nejnižší bod UVNITŘ (sin úhlu = −1). Žebřík po `ap`
+      // ho podjede a nad ním zůstane čočka až skoro `ap` silná. Vrstva
+      // o 0,02 mm nad nejnižším bodem je krátká; celé dno pak objede nájezd
+      // a dojezd po kontuře jako u každé kapsy.
+      if (sg.type !== 'arc' || !Number.isFinite(sg.startAngle) || !Number.isFinite(sg.endAngle)
+          || !Number.isFinite(sg.cx) || !Number.isFinite(sg.cz) || !(sg.r > 0)) continue;
+      const a0 = Math.min(sg.startAngle, sg.endAngle), a1 = Math.max(sg.startAngle, sg.endAngle);
+      let aMin = null;
+      for (let k = -2; k <= 2 && aMin === null; k++) {
+        const a = -Math.PI / 2 + 2 * Math.PI * k;
+        if (a > a0 + 1e-6 && a < a1 - 1e-6) aMin = a;
+      }
+      if (aMin === null) continue;
+      const zBot = sg.cz + Math.cos(aMin) * sg.r;
+      if (!(zBot > regZLo && zBot < regZHi)) continue;
+      addFloor(sg.cx - sg.r + 0.02, zBot, zBot);
+    }
+    floors.sort((a, b) => b.F - a.F);
+    return floors;
+  };
+  // Okno dna → jen v něm jede poslední vrstva (viz „POSLEDNÍ VRSTVA NA DNĚ").
+  const floorWin = new Map();
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX, true);   // destička smí přejet osu — viz výš
@@ -799,6 +953,26 @@ export function genLongPasses(ctx) {
     if (_region.zHi !== Infinity && edgeDissolved(_region.zHiSurf, _region.zHiKind, _region.zHi, currentX)) continue;
     const regZHi = _region.zHi;
     const regZLo = regionFloorZ(_region, currentX, sz);
+    // ── POSLEDNÍ (TENČÍ) VRSTVA NA DNĚ — kulatá destička (26. 9. 2026) ──────
+    // Pravidlo 3: „Jediná vrstva, která smí být tenčí, je ta poslední — a ta
+    // se udělá vždy. Na dně nesmí zůstat víc než přídavek." Žebřík jde po
+    // celém `ap`, takže hloubka pod poslední vrstvou dno PODJEDE — a mezi
+    // poslední vrstvou a dnem zůstane zbytek menší než `ap` (viz
+    // `collectFloors` výš). Dno V MISCE (vybrání, drážka) se hlídá PŘED
+    // každou hloubkou: hloubka ho podjede, i když jinde (v sousedním údolí)
+    // řeže dál — nález uživatele 26. 9. 2026 (zprava, úsek 3: vybrání R 24,5
+    // mezi body 25–24, pod poslední vrstvou čočka 2,5 mm, protože hloubka
+    // X 29,666 řezala v údolí Z 81…83). Vrstva na dně pak jede jen v okně
+    // dna, jinde by byla tenká vrstva mezi dvěma plnými.
+    if (noseLiftL > 0 && lastDepthWithPasses !== null && lastDepthWithPasses - currentX > 0.1) {
+      const floors = collectFloors(currentX, regZLo, regZHi, true);
+      if (floors.length > 0) {
+        for (const f of floors) { floorsDone.add(f.F.toFixed(4)); floorWin.set(f.F.toFixed(4), f.wins); }
+        depths.splice(depthIdx, 0, ...floors.map(f => f.F));
+        depthIdx--;
+        continue;
+      }
+    }
     const effZMin = Math.max(machiningRange ? Math.max(sz.zMin, machiningRange.zLo) : sz.zMin, regZLo);
     // Vjezd patří tam, kde v tomto Z-okně SKUTEČNĚ začíná polotovar
     // (passEntryZ výš) — okno regionu i rozsah 📐 můžou začínat ve vzduchu.
@@ -872,7 +1046,7 @@ export function genLongPasses(ctx) {
     // (`sz.zMax`) — kružnice ho odtud ještě bere bokem; drží ho jen mez
     // úseku a rozsahu 📐.
     const zHiCircle = noseLiftL > 0
-      ? Math.min(regZHi, machiningRange ? machiningRange.zHi : Infinity, sz.zMax + noseLiftL)
+      ? Math.min(regZHi, machiningRange ? machiningRange.zHi : Infinity, sz.zMax + noseLiftL + 1)
       : rawZHi;
     if ((scan0.intervals.length === 0 || !scan0.firstOpen)
         && entryZ < zHiCircle - 1e-9 && noseLiftL > 0 && capTab) {
@@ -989,7 +1163,25 @@ export function genLongPasses(ctx) {
             }
           }
           if (reScan.firstOpen && reScan.intervals.length > 0) {
+            // ── CO LEŽÍ PŘED NOVÝM VJEZDEM, SE NEZAHAZUJE (26. 9. 2026) ─────
+            // Sken od `zCap` vidí jen to, co je za ním. Intervaly mezi
+            // původním vjezdem a `zCap` (kapsa, drážka) dřív zmizely s celou
+            // svou vrstvou. Nález uživatele 26. 9. 2026 (zleva, „✂ Po úsecích",
+            // úsek 2, R 10): po `N3270 G1 Z194.675` chyběly vrstvy 38,1 …
+            // 28,1 u stěny drážky — kotva zanoření utekla až za hrb (Z 265)
+            // a drážka se ztratila. Přidají se ZA intervaly od kotvy jako
+            // samostatné kusy; o jejich vjezdu rozhodne dělení podle vzduchu
+            // (`splitPocketsAtAir` níž) nebo kapsová větev.
+            // Interval, přes který `zCap` vede, se rozdělí: kus před ním zůstane
+            // (u osy zleva, 26. 9. 2026: vrstva X 8,095 v Z 356…369 vypadla
+            // a další vrstva brala 5 mm).
+            // Jen kulatá: u polygonu se na takové kusy nedostane držák (G-kód
+            // se nezměnil, přibyla jen hlášení „NEOBROBENO" na 17 dílech).
+            const before = intervals.filter(v => noseLiftL > 0 && v.zStart > zCap + dzScan)
+              .map(v => (v.zEnd >= zCap ? { ...v, blocked: true } : { ...v, zEnd: zCap, blocked: false }))
+              .map(v => ({ ...v, __preCap: true }));
             entryZ = zCap; intervals = reScan.intervals; firstOpen = reScan.firstOpen;
+            if (before.length > 0) intervals = intervals.concat(before);
           }
         }
         // ── KOTVA SE NAŠLA, ALE ŘEZAT SE NA NÍ NEDÁ (17. 9. 2026) ──────────
@@ -1083,9 +1275,34 @@ export function genLongPasses(ctx) {
       // najít vlastní kotvu (viz tam).
       if (zTry > zFloorEntry && zTry < iv0.zStart - 1e-9) { iv0.zStart = zTry; iv0.entryShifted = true; }
     }
+    // Poslední vrstva na dně jede jen ve svém okně (viz výš). Kus, jehož
+    // začátek okno uřízlo, začíná uprostřed materiálu → vjezd jako do kapsy.
+    const fWins = floorWin.get(currentX.toFixed(4));
+    if (fWins) {
+      const clipped = [];
+      let keepOpen = false;
+      intervals.forEach((v, i) => {
+        for (const w of fWins) {
+          const zS = Math.min(v.zStart, w.hi), zE = Math.max(v.zEnd, w.lo);
+          if (!(zS - zE > dzScan)) continue;
+          const cutStart = zS < v.zStart - 1e-9, cutEnd = zE > v.zEnd + 1e-9;
+          if (i === 0 && firstOpen && !cutStart && clipped.length === 0) keepOpen = true;
+          clipped.push({ ...v, zStart: zS, zEnd: zE, blocked: cutEnd ? false : v.blocked });
+        }
+      });
+      clipped.sort((a, b) => b.zStart - a.zStart);
+      intervals = clipped;
+      firstOpen = keepOpen && intervals.length > 0;
+    }
     // Kapsa za hrbem přes vzduch → kusy se vjezdem ze vzduchu (pravidlo 7,
     // ops/long/airPieces.js).
-    intervals = splitPocketsAtAir(intervals, firstOpen, stockCrossingsAt(currentX, sz));
+    // U kulaté destičky rozhoduje KRUŽNICE nosu, ne sloupec pod jeho spodkem:
+    // materiál za stěnou, kde vrstva končí, bere bok nosu (viz
+    // `stockCrossingsCircleAt` výš), a kapsa, jejíž začátek je celý ve vzduchu,
+    // se najíždí ze vzduchu (`airLead`).
+    intervals = splitPocketsAtAir(intervals, firstOpen,
+      noseLiftL > 0 ? stockCrossingsCircleAt(currentX) : stockCrossingsAt(currentX, sz),
+      { airLead: noseLiftL > 0 });
     intervals.forEach((iv, idx) => {
       // Vynech triviálně krátké průchody (nic neuříznou).
       if (iv.zStart - iv.zEnd < dzScan) return;
@@ -1169,6 +1386,7 @@ export function genLongPasses(ctx) {
       }
       // Kapsa za bossem kontury — viz ops/long/pocketPass.js.
       const cnt = { partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips };
+      const nBeforePocket = passes.length;
       emitPocketInterval({
         prms, passes, step, dzScan, currentX, idx, intervals, effZMin,
         effPlungeTanL, traceFloorL, maxStockX, isParting, partingNoDress, w2RL,
@@ -1189,6 +1407,9 @@ export function genLongPasses(ctx) {
         } : null,
       });
       ({ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips } = cnt);
+      if (iv.__preCap) for (let k = nBeforePocket; k < passes.length; k++) passes[k].__preCap = true;
+      if (noseLiftL > 0) trimLeadInTails(nBeforePocket, Math.min(currentX + step,
+        depthIdx > 0 && depths[depthIdx - 1] > currentX ? depths[depthIdx - 1] : Infinity));
     });
     // Pokud je Z-rozsah aktivní a jeho horní hrana je uvnitř polotovaru
     // (scanIntervals nevrátí žádné intervaly), vygenerujte rampový
@@ -1443,45 +1664,16 @@ export function genLongPasses(ctx) {
         passes.push(closePass);
       }
     }
-    // ── POSLEDNÍ (TENČÍ) VRSTVA NA DNĚ — kulatá destička (26. 9. 2026) ──────
-    // Pravidlo 3: „Jediná vrstva, která smí být tenčí, je ta poslední — a ta
-    // se udělá vždy. Na dně nesmí zůstat víc než přídavek." Žebřík jde po
-    // celém `ap`, takže hloubka pod poslední vrstvou dno PODJEDE a nevydá
-    // nic — a mezi poslední vrstvou a dnem zůstane zbytek menší než `ap`.
-    // Uzavření výš to řeší jen u otevřeného vjezdu zprava; kapsa (drážka za
-    // hrbem) zůstala bez poslední vrstvy. Nález uživatele 26. 9. 2026 (R 10,
-    // úsek 2): vrstva X 19,409 nad dnem X 19,243 a drážka X 17,244 —
-    // „vynechává poslední vrstvu, když nemá hloubku ap". Polygon ji dělá
-    // (uzavírací krok řetězu), kulatá ne.
-    // Dna = VODOROVNÉ úseky offsetové dráhy mezi touhle hloubkou a poslední
-    // vrstvou, které leží pod průchody té vrstvy v tomhle úseku. Vloží se
-    // do žebříku místo téhle (prázdné) hloubky a projdou celou běžnou
-    // cestou — vjezd, řetěz ramp, držák. Hloubka jde o 0,02 mm nad dno:
-    // přesně na něm leží vodorovná čára skenu na hraně oblasti dílce.
-    // Jen kulatá: polygon má uzavírání vlastní a jeho otisk se nemá hnout.
+    // Dno MIMO misku (plošina, osazení) se uzavírá až tehdy, když hloubka
+    // pod ním nevydala NIC: jinak ho objede dojezd „bez schodků" hlubší
+    // vrstvy a vrstva na dně by byla navíc (tenká vrstva mezi plnými).
+    // Vloží se místo téhle (prázdné) hloubky.
     if (passes.length === passMark && noseLiftL > 0 && lastDepthWithPasses !== null
-        && lastDepthWithPasses - currentX > 0.1 && !floorClosedAfter.has(lastDepthWithPasses)) {
-      floorClosedAfter.add(lastDepthWithPasses);
-      const prevSpans = [];
-      for (let i = regionMark; i < passes.length; i++) {
-        const q = passes[i];
-        if (q && q.type === 'long' && Math.abs(q.x - lastDepthWithPasses) < 1e-6
-            && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd))
-          prevSpans.push({ lo: Math.min(q.zStart, q.zEnd), hi: Math.max(q.zStart, q.zEnd) });
-      }
-      const floors = [];
-      for (const sg of offsetPath || []) {
-        if (sg.type !== 'line' || !sg.p1 || !sg.p2 || Math.abs(sg.p1.x - sg.p2.x) > 1e-6) continue;
-        const F = sg.p1.x + 0.02;
-        if (!(F > currentX + 0.05 && F < lastDepthWithPasses - 0.1)) continue;
-        const zA = Math.max(Math.min(sg.p1.z, sg.p2.z), regZLo), zB = Math.min(Math.max(sg.p1.z, sg.p2.z), regZHi);
-        if (zB - zA < dzScan) continue;
-        if (!prevSpans.some(sp => sp.lo < zB && sp.hi > zA)) continue;
-        if (!floors.some(f => Math.abs(f - F) < 1e-3)) floors.push(F);
-      }
+        && lastDepthWithPasses - currentX > 0.1) {
+      const floors = collectFloors(currentX, regZLo, regZHi, false);
       if (floors.length > 0) {
-        floors.sort((a, b) => b - a);
-        depths.splice(depthIdx, 1, ...floors);
+        for (const f of floors) floorsDone.add(f.F.toFixed(4));
+        depths.splice(depthIdx, 1, ...floors.map(f => f.F));
         depthIdx--;
         continue;
       }
@@ -1742,6 +1934,16 @@ export function genLongPasses(ctx) {
             || (at > regionMark && passes[at - 1].noRetract))) at = passes.length;
     passes.splice(at, 0, ...rcSteps);
   }
+  // Kus vrstvy před `zCap` (viz výš), který celý projede dobírací řetěz ramp
+  // na téže hloubce, by jel podruhé vzduchem (pravidlo 5) — zahodí se.
+  for (let i = passes.length - 1; i >= regionMark; i--) {
+    const p = passes[i];
+    if (!p || !p.__preCap) continue;
+    delete p.__preCap;
+    const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+    if (passes.some((q, qi) => qi >= regionMark && q && q.rampCompletion && Math.abs(q.x - p.x) < 1e-6
+        && Math.min(q.zStart, q.zEnd) <= lo + 0.05 && Math.max(q.zStart, q.zEnd) >= hi - 0.05)) passes.splice(i, 1);
+  }
   // Přesun odloženého zanoření na konec TOHOTO REGIONU (stabilně, pořadí
   // uvnitř skupin zůstává) — „co je nahoře, má přednost". Region je vlastní
   // Z-zóna dílu: odsouvat zanoření až za VŠECHNY ostatní regiony nemá důvod
@@ -1969,7 +2171,8 @@ export function genLongPasses(ctx) {
     // ops/long/humpOrder.js.
     // Dojezd z kapsy nepřejíždí hrb dřív, než je údolí hotové —
     // ops/long/pocketHumpSplit.js.
-    const ordered = orderByHumps(splitPocketLeadOutsOverHumps(passes.slice(regionMark), step), offsetXAt);
+    const ordered = orderByHumps(splitPocketLeadOutsOverHumps(passes.slice(regionMark), step), offsetXAt,
+      { tailStep: noseLiftL > 0 ? step : 0 });
     passes.length = regionMark;
     // DRŽÁK PO PŘEŘAZENÍ. Průchod odsunutý za hrb jede po jiném materiálu,
     // než s jakým ho hlídání držáku plánovalo (v původním pořadí). Prověří se

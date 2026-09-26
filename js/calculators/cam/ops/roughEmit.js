@@ -238,7 +238,10 @@ calc.passes.forEach((pass, i) => {
       // o Vůli + R nad cílem — u R 10 to bylo 11 mm, takže se ke každé rampě
       // sjíždělo 4–6 mm posuvem vzduchem (pravidlo 5, díl uživatele
       // 26. 9. 2026, drážka úseku 2).
-      const stop = pass.rampEntryClear && pass.ramp && typeof rapidStopXAt === 'function'
+      // Totéž u nájezdu po kontuře zkráceného na ocas pod mělčí vrstvou
+      // (`leadInTrimmed`, ops/long/humpOrder.js): nad jeho začátkem je
+      // obrobeno, sjíždět k němu 4,5 mm posuvem by byl posuv vzduchem.
+      const stop = ((pass.rampEntryClear && pass.ramp) || pass.leadInTrimmed) && typeof rapidStopXAt === 'function'
         ? rapidStopXAt(entry.z) : null;
       safeRapidTo(entry.x, entry.z, true, false, true,
         stop === null ? null : Math.min(rapidStopX, Math.max(stop - entry.x, 0)));

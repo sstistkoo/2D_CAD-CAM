@@ -143,6 +143,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – kulatá destička: vrstvy za koncem vrstvy, u osy a poslední vrstva
+  ve vybrání.** Nálezy uživatele 26. 9. 2026 (R 10, ap 2,5, „✂ Po úsecích"):
+  (1) zleva, úsek 2 — po `N3270 G1 Z194.675` chyběly vrstvy 38,1 … 28,1 u
+  stěny drážky. Blok polotovaru Z 196…205 leží za koncem vrstvy, pod spodkem
+  nosu je vzduch a bere ho BOK kružnice nosu; sken se ptal jen na sloupec pod
+  spodkem nosu a kotva zanoření (`zCap`) utekla za hrb, takže se interval
+  u stěny zahodil. Teď se u kulaté rozhoduje podle siluety polotovaru
+  rozšířené o R (`stockCrossingsCircleAt`, `airPieces.js` `airLead`) a
+  intervaly před `zCap` se nezahazují — obecně, ne jen pro tenhle díl.
+  (2) Tamtéž u osy vypadla vrstva X 8,095 (kotva uvnitř intervalu) a další
+  vrstva brala 5 mm — kus před kotvou teď zůstane. (3) Zprava, úsek 3 — ve
+  vybrání R 24,5 mezi body 25–24 zůstala pod poslední vrstvou čočka 2,4 mm:
+  dno v oblouku se nehlídalo a hloubka pod ním řezala v sousedním údolí.
+  Poslední vrstva na dně se teď hledá i v nejnižším bodě vydutého oblouku a
+  u dna v misce před každou hloubkou (jede jen ve svém okně, jinde by byla
+  tenkou vrstvou mezi plnými). (4) Nájezd po kontuře se zkrátí na část pod
+  mělčí vrstvou, když je nad ní obrobeno — kolmý sjezd `G1 X37.166` (P6) je
+  pryč a ke dnu vybrání se sjíždí po oblouku, ne 3,4 mm posuvem vzduchem.
+  Klín vedle klesající stěny strmější než 45° (u bodů 7/6/5 zprava, za hrbem
+  zleva) zůstává podle pravidla 6 — vzít ho jde jen kolmým zanořením.
+  Otisk: změnil se jen `part-22-round-r10` (vybrání dobráno, úběr +98 mm²,
+  kontrola pravidel 33 → 31 porušení), kolize 0. Test
+  `tests/cam-round-layers-floor.test.js`.
 - **CAM – kulatá destička, „✂ Po úsecích" (úsek 2 na zbytku po úseku 1).**
   Tři nálezy uživatele 26. 9. 2026: (1) `N2620 G1 X27.795` — sjezd na začátek
   rampy do drážky škrábl zadní stranou nosu R 10 stěnu zbytku po úseku 1
