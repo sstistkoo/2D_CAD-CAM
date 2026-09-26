@@ -845,7 +845,10 @@ export function generateAutoGCode(S, calc) {
     }
     emit(`G1 X${xDia(tx)} F${prms.feed}`);
   };
-  const emitDescendX = (fromX, tx, tz, touch) => {
+  // `stopX` = odstup, na kterém se rychloposuv zastaví nad cílem (výchozí
+  // Vůle + R). Volající, který VÍ, že celá kružnice nosu je u cíle ve
+  // vzduchu (viz `rampEntryClear` v ops/roughEmit.js), smí poslat menší.
+  const emitDescendX = (fromX, tx, tz, touch, stopX = rapidStopX) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     // COUVNUTÍ RAMPY PATŘÍ PŘED SJEZD V X. Dokud se emitovalo až za ním,
     // vypadal příjezd takhle (nález uživatele 10. 9. 2026, „šílené dráhy"):
@@ -867,7 +870,7 @@ export function generateAutoGCode(S, calc) {
       if (surf !== null) { descend(Math.min(fromX, Math.max(tx, surf))); return; }
     }
     if (touch && fromX - tx > 1e-6) {
-      descend(fromX - tx > rapidStopX + 1e-6 ? tx + rapidStopX : fromX);
+      descend(fromX - tx > stopX + 1e-6 ? tx + stopX : fromX);
     } else if (Math.abs(fromX - tx) > 1e-6) {
       emit(`G0 X${xDia(tx)}`);
     }
@@ -915,18 +918,19 @@ export function generateAutoGCode(S, calc) {
   // zápichu skrz odlitkovou kůru). Čelní PŘEJEZDY ho vypínají (false) — tam je
   // dotyk se sousedním neobrobeným Z INHERENTNÍ šířkou nosu, ne order-dependent
   // kolize, a konverze na posuv by jen nafoukla čas (viz Fáze 4, face-casting).
-  const safeRapidTo = (tx, tz, touch = false, forceUp = false, feedThroughStock = true) => {
+  const safeRapidTo = (tx, tz, touch = false, forceUp = false, feedThroughStock = true, stopX = null) => {
     const sameX = Math.abs(tx - cur.x) < 1e-6;
     const sameZ = Math.abs(tz - cur.z) < 1e-6;
     if (sameX && sameZ) { setPos(tx, tz); return; }
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
+    const rStop = stopX === null ? rapidStopX : stopX;
     // Sjezd v X na cíl: s touch zastaví rychloposuv o vůli výš a dojede G1.
     // Fáze 4: sjezd na hloubku v SOLIDNÍM odlitku posuvem, ne rychloposuvem
     // (sdíleno s přesunem v kapse — viz `emitDescendX` výš).
-    const descendTo = (fromX) => emitDescendX(fromX, tx, tz, touch);
+    const descendTo = (fromX) => emitDescendX(fromX, tx, tz, touch, rStop);
     // Rychloposuvová část cíle: s touch končí rapid o vůli výš (zbytek
     // sjede posuvem) — proti zbytkovému polotovaru se testuje jen ona.
-    const rTx = touch ? tx + rapidStopX : tx;
+    const rTx = touch ? tx + rStop : tx;
     // KDE RYCHLOPOSUV OPRAVDU SKONČÍ. `rTx` je jen „cíl + vůle"; sjezd v X ale
     // dojede `descendTo` → `emitDescendX`, a ten při náraze na zbytek zastaví
     // rychloposuv už na povrchu (+ Stop rychlop. před čarou) a zbytek dojede
@@ -1041,10 +1045,10 @@ export function generateAutoGCode(S, calc) {
       // X19.911`) — přesně `Vůle X + R`. `emitFeedToDepth` má všechna
       // hlídání i fallback na dnešní radiální sjezd, takže tvary bez
       // `rampedApproach` se nehnou.
-      if (cur.x - tx > rapidStopX + 1e-6) {
+      if (cur.x - tx > rStop + 1e-6) {
         // Přejezd v Z rovnou na začátek rampy — tahle větev si sjezd emituje
         // sama, takže reorder z `emitDescendX` na ni nedosáhne.
-        const startX = tx + rapidStopX;
+        const startX = tx + rStop;
         const plan = planFeedToDepth(startX, tx, tz, cur.x);
         emit(`G0 Z${(plan ? plan.zBack : tz).toFixed(3)}`);
         emit(`G0 X${xDia(startX)}`);
@@ -1086,7 +1090,7 @@ export function generateAutoGCode(S, calc) {
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
     rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
-    rapidStopX, rapidStopZ, rapidClrZGc,
+    rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,

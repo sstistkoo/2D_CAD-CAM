@@ -172,12 +172,34 @@ export function makeEntryRamp({
   // sjel svisle o celé R do pásma polotovaru (`N2340 G1 X17.794` s R1, čára
   // na X17,743, spodek nosu 16,794) a teprve pak začala rampa.
   const inStockBand = (p) => pointInLoop({ x: p.x - noseR, z: p.z }, stockLoopOffsetL) !== 'outside';
-  const stockEntryRamp = (X, zEntry) => {
+  // ── KULATÁ: ZAČÁTEK RAMPY MĚŘENÝ CELOU KRUŽNICÍ NOSU (26. 9. 2026) ──────
+  // `atResidTop` porovnává programovaný bod (STŘED nosu) s POVRCHEM zbytku.
+  // U kulaté destičky tak „vstup je nad zbytkem" vyjde, i když spodek nosu
+  // leží až o R pod povrchem — rampa se nevydá a kapsa bez nájezdu po kontuře
+  // se zahodí (drážka úseku 2 dílu uživatele 26. 9. 2026: vrstvy 26,9…19,4
+  // v Z 148…195 vynechané). Globálně to přepnout nejde — změřeno: ostatní
+  // vjezdy by se začaly sjíždět svisle bokem nosu do materiálu (P6).
+  // Proto volitelně (`noseAware`): vjezd v materiálu = spodek nosu pod
+  // zbytkem, a rampa začíná až tam, kde je CELÁ kružnice nosu nad zbytkem
+  // — svislý sjezd k ní pak jede vzduchem i bokem nosu.
+  const circleClearOfResid = (q) => {
+    const R = noseLiftX;
+    for (let z = q.z - R; z <= q.z + R + 1e-9; z += DZ_CAP) {
+      const top = residTopSafe(z);
+      if (top !== null && top > q.x - Math.sqrt(Math.max(R * R - (z - q.z) ** 2, 0)) + 0.02) return false;
+    }
+    return true;
+  };
+  const stockEntryRamp = (X, zEntry, opts = null) => {
     if (!stockLoopOffsetL) return null;
+    const noseAware = !!(opts && opts.noseAware) && noseLiftX > 0;
     if (pointInLoop({ x: X - noseR + 0.05, z: zEntry - 0.05 }, stockLoopOffsetL) !== 'inside') return null;
     // Vstup leží NAD zbytkem (mělčí vrstvy ho odebraly) → žádná kůra k
     // prorampování není; volající si najede po kontuře jako jindy.
-    if (atResidTop({ x: X + 0.05, z: zEntry - 0.05 })) return null;
+    if (atResidTop({ x: X + 0.05 - (noseAware ? noseLiftX : 0), z: zEntry - 0.05 })) return null;
+    const done = noseAware
+      ? (q) => !inStockBand(q) || circleClearOfResid(q)
+      : (q) => !inStockBand(q) || atResidTop(q);
     const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
     let t = 0;
     for (let i = 0; i < 300; i++) {
@@ -191,12 +213,12 @@ export function makeEntryRamp({
       // zajíždějící 15 mm pod konturu (pocket-wall-at-plunge-angle).
       // Taková rampa neexistuje: null, ať volající zvolí jinou cestu.
       if (blockedAt(p.x, p.z)) return null;
-      if (!inStockBand(p) || atResidTop(p)) {
+      if (done(p)) {
         let lo = tPrev, hi = t;
         for (let k = 0; k < 24; k++) {
           const m = (lo + hi) / 2;
           const q = at(m);
-          if (!inStockBand(q) || atResidTop(q)) hi = m; else lo = m;
+          if (done(q)) hi = m; else lo = m;
         }
         const q = at(hi);
         // `surfX` = výška MATERIÁLU na začátku rampy (střed nosu zmenšený

@@ -786,6 +786,8 @@ export function genLongPasses(ctx) {
   // pozná, že posloupnost přestřelila nedosažitelnou hranici (viz uzavírací
   // vrstva na konci hloubkové smyčky).
   let lastDepthWithPasses = null;
+  // Hloubky, za kterými už se dno hledalo (viz „POSLEDNÍ VRSTVA NA DNĚ" níž).
+  const floorClosedAfter = new Set();
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX, true);   // destička smí přejet osu — viz výš
@@ -849,6 +851,36 @@ export function genLongPasses(ctx) {
     // přesně jako ve větvi `blockedAt` uvnitř `passEntryZ`. Opravuje se
     // i `effZMax`, ne jen `entryZ` — na `entryZ` visí `entryCapped`, ten
     // vypíná uzavírací bisekci a díra by vyšla VĚTŠÍ (5,0 místo 4,097 mm).
+    // ── KULATÁ: KRAJ MATERIÁLU BERE BOK NOSU, NE JEHO SPODEK (26. 9. 2026) ──
+    // `passEntryZ` hledá kraj materiálu pod SPODKEM nosu (`X − noseLiftX`).
+    // U stěny hrbu tak vjezd padne skoro přímo na offset stěny a okno vyjde
+    // kratší než krok skenu — hloubka se pak přesune na kraj úseku, stane se
+    // z ní „kapsa" bez vjezdu a zahodí se. Kulatá destička ale materiál vedle
+    // stěny bere BOKEM (kružnice R), takže vrstva má začít tam, kde se
+    // kružnice materiálu teprve dotkne, a dojet ke stěně. Nález uživatele
+    // 26. 9. 2026 (R 10, úsek 2): vrstvy 29,409 … 19,409 u pravé stěny hrbu
+    // Z 138 vypadly, zatímco polygon tam sjel až na dno. Vjezd se hledá
+    // nad kružnicí proti PLÁNOVACÍ siluetě polotovaru (bez odečtu hotových
+    // vrstev — radši o kus víc vzduchu než sjezd do materiálu).
+    if (scan0.intervals.length === 0 && entryZ < rawZHi - 1e-9 && noseLiftL > 0 && capTab) {
+      const R = noseLiftL;
+      const circleClear = (zc) => {
+        for (let z = zc - R; z <= zc + R + 1e-9; z += DZ_CAP) {
+          const t = stockTopTab(z);
+          if (t !== null && t > currentX - Math.sqrt(Math.max(R * R - (z - zc) ** 2, 0)) + 0.01) return false;
+        }
+        return true;
+      };
+      let zc = entryZ;
+      const zMaxC = Math.min(rawZHi, entryZ + R + 1);
+      while (zc < zMaxC && !circleClear(zc)) zc += DZ_CAP;
+      if (zc < zMaxC && zc > entryZ + 1e-9) {
+        const sC = scan(currentX, zc, effZMin, true);
+        if (sC.firstOpen && sC.intervals.length > 0 && sC.intervals[0].zStart - sC.intervals[0].zEnd >= dzScan) {
+          effZMax = zc; entryZ = zc; scan0 = sC;
+        }
+      }
+    }
     if (scan0.intervals.length === 0 && entryZ < rawZHi - 1e-9) {
       effZMax = rawZHi; entryZ = rawZHi;
       scan0 = scan(currentX, entryZ, effZMin, true);
@@ -1133,6 +1165,7 @@ export function genLongPasses(ctx) {
         notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
         residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
         gapAtSectionEdge: regZHi !== Infinity && Math.abs(entryZ - regZHi) < 1e-6,
+        noseLiftX: noseLiftL,
         // Klíč plátku `skipPocketsCuttingNothing` (dnes jen kulatá).
         newCutArea: ins.skipPocketsCuttingNothing ? newCutArea : null,
         // Klíč plátku `pocketLeadOutNoStep` (dnes jen kulatá): dojezd schodu.
@@ -1395,6 +1428,49 @@ export function genLongPasses(ctx) {
           if (lo.length > 0) closePass.contourLeadOut = lo;
         }
         passes.push(closePass);
+      }
+    }
+    // ── POSLEDNÍ (TENČÍ) VRSTVA NA DNĚ — kulatá destička (26. 9. 2026) ──────
+    // Pravidlo 3: „Jediná vrstva, která smí být tenčí, je ta poslední — a ta
+    // se udělá vždy. Na dně nesmí zůstat víc než přídavek." Žebřík jde po
+    // celém `ap`, takže hloubka pod poslední vrstvou dno PODJEDE a nevydá
+    // nic — a mezi poslední vrstvou a dnem zůstane zbytek menší než `ap`.
+    // Uzavření výš to řeší jen u otevřeného vjezdu zprava; kapsa (drážka za
+    // hrbem) zůstala bez poslední vrstvy. Nález uživatele 26. 9. 2026 (R 10,
+    // úsek 2): vrstva X 19,409 nad dnem X 19,243 a drážka X 17,244 —
+    // „vynechává poslední vrstvu, když nemá hloubku ap". Polygon ji dělá
+    // (uzavírací krok řetězu), kulatá ne.
+    // Dna = VODOROVNÉ úseky offsetové dráhy mezi touhle hloubkou a poslední
+    // vrstvou, které leží pod průchody té vrstvy v tomhle úseku. Vloží se
+    // do žebříku místo téhle (prázdné) hloubky a projdou celou běžnou
+    // cestou — vjezd, řetěz ramp, držák. Hloubka jde o 0,02 mm nad dno:
+    // přesně na něm leží vodorovná čára skenu na hraně oblasti dílce.
+    // Jen kulatá: polygon má uzavírání vlastní a jeho otisk se nemá hnout.
+    if (passes.length === passMark && noseLiftL > 0 && lastDepthWithPasses !== null
+        && lastDepthWithPasses - currentX > 0.1 && !floorClosedAfter.has(lastDepthWithPasses)) {
+      floorClosedAfter.add(lastDepthWithPasses);
+      const prevSpans = [];
+      for (let i = regionMark; i < passes.length; i++) {
+        const q = passes[i];
+        if (q && q.type === 'long' && Math.abs(q.x - lastDepthWithPasses) < 1e-6
+            && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd))
+          prevSpans.push({ lo: Math.min(q.zStart, q.zEnd), hi: Math.max(q.zStart, q.zEnd) });
+      }
+      const floors = [];
+      for (const sg of offsetPath || []) {
+        if (sg.type !== 'line' || !sg.p1 || !sg.p2 || Math.abs(sg.p1.x - sg.p2.x) > 1e-6) continue;
+        const F = sg.p1.x + 0.02;
+        if (!(F > currentX + 0.05 && F < lastDepthWithPasses - 0.1)) continue;
+        const zA = Math.max(Math.min(sg.p1.z, sg.p2.z), regZLo), zB = Math.min(Math.max(sg.p1.z, sg.p2.z), regZHi);
+        if (zB - zA < dzScan) continue;
+        if (!prevSpans.some(sp => sp.lo < zB && sp.hi > zA)) continue;
+        if (!floors.some(f => Math.abs(f - F) < 1e-3)) floors.push(F);
+      }
+      if (floors.length > 0) {
+        floors.sort((a, b) => b - a);
+        depths.splice(depthIdx, 1, ...floors);
+        depthIdx--;
+        continue;
       }
     }
     if (passes.length > passMark) lastDepthWithPasses = currentX;

@@ -579,13 +579,13 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/roughLong.js` | Generátor průchodů — PODÉLNÉ hrubování (zleva = totéž zrcadleně přes `zMirror`). Pomocné vrstvy jsou v `ops/long/` a skládají se v PEVNÉM pořadí: `runScan` → `depthTabs` → `residualGuard` → `holderFit` → `entryRamp` → `intervalScan` |
 | `cam/ops/shared.js` | Prahy a vůle sdílené oběma generátory (`HOLDER_FIT_TOL`, `ENTRY_FIT_TOL`, …) |
 | `cam/ops/long/openPass.js` | `emitOpenInterval()` — první větev hloubkové smyčky: otevřený vjezd zprava. Kotvu rampy dostává v objektu `rampSt` (tělo má `return;` uprostřed) |
-| `cam/ops/long/pocketPass.js` | `emitPocketInterval()` — druhá větev: kapsa za bossem se zanořením rampou. Počítadla dostává v objektu `cnt`; `iv` je uvnitř `let`, protože se přepisuje |
+| `cam/ops/long/pocketPass.js` | `emitPocketInterval()` — druhá větev: kapsa za bossem se zanořením rampou. Počítadla dostává v objektu `cnt`; `iv` je uvnitř `let`, protože se přepisuje. U kulaté destičky (`noseLiftX > 0`) kapsa bez nájezdu po kontuře zkusí rampu z povrchu (`noseEntryRamp`) i navázání na mělčí vrstvu (`chainFromPrev`) a vezme tu, která začne víc vpravo; takový průchod nese `rampEntryClear` (emise k němu sjede rychloposuvem podle kružnice nosu) |
 | `cam/ops/long/segUtils.js` | Čisté funkce nad poli segmentů — bez vazby na stav generátoru |
 | `cam/ops/long/runScan.js` | `makeRunScan()` — „stojí tam překážka?" a „kam až se dá jet rovně?"; závisí jen na offsetu kontury a siluetě, staví se PRVNÍ |
 | `cam/ops/long/depthTabs.js` | `makeDepthTabs()` — výškové tabulky po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha vyříznutá průchody |
 | `cam/ops/long/residualGuard.js` | `makeResidualGuard()` — polygonový model zbytku (order-aware hlídání držáku); umí TUNEL, který výškové pole neumí |
 | `cam/ops/long/holderFit.js` | `makeHolderFit()` — „vejde se držák?" plošně nad tabulkami z `depthTabs.js`. Podlaha `cutFloorTab` (a vlastní řez zákroku) je v souřadnicích DRÁHY (střed nosu) — před srovnáním se siluetou polotovaru a spodkem držáku se snižuje o `noseLiftX` (kulatá = R), stejně jako `residTopSafe` v `entryRamp.js` |
-| `cam/ops/long/entryRamp.js` | `makeEntryRamp()` — kde smí ZAČÍT a kam smí DOJET zanořovací rampa (kotva vjezdu, `findRampOutTarget`, `findSteepCorner`) |
+| `cam/ops/long/entryRamp.js` | `makeEntryRamp()` — kde smí ZAČÍT a kam smí DOJET zanořovací rampa (kotva vjezdu, `findRampOutTarget`, `findSteepCorner`). `stockEntryRamp(X, z, { noseAware: true })` měří vjezd SPODKEM nosu a začátek rampy celou kružnicí nosu nad zbytkem — jen pro kapsy kulaté destičky, globálně ne (svislé sjezdy bokem nosu, P6) |
 | `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; vždy booleovsky (zbytek polotovar − díl); klasický sken jen jako pojistka. Přepínače `booleanRoughing`/`regionRoughing`/`pathGenerator` zrušeny 24. 9. 2026 — jeden generátor |
 | `cam/ops/long/holderTrim.js` | `makeHolderTrim()` — ořez sledování kontury (leadIn/leadOut) obálkou držáku |
 | `cam/ops/long/plungeLines.js` | `makePlungeLines()` — paměť, kdo kudy už sjel po téže přímce zanoření |

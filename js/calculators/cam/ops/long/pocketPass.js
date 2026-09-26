@@ -24,7 +24,7 @@ export function emitPocketInterval(D) {
     holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
     residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
-    newCutArea, pocketLeadOut, gapAtSectionEdge,
+    newCutArea, pocketLeadOut, gapAtSectionEdge, noseLiftX = 0,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -72,6 +72,41 @@ export function emitPocketInterval(D) {
     }
     if (residEntryArea && residEntryArea(cand, [], Infinity) > 0.05) return null;
     return best;
+  };
+  // ── KULATÁ: RAMPA Z POVRCHU MĚŘENÁ CELÝM NOSEM (26. 9. 2026) ───────────
+  // Kapsa bez nájezdu po kontuře se dřív buď zahodila, nebo navázala na
+  // začátek mělčí vrstvy (`chainFromPrev`) — a ten u kulaté destičky leží
+  // o `ap` dál vlevo na každé vrstvě, takže řetěz narazil na stěnu dřív,
+  // než došel na dno (drážka úseku 2 dílu uživatele 26. 9. 2026: R 10,
+  // vrstvy X 26,9 → 21,9 začínaly Z 153,6 / 151,1 / 148,6 a X 19,4 už se
+  // nevešla). Polygon tam zanořuje z povrchu polotovaru napravo. Tady
+  // totéž: rampa z povrchu (`stockEntryRamp` s `noseAware` — začíná tam,
+  // kde je celá kružnice nosu nad zbytkem) na nejpravějším místě intervalu,
+  // odkud to jde. Rampa smí vzít nejvýš jednu vrstvu a držák se musí vejít
+  // podél celé rampy — jinak se vrací null a platí řetěz jako dřív.
+  const noseEntryRamp = (X, ivq) => {
+    if (!(noseLiftX > 0)) return null;
+    const reach = 2 * noseLiftX + 5;
+    for (let d = 0; d <= reach; d += 0.5) {
+      const zE = ivq.zStart - d;
+      if (zE <= ivq.zEnd + dzScan) break;
+      const er = stockEntryRamp(X, zE, { noseAware: true });
+      if (!er) continue;
+      if ((er.surfX ?? er.x0) - X > step + 0.05) continue;
+      const cand = { type: 'long', x: X, zStart: zE, zEnd: ivq.zEnd, ramp: { x0: er.x0, z0: er.z0 } };
+      const len = Math.hypot(zE - er.z0, X - er.x0);
+      const n = Math.max(1, Math.min(64, Math.ceil(len)));
+      let bad = false;
+      for (let k = 0; k <= n && !bad; k++) {
+        const t = k / n, zi = er.z0 + (zE - er.z0) * t, xi = er.x0 + (X - er.x0) * t;
+        const own = k > 0 ? [{ z1: er.z0, x1: er.x0, z2: zi, x2: xi }] : [];
+        if (holderFitArea(zi, xi, 0, own) > 0.05) bad = true;
+      }
+      if (bad) continue;
+      if (residEntryArea && residEntryArea(cand, [], Infinity) > 0.05) continue;
+      return { zStart: zE, ramp: { x0: er.x0, z0: er.z0 } };
+    }
+    return null;
   };
   // Nájezd po kontuře se OŘEŽE na to, co neleží pod hloubkou průchodu.
   //
@@ -393,10 +428,17 @@ if (!corner) {
     // Vrstva se proto vynechá — táž volba jako u vjezdu bez rampy
     // (docs/cam-pravidla-drah.md §3.1) — a nahlásí se.
     if (liFlat.length === 0) {
-      chainFlat = chainFromPrev(currentX, iv);
+      // Kulatá: rampa z povrchu (`noseEntryRamp` výš) i navázání na mělčí
+      // vrstvu — platí ten vjezd, který začne víc vpravo (vezme víc vrstvy).
+      const viaNose = noseEntryRamp(currentX, iv), viaChain = chainFromPrev(currentX, iv);
+      chainFlat = (viaNose && (!viaChain || viaNose.zStart > viaChain.zStart)) ? viaNose : viaChain;
       if (!chainFlat) { cnt.noEntrySkips++; return; }
       passFlat.zStart = chainFlat.zStart;
       passFlat.ramp = chainFlat.ramp;
+      // Začátek rampy je nad zbytkem celou kružnicí nosu (rampa z povrchu),
+      // nebo je to začátek mělčí vrstvy, kudy nos už projel — emise k němu
+      // smí sjet rychloposuvem až na odstup nad plánovacím zbytkem.
+      if (noseLiftX > 0) passFlat.rampEntryClear = true;
     } else passFlat.contourLeadIn = liFlat;
   }
   // Táž evidence jako u `passOpen` výš — přímka je sjetá, ať ji sjel

@@ -30,7 +30,7 @@ export function emitRoughing(E) {
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
     rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
-    rapidStopX, rapidStopZ, rapidClrZGc,
+    rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
@@ -231,7 +231,17 @@ calc.passes.forEach((pass, i) => {
       // nepravdivá). Je to skok z odjezdu předchozího průchodu → nájezd musí
       // jít BEZPEČNĚ NAD konturou (safeRapidTo), ne řezným G1 přímo na entry —
       // ten by protnul konturu („kapsa po kontuře" projíždí konturou).
-      safeRapidTo(entry.x, entry.z, true);
+      // `rampEntryClear` (kulatá, rampa do kapsy z povrchu / z mělčí vrstvy,
+      // ops/long/pocketPass.js): začátek rampy leží tam, kde je celá kružnice
+      // nosu nad zbytkem. Rychloposuv se proto zastaví podle KRUŽNICE nad
+      // plánovacím zbytkem (`rapidStopXAt`, + Stop rychloposuvu), ne pevně
+      // o Vůli + R nad cílem — u R 10 to bylo 11 mm, takže se ke každé rampě
+      // sjíždělo 4–6 mm posuvem vzduchem (pravidlo 5, díl uživatele
+      // 26. 9. 2026, drážka úseku 2).
+      const stop = pass.rampEntryClear && pass.ramp && typeof rapidStopXAt === 'function'
+        ? rapidStopXAt(entry.z) : null;
+      safeRapidTo(entry.x, entry.z, true, false, true,
+        stop === null ? null : Math.min(rapidStopX, Math.max(stop - entry.x, 0)));
     }
     for (const seg of li) {
       const fx = cur.x, fz = cur.z;

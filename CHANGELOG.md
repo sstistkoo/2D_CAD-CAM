@@ -143,6 +143,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – kulatá destička: úsek 2 — bok hrbu a drážka po vrstvách až na dno,
+  zanořování jako u polygonu.** Na dílu uživatele (R 10, úsek Z 101,9…195,3)
+  skončily vrstvy u pravé stěny hrbu na X 31,909 a vrstvy 29,409…19,409 se
+  zahodily („Zanořování: 8 vrstev vynecháno"). Tři příčiny: (1) vjezd se
+  hledal podle kraje materiálu pod spodkem nosu, u stěny tak vyšlo okno
+  0,1 mm — teď začíná tam, kde se materiálu dotkne kružnice nosu
+  (`roughLong.js`); (2) kapsa bez nájezdu po kontuře neměla rampu z povrchu,
+  protože `stockEntryRamp` srovnával střed nosu s povrchem — nově
+  `noseAware` a v kapse se vezme rampa z povrchu nebo řetěz z mělčí vrstvy,
+  co začne víc vpravo (`entryRamp.js`, `pocketPass.js`); (3) poslední tenčí
+  vrstva na rovném dně (zbytek < ap) chyběla — vloží se do žebříku
+  (`roughLong.js`, „POSLEDNÍ VRSTVA NA DNĚ", jen kulatá). K takovým rampám
+  se sjíždí rychloposuvem podle kružnice nosu (`rampEntryClear`), ne 4–6 mm
+  posuvem vzduchem. Polygon beze změny (otisk); `part-22-round-r10` úběr
+  +337 / +474 mm², kolize 0. Test `tests/cam-round-section2-groove.test.js`.
 - **CAM – poslední vrstva na ose (X 0) už neprojede dílem.** Booleovský sken
   intervalů (`ops/long/intervalScan.js`) na hloubce přesně X 0 vedl čáru po
   spodní hraně obalu zbytku a proužky nulové šířky po zjednodušení/Clipperu
