@@ -306,9 +306,27 @@ export function makeIntervalScan({
     if (!residual || residual.length === 0) return scanIntervals(X, zHiBound, zLoBound, mainScan);
     const eps = 1e-4;
     const intervals = [];
-    for (const iv of layerZIntervalsAtX(residual, X)) {
+    // ── HLOUBKA NA OSE (26. 9. 2026) ─────────────────────────────────────
+    // Obal zbytku i oblast dílce (`sampleOffsetRegion`) mají spodní hranu
+    // PŘESNĚ na ose (x = 0). Vodorovná čára x = 0 pak neprotíná zbytek, ale
+    // leží na jeho hraně — a po `polySimplify` (ε 0,01 mm) a Clipperu tam
+    // zůstávají proužky nulové šířky, které parita počítá jako materiál.
+    // Nález uživatele 26. 9. 2026 (kulatá R 10, čep r 9,117 v Z 243…345):
+    // poslední vrstva X 0 dostala interval Z 369,9 → 195,3, tedy „volno"
+    // přes celý čep, a `N1650 G0 X0.000` + `N1660 G1 Z251.767` jel středem
+    // nosu po ose skrz díl (zastavil ho až držák u kužele). Na X 0,001 byl
+    // interval pořád špatně (Z 252,4), od X 0,01 už správně (Z 356,93 = čelo).
+    // Sken se proto vede nad osou o víc, než je tolerance zjednodušení.
+    // Volno na hloubce X je podmnožinou volna na té vyšší (offset ≤ X ⇒
+    // offset ≤ Xs), takže konec u stěny se pak jen dopřesní na skutečné X —
+    // jinak by vrstva na ose dojela o setiny za offsetovou čáru čela.
+    const AXIS_SCAN_X = 0.05;
+    const Xs = Math.max(X, AXIS_SCAN_X);
+    for (const iv of layerZIntervalsAtX(residual, Xs)) {
       const zHi = Math.min(iv.zStart, zHiBound);
-      const zLo = Math.max(iv.zEnd, zLoBound);
+      let zLo = Math.max(iv.zEnd, zLoBound);
+      if (zHi - zLo < dzScan) continue;
+      if (Xs > X && zLo > zLoBound + eps) zLo = refineEngageZ(X, zHi, zLo);
       if (zHi - zLo < dzScan) continue;
       // blocked = levý konec bounduje kontura (nedosáhl spodní meze rozsahu) —
       // stejná sémantika jako u scan-line (jen poslední otevřený běh je false).

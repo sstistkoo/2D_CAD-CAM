@@ -143,6 +143,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – poslední vrstva na ose (X 0) už neprojede dílem.** Booleovský sken
+  intervalů (`ops/long/intervalScan.js`) na hloubce přesně X 0 vedl čáru po
+  spodní hraně obalu zbytku a proužky nulové šířky po zjednodušení/Clipperu
+  bral jako materiál. Na dílu uživatele (kulatá R 10, čep r 9,117 v Z 243…345)
+  tak „Průchod 31" jel `N1650 G0 X0.000` + `N1660 G1 Z251.767` — středem nosu
+  po ose skrz čep. Sken se teď vede o 0,05 mm nad osou a konec u čela se
+  dopřesní na skutečnou hloubku (`N1660 G1 Z356.931`). Test
+  `tests/cam-axis-layer.test.js`.
 - **CAM – kulatá destička: vrstvy v údolí za hrbem sjedou až na dno.**
   Hlídání držáku (`ops/long/holderFit.js`) bralo vyříznutou podlahu ve
   středu nosu jako povrch — vrstva přes vrchol hrbu (`N380 G1 X60.581
