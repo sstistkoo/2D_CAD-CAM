@@ -518,7 +518,7 @@ export function genLongPasses(ctx) {
       offsetStockTopXAtZ, step });
   // Vejde se držák? — viz ops/long/holderFit.js.
   const { residTopAt, holderFitArea, ownCutOf, holderFitAreaAlong,
-    holderFitsAt } = makeHolderFit({ T, prms });
+    holderFitsAt } = makeHolderFit({ T, prms, noseLiftX: noseLiftL });
   // Kotva vjezdu a rampa — viz ops/long/entryRamp.js.
   const { holderEntryCapZ, holderEntryReachZ, stockEntryRamp, findRampOutTarget,
     findSteepCorner, rampClearOfContour } = makeEntryRamp({ T, holderFitsAt, stockLoopOffsetL, plungeDirL,
@@ -1544,6 +1544,30 @@ export function genLongPasses(ctx) {
         : (rcFloor > traceFloorL
           ? Math.max(straightRunEndZ(stepX, stepZ, rcFloor), stockRunBackZ(stepX, stepZ, rcFloor))
           : rawEndZ);
+      // ── TUHLE VRSTVU UŽ JEDE HLOUBKOVÁ SMYČKA (26. 9. 2026) ─────────────
+      // `plungeRunCovers` výš zná jen kapsy, které sjely RAMPOU. Průchod
+      // údolím za hrbem ale do kapsy vjíždí NÁJEZDEM PO KONTUŘE (po přeřazení
+      // přes hrb ho `humpOrder.js` nahradí zanořením shora po téže přímce),
+      // takže ho evidence přímek nevidí — a řetěz pak celé údolí projel
+      // podruhé vzduchem. Nález uživatele 26. 9. 2026 (kulatá R 10): za
+      // „Průchodem 35" (`N1900 G1 Z195.278`) jel „Průchod 36 (oblouk G3)"
+      // a „zanoření v kapse" doslova po týchž vrstvách X 58,045 … 50,545.
+      // Krok se proto vynechá, když na TÉŽE hloubce v tomhle úseku už jede
+      // průchod, který pokryje celý jeho rozsah Z (začne na přímce nebo
+      // dřív a dojede aspoň tam, kam krok). Odložené vjezdy (`__deferEntry`)
+      // se nepočítají — o těch se rozhodne až na konci úseku a můžou vypadnout.
+      // Řetěz se tím přeruší: předchozí krok odjede normálně a další vydaný
+      // krok najede jako PRVNÍ (zvenku), ne `pocketReposition` z místa, kde
+      // nástroj nestojí.
+      if (passes.some((q, qi) => qi >= regionMark && q && q.type === 'long' && !q.rampCompletion
+          && !q.__deferEntry && Math.abs(q.x - stepX) < 1e-6
+          && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd)
+          && q.zStart >= stepZ - 0.05 && q.zEnd <= stepEndZ + 0.05)) {
+        if (rcSteps.length > 0) delete rcSteps[rcSteps.length - 1].noRetract;
+        first = true;
+        curX = stepX; curZ = stepZ;
+        continue;
+      }
       const stepPass = { type: 'long', x: stepX, zStart: stepZ, zEnd: stepEndZ, blocked: true };
       // Řetěz dorampování strmé stěny — stejná povaha jako entryRangeRamp:
       // kroky leží NAD SEBOU podél TÉŽE stěny, nejsou to nezávislé bossy.

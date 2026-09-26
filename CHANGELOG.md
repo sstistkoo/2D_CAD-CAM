@@ -143,6 +143,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – kulatá destička: vrstvy v údolí za hrbem sjedou až na dno.**
+  Hlídání držáku (`ops/long/holderFit.js`) bralo vyříznutou podlahu ve
+  středu nosu jako povrch — vrstva přes vrchol hrbu (`N380 G1 X60.581
+  Z216.792`) se zapsala o celé R výš, než kam řezala, a držák hlubších vrstev
+  údolí do domnělého materiálu „narazil". U R 10 tak údolí skončilo 4 vrstvy
+  pod vrcholem (`N1900 G1 Z195.278`, X50.545) a hlásilo se „Hlídání držáku:
+  10 odložené zanoření vynecháno". Podlaha se teď snižuje o `noseLiftX`
+  (polygon/upichovák beze změny). Zároveň dobírací řetěz ořízlé rampy
+  (`pendingRampCompletions`) vynechá krok, jehož vrstvu už jede hloubková
+  smyčka — údolí se už nejezdí podruhé vzduchem („Průchod 36 (oblouk G3)" +
+  „zanoření v kapse"). Test `tests/cam-round-valley-holder.test.js`.
 - **CAM – vrchol hrbu projetý dojezdem se taky počítá jako „dotčený".**
   První vrstva přes hrb vede dojezdem, ne tělem; `orderByHumps` to nepoznal
   a další vrstvu spároval s kusem za hrbem, takže se za hrb jelo dřív, než

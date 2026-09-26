@@ -13,12 +13,29 @@ import { insertReachZ } from '../../toolEnvelope.js';
 import { HOLDER_ENTRY_STOCK_GAP, HOLDER_FIT_TOL } from '../shared.js';
 
 /**
- * @param T     výškové tabulky z `makeDepthTabs()` — celý objekt, ne destrukturace
- * @param prms  parametry CAM
+ * @param T          výškové tabulky z `makeDepthTabs()` — celý objekt, ne destrukturace
+ * @param prms       parametry CAM
+ * @param noseLiftX  o kolik leží programovaný bod nad řezaným povrchem
+ *                   (kulatá destička = R, jinak 0 — viz `cam/inserts/`)
  */
-export function makeHolderFit({ T, prms }) {
+export function makeHolderFit({ T, prms, noseLiftX = 0 }) {
   const { DZ_CAP, holderZLoL, holderZHiL, capZ0, stockTopTab, holderBottomAt,
     syncCutFloor } = T;
+  // ── PODLAHA JE DRÁHA, POVRCH JE O `noseLiftX` NÍŽ (26. 9. 2026) ──────────
+  // `cutFloorTab` i vlastní řez zákroku (rampa, nájezd) jsou v souřadnicích
+  // DRÁHY — střed nosu. Silueta polotovaru (`stockTopTab`) i spodní hrana
+  // držáku (`tipX + holderBottomAt`) mluví o skutečném POVRCHU. U kulaté
+  // destičky průchod vykope až na `p.x − R`, takže bez převodu model tvrdil,
+  // že nad projetým místem stojí o celé R víc materiálu, než tam je.
+  //
+  // Nález uživatele 26. 9. 2026 (kulatá R 10, údolí za hrbem Z 196…221):
+  // vrstva přes vrchol hrbu `N380 G1 X60.581 Z216.792` se zapsala jako
+  // „materiál do X 60,58", držák hlubších vrstev údolí (spodek na X 58,045
+  // a níž) do něj „narazil" a vrstvy 48,045 … 40,545 se po přeřazení přes
+  // hrb zahodily — poslední vrstva zůstala na `N1900 G1 Z195.278` (X 50,545)
+  // a pod ní 10 mm materiálu. Táž oprava jako `residTopSafe` v entryRamp.js;
+  // ostatní tvary mají `noseLiftX = 0`, takže se jich to nedotkne.
+  const liftX = Math.max(noseLiftX || 0, 0);
   // Povrch ZBYTKU na Z (null = mimo polotovar). Bere VYŠŠÍ z obou sousedních
   // vzorků jako stockTopTab — svislé čelo mezi vzorky se nesmí přichytit
   // k prázdné straně.
@@ -33,7 +50,7 @@ export function makeHolderFit({ T, prms }) {
       if (i < 0 || i >= tab.length) continue;
       if (tab[i] < cut) cut = tab[i];
     }
-    return Math.min(t, cut);
+    return Math.min(t, cut - liftX);
   };
   // `tipX` = hloubka, na které ŠPIČKA nakonec stojí — NE výška povrchu.
   // Dokud se sem posílal povrch, kontrola odpovídala na otázku „vejde se
@@ -70,7 +87,7 @@ export function makeHolderFit({ T, prms }) {
         if (s < zA - 1e-9 || s > zB + 1e-9) continue;
         const dzs = sg.z2 - sg.z1;
         const u = Math.abs(dzs) < 1e-9 ? 0 : Math.min(1, Math.max(0, (s - sg.z1) / dzs));
-        const xs = sg.x1 + (sg.x2 - sg.x1) * u;
+        const xs = sg.x1 + (sg.x2 - sg.x1) * u - liftX;   // dráha → povrch
         if (xs < tt) tt = xs;
       }
       if (t === null) continue;

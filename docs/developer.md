@@ -584,7 +584,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/ops/long/runScan.js` | `makeRunScan()` — „stojí tam překážka?" a „kam až se dá jet rovně?"; závisí jen na offsetu kontury a siluetě, staví se PRVNÍ |
 | `cam/ops/long/depthTabs.js` | `makeDepthTabs()` — výškové tabulky po 0,25 mm: povrch offsetové čáry, spodní hrana držáku, podlaha vyříznutá průchody |
 | `cam/ops/long/residualGuard.js` | `makeResidualGuard()` — polygonový model zbytku (order-aware hlídání držáku); umí TUNEL, který výškové pole neumí |
-| `cam/ops/long/holderFit.js` | `makeHolderFit()` — „vejde se držák?" plošně nad tabulkami z `depthTabs.js` |
+| `cam/ops/long/holderFit.js` | `makeHolderFit()` — „vejde se držák?" plošně nad tabulkami z `depthTabs.js`. Podlaha `cutFloorTab` (a vlastní řez zákroku) je v souřadnicích DRÁHY (střed nosu) — před srovnáním se siluetou polotovaru a spodkem držáku se snižuje o `noseLiftX` (kulatá = R), stejně jako `residTopSafe` v `entryRamp.js` |
 | `cam/ops/long/entryRamp.js` | `makeEntryRamp()` — kde smí ZAČÍT a kam smí DOJET zanořovací rampa (kotva vjezdu, `findRampOutTarget`, `findSteepCorner`) |
 | `cam/ops/long/intervalScan.js` | `makeIntervalScan()` — hledání intervalů na hloubce; vždy booleovsky (zbytek polotovar − díl); klasický sken jen jako pojistka. Přepínače `booleanRoughing`/`regionRoughing`/`pathGenerator` zrušeny 24. 9. 2026 — jeden generátor |
 | `cam/ops/long/holderTrim.js` | `makeHolderTrim()` — ořez sledování kontury (leadIn/leadOut) obálkou držáku |
