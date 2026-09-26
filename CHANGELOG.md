@@ -143,6 +143,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – kulatá destička, „✂ Po úsecích" (úsek 2 na zbytku po úseku 1).**
+  Tři nálezy uživatele 26. 9. 2026: (1) `N2620 G1 X27.795` — sjezd na začátek
+  rampy do drážky škrábl zadní stranou nosu R 10 stěnu zbytku po úseku 1
+  (kontrola pravidel P6 90°): rampa `noseAware` teď začíná až tam, kde je
+  volná CELÁ kružnice nosu, ne jen její spodek (`entryRamp.js`; totéž hlídá
+  i kotva vjezdu `holderEntryCapZ`). (2) `N2860 G1 X23.388 Z148.391` —
+  poslední vrstva o 0,013 mm pod dnem skončila na schodu a emise ji spojila
+  se stěnou šikmou čarou „do kuželu": dojezd po dně se už nezahazuje jako
+  „kousek pod vrstvou", zahazují se jen krátké kusy (`pocketPass.js`).
+  (3) Po `N2340 G1 Z137.565` chyběly vrstvy 46,73 / 44,23 / 41,73 u pravé
+  stěny hrbu: vjezd podle kružnice nosu se hledá i tehdy, když sken něco
+  našel, ale ne u vjezdu, a okno pro střed nosu sahá o R za konec materiálu
+  pod spodkem nosu (`roughLong.js`). Otisk 29 fixtures beze změny; sweep
+  `part-22` s nakresleným nožem −23,5 mm² (vrstva, jejíž rampa by sjížděla
+  bokem nosu do materiálu), kolize 0. Test
+  `tests/cam-round-section2-parts.test.js`.
 - **CAM – kulatá destička: úsek 2 — bok hrbu a drážka po vrstvách až na dno,
   zanořování jako u polygonu.** Na dílu uživatele (R 10, úsek Z 101,9…195,3)
   skončily vrstvy u pravé stěny hrbu na X 31,909 a vrstvy 29,409…19,409 se

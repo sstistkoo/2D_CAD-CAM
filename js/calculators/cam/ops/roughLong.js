@@ -862,7 +862,20 @@ export function genLongPasses(ctx) {
     // Z 138 vypadly, zatímco polygon tam sjel až na dno. Vjezd se hledá
     // nad kružnicí proti PLÁNOVACÍ siluetě polotovaru (bez odečtu hotových
     // vrstev — radši o kus víc vzduchu než sjezd do materiálu).
-    if (scan0.intervals.length === 0 && entryZ < rawZHi - 1e-9 && noseLiftL > 0 && capTab) {
+    // Totéž, když sken sice něco našel, ale NE u vjezdu (první interval
+    // není otevřený): vjezd padl dovnitř offsetu stěny a interval u ní se
+    // přeskočil, našlo se jen něco dál vlevo. Nález uživatele 26. 9. 2026
+    // („✂ Po úsecích", úsek 2): po `N2340 G1 Z137.565` chyběly vrstvy
+    // 46,73 / 44,23 / 41,73 u pravé stěny hrbu — kraj ramena polotovaru pod
+    // spodkem nosu (Z 143,7) leží uvnitř offsetu stěny (Z 147,7).
+    // Okno pro STŘED nosu sahá o R za konec materiálu pod spodkem nosu
+    // (`sz.zMax`) — kružnice ho odtud ještě bere bokem; drží ho jen mez
+    // úseku a rozsahu 📐.
+    const zHiCircle = noseLiftL > 0
+      ? Math.min(regZHi, machiningRange ? machiningRange.zHi : Infinity, sz.zMax + noseLiftL)
+      : rawZHi;
+    if ((scan0.intervals.length === 0 || !scan0.firstOpen)
+        && entryZ < zHiCircle - 1e-9 && noseLiftL > 0 && capTab) {
       const R = noseLiftL;
       const circleClear = (zc) => {
         for (let z = zc - R; z <= zc + R + 1e-9; z += DZ_CAP) {
@@ -872,7 +885,7 @@ export function genLongPasses(ctx) {
         return true;
       };
       let zc = entryZ;
-      const zMaxC = Math.min(rawZHi, entryZ + R + 1);
+      const zMaxC = Math.min(zHiCircle, entryZ + R + 1);
       while (zc < zMaxC && !circleClear(zc)) zc += DZ_CAP;
       if (zc < zMaxC && zc > entryZ + 1e-9) {
         const sC = scan(currentX, zc, effZMin, true);

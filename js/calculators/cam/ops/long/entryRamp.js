@@ -49,6 +49,14 @@ export function makeEntryRamp({
     for (let z = zHi; z > zFloor; z -= DZ_CAP) {
       const top = stockTopTab(z);
       if (top === null || top <= X + 0.05) continue;              // vzduch / už pod hloubkou
+      // KULATÁ: KOTVA SE SJÍŽDÍ SVISLE CELOU KRUŽNICÍ NOSU (26. 9. 2026).
+      // Kotva leží spodkem nosu na povrchu, jenže nos je kružnice R: vedle
+      // kotvy stojí-li materiál výš (stěna zbytku po předchozím úseku), sjezd
+      // k ní ho zadní stranou destičky škrábne. Nález uživatele 26. 9. 2026
+      // („✂ Po úsecích", úsek 2, R 10): `G0 Z186.835` + `G1 X27.795` —
+      // kružnice sahala na Z 196,8 do stěny X ≈ 29,2 po úseku 1. Kotva se
+      // proto posune doleva, dokud není celá kružnice nad zbytkem.
+      if (noseLiftX > 0 && !circleClearOfResid({ x: top + noseLiftX, z })) continue;
       if (fallback === -Infinity && z - (top - X) / effPlungeTanL > zFloor + 0.05
           && holderFitsAt(z, top)) { fallback = z; if (loose) return z; }
       if (loose) continue;
@@ -197,8 +205,14 @@ export function makeEntryRamp({
     // Vstup leží NAD zbytkem (mělčí vrstvy ho odebraly) → žádná kůra k
     // prorampování není; volající si najede po kontuře jako jindy.
     if (atResidTop({ x: X + 0.05 - (noseAware ? noseLiftX : 0), z: zEntry - 0.05 })) return null;
+    // `noseAware` končí JEN na volné kružnici: spodek nosu nad povrchem
+    // nestačí — u stěny zbytku (napravo od začátku rampy) by k němu svislý
+    // sjezd škrábl zadní stranou destičky (úsek 2 „✂ Po úsecích" uživatele
+    // 26. 9. 2026: `G1 X27.795` na Z 186,835, kružnice do stěny na Z 196,2).
+    // Když se kružnice po přímce zanoření neuvolní, rampa odsud neexistuje
+    // a volající (`noseEntryRamp`) zkusí vjezd dál vlevo.
     const done = noseAware
-      ? (q) => !inStockBand(q) || circleClearOfResid(q)
+      ? (q) => circleClearOfResid(q)
       : (q) => !inStockBand(q) || atResidTop(q);
     const at = (t) => ({ x: X + t * plungeDirL.ux, z: zEntry + t * plungeDirL.uz });
     let t = 0;

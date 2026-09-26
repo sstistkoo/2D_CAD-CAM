@@ -210,7 +210,16 @@ export function emitPocketInterval(D) {
     const zOut = findLeadOutEndZ(pass.zEnd, prevX, nextX, traceFloorL);
     if (!Number.isFinite(zOut) || zOut >= pass.zEnd - 1e-6) return;
     const lo = holderTrimLeadOut(traceOffsetPath(pass.zEnd, zOut), true);
-    while (lo.length > 0 && lo[0].x2 <= currentX + 0.02) lo.shift();
+    // Úvodní kousek „pod vrstvou" se zahazuje jen KRÁTKÝ. Leží-li vrstva
+    // o setiny pod rovným dnem (žebřík ap padl těsně pod offset dna), je
+    // tím „kouskem" celé dno — a po jeho zahození emise spojila konec
+    // vrstvy s dojezdem na stěně JEDNOU ŠIKMOU čarou přes celé dno. Nález
+    // uživatele 26. 9. 2026 („✂ Po úsecích", úsek 2, R 10): vrstva X 19,230
+    // nad dnem X 19,243 skončila na schodu Z 168,29 a `G1 X23.388 Z148.391`
+    // jela 20 mm „do kuželu". Dlouhý úsek dna zůstane — vrstva po něm
+    // dojede rovně ke stěně (je na offsetové čáře, pod ni nesjede).
+    while (lo.length > 0 && lo[0].x2 <= currentX + 0.02
+           && Math.hypot(lo[0].x2 - lo[0].x1, lo[0].z2 - lo[0].z1) < 1) lo.shift();
     clipLeadOutToDepth(lo, prevX);
     if (lo.length > 0) pass.contourLeadOut = lo;
   };
