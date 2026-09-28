@@ -859,6 +859,20 @@ otře se o materiál desítky mm daleko od špičky. Takový odskok se proto vyd
 posledních pár mm dráhy. Když nevíš, jestli se to na tvém dílu uplatnilo,
 hledej v programu komentář `Výjezd v X (stěna)`.
 
+### Dokončování u zbytku po držáku
+
+Když dokončování vynechá úsek, kam by narazil držák (typicky dno za strmým
+kuželem), **navazující úsek začne přesně v rohu na hotovém povrchu** — ne
+na prodlouženém offsetu, kde by rádius špičky zajel do vynechaného dna.
+Je-li ale ten roh zasypaný zbytkem, který hrubování kvůli držáku nechalo stát,
+špička by při najetí vzala víc než přídavek (najetí smí sundat jen přídavkovou
+slupku, stejně jako nájezdová rampa). Takový úsek se proto vynechá
+celý (pravidlo *celý, nebo vůbec*) a ⚠ panel hlásí:
+
+> Dokončování vynechá N úsek(ů) — najetí na jejich začátek by vjelo do NEVYHRUBOVANÉHO zbytku hlouběji než přídavek…
+
+Zbytek obrob z druhé strany nebo jiným nástrojem.
+
 ### CAM tipy
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu

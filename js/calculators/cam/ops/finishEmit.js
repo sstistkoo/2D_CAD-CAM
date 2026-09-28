@@ -333,14 +333,30 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     }
     return null;
   };
+  // NAJETÍ DO ZASYPANÉHO ROHU (28. 9. 2026). Strop ap platí pro úsek,
+  // NAJETÍ na začátek řetězu ale smí vzít jen přídavkovou slupku (stejně
+  // jako nájezdová rampa, `finRampCut`). Když rampa neprojde, zbývá svislé
+  // dosednutí — a to u počátku zasypaného zbytkem (čelo za dnem, které
+  // přeskočil držák; hrubování tam kvůli držáku nechalo materiál) projede
+  // radiálně celou jeho výšku: holder-casting-slanted-face 1,76 mm u
+  // Z102,7. Rezerva 0,15 mm nad `finRampCut` = rozlišení modelu (jako test
+  // cam-finish-holder: přídavek + 0,2). CELÝ, NEBO VŮBEC → úsek se vynechá.
+  const finEntryBuried = (s) => {
+    const p = segStartPoint(s);
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.z)) return false;
+    const top = residualTopXAtZ(p.z);
+    return top !== null && top > p.x - finTipR + finRampCut + 0.15;
+  };
   if (rapidStock) {
     const kept = [];
-    let breakNext = false, finDeepTrimmed = 0;
+    let breakNext = false, finDeepTrimmed = 0, finEntryDropped = 0;
     for (const seg of finPath) {
       if (seg.isDegenerate) continue;
       const hit = finDeepCut(seg);
       const out = { ...seg };
+      const chainStart = kept.length === 0 || breakNext || seg.chainBreak;
       if (breakNext) { out.chainBreak = true; breakNext = false; }
+      if (!hit && chainStart && finEntryBuried(seg)) { finEntryDropped++; breakNext = true; continue; }
       if (!hit) { kept.push(out); continue; }
       finDeepTrimmed++;
       breakNext = true;
@@ -353,8 +369,10 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       out.p2 = p2;
       kept.push(out);
     }
+    if (finEntryDropped > 0)
+      S.genNotes.push({ type: 'warning', msg: `Dokončování vynechá ${finEntryDropped} úsek(ů) — najetí na jejich začátek by vjelo do NEVYHRUBOVANÉHO zbytku hlouběji než přídavek (roh, kam hrubování nedosáhlo). Dohrubujte ho z druhé strany / jiným nástrojem.` });
+    if (finDeepTrimmed > 0 || finEntryDropped > 0) finPath = kept;
     if (finDeepTrimmed > 0) {
-      finPath = kept;
       S.genNotes.push({ type: 'warning', msg: `Dokončování: ${finDeepTrimmed} úsek(ů) zkráceno/vynecháno — hrubování tam nechalo víc materiálu než hloubku třísky (ap ${finMaxCut} mm), dokončovací nůž by ho bral naráz. Dohrubujte to (jiné upnutí/nástroj) a pusťte dokončování znovu.` });
     }
   }

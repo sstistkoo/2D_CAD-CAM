@@ -21,6 +21,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
+import { stockClearances } from '../js/calculators/cam/camMath.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
@@ -55,9 +56,12 @@ describe('Mezní čára dojede až na hranu materiálu', () => {
     expect(past.length, `žádná čára nepřesáhla konec kontury (${span.contour.lo}); ` +
       `konce: ${guides.map(g => g.z1.toFixed(2)).join(', ')}`).toBeGreaterThan(0);
 
-    // …a nepřestřelí materiál: dopad leží uvnitř Z-rozsahu polotovaru.
+    // …a nepřestřelí materiál: dopad leží uvnitř Z-rozsahu polotovaru
+    // i s jeho OFFSETOVOU čárou (Přídavek Z polo.) — tam čára končí podle
+    // pravidla uživatele z 16. 9. 2026 (interferenceGuides.js, `stockLoopG2`).
+    const clrZ = stockClearances(prog.params).z;
     for (const g of past) {
-      expect(g.z1).toBeGreaterThanOrEqual(span.stock.lo - 0.5);
+      expect(g.z1).toBeGreaterThanOrEqual(span.stock.lo - clrZ - 0.5);
       expect(g.x1).toBeGreaterThan(0.1);       // ne na ose (tam se čára zahazuje)
     }
   }, 30000);
@@ -73,6 +77,11 @@ describe('Mezní čára dojede až na hranu materiálu', () => {
 
     const past = guides.filter(g => g.z1 > span.contour.hi + 0.5);
     expect(past.length, `konce čar: ${guides.map(g => g.z1.toFixed(2)).join(', ')}`).toBeGreaterThan(0);
-    for (const g of past) expect(g.z1).toBeLessThanOrEqual(span.stock.hi + 0.5);
+    // Konec leží na OFFSETOVÉ čáře polotovaru (polotovar + Přídavek Z polo.),
+    // ne na syrovém obrysu — pravidlo uživatele 16. 9. 2026 („ta čára od
+    // zanořování by měla jet až k offsetové čáře od polotovaru"). Test psaný
+    // před ním čekal syrový obrys a od té doby padal (Z 369,63 = 368,93 + vůle).
+    const clrZ = stockClearances(prog.params).z;
+    for (const g of past) expect(g.z1).toBeLessThanOrEqual(span.stock.hi + clrZ + 0.5);
   }, 30000);
 });

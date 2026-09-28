@@ -250,8 +250,42 @@ export function buildFinishPath(ctx) {
     }
     return mx;
   };
+  // Vzdálenost bodu od úseku kontury (úsečka / oblouk).
+  const distToContourSeg = (s, px, pz) => {
+    if (s.type === 'line') {
+      const dx = s.p2.x - s.p1.x, dz = s.p2.z - s.p1.z, L2 = dx * dx + dz * dz;
+      const t = L2 > 1e-12 ? Math.max(0, Math.min(1, ((px - s.p1.x) * dx + (pz - s.p1.z) * dz) / L2)) : 0;
+      return Math.hypot(px - (s.p1.x + dx * t), pz - (s.p1.z + dz * t));
+    }
+    if (s.type !== 'arc' || !s.p1 || !s.p2 || !Number.isFinite(s.r)) return Infinity;
+    const ends = Math.min(Math.hypot(px - s.p1.x, pz - s.p1.z), Math.hypot(px - s.p2.x, pz - s.p2.z));
+    const TAU = 2 * Math.PI, norm = (a) => ((a % TAU) + TAU) % TAU;
+    const sA = Math.atan2(s.p1.x - s.cx, s.p1.z - s.cz), eA = Math.atan2(s.p2.x - s.cx, s.p2.z - s.cz);
+    const a = Math.atan2(px - s.cx, pz - s.cz);
+    // G3 = rostoucí úhel, G2 = klesající (stejná konvence jako segSamplePts).
+    const inSweep = s.dir === 'G2' ? norm(sA - a) <= norm(sA - eA) : norm(a - sA) <= norm(eA - sA);
+    return inSweep ? Math.min(ends, Math.abs(Math.hypot(px - s.cx, pz - s.cz) - s.r)) : ends;
+  };
   const GOUGE_EPS = 0.02;
-  const gougeAt = (p) => { const mx = profileXAt(p.z); return mx > -Infinity && p.x < mx - GOUGE_EPS; };
+  // ZAJETÍ = střed nástroje v materiálu, NEBO střed blíž ke kontuře než
+  // rádius špičky (28. 9. 2026). Samotný střed nestačil: dokončovací úsek
+  // za PŘESKOČENÝM úsekem (držák / destička, chainBreak) se s ním neořízne,
+  // takže u konkávního rohu začíná na syrovém offsetu — střed je ve
+  // vzduchu, ale rádius špičky leží pod sousedním dnem. Na dílu
+  // holder-casting-slanted-face tak šikmé čelo za přeskočeným dnem Ø10,865
+  // zajíždělo do dna o 0,12 mm (Z22,87) a o 0,59 mm (Z102,88).
+  const gougeAt = (p) => {
+    const mx = profileXAt(p.z);
+    if (mx > -Infinity && p.x < mx - GOUGE_EPS) return true;
+    // Offsety jsou přesné (ořez v průsečíku, tečné oblouky) — mez 1 µm,
+    // ne GOUGE_EPS: hranice se hledá právě na ní, 0,02 mm by zůstalo v dílu.
+    if (!(tipR > 0.01)) return false;
+    for (const s of rawContourForInterference) {
+      if (s.isDegenerate) continue;
+      if (distToContourSeg(s, p.x, p.z) < tipR - 1e-3) return true;
+    }
+    return false;
+  };
   let finClamped = 0;
   for (let i = finishOffsetPath.length - 1; i >= 0; i--) {
     const s = finishOffsetPath[i];

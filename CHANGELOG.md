@@ -153,6 +153,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – dokončování za přeskočeným úsekem nezajede do dílu.** Úsek za
+  úsekem, který dokončování vynechá (držák / destička, přejezd G0), se s ním
+  neořízne — u konkávního rohu tak začínal na syrovém offsetu: střed špičky
+  ve vzduchu, ale její rádius pod sousedním dnem (holder-casting-slanted-face:
+  šikmé čelo zajíždělo do dna o 0,12 mm u Z22,87 a o 0,59 mm u Z102,88).
+  No-gouge pojistka v `finish.js` teď kromě středu hlídá i vzdálenost středu
+  od kontury (< R špičky = zajetí) a úsek ořízne přesně na R (u part-1/2/4/
+  6/8/9/15/16/17 a pocket-wall jde o týž roh za přeskočeným válcem — úsek
+  pak stejně vypadne kvůli držáku, G-kód beze změny, přibyla jen hláška
+  „zkráceno"). Emise (`finishEmit.js`, u stropu ap `finDeepCut`) navíc
+  vynechá úsek, jehož NAJETÍ na začátek řetězu by vjelo do nevyhrubovaného
+  zbytku hlouběji než přídavek + 0,2 mm — najetí smí vzít jen přídavkovou
+  slupku jako nájezdová rampa (roh zasypaný materiálem, který hrubování
+  nechalo kvůli držáku; dřív ho „zachránilo" jen to, že zajetím o 0,59 mm
+  narazil držák). Hlásí se v ⚠ panelu. Otisk: změna jen u dvou fixtures
+  s touto geometrií, pravidla beze změny.
+- **Test – mezní čára končí na offsetové čáře polotovaru.**
+  `cam-guide-to-stock-end` čekal konec na syrovém obrysu polotovaru; od
+  pravidla 16. 9. 2026 (čára jede k offsetové čáře, Přídavek Z polo.) padal.
 - **CAM – dobírací řetěz ramp: rampa nevezme víc než jednu vrstvu.** První
   krok řetězu za strmou stěnou prodlužoval rampu nad kotvu až o ap, i když
   místo nad kotvou už vybrala mělčí vrstva (ořízlá rampa, dojezd po kontuře).

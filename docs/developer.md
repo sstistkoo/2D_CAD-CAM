@@ -568,9 +568,9 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
-| `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku), `finishPartingEnvelope()`, `clipFinishBand()` |
+| `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku; no-gouge pojistka hlídá střed I vzdálenost středu od kontury < R špičky — úsek za přeskočeným úsekem se ořízne přesně na R), `finishPartingEnvelope()`, `clipFinishBand()` |
 | `cam/ops/roughEmit.js` | OPERACE hrubování, EMISE — `emitRoughing(E)`; vrací `simCounter` a `holderShallowBodies`, které musí přetéct do dokončování |
-| `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku) |
+| `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku). Úsek se vynechá, když by držák jel nevyhrubovaným zbytkem, když úsek bere víc než ap (`finDeepCut`), nebo když by NAJETÍ řetězu (počátek úseku) vjelo špičkou do zbytku hlouběji než přídavek + 0,2 mm (`finEntryBuried` — najetí smí vzít jen přídavkovou slupku jako rampa) |
 | `cam/ops/roughFace.js` | Generátor průchodů — ČELNÍ hrubování; post-procesy jsou v `ops/face/` a volají se v POŘADÍ destička → hloubka vrstev → doběh úseku → držák |
 | `cam/ops/face/insertGuard.js` | `guardInsertFace()` — hlídání geometrie destičky čelně (polygon i upichovák) |
 | `cam/ops/face/layerDepth.js` | `makeEnforceLayerDepth()` — vrstva nikdy nejde hlouběji než předchozí |
