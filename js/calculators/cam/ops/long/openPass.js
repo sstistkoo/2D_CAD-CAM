@@ -10,7 +10,7 @@
 
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
 import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
-import { stockClearanceIsZero, stockClearances } from '../../camMath.js';
+import { plungeDisabled, stockClearanceIsZero, stockClearances } from '../../camMath.js';
 
 export function emitOpenInterval(D) {
   const {
@@ -145,6 +145,9 @@ export function emitOpenInterval(D) {
   const shiftedSurf = iv.entryShifted ? offsetStockTopXAtZ(iv.zStart) : null;
   const shiftedInAir = iv.entryShifted && shiftedSurf !== null
     && shiftedSurf + (anchorLiftX || 0) <= currentX + 0.05;
+  // 0° = bez zanořování: vjezd, který hlídání držáku posunulo do materiálu,
+  // by se sjel svisle (part-13-zleva-flange: `G1 X86.137` 5,8 mm) — vynechat.
+  if (plungeDisabled(prms) && iv.entryShifted && !shiftedInAir) { skipCounters.plungeOff++; return; }
   if (entryCapped && !plungeEntryOk && !entryRampIsPlunge && !shiftedInAir
       && iv.entryShifted && iv.zStart < entryZ - 1e-6) {
     const er = stockEntryRamp(currentX, iv.zStart);
@@ -276,6 +279,9 @@ export function emitOpenInterval(D) {
       return;
     }
   }
+  // 0° = bez zanořování: vjezd na umělé hranici uprostřed materiálu by
+  // potřeboval rampu — vrstva se vynechá a nahlásí.
+  if (entryCapped && plungeDisabled(prms)) { skipCounters.plungeOff++; return; }
   if (entryCapped && !plungeEntryOk
       && iv.zStart >= entryZ - 1e-6) {
     // Kotva rampy = povrch nad vjezdem. Ještě NEPOUŽITÁ kotva (first)
@@ -399,7 +405,8 @@ export function emitOpenInterval(D) {
     // kde ramp opustí vůlí-posunutou siluetu odlitku (findRampOutTarget
     // — offsetová čára, stejná jako v náhledu/simulátoru).
     const rampSpan = 2 * step + 10;
-    const corner = (iv.zEnd - zEndOutRaw > rampSpan) ? findSteepCorner(iv.zEnd, zEndOutRaw) : null;
+    // 0° = bez zanořování: za strmou stěnou se rampou nesjíždí.
+    const corner = (!plungeDisabled(prms) && iv.zEnd - zEndOutRaw > rampSpan) ? findSteepCorner(iv.zEnd, zEndOutRaw) : null;
     const rampTargetRaw = corner ? findRampOutTarget(corner.x, corner.z) : null;
     // Rampa nesmí sjet POD aktuální hloubku průchodu (currentX) — víc
     // materiálu, než odpovídá nastavené Hloubce (ap), by se odebralo

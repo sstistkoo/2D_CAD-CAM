@@ -17,10 +17,30 @@ export function getEffectivePlungeAngle(prms) {
   const ins = getInsert(prms);
   const clampA = (v) => Math.max(0.5, Math.min(ins.plungeAngleMaxDeg, v));
   if (ins.plungeFixed) return ins.autoPlungeAngleDeg;   // upichovák: vždy kolmo
-  if (!prms.entryAngleAuto) return clampA(parseFloat(prms.entryAngle) || 30);
+  if (!prms.entryAngleAuto) {
+    const v = parseFloat(prms.entryAngle);
+    // 0° = BEZ ZANOŘOVÁNÍ (`plungeDisabled` níž). Geometrie, která úhel
+    // potřebuje i tak (plán úseků, mezní čáry plátku), dostane auto úhel
+    // plátku. Dřív `|| 30` udělalo z nuly 30° (nález uživatele 28. 9. 2026:
+    // „0° mi nešlo nastavit").
+    if (v === 0) return ins.autoPlungeAngleDeg;
+    return clampA(Number.isFinite(v) ? v : 30);
+  }
   // Auto hodnotu počítá každý plátek SÁM (polygon z natočení/ε/α, viz
   // inserts/polygon.js) — sdílený kód se na parametry tvaru neptá.
   return ins.autoPlungeAngleDeg;
+}
+
+// Úhel zanoření ručně 0° = nástroj se do materiálu NEZANOŘUJE vůbec: žádná
+// rampa, kapsa ani sjíždění po kontuře k ose; co jde vzít jen zanořením,
+// zůstane stát a nahlásí se (pravidlo 6). Upichovák (pevné kolmé zanoření)
+// tuhle volbu nemá. Čelní hrubování se nezanořuje nikdy (jede radiálně) —
+// na druh operace se tu neptáme (tests/cam-insert-isolation), čelní
+// generátor tuhle funkci prostě nevolá.
+export function plungeDisabled(prms) {
+  if (!prms || prms.entryAngleAuto) return false;
+  if (getInsert(prms).plungeFixed) return false;
+  return parseFloat(prms.entryAngle) === 0;
 }
 
 // Obálka dna upichováku: x(z) = max offsetu pod celou rovnou částí dna

@@ -14,7 +14,7 @@ import { bridge } from '../bridge.js';
 import { bulgeToArc } from '../utils.js';
 import { showToolLibraryDialog } from '../toolLibrary.js';
 import { openInsertCalc } from './insert.js';
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, rapidFeedGap, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
+import { getEffectivePlungeAngle, plungeDisabled, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, rapidFeedGap, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from './cam/camMath.js';
 import { ROUGHING_STRATEGIES } from './cam/roughingStrategies.js';
 import { MaterialRemoval, buildStockLoopRaw, stockPlanLoop, toolFootprint } from './cam/materialRemoval.js';
 import { validateToolpath, holderInflate, holderInflateAll } from './cam/collisionValidator.js';
@@ -4739,7 +4739,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span>Hrub. bez schodků</span>
         ${prms.noStepRoughing ? `<span style="color:#45475a;margin:0 4px">|</span><input type="checkbox" id="cam-sim-nostep-face" ${prms.noStepRoughingFace ? 'checked' : ''}><span>i u čelního</span>` : ''}
       </div>`;
-      const effPlunge = Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
+      // 0° = bez zanořování (`plungeDisabled`, camMath.js): pole ukáže nulu,
+      // ne auto úhel, který si pro geometrii bere generátor.
+      const effPlunge = plungeDisabled(prms) ? 0 : Math.round(getEffectivePlungeAngle(prms) * 10) / 10;
       // Upichovák zanořuje vždy kolmo (klíč `plungeFixed` plátku) — řádek se skryje.
       const plungeFixedUI = !!getInsert(prms).plungeFixed;
       const clearDegUI = parseFloat(prms.toolClearanceAngle) || 0;
@@ -4765,7 +4767,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             <span>Zanořování${plungeNA ? ' (jen podélně)' : ''}</span>
           </label>
         </div>
-        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes).${plungeNA ? ' POZOR: při ČELNÍM hrubování se úhel uplatní jen na nájezd dokončování — samotné čelní průchody jedou radiálně, bez rampy.' : ''} Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°; upichovák: 90° = svisle). Je-li u POLYGONÁLNÍ destičky nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření; u kulaté, upichovací a závitové destičky se α do úhlu zanoření nepromítá."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}</label><input type="number" step="0.5" min="0.5" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
+        <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes).${plungeNA ? ' POZOR: při ČELNÍM hrubování se úhel uplatní jen na nájezd dokončování — samotné čelní průchody jedou radiálně, bez rampy.' : ''} Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°; upichovák: 90° = svisle). Je-li u POLYGONÁLNÍ destičky nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření; u kulaté, upichovací a závitové destičky se α do úhlu zanoření nepromítá. 0 = bez zanořování: do materiálu se nesjíždí vůbec (žádná rampa, kapsa ani sjíždění po kontuře), co jde vzít jen zanořením, zůstane stát a nahlásí se."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}${effPlunge === 0 ? ' <span style="color:#fab387">= bez zanořování</span>' : ''}</label><input type="number" step="0.5" min="0" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky (u polygonální destičky omezeno úhlem hřbetu α, je-li nastaven)">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
       </div>`;
       html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">

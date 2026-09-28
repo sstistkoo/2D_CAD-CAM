@@ -14,6 +14,7 @@ import { depthKey, mergeCollinearSegs, subdivideLineSegs } from './segUtils.js';
 import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 import { RESIDUAL_FIT_TOL } from '../../residualHolder.js';
 import { getInsert } from '../../inserts/index.js';
+import { plungeDisabled } from '../../camMath.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -245,7 +246,7 @@ export function emitPocketInterval(D) {
     if (!Number.isFinite(zT) || zT <= iv2.zStart + 1e-6) return li;
     return clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zHi, zT)), X);
   };
-if (!prms.plungeRoughing) return;
+if (!prms.plungeRoughing || plungeDisabled(prms)) return;   // 0° = bez zanořování (camMath.js)
 // Když je úplně první interval blokovaný (idx===0, !firstOpen),
 // neexistuje předchozí interval → horní hranice mezery = okraj
 // polotovaru (sz.zMax). Bez fallbacku by intervals[-1] spadlo.

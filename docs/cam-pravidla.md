@@ -68,6 +68,10 @@ Kolmo jen tehdy, když je v nastavení kolmo (90°).**
   zůstane stát a nahlásí se.
 - **Kulatá:** přednastaveno 45°; smí i kolmo, pokud je tak nastaveno.
 - **Upichovák:** kolmo (to je jeho normální zanoření).
+- **0° = bez zanořování** (na pokyn uživatele 28. 9. 2026): do materiálu se
+  nezanořuje vůbec — žádná rampa, kapsa ani sjíždění po kontuře k ose.
+  Vrstva jen tam, kam se vjede ze vzduchu vodorovně; zbytek zůstane stát
+  a nahlásí se. Kontrola: žádný řezný posuv hrubování k ose (P6 s limitem 0°).
 - Rampa nikdy nevezme víc než jednu vrstvu (ap) — viz pravidlo 3.
 
 ## Pravidlo 7 — Vrstva jede až na konec, pravá strana nejdřív ✅ schváleno

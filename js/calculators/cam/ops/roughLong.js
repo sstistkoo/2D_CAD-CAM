@@ -9,7 +9,7 @@ import { splitPocketsAtAir } from './long/airPieces.js';
 import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
-import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from '../camMath.js';
+import { topXOnLoop, getEffectivePlungeAngle, plungeDisabled, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from '../camMath.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
 import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
@@ -35,6 +35,7 @@ import { relinkOrphanChainSteps } from './long/chainRelink.js';
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
+  const passesAtStart = ctx.passes.length;
   const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
@@ -532,7 +533,7 @@ export function genLongPasses(ctx) {
   let noEntrySkips = 0;
   // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
   // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
-  const skipCounters = { plungeForbidden: 0 };
+  const skipCounters = { plungeForbidden: 0, plungeOff: 0 };
 
   // ── Upichovák (parting) v podélném hrubování ──
   // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
@@ -1101,7 +1102,7 @@ export function genLongPasses(ctx) {
     // pořadí obrábění (`regionCapped`, řádek s `__deferEntry` níž) se tím
     // nemění — hranice pořád patří regionu, jen se přes ni nejezdí šikmo.
     let noRampNeeded = false;
-    if (prms.plungeRoughing) {
+    if (prms.plungeRoughing && !plungeDisabled(prms)) {
       const surf0 = offsetStockTopXAtZ(entryZ);
       const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
       if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05 || regionCappedRaw) {
@@ -1385,6 +1386,9 @@ export function genLongPasses(ctx) {
         return;
       }
       // Kapsa za bossem kontury — viz ops/long/pocketPass.js.
+      // 0° = bez zanořování: do kapsy se nevjede — kus se nahlásí (se
+      // zanořováním vypnutým přepínačem se kapsy dál tiše přeskakují).
+      if (prms.plungeRoughing && plungeDisabled(prms)) { skipCounters.plungeOff++; return; }
       const cnt = { partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips };
       const nBeforePocket = passes.length;
       emitPocketInterval({
@@ -2005,6 +2009,9 @@ export function genLongPasses(ctx) {
             const zS = dirS < 0 ? cover.zLo - clrZ : cover.zHi + clrZ;
             if (dirS < 0 ? zS <= p.zEnd + dzScan : zS >= p.zEnd - dzScan) break;
             p.zStart = zS; p.entryShifted = true;
+            // 0° = bez zanořování: posunutý začátek leží v materiálu
+            // (sjel by se svisle) — průchod se vynechá (filtr za regiony).
+            if (plungeDisabled(prms)) p.__plungeOffDrop = true;
           }
         }
         const zHiP = Math.max(p.zStart, p.zEnd), zLoP = Math.min(p.zStart, p.zEnd);
@@ -2024,6 +2031,7 @@ export function genLongPasses(ctx) {
             if (holderFitAreaAlong({ ...p, zStart: zS }) <= HOLDER_FIT_TOL) {
               dropped.push({ x: p.x, zHi: Math.max(p.zStart, zS), zLo: Math.min(p.zStart, zS) });
               p.zStart = zS; p.entryShifted = true;
+              if (plungeDisabled(prms)) p.__plungeOffDrop = true;
               break;
             }
           }
@@ -2205,12 +2213,165 @@ export function genLongPasses(ctx) {
   }
   } // konec smyčky regionů
 
+  // ── 0° = BEZ ZANOŘOVÁNÍ: ŽÁDNÝ POSUV K OSE V MATERIÁLU (28. 9. 2026) ──────
+  // Brány výš (kapsy, rampy za strmou stěnou, vjezd na umělé hranici) berou
+  // zanoření samotné. Zbývá sjíždění PO KONTUŘE: dojezd přes hrb dolů na
+  // druhou stranu, nájezd po kontuře do kapsy. I to je posuv k ose v
+  // materiálu (pravidlo 6), takže dojezd končí na vrcholu a průchod, který
+  // bez sjezdu po kontuře nezačne, se vynechá a nahlásí.
+  if (plungeDisabled(prms)) {
+    const sampleX = (g, t) => {
+      if (g.type === 'arc' && Number.isFinite(g.startAngle) && Number.isFinite(g.endAngle)) {
+        const a = g.startAngle + (g.endAngle - g.startAngle) * t;
+        return { x: g.cx + Math.sin(a) * g.r, z: g.cz + Math.cos(a) * g.r, a };
+      }
+      return { x: g.x1 + (g.x2 - g.x1) * t, z: g.z1 + (g.z2 - g.z1) * t };
+    };
+    // Kus dráhy do prvního místa, kde začne klesat k ose (null = neklesá).
+    const upToDescent = (segs) => {
+      for (let k = 0; k < segs.length; k++) {
+        const g = segs[k];
+        const n = Math.max(4, Math.ceil(Math.hypot(g.x2 - g.x1, g.z2 - g.z1) / 0.2));
+        let prev = sampleX(g, 0);
+        for (let j = 1; j <= n; j++) {
+          const q = sampleX(g, j / n);
+          if (q.x < prev.x - 1e-4) {
+            const out = segs.slice(0, k);
+            if (j > 1) {
+              const cut = { ...g, x2: prev.x, z2: prev.z };
+              if (prev.a !== undefined) cut.endAngle = prev.a;
+              out.push(cut);
+            }
+            return out;
+          }
+          prev = q;
+        }
+      }
+      return null;
+    };
+    for (let i = passes.length - 1; i >= passesAtStart; i--) {
+      const p = passes[i];
+      if (!p || p.type !== 'long' || !Number.isFinite(p.x)) continue;
+      const li = Array.isArray(p.contourLeadIn) ? p.contourLeadIn : [];
+      const liDown = li.length > 0 && li.some(g => Math.min(g.x1, g.x2) < Math.max(g.x1, g.x2) - 0.05)
+        && li[0].x1 > p.x + 0.05;
+      const offDrop = !!p.__plungeOffDrop;
+      delete p.__plungeOffDrop;
+      if ((p.ramp && p.ramp.x0 > p.x + 0.01) || liDown || offDrop) {
+        passes.splice(i, 1);
+        skipCounters.plungeOff++;
+        continue;
+      }
+      // Otevřený průchod, jehož začátek leží pod šikmým čelem polotovaru:
+      // emise by k němu sjela svisle posuvem skrz kraj polotovaru (part-13-
+      // zleva-flange s 0°: `G1 X86.137` 5,8 mm). Začátek se posune proti
+      // směru řezu na první místo, kde je nad hloubkou vzduch (celou šířkou
+      // nosu) — vjede se vodorovně. Když takové místo do 30 mm není, nebo
+      // by cesta vedla konturou, průchod se vynechá.
+      if (!p.ramp && li.length === 0 && Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)) {
+        const back = p.zEnd > p.zStart ? -1 : 1;
+        const inStock = (z) => {
+          for (let dz = -noseLiftL; dz <= noseLiftL + 1e-9; dz += Math.max(noseLiftL / 4, 0.25)) {
+            const t = offsetStockTopXAtZ(z + dz);
+            const lift = noseLiftL > 0 ? Math.sqrt(Math.max(noseLiftL * noseLiftL - dz * dz, 0)) : 0;
+            if (t !== null && t + lift > p.x + 0.05) return true;
+          }
+          return false;
+        };
+        if (inStock(p.zStart)) {
+          let z = p.zStart, ok = false;
+          for (let d = 0.25; d <= 30; d += 0.25) {
+            z = p.zStart + back * d;
+            if (blockedAt(p.x, z)) break;
+            if (!inStock(z)) { ok = true; break; }
+          }
+          if (!ok) { passes.splice(i, 1); skipCounters.plungeOff++; continue; }
+          p.zStart = z;
+        }
+      }
+      if (Array.isArray(p.contourLeadOut) && p.contourLeadOut.length > 0) {
+        const cut = upToDescent(p.contourLeadOut);
+        if (cut !== null) {
+          if (cut.length > 0) p.contourLeadOut = cut;
+          else delete p.contourLeadOut;
+        }
+      }
+    }
+    // VYNECHANÁ VRSTVA NESMÍ PŘEJÍT NA HLUBŠÍ (pravidlo 3). Kde mělčí vrstva
+    // vypadla (šla by jen zanořením), hlubší vrstva vjela ze vzduchu jinde a
+    // přes její místo jela dvojitou třískou (part-1 s 0°: 6 mm při ap 3).
+    // Model podlahy v POŘADÍ OBRÁBĚNÍ: průchod končí tam, kde by nad ním
+    // stálo víc než jedna vrstva; začíná-li tam, vynechá se.
+    if (capTab) {
+      const tab = newFloorTab();
+      const topAt = (z) => {
+        const t = stockTopTab(z);
+        if (t === null) return null;
+        const k = Math.round((z - T.capZ0) / T.DZ_CAP);
+        const c = k >= 0 && k < tab.length ? tab[k] : Infinity;
+        return Math.min(t, c - noseLiftL);
+      };
+      for (let i = passesAtStart; i < passes.length; i++) {
+        const p = passes[i];
+        if (p && p.type === 'long' && Number.isFinite(p.x) && Number.isFinite(p.zStart) && Number.isFinite(p.zEnd)
+            && !p.ramp && !(p.contourLeadIn && p.contourLeadIn.length)) {
+          const dir = p.zEnd > p.zStart ? 1 : -1, len = Math.abs(p.zEnd - p.zStart);
+          let cutAt = null;
+          for (let d = 0; d <= len + 1e-9; d += T.DZ_CAP) {
+            const z = p.zStart + dir * d, t = topAt(z);
+            if (t !== null && t - (p.x - noseLiftL) > step + 0.1) { cutAt = z; break; }
+          }
+          if (cutAt !== null) {
+            if (Math.abs(cutAt - p.zStart) < 1) { passes.splice(i, 1); i--; skipCounters.plungeOff++; continue; }
+            p.zEnd = cutAt - dir * 0.5; p.blocked = false;
+            delete p.contourLeadOut; delete p.noRetract;
+          }
+        }
+        // Totéž pro dojezd po kontuře: po dně za vynechanou vrstvou by jel
+        // plnou výškou zbytku (part-1 s 0°: 11 mm po X 25,911).
+        if (p && p.type === 'long' && Array.isArray(p.contourLeadOut) && p.contourLeadOut.length > 0) {
+          const lo = p.contourLeadOut;
+          let cut = null;
+          for (let k = 0; k < lo.length && cut === null; k++) {
+            const g = lo[k];
+            const n = Math.max(2, Math.ceil(Math.hypot(g.x2 - g.x1, g.z2 - g.z1) / T.DZ_CAP));
+            let prev = sampleX(g, 0);
+            for (let j = 0; j <= n; j++) {
+              const q = sampleX(g, j / n), t = topAt(q.z);
+              if (t !== null && t - (q.x - noseLiftL) > step + 0.1) {
+                const keep = lo.slice(0, k);
+                if (j > 0) {
+                  const part = { ...g, x2: prev.x, z2: prev.z };
+                  if (prev.a !== undefined) part.endAngle = prev.a;
+                  keep.push(part);
+                }
+                cut = keep;
+                break;
+              }
+              prev = q;
+            }
+          }
+          if (cut !== null) {
+            if (cut.length > 0) p.contourLeadOut = cut; else delete p.contourLeadOut;
+            delete p.noRetract;
+          }
+        }
+        notePassInto(tab, p);
+      }
+    }
+  }
+
   if (deferredHolderSkips > 0)
     foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
   if (noEntrySkips > 0) {
     const phrase = noEntrySkips === 1 ? '1 vrstva vynechána'
       : (noEntrySkips < 5 ? `${noEntrySkips} vrstvy vynechány` : `${noEntrySkips} vrstev vynecháno`);
     foundErrors.push({ type: 'warning', msg: `Zanořování: ${phrase} — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.` });
+  }
+  if (skipCounters.plungeOff > 0) {
+    const n = skipCounters.plungeOff;
+    const phrase = n === 1 ? '1 vrstva vynechána' : (n < 5 ? `${n} vrstvy vynechány` : `${n} vrstev vynecháno`);
+    foundErrors.push({ type: 'warning', msg: `Zanořování vypnuté (úhel 0°): ${phrase} — do materiálu by se muselo zanořit. Materiál zůstává pro dokončování.` });
   }
   if (skipCounters.plungeForbidden > 0) {
     const n = skipCounters.plungeForbidden;

@@ -35,7 +35,7 @@ const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
 const { MaterialRemoval, toolFootprint } = await imp('js/calculators/cam/materialRemoval.js');
 const { validateToolpath } = await imp('js/calculators/cam/collisionValidator.js');
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
-const { getEffectivePlungeAngle, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
+const { getEffectivePlungeAngle, plungeDisabled, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
 const { polyOffset, pointInLoop } = await imp('js/geom/geomCore.js');
@@ -73,11 +73,16 @@ async function check(file) {
   const ins = getInsert(P);
   const partingOk = !!ins.cutsFullWidth;
   // P6: dovolený úhel posuvu k ose. Polygon nikdy strměji než spodní hrana.
-  const plungeLimit = partingOk ? 90
+  // 0° = bez zanořování platí pro HRUBOVÁNÍ (pravidlo 6 je pravidlo
+  // hrubovacích drah); nájezd dokončování jede dál pod úhlem plátku.
+  const plungeLimitFinish = partingOk ? 90
+    : (P.toolShape === 'polygon' ? Math.min(getEffectivePlungeAngle(P), ins.autoPlungeAngleDeg) : getEffectivePlungeAngle(P));
+  const plungeLimit = partingOk ? 90 : (plungeDisabled(P) && P.roughingStrategy !== 'face') ? 0
     : (P.toolShape === 'polygon' ? Math.min(getEffectivePlungeAngle(P), ins.autoPlungeAngleDeg) : getEffectivePlungeAngle(P));
   const allowX = parseFloat(P.allowanceX) || 0;
   const sp = r.calcSim.simPath;
   const lines = r.gcode.split('\n');
+  const finishFromLine = lines.findIndex(l => /^;\s*---\s*DOKON/.test(l));
   const N = (i) => { const t = (lines[sp[i].originalLineIdx] || '').trim(); const m = /^N\d+/.exec(t); return m ? m[0] : `#${i}`; };
   const txt = (i) => (lines[sp[i].originalLineIdx] || '').trim();
 
@@ -124,7 +129,8 @@ async function check(file) {
       const dx = b.x - a.x, dz = b.z - a.z;
       if (!partingOk && dx < -0.2 && cut > 0.1) {
         const deg = Math.abs(dz) < 1e-9 ? 90 : Math.atan(Math.abs(dx) / Math.abs(dz)) * 180 / Math.PI;
-        if (deg > plungeLimit + 1) found.plunge.push({ i, v: deg, lim: plungeLimit });
+        const lim = finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine ? plungeLimitFinish : plungeLimit;
+        if (deg > lim + 1) found.plunge.push({ i, v: deg, lim });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
       if (afterRapid && Math.abs(dx) < 1e-6 && Math.abs(dz) > 1) {

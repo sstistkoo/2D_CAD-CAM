@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – Úhel zanoření 0° = bez zanořování.** Ručně zadaná nula se dřív
+  přepsala na 30° (`|| 30`) a pole ji ani nepustilo (min 0,5). Teď 0°
+  znamená, že se při podélném hrubování do materiálu nezanořuje vůbec: žádná
+  kapsa, rampa za strmou stěnou ani na hranici úseku, žádné sjíždění po
+  kontuře k ose (dojezd přes hrb končí na vrcholu); otevřený průchod pod
+  šikmým čelem odlitku vjede vodorovně ze vzduchu. Hlubší vrstva nepřejede
+  místo vynechané mělčí (skončí dřív — bez dvojité třísky). Vynechané vrstvy
+  se hlásí v ⚠ panelu. Nájezd dokončování jede dál pod úhlem plátku.
+  `plungeDisabled()` v `camMath.js`; kontrola pravidel P6 má u hrubování
+  s 0° limit 0°. Výchozí úhly beze změny (otisk 29 fixtures shodný).
 - **CAM simulátor – podržení 📏 otevře nastavení rozsahů.** Dlouhé
   podržení tlačítka Z-limitů otevře pravý panel (Parametry), rozbalí skupinu
   čelisti/koník/rozsah a posune se k „Rozsah Z — aktivovat"; krátký klik dál
