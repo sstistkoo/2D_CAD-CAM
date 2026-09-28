@@ -59,6 +59,26 @@ describe('CAM: kulatá R 10 — vrstvy za stěnou a u osy (zleva, úsek 2)', () 
     }
   });
 
+  // 28. 9. 2026: dobírací řetěz ramp za hrbem (Z 244…369) jel znovu vrstvy,
+  // které už udělala kapsa — X 55,6 … 40,6 a odložené X 35,6 / 30,6 dvakrát,
+  // druhý průchod posuvem vzduchem až 98 mm (P5).
+  it('za hrbem se žádná vrstva nejede dvakrát (řetěz ramp × kapsa)', async () => {
+    const { calc } = await runCamProg(load('round-r10-zleva-section2.camprog'));
+    const behind = calc.passes.filter(p => p.type === 'long' && Number.isFinite(p.x)
+      && Math.min(p.zStart, p.zEnd) > 240);
+    const dup = [];
+    for (let i = 0; i < behind.length; i++) {
+      for (let j = i + 1; j < behind.length; j++) {
+        const a = behind[i], b = behind[j];
+        if (Math.abs(a.x - b.x) > 1e-3) continue;
+        const lo = Math.max(Math.min(a.zStart, a.zEnd), Math.min(b.zStart, b.zEnd));
+        const hi = Math.min(Math.max(a.zStart, a.zEnd), Math.max(b.zStart, b.zEnd));
+        if (hi - lo > 1) dup.push(`X ${a.x.toFixed(3)} Z ${lo.toFixed(1)}…${hi.toFixed(1)}`);
+      }
+    }
+    expect(dup).toEqual([]);
+  });
+
   it('vrstva X 8,095 u osy nevypadne (další vrstva nebere 2× ap)', async () => {
     const { calc } = await runCamProg(load('round-r10-zleva-section2.camprog'));
     const hit = calc.passes.some(p => p.type === 'long' && Math.abs(p.x - 8.095) < 0.01

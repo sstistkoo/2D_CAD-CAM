@@ -153,6 +153,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – dobírací řetěz ramp nezopakuje hotové vrstvy.** Kontrola „tuhle
+  hloubku už jede jiný průchod" chtěla, aby kapsový průchod dojel aspoň
+  tam, kam krok řetězu — jenže krok jede formálně až ke stěně nebo na konec
+  regionu, i když materiál končí už u ramene polotovaru. Pokrytí tak nikdy
+  nevyšlo a řetěz projel znovu vrstvy, které kapsa udělala (projekt
+  uživatele 26. 9. 2026, kulatá R 10 zleva, „✂ Po úsecích" úsek 2: sedm
+  vrstev X 55,6…40,6 a dvě X 35,6 / 30,6 dvakrát, posuv vzduchem až 98 mm).
+  Pokrytí se teď měří po konec materiálu pod spodkem nosu a odložený vjezd,
+  který celý projede krok řetězu na téže hloubce, se po rozhodnutí o
+  odložených vjezdech vypustí. Kontrola pravidel P5 na tom úseku 28 → 10,
+  otisk 29 fixtures beze změny.
 - **CAM – dokončování za přeskočeným úsekem nezajede do dílu.** Úsek za
   úsekem, který dokončování vynechá (držák / destička, přejezd G0), se s ním
   neořízne — u konkávního rohu tak začínal na syrovém offsetu: střed špičky

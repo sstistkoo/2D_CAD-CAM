@@ -1844,10 +1844,35 @@ export function genLongPasses(ctx) {
       // Řetěz se tím přeruší: předchozí krok odjede normálně a další vydaný
       // krok najede jako PRVNÍ (zvenku), ne `pocketReposition` z místa, kde
       // nástroj nestojí.
+      // POKRYTÍ SE MĚŘÍ PO KONEC MATERIÁLU, ne po `stepEndZ` (28. 9. 2026).
+      // Krok řetězu jede formálně až ke stěně kontury nebo na konec regionu —
+      // za ramenem polotovaru je to čistý vzduch, který emise (`airSplitAxial`)
+      // stejně rozsekne na rychloposuv. Kapsový průchod téže hloubky ale končí
+      // už na hraně materiálu, takže podmínka „dojede aspoň tam, kam krok"
+      // nevyšla NIKDY a řetěz zopakoval hotové vrstvy: projekt uživatele
+      // 26. 9. 2026 (kulatá R 10, zleva, úsek 2) — „Průchod 44/45" X 35,595 /
+      // 30,595 doslova po „Průchodu 41/43" a sedm kroků X 55,595…40,595 znovu
+      // po kapse 24–30; kontrola pravidel P5: posuv vzduchem až 98 mm.
+      // Silueta je POVRCH, `stepX` poloha programovaného bodu — materiál se
+      // měří pod SPODKEM nosu (`− noseLiftL`), jinak by u kulaté R 10 „konec"
+      // vyšel o ~3,5 mm dřív a za pokrytý by prošel i kratší průchod.
+      const matEndZ = (() => {
+        if (!stockLoopOffsetFullL || !(stepZ > stepEndZ)) return stepEndZ;
+        const solid = (z) => { const t = topXOnLoop(stockLoopOffsetFullL, z); return t !== null && t > stepX - noseLiftL; };
+        if (solid(stepEndZ)) return stepEndZ;
+        for (let z = stepEndZ + dzScan; z < stepZ + dzScan; z += dzScan) {
+          const zz = Math.min(z, stepZ);
+          if (!solid(zz)) continue;
+          let a = zz - dzScan, b = zz;                 // a = vzduch, b = materiál
+          for (let i = 0; i < 24; i++) { const m = (a + b) / 2; if (solid(m)) b = m; else a = m; }
+          return b;
+        }
+        return stepZ;                                  // na téhle hloubce už nic nestojí
+      })();
       if (passes.some((q, qi) => qi >= regionMark && q && q.type === 'long' && !q.rampCompletion
           && !q.__deferEntry && Math.abs(q.x - stepX) < 1e-6
           && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd)
-          && q.zStart >= stepZ - 0.05 && q.zEnd <= stepEndZ + 0.05)) {
+          && q.zStart >= stepZ - 0.05 && q.zEnd <= Math.max(stepEndZ, matEndZ) + 0.05)) {
         if (rcSteps.length > 0) delete rcSteps[rcSteps.length - 1].noRetract;
         first = true;
         curX = stepX; curZ = stepZ;
@@ -2170,6 +2195,29 @@ export function genLongPasses(ctx) {
         // Líný prefixový model by si jinak nadál připisoval řezy zahozených
         // průchodů — postavit ho znovu.
         T.cutFloorTab = null; T.cutFloorSynced = 0;
+      }
+    }
+    // ── ODLOŽENÝ VJEZD, KTERÝ CELÝ PROJEDE DOBÍRACÍ ŘETĚZ (28. 9. 2026) ──
+    // Kontrola pokrytí v řetězu ramp (výš) odložené vjezdy nepočítá — v té
+    // chvíli ještě nebylo jasné, jestli nevypadnou kvůli držáku. Teď už je:
+    // co přežilo a leží na TÉŽE hloubce celé uvnitř kroku řetězu, by jelo
+    // podruhé vzduchem (projekt uživatele 26. 9. 2026, zleva úsek 2: X 35,595
+    // a 30,595 — kontrola pravidel P5 až 98 mm). Nezahazuje se článek, na
+    // který navazuje další průchod (`noRetract` / `pocketReposition`), ani
+    // průchod s vlastním dojezdem po kontuře, který řetěz nemá.
+    if (tail.length > 0) {
+      const rcs = head.filter(q => q && q.rampCompletion && Number.isFinite(q.x)
+        && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd));
+      for (let i = tail.length - 1; i >= 0 && rcs.length > 0; i--) {
+        const p = tail[i], nx = tail[i + 1];
+        if (!p || p.type !== 'long' || p.contourLeadOut || p.noRetract
+            || !Number.isFinite(p.zStart) || !Number.isFinite(p.zEnd)) continue;
+        if (nx && (nx.pocketReposition || nx.cleanApproach)) continue;
+        const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+        if (rcs.some(q => Math.abs(q.x - p.x) < 1e-6
+            && Math.min(q.zStart, q.zEnd) <= lo + 0.05 && Math.max(q.zStart, q.zEnd) >= hi - 0.05)) {
+          tail.splice(i, 1);
+        }
       }
     }
     passes.length = regionMark;
