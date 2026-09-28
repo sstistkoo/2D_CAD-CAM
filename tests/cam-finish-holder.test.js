@@ -261,6 +261,10 @@ describe('CAM: nájezd a výjezd dokončování', () => {
       const prog = load(name);
       if ((prog.params?.roughingSide || 'right') !== 'right'
         || (prog.params?.roughingStrategy || 'longitudinal') !== 'longitudinal') continue;
+      // Upichovák podélně nehrubuje (docs/cam-pravidla.md, pravidlo 1 —
+      // rozhodnutí uživatele 25. 9. 2026), takže jeho podélné hrubování
+      // (part-17-long-parting) se tu nehodnotí. Na pokyn uživatele 28. 9. 2026.
+      if (prog.params?.toolShape === 'parting') continue;
       const { gcode } = await runCamProg(prog);
       const lines = gcode.split('\n');
       const finStart = lines.findIndex(l => l.includes(FIN_MARK));
