@@ -143,6 +143,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **Mobil – klávesnice při označení objektu.** Klepnutí na objekt v CAD
+  zvýrazní jeho řádek v CNC kódu fokusem textarey, a to na telefonu vysouvalo
+  klávesnici, i když se nic nezadává. Na dotykových zařízeních se řádek teď
+  zvýrazní s `inputmode="none"`; klávesnice vyjede až po klepnutí do pole kódu.
 - **CAD → CAM: po překreslení výkresu zůstávaly v CAM dráhy starého výkresu.**
   Když se v CAD smazala kontura a nakreslila nová, CAM převzal novou konturu,
   ale dál ukazoval dráhy (a u částí „✂ Po úsecích" / „➕ Operace" i polotovar

@@ -777,6 +777,25 @@ function scrollCncToObject(obj) {
   let lineEnd = text.indexOf("\n", lineStart);
   if (lineEnd === -1) lineEnd = text.length;
 
+  // Na dotykovém zařízení by focus textarey vysunul klávesnici při každém
+  // klepnutí na objekt (jen se označuje, nic se nezadává). Řádek se proto
+  // zvýrazní s inputmode="none" (bez klávesnice); jakmile uživatel na pole
+  // CNC kódu sám klepne, inputmode se vrátí a klávesnice vyjede normálně.
+  if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
+    const prevMode = cncOutput.getAttribute("inputmode");
+    cncOutput.setAttribute("inputmode", "none");
+    const restore = (e) => {
+      cncOutput.removeEventListener("pointerdown", restore);
+      cncOutput.removeEventListener("blur", restore);
+      if (prevMode === null) cncOutput.removeAttribute("inputmode");
+      else cncOutput.setAttribute("inputmode", prevMode);
+      // Klepnutí do už fokusovaného pole by klávesnici nevysunulo —
+      // blur, a výchozí akce klepnutí pole fokusuje znovu (s klávesnicí).
+      if (e && e.type === "pointerdown") cncOutput.blur();
+    };
+    cncOutput.addEventListener("pointerdown", restore);
+    cncOutput.addEventListener("blur", restore);
+  }
   cncOutput.focus({ preventScroll: true });
   cncOutput.setSelectionRange(lineStart, lineEnd);
 
