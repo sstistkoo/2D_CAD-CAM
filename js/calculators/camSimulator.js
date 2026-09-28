@@ -579,6 +579,9 @@ export function openCamSimulator(initialContour, initialGCode) {
   // umíme přečíst rovnou z G-kódu bez druhého kanálu.
   let _importedContour = false;
   let _importedStockFromGCode = false;
+  // Kontura, ke které patří program uložený z minulé session (localStorage) —
+  // podle ní se níž pozná, že z CAD přišel JINÝ výkres (viz _staleProgramDropped).
+  const _prevContourKey = contourKey(S.contourPoints);
   if (initialContour && typeof initialContour === 'string' && initialContour.trim()) {
     const parsed = parseContourAndStockGCode(initialContour);
     if (parsed.contour.length > 0) { S.contourPoints = parsed.contour; _importedContour = true; }
@@ -647,6 +650,43 @@ export function openCamSimulator(initialContour, initialGCode) {
         ? state.objects[camNoteIdx].gcodeKey : null;
     }
     state.objects.splice(camNoteIdx, 1);
+  }
+
+  // Z CAD přišel JINÝ výkres, než ke kterému patří uložený program (části,
+  // dráhy z localStorage nebo ze skryté poznámky na výkrese). Staré dráhy —
+  // a u částí i jejich polotovar a rozsahy — patří smazané kontuře a v CAM
+  // se pak kreslily přes novou (nález uživatele 29. 9. 2026: „smazal jsem
+  // v CAD úsečky s rádiusem, nakreslil nový výkres a v CAM je i ten původní").
+  // Program bez ručního zásahu se proto zahodí a vygeneruje znovu z nové
+  // kontury; ručně upravený se nechá (hlásí se toastem, přegenerování je na
+  // uživateli přes „🔄 Dráhy").
+  let _staleProgramDropped = false;
+  let _staleProgramKeptEdited = false;
+  {
+    const progKey = S.opParts.length > 0 && S.opContourKey ? S.opContourKey : _prevContourKey;
+    if (_importedContour && progKey && progKey !== contourKey(S.contourPoints)
+        && (S.opParts.length > 0 || (S.manualGCode && S.manualGCode.trim()))) {
+      const edited = !!S.gcodeDirty || S.opParts.some(p => p && p.gcodeDirty);
+      if (!edited) {
+        // Rozsahy před rozdělením „✂ Po úsecích" — live rozsahy patří úseku.
+        const base = S.opParts[0] && S.opParts[0].baseLimits;
+        if (base) {
+          S.zLimits = JSON.parse(JSON.stringify(base.z));
+          S.xLimits = JSON.parse(JSON.stringify(base.x));
+        }
+        S.opParts = [];
+        S.activePart = 0;
+        S.opContourKey = null;
+        S.manualGCode = '';
+        S.gcodeDirty = false;
+        _savedGcodeKey = null;
+        _gcodeFromNote = null;
+        _partsContourChanged = false;
+        _staleProgramDropped = true;
+      } else if (S.opParts.length === 0) {
+        _staleProgramKeptEdited = true;   // u částí hlásí _partsContourChanged
+      }
+    }
   }
 
   // Kód přenesený z CAM editoru (tlačítko 🔄) je upravená dráha (manualGCode) –
@@ -10255,6 +10295,10 @@ export function openCamSimulator(initialContour, initialGCode) {
   requestAnimationFrame(() => fitView());
   if (_partsCollapsedByEditor) {
     showToast('Program upravený v CAM Editoru se převzal jako celek — rozdělení na části se zrušilo.', 6000);
+  } else if (_staleProgramDropped) {
+    showToast('Výkres z CAD se změnil — dráhy původního výkresu se zahodily a vygenerovaly se nové.', 5000);
+  } else if (_staleProgramKeptEdited) {
+    showToast('Výkres z CAD se změnil, ale dráhy byly ručně upravené — zůstaly původní. Nové vygenerujete tlačítkem „🔄 Dráhy".', 8000);
   } else if (_partsContourChanged) {
     showToast(`Kontura se od vytvoření částí (${S.opParts.length}) změnila — polotovary jednotlivých operací nemusí sedět, přegenerujte dráhy tlačítkem „🔄 Dráhy".`, 8000);
   } else if (partsActive()) {

@@ -143,6 +143,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAD → CAM: po překreslení výkresu zůstávaly v CAM dráhy starého výkresu.**
+  Když se v CAD smazala kontura a nakreslila nová, CAM převzal novou konturu,
+  ale dál ukazoval dráhy (a u částí „✂ Po úsecích" / „➕ Operace" i polotovar
+  a rozsahy) uložené k té smazané. Když se kontura z CAD liší od té, ke které
+  program patří, a dráhy nebyly ručně upravené, program se zahodí a vygeneruje
+  znovu z nové kontury. Ručně upravené dráhy zůstanou a ohlásí se toastem.
 - **CAM – kulatá destička: vrstvy za koncem vrstvy, u osy a poslední vrstva
   ve vybrání.** Nálezy uživatele 26. 9. 2026 (R 10, ap 2,5, „✂ Po úsecích"):
   (1) zleva, úsek 2 — po `N3270 G1 Z194.675` chyběly vrstvy 38,1 … 28,1 u
