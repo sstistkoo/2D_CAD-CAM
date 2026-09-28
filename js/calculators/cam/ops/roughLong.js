@@ -1886,6 +1886,34 @@ export function genLongPasses(ctx) {
         stepPass.ramp = (x0 > curX + 0.05)
           ? { x0, z0: curZ + (x0 - curX) / effPlungeTanL }
           : { x0: curX, z0: curZ };
+        // ── RAMPA NEVEZME VÍC NEŽ JEDNU VRSTVU (28. 9. 2026) ─────────────
+        // Prodloužení nad kotvu má smysl jen tehdy, když nad kotvou stojí
+        // materiál. Když ho už vybrala vrstva nad ní (ořízlá rampa, dojezd po
+        // kontuře), prodloužení jelo posuvem vzduchem a rampa měřila přes dvě
+        // vrstvy (range-chain-insert-shadow: `G1 X36.492 Z107.433` z X 44,409
+        // = 7,9 mm při ap 5, tests/cam-leadout-step). Rampa pak začne na
+        // kotvě a emise k ní sjede rychloposuvem nad zbytkem
+        // (`rampEntryClear`), stejně jako k rampě kapsy.
+        // „Vybrala" = průchod o hloubku kotvy nebo MĚLČÍ (ten jede dřív —
+        // řetěz se vkládá podle hloubky) projel na Z kotvy až na její X.
+        // Model zbytku z okamžiku plánování tu nestačí: počítá i s hlubšími
+        // průchody, které pojedou až po řetězu.
+        if (x0 - stepX > step + 1e-6 && x0 > curX + 0.05 && capTab) {
+          const tabA = newFloorTab();
+          for (let qi = regionMark; qi < passes.length; qi++) {
+            const q = passes[qi];
+            if (!q || q.type !== 'long' || !Number.isFinite(q.x) || q.x < curX - 1e-6) continue;
+            // Vrstva, jejíž ořízlá rampa v kotvě KONČÍ, nad ní nic nevybrala —
+            // do kotvy jen šikmo dosedla (pocket-wall-at-plunge-angle).
+            if (Math.abs(q.x - curX) < 1e-6 && Math.abs(q.zStart - curZ) < 0.05) continue;
+            notePassInto(tabA, q);
+          }
+          const kA = Math.round((curZ - capZ0) / DZ_CAP);
+          if (kA >= 0 && kA < tabA.length && tabA[kA] <= curX + 0.05) {
+            stepPass.ramp = { x0: curX, z0: curZ };
+            stepPass.rampEntryClear = true;
+          }
+        }
         first = false;
       } else {
         stepPass.ramp = { x0: curX, z0: curZ };

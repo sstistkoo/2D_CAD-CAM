@@ -153,6 +153,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CAM – dobírací řetěz ramp: rampa nevezme víc než jednu vrstvu.** První
+  krok řetězu za strmou stěnou prodlužoval rampu nad kotvu až o ap, i když
+  místo nad kotvou už vybrala mělčí vrstva (ořízlá rampa, dojezd po kontuře).
+  Rampa pak měřila přes dvě vrstvy a prodloužení jelo posuvem vzduchem
+  (range-chain-insert-shadow: `G1 X36.492 Z107.433` z X 44,409 = 7,9 mm při
+  ap 5; part-11-zleva: 5,99 mm). Teď rampa začne na kotvě a emise k ní sjede
+  rychloposuvem nad zbytkem (`rampEntryClear`). Prodlužuje se dál jen tam,
+  kde nad kotvou materiál stojí. Opravuje dva dlouho padající testy
+  (`cam-leadout-step`, `cam-pocket-burst-depth` part-11-zleva). Úběr i kolize
+  beze změny (sweep), na 5 dílech méně posuvů vzduchem (P5), jinak kontrola
+  pravidel beze změny.
 - **CAM – kulatá destička: vrstvy za koncem vrstvy, u osy a poslední vrstva
   ve vybrání.** Nálezy uživatele 26. 9. 2026 (R 10, ap 2,5, „✂ Po úsecích"):
   (1) zleva, úsek 2 — po `N3270 G1 Z194.675` chyběly vrstvy 38,1 … 28,1 u
