@@ -14,7 +14,7 @@ import { bridge } from '../bridge.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
 import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
-import { findContourGaps, jumpToContourGaps } from '../stockTools.js';
+import { findContourGaps, findContourBranches, jumpToContourGaps } from '../stockTools.js';
 import { renderAll } from '../render.js';
 
 // ── Export / Import ──
@@ -688,8 +688,18 @@ function runCncExport() {
 
   // Kontrola uzavřenosti/validity kontury – mezery zvýrazníme na plátně
   const gaps = findContourGaps();
-  state.contourGaps = gaps;
-  if (gaps.length > 0) {
+  // Větvení (3+ segmenty v jednom bodě) — jednu větev by export poslal jako
+  // samostatný kus za G00 a CAM by z toho postavil nesmyslný díl.
+  const branches = findContourBranches();
+  state.contourGaps = gaps.concat(branches);
+  if (branches.length > 0) {
+    renderAll();
+    showToast(
+      'Pozor: kontura se větví (vyznačeno červeně) — v jednom bodě se stýkají 3 a více čar. Smažte přebytečné (např. staré) úsečky, jinak CAM nepozná, kudy kontura vede.',
+      8000,
+      { onClick: () => jumpToContourGaps(branches) },
+    );
+  } else if (gaps.length > 0) {
     renderAll();
     showToast(
       'Pozor: kontura má mezery (vyznačeno červeně) — zkontrolujte výkres před použitím G-kódu.',

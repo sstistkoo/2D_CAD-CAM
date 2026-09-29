@@ -213,6 +213,29 @@ export function findContourGaps() {
   return gaps;
 }
 
+// ── Větvení kontury ────────────────────────────────────────────
+// Vrátí body (cad souřadnice), ve kterých se stýkají TŘI a více segmentů
+// kontury. Soustružnický profil je jedna čára — v uzlu větvení nejde poznat,
+// kudy kontura pokračuje, a CNC export pak jednu větev pošle jako samostatný
+// kus za G00. CAM z toho postaví nesmyslný díl (nález uživatele 29. 9. 2026:
+// po dokreslení šikmé úsečky přes starý schod byl v CAM „trojúhelník dole").
+// Typicky jde o zapomenuté staré úsečky po překreslení části profilu.
+export function findContourBranches() {
+  const objs = _contourObjects();
+  if (objs.length === 0) return [];
+  const segs = _objectsToSegments(objs).filter(sg => !_isDegenerate(sg));
+  const tol = 0.01;
+  const nodes = [];
+  for (const sg of segs) {
+    for (const p of [sg.p1, sg.p2]) {
+      const n = nodes.find(q => Math.hypot(q.x - p.x, q.y - p.y) < tol);
+      if (n) n.count++;
+      else nodes.push({ x: p.x, y: p.y, count: 1 });
+    }
+  }
+  return nodes.filter(n => n.count >= 3).map(n => ({ x: n.x, y: n.y, branch: true }));
+}
+
 /**
  * Přiblíží/vycentruje CAD plátno na zadané body mezer (viz `findContourGaps()`),
  * aby si uživatel nemusel přerušení hledat sám ve výkresu – volá se z akce u

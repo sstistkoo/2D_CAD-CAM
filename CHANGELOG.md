@@ -143,6 +143,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **CNC export – varování na větvení kontury.** Když se v jednom bodě
+  stýkají 3 a více čar (typicky dokreslená šikmá úsečka přes starý schod,
+  který zůstal ve výkresu), export poslal jednu větev jako samostatný kus za
+  G00 a CAM z toho postavil nesmyslný díl („trojúhelník dole" v zbytku
+  nedojeto). Export teď uzly větvení vyznačí červeně („Větvení") a ohlásí je
+  toastem s odkazem na místo (`findContourBranches` v `stockTools.js`).
 - **Mobil – klávesnice při označení objektu.** Klepnutí na objekt v CAD
   zvýrazní jeho řádek v CNC kódu fokusem textarey, a to na telefonu vysouvalo
   klávesnici, i když se nic nezadává. Na dotykových zařízeních se řádek teď

@@ -1,0 +1,43 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// stockTools táhne DOM moduly (ui/render/canvas) — pro čistou geometrii stačí prázdné stuby.
+vi.mock('../js/ui.js', () => ({ updateObjectList: () => {} }));
+vi.mock('../js/render.js', () => ({ renderAll: () => {} }));
+vi.mock('../js/canvas.js', () => ({ fitViewToWorldBounds: () => {} }));
+vi.mock('../js/geometry.js', () => ({ calculateAllIntersections: () => {} }));
+import { state } from '../js/state.js';
+import { findContourBranches, findContourGaps } from '../js/stockTools.js';
+
+const L = (x1, y1, x2, y2) => ({ type: 'line', x1, y1, x2, y2 });
+
+// Profil: osa (0,0) → (0,57) → (150,57) → (205,46) → schod (205,36) → (250,36) → (255,0)
+const profile = () => [
+  L(0, 0, 0, 57), L(0, 57, 150, 57), L(150, 57, 205.149, 46.276),
+  L(205.149, 46.276, 205.149, 36.276), L(205.149, 36.276, 250, 36.276), L(250, 36.276, 255, 0),
+];
+
+describe('findContourBranches', () => {
+  beforeEach(() => { state.objects = []; });
+
+  it('souvislý profil bez větvení nic nehlásí', () => {
+    state.objects = profile();
+    expect(findContourBranches()).toEqual([]);
+    expect(findContourGaps()).toEqual([]);
+  });
+
+  it('šikmá úsečka přes starý schod = dvě větvení (nález 29. 9. 2026)', () => {
+    state.objects = [...profile(), L(205.149, 46.276, 250, 36.276)];
+    const b = findContourBranches();
+    expect(b).toHaveLength(2);
+    expect(b.every(p => p.branch)).toBe(true);
+    // mezery to nejsou — proto to findContourGaps dřív nepoznal
+    expect(findContourGaps()).toEqual([]);
+  });
+
+  it('polotovar a konstrukční čáry se nepočítají', () => {
+    state.objects = [...profile(),
+      { ...L(205.149, 46.276, 300, 46.276), isStock: true },
+      { type: 'constr', x1: 205.149, y1: 46.276, x2: 0, y2: 0 }];
+    expect(findContourBranches()).toEqual([]);
+  });
+});

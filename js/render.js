@@ -1483,7 +1483,7 @@ function drawContourGapMarkers() {
     ctx.stroke();
     const fontSize = Math.round(Math.min(20, Math.max(11, 8 + state.zoom * 4)));
     ctx.font = `bold ${fontSize}px Consolas`;
-    ctx.fillText('Mezera', sx + r + 4, sy - r);
+    ctx.fillText(gp.branch ? 'Větvení' : 'Mezera', sx + r + 4, sy - r);
   }
   ctx.restore();
 }
