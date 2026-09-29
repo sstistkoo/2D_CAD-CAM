@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   polotovaru, který po programu zbyl.
 
 ### Changed
+- **Kalkulačka – větší okno, displej a čísla.** Okno až 380 px (na mobilu
+  téměř přes celou šířku), výsledek písmem 30–32 px; dlouhé číslo se
+  automaticky zmenší, aby bylo vidět celé.
+- **Mobil – pravý panel se při přechodu do CAM zavře**, takže po návratu
+  z CAM do CAD už ho není třeba zavírat ručně.
 - **CAM simulátor – úběr materiálu vždy zapnutý.** Tlačítko ⛏ v horní liště
   zrušeno; uložené `showRemoval: false` se ignoruje.
 - **CAM – pravidlo 8 změněno: úseky po řadě, každý celý.** Na pokyn
@@ -143,6 +148,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pravidla se budou plnit přes kontrolní skript.
 
 ### Fixed
+- **Kalkulačka:** π / ANS / „(" hned za číslem se přilepily (`2`+`π` →
+  `23.14…`) – nově implicitní násobení; záporné ANS za mínusem (`5--3`) se
+  vkládá v závorce; výsledky se zaokrouhlují na 12 platných číslic místo
+  8 desetinných míst (malá čísla už nespadnou na 0, `0.1+0.2` = `0.3`);
+  po „=" začne číslice nový výpočet; dva operátory za sebou se nahradí;
+  čárka funguje jako desetinná tečka; „Chyba" už nemaže výraz; okno při
+  přetažení neposkočí a nejde vytáhnout mimo obrazovku; f(x) se zavře
+  klepnutím jinam; na dotykovém zařízení displej neotevírá systémovou
+  klávesnici.
+- **CSS:** opraveno rozbité kódování (UTF-8 čtené jako CP1252) – mimo jiné
+  prázdná historie kalkulačky ukazovala „Historie vÃ½poÄtÅ¯".
 - **CNC export – varování na větvení kontury.** Když se v jednom bodě
   stýkají 3 a více čar (typicky dokreslená šikmá úsečka přes starý schod,
   který zůstal ve výkresu), export poslal jednu větev jako samostatný kus za

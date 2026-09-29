@@ -86,6 +86,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     showToast('Nelze přepnout do CAM během kreslení držáku');
     return;
   }
+  // Mobil: zavřít pravý panel CAD – ať je po návratu z CAM (✕ i ✓) zavřený
+  // a nemusí se zavírat ručně.
+  document.getElementById('sidebar')?.classList.remove('mobile-open');
+  document.getElementById('sidebarOverlay')?.classList.remove('active');
   injectCSS();
 
   // ── Build HTML ──

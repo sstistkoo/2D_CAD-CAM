@@ -1,9 +1,9 @@
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SKICA â€“ CAD pro CNC soustruÅ¾nÃ­k v3 (X,Z)
-   HlavnÃ­ styly
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══════════════════════════════════════════
+   SKICA – CAD pro CNC soustružník v3 (X,Z)
+   Hlavní styly
+   ══════════════════════════════════════════ */
 
-/* â”€â”€ Catppuccin Mocha â€“ barevnÃ¡ paleta â”€â”€ */
+/* ── Catppuccin Mocha – barevná paleta ── */
 :root {
   --ctp-crust:    #11111b;
   --ctp-mantle:   #181825;
@@ -65,7 +65,7 @@ body {
   flex-direction: column;
 }
 
-/* â”€â”€ HornÃ­ panel â”€â”€ */
+/* ── Horní panel ── */
 #topbar {
   display: flex;
   align-items: center;
@@ -305,14 +305,14 @@ body {
   min-width: 260px;
 }
 
-/* â”€â”€ HlavnÃ­ oblast â”€â”€ */
+/* ── Hlavní oblast ── */
 #main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-/* â”€â”€ Canvas â”€â”€ */
+/* ── Canvas ── */
 #canvasWrap {
   flex: 1;
   position: relative;
@@ -327,7 +327,7 @@ body {
   touch-action: none;
 }
 
-/* â”€â”€ BoÄnÃ­ panel â”€â”€ */
+/* ── Boční panel ── */
 #sidebar {
   width: 300px;
   background: var(--ctp-mantle);
@@ -709,7 +709,7 @@ body {
 }
 
 
-/* â”€â”€ Seznam objektÅ¯ â”€â”€ */
+/* ── Seznam objektů ── */
 #objectList {
   list-style: none;
   max-height: 45vh;
@@ -878,7 +878,7 @@ body {
   gap: 4px;
 }
 
-/* â”€â”€ Seznam vrstev â”€â”€ */
+/* ── Seznam vrstev ── */
 #layerList {
   list-style: none;
   max-height: 200px;
@@ -980,8 +980,8 @@ body {
   color: var(--ctp-yellow);
 }
 
-/* â”€â”€ Vlastní výběr barvy vrstvy (náhrada nativního input[type=color] popupu,
-   kam nejde přidat vlastní tlačítka/přednastavené barvy) â”€â”€ */
+/* ── Vlastní výběr barvy vrstvy (náhrada nativního input[type=color] popupu,
+   kam nejde přidat vlastní tlačítka/přednastavené barvy) ── */
 .color-popover-dialog {
   min-width: 220px;
   padding: 14px;
@@ -1493,7 +1493,7 @@ body {
   color: var(--ctp-red);
 }
 
-/* â”€â”€ Seznam prÅ¯seÄÃ­kÅ¯ â”€â”€ */
+/* ── Seznam průsečíků ── */
 #intersectionList {
   list-style: none;
   max-height: 250px;
@@ -1520,7 +1520,7 @@ body {
   float: right;
 }
 
-/* â”€â”€ Input dialog â”€â”€ */
+/* ── Input dialog ── */
 .input-overlay {
   position: fixed;
   top: 0;
@@ -1692,9 +1692,9 @@ body {
   accent-color: var(--ctp-blue);
 }
 
-/* â”€â”€ Statusbar â”€â”€ */
+/* ── Statusbar ── */
 
-/* â”€â”€ Pick button (numerical dialog) â”€â”€ */
+/* ── Pick button (numerical dialog) ── */
 /* Sloupeček s tlačítky vpravo od polí. Šířka je `auto` s minimem 40 px,
    protože v posledním řádku sedí vedle 🎯/✛ ještě OK. */
 .pick-col {
@@ -1874,7 +1874,7 @@ body {
   box-shadow: 0 0 14px #a6e3a166;
 }
 
-/* â”€â”€ Snap indicator â”€â”€ */
+/* ── Snap indicator ── */
 .snap-ind {
   display: inline-block;
   width: 8px;
@@ -1892,7 +1892,7 @@ body {
   background: var(--ctp-red);
 }
 
-/* â”€â”€ Toast notification â”€â”€ */
+/* ── Toast notification ── */
 .toast {
   position: fixed;
   bottom: 40px;
@@ -1914,13 +1914,13 @@ body {
   opacity: 1;
 }
 
-/* â”€â”€ Dimension labels â”€â”€ */
+/* ── Dimension labels ── */
 .dim-label {
   font: 10px Consolas;
   fill: var(--ctp-overlay2);
 }
 
-/* â”€â”€ CNC Output â”€â”€ */
+/* ── CNC Output ── */
 #cncOutput {
   font-size: 11px;
   font-family: monospace;
@@ -1943,7 +1943,7 @@ body {
   border-radius: 3px;
 }
 
-/* â”€â”€ Mobile bottom bar (grid) â”€â”€ */
+/* ── Mobile bottom bar (grid) ── */
 #mobileBottomBar {
   display: none;
   position: fixed;
@@ -2617,11 +2617,11 @@ body {
   color: var(--ctp-base);
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════
    Mobile responsive
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ══════════════════════════════════════════ */
 
-/* â”€â”€ Precision Crosshair (long-press) â”€â”€ */
+/* ── Precision Crosshair (long-press) ── */
 #precisionCrosshair {
   display: none;
   position: fixed;
@@ -2760,7 +2760,7 @@ body {
 }
 
 @media (max-width: 900px) {
-  /* Safe area pro telefony s vÃ½Å™ezem */
+  /* Safe area pro telefony s výřezem */
   #mobileCoordBar {
     padding-top: max(5px, env(safe-area-inset-top));
   }
@@ -3046,7 +3046,7 @@ body {
 
   /* mobileRedo: hidden by default, shown by JS when redo is available */
 
-  /* Hide duplicated toolbar items on mobile â€“ handled by mobile-specific overrides */
+  /* Hide duplicated toolbar items on mobile – handled by mobile-specific overrides */
 
   .mobile-hide {
     display: none !important;
@@ -3137,7 +3137,7 @@ body {
     gap: 4px;
   }
 
-  /* Toast nad mobilnÃ­mi tlaÄÃ­tky */
+  /* Toast nad mobilními tlačítky */
   .toast {
     bottom: 70px;
   }
@@ -3235,7 +3235,7 @@ body {
   }
 }
 
-/* â”€â”€ Calculator launcher buttons â”€â”€ */
+/* ── Calculator launcher buttons ── */
 .calc-launchers {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -3274,7 +3274,7 @@ body {
   padding: 8px 0 0;
 }
 
-/* â”€â”€ Calculator popup windows â”€â”€ */
+/* ── Calculator popup windows ── */
 .calc-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -3353,7 +3353,7 @@ body {
   padding: 6px 8px;
 }
 
-/* â”€â”€ Basic calculator â”€â”€ */
+/* ── Basic calculator ── */
 #calcDisplay {
   width: 100%;
   padding: 12px 14px;
@@ -3477,7 +3477,7 @@ body {
 .calc-copy { background: var(--ctp-surface1); color: var(--ctp-yellow); }
 .calc-paste { background: var(--ctp-surface1); color: var(--ctp-green); font-size: 14px; }
 
-/* â”€â”€ Calculator expression display â”€â”€ */
+/* ── Calculator expression display ── */
 .calc-expr {
   font-size: 12px;
   color: var(--ctp-overlay0);
@@ -3495,7 +3495,7 @@ body {
   padding: 1px 10px 0;
 }
 
-/* â”€â”€ Calculator / Trig history â”€â”€ */
+/* ── Calculator / Trig history ── */
 .calc-history,
 .trig-history {
   height: 100px;
@@ -3563,7 +3563,7 @@ body {
   justify-content: center;
 }
 .calc-history:empty::after {
-  content: "Historie vÃ½poÄtÅ¯";
+  content: "Historie výpočtů";
   color: var(--ctp-surface1);
   font-size: 12px;
   font-family: "Consolas", monospace;
@@ -3643,7 +3643,7 @@ body {
   background: var(--ctp-surface1);
 }
 
-/* â”€â”€ CNC calculators (shared) â”€â”€ */
+/* ── CNC calculators (shared) ── */
 .cnc-window {
   min-width: 340px;
   max-width: 440px;
@@ -3989,7 +3989,7 @@ body {
   border-color: var(--ctp-blue);
 }
 
-/* â”€â”€ Converter â”€â”€ */
+/* ── Converter ── */
 .conv-section {
   margin-bottom: 12px;
 }
@@ -4040,7 +4040,7 @@ body {
   padding: 3px 8px !important;
 }
 
-/* â”€â”€ Material hint bar (Å˜eznÃ© podmÃ­nky) â”€â”€ */
+/* ── Material hint bar (Řezné podmínky) ── */
 .cnc-mat-hint {
   display: flex;
   flex-wrap: wrap;
@@ -4058,7 +4058,7 @@ body {
   display: none;
 }
 
-/* â”€â”€ Tolerance toggle â”€â”€ */
+/* ── Tolerance toggle ── */
 .tol-toggle-row {
   display: flex;
   gap: 0;
@@ -4086,7 +4086,7 @@ body {
   background: var(--ctp-surface0);
   color: var(--ctp-text);
 }
-/* â”€â”€ Tolerance grid buttons â”€â”€ */
+/* ── Tolerance grid buttons ── */
 .tol-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -4117,7 +4117,7 @@ body {
   font-weight: 700;
 }
 
-/* â”€â”€ Thread detail box â”€â”€ */
+/* ── Thread detail box ── */
 .thr-category-row {
   margin-bottom: 10px;
 }
@@ -4191,7 +4191,7 @@ body {
   background: var(--ctp-surface1);
 }
 
-/* â”€â”€ Thread help panel â”€â”€ */
+/* ── Thread help panel ── */
 .thr-help-panel {
   margin-top: 10px;
 }
@@ -4238,7 +4238,7 @@ body {
   font-style: normal;
 }
 
-/* â”€â”€ Roughness calculator â”€â”€ */
+/* ── Roughness calculator ── */
 
 /* -- Thread identification -- */
 .thr-ident-results {
@@ -4404,7 +4404,7 @@ body {
   padding-top: 6px;
 }
 
-/* â”€â”€ VBD & Holders calculator â”€â”€ */
+/* ── VBD & Holders calculator ── */
 .vbd-window { min-width: 420px; max-width: 620px; }
 .vbd-tabs { display: flex; gap: 2px; margin-bottom: 10px; flex-wrap: wrap; }
 .vbd-tab { background: var(--ctp-surface0); color: var(--ctp-subtext0); border: none; padding: 7px 12px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: .82rem; transition: background .15s, color .15s; }
@@ -4480,7 +4480,7 @@ body {
 .vbd-sr b { color: var(--ctp-blue); }
 .vbd-sr small { color: var(--ctp-overlay0); }
 
-/* Reverse lookup (VBD â†’ Holder) */
+/* Reverse lookup (VBD → Holder) */
 .vbd-reverse-section { margin-bottom: 6px; }
 .vbd-reverse-quick { margin-top: 6px; }
 .vbd-reverse-quick small { color: var(--ctp-overlay0); font-size: .78rem; display: block; margin-bottom: 4px; }
@@ -4526,7 +4526,7 @@ body {
 .vbd-faq-item { background: var(--ctp-base); border: 1px solid var(--ctp-surface0); border-radius: 6px; overflow: hidden; }
 .vbd-faq-q { padding: 8px 12px; color: var(--ctp-text); font-weight: 600; font-size: .85rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
 .vbd-faq-q::after { content: '+'; color: var(--ctp-blue); font-size: 1.1rem; font-weight: 700; }
-.vbd-faq-item.vbd-faq-open .vbd-faq-q::after { content: 'âˆ’'; }
+.vbd-faq-item.vbd-faq-open .vbd-faq-q::after { content: '−'; }
 .vbd-faq-a { max-height: 0; overflow: hidden; transition: max-height .25s ease, padding .25s ease; padding: 0 12px; color: var(--ctp-subtext0); font-size: .82rem; line-height: 1.5; }
 .vbd-faq-item.vbd-faq-open .vbd-faq-a { max-height: 300px; padding: 0 12px 10px; }
 
@@ -4541,7 +4541,7 @@ body {
   .vbd-tab { padding: 5px 8px; font-size: .75rem; }
 }
 
-/* â”€â”€ Trig calculator â”€â”€ */
+/* ── Trig calculator ── */
 .trig-window {
   min-width: 320px;
   max-width: 440px;
@@ -4673,9 +4673,9 @@ body {
   }
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════
    Help overlay
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ══════════════════════════════════════════ */
 .help-overlay {
   position: fixed;
   top: 0;
@@ -5095,9 +5095,9 @@ body {
   }
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════
    Project dialog
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ══════════════════════════════════════════ */
 .project-list {
   list-style: none;
   padding: 0;
@@ -7193,4 +7193,85 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
   color: var(--ctp-text);
   overflow: hidden;
   word-wrap: break-word;
+}
+
+/* ── Základní kalkulačka – větší okno, displej a čísla ──
+   (.calc-basic-window přidává openCalculator() v ui.js; ostatní plovoucí
+   okna s .calc-window se nemění) */
+.calc-overlay-float .calc-window.calc-basic-window {
+  width: min(380px, calc(100vw - 16px));
+  max-height: calc(100dvh - 80px);
+}
+.calc-basic-window .calc-body {
+  display: flex;
+  flex-direction: column;
+}
+.calc-overlay-float .calc-basic-window #calcDisplay {
+  padding: 10px 12px;
+  font-size: 30px;
+  font-weight: bold;
+  line-height: 1.2;
+  min-height: 56px;
+  margin-bottom: 6px;
+}
+#calcDisplay.calc-display-error {
+  border-color: var(--ctp-red);
+  color: var(--ctp-red);
+}
+.calc-overlay-float .calc-basic-window .calc-expr {
+  font-size: 14px;
+  min-height: 20px;
+  padding: 2px 12px 2px;
+  color: var(--ctp-subtext0);
+}
+.calc-overlay-float .calc-basic-window .calc-history {
+  height: 62px;
+  max-height: 90px;
+}
+.calc-overlay-float .calc-basic-window .calc-history-item,
+.calc-basic-window .calc-hist-full {
+  font-size: 13px;
+}
+.calc-overlay-float .calc-basic-window .calc-buttons,
+.calc-overlay-float .calc-basic-window .calc-fn-row,
+.calc-overlay-float .calc-basic-window .calc-num-grid {
+  gap: 4px;
+}
+.calc-overlay-float .calc-basic-window .calc-num-grid .calc-btn {
+  font-size: 24px;
+  aspect-ratio: 1 / 0.72;
+}
+.calc-overlay-float .calc-basic-window .calc-fn,
+.calc-overlay-float .calc-basic-window .calc-fn-row-3 .calc-btn {
+  font-size: 16px;
+  padding: 10px 3px;
+}
+.calc-overlay-float .calc-basic-window .calc-trig-toggle {
+  font-size: 14px !important;
+}
+.calc-overlay-float .calc-basic-window .calc-trig-dropdown .calc-btn {
+  font-size: 15px;
+  padding: 10px 4px;
+}
+.calc-basic-window .calc-hist-title {
+  font-size: 12px;
+}
+/* Mobil: okno přes skoro celou šířku, blíž k hornímu okraji */
+@media (max-width: 600px) {
+  .calc-overlay-float .calc-window.calc-basic-window {
+    top: 64px;
+  }
+  .calc-overlay-float .calc-basic-window #calcDisplay {
+    font-size: 32px;
+    min-height: 60px;
+  }
+}
+/* Nízké displeje (telefon na šířku) – nižší tlačítka, ať se okno vejde */
+@media (max-height: 640px) {
+  .calc-overlay-float .calc-basic-window .calc-num-grid .calc-btn {
+    aspect-ratio: auto;
+    padding: 8px 0;
+    font-size: 20px;
+  }
+  .calc-overlay-float .calc-basic-window .calc-history { height: 40px; }
 }

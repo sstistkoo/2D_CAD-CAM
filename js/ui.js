@@ -3629,6 +3629,7 @@ export function openCalculator() {
 
   // Wire close & clear history buttons in the compact header
   const calcWin = overlay.querySelector(".calc-window");
+  calcWin.classList.add("calc-basic-window");
   overlay.querySelector(".calc-close-inner-btn").addEventListener("click", () => overlay.remove());
   overlay.querySelector(".calc-hist-clear-btn").addEventListener("click", () => {
     history = [];
@@ -3641,16 +3642,33 @@ export function openCalculator() {
   const dragHandle = overlay.querySelector(".calc-hist-header");
   let _dragOfs = null;
   dragHandle.style.cursor = "move";
+  // Začátek tažení: zafixovat aktuální pozici a zrušit CSS translateX(-50%),
+  // jinak okno při prvním pohybu poskočí o půl své šířky doleva.
+  function startDrag(clientX, clientY) {
+    const rect = calcWin.getBoundingClientRect();
+    calcWin.style.transform = "none";
+    calcWin.style.left = rect.left + "px";
+    calcWin.style.top = rect.top + "px";
+    _dragOfs = { x: clientX - rect.left, y: clientY - rect.top };
+  }
+  // Posun okna – omezený na viditelnou plochu (hlavička musí zůstat dosažitelná)
+  function moveDrag(clientX, clientY) {
+    const w = calcWin.offsetWidth;
+    const maxX = Math.max(0, window.innerWidth - w);
+    const maxY = Math.max(0, window.innerHeight - 40);
+    const x = Math.min(Math.max(0, clientX - _dragOfs.x), maxX);
+    const y = Math.min(Math.max(0, clientY - _dragOfs.y), maxY);
+    calcWin.style.left = x + "px";
+    calcWin.style.top = y + "px";
+  }
   dragHandle.addEventListener("mousedown", (e) => {
     if (e.target.closest("button")) return;
-    const rect = calcWin.getBoundingClientRect();
-    _dragOfs = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    startDrag(e.clientX, e.clientY);
     e.preventDefault();
   });
   const onMouseMove = (e) => {
     if (!_dragOfs) return;
-    calcWin.style.left = (e.clientX - _dragOfs.x) + "px";
-    calcWin.style.top = (e.clientY - _dragOfs.y) + "px";
+    moveDrag(e.clientX, e.clientY);
   };
   const onMouseUp = () => { _dragOfs = null; };
   document.addEventListener("mousemove", onMouseMove);
@@ -3659,20 +3677,25 @@ export function openCalculator() {
   dragHandle.addEventListener("touchstart", (e) => {
     if (e.target.closest("button")) return;
     const t = e.touches[0];
-    const rect = calcWin.getBoundingClientRect();
-    _dragOfs = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    startDrag(t.clientX, t.clientY);
   }, { passive: true });
   const onTouchMove = (e) => {
     if (!_dragOfs) return;
     const t = e.touches[0];
-    calcWin.style.left = (t.clientX - _dragOfs.x) + "px";
-    calcWin.style.top = (t.clientY - _dragOfs.y) + "px";
+    moveDrag(t.clientX, t.clientY);
   };
   const onTouchEnd = () => { _dragOfs = null; };
   document.addEventListener("touchmove", onTouchMove, { passive: true });
   document.addEventListener("touchend", onTouchEnd);
   // Cleanup drag listeners when calculator is removed
+  // Klepnutí mimo rozbalovací f(x) ho zavře
+  const onDocPointerDown = (e) => {
+    if (e.target.closest(".calc-trig-wrap")) return;
+    overlay.querySelector("#calcTrigDropdown")?.classList.remove("open");
+  };
+  document.addEventListener("pointerdown", onDocPointerDown, true);
   const dragCleanup = () => {
+    document.removeEventListener("pointerdown", onDocPointerDown, true);
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("mouseup", onMouseUp);
     document.removeEventListener("touchmove", onTouchMove);
@@ -3686,13 +3709,46 @@ export function openCalculator() {
   const historyEl = overlay.querySelector("#calcHistory");
   let expr = "";
   let lastAnswer = 0;
+  let justEvaluated = false; // po „=" začne další číslice nový výpočet
   let history = [];
   getMeta('calcHistory').then(h => {
     if (Array.isArray(h)) { history = h; renderHistory(); }
   });
 
-  function updateDisplay(text) { display.value = text || "0"; }
+  function updateDisplay(text) {
+    display.value = text || "0";
+    display.classList.remove("calc-display-error");
+    fitDisplayFont();
+    // Kurzor/pohled na konec – u dlouhých výrazů je vidět to, co se právě píše
+    display.scrollLeft = display.scrollWidth;
+  }
   function updateExprDisplay(text) { exprDisplay.textContent = text || "\u00a0"; }
+  function showError(msg) {
+    // Výraz zůstává v displeji (dá se opravit), chyba se ukáže v řádku nad ním
+    updateExprDisplay("⚠ " + msg);
+    display.classList.add("calc-display-error");
+  }
+  // Dlouhý obsah → menší písmo, ať se vejde celý (měří skutečnou šířku textu)
+  const _measureCtx = document.createElement("canvas").getContext("2d");
+  function fitDisplayFont() {
+    display.style.fontSize = "";
+    const cs = getComputedStyle(display);
+    const base = parseFloat(cs.fontSize) || 28;
+    const avail = display.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+    if (!_measureCtx || avail <= 0) return;
+    _measureCtx.font = `${cs.fontWeight} ${base}px ${cs.fontFamily}`;
+    const w = _measureCtx.measureText(display.value).width;
+    if (w > avail) display.style.fontSize = Math.max(14, Math.floor(base * avail / w)) + "px";
+  }
+  // Zaokrouhlení výsledku: 12 platných číslic (odstraní šum 0.1+0.2 a nesmaže
+  // malá čísla jako dříve toFixed(8)); -0 → 0.
+  function roundResult(r) {
+    const v = Math.abs(r) >= 1e12 ? r : parseFloat(r.toPrecision(12));
+    return v === 0 ? 0 : v;
+  }
+  // Na dotykových zařízeních neotvírat systémovou klávesnici (zakryla by
+  // kalkulačku); kurzor a označování v poli fungují dál.
+  if (window.matchMedia?.("(pointer: coarse)").matches) display.setAttribute("inputmode", "none");
 
   function saveHistory() {
     setMeta('calcHistory', history);
@@ -3741,6 +3797,7 @@ export function openCalculator() {
         expr = String(item.result);
         updateDisplay(expr);
         updateExprDisplay("← " + item.result);
+        justEvaluated = true;
       });
       historyEl.appendChild(row);
     });
@@ -3752,16 +3809,30 @@ export function openCalculator() {
   renderHistory();
 
   function formatExpr(e) {
-    return e.replace(/\*/g, "×").replace(/\//g, "÷").replace(/-/g, "−");
+    // „e-5" (vědecký zápis) nepřevádět na znak mínus
+    return e.replace(/\*/g, "×").replace(/\//g, "÷").replace(/(?<![eE])-/g, "−");
+  }
+
+  // Poslední znak výrazu je konec čísla/závorky → hodnota za ním potřebuje „*"
+  function endsWithValue(e) { return /[\d.)%π]$/.test(e); }
+
+  // Vložit hodnotu (π, ANS) nebo „(" – s implicitním násobením,
+  // aby „2" + „π" nedalo „23.14159…"
+  function appendValue(v) {
+    if (justEvaluated) { expr = ""; justEvaluated = false; }
+    if (endsWithValue(expr)) expr += "*";
+    expr += v;
+    updateDisplay(expr);
   }
 
   function safeEval(expression) {
-    let e = expression
-      .replace(/π/g, String(Math.PI))
+    let e = String(expression)
+      .replace(/,/g, ".")
+      .replace(/π/g, "(" + Math.PI + ")")
       .replace(/×/g, "*").replace(/−/g, "-").replace(/÷/g, "/");
-    if (!/^[\d+\-*/().eE\s%]*$/.test(e)) return null;
-    // Handle % as /100
-    e = e.replace(/(\d+(?:\.\d+)?)%/g, "($1/100)");
+    if (!e.trim() || !/^[\d+\-*/().eE\s%]*$/.test(e)) return null;
+    // % = /100 (funguje i za závorkou: „(2+3)%")
+    e = e.replace(/%/g, "/100");
     try {
       const r = _parseMathExpr(e);
       return (typeof r === "number" && isFinite(r)) ? r : null;
@@ -3770,7 +3841,7 @@ export function openCalculator() {
 
   function handleFn(fn) {
     const cur = safeEval(expr);
-    if (cur === null) return;
+    if (cur === null) { if (expr) showError("Neplatný výraz"); return; }
     let r;
     const fnExpr = fn + "(" + formatExpr(expr) + ")";
     switch (fn) {
@@ -3784,26 +3855,29 @@ export function openCalculator() {
       case "pow":  r = cur * cur; break;
       default: return;
     }
-    if (typeof r !== "number" || !isFinite(r)) { updateDisplay("Chyba"); expr = ""; return; }
-    const result = parseFloat(r.toFixed(8));
+    if (typeof r !== "number" || !isFinite(r)) { showError("Mimo definiční obor"); return; }
+    const result = roundResult(r);
     addHistory(fnExpr, result);
-    updateExprDisplay(fnExpr + " = " + result);
     lastAnswer = result;
     expr = String(result);
     updateDisplay(expr);
+    updateExprDisplay(fnExpr + " = " + result);
+    justEvaluated = true;
   }
 
   function doEval() {
+    if (!expr.trim()) return;
     const displayExpr = formatExpr(expr);
     const r = safeEval(expr);
-    if (r === null) { updateDisplay("Chyba"); return; }
-    const result = parseFloat(r.toFixed(8));
+    if (r === null) { showError("Chyba ve výrazu"); return; }
+    const result = roundResult(r);
     addHistory(displayExpr, result);
     lastAnswer = result;
-    // Zobrazit celý zápis: výraz = výsledek
-    updateExprDisplay(displayExpr + " = " + result);
     expr = String(result);
     updateDisplay(expr);
+    // Zobrazit celý zápis: výraz = výsledek
+    updateExprDisplay(displayExpr + " = " + result);
+    justEvaluated = true;
   }
 
   overlay.querySelectorAll(".calc-btn").forEach((btn) => {
@@ -3811,8 +3885,8 @@ export function openCalculator() {
       e.stopPropagation();
       const val = btn.dataset.val;
       switch (val) {
-        case "C":    expr = ""; updateDisplay("0"); updateExprDisplay(""); break;
-        case "CE":   expr = expr.slice(0, -1); updateDisplay(expr); break;
+        case "C":    expr = ""; justEvaluated = false; updateDisplay("0"); updateExprDisplay(""); break;
+        case "CE":   expr = expr.slice(0, -1); justEvaluated = false; updateDisplay(expr); break;
         case "=":    doEval(); break;
         case "copy": {
           const v = display.value;
@@ -3848,15 +3922,46 @@ export function openCalculator() {
           dd.classList.toggle("open");
           break;
         }
-        case "pi":    expr += String(Math.PI); updateDisplay(expr); break;
-        case "ans":   expr += String(lastAnswer); updateDisplay(expr); break;
-        case "%":     expr += "%"; updateDisplay(expr); break;
+        case "pi":    appendValue("π"); break;
+        // Záporné ANS do závorky, ať za mínusem nevznikne „5--3"
+        case "ans":   appendValue(lastAnswer < 0 ? "(" + lastAnswer + ")" : String(lastAnswer)); break;
+        case "(":     appendValue("("); break;
+        case "%":
+          if (endsWithValue(expr) && !expr.endsWith("%")) { expr += "%"; justEvaluated = false; updateDisplay(expr); }
+          break;
+        case "+": case "-": case "*": case "/": {
+          justEvaluated = false; // operátor pokračuje s výsledkem
+          const last = expr.slice(-1);
+          if ("+-*/".includes(last) && last !== "") {
+            // Dva operátory za sebou → nahradit; výjimka „*-" / „/-" (záporné číslo)
+            if (val === "-" && (last === "*" || last === "/")) expr += val;
+            else expr = expr.replace(/[+\-*/]+$/, "") + val;
+          } else if (expr === "" && val !== "-") {
+            expr = String(lastAnswer) + val; // operátor na prázdném displeji → navázat na ANS
+          } else {
+            expr += val;
+          }
+          updateDisplay(expr);
+          break;
+        }
         case "sqrt": case "sin": case "cos": case "tan": case "atan": case "asin": case "acos": case "pow":
           handleFn(val);
           // Close trig dropdown after selecting function
           { const dd = overlay.querySelector("#calcTrigDropdown"); if (dd) dd.classList.remove("open"); }
           break;
-        default: expr += val; updateDisplay(expr);
+        default: {
+          // Číslice / tečka / „)" – po „=" číslice začíná nový výpočet
+          if (justEvaluated && /[\d.]/.test(val)) expr = "";
+          justEvaluated = false;
+          if (/[\d.]/.test(val) && /[)%π]$/.test(expr)) expr += "*";
+          if (val === ".") {
+            const lastNum = expr.match(/[\d.]*$/)[0];
+            if (lastNum.includes(".")) break; // druhá tečka v čísle
+            if (lastNum === "") expr += "0";
+          }
+          expr += val;
+          updateDisplay(expr);
+        }
       }
     });
   });
@@ -3864,11 +3969,14 @@ export function openCalculator() {
   // Keyboard input
   display.removeAttribute("readonly");
   display.addEventListener("input", () => {
-    expr = display.value;
+    expr = display.value.replace(/,/g, ".");
+    justEvaluated = false;
+    display.classList.remove("calc-display-error");
+    fitDisplayFont();
   });
   display.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); doEval(); }
-    if (e.key === "Escape") { expr = ""; updateDisplay("0"); updateExprDisplay(""); }
+    if (e.key === "Escape") { expr = ""; justEvaluated = false; updateDisplay("0"); updateExprDisplay(""); }
     e.stopPropagation();
   });
 }
