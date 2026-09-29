@@ -29,28 +29,11 @@
 //
 // Souřadnice: vnitřní svět strategie (jízda k nižšímu Z).
 
+import { segAt, subSeg } from './segUtils.js';
+
 const HUMP_MIN = 1;      // o kolik musí dojezd za vrcholem klesnout, aby to byl hrb
 const TOL = 0.02;
 const N_SAMPLE = 24;
-
-const segAt = (s, t) => {
-  if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
-    const a = s.startAngle + (s.endAngle - s.startAngle) * t;
-    return { x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r };
-  }
-  return { x: s.x1 + (s.x2 - s.x1) * t, z: s.z1 + (s.z2 - s.z1) * t };
-};
-
-/** Část segmentu mezi parametry t0 < t1. */
-const subSeg = (s, t0, t1) => {
-  const p0 = segAt(s, t0), p1 = segAt(s, t1);
-  if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
-    const a0 = s.startAngle + (s.endAngle - s.startAngle) * t0;
-    const a1 = s.startAngle + (s.endAngle - s.startAngle) * t1;
-    return { ...s, startAngle: a0, endAngle: a1, x1: p0.x, z1: p0.z, x2: p1.x, z2: p1.z };
-  }
-  return { ...s, x1: p0.x, z1: p0.z, x2: p1.x, z2: p1.z };
-};
 
 /**
  * Najde místo, kde má dojezd skončit: první dosažení `prevX`, jinak vrchol,
@@ -237,5 +220,29 @@ export function splitPocketLeadOutsOverHumps(list, step) {
   const out = drop.size > 0 ? list.filter(q => !drop.has(q)) : list;
   if (rems.length === 0) return out;
   rems.sort((a, b) => b.x - a.x);
-  return out.concat(rems);
+  return out.concat(uniqueCrossings(rems));
+}
+
+// ── ZBYTKY SE STEJNÝM KONCEM JSOU TÝŽ PŘEJEZD (28. 9. 2026) ─────────────
+// Všechny vrstvy údolí dojíždějí po TÉŽE offsetové dráze přes týž hrb, takže
+// se jejich zbytky liší jen tím, jak nízko na stěně začínají. Končí-li navíc
+// ve stejném bodě (za hrbem je mez rozsahu / konec úseku), je každý kratší
+// zbytek doslova kusem delšího. Nález uživatele (kulatá R 10, zleva, úsek 1):
+// za hrbem Z 125–130 šest průchodů `G0 X48.331 / G0 Z142.601 / G1 X45.68
+// Z145.25 / G1 X47.68` po sobě — dokola do téhož trojúhelníku u meze úseku.
+// Nechá se jen nejdelší (nájezd, který po projeté dráze vede, pak roughLong
+// ořízne / přejede rychloposuvem).
+function uniqueCrossings(rems) {
+  const len = (segs) => segs.reduce((a, s) => a + Math.hypot(s.x2 - s.x1, s.z2 - s.z1), 0);
+  const kept = [];
+  for (const r of rems) {
+    const e = r.contourLeadIn[r.contourLeadIn.length - 1];
+    const k = kept.findIndex(u => {
+      const f = u.contourLeadIn[u.contourLeadIn.length - 1];
+      return Math.hypot(f.x2 - e.x2, f.z2 - e.z2) <= 0.1;
+    });
+    if (k < 0) kept.push(r);
+    else if (len(r.contourLeadIn) > len(kept[k].contourLeadIn)) kept[k] = r;
+  }
+  return kept;
 }

@@ -61,9 +61,22 @@ describe('CAM: kulatá R 10 — vrstvy za stěnou a u osy (zleva, úsek 2)', () 
 
   it('vrstva X 8,095 u osy nevypadne (další vrstva nebere 2× ap)', async () => {
     const { calc } = await runCamProg(load('round-r10-zleva-section2.camprog'));
-    const hit = calc.passes.some(p => p.type === 'long' && Math.abs(p.x - 8.095) < 0.01
-      && Math.min(p.zStart, p.zEnd) < 360 && Math.max(p.zStart, p.zEnd) > 368);
-    expect(hit).toBe(true);
+    // Od 29. 9. 2026 vjíždějí vrstvy u čela řetězem ramp 45° (klíč
+    // `leadInSteepToChain`) — začátek vrstvy leží za mezní čarou čela
+    // (Z ~361), ne na čele (84° sjezd, pravidlo 6). Hlídá se tedy, že
+    // vrstva je a dojede až ke konci, a že další vrstva na ni navazuje
+    // rampou (bere jen ap), ne jejím začátkem. Vrstvy pod X 8,095 tam nic
+    // neberou (nad řetězem vzala vše kružnice nosu, pod ním je klín) a
+    // vypadnou — když některá zůstane, musí navazovat rampou o ap.
+    const layer = calc.passes.find(p => p.type === 'long' && Math.abs(p.x - 8.095) < 0.01
+      && Math.max(p.zStart, p.zEnd) > 368 && Math.abs(p.zEnd - p.zStart) > 5);
+    expect(layer, 'vrstva X 8,095 u osy').toBeTruthy();
+    const below = calc.passes.filter(p => p.type === 'long' && p.x < 8.09
+      && Math.max(p.zStart, p.zEnd) > 368);
+    for (const p of below) {
+      expect(!!p.ramp, `X ${p.x.toFixed(3)} vjíždí rampou`).toBe(true);
+      expect(p.ramp.x0 - p.x, `X ${p.x.toFixed(3)} bere víc než ap`).toBeLessThanOrEqual(2.5 + 0.05);
+    }
   });
 });
 

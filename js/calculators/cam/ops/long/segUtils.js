@@ -9,6 +9,26 @@
 /** Klíč hloubky pro Set/Map — hloubky se porovnávají na mikrometr. */
 export const depthKey = (x) => Math.round(x * 1000);
 
+/** Bod segmentu v parametru t ∈ [0, 1] (oblouk po úhlu, úsečka lineárně). */
+export const segAt = (s, t) => {
+  if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+    const a = s.startAngle + (s.endAngle - s.startAngle) * t;
+    return { x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r };
+  }
+  return { x: s.x1 + (s.x2 - s.x1) * t, z: s.z1 + (s.z2 - s.z1) * t };
+};
+
+/** Část segmentu mezi parametry t0 < t1 (oblouk zůstane obloukem). */
+export const subSeg = (s, t0, t1) => {
+  const p0 = segAt(s, t0), p1 = segAt(s, t1);
+  if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+    const a0 = s.startAngle + (s.endAngle - s.startAngle) * t0;
+    const a1 = s.startAngle + (s.endAngle - s.startAngle) * t1;
+    return { ...s, startAngle: a0, endAngle: a1, x1: p0.x, z1: p0.z, x2: p1.x, z2: p1.z };
+  }
+  return { ...s, x1: p0.x, z1: p0.z, x2: p1.x, z2: p1.z };
+};
+
 // Jemné dělení úseček (~0,4 mm) pro ořez obálkou po částech — dlouhá čára
 // dna kapsy se tak zahodí jen v zablokované části, ne celá. Oblouky (krátké
 // rohové blendy) se nedělí, ořežou se celé.

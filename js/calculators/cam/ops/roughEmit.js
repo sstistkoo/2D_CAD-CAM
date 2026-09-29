@@ -18,6 +18,7 @@
 
 import { segmentHitsPath } from '../contourBuild.js';
 import { getInsert } from '../inserts/index.js';
+import { rapidFeedGap } from '../camMath.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -195,7 +196,13 @@ calc.passes.forEach((pass, i) => {
       if (Math.abs(cur.z - tgt.z) > 1e-6) { simCounter += 1; addN(`G0 Z${tgt.z.toFixed(3)}`, simCounter); setPos(cur.x, tgt.z); }
       // Sjezd zpátky na pokračování rampy: poslední kousek (Vůle nad
       // materiálem) pracovním posuvem, ne rychloposuvem až na materiál.
-      emitDescendX(cur.x, tgt.x, tgt.z, true); setPos(tgt.x, tgt.z);
+      // `wallEntryClear` (kulatá, nájezd po stěně od konce předchozího kroku,
+      // ops/long/pocketPass.js): rychloposuv se zastaví podle kružnice nad
+      // zbytkem, jako u `rampEntryClear` výš — ne o Vůli + R nad cílem.
+      const wStop = pass.wallEntryClear && typeof rapidStopXAt === 'function' ? rapidStopXAt(tgt.z) : null;
+      emitDescendX(cur.x, tgt.x, tgt.z, true,
+        wStop === null ? rapidStopX : Math.min(rapidStopX, Math.max(wStop - tgt.x, 0)));
+      setPos(tgt.x, tgt.z);
     } else if (pass.pocketClean) {
       const needMove = Math.abs(cur.x - entry.x) > 1e-6 || Math.abs(cur.z - entry.z) > 1e-6;
       if (pass.cleanApproach && needMove) {
@@ -241,8 +248,14 @@ calc.passes.forEach((pass, i) => {
       // Totéž u nájezdu po kontuře zkráceného na ocas pod mělčí vrstvou
       // (`leadInTrimmed`, ops/long/humpOrder.js): nad jeho začátkem je
       // obrobeno, sjíždět k němu 4,5 mm posuvem by byl posuv vzduchem.
-      const stop = ((pass.rampEntryClear && pass.ramp) || pass.leadInTrimmed) && typeof rapidStopXAt === 'function'
+      // A u nájezdu prodlouženého dozadu do vzduchu (`leadInExtended`,
+      // ops/long/leadInChain.js): začíná tam, kam celá kružnice nosu
+      // na polotovar nedosáhne (úsek 1 dílu 29. 9. 2026: 5 mm posuvem na Z −20).
+      let stop = ((pass.rampEntryClear && pass.ramp) || pass.leadInTrimmed || pass.leadInExtended) && typeof rapidStopXAt === 'function'
         ? rapidStopXAt(entry.z) : null;
+      // Pod kružnicí nosu není vůbec nic (celá leží za polotovarem) — sjede
+      // se rychloposuvem až na Stop rychloposuvu nad cílem.
+      if (stop === null && pass.leadInExtended) stop = entry.x + rapidFeedGap(prms);
       safeRapidTo(entry.x, entry.z, true, false, true,
         stop === null ? null : Math.min(rapidStopX, Math.max(stop - entry.x, 0)));
     }
@@ -420,7 +433,7 @@ calc.passes.forEach((pass, i) => {
       // `emitZEnd`: mezikrok sjezdu nedojizdi na konec vrstvy - dojede jen
       // tam, odkud se dozanoruje na plne `ap` (viz emitChainFrom vys).
       const rampEndZ = Number.isFinite(pass.emitZEnd) ? pass.emitZEnd : pass.zEnd;
-      const rampBody = airSplitAxial(bodyX, pass.zStart, rampEndZ, Math.sign(rampEndZ - pass.zStart) || zDir);
+      const rampBody = airSplitAxial(bodyX, pass.zStart, rampEndZ, Math.sign(rampEndZ - pass.zStart) || zDir, true);
       // KONCOVÝ vzduch se nejezdí (stejně jako u otevřeného průchodu níž):
       // za posledním řezem už polotovar nesahá a cíl kroku může ležet
       // desítky mm v prázdnu (reálný nález na díle uživatele: `G0 Z349`
@@ -487,7 +500,7 @@ calc.passes.forEach((pass, i) => {
     // posuv(materiál). Bez drážek (řez celý v materiálu) = PŘESNĚ původní
     // `G1 Z zStart` + `G1 Z zEnd` → snapshoty bez drážek beze změny.
     const dir = zDir;
-    const segs = airSplitAxial(pass.x, pass.zStart, pass.zEnd, dir);
+    const segs = airSplitAxial(pass.x, pass.zStart, pass.zEnd, dir, true);
     // Vedoucí vzduch (segs[0]=='G0') se NEřeže ani nepřejíždí uprostřed drážky —
     // přijede se rovnou na jeho konec = HRANA POLOTOVARU. Bez vedoucího vzduchu
     // je hrana = pass.zStart (původní chování, snapshoty beze změny).

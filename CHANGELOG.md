@@ -14,6 +14,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **CAM – kulatá R 10 zleva: vjezdy vrstev bez strmých sjezdů a bez
+  opakování projeté dráhy.** Nálezy na dílu uživatele 29. 9. 2026
+  (projekt_2026-09-29, „✂ Po úsecích"):
+  (1) úsek 2 — vrstva X 5,595 jela nájezdem přes celý díl (`G1 X19.243`
+  kolmo, 13 mm² do klínu u stěny drážky, pak 23 + 21 + 58 mm posuvem po
+  hotovém) a vrstvy u čela sjížděly po offsetu čela 84° (`G1 X13.095
+  Z355.532` a další). Nájezd, který by sjel do materiálu strměji než úhel
+  zanoření nebo k jehož začátku se musí zapíchnout, se nahradí rampou 45°
+  ze začátku vrstvy o ap výš — řetěz ramp podél mezní čáry čela; klín pod
+  ní zůstává (pravidlo 6). Vodorovný zasypaný začátek u konce polotovaru se
+  nejdřív prodlouží dozadu do vzduchu (úsek 1: `G0 Z-9 / G1 X41.066` →
+  začátek na Z −20 jako ostatní vrstvy). Nový `ops/long/leadInChain.js`,
+  klíč plátku `leadInSteepToChain`. Vrstvy, které pak nic neuberou (u osy
+  za čelem: X 5,595 … 0 — nad řetězem vzala vše kružnice nosu), vypadnou.
+  Model „už vyříznuto" (`alreadyCut.js`) přitom počítal pás pod osou
+  (spodek nosu R 10 u osy sahá do X < 0) jako materiál — 29 mm² místo 0,15.
+  (2) úsek 1, údolí Z 82–104 — kroky řetězu X 24,118 … 18,079 jely nájezd
+  po 45° stěně pokaždé od rohu (5 až 11 mm po čáře, kterou předchozí krok
+  právě projel); teď začnou na konci předchozího kroku a sjede se k němu
+  rychloposuvem (`wallEntryClear`). Dobrání kapsy („kapsa bez schodků")
+  jelo znovu celou rampu (15,6 mm) a dno (6 mm): poslední krok dosedl
+  0,1 mm za dno a navázání se zamítlo; teď naváže odskokem a začne až na
+  konci dna, u stěny (`pocketPass.js`, klíč `pocketRampAlongWall`).
+  Po úsecích: kolize 0, strmé sjezdy 7 → 0, porušení pravidel úsek 1
+  24 → 20, úsek 2 33 → 22 (posuv vzduchem 8 → 0); posuv −61 / −230 mm.
+  Úsek 2 ubere o 60 mm² méně — přesně klíny pod mezními čarami (čelo 38,6,
+  stěna drážky 21,6 mm²), pravidlo 6.
+  Otisk 29 fixtures beze změny. Test `cam-round-left-valley-chain`.
+- **CAM – opravy z 28. 9. obnoveny.** Rozpracované opravy kulaté zleva
+  (níž, „kruhové vybrání, údolí za hrbem" a „úsek 2 téhož dílu") se 29. 9.
+  před `git pull` automaticky odložily do `git stash`, takže je aplikace
+  neměla (`N1470 G1 Z101.584` a rampa 38,7° ve vybrání se vrátily).
 - **Kóty kontury jsou asociativní:** kóty úseků a poloměrů polyline se po
   posunu kontury i úpravě vrcholů přepočítají (dřív zůstaly na starém
   místě). Kóty si pamatují index úseku; po vložení/odebrání vrcholu i u
@@ -217,6 +249,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a rozsahy) uložené k té smazané. Když se kontura z CAD liší od té, ke které
   program patří, a dráhy nebyly ručně upravené, program se zahodí a vygeneruje
   znovu z nové kontury. Ručně upravené dráhy zůstanou a ohlásí se toastem.
+- **CAM – zleva: kruhové vybrání, údolí za hrbem a mez úseku.** Nálezy
+  uživatele 28. 9. 2026 (kulatá R 10, ap 2,5, „✂ Po úsecích", úsek 1):
+  (1) zanořování kapsy „dobrat najednou" hledalo o vrstvu níž „tutéž kapsu"
+  jen podle rohu, takže na dně vybrání (X 29,727) skočilo do údolí za hrbem
+  a vzalo tam tři vrstvy naráz (`N1470 G1 Z101.584 ; Přejezd materiálem
+  posuvem`), mělčí vrstvy pak jely naprázdno — hlubší interval musí teď
+  ležet v Z uvnitř kapsy (`pocketPass.js`); (2) u meze úseku jezdilo šest
+  shodných zbytků přejezdu přes hrb dokola týž trojúhelník (`G0 Z142.601 /
+  G1 X45.68 Z145.25`) — zbytky se stejným koncem se slučují
+  (`pocketHumpSplit.js`); (3) kulatá: další krok zanoření po vyduté stěně
+  jede po offsetu (G1 45° + G3) místo tětivy 38,7° nad obloukem a dobrání
+  dna na konec té rampy naváže i uprostřed oblouku, takže stěnu nejede
+  dvakrát (klíč plátku `pocketRampAlongWall`, jen kulatá). Otisk všech 29
+  fixtures beze změny; test `cam-round-recess-left`.
+- **CAM – zleva, úsek 2 téhož dílu (kulatá R 10).** (1) V údolí za přírubou
+  (Z 239–270) jely vrstvy 55,595 … 40,595 dvakrát („kapsa po kontuře" a znovu
+  dobírání ramp) a 35,595 / 30,595 potřetí jako odložené vjezdy (98 mm
+  vzduchem) — krok řetězu i odložený vjezd se vynechá, když jeho MATERIÁL
+  (ne celý rozsah až na konec regionu) už bere průchod téže hloubky
+  (`roughLong.js` `sameDepthCovers`, sdílené; otisk polygonu beze změny).
+  (2) `G0 X40.656 Z195.228` vjel 0,7 mm² do kůry — rychloposuv uvnitř řezu
+  jen tam, kde je volná přední půlka nosu (`gcodeEmit.js`, klíč
+  `airSplitFullNose`). (3) Sjezdy 84° po čele konce dílu — pokus opravit to
+  v `guideOffsetJoin.js` (krok 2b) rozbil tři testy a byl vrácen; opraveno
+  až 29. 9. na úrovni vjezdu vrstev (`leadInChain.js`, viz výš). (4) Kolmý zápich
+  `G1 X19.243` pod řetězem ramp — zasypaný začátek nájezdu se nahradí
+  řetězem ramp (klíč `leadInStartNoPlunge`). (5) Poslední vrstva u osy
+  objížděla nájezdem celý díl (`G1 X19.617 Z280.303` 58 mm posuvem po
+  hotovém) — nájezd jen od mělčí vrstvy (klíč `leadInTailBelowPrev`).
+  Úsek 2: kolize 1 → 0, strmé sjezdy 6 → 0, posuv vzduchem 28 → 3.
+  Otisk: změnil se jen `part-22-round-r10` (rychloposuvy o ~0,5 mm kratší,
+  kontrola pravidel beze změny) — snapshot přepsán.
 - **CAM – kulatá destička: vrstvy za koncem vrstvy, u osy a poslední vrstva
   ve vybrání.** Nálezy uživatele 26. 9. 2026 (R 10, ap 2,5, „✂ Po úsecích"):
   (1) zleva, úsek 2 — po `N3270 G1 Z194.675` chyběly vrstvy 38,1 … 28,1 u

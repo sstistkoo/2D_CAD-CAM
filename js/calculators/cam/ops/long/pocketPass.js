@@ -10,10 +10,11 @@
 // `plungeShallowed`, `pocketHolderSkips`) — tělo obsahuje dvanáct `return;`,
 // takže vracet je návratovou hodnotou by znamenalo ošetřit dvanáct míst.
 
-import { depthKey, mergeCollinearSegs, subdivideLineSegs } from './segUtils.js';
+import { depthKey, mergeCollinearSegs, subdivideLineSegs, segAt } from './segUtils.js';
 import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 import { RESIDUAL_FIT_TOL } from '../../residualHolder.js';
 import { getInsert } from '../../inserts/index.js';
+import { leadInTail } from './humpOrder.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -28,6 +29,7 @@ export function emitPocketInterval(D) {
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
+  const insKeys = getInsert(prms);
   // NAVÁZÁNÍ NA KONEC RAMPY MĚLČÍ VRSTVY (25. 9. 2026). Kapsa bez rampy
   // z povrchu (brala by víc než vrstvu) a bez nájezdu po kontuře se dřív
   // zahodila. Leží-li ale v jejím intervalu konec rampy vrstvy o jednu výš,
@@ -419,6 +421,21 @@ if (!corner) {
     passFlat.ramp = erFlat;
   } else if (!partingNoDress) {
     const liFlat = traceLeadInTo(zGapHi, iv, currentX);
+    // ── ZAČÁTEK NÁJEZDU ZASYPANÝ MATERIÁLEM (klíč plátku `leadInStartNoPlunge`)
+    // Nájezd po kontuře začíná tam, kam se musí DOJET. Leží-li jeho začátek
+    // pod mezí zanoření (pod řetězem ramp mělčích vrstev), stojí nad ním klín
+    // materiálu a sjezd k němu je kolmý zápich (pravidlo 6). Nález uživatele
+    // 28. 9. 2026 (kulatá R 10, zleva, úsek 2): `G0 Z168.293 / G1 X19.243`
+    // — 3,35 mm kolmo pod řetězem ramp X 25,595 → 20,595. Když se do vrstvy
+    // dá vjet jinak (řetěz z konce rampy mělčí vrstvy nebo rampa z povrchu —
+    // větev „prázdný nájezd" níž), nájezd se zahodí; klín pod mezí zůstane,
+    // jako všude jinde pod čarou zanoření.
+    if (liFlat.length > 0 && insKeys.leadInStartNoPlunge && typeof newCutArea === 'function') {
+      const s0 = liFlat[0];
+      const drop = { type: 'line', x1: s0.x1 + step, z1: s0.z1, x2: s0.x1, z2: s0.z1 };
+      if (newCutArea([drop]) > 0.05 && (chainFromPrev(currentX, iv) || noseEntryRamp(currentX, iv)))
+        liFlat.length = 0;
+    }
     linkToPrev(liFlat);   // bez zbytečného odskoku+návratu (všechny tvary)
     // ── PRÁZDNÝ NÁJEZD NENÍ NÁJEZD ────────────────────────────────────────
     // `traceOffsetPath` (nebo ořez držákem) může vrátit PRÁZDNÉ pole. Dosud
@@ -645,6 +662,48 @@ for (let z = zGapHi; z >= iv.zEnd - 0.3; z -= 0.1) {
   if (ox !== null && ox < pocketBottomX) { pocketBottomX = ox; pocketBottomZ = z; }
 }
 
+// ── RAMPA PO KONKÁVNÍ STĚNĚ JEDE PO OFFSETU (klíč plátku `pocketRampAlongWall`)
+// Další krok řetězu rampuje z konce minulé rampy na hloubku rovnou TĚTIVOU.
+// Je-li stěna mezi nimi vydutá (oblouk kapsy), leží offset POD tětivou a mezi
+// nimi zůstane srpek; dobrání kapsy ho pak bralo tak, že jelo tentýž kus
+// stěny ještě jednou. Nález uživatele 28. 9. 2026 (kulatá R 10, kruhové
+// vybrání R 24,5): `N1340 G1 X31.618 Z28.047 ; Rampa 38.7°` nad obloukem,
+// pod ní `N1550 G3 X29.727 Z35.100` znovu po téže stěně — *„když je tam
+// oblouk … projíždí to tam nějak nadvakrát"*.
+// Rampa proto pojede PO OFFSETU (G1/G3), když (a) kotva leží na stěně,
+// (b) stěna jde od kotvy monotónně dolů a nikde není strmější než úhel
+// zanoření, (c) nikde nevyleze nad tětivu (tam je bezpečná tětiva) a
+// (d) srpek je znatelný (> 0,05 mm) — jinak se nic nemění.
+const rampAlongWall = (pass) => {
+  const r = pass.ramp;
+  if (!r || !Number.isFinite(r.x0) || !Number.isFinite(r.z0) || typeof offsetXAt !== 'function') return null;
+  const dz = r.z0 - pass.zStart, dx = r.x0 - pass.x;
+  if (!(dz > 0.05 && dx > 0.05)) return null;
+  const w0 = offsetXAt(r.z0);
+  if (w0 === null || Math.abs(w0 - r.x0) > 0.05) return null;
+  const wall = traceOffsetPath(r.z0, pass.zStart);
+  if (!Array.isArray(wall) || wall.length === 0) return null;
+  const a = wall[0], b = wall[wall.length - 1];
+  if (Math.hypot(a.x1 - r.x0, a.z1 - r.z0) > 0.05 || Math.hypot(b.x2 - pass.x, b.z2 - pass.zStart) > 0.05) return null;
+  let sag = 0, prev = null;
+  for (const s of wall) {
+    const n = Math.max(2, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.1));
+    for (let k = 0; k <= n; k++) {
+      const q = segAt(s, k / n);
+      const xc = r.x0 - dx * (r.z0 - q.z) / dz;
+      if (q.x > xc + 0.02) return null;
+      sag = Math.max(sag, xc - q.x);
+      if (prev) {
+        const ddz = prev.z - q.z, ddx = prev.x - q.x;
+        if (ddz < -1e-6 || ddx < -0.02) return null;
+        if (ddx > effPlungeTanL * ddz * 1.001 + 1e-4) return null;
+      }
+      prev = q;
+    }
+  }
+  return sag > 0.05 ? wall : null;
+};
+
 // Fáze 1 — rampované zanořovací zákroky.
 let localX = currentX, curGapHi = zGapHi, curIv = iv, curCorner = corner;
 let firstPlunge = true, bestX = Infinity, safety = 0;
@@ -676,9 +735,18 @@ while (safety++ < 500) {
   // předchozího zákroku a odtud ramuje jen nový úsek. Žádný výjezd nad
   // kapsu/roh (ten by jel skrz boss nad zápichem).
   pocketPass.noRetract = true;
+  let wallAnchorX = null;
   if (firstPlunge) { pocketPass.pocketEntry = true; linkToPrev(leadIn); }
   else {
     pocketPass.pocketReposition = true;
+    if (insKeys.pocketRampAlongWall && !pocketPass.contourLeadIn) {
+      const wall = rampAlongWall(pocketPass);
+      if (wall) {
+        wallAnchorX = pocketPass.ramp.x0;
+        pocketPass.contourLeadIn = wall;
+        delete pocketPass.ramp;
+      }
+    }
     // rampFeedFrom = vršek zápichu předchozího zákroku (konec jeho
     // rampy) na sdílené přímce rampy — sem se zvedne rychloposuvem.
     // Upichovák: přesun jde v úrovni PŘEDCHOZÍHO dna (vzduch vykopaný
@@ -689,6 +757,27 @@ while (safety++ < 500) {
         ? { x: prevRampEnd.x, z: pocketPass.zStart }
         : prevRampEnd;
     }
+    // ── NÁJEZD PO STĚNĚ OD KONCE PŘEDCHOZÍHO KROKU (klíč `pocketRampAlongWall`)
+    // Rampu, která by podjela offset (`rampPierces`), nahradí jízda po stěně
+    // OD ROHU — a u dalšího kroku řetězu tak nájezd jel celou stěnu od rohu
+    // znovu (rampa si to hlídá `rampFeedFrom` výš, nájezd ne). Údolí úseku 1
+    // dílu uživatele 29. 9. 2026: vrstvy X 24,118 … 18,079 sjížděly pokaždé
+    // od X 29,118 Z 82,41 — 5, 7,5, 10 a 11 mm po 45° čáře, kterou předchozí
+    // krok právě projel. Nájezd začne tam, kde předchozí krok skončil (ocas
+    // pod jeho hloubkou); emise k němu sjede jako k `rampFeedFrom`.
+    if (insKeys.pocketRampAlongWall && prevRampEnd && !pocketPass.ramp
+        && Array.isArray(pocketPass.contourLeadIn) && prevRampEnd.x > pocketPass.x + 0.01) {
+      const tail = leadInTail(pocketPass.contourLeadIn, prevRampEnd.x);
+      if (tail && tail.length > 0
+          && Math.hypot(tail[0].x1 - prevRampEnd.x, tail[0].z1 - prevRampEnd.z) < 0.05)
+        pocketPass.contourLeadIn = tail;
+      // Nájezd začíná na konci předchozího kroku — sloupec nad ním je
+      // vybraný, takže emise k němu smí sjet rychloposuvem až na odstup nad
+      // zbytkem (`rapidStopXAt`), ne pevně o Vůli + R (u R 10 to bylo 4,5 mm
+      // svisle posuvem vzduchem před každým krokem).
+      const s0 = pocketPass.contourLeadIn[0];
+      if (s0 && Math.hypot(s0.x1 - prevRampEnd.x, s0.z1 - prevRampEnd.z) < 0.05) pocketPass.wallEntryClear = true;
+    }
   }
   if (!skipRiskyPocketEmit) {
     passes.push(pocketPass);
@@ -696,6 +785,7 @@ while (safety++ < 500) {
     // kotva bývá o Hloubku ap níž) na pocketPass.x; dokončení ořízlé
     // rampy po témž ÚSEKU už tudy nemusí jezdit znovu (plungeLineRuns).
     if (pocketPass.ramp) notePlungeRun(curCorner.x, curCorner.z, pocketPass.ramp.x0, pocketPass.x);
+    else if (wallAnchorX !== null) notePlungeRun(curCorner.x, curCorner.z, wallAnchorX, pocketPass.x);
   }
   prevRampEnd = { x: pocketPass.x, z: pocketPass.zStart };
   bestX = pocketPass.x;
@@ -715,10 +805,21 @@ while (safety++ < 500) {
   // jeden `G1 X50.9 Z171.5` ze Ø171 dolů = 985 mm² kolize držáku).
   // S otevřeným vjezdem je interval 0 ten otevřený řez, ne kapsa → j=1.
   for (let j = rescan.firstOpen ? 1 : 0; j < rescan.intervals.length; j++) {
+    // ── TÁŽ KAPSA = PŘEKRYV V Z S KAPSOU NA PRVNÍ HLOUBCE (28. 9. 2026) ──
+    // Hlubší interval téže kapsy leží vždy UVNITŘ mělčího (kde je offset
+    // pod hlubší vrstvou, je i pod mělčí). Shoda rohu níž to nehlídá: roh se
+    // hledá od známého rohu dolů až k začátku intervalu, takže u intervalu
+    // v JINÉM údolí za hrbem najde zase ten starý roh a „shoda" projde.
+    // Nález uživatele (kulatá R 10, zleva, úsek 1): burst kruhového vybrání
+    // Z 17–51 skočil na dně X 29,727 do údolí Z 82–104 (`N1470 G1 Z101.584
+    // ; Přejezd materiálem posuvem`) — tam ještě stály vrstvy X 34,118
+    // a 31,618, takže vzal tři vrstvy naráz a ty pak jely naprázdno.
+    const rIv = rescan.intervals[j];
+    if (!(Math.min(rIv.zStart, D.iv.zStart) - Math.max(rIv.zEnd, D.iv.zEnd) > 0.05)) continue;
     // Obálka držáku i tady (viz holderSpanClamp): burst si intervaly na
     // každé hloubce skenuje znovu, takže by jinak sjel ap po ap do kapsy,
     // do které se držák mezi stěny už nevejde.
-    const cIv = holderSpanClamp(localX, rescan.intervals[j]);
+    const cIv = holderSpanClamp(localX, rIv);
     if (!cIv || !cIv.blocked) continue;
     const cGapHi = j > 0 ? rescan.intervals[j - 1].zEnd : entryZ;
     // Upichovák: roh = pravý okraj − (w−2r); s hloubkou se posouvá po
@@ -779,6 +880,20 @@ const approachTraverseFree = (zTo) => {
   let endX = lastP.x, endZ = lastP.zEnd;
   const lo = lastP.contourLeadOut;
   if (lo && lo.length) { endX = lo[lo.length - 1].x2; endZ = lo[lo.length - 1].z2; }
+  // Kulatá (klíč `pocketRampAlongWall`): dojezd posledního kroku vede v tuhle
+  // chvíli ještě přes hrb (rozdělí ho až pocketHumpSplit.js) — nástroj ale
+  // odskočí tam, kde dojezd vystoupá o ap ke mělčí vrstvě. Údolí úseku 1
+  // (29. 9. 2026): dojezd končil na Z 145 za hrbem X 50,6, přejezd „přes hrb"
+  // zamítl navázání a dobrání sjelo celou rampu od rohu znovu.
+  if (lo && lo.length && insKeys.pocketRampAlongWall) {
+    const top = lastP.x + step;
+    for (const s of lo) {
+      if (!(s.x2 >= top - 1e-6)) continue;
+      const t = s.type === 'line' && s.x2 > s.x1 + 1e-9 ? Math.max(0, Math.min(1, (top - s.x1) / (s.x2 - s.x1))) : 1;
+      endX = s.x1 + (s.x2 - s.x1) * t; endZ = s.z1 + (s.z2 - s.z1) * t;
+      break;
+    }
+  }
   const travX = endX + (parseFloat(prms.retractDistance) || 0);
   const zA = Math.min(endZ, zTo), zB = Math.max(endZ, zTo);
   for (let z = zA; z <= zB + 1e-9; z += dzScan) {
@@ -787,7 +902,16 @@ const approachTraverseFree = (zTo) => {
   }
   return true;
 };
-if (prms.noStepRoughing && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && prevRampEnd.z >= pocketBottomZ - 0.05) {
+// Poslední krok řetězu smí dosednout i kousek ZA dno (klíč plátku
+// `pocketRampAlongWall`): nájezd po stěně končí, kde stěna protne hloubku
+// dna, a vrstva začíná až za ním (údolí úseku 1 dílu uživatele 29. 9. 2026:
+// krok X 18,079 na Z 93,6, dno Z 93,5). S tolerancí 0,05 mm pak dobrání
+// začalo od rohu a znovu sjelo celou rampu (15,6 mm posuvem po projetém).
+// Dosáhl-li krok hloubky dna, navazuje se na dno (`startCand` níž).
+const reachedBottom = insKeys.pocketRampAlongWall && prevRampEnd
+  && prevRampEnd.x <= pocketBottomX + 0.05;
+if (prms.noStepRoughing && prevRampEnd && prevRampEnd.z < corner.z - 0.05
+    && (prevRampEnd.z >= pocketBottomZ - 0.05 || reachedBottom)) {
   // POZOR (změřeno 8. 8. 2026): zkoušelo se tuhle pevnou toleranci
   // nahradit kritériem „projely rampy celou stěnu?" (offset nikde
   // neklesne pod přímku rampového řetězu), aby dokončovací průchod
@@ -806,6 +930,23 @@ if (prms.noStepRoughing && prevRampEnd && prevRampEnd.z < corner.z - 0.05 && pre
     // odskokem, ne výjezdem nad boss.
     cleanStartZ = startCand;
     cleanApproach = { x: prevRampEnd.x, z: cleanStartZ };
+  }
+}
+// DNO PROJEL UŽ POSLEDNÍ KROK (klíč plátku `pocketRampAlongWall`). Krok
+// řetězu na hloubce dna jede dno celé; dobrání by ho po navázání jelo znovu
+// (údolí úseku 1, 29. 9. 2026: 6 mm posuvem po dně X 18,079). Začne tedy až
+// na konci těla toho kroku — dál po kontuře je tam jen stěna ven.
+let cleanBottomZ = pocketBottomZ;
+if (cleanApproach && reachedBottom) {
+  const lastP = passes[passes.length - 1];
+  if (lastP && lastP.type === 'long' && Math.abs(lastP.x - pocketBottomX) < 0.05
+      && Number.isFinite(lastP.zEnd) && lastP.zStart <= pocketBottomZ + 0.2 && lastP.zEnd < pocketBottomZ - 0.05) {
+    const w = offsetXAt(lastP.zEnd);
+    if (w !== null && Math.abs(w - pocketBottomX) < 0.05) {
+      cleanBottomZ = lastP.zEnd;
+      cleanStartZ = cleanBottomZ;
+      cleanApproach = { x: pocketBottomX, z: cleanBottomZ };
+    }
   }
 }
 // POZOR NA POJMENOVÁNÍ (uživatel 8. 8.: „nemám danou dokončovací
@@ -838,8 +979,8 @@ const clipToHolderWindow = (segs) => {
 // jedna dlouhá úsečka (od čisté oblasti u dna po zablokovanou stěnu),
 // kterou by zahodilo celou. Před ořezem ji jemně rozdělíme (~0,4 mm),
 // po ořezu kolineární kousky zase slijeme (jinak sekaný G-kód).
-const _rawLeadIn = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(cleanStartZ, pocketBottomZ))) : [];
-const _rawLeadOut = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(pocketBottomZ, exitZ))) : [];
+const _rawLeadIn = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(cleanStartZ, cleanBottomZ))) : [];
+const _rawLeadOut = prms.noStepRoughing ? clipToHolderWindow(dropMicro(traceOffsetPath(cleanBottomZ, exitZ))) : [];
 const cleanLeadIn = mergeCollinearSegs(holderTrimLeadIn(subdivideLineSegs(_rawLeadIn), true));
 const cleanLeadOut = mergeCollinearSegs(holderTrimLeadOut(subdivideLineSegs(_rawLeadOut), true));
 // ── DNO kapsy vs. TVRDÁ obálka držáku ──────────────────────────
@@ -876,7 +1017,7 @@ if (!skipRiskyPocketEmit && holderClampZEnd?.isForbidden?.(pocketBottomX, pocket
 if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
   const cleanPass = {
     type: 'long', pocketClean: true,
-    x: pocketBottomX, zStart: pocketBottomZ, zEnd: pocketBottomZ, blocked: true,
+    x: pocketBottomX, zStart: cleanBottomZ, zEnd: cleanBottomZ, blocked: true,
   };
   if (cleanLeadIn.length > 0) cleanPass.contourLeadIn = cleanLeadIn;
   if (cleanLeadOut.length > 0) cleanPass.contourLeadOut = cleanLeadOut;

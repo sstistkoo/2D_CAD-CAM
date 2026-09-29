@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v317';
+const CACHE_NAME = 'skica-v318';
 const ASSETS = [
   './',
   './index.html',
@@ -48,7 +48,6 @@ const ASSETS = [
   './js/calculators/cam/ops/finishEmit.js',
   './js/calculators/cam/ops/long/airPieces.js',
   './js/calculators/cam/ops/long/alreadyCut.js',
-  './js/calculators/cam/ops/long/chainRelink.js',
   './js/calculators/cam/ops/long/cutRegistry.js',
   './js/calculators/cam/ops/long/depthTabs.js',
   './js/calculators/cam/ops/long/entryRamp.js',
@@ -56,8 +55,10 @@ const ASSETS = [
   './js/calculators/cam/ops/long/holderTrim.js',
   './js/calculators/cam/ops/long/humpMerge.js',
   './js/calculators/cam/ops/long/humpOrder.js',
+  './js/calculators/cam/ops/long/chainRelink.js',
   './js/calculators/cam/ops/long/insertFlankGuard.js',
   './js/calculators/cam/ops/long/intervalScan.js',
+  './js/calculators/cam/ops/long/leadInChain.js',
   './js/calculators/cam/ops/long/openPass.js',
   './js/calculators/cam/ops/long/partingEnvelope.js',
   './js/calculators/cam/ops/long/planCheck.js',
@@ -183,7 +184,6 @@ const ASSETS = [
   './js/tools/booleanMaker.js',
   './js/tools/breakClick.js',
   './js/tools/centerMarkClick.js',
-  './js/tools/chainDimensionClick.js',
   './js/tools/circleClick.js',
   './js/tools/circularArrayClick.js',
   './js/tools/copyPlaceClick.js',
@@ -198,6 +198,7 @@ const ASSETS = [
   './js/tools/grooveClick.js',
   './js/tools/helpers.js',
   './js/tools/horizontalClick.js',
+  './js/tools/chainDimensionClick.js',
   './js/tools/index.js',
   './js/tools/joinClick.js',
   './js/tools/lineClick.js',

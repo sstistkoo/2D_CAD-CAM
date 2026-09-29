@@ -390,7 +390,7 @@ export function generateAutoGCode(S, calc) {
   // druhem pohybu), takže bez drážek vyjde přesně původní jediný `G1`.
   // Rychloposuvem se bere jen VÝRAZNÝ vzduch ≥ 0,5 mm — drobné crossingy
   // z tesselovaných oblouků siluety se neřežou na kousíčky.
-  const airSplitAxial = (x, zFrom, zTo, dir) => {
+  const airSplitAxial = (x, zFrom, zTo, dir, leadingAsIs = false) => {
     const xReach = x - tipRGc;
     const zLo = Math.min(zFrom, zTo), zHi = Math.max(zFrom, zTo);
     const cross = planCrossZ(xReach, zLo, zHi).filter(z => z > zLo + 1e-6 && z < zHi - 1e-6);
@@ -421,7 +421,58 @@ export function generateAutoGCode(S, calc) {
     }
     // Prodloužení mohlo navazující vzduch smrsknout na nulu — takový úsek
     // není pohyb, jen řádek navíc.
-    return segs.filter((s, i) => Math.abs(s.z - (i === 0 ? zFrom : segs[i - 1].z)) > 1e-6);
+    const out = segs.filter((s, i) => Math.abs(s.z - (i === 0 ? zFrom : segs[i - 1].z)) > 1e-6);
+    return insAirSplit.airSplitFullNose && tipRGc > 0 ? noseAirOnly(out, x, zFrom, dir, leadingAsIs) : out;
+  };
+  // ── VZDUCH CELÝM NOSEM, NE JEN JEHO SPODKEM (klíč plátku `airSplitFullNose`)
+  // `airSplitAxial` posuzuje vzduch bodem pod středem (x − R). Kulatý nos
+  // R 10 ale sahá ±R i v Z — přední částí oblouku narazí na stěnu polotovaru
+  // dřív než spodkem. Nález uživatele 28. 9. 2026 (úsek 2, zleva):
+  // `G0 X40.656 Z195.228` vjel rychloposuvem 0,7 mm² do kůry u stěny Z 205
+  // (validátor). Rychloposuv proto zůstane jen tam, kde je volná CELÁ
+  // kružnice nosu proti plánovacímu obrysu (týž vzorec jako `rapidStopXAt`);
+  // zbytek jede posuvem, krátký vzduch (< 0,5 mm) taky.
+  // `leadingAsIs`: VEDOUCÍ vzduch těla průchodu se nemění — podle něj emise
+  // hledá hranu materiálu a nájezd od ní odstupuje o Vůli Z + R, rádius tedy
+  // už započítává (jinak by nájezd začínal o další R dřív).
+  // Jen PŘEDNÍ půlka nosu (ve směru jízdy): zadní leží v materiálu, který
+  // průchod právě uřízl — plánovací obrys o tom neví, a konec řezu by se
+  // jinak protáhl o R posuvem vzduchem.
+  const insAirSplit = getInsert(prms);
+  const noseAirOnly = (segs, x, zFrom, dir, leadingAsIs) => {
+    const R = tipRGc, n = Math.max(1, Math.ceil(R / 0.5));
+    const sgn = dir < 0 ? -1 : 1;
+    const clear = (z) => {
+      for (let k = 0; k <= n; k++) {
+        const dz = sgn * R * k / n, top = planTopXAtZ(z + dz);
+        if (top !== null && x - Math.sqrt(Math.max(R * R - dz * dz, 0)) <= top + 1e-4) return false;
+      }
+      return true;
+    };
+    const res = [];
+    const push = (kind, z, from) => {
+      const last = res[res.length - 1];
+      if (last && last.kind === kind) last.z = z; else res.push({ kind, z, from });
+    };
+    let z0 = zFrom;
+    for (const [si, s] of segs.entries()) {
+      if (si === 0 && leadingAsIs && s.kind === 'G0') { res.push({ kind: 'G0', z: s.z, from: z0, keep: true }); z0 = s.z; continue; }
+      if (s.kind !== 'G0') { push('G1', s.z, z0); z0 = s.z; continue; }
+      const m = Math.max(1, Math.ceil(Math.abs(s.z - z0) / 0.1));
+      for (let i = 1; i <= m; i++) {
+        const za = z0 + (s.z - z0) * (i - 1) / m, zb = z0 + (s.z - z0) * i / m;
+        push(clear((za + zb) / 2) && clear(zb) ? 'G0' : 'G1', zb, za);
+      }
+      z0 = s.z;
+    }
+    // Krátký vzduch mezi posuvy není rychloposuv (týž práh jako výš).
+    const fin = [];
+    for (const r of res) {
+      const kind = r.kind === 'G0' && !r.keep && Math.abs(r.z - r.from) < 0.5 ? 'G1' : r.kind;
+      const last = fin[fin.length - 1];
+      if (last && last.kind === kind) last.z = r.z; else fin.push({ kind, z: r.z });
+    }
+    return fin;
   };
   const noteCutPts = (pts) => {
     if (!rapidStock || pts.length < 2) return;

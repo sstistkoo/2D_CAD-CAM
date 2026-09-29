@@ -90,7 +90,10 @@ export function makeAlreadyCut({ T, noseLiftX }) {
         const low = noseLow(tab[j], Math.abs(j - i) * DZ_CAP);
         if (low !== null && low < cut) cut = low;
       }
-      const thick = Math.min(top, cut) - r;
+      // Pod osou (X < 0) materiál není — spodek nosu R 10 u osy tam sahá
+      // (střed X 5,595 → −4,4) a pás pod osou se počítal jako řez: u vrstev
+      // za čelem konce dílu 29 mm² místo skutečných 0,15 (29. 9. 2026).
+      const thick = Math.min(top, cut) - Math.max(r, 0);
       if (thick > 0) area += thick * DZ_CAP;
     }
     return area;

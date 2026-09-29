@@ -131,6 +131,37 @@ export function roundInsert(prms) {
     //   pocketLeadOutNoStep      — kapsový průchod dojede schod po obrysu
     //                              k předchozí vrstvě (jako otevřený)
     pocketLeadOutNoStep: true,
+    //   pocketRampAlongWall      — zanoření v kapse (další krok řetězu) po
+    //                              KONKÁVNÍ stěně jede po offsetu (G1/G3), ne
+    //                              tětivou nad ní, a dobrání dna kapsy na
+    //                              konec té rampy naváže i uprostřed oblouku
+    //                              (28. 9. 2026, kruhové vybrání R 24,5:
+    //                              tětiva 38,7° nechala 0,18 mm a dobrání
+    //                              pak jelo tentýž kus stěny podruhé)
+    pocketRampAlongWall: true,
+    //   leadInTailBelowPrev      — „kapsa po kontuře" jede nájezdem jen od
+    //                              mělčí vrstvy (x + ap) dolů, když kus nad ní
+    //                              jede vzduchem (28. 9. 2026, poslední
+    //                              vrstva u osy objížděla celý díl)
+    leadInTailBelowPrev: true,
+    //   airSplitFullNose         — rychloposuv „vzduchem" uvnitř řezu jen tam,
+    //                              kde je volná celá kružnice nosu (±R v Z),
+    //                              ne jen bod pod středem (28. 9. 2026, G0
+    //                              0,7 mm² do kůry u stěny)
+    airSplitFullNose: true,
+    //   leadInStartNoPlunge      — nájezd po kontuře, jehož začátek je zasypaný
+    //                              materiálem (pod řetězem ramp), se nahradí
+    //                              vjezdem řetězem / rampou z povrchu, když
+    //                              existuje (28. 9. 2026, kolmo `G1 X19.243`)
+    leadInStartNoPlunge: true,
+    //   leadInSteepToChain       — nájezd po kontuře, který by sjel do
+    //                              materiálu strměji než úhel zanoření (84°
+    //                              po čele) nebo k jehož začátku se musí
+    //                              zapíchnout, se nahradí rampou navázanou na
+    //                              začátek vrstvy o ap výš — řetěz ramp
+    //                              (29. 9. 2026, úsek 2: nájezd přes celý díl
+    //                              s `G1 X19.243` kolmo, sjezdy 84° po čele)
+    leadInSteepToChain: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

@@ -17,8 +17,9 @@ import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualR
 import { pointInLoop, polyIntersect, polyOffset } from '../../../geom/geomCore.js';
 import { HOLDER_CLAMP_MARGIN, insertReachZ } from '../toolEnvelope.js';
 import { makeAlreadyCut } from './long/alreadyCut.js';
+import { makeLeadInChain } from './long/leadInChain.js';
 import { HOLDER_ENTRY_STOCK_GAP, HOLDER_FIT_TOL, ENTRY_SHIFT_MAX, ENTRY_FIT_TOL, SKIM_MIN_LAYER, clipLeadOutToDepth } from './shared.js';
-import { depthKey, subdivideLineSegs, mergeCollinearSegs, traceIfContinuous, isFaceLeadOut } from './long/segUtils.js';
+import { depthKey, subdivideLineSegs, mergeCollinearSegs, traceIfContinuous, isFaceLeadOut, segAt, subSeg } from './long/segUtils.js';
 import { makeDepthTabs } from './long/depthTabs.js';
 import { makeResidualGuard } from './long/residualGuard.js';
 import { makeHolderFit } from './long/holderFit.js';
@@ -1725,6 +1726,29 @@ export function genLongPasses(ctx) {
   // Průchody PŘEDCHOZÍCH regionů — konstantní po celý tenhle blok, takže
   // se krájí jednou, ne v každém kroku každého řetězu (viz depthCutClampZ).
   const priorPasses = passes.slice(0, regionMark);
+  // ── POKRÝVÁ KUS VRSTVY JINÝ PRŮCHOD TÉŽE HLOUBKY? (28. 9. 2026) ─────────
+  // Porovnávat celé rozsahy Z nestačí: krok řetězu ramp míří na konec
+  // regionu (`stepEndZ`), i když materiál na jeho hloubce končí mnohem dřív
+  // a zbytek je vzduch, který emise stejně zahodí. Průchod téže hloubky, který
+  // jel jen po konec materiálu, pak „nepokryl" a vrstva se vydala podruhé.
+  // Nález uživatele (kulatá R 10, zleva, úsek 2, údolí Z 239–270): vrstvy
+  // X 55,595 … 40,595 jely jako „kapsa po kontuře" a hned znovu jako
+  // „zanoření v kapse" (`N3910 G1 Z264.100` = `N4320 G1 Z264.100`), X 30,595
+  // dvakrát po 98 mm. Kryté musí být jen to Z, kde na té hloubce stojí
+  // materiál (týž test jako `intervalHasStock`), a začátek kusu.
+  const sameDepthCovers = (cands, x, zHi, zLo) => {
+    const own = cands.filter(q => q && q.type === 'long' && Math.abs(q.x - x) < 1e-6
+      && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd));
+    if (own.length === 0) return false;
+    const tol = 0.05 + dzScan;
+    const covers = (z) => own.some(q => z <= Math.max(q.zStart, q.zEnd) + tol && z >= Math.min(q.zStart, q.zEnd) - tol);
+    if (!own.some(q => Math.max(q.zStart, q.zEnd) >= zHi - 0.05 && Math.min(q.zStart, q.zEnd) <= zHi + 0.05)) return false;
+    for (let z = zHi; z >= zLo - 1e-9; z -= dzScan) {
+      const top = offsetStockTopXAtZ(z);
+      if (top !== null && top >= x - noseLiftL - 1e-9 && !covers(z)) return false;
+    }
+    return true;
+  };
   for (const rc of pendingRampCompletions) {
     let curX = rc.resumeX, curZ = rc.resumeZ, first = true;
     const rcSteps = [];
@@ -1843,7 +1867,9 @@ export function genLongPasses(ctx) {
       if (passes.some((q, qi) => qi >= regionMark && q && q.type === 'long' && !q.rampCompletion
           && !q.__deferEntry && Math.abs(q.x - stepX) < 1e-6
           && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd)
-          && q.zStart >= stepZ - 0.05 && q.zEnd <= stepEndZ + 0.05)) {
+          && q.zStart >= stepZ - 0.05 && q.zEnd <= stepEndZ + 0.05)
+          || sameDepthCovers(passes.filter((q, qi) => qi >= regionMark && q && !q.rampCompletion && !q.__deferEntry),
+            stepX, stepZ, stepEndZ)) {
         if (rcSteps.length > 0) delete rcSteps[rcSteps.length - 1].noRetract;
         first = true;
         curX = stepX; curZ = stepZ;
@@ -2136,6 +2162,21 @@ export function genLongPasses(ctx) {
         T.cutFloorTab = null; T.cutFloorSynced = 0;
       }
     }
+    // ODLOŽENÝ KUS, KTERÝ CELÝ JEDE DOBÍRACÍ ŘETĚZ RAMP TÉŽE HLOUBKY (28. 9.
+    // 2026). Řetěz (`rampCompletion`) odložené vjezdy záměrně nevidí — o nich
+    // se rozhoduje až tady. Když ale vjezd přežije hlídání držáku a jeho
+    // materiál už bere krok řetězu na téže hloubce, jel by podruhé: úsek 2
+    // uživatele, `N4970 G1 Z367.540` (X 30,595, 98 mm vzduchem) po `N4820`.
+    // Na odložený kus nesmí navazovat řetěz kapsy (ten by ztratil předchůdce).
+    for (let i = tail.length - 1; i >= 0; i--) {
+      const p = tail[i];
+      if (!p || p.type !== 'long' || p.rampCompletion || !Number.isFinite(p.x)
+          || !Number.isFinite(p.zStart) || !Number.isFinite(p.zEnd)) continue;
+      const nx = tail[i + 1];
+      if (nx && (nx.pocketReposition || nx.cleanApproach)) continue;
+      if (sameDepthCovers(head.filter(q => q && q.rampCompletion), p.x,
+        Math.max(p.zStart, p.zEnd), Math.min(p.zStart, p.zEnd))) tail.splice(i, 1);
+    }
     passes.length = regionMark;
     for (const p of head) passes.push(p);
     // ── ODLOŽIT SE SMÍ JEN ZA MĚLČÍ, NE ZA HLUBŠÍ (2. 9. 2026) ───────────
@@ -2335,8 +2376,16 @@ export function genLongPasses(ctx) {
     const reg = makeChainRegistry();
     // RAMPY zvlášť — viz „NÁJEZD DOKONČENÍ KAPSY PO RAMPÁCH" níž.
     const rampReg = makeChainRegistry();
+    // Strmý / zasypaný nájezd → řetěz ramp (klíč plátku `leadInSteepToChain`).
+    const leadChain = ins.leadInSteepToChain ? makeLeadInChain({
+      T, newCutArea, step, plungeTan: effPlungeTanL, offsetXAt, holderFitArea, ownCutOf,
+      rampDipTol: Math.max(0.05, 0.5 * Math.min(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)),
+      backReach: noseLiftL + (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z) + 1,
+      noseReach: noseLiftL + 1,
+    }) : null;
     let trimmed = 0, dropped = 0;
     for (const p of passes) {
+      if (leadChain) leadChain.advance(p);
       if (!p || p.type !== 'long') continue;
       const li = p.contourLeadIn;
       // ── NÁJEZD DOKONČENÍ KAPSY PO RAMPÁCH SE NEOPAKUJE (25. 9. 2026) ─────
@@ -2373,21 +2422,77 @@ export function genLongPasses(ctx) {
           }
           if (first < 0) { k++; continue; }           // celý úsek projetý
           if (first > 0 && s.type === 'line') cutAt = { k, t: (first - 1) / n };
+          // Oblouk i UPROSTŘED (klíč plátku `pocketRampAlongWall`): rampa
+          // po vyduté stěně jede po offsetu (ops/long/pocketPass.js), takže
+          // její konec leží uvnitř oblouku stěny — střih jen na začátku
+          // oblouku by ten kus rampy projel znovu.
+          else if (first > 0 && arc && ins.pocketRampAlongWall) cutAt = { k, t: (first - 1) / n };
           else if (k > 0) cutAt = { k, t: 0 };
           break;
         }
         if (cutAt && k < li.length) {
           const s = li[cutAt.k];
-          const x0 = s.x1 + (s.x2 - s.x1) * cutAt.t, z0 = s.z1 + (s.z2 - s.z1) * cutAt.t;
-          const head = s.type === 'line' ? { ...s, x1: x0, z1: z0 } : s;
+          const midArc = s.type !== 'line' && cutAt.t > 0;
+          const p0 = midArc ? segAt(s, cutAt.t)
+            : { x: s.x1 + (s.x2 - s.x1) * cutAt.t, z: s.z1 + (s.z2 - s.z1) * cutAt.t };
+          const x0 = p0.x, z0 = p0.z;
+          const head = s.type === 'line' ? { ...s, x1: x0, z1: z0 } : midArc ? subSeg(s, cutAt.t, 1) : s;
           const drop = { type: 'line', x1: x0 + 2 * step, z1: z0, x2: x0, z2: z0 };
-          if (newCutArea([drop]) <= 0.01 && Math.hypot(head.x2 - head.x1, head.z2 - head.z1) > 0.05) {
+          // Uprostřed oblouku stojí ve sloupci nad bodem hřebínek mezi
+          // oblouky stěny (kruhové vybrání: 0,019 mm²) — práh 0,05 mm² jako
+          // u držáku podél rampy. Sjezd k bodu jede `safeRapidTo`, která
+          // rychloposuv zastaví nad zbytkem a hřebínek projede posuvem.
+          if (newCutArea([drop]) <= (midArc ? 0.05 : 0.01) && Math.hypot(head.x2 - head.x1, head.z2 - head.z1) > 0.05) {
             trimmed += cutAt.k;
             li.splice(0, cutAt.k + 1, head);
           }
         }
       }
       if (p.ramp && Number.isFinite(p.ramp.x0) && Number.isFinite(p.ramp.z0))
+        rampReg.note([{ type: 'line', x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart }]);
+      // ── NÁJEZD JEN OD MĚLČÍ VRSTVY (klíč plátku `leadInTailBelowPrev`) ─────
+      // „Kapsa po kontuře" traceuje nájezd od konce předchozího intervalu —
+      // u poslední vrstvy u osy to byl celý díl (úsek 2 uživatele 28. 9. 2026:
+      // `N5580 G1 X17.244` 11 mm kolmo, dno, stěna 23 mm, šikmina 58 mm posuvem
+      // po hotovém). Ořez duplicit ho nezkrátí, protože vede i po TĚLECH
+      // průchodů (ta se do evidence řetězů nezapisují). Nad mělčí vrstvou
+      // (x + ap) je ale všechno vybrané — nájezd proto začne tam, kde naposled
+      // klesne pod ni (`leadInTail`, tentýž ocas jako u přeřazení přes hrb),
+      // když (a) odříznutý kus podle modelu úběru jede vzduchem (pod 0,01 mm²
+      // na mm — týž práh jako kontrola pravidla 5), nebo je začátek nájezdu
+      // ZASYPANÝ (sjet k němu jde jen kolmo materiálem — pravidlo 6; co by
+      // odříznutý kus vzal, leží pod mezí zanoření a má zůstat), a (b) sloupec
+      // nad začátkem ocasu je vybraný (sjede se k němu shora).
+      if (ins.leadInTailBelowPrev && Array.isArray(li) && li.length > 1 && T && Number.isFinite(p.x)
+          && !p.ramp && !p.pocketClean && !p.humpCrossing && !p.pocketReposition && !p.cleanApproach) {
+        const tail = leadInTail(li, p.x + step);
+        const t0 = tail && tail[0];
+        if (t0 && Math.hypot(t0.x1 - li[0].x1, t0.z1 - li[0].z1) > 0.05) {
+          const k = li.length - tail.length;
+          const s = li[k];
+          const cutSeg = s.type === 'arc' && Number.isFinite(t0.startAngle)
+            ? { ...s, x2: t0.x1, z2: t0.z1, endAngle: t0.startAngle } : { ...s, x2: t0.x1, z2: t0.z1 };
+          const prefix = li.slice(0, k).concat(Math.hypot(cutSeg.x2 - cutSeg.x1, cutSeg.z2 - cutSeg.z1) > 1e-6 ? [cutSeg] : []);
+          const len = prefix.reduce((a, g) => a + Math.hypot(g.x2 - g.x1, g.z2 - g.z1), 0);
+          if (len > 1) {
+            const floor = T.newFloorTab();
+            for (const q of passes) { if (q === p) break; T.notePassInto(floor, q); }
+            const saved = T.activeFloorTab;
+            T.activeFloorTab = floor;
+            const drop = { type: 'line', x1: t0.x1 + 2 * step, z1: t0.z1, x2: t0.x1, z2: t0.z1 };
+            const s0 = li[0];
+            const buried = newCutArea([{ type: 'line', x1: s0.x1 + step, z1: s0.z1, x2: s0.x1, z2: s0.z1 }]) > 0.05;
+            const ok = (buried || newCutArea(prefix) <= 0.01 * len) && newCutArea([drop]) <= 0.05;
+            T.activeFloorTab = saved;
+            if (ok) { li.splice(0, li.length, ...tail); p.leadInTrimmed = true; trimmed += k; }
+          }
+        }
+      }
+      // ── NÁJEZD STRMĚJI NEŽ ÚHEL ZANOŘENÍ / ZE ZÁPICHU → ŘETĚZ RAMP ─────────
+      // Nájezd, který by i po ořezu výš sjel do materiálu strměji, než smí
+      // (84° po čele), nebo k jehož začátku se musí zapíchnout, se nahradí
+      // rampou ze začátku vrstvy o ap výš — viz ops/long/leadInChain.js.
+      if (leadChain && leadChain.fix(p, passes) && p.leadInChained)
         rampReg.note([{ type: 'line', x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart }]);
       if (Array.isArray(li) && li.length > 0) {
         // ── NÁJEZD SE ORÁZÁVÁ I ČÁSTEČNĚ ───────────────────────────────
@@ -2516,7 +2621,17 @@ export function genLongPasses(ctx) {
         if (lo.length === 0) delete p.contourLeadOut;
         else reg.note(lo);
       }
+      // RAMPA JE TAKY PROJETÁ DRÁHA (klíč plátku `pocketRampAlongWall`).
+      // Rampa po čáře zanoření leží přesně na offsetu, a když po ní později
+      // vede nájezd jiné vrstvy, je to duplicita jako po nájezdu. Bez toho se
+      // ořez začátku nájezdu zastavil na 45° kusu u rohu kruhového vybrání
+      // (projela ho rampa, ne nájezd) a vrstva X 29,118 údolí pak jela
+      // nájezdem přes celé hotové dno vybrání (díl uživatele 28. 9. 2026).
+      // Zapisuje se až po vlastním nájezdu průchodu, ať ho neoznačí sám.
+      if (ins.pocketRampAlongWall && p.ramp && Number.isFinite(p.ramp.x0) && Number.isFinite(p.ramp.z0))
+        reg.note([{ type: 'line', x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart }]);
     }
+    if (leadChain) dropped += leadChain.dropIdle(passes);
     if (trimmed > 0 || dropped > 0)
       foundErrors.push({ type: 'warning', msg: `Bez schodků: vypuštěno ${trimmed} úseků dojezdu a ${dropped} nájezdů — vedly po dráze, kterou už dřívější průchod projel.` });
   }
