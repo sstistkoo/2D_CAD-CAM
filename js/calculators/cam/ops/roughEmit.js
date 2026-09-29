@@ -31,7 +31,7 @@ export function emitRoughing(E) {
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
     rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
-    rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt,
+    rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
@@ -517,6 +517,26 @@ calc.passes.forEach((pass, i) => {
     while (emitSegs.length > 0 && emitSegs[emitSegs.length - 1].kind === 'G0') emitSegs.pop();
     const bodyEndZ = emitSegs.length > 0 ? emitSegs[emitSegs.length - 1].z : firstCutZ;
     let zApproachVal = clipZGc(firstCutZ - zDir * rapidStopZ);
+    // ── KULATÁ: NÁJEZD OD DOTEKU KRUŽNICE NOSU (klíč `approachFromNoseContact`)
+    // `rapidStopZ` = Vůle Z + R počítá s tím, že hrana materiálu se hledá
+    // spodkem nosu. Začátek vrstvy kulaté ale leží už tam, kde se offsetové
+    // čáry dotkne celá KRUŽNICE nosu (sken siluetou rozšířenou o R), takže
+    // R vyšlo dvakrát: nález uživatele 29. 9. 2026 `G0 Z101.617 / G1 Z143.003`
+    // — 11 mm posuvem vzduchem před šikminou odlitku. Rychloposuv se zastaví
+    // Vůli Z před místem, kde se přední půlka kružnice nosu dotkne plánovacího
+    // obrysu (týž odstup jako konec rychloposuvu uvnitř řezu) — nikdy dál od
+    // materiálu než dosud.
+    if (insGc.approachFromNoseContact && tipRGc > 0 && typeof noseFrontClear === 'function') {
+      const zOld = firstCutZ - zDir * rapidStopZ;
+      const n = Math.max(1, Math.ceil(Math.abs(firstCutZ - zOld) / 0.05));
+      let zc = firstCutZ;
+      for (let k = 0; k <= n; k++) {
+        const z = zOld + (firstCutZ - zOld) * k / n;
+        if (!noseFrontClear(pass.x, z, zDir)) { zc = z; break; }
+      }
+      const zNew = zc - zDir * rapidClrZGc;
+      zApproachVal = clipZGc(zDir * (zNew - zOld) < 0 ? zOld : zNew);
+    }
     // ODSTUP V Z POSOUVÁ I DRŽÁK. Rychloposuv se zastaví `rapidStopZ` před
     // hranou materiálu, aby sjezd v X proběhl ve vzduchu — jenže tím se
     // o tentýž kus posune na NEOBROBENOU stranu celý držák, a ten je v Z

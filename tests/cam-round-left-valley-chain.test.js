@@ -59,6 +59,35 @@ describe('CAM: kulatá R 10 zleva — řetěz ramp v údolí, dobrání, levý k
     expect(/G0 Z-9\.000\s*\n\S*\s*G1 X41\.066/.test(gcode)).toBe(false);
   });
 
+  // Nálezy uživatele 29. 9. 2026 odpoledne (projekt_2026-09-29 (4)): nájezd
+  // kulaté počítal Vůli Z + R, přestože začátek vrstvy už R obsahuje (klíč
+  // `approachFromNoseContact`) — `G0 Z101.617 / G1 Z143.003` jel 11 mm
+  // posuvem vzduchem a vrstva X 29,118 u pravé stěny údolí vypadla (místo
+  // nájezdu padlo o 11 mm vlevo do protější stěny), takže X 26,618 tam brala
+  // dvě vrstvy naráz.
+  it('vrstva X 29,118 dojede v údolí až na pravou stěnu', async () => {
+    const { calc } = await getRun();
+    const p = calc.passes.find(q => q.type === 'long' && near(q.x, 29.118)
+      && Math.max(q.zStart, q.zEnd) > 103 && Math.min(q.zStart, q.zEnd) < 95);
+    expect(p, 'vrstva X 29,118 u stěny Z ~94…103').toBeTruthy();
+  });
+
+  it('nájezd před šikminou odlitku jede posuvem jen o Vůli Z, ne o Vůli Z + R', async () => {
+    const { gcode, calc } = await getRun();
+    const lines = gcode.split('\n');
+    const p = calc.passes.find(q => q.type === 'long' && near(q.x, 54.118));
+    expect(p).toBeTruthy();
+    const i = lines.findIndex(l => /G0 X54\.118\b/.test(l));
+    const m = i > 0 && lines[i - 1].match(/G0 Z(-?[\d.]+)/);
+    expect(m, 'G0 Z před sjezdem na X 54,118').toBeTruthy();
+    // Rychloposuv končí Vůli Z (1 mm) před dotekem kružnice nosu s offsetovou
+    // čarou (Z ~109,2; se samotným odlitkem Z 111,05) — dřív o Vůli Z + R
+    // před začátkem vrstvy: G0 Z101,617, tedy 11 mm.
+    const zG0 = parseFloat(m[1]);
+    expect(p.zStart - zG0).toBeLessThanOrEqual(5);
+    expect(zG0).toBeGreaterThan(107.5);
+  });
+
   it('bez kolize nástroje a držáku (validátor, planStock, zleva)', async () => {
     const r = await getRun();
     const issues = validateToolpath(r.calcSim.simPath, r.params, r.calcSim.stockPathSegments,

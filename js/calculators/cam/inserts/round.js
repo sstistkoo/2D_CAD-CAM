@@ -162,6 +162,15 @@ export function roundInsert(prms) {
     //                              (29. 9. 2026, úsek 2: nájezd přes celý díl
     //                              s `G1 X19.243` kolmo, sjezdy 84° po čele)
     leadInSteepToChain: true,
+    //   approachFromNoseContact  — nájezd posuvem před materiálem se měří od
+    //                              místa, kde se KRUŽNICE nosu dotkne offsetové
+    //                              čáry polotovaru, a je jen Vůle Z (ne Vůle Z
+    //                              + R — začátky vrstev kulaté už R obsahují).
+    //                              Týž odstup i u rychloposuvu uvnitř řezu
+    //                              (29. 9. 2026: 11 mm posuvem vzduchem před
+    //                              vrstvou, uvnitř řezu 0 mm; kvůli R navíc
+    //                              vypadla i vrstva X 29,118 u stěny údolí)
+    approachFromNoseContact: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

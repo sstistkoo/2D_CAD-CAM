@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **CAM – kulatá: nájezd posuvem jen o Vůli Z, vrstva u stěny údolí.**
+  Nálezy uživatele 29. 9. 2026 odpoledne (projekt_2026-09-29 (4), úsek 1):
+  nájezd před vrstvou jel o Vůli Z + R, přestože začátek vrstvy kulaté už
+  R obsahuje (sken kružnicí nosu) — `G0 Z101.617 / G1 Z143.003` 11 mm posuvem
+  vzduchem před šikminou odlitku, kdežto rychloposuv uvnitř řezu končil
+  přesně na offsetové čáře (`G0 Z97.849 / G1 Z107.050`). Kvůli R navíc padlo
+  místo nájezdu vrstvy X 29,118 u pravé stěny údolí o 11 mm vlevo do protější
+  stěny a vrstva se vynechala — X 26,618 pak brala dvě vrstvy naráz (38,8 mm²
+  na 7 mm; kontrola P3 to neviděla, materiál ležel před nosem, ne pod ním).
+  Teď rychloposuv končí Vůli Z před místem, kde se přední půlka kružnice
+  nosu dotkne offsetové čáry — na začátku vrstvy i uvnitř řezu; kontroly
+  držáku při nájezdu měří totéž místo (`entryApproachDz` v camMath.js, klíč
+  plátku `approachFromNoseContact`, jen kulatá). Úběr beze změny, vrstvy
+  u stěny údolí po ~19,7 mm², posuv −23 mm. Otisk: změnil se jen
+  `part-22-round-r10` (body zastavení rychloposuvu, pravidla 31 → 30).
 - **CAM – kulatá R 10 zleva: vjezdy vrstev bez strmých sjezdů a bez
   opakování projeté dráhy.** Nálezy na dílu uživatele 29. 9. 2026
   (projekt_2026-09-29, „✂ Po úsecích"):

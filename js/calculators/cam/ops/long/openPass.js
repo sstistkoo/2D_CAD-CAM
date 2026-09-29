@@ -10,7 +10,7 @@
 
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
 import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
-import { stockClearanceIsZero, stockClearances } from '../../camMath.js';
+import { entryApproachDz } from '../../camMath.js';
 
 export function emitOpenInterval(D) {
   const {
@@ -652,7 +652,8 @@ export function emitOpenInterval(D) {
     // Sjíždí se o NÁJEZD vpravo od začátku průchodu (Vůle Z + R, viz
     // rapidStopZ v gcodeEmit.js) a k materiálu se přijede posuvem — tam
     // stojí držák, tam se tedy hlídá.
-    const approachDz = (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z) + (parseFloat(prms.toolRadius) || 0);
+    // Kulatá (klíč `approachFromNoseContact`): jen Vůle Z, R už je v zStart.
+    const approachDz = entryApproachDz(prms);
     const z0 = passObj.zStart + approachDz, R = anchorLiftX || 0;
     const top = offsetStockTopXAtZ(z0 + 0.01);
     const bandTop = top !== null ? top + R : -Infinity;

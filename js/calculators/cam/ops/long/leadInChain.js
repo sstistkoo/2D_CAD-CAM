@@ -188,6 +188,12 @@ export function makeLeadInChain({ T, newCutArea, step, plungeTan, offsetXAt,
     });
   };
 
+  // POZOR: dobrání kapsy („kapsa bez schodků") se tímhle měřítkem NEvyřazuje.
+  // Zkoušeno 29. 9. 2026: po stěně jelo 14,3 mm „vzduchem", ale sbíralo
+  // hřebínky na strmé stěně (Z 110–114, až 0,25 mm nad přídavkem) — sloupcová
+  // podlaha `alreadyCut.js` je na strmé stěně nevidí (viz pocketPass.js,
+  // „NECHALO STÁT 64 mm²").
+
   /** Vyřadí přestavěné vrstvy, které nic neuberou (viz `chainIdle`). */
   const dropIdle = (passes) => {
     let n = 0;

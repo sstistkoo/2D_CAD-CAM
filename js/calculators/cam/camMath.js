@@ -353,6 +353,17 @@ export function stockClearances(prms) {
   };
 }
 
+// Nájezd posuvem před začátkem vrstvy v Z (i místo, kde se hlídá držák při
+// nájezdu): Vůle Z + R — začátek vrstvy se hledá spodkem nosu a nos předbíhá
+// střed o R. Plátek, jehož začátky vrstev už měří celou KRUŽNICÍ nosu (klíč
+// `approachFromNoseContact`, kulatá), R nepřičítá: byl by tam dvakrát
+// (u R 10 jelo 11 mm posuvem vzduchem a nájezd padal do protější stěny údolí).
+export function entryApproachDz(prms) {
+  const clrZ = stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z;
+  if (getInsert(prms).approachFromNoseContact) return clrZ;
+  return clrZ + (parseFloat(prms.toolRadius) || 0);
+}
+
 // Jsou OBA Přídavky polotovaru zadané jako NULA? Pak žádná offsetová
 // („tečkovaná") čára neexistuje a plánovacím obrysem je přímo polotovar tak,
 // jak je nakreslený — viz offsetStockLoop v materialRemoval.js.

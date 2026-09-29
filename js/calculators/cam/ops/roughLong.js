@@ -9,7 +9,7 @@ import { splitPocketsAtAir } from './long/airPieces.js';
 import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
-import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ } from '../camMath.js';
+import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
 import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
@@ -1239,8 +1239,7 @@ export function genLongPasses(ctx) {
     // se zahodí. Se STATICKOU obálkou tohle stálo −3 948 mm² úběru a vyrobilo
     // nové kolize (změřeno) — proto jen s order-aware modelem.
     if (orderAware && residHolderL && intervals.length > 0) {
-      const approachDz = (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z)
-        + (parseFloat(prms.toolRadius) || 0);
+      const approachDz = entryApproachDz(prms);
       const iv0 = intervals[0];
       // Posun je OMEZENÝ: dál než pár milimetrů se vjezd stěhovat nesmí, jinak
       // se změní i to, KUDY se k němu přijíždí — na `range-end-leadout` daleký
@@ -1322,8 +1321,7 @@ export function genLongPasses(ctx) {
         // do materiálu. Když se místo v okně ENTRY_SHIFT_MAX nenajde, kus se
         // nevydá (zbytek se hlásí jako neobrobený).
         if (orderAware && residHolderL) {
-          const approachDz = (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z)
-            + (parseFloat(prms.toolRadius) || 0);
+          const approachDz = entryApproachDz(prms);
           const zFloorEntry = Math.max(iv.zEnd + dzScan, iv.zStart - ENTRY_SHIFT_MAX);
           let zTry = iv.zStart;
           while (zTry > zFloorEntry && entryHolderArea(currentX, zTry + approachDz) > ENTRY_FIT_TOL) zTry -= DZ_CAP;
@@ -2493,8 +2491,7 @@ export function genLongPasses(ctx) {
       // (84° po čele), nebo k jehož začátku se musí zapíchnout, se nahradí
       // rampou ze začátku vrstvy o ap výš — viz ops/long/leadInChain.js.
       if (leadChain && leadChain.fix(p, passes) && p.leadInChained)
-        rampReg.note([{ type: 'line', x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart }]);
-      if (Array.isArray(li) && li.length > 0) {
+        rampReg.note([{ type: 'line', x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart }]);      if (Array.isArray(li) && li.length > 0) {
         // ── NÁJEZD SE ORÁZÁVÁ I ČÁSTEČNĚ ───────────────────────────────
         // „Kapsa po kontuře" sleduje JEDNU sdílenou offsetovou dráhu, takže
         // hlubší průchod má s mělčím vždycky společnou HLAVU — a ta se

@@ -439,16 +439,19 @@ export function generateAutoGCode(S, calc) {
   // průchod právě uřízl — plánovací obrys o tom neví, a konec řezu by se
   // jinak protáhl o R posuvem vzduchem.
   const insAirSplit = getInsert(prms);
-  const noseAirOnly = (segs, x, zFrom, dir, leadingAsIs) => {
+  // Je PŘEDNÍ půlka kružnice nosu (ve směru jízdy `dir`) se středem (x, z)
+  // volná proti plánovacímu obrysu?
+  const noseFrontClear = (x, z, dir) => {
     const R = tipRGc, n = Math.max(1, Math.ceil(R / 0.5));
     const sgn = dir < 0 ? -1 : 1;
-    const clear = (z) => {
-      for (let k = 0; k <= n; k++) {
-        const dz = sgn * R * k / n, top = planTopXAtZ(z + dz);
-        if (top !== null && x - Math.sqrt(Math.max(R * R - dz * dz, 0)) <= top + 1e-4) return false;
-      }
-      return true;
-    };
+    for (let k = 0; k <= n; k++) {
+      const dz = sgn * R * k / n, top = planTopXAtZ(z + dz);
+      if (top !== null && x - Math.sqrt(Math.max(R * R - dz * dz, 0)) <= top + 1e-4) return false;
+    }
+    return true;
+  };
+  const noseAirOnly = (segs, x, zFrom, dir, leadingAsIs) => {
+    const clear = (z) => noseFrontClear(x, z, dir);
     const res = [];
     const push = (kind, z, from) => {
       const last = res[res.length - 1];
@@ -464,6 +467,23 @@ export function generateAutoGCode(S, calc) {
         push(clear((za + zb) / 2) && clear(zb) ? 'G0' : 'G1', zb, za);
       }
       z0 = s.z;
+    }
+    // ODSTUP PŘED MATERIÁLEM (klíč plátku `approachFromNoseContact`, kulatá):
+    // rychloposuv uvnitř řezu končil přesně tam, kde se kružnice nosu dotkne
+    // offsetové čáry — nájezd na začátku vrstvy přitom jede posuvem od Vůle Z
+    // před ní. Nález uživatele 29. 9. 2026: `G0 Z97.849 / G1 Z107.050`
+    // *„rychloposuv se zastavuje těsně před polotovarem"*. Konec rychloposuvu
+    // před materiálem se proto posune o Vůli Z zpět (jako nájezd).
+    if (insAirSplit.approachFromNoseContact && rapidClrZGc > 0) {
+      const sd = dir < 0 ? -1 : 1;
+      for (let i = 0; i + 1 < res.length; i++) {
+        const r = res[i];
+        if (r.kind !== 'G0' || r.keep || res[i + 1].kind !== 'G1') continue;
+        const zNew = r.z - sd * rapidClrZGc;
+        if (sd * (zNew - r.from) <= 0) { r.kind = 'G1'; continue; }
+        r.z = zNew;
+        res[i + 1].from = zNew;
+      }
     }
     // Krátký vzduch mezi posuvy není rychloposuv (týž práh jako výš).
     const fin = [];
@@ -1141,7 +1161,7 @@ export function generateAutoGCode(S, calc) {
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
     rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
-    rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt,
+    rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
