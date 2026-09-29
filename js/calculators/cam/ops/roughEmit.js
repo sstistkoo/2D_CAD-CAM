@@ -318,7 +318,16 @@ calc.passes.forEach((pass, i) => {
           // posuv sahá až k vůli-zóně kolem materiálu (souhlasí s tím, kde končí
           // rychloposuv jinde: descendTo/safeRapidTo, exit-split u increment 1).
           const ct = planTopXAtZ(midZ);
-          const air = !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
+          // Kulatá (klíč `approachFromNoseContact`): vzduch jen tam, kde je
+          // celá kružnice nosu Vůli od plánovacího obrysu — bokem nosu se
+          // materiálu dotkne dřív než spodkem (rychloposuv po rampě u stěny
+          // zajel 3 mm² do vůle polotovaru, 29. 9. 2026).
+          // Materiál pod spodkem nosu se nepromíjí až po KONEC rampy —
+          // sjíždí se na něj.
+          const rampFloor = Math.min(x0, x1) - tipRGc;
+          const air = insGc.approachFromNoseContact && tipRGc > 0 && typeof noseFrontClear === 'function'
+            ? noseFrontClear(midX, midZ, zDir, rapidClrZGc, rampFloor) && noseFrontClear(midX, midZ, -zDir, rapidClrZGc, rampFloor)
+            : !(ct !== null && (midX - tipRGc) <= ct + 1e-4);
           // `rampAllFeed` (openPass: sjezd zastavený nad polotovarem kvůli
           // držáku) — rampa jde těsně u polotovaru, ve vůli; rychloposuv
           // tam validátor hlásí jako kolizi. Celá jede posuvem.
@@ -433,7 +442,12 @@ calc.passes.forEach((pass, i) => {
       // `emitZEnd`: mezikrok sjezdu nedojizdi na konec vrstvy - dojede jen
       // tam, odkud se dozanoruje na plne `ap` (viz emitChainFrom vys).
       const rampEndZ = Number.isFinite(pass.emitZEnd) ? pass.emitZEnd : pass.zEnd;
-      const rampBody = airSplitAxial(bodyX, pass.zStart, rampEndZ, Math.sign(rampEndZ - pass.zStart) || zDir, true);
+      // Kulatá (klíč `approachFromNoseContact`): vedoucí vzduch dna tady žádný
+      // nájezd neohlídá — rychloposuv by jel až k prahu nárazu a zastavil
+      // 0,36 mm od stěny (`G0 Z95.286`, 29. 9. 2026). Rozsekne ho tedy tatáž
+      // kontrola kružnicí nosu s odstupem Vůle Z jako vzduch uvnitř řezu.
+      const rampBody = airSplitAxial(bodyX, pass.zStart, rampEndZ, Math.sign(rampEndZ - pass.zStart) || zDir,
+        !insGc.approachFromNoseContact);
       // KONCOVÝ vzduch se nejezdí (stejně jako u otevřeného průchodu níž):
       // za posledním řezem už polotovar nesahá a cíl kroku může ležet
       // desítky mm v prázdnu (reálný nález na díle uživatele: `G0 Z349`
@@ -527,15 +541,17 @@ calc.passes.forEach((pass, i) => {
     // obrysu (týž odstup jako konec rychloposuvu uvnitř řezu) — nikdy dál od
     // materiálu než dosud.
     if (insGc.approachFromNoseContact && tipRGc > 0 && typeof noseFrontClear === 'function') {
+      // Poslední místo před materiálem, kde je kružnice nosu Vůli Z (měřeno
+      // vzdáleností) od plánovacího obrysu; nikdy dál než dosavadní odstup.
       const zOld = firstCutZ - zDir * rapidStopZ;
       const n = Math.max(1, Math.ceil(Math.abs(firstCutZ - zOld) / 0.05));
-      let zc = firstCutZ;
+      let zNew = zOld;
       for (let k = 0; k <= n; k++) {
         const z = zOld + (firstCutZ - zOld) * k / n;
-        if (!noseFrontClear(pass.x, z, zDir)) { zc = z; break; }
+        if (!noseFrontClear(pass.x, z, zDir, rapidClrZGc)) break;
+        zNew = z;
       }
-      const zNew = zc - zDir * rapidClrZGc;
-      zApproachVal = clipZGc(zDir * (zNew - zOld) < 0 ? zOld : zNew);
+      zApproachVal = clipZGc(zNew);
     }
     // ODSTUP V Z POSOUVÁ I DRŽÁK. Rychloposuv se zastaví `rapidStopZ` před
     // hranou materiálu, aby sjezd v X proběhl ve vzduchu — jenže tím se

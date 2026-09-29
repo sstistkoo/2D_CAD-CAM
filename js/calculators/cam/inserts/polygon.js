@@ -118,6 +118,7 @@ export function polygonInsert(prms) {
     leadInStartNoPlunge: false,
     leadInSteepToChain: false,
     approachFromNoseContact: false,
+    rule7Layers: false,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

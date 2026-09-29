@@ -32,7 +32,7 @@ const loadProg = () => JSON.parse(readFileSync(FIXTURE, 'utf8'));
 // hranici úseku (Z 195,278). Dno údolí v souřadnicích dráhy: X 30,156 +
 // přídavek 0,5 + R 10 = 40,656.
 const inValley = (p) => p.type === 'long' && Number.isFinite(p.x)
-  && Math.abs(p.zEnd - 195.278) < 0.01 && p.zStart > 195.5 && p.zStart < 216;
+  && Math.abs(p.zEnd - 195.278) < 0.15 && p.zStart > 195.5 && p.zStart < 216;   // mez úseků ± mezera oblastí
 
 describe('CAM: kulatá R 10 — údolí za hrbem (hlídání držáku, střed nosu × povrch)', () => {
   it('vrstvy v údolí sjedou až na jeho dno, ne jen 4 pod vrchol hrbu', async () => {

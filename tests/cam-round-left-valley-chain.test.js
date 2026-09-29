@@ -28,35 +28,47 @@ const getRun = async () => (run ??= await runCamProg(JSON.parse(readFileSync(FIX
 const near = (a, b, tol = 0.01) => Math.abs(a - b) <= tol;
 
 describe('CAM: kulatá R 10 zleva — řetěz ramp v údolí, dobrání, levý konec', () => {
-  it('kroky řetězu v údolí navazují na konec předchozího kroku (nájezd ≤ ap)', async () => {
+  // Od 29. 9. 2026 (večer) staví vrstvy kulaté jeden postup pravidla 7
+  // (ops/long/rule7Layers.js) — testy hlídají VLASTNOSTI drah (pravidla 3, 4,
+  // 6, 7), ne tvar, jakým je stavěl dřívější generátor (řetězy, „dobrání").
+  it('vrstvy v údolí sjíždějí po stěně nejvýš o ap (od úrovně mělčí vrstvy)', async () => {
     const { calc } = await getRun();
-    const steps = calc.passes.filter(p => p.type === 'long' && p.pocketReposition
-      && p.contourLeadIn && p.contourLeadIn.length && p.zStart > 80 && p.zStart < 100);
-    expect(steps.length).toBeGreaterThanOrEqual(3);
-    for (const p of steps) {
-      const drop = p.contourLeadIn[0].x1 - p.x;
-      expect(drop, `nájezd X ${p.x.toFixed(3)} od X ${p.contourLeadIn[0].x1.toFixed(3)}`).toBeLessThanOrEqual(2.5 + 0.05);
+    const inValley = calc.passes.filter(p => p.type === 'long' && p.x < 34 && p.x > 17
+      && Math.min(p.zStart, p.zEnd) > 76 && Math.max(p.zStart, p.zEnd) < 110);
+    expect(inValley.length).toBeGreaterThanOrEqual(5);
+    for (const p of inValley) {
+      const top = p.contourLeadIn?.length ? p.contourLeadIn[0].x1 : p.ramp ? p.ramp.x0 : p.x;
+      expect(top - p.x, `vjezd X ${p.x.toFixed(3)} z X ${top.toFixed(3)}`).toBeLessThanOrEqual(2.5 + 0.05);
     }
+    // Dno údolí má vrstvu (pravidlo 3).
+    expect(inValley.some(p => p.x < 18.2)).toBe(true);
   });
 
-  it('dobrání kapsy v údolí nejede znovu rampu ani dno', async () => {
+  it('vrstva X 36,618 jede přes hrb vcelku až na konec (pravidlo 7)', async () => {
     const { calc } = await getRun();
-    const clean = calc.passes.find(p => p.pocketClean && near(p.x, 18.079, 0.05));
-    expect(clean, 'dobrání dna X 18,079').toBeTruthy();
-    expect(clean.contourLeadIn, 'nájezd po projeté rampě').toBeFalsy();
-    // Začíná až na konci dna (Z 99,4), kam dojel poslední krok řetězu.
-    expect(clean.zStart).toBeGreaterThan(99);
-    expect(clean.cleanApproach).toBeTruthy();
+    const i = calc.passes.findIndex(p => p.type === 'long' && near(p.x, 36.618)
+      && Math.min(p.zStart, p.zEnd) > 15 && Math.min(p.zStart, p.zEnd) < 30);
+    expect(i).toBeGreaterThanOrEqual(0);
+    const a = calc.passes[i], b = calc.passes[i + 1];
+    expect(a.noRetract, 'bez odskoku u hrbu').toBe(true);
+    expect(b && near(b.x, 36.618) && Math.max(b.zStart, b.zEnd) > 105, 'pokračuje za hrbem až ke stěně').toBe(true);
+    // Vybrání (před hrbem) se dodělá dřív, než začne údolí za hrbem.
+    const recessBottom = calc.passes.findIndex(p => p.type === 'long' && p.x > 29.7 && p.x < 29.8);
+    const valleyFirst = calc.passes.findIndex(p => p.type === 'long' && near(p.x, 34.118) && Math.min(p.zStart, p.zEnd) > 70);
+    expect(recessBottom).toBeGreaterThan(i);
+    expect(valleyFirst).toBeGreaterThan(recessBottom);
   });
 
-  it('nájezd po plošině levého konce začíná za dosahem nosu, ne zápichem', async () => {
-    const { gcode, calc } = await getRun();
-    const p = calc.passes.find(q => q.type === 'long' && q.contourLeadIn
-      && near(q.contourLeadIn[0].x1, 41.066) && q.zStart < 40);
-    expect(p).toBeTruthy();
-    // Polotovar začíná na Z −8: začátek nejméně R + 1 mm před Vůlí Z.
-    expect(p.contourLeadIn[0].z1).toBeLessThanOrEqual(-19.9);
-    expect(/G0 Z-9\.000\s*\n\S*\s*G1 X41\.066/.test(gcode)).toBe(false);
+  it('levý konec před čelem dílu se obrobí po vrstvách až dolů', async () => {
+    const { calc } = await getRun();
+    // Odlitek Z −8…0 před čelem (X 30,566): vrstvy pod čelem začínají ve
+    // vzduchu za dosahem nosu a končí u čela (Z −10,5 = čelo − R − přídavek).
+    const left = calc.passes.filter(p => p.type === 'long' && p.x < 39 && Math.max(p.zStart, p.zEnd) < -10);
+    expect(left.length).toBeGreaterThanOrEqual(8);
+    // Začátek = kde kružnice nosu zasáhne SKUTEČNÝ odlitek (Z −8 − R = −18,
+    // od 29. 9. 2026 večer; nájezd o vůli před ním přidá emise).
+    for (const p of left) expect(Math.min(p.zStart, p.zEnd)).toBeLessThanOrEqual(-17.95);
+    expect(Math.min(...left.map(p => p.x))).toBeLessThan(10);
   });
 
   // Nálezy uživatele 29. 9. 2026 odpoledne (projekt_2026-09-29 (4)): nájezd
@@ -80,12 +92,12 @@ describe('CAM: kulatá R 10 zleva — řetěz ramp v údolí, dobrání, levý k
     const i = lines.findIndex(l => /G0 X54\.118\b/.test(l));
     const m = i > 0 && lines[i - 1].match(/G0 Z(-?[\d.]+)/);
     expect(m, 'G0 Z před sjezdem na X 54,118').toBeTruthy();
-    // Rychloposuv končí Vůli Z (1 mm) před dotekem kružnice nosu s offsetovou
-    // čarou (Z ~109,2; se samotným odlitkem Z 111,05) — dřív o Vůli Z + R
-    // před začátkem vrstvy: G0 Z101,617, tedy 11 mm.
+    // Rychloposuv končí tam, kde je kružnice nosu Vůli Z (1 mm, měřeno
+    // vzdáleností) od offsetové čáry (dotek Z ~109,2; se samotným odlitkem
+    // Z 111,05) — dřív o Vůli Z + R před začátkem vrstvy: G0 Z101,617, 11 mm.
     const zG0 = parseFloat(m[1]);
-    expect(p.zStart - zG0).toBeLessThanOrEqual(5);
-    expect(zG0).toBeGreaterThan(107.5);
+    expect(p.zStart - zG0).toBeLessThanOrEqual(5.5);
+    expect(zG0).toBeGreaterThan(107);
   });
 
   it('bez kolize nástroje a držáku (validátor, planStock, zleva)', async () => {

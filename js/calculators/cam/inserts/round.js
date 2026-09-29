@@ -171,6 +171,10 @@ export function roundInsert(prms) {
     //                              vrstvou, uvnitř řezu 0 mm; kvůli R navíc
     //                              vypadla i vrstva X 29,118 u stěny údolí)
     approachFromNoseContact: true,
+    //   rule7Layers              — vrstvy úseku staví jeden postup podle pravidla 7
+    //                              (ops/long/rule7Layers.js) místo hloubkové smyčky
+    //                              a dodatečných úprav pořadí (29. 9. 2026)
+    rule7Layers: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

@@ -60,9 +60,12 @@ export function makeAlreadyCut({ T, noseLiftX }) {
     return pts;
   };
 
-  const newCutArea = (segs) => {
+  // `opts.topAt` = jiná výška materiálu než plánovací obrys (rule7Layers.js:
+  // skutečný polotovar bez vůle).
+  const newCutArea = (segs, opts = {}) => {
     const tab = floorTab();
-    const { capZ0, DZ_CAP, stockTopTab } = T;
+    const { capZ0, DZ_CAP } = T;
+    const stockTopTab = typeof opts.topAt === 'function' ? opts.topAt : T.stockTopTab;
     if (!tab || !Number.isFinite(capZ0) || !Array.isArray(segs) || segs.length === 0) return Infinity;
     const pts = samplePath(segs, DZ_CAP / 2);
     if (pts.length === 0) return Infinity;

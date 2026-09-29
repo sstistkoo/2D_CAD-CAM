@@ -98,6 +98,41 @@ N420 G1 X52.545 Z197.278
 Pak pravá strana po vrstvách (N450 Z237.082, N560 Z237.751, N690 Z238.421 …)
 až úplně dolů, a teprve potom za hrbem (N510 G1 Z195.278 a dál dolů).
 
+### Upřesnění uživatele 29. 9. 2026 — jeden postup, který se opakuje
+
+Pravidlo platí pořád dokola, stejnou logikou, pro celý úsek:
+
+1. Vrstvy jdou shora dolů po ap. Každá jede přes celou oblast až na konec.
+2. **První** vrstva, která při jízdě narazí na hotovní konturu (hrb, čelo
+   dílu), konturu kopíruje a jede dál **až na konec** oblasti.
+3. Pak se vrátí a dodělá se **všechno před tím dotekem** (ze strany, odkud
+   se jede — zleva levá, zprava pravá) vrstvu po vrstvě **až dolů**.
+4. Pak se přejede za dotek a pokračuje se **stejnou logikou**: vrstvy dolů,
+   dokud další vrstva nenarazí na hotovní konturu → ta jede až na konec →
+   dodělá se to před ní až dolů → přejede se dál …
+5. Vrstva za hrbem začíná tam, kde začíná její materiál — u stěny, kde
+   vrstva nad ní ze stěny sjela, a dál jde po stěně dolů (pravidla 4 a 6).
+
+Příklad (díl uživatele 29. 9. 2026, `projekt_2026-09-29 (6).camprog`,
+kulatá R 10, zleva, úsek 1):
+- vrstva X 39,118 narazí na čelo dílu (bod 27, X 30,566 Z 0) → vyjede po čele,
+  jede po plošině, sjede do vybrání a pokračuje až na konec,
+- pak se dodělá levá strana před čelem (odlitek Z −8…0) po vrstvách až dolů,
+- vrstva X 36,618 narazí na hrb (bod 23, X 27,056 Z 55,47) → kopíruje ho a jede
+  až na konec (`N920 G1 Z50.002` … `N1300 G1 Z106.017` jedním průchodem),
+- pak se dobere kruhové vybrání až na dno (`N1200 G3 X29.727 Z35.100`),
+- pak se přejede za hrb a údolí se dělá po vrstvách od stěny (X 36,618
+  Z 72,614, kde vrstva nad ním sjela) až dolů.
+
+Doplněno uživatelem 29. 9. 2026 večer (díly `projekt_2026-09-29 (7)–(9)`):
+
+6. **Plošina na vrcholu hrbu**, přes který vrstva přejede, se nejede zvlášť
+   — vrstva, která hrb kopíruje, ji obrobí. (Dřív se napřed jela plošina
+   za kruhovým vybráním a teprve pak vrstva od začátku.)
+7. **Na mezi úseku** vrstva, jejíž krátké tělo za nájezdem nic neubere,
+   končí na konci nájezdu — žádný přejezd k mezi a šikmý návrat zpět
+   („taneček" u meze úseku 1).
+
 ## Pravidlo 8 — Pořadí úseků ✅ schváleno
 
 **Úseky se obrábějí po řadě od strany, odkud se obrábí — Ú1, Ú2, Ú3, … —
@@ -113,3 +148,50 @@ každý celý najednou (po vrstvách ap až dolů), pak další.**
   z materiálu (pravidlo 1). Kde čára vyjíždí až na konci (údolí, ze kterého
   čára nevyjede uprostřed), se bere vcelku jako teď — dělit tam by rozbilo
   hlídání ap.
+
+---
+
+## Pravidlo 9 — Materiál je skutečný polotovar ✅ schváleno
+
+**Kde vrstva začíná, kde končí a jestli je před ní vzduch, rozhoduje
+skutečný (nakreslený) polotovar, ne plánovací obrys s vůlí.**
+
+- Plánovací obrys (polotovar + vůle, tečkovaná čára) určuje jen, kde
+  končí rychloposuv a odkud se jede posuvem.
+- Kus vrstvy je materiál, jen když z polotovaru opravdu něco ubere.
+  Pouhý dotek nosu (vůle, strmá stěna zbytku po sousedním úseku) nestačí.
+- Vrstva, která celkově nic neubere, se nevydá — ani krátký kus, ani
+  vrstva, která jen setře setiny po vrstvě na schodu.
+- Schváleno uživatelem 29. 9. 2026 (díly `projekt_2026-09-29 (7)–(9)`:
+  vrstvy začínaly ve vůli zbytku po úseku 1, zanořovaly se do vzduchu
+  a pak přejížděly celé údolí rychloposuvem).
+
+## Pravidlo 10 — Vjezd do vrstvy ✅ schváleno
+
+**Do vrstvy se vjíždí jedním postupem, v tomto pořadí — první možnost,
+která projde, platí:**
+
+1. **Po stěně** od mělčí vrstvy — sjezd nejvýš pod úhlem zanoření
+   (pravidlo 6), sloupec nad začátkem sjezdu už vybraný.
+2. **Ze vzduchu vodorovně** — pod nosem ani těsně před začátkem není
+   polotovar.
+3. **Rampou** pod úhlem zanoření, co nejblíž začátku vrstvy — tam, kde je
+   nad začátkem rampy už vybráno (nebo tam polotovar nikdy nebyl) a kam
+   se dá dojet rychloposuvem. Na rampu mělčí vrstvy navazuje další rampa
+   po téže přímce (řetěz), jen když mělčí vrstva sama vjela rampou.
+
+- Každý vjezd musí projít držákem (pravidlo 2); kde se nevejde nic,
+  vrstva se vynechá a nahlásí.
+- **Vjezd, který nic neubere, se nepočítá:** když vjezd a cesta až k dalšímu
+  materiálu vrstvy nic neuberou, vrstva začne až u dalšího materiálu
+  (dřív: rampa u hrbu do vzduchu a přejezd údolím, `G0 Z154.272`).
+
+## Pravidlo 11 — Nic za hranicí úseku ✅ schváleno
+
+**Nástroj se vjezdem nedotkne materiálu za začátkem úseku nebo rozsahu
+(hotový sousední úsek, polotovar za hranicí rozsahu).**
+
+- Nos ani zadní půlkou nesmí sáhnout do stěny, kterou nechal sousední
+  úsek. Kde by se dotkl, vjíždí se až tam, kde je celý mimo.
+- Klín, který tím u hranice zůstane, je klín pod mezní čarou
+  (pravidlo 6) — nahlásí se.

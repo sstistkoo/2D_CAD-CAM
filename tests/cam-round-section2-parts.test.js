@@ -26,8 +26,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, 'fixtures', 'cam-cases', 'round-r10-section2-parts.camprog');
 const loadProg = () => JSON.parse(readFileSync(FIXTURE, 'utf8'));
 const R = 10;
-// Stěna zbytku po úseku 1 (offsetová čára polotovaru: Z 196,23 − Vůle 1).
-const WALL_Z = 195.23;
 
 describe('CAM: kulatá R 10 — „✂ Po úsecích", úsek 2', () => {
   it('rampa do drážky začíná tam, kde je celá kružnice nosu mimo stěnu', async () => {
@@ -35,8 +33,25 @@ describe('CAM: kulatá R 10 — „✂ Po úsecích", úsek 2', () => {
     expect(params.toolShape).toBe('round');
     const ramps = calc.passes.filter(p => p.type === 'long' && p.ramp && p.rampEntryClear);
     expect(ramps.length).toBeGreaterThan(0);
+    // Do 29. 9. 2026 se měřilo jen v Z (z0 + R < 195,23 — jako by stěna byla
+    // vysoká). Postup pravidla 7 (ops/long/rule7Layers.js) vjíždí rampou
+    // i NAD stěnou (X 41,73 na Z 195,229, spodek nosu 31,73 nad hranou
+    // X 29,2) — kružnice je celá mimo, stěnu nikdo neškrábe. Měří se proto
+    // to, o co v nálezu 1 šlo: kružnice nosu podél CELÉ rampy se stěny
+    // zbytku (Z 196,23, X ≤ 29,216 → 29,459 na Z 197,857) nedotkne.
+    const wall = [[16.794, 196.23, 29.216, 196.23], [29.216, 196.23, 29.459, 197.857]];
+    const distSeg = (x, z, [x1, z1, x2, z2]) => {
+      const dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2));
+      return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+    };
     for (const p of ramps) {
-      expect(p.ramp.z0 + R, `rampa X ${p.x.toFixed(3)} z Z ${p.ramp.z0.toFixed(3)}`).toBeLessThan(WALL_Z);
+      let dMin = Infinity;
+      for (let k = 0; k <= 20; k++) {
+        const x = p.ramp.x0 + (p.x - p.ramp.x0) * k / 20, z = p.ramp.z0 + (p.zStart - p.ramp.z0) * k / 20;
+        for (const sg of wall) dMin = Math.min(dMin, distSeg(x, z, sg));
+      }
+      expect(dMin, `rampa X ${p.x.toFixed(3)} z Z ${p.ramp.z0.toFixed(3)}`).toBeGreaterThanOrEqual(R - 0.01);
     }
   });
 

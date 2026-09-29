@@ -46,7 +46,11 @@ describe('CAM: kulatá R 10 — úsek 2 (bok hrbu a drážka)', () => {
 
   it('do drážky se zanořuje rampou 45° z povrchu a dál řetězem, ne kolmo', async () => {
     const { calc } = await runCamProg(loadProg());
-    const groove = calc.passes.filter(p => atWall(p) && p.x < 27.5);
+    // Vrstvy, které berou dno drážky v odlitku (X 16,743): spodek nosu pod
+    // ním. Od 29. 9. 2026 (skutečný polotovar místo plánovacího, díl (8))
+    // X 26,909 drážkou nejede — spodek nosu 16,909 je nad dnem, v drážce je
+    // pro ni vzduch; dřív ji plánovací vůle (dno + 1 mm) počítala za materiál.
+    const groove = calc.passes.filter(p => atWall(p) && p.x - 10 < 16.743);
     expect(groove.length).toBeGreaterThanOrEqual(4);
     for (const p of groove) {
       expect(p.ramp, `vrstva X ${p.x.toFixed(3)} bez rampy`).toBeTruthy();
@@ -75,7 +79,9 @@ describe('CAM: kulatá R 10 — úsek 2 (bok hrbu a drážka)', () => {
           const before = lines[i - 2].replace(/;.*/, '');
           const bm = /X(-?[\d.]+)/.exec(before);
           const from = bm ? +bm[1] : x;
-          if (from !== null && from - +pm[1] > 1.6) bad.push(`${prev.trim()} (z X ${from})`);
+          // Posuvem se sjíždí jen vůle plánovacího obrysu + Stop rychloposuvu
+          // (1 + 1 mm) — nález byl 4–6 mm posuvem vzduchem.
+          if (from !== null && from - +pm[1] > 2.05) bad.push(`${prev.trim()} (z X ${from})`);
         }
       }
       if (mx) x = +mx[1];

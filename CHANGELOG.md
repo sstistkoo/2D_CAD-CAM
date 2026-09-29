@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM – kulatá destička: jeden postup pravidla 7 místo oprav po kouscích.**
+  Na pokyn uživatele 29. 9. 2026 (*„chce to jednotnou jednoduchou logiku
+  a pravidla"*, díl projekt_2026-09-29 (6)) staví podélné hrubování kulaté
+  destičky nový modul `ops/long/rule7Layers.js` podle upřesnění pravidla 7
+  v docs/cam-pravidla.md: vrstvy shora po ap; první vrstva, která narazí na
+  hotovní konturu (čelo, hrb), ji kopíruje a jede až na konec; pak se po
+  vrstvách dodělá všechno před dotekem až dolů a stejnou logikou se
+  pokračuje za ním. Díl (6): úsek 1 — X 39,118 vyjede po čele a jede do
+  konce, levý konec (odlitek Z −8…0) se dodělá po vrstvách (o 233 mm² víc
+  než dřív), X 36,618 přejede hrb jedním průchodem, vybrání se dobere až na
+  dno a údolí jde od stěny dolů; úsek 2 ubere stejně. Obě části 0 kolizí,
+  žádné zanoření strměji než 45°. Vjezd nesmí sáhnout do skutečného
+  materiálu za začátkem oblasti (stěna zbytku po úseku 1). Emise: rampa
+  kulaté jede rychloposuvem jen tam, kde je kružnice nosu volná až po
+  KONEC rampy (materiál pod okamžitým spodkem nosu se nepromíjí). Nájezd po
+  vodítku, který na vrstvu nedosedne (uzavírací čelo k ose), dojede pod
+  úhlem zanoření, ne svisle. Starý postup: `prms.rule7Layers = false`.
+  Kontrola pravidel (scripts/cam_rules_check.mjs) nově měří P7 „vrstva přes
+  hrb vcelku", třísku podle skutečného úběru a zbytek i za konci dílu.
+  Nálezy uživatele na dílech (7) zleva a (8) zprava (29. 9. večer):
+  kde vrstva začíná, jestli je před ní vzduch a jestli je sloupec volný,
+  rozhoduje SKUTEČNÝ polotovar — plánovací obrys s vůlí jen o tom, kde
+  končí rychloposuv. Vrstvy tak nezačínají ve vůli zbytku po úseku 1
+  (rampa vzduchem u hrbu a pak `G0 Z184.183` celým údolím), nerampují
+  3,5 mm vzduchem u stěny a vrstva, která jen setře setiny po vrstvě na
+  schodu, se nevydá. Plošina na vrcholu hrbu, přes který vrstva přejede, se
+  nejede zvlášť (dřív `X37.576` za kruhovým vybráním před vrstvou od
+  začátku). Na mezi úseku končí vrstva s krátkým tělem bez úběru na konci
+  nájezdu — bez rychloposuvu k mezi a šikmého návratu („taneček"). Začátek
+  rampy musí jít dosáhnout rychloposuvem (plánovací obrys nad ním nejvýš
+  o vůli). Díl (9) zleva, údolí úseku 2: úsek vrstvy je materiál, jen když
+  ze skutečného polotovaru uvnitř úseku opravdu něco ubere (ne pouhý dotek
+  strmé stěny zbytku po úseku 1), a když vjezd s tělem až k dalšímu
+  materiálu nic neuberou, vrstva začne až u něj — vrstvy X 33,095 … 28,095
+  už nevjíždějí rampou u hrbu a nepřejíždějí údolí (`G0 Z154.272`), začínají
+  u příruby; první zanoření do dna je X 25,595. Úběr beze změny.
+  Otisk: změnil se jen `part-22-round-r10` (pravidla 31 → 26).
+
 ### Added
 - **Trigonometrie – 🔢 Kalkulačka a ⤓ Vložit výsledek.** Otevře vestavnou
   kalkulačku; poslední výsledek („=" nebo funkce) vloží do vybraného pole

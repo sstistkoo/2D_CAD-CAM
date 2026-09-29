@@ -440,13 +440,23 @@ export function generateAutoGCode(S, calc) {
   // jinak protáhl o R posuvem vzduchem.
   const insAirSplit = getInsert(prms);
   // Je PŘEDNÍ půlka kružnice nosu (ve směru jízdy `dir`) se středem (x, z)
-  // volná proti plánovacímu obrysu?
-  const noseFrontClear = (x, z, dir) => {
-    const R = tipRGc, n = Math.max(1, Math.ceil(R / 0.5));
+  // volná proti plánovacímu obrysu? `gap` > 0 = volná i s odstupem `gap`
+  // (kružnice o poloměru R + gap) — odstup se tak měří VZDÁLENOSTÍ od
+  // materiálu, ne posunem v Z: materiál šikmo dole před nosem byl po
+  // „o Vůli Z zpět" jen 0,36 mm od kružnice (29. 9. 2026, `G0 Z95.286`).
+  // S odstupem se počítá jen materiál, na který nástroj NAJEDE (nad spodkem
+  // nosu) — dno pod vrstvou (plánovací čára údolí 0,04 mm pod spodkem nosu)
+  // by jinak zakázalo rychloposuv po celé délce. `floorX` = nejnižší spodek
+  // nosu na pohybu (rampa sjíždí — materiál pod okamžitým spodkem nosu, ale
+  // nad koncovým, na ni najede; klín u hrbu, díl (6) úsek 2, 29. 9. 2026).
+  const noseFrontClear = (x, z, dir, gap = 0, floorX = null) => {
+    const R = tipRGc + Math.max(gap, 0), n = Math.max(1, Math.ceil(R / 0.25));
     const sgn = dir < 0 ? -1 : 1;
+    const bottom = Number.isFinite(floorX) ? Math.min(floorX, x - tipRGc) : x - tipRGc;
     for (let k = 0; k <= n; k++) {
       const dz = sgn * R * k / n, top = planTopXAtZ(z + dz);
-      if (top !== null && x - Math.sqrt(Math.max(R * R - dz * dz, 0)) <= top + 1e-4) return false;
+      if (top === null || (gap > 0 && top <= bottom + 1e-4)) continue;
+      if (x - Math.sqrt(Math.max(R * R - dz * dz, 0)) <= top + 1e-4) return false;
     }
     return true;
   };
@@ -473,14 +483,19 @@ export function generateAutoGCode(S, calc) {
     // offsetové čáry — nájezd na začátku vrstvy přitom jede posuvem od Vůle Z
     // před ní. Nález uživatele 29. 9. 2026: `G0 Z97.849 / G1 Z107.050`
     // *„rychloposuv se zastavuje těsně před polotovarem"*. Konec rychloposuvu
-    // před materiálem se proto posune o Vůli Z zpět (jako nájezd).
+    // před materiálem se proto zkrátí tak, aby kružnice nosu zůstala Vůli Z
+    // od plánovacího obrysu (měřeno vzdáleností, jako nájezd).
     if (insAirSplit.approachFromNoseContact && rapidClrZGc > 0) {
-      const sd = dir < 0 ? -1 : 1;
       for (let i = 0; i + 1 < res.length; i++) {
         const r = res[i];
         if (r.kind !== 'G0' || r.keep || res[i + 1].kind !== 'G1') continue;
-        const zNew = r.z - sd * rapidClrZGc;
-        if (sd * (zNew - r.from) <= 0) { r.kind = 'G1'; continue; }
+        const len = r.z - r.from, m = Math.max(1, Math.ceil(Math.abs(len) / 0.05));
+        let zNew = r.from;
+        for (let k = m; k >= 0; k--) {
+          const z = r.from + len * k / m;
+          if (noseFrontClear(x, z, dir, rapidClrZGc)) { zNew = z; break; }
+        }
+        if (Math.abs(zNew - r.from) < 1e-6) { r.kind = 'G1'; continue; }
         r.z = zNew;
         res[i + 1].from = zNew;
       }

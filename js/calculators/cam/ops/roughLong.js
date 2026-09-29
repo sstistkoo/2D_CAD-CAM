@@ -18,6 +18,7 @@ import { pointInLoop, polyIntersect, polyOffset } from '../../../geom/geomCore.j
 import { HOLDER_CLAMP_MARGIN, insertReachZ } from '../toolEnvelope.js';
 import { makeAlreadyCut } from './long/alreadyCut.js';
 import { makeLeadInChain } from './long/leadInChain.js';
+import { genRule7Layers } from './long/rule7Layers.js';
 import { HOLDER_ENTRY_STOCK_GAP, HOLDER_FIT_TOL, ENTRY_SHIFT_MAX, ENTRY_FIT_TOL, SKIM_MIN_LAYER, clipLeadOutToDepth } from './shared.js';
 import { depthKey, subdivideLineSegs, mergeCollinearSegs, traceIfContinuous, isFaceLeadOut, segAt, subSeg } from './long/segUtils.js';
 import { makeDepthTabs } from './long/depthTabs.js';
@@ -764,6 +765,49 @@ export function genLongPasses(ctx) {
       p.leadInTrimmed = true;
     }
   };
+  // ── PRAVIDLO 7 JEDNÍM POSTUPEM (klíč plátku `rule7Layers`) ──────────────
+  // Vrstvy úseku staví ops/long/rule7Layers.js rovnou ve správném pořadí
+  // a tvaru; stará hloubková smyčka ani dodatečné úpravy pořadí se pro ten
+  // plátek nepouštějí. `prms.rule7Layers === false` = starý postup (srovnání).
+  if (ins.rule7Layers && prms.rule7Layers !== false) {
+    let sZLo = Infinity, sZHi = -Infinity;
+    // Konce CELÉHO polotovaru — hranice rozsahu uprostřed materiálu se nerozšiřuje.
+    for (const p of stockLoopOffsetFullL || stockLoopOffsetL || []) { if (p.z < sZLo) sZLo = p.z; if (p.z > sZHi) sZHi = p.z; }
+    const pad = noseLiftL + (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z) + 1;
+    genRule7Layers({
+      passes, step, offsetXAt, traceOffsetPath, foundErrors,
+      // Na konci POLOTOVARU (ne na hranici úseku uprostřed materiálu) oblast
+      // pokračuje do vzduchu o R + vůli, ať vrstva začne tam, kde se kružnice
+      // nosu materiálu ještě nedotýká (rozsah úseku končí jen 5 mm za ním).
+      regions: _regions.map(r => {
+        let zHi = Math.min(r.zHi, rangeClipZ ? rangeClipZ.zHi : Infinity);
+        let zLo = Math.max(r.zLo, rangeClipZ ? rangeClipZ.zLo : -Infinity);
+        if (!(zHi < sZHi - 1e-6)) zHi = sZHi + pad;
+        if (!(zLo > sZLo + 1e-6)) zLo = sZLo - pad;
+        return { zHi, zLo };
+      }).filter(r => r.zHi > r.zLo + 0.1),
+      depthsFor: (zLo, zHi) => {
+        const top = loopTopXIn(stockLoopOffsetL, zLo, zHi);
+        return top === null ? [] : buildDepths(top, top);
+      },
+      stockLoop: stockLoopOffsetL, stockLoopFull: stockLoopOffsetFullL, noseR: noseLiftL, plungeTan: effPlungeTanL, holderClamp: holderClampZEnd,
+      // Držák do polotovaru ani o kousek (pravidlo uživatele 25. 9. 2026) — přísně 0,05 mm².
+      // Vjezd pravidla 7 se měří v POLOHÁCH po 2 mm, validátor plochu, kterou
+      // držák za celý pohyb PŘEJEDE (tolerance 0,5 mm² na blok) — u stěny hrbu
+      // 0,19 mm² v poloze = 0,7 mm² přejeté (díl (6), úsek 2). Proto přísněji.
+      residEntryArea: orderAware ? residEntryArea : null, entryTol: 0.05, newCutArea,
+      clearX: stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x,
+      stockLoopRaw: stockLoopFullL,
+      clearZ: stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z,
+      // Nejnižší střed nosu, který dosud projel sloupcem z (podlaha vydaných průchodů).
+      floorAt: (z) => {
+        T.syncCutFloor();
+        const tab = T.cutFloorTab, i = Math.round((z - T.capZ0) / T.DZ_CAP);
+        return tab && i >= 0 && i < tab.length ? tab[i] : Infinity;
+      },
+    });
+    return;
+  }
   for (const _region of _regions) {
   // ── VLASTNÍ ŽEBŘÍK HLOUBEK TOHOTO ÚSEKU (viz buildDepths výš) ──────────
   const _zHiR = Math.min(_region.zHi, rangeClipZ ? rangeClipZ.zHi : Infinity);

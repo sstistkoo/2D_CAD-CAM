@@ -48,14 +48,19 @@ describe('CAM: kulatá R 10 zleva — vybrání, údolí, mez úseku', () => {
 
   it('zanoření ve vybrání jede po stěně (G1/G3), dobrání dna naváže na jeho konec', async () => {
     const { calc } = await getRun();
-    const step = calc.passes.find(p => p.type === 'long' && near(p.x, 31.618) && p.zStart < 35);
+    // Ve vybrání (Z 15…35); tatáž hloubka jede od 29. 9. 2026 i na levém konci před čelem.
+    const step = calc.passes.find(p => p.type === 'long' && near(p.x, 31.618) && p.zStart > 15 && p.zStart < 35);
     expect(step, 'vrstva X 31,618 ve vybrání').toBeTruthy();
     expect(step.ramp, 'tětiva místo stěny').toBeFalsy();
     expect((step.contourLeadIn || []).some(s => s.type === 'arc')).toBe(true);
-    const clean = calc.passes.find(p => p.pocketClean && near(p.x, 29.727, 0.05));
-    expect(clean, 'dobrání dna vybrání').toBeTruthy();
-    // Začíná až za koncem rampy (Z 28,05), ne nahoře na stěně (Z 23,6 / 25,2).
-    expect(clean.contourLeadIn[0].z1).toBeGreaterThan(step.zStart - 0.1);
+    // Dno vybrání (X 29,7x) má vlastní poslední vrstvu (pravidlo 3). Od 29. 9.
+    // 2026 ji staví postup pravidla 7 (ops/long/rule7Layers.js) jako běžnou
+    // vrstvu na dně, ne jako „dobrání kapsy": nájezd po stěně začíná na
+    // úrovni mělčí vrstvy (X 31,618), ne nahoře na stěně (Z 23,6 / 25,2).
+    const bottom = calc.passes.find(p => p.type === 'long' && p.x > 29.7 && p.x < 29.8 && p.zStart < 40);
+    expect(bottom, 'poslední vrstva na dně vybrání').toBeTruthy();
+    const entryX = bottom.contourLeadIn?.length ? bottom.contourLeadIn[0].x1 : bottom.ramp ? bottom.ramp.x0 : bottom.x;
+    expect(entryX).toBeLessThanOrEqual(31.618 + 0.05);
   });
 
   it('vrstva údolí X 29,118 nejede nájezdem přes hotové vybrání', async () => {

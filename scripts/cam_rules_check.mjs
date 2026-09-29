@@ -40,6 +40,7 @@ const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
 const { polyOffset, pointInLoop } = await imp('js/geom/geomCore.js');
 const { makeOrderChecks } = await imp('scripts/lib/camRuleOrder.mjs');
+const { checkHumpContinuity } = await imp('scripts/lib/camRuleHump.mjs');
 
 // ── Tolerance (jedna místo, ať je vidět, s čím se měří) ──────────────
 const TOL_AP = 0.05;        // mm nad ap, než je to porušení
@@ -115,6 +116,22 @@ async function check(file) {
       }
       rm.advanceTo(sp, i);
       const cut = before - Math.abs(rm.model.area());
+      // P3 — TŘÍSKA PODLE ÚBĚRU (29. 9. 2026): tloušťka, kterou pohyb v některém
+      // sloupci Z OPRAVDU ubral (povrch zbytku před × po). Sloupec pod středem
+      // nestačí: materiál PŘED nosem (stěna, na kterou kružnice nosu narazí dřív
+      // než spodek) tam není vidět — vrstva u stěny údolí tak brala dvě vrstvy
+      // naráz a kontrola hlásila 0.
+      if (cut > 0.05) {
+        const loopsAfter = rm.model.loops;
+        const zA = Math.min(a.z, b.z) - lift - 0.25, zB = Math.max(a.z, b.z) + lift + 0.25;
+        for (let z = zA; z <= zB + 1e-9; z += 0.25) {
+          const t0 = topAt(loopsBefore, z);
+          if (t0 === null) continue;
+          const t1 = topAt(loopsAfter, z);
+          const d = t0 - (t1 === null ? 0 : t1);      // sloupec vybraný celý (až k ose)
+          if (d > worst) worst = d;
+        }
+      }
       if (worst > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: worst });
       if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN)
         thinCand.push({ i, v: worst, z: (a.z + b.z) / 2, edge: b.x - lift });
@@ -149,10 +166,15 @@ async function check(file) {
           found.endMid.push({ i: q.i, v: top - q.edge });
       }
       pendingEnd.length = 0;
-      afterRapid = true;
+      // Rychloposuv VZDUCHEM uvnitř vrstvy (stejná hloubka, jen v Z) průchod
+      // nekončí — nový průchod začíná až po odjezdu/příjezdu v X.
+      if (Math.abs(b.x - a.x) > 1e-6) afterRapid = true;
       rm.advanceTo(sp, i);
     }
   }
+
+  // P7 — první vrstva pod vrcholem hrbu jede přes hrb vcelku (scripts/lib/camRuleHump.mjs).
+  found.humpBreak = checkHumpContinuity(sp, offsetXAt);
 
   // P3 — tenká vrstva uprostřed: později na tomtéž Z jelo ještě hlouběji.
   for (const q of thinCand) {
@@ -161,13 +183,24 @@ async function check(file) {
   }
 
   // P3 — zbytek na dně po celém programu (materiál nad díl + Přídavek X).
+  // Měří se v rozsahu úseku (camprog úseku má rozsah 📐 zapnutý) a I ZA KONCEM
+  // DÍLU: polotovar před čelem dílu (u osy nic není) je taky zbytek — nález
+  // uživatele 29. 9. 2026, zleva: odlitek Z −8…0 před čelem zůstal celý stát
+  // a kontrola ho neviděla, protože měřila jen nad Z-rozsahem dílu.
   const floors = [];
   let run = null;
   let zLo = Infinity, zHi = -Infinity;
   for (const p of part) { zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z); }
-  for (let z = zLo + 0.25; z < zHi; z += 0.25) {
-    const pt = topXOnLoop(allowLoop, z), top = topAt(rm.model.loops, z);
-    const over = (pt !== null && top !== null) ? top - pt : 0;
+  let sLo = Infinity, sHi = -Infinity;
+  for (const p of rm.baseLoop || []) { sLo = Math.min(sLo, p.z); sHi = Math.max(sHi, p.z); }
+  const zl = prog.zLimits || {};
+  const rng = zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
+    ? [Math.min(zl.rangeStart, zl.rangeEnd), Math.max(zl.rangeStart, zl.rangeEnd)] : null;
+  const fLo = rng ? Math.max(rng[0], Math.min(zLo, sLo)) : Math.min(zLo, sLo);
+  const fHi = rng ? Math.min(rng[1], Math.max(zHi, sHi)) : Math.max(zHi, sHi);
+  for (let z = fLo + 0.25; z < fHi; z += 0.25) {
+    const pt = topXOnLoop(allowLoop, z) ?? 0, top = topAt(rm.model.loops, z);
+    const over = top !== null ? top - pt : 0;
     if (over > TOL_FLOOR) {
       if (!run) run = { z0: z, z1: z, max: over }; else { run.z1 = z; run.max = Math.max(run.max, over); }
     } else if (run) { floors.push(run); run = null; }
@@ -199,9 +232,10 @@ for (const f of files) {
   row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
   row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)   | ${c.txt(q.i)}`);
   row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
+  row('P7 vrstva přes hrb vcelku až na konec', F.humpBreak, (q) => `${c.N(q.i)}: vrstva X${q.x.toFixed(3)} se na hrbu Z${Math.min(q.h0, q.h1).toFixed(1)}…${Math.max(q.h0, q.h1).toFixed(1)} (vrchol X${q.top.toFixed(2)}) přerušila   | ${c.txt(q.i)}`);
   row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);
   row('P4 vrstva končí uprostřed materiálu', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
-  total += c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length;
+  total += c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length + F.humpBreak.length;
 }
 console.log(`\nCELKEM porušení: ${total}`);
 console.log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');
