@@ -7258,8 +7258,18 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 }
 /* Mobil: okno přes skoro celou šířku, blíž k hornímu okraji */
 @media (max-width: 600px) {
+  /* Okno od horního okraje až dolů – přebytečnou výšku dostane historie */
   .calc-overlay-float .calc-window.calc-basic-window {
-    top: 64px;
+    top: max(8px, env(safe-area-inset-top));
+    height: calc(100dvh - max(8px, env(safe-area-inset-top)) - 20px);
+    max-height: none;
+  }
+  .calc-basic-window .calc-body > * { flex-shrink: 0; }
+  .calc-overlay-float .calc-basic-window .calc-history {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 62px;
+    max-height: none;
   }
   .calc-overlay-float .calc-basic-window #calcDisplay {
     font-size: 32px;
