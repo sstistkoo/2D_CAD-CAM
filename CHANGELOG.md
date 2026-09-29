@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **Kóty – duplicity:** stejnou kótu (táž úsečka/body, týž oblouk, úhel nebo
+  bod) už nejde přidat vícekrát – dříve se opakovaným „📐 Přidat kótu" při
+  měření vrstvily stejné hodnoty nad sebe. Kontrola je centrálně v
+  `addObject` (`js/dimensionDedup.js`), platí pro měření, nástroj Kóta,
+  řetězové kóty i „Přidat kóty ke všem".
+- **Kóty – krok Zpět:** vytvoření kóty zakládalo dva kroky Zpět (první
+  „nic nedělal"); dávkové kótování („ke všem" / z výběru, obdélník, kontura)
+  je teď jeden krok. Dočasný popisek 1. bodu měření už nezakládá prázdný
+  krok Zpět.
+- **Kóty – hlášky:** „Kóta přidána" / „Přidáno N kót" se hlásí jen u
+  skutečně přidaných kót (dřív se počítaly i nepřidané).
 - **Trigonometrie – automatický výpočet** skutečně běží při psaní (dříve jen
   tlačítkem, přestože to nápověda slibovala). Enter spustí výpočet hned.
 - **Trigonometrie – opakovaný výpočet:** dopočtená pole se už neberou jako

@@ -108,7 +108,7 @@ export function addAngleDimForPlacement(line1, line2, curX, curY, opts = {}) {
   if (!p) { showToast("Úsečky jsou rovnoběžné – nelze kótovat úhel"); return; }
   const deg = p.sweep * 180 / Math.PI;
   const vsAxis = opts.vsAxis || null;
-  addObject({
+  const created = addObject({
     type: 'line',
     x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2,
     name: `Kóta ∠${deg.toFixed(1)}°`,
@@ -128,6 +128,7 @@ export function addAngleDimForPlacement(line1, line2, curX, curY, opts = {}) {
     dimSrcX2: p.x2, dimSrcY2: p.y2,
     color: COLORS.textSecondary,
   });
+  if (!created) return;
   showToast(vsAxis === 'Z'
     ? `Kóta polárního úhlu ∠${deg.toFixed(1)}° od osy Z přidána`
     : `Kóta ∠${deg.toFixed(1)}° přidána`);
@@ -155,7 +156,7 @@ export function addAngleDimensionForLines(line1, line2) {
   const arcX2 = cx + dimRadius * Math.cos(ang2);
   const arcY2 = cy + dimRadius * Math.sin(ang2);
 
-  addObject({
+  const created = addObject({
     type: "line",
     x1: arcX1,
     y1: arcY1,
@@ -177,7 +178,7 @@ export function addAngleDimensionForLines(line1, line2) {
     dimSrcY2: arcY2,
     color: COLORS.textSecondary,
   });
-  showToast(`Kóta ∠${sweepDeg.toFixed(1)}° přidána`);
+  if (created) showToast(`Kóta ∠${sweepDeg.toFixed(1)}° přidána`);
 }
 
 // ── Interaktivní umístění lineární kóty úsečky ──
@@ -239,7 +240,7 @@ export function computeLinearDimPlacement(line, cx, cy) {
  */
 export function addLinearDimForLine(line, cx, cy) {
   const p = computeLinearDimPlacement(line, cx, cy);
-  addObject({
+  const created = addObject({
     type: 'line',
     x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2,
     isDimension: true,
@@ -253,6 +254,7 @@ export function addLinearDimForLine(line, cx, cy) {
     name: `Kóta ${p.len.toFixed(2)}mm`,
     color: COLORS.textSecondary,
   });
+  if (!created) return;
   const axisNote = p.mode === 'horizontal' ? ` (${axisLabels()[0]})`
     : p.mode === 'vertical' ? ` (${axisLabels()[1]})` : '';
   showToast(`Kóta ${p.len.toFixed(2)}mm${axisNote} přidána`);
@@ -292,7 +294,7 @@ export function addArcAngleDim(arc) {
 export function addArcRadiusLeader(arc, anchorAngle, placeX, placeY) {
   const ax = arc.cx + arc.r * Math.cos(anchorAngle);
   const ay = arc.cy + arc.r * Math.sin(anchorAngle);
-  addObject({
+  const created = addObject({
     type: 'line',
     x1: ax, y1: ay,          // bod na oblouku (šipka)
     x2: placeX, y2: placeY,  // umístění popisku
@@ -308,15 +310,18 @@ export function addArcRadiusLeader(arc, anchorAngle, placeX, placeY) {
     dimLeadDX: placeX - ax, dimLeadDY: placeY - ay,
     color: COLORS.textSecondary,
   });
-  showToast(`Kóta R${arc.r.toFixed(2)} přidána`);
+  if (created) showToast(`Kóta R${arc.r.toFixed(2)} přidána`);
 }
 
 // ── Přidání kót k objektu ──
 export function addDimensionForObject(obj) {
+  // Duplicitní kóty addObject odmítne (vrátí null) – počítáme jen přidané
+  let added = 0;
+  const add = (o) => { const r = addObject(o); if (r) added++; return r; };
   switch (obj.type) {
     case "point": {
       // Kóta bodu: odkazová čára se souřadnicemi (leader)
-      addObject({
+      add({
         type: "point",
         x: obj.x,
         y: obj.y,
@@ -328,7 +333,7 @@ export function addDimensionForObject(obj) {
         sourceObjId: obj.id || null,
         color: COLORS.textSecondary,
       });
-      showToast(`Kóta ${axisLabels()[0]}${obj.x.toFixed(2)} ${axisLabels()[1]}${obj.y.toFixed(2)} přidána`);
+      if (added) showToast(`Kóta ${axisLabels()[0]}${obj.x.toFixed(2)} ${axisLabels()[1]}${obj.y.toFixed(2)} přidána`);
       break;
     }
     case "line":
@@ -339,7 +344,7 @@ export function addDimensionForObject(obj) {
       const ang = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1);
       const nx = -Math.sin(ang) * dimOffset;
       const ny = Math.cos(ang) * dimOffset;
-      addObject({
+      add({
         type: "line",
         x1: obj.x1 + nx,
         y1: obj.y1 + ny,
@@ -357,12 +362,12 @@ export function addDimensionForObject(obj) {
         name: `Kóta ${len.toFixed(2)}mm`,
         color: COLORS.textSecondary,
       });
-      showToast(`Kóta ${len.toFixed(2)}mm přidána`);
+      if (added) showToast(`Kóta ${len.toFixed(2)}mm přidána`);
       break;
     }
     case "circle": {
       // Průměrová kóta (⌀) – vodorovná čára přes střed
-      addObject({
+      add({
         type: "line",
         x1: obj.cx - obj.r,
         y1: obj.cy,
@@ -378,7 +383,7 @@ export function addDimensionForObject(obj) {
         dimCenterY: obj.cy,
         color: COLORS.textSecondary,
       });
-      showToast(`Kóta ⌀${(obj.r * 2).toFixed(2)} přidána`);
+      if (added) showToast(`Kóta ⌀${(obj.r * 2).toFixed(2)} přidána`);
       break;
     }
     case "arc": {
@@ -401,7 +406,7 @@ export function addDimensionForObject(obj) {
       const maxY = Math.max(obj.y1, obj.y2);
       const dimOff = 15;
       // Šířka – horní hrana (odsazená)
-      addObject({
+      add({
         type: "line",
         x1: minX,
         y1: maxY + dimOff,
@@ -420,7 +425,7 @@ export function addDimensionForObject(obj) {
         color: COLORS.textSecondary,
       });
       // Výška – pravá hrana (odsazená)
-      addObject({
+      add({
         type: "line",
         x1: maxX + dimOff,
         y1: minY,
@@ -438,7 +443,8 @@ export function addDimensionForObject(obj) {
         dimSrcY2: maxY,
         color: COLORS.textSecondary,
       });
-      showToast(`Kóty ${w.toFixed(2)} × ${h.toFixed(2)}mm přidány`);
+      if (added === 2) showToast(`Kóty ${w.toFixed(2)} × ${h.toFixed(2)}mm přidány`);
+      else if (added === 1) showToast(`Přidána 1 kóta (druhá už ve výkresu je)`);
       break;
     }
     case "polyline": {
@@ -461,7 +467,7 @@ export function addDimensionForObject(obj) {
             const midAngle = (arc.startAngle + arc.endAngle) / 2;
             const mx = arc.cx + arc.r * Math.cos(midAngle);
             const my = arc.cy + arc.r * Math.sin(midAngle);
-            addObject({
+            if (add({
               type: "line",
               x1: arc.cx, y1: arc.cy,
               x2: mx, y2: my,
@@ -474,8 +480,7 @@ export function addDimensionForObject(obj) {
               dimCenterX: arc.cx,
               dimCenterY: arc.cy,
               color: COLORS.textSecondary,
-            });
-            dimCount++;
+            })) dimCount++;
           }
         } else {
           // Přímý segment – kóta délky (odsazená)
@@ -485,7 +490,7 @@ export function addDimensionForObject(obj) {
             const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);
             const nx = -Math.sin(ang) * dimOffset;
             const ny = Math.cos(ang) * dimOffset;
-            addObject({
+            if (add({
               type: "line",
               x1: p1.x + nx, y1: p1.y + ny,
               x2: p2.x + nx, y2: p2.y + ny,
@@ -498,12 +503,11 @@ export function addDimensionForObject(obj) {
               dimSrcX1: p1.x, dimSrcY1: p1.y,
               dimSrcX2: p2.x, dimSrcY2: p2.y,
               color: COLORS.textSecondary,
-            });
-            dimCount++;
+            })) dimCount++;
           }
         }
       }
-      showToast(`${dimCount} kót přidáno ke kontuře`);
+      if (dimCount) showToast(`${dimCount} kót přidáno ke kontuře`);
       break;
     }
     default:

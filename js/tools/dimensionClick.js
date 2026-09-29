@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { state, pushUndo, showToast, axisLabels } from '../state.js';
+import { state, pushUndo, withUndoBatch, showToast, axisLabels } from '../state.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
@@ -115,7 +115,6 @@ export function handleDimensionClick(wx, wy) {
       }
       // Oblouk → hned úhlová kóta rozevření + interaktivní vytažení kóty R
       if (obj.type === 'arc' && !obj.isDimension) {
-        pushUndo();
         addArcAngleDim(obj);
         state._dimArcRadius = { arc: obj, anchorAngle: Math.atan2(wy - obj.cy, wx - obj.cx) };
         setHint("Táhněte a klepnutím umístěte kótu R");
@@ -123,8 +122,8 @@ export function handleDimensionClick(wx, wy) {
         renderAll();
         return;
       }
-      pushUndo();
-      addDimensionForObject(obj);
+      // Obdélník/kontura přidávají víc kót – jeden krok Zpět
+      withUndoBatch(() => addDimensionForObject(obj));
       calculateAllIntersections();
       renderAll();
       return;
@@ -138,8 +137,7 @@ export function handleDimensionClick(wx, wy) {
     const p1 = state.tempPoints[0];
     const d = Math.hypot(wx - p1.x, wy - p1.y);
     if (d < 1e-6) { showToast("Body jsou totožné"); return; }
-    pushUndo();
-    addObject({
+    const created = addObject({
       type: 'line',
       x1: p1.x, y1: p1.y,
       x2: wx, y2: wy,
@@ -148,7 +146,7 @@ export function handleDimensionClick(wx, wy) {
       color: COLORS.textSecondary,
       layer: 2,
     });
-    showToast(`Kóta ${d.toFixed(2)}mm přidána ✓`);
+    if (created) showToast(`Kóta ${d.toFixed(2)}mm přidána ✓`);
     state.drawing = false;
     state.tempPoints = [];
     calculateAllIntersections();
@@ -163,15 +161,14 @@ export function handleDimensionClick(wx, wy) {
  * i po přesunu bodu.
  */
 function placeCoordLabel(ax, ay, lx, ly) {
-  pushUndo();
-  addObject({
+  const created = addObject({
     type: 'point', x: ax, y: ay,
     name: `Kóta [${ax.toFixed(2)}, ${ay.toFixed(2)}]`,
     isDimension: true, isCoordLabel: true, dimType: 'coord', layer: 2,
     dimLeadDX: lx - ax, dimLeadDY: ly - ay,
     color: COLORS.textSecondary,
   });
-  showToast(`Kóta ${axisLabels()[0]}${ax.toFixed(2)} ${axisLabels()[1]}${ay.toFixed(2)} přidána`);
+  if (created) showToast(`Kóta ${axisLabels()[0]}${ax.toFixed(2)} ${axisLabels()[1]}${ay.toFixed(2)} přidána`);
   calculateAllIntersections();
   renderAll();
 }
@@ -183,7 +180,6 @@ function placeCoordLabel(ax, ay, lx, ly) {
 export function finalizePointSegDim(wx, wy) {
   const seg = state._dimPointSeg;
   if (!seg) return;
-  pushUndo();
   addLinearDimForLine({ type: 'line', x1: seg.a.x, y1: seg.a.y, x2: seg.b.x, y2: seg.b.y }, wx, wy);
   state._dimPointSeg = null;
   calculateAllIntersections();
@@ -198,7 +194,6 @@ export function finalizePointSegDim(wx, wy) {
 export function finalizeArcRadius(wx, wy) {
   const ar = state._dimArcRadius;
   if (!ar) return;
-  pushUndo();
   addArcRadiusLeader(ar.arc, ar.anchorAngle, wx, wy);
   state._dimArcRadius = null;
   calculateAllIntersections();
@@ -226,7 +221,6 @@ export function clearDimPlacing() {
 export function finalizeAnglePlacement(wx, wy) {
   const l1 = state._dimFirstLine, l2 = state._dimSecondLine;
   if (!l1 || !l2) { clearDimPlacing(); return; }
-  pushUndo();
   addAngleDimForPlacement(l1, l2, wx, wy, state._dimAxisRef === 'Z' ? { vsAxis: 'Z' } : {});
   clearDimPlacing();
   calculateAllIntersections();
@@ -243,7 +237,6 @@ export function finalizeAnglePlacement(wx, wy) {
 export function finalizeDimPlacement(wx, wy) {
   const first = state._dimFirstLine;
   if (!first || !state._dimPlacing) return;
-  pushUndo();
   addLinearDimForLine(first, wx, wy);
   clearDimPlacing();
   calculateAllIntersections();
@@ -264,32 +257,32 @@ export function dimensionFromSelection() {
 
   if (pts.length === 0 && objs.length === 0) return false;
 
-  pushUndo();
-  let count = 0;
+  // Jeden krok Zpět pro celou dávku; duplicitní kóty addObject přeskočí,
+  // proto se počítá skutečný přírůstek objektů.
+  const before = state.objects.length;
+  withUndoBatch(() => {
+    // Snap body → kóty souřadnic
+    for (const pt of pts) {
+      addDimensionForObject({ type: 'point', x: pt.x, y: pt.y });
+    }
 
-  // Snap body → kóty souřadnic
-  for (const pt of pts) {
-    addDimensionForObject({ type: 'point', x: pt.x, y: pt.y });
-    count++;
-  }
-
-  // Úhlové kóty mezi páry úseček
-  const lines = objs.filter(o => (o.type === 'line' || o.type === 'constr') && !o.isDimension);
-  if (lines.length >= 2) {
-    for (let i = 0; i < lines.length; i++) {
-      for (let j = i + 1; j < lines.length; j++) {
-        addAngleDimensionForLines(lines[i], lines[j]);
-        count++;
+    // Úhlové kóty mezi páry úseček
+    const lines = objs.filter(o => (o.type === 'line' || o.type === 'constr') && !o.isDimension);
+    if (lines.length >= 2) {
+      for (let i = 0; i < lines.length; i++) {
+        for (let j = i + 1; j < lines.length; j++) {
+          addAngleDimensionForLines(lines[i], lines[j]);
+        }
       }
     }
-  }
 
-  // Kóty pro jednotlivé objekty (ne-kóty)
-  for (const o of objs) {
-    if (o.isDimension || o.isCoordLabel) continue;
-    addDimensionForObject(o);
-    count++;
-  }
+    // Kóty pro jednotlivé objekty (ne-kóty)
+    for (const o of objs) {
+      if (o.isDimension || o.isCoordLabel) continue;
+      addDimensionForObject(o);
+    }
+  });
+  const count = state.objects.length - before;
 
   if (count > 0) {
     calculateAllIntersections();

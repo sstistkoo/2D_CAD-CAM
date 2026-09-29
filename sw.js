@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v315';
+const CACHE_NAME = 'skica-v316';
 const ASSETS = [
   './',
   './index.html',
@@ -148,6 +148,7 @@ const ASSETS = [
   './js/dialogs/tangentDialogs.js',
   './js/dialogs/textDialog.js',
   './js/dialogs/threadDialog.js',
+  './js/dimensionDedup.js',
   './js/dxf.js',
   './js/events.js',
   './js/gcodeNormalize.js',

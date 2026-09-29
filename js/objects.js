@@ -10,11 +10,14 @@ import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { hasAnchoredPoint } from './tools/anchorClick.js';
 import { bulgeToCcwArc } from './utils.js';
 import { activeShapeStyleProps } from './lineStyles.js';
+import { findDuplicateDimension } from './dimensionDedup.js';
 
 /**
  * Přidá objekt do výkresu (push undo, přiřazení ID a vrstvy).
  * @param {import('./types.js').DrawObject} obj
- * @returns {import('./types.js').DrawObject}
+ * Duplicitní kóta (měří totéž co kóta, která už ve výkresu je) se nepřidá
+ * – vrací se null a zobrazí se upozornění.
+ * @returns {import('./types.js').DrawObject|null}
  */
 export function addObject(obj) {
   // Validate numeric coordinates are finite
@@ -23,6 +26,10 @@ export function addObject(obj) {
       console.warn(`addObject: neplatná hodnota ${key}=${obj[key]}, objekt nebyl přidán`);
       return null;
     }
+  }
+  if (obj.isDimension && findDuplicateDimension(state.objects, obj)) {
+    showToast("Tato kóta už ve výkresu je – duplicitní kóta nepřidána");
+    return null;
   }
   // Aktivní volba „Typ čáry" (viz lineStyleDialog.js) se přebírá i pro
   // ostatní nástroje (kružnice, oblouk...) – pokud si volající vlastnosti

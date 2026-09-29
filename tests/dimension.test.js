@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock objects.js a state.js
 vi.mock('../js/objects.js', () => ({
-  addObject: vi.fn(),
+  addObject: vi.fn(o => o), // vrací přidaný objekt (null = duplicitní kóta)
 }));
 vi.mock('../js/state.js', () => ({
   state: { machineType: 'soustruh' },

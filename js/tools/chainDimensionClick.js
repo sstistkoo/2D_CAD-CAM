@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { state, pushUndo, showToast } from '../state.js';
+import { state, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
@@ -33,15 +33,14 @@ export function handleChainDimensionClick(wx, wy) {
     // Přidat bod do řetězce
     state.tempPoints.push({ x: wx, y: wy });
 
-    // Vytvořit kótu od předchozího bodu k novému
-    if (state._chainDimCount === 0) pushUndo(); // undo pro celý řetězec
-
+    // Vytvořit kótu od předchozího bodu k novému (addObject si ukládá
+    // vlastní krok Zpět – každá kóta řetězce jde vrátit samostatně)
     const dimOffset = 20;
     const ang = Math.atan2(wy - prev.y, wx - prev.x);
     const nx = -Math.sin(ang) * dimOffset;
     const ny = Math.cos(ang) * dimOffset;
 
-    addObject({
+    const created = addObject({
       type: 'line',
       x1: prev.x + nx, y1: prev.y + ny,
       x2: wx + nx, y2: wy + ny,
@@ -55,6 +54,7 @@ export function handleChainDimensionClick(wx, wy) {
       color: COLORS.textSecondary,
       isChainDim: true,
     });
+    if (!created) { renderAll(); return; } // duplicitní úsek – řetězec pokračuje od nového bodu
 
     state._chainDimCount = (state._chainDimCount || 0) + 1;
 

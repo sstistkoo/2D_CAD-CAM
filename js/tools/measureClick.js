@@ -1,6 +1,5 @@
 import { COLORS, SNAP_POINT_THRESHOLD } from '../constants.js';
 import { state, showToast, toDisplayAngle } from '../state.js';
-import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { resetHint, setHint } from '../ui.js';
 import { findObjectAt } from '../geometry.js';
@@ -44,14 +43,18 @@ export function handleMeasureClick(wx, wy) {
       showMeasureObjectInfo(state.objects[bodyIdx], wx, wy, bodyIdx);
       return;
     }
-    // Přidá dočasný coord label na 1. bod měření
-    addObject({
+    // Přidá dočasný coord label na 1. bod měření – přímo, ne přes addObject:
+    // dočasný popisek se po 2. kliku zase maže, takže nesmí zakládat krok
+    // Zpět (vznikal prázdný krok) ani projít kontrolou duplicitních kót.
+    state.objects.push({
       type: "point",
       x: wx, y: wy,
       name: `Měření bod 1`,
       isDimension: true,
       isCoordLabel: true,
       isMeasureTemp: true,
+      layer: 2,
+      id: state.nextId++,
       color: COLORS.textSecondary,
     });
     state.drawing = true;

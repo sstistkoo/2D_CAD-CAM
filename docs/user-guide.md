@@ -264,6 +264,13 @@ poloměr oblouku, takový segment zanikne.
 - Kóty zůstanou přirozené i po úpravě objektů
 - Smazáním objektu smaž i jeho kóty
 
+### Duplicitní kóty
+- Kóta, která měří totéž co kóta už ve výkresu (stejná úsečka/body, stejný
+  směr měření, stejný oblouk či úhel), se znovu nepřidá – zobrazí se hláška
+  „Tato kóta už ve výkresu je“. Na odsazení ani umístění popisku nezáleží.
+- Různé prvky se stejnou hodnotou (např. dva stejné průměry na různých
+  osazeních) se okótují normálně.
+
 ### Režimy zobrazení kót
 Přepínají se tlačítkem **📐 Kóty**, klávesou `D`, klikem na indikátor 📐 ve
 stavovém řádku nebo v ⚙️ Nastavení → 📐 Kóty:
