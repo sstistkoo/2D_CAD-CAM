@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Trigonometrie – oblouk úhlu β** se kreslil na opačnou stranu (vypouklý
+  k vrcholu); nyní je správně uvnitř trojúhelníku.
+- **Trigonometrie – mobilní klávesnice:** pole stran a úhlů otevírají
+  číselnou klávesnici (`inputmode="decimal"`). Tlačítko **⌨ abc / ⌨ 123**
+  přepne na písmena pro výrazy (sqrt, sin…).
+
 ### Added
 - **CAM simulátor – podržení 📏 otevře nastavení rozsahů.** Dlouhé
   podržení tlačítka Z-limitů otevře pravý panel (Parametry), rozbalí skupinu

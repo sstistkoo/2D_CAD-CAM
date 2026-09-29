@@ -4642,6 +4642,12 @@ body {
   color: var(--ctp-yellow);
 }
 .trig-btn-copy:hover { background: var(--ctp-surface1); }
+.trig-actions .trig-btn-kbd {
+  flex: 0 0 auto;
+  background: var(--ctp-surface0);
+  color: var(--ctp-subtext0);
+}
+.trig-btn-kbd:hover { background: var(--ctp-surface1); }
 .trig-btn-solve {
   background: var(--ctp-blue);
   color: var(--ctp-base);

@@ -4002,7 +4002,7 @@ function openTrigCalc() {
             <!-- Angle arcs -->
             <path d="M 70,190 A 30,30 0 0,0 64.8,173.1" fill="none" stroke="${COLORS.delete}" stroke-width="1.5"/>
             <text x="78" y="178" fill="${COLORS.delete}" font-size="13" font-family="Consolas">α</text>
-            <path d="M 260,65 A 25,25 0 0,0 239.3,54.1" fill="none" stroke="${COLORS.dimension}" stroke-width="1.5"/>
+            <path d="M 260,65 A 25,25 0 0,1 239.3,54.1" fill="none" stroke="${COLORS.dimension}" stroke-width="1.5"/>
             <text x="244" y="75" fill="${COLORS.dimension}" font-size="13" font-family="Consolas">β</text>
             <text x="248" y="195" fill="${COLORS.primary}" font-size="12" font-family="Consolas">90°</text>
           </svg>
@@ -4012,17 +4012,17 @@ function openTrigCalc() {
             <h4>Strany</h4>
             <div class="trig-field">
               <label class="label-a">a</label>
-              <input type="text" id="trigA" inputmode="text" placeholder="protilehlá">
+              <input type="text" id="trigA" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="protilehlá">
               <span class="trig-unit">mm</span>
             </div>
             <div class="trig-field">
               <label class="label-b">b</label>
-              <input type="text" id="trigB" inputmode="text" placeholder="přilehlá">
+              <input type="text" id="trigB" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="přilehlá">
               <span class="trig-unit">mm</span>
             </div>
             <div class="trig-field">
               <label class="label-c">c</label>
-              <input type="text" id="trigC" inputmode="text" placeholder="přepona">
+              <input type="text" id="trigC" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="přepona">
               <span class="trig-unit">mm</span>
             </div>
           </div>
@@ -4030,12 +4030,12 @@ function openTrigCalc() {
             <h4>Úhly</h4>
             <div class="trig-field">
               <label class="label-alpha">α</label>
-              <input type="text" id="trigAlpha" inputmode="text" placeholder="úhel u a">
+              <input type="text" id="trigAlpha" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="úhel u a">
               <span class="trig-unit">°</span>
             </div>
             <div class="trig-field">
               <label class="label-beta">β</label>
-              <input type="text" id="trigBeta" inputmode="text" placeholder="úhel u b">
+              <input type="text" id="trigBeta" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="úhel u b">
               <span class="trig-unit">°</span>
             </div>
             <div class="trig-field">
@@ -4049,6 +4049,7 @@ function openTrigCalc() {
           <button class="trig-btn-solve">✅ Vypočítat</button>
           <button class="trig-btn-clear">🗑 Vymazat</button>
           <button class="trig-btn-copy">📋 Kopírovat</button>
+          <button class="trig-btn-kbd" title="Přepnout klávesnici (čísla / písmena pro funkce sqrt, sin…)">⌨ abc</button>
         </div>
         <div class="trig-info">Zadejte 2 hodnoty – výpočet proběhne automaticky<br><small>Funkce: sin, cos, tan, sqrt, abs, log · Příklad: sqrt(2)*50, atan(1)</small></div>
         <div class="trig-history" id="trigHistory"></div>`;
@@ -4147,6 +4148,16 @@ function openTrigCalc() {
   }
 
   overlay.querySelector(".trig-btn-solve").addEventListener("click", solve);
+
+  // Přepínač mobilní klávesnice: čísla (výchozí) ↔ písmena (pro výrazy sqrt(), sin()…)
+  const kbdBtn = overlay.querySelector(".trig-btn-kbd");
+  kbdBtn.addEventListener("click", () => {
+    const toText = inpA.inputMode !== "text";
+    for (const inp of [inpA, inpB, inpC, inpAlpha, inpBeta]) inp.inputMode = toText ? "text" : "decimal";
+    kbdBtn.textContent = toText ? "⌨ 123" : "⌨ abc";
+    const act = document.activeElement;
+    if (act && [inpA, inpB, inpC, inpAlpha, inpBeta].includes(act)) { act.blur(); act.focus(); }
+  });
 
   const trigHistoryEl = overlay.querySelector("#trigHistory");
   const trigHistory = [];
