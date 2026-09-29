@@ -4,6 +4,7 @@
 
 import { COLORS, MOBILE_BREAKPOINT, applyThemeColors, LINE_WIDTH, RAINBOW_PRESETS } from './constants.js';
 import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle, fmtNum } from './state.js';
+import { solveRightTriangle } from './trigSolver.js';
 import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects } from './utils.js';
 import { renderAll, renderAllDebounced, resolveObjectColor } from './render.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView } from './canvas.js';
@@ -13,7 +14,7 @@ import { addObject } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openInsertCalc, openSinumerikHub, openCamSimulator } from './cnc-calcs.js';
 import { showCombinedModal } from './dialogs/combinedModal.js';
-import { makeOverlay, makeInputOverlay, focusInput } from './dialogFactory.js';
+import { makeOverlay, makeInputOverlay, focusInput, onOverlayRemoved } from './dialogFactory.js';
 import { openAIPanel } from './ai/aiPanel.js';
 import { getMeta, setMeta } from './idb.js';
 import { showEditObjectDialog, showMobileEditDialog } from './dialogs/mobileEdit.js';
@@ -3543,6 +3544,9 @@ document.getElementById("btnHistory")?.addEventListener("click", showHistoryDial
 
 // ── Kalkulačka – clipboard schránka ──
 let _calcClipboardValue = null;
+// Poslední výsledek kalkulačky („=" / funkce) – přežije zavření okna,
+// používá ho ANS a tlačítko „Vložit výsledek" v Trigonometrii.
+let _calcLastResult = null;
 export function getCalcClipboardValue() { return _calcClipboardValue; }
 export function setCalcClipboardValue(v) {
   _calcClipboardValue = v;
@@ -3713,7 +3717,7 @@ export function openCalculator() {
   const exprDisplay = overlay.querySelector("#calcExpr");
   const historyEl = overlay.querySelector("#calcHistory");
   let expr = "";
-  let lastAnswer = 0;
+  let lastAnswer = _calcLastResult ?? 0;
   let justEvaluated = false; // po „=" začne další číslice nový výpočet
   let history = [];
   getMeta('calcHistory').then(h => {
@@ -3863,7 +3867,7 @@ export function openCalculator() {
     if (typeof r !== "number" || !isFinite(r)) { showError("Mimo definiční obor"); return; }
     const result = roundResult(r);
     addHistory(fnExpr, result);
-    lastAnswer = result;
+    lastAnswer = _calcLastResult = result;
     expr = String(result);
     updateDisplay(expr);
     updateExprDisplay(fnExpr + " = " + result);
@@ -3877,7 +3881,7 @@ export function openCalculator() {
     if (r === null) { showError("Chyba ve výrazu"); return; }
     const result = roundResult(r);
     addHistory(displayExpr, result);
-    lastAnswer = result;
+    lastAnswer = _calcLastResult = result;
     expr = String(result);
     updateDisplay(expr);
     // Zobrazit celý zápis: výraz = výsledek
@@ -4049,9 +4053,13 @@ function openTrigCalc() {
           <button class="trig-btn-solve">✅ Vypočítat</button>
           <button class="trig-btn-clear">🗑 Vymazat</button>
           <button class="trig-btn-copy">📋 Kopírovat</button>
+        </div>
+        <div class="trig-actions trig-actions-2">
+          <button class="trig-btn-calc" title="Otevřít kalkulačku">🔢 Kalkulačka</button>
+          <button class="trig-btn-paste" title="Vložit poslední výsledek kalkulačky do vybraného pole">⤓ Vložit výsledek</button>
           <button class="trig-btn-kbd" title="Přepnout klávesnici (čísla / písmena pro funkce sqrt, sin…)">⌨ abc</button>
         </div>
-        <div class="trig-info">Zadejte 2 hodnoty – výpočet proběhne automaticky<br><small>Funkce: sin, cos, tan, sqrt, abs, log · Příklad: sqrt(2)*50, atan(1)</small></div>
+        <div class="trig-info"><span class="trig-status">Zadejte 2 hodnoty – výpočet proběhne automaticky</span><br><small>Funkce: sin, cos, tan, sqrt, abs, log · Příklad: sqrt(2)*50, atan(1)</small></div>
         <div class="trig-history" id="trigHistory"></div>`;
   const overlay = makeOverlay("trig", "📐 Trigonometrie – pravý trojúhelník", bodyHTML, "trig-window");
   if (!overlay) return;
@@ -4064,6 +4072,13 @@ function openTrigCalc() {
   const inputs = [inpA, inpB, inpC, inpAlpha, inpBeta];
   const deg = Math.PI / 180;
 
+  const statusEl = overlay.querySelector(".trig-status");
+  const STATUS_DEFAULT = statusEl.textContent;
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg || STATUS_DEFAULT;
+    statusEl.classList.toggle("trig-status-error", !!isError);
+  }
+
   function val(inp) {
     const v = safeEvalMath(inp.value);
     return (isFinite(v) && v > 0) ? v : null;
@@ -4074,83 +4089,77 @@ function openTrigCalc() {
     inp.classList.add("computed");
   }
 
-  function clearComputed() {
-    inputs.forEach(i => i.classList.remove("computed"));
+  // Výpočet bere jen hodnoty ZADANÉ uživatelem; dopočtená pole (.computed)
+  // se před každým výpočtem vyprázdní – jinak by se po změně jedné strany
+  // míchaly staré dopočty s novým zadáním.
+  // auto = volání při psaní → nedokončený výraz („sqrt(") nehlásí jako chybu.
+  function solve(auto = false) {
+    const keys = ["a", "b", "c", "alpha", "beta"];
+    const known = {};
+    for (let i = 0; i < inputs.length; i++) {
+      const inp = inputs[i];
+      if (inp.classList.contains("computed")) { inp.value = ""; inp.classList.remove("computed"); }
+      const raw = inp.value.trim();
+      if (raw === "") { known[keys[i]] = null; continue; }
+      const v = safeEvalMath(raw);
+      if (!isFinite(v)) {
+        if (auto) { setStatus(); return false; }
+        setStatus("Neplatný výraz v poli " + ["a", "b", "c", "α", "β"][i], true);
+        return false;
+      }
+      known[keys[i]] = v;
+    }
+    const filled = Object.values(known).filter(v => v !== null).length;
+    if (filled === 0) { setStatus(); return false; }
+    const r = solveRightTriangle(known);
+    if (!r.ok) { setStatus(r.error, filled >= 2 || !auto); return false; }
+    for (let i = 0; i < inputs.length; i++) {
+      if (known[keys[i]] === null) setComputed(inputs[i], r[keys[i]]);
+    }
+    setStatus("✓ Vypočteno");
+    return true;
   }
 
-  function solve() {
-    clearComputed();
-    let a = val(inpA), b = val(inpB), c = val(inpC);
-    let alpha = val(inpAlpha), beta = val(inpBeta);
-
-    // Count known values
-    const known = [a, b, c, alpha, beta].filter(v => v !== null).length;
-    if (known < 2) return;
-
-    // Angles must be < 90 for non-right angle
-    if (alpha !== null && alpha >= 90) return;
-    if (beta !== null && beta >= 90) return;
-
-    // If both angles known → complement
-    if (alpha !== null && beta !== null) {
-      // Check consistency
-      if (Math.abs(alpha + beta - 90) > 0.01) return;
-    }
-
-    // Derive missing angle from one angle
-    if (alpha !== null && beta === null) { beta = 90 - alpha; setComputed(inpBeta, beta); }
-    if (beta !== null && alpha === null) { alpha = 90 - beta; setComputed(inpAlpha, alpha); }
-
-    // Two sides known → Pythagoras + trig
-    if (a !== null && b !== null && c === null) {
-      c = Math.sqrt(a * a + b * b);
-      setComputed(inpC, c);
-    }
-    if (a !== null && c !== null && b === null) {
-      if (c <= a) return;
-      b = Math.sqrt(c * c - a * a);
-      setComputed(inpB, b);
-    }
-    if (b !== null && c !== null && a === null) {
-      if (c <= b) return;
-      a = Math.sqrt(c * c - b * b);
-      setComputed(inpA, a);
-    }
-
-    // From sides → angles
-    if (a !== null && c !== null && alpha === null) {
-      alpha = Math.asin(a / c) / deg;
-      setComputed(inpAlpha, alpha);
-      if (beta === null) { beta = 90 - alpha; setComputed(inpBeta, beta); }
-    }
-    if (b !== null && c !== null && beta === null) {
-      beta = Math.asin(b / c) / deg;
-      setComputed(inpBeta, beta);
-      if (alpha === null) { alpha = 90 - beta; setComputed(inpAlpha, alpha); }
-    }
-    if (a !== null && b !== null && alpha === null) {
-      alpha = Math.atan(a / b) / deg;
-      setComputed(inpAlpha, alpha);
-      if (beta === null) { beta = 90 - alpha; setComputed(inpBeta, beta); }
-    }
-
-    // One side + one angle → all sides
-    if (alpha !== null && beta !== null) {
-      const sinA = Math.sin(alpha * deg);
-      const cosA = Math.cos(alpha * deg);
-      if (a !== null && b === null) { b = a / Math.tan(alpha * deg); setComputed(inpB, b); }
-      if (a !== null && c === null) { c = a / sinA; setComputed(inpC, c); }
-      if (b !== null && a === null) { a = b * Math.tan(alpha * deg); setComputed(inpA, a); }
-      if (b !== null && c === null) { c = b / cosA; setComputed(inpC, c); }
-      if (c !== null && a === null) { a = c * sinA; setComputed(inpA, a); }
-      if (c !== null && b === null) { b = c * cosA; setComputed(inpB, b); }
-    }
+  // Automatický výpočet při psaní (s krátkou prodlevou)
+  let _autoTimer = null;
+  let _lastTrigInput = null;
+  for (const inp of inputs) {
+    inp.addEventListener("focus", () => { _lastTrigInput = inp; });
+    inp.addEventListener("input", () => {
+      inp.classList.remove("computed"); // přepsané pole je teď zadání
+      clearTimeout(_autoTimer);
+      _autoTimer = setTimeout(() => solve(true), 400);
+    });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); clearTimeout(_autoTimer); solve(); }
+    });
   }
+  onOverlayRemoved(overlay, () => clearTimeout(_autoTimer));
 
-  overlay.querySelector(".trig-btn-solve").addEventListener("click", solve);
+  overlay.querySelector(".trig-btn-solve").addEventListener("click", () => { clearTimeout(_autoTimer); solve(); });
+
+  // Otevřít kalkulačku (na mobilu přes celou obrazovku; její ⤓ vloží
+  // výsledek rovnou do naposledy vybraného pole a zavře se)
+  overlay.querySelector(".trig-btn-calc").addEventListener("click", () => openCalculator());
+
+  // Vložit poslední výsledek kalkulačky do vybraného (nebo prvního prázdného) pole
+  const pasteBtn = overlay.querySelector(".trig-btn-paste");
+  pasteBtn.addEventListener("mousedown", (e) => e.preventDefault()); // nebrat fokus poli
+  pasteBtn.addEventListener("click", () => {
+    const v = _calcLastResult ?? getCalcClipboardValue();
+    if (v === null || v === undefined || v === "") { showToast("Kalkulačka zatím nemá výsledek"); return; }
+    const target = (_lastTrigInput && inputs.includes(_lastTrigInput))
+      ? _lastTrigInput
+      : inputs.find(i => i.value.trim() === "" || i.classList.contains("computed"));
+    if (!target) { showToast("Vyberte pole, kam vložit"); return; }
+    target.value = String(v);
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    showToast("Vloženo: " + v);
+  });
 
   // Přepínač mobilní klávesnice: čísla (výchozí) ↔ písmena (pro výrazy sqrt(), sin()…)
   const kbdBtn = overlay.querySelector(".trig-btn-kbd");
+  kbdBtn.addEventListener("mousedown", (e) => e.preventDefault());
   kbdBtn.addEventListener("click", () => {
     const toText = inpA.inputMode !== "text";
     for (const inp of [inpA, inpB, inpC, inpAlpha, inpBeta]) inp.inputMode = toText ? "text" : "decimal";
@@ -4167,6 +4176,7 @@ function openTrigCalc() {
     const alpha = val(inpAlpha), beta = val(inpBeta);
     if (!a || !b || !c || !alpha || !beta) return;
     const entry = `a=${inpA.value}  b=${inpB.value}  c=${inpC.value}  α=${inpAlpha.value}°  β=${inpBeta.value}°  γ=90°`;
+    if (trigHistory[0] === entry) return; // Kopírovat + Vymazat → jen jeden záznam
     trigHistory.unshift(entry);
     if (trigHistory.length > 10) trigHistory.pop();
     trigHistoryEl.innerHTML = "";
@@ -4175,7 +4185,7 @@ function openTrigCalc() {
       row.className = "calc-history-item";
       row.textContent = item;
       row.addEventListener("click", () => {
-        navigator.clipboard.writeText(item).then(() => showToast("Zkopírováno"));
+        navigator.clipboard.writeText(item).then(() => showToast("Zkopírováno"), () => showToast("Kopírování se nepovedlo"));
       });
       trigHistoryEl.appendChild(row);
     }
@@ -4184,7 +4194,9 @@ function openTrigCalc() {
   overlay.querySelector(".trig-btn-clear").addEventListener("click", () => {
     // Save current result to history before clearing
     addTrigHistory();
+    clearTimeout(_autoTimer);
     inputs.forEach(i => { i.value = ""; i.classList.remove("computed"); });
+    setStatus();
   });
 
   overlay.querySelector(".trig-btn-copy").addEventListener("click", () => {
@@ -4196,7 +4208,7 @@ function openTrigCalc() {
     if (val(inpBeta)) parts.push("β=" + inpBeta.value + "°");
     parts.push("γ=90°");
     const text = parts.join("  ");
-    navigator.clipboard.writeText(text).then(() => showToast("Zkopírováno"));
+    navigator.clipboard.writeText(text).then(() => showToast("Zkopírováno"), () => showToast("Kopírování se nepovedlo"));
     addTrigHistory();
   });
 }

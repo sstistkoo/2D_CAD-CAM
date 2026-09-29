@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Trigonometrie – 🔢 Kalkulačka a ⤓ Vložit výsledek.** Otevře vestavnou
+  kalkulačku; poslední výsledek („=" nebo funkce) vloží do vybraného pole
+  (bez výběru do prvního prázdného). Výsledek kalkulačky přežije i zavření
+  okna (ANS po novém otevření navazuje).
+
 ### Fixed
+- **Trigonometrie – automatický výpočet** skutečně běží při psaní (dříve jen
+  tlačítkem, přestože to nápověda slibovala). Enter spustí výpočet hned.
+- **Trigonometrie – opakovaný výpočet:** dopočtená pole se už neberou jako
+  zadání, takže změna jedné strany přepočítá zbytek správně.
+- **Trigonometrie – hlášení chyb** místo tichého ignorování: úhel ≥ 90°,
+  přepona kratší než odvěsna, jen dva úhly, nula/záporné číslo, neplatný
+  výraz a rozporné třetí zadání. Řešič vyčleněn do `js/trigSolver.js`
+  (s testy).
 - **Trigonometrie – oblouk úhlu β** se kreslil na opačnou stranu (vypouklý
   k vrcholu); nyní je správně uvnitř trojúhelníku.
 - **Trigonometrie – mobilní klávesnice:** pole stran a úhlů otevírají

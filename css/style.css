@@ -4642,12 +4642,25 @@ body {
   color: var(--ctp-yellow);
 }
 .trig-btn-copy:hover { background: var(--ctp-surface1); }
+.trig-actions-2 { margin-top: 6px; }
 .trig-actions .trig-btn-kbd {
   flex: 0 0 auto;
   background: var(--ctp-surface0);
   color: var(--ctp-subtext0);
 }
 .trig-btn-kbd:hover { background: var(--ctp-surface1); }
+.trig-btn-calc {
+  background: var(--ctp-surface0);
+  color: var(--ctp-teal);
+}
+.trig-btn-calc:hover { background: var(--ctp-surface1); }
+.trig-btn-paste {
+  background: var(--ctp-surface0);
+  color: var(--ctp-green);
+}
+.trig-btn-paste:hover { background: var(--ctp-surface1); }
+.trig-status { font-size: 12px; color: var(--ctp-subtext0); }
+.trig-status.trig-status-error { color: var(--ctp-red); font-weight: bold; }
 .trig-btn-solve {
   background: var(--ctp-blue);
   color: var(--ctp-base);
