@@ -3641,10 +3641,15 @@ export function openCalculator() {
   // ── Drag via history header ──
   const dragHandle = overlay.querySelector(".calc-hist-header");
   let _dragOfs = null;
-  dragHandle.style.cursor = "move";
+  // Na mobilu (šířka ≤ 600 px, stejná hranice jako CSS) je okno pevně
+  // ukotvené přes celou obrazovku – přetahovat nejde.
+  const _calcFixedMq = window.matchMedia("(max-width: 600px)");
+  const isCalcFixed = () => _calcFixedMq.matches;
+  dragHandle.style.cursor = isCalcFixed() ? "" : "move";
   // Začátek tažení: zafixovat aktuální pozici a zrušit CSS translateX(-50%),
   // jinak okno při prvním pohybu poskočí o půl své šířky doleva.
   function startDrag(clientX, clientY) {
+    if (isCalcFixed()) return;
     const rect = calcWin.getBoundingClientRect();
     calcWin.style.transform = "none";
     calcWin.style.left = rect.left + "px";

@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kalkulačka – větší okno, displej a čísla.** Okno až 380 px (na mobilu
   téměř přes celou šířku), výsledek písmem 30–32 px; dlouhé číslo se
   automaticky zmenší, aby bylo vidět celé. Na mobilu okno sahá od horního
-  okraje až dolů a volnou výšku dostane historie výpočtů.
+  okraje až dolů a volnou výšku dostane historie výpočtů; okno je tam
+  pevné a nejde přetahovat (na počítači přetahování zůstává).
 - **Mobil – pravý panel se při přechodu do CAM zavře**, takže po návratu
   z CAM do CAD už ho není třeba zavírat ručně.
 - **CAM simulátor – úběr materiálu vždy zapnutý.** Tlačítko ⛏ v horní liště
