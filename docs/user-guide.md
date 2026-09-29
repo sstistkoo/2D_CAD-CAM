@@ -262,6 +262,9 @@ poloměr oblouku, takový segment zanikne.
 
 ### Asociativní kóty
 - Kóty zůstanou přirozené i po úpravě objektů
+- Platí i pro kóty kontury (polyline): po posunu kontury nebo úpravě vrcholů
+  se kóty úseků i poloměrů oblouků přepočítají; po vložení/odebrání vrcholu
+  zůstane kóta u svého úseku
 - Smazáním objektu smaž i jeho kóty
 
 ### Duplicitní kóty

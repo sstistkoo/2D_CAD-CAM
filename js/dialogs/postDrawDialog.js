@@ -12,6 +12,7 @@ import { updateObjectList, resetHint } from '../ui.js';
 import { renderAll } from '../render.js';
 import { addObject, addPolylineAsSegments } from '../objects.js';
 import { getLineStyle } from '../lineStyles.js';
+import { updateAssociativeDimensions } from './dimension.js';
 
 /**
  * Zobrazí post-draw dialog pro úsečku (line/constr).
@@ -484,10 +485,12 @@ export function showPostDrawPolylineDialog(obj) {
       }
       newVerts.push({ x: nx, y: ny });
     }
+    pushUndo(); // úprava vrcholů musí jít vrátit
     for (let i = 0; i < newVerts.length; i++) {
       obj.vertices[i].x = newVerts[i].x;
       obj.vertices[i].y = newVerts[i].y;
     }
+    updateAssociativeDimensions(); // kóty kontury sledují upravené vrcholy
     calculateAllIntersections();
     updateObjectList();
     renderAll();

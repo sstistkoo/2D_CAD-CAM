@@ -313,6 +313,105 @@ export function addArcRadiusLeader(arc, anchorAngle, placeX, placeY) {
   if (created) showToast(`Kóta R${arc.r.toFixed(2)} přidána`);
 }
 
+// ── Kóty segmentů kontury (polyline) – asociativita ──
+/** Bod uprostřed oblouku z bulgeToArc (správná strana i přes ±π). */
+function _arcMidPoint(arc) {
+  const TWO_PI = 2 * Math.PI;
+  let sweep = arc.ccw ? arc.endAngle - arc.startAngle : arc.startAngle - arc.endAngle;
+  sweep %= TWO_PI; if (sweep < 0) sweep += TWO_PI;
+  const mid = arc.startAngle + (arc.ccw ? sweep : -sweep) / 2;
+  return { x: arc.cx + arc.r * Math.cos(mid), y: arc.cy + arc.r * Math.sin(mid) };
+}
+
+/** Segment i kontury: { p1, p2, bulge } nebo null. */
+function _polySeg(poly, i) {
+  const v = poly.vertices;
+  if (!v || v.length < 2 || !Number.isInteger(i) || i < 0) return null;
+  const n = v.length;
+  const segCount = poly.closed ? n : n - 1;
+  if (i >= segCount) return null;
+  return { p1: v[i], p2: v[(i + 1) % n], bulge: (poly.bulges && poly.bulges[i]) || 0 };
+}
+
+function _polySegCount(poly) {
+  const n = (poly.vertices || []).length;
+  return n < 2 ? 0 : (poly.closed ? n : n - 1);
+}
+
+/**
+ * Najde segment kontury, ke kterému kóta patří. Kóty mají dimSegIndex (+ počet
+ * segmentů v době kótování); starší kóty ho nemají, nebo se mezitím změnil
+ * počet segmentů (přidaný/odebraný vrchol) → dohledá se podle posledně známé
+ * geometrie kóty: nejdřív segment stejného tvaru (délka+směr / poloměr),
+ * pak nejbližší.
+ */
+function _findPolySegIndex(dim, poly) {
+  const count = _polySegCount(poly);
+  const wantArc = dim.dimType === 'radius';
+  if (Number.isInteger(dim.dimSegIndex) && dim.dimSegIndex < count
+      && (dim.dimSegCount == null || dim.dimSegCount === count)) {
+    const seg = _polySeg(poly, dim.dimSegIndex);
+    if (seg && (Math.abs(seg.bulge) > 1e-6) === wantArc) return dim.dimSegIndex;
+  }
+  let best = -1, bestScore = Infinity;
+  for (let i = 0; i < count; i++) {
+    const seg = _polySeg(poly, i);
+    const isArc = Math.abs(seg.bulge) > 1e-6;
+    if (isArc !== wantArc) continue;
+    let shapeMatch, dist;
+    if (wantArc) {
+      const arc = bulgeToArc(seg.p1, seg.p2, seg.bulge);
+      if (!arc) continue;
+      shapeMatch = Math.abs(arc.r - (dim.dimRadius || 0)) < 1e-6;
+      dist = Math.hypot(arc.cx - (dim.dimCenterX || 0), arc.cy - (dim.dimCenterY || 0));
+    } else {
+      const a = { x: dim.dimSrcX1, y: dim.dimSrcY1 }, b = { x: dim.dimSrcX2, y: dim.dimSrcY2 };
+      if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) continue;
+      const ddx = b.x - a.x, ddy = b.y - a.y, sdx = seg.p2.x - seg.p1.x, sdy = seg.p2.y - seg.p1.y;
+      const cross = ddx * sdy - ddy * sdx;
+      shapeMatch = Math.abs(Math.hypot(ddx, ddy) - Math.hypot(sdx, sdy)) < 1e-6
+        && Math.abs(cross) < 1e-6 * Math.max(1, Math.hypot(ddx, ddy) ** 2);
+      dist = Math.min(
+        Math.hypot(seg.p1.x - a.x, seg.p1.y - a.y) + Math.hypot(seg.p2.x - b.x, seg.p2.y - b.y),
+        Math.hypot(seg.p1.x - b.x, seg.p1.y - b.y) + Math.hypot(seg.p2.x - a.x, seg.p2.y - a.y));
+    }
+    const score = (shapeMatch ? 0 : 1e12) + dist;
+    if (score < bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+/** Přepočítá kótu segmentu kontury podle aktuální geometrie. */
+function _updatePolySegDim(dim, poly) {
+  const idx = _findPolySegIndex(dim, poly);
+  if (idx < 0) return;
+  const seg = _polySeg(poly, idx);
+  dim.dimSegIndex = idx;
+  dim.dimSegCount = _polySegCount(poly);
+  if (dim.dimType === 'radius') {
+    const arc = bulgeToArc(seg.p1, seg.p2, seg.bulge);
+    if (!arc) return;
+    const m = _arcMidPoint(arc);
+    dim.x1 = arc.cx; dim.y1 = arc.cy;
+    dim.x2 = m.x; dim.y2 = m.y;
+    dim.dimRadius = arc.r;
+    dim.dimCenterX = arc.cx; dim.dimCenterY = arc.cy;
+    dim.name = `Kóta R${arc.r.toFixed(2)}`;
+    return;
+  }
+  const { p1, p2 } = seg;
+  const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if (len < 1e-9) return;
+  const off = dim.dimOffset != null ? dim.dimOffset : 15;
+  const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  const nx = -Math.sin(ang) * off, ny = Math.cos(ang) * off;
+  dim.x1 = p1.x + nx; dim.y1 = p1.y + ny;
+  dim.x2 = p2.x + nx; dim.y2 = p2.y + ny;
+  dim.dimSrcX1 = p1.x; dim.dimSrcY1 = p1.y;
+  dim.dimSrcX2 = p2.x; dim.dimSrcY2 = p2.y;
+  dim.name = `Kóta ${len.toFixed(2)}mm`;
+}
+
 // ── Přidání kót k objektu ──
 export function addDimensionForObject(obj) {
   // Duplicitní kóty addObject odmítne (vrátí null) – počítáme jen přidané
@@ -464,9 +563,7 @@ export function addDimensionForObject(obj) {
           // Obloukový segment – kóta poloměru
           const arc = bulgeToArc(p1, p2, b);
           if (arc) {
-            const midAngle = (arc.startAngle + arc.endAngle) / 2;
-            const mx = arc.cx + arc.r * Math.cos(midAngle);
-            const my = arc.cy + arc.r * Math.sin(midAngle);
+            const { x: mx, y: my } = _arcMidPoint(arc);
             if (add({
               type: "line",
               x1: arc.cx, y1: arc.cy,
@@ -479,6 +576,7 @@ export function addDimensionForObject(obj) {
               dimRadius: arc.r,
               dimCenterX: arc.cx,
               dimCenterY: arc.cy,
+              dimSegIndex: i, dimSegCount: segCount,
               color: COLORS.textSecondary,
             })) dimCount++;
           }
@@ -502,6 +600,7 @@ export function addDimensionForObject(obj) {
               dimOffset: dimOffset,
               dimSrcX1: p1.x, dimSrcY1: p1.y,
               dimSrcX2: p2.x, dimSrcY2: p2.y,
+              dimSegIndex: i, dimSegCount: segCount,
               color: COLORS.textSecondary,
             })) dimCount++;
           }
@@ -602,6 +701,8 @@ export function updateAssociativeDimensions() {
             const len = Math.hypot(src.x2 - src.x1, src.y2 - src.y1);
             dim.name = `Kóta ${len.toFixed(2)}mm`;
           }
+        } else if (src.type === 'polyline') {
+          _updatePolySegDim(dim, src);
         } else if (src.type === 'rect') {
           // Aktualizovat dle dimSrc bodů – zjistit, zda je to šířka nebo výška
           const isHoriz = Math.abs(dim.dimSrcY1 - dim.dimSrcY2) < 0.01;
@@ -638,7 +739,9 @@ export function updateAssociativeDimensions() {
         break;
       }
       case 'radius': {
-        if (dim.dimLeader && (src.type === 'arc' || src.type === 'circle')) {
+        if (src.type === 'polyline') {
+          _updatePolySegDim(dim, src);
+        } else if (dim.dimLeader && (src.type === 'arc' || src.type === 'circle')) {
           // Leader R – bod na oblouku (šipka) + vytažený popisek (dimLeadDX/DY)
           const ang = dim.dimAnchorAngle != null ? dim.dimAnchorAngle : 0;
           const ax = src.cx + src.r * Math.cos(ang);

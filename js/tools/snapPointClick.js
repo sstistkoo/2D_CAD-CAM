@@ -9,6 +9,7 @@ import { calculateAllIntersections } from '../geometry.js';
 import { setHint, resetHint, updateProperties } from '../ui.js';
 import { moveObject } from '../objects.js';
 import { isAnchored } from './anchorClick.js';
+import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 
 /**
  * Najde nejbližší koncový/klíčový bod objektu k zadaným souřadnicím.
@@ -123,6 +124,7 @@ export function handleSnapPointClick(wx, wy) {
     } else {
       moveEndpoint(src.objIdx, src.key, wx, wy);
     }
+    updateAssociativeDimensions(); // kóty přesunutého bodu jdou s ním
     calculateAllIntersections();
     showToast("Bod přichycen");
     state._snapPointState = null;

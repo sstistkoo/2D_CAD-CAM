@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **Kóty kontury jsou asociativní:** kóty úseků a poloměrů polyline se po
+  posunu kontury i úpravě vrcholů přepočítají (dřív zůstaly na starém
+  místě). Kóty si pamatují index úseku; po vložení/odebrání vrcholu i u
+  starších kót bez indexu se úsek dohledá podle tvaru a polohy.
+- **Kóta R oblouku kontury** mohla ležet na opačné straně (střed úhlů přes
+  ±180°); teď vždy uprostřed oblouku.
+- **Úprava vrcholů kontury (dialog) a Přichytit bod** neaktualizovaly
+  asociativní kóty; úprava vrcholů dialogem navíc nešla vrátit (Zpět).
 - **Kóty – duplicity:** stejnou kótu (táž úsečka/body, týž oblouk, úhel nebo
   bod) už nejde přidat vícekrát – dříve se opakovaným „📐 Přidat kótu" při
   měření vrstvily stejné hodnoty nad sebe. Kontrola je centrálně v
