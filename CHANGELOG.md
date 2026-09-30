@@ -53,6 +53,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **CAM – zbytek po kulaté destičce je oblouk, ne lomená čára.** Model úběru
+  (simulace, validátor, obrobený polotovar pro „➕ Operace" / „✂ Po úsecích")
+  kreslil nos kulaté destičky 12 úsečkami na půlkruh — u R 10 tětivy 2,6 mm
+  s průhybem 0,085 mm. Zbytek v rohu tak byl mnohoúhelník a proložení
+  obrobeného polotovaru (tolerance 0,05 mm) ho nechalo jako řadu úseček
+  (nález uživatele 30. 9. 2026, body S30–S36). Nový klíč plátku
+  `footprintChordTol` (jen kulatá, 0,02 mm) zjemní kružnici nosu v modelu
+  úběru; roh vyjde jako jeden `G2 … R9.95`. Plánovací obrys drah zůstal —
+  G-kód se nezměnil u žádné z 29 fixtures. Validátor u velkého čelního dílu
+  s R 8 počítá o ~0,3 s déle.
 - **CAM – poslední (tenčí) vrstva na dno údolí zase vzniká.** Od sjednocení
   generátoru 25. 9. 2026 (7d9cbd6) chyběla u řetězu ramp v údolí poslední
   kratší vrstva na dno (pravidlo 3): uzavírací bisekce v `roughLong.js`

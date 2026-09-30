@@ -98,6 +98,8 @@ export function partingInsert(prms) {
     leadInSteepToChain: false,
     approachFromNoseContact: false,
     rule7Layers: false,
+    // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
+    footprintChordTol: 0,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

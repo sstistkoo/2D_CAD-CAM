@@ -104,6 +104,15 @@ export function roundInsert(prms) {
     //   partOffCornerR          — pracovní rádius při upichování
     //   finishAlongEnvelope     — dokončování po obálce plátku, ne po offsetu
     footprintIsNoseOnly: true,
+    //   footprintChordTol — největší průhyb tětivy [mm] kružnice nosu v MODELU
+    //                  ÚBĚRU (`toolFootprintVisual`: simulace, validátor,
+    //                  obrobený polotovar pro „➕ Operace"). Pevných 12 úseček
+    //                  na půlkruh (po 15°) dělá u R 10 tětivy 2,6 mm s průhybem
+    //                  0,085 mm — zbytek po kulatém nosu pak nebyl oblouk, ale
+    //                  lomená čára, a proložení obrobeného polotovaru (tol. 0,05)
+    //                  ji nechalo jako řadu úseček (nález uživatele 30. 9. 2026).
+    //                  Plánovací `toolFootprint` zůstává na 12 — dráhy se nehnou.
+    footprintChordTol: 0.02,
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
     plungeAngleMaxDeg: 89,

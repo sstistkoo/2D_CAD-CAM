@@ -112,8 +112,13 @@ export function insertWorldLoop(prms, backside = false) {
  *
  * Čelně se stadion navíc protahuje v ose Z k obrobené straně (zprava
  * +Z, zleva −Z) o zásah těla destičky — viz insertBodyZ výš.
+ *
+ * `chordTol` > 0 zjemní půlkruh tak, aby tětiva neodstoupila od kružnice
+ * víc než o `chordTol` [mm] (nikdy hrubší než 12 úseček). Plánování volá
+ * bez něj — dráhy jsou na 12 úseček odladěné; zjemňuje jen model úběru
+ * (`toolFootprintVisual`) podle klíče plátku `footprintChordTol`.
  */
-export function toolFootprint(prms) {
+export function toolFootprint(prms, chordTol = 0) {
   const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
   const zBody = insertBodyZ(prms, r);
@@ -122,7 +127,10 @@ export function toolFootprint(prms) {
   // konzervativní aproximace jako u hlídání upichováku).
   if (zBody > r) { loop.push({ x: H, z: zBody }); loop.push({ x: 0, z: zBody }); }
   else loop.push({ x: H, z: r });
-  const n = 12;
+  // Průhyb tětivy s krokem θ je r·(1 − cos(θ/2)).
+  const n = chordTol > 0 && chordTol < r
+    ? Math.max(12, Math.ceil(Math.PI / (2 * Math.acos(1 - chordTol / r))))
+    : 12;
   for (let k = 0; k <= n; k++) {
     const a = (k / n) * Math.PI;    // 0..π přes spodek špičky
     loop.push({ x: -Math.sin(a) * r, z: Math.cos(a) * r });
@@ -173,7 +181,8 @@ export function toolFootprint(prms) {
  * geometrie umět spodní hranu destičky; teprve pak sem.
  */
 export function toolFootprintVisual(prms) {
-  if (getInsert(prms).footprintIsNoseOnly) return toolFootprint(prms);
+  const ins = getInsert(prms);
+  if (ins.footprintIsNoseOnly) return toolFootprint(prms, ins.footprintChordTol);
   const body = insertWorldLoop(prms, prms.roughingSide === 'left');
   if (!body || body.length < 3) return toolFootprint(prms);
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);

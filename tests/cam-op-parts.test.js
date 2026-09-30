@@ -214,6 +214,30 @@ describe('machinedStockPoints', () => {
     expect(points.length).toBeLessThan(40);
   });
 
+  it('roh po kulatém nosu R10 je jeden oblouk, ne lomená čára', () => {
+    // Nález uživatele 30. 9. 2026: po „➕ Operace" zůstal v rohu po kulaté
+    // destičce řetěz úseček S30–S36 místo oblouku. Model úběru kreslil nos
+    // 12 úsečkami na půlkruh (tětiva 2,6 mm, průhyb 0,085 mm > tol. proložení
+    // 0,05) — viz `footprintChordTol` v inserts/round.js.
+    const round = {
+      mode: 'DIAMOF', stockMode: 'cylinder', stockDiameter: 48, stockLength: 60,
+      stockFace: 2, toolShape: 'round', toolRadius: 10, depthOfCut: 2.5,
+    };
+    // Podélně na středu nosu X20 do Z−30, pak čelem ven: roh zbytku je
+    // čtvrtkruh R10 kolem (20; −30) od (10; −30) do (20; −40).
+    const path = [
+      { x: 40, z: 15, type: 'G0' }, { x: 20, z: 15, type: 'G0' },
+      { x: 20, z: -30, type: 'G1' }, { x: 40, z: -30, type: 'G1' },
+    ];
+    const { points } = machinedStockPoints(round, [], path);
+    const inCorner = (p) => p.x > 10.5 && p.x < 19.5 && p.z < -30.5 && p.z > -39.5;
+    expect(points.filter(inCorner)).toEqual([]);
+    const arc = points.find(p => (p.type === 'G2' || p.type === 'G3') && Math.abs(p.r - 10) < 0.1);
+    expect(arc).toBeTruthy();
+    expect(arc.x).toBeCloseTo(20, 1);
+    expect(arc.z).toBeCloseTo(-39.95, 1);
+  });
+
   it('velký polotovar bez zaoblení zůstane pár úsečkami', () => {
     const loop = [{ x: 0, z: 2 }, { x: 20, z: 2 }, { x: 20, z: -50 }, { x: 0, z: -50 }];
     const { points, arcs } = loopsToStockProfile([loop]);

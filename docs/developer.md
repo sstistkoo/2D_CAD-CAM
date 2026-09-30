@@ -1164,6 +1164,15 @@ programovaným bodem, což `rapidStopX` (vůle + rádius nosu) neumí — výmě
 obrysu i pro plánování jen vyrobí hlášení kolizí, která plánovač neobejde.
 Sjednotit je až s hlídáním spodní hrany v rychloposuvech.
 
+Kulatá destička (`footprintIsNoseOnly`) má v obou modelech tentýž stadion,
+jen model úběru ho kreslí jemněji: klíč plátku `footprintChordTol` (0,02 mm)
+předá `toolFootprint(prms, chordTol)` a půlkruh nosu dostane tolik úseček,
+aby tětiva neodstoupila od kružnice víc než o 0,02 mm (R 10 → 25 místo 12).
+S pevnými 12 úsečkami měla tětiva u R 10 průhyb 0,085 mm, zbytek v rohu byl
+lomená čára a `fitArcsToPolyline` (tol. 0,05) ho do obrobeného polotovaru
+pro „➕ Operace" nechal jako řadu G1. Plánování volá bez `chordTol` — dráhy
+se nehnou (otisk 29 fixtures shodný).
+
 Testy nad neexportovanými helpery jdou přes `tests/helpers/camInternals.mjs`
 (text-surgery + přímé importy z `cam/*.js`); plný pipeline (`calculate()` +
 `generateAutoGCode()`) přes `tests/helpers/camHeadless.mjs` — viz
