@@ -896,7 +896,11 @@ export function openInsertCalc(opts) {
         isRound: sel[1] === 'R',
         tipAngle: (sel[1] !== '-' && VBD_SHAPE_ANGLES[sel[1]] !== undefined) ? VBD_SHAPE_ANGLES[sel[1]] : null,
         clearanceAngle: (sel[2] !== '-' && VBD_CLEARANCE_ANGLES[sel[2]] !== undefined) ? VBD_CLEARANCE_ANGLES[sel[2]] : null,
-        tipRadius: (sel[7] !== '-' && VBD_TIP_RADII[sel[7]] !== undefined) ? VBD_TIP_RADII[sel[7]] : null,
+        // Kulatá destička (R) rádius špičky nemá — celý břit je kruh o průměru
+        // IC z poz. 5 (RCMT 1204M0 = ⌀12 → R6); poz. 7 je u ní „M0"/„00".
+        tipRadius: sel[1] === 'R'
+          ? (/^\d\d$/.test(sel[5]) ? parseInt(sel[5], 10) / 2 : null)
+          : ((sel[7] !== '-' && VBD_TIP_RADII[sel[7]] !== undefined) ? VBD_TIP_RADII[sel[7]] : null),
       };
       opts.onCamImport(data);
       overlay.remove();

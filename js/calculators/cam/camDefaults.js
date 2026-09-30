@@ -212,3 +212,26 @@ export function stripCodeOwnedParams(loaded) {
   for (const k of CODE_OWNED_PARAMS) delete out[k];
   return out;
 }
+
+/**
+ * Rádius (R), který se dosadí při PŘEPNUTÍ tvaru plátku — v hlavním panelu,
+ * v okně Geometrie i ve slotu zásobníku (uživatel 30. 9. 2026: „kulatý R10,
+ * polygonální R1,2, upichovák R0,5"). Jen předvolba: pole Rádius jde hned
+ * přepsat a VBD dekodér dosazuje R z kódu až po přepnutí. Závitový tu není —
+ * rádius nepoužívá (applyShapeChange mu dává 0).
+ */
+export const SHAPE_PRESET_RADIUS = { round: 10, polygon: 1.2, parting: 0.5 };
+
+/**
+ * Odhad řezných podmínek podle tvaru plátku: vc [m/min], f [mm/ot], ap [mm].
+ * Při PŘEPNUTÍ tvaru (panel, Geometrie, slot zásobníku) se dosadí vc a f
+ * (uživatel 30. 9. 2026: „přednastavit posuv a otáčky"), ap zůstává.
+ * Import nožů ze souborů do zásobníku bere všechny tři. U závitového je f
+ * stoupání jako u výchozího nože „Zavit".
+ */
+export const SHAPE_CUT_DEFAULTS = {
+  round: { vc: 180, f: 0.15, ap: 1.5 },
+  polygon: { vc: 200, f: 0.25, ap: 2.5 },
+  parting: { vc: 120, f: 0.08, ap: 2 },
+  threading: { vc: 100, f: 1.5, ap: 0.1 },
+};

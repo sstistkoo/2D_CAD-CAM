@@ -203,26 +203,10 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     // Na kterou stranu od Natočení se 2. hrana otevírá — dvě geometricky
     // platné možnosti (viz toolTipMirror), ⇄ tlačítko v UI mezi nimi přepíná.
     const a1 = rotRad, a2 = rotRad - tipAng * (prms.toolTipMirror ? -1 : 1);
-    const distToCorner = rPix / Math.sin(tipAng / 2);
     const bisector = (a1 + a2) / 2;
-    const cornerX = Math.cos(bisector + Math.PI) * distToCorner;
-    const cornerY = Math.sin(bisector + Math.PI) * distToCorner;
-    const tanLen = Math.min(rPix / Math.tan(tipAng / 2), lenPix * 0.99);
-    const t1x = cornerX + Math.cos(a1) * tanLen, t1y = cornerY + Math.sin(a1) * tanLen;
-    const t2x = cornerX + Math.cos(a2) * tanLen, t2y = cornerY + Math.sin(a2) * tanLen;
-    const angT1 = Math.atan2(t1y, t1x), angT2 = Math.atan2(t2y, t2x);
-    const angCorner = bisector + Math.PI;
-    const norm = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    const angDiff = (a, b) => { let d = norm(a - b); if (d > Math.PI) d -= 2 * Math.PI; return d; };
-    const midCCWfalse = angT2 + norm(angT1 - angT2) / 2;
-    const midCCWtrue = angT2 - norm(angT2 - angT1) / 2;
-    const useCCW = Math.abs(angDiff(midCCWtrue, angCorner)) < Math.abs(angDiff(midCCWfalse, angCorner));
-    ctx.beginPath(); ctx.moveTo(t1x, t1y);
-    ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
-    ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
-    ctx.lineTo(t2x, t2y);
-    ctx.arc(0, 0, rPix, angT2, angT1, useCCW);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // Obrys ze SDÍLENÝCH segmentů (celá destička + řezná část), ne vlastní
+    // kopií vzorců — stejně ho kreslí simulace i 📐 CAD.
+    drawPolygonInsert(ctx, prms, scale);
     // Klikatelné popisky ε (vrcholový úhel) a natočení — přibližná poloha,
     // stačí k umístění klikací "hotspot" bubliny nad canvasem.
     const epsDir = bisector + Math.PI;
@@ -392,7 +376,13 @@ export function getInsertAnchorPoints(prms) {
 // v draw()/drawInsertAndHolderPreview). Slouží i jako zdroj obrysu pro
 // sjednocenou zakázanou oblast nástroje (toolEnvelope.insertWorldLoop, Fáze
 // 2b/3 migrace). Threading → [] (V-profil se do kolizní obálky nepočítá).
-export function buildInsertProfileSegments(prms) {
+//
+// U POLYGONU je to ŘEZNÁ ČÁST: trojúhelník špičky (dvě hrany délky L +
+// spojnice jejich konců). Z ní žije výpočet — úběr, dosah hrany
+// (insertReachZ, mezní čáry), odečet od kolize držáku — a zadní půlka tam
+// nepatří: neřeže (má úlevu) a sedí v lůžku držáku. Celou destičku (jen pro
+// kreslení) vrací `buildInsertOutlineSegments` (`opts.full`).
+export function buildInsertProfileSegments(prms, opts) {
   const shape = prms.toolShape;
   const R = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
   const segs = [];
@@ -414,7 +404,9 @@ export function buildInsertProfileSegments(prms) {
     const t1 = P(a1, tanLen), t2 = P(a2, tanLen);
     const farA = P(a1, toolLen), farB = P(a2, toolLen);
     segs.push({ type: 'line', from: t1, to: farA });
-    segs.push({ type: 'line', from: farA, to: farB });
+    const back = opts && opts.full ? polygonBackSegments(prms, { cX, cY, a1, a2, tipAng, toolLen, R, P }) : null;
+    if (back) segs.push(...back);
+    else segs.push({ type: 'line', from: farA, to: farB });
     segs.push({ type: 'line', from: farB, to: t2 });
     segs.push({ type: 'arc', cx: 0, cz: 0, r: R, from: t2, to: t1 });
     return segs;
@@ -450,6 +442,85 @@ export function buildInsertProfileSegments(prms) {
     return segs;
   }
   return segs;
+}
+
+// Zadní půlka polygonu místo spojnice farA→farB: kosočtverec/čtverec
+// (protější roh C + L·(u1+u2), s rádiusem R jako špička). Null = nedokreslovat:
+// trojúhelník (ε 60°) je celý už sám a trigon W (ε 80°) kosočtverec nevystihne.
+function polygonBackSegments(prms, { cX, cY, a1, a2, tipAng, toolLen, R, P }) {
+  if (Math.abs(tipAng - Math.PI / 3) < 1e-6) return null;
+  if (/^\s*W/i.test(String(prms.toolVbdCode || ''))) return null;
+  const farA = P(a1, toolLen), farB = P(a2, toolLen);
+  // Kanvasové souřadnice (y dolů) jako u P, z = −y.
+  const ux = Math.cos(a1) + Math.cos(a2), uy = Math.sin(a1) + Math.sin(a2);
+  const opp = { x: cX + ux * toolLen, y: cY + uy * toolLen };
+  const Q = (x, y) => ({ x, z: -y });
+  const tl = R / Math.tan(tipAng / 2);
+  if (!(tl < toolLen * 0.99)) {
+    return [{ type: 'line', from: farA, to: Q(opp.x, opp.y) }, { type: 'line', from: Q(opp.x, opp.y), to: farB }];
+  }
+  // Tečné body: na hraně k farA (směr −u2) a k farB (směr −u1).
+  const oT1 = Q(opp.x - Math.cos(a2) * tl, opp.y - Math.sin(a2) * tl);
+  const oT2 = Q(opp.x - Math.cos(a1) * tl, opp.y - Math.sin(a1) * tl);
+  const ul = Math.hypot(ux, uy), dc = R / Math.sin(tipAng / 2);
+  const c = Q(opp.x - ux / ul * dc, opp.y - uy / ul * dc);
+  return [
+    { type: 'line', from: farA, to: oT1 },
+    { type: 'arc', cx: c.x, cz: c.z, r: R, from: oT1, to: oT2 },
+    { type: 'line', from: oT2, to: farB },
+  ];
+}
+
+/** Celý obrys destičky — JEN PRO KRESLENÍ (simulace, ⚙️ Geometrie,
+ *  📐 Kreslit na CAD plátně). Výpočet bere řeznou část
+ *  (buildInsertProfileSegments), viz komentář tam. */
+export function buildInsertOutlineSegments(prms) {
+  return buildInsertProfileSegments(prms, { full: true });
+}
+
+/** Cesta obrysu (segmenty profilu {x,z}) do kanvasu v px: x → x·scale,
+ *  z → −z·scale (kanvas y dolů). Oblouk kratší cestou, stejně jako
+ *  insertWorldLoop a CAD objekty — co se kreslí, je to, co se počítá. */
+export function traceInsertSegments(ctx, segs, scale) {
+  ctx.beginPath();
+  let started = false;
+  for (const s of segs) {
+    if (s.type === 'circle') {
+      ctx.moveTo((s.cx + s.r) * scale, -s.cz * scale);
+      ctx.arc(s.cx * scale, -s.cz * scale, s.r * scale, 0, Math.PI * 2);
+      started = true;
+      continue;
+    }
+    if (!started) { ctx.moveTo(s.from.x * scale, -s.from.z * scale); started = true; }
+    if (s.type === 'line') {
+      ctx.lineTo(s.to.x * scale, -s.to.z * scale);
+    } else if (s.type === 'arc') {
+      const cx = s.cx * scale, cy = -s.cz * scale;
+      const a0 = Math.atan2(-s.from.z * scale - cy, s.from.x * scale - cx);
+      let d = Math.atan2(-s.to.z * scale - cy, s.to.x * scale - cx) - a0;
+      while (d <= -Math.PI) d += 2 * Math.PI;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      ctx.arc(cx, cy, s.r * scale, a0, a0 + d, d < 0);
+    }
+  }
+  ctx.closePath();
+}
+
+/** Polygon: celá destička světle (zadní půlka neřeže a sedí v držáku),
+ *  řezná část plně navrch — její spojnice je hranice mezi nimi. Průsvitná
+ *  zadní půlka nepřekryje vybarvenou kolizi pod sebou. */
+export function drawPolygonInsert(ctx, prms, scale) {
+  const full = buildInsertOutlineSegments(prms);
+  const cut = buildInsertProfileSegments(prms);
+  if (full.length !== cut.length) {
+    ctx.save();
+    ctx.globalAlpha *= 0.4;
+    traceInsertSegments(ctx, full, scale); ctx.fill();
+    ctx.restore();
+    traceInsertSegments(ctx, full, scale); ctx.stroke();
+  }
+  traceInsertSegments(ctx, cut, scale); ctx.fill(); ctx.stroke();
+  return cut;
 }
 
 // ── Editor tvaru držáku (náhled) — čisté geometrické funkce ──────────

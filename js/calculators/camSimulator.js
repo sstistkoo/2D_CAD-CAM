@@ -30,12 +30,12 @@ import { ContourGouge } from './cam/contourGouge.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 import { camConfirm, camCloseConfirm, camOffsetDialog, camAddMoveDialog } from './cam/camSimulatorDialogs.js';
 import { injectCSS } from './cam/camSimulatorStyles.js';
-import { _defaultCamParams, stripCodeOwnedParams } from './cam/camDefaults.js';
+import { _defaultCamParams, stripCodeOwnedParams, SHAPE_PRESET_RADIUS, SHAPE_CUT_DEFAULTS } from './cam/camDefaults.js';
 import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
-import { PARTING_BODY_MIN_H_MM, buildInsertProfileSegments, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
+import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog } from './cam/toolSlotPreview.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
@@ -2564,56 +2564,39 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.closePath(); ctx.fill(); ctx.stroke();
           ctx.restore();
         } else if (prms.toolShape === 'polygon') {
-          const tipAngDeg = parseFloat(prms.toolTipAngle) || 90;
-          const effAngleDeg = parseFloat(prms.toolAngle) || 0;
-          const lenPix = (parseFloat(prms.toolLength) || 10) * S.view.scale;
-          const rotRad = -effAngleDeg * (Math.PI / 180);
-          const tipAng = tipAngDeg * (Math.PI / 180);
-          const a1 = rotRad, a2 = rotRad - tipAng;
-          const distToCorner = rPix / Math.sin(tipAng / 2);
-          const bisector = (a1 + a2) / 2;
-          const cornerX = Math.cos(bisector + Math.PI) * distToCorner;
-          const cornerY = Math.sin(bisector + Math.PI) * distToCorner;
-          // tangenciální body, kde poloměr špičky (rPix) navazuje na hrany destičky
-          const tanLen = Math.min(rPix / Math.tan(tipAng / 2), lenPix * 0.99);
-          const t1x = cornerX + Math.cos(a1) * tanLen, t1y = cornerY + Math.sin(a1) * tanLen;
-          const t2x = cornerX + Math.cos(a2) * tanLen, t2y = cornerY + Math.sin(a2) * tanLen;
-          const angT1 = Math.atan2(t1y, t1x), angT2 = Math.atan2(t2y, t2x);
-          const angCorner = bisector + Math.PI;
-          const norm = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-          const angDiff = (a, b) => { let d = norm(a - b); if (d > Math.PI) d -= 2 * Math.PI; return d; };
-          const midCCWfalse = angT2 + norm(angT1 - angT2) / 2;
-          const midCCWtrue = angT2 - norm(angT2 - angT1) / 2;
-          const useCCW = Math.abs(angDiff(midCCWtrue, angCorner)) < Math.abs(angDiff(midCCWfalse, angCorner));
           ctx.save(); ctx.translate(pt.x, pt.y);
           // Zrcadlení destičky musí odpovídat globálnímu pohledu (viz vS/hS
           // v toScreen). Horizontálně (osa Z): backside a flipZ se vzájemně
           // ruší (XOR). Vertikálně (osa X): flipX zrcadlí pohled svisle.
           if ((toolMirrored()) !== !!S.flipZ) ctx.scale(-1, 1);
           if (S.flipX) ctx.scale(1, -1);
-          ctx.beginPath(); ctx.moveTo(t1x, t1y);
-          ctx.lineTo(cornerX + Math.cos(a1) * lenPix, cornerY + Math.sin(a1) * lenPix);
-          ctx.lineTo(cornerX + Math.cos(a2) * lenPix, cornerY + Math.sin(a2) * lenPix);
-          ctx.lineTo(t2x, t2y);
-          ctx.arc(0, 0, rPix, angT2, angT1, useCCW);
-          ctx.closePath(); ctx.fill(); ctx.stroke();
-          // Vizualizace úhlu hřbetu (α) — tečkované čáry na hranách plátku
+          // Celá destička + řezná část ze SDÍLENÝCH segmentů (tentýž obrys
+          // počítá úběr a kolize). Vlastní kopie vzorců tu dřív ignorovala
+          // ⇄ Přehodit stranu (toolTipMirror) — simulace ukazovala destičku
+          // jinak, než se s ní počítalo. R o −0,75 px menší, viz rPix výš.
+          const scl = S.view.scale;
+          const cut = drawPolygonInsert(ctx, { ...prms, toolRadius: rPix / scl }, scl);
+          // Vizualizace úhlu hřbetu (α) — tečkované čáry na hranách plátku.
+          // Hrany z obrysu: t1→farA (hlavní ostří), farB→t2 (vedlejší).
           const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
-          if (clearDeg > 0) {
+          if (clearDeg > 0 && cut.length >= 3) {
             const clearRad = clearDeg * Math.PI / 180;
-            const clLen = Math.min(lenPix * 0.65, 30);
+            // Na kterou stranu leží tělo destičky, určuje ⇄ (toolTipMirror).
+            const sgn = prms.toolTipMirror ? -1 : 1;
+            const clLen = Math.min((parseFloat(prms.toolLength) || 10) * scl * 0.65, 30);
+            const px = p => ({ x: p.x * scl, y: -p.z * scl });
+            const edgeA = cut[0], edgeB = cut[cut.length - 2];
+            const hair = (from, to, rot) => {
+              const f = px(from), t = px(to);
+              const a = Math.atan2(t.y - f.y, t.x - f.x) + rot;
+              ctx.beginPath(); ctx.moveTo(f.x, f.y);
+              ctx.lineTo(f.x + Math.cos(a) * clLen, f.y + Math.sin(a) * clLen);
+              ctx.stroke();
+            };
             ctx.save();
             ctx.strokeStyle = 'rgba(166,173,200,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-            // hřbet na hlavním ostří (a1)
-            const ca1 = a1 - clearRad;
-            ctx.beginPath(); ctx.moveTo(t1x, t1y);
-            ctx.lineTo(t1x + Math.cos(ca1) * clLen, t1y + Math.sin(ca1) * clLen);
-            ctx.stroke();
-            // hřbet na vedlejším ostří (a2)
-            const ca2 = a2 + clearRad;
-            ctx.beginPath(); ctx.moveTo(t2x, t2y);
-            ctx.lineTo(t2x + Math.cos(ca2) * clLen, t2y + Math.sin(ca2) * clLen);
-            ctx.stroke();
+            hair(edgeA.from, edgeA.to, -sgn * clearRad);   // hřbet na hlavním ostří
+            hair(edgeB.to, edgeB.from, sgn * clearRad);    // hřbet na vedlejším ostří
             ctx.setLineDash([]);
             ctx.restore();
           }
@@ -5113,6 +5096,13 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (!(parseFloat(S.params.toolTipFlat) > 0)) S.params.toolTipFlat = 0.1;
         S.params.toolRadius = 0;
       }
+      // Rádius se při výměně plátku PŘEDNASTAVÍ podle tvaru — i přes paměť
+      // tvaru, jinak by kulatá dostala zpět výchozí R0,8 z camDefaults.
+      if (SHAPE_PRESET_RADIUS[next] !== undefined) S.params.toolRadius = SHAPE_PRESET_RADIUS[next];
+      // Posuv a řezná rychlost taky (ap zůstává) — jinak by upichovák jel
+      // s F0,25 po polygonu. Viz SHAPE_CUT_DEFAULTS.
+      const cut = SHAPE_CUT_DEFAULTS[next];
+      if (cut) { S.params.speed = cut.vc; S.params.feed = cut.f; }
     }
     if (!(opts && opts.defer)) applyChange();
   }
@@ -6052,7 +6042,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     function worldToProf(wx, wy) { return { x: wx, z: wy }; }
 
     // Obrys destičky v profilu {x,z} (z nahoru) — SDÍLENÝ
-    // buildInsertProfileSegments() z cam/insertPreview.js. Dřív tu byla
+    // buildInsertOutlineSegments() z cam/insertPreview.js. Dřív tu byla
     // jeho kopie a obě verze se rozcházely (u upichováku chyběl pravý bok);
     // matematika musí zůstat shodná s getInsertAnchorPoints/
     // drawInsertAndHolderPreview (canvas y dolů → z=-y), aby nakreslená
@@ -6064,7 +6054,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // na zamčenou vrstvu se normálně nesnapuje, na destičku ano.
     function buildInsertObjects(prms, layerId) {
       const RED = '#f38ba8';
-      const segs = buildInsertProfileSegments(prms);
+      // CELÁ destička (u polygonu i zadní půlka v lůžku) — držák se kreslí
+      // kolem ní; výpočet dál bere řeznou část (buildInsertProfileSegments).
+      const segs = buildInsertOutlineSegments(prms);
       const objs = [];
       for (const s of segs) {
         if (s.type === 'circle') {
@@ -6637,15 +6629,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     };
   }
 
-  // Odhadnuté řezné podmínky podle tvaru — soubory z 💾 Uložit do PC/Zásobník
-  // je neobsahují (jen geometrie destička+držák), takže se doplní rozumný
-  // výchozí odhad namísto obecného _defaultMagSlot() nastavení pro kolečko.
-  const MAG_CUT_DEFAULTS_BY_SHAPE = {
-    round: { vc: 180, f: 0.15, ap: 1.5 },
-    polygon: { vc: 200, f: 0.25, ap: 2.5 },
-    parting: { vc: 120, f: 0.08, ap: 2 },
-    threading: { vc: 100, f: 1.5, ap: 0.1 },
-  };
 
   // Odvodí název slotu z názvu souboru (bez přípony a "_T1" suffixu z exportu).
   function _slotNameFromFilename(filename) {
@@ -6676,7 +6659,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (tool.holderInflate !== undefined) slot.holderInflate = tool.holderInflate;
     if (tool.holderInflateAll !== undefined) slot.holderInflateAll = tool.holderInflateAll;
     slot.holderProfile = tool.holderProfile ? JSON.parse(JSON.stringify(tool.holderProfile)) : null;
-    Object.assign(slot, MAG_CUT_DEFAULTS_BY_SHAPE[slot.shape] || {});
+    // Soubory z 💾 Uložit do PC/Zásobník řezné podmínky neobsahují (jen
+    // geometrie destička+držák) — doplní se odhad podle tvaru.
+    Object.assign(slot, SHAPE_CUT_DEFAULTS[slot.shape] || {});
     return slot;
   }
 
@@ -6707,6 +6692,19 @@ export function openCamSimulator(initialContour, initialGCode) {
   function _setMagSlotShape(slot, next) {
     if (!slot || slot.shape === next) return;
     slot.shape = next;
+    // Stejné výchozí hodnoty jako applyShapeChange v panelu. Dřív je měl jen
+    // handler tlačítek a jen pro upichovák/závitový: polygon z upichováku
+    // zůstal s hranou 5 mm a natočením 0°, závitový si nesl R předchozího
+    // tvaru (holderSeatZ z něj posadí držák jinam než u téhož nože z panelu).
+    if (next === 'polygon') { slot.toolLength = 10; slot.toolAngle = 15; slot.tipAngle = 90; }
+    else if (next === 'parting') { slot.toolLength = 5; slot.toolAngle = 0; }
+    else if (next === 'threading') {
+      slot.toolLength = 4; slot.toolAngle = 0; slot.tipAngle = 60; slot.radius = 0;
+      if (!(slot.tipFlat > 0)) slot.tipFlat = 0.1;
+    }
+    if (SHAPE_PRESET_RADIUS[next] !== undefined) slot.radius = SHAPE_PRESET_RADIUS[next];
+    const cut = SHAPE_CUT_DEFAULTS[next];
+    if (cut) { slot.vc = cut.vc; slot.f = cut.f; }
     if (slot.holderProfile) {
       slot.holderProfile = null;
       showToast('Obrys držáku byl nakreslený pro předchozí tvar plátku — vrácen výchozí obdélník; nakresli ho znovu.');
@@ -6995,9 +6993,6 @@ export function openCamSimulator(initialContour, initialGCode) {
         btn.addEventListener('click', () => {
           const idx = parseInt(btn.dataset.magidx);
           _setMagSlotShape(mag[idx], btn.dataset.mshape);
-          if (mag[idx].shape === 'polygon' && !mag[idx].tipAngle) mag[idx].tipAngle = 90;
-          if (mag[idx].shape === 'parting') { mag[idx].toolAngle = 0; mag[idx].toolLength = 5; }
-          if (mag[idx].shape === 'threading') { mag[idx].toolAngle = 0; mag[idx].toolLength = 4; mag[idx].tipAngle = 60; if (!(mag[idx].tipFlat > 0)) mag[idx].tipFlat = 0.1; }
           if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
         });
       });

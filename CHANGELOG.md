@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – celá polygonální destička v simulaci.** Simulace, ⚙️ Geometrie
+  i 📐 kreslení na CAD ukazují celý kosočtverec/čtverec (s R i v protějším
+  rohu), ne jen trojúhelník špičky. Plně řezná část, zadní půlka světle.
+  Výpočet zůstává na řezné části (`buildInsertProfileSegments`), celý obrys
+  je jen pro kreslení (`buildInsertOutlineSegments`, `drawPolygonInsert`):
+  zadní půlka neřeže a sedí v lůžku držáku (uživatel 30. 9. 2026). Změřeno:
+  dána do výpočtu by pohnula `part-19-face-tilted-insert` (průchod o 0,8 mm,
+  úběr −39 mm²) — obrys tam slouží jako řezná část (dosah hrany, úběr, odečet
+  od kolize držáku). Takhle otisk G-kódu shodný u všech 29 fixtures.
+  ε 60° (trojúhelník) je celý už sám, kód W (trigon) se nedokresluje.
+  Simulace kreslila polygon vlastní kopií vzorců, která **ignorovala ⇄ Přehodit
+  stranu** — ukazovala destičku jinak, než se s ní počítalo; teď kreslí ze
+  sdílených segmentů (i čárky úhlu hřbetu α se s ⇄ překlápějí).
+- **CAM – přednastavený rádius při přepnutí plátku.** Kulatá R10,
+  polygonální R1,2, upichovák R0,5 (`SHAPE_PRESET_RADIUS` v camDefaults.js),
+  v panelu, okně Geometrie i ve slotu zásobníku. Platí i přes paměť tvaru
+  (dřív se kulaté vracelo výchozí R0,8). VBD dekodér R z kódu dál přepíše. SW v332.
+  Spolu s rádiusem se dosadí i **posuv F a řezná rychlost Vc** podle tvaru
+  (kulatá F0,15/Vc180, polygon F0,25/Vc200, upichovák F0,08/Vc120, závitový
+  F1,5/Vc100; ap zůstává) — tabulka `SHAPE_CUT_DEFAULTS` v camDefaults.js,
+  kterou dřív měl jen import nožů do zásobníku (`MAG_CUT_DEFAULTS_BY_SHAPE`).
 - **CAD – zdvojené čáry: žluté vyznačení a nabídka smazání.** Nález uživatele
   30. 9. 2026: hláška „kontura se větví", ale na výkrese nebylo nic vidět —
   šikmý bok Z243→Z235 byl nakreslený dvakrát přesně přes sebe.
@@ -50,6 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Otisk G-kódu shodný u všech 29 fixtures i 60 dílů uživatele.
 
 ### Fixed
+- **VBD dekodér: kulatá destička dostane R = IC/2.** Rádius se bral z poz. 7
+  (rádius špičky), kterou kulatá nemá (RCMT 1204M0 → „M0" = nic) — R zůstal
+  z předchozího tvaru, nově by zůstala předvolba R10. Teď ⌀ z poz. 5 / 2 (R6).
+- **Zásobník: přepnutí tvaru ve slotu = stejné výchozí hodnoty jako v panelu.**
+  Polygon z upichováku zůstával s hranou 5 mm a natočením 0°, závitový si nesl
+  R předchozího tvaru (holderSeatZ z něj posadí držák jinam). Hodnoty dosazuje
+  `_setMagSlotShape`, takže platí i pro import z VBD dekodéru do slotu.
+
 - **CAM – kulatá destička: zanoření navazuje a konec dna bez odskoku**
   (nález uživatele 30. 9. 2026, díl (9), R 10 zleva, v „✂ Po úsecích" i v
   „🔄 Dráhy"). Rampa nezačínala na konci předchozího zanoření, ale o 0,5 mm
