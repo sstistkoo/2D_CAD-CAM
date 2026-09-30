@@ -139,7 +139,7 @@ export function emitRoughing(E) {
     return false;
   };
 calc.passes.forEach((pass, i) => {
-  addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ' (oblouk G3)' : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
+  addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ` (oblouk ${flipArc('G3')})` : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
   // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
   // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
   // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
@@ -780,7 +780,13 @@ calc.passes.forEach((pass, i) => {
       if (Math.abs(zTo - cur.z) > 1e-6) { simCounter += 1; addN(`G0 Z${zTo.toFixed(3)}`, simCounter); setPos(cur.x, zTo); }
       // Sjezd na rapid-safe hloubku nad povrchem (emitDescendX zastaví na
       // zbytku a poslední kousek dojede posuvem, když je pod ním materiál).
-      if (cur.x - pass.xStart > 1e-6) { emitDescendX(cur.x, pass.xStart, pass.z, false); setPos(pass.xStart, pass.z); }
+      // NIKDY POD KONEC ŘEZU: `xStart` se měří z povrchu v jediném Z, kdežto
+      // `xEnd` mohlo hlídání zvednout nad něj (nos o materiál zavadí jen
+      // bokem). Sjezd na `xStart` pak zajel POD mez, kterou hlídání určilo —
+      // na part-18 zleva (kulatá R8) průchod Z148: sjezd na X29,65, mez
+      // X40,03, držák 2× 56 mm² ve stěně (nález 30. 9. 2026).
+      const xApp = Math.max(pass.xStart, pass.xEnd);
+      if (cur.x - xApp > 1e-6) { emitDescendX(cur.x, xApp, pass.z, false); setPos(xApp, pass.z); }
     }
     // Dotyk povrchu polotovaru posuvem — ale NIKDY hlouběji, než kam má
     // průchod dojet. Programovaný bod je STŘED nosu, materiál pod ním leží

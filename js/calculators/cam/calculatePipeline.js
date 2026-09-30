@@ -29,14 +29,27 @@ import { stockPlanLoop } from './materialRemoval.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
-//   čelně   + zprava → face             čelně   + zleva → face (zatím
-//   bez zrcadlené varianty — TODO genFaceLeft).
+//   čelně   + zprava → face             čelně   + zleva → face
+// Klíč vybírá ALGORITMUS. Jestli se počítá v zrcadle, určuje `mirrorsWorldZ`.
 export function roughingKey(S) {
   enforceInsertStrategy(S.params);
   const type = S.params.roughingStrategy || 'longitudinal';
   const left = (S.params.roughingSide || 'right') === 'left';
   if (type === 'longitudinal') return left ? 'backside' : 'longitudinal';
   return 'face';
+}
+
+// ── POČÍTÁ SE V Z-ZRCADLE? — kdykoli se obrábí ZLEVA, podélně i čelně ──
+// Čelně zleva se dřív nezrcadlilo (roughingKey → 'face') a mělo vlastní
+// levou větev v genFacePasses. Jenže hlídání geometrie destičky se počítá
+// PŘED strategií — úhlový rozsah (`getToolClearanceRange`), mezní čáry
+// (`computeInterferenceGuides`) i obrobitelná kontura jsou psané pro pravý
+// nůž a strana je nezajímá. Plátek se tedy v náhledu otočil, ale hlídal
+// dál zprava (nález uživatele 30. 9. 2026, díl (13): mezní čáry zleva
+// shodné se zprava, zajetí do hotového dílu 305,6 mm²). V zrcadle je čelně
+// zleva obyčejné čelně zprava — tatáž dráha, jaká zprava jede dobře.
+export function mirrorsWorldZ(S) {
+  return (S.params.roughingSide || 'right') === 'left';
 }
 
 // Plátek, který podélně hrubovat nesmí (`longRoughing: false` — upichovák),
@@ -67,7 +80,7 @@ export function getRoughingOperations(S) {
  *                      se samy, když se nepředají
  */
 export function computeSimPath(S, prms = null) {
-  const p = prms || (roughingKey(S) === 'backside' ? mirrorParamsZ(S.params) : S.params);
+  const p = prms || (mirrorsWorldZ(S) ? mirrorParamsZ(S.params) : S.params);
   const simPath = parseManualGCodeToPath(S.manualGCode, p, S.flipX !== S.flipZ);
   const { seconds, length } = pathTimeSeconds(simPath, p);
   return { simPath, estimatedTimeSeconds: seconds, totalPathLength: length };
@@ -82,12 +95,12 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // zajetí — vjezdy rampou od hranice polotovaru). Staré projekty se
   // normalizují zde — jediné hrdlo, kterým teče každá generace.
   S.params.pocketFinishAtOnce = true;
-  // ── Druhá strana (podélně zleva) = TÝŽ výpočet v Z-ZRCADLE ────────────
+  // ── Druhá strana (zleva, podélně i čelně) = TÝŽ výpočet v Z-ZRCADLE ───
   // Vstup se překlopí (z → −z), celý zbytek funkce pak řeší obyčejné
   // hrubování zprava se standardním pravým nožem a hotový výsledek se před
   // returnem překlopí zpátky (mirrorCalcZ). Detaily a konvence: zMirror.js.
   // Pravá strana projde s mirZ=false doslova beze změny.
-  const mirZ = roughingKey(S) === 'backside';
+  const mirZ = mirrorsWorldZ(S);
   const prms = mirZ ? mirrorParamsZ(S.params) : S.params;
   const zLimits = mirZ ? mirrorZLimits(S.zLimits) : S.zLimits;
   const mirPts = (pts) => mirZ ? mirrorPointChain(pts) : pts;
@@ -270,7 +283,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // Detekce kolize tvaru destičky s konturou (vrcholový úhel / natočení) —
   // segmenty, jejichž normála leží mimo úhlový rozsah, který destička
   // bez záběru bočním ostřím pokryje.
-  const clearance = getToolClearanceRange(prms, S.flipX);
+  const clearance = getToolClearanceRange(prms);
   const interferenceSegments = [];   // hrot nedosáhne → ovlivňuje dráhy
   const flankSegments = [];           // hřbet koliduje → jen varování + vizualizace
   if (clearance) {
@@ -306,7 +319,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // umí. Značka `plungeLimit` je i pro `guideStaysInStock` (dělení na úseky
   // v ops/long/regions.js), aby se dosah destičky neposuzoval podle čáry,
   // která o dosahu nic neříká.
-  const plungeClearance = getPlungeGuardRange(prms, S.flipX);
+  const plungeClearance = getPlungeGuardRange(prms);
   if (plungeClearance && prms.respectInsertGeometry) {
     const plungeSegs = [];
     rawContourForInterference.forEach(seg => {

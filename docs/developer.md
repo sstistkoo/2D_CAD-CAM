@@ -637,9 +637,16 @@ simulaci nezpomalí — rozhoduje délka a rychlost, ne počet bodů.
 
 #### Hrubování zleva = zrcadlo (`cam/zMirror.js`)
 
-„↔ Podélně (Z)" + „→ Zleva" (`roughingSide: 'left'`, klíč strategie
-`backside`) **nemá vlastní algoritmus**. Je to přesné zrcadlo hrubování
-zprava, takže se místo druhé implementace překlopí celý svět:
+„→ Zleva" (`roughingSide: 'left'`) **nemá vlastní algoritmus** — podélně
+(klíč strategie `backside`) ani čelně (klíč `face`, od 30. 9. 2026). Je to
+přesné zrcadlo hrubování zprava, takže se místo druhé implementace překlopí
+celý svět. O zrcadlení rozhoduje `mirrorsWorldZ(S)` (strana), ne
+`roughingKey(S)` (ten vybírá jen algoritmus). Čelně zleva se dřív
+nezrcadlilo a mělo vlastní levou větev v `genFacePasses` — jenže úhlový
+rozsah destičky, mezní čáry a obrobitelná kontura se počítají PŘED
+strategií a znají jen pravý nůž, takže se hlídalo zprava (díl uživatele:
+468 mm² zajetí do hotového dílu). Větve `faceLeft` v `ops/roughFace.js`
+a `ops/face/*.js` dnes z pipeline nedostávají `'left'`:
 
 1. `computeCalculation()` hned na vstupu zrcadlí `z → −z` — konturu,
    polotovar, parametry polotovaru (`stockFace` ↔ `stockLength`) i Z-limity
@@ -669,6 +676,9 @@ zprava, takže se místo druhé implementace překlopí celý svět:
 
 V emisi (`gcodeEmit.js`) drží směr jediná proměnná `zDir` (−1 zprava, +1
 zleva): nájezd a odskok jdou proti směru řezu, dojezd „do vzduchu" po směru.
+Čelní průchody nesou `faceLeft` (nastaví `mirrorPass`) — odskok a mez odskoku
+`retractCapZ` míří k obrobené straně. Držák v emisi (`holderWorldLoop`)
+i obrácené dokončování (`finishEmit.js`) se řídí `mirrorsWorldZ`.
 Spotřebitelé, kteří pracují v reálném světě (kreslení plátku, `validateToolpath`,
 `HolderGouge`), si nástroj zrcadlí sami přes vlastní příznak `backside`.
 
@@ -682,6 +692,25 @@ se neobracejí a smysl oblouku se prohodí.
 Paritu hlídá `tests/cam-backside-mirror.test.js`: týž díl „zleva" musí dát
 identické průchody i G-kód jako geometricky zrcadlený díl „zprava" (až na
 bezpečnou polohu, což je parametr stroje, ne geometrie dílu).
+
+#### Kvadranty os (⇅ osa X / ⇄ osa Z) nejsou zrcadlo světa
+
+Přepínače „Osa X" (`S.flipX`, X+ dolů = obrábění zespodu) a „Osa Z"
+(`S.flipZ`) pod „Řídicí systém" s výpočtem drah **nic nedělají**. Svět je
+vždy X = poloměr, Z = osa; kvadrant řeší jen:
+- kreslení — `toScreen` (`vS`/`hS`) a zrcadlení plátku/držáku v `draw()`
+  (strana obrábění XOR `flipZ` vodorovně, `flipX` svisle),
+- výstup — prohození G2↔G3 při lichém počtu překlopení (`flipArc`
+  v `gcodeEmit.js`, i v komentáři „oblouk G3") a zpětné prohození v parseru
+  simulace (`parseManualGCodeToPath(…, flipX !== flipZ)`). Popisek `type`
+  bodů simulace nese G2/G3 tak, jak je v textu; geometrie oblouku je
+  kanonická a odběratelé z `type` čtou jen rychloposuv × řez.
+
+Nic ve výpočtu (úhlový rozsah destičky, mez zanoření, obrys destičky
+a držáku, validátor) proto nesmí `flipX`/`flipZ` číst — do 30. 9. 2026 to
+`getToolClearanceRange`/`getPlungeGuardRange` dělaly a s X+ dolů hlídaly
+jiný nůž. Hlídá `tests/cam-quadrants.test.js` (4 kvadranty = tytéž průchody,
+mezní čáry, simulovaná dráha; G-kód jen G2↔G3).
 
 #### Části programu (operace)
 

@@ -244,21 +244,28 @@ describe('rozsah, který díl celý obsáhne, nemění nic', () => {
 });
 
 describe('čelní hrubování ZLEVA respektuje rozsah stejně', () => {
-  // Čelně zleva se svět NEzrcadlí (roughingKey → 'face'), takže rozsah je
-  // v reálných souřadnicích a mez odskoku míří na opačnou stranu. Kdyby se
-  // někdy doplnilo `genFaceLeft` se zrcadlením, `mirrorPass` musí překlopit
-  // i `retractCapZ` — na to je tenhle případ.
-  it('part-19-face-tilted-insert — pás Z 250…320 zleva', async () => {
+  // Čelně zleva se od 30. 9. 2026 počítá v Z-zrcadle (`mirrorsWorldZ`), takže
+  // rozsah i mez odskoku (`retractCapZ`) projdou zrcadlem tam a zpátky —
+  // `mirrorPass` je musí překlopit, na to je tenhle případ.
+  //
+  // PÁS 100…130, NE 250…320: part-19 má na Z≈243 strmou stěnu dolů k ⌀18.
+  // Destička natočená −15° má zleva spodní hranu skloněnou K OBROBENÉ straně,
+  // takže za stěnu nesjede (hrana by zajela do stěny za sebou) — zleva se
+  // obrábí jen do Z≈259. Dřív (hlídání geometrie zprava) jezdila i dál, ale
+  // s 424 mm² zajetí do hotového dílu. Ani pás 200…250 nejde: vlevo od něj
+  // stojí neobrobený odlitek ⌀129 a jednostranný držák (na obrobené straně)
+  // za prvním průchodem do něj narazí — projde jediný průchod.
+  it('part-19-face-tilted-insert — pás Z 100…130 zleva', async () => {
     const free = await runWith('part-19-face-tilted-insert.camprog', { params: { roughingSide: 'left' } });
     const band = await runWith('part-19-face-tilted-insert.camprog', {
       params: { roughingSide: 'left' },
-      zLimits: { rangeActive: true, rangeStart: 250, rangeEnd: 320 },
+      zLimits: { rangeActive: true, rangeStart: 100, rangeEnd: 130 },
     });
     expect(band.facePasses.length).toBeGreaterThan(0);
     expect(band.facePasses.length).toBeLessThan(free.facePasses.length);
     for (const p of band.facePasses) {
-      expect(p.z).toBeGreaterThanOrEqual(249.99);
-      expect(p.z).toBeLessThanOrEqual(320.01);
+      expect(p.z).toBeGreaterThanOrEqual(99.99);
+      expect(p.z).toBeLessThanOrEqual(130.01);
     }
     expect(band.issues.length, `(silueta): ${detail(band.issues)}`).toBe(0);
   }, 120000);
@@ -278,13 +285,12 @@ describe('rozsah 📐 vymezuje OBROBENOU PLOCHU, ne programovaný bod', () => {
     return { lead: r, trail: Math.max(r, insertBodyZ(p, r)) };
   };
 
-  // Zleva se čelně svět NEzrcadlí, ale marche jde opačně a s ní i obě strany
-  // stopy destičky — proto je v seznamu i případ `roughingSide: 'left'`.
-  // Znaménko se v `genFacePasses` řídí `sgnF` a kraj polotovaru na straně
-  // startu je `faceEdgeZ` (zleva DRUHÝ konec dílu); s `faceStartZ` se klamp
-  // startu zleva vůbec nenasadil.
+  // Zleva jde marche opačně a s ní i obě strany stopy destičky — proto je
+  // v seznamu i případ `roughingSide: 'left'` (počítá se v Z-zrcadle, rozsah
+  // se tam a zpátky překlápí přes `mirrorZLimits`). Pás 100…130 — proč ne
+  // dál vpravo, viz popis u testu výš.
   const SIDES = [...CASES.map(c => ({ ...c, side: 'right' })),
-    { file: 'part-19-face-tilted-insert.camprog', band: [250, 320], side: 'left' }];
+    { file: 'part-19-face-tilted-insert.camprog', band: [100, 130], side: 'left' }];
   for (const { file, band: [lo, hi], side } of SIDES) {
     it(`${file} (${side}) — řez zůstane v pásu Z ${lo}…${hi} a dojede na jeho konec`, async () => {
       const free = await runWith(file, { params: { roughingSide: side } });

@@ -1286,8 +1286,9 @@ export function openCamSimulator(initialContour, initialGCode) {
   // bez ohledu na strategii.
   //
   // POZOR: `roughingKey()` na to NENÍ — vrací 'backside' jen pro PODÉLNÉ zleva
-  // (u Čelního zleva vrátí 'face'), protože slouží k výběru algoritmu (zrcadlený
-  // svět `mirZ`), ne k orientaci nástroje. Když se používal jako test zrcadlení,
+  // (u Čelního zleva vrátí 'face'), protože slouží k výběru algoritmu, ne
+  // k orientaci nástroje (zrcadlený svět řídí `mirrorsWorldZ` — táž podmínka
+  // jako tady, od 30. 9. 2026 i pro čelně). Když se používal jako test zrcadlení,
   // u Čelního ZLEVA se půlka kreslení nástroje překlopila a půlka ne — plátek
   // odskočil mimo držák (nález uživatele 20. 8. 2026) — a hlavně validátor
   // i oranžové hlídání úběru dostaly držák na ŠPATNÉ straně, takže kolize
@@ -1391,7 +1392,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       p.holderWidth, p.holderLength, p.holderInflate, p.holderInflateAll,
       JSON.stringify(p.holderProfile || null),
       p.stockMode, p.stockDiameter, p.stockLength, p.stockFace,
-      roughingKey(), (calc.stockPathSegments || []).length,
+      roughingKey(), toolMirrored(), (calc.stockPathSegments || []).length,
     ].join('');
     if (key !== _validatedKey) {
       _validatedKey = key;

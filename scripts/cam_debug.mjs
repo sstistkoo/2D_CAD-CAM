@@ -82,7 +82,7 @@ contourSegments.forEach((s,i)=>console.log(fmtSeg(s,i)));
 
 // ── Finishing offset (kopie bloku z calculate, respectInsertGeometry varianta) ──
 function buildFinish(respectFin, segs = contourSegments) {
-  const clearance = H.getToolClearanceRange(prms, false);
+  const clearance = H.getToolClearanceRange(prms);
   let pendingBreak = false, finRaw = [], finSkipped = 0;
   for (let i = 0; i < segs.length; i++) {
     const seg = segs[i];
@@ -170,7 +170,7 @@ const stockPoints = [
 const stockAbs = H.resolvePointsToAbsolute(stockPoints);
 const stockWp = stockAbs.map(p => ({ ...p, xReal: p.xAbs, zReal: p.zAbs }));
 
-const clearance = H.getToolClearanceRange(prms, false);
+const clearance = H.getToolClearanceRange(prms);
 const interferenceSegments = rawContourForInterference.filter(s => H.segInterferesWithTool(s, clearance));
 console.log(`\n######## ON-CASE (Hlídat geometrii ZAP) ########`);
 console.log(`interferenceSegments: ${interferenceSegments.length}`);

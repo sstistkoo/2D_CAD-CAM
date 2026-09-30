@@ -15,7 +15,7 @@ import { segmentHitsPath } from './contourBuild.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 import { getInsert } from './inserts/index.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
-import { roughingKey } from './calculatePipeline.js';
+import { roughingKey, mirrorsWorldZ } from './calculatePipeline.js';
 import { mergeCollinearMoves } from './gcodeCollapse.js';
 import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
   controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem } from './controlDialect.js';
@@ -602,7 +602,7 @@ export function generateAutoGCode(S, calc) {
   const holderShrunkLoop = () => {
     if (holderShrunkRef === undefined) {
       const hl = prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__
-        ? holderWorldLoop(prms, roughingKey(S) === 'backside') : null;
+        ? holderWorldLoop(prms, mirrorsWorldZ(S)) : null;
       holderShrunkRef = hl ? (polyOffset([hl], -0.05)[0] || hl) : null;
     }
     return holderShrunkRef;
@@ -646,7 +646,7 @@ export function generateAutoGCode(S, calc) {
   const holderCutShrunkLoop = () => {
     if (holderCutShrunkRef === undefined) {
       const hl = prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__
-        ? holderWorldLoop(prms, roughingKey(S) === 'backside') : null;
+        ? holderWorldLoop(prms, mirrorsWorldZ(S)) : null;
       let cut = hl;
       if (hl) {
         const ins = toolFootprintVisual(prms);
@@ -686,7 +686,8 @@ export function generateAutoGCode(S, calc) {
         && (!l || Math.hypot(l.x - x, l.z - z) > 1e-6)) pts.push({ x, z });
     };
     if (pass.type === 'face') {
-      push(pass.xStart, pass.z);
+      // Emise nesjíždí pod konec řezu (viz sjezd v roughEmit.js).
+      push(Math.max(pass.xStart, pass.xEnd), pass.z);
       push(pass.xEnd, pass.z);
     } else {
       const bodyX = emitBodyX.get(pass) ?? pass.x;
@@ -843,7 +844,7 @@ export function generateAutoGCode(S, calc) {
   // a dráhy jsou na něj odladěné.
   const insEmit = getInsert(prms);
   const rampedApproachOn = !!insEmit.rampedApproach && entryAngleDegGc < 89.5;
-  const approachZDir = roughingKey(S) === 'backside' ? -1 : 1;
+  const approachZDir = mirrorsWorldZ(S) ? -1 : 1;
   // ── SJEZD NA HLOUBKU POD ÚHLEM ZANOŘENÍ ────────────────────────────────
   // Poslední kousek příjezdu se dojíždí POSUVEM a je dlouhý `Vůle X + R` —
   // u kulaté destičky R 5 tedy 6 mm svislého zápichu, u R 10 rovných 11.

@@ -21,7 +21,7 @@ import { StockModel, polyArea, polyDifference, polyOffset, toolSweep } from '../
 import { segEndPoint, segStartPoint } from '../camMath.js';
 import { holderWorldLoop } from '../collisionValidator.js';
 import { offsetSilhouetteLoop } from '../toolEnvelope.js';
-import { roughingKey } from '../calculatePipeline.js';
+import { mirrorsWorldZ } from '../calculatePipeline.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -37,7 +37,7 @@ export function emitFinish(E) {
 // zleva doprava (zprava nelze, narazil by držák / geometrie destičky),
 // stejně jako hrubování. Otočí se pořadí segmentů, u oblouků směr (G2↔G3)
 // a krajní úhly; napojení (chainBreak) se přepočítá.
-const finBackside = roughingKey(S) === 'backside';
+const finBackside = mirrorsWorldZ(S);
 let finPath = calc.finishOffsetPath;
 if (finBackside) {
   finPath = calc.finishOffsetPath.slice().reverse().map(s => s.type === 'line'

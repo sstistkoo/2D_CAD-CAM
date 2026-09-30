@@ -53,6 +53,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **CAM – otočená osa X (⇅ X+ dolů) už nemění hlídání geometrie destičky.**
+  Kvadranty pod „Řídicí systém" (osa X nahoru/dolů, osa Z vpravo/vlevo) jsou
+  pohled a konvence výstupu (G2↔G3); výpočet běží ve světě. Úhlový rozsah
+  destičky a mez zanoření kulaté se ale podle `flipX` zrcadlily (pozůstatek
+  první verze z 10. 6.), takže s X+ dolů hlídání počítalo s jiným nožem, než
+  jaký se kreslí a kontroluje — díl (13) podélně zprava 47 mm² a zleva
+  107 mm² zajetí + 11 kolizí, s X+ nahoru nula. Teď všech 16 kombinací
+  (4 kvadranty × podélně/čelně × zprava/zleva) dává tytéž dráhy a G-kód se
+  liší jen prohozením G2↔G3; komentář „Průchod N (oblouk G3)" se prohazuje
+  s ním. Hlídá `tests/cam-quadrants.test.js`.
+- **CAM – čelní hrubování ZLEVA hlídá geometrii destičky zleva.** Nález
+  uživatele 30. 9. 2026 (polygon R1, −15°, díl (13)): plátek se v náhledu
+  otočil, ale hlídání geometrie (úhlový rozsah destičky, mezní čáry,
+  obrobitelná kontura) zůstalo pro pravý nůž — mezní čáry zleva byly shodné
+  se zprava a nůž zajel do hotového dílu 468 mm². Čelně zleva se teď počítá
+  ve stejném Z-zrcadle jako podélně zleva (`mirrorsWorldZ`), v zrcadle je to
+  obyčejné čelně zprava. Díl (13) zleva: 0 zajetí, 0 kolizí; zprava beze
+  změny. Emise zleva bere zrcadlený držák i obrácené dokončování. Navíc:
+  čelní průchod už nesjíždí pod konec řezu, když ho hlídání zvedlo nad
+  rychloposuvovou výšku (part-18 zleva, kulatá R8: držák 2 × 56 mm² ve
+  stěně). Otisk: pohnul se jen part-20 (upichovák zleva) — levé čelo
+  odlitku se zarovná k ose jako zprava, úběr +140 mm², kolize 0.
 - **CAM – zbytek po kulaté destičce je oblouk, ne lomená čára.** Model úběru
   (simulace, validátor, obrobený polotovar pro „➕ Operace" / „✂ Po úsecích")
   kreslil nos kulaté destičky 12 úsečkami na půlkruh — u R 10 tětivy 2,6 mm

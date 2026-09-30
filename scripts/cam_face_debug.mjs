@@ -70,7 +70,7 @@ if (contourSegments.length > 2) contourSegments = H.spliceBridgeSegments(contour
 if (contourSegments.length > 2) contourSegments = H.removeContourSelfIntersections(contourSegments);
 
 // 3. interference + machinable
-const clearance = H.getToolClearanceRange(prms, prog.flipX || false);
+const clearance = H.getToolClearanceRange(prms);
 const interferenceSegments = clearance ? rawContourForInterference.filter(s => H.segInterferesWithTool(s, clearance)) : [];
 const interferenceGuides = (clearance && prms.respectInsertGeometry)
   ? H.computeInterferenceGuides(interferenceSegments, rawContourForInterference, clearance, prms, worldPoints, stockWorldPoints) : [];
@@ -191,7 +191,7 @@ on.foundErrors.forEach(e=>console.log('  WARN:', e.msg));
 // Mapa OFF podle z (na 3 desetiny)
 const key = z => z.toFixed(3);
 // ── DOKONČOVÁNÍ: rekonstrukce finishOffsetPath na machinable kontuře ──
-const clearanceFin = H.getToolClearanceRange(prms, prog.flipX || false);
+const clearanceFin = H.getToolClearanceRange(prms);
 function buildFinish(segs) {
   let pendingBreak = false, finRaw = [], finSkipped = 0;
   for (const seg of segs) {

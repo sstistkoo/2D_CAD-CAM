@@ -199,6 +199,10 @@ export function genFacePasses(ctx) {
   // Dojíždění schodu (leadOut) jde VŽDY opačně než march = k už obrobené
   // straně (předchozí, mělčí průchod), aby se jen sloupl hřebínek a nezajelo
   // se do dosud neobrobeného polotovaru.
+  // POZOR: z pipeline sem od 30. 9. 2026 chodí VŽDY 'right' — čelně zleva se
+  // počítá v Z-zrcadle (`mirrorsWorldZ` v calculatePipeline.js), protože
+  // hlídání geometrie destičky před strategií zná jen pravý nůž. Levé větve
+  // `faceLeft` tu i v ops/face/*.js tedy dnes neběží.
   const faceLeft = (prms.roughingSide === 'left');
   // SKIM VRSTVA NAD NAKRESLENÝM ČELEM — táž oprava jako u hloubkové
   // posloupnosti podélného hrubování, jen v ose Z. March je kotvený na hraně

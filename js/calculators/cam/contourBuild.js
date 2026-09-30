@@ -12,11 +12,19 @@ import { getInsert } from './inserts/index.js';
 // záběru bočním ostřím (vrcholový úhel ε omezuje, jak moc se může povrch
 // odklánět od osy destičky). Pro kulatou destičku (toolShape !== 'polygon')
 // omezení neplatí.
-export function getToolClearanceRange(prms, flipX) {
+//
+// NEZÁVISLÉ NA KVADRANTU (⇅ osa X / ⇄ osa Z). Rozsah je ve SVĚTĚ (X =
+// poloměr, Z = osa), stejně jako obrys destičky v modelu úběru, validátor
+// i držák — kvadrant řeší až kreslení (toScreen + zrcadlení plátku). Do
+// 30. 9. 2026 se tu podle `flipX` rozsah zrcadlil (pozůstatek první verze
+// z 10. 6.), takže s X+ dolů hlídání počítalo s jiným nožem, než jaký se
+// kreslí a kontroluje: díl (13) podélně zleva 107 mm² zajetí a 11 kolizí,
+// s X+ nahoru nula. Stranu obrábění řeší Z-zrcadlo (`mirrorsWorldZ`).
+export function getToolClearanceRange(prms) {
   if (!getInsert(prms).hasFlankGeometry) return null;
   const toolAngleRad = (parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
   const tipRad = (parseFloat(prms.toolTipAngle) || 90) * Math.PI / 180;
-  const bisector = flipX ? (-toolAngleRad - tipRad / 2) : (toolAngleRad + tipRad / 2);
+  const bisector = toolAngleRad + tipRad / 2;
   const halfRange = (Math.PI - tipRad) / 2;
   const clearRad = (parseFloat(prms.toolClearanceAngle) || 0) * Math.PI / 180;
   return tightenByPlungeAngle({ bisector, halfRange, clearRad }, prms);
@@ -83,13 +91,14 @@ function tightenByPlungeAngle(range, prms) {
 //     (rozhodnutí uživatele 7. 9. 2026).
 // Úhel bere `getEffectivePlungeAngle`, tedy POLE „Úhel zanoření (°)" —
 // auto 45° u kulaté, nebo ručně zadanou hodnotu.
-export function getPlungeGuardRange(prms, flipX) {
+// Nezávislé na kvadrantu — viz `getToolClearanceRange`.
+export function getPlungeGuardRange(prms) {
   const ins = getInsert(prms);
   if (!ins.plungeGuide) return null;
   const plungeDeg = getEffectivePlungeAngle(prms);
   const plungeRad = plungeDeg * Math.PI / 180;
   return {
-    bisector: flipX ? -plungeRad : plungeRad,
+    bisector: plungeRad,
     halfRange: Math.PI / 2,
     clearRad: 0,
     // Jen horní strana rozsahu — viz `highOnly` v segInterferesWithTool.

@@ -11413,18 +11413,18 @@ N130 G0 X150 Z5 ; Rychloposuv
 ; Průchod 1
 N140 G0 Z-7.000
 N150 G0 X41.370
-N160 G1 X20.422 F0.25
-N170 G1 X22.422 Z-9.000
+N160 G1 X0.000 F0.25
+N170 G1 X2.000 Z-9.000
 ; Průchod 2
 N180 G0 X41.370
 N190 G0 Z-5.000
-N200 G1 X20.422 F0.25
-N210 G1 X22.422 Z-7.000
+N200 G1 X0.000 F0.25
+N210 G1 X2.000 Z-7.000
 ; Průchod 3
 N220 G0 X41.370
 N230 G0 Z-2.000
-N240 G1 X20.422 F0.25
-N250 G1 X22.422 Z-4.000
+N240 G1 X0.000 F0.25
+N250 G1 X2.000 Z-4.000
 ; Průchod 4 (bez schodků)
 N260 G0 X41.370
 N270 G0 Z1.000
@@ -11461,8 +11461,8 @@ N520 G1 X33.337 Z14.000
 ; Průchod 10
 N530 G0 X38.830
 N540 G0 Z19.000
-N550 G1 X29.994 F0.25
-N560 G1 X31.994 Z17.000
+N550 G1 X29.993 F0.25
+N560 G1 X31.993 Z17.000
 ; Průchod 11
 N570 G0 X36.680
 N580 G0 Z22.000
@@ -11494,8 +11494,8 @@ N780 G0 X30.160
 N790 G0 Z37.000
 N800 G1 X20.508 F0.25
 N810 G2 X20.898 Z33.824 CR=14.265 F0.25
-N820 G2 X28.456 Z20.921 CR=23.347 F0.25
-N830 G3 X31.763 Z13.179 CR=11.344 F0.25
+N820 G2 X28.455 Z20.921 CR=23.347 F0.25
+N830 G3 X31.763 Z13.179 CR=11.347 F0.25
 N840 G1 X31.763 Z12.779 F0.25
 N850 G1 X33.763 Z10.779
 ; Průchod 17 (bez schodků)
@@ -11584,18 +11584,18 @@ N1530 G1 X18.079 ; Výjezd v X (stěna)
 N1540 G0 X30.782 ; Výjezd nad konturu
 N1550 G0 Z82.000
 N1560 G0 X30.110
-N1570 G1 X10.824 F0.25
-N1580 G1 X12.824 ; Výjezd v X (stěna)
+N1570 G1 X10.825 F0.25
+N1580 G1 X12.825 ; Výjezd v X (stěna)
 ; Průchod 32
 N1590 G0 X18.380
 N1600 G0 Z85.000
-N1610 G1 X9.179 F0.25
-N1620 G1 X11.179 Z83.000
+N1610 G1 X9.180 F0.25
+N1620 G1 X11.180 Z83.000
 ; Průchod 33 (bez schodků)
 N1630 G0 X18.380
 N1640 G0 Z88.000
 N1650 G1 X8.779 F0.25
-N1660 G2 X15.595 Z79.100 CR=8.741 F0.25
+N1660 G2 X15.596 Z79.100 CR=8.744 F0.25
 N1670 G1 X22.466 Z77.700 F0.25
 N1680 G3 X28.256 Z70.400 CR=7.280 F0.25
 N1690 G1 X30.256 Z68.400
@@ -11627,21 +11627,21 @@ N1890 G1 X10.779 Z95.000
 N1900 G0 X27.050
 N1910 G0 Z103.000
 N1920 G1 X9.417 F0.25
-N1930 G2 X8.783 Z100.000 CR=8.708 F0.25
+N1930 G2 X8.783 Z100.000 CR=8.705 F0.25
 N1940 G1 X10.783 Z98.000
 ; Průchod 39 (bez schodků)
 N1950 G0 X35.460
 N1960 G0 Z106.000
-N1970 G1 X11.447 F0.25
-N1980 G2 X9.417 Z103.000 CR=8.708 F0.25
+N1970 G1 X11.446 F0.25
+N1980 G2 X9.417 Z103.000 CR=8.705 F0.25
 N1990 G1 X11.417 Z101.000
 ; Průchod 40 (bez schodků)
 N2000 G0 X42.120
 N2010 G0 Z109.000
 N2020 G1 X17.565 F0.25
 N2030 G1 X14.415 Z107.875 F0.25
-N2040 G2 X11.447 Z106.000 CR=8.708 F0.25
-N2050 G1 X13.447 Z104.000
+N2040 G2 X11.446 Z106.000 CR=8.705 F0.25
+N2050 G1 X13.446 Z104.000
 ; Průchod 41 (bez schodků)
 N2060 G0 X45.640
 N2070 G0 Z112.000
@@ -11657,27 +11657,27 @@ N2150 G1 X27.976 Z110.000
 ; Průchod 43 (bez schodků)
 N2160 G0 X49.460
 N2170 G0 Z118.000
-N2180 G1 X38.525 F0.25
-N2190 G3 X34.345 Z115.000 CR=11.296 F0.25
+N2180 G1 X38.526 F0.25
+N2190 G3 X34.345 Z115.000 CR=11.293 F0.25
 N2200 G1 X36.345 Z113.000
 ; Průchod 44 (bez schodků)
 N2210 G0 X50.410
 N2220 G0 Z121.000
-N2230 G1 X40.410 F0.25
-N2240 G3 X38.525 Z118.000 CR=11.296 F0.25
-N2250 G1 X40.525 Z116.000
+N2230 G1 X40.411 F0.25
+N2240 G3 X38.526 Z118.000 CR=11.293 F0.25
+N2250 G1 X40.526 Z116.000
 ; Průchod 45 (bez schodků)
 N2260 G0 X50.870
 N2270 G0 Z124.000
-N2280 G1 X41.226 F0.25
-N2290 G3 X40.410 Z121.000 CR=11.296 F0.25
-N2300 G1 X42.410 Z119.000
+N2280 G1 X41.227 F0.25
+N2290 G3 X40.411 Z121.000 CR=11.293 F0.25
+N2300 G1 X42.411 Z119.000
 ; Průchod 46 (bez schodků)
 N2310 G0 X50.920
 N2320 G0 Z127.000
 N2330 G1 X41.318 F0.25
-N2340 G3 X41.226 Z124.000 CR=19.959 F0.25
-N2350 G1 X43.226 Z122.000
+N2340 G3 X41.227 Z124.000 CR=19.993 F0.25
+N2350 G1 X43.227 Z122.000
 ; Průchod 47
 N2360 G0 X50.880
 N2370 G0 Z130.000
@@ -11914,31 +11914,31 @@ N4270 G1 X30.437 Z248.000
 N4280 G0 X67.340
 N4290 G0 Z253.000
 N4300 G1 X25.542 F0.25
-N4310 G1 X27.542 ; Výjezd v X (stěna)
+N4310 G1 X27.542 Z251.000
 ; Průchod 88
 N4320 G0 X67.350
 N4330 G0 Z256.000
 N4340 G1 X22.493 F0.25
-N4350 G1 X24.493 ; Výjezd v X (stěna)
+N4350 G1 X24.493 Z254.000
 ; Průchod 89
-N4360 G0 X67.106 ; Výjezd nad konturu
+N4360 G0 X67.068 ; Výjezd nad konturu
 N4370 G0 Z259.000
 N4380 G0 X66.370
 N4390 G1 X19.346 F0.25
-N4400 G1 X21.346 ; Výjezd v X (stěna)
+N4400 G1 X21.346 Z257.000
 ; Průchod 90
-N4410 G0 X59.115 ; Výjezd nad konturu
+N4410 G0 X58.999 ; Výjezd nad konturu
 N4420 G0 Z262.000
 N4430 G0 X58.530
 N4440 G1 X11.656 F0.25
-N4450 G1 X13.656 ; Výjezd v X (stěna)
+N4450 G1 X13.656 Z260.000
 ; Průchod 91 (bez schodků)
-N4460 G0 X50.725 ; Výjezd nad konturu
+N4460 G0 X50.609 ; Výjezd nad konturu
 N4470 G0 Z265.000
 N4480 G0 X50.140
 N4490 G1 X10.317 F0.25
 N4500 G1 X10.317 Z262.000 F0.25
-N4510 G1 X12.317 Z260.000
+N4510 G1 X12.317 ; Výjezd v X (stěna)
 ; Průchod 92 (bez schodků)
 N4520 G0 X41.986 ; Výjezd nad konturu
 N4530 G0 Z268.000
@@ -12111,7 +12111,7 @@ N5920 G1 X12.317 Z347.000
 ; Průchod 120 (bez schodků)
 N5930 G0 X24.610
 N5940 G0 Z352.000
-N5950 G1 X0.000 F0.25
+N5950 G1 X0.127 F0.25
 N5960 G1 X1.793 Z350.886 F0.25
 N5970 G1 X10.050 Z350.004 F0.25
 N5980 G1 X10.317 Z349.957 F0.25
@@ -12120,37 +12120,36 @@ N6000 G1 X12.317 Z347.557
 ; Průchod 121
 N6010 G0 X24.610
 N6020 G0 Z355.000
-N6030 G1 X0.000 F0.25
-N6040 G1 X2.000 Z353.000
+N6030 G1 X0.127 F0.25
+N6040 G1 X2.127 Z353.000
 ; Průchod 122
 N6050 G0 X24.610
 N6060 G0 Z358.000
-N6070 G1 X0.000 F0.25
-N6080 G1 X2.000 Z356.000
+N6070 G1 X0.127 F0.25
+N6080 G1 X2.127 Z356.000
 ; Průchod 123
 N6090 G0 X24.610
 N6100 G0 Z361.000
-N6110 G1 X0.000 F0.25
-N6120 G1 X2.000 Z359.000
+N6110 G1 X0.127 F0.25
+N6120 G1 X2.127 Z359.000
 ; Průchod 124
 N6130 G0 X24.610
 N6140 G0 Z364.000
-N6150 G1 X0.000 F0.25
-N6160 G1 X2.000 ; Výjezd v X (stěna)
+N6150 G1 X0.127 F0.25
+N6160 G1 X2.127 Z362.000
 ; Průchod 125
 N6170 G0 X24.380
 N6180 G0 Z367.000
-N6190 G1 X0.000 F0.25
-N6200 G1 X2.000 ; Výjezd v X (stěna)
+N6190 G1 X0.127 F0.25
+N6200 G1 X2.127 Z365.000
 ; Průchod 126
-N6210 G0 X19.349 ; Výjezd nad konturu
+N6210 G0 X18.995 ; Výjezd nad konturu
 N6220 G0 Z370.000
-N6230 G0 X19.190
-N6240 G1 X0.000 F0.25
-N6250 G1 X2.000 Z368.000
-N6260 G0 X150.000 ; Výjezd nad konturu
-N6270 G0 Z5.000
-N6280 M30 ; Konec programu
+N6230 G1 X0.127 F0.25
+N6240 G1 X2.127 Z368.000
+N6250 G0 X150.000 ; Výjezd nad konturu
+N6260 G0 Z5.000
+N6270 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -12218,132 +12217,132 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper
   ],
   "passCount": 126,
   "passTags": [
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face{contourLeadOut,blocked}",
-    "face",
-    "face{contourLeadOut}",
-    "face",
-    "face",
-    "face",
-    "face",
-    "face",
-    "face",
+    "face{backside}",
+    "face{backside}",
+    "face{backside}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
+    "face{backside,blocked}",
   ],
 }
 `;
