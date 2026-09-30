@@ -22,8 +22,8 @@ import { sectionEdges } from './sectionFeet.js';
  */
 export function makeRegions(deps) {
   const {
-    prms, depths, offsetXAt, interferenceGuides,
-    stockLoopFullL, stockZRangeAt, partZRange,
+    prms, offsetXAt, interferenceGuides,
+    stockLoopFullL, partZRange,
   } = deps;
   const FULL_REGION = [{ zHi: Infinity, zLo: -Infinity }];
 
@@ -59,26 +59,22 @@ export function makeRegions(deps) {
       .filter(e => e.u > lo + 1e-6 && e.u < hi - 1e-6);
   };
 
-  // ── POŘADÍ ÚSEKŮ (27. 8. 2026) ───────────────────────────────────
-  // Zadání uživatele: **větší průměr má přednost** — začíná se u nejvyššího X,
-  // i kdyby ležel úplně vlevo. Při shodě má přednost PRAVÁ STRANA, tedy vyšší Z.
-  //
+  // ── POŘADÍ ÚSEKŮ = PRAVIDLO 8 (docs/cam-pravidla.md) ─────────────────
+  // **Po řadě od strany, odkud se obrábí — Ú1, Ú2, Ú3, … — každý celý.**
   // Zleva se neřeší zvlášť: hrubování zleva je ZRCADLO téže cesty (mirZ
   // v calculatePipeline), takže „vyšší Z“ v zrcadleném světě je právě levá
-  // strana reálného dílu — pravidlo se tím otočí samo.
-  const regionMaxX = (r) => {
-    for (const X of depths) {          // depths jdou od největšího průměru dolů
-      const sz = stockZRangeAt(X);
-      if (!sz) continue;
-      if (sz.zMax > r.zLo + 1e-9 && sz.zMin < r.zHi - 1e-9) return X;
-    }
-    return -Infinity;
-  };
+  // strana reálného dílu — pořadí se tím otočí samo.
+  //
+  // Do 30. 9. 2026 tu zůstalo pořadí z 27. 8. („větší průměr má přednost"),
+  // které uživatel 25. 9. změnil — nové dostalo jen „✂ Po úsecích"
+  // (sections/sectionPlan.js `orderSteps`). „🔄 Dráhy" celého programu pak
+  // obrábělo úsek 2 dílu uživatele dřív než úsek 1 (Ú3 → Ú2 → Ú1 → Ú4), vedle
+  // ještě stojícího polotovaru úseku 1: v údolí přibyla zbytečná rampa
+  // (`N1980 G1 X28.981`) a chyběla poslední vrstva se zanořením (Po úsecích ji
+  // má, X 15,03).
   const orderRegions = (regions) => {
     if (!regions || regions.length < 2) return regions;
-    const keyed = regions.map((r, i) => ({ r, i, x: regionMaxX(r) }));
-    keyed.sort((a, b) => (b.x - a.x) || (b.r.zHi - a.r.zHi) || (a.i - b.i));
-    const out = keyed.map(k => k.r);
+    const out = regions.slice().sort((a, b) => b.zHi - a.zHi);
     // Úsek se stěnou upichováku nahoře: hloubky NAD vrcholem stěny patří
     // úseku nad ním (hranice tam neplatí), takže tenhle smí začít až po něm —
     // jinak by jeho první vrstva sjela pod materiál, který ještě stojí

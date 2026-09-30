@@ -15,6 +15,7 @@ import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 import { RESIDUAL_FIT_TOL } from '../../residualHolder.js';
 import { getInsert } from '../../inserts/index.js';
 import { leadInTail } from './humpOrder.js';
+import { wallEntryLeadIn } from './wallEntry.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -26,6 +27,7 @@ export function emitPocketInterval(D) {
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
     residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
     newCutArea, pocketLeadOut, gapAtSectionEdge, noseLiftX = 0,
+    pendingRampCompletions, findRampOutTarget,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -247,6 +249,40 @@ export function emitPocketInterval(D) {
     if (!Number.isFinite(zT) || zT <= iv2.zStart + 1e-6) return li;
     return clipLeadInToDepth(holderTrimLeadIn(traceOffsetPath(zHi, zT)), X);
   };
+  /** Vjezd po stěně od podlahy mělčí vrstvy (pravidlo 10, bod 1), nebo null. */
+  const wallEntryOpen = (X, ivq) => {
+    // Podlahu dává jen OBYČEJNÁ vrstva: články řetězu ramp a odložené vjezdy
+    // se vydávají až později (na konci úseku), sloupec pod nimi by tedy
+    // v době vjezdu ještě stál.
+    const above = (q) => q && q.type === 'long' && Number.isFinite(q.x)
+      && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd)
+      && !q.__deferEntry && !q.entryRangeRamp && !q.rampCompletion
+      && !q.pocketReposition && !q.emitChainFrom;
+    const floors = [...new Set(passes.filter(q => above(q) && q.x > X + 0.05 && q.x <= X + step + 0.05)
+      .map(q => q.x))].sort((a, b) => a - b);
+    if (floors.length === 0) return null;
+    return wallEntryLeadIn({
+      li: traceLeadInTo(zGapHi, ivq, X), X, step, plungeTan: effPlungeTanL, floors,
+      covers: (xTop, z) => passes.some(q => above(q) && Math.abs(q.x - xTop) < 1e-6
+        && z >= Math.min(q.zStart, q.zEnd) - 0.05 && z <= Math.max(q.zStart, q.zEnd) + 0.05),
+    });
+  };
+  // Končí-li vjezd po stěně na PŘÍMCE ZANOŘENÍ (stěnu strmější, než smí
+  // spodní hrana, nahradila čára pod úhlem zanoření), pokračuje ta přímka pod
+  // vrstvou až ven z polotovaru — stejný klín jako u ořízlé rampy dojezdu
+  // v openPass.js. Dobere ho uzavírací rampa po skončení úseku (roughLong.js,
+  // `pendingRampCompletions`). „Po úsecích" ho u hrbu úseku 2 mělo
+  // (X 38,485), celý program ne.
+  const queueWallRampOut = (li) => {
+    if (!prms.noStepRoughing || !pendingRampCompletions || typeof findRampOutTarget !== 'function') return;
+    const s = li[li.length - 1];
+    if (!s || s.type !== 'line' || !(s.x1 > s.x2 + 0.05)) return;
+    const dz = Math.abs(s.z2 - s.z1);
+    if (!(dz > 1e-6) || (s.x1 - s.x2) / dz < effPlungeTanL * (1 - 1e-3)) return;
+    const raw = findRampOutTarget(s.x1, s.z1);
+    if (!raw || !(raw.x < currentX - 0.05)) return;
+    pendingRampCompletions.push({ resumeX: currentX, resumeZ: s.z2, targetX: raw.x, targetZ: raw.z });
+  };
 if (!prms.plungeRoughing) return;
 // Když je úplně první interval blokovaný (idx===0, !firstOpen),
 // neexistuje předchozí interval → horní hranice mezery = okraj
@@ -335,9 +371,17 @@ if (!iv.blocked) {
   // Rampa z povrchu nesmí vzít víc než jednu vrstvu (pravidlo 3) — když
   // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
   const openTooDeep = erOpen && (erOpen.surfX ?? erOpen.x0) - currentX > step + 0.05;
-  let chainOpen = openTooDeep ? chainFromPrev(currentX, iv) : null;
-  if (openTooDeep && !chainOpen) { cnt.noEntrySkips++; return; }
-  if (chainOpen) {
+  // Pravidlo 10: napřed PO STĚNĚ od mělčí vrstvy, rampa až když to nejde
+  // (ops/long/wallEntry.js — za hrbem stěna klesá mírněji než rampa a mezi
+  // nimi zůstával klín).
+  const wallOpen = erOpen && !isParting ? wallEntryOpen(currentX, iv) : null;
+  let chainOpen = openTooDeep && !wallOpen ? chainFromPrev(currentX, iv) : null;
+  if (openTooDeep && !chainOpen && !wallOpen) { cnt.noEntrySkips++; return; }
+  if (wallOpen) {
+    passOpen.contourLeadIn = wallOpen;
+    passOpen.wallEntry = true;
+    queueWallRampOut(wallOpen);
+  } else if (chainOpen) {
     passOpen.zStart = chainOpen.zStart;
     passOpen.ramp = chainOpen.ramp;
   } else if (erOpen) {

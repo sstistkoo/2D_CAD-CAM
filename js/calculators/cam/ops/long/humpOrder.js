@@ -171,7 +171,9 @@ export function orderByHumps(list, offsetXAt, opts = {}) {
     // sjíždělo kolmo do materiálu (part-1/2: `G1 X35.638`, pravidlo 6).
     // Přejezd přes hrb (`pocketHumpSplit.js`) nájezd NEPOSTRÁDÁ — nájezd
     // po vrcholu a sjezd za něj JE celý jeho řez.
-    if (!e.p.contourLeadIn || e.p.ramp || e.k === 0 || e.p.humpCrossing) continue;
+    // Vjezd po stěně od mělčí vrstvy (`wallEntry`, ops/long/wallEntry.js)
+    // už JE ocas pod mělčí vrstvou — začíná na její podlaze, přes hrb nevede.
+    if (!e.p.contourLeadIn || e.p.ramp || e.k === 0 || e.p.humpCrossing || e.p.wallEntry) continue;
     if (n > 0 && sorted[n - 1].i === e.i - 1) continue;
     // ── OCAS NÁJEZDU POD MĚLČÍ VRSTVOU SE NECHÁ (kulatá, 26. 9. 2026) ─────
     // Konec nájezdu, který leží níž než jedna Hloubka (ap) nad vrstvou, je

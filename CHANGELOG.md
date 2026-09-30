@@ -50,6 +50,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Otisk G-kódu shodný u všech 29 fixtures i 60 dílů uživatele.
 
 ### Fixed
+- **CAM – „Generovat" celého programu vynechával vrstvy, které „✂ Po úsecích"
+  má** (polygon; nález uživatele 30. 9. 2026, podélně zleva). Hlídání spodní
+  hrany destičky u pravých stěn kapes (`ops/long/insertFlankGuard.js`) bralo
+  za stěnu rampu z KTERÉHOKOLI úseku: rampy X 48,045 / 45,545 v úseku 3
+  posunuly kotvy v úsecích 1, 2 i 4 o desítky až stovky mm, průchody
+  zdegenerovaly a zmizely — chyběla vrstva X 29,566 v úseku 1 (pod
+  `N2520 G1 Z79.311`), vrstva X 39,118 za hrbem v úseku 2 (pod
+  `N1620 G1 Z143.635`) a nejhlubší vrstvy u čela v úseku 4. Stěna se teď
+  bere jen na dosah hrany (`toolLength · sin(natočení)`) a jen když neleží
+  za koncem průchodu; výška stěny se měří od začátku rampy, ne od hloubky
+  průchodu (jinak se krok řetězu ramp odsunul o 0,07 mm a nájezd další
+  vrstvy svisle řezal). Díl uživatele: třísky > ap 6 → 1, 0 kolizí; fixtures
+  part-4/6/8/9, part-21 a pocket-wall-at-plunge-angle dostaly zpět smazané
+  průchody (hláška „N průchodů zkráceno" tam hlásila právě tohle). Test
+  `cam-polygon-left-foreign-wall`.
+- **CAM – „🔄 Dráhy" obrábí úseky po řadě jako „✂ Po úsecích" (pravidlo 8)**
+  (nález uživatele 30. 9. 2026, polygon zleva, díl (6) proti (7)).
+  `ops/long/regions.js` pořád řadil úseky podle zrušeného pořadí z 27. 8.
+  („největší průměr napřed"): Ú3 → Ú2 → Ú1 → Ú4. Úsek 2 se tak obráběl vedle
+  ještě stojícího polotovaru úseku 1 — v údolí přibyla zbytečná rampa
+  `N1980 G1 X28.981` a chyběla poslední vrstva se zanořením (X 14,94).
+  Teď Ú1 → Ú2 → Ú3 → Ú4 od strany, odkud se obrábí. Pohnulo se 11
+  polygonových fixtures: P7 a P8 ubyla všude, kolize 0, zbytek stejný nebo
+  menší; `pocket-wall-at-plunge-angle` má jedno P6 navíc — otevřené: úsek
+  vpravo je hotový dřív, rampa v údolí začne víc vpravo a spodní hrana
+  plátku při svislém nájezdu k ní zajede do šikminy polotovaru (začátek
+  rampy se proti polotovaru spodní hranou zatím nekontroluje).
+- **CAM – vrstva za hrbem vjíždí po stěně, ne rampou (pravidlo 10, bod 1)**
+  (týž nález). Vrstva X 39,118 za hrbem úseku 2 vjížděla rampou 15° od
+  Z 132, stěna tam ale klesá asi 10° a mezi nimi zůstal klín 0,5 mm.
+  Nový `ops/long/wallEntry.js`: v otevřeném intervalu (`pocketPass.js`) se
+  napřed zkusí vjezd po stěně od podlahy mělčí vrstvy (10° po kontuře, pak
+  15° po čáře spodní hrany na hloubku ap) a teprve potom rampa. Pokračování
+  15° čáry pod vrstvou dobere uzavírací rampa (X 38,57 — „Po úsecích" měl
+  X 38,485). Použije se jen kde je stěna aspoň kus mírnější než úhel
+  zanoření (jinak je to táž rampa) a podlahu dává obyčejná vrstva, ne článek
+  řetězu ramp.
 - **CAM – X max je strop pro jakékoli obrábění (nové pravidlo 12).** Na přání
   uživatele 30. 9. 2026: nad X max se neobrábí a pod materiál, který nad X max
   stojí, se nepodjíždí. Díl uživatele (X max 27,01): podélné hrubování dřív

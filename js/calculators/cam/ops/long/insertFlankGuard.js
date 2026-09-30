@@ -90,7 +90,25 @@ export function guardInsertFlankLong(passes, prms, offsetPath, hasStock) {
   // sledováním kontury bezkolizní, tato heuristika by ho jen
   // chybně prodloužila, takže se na ně nevztahuje.
   if (rotDeg > 0.01) {
-    const tanRot = Math.tan(Math.min(89.5, rotDeg) * Math.PI / 180);
+    const rotRad = Math.min(89.5, rotDeg) * Math.PI / 180;
+    const tanRot = Math.tan(rotRad);
+    // ── STĚNA MUSÍ BÝT NA DOSAH HRANY (30. 9. 2026) ─────────────────────
+    // Hrana je dlouhá jen `toolLength`, radiálně tedy sahá od kotvy rampy
+    // `toolLength · sin(natočení)` nahoru (10 mm při 15° = 2,59 mm), a
+    // stoupá od špičky DOPRAVA — stěna za koncem průchodu (níž než zEnd)
+    // do jeho kapsy nepatří. Bez obojího se „stěna" hledala přes celý díl.
+    // Dosah se měří VÝŠKAMI (kotva hrany × rozsah rampy stěny), ne rozdílem
+    // hloubek průchodů: při ap 3 by rozdíl hloubek 3 > 2,59 vyřadil i
+    // sousední vrstvu, na jejíž rampu hrana z kotvy (o ap výš) dosáhne.
+    //
+    // Nález uživatele 30. 9. 2026 (podélně zleva, „Generovat" celého
+    // programu): rampy X 48,045 / 45,545 v úseku 3 (Z 235 / 248) posunuly
+    // kotvu vrstvy X 29,566 v úseku 1 na Z 317 — průchod zdegeneroval
+    // a zmizel; stejně vrstva X 39,118 u Z 141 v úseku 2 a nejhlubší
+    // vrstvy X 9,44 … 4,44 u čela v úseku 4. „✂ Po úsecích" je mělo, protože
+    // tam cizí úsek v poli průchodů není. (Stejná mez byla v 145799b ze
+    // 4. 9. — zmizela s hromadným revertem 709e87b, ne kvůli sobě.)
+    const flankReachX = Math.max(0.5, (parseFloat(prms.toolLength) || 0) * Math.sin(rotRad));
     // Vjezd na hranici rozsahu Z (entryRangeRamp) ani dorampování strmé
     // stěny (rampCompletion) NENÍ pravá stěna kapsy — obojí je řetězená
     // posloupnost ramp NAD SEBOU podél téže hranice/stěny, ne nezávislý
@@ -100,16 +118,30 @@ export function guardInsertFlankLong(passes, prms, offsetPath, hasStock) {
     // chyběl; u rampCompletion navíc přes CELÝ díl: krok řetězu v jednom
     // údolí smazal krok řetězu v jiném, o 120 mm dál, a osiřelý
     // `pocketReposition` pak přejel rychloposuvem skrz polotovar).
-    const rightWalls = passes.filter(p => p.type === 'long' && p.ramp && !p.contourLeadIn && !p.pocketReposition && !p.entryRangeRamp && !p.rampCompletion).map(p => ({ x: p.x, z: p.ramp.z0 }));
+    // Stěnu tvoří RAMPA mělčího průchodu — přímka z jejího začátku
+    // (x0, z0) pod úhlem natočení, rovnoběžná se spodní hranou. Hrana
+    // hlubšího průchodu z jeho kotvy (x0, z0) do ní nezajede, když kotva
+    // leží na té přímce nebo vlevo od ní: z0 ≤ w.z0 − (w.x0 − p.x0)/tan.
+    // Dřív se místo začátků ramp dosazovaly HLOUBKY průchodů; rampa mělčí
+    // vrstvy ale začíná o 2,48 (ap − 0,02) nad svou hloubkou, ne o ap, a
+    // hlubší krok řetězu, který navazoval PŘESNĚ na její konec, se odsunul
+    // o 0,02/tan 15° = 0,07 mm doprava. Další rampa pak začala před koncem
+    // téhle a nájezd do ní svisle řezal (P6 „90°", díl uživatele 30. 9.
+    // 2026, úsek 4: `G1 X6.940` po `G0 Z359.323`).
+    const rampTop = (p) => (Number.isFinite(p.ramp.x0) ? p.ramp.x0 : p.x);
+    const rightWalls = passes.filter(p => p.type === 'long' && p.ramp && !p.contourLeadIn && !p.pocketReposition && !p.entryRangeRamp && !p.rampCompletion).map(p => ({ x: p.x, x0: rampTop(p), z: p.ramp.z0 }));
     for (let pi = passes.length - 1; pi >= 0; pi--) {
       const p = passes[pi];
       if (p.type !== 'long' || !p.ramp || p.contourLeadIn || p.entryRangeRamp || p.rampCompletion) continue;
       // Dobrat kapsu najednou: zanořovací zákroky kapsy se neupravují (viz výše).
       if (p.pocketEntry || p.pocketReposition || p.pocketClean) continue;
       let z0 = p.ramp.z0;
+      const px0 = rampTop(p);
       for (const w of rightWalls) {
-        if (w.x <= p.x + 1e-6) continue;
-        const cand = w.z - (w.x - p.x) / tanRot;
+        if (w.x <= p.x + 1e-6 || w.z <= p.zEnd) continue;
+        // Rampa stěny (výšky w.x … w.x0) a hrana (px0 … px0 + dosah) se míjí.
+        if (w.x0 <= px0 + 1e-6 || w.x >= px0 + flankReachX) continue;
+        const cand = w.z - (w.x0 - px0) / tanRot;
         if (cand < z0) z0 = cand;
       }
       if (z0 < p.ramp.z0 - 0.01) {

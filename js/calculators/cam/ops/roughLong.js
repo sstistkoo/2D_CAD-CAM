@@ -1442,6 +1442,7 @@ export function genLongPasses(ctx) {
         holderSpanClamp, holderTrimLeadIn, holderTrimLeadOut, linkToPrev,
         notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
         residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ, iv,
+        pendingRampCompletions, findRampOutTarget,
         gapAtSectionEdge: regZHi !== Infinity && Math.abs(entryZ - regZHi) < 1e-6,
         noseLiftX: noseLiftL,
         // Klíč plátku `skipPocketsCuttingNothing` (dnes jen kulatá).
