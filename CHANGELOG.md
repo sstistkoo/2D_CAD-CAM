@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     poloměr o 10 mm. Dřív se přičítala přímo k průměru a poloměr se změnil
     jen o polovinu. Platí pro náhled, dopočet, vložení do výkresu i převod
     na ISO.
+  - **Dopočet po prvku X/Z + PA/PR v režimu průměr** (doplněno 30. 9.):
+    formulář počítal navazující bod z X v poloměru, ale polární přírůstek
+    už v jednotkách textu, takže `G11 X20 Z0 PA90 PR10` posunulo řetěz
+    o 20 mm místo 10. Teď týmž výpočtem jako náhled.
+  - **Tečný oblouk (T) při převodu na ISO v režimu průměr**: směr úsečky
+    a konec oblouku se počítaly z textových X (průměr) jako z poloměru —
+    oblouk vyšel jinde, než ho ukazoval náhled. Počítá se v poloměru.
 
 ### Changed
 - **CAM – kulatá destička: jeden postup pravidla 7 místo oprav po kouscích.**

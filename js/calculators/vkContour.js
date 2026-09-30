@@ -69,8 +69,10 @@ function polarDelta(paDeg, pr) {
  * znovu nerozjedou, jako se to stalo předtím (náhled X/Z+PA/PR mimo první
  * prvek ignoroval, export do ISO zas ignoroval X/Z).
  *
- * Souřadnice jsou v libovolné (ale jednotné pro x/z i délku PR) soustavě
- * volajícího – funkce žádné jednotky nepřevádí, jen sčítá úhlopříčku.
+ * JEDNOTKY: x/z jsou v jednotkách TEXTU (X tak, jak je napsané – v režimu
+ * průměr tedy průměr), PR je skutečná délka (přes `polarDelta`). Volající,
+ * který drží bod v prostoru solveru (poloměr), musí X převést sám
+ * (`fromSolverX` tam, `toSolverX` zpátky).
  * @param {number} x
  * @param {number} z
  * @param {number} pa úhel ve stupních
@@ -1849,8 +1851,16 @@ export function initVkTab(container, { picker = null } = {}) {
       // X/Z + PA/PR zadané zároveň: X/Z je počátek téhle úsečky (ne cíl),
       // PA/PR určí její délku a úhel – skutečný konec (a tedy navazující
       // bod řetězu) se dopočte stejně jako v buildVkPreviewData().
+      // `lastPoint` je v prostoru solveru (poloměr), kdežto polární přírůstek
+      // je v jednotkách TEXTU – počítá se tedy z `xRaw` a konec se převede
+      // zpět (táž cesta jako `selfEnd` výš). Z `el.x` (poloměr) by v režimu
+      // průměr vyšel dvojnásobný přírůstek X a navazující prvek by začínal
+      // jinde, než ukazuje náhled.
       lastPoint = (el.pa != null && prVal != null)
-        ? startAndEndFromXzPaPr(el.x, el.z, el.pa, prVal).end
+        ? (() => {
+          const endText = startAndEndFromXzPaPr(el.xRaw, el.z, el.pa, prVal).end;
+          return { z: endText.z, x: toSolverX(endText.x) };
+        })()
         : { z: el.z, x: el.x };
       pendingQueue = [];
     } else {
@@ -2105,11 +2115,15 @@ export function initVkTab(container, { picker = null } = {}) {
       return ((deg % 360) + 360) % 360;
     }
 
+    // Řetěz (buildElementChain) drží X v jednotkách TEXTU; úhel i tečný
+    // oblouk jsou ale geometrie, tedy v poloměru (toSolverX/fromSolverX).
+    // Dřív se počítalo přímo z textu, takže v režimu průměr vyšel směr
+    // úsečky i konec oblouku jinde, než je ukazuje náhled.
     function lineDirection(el) {
       if (el.pa != null) return normalizeAngle(el.pa);
       if (el.start && el.end) {
         const dz = el.end.z - el.start.z;
-        const dx = el.end.x - el.start.x;
+        const dx = toSolverX(el.end.x) - toSolverX(el.start.x);
         if (Math.hypot(dz, dx) < 1e-9) return null;
         return normalizeAngle(Math.atan2(dx, dz) / D2R);
       }
@@ -2215,7 +2229,8 @@ export function initVkTab(container, { picker = null } = {}) {
           const dir1 = lineDirection(prev);
           const dir2 = normalizeAngle(next.pa);
           if (dir1 == null) continue;
-          const arcEnd = computeArcEnd(prev.end, dir1, dir2, arc.r, arc.cmd);
+          const arcEndS = computeArcEnd({ z: prev.end.z, x: toSolverX(prev.end.x) }, dir1, dir2, arc.r, arc.cmd);
+          const arcEnd = { z: arcEndS.z, x: fromSolverX(arcEndS.x) };
           const nextEndDelta = polarDelta(dir2, next.pr);
           const nextEnd = { z: arcEnd.z + nextEndDelta.z, x: arcEnd.x + nextEndDelta.x };
           const newArcLine = replaceUnknownXY(updated[i], arcEnd);
