@@ -220,8 +220,10 @@ export function findContourGaps() {
 // kus za G00. CAM z toho postaví nesmyslný díl (nález uživatele 29. 9. 2026:
 // po dokreslení šikmé úsečky přes starý schod byl v CAM „trojúhelník dole").
 // Typicky jde o zapomenuté staré úsečky po překreslení části profilu.
-export function findContourBranches() {
-  const objs = _contourObjects();
+// `skip` = objekty, které se nepočítají (zdvojené čáry z findContourDuplicates
+// — ty se hlásí zvlášť a jejich konce by jinak vyšly jako falešné větvení).
+export function findContourBranches(skip = null) {
+  const objs = _contourObjects().filter(o => !skip || !skip.has(o));
   if (objs.length === 0) return [];
   const segs = _objectsToSegments(objs).filter(sg => !_isDegenerate(sg));
   const tol = 0.01;
@@ -234,6 +236,79 @@ export function findContourBranches() {
     }
   }
   return nodes.filter(n => n.count >= 3).map(n => ({ x: n.x, y: n.y, branch: true }));
+}
+
+// ── Zdvojené čáry kontury ──────────────────────────────────────
+// Dvě stejné čáry přesně přes sebe (dvakrát nakreslená / zkopírovaná úsečka)
+// na plátně vidět nejdou, ale oba jejich konce jsou uzly se 3 čarami
+// (findContourBranches) a CNC export jednu z nich poslal do CAM jako
+// samostatný kus za G00 (nález uživatele 30. 9. 2026: bok Z243→Z235 dvakrát).
+
+// Bod v polovině segmentu — u oblouku na jeho skutečné straně (ccw = kladný
+// smysl ve světových souřadnicích, stejně jako drawArc v render.js).
+function _segMid(sg) {
+  if (sg.type !== 'arc') return { x: (sg.p1.x + sg.p2.x) / 2, y: (sg.p1.y + sg.p2.y) / 2 };
+  const a1 = Math.atan2(sg.p1.y - sg.cy, sg.p1.x - sg.cx);
+  const a2 = Math.atan2(sg.p2.y - sg.cy, sg.p2.x - sg.cx);
+  const TAU = Math.PI * 2;
+  let sweep = ((sg.ccw ? a2 - a1 : a1 - a2) % TAU + TAU) % TAU;
+  if (sweep < 1e-9) sweep = TAU;
+  const am = sg.ccw ? a1 + sweep / 2 : a1 - sweep / 2;
+  return { x: sg.cx + sg.r * Math.cos(am), y: sg.cy + sg.r * Math.sin(am) };
+}
+
+// Stejná čára = stejné konce (v libovolném pořadí) a stejný bod uprostřed
+// (odliší oblouk od úsečky i od doplňkového oblouku mezi týmiž body).
+function _sameSeg(a, b, tol = 0.01) {
+  const eq = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < tol;
+  const ends = (eq(a.p1, b.p1) && eq(a.p2, b.p2)) || (eq(a.p1, b.p2) && eq(a.p2, b.p1));
+  return ends && eq(_segMid(a), _segMid(b));
+}
+
+/**
+ * Najde samostatné úsečky/oblouky kontury, které přesně kryjí jinou čáru
+ * kontury. Vrací `[{ obj, keep }]` — `obj` je přebytečná kopie ke smazání,
+ * `keep` čára, která zůstává. Ze dvou samostatných čar se maže ta později
+ * nakreslená; kryje-li úsečka kus polyline/obdélníku, maže se vždy úsečka
+ * (část polyline samostatně smazat nejde). Polotovar, kóty a konstrukční
+ * čáry se neporovnávají.
+ * @returns {{obj: object, keep: object}[]}
+ */
+export function findContourDuplicates() {
+  const entries = [];
+  for (const obj of _contourObjects()) {
+    const removable = obj.type === 'line' || obj.type === 'arc';
+    for (const sg of _objectsToSegments([obj])) {
+      if (!_isDegenerate(sg)) entries.push({ obj, sg, removable });
+    }
+  }
+  // Nesmazatelné (části polyline/obdélníku/kružnice) první; sort je stabilní,
+  // takže samostatné čáry zůstanou v pořadí nakreslení.
+  entries.sort((a, b) => a.removable - b.removable);
+  const kept = [];
+  const dups = [];
+  for (const e of entries) {
+    const hit = e.removable ? kept.find(k => _sameSeg(k.sg, e.sg)) : null;
+    if (hit) dups.push({ obj: e.obj, keep: hit.obj });
+    else kept.push(e);
+  }
+  return dups;
+}
+
+/** Bod uprostřed objektu úsečky/oblouku (popisek zvýraznění na plátně). */
+export function objectMidpoint(obj) {
+  const sg = _objectsToSegments([obj])[0];
+  return sg ? _segMid(sg) : null;
+}
+
+/** Ohraničení objektů (pro přiblížení na ně), nebo null. */
+export function objectsBounds(objs) {
+  const pts = [];
+  for (const sg of _objectsToSegments(objs)) pts.push(sg.p1, sg.p2, _segMid(sg));
+  for (const o of objs) if (o.type === 'point') pts.push({ x: o.x, y: o.y });
+  if (pts.length === 0) return null;
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
 /**

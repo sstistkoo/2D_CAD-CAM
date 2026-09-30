@@ -180,18 +180,27 @@ export function makeInputOverlay(innerHTML) {
  * @param {{confirmLabel?: string, danger?: boolean}} [opts] `danger` (výchozí
  *   true) obarví potvrzovací tlačítko červeně – pro nevratné akce (smazání).
  *   `false` u méně dramatických potvrzení (běžná modrá jako `.btn-ok` jinde).
+ *   `cancelLabel` = text tlačítka zrušení. `onCancel` se zavolá při zavření
+ *   BEZ potvrzení (Zrušit/klik mimo/Escape). `peek` = průhledné pozadí a okno
+ *   u spodního okraje, ať je vidět místo na výkrese, o kterém se rozhoduje.
  */
-export function showConfirmDialog(message, onConfirm, { confirmLabel = 'Smazat', danger = true } = {}) {
+export function showConfirmDialog(message, onConfirm, {
+  confirmLabel = 'Smazat', danger = true, cancelLabel = 'Zrušit', onCancel = null, peek = false,
+} = {}) {
   const overlay = makeInputOverlay(`
     <div class="input-dialog confirm-dialog">
       <p class="confirm-dialog-message">${escHTML(message)}</p>
       <div class="btn-row">
-        <button type="button" class="btn-cancel btn-cancel-overlay">Zrušit</button>
+        <button type="button" class="btn-cancel btn-cancel-overlay">${escHTML(cancelLabel)}</button>
         <button type="button" class="btn-ok${danger ? ' btn-danger' : ''}" id="confirmDialogOk">${escHTML(confirmLabel)}</button>
       </div>
     </div>`);
+  if (peek) overlay.classList.add('input-overlay--peek');
+  let confirmed = false;
   overlay.querySelector('#confirmDialogOk').addEventListener('click', () => {
+    confirmed = true;
     overlay.remove();
     onConfirm();
   });
+  if (onCancel) onOverlayRemoved(overlay, () => { if (!confirmed) onCancel(); });
 }

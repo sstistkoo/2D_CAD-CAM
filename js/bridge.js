@@ -21,6 +21,13 @@ export const bridge = {
   updateIntersectionList: null,
   calculateAllIntersections: null,
   runCncExport: null,
+  // Přenos do CAM: jen hlavní profil → { code, leftovers } (storage/fileIO.js)
+  buildCamTransfer: null,
+  // Zdvojené čáry kontury: nabídka smazání (vždy / jednou pro novou sadu) a
+  // otevření CAM s kontrolou profilu – vše v dialogs/contourCheck.js.
+  offerContourDuplicates: null,
+  maybeOfferContourDuplicates: null,
+  openCamFromDrawing: null,
   // Absolutní world (x,y) → G-kód adresa (osy/jednotky dle machineType +
   // xDisplayMode) – sdílená s runCncExport(), aby se konvence os nerozjela
   // na dvou místech (viz numericalInput.js – ruční zápis G-kódu).

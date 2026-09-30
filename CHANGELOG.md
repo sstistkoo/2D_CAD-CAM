@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAD – zdvojené čáry: žluté vyznačení a nabídka smazání.** Nález uživatele
+  30. 9. 2026: hláška „kontura se větví", ale na výkrese nebylo nic vidět —
+  šikmý bok Z243→Z235 byl nakreslený dvakrát přesně přes sebe.
+  `findContourDuplicates()` (stockTools.js) najde úsečku/oblouk, který kryje
+  jinou čáru kontury (stejné konce i střed oblouku). Plátno ji kreslí žlutě
+  „2× přes sebe" a `dialogs/contourCheck.js` na ni přiblíží a nabídne
+  **Smazat kopii** (maže se později nakreslená; kóty se přepojí na tu, co
+  zůstává; jeden krok Zpět). Okno je průhledné a dole, ať je místo vidět.
+  Nabízí se jednou pro každé nové zdvojení, ne po každé úpravě výkresu.
+  Kdykoli později stačí v režimu Výběr **kliknout na žlutou čáru nebo popisek
+  „2× přes sebe – klikni"** (myš i dotyk) a nabídka smazání té kopie se
+  objeví znovu (`offerDuplicateAt()`; zásah se měří na nepřichycené poloze,
+  ať klik na sousední čáru u společného vrcholu dál normálně vybírá).
+
 ### Changed
+- **Do CAM jde jen hlavní souvislý profil** (na přání uživatele 30. 9. 2026:
+  *„nemělo by se přenášet jenom jeden profil z CAD do CAM?"*). Dřív CNC export
+  poslal do CAM každý nenapojený kus za `G0` jako součást kontury (zdvojenou
+  úsečku, osamocené čáry, body). `runCncExport({ forCam: true })` teď vezme
+  jen nejdelší řetěz bez zdvojených čar a bodů. Zbude-li mimo něj něco, CAD
+  to před otevřením CAM vyznačí fialově „mimo profil" a zeptá se (u profilu
+  s mezerou by jinak do CAM potichu odešla jen jeho část). Panel CNC KÓD
+  exportuje dál celý výkres.
 - **CAM – lišta nad G-kódem ukazuje jen použitelná tlačítka** (na přání
   uživatele 30. 9. 2026: *„někdy mi funguje jedno a podruhé zas to druhé"*).
   **🔄 Dráhy** se skryje v náhledu celého programu (tam jen hlásilo „přepněte na

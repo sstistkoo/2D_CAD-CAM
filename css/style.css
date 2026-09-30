@@ -1538,6 +1538,19 @@ body {
   justify-content: center;
 }
 
+/* Rozhodnutí o místě na výkrese (zdvojené čáry, čáry mimo profil): plátno
+   se nestmívá a okno sedí dole, ať je zvýrazněné místo nad ním vidět.
+   Spodní odsazení nechává místo pro .toast (bottom: 40px) – jinak by třeba
+   „Projekt uložen" z autosave ležel přes tlačítka dotazu. */
+.input-overlay.input-overlay--peek {
+  background: transparent;
+  align-items: flex-end;
+  padding-bottom: max(104px, env(safe-area-inset-bottom));
+}
+.input-overlay--peek .input-dialog {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
 .input-dialog {
   background: var(--ctp-base);
   border: 1px solid var(--ctp-surface1);

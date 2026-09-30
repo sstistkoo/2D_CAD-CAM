@@ -14,7 +14,7 @@ import { bridge } from '../bridge.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
 import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
-import { findContourGaps, findContourBranches, jumpToContourGaps } from '../stockTools.js';
+import { findContourGaps, findContourBranches, findContourDuplicates, jumpToContourGaps } from '../stockTools.js';
 import { renderAll } from '../render.js';
 
 // ── Export / Import ──
@@ -674,25 +674,32 @@ export function formatAbsCoord(x, y) {
 }
 bridge.formatAbsCoord = formatAbsCoord;
 
-function runCncExport() {
-  // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
-  const selectedIndices = new Set();
-  if (state.multiSelected && state.multiSelected.size > 0) {
-    state.multiSelected.forEach(i => selectedIndices.add(i));
-  } else if (state.selected !== null && state.selected !== undefined) {
-    selectedIndices.add(state.selected);
-  }
-  const exportObjects = selectedIndices.size > 0
-    ? state.objects.filter((_, i) => selectedIndices.has(i))
-    : state.objects;
-
-  // Kontrola uzavřenosti/validity kontury – mezery zvýrazníme na plátně
+// Kontrola kontury při CNC exportu: zdvojené čáry (žlutě + nabídka smazání),
+// větvení a mezery (červené značky) + toast. Přenos do CAM ji nevolá — tam
+// o zdvojených čarách a kusech mimo profil rozhoduje dialog (contourCheck.js).
+function _reportContourIssues(dups, dupSet) {
   const gaps = findContourGaps();
   // Větvení (3+ segmenty v jednom bodě) — jednu větev by export poslal jako
   // samostatný kus za G00 a CAM by z toho postavil nesmyslný díl.
-  const branches = findContourBranches();
+  const branches = findContourBranches(dupSet);
   state.contourGaps = gaps.concat(branches);
-  if (branches.length > 0) {
+  const hadHighlight = state.contourDuplicates.length > 0 || state.camLeftovers.length > 0;
+  state.contourDuplicates = dups;
+  state.camLeftovers = [];
+  // Nabídka smazání (jednou pro každou novou sadu zdvojení, viz
+  // contourCheck.js); když se otevřela, toast by se jen překrýval s ní.
+  const offered = bridge.maybeOfferContourDuplicates
+    ? bridge.maybeOfferContourDuplicates(dups) : false;
+  if (dups.length > 0) {
+    if (!offered) {
+      renderAll();
+      showToast(
+        `Pozor: ${dups.length === 1 ? 'dvě stejné čáry leží' : `${dups.length}× leží dvě stejné čáry`} přesně přes sebe (vyznačeno žlutě) — jedna je navíc. Do CAM se nepošle, ale ve výkresu překáží (kóty, oříznutí, výběr).`,
+        8000,
+        { onClick: () => bridge.offerContourDuplicates && bridge.offerContourDuplicates(findContourDuplicates()) },
+      );
+    }
+  } else if (branches.length > 0) {
     renderAll();
     showToast(
       'Pozor: kontura se větví (vyznačeno červeně) — v jednom bodě se stýkají 3 a více čar. Smažte přebytečné (např. staré) úsečky, jinak CAM nepozná, kudy kontura vede.',
@@ -706,7 +713,42 @@ function runCncExport() {
       undefined,
       { onClick: () => jumpToContourGaps(gaps) },
     );
+  } else if (hadHighlight) {
+    renderAll(); // zdvojení zmizelo (posun/smazání) → sundat žluté zvýraznění
   }
+}
+
+/**
+ * CNC export výkresu do panelu #cncOutput.
+ * @param {{forCam?: boolean}} [opts] `forCam` = přenos do CAM: nepíše do
+ *   panelu ani nehlásí toasty a posílá JEN hlavní souvislý profil (nejdelší
+ *   řetěz kontury) bez zdvojených čar a bodů. CAM pracuje s jedním profilem —
+ *   každý další kus by dostal za G00 jako součást kontury (nález 30. 9. 2026:
+ *   zdvojená úsečka přišla do CAM jako samostatný kus). Vrací pak
+ *   `{ code, leftovers }`, kde `leftovers` jsou objekty, které mimo profil
+ *   zůstaly (o jejich vynechání rozhoduje uživatel, viz dialogs/contourCheck.js).
+ * @returns {string | {code: string, leftovers: object[]}}
+ */
+function runCncExport({ forCam = false } = {}) {
+  // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
+  const selectedIndices = new Set();
+  if (state.multiSelected && state.multiSelected.size > 0) {
+    state.multiSelected.forEach(i => selectedIndices.add(i));
+  } else if (state.selected !== null && state.selected !== undefined) {
+    selectedIndices.add(state.selected);
+  }
+  let exportObjects = selectedIndices.size > 0
+    ? state.objects.filter((_, i) => selectedIndices.has(i))
+    : state.objects;
+
+  // Zdvojené čáry (dvě stejné přesně přes sebe) — na plátně nejsou vidět,
+  // proto se kreslí žlutě a hlásí zvlášť; jejich konce by jinak vyšly jako
+  // větvení. Do CAM se přebytečná kopie neposílá nikdy.
+  const dups = findContourDuplicates();
+  const dupSet = new Set(dups.map(d => d.obj));
+  if (forCam) exportObjects = exportObjects.filter(o => !dupSet.has(o) && o.type !== 'point');
+  else _reportContourIssues(dups, dupSet);
+  const camLeftovers = []; // forCam: položky kontury mimo hlavní profil
 
   const isInc = state.cncOutputMode === 'inc';
   // Spodní obrábění (X+ dolů / zadní nožová hlava) nebo otočená osa Z: zrcadlení
@@ -844,12 +886,13 @@ function runCncExport() {
         type: 'line', name: seqLabel,
         x1, y1, x2, y2,
         isStock: obj.isStock,
-        _sortX: Math.max(x1, x2)
+        _sortX: Math.max(x1, x2),
+        _src: obj,
       });
     } else if (obj.type === 'point') {
-      target.push({ ...obj, name: seqLabel, _sortX: obj.x });
+      target.push({ ...obj, name: seqLabel, _sortX: obj.x, _src: obj });
     } else if (obj.type === 'circle') {
-      target.push({ ...obj, name: seqLabel, _sortX: obj.cx + obj.r });
+      target.push({ ...obj, name: seqLabel, _sortX: obj.cx + obj.r, _src: obj });
     } else if (obj.type === 'arc') {
       // _sortX podle pravějšího ENDPOINTU oblouku (ne cx+r, který je extrémně
       // vlevo když má oblouk velký poloměr s endpointy blízko sebe). Bez toho
@@ -871,13 +914,13 @@ function runCncExport() {
         [startAngle, endAngle] = [endAngle, startAngle];
         ccw = !ccw;
       }
-      target.push({ ...obj, name: seqLabel, startAngle, endAngle, ccw, _sortX: Math.max(aSx, aEx) });
+      target.push({ ...obj, name: seqLabel, startAngle, endAngle, ccw, _sortX: Math.max(aSx, aEx), _src: obj });
     } else if (obj.type === 'rect') {
       let rx1 = obj.x1, ry1 = obj.y1, rx2 = obj.x2, ry2 = obj.y2;
       if (!obj.isStock && rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
-      target.push({ ...obj, name: seqLabel, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2) });
+      target.push({ ...obj, name: seqLabel, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2), _src: obj });
     } else if (obj.type === 'polyline') {
-      target.push({ ...obj, name: seqLabel, _sortX: Math.max(...obj.vertices.map(v => v.x)) });
+      target.push({ ...obj, name: seqLabel, _sortX: Math.max(...obj.vertices.map(v => v.x)), _src: obj });
     }
   }
 
@@ -914,6 +957,25 @@ function runCncExport() {
         return { ...obj, vertices: rev, bulges: rb };
       }
       default: return obj;
+    }
+  }
+  // Délka položky (výběr nejdelšího řetězu pro přenos do CAM). Oblouky
+  // polyline stačí tětivou — jde jen o porovnání řetězů mezi sebou.
+  function _itemLen(obj) {
+    switch (obj.type) {
+      case 'line': return Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1);
+      case 'arc': {
+        const TAU = Math.PI * 2;
+        const d = obj.ccw !== false ? obj.endAngle - obj.startAngle : obj.startAngle - obj.endAngle;
+        return obj.r * ((d % TAU + TAU) % TAU || TAU);
+      }
+      case 'polyline': {
+        const vv = obj.vertices, n = obj.closed ? vv.length : vv.length - 1;
+        let s = 0;
+        for (let i = 0; i < n; i++) s += Math.hypot(vv[(i + 1) % vv.length].x - vv[i].x, vv[(i + 1) % vv.length].y - vv[i].y);
+        return s;
+      }
+      default: return 0;
     }
   }
 
@@ -991,8 +1053,25 @@ function runCncExport() {
     for (let i = 0; i < items.length; i++) if (!used[i]) rest.push(items[i]);
     rest.sort((a, b) => (b._sortX || 0) - (a._sortX || 0));
     items.length = 0;
-    chained.forEach(o => items.push(o));
-    rest.forEach(o => items.push(o));
+    // Přenos do CAM: jen hlavní (nejdelší) souvislý řetěz. Ostatní řetězy
+    // i nechainovatelné objekty jdou do camLeftovers — CAM by je jinak dostal
+    // za G00 jako součást kontury. Bez jediného řetězu (např. profil jen jako
+    // obdélník) se posílá vše jako dřív.
+    const chains = [];
+    for (const it of chained) {
+      if (!it._chainCont || chains.length === 0) chains.push([]);
+      chains[chains.length - 1].push(it);
+    }
+    if (forCam && chains.length > 0) {
+      const len = (ch) => ch.reduce((s, it) => s + _itemLen(it), 0);
+      const main = chains.reduce((a, b) => (len(b) > len(a) ? b : a));
+      for (const ch of chains) if (ch !== main) camLeftovers.push(...ch);
+      camLeftovers.push(...rest);
+      main.forEach(o => items.push(o));
+    } else {
+      chained.forEach(o => items.push(o));
+      rest.forEach(o => items.push(o));
+    }
   }
 
   // Chain-sort polotovaru: seřadíme objekty tak, aby konec[i] navazoval na
@@ -1185,6 +1264,9 @@ function runCncExport() {
   }
   out += "\nG28 ; Návrat do referenčního bodu\nM30 ; Konec programu\n";
   out += "\n; === Konec ===\n";
+  if (forCam) {
+    return { code: out, leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))] };
+  }
   document.getElementById("cncOutput").value = out;
   return out;
 }
@@ -1280,6 +1362,7 @@ document.getElementById("btnCncToCam").addEventListener("click", () => {
   renderCncCodeToCanvas(document.getElementById("cncOutput").value);
 });
 bridge.runCncExport = runCncExport;
+bridge.buildCamTransfer = () => runCncExport({ forCam: true });
 bridge.renderCncCodeToCanvas = renderCncCodeToCanvas;
 
 // Seřadit skupinu objektů (kontura / polotovar) podle dráhy a přečíslovat panel

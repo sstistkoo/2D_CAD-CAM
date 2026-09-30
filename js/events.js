@@ -19,6 +19,7 @@ import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFrom
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 import { isAnyPickerArmed } from './dialogs/canvasPick.js';
+import { offerDuplicateAt } from './dialogs/contourCheck.js';
 
 // Registrace measureSelection na bridge (aby ui.js nemusel importovat přímo – kruhová závislost)
 bridge.measureSelection = measureSelection;
@@ -306,6 +307,12 @@ drawCanvas.addEventListener("mousedown", (e) => {
 
   // Obdélníkový výběr: začít tažení z prázdného místa v select režimu
   if (state.tool === "select" && !state.drawing && !state.dragging) {
+    // Klik na zdvojenou čáru i na její popisek (ten leží v prázdnu, jinak by
+    // začal obdélníkový výběr) → nabídka smazání kopie.
+    const r = drawCanvas.getBoundingClientRect();
+    state.mouse.sx = e.clientX - r.left;
+    state.mouse.sy = e.clientY - r.top;
+    if (clickOnDuplicate()) return;
     const hitObj = findObjectAt(state.mouse.x, state.mouse.y);
     if (hitObj === null) {
       state._rectSelecting = true;
@@ -932,9 +939,20 @@ export function finishRectSelection() {
  * @param {number} wy
  * @param {{ addToSelection?: boolean }} [opts]
  */
+// Klik na žlutě vyznačenou zdvojenou čáru (nebo její popisek) → nabídka
+// smazání té kopie (dialogs/contourCheck.js). Bere se NEpřichycená poloha:
+// snap by klik na sousední čáru stáhl do vrcholu, který s ní zdvojená sdílí.
+function clickOnDuplicate() {
+  if (!state.contourDuplicates || state.contourDuplicates.length === 0) return false;
+  const [rx, ry] = screenToWorld(state.mouse.sx, state.mouse.sy);
+  return offerDuplicateAt(rx, ry, state.mouse.sx, state.mouse.sy, 12);
+}
+
 export function handleCanvasClick(wx, wy) {
   switch (state.tool) {
     case "select":
+      // tap na dotyku sem jde rovnou (myš to zkusila už v mousedown)
+      if (!state.drawing && clickOnDuplicate()) break;
       selectObjectAt(wx, wy);
       break;
 

@@ -1455,6 +1455,8 @@ function renderObjects() {
 
   // Mezery v kontuře (kontrola uzavřenosti před generováním polotovaru/G-kódu)
   drawContourGapMarkers();
+  // Zdvojené čáry (žlutě) a čáry mimo profil při přenosu do CAM (fialově)
+  drawContourHighlights();
 
   // Snap indikátor
   drawSnapIndicator();
@@ -1484,6 +1486,107 @@ function drawContourGapMarkers() {
     const fontSize = Math.round(Math.min(20, Math.max(11, 8 + state.zoom * 4)));
     ctx.font = `bold ${fontSize}px Consolas`;
     ctx.fillText(gp.branch ? 'Větvení' : 'Mezera', sx + r + 4, sy - r);
+  }
+  ctx.restore();
+}
+
+// ── Zdvojené čáry / čáry mimo profil (široký průsvitný pruh + popisek) ──
+// Zdvojená čára leží přesně na jiné, takže bez zvýraznění není vidět vůbec.
+// Kreslí se bez ohledu na showContourGaps – zdvojení nikdy není záměr.
+function _traceHighlightPath(obj) {
+  const seg = (x1, y1, x2, y2) => {
+    const [a, b] = worldToScreen(x1, y1), [c, d] = worldToScreen(x2, y2);
+    ctx.moveTo(a, b); ctx.lineTo(c, d);
+  };
+  const arc = (cx, cy, r, sa, ea, ccw) => {
+    const [sx, sy] = worldToScreen(cx, cy);
+    ctx.moveTo(...worldToScreen(cx + r * Math.cos(sa), cy + r * Math.sin(sa)));
+    ctx.arc(sx, sy, r * state.zoom, screenAngle(sa), screenAngle(ea), screenCCW(ccw));
+  };
+  switch (obj.type) {
+    case 'line': seg(obj.x1, obj.y1, obj.x2, obj.y2); break;
+    case 'arc': arc(obj.cx, obj.cy, obj.r, obj.startAngle, obj.endAngle, obj.ccw !== false); break;
+    case 'circle': arc(obj.cx, obj.cy, obj.r, 0, Math.PI * 2, true); break;
+    case 'rect': {
+      const c = getRectCorners(obj);
+      for (let i = 0; i < c.length; i++) seg(c[i].x, c[i].y, c[(i + 1) % c.length].x, c[(i + 1) % c.length].y);
+      break;
+    }
+    case 'polyline': {
+      const vs = obj.vertices || [], n = obj.closed ? vs.length : vs.length - 1;
+      for (let i = 0; i < n; i++) {
+        const v1 = vs[i], v2 = vs[(i + 1) % vs.length];
+        const a = bulgeToArc(v1, v2, (obj.bulges || [])[i] || 0);
+        if (a) arc(a.cx, a.cy, a.r, a.startAngle, a.endAngle, a.ccw);
+        else seg(v1.x, v1.y, v2.x, v2.y);
+      }
+      break;
+    }
+    case 'point': {
+      const [px, py] = worldToScreen(obj.x, obj.y);
+      ctx.moveTo(px + 6, py); ctx.arc(px, py, 6, 0, Math.PI * 2);
+      break;
+    }
+  }
+}
+
+function _highlightLabelPos(obj) {
+  if (obj.type === 'arc') {
+    const TAU = Math.PI * 2, ccw = obj.ccw !== false;
+    let sweep = ((ccw ? obj.endAngle - obj.startAngle : obj.startAngle - obj.endAngle) % TAU + TAU) % TAU;
+    if (sweep < 1e-9) sweep = TAU;
+    const am = ccw ? obj.startAngle + sweep / 2 : obj.startAngle - sweep / 2;
+    return { x: obj.cx + obj.r * Math.cos(am), y: obj.cy + obj.r * Math.sin(am) };
+  }
+  if (obj.type === 'line' || obj.type === 'rect') return { x: (obj.x1 + obj.x2) / 2, y: (obj.y1 + obj.y2) / 2 };
+  if (obj.type === 'circle') return { x: obj.cx, y: obj.cy + obj.r };
+  if (obj.type === 'point') return { x: obj.x, y: obj.y };
+  const vs = obj.vertices || [];
+  return vs.length ? vs[Math.floor(vs.length / 2)] : null;
+}
+
+function drawContourHighlights() {
+  const live = new Set(state.objects);
+  const marks = [];
+  // Obdélníky popisků zdvojených čar (screen px) – klik na popisek nabídne
+  // smazání stejně jako klik na čáru (dialogs/contourCheck.js duplicateAt).
+  state._dupLabelBoxes = [];
+  for (const d of state.contourDuplicates || []) {
+    if (live.has(d.obj)) marks.push({ obj: d.obj, color: COLORS.yellow, label: '2× přes sebe – klikni', dup: d });
+  }
+  for (const o of state.camLeftovers || []) {
+    if (live.has(o)) marks.push({ obj: o, color: COLORS.snapEdge, label: 'mimo profil' });
+  }
+  if (marks.length === 0) return;
+  ctx.save();
+  ctx.textBaseline = 'alphabetic';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([]);
+  const fontSize = Math.round(Math.min(20, Math.max(11, 8 + state.zoom * 4)));
+  ctx.font = `bold ${fontSize}px Consolas`;
+  for (const m of marks) {
+    ctx.strokeStyle = m.color;
+    ctx.fillStyle = m.color;
+    // Široký průsvitný pruh (najde se i při malém zoomu) + plná čára v barvě
+    // zvýraznění přes původní čáru (bez ní pruh přes modrou konturu zešedne).
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    _traceHighlightPath(m.obj);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    const p = _highlightLabelPos(m.obj);
+    if (p) {
+      const [sx, sy] = worldToScreen(p.x, p.y);
+      ctx.fillText(m.label, sx + 10, sy - 10);
+      if (m.dup) {
+        const w = ctx.measureText(m.label).width;
+        state._dupLabelBoxes.push({ dup: m.dup, x0: sx + 6, y0: sy - 14 - fontSize, x1: sx + 14 + w, y1: sy - 4 });
+      }
+    }
   }
   ctx.restore();
 }

@@ -83,7 +83,7 @@ document.getElementById("sidebar").addEventListener("focus", (e) => {
  * Volající si sám zajistí pushUndo(). Po smazání se výběr vyresetuje.
  * @param {number[]} indices
  */
-function deleteObjectsByIndices(indices) {
+export function deleteObjectsByIndices(indices) {
   const sorted = [...new Set(indices)].sort((a, b) => b - a); // sestupně, aby splice neposouval indexy
   for (const idx of sorted) {
     const obj = state.objects[idx];
@@ -4296,8 +4296,12 @@ document.getElementById("btnNumInput")?.addEventListener("click", () => showComb
 document.getElementById("desktopNumInput")?.addEventListener("click", () => showCombinedModal('num'));
 document.getElementById("btnOpenCam").addEventListener("click", () => {
   // Pokud je něco nakresleno, vždy přegenerovat G-kód z aktuálního výkresu
-  // (jinak by se po smazání objektů načetl starý cache cncOutput).
-  if (state.objects && state.objects.length > 0 && bridge.runCncExport) {
+  // (jinak by se po smazání objektů načetl starý cache cncOutput). Do CAM jde
+  // jen hlavní profil – zdvojené čáry a kusy mimo profil řeší dialog předem
+  // (dialogs/contourCheck.js).
+  if (state.objects && state.objects.length > 0 && bridge.openCamFromDrawing) {
+    bridge.openCamFromDrawing(code => openCamSimulator(code || undefined));
+  } else if (state.objects && state.objects.length > 0 && bridge.runCncExport) {
     bridge.runCncExport();
     const code = document.getElementById("cncOutput")?.value;
     openCamSimulator(code || undefined);

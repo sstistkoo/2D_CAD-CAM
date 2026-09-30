@@ -31,6 +31,7 @@ import './objects.js';
 import './events.js';
 import './touch.js';
 import './dialogs.js';
+import './dialogs/contourCheck.js'; // zdvojené čáry + jen hlavní profil do CAM (bridge)
 
 // ── Panel toggle via data-panel attributes ──
 document.querySelectorAll('.panel-header[data-panel]').forEach(header => {

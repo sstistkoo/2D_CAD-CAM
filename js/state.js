@@ -252,6 +252,14 @@ export const state = {
   holderDrawMode: null,
   // Body mezer/přerušení v kontuře nalezené při kontrole validity (pro zvýraznění na plátně)
   contourGaps: [],
+  // Zdvojené čáry kontury ({obj, keep}, viz findContourDuplicates) – kreslí se
+  // žlutě vždy (na rozdíl od značek mezer), protože zdvojení nikdy není záměr.
+  contourDuplicates: [],
+  // Obdélníky jejich popisků na plátně (render.js) – klikací jako čára sama
+  _dupLabelBoxes: [],
+  // Čáry, které při přenosu do CAM zůstaly mimo hlavní profil – zvýrazněné
+  // jen po dobu dotazu před otevřením CAM (dialogs/contourCheck.js).
+  camLeftovers: [],
   // Zobrazovat značky "Mezera" na plátně (lze vypnout v nastavení)
   showContourGaps: false,
   // Režim výstupu CNC kódu: 'abs' = G90, 'inc' = G91

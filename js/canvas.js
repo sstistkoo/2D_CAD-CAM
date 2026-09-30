@@ -448,16 +448,29 @@ export function visibleCanvasRect() {
   return { width: drawCanvas.width, top: topPx, height: heightPx, centerY: topPx + heightPx / 2 };
 }
 
+// Výřez zkrácený zespodu po horní hranu elementu (úzké okno dole přes plátno,
+// které VIEW_OBSTRUCTIONS kvůli testu na 80 % šířky nechytí).
+function _viewAbove(view, el) {
+  const r = el.getBoundingClientRect();
+  const cr = drawCanvas.getBoundingClientRect();
+  if (!r.height || !cr.height) return view;
+  const limit = (r.top - cr.top - OBSTRUCTION_GAP) * (drawCanvas.height / cr.height);
+  const height = Math.min(view.height, limit - view.top);
+  if (height < 80 || height >= view.height) return view;
+  return { ...view, height, centerY: view.top + height / 2 };
+}
+
 /**
  * Nastaví zoom i pan tak, aby zadaný world AABB padl doprostřed viditelné
  * části plátna. `renderAll()` si volá volající – tahle funkce jen počítá.
  * @param {{minX: number, maxX: number, minY: number, maxY: number}} bounds
- * @param {{padding?: number, minExtent?: number}} [opts] `minExtent` = nejmenší
- *   rámovaná velikost v mm; bez ní by jediný bod (náhled s jedním prvkem)
- *   vyjel na ZOOM_MAX.
+ * @param {{padding?: number, minExtent?: number, above?: Element|null}} [opts]
+ *   `minExtent` = nejmenší rámovaná velikost v mm; bez ní by jediný bod (náhled
+ *   s jedním prvkem) vyjel na ZOOM_MAX. `above` = okno ležící dole přes plátno
+ *   (dotaz nad zvýrazněným místem) – rámuje se jen do plochy nad ním.
  */
-export function fitViewToWorldBounds(bounds, { padding = AUTO_CENTER_PADDING, minExtent = 20 } = {}) {
-  const view = visibleCanvasRect();
+export function fitViewToWorldBounds(bounds, { padding = AUTO_CENTER_PADDING, minExtent = 20, above = null } = {}) {
+  const view = above ? _viewAbove(visibleCanvasRect(), above) : visibleCanvasRect();
   const bboxW = Math.max(bounds.maxX - bounds.minX, minExtent);
   const bboxH = Math.max(bounds.maxY - bounds.minY, minExtent);
   const zoomX = (view.width * (1 - 2 * padding)) / bboxW;

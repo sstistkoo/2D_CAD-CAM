@@ -359,6 +359,19 @@ CAM část ti umožní generovat NC programy pro obrábění.
 ### 2. Kontura / Profil
 - Profil obráběného kusu: linií, oblouky, polyline
 - Pro CAM použij **Kontura** šablonu nebo nakresli vlastní
+- **Do CAM jde jen jeden souvislý profil** (nejdelší napojený řetěz čar).
+  Zbude-li mimo něj něco (osamocená čára, kus odtržený mezerou, kružnice),
+  aplikace to před otevřením CAM přiblíží, vyznačí **fialově „mimo profil"**
+  a zeptá se: **Otevřít CAM bez nich**, nebo **Zpět do výkresu** (typicky
+  spojit mezeru). Body (nástroj Bod) se do CAM neposílají nikdy.
+- **Zdvojené čáry** – dvě stejné čáry přesně přes sebe (dvakrát nakreslená
+  nebo zkopírovaná úsečka) na výkrese nejsou vidět, ale kontura se kvůli nim
+  hlásí jako rozvětvená. Aplikace je vyznačí **žlutě „2× přes sebe – klikni"**,
+  přiblíží na ně a nabídne **Smazat kopii** (Zpět ji vrátí). Nabídka přijde
+  jednou, když zdvojení vznikne (nebo při otevření CAM); po **Ponechat**
+  zůstane žluté vyznačení a **kliknutím na žlutou čáru nebo její popisek**
+  (nástroj Výběr, myš i prst) se nabídka smazání objeví znovu. Do CAM se
+  přebytečná kopie neposílá ani tak.
 
 ### 3. CAM Simulátor
 1. Klikni na **CAM** v Sinumerik rozcestníku
