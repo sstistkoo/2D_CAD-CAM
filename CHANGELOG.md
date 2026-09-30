@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dopočtený bod se zapisuje do CELÉHO řádku (`replaceVkLine()`), ne do
     prvního výskytu podřetězce – nedořešené `G11 X? Z? PA180` přepsalo
     starší řádek `G11 X? Z? PA180 PR10`, který ho obsahoval.
+  - **PR (polární rádius) je vždy skutečná délka**, i když je X zobrazené
+    v průměru. Složka PR v ose X se v režimu průměr zdvojnásobí (převod
+    přes `displayX()` v jediném `polarDelta()`), takže `PA90 PR10` zvětší
+    poloměr o 10 mm. Dřív se přičítala přímo k průměru a poloměr se změnil
+    jen o polovinu. Platí pro náhled, dopočet, vložení do výkresu i převod
+    na ISO.
 
 ### Changed
 - **CAM – kulatá destička: jeden postup pravidla 7 místo oprav po kouscích.**

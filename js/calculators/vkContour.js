@@ -45,9 +45,19 @@ function saveVkFieldValues(values) {
   }
 }
 
+/**
+ * Přírůstek polárního zápisu PA/PR v jednotkách TEXTU G-kódu.
+ *
+ * PR (polární rádius) je vždy SKUTEČNÁ délka – stejně jako R oblouku – bez
+ * ohledu na to, jestli je X zobrazené v průměru. Složka v ose X se proto
+ * převádí přes displayX(): v režimu průměr se zdvojnásobí, aby se poloměr
+ * změnil o skutečnou délku. Dřív se přičítala k průměru přímo, takže
+ * `PA90 PR10` zvětšilo poloměr jen o 5 mm a úsečka vyšla kratší než PR.
+ * Jediný zdroj pravdy pro náhled, dopočet i převod na ISO.
+ */
 function polarDelta(paDeg, pr) {
   const paRad = ((paDeg % 360) + 360) % 360 * (Math.PI / 180);
-  return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
+  return { z: pr * Math.cos(paRad), x: displayX(pr * Math.sin(paRad)) };
 }
 
 /**
@@ -2093,11 +2103,6 @@ export function initVkTab(container, { picker = null } = {}) {
 
     function normalizeAngle(deg) {
       return ((deg % 360) + 360) % 360;
-    }
-
-    function polarDelta(paDeg, pr) {
-      const paRad = normalizeAngle(paDeg) * D2R;
-      return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
     }
 
     function lineDirection(el) {

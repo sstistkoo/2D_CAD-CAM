@@ -14,7 +14,8 @@ import {
   solveCornerLineLine,
   solveAngleAndCoordinate,
 } from '../js/calculators/vkSolver.js';
-import { replaceVkLine } from '../js/calculators/vkContour.js';
+import { replaceVkLine, buildVkPreviewData } from '../js/calculators/vkContour.js';
+import { state } from '../js/state.js';
 
 describe('elementRay – známá souřadnice je KONEC prvku (FK: FL X20)', () => {
   it('X známé, Z? – paprsek vede po zadaném X, ne po X kotvy', () => {
@@ -83,5 +84,42 @@ describe('replaceVkLine – záplata celého řádku, ne podřetězce', () => {
   it('řádek, který v kódu není, nechá syntaxi beze změny', () => {
     const code = 'G0 X10 Z0\nG11 X20 Z-5';
     expect(replaceVkLine(code, 'G11 X? Z?', 'cokoli')).toBe(code);
+  });
+});
+
+
+describe('PA/PR – polární rádius je vždy skutečná délka (poloměr)', () => {
+  const lastEnd = (code) => {
+    const { segments } = buildVkPreviewData(code);
+    return segments[segments.length - 1].end;
+  };
+
+  it('v režimu průměr PA90 PR10 zvětší PRŮMĚR o 20 (poloměr o 10)', () => {
+    const before = state.xDisplayMode;
+    state.xDisplayMode = 'diameter';
+    try {
+      const end = lastEnd('G0 X20 Z0\nG11 X? Z? PA90 PR10');
+      expect(end.x).toBeCloseTo(40, 9);
+      expect(end.z).toBeCloseTo(0, 9);
+    } finally { state.xDisplayMode = before; }
+  });
+
+  it('v režimu průměr se délka PR zachová i u šikmé úsečky', () => {
+    const before = state.xDisplayMode;
+    state.xDisplayMode = 'diameter';
+    try {
+      const end = lastEnd('G0 X20 Z0\nG11 X? Z? PA150 PR10');
+      const dRadius = (end.x - 20) / 2;
+      expect(Math.hypot(end.z, dRadius)).toBeCloseTo(10, 9);
+    } finally { state.xDisplayMode = before; }
+  });
+
+  it('v režimu poloměr se nic nemění', () => {
+    const before = state.xDisplayMode;
+    state.xDisplayMode = 'radius';
+    try {
+      const end = lastEnd('G0 X10 Z0\nG11 X? Z? PA90 PR10');
+      expect(end.x).toBeCloseTo(20, 9);
+    } finally { state.xDisplayMode = before; }
   });
 });

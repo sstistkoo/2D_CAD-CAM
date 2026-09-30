@@ -63,7 +63,7 @@ const linearSection = {
     {
       title: 'Úsečka určená hned (úhel + délka)',
       syntax: 'G11 X? Z? PA180 PR20',
-      desc: 'PA + PR od konce předchozího prvku – konec se dopočte hned a řetěz pokračuje.',
+      desc: 'PA + PR od konce předchozího prvku – konec se dopočte hned a řetěz pokračuje. PR je vždy skutečná délka (poloměr), i když je X zobrazené v průměru.',
     },
   ],
 };
