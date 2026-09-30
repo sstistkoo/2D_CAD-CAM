@@ -46,8 +46,13 @@ function dist(a, b) { return Math.hypot(a.z - b.z, a.x - b.x); }
  */
 export function elementRay(el, anchor) {
   if (el.pa != null) return { z0: anchor.z, x0: anchor.x, angleDeg: el.pa };
-  if (el.x != null && el.z == null) return { z0: anchor.z, x0: anchor.x, angleDeg: 0 };
-  if (el.z != null && el.x == null) return { z0: anchor.z, x0: anchor.x, angleDeg: 90 };
+  // Známá souřadnice je KONEC prvku (jako u Heidenhain FK: FL X20 = konec
+  // leží na X20). Paprsek proto musí vést po ní, ne po kotvě – dřív se brala
+  // kotva a zadané X/Z se tiše zahodilo, takže text říkal X20, ale dopočet
+  // běžel po X kotvy. Když se kotva s hodnotou shoduje (běžný válec/čelo),
+  // vyjde to nastejno.
+  if (el.x != null && el.z == null) return { z0: anchor.z, x0: el.x, angleDeg: 0 };
+  if (el.z != null && el.x == null) return { z0: el.z, x0: anchor.x, angleDeg: 90 };
   throw new Error('Prvek nemá určený směr – chybí PA nebo jedna ze souřadnic musí být „?"');
 }
 
@@ -61,6 +66,31 @@ export function intersectRays(r1, r2) {
   const ez = r2.z0 - r1.z0, ex = r2.x0 - r1.x0;
   const t = (ez * dx2 - ex * dz2) / denom;
   return { z: r1.z0 + t * dz1, x: r1.x0 + t * dx1 };
+}
+
+/**
+ * FK: úsečka/kužel se známým úhlem PA a JEDNOU souřadnicí konce (X nebo Z)
+ * je určená hned, jakmile se zná její začátek – konec je průsečík paprsku
+ * ze začátku pod úhlem PA s přímkou X = konst. (resp. Z = konst.).
+ * Na následující prvek se tu čekat nemusí (obdoba FL X.. AN.. u Heidenhainu).
+ *
+ * @param {{z:number,x:number}} start začátek prvku (solver prostor = poloměr)
+ * @param {{x:?number, z:?number, pa:number}} el právě jedno z x/z je číslo
+ * @returns {{z:number, x:number, reversed:boolean}} `reversed` = konec leží
+ *   PROTI směru PA (úhel zřejmě zadaný obráceně) – volající to má oznámit
+ */
+export function solveAngleAndCoordinate(start, el) {
+  const ray = { z0: start.z, x0: start.x, angleDeg: el.pa };
+  const target = el.x != null
+    ? { z0: start.z, x0: el.x, angleDeg: 0 }
+    : { z0: el.z, x0: start.x, angleDeg: 90 };
+  const axis = el.x != null ? 'X' : 'Z';
+  const pt = intersectRays(ray, target);
+  if (!pt) throw new Error(`úhel PA${el.pa} je rovnoběžný s ${axis} = konst. – konec nejde najít`);
+  const a = el.pa * D2R;
+  const t = (pt.z - start.z) * Math.cos(a) + (pt.x - start.x) * Math.sin(a);
+  if (Math.abs(t) < 1e-9) throw new Error(`začátek už leží na zadaném ${axis} – prvek by měl nulovou délku`);
+  return { z: pt.z, x: pt.x, reversed: t < 0 };
 }
 
 /**

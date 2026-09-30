@@ -21,7 +21,7 @@ import { lineContinuationProps } from '../lineStyles.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunctionCandidates, chooseSolution,
   tangentCircleTouchPoints, tangentCircleBetweenRays, twoTangentArcsBetweenRays,
-  tangentArcEndOnRay, twoTangentArcsFromDirection,
+  tangentArcEndOnRay, twoTangentArcsFromDirection, solveAngleAndCoordinate,
 } from './vkSolver.js';
 
 const DEFAULT_GCODE = '';
@@ -45,9 +45,19 @@ function saveVkFieldValues(values) {
   }
 }
 
+/**
+ * Přírůstek polárního zápisu PA/PR v jednotkách TEXTU G-kódu.
+ *
+ * PR (polární rádius) je vždy SKUTEČNÁ délka – stejně jako R oblouku – bez
+ * ohledu na to, jestli je X zobrazené v průměru. Složka v ose X se proto
+ * převádí přes displayX(): v režimu průměr se zdvojnásobí, aby se poloměr
+ * změnil o skutečnou délku. Dřív se přičítala k průměru přímo, takže
+ * `PA90 PR10` zvětšilo poloměr jen o 5 mm a úsečka vyšla kratší než PR.
+ * Jediný zdroj pravdy pro náhled, dopočet i převod na ISO.
+ */
 function polarDelta(paDeg, pr) {
   const paRad = ((paDeg % 360) + 360) % 360 * (Math.PI / 180);
-  return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
+  return { z: pr * Math.cos(paRad), x: displayX(pr * Math.sin(paRad)) };
 }
 
 /**
@@ -289,6 +299,32 @@ export function dropLastVkElementLine(code) {
  */
 export function vkChainHasElements(code) {
   return /^(G0|G11|G1|G2|G3)\s+/m.test(String(code || ''));
+}
+
+/**
+ * Nahradí v syntaxi CELÝ řádek `oldLine` řádkem `newLine`.
+ *
+ * Dřív se nahrazovalo přes `String.replace(oldLine, …)`, tedy první VÝSKYT
+ * podřetězce. Nedořešený řádek `G11 X? Z? PA180` je ale začátkem řádku
+ * `G11 X? Z? PA180 PR10` – dopočet pak přepsal ten druhý (starší) a první
+ * zůstal s otazníky. Porovnává se proto celý řádek a bere se POSLEDNÍ
+ * shoda: nedořešené prvky jsou vždy na konci řetězu.
+ *
+ * @param {string} code
+ * @param {string} oldLine
+ * @param {string} newLine
+ * @returns {string} beze změny, když řádek nenajde
+ */
+export function replaceVkLine(code, oldLine, newLine) {
+  const lines = String(code || '').split(/\r?\n/);
+  const target = String(oldLine).trim();
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (lines[i].trim() === target) {
+      lines[i] = newLine;
+      return lines.join('\n');
+    }
+  }
+  return String(code || '');
 }
 
 export function parseVkLine(text) {
@@ -955,7 +991,7 @@ export function initVkTab(container, { picker = null } = {}) {
       else patched = patched.replace(/X-?\d+(?:\.\d+)?/, `X${fmt(end.x)}`);
       if (patched.includes('Z?')) patched = patched.replace('Z?', `Z${fmt(end.z)}`);
       else patched = patched.replace(/Z-?\d+(?:\.\d+)?/, `Z${fmt(end.z)}`);
-      gcodeEl.value = gcodeEl.value.replace(editingItem.lineText, patched);
+      gcodeEl.value = replaceVkLine(gcodeEl.value, editingItem.lineText, patched);
       editingItem.lineText = patched;
       editingItem.xRaw = end.x;
       editingItem.x = toSolverX(end.x);
@@ -1501,7 +1537,7 @@ export function initVkTab(container, { picker = null } = {}) {
     let patched = el.lineText;
     if (patched.includes('X?')) patched = patched.replace('X?', `X${fmt(fromSolverX(pt.x))}`);
     if (patched.includes('Z?')) patched = patched.replace('Z?', `Z${fmt(pt.z)}`);
-    gcodeEl.value = gcodeEl.value.replace(el.lineText, patched);
+    gcodeEl.value = replaceVkLine(gcodeEl.value, el.lineText, patched);
     el.lineText = patched;
     resetConversionBackup();
     vkSave();
@@ -1665,6 +1701,43 @@ export function initVkTab(container, { picker = null } = {}) {
       wasFirstEver: isFirstEver,
     };
 
+    // ── FK: prvek určený už sám se sebou ──
+    // Jakmile je známý začátek (fronta nedořešených je prázdná), stačí úsečce
+    // k úplnému určení i neúplné zadání – na další prvek se čekat nemusí:
+    //   • PA + jedna souřadnice konce (X nebo Z) → průsečík (Heidenhain FL X.. AN..),
+    //   • PA + PR bez X/Z → konec je start + délka pod úhlem (FL AN.. LEN..).
+    // Dřív šly oba případy do fronty jako neznámé: u prvního se pak zadaná
+    // souřadnice tiše zahodila, u druhého se za ním už nic nedopočítalo.
+    let selfEnd = null;
+    const selfNotes = [];
+    const canSelfResolve = editingIndex === null && !isFirstEver && !el.isArc
+      && pendingQueue.length === 0 && lastPoint != null && el.pa != null;
+    if (canSelfResolve && prVal == null && (el.x == null) !== (el.z == null)) {
+      try {
+        const pt = solveAngleAndCoordinate(lastPoint, el);
+        if (el.x == null) {
+          el.xRaw = Number(fmt(fromSolverX(pt.x)));
+          el.x = toSolverX(el.xRaw);
+        } else {
+          el.z = Number(fmt(pt.z));
+        }
+        selfEnd = { z: el.z, x: el.x };
+        if (pt.reversed) selfNotes.push(`konec leží proti směru PA${fmt(el.pa)} – zkontroluj úhel`);
+      } catch (err) {
+        solveInfo.textContent = `⚠ Nelze dopočítat: ${err.message}`;
+        return;
+      }
+    } else if (canSelfResolve && prVal != null && el.x == null && el.z == null) {
+      // Stejný výpočet jako náhled a převod na ISO (buildVkPreviewData,
+      // resolvePAprLine) – přírůstek PA/PR se přičítá v jednotkách TEXTU,
+      // ať dopočet navazujících prvků vychází ze stejného bodu, jaký je
+      // nakreslený. Text řádku zůstává `X? Z? PA.. PR..` (X/Z by u prvku
+      // s PA/PR znamenalo POČÁTEK, viz startAndEndFromXzPaPr).
+      const delta = polarDelta(el.pa, prVal);
+      const endText = { z: lastPoint.z + delta.z, x: fromSolverX(lastPoint.x) + delta.x };
+      selfEnd = { z: endText.z, x: toSolverX(endText.x) };
+    }
+
     const line = buildVkElementLine({
       cmd,
       x: el.xRaw, z: el.z,
@@ -1692,7 +1765,7 @@ export function initVkTab(container, { picker = null } = {}) {
         el.id = old.id;
         el.anchor = firstElementAnchor(el);
         el.lineText = line;
-        gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
+        gcodeEl.value = replaceVkLine(gcodeEl.value, old.lineText, line);
         vkSave();
         firstElement = el;
         cursor = null;
@@ -1705,7 +1778,7 @@ export function initVkTab(container, { picker = null } = {}) {
       el.id = old.id;
       el.anchor = el.wasFirstEver ? firstElementAnchor(el) : old.anchor;
         el.lineText = line;
-        gcodeEl.value = gcodeEl.value.replace(old.lineText, line);
+        gcodeEl.value = replaceVkLine(gcodeEl.value, old.lineText, line);
         vkSave();
         pendingQueue[editingIndex] = el;
       cursor = null;
@@ -1743,12 +1816,14 @@ export function initVkTab(container, { picker = null } = {}) {
         if (pendingQueue.length === 1) solved = resolveOne(pendingQueue[0], el);
         else if (pendingQueue.length === 2) solved = resolveTwo(pendingQueue[0], pendingQueue[1], el);
         else solved = resolveThree(pendingQueue[0], pendingQueue[1], pendingQueue[2], el);
-        const parts = [];
-        for (const item of pendingQueue) {
+        // Záplatuje se od KONCE fronty: stejně znějící nedořešené řádky
+        // (např. dva `G11 X? Z? PA180`) pak každý dostane svůj bod –
+        // replaceVkLine() bere vždy poslední dosud nezáplatovanou shodu.
+        for (const item of [...pendingQueue].reverse()) patchLine(item, solved.points[item.id]);
+        const parts = pendingQueue.map((item) => {
           const pt = solved.points[item.id];
-          patchLine(item, pt);
-          parts.push(`Z${fmt(pt.z)} X${fmt(fromSolverX(pt.x))}`);
-        }
+          return `Z${fmt(pt.z)} X${fmt(fromSolverX(pt.x))}`;
+        });
         lastPoint = solved.points[pendingQueue[pendingQueue.length - 1].id];
         const note = solved.notes?.length ? ` — ${solved.notes.join('; ')}` : '';
         solveInfo.textContent = `✓ Dopočteno: ${parts.join(' | ')}${note}`;
@@ -1765,7 +1840,12 @@ export function initVkTab(container, { picker = null } = {}) {
       firstElement = el;
     }
 
-    if (isKnown) {
+    if (selfEnd) {
+      lastPoint = { ...selfEnd };
+      pendingQueue = [];
+      const note = selfNotes.length ? ` — ${selfNotes.join('; ')}` : '';
+      solveInfo.textContent = `✓ Dopočteno: Z${fmt(selfEnd.z)} X${fmt(fromSolverX(selfEnd.x))}${note}`;
+    } else if (isKnown) {
       // X/Z + PA/PR zadané zároveň: X/Z je počátek téhle úsečky (ne cíl),
       // PA/PR určí její délku a úhel – skutečný konec (a tedy navazující
       // bod řetězu) se dopočte stejně jako v buildVkPreviewData().
@@ -2023,11 +2103,6 @@ export function initVkTab(container, { picker = null } = {}) {
 
     function normalizeAngle(deg) {
       return ((deg % 360) + 360) % 360;
-    }
-
-    function polarDelta(paDeg, pr) {
-      const paRad = normalizeAngle(paDeg) * D2R;
-      return { z: pr * Math.cos(paRad), x: pr * Math.sin(paRad) };
     }
 
     function lineDirection(el) {
