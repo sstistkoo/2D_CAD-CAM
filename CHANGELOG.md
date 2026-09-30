@@ -53,6 +53,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   okna (ANS po novém otevření navazuje).
 
 ### Fixed
+- **CAM – poslední (tenčí) vrstva na dno údolí zase vzniká.** Od sjednocení
+  generátoru 25. 9. 2026 (7d9cbd6) chyběla u řetězu ramp v údolí poslední
+  kratší vrstva na dno (pravidlo 3): uzavírací bisekce v `roughLong.js`
+  brala jen interval otevřený přesně od vjezdu nebo prázdný sken, a interval,
+  u kterého kousek u hranice úseku ještě bránil offset stěny, zahodila.
+  Na `holder-casting-slanted-face` zůstalo na dně 0,19 mm a dokončení tam
+  vjelo kolmo. Nově se krok vydá i do intervalu, do kterého přímka zanoření
+  z kotvy dosedne (`landWindow`). S tím dvě navazující opravy:
+  `unpairOrphanChainSplits` (`ops/long/chainRelink.js`) zruší zkrácení
+  uzavíracího kroku, když hlubší průchod, na který měl navázat, z pole
+  vypadl (part-21: krok useknutý za čelem, za ním 1,44 mm materiálu); a
+  dojezd kroku, který skončil o držák, nezačíná v plánu pod jeho hloubkou
+  (model zbytku strategie jinak počítal s dipem, který emise nevydá).
+  Změřeno: 6 fixtures, zbytek na dně všude menší, kolize a tříska beze změny;
+  díly uživatele 26.–29. 9. bajt po bajtu stejné, ze starších 44/341
+  změněno, na všech ubylo zbytku (celkem −17 %).
+- **CAM – dokončení se nezanořuje kolmo do zbytku po hrubování.** Když
+  koridor nájezdové rampy nebyl volný, dokončení na začátek řetězu sjelo
+  svisle — i tehdy, když v cílovém bodě stál klín, kam se při hrubování
+  nevešel držák (`holder-casting-slanted-face`: `G1 X11.084` do 1,14 mm při
+  přídavku 0). Pravidlo uživatele 30. 9. 2026: *„sjet jenom to, co jde,
+  z místa, odkud to jde"*. `finishEmit.js` posune začátek řetězu po přímce na
+  první místo, kde zbytek klesne na přídavek + 0,2 mm (oblouk celý, nebo
+  vůbec), a vynechané hlásí ⚠. Na dílech uživatele se mění 11 z 356 souborů
+  a ve všech vynechaných kusech bral nůž dřív víc než přídavek (0,83–3,40 mm);
+  díly 26.–29. 9. beze změny. Průjezd zbytkem UPROSTŘED řetězu (strop ap
+  z `finDeepCut`) se tím nemění.
+- **Testy: čtyři testy měřily vědomě změněný model.** `cam-guide-to-stock-end`
+  (mezní čára končí na offsetové čáře polotovaru, a26d1f7),
+  `cam-leadout-step` + `cam-pocket-burst-depth` (první rampa dorampování
+  začíná záměrně na povrchu — tříska se teď měří na modelu úběru,
+  `tests/helpers/rampChip.mjs`), `cam-finish-holder` zpětné řezy (upichovák
+  hrubuje čelně, `enforceInsertStrategy`).
 - **CAM – kulatá: nájezd posuvem jen o Vůli Z, vrstva u stěny údolí.**
   Nálezy uživatele 29. 9. 2026 odpoledne (projekt_2026-09-29 (4), úsek 1):
   nájezd před vrstvou jel o Vůli Z + R, přestože začátek vrstvy kulaté už

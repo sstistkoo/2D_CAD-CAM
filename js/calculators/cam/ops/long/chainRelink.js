@@ -103,6 +103,45 @@ export function relinkOrphanChainSteps(passes, { step, plungeTan, surfaceXAtZ, i
 }
 
 /**
+ * Rozpojí ZKRÁCENÝ MEZIKROK, kterému zmizel partner.
+ *
+ * Uzavírací krok řetězu (`roughLong.js`, „JEDNO ap = JEDEN PRŮCHOD") se
+ * zkrátí na `emitZEnd` a nechá nástroj stát (`noRetract`), protože hned za
+ * ním jede hlubší průchod, který z toho místa rovnou pokračuje rampou
+ * (`emitChainFrom`). Obě značky jsou slib emisi o SOUSEDOVI v poli — a pole
+ * se potom ještě čistí a přeskládává, stejně jako u `pocketReposition` výš.
+ *
+ * Nález 30. 9. 2026 (`part-21-zleva-insert-shadow`): hlubší průchod X 8,94 za
+ * čelem dílu cestou vypadl, uzavírací krok X 10,312 zůstal useknutý na
+ * Z 345,599 a za jeho koncem stálo 1,44 mm materiálu téže vrstvy
+ * (pravidlo 4). Bez partnera je uzavírací krok obyčejná vrstva a má dojet
+ * na svůj konec. Obráceně: `emitChainFrom` bez zkráceného předchůdce by
+ * vjel z místa, kde nástroj nestojí — taky pryč.
+ *
+ * @param {Array} passes průchody (mění se na místě)
+ * @returns {number} kolik vazeb se rozpojilo
+ */
+export function unpairOrphanChainSplits(passes) {
+  if (!Array.isArray(passes)) return 0;
+  let fixed = 0;
+  for (let i = 0; i < passes.length; i++) {
+    const p = passes[i];
+    if (!p) continue;
+    const next = passes[i + 1], prev = passes[i - 1];
+    if (Number.isFinite(p.emitZEnd) && !(next && next.emitChainFrom)) {
+      delete p.emitZEnd;
+      delete p.noRetract;
+      fixed++;
+    }
+    if (p.emitChainFrom && !(prev && Number.isFinite(prev.emitZEnd))) {
+      delete p.emitChainFrom;
+      fixed++;
+    }
+  }
+  return fixed;
+}
+
+/**
  * Zkrátí RAMPU, která vede vyčištěným prostorem.
  *
  * Nález uživatele 17. 9. 2026: `N1670 G1 X60.471 Z215.239 ; Rampa 45.0°`

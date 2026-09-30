@@ -25,7 +25,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
-import { roughingKey } from '../js/calculators/cam/calculatePipeline.js';
+import { roughingKey, enforceInsertStrategy } from '../js/calculators/cam/calculatePipeline.js';
 import { StockModel, toolSweep, polyArea } from '../js/geom/geomCore.js';
 import { buildStockLoopRaw, toolFootprint } from '../js/calculators/cam/materialRemoval.js';
 
@@ -259,6 +259,13 @@ describe('CAM: nájezd a výjezd dokončování', () => {
   it('hrubování nemá zpětné axiální řezy (Z proti směru řezu)', async () => {
     for (const name of fixtures) {
       const prog = load(name);
+      // Upichovák podélně nehrubuje (pravidlo 1, rozhodnutí uživatele
+      // 25. 9. 2026) — pipeline mu strategii přepne na čelní. Rozhoduje tedy
+      // strategie, kterou pipeline opravdu pojede, ne ta uložená v projektu:
+      // part-17 má v souboru „longitudinal" a čelní dojezdy „bez schodků"
+      // (po válci zpět k předchozímu zápichu) se tu jinak počítaly jako
+      // zpětné podélné řezy.
+      enforceInsertStrategy(prog.params);
       if ((prog.params?.roughingSide || 'right') !== 'right'
         || (prog.params?.roughingStrategy || 'longitudinal') !== 'longitudinal') continue;
       const { gcode } = await runCamProg(prog);

@@ -19,6 +19,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
+import { rampChips } from './helpers/rampChip.mjs';
 import { buildStockLoopRaw } from '../js/calculators/cam/materialRemoval.js';
 import { stockClearances, intersectVerticalLineSegment, intersectVerticalLineArc, isAngleBetween } from '../js/calculators/cam/camMath.js';
 import { polyOffset } from '../js/geom/geomCore.js';
@@ -77,7 +78,8 @@ describe('dojezd „bez schodků" u řetězu ramp a mezní čáry plátku', () =
   it('dojezd nesjede pod hloubku vlastní vrstvy; zbytek dobere rampa ≤ ap', async () => {
     const prog = JSON.parse(readFileSync(fixture, 'utf8'));
     const ap = prog.params.depthOfCut;
-    const { calc } = await runCamProg(prog);
+    const r = await runCamProg(prog);
+    const { calc } = r;
 
     for (const p of calc.passes) {
       if (p.type !== 'long' || !p.contourLeadOut || p.pocketClean) continue;
@@ -92,8 +94,19 @@ describe('dojezd „bez schodků" u řetězu ramp a mezní čáry plátku', () =
     // nesmí sebrat víc než Hloubka (ap) v jednom kroku.
     const ramped = calc.passes.filter(p => p.type === 'long' && p.ramp && !p.entryRangeRamp);
     expect(ramped.length).toBeGreaterThan(0);
-    for (const p of ramped) expect(p.ramp.x0 - p.x).toBeLessThan(ap + 1e-6);
-  }, 30000);
+    // Geometricky jen tam, kde kotva rampy JE předchozí vrstva. První krok
+    // dorampování strmé stěny (`rampCompletion`) začíná záměrně na povrchu
+    // polotovaru, nejvýš o ap nad kotvou (6b9a055, 7. 9. 2026) — na tomhle
+    // díle X 44,41 → 36,49, tedy 7,9 mm, a přitom tříska jen 2,3 mm.
+    for (const p of ramped) {
+      if (p.rampCompletion) continue;
+      expect(p.ramp.x0 - p.x).toBeLessThan(ap + 1e-6);
+    }
+    // Pravidlo 3 samo: materiál nad břitem na každé rampě programu ≤ ap.
+    const chips = rampChips(r);
+    expect(chips.length).toBeGreaterThan(0);
+    for (const c of chips) expect(c.chip, c.line).toBeLessThan(ap + 0.05);
+  });
 
   it('řetěz končící na STRMÉ stěně dobere schod (konec ≠ analytický dotyk)', async () => {
     const { calc } = await runCamProg(JSON.parse(readFileSync(fixtureSteep, 'utf8')));

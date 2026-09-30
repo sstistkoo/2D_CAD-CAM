@@ -21,10 +21,24 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
+import { stockPlanLoop } from '../js/calculators/cam/materialRemoval.js';
+import { stockClearances } from '../js/calculators/cam/camMath.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
 const load = (name) => JSON.parse(readFileSync(join(fxDir, name), 'utf8'));
+
+/** Vzdálenost bodu od uzavřené smyčky (nejbližší úsečka). */
+function distToLoop(loop, x, z) {
+  let best = Infinity;
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i], b = loop[(i + 1) % loop.length];
+    const dx = b.x - a.x, dz = b.z - a.z, L = dx * dx + dz * dz;
+    const t = L > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L)) : 0;
+    best = Math.min(best, Math.hypot(a.x + dx * t - x, a.z + dz * t - z));
+  }
+  return best;
+}
 
 /** Z-rozsah kontury a polotovaru tak, jak je zadaný v .camprog (world). */
 function zSpans(prog) {
@@ -64,15 +78,24 @@ describe('Mezní čára dojede až na hranu materiálu', () => {
 
   // part-11-zleva: totéž přes zrcadlo (hrubování zleva). Konec čáry se
   // posunul z konce dílce na obrys polotovaru o ~22 mm.
-  it('part-11-zleva: konec čáry sedí na polotovaru i přes zrcadlo Z', async () => {
+  // Od 16. 9. 2026 (a26d1f7, pravidlo uživatele: „ta čára od zanořování by
+  // měla jet až k offsetové čáře od polotovaru") končí čára na OFFSETOVÉ čáře
+  // polotovaru (Přídavek X/Z polo.), ne na syrovém obrysu — u odlitku leží
+  // o Vůli Z dál než `stock.hi`.
+  it('part-11-zleva: konec čáry sedí na offsetové čáře polotovaru i přes zrcadlo Z', async () => {
     const prog = load('part-11-zleva-casting.camprog');
     expect(prog.params.roughingSide).toBe('left');
     const span = zSpans(prog);
-    const { calc } = await runCamProg(prog);
-    const guides = calc.interferenceGuides || [];
+    const r = await runCamProg(prog);
+    const guides = r.calc.interferenceGuides || [];
+    const loop = stockPlanLoop(r.params, r.calc.stockPathSegments);
+    expect(loop, 'odlitek musí mít offsetovou čáru').toBeTruthy();
 
     const past = guides.filter(g => g.z1 > span.contour.hi + 0.5);
     expect(past.length, `konce čar: ${guides.map(g => g.z1.toFixed(2)).join(', ')}`).toBeGreaterThan(0);
-    for (const g of past) expect(g.z1).toBeLessThanOrEqual(span.stock.hi + 0.5);
-  }, 30000);
+    for (const g of past) {
+      expect(distToLoop(loop, g.x1, g.z1), `konec čáry (${g.x1.toFixed(3)}, ${g.z1.toFixed(3)})`).toBeLessThan(0.05);
+      expect(g.z1).toBeLessThanOrEqual(span.stock.hi + stockClearances(r.params).z + 0.05);
+    }
+  });
 });

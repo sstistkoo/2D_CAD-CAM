@@ -358,6 +358,57 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       S.genNotes.push({ type: 'warning', msg: `Dokončování: ${finDeepTrimmed} úsek(ů) zkráceno/vynecháno — hrubování tam nechalo víc materiálu než hloubku třísky (ap ${finMaxCut} mm), dokončovací nůž by ho bral naráz. Dohrubujte to (jiné upnutí/nástroj) a pusťte dokončování znovu.` });
     }
   }
+  // ── ŘETĚZ NEZAČÍNÁ VE ZBYTKU (30. 9. 2026) ─────────────────────────────
+  // Nájezd na začátek řetězu hlídá zbytek jen v KORIDORU RAMPY (`finRampClear`).
+  // Když rampa neprojde, sjede se svisle (`finLeadInRamp`, „bezpečnost >
+  // povrch") — a to i tehdy, když v cílovém bodě stojí víc než přídavek:
+  // dokončovací nůž se pak zanoří kolmo do klínu, který hrubování nechalo
+  // u stěny, kam se nevejde držák.
+  // Nález: `holder-casting-slanted-face` — pata kužele v údolí pod šikmým
+  // čelem, `G1 X11.084` na Z 102,88 do zbytku 1,14 mm (přídavek 0); dřív
+  // totéž v druhém údolí (`G1 X11.543`, 0,31 mm), hlídá `tests/cam-finish-holder`.
+  // Začátek řetězu se proto posune po PŘÍMCE tam, kde zbytek klesne na
+  // přídavek; oblouk se nepůlí (celý, nebo vůbec) — vynechá se a řetěz
+  // začne dalším úsekem. Mez je přídavek + 0,2 mm — rozlišení modelu zbytku,
+  // totéž, s čím měří test. Přísnější mez rampy (`finRampCut`, +0,05) tu
+  // posouvala začátek i kvůli zbytku 0,12 mm (díl uživatele 2026-07-07 (3)).
+  if (rapidStock) {
+    const startCut = finAlw + 0.2;
+    const deepAt = (x, z) => {
+      const top = residualTopXAtZ(z);
+      return top !== null && top > x - finTipR + startCut;
+    };
+    const kept = [];
+    let atStart = true, finStartTrimmed = 0;
+    for (const seg of finPath) {
+      if (seg.isDegenerate) continue;
+      if (seg.chainBreak) atStart = true;
+      if (!atStart) { kept.push(seg); continue; }
+      const sp = segStartPoint(seg);
+      if (!deepAt(sp.x, sp.z)) { kept.push(kept.length > 0 ? { ...seg, chainBreak: true } : seg); atStart = false; continue; }
+      finStartTrimmed++;
+      if (seg.type === 'line') {
+        const L = Math.hypot(seg.p2.x - seg.p1.x, seg.p2.z - seg.p1.z);
+        const n = Math.max(2, Math.ceil(L / 0.25));
+        let t = null;
+        for (let k = 1; k <= n; k++) {
+          const u = k / n;
+          if (!deepAt(seg.p1.x + (seg.p2.x - seg.p1.x) * u, seg.p1.z + (seg.p2.z - seg.p1.z) * u)) { t = u; break; }
+        }
+        if (t !== null && (1 - t) * L >= 0.2) {
+          const p1 = { x: seg.p1.x + (seg.p2.x - seg.p1.x) * t, z: seg.p1.z + (seg.p2.z - seg.p1.z) * t };
+          kept.push({ ...seg, p1, chainBreak: true });
+          atStart = false;
+          continue;
+        }
+      }
+      // Úsek vypadl celý — řetěz začne až dalším (atStart zůstává).
+    }
+    if (finStartTrimmed > 0) {
+      finPath = kept;
+      S.genNotes.push({ type: 'warning', msg: `Dokončování: ${finStartTrimmed} řetěz(ů) začíná dál — na původním začátku stojí po hrubování víc než přídavek (klín, kam se nevejde držák) a nájezd by se do něj zanořil kolmo.` });
+    }
+  }
   const finSegs = finPath.filter(s => !s.isDegenerate);
   finSegs.forEach((seg, idx) => {
     // chainBreak = samostatný řetěz (mezi konturami nic nenavazuje) —

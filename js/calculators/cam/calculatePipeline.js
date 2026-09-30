@@ -15,7 +15,7 @@ import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
 import { bridgePlungeGuidesIntoContour } from './plungeContourBridge.js';
 import { joinPlungeGuideOffsets } from './guideOffsetJoin.js';
-import { relinkOrphanChainSteps, capRampsThroughAir } from './ops/long/chainRelink.js';
+import { relinkOrphanChainSteps, capRampsThroughAir, unpairOrphanChainSplits } from './ops/long/chainRelink.js';
 import { hIntersect, makePassHelpers, maxXAt } from './passHelpers.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { planSections } from './ops/sections/sectionPlan.js';
@@ -691,6 +691,9 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     if (nRelink > 0) foundErrors.push({ type: 'warning',
       msg: `POZNÁMKA: ${nRelink} zanořovacích kroků nemělo na co navázat — vjíždějí samostatně, nejvýš o Hloubku záběru.` });
   }
+  // Totéž pro zkrácený mezikrok sjezdu (`emitZEnd` → `emitChainFrom`): vazba
+  // na souseda, kterou mohlo roztrhnout čištění pole — viz `unpairOrphanChainSplits`.
+  unpairOrphanChainSplits(passes);
 
   // ── RAMPA VYČIŠTĚNÝM PROSTOREM ─────────────────────────────────────────
   // Kotva rampy sedí na povrchu polotovaru; u hlubší vrstvy je ale nad ní

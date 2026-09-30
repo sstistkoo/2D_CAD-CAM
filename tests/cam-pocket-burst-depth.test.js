@@ -23,6 +23,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
+import { rampChips } from './helpers/rampChip.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
@@ -67,7 +68,8 @@ describe('Zanoření do kapsy sjíždí po Hloubce (ap)', () => {
   it('part-11-zleva: mezi sousedními kapsovými kroky není skok větší než ap', async () => {
     const prog = load('part-11-zleva-casting.camprog');
     expect(prog.params.plungeRoughing).toBe(true);
-    const { calc } = await runCamProg(prog);
+    const r = await runCamProg(prog);
+    const { calc } = r;
     const passes = calc.passes || [];
     const ap = prog.params.depthOfCut;
 
@@ -83,11 +85,17 @@ describe('Zanoření do kapsy sjíždí po Hloubce (ap)', () => {
     }
     // A samotná rampa taky ne — kotva zvednutá až na kůru leží u kapsy za
     // bossem klidně 2× ap nad dnem.
+    // Výjimka je první krok dorampování strmé stěny (`rampCompletion`): ten
+    // začíná záměrně na povrchu polotovaru, nejvýš o ap nad kotvou (6b9a055,
+    // 7. 9. 2026) — tady X 44,12 → 38,13, tedy 6,0 mm, ale tříska 0,5 mm.
+    // Za něj ručí měření materiálu níž.
     for (const p of passes) {
-      if (p.type !== 'long' || !p.ramp || p.entryRangeRamp) continue;
+      if (p.type !== 'long' || !p.ramp || p.entryRangeRamp || p.rampCompletion) continue;
       expect(p.ramp.x0 - p.x, `rampa průchodu x=${p.x.toFixed(3)}`).toBeLessThan(ap + 1e-6);
     }
-  }, 30000);
+    // Pravidlo 3 samo: materiál nad břitem na každé rampě programu ≤ ap.
+    for (const c of rampChips(r)) expect(c.chip, c.line).toBeLessThan(ap + 0.05);
+  });
 
   // Bez zanořování kapsová větev neběží vůbec (je za tím příznakem).
   // POZOR: `pocketReposition` sem NEPATŘÍ — ten příznak sdílejí TŘI mechanismy

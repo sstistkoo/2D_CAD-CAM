@@ -1562,12 +1562,37 @@ export function genLongPasses(ctx) {
         }
         return (zS - zEnd > dzScan) ? { zStart: zS, zEnd } : null;
       };
+      // ── INTERVAL, KTERÝ NEZAČÍNÁ NA VJEZDU (30. 9. 2026) ──────────────────
+      // Třetí případ vedle „první interval otevřený zprava" a „sken prázdný":
+      // sken něco najde, ale interval nezačíná přesně na `entryZ` (`firstOpen`
+      // false) — typicky údolí, kde u hranice úseku ještě kousek brání offset
+      // stěny. Bisekce takový interval zahodila jako kapsu, `loX` se sunulo až
+      // ke kotvě a poslední (tenčí) vrstva na dno se nevydala — pravidlo 3
+      // („poslední vrstva se udělá vždy").
+      //
+      // Nález: `holder-casting-slanted-face` (polygon, ap 2) od sjednocení
+      // generátoru 25. 9. 2026 — řetěz v údolí Z 22,4…68,6 skončil na X 11,846,
+      // dno je 11,655 → na dně zůstalo 0,19 mm a dokončení tam vjelo kolmo
+      // (`G1 X11.543`, 90° místo 15°). Na X 11,72…11,846 vracel sken interval
+      // Z 68,27…22,59, přímka zanoření z kotvy (Z 28,83) do něj dosedá.
+      //
+      // Platí týž výklad jako u prázdného skenu (`stepWindow`): krok se vydá,
+      // když přímka zanoření z kotvy dosedne DOVNITŘ některého intervalu,
+      // celá přímka mine konturu a pod dosedem zbývá víc než krok skenu.
+      // Interval už prošel obálkou držáku (`scan`), okno se jen zkrátí na dosed.
+      const landWindow = (mid, ivs) => {
+        if (!(mid - currentX > 0.05)) return null;
+        const zS = entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL;
+        const iv = ivs.find(v => v.zStart >= zS - 1e-6 && zS - v.zEnd > dzScan);
+        if (!iv || !rampClearOfContour(entryRampAnchor.x, entryRampAnchor.z, mid, zS)) return null;
+        return { zStart: zS, zEnd: iv.zEnd };
+      };
       for (let k = 0; k < 20; k++) {
         const mid = (loX + hiX) / 2;
         const midScan = scan(mid, entryZ, effZMin, true);
         const midIv = (midScan.firstOpen && midScan.intervals.length > 0) ? midScan.intervals[0] : null;
         const zSmid = midIv ? entryRampAnchor.z - (entryRampAnchor.x - mid) / effPlungeTanL : null;
-        const win = midIv ? null : (midScan.intervals.length === 0 ? stepWindow(mid) : null);
+        const win = midIv ? null : (midScan.intervals.length === 0 ? stepWindow(mid) : landWindow(mid, midScan.intervals));
         if (midIv && zSmid > midIv.zEnd + 0.05
             && rampClearOfContour(entryRampAnchor.x, entryRampAnchor.z, mid, zSmid)) {
           bestCiv = midIv; bestX = mid; hiX = mid;
@@ -1610,6 +1635,14 @@ export function genLongPasses(ctx) {
           const lo = holderTrimLeadOut(
             traceOffsetPath(bestCiv.zEnd, findLeadOutEndZ(bestCiv.zEnd, entryRampAnchor.x, -Infinity, traceFloorL)), true);
           while (lo.length > 0 && lo[0].x2 <= bestX + 0.02) lo.shift();
+          // Průchod skončil o DRŽÁK, ne o konturu (okno z `scan`) → offset na
+          // jeho konci leží POD hloubkou a dojezd by začínal pod ní. Emise jede
+          // jen koncové body (viz výš), takže vyjede rovnou z konce průchodu;
+          // plán musí říkat totéž, jinak model zbytku počítá s dipem, který se
+          // nevydá (`holder-region-roughing`: o 0,17 mm níž než realita, Z 100,5,
+          // hlídá `tests/cam-strategy-residual`).
+          if (lo.length > 0 && lo[0].type === 'line' && lo[0].x1 < bestX - 0.02)
+            lo[0] = { ...lo[0], x1: bestX, z1: bestCiv.zEnd };
           clipLeadOutToDepth(lo, entryRampAnchor.x);
           if (lo.length > 0) finalPass.contourLeadOut = lo;
         }

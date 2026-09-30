@@ -434,6 +434,12 @@ panel ⚠ to hlásí větou **„Program NEOBSAHUJE ŽÁDNÝ ŘEZNÝ POHYB"**. �
 nastav polotovar na tvar po hrubování, nebo použij **➕ Operace** (další část
 si obrobený polotovar spočítá sama).
 
+**Dokončení nezačíná ve zbytku.** Kde hrubování nechalo víc než přídavek
+(typicky klín u stěny, kam se nevešel držák), dokončovací nůž se do něj na
+začátku řetězu nezanoří kolmo. Začátek se posune po kontuře tam, kde zůstal
+jen přídavek, a najede se odtud rampou; oblouk se objede celý, nebo vůbec.
+Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) začíná dál"**.
+
 **Proč se negenerují hrubovací dráhy?** Tři nastavení hrubování přebíjejí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
 (naklikané upichnutí) a **Hot.** („jen dokončovací operace"). Když je některé
