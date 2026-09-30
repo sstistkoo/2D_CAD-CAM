@@ -360,9 +360,25 @@ export function generateAutoGCode(S, calc) {
   // findRampOutTarget) končí právě na ní. Se syrovou siluetou končil dojezd
   // o vůli dřív a proti sousedním drahám viditelně nedotažený (reálný nález
   // na díle uživatele).
+  // Klíč plátku `leadOutTrimNoseCircle` (kulatá): materiál se hledá pod celou
+  // KRUŽNICÍ nosu, ne jen ve sloupci pod středem — nos R 10 bere bokem
+  // polotovar až R od středu. Zahlazení schodku na stěně (nos jede svisle
+  // podél ní) se jinak ořízlo celé: pod středem ležel nízký polotovar, bok
+  // nosu přitom bral vysoký za čelem (díl uživatele 30. 9. 2026 (10),
+  // `N3500 G1 Z194.499` bez dojezdu nahoru).
+  const insLeadOut = getInsert(prms);
   const trimLeadOutToStock = (segs, tipR) => {
     if (!segs || segs.length === 0 || !planLoopRef()) return segs;
+    const circle = insLeadOut.leadOutTrimNoseCircle && tipR > 0;
     const solid = (x, z) => {
+      if (circle) {
+        for (let zc = z - tipR; zc <= z + tipR + 1e-9; zc += 0.1) {
+          const t = planTopXAtZ(zc);
+          const dz = zc - z;
+          if (t !== null && x - Math.sqrt(Math.max(tipR * tipR - dz * dz, 0)) <= t + 1e-4) return true;
+        }
+        return false;
+      }
       const ct = planTopXAtZ(z);
       return ct !== null && (x - tipR) <= ct + 1e-4;
     };

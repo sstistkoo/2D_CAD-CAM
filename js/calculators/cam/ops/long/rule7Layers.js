@@ -32,6 +32,7 @@
 import { topXOnLoop, topXOnLoopFn } from '../../camMath.js';
 import { polyOffset } from '../../../../geom/geomCore.js';
 import { segAt, subSeg } from './segUtils.js';
+import { joinFloorToLayer } from './rule7FloorJoin.js';
 
 const H = 0.1;        // krok vzorkování offsetu v Z [mm]
 const EPS = 0.01;     // o kolik musí offset přesáhnout vrstvu = kontura vystoupila
@@ -277,6 +278,15 @@ export function genRule7Layers(D) {
   };
 
   const segLen = (segs) => (segs || []).reduce((a, s) => a + Math.hypot(s.x2 - s.x1, s.z2 - s.z1), 0);
+  // Končí nájezd úsečkou pod úhlem zanoření u (x, z)? Vrací její konec
+  // (skutečné místo, kam nos sjel — nájezd končí o ZTOL za začátkem vrstvy).
+  const plungeLineEnd = (li, x, z) => {
+    const s = li && li.length ? li[li.length - 1] : null;
+    if (!s || s.type !== 'line' || !(s.x1 - s.x2 > 0.05)) return null;
+    if (Math.abs(s.x2 - x) > 0.02 || Math.abs(s.z2 - z) > 0.02) return null;
+    const dz = Math.abs(s.z2 - s.z1);
+    return dz > 1e-6 && Math.abs((s.x1 - s.x2) / dz - plungeTan) <= plungeTan * 0.02 ? { z: s.z2 } : null;
+  };
 
   // Část trasy mezi úrovněmi X ∈ [xLo, xHi]. `traceOffsetPath` bere svislé
   // úseky (čelo dílu) celé — od osy až nahoru; nájezd i dojezd ale vedou jen
@@ -480,8 +490,11 @@ export function genRule7Layers(D) {
           const fromChain = chained && z === chain.z;
           if (!(zS > f.zEnd + 0.05)) { if (fromChain) continue; break; }
           if (!fromChain && (!startOk(z) || !dropClear(up, z))) continue;
+          // Řetěz od sjezdu po stěně jen do materiálu: za koncem polotovaru
+          // by jel rampami vzduchem (part-22 za čelem, 3,5 mm bez úběru).
+          if (fromChain && chain.fromLeadIn && rawTab && !realInside(zS, d)) continue;
           if (!noGouge(up, z, zS)) continue;
-          const c = { x: d, zStart: zS, zEnd: f.zEnd, ramp: { x0: up, z0: z } };
+          const c = { x: d, zStart: zS, zEnd: f.zEnd, ramp: { x0: up, z0: z }, chainLeadIn: fromChain && !!chain.fromLeadIn };
           if (outsideTouch([{ type: 'line', x1: up, z1: z, x2: d, z2: zS }])) continue;
           if (fits(c)) { entry = c; break; }
         }
@@ -513,6 +526,7 @@ export function genRule7Layers(D) {
     if (!entry) { holderSkips++; return null; }
     if (entry.ramp && (f.leadIn || !colAir(f.zStart))) holderShifts++;
     f.leadIn = entry.leadIn || null; f.ramp = entry.ramp || null; f.zStart = entry.zStart;
+    f.chainLeadIn = !!entry.chainLeadIn;
     // VRSTVA, KTERÁ NIC NEUBERE (pravidlo 5), se nevydá — u osy za čelem
     // vzaly všechno kružnice nosu mělčích vrstev. Měří se celou dráhou proti
     // podlaze dosud vydaných průchodů (pod 0,01 mm² na mm, jako kontrola P5).
@@ -562,7 +576,16 @@ export function genRule7Layers(D) {
       if (o.cont) pass.noRetract = true;
       if (o.holderClamped) pass.holderClamped = true;
       passes.push(pass);
-      if (firstStart === null) firstStart = { x: o.x, z: o.zStart, ramp: !!o.ramp };
+      // Řetěz ramp založí i vjezd PO STĚNĚ, který končí na přímce zanoření:
+      // nos sjel po téže přímce jako rampa, další rampa na ni navazuje přesně.
+      // Jinak se začátek rampy hledal po 0,5 mm a vyšel kus dál než konec
+      // předchozího sjezdu (díl uživatele 30. 9. 2026 (9), úsek 2:
+      // `N4370 G1 X38.095 Z262.325 ; Rampa` z Z 259,825 místo 259,325).
+      if (firstStart === null) {
+        const liEnd = o.ramp ? null : plungeLineEnd(o.leadIn, o.x, o.zStart);
+        // `fromLeadIn` nese celý řetěz, který takový sjezd založil.
+        firstStart = { x: o.x, z: liEnd ? liEnd.z : o.zStart, ramp: !!o.ramp || !!liEnd, fromLeadIn: !!liEnd || !!o.chainLeadIn };
+      }
       if (!o.cont) break;
     }
     return firstStart;
@@ -584,6 +607,25 @@ export function genRule7Layers(D) {
     return out.sort((a, b) => b.F - a.F);
   };
 
+  // Běhy VRSTVY NA SCHODU: dno jen v okně plošiny, ale STĚNA vedle něj
+  // v celé délce, pokud vystoupá až k mělčí vrstvě `up` — dojezd („zarovnání
+  // schodku") pak dojede k ní. Okno ji dřív uťalo 0,5 mm za patou a dojezd
+  // skončil v půlce (díl uživatele 30. 9. 2026 (10): `N3300 G1 X42.020
+  // Z206.901`, mělčí vrstva X 43,045). Stěna, která k `up` nevystoupá (nízký
+  // hrb), zůstane oříznutá oknem — přes hrb vrstva na schodu nejede.
+  const floorWindowRuns = (y, wA, wB, zA, zB, up) => {
+    const out = [];
+    for (const r of runsAt(y, zA, zB)) {
+      if (!(r.z0 > wB + 1e-9 && r.z1 < wA - 1e-9)) continue;
+      const clipped = { ...r, z0: Math.min(r.z0, wA), z1: Math.max(r.z1, wB) };
+      if (!r.above) { out.push(clipped); continue; }
+      let reaches = false;
+      for (let z = r.z0; z >= r.z1 - 1e-9 && !reaches; z -= H) if (O(z) >= up - 1e-6) reaches = true;
+      out.push(reaches ? r : clipped);
+    }
+    return out;
+  };
+
   // ── Oblast [zA → zB] od hloubky depths[di0] ──────────────────────────────
   const buildRegion = (depths, zA, zB, di0, levelAbove) => {
     let lastD = levelAbove, chain = null;
@@ -591,6 +633,7 @@ export function genRule7Layers(D) {
     for (let di = di0; di < depths.length; di++) {
       const d = depths[di];
       if (Number.isFinite(lastD) && d >= lastD - 1e-6) continue;
+      let floorPass = null;
       // VRSTVA NA SCHODU (pravidlo 3: „na dně ani na schodu nesmí zůstat víc
       // než přídavek"). Plošina offsetu mezi mělčí vrstvou a touhle by jinak
       // zůstala pod pásem až skoro ap (plošina X 30,156 před přírubou úseku 2:
@@ -609,9 +652,12 @@ export function genRule7Layers(D) {
           if (crossed.some(h => fl.z0 <= h.z0 + 1e-6 && fl.z1 >= h.z1 - 1e-6)) continue;
           const dF = fl.F + 0.02;
           const wA = Math.min(zA, fl.z0 + noseR + 1), wB = Math.max(zB, fl.z1 - WALL_IN);
-          const runsF = runsAt(dF, wA, wB);
+          const runsF = floorWindowRuns(dF, wA, wB, zA, zB, Math.min(lastD, dF + step));
           if (!runsF.some(r => !r.above)) continue;
-          if (emitLayer(dF, runsF, Math.min(lastD, dF + step), chain) !== null) floorLevels.add(dF.toFixed(3));
+          if (emitLayer(dF, runsF, Math.min(lastD, dF + step), chain) !== null) {
+            floorLevels.add(dF.toFixed(3));
+            floorPass = passes[passes.length - 1];
+          }
         }
       }
       const runs = runsD;
@@ -621,7 +667,17 @@ export function genRule7Layers(D) {
       // Střed nosu pod osou nemá smysl (destička by jela celá pod ní).
       if (d < -MAT) break;
       const humps = runs.filter((r, k) => r.above && k > 0 && k < runs.length - 1);
+      const nBefore = passes.length;
       const start = emitLayer(d, runs, up, chain);
+      // Vrstva na dně, za kterou stěna sjíždí k téhle vrstvě: bez odskoku
+      // pokračuje po stěně dolů (ops/long/rule7FloorJoin.js).
+      if (start !== null && floorPass && passes[nBefore - 1] === floorPass && passes[nBefore]) {
+        joinFloorToLayer(floorPass, passes[nBefore], {
+          traceOffsetPath, plungeTan, step,
+          entryOk: (li) => !outsideTouch(li) && (typeof residEntryArea !== 'function'
+            || residEntryArea({ x: passes[nBefore].x, zStart: passes[nBefore].zStart, zEnd: passes[nBefore].zEnd }, li, entryTol) <= entryTol),
+        });
+      }
       if (start === null) {
         // Na téhle hloubce tu není materiál. Hrby ale oblast dělí dál —
         // podoblasti pod nimi se dodělají samostatně.
@@ -652,11 +708,41 @@ export function genRule7Layers(D) {
     }
   };
 
+  const nStart = passes.length;
   for (const reg of regions) {
     const depths = depthsFor(reg.zLo, reg.zHi);
     if (!depths || depths.length === 0) continue;
     regionTop = reg.zHi;
     buildRegion(depths, reg.zHi, reg.zLo, 0, NaN);
+  }
+  // NAVAZUJÍCÍ PRŮCHOD ZAČÍNÁ, KDE PŘEDCHOZÍ SKONČIL → bez odskoku. Dřív
+  // odjel o Odskok a hned se na totéž místo vrátil (díl uživatele 30. 9. 2026
+  // (10): `N2570 G1 X48.618 ; Výjezd v X (stěna)`, `N2580 G0 X47.730`,
+  // `N2590 G1 X46.618` — dva sjezdy po mezní čáře u meze úseku 1).
+  const endOf = (p) => {
+    const lo = p.contourLeadOut;
+    if (lo && lo.length) return { x: lo[lo.length - 1].x2, z: lo[lo.length - 1].z2 };
+    // Bez těla (jen nájezd, „taneček" u meze) stojí nástroj na konci nájezdu.
+    const li = p.contourLeadIn;
+    if (li && li.length && Math.abs(p.zStart - p.zEnd) < 1e-6) return { x: li[li.length - 1].x2, z: li[li.length - 1].z2 };
+    return { x: p.x, z: p.zEnd };
+  };
+  const startOf = (p) => (p.contourLeadIn && p.contourLeadIn.length ? { x: p.contourLeadIn[0].x1, z: p.contourLeadIn[0].z1 }
+    : p.ramp ? { x: p.ramp.x0, z: p.ramp.z0 } : { x: p.x, z: p.zStart });
+  for (let i = Math.max(nStart, 1); i < passes.length; i++) {
+    const a = passes[i - 1], b = passes[i];
+    if (!a || !b || !a.rule7 || !b.rule7 || a.noRetract) continue;
+    const e = endOf(a), s0 = startOf(b);
+    if (!(Math.abs(e.x - s0.x) < 0.011 && Math.abs(e.z - s0.z) < 0.011)) continue;
+    // Nájezdy končí o ZTOL za začátkem vrstvy — začátek dalšího průchodu se
+    // srovná přesně na konec předchozího (o setinu), jinak emise vydala
+    // mezi nimi prázdné `G0`.
+    if (b.contourLeadIn && b.contourLeadIn.length) {
+      b.contourLeadIn[0] = { ...b.contourLeadIn[0], x1: e.x, z1: e.z };
+    } else if (b.ramp) {
+      b.ramp = { ...b.ramp, x0: e.x, z0: e.z };
+    } else if (Math.abs(e.x - s0.x) > 1e-6 || Math.abs(e.z - s0.z) > 1e-6) continue;
+    a.noRetract = true;
   }
   if (foundErrors && (holderSkips || holderShifts))
     foundErrors.push({ type: 'warning', msg: `Držák (pravidlo 2): ${holderShifts} vrstev vjíždí dál od stěny rampou, ${holderSkips} vrstev vynecháno — u stěny by držák vjel do materiálu. Zbytek obrobte z druhé strany nebo jiným nástrojem.` });

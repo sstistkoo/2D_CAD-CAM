@@ -50,6 +50,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Otisk G-kódu shodný u všech 29 fixtures i 60 dílů uživatele.
 
 ### Fixed
+- **CAM – kulatá destička: zanoření navazuje a konec dna bez odskoku**
+  (nález uživatele 30. 9. 2026, díl (9), R 10 zleva, v „✂ Po úsecích" i v
+  „🔄 Dráhy"). Rampa nezačínala na konci předchozího zanoření, ale o 0,5 mm
+  dál (`N4370 G1 X38.095 Z262.325`, `N5030 G1 X13.095 Z356.768`): řetěz
+  ramp se zakládal jen za RAMPOU, ne za sjezdem po stěně pod týmž úhlem
+  (`rule7Layers.js`, `plungeLineEnd`; do vzduchu za koncem polotovaru se
+  řetěz nenatahuje). A vrstva na dně (`N4860 G1 Z350.188`) odskočila,
+  vrátila se a další vrstva se zanořovala z úrovně nad dnem — v celém
+  programu dokonce vjela po stěně přes celé dno znovu (70 mm posuvem). Nový
+  `ops/long/rule7FloorJoin.js`: vrstva na dně skončí, kde stěna ze dna
+  sjíždí, a bez odskoku po ní sjede na hloubku ap a jede do konce. Pohnul se
+  jen `part-22-round-r10` (+2 vrstvy u konce polotovaru, pravidla beze
+  změny). Test `cam-round-left-floor-chain`.
+- **CAM – kulatá destička: zahlazení schodků a navázání průchodů** (nález
+  uživatele 30. 9. 2026, díl (10), „🔄 Dráhy"). (1) Vrstvy u svislé stěny
+  (`N3500 G1 Z194.499`) nezahladily schodek nahoru a spodní jen do X 27,744:
+  emise ořezávala dojezd na hranu polotovaru podle sloupce pod STŘEDEM nosu,
+  kde leží nízký polotovar — bok nosu R 10 přitom bere vysoký za čelem. Nový
+  klíč plátku `leadOutTrimNoseCircle` (jen kulatá): ořez podle celé kružnice
+  nosu (`gcodeEmit.js` `trimLeadOutToStock`). Totéž teď zahladí schodky
+  vrstev u čela dílu na levém konci. (2) Vrstva na schodu X 40,676 dojela
+  schodek jen do X 42,020 místo k mělčí vrstvě X 43,045 — okno plošiny
+  utínalo stěnu (`rule7Layers.js` `floorWindowRuns`). (3) Mezi dvěma sjezdy
+  u meze úseku 1 odjezd a návrat na totéž místo (`N2570 … Výjezd v X`,
+  `G0 X47.730`, `G1 X46.618`) — průchod, za kterým další začíná na jeho
+  konci, teď jede bez odskoku. Pohnul se jen `part-22-round-r10` (dojezdy na
+  stěně u Z 148; zbytek u Z 136–138 z 0,60 na 0,23 mm; kontrola tam nově
+  počítá jednu „tenkou vrstvu" — vrstva za zahlazeným schodkem bere 1,96 mm
+  místo 2,5). Test `cam-round-left-full-steps`.
 - **CAM – „Generovat" celého programu vynechával vrstvy, které „✂ Po úsecích"
   má** (polygon; nález uživatele 30. 9. 2026, podélně zleva). Hlídání spodní
   hrany destičky u pravých stěn kapes (`ops/long/insertFlankGuard.js`) bralo

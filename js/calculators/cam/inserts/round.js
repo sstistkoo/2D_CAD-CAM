@@ -184,6 +184,12 @@ export function roundInsert(prms) {
     //                              (ops/long/rule7Layers.js) místo hloubkové smyčky
     //                              a dodatečných úprav pořadí (29. 9. 2026)
     rule7Layers: true,
+    //   leadOutTrimNoseCircle    — dojezd „bez schodků" se na hranu materiálu
+    //                              ořezává podle KRUŽNICE nosu, ne sloupce pod
+    //                              středem: nos R 10 bere bokem polotovar až R
+    //                              od středu (30. 9. 2026, díl (10): zahlazení
+    //                              schodku na stěně Z 205 se nevydalo vůbec)
+    leadOutTrimNoseCircle: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

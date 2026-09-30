@@ -1,0 +1,560 @@
+{
+  "__camprog": 1,
+  "pathLogicVersion": 3,
+  "savedAt": "2026-09-30T16:07:47.597Z",
+  "params": {
+    "orderAwareHolder": true,
+    "machineType": "LIMS=2000",
+    "mode": "RADIUS",
+    "toolName": "Hrubovaci",
+    "speed": 200,
+    "feed": 0.25,
+    "depthOfCut": 2.5,
+    "retractDistance": 2,
+    "rapidFeed": 6000,
+    "retractAngle": 45,
+    "allowanceX": 0.5,
+    "allowanceZ": 0.5,
+    "toolRadius": 10,
+    "finishAllowance": 0,
+    "doFinishing": false,
+    "roughingStrategy": "longitudinal",
+    "finishOnly": false,
+    "roughingSide": "left",
+    "stockMode": "casting",
+    "stockMargin": 5,
+    "stockDiameter": 111,
+    "stockLength": 5,
+    "stockFace": 349,
+    "safeX": 150,
+    "safeZ": 5,
+    "machineStructure": "lathe",
+    "controlSystem": "sinumerik",
+    "autoProfile": false,
+    "toolShape": "round",
+    "toolLength": 10,
+    "toolAngle": 15,
+    "toolTipAngle": 90,
+    "toolTipMirror": false,
+    "toolVbdCode": "",
+    "toolClearanceAngle": 0,
+    "holderWidth": 20,
+    "holderLength": 200,
+    "holderHand": "R",
+    "holderProfile": null,
+    "knifeAngle": 270,
+    "holderInflate": 0,
+    "holderInflateAll": false,
+    "toolTipFlat": 0.1,
+    "partOffZ": null,
+    "partingApproachFeed": 1,
+    "partOffSmooth": false,
+    "partOffStartX": 64.55,
+    "finishingSlot": null,
+    "threadActive": false,
+    "threadName": "",
+    "threadType": "mc",
+    "threadDiameter": 20,
+    "threadPitch": 2.5,
+    "threadAngle": 60,
+    "threadDepth": 1.534,
+    "threadExternal": true,
+    "threadZStart": 0,
+    "threadZEnd": -20,
+    "threadRunIn": 3,
+    "threadRunOut": 0,
+    "threadPasses": 0,
+    "threadSpringPasses": 1,
+    "threadTaperRatio": 0,
+    "threadInfeed": "radial",
+    "entryAngle": 15,
+    "entryAngleAuto": true,
+    "respectInsertGeometry": true,
+    "plungeRoughing": true,
+    "pocketFinishAtOnce": true,
+    "noStepRoughing": true,
+    "noStepRoughingFace": true,
+    "rapidClearance": 1,
+    "rapidFeedGap": 1,
+    "stockClearX": null,
+    "stockClearZ": null,
+    "regionRoughing": true,
+    "booleanRoughing": true,
+    "guideOnlyRegions": true,
+    "holderAutoComplete": true,
+    "pathGenerator": "legacy"
+  },
+  "contourPoints": [
+    {
+      "id": 1790783757557,
+      "type": "G0",
+      "x": 0,
+      "z": 346.371,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757558,
+      "type": "G1",
+      "x": 9.117,
+      "z": 345.397,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757559,
+      "type": "G1",
+      "x": 9.117,
+      "z": 243.123,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757560,
+      "type": "G1",
+      "x": 50.081,
+      "z": 234.99,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757561,
+      "type": "G1",
+      "x": 50.081,
+      "z": 221.135,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757562,
+      "type": "G1",
+      "x": 30.156,
+      "z": 213.667,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757563,
+      "type": "G1",
+      "x": 30.156,
+      "z": 205.009,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757564,
+      "type": "G1",
+      "x": 6.744,
+      "z": 205.009,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757565,
+      "type": "G1",
+      "x": 6.744,
+      "z": 165.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757566,
+      "type": "G1",
+      "x": 8.743,
+      "z": 163.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757567,
+      "type": "G1",
+      "x": 8.743,
+      "z": 149.544,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757568,
+      "type": "G1",
+      "x": 8.743,
+      "z": 138.253,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757569,
+      "type": "G1",
+      "x": 38.574,
+      "z": 137.509,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757570,
+      "type": "G1",
+      "x": 40.118,
+      "z": 128.86,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757571,
+      "type": "G1",
+      "x": 40.118,
+      "z": 125.462,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757572,
+      "type": "G3",
+      "x": 33.477,
+      "z": 116.044,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757573,
+      "type": "G1",
+      "x": 14.22,
+      "z": 109.175,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757574,
+      "type": "G2",
+      "x": 7.579,
+      "z": 99.757,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757575,
+      "type": "G1",
+      "x": 7.579,
+      "z": 84.177,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757576,
+      "type": "G2",
+      "x": 15.585,
+      "z": 74.378,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757577,
+      "type": "G1",
+      "x": 22.252,
+      "z": 73.021,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757578,
+      "type": "G3",
+      "x": 27.056,
+      "z": 67.142,
+      "r": 6,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757579,
+      "type": "G1",
+      "x": 27.056,
+      "z": 55.47,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757580,
+      "type": "G3",
+      "x": 25.516,
+      "z": 51.456,
+      "r": 6,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757581,
+      "type": "G2",
+      "x": 27.279,
+      "z": 16.913,
+      "r": 24.495,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757582,
+      "type": "G3",
+      "x": 30.566,
+      "z": 9.502,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757583,
+      "type": "G1",
+      "x": 30.566,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783757584,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "stockPoints": [
+    {
+      "id": 1790783857557,
+      "type": "G0",
+      "x": 0,
+      "z": 368.932,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857558,
+      "type": "G1",
+      "x": 21.803,
+      "z": 366.368,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857559,
+      "type": "G1",
+      "x": 21.803,
+      "z": 271.511,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857560,
+      "type": "G1",
+      "x": 64.545,
+      "z": 256.228,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857561,
+      "type": "G1",
+      "x": 64.359,
+      "z": 196.278,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857562,
+      "type": "G1",
+      "x": 16.744,
+      "z": 196.278,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857563,
+      "type": "G1",
+      "x": 16.743,
+      "z": 167.259,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857564,
+      "type": "G1",
+      "x": 16.743,
+      "z": 149.544,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857565,
+      "type": "G2",
+      "x": 18.226,
+      "z": 147.612,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857566,
+      "type": "G1",
+      "x": 37.742,
+      "z": 142.383,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857567,
+      "type": "G1",
+      "x": 47.649,
+      "z": 141.79,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857568,
+      "type": "G1",
+      "x": 48.118,
+      "z": 128.86,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857569,
+      "type": "G1",
+      "x": 48.118,
+      "z": 125.462,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857570,
+      "type": "G3",
+      "x": 36.165,
+      "z": 108.508,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857571,
+      "type": "G1",
+      "x": 16.907,
+      "z": 101.64,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857572,
+      "type": "G2",
+      "x": 15.579,
+      "z": 99.757,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857573,
+      "type": "G1",
+      "x": 15.579,
+      "z": 84.177,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857574,
+      "type": "G2",
+      "x": 17.18,
+      "z": 82.217,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857575,
+      "type": "G1",
+      "x": 23.847,
+      "z": 80.861,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857576,
+      "type": "G3",
+      "x": 35.056,
+      "z": 67.142,
+      "r": 14,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857577,
+      "type": "G1",
+      "x": 35.056,
+      "z": 55.47,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857578,
+      "type": "G3",
+      "x": 31.462,
+      "z": 46.104,
+      "r": 14,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857579,
+      "type": "G2",
+      "x": 32.649,
+      "z": 22.843,
+      "r": 16.495,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857580,
+      "type": "G3",
+      "x": 38.566,
+      "z": 9.502,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857581,
+      "type": "G1",
+      "x": 38.566,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857582,
+      "type": "G1",
+      "x": 0,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1790783857583,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "manualGCode": "",
+  "gcodeDirty": true,
+  "gcodeKey": "5486f84",
+  "opParts": [],
+  "activePart": 0,
+  "opContourKey": "G0:0.00,346.37,0.00|G1:9.12,345.40,0.00|G1:9.12,243.12,0.00|G1:50.08,234.99,0.00|G1:50.08,221.13,0.00|G1:30.16,213.67,0.00|G1:30.16,205.01,0.00|G1:6.74,205.01,0.00|G1:6.74,165.94,0.00|G1:8.74,163.94,0.00|G1:8.74,149.54,0.00|G1:8.74,138.25,0.00|G1:38.57,137.51,0.00|G1:40.12,128.86,0.00|G1:40.12,125.46,0.00|G3:33.48,116.04,10.00|G1:14.22,109.17,0.00|G2:7.58,99.76,10.00|G1:7.58,84.18,0.00|G2:15.59,74.38,10.00|G1:22.25,73.02,0.00|G3:27.06,67.14,6.00|G1:27.06,55.47,0.00|G3:25.52,51.46,6.00|G2:27.28,16.91,24.50|G3:30.57,9.50,10.00|G1:30.57,0.00,0.00|G1:0.00,0.00,0.00",
+  "flipX": false,
+  "flipZ": false,
+  "guideLines": [],
+  "zLimits": {
+    "chuck": -195.39,
+    "tail": 494.08,
+    "chuckActive": false,
+    "tailActive": false,
+    "rangeStart": 550.33,
+    "rangeEnd": -59.19,
+    "rangeActive": true
+  },
+  "showZLimits": "on",
+  "xLimits": {
+    "rangeXMin": -20.77,
+    "rangeXMax": 91.56,
+    "active": false,
+    "minActive": false,
+    "maxActive": false
+  },
+  "showSimPath": "all",
+  "showRemoval": true,
+  "showRefGuides": false
+}
