@@ -9,7 +9,7 @@
 // harness ho zachytává přes hoisting (viz tests/helpers/camHeadless.mjs).
 
 import { StockModel, polyArea, polyDifference, polyOffset, polySimplify, toolSweep } from '../../geom/geomCore.js';
-import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, quantizeUp, rapidFeedGap, stockClearances, topXOnLoop } from './camMath.js';
+import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, quantizeUp, rapidFeedGap, stockClearances, topXOnLoop, topXOnLoopFn } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
@@ -310,7 +310,8 @@ export function generateAutoGCode(S, calc) {
   // řezáním NEMĚNÍ, takže označuje jen TRVALÝ vzduch (drážky, nižší místa
   // siluety), ne už obrobené oblasti. Slouží k rozsekání řezu na
   // rapid(vzduch)/posuv(materiál) i k dojezdům na hranu materiálu.
-  const planTopXAtZ = (z) => topXOnLoop(planLoopRef(), z);
+  // Smyčka je od sestavení výš neměnná → předpočtený dotaz (viz topXOnLoopFn).
+  const planTopXAtZ = topXOnLoopFn(planLoopRef());
   // Přechody vzduch↔materiál na hloubce x podle plánovacího obrysu.
   const planCrossZ = (x, zLo, zHi) => crossZOnLoop(planLoopRef(), x, zLo, zHi);
   // Konec řezu do vzduchu: kam až dojet POSUVEM, než se odskočí. Cíl je

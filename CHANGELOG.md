@@ -7,7 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM – lišta nad G-kódem ukazuje jen použitelná tlačítka** (na přání
+  uživatele 30. 9. 2026: *„někdy mi funguje jedno a podruhé zas to druhé"*).
+  **🔄 Dráhy** se skryje v náhledu celého programu (tam jen hlásilo „přepněte na
+  Část"), **✂ Po úsecích** je vidět jen když má díl úseky v rozsahu obrábění
+  (dřív hlásilo „Úseky nejsou"), **↺ Reset** jen s částmi programu. Podmínka
+  viditelnosti je tatáž funkce, kterou tlačítko samo používá
+  (`sectionSteps()`, `updateGenButtons()` v camSimulator.js).
+- **CAM – ⏳ přesýpací hodiny při generování drah.** „🔄 Dráhy" i „✂ Po úsecích"
+  ukážou přes okno simulátoru hodiny s popisem (u úseků i „Úsek 2 (2/3)…")
+  a blokují klikání i Ctrl+Z, dokud výpočet neskončí (`withBusy()`).
+- **CAM – generování drah ~2× rychlejší, program beze změny.** Dotaz na horní
+  hranu smyčky (`topXOnLoop`) se v emisi (`noseFrontClear`) a ve vrstvách
+  pravidla 7 (`hasMat`) volal milionkrát nad offsetem kružnice nosu s tisíci
+  vrcholy a pokaždé procházel celou smyčku. Nový `topXOnLoopFn()` (camMath.js)
+  hrany předem roztřídí podle Z a vrací bitově shodný výsledek. Díl uživatele
+  (projekt_2026-09-29 (9)): výpočet 1,12 → 0,55 s, emise 1,46 → 0,58 s.
+  Otisk G-kódu shodný u všech 29 fixtures i 60 dílů uživatele.
+
 ### Fixed
+- **CAM – X max je strop pro jakékoli obrábění (nové pravidlo 12).** Na přání
+  uživatele 30. 9. 2026: nad X max se neobrábí a pod materiál, který nad X max
+  stojí, se nepodjíždí. Díl uživatele (X max 27,01): podélné hrubování dřív
+  jelo X 20,6…13 až na Z 245 pod sloupem polotovaru vysokým 64,5 a čelní
+  (kde se X max vůbec nevynucovalo) bralo celý sloup od X 64,5. Teď se
+  obrábí jen od volného konce po místo, kde polotovar vyleze nad X max
+  (Z 269,63) — ta „stěna" se stane hranicí rozsahu Z, takže podélné, čelní,
+  zleva i dokončování ji respektují stávající logikou (pravidlo 11); 0 kolizí.
+  Nový `cam/rangeX.js` (`xMaxWallZ`, `resolveRangeX`), test `cam-xrange`
+  (+ fixture `tests/fixtures/cam-xrange/xmax-wall.camprog`). Otisk G-kódu
+  shodný u všech 29 fixtures. `cam-face-range` upraven: případy, kde polotovar
+  sahá nad X max už na kraji, testují jen dno (X min).
+- **CAM – rozsah X: každá mez má vlastní zaškrtávátko** (jako Čelisti Z / Koník
+  Z), takže jde vypnout bez mazání hodnoty. Zároveň oprava: samotné X max
+  (nebo samotné X min) se dřív tiše ignorovalo — `machiningRangeX` vznikl jen
+  s OBĚMA mezemi, čip „X" přitom svítil a čára se kreslila. Starší projekty
+  bez přepínačů mezí berou společné `active`.
+- **CAM – pravý panel: kontrola 30. 9. 2026.**
+  - „Vymazat vše" (meze Z/X) dráhy nepřepočítalo — náhled i ⚠ hlášení zůstaly
+    podle smazaných mezí. Teď `applyChange()`; zaškrtávátka čelistí, koníku
+    a rozsahu Z jdou stejnou cestou (dřív `fullUpdate`, v cyklu upich/závit
+    tedy bez přegenerování programu).
+  - Konstrukční čáry z hlídání destičky (`fromInsert`) se mazaly jen při změně
+    polí panelu. Výměna tvaru, ⇄ strana, přepnutí strategie (znaménko
+    natočení), 🧰 Knihovna ani VBD dekodér je nemazaly, takže dráhy dál omezovaly
+    čáry předchozí destičky. Jeden helper `dropInsertGuides()` pro všechny.
+    🧰 Knihovna navíc volá `applyChange()` jako pole panelu.
+  - Vymazané pole „Z upich" dávalo upichnutí na Z0; teď upichnutí zruší.
+  - Název nástroje s uvozovkou rozbil pole (hodnota bez escapování); totéž
+    názvy v zásobníku, VBD kód v čipu a název části v potvrzení smazání.
+  - Import G-kódu ukazuje, kam importuje (kontura / polotovar dle Editoru);
+    import do polotovaru přepne na vlastní tvar (u válce se jinak nepoužil).
+  - 🎯 Auto-rozměr polotovaru jde vzít zpět (↩).
+  - Náhled drah se při prázdném programu vyprázdnil přímo v keši — po
+    ↪ Znovu (Reset → 🔄 Dráhy → Zpět → Znovu) pak dráhy chyběly.
+- **CAM – „✂ Po úsecích" už nepřepisuje X max uživatele.** Úseky se dnem si
+  nastavovaly X max 1e4 a X min na dno úseku; teď se dno skládá s X min
+  uživatele (platí vyšší) a X max zůstává. Rozsah Z dál vyžaduje obě meze.
 - **CAM – uzavírací rampa navazuje na konec předchozího zanoření, nebere to
   „zvrchu".** Nález uživatele 30. 9. 2026 (`projekt_2026-09-30.camprog`,
   úsek 2): `N2870 G1 X41.730` na Z 124,404 + `N2880 G1 X37.197 Z107.486 ;

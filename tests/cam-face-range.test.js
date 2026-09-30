@@ -139,17 +139,17 @@ describe('čelní hrubování respektuje rozsah obrábění Z (📐)', () => {
 });
 
 describe('čelní hrubování respektuje rozsah obrábění X (📐)', () => {
-  // Dolní mez JE vynutitelná (dno řezu), horní ne: čelní řez jde radiálně od
-  // povrchu, takže materiál nad horní mezí nástroj projede tak jako tak.
-  // Vynechávání celých vrstev bylo zkoušeno a zamítnuto — nechává uprostřed
-  // dílu stát plátky, které nos při nájezdu ořízne (part-18, R8: 11,8 mm²).
+  // Dolní mez drží dno řezu. Horní mez je od 30. 9. 2026 pravidlo 12 (nad
+  // X max se neobrábí a pod materiál nad ní se nepodjíždí) — to hlídá
+  // tests/cam-xrange.test.js. `face-cylinder` je válec nad X 20, takže by
+  // s X max neměl co obrábět; testuje se na něm proto jen dno (xHi: null).
   const XCASES = [
     { file: 'part-16-face-holder.camprog', xLo: 20, xHi: 40 },
     { file: 'part-18-face-big-radius.camprog', xLo: 20, xHi: 40 },
-    { file: 'face-cylinder.camprog', xLo: 8, xHi: 20 },
+    { file: 'face-cylinder.camprog', xLo: 8, xHi: null },
   ];
   for (const { file, xLo, xHi } of XCASES) {
-    it(`${file} — pás X ${xLo}…${xHi} drží dno řezu`, async () => {
+    it(`${file} — pás X ${xLo}…${xHi ?? '∞'} drží dno řezu`, async () => {
       const free = await runWith(file);
       const band = await runWith(file, { xLimits: { active: true, rangeXMin: xLo, rangeXMax: xHi } });
 
@@ -180,9 +180,11 @@ describe('rozsah obrábění ořezává i DOKONČOVACÍ dráhu', () => {
   // a nechat kus uprostřed. Ořezává se, nezahazuje — hranice pásu je volba
   // uživatele („tady končí tenhle úsek“), ne mez dosažitelnosti nástroje.
   const FIN = [
-    { file: 'part-15-finish-zprava.camprog', strategy: 'longitudinal', band: [100, 200], xBand: [20, 40] },
+    // xBand s `null` = jen dno: part-15 a part-16 mají polotovar nad X 40 už
+    // na volném konci, takže by podle pravidla 12 nebylo co dokončovat.
+    { file: 'part-15-finish-zprava.camprog', strategy: 'longitudinal', band: [100, 200], xBand: [20, null] },
     { file: 'part-14-finish-holder.camprog', strategy: 'longitudinal', band: [0, 120], xBand: [20, 40] },
-    { file: 'part-16-face-holder.camprog', strategy: 'face', band: [100, 200], xBand: [20, 40] },
+    { file: 'part-16-face-holder.camprog', strategy: 'face', band: [100, 200], xBand: [20, null] },
     { file: 'part-1.camprog', strategy: 'longitudinal', band: [100, 200], xBand: [20, 40] },
   ];
   for (const { file, strategy, band: [lo, hi], xBand: [xLo, xHi] } of FIN) {
@@ -203,14 +205,15 @@ describe('rozsah obrábění ořezává i DOKONČOVACÍ dráhu', () => {
       expect(band.zHi, `${file}: dokončování sahá na Z${band.zHi.toFixed(2)}, tedy nad pás`).toBeLessThanOrEqual(hi + 0.02);
     }, 120000);
 
-    it(`${file} — dokončování zůstane v pásu X ${xLo}…${xHi}`, async () => {
+    it(`${file} — dokončování zůstane v pásu X ${xLo}…${xHi ?? '∞'}`, async () => {
       const p = { roughingStrategy: strategy, doFinishing: true, finishOnly: false };
       const band = finishExtent((await runWith(file, {
         params: p, xLimits: { active: true, rangeXMin: xLo, rangeXMax: xHi },
       })).finish);
       expect(band.n).toBeGreaterThan(0);
       expect(band.xLo, `${file}: dokončování jde na r${band.xLo.toFixed(2)}, tedy pod pás`).toBeGreaterThanOrEqual(xLo - 0.02);
-      expect(band.xHi, `${file}: dokončování jde na r${band.xHi.toFixed(2)}, tedy nad pás`).toBeLessThanOrEqual(xHi + 0.02);
+      if (xHi !== null)
+        expect(band.xHi, `${file}: dokončování jde na r${band.xHi.toFixed(2)}, tedy nad pás`).toBeLessThanOrEqual(xHi + 0.02);
     }, 120000);
   }
 

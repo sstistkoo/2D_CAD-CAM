@@ -29,7 +29,7 @@
 // polotovaru rozšířené o R (střed nosu se dotkne polotovaru). Emise G-kódu
 // (rychloposuvy vzduchem, nájezdy, odskoky) zůstává společná.
 
-import { topXOnLoop } from '../../camMath.js';
+import { topXOnLoop, topXOnLoopFn } from '../../camMath.js';
 import { polyOffset } from '../../../../geom/geomCore.js';
 import { segAt, subSeg } from './segUtils.js';
 
@@ -67,9 +67,10 @@ export function genRule7Layers(D) {
       if (off && off.length) circleLoop = off.slice().sort((u, v) => v.length - u.length)[0];
     } catch { /* bez offsetu: silueta sama */ }
   }
-  const matTop = (z) => (circleLoop ? topXOnLoop(circleLoop, z) : null);
+  // Obě smyčky jsou během generování neměnné → předpočtený dotaz (topXOnLoopFn).
+  const matTop = topXOnLoopFn(circleLoop);
   // Polotovar přímo ve sloupci pod nosem (spodek nosu = x − R).
-  const stockTop = (z) => (stockLoop ? topXOnLoop(stockLoop, z) : null);
+  const stockTop = topXOnLoopFn(stockLoop);
   const O = (z) => { const v = offsetXAt(z); return v === null || !Number.isFinite(v) ? -Infinity : v; };
   const hasMat = (z, y) => { const t = matTop(z); return t !== null && t > y + MAT; };
 

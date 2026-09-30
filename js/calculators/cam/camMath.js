@@ -394,6 +394,54 @@ export function topXOnLoop(loop, z) {
   return top;
 }
 
+// Totéž co topXOnLoop, ale pro MNOHO dotazů nad JEDNOU neměnnou smyčkou —
+// vrací funkci z → top X. Hrany se předem roztřídí do přihrádek podle
+// rozsahu Z a dotaz projde jen hrany své přihrádky. Výsledek je BITOVĚ shodný
+// s topXOnLoop: tytéž hrany (každá, která Z protíná, leží v jeho přihrádce —
+// floor je monotónní), tentýž vzorec, totéž pořadí. Důvod (30. 9. 2026):
+// emise (noseFrontClear) a vrstvy pravidla 7 (hasMat) volají dotaz milionkrát
+// nad offsetem kružnice nosu s tisíci vrcholy — ~1,5 s z „🔄 Dráhy".
+// Smyčku po vytvoření neměnit (přihrádky by neseděly).
+export function topXOnLoopFn(loop) {
+  const linear = (z) => topXOnLoop(loop, z);
+  if (!loop || loop.length < 3) return linear;
+  const n = loop.length;
+  let zMin = Infinity, zMax = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const z = loop[i].z;
+    if (!Number.isFinite(z)) return linear;
+    if (z < zMin) zMin = z;
+    if (z > zMax) zMax = z;
+  }
+  if (!(zMax > zMin)) return linear;
+  const B = Math.min(n, 4096), inv = B / (zMax - zMin);
+  const slot = (z) => { const k = Math.floor((z - zMin) * inv); return k < 0 ? 0 : k >= B ? B - 1 : k; };
+  const buckets = Array.from({ length: B }, () => []);
+  let entries = 0;
+  for (let i = 0; i < n; i++) {
+    const a = loop[i], b = loop[(i + 1) % n];
+    if (a.z === b.z) continue;                 // vodorovná v Z nikdy neprotne
+    const k0 = slot(Math.min(a.z, b.z)), k1 = slot(Math.max(a.z, b.z));
+    for (let k = k0; k <= k1; k++) buckets[k].push(i);
+    entries += k1 - k0 + 1;
+    if (entries > 64 * n + 4 * B) return linear;   // patologická smyčka
+  }
+  return (z) => {
+    // Mimo [zMin, zMax) ani NaN žádná hrana neprotne — jako topXOnLoop.
+    if (!(z >= zMin && z < zMax)) return null;
+    const list = buckets[slot(z)];
+    let top = null;
+    for (let j = 0; j < list.length; j++) {
+      const i = list[j], a = loop[i], b = loop[(i + 1) % n];
+      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+        if (top === null || x > top) top = x;
+      }
+    }
+    return top;
+  };
+}
+
 // Kde se má zastavit RYCHLOPOSUV nad plánovací (offsetovou) čarou: programovaný
 // bod je střed nosu, takže spodek nosu leží o R níž — pro odstup `gap` nad
 // čarou musí střed stát na `čara + R + gap`. `gap` = param `rapidFeedGap`

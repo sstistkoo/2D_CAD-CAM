@@ -476,6 +476,18 @@ i s tím, co je pod ním (nezahazuje se).
 **↺ Reset** zruší rozdělení na části (po „✂ Po úsecích“ i „➕ Operace“):
 vrátí původní polotovar a rozsah, dráhy částí smaže (jde vzít zpět přes ↩ Zpět).
 
+**V liště jsou vidět jen tlačítka, která teď jdou použít:**
+- **🔄 Dráhy** chybí v náhledu **Celý program** (tam se negeneruje) — klikni
+  na chip části a dráhy té části přegeneruješ.
+- **✂ Po úsecích** je vidět jen tam, kde díl má úseky (fialové čáry) v rozsahu
+  obrábění — tedy u podélného hrubování kulatou/polygonem. Po jeho použití
+  zůstává: dalším klikem se části přegenerují od začátku.
+- **↺ Reset** je vidět jen tehdy, když má program části.
+
+Generování drah trvá na složitém dílu i několik sekund. Po dobu výpočtu je přes
+okno simulátoru **⏳ přesýpací hodiny** s popisem, co se děje (u „Po úsecích“
+i který úsek zrovna běží); do té doby okno nepřijímá kliknutí.
+
 Pod lištou tlačítek se objeví **lišta částí**:
 - **Chip s číslem a nožem** – klik přepne na tu část (načte se její nůž,
   parametry, rozsahy i polotovar), **dvojklik** ji přejmenuje.
@@ -654,9 +666,8 @@ stejnou logikou — hotová část vedle už do plánování nemluví.
 > - **Po každé změně rozsahu se podívej do ⛔ panelu.** Ten měří proti celému
 >   polotovaru a nálezy u hranice pásu jsou skutečné, pokud sousední úsek ještě
 >   není odebraný.
-> - **Rozsah X** je na tohle nejcitlivější: k poloměrům uvnitř pásu se nástroj
->   nedostane jinak než držákem skrz materiál nad horní mezí. Bez předchozí
->   operace, která ho odebere, ten pás fyzikálně nedává smysl.
+> - **Rozsah X max** tohle řeší sám (pravidlo 12, níž): pod materiál nad
+>   X max se nepodjíždí, takže tam dráhy končí.
 >
 > Zkoušená oprava (přidat materiál za pásem do obálky držáku) je **změřená
 > a zamítnutá**: jeden díl spravila (401 → 5 mm²), dva jiné rozbila
@@ -668,10 +679,19 @@ hrubování. Krajní vrstva pásu odskakuje **svisle v ose X** místo obvyklé
 diagonály: za hranicí pásu tahle operace neobrábí, takže tam materiál pořád
 stojí a diagonální odskok by do něj zajel.
 
-**Rozsah obrábění X** drží u čelního hrubování **dno řezu** — nástroj nesjede
-pod dolní mez. Horní mez se čelně vynutit nedá: řez jde radiálně od povrchu
-k ose, takže materiál nad ní nástroj projede tak jako tak. (Podélně platí obě
-meze, protože tam se dá celá hloubka přeskočit.)
+**Rozsah obrábění X** má dvě meze a **každá má vlastní zaškrtávátko** (jako
+Čelisti Z / Koník Z) — vypnutím se mez zruší, hodnota zůstane na příště.
+Zapnout jde i jen jednu z nich.
+
+- **▼ X min = dno.** Pod tenhle poloměr se nejede (podélně ani čelně).
+- **X max ▲ = strop** (pravidlo 12). Nad čarou se neobrábí **nic** a pod
+  materiál, který nad ní stojí, se ani nepodjíždí — podélně ani čelně.
+  Obrábí se proto jen od volného konce (strany, ze které hrubuješ) po místo,
+  kde polotovar poprvé vyleze nad X max; tam dráhy končí a ⚠ panel napíše
+  Z té hranice. Platí to pro hrubování i dokončování.
+  Když polotovar sahá nad X max hned na volném konci (třeba tyč větší než
+  X max), nevznikne žádná dráha — materiál nad čarou pak odeber jinou
+  operací (➕ Operace) a teprve na zbytku polotovaru použij X max.
 
 **Hranice pásu vymezuje OBROBENOU PLOCHU, ne programovaný bod.** Destička má
 šířku: řez sahá o *rádius nosu* před programovaný bod a o tělo destičky za něj

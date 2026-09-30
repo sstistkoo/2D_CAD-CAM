@@ -199,6 +199,32 @@ export function injectCSS() {
 .cam-sim-code-bar .cam-sim-op-full, .cam-sim-code-bar .cam-sim-op-short { color: #1e1e2e; }
 /* „✂ Po úsecích" — mauve jako čáry úseků; tmavé písmo z .cam-sim-op-* sedí */
 .cam-sim-code-bar button[data-code="section-paths"] { background: #cba6f7; color: #1e1e2e; border-color: #cba6f7; }
+/* Tlačítko, které teď nejde použít, není vidět (updateGenButtons). */
+.cam-sim-code-bar button[hidden] { display: none !important; }
+/* ⏳ Přesýpací hodiny při generování drah — přes celé okno CAM, blokují
+   klikání, dokud výpočet neskončí (withBusy v camSimulator.js). */
+.cam-sim-busy {
+  position: absolute; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(17, 17, 27, 0.55); cursor: wait;
+}
+.cam-sim-busy[hidden] { display: none; }
+.cam-sim-busy-box {
+  display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px);
+  padding: 14px 20px; border-radius: 10px;
+  background: #1e1e2e; border: 1px solid #fab387; color: #cdd6f4;
+  font-size: 14px; font-weight: 600; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.cam-sim-busy-icon {
+  display: inline-block; font-size: 30px; line-height: 1;
+  animation: cam-sim-hourglass 1.6s ease-in-out infinite;
+}
+@keyframes cam-sim-hourglass {
+  0%, 40% { transform: rotate(0deg); }
+  50%, 90% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) { .cam-sim-busy-icon { animation: none; } }
 .cam-sim-op-short { display: none; }
 /* ── Lišta částí programu (operací) — viz cam/opParts.js ────────── */
 .cam-sim-parts-bar {

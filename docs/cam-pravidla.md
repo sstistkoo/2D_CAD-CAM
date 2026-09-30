@@ -195,3 +195,22 @@ která projde, platí:**
   úsek. Kde by se dotkl, vjíždí se až tam, kde je celý mimo.
 - Klín, který tím u hranice zůstane, je klín pod mezní čarou
   (pravidlo 6) — nahlásí se.
+
+## Pravidlo 12 — Strop X max ✅ schváleno
+
+**Nad X max se neobrábí a materiálu, který nad X max stojí, se nástroj
+nedotkne — ani podjetím pod něj.**
+
+- Schválil uživatel 30. 9. 2026: *„když je X max, tak u podélného nebo
+  čelního nebo jakéhokoliv obrábění určuje výšku, kde nad tu čáru už
+  netvoří dráhy"* a na dílu `projekt_2026-09-30` ukázal, že dráhy mají
+  zůstat jen tam, kde polotovar pod čarou leží.
+- Obrábí se od volného konce (strana, ze které se hrubuje) po první místo,
+  kde polotovar vyleze nad X max — **stěna**. Za stěnou se neobrábí nic,
+  ani materiál pod X max (podélně by se pod stěnu podjelo, čelně by se jí
+  projelo shora). Stěna je hranice rozsahu Z a platí pro ni pravidlo 11.
+- Stěna se nahlásí i se svým Z. Polotovar nad X max už na volném konci →
+  nevznikne žádná dráha a nahlásí se to.
+- Platí pro podélné, čelní, zleva i dokončování. Materiál nad X max o méně
+  než 0,05 mm se nepočítá (`XMAX_WALL_TOL`, cam/rangeX.js).
+- Test: `tests/cam-xrange.test.js`.

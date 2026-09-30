@@ -26,6 +26,7 @@ import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 import { stockPlanLoop } from './materialRemoval.js';
+import { resolveRangeX, xMaxWallZ } from './rangeX.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
@@ -496,14 +497,30 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   // Rozsah obrábění Z (📐) — aktivní jen když uživatel zaškrtne políčko.
   const rS = zLimits.rangeStart, rE = zLimits.rangeEnd;
-  const machiningRange = (zLimits.rangeActive && typeof rS === 'number' && isFinite(rS)
+  let machiningRange = (zLimits.rangeActive && typeof rS === 'number' && isFinite(rS)
     && typeof rE === 'number' && isFinite(rE))
     ? { zLo: Math.min(rS, rE), zHi: Math.max(rS, rE) } : null;
-  // Rozsah obrábění X (📐) — aktivní jen když uživatel zaškrtne políčko.
-  const xRn = S.xLimits.rangeXMin, xRx = S.xLimits.rangeXMax;
-  const machiningRangeX = (S.xLimits.active && typeof xRn === 'number' && isFinite(xRn)
-    && typeof xRx === 'number' && isFinite(xRx))
-    ? { xLo: Math.min(xRn, xRx), xHi: Math.max(xRn, xRx) } : null;
+  // Rozsah obrábění X (📐) — každá mez má vlastní přepínač a platí i sama
+  // (cam/rangeX.js). Do 30. 9. 2026 se rozsah zapnul jen s OBĚMA mezemi, takže
+  // samotné „X max" se tiše ignorovalo, ačkoli čip i čára hlásily, že platí.
+  const machiningRangeX = resolveRangeX(S.xLimits);
+  // PRAVIDLO 12 — nad X max se neobrábí a materiálu, který nad ním stojí, se
+  // nástroj nedotkne. Obrábí se jen od volného konce po místo, kde polotovar
+  // vyleze nad X max; tam začíná rozsah Z (ořez, hlídání hranice i dokončení
+  // pak obstará jeho stávající logika — pro podélné, čelní i zleva stejně).
+  let xMaxNothing = false;
+  if (machiningRangeX && isFinite(machiningRangeX.xHi)) {
+    const w = xMaxWallZ(prms, sRad, stockPathSegments, machiningRangeX.xHi,
+      machiningRange ? machiningRange.zLo : -Infinity, machiningRange ? machiningRange.zHi : Infinity);
+    const zShow = (z) => (mirZ ? -z : z).toFixed(2);
+    if (w && w.empty) {
+      xMaxNothing = true;
+      foundErrors.push({ type: 'warning', msg: `Rozsah X max ${machiningRangeX.xHi}: polotovar sahá nad X max už na začátku obrábění — nad čarou se neobrábí a pod ten materiál se nepodjíždí, dráhy nebyly generovány.` });
+    } else if (w) {
+      machiningRange = { zLo: Math.max(w.zWall, machiningRange ? machiningRange.zLo : -Infinity), zHi: machiningRange ? machiningRange.zHi : 1e4 };
+      foundErrors.push({ type: 'warning', msg: `Rozsah X max ${machiningRangeX.xHi}: od Z ${zShow(w.zWall)} stojí polotovar nad X max — obrábí se jen po tuto hranici, dál by se muselo pod materiál nad čarou.` });
+    }
+  }
   // Čelisti (levý konec v upínači) — backside nesmí řezat pod chuck.
   const chuckZ = (zLimits.chuckActive && typeof zLimits.chuck === 'number' && isFinite(zLimits.chuck))
     ? zLimits.chuck : null;
@@ -546,7 +563,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // `skipRoughing` dělá totéž dočasně: geometrie (kontura, offsety, mezní
   // čáry) stojí 51 ms, samé hrubování 740 (měřeno na part-11), takže dokud
   // uživatel dráhy nepřepočítá, počítá panel jen tu levnou část.
-  if (!prms.finishOnly && !skipRoughing) {
+  if (!prms.finishOnly && !skipRoughing && !xMaxNothing) {
     const operations = getRoughingOperations(S);
     const runOps = () => {
       for (const op of operations) {
@@ -564,6 +581,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   // Pásový ořez dokončovací dráhy (rozsah 📐 i čelisti/koník) — ops/finish.js.
 
+  if (xMaxNothing) finishOffsetPath = [];   // pravidlo 12: není co obrábět
   if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
     const res = clipFinishBand(finishOffsetPath, {
       zLo: machiningRange ? machiningRange.zLo : -Infinity,

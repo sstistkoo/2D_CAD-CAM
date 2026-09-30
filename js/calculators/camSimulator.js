@@ -39,6 +39,7 @@ import { PARTING_BODY_MIN_H_MM, buildInsertProfileSegments, drawInsertAndHolderP
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog } from './cam/toolSlotPreview.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
+import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
 import { applyPartToState, buildCombinedProgram, machinedStockPoints, makePart, partsAsMergeItems, partToolLabel, syncPartFromState, STOCK_PARAM_KEYS } from './cam/opParts.js';
@@ -188,6 +189,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-tab="import">📥 Import</button>
     </div>
     <div class="cam-sim-tab-body"></div>
+  </div>
+  <div class="cam-sim-busy" hidden role="status" aria-live="polite">
+    <div class="cam-sim-busy-box">
+      <span class="cam-sim-busy-icon" aria-hidden="true">⏳</span>
+      <span class="cam-sim-busy-text">Generuji dráhy a G-kód…</span>
+    </div>
   </div>
 </div>`;
 
@@ -765,6 +772,10 @@ export function openCamSimulator(initialContour, initialGCode) {
   const tabBody = root.querySelector('.cam-sim-tab-body');
   const partsBar = root.querySelector('.cam-sim-parts-bar');
   const refreshBtn = root.querySelector('[data-code="refresh"]');
+  const sectionBtn = root.querySelector('[data-code="section-paths"]');
+  const resetPartsBtn = root.querySelector('[data-code="reset-parts"]');
+  const busyEl = root.querySelector('.cam-sim-busy');
+  const busyText = root.querySelector('.cam-sim-busy-text');
   // Refresh callback modalu "⚙️ Geometrie", pokud je otevřený — viz fullUpdate().
   // Záměrně NE na S (S.params se snapshotuje/serializuje, funkce tam nepatří).
   let toolGeomModalRefresh = null;
@@ -985,6 +996,40 @@ export function openCamSimulator(initialContour, initialGCode) {
     else fullUpdate();
   }
 
+  // ── ⏳ PŘESÝPACÍ HODINY při generování drah ─────────────────────
+  // Výpočet běží synchronně v hlavním vlákně (na reálném díle ~1 s plán
+  // + emise), okno do té doby nereaguje. Hodiny se proto musí NEJDŘÍV
+  // vykreslit (nextPaint) a teprve pak se počítá; přes celé okno zároveň
+  // blokují klikání. Ikona se točí CSS animací transformace — ta běží
+  // v kompozitoru i při plně vytíženém hlavním vlákně.
+  let _busy = false;
+  function isBusy() { return _busy; }
+  function setBusyText(text) { busyText.textContent = text; }
+  // Počká, až prohlížeč vykreslí snímek: rAF běží PŘED vykreslením, timeout
+  // až PO něm. Záložní timeout pro prostředí bez rAF (skrytá karta; Browser
+  // pane aplikace rAF nevolá) — jinak by se čekalo věčně.
+  function nextPaint() {
+    return new Promise(resolve => {
+      let done = false;
+      const go = () => { if (!done) { done = true; resolve(); } };
+      requestAnimationFrame(() => setTimeout(go, 0));
+      setTimeout(go, 100);
+    });
+  }
+  async function withBusy(text, fn) {
+    if (_busy) return;
+    _busy = true;
+    setBusyText(text);
+    busyEl.hidden = false;
+    try {
+      await nextPaint();
+      await fn();
+    } finally {
+      _busy = false;
+      busyEl.hidden = true;
+    }
+  }
+
   // ── ČÁSTI PROGRAMU (operace) ───────────────────────────────────
   // Viz cam/opParts.js. Živý stav S vždy patří části S.opParts[S.activePart];
   // syncActivePart() ho do záznamu zapíše, applyPart() naopak nahraje.
@@ -1151,37 +1196,61 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
   }
 
-  async function handleSectionPaths() {
-    if (partsActive()) {
-      const ok = await camConfirm('Dráhy po úsecích nahradí stávající části programu. Začne se na polotovaru první části. Pokračovat?');
-      if (!ok) return;
-      restoreBaseFromLive();
-    }
-    recalcNow();
-    const calc0 = S._cachedCalc;
-    const plan = calc0 && calc0.sectionPlan;
-    if (!plan || plan.sections.length === 0) {
-      showToast('Úseky nejsou — dráhy po úsecích jen pro podélné hrubování kulatou/polygonem.', 4000);
-      return;
-    }
-    const zs = (calc0.stockWorldPoints || []).map(p => p.zReal).filter(Number.isFinite);
-    if (zs.length === 0) { showToast('Chybí polotovar.', 3000); return; }
+  // Kroky „✂ Po úsecích" nad výpočtem `calc`: { steps }, nebo { error } =
+  // proč to nejde. Tutéž podmínku čte viditelnost tlačítka (updateGenButtons),
+  // takže je tlačítko vidět přesně tehdy, když funguje.
+  function sectionSteps(calc) {
+    const plan = calc && calc.sectionPlan;
+    if (!plan || !plan.sections || plan.sections.length === 0)
+      return { error: 'Úseky nejsou — dráhy po úsecích jen pro podélné hrubování kulatou/polygonem.' };
+    const zs = (calc.stockWorldPoints || []).map(p => p.zReal).filter(Number.isFinite);
+    if (zs.length === 0) return { error: 'Chybí polotovar.' };
     const zl = S.zLimits;
     const userRange = zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
       ? { zLo: Math.min(zl.rangeStart, zl.rangeEnd), zHi: Math.max(zl.rangeStart, zl.rangeEnd) } : null;
     const steps = sectionRanges(plan, { lo: Math.min(...zs), hi: Math.max(...zs) }, userRange);
-    if (steps.length === 0) { showToast('Žádný úsek neleží v rozsahu obrábění.', 3000); return; }
+    return steps.length ? { steps } : { error: 'Žádný úsek neleží v rozsahu obrábění.' };
+  }
+
+  async function handleSectionPaths() {
+    if (isBusy()) return;
+    if (partsActive()) {
+      const ok = await camConfirm('Dráhy po úsecích nahradí stávající části programu. Začne se na polotovaru první části. Pokračovat?');
+      if (!ok) return;
+    }
+    await withBusy('Generuji dráhy po úsecích…', () => sectionPathsNow());
+  }
+
+  async function sectionPathsNow() {
+    if (partsActive()) restoreBaseFromLive();
+    recalcNow();
+    const r = sectionSteps(S._cachedCalc);
+    if (r.error) { showToast(r.error, 4000); return; }
+    const steps = r.steps;
 
     pushHistory();
     const baseStock = JSON.parse(JSON.stringify(S.stockPoints));
     const baseLimits = { z: JSON.parse(JSON.stringify(S.zLimits)), x: JSON.parse(JSON.stringify(S.xLimits)) };
     const parts = [];
     let baseLoop = null, warned = '';
-    for (const st of steps) {
+    for (const [i, st] of steps.entries()) {
+      // Průběh v přesýpacích hodinách — před každým úsekem se nechá
+      // prohlížeč vykreslit (úsek sám blokuje hlavní vlákno ~sekundu).
+      if (steps.length > 1) {
+        setBusyText(`Generuji dráhy po úsecích — ${st.name} (${i + 1}/${steps.length})…`);
+        await nextPaint();
+      }
       S.zLimits = { ...baseLimits.z, rangeStart: st.zHi, rangeEnd: st.zLo, rangeActive: true };
-      S.xLimits = st.xTo !== null
-        ? { ...baseLimits.x, rangeXMin: st.xTo, rangeXMax: 1e4, active: true }
-        : { ...baseLimits.x };
+      // Dno úseku (`xTo`) se SKLÁDÁ s rozsahem X uživatele — platí vyšší
+      // z obou den, strop X max zůstává jeho. Do 30. 9. 2026 se tu X max
+      // přepsal na 1e4, takže se v úsecích se dnem tiše ztratil.
+      if (st.xTo !== null) {
+        const bx = baseLimits.x, uMin = xBoundValue(bx, 'min');
+        S.xLimits = { ...bx, rangeXMin: uMin !== null ? Math.max(uMin, st.xTo) : st.xTo,
+          minActive: true, maxActive: xBoundOn(bx, 'max'), active: true };
+      } else {
+        S.xLimits = { ...baseLimits.x };
+      }
       _regenGCode();
       const calc = S._cachedCalc;
       parts.push(makePart(S, { name: st.name, gcode: S.manualGCode }));
@@ -1225,7 +1294,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   async function handleDeletePart(idx) {
     if (!partsActive() || idx < 0 || idx >= S.opParts.length) return;
     const name = S.opParts[idx].name;
-    const ok = await camConfirm(`Smazat celou část programu „${name}"? Dráhy i její parametry se ztratí.`);
+    const ok = await camConfirm(`Smazat celou část programu „${escHTML(name)}"? Dráhy i její parametry se ztratí.`);
     if (!ok) return;
     pushHistory();
     S.opParts.splice(idx, 1);
@@ -2835,10 +2904,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.fillText(`${label} X=${xVal}`, w - 6, py - 3);
         }
       };
-      if (S.xLimits.active) {
-        drawXLine(S.xLimits.rangeXMin, '#a6e3a1', '▼ X min');
-        drawXLine(S.xLimits.rangeXMax, '#a6e3a1', 'X max ▲');
-      }
+      if (xBoundOn(S.xLimits, 'min')) drawXLine(S.xLimits.rangeXMin, '#a6e3a1', '▼ X min');
+      if (xBoundOn(S.xLimits, 'max')) drawXLine(S.xLimits.rangeXMax, '#a6e3a1', 'X max ▲');
     }
 
     // Selection rectangle
@@ -4033,7 +4100,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Vrátí klíč X-limitu ('rangeXMin' | 'rangeXMax') pod kurzorem, jinak null.
   function getXLimitAt(clientX, clientY) {
     if (S.simRunning || !S.showZLimits || S.showZLimits === 'off') return null;
-    if (!S.xLimits.active) return null; // čáry nejsou viditelné — nelze tahat
+    if (!xRangeAnyOn(S.xLimits)) return null; // čáry nejsou viditelné — nelze tahat
     const rect = canvas.getBoundingClientRect();
     const mx = clientX - rect.left, my = clientY - rect.top;
     const prms = S.params;
@@ -4044,8 +4111,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     };
     const isKarusel = prms.machineStructure === 'carousel';
     let bestKey = null, bestD = 8;
-    for (const [key, x] of [['rangeXMin', S.xLimits.rangeXMin], ['rangeXMax', S.xLimits.rangeXMax]]) {
-      if (x === null || x === undefined || isNaN(x)) continue;
+    for (const [key, x, which] of [['rangeXMin', S.xLimits.rangeXMin, 'min'], ['rangeXMax', S.xLimits.rangeXMax, 'max']]) {
+      if (x === null || x === undefined || isNaN(x) || !xBoundOn(S.xLimits, which)) continue;
       const d = isKarusel ? Math.abs(toScreen(x, 0).x - mx) : Math.abs(toScreen(x, 0).y - my);
       if (d < bestD) { bestD = d; bestKey = key; }
     }
@@ -4259,6 +4326,22 @@ export function openCamSimulator(initialContour, initialGCode) {
       stale ? '● Dráhy v programu jsou NEAKTUÁLNÍ — nastavení se od jejich vygenerování změnilo.' : '',
       locked ? '🔒 Program má ruční úpravy — před přepsáním se zeptám.' : '',
     ].filter(Boolean).join('\n');
+    updateGenButtons();
+  }
+
+  // Vidět jsou jen tlačítka, která teď opravdu jdou použít (přání uživatele
+  // 30. 9. 2026 — dřív „jednou fungovalo jedno, podruhé druhé" a nefunkční
+  // tlačítko odpovědělo jen hláškou):
+  //  • „🔄 Dráhy" — ne v náhledu celého programu (tam se negeneruje; dráhy
+  //    části se přegenerují po kliknutí na její chip),
+  //  • „✂ Po úsecích" — jen když má plán úseky (fialové čáry) v rozsahu
+  //    obrábění; po „Po úsecích" zůstává (přegeneruje části od začátku),
+  //  • „↺ Reset" — jen když program má části.
+  function updateGenButtons() {
+    refreshBtn.hidden = partsActive() && S.opView === 'all';
+    const fromSections = partsActive() && !!S.opParts[0].baseLimits;
+    sectionBtn.hidden = !(fromSections || !sectionSteps(S._cachedCalc).error);
+    resetPartsBtn.hidden = !partsActive();
   }
 
   // ── UI: lišta částí programu (operací) ──
@@ -4540,7 +4623,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       });
     });
     const autoStockEdBtn = tabBody.querySelector('[data-act="auto-stock"]');
-    if (autoStockEdBtn) autoStockEdBtn.addEventListener('click', () => { handleAutoStock(); fullUpdate(); });
+    if (autoStockEdBtn) autoStockEdBtn.addEventListener('click', () => { pushHistory(); handleAutoStock(); fullUpdate(); });
   }
 
   // ── params tab ──
@@ -4585,7 +4668,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const _chActive = S.zLimits.chuckActive;
     const _koActive = S.zLimits.tailActive;
     const _zActive = S.zLimits.rangeActive;
-    const _xActive = S.xLimits.active;
+    const _xActive = xRangeAnyOn(S.xLimits);
     const _cs = (on) => on
       ? 'background:rgba(166,227,161,0.18);border-color:rgba(166,227,161,0.5);color:#a6e3a1'
       : 'background:rgba(88,91,112,0.12);border-color:rgba(88,91,112,0.35);color:#585b70';
@@ -4631,12 +4714,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label>◀ Rozsah start Z</label><input type="number" step="0.5" data-zlim="rangeStart" value="${S.zLimits.rangeStart ?? ''}" placeholder="vypnuto"></div>
         <div class="cam-sim-field"><label>Rozsah konec Z ▶</label><input type="number" step="0.5" data-zlim="rangeEnd" value="${S.zLimits.rangeEnd ?? ''}" placeholder="vypnuto"></div>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#cdd6f4;cursor:pointer;margin:4px 0 2px">
-        <input type="checkbox" data-act="xrange-active" ${S.xLimits.active ? 'checked' : ''}> Rozsah X — aktivovat pro generování drah
-      </label>
-      <div class="cam-sim-row">
-        <div class="cam-sim-field"><label>▼ Rozsah X min (∅/2)</label><input type="number" step="0.5" min="0" data-xlim="rangeXMin" value="${S.xLimits.rangeXMin ?? ''}" placeholder="vypnuto"></div>
-        <div class="cam-sim-field"><label>Rozsah X max (∅/2) ▲</label><input type="number" step="0.5" min="0" data-xlim="rangeXMax" value="${S.xLimits.rangeXMax ?? ''}" placeholder="vypnuto"></div>
+      <div class="cam-sim-row" style="margin-top:4px">
+        <div class="cam-sim-field" title="Dno obrábění: pod tenhle poloměr se nejede. Zaškrtávátkem se mez zapíná a vypíná, hodnota zůstane."><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="xmin-active" ${xBoundOn(S.xLimits, 'min') ? 'checked' : ''}> ▼ Rozsah X min (∅/2)</label><input type="number" step="0.5" data-xlim="rangeXMin" value="${S.xLimits.rangeXMin ?? ''}" placeholder="vypnuto"></div>
+        <div class="cam-sim-field" title="Strop obrábění: nad tenhle poloměr se neobrábí a pod materiál, který nad ním stojí, se nepodjíždí — obrábí se jen od volného konce po místo, kde polotovar vyleze nad čáru (pravidlo 12). Platí pro podélné, čelní i dokončování."><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="xmax-active" ${xBoundOn(S.xLimits, 'max') ? 'checked' : ''}> Rozsah X max (∅/2) ▲</label><input type="number" step="0.5" data-xlim="rangeXMax" value="${S.xLimits.rangeXMax ?? ''}" placeholder="vypnuto"></div>
       </div>
       <div style="text-align:right;margin-top:2px"><button class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" data-act="zlimits-clear">Vymazat vše</button></div>
     </div>`;
@@ -4663,7 +4743,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       : prms.toolShape === 'threading'
         ? `<span class="cam-sim-machine-chip">${prms.toolTipAngle}°</span>` : '';
     const _vbdChip = prms.toolVbdCode
-      ? `<span class="cam-sim-machine-chip" style="font-family:monospace;font-size:10px;letter-spacing:0.5px">${(prms.toolVbdCode || '').substring(0, 8)}</span>` : '';
+      ? `<span class="cam-sim-machine-chip" style="font-family:monospace;font-size:10px;letter-spacing:0.5px">${escHTML((prms.toolVbdCode || '').substring(0, 8))}</span>` : '';
     html += `<button class="cam-sim-machine-toggle" data-act="tool-config-toggle">
       <span class="cam-sim-machine-summary">
         <span style="color:#a6adc8;font-size:11px">Nástroj:</span>
@@ -4677,7 +4757,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     <div class="cam-sim-machine-body${_toolOpen ? '' : ' cam-sim-collapsed'}">
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label>Max. otáčky (LIMS)</label><input type="number" data-p="lims" inputmode="numeric" value="${parseInt((prms.machineType || '').match(/LIMS=(\d+)/)?.[1]) || 2000}"></div>
-        <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${prms.toolName}"></div>
+        <div class="cam-sim-field"><label>Název nástroje</label><input type="text" data-p="toolName" inputmode="text" value="${escAttr(prms.toolName ?? '')}"></div>
       </div>
       <div class="cam-sim-section-title">
         <button data-act="tool-library" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px">🧰 Knihovna</button>
@@ -4823,7 +4903,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
           <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
             <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
-            ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${s.name}${s.vbdCode ? ' · ' + s.vbdCode : ''}</option>`).join('')}
+            ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${escHTML(s.name ?? '')}${s.vbdCode ? ' · ' + escHTML(s.vbdCode) : ''}</option>`).join('')}
           </select>
           ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
         </div>`;
@@ -4840,7 +4920,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
           <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
             <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
-            ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${s.name}${s.vbdCode ? ' · ' + s.vbdCode : ''}</option>`).join('')}
+            ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${escHTML(s.name ?? '')}${s.vbdCode ? ' · ' + escHTML(s.vbdCode) : ''}</option>`).join('')}
           </select>
           ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
         </div>`;
@@ -4935,10 +5015,32 @@ export function openCamSimulator(initialContour, initialGCode) {
   const INSERT_PARAMS = new Set(['toolAngle', 'toolTipAngle', 'toolShape', 'toolClearanceAngle',
     'toolLength', 'holderWidth', 'holderLength', 'holderInflate', 'holderInflateAll']);
 
+  // Smaže konstrukční čáry povýšené z hlídání destičky (`fromInsert`) — po
+  // změně geometrie destičky/držáku už neplatí. JEDINÉ místo pro všechny
+  // cesty, které tu geometrii mění: pole panelu, tlačítka tvaru, ⇄ strana,
+  // strategie (znaménko natočení), 🧰 Knihovna, VBD dekodér. Dřív to dělala
+  // jen pole panelu, takže po výměně tvaru nebo nože z knihovny zůstávaly
+  // viset čáry spočítané pro předchozí destičku a dál omezovaly dráhy.
+  function dropInsertGuides() {
+    if (!S.params.respectInsertGeometry) return;
+    const before = S.guideLines.length;
+    S.guideLines = S.guideLines.filter(g => !g.fromInsert);
+    if (S.guideLines.length < before)
+      showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
+  }
+
   // Sdílený handler pro data-p pole — volaný z hlavního panelu (tabBody) i
   // z modalu Geometrie nástroje, aby obě UI zapisovaly do S.params stejně.
   function applyParamChange(key, inp) {
     const v = inp.value;
+    // Vymazané pole „Z upich" = zrušit upichnutí (jako ✖ Zrušit), ne upich
+    // na Z0 — prázdné číselné pole by jinak níž spadlo na `|| 0`.
+    if (key === 'partOffZ' && String(v).trim() === '') {
+      const wasActive = S.params.partOffZ != null;
+      S.params.partOffZ = null;
+      if (wasActive) applyChange({ cycle: true }); else renderTab();
+      return;
+    }
     if (key === 'lims') {
       S.params.machineType = `LIMS=${parseInt(v) || 2000}`;
     } else {
@@ -4951,12 +5053,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
     }
     // Změna tvaru/úhlu destičky → smazat zastaralé promované interferenční čáry
-    if (INSERT_PARAMS.has(key) && S.params.respectInsertGeometry) {
-      const before = S.guideLines.length;
-      S.guideLines = S.guideLines.filter(g => !g.fromInsert);
-      if (S.guideLines.length < before)
-        showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
-    }
+    if (INSERT_PARAMS.has(key)) dropInsertGuides();
     applyChange();
   }
 
@@ -4975,6 +5072,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         holderProfile: S.params.holderProfile,
       };
       S.params.toolShape = next;
+      dropInsertGuides();
       // ÚHEL ZANOŘENÍ PATŘÍ K TVARU: nový plátek začne na svém Auto (polygon =
       // natočení PU, tj. spodní hrana; kulatá 45°; upichovák kolmo). Ruční
       // úhel odcházejícího tvaru se dřív nesl dál — uživatel 25. 9. 2026 měl
@@ -5027,6 +5125,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // part-19-face-tilted-insert (řezy o 0,2 mm jinde, 7 → 13 vynechaných
     // průchodů), proto stejné zacházení jako s ostatními poli destičky.
     S.params.toolTipMirror = !S.params.toolTipMirror;
+    dropInsertGuides();
     applyChange();
   }
 
@@ -5152,7 +5251,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         // kdo si nastavil 25°, nemá důvod dostat 15°.
         if (S.params.toolShape === 'polygon') {
           const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
-          S.params.toolAngle = btn.dataset.rough === 'face' ? -mag : mag;
+          const nextAngle = btn.dataset.rough === 'face' ? -mag : mag;
+          if (nextAngle !== parseFloat(S.params.toolAngle)) dropInsertGuides();
+          S.params.toolAngle = nextAngle;
         }
         applyChange();
       });
@@ -5182,13 +5283,13 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     // Checkboxy aktivace čelistí / koníku / rozsahů
     const chuckChk = tabBody.querySelector('[data-act="chuck-active"]');
-    if (chuckChk) chuckChk.addEventListener('change', () => { S.zLimits.chuckActive = chuckChk.checked; fullUpdate(); });
+    if (chuckChk) chuckChk.addEventListener('change', () => { S.zLimits.chuckActive = chuckChk.checked; applyChange(); });
     const tailChk = tabBody.querySelector('[data-act="tail-active"]');
-    if (tailChk) tailChk.addEventListener('change', () => { S.zLimits.tailActive = tailChk.checked; fullUpdate(); });
+    if (tailChk) tailChk.addEventListener('change', () => { S.zLimits.tailActive = tailChk.checked; applyChange(); });
     const zRangeChk = tabBody.querySelector('[data-act="zrange-active"]');
     if (zRangeChk) zRangeChk.addEventListener('change', () => {
       S.zLimits.rangeActive = zRangeChk.checked;
-      fullUpdate();
+      applyChange();
     });
     // Kam nafouknout virtuálně zvětšený držák: kolem celého vs. jen k obráběné
     // straně. Bylo to zaškrtávátko, ale v úzkém sloupci se název zalamoval do tří
@@ -5199,19 +5300,21 @@ export function openCamSimulator(initialContour, initialGCode) {
     const inflModeBtn = tabBody.querySelector('[data-act="holder-inflate-mode"]');
     if (inflModeBtn) inflModeBtn.addEventListener('click', () => {
       S.params.holderInflateAll = !holderInflateAll(S.params);
-      if (S.params.respectInsertGeometry) {
-        const before = S.guideLines.length;
-        S.guideLines = S.guideLines.filter(g => !g.fromInsert);
-        if (S.guideLines.length < before)
-          showToast('Konstrukční čáry z hlídání destičky aktualizovány 🔄');
-      }
+      dropInsertGuides();
       applyChange();
     });
-    const xRangeChk = tabBody.querySelector('[data-act="xrange-active"]');
-    if (xRangeChk) xRangeChk.addEventListener('change', () => {
-      S.xLimits.active = xRangeChk.checked;
-      applyChange();
-    });
+    // Každá mez rozsahu X má vlastní přepínač (cam/rangeX.js). Společné
+    // `active` se drží jako „aspoň jedna zapnutá" pro starší čtenáře.
+    for (const [act, which] of [['xmin-active', 'min'], ['xmax-active', 'max']]) {
+      const chk = tabBody.querySelector(`[data-act="${act}"]`);
+      if (chk) chk.addEventListener('change', () => {
+        S.xLimits.minActive = xBoundOn(S.xLimits, 'min');
+        S.xLimits.maxActive = xBoundOn(S.xLimits, 'max');
+        S.xLimits[which === 'min' ? 'minActive' : 'maxActive'] = chk.checked;
+        S.xLimits.active = S.xLimits.minActive || S.xLimits.maxActive;
+        applyChange();
+      });
+    }
     // X-rozsah – numerické vstupy
     tabBody.querySelectorAll('[data-xlim]').forEach(inp => {
       inp.addEventListener('change', () => {
@@ -5224,8 +5327,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     const zlClear = tabBody.querySelector('[data-act="zlimits-clear"]');
     if (zlClear) zlClear.addEventListener('click', () => {
       S.zLimits = { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false };
-      S.xLimits = { rangeXMin: null, rangeXMax: null, active: false };
-      renderTab(); draw(); saveState();
+      S.xLimits = { rangeXMin: null, rangeXMax: null, active: false, minActive: false, maxActive: false };
+      // Meze ořezávají dráhy — bez přepočtu zůstával náhled ořezaný podle
+      // smazaných mezí (a ⚠ panel s jejich hlášením), dokud se nesáhlo jinam.
+      applyChange();
     });
     tabBody.querySelectorAll('[data-tshape]').forEach(btn => {
       btn.addEventListener('click', () => applyShapeChange(btn.dataset.tshape));
@@ -5318,7 +5423,11 @@ export function openCamSimulator(initialContour, initialGCode) {
           if (tool.vc) S.params.speed = tool.vc;
           if (tool.f) S.params.feed = tool.f;
           if (tool.ap) S.params.depthOfCut = tool.ap;
-          fullUpdate();
+          // Jako pole panelu: jiná destička → pryč s čarami té staré a
+          // applyChange (v cyklu závit/upich přegeneruje program), ne jen
+          // fullUpdate — stejně jako u VBD dekodéru níž.
+          dropInsertGuides();
+          applyChange();
         },
       });
     });
@@ -5392,7 +5501,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.guideLines = [];
         S.zLimits = { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false };
         S.showZLimits = 'off';
-        S.xLimits = { rangeXMin: null, rangeXMax: null, active: false };
+        S.xLimits = { rangeXMin: null, rangeXMax: null, active: false, minActive: false, maxActive: false };
         S.machineConfigOpen = false;
         S.safetyConfigOpen = false;
         S.materialConfigOpen = false;
@@ -5447,6 +5556,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         }
         if (data.clearanceAngle !== null) S.params.toolClearanceAngle = data.clearanceAngle;
         if (data.tipRadius !== null && data.tipRadius > 0) S.params.toolRadius = data.tipRadius;
+        dropInsertGuides();
         // applyChange (ne fullUpdate) — dekodér mění TOTÉŽ co pole Rádius/ε
         // v panelu, takže se musí chovat stejně (v cyklu přegenerovat program).
         applyChange();
@@ -6796,10 +6906,10 @@ export function openCamSimulator(initialContour, initialGCode) {
           html += `<div style="padding:0 8px 10px 8px;border-top:1px solid #313244">
             <div class="cam-sim-row" style="margin-top:8px">
               <div class="cam-sim-field"><label>Slot (T#)</label><input type="number" data-mf="slot" data-magidx="${i}" value="${slot.slot}" min="1" max="99" style="font-weight:700"></div>
-              <div class="cam-sim-field" style="flex:2"><label>Název (G-kód)</label><input type="text" data-mf="name" data-magidx="${i}" value="${escHTML(slot.name)}" style="font-family:monospace"></div>
+              <div class="cam-sim-field" style="flex:2"><label>Název (G-kód)</label><input type="text" data-mf="name" data-magidx="${i}" value="${escAttr(slot.name ?? '')}" style="font-family:monospace"></div>
             </div>
             <div class="cam-sim-row">
-              <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-mf="vbdCode" data-magidx="${i}" value="${escHTML(slot.vbdCode)}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" spellcheck="false"></div>
+              <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-mf="vbdCode" data-magidx="${i}" value="${escAttr(slot.vbdCode ?? '')}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" spellcheck="false"></div>
               <div class="cam-sim-field"><label>Rádius (R)</label><input type="number" data-mf="radius" data-magidx="${i}" step="0.1" value="${slot.radius}"></div>
             </div>
             <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -7052,8 +7162,13 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── import tab ──
   function renderImportTab() {
+    // Kam se importuje, určuje přepínač Kontura / Polotovar v záložce Editor —
+    // tady ho dřív nebylo vidět a import tiše přepsal to, co bylo v Editoru
+    // zrovna zvolené.
+    const toStock = S.editMode === 'stock';
     tabBody.innerHTML = `
-      <div class="cam-sim-section-title">Import G-kódu</div>
+      <div class="cam-sim-section-title">Import G-kódu → ${toStock ? '📦 polotovar' : '✏ kontura'}</div>
+      <small class="cam-sim-info-box" style="display:block;margin-bottom:4px">Body přepíšou ${toStock ? 'polotovar' : 'konturu'}. Cíl se přepíná v záložce ✏ Editor (Kontura / Polotovar).</small>
       <textarea class="cam-sim-import-ta" placeholder="G1 X... Z..."></textarea>
       <button class="cam-sim-btn cam-sim-btn-green" style="margin-top:6px" data-act="import-gcode">📥 Import</button>`;
     const importBtn = tabBody.querySelector('[data-act="import-gcode"]');
@@ -7065,7 +7180,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (pts.length > 0) {
         pushHistory();
         if (S.editMode === 'contour') S.contourPoints = pts;
-        else S.stockPoints = pts;
+        else {
+          S.stockPoints = pts;
+          // Jako úpravy v Editoru: body polotovaru = vlastní tvar. U válce by
+          // se importovaný obrys vůbec nepoužil.
+          S.params.stockMode = 'casting';
+        }
         fullUpdate();
         fitView();
       } else {
@@ -8076,6 +8196,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       S._cachedCalc.interferenceGuides = [];
       S._cachedCalc.totalPathLength = 0;
       S._cachedCalc.estimatedTimeSeconds = 0;
+      // Náhled se vyprázdnil PŘÍMO v keši. Upich a závit jsou v otisku
+      // (`partOffZ`, `threadActive`), prázdný program ne — bez zneplatnění by
+      // se po jeho návratu (↪ Znovu po Resetu a 🔄 Dráhy) vzal z keše tenhle
+      // prázdný náhled a dráhy by chyběly, dokud se nezmění parametr.
+      if (!S.manualGCode || !S.manualGCode.trim()) S._calcCacheKey = null;
     } else if (S.genNotes && S.genNotes.length) {
       // Hlášení z poslední EMISE G-kódu (zbytkový polotovar / pořadí obrábění,
       // což calculate() neví). calculate() přepisuje S.errors od nuly, takže
@@ -8417,6 +8542,9 @@ export function openCamSimulator(initialContour, initialGCode) {
   // keyboard shortcuts
   const handleKeyDown = (e) => {
     if (!document.body.contains(overlay)) return;
+    // Mezi úseky „✂ Po úsecích" se čeká na vykreslení — Zpět by tam sáhlo
+    // do rozpracovaného stavu.
+    if (isBusy()) { e.preventDefault(); return; }
     if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
     if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
     if (e.key === 'Escape') {
@@ -8452,23 +8580,26 @@ export function openCamSimulator(initialContour, initialGCode) {
       showToast('Náhled celého programu — přepněte na „Část", tam se dráhy generují');
       return;
     }
+    if (isBusy()) return;
     const what = partsActive() ? `části „${S.opParts[S.activePart].name}"` : 'aktuální kontury';
     // Ptát se jen tehdy, když je co ztratit. V automaticky vygenerovaném
     // programu ruční úpravy nejsou, tak neotravovat dialogem při každém kliku.
     const ok = !S.gcodeDirty
       || await camConfirm(`Přegenerovat dráhy ${what} z kontury a parametrů? Ruční úpravy G-kódu budou přepsány.`);
     if (!ok) return;
-    recalcNow();
-    const next = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
-    if (next !== S.manualGCode) pushHistory();   // přepis jde vzít Zpět
-    S.manualGCode = next;
-    markGCodeGenerated();
-    syncActivePart();
-    refreshAutoPartName();
-    fullUpdate();
-    showToast(partsActive()
-      ? `Dráhy části ${S.activePart + 1}/${S.opParts.length} přegenerovány`
-      : 'Dráhy přegenerovány z kontury a parametrů');
+    await withBusy(partsActive() ? `Generuji dráhy ${what}…` : 'Generuji dráhy a G-kód…', () => {
+      recalcNow();
+      const next = generateAutoGCode(S._cachedCalc).map(l => l.text).join('\n');
+      if (next !== S.manualGCode) pushHistory();   // přepis jde vzít Zpět
+      S.manualGCode = next;
+      markGCodeGenerated();
+      syncActivePart();
+      refreshAutoPartName();
+      fullUpdate();
+      showToast(partsActive()
+        ? `Dráhy části ${S.activePart + 1}/${S.opParts.length} přegenerovány`
+        : 'Dráhy přegenerovány z kontury a parametrů');
+    });
   });
   root.querySelector('[data-code="add-op"]').addEventListener('click', handleAddOperation);
   root.querySelector('[data-code="section-paths"]').addEventListener('click', handleSectionPaths);
@@ -9879,7 +10010,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const k = S.draggedLimit;
       const needRecalc = k === 'chuck' || k === 'tail'
         || ((k === 'rangeStart' || k === 'rangeEnd') && S.zLimits.rangeActive)
-        || ((k === 'rangeXMin' || k === 'rangeXMax') && S.xLimits.active);
+        || ((k === 'rangeXMin' || k === 'rangeXMax') && xRangeAnyOn(S.xLimits));
       saveState(); renderTab();
       if (needRecalc) fullUpdate();
     }
@@ -10238,7 +10369,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const k = S.draggedLimit;
       const needRecalc = k === 'chuck' || k === 'tail'
         || ((k === 'rangeStart' || k === 'rangeEnd') && S.zLimits.rangeActive)
-        || ((k === 'rangeXMin' || k === 'rangeXMax') && S.xLimits.active);
+        || ((k === 'rangeXMin' || k === 'rangeXMax') && xRangeAnyOn(S.xLimits));
       saveState(); renderTab();
       if (needRecalc) fullUpdate();
     }
