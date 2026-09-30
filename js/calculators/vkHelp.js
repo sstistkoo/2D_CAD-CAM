@@ -55,6 +55,16 @@ const linearSection = {
     { title: 'Úsečka (?) ➔ Kužel (známý)', syntax: 'G11 X30.0 Z?\nG11 X50.0 Z-30.0 PA135' },
     { title: 'Kužel (?) ➔ Úsečka (známá)', syntax: 'G11 X? Z? PA150\nG11 X60.0 Z-40.0' },
     { title: 'Kužel (?) ➔ Kužel (známý)', syntax: 'G11 X? Z? PA140\nG11 X80.0 Z-50.0 PA165' },
+    {
+      title: 'Kužel určený hned (úhel + jedna souřadnice)',
+      syntax: 'G11 X40.0 Z? PA135',
+      desc: 'Stačí úhel a jedna souřadnice konce – druhá se dopočte hned při vložení, na další prvek se nečeká (jako FK u Heidenhainu).',
+    },
+    {
+      title: 'Úsečka určená hned (úhel + délka)',
+      syntax: 'G11 X? Z? PA180 PR20',
+      desc: 'PA + PR od konce předchozího prvku – konec se dopočte hned a řetěz pokračuje.',
+    },
   ],
 };
 

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **VK (volná kontura) – dopočet jako Heidenhain FK: zadané údaje se už
+  nezahazují.** Na pokyn uživatele 30. 9. 2026 (*„mělo by to být dělané jako
+  FK u Heidenhain systému"*):
+  - **PA + jedna souřadnice konce** (`G11 X20 Z? PA45`) se dopočte hned při
+    vložení – konec je průsečík úhlu se zadaným X (resp. Z), obdoba
+    `FL X.. AN..`. Dřív šel prvek do fronty a zadané X se při dopočtu
+    ignorovalo: v textu zůstalo `X20 Z-15`, ale počítalo se s bodem X−5.
+    Konec proti směru PA se dopočte s upozorněním, rovnoběžný úhel nebo
+    nulová délka se odmítne (`solveAngleAndCoordinate()` ve vkSolver.js).
+  - **Samotné X (Z?) nebo Z (X?)** je konec prvku, ne poloha kotvy –
+    `elementRay()` vede paprsek po zadané hodnotě. Po bodu X10 dával
+    `G11 X20 Z?` roh na X10, přestože text říkal X20.
+  - **PA + PR bez X/Z** (obdoba `FL AN.. LEN..`) je plně určený prvek:
+    konec se dopočte hned a řetěz za ním pokračuje. Dřív zůstal ve frontě
+    neznámých a nic za ním se už nedopočítalo.
+  - Dopočtený bod se zapisuje do CELÉHO řádku (`replaceVkLine()`), ne do
+    prvního výskytu podřetězce – nedořešené `G11 X? Z? PA180` přepsalo
+    starší řádek `G11 X? Z? PA180 PR10`, který ho obsahoval.
+
 ### Changed
 - **CAM – kulatá destička: jeden postup pravidla 7 místo oprav po kouscích.**
   Na pokyn uživatele 29. 9. 2026 (*„chce to jednotnou jednoduchou logiku
