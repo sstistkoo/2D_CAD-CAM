@@ -25,6 +25,7 @@ import { makeDepthTabs } from './long/depthTabs.js';
 import { makeResidualGuard } from './long/residualGuard.js';
 import { makeHolderFit } from './long/holderFit.js';
 import { makeEntryRamp } from './long/entryRamp.js';
+import { trimChainRampsOverCut } from './long/rampOverCut.js';
 import { makeIntervalScan } from './long/intervalScan.js';
 import { makeRunScan } from './long/runScan.js';
 import { makeHolderTrim } from './long/holderTrim.js';
@@ -1983,6 +1984,10 @@ export function genLongPasses(ctx) {
         stepPass.ramp = (x0 > curX + 0.05)
           ? { x0, z0: curZ + (x0 - curX) / effPlungeTanL }
           : { x0: curX, z0: curZ };
+        // Povrch polotovaru nezná, co z té přímky už sjela mělčí vrstva —
+        // prodloužení se na konci sráží na zbývající materiál
+        // (ops/long/rampOverCut.js).
+        if (x0 > curX + 0.05) stepPass.__rampAnchor = { x: curX, z: curZ };
         first = false;
       } else {
         stepPass.ramp = { x0: curX, z0: curZ };
@@ -2908,6 +2913,11 @@ export function genLongPasses(ctx) {
     });
     if (n > 0) foundErrors.push({ type: 'warning', msg: `POZNÁMKA: ${n} zanořovacích kroků nemělo na co navázat — vjíždějí samostatně, nejvýš o Hloubku záběru.` });
   }
+  // Uzavírací rampa nejede po přímce, kterou už sjela mělčí vrstva — až
+  // tady, nad konečným pořadím a tvarem průchodů (ops/long/rampOverCut.js).
+  trimChainRampsOverCut(passes, {
+    T, noseLiftX: noseLiftL, plungeTan: effPlungeTanL, stockTopAt: offsetStockTopXAtZ,
+  });
 
   if (globalThis.__RESIDUAL_TRACKER_DUMP__) {
     const tracker = new ResidualTracker(prms, stockPathSegments, {

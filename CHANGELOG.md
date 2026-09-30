@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **CAM – uzavírací rampa navazuje na konec předchozího zanoření, nebere to
+  „zvrchu".** Nález uživatele 30. 9. 2026 (`projekt_2026-09-30.camprog`,
+  úsek 2): `N2870 G1 X41.730` na Z 124,404 + `N2880 G1 X37.197 Z107.486 ;
+  Rampa 15.0°` — o celou ap výš, než kde skončilo předchozí zanoření
+  (X 39,23 Z 115,074), takže 9,3 mm posuvem po už vyříznuté přímce
+  (pravidla 5 a 10.3). Rampa dobíracího řetězu se prodlužovala podle
+  polotovaru PŘED úsekem, který neví, co z té přímky už sjela mělčí vrstva.
+  Nově se na konci plánování srazí na zbývající materiál podle průchodů
+  provedených před ní (`ops/long/rampOverCut.js`); teď `G0 Z115.074`,
+  `G1 X39.230`, rampa. Na 29 fixtures: úběr i kolize (0/0) beze změny,
+  porušení P5 (posuv vzduchem) o 7 méně, žádné nové; test
+  `cam-ramp-completion-over-cut`.
 - **VK (volná kontura) – dopočet jako Heidenhain FK: zadané údaje se už
   nezahazují.** Na pokyn uživatele 30. 9. 2026 (*„mělo by to být dělané jako
   FK u Heidenhain systému"*):
