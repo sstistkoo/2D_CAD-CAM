@@ -132,10 +132,12 @@ export function _defaultCamParams() {
     // true = úhel zanoření se dopočítává z tvaru destičky (úhel spodní
     // hrany: podélně = natočení; čelně = natočení + ε − 90).
     entryAngleAuto: true,
-    // Hlídat boční ostří destičky: hrubovací průchody se zkracují tak,
-    // aby destička (natočení + vrcholový úhel) nezajela do kontury,
-    // a dokončování přeskočí úseky, kam destička nedosáhne.
-    respectInsertGeometry: false,
+    // Hlídat geometrii (destička + DRŽÁK): hrubovací průchody se zkracují
+    // tak, aby destička ani držák nezajely do kontury/polotovaru, a
+    // dokončování přeskočí úseky, kam nástroj nedosáhne. VÝCHOZÍ ZAPNUTO
+    // (uživatel 1. 10. 2026): na čistém prohlížeči (mobil) bylo vypnuté a
+    // dokončování zprava sjelo po levém čele k ose — držák skrz díl.
+    respectInsertGeometry: true,
     // Zanořování: podélné hrubování smí rampou (pod úhlem zanoření)
     // sjet i do kapes/zápichů v kontuře, ne jen do otevřeného řezu.
     plungeRoughing: false,

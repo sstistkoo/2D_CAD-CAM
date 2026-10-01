@@ -389,8 +389,13 @@ CAM část ti umožní generovat NC programy pro obrábění.
 místo nedělí rovnoměrně: víc ho nechá na straně, odkud jede nůž — radiálně
 od osy ven (podle toho, nad nebo pod osou díl leží), axiálně podle strany
 obrábění (▶ zprava / ◀ zleva). Plocha pod tlačítky nahoře se nepočítá.
-Na mobilu se díl takhle vycentruje i sám po zavření/otevření spodního panelu
-(▼/▲ vlevo od přehrávače).
+**▼ vlevo od přehrávače** přepíná spodní panel ve třech krocích: celý panel →
+**2 řádky** (jen běžící blok G-kódu zvýrazněný a pod ním ten, který bude
+následovat; prázdné řádky a komentáře se přeskakují) → skrytý (▲) → zpět
+celý. Na mobilu (i na šířku) se díl po každém přepnutí sám vycentruje —
+stejně jako po otočení telefonu z výšky na šířku a zpět.
+Klik na dráhu otevře celý panel jen ze skrytého stavu; ve 2 řádcích se
+kliknutý blok ukáže v nich.
 
 Lišta nad G-kódem má na mobilu **dva řádky** (🔄 Dráhy, ✂ Úseky, ➕ Ope.,
 🔧 Editor / ↺ Reset, 📐 Kreslit, 💾 Uložit, 📂 Načíst) a vpravo přes oba
@@ -557,6 +562,11 @@ jen na konci a **při výměně nože** se vypíše nájezd do referenčního bo
 - **Export CNC kódu** – zpět do panelu
 
 ### Geometrie nástroje (destička + držák)
+Aby se geometrie nástroje při generování drah brala v úvahu, musí být
+zaškrtnuté **Hlídat geometrii (destička + držák)** (pod záložkami Hrub./Hot.,
+u všech tvarů plátku; výchozí **zapnuto**). Bez něj dokončování nehlídá
+držák — zprava by sjelo i po levém čele k ose skrz díl.
+
 V záložce **Parametry → Nástroj** otevři **🔧 Zásobník** a v jeho hlavičce
 **🔪 Geometrie** — modal s živým 2D
 náhledem destičky a držáku. Pod náhledem je jeden přepínač
@@ -588,6 +598,8 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   F0,25 / Vc200, upichovák F0,08 / Vc120, závitová jen Vc100 (posuv
   závitu je stoupání; hloubka třísky ap zůstává). Jinou hodnotu stačí přepsat v poli; VBD dekodér
   dosadí R z kódu (u kulaté polovinu průměru z velikosti: RCMT 1204M0 → R6).
+  **Hrubování (Podélně / Čelně) si každý plátek pamatuje:** kulatá podélně →
+  upichovák (ten umí jen čelně) → zpět na kulatou vrátí podélně.
   U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
   polárního úhlu — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
   stranu** ji překlopí bez nutnosti přepočítávat úhly ručně. **Není to jen

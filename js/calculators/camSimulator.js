@@ -138,7 +138,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <span class="cam-sim-progress-pct">0%</span>
     </div>
     <div class="cam-sim-player-bar">
-      <button class="cam-sim-code-toggle" data-act="toggle-code" title="Skrýt/zobrazit G-kód panel">▼</button>
+      <button class="cam-sim-code-toggle" data-act="toggle-code" title="Zmenšit G-kód panel na 2 řádky (běžící a následující blok)">▼</button>
       <button data-act="step-back" title="Krok zpět – předchozí pohyb">⏮</button>
       <button data-act="play" title="Spustit/Pauza">▶</button>
       <button data-act="stop" title="Zastavit a vrátit na začátek">⏹</button>
@@ -149,6 +149,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-act="speed-up" title="Zrychlit">▲</button>
       </div>
       <button data-act="sbl" title="Single block – krok po blocích G-kódu" style="font-size:11px;font-weight:bold;letter-spacing:0.5px">SBL</button>
+    </div>
+    <div class="cam-sim-code-mini">
+      <div class="cam-sim-code-mini-line cam-sim-code-mini-cur" title="Běžící blok"></div>
+      <div class="cam-sim-code-mini-line cam-sim-code-mini-next" title="Následující blok"></div>
     </div>
     <div class="cam-sim-code-area">
       <div class="cam-sim-code-bar">
@@ -770,6 +774,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   const ctx = canvas.getContext('2d');
   const codeBackdrop = root.querySelector('.cam-sim-code-backdrop');
   const manualTa = root.querySelector('.cam-sim-manual-ta');
+  const codeArea = root.querySelector('.cam-sim-code-area');
+  const codeMini = root.querySelector('.cam-sim-code-mini');
+  const toggleCodeBtn = root.querySelector('[data-act="toggle-code"]');
+  // Spodní panel G-kódu: 'open' (celý) → 'mini' (2 řádky) → 'closed' → 'open'
+  // tlačítkem ▼ (setCodePanelMode).
+  let codePanelMode = 'open';
   const timeOverlay = root.querySelector('.cam-sim-time-overlay');
   const motionOverlay = root.querySelector('.cam-sim-motion-overlay');
   const progressBar = root.querySelector('.cam-sim-progress-bar');
@@ -4461,15 +4471,49 @@ export function openCamSimulator(initialContour, initialGCode) {
       ? null
       : calc.simPath[findLastIdx(calc.simPath, p => p.originalLineIdx != null)].originalLineIdx;
   }
+  // ── Spodní panel G-kódu: ▼ = celý → 2 řádky → skrytý → celý ──
+  // „2 řádky" = jen běžící blok a ten, který bude následovat (přání uživatele
+  // 1. 10. 2026 — hlavně mobil na šířku, kde se celý panel nevejde).
+  // Na mobilu (i na šířku = nízký displej) se díl po přepnutí vycentruje;
+  // `refit` jen z tlačítka — automatické otevření po kliku na dráhu pohled
+  // nemění (uživatel se dívá na místo, kam klikl).
+  function setCodePanelMode(mode, refit = false) {
+    codePanelMode = mode;
+    codeArea.style.display = mode === 'open' ? '' : 'none';
+    codeMini.classList.toggle('cam-sim-mini-on', mode === 'mini');
+    toggleCodeBtn.textContent = mode === 'closed' ? '▲' : '▼';
+    toggleCodeBtn.title = mode === 'open' ? 'Zmenšit G-kód panel na 2 řádky (běžící a následující blok)'
+      : mode === 'mini' ? 'Skrýt i řádky G-kódu' : 'Zobrazit G-kód panel';
+    toggleCodeBtn.classList.toggle('cam-sim-active', mode !== 'open');
+    if (mode === 'mini') updateCodeMini(!S.simRunning && S._gcodeFocusLine != null ? S._gcodeFocusLine : getActiveCodeLineIdx());
+    if (refit && isMobileView()) fitView();
+  }
+  // Mobil = úzký displej (@media v camSimulatorStyles.js) nebo nízký (na šířku).
+  function isMobileView() {
+    return window.matchMedia('(max-width: 768px), (max-height: 520px)').matches;
+  }
+  // Řádky bez pohybu (prázdné, komentáře) se jako „následující" přeskakují.
+  let _miniSrc = null, _miniLines = [];
+  function updateCodeMini(hlIdx) {
+    if (codePanelMode !== 'mini') return;
+    if (_miniSrc !== S.manualGCode) { _miniSrc = S.manualGCode; _miniLines = _miniSrc.split('\n'); }
+    const ls = _miniLines;
+    const isBlock = l => { const t = l.trim(); return t !== '' && !/^[;(%]/.test(t); };
+    const cur = hlIdx != null && hlIdx < ls.length ? hlIdx : ls.findIndex(isBlock);
+    let next = -1;
+    if (cur >= 0) for (let i = cur + 1; i < ls.length; i++) if (isBlock(ls[i])) { next = i; break; }
+    codeMini.children[0].textContent = cur >= 0 ? ls[cur] : ' ';
+    codeMini.children[1].textContent = next >= 0 ? ls[next] : ' ';
+  }
+
   function updateCodeHighlight() {
     const focusEdit = !S.simRunning && S._gcodeFocusLine != null;
 
-    // Klik na dráhu → auto-zobrazit G-kód panel pokud je schovaný (odloženo na mouseup)
-    if (focusEdit) {
-      const ca = root.querySelector('.cam-sim-code-area');
-      if (ca && ca.style.display === 'none') _panelPending = true;
-    }
+    // Klik na dráhu → auto-zobrazit G-kód panel pokud je schovaný (odloženo
+    // na mouseup). Ve 2 řádcích ne — kliknutý řádek se ukáže tam.
+    if (focusEdit && codePanelMode === 'closed') _panelPending = true;
     const hlIdx = focusEdit ? S._gcodeFocusLine : getActiveCodeLineIdx();
+    updateCodeMini(hlIdx);
     const lineEls = codeBackdrop.querySelectorAll('.cam-sim-code-bd-line');
     lineEls.forEach((el, i) => el.classList.toggle('cam-sim-code-active', i === hlIdx));
     if (hlIdx != null && lineEls[hlIdx]) {
@@ -4898,10 +4942,15 @@ export function openCamSimulator(initialContour, initialGCode) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ ${_modeNote.text}
         <button data-act="${_modeNote.act}" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">${_modeNote.label}</button></small>`;
     }
-    if (prms.toolShape === 'polygon') {
-      const insertGuideCount = (S.guideLines || []).filter(g => g.fromInsert).length;
+    // Hlídání platí pro KAŽDÝ tvar plátku, ne jen polygon: kromě bočního
+    // ostří polygonu hlídá i DRŽÁK (hrubování, dokončování, zbytek
+    // polotovaru). Dřív se zaškrtávátko kreslilo jen u polygonu, takže
+    // s kulatou destičkou na čistém prohlížeči (výchozí false) nešlo zapnout
+    // a dokončování zprava sjelo po levém čele až k ose — držák skrz díl
+    // (nález uživatele z mobilu 1. 10. 2026).
+    {
       const totalGuideCount = (S.guideLines || []).length;
-      html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby boční ostří destičky (natočení + vrcholový úhel) nezajelo do kontury.">
+      html += `<div class="cam-sim-checkbox-row" data-tooltip="Hrubování i dokončování se upraví tak, aby destička (u polygonu boční ostří: natočení + vrcholový úhel) ani DRŽÁK nezajely do kontury ani do nevyhrubovaného polotovaru. Dokončování vynechá úseky, kam nástroj z dané strany nedosáhne (např. odvrácené čelo).">
         <input type="checkbox" id="cam-sim-respect-insert" ${prms.respectInsertGeometry ? 'checked' : ''}>
         <span>Hlídat geometrii (destička + držák)</span>
         ${totalGuideCount > 0 ? `<button data-act="clear-insert-guides" title="Smazat konstrukční čáry vygenerované hlídáním destičky (${totalGuideCount} čar)" style="margin-left:6px;padding:1px 7px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#fab387">🧹 ${totalGuideCount}</button>` : ''}
@@ -5113,12 +5162,16 @@ export function openCamSimulator(initialContour, initialGCode) {
   function applyShapeChange(next, opts) {
     const prev = S.params.toolShape;
     if (prev !== next) {
+      // Poslední VOLBA hrubování (u plátku, který umí obojí) — dostane ji tvar,
+      // který v sezení ještě nebyl; vynucené čelní z upichováku se tak nepřenese.
+      if (getInsert(S.params).longRoughing !== false) S._lastFreeStrategy = S.params.roughingStrategy;
       // Zapamatovat geometrii odcházejícího tvaru, ať se nepřepíše cizí hodnotou.
       S._shapeGeomMem[prev] = {
         toolLength: S.params.toolLength, toolAngle: S.params.toolAngle,
         toolTipAngle: S.params.toolTipAngle, toolClearanceAngle: S.params.toolClearanceAngle,
         toolRadius: S.params.toolRadius, toolTipFlat: S.params.toolTipFlat,
         holderProfile: S.params.holderProfile,
+        roughingStrategy: S.params.roughingStrategy,
       };
       S.params.toolShape = next;
       dropInsertGuides();
@@ -5147,6 +5200,12 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.toolTipAngle = mem.toolTipAngle; S.params.toolClearanceAngle = mem.toolClearanceAngle;
         if (mem.toolRadius !== undefined) S.params.toolRadius = mem.toolRadius;
         if (mem.toolTipFlat !== undefined) S.params.toolTipFlat = mem.toolTipFlat;
+        // HRUBOVÁNÍ PATŘÍ K PLÁTKU (uživatel 1. 10. 2026): kulatá podélně →
+        // upichovák (umí jen čelně) → zpět na kulatou má vrátit PODÉLNĚ, ne
+        // nechat čelní z upichováku. Jde to i s natočením: polygon si pamatuje
+        // toolAngle se znaménkem podle strategie, takže obnovit jen úhel bez
+        // strategie by dalo „podélný" úhel u čelního hrubování.
+        if (mem.roughingStrategy) S.params.roughingStrategy = mem.roughingStrategy;
       } else if (next === 'polygon') {
         S.params.toolLength = 10; S.params.toolAngle = 15; S.params.toolTipAngle = 90;
       } else if (next === 'parting') {
@@ -5162,6 +5221,16 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (!(parseFloat(S.params.toolTipFlat) > 0)) S.params.toolTipFlat = 0.1;
         S.params.toolRadius = 0;
       }
+      if (!(mem && mem.roughingStrategy) && S._lastFreeStrategy) {
+        S.params.roughingStrategy = S._lastFreeStrategy;
+        // Nový polygon dostal výchozí +15° (podélně) — znaménko natočení
+        // k čelnímu hrubování patří záporné (jako u tlačítka ↓ Čelně).
+        if (!mem && next === 'polygon' && S.params.roughingStrategy === 'face')
+          S.params.toolAngle = -Math.abs(parseFloat(S.params.toolAngle) || 15);
+      }
+      // Plátek, který podélně neumí (upichovák), jede vždy čelně — i když si
+      // z paměti nese něco jiného (stejná pojistka je v pipeline).
+      if (getInsert(S.params).longRoughing === false) S.params.roughingStrategy = 'face';
       // Rádius se při výměně plátku PŘEDNASTAVÍ podle tvaru — i přes paměť
       // tvaru, jinak by kulatá dostala zpět výchozí R0,8 z camDefaults.
       if (SHAPE_PRESET_RADIUS[next] !== undefined) S.params.toolRadius = SHAPE_PRESET_RADIUS[next];
@@ -8745,22 +8814,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   root.querySelector('[data-act="undo"]').addEventListener('click', undo);
   root.querySelector('[data-act="redo"]').addEventListener('click', redo);
 
-  const codeArea = root.querySelector('.cam-sim-code-area');
-  const toggleCodeBtn = root.querySelector('[data-act="toggle-code"]');
-  if (codeArea && toggleCodeBtn) {
-    toggleCodeBtn.addEventListener('click', function() {
-      const hidden = codeArea.style.display === 'none';
-      codeArea.style.display = hidden ? '' : 'none';
-      this.textContent = hidden ? '▼' : '▲';
-      this.title = hidden ? 'Skrýt G-kód panel' : 'Zobrazit G-kód panel';
-      this.classList.toggle('cam-sim-active', !hidden);
-      // Mobil: panel zabírá půl displeje, plátno se tím zásadně změní — díl
-      // znovu vycentrovat (přání uživatele 1. 10. 2026). Hranice = @media
-      // v camSimulatorStyles.js. Plátno přepočte až ResizeObserver, pohled
-      // ale počítá z clientWidth/Height, které už platí.
-      if (window.matchMedia('(max-width: 768px)').matches) fitView();
-    });
-  }
+  // Plátno po přepnutí přepočte až ResizeObserver, fitView ale počítá
+  // z clientWidth/Height, které už platí.
+  toggleCodeBtn.addEventListener('click', () => {
+    const next = { open: 'mini', mini: 'closed', closed: 'open' };
+    setCodePanelMode(next[codePanelMode], true);
+  });
 
   // progress bar scrubbing
   function scrubProgress(e) {
@@ -10164,14 +10223,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (_panelPending) {
       _panelPending = false;
       const dist = e ? Math.hypot(e.clientX - _mdX, e.clientY - _mdY) : 999;
-      if (dist < 6) {
-        const ca = root.querySelector('.cam-sim-code-area');
-        if (ca && ca.style.display === 'none') {
-          ca.style.display = '';
-          const tb = root.querySelector('[data-act="toggle-code"]');
-          if (tb) { tb.textContent = '▼'; tb.title = 'Skrýt G-kód panel'; tb.classList.remove('cam-sim-active'); }
-        }
-      }
+      if (dist < 6 && codePanelMode === 'closed') setCodePanelMode('open');
     }
     // Dokončit případný odložený snímek z tažení SYNCHRONNĚ, aby níže navazující
     // přepočet/saveState/render pracovaly s finálním stavem.
@@ -10633,12 +10685,24 @@ export function openCamSimulator(initialContour, initialGCode) {
   });
 
   // ── RESIZE OBSERVER ──
+  // Otočení mobilu (výška ↔ šířka) → díl znovu vycentrovat (přání uživatele
+  // 1. 10. 2026). Hned + ještě chvíli při dalších změnách velikosti plátna:
+  // prohlížeč po otočení dorovnává lištu adresy a dvh až o snímek později.
+  let _refitUntil = 0;
+  const orientMq = window.matchMedia('(orientation: portrait)');
+  const onOrientation = () => {
+    if (!isMobileView()) return;
+    _refitUntil = performance.now() + 600;
+    fitView();
+  };
+  orientMq.addEventListener('change', onOrientation);
   const resizeObs = new ResizeObserver(() => {
     const cw = canvasWrap.clientWidth, ch = canvasWrap.clientHeight;
     if (cw > 0 && ch > 0 && (canvas.width !== cw || canvas.height !== ch)) {
       canvas.width = cw; canvas.height = ch;
     }
-    draw();
+    if (performance.now() < _refitUntil) fitView();
+    else draw();
   });
   resizeObs.observe(canvasWrap);
 
@@ -10646,6 +10710,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const cleanupObs = new MutationObserver((_, obs) => {
     if (!document.body.contains(overlay)) {
       resizeObs.disconnect(); obs.disconnect();
+      orientMq.removeEventListener('change', onOrientation);
       document.removeEventListener('keydown', handleKeyDown);
       if (S._animId) cancelAnimationFrame(S._animId);
       S.simRunning = false;

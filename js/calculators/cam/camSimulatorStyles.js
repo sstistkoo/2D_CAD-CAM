@@ -170,6 +170,18 @@ export function injectCSS() {
 .cam-sim-player-bar button:hover { background: #45475a; }
 .cam-sim-player-bar button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
 .cam-sim-player-bar button[data-act="play"] { min-width: 44px; }
+/* ▼ „2 řádky": jen běžící a následující blok G-kódu (setCodePanelMode). */
+.cam-sim-code-mini {
+  display: none; background: #11111b; border-top: 1px solid #45475a;
+  padding: 3px 6px; font-family: monospace; font-size: 12px; line-height: 1.5;
+}
+.cam-sim-code-mini.cam-sim-mini-on { display: block; }
+.cam-sim-code-mini-line {
+  white-space: pre; overflow: hidden; text-overflow: ellipsis;
+  padding-left: 3px; border-left: 3px solid transparent;
+}
+.cam-sim-code-mini-cur { color: #a6e3a1; background: rgba(137,180,250,0.2); border-left-color: #89b4fa; }
+.cam-sim-code-mini-next { color: #a6adc8; }
 .cam-sim-code-area {
   height: 180px; border-top: 1px solid #45475a; display: flex; flex-direction: column;
   background: #11111b;

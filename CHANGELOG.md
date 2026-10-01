@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – ▼ spodní panel ve třech krocích** (uživatel 1. 10. 2026): celý →
+  **2 řádky** (běžící blok G-kódu + následující, prázdné řádky a komentáře
+  se přeskakují) → skrytý → celý. Hlavně pro mobil na šířku. Na mobilu
+  (≤ 768 px nebo výška ≤ 520 px) se díl po přepnutí vycentruje — i po
+  otočení telefonu (výška ↔ šířka). Klik na dráhu otevírá celý panel jen
+  ze skrytého stavu. SW v336.
 - **CAM – spodní panel na mobilu** (uživatel 1. 10. 2026). Lišta **Části:**
   je na mobilu (≤ 768 px) rozbalovací pole + ✎/✕ aktivní části místo řad
   chipů — vejde se do jednoho řádku s Část / Celý program / ⛓ Spojit.
@@ -67,6 +73,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   výš/níž; pozice = T, takže se se sousedem prohodí místo i číslo T.
 
 ### Fixed
+- **CAM – „Hlídat geometrii (destička + držák)" u všech plátků** (uživatel
+  1. 10. 2026, mobil). Zaškrtávátko se kreslilo jen u polygonu, ačkoli
+  hlídá i DRŽÁK u každého tvaru. S kulatou destičkou na čistém prohlížeči
+  (výchozí vypnuto) tak nešlo zapnout a dokončování zprava sjelo po levém
+  čele až k ose X0 — držák skrz díl a celých 9 mm nevyhrubovaného
+  polotovaru naráz. Teď je vidět u kulaté, polygonu, upichováku i závitového
+  a **výchozí je zapnuto** (uložené projekty si drží svou hodnotu; prohlížeč,
+  který už má uložené „vypnuto", je potřeba jednou zaškrtnout).
+- **CAM – plátek si pamatuje hrubování (Podélně / Čelně)** (uživatel 1. 10.
+  2026). Kulatá podélně → upichovák (umí jen čelně) → zpět na kulatou
+  nechávalo čelní. Teď si každý tvar plátku drží svou strategii vedle
+  geometrie a při návratu ji dostane zpátky; upichovák jede vždy čelně.
 - **CAM – odkazy na slot po smazání / seřazení.** Smazání slotu posouvalo
   jen aktivní a rozbalený slot, ne **dokončovací nůž** (`finishingSlot`)
   ani sloty v částech programu — dokončování pak ukazovalo na jiný nůž.
