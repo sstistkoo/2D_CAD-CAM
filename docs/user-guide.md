@@ -558,8 +558,8 @@ pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
   **Při přepnutí tvaru se rádius přednastaví:** kulatá R10, čtyřstranná
   R1,2, zápichová (upichovák) R0,5 — i ve slotu zásobníku. Spolu s ním
   i **posuv F a řezná rychlost Vc**: kulatá F0,15 / Vc180, čtyřstranná
-  F0,25 / Vc200, upichovák F0,08 / Vc120, závitová F1,5 / Vc100 (hloubka
-  třísky ap zůstává). Jinou hodnotu stačí přepsat v poli; VBD dekodér
+  F0,25 / Vc200, upichovák F0,08 / Vc120, závitová jen Vc100 (posuv
+  závitu je stoupání; hloubka třísky ap zůstává). Jinou hodnotu stačí přepsat v poli; VBD dekodér
   dosadí R z kódu (u kulaté polovinu průměru z velikosti: RCMT 1204M0 → R6).
   U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
   polárního úhlu — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
@@ -568,10 +568,15 @@ pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
   kolize, hlídání držáku i mezní čáry — dráhy se proto přepočítají a program
   se označí jako neaktuální.
   **Celá destička:** simulace, náhled i 📐 kreslení na CAD ukazují u polygonu
-  celý kosočtverec (čtverec). Plně je jen řezná část u špičky (dvě hrany
+  celý kosočtverec (čtverec) s rádiusem R ve všech rozích jako skutečná
+  destička. Plně je jen řezná část u špičky (dvě hrany
   a spojnice jejich konců), zadní půlka světle — neřeže a sedí v lůžku držáku,
   takže se s ní nepočítá a dráhy se tím nemění. Trojúhelníková destička
   (ε 60°) je celá už sama; u VBD kódu W (trigon) se zadní půlka nedokresluje.
+  **Závitová destička** se kreslí taky celá: rovnostranný trojúhelník
+  (16ER/IR, hrana 16 mm) se zubem v každém rohu. Zub má profil zvoleného
+  závitu (60° M/UNC/UNF/NPT, 55° G/BSPT/BSW, 30° Tr, 29° Acme), pracovní
+  zub je plně, zbytek destičky světle. Výpočet ji nebere, dráhy se nemění.
 - **natočeni PU(°)** (polární úhel; dřív "Natočení") má vedle sebe tlačítko **✛** — otevře
   kompas 3×3 pro rychlou volbu po 45° (stejná komponenta jako v CAD dialogu
   🔢 Číselné zadání objektu).

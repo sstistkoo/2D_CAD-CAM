@@ -225,9 +225,10 @@ export const SHAPE_PRESET_RADIUS = { round: 10, polygon: 1.2, parting: 0.5 };
 /**
  * Odhad řezných podmínek podle tvaru plátku: vc [m/min], f [mm/ot], ap [mm].
  * Při PŘEPNUTÍ tvaru (panel, Geometrie, slot zásobníku) se dosadí vc a f
- * (uživatel 30. 9. 2026: „přednastavit posuv a otáčky"), ap zůstává.
- * Import nožů ze souborů do zásobníku bere všechny tři. U závitového je f
- * stoupání jako u výchozího nože „Zavit".
+ * (uživatel 30. 9. 2026: „přednastavit posuv a otáčky"), ap zůstává —
+ * u závitového jen vc: pole F je posuv HRUBOVÁNÍ a závit jede F = stoupání.
+ * Import nožů ze souborů do zásobníku bere všechny tři (f závitového =
+ * stoupání jako u výchozího nože „Zavit").
  */
 export const SHAPE_CUT_DEFAULTS = {
   round: { vc: 180, f: 0.15, ap: 1.5 },

@@ -57,7 +57,9 @@ export class HolderGouge {
     // držák je za plátkem"). Na jeho dílu to dělalo polovinu zbylých
     // nálezů proti offsetové čáře (9,1 → 4,9 mm²).
     //
-    // Odečítá se `toolFootprintVisual` — TÝŽ obrys, jaký simulátor KRESLÍ.
+    // Odečítá se `toolFootprintVisual` — ŘEZNÁ ČÁST, kterou simulátor kreslí
+    // PLNĚ. Zadní půlku polygonu kreslí jen průsvitně a odečítat se NESMÍ:
+    // neřeže, materiál v ní je náraz (uživatel 30. 9. 2026: sedí v držáku).
     // Se samotným `insertWorldLoop` zůstal u špičky výřez ve tvaru rohového
     // rádiusu destičky (r 0,8): mezi obloukem a hranou tělesa je 3,3 mm²,
     // které do obrysu nepatří, ale uvnitř nakresleného plátku leží — a přesně

@@ -6,6 +6,10 @@ import { getInsert } from './inserts/index.js';
 
 export const PARTING_BODY_MIN_H_MM = 15;
 
+// Délka hrany tělesa ZÁVITOVÉ destičky (rovnostranný trojúhelník 16ER/IR,
+// nejběžnější velikost) — JEN pro kreslení celé destičky, výpočet ji nečte.
+export const THREADING_INSERT_EDGE_MM = 16;
+
 // ── Náhled geometrie destičky + držáku (dialog "⚙️ Geometrie") ────
 // Samostatná, na S/simulaci nezávislá kreslicí funkce — kreslí vždy v
 // kanonické orientaci (bez ohledu na S.flipX/flipZ/roughingSide, což jsou
@@ -181,17 +185,11 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     ctx.beginPath(); ctx.arc(0, 0, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   } else if (shape === 'threading') {
     const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
-    const half = (tipAngDeg / 2) * (Math.PI / 180);
-    const lenPix = toolLen * scale;
-    const w2 = Math.max(((parseFloat(prms.toolTipFlat) || 0) * scale) / 2, 0.75);
-    const dx = Math.sin(half) * lenPix, dy = Math.cos(half) * lenPix;
-    ctx.beginPath();
-    ctx.moveTo(-w2 - dx, -dy);
-    ctx.lineTo(-w2, 0);
-    ctx.lineTo(w2, 0);
-    ctx.lineTo(w2 + dx, -dy);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    const epsLx = 0, epsLy = -dy - 12;
+    // Celá destička (trojúhelník se zuby) světle, pracovní zub plně — viz
+    // drawThreadingInsert. Spodní strana min. 1,5 px, ať je vidět.
+    drawThreadingInsert(ctx, { ...prms, toolTipFlat: Math.max(parseFloat(prms.toolTipFlat) || 0, 1.5 / scale) }, scale);
+    // Popisek ε pod špičkou — nad ní je teď těleso destičky.
+    const epsLx = 0, epsLy = 16;
     texts.push({ x: ox + mirror * epsLx, y: oy + epsLy, text: `ε=${tipAngDeg}°`, color: '#a6e3a1', align: 'center' });
     labels.tipAngle = { x: ox + mirror * epsLx, y: oy + epsLy };
   } else if (shape === 'polygon') {
@@ -403,10 +401,12 @@ export function buildInsertProfileSegments(prms, opts) {
     const P = (ang, len) => ({ x: cX + Math.cos(ang) * len, z: -(cY + Math.sin(ang) * len) });
     const t1 = P(a1, tanLen), t2 = P(a2, tanLen);
     const farA = P(a1, toolLen), farB = P(a2, toolLen);
+    if (opts && opts.full) {
+      const full = polygonOutlineSegments(prms, { C: P(a1, 0), farA, farB, t1, t2, tipAng, R });
+      if (full) return full;
+    }
     segs.push({ type: 'line', from: t1, to: farA });
-    const back = opts && opts.full ? polygonBackSegments(prms, { cX, cY, a1, a2, tipAng, toolLen, R, P }) : null;
-    if (back) segs.push(...back);
-    else segs.push({ type: 'line', from: farA, to: farB });
+    segs.push({ type: 'line', from: farA, to: farB });
     segs.push({ type: 'line', from: farB, to: t2 });
     segs.push({ type: 'arc', cx: 0, cz: 0, r: R, from: t2, to: t1 });
     return segs;
@@ -444,38 +444,113 @@ export function buildInsertProfileSegments(prms, opts) {
   return segs;
 }
 
-// Zadní půlka polygonu místo spojnice farA→farB: kosočtverec/čtverec
-// (protější roh C + L·(u1+u2), s rádiusem R jako špička). Null = nedokreslovat:
-// trojúhelník (ε 60°) je celý už sám a trigon W (ε 80°) kosočtverec nevystihne.
-function polygonBackSegments(prms, { cX, cY, a1, a2, tipAng, toolLen, R, P }) {
-  if (Math.abs(tipAng - Math.PI / 3) < 1e-6) return null;
+// Celá polygonální destička: kosočtverec/čtverec (protější roh D = farA +
+// farB − C), u ε 60° trojúhelník, s rádiusem R v KAŽDÉM rohu jako skutečná
+// destička (uživatel 1. 10. 2026). Oblouk špičky se bere z řezné části
+// (střed přesně v 0,0). Null = nedokreslovat: trigon W (ε 80°) kosočtverec
+// nevystihne a jeho rohy na koncích hran nejsou.
+function polygonOutlineSegments(prms, { C, farA, farB, t1, t2, tipAng, R }) {
   if (/^\s*W/i.test(String(prms.toolVbdCode || ''))) return null;
-  const farA = P(a1, toolLen), farB = P(a2, toolLen);
-  // Kanvasové souřadnice (y dolů) jako u P, z = −y.
-  const ux = Math.cos(a1) + Math.cos(a2), uy = Math.sin(a1) + Math.sin(a2);
-  const opp = { x: cX + ux * toolLen, y: cY + uy * toolLen };
-  const Q = (x, y) => ({ x, z: -y });
-  const tl = R / Math.tan(tipAng / 2);
-  if (!(tl < toolLen * 0.99)) {
-    return [{ type: 'line', from: farA, to: Q(opp.x, opp.y) }, { type: 'line', from: Q(opp.x, opp.y), to: farB }];
+  const tri = Math.abs(tipAng - Math.PI / 3) < 1e-6;
+  const D = { x: farA.x + farB.x - C.x, z: farA.z + farB.z - C.z };
+  const ring = tri ? [C, farA, farB] : [C, farA, D, farB];
+  // Kolik hrany smí oblouk rohu zabrat: na hraně ke špičce to, co nechal
+  // rádius špičky (jinak by se při velkém R oblouky překryly a obrys se
+  // zkřížil), jinde polovina hrany (druhou má soused).
+  const tipTl = Math.hypot(t1.x - C.x, t1.z - C.z);
+  const avail = (V, W) => (W === C
+    ? Math.hypot(V.x - C.x, V.z - C.z) - tipTl
+    : Math.hypot(V.x - W.x, V.z - W.z) / 2);
+  const segs = [];
+  let cur = t1;
+  for (let i = 1; i < ring.length; i++) {
+    const Pv = ring[i - 1], V = ring[i], Nv = ring[(i + 1) % ring.length];
+    const r = roundCorner(Pv, V, Nv, R, 0.95 * Math.min(avail(V, Pv), avail(V, Nv)));
+    if (!r) { segs.push({ type: 'line', from: cur, to: V }); cur = V; continue; }
+    segs.push({ type: 'line', from: cur, to: r.tin });
+    segs.push({ type: 'arc', cx: r.c.x, cz: r.c.z, r: r.r, from: r.tin, to: r.tout });
+    cur = r.tout;
   }
-  // Tečné body: na hraně k farA (směr −u2) a k farB (směr −u1).
-  const oT1 = Q(opp.x - Math.cos(a2) * tl, opp.y - Math.sin(a2) * tl);
-  const oT2 = Q(opp.x - Math.cos(a1) * tl, opp.y - Math.sin(a1) * tl);
-  const ul = Math.hypot(ux, uy), dc = R / Math.sin(tipAng / 2);
-  const c = Q(opp.x - ux / ul * dc, opp.y - uy / ul * dc);
-  return [
-    { type: 'line', from: farA, to: oT1 },
-    { type: 'arc', cx: c.x, cz: c.z, r: R, from: oT1, to: oT2 },
-    { type: 'line', from: oT2, to: farB },
-  ];
+  segs.push({ type: 'line', from: cur, to: t2 });
+  segs.push({ type: 'arc', cx: 0, cz: 0, r: R, from: t2, to: t1 });
+  return segs;
+}
+
+// Zaoblení rohu V (sousedé P, N) rádiusem R: tečné body + střed. Tečná
+// délka smí být nejvýš maxTl — R se pak zmenší, ať se oblouky nepřekryjí.
+function roundCorner(P, V, N, R, maxTl) {
+  const ux = P.x - V.x, uz = P.z - V.z, lu = Math.hypot(ux, uz);
+  const wx = N.x - V.x, wz = N.z - V.z, lw = Math.hypot(wx, wz);
+  if (!(R > 0) || !(maxTl > 1e-6) || !(lu > 1e-9) || !(lw > 1e-9)) return null;
+  const th = Math.acos(Math.max(-1, Math.min(1, (ux * wx + uz * wz) / (lu * lw))));
+  if (!(th > 1e-6 && th < Math.PI - 1e-6)) return null;
+  const r = Math.min(R, maxTl * Math.tan(th / 2));
+  const tl = r / Math.tan(th / 2);
+  const bx = ux / lu + wx / lw, bz = uz / lu + wz / lw, bl = Math.hypot(bx, bz);
+  const dc = r / Math.sin(th / 2);
+  return {
+    tin: { x: V.x + ux / lu * tl, z: V.z + uz / lu * tl },
+    tout: { x: V.x + wx / lw * tl, z: V.z + wz / lw * tl },
+    c: { x: V.x + bx / bl * dc, z: V.z + bz / bl * dc },
+    r,
+  };
 }
 
 /** Celý obrys destičky — JEN PRO KRESLENÍ (simulace, ⚙️ Geometrie,
  *  📐 Kreslit na CAD plátně). Výpočet bere řeznou část
  *  (buildInsertProfileSegments), viz komentář tam. */
 export function buildInsertOutlineSegments(prms) {
+  if (prms.toolShape === 'threading') return threadingOutlineSegments(prms);
   return buildInsertProfileSegments(prms, { full: true });
+}
+
+// Zub závitové destičky (profil závitu): spodní strana šířky toolTipFlat
+// na špičce (z = 0), boky ±ε/2 od svislice délky toolLength. Stejná
+// matematika jako dřívější kreslení lichoběžníku (simulace i náhled).
+function threadingTooth(prms) {
+  const half = ((parseFloat(prms.toolTipAngle) || 60) / 2) * Math.PI / 180;
+  const L = Math.max(parseFloat(prms.toolLength) || 4, 0.1);
+  const f2 = Math.max((parseFloat(prms.toolTipFlat) || 0) / 2, 0);
+  const dz = Math.cos(half) * L;
+  return { f2, dz, a: f2 + Math.sin(half) * L };
+}
+
+const segsFromPoints = (pts) => {
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    if (Math.hypot(q.x - p.x, q.z - p.z) > 1e-9) out.push({ type: 'line', from: p, to: q });
+  }
+  return out;
+};
+
+/** Pracovní zub závitové destičky (lichoběžník) — kreslí se plně. */
+export function threadingToothSegments(prms) {
+  const { f2, dz, a } = threadingTooth(prms);
+  return segsFromPoints([{ x: -a, z: dz }, { x: -f2, z: 0 }, { x: f2, z: 0 }, { x: a, z: dz }]);
+}
+
+// Celá závitová destička: rovnostranný trojúhelník (hrana
+// THREADING_INSERT_EDGE_MM) se ZUBEM v každém ze tří rohů jako skutečná
+// destička 16ER/IR. Boky tělesa procházejí horními rohy zubů — u 60° tak
+// bok zubu plynule pokračuje bokem tělesa, u 55°/30°/29° se v rohu zubu
+// zalomí. Zuby ostatních rohů = pracovní zub otočený o ±120° kolem těžiště.
+// Výpočet závitovou destičku dál nebere (buildInsertProfileSegments → []).
+function threadingOutlineSegments(prms) {
+  const { f2, dz, a } = threadingTooth(prms);
+  const S = Math.max(THREADING_INSERT_EDGE_MM, 4 * a + 2);
+  const zApex = dz - a * Math.sqrt(3);              // vrchol tělesa pod zubem
+  const c = { x: 0, z: zApex + S / Math.sqrt(3) };  // těžiště
+  const tooth = [{ x: -a, z: dz }, { x: -f2, z: 0 }, { x: f2, z: 0 }, { x: a, z: dz }];
+  const pts = [];
+  for (let k = 0; k < 3; k++) {
+    const ang = k * 2 * Math.PI / 3, co = Math.cos(ang), si = Math.sin(ang);
+    for (const p of tooth) {
+      const x = p.x - c.x, z = p.z - c.z;
+      pts.push({ x: c.x + x * co - z * si, z: c.z + x * si + z * co });
+    }
+  }
+  return segsFromPoints(pts);
 }
 
 /** Cesta obrysu (segmenty profilu {x,z}) do kanvasu v px: x → x·scale,
@@ -508,19 +583,34 @@ export function traceInsertSegments(ctx, segs, scale) {
 
 /** Polygon: celá destička světle (zadní půlka neřeže a sedí v držáku),
  *  řezná část plně navrch — její spojnice je hranice mezi nimi. Průsvitná
- *  zadní půlka nepřekryje vybarvenou kolizi pod sebou. */
+ *  zadní půlka nepřekryje vybarvenou kolizi pod sebou. Řezná část má na
+ *  koncích hran ostré rohy (tak ji bere výpočet) — kreslí se OŘÍZNUTÁ
+ *  celým obrysem, ať nevyčnívá ze zaoblených rohů destičky. */
 export function drawPolygonInsert(ctx, prms, scale) {
-  const full = buildInsertOutlineSegments(prms);
   const cut = buildInsertProfileSegments(prms);
-  if (full.length !== cut.length) {
-    ctx.save();
-    ctx.globalAlpha *= 0.4;
-    traceInsertSegments(ctx, full, scale); ctx.fill();
-    ctx.restore();
-    traceInsertSegments(ctx, full, scale); ctx.stroke();
-  }
-  traceInsertSegments(ctx, cut, scale); ctx.fill(); ctx.stroke();
+  drawFullAndCut(ctx, buildInsertOutlineSegments(prms), cut, scale);
   return cut;
+}
+
+/** Závitová destička: celý trojúhelník se zuby světle, pracovní zub plně. */
+export function drawThreadingInsert(ctx, prms, scale) {
+  drawFullAndCut(ctx, buildInsertOutlineSegments(prms), threadingToothSegments(prms), scale);
+}
+
+function drawFullAndCut(ctx, full, cut, scale) {
+  if (full === cut || full.length === cut.length) {
+    traceInsertSegments(ctx, cut, scale); ctx.fill(); ctx.stroke();
+    return;
+  }
+  ctx.save();
+  ctx.globalAlpha *= 0.4;
+  traceInsertSegments(ctx, full, scale); ctx.fill();
+  ctx.restore();
+  ctx.save();
+  traceInsertSegments(ctx, full, scale); ctx.clip();
+  traceInsertSegments(ctx, cut, scale); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  traceInsertSegments(ctx, full, scale); ctx.stroke();
 }
 
 // ── Editor tvaru držáku (náhled) — čisté geometrické funkce ──────────

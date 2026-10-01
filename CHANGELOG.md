@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM – celá závitová destička v simulaci.** Dřív se kreslil jen zub
+  (lichoběžník 4 mm). Teď simulace, ⚙️ Geometrie i 📐 kreslení na CAD
+  ukazují rovnostranný trojúhelník 16ER/IR (hrana 16 mm,
+  `THREADING_INSERT_EDGE_MM`) se zubem v každém ze tří rohů — profil podle
+  zvoleného závitu (60°/55°/30°/29°, ploché dno Tr/Acme). Pracovní zub
+  plně, zbytek světle. Výpočet beze změny (`buildInsertProfileSegments`
+  pro závitový dál `[]`). 📐 CAD má u závitového konečně obrys, ke kterému
+  se dá držák kreslit (dřív hláška „nemá obrys").
+- **CAM – polygonální destička má rádius ve všech rozích** (uživatel
+  1. 10. 2026: „jak vypadá ve skutečnosti plátek"). Celý obrys
+  (`buildInsertOutlineSegments`) zaobluje R každý roh — u čtverce/kosočtverce
+  čtyři, u trojúhelníku ε 60° tři; dřív jen špičku a protější roh. Řezná část
+  pro výpočet beze změny (ostré rohy na koncích hran), kreslí se oříznutá
+  celým obrysem, ať z rohů nevyčnívá. Oblouk rohu smí zabrat jen tu část
+  hrany, kterou nechal rádius špičky — při velkém R (např. R10 po kulaté) se
+  jinak oblouky překryly a obrys se zkřížil (test `velký R`). SW v333.
 - **CAM – celá polygonální destička v simulaci.** Simulace, ⚙️ Geometrie
   i 📐 kreslení na CAD ukazují celý kosočtverec/čtverec (s R i v protějším
   rohu), ne jen trojúhelník špičky. Plně řezná část, zadní půlka světle.
@@ -71,6 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Otisk G-kódu shodný u všech 29 fixtures i 60 dílů uživatele.
 
 ### Fixed
+- **Přepnutí na závitový plátek už nedosazuje posuv F 1,5** (z 30. 9.).
+  Pole F je posuv HRUBOVÁNÍ — závit jede F = stoupání (`ops/thread.js`)
+  a F nečte, zato hrubování závitovým nožem by jelo F1,5 mm/ot. Dosadí se
+  jen Vc 100; F zůstává (panel i slot zásobníku).
 - **VBD dekodér: kulatá destička dostane R = IC/2.** Rádius se bral z poz. 7
   (rádius špičky), kterou kulatá nemá (RCMT 1204M0 → „M0" = nic) — R zůstal
   z předchozího tvaru, nově by zůstala předvolba R10. Teď ⌀ z poz. 5 / 2 (R6).

@@ -35,7 +35,7 @@ import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapse
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
-import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
+import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, drawThreadingInsert, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog } from './cam/toolSlotPreview.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
@@ -2545,23 +2545,16 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (prms.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         } else if (prms.toolShape === 'threading') {
-          // Závitový plátek: lichoběžníková špička — rovná SPODNÍ STRANA
+          // Závitový plátek: pracovní zub (lichoběžník) — rovná SPODNÍ STRANA
           // (šířka toolTipFlat) leží přímo na dráze (X průchodu = ⌀ řezu),
           // boky stoupají symetricky ±ε/2 od svislice. Rádius se nepoužívá.
-          const tipAngDeg = parseFloat(prms.toolTipAngle) || 60;
-          const half = (tipAngDeg / 2) * (Math.PI / 180);
-          const lenPix = (parseFloat(prms.toolLength) || 4) * S.view.scale;
-          const w2 = Math.max(((parseFloat(prms.toolTipFlat) || 0) * S.view.scale) / 2, 0.75);
-          const dx = Math.sin(half) * lenPix;
-          const dy = Math.cos(half) * lenPix;
+          // Nad ním světle celá destička (trojúhelník se zuby v rozích),
+          // sdílené s ⚙️ Geometrie — drawThreadingInsert. Spodní strana
+          // min. 1,5 px, ať je vidět i při oddálení.
+          const scl = S.view.scale;
           ctx.save(); ctx.translate(pt.x, pt.y);
           if (S.flipX) ctx.scale(1, -1);
-          ctx.beginPath();
-          ctx.moveTo(-w2 - dx, -dy);   // levý horní roh
-          ctx.lineTo(-w2, 0);          // levý konec spodní strany
-          ctx.lineTo(w2, 0);           // spodní strana (řezná hrana)
-          ctx.lineTo(w2 + dx, -dy);    // pravý horní roh
-          ctx.closePath(); ctx.fill(); ctx.stroke();
+          drawThreadingInsert(ctx, { ...prms, toolTipFlat: Math.max(parseFloat(prms.toolTipFlat) || 0, 1.5 / scl) }, scl);
           ctx.restore();
         } else if (prms.toolShape === 'polygon') {
           ctx.save(); ctx.translate(pt.x, pt.y);
@@ -5100,9 +5093,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       // tvaru, jinak by kulatá dostala zpět výchozí R0,8 z camDefaults.
       if (SHAPE_PRESET_RADIUS[next] !== undefined) S.params.toolRadius = SHAPE_PRESET_RADIUS[next];
       // Posuv a řezná rychlost taky (ap zůstává) — jinak by upichovák jel
-      // s F0,25 po polygonu. Viz SHAPE_CUT_DEFAULTS.
+      // s F0,25 po polygonu. Viz SHAPE_CUT_DEFAULTS. Závitovému se posuv
+      // NEdosazuje: pole F je posuv HRUBOVÁNÍ (závit jede F = stoupání,
+      // ops/thread.js) a jeho f 1,5 by v hrubování udělalo F1,5 mm/ot.
       const cut = SHAPE_CUT_DEFAULTS[next];
-      if (cut) { S.params.speed = cut.vc; S.params.feed = cut.f; }
+      if (cut) { S.params.speed = cut.vc; if (next !== 'threading') S.params.feed = cut.f; }
     }
     if (!(opts && opts.defer)) applyChange();
   }
@@ -6252,12 +6247,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       updateLayerList();
       renderAll();
       if (bridge.updateHolderDrawButtons) bridge.updateHolderDrawButtons();
-      // Závitový plátek nemá obrys (buildInsertProfileSegments vrací [] — V-profil
-      // se do kolizní obálky nepočítá), takže na vrstvě Plátek NENÍ na co se
-      // vztahovat. Bez upozornění to vypadá jako prázdné plátno „bez důvodu".
+      // Obrys na vrstvě Plátek je CELÁ destička (buildInsertOutlineSegments),
+      // od 1. 10. 2026 i u závitového (trojúhelník se zuby). Prázdný zůstane
+      // jen u tvaru, který obrys nemá — pak upozornit, jinak to vypadá jako
+      // prázdné plátno „bez důvodu".
       const noInsertRef = insertObjs.length === 0;
       showToast(noInsertRef
-        ? 'Tvar destičky nemá obrys (závitový plátek) — kreslete držák vůči počátku 0,0 = špička'
+        ? 'Tvar destičky nemá obrys — kreslete držák vůči počátku 0,0 = špička'
         : hadHolder
           ? 'Držák načten pro úpravu (vrstva Držák), pak dole ✓ Potvrdit'
           : 'Nakreslete držák (vrstva Držák) kolem destičky, pak dole ✓ Potvrdit');
@@ -6704,7 +6700,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     if (SHAPE_PRESET_RADIUS[next] !== undefined) slot.radius = SHAPE_PRESET_RADIUS[next];
     const cut = SHAPE_CUT_DEFAULTS[next];
-    if (cut) { slot.vc = cut.vc; slot.f = cut.f; }
+    if (cut) { slot.vc = cut.vc; if (next !== 'threading') slot.f = cut.f; }
     if (slot.holderProfile) {
       slot.holderProfile = null;
       showToast('Obrys držáku byl nakreslený pro předchozí tvar plátku — vrácen výchozí obdélník; nakresli ho znovu.');
