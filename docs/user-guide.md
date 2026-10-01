@@ -88,6 +88,15 @@ vždy ukazuje aktuální hodnotu a co klik udělá.
 
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky
+- Panel nástrojů CAD **na šířku** má pevné řádky — tlačítka se šířkou
+  přizpůsobí displeji, nikdy se nezalomí:
+  - Výběr · Kóta · Typ čáry · Smaž · Bod · Úsečka · Kontura · p. uhel ·
+    Kruh · Obdé · **✕** (zavřít panel)
+  - Tečna · za/zk · Vybarvit · Tužka · Detekce · Profil · př/pl · Oříz ·
+    Prodl. · **▾** (rozbalí všechny zbývající nástroje najednou)
+  - po rozbalení: Přichytit … Rozděl · Spoj (jeden řádek), Řet.kóta …
+    Drážka a Polygon … Bool, vpravo na stejném řádku Smaž vše · Kotva ·
+    Kóty · ❓
 - Tlačítko ☰ boční panel
 - Long-press na prázdné místo na CAD plátně → precision křížek (numerický vstup)
 - Long-press kdekoli jinde v UI (panely, lišty, dialogy, plovoucí tlačítka) →

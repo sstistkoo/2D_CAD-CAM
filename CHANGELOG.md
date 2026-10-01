@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAD – panel nástrojů na mobilu na šířku** (uživatel 1. 10. 2026): dva
+  pevné řádky — *Výběr, Kóta, Typ čáry, Smaž, Bod … Obdé, ✕* a *Tečna,
+  za/zk, Vybarvit, Tužka, Detekce, Profil, př/pl, Oříz, Prodl., ▾*.
+  Tlačítka řádku jsou stejně široká a s písmem podle šířky displeje se
+  přizpůsobí místo zalamování do dalších řádků (ověřeno 568–900 px).
+  Místo dvou rozbalovátek (Úpravy, Více) je na šířku jediné ▾ na konci,
+  které rozbalí obě sekce: Přichytit … Rozděl, Spoj vždy na jednom řádku;
+  Smaž vše / Kotva / Kóty / ❓ na řádku za Bool, zarovnané vpravo. Na
+  výšku a na desktopu beze změny. SW v337.
 - **CAM – ▼ spodní panel ve třech krocích** (uživatel 1. 10. 2026): celý →
   **2 řádky** (běžící blok G-kódu + následující, prázdné řádky a komentáře
   se přeskakují) → skrytý → celý. Hlavně pro mobil na šířku. Na mobilu

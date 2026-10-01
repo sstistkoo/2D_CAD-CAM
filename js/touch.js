@@ -34,14 +34,25 @@ mobileToolbarToggle.addEventListener("click", (e) => {
 });
 // Tool-btn click již nezavírá toolbar – uživatel zavírá ručně přes ✕
 
+/** Šipka rozbalovacího tlačítka podle stavu sekce. */
+const setToggleArrow = (btn, open) => {
+  const arrow = btn.querySelector(".toolbar-toggle-arrow");
+  if (arrow) arrow.textContent = open ? "▴" : "▾";
+};
+
 // ── Toolbar: rozbalovací sekce "Více nástrojů" ──
 const btnToolbarMore = document.getElementById("btnToolbarMore");
 const toolbarMore = document.getElementById("toolbarMore");
 btnToolbarMore.addEventListener("click", (e) => {
   e.stopPropagation();
   const open = toolbarMore.classList.toggle("open");
-  const arrow = btnToolbarMore.querySelector(".toolbar-toggle-arrow");
-  if (arrow) arrow.textContent = open ? "▴" : "▾";
+  setToggleArrow(btnToolbarMore, open);
+  // Mobil naležato je toggle „Úpravy" skrytý (CSS) a jediné ▾ na konci
+  // lišty rozbalí i jeho sekci – řídí se viditelností, ne vlastní podmínkou.
+  if (getComputedStyle(btnToolbarMid).display === "none") {
+    toolbarMid.classList.toggle("open", open);
+    setToggleArrow(btnToolbarMid, open);
+  }
 });
 
 // ── Toolbar: rozbalovací střední sekce (editace) ──
@@ -50,8 +61,7 @@ const toolbarMid = document.getElementById("toolbarMid");
 btnToolbarMid.addEventListener("click", (e) => {
   e.stopPropagation();
   const open = toolbarMid.classList.toggle("open");
-  const arrow = btnToolbarMid.querySelector(".toolbar-toggle-arrow");
-  if (arrow) arrow.textContent = open ? "▴" : "▾";
+  setToggleArrow(btnToolbarMid, open);
 });
 
 // ── Mobile: Toolbar close button ──

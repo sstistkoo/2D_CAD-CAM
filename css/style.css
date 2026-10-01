@@ -3160,34 +3160,50 @@ body {
 
 /* ── Mobil naležato (landscape): přeuspořádání toolbaru ──
    V portrétu (na výšku) zůstává toolbar beze změny (viz výše) – tahle
-   úprava dává smysl jen když je na šířku dost místa a na výšku málo:
-   skupina Výběr/Kóta/Tlustá/Smaž se místo vlastního řádku napojí na
-   řádek Oříz/Prodl./Více, a ✕ se přesune na konec řádku Bod…Vybarvit. */
+   úprava dává smysl jen když je na šířku dost místa a na výšku málo.
+   Dva pevné řádky + jediné rozbalovátko na konci:
+     Výběr | Kóta | Tlustá | Smaž | Bod | Úsečka | Kontura | p. uhel | Kruh | Obdé | ✕
+     Tečna | za/zk | Vybarvit | Tužka | Detekce | Profil | př/pl | Oříz | Prodl. | ▾
+   ▾ rozbalí obě sekce najednou (Úpravy i Více) – toggle „Úpravy" je
+   naležato skrytý, jeho sekci otevírá ▾ (viz touch.js). */
 @media (max-width: 900px) and (orientation: landscape) {
   #topbar {
     border-top: none;
   }
 
   /* Zruší vlastní box .toolbar-header – Výběr/Kóta/Tlustá/Smaž se stanou
-     samostatnými položkami flexu #topbar (stejně jako na desktopu),
-     takže je lze řadit přes order nezávisle na ✕. */
+     samostatnými položkami flexu #topbar (stejně jako na desktopu) a
+     zůstanou na začátku 1. řádku (order 0), ✕ jde řadit zvlášť. */
   .toolbar-header {
     display: contents;
   }
-  .toolbar-header > .tool-btn {
-    order: 6;
-  }
 
   /* ✕ zůstává (v HTML) uvnitř .toolbar-header, ale přes order se přesune
-     na konec řádku Bod…Vybarvit, s odstupem od poslední kresličí ikony. */
+     na konec 1. řádku (za Obdé), s odstupem od poslední kresličí ikony. */
   .toolbar-close-btn {
     order: 1;
-    margin-left: 14px;
+    margin-left: 6px;
   }
 
-  /* Neviditelný "zlom" vynutí konec řádku Bod…Vybarvit/✕ vždy na stejném
-     místě – bez něj by se Oříz podle volného místa občas vešel ještě na
-     ten samý řádek (řádky by se míchaly podle šířky obrazovky). */
+  /* Tlačítka se velikostně přizpůsobí šířce displeje místo zalamování:
+     flex-basis 0 + min-width 0 → všechna tlačítka řádku jsou stejně
+     široká a podělí se o celou šířku, takže se řádek nikdy nerozpadne
+     na dva (řádky drží jen .toolbar-row-break). Písmo podle vw, aby se
+     nejdelší popisek (Vybarvit, Kontura) vešel i na užším telefonu. */
+  #topbar > .tool-btn,
+  .toolbar-header > .tool-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    gap: 2px;
+    padding: 5px 2px;
+    font-size: clamp(7px, 1.4vw, 12px);
+    overflow: hidden;
+  }
+
+  /* Neviditelný "zlom" vynutí konec 1. řádku (za ✕) vždy na stejném
+     místě – bez něj by se tlačítka 2. řádku podle volného místa občas
+     vešla ještě na ten první (řádky by se míchaly podle šířky obrazovky). */
   .toolbar-row-break {
     display: block;
     flex-basis: 100%;
@@ -3202,34 +3218,88 @@ body {
     display: none;
   }
 
-  /* Oříz/Prodl./"Více" – společně na řádek za tlačítka kreslení, na
-     jednom řádku se skupinou Výběr/Kóta/Tlustá/Smaž (viz výše). */
-  [data-tool="trim"] {
+  /* 2. řádek: Tečna … př/pl, pak Oříz, Prodl. a ▾ na konci. */
+  #topbar > [data-tool="tangent"],
+  #topbar > [data-tool="filletChamfer"],
+  #topbar > [data-tool="fill"],
+  #topbar > [data-tool="pencil"],
+  #topbar > #btnAutoDetect,
+  #topbar > [data-tool="profileTrace"],
+  #topbar > #btnAllowance {
     order: 3;
   }
-  [data-tool="extend"] {
+  #topbar > [data-tool="trim"] {
     order: 4;
   }
-  .toolbar-more-toggle {
+  #topbar > [data-tool="extend"] {
     order: 5;
-    padding: 5px 10px;
-    /* Pevná šířka srovnatelná s "Úpravy" vedle Tužky – na řádku
-       Oříz/Prodl. je dost místa, ať je líp vidět. */
-    min-width: 100px;
+  }
+  .toolbar-mid-toggle {
+    display: none;
+  }
+  #topbar > .toolbar-more-toggle {
+    order: 6;
     max-width: none;
+    font-size: 14px; /* jen šipka ▾ – ať je vidět i při malém písmu popisků */
   }
 
   /* Oddělovače kolem .toolbar-header už nejsou potřeba – skupina teď
-     sedí na řádku Oříz/Více místo ve vlastním řádku. */
+     sedí na začátku 1. řádku místo ve vlastním řádku. */
   .sep-header {
     display: none;
   }
 
-  /* Rozbalovací panely až za skupinou Výběr/Kóta/…, aby ji rozbalení
-     nezatlačilo mimo viditelnou (scrollovanou) oblast toolbaru. */
+  /* Rozbalené sekce až pod oběma řádky (Úpravy nad Více, pořadí z HTML). */
   .toolbar-more,
   .toolbar-mid {
     order: 10;
+  }
+
+  /* Tlačítka rozbalených sekcí – písmo podle šířky displeje jako hlavní
+     řádky, aby se řádky níž vešly i na užší telefon. */
+  .toolbar-mid > .tool-btn,
+  .toolbar-more > .tool-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    gap: 2px;
+    padding: 5px 3px;
+    font-size: clamp(7px, 1.3vw, 12px);
+    overflow: hidden;
+  }
+
+  /* Úpravy: Přichytit … Rozděl, Spoj vždy na jednom řádku – tlačítka se
+     zúží místo zalomení posledního (Spoj) na další řádek. */
+  .toolbar-mid {
+    flex-wrap: nowrap;
+  }
+
+  /* Více: 1. řádek Řet.kóta … Drážka, 2. řádek Polygon … Bool a vpravo
+     Smaž vše / Kotva / Kóty / ?. Zlom dělá ::after (order 1), druhý
+     řádek má order 2; oddělovač před Smaž vše tu není potřeba. */
+  .toolbar-more::after {
+    content: "";
+    order: 1;
+    flex-basis: 100%;
+    height: 0;
+  }
+  .toolbar-more > [data-tool="polygon"],
+  .toolbar-more > [data-tool="star"],
+  .toolbar-more > [data-tool="groove"],
+  .toolbar-more > [data-tool="thread"],
+  .toolbar-more > [data-tool="boolean"],
+  .toolbar-more > #btnClearAll,
+  .toolbar-more > [data-tool="anchor"],
+  .toolbar-more > #btnDeleteDims,
+  .toolbar-more > #btnHelp {
+    order: 2;
+    flex: 0 0 auto;
+  }
+  .toolbar-more > #btnClearAll {
+    margin-left: auto;
+  }
+  .toolbar-more > .sep ~ .sep {
+    display: none;
   }
 }
 
