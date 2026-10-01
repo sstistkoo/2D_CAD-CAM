@@ -366,7 +366,8 @@ const OBSTRUCTION_GAP = 8;
 // sedí plovoucí kolečka ↩️↪️🧮⊙ (viz #mobileAutoCenter aj.) – ta ale nejsou
 // přes celou šířku, takže je VIEW_OBSTRUCTIONS výše nechytí (test na 80 %
 // šířky plátna). Bere se proto přímo spodní hrana nižší z obou lišt – ta
-// jediná už kolečka mezi nimi pokryje taky.
+// jediná už kolečka mezi nimi pokryje taky. Naležato jsou kolečka přímo
+// v liště a #mobileCanvasCoords hned pod ní (style.css), plocha je vyšší.
 const MOBILE_TOP_HUD = ['#mobileCoordBar', '#mobileCanvasCoords'];
 
 // Popisky bodů/kót (VK náhled, kóty) se kreslí NAD bodem, ne pod – rostou

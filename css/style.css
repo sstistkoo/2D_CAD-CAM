@@ -3301,6 +3301,73 @@ body {
   .toolbar-more > .sep ~ .sep {
     display: none;
   }
+
+  /* Plovoucí tlačítka nad plátnem (Dvojklik, ↩/↪, 🔢, schránka, 🧲, ⊙)
+     sedí naležato v horní liště vedle SOU/ABS/R… – na šířku je málo výšky
+     a kolečka pod lištou zakrývala výkres. Zůstávají position: fixed (jen
+     jiné souřadnice), takže logika viditelnosti v JS (Dvojklik jen ve
+     Výběru, ↪ jen s redo, schránka jen s obsahem) i přesun kalkulačky do
+     panelu (body.sidebar-open – vyšší specificita) platí beze změny.
+     Pevné sloty zarovnané vpravo, mezera odděluje ↪ od 🔢:
+       [schránka] [Dvojklik] [↩] [↪]  [🔢] [🧲] [⊙]                    */
+  #mobileRectArm,
+  #mobileUndo,
+  #mobileRedo,
+  #canvasCalcBtn,
+  #canvasClipBtn,
+  #mobileSnap,
+  #mobileAutoCenter {
+    top: max(5px, env(safe-area-inset-top));
+    left: auto;
+    width: 32px;
+    min-width: 32px;
+    height: 26px;
+    line-height: 26px;
+    padding: 0;
+    font-size: 15px;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+  #mobileAutoCenter {
+    right: calc(8px + env(safe-area-inset-right, 0px));
+  }
+  #mobileSnap {
+    right: calc(44px + env(safe-area-inset-right, 0px));
+  }
+  #canvasCalcBtn {
+    right: calc(80px + env(safe-area-inset-right, 0px));
+  }
+  #mobileRedo {
+    right: calc(124px + env(safe-area-inset-right, 0px));
+  }
+  #mobileUndo {
+    right: calc(160px + env(safe-area-inset-right, 0px));
+  }
+  /* „Dvojklik" na jeden řádek – na dva se do výšky lišty nevejde čitelně. */
+  #mobileRectArm {
+    right: calc(196px + env(safe-area-inset-right, 0px));
+    width: auto;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  #mobileRectArm br {
+    display: none;
+  }
+  /* Schránka má proměnnou šířku – roste doleva od pevného pravého okraje. */
+  #canvasClipBtn {
+    right: calc(264px + env(safe-area-inset-right, 0px));
+    width: auto;
+    max-width: 72px;
+    padding: 0 6px;
+    font-size: 12px;
+  }
+
+  /* Souřadnice/zoom hned pod lištou (kolečka pod ní už nejsou). Výšku
+     horní plochy bere i centrování výkresu (MOBILE_TOP_HUD v canvas.js),
+     takže výkres dostane víc místa sám. */
+  #mobileCanvasCoords {
+    top: calc(max(5px, env(safe-area-inset-top)) + 36px);
+  }
 }
 
 /* ── Mobil na výšku (portrait): pevné řádky toolbaru ──
@@ -5951,6 +6018,20 @@ body {
   .calc-overlay-float .vk-combined-window:has(.num-corner-inline-row) {
     height: 44vh;
     max-height: 44vh;
+  }
+}
+/* Na výšku je plátno vysoké a výkres (na šířku osy Z) se do něj stejně
+   vejde jen v menším měřítku – uživatel (1. 10. 2026) chtěl okno na
+   zápis větší, až do půlky displeje, ať je v obou záložkách (🔢 i 📐)
+   vidět všechno bez rolování. Naležato zůstává 34vh/44vh výš.
+   `dvh` = skutečně viditelná výška (bez adresního řádku), `vh` záloha. */
+@media (max-width: 768px) and (orientation: portrait) {
+  .calc-overlay-float .vk-combined-window,
+  .calc-overlay-float .vk-combined-window:has(.num-corner-inline-row) {
+    height: 50vh;
+    height: 50dvh;
+    max-height: 50vh;
+    max-height: 50dvh;
   }
 }
 

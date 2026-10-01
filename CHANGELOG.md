@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Okno „Zadání objektu" (🔢 Číselné zadání / 📐 Volná kontura) na
+  mobilu na výšku** (uživatel 1. 10. 2026): výška polovina displeje
+  (50dvh) místo 34vh/44vh — na výšku je výkres stejně menší a formulář
+  je takhle vidět celý (🔢 úsečka včetně pole G-kódu bez rolování, 📐
+  celý formulář prvku, pole syntaxe se doroluje). Na šířku beze změny.
+  SW v338.
+- **CAD – horní lišta na mobilu na šířku** (uživatel 1. 10. 2026):
+  plovoucí kolečka Dvojklik, ↩/↪, 🔢 (+ schránka), 🧲 a ⊙ jsou naležato
+  přímo v horní liště vpravo (výška jako SOU/ABS/R, pevné sloty, mezera
+  mezi ↪ a 🔢), „Dvojklik" na jeden řádek. Řádek souřadnic/zoomu je hned
+  pod lištou (41 px místo 92 px), takže výkres dostane o ~50 px výšky
+  víc — centrování to bere samo (MOBILE_TOP_HUD). Na výšku beze změny.
+  SW v338.
 - **CAD – panel nástrojů na mobilu na šířku** (uživatel 1. 10. 2026): dva
   pevné řádky — *Výběr, Kóta, Typ čáry, Smaž, Bod … Obdé, ✕* a *Tečna,
   za/zk, Vybarvit, Tužka, Detekce, Profil, př/pl, Oříz, Prodl., ▾*.

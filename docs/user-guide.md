@@ -97,6 +97,10 @@ vždy ukazuje aktuální hodnotu a co klik udělá.
   - po rozbalení: Přichytit … Rozděl · Spoj (jeden řádek), Řet.kóta …
     Drážka a Polygon … Bool, vpravo na stejném řádku Smaž vše · Kotva ·
     Kóty · ❓
+- **Na šířku** jsou Dvojklik, ↩ / ↪, 🔢 kalkulačka (a její schránka),
+  🧲 přichycení a ⊙ vycentrování přímo v horní liště vpravo vedle
+  SOU/ABS/R…, souřadnice hned pod ní — nad výkresem tak nic nevisí a na
+  kreslení zbude víc výšky. Na výšku zůstávají kolečka pod lištou.
 - Tlačítko ☰ boční panel
 - Long-press na prázdné místo na CAD plátně → precision křížek (numerický vstup)
 - Long-press kdekoli jinde v UI (panely, lišty, dialogy, plovoucí tlačítka) →
@@ -1040,8 +1044,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   celý výkres). Rámuje se přitom jen do **viditelné části plátna** – na
   mobilu tedy nad okno, ne pod něj. Okno je plovoucí, takže se s ním
   dá dál kreslit nástrojem; **ESC** proto zruší rozkreslený prvek
-  nástroje (okno se zavírá **✕**). Na mobilu zabírá spodní polovinu
-  displeje, druhá polovina zůstává na plátno.
+  nástroje (okno se zavírá **✕**). Na mobilu **na výšku** zabírá spodní
+  polovinu displeje (formulář je vidět celý), horní polovina zůstává na
+  plátno; **na šířku** jen třetinu, ať zbude víc místa na výkres.
 
   **Lišta prvku VK** (řádek s ◀ ▶ ➕ ➖) nese vpravo i akce nad celou
   syntaxí – **🗑** smazat, **📋** kopírovat, **⇄** konvertovat na ISO
