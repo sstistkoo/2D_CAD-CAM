@@ -1232,15 +1232,18 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
       const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
       if (tip) {
         gpLabel.textContent = tip;
-        gpLabel.style.left = "14px";
-        gpLabel.style.right = "auto";
         gpLabel.style.display = "block";
-        // Pokud přetéká přes pravý okraj, přepnout na levou stranu
-        const rect = gpLabel.getBoundingClientRect();
-        if (rect.right > window.innerWidth - 4) {
-          gpLabel.style.left = "auto";
-          gpLabel.style.right = "14px";
-        }
+        // Bublina NA STŘED nad terčem, celý text zalomený a přitažená k okrajům
+        // displeje. Dřív seděla vedle křížku na jednom řádku s „…" — u dlouhého
+        // popisku (🔪 Geometrie, 🧰 Knihovna v hlavičce zásobníku) utekla přes
+        // levý okraj a nedala se přečíst. Pod křížek jen když nad ním není místo.
+        const M = 8;
+        const w = gpLabel.offsetWidth, h = gpLabel.offsetHeight;
+        const absLeft = Math.max(M, Math.min(x - w / 2, window.innerWidth - M - w));
+        gpLabel.style.left = (absLeft - x) + "px";
+        // 20 px od křížku — ať bublina nepřekrývá zvýrazněné tlačítko.
+        const below = gpOffsetY > 0 || y - h - 20 < M;
+        gpLabel.style.top = (below ? 20 : -h - 20) + "px";
       }
     }
   }

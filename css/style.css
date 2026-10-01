@@ -2739,24 +2739,26 @@ body {
   background: linear-gradient(to top, #f9e2af66, transparent);
 }
 
-#globalPrecisionPointer.below .sp-label {
-  top: 12px;
-}
-
+/* Popisek (title) — pozici (na střed nad křížkem, přitaženo k okrajům
+   displeje) dopočítává highlightGlobalAt v touch.js. Celý text se zalamuje:
+   `width: max-content` je nutné, rodič má nulovou šířku a absolutní prvek
+   by se jinak smrskl na jedno slovo na řádek. */
 #globalPrecisionPointer .sp-label {
   display: none;
   position: absolute;
-  left: 14px; top: -12px;
-  white-space: nowrap;
-  font: 600 11px/1.3 system-ui, sans-serif;
+  left: 0; top: -40px;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 16px));
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font: 600 12px/1.35 system-ui, sans-serif;
   color: var(--ctp-crust, #11111b);
   background: var(--ctp-yellow, #f9e2af);
-  padding: 3px 8px;
+  padding: 5px 9px;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 

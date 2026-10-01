@@ -770,10 +770,11 @@ export function chamferProfileCorner(sidePts, cornerPt, dist, angleDeg = 45) {
 // Pole polárního úhlu s tlačítkem ✛ pro rychlou volbu po 45° (stejný vzor
 // jako 🔢 Číselné zadání objektu v CAD — viz wireAngleCompass()).
 export function _polarAngleFieldHTML(dataP, value, titleAttr) {
-  return `<div class="cam-sim-field"><label title="${titleAttr || 'Natočení plátku (polární úhel) vůči ose Z; 0° = vodorovně. Tlačítkem ✛ lze rychle zvolit násobky 45°.'}">natočeni PU(°)</label>
+  // Širší než sousední pole (flex 1.5): vedle čísla nese i tlačítko ✛.
+  return `<div class="cam-sim-field" style="flex:1.5"><label title="${titleAttr || 'Natočení plátku (polární úhel) vůči ose Z; 0° = vodorovně. Tlačítkem ✛ lze rychle zvolit násobky 45°.'}">natočeni PU(°)</label>
     <div style="display:flex;gap:2px">
       <input type="number" data-p="${dataP}" value="${value}" style="flex:1;min-width:0">
-      <button type="button" class="compass-trigger-btn" data-compass-for="${dataP}" title="Rychlá volba úhlu" style="font-size:13px;padding:2px 5px;flex-shrink:0">✛</button>
+      <button type="button" class="compass-trigger-btn" data-compass-for="${dataP}" title="Rychlá volba úhlu" style="font-size:13px;padding:2px 9px;flex-shrink:0">✛</button>
     </div>
   </div>`;
 }
@@ -840,7 +841,11 @@ export function wireAllAngleCompasses(container) {
   });
 }
 
-export function _renderInsertShapeFieldsHTML(prms) {
+/** `opts.tipRowExtraHTML` — tlačítka navíc do řádku pod poli (u polygonu
+ *  vedle ⇄ Přehodit stranu, u ostatních tvarů samostatný řádek); používá
+ *  ho 🔪 Geometrie pro ↻ Natočení destičky. */
+export function _renderInsertShapeFieldsHTML(prms, opts = {}) {
+  const extra = opts.tipRowExtraHTML || '';
   let html = `${(prms.toolShape === 'threading' || prms.toolShape === 'polygon') ? '' : `<div class="cam-sim-row">
     <div class="cam-sim-field"><label title="Rádius zaoblení špičky plátku (mm). U kulatého plátku určuje celý poloměr destičky.">Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
   </div>`}
@@ -860,6 +865,7 @@ export function _renderInsertShapeFieldsHTML(prms) {
     </div>
     <div class="cam-sim-row">
       <button data-act="toggle-tip-mirror" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Vrcholový úhel (ε) jde od Natočení otevřít na dvě strany — pokud náhled ukáže destičku obráceně, přehoďte ji tímto tlačítkem místo přepočítávání úhlů">⇄ Přehodit stranu</button>
+      ${extra}
     </div>`;
   } else if (prms.toolShape === 'parting') {
     html += `<div class="cam-sim-row">
@@ -873,5 +879,6 @@ export function _renderInsertShapeFieldsHTML(prms) {
       <div class="cam-sim-field"><label title="Šířka rovné špičky plátku (lichoběžník). Metrické/palcové ~0,1 mm; Tr/Acme ≈ 0,366×P — výběr závitu (🧵 Závity) nastaví automaticky. Nahrazuje Rádius (R), který se u závitového plátku nepoužívá.">Spodní strana</label><input type="number" data-p="toolTipFlat" value="${prms.toolTipFlat ?? 0.1}" min="0" step="0.05"></div>
     </div>`;
   }
+  if (extra && prms.toolShape !== 'polygon') html += `<div class="cam-sim-row">${extra}</div>`;
   return html;
 }

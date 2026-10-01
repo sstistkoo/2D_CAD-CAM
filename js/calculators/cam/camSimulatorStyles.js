@@ -503,6 +503,82 @@ export function injectCSS() {
 .cam-sim-tool-shape-row button.cam-sim-active {
   background: #89b4fa; color: #1e1e2e; border-color: #89b4fa;
 }
+/* 🔧 Zásobník — hlavička v jednom řádku: název | 🧰 🔪 | ↩ ↪ ☰ · ✕.
+   Selektory přes .cam-mag-dlg (0-2-0), aby přebily .input-dialog button
+   (0-1-1; na mobilu padding 10/18 px a min-height 40 px). */
+.cam-mag-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-shrink: 0; }
+.cam-mag-dlg .cam-mag-title { margin: 0; padding: 0; white-space: nowrap; flex-shrink: 0; }
+.cam-mag-head-mid { flex: 1; display: flex; justify-content: center; gap: 4px; min-width: 0; }
+.cam-mag-head-right { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.cam-mag-dlg .cam-mag-hbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-height: 30px; padding: 3px 9px; font-size: 12px; font-weight: 600; line-height: 1;
+  background: #45475a; color: #cdd6f4; border: 1px solid transparent; border-radius: 6px;
+  white-space: nowrap; cursor: pointer;
+}
+.cam-mag-dlg .cam-mag-hbtn:hover { filter: brightness(1.15); }
+.cam-mag-dlg .cam-mag-hbtn:disabled { opacity: 0.4; cursor: default; filter: none; }
+.cam-mag-dlg .cam-mag-ibtn { width: 30px; padding: 0; font-size: 14px; }
+/* Křížek odsazený od ☰, ať se okno při klepnutí na menu omylem nezavře. */
+.cam-mag-dlg .cam-mag-close { margin-left: 12px; background: transparent; border-color: #45475a; }
+.cam-mag-dlg .cam-mag-close:hover { background: #f38ba8; border-color: #f38ba8; color: #1e1e2e; filter: none; }
+.cam-mag-menu { display: flex; flex-direction: column; gap: 6px; }
+.cam-mag-dlg .cam-mag-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 8px 10px; background: #313244; color: #cdd6f4;
+  border: 1px solid #45475a; border-radius: 6px; cursor: pointer;
+}
+.cam-mag-dlg .cam-mag-menu-item:hover { background: #45475a; }
+.cam-mag-menu-ico { font-size: 18px; flex-shrink: 0; }
+.cam-mag-menu-txt { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.cam-mag-menu-txt small { font-size: 11px; font-weight: 400; color: #a6adc8; }
+/* ▲▼ posun slotu v zásobníku — dvojice VEDLE SEBE vlevo na kartě (nad sebou
+   kartu zbytečně zvyšovala, hlavně na mobilu). */
+.cam-mag-move { display: flex; gap: 2px; flex-shrink: 0; }
+.cam-mag-dlg .cam-mag-move button {
+  width: 20px; height: 20px; min-height: 0; padding: 0; font-size: 9px; line-height: 1;
+  background: #313244; color: #a6adc8; border: 1px solid #45475a; border-radius: 3px; cursor: pointer;
+}
+.cam-mag-dlg .cam-mag-move button:hover:not(:disabled) { background: #45475a; color: #cdd6f4; }
+.cam-mag-dlg .cam-mag-move button:disabled { opacity: 0.3; cursor: default; }
+/* 🔪 Geometrie — kompaktní okno (hlavička sdílí cam-mag-*). Obecné
+   „.input-dialog button" (mobil: min-height 40 px) nafukovalo všechna
+   tlačítka včetně ＋/－/⟲ náhledu, bublin úhlů v náhledu a ✛; „.input-dialog
+   input" přidává pod pole 10 px, takže ✛ vedle pole přetékalo dolů. */
+.cam-geom-dlg button { min-height: 0; }
+.cam-geom-dlg .cam-sim-field input, .cam-geom-dlg .cam-sim-field select { margin-bottom: 0; }
+.cam-geom-btnrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
+.cam-geom-dlg .cam-geom-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px;
+  font-size: 11px; font-weight: 600; line-height: 1.2; white-space: nowrap;
+  background: #45475a; color: #cdd6f4; border: 1px solid transparent; border-radius: 5px; cursor: pointer;
+}
+.cam-geom-dlg .cam-geom-btn:hover:not(:disabled) { filter: brightness(1.15); }
+.cam-geom-dlg .cam-geom-btn:disabled { opacity: 0.4; cursor: default; }
+.cam-geom-dlg .cam-geom-btn.on { background: #a6e3a1; color: #1e1e2e; }
+/* Jeden přepínač Destička | Držák — klik kamkoli přepne, svítí aktivní půlka. */
+.cam-geom-dlg .cam-geom-seg {
+  display: inline-flex; gap: 2px; padding: 2px; cursor: pointer;
+  background: #313244; border: 1px solid #45475a; border-radius: 7px;
+}
+.cam-geom-seg span { padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 600; color: #a6adc8; white-space: nowrap; }
+.cam-geom-seg span.on { background: #a6e3a1; color: #1e1e2e; }
+/* VBD v jednom řádku: popisek | pole | 🔩 Dekodér stejně vysoký jako pole. */
+.cam-geom-vbd { align-items: stretch; }
+.cam-geom-dlg .cam-geom-inl { display: flex; align-items: center; margin: 0; font-size: 11px; font-weight: 700; color: #a6adc8; }
+.cam-geom-dlg .cam-geom-vbd .cam-geom-btn { padding-top: 0; padding-bottom: 0; }
+.cam-geom-box { border: 1px solid #45475a; border-radius: 6px; padding: 6px; margin-bottom: 6px; }
+.cam-geom-box-title { font-size: 11px; font-weight: 700; color: #a6adc8; margin-bottom: 4px; }
+/* Úzké okno (mobil): 🧰 a 🔪 jen ikonou, ať se hlavička vejde do řádku. */
+@media (max-width: 520px) {
+  .cam-mag-dlg.input-dialog { padding: 12px; }
+  .cam-mag-dlg .cam-mag-title { font-size: 14px; }
+  .cam-mag-lbl { display: none; }
+  .cam-mag-dlg .cam-mag-hbtn { min-height: 32px; }
+  .cam-mag-dlg .cam-mag-head-mid .cam-mag-hbtn { width: 32px; padding: 0; font-size: 14px; }
+  .cam-mag-dlg .cam-mag-close { margin-left: 10px; }
+  .cam-mag-dlg .cam-mag-move button { width: 24px; height: 24px; font-size: 10px; }
+}
 @media (max-width: 768px) {
   .calc-overlay:has(.cam-sim-window) {
     padding-top: 0 !important;

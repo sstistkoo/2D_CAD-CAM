@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CAM – 🔧 Zásobník přehledněji** (uživatel 1. 10. 2026: „udělat pořádek
+  ve výběru plátku a držáku"). V panelu Nástroj zůstal jen **🔧 Zásobník**;
+  **🧵 Závity** se ukáže jen se závitovým plátkem. **🧰 Knihovna** a
+  **🔪 Geometrie** (nová ikona — ⚙️ vypadalo jako nastavení) jsou v hlavičce
+  okna zásobníku, nadpis zkrácen na „🔧 Zásobník", vpravo **↩ / ↪**, **☰**
+  a odsazený **✕** místo tlačítka Zavřít dole. **📥 Import ze souborů**
+  a **🔄 Seřadit dle výchozích** jsou v menu ☰, dole jen 💾 Uložit aktuální
+  nástroj a ＋ Přidat nůž. Na úzkém displeji 🧰/🔪 jen ikonou, ať se hlavička vejde do řádku. Nápověda
+  „Kliknutím na kartu…" jen nad sbaleným seznamem.
+- Změny v zásobníku (pole, tvar, ✅ Použít, smazání, přidání, import,
+  seřazení, 💾 uložení) a výběr z 🧰 Knihovny jdou do historie — dřív se
+  nedaly vzít zpět. Import více souborů je jeden krok a sloty jdou v pořadí
+  výběru (dřív v pořadí dočtení). SW v334.
+- **💾 Uložit aktuální nástroj se ptá kam** — okno s názvem a volbou
+  🔧 Do zásobníku (celý nůž jako nový aktivní slot; název dostane i aktuální
+  nástroj) / 🧰 Do knihovny.
+- **🧰 Knihovna ukládá celý nůž** — destičku, držák (i vlastní obrys)
+  a řezné podmínky (pole `tool` záznamu = CAM_TOOL_KEYS, jako 💾 Uložit do
+  PC). ✅ Použít ho načte celý do aktuálního nástroje i do slotu (🧰 Z
+  knihovny); v seznamu značka „⬤/◼/▮/▽ + držák". Starší záznamy a záznamy
+  z VBD kalkulačky beze změny (jen VBD, R, úhly, Vc/f/ap).
+- **Popisek při dlouhém stisku (mobil)** — žlutá bublina se zarovná na
+  střed nad zvýrazněné tlačítko, zalomí celý text a drží se uvnitř
+  displeje. Dřív seděla vedle křížku na jednom řádku s „…" a dlouhý popisek
+  utekl přes okraj (🔪 Geometrie, 🧰 Knihovna v hlavičce zásobníku).
+
+- **CAM – 🔪 Geometrie nástroje přehledněji** (uživatel 1. 10. 2026).
+  Jeden kompaktní přepínač 🔩 Destička | 🗜 Držák místo dvou velkých
+  tlačítek; ✕ vpravo nahoře místo Zavřít dole; celý nůž (🔧 Zásobník,
+  💾 Uložit nůž — nově se ptá zásobník/knihovna, 💾 Uložit do PC,
+  📂 Načíst z PC) v menu ☰. Destička: VBD + 🔩 Dekodér v jednom řádku,
+  ↻ Natočení destičky vedle ⇄ Přehodit stranu, užší pole Délka/ε/R
+  a širší natočení s ✛. Držák: 📐 Kreslit na CAD vedle přepínače,
+  ✏️ Kreslit obrys / 🗑 Smazat obrys / 🔧 Upravit obdélník v jednom řádku,
+  Editor obdélníku a nápověda kreslení jen když jsou zapnuté.
+  Na mobilu okno nafukovalo obecné „.input-dialog button { min-height:
+  40px }" (i ＋/－/⟲ náhledu a bubliny úhlů — byly z nich ovály) a ✛ vedle
+  pole přetékalo pod něj (spodní okraj polí 10 px) — obojí srovnáno.
+
+### Added
+- **▲ ▼ na kartách zásobníku** (vedle sebe, vlevo) — posun nože o místo
+  výš/níž; pozice = T, takže se se sousedem prohodí místo i číslo T.
+
+### Fixed
+- **CAM – odkazy na slot po smazání / seřazení.** Smazání slotu posouvalo
+  jen aktivní a rozbalený slot, ne **dokončovací nůž** (`finishingSlot`)
+  ani sloty v částech programu — dokončování pak ukazovalo na jiný nůž.
+  🔄 Seřadit navíc aktivní slot zahodilo. Teď smazání, seřazení i ▲▼ jdou
+  přes `_reorderMagazine`, které odkazy indexem přenese na tytéž nože;
+  dráhy hlásí neaktuálnost jen když se dokončovacímu noži změnilo T.
+- **CAM – ✏️ Upravit slot po ↩ Zpět.** ↩ nahrazuje zásobník kopií ze
+  snímku, takže odkaz na upravovaný slot vedl do starého pole a úpravy
+  z 🔪 Geometrie se při zavření do slotu nezapsaly. Odkaz se teď přenese
+  na slot na stejném místě. Zásobník ani Geometrie otevřené jedno z druhého
+  už nezakládají druhé okno — otevřené se vytáhne nahoru.
+
 ### Added
 - **CAM – celá závitová destička v simulaci.** Dřív se kreslil jen zub
   (lichoběžník 4 mm). Teď simulace, ⚙️ Geometrie i 📐 kreslení na CAD

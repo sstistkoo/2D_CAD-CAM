@@ -541,11 +541,22 @@ jen na konci a **při výměně nože** se vypíše nájezd do referenčního bo
 - **Export CNC kódu** – zpět do panelu
 
 ### Geometrie nástroje (destička + držák)
-V záložce **Parametry → Nástroj** otevři **⚙️ Geometrie** — modal s živým 2D
-náhledem destičky a držáku. Obsah je rozdělený do dvou přepínatelných
-pod-záložek (**🔩 Destička** / **🗜 Držák**) pod náhledem:
-- **↩ / ↪** vedle nadpisu — vrátí/znovu provede poslední změnu udělanou v
-  tomto dialogu (sdílí historii s hlavním CAM Simulátorem).
+V záložce **Parametry → Nástroj** otevři **🔧 Zásobník** a v jeho hlavičce
+**🔪 Geometrie** — modal s živým 2D
+náhledem destičky a držáku. Pod náhledem je jeden přepínač
+**🔩 Destička | 🗜 Držák** (klik kamkoli přepne, svítí aktivní půlka):
+- Hlavička: **↩ / ↪** — vrátí/znovu provede poslední změnu (sdílí historii
+  s hlavním CAM Simulátorem); **☰** — akce s celým nožem: 🔧 Zásobník,
+  💾 Uložit nůž (zeptá se: zásobník / knihovna), 💾 Uložit do PC, 📂 Načíst
+  z PC; **✕** zavře okno (také Esc nebo klik mimo okno).
+- **Destička:** v jednom řádku **VBD** kód a **🔩 Dekodér**, pod tím tvar
+  plátku a pole (Délka hrany, natočeni PU s ✛, Vrch. úhel, Rádius) a řádek
+  **⇄ Přehodit stranu** + **↻ Natočení destičky**.
+- **Držák:** vedle přepínače **📐 Kreslit na CAD**, pod tím **✏️ Kreslit
+  obrys**, **🗑 Smazat obrys** (jen když obrys existuje) a **🔧 Upravit
+  obdélník** — ten teprve ukáže **Editor obdélníku** (🔻 Srazit roh,
+  🗑 Vymazat). Pod nimi Rozměry (l1, tloušťka), **⇄ Ruka**, **↻ Natočení
+  nože** a **▸ Tvar** (výpis obrysu bod po bodu).
 - **Náhled lze přiblížit/oddálit** kolečkem myši nebo tlačítky **＋ / － / ⟲**
   (reset), a posunout tažením. Popisky ε (vrcholový úhel) a natočení přímo v
   náhledu jsou klikací — klik přepne na pod-záložku Destička a rovnou zaostří
@@ -650,16 +661,57 @@ načtení projektu se nůž automaticky **přenese do CAM** (do živého i pří
 otevřeného simulátoru), takže si projekty můžeš ukládat jako knihovnu nožů.
 
 #### Zásobník nástrojů (🔧)
-Vedle knihovny je **zásobník** — seznam nožů T1, T2… (v Držák tabu tlačítko
-**🔧 Zásobník**). Každý slot drží celý nůž: destičku, držák (i vlastní obrys)
-a řezné podmínky. Klik na kartu ji rozbalí a pod poli jsou tlačítka:
+Vedle knihovny je **zásobník** — seznam nožů T1, T2… V panelu **Parametry →
+Nástroj** je jediné tlačítko **🔧 Zásobník** (najdeš ho i v Geometrii, Držák
+tab); **🧵 Závity** (databáze závitů) se vedle něj ukáže jen tehdy, když je
+nastavený **závitový plátek** (▽).
+
+Hlavička okna je v jednom řádku:
+
+- **🧰 Knihovna** a **🔪 Geometrie** uprostřed — pracují s **aktuálním**
+  nástrojem (jako dřív tlačítka v panelu). Na úzkém displeji jen ikony.
+- **↩ / ↪** — vrátí/znovu provede změnu (sdílí historii s celým CAM
+  Simulátorem). Do historie jde každá změna slotu: pole, tvar, ✅ Použít,
+  smazání, přidání, uložení aktuálního nástroje, import i seřazení.
+  Rozbalení karty ne.
+- **☰** — menu s méně častou správou: **📥 Import ze souborů** (jeden nebo
+  víc `.json` z 💾 Uložit do PC, každý jako nový slot — celý import je jeden
+  krok ↩) a **🔄 Seřadit dle výchozích**.
+- **✕** — zavření, odsazené od ☰, ať se okno omylem nezavře.
+
+Dole zůstávají jen **💾 Uložit aktuální nástroj** a **＋ Přidat nůž**. Když
+je zásobník otevřený z Geometrie (a naopak), druhé okno se nezakládá — to
+otevřené se jen vytáhne nahoru.
+
+**💾 Uložit aktuální nástroj** se zeptá na **název** (předvyplněný Názvem
+nástroje) a **kam**:
+- **🔧 Do zásobníku** — nový slot (další volné T) s celým nožem: destička,
+  držák i řezné podmínky. Slot se stane aktivním, takže zadaný název dostane
+  i aktuální nástroj (Název nástroje v panelu, `T="…"` v programu).
+- **🧰 Do knihovny** — **celý nůž** (destička, držák i vlastní obrys, řezné
+  podmínky); knihovna je sdílená mezi projekty. V seznamu knihovny ho poznáš
+  podle značky tvaru „⬤/◼/▮/▽ + držák". **✅ Použít** ho načte celý — do
+  aktuálního nástroje (🧰 Knihovna v hlavičce) i do slotu (🧰 Z knihovny na
+  kartě). Starší záznamy a záznamy z VBD kalkulačky drží jen VBD kód, rádius,
+  úhly a Vc/f/ap — u nich se tvar plátku ani držák nemění.
+
+**▲ ▼ vlevo na kartě** (vedle sebe) posunou nůž v zásobníku o místo výš/níž. Pozice
+= číslo T, takže si nůž se sousedem vymění místo **i T**. Aktivní nůž,
+rozbalená karta i **dokončovací nůž** (Dokončování → nástroj ze zásobníku)
+zůstanou u týchž nožů — v živém nastavení i ve všech částech programu.
+Program na pořadí závisí jen přes dokončovací nůž (jeho T v `M6`): když se
+posunem nezměnil, dráhy zůstanou aktuální; když ano, „🔄 Dráhy ●" ukáže, že
+je potřeba je přegenerovat. Totéž platí pro 🗑 Smazat a 🔄 Seřadit.
+
+Každý slot drží celý nůž: destičku, držák (i vlastní obrys) a řezné
+podmínky. Klik na kartu ji rozbalí a pod poli jsou tlačítka:
 
 - **👁 Ukázat** — okno s náhledem nože, **destička i s držákem**, přesně jak
   vypadá v simulaci. Jen na koukání — aktivní nástroj se nemění. Kolečko nebo
   **＋ / － / ⟲** zoomují **kolem špičky destičky** (aby ti břit z okna
   neutekl), tažením se posouvá. Pod náhledem je souhrn: tvar, R, l1, tloušťka,
   ruka, natočení nože, jestli má vlastní obrys, a Vc/f/ap.
-- **✏️ Upravit** — otevře **⚙️ Geometrii nástroje** s tímhle nožem, takže se dá
+- **✏️ Upravit** — otevře **🔪 Geometrii nástroje** s tímhle nožem, takže se dá
   upravit stejně jako aktivní nástroj (včetně kreslení obrysu držáku). Nůž se
   tím **stane aktivním** (Geometrie umí editovat jen aktivní nastavení) a po
   zavření Geometrie se **změny uloží zpět do slotu**. Když je Geometrie už
