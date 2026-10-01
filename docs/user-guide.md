@@ -99,7 +99,8 @@ vždy ukazuje aktuální hodnotu a co klik udělá.
     Kóty · ❓
 - **Na šířku** jsou Dvojklik, ↩ / ↪, 🔢 kalkulačka (a její schránka),
   🧲 přichycení a ⊙ vycentrování přímo v horní liště vpravo vedle
-  SOU/ABS/R…, souřadnice hned pod ní — nad výkresem tak nic nevisí a na
+  SOU/ABS/R…, souřadnice hned pod ní (při kreslení vlevo od nich
+  červené ✕ Zrušit) — nad výkresem tak nic nevisí a na
   kreslení zbude víc výšky. Na výšku zůstávají kolečka pod lištou.
 - Tlačítko ☰ boční panel
 - Long-press na prázdné místo na CAD plátně → precision křížek (numerický vstup)

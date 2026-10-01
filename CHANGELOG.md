@@ -95,6 +95,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   výš/níž; pozice = T, takže se se sousedem prohodí místo i číslo T.
 
 ### Fixed
+- **CAD – mobil na šířku, dodělávky po kontrole** (1. 10. 2026): červené
+  ✕ Zrušit (při kreslení) je na řádku souřadnic vlevo — na původním místě
+  by po posunu souřadnic nahoru viselo nad výkresem. Tlačítka v horní
+  liště mají dotykovou plochu přes celou výšku lišty (vidět 26 px).
+  Schránka kalkulačky zkrátí dlouhé číslo na „…" místo useknutí. Lišta
+  nástrojů a horní lišta respektují výřez kamery na boku (safe-area).
+  Po otočení telefonu se sekce Úpravy srovná s jediným ▾. SW v339.
 - **CAM – „Hlídat geometrii (destička + držák)" u všech plátků** (uživatel
   1. 10. 2026, mobil). Zaškrtávátko se kreslilo jen u polygonu, ačkoli
   hlídá i DRŽÁK u každého tvaru. S kulatou destičkou na čistém prohlížeči

@@ -47,12 +47,7 @@ btnToolbarMore.addEventListener("click", (e) => {
   e.stopPropagation();
   const open = toolbarMore.classList.toggle("open");
   setToggleArrow(btnToolbarMore, open);
-  // Mobil naležato je toggle „Úpravy" skrytý (CSS) a jediné ▾ na konci
-  // lišty rozbalí i jeho sekci – řídí se viditelností, ne vlastní podmínkou.
-  if (getComputedStyle(btnToolbarMid).display === "none") {
-    toolbarMid.classList.toggle("open", open);
-    setToggleArrow(btnToolbarMid, open);
-  }
+  syncMidWithMore();
 });
 
 // ── Toolbar: rozbalovací střední sekce (editace) ──
@@ -63,6 +58,21 @@ btnToolbarMid.addEventListener("click", (e) => {
   const open = toolbarMid.classList.toggle("open");
   setToggleArrow(btnToolbarMid, open);
 });
+
+/**
+ * Mobil naležato je toggle „Úpravy" skrytý (CSS) a jediné ▾ na konci
+ * lišty rozbalí i jeho sekci – řídí se viditelností, ne vlastní podmínkou.
+ * Volá se i po otočení telefonu, jinak by po otevření Úprav na výšku
+ * zůstaly naležato rozbalené pod ▾, které ukazuje „zavřeno".
+ */
+function syncMidWithMore() {
+  if (getComputedStyle(btnToolbarMid).display !== "none") return;
+  const open = toolbarMore.classList.contains("open");
+  toolbarMid.classList.toggle("open", open);
+  setToggleArrow(btnToolbarMid, open);
+}
+window.matchMedia?.("(max-width: 900px) and (orientation: landscape)")
+  .addEventListener?.("change", syncMidWithMore);
 
 // ── Mobile: Toolbar close button ──
 document.getElementById("mobileToolbarClose").addEventListener("click", (e) => {
