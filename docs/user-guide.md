@@ -385,6 +385,18 @@ CAM část ti umožní generovat NC programy pro obrábění.
 4. Klikni **Spustit** – uvidíš simulaci dráhy nástroje
 5. Červená destička = aktuální pozice
 
+**🎯 Centrovat** vejde díl, polotovar i bezpečnou polohu do plátna, ale volné
+místo nedělí rovnoměrně: víc ho nechá na straně, odkud jede nůž — radiálně
+od osy ven (podle toho, nad nebo pod osou díl leží), axiálně podle strany
+obrábění (▶ zprava / ◀ zleva). Plocha pod tlačítky nahoře se nepočítá.
+Na mobilu se díl takhle vycentruje i sám po zavření/otevření spodního panelu
+(▼/▲ vlevo od přehrávače).
+
+Lišta nad G-kódem má na mobilu **dva řádky** (🔄 Dráhy, ✂ Úseky, ➕ Ope.,
+🔧 Editor / ↺ Reset, 📐 Kreslit, 💾 Uložit, 📂 Načíst) a vpravo přes oba
+vysoké **⚙ Nast.**, které otevírá pravý panel; od zbytku je oddělená
+tlustší čarou.
+
 **Barvy varování při simulaci** (obojí se hlídá **vždy**, nedá se to vypnout —
 vybarvená oblast navíc **zůstane** i po odjetí nástroje, ať je vidět, že se to
 stalo):
@@ -511,6 +523,10 @@ Pod lištou tlačítek se objeví **lišta částí**:
 - **⛓ Spojit** – vloží všechny části do fronty **SPOJ G-KÓD** v CAM Editoru
   a otevře tam spojený program (tam se dá část ještě upravit nebo z fronty
   vyhodit).
+- **Na mobilu** jsou místo chipů **rozbalovací pole** (výběr = přepnutí na
+  část) a vedle něj **✎** (přejmenovat) a **✕** (smazat) aktivní části —
+  celá lišta se vejde do jednoho řádku. Na výšku zabírá spodní panel
+  (přehrávač, tlačítka a G-kód) polovinu displeje.
 
 Poznámky:
 - Rozdělení na části **přežije obnovení stránky** i cestu přes CAD. Když se

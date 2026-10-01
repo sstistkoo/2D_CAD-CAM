@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CAM – spodní panel na mobilu** (uživatel 1. 10. 2026). Lišta **Části:**
+  je na mobilu (≤ 768 px) rozbalovací pole + ✎/✕ aktivní části místo řad
+  chipů — vejde se do jednoho řádku s Část / Celý program / ⛓ Spojit.
+  Na výšku zabírá spodní panel (průběh, přehrávač, tlačítka, G-kód)
+  polovinu displeje, takže je vidět víc řádků programu (dřív G-kód max.
+  200 px). V liště nad G-kódem prohozena tlačítka: 📂 Načíst je před
+  ⚙ Nast. Na mobilu má lišta dva řádky (↺ Reset ve druhém) a vpravo přes
+  oba vysoké ⚙ Nast. (otvírá pravý panel), pod nimi tlustší čára; na
+  desktopu zůstává jedna řada, ↺ Reset je za 🔧 Editor. SW v335.
+- **CAM – 🎯 Centrovat podle strany nože.** Volné místo dostane strana,
+  odkud jede nůž (radiálně od osy ven podle kvadrantu dílu, axiálně podle
+  ▶ zprava / ◀ zleva), v rámečku je i bezpečná poloha (rozšíří ho nejvýš
+  o velikost dílu) a nepočítá se plocha pod tlačítky nahoře. Dřív byl díl
+  uprostřed — pod osou zbytečné místo a nahoře, kudy jede nůž, nebylo vidět.
+  Na mobilu se díl vycentruje i sám po zavření/otevření spodního panelu (▼/▲).
 - **CAM – 🔧 Zásobník přehledněji** (uživatel 1. 10. 2026: „udělat pořádek
   ve výběru plátku a držáku"). V panelu Nástroj zůstal jen **🔧 Zásobník**;
   **🧵 Závity** se ukáže jen se závitovým plátkem. **🧰 Knihovna** a

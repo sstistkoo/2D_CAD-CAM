@@ -181,6 +181,9 @@ export function injectCSS() {
 }
 .cam-sim-code-bar span { color: #6c7086; }
 .cam-sim-code-bar .cam-sim-code-btns { display: flex; gap: 4px; }
+/* Řádky tlačítek jsou na desktopu průhledné (jedna řada), rozkládá je až mobil. */
+.cam-sim-code-rows, .cam-sim-code-row { display: contents; }
+.cam-sim-code-bar .cam-sim-nast-ico, .cam-sim-code-bar .cam-sim-nast-txt { color: inherit; }
 .cam-sim-code-bar button {
   background: #313244; border: 1px solid #45475a; color: #cdd6f4;
   border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
@@ -254,6 +257,19 @@ export function injectCSS() {
   cursor: pointer; font-size: 10px; padding: 0 2px; line-height: 1;
 }
 .cam-op-del:hover { opacity: 1; color: #f38ba8; }
+/* Rozbalovací pole části — jen na mobilu (viz @media níž), na desktopu chipy. */
+.cam-op-pick { display: none; align-items: center; gap: 3px; flex: 1 1 0; min-width: 0; }
+.cam-op-select {
+  flex: 1 1 0; min-width: 70px; max-width: 100%;
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 4px; padding: 3px 4px; font-size: 12px;
+}
+.cam-op-pick.cam-op-active .cam-op-select { border-color: #fab387; }
+.cam-op-mbtn {
+  background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+  border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 12px; line-height: 1.2;
+}
+.cam-op-mdel:hover, .cam-op-mdel:active { color: #f38ba8; }
 .cam-op-views { display: flex; gap: 4px; margin-left: auto; }
 .cam-op-views button {
   background: #313244; border: 1px solid #45475a; color: #cdd6f4;
@@ -602,14 +618,33 @@ export function injectCSS() {
   /* Lišta tlačítek nad G-kódem: menší tlačítka, ikona + text na jednom
      řádku, a když se nevejdou, zalomí se do další řady přes celou šířku —
      nic nesmí vytéct za okraj (po přidání „Úseky"/„Reset" vytékalo). */
-  .cam-sim-code-bar { padding: 3px 4px; }
-  .cam-sim-code-bar .cam-sim-code-btns { flex-wrap: wrap; width: 100%; gap: 3px; }
-  .cam-sim-code-bar .cam-sim-code-btns > button {
+  /* Dva řádky + ⚙ Nast. přes oba vpravo (otvírá pravý panel); tlustá čára
+     pod nimi je odděluje od lišty částí / G-kódu (uživatel 1. 10. 2026). */
+  .cam-sim-code-bar { padding: 3px 4px; border-bottom: 3px solid #585b70; }
+  .cam-sim-code-bar .cam-sim-code-btns { width: 100%; gap: 3px; align-items: stretch; }
+  .cam-sim-code-rows { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+  .cam-sim-code-row { display: flex; gap: 3px; }
+  .cam-sim-code-row > button {
     flex: 1 1 auto; min-width: 0; padding: 4px 5px; font-size: 11px;
     white-space: nowrap; line-height: 1.2;
   }
+  .cam-sim-code-bar button[data-code="show-sidebar"] {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 2px; padding: 2px 8px; font-size: 11px; line-height: 1.1;
+  }
+  .cam-sim-nast-ico { font-size: 16px; }
   .cam-sim-op-full { display: none; }
   .cam-sim-op-short { display: inline; }
+  /* Části programu: rozbalovací pole místo řad chipů. */
+  .cam-op-label, .cam-op-chips { display: none; }
+  .cam-op-pick { display: flex; }
+  .cam-sim-parts-bar { padding: 3px 4px; gap: 4px; }
+}
+/* Mobil na výšku: spodní panel (průběh + přehrávač + G-kód) zabírá
+   polovinu displeje, ať je vidět větší kus programu. 56 px = průběh +
+   přehrávač nad oblastí G-kódu. */
+@media (max-width: 768px) and (orientation: portrait) {
+  .cam-sim-code-area { height: calc(50dvh - 56px); max-height: none; }
 }
 `;
   document.head.appendChild(style);

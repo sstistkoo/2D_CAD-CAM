@@ -154,15 +154,23 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-code-bar">
         <span style="font-weight:bold">G-CODE</span>
         <div class="cam-sim-code-btns">
-          <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů.">🔄 Dráhy</button>
-          <button data-code="section-paths" title="Dráhy po úsecích: pro každý úsek (fialové čáry) se nastaví rozsah 📐 na jeho hranice, vygenerují se dráhy a obrobený polotovar se předá dalšímu úseku — výsledek jsou části programu Úsek 1, 2, … v pořadí podle pravidla 8">✂ <span class="cam-sim-op-full">Po úsecích</span><span class="cam-sim-op-short">Úseky</span></button>
-          <button data-code="reset-parts" title="Reset: zrušit rozdělení programu na části (Po úsecích / ➕ Operace) — vrátí se původní polotovar a rozsah, dráhy částí se smažou (jde vzít zpět přes ↩ Zpět)">↺ Reset</button>
-          <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ <span class="cam-sim-op-full">Operace</span><span class="cam-sim-op-short">Ope.</span></button>
-          <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
-          <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
-          <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
-          <button data-code="show-sidebar" title="Zobrazit/skrýt boční panel — editor kontury, parametry stroje/nástroje/hrubování a import">⚙ Nast.</button>
-          <button data-code="load-prog" title="Načíst projekt ze souboru .camprog">📂 Načíst</button>
+          <!-- Na desktopu jedna řada (řádky jsou display: contents), na mobilu
+               dva řádky a ⚙ Nast. přes oba vpravo — otvírá pravý panel. -->
+          <div class="cam-sim-code-rows">
+            <div class="cam-sim-code-row">
+              <button data-code="refresh" title="Přegenerovat dráhy z aktuální kontury a parametrů.">🔄 Dráhy</button>
+              <button data-code="section-paths" title="Dráhy po úsecích: pro každý úsek (fialové čáry) se nastaví rozsah 📐 na jeho hranice, vygenerují se dráhy a obrobený polotovar se předá dalšímu úseku — výsledek jsou části programu Úsek 1, 2, … v pořadí podle pravidla 8">✂ <span class="cam-sim-op-full">Po úsecích</span><span class="cam-sim-op-short">Úseky</span></button>
+              <button data-code="add-op" title="Nová část programu: aktuální dráhy se uzavřou jako hotová operace, spočítá se obrobený polotovar a plátno se vyčistí pro další operaci (jiný nůž, jiné parametry, jiný rozsah) na stejné kontuře">➕ <span class="cam-sim-op-full">Operace</span><span class="cam-sim-op-short">Ope.</span></button>
+              <button data-code="editor" title="Otevřít v CAM Editoru pro úpravu">🔧 Editor</button>
+            </div>
+            <div class="cam-sim-code-row">
+              <button data-code="reset-parts" title="Reset: zrušit rozdělení programu na části (Po úsecích / ➕ Operace) — vrátí se původní polotovar a rozsah, dráhy částí se smažou (jde vzít zpět přes ↩ Zpět)">↺ Reset</button>
+              <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
+              <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
+              <button data-code="load-prog" title="Načíst projekt ze souboru .camprog">📂 Načíst</button>
+            </div>
+          </div>
+          <button data-code="show-sidebar" title="Zobrazit/skrýt boční panel — editor kontury, parametry stroje/nástroje/hrubování a import"><span class="cam-sim-nast-ico">⚙</span> <span class="cam-sim-nast-txt">Nast.</span></button>
         </div>
       </div>
       <div class="cam-sim-parts-bar" style="display:none"></div>
@@ -2983,6 +2991,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   // ── fitView ──
+  // Měřítko podle obrysu + polotovaru (+ bezpečné polohy), ale volné místo se
+  // NEdělí rovnoměrně: víc ho dostane strana, odkud jede nůž — radiálně od osy
+  // ven (podle kvadrantu, ve kterém díl leží), axiálně podle strany obrábění
+  // (▶ zprava / ◀ zleva). Plocha pod tlačítky nahoře a údajem času dole se
+  // nepočítá. Přání uživatele 1. 10. 2026: nahoře, kudy při simulaci jede nůž,
+  // nebylo vidět, a pod dílem zůstávalo zbytečné místo.
   function fitView() {
     const points = resolvePointsToAbsolute(S.contourPoints);
     if (points.length === 0) return;
@@ -3009,6 +3023,17 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (p.zAbs < minZ) minZ = p.zAbs; if (p.zAbs > maxZ) maxZ = p.zAbs;
       });
     }
+    // Strana nože: radiálně ven od osy (díl pod osou → dolů), axiálně podle
+    // strany obrábění (svět, ne obrazovka — flipZ řeší znaménko hS níž).
+    const dirX = (minX + maxX) / 2 >= 0 ? 1 : -1;
+    const dirZ = (prms.roughingSide || 'right') === 'left' ? -1 : 1;
+    // Bezpečná poloha = odkud nůž přijíždí a kam se vrací. Rámeček rozšíří
+    // nejvýš o velikost dílu v té ose, ať vzdálený bod díl nezmenší na tečku.
+    const safeX = (parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1);
+    const safeZ = parseFloat(prms.safeZ);
+    const sizeX = maxX - minX, sizeZ = maxZ - minZ;
+    if (Number.isFinite(safeX)) { minX = Math.min(minX, Math.max(safeX, minX - sizeX)); maxX = Math.max(maxX, Math.min(safeX, maxX + sizeX)); }
+    if (Number.isFinite(safeZ)) { minZ = Math.min(minZ, Math.max(safeZ, minZ - sizeZ)); maxZ = Math.max(maxZ, Math.min(safeZ, maxZ + sizeZ)); }
     const pad = 20;
     const isCar = prms.machineStructure === 'carousel';
     const visW = isCar ? (maxX - minX) : (maxZ - minZ);
@@ -3017,12 +3042,31 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (ww <= 0 || hh <= 0) return;
     const cW = canvasWrap.clientWidth, cH = canvasWrap.clientHeight;
     if (cW === 0 || cH === 0) return;
-    let ns = Math.min(cW / ww, cH / hh) * 0.8;
+    // Tlačítka nahoře (na mobilu dvě řady) a čas dole překrývají plátno.
+    const wrapTop = canvasWrap.getBoundingClientRect().top;
+    const tbRect = camToolbar && camToolbar.offsetParent ? camToolbar.getBoundingClientRect() : null;
+    const insetTop = tbRect ? Math.max(0, Math.min(cH / 3, tbRect.bottom - wrapTop + 4)) : 0;
+    const timeEl = canvasWrap.querySelector('.cam-sim-time-overlay');
+    const insetBottom = timeEl && timeEl.textContent.trim() ? Math.max(0, cH - timeEl.offsetTop) : 0;
+    const uH = Math.max(1, cH - insetTop - insetBottom);
+    let ns = Math.min(cW / ww, uH / hh) * 0.8;
     if (ns > 10) ns = 10; if (ns < 0.1) ns = 0.1;
-    const midZ = (minZ + maxZ) / 2, midX = (minX + maxX) / 2;
     const vS = S.flipX ? 1 : -1; const hS = S.flipZ ? -1 : 1;
-    if (isCar) S.view = { scale: ns, panX: cW / 2 - hS * midX * ns, panY: cH / 2 - vS * midZ * ns };
-    else S.view = { scale: ns, panX: cW / 2 - hS * midZ * ns, panY: cH / 2 - vS * midX * ns };
+    // Posun v jedné ose obrazovky: díl (lo..hi světa, znaménko sgn) dostane
+    // na straně bez nože podíl `nonShare` volného místa, zbytek jde k noži.
+    const place = (lo, hi, sgn, dir, u0, u1, nonShare) => {
+      const sMin = Math.min(sgn * lo, sgn * hi) * ns;
+      const ext = (hi - lo) * ns;
+      const slack = (u1 - u0) - ext;
+      const gap = slack > 0 ? slack * nonShare : slack / 2;
+      const lowEdge = sgn * dir > 0 ? u0 + gap : u1 - gap - ext;
+      return lowEdge - sMin;
+    };
+    // Radiálně sedí nad řezem celý držák → nůž dostane ¾ místa; axiálně
+    // přečnívá jen kousek za čelo → mírnější posun.
+    const RAD = 0.25, AX = 0.35;
+    if (isCar) S.view = { scale: ns, panX: place(minX, maxX, hS, dirX, 0, cW, RAD), panY: place(minZ, maxZ, vS, dirZ, insetTop, cH - insetBottom, AX) };
+    else S.view = { scale: ns, panX: place(minZ, maxZ, hS, dirZ, 0, cW, AX), panY: place(minX, maxX, vS, dirX, insetTop, cH - insetBottom, RAD) };
     draw();
   }
 
@@ -4339,11 +4383,14 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Skrytá, dokud je program jednooperační. Chip = jedna část (klik = přepnout,
   // dvojklik = přejmenovat, ✕ = smazat celou část), vpravo přepínač náhledu
   // Část / Celý program a odeslání všech částí do CAM Editoru.
+  // Na mobilu (CSS @media ≤ 768 px) jsou místo chipů rozbalovací pole
+  // + ✎/✕ pro aktivní část — chipy tam zabíraly několik řádků (1. 10. 2026).
   function renderPartsBar() {
     if (!partsBar) return;
     if (!partsActive()) { partsBar.style.display = 'none'; partsBar.innerHTML = ''; return; }
     partsBar.style.display = 'flex';
     const allView = S.opView === 'all';
+    const shortName = p => p.name.replace(/^Část \d+\s*[–-]\s*/, '');
     const chips = S.opParts.map((p, i) => {
       const active = !allView && i === S.activePart;
       const empty = !p.gcode || !p.gcode.trim();
@@ -4352,13 +4399,26 @@ export function openCamSimulator(initialContour, initialGCode) {
       // uvozovky, jinak by jimi šlo rozbít atribut.
       const title = escAttr(`${p.name} — ${empty ? 'bez drah' : `${lines} řádků`}\nKlik = přepnout, dvojklik = přejmenovat`);
       return `<span class="cam-op-chip${active ? ' cam-op-active' : ''}${empty ? ' cam-op-empty' : ''}" data-op="${i}" title="${title}">
-        <span class="cam-op-num">${i + 1}</span>${escHTML(p.name.replace(/^Část \d+\s*[–-]\s*/, ''))}
+        <span class="cam-op-num">${i + 1}</span>${escHTML(shortName(p))}
         <button class="cam-op-del" data-op-del="${i}" title="Smazat celou část programu">✕</button>
       </span>`;
     }).join('');
+    const options = (allView ? '<option value="" selected disabled>Celý program</option>' : '')
+      + S.opParts.map((p, i) => {
+        const empty = !p.gcode || !p.gcode.trim();
+        const sel = !allView && i === S.activePart ? ' selected' : '';
+        return `<option value="${i}"${sel}>${i + 1} · ${escHTML(shortName(p))}${empty ? ' (bez drah)' : ''}</option>`;
+      }).join('');
+    // ✎/✕ míří na aktivní část — v náhledu celého programu žádná není.
+    const activeBtns = allView ? '' : `
+        <button class="cam-op-mbtn" data-op-rename="${S.activePart}" title="Přejmenovat část">✎</button>
+        <button class="cam-op-mbtn cam-op-mdel" data-op-del="${S.activePart}" title="Smazat celou část programu">✕</button>`;
     partsBar.innerHTML = `
       <span class="cam-op-label">Části:</span>
       <div class="cam-op-chips">${chips}</div>
+      <div class="cam-op-pick${allView ? '' : ' cam-op-active'}">
+        <select class="cam-op-select" title="Přepnout část programu">${options}</select>${activeBtns}
+      </div>
       <div class="cam-op-views">
         <button data-op-view="part" class="${allView ? '' : 'cam-sim-active'}" title="Editace aktivní části — na plátně jen její dráhy nad polotovarem obrobeným předchozími částmi">Část</button>
         <button data-op-view="all" class="${allView ? 'cam-sim-active' : ''}" title="Náhled celého složeného programu od původního polotovaru (G-kód jen ke čtení)">Celý program</button>
@@ -8694,6 +8754,11 @@ export function openCamSimulator(initialContour, initialGCode) {
       this.textContent = hidden ? '▼' : '▲';
       this.title = hidden ? 'Skrýt G-kód panel' : 'Zobrazit G-kód panel';
       this.classList.toggle('cam-sim-active', !hidden);
+      // Mobil: panel zabírá půl displeje, plátno se tím zásadně změní — díl
+      // znovu vycentrovat (přání uživatele 1. 10. 2026). Hranice = @media
+      // v camSimulatorStyles.js. Plátno přepočte až ResizeObserver, pohled
+      // ale počítá z clientWidth/Height, které už platí.
+      if (window.matchMedia('(max-width: 768px)').matches) fitView();
     });
   }
 
@@ -8796,8 +8861,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     const view = e.target.closest('[data-op-view]');
     if (view) { setOpView(view.dataset.opView); return; }
     if (e.target.closest('[data-op-act="to-editor"]')) { handlePartsToEditor(); return; }
+    const ren = e.target.closest('[data-op-rename]');
+    if (ren) { handleRenamePart(parseInt(ren.dataset.opRename, 10)); return; }
     const chip = e.target.closest('[data-op]');
     if (chip) switchToPart(parseInt(chip.dataset.op, 10));
+  });
+  // Mobilní rozbalovací pole místo chipů (renderPartsBar)
+  partsBar.addEventListener('change', (e) => {
+    if (e.target.matches('.cam-op-select') && e.target.value !== '') switchToPart(parseInt(e.target.value, 10));
   });
   partsBar.addEventListener('dblclick', (e) => {
     const chip = e.target.closest('[data-op]');
