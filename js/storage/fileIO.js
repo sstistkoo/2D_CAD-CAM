@@ -729,7 +729,7 @@ function _reportContourIssues(dups, dupSet) {
  *   zůstaly (o jejich vynechání rozhoduje uživatel, viz dialogs/contourCheck.js).
  * @returns {string | {code: string, leftovers: object[]}}
  */
-function runCncExport({ forCam = false } = {}) {
+function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
   const selectedIndices = new Set();
   if (state.multiSelected && state.multiSelected.size > 0) {
@@ -880,7 +880,7 @@ function runCncExport({ forCam = false } = {}) {
 
       // Orient right-to-left jen u kontury. U polotovaru je orientace
       // diktována chain pořadím (orientation by chain rozbil → G00 skoky).
-      if (!obj.isStock && x1 < x2) { [x1, x2] = [x2, x1]; [y1, y2] = [y2, y1]; }
+      if (!asDrawn && !obj.isStock && x1 < x2) { [x1, x2] = [x2, x1]; [y1, y2] = [y2, y1]; }
 
       target.push({
         type: 'line', name: seqLabel,
@@ -910,14 +910,14 @@ function runCncExport({ forCam = false } = {}) {
       // bod, který už kontura navštívila → duplicitní G02/G03 a viditelná
       // "obrácená" smyčka v CAMu. Otočení startAngle/endAngle + ccw uchová
       // stejný fyzický oblouk, jen obrátí směr průjezdu.
-      if (!obj.isStock && aSx < aEx) {
+      if (!asDrawn && !obj.isStock && aSx < aEx) {
         [startAngle, endAngle] = [endAngle, startAngle];
         ccw = !ccw;
       }
       target.push({ ...obj, name: seqLabel, startAngle, endAngle, ccw, _sortX: Math.max(aSx, aEx), _src: obj });
     } else if (obj.type === 'rect') {
       let rx1 = obj.x1, ry1 = obj.y1, rx2 = obj.x2, ry2 = obj.y2;
-      if (!obj.isStock && rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
+      if (!asDrawn && !obj.isStock && rx1 < rx2) { [rx1, rx2] = [rx2, rx1]; [ry1, ry2] = [ry2, ry1]; }
       target.push({ ...obj, name: seqLabel, x1: rx1, y1: ry1, x2: rx2, y2: ry2, _sortX: Math.max(rx1, rx2), _src: obj });
     } else if (obj.type === 'polyline') {
       target.push({ ...obj, name: seqLabel, _sortX: Math.max(...obj.vertices.map(v => v.x)), _src: obj });
@@ -988,7 +988,7 @@ function runCncExport({ forCam = false } = {}) {
   // konci a segmenty za sebe navazujeme (v případě potřeby otočíme). Výsledkem
   // je jediné G00 na začátku a plynulá dráha (stejný princip jako chain-sort
   // polotovaru níže). Nechainovatelné objekty (circle/point) jdou zprava doleva.
-  if (items.length > 1) {
+  if (items.length > 1 && !asDrawn) {
     const EPS = 0.01; // shodné s tolerancí findContourGaps – co je „mezera" tam, je i tady
     const used = new Array(items.length).fill(false);
     const eps = items.map(_getEp);
@@ -1232,7 +1232,7 @@ function runCncExport({ forCam = false } = {}) {
     out += "\n";
   }
 
-  out += "; --- Objekty (zprava doleva) ---\n";
+  out += asDrawn ? "; --- Objekty (v pořadí nakreslení) ---\n" : "; --- Objekty (zprava doleva) ---\n";
   items.forEach(emitObj);
 
   // Polotovar – samostatná sekce mezi STOCK_START / STOCK_END značkami.
@@ -1267,6 +1267,7 @@ function runCncExport({ forCam = false } = {}) {
   if (forCam) {
     return { code: out, leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))] };
   }
+  if (asDrawn) return out; // Editor z Kalkulaček: panel CNC KÓD se nepřepisuje
   document.getElementById("cncOutput").value = out;
   return out;
 }
@@ -1362,6 +1363,7 @@ document.getElementById("btnCncToCam").addEventListener("click", () => {
   renderCncCodeToCanvas(document.getElementById("cncOutput").value);
 });
 bridge.runCncExport = runCncExport;
+bridge.exportCncAsDrawn = () => runCncExport({ asDrawn: true });
 bridge.buildCamTransfer = () => runCncExport({ forCam: true });
 bridge.renderCncCodeToCanvas = renderCncCodeToCanvas;
 

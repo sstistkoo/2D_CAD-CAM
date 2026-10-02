@@ -4,7 +4,7 @@
 // ║  syntaxe (dvojče CAM Editoru, pracuje s CNC kódem z CAD)     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { makeOverlay } from '../dialogFactory.js';
+import { makeOverlay, onOverlayRemoved, showConfirmDialog } from '../dialogFactory.js';
 import { bridge } from '../bridge.js';
 import { showToast } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
@@ -494,7 +494,67 @@ function getControlSystemBarText(programName) {
 }
 
 // ── Build HTML ─────────────────────────────────────────────────
-function buildEditorHTML() {
+// Rychlá lišta. Kreslicí varianta (editor z Kalkulaček) má jen to, co čte kreslicí
+// parser G-kódu: G, X, Z, R + G0/G1 jako velká tlačítka s popiskem.
+function quickbarHTML(drawMode) {
+  if (drawMode) return `
+  <div class="cne-quickbar cne-quickbar--draw">
+    <button class="cne-qb blue" data-inp="G" title="G-kód (cykly, interpolace)">G</button>
+    <button class="cne-qb" data-inp="X" title="Osa X (průměr)">X</button>
+    <button class="cne-qb" data-inp="Z" title="Osa Z (délka)">Z</button>
+    <button class="cne-qb" data-inp="R" title="R – Parametr">R</button>
+    <button class="cne-qb" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X)">I</button>
+    <button class="cne-qb" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K</button>
+    <button class="cne-qb accent cne-qb-big" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start bod</small></button>
+    <button class="cne-qb accent cne-qb-big" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
+    <button class="cne-qb gray" data-ins=" " title="Mezera">␣</button>
+    <button class="cne-qb del" data-act="backspace" title="Smazat znak">⌫</button>
+    <button class="cne-qb gray" data-inp="" title="Zadat číslo">123</button>
+    <button class="cne-qb gray" data-ins="=" title="Přiřazení hodnoty">=</button>
+    <button class="cne-qb gray" data-ins=";" title="Středník (komentář)">;</button>
+    <button class="cne-qb accent" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
+    <button class="cne-qb accent" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
+    <button class="cne-qb green" data-ins="\\n" title="Nový řádek">↵</button>
+    <button class="cne-qb red" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
+    <button class="cne-qb gray" data-act="copy" title="Kopírovat kód">📋</button>
+    <button class="cne-qb blue" data-act="convMode" data-el="convModeBtn" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
+    <button class="cne-qb cne-kb-btn" data-act="keyboard" title="Zobrazit klávesnici">⌨</button>
+    <button class="cne-qb accent cne-qb-arc" data-ins="G2 " title="G2 &ndash; kruhov&aacute; interpolace po sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G2</span><small>&#8635; oblouk</small></button>
+    <button class="cne-qb accent cne-qb-arc" data-ins="G3 " title="G3 &ndash; kruhov&aacute; interpolace proti sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G3</span><small>&#8634; oblouk</small></button>
+  </div>`;
+  return `
+  <div class="cne-quickbar">
+    <button class="cne-qb blue" data-inp="G" title="G-kód (cykly, interpolace)">G</button>
+    <button class="cne-qb blue" data-inp="M" title="M-kód (vřeteno, chlazení)">M</button>
+    <button class="cne-qb" data-inp="X" title="Osa X (průměr)">X</button>
+    <button class="cne-qb" data-inp="Z" title="Osa Z (délka)">Z</button>
+    <button class="cne-qb gray" data-ins=" " title="Mezera">␣</button>
+    <button class="cne-qb del" data-act="backspace" title="Smazat znak">⌫</button>
+
+    <button class="cne-qb" data-inp="F" title="F – Posuv (mm/ot)">F</button>
+    <button class="cne-qb" data-inp="S" title="S – Otáčky / řezná rychlost">S</button>
+    <button class="cne-qb" data-inp="T" title="T – Číslo nástroje">T</button>
+    <button class="cne-qb" data-inp="D" title="D – Korekce nástroje">D</button>
+    <button class="cne-qb" data-inp="R" title="R – Parametr">R</button>
+    <button class="cne-qb gray" data-inp="" title="Zadat číslo">123</button>
+
+    <button class="cne-qb gray" data-ins=";" title="Středník (komentář)">;</button>
+    <button class="cne-qb gray" data-ins="=" title="Přiřazení hodnoty">=</button>
+    <button class="cne-qb accent" data-ins="G0 " title="G0 – Rychloposuv">G0</button>
+    <button class="cne-qb accent" data-ins="G1 " title="G1 – Lineární interpolace">G1</button>
+    <button class="cne-qb accent" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
+    <button class="cne-qb accent" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
+
+    <button class="cne-qb green" data-ins="\\n" title="Nový řádek">↵</button>
+    <button class="cne-qb red" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
+    <button class="cne-qb accent" data-ins="STOPRE" title="STOPRE – Zastavit předzpracování">STOP</button>
+    <button class="cne-qb gray" data-act="copy" title="Kopírovat kód">📋</button>
+    <button class="cne-qb blue" data-act="convMode" data-el="convModeBtn" title="Přepnout G90 (absolutní) / G91 (přírůstkové)">G90</button>
+    <button class="cne-qb cne-kb-btn" data-act="keyboard" title="Zobrazit klávesnici">⌨</button>
+  </div>`;
+}
+
+function buildEditorHTML(drawMode = false) {
   return `
 <div class="cne-layout">
   <div class="cne-sn-bar">
@@ -572,35 +632,7 @@ function buildEditorHTML() {
     </div>
   </div>
 
-  <div class="cne-quickbar">
-    <button class="cne-qb blue" data-inp="G" title="G-kód (cykly, interpolace)">G</button>
-    <button class="cne-qb blue" data-inp="M" title="M-kód (vřeteno, chlazení)">M</button>
-    <button class="cne-qb" data-inp="X" title="Osa X (průměr)">X</button>
-    <button class="cne-qb" data-inp="Z" title="Osa Z (délka)">Z</button>
-    <button class="cne-qb gray" data-ins=" " title="Mezera">␣</button>
-    <button class="cne-qb del" data-act="backspace" title="Smazat znak">⌫</button>
-
-    <button class="cne-qb" data-inp="F" title="F – Posuv (mm/ot)">F</button>
-    <button class="cne-qb" data-inp="S" title="S – Otáčky / řezná rychlost">S</button>
-    <button class="cne-qb" data-inp="T" title="T – Číslo nástroje">T</button>
-    <button class="cne-qb" data-inp="D" title="D – Korekce nástroje">D</button>
-    <button class="cne-qb" data-inp="R" title="R – Parametr">R</button>
-    <button class="cne-qb gray" data-inp="" title="Zadat číslo">123</button>
-
-    <button class="cne-qb gray" data-ins=";" title="Středník (komentář)">;</button>
-    <button class="cne-qb gray" data-ins="=" title="Přiřazení hodnoty">=</button>
-    <button class="cne-qb accent" data-ins="G0 " title="G0 – Rychloposuv">G0</button>
-    <button class="cne-qb accent" data-ins="G1 " title="G1 – Lineární interpolace">G1</button>
-    <button class="cne-qb accent" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
-    <button class="cne-qb accent" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
-
-    <button class="cne-qb green" data-ins="\\n" title="Nový řádek">↵</button>
-    <button class="cne-qb red" data-inp="LIMS=" title="LIMS – Omezení otáček">LIMS</button>
-    <button class="cne-qb accent" data-ins="STOPRE" title="STOPRE – Zastavit předzpracování">STOP</button>
-    <button class="cne-qb gray" data-act="copy" title="Kopírovat kód">📋</button>
-    <button class="cne-qb blue" data-act="addBlock" title="Přidat číslo bloku">N+</button>
-    <button class="cne-qb cne-kb-btn" data-act="keyboard" title="Zobrazit klávesnici">⌨</button>
-  </div>
+  ${quickbarHTML(drawMode)}
 
   <!-- Menu modal (mobile full actions) -->
   <div class="cne-inner-modal" data-el="menuModal" style="display:none">
@@ -702,7 +734,7 @@ function buildEditorHTML() {
 // ══════════════════════════════════════════════════════════════
 // ██  MAIN EXPORT  ████████████████████████████████████████████
 // ══════════════════════════════════════════════════════════════
-export function openCncEditor(initialCode) {
+export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
   // ── State ──────────────────────────────────────────────────
   let programs   = {};
   let currentFile = '';
@@ -744,8 +776,24 @@ export function openCncEditor(initialCode) {
   if (Array.isArray(sm)) mergeQueue = sm;
 
   // ── Create overlay ─────────────────────────────────────────
-  const overlay = makeOverlay('cnc-editor', '💻 CNC Editor', buildEditorHTML(), 'cnc-editor-window');
+  const overlay = makeOverlay('cnc-editor', '💻 CNC Editor', buildEditorHTML(drawOnClose), 'cnc-editor-window');
   if (!overlay) return;
+
+  // Editor z Kalkulaček: po zavření (✕, Esc, klik mimo) vykreslí napsaný kód na
+  // canvas jako 🔄 u CNC KÓD – po potvrzení, protože 🔄 výkres nahrazuje (jde vrátit Zpět). Tlačítko „do CAD" (toCad) už kreslí samo.
+  let sentToCad = false;
+  if (drawOnClose) {
+    onOverlayRemoved(overlay, () => {
+      if (sentToCad) return;
+      let code = editor.value;
+      if (!code.trim()) return;
+      if (coordMode === 'inc') code = codeToAbsolute(code);
+      code = convertCornersToPaths(code).code;
+      showConfirmDialog('Přepsat výkres podle zapsaného kódu?', () => {
+        if (typeof bridge.renderCncCodeToCanvas === 'function') bridge.renderCncCodeToCanvas(code);
+      }, { confirmLabel: 'Přepsat', danger: false, cancelLabel: 'Ponechat výkres' });
+    });
+  }
 
   // ── DOM refs ───────────────────────────────────────────────
   const $ = s => overlay.querySelector(`[data-el="${s}"]`);
@@ -1560,6 +1608,51 @@ export function openCncEditor(initialCode) {
     updateModeBtn();
   }
 
+  // ── Poznámky za středníkem: zkrátit / vrátit ───────────────
+  // Středník uvnitř uvozovek (MSG("a;b")) komentář nezačíná. Řádky tvořené jen
+  // poznámkou a prázdné řádky se při zkrácení vypustí; zpět se vrací podle pořadí řádků.
+  let commentState = null; // { file, stripped, lines: [{ text, kept, comment }] }
+  function splitComment(line) {
+    let q = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') q = !q;
+      else if (line[i] === ';' && !q) return i;
+    }
+    return -1;
+  }
+  function toggleComments() {
+    const cs = commentState;
+    if (cs && cs.file === currentFile) {
+      const cur = editor.value.split('\n');
+      const keptCnt = cs.lines.filter(l => l.kept).length;
+      if (cur.length !== keptCnt) {
+        commentState = null;
+        showToast('Po zkrácení se změnil počet řádků – poznámky nelze vrátit');
+        return;
+      }
+      captureUndoSnapshot();
+      let k = 0;
+      editor.value = cs.lines.map(l => l.kept ? cur[k++] + l.comment : l.text).join('\n');
+      commentState = null;
+      onInput();
+      return;
+    }
+    const lines = editor.value.split('\n').map(text => {
+      if (!text.trim()) return { text, kept: false, comment: '' }; // prázdný řádek
+      const i = splitComment(text);
+      if (i < 0) return { text, kept: true, comment: '' };
+      const code = text.slice(0, i).replace(/[ \t]+$/, '');
+      if (!code.trim()) return { text, kept: false, comment: '' };
+      return { text: code, kept: true, comment: text.slice(code.length) };
+    });
+    if (!lines.some(l => !l.kept || l.comment)) { showToast('Kód neobsahuje žádné poznámky'); return; }
+    captureUndoSnapshot();
+    const stripped = lines.filter(l => l.kept).map(l => l.text).join('\n');
+    editor.value = stripped;
+    commentState = { file: currentFile, stripped, lines };
+    onInput();
+  }
+
   // ── Renumbering ───────────────────────────────────────────
   function performRenumbering(start, step) {
     codeBeforeRenum = editor.value;
@@ -1710,6 +1803,7 @@ export function openCncEditor(initialCode) {
         }
         case 'backspace': doBackspace(); break;
         case 'addBlock':  insertBlockNumber(); break;
+        case 'toggleComments': toggleComments(); break;
         case 'keyboard':  editor.readOnly = false; editor.focus(); break;
         case 'menu':      $('menuModal').style.display = 'flex'; break;
         case 'menuClose': $('menuModal').style.display = 'none'; break;
@@ -1724,6 +1818,7 @@ export function openCncEditor(initialCode) {
           if (conv.converted > 0) { editor.value = conv.code; onInput(); }
           persist();
           const code = editor.value;
+          sentToCad = true;
           overlay.remove();
           if (typeof bridge.renderCncCodeToCanvas === 'function') bridge.renderCncCodeToCanvas(code);
           break;

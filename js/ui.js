@@ -12,7 +12,7 @@ import { findObjectAt } from './geometry.js';
 import { bridge } from './bridge.js';
 import { addObject } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openInsertCalc, openSinumerikHub, openCamSimulator } from './cnc-calcs.js';
+import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openInsertCalc, openSinumerikHub, openCamSimulator, openCncEditor } from './cnc-calcs.js';
 import { showCombinedModal } from './dialogs/combinedModal.js';
 import { makeOverlay, makeInputOverlay, focusInput, onOverlayRemoved } from './dialogFactory.js';
 import { openAIPanel } from './ai/aiPanel.js';
@@ -4290,6 +4290,7 @@ document.getElementById("btnOpenTolerance").addEventListener("click", openTolera
 document.getElementById("btnOpenRoughness").addEventListener("click", openRoughnessCalc);
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
+document.getElementById("btnOpenCncEditor")?.addEventListener("click", () => openCncEditor(bridge.exportCncAsDrawn(), { drawOnClose: true }));
 // VK i číselné zadání sdílí jedno okno – liší se jen výchozí záložkou.
 document.getElementById("btnOpenVk")?.addEventListener("click", () => showCombinedModal('vk'));
 document.getElementById("btnNumInput")?.addEventListener("click", () => showCombinedModal('num'));

@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Panel Kalkulačky + CNC Editor** (uživatel 2. 10. 2026): Převodník a
+  Sinumerik přesunuty z „Další kalkulačky" do hlavní sekce; z hubu Sinumerik
+  zmizely dlaždice CAM a Editor, **✏️ Editor** je nově v Kalkulačkách. Editor
+  se otevře s kódem z výkresu **v pořadí nakreslení** (nový režim
+  `runCncExport({ asDrawn: true })`, nepřepisuje panel CNC KÓD) a po zavření
+  se po potvrzení výkres přepíše podle zapsaného kódu. Kreslicí rychlá lišta
+  (jen G X Z R I K, velké G0/G1 s popiskem, G2/G3). V editoru místo N+ a LIMS
+  tlačítko G90/G91 a `;✂` (zkrátit o poznámky a prázdné řádky / vrátit).
+  SW v340.
 - **Okno „Zadání objektu" (🔢 Číselné zadání / 📐 Volná kontura) na
   mobilu na výšku** (uživatel 1. 10. 2026): výška polovina displeje
   (50dvh) místo 34vh/44vh — na výšku je výkres stejně menší a formulář

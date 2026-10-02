@@ -7149,6 +7149,19 @@ button.vk-header-btn-green {
   min-height: 32px; text-align: center;
 }
 .cne-qb:active { transform: translateY(1px); background: var(--ctp-surface1); }
+/* Kreslici lista (editor z Kalkulacek): G0/G1 vetsi, s popiskem pod pismem */
+.cne-quickbar--draw { grid-template-columns: repeat(6, 1fr); }
+.cne-quickbar--draw .cne-qb-big,
+.cne-quickbar--draw .cne-qb-arc {
+  grid-column: span 2; flex-direction: column; gap: 3px;
+  min-height: 56px; font-size: 20px;
+}
+.cne-quickbar--draw .cne-qb-arc { grid-column: auto; font-size: 16px; }
+.cne-quickbar--draw .cne-qb-big small,
+.cne-quickbar--draw .cne-qb-arc small {
+  font: 600 11px/1 system-ui, sans-serif; color: var(--ctp-subtext0);
+}
+.cne-quickbar--draw .cne-qb-arc small { font-size: 9px; }
 .cne-qb.blue   { color: var(--ctp-blue); }
 .cne-qb.green  { color: var(--ctp-green); }
 .cne-qb.red    { color: var(--ctp-red); }

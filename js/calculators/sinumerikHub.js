@@ -5,9 +5,7 @@ import { openSysvarReference }   from './sysvar.js';
 import { openShortcutsReference } from './shortcuts.js';
 import { openCommandsReference } from './commands.js';
 import { openCncExamples }       from './cncExamples.js';
-import { openCncEditor }         from './cncEditor.js';
 import { openHelp }              from './help.js';
-import { openCamSimulator }      from './camSimulator.js';
 
 // ── Dlaždice rozcestníku ────────────────────────────────────
 const tiles = [
@@ -17,8 +15,6 @@ const tiles = [
   { icon: '📊', title: 'Proměnné',    desc: 'Systémové proměnné ($P_, $AA_…)',     action: openSysvarReference },
   { icon: '⌨️', title: 'Zkratky',     desc: 'Klávesové zkratky displeje',          action: openShortcutsReference },
   { icon: '📝', title: 'Ukázky',      desc: 'Ukázky CNC kódů s komentáři',        action: openCncExamples },
-  { icon: '✏️', title: 'Editor',      desc: 'CNC editor se zvýrazňováním syntaxe', action: openCncEditor },
-  { icon: '🔄', title: 'CAM',         desc: 'Simulátor soustružnických drah',      action: openCamSimulator },
   { icon: '❓', title: 'Nápověda',    desc: 'Popis funkcí a ovládání',             action: openHelp }
 ];
 
