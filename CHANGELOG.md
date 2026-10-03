@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – pořadí nakreslení, stručná hlavička, kurzor
+  křížkem** (uživatel 3. 10. 2026): kontura i polotovar jdou v pořadí, jak se
+  kreslily (žádné přeřazení); jen segmenty, které na předchozí navazují druhým
+  koncem, se otočí, a první segment řetězu podle toho, čím se dotýká dalšího –
+  G00 je jen tam, kde kresba skočí. Hlavička (SKICA/Datum/Počet/Průsečíků/Režim)
+  se v editoru nepíše, v ABS zůstává jen kód; seznam průsečíků na konci
+  zůstal. Dlouhý stisk nad kódem při puštění postaví kurzor na místo křížku
+  (bez klávesnice). Ostatní exporty beze změny. SW v344.
 - **CNC Editor z Kalkulaček – úpravy z mobilu** (uživatel 3. 10. 2026):
   v liště je „(CAD kal.)", ať jde poznat od dvou dalších editorů; zavření bez
   změny kódu už se neptá na přepsání výkresu; v kódu není `G28`/`M30` (ani

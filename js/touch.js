@@ -1271,6 +1271,46 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     }
   }
 
+  /**
+   * Index znaku v textarea pod bodem (x, y) – textarea nemá caretPositionFromPoint,
+   * proto z metrik neproporcionálního písma: řádek = výška řádku, sloupec = šířka „M".
+   * (CNC Editor má white-space: pre, žádné zalamování.)
+   */
+  function caretIndexAt(ta, x, y) {
+    const cs = getComputedStyle(ta), r = ta.getBoundingClientRect();
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const cw = ctx.measureText("M").width || 8;
+    const lines = ta.value.split("\n");
+    const li = Math.max(0, Math.min(lines.length - 1,
+      Math.floor((y - r.top - parseFloat(cs.paddingTop) + ta.scrollTop) / lh)));
+    const col = Math.max(0, Math.min(lines[li].length,
+      Math.round((x - r.left - parseFloat(cs.paddingLeft) + ta.scrollLeft) / cw)));
+    let idx = col;
+    for (let i = 0; i < li; i++) idx += lines[i].length + 1;
+    return idx;
+  }
+
+  /** Postaví kurzor editoru na místo křížku – bez vysunutí klávesnice (inputmode=none). */
+  function placeEditorCaret(ta, x, y) {
+    const r = ta.getBoundingClientRect();
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
+    const idx = caretIndexAt(ta, x, y);
+    const prevMode = ta.getAttribute("inputmode");
+    ta.setAttribute("inputmode", "none");
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(idx, idx);
+    const restore = () => {
+      ta.removeEventListener("pointerdown", restore);
+      ta.removeEventListener("blur", restore);
+      if (prevMode === null) ta.removeAttribute("inputmode");
+      else ta.setAttribute("inputmode", prevMode);
+    };
+    ta.addEventListener("pointerdown", restore);
+    ta.addEventListener("blur", restore);
+  }
+
   function releaseGpTextarea() {
     if (!gpTextarea) return;
     gpTextarea.style.removeProperty("-webkit-user-select");
@@ -1357,7 +1397,8 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
       e.preventDefault();
       const fx = (e.changedTouches[0]?.clientX ?? gpStartX);
       const fy = (e.changedTouches[0]?.clientY ?? gpStartY);
-      clickGlobalAt(fx, fy + gpOffsetY, fx, fy);
+      if (gpTextarea) placeEditorCaret(gpTextarea, fx, fy + gpOffsetY);
+      else clickGlobalAt(fx, fy + gpOffsetY, fx, fy);
       hideGlobalPointer();
     }
     gpActive = false;

@@ -73,7 +73,25 @@ describe('runCncExport – řetězení a značky', () => {
     expect(code).toMatch(/; Úsečka 1, L=50\b/);
   });
 
-  it('polotovar je jen mezi STOCK_START/STOCK_END bez prefixu u řádků', () => {
+  it('pořadí zůstává jako se kreslilo; G00 jen tam, kde kresba skočí', () => {
+    state.objects = [
+      L(0, 0, 10, 0), L(10, 0, 10, 10),          // 1, 2 navazují
+      L(50, 50, 60, 50), L(60, 50, 60, 60),      // 3, 4 po skoku
+    ];
+    const code = runCncExport();
+    const names = [...code.matchAll(/Úsečka (\d)/g)].map(m => m[1]);
+    expect(names).toEqual(['1', '2', '3', '4']);
+    expect(code.split('\n').filter(l => /\bG0?0\b/.test(l.replace(/;.*$/, ''))).length).toBe(2);
+  });
+
+  it('první úsečka se otočí podle toho, kterým koncem navazuje druhá', () => {
+    // nakresleno „pozpátku": 1 končí tam, kde 2 začíná, až po otočení
+    state.objects = [L(10, 0, 0, 0), L(10, 0, 10, 10)];
+    const code = runCncExport();
+    expect(code.split('\n').filter(l => /\bG0?0\b/.test(l.replace(/;.*$/, ''))).length).toBe(1);
+  });
+
+  it('hlavička editoru je stručná, polotovar je mezi STOCK_START/STOCK_END bez prefixu u řádků', () => {
     state.objects = [
       L(0, 0, 50, 0), L(50, 0, 50, 10),
       L(0, 20, 60, 20, { isStock: true }), L(60, 20, 60, 30, { isStock: true }),
@@ -81,6 +99,7 @@ describe('runCncExport – řetězení a značky', () => {
     const code = runCncExport();
     const iStart = code.indexOf('; STOCK_START');
     const iEnd = code.indexOf('; STOCK_END');
+    expect(code).not.toMatch(/Datum|Počet objektů|SKICA/);
     expect(iStart).toBeGreaterThan(code.indexOf('; KONTURA_START'));
     expect(iEnd).toBeGreaterThan(iStart);
     expect(code).not.toMatch(/POLOTOVAR —/);

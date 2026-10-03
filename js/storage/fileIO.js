@@ -756,11 +756,18 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // jedné osy obrací smysl oblouku, proto se G2↔G3 zapisují prohozeně. Zrcadlení
   // obou os (X i Z) se vyruší. Hodnoty X (poloměr) zůstávají kladné a stejné.
   const flipArc = (code) => (state.flipX !== state.flipZ) ? (code === 'G02' ? 'G03' : 'G02') : code;
-  let out = "; === SKICA – CNC Soustružník (X,Z) ===\n";
-  out += `; Datum: ${new Date().toLocaleString("cs")}\n`;
-  out += `; Počet objektů: ${exportObjects.length}${selectedIndices.size > 0 ? ' (vybraný profil)' : ''}\n`;
-  out += `; Průsečíků: ${state.intersections.length}\n`;
-  out += `; Režim: ${isInc ? 'Inkrementální (INC)' : 'Absolutní (ABS)'}\n`;
+  let out = "";
+  if (asDrawn) {
+    // Editor z Kalkulaček: hlavička by na malém displeji zabrala půl obrazovky –
+    // zůstává jen to, co mění význam kódu (INC režim; zrcadlení a reference níž).
+    if (isInc) out += "; Režim: Inkrementální (INC)\n";
+  } else {
+    out += "; === SKICA – CNC Soustružník (X,Z) ===\n";
+    out += `; Datum: ${new Date().toLocaleString("cs")}\n`;
+    out += `; Počet objektů: ${exportObjects.length}${selectedIndices.size > 0 ? ' (vybraný profil)' : ''}\n`;
+    out += `; Průsečíků: ${state.intersections.length}\n`;
+    out += `; Režim: ${isInc ? 'Inkrementální (INC)' : 'Absolutní (ABS)'}\n`;
+  }
   if (state.flipX) out += "; Obrábění zespodu (X+ dolů) – G2/G3 prohozeny\n";
   if (state.flipZ) out += "; Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny\n";
   const [_gH, _gV] = state.machineType === 'karusel' ? ['X','Z'] : ['Z','X'];
@@ -991,10 +998,11 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // konci a segmenty za sebe navazujeme (v případě potřeby otočíme). Výsledkem
   // je jediné G00 na začátku a plynulá dráha (stejný princip jako chain-sort
   // polotovaru níže). Nechainovatelné objekty (circle/point) jdou zprava doleva.
-  // Řetězí se i v režimu `asDrawn` (CNC Editor z Kalkulaček) – dřív se tam
-  // chain-sort přeskakoval a každá úsečka dostala vlastní G00 + G01 (nález
-  // uživatele 3. 10. 2026). Navazující segmenty jdou teď jako G01 za sebou.
-  if (items.length > 1) {
+  // Režim `asDrawn` (CNC Editor z Kalkulaček) se NEŘADÍ – kód jde v pořadí
+  // nakreslení (uživatel 3. 10. 2026). Navazující segmenty se jen otočí tak,
+  // aby šly za sebou jako G01 (viz _orientInDrawnOrder níž); G00 je jen tam,
+  // kde kresba skutečně skočí jinam.
+  if (items.length > 1 && !asDrawn) {
     const EPS = 0.01; // shodné s tolerancí findContourGaps – co je „mezera" tam, je i tady
     const used = new Array(items.length).fill(false);
     const eps = items.map(_getEp);
@@ -1084,7 +1092,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // začátek[i+1]. Pokud je třeba, otočíme orientaci segmentu. Tím zajistíme,
   // že emitor nevloží G00 rapidy mezi navazující segmenty polotovaru a celý
   // polotovar vyjde jako jeden spojitý tvar.
-  if (stockItems.length > 1) {
+  if (stockItems.length > 1 && !asDrawn) {
     // (_getEp / _revObj jsou sdílené helpery definované výše u chain-sortu kontury.)
     // Najdi volný startovní konec (není spojen s žádným jiným koncem).
     const EPS = 0.05;
@@ -1249,6 +1257,31 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // Značka na začátku bloku říká, že jde o KONTURU (obrobek) – polotovar má
   // vlastní STOCK_START níže. Text záměrně neobsahuje „STOCK", aby ho parsery
   // (parseGcodeToObjects, gcodeParser) nezaměnily za začátek polotovaru.
+  // asDrawn: pořadí zůstává tak, jak se kreslilo; otočí se jen segmenty, které
+  // na předchozí navazují druhým koncem. Začátek řetězu se otočí podle toho,
+  // kterým koncem se dotýká následujícího prvku (aby nevznikl zbytečný skok).
+  function _orientInDrawnOrder(list) {
+    const EPS = 0.01;
+    const near = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by) < EPS;
+    let curEnd = null;
+    for (let i = 0; i < list.length; i++) {
+      let ep = _getEp(list[i]);
+      if (!ep) { curEnd = null; continue; }
+      if (curEnd) {
+        if (near(ep.sx, ep.sy, curEnd.x, curEnd.y)) list[i]._chainCont = true;
+        else if (near(ep.ex, ep.ey, curEnd.x, curEnd.y)) { list[i] = _revObj(list[i]); list[i]._chainCont = true; }
+      } else {
+        const nep = i + 1 < list.length ? _getEp(list[i + 1]) : null;
+        if (nep) {
+          const touch = (x, y) => near(x, y, nep.sx, nep.sy) || near(x, y, nep.ex, nep.ey);
+          if (touch(ep.sx, ep.sy) && !touch(ep.ex, ep.ey)) list[i] = _revObj(list[i]);
+        }
+      }
+      ep = _getEp(list[i]);
+      curEnd = { x: ep.ex, y: ep.ey };
+    }
+  }
+  if (asDrawn) _orientInDrawnOrder(items);
   out += "; KONTURA_START — kontura (obrobek)\n";
   items.forEach(emitObj);
 
@@ -1266,6 +1299,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     // Reset polohy mezi sekcemi: další G00 v polotovaru musí být vždy emitován,
     // i kdyby náhodou souřadnice navazovala na poslední bod kontury.
     lastEndX = null; lastEndY = null;
+    if (asDrawn) _orientInDrawnOrder(stockItems);
     out += "; STOCK_START — polotovar (isStock objekty)\n";
     stockItems.forEach(emitObj);
     out += "; STOCK_END\n\n";
