@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – kontura jako jeden řetěz, značky bloků**
+  (uživatel 3. 10. 2026): v editoru měla každá úsečka kontury vlastní
+  `G00` + `G01`, protože se tam chain-sort přeskakoval. Teď se kontura řetězí
+  i v tomhle režimu → jediné `G90 G00 X.. Z..` na začátku a pak navazující
+  `G01` (segmenty nakreslené „pozpátku" se samy otočí). Polotovar už nemá
+  prefix `POLOTOVAR —` u každého řádku – kontura začíná značkou
+  `; KONTURA_START — kontura (obrobek)`, polotovar zůstává mezi
+  `; STOCK_START — polotovar` a `; STOCK_END`. Změna v `runCncExport`
+  (`js/storage/fileIO.js`) + nový test `tests/cnc-export-chain.test.js`.
+  SW v342.
 - **CNC Editor z Kalkulaček – zhuštěný zápis** (uživatel 3. 10. 2026): bez G28
   na začátku, G90 sloučené s prvním pohybem (`G90 G00 X0 Z0`), G0–G3 jen při
   změně, jen měněné osy X/Z, čísla bez zbytečných nul (`R10`), žádné prázdné

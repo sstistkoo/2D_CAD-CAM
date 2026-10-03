@@ -989,7 +989,10 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // konci a segmenty za sebe navazujeme (v případě potřeby otočíme). Výsledkem
   // je jediné G00 na začátku a plynulá dráha (stejný princip jako chain-sort
   // polotovaru níže). Nechainovatelné objekty (circle/point) jdou zprava doleva.
-  if (items.length > 1 && !asDrawn) {
+  // Řetězí se i v režimu `asDrawn` (CNC Editor z Kalkulaček) – dřív se tam
+  // chain-sort přeskakoval a každá úsečka dostala vlastní G00 + G01 (nález
+  // uživatele 3. 10. 2026). Navazující segmenty jdou teď jako G01 za sebou.
+  if (items.length > 1) {
     const EPS = 0.01; // shodné s tolerancí findContourGaps – co je „mezera" tam, je i tady
     const used = new Array(items.length).fill(false);
     const eps = items.map(_getEp);
@@ -1150,7 +1153,9 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
 
   // Společný emitor jednoho objektu (přepoužit pro konturu i polotovar)
   function emitObj(obj) {
-    const stockPrefix = obj.isStock ? "POLOTOVAR — " : "";
+    // Kontura × polotovar se nepíše u každého řádku – rozlišují je značky
+    // sekcí (KONTURA_START na začátku kontury, STOCK_START…STOCK_END u polotovaru).
+    const stockPrefix = "";
     switch (obj.type) {
       case "point":
         out += noteLine(stockPrefix + obj.name, ``, '');
@@ -1239,7 +1244,10 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     out += "\n";
   }
 
-  out += asDrawn ? "; --- Objekty (v pořadí nakreslení) ---\n" : "; --- Objekty (zprava doleva) ---\n";
+  // Značka na začátku bloku říká, že jde o KONTURU (obrobek) – polotovar má
+  // vlastní STOCK_START níže. Text záměrně neobsahuje „STOCK", aby ho parsery
+  // (parseGcodeToObjects, gcodeParser) nezaměnily za začátek polotovaru.
+  out += "; KONTURA_START — kontura (obrobek)\n";
   items.forEach(emitObj);
 
   // Polotovar – samostatná sekce mezi STOCK_START / STOCK_END značkami.
