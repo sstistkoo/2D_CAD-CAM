@@ -487,10 +487,11 @@ function convertCornersToPaths(code) {
   return { code: out.join('\n'), converted, skipped };
 }
 
-function getControlSystemBarText(programName) {
+function getControlSystemBarText(programName, fromCalc = false) {
   const ctrl = getControlSystem();
   const names = { sinumerik: 'SINUMERIK', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
-  return `${names[ctrl] || names.sinumerik} (CAD) &mdash; ${esc(programName || '')}`;
+  // „kal." = editor otevřený z Kalkulaček (kreslicí) – odliší ho od ostatních dvou editorů.
+  return `${names[ctrl] || names.sinumerik} (CAD${fromCalc ? ' kal.' : ''}) &mdash; ${esc(programName || '')}`;
 }
 
 // ── Build HTML ─────────────────────────────────────────────────
@@ -778,6 +779,8 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
   // ── Create overlay ─────────────────────────────────────────
   const overlay = makeOverlay('cnc-editor', '💻 CNC Editor', buildEditorHTML(drawOnClose), 'cnc-editor-window');
   if (!overlay) return;
+  // Třída pro CSS: editor z Kalkulaček přes celý displej (bez horního odsazení).
+  if (drawOnClose) overlay.classList.add('cne-overlay-draw');
 
   // Editor z Kalkulaček: po zavření (✕, Esc, klik mimo) vykreslí napsaný kód na
   // canvas jako 🔄 u CNC KÓD – po potvrzení, protože 🔄 výkres nahrazuje (jde vrátit Zpět). Tlačítko „do CAD" (toCad) už kreslí samo.
@@ -787,6 +790,9 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
       if (sentToCad) return;
       let code = editor.value;
       if (!code.trim()) return;
+      // Nic se nezměnilo oproti kódu z výkresu → není co přepisovat, bez dotazu.
+      const sameText = (a, b) => String(a).replace(/\r/g, '').trim() === String(b).replace(/\r/g, '').trim();
+      if (typeof initialCode === 'string' && sameText(code, initialCode)) return;
       if (coordMode === 'inc') code = codeToAbsolute(code);
       code = convertCornersToPaths(code).code;
       showConfirmDialog('Přepsat výkres podle zapsaného kódu?', () => {
@@ -845,7 +851,7 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
     currentFile = name;
     editor.value = programs[name];
     filenameLbl.textContent = name;
-    $('snBar').innerHTML = getControlSystemBarText(name);
+    $('snBar').innerHTML = getControlSystemBarText(name, drawOnClose);
     // Historie Zpět/Vpřed patří vždy k jednomu souboru, ne napříč programy.
     undoStack = []; redoStack = []; undoGroupOpen = false;
     updateUndoRedoButtons();
@@ -1138,7 +1144,9 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
     parser.reset();
     parser.loadSubprograms(programs);
     if (!currentFile || !programs[currentFile]) return [];
-    const { errors } = parser.parseProgram(programs[currentFile], currentFile, parserCfg);
+    // Editor z Kalkulaček je kresba bez M30/G28 – „Program nekončí M30" tam není chyba.
+    const cfg = drawOnClose ? { ...parserCfg, end: { ...parserCfg.end, active: false } } : parserCfg;
+    const { errors } = parser.parseProgram(programs[currentFile], currentFile, cfg);
     return errors;
   }
 

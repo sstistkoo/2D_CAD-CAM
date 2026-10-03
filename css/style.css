@@ -7376,6 +7376,33 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
      a nebylo to uvnitř na sobě nalepené. */
   .cne-quickbar.cne-hidden-by-sidebar { display: none; }
 
+  /* ── Editor z Kalkulaček (kreslicí): celý displej, větší horní lišta + ✕,
+     menší tlačítka dole ─────────────────────────────────────────────── */
+  .calc-overlay.cne-overlay-draw { padding: 0; align-items: stretch; background: var(--ctp-base); }
+  .calc-overlay.cne-overlay-draw .cnc-editor-window {
+    width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh;
+  }
+  .cne-overlay-draw .cne-sn-bar {
+    font-size: 12px; min-height: 48px;
+    padding: max(6px, env(safe-area-inset-top)) 58px 6px 8px; gap: 8px;
+  }
+  .cne-overlay-draw .cne-sn-arrow { width: 34px; height: 34px; font-size: 14px; border-radius: 6px; }
+  .cne-overlay-draw .cne-sn-close {
+    display: flex; right: 8px; width: 42px; height: 42px;
+    font-size: 22px; border-radius: 8px;
+    top: calc(50% + max(0px, env(safe-area-inset-top)) / 2);
+  }
+  .cne-overlay-draw .cne-quickbar {
+    gap: 3px; padding: 4px 4px max(6px, env(safe-area-inset-bottom)) 4px;
+  }
+  .cne-overlay-draw .cne-qb { padding: 4px 2px; font-size: 12px; min-height: 30px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-big,
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-arc { min-height: 42px; gap: 1px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-big { font-size: 17px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-arc { font-size: 14px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-big small { font-size: 10px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-arc small { font-size: 8px; }
+
   .cne-backdrop, .cne-textarea { font: 13px/18px "Consolas","Courier New",monospace; padding: 8px 8px; }
   .cne-textarea { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 

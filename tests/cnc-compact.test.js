@@ -26,6 +26,11 @@ describe('compactCncModal – zhuštěný zápis G-kódu', () => {
       .toEqual(['G00 X1 Z2 ; Bod 1', 'X3 ; Bod 2']);
   });
 
+  it('`;@@` poznámka jde k nejbližšímu G00 a nepřebije poznámku objektu', () => {
+    expect(run(';@ Usecka 1, L=9', ';@@ startovní bod', 'G90', 'G00 X0.000 Z5.000', 'G01 X9.000 Z5.000'))
+      .toEqual(['G90 G00 X0 Z5 ; startovní bod', 'G01 X9 ; Usecka 1, L=9']);
+  });
+
   it('čísla bez zbytečných nul', () => {
     expect(run('G03 X10.500 Z-0.000 R10.000')).toEqual(['G03 X10.5 Z0 R10']);
   });

@@ -1192,6 +1192,9 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
   let gpActive = false;
   let gpStartX = 0, gpStartY = 0;
   let gpHighlighted = null;
+  // Textarea CNC Editoru, nad kterou běží dlouhý stisk (viz touchstart) – po dobu
+  // gesta se jí vypne výběr textu, ať se nad kódem neotevře nativní výběr slova.
+  let gpTextarea = null;
   // Pokud je terč blízko horního okraje (plovoucí mobilní tlačítka), posun NAD prst
   // by ukázal pointer mimo obrazovku – v tom případě ho místo toho ukázat POD prstem.
   let gpOffsetY = GLOBAL_OFFSET_Y;
@@ -1268,7 +1271,16 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     }
   }
 
+  function releaseGpTextarea() {
+    if (!gpTextarea) return;
+    gpTextarea.style.removeProperty("-webkit-user-select");
+    gpTextarea.style.removeProperty("user-select");
+    gpTextarea.style.removeProperty("-webkit-touch-callout");
+    gpTextarea = null;
+  }
+
   function hideGlobalPointer() {
+    releaseGpTextarea();
     gpEl.style.display = "none";
     gpActive = false;
     if (gpHighlighted) {
@@ -1299,13 +1311,24 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     const t = e.touches[0];
     // Ignorovat pokud dotyk je na poli kde se píše (necháme nativní kurzor/výběr textu)
     if (e.target.tagName === "INPUT" && e.target.type !== "checkbox" && e.target.type !== "radio") return;
-    if (e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
+    // Výjimka: kódová plocha CNC Editoru je na mobilu hlavní část okna – křížek
+    // s offsetem se tam má dát vyvolat taky (dřív jen mimo ni, na „prázdném místě").
+    // Krátké klepnutí a posun prstu zůstávají beze změny (kurzor, rolování).
+    const editorTextarea = e.target.tagName === "TEXTAREA" && e.target.closest(".cnc-editor-window")
+      ? e.target : null;
+    if (e.target.tagName === "SELECT" || (e.target.tagName === "TEXTAREA" && !editorTextarea)) return;
     gpStartX = t.clientX;
     gpStartY = t.clientY;
     gpActive = false;
     if (gpTimer) clearTimeout(gpTimer);
     gpTimer = setTimeout(() => {
       gpActive = true;
+      if (editorTextarea) {
+        gpTextarea = editorTextarea;
+        editorTextarea.style.setProperty("-webkit-user-select", "none");
+        editorTextarea.style.setProperty("user-select", "none");
+        editorTextarea.style.setProperty("-webkit-touch-callout", "none");
+      }
       try { safeVibrate(VIBRATE_LONG_PRESS); } catch (_) {}
       showGlobalPointer(t.clientX, t.clientY);
     }, LONG_PRESS_MS);

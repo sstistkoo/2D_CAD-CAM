@@ -67,6 +67,10 @@ describe('runCncExport – řetězení a značky', () => {
     expect(code.match(/\bG0?1\b/g)?.length).toBe(1); // G01 se píše jen při změně
     expect(code).toContain('; KONTURA_START');
     expect(code).not.toMatch(/POLOTOVAR —/);
+    // Editor z Kalkulaček: bez G28/M30, G00 má poznámku, úsečka „název+pořadí, L=…".
+    expect(code).not.toMatch(/G28|M30/);
+    expect(code).toMatch(/G00 [^\n]*; startovní bod/);
+    expect(code).toMatch(/; Úsečka 1, L=50\b/);
   });
 
   it('polotovar je jen mezi STOCK_START/STOCK_END bez prefixu u řádků', () => {

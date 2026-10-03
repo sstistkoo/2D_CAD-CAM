@@ -801,6 +801,8 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       : `${_gV}${yVal.toFixed(3)} ${_gH}${xVal.toFixed(3)}`;
   }
   function emitRapid(x, y) {
+    // Editor z Kalkulaček: `;@@` = poznámka přímo k tomuto G00 (viz cncCompact.js).
+    if (asDrawn) out += ";@@ startovní bod\n";
     if (isInc && !_firstRapidDone) {
       out += `G00 ${fmtCoordAbs(x, y)} G90\n`;
       out += `G91 ; Inkrementální režim\n`;
@@ -1148,7 +1150,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   const _nz = (v) => String(Number(v.toFixed(3)));
   // Poznámka k objektu. asDrawn: krátká `;@ ...` – compactCncModal ji připojí za řádek kódu.
   function noteLine(label, full, short) {
-    return asDrawn ? `;@ ${label}${short ? ' ' + short : ''}\n` : `; ${label}${full}\n`;
+    return asDrawn ? `;@ ${label}${short ? ', ' + short : ''}\n` : `; ${label}${full}\n`;
   }
 
   // Společný emitor jednoho objektu (přepoužit pro konturu i polotovar)
@@ -1277,8 +1279,12 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       out += `; P${i + 1}: ${_gH}${_ipx.toFixed(3)} ${_gV}${_ipy.toFixed(3)}\n`;
     });
   }
-  out += "\nG28 ; Návrat do referenčního bodu\nM30 ; Konec programu\n";
-  out += "\n; === Konec ===\n";
+  // Editor z Kalkulaček je jen kresba kontury/polotovaru v mm, ne program –
+  // G28/M30 ani zakončení tam zbytečně zabírají místo.
+  if (!asDrawn) {
+    out += "\nG28 ; Návrat do referenčního bodu\nM30 ; Konec programu\n";
+    out += "\n; === Konec ===\n";
+  }
   if (forCam) {
     return { code: out, leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))] };
   }

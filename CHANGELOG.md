@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – úpravy z mobilu** (uživatel 3. 10. 2026):
+  v liště je „(CAD kal.)", ať jde poznat od dvou dalších editorů; zavření bez
+  změny kódu už se neptá na přepsání výkresu; v kódu není `G28`/`M30` (ani
+  hláška „Program nekončí M30"); za G0 je poznámka `startovní bod`, za
+  úsečkou `Úsečka 1, L=36.577` (čárka mezi pořadím a délkou); okno je přes
+  celý displej, horní lišta a ✕ jsou větší, tlačítka dole menší. Dlouhý stisk
+  (křížek s offsetem) jde vyvolat i nad kódem v editoru, ne jen na prázdném
+  místě. Nové `;@@` v `cncCompact.js` (poznámka k G00). Pravidla testů v
+  CLAUDE.md: při práci mimo CAM stačí `npm run test:cad`. SW v343.
 - **CNC Editor z Kalkulaček – kontura jako jeden řetěz, značky bloků**
   (uživatel 3. 10. 2026): v editoru měla každá úsečka kontury vlastní
   `G00` + `G01`, protože se tam chain-sort přeskakoval. Teď se kontura řetězí

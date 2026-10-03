@@ -1,8 +1,8 @@
 // Zhuštění G-kódu do „normálního zápisu": modální G0–G3 se nepíše znovu,
 // dokud ho nezruší jiný pohybový G, osy X/Z se píší jen když se mění, čísla
 // jsou bez zbytečných nul, prázdné řádky se vypouští a poznámka k objektu
-// (`;@ Úsečka 1 L=9.169`, viz runCncExport s asDrawn) jde ZA řádek kódu, ke
-// kterému patří. Čte text, který vyrobil runCncExport (řádky `G01 X.. Z..`,
+// (`;@ Úsečka 1, L=9.169`, viz runCncExport s asDrawn) jde ZA řádek kódu, ke
+// kterému patří; `;@@ text` jde za nejbližší G00 (např. „startovní bod"). Čte text, který vyrobil runCncExport (řádky `G01 X.. Z..`,
 // případně s R/I/K); ostatní řádky (komentáře, G90/G91, G28, M30 …) nechává.
 
 const NUM = String.raw`-?\d+(?:\.\d+)?`;
@@ -29,6 +29,7 @@ export function compactCncModal(code) {
   let pendingMode = null;      // { idx, word } – samostatné G90/G91 čekající na první pohyb
   let note = null;             // poznámka objektu čekající na řádek kódu
   let rapidIdx = null;         // řádek G00 objektu – kam poznámka, když nepřijde nic jiného
+  let rapidNote = null;        // `;@@ text` – poznámka přímo k nejbližšímu G00 (např. „startovní bod")
 
   const flushNote = () => {
     if (note === null) return;
@@ -39,6 +40,8 @@ export function compactCncModal(code) {
   // Poznámka patří k prvnímu řádku objektu, který není rychloposuv (G00 jen najíždí).
   const emit = (line, g) => {
     out.push(line);
+    if (g === 0 && rapidNote !== null) { out[out.length - 1] += ' ; ' + rapidNote; rapidNote = null; }
+    else if (g !== 0) rapidNote = null;
     if (note === null) return;
     if (g !== 0) { out[out.length - 1] += ' ; ' + note; note = null; rapidIdx = null; }
     else if (rapidIdx === null) rapidIdx = out.length - 1;
@@ -47,6 +50,8 @@ export function compactCncModal(code) {
   for (const line of code.split('\n')) {
     const t = line.trim();
     if (!t) continue;
+    // `;@@ text` jde k nejbližšímu G00 a nezasahuje do poznámky objektu (`;@`).
+    if (t.startsWith(';@@')) { rapidNote = t.slice(3).trim(); continue; }
     if (t.startsWith(';@')) { flushNote(); note = t.slice(2).trim(); continue; }
 
     const mm = /^G9([01])\b/i.exec(t);
