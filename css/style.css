@@ -7117,6 +7117,8 @@ button.vk-header-btn-green {
 .hl-g       { color: var(--ctp-blue);   font-weight: 700; }
 .hl-m       { color: var(--ctp-pink);   font-weight: 700; }
 .hl-coord   { color: var(--ctp-green); }
+.hl-coord.hl-cx { color: var(--ctp-green); }
+.hl-coord.hl-cz { color: var(--ctp-peach); }
 .hl-val     { color: var(--ctp-yellow); }
 .hl-feed    { color: var(--ctp-teal);   font-weight: 700; }
 .hl-param   { color: var(--ctp-mauve); }

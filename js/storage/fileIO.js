@@ -11,6 +11,7 @@ import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
 import { bridge } from '../bridge.js';
+import { compactCncModal } from './cncCompact.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
 import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
@@ -765,7 +766,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   const [_gH, _gV] = state.machineType === 'karusel' ? ['X','Z'] : ['Z','X'];
   if (isInc) out += `; Reference: ${_gH}${state.incReference.x.toFixed(3)} ${_gV}${state.incReference.y.toFixed(3)}\n`;
   out += "\n";
-  out += "G28 ; Návrat do referenčního bodu\n";
+  if (!asDrawn) out += "G28 ; Návrat do referenčního bodu\n";
   out += isInc ? "\n" : "G90 ; Absolutní režim\n\n";
 
   let prevX = isInc ? state.incReference.x : 0;
@@ -1141,23 +1142,29 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     stockItems.length = 0; sorted.forEach(s => stockItems.push(s));
   }
 
+  const _nz = (v) => String(Number(v.toFixed(3)));
+  // Poznámka k objektu. asDrawn: krátká `;@ ...` – compactCncModal ji připojí za řádek kódu.
+  function noteLine(label, full, short) {
+    return asDrawn ? `;@ ${label}${short ? ' ' + short : ''}\n` : `; ${label}${full}\n`;
+  }
+
   // Společný emitor jednoho objektu (přepoužit pro konturu i polotovar)
   function emitObj(obj) {
     const stockPrefix = obj.isStock ? "POLOTOVAR — " : "";
     switch (obj.type) {
       case "point":
-        out += `; ${stockPrefix}${obj.name}\n`;
+        out += noteLine(stockPrefix + obj.name, ``, '');
         if (!obj._chainCont && needsRapid(obj.x, obj.y)) emitRapid(obj.x, obj.y);
         lastEndX = obj.x; lastEndY = obj.y;
         break;
       case "line":
-        out += `; ${stockPrefix}${obj.name} (délka: ${Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1).toFixed(3)})\n`;
+        out += noteLine(stockPrefix + obj.name, ` (délka: ${Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1).toFixed(3)})`, `L=${_nz(Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1))}`);
         if (!obj._chainCont && needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
         lastEndX = obj.x2; lastEndY = obj.y2;
         break;
       case "circle": {
-        out += `; ${stockPrefix}${obj.name} (R: ${obj.r.toFixed(3)})\n`;
+        out += noteLine(stockPrefix + obj.name, ` (R: ${obj.r.toFixed(3)})`, `R=${_nz(obj.r)}`);
         const cStartX = obj.cx + obj.r, cStartY = obj.cy;
         if (!obj._chainCont && needsRapid(cStartX, cStartY)) emitRapid(cStartX, cStartY);
         const circG = flipArc('G02');
@@ -1174,7 +1181,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
         break;
       }
       case "arc": {
-        out += `; ${stockPrefix}${obj.name} (R: ${obj.r.toFixed(3)})\n`;
+        out += noteLine(stockPrefix + obj.name, ` (R: ${obj.r.toFixed(3)})`, `R=${_nz(obj.r)}`);
         const sx = obj.cx + obj.r * Math.cos(obj.startAngle),
           sy = obj.cy + obj.r * Math.sin(obj.startAngle);
         const ex = obj.cx + obj.r * Math.cos(obj.endAngle),
@@ -1193,7 +1200,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
         break;
       }
       case "rect":
-        out += `; ${stockPrefix}${obj.name} (${Math.abs(obj.x2 - obj.x1).toFixed(2)} × ${Math.abs(obj.y2 - obj.y1).toFixed(2)})\n`;
+        out += noteLine(stockPrefix + obj.name, ` (${Math.abs(obj.x2 - obj.x1).toFixed(2)} × ${Math.abs(obj.y2 - obj.y1).toFixed(2)})`, `${_nz(Math.abs(obj.x2 - obj.x1))}x${_nz(Math.abs(obj.y2 - obj.y1))}`);
         if (!obj._chainCont && needsRapid(obj.x1, obj.y1)) emitRapid(obj.x1, obj.y1);
         out += `G01 ${fmtCoord(obj.x2, obj.y1)}\n`;
         out += `G01 ${fmtCoord(obj.x2, obj.y2)}\n`;
@@ -1204,7 +1211,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       case "polyline": {
         const pn = obj.vertices.length;
         const pSegCnt = obj.closed ? pn : pn - 1;
-        out += `; ${stockPrefix}${obj.name} (${pn} vrcholů${obj.closed ? ', uzavřená' : ''})\n`;
+        out += noteLine(stockPrefix + obj.name, ` (${pn} vrcholů${obj.closed ? ', uzavřená' : ''})`, `${pn} vrch.${obj.closed ? ' uz.' : ''}`);
         if (!obj._chainCont && needsRapid(obj.vertices[0].x, obj.vertices[0].y)) {
           emitRapid(obj.vertices[0].x, obj.vertices[0].y);
         }
@@ -1267,7 +1274,8 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   if (forCam) {
     return { code: out, leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))] };
   }
-  if (asDrawn) return out; // Editor z Kalkulaček: panel CNC KÓD se nepřepisuje
+  // Editor z Kalkulaček: zhuštěný zápis (modální G, jen měněné osy); panel CNC KÓD se nepřepisuje
+  if (asDrawn) return compactCncModal(out);
   document.getElementById("cncOutput").value = out;
   return out;
 }

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – zhuštěný zápis** (uživatel 3. 10. 2026): bez G28
+  na začátku, G90 sloučené s prvním pohybem (`G90 G00 X0 Z0`), G0–G3 jen při
+  změně, jen měněné osy X/Z, čísla bez zbytečných nul (`R10`), žádné prázdné
+  řádky, poznámka objektu za řádkem kódu a zkrácená (`L=9.169`). Souřadnice X
+  (zelená) a Z (oranžová) se v editoru barevně liší. Převod G90/G91 píše
+  značku jen při změně režimu. Nový `js/storage/cncCompact.js` + test.
+  SW v341.
 - **Panel Kalkulačky + CNC Editor** (uživatel 2. 10. 2026): Převodník a
   Sinumerik přesunuty z „Další kalkulačky" do hlavní sekce; z hubu Sinumerik
   zmizely dlaždice CAM a Editor, **✏️ Editor** je nově v Kalkulačkách. Editor

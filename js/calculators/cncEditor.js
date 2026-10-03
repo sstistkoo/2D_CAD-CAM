@@ -962,7 +962,8 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
       const cls = g.msg ? 'hl-msg' : g.block ? 'hl-block' : g.logic ? 'hl-logic'
         : g.sub ? 'hl-sub' : g.g ? 'hl-g' : g.m ? 'hl-m' : g.param ? 'hl-param'
         : g.coord ? 'hl-coord' : 'hl-feed';
-      out += `<span class="${cls}">${esc(m[0])}</span>`;
+      const axis = g.coord ? { X: ' hl-cx', Z: ' hl-cz' }[m[0][0].toUpperCase()] || '' : '';
+      out += `<span class="${cls}${axis}">${esc(m[0])}</span>`;
       last = m.index + m[0].length;
       if (m[0].length === 0) TOKEN_RE.lastIndex++;
     }
@@ -1527,6 +1528,7 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
     const lines = code.split('\n');
     const newLines = [];
     let x = 0, z = 0, mode = 90;
+    let absWritten = false; // G90 uz v kodu stoji - znovu ho nepisem
     const params = getParamContext();
     for (const line of lines) {
       const ci = line.indexOf(';');
@@ -1534,7 +1536,7 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
       if (!clean) { newLines.push(line); continue; }
       const am = clean.match(/R(\d+)\s*=\s*([^=;]+?)(?=\s+[A-Z]|$)/g);
       if (am) am.forEach(a => { const p = a.split('='); const n = parseInt(p[0].replace('R','')); const v = evalParam(p[1], params); if (!isNaN(v)) params.set(`R${n}`, v); });
-      if (clean.includes('G90')) mode = 90;
+      if (clean.includes('G90')) { mode = 90; absWritten = true; }
       if (clean.includes('G91')) mode = 91;
       // Referenční / pevné body (G74/G75) nesou jen zástupné X0/Z0 – nejsou to
       // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
@@ -1549,7 +1551,10 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
           return `${ax}${Number(abs.toFixed(3))}`;
         });
       }
-      if (mode === 91) mod = mod.replace(/\bG91\b/gi, 'G90');
+      if (mode === 91) {
+        if (absWritten && /[XZ]/.test(clean)) mod = mod.replace(/\bG91\b\s*/gi, '');
+        else { mod = mod.replace(/\bG91\b/gi, 'G90'); absWritten = true; }
+      }
       newLines.push(mod);
     }
     return newLines.join('\n');
@@ -1562,6 +1567,7 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
     const lines = code.split('\n');
     const newLines = [];
     let x = 0, z = 0, curMode = 90, initX = false, initZ = false;
+    let emittedG = null; // naposledy zapsane G90/G91 - dalsi radek ho opakuje jen kdyz se meni
     const params = getParamContext();
     for (const line of lines) {
       const ci = line.indexOf(';');
@@ -1575,7 +1581,7 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
       // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
       if (/\bG7[45]\b/.test(clean)) { newLines.push(line); continue; }
       const hasX = /X/i.test(clean), hasZ = /Z/i.test(clean);
-      if (!hasX && !hasZ) { newLines.push(line); continue; }
+      if (!hasX && !hasZ) { if (/\bG9[01]\b/.test(clean)) emittedG = curMode; newLines.push(line); continue; }
       let tgt = 91;
       if ((hasX && !initX) || (hasZ && !initZ)) tgt = 90;
       let mod = line;
@@ -1590,8 +1596,10 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
       });
       mod = mod.replace(/\bG9[01]\b/gi, '').replace(/\s+/g, ' ');
       const newG = tgt === 90 ? 'G90' : 'G91';
-      if (/^\s*N\d+/i.test(mod)) mod = mod.replace(/^(N\d+)\s*/i, `$1 ${newG} `);
+      if (tgt === emittedG) mod = mod.trim();
+      else if (/^\s*N\d+/i.test(mod)) mod = mod.replace(/^(N\d+)\s*/i, `$1 ${newG} `);
       else mod = `${newG} ` + mod.trim();
+      emittedG = tgt;
       newLines.push(mod);
     }
     return newLines.join('\n');
