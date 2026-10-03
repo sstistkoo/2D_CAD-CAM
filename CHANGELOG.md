@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – kontura/polotovar, bod z plátna**
+  (uživatel 3. 10. 2026): dole nové tlačítko **✎ Kontura / ✎ Polotovar** –
+  ukazuje, co se na kurzoru zadává (podle `STOCK_START`/`STOCK_END` před ním),
+  klik vloží příslušnou značku. Tlačítko **🎯 Bod z plátna** zavře editor,
+  plátno čeká na jeden klik (nebo „↩ Zpět do editoru"/Esc) a editor se znovu
+  otevře s kurzorem na původním místě a vypsanými souřadnicemi (bez klávesnice,
+  bez dotazu na přepsání výkresu). U **I** a **K** je malé **(x)** a **(z)**.
+  Dlouhý stisk nad kódem v editoru křížek zase NEdělá (vráceno – matl
+  označování a zaměřování lupou); ostatní offset-křížek beze změny. SW v345.
 - **CNC Editor z Kalkulaček – pořadí nakreslení, stručná hlavička, kurzor
   křížkem** (uživatel 3. 10. 2026): kontura i polotovar jdou v pořadí, jak se
   kreslily (žádné přeřazení); jen segmenty, které na předchozí navazují druhým

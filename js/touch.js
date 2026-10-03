@@ -1192,9 +1192,6 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
   let gpActive = false;
   let gpStartX = 0, gpStartY = 0;
   let gpHighlighted = null;
-  // Textarea CNC Editoru, nad kterou běží dlouhý stisk (viz touchstart) – po dobu
-  // gesta se jí vypne výběr textu, ať se nad kódem neotevře nativní výběr slova.
-  let gpTextarea = null;
   // Pokud je terč blízko horního okraje (plovoucí mobilní tlačítka), posun NAD prst
   // by ukázal pointer mimo obrazovku – v tom případě ho místo toho ukázat POD prstem.
   let gpOffsetY = GLOBAL_OFFSET_Y;
@@ -1271,56 +1268,7 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     }
   }
 
-  /**
-   * Index znaku v textarea pod bodem (x, y) – textarea nemá caretPositionFromPoint,
-   * proto z metrik neproporcionálního písma: řádek = výška řádku, sloupec = šířka „M".
-   * (CNC Editor má white-space: pre, žádné zalamování.)
-   */
-  function caretIndexAt(ta, x, y) {
-    const cs = getComputedStyle(ta), r = ta.getBoundingClientRect();
-    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
-    const ctx = document.createElement("canvas").getContext("2d");
-    ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-    const cw = ctx.measureText("M").width || 8;
-    const lines = ta.value.split("\n");
-    const li = Math.max(0, Math.min(lines.length - 1,
-      Math.floor((y - r.top - parseFloat(cs.paddingTop) + ta.scrollTop) / lh)));
-    const col = Math.max(0, Math.min(lines[li].length,
-      Math.round((x - r.left - parseFloat(cs.paddingLeft) + ta.scrollLeft) / cw)));
-    let idx = col;
-    for (let i = 0; i < li; i++) idx += lines[i].length + 1;
-    return idx;
-  }
-
-  /** Postaví kurzor editoru na místo křížku – bez vysunutí klávesnice (inputmode=none). */
-  function placeEditorCaret(ta, x, y) {
-    const r = ta.getBoundingClientRect();
-    if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
-    const idx = caretIndexAt(ta, x, y);
-    const prevMode = ta.getAttribute("inputmode");
-    ta.setAttribute("inputmode", "none");
-    ta.focus({ preventScroll: true });
-    ta.setSelectionRange(idx, idx);
-    const restore = () => {
-      ta.removeEventListener("pointerdown", restore);
-      ta.removeEventListener("blur", restore);
-      if (prevMode === null) ta.removeAttribute("inputmode");
-      else ta.setAttribute("inputmode", prevMode);
-    };
-    ta.addEventListener("pointerdown", restore);
-    ta.addEventListener("blur", restore);
-  }
-
-  function releaseGpTextarea() {
-    if (!gpTextarea) return;
-    gpTextarea.style.removeProperty("-webkit-user-select");
-    gpTextarea.style.removeProperty("user-select");
-    gpTextarea.style.removeProperty("-webkit-touch-callout");
-    gpTextarea = null;
-  }
-
   function hideGlobalPointer() {
-    releaseGpTextarea();
     gpEl.style.display = "none";
     gpActive = false;
     if (gpHighlighted) {
@@ -1351,24 +1299,13 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
     const t = e.touches[0];
     // Ignorovat pokud dotyk je na poli kde se píše (necháme nativní kurzor/výběr textu)
     if (e.target.tagName === "INPUT" && e.target.type !== "checkbox" && e.target.type !== "radio") return;
-    // Výjimka: kódová plocha CNC Editoru je na mobilu hlavní část okna – křížek
-    // s offsetem se tam má dát vyvolat taky (dřív jen mimo ni, na „prázdném místě").
-    // Krátké klepnutí a posun prstu zůstávají beze změny (kurzor, rolování).
-    const editorTextarea = e.target.tagName === "TEXTAREA" && e.target.closest(".cnc-editor-window")
-      ? e.target : null;
-    if (e.target.tagName === "SELECT" || (e.target.tagName === "TEXTAREA" && !editorTextarea)) return;
+    if (e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
     gpStartX = t.clientX;
     gpStartY = t.clientY;
     gpActive = false;
     if (gpTimer) clearTimeout(gpTimer);
     gpTimer = setTimeout(() => {
       gpActive = true;
-      if (editorTextarea) {
-        gpTextarea = editorTextarea;
-        editorTextarea.style.setProperty("-webkit-user-select", "none");
-        editorTextarea.style.setProperty("user-select", "none");
-        editorTextarea.style.setProperty("-webkit-touch-callout", "none");
-      }
       try { safeVibrate(VIBRATE_LONG_PRESS); } catch (_) {}
       showGlobalPointer(t.clientX, t.clientY);
     }, LONG_PRESS_MS);
@@ -1397,8 +1334,7 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
       e.preventDefault();
       const fx = (e.changedTouches[0]?.clientX ?? gpStartX);
       const fy = (e.changedTouches[0]?.clientY ?? gpStartY);
-      if (gpTextarea) placeEditorCaret(gpTextarea, fx, fy + gpOffsetY);
-      else clickGlobalAt(fx, fy + gpOffsetY, fx, fy);
+      clickGlobalAt(fx, fy + gpOffsetY, fx, fy);
       hideGlobalPointer();
     }
     gpActive = false;

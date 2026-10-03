@@ -8,6 +8,7 @@ import { makeOverlay, onOverlayRemoved, showConfirmDialog } from '../dialogFacto
 import { bridge } from '../bridge.js';
 import { showToast } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
+import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -504,8 +505,8 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb" data-inp="X" title="Osa X (průměr)">X</button>
     <button class="cne-qb" data-inp="Z" title="Osa Z (délka)">Z</button>
     <button class="cne-qb" data-inp="R" title="R – Parametr">R</button>
-    <button class="cne-qb" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X)">I</button>
-    <button class="cne-qb" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K</button>
+    <button class="cne-qb" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X)">I<small class="cne-qb-axis">(x)</small></button>
+    <button class="cne-qb" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button>
     <button class="cne-qb accent cne-qb-big" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start bod</small></button>
     <button class="cne-qb accent cne-qb-big" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
     <button class="cne-qb gray" data-ins=" " title="Mezera">␣</button>
@@ -522,6 +523,8 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb cne-kb-btn" data-act="keyboard" title="Zobrazit klávesnici">⌨</button>
     <button class="cne-qb accent cne-qb-arc" data-ins="G2 " title="G2 &ndash; kruhov&aacute; interpolace po sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G2</span><small>&#8635; oblouk</small></button>
     <button class="cne-qb accent cne-qb-arc" data-ins="G3 " title="G3 &ndash; kruhov&aacute; interpolace proti sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G3</span><small>&#8634; oblouk</small></button>
+    <button class="cne-qb accent cne-qb-wide" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
+    <button class="cne-qb green cne-qb-wide" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯 Bod z plátna</button>
   </div>`;
   return `
   <div class="cne-quickbar">
@@ -735,7 +738,12 @@ function buildEditorHTML(drawMode = false) {
 // ══════════════════════════════════════════════════════════════
 // ██  MAIN EXPORT  ████████████████████████████████████████████
 // ══════════════════════════════════════════════════════════════
-export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
+export function openCncEditor(initialCode, { drawOnClose = false, baseline = null, caret = null, insert = null } = {}) {
+  // `baseline` = kód z výkresu při PRVNÍM otevření (zachová se přes návrat z výběru bodu
+  // z plátna, kdy se editor otevírá znovu s rozpracovaným textem). `caret`/`insert` =
+  // kam vložit souřadnice kliknuté na plátně.
+  const baselineCode = typeof baseline === 'string' ? baseline : initialCode;
+  let pickSuspended = false;        // editor je zavřený jen na chvíli (výběr bodu) – bez dotazu na přepsání
   // ── State ──────────────────────────────────────────────────
   let programs   = {};
   let currentFile = '';
@@ -787,12 +795,12 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
   let sentToCad = false;
   if (drawOnClose) {
     onOverlayRemoved(overlay, () => {
-      if (sentToCad) return;
+      if (sentToCad || pickSuspended) return;
       let code = editor.value;
       if (!code.trim()) return;
       // Nic se nezměnilo oproti kódu z výkresu → není co přepisovat, bez dotazu.
       const sameText = (a, b) => String(a).replace(/\r/g, '').trim() === String(b).replace(/\r/g, '').trim();
-      if (typeof initialCode === 'string' && sameText(code, initialCode)) return;
+      if (typeof baselineCode === 'string' && sameText(code, baselineCode)) return;
       if (coordMode === 'inc') code = codeToAbsolute(code);
       code = convertCornersToPaths(code).code;
       showConfirmDialog('Přepsat výkres podle zapsaného kódu?', () => {
@@ -1680,11 +1688,75 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
   // ── Editor input handler ───────────────────────────────────
   function onInput() {
     programs[currentFile] = editor.value;
+    updateEntryMode();
     if (rafHL) cancelAnimationFrame(rafHL);
     rafHL = requestAnimationFrame(refreshVisual);
     scheduleValidation();
     clearTimeout(tSave);
     tSave = setTimeout(persist, 2000);
+  }
+
+  // ── Kontura × polotovar (přepínač dole) ──────────────────────
+  // Co se zrovna zadává, určuje poloha kurzoru: za posledním `STOCK_START`, který
+  // ještě nebyl uzavřen `STOCK_END`, je polotovar. Tlačítko vloží příslušnou
+  // značku (stejné, jaké píše export a čte kreslicí parser).
+  const stockToggleBtn = $('stockToggleBtn');
+  function caretInStock() {
+    const before = editor.value.slice(0, editor.selectionStart ?? 0);
+    return before.lastIndexOf('STOCK_START') > before.lastIndexOf('STOCK_END');
+  }
+  function updateEntryMode() {
+    if (!stockToggleBtn) return;
+    const inStock = caretInStock();
+    stockToggleBtn.textContent = inStock ? '✎ Polotovar' : '✎ Kontura';
+    stockToggleBtn.classList.toggle('stock-on', inStock);
+  }
+  /** Vloží blok textu na kurzor, na vlastní řádek (bez auto-mezery quickbaru). */
+  function insertLines(text) {
+    editor.readOnly = false;
+    const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    const lead = s > 0 && v[s - 1] !== '\n' ? '\n' : '';
+    const tail = v[e] === '\n' || e >= v.length ? '' : '\n';
+    const ins = lead + text + '\n' + tail;
+    captureUndoSnapshot();
+    editor.value = v.slice(0, s) + ins + v.slice(e);
+    editor.selectionStart = editor.selectionEnd = s + lead.length + text.length + 1;
+    editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
+    onInput();
+  }
+  function toggleEntryMode() {
+    insertLines(caretInStock() ? '; STOCK_END' : '; STOCK_START — polotovar (isStock objekty)');
+  }
+
+  // ── Bod z plátna ─────────────────────────────────────────────
+  // Editor se na chvíli zavře (text i poloha kurzoru se uloží), plátno čeká na
+  // jeden klik, pak se editor otevře znovu a souřadnice se vypíšou na kurzor.
+  function startCanvasPick() {
+    programs[currentFile] = editor.value;
+    persist();
+    const keep = { code: editor.value, pos: editor.selectionStart ?? editor.value.length };
+    pickSuspended = true;
+    overlay.remove();
+    const picker = createCanvasPicker();
+    const back = document.createElement('button');
+    back.className = 'cne-pick-cancel';
+    back.textContent = '↩ Zpět do editoru';
+    document.body.appendChild(back);
+    const reopen = (ins) => {
+      back.remove();
+      document.removeEventListener('keydown', onEsc);
+      openCncEditor(keep.code, { drawOnClose, baseline: baselineCode, caret: keep.pos, insert: ins });
+    };
+    const onEsc = (e) => { if (e.key === 'Escape') { picker.cancel(); reopen(null); } };
+    document.addEventListener('keydown', onEsc);
+    back.addEventListener('click', () => { picker.cancel(); reopen(null); });
+    picker.pick((wx, wy) => {
+      const fmt = bridge.formatAbsCoord ? bridge.formatAbsCoord(wx, wy) : `X${wy.toFixed(3)} Z${wx.toFixed(3)}`;
+      // bez zbytečných nul (Z255.100 → Z255.1), stejně jako zhuštěný zápis
+      reopen(fmt.replace(/([XZ])(-?\d+\.\d+)/g, (_, a, n) => a + String(Number(n))));
+    }, { hint: 'Klikněte na plátno – souřadnice se vloží do editoru' });
   }
 
   // ── Zpět / Vpřed (šipky v oranžové liště) ───────────────────
@@ -1736,6 +1808,7 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
   // ██  EVENT WIRING  ████████████████████████████████████████
   // ══════════════════════════════════════════════════════════
   editor.addEventListener('input', onInput);
+  ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, updateEntryMode));
   editor.addEventListener('scroll', syncScroll);
   // Na mobilu je editor zpočátku readOnly (aby se klávesnice neotvírala
   // automaticky při scrollování/výběru). Klepnutím do textu se ale má
@@ -1821,6 +1894,8 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
         case 'addBlock':  insertBlockNumber(); break;
         case 'toggleComments': toggleComments(); break;
         case 'keyboard':  editor.readOnly = false; editor.focus(); break;
+        case 'stockToggle': toggleEntryMode(); break;
+        case 'pickFromCanvas': startCanvasPick(); break;
         case 'menu':      $('menuModal').style.display = 'flex'; break;
         case 'menuClose': $('menuModal').style.display = 'none'; break;
         case 'toCad': {
@@ -1945,4 +2020,27 @@ export function openCncEditor(initialCode, { drawOnClose = false } = {}) {
 
   displayFile(currentFile);
   renderMergeList();
+
+  // Návrat z výběru bodu na plátně: kurzor tam, kde byl, a vypsat souřadnice.
+  if (caret !== null) {
+    const pos = Math.min(caret, editor.value.length);
+    editor.selectionStart = editor.selectionEnd = pos;
+    if (insert) {
+      // Bez klávesnice: inputmode=none do prvního dalšího klepnutí do editoru.
+      const prevMode = editor.getAttribute('inputmode');
+      editor.setAttribute('inputmode', 'none');
+      const restore = () => {
+        editor.removeEventListener('pointerdown', restore);
+        if (prevMode === null) editor.removeAttribute('inputmode');
+        else editor.setAttribute('inputmode', prevMode);
+      };
+      editor.addEventListener('pointerdown', restore);
+      insertText(insert);
+      const line = editor.value.slice(0, editor.selectionStart).split('\n').length - 1;
+      editor.scrollTop = Math.max(0, (line - 3) * 18);
+      syncScroll();
+      if (coordMode === 'inc') showToast('Souřadnice jsou absolutní (G90)');
+    }
+  }
+  updateEntryMode();
 }

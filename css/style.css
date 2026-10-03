@@ -7164,6 +7164,18 @@ button.vk-header-btn-green {
   font: 600 11px/1 system-ui, sans-serif; color: var(--ctp-subtext0);
 }
 .cne-quickbar--draw .cne-qb-arc small { font-size: 9px; }
+/* Dvojice dole v kreslicí liště: přepínač kontura/polotovar a bod z plátna */
+.cne-quickbar--draw .cne-qb-wide { grid-column: span 3; font-size: 13px; min-height: 34px; }
+.cne-qb.stock-on { color: var(--ctp-base); background: var(--ctp-peach); border-color: var(--ctp-peach); }
+/* (x) / (z) za I a K – jen upřesnění, o které osy jde */
+.cne-qb .cne-qb-axis { font: 600 9px/1 system-ui, sans-serif; color: var(--ctp-subtext0); margin-left: 1px; align-self: flex-end; padding-bottom: 2px; }
+/* Plovoucí „zpět" při výběru bodu z plátna (editor je zavřený) */
+.cne-pick-cancel {
+  position: fixed; z-index: 400; top: max(8px, env(safe-area-inset-top)); right: 8px;
+  padding: 10px 14px; border-radius: 10px; border: 1px solid var(--ctp-surface1);
+  background: var(--ctp-surface0); color: var(--ctp-text); font: 700 14px system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(0,0,0,.45);
+}
 .cne-qb.blue   { color: var(--ctp-blue); }
 .cne-qb.green  { color: var(--ctp-green); }
 .cne-qb.red    { color: var(--ctp-red); }
