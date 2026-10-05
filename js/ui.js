@@ -4290,9 +4290,17 @@ document.getElementById("btnOpenTolerance").addEventListener("click", openTolera
 document.getElementById("btnOpenRoughness").addEventListener("click", openRoughnessCalc);
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
-document.getElementById("btnOpenCncEditor")?.addEventListener("click", () => {
+// CNC Editor (kreslení) – z Kalkulaček i z mobilní spodní lišty (✏️ mezi VK a měřením).
+function openDrawCncEditor() {
   const code = bridge.exportCncAsDrawn();       // celé plátno; označené objekty → zvýraznit řádky
   openCncEditor(code, { drawOnClose: true, highlight: bridge.cncAsDrawnSelection?.() || [] });
+}
+document.getElementById("btnOpenCncEditor")?.addEventListener("click", openDrawCncEditor);
+document.getElementById("mobileCncEditor")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("topbar")?.classList.remove("mobile-open");
+  document.body.classList.remove("toolbar-open");
+  openDrawCncEditor();
 });
 // VK i číselné zadání sdílí jedno okno – liší se jen výchozí záložkou.
 document.getElementById("btnOpenVk")?.addEventListener("click", () => showCombinedModal('vk'));

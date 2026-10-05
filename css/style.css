@@ -1964,7 +1964,7 @@ body {
   left: 8px;
   right: 8px;
   z-index: 60;
-  grid-template-columns: 48px 1fr 48px 48px 1fr 24px 1fr 48px;
+  grid-template-columns: 48px 1fr 48px 48px 48px 1fr 24px 1fr 48px;
   justify-items: center;
   align-items: center;
   pointer-events: none;
@@ -2000,8 +2000,15 @@ body {
   letter-spacing: 0.5px;
 }
 
-#mobileMeasure {
+/* ✏️ CNC Editor (kreslení) mezi VK a měřením */
+#mobileCncEditor {
   grid-column: 4;
+  background: var(--ctp-mauve);
+  color: var(--ctp-base);
+}
+
+#mobileMeasure {
+  grid-column: 5;
   background: var(--ctp-red);
   color: var(--ctp-base);
   transition: background 0.2s, box-shadow 0.2s;
@@ -2013,7 +2020,7 @@ body {
 }
 
 #mobileBottomBar > #mobileSettings {
-  grid-column: 6;
+  grid-column: 7;
   width: 24px;
   height: 24px;
   font-size: 12px;
@@ -2437,7 +2444,7 @@ body {
 
 
 #mobileSidebarToggle {
-  grid-column: 8;
+  grid-column: 9;
   background: var(--ctp-green);
   color: var(--ctp-base);
 }
@@ -2995,7 +3002,8 @@ body {
     justify-content: center;
   }
 
-  #mobileMeasure {
+  #mobileMeasure,
+  #mobileCncEditor {
     display: flex;
     align-items: center;
     justify-content: center;

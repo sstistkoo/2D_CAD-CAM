@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mobil: ✏️ CNC Editor ve spodní liště** mezi VK a měřením (uživatel 5. 10.
+  2026) – otevře stejný editor jako Kalkulačky → CNC Editor. SW v361.
 - **CNC Editor z Kalkulaček – pomůcky pro zjišťování rozměrů** (uživatel
   5. 10. 2026): řádek s údaji k řádku s kurzorem (úsečka: L, úhel, ΔX/ΔZ;
   oblouk: R, střed, I/K, výseč, délka), **∠ úsečka úhlem** (úhel + L / X / Z →
