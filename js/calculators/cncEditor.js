@@ -8,6 +8,7 @@ import { makeOverlay, onOverlayRemoved, showConfirmDialog } from '../dialogFacto
 import { bridge } from '../bridge.js';
 import { showToast, state } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
+import { safeEvalMath } from '../utils.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 
@@ -19,6 +20,7 @@ const STORAGE_MERGE = 'skica-cnc-editor-merge-queue';
 const STORAGE_HIST  = 'skica-cnc-editor-history';
 const STORAGE_FONT  = 'skica-cnc-editor-font-size';
 const HIST_KEEP     = 30;     // kroků Zpět/Vpřed, které přežijí zavření editoru
+const HIST_MAX_CHARS = 1_000_000; // strop uložené historie (localStorage má typicky ~5 MB)
 const FS_MIN = 9, FS_MAX = 26;
 
 // Historie Zpět/Vpřed po souborech – drží se mimo okno editoru, aby přežila
@@ -320,7 +322,9 @@ class CNCParser {
           return ex ? ex.value : 0;
         }).replace(/[^0-9.+\-*/()]/g, '');
         let val = 0;
-        try { val = Function('"use strict";return (' + expr + ')')(); } catch { val = 0; }
+        // CSP zakazuje eval/Function (tiše by vrátilo 0) – bezpečný parser výrazů.
+        val = safeEvalMath(expr);
+        if (!isFinite(val)) val = 0;
         const nM = clean.match(/^N(\d+)/);
         this.parameters.set(`R${pn}`, {
           value: val,
@@ -388,8 +392,9 @@ function rewriteLineXZ(lineText, newX, newZ, stripRe) {
 
   if (stripRe) code = code.replace(stripRe, '');
 
-  const xStr = 'X' + newX.toFixed(3);
-  const zStr = 'Z' + newZ.toFixed(3);
+  // Bez zbytečných nul (Z65.000 → Z65), stejně jako zhuštěný zápis editoru.
+  const xStr = 'X' + String(Number(newX.toFixed(3)));
+  const zStr = 'Z' + String(Number(newZ.toFixed(3)));
   code = /\bX\s*-?[\d.]+/i.test(code) ? code.replace(/\bX\s*-?[\d.]+/i, xStr) : (code.replace(/\s+$/, '') + ' ' + xStr);
   code = /\bZ\s*-?[\d.]+/i.test(code) ? code.replace(/\bZ\s*-?[\d.]+/i, zStr) : (code.replace(/\s+$/, '') + ' ' + zStr);
 
@@ -964,6 +969,16 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function storeHistory() {
     if (!historyFile) return;
     histByFile[historyFile] = { undo: undoStack.slice(-HIST_KEEP), redo: redoStack.slice(-HIST_KEEP), cur: editor.value };
+    // Strop velikosti: historie nesmí zaplnit localStorage (pak by neprošlo ani
+    // uložení programů). Nejdřív jdou pryč historie ostatních souborů, pak
+    // nejstarší kroky toho aktuálního.
+    if (JSON.stringify(histByFile).length > HIST_MAX_CHARS) {
+      for (const k of Object.keys(histByFile)) if (k !== historyFile) delete histByFile[k];
+      const h = histByFile[historyFile];
+      while (JSON.stringify(histByFile).length > HIST_MAX_CHARS && (h.redo.length || h.undo.length)) {
+        if (h.redo.length) h.redo.shift(); else h.undo.shift();
+      }
+    }
     storageSave(STORAGE_HIST, histByFile);
   }
   function loadHistory(name) {
@@ -1037,13 +1052,20 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (!confirm(`Smazat "${name}"?`)) return;
     if (historyFile === name) storeHistory();
     // Smazání jde vrátit šipkou ◀: krok Zpět v souboru, který se zobrazí místo něj.
-    const restore = { restoreFile: name, code: programs[name], hist: histByFile[name] || null, t: Date.now() };
+    // Vnořené „obnov smazaný soubor" z jeho vlastní historie se nenese (rostlo by do hloubky).
+    const h = histByFile[name];
+    const hist = h ? { ...h, undo: h.undo.filter(e => !e.restoreFile) } : null;
+    const restore = { restoreFile: name, code: programs[name], hist, t: Date.now(), wasCurrent: name === currentFile };
     delete programs[name];
     delete histByFile[name];
     if (historyFile === name) historyFile = null;
-    const keys = Object.keys(programs);
-    if (keys.length) displayFile(keys[0]);
-    else { currentFile = ''; ensureFile(); displayFile(currentFile); }
+    // Smazán jiný než otevřený soubor → editor zůstává, kde je.
+    if (name !== currentFile && typeof programs[currentFile] === 'string') renderFileList();
+    else {
+      const keys = Object.keys(programs);
+      if (keys.length) displayFile(keys[0]);
+      else { currentFile = ''; ensureFile(); displayFile(currentFile); }
+    }
     undoStack.push(restore);
     redoStack.length = 0;
     updateUndoRedoButtons();
@@ -1057,7 +1079,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     storeHistory();                   // současný soubor už bez kroku obnovení
     programs[name] = e.code ?? '';
     histByFile[name] = e.hist ? { ...e.hist, cur: e.code ?? '' } : { undo: [], redo: [], cur: e.code ?? '' };
-    displayFile(name);
+    // Smazaný byl jiný než otevřený soubor → jen se vrátí do seznamu, editor zůstává.
+    if (e.wasCurrent === false) { renderFileList(); updateUndoRedoButtons(); }
+    else displayFile(name);
     persist();
     showToast(`Soubor ${name} obnoven`);
   }
@@ -2356,7 +2380,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Editor z Kalkulaček ukazuje VŽDY to, co je na plátně (i když byl předtím
   // v jiném souboru nebo v něm zůstal smazaný text) – předchozí text zůstává
   // jako krok Zpět (loadHistory).
-  if (drawOnClose && typeof initialCode === 'string') {
+  // Návrat z „Bod z plátna" (caret) NE: editor pokračuje v souboru, ve kterém byl
+  // (uložený currentFile) – jinak by se text jiného souboru zapsal přes CNC_PROGRAM.
+  if (drawOnClose && caret === null && typeof initialCode === 'string') {
     programs['CNC_PROGRAM.MPF'] = initialCode;
     currentFile = 'CNC_PROGRAM.MPF';
   }

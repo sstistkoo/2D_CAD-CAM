@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CNC Editor – kontrola chyb** (uživatel 5. 10. 2026):
+  - návrat z „🎯 Bod z plátna" v jiném souboru než CNC_PROGRAM přepsal
+    CNC_PROGRAM textem toho souboru – editor teď pokračuje v souboru, kde byl;
+  - validace R-parametrů (CNC i CAM Editor) počítala přes `Function()`, které
+    CSP zakazuje → každý R-parametr vyšel 0; nově `safeEvalMath`;
+  - historie Zpět/Vpřed v localStorage má strop 1 MB (dřív mohla zaplnit
+    úložiště a zablokovat ukládání programů); smazaný soubor nenese vnořené
+    obnovy;
+  - smazání / obnovení jiného než otevřeného souboru editor nepřepne;
+  - převod sražení/zaoblení píše čísla bez zbytečných nul (Z65 místo Z65.000).
+  SW v358.
+
 ### Changed
 - **CNC Editor z Kalkulaček – lišta „CAD G-kód kreslení" + režim X; oprava
   karuselu v průměru** (uživatel 5. 10. 2026): oranžová lišta místo

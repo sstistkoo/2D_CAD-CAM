@@ -7,6 +7,7 @@ import { makeOverlay } from '../dialogFactory.js';
 import { openCamSimulator } from './camSimulator.js';
 import { showToast } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
+import { safeEvalMath } from '../utils.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -299,7 +300,9 @@ class CNCParser {
           return ex ? ex.value : 0;
         }).replace(/[^0-9.+\-*/()]/g, '');
         let val = 0;
-        try { val = Function('"use strict";return (' + expr + ')')(); } catch { val = 0; }
+        // CSP zakazuje eval/Function (tiše by vrátilo 0) – bezpečný parser výrazů.
+        val = safeEvalMath(expr);
+        if (!isFinite(val)) val = 0;
         const nM = clean.match(/^N(\d+)/);
         this.parameters.set(`R${pn}`, {
           value: val,
