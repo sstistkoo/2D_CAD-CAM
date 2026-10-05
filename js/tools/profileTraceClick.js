@@ -3,8 +3,7 @@
 // ║  Multi-click nástroj pro sběr souřadnic po kontuře         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS } from '../constants.js';
-import { state, showToast, toDisplayCoords, axisLabels, displayX, inputX, xPrefix, coordHelpers, pushUndo } from '../state.js';
+import { state, showToast, toDisplayCoords, displayX, inputX, coordHelpers, pushUndo } from '../state.js';
 import { renderAll } from '../render.js';
 import { vSign } from '../canvas.js';
 import { resetHint, setHint, updateObjectList } from '../ui.js';

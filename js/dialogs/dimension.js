@@ -265,9 +265,20 @@ export function addLinearDimForLine(line, cx, cy) {
  * dimMidAng udává střed rozevření, takže render kreslí oblouk správnou stranou
  * (i pro rozevření > 180°).
  */
+/**
+ * Rozevření a střední úhel oblouku s ohledem na směr (`ccw === false` = po
+ * směru hodin). Prostý rozdíl end−start dává u oblouku po směru hodin
+ * doplněk do 360° a střed na prázdné straně.
+ */
+function _arcSweepMid(arc) {
+  const TAU = 2 * Math.PI;
+  const ccw = arc.ccw !== false;
+  const sweep = ((ccw ? arc.endAngle - arc.startAngle : arc.startAngle - arc.endAngle) % TAU + TAU) % TAU;
+  return { sweep, mid: arc.startAngle + (ccw ? sweep : -sweep) / 2 };
+}
+
 export function addArcAngleDim(arc) {
-  let sweep = arc.endAngle - arc.startAngle;
-  if (sweep < 0) sweep += 2 * Math.PI;
+  const { sweep, mid } = _arcSweepMid(arc);
   const sweepDeg = sweep * 180 / Math.PI;
   const x1 = arc.cx + arc.r * Math.cos(arc.startAngle);
   const y1 = arc.cy + arc.r * Math.sin(arc.startAngle);
@@ -280,7 +291,7 @@ export function addArcAngleDim(arc) {
     sourceObjId: arc.id || null,
     dimAngle: sweep,
     dimCenterX: arc.cx, dimCenterY: arc.cy, dimRadius: arc.r,
-    dimMidAng: arc.startAngle + sweep / 2,
+    dimMidAng: mid,
     dimSrcX1: x1, dimSrcY1: y1, dimSrcX2: x2, dimSrcY2: y2,
     color: COLORS.textSecondary,
   });
@@ -488,9 +499,7 @@ export function addDimensionForObject(obj) {
     case "arc": {
       // Úhlová kóta rozevření + radiální kóta jako odkaz (leader) vytažený ven
       addArcAngleDim(obj);
-      let sweep = obj.endAngle - obj.startAngle;
-      if (sweep < 0) sweep += 2 * Math.PI;
-      const midAngle = obj.startAngle + sweep / 2;
+      const midAngle = _arcSweepMid(obj).mid;
       const ax = obj.cx + obj.r * Math.cos(midAngle);
       const ay = obj.cy + obj.r * Math.sin(midAngle);
       addArcRadiusLeader(obj, midAngle, ax + Math.cos(midAngle) * obj.r * 0.6, ay + Math.sin(midAngle) * obj.r * 0.6);
@@ -752,9 +761,7 @@ export function updateAssociativeDimensions() {
           dim.dimCenterX = src.cx; dim.dimCenterY = src.cy;
           dim.name = `Kóta R${src.r.toFixed(2)}`;
         } else if (src.type === 'arc' || src.type === 'circle') {
-          const angle = src.type === 'arc'
-            ? (src.startAngle + src.endAngle) / 2
-            : 0;
+          const angle = src.type === 'arc' ? _arcSweepMid(src).mid : 0;
           dim.x1 = src.cx;
           dim.y1 = src.cy;
           dim.x2 = src.cx + src.r * Math.cos(angle);
@@ -768,8 +775,7 @@ export function updateAssociativeDimensions() {
       }
       case 'angular': {
         if (src.type === 'arc') {
-          let sweep = src.endAngle - src.startAngle;
-          if (sweep < 0) sweep += 2 * Math.PI;
+          const { sweep, mid } = _arcSweepMid(src);
           dim.x1 = src.cx + src.r * Math.cos(src.startAngle);
           dim.y1 = src.cy + src.r * Math.sin(src.startAngle);
           dim.x2 = src.cx + src.r * Math.cos(src.endAngle);
@@ -778,7 +784,7 @@ export function updateAssociativeDimensions() {
           dim.dimCenterX = src.cx;
           dim.dimCenterY = src.cy;
           dim.dimRadius = src.r;
-          if (dim.dimMidAng != null) dim.dimMidAng = src.startAngle + sweep / 2;
+          if (dim.dimMidAng != null) dim.dimMidAng = mid;
           dim.dimSrcX1 = dim.x1;
           dim.dimSrcY1 = dim.y1;
           dim.dimSrcX2 = dim.x2;

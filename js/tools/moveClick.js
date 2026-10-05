@@ -1,8 +1,6 @@
 import { state, pushUndo, showToast } from '../state.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { updateProperties, resetHint, setHint } from '../ui.js';
-import { moveObject } from '../objects.js';
-import { renderAll } from '../render.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 import { hasAnchoredPoint } from './anchorClick.js';
 
@@ -41,14 +39,16 @@ export function handleMoveClick(wx, wy) {
 
       // Přidat kóty:
       // - asociativní (sourceObjId odpovídá vybraným) → budou aktualizovány přes updateAssociativeDimensions
-      // - nenavázané (isDimension bez sourceObjId) → přesunout přímo
+      // - nenavázané (isDimension bez sourceObjId) → přesunout přímo, ale JEN
+      //   když jsou samy vybrané – jinak by s výběrem odjely všechny volné
+      //   kóty a souřadnicové štítky z celého výkresu
       const dimIndices = [];
       state.objects.forEach((o, i) => {
         if (o.isDimension || o.isCoordLabel) {
           if (o.sourceObjId && selectedIds.has(o.sourceObjId)) {
             dimIndices.push(i); // asociativní kóta
-          } else if (!o.sourceObjId) {
-            dimIndices.push(i); // nenavázaná kóta – přesunout přímo
+          } else if (!o.sourceObjId && state.multiSelected.has(i)) {
+            dimIndices.push(i); // vybraná nenavázaná kóta – přesunout přímo
           }
         }
       });

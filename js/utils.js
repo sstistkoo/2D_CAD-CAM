@@ -274,8 +274,8 @@ export function getObjectSnapPoints(obj) {
     case "text": {
       const pts = [{ x: obj.x, y: obj.y }];
       // Snap body na cestě – začátek a střed textu
-      if (obj.pathMode && obj.pathMode !== 'none' && obj.pathObjectId != null) {
-        const pathObj = state.objects[obj.pathObjectId];
+      {
+        const pathObj = getTextPathObject(obj);
         if (pathObj && obj.pathMode === 'line' && (pathObj.type === 'line' || pathObj.type === 'constr')) {
           pts.push({ x: pathObj.x1, y: pathObj.y1 });
           pts.push({ x: (pathObj.x1 + pathObj.x2) / 2, y: (pathObj.y1 + pathObj.y2) / 2, mid: true });
@@ -733,7 +733,43 @@ export function simplifyPolyline(poly, tolerance = 1e-6) {
  * Převede staré polyline objekty (AI Profil) na jednotlivé úsečky a oblouky.
  * Vrátí { objects, nextId }.
  */
+/**
+ * Objekt cesty textu (úsečka/oblouk/kružnice). Nové texty odkazují přes id
+ * (`pathObjId`) – index (`pathObjectId`, starý formát) přestal po smazání
+ * objektu před ním ukazovat na správný objekt. Starý index se převádí na id
+ * při načtení (expandPolylineObjects).
+ * @returns {import('./types.js').DrawObject|null}
+ */
+export function getTextPathObject(obj) {
+  if (!obj || !obj.pathMode || obj.pathMode === 'none') return null;
+  if (obj.pathObjId != null) return state.objects.find(o => o.id === obj.pathObjId) || null;
+  if (obj.pathObjectId != null) return state.objects[obj.pathObjectId] || null;
+  return null;
+}
+
+/** Index cesty textu v state.objects pro dialog (výběr v dialogu pracuje s indexy). */
+export function textPathIndex(obj) {
+  const p = getTextPathObject(obj);
+  const i = p ? state.objects.indexOf(p) : -1;
+  return i >= 0 ? i : null;
+}
+
+/** Id objektu na indexu z dialogu textu (null = bez cesty). */
+export function textPathIdFromIndex(index) {
+  const p = index != null ? state.objects[index] : null;
+  return p && p.id != null ? p.id : null;
+}
+
 export function expandPolylineObjects(objects, nextId) {
+  // Text na cestě ze starého formátu: index → id (indexy platí jen vůči
+  // právě načtenému poli, rozložení kontur níž je posune)
+  for (const o of objects) {
+    if (o && o.type === 'text' && o.pathObjId == null && o.pathObjectId != null) {
+      const p = objects[o.pathObjectId];
+      o.pathObjId = p && p.id != null ? p.id : null;
+      delete o.pathObjectId;
+    }
+  }
   let id = nextId;
   let changed = false;
   const expanded = [];

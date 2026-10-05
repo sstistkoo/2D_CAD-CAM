@@ -2,7 +2,7 @@
 // ║  SKICA – Nástroj: Ozubení (spur, internal, rack, sprocket) ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, withUndoBatch } from '../state.js';
+import { showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import {
   generateFullGearProfile,
@@ -10,7 +10,6 @@ import {
   generateInternalGearProfile,
   calculateInternalGearDimensions,
   generateRackProfile,
-  calculateRackDimensions,
   generateSprocketProfile,
   calculateSprocketDimensions,
 } from './gearGenerator.js';

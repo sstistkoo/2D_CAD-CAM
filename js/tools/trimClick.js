@@ -10,7 +10,8 @@ import { getLineSegment, analyzeSelection } from './helpers.js';
 import { showEndpointChoiceDialog } from '../dialogs.js';
 import { isAnchored } from './anchorClick.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
-import { distPointToSegment, getRectCorners, bulgeToArc } from '../utils.js';
+import { bulgeToArc } from '../utils.js';
+import { inheritedProps } from '../objects.js';
 
 // ── Helpers ──
 
@@ -105,6 +106,97 @@ function computeNewBulge(p1, p2, cx, cy, ccw) {
   if (delta < 1e-9) delta = 2 * Math.PI;
   const bulge = Math.tan(delta / 4);
   return ccw ? bulge : -bulge;
+}
+
+// ── Odstranění úseku kontury ──
+
+/**
+ * Odstraní z kontury úsek mezi body A a B (A leží PŘED B ve směru kontury;
+ * bod = { segIdx, x, y }). Sdílené vrcholy se NEposouvají – dřív se tím
+ * deformoval sousední segment. Otevřená kontura se rozdělí na začátek..A
+ * a B..konec, uzavřená se otevře na jednu konturu B..(přes začátek)..A.
+ * Části kratší než jeden segment zaniknou. Volající zajistí pushUndo().
+ */
+function removePolylineSpan(idx, obj, A, B) {
+  const V = obj.vertices, n = V.length;
+  const segCount = obj.closed ? n : n - 1;
+  const bul = i => (obj.bulges && obj.bulges[i]) || 0;
+  const same = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < 1e-6;
+  // Bulge části segmentu i mezi body a→b (oblouk se stejným středem)
+  const partial = (i, a, b) => {
+    const bl = bul(i);
+    if (!bl) return 0;
+    const arc = bulgeToArc(V[i], V[(i + 1) % n], bl);
+    return arc ? computeNewBulge(a, b, arc.cx, arc.cy, arc.ccw) : 0;
+  };
+
+  // Začátek kontury po A
+  const headV = V.slice(0, A.segIdx + 1).map(v => ({ ...v }));
+  const headB = [];
+  for (let i = 0; i < A.segIdx; i++) headB.push(bul(i));
+  if (!same(A, V[A.segIdx])) {
+    headB.push(partial(A.segIdx, V[A.segIdx], A));
+    headV.push({ x: A.x, y: A.y });
+  }
+  // Od B po konec (u uzavřené včetně uzavíracího segmentu zpět na vrchol 0)
+  const tailV = [], tailB = [];
+  const endV = V[(B.segIdx + 1) % n];
+  if (!same(B, endV)) {
+    tailV.push({ x: B.x, y: B.y });
+    tailB.push(partial(B.segIdx, B, endV));
+  }
+  for (let i = B.segIdx + 1; i <= segCount; i++) {
+    tailV.push({ ...V[i % n] });
+    if (i < segCount) tailB.push(bul(i));
+  }
+
+  const keep = (verts, bulges, target) => {
+    target.vertices = verts;
+    target.bulges = bulges;
+    target.closed = false;
+  };
+  if (obj.closed) {
+    const verts = tailV.concat(headV.slice(1));
+    if (verts.length < 2) { state.objects.splice(idx, 1); return; }
+    keep(verts, tailB.concat(headB), obj);
+    return;
+  }
+  const headOk = headV.length >= 2, tailOk = tailV.length >= 2;
+  if (headOk) keep(headV, headB, obj);
+  else if (tailOk) { keep(tailV, tailB, obj); return; }
+  else { state.objects.splice(idx, 1); return; }
+  if (tailOk) {
+    const newId = state.nextId++;
+    state.objects.push({
+      ...inheritedProps(obj),
+      type: 'polyline', vertices: tailV, bulges: tailB, closed: false,
+      name: `Kontura ${newId}`, id: newId,
+    });
+  }
+}
+
+/**
+ * Po odstranění úseku kontury se segmenty přečíslovaly → výběr segmentu
+ * pryč; výběr objektu jen když objekt zanikl (indexy za ním se posunuly).
+ */
+function _resetSelectionAfterSpan(objRef) {
+  state.selectedSegment = null;
+  state._selectedSegmentObjIdx = null;
+  state.multiSelectedSegments.clear();
+  if (state.objects.includes(objRef)) return;
+  state.selected = null;
+  state.multiSelected.clear();
+}
+
+/** removePolylineSpan + výběr + přepočet + hláška (společný konec všech cest). */
+function _trimPolylineSpan(idx, obj, A, B) {
+  pushUndo();
+  removePolylineSpan(idx, obj, A, B);
+  _resetSelectionAfterSpan(obj);
+  calculateAllIntersections();
+  updateAssociativeDimensions();
+  renderAll();
+  showToast("Oříznuto ✓");
 }
 
 // ── Oříznutí kružnice / oblouku ──
@@ -341,9 +433,9 @@ function trimArcSegInPolyline(idx, obj, si, wx, wy) {
   if (interior.length === 0) { showToast("Žádný vhodný průsečík na oblouku"); return; }
 
   const boundaries = [
-    { pos: 0 },
+    { pos: 0, x: p1.x, y: p1.y },
     ...interior,
-    { pos: sweep }
+    { pos: sweep, x: p2.x, y: p2.y }
   ];
 
   let segI = 0;
@@ -353,203 +445,9 @@ function trimArcSegInPolyline(idx, obj, si, wx, wy) {
     }
   }
 
-  pushUndo();
-
-  if (segI === 0) {
-    // Ořízni začátek: posuň p1 na první průsečík
-    const np = interior[0];
-    obj.vertices[si] = { x: np.x, y: np.y };
-    obj.bulges[si] = computeNewBulge({ x: np.x, y: np.y }, p2, arc.cx, arc.cy, ccw);
-  } else if (segI === boundaries.length - 2) {
-    // Ořízni konec: posuň p2 na poslední průsečík
-    const np = interior[interior.length - 1];
-    obj.vertices[(si + 1) % n] = { x: np.x, y: np.y };
-    obj.bulges[si] = computeNewBulge(p1, { x: np.x, y: np.y }, arc.cx, arc.cy, ccw);
-  } else {
-    // Uprostřed: ořízni blíže kliknuté straně
-    const leftBound = boundaries[segI];
-    const rightBound = boundaries[segI + 1];
-    if (clickPos - boundaries[0].pos < boundaries[boundaries.length - 1].pos - clickPos) {
-      const np = rightBound;
-      obj.vertices[si] = { x: np.x, y: np.y };
-      obj.bulges[si] = computeNewBulge({ x: np.x, y: np.y }, p2, arc.cx, arc.cy, ccw);
-    } else {
-      const np = leftBound;
-      obj.vertices[(si + 1) % n] = { x: np.x, y: np.y };
-      obj.bulges[si] = computeNewBulge(p1, { x: np.x, y: np.y }, arc.cx, arc.cy, ccw);
-    }
-  }
-
-  calculateAllIntersections();
-  updateAssociativeDimensions();
-  renderAll();
-  showToast("Oříznuto ✓");
-}
-
-// ── Oříznutí hrany obdélníku (rozloží na úsečky) ──
-
-function trimRectEdge(idx, obj, wx, wy) {
-  const rc = getRectCorners(obj);
-
-  // Najít nejbližší hranu
-  let closestEdge = 0, closestDist = Infinity;
-  for (let i = 0; i < 4; i++) {
-    const d = distPointToSegment(wx, wy, rc[i].x, rc[i].y, rc[(i + 1) % 4].x, rc[(i + 1) % 4].y);
-    if (d < closestDist) { closestDist = d; closestEdge = i; }
-  }
-
-  const p1 = rc[closestEdge];
-  const p2 = rc[(closestEdge + 1) % 4];
-  const edgeSeg = { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, isConstr: false };
-
-  // Průsečíky hrany s ostatními objekty (ne s obdélníkem samotným)
-  const pts = [];
-  for (let i = 0; i < state.objects.length; i++) {
-    if (i === idx) continue;
-    const other = state.objects[i];
-    if (other.isDimension || other.isCoordLabel || other.skipIntersections) continue;
-    for (const seg of getLines(other)) {
-      pts.push(...intersectLineLine(edgeSeg, seg));
-    }
-    for (const circ of getCircles(other)) {
-      pts.push(...intersectLineCircle(edgeSeg, circ));
-    }
-  }
-
-  if (pts.length === 0) { showToast("Žádný průsečík pro oříznutí"); return; }
-
-  // Určit stranu oříznutí
-  const a1 = isAnchored(p1.x, p1.y);
-  const a2 = isAnchored(p2.x, p2.y);
-  if (a1 && a2) { showToast("Oba konce jsou zakotveny – nelze oříznout"); return; }
-
-  let trimEnd;
-  if (a1) { trimEnd = 2; }
-  else if (a2) { trimEnd = 1; }
-  else {
-    const d1 = Math.hypot(wx - p1.x, wy - p1.y);
-    const d2 = Math.hypot(wx - p2.x, wy - p2.y);
-    trimEnd = d1 < d2 ? 1 : 2;
-  }
-
-  let bestPt = null, bestDist = Infinity;
-  for (const p of pts) {
-    const d = trimEnd === 1
-      ? Math.hypot(p.x - p1.x, p.y - p1.y)
-      : Math.hypot(p.x - p2.x, p.y - p2.y);
-    if (d < bestDist && d > 1e-9) { bestDist = d; bestPt = p; }
-  }
-  if (!bestPt) { showToast("Žádný vhodný průsečík"); return; }
-
-  // Rozložit obdélník na 4 úsečky s oříznutím cílové hrany
-  pushUndo();
-  const newLines = [];
-  for (let i = 0; i < 4; i++) {
-    const lp1 = rc[i];
-    const lp2 = rc[(i + 1) % 4];
-    const lineId = state.nextId++;
-    const line = {
-      type: 'line',
-      x1: lp1.x, y1: lp1.y,
-      x2: lp2.x, y2: lp2.y,
-      name: `Úsečka ${lineId}`,
-      id: lineId,
-      layer: obj.layer,
-      ...(obj.color ? { color: obj.color } : {}),
-    };
-    if (i === closestEdge) {
-      if (trimEnd === 1) { line.x1 = bestPt.x; line.y1 = bestPt.y; }
-      else { line.x2 = bestPt.x; line.y2 = bestPt.y; }
-    }
-    newLines.push(line);
-  }
-  state.objects.splice(idx, 1, ...newLines);
-
-  calculateAllIntersections();
-  updateAssociativeDimensions();
-  renderAll();
-  showToast("Obdélník rozložen a oříznuto ✓");
-}
-
-// ── Oříznutí úsečky ──
-
-function trimLineSeg(idx, obj, ls, wx, wy) {
-  // Guard: zero-length segment
-  const dx0 = ls.seg.x2 - ls.seg.x1, dy0 = ls.seg.y2 - ls.seg.y1;
-  if (dx0 * dx0 + dy0 * dy0 < 1e-12) { showToast("Úsečka má nulovou délku"); return; }
-
-  // Collect all intersection points on this line segment from other objects
-  const pts = [];
-  const lineSeg = { x1: ls.seg.x1, y1: ls.seg.y1, x2: ls.seg.x2, y2: ls.seg.y2, isConstr: false };
-  for (let i = 0; i < state.objects.length; i++) {
-    if (i === idx) continue;
-    const other = state.objects[i];
-    if (other.isDimension || other.isCoordLabel || other.skipIntersections) continue;
-    for (const seg of getLines(other)) {
-      pts.push(...intersectLineLine(lineSeg, seg));
-    }
-    for (const circ of getCircles(other)) {
-      pts.push(...intersectLineCircle(lineSeg, circ));
-      // Krajní body oblouku jako kandidáti (tečna: průsečík leží mimo úhlový rozsah → standardně odmítnut)
-      if (circ.startAngle !== undefined) {
-        for (const endPt of [
-          { x: circ.cx + circ.r * Math.cos(circ.startAngle), y: circ.cy + circ.r * Math.sin(circ.startAngle) },
-          { x: circ.cx + circ.r * Math.cos(circ.endAngle),   y: circ.cy + circ.r * Math.sin(circ.endAngle)   },
-        ]) {
-          // Ověř, že krajní bod leží na úsečce (t ∈ [0,1])
-          const dx = lineSeg.x2 - lineSeg.x1, dy = lineSeg.y2 - lineSeg.y1;
-          const lenSq = dx * dx + dy * dy;
-          if (lenSq < 1e-12) continue;
-          const t = ((endPt.x - lineSeg.x1) * dx + (endPt.y - lineSeg.y1) * dy) / lenSq;
-          if (t < -1e-6 || t > 1 + 1e-6) continue;
-          const px = lineSeg.x1 + t * dx, py = lineSeg.y1 + t * dy;
-          if (Math.hypot(px - endPt.x, py - endPt.y) < 0.01) pts.push({ x: px, y: py });
-        }
-      }
-    }
-  }
-
-  // Také průsečíky s ostatními segmenty téže polyline (pokud jde o polyline segment)
-  if (obj.type === 'polyline' && ls.segIdx !== null) {
-    pts.push(...collectSamePolylineIntersections(obj, ls.segIdx, lineSeg));
-  }
-
-  if (pts.length === 0) { showToast("Žádný průsečík pro oříznutí"); return; }
-
-  // Determine which end of the line is closer to click point
-  const a1 = isAnchored(ls.seg.x1, ls.seg.y1);
-  const a2 = isAnchored(ls.seg.x2, ls.seg.y2);
-  if (a1 && a2) { showToast("Oba konce jsou zakotveny – nelze oříznout"); return; }
-  let trimEnd;
-  if (a1) { trimEnd = 2; }
-  else if (a2) { trimEnd = 1; }
-  else {
-    const d1 = Math.hypot(wx - ls.seg.x1, wy - ls.seg.y1);
-    const d2 = Math.hypot(wx - ls.seg.x2, wy - ls.seg.y2);
-    trimEnd = d1 < d2 ? 1 : 2;
-  }
-
-  // Find intersection closest to the trimmed end
-  let bestPt = null, bestDist = Infinity;
-  for (const p of pts) {
-    const d = trimEnd === 1
-      ? Math.hypot(p.x - ls.seg.x1, p.y - ls.seg.y1)
-      : Math.hypot(p.x - ls.seg.x2, p.y - ls.seg.y2);
-    if (d < bestDist && d > 1e-9) {
-      bestDist = d;
-      bestPt = p;
-    }
-  }
-  if (!bestPt) { showToast("Žádný vhodný průsečík"); return; }
-
-  pushUndo();
-  if (trimEnd === 1) { ls.setP1(bestPt.x, bestPt.y); }
-  else { ls.setP2(bestPt.x, bestPt.y); }
-
-  calculateAllIntersections();
-  updateAssociativeDimensions();
-  renderAll();
-  showToast("Oříznuto ✓");
+  // Odstranit kliknutý úsek oblouku mezi sousedními hranicemi
+  const L = boundaries[segI], R = boundaries[segI + 1];
+  _trimPolylineSpan(idx, obj, { segIdx: si, x: L.x, y: L.y }, { segIdx: si, x: R.x, y: R.y });
 }
 
 // ── Dvoubodový trim ──
@@ -605,83 +503,10 @@ function projectOnObject(obj, wx, wy) {
   return null;
 }
 
-/** Rozdělí polyline na dvě části: [start..P1] a [P2..end]. */
+/** Odstraní úsek kontury mezi body na různých segmentech (P1 → P2 ve směru kontury). */
 function trimPolylineBetweenSegments(idx, obj, p1, p2) {
-  // Zajistíme, že si1 ≤ si2
   if (p1.segIdx > p2.segIdx) [p1, p2] = [p2, p1];
-  const si1 = p1.segIdx, si2 = p2.segIdx;
-  const n = obj.vertices.length;
-  // Pracujeme vždy jako otevřená polyline (split otevře i uzavřenou)
-  const segCount = n - 1;
-
-  const P1 = { x: p1.x, y: p1.y };
-  const P2 = { x: p2.x, y: p2.y };
-
-  // Část 1: v[0..si1] + P1
-  const verts1 = obj.vertices.slice(0, si1 + 1).map(v => ({ ...v }));
-  const bulges1 = (obj.bulges || []).slice(0, si1);
-  const p1AtVertex = Math.hypot(P1.x - obj.vertices[si1].x, P1.y - obj.vertices[si1].y) < 1e-6;
-  if (!p1AtVertex) {
-    if (p1.kind === 'pl-arc') {
-      bulges1.push(computeNewBulge(obj.vertices[si1], P1, p1.arc.cx, p1.arc.cy, p1.arc.ccw));
-    } else {
-      bulges1.push(0);
-    }
-    verts1.push(P1);
-  }
-
-  // Část 2: P2 + v[si2+1..end]
-  const verts2 = [];
-  const bulges2 = [];
-  const nextVert = obj.vertices[Math.min(si2 + 1, n - 1)];
-  const p2AtVertex = nextVert && si2 + 1 < n &&
-    Math.hypot(P2.x - nextVert.x, P2.y - nextVert.y) < 1e-6;
-  if (!p2AtVertex && si2 + 1 < n) {
-    verts2.push(P2);
-    if (p2.kind === 'pl-arc' && p2.arc) {
-      bulges2.push(computeNewBulge(P2, obj.vertices[si2 + 1], p2.arc.cx, p2.arc.cy, p2.arc.ccw));
-    } else {
-      bulges2.push(0);
-    }
-  }
-  for (let i = si2 + 1; i < n; i++) verts2.push({ ...obj.vertices[i] });
-  for (let i = si2 + 1; i < segCount; i++) bulges2.push((obj.bulges || [])[i] || 0);
-
-  // Sanity check: bulges musí mít délku verts - 1
-  while (bulges1.length > verts1.length - 1) bulges1.pop();
-  while (bulges2.length > verts2.length - 1) bulges2.pop();
-
-  pushUndo();
-
-  // Modifikuj stávající objekt na část 1 (pokud má ≥ 2 vrcholy)
-  if (verts1.length >= 2) {
-    obj.vertices = verts1;
-    obj.bulges = bulges1;
-    obj.closed = false;
-  } else {
-    state.objects.splice(idx, 1);
-  }
-
-  // Přidej část 2 jako nový objekt (pokud má ≥ 2 vrcholy)
-  if (verts2.length >= 2) {
-    const newId = state.nextId++;
-    state.objects.push({
-      type: 'polyline',
-      vertices: verts2,
-      bulges: bulges2,
-      closed: false,
-      name: obj.name || `Kontura ${newId}`,
-      id: newId,
-      layer: obj.layer,
-      ...(obj.color ? { color: obj.color } : {}),
-      ...(obj.isStock ? { isStock: true } : {}),
-    });
-  }
-
-  calculateAllIntersections();
-  updateAssociativeDimensions();
-  renderAll();
-  showToast("Oříznuto ✓");
+  _trimPolylineSpan(idx, obj, p1, p2);
 }
 
 /** Odstraní část objektu mezi dvěma projekcemi (výsledek z projectOnObject). */
@@ -695,6 +520,38 @@ function trimBetweenProjections(idx, obj, p1, p2) {
 
   if (p1.kind !== p2.kind || p1.segIdx !== p2.segIdx) {
     showToast("Oba body musí být na stejném segmentu objektu");
+    return;
+  }
+
+  // Segment kontury: odstranit úsek mezi body – NEposouvat sdílené vrcholy
+  // (dřív se tím zdeformoval sousední segment / zmizel zbytek oblouku)
+  if (p1.kind === 'pl-line' || p1.kind === 'pl-arc') {
+    const n = obj.vertices.length;
+    const v1 = obj.vertices[p1.segIdx];
+    let q1 = p1, q2 = p2;
+    if (p1.kind === 'pl-line') {
+      const v2 = obj.vertices[(p1.segIdx + 1) % n];
+      const dx = v2.x - v1.x, dy = v2.y - v1.y, len2 = dx * dx + dy * dy;
+      if (len2 < 1e-12) return;
+      const t = p => Math.max(0, Math.min(1, ((p.x - v1.x) * dx + (p.y - v1.y) * dy) / len2));
+      const at = tt => ({ segIdx: p1.segIdx, x: v1.x + tt * dx, y: v1.y + tt * dy });
+      const [t1, t2] = [t(p1), t(p2)].sort((a, b) => a - b);
+      q1 = at(t1); q2 = at(t2);
+    } else {
+      const arc = p1.arc;
+      const pos = p => {
+        const a = Math.atan2(p.y - arc.cy, p.x - arc.cx);
+        return arc.ccw ? normalizeAngle(a - arc.startAngle) : normalizeAngle(arc.startAngle - a);
+      };
+      const at = ps => {
+        const a = arc.ccw ? arc.startAngle + ps : arc.startAngle - ps;
+        return { segIdx: p1.segIdx, x: arc.cx + arc.r * Math.cos(a), y: arc.cy + arc.r * Math.sin(a) };
+      };
+      const [ps1, ps2] = [pos(p1), pos(p2)].sort((a, b) => a - b);
+      q1 = ps1 < 1e-6 ? { segIdx: p1.segIdx, x: v1.x, y: v1.y } : at(ps1);
+      q2 = at(ps2);
+    }
+    _trimPolylineSpan(idx, obj, q1, q2);
     return;
   }
   pushUndo();
@@ -711,7 +568,7 @@ function trimBetweenProjections(idx, obj, p1, p2) {
     else if (t2 > 1 - 1e-6) { obj.x2 = px1; obj.y2 = py1; }
     else {
       const newId = state.nextId++;
-      state.objects.push({ type: 'line', x1: px2, y1: py2, x2: obj.x2, y2: obj.y2, name: `Úsečka ${newId}`, id: newId, layer: obj.layer, ...(obj.isStock ? { isStock: true } : {}) });
+      state.objects.push({ ...inheritedProps(obj), type: obj.type, x1: px2, y1: py2, x2: obj.x2, y2: obj.y2, name: `Úsečka ${newId}`, id: newId });
       obj.x2 = px1; obj.y2 = py1;
     }
   }
@@ -731,7 +588,7 @@ function trimBetweenProjections(idx, obj, p1, p2) {
     else if (pos2 > p1.sweep - 1e-6) { obj.endAngle = a1; }
     else {
       const newId = state.nextId++;
-      state.objects.push({ type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, startAngle: a2, endAngle: obj.endAngle, ccw: obj.ccw, name: `Oblouk ${newId}`, id: newId, layer: obj.layer, ...(obj.isStock ? { isStock: true } : {}) });
+      state.objects.push({ ...inheritedProps(obj), type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, startAngle: a2, endAngle: obj.endAngle, ccw: obj.ccw, name: `Oblouk ${newId}`, id: newId });
       obj.endAngle = a1;
     }
   }
@@ -740,58 +597,8 @@ function trimBetweenProjections(idx, obj, p1, p2) {
     // Přepočítej úhel z přesných snap souřadnic
     let a1 = Math.atan2(p1.y - obj.cy, p1.x - obj.cx);
     let a2 = Math.atan2(p2.y - obj.cy, p2.x - obj.cx);
-    const newId = state.nextId++;
     // Ponechat oblouk od a2 do a1 (CCW), odebrat od a1 do a2
-    state.objects[idx] = { type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, startAngle: a2, endAngle: a1, name: obj.name || `Oblouk ${newId}`, id: obj.id, layer: obj.layer, ...(obj.color ? { color: obj.color } : {}), ...(obj.isStock ? { isStock: true } : {}) };
-  }
-
-  else if (p1.kind === 'pl-line') {
-    const si = p1.segIdx;
-    const n = obj.vertices.length;
-    const v1 = obj.vertices[si], v2 = obj.vertices[(si + 1) % n];
-    const pldx = v2.x - v1.x, pldy = v2.y - v1.y, plLenSq = pldx * pldx + pldy * pldy;
-    // Přepočítej t ze snap souřadnic pro přesnost
-    let t1 = plLenSq > 1e-12 ? Math.max(0, Math.min(1, ((p1.x - v1.x) * pldx + (p1.y - v1.y) * pldy) / plLenSq)) : p1.t;
-    let t2 = plLenSq > 1e-12 ? Math.max(0, Math.min(1, ((p2.x - v1.x) * pldx + (p2.y - v1.y) * pldy) / plLenSq)) : p2.t;
-    if (t1 > t2) [t1, t2] = [t2, t1];
-    const pt1 = { x: v1.x + t1 * pldx, y: v1.y + t1 * pldy };
-    const pt2 = { x: v1.x + t2 * pldx, y: v1.y + t2 * pldy };
-    if (t1 < 1e-6) { obj.vertices[si] = { ...obj.vertices[si], ...pt2 }; }
-    else if (t2 > 1 - 1e-6) { obj.vertices[(si + 1) % n] = { ...obj.vertices[(si + 1) % n], ...pt1 }; }
-    else {
-      // Střed – zachovat větší část, ořezat menší
-      obj.vertices[(si + 1) % n] = { ...obj.vertices[(si + 1) % n], ...pt1 };
-      const newId = state.nextId++;
-      state.objects.push({ type: 'line', x1: pt2.x, y1: pt2.y, x2: v2.x, y2: v2.y, name: `Úsečka ${newId}`, id: newId, layer: obj.layer, ...(obj.isStock ? { isStock: true } : {}) });
-    }
-  }
-
-  else if (p1.kind === 'pl-arc') {
-    const si = p1.segIdx;
-    const n = obj.vertices.length;
-    const arc = p1.arc;
-    const ccw = arc.ccw;
-    // Přepočítej pos z přesných snap souřadnic
-    function plArcSnapPos(p) {
-      const a = Math.atan2(p.y - arc.cy, p.x - arc.cx);
-      return ccw ? normalizeAngle(a - arc.startAngle) : normalizeAngle(arc.startAngle - a);
-    }
-    let pos1 = plArcSnapPos(p1), pos2 = plArcSnapPos(p2);
-    if (pos1 > pos2) [pos1, pos2] = [pos2, pos1];
-    const a1 = ccw ? arc.startAngle + pos1 : arc.startAngle - pos1;
-    const a2 = ccw ? arc.startAngle + pos2 : arc.startAngle - pos2;
-    const newPt1 = { x: arc.cx + arc.r * Math.cos(a1), y: arc.cy + arc.r * Math.sin(a1) };
-    const newPt2 = { x: arc.cx + arc.r * Math.cos(a2), y: arc.cy + arc.r * Math.sin(a2) };
-    if (pos1 < 1e-6) {
-      obj.vertices[si] = { ...obj.vertices[si], ...newPt2 };
-      obj.bulges[si] = computeNewBulge(obj.vertices[si], obj.vertices[(si + 1) % n], arc.cx, arc.cy, ccw);
-    } else if (pos2 > p1.sweep - 1e-6) {
-      obj.vertices[(si + 1) % n] = { ...obj.vertices[(si + 1) % n], ...newPt1 };
-      obj.bulges[si] = computeNewBulge(obj.vertices[si], obj.vertices[(si + 1) % n], arc.cx, arc.cy, ccw);
-    } else {
-      obj.vertices[(si + 1) % n] = { ...obj.vertices[(si + 1) % n], ...newPt1 };
-      obj.bulges[si] = computeNewBulge(obj.vertices[si], obj.vertices[(si + 1) % n], arc.cx, arc.cy, ccw);
-    }
+    state.objects[idx] = { ...inheritedProps(obj), type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, startAngle: a2, endAngle: a1, name: obj.name || `Oblouk ${obj.id}`, id: obj.id };
   }
 
   calculateAllIntersections();
@@ -878,6 +685,11 @@ function collectSegmentBoundaries(idx, obj, proj) {
         }
         if (c.startAngle !== undefined) addEndpoints(c, v1, v2, dx, dy, lenSq, 1e-6);
       }
+    }
+    // Průsečíky s ostatními segmenty téže kontury (jako u obloukového segmentu)
+    for (const p of collectSamePolylineIntersections(obj, si, seg)) {
+      const t = ((p.x - v1.x) * dx + (p.y - v1.y) * dy) / lenSq;
+      if (t > 1e-6 && t < 1 - 1e-6) result.push({ [key]: t, ...p });
     }
   }
 
@@ -1113,6 +925,15 @@ export function trimFromSelection() {
         if (d < bestDist && d > 1e-9) { bestDist = d; bestPt = p; }
       }
       if (!bestPt) { showToast("Žádný vhodný průsečík"); return; }
+      if (ls.segIdx !== null && ls.segIdx !== undefined) {
+        // Segment kontury: odstranit úsek od konce segmentu po průsečík –
+        // posunutím sdíleného vrcholu by se zdeformoval sousední segment
+        const si = ls.segIdx;
+        const P = { segIdx: si, x: bestPt.x, y: bestPt.y };
+        if (end === 1) _trimPolylineSpan(idx, obj, { segIdx: si, x: ls.seg.x1, y: ls.seg.y1 }, P);
+        else _trimPolylineSpan(idx, obj, P, { segIdx: si, x: ls.seg.x2, y: ls.seg.y2 });
+        return;
+      }
       pushUndo();
       if (end === 1) ls.setP1(bestPt.x, bestPt.y);
       else ls.setP2(bestPt.x, bestPt.y);

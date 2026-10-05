@@ -5,12 +5,12 @@
 import { COLORS, MOBILE_BREAKPOINT, applyThemeColors, LINE_WIDTH, RAINBOW_PRESETS } from './constants.js';
 import { state, showToast, pushUndo, undo, redo, axisLabels, resetDrawingState, displayX, xPrefix, fmtStatusCoords, coordHelpers, toDisplayAngle, fmtNum } from './state.js';
 import { solveRightTriangle } from './trigSolver.js';
-import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects } from './utils.js';
+import { typeLabel, toolLabel, bulgeToArc, safeEvalMath, _parseMathExpr, getRectCorners, getObjectSnapPoints, expandPolylineObjects, textPathIndex, textPathIdFromIndex } from './utils.js';
 import { renderAll, renderAllDebounced, resolveObjectColor } from './render.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView } from './canvas.js';
 import { findObjectAt } from './geometry.js';
 import { bridge } from './bridge.js';
-import { addObject } from './objects.js';
+import { addObject, removeOrphanDimensions, deletePolylineSegment, inheritedProps } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openInsertCalc, openSinumerikHub, openCamSimulator, openCncEditor } from './cnc-calcs.js';
 import { showCombinedModal } from './dialogs/combinedModal.js';
@@ -92,17 +92,7 @@ export function deleteObjectsByIndices(indices) {
     state.objects.splice(idx, 1);
   }
   // Smazat osiřelé kóty (zdrojový objekt byl právě smazán)
-  const existingIds = new Set(state.objects.map(o => o.id));
-  for (let di = state.objects.length - 1; di >= 0; di--) {
-    const d = state.objects[di];
-    if (!d.isDimension) continue;
-    if (d.sourceObjId && !existingIds.has(d.sourceObjId)) {
-      state.objects.splice(di, 1);
-    } else if (d.dimLine1Id && d.dimLine2Id &&
-               (!existingIds.has(d.dimLine1Id) || !existingIds.has(d.dimLine2Id))) {
-      state.objects.splice(di, 1);
-    }
-  }
+  removeOrphanDimensions();
   if (state.dragging) { state.dragging = false; state.dragObjIdx = null; }
   state.selected = null;
   state.multiSelected.clear();
@@ -380,36 +370,24 @@ export function updateObjectList() {
     delBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       pushUndo();
-      if (state.dragging && state.dragObjIdx === idx) {
-        state.dragging = false;
-        state.dragObjIdx = null;
-      } else if (state.dragging && state.dragObjIdx > idx) {
-        state.dragObjIdx--;
-      }
-      removeAnchorsForObject(state.objects[idx]);
+      // Výběr i tažení přepočítat přes identitu objektů – mazání kót níž
+      // posouvá indexy i PŘED smazaným objektem.
+      const delObj = state.objects[idx];
+      const selObj = state.selected !== null ? state.objects[state.selected] : null;
+      const multiObjs = [...state.multiSelected].map(i => state.objects[i]);
+      const dragObj = state.dragging && state.dragObjIdx >= 0 ? state.objects[state.dragObjIdx] : null;
+      removeAnchorsForObject(delObj);
       state.objects.splice(idx, 1);
       // Smazat osiřelé kóty (zdrojový objekt byl právě smazán)
-      const existingIds = new Set(state.objects.map(o => o.id));
-      for (let di = state.objects.length - 1; di >= 0; di--) {
-        const d = state.objects[di];
-        if (!d.isDimension) continue;
-        if (d.sourceObjId && !existingIds.has(d.sourceObjId)) {
-          state.objects.splice(di, 1);
-          if (idx > di) idx--;
-        } else if (d.dimLine1Id && d.dimLine2Id &&
-                   (!existingIds.has(d.dimLine1Id) || !existingIds.has(d.dimLine2Id))) {
-          state.objects.splice(di, 1);
-          if (idx > di) idx--;
-        }
+      removeOrphanDimensions();
+      const indexOf = (o) => { const i = o ? state.objects.indexOf(o) : -1; return i >= 0 ? i : null; };
+      state.selected = indexOf(selObj);
+      state.multiSelected = new Set(multiObjs.map(indexOf).filter(i => i !== null));
+      if (dragObj) {
+        const di = indexOf(dragObj);
+        if (di === null) { state.dragging = false; state.dragObjIdx = null; }
+        else state.dragObjIdx = di;
       }
-      if (state.selected === idx) state.selected = null;
-      else if (state.selected > idx) state.selected--;
-      const newMulti = new Set();
-      for (const mi of state.multiSelected) {
-        if (mi < idx) newMulti.add(mi);
-        else if (mi > idx) newMulti.add(mi - 1);
-      }
-      state.multiSelected = newMulti;
       updateObjectList();
       updateProperties();
       if (bridge.calculateAllIntersections) bridge.calculateAllIntersections();
@@ -525,65 +503,18 @@ export function updateObjectList() {
         // Delete segment – split contour if middle
         segDelBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          pushUndo();
           const vn = obj.vertices.length;
           const sc = obj.closed ? vn : vn - 1;
           if (si < 0 || si >= sc) return;
-
-          if (vn <= 2) {
-            // Only 1 segment → delete the whole polyline
-            removeAnchorsForObject(state.objects[idx]);
-            state.objects.splice(idx, 1);
-            if (state.selected === idx) state.selected = null;
-            else if (state.selected > idx) state.selected--;
-          } else if (obj.closed) {
-            const removeIdx = (si + 1) % vn;
-            obj.vertices.splice(removeIdx, 1);
-            obj.bulges.splice(si, 1);
-            obj.closed = false;
-            if (removeIdx > 0 && removeIdx < obj.vertices.length) {
-              const newVerts = [...obj.vertices.slice(removeIdx), ...obj.vertices.slice(0, removeIdx)];
-              const newBulges = [...obj.bulges.slice(removeIdx), ...obj.bulges.slice(0, removeIdx)];
-              obj.vertices = newVerts;
-              obj.bulges = newBulges;
-            }
-          } else if (si === 0) {
-            obj.vertices.splice(0, 1);
-            obj.bulges.splice(0, 1);
-          } else if (si === sc - 1) {
-            obj.vertices.splice(vn - 1, 1);
-            obj.bulges.splice(si, 1);
-          } else {
-            // Middle segment → split into two polylines
-            const verts1 = obj.vertices.slice(0, si + 1);
-            const bulges1 = obj.bulges.slice(0, si);
-            const verts2 = obj.vertices.slice(si + 1);
-            const bulges2 = obj.bulges.slice(si + 1);
-            obj.vertices = verts1;
-            obj.bulges = bulges1;
-            obj.closed = false;
-            if (verts2.length >= 2) {
-              const newId = state.nextId++;
-              const newObj = {
-                type: 'polyline',
-                id: newId,
-                vertices: verts2,
-                bulges: bulges2,
-                closed: false,
-                name: `Kontura ${newId}`,
-                layer: obj.layer,
-                color: obj.color,
-              };
-              state.objects.splice(idx + 1, 0, newObj);
-              // Reindex multiSelected – insertion shifts indices > idx
-              const newMulti = new Set();
-              for (const mi of state.multiSelected) {
-                if (mi <= idx) newMulti.add(mi);
-                else newMulti.add(mi + 1);
-              }
-              state.multiSelected = newMulti;
-            }
-          }
+          pushUndo();
+          // Výběr přepočítat přes identitu – smazání/rozdělení posouvá indexy.
+          const selObj = state.selected !== null ? state.objects[state.selected] : null;
+          const multiObjs = [...state.multiSelected].map(i => state.objects[i]);
+          if (sc <= 1) removeAnchorsForObject(obj);
+          if (deletePolylineSegment(idx, si) === 'deleted') removeOrphanDimensions();
+          const indexOf = (o) => { const i = o ? state.objects.indexOf(o) : -1; return i >= 0 ? i : null; };
+          state.selected = indexOf(selObj);
+          state.multiSelected = new Set(multiObjs.map(indexOf).filter(i => i !== null));
           state.selectedSegment = null;
           state._selectedSegmentObjIdx = null;
           state.multiSelectedSegments.clear();
@@ -641,17 +572,18 @@ export function updateObjectList() {
             const cb = corners[(j + 1) % 4];
             const lineId = state.nextId++;
             newLines.push({
+              ...inheritedProps(obj),
               type: 'line',
               id: lineId,
               x1: ca.x, y1: ca.y,
               x2: cb.x, y2: cb.y,
               name: `Úsečka ${lineId}`,
-              layer: obj.layer,
-              color: obj.color,
             });
           }
           // Nahradit obdélník třemi úsečkami
           state.objects.splice(idx, 1, ...newLines);
+          // Kóty obdélníku po něm zůstaly viset – pryč s nimi (jako při smazání)
+          if (removeOrphanDimensions() > 0) state.multiSelected.clear();
           // Reindex multiSelected – replaced 1 with 3 (shift by +2)
           const newMulti = new Set();
           for (const mi of state.multiSelected) {
@@ -1884,7 +1816,7 @@ export function updateProperties() {
               italic: !!obj.italic,
               letterSpacing: obj.letterSpacing || 0,
               pathMode: obj.pathMode || 'none',
-              pathObjectId: obj.pathObjectId != null ? obj.pathObjectId : null,
+              pathObjectId: textPathIndex(obj),
               pathOffset: obj.pathOffset || 2,
               editMode: true,
             }, (result) => {
@@ -1898,7 +1830,8 @@ export function updateProperties() {
               obj.italic = result.italic;
               obj.letterSpacing = result.letterSpacing;
               obj.pathMode = result.pathMode;
-              obj.pathObjectId = result.pathObjectId;
+              obj.pathObjId = textPathIdFromIndex(result.pathObjectId);
+              delete obj.pathObjectId;
               obj.pathOffset = result.pathOffset;
               obj.name = `Text "${result.text.substring(0, 20)}"`;
               renderAll();

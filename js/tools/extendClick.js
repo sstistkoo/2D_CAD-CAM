@@ -11,6 +11,7 @@ import { showEndpointChoiceDialog } from '../dialogs.js';
 import { isAnchored } from './anchorClick.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 import { isAngleBetween } from '../utils.js';
+import { inheritedProps } from '../objects.js';
 
 // ── Helpers ──
 
@@ -191,8 +192,7 @@ function extendArc(idx, obj, wx, wy) {
             x2: bestTan.pt.x, y2: bestTan.pt.y,
             name: `Úsečka ${lineId}`,
             id: lineId,
-            layer: obj.layer,
-            ...(obj.color ? { color: obj.color } : {}),
+            ...inheritedProps(obj),
           });
         }
         calculateAllIntersections();
@@ -220,8 +220,7 @@ function extendArc(idx, obj, wx, wy) {
       x2: best.pt.x, y2: best.pt.y,
       name: `Úsečka ${lineId}`,
       id: lineId,
-      layer: obj.layer,
-      ...(obj.color ? { color: obj.color } : {}),
+      ...inheritedProps(obj),
     });
     calculateAllIntersections();
     updateAssociativeDimensions();
@@ -232,14 +231,30 @@ function extendArc(idx, obj, wx, wy) {
 
 // ── Prodloužení úsečky ──
 
+/**
+ * U kontury jde prodloužit jen VOLNÝ konec otevřené kontury (první vrchol
+ * prvního segmentu / poslední vrchol posledního). Vnitřní konec segmentu je
+ * sdílený se sousedem – jeho posunutím by se sousední segment zdeformoval.
+ * @returns {{p1: boolean, p2: boolean}} který konec segmentu je volný
+ */
+function freeEnds(obj, ls) {
+  if (obj.type !== 'polyline' || ls.segIdx === null || ls.segIdx === undefined) return { p1: true, p2: true };
+  if (obj.closed) return { p1: false, p2: false };
+  const segCount = obj.vertices.length - 1;
+  return { p1: ls.segIdx === 0, p2: ls.segIdx === segCount - 1 };
+}
+
 function extendLine(idx, obj, ls, wx, wy) {
   // Which end to extend (closer to click)
   const a1 = isAnchored(ls.seg.x1, ls.seg.y1);
   const a2 = isAnchored(ls.seg.x2, ls.seg.y2);
   if (a1 && a2) { showToast("Oba konce jsou zakotveny – nelze prodloužit"); return; }
+  const free = freeEnds(obj, ls);
+  const ok1 = !a1 && free.p1, ok2 = !a2 && free.p2;
+  if (!ok1 && !ok2) { showToast("U kontury lze prodloužit jen volný konec otevřené kontury"); return; }
   let extEnd;
-  if (a1) { extEnd = 2; }
-  else if (a2) { extEnd = 1; }
+  if (!ok1) { extEnd = 2; }
+  else if (!ok2) { extEnd = 1; }
   else {
     const d1 = Math.hypot(wx - ls.seg.x1, wy - ls.seg.y1);
     const d2 = Math.hypot(wx - ls.seg.x2, wy - ls.seg.y2);
@@ -277,6 +292,8 @@ function extendLine(idx, obj, ls, wx, wy) {
       candidates.push({ pt: p, dist: Math.hypot(p.x - ls.seg.x2, p.y - ls.seg.y2) });
     }
   }
+  // Průsečík přímo v koncovém bodě (navazující objekt) prodloužením není
+  for (let i = candidates.length - 1; i >= 0; i--) if (candidates[i].dist < 1e-9) candidates.splice(i, 1);
 
   if (candidates.length === 0) { showToast("Žádný průsečík ve směru prodloužení"); return; }
 
@@ -400,8 +417,7 @@ export function extendFromSelection() {
                 x2: bestTan.pt.x, y2: bestTan.pt.y,
                 name: `Úsečka ${lineId}`,
                 id: lineId,
-                layer: obj.layer,
-                ...(obj.color ? { color: obj.color } : {}),
+                ...inheritedProps(obj),
               });
             }
             calculateAllIntersections();
@@ -429,8 +445,7 @@ export function extendFromSelection() {
           x2: best.pt.x, y2: best.pt.y,
           name: `Úsečka ${lineId}`,
           id: lineId,
-          layer: obj.layer,
-          ...(obj.color ? { color: obj.color } : {}),
+          ...inheritedProps(obj),
         });
         calculateAllIntersections();
         updateAssociativeDimensions();
@@ -500,8 +515,10 @@ export function extendFromSelection() {
   const cands1 = [], cands2 = [];
   for (const p of pts) {
     const t = ((p.x - ls.seg.x1) * dx + (p.y - ls.seg.y1) * dy) / len2;
-    if (t < 1e-9) cands1.push({ pt: p, dist: Math.hypot(p.x - ls.seg.x1, p.y - ls.seg.y1) });
-    if (t > 1 - 1e-9) cands2.push({ pt: p, dist: Math.hypot(p.x - ls.seg.x2, p.y - ls.seg.y2) });
+    const d1 = Math.hypot(p.x - ls.seg.x1, p.y - ls.seg.y1);
+    const d2 = Math.hypot(p.x - ls.seg.x2, p.y - ls.seg.y2);
+    if (t < 1e-9 && d1 > 1e-9) cands1.push({ pt: p, dist: d1 });
+    if (t > 1 - 1e-9 && d2 > 1e-9) cands2.push({ pt: p, dist: d2 });
   }
 
   if (cands1.length === 0 && cands2.length === 0) {
@@ -513,6 +530,8 @@ export function extendFromSelection() {
   const a1 = isAnchored(ls.seg.x1, ls.seg.y1);
   const a2 = isAnchored(ls.seg.x2, ls.seg.y2);
   if (a1 && a2) { showToast("Oba konce jsou zakotveny – nelze prodloužit"); return true; }
+  const free = freeEnds(obj, ls);
+  if (!free.p1 && !free.p2) { showToast("U kontury lze prodloužit jen volný konec otevřené kontury"); return true; }
 
   showEndpointChoiceDialog("Prodloužení – výběr konce", ls.seg,
     a1 ? "⚓ Začátek (zakotven)" : (cands1.length > 0 ? "Prodloužit ze začátku" : "⚠ Ze začátku (žádný průsečík)"),
@@ -520,6 +539,7 @@ export function extendFromSelection() {
     (end) => {
       if (end === 1 && a1) { showToast("Tento konec je zakotven – nelze prodloužit"); return; }
       if (end === 2 && a2) { showToast("Tento konec je zakotven – nelze prodloužit"); return; }
+      if (!(end === 1 ? free.p1 : free.p2)) { showToast("Tento konec navazuje na další segment kontury – nelze prodloužit"); return; }
       const candidates = end === 1 ? cands1 : cands2;
       if (candidates.length === 0) { showToast("Žádný průsečík ve směru prodloužení"); return; }
       candidates.sort((a, b) => a.dist - b.dist);

@@ -6,16 +6,16 @@ import { ZOOM_FACTOR, ZOOM_MIN, ZOOM_MAX, PASTE_OFFSET } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } from './canvas.js';
 import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap, getSelectionCounterLabel } from './render.js';
-import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
-import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, cycleDimsMode, toggleCoordMode, updateCoordModeBtn, toggleSnapGrid, toggleAngleSnap, showGridSizeDialog, showAngleSnapDialog, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
+import { moveObject, addObject, addPolylineAsSegments, inheritedProps, removeOrphanDimensions, deletePolylineSegment } from './objects.js';
+import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, cycleDimsMode, toggleCoordMode, updateCoordModeBtn, toggleSnapGrid, toggleAngleSnap, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
 import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
 import { showCombinedModal, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
-import { saveProject, showExportImageDialog, showProjectsDialog, showSaveAsDialog } from './storage.js';
+import { saveProject, showProjectsDialog, showSaveAsDialog } from './storage.js';
 import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, cancelProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 import { isAnyPickerArmed } from './dialogs/canvasPick.js';
@@ -1478,21 +1478,6 @@ function handleRotateClick(wx, wy) {
   });
 }
 
-// ── Odstranění osiřelých kót (zdrojový objekt byl smazán) ──
-function removeOrphanDimensions() {
-  const existingIds = new Set(state.objects.map(o => o.id));
-  for (let i = state.objects.length - 1; i >= 0; i--) {
-    const obj = state.objects[i];
-    if (!obj.isDimension) continue;
-    if (obj.sourceObjId && !existingIds.has(obj.sourceObjId)) {
-      state.objects.splice(i, 1);
-    } else if (obj.dimLine1Id && obj.dimLine2Id &&
-               (!existingIds.has(obj.dimLine1Id) || !existingIds.has(obj.dimLine2Id))) {
-      state.objects.splice(i, 1);
-    }
-  }
-}
-
 // ── Smazání vybraného objektu nebo vazby ──
 function deleteSelected() {
   // Pokud je vybrána vazební značka, smazat jen vazbu
@@ -1575,74 +1560,15 @@ function deleteSelectedSegment() {
   }
 
   pushUndo();
-
-  if (n <= 2) {
-    // Only 2 vertices = 1 segment → delete the whole polyline
-    removeAnchorsForObject(state.objects[state.selected]);
-    state.objects.splice(state.selected, 1);
+  const res = deletePolylineSegment(state.selected, segIdx);
+  if (res === 'deleted') {
+    removeOrphanDimensions();
     state.selected = null;
-    state.selectedSegment = null;
-    state._selectedSegmentObjIdx = null;
-    state.multiSelectedSegments.clear();
-  } else if (obj.closed) {
-    // Closed polyline: open by removing the segment at segIdx
-    // Reorder so resulting open polyline starts at vertex after the deleted segment
-    const startIdx = (segIdx + 1) % n;
-    const newVerts = [];
-    const newBulges = [];
-    for (let i = 0; i < n; i++) {
-      const vi = (startIdx + i) % n;
-      newVerts.push(obj.vertices[vi]);
-      if (i < n - 1) {
-        newBulges.push(obj.bulges[vi]);
-      }
-    }
-    obj.vertices = newVerts;
-    obj.bulges = newBulges;
-    obj.closed = false;
-    state.selectedSegment = null;
-    state._selectedSegmentObjIdx = null;
-    state.multiSelectedSegments.clear();
-  } else {
-    // Open polyline: remove vertex to delete segment
-    if (segIdx === 0) {
-      // First segment → remove the first vertex
-      obj.vertices.splice(0, 1);
-      obj.bulges.splice(0, 1);
-    } else if (segIdx === segCount - 1) {
-      // Last segment → remove the last vertex
-      obj.vertices.splice(n - 1, 1);
-      obj.bulges.splice(segIdx, 1);
-    } else {
-      // Middle segment → split into two polylines
-      const verts1 = obj.vertices.slice(0, segIdx + 1);
-      const bulges1 = obj.bulges.slice(0, segIdx);
-      const verts2 = obj.vertices.slice(segIdx + 1);
-      const bulges2 = obj.bulges.slice(segIdx + 1);
-
-      // Replace current object with first half
-      obj.vertices = verts1;
-      obj.bulges = bulges1;
-      obj.closed = false;
-
-      // Add second half as new object (without addObject to avoid double pushUndo)
-      if (verts2.length >= 2) {
-        const newObj = {
-          type: 'polyline',
-          vertices: verts2,
-          bulges: bulges2,
-          closed: false,
-          name: `Kontura ${state.nextId++}`,
-          layer: obj.layer,
-          color: obj.color,
-        };
-        state.objects.push(newObj);
-      }
-    }
-    state.selectedSegment = null;
-    state._selectedSegmentObjIdx = null;
-    state.multiSelectedSegments.clear();
   }
+  state.multiSelected.clear();
+  state.selectedSegment = null;
+  state._selectedSegmentObjIdx = null;
+  state.multiSelectedSegments.clear();
 
   updateObjectList();
   updateProperties();
@@ -1664,38 +1590,42 @@ function explodeSelectedPolyline() {
 
   pushUndo();
 
+  const base = inheritedProps(obj);
+  if (base.layer === undefined) base.layer = state.activeLayer;
   const newObjects = [];
+  const bySeg = new Map(); // index segmentu → nový objekt (pro převázání kót)
   for (let i = 0; i < segCount; i++) {
     const p1 = obj.vertices[i];
     const p2 = obj.vertices[(i + 1) % n];
     const b = obj.bulges[i] || 0;
-
+    let no = null;
     if (b === 0) {
-      // Straight segment → line
-      newObjects.push({
-        type: 'line',
-        x1: p1.x, y1: p1.y,
-        x2: p2.x, y2: p2.y,
-        name: `Úsečka ${state.nextId + newObjects.length}`,
-        layer: obj.layer,
-        color: obj.color,
-      });
+      no = { ...base, type: 'line', x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
     } else {
       // Arc segment → arc (CCW normalizace — CW bulge by se jinak přetočil)
       const arc = bulgeToCcwArc(p1, p2, b);
       if (arc) {
-        newObjects.push({
-          type: 'arc',
-          cx: arc.cx, cy: arc.cy,
-          r: arc.r,
-          startAngle: arc.startAngle,
-          endAngle: arc.endAngle,
-          name: `Oblouk ${state.nextId + newObjects.length}`,
-          layer: obj.layer,
-          color: obj.color,
-        });
+        no = { ...base, type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r,
+          startAngle: arc.startAngle, endAngle: arc.endAngle };
       }
     }
+    if (!no) continue;
+    no.id = state.nextId++;
+    no.name = `${no.type === 'arc' ? 'Oblouk' : 'Úsečka'} ${no.id}`;
+    newObjects.push(no);
+    bySeg.set(i, no);
+  }
+
+  // Kóty segmentů kontury převázat na nové úsečky/oblouky – jinak by po
+  // smazání kontury zůstaly viset a přestaly by sledovat geometrii.
+  for (const d of state.objects) {
+    if (!d.isDimension || d.sourceObjId !== obj.id) continue;
+    if (d.dimSegCount != null && d.dimSegCount !== segCount) continue;
+    const no = bySeg.get(d.dimSegIndex);
+    if (!no) continue;
+    d.sourceObjId = no.id;
+    delete d.dimSegIndex;
+    delete d.dimSegCount;
   }
 
   // Remove the polyline
@@ -1706,11 +1636,9 @@ function explodeSelectedPolyline() {
   state.multiSelectedSegments.clear();
 
   // Add new individual objects (without pushUndo, already done)
-  for (const no of newObjects) {
-    no.id = state.nextId++;
-    if (no.layer === undefined) no.layer = state.activeLayer;
-    state.objects.push(no);
-  }
+  for (const no of newObjects) state.objects.push(no);
+  removeOrphanDimensions();
+  updateAssociativeDimensions();
 
   updateObjectList();
   updateProperties();

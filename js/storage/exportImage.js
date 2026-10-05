@@ -4,7 +4,7 @@
 
 import { state, showToast } from '../state.js';
 import { COLORS } from '../constants.js';
-import { bulgeToArc, exportFileName } from '../utils.js';
+import { bulgeToArc, exportFileName, getRectCorners } from '../utils.js';
 import { buildMakerModel } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { objDash, objWidthMul } from '../lineStyles.js';
@@ -41,10 +41,11 @@ function getObjectsBoundingBox() {
         const ey = obj.cy + obj.r * Math.sin(obj.endAngle);
         minX = Math.min(minX, sx, ex); maxX = Math.max(maxX, sx, ex);
         minY = Math.min(minY, sy, ey); maxY = Math.max(maxY, sy, ey);
-        // Check cardinal angles
+        // Check cardinal angles (oblouk po směru hodin = CCW od konce k začátku)
+        const [a0, a1] = obj.ccw === false ? [obj.endAngle, obj.startAngle] : [obj.startAngle, obj.endAngle];
         const cardinals = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
         for (const a of cardinals) {
-          if (isAngleBetweenExport(obj.startAngle, obj.endAngle, a)) {
+          if (isAngleBetweenExport(a0, a1, a)) {
             const px = obj.cx + obj.r * Math.cos(a);
             const py = obj.cy + obj.r * Math.sin(a);
             minX = Math.min(minX, px); maxX = Math.max(maxX, px);
@@ -54,8 +55,10 @@ function getObjectsBoundingBox() {
         break;
       }
       case 'rect':
-        minX = Math.min(minX, obj.x1, obj.x2); maxX = Math.max(maxX, obj.x1, obj.x2);
-        minY = Math.min(minY, obj.y1, obj.y2); maxY = Math.max(maxY, obj.y1, obj.y2);
+        for (const c of getRectCorners(obj)) {
+          minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x);
+          minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+        }
         break;
       case 'polyline':
         for (const v of obj.vertices) {
@@ -250,11 +253,13 @@ function exportSVGLegacy(background) {
         break;
       }
       case 'arc': {
-        const sx = obj.cx + obj.r * Math.cos(obj.startAngle);
-        const sy = obj.cy + obj.r * Math.sin(obj.startAngle);
-        const ex = obj.cx + obj.r * Math.cos(obj.endAngle);
-        const ey = obj.cy + obj.r * Math.sin(obj.endAngle);
-        let sweep = obj.endAngle - obj.startAngle;
+        // Oblouk po směru hodin (ccw === false) = CCW oblouk od konce k začátku
+        const [a0, a1] = obj.ccw === false ? [obj.endAngle, obj.startAngle] : [obj.startAngle, obj.endAngle];
+        const sx = obj.cx + obj.r * Math.cos(a0);
+        const sy = obj.cy + obj.r * Math.sin(a0);
+        const ex = obj.cx + obj.r * Math.cos(a1);
+        const ey = obj.cy + obj.r * Math.sin(a1);
+        let sweep = a1 - a0;
         if (sweep < 0) sweep += Math.PI * 2;
         const largeArc = sweep > Math.PI ? 1 : 0;
         // In SVG Y is flipped, so sweep direction is inverted
@@ -269,13 +274,9 @@ function exportSVGLegacy(background) {
         break;
       }
       case 'rect': {
-        const el = document.createElementNS(ns, 'rect');
-        const rx = Math.min(obj.x1, obj.x2);
-        const ry = Math.max(obj.y1, obj.y2); // top in world = lowest -Y in SVG
-        el.setAttribute('x', rx);
-        el.setAttribute('y', -ry);
-        el.setAttribute('width', Math.abs(obj.x2 - obj.x1));
-        el.setAttribute('height', Math.abs(obj.y2 - obj.y1));
+        // Rohy přes getRectCorners – respektuje natočení (rotation)
+        const el = document.createElementNS(ns, 'polygon');
+        el.setAttribute('points', getRectCorners(obj).map(c => `${c.x},${-c.y}`).join(' '));
         el.setAttribute('stroke', color);
         el.setAttribute('stroke-width', strokeW);
         el.setAttribute('fill', 'none');
@@ -414,14 +415,18 @@ function exportPNG(scale, background) {
       case 'arc': {
         const [sx, sy] = w2s(obj.cx, obj.cy);
         const r = obj.r * zoom;
-        g.beginPath(); g.arc(sx, sy, r, -obj.endAngle, -obj.startAngle); g.stroke();
+        // Oblouk po směru hodin (ccw === false) = CCW oblouk od konce k začátku
+        const [a0, a1] = obj.ccw === false ? [obj.endAngle, obj.startAngle] : [obj.startAngle, obj.endAngle];
+        g.beginPath(); g.arc(sx, sy, r, -a1, -a0); g.stroke();
         break;
       }
       case 'rect': {
-        const [sx1, sy1] = w2s(obj.x1, obj.y1);
-        const [sx2, sy2] = w2s(obj.x2, obj.y2);
+        // Rohy přes getRectCorners – respektuje natočení (rotation)
+        const pts = getRectCorners(obj).map(c => w2s(c.x, c.y));
         g.beginPath();
-        g.rect(Math.min(sx1, sx2), Math.min(sy1, sy2), Math.abs(sx2 - sx1), Math.abs(sy2 - sy1));
+        g.moveTo(pts[0][0], pts[0][1]);
+        for (let k = 1; k < 4; k++) g.lineTo(pts[k][0], pts[k][1]);
+        g.closePath();
         g.stroke();
         break;
       }

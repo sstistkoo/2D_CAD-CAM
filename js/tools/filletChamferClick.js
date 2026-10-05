@@ -103,6 +103,7 @@ function findCornerAt(wx, wy) {
           setP1: (x, y) => { pa.x = x; pa.y = y; },
           setP2: (x, y) => { pb.x = x; pb.y = y; },
           segIdx: si,
+          poly: obj,
           ...styleTagsFrom(obj),
         });
         const da = Math.hypot(pa.x - wx, pa.y - wy);
@@ -142,7 +143,7 @@ function findCornerAt(wx, wy) {
 function getSegDesc(obj, wx, wy) {
   // Úsečka / polyline segment
   const ls = getLineSegment(obj, wx, wy);
-  if (ls) return { kind: 'line', ...ls, ...styleTagsFrom(obj) };
+  if (ls) return { kind: 'line', ...ls, ...(obj.type === 'polyline' ? { poly: obj } : {}), ...styleTagsFrom(obj) };
 
   // Oblouk
   if (obj.type === 'arc') return mkArcDesc(obj);
@@ -208,8 +209,85 @@ function applyFilletChamfer(mode, p1, p2, s1, s2) {
   return _applyLineAndArc(mode, d1, d2, sLine, sArc);
 }
 
+/**
+ * Jsou oba segmenty z TÉŽE kontury? → `null` = ne (různé objekty),
+ * `false` = ano, ale nesousedí, jinak roh: index sdíleného vrcholu `k`,
+ * segment končící v rohu `sb` a segment z rohu vycházející `sa`.
+ */
+function _polyCorner(s1, s2) {
+  if (!s1.poly || s1.poly !== s2.poly) return null;
+  const n = s1.poly.vertices.length;
+  if ((s1.segIdx + 1) % n === s2.segIdx) return { k: s2.segIdx, sb: s1, sa: s2 };
+  if ((s2.segIdx + 1) % n === s1.segIdx) return { k: s1.segIdx, sb: s2, sa: s1 };
+  return false;
+}
+
+/**
+ * Zaoblení/zkosení rohu UVNITŘ kontury. Sdílený vrchol nemůže nést oba
+ * oříznuté body (dřív se přepsal dvakrát a první segment zešikmil), proto se
+ * vrchol nahradí dvojicí T_před, T_za a mezi ně se vloží segment s bulge
+ * zaoblení (zkosení = rovný segment). Žádný samostatný objekt nevzniká.
+ */
+function _applyPolyCorner(mode, p1, p2, s1, s2, corner) {
+  const { k, sb, sa } = corner;
+  const poly = s1.poly;
+  const n = poly.vertices.length;
+  const V = poly.vertices[k];
+  if (isAnchored(V.x, V.y)) { showToast("Roh je zakotven – nelze upravit"); return null; }
+
+  const lb = { ...sb.seg }, la = { ...sa.seg };
+  const result = mode === 'fillet'
+    ? filletTwoLines(lb, la, p1)
+    : chamferTwoLines(lb, la, sb === s1 ? p1 : p2, sb === s1 ? p2 : p1);
+  if (!result.ok) { showToast(result.msg); return null; }
+
+  // Oříznutý konec = ten vzdálenější od protilehlého (nehybného) vrcholu
+  const moved = (l, far) => Math.hypot(l.x1 - far.x, l.y1 - far.y) >= Math.hypot(l.x2 - far.x, l.y2 - far.y)
+    ? { x: l.x1, y: l.y1 } : { x: l.x2, y: l.y2 };
+  const tB = moved(lb, poly.vertices[sb.segIdx]);
+  const tA = moved(la, poly.vertices[(sa.segIdx + 1) % n]);
+  let bulge = 0;
+  if (mode === 'fillet') {
+    const ux = tB.x - result.arc.cx, uy = tB.y - result.arc.cy;
+    const vx = tA.x - result.arc.cx, vy = tA.y - result.arc.cy;
+    bulge = Math.tan(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy) / 4);
+  }
+
+  pushUndo();
+  const segCount = poly.closed ? n : n - 1;
+  const bulges = (poly.bulges || []).slice(0, segCount);
+  while (bulges.length < segCount) bulges.push(0);
+  if (k === 0) {
+    // Jen u uzavřené: roh mezi posledním a prvním segmentem → nový
+    // uzavírací segment tB→tA na konci
+    poly.vertices[0] = tA;
+    poly.vertices.push(tB);
+    bulges.push(bulge);
+  } else {
+    poly.vertices.splice(k, 1, tB, tA);
+    bulges.splice(k, 0, bulge);
+    if (poly.segConstraints) {
+      const sc = {};
+      for (const [i, t] of Object.entries(poly.segConstraints)) sc[+i >= k ? +i + 1 : +i] = t;
+      poly.segConstraints = sc;
+    }
+  }
+  poly.bulges = bulges;
+
+  if (mode === 'fillet') showToast(`Zaoblení R${p1} vytvořeno ✓`);
+  else showToast(`Zkosení ${p1}×${p2} vytvořeno ✓`);
+  calculateAllIntersections();
+  updateAssociativeDimensions();
+  renderAll();
+  return mode === 'fillet' ? { arc: result.arc } : { line: result.line };
+}
+
 /** Zaoblení/zkosení dvou úseček (původní logika). */
 function _applyTwoLines(mode, p1, p2, s1, s2) {
+  const corner = _polyCorner(s1, s2);
+  if (corner === false) { showToast("Zaoblit/zkosit lze jen dva sousední segmenty kontury"); return null; }
+  if (corner) return _applyPolyCorner(mode, p1, p2, s1, s2, corner);
+
   const proxy1 = { x1: s1.seg.x1, y1: s1.seg.y1, x2: s1.seg.x2, y2: s1.seg.y2 };
   const proxy2 = { x1: s2.seg.x1, y1: s2.seg.y1, x2: s2.seg.x2, y2: s2.seg.y2 };
 
@@ -425,7 +503,7 @@ export function filletChamferFromSelection() {
     const v = obj1.vertices, si = info1.segIdx, n = v.length;
     const pa = v[si], pb = v[(si + 1) % n];
     if ((obj1.bulges?.[si] || 0) !== 0) { showToast("Obloukový segment není podporován"); return true; }
-    ls1 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si, ...styleTagsFrom(obj1) };
+    ls1 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si, poly: obj1, ...styleTagsFrom(obj1) };
   } else {
     const raw = getLineSegment(obj1, (obj1.x1 + obj1.x2) / 2, (obj1.y1 + obj1.y2) / 2);
     ls1 = raw ? { kind: 'line', ...raw, ...styleTagsFrom(obj1) } : null;
@@ -434,7 +512,7 @@ export function filletChamferFromSelection() {
     const v = obj2.vertices, si = info2.segIdx, n = v.length;
     const pa = v[si], pb = v[(si + 1) % n];
     if ((obj2.bulges?.[si] || 0) !== 0) { showToast("Obloukový segment není podporován"); return true; }
-    ls2 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si, ...styleTagsFrom(obj2) };
+    ls2 = { kind: 'line', seg: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, setP1: (x, y) => { pa.x = x; pa.y = y; }, setP2: (x, y) => { pb.x = x; pb.y = y; }, segIdx: si, poly: obj2, ...styleTagsFrom(obj2) };
   } else {
     const raw = getLineSegment(obj2, (obj2.x1 + obj2.x2) / 2, (obj2.y1 + obj2.y2) / 2);
     ls2 = raw ? { kind: 'line', ...raw, ...styleTagsFrom(obj2) } : null;

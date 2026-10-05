@@ -4,7 +4,7 @@
 
 import { state } from './state.js';
 import { SNAP_POINT_THRESHOLD, SELECT_THRESHOLD, CONSTRAINT_OFFSET_PX, ARC_OUTSIDE_PENALTY } from './constants.js';
-import { distPointToSegment, isAngleBetween, bulgeToArc, deepClone, getObjectSnapPoints, getRectCorners, getNearestPointOnObject } from './utils.js';
+import { distPointToSegment, isAngleBetween, bulgeToArc, deepClone, getObjectSnapPoints, getRectCorners, getNearestPointOnObject, getTextPathObject } from './utils.js';
 import { renderAll, findNumLabelAt } from './render.js';
 import { bridge } from './bridge.js';
 
@@ -126,19 +126,6 @@ export function findIntersectionAt(wx, wy) {
     }
   }
   return bestDist < threshold ? { x: best.x, y: best.y } : null;
-}
-
-/**
- * Najde nejbližší snap bod objektu k pozici [wx,wy].
- */
-function findNearestEndpoint(obj, wx, wy) {
-  const pts = getObjectSnapPoints(obj);
-  let best = null, bestDist = Infinity;
-  for (const p of pts) {
-    const d = Math.hypot(p.x - wx, p.y - wy);
-    if (d < bestDist) { bestDist = d; best = p; }
-  }
-  return best;
 }
 
 const SEL_PT_TOL = 1e-4;
@@ -582,8 +569,8 @@ export function distToObject(obj, wx, wy) {
     case "text": {
       // Pokud text leží na cestě (pathMode), testuj vzdálenost k cestě
       // s mírnou prioritou (× 0.4) aby text vyhrál nad podkladovou linií/obloukem
-      if (obj.pathMode && obj.pathMode !== 'none' && obj.pathObjectId != null) {
-        const pathObj = state.objects[obj.pathObjectId];
+      {
+        const pathObj = getTextPathObject(obj);
         if (pathObj) {
           if (obj.pathMode === 'line' && (pathObj.type === 'line' || pathObj.type === 'constr')) {
             return distPointToSegment(wx, wy, pathObj.x1, pathObj.y1, pathObj.x2, pathObj.y2) * 0.4;
@@ -2243,6 +2230,10 @@ export function filletTwoLines(line1, line2, radius) {
 
   const tanHalf = Math.tan(sectorAngle / 2);
   const dist = radius / tanHalf; // distance from intersection to tangent point
+  // Tečný bod musí ležet mezi průsečíkem a vzdáleným koncem úsečky – jinak
+  // by se úsečka „ořízla" za svůj konec a tiše se otočila.
+  if (dist > Math.max(d1a, d1b) + 1e-6 || dist > Math.max(d2a, d2b) + 1e-6)
+    return { ok: false, msg: "Poloměr zaoblení je na tyto úsečky příliš velký" };
 
   // Tangent points on each line
   const tp1x = ix + n1x * dist, tp1y = iy + n1y * dist;

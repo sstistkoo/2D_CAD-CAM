@@ -3,7 +3,6 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast } from '../state.js';
-import { moveObject } from '../objects.js';
 import { setHint, setTool, updateProperties, updateObjectList } from '../ui.js';
 import { renderAll } from '../render.js';
 import { deepClone } from '../utils.js';

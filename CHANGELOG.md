@@ -29,6 +29,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Kontrola CAD – úpravy kontur, kóty, export** (uživatel 5. 10. 2026),
+  regresní testy `tests/polyline-edits.test.js` + `tests/dimension.test.js`:
+  - **zaoblení/zkosení rohu UVNITŘ kontury** přepsalo sdílený vrchol dvakrát
+    – z `(0,0)-(10,0)-(10,10)` vzniklo `(0,0)-(10,2)-(10,10)` + samostatný
+    oblouk; teď se do kontury vloží oblouk (bulge) / zkosení, sousedé se jen
+    zkrátí. Nesousední segmenty téže kontury se odmítnou;
+  - **zaoblení s příliš velkým poloměrem** úsečku tiše otočilo za její konec
+    – teď hláška (`filletTwoLines`);
+  - **oříznutí segmentu kontury** posouvalo sdílený vrchol a deformovalo
+    sousední segment, u oblouku zmizel zbytek, u uzavřené kontury se ztratil
+    uzavírací segment – nově jedna funkce „odstraň úsek kontury"
+    (`removePolylineSpan` v `trimClick.js`); průsečíky s vlastní konturou se
+    berou i u rovného segmentu. Mrtvé `trimLineSeg`/`trimRectEdge` pryč;
+  - **prodloužení** u kontury jen za volný konec otevřené kontury (vnitřní
+    konec patří i sousednímu segmentu); konec, který už na objektu leží,
+    nehlásí „Prodlouženo ✓" bez změny;
+  - **rozdělení obloukového segmentu kontury** dělí na oblouku (dřív bod na
+    tětivě a z oblouku dvě úsečky);
+  - **✕ segmentu uzavřené kontury v seznamu objektů** mazalo dva segmenty;
+    smazání prostředního segmentu z plátna dávalo nové kontuře objekt bez
+    `id` – obě místa teď volají `deletePolylineSegment()` (`objects.js`);
+  - **rozdělení / spojení / oříznutí / smazání segmentu** ztrácelo vrstvu, typ
+    čáry a příznak polotovaru (půlka polotovaru se stala konturou) –
+    `inheritedProps()`; Spojit už nespojí polotovar s konturou a nenechá výběr
+    ukazovat na jiný objekt; oříznutí pomocné čáry nevyrobí konturu;
+  - **hromadný přesun** posouval všechny volné kóty a souřadnicové štítky ve
+    výkresu, ne jen vybrané;
+  - **kóty oblouku po směru hodin** (úhel i R) ukazovaly doplněk do 360° na
+    prázdné straně oblouku;
+  - **export PNG / SVG** kreslil oblouk po směru hodin obráceně a obdélník bez
+    natočení;
+  - **Rozložit konturu** nechávala viset kóty – teď se převážou na nové
+    úsečky/oblouky; osiřelé kóty maže jedna `removeOrphanDimensions()`;
+  - **text na cestě** odkazoval indexem do pole objektů → po smazání objektu
+    před cestou se přichytil jinam; nově `pathObjId` (id), starý formát se
+    převede při načtení.
+  - Úklid: ~35 nepoužitých importů a mrtvé funkce (`findNearestEndpoint`,
+    `chainToPolylines`, `getLineData`/`getCircleData`). SW v366.
 - **CNC Editor – druhá kontrola chyb** (uživatel 5. 10. 2026):
   - „Přepsat výkres" (🔄 / zavření editoru) nevynuloval výběr – indexy ukazovaly
     do starého pole objektů a panel CNC KÓD pak exportoval jen „vybraný" kus;

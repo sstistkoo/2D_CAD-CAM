@@ -10,7 +10,7 @@ import { safeEvalMath } from '../utils.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList, resetHint } from '../ui.js';
 import { renderAll } from '../render.js';
-import { addObject, addPolylineAsSegments } from '../objects.js';
+import { addPolylineAsSegments } from '../objects.js';
 import { getLineStyle } from '../lineStyles.js';
 import { updateAssociativeDimensions } from './dimension.js';
 

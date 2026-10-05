@@ -15,11 +15,9 @@ import {
   circlePositionsTangentToCircleAndPoint,
   circlePositionsTangentToTwoSegments, circleTangentToThreeSegments,
   getPolylineSegmentAsLine,
-  circleThrough3Points, circleTangentToLineAndTwoPoints,
-  circleTangentToTwoLinesAndPoint, circleTangentToThreeLines,
-  circleTangentToCircleAndTwoPoints
+  circleThrough3Points, circleTangentToTwoLinesAndPoint
 } from '../geometry.js';
-import { showTangentChoiceDialog, showTangentPositionDialog, showTangentCircleLineActionDialog, showTangentNewCircleRadiusDialog } from '../dialogs.js';
+import { showTangentChoiceDialog, showTangentPositionDialog } from '../dialogs.js';
 import { hasAnchoredPoint } from './anchorClick.js';
 
 let _lastTangentNewCircleR = 0;
@@ -135,33 +133,6 @@ function singleSegTangentPositions(circ, seg) {
 }
 
 // ── Pomocné funkce pro extrakci dat z výběru ──
-
-/**
- * Získá úsečkové data z objektu nebo polyline segmentu.
- */
-function getLineData(objIdx, segIdx) {
-  const obj = state.objects[objIdx];
-  if (!obj) return null;
-  if (obj.type === 'line' || obj.type === 'constr') {
-    return { x1: obj.x1, y1: obj.y1, x2: obj.x2, y2: obj.y2 };
-  }
-  if (obj.type === 'polyline' && segIdx !== null && segIdx !== undefined) {
-    return getPolylineSegmentAsLine(obj, segIdx);
-  }
-  return null;
-}
-
-/**
- * Získá kružnici z objektu.
- */
-function getCircleData(objIdx) {
-  const obj = state.objects[objIdx];
-  if (!obj) return null;
-  if (obj.type === 'circle' || obj.type === 'arc') {
-    return { idx: objIdx, cx: obj.cx, cy: obj.cy, r: obj.r };
-  }
-  return null;
-}
 
 /**
  * Analyzuje výběr a vrátí kategorizované objekty.

@@ -1,5 +1,4 @@
 import { showToast } from '../state.js';
-import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { saveToolToLibrary } from '../toolLibrary.js';
 import { HOLDER_STYLES } from './holderIsoData.js';

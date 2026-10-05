@@ -4,13 +4,12 @@
 
 import { MOBILE_BREAKPOINT, LONG_PRESS_MS, CROSSHAIR_OFFSET_Y, ZOOM_MIN, ZOOM_MAX, VIBRATE_LONG_PRESS, TOUCH_MOVE_THRESHOLD, PAN_ACTIVATE_THRESHOLD } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, autoCenterView, applyAngleSnap, safeVibrate } from './canvas.js';
-import { state, undo, redo, showToast, toDisplayCoords, resetDrawingState, displayX, xPrefix, fmtStatusCoords, fmtNum } from './state.js';
+import { state, undo, redo, showToast, toDisplayCoords, resetDrawingState, fmtStatusCoords, fmtNum } from './state.js';
 import { renderAll } from './render.js';
-import { moveObject, addObject, addPolylineAsSegments } from './objects.js';
+import { moveObject, addPolylineAsSegments } from './objects.js';
 import { handleCanvasClick, finishRectSelection } from './events.js';
 import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { toolLabel } from './utils.js';
 import { showCombinedModal } from './dialogs.js';
 import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace, startPencilStroke, addPencilPoint, finishPencilStroke } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';

@@ -5,7 +5,7 @@
 
 import { COLORS } from '../constants.js';
 import { makeInputOverlay } from '../dialogFactory.js';
-import { state, showToast, toDisplayCoords, toDisplayAngle, axisLabels, displayX, xPrefix, coordHelpers, pushUndo, withUndoBatch } from '../state.js';
+import { state, showToast, toDisplayCoords, toDisplayAngle, coordHelpers, pushUndo, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { typeLabel, bulgeToArc, safeEvalMath } from '../utils.js';

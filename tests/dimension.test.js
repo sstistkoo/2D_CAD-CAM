@@ -387,6 +387,22 @@ describe('addArcRadiusLeader / addArcAngleDim (interaktivní kóty oblouku)', ()
     expect(a.dimMidAng).toBeCloseTo(Math.PI / 4, 6);
     expect(a.name).toContain('∠90.0°');
   });
+
+  it('addArcAngleDim: oblouk PO směru hodin (ccw:false) – rozevření, ne doplněk do 360°', () => {
+    // 90° → 0° po směru hodin = čtvrtkruh v 1. kvadrantu; naivní end−start
+    // dával 270° a střed kóty na prázdné straně (225°)
+    addArcAngleDim({ ...arc, startAngle: Math.PI / 2, endAngle: 0, ccw: false });
+    const a = addObject.mock.calls[0][0];
+    expect(a.dimAngle).toBeCloseTo(Math.PI / 2, 6);
+    expect(a.dimMidAng).toBeCloseTo(Math.PI / 4, 6);
+    expect(a.name).toContain('∠90.0°');
+  });
+
+  it('addDimensionForObject: kóta R oblouku po směru hodin míří na oblouk', () => {
+    addDimensionForObject({ ...arc, type: 'arc', startAngle: Math.PI / 2, endAngle: 0, ccw: false });
+    const r = addObject.mock.calls.map(c => c[0]).find(o => o.dimType === 'radius');
+    expect(r.dimAnchorAngle).toBeCloseTo(Math.PI / 4, 6);
+  });
 });
 
 describe('buildZAxisRefLine + polární úhel od osy Z', () => {

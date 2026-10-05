@@ -274,6 +274,26 @@ export function handleLineClick(wx, wy) {
 }
 ```
 
+### Pravidla pro nástroje, které objekty MĚNÍ (rozdělit, oříznout, spojit…)
+
+Sdílené pomocníky v `js/objects.js` – nepsat znovu vlastní kopii:
+
+- **`inheritedProps(obj)`** – část vzniklá úpravou převezme vrstvu, typ čáry,
+  barvu a příznak polotovaru (`isStock`). Bez toho se z půlky čáry polotovaru
+  stane kontura: `addObject({ ...inheritedProps(obj), type: 'line', … })`.
+- **`removeOrphanDimensions()`** – po smazání/nahrazení objektu smaže kóty,
+  jejichž zdroj (`sourceObjId`, `dimLine1Id/2Id`) už neexistuje.
+- **`deletePolylineSegment(idx, segIdx)`** – smazání jednoho segmentu kontury
+  (uzavřená se otevře, prostřední segment otevřené ji rozdělí).
+
+U kontury (`polyline`) **nikdy neposouvat sdílený vrchol** jednoho segmentu –
+patří i sousednímu segmentu a ten by se zdeformoval. Oříznutí řeší
+`removePolylineSpan()` v `trimClick.js` (vyjme úsek, konturu rozdělí/otevře),
+zaoblení rohu vkládá do kontury nový segment s bulge, prodloužit lze jen volný
+konec otevřené kontury. Oblouky respektují `ccw === false` (po směru hodin).
+Odkazy mezi objekty drž přes `id`, ne přes index do `state.objects` (indexy se
+mění mazáním) – viz `getTextPathObject()` (`pathObjId`) v `utils.js`.
+
 ### Pattern: Akční tlačítko nad výběrem (bez `data-tool`)
 
 Ne každý nástroj kreslí klikáním po plátně — některé jen zpracují aktuální

@@ -9,7 +9,7 @@ import { makeInputOverlay } from '../dialogFactory.js';
 import { state, showToast, pushUndo, axisLabels } from '../state.js';
 import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
 import { renderAll } from '../render.js';
-import { typeLabel, safeEvalMath } from '../utils.js';
+import { typeLabel, safeEvalMath, textPathIndex, textPathIdFromIndex } from '../utils.js';
 import { updateObjectList, updateProperties } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateAssociativeDimensions } from './dimension.js';
@@ -112,7 +112,7 @@ export function showEditObjectDialog(idx) {
       italic: obj.italic || false,
       letterSpacing: obj.letterSpacing || 0,
       pathMode: obj.pathMode || 'none',
-      pathObjectId: obj.pathObjectId,
+      pathObjectId: textPathIndex(obj),
       pathOffset: obj.pathOffset != null ? obj.pathOffset : 2,
       editMode: true,
     }, (result) => {
@@ -126,7 +126,8 @@ export function showEditObjectDialog(idx) {
       obj.italic = result.italic;
       obj.letterSpacing = result.letterSpacing;
       obj.pathMode = result.pathMode;
-      obj.pathObjectId = result.pathObjectId;
+      obj.pathObjId = textPathIdFromIndex(result.pathObjectId);
+      delete obj.pathObjectId;
       obj.pathOffset = result.pathOffset;
       obj.name = `Text "${result.text.substring(0, 20)}"`;
       updateObjectList();

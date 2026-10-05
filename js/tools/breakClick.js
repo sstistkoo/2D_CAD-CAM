@@ -4,10 +4,10 @@
 
 import { state, withUndoBatch, showToast } from '../state.js';
 import { renderAll } from '../render.js';
-import { addObject } from '../objects.js';
+import { addObject, inheritedProps } from '../objects.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
-import { resetHint } from '../ui.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
+import { bulgeToArc, distPointToSegment } from '../utils.js';
 import { hasAnchoredPoint } from './anchorClick.js';
 
 /** Normalizuje úhel do [0, 2π). */
@@ -66,10 +66,10 @@ function breakLine(idx, obj, wx, wy) {
 
     // Nová úsečka
     addObject({
+      ...inheritedProps(obj),
       type: obj.type,
       x1: proj.x, y1: proj.y,
       x2: origX2, y2: origY2,
-      ...(obj.color ? { color: obj.color } : {}),
     });
   });
 
@@ -88,23 +88,22 @@ function breakCircle(idx, obj, wx, wy) {
   withUndoBatch(() => {
     // Nahradit kružnici obloukem (horní půlka)
     state.objects[idx] = {
+      ...inheritedProps(obj),
       type: 'arc',
       cx: obj.cx, cy: obj.cy, r: obj.r,
       startAngle: clickAngle,
       endAngle: oppositeAngle,
       name: obj.name || `Oblouk ${obj.id}`,
       id: obj.id,
-      layer: obj.layer,
-      ...(obj.color ? { color: obj.color } : {}),
     };
 
     // Druhý oblouk (spodní půlka)
     addObject({
+      ...inheritedProps(obj),
       type: 'arc',
       cx: obj.cx, cy: obj.cy, r: obj.r,
       startAngle: oppositeAngle,
       endAngle: clickAngle,
-      ...(obj.color ? { color: obj.color } : {}),
     });
   });
 
@@ -142,11 +141,11 @@ function breakArc(idx, obj, wx, wy) {
 
     // Nový oblouk
     const newArc = {
+      ...inheritedProps(obj),
       type: 'arc',
       cx: obj.cx, cy: obj.cy, r: obj.r,
       startAngle: clickAngle,
       endAngle: origEnd,
-      ...(obj.color ? { color: obj.color } : {}),
     };
     if (ccw === false) newArc.ccw = false;
     addObject(newArc);
@@ -160,91 +159,109 @@ function breakArc(idx, obj, wx, wy) {
 
 // ── Kontura → rozdělení v segmentu ──
 
-function breakPolyline(idx, obj, wx, wy) {
-  // Najít nejbližší segment
-  const verts = obj.vertices;
-  const count = obj.closed ? verts.length : verts.length - 1;
-  let bestSeg = 0, bestDist = Infinity;
-
-  for (let i = 0; i < count; i++) {
-    const p1 = verts[i], p2 = verts[(i + 1) % verts.length];
-    const dx = p2.x - p1.x, dy = p2.y - p1.y;
-    const len2 = dx * dx + dy * dy;
-    let t = len2 < 1e-12 ? 0 : ((wx - p1.x) * dx + (wy - p1.y) * dy) / len2;
-    t = Math.max(0, Math.min(1, t));
-    const px = p1.x + t * dx, py = p1.y + t * dy;
-    const d = Math.hypot(wx - px, wy - py);
-    if (d < bestDist) { bestDist = d; bestSeg = i; }
+/**
+ * Bod dělení na segmentu i kontury + bulge obou vzniklých částí. U oblouku
+ * leží bod NA oblouku a obě části zůstanou oblouky (dřív se bod promítl na
+ * tětivu a z oblouku vznikly dvě úsečky).
+ * @returns {{dist:number, x:number, y:number, b1:number, b2:number}|null}
+ */
+function splitOnSegment(p1, p2, b, wx, wy) {
+  if (!b) {
+    const proj = projectOnSegment(wx, wy, p1.x, p1.y, p2.x, p2.y);
+    return { dist: distPointToSegment(wx, wy, p1.x, p1.y, p2.x, p2.y), x: proj.x, y: proj.y, b1: 0, b2: 0 };
   }
+  const arc = bulgeToArc(p1, p2, b);
+  if (!arc) return null;
+  const sweep = 4 * Math.atan(Math.abs(b));
+  const a = Math.atan2(wy - arc.cy, wx - arc.cx);
+  let pos = arc.ccw ? normalizeAngle(a - arc.startAngle) : normalizeAngle(arc.startAngle - a);
+  // Klik mimo oblouk → vzdálenost k bližšímu konci
+  const outside = pos > sweep;
+  const dist = outside
+    ? Math.min(Math.hypot(wx - p1.x, wy - p1.y), Math.hypot(wx - p2.x, wy - p2.y))
+    : Math.abs(Math.hypot(wx - arc.cx, wy - arc.cy) - arc.r);
+  pos = Math.max(0.01 * sweep, Math.min(0.99 * sweep, outside ? (pos - sweep < 2 * Math.PI - pos ? sweep : 0) : pos));
+  const ang = arc.ccw ? arc.startAngle + pos : arc.startAngle - pos;
+  const sign = b > 0 ? 1 : -1;
+  return {
+    dist,
+    x: arc.cx + arc.r * Math.cos(ang), y: arc.cy + arc.r * Math.sin(ang),
+    b1: sign * Math.tan(pos / 4), b2: sign * Math.tan((sweep - pos) / 4),
+  };
+}
 
-  const p1 = verts[bestSeg], p2 = verts[(bestSeg + 1) % verts.length];
-  const proj = projectOnSegment(wx, wy, p1.x, p1.y, p2.x, p2.y);
+function breakPolyline(idx, obj, wx, wy) {
+  // Najít nejbližší segment (u oblouku vzdálenost k oblouku, ne k tětivě)
+  const verts = obj.vertices;
+  const n = verts.length;
+  const count = obj.closed ? n : n - 1;
+  const bul = i => obj.bulges?.[i] || 0;
+  let bestSeg = -1, best = null;
+  for (let i = 0; i < count; i++) {
+    const sp = splitOnSegment(verts[i], verts[(i + 1) % n], bul(i), wx, wy);
+    if (sp && (!best || sp.dist < best.dist)) { best = sp; bestSeg = i; }
+  }
+  if (!best) { showToast("Konturu se nepodařilo rozdělit"); return; }
+  const splitPt = { x: best.x, y: best.y };
 
   withUndoBatch(() => {
     if (obj.closed) {
-      // Otevřít uzavřenou konturu v místě rozdělení
-      const n = verts.length;
-      const newVerts = [];
-      const newBulges = [];
-      // Start from split point, go around
-      newVerts.push({ x: proj.x, y: proj.y });
+      // Otevřít uzavřenou konturu v místě rozdělení:
+      // bod → v[bestSeg+1] → … → v[bestSeg] → bod
+      const newVerts = [{ ...splitPt }];
+      const newBulges = [best.b2];
       for (let i = 1; i <= n; i++) {
         const vi = (bestSeg + i) % n;
         newVerts.push({ x: verts[vi].x, y: verts[vi].y });
-        newBulges.push(obj.bulges?.[(bestSeg + i - 1) % n] || 0);
+        if (i < n) newBulges.push(bul(vi));
       }
-      newVerts.push({ x: proj.x, y: proj.y });
-      newBulges.push(0);
+      newVerts.push({ ...splitPt });
+      newBulges.push(best.b1);
 
       obj.vertices = newVerts;
       obj.bulges = newBulges;
       obj.closed = false;
     } else {
       // Rozdělit otevřenou konturu na dvě
-      const splitPt = { x: proj.x, y: proj.y };
-
       const verts1 = verts.slice(0, bestSeg + 1).map(v => ({ x: v.x, y: v.y }));
-      verts1.push(splitPt);
-      const bulges1 = (obj.bulges || []).slice(0, bestSeg);
-      bulges1.push(0);
+      verts1.push({ ...splitPt });
+      const bulges1 = [];
+      for (let i = 0; i < bestSeg; i++) bulges1.push(bul(i));
+      bulges1.push(best.b1);
 
-      const verts2 = [{ x: splitPt.x, y: splitPt.y }];
-      for (let i = bestSeg + 1; i < verts.length; i++) {
-        verts2.push({ x: verts[i].x, y: verts[i].y });
-      }
-      const bulges2 = [0];
-      for (let i = bestSeg + 1; i < verts.length - 1; i++) {
-        bulges2.push(obj.bulges?.[i] || 0);
-      }
+      const verts2 = [{ ...splitPt }];
+      for (let i = bestSeg + 1; i < n; i++) verts2.push({ x: verts[i].x, y: verts[i].y });
+      const bulges2 = [best.b2];
+      for (let i = bestSeg + 1; i < n - 1; i++) bulges2.push(bul(i));
 
-      // Pokud výsledek má jen 2 body, převést na úsečku
-      if (verts1.length === 2) {
+      // Výsledek se 2 body a rovným segmentem → úsečka
+      if (verts1.length === 2 && !bulges1[0]) {
         state.objects[idx] = {
+          ...inheritedProps(obj),
           type: 'line',
           x1: verts1[0].x, y1: verts1[0].y,
           x2: verts1[1].x, y2: verts1[1].y,
-          name: obj.name, id: obj.id, layer: obj.layer,
-          ...(obj.color ? { color: obj.color } : {}),
+          name: obj.name, id: obj.id,
         };
       } else {
         obj.vertices = verts1;
         obj.bulges = bulges1;
       }
 
-      if (verts2.length === 2) {
+      if (verts2.length === 2 && !bulges2[0]) {
         addObject({
+          ...inheritedProps(obj),
           type: 'line',
           x1: verts2[0].x, y1: verts2[0].y,
           x2: verts2[1].x, y2: verts2[1].y,
-          ...(obj.color ? { color: obj.color } : {}),
         });
-      } else if (verts2.length > 2) {
+      } else {
         addObject({
+          ...inheritedProps(obj),
           type: 'polyline',
           vertices: verts2,
           bulges: bulges2,
           closed: false,
-          ...(obj.color ? { color: obj.color } : {}),
         });
       }
     }

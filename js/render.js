@@ -3,9 +3,9 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { drawCanvas, ctx, worldToScreen, screenToWorld, screenAngle, screenCCW } from './canvas.js';
-import { state, toDisplayCoords, displayX, xPrefix, fmtCoordLabel, fmtNum } from './state.js';
+import { state, displayX, fmtCoordLabel, fmtNum } from './state.js';
 import { bridge } from './bridge.js';
-import { bulgeToArc, getRectCorners, deepClone } from './utils.js';
+import { bulgeToArc, getRectCorners, deepClone, getTextPathObject } from './utils.js';
 import { projectPointToLine } from './geometry.js';
 import { computeLinearDimPlacement, computeAngleDimPlacement } from './dialogs/dimension.js';
 import {
@@ -152,8 +152,8 @@ export function getObjectBounds(obj) {
     }
     case 'text': {
       // Text podél cesty – bounds z path objektu
-      if (obj.pathMode && obj.pathMode !== 'none' && obj.pathObjectId != null) {
-        const pathObj = state.objects[obj.pathObjectId];
+      {
+        const pathObj = getTextPathObject(obj);
         if (pathObj && pathObj.type !== 'text') {
           const pathBounds = getObjectBounds(pathObj);
           if (pathBounds) {
@@ -2567,8 +2567,8 @@ export function drawText(obj, isSel) {
   const textStr = obj.text || '';
 
   // Text podél cesty (úsečka nebo oblouk)
-  if (obj.pathMode && obj.pathMode !== 'none' && obj.pathObjectId != null) {
-    const pathObj = state.objects[obj.pathObjectId];
+  {
+    const pathObj = getTextPathObject(obj);
     if (pathObj) {
       const pathOffset = (obj.pathOffset || 0) * state.zoom;
       const pathStart = (obj.pathStart || 0) * state.zoom;

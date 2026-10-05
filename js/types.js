@@ -152,7 +152,8 @@
  * @property {boolean} [italic]
  * @property {number} [letterSpacing]
  * @property {string} [pathMode] - 'none'|'line'|'arc'
- * @property {number|null} [pathObjectId] - ID objektu cesty
+ * @property {number|null} [pathObjId] - id objektu cesty (úsečka/oblouk/kružnice)
+ * @property {number|null} [pathObjectId] - ZASTARALÉ: index objektu cesty (starý formát, při načtení se převede na pathObjId)
  */
 
 /**

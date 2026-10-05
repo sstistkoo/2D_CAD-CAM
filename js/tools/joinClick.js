@@ -4,7 +4,7 @@
 
 import { state, withUndoBatch, showToast } from '../state.js';
 import { renderAll } from '../render.js';
-import { addObject } from '../objects.js';
+import { addObject, inheritedProps, removeOrphanDimensions } from '../objects.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 import { SNAP_POINT_THRESHOLD } from '../constants.js';
@@ -45,6 +45,7 @@ export function handleJoinClick(wx, wy) {
       const a = candidates[i], b = candidates[j];
       if (a.idx === b.idx) continue;
       if (a.obj.type !== b.obj.type) continue;
+      if (!!a.obj.isStock !== !!b.obj.isStock) continue; // polotovar s konturou nespojovat
       if (hasAnchoredPoint(a.obj) || hasAnchoredPoint(b.obj)) continue;
 
       const aFar = a.which === 0 ? { x: a.obj.x2, y: a.obj.y2 } : { x: a.obj.x1, y: a.obj.y1 };
@@ -60,12 +61,16 @@ export function handleJoinClick(wx, wy) {
         const [loIdx, hiIdx] = a.idx < b.idx ? [a.idx, b.idx] : [b.idx, a.idx];
         state.objects.splice(hiIdx, 1);
         state.objects.splice(loIdx, 1);
+        // Indexy výběru po splice ukazují jinam; kóty spojených úseček osiřely.
+        state.selected = null;
+        state.multiSelected.clear();
+        removeOrphanDimensions();
 
         addObject({
+          ...inheritedProps(a.obj),
           type: a.obj.type,
           x1: aFar.x, y1: aFar.y,
           x2: bFar.x, y2: bFar.y,
-          ...(a.obj.color ? { color: a.obj.color } : {}),
         });
       });
 

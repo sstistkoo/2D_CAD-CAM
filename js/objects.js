@@ -8,7 +8,7 @@ import { calculateAllIntersections } from './geometry.js';
 import { autoCenterView } from './canvas.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { hasAnchoredPoint } from './tools/anchorClick.js';
-import { bulgeToCcwArc } from './utils.js';
+import { bulgeToCcwArc, getTextPathObject } from './utils.js';
 import { activeShapeStyleProps } from './lineStyles.js';
 import { findDuplicateDimension } from './dimensionDedup.js';
 
@@ -59,6 +59,104 @@ export function addObject(obj) {
     autoCenterView();
   }
   return obj;
+}
+
+/**
+ * Vlastnosti, které má převzít část objektu vzniklá jeho úpravou (rozdělení,
+ * spojení, oříznutí, smazání segmentu): vrstva, vzhled čáry a příslušnost
+ * k polotovaru. Bez nich by se např. půlka čáry polotovaru stala konturou.
+ * @param {import('./types.js').DrawObject} obj
+ * @returns {Record<string, any>}
+ */
+export function inheritedProps(obj) {
+  const p = {};
+  for (const k of ['layer', 'color', 'lineStyle', 'dashed', 'finite']) {
+    if (obj[k] !== undefined) p[k] = obj[k];
+  }
+  if (obj.isStock) p.isStock = true;
+  return p;
+}
+
+/**
+ * Smaže kóty, jejichž zdrojový objekt už ve výkresu není.
+ * @returns {number} počet smazaných kót
+ */
+export function removeOrphanDimensions() {
+  const existingIds = new Set(state.objects.map(o => o.id));
+  let removed = 0;
+  for (let i = state.objects.length - 1; i >= 0; i--) {
+    const d = state.objects[i];
+    if (!d.isDimension) continue;
+    const orphan = (d.sourceObjId && !existingIds.has(d.sourceObjId))
+      || (d.dimLine1Id && d.dimLine2Id &&
+          (!existingIds.has(d.dimLine1Id) || !existingIds.has(d.dimLine2Id)));
+    if (orphan) { state.objects.splice(i, 1); removed++; }
+  }
+  return removed;
+}
+
+/**
+ * Smaže jeden segment kontury (polyline) na indexu `idx`. Volající si sám
+ * zajistí pushUndo() a překreslení.
+ *  • kontura s jediným segmentem → smaže se celá,
+ *  • uzavřená kontura → otevře se v místě segmentu (nic dalšího nezmizí),
+ *  • první/poslední segment otevřené → odebere se krajní vrchol,
+ *  • prostřední segment otevřené → rozdělí se na dvě kontury (druhá dostane
+ *    nové id a vloží se hned za původní).
+ * @returns {'deleted'|'opened'|'trimmed'|'split'|null}
+ */
+export function deletePolylineSegment(idx, segIdx) {
+  const obj = state.objects[idx];
+  if (!obj || obj.type !== 'polyline') return null;
+  const n = obj.vertices.length;
+  const segCount = obj.closed ? n : n - 1;
+  if (segIdx < 0 || segIdx >= segCount) return null;
+  const bulges = obj.bulges || [];
+
+  if (segCount <= 1) {
+    state.objects.splice(idx, 1);
+    return 'deleted';
+  }
+  if (obj.closed) {
+    // Nová otevřená kontura začíná vrcholem ZA smazaným segmentem a končí
+    // jeho počátečním vrcholem – zůstanou všechny ostatní segmenty.
+    const start = (segIdx + 1) % n;
+    const verts = [], bs = [];
+    for (let i = 0; i < n; i++) {
+      const vi = (start + i) % n;
+      verts.push(obj.vertices[vi]);
+      if (i < n - 1) bs.push(bulges[vi] || 0);
+    }
+    obj.vertices = verts;
+    obj.bulges = bs;
+    obj.closed = false;
+    return 'opened';
+  }
+  if (segIdx === 0) {
+    obj.vertices.splice(0, 1);
+    obj.bulges = bulges.slice(1);
+    return 'trimmed';
+  }
+  if (segIdx === segCount - 1) {
+    obj.vertices.splice(n - 1, 1);
+    obj.bulges = bulges.slice(0, segIdx);
+    return 'trimmed';
+  }
+  const verts2 = obj.vertices.slice(segIdx + 1);
+  const bulges2 = bulges.slice(segIdx + 1, n - 1);
+  obj.vertices = obj.vertices.slice(0, segIdx + 1);
+  obj.bulges = bulges.slice(0, segIdx);
+  const id = state.nextId++;
+  state.objects.splice(idx + 1, 0, {
+    ...inheritedProps(obj),
+    type: 'polyline',
+    vertices: verts2,
+    bulges: bulges2,
+    closed: false,
+    name: `Kontura ${id}`,
+    id,
+  });
+  return 'split';
 }
 
 /**
@@ -209,8 +307,8 @@ export function moveObject(obj, dx, dy) {
       break;
     case "text":
       // Pohyb textu na cestě → změna pathStart (podél) + pathOffset (kolmo)
-      if (obj.pathMode && obj.pathMode !== 'none' && obj.pathObjectId != null) {
-        const pathObj = state.objects[obj.pathObjectId];
+      {
+        const pathObj = getTextPathObject(obj);
         if (pathObj) {
           if (obj.pathMode === 'line' && (pathObj.type === 'line' || pathObj.type === 'constr')) {
             const ldx = pathObj.x2 - pathObj.x1;
@@ -241,7 +339,6 @@ export function moveObject(obj, dx, dy) {
             break;
           } else if (obj.pathMode === 'circle' && pathObj.type === 'circle') {
             // Tangenciální složka → pathStart (úhel), radiální → pathOffset
-            const curAngle = Math.atan2(dy, dx);
             // Obecný tangent/radial rozklad kolem středu
             const fromCenter = Math.atan2(
               (obj.y ?? pathObj.cy) - pathObj.cy,
