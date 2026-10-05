@@ -423,9 +423,87 @@ function canSingleFingerPan() {
   return !state.drawing && !state.dragging && !touchState.precisionMode && !dimPlacingPending;
 }
 
+// ── Tlačítka pod zaměřovačem (sdílí křížek plátna i globální pointer) ──
+const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card, .coord-ind";
+
+/**
+ * Klikatelný prvek pod bodem (x, y). Když tam nic není a je dán záložní bod
+ * (skutečná pozice prstu), zkusí ještě ten.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} [fx]
+ * @param {number} [fy]
+ * @returns {Element|null}
+ */
+function findClickableAt(x, y, fx, fy) {
+  let el = document.elementFromPoint(x, y);
+  let clickable = el && el.closest(CLICKABLE_SEL);
+  if (!clickable && fx != null && fy != null) {
+    el = document.elementFromPoint(fx, fy);
+    clickable = el && el.closest(CLICKABLE_SEL);
+  }
+  return clickable || null;
+}
+
+/** @param {Element|null} el @param {boolean} on */
+function outlineTarget(el, on) {
+  if (!el) return;
+  el.style.outline = on ? "2px solid #f9e2af" : "";
+  el.style.outlineOffset = on ? "1px" : "";
+}
+
+/**
+ * Bublina s popiskem NA STŘED nad bodem (x, y), celý text zalomený a přitažená
+ * k okrajům displeje. `labelEl` je dítě nulového fixed kontejneru stojícího
+ * v (x, y). 20 px od zaměřovače, ať nepřekrývá zvýrazněné tlačítko; pod něj
+ * jen když nad ním není místo (nebo `forceBelow`).
+ * @param {HTMLElement} labelEl
+ * @param {number} x
+ * @param {number} y
+ * @param {boolean} [forceBelow]
+ */
+function placeTipBubble(labelEl, x, y, forceBelow) {
+  const M = 8;
+  const w = labelEl.offsetWidth, h = labelEl.offsetHeight;
+  const absLeft = Math.max(M, Math.min(x - w / 2, window.innerWidth - M - w));
+  labelEl.style.left = (absLeft - x) + "px";
+  const below = forceBelow || y - h - 20 < M;
+  labelEl.style.top = (below ? 20 : -h - 20) + "px";
+}
+
 // ── Precision crosshair helpers ──
 const precisionEl = document.getElementById("precisionCrosshair");
 const precisionLabel = precisionEl.querySelector(".ch-label");
+const precisionTip = precisionEl.querySelector(".ch-tip");
+/** Tlačítko (plovoucí lišty nad plátnem), na které právě míří křížek. */
+let chHoverBtn = null;
+
+/**
+ * Křížek plátna dojetý nad tlačítko (SOU/ABS/R, ↩, 🔢… leží NAD plátnem):
+ * místo souřadnic bodu schovaného pod tlačítkem ukáže jeho popisek a
+ * zvýrazní ho – stejně jako globální pointer mimo plátno. Puštění prstu
+ * pak klikne na tlačítko (viz touchend), bod se do výkresu nezapíše.
+ * @param {number} x klientská X křížku
+ * @param {number} y klientská Y křížku
+ */
+function updateCrosshairButtonHover(x, y) {
+  const btn = findClickableAt(x, y);
+  if (btn !== chHoverBtn) {
+    outlineTarget(chHoverBtn, false);
+    outlineTarget(btn, true);
+    chHoverBtn = btn;
+  }
+  state.touchPrecision.overButton = !!btn;
+  precisionLabel.style.display = btn ? "none" : "";
+  const tip = btn && (btn.getAttribute("title") || btn.getAttribute("aria-label"));
+  if (tip) {
+    precisionTip.textContent = tip;
+    precisionTip.style.display = "block";
+    placeTipBubble(precisionTip, x, y);
+  } else {
+    precisionTip.style.display = "none";
+  }
+}
 
 /**
  * Popisek křížku „X.. Z..". Osy se NEMAPUJÍ 1:1 na world x/y – u soustruhu
@@ -490,6 +568,7 @@ function showPrecisionCrosshair(touch) {
   const pf = state.coordMode === 'inc' ? 'Δ' : '';
   precisionLabel.textContent = fmtPrecisionLabel(dp, pf);
   precisionEl.style.display = "block";
+  updateCrosshairButtonHover(touch.clientX, touch.clientY + CROSSHAIR_OFFSET_Y);
   updateMobileCoords(wx, wy);
   renderAll();
 }
@@ -526,6 +605,7 @@ function updatePrecisionCrosshair(touch) {
   const dp2 = toDisplayCoords(wx, wy);
   const pf2 = state.coordMode === 'inc' ? 'Δ' : '';
   precisionLabel.textContent = fmtPrecisionLabel(dp2, pf2);
+  updateCrosshairButtonHover(touch.clientX, touch.clientY + CROSSHAIR_OFFSET_Y);
 
   let extra = "";
   if (state.drawing && state.tempPoints.length > 0) {
@@ -581,8 +661,14 @@ function updatePrecisionCrosshair(touch) {
 
 function hidePrecisionCrosshair() {
   precisionEl.style.display = "none";
+  // Popisek vrátit do výchozího stavu – stejný křížek používá i CAM simulátor.
+  precisionLabel.style.display = "";
+  precisionTip.style.display = "none";
+  outlineTarget(chHoverBtn, false);
+  chHoverBtn = null;
   touchState.precisionMode = false;
   state.touchPrecision.active = false;
+  state.touchPrecision.overButton = false;
   if (touchState.longPressTimer) {
     clearTimeout(touchState.longPressTimer);
     touchState.longPressTimer = null;
@@ -948,10 +1034,16 @@ drawCanvas.addEventListener(
     if (touchState.precisionMode && e.changedTouches.length === 1) {
       const wx = state.mouse.x;
       const wy = state.mouse.y;
+      const btn = chHoverBtn;
       hidePrecisionCrosshair();
-      handleCanvasClick(wx, wy);
-      recordLastClick(wx, wy);
-      updateMobileCoords(wx, wy);
+      if (btn) {
+        // Křížek nad tlačítkem → klik na tlačítko, ne na bod pod ním.
+        btn.click();
+      } else {
+        handleCanvasClick(wx, wy);
+        recordLastClick(wx, wy);
+        updateMobileCoords(wx, wy);
+      }
       touchState.touchMoved = false;
       touchState.singlePanning = false;
       if (e.touches.length === 0) touchState.wasMultiTouch = false;
@@ -1187,7 +1279,6 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
   const gpEl = document.getElementById("globalPrecisionPointer");
   const GLOBAL_OFFSET_Y = -60; // pointer se ukáže NAD prstem (výchozí)
   const gpLabel = gpEl.querySelector(".sp-label");
-  const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card, .coord-ind";
   let gpTimer = null;
   let gpActive = false;
   let gpStartX = 0, gpStartY = 0;
@@ -1229,41 +1320,25 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
    * @param {number} [fy] skutečná Y pozice prstu (fallback)
    */
   function highlightGlobalAt(x, y, fx, fy) {
-    if (gpHighlighted) {
-      gpHighlighted.style.outline = "";
-      gpHighlighted.style.outlineOffset = "";
-      gpHighlighted = null;
-    }
+    outlineTarget(gpHighlighted, false);
+    gpHighlighted = null;
     gpLabel.style.display = "none";
     // Najít element pod pointerem (skrýt pointer, aby nebyl v cestě)
     gpEl.style.display = "none";
-    let el = document.elementFromPoint(x, y);
-    let clickable = el && el.closest(CLICKABLE_SEL);
-    if (!clickable && fx != null && fy != null) {
-      el = document.elementFromPoint(fx, fy);
-      clickable = el && el.closest(CLICKABLE_SEL);
-    }
+    const clickable = findClickableAt(x, y, fx, fy);
     gpEl.style.display = "block";
     if (clickable) {
-      clickable.style.outline = "2px solid #f9e2af";
-      clickable.style.outlineOffset = "1px";
+      outlineTarget(clickable, true);
       gpHighlighted = clickable;
       // Zobrazit tooltip z title nebo aria-label
       const tip = clickable.getAttribute("title") || clickable.getAttribute("aria-label");
       if (tip) {
         gpLabel.textContent = tip;
         gpLabel.style.display = "block";
-        // Bublina NA STŘED nad terčem, celý text zalomený a přitažená k okrajům
-        // displeje. Dřív seděla vedle křížku na jednom řádku s „…" — u dlouhého
+        // Dřív bublina seděla vedle křížku na jednom řádku s „…" — u dlouhého
         // popisku (🔪 Geometrie, 🧰 Knihovna v hlavičce zásobníku) utekla přes
-        // levý okraj a nedala se přečíst. Pod křížek jen když nad ním není místo.
-        const M = 8;
-        const w = gpLabel.offsetWidth, h = gpLabel.offsetHeight;
-        const absLeft = Math.max(M, Math.min(x - w / 2, window.innerWidth - M - w));
-        gpLabel.style.left = (absLeft - x) + "px";
-        // 20 px od křížku — ať bublina nepřekrývá zvýrazněné tlačítko.
-        const below = gpOffsetY > 0 || y - h - 20 < M;
-        gpLabel.style.top = (below ? 20 : -h - 20) + "px";
+        // levý okraj a nedala se přečíst.
+        placeTipBubble(gpLabel, x, y, gpOffsetY > 0);
       }
     }
   }
@@ -1271,22 +1346,14 @@ bridge.updateCoordBarIndicators = updateCoordBarIndicators;
   function hideGlobalPointer() {
     gpEl.style.display = "none";
     gpActive = false;
-    if (gpHighlighted) {
-      gpHighlighted.style.outline = "";
-      gpHighlighted.style.outlineOffset = "";
-      gpHighlighted = null;
-    }
+    outlineTarget(gpHighlighted, false);
+    gpHighlighted = null;
     if (gpTimer) { clearTimeout(gpTimer); gpTimer = null; }
   }
 
   function clickGlobalAt(x, y, fx, fy) {
     gpEl.style.display = "none";
-    let el = document.elementFromPoint(x, y);
-    let clickable = el && el.closest(CLICKABLE_SEL);
-    if (!clickable && fx != null && fy != null) {
-      el = document.elementFromPoint(fx, fy);
-      clickable = el && el.closest(CLICKABLE_SEL);
-    }
+    const clickable = findClickableAt(x, y, fx, fy);
     gpEl.style.display = "block";
     if (clickable) clickable.click();
   }

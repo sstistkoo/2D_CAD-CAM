@@ -89,6 +89,8 @@ export function createCanvasPicker() {
     function onTouch(e) {
       if (e.target !== drawCanvas) return;
       if (e.changedTouches.length !== 1) return;
+      // Křížek nad tlačítkem: touch.js klikne na tlačítko, bod se nebere.
+      if (state.touchPrecision.active && state.touchPrecision.overButton) return;
       e.preventDefault();
       // Dlouhý stisk zapne přesný zaměřovač, který je schválně posunutý NAD
       // prst (touch.js) – platí pak jeho poloha, ne dotyková. Bez tohohle se

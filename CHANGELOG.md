@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mobil: popisky tlačítek pod křížkem plátna** (uživatel 5. 10. 2026) –
+  přesný křížek (dlouhý stisk na plátně) dojetý nad tlačítko nad plátnem
+  (SOU/ABS/R, ↩, 🔢, 🧲…) ukáže místo souřadnic bublinu s popisem tlačítka
+  a zvýrazní ho, stejně jako dlouhý stisk mimo plátno; puštění prstu klikne
+  na tlačítko místo bodu schovaného pod ním (platí i pro 🎯 bod z plátna).
+  SW v364.
 - **Mobil: ✏️ CNC Editor ve spodní liště** mezi VK a měřením (uživatel 5. 10.
   2026) – otevře stejný editor jako Kalkulačky → CNC Editor. SW v361.
 - **CNC Editor z Kalkulaček – pomůcky pro zjišťování rozměrů** (uživatel

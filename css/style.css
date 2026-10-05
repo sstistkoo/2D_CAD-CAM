@@ -2747,10 +2747,12 @@ body {
 }
 
 /* Popisek (title) — pozici (na střed nad křížkem, přitaženo k okrajům
-   displeje) dopočítává highlightGlobalAt v touch.js. Celý text se zalamuje:
+   displeje) dopočítává placeTipBubble v touch.js. Stejnou bublinu má
+   i křížek plátna (.ch-tip), když dojede nad tlačítko. Celý text se zalamuje:
    `width: max-content` je nutné, rodič má nulovou šířku a absolutní prvek
    by se jinak smrskl na jedno slovo na řádek. */
-#globalPrecisionPointer .sp-label {
+#globalPrecisionPointer .sp-label,
+#precisionCrosshair .ch-tip {
   display: none;
   position: absolute;
   left: 0; top: -40px;

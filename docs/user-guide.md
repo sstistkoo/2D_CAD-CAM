@@ -103,7 +103,10 @@ vždy ukazuje aktuální hodnotu a co klik udělá.
   červené ✕ Zrušit) — nad výkresem tak nic nevisí a na
   kreslení zbude víc výšky. Na výšku zůstávají kolečka pod lištou.
 - Tlačítko ☰ boční panel
-- Long-press na prázdné místo na CAD plátně → precision křížek (numerický vstup)
+- Long-press na prázdné místo na CAD plátně → precision křížek (numerický vstup).
+  Když křížek dojede nad tlačítko nad plátnem (SOU/ABS/R, ↩, 🔢, 🧲…), místo
+  souřadnic ukáže žlutou bublinu s popisem tlačítka; puštění prstu pak klikne
+  na tlačítko (bod pod ním se do výkresu nezapíše)
 - Long-press kdekoli jinde v UI (panely, lišty, dialogy, plovoucí tlačítka) →
   precision pointer: nad prstem se ukáže kolečko s offsetem, které funguje jako
   kurzor myši pro přesné zacílení malých/blízko sebe umístěných ovládacích prvků

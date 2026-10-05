@@ -226,7 +226,9 @@ export const state = {
   // Křížek je schválně posunutý nad prst (CROSSHAIR_OFFSET_Y), aby byl vidět –
   // platí tedy JEHO pozice, ne pozice prstu. Odběry kliku mimo touch.js
   // (canvasPick.js – 🎯 výběr bodu) si sem sáhnou pro world souřadnice.
-  touchPrecision: { active: false, wx: 0, wy: 0 },
+  // `overButton`: křížek stojí nad tlačítkem nad plátnem – puštění = klik
+  // na tlačítko, žádný bod.
+  touchPrecision: { active: false, wx: 0, wy: 0, overButton: false },
   // Inkrementální souřadnice
   coordMode: 'abs',
   incReference: { x: 0, y: 0 },
