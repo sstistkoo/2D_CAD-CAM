@@ -1290,6 +1290,13 @@ Nastavení API klíčů: ☰ → **Nastavení** → **AI nastavení**
 
 ### Export PNG
 - ☰ → **Export obrázku** – stáhne `.png` aktuálního výkresu
+- Obrázek obsahuje i **kóty** (šipky, hodnoty, úhly, R/⌀, souřadnice bodů),
+  **texty** a **výplně** – stejně jako na plátně. Kóty se řídí přepínačem
+  zobrazení kót (skryté kóty se neexportují).
+- Rozlišení **1×** ≈ 800 px na delší stranu výkresu, 2× a 4× jsou ostřejší
+  (vzhled kót se nemění, jen roste rozlišení).
+- Na **bílém / průhledném** pozadí mají popisky kót tmavou barvu, aby byly
+  čitelné i při tmavém tématu aplikace.
 
 ### Souborové typy
 | Přípona | Obsah |

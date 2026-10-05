@@ -29,6 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Export PNG obsahuje kóty** (uživatel 5. 10. 2026) – kóty se dřív
+  exportovaly jako holé čáry bez šipek a hodnot, souřadnicové štítky jako
+  body. Teď je kreslí tentýž kód jako plátno (`drawDimensionOn` /
+  `drawAutoDimensionOn` v render.js – přepínatelný cíl kreslení rozšířený
+  z textu na kóty): lineární, zarovnané, úhlové, R/⌀, odkaz R, souřadnice
+  bodu i automatické popisy R/⌀ u kružnic a oblouků, s vyhýbáním popisků.
+  Řídí se režimem zobrazení kót. Popisky mají barvu podle POZADÍ obrázku
+  (`inkForBackground`) – na bílém tmavé i při tmavém tématu.
+  - Rozlišení PNG 1× už není pevně 2 px/mm (díl 60 mm měl 120 px a popisky
+    kót ho přerostly), ale ≈ 800 px na delší stranu (2–20 px/mm, strop
+    16 000 px); kóty se kreslí v měřítku 1× a zvětší se s rozlišením.
+  - Okraj obrázku počítá s popisky kót a souřadnicovými štítky.
+  - Skrytá poznámka s CAM G-kódem (`isCamPathNote`) se do PNG nedostane.
+  SW v369.
 - **Export PNG obsahuje texty a výplně** (uživatel 5. 10. 2026) – dřív se do
   PNG nedostal žádný text (ani natočený, ani po cestě) a žádná výplň
   (Vybarvit). Text kreslí tentýž kód jako plátno (`drawText` v render.js má

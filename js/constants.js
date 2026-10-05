@@ -54,6 +54,17 @@ const LIGHT_COLORS = {
 
 export const COLORS = { ...DARK_COLORS };
 
+/**
+ * Barvy popisků podle POZADÍ (ne podle tématu aplikace) – export obrázku na
+ * bílé pozadí potřebuje tmavé popisky i při tmavém tématu.
+ * @param {boolean} lightBackground
+ * @returns {{text: string, textSecondary: string}}
+ */
+export function inkForBackground(lightBackground) {
+  const src = lightBackground ? LIGHT_COLORS : DARK_COLORS;
+  return { text: src.text, textSecondary: src.textSecondary };
+}
+
 /** Přepne barevné konstanty podle tématu ('dark' | 'light'). */
 export function applyThemeColors(theme) {
   const src = theme === 'light' ? LIGHT_COLORS : DARK_COLORS;

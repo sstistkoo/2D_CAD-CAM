@@ -2,13 +2,13 @@
 // ║  SKICA – SVG / PNG Export                                   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast } from '../state.js';
-import { COLORS } from '../constants.js';
+import { state, showToast, fmtCoordLabel } from '../state.js';
+import { COLORS, inkForBackground } from '../constants.js';
 import { bulgeToArc, exportFileName, getRectCorners } from '../utils.js';
 import { buildMakerModel } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { objDash, objWidthMul } from '../lineStyles.js';
-import { drawTextOn } from '../render.js';
+import { drawTextOn, drawDimensionOn, drawAutoDimensionOn } from '../render.js';
 
 // ── Pomocné funkce ──
 
@@ -17,6 +17,7 @@ function getObjectsBoundingBox() {
   let hasObjects = false;
 
   for (const obj of state.objects) {
+    if (obj.isCamPathNote) continue;
     const layer = state.layers.find(l => l.id === obj.layer);
     if (layer && !layer.visible) continue;
     hasObjects = true;
@@ -100,6 +101,14 @@ function isAngleBetweenExport(start, end, angle) {
   const a = ((angle % TAU) + TAU) % TAU;
   if (s <= e) return a >= s && a <= e;
   return a >= s || a <= e;
+}
+
+/** Je barva (#rrggbb) světlá? Podle relativního jasu. */
+function isLightColor(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex || '');
+  if (!m) return true;
+  const [r, g, b] = m.slice(1).map(h => parseInt(h, 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5;
 }
 
 function getObjColor(obj) {
@@ -367,14 +376,35 @@ function exportSVGLegacy(background) {
 // ── PNG Export ──
 
 function exportPNG(scale, background) {
-  const bb = getObjectsBoundingBox();
-  const padX = (bb.maxX - bb.minX) * 0.1 || 10;
-  const padY = (bb.maxY - bb.minY) * 0.1 || 10;
+  const geo = getObjectsBoundingBox();
+  // Rozlišení 1×: delší strana geometrie ≈ 800 px (dřív pevně 2 px/mm – díl
+  // 60 mm měl 120 px a popisky kót, které jsou v px jako na plátně, ho
+  // přerostly). Mez 2–20 px/mm.
+  const geoMax = Math.max(geo.maxX - geo.minX, geo.maxY - geo.minY, 1);
+  let basePixPerUnit = Math.min(Math.max(2, 800 / geoMax), 20);
+
+  // Popisky mají velikost v px → do světa podle rozlišení. Souřadnicový
+  // štítek (drawPoint): odkaz 30 px, polička 40 px, text ~0,6 výšky písma/znak.
+  const bb = { ...geo };
+  for (const obj of state.objects) {
+    if (!obj.isCoordLabel || obj.type !== 'point' || state.showDimensions === 'none') continue;
+    const layer = state.layers.find(l => l.id === obj.layer);
+    if (layer && !layer.visible) continue;
+    const k = basePixPerUnit;
+    const dimSize = Math.min(21, Math.max(10, 7 + k * 4));
+    const textPx = 0.6 * dimSize * fmtCoordLabel(obj.x, obj.y).length;
+    const ex = obj.x + (obj.dimLeadDX ?? 30 / k), ey = obj.y + (obj.dimLeadDY ?? 30 / k);
+    const far = ex + (ex >= obj.x ? 1 : -1) * (40 + textPx) / k;
+    bb.minX = Math.min(bb.minX, ex, far); bb.maxX = Math.max(bb.maxX, ex, far);
+    bb.minY = Math.min(bb.minY, ey); bb.maxY = Math.max(bb.maxY, ey + (dimSize + 6) / k);
+  }
+  // Okraj: 5 % + 40 px (popisky kót a šipky přesahují geometrii)
+  const padX = (bb.maxX - bb.minX) * 0.05 + 40 / basePixPerUnit;
+  const padY = (bb.maxY - bb.minY) * 0.05 + 40 / basePixPerUnit;
   const worldW = (bb.maxX - bb.minX) + 2 * padX;
   const worldH = (bb.maxY - bb.minY) + 2 * padY;
-
-  // Base pixel size: 1 world unit = 2 pixels at 1×
-  const basePixPerUnit = 2;
+  // Strana nejvýš 16 000 px – větší canvas prohlížeč neuloží (toBlob → null)
+  basePixPerUnit = Math.min(basePixPerUnit, 16000 / (Math.max(worldW, worldH) * scale));
   const canvasW = Math.ceil(worldW * basePixPerUnit * scale);
   const canvasH = Math.ceil(worldH * basePixPerUnit * scale);
 
@@ -419,10 +449,39 @@ function exportPNG(scale, background) {
     g.restore();
   }
 
+  // Kóty a automatické popisy kreslí tentýž kód jako plátno (render.js).
+  // Ten pracuje v px (písmo, šipky, odsazení), proto se kreslí v základním
+  // měřítku 1× a celé se zvětší podle rozlišení – 2×/4× pak vypadá stejně,
+  // jen ostřeji. Popisky mají barvu podle POZADÍ obrázku, ne podle tématu.
+  const bgHex = background === 'dark' ? COLORS.bgDark : '#ffffff';
+  const dimView = {
+    w2s: (x, y) => { const [a, b] = w2s(x, y); return [a / scale, b / scale]; },
+    zoom: zoom / scale,
+    ink: inkForBackground(isLightColor(bgHex)),
+    labelRects: [],
+  };
+  const inBaseScale = (fn) => { g.save(); g.scale(scale, scale); try { fn(); } finally { g.restore(); } };
+  const showAutoDims = (state.showDimensions === 'all' || state.showDimensions === 'dimensions')
+    && !state.showObjectNumbers;
+
   // Render all visible objects
   for (const obj of state.objects) {
+    if (obj.isCamPathNote) continue; // skrytá poznámka s CAM G-kódem (ani plátno ji nekreslí)
     const layer = state.layers.find(l => l.id === obj.layer);
     if (layer && !layer.visible) continue;
+
+    if (obj.isDimension || obj.isCoordLabel) {
+      // Stejná pravidla viditelnosti jako na plátně (režim zobrazení kót)
+      if (state.showDimensions === 'none') continue;
+      if (state.showDimensions === 'intersections' && obj.isDimension) continue;
+      inBaseScale(() => {
+        g.strokeStyle = g.fillStyle = getObjColor(obj);
+        g.lineWidth = 1;
+        g.setLineDash([]);
+        drawDimensionOn(g, obj, dimView);
+      });
+      continue;
+    }
 
     const color = getObjColor(obj);
     g.strokeStyle = color;
@@ -498,6 +557,8 @@ function exportPNG(scale, background) {
         break;
     }
     g.setLineDash([]);
+    // Automatické popisy rozměrů (R/⌀ kružnice a oblouku, obdélník…) jako na plátně
+    if (showAutoDims && obj.type !== 'constr') inBaseScale(() => drawAutoDimensionOn(g, obj, dimView));
   }
 
   offCanvas.toBlob((blob) => {

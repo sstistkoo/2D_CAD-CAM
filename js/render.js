@@ -1722,12 +1722,12 @@ function drawDimArrow(fromX, fromY, toX, toY) {
   const angle = Math.atan2(toY - fromY, toX - fromX);
   const arrowLen = ARROW_LENGTH;
   const arrowAngle = ARROW_ANGLE;
-  ctx.beginPath();
-  ctx.moveTo(fromX, fromY);
-  ctx.lineTo(fromX + arrowLen * Math.cos(angle + arrowAngle), fromY + arrowLen * Math.sin(angle + arrowAngle));
-  ctx.moveTo(fromX, fromY);
-  ctx.lineTo(fromX + arrowLen * Math.cos(angle - arrowAngle), fromY + arrowLen * Math.sin(angle - arrowAngle));
-  ctx.stroke();
+  _tv.ctx.beginPath();
+  _tv.ctx.moveTo(fromX, fromY);
+  _tv.ctx.lineTo(fromX + arrowLen * Math.cos(angle + arrowAngle), fromY + arrowLen * Math.sin(angle + arrowAngle));
+  _tv.ctx.moveTo(fromX, fromY);
+  _tv.ctx.lineTo(fromX + arrowLen * Math.cos(angle - arrowAngle), fromY + arrowLen * Math.sin(angle - arrowAngle));
+  _tv.ctx.stroke();
 }
 
 /**
@@ -1966,9 +1966,9 @@ function drawIntersectionNumbers() {
 
 // ── Kóty / rozměry ──
 function drawDimension(obj) {
-  const dimSize = Math.round(Math.min(18, Math.max(12, 8 + state.zoom * 4)));
-  ctx.font = `${dimSize}px Consolas`;
-  ctx.fillStyle = COLORS.textSecondary;
+  const dimSize = Math.round(Math.min(18, Math.max(12, 8 + _tv.zoom() * 4)));
+  _tv.ctx.font = `${dimSize}px Consolas`;
+  _tv.ctx.fillStyle = _ink('textSecondary');
   const offset = 14;
   switch (obj.type) {
     case "line":
@@ -1977,42 +1977,42 @@ function drawDimension(obj) {
     case "circle": {
       // Skrýt původní popis u středu, když je kružnice okótovaná explicitní kótou
       if (obj.id != null && state.objects.some(o => o.isDimension && o.sourceObjId === obj.id)) break;
-      const [sx, sy] = worldToScreen(obj.cx, obj.cy);
+      const [sx, sy] = _tv.w2s(obj.cx, obj.cy);
       const rText = `R${fmtNum(obj.r)}`;
       const dText = `⌀${fmtNum((obj.r * 2))}`;
-      const rW = ctx.measureText(rText).width;
-      const dW = ctx.measureText(dText).width;
+      const rW = _tv.ctx.measureText(rText).width;
+      const dW = _tv.ctx.measureText(dText).width;
       const r1 = resolveDimLabelPos(sx + 6, sy - 6, rW, dimSize);
-      ctx.fillText(rText, sx + 6, r1.y);
-      if (r1.collided) { ctx.strokeStyle = COLORS.textSecondary; ctx.lineWidth = 0.5; ctx.setLineDash([2,2]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 6, r1.y); ctx.stroke(); ctx.setLineDash([]); }
+      _tv.ctx.fillText(rText, sx + 6, r1.y);
+      if (r1.collided) { _tv.ctx.strokeStyle = _ink('textSecondary'); _tv.ctx.lineWidth = 0.5; _tv.ctx.setLineDash([2,2]); _tv.ctx.beginPath(); _tv.ctx.moveTo(sx, sy); _tv.ctx.lineTo(sx + 6, r1.y); _tv.ctx.stroke(); _tv.ctx.setLineDash([]); }
       const d1 = resolveDimLabelPos(sx + 6, sy + 14, dW, dimSize);
-      ctx.fillText(dText, sx + 6, d1.y);
+      _tv.ctx.fillText(dText, sx + 6, d1.y);
       break;
     }
     case "arc": {
       // Skrýt původní popis u středu, když je oblouk okótovaný explicitní kótou
       if (obj.id != null && state.objects.some(o => o.isDimension && o.sourceObjId === obj.id)) break;
-      const [sx, sy] = worldToScreen(obj.cx, obj.cy);
+      const [sx, sy] = _tv.w2s(obj.cx, obj.cy);
       const rText = `R${fmtNum(obj.r)}`;
-      const rW = ctx.measureText(rText).width;
+      const rW = _tv.ctx.measureText(rText).width;
       const r1 = resolveDimLabelPos(sx + 6, sy - 6, rW, dimSize);
-      ctx.fillText(rText, sx + 6, r1.y);
-      if (r1.collided) { ctx.strokeStyle = COLORS.textSecondary; ctx.lineWidth = 0.5; ctx.setLineDash([2,2]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 6, r1.y); ctx.stroke(); ctx.setLineDash([]); }
+      _tv.ctx.fillText(rText, sx + 6, r1.y);
+      if (r1.collided) { _tv.ctx.strokeStyle = _ink('textSecondary'); _tv.ctx.lineWidth = 0.5; _tv.ctx.setLineDash([2,2]); _tv.ctx.beginPath(); _tv.ctx.moveTo(sx, sy); _tv.ctx.lineTo(sx + 6, r1.y); _tv.ctx.stroke(); _tv.ctx.setLineDash([]); }
       break;
     }
     case "rect": {
       const rc = getRectCorners(obj);
       const w = Math.abs(obj.x2 - obj.x1),
         h = Math.abs(obj.y2 - obj.y1);
-      const [sx1r, sy1r] = worldToScreen(rc[0].x, rc[0].y);
-      const [sx2r, sy2r] = worldToScreen(rc[1].x, rc[1].y);
-      const [sx3r, sy3r] = worldToScreen(rc[2].x, rc[2].y);
-      ctx.fillText(
+      const [sx1r, sy1r] = _tv.w2s(rc[0].x, rc[0].y);
+      const [sx2r, sy2r] = _tv.w2s(rc[1].x, rc[1].y);
+      const [sx3r, sy3r] = _tv.w2s(rc[2].x, rc[2].y);
+      _tv.ctx.fillText(
         fmtNum(w),
         (sx1r + sx2r) / 2 - 15,
         Math.min(sy1r, sy2r) - 4,
       );
-      ctx.fillText(
+      _tv.ctx.fillText(
         fmtNum(h),
         Math.max(sx2r, sx3r) + 4,
         (sy2r + sy3r) / 2 + 4,
@@ -2039,8 +2039,8 @@ function drawDimension(obj) {
         }
       }
       if (pn >= 1) {
-        const [psx, psy] = worldToScreen(obj.vertices[0].x, obj.vertices[0].y);
-        ctx.fillText(`L${fmtNum(totalLen)} [${pn}v]`, psx + 8, psy - 8);
+        const [psx, psy] = _tv.w2s(obj.vertices[0].x, obj.vertices[0].y);
+        _tv.ctx.fillText(`L${fmtNum(totalLen)} [${pn}v]`, psx + 8, psy - 8);
       }
       break;
     }
@@ -2050,20 +2050,20 @@ function drawDimension(obj) {
 // ── Kreslicí primitiva ──
 /** @param {import('./types.js').PointObject} obj */
 export function drawPoint(obj) {
-  const [sx, sy] = worldToScreen(obj.x, obj.y);
+  const [sx, sy] = _tv.w2s(obj.x, obj.y);
 
   if (obj.isCoordLabel) {
     // Odkazová čára (leader) se souřadnicemi
     const leaderLen = 30;
     const shelfLen = 40;
-    const dimSize = Math.round(Math.min(21, Math.max(10, 7 + state.zoom * 4)));
-    ctx.font = dimSize + 'px Consolas';
+    const dimSize = Math.round(Math.min(21, Math.max(10, 7 + _tv.zoom() * 4)));
+    _tv.ctx.font = dimSize + 'px Consolas';
     const labelText = fmtCoordLabel(obj.x, obj.y);
-    const labelW = ctx.measureText(labelText).width;
+    const labelW = _tv.ctx.measureText(labelText).width;
     let ex, ey;
     if (obj.dimLeadDX != null && obj.dimLeadDY != null) {
       // Uživatelsky umístěná pozice odkazu (svět offset)
-      [ex, ey] = worldToScreen(obj.x + obj.dimLeadDX, obj.y + obj.dimLeadDY);
+      [ex, ey] = _tv.w2s(obj.x + obj.dimLeadDX, obj.y + obj.dimLeadDY);
     } else {
       const baseEx = sx + leaderLen;
       const baseEy = sy - leaderLen;
@@ -2075,86 +2075,86 @@ export function drawPoint(obj) {
     // Polička vede vpravo, pokud je odkaz vpravo od bodu, jinak vlevo
     const shelfDir = ex >= sx ? 1 : -1;
     // Šikmá čára od bodu
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(ex, ey);
+    _tv.ctx.lineWidth = 1;
+    _tv.ctx.beginPath();
+    _tv.ctx.moveTo(sx, sy);
+    _tv.ctx.lineTo(ex, ey);
     // Vodorovná polička
-    ctx.lineTo(ex + shelfDir * shelfLen, ey);
-    ctx.stroke();
+    _tv.ctx.lineTo(ex + shelfDir * shelfLen, ey);
+    _tv.ctx.stroke();
     // Kroužek na bodě
-    ctx.beginPath();
-    ctx.arc(sx, sy, 3, 0, Math.PI * 2);
-    ctx.stroke();
+    _tv.ctx.beginPath();
+    _tv.ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+    _tv.ctx.stroke();
     // Text souřadnic – na straně poličky
-    ctx.fillStyle = COLORS.text;
-    ctx.textAlign = shelfDir >= 0 ? 'left' : 'right';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(labelText, ex + shelfDir * 2, ey - 3);
-    ctx.textAlign = 'start';
-    ctx.textBaseline = 'alphabetic';
+    _tv.ctx.fillStyle = _ink('text');
+    _tv.ctx.textAlign = shelfDir >= 0 ? 'left' : 'right';
+    _tv.ctx.textBaseline = 'bottom';
+    _tv.ctx.fillText(labelText, ex + shelfDir * 2, ey - 3);
+    _tv.ctx.textAlign = 'start';
+    _tv.ctx.textBaseline = 'alphabetic';
     return;
   }
 
-  ctx.beginPath();
-  ctx.arc(sx, sy, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(sx - 6, sy);
-  ctx.lineTo(sx + 6, sy);
-  ctx.moveTo(sx, sy - 6);
-  ctx.lineTo(sx, sy + 6);
-  ctx.stroke();
+  _tv.ctx.beginPath();
+  _tv.ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+  _tv.ctx.fill();
+  _tv.ctx.beginPath();
+  _tv.ctx.moveTo(sx - 6, sy);
+  _tv.ctx.lineTo(sx + 6, sy);
+  _tv.ctx.moveTo(sx, sy - 6);
+  _tv.ctx.lineTo(sx, sy + 6);
+  _tv.ctx.stroke();
 }
 
 /** @param {import('./types.js').LineObject} obj */
 export function drawLine(obj) {
-  const [sx1, sy1] = worldToScreen(obj.x1, obj.y1);
-  const [sx2, sy2] = worldToScreen(obj.x2, obj.y2);
+  const [sx1, sy1] = _tv.w2s(obj.x1, obj.y1);
+  const [sx2, sy2] = _tv.w2s(obj.x2, obj.y2);
 
   if (obj.isDimension) {
     const dimType = obj.dimType || 'linear';
-    const dimSize = Math.round(Math.min(24, Math.max(11, 8 + state.zoom * 4.5)));
-    ctx.font = dimSize + 'px Consolas';
-    ctx.fillStyle = COLORS.text;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
+    const dimSize = Math.round(Math.min(24, Math.max(11, 8 + _tv.zoom() * 4.5)));
+    _tv.ctx.font = dimSize + 'px Consolas';
+    _tv.ctx.fillStyle = _ink('text');
+    _tv.ctx.textAlign = 'center';
+    _tv.ctx.textBaseline = 'bottom';
 
     if (dimType === 'angular') {
       // ── Úhlová kóta – oblouk s popiskem úhlu ──
       const cx = obj.dimCenterX, cy = obj.dimCenterY;
-      const [scx, scy] = worldToScreen(cx, cy);
+      const [scx, scy] = _tv.w2s(cx, cy);
       const r = obj.dimRadius || 20;
-      const sr = r * state.zoom;
+      const sr = r * _tv.zoom();
       const startA = Math.atan2(obj.y1 - cy, obj.x1 - cx);
       const endA = Math.atan2(obj.y2 - cy, obj.x2 - cx);
       // Polární úhel od osy Z → konstrukční (čárkovaný) styl
       const vsAxis = !!obj.dimVsAxis;
       // Odkazové čáry od středu k oblouku
-      ctx.lineWidth = 0.7;
-      if (vsAxis) ctx.setLineDash([5, 3]);
-      ctx.beginPath();
-      ctx.moveTo(scx, scy);
-      ctx.lineTo(sx1, sy1);
-      ctx.moveTo(scx, scy);
-      ctx.lineTo(sx2, sy2);
-      ctx.stroke();
-      if (vsAxis) ctx.setLineDash([5, 3]); else ctx.setLineDash([]);
+      _tv.ctx.lineWidth = 0.7;
+      if (vsAxis) _tv.ctx.setLineDash([5, 3]);
+      _tv.ctx.beginPath();
+      _tv.ctx.moveTo(scx, scy);
+      _tv.ctx.lineTo(sx1, sy1);
+      _tv.ctx.moveTo(scx, scy);
+      _tv.ctx.lineTo(sx2, sy2);
+      _tv.ctx.stroke();
+      if (vsAxis) _tv.ctx.setLineDash([5, 3]); else _tv.ctx.setLineDash([]);
       const aR = sr * 0.8;
-      const screenStart = screenAngle(startA);
-      const screenEnd = screenAngle(endA);
+      const screenStart = _tv.angle(startA);
+      const screenEnd = _tv.angle(endA);
       let midScreen, sweep;
       if (obj.dimMidAng != null) {
         // Kóta „od ramene k rameni" – oblouk vede přes uloženou osu (i reflexní)
-        midScreen = screenAngle(obj.dimMidAng);
+        midScreen = _tv.angle(obj.dimMidAng);
         const nrm = (a) => { a %= 2 * Math.PI; return a < 0 ? a + 2 * Math.PI : a; };
         const dSE = nrm(screenEnd - screenStart);
         const dSM = nrm(midScreen - screenStart);
         const anticw = !(dSM <= dSE);   // směr tak, aby oblouk procházel osou
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.arc(scx, scy, aR, screenStart, screenEnd, anticw);
-        ctx.stroke();
+        _tv.ctx.lineWidth = 1.2;
+        _tv.ctx.beginPath();
+        _tv.ctx.arc(scx, scy, aR, screenStart, screenEnd, anticw);
+        _tv.ctx.stroke();
         sweep = obj.dimAngle;
       } else {
         // Zpětná kompatibilita – vždy kratší oblouk
@@ -2162,35 +2162,35 @@ export function drawLine(obj) {
         while (ccwSweep < 0) ccwSweep += 2 * Math.PI;
         while (ccwSweep >= 2 * Math.PI) ccwSweep -= 2 * Math.PI;
         const useCCW = ccwSweep <= Math.PI;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.arc(scx, scy, aR, screenStart, screenEnd, useCCW);
-        ctx.stroke();
+        _tv.ctx.lineWidth = 1.2;
+        _tv.ctx.beginPath();
+        _tv.ctx.arc(scx, scy, aR, screenStart, screenEnd, useCCW);
+        _tv.ctx.stroke();
         const actualSweep = useCCW ? ccwSweep : (2 * Math.PI - ccwSweep);
         midScreen = useCCW ? screenStart - actualSweep / 2 : screenStart + actualSweep / 2;
         sweep = obj.dimAngle || actualSweep;
         if (sweep < 0) sweep += 2 * Math.PI;
       }
-      if (vsAxis) ctx.setLineDash([]);   // šipky/text plnou čarou
+      if (vsAxis) _tv.ctx.setLineDash([]);   // šipky/text plnou čarou
       // Šipky TEČNĚ na oblouku – na každém konci jedna, mířící podél oblouku
       drawTangentArcArrow(scx, scy, aR, screenStart, midScreen);
       drawTangentArcArrow(scx, scy, aR, screenEnd, midScreen);
       // Text úhlu – uprostřed oblouku
       const labelX = scx + aR * Math.cos(midScreen);
       const labelY = scy + aR * Math.sin(midScreen);
-      ctx.fillText(`${(sweep * 180 / Math.PI).toFixed(1)}°`, labelX, labelY - 4);
-      ctx.textAlign = 'start';
-      ctx.textBaseline = 'alphabetic';
+      _tv.ctx.fillText(`${(sweep * 180 / Math.PI).toFixed(1)}°`, labelX, labelY - 4);
+      _tv.ctx.textAlign = 'start';
+      _tv.ctx.textBaseline = 'alphabetic';
       return;
     }
 
     if (dimType === 'diameter') {
       // ── Průměrová kóta – čára přes střed se symbolem ⌀ ──
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(sx1, sy1);
-      ctx.lineTo(sx2, sy2);
-      ctx.stroke();
+      _tv.ctx.lineWidth = 1.2;
+      _tv.ctx.beginPath();
+      _tv.ctx.moveTo(sx1, sy1);
+      _tv.ctx.lineTo(sx2, sy2);
+      _tv.ctx.stroke();
       // Šipky na obou koncích
       drawDimArrow(sx1, sy1, sx2, sy2);
       drawDimArrow(sx2, sy2, sx1, sy1);
@@ -2203,54 +2203,54 @@ export function drawLine(obj) {
       let textAngle = angle;
       if (textAngle > Math.PI / 2) textAngle -= Math.PI;
       if (textAngle < -Math.PI / 2) textAngle += Math.PI;
-      ctx.save();
-      ctx.translate(mx, my);
-      ctx.rotate(textAngle);
-      ctx.fillText(labelText, 0, -4);
-      ctx.restore();
-      ctx.textAlign = 'start';
-      ctx.textBaseline = 'alphabetic';
+      _tv.ctx.save();
+      _tv.ctx.translate(mx, my);
+      _tv.ctx.rotate(textAngle);
+      _tv.ctx.fillText(labelText, 0, -4);
+      _tv.ctx.restore();
+      _tv.ctx.textAlign = 'start';
+      _tv.ctx.textBaseline = 'alphabetic';
       return;
     }
 
     if (dimType === 'radius' && obj.dimLeader) {
       // ── Radiální kóta jako odkaz (leader) – šipka na oblouku, popisek vytažen ──
       // (sx1,sy1) = bod na oblouku, (sx2,sy2) = umístění popisku
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(sx1, sy1);
-      ctx.lineTo(sx2, sy2);
-      ctx.stroke();
+      _tv.ctx.lineWidth = 1.2;
+      _tv.ctx.beginPath();
+      _tv.ctx.moveTo(sx1, sy1);
+      _tv.ctx.lineTo(sx2, sy2);
+      _tv.ctx.stroke();
       // Šipka na oblouku míří dovnitř (ke středu) podél odkazu
       drawDimArrow(sx1, sy1, sx2, sy2);
       // Tečka na oblouku
-      ctx.beginPath();
-      ctx.arc(sx1, sy1, 2, 0, Math.PI * 2);
-      ctx.fill();
+      _tv.ctx.beginPath();
+      _tv.ctx.arc(sx1, sy1, 2, 0, Math.PI * 2);
+      _tv.ctx.fill();
       // Text R – u umístění, vodorovně, na straně od oblouku
       const radiusL = obj.dimRadius || Math.hypot(obj.x1 - (obj.dimCenterX ?? obj.x2), obj.y1 - (obj.dimCenterY ?? obj.y2));
       const side = sx2 >= sx1 ? 1 : -1;
-      ctx.textAlign = side >= 0 ? 'left' : 'right';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`R${fmtNum(radiusL)}`, sx2 + side * 5, sy2);
-      ctx.textAlign = 'start';
-      ctx.textBaseline = 'alphabetic';
+      _tv.ctx.textAlign = side >= 0 ? 'left' : 'right';
+      _tv.ctx.textBaseline = 'middle';
+      _tv.ctx.fillText(`R${fmtNum(radiusL)}`, sx2 + side * 5, sy2);
+      _tv.ctx.textAlign = 'start';
+      _tv.ctx.textBaseline = 'alphabetic';
       return;
     }
 
     if (dimType === 'radius') {
       // ── Radiální kóta – čára od středu k bodu s R ──
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(sx1, sy1);
-      ctx.lineTo(sx2, sy2);
-      ctx.stroke();
+      _tv.ctx.lineWidth = 1.2;
+      _tv.ctx.beginPath();
+      _tv.ctx.moveTo(sx1, sy1);
+      _tv.ctx.lineTo(sx2, sy2);
+      _tv.ctx.stroke();
       // Šipka pouze na vnějším konci (sx2, sy2)
       drawDimArrow(sx2, sy2, sx1, sy1);
       // Kroužek na středu
-      ctx.beginPath();
-      ctx.arc(sx1, sy1, 2.5, 0, Math.PI * 2);
-      ctx.stroke();
+      _tv.ctx.beginPath();
+      _tv.ctx.arc(sx1, sy1, 2.5, 0, Math.PI * 2);
+      _tv.ctx.stroke();
       // Text R hodnota
       const radius = obj.dimRadius || Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1);
       const mx = (sx1 + sx2) / 2;
@@ -2260,13 +2260,13 @@ export function drawLine(obj) {
       let textAngle = angle;
       if (textAngle > Math.PI / 2) textAngle -= Math.PI;
       if (textAngle < -Math.PI / 2) textAngle += Math.PI;
-      ctx.save();
-      ctx.translate(mx, my);
-      ctx.rotate(textAngle);
-      ctx.fillText(labelText, 0, -4);
-      ctx.restore();
-      ctx.textAlign = 'start';
-      ctx.textBaseline = 'alphabetic';
+      _tv.ctx.save();
+      _tv.ctx.translate(mx, my);
+      _tv.ctx.rotate(textAngle);
+      _tv.ctx.fillText(labelText, 0, -4);
+      _tv.ctx.restore();
+      _tv.ctx.textAlign = 'start';
+      _tv.ctx.textBaseline = 'alphabetic';
       return;
     }
 
@@ -2276,8 +2276,8 @@ export function drawLine(obj) {
     const oy1 = hasSrc ? obj.dimSrcY1 : obj.y1;
     const ox2 = hasSrc ? obj.dimSrcX2 : obj.x2;
     const oy2 = hasSrc ? obj.dimSrcY2 : obj.y2;
-    const [osx1, osy1] = worldToScreen(ox1, oy1);
-    const [osx2, osy2] = worldToScreen(ox2, oy2);
+    const [osx1, osy1] = _tv.w2s(ox1, oy1);
+    const [osx2, osy2] = _tv.w2s(ox2, oy2);
 
     const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
     const extOver = 4;
@@ -2285,20 +2285,20 @@ export function drawLine(obj) {
     const eny = Math.cos(angle) * extOver;
 
     // Odkazové čáry
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.moveTo(osx1, osy1);
-    ctx.lineTo(sx1 + enx, sy1 + eny);
-    ctx.moveTo(osx2, osy2);
-    ctx.lineTo(sx2 + enx, sy2 + eny);
-    ctx.stroke();
+    _tv.ctx.lineWidth = 0.7;
+    _tv.ctx.beginPath();
+    _tv.ctx.moveTo(osx1, osy1);
+    _tv.ctx.lineTo(sx1 + enx, sy1 + eny);
+    _tv.ctx.moveTo(osx2, osy2);
+    _tv.ctx.lineTo(sx2 + enx, sy2 + eny);
+    _tv.ctx.stroke();
 
     // Hlavní kótovací čára
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(sx1, sy1);
-    ctx.lineTo(sx2, sy2);
-    ctx.stroke();
+    _tv.ctx.lineWidth = 1.2;
+    _tv.ctx.beginPath();
+    _tv.ctx.moveTo(sx1, sy1);
+    _tv.ctx.lineTo(sx2, sy2);
+    _tv.ctx.stroke();
 
     // Šipky
     drawDimArrow(sx1, sy1, sx2, sy2);
@@ -2313,40 +2313,40 @@ export function drawLine(obj) {
     const mx = (sx1 + sx2) / 2;
     const my = (sy1 + sy2) / 2;
     const labelText = fmtNum(len);
-    const textW = ctx.measureText(labelText).width;
+    const textW = _tv.ctx.measureText(labelText).width;
     const textH = dimSize;
 
     const resolved = resolveDimLabelPos(mx - textW / 2, my - 4, textW, textH);
     const labelY = resolved.y;
 
     if (resolved.collided) {
-      ctx.strokeStyle = COLORS.textSecondary;
-      ctx.lineWidth = 0.7;
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      ctx.moveTo(mx, my);
-      ctx.lineTo(mx, labelY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.arc(mx, my, 2, 0, Math.PI * 2);
-      ctx.fill();
+      _tv.ctx.strokeStyle = _ink('textSecondary');
+      _tv.ctx.lineWidth = 0.7;
+      _tv.ctx.setLineDash([3, 3]);
+      _tv.ctx.beginPath();
+      _tv.ctx.moveTo(mx, my);
+      _tv.ctx.lineTo(mx, labelY);
+      _tv.ctx.stroke();
+      _tv.ctx.setLineDash([]);
+      _tv.ctx.beginPath();
+      _tv.ctx.arc(mx, my, 2, 0, Math.PI * 2);
+      _tv.ctx.fill();
     }
 
     let textAngle = angle;
     if (textAngle > Math.PI / 2) textAngle -= Math.PI;
     if (textAngle < -Math.PI / 2) textAngle += Math.PI;
-    ctx.save();
+    _tv.ctx.save();
     if (resolved.collided) {
-      ctx.translate(mx, labelY);
+      _tv.ctx.translate(mx, labelY);
     } else {
-      ctx.translate(mx, my);
-      ctx.rotate(textAngle);
+      _tv.ctx.translate(mx, my);
+      _tv.ctx.rotate(textAngle);
     }
-    ctx.fillText(labelText, 0, -4);
-    ctx.restore();
-    ctx.textAlign = 'start';
-    ctx.textBaseline = 'alphabetic';
+    _tv.ctx.fillText(labelText, 0, -4);
+    _tv.ctx.restore();
+    _tv.ctx.textAlign = 'start';
+    _tv.ctx.textBaseline = 'alphabetic';
     return;
   }
 
@@ -2359,22 +2359,22 @@ export function drawLine(obj) {
     const len = Math.hypot(dx, dy);
     if (len < 0.1) return;
     const scale = 5000 / len;
-    ctx.beginPath();
-    ctx.moveTo(sx1 - dx * scale, sy1 - dy * scale);
-    ctx.lineTo(sx2 + dx * scale, sy2 + dy * scale);
-    ctx.stroke();
+    _tv.ctx.beginPath();
+    _tv.ctx.moveTo(sx1 - dx * scale, sy1 - dy * scale);
+    _tv.ctx.lineTo(sx2 + dx * scale, sy2 + dy * scale);
+    _tv.ctx.stroke();
   } else {
-    ctx.beginPath();
-    ctx.moveTo(sx1, sy1);
-    ctx.lineTo(sx2, sy2);
-    ctx.stroke();
+    _tv.ctx.beginPath();
+    _tv.ctx.moveTo(sx1, sy1);
+    _tv.ctx.lineTo(sx2, sy2);
+    _tv.ctx.stroke();
   }
-  ctx.beginPath();
-  ctx.arc(sx1, sy1, 2.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(sx2, sy2, 2.5, 0, Math.PI * 2);
-  ctx.fill();
+  _tv.ctx.beginPath();
+  _tv.ctx.arc(sx1, sy1, 2.5, 0, Math.PI * 2);
+  _tv.ctx.fill();
+  _tv.ctx.beginPath();
+  _tv.ctx.arc(sx2, sy2, 2.5, 0, Math.PI * 2);
+  _tv.ctx.fill();
 }
 
 /** @param {import('./types.js').CircleObject} obj */
@@ -2545,18 +2545,24 @@ export function drawPolyline(obj, isSel, normalColor, objIdx) {
 }
 
 /** @param {import('./types.js').TextObject} obj */
-// ── Cíl kreslení textu ──
-// Výchozí je plátno aplikace. Export PNG si ho přes drawTextOn() dočasně
-// přepne na vlastní canvas a transformaci – text se tak kreslí JEDNÍM kódem
-// (včetně textu po cestě, rotace a mezer), ne další kopií v exportImage.js.
+// ── Cíl kreslení (plátno / export) ──
+// Výchozí je plátno aplikace. Export PNG si cíl přes drawTextOn() /
+// drawDimensionOn() dočasně přepne na vlastní canvas a transformaci – text i
+// kóty se tak kreslí JEDNÍM kódem (šipky, popisky, text po cestě…), ne další
+// kopií v exportImage.js. Přepínají se jen funkce textu a kót.
 // `ctx` (const z canvas.js) je při vyhodnocení tohoto modulu kvůli cyklu
 // importů ještě v TDZ – proto getter, ne přímá hodnota.
-const _MAIN_TEXT_VIEW = {
+const _MAIN_VIEW = {
   get ctx() { return ctx; },
-  w2s: (x, y) => worldToScreen(x, y), angle: (a) => screenAngle(a), zoom: () => state.zoom,
-  markers: true, color: null,
+  w2s: (x, y) => worldToScreen(x, y), angle: (a) => screenAngle(a), ccw: (a) => screenCCW(a),
+  zoom: () => state.zoom, markers: true, color: null, ink: null,
 };
-let _tv = _MAIN_TEXT_VIEW;
+let _tv = _MAIN_VIEW;
+
+/** Barva popisku – export na světlé pozadí si vnutí tmavé (`ink`). */
+function _ink(key) {
+  return (_tv.ink && _tv.ink[key]) || COLORS[key];
+}
 
 function _textFill(obj, isSel) {
   if (_tv.color) return _tv.color(obj);
@@ -2564,20 +2570,45 @@ function _textFill(obj, isSel) {
 }
 
 /**
- * Vykreslí text do cizího 2D kontextu (export). Osa Y v `w2s` musí být
- * převrácená stejně jako na plátně (svět Y nahoru → obraz Y dolů).
+ * Spustí `fn` s cílem kreslení přepnutým na cizí 2D kontext (export). Osa Y
+ * v `view.w2s` musí být převrácená stejně jako na plátně (svět Y nahoru →
+ * obraz Y dolů); export kreslí bez zrcadlení os plátna.
  * @param {CanvasRenderingContext2D} g
- * @param {object} obj textový objekt
- * @param {{w2s: (x:number,y:number)=>[number,number], zoom: number, color?: (o:object)=>string}} view
+ * @param {{w2s: (x:number,y:number)=>[number,number], zoom: number,
+ *   color?: (o:object)=>string, ink?: {text:string,textSecondary:string},
+ *   labelRects?: object[]}} view – `labelRects` sdílej přes celý export,
+ *   aby se popisky kót vyhýbaly i sobě navzájem
  */
-export function drawTextOn(g, obj, view) {
-  const prev = _tv;
+function _withView(g, view, fn) {
+  const prev = _tv, prevRects = _dimLabelRects;
   _tv = {
-    ctx: g, w2s: view.w2s, angle: (a) => -a, zoom: () => view.zoom,
-    markers: false, color: view.color || null,
+    ctx: g, w2s: view.w2s, angle: (a) => -a, ccw: (a) => a, zoom: () => view.zoom,
+    markers: false, color: view.color || null, ink: view.ink || null,
   };
-  try { drawText(obj, false); }
-  finally { _tv = prev; }
+  _dimLabelRects = view.labelRects || [];
+  try { fn(); }
+  finally { _tv = prev; _dimLabelRects = prevRects; }
+}
+
+/** Vykreslí text do cizího 2D kontextu (export), bez značek pro výběr. */
+export function drawTextOn(g, obj, view) {
+  _withView(g, view, () => drawText(obj, false));
+}
+
+/**
+ * Vykreslí kótu (isDimension úsečka / souřadnicový štítek isCoordLabel) do
+ * cizího 2D kontextu – šipky, odkazové čáry, popisky jako na plátně.
+ */
+export function drawDimensionOn(g, obj, view) {
+  _withView(g, view, () => {
+    if (obj.type === 'point') drawPoint(obj);
+    else if (obj.type === 'line') drawLine(obj);
+  });
+}
+
+/** Automatické popisy rozměrů objektu (R/⌀ kružnice a oblouku, obdélník…). */
+export function drawAutoDimensionOn(g, obj, view) {
+  _withView(g, view, () => drawDimension(obj));
 }
 
 export function drawText(obj, isSel) {
