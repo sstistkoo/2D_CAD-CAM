@@ -1282,7 +1282,8 @@ Segment {
 | `storage/autoSave.js` | Automatické ukládání do IndexedDB |
 | `storage/projectManager.js` | CRUD projektů, seznamy |
 | `storage/fileIO.js` | Import/export souborů |
-| `storage/exportImage.js` | Export PNG |
+| `storage/exportImage.js` | Export PNG / SVG (SVG geometrie přes Maker.js) |
+| `storage/svgCanvasContext.js` | „Canvas" kreslící do SVG – kóty se do SVG kreslí stejným kódem jako na plátno (`drawDimensionOn` v render.js) |
 | `idb.js` | Abstrakce nad IndexedDB (`getMeta`, `setMeta`, `migrateFromLocalStorage`) |
 
 ### IndexedDB

@@ -9,6 +9,7 @@ import { buildMakerModel } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { objDash, objWidthMul } from '../lineStyles.js';
 import { drawTextOn, drawDimensionOn, drawAutoDimensionOn } from '../render.js';
+import { SvgCanvasContext } from './svgCanvasContext.js';
 
 // ── Pomocné funkce ──
 
@@ -118,22 +119,99 @@ function getObjColor(obj) {
   return obj.color || layerColor;
 }
 
-function getDimensionText(obj) {
-  switch (obj.type) {
-    case 'line': {
-      const len = Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1);
-      return { x: (obj.x1 + obj.x2) / 2 + 2, y: (obj.y1 + obj.y2) / 2 + 2, text: len.toFixed(2) };
-    }
-    case 'circle':
-      return { x: obj.cx + 2, y: obj.cy + 2, text: `R${obj.r.toFixed(2)}` };
-    case 'arc':
-      return { x: obj.cx + 2, y: obj.cy + 2, text: `R${obj.r.toFixed(2)}` };
-    case 'rect': {
-      const w = Math.abs(obj.x2 - obj.x1), h = Math.abs(obj.y2 - obj.y1);
-      return { x: (obj.x1 + obj.x2) / 2, y: Math.max(obj.y1, obj.y2) + 3, text: `${w.toFixed(2)} × ${h.toFixed(2)}` };
-    }
-    default: return null;
+// ── Kóty v exportu (PNG i SVG) ──
+
+/**
+ * Měřítko kót v exportu v px/mm. Kóty mají písmo, šipky a odsazení v px
+ * (jako na plátně), takže potřebují „zoom" – stejný jako rozlišení PNG 1×:
+ * delší strana výkresu ≈ 800 px, mez 2–20 px/mm.
+ */
+function dimPixPerMm(geoMax) {
+  return Math.min(Math.max(2, 800 / Math.max(geoMax, 1)), 20);
+}
+
+/** Viditelnost objektu v exportu – stejná pravidla jako renderObjects na plátně. */
+function isExportVisible(obj) {
+  if (obj.isCamPathNote) return false; // skrytá poznámka s CAM G-kódem
+  const layer = state.layers.find(l => l.id === obj.layer);
+  if (layer && !layer.visible) return false;
+  if (obj.isDimension || obj.isCoordLabel) {
+    if (state.showDimensions === 'none') return false;
+    if (state.showDimensions === 'intersections' && obj.isDimension) return false;
   }
+  return true;
+}
+
+/** Automatické popisy rozměrů (R/⌀…) – plátno je kreslí jen v režimech „Vše" a „Kóty". */
+function showAutoDims() {
+  return (state.showDimensions === 'all' || state.showDimensions === 'dimensions')
+    && !state.showObjectNumbers;
+}
+
+/** Barvy popisků podle pozadí obrázku (ne podle tématu aplikace). */
+function inkFor(background) {
+  return inkForBackground(isLightColor(background === 'dark' ? COLORS.bgDark : '#ffffff'));
+}
+
+/**
+ * Kóty a automatické popisy jako SVG skupina v dokumentu `doc`. Kreslí je
+ * tentýž kód jako plátno (render.js) přes SvgCanvasContext. Souřadnice uvnitř
+ * skupiny jsou px prostor (x·k, −y·k) – volající ji umístí transformací.
+ * @returns {{grp: Element, bounds: {minX:number,minY:number,maxX:number,maxY:number}|null}}
+ *   bounds = rozsah kót ve světě (mm, Y nahoru); null = žádné kóty
+ */
+function buildSvgDimensions(doc, k, background) {
+  const grp = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+  grp.setAttribute('id', 'kóty');
+  const sc = new SvgCanvasContext(doc, grp);
+  const view = { w2s: (x, y) => [x * k, -y * k], zoom: k, ink: inkFor(background), labelRects: [] };
+  const auto = showAutoDims();
+  for (const obj of state.objects) {
+    if (!isExportVisible(obj)) continue;
+    sc.save();
+    if (obj.isDimension || obj.isCoordLabel) {
+      sc.strokeStyle = sc.fillStyle = getObjColor(obj);
+      sc.lineWidth = 1;
+      sc.setLineDash([]);
+      drawDimensionOn(sc, obj, view);
+    } else if (auto && obj.type !== 'constr') {
+      drawAutoDimensionOn(sc, obj, view);
+    }
+    sc.restore();
+  }
+  const bb = sc.bounds;
+  if (!grp.childNodes.length || !isFinite(bb.minX)) return { grp, bounds: null };
+  return { grp, bounds: { minX: bb.minX / k, maxX: bb.maxX / k, minY: -bb.maxY / k, maxY: -bb.minY / k } };
+}
+
+/**
+ * Maker.js kóty do SVG nedává – doplní je a rozšíří viewBox, aby se popisky
+ * neořízly. Mapování Maker.js: svg = (x·s + Ox, −y·s + Oy), kde s a origin
+ * vrací toSVG zpět do předaných `opts`.
+ */
+function addDimensionsToMakerSvg(svgStr, mk, model, opts, background) {
+  const ext = mk.measure.modelExtents(model);
+  if (!ext) return svgStr;
+  const s = opts.scale || 1;
+  const [Ox, Oy] = opts.origin || [-ext.low[0] * s, ext.high[1] * s];
+  const doc = new DOMParser().parseFromString(svgStr, 'image/svg+xml');
+  const root = doc.documentElement;
+  if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return svgStr;
+  const k = dimPixPerMm(Math.max(ext.width, ext.height));
+  const { grp, bounds } = buildSvgDimensions(doc, k, background);
+  if (!bounds) return svgStr;
+  grp.setAttribute('transform', `matrix(${s / k} 0 0 ${s / k} ${Ox} ${Oy})`);
+  root.appendChild(grp);
+  const pad = 12 / k; // okraj 12 px kolem popisků
+  const minX = Math.min(ext.low[0], bounds.minX) - pad, maxX = Math.max(ext.high[0], bounds.maxX) + pad;
+  const minY = Math.min(ext.low[1], bounds.minY) - pad, maxY = Math.max(ext.high[1], bounds.maxY) + pad;
+  const W = (maxX - minX) * s, H = (maxY - minY) * s;
+  const r3 = v => Math.round(v * 1000) / 1000;
+  root.setAttribute('viewBox', [minX * s + Ox, -maxY * s + Oy, W, H].map(r3).join(' '));
+  const unit = String(root.getAttribute('width') || '').replace(/^[-+\d.e]+/i, '');
+  root.setAttribute('width', r3(W) + unit);
+  root.setAttribute('height', r3(H) + unit);
+  return new XMLSerializer().serializeToString(doc);
 }
 
 // ── SVG Export (Maker.js) ──
@@ -178,14 +256,15 @@ async function exportSVG(background) {
     : (background === 'dark' ? COLORS.bgDark : '#ffffff');
   const svgAttrs = bg ? { style: `background:${bg}` } : {};
 
-  const svgStr = mk.exporter.toSVG(model, {
+  const svgOpts = {
     useSvgPathOnly: false,   // zachová barvy po vrstvách (layerOptions)
     layerOptions,
     svgAttrs,
     stroke: COLORS.primary,
     strokeWidth: '0.5mm',
     fill: 'none',
-  });
+  };
+  const svgStr = addDimensionsToMakerSvg(mk.exporter.toSVG(model, svgOpts), mk, model, svgOpts, background);
 
   const blob = new Blob([svgStr], { type: 'image/svg+xml' });
   const a = document.createElement('a');
@@ -216,8 +295,9 @@ function exportSVGLegacy(background) {
   svg.setAttribute('height', Math.round(vh));
 
   // Background
+  let bgRect = null;
   if (background !== 'transparent') {
-    const bgRect = document.createElementNS(ns, 'rect');
+    bgRect = document.createElementNS(ns, 'rect');
     bgRect.setAttribute('x', vx);
     bgRect.setAttribute('y', vy);
     bgRect.setAttribute('width', vw);
@@ -226,13 +306,13 @@ function exportSVGLegacy(background) {
     svg.appendChild(bgRect);
   }
 
-  // Objects
+  // Objects (kóty se kreslí zvlášť níž – stejným kódem jako na plátně)
   for (const obj of state.objects) {
-    const layer = state.layers.find(l => l.id === obj.layer);
-    if (layer && !layer.visible) continue;
+    if (!isExportVisible(obj) || obj.isDimension || obj.isCoordLabel) continue;
 
     const color = getObjColor(obj);
-    const strokeW = (obj.type === 'constr' ? 1 : 1.5) * objWidthMul(obj);
+    // viewBox je v mm → tloušťka v mm (jako Maker.js export: 0,5 mm), ne 1,5 mm
+    const strokeW = (obj.type === 'constr' ? 0.25 : 0.5) * objWidthMul(obj);
     const dash = objDash(obj).join(',');
 
     switch (obj.type) {
@@ -345,19 +425,23 @@ function exportSVGLegacy(background) {
       }
     }
 
-    // Kóty jako text – stejně jako na plátně jen v režimech „Vše" a „Kóty"
-    if ((state.showDimensions === 'all' || state.showDimensions === 'dimensions') && obj.type !== 'constr') {
-      const dimText = getDimensionText(obj);
-      if (dimText) {
-        const t = document.createElementNS(ns, 'text');
-        t.setAttribute('x', dimText.x);
-        t.setAttribute('y', -dimText.y);
-        t.setAttribute('fill', COLORS.textSecondary);
-        t.setAttribute('font-size', '4');
-        t.setAttribute('font-family', 'Consolas, monospace');
-        t.textContent = dimText.text;
-        svg.appendChild(t);
-      }
+  }
+
+  // Kóty (skupina v px prostoru → zpět do světa: svg = (x, −y))
+  const k = dimPixPerMm(Math.max(bb.maxX - bb.minX, bb.maxY - bb.minY));
+  const dims = buildSvgDimensions(document, k, background);
+  if (dims.bounds) {
+    dims.grp.setAttribute('transform', `scale(${1 / k})`);
+    svg.appendChild(dims.grp);
+    const pad = 12 / k;
+    const x0 = Math.min(vx, dims.bounds.minX - pad), y0 = Math.min(vy, -dims.bounds.maxY - pad);
+    const x1 = Math.max(vx + vw, dims.bounds.maxX + pad), y1 = Math.max(vy + vh, -dims.bounds.minY + pad);
+    svg.setAttribute('viewBox', `${x0} ${y0} ${x1 - x0} ${y1 - y0}`);
+    svg.setAttribute('width', Math.round(x1 - x0));
+    svg.setAttribute('height', Math.round(y1 - y0));
+    if (bgRect) {
+      bgRect.setAttribute('x', x0); bgRect.setAttribute('y', y0);
+      bgRect.setAttribute('width', x1 - x0); bgRect.setAttribute('height', y1 - y0);
     }
   }
 
@@ -377,19 +461,16 @@ function exportSVGLegacy(background) {
 
 function exportPNG(scale, background) {
   const geo = getObjectsBoundingBox();
-  // Rozlišení 1×: delší strana geometrie ≈ 800 px (dřív pevně 2 px/mm – díl
-  // 60 mm měl 120 px a popisky kót, které jsou v px jako na plátně, ho
-  // přerostly). Mez 2–20 px/mm.
+  // Rozlišení 1× = měřítko kót (dimPixPerMm): delší strana ≈ 800 px. Dřív
+  // pevně 2 px/mm – díl 60 mm měl 120 px a popisky kót (v px) ho přerostly.
   const geoMax = Math.max(geo.maxX - geo.minX, geo.maxY - geo.minY, 1);
-  let basePixPerUnit = Math.min(Math.max(2, 800 / geoMax), 20);
+  let basePixPerUnit = dimPixPerMm(geoMax);
 
   // Popisky mají velikost v px → do světa podle rozlišení. Souřadnicový
   // štítek (drawPoint): odkaz 30 px, polička 40 px, text ~0,6 výšky písma/znak.
   const bb = { ...geo };
   for (const obj of state.objects) {
-    if (!obj.isCoordLabel || obj.type !== 'point' || state.showDimensions === 'none') continue;
-    const layer = state.layers.find(l => l.id === obj.layer);
-    if (layer && !layer.visible) continue;
+    if (!obj.isCoordLabel || obj.type !== 'point' || !isExportVisible(obj)) continue;
     const k = basePixPerUnit;
     const dimSize = Math.min(21, Math.max(10, 7 + k * 4));
     const textPx = 0.6 * dimSize * fmtCoordLabel(obj.x, obj.y).length;
@@ -453,27 +534,20 @@ function exportPNG(scale, background) {
   // Ten pracuje v px (písmo, šipky, odsazení), proto se kreslí v základním
   // měřítku 1× a celé se zvětší podle rozlišení – 2×/4× pak vypadá stejně,
   // jen ostřeji. Popisky mají barvu podle POZADÍ obrázku, ne podle tématu.
-  const bgHex = background === 'dark' ? COLORS.bgDark : '#ffffff';
   const dimView = {
     w2s: (x, y) => { const [a, b] = w2s(x, y); return [a / scale, b / scale]; },
     zoom: zoom / scale,
-    ink: inkForBackground(isLightColor(bgHex)),
+    ink: inkFor(background),
     labelRects: [],
   };
   const inBaseScale = (fn) => { g.save(); g.scale(scale, scale); try { fn(); } finally { g.restore(); } };
-  const showAutoDims = (state.showDimensions === 'all' || state.showDimensions === 'dimensions')
-    && !state.showObjectNumbers;
+  const autoDims = showAutoDims();
 
   // Render all visible objects
   for (const obj of state.objects) {
-    if (obj.isCamPathNote) continue; // skrytá poznámka s CAM G-kódem (ani plátno ji nekreslí)
-    const layer = state.layers.find(l => l.id === obj.layer);
-    if (layer && !layer.visible) continue;
+    if (!isExportVisible(obj)) continue;
 
     if (obj.isDimension || obj.isCoordLabel) {
-      // Stejná pravidla viditelnosti jako na plátně (režim zobrazení kót)
-      if (state.showDimensions === 'none') continue;
-      if (state.showDimensions === 'intersections' && obj.isDimension) continue;
       inBaseScale(() => {
         g.strokeStyle = g.fillStyle = getObjColor(obj);
         g.lineWidth = 1;
@@ -558,7 +632,7 @@ function exportPNG(scale, background) {
     }
     g.setLineDash([]);
     // Automatické popisy rozměrů (R/⌀ kružnice a oblouku, obdélník…) jako na plátně
-    if (showAutoDims && obj.type !== 'constr') inBaseScale(() => drawAutoDimensionOn(g, obj, dimView));
+    if (autoDims && obj.type !== 'constr') inBaseScale(() => drawAutoDimensionOn(g, obj, dimView));
   }
 
   offCanvas.toBlob((blob) => {

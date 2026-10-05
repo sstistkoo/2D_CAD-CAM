@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Export SVG obsahuje kóty** (uživatel 5. 10. 2026) – Maker.js kóty do SVG
+  nedával vůbec. Nový `js/storage/svgCanvasContext.js` napodobí podmnožinu
+  canvas API (cesty, oblouky, text, transformace, přerušované čáry) a místo
+  kreslení zapisuje SVG prvky – kóty tak do SVG kreslí TENTÝŽ kód jako na
+  plátno a do PNG (`drawDimensionOn` / `drawAutoDimensionOn`). Skupina
+  `kóty` se umístí do souřadnic Maker.js a `viewBox` se rozšíří, aby se
+  popisky neořízly. Totéž v záložním SVG (bez Maker.js), kde navíc čáry
+  měly tloušťku 1,5 mm místo 0,5 mm. Pravidla viditelnosti a měřítko kót
+  mají PNG i SVG společné (`isExportVisible`, `dimPixPerMm`). Testy
+  `tests/svgCanvasContext.test.js`. SW v370.
 - **Export PNG obsahuje kóty** (uživatel 5. 10. 2026) – kóty se dřív
   exportovaly jako holé čáry bez šipek a hodnot, souřadnicové štítky jako
   body. Teď je kreslí tentýž kód jako plátno (`drawDimensionOn` /

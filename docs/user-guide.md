@@ -1288,15 +1288,17 @@ Nastavení API klíčů: ☰ → **Nastavení** → **AI nastavení**
 2. Vyber `.skica_projekt.json`
 3. Nebo přetáhni soubor přímo do okna
 
-### Export PNG
-- ☰ → **Export obrázku** – stáhne `.png` aktuálního výkresu
-- Obrázek obsahuje i **kóty** (šipky, hodnoty, úhly, R/⌀, souřadnice bodů),
+### Export PNG / SVG
+- ☰ → **Export obrázku** – stáhne `.png` nebo `.svg` aktuálního výkresu
+- Obrázek (PNG i SVG) obsahuje i **kóty** (šipky, hodnoty, úhly, R/⌀, souřadnice bodů),
   **texty** a **výplně** – stejně jako na plátně. Kóty se řídí přepínačem
   zobrazení kót (skryté kóty se neexportují).
 - Rozlišení **1×** ≈ 800 px na delší stranu výkresu, 2× a 4× jsou ostřejší
   (vzhled kót se nemění, jen roste rozlišení).
 - Na **bílém / průhledném** pozadí mají popisky kót tmavou barvu, aby byly
   čitelné i při tmavém tématu aplikace.
+- **SVG** je vektorové v mm (geometrie 1:1); kóty jsou ve skupině `kóty`, popisky
+  jako text (písmo Consolas, náhradní monospace).
 
 ### Souborové typy
 | Přípona | Obsah |
