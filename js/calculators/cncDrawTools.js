@@ -258,6 +258,16 @@ export function convertLinesMode(code, first, last, target, opts = {}) {
     changed++;
   }
   if (!changed) return { code, changed: 0 };
+  // Samostatné G90/G91 (řádek bez pohybu) uvnitř výběru by režim přepnulo uprostřed
+  // převedeného úseku → pryč (řádek zůstane, jen bez té značky).
+  const moved = new Set(an.moves.map(m => m.line));
+  for (let i = first; i <= last && i < lines.length; i++) {
+    if (moved.has(i) || !/\bG9[01]\b/i.test(codePart(lines[i]))) continue;
+    const ci = lines[i].indexOf(';');
+    const c = (ci >= 0 ? lines[i].slice(0, ci) : lines[i]).replace(/\bG9[01]\b\s*/gi, '').replace(/\s+$/, '');
+    const com = ci >= 0 ? lines[i].slice(ci) : '';
+    lines[i] = c && com ? c + ' ' + com : (c || com);
+  }
   // První pohyb za výběrem: vrátit jeho původní režim, pokud ho nemá zapsaný.
   const after = an.moves.find(m => m.line > last);
   if (after && after.mode !== target && !/\bG9[01]\b/i.test(codePart(lines[after.line])))

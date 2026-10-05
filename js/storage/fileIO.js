@@ -1403,6 +1403,13 @@ function renderCncCodeToCanvas(code, { append = false } = {}) {
     // takže byly imunní vůči skrývání vrstev a ignorovaly barvu nastavenou u vrstvy
     // Kontura/Polotovar (kreslily se natvrdo COLORS.primary / COLORS.stock).
     objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); });
+    // Indexy výběru ukazovaly do starého pole objektů – po přepsání by ukazovaly
+    // jinam/mimo, a runCncExport() níž by pak do panelu CNC KÓD dal jen „vybraný" kus.
+    state.selected = null;
+    state.multiSelected.clear();
+    state.selectedSegment = null;
+    state._selectedSegmentObjIdx = null;
+    state.multiSelectedSegments?.clear();
     calculateAllIntersections();
     updateObjectList();
     updateProperties();
@@ -1437,7 +1444,8 @@ bridge.selectAsDrawnLabel = (label) => {
   const idx = state.objects.indexOf(_asDrawnLabelObj.get(label));
   if (idx < 0) return false;
   state.selected = idx;
-  state.multiSelected = new Set();
+  state.multiSelected.clear();
+  updateProperties();
   renderAll();
   return true;
 };

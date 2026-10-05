@@ -1273,7 +1273,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     let actualIns = actual;
     if (s === e && actual !== '\n' && !actual.startsWith(';')) {
       const ls = v.lastIndexOf('\n', s - 1) + 1;
-      const ci = v.slice(ls, s).indexOf(';');
+      const ci = splitComment(v.slice(ls, s));     // středník v MSG("…;…") není komentář
       if (ci >= 0) {
         let p = ls + ci;
         while (p > ls && v[p - 1] === ' ') p--;
@@ -1685,7 +1685,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   function copyToClipboard() {
     if (!editor.value) return;
-    navigator.clipboard.writeText(editor.value).catch(() => {});
+    copyText(editor.value, 'celý kód');
   }
 
   // ── Hledání v kódu ─────────────────────────────────────────
@@ -2178,7 +2178,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   function copyText(t, what) {
     if (!t) return;
-    navigator.clipboard?.writeText(t).then(() => showToast(`Zkopírováno: ${what}`)).catch(() => showToast('Kopírování se nepovedlo'));
+    // navigator.clipboard chybí mimo HTTPS / ve starších WebView – `?.` by vrátilo
+    // undefined a `.then` spadlo; bez schránky jen oznámit.
+    if (!navigator.clipboard?.writeText) { showToast('Schránka není v tomto prohlížeči dostupná'); return; }
+    navigator.clipboard.writeText(t).then(() => showToast(`Zkopírováno: ${what}`)).catch(() => showToast('Kopírování se nepovedlo'));
   }
   function copyCaretLine() { copyText(editor.value.split('\n')[caretLine()].trim(), 'řádek'); }
   function copyCaretCoord() {

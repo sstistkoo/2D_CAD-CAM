@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **CNC Editor – druhá kontrola chyb** (uživatel 5. 10. 2026):
+  - „Přepsat výkres" (🔄 / zavření editoru) nevynuloval výběr – indexy ukazovaly
+    do starého pole objektů a panel CNC KÓD pak exportoval jen „vybraný" kus;
+  - kopírování v prohlížeči bez schránky (mimo HTTPS) spadlo – teď hlášení;
+  - G90/G91 výběru: samostatné G90/G91 uvnitř výběru přepnulo režim uprostřed
+    převodu (test);
+  - vkládání do poznámky: středník v `MSG("…;…")` se už nebere jako komentář.
+  SW v363.
 - **🎯 Bod z plátna** chytá koncové body/průsečíky i s vypnutým přichytáváním
   (dřív bral místo prstu → nepřesné souřadnice).
 - Kód vložený klávesnicí s kurzorem v poznámce („Z0 ; Úsečka 3|") skončil

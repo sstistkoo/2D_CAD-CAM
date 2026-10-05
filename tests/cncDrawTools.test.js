@@ -74,6 +74,14 @@ describe('cncDrawTools – rozbor kreslicího G-kódu', () => {
     expect(analyzeDrawCode(back.code).moves.map(m => m.to)).toEqual(before);
   });
 
+  it('samostatné G91 uvnitř výběru nepřepne režim uprostřed převodu', () => {
+    const code = 'G90 G0 X20 Z100\nG1 Z60\nG91 ; přírůstkově\nX10\nZ-20';
+    const before = analyzeDrawCode(code).moves.map(m => m.to);
+    const abs = convertLinesMode(code, 1, 4, 90);
+    expect(abs.code.split('\n')[2]).toBe('; přírůstkově');
+    expect(analyzeDrawCode(abs.code).moves.map(m => m.to)).toEqual(before);
+  });
+
   it('poloha na řádku bez pohybu = poslední pohyb před ním', () => {
     const an = analyzeDrawCode('G0 X10 Z5\n; poznámka\nG1 Z0');
     expect(moveAtOrBefore(an, 1).to).toEqual({ z: 5, x: 10 });
