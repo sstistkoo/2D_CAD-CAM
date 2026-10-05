@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast } from '../state.js';
+import { translateObject } from '../objects.js';
 import { setHint, setTool, updateProperties, updateObjectList } from '../ui.js';
 import { renderAll } from '../render.js';
 import { deepClone } from '../utils.js';
@@ -69,8 +70,9 @@ export function handleCopyPlaceClick(wx, wy) {
     const copy = deepClone(orig);
     delete copy.id;
     copy.name = (copy.name || copy.type) + ' (kopie)';
-    // Posun kopie ručně (moveObject kontroluje kotvení originálu)
-    applyOffset(copy, dx, dy);
+    // Posun kopie bez kontroly kotev (moveObject by kopii zakotveného
+    // originálu odmítl – leží na jeho kotvě)
+    translateObject(copy, dx, dy);
     // Přiřadit ID a vrstvu, přidat do objektů
     copy.id = state.nextId++;
     if (copy.layer === undefined) {
@@ -100,40 +102,6 @@ export function handleCopyPlaceClick(wx, wy) {
 export function resetCopyPlaceState() {
   state._copyPlaceObjects = null;
   state._copyPlaceRef = null;
-}
-
-/**
- * Posune objekt o (dx, dy) bez kontroly kotvení.
- * Používá se pro klony, které ještě nejsou v state.objects.
- */
-function applyOffset(obj, dx, dy) {
-  switch (obj.type) {
-    case 'point':
-      obj.x += dx; obj.y += dy;
-      break;
-    case 'line':
-    case 'constr':
-      obj.x1 += dx; obj.y1 += dy;
-      obj.x2 += dx; obj.y2 += dy;
-      if (obj.dimSrcX1 != null) { obj.dimSrcX1 += dx; obj.dimSrcY1 += dy; }
-      if (obj.dimSrcX2 != null) { obj.dimSrcX2 += dx; obj.dimSrcY2 += dy; }
-      if (obj.dimCenterX != null) { obj.dimCenterX += dx; obj.dimCenterY += dy; }
-      break;
-    case 'circle':
-    case 'arc':
-      obj.cx += dx; obj.cy += dy;
-      break;
-    case 'rect':
-      obj.x1 += dx; obj.y1 += dy;
-      obj.x2 += dx; obj.y2 += dy;
-      break;
-    case 'polyline':
-      for (const v of obj.vertices) { v.x += dx; v.y += dy; }
-      break;
-    case 'text':
-      obj.x += dx; obj.y += dy;
-      break;
-  }
 }
 
 /**

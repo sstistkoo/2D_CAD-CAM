@@ -270,6 +270,21 @@ export function moveObject(obj, dx, dy) {
     showToast("Objekt je zakotven – nelze přesunout");
     return false;
   }
+  translateObject(obj, dx, dy);
+  // Aktualizovat asociativní kóty navázané na přesunutý objekt
+  updateAssociativeDimensions();
+}
+
+/**
+ * Posune objekt o (dx, dy) BEZ kontroly kotev a bez přepočtu kót – pro
+ * kopie, které ještě nejsou ve výkresu (vložení ze schránky, kopírování,
+ * offset). Kopie zakotveného objektu leží na kotvě originálu, takže by ji
+ * moveObject odmítl posunout a skončila by přesně na originálu.
+ * @param {import('./types.js').DrawObject} obj
+ * @param {number} dx
+ * @param {number} dy
+ */
+export function translateObject(obj, dx, dy) {
   switch (obj.type) {
     case "point":
       obj.x += dx;
@@ -363,6 +378,4 @@ export function moveObject(obj, dx, dy) {
       }
       break;
   }
-  // Aktualizovat asociativní kóty navázané na přesunutý objekt
-  updateAssociativeDimensions();
 }

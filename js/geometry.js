@@ -1936,6 +1936,17 @@ export function mirrorObject(obj, axis, p1, p2) {
       copy.bulges = copy.bulges.map(b => -b);
       break;
     }
+    case 'text': {
+      // Poloha se zrcadlí, směr účaří se odrazí přes osu (2·θ − A) jako
+      // u obdélníku; zrcadlově převrácené písmo text neumí – zůstane čitelný
+      const m = mirrorPoint(copy.x, copy.y);
+      copy.x = m.x; copy.y = m.y;
+      copy.rotation = 2 * axisAngle - (obj.rotation || 0);
+      break;
+    }
+    case 'fill':
+      copy.loops = copy.loops.map(loop => loop.map(v => mirrorPoint(v.x, v.y)));
+      break;
   }
   copy.name = `${obj.name || obj.type} (zrcadlo)`;
   return copy;
@@ -1977,6 +1988,11 @@ export function linearArray(obj, dx, dy, count, dx2 = 0, dy2 = 0, count2 = 0) {
           copy.x2 += ox; copy.y2 += oy; break;
         case 'polyline':
           copy.vertices = copy.vertices.map(v => ({ x: v.x + ox, y: v.y + oy }));
+          break;
+        case 'text':
+          copy.x += ox; copy.y += oy; break;
+        case 'fill':
+          copy.loops = copy.loops.map(loop => loop.map(v => ({ x: v.x + ox, y: v.y + oy })));
           break;
       }
       const label = count2 > 0 ? `${j + 1},${i + 1}` : `${i + 1}`;
@@ -2037,6 +2053,15 @@ export function rotateObject(obj, cx, cy, angle) {
       obj.vertices = obj.vertices.map(v => rp(v.x, v.y));
       break;
     }
+    case 'text': {
+      const m = rp(obj.x, obj.y);
+      obj.x = m.x; obj.y = m.y;
+      obj.rotation = (obj.rotation || 0) + angle;
+      break;
+    }
+    case 'fill':
+      obj.loops = obj.loops.map(loop => loop.map(v => rp(v.x, v.y)));
+      break;
   }
 }
 
@@ -2073,7 +2098,10 @@ export function flipObject(obj, cx, cy, axis) {
         obj.startAngle = -obj.startAngle;
         obj.endAngle   = -obj.endAngle;
       }
-      obj.ccw = !obj.ccw;
+      // Překlopení obrací směr. `ccw` neuvedeno = proti směru hodin, takže
+      // `!obj.ccw` by z undefined udělalo true a směr NEotočilo – čtvrtoblouk
+      // se pak kreslil jako doplněk 270°.
+      obj.ccw = obj.ccw === false;
       break;
     }
     case 'rect': {
@@ -2097,6 +2125,16 @@ export function flipObject(obj, cx, cy, axis) {
       if (obj.bulges) obj.bulges = obj.bulges.map(b => -b);
       break;
     }
+    case 'text': {
+      // Stejná konvence úhlu jako obdélník výše; písmo zůstane čitelné
+      const m = fp(obj.x, obj.y);
+      obj.x = m.x; obj.y = m.y;
+      obj.rotation = axis === 'Z' ? Math.PI - (obj.rotation || 0) : -(obj.rotation || 0);
+      break;
+    }
+    case 'fill':
+      obj.loops = obj.loops.map(loop => loop.map(v => fp(v.x, v.y)));
+      break;
   }
 }
 
@@ -2114,8 +2152,15 @@ export function flipObject(obj, cx, cy, axis) {
 export function circularArray(obj, cx, cy, count, totalAngleDeg, includeOriginal) {
   if (count < 1) return [];
   const copies = [];
-  const stepDeg = totalAngleDeg / count;
-  const numCopies = includeOriginal ? count - 1 : count;
+  // Pozic celkem (originál je vždy pozice 0). Plný kruh: N pozic rovnoměrně
+  // (rozteč 360/N – poslední NEsmí padnout zpět na originál, což se dřív
+  // stalo u výchozího „6 kopií, 360°, bez originálu"). Část kruhu: první
+  // pozice na 0°, poslední přesně na zadaném úhlu (rozteč úhel/(N−1)).
+  const positions = includeOriginal ? count : count + 1;
+  if (positions < 2) return [];
+  const fullCircle = Math.abs(totalAngleDeg) >= 360 - 1e-9;
+  const stepDeg = totalAngleDeg / (fullCircle ? positions : positions - 1);
+  const numCopies = positions - 1;
   for (let i = 1; i <= numCopies; i++) {
     const copy = deepClone(obj);
     delete copy.id;
@@ -2159,6 +2204,8 @@ export function scaleObject(obj, cx, cy, factor) {
       const m = sp(obj.cx, obj.cy);
       obj.cx = m.x; obj.cy = m.y;
       obj.r *= Math.abs(factor);
+      // Záporný faktor = bodová souměrnost (rotace o 180°) – i úhly oblouku
+      if (factor < 0) { obj.startAngle += Math.PI; obj.endAngle += Math.PI; }
       break;
     }
     case 'rect': {
@@ -2183,8 +2230,12 @@ export function scaleObject(obj, cx, cy, factor) {
       const m = sp(obj.x, obj.y);
       obj.x = m.x; obj.y = m.y;
       if (obj.fontSize) obj.fontSize *= Math.abs(factor);
+      if (factor < 0) obj.rotation = (obj.rotation || 0) + Math.PI;
       break;
     }
+    case 'fill':
+      obj.loops = obj.loops.map(loop => loop.map(v => sp(v.x, v.y)));
+      break;
   }
 }
 

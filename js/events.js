@@ -6,7 +6,7 @@ import { ZOOM_FACTOR, ZOOM_MIN, ZOOM_MAX, PASTE_OFFSET } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } from './canvas.js';
 import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap, getSelectionCounterLabel } from './render.js';
-import { moveObject, addObject, addPolylineAsSegments, inheritedProps, removeOrphanDimensions, deletePolylineSegment } from './objects.js';
+import { translateObject, addObject, addPolylineAsSegments, inheritedProps, removeOrphanDimensions, deletePolylineSegment } from './objects.js';
 import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, cycleDimsMode, toggleCoordMode, updateCoordModeBtn, toggleSnapGrid, toggleAngleSnap, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
 import { findObjectAt, selectObjectAt, calculateAllIntersections, mirrorObject, linearArray, circularArray, rotateObject, flipObject, findSegmentAt, findConstraintAt } from './geometry.js';
 import { showCombinedModal, showPolarDrawingDialog, showCircleRadiusDialog, showBulgeDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog } from './dialogs.js';
@@ -476,33 +476,29 @@ document.addEventListener("keydown", (e) => {
   }
   if ((e.ctrlKey || e.metaKey) && e.key === "v") {
     if (state.clipboard) {
-      if (Array.isArray(state.clipboard)) {
-        pushUndo();
-        state.multiSelected.clear();
-        for (const orig of state.clipboard) {
+      // Jedno Ctrl+Z vrátí celé vložení. Kopie se posouvá translateObject –
+      // moveObject by kopii zakotveného objektu odmítl posunout (leží na
+      // kotvě originálu) a vložila by se přesně na něj.
+      const items = Array.isArray(state.clipboard) ? state.clipboard : [state.clipboard];
+      const added = [];
+      withUndoBatch(() => {
+        for (const orig of items) {
           const copy = deepClone(orig);
-          copy.id = state.nextId;
+          delete copy.id;
           copy.name = (copy.name || copy.type) + " (kopie)";
-          moveObject(copy, PASTE_OFFSET, PASTE_OFFSET);
-          addObject(copy);
-          state.multiSelected.add(state.objects.length - 1);
+          translateObject(copy, PASTE_OFFSET, PASTE_OFFSET);
+          const a = addObject(copy);   // duplicitní kótu addObject odmítne (null)
+          if (a) added.push(a);
         }
-        state.selected = state.objects.length - 1;
-        updateObjectList();
-        updateProperties();
-        showToast(`${state.clipboard.length} objektů vloženo`);
-      } else {
-        const copy = deepClone(state.clipboard);
-        copy.id = state.nextId;
-        copy.name = (copy.name || copy.type) + " (kopie)";
-        moveObject(copy, PASTE_OFFSET, PASTE_OFFSET);
-        addObject(copy);
-        state.selected = state.objects.length - 1;
-        state.multiSelected.clear();
-        updateObjectList();
-        updateProperties();
-        showToast("Objekt vložen");
-      }
+      });
+      const idx = added.map(a => state.objects.indexOf(a)).filter(i => i >= 0);
+      state.multiSelected = new Set(idx.length > 1 ? idx : []);
+      state.selected = idx.length ? idx[idx.length - 1] : null;
+      updateAssociativeDimensions();
+      updateObjectList();
+      updateProperties();
+      if (added.length === 0) showToast("Nic se nevložilo");
+      else showToast(added.length === 1 ? "Objekt vložen" : `${added.length} objektů vloženo`);
     }
     return;
   }

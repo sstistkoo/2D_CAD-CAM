@@ -29,6 +29,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Transformace, kruhové pole, vložení ze schránky** (uživatel 5. 10. 2026,
+  „najdeš-li jiné chyby, oprav je"):
+  - **překlopení oblouku** bez uvedeného směru (většina oblouků – z kontur,
+    zaoblení, DXF) neotočilo směr (`!undefined` = true) → čtvrtoblouk se
+    kreslil jako 270°;
+  - **kruhové pole** s výchozím „6 kopií, 360°, bez originálu" položilo
+    poslední kopii přesně na originál (zdvojený objekt); u části kruhu
+    „včetně originálu" poslední pozice nedosáhla zadaného úhlu;
+  - **otočení / zrcadlení / překlopení / pole** nehýbaly **textem** a
+    **výplní** (zůstaly na místě), záporné **měřítko** neotočilo oblouk;
+  - **Ctrl+V zakotveného objektu** vložilo kopii přesně na originál (posun
+    odmítla kotva originálu), víc objektů = víc kroků Zpět, odmítnutá
+    duplicitní kóta posunula výběr na jiný objekt. Nově `translateObject()`
+    v `objects.js` (posun bez kotev) – nahradil i kopie v Kopírovat & umístit
+    a v Offsetu; dialog Měřítko odmítne i nekonečný faktor.
+  SW v372.
 - **Tažení objektů: jedna implementace místo tří** (uživatel 5. 10. 2026) –
   průběh tažení byl zkopírovaný v `events.js` (myš) a 2× v `touch.js` (dotyk,
   precizní režim), rušení ve 3 dalších místech, a kopie se rozešly. Nově

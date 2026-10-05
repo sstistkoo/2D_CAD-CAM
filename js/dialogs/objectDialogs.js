@@ -521,7 +521,7 @@ export function showScaleDialog(callback) {
 
   function accept() {
     const f = safeEvalMath(inp.value);
-    if (isNaN(f) || f === 0) { showToast("Zadejte nenulový faktor"); return; }
+    if (!isFinite(f) || f === 0) { showToast("Zadejte nenulový faktor"); return; }
     overlay.remove();
     callback(f);
   }

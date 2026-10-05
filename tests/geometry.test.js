@@ -36,6 +36,7 @@ import {
   getLines,
   getCircles,
   calculateAllIntersections,
+  circularArray,
 } from '../js/geometry.js';
 import { state } from '../js/state.js';
 import { getRectCorners } from '../js/utils.js';
@@ -1524,5 +1525,77 @@ describe('calculateAllIntersections – bod na objektu', () => {
     ];
     calculateAllIntersections();
     expect(state.intersections).toHaveLength(2);
+  });
+});
+
+// ════════════════════════════════════════
+// ── Transformace: oblouky bez `ccw`, text, výplň, kruhové pole ──
+// (kontrola CAD 5. 10. 2026)
+// ════════════════════════════════════════
+const arcSweepDeg = (a) => {
+  const ccw = a.ccw !== false, T = 2 * PI;
+  return ((((ccw ? a.endAngle - a.startAngle : a.startAngle - a.endAngle) % T) + T) % T) * 180 / PI;
+};
+
+describe('flipObject – směr oblouku', () => {
+  it('oblouk bez ccw (= proti směru) zůstane po překlopení čtvrtobloukem, ne 270°', () => {
+    const arc = { type: 'arc', cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: PI / 2 };
+    flipObject(arc, 0, 0, 'X');
+    expect(arcSweepDeg(arc)).toBeCloseTo(90, 6);
+    expect(arc.ccw).toBe(false);
+  });
+
+  it('oblouk po směru hodin (ccw:false) se překlopí na proti směru se stejnou výsečí', () => {
+    const arc = { type: 'arc', cx: 0, cy: 0, r: 10, startAngle: PI / 2, endAngle: 0, ccw: false };
+    flipObject(arc, 0, 0, 'Z');
+    expect(arc.ccw).toBe(true);
+    expect(arcSweepDeg(arc)).toBeCloseTo(90, 6);
+  });
+});
+
+describe('transformace textu a výplně', () => {
+  it('rotateObject otočí polohu i natočení textu', () => {
+    const t = { type: 'text', x: 10, y: 0, text: 'A', rotation: 0 };
+    rotateObject(t, 0, 0, PI / 2);
+    expect(t.x).toBeCloseTo(0, 9);
+    expect(t.y).toBeCloseTo(10, 9);
+    expect(t.rotation).toBeCloseTo(PI / 2, 9);
+  });
+
+  it('rotateObject / flipObject / scaleObject / linearArray hýbou smyčkami výplně', () => {
+    const f = () => ({ type: 'fill', loops: [[{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 2 }]] });
+    const r = f(); rotateObject(r, 0, 0, PI);
+    expect(r.loops[0][0].x).toBeCloseTo(-1, 9);
+    const fl = f(); flipObject(fl, 0, 0, 'Z');
+    expect(fl.loops[0][1].x).toBeCloseTo(-2, 9);
+    const sc = f(); scaleObject(sc, 0, 0, 2);
+    expect(sc.loops[0][2]).toEqual({ x: 4, y: 4 });
+    const [copy] = linearArray(f(), 10, 0, 1);
+    expect(copy.loops[0][0]).toEqual({ x: 11, y: 1 });
+  });
+
+  it('scaleObject se záporným faktorem otočí oblouk o 180° (bodová souměrnost)', () => {
+    const arc = { type: 'arc', cx: 5, cy: 0, r: 2, startAngle: 0, endAngle: PI / 2 };
+    scaleObject(arc, 0, 0, -1);
+    expect(arc.cx + arc.r * Math.cos(arc.startAngle)).toBeCloseTo(-7, 9);
+    expect(arc.cy + arc.r * Math.sin(arc.startAngle)).toBeCloseTo(0, 9);
+  });
+});
+
+describe('circularArray – rozteč', () => {
+  const line = { type: 'line', x1: 10, y1: 0, x2: 20, y2: 0 };
+  const angles = (cs) => cs.map(c => Math.round(((Math.atan2(c.y1, c.x1) * 180 / PI) + 360) % 360));
+
+  it('plný kruh bez originálu: 6 kopií + originál = 7 pozic, žádná na originálu', () => {
+    expect(angles(circularArray(line, 0, 0, 6, 360, false))).toEqual([51, 103, 154, 206, 257, 309]);
+  });
+
+  it('plný kruh včetně originálu: 6 pozic po 60°', () => {
+    expect(angles(circularArray(line, 0, 0, 6, 360, true))).toEqual([60, 120, 180, 240, 300]);
+  });
+
+  it('část kruhu: poslední pozice přesně na zadaném úhlu', () => {
+    expect(angles(circularArray(line, 0, 0, 3, 90, true))).toEqual([45, 90]);
+    expect(angles(circularArray(line, 0, 0, 3, 90, false))).toEqual([30, 60, 90]);
   });
 });

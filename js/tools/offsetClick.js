@@ -10,7 +10,7 @@
 
 import { state, showToast, withUndoBatch } from '../state.js';
 import { renderAll } from '../render.js';
-import { addObject } from '../objects.js';
+import { addObject, translateObject } from '../objects.js';
 import { findObjectAt, offsetObject, pickOffsetSide } from '../geometry.js';
 import { showOffsetDialog } from '../dialogs.js';
 import { setHint, resetHint, setTool } from '../ui.js';
@@ -130,7 +130,7 @@ function _applyPolar(ids, dist, angleDeg) {
       const clone = deepClone(obj);
       delete clone.id;
       clone.name = `${clone.name || clone.type} (offset)`;
-      _shiftObject(clone, dx, dy);
+      translateObject(clone, dx, dy);
       addObject(clone);
       count++;
     }
@@ -139,23 +139,4 @@ function _applyPolar(ids, dist, angleDeg) {
     ? `Offset ${dist}mm / ${angleDeg}° vytvořen`
     : `Offset ${count} obj. o ${dist}mm / ${angleDeg}° vytvořen`);
   renderAll();
-}
-
-/** Posune souřadnice objektu o dx,dy (bez vedlejších efektů). */
-function _shiftObject(obj, dx, dy) {
-  switch (obj.type) {
-    case 'point':
-      obj.x += dx; obj.y += dy; break;
-    case 'line': case 'constr':
-      obj.x1 += dx; obj.y1 += dy; obj.x2 += dx; obj.y2 += dy; break;
-    case 'circle': case 'arc':
-      obj.cx += dx; obj.cy += dy; break;
-    case 'rect':
-      obj.x1 += dx; obj.y1 += dy; obj.x2 += dx; obj.y2 += dy; break;
-    case 'polyline':
-      if (obj.vertices) for (const v of obj.vertices) { v.x += dx; v.y += dy; }
-      break;
-    case 'text':
-      obj.x += dx; obj.y += dy; break;
-  }
 }
