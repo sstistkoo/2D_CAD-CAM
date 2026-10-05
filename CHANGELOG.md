@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Zpět vrací hotový tvar celý najednou** (uživatel 5. 10. 2026: „ať to bere
+  naráz a ne po částech") – po polygonu, hvězdě, drážce, ozubení, oříznutí či
+  offsetu kontury Ctrl+Z napřed konturu rozpojilo a pak ubíralo body po
+  jednom (pozůstatek z doby, kdy nástroj Kontura vytvářel jeden objekt).
+  Po bodech se vrací jen ještě ROZKRESLENÁ kontura. SW v367.
 - **Kontrola CAD – úpravy kontur, kóty, export** (uživatel 5. 10. 2026),
   regresní testy `tests/polyline-edits.test.js` + `tests/dimension.test.js`:
   - **zaoblení/zkosení rohu UVNITŘ kontury** přepsalo sdílený vrchol dvakrát

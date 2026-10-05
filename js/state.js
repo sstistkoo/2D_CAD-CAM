@@ -471,44 +471,10 @@ export function undo() {
 
   if (state.undoStack.length === 0) return;
 
-  // Krokové undo pro právě vytvořenou konturu:
-  // Pokud je poslední objekt polyline s >2 body a v předchozím stavu neexistuje,
-  // odeber jen poslední bod místo smazání celé kontury.
-  const lastObj = state.objects[state.objects.length - 1];
-  if (lastObj && lastObj.type === 'polyline' && lastObj.vertices && lastObj.vertices.length > 2 && !lastObj.isPencilStroke) {
-    let undoTopObjs;
-    try {
-      const undoTop = _parseUndoData(state.undoStack[state.undoStack.length - 1]);
-      undoTopObjs = undoTop.objects;
-    } catch {
-      state.undoStack = [];
-      updateUndoButtons();
-      showToast('Chyba: historie poškozena');
-      return;
-    }
-    const polyInUndo = undoTopObjs.find(o => o.id === lastObj.id);
-    if (!polyInUndo) {
-      // Kontura neexistuje v předchozím stavu → byla právě vytvořena
-      state.redoStack.push(_serializeState());
-      if (lastObj.closed) {
-        // Nejdřív otevřít uzavřenou konturu
-        lastObj.closed = false;
-        while (lastObj.bulges.length > lastObj.vertices.length - 1) lastObj.bulges.pop();
-      } else {
-        // Odebrat poslední bod
-        lastObj.vertices.pop();
-        while (lastObj.bulges.length > lastObj.vertices.length - 1) lastObj.bulges.pop();
-      }
-      state.selected = null;
-      if (bridge.updateObjectList) bridge.updateObjectList();
-      if (bridge.updateProperties) bridge.updateProperties();
-      if (bridge.calculateAllIntersections) bridge.calculateAllIntersections();
-      updateUndoButtons();
-      showToast("Zpět (bod kontury)");
-      return;
-    }
-  }
-
+  // Hotová kontura / tvar (polygon, hvězda, drážka, ozubení…) se vrací CELÁ
+  // jedním krokem – dřívější „krokové undo" ji napřed rozpojilo a pak ubíralo
+  // body po jednom (na pokyn uživatele 5. 10. 2026: „ať to bere naráz").
+  // Po bodech se vrací jen ROZKRESLENÁ kontura (blok výš).
   state.redoStack.push(_serializeState());
   try {
     const undoData = _parseUndoData(state.undoStack.pop());

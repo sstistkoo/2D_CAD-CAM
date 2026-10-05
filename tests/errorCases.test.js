@@ -133,22 +133,24 @@ describe('Error: polyline undo edge cases', () => {
     ];
   });
 
-  it('undo po přidání polyline odebere napřed poslední bod (krokové undo)', () => {
+  it('undo po přidání polyline ji odebere CELOU najednou (ne po bodech)', () => {
+    // Uživatel 5. 10. 2026: „ať to bere naráz a ne po částech" – dřív Zpět
+    // u polygonu/hvězdy/ozubení napřed konturu rozpojilo a ubíralo body.
     addObject({
       type: 'polyline',
       vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }],
       bulges: [0, 0],
-      closed: false,
+      closed: true,
       name: 'Kontura 1',
     });
     expect(state.objects).toHaveLength(1);
-    // Krokové undo: 3 vertexy → 2 vertexy (odebrán poslední bod)
-    undo();
-    expect(state.objects).toHaveLength(1);
-    expect(state.objects[0].vertices).toHaveLength(2);
-    // Další undo: 2 vertexy → plně odebráno (normální undo)
     undo();
     expect(state.objects).toHaveLength(0);
+    // Vpřed ji vrátí zase celou
+    redo();
+    expect(state.objects).toHaveLength(1);
+    expect(state.objects[0].vertices).toHaveLength(3);
+    expect(state.objects[0].closed).toBe(true);
   });
 
   it('redo po undo polyline obnoví polyline', () => {
