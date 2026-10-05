@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – vždy obsah plátna, smazání souboru jde vrátit**
+  (uživatel 5. 10. 2026): editor z Kalkulaček při každém otevření načte do
+  `CNC_PROGRAM.MPF` to, co je na plátně, a přepne se na něj (dřív zůstal
+  v jiném souboru, např. po smazání v Historii na „; Nový program“). Předchozí
+  text je krok ◀ Zpět. Smazání souboru ✕ v levém panelu Historie jde vrátit
+  šipkou ◀. Prázdný soubor už nezakládá nový program a nový program nepřepíše
+  existující PROG_n. SW v349.
 - **CNC Editor z Kalkulaček – klávesnice, lišty, historie, validace**
   (uživatel 5. 10. 2026): otevření editoru zavře pravý panel CAD (po výběru
   bodu z plátna už nezakrývá plátno). Na telefonu se systémová klávesnice

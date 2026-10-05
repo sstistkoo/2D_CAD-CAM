@@ -957,8 +957,12 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   // ── File management ────────────────────────────────────────
   function ensureFile() {
-    if (!currentFile || !programs[currentFile]) {
-      const nm = 'PROG_1.MPF';
+    // Prázdný text je pořád existující soubor (vše smazané) – ne důvod zakládat
+    // nový program; ten navíc nesmí přepsat už existující PROG_n.
+    if (!currentFile || typeof programs[currentFile] !== 'string') {
+      let n = 1;
+      while (typeof programs[`PROG_${n}.MPF`] === 'string') n++;
+      const nm = `PROG_${n}.MPF`;
       programs[nm] = '; Nový program\nG54 G90 G18\nG95\nG97 S500 M4\nSTOPRE\n\n\nM30\n';
       currentFile = nm;
     }
@@ -1004,13 +1008,31 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   function deleteFile(name) {
     if (!confirm(`Smazat "${name}"?`)) return;
+    if (historyFile === name) storeHistory();
+    // Smazání jde vrátit šipkou ◀: krok Zpět v souboru, který se zobrazí místo něj.
+    const restore = { restoreFile: name, code: programs[name], hist: histByFile[name] || null };
     delete programs[name];
     delete histByFile[name];
     if (historyFile === name) historyFile = null;
     const keys = Object.keys(programs);
     if (keys.length) displayFile(keys[0]);
     else { currentFile = ''; ensureFile(); displayFile(currentFile); }
+    undoStack.push(restore);
+    redoStack.length = 0;
+    updateUndoRedoButtons();
     persist();
+    showToast(`Soubor ${name} smazán – ◀ Zpět ho vrátí`);
+  }
+
+  function restoreDeletedFile(e) {
+    let name = e.restoreFile;
+    if (typeof programs[name] === 'string') name = name.replace(/(\.\w+)?$/, m => '_OBN' + (m || '.MPF'));
+    storeHistory();                   // současný soubor už bez kroku obnovení
+    programs[name] = e.code ?? '';
+    histByFile[name] = e.hist ? { ...e.hist, cur: e.code ?? '' } : { undo: [], redo: [], cur: e.code ?? '' };
+    displayFile(name);
+    persist();
+    showToast(`Soubor ${name} obnoven`);
   }
 
   function renameFile() {
@@ -1978,6 +2000,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function performUndo() {
     if (!undoStack.length) return;
     const entry = undoStack.pop();
+    if (entry.restoreFile) { restoreDeletedFile(entry); return; }
     redoStack.push({ value: editor.value, sel: editor.selectionEnd });
     editor.value = entry.value;
     editor.selectionStart = editor.selectionEnd = entry.sel;
@@ -2198,8 +2221,15 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // z CAD (bez dotazu – editor je jen dočasná pracovní kopie CAD kódu).
   // Je-li uživatel rozkoukaný v jiném souboru (např. po "Nový program"), editor
   // ho při návratu nepřepne pryč ani mu ten soubor nepřepíše.
+  // Editor z Kalkulaček ukazuje VŽDY to, co je na plátně (i když byl předtím
+  // v jiném souboru nebo v něm zůstal smazaný text) – předchozí text zůstává
+  // jako krok Zpět (loadHistory).
+  if (drawOnClose && typeof initialCode === 'string') {
+    programs['CNC_PROGRAM.MPF'] = initialCode;
+    currentFile = 'CNC_PROGRAM.MPF';
+  }
   const onProgramFile = !programs['CNC_PROGRAM.MPF'] || currentFile === 'CNC_PROGRAM.MPF';
-  if (onProgramFile && initialCode && typeof initialCode === 'string' && initialCode.trim()) {
+  if (!drawOnClose && onProgramFile && initialCode && typeof initialCode === 'string' && initialCode.trim()) {
     const name = 'CNC_PROGRAM.MPF';
     if (!programs[name] || programs[name].trim() !== initialCode.trim()) {
       programs[name] = initialCode;
