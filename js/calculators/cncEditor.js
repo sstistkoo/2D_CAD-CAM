@@ -715,12 +715,12 @@ function buildEditorHTML(drawMode = false) {
           <button class="cne-sb-btn accent" data-act="mergeJoin" data-el="mergeJoinBtn" disabled>🔗 Spojit do jednoho</button>
         </div>
       </div>
-      <div class="cne-sb-section">
+      ${drawMode ? '' : `<div class="cne-sb-section">
         <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> R-Parametry</div>
         <div class="cne-sb-content">
           <div class="cne-param-list" data-el="paramList"></div>
         </div>
-      </div>
+      </div>`}
     </div>
 
     <div class="cne-editor-wrap">
@@ -1351,6 +1351,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   // ── R-Params display ───────────────────────────────────────
   function renderParams() {
+    if (!paramListEl) return;          // editor z Kalkulaček sekci R-parametrů nemá
     const p = parser.parameters;
     if (!p || !p.size) { paramListEl.innerHTML = '<div class="cne-fi-empty">Žádné parametry</div>'; return; }
     const sorted = [...p.entries()].sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)));
@@ -1835,6 +1836,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function onInput() {
     programs[currentFile] = editor.value;
     updateEntryMode();
+    // Historie se počítá i z aktuálního textu (velikost smazání) → po změně překreslit.
+    if (sidebarEl.classList.contains('open')) renderHistoryList();
     if (rafHL) cancelAnimationFrame(rafHL);
     rafHL = requestAnimationFrame(refreshVisual);
     scheduleValidation();
@@ -1972,6 +1975,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     sidebarEl.classList.remove('open');
     sidebarRightEl?.classList.remove('open');
     el.classList.toggle('open', open);
+    if (open && el === sidebarEl) renderHistoryList();
     root.querySelectorAll('[data-act="sidebar"]').forEach(b => b.classList.toggle('open', sidebarEl.classList.contains('open')));
     root.querySelectorAll('[data-act="sidebarRight"]').forEach(b => b.classList.toggle('open', !!sidebarRightEl?.classList.contains('open')));
     // Klávesnice quickbaru se přes otevřený panel nepotřebuje – ať má panel i ten prostor.
@@ -2047,25 +2051,47 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Nahoře kroky „Vpřed" (šedě), pak aktuální stav, pod ním kroky „Zpět" od
   // nejnovější. Klik = vrátit se do stavu PŘED tou změnou (resp. zopakovat ji).
   const histListEl = $('histList');
+  // V seznamu jsou jen VĚTŠÍ změny (smazání většího kusu, nový obrázek z plátna,
+  // převody, zkrácení…); drobné psaní/mazání vrací šipky ◀ ▶ krok po kroku.
+  const MAJOR_LABELS = new Set(['Načteno z plátna', 'Zkrácení kódu', 'Vrácení poznámek', 'Převod na G90',
+    'Převod na G91', 'Převod sražení/zaoblení', 'Hlavička programu', 'Přečíslování N', 'Vloženo ze schránky', 'Vyjmuto']);
   function histTime(t) {
     if (!t) return '';
-    const d = new Date(t), now = new Date();
-    const hm = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-    return d.toDateString() === now.toDateString() ? hm : `${d.getDate()}. ${d.getMonth() + 1}. ${hm}`;
+    const d = new Date(t);
+    return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()} ` +
+      d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+  }
+  function isMajor(e, before, after) {
+    if (e.restoreFile || MAJOR_LABELS.has(e.label)) return true;
+    if (e.label !== 'Mazání') return false;
+    const removed = before.length - after.length;
+    const lines = before.split('\n').length - after.split('\n').length;
+    return removed >= 20 || lines >= 2;
   }
   function histRow(e, key, cls, icon, title) {
-    const label = e.restoreFile ? `Smazán soubor ${e.restoreFile}` : (e.label || 'Úprava');
-    const det = e.detail ? `<span class="cne-hi-det">${esc(e.detail.replace(/\n/g, '↵'))}</span>` : '';
+    const label = e.restoreFile ? `Smazán soubor ${e.restoreFile}`
+      : e.label === 'Mazání' ? 'Smazání kódu' : (e.label || 'Úprava');
     return `<div class="cne-hi ${cls}" data-hist="${key}" title="${title}">
-      <span class="cne-hi-ic">${icon}</span><span class="cne-hi-txt">${esc(label)}${det}</span><span class="cne-hi-t">${histTime(e.t)}</span></div>`;
+      <span class="cne-hi-ic">${icon}</span><span class="cne-hi-txt">${esc(label)}<span class="cne-hi-t">${histTime(e.t)}</span></span></div>`;
   }
   function renderHistoryList() {
     if (!histListEl) return;
+    // Chronologicky: stavy u0…un-1, aktuální, pak redo od nejbližšího. Změna k vede
+    // ze stavu k do k+1 – podle obou se pozná, jestli šlo o větší smazání.
+    const n = undoStack.length, m = redoStack.length;
+    const stateAt = k => (k < n ? undoStack[k].value : k === n ? editor.value : redoStack[m - 1 - (k - n - 1)].value) ?? '';
     const rows = [];
-    redoStack.forEach((e, j) => rows.push(histRow(e, 'r' + j, 'future', '↪', 'Zopakovat až po tuto změnu')));
+    for (let j = 0; j < m; j++) {               // redoStack[j] = stav po změně; nejvzdálenější nahoře
+      const k = n + (m - 1 - j);                // změna ze stavu k do k+1
+      if (isMajor(redoStack[j], stateAt(k), redoStack[j].value)) rows.push(histRow(redoStack[j], 'r' + j, 'future', '↪', 'Zopakovat až po tuto změnu'));
+    }
     rows.push(`<div class="cne-hi current"><span class="cne-hi-ic">●</span><span class="cne-hi-txt">Aktuální stav</span></div>`);
-    for (let i = undoStack.length - 1; i >= 0; i--) rows.push(histRow(undoStack[i], 'u' + i, '', '↩', 'Vrátit do stavu před touto změnou'));
-    histListEl.innerHTML = rows.length > 1 ? rows.join('') : '<div class="cne-fi-empty">Zatím žádné změny</div>';
+    for (let i = n - 1; i >= 0; i--) {
+      if (isMajor(undoStack[i], stateAt(i), stateAt(i + 1)))
+        rows.push(histRow(undoStack[i], 'u' + i, '', '↩', 'Vrátit do stavu před touto změnou'));
+    }
+    if (rows.length === 1) rows.push('<div class="cne-fi-empty">Zatím žádné větší změny – drobné úpravy vrací ◀ ▶</div>');
+    histListEl.innerHTML = rows.join('');
   }
   function jumpHistory(key) {
     const file = currentFile;
@@ -2095,6 +2121,15 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       if (e.target.closest('button')) e.preventDefault();
     });
   }
+
+  // Klepnutí mimo otevřený boční panel (do kódu, lišty…) ho zavře; tlačítka ☰
+  // panel přepínají sama.
+  root.addEventListener('pointerdown', e => {
+    const open = [sidebarEl, sidebarRightEl].find(el => el?.classList.contains('open'));
+    if (!open || open.contains(e.target)) return;
+    if (e.target.closest('[data-act="sidebar"], [data-act="sidebarRight"], .cne-inner-modal')) return;
+    toggleSidePanel(open);
+  });
 
   // Delegated clicks
   root.addEventListener('click', e => {

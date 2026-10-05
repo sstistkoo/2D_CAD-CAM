@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – Historie jen větších změn, zavírání panelů**
+  (uživatel 5. 10. 2026): Historie v levém panelu ukazuje jen větší změny
+  (smazání kódu ≥ 20 znaků nebo 2 řádků, Načteno z plátna, převody, zkrácení,
+  hlavička, přečíslování, vložení ze schránky, smazaný soubor) s datem a časem;
+  drobné úpravy vrací šipky ◀ ▶. Levý i pravý panel se zavře klepnutím mimo
+  něj. Sekce R-Parametry v editoru z Kalkulaček odstraněna (v obráběcím
+  editoru zůstává). SW v351.
 - **CNC Editor – Historie změn, sekce Program, Uložit G-kód** (uživatel
   5. 10. 2026): v levém panelu je **Historie** teď seznam provedených změn
   (Psaní, Mazání, Vloženo G1, Zkrácení kódu, Převod na G91, Bod z plátna,
