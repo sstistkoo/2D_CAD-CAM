@@ -4290,7 +4290,10 @@ document.getElementById("btnOpenTolerance").addEventListener("click", openTolera
 document.getElementById("btnOpenRoughness").addEventListener("click", openRoughnessCalc);
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
-document.getElementById("btnOpenCncEditor")?.addEventListener("click", () => openCncEditor(bridge.exportCncAsDrawn(), { drawOnClose: true }));
+document.getElementById("btnOpenCncEditor")?.addEventListener("click", () => {
+  const code = bridge.exportCncAsDrawn();       // celé plátno; označené objekty → zvýraznit řádky
+  openCncEditor(code, { drawOnClose: true, highlight: bridge.cncAsDrawnSelection?.() || [] });
+});
 // VK i číselné zadání sdílí jedno okno – liší se jen výchozí záložkou.
 document.getElementById("btnOpenVk")?.addEventListener("click", () => showCombinedModal('vk'));
 document.getElementById("btnNumInput")?.addEventListener("click", () => showCombinedModal('num'));

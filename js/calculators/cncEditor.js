@@ -827,11 +827,16 @@ function buildEditorHTML(drawMode = false) {
 // ══════════════════════════════════════════════════════════════
 // ██  MAIN EXPORT  ████████████████████████████████████████████
 // ══════════════════════════════════════════════════════════════
-export function openCncEditor(initialCode, { drawOnClose = false, baseline = null, caret = null, insert = null } = {}) {
+export function openCncEditor(initialCode, { drawOnClose = false, baseline = null, caret = null, insert = null, highlight = null } = {}) {
   // `baseline` = kód z výkresu při PRVNÍM otevření (zachová se přes návrat z výběru bodu
   // z plátna, kdy se editor otevírá znovu s rozpracovaným textem). `caret`/`insert` =
   // kam vložit souřadnice kliknuté na plátně.
   const baselineCode = typeof baseline === 'string' ? baseline : initialCode;
+  // Objekty označené na plátně (popisky „Úsečka 3"…) – jejich řádky se zvýrazní.
+  const hlLabels = Array.isArray(highlight) ? highlight.filter(Boolean) : [];
+  const hlRe = hlLabels.length
+    ? new RegExp(';\\s*(?:' + hlLabels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?=,|\\s*$)')
+    : null;
   let pickSuspended = false;        // editor je zavřený jen na chvíli (výběr bodu) – bez dotazu na přepsání
   // ── State ──────────────────────────────────────────────────
   let programs   = {};
@@ -1139,7 +1144,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       const work = ci > 0 ? line.substring(0, ci) : line;
       const comment = ci > 0 ? `<span class="hl-comment">${esc(line.substring(ci))}</span>` : '';
 
-      return highlightCode(work) + comment;
+      const html = highlightCode(work) + comment;
+      // Řádek objektu označeného na plátně – podbarvit (znaky se nemění).
+      return ci > 0 && hlRe && hlRe.test(line.substring(ci)) ? `<span class="hl-selline">${html}</span>` : html;
     });
     highlights.innerHTML = out.join('\n') + '\n';
   }
@@ -1902,7 +1909,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const reopen = (ins) => {
       back.remove();
       document.removeEventListener('keydown', onEsc);
-      openCncEditor(keep.code, { drawOnClose, baseline: baselineCode, caret: keep.pos, insert: ins });
+      openCncEditor(keep.code, { drawOnClose, baseline: baselineCode, caret: keep.pos, insert: ins, highlight: hlLabels });
     };
     const onEsc = (e) => { if (e.key === 'Escape') { picker.cancel(); reopen(null); } };
     document.addEventListener('keydown', onEsc);
@@ -2362,6 +2369,11 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       syncScroll();
       if (coordMode === 'inc') showToast('Souřadnice jsou absolutní (G90)');
     }
+  }
+  // Otevřeno s označenými objekty z plátna → výběr a pohled na první jejich řádek.
+  if (caret === null && hlRe) {
+    const idx = editor.value.split('\n').findIndex(l => { const ci = l.indexOf(';'); return ci > 0 && hlRe.test(l.substring(ci)); });
+    if (idx >= 0) jumpToLine(idx);
   }
   updateEntryMode();
 }

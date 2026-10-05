@@ -7174,6 +7174,8 @@ button.vk-header-btn-green {
 .hl-logic   { color: var(--ctp-red);    font-weight: 700; }
 .hl-sub     { color: var(--ctp-lavender); font-weight: 700; }
 .hl-error   { text-decoration: underline wavy var(--ctp-red); cursor: help; }
+/* Řádek objektu označeného na plátně (editor z Kalkulaček) */
+.hl-selline { background: rgba(249,226,175,.22); box-shadow: inset 3px 0 0 var(--ctp-yellow); border-radius: 2px; }
 
 /* ── Quick bar ──────────────────────────────────────────────── */
 .cne-quickbar {

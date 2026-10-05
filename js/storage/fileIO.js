@@ -730,6 +730,7 @@ function _reportContourIssues(dups, dupSet) {
  *   zůstaly (o jejich vynechání rozhoduje uživatel, viz dialogs/contourCheck.js).
  * @returns {string | {code: string, leftovers: object[]}}
  */
+let _asDrawnSelLabels = [];
 function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
   const selectedIndices = new Set();
@@ -738,7 +739,9 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   } else if (state.selected !== null && state.selected !== undefined) {
     selectedIndices.add(state.selected);
   }
-  let exportObjects = selectedIndices.size > 0
+  // Editor z Kalkulaček (asDrawn) dostává VŽDY celé plátno – označené objekty
+  // se v něm jen zvýrazní (viz _asDrawnSelLabels níže).
+  let exportObjects = selectedIndices.size > 0 && !asDrawn
     ? state.objects.filter((_, i) => selectedIndices.has(i))
     : state.objects;
 
@@ -1323,7 +1326,12 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     return { code: out, leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))] };
   }
   // Editor z Kalkulaček: zhuštěný zápis (modální G, jen měněné osy); panel CNC KÓD se nepřepisuje
-  if (asDrawn) return compactCncModal(out);
+  if (asDrawn) {
+    // Popisky (Úsečka 3…) označených objektů – editor podle nich najde jejich řádky.
+    const selObjs = new Set([...selectedIndices].map(i => state.objects[i]));
+    _asDrawnSelLabels = [...items, ...stockItems].filter(it => selObjs.has(it._src)).map(it => it.name);
+    return compactCncModal(out);
+  }
   document.getElementById("cncOutput").value = out;
   return out;
 }
@@ -1420,6 +1428,8 @@ document.getElementById("btnCncToCam").addEventListener("click", () => {
 });
 bridge.runCncExport = runCncExport;
 bridge.exportCncAsDrawn = () => runCncExport({ asDrawn: true });
+/** Popisky objektů označených na plátně při posledním exportCncAsDrawn(). */
+bridge.cncAsDrawnSelection = () => _asDrawnSelLabels.slice();
 bridge.buildCamTransfer = () => runCncExport({ forCam: true });
 bridge.renderCncCodeToCanvas = renderCncCodeToCanvas;
 
