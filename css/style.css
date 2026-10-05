@@ -7138,7 +7138,19 @@ button.vk-header-btn-green {
   flex: 1; min-width: 0;
   display: flex; align-items: center; justify-content: center; gap: 2px;
 }
-.cne-fs-btn { font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-text); }
+/* Řádek „Velikost textu" v pravém panelu: A− / A+ jako dvě malé klávesy */
+.cne-fs-row { cursor: default; }
+.cne-fs-row:hover, .cne-fs-row:active { background: none; }
+.cne-fs-row .cne-mi-text { flex: 1; }
+.cne-fs-btn {
+  all: unset; cursor: pointer; box-sizing: border-box;
+  min-width: 40px; height: 32px; padding: 0 8px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-text);
+  background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1);
+}
+.cne-fs-btn:active { background: var(--ctp-surface1); }
+.cne-mi-icon.red { color: var(--ctp-red); }
 .cne-sidebar-right { border-right: none; border-left: 1px solid var(--ctp-surface0); overflow-y: auto; }
 .cne-sidebar-right.open { width: 250px; }
 .cne-sidebar-right .cne-sb-title { padding: 10px 12px 2px; margin: 0; min-width: 226px; }
@@ -7421,7 +7433,6 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
   .cne-sidebar.cne-sidebar-right.open,
   .cne-overlay-draw .cne-sidebar.open { width: 250px; max-width: 85vw; }
   .cne-toolbar--draw .cne-tb-btn { padding: 6px 5px; font-size: 16px; }
-  .cne-toolbar--draw .cne-fs-btn { font-size: 13px; }
 
   /* Quickbar: row flow, 6 columns, larger touch targets */
   .cne-quickbar {

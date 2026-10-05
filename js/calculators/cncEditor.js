@@ -611,9 +611,16 @@ function quickbarHTML(drawMode) {
 
 // Položky menu „Nástroje editoru" – v běžném editoru v modalu pod ⋮, v editoru
 // z Kalkulaček v pravém vysouvacím panelu (☰ vpravo).
-function menuItemsHTML() {
-  return `
-        <button class="cne-menu-item" data-act="new"><span class="cne-mi-icon green">＋</span><span class="cne-mi-text"><b>Nový program</b><small>Vytvořit nový CNC soubor</small></span></button>
+function menuItemsHTML(drawMode = false) {
+  // Editor z Kalkulaček je na kreslení – místo nového programu vymazání editoru
+  // a velikost textu (A− / A+).
+  return (drawMode ? `
+        <div class="cne-menu-item cne-fs-row"><span class="cne-mi-icon">🔠</span><span class="cne-mi-text"><b>Velikost textu</b></span>
+          <button class="cne-fs-btn" data-act="fontDown" title="Zmenšit text v editoru">A−</button>
+          <button class="cne-fs-btn" data-act="fontUp" title="Zvětšit text v editoru">A+</button></div>
+        <button class="cne-menu-item" data-act="clearEditor"><span class="cne-mi-icon red">🗑</span><span class="cne-mi-text"><b>Vymazat editor</b><small>Smaže celý kód (◀ Zpět ho vrátí)</small></span></button>`
+    : `
+        <button class="cne-menu-item" data-act="new"><span class="cne-mi-icon green">＋</span><span class="cne-mi-text"><b>Nový program</b><small>Vytvořit nový CNC soubor</small></span></button>`) + `
         <button class="cne-menu-item" data-act="search"><span class="cne-mi-icon">🔍</span><span class="cne-mi-text"><b>Hledat v kódu</b><small>Rychlé vyhledávání textu</small></span></button>
         <button class="cne-menu-item" data-act="copy"><span class="cne-mi-icon">📋</span><span class="cne-mi-text"><b>Kopírovat</b><small>Zkopírovat kód do schránky</small></span></button>
         <button class="cne-menu-item" data-act="download"><span class="cne-mi-icon">⬇</span><span class="cne-mi-text"><b>Stáhnout</b><small>Stáhnout aktuální soubor</small></span></button>
@@ -644,8 +651,6 @@ function drawToolbarHTML() {
       <button class="cne-tb-btn" data-act="search" title="Hledat v kódu (Ctrl+F)">🔍</button>
       <button class="cne-tb-btn" data-act="calc" title="Kalkulačka">🔢</button>
       <button class="cne-tb-btn cne-status" data-act="validate" data-el="statusBtn" title="Validace">●</button>
-      <button class="cne-tb-btn cne-fs-btn" data-act="fontDown" title="Zmenšit text v editoru">A−</button>
-      <button class="cne-tb-btn cne-fs-btn" data-act="fontUp" title="Zvětšit text v editoru">A+</button>
     </div>
     <button class="cne-tb-btn cne-cam-btn" data-act="toCad" title="Vykreslit v CAD (přenést úpravy)" aria-label="Vykreslit v CAD">🔄</button>
     <button class="cne-tb-btn cne-tb-sidebar" data-act="sidebarRight" title="Nástroje editoru">☰</button>
@@ -732,7 +737,7 @@ function buildEditorHTML(drawMode = false) {
     </div>
     ${drawMode ? `<div class="cne-sidebar cne-sidebar-right" data-el="sidebarRight">
       <div class="cne-sb-title">Nástroje editoru</div>
-      <div class="cne-menu-list">${menuItemsHTML()}</div>
+      <div class="cne-menu-list">${menuItemsHTML(true)}</div>
     </div>` : ''}
   </div>
 
@@ -1942,6 +1947,15 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     showToast(`Velikost textu ${fontSize} px`);
   }
 
+  // ── Vymazat editor (pravý panel) ─────────────────────────────
+  function clearEditor() {
+    if (!editor.value) return;
+    captureUndoSnapshot('Vymazání editoru');
+    editor.value = '';
+    onInput();
+    showToast('Editor vymazán – ◀ Zpět ho vrátí');
+  }
+
   // ── G90 / G91 na začátek řádku ───────────────────────────────
   // Jen zapíše značku do řádku s kurzorem (už-li tam G90/G91 je, přepíše ji);
   // souřadnice nepřepočítává – to dělá tlačítko G90/G91 v horní liště.
@@ -2053,7 +2067,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   const histListEl = $('histList');
   // V seznamu jsou jen VĚTŠÍ změny (smazání většího kusu, nový obrázek z plátna,
   // převody, zkrácení…); drobné psaní/mazání vrací šipky ◀ ▶ krok po kroku.
-  const MAJOR_LABELS = new Set(['Načteno z plátna', 'Zkrácení kódu', 'Vrácení poznámek', 'Převod na G90',
+  const MAJOR_LABELS = new Set(['Načteno z plátna', 'Vymazání editoru', 'Zkrácení kódu', 'Vrácení poznámek', 'Převod na G90',
     'Převod na G91', 'Převod sražení/zaoblení', 'Hlavička programu', 'Přečíslování N', 'Vloženo ze schránky', 'Vyjmuto']);
   function histTime(t) {
     if (!t) return '';
@@ -2141,6 +2155,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'sidebarRight': toggleSidePanel(sidebarRightEl); break;
         case 'fontDown':  changeFontSize(-1); break;
         case 'fontUp':    changeFontSize(1); break;
+        case 'clearEditor': clearEditor(); break;
         case 'lineG':     setLineG(ab.dataset.g); break;
         case 'closeEditor': overlay.remove(); break;
         case 'editorUndo': performUndo(); break;
@@ -2225,7 +2240,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'cfgClose':  cfgModal.style.display = 'none'; persistCfg(); scheduleValidation(); break;
       }
       // Položka z pravého panelu nástrojů → panel po akci zavřít.
-      if (sidebarRightEl?.classList.contains('open') && ab.closest('.cne-sidebar-right')) toggleSidePanel(sidebarRightEl);
+      // (A− / A+ ho nechají otevřený – klepe se na ně víckrát.)
+      if (sidebarRightEl?.classList.contains('open') && ab.closest('.cne-sidebar-right') && !/^font/.test(ab.dataset.act)) toggleSidePanel(sidebarRightEl);
       return;
     }
     // Insert
