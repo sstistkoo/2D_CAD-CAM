@@ -463,6 +463,12 @@ function convertCornersToPaths(code) {
   const lineEdits = new Map();  // lineIdx -> nový text řádku (null = smazat)
   const insertions = new Map(); // lineIdx -> pole řádků k vložení ZA tento řádek
   let converted = 0, skipped = 0;
+  // Geometrie se počítá ve fyzické rovině (poloměr, Z): v režimu „průměr" je X
+  // v kódu dvojnásobné – bez přepočtu by zaoblení/sražení vyšlo zkreslené.
+  // Zpět do kódu (X i I) se píše ve stejných jednotkách jako X, tak jak je čte
+  // kreslicí parser (parseGcodeToObjects: I/K → toCanvas jako X/Z).
+  const xs = state.xDisplayMode === 'diameter' ? 2 : 1;
+  const f3 = v => String(Number(v.toFixed(3)));
 
   for (const mk of markers) {
     const cornerPtIdx = mk.pointIdx;
@@ -475,8 +481,8 @@ function convertCornersToPaths(code) {
     const afterPt  = points[afterPtIdx];
     if (!cornerPt.isFeed || !afterPt.isFeed) { skipped++; continue; } // jen mezi G1 pohyby
 
-    const lineA = { x1: beforePt.x, y1: beforePt.z, x2: cornerPt.x, y2: cornerPt.z };
-    const lineB = { x1: cornerPt.x, y1: cornerPt.z, x2: afterPt.x,  y2: afterPt.z };
+    const lineA = { x1: beforePt.x / xs, y1: beforePt.z, x2: cornerPt.x / xs, y2: cornerPt.z };
+    const lineB = { x1: cornerPt.x / xs, y1: cornerPt.z, x2: afterPt.x / xs,  y2: afterPt.z };
 
     let tp1, tp2, connectorLine;
     if (mk.kind === 'round') {
@@ -494,18 +500,20 @@ function convertCornersToPaths(code) {
       // musí prohodit .x/.z oproti tomu, jak jsou pojmenované v G-kódu.
       const cross = (tp1.z - cz) * (tp2.x - cx) - (tp1.x - cx) * (tp2.z - cz);
       const gWord = cross > 0 ? 'G3' : 'G2';
-      connectorLine = `${gWord} X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)} R${r.toFixed(3)}`;
+      // I/K = střed oblouku relativně k jeho začátku (tp1): I v ose X, K v ose Z.
+      const iVal = (cx - tp1.x) * xs, kVal = cz - tp1.z;
+      connectorLine = `${gWord} X${f3(tp2.x * xs)} Z${f3(tp2.z)} I${f3(iVal)} K${f3(kVal)} R${f3(r)}`;
     } else {
       const res = chamferTwoLines(lineA, lineB, mk.value, mk.value);
       if (!res.ok) { skipped++; continue; }
       tp1 = { x: lineA.x2, z: lineA.y2 };
       tp2 = { x: lineB.x1, z: lineB.y1 };
-      connectorLine = `G1 X${tp2.x.toFixed(3)} Z${tp2.z.toFixed(3)}`;
+      connectorLine = `G1 X${f3(tp2.x * xs)} Z${f3(tp2.z)}`;
     }
 
     const cornerLineIdx = cornerPt.lineIdx;
     const stripRe = mk.hasOwnXZ ? (mk.kind === 'chamfer' ? chamferRe : roundRe) : null;
-    lineEdits.set(cornerLineIdx, rewriteLineXZ(lines[cornerLineIdx], tp1.x, tp1.z, stripRe));
+    lineEdits.set(cornerLineIdx, rewriteLineXZ(lines[cornerLineIdx], tp1.x * xs, tp1.z, stripRe));
 
     const ins = insertions.get(cornerLineIdx) || [];
     ins.push(connectorLine);

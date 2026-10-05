@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor – převod sražení/zaoblení píše u oblouku i I a K** (uživatel
+  5. 10. 2026): ⌒ teď zapíše `G2/G3 X… Z… I… K… R…` – I/K = střed oblouku
+  relativně k jeho začátku (I v jednotkách osy X, tak jak ho čte kreslicí
+  parser). Oprava: v režimu „průměr" se zaoblení i sražení počítalo v rovině
+  (průměr, Z) a vycházelo zkreslené – teď ve fyzické rovině (poloměr, Z).
+  SW v356.
 - **CNC Editor z Kalkulaček – celé plátno + zvýraznění označeného** (uživatel
   5. 10. 2026): když je na plátně něco označené, editor už nedostane jen ten
   objekt, ale celé plátno; řádky označených objektů jsou podbarvené žlutě (bez proužku vlevo, ten překrýval první znak)
