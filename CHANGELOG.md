@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v358.
 
 ### Changed
+- **Kužel v hlavní sekci Kalkulaček** (uživatel 5. 10. 2026): 🔺 Kužel
+  přesunut z „Další kalkulačky" za Sinumerik. SW v365.
 - **CNC Editor (kreslení) odebrán z Kalkulaček** (uživatel 5. 10. 2026): otevírá
   se jen z plátna – mobil ✏️ ve spodní liště, desktop **✏️ Editor** ve stavové
   liště (vedle ✏️ VK). SW v362.
