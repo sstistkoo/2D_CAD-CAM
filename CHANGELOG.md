@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (uživatel 5. 10. 2026): velikost textu (A− / A+) přesunuta z horní lišty
   do pravého panelu (panel po klepnutí zůstává otevřený). Položka „Nový
   program" nahrazena **🗑 Vymazat editor** (smaže celý kód, ◀ Zpět ho vrátí,
-  v Historii jako „Vymazání editoru"). SW v352.
+  v Historii jako „Vymazání editoru"). Z pravého panelu odebrány Import a Export
+  balíčku. SW v353.
 - **CNC Editor z Kalkulaček – Historie jen větších změn, zavírání panelů**
   (uživatel 5. 10. 2026): Historie v levém panelu ukazuje jen větší změny
   (smazání kódu ≥ 20 znaků nebo 2 řádků, Načteno z plátna, převody, zkrácení,

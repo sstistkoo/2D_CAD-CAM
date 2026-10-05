@@ -624,8 +624,9 @@ function menuItemsHTML(drawMode = false) {
         <button class="cne-menu-item" data-act="search"><span class="cne-mi-icon">🔍</span><span class="cne-mi-text"><b>Hledat v kódu</b><small>Rychlé vyhledávání textu</small></span></button>
         <button class="cne-menu-item" data-act="copy"><span class="cne-mi-icon">📋</span><span class="cne-mi-text"><b>Kopírovat</b><small>Zkopírovat kód do schránky</small></span></button>
         <button class="cne-menu-item" data-act="download"><span class="cne-mi-icon">⬇</span><span class="cne-mi-text"><b>Stáhnout</b><small>Stáhnout aktuální soubor</small></span></button>
+${drawMode ? '' : `
         <button class="cne-menu-item" data-act="import"><span class="cne-mi-icon">📂</span><span class="cne-mi-text"><b>Import balíčku</b><small>Načíst soubory z balíčku</small></span></button>
-        <button class="cne-menu-item" data-act="export"><span class="cne-mi-icon">📦</span><span class="cne-mi-text"><b>Export balíčku</b><small>Exportovat všechny soubory</small></span></button>
+        <button class="cne-menu-item" data-act="export"><span class="cne-mi-icon">📦</span><span class="cne-mi-text"><b>Export balíčku</b><small>Exportovat všechny soubory</small></span></button>`}
         <div class="cne-menu-sep"></div>
         <button class="cne-menu-item" data-act="renum"><span class="cne-mi-icon">🔢</span><span class="cne-mi-text"><b>Přečíslovat N-bloky</b><small>Přečíslování bloků N10, N20…</small></span></button>
         <button class="cne-menu-item" data-act="convMode"><span class="cne-mi-icon sn" data-el="convModeMenuIcon">G90</span><span class="cne-mi-text"><b>Přepnout G90 / G91</b><small>Absolutní ↔ přírůstkové (nájezd v G90)</small></span></button>
