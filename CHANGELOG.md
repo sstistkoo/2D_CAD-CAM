@@ -15,13 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **⌨** (`inputmode`). Oranžová lišta o 20 % nižší. Horní lišta: ☰ soubory |
   ⌒ · G90/G91 (přepočet) · 🔍 · 🔢 · ✓ · **A− / A+** (velikost textu, pamatuje
   si ji) | 🔄 · **☰ vpravo** = pravý panel s položkami bývalého menu ⋮.
-  Spodní klávesnice: R I K G2 G3 ;✂ / G0 G1 X Z / G90 G91 Sraž. Zaobl. ⌫ /
-  123 = ; 📋 ↵ / Kontura · ⌨ · Bod z plátna; dolní **G90/G91** jen zapíše
+  Spodní klávesnice: R I K G2 G3 ⌫ / G0 G1 X Z / G90 G91 Sraž. Zaobl. ;✂ /
+  123 = ; 📋 ↵ / Kontura · ⌨ · ␣ · Bod z plátna; dolní **G90/G91** jen zapíše
   značku na začátek řádku (nepřepočítává). **Zpět/Vpřed přežije zavření
   editoru** (30 kroků na soubor, i po 🔄 a novém otevření – předchozí text je
   krok Zpět). Validace: souřadnice bez G po G0 („chybí G1?"), oblouk G2/G3
   bez R/CR/I,K, osa dvakrát v bloku – vše vypínatelné v Nastavení validace.
-  SW v346.
+  SW v347.
 - **CNC Editor z Kalkulaček – kontura/polotovar, bod z plátna**
   (uživatel 3. 10. 2026): dole nové tlačítko **✎ Kontura / ✎ Polotovar** –
   ukazuje, co se na kurzoru zadává (podle `STOCK_START`/`STOCK_END` před ním),

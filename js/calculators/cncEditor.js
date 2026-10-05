@@ -552,7 +552,7 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb c10" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button>
     <button class="cne-qb accent cne-qb-arc c10" data-ins="G2 " title="G2 &ndash; kruhov&aacute; interpolace po sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G2</span><small>&#8635; oblouk</small></button>
     <button class="cne-qb accent cne-qb-arc c10" data-ins="G3 " title="G3 &ndash; kruhov&aacute; interpolace proti sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G3</span><small>&#8634; oblouk</small></button>
-    <button class="cne-qb red c10" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
+    <button class="cne-qb del c10" data-act="backspace" title="Smazat znak">⌫</button>
 
     <button class="cne-qb accent cne-qb-big c15" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start bod</small></button>
     <button class="cne-qb accent cne-qb-big c15" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
@@ -563,7 +563,7 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb blue c12" data-act="lineG" data-g="G91" title="Napíše G91 (přírůstkové) na začátek řádku s kurzorem">G91</button>
     <button class="cne-qb accent c12" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
     <button class="cne-qb accent c12" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
-    <button class="cne-qb del c12" data-act="backspace" title="Smazat znak">⌫</button>
+    <button class="cne-qb red c12" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
 
     <button class="cne-qb gray c12" data-inp="" title="Zadat číslo">123</button>
     <button class="cne-qb gray c12" data-ins="=" title="Přiřazení hodnoty">=</button>
@@ -571,9 +571,10 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb gray c12" data-act="copy" title="Kopírovat kód do schránky">📋</button>
     <button class="cne-qb green c12" data-ins="\\n" title="Nový řádek">↵</button>
 
-    <button class="cne-qb accent cne-qb-wide c20" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
-    <button class="cne-qb cne-kb-btn cne-qb-wide c20" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
-    <button class="cne-qb green cne-qb-wide c20" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯 Bod z plátna</button>
+    <button class="cne-qb accent cne-qb-wide c15" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
+    <button class="cne-qb cne-kb-btn cne-qb-wide c15" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
+    <button class="cne-qb gray cne-qb-wide c15" data-ins=" " title="Mezera">␣</button>
+    <button class="cne-qb green cne-qb-wide c15" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯 Bod z plátna</button>
   </div>`;
   return `
   <div class="cne-quickbar">
