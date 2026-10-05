@@ -731,6 +731,7 @@ function _reportContourIssues(dups, dupSet) {
  * @returns {string | {code: string, leftovers: object[]}}
  */
 let _asDrawnSelLabels = [];
+let _asDrawnLabelObj = new Map();   // popisek v editoru („Úsečka 3") → objekt na plátně
 function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // Pokud jsou označeny objekty (profil), exportovat pouze je; jinak vše.
   const selectedIndices = new Set();
@@ -1330,6 +1331,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     // Popisky (Úsečka 3…) označených objektů – editor podle nich najde jejich řádky.
     const selObjs = new Set([...selectedIndices].map(i => state.objects[i]));
     _asDrawnSelLabels = [...items, ...stockItems].filter(it => selObjs.has(it._src)).map(it => it.name);
+    _asDrawnLabelObj = new Map([...items, ...stockItems].map(it => [it.name, it._src]));
     return compactCncModal(out);
   }
   document.getElementById("cncOutput").value = out;
@@ -1430,6 +1432,15 @@ bridge.runCncExport = runCncExport;
 bridge.exportCncAsDrawn = () => runCncExport({ asDrawn: true });
 /** Popisky objektů označených na plátně při posledním exportCncAsDrawn(). */
 bridge.cncAsDrawnSelection = () => _asDrawnSelLabels.slice();
+/** Editor → plátno: označí objekt podle popisku z posledního exportCncAsDrawn(). */
+bridge.selectAsDrawnLabel = (label) => {
+  const idx = state.objects.indexOf(_asDrawnLabelObj.get(label));
+  if (idx < 0) return false;
+  state.selected = idx;
+  state.multiSelected = new Set();
+  renderAll();
+  return true;
+};
 bridge.buildCamTransfer = () => runCncExport({ forCam: true });
 bridge.renderCncCodeToCanvas = renderCncCodeToCanvas;
 
@@ -1664,8 +1675,11 @@ function parseGcodeToObjects(code) {
       ty = cy + (gXval !== null ? dPt.y : 0);
     } else {
       // Absolutní: nezadaná osa zůstane na aktuální poloze
+      // Aktuální poloha zpět v jednotkách kódu (X v průměru u soustruhu i karuselu,
+      // toCanvas ho pak zase půlí).
       const curGZ = isKarusel ? cy : cx;
-      const curGX = isKarusel ? cx : (isDiam ? cy * 2 : cy);
+      const curXr = isKarusel ? cx : cy;
+      const curGX = isDiam ? curXr * 2 : curXr;
       const absPt = toCanvas(gZval ?? curGZ, gXval ?? curGX);
       tx = absPt.x;
       ty = absPt.y;

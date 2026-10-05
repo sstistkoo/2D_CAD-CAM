@@ -581,6 +581,24 @@ validace…). Spodní **G90 / G91** jen zapíše značku na začátek řádku. �
 (30 kroků). Validace navíc hlásí souřadnice bez G po G0 („chybí G1?"), oblouk
 bez R/I,K a osu dvakrát v bloku – každé pravidlo jde vypnout v Nastavení validace.
 
+**Údaje a pomůcky pro zjišťování rozměrů (editor z Kalkulaček):**
+- **Řádek s údaji** nad klávesnicí ukazuje k řádku s kurzorem: u úsečky délku L,
+  úhel od osy +Z, ΔX/ΔZ a konec; u oblouku R, absolutní střed, I/K, úhel výseče
+  a délku oblouku. Tlačítka **∠** (úsečka úhlem), **📋ř** (kopírovat řádek)
+  a **📋XZ** (kopírovat koncový bod).
+- **∠ Úsečka úhlem:** úhel (od osy +Z proti směru hodin, 180° = směr −Z) a k tomu
+  délka L, nebo cílové X, nebo cílové Z → vloží `G1 X… Z…` za řádek s kurzorem.
+- **📐 Náhled kontury** (pravý panel): malý náhled nad kódem, řádek s kurzorem
+  žlutě. Po zavření editoru se objekt z řádku s kurzorem označí na plátně.
+- **Průsečíky na plátně** (pravý panel): klepnutím se souřadnice vloží na kurzor.
+- **🎯 Bod z plátna** chytá koncové body a průsečíky vždy (i s vypnutým
+  přichytáváním) – vkládá přesné souřadnice.
+- **G90/G91 v horní liště s označeným textem** převede jen vybrané řádky (za
+  výběrem vrátí původní režim); bez výběru celý kód.
+- Validace kreslení navíc: oblouk, který nejde sestrojit (malé R, nesouhlasné
+  I/K), G0 uprostřed kontury, X pod osou, volitelně netečný přechod.
+- Kód vkládaný klávesnicí s kurzorem v poznámce se vloží před středník.
+
 ### 5. Export
 - **Stáhnout** – ulož `.MPF` soubor
 - **Kopírovat** – zkopíruj do schránky

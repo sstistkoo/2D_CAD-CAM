@@ -9,6 +9,8 @@ import { bridge } from '../bridge.js';
 import { showToast, state } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { safeEvalMath } from '../utils.js';
+import { analyzeDrawCode, moveInfo, moveAtOrBefore, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
+import { drawPreview } from './cncDrawPreview.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 
@@ -19,6 +21,7 @@ const STORAGE_HDR   = 'skica-cnc-editor-header';
 const STORAGE_MERGE = 'skica-cnc-editor-merge-queue';
 const STORAGE_HIST  = 'skica-cnc-editor-history';
 const STORAGE_FONT  = 'skica-cnc-editor-font-size';
+const STORAGE_PREVIEW = 'skica-cnc-editor-preview';
 const HIST_KEEP     = 30;     // kroků Zpět/Vpřed, které přežijí zavření editoru
 const HIST_MAX_CHARS = 1_000_000; // strop uložené historie (localStorage má typicky ~5 MB)
 const FS_MIN = 9, FS_MAX = 26;
@@ -103,6 +106,10 @@ function defaultParserConfig() {
     modalMove: { name: 'Souřadnice bez G po G0 – chybí G1? (editor z Kalkulaček)', active: true },
     arcParams: { name: 'Oblouk G2/G3 bez R / CR / I,K', active: true },
     axisTwice: { name: 'Osa zapsaná v bloku dvakrát', active: true },
+    arcFit:    { name: 'Oblouk nejde sestrojit (R / I,K) (kreslení)', active: true },
+    contJump:  { name: 'Kontura nenavazuje – G0 uprostřed (kreslení)', active: true },
+    negX:      { name: 'X pod osou soustružení (kreslení)', active: true },
+    tangency:  { name: 'Netečný přechod úsečka/oblouk (kreslení)', active: false },
     calls:     { name: 'Podprogramy',          active: true },
     params:    { name: 'Parametry (R)',         active: true },
     syntax:    { name: 'Syntaxe',              active: true }
@@ -637,7 +644,9 @@ function menuItemsHTML(drawMode = false) {
         <div class="cne-menu-item cne-fs-row"><span class="cne-mi-icon">🔠</span><span class="cne-mi-text"><b>Velikost textu</b></span>
           <button class="cne-fs-btn" data-act="fontDown" title="Zmenšit text v editoru">A−</button>
           <button class="cne-fs-btn" data-act="fontUp" title="Zvětšit text v editoru">A+</button></div>
-        <button class="cne-menu-item" data-act="clearEditor"><span class="cne-mi-icon red">🗑</span><span class="cne-mi-text"><b>Vymazat editor</b><small>Smaže celý kód (◀ Zpět ho vrátí)</small></span></button>`
+        <button class="cne-menu-item" data-act="clearEditor"><span class="cne-mi-icon red">🗑</span><span class="cne-mi-text"><b>Vymazat editor</b><small>Smaže celý kód (◀ Zpět ho vrátí)</small></span></button>
+        <button class="cne-menu-item" data-act="togglePreview"><span class="cne-mi-icon">📐</span><span class="cne-mi-text"><b data-el="previewLabel">Náhled kontury</b><small>Malý náhled nad kódem, řádek s kurzorem žlutě</small></span></button>
+        <button class="cne-menu-item" data-act="angleLine"><span class="cne-mi-icon">∠</span><span class="cne-mi-text"><b>Úsečka úhlem</b><small>Úhel + délka / X / Z → G1</small></span></button>`
     : `
         <button class="cne-menu-item" data-act="new"><span class="cne-mi-icon green">＋</span><span class="cne-mi-text"><b>Nový program</b><small>Vytvořit nový CNC soubor</small></span></button>`) + `
         <button class="cne-menu-item" data-act="search"><span class="cne-mi-icon">🔍</span><span class="cne-mi-text"><b>Hledat v kódu</b><small>Rychlé vyhledávání textu</small></span></button>
@@ -748,7 +757,8 @@ function buildEditorHTML(drawMode = false) {
       </div>`}
     </div>
 
-    <div class="cne-editor-wrap">
+    <div class="cne-editor-wrap${drawMode ? ' cne-editor-wrap--col' : ''}">
+      ${drawMode ? '<canvas class="cne-preview" data-el="preview" hidden></canvas>' : ''}
       <div class="cne-editor-container">
         <div class="cne-backdrop" data-el="backdrop"><div data-el="highlights"></div></div>
         <textarea class="cne-textarea" data-el="editor" spellcheck="false"
@@ -758,10 +768,40 @@ function buildEditorHTML(drawMode = false) {
     ${drawMode ? `<div class="cne-sidebar cne-sidebar-right" data-el="sidebarRight">
       <div class="cne-sb-title">Nástroje editoru</div>
       <div class="cne-menu-list">${menuItemsHTML(true)}</div>
+      <div class="cne-sb-title">Průsečíky na plátně</div>
+      <div class="cne-isect-list" data-el="isectList"></div>
     </div>` : ''}
   </div>
 
+  ${drawMode ? `<div class="cne-info" data-el="infoBar">
+    <span class="cne-info-text" data-el="infoText"></span>
+    <button class="cne-info-btn" data-act="angleLine" title="Úsečka zadaná úhlem (a délkou / cílovým X / Z) z bodu na kurzoru">∠</button>
+    <button class="cne-info-btn" data-act="copyLine" title="Kopírovat řádek s kurzorem">📋ř</button>
+    <button class="cne-info-btn" data-act="copyCoord" title="Kopírovat koncový bod řádku (X… Z…)">📋XZ</button>
+  </div>` : ''}
+
   ${quickbarHTML(drawMode)}
+
+  ${drawMode ? `<!-- Úsečka úhlem -->
+  <div class="cne-inner-modal" data-el="angleModal" style="display:none">
+    <div class="cne-im-card">
+      <div class="cne-im-title">∠ Úsečka úhlem<button class="cne-im-close" data-act="angleCancel" title="Zavřít">✕</button></div>
+      <div class="cne-ang-from" data-el="angleFrom"></div>
+      <label class="cne-ang-row">Úhel ° <small>(od osy +Z, proti směru hodin; 180 = směr −Z)</small>
+        <input class="cne-im-input" data-el="angA" type="text" inputmode="decimal" autocomplete="off"></label>
+      <div class="cne-ang-hint">a jeden z údajů:</div>
+      <div class="cne-ang-grid">
+        <label>Délka L<input class="cne-im-input" data-el="angL" type="text" inputmode="decimal" autocomplete="off"></label>
+        <label>nebo X<input class="cne-im-input" data-el="angX" type="text" inputmode="decimal" autocomplete="off"></label>
+        <label>nebo Z<input class="cne-im-input" data-el="angZ" type="text" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <div class="cne-ang-res" data-el="angRes"></div>
+      <div class="cne-im-actions">
+        <button class="cne-im-btn cancel" data-act="angleCancel">Zrušit</button>
+        <button class="cne-im-btn ok" data-act="angleOk">Vložit G1</button>
+      </div>
+    </div>
+  </div>` : ''}
 
   <!-- Menu modal (mobile full actions) -->
   <div class="cne-inner-modal" data-el="menuModal" style="display:none">
@@ -917,6 +957,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   if (drawOnClose) {
     onOverlayRemoved(overlay, () => {
       if (sentToCad || pickSuspended) return;
+      // Editor → plátno: objekt z řádku s kurzorem (poznámka „; Úsečka 3, …") se
+      // na plátně označí. Při následném „Přepsat" se výkres stejně nahradí.
+      const cm = (editor.value.split('\n')[caretLine()] || '').match(/;\s*([^,;]+?)\s*(?:,|$)/);
+      if (cm && typeof bridge.selectAsDrawnLabel === 'function') bridge.selectAsDrawnLabel(cm[1]);
       let code = editor.value;
       if (!code.trim()) return;
       // Nic se nezměnilo oproti kódu z výkresu → není co přepisovat, bez dotazu.
@@ -1220,7 +1264,22 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       return;
     }
     editor.readOnly = false;
-    const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
+    let s = editor.selectionStart, e = editor.selectionEnd;
+    const v = editor.value;
+    // Kurzor v poznámce za středníkem (typicky konec řádku „Z0 ; Úsečka 3…"):
+    // kód by skončil v komentáři a nikdo by ho nečetl → vložit před středník.
+    let actualIns = actual;
+    if (s === e && actual !== '\n' && !actual.startsWith(';')) {
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      const ci = v.slice(ls, s).indexOf(';');
+      if (ci >= 0) {
+        let p = ls + ci;
+        while (p > ls && v[p - 1] === ' ') p--;
+        s = e = p;
+      }
+    }
+    // Za kurzorem už mezera je → koncovou mezeru tokenu („G1 ") nezdvojovat.
+    if (v[e] === ' ' && actual !== ' ') actualIns = actualIns.replace(/[ \t]+$/, '');
     // Nastavení .value textarey samo o sobě resetuje scrollTop/scrollLeft
     // na 0 (prohlížeč to bere jako úplně nový obsah) – bez tohoto uložení
     // a obnovení by po každém klepnutí na spodní klávesnici pohled skočil
@@ -1232,9 +1291,11 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // tokenu (";" komentář, "=" přiřazení, samotnou mezeru/nový řádek).
     const prevChar = s > 0 ? v[s - 1] : '';
     const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n';
-    const insert = (needsSpace ? ' ' : '') + actual;
+    const insert = (needsSpace ? ' ' : '') + actualIns;
+    // Hned za vloženým kódem středník („Z0;…") → oddělit mezerou.
+    const gap = v[e] === ';' && !/\s$/.test(actualIns) && !actualIns.startsWith(';') ? ' ' : '';
     captureUndoSnapshot(label, actual);
-    editor.value = v.substring(0, s) + insert + v.substring(e);
+    editor.value = v.substring(0, s) + insert + gap + v.substring(e);
     editor.selectionStart = editor.selectionEnd = s + insert.length;
     editor.scrollTop = scrollTop;
     editor.scrollLeft = scrollLeft;
@@ -1349,7 +1410,11 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       ? { ...parserCfg, end: { ...parserCfg.end, active: false } }
       : { ...parserCfg, modalMove: { ...parserCfg.modalMove, active: false } };
     const { errors } = parser.parseProgram(programs[currentFile], currentFile, cfg);
-    return errors;
+    if (!drawOnClose) return errors;
+    // Kreslení: kontrola geometrie (oblouky, návaznost, X pod osou, tečnost).
+    const geo = geometryChecks(analyzeDrawCode(programs[currentFile], drawOpts()), cfg)
+      .map(e => ({ file: currentFile, ...e }));
+    return errors.concat(geo).sort((a, b) => a.lineIndex - b.lineIndex);
   }
 
   function updateStatus() {
@@ -1887,6 +1952,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function onInput() {
     programs[currentFile] = editor.value;
     updateEntryMode();
+    updateInfo();
     // Historie se počítá i z aktuálního textu (velikost smazání) → po změně překreslit.
     if (sidebarEl.classList.contains('open')) renderHistoryList();
     if (rafHL) cancelAnimationFrame(rafHL);
@@ -1912,16 +1978,17 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     stockToggleBtn.classList.toggle('stock-on', inStock);
   }
   /** Vloží blok textu na kurzor, na vlastní řádek (bez auto-mezery quickbaru). */
-  function insertLines(text) {
+  function insertLines(text, label = 'Značka', detail = /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar') {
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
     const lead = s > 0 && v[s - 1] !== '\n' ? '\n' : '';
-    const tail = v[e] === '\n' || e >= v.length ? '' : '\n';
-    const ins = lead + text + '\n' + tail;
-    captureUndoSnapshot('Značka', /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar');
+    // Na konci řádku se použije jeho stávající zalomení – dřív tu vznikal prázdný řádek navíc.
+    const atLineEnd = v[e] === '\n';
+    const ins = lead + text + (atLineEnd ? '' : '\n');
+    captureUndoSnapshot(label, detail);
     editor.value = v.slice(0, s) + ins + v.slice(e);
-    editor.selectionStart = editor.selectionEnd = s + lead.length + text.length + 1;
+    editor.selectionStart = editor.selectionEnd = s + ins.length + (atLineEnd ? 1 : 0);
     editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
     editor.focus({ preventScroll: true });
     onInput();
@@ -1956,7 +2023,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       const fmt = bridge.formatAbsCoord ? bridge.formatAbsCoord(wx, wy) : `X${wy.toFixed(3)} Z${wx.toFixed(3)}`;
       // bez zbytečných nul (Z255.100 → Z255.1), stejně jako zhuštěný zápis
       reopen(fmt.replace(/([XZ])(-?\d+\.\d+)/g, (_, a, n) => a + String(Number(n))));
-    }, { hint: 'Klikněte na plátno – souřadnice se vloží do editoru' });
+    }, { hint: 'Klikněte na plátno – chytá koncové body a průsečíky, souřadnice se vloží do editoru', forceSnap: true });
   }
 
   // ── Systémová klávesnice telefonu ────────────────────────────
@@ -2025,6 +2092,124 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
     editor.focus({ preventScroll: true });
     onInput();
+  }
+
+  // ── Kreslení: údaje k řádku, náhled, úsečka úhlem, průsečíky ──
+  // Výpočty v cncDrawTools.js (čisté funkce, testy), tady jen napojení na UI.
+  const infoTextEl = $('infoText');
+  const previewEl = $('preview');
+  const angleModal = $('angleModal');
+  const isectListEl = $('isectList');
+  let anCache = { code: null, an: null };
+  function drawOpts() {
+    return { diam: state.xDisplayMode === 'diameter', karusel: state.machineType === 'karusel' };
+  }
+  function analysis() {
+    if (anCache.code !== editor.value) anCache = { code: editor.value, an: analyzeDrawCode(editor.value, drawOpts()) };
+    return anCache.an;
+  }
+  function caretLine() { return editor.value.slice(0, editor.selectionStart ?? 0).split('\n').length - 1; }
+  let tInfo = null;
+  function updateInfo() {
+    if (!infoTextEl) return;
+    clearTimeout(tInfo);
+    tInfo = setTimeout(() => {
+      const an = analysis(), ln = caretLine();
+      const mv = an.byLine.get(ln);
+      if (mv) infoTextEl.textContent = moveInfo(mv, an).join(' · ');
+      else {
+        const p = moveAtOrBefore(an, ln);
+        infoTextEl.textContent = p ? `Řádek bez pohybu · poloha X${f3(p.to.x * an.xs)} Z${f3(p.to.z)}` : 'Řádek bez pohybu';
+      }
+      if (previewEl && !previewEl.hidden) drawPreview(previewEl, an, { curLine: ln, flipX: state.flipX, flipZ: state.flipZ });
+    }, 30);
+  }
+  function setPreview(on) {
+    if (!previewEl) return;
+    previewEl.hidden = !on;
+    storageSave(STORAGE_PREVIEW, !!on);
+    const lb = $('previewLabel');
+    if (lb) lb.textContent = on ? 'Skrýt náhled kontury' : 'Náhled kontury';
+    syncScroll();
+    updateInfo();
+  }
+
+  // Úsečka úhlem: z konce řádku s kurzorem (nebo poslední polohy před ním).
+  let angleFrom = null, angleLineIdx = 0;
+  function openAngleLine() {
+    const an = analysis();
+    angleLineIdx = caretLine();
+    const p = moveAtOrBefore(an, angleLineIdx);
+    angleFrom = p ? p.to : { z: 0, x: 0 };
+    $('angleFrom').textContent = `Z bodu X${f3(angleFrom.x * an.xs)} Z${f3(angleFrom.z)}` + (p ? ` (konec řádku ${p.line + 1})` : ' (počátek)');
+    ['angA', 'angL', 'angX', 'angZ'].forEach(k => { $(k).value = ''; });
+    $('angRes').textContent = '';
+    angleModal.style.display = 'flex';
+  }
+  function angleResult() {
+    const val = k => { const s = $(k).value.trim(); if (!s) return null; const n = safeEvalMath(s); return isFinite(n) ? n : NaN; };
+    const A = val('angA');
+    if (A === null || Number.isNaN(A)) return { err: 'Zadejte úhel.' };
+    for (const k of ['angL', 'angX', 'angZ']) if (Number.isNaN(val(k))) return { err: 'Neplatné číslo.' };
+    return { A, ...angleLineEnd(angleFrom, A, { L: val('angL'), X: val('angX'), Z: val('angZ') }, analysis().xs) };
+  }
+  function confirmAngle() {
+    const r = angleResult();
+    if (r.err) { $('angRes').textContent = '⚠ ' + r.err; return; }
+    angleModal.style.display = 'none';
+    // Nový řádek hned za řádek, ze kterého úsečka vychází.
+    const v = editor.value;
+    let pos = 0;
+    v.split('\n').slice(0, angleLineIdx + 1).forEach(l => { pos += l.length + 1; });
+    editor.selectionStart = editor.selectionEnd = Math.max(0, Math.min(v.length, pos - 1));
+    insertLines(`G1 X${f3(r.x)} Z${f3(r.z)} ; ∠${f3(r.A)}°`, 'Úsečka úhlem', `∠${f3(r.A)}°`);
+  }
+  if (angleModal) {
+    angleModal.addEventListener('input', () => {
+      const r = angleResult();
+      $('angRes').textContent = r.err ? '' : `→ G1 X${f3(r.x)} Z${f3(r.z)}`;
+    });
+    angleModal.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmAngle(); } });
+    angleModal.addEventListener('click', e => { if (e.target === angleModal) angleModal.style.display = 'none'; });
+  }
+
+  function copyText(t, what) {
+    if (!t) return;
+    navigator.clipboard?.writeText(t).then(() => showToast(`Zkopírováno: ${what}`)).catch(() => showToast('Kopírování se nepovedlo'));
+  }
+  function copyCaretLine() { copyText(editor.value.split('\n')[caretLine()].trim(), 'řádek'); }
+  function copyCaretCoord() {
+    const an = analysis(), p = moveAtOrBefore(an, caretLine());
+    if (!p) { showToast('Na řádku ani před ním není žádný bod'); return; }
+    copyText(`X${f3(p.to.x * an.xs)} Z${f3(p.to.z)}`, `X${f3(p.to.x * an.xs)} Z${f3(p.to.z)}`);
+  }
+
+  // Průsečíky z plátna – klik vloží souřadnici na kurzor.
+  function renderIntersections() {
+    if (!isectListEl) return;
+    const list = (state.intersections || []).map(p => {
+      const fmt = bridge.formatAbsCoord ? bridge.formatAbsCoord(p.x, p.y) : `X${p.y.toFixed(3)} Z${p.x.toFixed(3)}`;
+      return fmt.replace(/([XZ])(-?\d+\.\d+)/g, (_, a, n) => a + String(Number(n)));
+    });
+    isectListEl.innerHTML = list.length
+      ? list.map((t, i) => `<button class="cne-isect" data-isect="${esc(t)}" title="Vložit na kurzor"><b>P${i + 1}</b> ${esc(t)}</button>`).join('')
+      : '<div class="cne-fi-empty">Na plátně nejsou průsečíky</div>';
+  }
+
+  // G90/G91 jen pro označené řádky (bez výběru se převádí celý kód).
+  function convertSelectionMode() {
+    const v = editor.value, s = editor.selectionStart, e = editor.selectionEnd;
+    const first = v.slice(0, s).split('\n').length - 1;
+    const last = v.slice(0, Math.max(s, e - 1)).split('\n').length - 1;
+    const mv = analysis().moves.find(m => m.line >= first && m.line <= last);
+    if (!mv) { showToast('Ve výběru není žádný pohyb'); return; }
+    const target = mv.mode === 91 ? 90 : 91;
+    const r = convertLinesMode(v, first, last, target, drawOpts());
+    if (!r.changed) return;
+    captureUndoSnapshot(`Převod výběru na G${target}`);
+    editor.value = r.code;
+    onInput();
+    showToast(`Převedeno ${r.changed} ř. na G${target}`);
   }
 
   // ── Boční panely: vlevo soubory, vpravo nástroje editoru ─────
@@ -2113,7 +2298,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   const histListEl = $('histList');
   // V seznamu jsou jen VĚTŠÍ změny (smazání většího kusu, nový obrázek z plátna,
   // převody, zkrácení…); drobné psaní/mazání vrací šipky ◀ ▶ krok po kroku.
-  const MAJOR_LABELS = new Set(['Načteno z plátna', 'Vymazání editoru', 'Zkrácení kódu', 'Vrácení poznámek', 'Převod na G90',
+  const MAJOR_LABELS = new Set(['Načteno z plátna', 'Vymazání editoru', 'Převod výběru na G90', 'Převod výběru na G91', 'Zkrácení kódu', 'Vrácení poznámek', 'Převod na G90',
     'Převod na G91', 'Převod sražení/zaoblení', 'Hlavička programu', 'Přečíslování N', 'Vloženo ze schránky', 'Vyjmuto']);
   function histTime(t) {
     if (!t) return '';
@@ -2168,7 +2353,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // ██  EVENT WIRING  ████████████████████████████████████████
   // ══════════════════════════════════════════════════════════
   editor.addEventListener('input', onInput);
-  ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, updateEntryMode));
+  ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
+  if (previewEl) window.addEventListener('resize', updateInfo);
   editor.addEventListener('scroll', syncScroll);
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
@@ -2236,7 +2422,17 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           if (codeBeforeRenum) { editor.value = codeBeforeRenum; codeBeforeRenum = ''; onInput(); }
           $('renumModal').style.display = 'none';
           break;
-        case 'convMode':  toggleCoordMode(); closeMenu(); break;
+        case 'convMode':
+          // Editor z Kalkulaček: s označeným textem se převedou jen vybrané řádky.
+          if (drawOnClose && editor.selectionStart !== editor.selectionEnd) convertSelectionMode();
+          else toggleCoordMode();
+          closeMenu(); break;
+        case 'togglePreview': setPreview(previewEl?.hidden); break;
+        case 'angleLine': openAngleLine(); break;
+        case 'angleOk':   confirmAngle(); break;
+        case 'angleCancel': angleModal.style.display = 'none'; break;
+        case 'copyLine':  copyCaretLine(); break;
+        case 'copyCoord': copyCaretCoord(); break;
         case 'header':    showHeaderSettings(); closeMenu(); break;
         case 'hdrClose':  readHeaderInputs(); persistHdr(); hdrModal.style.display = 'none'; break;
         case 'hdrApply':  applyHeader(); break;
@@ -2290,6 +2486,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       if (sidebarRightEl?.classList.contains('open') && ab.closest('.cne-sidebar-right') && !/^font/.test(ab.dataset.act)) toggleSidePanel(sidebarRightEl);
       return;
     }
+    // Průsečík z pravého panelu → na kurzor
+    const isb = e.target.closest('[data-isect]');
+    if (isb) { toggleSidePanel(sidebarRightEl); insertText(isb.dataset.isect, 'Průsečík'); return; }
     // Insert
     const ib = e.target.closest('[data-ins]');
     if (ib) { insertText(ib.dataset.ins); return; }
@@ -2361,12 +2560,16 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       clearTimeout(tValidate);
       clearTimeout(tSave);
       if (rafHL) cancelAnimationFrame(rafHL);
+      clearTimeout(tInfo);
+      window.removeEventListener('resize', updateInfo);
       persist();
       obs.disconnect();
     }
   }).observe(document.body, { childList: true });
 
   // ── Init ───────────────────────────────────────────────────
+  if (previewEl) setPreview(storageLoad(STORAGE_PREVIEW) === true);
+  renderIntersections();
   applyKeyboardMode();
   applyFontSize();
   ensureFile();

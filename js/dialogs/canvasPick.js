@@ -48,7 +48,9 @@ export function createCanvasPicker() {
 
   function pick(callback, opts = {}) {
     disarm();
-    const { field = null, hint = 'Klikněte na plátno pro výběr bodu…' } = opts;
+    // `forceSnap` = chytat body objektů/průsečíky i při vypnutém přichytávání
+    // (editor z Kalkulaček chce přesné souřadnice, ne místo prstu).
+    const { field = null, hint = 'Klikněte na plátno pro výběr bodu…', forceSnap = false } = opts;
     // Zvýrazněné může být i víc polí naráz (jeden klik doplní X i Z).
     const fields = (Array.isArray(field) ? field : [field]).filter(Boolean);
     fields.forEach(el => el.classList.add('pick-armed'));
@@ -67,11 +69,17 @@ export function createCanvasPicker() {
       callback(wx, wy);
     }
 
+    function snapped(wx, wy) {
+      if (!state.snapToPoints && !forceSnap) return [wx, wy];
+      const prev = state.snapToPoints;
+      state.snapToPoints = true;          // snapPt chytá body jen se zapnutým přepínačem
+      try { return snapPt(wx, wy); } finally { state.snapToPoints = prev; }
+    }
+
     function resolveClient(clientX, clientY) {
       const rect = drawCanvas.getBoundingClientRect();
-      let [wx, wy] = screenToWorld(clientX - rect.left, clientY - rect.top);
-      if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
-      resolveWorld(wx, wy);
+      const [wx, wy] = screenToWorld(clientX - rect.left, clientY - rect.top);
+      resolveWorld(...snapped(wx, wy));
     }
 
     function onClick(e) {
@@ -86,7 +94,7 @@ export function createCanvasPicker() {
       // prst (touch.js) – platí pak jeho poloha, ne dotyková. Bez tohohle se
       // bod zapsal o CROSSHAIR_OFFSET_Y vedle toho, co uživatel viděl.
       if (state.touchPrecision.active) {
-        resolveWorld(state.touchPrecision.wx, state.touchPrecision.wy);
+        resolveWorld(...(forceSnap ? snapped(state.touchPrecision.wx, state.touchPrecision.wy) : [state.touchPrecision.wx, state.touchPrecision.wy]));
         return;
       }
       const touch = e.changedTouches[0];

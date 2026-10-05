@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CNC Editor z Kalkulaček – pomůcky pro zjišťování rozměrů** (uživatel
+  5. 10. 2026): řádek s údaji k řádku s kurzorem (úsečka: L, úhel, ΔX/ΔZ;
+  oblouk: R, střed, I/K, výseč, délka), **∠ úsečka úhlem** (úhel + L / X / Z →
+  G1), **📐 náhled kontury** s vyznačeným řádkem, po zavření editoru se objekt
+  z řádku s kurzorem označí na plátně, **průsečíky z plátna** v pravém panelu,
+  kopírování řádku / koncového bodu, **G90↔G91 jen pro označené řádky**,
+  validace geometrie (oblouk nejde sestrojit, G0 uprostřed kontury, X pod osou,
+  volitelně netečný přechod). Výpočty v novém `js/calculators/cncDrawTools.js`
+  (testy `tests/cncDrawTools.test.js`), náhled v `cncDrawPreview.js`.
+
 ### Fixed
+- **🎯 Bod z plátna** chytá koncové body/průsečíky i s vypnutým přichytáváním
+  (dřív bral místo prstu → nepřesné souřadnice).
+- Kód vložený klávesnicí s kurzorem v poznámce („Z0 ; Úsečka 3|") skončil
+  v komentáři – teď se vloží před středník; bez zdvojených mezer.
+- Vložení značky Kontura/Polotovar na konci řádku přidávalo prázdný řádek.
+- `parseGcodeToObjects`: karusel v režimu průměr s vynechanou osou X (zhuštěný
+  zápis) dostal špatnou polohu (regrese z opravy v SW v357). SW v359.
 - **CNC Editor – kontrola chyb** (uživatel 5. 10. 2026):
   - návrat z „🎯 Bod z plátna" v jiném souboru než CNC_PROGRAM přepsal
     CNC_PROGRAM textem toho souboru – editor teď pokračuje v souboru, kde byl;
