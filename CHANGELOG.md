@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **CNC Editor z Kalkulaček – celé plátno + zvýraznění označeného** (uživatel
   5. 10. 2026): když je na plátně něco označené, editor už nedostane jen ten
-  objekt, ale celé plátno; řádky označených objektů jsou podbarvené žlutě
+  objekt, ale celé plátno; řádky označených objektů jsou podbarvené žlutě (bez proužku vlevo, ten překrýval první znak)
   a kurzor/výběr stojí na prvním z nich (`bridge.cncAsDrawnSelection()`).
-  Export do panelu CNC KÓD i přenos do CAM beze změny. SW v354.
+  Export do panelu CNC KÓD i přenos do CAM beze změny. SW v355.
 - **CNC Editor z Kalkulaček – A−/A+ a Vymazat editor v pravém panelu**
   (uživatel 5. 10. 2026): velikost textu (A− / A+) přesunuta z horní lišty
   do pravého panelu (panel po klepnutí zůstává otevřený). Položka „Nový
