@@ -7153,9 +7153,13 @@ button.vk-header-btn-green {
 }
 .cne-info-text {
   flex: 1; min-width: 0; overflow: hidden;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
-  font: 12px/1.3 "Consolas","Courier New",monospace; color: var(--ctp-subtext0);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
+  font: 12px/1.35 "Consolas","Courier New",monospace; color: var(--ctp-subtext0);
 }
+.cne-info-text span { white-space: nowrap; }
+/* Tlačítka ∠ / 📋ř / 📋XZ ve sloupci vpravo – text má celou šířku na 3 řádky */
+.cne-info-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.cne-info-btns .cne-info-btn { padding: 1px 6px; font-size: 11px; text-align: center; }
 .cne-info-btn {
   all: unset; cursor: pointer; flex-shrink: 0;
   padding: 3px 7px; border-radius: 5px;

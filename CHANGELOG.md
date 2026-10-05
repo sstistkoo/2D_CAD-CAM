@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validace geometrie (oblouk nejde sestrojit, G0 uprostřed kontury, X pod osou,
   volitelně netečný přechod). Výpočty v novém `js/calculators/cncDrawTools.js`
   (testy `tests/cncDrawTools.test.js`), náhled v `cncDrawPreview.js`.
+  Řádek s údaji má celou šířku na 3 řádky (tlačítka ve sloupci vpravo), údaje se
+  nelámou uprostřed. SW v360.
 
 ### Fixed
 - **🎯 Bod z plátna** chytá koncové body/průsečíky i s vypnutým přichytáváním

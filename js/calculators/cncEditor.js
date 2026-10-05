@@ -775,9 +775,11 @@ function buildEditorHTML(drawMode = false) {
 
   ${drawMode ? `<div class="cne-info" data-el="infoBar">
     <span class="cne-info-text" data-el="infoText"></span>
-    <button class="cne-info-btn" data-act="angleLine" title="Úsečka zadaná úhlem (a délkou / cílovým X / Z) z bodu na kurzoru">∠</button>
-    <button class="cne-info-btn" data-act="copyLine" title="Kopírovat řádek s kurzorem">📋ř</button>
-    <button class="cne-info-btn" data-act="copyCoord" title="Kopírovat koncový bod řádku (X… Z…)">📋XZ</button>
+    <div class="cne-info-btns">
+      <button class="cne-info-btn" data-act="angleLine" title="Úsečka zadaná úhlem (a délkou / cílovým X / Z) z bodu na kurzoru">∠</button>
+      <button class="cne-info-btn" data-act="copyLine" title="Kopírovat řádek s kurzorem">📋ř</button>
+      <button class="cne-info-btn" data-act="copyCoord" title="Kopírovat koncový bod řádku (X… Z…)">📋XZ</button>
+    </div>
   </div>` : ''}
 
   ${quickbarHTML(drawMode)}
@@ -2116,7 +2118,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     tInfo = setTimeout(() => {
       const an = analysis(), ln = caretLine();
       const mv = an.byLine.get(ln);
-      if (mv) infoTextEl.textContent = moveInfo(mv, an).join(' · ');
+      // Každý údaj zvlášť (nelámat „střed X… Z…" uprostřed), mezi nimi zalomit lze.
+      if (mv) infoTextEl.innerHTML = moveInfo(mv, an).map(t => `<span>${esc(t)}</span>`).join(' · ');
       else {
         const p = moveAtOrBefore(an, ln);
         infoTextEl.textContent = p ? `Řádek bez pohybu · poloha X${f3(p.to.x * an.xs)} Z${f3(p.to.z)}` : 'Řádek bez pohybu';
