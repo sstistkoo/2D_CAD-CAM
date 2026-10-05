@@ -12,7 +12,7 @@ export { handleParallelClick, parallelFromSelection } from './parallelClick.js';
 export { handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, finalizeAnglePlacement, clearDimPlacing } from './dimensionClick.js';
 export { handleChainDimensionClick, finishChainDimension, resetChainDimensionState } from './chainDimensionClick.js';
 export { handleSnapPointClick } from './snapPointClick.js';
-export { handleMoveClick } from './moveClick.js';
+export { handleMoveClick, applyDragDelta, cancelDrag } from './moveClick.js';
 export { handleLineClick } from './lineClick.js';
 export { handleMeasureClick, measureSelection } from './measureClick.js';
 export { handleCircleClick } from './circleClick.js';

@@ -15,7 +15,7 @@ import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, applyDragDelta, cancelDrag, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 import { isAnyPickerArmed } from './dialogs/canvasPick.js';
@@ -210,51 +210,10 @@ drawCanvas.addEventListener("mousemove", (e) => {
     state.panY = panStartPY + (e.clientY - panStartY);
   }
 
-  // Přetahování objektu
+  // Přetahování objektu (sdílené s dotykem – applyDragDelta v moveClick.js)
   if (state.dragging && state.dragObjIdx !== null) {
-    const dx = wx - state.dragStartWorld.x;
-    const dy = wy - state.dragStartWorld.y;
     try {
-      if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
-        // Multi-drag: nejprve obnovit vše ze snapshot
-        for (const { idx, snapshot } of state._multiDragSnapshots) {
-          const obj = state.objects[idx];
-          if (obj) Object.assign(obj, JSON.parse(snapshot));
-        }
-        // Přesunout ne-kótové objekty + nenavázané kóty (bez sourceObjId)
-        for (const { idx } of state._multiDragSnapshots) {
-          const obj = state.objects[idx];
-          if (!obj) continue;
-          if (!obj.isDimension && !obj.isCoordLabel) {
-            // Běžný objekt → moveObject (aktualizuje i asociativní kóty)
-            moveObject(obj, dx, dy);
-          } else if (!obj.sourceObjId) {
-            // Nenavázaná kóta → přesunout přímo (bez asociativní aktualizace)
-            if (obj.type === 'point') { obj.x += dx; obj.y += dy; }
-            else if (obj.type === 'line') {
-              obj.x1 += dx; obj.y1 += dy;
-              obj.x2 += dx; obj.y2 += dy;
-              if (obj.dimSrcX1 != null) { obj.dimSrcX1 += dx; obj.dimSrcY1 += dy; }
-              if (obj.dimSrcX2 != null) { obj.dimSrcX2 += dx; obj.dimSrcY2 += dy; }
-              if (obj.dimCenterX != null) { obj.dimCenterX += dx; obj.dimCenterY += dy; }
-            }
-          }
-          // Asociativní kóty (s sourceObjId) se aktualizují přes updateAssociativeDimensions
-        }
-        // Finální aktualizace asociativních kót
-        updateAssociativeDimensions();
-      } else if (state.objects[state.dragObjIdx]) {
-        const obj = state.objects[state.dragObjIdx];
-        if (state.dragObjSnapshot) {
-          const snapShot = JSON.parse(state.dragObjSnapshot);
-          // Smazat vlastnosti, které nejsou ve snapshotu (např. pathStart přidaný moveObject)
-          for (const k of Object.keys(obj)) {
-            if (!(k in snapShot)) delete obj[k];
-          }
-          Object.assign(obj, snapShot);
-        }
-        moveObject(obj, dx, dy);
-      }
+      applyDragDelta(wx - state.dragStartWorld.x, wy - state.dragStartWorld.y);
     } catch (e) {
       console.warn('Chyba při přetahování:', e);
       state.dragging = false;
@@ -447,26 +406,7 @@ document.addEventListener("keydown", (e) => {
       renderAll();
       return;
     }
-    if (state.dragging) {
-      if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
-        // Revert multi-drag
-        try {
-          for (const { idx, snapshot } of state._multiDragSnapshots) {
-            const obj = state.objects[idx];
-            if (obj) Object.assign(obj, JSON.parse(snapshot));
-          }
-        } catch (e) { console.warn('Revert multi-drag selhal:', e); }
-        state._multiDragSnapshots = null;
-      } else {
-        const obj = state.objects[state.dragObjIdx];
-        if (obj && state.dragObjSnapshot) {
-          try { Object.assign(obj, JSON.parse(state.dragObjSnapshot)); } catch (e) { console.warn('Revert drag selhal:', e); }
-        }
-      }
-      state.dragging = false;
-      state.dragObjIdx = null;
-      drawCanvas.style.cursor = "crosshair";
-    }
+    if (cancelDrag()) drawCanvas.style.cursor = "crosshair";
     resetDrawingState();
     resetGearState();
     resetGearPairState();

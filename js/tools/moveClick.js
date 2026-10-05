@@ -1,4 +1,6 @@
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, updateUndoButtons } from '../state.js';
+import { moveObject } from '../objects.js';
+import { bridge } from '../bridge.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { updateProperties, resetHint, setHint } from '../ui.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
@@ -116,3 +118,88 @@ export function handleMoveClick(wx, wy) {
     resetHint();
   }
 }
+
+// ── Průběh a zrušení tažení – JEDINÁ implementace pro myš (events.js),
+//    dotyk i precizní dotykový režim (touch.js) a přepnutí nástroje (ui.js).
+//    Dřív byla ve třech kopiích, které se rozešly (viz cancelDrag). ──
+
+/** Obnoví objekt ze snapshotu – i smaže vlastnosti přidané během tažení (pathStart…). */
+function _restoreFromSnapshot(obj, snapshotJson) {
+  const snap = JSON.parse(snapshotJson);
+  for (const k of Object.keys(obj)) {
+    if (!(k in snap)) delete obj[k];
+  }
+  Object.assign(obj, snap);
+}
+
+/** Posune nenavázanou kótu přímo (asociativní kóty srovná updateAssociativeDimensions). */
+function _moveFreeDimension(obj, dx, dy) {
+  if (obj.type === 'point') { obj.x += dx; obj.y += dy; return; }
+  if (obj.type !== 'line') return;
+  obj.x1 += dx; obj.y1 += dy;
+  obj.x2 += dx; obj.y2 += dy;
+  if (obj.dimSrcX1 != null) { obj.dimSrcX1 += dx; obj.dimSrcY1 += dy; }
+  if (obj.dimSrcX2 != null) { obj.dimSrcX2 += dx; obj.dimSrcY2 += dy; }
+  if (obj.dimCenterX != null) { obj.dimCenterX += dx; obj.dimCenterY += dy; }
+}
+
+/**
+ * Průběh tažení: objekty se vrátí do stavu ze začátku tažení a posunou se
+ * o (dx, dy) od počátečního bodu (ne přírůstkově – bez hromadění chyb).
+ */
+export function applyDragDelta(dx, dy) {
+  if (!state.dragging || state.dragObjIdx === null) return;
+  if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
+    for (const { idx, snapshot } of state._multiDragSnapshots) {
+      const obj = state.objects[idx];
+      if (obj) _restoreFromSnapshot(obj, snapshot);
+    }
+    for (const { idx } of state._multiDragSnapshots) {
+      const obj = state.objects[idx];
+      if (!obj) continue;
+      if (!obj.isDimension && !obj.isCoordLabel) moveObject(obj, dx, dy);
+      else if (!obj.sourceObjId) _moveFreeDimension(obj, dx, dy);
+    }
+    updateAssociativeDimensions();
+    return;
+  }
+  const obj = state.objects[state.dragObjIdx];
+  if (!obj) return;
+  if (state.dragObjSnapshot) _restoreFromSnapshot(obj, state.dragObjSnapshot);
+  moveObject(obj, dx, dy);
+}
+
+/**
+ * Zruší rozdělané tažení (Esc, mobilní ✕, přepnutí nástroje): vrátí jednotlivý
+ * i hromadný přesun, srovná asociativní kóty a zahodí prázdný krok Zpět,
+ * který tažení uložilo na začátku. Vrací true, když se nějaké tažení rušilo.
+ */
+export function cancelDrag() {
+  if (!state.dragging) return false;
+  try {
+    if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
+      for (const { idx, snapshot } of state._multiDragSnapshots) {
+        const obj = state.objects[idx];
+        if (obj) _restoreFromSnapshot(obj, snapshot);
+      }
+    } else {
+      const obj = state.objects[state.dragObjIdx];
+      if (obj && state.dragObjSnapshot) _restoreFromSnapshot(obj, state.dragObjSnapshot);
+    }
+  } catch (e) { console.warn('Vrácení tažení selhalo:', e); }
+  state.dragging = false;
+  state.dragObjIdx = null;
+  state.dragObjSnapshot = null;
+  state._multiDragSnapshots = null;
+  updateAssociativeDimensions();
+  // Tažení nic nezměnilo → krok Zpět ze začátku tažení je prázdný
+  const top = state.undoStack[state.undoStack.length - 1];
+  if (top && top === JSON.stringify({ objects: state.objects, anchors: state.anchors })) {
+    state.undoStack.pop();
+    updateUndoButtons();
+  }
+  return true;
+}
+
+// ui.js (setTool) ruší tažení přes bridge – přímý import by uzavřel cyklus ui ↔ moveClick
+bridge.cancelDrag = cancelDrag;

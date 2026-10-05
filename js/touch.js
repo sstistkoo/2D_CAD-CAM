@@ -6,12 +6,11 @@ import { MOBILE_BREAKPOINT, LONG_PRESS_MS, CROSSHAIR_OFFSET_Y, ZOOM_MIN, ZOOM_MA
 import { drawCanvas, screenToWorld, snapPt, autoCenterView, applyAngleSnap, safeVibrate } from './canvas.js';
 import { state, undo, redo, showToast, toDisplayCoords, resetDrawingState, fmtStatusCoords, fmtNum } from './state.js';
 import { renderAll } from './render.js';
-import { moveObject, addPolylineAsSegments } from './objects.js';
+import { addPolylineAsSegments } from './objects.js';
 import { handleCanvasClick, finishRectSelection } from './events.js';
 import { setTool, resetHint, updateSnapPtsBtn } from './ui.js';
-import { updateAssociativeDimensions } from './dialogs/dimension.js';
 import { showCombinedModal } from './dialogs.js';
-import { measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace, startPencilStroke, addPencilPoint, finishPencilStroke } from './tools/index.js';
+import { applyDragDelta, cancelDrag, measureSelection, finishProfileTrace, getTraceData, setTraceBulge, finalizeDimPlacement, autoTrace, stepTraceForward, stepTraceBackward, cancelProfileTrace, startPencilStroke, addPencilPoint, finishPencilStroke } from './tools/index.js';
 import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
 
@@ -241,22 +240,7 @@ document.getElementById("mobileAutoCenter").addEventListener("click", (e) => {
 const mobileCancelBtn = document.getElementById("mobileCancel");
 mobileCancelBtn.addEventListener("click", (e) => {
   e.stopPropagation();
-  if (state.dragging) {
-    if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
-      for (const { idx, snapshot } of state._multiDragSnapshots) {
-        const obj = state.objects[idx];
-        if (obj) Object.assign(obj, JSON.parse(snapshot));
-      }
-      state._multiDragSnapshots = null;
-    } else {
-      const obj = state.objects[state.dragObjIdx];
-      if (obj && state.dragObjSnapshot) {
-        Object.assign(obj, JSON.parse(state.dragObjSnapshot));
-      }
-    }
-    state.dragging = false;
-    state.dragObjIdx = null;
-  }
+  cancelDrag();
   resetDrawingState();
   // Odstranit dočasný měřicí bod
   const mTempIdx = state.objects.findIndex(o => o.isMeasureTemp);
@@ -621,38 +605,7 @@ function updatePrecisionCrosshair(touch) {
 
   // Přetahování objektu v precision mode
   if (state.dragging && state.dragObjIdx !== null) {
-    const dx = wx - state.dragStartWorld.x;
-    const dy = wy - state.dragStartWorld.y;
-    if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
-      for (const { idx, snapshot } of state._multiDragSnapshots) {
-        const obj = state.objects[idx];
-        if (obj) Object.assign(obj, JSON.parse(snapshot));
-      }
-      for (const { idx } of state._multiDragSnapshots) {
-        const obj = state.objects[idx];
-        if (!obj) continue;
-        if (!obj.isDimension && !obj.isCoordLabel) {
-          moveObject(obj, dx, dy);
-        } else if (!obj.sourceObjId) {
-          if (obj.type === 'point') { obj.x += dx; obj.y += dy; }
-          else if (obj.type === 'line') {
-            obj.x1 += dx; obj.y1 += dy;
-            obj.x2 += dx; obj.y2 += dy;
-            if (obj.dimSrcX1 != null) { obj.dimSrcX1 += dx; obj.dimSrcY1 += dy; }
-            if (obj.dimSrcX2 != null) { obj.dimSrcX2 += dx; obj.dimSrcY2 += dy; }
-            if (obj.dimCenterX != null) { obj.dimCenterX += dx; obj.dimCenterY += dy; }
-          }
-        }
-      }
-      updateAssociativeDimensions();
-    } else if (state.objects[state.dragObjIdx]) {
-      const obj = state.objects[state.dragObjIdx];
-      if (state.dragObjSnapshot) {
-        const snapShot = JSON.parse(state.dragObjSnapshot);
-        Object.assign(obj, snapShot);
-      }
-      moveObject(obj, dx, dy);
-    }
+    applyDragDelta(wx - state.dragStartWorld.x, wy - state.dragStartWorld.y);
   }
 
   renderAll();
@@ -934,42 +887,7 @@ drawCanvas.addEventListener(
 
       // Přetahování objektu
       if (state.dragging && state.dragObjIdx !== null) {
-        const dx = wx - state.dragStartWorld.x;
-        const dy = wy - state.dragStartWorld.y;
-        if (state.dragObjIdx === -1 && state._multiDragSnapshots) {
-          for (const { idx, snapshot } of state._multiDragSnapshots) {
-            const obj = state.objects[idx];
-            if (obj) Object.assign(obj, JSON.parse(snapshot));
-          }
-          for (const { idx } of state._multiDragSnapshots) {
-            const obj = state.objects[idx];
-            if (!obj) continue;
-            if (!obj.isDimension && !obj.isCoordLabel) {
-              moveObject(obj, dx, dy);
-            } else if (!obj.sourceObjId) {
-              if (obj.type === 'point') { obj.x += dx; obj.y += dy; }
-              else if (obj.type === 'line') {
-                obj.x1 += dx; obj.y1 += dy;
-                obj.x2 += dx; obj.y2 += dy;
-                if (obj.dimSrcX1 != null) { obj.dimSrcX1 += dx; obj.dimSrcY1 += dy; }
-                if (obj.dimSrcX2 != null) { obj.dimSrcX2 += dx; obj.dimSrcY2 += dy; }
-                if (obj.dimCenterX != null) { obj.dimCenterX += dx; obj.dimCenterY += dy; }
-              }
-            }
-          }
-          updateAssociativeDimensions();
-        } else if (state.objects[state.dragObjIdx]) {
-          const obj = state.objects[state.dragObjIdx];
-          if (state.dragObjSnapshot) {
-            const snapShot = JSON.parse(state.dragObjSnapshot);
-            // Smazat vlastnosti, které nejsou ve snapshotu (např. pathStart přidaný moveObject)
-            for (const k of Object.keys(obj)) {
-              if (!(k in snapShot)) delete obj[k];
-            }
-            Object.assign(obj, snapShot);
-          }
-          moveObject(obj, dx, dy);
-        }
+        applyDragDelta(wx - state.dragStartWorld.x, wy - state.dragStartWorld.y);
       }
 
       renderAll();

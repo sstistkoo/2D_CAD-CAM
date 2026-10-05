@@ -2790,14 +2790,9 @@ export function setTool(tool) {
     state.multiSelected = savedMulti;
     state.selected = savedSelected;
   }
-  if (state.dragging) {
-    const obj = state.objects[state.dragObjIdx];
-    if (obj && state.dragObjSnapshot) {
-      Object.assign(obj, JSON.parse(state.dragObjSnapshot));
-    }
-    state.dragging = false;
-    state.dragObjIdx = null;
-  }
+  // Rozdělané tažení vrátit – i hromadné (dřív se vrátil jen jednotlivý
+  // objekt a hromadně tažené objekty zůstaly napůl přesunuté)
+  if (bridge.cancelDrag) bridge.cancelDrag();
   drawCanvas.style.cursor = tool === "move" ? "move" : "crosshair";
   refreshToolbarActive(tool);
   // Toggle btnDelete active state for deleteObj mode

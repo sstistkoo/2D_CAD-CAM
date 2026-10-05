@@ -29,6 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Tažení objektů: jedna implementace místo tří** (uživatel 5. 10. 2026) –
+  průběh tažení byl zkopírovaný v `events.js` (myš) a 2× v `touch.js` (dotyk,
+  precizní režim), rušení ve 3 dalších místech, a kopie se rozešly. Nově
+  `applyDragDelta()` / `cancelDrag()` v `tools/moveClick.js`. Opravené chyby:
+  - **přepnutí nástroje uprostřed HROMADNÉHO přesunu** vrátilo jen jednotlivý
+    objekt – hromadně tažené objekty zůstaly napůl přesunuté;
+  - **Esc / ✕ při tažení** vrátil objekt, ale jeho asociativní kóty zůstaly
+    posunuté;
+  - zrušené tažení nechalo v historii **prázdný krok Zpět**;
+  - precizní dotykový režim nemazal vlastnosti přidané během tažení
+    (posun textu po cestě), myš ano. SW v371.
 - **Export SVG obsahuje kóty** (uživatel 5. 10. 2026) – Maker.js kóty do SVG
   nedával vůbec. Nový `js/storage/svgCanvasContext.js` napodobí podmnožinu
   canvas API (cesty, oblouky, text, transformace, přerušované čáry) a místo

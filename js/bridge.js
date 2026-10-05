@@ -72,6 +72,9 @@ export const bridge = {
   // v režimu „Tečnost" dialog spolehlivě ukončilo (jinak by zůstaly viset
   // posluchače kliků na plátně z opuštěné relace).
   cancelPolarPicking: null,
+  // Zruší rozdělané tažení objektu/výběru (tools/moveClick.js) – volá se
+  // ze setTool(), i hromadné tažení se vrátí celé.
+  cancelDrag: null,
   saveProject: null,
   showFileDialog: null,
   showLibraryDialog: null,
