@@ -293,3 +293,80 @@ describe('parseDXF – 3DFACE/INSERT mix', () => {
     expect(types).toEqual(['circle', 'line', 'polyline']);
   });
 });
+
+// ── Zrcadlené entity, MTEXT, výška textu (kontrola CAD 5. 10. 2026) ──
+describe('parseDXF – zrcadlená normála (210/220/230 = 0,0,−1)', () => {
+  const N = ['210', '0', '220', '0', '230', '-1'];
+  const deg = (r) => Math.round(r * 180 / Math.PI);
+
+  it('ARC: střed X obráceně, úhly π − θ s prohozenými konci', () => {
+    const r = parseDXF(wrapDXF([['0', 'ARC', '10', '10', '20', '0', '40', '5', '50', '0', '51', '90', ...N]]));
+    const a = r.entities[0];
+    expect(a.cx).toBe(-10);
+    expect(deg(a.startAngle)).toBe(90);
+    expect(deg(a.endAngle)).toBe(180);
+  });
+
+  it('CIRCLE a LWPOLYLINE: x → −x, bulge mění znaménko', () => {
+    const r = parseDXF(wrapDXF([
+      ['0', 'CIRCLE', '10', '7', '20', '3', '40', '2', ...N],
+      ['0', 'LWPOLYLINE', '90', '2', '70', '0', '10', '1', '20', '0', '42', '0.5', '10', '4', '20', '0', ...N],
+    ]));
+    expect(r.entities[0].cx).toBe(-7);
+    expect(r.entities[1].vertices).toEqual([{ x: -1, y: 0 }, { x: -4, y: 0 }]);
+    expect(r.entities[1].bulges[0]).toBe(-0.5);
+  });
+
+  it('INSERT se zápornou normálou zrcadlí celý blok', () => {
+    const r = parseDXF(wrapDXF(
+      [['0', 'INSERT', '2', 'B', '10', '50', '20', '0', ...N]],
+      [['0', 'BLOCK', '2', 'B', '10', '0', '20', '0',
+        '0', 'LINE', '10', '0', '20', '0', '11', '10', '21', '0', '0', 'ENDBLK']],
+    ));
+    expect(r.entities[0].x1).toBe(-50);
+    expect(r.entities[0].x2).toBe(-60);
+  });
+});
+
+describe('parseDXF – INSERT: zrcadlení a pole', () => {
+  const block = [['0', 'BLOCK', '2', 'B', '10', '0', '20', '0',
+    '0', 'LWPOLYLINE', '90', '2', '70', '0', '10', '0', '20', '0', '42', '1', '10', '10', '20', '0',
+    '0', 'ENDBLK']];
+
+  it('zrcadlený INSERT (41 = −1) obrátí znaménko bulge kontury', () => {
+    const r = parseDXF(wrapDXF([['0', 'INSERT', '2', 'B', '10', '0', '20', '0', '41', '-1', '42', '1']], block));
+    expect(r.entities[0].bulges[0]).toBe(-1);
+    expect(r.entities[0].vertices[1].x).toBe(-10);
+  });
+
+  it('pole INSERTu (70/71, 44/45) se natáčí spolu s blokem', () => {
+    const r = parseDXF(wrapDXF([['0', 'INSERT', '2', 'B', '10', '0', '20', '0', '50', '90',
+      '70', '2', '71', '1', '44', '100', '45', '0']], block));
+    // druhý sloupec: rozteč 100 ve směru natočení 90° → posun (0, 100)
+    const second = r.entities[1].vertices[0];
+    expect(second.x).toBeCloseTo(0, 9);
+    expect(second.y).toBeCloseTo(100, 9);
+  });
+});
+
+describe('parseDXF – TEXT/MTEXT poloha, natočení, výška', () => {
+  it('MTEXT: poloha 10/20 i s kódem 72 (směr psaní), natočení ze směru 11/21', () => {
+    const r = parseDXF(wrapDXF([['0', 'MTEXT', '10', '100', '20', '50', '40', '2.5',
+      '71', '1', '72', '5', '11', '0', '21', '1', '1', 'POPIS']]));
+    const t = r.entities[0];
+    expect(t.x).toBe(100);
+    expect(t.y).toBe(50);
+    expect(t.rotation).toBeCloseTo(Math.PI / 2, 9);
+    expect(t.fontSize).toBe(2.5);
+  });
+
+  it('MTEXT bez směrového vektoru: kód 50 je v radiánech', () => {
+    const r = parseDXF(wrapDXF([['0', 'MTEXT', '10', '0', '20', '0', '40', '3', '50', '0.5', '1', 'X']]));
+    expect(r.entities[0].rotation).toBeCloseTo(0.5, 9);
+  });
+
+  it('výška textu se nezaokrouhluje (0,4 mm nesmí skončit jako 0)', () => {
+    const r = parseDXF(wrapDXF([['0', 'TEXT', '10', '0', '20', '0', '40', '0.4', '1', 'malý']]));
+    expect(r.entities[0].fontSize).toBe(0.4);
+  });
+});

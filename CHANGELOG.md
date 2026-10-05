@@ -29,6 +29,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Import DXF – zrcadlené entity, MTEXT, výška textu, bloky** (uživatel
+  5. 10. 2026):
+  - entity se **zápornou normálou** (210/220/230 = 0,0,−1 – po zrcadlení
+    v AutoCADu) se kreslily na opačné straně: OCS → WCS u ARC, CIRCLE,
+    LWPOLYLINE, POLYLINE, ELLIPSE, TEXT a INSERT (`ocsMirrorX`);
+  - **MTEXT** s kódem 72 (směr psaní, AutoCAD ho píše běžně) se umístil na
+    „bod" 11/21, což je u MTEXT směrový vektor → text u počátku; natočení
+    MTEXT se bralo ve stupních (je v radiánech) a směrový vektor se
+    ignoroval;
+  - **výška textu** se zaokrouhlovala na celé číslo (2,5 → 3, 0,4 → 0 =
+    neviditelný text);
+  - **zrcadlený blok** (INSERT se záporným měřítkem) prohnul oblouky kontur
+    na opačnou stranu (bulge bez změny znaménka); **pole bloků** (řádky ×
+    sloupce) ignorovalo natočení bloku.
+  Testy v `tests/dxf-import-3dface-insert.test.js`. SW v373.
 - **Transformace, kruhové pole, vložení ze schránky** (uživatel 5. 10. 2026,
   „najdeš-li jiné chyby, oprav je"):
   - **překlopení oblouku** bez uvedeného směru (většina oblouků – z kontur,

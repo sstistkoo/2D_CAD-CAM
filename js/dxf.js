@@ -74,6 +74,20 @@ function safeFloat(val) {
   return isFinite(n) ? n : 0;
 }
 
+/**
+ * Entita se zápornou normálou (210/220/230 = 0,0,−1) – typicky po zrcadlení
+ * v AutoCADu. Její OCS má podle „arbitrary axis" osu X obrácenou: bod (x, y)
+ * v OCS je ve WCS (−x, y), úhel θ je π − θ a oblouky jdou opačným směrem.
+ * (Obecně nakloněné normály 2D aplikace neřeší.)
+ */
+function ocsMirrorX(data) {
+  const z = data.find(p => p.code === 230);
+  if (!z || safeFloat(z.value) >= 0) return false;
+  const nx = Math.abs(safeFloat(data.find(p => p.code === 210)?.value));
+  const ny = Math.abs(safeFloat(data.find(p => p.code === 220)?.value));
+  return nx < 1 / 64 && ny < 1 / 64;
+}
+
 function aciColor(code) {
   const c = parseInt(code, 10);
   return isNaN(c) ? DEFAULT_COLOR : (ACI_COLORS[c] || DEFAULT_COLOR);
@@ -131,7 +145,10 @@ function tessellateEllipse(data, color) {
   const endParam = endParamRaw !== undefined ? safeFloat(endParamRaw) : (2 * Math.PI);
 
   const a = Math.sqrt(mx * mx + my * my); // hlavní poloosa
-  const b = a * ratio; // vedlejší poloosa
+  // Vedlejší poloosa; střed a hlavní osa jsou ve WCS, ale vedlejší osa je
+  // N × hlavní – se zápornou normálou (zrcadlená elipsa) míří opačně
+  const zs = ocsMirrorX(data) ? -1 : 1;
+  const b = a * ratio * zs;
   const rot = Math.atan2(my, mx); // rotace elipsy
   if (a <= 0) return [];
 
@@ -141,8 +158,9 @@ function tessellateEllipse(data, color) {
     if (isFullCircle) return [{ type: 'circle', cx, cy, r: a, color }];
     return [{
       type: 'arc', cx, cy, r: a,
-      startAngle: startParam + rot,
-      endAngle: endParam + rot,
+      // Zrcadlená: parametr běží po směru hodin → jako CCW oblouk prohodit
+      startAngle: zs > 0 ? startParam + rot : rot - endParam,
+      endAngle: zs > 0 ? endParam + rot : rot - startParam,
       color,
     }];
   }
@@ -344,7 +362,7 @@ function parseEntity(type, data) {
       const cx = safeFloat(data.find(p => p.code === 10)?.value);
       const cy = safeFloat(data.find(p => p.code === 20)?.value);
       const r = safeFloat(data.find(p => p.code === 40)?.value);
-      return { type: 'circle', cx, cy, r, color };
+      return { type: 'circle', cx: ocsMirrorX(data) ? -cx : cx, cy, r, color };
     }
 
     case 'ARC': {
@@ -353,6 +371,15 @@ function parseEntity(type, data) {
       const r = safeFloat(data.find(p => p.code === 40)?.value);
       const startDeg = safeFloat(data.find(p => p.code === 50)?.value);
       const endDeg = safeFloat(data.find(p => p.code === 51)?.value);
+      if (ocsMirrorX(data)) {
+        // OCS → WCS: střed (−x, y), úhel π − θ a opačný směr → prohodit konce
+        return {
+          type: 'arc', cx: -cx, cy, r,
+          startAngle: Math.PI - endDeg * DEG2RAD,
+          endAngle: Math.PI - startDeg * DEG2RAD,
+          color
+        };
+      }
       return {
         type: 'arc', cx, cy, r,
         startAngle: startDeg * DEG2RAD,
@@ -378,8 +405,10 @@ function parseEntity(type, data) {
         }
       }
 
-      const vertices = rawVerts.map(v => ({ x: v.x, y: v.y }));
-      const bulges = rawVerts.map(v => v.bulge);
+      // Zrcadlený OCS: x → −x a bulge mění znaménko (opačný směr oblouků)
+      const m = ocsMirrorX(data) ? -1 : 1;
+      const vertices = rawVerts.map(v => ({ x: m * v.x, y: v.y }));
+      const bulges = rawVerts.map(v => m * v.bulge);
 
       return { type: 'polyline', vertices, bulges, closed, color };
     }
@@ -390,14 +419,20 @@ function parseEntity(type, data) {
       // JE kotva). Když je zarovnání (72 horizontální, 73 vertikální)
       // cokoli jiného než výchozí, skutečná kotva je "druhý bod
       // zarovnání" (11/21) – 10/20 pak bývá neaktuální/0,0.
+      // U MTEXT znamená 72 SMĚR PSANÍ (AutoCAD píše 1/5) a 11/21 SMĚROVÝ
+      // VEKTOR osy X – ne zarovnání a druhý bod jako u TEXT. Dřív se tak
+      // MTEXT umístil na „bod" (1, 0) u počátku. Poloha MTEXT je vždy 10/20.
+      const isMText = type === 'MTEXT';
       const x10 = safeFloat(data.find(p => p.code === 10)?.value);
       const y10 = safeFloat(data.find(p => p.code === 20)?.value);
       const hAlign = parseInt(data.find(p => p.code === 72)?.value || '0', 10);
       const vAlign = parseInt(data.find(p => p.code === 73)?.value || '0', 10);
       const p11 = data.find(p => p.code === 11);
       const p21 = data.find(p => p.code === 21);
-      const useSecondPt = (hAlign !== 0 || vAlign !== 0) && p11 && p21;
-      const x = useSecondPt ? safeFloat(p11.value) : x10;
+      const useSecondPt = !isMText && (hAlign !== 0 || vAlign !== 0) && p11 && p21;
+      // TEXT leží v OCS (zrcadlená normála → x obráceně); MTEXT ve WCS
+      const mx = !isMText && ocsMirrorX(data) ? -1 : 1;
+      const x = mx * (useSecondPt ? safeFloat(p11.value) : x10);
       const y = useSecondPt ? safeFloat(p21.value) : y10;
       // MTEXT continuation text (kód 3, max 250 znaků/blok) předchází
       // v souboru finálnímu kódu 1 – skládat v pořadí výskytu, ne obráceně.
@@ -408,8 +443,18 @@ function parseEntity(type, data) {
         }
       }
       text += data.find(p => p.code === 1)?.value || '';
+      // Výška se NEzaokrouhluje na celé číslo (2,5 mm → 3, 0,4 mm → 0 = neviditelný text)
       const height = safeFloat(data.find(p => p.code === 40)?.value) || 14;
-      const rotation = safeFloat(data.find(p => p.code === 50)?.value) || 0;
+      // Natočení: TEXT ve stupních (50); MTEXT ze směrového vektoru 11/21,
+      // jinak 50 v RADIÁNECH
+      let rotationRad;
+      if (isMText && p11 && p21 && (safeFloat(p11.value) !== 0 || safeFloat(p21.value) !== 0)) {
+        rotationRad = Math.atan2(safeFloat(p21.value), safeFloat(p11.value));
+      } else if (isMText) {
+        rotationRad = safeFloat(data.find(p => p.code === 50)?.value) || 0;
+      } else {
+        rotationRad = (safeFloat(data.find(p => p.code === 50)?.value) || 0) * DEG2RAD;
+      }
       // MTEXT může mít formátovací kódy – odstraň je
       if (type === 'MTEXT') {
         text = text.replace(/\\[pPfFcChHwWaAqQtT][^;]*;/g, '')
@@ -420,8 +465,8 @@ function parseEntity(type, data) {
       return {
         type: 'text', x, y,
         text: text.trim(),
-        fontSize: Math.round(height),
-        rotation: rotation * DEG2RAD,
+        fontSize: Math.round(height * 1000) / 1000,
+        rotation: rotationRad,
         color
       };
     }
@@ -589,7 +634,9 @@ function transformEntity(obj, t) {
     }
     case 'polyline': {
       const vertices = (obj.vertices || []).map(v => pt(v.x, v.y));
-      return { ...obj, vertices, bulges: (obj.bulges || []).slice() };
+      // Zrcadlení obrací smysl oblouků – stejně jako u 'arc' výše
+      const m = (t.sx * t.sy) < 0 ? -1 : 1;
+      return { ...obj, vertices, bulges: (obj.bulges || []).map(b => m * b) };
     }
     case 'text': {
       const p = pt(obj.x, obj.y);
@@ -630,22 +677,28 @@ function expandInsert(data, blocks) {
   const colSpacing = safeFloat(data.find(p => p.code === 44)?.value);
   const rowSpacing = safeFloat(data.find(p => p.code === 45)?.value);
 
+  // INSERT se zápornou normálou leží v zrcadleném OCS → výsledek X ↔ −X
+  const ocsMirror = ocsMirrorX(data);
+  const MIRROR_X = { sx: -1, sy: 1, cos: 1, sin: 0, tx: 0, ty: 0 };
+  const cos = Math.cos(rotRad), sin = Math.sin(rotRad);
+
   // Base point bloku se odečítá při klonování – DXF konvence
   const out = [];
   for (let r = 0; r < Math.max(1, rows); r++) {
     for (let c = 0; c < Math.max(1, cols); c++) {
+      // Rozteč pole sloupců/řádků je v natočeném systému bloku
+      const ox = c * colSpacing, oy = r * rowSpacing;
       const t = {
-        sx, sy,
-        cos: Math.cos(rotRad),
-        sin: Math.sin(rotRad),
-        tx: ix + c * colSpacing,
-        ty: iy + r * rowSpacing,
+        sx, sy, cos, sin,
+        tx: ix + ox * cos - oy * sin,
+        ty: iy + ox * sin + oy * cos,
       };
       for (const e of block.entities) {
         // Posun o -base, pak transformace
         const shifted = transformEntity(e, { sx: 1, sy: 1, cos: 1, sin: 0, tx: -block.baseX, ty: -block.baseY });
         if (!shifted) continue;
-        const final = transformEntity(shifted, t);
+        let final = transformEntity(shifted, t);
+        if (final && ocsMirror) final = transformEntity(final, MIRROR_X);
         if (final) out.push(final);
       }
     }
@@ -729,6 +782,11 @@ export function parseDXF(text) {
       }
 
       if (vertices.length >= 2) {
+        // Zrcadlený OCS (normála v hlavičce POLYLINE): x → −x, bulge −
+        if (ocsMirrorX(entityData)) {
+          for (const v of vertices) v.x = -v.x;
+          for (let k = 0; k < bulges.length; k++) bulges[k] = -bulges[k];
+        }
         rawEntities.push({ entityType: 'LWPOLYLINE', entityData: [] });
         entities.push({ type: 'polyline', vertices, bulges, closed, color });
         if (entities.length >= MAX_ENTITIES) {
