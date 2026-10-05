@@ -8,6 +8,7 @@ import { bulgeToArc, exportFileName, getRectCorners } from '../utils.js';
 import { buildMakerModel } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { objDash, objWidthMul } from '../lineStyles.js';
+import { drawTextOn } from '../render.js';
 
 // ── Pomocné funkce ──
 
@@ -66,6 +67,24 @@ function getObjectsBoundingBox() {
           minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
         }
         break;
+      case 'fill':
+        for (const loop of obj.loops || []) for (const v of loop) {
+          minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
+          minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+        }
+        break;
+      case 'text': {
+        // Text po cestě leží u své cesty (ta je v rámečku sama). Volný text:
+        // odhad rozměru (šířka znaku ≈ 0,6 výšky) jako kruh kolem kotvy –
+        // vejde se i natočený.
+        if (obj.pathMode && obj.pathMode !== 'none') break;
+        const fs = obj.fontSize || 14;
+        const len = (obj.text || '').length;
+        const ext = Math.max(fs, len * (fs * 0.6 + (obj.letterSpacing || 0)));
+        minX = Math.min(minX, obj.x - ext); maxX = Math.max(maxX, obj.x + ext);
+        minY = Math.min(minY, obj.y - ext); maxY = Math.max(maxY, obj.y + ext);
+        break;
+      }
     }
   }
 
@@ -381,6 +400,25 @@ function exportPNG(scale, background) {
     return [wx * zoom + panX, -wy * zoom + panY];
   }
 
+  // Výplně pod ostatní objekty (stejně jako drawFills na plátně: smyčky jako
+  // jedna cesta s pravidlem evenodd, průhlednost obj.alpha)
+  for (const obj of state.objects) {
+    if (obj.type !== 'fill' || !obj.loops || !obj.loops.length) continue;
+    const layer = state.layers.find(l => l.id === obj.layer);
+    if (layer && !layer.visible) continue;
+    const path = new Path2D();
+    for (const loop of obj.loops) {
+      if (loop.length < 3) continue;
+      loop.forEach((p, i) => { const [sx, sy] = w2s(p.x, p.y); i ? path.lineTo(sx, sy) : path.moveTo(sx, sy); });
+      path.closePath();
+    }
+    g.save();
+    g.globalAlpha = obj.alpha ?? 0.35;
+    g.fillStyle = obj.color || '#60a5fa';
+    g.fill(path, 'evenodd');
+    g.restore();
+  }
+
   // Render all visible objects
   for (const obj of state.objects) {
     const layer = state.layers.find(l => l.id === obj.layer);
@@ -453,6 +491,11 @@ function exportPNG(scale, background) {
         }
         break;
       }
+      case 'text':
+        // Stejný kód jako na plátně (rotace, mezery, text po cestě) – jen
+        // do tohoto canvasu a bez značek pro výběr
+        drawTextOn(g, obj, { w2s, zoom, color: () => color });
+        break;
     }
     g.setLineDash([]);
   }

@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Export PNG obsahuje texty a výplně** (uživatel 5. 10. 2026) – dřív se do
+  PNG nedostal žádný text (ani natočený, ani po cestě) a žádná výplň
+  (Vybarvit). Text kreslí tentýž kód jako plátno (`drawText` v render.js má
+  přepínatelný cíl; export volá `drawTextOn()`), bez značek pro výběr;
+  výplně pod ostatními objekty s průhledností. Rámeček obrázku počítá i s
+  textem a výplněmi, aby nebyly uříznuté. SW v368.
 - **Zpět vrací hotový tvar celý najednou** (uživatel 5. 10. 2026: „ať to bere
   naráz a ne po částech") – po polygonu, hvězdě, drážce, ozubení, oříznutí či
   offsetu kontury Ctrl+Z napřed konturu rozpojilo a pak ubíralo body po
