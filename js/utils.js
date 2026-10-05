@@ -770,7 +770,10 @@ export function expandPolylineObjects(objects, nextId) {
       delete o.pathObjectId;
     }
   }
-  let id = nextId;
+  // Další id nesmí kolidovat s existujícími – starší / převedené soubory
+  // nextId nemají (pak `|| 1`) a nová id by se srazila s uloženými
+  let id = nextId || 1;
+  for (const o of objects) if (o && Number.isFinite(o.id) && o.id >= id) id = o.id + 1;
   let changed = false;
   const expanded = [];
   for (const obj of objects) {

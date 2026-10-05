@@ -41,6 +41,7 @@ export function exportProjectFile() {
     showContourGaps: state.showContourGaps,
     anchors: state.anchors,
     flipX: state.flipX,
+    flipZ: state.flipZ,   // import ho čte – bez něj se zrcadlení osy Z ztratilo
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: "application/json",
@@ -54,7 +55,8 @@ export function exportProjectFile() {
 }
 
 /** Importuje .skica JSON soubor. */
-const VALID_OBJ_TYPES = ['point', 'line', 'constr', 'circle', 'arc', 'rect', 'polyline', 'text', 'camNote'];
+// 'fill' (Vybarvit) chyběl – projekt s výplní pak nešel importovat vůbec
+const VALID_OBJ_TYPES = ['point', 'line', 'constr', 'circle', 'arc', 'rect', 'polyline', 'text', 'camNote', 'fill'];
 const MAX_IMPORT_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_OBJECTS = 10000;
 
@@ -71,6 +73,12 @@ function validateImportData(data) {
     for (const key of ['x','y','x1','y1','x2','y2','cx','cy','r','startAngle','endAngle']) {
       if (key in o && !isFinite(o[key])) throw new Error(`Neplatná souřadnice ${key} u objektu #${i}`);
     }
+    // Body kontury / smyček výplně – jinak by spadlo až vykreslování
+    const finitePt = (p) => p && isFinite(p.x) && isFinite(p.y);
+    if (o.type === 'polyline' && !(Array.isArray(o.vertices) && o.vertices.every(finitePt)))
+      throw new Error(`Neplatné vrcholy kontury u objektu #${i}`);
+    if (o.type === 'fill' && !(Array.isArray(o.loops) && o.loops.every(l => Array.isArray(l) && l.every(finitePt))))
+      throw new Error(`Neplatné smyčky výplně u objektu #${i}`);
   }
 }
 
@@ -421,7 +429,7 @@ function svgArcToCenter(x1, y1, r, largeArc, sweep, x2, y2) {
   };
 }
 
-function parseSVGPath(d) {
+export function parseSVGPath(d) {
   const result = [];
   const tokens = d.match(/[MmLlHhVvAaZzCcSsQqTt]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [];
   let i = 0;
@@ -483,7 +491,10 @@ function parseSVGPath(d) {
             cx: arc.cx, cy: -arc.cy, r: arc.r,
             startAngle: -arc.startAngle,
             endAngle: -arc.endAngle,
-            ccw: sw === 1,
+            // sweep-flag 1 = kladný směr úhlu v SVG (osa Y dolů) = po směru
+            // hodin; po otočení osy Y zůstává po směru hodin → ccw:false.
+            // (Dřív ccw: sw === 1 → čtvrtoblouk se kreslil jako doplněk 270°.)
+            ccw: sw === 0,
           });
         }
         px = nx; py = ny;

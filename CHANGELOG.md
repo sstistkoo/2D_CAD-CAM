@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Import projektu a SVG** (uživatel 5. 10. 2026):
+  - projekt s **výplní** (Vybarvit) nešel importovat vůbec – typ `fill`
+    chyběl v seznamu povolených; nově se kontrolují i body kontur a smyček;
+  - export projektu neukládal **flipZ** (import ho čte) → zrcadlení osy Z
+    se po exportu/importu ztratilo;
+  - soubor bez `nextId` (starší / převedený) začal číslovat od 1 → **nová
+    id kolidovala** s uloženými (kóty, kotvy, text na cestě se pak vázaly
+    na jiný objekt); `expandPolylineObjects` – společná pro všechna načtení
+    – teď navazuje za nejvyšší existující id;
+  - **SVG oblouk** (příkaz A) se sweep-flag 1 se importoval s opačným
+    směrem → čtvrtoblouk jako doplněk 270°. Testy `tests/svg-import.test.js`.
+  SW v374.
 - **Import DXF – zrcadlené entity, MTEXT, výška textu, bloky** (uživatel
   5. 10. 2026):
   - entity se **zápornou normálou** (210/220/230 = 0,0,−1 – po zrcadlení

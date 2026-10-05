@@ -212,3 +212,16 @@ describe('text na cestě odkazuje přes id', () => {
     expect(getTextPathObject(t).name).toBe('B');
   });
 });
+
+describe('expandPolylineObjects – další id bez kolizí', () => {
+  it('soubor bez nextId: nová id navazují za nejvyšší existující', () => {
+    const { objects, nextId } = expandPolylineObjects([
+      { type: 'line', id: 5, x1: 0, y1: 0, x2: 1, y2: 0 },
+      { type: 'polyline', id: 9, vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }], bulges: [0, 0], closed: false },
+    ], undefined);
+    const ids = objects.map(o => o.id);
+    expect(new Set(ids).size).toBe(ids.length);       // žádné duplicity
+    expect(Math.min(...ids.filter(i => i !== 5))).toBeGreaterThanOrEqual(10);
+    expect(nextId).toBeGreaterThan(Math.max(...ids));
+  });
+});
