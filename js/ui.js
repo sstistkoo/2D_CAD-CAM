@@ -4290,12 +4290,13 @@ document.getElementById("btnOpenTolerance").addEventListener("click", openTolera
 document.getElementById("btnOpenRoughness").addEventListener("click", openRoughnessCalc);
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
-// CNC Editor (kreslení) – z Kalkulaček i z mobilní spodní lišty (✏️ mezi VK a měřením).
+// CNC Editor (kreslení) – z plátna: mobilní spodní lišta (✏️ mezi VK a měřením)
+// a na desktopu stavová lišta (✏️ Editor). Z Kalkulaček byl odebrán 5. 10. 2026.
 function openDrawCncEditor() {
   const code = bridge.exportCncAsDrawn();       // celé plátno; označené objekty → zvýraznit řádky
   openCncEditor(code, { drawOnClose: true, highlight: bridge.cncAsDrawnSelection?.() || [] });
 }
-document.getElementById("btnOpenCncEditor")?.addEventListener("click", openDrawCncEditor);
+document.getElementById("desktopCncEditor")?.addEventListener("click", openDrawCncEditor);
 document.getElementById("mobileCncEditor")?.addEventListener("click", (e) => {
   e.stopPropagation();
   document.getElementById("topbar")?.classList.remove("mobile-open");

@@ -570,7 +570,8 @@ jen na konci a **při výměně nože** se vypíše nájezd do referenčního bo
 - Přečíslování N-bloků
 - Validace kódu v reálném čase
 
-**CNC Editor z Kalkulaček (kreslicí):** při otevření se zavře pravý panel.
+**CNC Editor – kreslení** (✏️ ve spodní liště plátna mezi VK a měřením, na počítači
+**✏️ Editor** ve stavové liště; v Kalkulačkách už není): při otevření se zavře pravý panel.
 Na telefonu se systémová klávesnice sama neotvírá (ani klepnutím do kódu) –
 zapíná/vypíná ji tlačítko **⌨** dole. Horní lišta: **☰** vlevo soubory,
 **⌒** sražení/zaoblení → dráha, **G90/G91** přepočet celého kódu, 🔍, 🔢,
@@ -581,7 +582,7 @@ validace…). Spodní **G90 / G91** jen zapíše značku na začátek řádku. �
 (30 kroků). Validace navíc hlásí souřadnice bez G po G0 („chybí G1?"), oblouk
 bez R/I,K a osu dvakrát v bloku – každé pravidlo jde vypnout v Nastavení validace.
 
-**Údaje a pomůcky pro zjišťování rozměrů (editor z Kalkulaček):**
+**Údaje a pomůcky pro zjišťování rozměrů (CNC Editor – kreslení):**
 - **Řádek s údaji** nad klávesnicí ukazuje k řádku s kurzorem: u úsečky délku L,
   úhel od osy +Z, ΔX/ΔZ a konec; u oblouku R, absolutní střed, I/K, úhel výseče
   a délku oblouku. Tlačítka **∠** (úsečka úhlem), **📋ř** (kopírovat řádek)

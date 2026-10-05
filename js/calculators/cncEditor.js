@@ -103,7 +103,7 @@ function defaultParserConfig() {
     startstop: { name: 'Vřeteno při G95',      active: true },
     end:       { name: 'Konec programu',       active: true },
     duplicate: { name: 'Zbytečný (G0-G3) na stejnou souřadnici', active: true },
-    modalMove: { name: 'Souřadnice bez G po G0 – chybí G1? (editor z Kalkulaček)', active: true },
+    modalMove: { name: 'Souřadnice bez G po G0 – chybí G1? (kreslení)', active: true },
     arcParams: { name: 'Oblouk G2/G3 bez R / CR / I,K', active: true },
     axisTwice: { name: 'Osa zapsaná v bloku dvakrát', active: true },
     arcFit:    { name: 'Oblouk nejde sestrojit (R / I,K) (kreslení)', active: true },

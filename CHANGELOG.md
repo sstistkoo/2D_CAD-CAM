@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v358.
 
 ### Changed
+- **CNC Editor (kreslení) odebrán z Kalkulaček** (uživatel 5. 10. 2026): otevírá
+  se jen z plátna – mobil ✏️ ve spodní liště, desktop **✏️ Editor** ve stavové
+  liště (vedle ✏️ VK). SW v362.
 - **CNC Editor z Kalkulaček – lišta „CAD G-kód kreslení" + režim X; oprava
   karuselu v průměru** (uživatel 5. 10. 2026): oranžová lišta místo
   „SINUMERIK (CAD kal.) — soubor" ukazuje **CAD G-kód kreslení** a štítek
