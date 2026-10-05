@@ -6968,6 +6968,13 @@ button.vk-header-btn-green {
   position: relative;
 }
 .cne-sn-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+/* Editor z Kalkulaček: v čem je osa X (průměr / poloměr) – štítek za názvem */
+.cne-sn-mode {
+  margin-left: 6px; padding: 2px 5px; border-radius: 4px;
+  background: rgba(0,0,0,.18); text-transform: none; letter-spacing: 0;
+  font-weight: 700;
+}
+.cne-sn-mode.diam { background: rgba(0,0,0,.32); }
 .cne-sn-arrow {
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;

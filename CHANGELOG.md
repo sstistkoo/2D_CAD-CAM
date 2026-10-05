@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor z Kalkulaček – lišta „CAD G-kód kreslení" + režim X; oprava
+  karuselu v průměru** (uživatel 5. 10. 2026): oranžová lišta místo
+  „SINUMERIK (CAD kal.) — soubor" ukazuje **CAD G-kód kreslení** a štítek
+  **X = ⌀ průměr / X = poloměr** podle nastavení X displej (stejně se zadává
+  X i I). Kontrola zadávání podle režimu: oprava `parseGcodeToObjects` – u
+  karuselu v režimu průměr se X nepůlilo, takže překreslení z editoru (🔄,
+  zavření s přepsáním, import CNC kódu) zdvojnásobilo X a oblouky se ztratily.
+  Ověřen round-trip export → překreslení pro soustruh i karusel × poloměr
+  i průměr. SW v357.
 - **CNC Editor – převod sražení/zaoblení píše u oblouku i I a K** (uživatel
   5. 10. 2026): ⌒ teď zapíše `G2/G3 X… Z… I… K… R…` – I/K = střed oblouku
   relativně k jeho začátku (I v jednotkách osy X, tak jak ho čte kreslicí

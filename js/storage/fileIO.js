@@ -1565,8 +1565,10 @@ function parseGcodeToObjects(code) {
   // soustruh: Z = canvas x, X = canvas y (poloměr)
   // karusel:  X = canvas x, Z = canvas y
   function toCanvas(gZ, gX) {
+    // X je v průměru u soustruhu i karuselu (export: displayX na osu X v obou
+    // případech) – dřív se u karuselu nepůlilo a překreslení zdvojnásobilo X.
     const xRaw = isDiam ? gX / 2 : gX;
-    return isKarusel ? { x: gX, y: gZ } : { x: gZ, y: xRaw };
+    return isKarusel ? { x: xRaw, y: gZ } : { x: gZ, y: xRaw };
   }
 
   // Bezpečné vyhodnocení aritmetického výrazu (CSP-safe, bez eval/new Function)

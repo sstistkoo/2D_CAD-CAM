@@ -543,6 +543,12 @@ function convertCornersToPaths(code) {
 }
 
 function getControlSystemBarText(programName, fromCalc = false) {
+  // Editor z Kalkulaček je na kreslení a zjišťování údajů, ne na programy –
+  // místo řídicího systému ukazuje, v čem je na plátně osa X (průměr / poloměr).
+  if (fromCalc) {
+    const diam = state.xDisplayMode === 'diameter';
+    return `CAD G-kód kreslení<span class="cne-sn-mode${diam ? ' diam' : ''}" title="Hodnoty X (i I) se zadávají jako ${diam ? 'průměr' : 'poloměr'} – podle nastavení X displej">X = ${diam ? '⌀ průměr' : 'poloměr'}</span>`;
+  }
   const ctrl = getControlSystem();
   const names = { sinumerik: 'SINUMERIK', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
   // „kal." = editor otevřený z Kalkulaček (kreslicí) – odliší ho od ostatních dvou editorů.
@@ -558,7 +564,7 @@ function quickbarHTML(drawMode) {
   if (drawMode) return `
   <div class="cne-quickbar cne-quickbar--draw">
     <button class="cne-qb c10" data-inp="R" title="R – poloměr / parametr">R</button>
-    <button class="cne-qb c10" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X)">I<small class="cne-qb-axis">(x)</small></button>
+    <button class="cne-qb c10" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X, ${xWord} jako X)">I<small class="cne-qb-axis">(x)</small></button>
     <button class="cne-qb c10" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button>
     <button class="cne-qb accent cne-qb-arc c10" data-ins="G2 " title="G2 &ndash; kruhov&aacute; interpolace po sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G2</span><small>&#8635; oblouk</small></button>
     <button class="cne-qb accent cne-qb-arc c10" data-ins="G3 " title="G3 &ndash; kruhov&aacute; interpolace proti sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G3</span><small>&#8634; oblouk</small></button>
