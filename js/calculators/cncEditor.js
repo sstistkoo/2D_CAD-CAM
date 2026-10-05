@@ -6,7 +6,7 @@
 
 import { makeOverlay, onOverlayRemoved, showConfirmDialog } from '../dialogFactory.js';
 import { bridge } from '../bridge.js';
-import { showToast } from '../state.js';
+import { showToast, state } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
@@ -545,6 +545,8 @@ function getControlSystemBarText(programName, fromCalc = false) {
 // Rychlá lišta. Kreslicí varianta (editor z Kalkulaček) má jen to, co čte kreslicí
 // parser G-kódu: G, X, Z, R + G0/G1 jako velká tlačítka s popiskem.
 function quickbarHTML(drawMode) {
+  // X se zapisuje podle nastavení „X displej" (Radius / Průměr) – stejně jako export.
+  const xWord = state.xDisplayMode === 'diameter' ? 'průměr' : 'poloměr';
   if (drawMode) return `
   <div class="cne-quickbar cne-quickbar--draw">
     <button class="cne-qb c10" data-inp="R" title="R – poloměr / parametr">R</button>
@@ -556,24 +558,23 @@ function quickbarHTML(drawMode) {
 
     <button class="cne-qb accent cne-qb-big c15" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start bod</small></button>
     <button class="cne-qb accent cne-qb-big c15" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
-    <button class="cne-qb cne-qb-big c15" data-inp="X" title="Osa X (průměr)"><span>X</span><small>průměr</small></button>
+    <button class="cne-qb cne-qb-big c15" data-inp="X" title="Osa X (${xWord})"><span>X</span><small>${xWord}</small></button>
     <button class="cne-qb cne-qb-big c15" data-inp="Z" title="Osa Z (délka)"><span>Z</span><small>délka</small></button>
 
     <button class="cne-qb blue c12" data-act="lineG" data-g="G90" title="Napíše G90 (absolutní) na začátek řádku s kurzorem">G90</button>
     <button class="cne-qb blue c12" data-act="lineG" data-g="G91" title="Napíše G91 (přírůstkové) na začátek řádku s kurzorem">G91</button>
     <button class="cne-qb accent c12" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
     <button class="cne-qb accent c12" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
-    <button class="cne-qb red c12" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
-
     <button class="cne-qb gray c12" data-inp="" title="Zadat číslo">123</button>
-    <button class="cne-qb gray c12" data-ins="=" title="Přiřazení hodnoty">=</button>
-    <button class="cne-qb gray c12" data-ins=";" title="Středník (komentář)">;</button>
+
+    <button class="cne-qb red c12" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
     <button class="cne-qb gray c12" data-act="copy" title="Kopírovat kód do schránky">📋</button>
+    <button class="cne-qb gray c12" data-ins=";" title="Středník (komentář)">;</button>
+    <button class="cne-qb cne-kb-btn c12" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
     <button class="cne-qb green c12" data-ins="\\n" title="Nový řádek">↵</button>
 
     <button class="cne-qb accent cne-qb-wide c15" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
-    <button class="cne-qb cne-kb-btn cne-qb-wide c15" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
-    <button class="cne-qb gray cne-qb-wide c15" data-ins=" " title="Mezera">␣</button>
+    <button class="cne-qb gray cne-qb-wide c30" data-ins=" " title="Mezera">␣</button>
     <button class="cne-qb green cne-qb-wide c15" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯 Bod z plátna</button>
   </div>`;
   return `

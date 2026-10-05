@@ -7176,6 +7176,7 @@ button.vk-header-btn-green {
 .cne-quickbar--draw .c12 { grid-column: span 12; }
 .cne-quickbar--draw .c15 { grid-column: span 15; }
 .cne-quickbar--draw .c20 { grid-column: span 20; }
+.cne-quickbar--draw .c30 { grid-column: span 30; }
 .cne-quickbar--draw .cne-qb-big,
 .cne-quickbar--draw .cne-qb-arc {
   flex-direction: column; gap: 3px;
