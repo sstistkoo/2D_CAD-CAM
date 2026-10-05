@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CNC Editor – Historie změn, sekce Program, Uložit G-kód** (uživatel
+  5. 10. 2026): v levém panelu je **Historie** teď seznam provedených změn
+  (Psaní, Mazání, Vloženo G1, Zkrácení kódu, Převod na G91, Bod z plátna,
+  Načteno z plátna, Smazán soubor… s časem) – nahoře šedě kroky ↪ Vpřed,
+  ● Aktuální stav, pod ním kroky ↩ Zpět; klik skočí do stavu před tou změnou.
+  Úpravy stejného druhu rychle po sobě jsou jeden krok, jiný druh = nový krok.
+  Sekce „Spoj G-kód" přejmenována na **Program**: seznam souborů,
+  **💾 Uložit G-kód** (stáhne .MPF), 📂 Načíst program, 🔗 Spojit. Levý panel
+  v editoru z Kalkulaček na mobilu 250 px. SW v350.
 - **CNC Editor z Kalkulaček – vždy obsah plátna, smazání souboru jde vrátit**
   (uživatel 5. 10. 2026): editor z Kalkulaček při každém otevření načte do
   `CNC_PROGRAM.MPF` to, co je na plátně, a přepne se na něj (dřív zůstal

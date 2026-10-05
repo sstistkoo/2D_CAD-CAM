@@ -702,13 +702,15 @@ function buildEditorHTML(drawMode = false) {
       <div class="cne-sb-section">
         <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> Historie</div>
         <div class="cne-sb-content">
-          <div class="cne-file-list" data-el="fileList"></div>
+          <div class="cne-hist-list" data-el="histList"></div>
         </div>
       </div>
-      <div class="cne-sb-section collapsed">
-        <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> Spoj G-kód</div>
+      <div class="cne-sb-section">
+        <div class="cne-sb-title" data-act="toggleSection"><span class="cne-sb-arrow">▾</span> Program</div>
         <div class="cne-sb-content">
-          <button class="cne-sb-btn" data-act="mergeLoad" title="Načíst .MPF/.SPF nebo uložený projekt .camprog (vytáhne se jeho G-kód)">📂 Načíst program</button>
+          <div class="cne-file-list" data-el="fileList"></div>
+          <button class="cne-sb-btn green" data-act="download" title="Uložit aktuální program do zařízení (.MPF)">💾 Uložit G-kód</button>
+          <button class="cne-sb-btn" data-act="mergeLoad" title="Načíst .MPF/.SPF nebo uložený projekt .camprog (vytáhne se jeho G-kód) – do fronty pro spojení">📂 Načíst program</button>
           <div class="cne-merge-list" data-el="mergeList"></div>
           <button class="cne-sb-btn accent" data-act="mergeJoin" data-el="mergeJoinBtn" disabled>🔗 Spojit do jednoho</button>
         </div>
@@ -946,7 +948,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // Kód se mezitím změnil mimo editor (🔄 vykreslení a nové otevření z výkresu)
     // → text, který byl v editoru naposledy, je další krok Zpět.
     if (h && typeof h.cur === 'string' && h.cur.replace(/\r/g, '') !== editor.value.replace(/\r/g, '')) {
-      undoStack.push({ value: h.cur, sel: h.cur.length });
+      undoStack.push({ value: h.cur, sel: h.cur.length, label: 'Načteno z plátna', t: Date.now() });
       redoStack = [];
     }
     undoGroupOpen = false;
@@ -1010,7 +1012,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (!confirm(`Smazat "${name}"?`)) return;
     if (historyFile === name) storeHistory();
     // Smazání jde vrátit šipkou ◀: krok Zpět v souboru, který se zobrazí místo něj.
-    const restore = { restoreFile: name, code: programs[name], hist: histByFile[name] || null };
+    const restore = { restoreFile: name, code: programs[name], hist: histByFile[name] || null, t: Date.now() };
     delete programs[name];
     delete histByFile[name];
     if (historyFile === name) historyFile = null;
@@ -1157,7 +1159,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   searchInput.addEventListener('focus', () => { activeTarget = searchInput; });
 
   // ── Insert / Backspace ─────────────────────────────────────
-  function insertText(text) {
+  function insertText(text, label = 'Vloženo') {
     const actual = text === '\\n' ? '\n' : text;
     if (activeTarget === searchInput) {
       const s = searchInput.selectionStart, e = searchInput.selectionEnd, v = searchInput.value;
@@ -1180,7 +1182,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const prevChar = s > 0 ? v[s - 1] : '';
     const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n';
     const insert = (needsSpace ? ' ' : '') + actual;
-    captureUndoSnapshot();
+    captureUndoSnapshot(label, actual);
     editor.value = v.substring(0, s) + insert + v.substring(e);
     editor.selectionStart = editor.selectionEnd = s + insert.length;
     editor.scrollTop = scrollTop;
@@ -1211,7 +1213,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
-    if (s !== e || s > 0) captureUndoSnapshot();
+    if (s !== e || s > 0) captureUndoSnapshot('Mazání');
     if (s !== e) {
       editor.value = v.substring(0, s) + v.substring(e);
       editor.selectionStart = editor.selectionEnd = s;
@@ -1240,7 +1242,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const nextN = maxN > 0 ? maxN + step : step;
     const prefix = 'N' + nextN + ' ';
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
-    captureUndoSnapshot();
+    captureUndoSnapshot('Číslo bloku', prefix.trim());
     editor.value = v.substring(0, lineStart) + prefix + v.substring(lineStart);
     editor.selectionStart = editor.selectionEnd = lineStart + prefix.length;
     editor.scrollTop = scrollTop;
@@ -1497,7 +1499,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     } else {
       result = lines.join('\n') + '\n' + editor.value;
     }
-    captureUndoSnapshot();
+    captureUndoSnapshot('Hlavička programu');
     editor.value = result;
     onInput();
     hdrModal.style.display = 'none';
@@ -1767,7 +1769,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   // Jedno tlačítko G90/G91 – přepne režim a přepočítá souřadnice v editoru.
   function toggleCoordMode() {
-    captureUndoSnapshot();
+    captureUndoSnapshot(coordMode === 'abs' ? 'Převod na G91' : 'Převod na G90');
     editor.value = coordMode === 'abs'
       ? codeToIncremental(editor.value)
       : codeToAbsolute(editor.value);
@@ -1798,7 +1800,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         showToast('Po zkrácení se změnil počet řádků – poznámky nelze vrátit');
         return;
       }
-      captureUndoSnapshot();
+      captureUndoSnapshot('Vrácení poznámek');
       let k = 0;
       editor.value = cs.lines.map(l => l.kept ? cur[k++] + l.comment : l.text).join('\n');
       commentState = null;
@@ -1814,7 +1816,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       return { text: code, kept: true, comment: text.slice(code.length) };
     });
     if (!lines.some(l => !l.kept || l.comment)) { showToast('Kód neobsahuje žádné poznámky'); return; }
-    captureUndoSnapshot();
+    captureUndoSnapshot('Zkrácení kódu');
     const stripped = lines.filter(l => l.kept).map(l => l.text).join('\n');
     editor.value = stripped;
     commentState = { file: currentFile, stripped, lines };
@@ -1824,7 +1826,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // ── Renumbering ───────────────────────────────────────────
   function performRenumbering(start, step) {
     codeBeforeRenum = editor.value;
-    captureUndoSnapshot();
+    captureUndoSnapshot('Přečíslování N');
     editor.value = renumberLines(editor.value.split('\n'), start, step).join('\n');
     onInput();
   }
@@ -1863,7 +1865,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const lead = s > 0 && v[s - 1] !== '\n' ? '\n' : '';
     const tail = v[e] === '\n' || e >= v.length ? '' : '\n';
     const ins = lead + text + '\n' + tail;
-    captureUndoSnapshot();
+    captureUndoSnapshot('Značka', /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar');
     editor.value = v.slice(0, s) + ins + v.slice(e);
     editor.selectionStart = editor.selectionEnd = s + lead.length + text.length + 1;
     editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
@@ -1954,7 +1956,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     }
     if (nl === line) return;
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
-    captureUndoSnapshot();
+    captureUndoSnapshot('Vloženo', g);
     editor.value = v.slice(0, ls) + nl + v.slice(le);
     editor.selectionStart = editor.selectionEnd = Math.max(ls, pos + nl.length - line.length);
     editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
@@ -1980,15 +1982,34 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Vlastní historie místo nativního textarea undo: přímé přiřazení
   // editor.value (quickbar, hlavička, přečíslování…) prohlížeči nativní
   // undo zásobník stejně zahodí, takže by fungoval nespolehlivě.
+  // Každý záznam = stav PŘED změnou + popis té změny (label, detail, čas) –
+  // z nich se skládá seznam „Historie" v levém panelu.
   function updateUndoRedoButtons() {
     if (undoArrowBtn) undoArrowBtn.disabled = !undoStack.length;
     if (redoArrowBtn) redoArrowBtn.disabled = !redoStack.length;
+    renderHistoryList();
   }
 
-  function captureUndoSnapshot() {
+  // Druh úpravy z nativního psaní do textarey (beforeinput).
+  function inputLabel(ev) {
+    const t = ev.inputType || '';
+    if (t === 'insertFromPaste' || t === 'insertFromDrop') return ['Vloženo ze schránky', ''];
+    if (t === 'deleteByCut') return ['Vyjmuto', ''];
+    if (t.startsWith('delete')) return ['Mazání', ''];
+    if (t === 'insertLineBreak' || t === 'insertParagraph') return ['Psaní', '↵'];
+    if (t === 'historyUndo' || t === 'historyRedo') return ['Úprava', ''];
+    return ['Psaní', ev.data || ''];
+  }
+
+  function captureUndoSnapshot(label = 'Úprava', detail = '') {
+    if (label && typeof label === 'object') [label, detail] = inputLabel(label);
     clearTimeout(undoGroupTimer);
-    if (!undoGroupOpen) {
-      undoStack.push({ value: editor.value, sel: editor.selectionEnd });
+    const top = undoStack[undoStack.length - 1];
+    // Shluk rychle po sobě jdoucích úprav STEJNÉHO druhu = jeden krok; jiný druh = nový krok.
+    if (undoGroupOpen && top && top.label === label) {
+      if (detail) top.detail = ((top.detail || '') + detail).slice(-40);
+    } else {
+      undoStack.push({ value: editor.value, sel: editor.selectionEnd, label, detail: detail.slice(-40), t: Date.now() });
       if (undoStack.length > 200) undoStack.shift();
       redoStack.length = 0;
       undoGroupOpen = true;
@@ -2001,7 +2022,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (!undoStack.length) return;
     const entry = undoStack.pop();
     if (entry.restoreFile) { restoreDeletedFile(entry); return; }
-    redoStack.push({ value: editor.value, sel: editor.selectionEnd });
+    redoStack.push({ value: editor.value, sel: editor.selectionEnd, label: entry.label, detail: entry.detail, t: entry.t });
     editor.value = entry.value;
     editor.selectionStart = editor.selectionEnd = entry.sel;
     undoGroupOpen = false;
@@ -2013,13 +2034,48 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function performRedo() {
     if (!redoStack.length) return;
     const entry = redoStack.pop();
-    undoStack.push({ value: editor.value, sel: editor.selectionEnd });
+    undoStack.push({ value: editor.value, sel: editor.selectionEnd, label: entry.label, detail: entry.detail, t: entry.t });
     editor.value = entry.value;
     editor.selectionStart = editor.selectionEnd = entry.sel;
     undoGroupOpen = false;
     onInput();
     editor.focus({ preventScroll: true });
     updateUndoRedoButtons();
+  }
+
+  // ── Historie změn (levý panel) ──────────────────────────────
+  // Nahoře kroky „Vpřed" (šedě), pak aktuální stav, pod ním kroky „Zpět" od
+  // nejnovější. Klik = vrátit se do stavu PŘED tou změnou (resp. zopakovat ji).
+  const histListEl = $('histList');
+  function histTime(t) {
+    if (!t) return '';
+    const d = new Date(t), now = new Date();
+    const hm = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === now.toDateString() ? hm : `${d.getDate()}. ${d.getMonth() + 1}. ${hm}`;
+  }
+  function histRow(e, key, cls, icon, title) {
+    const label = e.restoreFile ? `Smazán soubor ${e.restoreFile}` : (e.label || 'Úprava');
+    const det = e.detail ? `<span class="cne-hi-det">${esc(e.detail.replace(/\n/g, '↵'))}</span>` : '';
+    return `<div class="cne-hi ${cls}" data-hist="${key}" title="${title}">
+      <span class="cne-hi-ic">${icon}</span><span class="cne-hi-txt">${esc(label)}${det}</span><span class="cne-hi-t">${histTime(e.t)}</span></div>`;
+  }
+  function renderHistoryList() {
+    if (!histListEl) return;
+    const rows = [];
+    redoStack.forEach((e, j) => rows.push(histRow(e, 'r' + j, 'future', '↪', 'Zopakovat až po tuto změnu')));
+    rows.push(`<div class="cne-hi current"><span class="cne-hi-ic">●</span><span class="cne-hi-txt">Aktuální stav</span></div>`);
+    for (let i = undoStack.length - 1; i >= 0; i--) rows.push(histRow(undoStack[i], 'u' + i, '', '↩', 'Vrátit do stavu před touto změnou'));
+    histListEl.innerHTML = rows.length > 1 ? rows.join('') : '<div class="cne-fi-empty">Zatím žádné změny</div>';
+  }
+  function jumpHistory(key) {
+    const file = currentFile;
+    if (key[0] === 'u') {
+      let n = undoStack.length - parseInt(key.slice(1), 10);
+      while (n-- > 0 && undoStack.length && currentFile === file) performUndo();
+    } else {
+      let n = redoStack.length - parseInt(key.slice(1), 10);
+      while (n-- > 0 && redoStack.length) performRedo();
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -2091,7 +2147,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'cornersToPath': {
           const result = convertCornersToPaths(editor.value);
           if (result.converted > 0) {
-            captureUndoSnapshot();
+            captureUndoSnapshot('Převod sražení/zaoblení');
             editor.value = result.code;
             onInput();
           }
@@ -2114,11 +2170,11 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           // Přenes upravený kód zpět do CAD panelu (odkud kód pochází) a
           // vykresli konturu na canvas. CAD panel čte souřadnice absolutně,
           // takže přírůstkový režim (G91) před odesláním přepočítáme na G90.
-          if (coordMode === 'inc') { captureUndoSnapshot(); editor.value = codeToAbsolute(editor.value); coordMode = 'abs'; onInput(); }
+          if (coordMode === 'inc') { captureUndoSnapshot('Převod na G90'); editor.value = codeToAbsolute(editor.value); coordMode = 'abs'; onInput(); }
           // Nepřevedené sražení/zaoblení (CHF=/RND=…) by CAD parser G-kódu
           // nerozpoznal – automaticky ho převedeme na skutečnou dráhu (G1/G2/G3).
           const conv = convertCornersToPaths(editor.value);
-          if (conv.converted > 0) { captureUndoSnapshot(); editor.value = conv.code; onInput(); }
+          if (conv.converted > 0) { captureUndoSnapshot('Převod sražení/zaoblení'); editor.value = conv.code; onInput(); }
           persist();
           const code = editor.value;
           sentToCad = true;
@@ -2172,6 +2228,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       return;
     }
     // Validation row → jump
+    // Historie změn → skok do vybraného stavu
+    const hr = e.target.closest('[data-hist]');
+    if (hr) { jumpHistory(hr.dataset.hist); return; }
     const vr = e.target.closest('[data-ln]');
     if (vr) { valModal.style.display = 'none'; jumpToLine(parseInt(vr.dataset.ln)); return; }
     // Settings toggle
@@ -2245,7 +2304,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const pos = Math.min(caret, editor.value.length);
     editor.selectionStart = editor.selectionEnd = pos;
     if (insert) {
-      insertText(insert);
+      insertText(insert, 'Bod z plátna');
       const line = editor.value.slice(0, editor.selectionStart).split('\n').length - 1;
       editor.scrollTop = Math.max(0, (line - 3) * lineH());
       syncScroll();
