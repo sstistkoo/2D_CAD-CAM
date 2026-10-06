@@ -138,7 +138,7 @@ export function openToleranceCalc() {
 
     resultEl.innerHTML =
       '<strong>' + tolLabel + '</strong><br>' +
-      'Horní údchylka: ' + sign(r.upper) + ' µm │ Dolní: ' + sign(r.lower) + ' µm<br>' +
+      'Horní úchylka: ' + sign(r.upper) + ' µm │ Dolní: ' + sign(r.lower) + ' µm<br>' +
       'Ø max: <strong>' + dimMax.toFixed(4).replace(/0$/, '') + '</strong> mm │ Ø min: <strong>' + dimMin.toFixed(4).replace(/0$/, '') + '</strong> mm<br>' +
       'Tolerance: ' + r.tol + ' µm (' + (r.tol / 1000).toFixed(4).replace(/0$/, '') + ' mm)';
   }

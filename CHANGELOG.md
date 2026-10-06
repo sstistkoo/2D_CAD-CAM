@@ -94,7 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   posunuté o podrozsah; js zaokrouhleno (±7 místo **±6,5**). Nově `iso286.js` podle
   ISO 286-2 (podrozsahy a–c, r, s; Δ pro K/M/N do IT8 a P–S do IT7; výjimky do
   3 mm; j5–j7 a J6–J8 z tabulek, ostatní ohlásí „není definováno"), rozsah 0–500 mm,
-  test `tests/iso286.test.js` proti tabulkovým hodnotám. SW v388.
+  test `tests/iso286.test.js` proti tabulkovým hodnotám. SW v389.
 - **Závity: rozpis průchodů** (uživatel 6. 10. 2026) – tři chyby:
   M10×1,5 dávalo **38 řezů** (posledních 20 pod 0,02 mm – limit prvního řezu
   0,15 mm vedl na n = (h/0,15)²); **boční přísuv nedojel na hloubku** (přísuv
