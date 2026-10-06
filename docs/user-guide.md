@@ -1064,7 +1064,12 @@ hledej v programu komentář `Výjezd v X (stěna)`.
 Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 
 ### Dostupné kalkulačky
-- **Řezné podmínky** – otáčky, posuv, výkon
+- **Řezné podmínky** – otáčky, posuv, výkon. Sekce **🔁 G96 – konstantní
+  řezná rychlost**: z Vc a f nahoře, Ø od/do, osové délky L (0 = čelení)
+  a omezení otáček n max (Sinumerik LIMS, Fanuc G50 S) spočítá mezní průměr
+  D = 1000·vc / (π·n max), pod kterým jedou otáčky na limitu (a vc klesá),
+  strojní čas s G96 (u čelení bez omezení t = π·(D₁² − D₂²) / (4000·vc·f))
+  a srovnání s G97 při stálých otáčkách z většího průměru.
 - **Zkrácení / prodleva** – doba obrábění
 - **Tolerance** – tolerance dle DIN ISO 286
 - **Hmotnost** – hmotnost prutů

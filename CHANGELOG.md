@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Řezné podmínky: 🔁 G96 – konstantní řezná rychlost** (uživatel 6. 10.
+  2026) – mezní průměr při omezení otáček (LIMS / G50 S), strojní čas čelení
+  i kužele s G96 (integrace přes průměr, část na limitu otáček zvlášť),
+  skutečná vc na malém průměru a srovnání s G97. `g96Math.js` + test
+  (porovnání s numerickým součtem), sekce `cuttingG96.js`. SW v383.
 - **Vrták: ⚙️ Řezné podmínky vrtání** (uživatel 6. 10. 2026) – materiál
   a HSS/SK → doporučená vc a f (f ≈ k·D^0,6), otáčky, posuvová rychlost,
   strojní čas včetně délky špičky L, výkon, krouticí moment a osová síla

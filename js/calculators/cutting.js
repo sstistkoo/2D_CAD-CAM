@@ -1,6 +1,7 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { g96Html, wireG96 } from './cuttingG96.js';
 
 const cuttingMaterials = [
   ["Ocel 11 523 (S355)",      180, 35, 0.3, 0.1, 1800],
@@ -43,6 +44,7 @@ export function openCuttingCalc() {
     '</div>' +
     '<div class="cnc-info" id="cuttingInfo"></div>' +
     '<div class="cnc-result" id="cuttingExtra"></div>' +
+    g96Html() +
     '<div class="cnc-actions">' +
       '<button class="cnc-btn cnc-btn-clear">\uD83D\uDDD1 Vymazat</button>' +
       '<button class="cnc-btn cnc-btn-copy">\uD83D\uDCCB Kopírovat</button>' +
@@ -59,6 +61,7 @@ export function openCuttingCalc() {
   const edited = new Set();
   const infoEl = overlay.querySelector("#cuttingInfo");
   const extraEl = overlay.querySelector("#cuttingExtra");
+  const g96 = wireG96(overlay);
 
   function val(inp) { return inp.value !== "" ? safeEvalMath(inp.value) : null; }
   function setC(inp, v) { inp.value = parseFloat(v.toFixed(4)); inp.classList.add("computed"); }
@@ -122,6 +125,7 @@ export function openCuttingCalc() {
     if (ap) extraParts.push("Hloubka řezu: " + ap + " mm");
 
     extraEl.innerHTML = extraParts.length ? extraParts.join("<br>") : "";
+    g96.update({ vc: VcFinal, f: fFinal, D: val(inputs.D) });
   }
 
   fieldIds.forEach(id => {
@@ -138,11 +142,13 @@ export function openCuttingCalc() {
     fieldIds.forEach(id => { inputs[id].value = ""; inputs[id].classList.remove("computed"); });
     edited.clear(); infoEl.textContent = ""; extraEl.innerHTML = "";
     matSel.value = ""; matHint.innerHTML = "";
+    g96.update({ vc: null, f: null, D: null });
   });
   overlay.querySelector(".cnc-btn-copy").addEventListener("click", () => {
     const parts = [];
     fieldIds.forEach(id => { const v = val(inputs[id]); if (v !== null) parts.push(id + "=" + inputs[id].value); });
     if (extraEl.textContent) parts.push(extraEl.textContent);
+    if (g96.summary()) parts.push(g96.summary());
     if (parts.length) navigator.clipboard.writeText(parts.join("  ")).then(() => showToast("Zkopírováno"));
   });
 }
