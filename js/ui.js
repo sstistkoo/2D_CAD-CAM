@@ -12,7 +12,7 @@ import { findObjectAt } from './geometry.js';
 import { bridge } from './bridge.js';
 import { addObject, removeOrphanDimensions, deletePolylineSegment, inheritedProps } from './objects.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openDrillCalc, openNoseRadiusCalc, openBoltCircleCalc, openInsertCalc, openSinumerikHub, openCamSimulator, openCncEditor } from './cnc-calcs.js';
+import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openDrillCalc, openNoseRadiusCalc, openBoltCircleCalc, openWireMeasureCalc, openInsertCalc, openSinumerikHub, openCamSimulator, openCncEditor } from './cnc-calcs.js';
 import { showCombinedModal } from './dialogs/combinedModal.js';
 import { makeOverlay, makeInputOverlay, focusInput, onOverlayRemoved } from './dialogFactory.js';
 import { openAIPanel } from './ai/aiPanel.js';
@@ -4230,6 +4230,7 @@ document.getElementById("btnOpenRoughness").addEventListener("click", openRoughn
 document.getElementById("btnOpenDrill").addEventListener("click", openDrillCalc);
 document.getElementById("btnOpenNoseRadius").addEventListener("click", openNoseRadiusCalc);
 document.getElementById("btnOpenBoltCircle").addEventListener("click", openBoltCircleCalc);
+document.getElementById("btnOpenWireMeasure").addEventListener("click", openWireMeasureCalc);
 document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
 document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
 // CNC Editor (kreslení) – z plátna: mobilní spodní lišta (✏️ mezi VK a měřením)

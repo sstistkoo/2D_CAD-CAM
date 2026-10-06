@@ -1104,6 +1104,18 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   směr (proti / po směru hodin) a střed X/Y. Vypíše tabulku X, Y a úhlu C
   (soustruh s osou C: X = roztečný průměr, C = úhel), vzdálenost středů
   sousedních děr a se zadaným Ø díry i můstek (nebo upozorní na překrytí).
+- **Měření** (Další kalkulačky) – měření přes drátky a válečky:
+  - *Závit – 3 drátky*: metrický ISO, UNC/UNF, Whitworth, Tr nebo vlastní úhel;
+    z d a P (nebo přímo d₂) míra M = d₂ + d_w·(1 + 1/sin(α/2)) − (P/2)·cot(α/2),
+    optimální drátek P / (2·cos(α/2)) a nejbližší z běžné sady (prázdné pole =
+    drátek ze sady); s naměřeným M skutečný d₂ a odchylka v µm.
+  - *Kužel*: kužel stojí na desce, válečky Ø d_v na desce (M1) a na měrkách
+    výšky h (M2) → vrcholový úhel, kuželovitost 1:x a průměr u desky (kužel
+    může stát na menším i větším průměru); nebo opačně kontrolní M1, M2
+    z průměru a úhlu (či 1:x).
+  - *Rybina*: vnější (čep) M = B + d_v·(1 + cot(α/2)), vnitřní (drážka)
+    X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
+    dopočítá.
 - **Taper** – kuželové zkrácení
 - **Závity** – převodné tabulky
 - **Převody** – jednotky (mm/inch, RPM/SFM)

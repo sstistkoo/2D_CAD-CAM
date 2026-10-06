@@ -12,6 +12,7 @@ export { openRoughnessCalc } from './calculators/roughness.js';
 export { openDrillCalc } from './calculators/drill.js';
 export { openNoseRadiusCalc } from './calculators/noseRadius.js';
 export { openBoltCircleCalc } from './calculators/boltCircle.js';
+export { openWireMeasureCalc } from './calculators/wireMeasure.js';
 export { openInsertCalc } from './calculators/insert.js';
 export { openGcodeReference } from './calculators/gcode.js';
 export { openMcodeReference } from './calculators/mcode.js';

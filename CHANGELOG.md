@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kalkulačka ⦶ Měření** v Další kalkulačky (uživatel 6. 10. 2026) – měření
+  přes drátky a válečky: závit metodou tří drátků (M, optimální drátek
+  a nejbližší ze sady, d₂ z naměřeného M), kužel přes dva válečky a měrky
+  (úhel, 1:x a Ø z M1/M2 i kontrolní míry z výkresu, kužel na menším i větším
+  průměru) a rybina vnější i vnitřní. `wireMeasureMath.js` + test (tabulkové
+  tvary vzorců, nezávislá kontrola tečnosti válečků), okno `wireMeasure.js`.
+  SW v385.
 - **Kalkulačka ◎ Rozteč děr** v Další kalkulačky (uživatel 6. 10. 2026) –
   díry na roztečné kružnici: celý kruh nebo zadaná rozteč, směr, střed;
   tabulka X/Y a úhlu C, vzdálenost sousedních děr, můstek / překrytí, náčrt.
