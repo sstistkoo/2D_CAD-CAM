@@ -15,7 +15,7 @@ import { buildInsertProfileSegments } from '../js/calculators/cam/insertPreview.
 import { CAM_TOOL_KEYS, DEFAULT_TOOL_MAGAZINE } from '../js/calculators/cam/camToolPicker.js';
 import { paramsFromMagSlot } from '../js/calculators/cam/toolSlotPreview.js';
 import { knifeThumbSvg } from '../js/calculators/knifeThumb.js';
-import { ISO_DEFAULT_SET, isoDefaultKnives, migrateLegacyMagazine, sameKnifeGeometry } from '../js/calculators/magazineDefaults.js';
+import { ISO_DEFAULT_SET, isoDefaultKnives, migrateLegacyMagazine, sameKnifeGeometry, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from '../js/calculators/magazineDefaults.js';
 import { holderProfileLoop } from '../js/calculators/cam/collisionValidator.js';
 import { polyIntersect, polyArea } from '../js/geom/geomCore.js';
 
@@ -210,6 +210,32 @@ describe('tvar hlavy držáku', () => {
     }
   });
 
+  it('f1 = zadní strana dříku → špička: PSBNR 2525 = 22 (Sandvik DSBNR), PSSNR 2525 = 32', () => {
+    const tipX = (p) => Math.min(...buildInsertProfileSegments(p).slice(3).flatMap((s) => {
+      const out = [];
+      for (let i = 0; i <= 32; i++) {
+        const a0 = Math.atan2(s.from.z - s.cz, s.from.x - s.cx);
+        let d = Math.atan2(s.to.z - s.cz, s.to.x - s.cx) - a0;
+        while (d <= -Math.PI) d += 2 * Math.PI; while (d > Math.PI) d -= 2 * Math.PI;
+        out.push(s.cx + s.r * Math.cos(a0 + d * i / 32));
+      }
+      return out;
+    }));
+    for (const [id, f1] of [['SB', 22], ['CB', 22], ['SS', 32], ['CL', 32], ['SK', 32], ['TG', 32]]) {
+      const p = buildIsoKnife(id, { shank: '2525' }).tool;
+      const back = Math.max(...p.holderProfile.sideA.filter((q) => q.z === 150).map((q) => q.x));
+      expect(back - tipX(p), id).toBeCloseTo(f1, 1);
+    }
+  });
+
+  it('v2 (hlava 1 mm za břitem, úleva +3°) se převede na aktuální (úleva +20°, f1 ke špičce)', () => {
+    const v2 = buildIsoKnife('SB', { shank: '2525', holderVersion: 2 });
+    expect(upgradeIsoHolderProfile(v2.name, v2.vbdCode, v2.tool.holderProfile))
+      .toEqual(buildIsoKnife('SB', { shank: '2525' }).tool.holderProfile);
+    const n = buildIsoKnife('DN', { shank: '2525', holderVersion: 2 });   // neutrální — beze změny
+    expect(upgradeIsoHolderProfile(n.name, n.vbdCode, n.tool.holderProfile)).toBeNull();
+  });
+
   it('dřík leží podle f1: špička o f1 − b vlevo od dříku (PCLNR 2525 → f1 ≈ 32)', () => {
     const p = buildIsoKnife('CL', { shank: '2525' }).tool;
     const xs = p.holderProfile.sideA.filter((q) => q.z === 150).map((q) => q.x);
@@ -234,30 +260,38 @@ describe('🔧 Zásobník — výchozí ISO nože místo provizorních', () => {
   it('každý starý výchozí nůž má ISO náhradu ve stejné roli a pořadí', () => {
     const knives = isoDefaultKnives();
     expect(ISO_DEFAULT_SET.map((s) => s.legacy)).toEqual(DEFAULT_TOOL_MAGAZINE.map((d) => d.name));
-    expect(knives.map((r) => r.name)).toEqual(['PSKNR2525M12', 'PCLNR2525M12', 'PDJNR2525M15', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-5']);
+    expect(knives.map((r) => r.name)).toEqual(['PSKNR2525M12', 'PSBNR2525M12', 'PDJNR2525M15', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-5']);
     knives.forEach((r, i) => expect(r.tool.toolShape, r.name).toBe(DEFAULT_TOOL_MAGAZINE[i].shape));
-    // Kde to jde, táž geometrie jako dřív: čelní čtverec κr 75°, kulatá R10, upichovák š 5 / R 0,8.
+    // Kde to jde, táž geometrie jako dřív: čelní čtverec κr 75°, hrubovací čtverec
+    // natočený 15° (κr 75°), kulatá R10, upichovák š 5 / R 0,8.
     expect([knives[0].tool.toolAngle, knives[0].tool.toolTipAngle]).toEqual([-15, 90]);
+    expect([knives[1].tool.toolAngle, knives[1].tool.toolTipAngle]).toEqual([15, 90]);
     expect(knives[3].tool.toolRadius).toBe(10);
     expect([knives[5].tool.toolLength, knives[5].tool.toolRadius]).toEqual([5, 0.8]);
   });
 
   it('migrace: nezměněné staré nože nahradí na místě, upravený nechá, shodnou kopii odebere', () => {
     const mine = { slot: 7, name: 'Můj nůž', shape: 'round', radius: 2 };
-    const pclnrCopy = toSlot(isoDefaultKnives()[1], 8);                 // z 📚 katalogu dřív
-    const mag = [...copy(DEFAULT_TOOL_MAGAZINE), mine, pclnrCopy];
+    const psbnrCopy = toSlot(isoDefaultKnives()[1], 8);                 // z 📚 katalogu dřív
+    const mag = [...copy(DEFAULT_TOOL_MAGAZINE), mine, psbnrCopy];
     mag[2].toolAngle = 30;                                             // Šlicht upravený uživatelem
     const r = migrateLegacyMagazine(mag, toSlot);
     expect(r.magazine.map((s) => s.name)).toEqual(
-      ['PSKNR2525M12', 'PCLNR2525M12', 'Šlicht', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-5', 'Můj nůž']);
+      ['PSKNR2525M12', 'PSBNR2525M12', 'Šlicht', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-5', 'Můj nůž']);
     expect(r.magazine.map((s) => s.slot)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(r.replaced).toEqual([0, 1, 3, 4, 5]);
     expect(r.dropped).toBe(1);
-    expect(r.map).toEqual([0, 1, 2, 3, 4, 5, 6, 1]);                   // kopie PCLNR → T2
+    expect(r.map).toEqual([0, 1, 2, 3, 4, 5, 6, 1]);                   // kopie PSBNR → T2
     expect(r.magazine[6]).toBe(mine);
     // Podruhé už není co nahrazovat.
     const again = migrateLegacyMagazine(r.magazine, toSlot);
     expect([again.replaced.length, again.dropped]).toEqual([0, 0]);
+  });
+
+  it('revize výchozí sady: zásobník z rev 1 dostane jednou PSBNR, aktuální nic', () => {
+    expect(isoDefaultsAddedSince(1).map((r) => r.name)).toEqual(['PSBNR2525M12']);
+    expect(isoDefaultsAddedSince(0).map((r) => r.name)).toEqual(['PSBNR2525M12']);
+    expect(isoDefaultsAddedSince(MAGAZINE_DEFAULTS_REV)).toEqual([]);
   });
 
   it('sameKnifeGeometry: řezné podmínky a ruka se nesrovnávají, obrys držáku ano', () => {

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Hrubovací nůž zásobníku = PSBNR 2525M12 + SNMG 120408 podle ISO**
+  (uživatel 6. 10. 2026: „čtverec natočený na hrubování 15°" — jeho ručně
+  kreslený „Šlicht" byl jen od oka). T2 výchozí sady místo PCLNR, táž
+  geometrie jako původní „Hrubovaci". Uložený zásobník ho dostane JEDNOU
+  na konec (`magazineDefaultsRev` ve stavu CAM); smazaný se nevrací.
+- **📚 Katalog — obrys držáku verze 3:** spodek hlavy za vedlejší hranou
+  stoupá o 20° víc než hrana (dřív 3°; neutrální beze změny) a f1 se měří
+  ke špičce, styl B má f1 13/17/22/27 (Sandvik DSBNR 2525M12 = 22, ostatní
+  2525 = 32 — DCLNR, DSKNR, PSSNR, PTGNR, PTFNR). Na dílu uživatele
+  (`projekt_2026-10-06 (1)`): PSBNR 0 kolizí a zbytek 1714 mm² (jeho
+  nakreslený nůž 1861 mm² a 5 kolizí; v2 katalogu 4 kolize), PSSNR 3 → 0,
+  PWLNR 17 → 4, PCLNR 18 → 9. Staré obrysy (v1, v2) se převedou samy.
+  SW v400.
+
 ### Fixed
 - **Čelní hrubování nožem PSKNR: průchody na osu a čistý 15° kužel**
   (nález uživatele 6. 10. 2026 — „u každého záběru schodek, každá další

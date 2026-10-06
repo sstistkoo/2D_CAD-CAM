@@ -39,7 +39,7 @@ import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, d
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPreview.js';
 import { knifeThumbSvg } from './knifeThumb.js';
-import { isoDefaultKnives, migrateLegacyMagazine } from './magazineDefaults.js';
+import { isoDefaultKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from './magazineDefaults.js';
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
@@ -426,6 +426,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     // T1–T6 (magazineDefaults.js) níž po načtení ze savu — podle jména, ať se
     // nezdvojí a nepřepíšou vlastní nože.
     toolMagazine: [],
+    // Revize výchozí sady, kterou zásobník už dostal (magazineDefaults.js) —
+    // nože přidané v novější revizi se přidají jednou, smazané se nevrací.
+    magazineDefaultsRev: 0,
     activeMagazineSlot: null,  // index aktivního slotu (null = zásobník nepoužit)
     editingMagazineSlot: null, // index právě editovaného slotu (rozbalená karta)
     // ── Skládání programu z více operací (cam/opParts.js) ──────
@@ -496,6 +499,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (p.params) Object.assign(S.params, stripCodeOwnedParams(p.params));
       if (Array.isArray(p.toolMagazine)) S.toolMagazine = p.toolMagazine;
       if (p.activeMagazineSlot !== undefined) S.activeMagazineSlot = p.activeMagazineSlot;
+      if (typeof p.magazineDefaultsRev === 'number') S.magazineDefaultsRev = p.magazineDefaultsRev;
       // Migrace: dřívější roughingStrategy 'backside' → podélně + směr zleva.
       if (S.params.roughingStrategy === 'backside') {
         S.params.roughingStrategy = 'longitudinal';
@@ -576,7 +580,18 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Výchozí nože jen do PRÁZDNÉHO zásobníku (první spuštění) — smazaný nůž
     // se už sám nevrací (uživatel 6. 10. 2026). Zásobník nesmí zůstat prázdný:
     // poslední nůž nejde smazat (🗑 se u něj nekreslí) a reset ho naplní.
-    if (S.toolMagazine.length === 0) S.toolMagazine.push(..._isoDefaultMagSlots());
+    if (S.toolMagazine.length === 0) {
+      S.toolMagazine.push(..._isoDefaultMagSlots());
+    } else if ((S.magazineDefaultsRev || 0) < MAGAZINE_DEFAULTS_REV) {
+      // Nože, které výchozí sada dostala v novější revizi (např. PSBNR jako
+      // hrubovací, 6. 10. 2026) → JEDNOU na konec, pokud tam ještě nejsou.
+      const have = new Set(S.toolMagazine.map(s => s.name));
+      let next = Math.max(0, ...S.toolMagazine.map(s => s.slot)) + 1;
+      const added = isoDefaultsAddedSince(S.magazineDefaultsRev || 0).filter(r => !have.has(r.name));
+      for (const rec of added) S.toolMagazine.push(_isoMagSlot(rec, next++));
+      if (added.length) setTimeout(() => showToast(`Do zásobníku přidán ${added.map(r => r.name).join(', ')} (T${next - added.length}) — hrubovací nůž podle ISO, ▲▼ ho přeřadíš`), 0);
+    }
+    S.magazineDefaultsRev = MAGAZINE_DEFAULTS_REV;
     // Nože z 📚 katalogu se STARÝM obrysem držáku (hlava končila na břitu —
     // čelní hrubování pak nechávalo schodky, 6. 10. 2026) → opravený obrys.
     const fixed = _upgradeIsoHolders(S.toolMagazine);
@@ -982,6 +997,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
         showRemoval: S.showRemoval, showRefGuides: S.showRefGuides,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
+        magazineDefaultsRev: S.magazineDefaultsRev,
         opParts: S.opParts, activePart: S.activePart, opContourKey: S.opContourKey,
         gcodeDirty: S.gcodeDirty, gcodeKey: S.gcodeKey,
       }));
@@ -5613,6 +5629,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.selectedMaterial = 'Ocel 11 373 (S235)';
         // Zásobník nesmí zůstat prázdný → zpět na výchozí ISO nože.
         S.toolMagazine = _isoDefaultMagSlots();
+        S.magazineDefaultsRev = MAGAZINE_DEFAULTS_REV;
         S.activeMagazineSlot = null;
         S.guideLines = [];
         S.zLimits = { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false };
@@ -7592,7 +7609,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       { icon: '📥', label: 'Import ze souborů', run: importSlotsFromFiles,
         hint: 'Jeden nebo víc .json z 💾 Uložit do PC (🔪 Geometrie) — každý jako nový slot, název podle souboru' },
       { icon: '🔄', label: 'Seřadit dle výchozích', run: resortSlots,
-        hint: 'Výchozí ISO nože (PSKNR, PCLNR, PDJNR, SRSCR, SER, MGEHR) zpět na T1–T6 v pořadí obrábění, vlastní za ně' },
+        hint: 'Výchozí ISO nože (PSKNR, PSBNR, PDJNR, SRSCR, SER, MGEHR) zpět na T1–T6 v pořadí obrábění, vlastní za ně' },
     ]));
     dlg.querySelector('[data-act="mag-close"]').addEventListener('click', () => {
       if (magazineDialogRefresh === renderBody) magazineDialogRefresh = null;

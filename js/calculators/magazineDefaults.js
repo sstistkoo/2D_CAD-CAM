@@ -8,7 +8,7 @@
 // má náhradu ve STEJNÉ roli a na stejném místě (T1–T6):
 //
 //   Hrub čelo  → PSKNR 2525M12 + SNMG 120408   (táž geometrie: čtverec, κr 75° k čelu)
-//   Hrubovaci  → PCLNR 2525M12 + CNMG 120408   (univerzál, osazení 90°)
+//   Hrubovaci  → PSBNR 2525M12 + SNMG 120408   (táž geometrie: čtverec natočený 15°, κr 75°)
 //   Šlicht     → PDJNR 2525M15 + DNMG 150604   (dokončení, profil)
 //   Kulaty     → SRSCR 2525M20 + RCMT 2006M0   (R10 jako dřív, dojede k čelu)
 //   Zavit      → SER 2525M16 + 16ER AG60
@@ -21,10 +21,30 @@
 import { DEFAULT_TOOL_MAGAZINE as LEGACY_MAGAZINE } from './cam/camToolPicker.js';
 import { buildIsoKnife } from './isoToolCatalog.js';
 
+/**
+ * Revize výchozí sady. Uložený zásobník si pamatuje, kterou už dostal
+ * (`magazineDefaultsRev` ve stavu CAM); nože přidané v novější revizi se mu
+ * přidají JEDNOU (na konec) — smazaný se pak už nevrací.
+ *   1 — ISO nože místo provizorních (6. 10. 2026)
+ *   2 — PSBNR 2525M12 jako hrubovací (T2 místo PCLNR)
+ */
+export const MAGAZINE_DEFAULTS_REV = 2;
+export const DEFAULTS_ADDED_IN_REV = { 2: ['SB'] };
+
+/** Nože výchozí sady přidané po revizi `rev` (záznamy knihovny). */
+export function isoDefaultsAddedSince(rev) {
+  const ids = [];
+  for (let r = (rev || 0) + 1; r <= MAGAZINE_DEFAULTS_REV; r++) ids.push(...(DEFAULTS_ADDED_IN_REV[r] || []));
+  const knives = isoDefaultKnives();
+  return ISO_DEFAULT_SET.map((s, i) => (ids.includes(s.id) ? knives[i] : null)).filter(Boolean);
+}
+
 /** Výchozí nože v pořadí obrábění; `legacy` = jméno nože, který nahrazují. */
 export const ISO_DEFAULT_SET = [
   { id: 'SK', opts: { size: '12', radius: '08' }, legacy: 'Hrub čelo', role: 'čelní hrubování' },
-  { id: 'CL', opts: { size: '12', radius: '08' }, legacy: 'Hrubovaci', role: 'podélné hrubování, osazení 90°' },
+  // Hrubování: čtverec natočený 15° (κr 75°) — přání uživatele 6. 10. 2026,
+  // táž geometrie jako dřívější „Hrubovaci". Do 6. 10. odpoledne tu byl PCLNR.
+  { id: 'SB', opts: { size: '12', radius: '08' }, legacy: 'Hrubovaci', role: 'podélné hrubování, čtverec natočený 15° (κr 75°)' },
   { id: 'DJ', opts: { size: '15', radius: '04' }, legacy: 'Šlicht', role: 'dokončení a profil' },
   { id: 'RS', opts: { size: '20' }, legacy: 'Kulaty', role: 'kulatá R10, dojede k čelu' },
   { id: 'TH', opts: { thread: 'AG60' }, legacy: 'Zavit', role: 'závit 60°' },

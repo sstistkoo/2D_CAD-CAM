@@ -46,7 +46,7 @@ describe('čelní hrubování PSKNR — průchody na osu a 15° kužel', () => {
   }, 120000);
 
   it('s obrysem z katalogu: vlevo od čela čistý 15° kužel (žádná pila) a bez kolizí', async () => {
-    const { face, issues } = await run(2);
+    const { face, issues } = await run(3);
     for (const p of face.filter((q) => q.z > PART_END_Z)) expect(p.xEnd, `Z ${p.z.toFixed(3)}`).toBeLessThan(0.01);
     // Kužel pod čelem: Z 344,9 … 296,9 (dál už vrstvu ukončí polotovar).
     const cone = face.filter((p) => p.z < PART_END_Z && p.z > 296);

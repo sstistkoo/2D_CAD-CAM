@@ -769,7 +769,7 @@ v pořadí obrábění:
 | T | Nůž | Destička | Nahradil (do 6. 10. 2026) |
 |---|---|---|---|
 | T1 | PSKNR 2525M12 | SNMG 120408 | Hrub čelo — čtverec κr 75° k čelu, táž geometrie |
-| T2 | PCLNR 2525M12 | CNMG 120408 | Hrubovaci — univerzál, osazení 90° |
+| T2 | PSBNR 2525M12 | SNMG 120408 | Hrubovaci — čtverec natočený 15° (κr 75°), táž geometrie |
 | T3 | PDJNR 2525M15 | DNMG 150604 | Šlicht — dokončení a profil |
 | T4 | SRSCR 2525M20 | RCMT 2006M0 | Kulaty — R10 jako dřív, dojede k čelu |
 | T5 | SER 2525M16 | 16ER AG60 | Zavit |
@@ -854,9 +854,13 @@ Katalog takhle umí přes 760 kombinací. Klik na náhled ho zvětší. Tlačít
 - **🧰 Uložit** — uloží nůž do Moje nože.
 
 Z typu se dopočítá i natočení destičky v CAM (vedlejší hrana: podélně
-180° − ε − κr, čelně κr − 90°) a obrys držáku: dřík b × l1 posunutý o f1,
+180° − ε − κr, čelně κr − 90°) a obrys držáku: dřík b × l1 posunutý o f1
+(od zadní strany dříku ke **špičce**: 20/25/32/40 mm podle dříku, styl B —
+PSBNR, PCBNR — 13/17/22/27, podle katalogů Sandvik/Indexa),
 hlava za destičkou s úlevou 3° od hran (u κr ≥ 90° nevyčnívá přes
-prodloužení hlavní hrany, takže nevadí v osazení). Hlava končí **1 mm za
+prodloužení hlavní hrany, takže nevadí v osazení); spodek hlavy na straně
+obrobené plochy stoupá o 20° víc než vedlejší hrana (s +3° se hlava dotýkala
+schodů po zanořování — kolize). Hlava končí **1 mm za
 břity** (kulatá 0,5 mm od kružnice) — destička přesahuje lůžko jako
 u skutečného držáku; kdyby hlava končila přesně na břitu, dotkla by se
 zbytku po předchozím průchodu a CAM by průchody zkracoval (do 6. 10. 2026

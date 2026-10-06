@@ -66,6 +66,11 @@ const INSERTS = {
 /** Úhel hřbetu pozitivní destičky (ISO 1832 poz. 2): VBMT 5°, ostatní 7°. */
 const POS_CLEARANCE = { V: 'B' };
 
+// f1 stylu B (κr 75°, podélně): špička leží UVNITŘ šířky dříku — Sandvik
+// DSBNR 2525M12 f1 = 22 (ostatní přesazené styly 2525: 32 — DCLNR, DSKNR,
+// DSSNR/PSSNR, PTGNR, PTFNR). 1616/2020/3232 odvozeno stejnou řadou.
+const F1_STYLE_B = { 1616: 13, 2020: 17, 2525: 22, 3232: 27 };
+
 // Typy držáků. neg/pos = písmeno upnutí (ISO 5608 poz. 1) pro negativní /
 // pozitivní destičku — chybí-li, varianta se nenabízí. face = κr se měří
 // k čelu (styl F, K). neutral = dřík souměrně nad špičkou (ruka N).
@@ -76,9 +81,9 @@ export const ISO_HOLDER_TYPES = [
     desc: 'Podélné i čelní do osazení 90°. Trigon 80° — pevná špička, 6 břitů.' },
   { id: 'TG', shape: 'T', style: 'G', kr: 90, neg: 'P', pos: 'S', groups: ['long'],
     desc: 'Podélné soustružení do osazení 90°. Trojúhelník — 6 (3) břitů.' },
-  { id: 'CB', shape: 'C', style: 'B', kr: 75, neg: 'P', groups: ['long'],
+  { id: 'CB', shape: 'C', style: 'B', kr: 75, neg: 'P', groups: ['long'], f1: F1_STYLE_B,
     desc: 'Podélné hrubování, κr 75° ztenčí třísku. Pevná špička, osazení 90° neudělá.' },
-  { id: 'SB', shape: 'S', style: 'B', kr: 75, neg: 'P', groups: ['long'],
+  { id: 'SB', shape: 'S', style: 'B', kr: 75, neg: 'P', groups: ['long'], f1: F1_STYLE_B,
     desc: 'Podélné hrubování (κr 75°). Čtverec — 8 břitů, nejpevnější špička.' },
   { id: 'SK', shape: 'S', style: 'K', kr: 75, face: true, neg: 'P', groups: ['face'],
     desc: 'Čelní hrubování (κr 75° k čelu). Čtverec — 8 břitů.' },
@@ -134,8 +139,20 @@ const RELIEF_DEG = 3;          // úleva boků hlavy od hran destičky
  * 15° kužele schodky, nález uživatele 6. 10. 2026). Verze 1 zůstává jen
  * kvůli poznání starých obrysů (upgradeIsoHolderProfile).
  */
-const HOLDER_GEOM = { 1: { edge: 0, round: 0.05 }, 2: { edge: 1, round: 0.5 } };
-export const ISO_HOLDER_VERSION = 2;
+//
+// Verze 3 (6. 10. 2026 večer): spodek hlavy na straně OBROBENÉ plochy (pravý
+// bok, za vedlejší hranou) stoupá o `relief` = 20° víc než vedlejší hrana,
+// ne o 3°. Změřeno na dílu uživatele (projekt_2026-10-06 (1), PSBNR):
+// úleva +3° → 4 kolize držáku, +10° → 2, +20° → 0 při stejném zbytku;
+// PCLNR 18 → 9, PWLNR 17 → 4, PSSNR 3 → 0 kolizí, PDJNR/PTGNR/PCBNR menší
+// zbytek. Hlava 3° nad čárou zanoření se dotkne schodů po zanořování. Ruční
+// obrys uživatele měl ~23°. Neutrální držáky (souměrné) zůstávají na 3°.
+const HOLDER_GEOM = {
+  1: { edge: 0, round: 0.05, relief: RELIEF_DEG },
+  2: { edge: 1, round: 0.5, relief: RELIEF_DEG },
+  3: { edge: 1, round: 0.5, relief: 20 },
+};
+export const ISO_HOLDER_VERSION = 3;
 const THREAD_FLANK_MM = 2.5;   // bok zubu AG (hloubka do P 3 mm ≈ 1,8 mm)
 
 const rad = (d) => d * Math.PI / 180;
@@ -283,15 +300,18 @@ function polygonHolder(prms, type, sh, geom) {
   const ux = (FB0.x - FA0.x) / cl, uz = (FB0.z - FA0.z) / cl;
   const d = Math.min(geom.edge / Math.sin(rad((180 - prms.toolTipAngle) / 2)), 0.3 * cl);
   const FA = { x: FA0.x + ux * d, z: FA0.z + uz * d }, FB = { x: FB0.x - ux * d, z: FB0.z - uz * d };
-  const minX = Math.min(...segPoints(cut).map((p) => p.x));
   const maxZ = Math.max(...segPoints(buildInsertOutlineSegments(prms)).map((p) => p.z));
-  const xL = type.neutral ? -sh.b / 2 : minX + (sh.f1 - sh.b);
-  const xR = xL + sh.b;
+  // f1 (ISO 5610, katalogy) = zadní strana dříku → ŠPIČKA (nos), ne nejvzdálenější
+  // roh destičky — u PSSNR/PSBNR je roh destičky jinde než špička.
+  const xTip = Math.min(...segPoints([cut[3]]).map((p) => p.x));
+  const f1 = (type.f1 && type.f1[sh.code]) || sh.f1;
+  const xR = type.neutral ? sh.b / 2 : xTip + f1;
+  const xL = xR - sh.b;
   // Velká destička v úzkém (neutrálním) dříku: hlava je širší než dřík a na
   // horní hraně hlavy se do dříku zúží (vlevo to samo řeší leftFlank).
   const xHR = Math.max(xR, FA.x + 1);
   const theta = prms.toolAngle, eps = prms.toolTipAngle;
-  const right = rightFlank(FA, Math.max(theta, 0) + RELIEF_DEG, xHR);
+  const right = rightFlank(FA, Math.max(theta, 0) + (type.neutral ? RELIEF_DEG : geom.relief), xHR);
   const zTop = Math.max(1.3 * sh.b, right[1].z + 2, maxZ + 2, FB.z + 2);
   const left = leftFlank(FB, theta + eps - RELIEF_DEG, xL, zTop, FB0);
   const step = xHR > xR ? [{ x: xHR, z: zTop }, { x: xR, z: zTop }] : [];
@@ -521,7 +541,9 @@ export function upgradeIsoHolderProfile(name, vbdCode, holderProfile) {
     const old = buildIsoKnife(parsed.id, { ...parsed.opts, holderVersion: v });
     if (!old || old.name !== name || loopKey(old.tool.holderProfile) !== key) continue;
     const cur = buildIsoKnife(parsed.id, parsed.opts);
-    return cur && cur.name === name ? cur.tool.holderProfile : null;
+    // Mezi verzemi beze změny (neutrální držáky v3) → není co převádět.
+    if (!cur || cur.name !== name || loopKey(cur.tool.holderProfile) === key) return null;
+    return cur.tool.holderProfile;
   }
   return null;
 }
