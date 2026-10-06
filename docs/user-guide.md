@@ -1077,6 +1077,11 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (zadá se jedno, druhé se dopočítá žlutě), délka hlavního břitu a hloubka hrotu
   H + L, když má díra mít plný průměr do hloubky H. Výpočet počítá s teoretickou
   špičkou (bez příčného břitu).
+  Sekce **⚙️ Řezné podmínky vrtání**: materiál a vrták (HSS / SK) → doporučená
+  řezná rychlost vc a posuv f ≈ k·D^0,6 (prázdné pole = doporučená hodnota),
+  otáčky n, posuvová rychlost vf, strojní čas po dráze nájezd + H + L + přejezd,
+  řezný výkon Pc = f·vc·D·kc / 240 000, krouticí moment Mc = f·D²·kc / 8 000
+  a osová síla Ff ≈ 0,5·kc·(D/2)·f·sin(σ/2). Hodnoty jsou orientační.
 - **Korekce rε** (Další kalkulačky) – korekce na rádius špičky nože, když se
   programuje bez G41/G42 (řídicí systém pak vede teoretickou špičku P):
   - *Sražení / kužel*: úhel α od osy Z → posun bodů ležících na válci

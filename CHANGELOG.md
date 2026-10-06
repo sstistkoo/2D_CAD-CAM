@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vrták: ⚙️ Řezné podmínky vrtání** (uživatel 6. 10. 2026) – materiál
+  a HSS/SK → doporučená vc a f (f ≈ k·D^0,6), otáčky, posuvová rychlost,
+  strojní čas včetně délky špičky L, výkon, krouticí moment a osová síla
+  (vzorce Sandvik). `drillCuttingMath.js` + test, sekce `drillCutting.js`.
+  SW v382.
 - **Kalkulačka ◢ Korekce rε** v Další kalkulačky (uživatel 6. 10. 2026) –
   korekce na rádius špičky nože bez G41/G42: sražení a kužel (ΔZ, ΔX, chyba
   obrysu, programované body sražení + řádky G1, i zpětný kužel) a rádius 90°

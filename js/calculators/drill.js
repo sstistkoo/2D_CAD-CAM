@@ -5,6 +5,7 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { DRILL_PRESETS, drillTipLength, drillDiameterAtDepth, drillLipLength } from './drillGeometry.js';
+import { drillCuttingHtml, wireDrillCutting } from './drillCutting.js';
 import {
   fmt, numVal as val, numField as field, outRow as row, outWarn as warn, outHint as hint,
   copyText, svgEl as el, svgClear, svgArrow as arrow, svgDimH as dimH,
@@ -32,6 +33,7 @@ export function openDrillCalc() {
     '<div class="cnc-fields">' +
       field('H', 'H', 'mm', 'Hloubka plného Ø') +
     '</div>' +
+    drillCuttingHtml() +
     '<div class="cnc-actions">' +
       '<button class="cnc-btn cnc-btn-clear">🗑 Vymazat</button>' +
       '<button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button>' +
@@ -57,6 +59,7 @@ export function openDrillCalc() {
   let activePreset = 0;   // -1 = úhel neodpovídá zvolené předvolbě (vlastní)
   let edgeSrc = null;     // 'd' | 'h' – které z dvojice zadal uživatel (druhé se dopočítá)
   let last = null;        // poslední platný výsledek – pro Kopírovat
+  const cut = wireDrillCutting(overlay);
 
   function showPreset() {
     rows.forEach((r, i) => r.classList.toggle('calc-row-active', i === activePreset));
@@ -100,6 +103,10 @@ export function openDrillCalc() {
 
     draw(Dok ? D : null, angleOk ? a : null, dEdge, hEdge);
     last = null;
+    cut.update({
+      D: Dok ? D : null, a: angleOk ? a : null, L: Number.isFinite(L) ? L : null,
+      H: Number.isFinite(H) && H >= 0 ? H : null,
+    });
 
     let html;
     if (!angleOk) {
@@ -227,6 +234,7 @@ export function openDrillCalc() {
 
   overlay.querySelector('.cnc-btn-clear').addEventListener('click', () => {
     ['D', 'd', 'h', 'H'].forEach(id => { inp[id].value = ''; inp[id].classList.remove('computed'); });
+    ['dcVc', 'dcF', 'dcOver'].forEach(id => { overlay.querySelector('[data-id="' + id + '"]').value = ''; });
     edgeSrc = null;
     solve();
   });
@@ -235,6 +243,7 @@ export function openDrillCalc() {
     const p = ['Vrták Ø' + fmt(last.D), 'σ=' + fmt(last.a, 2) + '°', 'L=' + fmt(last.L) + ' mm'];
     if (last.dEdge !== null) p.push('Ø' + fmt(last.dEdge) + ' v h=' + fmt(last.hEdge) + ' mm' + (last.full ? ' (plný Ø)' : ''));
     if (last.tipDepth !== null) p.push('H=' + fmt(last.H) + ' → hrot ' + fmt(last.tipDepth) + ' mm');
+    p.push(...cut.summary());
     copyText(p.join('  '));
   });
 

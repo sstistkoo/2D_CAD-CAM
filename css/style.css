@@ -4382,6 +4382,21 @@ body {
   white-space: pre;
   overflow-x: auto;
 }
+.calc-details {
+  border: 1px solid var(--ctp-surface0);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+.calc-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ctp-text);
+  padding: 2px 0;
+}
+.calc-details[open] > summary { margin-bottom: 8px; }
+.calc-details .calc-out { margin-bottom: 6px; }
 /* Náčrty: materiál, obrys, nůž, dráha, díry, válečky */
 .calc-svg .cs-mat { fill: var(--ctp-surface1); stroke: none; }
 .calc-svg .cs-contour { fill: none; stroke: var(--ctp-text); stroke-width: 2; stroke-linejoin: round; }
