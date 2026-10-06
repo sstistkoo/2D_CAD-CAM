@@ -86,6 +86,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Kontrola všech tolerancí proti nezávislým tabulkám** (uživatel 6. 10. 2026):
+  - *ISO 286* – porovnáno s CADForum.cz (1 480 hodnot), Mitsubishi Materials
+    (863) a Miki Pulley / JIS B 0401 (1 269, shoda 100 %), tabulka IT1–IT18
+    s Wikipedií (234/234), a/b/c/s mimo tabulky se vzorci ISO 286-1. Opraveno:
+    chyběla normová výjimka **M6 pro 250–315 mm = −9/−41** (bylo −11/−43);
+    js7–js11 s lichou IT ukazují ±IT/2 (aktuální tabulky) a poznámku se starším
+    zaokrouhlením (ISO 286-2:1988: ±10 místo ±10,5); a, b, A, B do 1 mm hlásí,
+    že se nepoužívají. Rozdíly ve zdrojích (CADForum f6 120–180, E7 315–400,
+    K6 6–10) jsou jejich překlepy – nesedí šířka pole s IT.
+  - *ISO 2768-1* – tabulka volných rozměrů sedí ve všech 32 polích.
+  - *ISO 965 (závity)* – vzorce ISO 965-1 + zaokrouhlení R40 normové tabulky
+    nereprodukují (M36 6g d min 35,490 místo **35,465**; M3 6H D1 max 2,591
+    místo **2,599**; M3 6g d2 min 2,575 místo 2,580 …). Nově `iso965Data.js`
+    s tabulkami ISO 965-1 (Td, Td2, TD1, TD2, úchylky e/f/g) ověřenými poměry
+    stupňů a proti mezním rozměrům ISO 965-2 (Optimas, 175/180 – zbytek překlepy
+    zdroje); vzorec jen mimo tabulky (M1–M1,4) s upozorněním „orientačně".
+  - Regresní testy s referenčními daty: `tests/iso286-reference.test.js`
+    (1 484 hodnot), `tests/iso965-reference.test.js` (42 závitů). SW v393.
 - **VBD & Držáky: dekodér podle ISO 1832 / 5608** (kontrola 6. 10. 2026): chyběla
   3. pozice (třída přesnosti M – nejběžnější), G popsáno jako „utvařeč horní"
   (je oboustranný), T jako „obě strany" (je jednostranný se zahloubením 40–60°),

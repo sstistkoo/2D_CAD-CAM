@@ -15,6 +15,18 @@ describe('ISO 965 – tolerance 6g/6H', () => {
   it('M20×2,5', () => expect(lim(20, 2.5)).toEqual({ d: [19.958, 19.623], d2: [18.334, 18.164], D2: [18.376, 18.600], D1: [17.294, 17.744] }));
 });
 
+describe('ISO 965 – hodnoty, kde se vzorec + R40 od tabulek liší', () => {
+  it('M3 6H D1 2,459…2,599 (TD1 = 140, vzorec 132); M36 6g d min 35,465 (Td P4 = 475, vzorec 450)', () => {
+    expect(lim(3, 0.5).D1).toEqual([2.459, 2.599]);
+    expect(lim(36, 4).d[1]).toBe(35.465);
+    expect(lim(3, 0.5).d2).toEqual([2.655, 2.58]);
+  });
+  it('mimo tabulky (M1, Ø do 1,4 mm) – vzorec s příznakem approx', () => {
+    expect(iso965Limits(1, 0.25, '6h', '6H').approx.length).toBeGreaterThan(0);
+    expect(iso965Limits(10, 1.5, '6g', '6H').approx).toEqual([]);
+  });
+});
+
 describe('ISO 965 – ostatní stupně (M10×1,5)', () => {
   it('4g: Td2 85, Td 150; 8g: Td 375; 7H: TD2 224, TD1 375; 5H: TD1 236', () => {
     expect(gradeTolerances(10, 1.5, 4)).toMatchObject({ Td2: 85, Td: 150 });

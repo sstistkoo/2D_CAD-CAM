@@ -107,8 +107,17 @@ export function deviations(letter, grade, dim) {
   const hole = letter !== letter.toLowerCase();
   const l = letter.toLowerCase();
   if (!SHAFT_LETTERS.includes(l)) return { error: 'Neznámé písmeno ' + letter };
+  if ((l === 'a' || l === 'b') && dim <= 1) return { error: 'Pole a, b, A, B se podle ISO 286 pro rozměry do 1 mm nepoužívají' };
 
-  if (l === 'js') return { upper: tol / 2, lower: -tol / 2, tol };
+  if (l === 'js') {
+    const r = { upper: tol / 2, lower: -tol / 2, tol };
+    // ISO 286-2:1988 (a katalogy z ní – např. Mitsubishi) u js7–js11 s lichou IT
+    // zaokrouhlovala dolů na sudé (±10 místo ±10,5); aktuální tabulky uvádějí ±IT/2.
+    if (grade >= 7 && grade <= 11 && tol % 2 === 1) {
+      r.note = 'Starší tabulky (ISO 286-2:1988 a katalogy z ní) uvádějí zaokrouhleně ±' + (tol - 1) / 2 + ' µm.';
+    }
+    return r;
+  }
 
   if (l === 'j') {
     const tbl = hole ? J_HOLE[grade] : J_SHAFT[grade];
@@ -135,6 +144,7 @@ export function deviations(letter, grade, dim) {
   } else if (l === 'm') {
     const ei = EI_MAIN.m[ri];
     ES = !over3 ? -2 : grade <= 8 ? -ei + delta : -ei;
+    if (grade === 6 && dim > 250 && dim <= 315) ES = -9;   // výjimka ISO 286: M6 250–315 mm = −9 (ne −11)
   } else if (l === 'n') {
     const ei = EI_MAIN.n[ri];
     ES = !over3 ? -4 : grade <= 8 ? -ei + delta : 0;

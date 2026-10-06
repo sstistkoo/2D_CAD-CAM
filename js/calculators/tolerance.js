@@ -140,7 +140,8 @@ export function openToleranceCalc() {
       '<strong>' + tolLabel + '</strong><br>' +
       'Horní úchylka: ' + sign(r.upper) + ' µm │ Dolní: ' + sign(r.lower) + ' µm<br>' +
       'Ø max: <strong>' + dimMax.toFixed(4).replace(/0$/, '') + '</strong> mm │ Ø min: <strong>' + dimMin.toFixed(4).replace(/0$/, '') + '</strong> mm<br>' +
-      'Tolerance: ' + r.tol + ' µm (' + (r.tol / 1000).toFixed(4).replace(/0$/, '') + ' mm)';
+      'Tolerance: ' + r.tol + ' µm (' + (r.tol / 1000).toFixed(4).replace(/0$/, '') + ' mm)' +
+      (r.note ? '<br><small style="color:#a6adc8">' + r.note + '</small>' : '');
   }
 
   inpDim.addEventListener("input", calc);
@@ -195,7 +196,8 @@ export function openToleranceCalc() {
         ? 'Vůle: <strong>' + mm(f.minClearance) + '</strong> – <strong>' + mm(f.maxClearance) + '</strong> mm'
         : (f.type === 'přesah'
           ? 'Přesah: <strong>' + mm(-f.maxClearance) + '</strong> – <strong>' + mm(-f.minClearance) + '</strong> mm'
-          : 'Vůle max: <strong>' + mm(f.maxClearance) + '</strong> mm │ Přesah max: <strong>' + mm(-f.minClearance) + '</strong> mm'));
+          : 'Vůle max: <strong>' + mm(f.maxClearance) + '</strong> mm │ Přesah max: <strong>' + mm(-f.minClearance) + '</strong> mm')) +
+      [hDev.note, sDev.note].filter(Boolean).map(function(n) { return '<br><small style="color:#a6adc8">' + n + '</small>'; }).join('');
   }
 
   fitHoleInp.addEventListener("input", calcFit);

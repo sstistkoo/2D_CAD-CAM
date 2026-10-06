@@ -53,6 +53,22 @@ describe('ISO 286 – díry', () => {
     expect(dev('N', 7, 2)).toEqual([-4, -14]);
     expect(dev('P', 7, 2)).toEqual([-6, -16]);
   });
+  it('výjimka M6 pro 250–315 mm: −9/−41 (ne −11/−43)', () => {
+    expect(dev('M', 6, 260)).toEqual([-9, -41]);
+    expect(dev('M', 6, 315)).toEqual([-9, -41]);
+    expect(dev('M', 6, 320)).toEqual([-10, -46]);
+  });
+  it('js7–js11 s lichou IT: ±IT/2 + poznámka se starším zaokrouhlením', () => {
+    const r = deviations('js', 7, 25);
+    expect([r.upper, r.lower]).toEqual([10.5, -10.5]);
+    expect(r.note).toMatch(/±10 µm/);
+    expect(deviations('js', 6, 25).note).toBeUndefined();
+  });
+  it('a, b, A, B se do 1 mm nepoužívají', () => {
+    expect(deviations('a', 11, 0.8).error).toBeTruthy();
+    expect(deviations('B', 11, 1).error).toBeTruthy();
+    expect(deviations('c', 11, 0.8).error).toBeUndefined();
+  });
   it('nedefinované j/J stupně vrátí chybu', () => {
     expect(deviations('j', 9, 25).error).toBeTruthy();
     expect(deviations('J', 5, 25).error).toBeTruthy();

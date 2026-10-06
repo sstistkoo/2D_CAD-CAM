@@ -238,7 +238,11 @@ export function openThreadCalc() {
         '<tr><td>\u0160roub d</td><td>' + D.toFixed(3) + ' \u2192 <strong>' + tol.d_min.toFixed(3) + ' \u2026 ' + tol.d_max.toFixed(3) + '</strong> mm</td></tr>' +
         '<tr><td>\u0160roub d\u2082</td><td>' + d2.toFixed(3) + ' \u2192 <strong>' + tol.d2_min.toFixed(3) + ' \u2026 ' + tol.d2_max.toFixed(3) + '</strong> mm</td></tr>' +
         '<tr><td>Matice D\u2081</td><td>' + D1.toFixed(3) + ' \u2192 <strong>' + tol.D1_min.toFixed(3) + ' \u2026 ' + tol.D1_max.toFixed(3) + '</strong> mm</td></tr>' +
-        '<tr><td>Matice D\u2082</td><td>' + d2.toFixed(3) + ' \u2192 <strong>' + tol.D2_min.toFixed(3) + ' \u2026 ' + tol.D2_max.toFixed(3) + '</strong> mm</td></tr>';
+        '<tr><td>Matice D\u2082</td><td>' + d2.toFixed(3) + ' \u2192 <strong>' + tol.D2_min.toFixed(3) + ' \u2026 ' + tol.D2_max.toFixed(3) + '</strong> mm</td></tr>' +
+        (tol.approx && tol.approx.length
+          ? '<tr><td colspan="2" class="thr-pass-note" style="color:#fab387">⚠ ' + tol.approx.join(', ') +
+            ' mimo tabulky ISO 965-1 – dopočteno vzorcem, orientačně.</td></tr>'
+          : '');
       tolCopy = '\n\u2500\u2500 Tolerance ' + extClass + '/' + intClass + ' \u2500\u2500\n' +
         fmtCopy('\u0160roub d', tol.d_min.toFixed(3) + ' \u2026 ' + tol.d_max.toFixed(3) + ' mm') + '\n' +
         fmtCopy('\u0160roub d\u2082', tol.d2_min.toFixed(3) + ' \u2026 ' + tol.d2_max.toFixed(3) + ' mm') + '\n' +
