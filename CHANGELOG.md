@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Panel Vlastnosti – úprava souřadnic nepřepočítala průsečíky ani CNC
+  kód** (uživatel 6. 10. 2026) – po přepsání X/Z, délky, úhlu, středu nebo
+  poloměru v panelu se jen překreslilo: body průsečíků (přichytávání)
+  zůstaly na staré poloze a panel CNC KÓD ukazoval starou geometrii.
+  Totéž přepínač Kontura/Polotovar. Nově `_afterGeomEdit()` (kóty +
+  `calculateAllIntersections`, která obnoví i CNC panel). SW v375.
 - **Import projektu a SVG** (uživatel 5. 10. 2026):
   - projekt s **výplní** (Vybarvit) nešel importovat vůbec – typ `fill`
     chyběl v seznamu povolených; nově se kontrolují i body kontur a smyček;

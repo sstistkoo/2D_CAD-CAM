@@ -741,6 +741,18 @@ function scrollCncToObject(obj) {
 
 // ── Vlastnosti objektu ──
 /** Aktualizuje panel vlastností vybraného objektu. */
+/**
+ * Po ruční úpravě geometrie v panelu Vlastnosti: asociativní kóty, průsečíky
+ * (body přichycení) a CNC panel (obnovuje se z calculateAllIntersections,
+ * která i překreslí). Dřív se jen překreslovalo – průsečíky zůstaly na
+ * staré poloze a CNC kód ze staré geometrie.
+ */
+function _afterGeomEdit() {
+  updateAssociativeDimensions();
+  if (bridge.calculateAllIntersections) bridge.calculateAllIntersections();
+  else renderAll();
+}
+
 export function updateProperties() {
   const tbody = document.querySelector("#propTable tbody");
   tbody.innerHTML = "";
@@ -786,8 +798,7 @@ export function updateProperties() {
       if (!isNaN(v)) {
         pushUndo();
         onChange(v);
-        updateAssociativeDimensions();
-        renderAll();
+        _afterGeomEdit();
         refreshComputedProps();
       }
     });
@@ -920,7 +931,7 @@ export function updateProperties() {
       pushUndo();
       const toStock = sel.value === 'stock';
       allObjs.forEach(o => { o.isStock = toStock; });
-      renderAll();
+      _afterGeomEdit();   // kontura/polotovar mění i CNC výstup
       updateObjectList();
       updateProperties();
     });
@@ -1172,28 +1183,28 @@ export function updateProperties() {
         if (isNaN(v)) return;
         pushUndo(); obj.x1 = v;
         syncPolarFromObj();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
       });
       inpY1.addEventListener("change", () => {
         const v = safeEvalMath(inpY1.value);
         if (isNaN(v)) return;
         pushUndo(); obj.y1 = v;
         syncPolarFromObj();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
       });
       inpX2.addEventListener("change", () => {
         const v = safeEvalMath(inpX2.value);
         if (isNaN(v)) return;
         pushUndo(); obj.x2 = v;
         syncPolarFromObj();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
       });
       inpY2.addEventListener("change", () => {
         const v = safeEvalMath(inpY2.value);
         if (isNaN(v)) return;
         pushUndo(); obj.y2 = v;
         syncPolarFromObj();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
       });
 
       // Wire polar inputs
@@ -1202,14 +1213,14 @@ export function updateProperties() {
         if (isNaN(v)) return;
         pushUndo();
         syncFromPolar();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
       });
       inpAng.addEventListener("change", () => {
         const v = safeEvalMath(inpAng.value);
         if (isNaN(v)) return;
         pushUndo();
         syncFromPolar();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
       });
 
       // When anchor changes, update angle display
@@ -1233,7 +1244,7 @@ export function updateProperties() {
       cInpH.value = obj.cx.toFixed(3);
       cInpH.addEventListener("keydown", (e) => { if (e.key === "Enter") cInpH.blur(); e.stopPropagation(); });
       cInpH.addEventListener("focus", () => cInpH.select());
-      cInpH.addEventListener("change", () => { const v = safeEvalMath(cInpH.value); if (!isNaN(v)) { pushUndo(); obj.cx = v; updateAssociativeDimensions(); renderAll(); } });
+      cInpH.addEventListener("change", () => { const v = safeEvalMath(cInpH.value); if (!isNaN(v)) { pushUndo(); obj.cx = v; _afterGeomEdit(); } });
       cGrid.appendChild(cInpH);
       const cLblV = document.createElement("span"); cLblV.className = "coord-label"; cLblV.textContent = "S." + V;
       cGrid.appendChild(cLblV);
@@ -1241,7 +1252,7 @@ export function updateProperties() {
       cInpV.value = obj.cy.toFixed(3);
       cInpV.addEventListener("keydown", (e) => { if (e.key === "Enter") cInpV.blur(); e.stopPropagation(); });
       cInpV.addEventListener("focus", () => cInpV.select());
-      cInpV.addEventListener("change", () => { const v = safeEvalMath(cInpV.value); if (!isNaN(v)) { pushUndo(); obj.cy = v; updateAssociativeDimensions(); renderAll(); } });
+      cInpV.addEventListener("change", () => { const v = safeEvalMath(cInpV.value); if (!isNaN(v)) { pushUndo(); obj.cy = v; _afterGeomEdit(); } });
       cGrid.appendChild(cInpV);
 
       const cLblR = document.createElement("span"); cLblR.className = "coord-label"; cLblR.textContent = "r";
@@ -1250,7 +1261,7 @@ export function updateProperties() {
       cInpR.value = obj.r.toFixed(3);
       cInpR.addEventListener("keydown", (e) => { if (e.key === "Enter") cInpR.blur(); e.stopPropagation(); });
       cInpR.addEventListener("focus", () => cInpR.select());
-      cInpR.addEventListener("change", () => { const v = safeEvalMath(cInpR.value); if (!isNaN(v) && v > 0) { pushUndo(); obj.r = v; updateAssociativeDimensions(); renderAll(); cInpD.value = (obj.r * 2).toFixed(3); cInpO.value = (2 * Math.PI * obj.r).toFixed(3); } });
+      cInpR.addEventListener("change", () => { const v = safeEvalMath(cInpR.value); if (!isNaN(v) && v > 0) { pushUndo(); obj.r = v; _afterGeomEdit(); cInpD.value = (obj.r * 2).toFixed(3); cInpO.value = (2 * Math.PI * obj.r).toFixed(3); } });
       cGrid.appendChild(cInpR);
       const cLblD = document.createElement("span"); cLblD.className = "coord-label"; cLblD.textContent = "⌀";
       cGrid.appendChild(cLblD);
@@ -1282,7 +1293,7 @@ export function updateProperties() {
       aInpH.value = obj.cx.toFixed(3);
       aInpH.addEventListener("keydown", (e) => { if (e.key === "Enter") aInpH.blur(); e.stopPropagation(); });
       aInpH.addEventListener("focus", () => aInpH.select());
-      aInpH.addEventListener("change", () => { const v = safeEvalMath(aInpH.value); if (!isNaN(v)) { pushUndo(); obj.cx = v; updateAssociativeDimensions(); renderAll(); } });
+      aInpH.addEventListener("change", () => { const v = safeEvalMath(aInpH.value); if (!isNaN(v)) { pushUndo(); obj.cx = v; _afterGeomEdit(); } });
       aGrid.appendChild(aInpH);
       const aLblV = document.createElement("span"); aLblV.className = "coord-label"; aLblV.textContent = "S." + V;
       aGrid.appendChild(aLblV);
@@ -1290,7 +1301,7 @@ export function updateProperties() {
       aInpV.value = obj.cy.toFixed(3);
       aInpV.addEventListener("keydown", (e) => { if (e.key === "Enter") aInpV.blur(); e.stopPropagation(); });
       aInpV.addEventListener("focus", () => aInpV.select());
-      aInpV.addEventListener("change", () => { const v = safeEvalMath(aInpV.value); if (!isNaN(v)) { pushUndo(); obj.cy = v; updateAssociativeDimensions(); renderAll(); } });
+      aInpV.addEventListener("change", () => { const v = safeEvalMath(aInpV.value); if (!isNaN(v)) { pushUndo(); obj.cy = v; _afterGeomEdit(); } });
       aGrid.appendChild(aInpV);
 
       const aLblR = document.createElement("span"); aLblR.className = "coord-label"; aLblR.textContent = "r";
@@ -1299,7 +1310,7 @@ export function updateProperties() {
       aInpR.value = obj.r.toFixed(3);
       aInpR.addEventListener("keydown", (e) => { if (e.key === "Enter") aInpR.blur(); e.stopPropagation(); });
       aInpR.addEventListener("focus", () => aInpR.select());
-      aInpR.addEventListener("change", () => { const v = safeEvalMath(aInpR.value); if (!isNaN(v) && v > 0) { pushUndo(); obj.r = v; updateAssociativeDimensions(); renderAll(); } });
+      aInpR.addEventListener("change", () => { const v = safeEvalMath(aInpR.value); if (!isNaN(v) && v > 0) { pushUndo(); obj.r = v; _afterGeomEdit(); } });
       aGrid.appendChild(aInpR);
       aGrid.appendChild(document.createElement("span")); // empty
       aGrid.appendChild(document.createElement("span")); // empty
@@ -1310,7 +1321,7 @@ export function updateProperties() {
       aInpS.value = (obj.startAngle * 180 / Math.PI).toFixed(2);
       aInpS.addEventListener("keydown", (e) => { if (e.key === "Enter") aInpS.blur(); e.stopPropagation(); });
       aInpS.addEventListener("focus", () => aInpS.select());
-      aInpS.addEventListener("change", () => { const v = safeEvalMath(aInpS.value); if (!isNaN(v)) { pushUndo(); obj.startAngle = v * Math.PI / 180; updateAssociativeDimensions(); renderAll(); } });
+      aInpS.addEventListener("change", () => { const v = safeEvalMath(aInpS.value); if (!isNaN(v)) { pushUndo(); obj.startAngle = v * Math.PI / 180; _afterGeomEdit(); } });
       aGrid.appendChild(aInpS);
       const aLblE = document.createElement("span"); aLblE.className = "coord-label"; aLblE.textContent = "Konec°";
       aGrid.appendChild(aLblE);
@@ -1318,7 +1329,7 @@ export function updateProperties() {
       aInpE.value = (obj.endAngle * 180 / Math.PI).toFixed(2);
       aInpE.addEventListener("keydown", (e) => { if (e.key === "Enter") aInpE.blur(); e.stopPropagation(); });
       aInpE.addEventListener("focus", () => aInpE.select());
-      aInpE.addEventListener("change", () => { const v = safeEvalMath(aInpE.value); if (!isNaN(v)) { pushUndo(); obj.endAngle = v * Math.PI / 180; updateAssociativeDimensions(); renderAll(); } });
+      aInpE.addEventListener("change", () => { const v = safeEvalMath(aInpE.value); if (!isNaN(v)) { pushUndo(); obj.endAngle = v * Math.PI / 180; _afterGeomEdit(); } });
       aGrid.appendChild(aInpE);
 
       aGridTd.appendChild(aGrid);
@@ -1435,7 +1446,7 @@ export function updateProperties() {
           const delta = v - curCorners[cornerIdx][axis];
           if (axis === 'x') { obj.x1 += delta; obj.x2 += delta; }
           else { obj.y1 += delta; obj.y2 += delta; }
-          updateAssociativeDimensions(); renderAll();
+          _afterGeomEdit();
           updateProperties();
         });
       }
@@ -1449,14 +1460,14 @@ export function updateProperties() {
         if (isNaN(safeEvalMath(rW.value))) return;
         pushUndo();
         syncRectFromWH();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
         updateProperties();
       });
       rH.addEventListener("change", () => {
         if (isNaN(safeEvalMath(rH.value))) return;
         pushUndo();
         syncRectFromWH();
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
         updateProperties();
       });
 
@@ -1482,7 +1493,7 @@ export function updateProperties() {
           obj.x1 += pivot.x - newPivot.x; obj.y1 += pivot.y - newPivot.y;
           obj.x2 += pivot.x - newPivot.x; obj.y2 += pivot.y - newPivot.y;
         }
-        updateAssociativeDimensions(); renderAll();
+        _afterGeomEdit();
         updateProperties();
       });
 
