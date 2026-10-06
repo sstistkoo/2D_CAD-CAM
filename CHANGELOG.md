@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kalkulačka ◎ Rozteč děr** v Další kalkulačky (uživatel 6. 10. 2026) –
+  díry na roztečné kružnici: celý kruh nebo zadaná rozteč, směr, střed;
+  tabulka X/Y a úhlu C, vzdálenost sousedních děr, můstek / překrytí, náčrt.
+  `boltCircleMath.js` + test, okno `boltCircle.js`. SW v384.
 - **Řezné podmínky: 🔁 G96 – konstantní řezná rychlost** (uživatel 6. 10.
   2026) – mezní průměr při omezení otáček (LIMS / G50 S), strojní čas čelení
   i kužele s G96 (integrace přes průměr, část na limitu otáček zvlášť),

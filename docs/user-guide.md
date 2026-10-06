@@ -1099,6 +1099,11 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     válci o rε v Z. Se zadaným Ø D vypíše body i středy oblouků.
   - Vnější i vnitřní (vyvrtávací) nůž, soustružení ke sklíčidlu; náčrt ukazuje
     obrys, nůž a dráhu teoretické špičky.
+- **Rozteč děr** (Další kalkulačky) – díry na roztečné kružnici: počet děr,
+  roztečný průměr, úhel první díry θ₀, celý kruh nebo zadaná úhlová rozteč Δθ,
+  směr (proti / po směru hodin) a střed X/Y. Vypíše tabulku X, Y a úhlu C
+  (soustruh s osou C: X = roztečný průměr, C = úhel), vzdálenost středů
+  sousedních děr a se zadaným Ø díry i můstek (nebo upozorní na překrytí).
 - **Taper** – kuželové zkrácení
 - **Závity** – převodné tabulky
 - **Převody** – jednotky (mm/inch, RPM/SFM)
