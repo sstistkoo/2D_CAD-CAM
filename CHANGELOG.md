@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Podélné hrubování: poslední vrstva už nepustí držák do stojícího
+  zbytku** (nález 6. 10. 2026 na dílu uživatele — PCLNR 9 kolizí držáku
+  až 24 mm², PWLNR 4). Údolí za hrbem bylo pro nůž s vedlejší hranou 5°
+  nedosažitelné, pás odlitku na kuželi stál. Hloubková smyčka vrstvy
+  u levé stěny kvůli držáku nevydala (model zbytku, `entryHolderArea`),
+  ale blok „poslední (kratší) vrstva před nedosažitelnou hranicí" je
+  bisekcí vrátil — jeho sken zná jen hotovou konturu. Bisekce se teď na
+  držák ptá stejně (pravidlo 2). PCLNR 9 → 0, PWLNR 4 → 0 kolizí; zbytek
+  u stěny zůstane a ukáže se jako „nedojeto" (PCLNR 1831 → 1940 mm²).
+  Otisk všech 29 fixtures shodný. Test `cam-closing-layer-holder`. SW v401.
 - **Čelní hrubování nožem PSKNR: průchody na osu a čistý 15° kužel**
   (nález uživatele 6. 10. 2026 — „u každého záběru schodek, každá další
   dráha skončí dřív"). Dvě příčiny, obě změřené na jeho dílu:

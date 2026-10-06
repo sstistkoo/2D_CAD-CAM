@@ -1727,7 +1727,17 @@ export function genLongPasses(ctx) {
         const mid = (loX + hiX) / 2;
         const ms = scan(mid, entryZ, effZMin, true);
         const iv0 = (ms.firstOpen && ms.intervals.length > 0) ? ms.intervals[0] : null;
-        if (iv0 && iv0.zStart - iv0.zEnd >= dzScan) { bestIv = iv0; bestX = mid; hiX = mid; }
+        // Pravidlo 2 (držák se musí vejít) i tady: sken intervalů zná jen
+        // hotovou konturu a konce mělčích průchodů, ne materiál, který STOJÍ
+        // (nedosažitelné údolí vpravo). Hloubková smyčka se na to ptá modelu
+        // zbytku (`entryHolderArea`, viz posun vjezdu výš) — tahle bisekce ne,
+        // a tak sem vracela právě vrstvy, které hloubková smyčka kvůli držáku
+        // nevydala. Nález uživatele 6. 10. 2026: PCLNR u levé stěny údolí,
+        // svislý sjezd u Z 78,5 a hlava 31 mm vpravo v pásu odlitku na kuželi
+        // (9 kolizí držáku až 24 mm²; PWLNR 4).
+        const holderOk = !iv0 || !orderAware
+          || entryHolderArea(mid, iv0.zStart + entryApproachDz(prms)) <= ENTRY_FIT_TOL;
+        if (iv0 && iv0.zStart - iv0.zEnd >= dzScan && holderOk) { bestIv = iv0; bestX = mid; hiX = mid; }
         else loX = mid;
       }
       if (bestIv && lastDepthWithPasses - bestX > 0.1) {
