@@ -58,8 +58,10 @@ export function openDrillCalc() {
   const resultEl = overlay.querySelector('#drillResult');
   const presetInfo = overlay.querySelector('#drillPresetInfo');
   const rows = overlay.querySelectorAll('#drillPresetTbl tbody tr');
-  let activePreset = 0;
-  let edgeSrc = null;   // 'd' | 'h' – které z dvojice zadal uživatel (druhé se dopočítá)
+  let presetIdx = 0;      // naposledy zvolená předvolba z tabulky
+  let activePreset = 0;   // -1 = úhel neodpovídá zvolené předvolbě (vlastní)
+  let edgeSrc = null;     // 'd' | 'h' – které z dvojice zadal uživatel (druhé se dopočítá)
+  let last = null;        // poslední platný výsledek – pro Kopírovat
 
   function val(el) {
     if (el.value.trim() === '') return null;
@@ -74,63 +76,78 @@ export function openDrillCalc() {
     presetInfo.textContent = 'Předvolba: ' + p.name + ' – ' + p.angle + '°' + (p.type ? ', typ ' + p.type : '');
   }
 
+  const row = (label, value) => '<div class="drill-row"><span>' + label + '</span><strong>' + value + '</strong></div>';
+  const warn = (msg) => '<div class="drill-warn">' + msg + '</div>';
+  const hint = (msg) => '<div class="drill-hint">' + msg + '</div>';
+
   function solve() {
     const D = val(inp.D), a = val(inp.a), H = val(inp.H);
-    const angleOk = Number.isFinite(a) && a > 0 && a <= 180;
+    const angleOk = Number.isFinite(a) && a >= 1 && a <= 180;
+    const Dok = Number.isFinite(D) && D > 0;
+    const L = Dok && angleOk ? drillTipLength(D, a) : NaN;
+    let notes = '';
 
     // Dvojice d ↔ h: zadaná hodnota je zdroj, druhá se dopočítá (žlutě).
-    const src = edgeSrc ? inp[edgeSrc] : null;
-    const dst = edgeSrc === 'd' ? inp.h : edgeSrc === 'h' ? inp.d : null;
-    let dEdge = null, hEdge = null;
-    if (dst) {
-      const s = val(src);
+    // Hlubší než špička → vrták tam už řeže plným Ø D (ne větším).
+    let dEdge = null, hEdge = null, full = false;
+    if (edgeSrc) {
+      const dst = inp[edgeSrc === 'd' ? 'h' : 'd'];
+      const s = val(inp[edgeSrc]);
       let out = NaN;
-      if (Number.isFinite(s) && s >= 0 && angleOk) {
-        out = edgeSrc === 'd' ? drillTipLength(s, a) : drillDiameterAtDepth(s, a);
+      if (!(Number.isFinite(s) && s >= 0)) {
+        notes += warn('Neplatná hodnota ' + (edgeSrc === 'd' ? 'Ø d' : 'h') + '.');
+      } else if (angleOk && edgeSrc === 'd') {
+        if (Dok && s > D + 1e-9) notes += warn('Ø d = ' + fmt(s) + ' je větší než vrták – špička na něj nezabere.');
+        else out = drillTipLength(s, a);
+      } else if (angleOk) {
+        const raw = a === 180 ? Infinity : drillDiameterAtDepth(s, a);
+        if (Dok && raw > D) { out = D; full = true; }
+        else if (Number.isFinite(raw)) out = raw;
+        else notes += hint('Rovné čelo zabírá hned celým průměrem – zadej D.');
       }
       if (Number.isFinite(out)) { dst.value = fmt(out); dst.classList.add('computed'); }
       else { dst.value = ''; dst.classList.remove('computed'); }
-      dEdge = edgeSrc === 'd' ? s : out;
-      hEdge = edgeSrc === 'd' ? out : s;
-      if (!Number.isFinite(dEdge) || !Number.isFinite(hEdge)) { dEdge = null; hEdge = null; }
+      if (Number.isFinite(out)) {
+        dEdge = edgeSrc === 'd' ? s : out;
+        hEdge = edgeSrc === 'd' ? out : s;
+      }
     }
 
-    const Dok = Number.isFinite(D) && D > 0;
     draw(Dok ? D : null, angleOk ? a : null, dEdge, hEdge);
+    last = null;
 
+    let html;
     if (!angleOk) {
-      resultEl.innerHTML = '<div class="drill-hint">Úhel špičky σ musí být v rozsahu 1–180°.</div>';
+      resultEl.innerHTML = hint('Úhel špičky σ musí být v rozsahu 1–180°.');
       return;
     }
     if (!Dok) {
-      const k = drillTipLength(1, a);
-      resultEl.innerHTML = '<div class="drill-hint">Zadej průměr vrtáku D.</div>' +
-        '<div class="drill-formula">L = D / (2·tan(σ/2)) ≈ ' + fmt(k, 4) + '·D pro σ = ' + fmt(a, 2) + '°</div>';
-      return;
+      html = hint(D === null ? 'Zadej průměr vrtáku D.' : 'Průměr D musí být kladné číslo.') +
+        '<div class="drill-formula">L = D / (2·tan(σ/2)) ≈ ' + fmt(drillTipLength(1, a), 4) + '·D pro σ = ' + fmt(a, 2) + '°</div>';
+    } else {
+      html =
+        '<div class="drill-main">L = ' + fmt(L) + ' mm</div>' +
+        '<div class="drill-sub">vzdálenost hrot → hrana plného Ø' + fmt(D) + '</div>' +
+        row('Poměr L / D', fmt(L / D, 4)) +
+        row('Délka hlavního břitu', fmt(drillLipLength(D, a)) + ' mm');
     }
-
-    const L = drillTipLength(D, a);
-    const lip = drillLipLength(D, a);
-    let html =
-      '<div class="drill-main">L = ' + fmt(L) + ' mm</div>' +
-      '<div class="drill-sub">vzdálenost hrot → hrana plného Ø' + fmt(D) + '</div>' +
-      '<div class="drill-row"><span>Poměr L / D</span><strong>' + fmt(L / D, 4) + '</strong></div>' +
-      '<div class="drill-row"><span>Délka hlavního břitu</span><strong>' + fmt(lip) + ' mm</strong></div>';
+    html += notes;
     if (dEdge !== null) {
-      if (dEdge > D + 1e-9) {
-        html += '<div class="drill-warn">Ø d = ' + fmt(dEdge) + ' je větší než vrták – špička na něj nezabere.</div>';
-      } else {
-        html += '<div class="drill-row"><span>Ø ' + fmt(dEdge) + ' v hloubce od hrotu</span><strong>' + fmt(hEdge) + ' mm</strong></div>';
-      }
+      html += full
+        ? row('V hloubce ' + fmt(hEdge) + ' už plný Ø', fmt(D) + ' mm')
+        : row('Ø ' + fmt(dEdge) + ' v hloubce od hrotu', fmt(hEdge) + ' mm');
     }
+    let tipDepth = null;
     if (H !== null) {
-      if (Number.isFinite(H) && H >= 0) {
-        html += '<div class="drill-row"><span>Hloubka hrotu (H + L)</span><strong>' + fmt(H + L) + ' mm</strong></div>';
-      } else {
-        html += '<div class="drill-warn">Neplatná hloubka H.</div>';
-      }
+      if (!(Number.isFinite(H) && H >= 0)) html += warn('Neplatná hloubka H.');
+      else if (Dok) { tipDepth = H + L; html += row('Hloubka hrotu (H + L)', fmt(tipDepth) + ' mm'); }
     }
-    html += '<div class="drill-formula">L = D / (2·tan(σ/2)) = ' + fmt(D) + ' / (2·tan ' + fmt(a / 2, 2) + '°)</div>';
+    if (Dok) {
+      html += '<div class="drill-formula">' + (a < 180
+        ? 'L = D / (2·tan(σ/2)) = ' + fmt(D) + ' / (2·tan ' + fmt(a / 2, 2) + '°)'
+        : 'Rovné čelo (σ = 180°) – žádná špička, L = 0') + '</div>';
+      last = { D, a, L, dEdge, hEdge, full, H, tipDepth };
+    }
     resultEl.innerHTML = html;
   }
 
@@ -142,8 +159,17 @@ export function openDrillCalc() {
     return e;
   }
 
-  function dimH(g, x1, x2, y, label, cls, marker) {
-    g.appendChild(el('line', { x1, y1: y, x2, y2: y, class: cls, 'marker-start': 'url(#' + marker + ')', 'marker-end': 'url(#' + marker + ')' }));
+  // Šipka kóty jako trojúhelník (marker s orient="auto-start-reverse" starší
+  // Safari neumí – šipka na začátku by mířila opačně). Hrot v (x, y), směr (dx, dy).
+  function arrow(x, y, dx, dy, cls) {
+    const bx = x - dx * 7, by = y - dy * 7;
+    return el('polygon', { points: x + ',' + y + ' ' + (bx - dy * 3) + ',' + (by + dx * 3) + ' ' + (bx + dy * 3) + ',' + (by - dx * 3), class: cls });
+  }
+
+  function dimH(g, x1, x2, y, label, cls, arrowCls) {
+    g.appendChild(el('line', { x1, y1: y, x2, y2: y, class: cls }));
+    g.appendChild(arrow(x1, y, -1, 0, arrowCls));
+    g.appendChild(arrow(x2, y, 1, 0, arrowCls));
     const narrow = x2 - x1 < 70;
     g.appendChild(el('text', {
       x: narrow ? x2 + 6 : (x1 + x2) / 2, y: narrow ? y + 4 : y - 4,
@@ -153,16 +179,11 @@ export function openDrillCalc() {
 
   function draw(D, a, dEdge, hEdge) {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
-    const defs = el('defs', {});
-    [['drArrY', 'dr-arrow-y'], ['drArrG', 'dr-arrow-g']].forEach(([id, cls]) => {
-      const m = el('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
-      m.appendChild(el('path', { d: 'M0,1 L10,5 L0,9 Z', class: cls }));
-      defs.appendChild(m);
-    });
-    svg.appendChild(defs);
 
+    // Bez platného vstupu kreslíme nominální tvar, ale BEZ čísel z něj
+    // (popisky by jinak ukazovaly hodnoty, které uživatel nezadal).
     const sigma = a ?? 118;
-    const Dd = D ?? 10;                       // bez zadání kreslíme nominální tvar
+    const Dd = D ?? (dEdge > 0 ? dEdge * 1.5 : 10);
     const L = drillTipLength(Dd, sigma);
     const x0 = 46, x1 = 296, cy = 68;
     const s = Math.min(40 / (Dd / 2), L > 0 ? 170 / L : Infinity);
@@ -186,10 +207,12 @@ export function openDrillCalc() {
       const ax = x0 + ra * Math.cos(half), ay = ra * Math.sin(half);
       svg.appendChild(el('path', { d: 'M' + ax + ',' + (cy - ay) + ' A' + ra + ',' + ra + ' 0 0 1 ' + ax + ',' + (cy + ay), class: 'dr-arc' }));
     }
-    svg.appendChild(el('text', { x: x0 - 8, y: cy - 6, class: 'dr-txt', 'text-anchor': 'end' }, fmt(sigma, 2) + '°'));
+    svg.appendChild(el('text', { x: x0 - 8, y: cy - 6, class: 'dr-txt', 'text-anchor': 'end' }, a != null ? fmt(a, 2) + '°' : 'σ'));
 
     // Kóta D
-    svg.appendChild(el('line', { x1: x1 + 16, y1: cy - r, x2: x1 + 16, y2: cy + r, class: 'dr-dim', 'marker-start': 'url(#drArrY)', 'marker-end': 'url(#drArrY)' }));
+    svg.appendChild(el('line', { x1: x1 + 16, y1: cy - r, x2: x1 + 16, y2: cy + r, class: 'dr-dim' }));
+    svg.appendChild(arrow(x1 + 16, cy - r, 0, -1, 'dr-arrow-y'));
+    svg.appendChild(arrow(x1 + 16, cy + r, 0, 1, 'dr-arrow-y'));
     svg.appendChild(el('text', { x: x1 + 32, y: cy, class: 'dr-txt', 'text-anchor': 'middle', transform: 'rotate(-90 ' + (x1 + 32) + ' ' + cy + ')' },
       'Ø' + (D != null ? fmt(D) : 'D')));
 
@@ -197,16 +220,17 @@ export function openDrillCalc() {
     const yL = cy + r + 22;
     svg.appendChild(el('line', { x1: x0, y1: cy + 4, x2: x0, y2: yL + 4, class: 'dr-ext' }));
     svg.appendChild(el('line', { x1: xs, y1: cy + r + 2, x2: xs, y2: yL + 4, class: 'dr-ext' }));
-    if (Lp > 0.5) dimH(svg, x0, xs, yL, 'L' + (D != null ? ' = ' + fmt(L) : ''), 'dr-dim', 'drArrY');
+    if (Lp > 0.5) dimH(svg, x0, xs, yL, 'L' + (D != null && a != null ? ' = ' + fmt(L) : ''), 'dr-dim', 'dr-arrow-y');
     else svg.appendChild(el('text', { x: x0 + 6, y: yL + 4, class: 'dr-txt' }, 'L = 0 (rovné čelo)'));
 
-    // Záběr na menší průměr d v hloubce h
-    if (dEdge !== null && hEdge !== null && dEdge <= Dd + 1e-9 && hEdge > 0) {
-      const xh = x0 + s * hEdge, rd = s * dEdge / 2, yh = yL + 22;
+    // Záběr na průměr d v hloubce h (h > L = plný průměr za špičkou)
+    const xh = hEdge > 0 ? x0 + s * hEdge : NaN;
+    if (dEdge !== null && dEdge <= Dd + 1e-9 && xh < x1 - 4) {
+      const rd = s * dEdge / 2, yh = yL + 22;
       svg.appendChild(el('line', { x1: xh, y1: cy - rd, x2: xh, y2: cy + rd, class: 'dr-d' }));
       svg.appendChild(el('line', { x1: xh, y1: cy + rd, x2: xh, y2: yh + 4, class: 'dr-ext' }));
       svg.appendChild(el('line', { x1: x0, y1: yL + 4, x2: x0, y2: yh + 4, class: 'dr-ext' }));
-      dimH(svg, x0, xh, yh, 'h = ' + fmt(hEdge) + ' (Ø' + fmt(dEdge) + ')', 'dr-dim-g', 'drArrG');
+      dimH(svg, x0, xh, yh, 'h = ' + fmt(hEdge) + ' (Ø' + fmt(dEdge) + ')', 'dr-dim-g', 'dr-arrow-g');
     }
   }
 
@@ -214,8 +238,8 @@ export function openDrillCalc() {
   inp.D.addEventListener('input', solve);
   inp.H.addEventListener('input', solve);
   inp.a.addEventListener('input', () => {
-    const a = val(inp.a);
-    if (activePreset >= 0 && a !== DRILL_PRESETS[activePreset].angle) activePreset = -1;
+    // Návrat na úhel zvolené předvolby (překlep a oprava) ji znovu označí.
+    activePreset = val(inp.a) === DRILL_PRESETS[presetIdx].angle ? presetIdx : -1;
     showPreset();
     solve();
   });
@@ -234,7 +258,7 @@ export function openDrillCalc() {
   });
   rows.forEach(tr => {
     tr.addEventListener('click', () => {
-      activePreset = parseInt(tr.dataset.idx, 10);
+      presetIdx = activePreset = parseInt(tr.dataset.idx, 10);
       inp.a.value = DRILL_PRESETS[activePreset].angle;
       showPreset();
       solve();
@@ -247,17 +271,13 @@ export function openDrillCalc() {
     solve();
   });
   overlay.querySelector('.cnc-btn-copy').addEventListener('click', () => {
-    const D = val(inp.D), a = val(inp.a);
-    if (!(Number.isFinite(D) && D > 0) || !(Number.isFinite(a) && a > 0 && a <= 180)) {
-      showToast('Zadej průměr vrtáku a úhel špičky');
-      return;
-    }
-    const L = drillTipLength(D, a);
-    const p = ['Vrták Ø' + fmt(D), 'σ=' + fmt(a, 2) + '°', 'L=' + fmt(L) + ' mm'];
-    if (edgeSrc && inp.d.value && inp.h.value) p.push('Ø' + inp.d.value + ' v h=' + inp.h.value + ' mm');
-    const H = val(inp.H);
-    if (Number.isFinite(H) && H >= 0) p.push('H=' + fmt(H) + ' → hrot ' + fmt(H + L) + ' mm');
-    navigator.clipboard.writeText(p.join('  ')).then(() => showToast('Zkopírováno'));
+    if (!last) { showToast('Zadej průměr vrtáku a úhel špičky'); return; }
+    const p = ['Vrták Ø' + fmt(last.D), 'σ=' + fmt(last.a, 2) + '°', 'L=' + fmt(last.L) + ' mm'];
+    if (last.dEdge !== null) p.push('Ø' + fmt(last.dEdge) + ' v h=' + fmt(last.hEdge) + ' mm' + (last.full ? ' (plný Ø)' : ''));
+    if (last.tipDepth !== null) p.push('H=' + fmt(last.H) + ' → hrot ' + fmt(last.tipDepth) + ' mm');
+    if (!navigator.clipboard?.writeText) { showToast('Schránka není v tomto prohlížeči dostupná'); return; }
+    navigator.clipboard.writeText(p.join('  '))
+      .then(() => showToast('Zkopírováno'), () => showToast('Kopírování se nezdařilo'));
   });
 
   showPreset();

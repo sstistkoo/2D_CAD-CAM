@@ -50,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Kalkulačka Vrták – kontrola** (uživatel 6. 10. 2026): náčrt při neplatném
+  úhlu ukazoval čísla z výchozích 118°; hloubka h za špičkou dávala Ø větší
+  než vrták (teď plný Ø D); Ø d větší než vrták nechával v poli h nesmyslnou
+  hloubku; přepsaný a vrácený úhel už neztratí předvolbu; šipky kót bez
+  `orient="auto-start-reverse"` (starší Safari); Kopírovat bere čísla, ne
+  text polí, a hlásí nedostupnou schránku; hlášky u neplatných D/d/h a
+  vzorec u rovného čela. SW v380.
 - **CNC kód: oblouk přes 180° s kladným R** (uživatel 6. 10. 2026) – export
   z výkresu (panel CNC KÓD, Editor i přenos do CAM) psal u oblouku vždy
   kladné R, takže stroj (i zpětné načtení a CAM) ujel KRATŠÍ oblouk mezi
