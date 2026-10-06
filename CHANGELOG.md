@@ -86,6 +86,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Kužel, Hmotnost, Převodník** (kontrola 6. 10. 2026): posun koníku byl poloviční
+  (L·tan(α/2) / 2 → D20/d10/L50 ukazovalo 2,5 místo **5 mm**), nově s poznámkou pro
+  delší obrobek; Hmotnost počítala zápornou hmotnost u trubky s vnitřním Ø ≥ vnější
+  a u záporných rozměrů (nově hláška); Převodník bral HV = 1,05·HB i u kalených
+  ocelí (60 HRC → 644 místo **697 HV**, 65 HRC → 716 místo 832) – nově tabulka
+  HRC ↔ HV dle ASTM E140, mimo stupnici 20–68 HRC se HRC nezobrazuje (dřív se
+  „přilepila" na 20 / 68). SW v391.
 - **Závity: tolerance ISO 965 a vrták pro předvrtání** (kontrola 6. 10. 2026):
   tolerance středního Ø matice TD₂ bez násobku 1,32 (M10 6H D₂ max 9,159 místo
   **9,206**), ve vzorci Td opačný exponent (3,15·√P místo 3,15/√P), jmenovitý

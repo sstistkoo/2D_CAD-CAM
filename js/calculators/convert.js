@@ -13,6 +13,22 @@ export function openConvertCalc() {
     [60,613],[61,627],[62,640],[63,653],[64,667],[65,682],[66,697],[67,712],[68,728]
   ];
 
+  // HRC → HV (ASTM E140, ocel); HV ≈ 1,05·HB platí jen pro měkké oceli (pod 20 HRC)
+  var hrcHvTable = [
+    [20,238],[21,243],[22,248],[23,254],[24,260],[25,266],[26,272],[27,279],[28,286],[29,294],
+    [30,302],[31,310],[32,318],[33,327],[34,336],[35,345],[36,354],[37,363],[38,372],[39,382],
+    [40,392],[41,402],[42,412],[43,423],[44,434],[45,446],[46,458],[47,471],[48,484],[49,498],
+    [50,513],[51,528],[52,544],[53,560],[54,577],[55,595],[56,613],[57,633],[58,653],[59,674],
+    [60,697],[61,720],[62,746],[63,772],[64,800],[65,832],[66,865],[67,900],[68,940]
+  ];
+  function interp(tbl, x, from, to) {
+    for (var i = 0; i < tbl.length - 1; i++) {
+      var a = tbl[i][from], b = tbl[i + 1][from];
+      if (x >= a && x <= b) return tbl[i][to] + (x - a) / (b - a) * (tbl[i + 1][to] - tbl[i][to]);
+    }
+    return null;
+  }
+
   const body =
     '<div class="conv-section">' +
       '<div class="conv-label">D\u00E9lka</div>' +
@@ -146,25 +162,32 @@ export function openConvertCalc() {
     return 0;
   }
 
+  // Stupnice HRC platí jen 20–68: mimo ni se HRC nezobrazí (dřív se „přilepila" na 20/68)
   hrcInp.addEventListener("input", () => {
     if (hrcInp.value === "") { hbInp.value = ""; hvInp.value = ""; return; }
     var hrc = safeEvalMath(hrcInp.value);
-    var hb = hrcToHb(hrc);
-    hbInp.value = Math.round(hb);
-    hvInp.value = Math.round(hb * 1.05);
+    if (!(hrc >= 20 && hrc <= 68)) { hbInp.value = ""; hvInp.value = ""; return; }
+    hbInp.value = Math.round(hrcToHb(hrc));
+    hvInp.value = Math.round(interp(hrcHvTable, hrc, 0, 1));
   });
   hbInp.addEventListener("input", () => {
     if (hbInp.value === "") { hrcInp.value = ""; hvInp.value = ""; return; }
     var hb = safeEvalMath(hbInp.value);
-    hrcInp.value = parseFloat(hbToHrc(hb).toFixed(1));
-    hvInp.value = Math.round(hb * 1.05);
+    if (!(hb > 0)) { hrcInp.value = ""; hvInp.value = ""; return; }
+    if (hb < 226 || hb > 728) { hrcInp.value = ""; hvInp.value = hb < 226 ? Math.round(hb * 1.05) : ""; return; }
+    var hrc = hbToHrc(hb);
+    hrcInp.value = parseFloat(hrc.toFixed(1));
+    hvInp.value = Math.round(interp(hrcHvTable, hrc, 0, 1));
   });
   hvInp.addEventListener("input", () => {
     if (hvInp.value === "") { hrcInp.value = ""; hbInp.value = ""; return; }
     var hv = safeEvalMath(hvInp.value);
-    var hb = hv / 1.05;
-    hbInp.value = Math.round(hb);
-    hrcInp.value = parseFloat(hbToHrc(hb).toFixed(1));
+    if (!(hv > 0)) { hrcInp.value = ""; hbInp.value = ""; return; }
+    if (hv < 238) { hrcInp.value = ""; hbInp.value = Math.round(hv / 1.05); return; }   // měkké: HB ≈ HV / 1,05
+    if (hv > 940) { hrcInp.value = ""; hbInp.value = ""; return; }
+    var hrc = interp(hrcHvTable, hv, 1, 0);
+    hrcInp.value = parseFloat(hrc.toFixed(1));
+    hbInp.value = Math.round(hrcToHb(hrc));
   });
 }
 

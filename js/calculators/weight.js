@@ -111,6 +111,14 @@ export function openWeightCalc() {
       if (W && H && L) vol = W * H * L;
     }
 
+    // Záporné / nulové rozměry nebo vnitřní Ø ≥ vnější dávaly zápornou hmotnost
+    const vals = [inpD, inpd, inpW, inpH, inpL].filter(i => i.closest('label').style.display !== 'none' && i.value !== '')
+      .map(i => safeEvalMath(i.value));
+    if (vals.some(v => !(v > 0))) { resultEl.textContent = "Rozměry musí být kladná čísla"; return; }
+    if (s === "tube" && inpD.value !== "" && inpd.value !== "" && safeEvalMath(inpd.value) >= safeEvalMath(inpD.value)) {
+      resultEl.textContent = "Vnitřní Ø musí být menší než vnější";
+      return;
+    }
     if (vol !== null) {
       const volCm3 = vol / 1000;
       const mass = vol * rho / 1e9;
@@ -125,7 +133,7 @@ export function openWeightCalc() {
   updateShape();
 
   overlay.querySelector(".cnc-btn-copy").addEventListener("click", () => {
-    if (resultEl.textContent && resultEl.textContent !== "Zadejte rozm\u011Bry\u2026") {
+    if (resultEl.querySelector('strong')) {
       navigator.clipboard.writeText(resultEl.textContent).then(() => showToast("Zkop\u00EDrov\u00E1no"));
     }
   });

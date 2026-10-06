@@ -117,8 +117,11 @@ export function openTaperCalc() {
       var tanA = Math.tan(aFinal * Math.PI / 180);
       slideParts.push("\uD83D\uDD27 <strong>Náklon suportu:</strong> " + aFinal.toFixed(4) + "°");
       if (LFinal) {
+        // Posun koníku = L·tan(α/2) = (D − d)/2, když je kužel přes celou délku obrobku;
+        // u delšího obrobku (mezi hroty) úměrně víc: (D − d)/2 · délka obrobku / L.
         var slideOffset = tanA * LFinal;
-        slideParts.push("Příčný posun koníku: <strong>" + (slideOffset / 2).toFixed(3) + " mm</strong> (na délku " + LFinal + " mm)");
+        slideParts.push("Příčný posun koníku: <strong>" + slideOffset.toFixed(3) + " mm</strong> (obrobek délky " + LFinal +
+          " mm; delší obrobek: × délka obrobku / " + LFinal + ")");
       }
       if (DFinal !== null && dFinal !== null) {
         slideParts.push("Příčný přísuv na stranu: <strong>" + ((DFinal - dFinal) / 2).toFixed(3) + " mm</strong>");
