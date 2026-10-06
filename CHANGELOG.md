@@ -86,6 +86,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Tolerance ISO 286 – špatná přechodná a přesahová uložení** (kontrola 6. 10. 2026):
+  tabulka hřídelů k, m, n, p, r, s obsahovala horní úchylky pro IT6 místo základních
+  (dolních) úchylek → Ø25 n6 dávalo +41/+28 místo **+28/+15**, p6 +48/+35 místo
+  **+35/+22**; díry J–S se odvozovaly jen otočením znaménka bez pravidla ES = −ei + Δ
+  → K7 −9/−30 místo **+6/−15**, P7 −35/−56 místo **−14/−35**; a, b, c nad 50 mm
+  posunuté o podrozsah; js zaokrouhleno (±7 místo **±6,5**). Nově `iso286.js` podle
+  ISO 286-2 (podrozsahy a–c, r, s; Δ pro K/M/N do IT8 a P–S do IT7; výjimky do
+  3 mm; j5–j7 a J6–J8 z tabulek, ostatní ohlásí „není definováno"), rozsah 0–500 mm,
+  test `tests/iso286.test.js` proti tabulkovým hodnotám. SW v388.
 - **Závity: rozpis průchodů** (uživatel 6. 10. 2026) – tři chyby:
   M10×1,5 dávalo **38 řezů** (posledních 20 pod 0,02 mm – limit prvního řezu
   0,15 mm vedl na n = (h/0,15)²); **boční přísuv nedojel na hloubku** (přísuv
