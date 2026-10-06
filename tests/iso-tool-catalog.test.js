@@ -126,6 +126,8 @@ describe('kódy ISO 5608 / ISO 1832', () => {
     ['VV', { shank: '2020' }, 'MVVNN2020K16', 'VNMG160408', 0],
     ['TG', { shank: '2525' }, 'PTGNR2525M16', 'TNMG160408', 0],
     ['RD', { shank: '2525' }, 'SRDCN2525M12', 'RCMT1204M0', 7],
+    ['RS', { shank: '2525', size: '20' }, 'SRSCR2525M20', 'RCMT2006M0', 7],
+    ['RG', { shank: '1616', hand: 'L', size: '08' }, 'SRGCL1616H08', 'RCMT0803M0', 7],
     ['GR', { shank: '2525' }, 'MGEHR2525-3', 'MGMN300-M', 0],
     ['TH', { shank: '2525', hand: 'L', thread: 'AG55' }, 'SEL2525M16', '16ELAG55', 0],
   ])('%s %j → %s + %s', (id, opts, holder, insert, alpha) => {
@@ -170,6 +172,36 @@ describe('tvar hlavy držáku', () => {
         const side = Math.cos(a) * (q.z - FB.z) - Math.sin(a) * (q.x - FB.x);
         expect(side, `${rec.name} (${q.x}, ${q.z})`).toBeLessThan(1e-3);
       }
+    }
+  });
+
+  it('velikosti destiček v nabídce jdou podle IC (09 před 12)', () => {
+    const t = ISO_HOLDER_TYPES.find((x) => x.id === 'CL');
+    expect(isoSizes(t, 'neg', '2525')).toEqual(['09', '12', '16', '19']);
+    expect(isoSizes(ISO_HOLDER_TYPES.find((x) => x.id === 'RS'), 'pos', '2525')).toEqual(['08', '10', '12', '16', '20', '25']);
+  });
+
+  it('kulatá v rohu dříku (SRSCR, SRGCR): držák nikde vlevo od středu destičky — dojede k čelu', () => {
+    for (const id of ['RS', 'RG']) {
+      for (const sh of ISO_SHANKS) {
+        for (const size of isoSizes(ISO_HOLDER_TYPES.find((x) => x.id === id), 'pos', sh.code)) {
+          const p = buildIsoKnife(id, { shank: sh.code, size }).tool;
+          const xs = p.holderProfile.sideA.map((q) => q.x);
+          expect(Math.min(...xs), `${id} ${sh.code} ${size}`).toBe(0);   // destička vyčnívá o celé R
+          expect(Math.max(...xs), `${id} ${sh.code} ${size}`).toBe(sh.b);
+        }
+      }
+    }
+  });
+
+  it('závitový SER: rovný dřík šířky b, levý bok v rovině s rohem destičky, zub vyčnívá přes čelo', () => {
+    for (const sh of ISO_SHANKS) {
+      const p = buildIsoKnife('TH', { shank: sh.code }).tool;
+      const pts = p.holderProfile.sideA;
+      const xs = pts.map((q) => q.x), zs = pts.map((q) => q.z);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(sh.b, 6);
+      expect(Math.min(...xs)).toBeCloseTo(-8.5, 6);                    // destička 16ER: roh v −8, vůle 0,5
+      expect(Math.min(...zs)).toBeGreaterThan(5);                      // čelo dříku nad zubem
     }
   });
 

@@ -126,7 +126,7 @@ export function mountIsoCatalog(root, opts) {
         ${ISO_GROUPS.map((g) => `<button data-g="group" data-v="${g.id}" class="${st.group === g.id ? 'on' : ''}">${esc(g.label)}</button>`).join('')}
       </div>
       <div class="iso-cat-list">${visibleTypes().map(cardHTML).join('') || '<div class="iso-cat-empty">Pro tento dřík tu není žádný nůž.</div>'}</div>
-      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: f1 ${shank.f1}, l1 ${shank.l1} mm. Katalog umí ${isoCatalogCount()} kombinací.
+      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací.
         Rozměry držáků a tvar hlavy jsou <b>orientační</b> podle ISO 5608/5610 a typických katalogů — ověřte v katalogu výrobce.
         Po použití jde obrys upravit v 🔪 Geometrii.</div>`;
   }

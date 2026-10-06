@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **📚 ISO katalog: kulaté držáky SRSCR (hlava 45°) a SRGCR (90°)**
+  (uživatel 6. 10. 2026, podle fotky výrobce) – kulatá destička v rohu
+  dříku vyčnívá o R, takže dojede k čelu / osazení (na ukázkovém dílu
+  nedojeto 43 → 3 mm² proti neutrálnímu SRDCN). Kulaté RCMT 06–32 mm,
+  do držáků jdou i o stupeň menší/větší destičky (764 kombinací), velikosti
+  v nabídce seřazené podle IC. **Závitový SER** přestavěn podle výkresu:
+  rovný dřík šířky b, destička v rohu jeho konce, protější roh sražený
+  (dřív hlava širší než dřík — „vypadá šíleně"). SW v395.
 - **📚 ISO katalog nožů v 🧰 Knihovně nástrojů** (uživatel 6. 10. 2026) –
   vestavěné vnější soustružnické nože podle ISO 5608 (držák) a ISO 1832
   (destička): PCLNR/SCLCR, PWLNR, PTGNR/STGCR, PCBNR, PSBNR, PSKNR,

@@ -28,13 +28,20 @@ import {
   buildInsertProfileSegments, buildInsertOutlineSegments, threadingToothSegments, PARTING_BODY_MIN_H_MM,
 } from './cam/insertPreview.js';
 
-/** Dřík: výška × šířka, délkový kód a l1 (ISO 5608 poz. 8), f1 = špička od zadní strany dříku. */
+/**
+ * Dřík: výška × šířka, délkový kód a l1 (ISO 5608 poz. 8), f1 = špička od
+ * zadní strany dříku (přesazené držáky). ic = rozsah IC destiček, které se
+ * do hlavy dají dát (o stupeň širší než nejběžnější řada — hlava se staví
+ * podle destičky), ic0 = typická velikost pro výchozí volbu.
+ */
 export const ISO_SHANKS = [
-  { code: '1616', h: 16, b: 16, len: 'H', l1: 100, f1: 20, ic: [6, 10], ic0: 9.525 },
-  { code: '2020', h: 20, b: 20, len: 'K', l1: 125, f1: 25, ic: [6, 13], ic0: 12.7 },
-  { code: '2525', h: 25, b: 25, len: 'M', l1: 150, f1: 32, ic: [9, 16], ic0: 12.7 },
+  { code: '1616', h: 16, b: 16, len: 'H', l1: 100, f1: 20, ic: [6, 13], ic0: 9.525 },
+  { code: '2020', h: 20, b: 20, len: 'K', l1: 125, f1: 25, ic: [6, 16], ic0: 12.7 },
+  { code: '2525', h: 25, b: 25, len: 'M', l1: 150, f1: 32, ic: [6, 20], ic0: 12.7 },
   { code: '3232', h: 32, b: 32, len: 'P', l1: 170, f1: 40, ic: [9, 20], ic0: 15.875 },
 ];
+/** Kulatá destička do dříku: průměr 0,3·b až b. */
+const ROUND_FIT = [0.3, 1];
 
 export const ISO_GROUPS = [
   { id: 'long', label: 'Podélné' },
@@ -55,7 +62,7 @@ const INSERTS = {
   T: { neg: { '16': '04', '22': '04' }, pos: { '11': '02', '16': 'T3' } },
   V: { neg: { '16': '04' }, pos: { '11': '03', '16': '04' } },
   W: { neg: { '06': 'T3', '08': '04' } },
-  R: { pos: { '10': 'T3', '12': '04', '16': '06', '20': '06' } },
+  R: { pos: { '06': '02', '08': '03', '10': 'T3', '12': '04', '16': '06', '20': '06', '25': '07', '32': '09' } },
 };
 /** Úhel hřbetu pozitivní destičky (ISO 1832 poz. 2): VBMT 5°, ostatní 7°. */
 const POS_CLEARANCE = { V: 'B' };
@@ -91,7 +98,11 @@ export const ISO_HOLDER_TYPES = [
   { id: 'SD', shape: 'S', style: 'D', kr: 45, neutral: true, neg: 'P', groups: ['chamfer'],
     desc: 'Srážení hran oběma směry (neutrální, κr 45°).' },
   { id: 'RD', shape: 'R', style: 'D', neutral: true, pos: 'S', groups: ['copy', 'long'],
-    desc: 'Kulatá destička — kopírování a hrubování velkým rádiusem, žárupevné slitiny.' },
+    desc: 'Kulatá destička, neutrální — kopírování oběma směry. Dřík je souměrně nad destičkou, k čelu nedojede.' },
+  { id: 'RS', shape: 'R', style: 'S', pos: 'S', groups: ['copy', 'long', 'face'],
+    desc: 'Kulatá destička v rohu dříku, hlava zkosená 45° — destička vyčnívá o R, dojede až k čelu / osazení.' },
+  { id: 'RG', shape: 'R', style: 'G', pos: 'S', groups: ['copy', 'long', 'face'],
+    desc: 'Kulatá destička v rohu dříku, rovné čelo hlavy (90°) — dojede k čelu, tužší než zkosená hlava.' },
   { id: 'GR', special: 'parting', groups: ['groove'],
     desc: 'Zapichování a upichování — destička MGMN šířky 2–5 mm, levý bok v rovině s držákem.' },
   { id: 'TH', special: 'threading', groups: ['thread'],
@@ -136,8 +147,11 @@ function icOf(shape, size) {
 export function isoSizes(type, variant, shankCode) {
   const table = INSERTS[type.shape] && INSERTS[type.shape][variant];
   if (!table || !type[variant]) return [];
-  const [lo, hi] = shankOf(shankCode).ic;
-  return Object.keys(table).filter((sz) => { const ic = icOf(type.shape, sz); return ic >= lo && ic <= hi; });
+  const sh = shankOf(shankCode);
+  const [lo, hi] = type.shape === 'R' ? ROUND_FIT.map((k) => k * sh.b) : sh.ic;
+  // Seřadit podle IC — klíče „09", „06" by objekt jinak vrátil až za „12", „16".
+  return Object.keys(table).filter((sz) => { const ic = icOf(type.shape, sz); return ic >= lo && ic <= hi; })
+    .sort((a, b) => icOf(type.shape, a) - icOf(type.shape, b));
 }
 
 /** Varianty (neg/pos), pro které má dřík aspoň jednu velikost. */
@@ -271,26 +285,51 @@ function polygonHolder(prms, type, sh) {
   const maxZ = Math.max(...segPoints(buildInsertOutlineSegments(prms)).map((p) => p.z));
   const xL = type.neutral ? -sh.b / 2 : minX + (sh.f1 - sh.b);
   const xR = xL + sh.b;
+  // Velká destička v úzkém (neutrálním) dříku: hlava je širší než dřík a na
+  // horní hraně hlavy se do dříku zúží (vlevo to samo řeší leftFlank).
+  const xHR = Math.max(xR, FA.x + 1);
   const theta = prms.toolAngle, eps = prms.toolTipAngle;
-  const right = rightFlank(FA, Math.max(theta, 0) + RELIEF_DEG, xR);
+  const right = rightFlank(FA, Math.max(theta, 0) + RELIEF_DEG, xHR);
   const zTop = Math.max(1.3 * sh.b, right[1].z + 2, maxZ + 2, FB.z + 2);
   const left = leftFlank(FB, theta + eps - RELIEF_DEG, xL, zTop);
-  return closeLoop([...right, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }, { x: xL, z: zTop }, ...left]);
+  const step = xHR > xR ? [{ x: xHR, z: zTop }, { x: xR, z: zTop }] : [];
+  return closeLoop([...right, ...step, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }, { x: xL, z: zTop }, ...left]);
 }
 
-/** Obrys držáku kulaté destičky (neutrální): lůžko obepíná horní oblouk kružnice. */
-function roundHolder(r, sh) {
-  const PHI = 25, N = 8, step = (180 - 2 * PHI) / N;
-  const rr = r / Math.cos(rad(step / 2)) + 0.05;            // opsaný polygon — nesahá do destičky
-  const at = (deg) => ({ x: rr * Math.cos(rad(deg)), z: rr * Math.sin(rad(deg)) });
-  const FA = at(PHI), FB = at(180 - PHI);
-  const xL = -sh.b / 2, xR = sh.b / 2;
-  const right = rightFlank(FA, 65, xR);
-  const zTop = Math.max(1.3 * sh.b, right[1].z + 2, r + 2);
-  const left = leftFlank(FB, 115, xL, zTop);
+/**
+ * Obrys držáku kulaté destičky; lůžko obepíná horní oblouk kružnice
+ * (opsaný mnohoúhelník — do destičky nesahá).
+ *  D (SRDCN)  neutrální — dřík souměrně nad destičkou, boky hlavy 65°.
+ *  S (SRSCR)  dřík od středu destičky doprava: vlevo destička vyčnívá o R
+ *             (dojede k čelu / osazení), vpravo krček a sražení hlavy 45°.
+ *  G (SRGCR)  totéž bez sražení — rovné čelo hlavy nad destičkou (90°).
+ */
+function roundHolder(r, sh, style) {
+  const PHI = 25;
+  const at = (deg, rr) => ({ x: rr * Math.cos(rad(deg)), z: rr * Math.sin(rad(deg)) });
+  if (style === 'D') {
+    const N = 8, step = (180 - 2 * PHI) / N, rr = r / Math.cos(rad(step / 2)) + 0.05;
+    const FA = at(PHI, rr), FB = at(180 - PHI, rr);
+    const xL = -sh.b / 2, xR = sh.b / 2;
+    const right = rightFlank(FA, 65, xR);
+    const zTop = Math.max(1.3 * sh.b, right[1].z + 2, r + 2);
+    const left = leftFlank(FB, 115, xL, zTop);
+    const seat = [];
+    for (let i = N - 1; i >= 1; i--) seat.push(at(PHI + i * step, rr));
+    return closeLoop([...right, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }, { x: xL, z: zTop }, ...left, ...seat]);
+  }
+  const N = 5, step = (90 - PHI) / N, rr = r / Math.cos(rad(step / 2)) + 0.05;
+  const FA = at(PHI, rr), xR = sh.b;
   const seat = [];
-  for (let i = N - 1; i >= 1; i--) seat.push(at(PHI + i * step));
-  return closeLoop([...right, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }, { x: xL, z: zTop }, ...left, ...seat]);
+  for (let i = N - 1; i >= 1; i--) seat.push(at(PHI + i * step, rr));
+  let head;
+  if (style === 'S') {
+    const zNeck = rr + 0.5 * r;
+    head = [FA, { x: FA.x, z: zNeck }, { x: xR, z: zNeck + (xR - FA.x) }];
+  } else {
+    head = [FA, { x: xR, z: FA.z }];
+  }
+  return closeLoop([...head, { x: xR, z: sh.l1 }, { x: 0, z: sh.l1 }, at(90, rr), ...seat]);
 }
 
 /** Obrys zapichovacího držáku: čepel užší o 0,1 mm/stranu do tmax, levý bok v rovině s destičkou. */
@@ -304,21 +343,21 @@ function partingHolder(prms, g, sh) {
 }
 
 /**
- * Obrys závitového držáku: hlava drží horní polovinu trojúhelníku destičky
- * (stejná geometrie jako threadingOutlineSegments), dolní roh se zubem
- * vyčnívá. Levý bok hlavy jde po levé hraně destičky k jejímu rohu, dřík
- * leží od špičky o f1 − b vpravo jako u ostatních držáků.
+ * Obrys závitového držáku (SER/SEL): ROVNÝ dřík šířky b, destička leží
+ * v levém rohu jeho konce (trojúhelník jako threadingOutlineSegments —
+ * levý roh destičky v rovině s bokem dříku), dolní polovina se zubem
+ * vyčnívá přes čelo dříku. Protilehlý roh čela je sražený (jako na výkresu
+ * výrobce). Uživatel 6. 10. 2026: hlava širší než dřík „vypadá šíleně".
  */
 function threadingHolder(prms, sh) {
   const half = rad(prms.toolTipAngle / 2), L = prms.toolLength, f2 = prms.toolTipFlat / 2;
   const dz = Math.cos(half) * L, a = f2 + Math.sin(half) * L;
-  const S = Math.max(16, 4 * a + 2), zApex = dz - a * Math.sqrt(3), t30 = Math.tan(rad(30));
-  const zSeat = zApex + 0.45 * S * Math.sqrt(3) / 2;
-  const xSeat = (zSeat - zApex) * t30;                      // hrany destičky ve výšce lůžka
-  const xC = -(S / 2 + 0.5), zC = zApex + (S / 2 + 0.5) / t30;  // levý roh (s vůlí) na prodloužení hrany
-  const xL = sh.f1 - sh.b, xR = sh.f1, zHead = zC + 3;
-  return closeLoop([{ x: xSeat, z: zSeat }, { x: xR, z: zSeat }, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 },
-    { x: xL, z: zHead }, { x: xC, z: zHead }, { x: xC, z: zC }, { x: -xSeat, z: zSeat }]);
+  const S = Math.max(16, 4 * a + 2), zApex = dz - a * Math.sqrt(3);
+  const zEnd = zApex + 0.5 * S * Math.sqrt(3) / 2;          // čelo dříku v půlce výšky destičky
+  // Sražení jen vedle destičky — u úzkého dříku (16×16) by šlo přes ni.
+  const xL = -(S / 2 + 0.5), xR = xL + sh.b, c = Math.max(0, Math.min(0.3 * sh.b, xR - S / 2 - 1));
+  return closeLoop([{ x: xL, z: zEnd }, { x: xR - c, z: zEnd }, { x: xR, z: zEnd + c },
+    { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }]);
 }
 
 // ── Řezné podmínky (orientační start, ne doporučení výrobce) ─────
@@ -407,7 +446,7 @@ export function buildIsoKnife(typeId, opts = {}) {
   if (type.shape === 'R') {
     const R = icOf('R', size) / 2;
     const prms = { toolShape: 'round', toolLength: 10, toolRadius: R, toolAngle: 0, toolTipAngle: 90, toolTipFlat: 0.1, toolClearanceAngle: clearance };
-    return knifeRecord({ name, vbdCode, holder: roundHolder(R, sh), prms, sh, hand, cut: cutData('round', 0, 0, R), desc: type.desc, iso });
+    return knifeRecord({ name, vbdCode, holder: roundHolder(R, sh, type.style), prms, sh, hand, cut: cutData('round', 0, 0, R), desc: type.desc, iso });
   }
   const eps = epsOf(type.shape);
   const edge = sizeInfo(type.shape, size).edge;

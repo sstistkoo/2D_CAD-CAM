@@ -801,13 +801,17 @@ kopírovací, srážecí, zapichovací, závitové).
 | MVJNR / SVJBR | V 35° (VNMG / VBMT) | 93° | jemné kopírování, zanoření ~50° |
 | MVVNN / SVVBN | V 35° | 72,5° | jemné kopírování oběma směry |
 | PSSNR / SSSCR, PSDNN | S 90° | 45° | srážení hran |
-| SRDCN | R (RCMT) | — | kulatá — kopírování, velký rádius |
+| SRDCN | R (RCMT) | — | kulatá neutrální — kopírování oběma směry, k čelu nedojede (dřík je souměrně nad destičkou) |
+| SRSCR | R (RCMT) | — | kulatá v rohu dříku, hlava sražená 45° — destička vyčnívá o R, **dojede k čelu / osazení** |
+| SRGCR | R (RCMT) | — | kulatá v rohu dříku, rovné čelo hlavy — dojede k čelu, tužší |
 | MGEHR | MGMN 2–5 mm | — | zapichování, upichování |
-| SER | 16ER AG60 / AG55 | — | vnější závit 60° / 55° |
+| SER | 16ER AG60 / AG55 | — | vnější závit 60° / 55° — rovný dřík, destička v rohu jeho konce |
 
 U každé karty se vybere **negativní / pozitivní** destička (kde existují
-obě), **velikost** (např. CNMG 1204 / 1606) a **rádius rε**. Katalog takhle
-umí přes 580 kombinací. Klik na náhled ho zvětší. Tlačítka:
+obě), **velikost** (např. CNMG 0904 / 1204 / 1606) a **rádius rε**. Do
+držáku jdou i o stupeň menší/větší destičky než nejběžnější řada (hlava se
+postaví podle destičky); kulaté RCMT 06–32 mm v rozsahu průměru 0,3·b až b.
+Katalog takhle umí přes 760 kombinací. Klik na náhled ho zvětší. Tlačítka:
 
 - **✅ Použít** — nůž se nastaví jako aktuální (destička, držák s obrysem
   hlavy, Vc/f/ap), okno se zavře.
