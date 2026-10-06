@@ -10,7 +10,10 @@ import {
   buildIsoKnife, isoCatalogCount, isoKnifeSvg,
 } from '../js/calculators/isoToolCatalog.js';
 import { buildInsertProfileSegments } from '../js/calculators/cam/insertPreview.js';
-import { CAM_TOOL_KEYS } from '../js/calculators/cam/camToolPicker.js';
+import { CAM_TOOL_KEYS, DEFAULT_TOOL_MAGAZINE } from '../js/calculators/cam/camToolPicker.js';
+import { paramsFromMagSlot } from '../js/calculators/cam/toolSlotPreview.js';
+import { knifeThumbSvg } from '../js/calculators/knifeThumb.js';
+import { isoStarterSet, ISO_STARTER_SET } from '../js/calculators/isoToolCatalog.js';
 import { holderProfileLoop } from '../js/calculators/cam/collisionValidator.js';
 import { polyIntersect, polyArea } from '../js/geom/geomCore.js';
 
@@ -211,5 +214,32 @@ describe('tvar hlavy držáku', () => {
     expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(25, 6);
     expect(Math.max(...xs)).toBeGreaterThan(30);
     expect(Math.max(...xs)).toBeLessThan(33);
+  });
+});
+
+describe('🔧 Zásobník — doporučená sada a náhled v řádku', () => {
+  it('doporučená sada: 6 různých nožů, všechny tvary plátků, které CAM umí', () => {
+    const set = isoStarterSet();
+    expect(set.length).toBe(ISO_STARTER_SET.length);
+    expect(new Set(set.map((r) => r.name)).size).toBe(set.length);
+    expect(set.map((r) => r.name)).toEqual(['PCLNR2525M12', 'PDJNR2525M15', 'MVJNR2525M16', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-3']);
+    expect(new Set(set.map((r) => r.tool.toolShape))).toEqual(new Set(['polygon', 'round', 'threading', 'parting']));
+    expect(isoStarterSet({ hand: 'L' })[0].name).toBe('PCLNL2525M12');
+    // Jiný dřík: velikost, kterou nemá, nahradí výchozí — sada zůstane celá.
+    expect(isoStarterSet({ shank: '1616' }).length).toBe(ISO_STARTER_SET.length);
+  });
+
+  it('náhled jde nakreslit pro každý výchozí nůž i pro nože bez obrysu / otočené', () => {
+    const slots = [
+      ...DEFAULT_TOOL_MAGAZINE,
+      { ...DEFAULT_TOOL_MAGAZINE[1], holderProfile: null },             // náhradní obdélník
+      { ...DEFAULT_TOOL_MAGAZINE[2], knifeAngle: 180, holderHand: 'L' },
+      { ...DEFAULT_TOOL_MAGAZINE[3], holderWidth: 0, holderLength: 0, holderProfile: null },  // držák se nehlídá
+    ];
+    for (const s of slots) {
+      const svg = knifeThumbSvg(paramsFromMagSlot(s), 36);
+      expect(svg, s.name).toMatch(/^<svg class="knife-svg" viewBox="(-?[\d.]+ ){3}-?[\d.]+"[\s\S]*<\/svg>$/);
+      expect(svg, s.name).not.toMatch(/NaN|Infinity/);
+    }
   });
 });

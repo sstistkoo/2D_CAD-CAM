@@ -37,7 +37,9 @@ import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, p
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
 import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, drawThreadingInsert, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
-import { showToolSlotPreviewDialog } from './cam/toolSlotPreview.js';
+import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPreview.js';
+import { knifeThumbSvg } from './knifeThumb.js';
+import { isoStarterSet, ISO_STARTER_SET } from './isoToolCatalog.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -7139,7 +7141,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           <div class="cam-mag-head-right">
             <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-undo" title="Zpět">↩</button>
             <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-redo" title="Vpřed">↪</button>
-            <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-menu" title="Další akce — 📥 Import ze souborů, 🔄 Seřadit dle výchozích">☰</button>
+            <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-menu" title="Další akce — 📚 Přidat doporučené ISO nože, 📥 Import ze souborů, 🔄 Seřadit dle výchozích">☰</button>
             <button class="cam-mag-hbtn cam-mag-ibtn cam-mag-close" data-act="mag-close" title="Zavřít">✕</button>
           </div>
         </div>
@@ -7174,6 +7176,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         const shapeIcon = slot.shape === 'round' ? '⬤' : slot.shape === 'parting' ? '▮' : slot.shape === 'threading' ? '▽' : '◼';
         const border = isActive ? 'border:1.5px solid #a6e3a1;' : 'border:1.5px solid #313244;';
 
+        // Malý náhled nože přímo v řádku (uživatel 6. 10. 2026) — ať je nůž
+        // poznat bez rozbalení a 👁 Ukázat; klik na něj Ukázat otevře.
+        let thumb = '';
+        try { thumb = knifeThumbSvg(paramsFromMagSlot(slot), 36); } catch (_) { /* nečitelný obrys — bez náhledu */ }
         html += `<div class="cam-sim-mag-slot" data-magidx="${i}" style="background:#1e1e2e;border-radius:8px;margin-bottom:8px;${border}overflow:hidden">`;
         html += `<div style="display:flex;align-items:center;gap:6px;padding:7px 8px 7px 4px;cursor:pointer" data-act="mag-toggle" data-magidx="${i}">
           <span class="cam-mag-move">
@@ -7181,11 +7187,12 @@ export function openCamSimulator(initialContour, initialGCode) {
             <button data-act="mag-down" data-magidx="${i}" title="Posunout níž — prohodí se s T${mag[i + 1]?.slot ?? ''}" ${i === mag.length - 1 ? 'disabled' : ''}>▼</button>
           </span>
           <span class="cam-sim-machine-chip" style="background:${isActive ? '#40a02b' : '#313244'};font-family:monospace;font-weight:700;min-width:28px;text-align:center">T${slot.slot}</span>
+          ${thumb ? `<button class="cam-mag-thumb" data-act="mag-thumb" data-magidx="${i}" title="Náhled nože — klik = 👁 Ukázat (destička i držák)">${thumb}</button>` : ''}
           <span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHTML(slot.name)}</span>
-          ${slot.vbdCode ? `<span style="font-family:monospace;font-size:10px;color:#89dceb;padding:1px 5px;border-radius:4px;border:1px solid #313244">${escHTML(slot.vbdCode.substring(0,12))}</span>` : ''}
+          ${slot.vbdCode ? `<span class="cam-mag-vbd" style="font-family:monospace;font-size:10px;color:#89dceb;padding:1px 5px;border-radius:4px;border:1px solid #313244">${escHTML(slot.vbdCode.substring(0,12))}</span>` : ''}
           <span class="cam-sim-machine-chip">${shapeIcon} R${slot.radius}</span>
-          ${slot.shape === 'polygon' ? `<span class="cam-sim-machine-chip">${slot.toolAngle}° ε${slot.tipAngle}°${slot.clearanceAngle ? ` α${slot.clearanceAngle}°` : ''}</span>` : ''}
-          ${slot.shape === 'threading' ? `<span class="cam-sim-machine-chip">ε${slot.tipAngle}°</span>` : ''}
+          ${slot.shape === 'polygon' ? `<span class="cam-sim-machine-chip cam-mag-ang">${slot.toolAngle}° ε${slot.tipAngle}°${slot.clearanceAngle ? ` α${slot.clearanceAngle}°` : ''}</span>` : ''}
+          ${slot.shape === 'threading' ? `<span class="cam-sim-machine-chip cam-mag-ang">ε${slot.tipAngle}°</span>` : ''}
           <span style="color:#6c7086;font-size:12px">${isEditing ? '▲' : '▼'}</span>
         </div>`;
 
@@ -7297,6 +7304,15 @@ export function openCamSimulator(initialContour, initialGCode) {
           pushHistory();
           _applyMagSlot(parseInt(btn.dataset.magidx));
           renderBody();
+        });
+      });
+
+      // Klik na náhled v řádku = 👁 Ukázat (bez rozbalení karty).
+      body.querySelectorAll('[data-act="mag-thumb"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const slot = mag[parseInt(btn.dataset.magidx)];
+          if (slot) showToolSlotPreviewDialog(slot);
         });
       });
 
@@ -7466,6 +7482,25 @@ export function openCamSimulator(initialContour, initialGCode) {
       renderBody();
     }
 
+    // 📚 Doporučené ISO nože (isoToolCatalog.js ISO_STARTER_SET) — za stávající
+    // nože, jeden krok ↩. Ty, které už v zásobníku jsou (stejné jméno), přeskočí.
+    function addIsoStarterSet() {
+      const recs = isoStarterSet({ hand: S.params.roughingSide === 'left' ? 'L' : 'R' });
+      const have = new Set(S.toolMagazine.map(s => s.name));
+      const add = recs.filter(r => !have.has(r.name));
+      if (!add.length) { showToast('Doporučené ISO nože už v zásobníku jsou'); return; }
+      pushHistory();
+      const first = nextSlotNum();
+      for (const rec of add) {
+        const slot = _buildMagSlotFromTool(rec.tool, nextSlotNum(), rec.name);
+        slot.vc = rec.vc; slot.f = rec.f; slot.ap = rec.ap;
+        S.toolMagazine.push(slot);
+      }
+      saveState();
+      showToast(`Do zásobníku přidáno ${add.length} ISO nožů (T${first}–T${nextSlotNum() - 1}) — ▲▼ je přeřadíš`);
+      renderBody();
+    }
+
     dlg.querySelector('#mag-dlg-save-current').addEventListener('click', () => showSaveCurrentToolDialog(renderBody));
 
     dlg.querySelector('[data-act="mag-library"]').addEventListener('click', () => openToolLibraryForActive());
@@ -7473,6 +7508,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     dlg.querySelector('[data-act="mag-undo"]').addEventListener('click', () => undo());
     dlg.querySelector('[data-act="mag-redo"]').addEventListener('click', () => redo());
     dlg.querySelector('[data-act="mag-menu"]').addEventListener('click', () => showMagazineMenu('☰ Zásobník', [
+      { icon: '📚', label: 'Přidat doporučené ISO nože', run: addIsoStarterSet,
+        hint: ISO_STARTER_SET.length + ' nožů z 📚 ISO katalogu (dřík 25×25): ' + isoStarterSet().map(r => r.name.replace(/\d.*$/, '')).join(', ') + ' — za stávající nože' },
       { icon: '📥', label: 'Import ze souborů', run: importSlotsFromFiles,
         hint: 'Jeden nebo víc .json z 💾 Uložit do PC (🔪 Geometrie) — každý jako nový slot, název podle souboru' },
       { icon: '🔄', label: 'Seřadit dle výchozích', run: resortSlots,

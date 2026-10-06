@@ -24,9 +24,8 @@
 //   čelně, styl F/K (hlavní hrana proti posuvu −X): θ = κr − 90
 
 import { SHAPES, sizeInfo, CLEARANCE_DEG, RADIUS_MM } from './vbdIso.js';
-import {
-  buildInsertProfileSegments, buildInsertOutlineSegments, threadingToothSegments, PARTING_BODY_MIN_H_MM,
-} from './cam/insertPreview.js';
+import { buildInsertProfileSegments, buildInsertOutlineSegments, PARTING_BODY_MIN_H_MM } from './cam/insertPreview.js';
+import { segPoints, knifeThumbSvg } from './knifeThumb.js';
 
 /**
  * Dřík: výška × šířka, délkový kód a l1 (ISO 5608 poz. 8), f1 = špička od
@@ -217,25 +216,6 @@ export function isoInsertLabel(type, variant, size) {
 }
 
 // ── Geometrie ──────────────────────────────────────────────────
-
-/** Body obrysu (oblouky navzorkované kratší cestou, jako traceInsertSegments). */
-function segPoints(segs) {
-  const out = [];
-  for (const s of segs) {
-    if (s.type === 'circle') {
-      for (let i = 0; i < 24; i++) out.push({ x: s.cx + s.r * Math.cos(i * Math.PI / 12), z: s.cz + s.r * Math.sin(i * Math.PI / 12) });
-    } else if (s.type === 'arc') {
-      const a0 = Math.atan2(s.from.z - s.cz, s.from.x - s.cx);
-      let d = Math.atan2(s.to.z - s.cz, s.to.x - s.cx) - a0;
-      while (d <= -Math.PI) d += 2 * Math.PI;
-      while (d > Math.PI) d -= 2 * Math.PI;
-      for (let i = 0; i <= 8; i++) out.push({ x: s.cx + s.r * Math.cos(a0 + d * i / 8), z: s.cz + s.r * Math.sin(a0 + d * i / 8) });
-    } else {
-      out.push(s.from, s.to);
-    }
-  }
-  return out;
-}
 
 /** Pravý bok hlavy: od konce vedlejší hrany (FA) pod úhlem dA k pravé straně dříku. */
 function rightFlank(FA, dA, xR) {
@@ -473,27 +453,29 @@ export function isoCatalogCount() {
   return n;
 }
 
+/**
+ * Doporučená sada do 🔧 Zásobníku (uživatel 6. 10. 2026: „dej mi vhodné
+ * nože do zásobníku") — v pořadí obrábění, pokrývá všechny tvary plátků,
+ * které CAM umí. Výchozí T1–T6 (DEFAULT_TOOL_MAGAZINE) se NEMĚNÍ: CAM si je
+ * doplňuje podle jména a stojí na nich měření (scripts/cam_sweep.mjs).
+ */
+export const ISO_STARTER_SET = [
+  { id: 'CL', opts: { size: '12', radius: '08' }, role: 'hrubování podélně i čelně' },
+  { id: 'DJ', opts: { size: '15', radius: '04' }, role: 'dokončení a profil' },
+  { id: 'VJ', opts: { size: '16', radius: '04' }, role: 'jemné kopírování, zápichy' },
+  { id: 'RS', opts: { size: '20' }, role: 'kulatá R10, dojede k čelu' },
+  { id: 'TH', opts: { thread: 'AG60' }, role: 'závit 60°' },
+  { id: 'GR', opts: { width: 3 }, role: 'zapichování a upichování' },
+];
+
+/** Nože doporučené sady (záznamy knihovny); velikosti, které dřík nemá, nahradí výchozí. */
+export function isoStarterSet({ shank = '2525', hand = 'R' } = {}) {
+  return ISO_STARTER_SET.map((s) => buildIsoKnife(s.id, { ...s.opts, shank, hand })).filter(Boolean);
+}
+
 // ── Náhled (SVG) ───────────────────────────────────────────────
 
-/**
- * Malý náhled nože shora: hlava držáku + destička (řezná část plně).
- * Ořízne se na okolí špičky — dřík pokračuje mimo obrázek.
- */
+/** Malý náhled nože z katalogu (sdílená kresba knifeThumb.js). */
 export function isoKnifeSvg(rec, px = 72) {
-  const p = rec.tool;
-  const mir = p.holderHand === 'L' ? -1 : 1;
-  const full = segPoints(buildInsertOutlineSegments(p));
-  const cutSegs = p.toolShape === 'threading' ? threadingToothSegments(p) : buildInsertProfileSegments(p);
-  const cut = segPoints(cutSegs);
-  const holder = p.holderProfile.sideA;
-  const xs = [...full, ...holder].map((q) => q.x * mir);
-  const zMin = Math.min(...full.map((q) => q.z)) - 2;
-  const x0 = Math.min(...xs) - 2, span = Math.max(Math.max(...xs) + 2 - x0, 24);
-  const pt = (q) => `${r3(q.x * mir)} ${r3(-q.z)}`;
-  const path = (pts) => 'M' + pts.map(pt).join(' L') + ' Z';
-  return `<svg class="iso-cat-svg" viewBox="${r3(x0)} ${r3(-(zMin + span))} ${r3(span)} ${r3(span)}" width="${px}" height="${px}" aria-hidden="true">`
-    + `<path class="h" d="${path(holder)}" vector-effect="non-scaling-stroke"/>`
-    + `<path class="i" d="${path(full)}" vector-effect="non-scaling-stroke"/>`
-    + `<path class="c" d="${path(cut)}" vector-effect="non-scaling-stroke"/>`
-    + '</svg>';
+  return knifeThumbSvg(rec.tool, px);
 }

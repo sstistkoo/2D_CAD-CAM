@@ -5590,9 +5590,18 @@ body {
 .tool-lib-dlg .iso-cat-card--big .iso-cat-main { width: 100%; }
 .tool-lib-dlg .iso-cat-thumb { flex-shrink: 0; align-self: flex-start; padding: 2px; min-height: 0; background: var(--ctp-base); border: 1px solid var(--ctp-surface0); border-radius: 6px; cursor: zoom-in; line-height: 0; }
 .tool-lib-dlg .iso-cat-card--big .iso-cat-thumb { align-self: center; cursor: zoom-out; }
-.iso-cat-svg .h { fill: var(--ctp-surface1); stroke: var(--ctp-overlay2); stroke-width: 1; }
-.iso-cat-svg .i { fill: var(--ctp-blue); fill-opacity: .2; stroke: var(--ctp-blue); stroke-width: 1; }
-.iso-cat-svg .c { fill: var(--ctp-blue); fill-opacity: .65; stroke: var(--ctp-blue); stroke-width: 1; }
+/* Malý náhled nože (knifeThumb.js) — 📚 ISO katalog i řádek 🔧 Zásobníku. */
+.knife-svg .h { fill: var(--ctp-surface1); stroke: var(--ctp-overlay2); stroke-width: 1; }
+.knife-svg .i { fill: var(--ctp-blue); fill-opacity: .2; stroke: var(--ctp-blue); stroke-width: 1; }
+.knife-svg .c { fill: var(--ctp-blue); fill-opacity: .65; stroke: var(--ctp-blue); stroke-width: 1; }
+/* `.cam-mag-dlg` vpředu kvůli specificitě nad `.input-dialog button` (padding, min-height). */
+.cam-mag-dlg .cam-mag-thumb { flex-shrink: 0; padding: 1px; min-height: 0; line-height: 0; background: var(--ctp-base); border: 1px solid var(--ctp-surface0); border-radius: 5px; cursor: zoom-in; }
+.cam-mag-dlg .cam-mag-thumb:hover { border-color: var(--ctp-blue); }
+/* Úzký displej: v řádku nože schovat VBD a úhly (obrázek tvar ukáže, obojí je
+   v rozbalené kartě) — jinak se název nože zkrátí na „P…". */
+@media (max-width: 480px) {
+  .cam-mag-dlg .cam-mag-vbd, .cam-mag-dlg .cam-mag-ang { display: none; }
+}
 .tool-lib-dlg .iso-cat-main { flex: 1; min-width: 0; }
 .tool-lib-dlg .iso-cat-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; color: var(--ctp-text); font-family: monospace; }
 .tool-lib-dlg .iso-cat-ins { color: var(--ctp-sapphire); font-size: 12px; }

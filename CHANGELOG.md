@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **🔧 Zásobník: obrázek nože v řádku + 📚 doporučené ISO nože** (uživatel
+  6. 10. 2026) – za číslem T malý náhled (destička + hlava držáku, i u
+  vlastních obrysů, natočení a ruky; sdílená kresba `knifeThumb.js`, kterou
+  používá i ISO katalog), klik = 👁 Ukázat. Na mobilu se v řádku schová VBD
+  a úhly, ať je vidět název. ☰ → **📚 Přidat doporučené ISO nože**: PCLNR,
+  PDJNR, MVJNR, SRSCR R10, SER AG60, MGEHR 3 mm (dřík 25×25) za stávající
+  nože, jeden krok ↩. Výchozí T1–T6 beze změny (CAM je doplňuje podle jména,
+  stojí na nich `cam_sweep`). SW v396.
 - **📚 ISO katalog: kulaté držáky SRSCR (hlava 45°) a SRGCR (90°)**
   (uživatel 6. 10. 2026, podle fotky výrobce) – kulatá destička v rohu
   dříku vyčnívá o R, takže dojede k čelu / osazení (na ukázkovém dílu

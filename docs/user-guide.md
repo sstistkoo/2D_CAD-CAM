@@ -758,9 +758,19 @@ Hlavička okna je v jednom řádku:
   Simulátorem). Do historie jde každá změna slotu: pole, tvar, ✅ Použít,
   smazání, přidání, uložení aktuálního nástroje, import i seřazení.
   Rozbalení karty ne.
-- **☰** — menu s méně častou správou: **📥 Import ze souborů** (jeden nebo
-  víc `.json` z 💾 Uložit do PC, každý jako nový slot — celý import je jeden
-  krok ↩) a **🔄 Seřadit dle výchozích**.
+- **☰** — menu s méně častou správou: **📚 Přidat doporučené ISO nože**,
+  **📥 Import ze souborů** (jeden nebo víc `.json` z 💾 Uložit do PC, každý
+  jako nový slot — celý import je jeden krok ↩) a **🔄 Seřadit dle výchozích**.
+
+**📚 Přidat doporučené ISO nože** připojí za stávající nože sadu z 📚 ISO
+katalogu (dřík 25×25, ruka podle strany hrubování) v pořadí obrábění:
+PCLNR 2525M12 + CNMG 120408 (hrubování podélně i čelně), PDJNR 2525M15 +
+DNMG 150604 (dokončení, profil), MVJNR 2525M16 + VNMG 160404 (jemné
+kopírování, zápichy), SRSCR 2525M20 + RCMT 2006M0 (kulatá R10, dojede
+k čelu), SER 2525M16 + 16ER AG60 (závit) a MGEHR 2525-3 + MGMN 300
+(zapichování, upichování). Nože, které už v zásobníku jsou (stejné jméno),
+přeskočí; celé přidání je jeden krok ↩. Výchozí nože Hrub čelo … Upichovak
+zůstávají — CAM si je doplňuje sám; ▲▼ si pořadí upravíš.
 - **✕** — zavření, odsazené od ☰, ať se okno omylem nezavře.
 
 Dole zůstávají jen **💾 Uložit aktuální nástroj** a **＋ Přidat nůž**. Když
@@ -838,7 +848,12 @@ posunem nezměnil, dráhy zůstanou aktuální; když ano, „🔄 Dráhy ●" u
 je potřeba je přegenerovat. Totéž platí pro 🗑 Smazat a 🔄 Seřadit.
 
 Každý slot drží celý nůž: destičku, držák (i vlastní obrys) a řezné
-podmínky. Klik na kartu ji rozbalí a pod poli jsou tlačítka:
+podmínky. Hned za číslem T je **malý obrázek nože** (destička + hlava
+držáku, kreslený ze stejných dat jako simulace, i s natočením a rukou) —
+nůž je poznat bez rozbalování; klik na obrázek otevře **👁 Ukázat**. Na
+úzkém displeji se v řádku schová kód VBD a úhly (jsou v rozbalené kartě),
+ať zůstane vidět celý název. Klik na kartu ji rozbalí a pod poli jsou
+tlačítka:
 
 - **👁 Ukázat** — okno s náhledem nože, **destička i s držákem**, přesně jak
   vypadá v simulaci. Jen na koukání — aktivní nástroj se nemění. Kolečko nebo
