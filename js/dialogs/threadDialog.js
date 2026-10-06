@@ -44,7 +44,7 @@ export function threadToolDiameters(typeKey, D, P) {
 
 /**
  * Otevře dialog nástroje Závit.
- * @param {object} ctx  – { measuredDia, lineLen, startSide ('right'|'left') }
+ * @param {object} ctx  – { measuredDia, lineLen, startSide ('right'|'left'), orient ('h'|'v' – vodorovný/svislý závit) }
  * @param {object|null} vals – dřívější hodnoty polí (návrat z nakliknutí délky)
  * @param {object} cb – { onConfirm(params), onPickLength(vals), onCancel() }
  */
@@ -155,6 +155,12 @@ export function showThreadToolDialog(ctx, vals, cb) {
     const uc = lookupDin76(P);
     q('undercutLabel').textContent = `Zápich DIN 76 na konci (f${uc.f}×t${uc.t})`;
     q('adjustLabel').textContent = `Srovnat ⌀ na jmenovitý (${ctx.measuredDia.toFixed(3)} → ${D.toFixed(3)})`;
+  }
+
+  // Svislý závit (osa rotace svisle – karusel): konce jsou horní/dolní
+  if (ctx.orient === 'v') {
+    sideSel.querySelector('option[value="right"]').textContent = 'Horní konec (vyšší Z) ↓';
+    sideSel.querySelector('option[value="left"]').textContent = 'Dolní konec (nižší Z) ↑';
   }
 
   // ── Inicializace polí (nové otevření vs. návrat z nakliknutí délky) ──

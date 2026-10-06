@@ -33,6 +33,7 @@ export function validateGrooveParams(raw) {
       alpha: Number.isFinite(alpha) ? alpha : 45,
       type: raw.type || 'din76',
       mirror: !!raw.mirror,
+      orient: raw.orient === 'v' ? 'v' : 'h',
     },
   };
 }
@@ -40,8 +41,10 @@ export function validateGrooveParams(raw) {
 /**
  * Otevře dialog pro zadání parametrů zápichu (DIN 76 / DIN 509 / vlastní).
  * @param {(params: object|null) => void} onConfirm
+ * @param {{orient?: 'h'|'v'}} [opts] výchozí orientace (soustruh vodorovně,
+ *   karusel svisle – volí nástroj podle typu stroje)
  */
-export function showGrooveDialog(onConfirm) {
+export function showGrooveDialog(onConfirm, opts = {}) {
   const body = `
     <div class="cnc-fields">
       <label class="cnc-field" title="Typ zápichu dle normy">
@@ -53,7 +56,14 @@ export function showGrooveDialog(onConfirm) {
           <option value="custom">Vlastní</option>
         </select>
       </label>
-      <label class="cnc-field" title="Průměr válcové plochy, na které zápich leží">
+      <label class="cnc-field" title="Vodorovně = plocha zápichu leží vodorovně, hloubka jde dolů. Svisle = plocha svisle, hloubka jde doleva. Soustruh: vodorovně = na válci, svisle = na čele. Karusel (osy prohozené): svisle = na válci, vodorovně = na čele.">
+        <span>Orientace</span>
+        <select data-id="orient">
+          <option value="h">Vodorovně ↔</option>
+          <option value="v">Svisle ↕</option>
+        </select>
+      </label>
+      <label class="cnc-field" title="Průměr, na kterém zápich leží (u zápichu na čele průměr jeho vstupní hrany)">
         <span>Průměr d [mm]</span>
         <input data-id="diameter" type="number" value="20" min="0.1" step="0.5">
       </label>
@@ -77,7 +87,7 @@ export function showGrooveDialog(onConfirm) {
         <span>Úhel stěny [°]</span>
         <input data-id="alpha" type="number" value="45" min="1" max="89" step="1">
       </label>
-      <label class="cnc-field" title="Směr náběhu zápichu (orientace podél osy Z)">
+      <label class="cnc-field" title="Směr náběhu zápichu (kterým směrem od bodu kliknutí pokračuje)">
         <span>Směr</span>
         <select data-id="mirror">
           <option value="0">Šikmá stěna vlevo →</option>
@@ -105,6 +115,8 @@ export function showGrooveDialog(onConfirm) {
   const tInp = overlay.querySelector('[data-id="t"]');
   const rInp = overlay.querySelector('[data-id="r"]');
   const alphaInp = overlay.querySelector('[data-id="alpha"]');
+  const orientSel = overlay.querySelector('[data-id="orient"]');
+  const mirrorSel = overlay.querySelector('[data-id="mirror"]');
   const din76Fields = overlay.querySelectorAll('.din76-only');
   const customFields = overlay.querySelectorAll('.custom-only');
 
@@ -122,6 +134,16 @@ export function showGrooveDialog(onConfirm) {
       alphaInp.value = dims.alpha;
     }
   }
+
+  // Popisky směru podle orientace (svisle: zápich pokračuje nahoru/dolů)
+  function applyOrientLabels() {
+    const v = orientSel.value === 'v';
+    mirrorSel.options[0].textContent = v ? 'Šikmá stěna dole ↑' : 'Šikmá stěna vlevo →';
+    mirrorSel.options[1].textContent = v ? 'Šikmá stěna nahoře ↓' : 'Šikmá stěna vpravo ←';
+  }
+  orientSel.value = opts.orient === 'v' ? 'v' : 'h';
+  orientSel.addEventListener('change', applyOrientLabels);
+  applyOrientLabels();
 
   typeSel.addEventListener('change', applyPreset);
   pitchInp.addEventListener('input', () => { if (typeSel.value === 'din76') applyPreset(); });
@@ -145,7 +167,8 @@ export function showGrooveDialog(onConfirm) {
       t: parseFloat(tInp.value),
       r: parseFloat(rInp.value),
       alpha,
-      mirror: overlay.querySelector('[data-id="mirror"]').value === '1',
+      mirror: mirrorSel.value === '1',
+      orient: orientSel.value,
     };
     const validated = validateGrooveParams(raw);
     if (validated.error) {

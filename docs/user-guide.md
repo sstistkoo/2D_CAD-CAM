@@ -352,15 +352,24 @@ do SVG.
 
 ### Závit
 1. Vyber **Závit**
-2. Zadej: průměr, stoupání, forma (A/B/C), délka
-3. Zvol metrika / technologický závit
-4. Vznikne profil závitu
+2. Klikni na úsečku kontury rovnoběžnou s osou rotace (válcovou plochu) –
+   **vodorovnou** (soustruh) i **svislou** (karusel, osy prohozené); začátek
+   závitu je u konce, ke kterému klikneš
+3. V dialogu zvol typ a velikost (předvybraná podle ⌀ úsečky), délku,
+   sražení, zápich DIN 76 a konstrukční čáry d₂/d₃
+4. Nástroj upraví konturu (sražení, zápich, ⌀) a uloží údaje pro CAM;
+   u svislého závitu se popisek kreslí podél úsečky
 
 ### Zápich (DIN 76/509)
-1. Vyber **Zápich**
-2. Klikni na bod osy
-3. Zadej průměr a rohový úhel
-4. Vytvoří se zápichová geometrie
+1. Vyber **Zápich** a klikni na místo vstupní hrany
+2. Zadej typ, průměr, rozměry a **orientaci**:
+   - **Vodorovně ↔** – plocha vodorovně, hloubka jde dolů (soustruh: zápich
+     na válci, karusel: na čele)
+   - **Svisle ↕** – plocha svisle, hloubka jde doleva (karusel: na válci,
+     soustruh: na čele)
+   Výchozí orientace je podle typu stroje. **Průměr** určuje radiální polohu
+   (soustruh: výška, karusel: vodorovná poloha), druhou souřadnici dá klik.
+3. Vytvoří se zápichová geometrie
 
 ---
 

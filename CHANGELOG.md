@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (testy `tests/cncDrawTools.test.js`), náhled v `cncDrawPreview.js`.
   Řádek s údaji má celou šířku na 3 řádky (tlačítka ve sloupci vpravo), údaje se
   nelámou uprostřed. SW v360.
+- **Zápich a závit vodorovně i svisle, na karuselu prohozeně** (uživatel
+  6. 10. 2026: „na karuselu ať je to prohozené, závity a zápich by měl jít
+  jak vodorovně, tak i svisle nakreslit"):
+  - **Zápich**: v dialogu volba **Orientace** – vodorovně (hloubka dolů) /
+    svisle (hloubka doleva), výchozí podle stroje (soustruh vodorovně,
+    karusel svisle). Průměr určuje radiální polohu podle stroje (soustruh
+    svět y, karusel svět x). `placeGrooveProfile()` + test
+    `tests/groove-place.test.js`.
+  - **Závit**: jde na vodorovnou i svislou úsečku – celý výpočet běží
+    v rámci (podél osy, od osy) podle kliknuté úsečky; svislý závit dá
+    přesně tentýž výsledek s prohozenými osami (sražení, zápich DIN 76,
+    d₂/d₃, popisek podél úsečky, `threadInfo` pro CAM). Úsečka se drží jako
+    objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
 - **CNC kód: oblouk přes 180° s kladným R** (uživatel 6. 10. 2026) – export

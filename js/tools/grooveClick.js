@@ -5,7 +5,7 @@
 // ║  (přesun/oříznutí stávajících čar).                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { showToast, withUndoBatch } from '../state.js';
+import { state, showToast, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
 import { showGrooveDialog } from '../dialogs/grooveDialog.js';
@@ -73,14 +73,35 @@ export function buildGrooveProfile({ f, t, r, alpha, entryStyle, exitStyle }) {
 }
 
 /**
+ * Umístí relativní profil zápichu (u podél plochy, v ≤ 0 hloubka) do výkresu.
+ *  orient 'h' – plocha vodorovně, profil běží po x, hloubka jde dolů (−y)
+ *  orient 'v' – plocha svisle, profil běží po y, hloubka jde doleva (−x)
+ * `anchor` = vstupní hrana; `mirror` obrátí směr podél plochy.
+ * @returns {{vertices: {x:number,y:number}[], bulges: number[]}}
+ */
+export function placeGrooveProfile(profile, { orient = 'h', mirror = false, anchor }) {
+  const s = mirror ? -1 : 1;
+  const vertices = profile.vertices.map(p => (orient === 'v'
+    ? { x: anchor.x + p.y, y: anchor.y + s * p.x }
+    : { x: anchor.x + s * p.x, y: anchor.y + p.y }));
+  // Prohození os (svisle) je zrcadlení → obrací smysl oblouků; mirror taky
+  const k = orient === 'v' ? -s : s;
+  return { vertices, bulges: profile.bulges.map(b => k * b) };
+}
+
+/**
  * Klik při aktivním nástroji „groove": klik na plátno → dialog → po
- * potvrzení se profil zápichu umístí vstupní hranou na pozici kliknutí,
- * v radiální výšce d/2.
+ * potvrzení se profil zápichu umístí vstupní hranou na pozici kliknutí.
+ * Průměr d určuje radiální souřadnici – na soustruhu výšku (svět y), na
+ * karuselu (osy prohozené, osa rotace svisle) vodorovnou polohu (svět x);
+ * druhá souřadnice je z kliknutí. Orientace (vodorovně/svisle) jde zvolit
+ * v dialogu, výchozí je podle stroje (soustruh vodorovně, karusel svisle).
  */
 export function handleGrooveClick(wx, wy) {
+  const isKarusel = state.machineType === 'karusel';
   showGrooveDialog((params) => {
     if (!params) return;
-    const { diameter, f, t, r, alpha, type, mirror } = params;
+    const { diameter, f, t, r, alpha, type, mirror, orient } = params;
     const R1 = diameter / 2;
 
     let entryStyle, exitStyle;
@@ -92,11 +113,8 @@ export function handleGrooveClick(wx, wy) {
 
     const profile = buildGrooveProfile({ f, t, r, alpha, entryStyle, exitStyle });
 
-    const vertices = profile.vertices.map(v => ({
-      x: wx + (mirror ? -v.x : v.x),
-      y: R1 + v.y,
-    }));
-    const bulges = profile.bulges.map(b => (mirror ? -b : b));
+    const anchor = isKarusel ? { x: R1, y: wy } : { x: wx, y: R1 };
+    const { vertices, bulges } = placeGrooveProfile(profile, { orient, mirror, anchor });
 
     withUndoBatch(() => {
       addObject({
@@ -109,5 +127,5 @@ export function handleGrooveClick(wx, wy) {
     });
     renderAll();
     showToast(`Zápich přidán (f=${f}, t=${t}, r=${r} mm) ✓`);
-  });
+  }, { orient: isKarusel ? 'v' : 'h' });
 }
