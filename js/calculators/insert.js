@@ -2,92 +2,20 @@ import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { saveToolToLibrary } from '../toolLibrary.js';
 import { HOLDER_STYLES } from './holderIsoData.js';
+import { VBD_ISO, SHAPES, CLEARANCE_DEG, RADIUS_MM, parseVbdCode, describePosition, holdersFor } from './vbdIso.js';
 
-const vbdIsoData = {
-  1: { title:'Tvar',options:[
-    {v:'C',d:'Kosočtverec 80°',dt:'Dokončovací soustružení',svg:'<polygon points="35,5 53,35 35,65 17,35" fill="#3498db" stroke="#89b4fa" stroke-width="1.5"/>'},
-    {v:'D',d:'Kosočtverec 55°',dt:'Kopírovací soustružení',svg:'<polygon points="35,8 55,35 35,62 15,35" fill="#e74c3c" stroke="#89b4fa" stroke-width="1.5"/>'},
-    {v:'R',d:'Kruhový',dt:'Kopírovací operace, různorodé kontury',svg:'<circle cx="35" cy="35" r="22" fill="#9b59b6" stroke="#89b4fa" stroke-width="1.5"/>'},
-    {v:'S',d:'Čtvercový',dt:'Univerzální soustružení, srážení hran',svg:'<rect x="13" y="13" width="44" height="44" fill="#2ecc71" stroke="#89b4fa" stroke-width="1.5"/>'},
-    {v:'T',d:'Trojúhelníkový',dt:'Dokončovací soustružení, malé úběry',svg:'<polygon points="35,10 55,52 15,52" fill="#f1c40f" stroke="#89b4fa" stroke-width="1.5"/>'},
-    {v:'V',d:'Kosočtverec 35°',dt:'Přesné kopírovací soustružení',svg:'<polygon points="35,15 52,35 35,55 18,35" fill="#1abc9c" stroke="#89b4fa" stroke-width="1.5"/>'},
-    {v:'W',d:'Šestiúhelníkový',dt:'Speciální aplikace',svg:'<polygon points="35,12 52,22 52,46 35,56 18,46 18,22" fill="#e67e22" stroke="#89b4fa" stroke-width="1.5"/>'}
-  ]},
-  2: { title:'Úhel hřbetu',options:[
-    {v:'N',d:'0° – Negativní',dt:'Vysoké řezné rychlosti, přerušované řezy'},
-    {v:'B',d:'5° – Pozitivní',dt:'Kompromis negativní/pozitivní'},
-    {v:'P',d:'11° – Pozitivní',dt:'Menší řezné síly, lepší odvod třísek'},
-    {v:'C',d:'7° – Speciální',dt:'Speciální aplikace'},
-    {v:'E',d:'20° – Speciální',dt:'Velmi přesné obrábění'},
-    {v:'M',d:'15° – Speciální',dt:'Středně náročné obrábění'},
-    {v:'A',d:'25° – Speciální',dt:'Dokončovací, minimální řezné síly'}
-  ]},
-  3: { title:'Tolerance',options:[
-    {v:'A',d:'±0.05/±0.13 mm',dt:'Velmi přesné destičky'},
-    {v:'C',d:'±0.08/±0.25 mm',dt:'Střední přesnost'},
-    {v:'G',d:'±0.13/±0.25 mm',dt:'Běžné tolerance'},
-    {v:'U',d:'±0.13/±0.18 mm',dt:'Speciální tolerance'}
-  ]},
-  4: { title:'Typ',options:[
-    {v:'M',d:'S dírou + závit',dt:'Upínání šroubem'},
-    {v:'G',d:'S dírou + utvařeč třísky (horní)',dt:'Lepší kontrola třísky'},
-    {v:'N',d:'S dírou, bez utvařeče',dt:'Speciální aplikace'},
-    {v:'T',d:'S dírou + utvařeč (obě strany)',dt:'Oboustranně použitelná'}
-  ]},
-  5: { title:'Velikost (IC)',options:[
-    {v:'06',d:'6 mm',dt:'Malá – přesné obrábění'},
-    {v:'08',d:'8 mm',dt:'Malá – přesné obrábění'},
-    {v:'10',d:'10 mm',dt:'Středně velká'},
-    {v:'12',d:'12 mm',dt:'Standardní'},
-    {v:'16',d:'16 mm',dt:'Velká – hrubování'},
-    {v:'20',d:'20 mm',dt:'Velká – hrubování'},
-    {v:'25',d:'25 mm',dt:'Velmi velká – těžké hrubování'}
-  ]},
-  6: { title:'Tloušťka',options:[
-    {v:'02',d:'2 mm',dt:'Velmi tenká'},
-    {v:'03',d:'3 mm',dt:'Tenká'},
-    {v:'04',d:'4 mm',dt:'Standardní'},
-    {v:'05',d:'5 mm',dt:'Silnější'},
-    {v:'06',d:'6 mm',dt:'Tlustá – náročné podmínky'}
-  ]},
-  7: { title:'Rádius špičky',options:[
-    {v:'00',d:'0.0 mm',dt:'Ostrá špička'},
-    {v:'04',d:'0.4 mm',dt:'Malý – jemné obrábění'},
-    {v:'08',d:'0.8 mm',dt:'Standardní'},
-    {v:'12',d:'1.2 mm',dt:'Větší – lepší povrch'},
-    {v:'16',d:'1.6 mm',dt:'Velký – vysoká kvalita povrchu'},
-    {v:'24',d:'2.4 mm',dt:'Extra velký'}
-  ]},
-  8: { title:'Úprava břitu',options:[
-    {v:'F',d:'Jemné obrábění',dt:'Dokončovací operace'},
-    {v:'M',d:'Střední obrábění',dt:'Běžné obrábění'},
-    {v:'R',d:'Hrubé obrábění',dt:'Hrubovací operace'},
-    {v:'P',d:'Pozitivní geometrie',dt:'Nižší řezné síly'}
-  ]},
-  9: { title:'Směr řezu',options:[
-    {v:'R',d:'Pravý',dt:'Pravotočivé nástroje'},
-    {v:'L',d:'Levý',dt:'Levotočivé nástroje'},
-    {v:'N',d:'Neutrální',dt:'Obousměrné nástroje'}
-  ]}
-};
+// Pozice VBD dle ISO 1832 – data a dekódování ve vbdIso.js
+const vbdIsoData = VBD_ISO;
 
 const holderIso = {
   1: { title:'Způsob upnutí',options:[
-    {v:'C',d:'Upínka shora',dt:'Upnutí upínkou shora'},
-    {v:'D',d:'Upínací klín',dt:'Upnutí přes otvor klínem'},
-    {v:'M',d:'Upínací šroub',dt:'Upnutí šroubem přes otvor'},
-    {v:'P',d:'Páčka',dt:'Upnutí páčkou'},
-    {v:'S',d:'Boční šroub',dt:'Upnutí bočním šroubem'}
+    {v:'C',d:'Upínka shora',dt:'Destička bez díry'},
+    {v:'D',d:'Tuhé upnutí (upínka + kolík)',dt:'Destička s válcovou dírou'},
+    {v:'M',d:'Upínka shora + kolík v otvoru',dt:'Destička s válcovou dírou'},
+    {v:'P',d:'Páčka přes otvor',dt:'Destička s válcovou dírou'},
+    {v:'S',d:'Šroub přes otvor',dt:'Destička se zahloubenou dírou (CCMT, DCMT…)'}
   ]},
-  2: { title:'Tvar destičky',options:[
-    {v:'C',d:'Kosočtverec 80°',dt:'Dokončovací soustružení'},
-    {v:'D',d:'Kosočtverec 55°',dt:'Kopírovací soustružení'},
-    {v:'R',d:'Kruhový',dt:'Kopírovací operace'},
-    {v:'S',d:'Čtvercový',dt:'Univerzální soustružení'},
-    {v:'T',d:'Trojúhelníkový',dt:'Dokončovací soustružení'},
-    {v:'V',d:'Kosočtverec 35°',dt:'Přesné kopírování'},
-    {v:'W',d:'Šestiúhelníkový',dt:'Speciální aplikace'}
-  ]},
+  2: { title:'Tvar destičky',options: SHAPES.filter(function(s) { return 'CDRSTVW'.indexOf(s.v) >= 0; }) },
   // Styl držáku dle ISO 5608 – určuje přístupový úhel κr (orientační, viz holderIsoData.js)
   3: { title:'Styl (κr)',options: HOLDER_STYLES.map(function(s) {
     return { v:s.code, d:s.kappa + '° – ' + s.desc, dt:'Přístupový úhel, orientační dle ISO 5608' };
@@ -112,17 +40,6 @@ const holderIso = {
     {v:'25',d:'25 mm',dt:'Širší – lepší stabilita'},
     {v:'32',d:'32 mm',dt:'Max. tuhost'}
   ]}
-};
-
-// Doporučení držáku pro plátky (tvar → úhel hřbetu → typ držáku)
-const vbdToHolder = {
-  C:{N:'CCLNR/L, DCLNR/L',P:'CCPGR/L, DCPGR/L',M:'CCMNR/L, DCMNR/L'},
-  D:{N:'DDJNR/L, PDJNR/L',P:'DDPNR/L, PDPNR/L',M:'DDMNR/L, PDMNR/L'},
-  S:{N:'SSKNR/L, MSKNR/L',P:'SSPGR/L, MSPGR/L',M:'SSMNR/L, MSMNR/L'},
-  T:{N:'TTJNR/L, MTJNR/L',P:'TTPGR/L, MTPGR/L',M:'TTMNR/L, MTMNR/L'},
-  R:{N:'RRDNR/L, SRRNR/L',P:'RRPGR/L, SRPGR/L',M:'RRMNR/L, SRMNR/L'},
-  V:{N:'SVJNR/L, MVJNR/L',P:'SVPGR/L, MVPGR/L',M:'SVMNR/L, MVMNR/L'},
-  W:{N:'WWLNR/L, MWLNR/L',P:'WWPGR/L, MWPGR/L',M:'WWMNR/L, MWMNR/L'}
 };
 
 // ISO materiálové skupiny
@@ -156,9 +73,9 @@ const vbdMatCompare = [
 ];
 
 // Mapování ISO tvarů/kódů na CAM parametry (exportováno pro camSimulator)
-export const VBD_SHAPE_ANGLES    = { C: 80, D: 55, S: 90, T: 60, V: 35, W: 80 }; // R = round
-export const VBD_CLEARANCE_ANGLES = { N: 0, B: 5, P: 11, C: 7, E: 20, M: 15, A: 25 };
-export const VBD_TIP_RADII       = { '00': 0.0, '04': 0.4, '08': 0.8, '12': 1.2, '16': 1.6, '24': 2.4 };
+export const VBD_SHAPE_ANGLES    = Object.fromEntries(SHAPES.filter(function(s) { return s.angle; }).map(function(s) { return [s.v, s.angle]; })); // R = round
+export const VBD_CLEARANCE_ANGLES = CLEARANCE_DEG;    // ISO 1832: A 3°, B 5°, C 7°, D 15°, E 20°, F 25°, G 30°, N 0°, P 11°
+export const VBD_TIP_RADII       = RADIUS_MM;
 
 // Čistý parser kódu držáku dle ISO 5608 (5 jednopísmenných pozic + výška + šířka),
 // oddělený od DOM logiky kvůli testovatelnosti bez jsdom.
@@ -232,12 +149,12 @@ export function openInsertCalc(opts) {
           '<option value="C">C – Kosočtverec 80°</option><option value="D">D – Kosočtverec 55°</option>' +
           '<option value="R">R – Kruhový</option><option value="S">S – Čtvercový</option>' +
           '<option value="T">T – Trojúhelníkový</option><option value="V">V – Kosočtverec 35°</option>' +
-          '<option value="W">W – Šestiúhelníkový</option>' +
+          '<option value="W">W – Trigon 80°</option>' +
         '</select>' +
         '<select id="holderRevAngle"><option value="">Úhel…</option>' +
-          '<option value="N">N – 0° Negativní</option><option value="B">B – 5° Pozitivní</option>' +
-          '<option value="P">P – 11° Pozitivní</option><option value="C">C – 7°</option>' +
-          '<option value="E">E – 20°</option><option value="M">M – 15°</option><option value="A">A – 25°</option>' +
+          '<option value="N">N – 0° negativní</option><option value="A">A – 3°</option><option value="B">B – 5°</option>' +
+          '<option value="C">C – 7°</option><option value="P">P – 11°</option><option value="D">D – 15°</option>' +
+          '<option value="E">E – 20°</option><option value="F">F – 25°</option><option value="G">G – 30°</option>' +
         '</select>' +
       '</div>' +
     '</div>' +
@@ -323,18 +240,19 @@ export function openInsertCalc(opts) {
   // Schéma značení
   tab5 += '<div class="vbd-help-section">' +
     '<h4 class="vbd-help-h">🏷️ Systém značení ISO (9 pozic)</h4>' +
-    '<p class="vbd-help-p">Příklad: <strong class="vbd-help-code">C N M G 12 04 08 - P M</strong></p>' +
+    '<p class="vbd-help-p">Příklad: <strong class="vbd-help-code">C N M G 12 04 08 – PM</strong> (za pomlčkou označení výrobce)</p>' +
     '<table class="vbd-help-tbl">' +
     '<tr><th>Poz.</th><th>Význam</th><th>Příklad</th><th>Popis</th></tr>' +
     '<tr><td>1</td><td>Tvar destičky</td><td>C</td><td>Kosočtverec 80°</td></tr>' +
     '<tr><td>2</td><td>Úhel hřbetu</td><td>N</td><td>0° – negativní geometrie</td></tr>' +
-    '<tr><td>3</td><td>Tolerance</td><td>M</td><td>Střední přesnost rozměrů</td></tr>' +
-    '<tr><td>4</td><td>Typ destičky</td><td>G</td><td>S dírou + utvařeč třísky</td></tr>' +
-    '<tr><td>5</td><td>Velikost (IC)</td><td>12</td><td>12 mm vepsaná kružnice</td></tr>' +
-    '<tr><td>6</td><td>Tloušťka</td><td>04</td><td>4 mm</td></tr>' +
-    '<tr><td>7</td><td>Rádius špičky</td><td>08</td><td>0.8 mm</td></tr>' +
-    '<tr><td>8</td><td>Úprava břitu</td><td>P</td><td>Pozitivní geometrie</td></tr>' +
-    '<tr><td>9</td><td>Směr řezu</td><td>M</td><td>Střední obrábění</td></tr>' +
+    '<tr><td>3</td><td>Třída přesnosti</td><td>M</td><td>Lisovaná – d ±0,05–0,15, s ±0,13 mm</td></tr>' +
+    '<tr><td>4</td><td>Typ destičky</td><td>G</td><td>Válcová díra, utvařeč na obou stranách</td></tr>' +
+    '<tr><td>5</td><td>Velikost</td><td>12</td><td>Délka břitu 12,9 mm (IC 12,7 mm)</td></tr>' +
+    '<tr><td>6</td><td>Tloušťka</td><td>04</td><td>4,76 mm</td></tr>' +
+    '<tr><td>7</td><td>Rádius špičky</td><td>08</td><td>0,8 mm</td></tr>' +
+    '<tr><td>8</td><td>Úprava břitu</td><td>(E)</td><td>Volitelně: F ostrý, E zaoblený, T fazetka, S fazetka + zaoblení</td></tr>' +
+    '<tr><td>9</td><td>Směr</td><td>(N)</td><td>Volitelně: R pravý, L levý, N neutrální</td></tr>' +
+    '<tr><td>–</td><td>Výrobce</td><td>PM</td><td>Utvařeč / geometrie výrobce (např. Sandvik PM = ocel, střední obrábění)</td></tr>' +
     '</table>' +
   '</div>';
 
@@ -349,7 +267,7 @@ export function openInsertCalc(opts) {
     {v:'T',d:'Trojúhelník 60°',use:'Dokončovací soustružení s malým úběrem. 3 břity, dobrá univerzálnost.'},
     {v:'R',d:'Kruhový',use:'Kopírovací operace, zaoblené kontury. Proměnný úhel nastavení.'},
     {v:'V',d:'Kosočtverec 35°',use:'Přesné kopírovací soustružení. Nejostřejší, ale nejkřehčí špička.'},
-    {v:'W',d:'Šestiúhelník',use:'Speciální aplikace, 6 břitů pro ekonomický provoz.'}
+    {v:'W',d:'Trigon 80°',use:'Trojúhelník s tupými rohy 80° – pevné špičky, 3 (6) břity, podélné i čelní soustružení.'}
   ];
   var shapeData = vbdIsoData[1].options;
   for (var hs = 0; hs < helpShapes.length; hs++) {
@@ -376,11 +294,11 @@ export function openInsertCalc(opts) {
   tab5 += '<div class="vbd-help-section">' +
     '<h4 class="vbd-help-h">🎯 Třídy tolerance</h4>' +
     '<table class="vbd-help-tbl">' +
-    '<tr><th>Kód</th><th>Tloušťka</th><th>IC (vepsaná kružnice)</th><th>Použití</th></tr>' +
-    '<tr><td><strong>A</strong></td><td>±0.05 mm</td><td>±0.13 mm</td><td>Přesné obrábění</td></tr>' +
-    '<tr><td><strong>C</strong></td><td>±0.08 mm</td><td>±0.25 mm</td><td>Standardní přesnost</td></tr>' +
-    '<tr><td><strong>G</strong></td><td>±0.13 mm</td><td>±0.25 mm</td><td>Běžné aplikace</td></tr>' +
-    '<tr><td><strong>U</strong></td><td>±0.13 mm</td><td>±0.18 mm</td><td>Speciální</td></tr>' +
+    '<tr><th>Kód</th><th>Výška rohu m</th><th>Tloušťka s</th><th>IC d</th></tr>' +
+    '<tr><td><strong>E</strong></td><td>±0,025</td><td>±0,025</td><td>±0,025 mm (broušená)</td></tr>' +
+    '<tr><td><strong>G</strong></td><td>±0,025</td><td>±0,13</td><td>±0,025 mm (broušená po obvodu)</td></tr>' +
+    '<tr><td><strong>M</strong></td><td>±0,08–0,2</td><td>±0,13</td><td>±0,05–0,15 mm (lisovaná – nejběžnější)</td></tr>' +
+    '<tr><td><strong>U</strong></td><td>±0,13–0,38</td><td>±0,13</td><td>±0,08–0,25 mm (lisovaná, hrubá)</td></tr>' +
     '</table>' +
   '</div>';
 
@@ -406,11 +324,11 @@ export function openInsertCalc(opts) {
     '<h4 class="vbd-help-h">🔩 Způsoby upnutí destičky</h4>' +
     '<table class="vbd-help-tbl">' +
     '<tr><th>Kód</th><th>Systém</th><th>Výhody</th><th>Nevýhody</th></tr>' +
-    '<tr><td><strong>C</strong></td><td>Upínka shora</td><td>Rychlá výměna, bez otvoru</td><td>Menší přesnost polohování</td></tr>' +
-    '<tr><td><strong>M</strong></td><td>Šroub přes otvor</td><td>Nejlepší přesnost, spolehlivost</td><td>Pomalejší výměna</td></tr>' +
-    '<tr><td><strong>P</strong></td><td>Páčka</td><td>Rychlá výměna, přitahuje dolů</td><td>Složitější mechanismus</td></tr>' +
-    '<tr><td><strong>S</strong></td><td>Boční šroub</td><td>Kompaktní, pro malé prostory</td><td>Omezená síla upnutí</td></tr>' +
-    '<tr><td><strong>D</strong></td><td>Klín přes otvor</td><td>Velmi pevné upnutí</td><td>Nejpomalejší výměna</td></tr>' +
+    '<tr><td><strong>C</strong></td><td>Upínka shora</td><td>Destičky bez díry (keramika, CBN)</td><td>Menší přesnost polohování</td></tr>' +
+    '<tr><td><strong>M</strong></td><td>Upínka shora + kolík v otvoru</td><td>Pevné upnutí, hrubování</td><td>Upínka může překážet třísce</td></tr>' +
+    '<tr><td><strong>P</strong></td><td>Páčka přes otvor</td><td>Rychlá výměna, přitahuje do rohu</td><td>Jen negativní destičky s dírou</td></tr>' +
+    '<tr><td><strong>S</strong></td><td>Šroub přes otvor</td><td>Kompaktní, pozitivní destičky (CCMT…)</td><td>Pomalejší výměna</td></tr>' +
+    '<tr><td><strong>D</strong></td><td>Tuhé upnutí (upínka + kolík)</td><td>Velmi pevné, přerušované řezy</td><td>Pomalejší výměna</td></tr>' +
     '</table>' +
   '</div>';
 
@@ -429,7 +347,7 @@ export function openInsertCalc(opts) {
 
   // Utvařeče třísek
   tab5 += '<div class="vbd-help-section">' +
-    '<h4 class="vbd-help-h">🌀 Typy utvařečů třísky (poz. 8–9)</h4>' +
+    '<h4 class="vbd-help-h">🌀 Utvařeče třísky (označení výrobce za pomlčkou)</h4>' +
     '<table class="vbd-help-tbl">' +
     '<tr><th>Kód</th><th>Typ</th><th>Oblasti použití</th></tr>' +
     '<tr><td><strong>F / PF</strong></td><td>Jemné obrábění</td><td>ap 0.3–2 mm, f 0.05–0.2 mm/ot, dokončování</td></tr>' +
@@ -610,24 +528,24 @@ export function openInsertCalc(opts) {
       it.parentElement.classList.toggle('vbd-sel-filled', sel[p] !== '-');
     }
     // Code
-    vbdCode.textContent = sel[1]+sel[2]+sel[3]+sel[4]+' '+sel[5]+sel[6]+sel[7]+'–'+sel[8]+sel[9];
-    // Description
+    vbdCode.textContent = sel[1]+sel[2]+sel[3]+sel[4]+' '+sel[5]+sel[6]+sel[7] +
+      (sel[8] !== '-' || sel[9] !== '-' ? ' ' + (sel[8] !== '-' ? sel[8] : '') + (sel[9] !== '-' ? sel[9] : '') : '') +
+      (sel.suffix ? '–' + sel.suffix : '');
+    // Popis – velikost, tloušťka a rádius se počítají z kódu (velikost podle tvaru)
     var desc = []; var validCount = 0;
     for (var i = 1; i <= 9; i++) {
       if (sel[i] !== '-') {
         validCount++;
-        var found = vbdIsoData[i].options.find(function(o) { return o.v === sel[i]; });
-        if (found) desc.push('<b>' + i + '. ' + vbdIsoData[i].title + ':</b> ' + found.d);
+        var d = describePosition(i, sel[i], sel[1]);
+        desc.push('<b>' + i + '. ' + vbdIsoData[i].title + ':</b> ' + (d || sel[i] + ' – neznámý kód'));
       }
     }
+    if (sel.suffix) desc.push('<b>Výrobce:</b> ' + sel.suffix + ' – utvařeč / geometrie (viz katalog výrobce)');
     vbdDesc.innerHTML = validCount > 0 ? desc.join(' · ') : 'Klikněte na pozici nebo zadejte kód výše';
-    // Holder recommendations
-    if (sel[1] !== '-' && sel[2] !== '-' && vbdToHolder[sel[1]] && vbdToHolder[sel[1]][sel[2]]) {
-      vbdHolderRec.style.display = '';
-      vbdHolderList.textContent = vbdToHolder[sel[1]][sel[2]];
-    } else {
-      vbdHolderRec.style.display = 'none';
-    }
+    // Doporučené držáky podle tvaru, úhlu hřbetu a typu (díra → upnutí)
+    var hl = sel[1] !== '-' ? holdersFor(sel[1], sel[2], sel[4]) : '';
+    vbdHolderRec.style.display = hl ? '' : 'none';
+    vbdHolderList.textContent = hl;
     // Highlight shape button
     overlay.querySelectorAll('.vbd-shape-btn').forEach(function(b) {
       b.classList.toggle('vbd-shape-active', b.dataset.shape === sel[1]);
@@ -651,19 +569,12 @@ export function openInsertCalc(opts) {
       }
     }
     holderDescEl.innerHTML = cnt > 0 ? desc.join(' · ') : 'Klikněte na pozici nebo zadejte kód';
-    // Insert recommendation from holder – tvar (poz. 2) + úhel hřbetu destičky (poz. 4)
-    if (hSel[2] !== '-' && hSel[4] !== '-' && vbdToHolder[hSel[2]] && vbdToHolder[hSel[2]][hSel[4]]) {
+    // Vhodné destičky z držáku: tvar (poz. 2) + úhel hřbetu (poz. 4) + typ podle upnutí (poz. 1)
+    if (hSel[2] !== '-' && hSel[4] !== '-') {
+      var base = hSel[2] + hSel[4];
+      var types = hSel[1] === 'S' ? ['MT', 'MW'] : hSel[1] === 'C' ? ['MN', 'GN'] : hSel[1] !== '-' ? ['MG', 'MM'] : ['MG', 'MT'];
       holderInsertRec.style.display = '';
-      holderInsertList.textContent = vbdToHolder[hSel[2]][hSel[4]];
-    } else if (hSel[2] !== '-') {
-      var recs = ['N','P','M'].filter(function(a) { return vbdToHolder[hSel[2]] && vbdToHolder[hSel[2]][a]; })
-        .map(function(a) { return vbdToHolder[hSel[2]][a]; });
-      if (recs.length) {
-        holderInsertRec.style.display = '';
-        holderInsertList.textContent = recs.join(' | ');
-      } else {
-        holderInsertRec.style.display = 'none';
-      }
+      holderInsertList.textContent = types.map(function(t) { return base + t; }).join(', ') + '…';
     } else {
       holderInsertRec.style.display = 'none';
     }
@@ -692,19 +603,13 @@ export function openInsertCalc(opts) {
   });
 
   // ── Auto-decode VBD ──
-  function autoDecodeVbd(code) {
-    code = code.replace(/[\s\-]/g, '').toUpperCase();
+  function autoDecodeVbd(rawCode) {
+    var code = rawCode.replace(/[\s\-–]/g, '').toUpperCase();
     if (code.length < 4) return;
-    // Positions 1-4 are single chars, 5-7 are 2 digits each, 8-9 are single chars
-    sel[1] = code[0] || '-';
-    sel[2] = code[1] || '-';
-    sel[3] = code[2] || '-';
-    sel[4] = code[3] || '-';
-    if (code.length >= 6) sel[5] = code.substring(4, 6); else sel[5] = '-';
-    if (code.length >= 8) sel[6] = code.substring(6, 8); else sel[6] = '-';
-    if (code.length >= 10) sel[7] = code.substring(8, 10); else sel[7] = '-';
-    if (code.length >= 11) sel[8] = code[10]; else sel[8] = '-';
-    if (code.length >= 12) sel[9] = code[11]; else sel[9] = '-';
+    // ISO pozice 1–9 + označení výrobce za pomlčkou (-PM není poz. 8/9)
+    var parsed = parseVbdCode(rawCode);
+    for (var i = 1; i <= 9; i++) sel[i] = parsed[i];
+    sel.suffix = parsed.suffix;
     updateVbd();
   }
 
@@ -735,6 +640,7 @@ export function openInsertCalc(opts) {
   var revShapeEl = overlay.querySelector('#holderRevShape');
   var revAngleEl = overlay.querySelector('#holderRevAngle');
 
+  var revType = null;   // typ destičky (poz. 4) z kódu – pro upnutí
   function showHolderForVbd(shape, angle) {
     if (!shape) { revResultEl.style.display = 'none'; return; }
     var html = '';
@@ -746,32 +652,27 @@ export function openInsertCalc(opts) {
       '<div><strong>Plátky tvaru ' + shape + '</strong>' + (shapeInfo ? ' – ' + shapeInfo.d : '') +
       (angle ? '<br><small>Úhel hřbetu: ' + angle + '</small>' : '') + '</div></div>';
 
-    // Specific holders for shape+angle combo
-    if (angle && vbdToHolder[shape] && vbdToHolder[shape][angle]) {
-      html += '<div class="vbd-rev-match"><div class="vbd-rev-match-label">✅ Přesná shoda – doporučené držáky:</div>' +
-        '<div class="vbd-rev-match-val">' + vbdToHolder[shape][angle] + '</div></div>';
+    // Držáky pro zadaný tvar + úhel hřbetu (+ typ, je-li v kódu)
+    var exact = angle ? holdersFor(shape, angle, revType) : '';
+    if (exact) {
+      html += '<div class="vbd-rev-match"><div class="vbd-rev-match-label">✅ Doporučené držáky:</div>' +
+        '<div class="vbd-rev-match-val">' + exact + '</div></div>';
     } else if (angle) {
       html += '<div class="vbd-rev-match"><div class="vbd-rev-match-label" style="color:#f9e2af">⚠ Pro kombinaci ' + shape + '+' + angle + ' nemáme specifické doporučení</div></div>';
     }
 
     // Show ALL holders that fit this shape (all angles)
-    if (vbdToHolder[shape]) {
-      html += '<div class="vbd-rev-all"><div class="vbd-rev-match-label">Všechny držáky pro tvar ' + shape + ':</div><table class="vbd-rev-tbl">';
+    if (holdersFor(shape, 'N')) {
+      html += '<div class="vbd-rev-all"><div class="vbd-rev-match-label">Běžné držáky pro tvar ' + shape + ':</div><table class="vbd-rev-tbl">';
       html += '<tr><th>Úhel</th><th>Typ upnutí</th><th>Doporučené držáky</th></tr>';
-      for (var ak in vbdToHolder[shape]) {
-        var angleDesc = ak === 'N' ? '0° Neg.' : ak === 'P' ? '11° Poz.' : ak === 'M' ? '15°' : ak;
-        var isActive = (ak === angle);
-        html += '<tr' + (isActive ? ' class="vbd-rev-active"' : '') + '><td><strong>' + ak + '</strong> ' + angleDesc + '</td><td>';
-        // Infer clamping from holder prefix
-        var holders = vbdToHolder[shape][ak].split(', ');
-        var clamps = holders.map(function(h) {
-          var c1 = h.charAt(0);
-          if (c1 === 'C' || c1 === 'D' || c1 === 'P' || c1 === 'S' || c1 === 'M') return c1;
-          return '?';
-        });
-        html += clamps.filter(function(v,i,a){ return a.indexOf(v)===i; }).join(', ');
-        html += '</td><td>' + vbdToHolder[shape][ak] + '</td></tr>';
-      }
+      ['N', 'B', 'C', 'P'].forEach(function(ak) {
+        var list = holdersFor(shape, ak);
+        if (!list) return;
+        var clamps = list.split(', ').map(function(h) { return h.charAt(0); })
+          .filter(function(v, i, a) { return a.indexOf(v) === i; }).join(', ');
+        html += '<tr' + (ak === angle ? ' class="vbd-rev-active"' : '') + '><td><strong>' + ak + '</strong> ' + CLEARANCE_DEG[ak] + '°</td><td>' +
+          clamps + '</td><td>' + list + '</td></tr>';
+      });
       html += '</table></div>';
     }
 
@@ -788,6 +689,7 @@ export function openInsertCalc(opts) {
     if (code.length < 1) { revResultEl.style.display = 'none'; return; }
     var shape = code[0];
     var angle = code.length >= 2 ? code[1] : '';
+    revType = code.length >= 4 ? code[3] : null;
     // Sync selects
     revShapeEl.value = shape;
     revAngleEl.value = angle;
@@ -803,6 +705,7 @@ export function openInsertCalc(opts) {
 
   // From selects
   function revFromSelects() {
+    revType = null;
     showHolderForVbd(revShapeEl.value, revAngleEl.value);
   }
   revShapeEl.addEventListener('change', revFromSelects);
@@ -889,7 +792,9 @@ export function openInsertCalc(opts) {
       if (sel[5] !== '-') built += sel[5];
       if (sel[6] !== '-') built += sel[6];
       if (sel[7] !== '-') built += sel[7];
-      if (sel[8] !== '-' || sel[9] !== '-') built += '-' + (sel[8] !== '-' ? sel[8] : '') + (sel[9] !== '-' ? sel[9] : '');
+      if (sel[8] !== '-') built += sel[8];
+      if (sel[9] !== '-') built += sel[9];
+      if (sel.suffix) built += '-' + sel.suffix;
       var data = {
         vbdCode: built,
         isRound: sel[1] === 'R',
@@ -909,6 +814,7 @@ export function openInsertCalc(opts) {
   // ── Clear ──
   overlay.querySelector('.cnc-btn-clear').addEventListener('click', function() {
     for (var i = 1; i <= 9; i++) sel[i] = '-';
+    sel.suffix = '';
     for (var j = 1; j <= 7; j++) hSel[j] = '-';
     updateVbd(); updateHolder();
     overlay.querySelector('#vbdAutoInput').value = '';

@@ -86,6 +86,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **VBD & Držáky: dekodér podle ISO 1832 / 5608** (kontrola 6. 10. 2026): chyběla
+  3. pozice (třída přesnosti M – nejběžnější), G popsáno jako „utvařeč horní"
+  (je oboustranný), T jako „obě strany" (je jednostranný se zahloubením 40–60°),
+  N jako „s dírou"; velikost hlášena jako IC = kód (CNMG 12 → „IC 12 mm", VBMT 16
+  → „IC 16 mm"; ve skutečnosti délka břitu 12,9 / 16,6 mm a IC 12,7 / 9,525 mm);
+  tloušťka 04 = „4 mm" (je 4,76), T3 chyběla; úhly hřbetu A = 25° a M = 15° (ISO:
+  A = 3°, D = 15°, F = 25°) – a tyto hodnoty šly i do CAM při „Použít v CAM"; W
+  jako šestiúhelník (je trigon 80°); přípona výrobce „-PM" čtena jako ISO poz. 8/9;
+  upnutí M/S v nápovědě prohozené; „Vhodné plátky" u držáku vypisovaly držáky.
+  Nově `vbdIso.js` (data ISO 1832, IC z délky břitu podle tvaru, tloušťky
+  a rádiusy z kódu, přípona výrobce zvlášť, držáky z tvaru + úhlu + typu díry),
+  test `tests/vbdIso.test.js`. SW v392.
 - **Kužel, Hmotnost, Převodník** (kontrola 6. 10. 2026): posun koníku byl poloviční
   (L·tan(α/2) / 2 → D20/d10/L50 ukazovalo 2,5 místo **5 mm**), nově s poznámkou pro
   delší obrobek; Hmotnost počítala zápornou hmotnost u trubky s vnitřním Ø ≥ vnější

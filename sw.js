@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v391';
+const CACHE_NAME = 'skica-v392';
 const ASSETS = [
   './',
   './index.html',
@@ -136,6 +136,7 @@ const ASSETS = [
   './js/calculators/threadData.js',
   './js/calculators/threadPassesMath.js',
   './js/calculators/tolerance.js',
+  './js/calculators/vbdIso.js',
   './js/calculators/vkCommit.js',
   './js/calculators/vkContour.js',
   './js/calculators/vkHelp.js',
