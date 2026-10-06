@@ -779,6 +779,52 @@ nástroje) a **kam**:
   kartě). Starší záznamy a záznamy z VBD kalkulačky drží jen VBD kód, rádius,
   úhly a Vc/f/ap — u nich se tvar plátku ani držák nemění.
 
+#### 📚 ISO katalog nožů
+Okno **🧰 Knihovna** má dvě záložky: **🧰 Moje nože** (uložené) a **📚 ISO
+katalog** — vestavěné běžné vnější soustružnické nože podle **ISO 5608**
+(držák) a **ISO 1832** (destička). Prázdná knihovna se otevře rovnou na
+katalogu. Nahoře se volí **dřík** (16×16, 20×20, 25×25, 32×32 — podle něj
+f1, l1 a velikosti destiček, které do držáku patří), **ruka R/L** (jen název
+a náhled — v CAM se strana řídí směrem hrubování) a skupina (podélné, čelní,
+kopírovací, srážecí, zapichovací, závitové).
+
+| Typ | Destička | κr | Použití |
+|---|---|---|---|
+| PCLNR / SCLCR | C 80° (CNMG / CCMT) | 95° | podélně i čelně do osazení — univerzál |
+| PWLNR | W 80° (WNMG) | 95° | podélně i čelně, 6 břitů |
+| PTGNR / STGCR | T 60° (TNMG / TCMT) | 90° | podélně do osazení |
+| PCBNR, PSBNR | C 80°, S 90° | 75° | podélné hrubování |
+| PSKNR | S 90° (SNMG) | 75° čelně | čelní hrubování |
+| PTFNR / STFCR | T 60° | 90° čelně | zarovnání čela |
+| PDJNR / SDJCR | D 55° (DNMG / DCMT) | 93° | kopírování, zanoření ~30° |
+| PDNNN / SDNCN | D 55° | 62,5° | kopírování oběma směry (neutrální) |
+| MVJNR / SVJBR | V 35° (VNMG / VBMT) | 93° | jemné kopírování, zanoření ~50° |
+| MVVNN / SVVBN | V 35° | 72,5° | jemné kopírování oběma směry |
+| PSSNR / SSSCR, PSDNN | S 90° | 45° | srážení hran |
+| SRDCN | R (RCMT) | — | kulatá — kopírování, velký rádius |
+| MGEHR | MGMN 2–5 mm | — | zapichování, upichování |
+| SER | 16ER AG60 / AG55 | — | vnější závit 60° / 55° |
+
+U každé karty se vybere **negativní / pozitivní** destička (kde existují
+obě), **velikost** (např. CNMG 1204 / 1606) a **rádius rε**. Katalog takhle
+umí přes 580 kombinací. Klik na náhled ho zvětší. Tlačítka:
+
+- **✅ Použít** — nůž se nastaví jako aktuální (destička, držák s obrysem
+  hlavy, Vc/f/ap), okno se zavře.
+- **🔧 Do zásobníku** (jen z 🧰 Knihovny v hlavičce zásobníku) — přidá nůž
+  jako další T; okno zůstane otevřené, takže jde zásobník naplnit víc noži
+  za sebou.
+- **🧰 Uložit** — uloží nůž do Moje nože.
+
+Z typu se dopočítá i natočení destičky v CAM (vedlejší hrana: podélně
+180° − ε − κr, čelně κr − 90°) a obrys držáku: dřík b × l1 posunutý o f1,
+hlava za destičkou s úlevou 3° od hran (u κr ≥ 90° nevyčnívá přes
+prodloužení hlavní hrany, takže nevadí v osazení). Název nože je kód
+držáku (`PCLNR2525M12`), kód destičky jde do pole VBD. **Rozměry držáků
+a tvar hlavy jsou orientační** (typické řady ISO 5610 a katalogů) — konkrétní
+držák ověř v katalogu výrobce, obrys jde po použití upravit v 🔪 Geometrii.
+Řezné podmínky jsou jen startovní odhad podle destičky.
+
 **▲ ▼ vlevo na kartě** (vedle sebe) posunou nůž v zásobníku o místo výš/níž. Pozice
 = číslo T, takže si nůž se sousedem vymění místo **i T**. Aktivní nůž,
 rozbalená karta i **dokončovací nůž** (Dokončování → nástroj ze zásobníku)

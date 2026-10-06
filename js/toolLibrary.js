@@ -15,6 +15,7 @@
 
 import { showToast } from './state.js';
 import { getMeta, setMeta } from './idb.js';
+import { mountIsoCatalog } from './calculators/isoCatalogPanel.js';
 
 const META_KEY = 'toolLibrary';
 
@@ -62,19 +63,25 @@ function _fmt(n) {
 const SHAPE_ICON = { round: '⬤', polygon: '◼', parting: '▮', threading: '▽' };
 
 /**
- * Otevře dialog knihovny nástrojů.
+ * Otevře dialog knihovny nástrojů. S `onApply` má dvě záložky: 🧰 Moje nože
+ * (uložené) a 📚 ISO katalog (isoCatalogPanel.js) — vestavěné nože z ISO.
  * @param {Object} opts
  * @param {(tool: Object) => void} [opts.onApply] - zavoláno po kliknutí na "Použít"
  * @param {() => Object|null} [opts.getCurrent] - vrátí aktuální parametry nástroje
  *        pro tlačítko "Uložit aktuální nástroj" (null/nedefinováno = tlačítko skryto)
+ * @param {(tool: Object) => void} [opts.onAddToMagazine] - 🔧 Do zásobníku v katalogu
+ * @param {'R'|'L'} [opts.hand] - výchozí ruka nožů v katalogu (strana hrubování)
  */
 export async function showToolLibraryDialog(opts = {}) {
   let library = await getToolLibrary();
+  const hasCatalog = typeof opts.onApply === 'function';
+  let catalogMounted = false;
 
   function buildList(lib) {
     if (lib.length === 0) {
-      return `<li style="color:var(--ctp-overlay0);padding:20px;text-align:center">
+      return `<li style="color:var(--ctp-subtext0);padding:20px;text-align:center">
         Knihovna nástrojů je prázdná.${opts.getCurrent ? '<br><span style="font-size:12px">Uložte aktuální nástroj tlačítkem níže.</span>' : ''}
+        ${hasCatalog ? '<br><span style="font-size:12px">Hotové nože podle ISO najdete v záložce 📚 ISO katalog.</span>' : ''}
       </li>`;
     }
     return lib.map((t, i) => `
@@ -99,11 +106,18 @@ export async function showToolLibraryDialog(opts = {}) {
   overlay.className = 'input-overlay';
   overlay.style.zIndex = '300';
   overlay.innerHTML = `
-    <div class="input-dialog" style="min-width:360px;max-width:520px">
+    <div class="input-dialog tool-lib-dlg${hasCatalog ? ' tool-lib-dlg--wide' : ''}">
       <h3>🧰 Knihovna nástrojů</h3>
-      <ul class="project-list" id="toolLibList">${buildList(library)}</ul>
+      ${hasCatalog ? `<div class="vbd-tabs">
+        <button class="vbd-tab" data-tab="mine">🧰 Moje nože (<span id="toolLibCount">${library.length}</span>)</button>
+        <button class="vbd-tab" data-tab="iso">📚 ISO katalog</button>
+      </div>` : ''}
+      <div class="tool-lib-pane" data-pane="mine">
+        <ul class="project-list" id="toolLibList">${buildList(library)}</ul>
+        ${opts.getCurrent ? '<button class="btn-ok" id="toolLibSaveCurrent" style="width:100%;margin-bottom:8px">➕ Uložit aktuální nástroj do knihovny</button>' : ''}
+      </div>
+      ${hasCatalog ? '<div class="tool-lib-pane tool-lib-pane--iso" data-pane="iso"></div>' : ''}
       <div class="btn-row" style="flex-direction:column;gap:8px;align-items:stretch">
-        ${opts.getCurrent ? '<button class="btn-ok" id="toolLibSaveCurrent" style="width:100%">➕ Uložit aktuální nástroj do knihovny</button>' : ''}
         <button class="btn-cancel" id="toolLibClose" style="width:100%">Zavřít</button>
       </div>
     </div>`;
@@ -111,7 +125,36 @@ export async function showToolLibraryDialog(opts = {}) {
 
   function refreshList() {
     overlay.querySelector('#toolLibList').innerHTML = buildList(library);
+    const cnt = overlay.querySelector('#toolLibCount');
+    if (cnt) cnt.textContent = library.length;
     attachListeners();
+  }
+
+  // Záložky: prázdná knihovna otevře rovnou katalog (jinak by okno nic nenabídlo).
+  function showTab(tab) {
+    overlay.querySelectorAll('.vbd-tab').forEach((b) => b.classList.toggle('vbd-tab-active', b.dataset.tab === tab));
+    overlay.querySelectorAll('.tool-lib-pane').forEach((p) => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
+    if (tab === 'iso' && !catalogMounted) {
+      catalogMounted = true;
+      mountIsoCatalog(overlay.querySelector('[data-pane="iso"]'), {
+        hand: opts.hand,
+        onApply: (rec) => {
+          opts.onApply(rec);
+          overlay.remove();
+          showToast(`Nástroj "${rec.name}" použit.`);
+        },
+        onAddToMagazine: opts.onAddToMagazine,
+        onSave: async (rec) => {
+          await saveToolToLibrary(rec);
+          library = await getToolLibrary();
+          refreshList();
+        },
+      });
+    }
+  }
+  if (hasCatalog) {
+    overlay.querySelectorAll('.vbd-tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    showTab(library.length === 0 ? 'iso' : 'mine');
   }
 
   function attachListeners() {

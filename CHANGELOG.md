@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **📚 ISO katalog nožů v 🧰 Knihovně nástrojů** (uživatel 6. 10. 2026) –
+  vestavěné vnější soustružnické nože podle ISO 5608 (držák) a ISO 1832
+  (destička): PCLNR/SCLCR, PWLNR, PTGNR/STGCR, PCBNR, PSBNR, PSKNR,
+  PTFNR/STFCR, PDJNR/SDJCR, PDNNN/SDNCN, MVJNR/SVJBR, MVVNN/SVVBN,
+  PSSNR/SSSCR, PSDNN, SRDCN, zapichovací MGEHR (MGMN 2–5 mm) a závitový SER
+  (16ER AG60/AG55). Volí se dřík 16×16–32×32, negativní/pozitivní destička,
+  velikost a rε — 584 kombinací. Z κr se dopočte natočení destičky v CAM,
+  obrys držáku (dřík b × l1 posunutý o f1, hlava za destičkou s úlevou) se
+  postaví parametricky — rozměry orientační. ✅ Použít / 🔧 Do zásobníku
+  (nový T, okno zůstane otevřené) / 🧰 Uložit. Prázdná knihovna se otevře
+  rovnou na katalogu. `isoToolCatalog.js` + `isoCatalogPanel.js`, test
+  `iso-tool-catalog` (každá kombinace: uzavřený jednoduchý obrys mimo
+  řeznou část, κr → natočení, kódy). SW v394.
 - **Kalkulačka ⌐ Roh R / C** v Další kalkulačky (uživatel 6. 10. 2026) –
   zaoblení / sražení obecného rohu: zadání třemi body nebo rohem a směry,
   tečné body, střed, t = R·tan(δ/2), vnitřní úhel, řádky G01/G02/G03 s R

@@ -7007,6 +7007,24 @@ export function openCamSimulator(initialContour, initialGCode) {
   function openToolLibraryForActive() {
     showToolLibraryDialog({
       getCurrent: currentToolLibraryRecord,
+      hand: S.params.roughingSide === 'left' ? 'L' : 'R',
+      // 📚 ISO katalog → nový slot zásobníku (okno knihovny zůstane otevřené,
+      // ať jde zásobník naplnit víc noži za sebou).
+      onAddToMagazine: (rec) => {
+        const knife = _libraryKnife(rec);
+        if (!knife) return;
+        pushHistory();
+        const mag = S.toolMagazine;
+        const num = mag.length > 0 ? Math.max(...mag.map(s => s.slot)) + 1 : 1;
+        const slot = _buildMagSlotFromTool(knife, num, rec.name || `T${num}`);
+        if (rec.vc) slot.vc = rec.vc;
+        if (rec.f) slot.f = rec.f;
+        if (rec.ap) slot.ap = rec.ap;
+        mag.push(slot);
+        saveState();
+        if (magazineDialogRefresh) magazineDialogRefresh();
+        showToast(`${rec.name} přidán do zásobníku jako T${num}`);
+      },
       onApply: (tool) => {
         pushHistory();
         const knife = _libraryKnife(tool);
@@ -7366,6 +7384,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         btn.addEventListener('click', () => {
           const idx = parseInt(btn.dataset.magidx);
           showToolLibraryDialog({
+            hand: S.params.roughingSide === 'left' ? 'L' : 'R',
             onApply: (tool) => {
               const slot = S.toolMagazine[idx];
               if (!slot) return;

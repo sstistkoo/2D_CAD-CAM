@@ -5567,6 +5567,52 @@ body {
   color: var(--ctp-red);
 }
 
+/* ── 🧰 Knihovna nástrojů + 📚 ISO katalog (toolLibrary.js, isoCatalogPanel.js) ──
+   Pravidla jsou pod `.tool-lib-dlg`, ať přebijí obecné `.input-dialog button /
+   select` (třída+element, na mobilu padding 10px a min-height 40px). Velikost
+   písma u <select> se nemění — na mobilu zůstává 16px kvůli zoomu v iOS. */
+.tool-lib-dlg { min-width: 0; width: calc(100% - 20px); max-width: 520px; max-height: 90vh; display: flex; flex-direction: column; }
+.tool-lib-dlg--wide { max-width: 600px; }
+.tool-lib-dlg .tool-lib-pane--iso { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tool-lib-dlg .iso-cat-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; font-size: 12px; color: var(--ctp-subtext0); }
+.tool-lib-dlg .iso-cat-bar label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.tool-lib-dlg .iso-cat-bar select { width: auto; margin: 0; padding: 3px 6px; }
+.tool-lib-dlg .iso-cat-seg, .tool-lib-dlg .iso-cat-groups { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.tool-lib-dlg .iso-cat-seg button, .tool-lib-dlg .iso-cat-groups button {
+  background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1); color: var(--ctp-subtext0);
+  border-radius: 12px; padding: 3px 10px; min-height: 0; font-size: 12px; cursor: pointer;
+}
+.tool-lib-dlg .iso-cat-seg button.on, .tool-lib-dlg .iso-cat-groups button.on { background: var(--ctp-blue); border-color: var(--ctp-blue); color: var(--ctp-base); font-weight: 600; }
+.tool-lib-dlg .iso-cat-groups { margin-bottom: 8px; }
+.tool-lib-dlg .iso-cat-list { flex: 1; min-height: 120px; overflow-y: auto; padding-right: 2px; }
+.tool-lib-dlg .iso-cat-card { display: flex; gap: 10px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--ctp-surface1); border-radius: 8px; background: var(--ctp-mantle); }
+.tool-lib-dlg .iso-cat-card--big { flex-direction: column; align-items: center; }
+.tool-lib-dlg .iso-cat-card--big .iso-cat-main { width: 100%; }
+.tool-lib-dlg .iso-cat-thumb { flex-shrink: 0; align-self: flex-start; padding: 2px; min-height: 0; background: var(--ctp-base); border: 1px solid var(--ctp-surface0); border-radius: 6px; cursor: zoom-in; line-height: 0; }
+.tool-lib-dlg .iso-cat-card--big .iso-cat-thumb { align-self: center; cursor: zoom-out; }
+.iso-cat-svg .h { fill: var(--ctp-surface1); stroke: var(--ctp-overlay2); stroke-width: 1; }
+.iso-cat-svg .i { fill: var(--ctp-blue); fill-opacity: .2; stroke: var(--ctp-blue); stroke-width: 1; }
+.iso-cat-svg .c { fill: var(--ctp-blue); fill-opacity: .65; stroke: var(--ctp-blue); stroke-width: 1; }
+.tool-lib-dlg .iso-cat-main { flex: 1; min-width: 0; }
+.tool-lib-dlg .iso-cat-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; color: var(--ctp-text); font-family: monospace; }
+.tool-lib-dlg .iso-cat-ins { color: var(--ctp-sapphire); font-size: 12px; }
+.tool-lib-dlg .iso-cat-desc { font-size: 11px; color: var(--ctp-subtext0); margin: 2px 0 4px; line-height: 1.35; }
+.tool-lib-dlg .iso-cat-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.tool-lib-dlg .iso-cat-chips span { font-size: 10px; color: var(--ctp-subtext0); border: 1px solid var(--ctp-surface1); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+.tool-lib-dlg .iso-cat-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.tool-lib-dlg .iso-cat-opts select { width: auto; max-width: 100%; margin: 0; padding: 2px 4px; }
+.tool-lib-dlg .iso-cat-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.tool-lib-dlg .iso-cat-btn { background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1); color: var(--ctp-text); border-radius: 5px; padding: 4px 9px; min-height: 0; font-size: 12px; cursor: pointer; }
+.tool-lib-dlg .iso-cat-btn:hover { background: var(--ctp-surface1); }
+.tool-lib-dlg .iso-cat-btn--ok { border-color: var(--ctp-green); color: var(--ctp-green); }
+.tool-lib-dlg .iso-cat-empty { padding: 20px; text-align: center; color: var(--ctp-subtext0); }
+.tool-lib-dlg .iso-cat-note { font-size: 10.5px; color: var(--ctp-subtext0); margin-top: 6px; line-height: 1.4; }
+@media (max-width: 480px) {
+  .tool-lib-dlg { padding: 12px; }
+  .tool-lib-dlg .iso-cat-card { padding: 6px; gap: 8px; }
+  .tool-lib-dlg .iso-cat-btn { padding: 6px 10px; }
+}
+
 @media (max-width: 900px) {
   .help-panel {
     width: 95vw;
