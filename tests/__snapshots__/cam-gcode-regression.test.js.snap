@@ -8133,8 +8133,8 @@ N170 G1 X2.000 Z369.932
 ; Průchod 2
 N180 G0 X24.610
 N190 G0 Z365.932
-N200 G1 X0.027 F0.25
-N210 G1 X2.027 Z367.932
+N200 G1 X0.000 F0.25
+N210 G1 X2.000 Z367.932
 ; Průchod 3
 N220 G0 X24.610
 N230 G0 Z362.932
@@ -8170,8 +8170,8 @@ N460 G0 X24.610
 N470 G0 Z344.932
 N480 G1 X10.317 F0.25
 N490 G1 X10.317 Z346.575 F0.25
-N500 G1 X0.050 Z347.672 F0.25
-N510 G1 X2.050 Z349.672
+N500 G1 X0.000 Z347.677 F0.25
+N510 G1 X2.000 Z349.677
 ; Průchod 10 (bez schodků)
 N520 G0 X24.610
 N530 G0 Z341.932
@@ -8967,7 +8967,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
   "Hlídání geometrie (držák): dokončování vynechá 11 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání upichováku: 19 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 3) nevjelo do kontury.",
   "Doběh na konci úseku: 2 průchodů přidáno, aby na koncích úseků nezůstal schodek.",
-  "Hlídání držáku (čelně): 40 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
+  "Hlídání držáku (čelně): 39 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
   "Dojezd bez schodků: 1 dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.",
 ]
 `;

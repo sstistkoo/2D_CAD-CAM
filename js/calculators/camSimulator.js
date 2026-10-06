@@ -40,6 +40,7 @@ import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, 
 import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPreview.js';
 import { knifeThumbSvg } from './knifeThumb.js';
 import { isoDefaultKnives, migrateLegacyMagazine } from './magazineDefaults.js';
+import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -576,6 +577,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     // se už sám nevrací (uživatel 6. 10. 2026). Zásobník nesmí zůstat prázdný:
     // poslední nůž nejde smazat (🗑 se u něj nekreslí) a reset ho naplní.
     if (S.toolMagazine.length === 0) S.toolMagazine.push(..._isoDefaultMagSlots());
+    // Nože z 📚 katalogu se STARÝM obrysem držáku (hlava končila na břitu —
+    // čelní hrubování pak nechávalo schodky, 6. 10. 2026) → opravený obrys.
+    const fixed = _upgradeIsoHolders(S.toolMagazine);
+    if (fixed) setTimeout(() => showToast(`Opraven obrys držáku u ${fixed} nožů z 📚 ISO katalogu (hlava teď končí 1 mm za břitem) — přegeneruj dráhy`), 0);
   }
 
   // Závit nakreslený v CAD (nástroj Závit ukládá metadata threadInfo na
@@ -7074,7 +7079,28 @@ export function openCamSimulator(initialContour, initialGCode) {
    *  a ✏️ Přejmenovat ho ukládá zpět), nebo null u staršího záznamu bez něj
    *  (ty uměly jen VBD, R, úhly a Vc/f/ap). */
   function _libraryKnife(rec) {
-    return rec && rec.tool && rec.tool.toolShape ? JSON.parse(JSON.stringify(rec.tool)) : null;
+    if (!(rec && rec.tool && rec.tool.toolShape)) return null;
+    const knife = JSON.parse(JSON.stringify(rec.tool));
+    // Nůž uložený z 📚 katalogu se starým obrysem držáku → opravený (viz _upgradeIsoHolders).
+    const np = upgradeIsoHolderProfile(rec.name, knife.toolVbdCode, knife.holderProfile);
+    if (np) knife.holderProfile = JSON.parse(JSON.stringify(np));
+    return knife;
+  }
+
+  /** Starý obrys držáku nožů z 📚 ISO katalogu (verze 1: hlava končila přesně
+   *  na břitu) → aktuální — ve slotech `slots`, v S.params i v částech
+   *  programu. Nože odjinud a upravené obrysy se nemění. Vrací počet oprav. */
+  function _upgradeIsoHolders(slots) {
+    const fix = (obj, nameKey, vbdKey) => {
+      const np = obj ? upgradeIsoHolderProfile(obj[nameKey], obj[vbdKey], obj.holderProfile) : null;
+      if (np) obj.holderProfile = JSON.parse(JSON.stringify(np));
+      return np ? 1 : 0;
+    };
+    let n = 0;
+    for (const sl of slots || []) n += fix(sl, 'name', 'vbdCode');
+    n += fix(S.params, 'toolName', 'toolVbdCode');
+    for (const part of S.opParts || []) n += fix(part.params, 'toolName', 'toolVbdCode');
+    return n;
   }
 
   /** 🧰 Knihovna nožů nad AKTUÁLNÍM nástrojem (S.params) — z hlavičky
@@ -7764,6 +7790,9 @@ export function openCamSimulator(initialContour, initialGCode) {
           S.activePart = Math.min(Math.max(0, data.activePart | 0), S.opParts.length - 1);
           S.opContourKey = data.opContourKey || contourKey(S.contourPoints);
         }
+        // Projekt uložený s nožem z 📚 katalogu se starým obrysem držáku.
+        const fixedHolders = _upgradeIsoHolders([]);
+        if (fixedHolders) setTimeout(() => showToast('Opraven obrys držáku nože z 📚 ISO katalogu (hlava teď končí 1 mm za břitem) — přegeneruj dráhy'), 0);
         // Nový projekt = nová kontura/polotovar — starý ořez i záloha
         // před-profilové kontury už k ničemu nesedí (jinak by ❌ po
         // otevření jiného souboru vracelo konturu z PŘEDCHOZÍHO projektu).

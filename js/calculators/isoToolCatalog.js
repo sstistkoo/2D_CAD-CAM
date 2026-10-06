@@ -124,6 +124,18 @@ export const ISO_THREAD_INSERTS = [
 ];
 
 const RELIEF_DEG = 3;          // úleva boků hlavy od hran destičky
+/**
+ * Odsazení hlavy držáku od řezných hran [mm] podle verze obrysu. Destička
+ * vždy přesahuje lůžko — hlava NESMÍ končit na prodloužení břitu.
+ * Verze 1 (do 6. 10. 2026) to neměla: roh hlavy ležel přesně v rohu
+ * destičky (polygon) / 0,05 mm nad kružnicí (kulatá). Zbytek materiálu po
+ * předchozím průchodu se hrany dotýká, takže se ho dotkl i držák → CAM
+ * průchod zkrátil a chyba se řetězila (čelní hrubování s PSKNR: místo
+ * 15° kužele schodky, nález uživatele 6. 10. 2026). Verze 1 zůstává jen
+ * kvůli poznání starých obrysů (upgradeIsoHolderProfile).
+ */
+const HOLDER_GEOM = { 1: { edge: 0, round: 0.05 }, 2: { edge: 1, round: 0.5 } };
+export const ISO_HOLDER_VERSION = 2;
 const THREAD_FLANK_MM = 2.5;   // bok zubu AG (hloubka do P 3 mm ≈ 1,8 mm)
 
 const rad = (d) => d * Math.PI / 180;
@@ -228,7 +240,7 @@ function rightFlank(FA, dA, xR) {
  * Bok drží za prodloužením hlavní hrany (úhel dB), aby hlava nevadila v
  * osazení; nikdy ale nevyčnívá dál než roh destičky — pak jde svisle.
  */
-function leftFlank(FB, dB, xL, zTop) {
+function leftFlank(FB, dB, xL, zTop, FB0 = FB) {
   const c = Math.cos(rad(dB)), s = Math.sin(rad(dB));
   const xr = FB.x + (zTop - FB.z) * c / s;
   if (xr <= xL) {
@@ -238,7 +250,10 @@ function leftFlank(FB, dB, xL, zTop) {
     return [{ x: xMin, z: zTop }, { x: xMin, z: zM }, FB];
   }
   if (FB.x < xL && c > 1e-9) return [{ x: xL, z: FB.z + (xL - FB.x) * s / c }, FB];
-  return [{ x: xL, z: FB.z }, FB];
+  // Bok dříku vlevo od konce hrany (čelní PTFNR): ke konci hlavy FB (posunutému
+  // po spojnici dovnitř) jen přes skutečný roh destičky FB0 a po spojnici —
+  // přímo by šla přes cíp destičky. Hrana B je tu vedlejší (k hotovému čelu).
+  return [{ x: xL, z: FB0.z }, FB0, FB];
 }
 
 /** Uzavřený obrys (první = poslední bod), bez opakovaných bodů a bodů uprostřed přímky, zaokrouhlený. */
@@ -258,9 +273,16 @@ function closeLoop(pts) {
 }
 
 /** Obrys držáku polygonální destičky — hlava od spojnice FA–FB (zadní půlka destičky sedí v lůžku). */
-function polygonHolder(prms, type, sh) {
+function polygonHolder(prms, type, sh, geom) {
   const cut = buildInsertProfileSegments(prms);           // [t1→FA, FA→FB, FB→t2, oblouk]
-  const FA = cut[0].to, FB = cut[1].to;
+  // Hlava začíná na spojnici konců hran, ale o `geom.edge` od obou hran
+  // dovnitř: posun po spojnici o edge / sin(úhel spojnice s hranou),
+  // trojúhelník C–FA–FB je rovnoramenný → úhel (180° − ε) / 2.
+  const FA0 = cut[0].to, FB0 = cut[1].to;
+  const cl = Math.hypot(FB0.x - FA0.x, FB0.z - FA0.z);
+  const ux = (FB0.x - FA0.x) / cl, uz = (FB0.z - FA0.z) / cl;
+  const d = Math.min(geom.edge / Math.sin(rad((180 - prms.toolTipAngle) / 2)), 0.3 * cl);
+  const FA = { x: FA0.x + ux * d, z: FA0.z + uz * d }, FB = { x: FB0.x - ux * d, z: FB0.z - uz * d };
   const minX = Math.min(...segPoints(cut).map((p) => p.x));
   const maxZ = Math.max(...segPoints(buildInsertOutlineSegments(prms)).map((p) => p.z));
   const xL = type.neutral ? -sh.b / 2 : minX + (sh.f1 - sh.b);
@@ -271,7 +293,7 @@ function polygonHolder(prms, type, sh) {
   const theta = prms.toolAngle, eps = prms.toolTipAngle;
   const right = rightFlank(FA, Math.max(theta, 0) + RELIEF_DEG, xHR);
   const zTop = Math.max(1.3 * sh.b, right[1].z + 2, maxZ + 2, FB.z + 2);
-  const left = leftFlank(FB, theta + eps - RELIEF_DEG, xL, zTop);
+  const left = leftFlank(FB, theta + eps - RELIEF_DEG, xL, zTop, FB0);
   const step = xHR > xR ? [{ x: xHR, z: zTop }, { x: xR, z: zTop }] : [];
   return closeLoop([...right, ...step, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }, { x: xL, z: zTop }, ...left]);
 }
@@ -284,11 +306,11 @@ function polygonHolder(prms, type, sh) {
  *             (dojede k čelu / osazení), vpravo krček a sražení hlavy 45°.
  *  G (SRGCR)  totéž bez sražení — rovné čelo hlavy nad destičkou (90°).
  */
-function roundHolder(r, sh, style) {
+function roundHolder(r, sh, style, geom) {
   const PHI = 25;
   const at = (deg, rr) => ({ x: rr * Math.cos(rad(deg)), z: rr * Math.sin(rad(deg)) });
   if (style === 'D') {
-    const N = 8, step = (180 - 2 * PHI) / N, rr = r / Math.cos(rad(step / 2)) + 0.05;
+    const N = 8, step = (180 - 2 * PHI) / N, rr = r / Math.cos(rad(step / 2)) + geom.round;
     const FA = at(PHI, rr), FB = at(180 - PHI, rr);
     const xL = -sh.b / 2, xR = sh.b / 2;
     const right = rightFlank(FA, 65, xR);
@@ -298,7 +320,7 @@ function roundHolder(r, sh, style) {
     for (let i = N - 1; i >= 1; i--) seat.push(at(PHI + i * step, rr));
     return closeLoop([...right, { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }, { x: xL, z: zTop }, ...left, ...seat]);
   }
-  const N = 5, step = (90 - PHI) / N, rr = r / Math.cos(rad(step / 2)) + 0.05;
+  const N = 5, step = (90 - PHI) / N, rr = r / Math.cos(rad(step / 2)) + geom.round;
   const FA = at(PHI, rr), xR = sh.b;
   const seat = [];
   for (let i = N - 1; i >= 1; i--) seat.push(at(PHI + i * step, rr));
@@ -392,6 +414,7 @@ export function buildIsoKnife(typeId, opts = {}) {
   const type = isoTypeById(typeId);
   if (!type) return null;
   const sh = shankOf(opts.shank);
+  const geom = HOLDER_GEOM[opts.holderVersion] || HOLDER_GEOM[ISO_HOLDER_VERSION];
   const hand = opts.hand === 'L' ? 'L' : 'R';
   const def = isoDefaults(type, sh.code);
   if (!def) return null;
@@ -426,7 +449,7 @@ export function buildIsoKnife(typeId, opts = {}) {
   if (type.shape === 'R') {
     const R = icOf('R', size) / 2;
     const prms = { toolShape: 'round', toolLength: 10, toolRadius: R, toolAngle: 0, toolTipAngle: 90, toolTipFlat: 0.1, toolClearanceAngle: clearance };
-    return knifeRecord({ name, vbdCode, holder: roundHolder(R, sh, type.style), prms, sh, hand, cut: cutData('round', 0, 0, R), desc: type.desc, iso });
+    return knifeRecord({ name, vbdCode, holder: roundHolder(R, sh, type.style, geom), prms, sh, hand, cut: cutData('round', 0, 0, R), desc: type.desc, iso });
   }
   const eps = epsOf(type.shape);
   const edge = sizeInfo(type.shape, size).edge;
@@ -434,7 +457,7 @@ export function buildIsoKnife(typeId, opts = {}) {
   const R = RADIUS_MM[radius];
   const prms = { toolShape: 'polygon', toolLength: edge, toolRadius: R, toolAngle: theta, toolTipAngle: eps,
     toolTipFlat: 0.1, toolTipMirror: false, toolVbdCode: vbdCode, toolClearanceAngle: clearance };
-  return knifeRecord({ name, vbdCode, holder: polygonHolder(prms, type, sh), prms, sh, hand,
+  return knifeRecord({ name, vbdCode, holder: polygonHolder(prms, type, sh, geom), prms, sh, hand,
     cut: cutData('polygon', edge, eps, R), desc: type.desc, iso });
 }
 
@@ -458,4 +481,47 @@ export function isoCatalogCount() {
 /** Malý náhled nože z katalogu (sdílená kresba knifeThumb.js). */
 export function isoKnifeSvg(rec, px = 72) {
   return knifeThumbSvg(rec.tool, px);
+}
+
+// ── Převod starých obrysů (verze 1 → aktuální) ─────────────────
+
+/**
+ * Rozpozná nůž z katalogu podle kódu držáku (ISO 5608) a VBD → typ + volby
+ * pro buildIsoKnife, nebo null. Jen polygonální a kulaté (u zapichovacího
+ * a závitového se obrys mezi verzemi nemění).
+ */
+export function parseIsoKnifeName(name, vbdCode) {
+  const m = /^([A-Z])([A-Z])([A-Z])([A-Z])([RLN])(\d{4})([A-Z])(\d{2})$/.exec(String(name || ''));
+  if (!m) return null;
+  const [, clamp, shape, style, clear, hand, shank, , size] = m;
+  const type = ISO_HOLDER_TYPES.find((t) => t.shape === shape && t.style === style && (t.neg === clamp || t.pos === clamp));
+  if (!type) return null;
+  const variant = clear === 'N' && type.neg === clamp ? 'neg' : 'pos';
+  const iso = String(vbdCode || '').toUpperCase().split(/[-–]/)[0].replace(/\s/g, '');
+  const radius = shape === 'R' ? undefined : iso.slice(8, 10);
+  return { id: type.id, opts: { shank, variant, size, radius, hand: hand === 'L' ? 'L' : 'R' } };
+}
+
+const loopKey = (p) => JSON.stringify(p
+  ? ['sideA', 'sideB'].map((k) => (p[k] || []).map((q) => [Math.round(q.x * 1000), Math.round(q.z * 1000)]))
+  : null);
+
+/**
+ * Obrys držáku nože z katalogu postavený STAROU verzí (hlava končila na
+ * břitu, viz HOLDER_GEOM) → aktuální obrys; jinak null (nůž odjinud nebo
+ * obrys upravený uživatelem se nemění). Pro zásobník, aktuální nástroj,
+ * knihovnu i načtený .camprog.
+ */
+export function upgradeIsoHolderProfile(name, vbdCode, holderProfile) {
+  if (!holderProfile) return null;
+  const parsed = parseIsoKnifeName(name, vbdCode);
+  if (!parsed) return null;
+  const key = loopKey(holderProfile);
+  for (let v = 1; v < ISO_HOLDER_VERSION; v++) {
+    const old = buildIsoKnife(parsed.id, { ...parsed.opts, holderVersion: v });
+    if (!old || old.name !== name || loopKey(old.tool.holderProfile) !== key) continue;
+    const cur = buildIsoKnife(parsed.id, parsed.opts);
+    return cur && cur.name === name ? cur.tool.holderProfile : null;
+  }
+  return null;
 }

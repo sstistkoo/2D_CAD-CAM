@@ -856,7 +856,11 @@ Katalog takhle umí přes 760 kombinací. Klik na náhled ho zvětší. Tlačít
 Z typu se dopočítá i natočení destičky v CAM (vedlejší hrana: podélně
 180° − ε − κr, čelně κr − 90°) a obrys držáku: dřík b × l1 posunutý o f1,
 hlava za destičkou s úlevou 3° od hran (u κr ≥ 90° nevyčnívá přes
-prodloužení hlavní hrany, takže nevadí v osazení). Název nože je kód
+prodloužení hlavní hrany, takže nevadí v osazení). Hlava končí **1 mm za
+břity** (kulatá 0,5 mm od kružnice) — destička přesahuje lůžko jako
+u skutečného držáku; kdyby hlava končila přesně na břitu, dotkla by se
+zbytku po předchozím průchodu a CAM by průchody zkracoval (do 6. 10. 2026
+to tak bylo — staré obrysy se samy převedou, viz CHANGELOG). Název nože je kód
 držáku (`PCLNR2525M12`), kód destičky jde do pole VBD. **Rozměry držáků
 a tvar hlavy jsou orientační** (typické řady ISO 5610 a katalogů) — konkrétní
 držák ověř v katalogu výrobce, obrys jde po použití upravit v 🔪 Geometrii.

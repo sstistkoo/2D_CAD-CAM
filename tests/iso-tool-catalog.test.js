@@ -5,9 +5,11 @@
 // všechna pole nože (CAM_TOOL_KEYS), takže jde do CAM stejnou cestou jako
 // uložený nůž z knihovny.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
   ISO_HOLDER_TYPES, ISO_SHANKS, ISO_THREAD_INSERTS, isoVariants, isoSizes, isoRadii, isoGrooveWidths,
-  buildIsoKnife, isoCatalogCount, isoKnifeSvg,
+  buildIsoKnife, isoCatalogCount, isoKnifeSvg, upgradeIsoHolderProfile, parseIsoKnifeName,
 } from '../js/calculators/isoToolCatalog.js';
 import { buildInsertProfileSegments } from '../js/calculators/cam/insertPreview.js';
 import { CAM_TOOL_KEYS, DEFAULT_TOOL_MAGAZINE } from '../js/calculators/cam/camToolPicker.js';
@@ -278,5 +280,59 @@ describe('🔧 Zásobník — výchozí ISO nože místo provizorních', () => {
       expect(svg, s.name).toMatch(/^<svg class="knife-svg" viewBox="(-?[\d.]+ ){3}-?[\d.]+"[\s\S]*<\/svg>$/);
       expect(svg, s.name).not.toMatch(/NaN|Infinity/);
     }
+  });
+});
+
+describe('hlava držáku za břitem (verze 2) a převod starých obrysů', () => {
+  const combos = allCombos();
+
+  it('polygon: hlava začíná ≥ 1 mm od obou řezných hran; kulatá ≥ 0,5 mm od kružnice', () => {
+    const bad = [];
+    for (const [id, opts] of combos) {
+      const p = buildIsoKnife(id, opts).tool;
+      const loop = p.holderProfile.sideA;
+      if (p.toolShape === 'polygon') {
+        const cut = buildInsertProfileSegments(p);
+        const dist = (q, P, deg) => Math.abs(Math.cos(deg * Math.PI / 180) * (q.z - P.z) - Math.sin(deg * Math.PI / 180) * (q.x - P.x));
+        const dA = dist(loop[0], cut[0].to, p.toolAngle);                       // začátek hlavy u hrany A
+        const FB = cut[1].to;
+        const nearB = loop.reduce((b, q) => (Math.hypot(q.x - FB.x, q.z - FB.z) < Math.hypot(b.x - FB.x, b.z - FB.z) ? q : b));
+        const dB = dist(nearB, FB, p.toolAngle + p.toolTipAngle);               // konec hlavy u hrany B
+        // Hrana B je u čelních stylů (F, K) vedlejší — k hotovému čelu, kde držák
+        // míjí čelo o celou šířku destičky; tam se odsazení nevyžaduje.
+        const faceStyle = ISO_HOLDER_TYPES.find((t) => t.id === id).face;
+        if (dA < 0.999 || (!faceStyle && dB < 0.999)) bad.push(`${id} ${JSON.stringify(opts)}: A ${dA.toFixed(3)} B ${dB.toFixed(3)}`);
+      } else if (p.toolShape === 'round') {
+        const gap = Math.min(...loop.map((q) => Math.hypot(q.x, q.z))) - p.toolRadius;
+        if (gap < 0.49) bad.push(`${id} ${JSON.stringify(opts)}: ${gap.toFixed(3)}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('starý obrys (verze 1) se pozná a nahradí aktuálním; aktuální, upravený a cizí ne', () => {
+    let n = 0;
+    for (const [id, opts] of combos) {
+      const old = buildIsoKnife(id, { ...opts, holderVersion: 1 });
+      if (old.tool.toolShape !== 'polygon' && old.tool.toolShape !== 'round') continue;
+      const cur = buildIsoKnife(id, opts);
+      expect(upgradeIsoHolderProfile(old.name, old.vbdCode, old.tool.holderProfile), old.name).toEqual(cur.tool.holderProfile);
+      expect(upgradeIsoHolderProfile(cur.name, cur.vbdCode, cur.tool.holderProfile)).toBeNull();
+      n++;
+    }
+    expect(n).toBeGreaterThan(700);
+    const old = buildIsoKnife('SK', { shank: '2525', holderVersion: 1 });
+    const edited = JSON.parse(JSON.stringify(old.tool.holderProfile));
+    edited.sideA[1].x += 1;
+    expect(upgradeIsoHolderProfile(old.name, old.vbdCode, edited)).toBeNull();
+    expect(upgradeIsoHolderProfile('Hrubovaci', '', DEFAULT_TOOL_MAGAZINE[1].holderProfile)).toBeNull();
+    expect(parseIsoKnifeName('SVJBR2525M16', 'VBMT160404')).toEqual(
+      { id: 'VJ', opts: { shank: '2525', variant: 'pos', size: '16', radius: '04', hand: 'R' } });
+  });
+
+  it('projekt uživatele (PSKNR, obrys verze 1) se při načtení převede', () => {
+    const p = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'cam-cases', 'face-psknr-axis.camprog'), 'utf8')).params;
+    const up = upgradeIsoHolderProfile(p.toolName, p.toolVbdCode, p.holderProfile);
+    expect(up).toEqual(buildIsoKnife('SK', { shank: '2525', size: '12', radius: '08' }).tool.holderProfile);
   });
 });

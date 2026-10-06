@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Čelní hrubování nožem PSKNR: průchody na osu a čistý 15° kužel**
+  (nález uživatele 6. 10. 2026 — „u každého záběru schodek, každá další
+  dráha skončí dřív"). Dvě příčiny, obě změřené na jeho dílu:
+  - **Hlídání držáku čelně** (`ops/face/holderGuard.js`) bralo dno
+    průchodu, který dojel NA OSU, jako povrch s materiálem pod sebou — nůž,
+    jehož hlava sahá pod úroveň špičky, pak nad čelem dílu končil na X 2,14 /
+    3,94 / 6,08 / 7,88 místo na ose. Pod osou nic nestojí (pravidlo 2).
+    Otisk: změnil se jen `part-17-long-parting` (dva průchody 0,027 / 0,05 →
+    přesně na osu, snapshot přepsán).
+  - **Obrys držáku z 📚 katalogu** měl roh hlavy přesně v rohu destičky, na
+    prodloužení břitu. Zbytek po předchozím průchodu se břitu dotýká, takže
+    i držáku → zkrácení se řetězilo do pily (1,07 / 2,87 mm místo 15°) a
+    2 kolize rychloposuvem. Hlava teď končí 1 mm za břity (kulatá 0,5 mm
+    od kružnice). Staré obrysy z katalogu se v zásobníku, u aktuálního
+    nože, v částech programu, u nože z knihovny i v načteném `.camprog`
+    převedou samy (`upgradeIsoHolderProfile`); upravené obrysy zůstanou.
+  - Test `cam-face-holder-axis` na dílu uživatele (bez opravy padá).
+    SW v399.
+
 ### Changed
 - **🔧 Zásobník: výchozí nože jen do prázdného zásobníku + automatický výběr
   nože podle operace** (uživatel 6. 10. 2026) – smazaný výchozí nůž se už

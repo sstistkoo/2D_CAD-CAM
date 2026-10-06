@@ -1,0 +1,592 @@
+{
+  "__camprog": 1,
+  "pathLogicVersion": 3,
+  "savedAt": "2026-10-06T15:56:20.839Z",
+  "params": {
+    "machineType": "LIMS=2000",
+    "mode": "RADIUS",
+    "toolName": "PSKNR2525M12",
+    "speed": 200,
+    "feed": 0.24,
+    "depthOfCut": 4,
+    "retractDistance": 2,
+    "rapidFeed": 6000,
+    "retractAngle": 45,
+    "allowanceX": 0.5,
+    "allowanceZ": 0.5,
+    "toolRadius": 0.8,
+    "finishAllowance": 0,
+    "doFinishing": true,
+    "roughingStrategy": "face",
+    "finishOnly": false,
+    "roughingSide": "right",
+    "stockMode": "casting",
+    "stockMargin": 5,
+    "stockDiameter": 111,
+    "stockLength": 5,
+    "stockFace": 349,
+    "safeX": 150,
+    "safeZ": 5,
+    "machineStructure": "lathe",
+    "controlSystem": "sinumerik",
+    "autoProfile": false,
+    "toolShape": "polygon",
+    "toolLength": 12.7,
+    "toolAngle": -15,
+    "toolTipAngle": 90,
+    "toolTipMirror": false,
+    "toolVbdCode": "SNMG120408",
+    "toolClearanceAngle": 0,
+    "holderWidth": 25,
+    "holderLength": 150,
+    "holderHand": "R",
+    "holderProfile": {
+      "sideA": [
+        {
+          "x": 11.287,
+          "z": -3.853
+        },
+        {
+          "x": 31.202,
+          "z": -2.809
+        },
+        {
+          "x": 31.202,
+          "z": 150
+        },
+        {
+          "x": 6.202,
+          "z": 150
+        },
+        {
+          "x": 6.202,
+          "z": 23.688
+        },
+        {
+          "x": 2.307,
+          "z": 11.702
+        },
+        {
+          "x": 11.287,
+          "z": -3.853
+        }
+      ],
+      "sideB": []
+    },
+    "knifeAngle": 270,
+    "holderInflate": 0,
+    "holderInflateAll": false,
+    "toolTipFlat": 0.1,
+    "partOffZ": null,
+    "partingApproachFeed": 1,
+    "partOffSmooth": false,
+    "partOffStartX": 64.55,
+    "finishingSlot": null,
+    "threadActive": false,
+    "threadName": "",
+    "threadType": "mc",
+    "threadDiameter": 20,
+    "threadPitch": 2.5,
+    "threadAngle": 60,
+    "threadDepth": 1.534,
+    "threadExternal": true,
+    "threadZStart": 0,
+    "threadZEnd": -20,
+    "threadRunIn": 3,
+    "threadRunOut": 0,
+    "threadPasses": 0,
+    "threadSpringPasses": 1,
+    "threadTaperRatio": 0,
+    "threadInfeed": "radial",
+    "entryAngle": 15,
+    "entryAngleAuto": true,
+    "respectInsertGeometry": true,
+    "plungeRoughing": true,
+    "pocketFinishAtOnce": true,
+    "noStepRoughing": true,
+    "noStepRoughingFace": true,
+    "orderAwareHolder": true,
+    "rapidClearance": 1,
+    "rapidFeedGap": 1,
+    "stockClearX": null,
+    "stockClearZ": null,
+    "regionRoughing": true,
+    "booleanRoughing": true,
+    "guideOnlyRegions": true,
+    "holderAutoComplete": true,
+    "pathGenerator": "legacy"
+  },
+  "contourPoints": [
+    {
+      "id": 1791301875186,
+      "type": "G0",
+      "x": 0,
+      "z": 346.371,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875187,
+      "type": "G1",
+      "x": 9.117,
+      "z": 345.397,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875188,
+      "type": "G1",
+      "x": 9.117,
+      "z": 243.123,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875189,
+      "type": "G1",
+      "x": 50.081,
+      "z": 234.99,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875190,
+      "type": "G1",
+      "x": 50.081,
+      "z": 221.135,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875191,
+      "type": "G1",
+      "x": 30.156,
+      "z": 213.667,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875192,
+      "type": "G1",
+      "x": 30.156,
+      "z": 205.009,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875193,
+      "type": "G1",
+      "x": 6.744,
+      "z": 205.009,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875194,
+      "type": "G1",
+      "x": 6.744,
+      "z": 165.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875195,
+      "type": "G1",
+      "x": 8.743,
+      "z": 163.945,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875196,
+      "type": "G1",
+      "x": 8.743,
+      "z": 149.544,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875197,
+      "type": "G1",
+      "x": 8.743,
+      "z": 138.253,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875198,
+      "type": "G1",
+      "x": 38.574,
+      "z": 137.509,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875199,
+      "type": "G1",
+      "x": 40.118,
+      "z": 128.86,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875200,
+      "type": "G1",
+      "x": 40.118,
+      "z": 125.462,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875201,
+      "type": "G3",
+      "x": 33.477,
+      "z": 116.044,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875202,
+      "type": "G1",
+      "x": 14.22,
+      "z": 109.175,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875203,
+      "type": "G2",
+      "x": 7.579,
+      "z": 99.757,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875204,
+      "type": "G1",
+      "x": 7.579,
+      "z": 84.177,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875205,
+      "type": "G2",
+      "x": 15.585,
+      "z": 74.378,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875206,
+      "type": "G1",
+      "x": 22.252,
+      "z": 73.021,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875207,
+      "type": "G3",
+      "x": 27.056,
+      "z": 67.142,
+      "r": 6,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875208,
+      "type": "G1",
+      "x": 27.056,
+      "z": 55.47,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875209,
+      "type": "G3",
+      "x": 25.516,
+      "z": 51.456,
+      "r": 6,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875210,
+      "type": "G2",
+      "x": 27.279,
+      "z": 16.913,
+      "r": 24.495,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875211,
+      "type": "G3",
+      "x": 30.566,
+      "z": 9.502,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875212,
+      "type": "G1",
+      "x": 30.566,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301875213,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "stockPoints": [
+    {
+      "id": 1791301975186,
+      "type": "G0",
+      "x": 0,
+      "z": 368.932,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975187,
+      "type": "G1",
+      "x": 21.803,
+      "z": 366.368,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975188,
+      "type": "G1",
+      "x": 21.803,
+      "z": 271.511,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975189,
+      "type": "G1",
+      "x": 64.545,
+      "z": 256.228,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975190,
+      "type": "G1",
+      "x": 64.359,
+      "z": 196.278,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975191,
+      "type": "G1",
+      "x": 16.744,
+      "z": 196.278,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975192,
+      "type": "G1",
+      "x": 16.743,
+      "z": 167.259,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975193,
+      "type": "G1",
+      "x": 16.743,
+      "z": 149.544,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975194,
+      "type": "G2",
+      "x": 18.226,
+      "z": 147.612,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975195,
+      "type": "G1",
+      "x": 37.742,
+      "z": 142.383,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975196,
+      "type": "G1",
+      "x": 47.649,
+      "z": 141.79,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975197,
+      "type": "G1",
+      "x": 48.118,
+      "z": 128.86,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975198,
+      "type": "G1",
+      "x": 48.118,
+      "z": 125.462,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975199,
+      "type": "G3",
+      "x": 36.165,
+      "z": 108.508,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975200,
+      "type": "G1",
+      "x": 16.907,
+      "z": 101.64,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975201,
+      "type": "G2",
+      "x": 15.579,
+      "z": 99.757,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975202,
+      "type": "G1",
+      "x": 15.579,
+      "z": 84.177,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975203,
+      "type": "G2",
+      "x": 17.18,
+      "z": 82.217,
+      "r": 2,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975204,
+      "type": "G1",
+      "x": 23.847,
+      "z": 80.861,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975205,
+      "type": "G3",
+      "x": 35.056,
+      "z": 67.142,
+      "r": 14,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975206,
+      "type": "G1",
+      "x": 35.056,
+      "z": 55.47,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975207,
+      "type": "G3",
+      "x": 31.462,
+      "z": 46.104,
+      "r": 14,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975208,
+      "type": "G2",
+      "x": 32.649,
+      "z": 22.843,
+      "r": 16.495,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975209,
+      "type": "G3",
+      "x": 38.566,
+      "z": 9.502,
+      "r": 18,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975210,
+      "type": "G1",
+      "x": 38.566,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975211,
+      "type": "G1",
+      "x": 0,
+      "z": -8,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791301975212,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "manualGCode": "; Vygenerovaný kód SINUMERIK 840D\n; Datum: 6. 10. 2026\nN10 G18 ; Rovina ZX\nN20 G90 ; Absolutní programování\nN30 G54 ; Posunutí počátku\nN40 G95 ; Posuv na otáčku\nN50 G75 X150 ; Nájezd do ref. bodu\nN60 G75 Z5\nN70 LIMS=2000 ; Limit otáček\nN80 G96 S200 LIMS=2000 ; Konst. řezná rychlost\nN90 DIAMOF ; Programování poloměru\nN100 T=\"PSKNR2525M12\" D1 M6 ; Výměna nástroje\nN110 M3 ; Vřeteno CW\nN120 M8 ; Chlazení ZAP\nN130 G0 X150 Z5 ; Rychloposuv\n; --- HRUBOVANI (CELNI) ---\n; Průchod 1\nN140 G0 Z367.432\nN150 G0 X24.260\nN160 G1 X0.000 F0.24\nN170 G1 X2.000 Z369.432\n; Průchod 2\nN180 G0 X24.610\nN190 G0 Z364.932\nN200 G1 X0.000 F0.24\nN210 G1 X2.000 Z366.932\n; Průchod 3\nN220 G0 X24.610\nN230 G0 Z360.932\nN240 G1 X2.140 F0.24\nN250 G1 X4.140 Z362.932\n; Průchod 4\nN260 G0 X24.610\nN270 G0 Z356.932\nN280 G1 X3.942 F0.24\nN290 G1 X5.942 Z358.932\n; Průchod 5\nN300 G0 X24.610\nN310 G0 Z352.932\nN320 G1 X6.082 F0.24\nN330 G1 X8.082 Z354.932\n; Průchod 6\nN340 G0 X24.610\nN350 G0 Z348.932\nN360 G1 X7.883 F0.24\nN370 G1 X9.883 Z350.932\n; Průchod 7 (bez schodků)\nN380 G0 X24.610\nN390 G0 Z344.932\nN400 G1 X10.587 F0.24\nN410 G1 X10.142 Z346.595 F0.24\nN420 G1 X8.501 Z346.770 F0.24\nN430 G1 X10.501 Z348.770\n; Průchod 8\nN440 G0 X24.610\nN450 G0 Z340.932\nN460 G1 X11.825 F0.24\nN470 G1 X13.825 Z342.932\n; Průchod 9\nN480 G0 X24.610\nN490 G0 Z336.932\nN500 G1 X12.897 F0.24\nN510 G1 X14.897 Z338.932\n; Průchod 10\nN520 G0 X24.610\nN530 G0 Z332.932\nN540 G1 X15.767 F0.24\nN550 G1 X17.767 Z334.932\n; Průchod 11\nN560 G0 X24.610\nN570 G0 Z328.932\nN580 G1 X16.839 F0.24\nN590 G1 X18.839 Z330.932\n; Průchod 12\nN600 G0 X24.610\nN610 G0 Z324.932\nN620 G1 X19.708 F0.24\nN630 G1 X21.708 Z326.932\n; Průchod 13\nN640 G0 X24.610\nN650 G0 Z320.932\nN660 G1 X20.780 F0.24\nN670 G1 X22.780 Z322.932\n; Průchod 14\nN680 G0 X24.610\nN690 G0 Z316.932\nN700 G1 X23.650 F0.24\nN710 G1 X25.650 Z318.932\n; Průchod 15\nN720 G0 X35.340\nN730 G0 Z268.932\nN740 G1 X26.745 F0.24\nN750 G1 X28.745 Z270.932\n; Průchod 16\nN760 G0 X46.520\nN770 G0 Z264.932\nN780 G1 X27.816 F0.24\nN790 G1 X29.816 Z266.932\n; Průchod 17\nN800 G0 X57.710\nN810 G0 Z260.932\nN820 G1 X30.686 F0.24\nN830 G1 X32.686 Z262.932\n; Průchod 18\nN840 G0 X67.200\nN850 G0 Z256.932\nN860 G1 X31.758 F0.24\nN870 G1 X33.758 Z258.932\n; Průchod 19\nN880 G0 X67.340\nN890 G0 Z252.932\nN900 G1 X34.628 F0.24\nN910 G1 X36.628 Z254.932\n; Průchod 20\nN920 G0 X67.330\nN930 G0 Z248.932\nN940 G1 X35.700 F0.24\nN950 G1 X37.700 Z250.932\n; Průchod 21\nN960 G0 X67.310\nN970 G0 Z244.932\nN980 G1 X38.570 F0.24\nN990 G1 X40.570 Z246.932\n; Průchod 22\nN1000 G0 X67.300\nN1010 G0 Z240.932\nN1020 G1 X39.642 F0.24\nN1030 G1 X41.642 Z242.932\n; Průchod 23 (bez schodků)\nN1040 G0 X67.290\nN1050 G0 Z236.932\nN1060 G1 X46.975 F0.24\nN1070 G1 X41.632 Z237.993 F0.24\nN1080 G1 X43.632 Z239.993\n; Průchod 24 (bez schodků)\nN1090 G0 X67.280\nN1100 G0 Z232.932\nN1110 G1 X51.978 F0.24\nN1120 G1 X51.127 Z236.108 F0.24\nN1130 G1 X46.975 Z236.932 F0.24\nN1140 G1 X48.975 Z238.932\n; Průchod 25\nN1150 G0 X67.270\nN1160 G0 Z228.932\nN1170 G1 X53.050 F0.24\nN1180 G1 X55.050 Z230.932\n; Průchod 26\nN1190 G0 X67.250\nN1200 G0 Z224.932\nN1210 G1 X54.122 F0.24\nN1220 G1 X56.122 Z226.932\n; Průchod 27\nN1230 G0 X67.240\nN1240 G0 Z220.932\nN1250 G1 X55.313 F0.24\nN1260 G1 X57.313 Z222.932\n; Průchod 28\nN1270 G0 X67.230\nN1280 G0 Z216.932\nN1290 G1 X56.385 F0.24\nN1300 G1 X58.385 Z218.932\n; Průchod 29\nN1310 G0 X67.220\nN1320 G0 Z212.932\nN1330 G1 X59.254 F0.24\nN1340 G1 X61.254 Z214.932\n; Průchod 30\nN1350 G0 X67.200\nN1360 G0 Z208.932\nN1370 G1 X60.326 F0.24\nN1380 G1 X62.326 Z210.932\n; Průchod 31\nN1390 G0 X67.190\nN1400 G0 Z204.932\nN1410 G1 X63.196 F0.24\nN1420 G1 X65.196 Z206.932\n; Průchod 32\nN1430 G0 X67.180\nN1440 G0 Z200.932\nN1450 G1 X64.268 F0.24\nN1460 G1 X66.268 Z202.932\n; Průchod 33\nN1470 G0 X67.165 ; Výjezd nad konturu\nN1480 G0 Z144.932\nN1490 G0 X36.100\nN1500 G1 X22.600 F0.24\nN1510 G1 X24.600 Z146.932\n; Průchod 34\nN1520 G0 X50.490\nN1530 G0 Z140.932\nN1540 G1 X23.672 F0.24\nN1550 G1 X25.672 Z142.932\n; Průchod 35 (bez schodků)\nN1560 G0 X50.630\nN1570 G0 Z136.932\nN1580 G1 X40.074 F0.24\nN1590 G1 X39.578 Z138.784 F0.24\nN1600 G1 X24.186 Z139.168 F0.24\nN1610 G1 X26.186 Z141.168\n; Průchod 36\nN1620 G0 X50.780\nN1630 G0 Z132.932\nN1640 G1 X41.146 F0.24\nN1650 G1 X43.146 Z134.932\n; Průchod 37\nN1660 G0 X50.920\nN1670 G0 Z128.932\nN1680 G1 X42.218 F0.24\nN1690 G1 X44.218 Z130.932\n; Průchod 38\nN1700 G0 X50.920\nN1710 G0 Z124.932\nN1720 G1 X43.409 F0.24\nN1730 G1 X45.409 Z126.932\n; Průchod 39\nN1740 G0 X50.370\nN1750 G0 Z120.932\nN1760 G1 X44.481 F0.24\nN1770 G1 X46.481 Z122.932\n; Průchod 40\nN1780 G0 X48.900\nN1790 G0 Z116.932\nN1800 G1 X47.351 F0.24\nN1810 G1 X49.351 Z118.932\n; Průchod 41\nN1820 G0 Z72.932\nN1830 G0 X36.760\nN1840 G1 X34.524 F0.24\nN1850 G1 X36.524 Z74.932\n; Průchod 42\nN1860 G0 X37.760\nN1870 G0 Z68.932\nN1880 G1 X35.596 F0.24\nN1890 G1 X37.596 Z70.932\n; Průchod 43\nN1900 G0 X37.860\nN1910 G0 Z64.932\nN1920 G1 X36.895 F0.24\nN1930 G1 X38.895 Z66.932\n; Průchod 44\nN1940 G0 X39.920\nN1950 G0 Z16.932\nN1960 G1 X37.734 F0.24\nN1970 G1 X39.734 Z18.932\n; Průchod 45\nN1980 G0 X41.070\nN1990 G0 Z12.932\nN2000 G1 X38.805 F0.24\nN2010 G1 X40.805 Z14.932\n; Průchod 46\nN2020 G0 X41.370\nN2030 G0 Z8.932\nN2040 G1 X40.906 F0.24\nN2050 G1 X42.906 Z10.932\nN2060 G0 X150.000 ; Výjezd nad konturu\nN2070 G0 Z5.000\nN2080 M30 ; Konec programu\n; --- KONTURA (Pro referenci) ---\n; G0 X0 Z346.371\n; G1 X9.117 Z345.397\n; G1 X9.117 Z243.123\n; G1 X50.081 Z234.99\n; G1 X50.081 Z221.135\n; G1 X30.156 Z213.667\n; G1 X30.156 Z205.009\n; G1 X6.744 Z205.009\n; G1 X6.744 Z165.945\n; G1 X8.743 Z163.945\n; G1 X8.743 Z149.544\n; G1 X8.743 Z138.253\n; G1 X38.574 Z137.509\n; G1 X40.118 Z128.86\n; G1 X40.118 Z125.462\n; G3 X33.477 Z116.044 CR=10.000\n; G1 X14.22 Z109.175\n; G2 X7.579 Z99.757 CR=10.000\n; G1 X7.579 Z84.177\n; G2 X15.585 Z74.378 CR=10.000\n; G1 X22.252 Z73.021\n; G3 X27.056 Z67.142 CR=6.000\n; G1 X27.056 Z55.47\n; G3 X25.516 Z51.456 CR=6.000\n; G2 X27.279 Z16.913 CR=24.495\n; G3 X30.566 Z9.502 CR=10.000\n; G1 X30.566 Z0\n; G1 X0 Z0",
+  "gcodeDirty": false,
+  "gcodeKey": "f742c5d2",
+  "opParts": [],
+  "activePart": 0,
+  "opContourKey": null,
+  "flipX": false,
+  "flipZ": false,
+  "guideLines": [],
+  "zLimits": {
+    "chuck": -195.39,
+    "tail": 494.08,
+    "chuckActive": false,
+    "tailActive": false,
+    "rangeStart": 550.33,
+    "rangeEnd": -59.19,
+    "rangeActive": true
+  },
+  "showZLimits": "on",
+  "xLimits": {
+    "rangeXMin": -20.77,
+    "rangeXMax": 91.56,
+    "active": false,
+    "minActive": false,
+    "maxActive": false
+  },
+  "showSimPath": "all",
+  "showRemoval": true,
+  "showRefGuides": false
+}

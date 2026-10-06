@@ -83,7 +83,16 @@ const holderGuardFace = (report) => {
             const surf = castingOuterOrNull(zq);
             x = surf === null ? null : surf + clrXFC;
           }
-        } else x = s.x;
+        } else {
+          // Průchod dojel na OSU (X ≤ 0): v jeho pásu nezůstalo nic — pod
+          // osou materiál není (pravidlo 2: „nic nesmí sahat výš než spodek
+          // držáku" — tady nic nestojí). Jako „dno v X 0" by naopak zakázal
+          // každý držák, jehož hlava sahá pod úroveň špičky (čelní nože
+          // PSKNR/PTFNR, ruční obrys „Hrub čelo"), a průchod u osy končil
+          // o tu hloubku dřív — nález uživatele 6. 10. 2026: čelo PSKNR
+          // nedojelo na osu (X 2,14 / 3,94 / 6,08…).
+          x = s.x > 1e-6 ? s.x : null;
+        }
         if (x !== null && (top === null || x > top)) top = x;
       }
       return top;
