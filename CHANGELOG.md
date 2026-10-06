@@ -86,6 +86,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Závity: tolerance ISO 965 a vrták pro předvrtání** (kontrola 6. 10. 2026):
+  tolerance středního Ø matice TD₂ bez násobku 1,32 (M10 6H D₂ max 9,159 místo
+  **9,206**), ve vzorci Td opačný exponent (3,15·√P místo 3,15/√P), jmenovitý
+  průměr místo středu rozsahu a bez zaokrouhlení na R40 (6g d min 9,736 místo
+  9,732). Předvrtání ukazovalo D₁ (M10 → 8,4) a normový vrták 8,5 značilo jako
+  „těžší řezání" (100 % = D₁); nabízelo i Ø 8,0 se „123 % závitu". Nově
+  `iso965.js`: tolerance podle ISO 965-1 se zaokrouhlením R40 (shodné s tabulkami
+  ISO 965-2 pro M6, M10, M16, M20, M30; stupně 4–8), základní úchylka g z tabulky,
+  vrták = normový nejblíž 75 % závitu (D − 0,974·P → M10 8,5, M12 10,2, M30 26,5,
+  řada vrtáků od 20 mm po 0,5), podíl závitu ve shodě s dílenskou praxí
+  (100 % = 1,299·P) a varování pod D₁ / nad D₁ max 6H. Test `tests/iso965.test.js`.
+  SW v390.
 - **Tolerance ISO 286 – špatná přechodná a přesahová uložení** (kontrola 6. 10. 2026):
   tabulka hřídelů k, m, n, p, r, s obsahovala horní úchylky pro IT6 místo základních
   (dolních) úchylek → Ø25 n6 dávalo +41/+28 místo **+28/+15**, p6 +48/+35 místo
