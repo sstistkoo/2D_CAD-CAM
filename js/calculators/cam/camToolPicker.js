@@ -70,12 +70,14 @@ export function setSavedCamTool(tool) { _savedCamTool = _pickCamTool(tool); }
 // Naposledy uložený/načtený nůž — pro obnovu při otevření CAM (viz openCamSimulator).
 export function getSavedCamTool() { return _savedCamTool; }
 
-// Výchozí sada nožů v 🔧 Zásobníku nástrojů (T1–T6) — pro rovnou testování
-// drah bez nutnosti ručně importovat/zadávat geometrii. Nasadí se jen při
-// prvním spuštění (prázdný localStorage); jakmile uživatel zásobník uloží
-// (i prázdný), jeho stav se odteď respektuje beze změny.
-// Pořadí odpovídá typickému sledu obrábění (čelo → hrubování → dokončení →
-// profil/rádius → závit → upich).
+// HISTORICKÁ (provizorní) sada nožů T1–T6 — do 6. 10. 2026 výchozí nože
+// 🔧 Zásobníku. V zásobníku je nahradily ISO nože z katalogu
+// (js/calculators/magazineDefaults.js — tam i převod uložených zásobníků:
+// nezměněný nůž odsud se pozná podle jména a geometrie a nahradí na místě).
+// Zůstává beze změny jako REFERENCE: scripts/cam_sweep.mjs vnucuje obrys
+// „Hrubovaci" všem dílům (měření musí jít porovnat se starými výsledky)
+// a migrace podle ní pozná staré nože. Pořadí = sled obrábění (čelo →
+// hrubování → dokončení → profil/rádius → závit → upich).
 export const DEFAULT_TOOL_MAGAZINE = [
   {
     slot: 1, name: 'Hrub čelo', vbdCode: '',

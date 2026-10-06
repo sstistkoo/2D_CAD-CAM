@@ -758,20 +758,30 @@ Hlavička okna je v jednom řádku:
   Simulátorem). Do historie jde každá změna slotu: pole, tvar, ✅ Použít,
   smazání, přidání, uložení aktuálního nástroje, import i seřazení.
   Rozbalení karty ne.
-- **☰** — menu s méně častou správou: **📚 Přidat doporučené ISO nože**,
-  **📥 Import ze souborů** (jeden nebo víc `.json` z 💾 Uložit do PC, každý
-  jako nový slot — celý import je jeden krok ↩) a **🔄 Seřadit dle výchozích**.
-
-**📚 Přidat doporučené ISO nože** připojí za stávající nože sadu z 📚 ISO
-katalogu (dřík 25×25, ruka podle strany hrubování) v pořadí obrábění:
-PCLNR 2525M12 + CNMG 120408 (hrubování podélně i čelně), PDJNR 2525M15 +
-DNMG 150604 (dokončení, profil), MVJNR 2525M16 + VNMG 160404 (jemné
-kopírování, zápichy), SRSCR 2525M20 + RCMT 2006M0 (kulatá R10, dojede
-k čelu), SER 2525M16 + 16ER AG60 (závit) a MGEHR 2525-3 + MGMN 300
-(zapichování, upichování). Nože, které už v zásobníku jsou (stejné jméno),
-přeskočí; celé přidání je jeden krok ↩. Výchozí nože Hrub čelo … Upichovak
-zůstávají — CAM si je doplňuje sám; ▲▼ si pořadí upravíš.
+- **☰** — menu s méně častou správou: **📥 Import ze souborů** (jeden nebo
+  víc `.json` z 💾 Uložit do PC, každý jako nový slot — celý import je jeden
+  krok ↩) a **🔄 Seřadit dle výchozích** (výchozí nože zpět na T1–T6).
 - **✕** — zavření, odsazené od ☰, ať se okno omylem nezavře.
+
+**Výchozí nože T1–T6** jsou skutečné nože z 📚 ISO katalogu (dřík 25×25),
+v pořadí obrábění:
+
+| T | Nůž | Destička | Nahradil (do 6. 10. 2026) |
+|---|---|---|---|
+| T1 | PSKNR 2525M12 | SNMG 120408 | Hrub čelo — čtverec κr 75° k čelu, táž geometrie |
+| T2 | PCLNR 2525M12 | CNMG 120408 | Hrubovaci — univerzál, osazení 90° |
+| T3 | PDJNR 2525M15 | DNMG 150604 | Šlicht — dokončení a profil |
+| T4 | SRSCR 2525M20 | RCMT 2006M0 | Kulaty — R10 jako dřív, dojede k čelu |
+| T5 | SER 2525M16 | 16ER AG60 | Zavit |
+| T6 | MGEHR 2525-5 | MGMN 500-M | Upichovak — š 5, R 0,8 jako dřív |
+
+Chybějící výchozí nůž si CAM při otevření doplní (podle jména, na konec).
+Uložený zásobník se starými provizorními noži se při prvním otevření převede:
+**nezměněný** starý nůž se nahradí ISO nožem na **stejném místě a T**;
+nůž, který sis upravil, zůstane. Dokončovací nůž a části programu ukazují
+dál na totéž T (tedy na náhradu — „🔄 Dráhy ●" pak ukáže, že je potřeba
+dráhy přegenerovat). Aktivní nástroj (panel Parametry) se sám nemění —
+nový nůž vybereš ✅ Použít.
 
 Dole zůstávají jen **💾 Uložit aktuální nástroj** a **＋ Přidat nůž**. Když
 je zásobník otevřený z Geometrie (a naopak), druhé okno se nezakládá — to

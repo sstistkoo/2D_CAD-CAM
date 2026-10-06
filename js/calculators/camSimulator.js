@@ -39,7 +39,7 @@ import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, d
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPreview.js';
 import { knifeThumbSvg } from './knifeThumb.js';
-import { isoStarterSet, ISO_STARTER_SET } from './isoToolCatalog.js';
+import { isoDefaultKnives, migrateLegacyMagazine } from './magazineDefaults.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -421,8 +421,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     machiningConfigOpen: false,
     machiningSubTab: 'hrub',
     errorsOpen: false,
-    // Zásobník nástrojů — revolverový stroj. Doplní se výchozími T1–T6 (viz
-    // DEFAULT_TOOL_MAGAZINE) níž po načtení ze savu — podle jména, ať se
+    // Zásobník nástrojů — revolverový stroj. Doplní se výchozími ISO noži
+    // T1–T6 (magazineDefaults.js) níž po načtení ze savu — podle jména, ať se
     // nezdvojí a nepřepíšou vlastní nože.
     toolMagazine: [],
     activeMagazineSlot: null,  // index aktivního slotu (null = zásobník nepoužit)
@@ -551,17 +551,33 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
   } catch (_) { /* ignore */ }
 
-  // Doplnit chybějící výchozí nože (T1–T6) do zásobníku podle jména — ať jsou
-  // vždy k dispozici na testování drah, ale nezdvojí se ani nepřepíšou
-  // uživatelovy vlastní nože se stejným slotem.
+  // Výchozí nože zásobníku = ISO nože z katalogu (magazineDefaults.js,
+  // uživatel 6. 10. 2026). Staré provizorní výchozí nože (DEFAULT_TOOL_MAGAZINE),
+  // které uživatel nezměnil, se nahradí NA MÍSTĚ (stejné T); odkazy indexem
+  // (aktivní slot, dokončovací nůž, části programu) jdou za nimi. Aktivní
+  // slot se při náhradě zruší — S.params pořád drží starý nůž, dokud ho
+  // uživatel nevymění (✅ Použít), a zelené „Aktivní" by lhalo.
   {
+    const mig = migrateLegacyMagazine(S.toolMagazine, _isoMagSlot);
+    if (mig.replaced.length || mig.dropped) {
+      const remap = (obj, key) => { if (obj && typeof obj[key] === 'number') obj[key] = mig.map[obj[key]] ?? null; };
+      const wasActive = S.activeMagazineSlot;
+      S.toolMagazine = mig.magazine;
+      remap(S, 'activeMagazineSlot');
+      remap(S, 'editingMagazineSlot');
+      remap(S.params, 'finishingSlot');
+      for (const part of S.opParts || []) { remap(part, 'activeMagazineSlot'); remap(part.params, 'finishingSlot'); }
+      if (typeof wasActive === 'number' && mig.replaced.includes(S.activeMagazineSlot)) S.activeMagazineSlot = null;
+      if (mig.replaced.length) {
+        setTimeout(() => showToast(`Zásobník: ${mig.replaced.length} provizorních výchozích nožů nahrazeno ISO noži (PSKNR, PCLNR, PDJNR…)`), 0);
+      }
+    }
+    // Chybějící výchozí nože doplnit podle jména (vždy k dispozici), na konec.
     const existingNames = new Set(S.toolMagazine.map(s => s.name));
     let nextSlot = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(s => s.slot)) + 1 : 1;
-    DEFAULT_TOOL_MAGAZINE.forEach(def => {
-      if (existingNames.has(def.name)) return;
-      const slot = JSON.parse(JSON.stringify(def));
-      slot.slot = nextSlot++;
-      S.toolMagazine.push(slot);
+    isoDefaultKnives().forEach(rec => {
+      if (existingNames.has(rec.name)) return;
+      S.toolMagazine.push(_isoMagSlot(rec, nextSlot++));
     });
   }
 
@@ -6761,12 +6777,21 @@ export function openCamSimulator(initialContour, initialGCode) {
     return slot;
   }
 
-  // Přeřadí nože shodné jménem s DEFAULT_TOOL_MAGAZINE na začátek (T1–T6,
-  // v pořadí obrábění) a přečísluje je — pro případ, že v zásobníku dřív
-  // zabraly jiná čísla (např. po smazání starších vlastních nožů). Vlastní
-  // nože (jiné jméno) jdou za ně se navazujícím číslováním, pořadí zachováno.
+  /** Slot zásobníku z nože 📚 ISO katalogu (záznam knihovny) — i s jeho Vc/f/ap. */
+  function _isoMagSlot(rec, num) {
+    const slot = _buildMagSlotFromTool(rec.tool, num, rec.name);
+    if (rec.vc) slot.vc = rec.vc;
+    if (rec.f) slot.f = rec.f;
+    if (rec.ap) slot.ap = rec.ap;
+    return slot;
+  }
+
+  // Přeřadí nože shodné jménem s výchozími ISO noži (magazineDefaults.js) na
+  // začátek (T1–T6, v pořadí obrábění) a přečísluje je — pro případ, že
+  // v zásobníku dřív zabraly jiná čísla (např. po smazání starších vlastních
+  // nožů). Vlastní nože (jiné jméno) jdou za ně se navazujícím číslováním.
   function _resortToolMagazineToDefaults() {
-    const order = DEFAULT_TOOL_MAGAZINE.map(d => d.name);
+    const order = isoDefaultKnives().map(d => d.name);
     const defaults = S.toolMagazine.filter(s => order.includes(s.name))
       .sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
     const custom = S.toolMagazine.filter(s => !order.includes(s.name));
@@ -7141,7 +7166,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           <div class="cam-mag-head-right">
             <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-undo" title="Zpět">↩</button>
             <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-redo" title="Vpřed">↪</button>
-            <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-menu" title="Další akce — 📚 Přidat doporučené ISO nože, 📥 Import ze souborů, 🔄 Seřadit dle výchozích">☰</button>
+            <button class="cam-mag-hbtn cam-mag-ibtn" data-act="mag-menu" title="Další akce — 📥 Import ze souborů, 🔄 Seřadit dle výchozích">☰</button>
             <button class="cam-mag-hbtn cam-mag-ibtn cam-mag-close" data-act="mag-close" title="Zavřít">✕</button>
           </div>
         </div>
@@ -7482,25 +7507,6 @@ export function openCamSimulator(initialContour, initialGCode) {
       renderBody();
     }
 
-    // 📚 Doporučené ISO nože (isoToolCatalog.js ISO_STARTER_SET) — za stávající
-    // nože, jeden krok ↩. Ty, které už v zásobníku jsou (stejné jméno), přeskočí.
-    function addIsoStarterSet() {
-      const recs = isoStarterSet({ hand: S.params.roughingSide === 'left' ? 'L' : 'R' });
-      const have = new Set(S.toolMagazine.map(s => s.name));
-      const add = recs.filter(r => !have.has(r.name));
-      if (!add.length) { showToast('Doporučené ISO nože už v zásobníku jsou'); return; }
-      pushHistory();
-      const first = nextSlotNum();
-      for (const rec of add) {
-        const slot = _buildMagSlotFromTool(rec.tool, nextSlotNum(), rec.name);
-        slot.vc = rec.vc; slot.f = rec.f; slot.ap = rec.ap;
-        S.toolMagazine.push(slot);
-      }
-      saveState();
-      showToast(`Do zásobníku přidáno ${add.length} ISO nožů (T${first}–T${nextSlotNum() - 1}) — ▲▼ je přeřadíš`);
-      renderBody();
-    }
-
     dlg.querySelector('#mag-dlg-save-current').addEventListener('click', () => showSaveCurrentToolDialog(renderBody));
 
     dlg.querySelector('[data-act="mag-library"]').addEventListener('click', () => openToolLibraryForActive());
@@ -7508,12 +7514,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     dlg.querySelector('[data-act="mag-undo"]').addEventListener('click', () => undo());
     dlg.querySelector('[data-act="mag-redo"]').addEventListener('click', () => redo());
     dlg.querySelector('[data-act="mag-menu"]').addEventListener('click', () => showMagazineMenu('☰ Zásobník', [
-      { icon: '📚', label: 'Přidat doporučené ISO nože', run: addIsoStarterSet,
-        hint: ISO_STARTER_SET.length + ' nožů z 📚 ISO katalogu (dřík 25×25): ' + isoStarterSet().map(r => r.name.replace(/\d.*$/, '')).join(', ') + ' — za stávající nože' },
       { icon: '📥', label: 'Import ze souborů', run: importSlotsFromFiles,
         hint: 'Jeden nebo víc .json z 💾 Uložit do PC (🔪 Geometrie) — každý jako nový slot, název podle souboru' },
       { icon: '🔄', label: 'Seřadit dle výchozích', run: resortSlots,
-        hint: 'Výchozí nože (Hrub čelo, Hrubovaci, Šlicht…) zpět na T1, T2… v pořadí obrábění, vlastní za ně' },
+        hint: 'Výchozí ISO nože (PSKNR, PCLNR, PDJNR, SRSCR, SER, MGEHR) zpět na T1–T6 v pořadí obrábění, vlastní za ně' },
     ]));
     dlg.querySelector('[data-act="mag-close"]').addEventListener('click', () => {
       if (magazineDialogRefresh === renderBody) magazineDialogRefresh = null;

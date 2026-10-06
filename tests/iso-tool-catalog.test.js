@@ -13,7 +13,7 @@ import { buildInsertProfileSegments } from '../js/calculators/cam/insertPreview.
 import { CAM_TOOL_KEYS, DEFAULT_TOOL_MAGAZINE } from '../js/calculators/cam/camToolPicker.js';
 import { paramsFromMagSlot } from '../js/calculators/cam/toolSlotPreview.js';
 import { knifeThumbSvg } from '../js/calculators/knifeThumb.js';
-import { isoStarterSet, ISO_STARTER_SET } from '../js/calculators/isoToolCatalog.js';
+import { ISO_DEFAULT_SET, isoDefaultKnives, migrateLegacyMagazine, sameKnifeGeometry } from '../js/calculators/magazineDefaults.js';
 import { holderProfileLoop } from '../js/calculators/cam/collisionValidator.js';
 import { polyIntersect, polyArea } from '../js/geom/geomCore.js';
 
@@ -217,21 +217,58 @@ describe('tvar hlavy držáku', () => {
   });
 });
 
-describe('🔧 Zásobník — doporučená sada a náhled v řádku', () => {
-  it('doporučená sada: 6 různých nožů, všechny tvary plátků, které CAM umí', () => {
-    const set = isoStarterSet();
-    expect(set.length).toBe(ISO_STARTER_SET.length);
-    expect(new Set(set.map((r) => r.name)).size).toBe(set.length);
-    expect(set.map((r) => r.name)).toEqual(['PCLNR2525M12', 'PDJNR2525M15', 'MVJNR2525M16', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-3']);
-    expect(new Set(set.map((r) => r.tool.toolShape))).toEqual(new Set(['polygon', 'round', 'threading', 'parting']));
-    expect(isoStarterSet({ hand: 'L' })[0].name).toBe('PCLNL2525M12');
-    // Jiný dřík: velikost, kterou nemá, nahradí výchozí — sada zůstane celá.
-    expect(isoStarterSet({ shank: '1616' }).length).toBe(ISO_STARTER_SET.length);
+describe('🔧 Zásobník — výchozí ISO nože místo provizorních', () => {
+  // Záznam katalogu → slot zásobníku (jen pole, která migrace a náhled čtou;
+  // v aplikaci to dělá _buildMagSlotFromTool).
+  const toSlot = (rec, num) => {
+    const t = rec.tool;
+    return { slot: num, name: rec.name, vbdCode: rec.vbdCode, shape: t.toolShape, radius: t.toolRadius,
+      tipAngle: t.toolTipAngle, toolAngle: t.toolAngle, clearanceAngle: t.toolClearanceAngle, toolLength: t.toolLength,
+      tipFlat: t.toolTipFlat, holderWidth: t.holderWidth, holderLength: t.holderLength, holderHand: t.holderHand,
+      knifeAngle: t.knifeAngle, holderProfile: t.holderProfile, vc: rec.vc, f: rec.f, ap: rec.ap };
+  };
+  const copy = (o) => JSON.parse(JSON.stringify(o));
+
+  it('každý starý výchozí nůž má ISO náhradu ve stejné roli a pořadí', () => {
+    const knives = isoDefaultKnives();
+    expect(ISO_DEFAULT_SET.map((s) => s.legacy)).toEqual(DEFAULT_TOOL_MAGAZINE.map((d) => d.name));
+    expect(knives.map((r) => r.name)).toEqual(['PSKNR2525M12', 'PCLNR2525M12', 'PDJNR2525M15', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-5']);
+    knives.forEach((r, i) => expect(r.tool.toolShape, r.name).toBe(DEFAULT_TOOL_MAGAZINE[i].shape));
+    // Kde to jde, táž geometrie jako dřív: čelní čtverec κr 75°, kulatá R10, upichovák š 5 / R 0,8.
+    expect([knives[0].tool.toolAngle, knives[0].tool.toolTipAngle]).toEqual([-15, 90]);
+    expect(knives[3].tool.toolRadius).toBe(10);
+    expect([knives[5].tool.toolLength, knives[5].tool.toolRadius]).toEqual([5, 0.8]);
   });
 
-  it('náhled jde nakreslit pro každý výchozí nůž i pro nože bez obrysu / otočené', () => {
+  it('migrace: nezměněné staré nože nahradí na místě, upravený nechá, shodnou kopii odebere', () => {
+    const mine = { slot: 7, name: 'Můj nůž', shape: 'round', radius: 2 };
+    const pclnrCopy = toSlot(isoDefaultKnives()[1], 8);                 // z 📚 katalogu dřív
+    const mag = [...copy(DEFAULT_TOOL_MAGAZINE), mine, pclnrCopy];
+    mag[2].toolAngle = 30;                                             // Šlicht upravený uživatelem
+    const r = migrateLegacyMagazine(mag, toSlot);
+    expect(r.magazine.map((s) => s.name)).toEqual(
+      ['PSKNR2525M12', 'PCLNR2525M12', 'Šlicht', 'SRSCR2525M20', 'SER2525M16', 'MGEHR2525-5', 'Můj nůž']);
+    expect(r.magazine.map((s) => s.slot)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(r.replaced).toEqual([0, 1, 3, 4, 5]);
+    expect(r.dropped).toBe(1);
+    expect(r.map).toEqual([0, 1, 2, 3, 4, 5, 6, 1]);                   // kopie PCLNR → T2
+    expect(r.magazine[6]).toBe(mine);
+    // Podruhé už není co nahrazovat.
+    const again = migrateLegacyMagazine(r.magazine, toSlot);
+    expect([again.replaced.length, again.dropped]).toEqual([0, 0]);
+  });
+
+  it('sameKnifeGeometry: řezné podmínky a ruka se nesrovnávají, obrys držáku ano', () => {
+    const a = copy(DEFAULT_TOOL_MAGAZINE[1]);
+    expect(sameKnifeGeometry(a, { ...a, vc: 999, holderHand: 'L' })).toBe(true);
+    const b = copy(a); b.holderProfile.sideA[2].x += 0.5;
+    expect(sameKnifeGeometry(a, b)).toBe(false);
+  });
+
+  it('náhled v řádku jde nakreslit pro staré i nové výchozí nože, bez obrysu i otočené', () => {
     const slots = [
       ...DEFAULT_TOOL_MAGAZINE,
+      ...isoDefaultKnives().map((r, i) => toSlot(r, i + 1)),
       { ...DEFAULT_TOOL_MAGAZINE[1], holderProfile: null },             // náhradní obdélník
       { ...DEFAULT_TOOL_MAGAZINE[2], knifeAngle: 180, holderHand: 'L' },
       { ...DEFAULT_TOOL_MAGAZINE[3], holderWidth: 0, holderLength: 0, holderProfile: null },  // držák se nehlídá

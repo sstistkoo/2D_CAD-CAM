@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **🔧 Zásobník: výchozí nože T1–T6 = ISO nože s držákem** (uživatel 6. 10.
+  2026: místo plátku s obdélníkem skutečné nože) – PSKNR 2525M12 (čelo),
+  PCLNR 2525M12 (hrubování), PDJNR 2525M15 (šlicht), SRSCR 2525M20 (kulatý
+  R10), SER 2525M16 (závit), MGEHR 2525-5 (upich), každý ve stejné roli jako
+  dřívější provizorní nůž. Uložený zásobník se převede: nezměněný starý nůž
+  se nahradí na místě (stejné T, dokončovací nůž a části programu jdou za
+  ním), upravený zůstane, shodná kopie nového nože se odebere.
+  `magazineDefaults.js` + test migrace. Staré `DEFAULT_TOOL_MAGAZINE` beze
+  změny (reference pro `cam_sweep` a migraci). ☰ „Přidat doporučené ISO
+  nože" zrušeno — výchozí nože to dělají samy. SW v397.
+
 ### Added
 - **🔧 Zásobník: obrázek nože v řádku + 📚 doporučené ISO nože** (uživatel
   6. 10. 2026) – za číslem T malý náhled (destička + hlava držáku, i u

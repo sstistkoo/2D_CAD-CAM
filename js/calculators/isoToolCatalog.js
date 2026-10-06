@@ -453,26 +453,6 @@ export function isoCatalogCount() {
   return n;
 }
 
-/**
- * Doporučená sada do 🔧 Zásobníku (uživatel 6. 10. 2026: „dej mi vhodné
- * nože do zásobníku") — v pořadí obrábění, pokrývá všechny tvary plátků,
- * které CAM umí. Výchozí T1–T6 (DEFAULT_TOOL_MAGAZINE) se NEMĚNÍ: CAM si je
- * doplňuje podle jména a stojí na nich měření (scripts/cam_sweep.mjs).
- */
-export const ISO_STARTER_SET = [
-  { id: 'CL', opts: { size: '12', radius: '08' }, role: 'hrubování podélně i čelně' },
-  { id: 'DJ', opts: { size: '15', radius: '04' }, role: 'dokončení a profil' },
-  { id: 'VJ', opts: { size: '16', radius: '04' }, role: 'jemné kopírování, zápichy' },
-  { id: 'RS', opts: { size: '20' }, role: 'kulatá R10, dojede k čelu' },
-  { id: 'TH', opts: { thread: 'AG60' }, role: 'závit 60°' },
-  { id: 'GR', opts: { width: 3 }, role: 'zapichování a upichování' },
-];
-
-/** Nože doporučené sady (záznamy knihovny); velikosti, které dřík nemá, nahradí výchozí. */
-export function isoStarterSet({ shank = '2525', hand = 'R' } = {}) {
-  return ISO_STARTER_SET.map((s) => buildIsoKnife(s.id, { ...s.opts, shank, hand })).filter(Boolean);
-}
-
 // ── Náhled (SVG) ───────────────────────────────────────────────
 
 /** Malý náhled nože z katalogu (sdílená kresba knifeThumb.js). */
