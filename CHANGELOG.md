@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kalkulačka ⬇️ Vrták** v Další kalkulačky (uživatel 6. 10. 2026) – okno
+  s geometrií špičky vrtáku a náčrtem: tabulka základních vrtáků s úhlem
+  špičky (ocel 118°, nerez 135°, hliník 140°, navrtáváky…) nebo vlastní úhel;
+  z průměru spočítá délku špičky L = D / (2·tan(σ/2)) – vzdálenost od hrotu
+  k hraně plného průměru. Navíc hloubka pro menší průměr (navrtání, sražení)
+  a obráceně, délka břitu a hloubka hrotu H + L. Výpočet v
+  `js/calculators/drillGeometry.js` (test `tests/drillGeometry.test.js`),
+  okno v `drill.js`. SW v379.
 - **Mobil: popisky tlačítek pod křížkem plátna** (uživatel 5. 10. 2026) –
   přesný křížek (dlouhý stisk na plátně) dojetý nad tlačítko nad plátnem
   (SOU/ABS/R, ↩, 🔢, 🧲…) ukáže místo souřadnic bublinu s popisem tlačítka

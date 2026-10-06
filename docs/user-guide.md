@@ -1068,6 +1068,15 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **Zkrácení / prodleva** – doba obrábění
 - **Tolerance** – tolerance dle DIN ISO 286
 - **Hmotnost** – hmotnost prutů
+- **Vrták** (Další kalkulačky) – geometrie špičky vrtáku s náčrtem: tabulka
+  základních vrtáků a úhlů špičky σ (ocel 118°, legovaná ocel 130°, nerez 135°,
+  hliník/měď 140°, plasty 90°, plexi 60°, navrtáváky 90°/120°, rovné čelo 180°)
+  nebo vlastní úhel. Z průměru D spočítá **délku špičky L = D / (2·tan(σ/2))**
+  – vzdálenost od hrotu k hraně, kde vrták zabírá na plný průměr (118° → L ≈ 0,3·D).
+  Dál: hloubka od hrotu pro menší průměr d (navrtání, sražení hrany) i obráceně
+  (zadá se jedno, druhé se dopočítá žlutě), délka hlavního břitu a hloubka hrotu
+  H + L, když má díra mít plný průměr do hloubky H. Výpočet počítá s teoretickou
+  špičkou (bez příčného břitu).
 - **Taper** – kuželové zkrácení
 - **Závity** – převodné tabulky
 - **Převody** – jednotky (mm/inch, RPM/SFM)

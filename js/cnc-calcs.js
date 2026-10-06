@@ -9,6 +9,7 @@ export { openConvertCalc } from './calculators/convert.js';
 export { openWeightCalc } from './calculators/weight.js';
 export { openToleranceCalc } from './calculators/tolerance.js';
 export { openRoughnessCalc } from './calculators/roughness.js';
+export { openDrillCalc } from './calculators/drill.js';
 export { openInsertCalc } from './calculators/insert.js';
 export { openGcodeReference } from './calculators/gcode.js';
 export { openMcodeReference } from './calculators/mcode.js';

@@ -1896,6 +1896,14 @@
                 <span>Drsnost</span>
               </button>
               <button
+                id="btnOpenDrill"
+                class="calc-launch-btn"
+                title="Vrták – úhel špičky a délka špičky k plnému průměru"
+              >
+                <span class="calc-launch-icon">⬇️</span>
+                <span>Vrták</span>
+              </button>
+              <button
                 id="btnOpenNotes"
                 class="calc-launch-btn"
                 title="Poznámkový blok – rychlé poznámky"
@@ -4113,7 +4121,8 @@
           <details class="help-section">
             <summary>🧮 Kalkulačky</summary>
             <p style="margin: 6px 0 10px; color: #bbb">
-              13 specializovaných nástrojů v bočním panelu (sekce Kalkulačky).
+              Specializované nástroje v bočním panelu (sekce Kalkulačky
+              a Další kalkulačky).
               Všechny kalkulačky otevírají vlastní overlay dialog.
             </p>
             <div class="help-tools-list">
@@ -4208,6 +4217,21 @@
                     Převody a tabulky drsnosti povrchu: Ra (střední
                     aritmetická), Rz (výška nerovností), Rmax, N-třída (N1–N12).
                     Převod mezi hodnotami a značkami dle ISO 1302.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">⬇️</span> Vrták</summary>
+                <div class="tool-detail">
+                  <p>
+                    Geometrie špičky vrtáku s náčrtem. Tabulka základních
+                    vrtáků a úhlů špičky (ocel 118°, nerez 135°, hliník 140°,
+                    navrtáváky 90°/120°…) nebo vlastní úhel σ. Z průměru D
+                    spočítá délku špičky L = D / (2·tan(σ/2)) – vzdálenost od
+                    hrotu k hraně, kde vrták zabírá na plný průměr. Navíc
+                    hloubku pro menší průměr (navrtání, sražení hrany) a
+                    obráceně, a hloubku hrotu H + L pro díru s plným průměrem
+                    do hloubky H.
                   </p>
                 </div>
               </details>

@@ -4259,6 +4259,74 @@ body {
   display: none;
 }
 
+/* ── Vrták – geometrie špičky ── */
+.drill-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--ctp-mantle);
+  border: 1px solid var(--ctp-surface0);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+.drill-svg .dr-body { fill: var(--ctp-surface0); stroke: var(--ctp-blue); stroke-width: 1.5; stroke-linejoin: round; }
+.drill-svg .dr-flute { stroke: var(--ctp-surface2); stroke-width: 1; }
+.drill-svg .dr-axis { stroke: var(--ctp-overlay2); stroke-width: 0.8; stroke-dasharray: 10 3 2 3; }
+.drill-svg .dr-edge { stroke: var(--ctp-peach); stroke-width: 2; stroke-dasharray: 4 3; }
+.drill-svg .dr-arc { fill: none; stroke: var(--ctp-text); stroke-width: 1; }
+.drill-svg .dr-dim { stroke: var(--ctp-yellow); stroke-width: 1; }
+.drill-svg .dr-dim-g,
+.drill-svg .dr-d { stroke: var(--ctp-green); stroke-width: 1; }
+.drill-svg .dr-d { stroke-width: 2; }
+.drill-svg .dr-ext { stroke: var(--ctp-overlay2); stroke-width: 0.7; stroke-dasharray: 2 2; }
+.drill-svg .dr-arrow-y { fill: var(--ctp-yellow); }
+.drill-svg .dr-arrow-g { fill: var(--ctp-green); }
+.drill-svg .dr-txt { fill: var(--ctp-text); font: 12px "Consolas", monospace; }
+.drill-result {
+  background: var(--ctp-mantle);
+  border: 1px solid var(--ctp-surface0);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-family: "Consolas", monospace;
+  font-size: 13px;
+}
+.drill-main {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ctp-green);
+}
+.drill-sub {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+  margin-bottom: 6px;
+}
+.drill-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  color: var(--ctp-subtext0);
+}
+.drill-row strong { color: var(--ctp-text); white-space: nowrap; }
+.drill-hint { text-align: center; color: var(--ctp-subtext0); }
+.drill-warn { color: var(--ctp-red); padding: 2px 0; }
+.drill-formula {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+  margin-top: 6px;
+}
+.cnc-table tbody tr.drill-row-active { background: var(--ctp-surface1); }
+.cnc-table tbody tr.drill-row-active td:first-child { color: var(--ctp-blue); font-weight: 700; }
+.drill-note {
+  font-size: 11px;
+  color: var(--ctp-subtext0);
+  line-height: 1.4;
+}
+
 /* ── Tolerance toggle ── */
 .tol-toggle-row {
   display: flex;
