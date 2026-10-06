@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  THREAD_TYPES, bestWire, nearestWire, threadWireM, threadD2FromM,
+  THREAD_TYPES, bestWire, nearestWire, wireRange, pickWire, threadWireM, threadD2FromM,
   taperFromRollers, rollersForTaper, dovetailM, dovetailWidth,
 } from '../js/calculators/wireMeasureMath.js';
 
@@ -18,6 +18,22 @@ describe('závit – tři drátky', () => {
   it('optimální drátek 60° = 0,57735·P, nejbližší ze sady', () => {
     expect(bestWire(1.5, 60)).toBeCloseTo(0.866025, 6);
     expect(nearestWire(0.866)).toBe(0.895);
+  });
+  it('rozsah drátků: metrický 0,505·P až 1,01·P (tabulkové meze)', () => {
+    const M = THREAD_TYPES.find(t => t.id === 'M');
+    const r = wireRange(2, 60, (100 - M.d2(100, 2)) / 2);
+    expect(r.min / 2).toBeCloseTo(0.505, 3);
+    expect(r.max / 2).toBeCloseTo(1.0104, 3);
+  });
+  it('výběr ze sady jen z použitelného rozsahu (Tr 40×7: 3,2 mm nesmí)', () => {
+    const Tr = THREAD_TYPES.find(t => t.id === 'Tr');
+    const cd = (100 - Tr.d2(100, 7)) / 2;
+    expect(nearestWire(bestWire(7, 30))).toBe(3.2);          // naivní výběr by vzal 3,2
+    const p = pickWire(7, 30, cd), r = wireRange(7, 30, cd);
+    expect(3.2).toBeLessThan(r.min);
+    expect(p.fromSet).toBe(false);
+    expect(p.dw).toBeCloseTo(bestWire(7, 30), 12);
+    expect(pickWire(4, 30, (100 - Tr.d2(100, 4)) / 2)).toMatchObject({ dw: 2.05, fromSet: true });
   });
   it('obrácený výpočet d2 z M', () => {
     const M = threadWireM(9.026, 1.5, 60, 0.895);

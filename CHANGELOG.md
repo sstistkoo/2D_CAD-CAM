@@ -79,6 +79,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Drátky/válečky (dřív Měření) – kontrola** (uživatel 6. 10. 2026): závit
+  přes drátky bral nejbližší drátek ze sady i mimo použitelný rozsah (např.
+  Tr 40×7 → 3,2 mm, rozsah je 3,41–4,59) – mikrometr by dosedl na vrcholy
+  a M by neplatilo. Nově `wireRange()` (metrický 0,505·P až 1,01·P)
+  a `pickWire()` vybírá jen z rozsahu, jinak optimum s upozorněním; ručně
+  zadaný drátek mimo rozsah se ohlásí. Tlačítko má vlastní ikonu (profil
+  závitu s drátky) a popisek „Drátky/válečky"; programované body v tabulkách
+  Korekce rε označené proužkem místo zeleného textu (světlý režim).
+  Kontrola okrajových hodnot všech nových kalkulaček (1023 kombinací) bez
+  chyb. SW v386.
 - **Kalkulačka Vrták – kontrola** (uživatel 6. 10. 2026): náčrt při neplatném
   úhlu ukazoval čísla z výchozích 118°; hloubka h za špičkou dávala Ø větší
   než vrták (teď plný Ø D); Ø d větší než vrták nechával v poli h nesmyslnou

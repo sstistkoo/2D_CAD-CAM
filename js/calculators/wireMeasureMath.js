@@ -38,6 +38,31 @@ export function nearestWire(dw) {
   return WIRE_SET.reduce((b, w) => (Math.abs(w - dw) < Math.abs(b - dw) ? w : b), WIRE_SET[0]);
 }
 
+/**
+ * Rozsah použitelných drátků: drátek musí vyčnívat nad vrcholy závitu
+ * (jinak mikrometr dosedne na závit) a dotýkat se boků pod vrcholem
+ * (jinak sedí na hranách vrcholů). Metrický závit: 0,505·P až 1,01·P.
+ * @param {number} crestDepth - vzdálenost vrcholu závitu od roztečné přímky = (d − d2)/2
+ * @returns {{min:number, max:number}}
+ */
+export function wireRange(P, angleDeg, crestDepth) {
+  const h = rad(angleDeg / 2);
+  const crest = (P / 2) / Math.tan(h) / 2 + crestDepth;     // výška vrcholu nad vrcholem ostrého V
+  return { min: 2 * crest / (1 + 1 / Math.sin(h)), max: 2 * crest * Math.sin(h) / (Math.cos(h) ** 2) };
+}
+
+/**
+ * Drátek ze sady nejblíž optimu, ale jen z použitelného rozsahu.
+ * @returns {{dw:number, fromSet:boolean, opt:number}} fromSet = false → sada nemá vhodný, dw = optimum
+ */
+export function pickWire(P, angleDeg, crestDepth) {
+  const opt = bestWire(P, angleDeg);
+  const { min, max } = wireRange(P, angleDeg, crestDepth);
+  const ok = WIRE_SET.filter(w => w >= min && w <= max);
+  if (!ok.length) return { dw: opt, fromSet: false, opt };
+  return { dw: ok.reduce((b, w) => (Math.abs(w - opt) < Math.abs(b - opt) ? w : b)), fromSet: true, opt };
+}
+
 /** Míra přes tři drátky. */
 export function threadWireM(d2, P, angleDeg, dw) {
   if (!(d2 > 0) || !(P > 0) || !(dw > 0) || !(angleDeg > 0 && angleDeg < 180)) return NaN;

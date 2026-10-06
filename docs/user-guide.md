@@ -1104,11 +1104,16 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   směr (proti / po směru hodin) a střed X/Y. Vypíše tabulku X, Y a úhlu C
   (soustruh s osou C: X = roztečný průměr, C = úhel), vzdálenost středů
   sousedních děr a se zadaným Ø díry i můstek (nebo upozorní na překrytí).
-- **Měření** (Další kalkulačky) – měření přes drátky a válečky:
+- **Drátky/válečky** (Další kalkulačky, ikona profilu závitu s drátky) – měření
+  přes drátky a válečky:
   - *Závit – 3 drátky*: metrický ISO, UNC/UNF, Whitworth, Tr nebo vlastní úhel;
     z d a P (nebo přímo d₂) míra M = d₂ + d_w·(1 + 1/sin(α/2)) − (P/2)·cot(α/2),
-    optimální drátek P / (2·cos(α/2)) a nejbližší z běžné sady (prázdné pole =
-    drátek ze sady); s naměřeným M skutečný d₂ a odchylka v µm.
+    optimální drátek P / (2·cos(α/2)) a použitelný rozsah drátků (drátek musí
+    vyčnívat nad vrcholy a dotýkat se boků; metrický 0,505·P až 1,01·P).
+    Prázdné pole = nejbližší drátek z běžné sady, ale jen z použitelného
+    rozsahu; když sada vhodný nemá (velká stoupání), počítá s optimem a řekne
+    to. Ručně zadaný drátek mimo rozsah ohlásí. S naměřeným M skutečný d₂
+    a odchylka v µm. UN: d i P v mm (P = 25,4 / TPI jde zadat výrazem).
   - *Kužel*: kužel stojí na desce, válečky Ø d_v na desce (M1) a na měrkách
     výšky h (M2) → vrcholový úhel, kuželovitost 1:x a průměr u desky (kužel
     může stát na menším i větším průměru); nebo opačně kontrolní M1, M2

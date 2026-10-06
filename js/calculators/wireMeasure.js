@@ -7,7 +7,7 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import {
-  THREAD_TYPES, bestWire, nearestWire, threadWireM, threadD2FromM,
+  THREAD_TYPES, bestWire, nearestWire, wireRange, pickWire, threadWireM, threadD2FromM,
   taperFromRollers, rollersForTaper, dovetailM, dovetailWidth,
 } from './wireMeasureMath.js';
 import {
@@ -59,7 +59,7 @@ export function openWireMeasureCalc() {
     '</div>' +
     '<div class="calc-note" id="wmNote"></div>';
 
-  const overlay = makeOverlay('wireMeasure', '⦶ Měření přes drátky a válečky', body);
+  const overlay = makeOverlay('wireMeasure', 'Měření přes drátky a válečky – závit, kužel, rybina', body);
   if (!overlay) return;
 
   const q = (id) => overlay.querySelector('[data-id="' + id + '"]');
@@ -76,7 +76,8 @@ export function openWireMeasureCalc() {
 
   const NOTES = {
     thread: 'Dva drátky do sousedních drážek na jedné straně, jeden na druhé; M přes vnější strany drátků. ' +
-      'Optimální drátek se dotýká boků na středním průměru. Korekce na úhel stoupání je zanedbaná.',
+      'Optimální drátek se dotýká boků na středním průměru. Korekce na úhel stoupání je zanedbaná. ' +
+      'UN: d i P v mm (d = palce × 25,4, P = 25,4 / TPI – jde zadat i výrazem).',
     taper: 'Kužel stojí na rovinné desce; dva válečky na desce → M1, pak na stejných měrkách výšky h → M2. ' +
       'Kužel může stát na menším i větším průměru (pozná se z M2 > M1 / M2 < M1).',
     dove: 'Válečky v rozích u paty (vnější) / u dna (vnitřní); úhel α mezi bokem a základnou (běžně 55° nebo 60°). ' +
@@ -114,14 +115,25 @@ export function openWireMeasureCalc() {
     }
     if (!(d2 > 0)) { resultEl.innerHTML = outWarn('Neplatný průměr d / d₂.'); return; }
     if (dwIn !== null && !(dwIn > 0)) { resultEl.innerHTML = outWarn('Neplatný průměr drátku.'); return; }
-    const opt = bestWire(P, angle);
-    const dw = dwIn ?? nearestWire(opt);
+    // Hloubka vrcholu pod roztečnou přímkou – podle tvaru profilu (u vlastního z d a d₂)
+    const crestDepth = type ? (100 - type.d2(100, P)) / 2 : (d > 0 && d2in > 0 ? (d - d2in) / 2 : null);
+    const range = crestDepth !== null && crestDepth >= 0 ? wireRange(P, angle, crestDepth) : null;
+    const pick = range ? pickWire(P, angle, crestDepth) : { dw: nearestWire(bestWire(P, angle)), fromSet: true, opt: bestWire(P, angle) };
+    const opt = pick.opt;
+    const dw = dwIn ?? pick.dw;
     const M = threadWireM(d2, P, angle, dw);
-    f.tW.placeholder = 'sada ' + fmt(nearestWire(opt)) + ' (opt. ' + fmt(opt) + ')';
+    f.tW.placeholder = pick.fromSet ? 'sada ' + fmt(pick.dw) + ' (opt. ' + fmt(opt) + ')' : 'opt. ' + fmt(opt);
     drawThread(P, angle, dw);
-    let html = outMain('M = ' + fmt(M) + ' mm', 'míra přes drátky d_w ' + fmt(dw) + (dwIn === null ? ' (nejbližší ze sady)' : '')) +
+    const how = dwIn !== null ? '' : pick.fromSet ? ' (ze sady)' : ' (optimum – sada nemá vhodný)';
+    let html = outMain('M = ' + fmt(M) + ' mm', 'míra přes drátky d_w ' + fmt(dw) + how) +
       outRow('Střední průměr d₂' + (d2in === null ? ' (jmenovitý)' : ''), fmt(d2) + ' mm') +
-      outRow('Optimální drátek', fmt(opt) + ' mm');
+      outRow('Optimální drátek', fmt(opt) + ' mm') +
+      (range ? outRow('Použitelné drátky', fmt(range.min) + ' – ' + fmt(range.max) + ' mm') : '');
+    if (range && (dw < range.min - 1e-9 || dw > range.max + 1e-9)) {
+      html += outWarn('Drátek ' + fmt(dw) + ' je mimo použitelný rozsah – ' + (dw < range.min
+        ? 'nevyčnívá nad vrcholy, mikrometr dosedne na závit.' : 'dotkne se hran vrcholů, ne boků.') + ' Míra M neplatí.');
+    }
+    if (!pick.fromSet && dwIn === null) html += outHint('Běžná sada drátků nemá pro toto stoupání vhodný průměr – použij drátek blízko optima.');
     if (Min !== null) {
       if (!(Min > 0)) html += outWarn('Neplatná naměřená míra M.');
       else {

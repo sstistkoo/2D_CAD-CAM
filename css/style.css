@@ -3463,6 +3463,18 @@ body {
 .calc-launch-icon {
   font-size: 20px;
 }
+/* Vlastní ikona (SVG) – kreslí se barvou textu, sedí do řádku jako emoji */
+.calc-icon-svg {
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -0.15em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.calc-icon-svg .ci-accent { stroke: var(--ctp-peach); fill: var(--ctp-peach); fill-opacity: 0.3; }
 
 .calc-subheader {
   margin: 8px -10px -8px;
@@ -4370,7 +4382,9 @@ body {
 .calc-pts th { color: var(--ctp-subtext0); font-weight: 600; }
 .calc-pts td:first-child,
 .calc-pts th:first-child { text-align: left; }
-.calc-pts .calc-pts-prog { color: var(--ctp-green); font-weight: 700; }
+/* Programované body: tučně + zelený proužek (zelený text by ve světlém režimu nebyl čitelný) */
+.calc-pts .calc-pts-prog td { font-weight: 700; }
+.calc-pts .calc-pts-prog td:first-child { box-shadow: inset 3px 0 0 var(--ctp-green); padding-left: 9px; }
 .calc-code {
   background: var(--ctp-crust);
   border: 1px solid var(--ctp-surface0);
