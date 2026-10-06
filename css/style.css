@@ -4259,8 +4259,8 @@ body {
   display: none;
 }
 
-/* ── Vrták – geometrie špičky ── */
-.drill-svg {
+/* ── Kalkulačky: náčrt + výsledek (Vrták, Korekce rε, Rozteč, Měření…) ── */
+.calc-svg {
   display: block;
   width: 100%;
   height: auto;
@@ -4269,20 +4269,20 @@ body {
   border-radius: 6px;
   margin-bottom: 10px;
 }
-.drill-svg .dr-body { fill: var(--ctp-surface0); stroke: var(--ctp-blue); stroke-width: 1.5; stroke-linejoin: round; }
-.drill-svg .dr-flute { stroke: var(--ctp-surface2); stroke-width: 1; }
-.drill-svg .dr-axis { stroke: var(--ctp-overlay2); stroke-width: 0.8; stroke-dasharray: 10 3 2 3; }
-.drill-svg .dr-edge { stroke: var(--ctp-peach); stroke-width: 2; stroke-dasharray: 4 3; }
-.drill-svg .dr-arc { fill: none; stroke: var(--ctp-text); stroke-width: 1; }
-.drill-svg .dr-dim { stroke: var(--ctp-yellow); stroke-width: 1; }
-.drill-svg .dr-dim-g,
-.drill-svg .dr-d { stroke: var(--ctp-green); stroke-width: 1; }
-.drill-svg .dr-d { stroke-width: 2; }
-.drill-svg .dr-ext { stroke: var(--ctp-overlay2); stroke-width: 0.7; stroke-dasharray: 2 2; }
-.drill-svg .dr-arrow-y { fill: var(--ctp-yellow); }
-.drill-svg .dr-arrow-g { fill: var(--ctp-green); }
-.drill-svg .dr-txt { fill: var(--ctp-text); font: 12px "Consolas", monospace; }
-.drill-result {
+.calc-svg .cs-body { fill: var(--ctp-surface0); stroke: var(--ctp-blue); stroke-width: 1.5; stroke-linejoin: round; }
+.calc-svg .cs-flute { stroke: var(--ctp-surface2); stroke-width: 1; }
+.calc-svg .cs-axis { stroke: var(--ctp-overlay2); stroke-width: 0.8; stroke-dasharray: 10 3 2 3; }
+.calc-svg .cs-edge { stroke: var(--ctp-peach); stroke-width: 2; stroke-dasharray: 4 3; }
+.calc-svg .cs-arc { fill: none; stroke: var(--ctp-text); stroke-width: 1; }
+.calc-svg .cs-dim { stroke: var(--ctp-yellow); stroke-width: 1; }
+.calc-svg .cs-dim-g,
+.calc-svg .cs-d { stroke: var(--ctp-green); stroke-width: 1; }
+.calc-svg .cs-d { stroke-width: 2; }
+.calc-svg .cs-ext { stroke: var(--ctp-overlay2); stroke-width: 0.7; stroke-dasharray: 2 2; }
+.calc-svg .cs-arrow-y { fill: var(--ctp-yellow); }
+.calc-svg .cs-arrow-g { fill: var(--ctp-green); }
+.calc-svg .cs-txt { fill: var(--ctp-text); font: 12px "Consolas", monospace; }
+.calc-out {
   background: var(--ctp-mantle);
   border: 1px solid var(--ctp-surface0);
   border-radius: 6px;
@@ -4291,41 +4291,109 @@ body {
   font-family: "Consolas", monospace;
   font-size: 13px;
 }
-.drill-main {
+.calc-out-main {
   text-align: center;
   font-size: 18px;
   font-weight: 700;
   color: var(--ctp-green);
 }
-.drill-sub {
+.calc-out-sub {
   text-align: center;
   font-size: 11px;
   color: var(--ctp-subtext0);
   margin-bottom: 6px;
 }
-.drill-row {
+.calc-out-row {
   display: flex;
   justify-content: space-between;
   gap: 10px;
   padding: 2px 0;
   color: var(--ctp-subtext0);
 }
-.drill-row strong { color: var(--ctp-text); white-space: nowrap; }
-.drill-hint { text-align: center; color: var(--ctp-subtext0); }
-.drill-warn { color: var(--ctp-red); padding: 2px 0; }
-.drill-formula {
+.calc-out-row strong { color: var(--ctp-text); white-space: nowrap; }
+.calc-out-hint { text-align: center; color: var(--ctp-subtext0); }
+.calc-out-warn { color: var(--ctp-red); padding: 2px 0; }
+.calc-out-formula {
   text-align: center;
   font-size: 11px;
   color: var(--ctp-subtext0);
   margin-top: 6px;
 }
-.cnc-table tbody tr.drill-row-active { background: var(--ctp-surface1); }
-.cnc-table tbody tr.drill-row-active td:first-child { color: var(--ctp-blue); font-weight: 700; }
-.drill-note {
+.cnc-table tbody tr.calc-row-active { background: var(--ctp-surface1); }
+.cnc-table tbody tr.calc-row-active td:first-child { color: var(--ctp-blue); font-weight: 700; }
+.calc-note {
   font-size: 11px;
   color: var(--ctp-subtext0);
   line-height: 1.4;
 }
+.calc-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.calc-tab {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid var(--ctp-surface0);
+  background: var(--ctp-mantle);
+  color: var(--ctp-subtext0);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.calc-tab:hover { background: var(--ctp-surface0); color: var(--ctp-text); }
+.calc-tab.calc-tab-active {
+  background: var(--ctp-blue);
+  color: var(--ctp-base);
+  border-color: var(--ctp-blue);
+}
+.calc-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ctp-subtext0);
+  margin: 4px 0 6px;
+}
+.calc-pts {
+  width: 100%;
+  border-collapse: collapse;
+  font: 12px "Consolas", monospace;
+  margin-bottom: 10px;
+}
+.calc-pts th,
+.calc-pts td {
+  padding: 4px 6px;
+  text-align: right;
+  border-bottom: 1px solid var(--ctp-surface0);
+  color: var(--ctp-text);
+}
+.calc-pts th { color: var(--ctp-subtext0); font-weight: 600; }
+.calc-pts td:first-child,
+.calc-pts th:first-child { text-align: left; }
+.calc-pts .calc-pts-prog { color: var(--ctp-green); font-weight: 700; }
+.calc-code {
+  background: var(--ctp-crust);
+  border: 1px solid var(--ctp-surface0);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 0 0 10px;
+  font: 12px "Consolas", monospace;
+  color: var(--ctp-text);
+  white-space: pre;
+  overflow-x: auto;
+}
+/* Náčrty: materiál, obrys, nůž, dráha, díry, válečky */
+.calc-svg .cs-mat { fill: var(--ctp-surface1); stroke: none; }
+.calc-svg .cs-contour { fill: none; stroke: var(--ctp-text); stroke-width: 2; stroke-linejoin: round; }
+.calc-svg .cs-nose { fill: none; stroke: var(--ctp-blue); stroke-width: 1.5; }
+.calc-svg .cs-tool { fill: var(--ctp-blue); fill-opacity: 0.18; stroke: var(--ctp-blue); stroke-width: 1; }
+.calc-svg .cs-tip { fill: var(--ctp-red); }
+.calc-svg .cs-prog { fill: none; stroke: var(--ctp-green); stroke-width: 1.5; stroke-dasharray: 6 3; }
+.calc-svg .cs-thin { fill: none; stroke: var(--ctp-overlay2); stroke-width: 0.8; stroke-dasharray: 3 3; }
+.calc-svg .cs-hole { fill: var(--ctp-surface1); stroke: var(--ctp-blue); stroke-width: 1.2; }
+.calc-svg .cs-hole-first { fill: var(--ctp-peach); stroke: var(--ctp-peach); }
+.calc-svg .cs-roller { fill: var(--ctp-surface1); stroke: var(--ctp-peach); stroke-width: 1.5; }
+.calc-svg .cs-txt-s { fill: var(--ctp-text); font: 10px "Consolas", monospace; }
 
 /* ── Tolerance toggle ── */
 .tol-toggle-row {

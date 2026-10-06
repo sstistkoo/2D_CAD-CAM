@@ -1904,6 +1904,14 @@
                 <span>Vrták</span>
               </button>
               <button
+                id="btnOpenNoseRadius"
+                class="calc-launch-btn"
+                title="Korekce na rádius špičky nože – sražení, kužel, rádius bez G41/G42"
+              >
+                <span class="calc-launch-icon">◢</span>
+                <span>Korekce rε</span>
+              </button>
+              <button
                 id="btnOpenNotes"
                 class="calc-launch-btn"
                 title="Poznámkový blok – rychlé poznámky"
@@ -4232,6 +4240,20 @@
                     hloubku pro menší průměr (navrtání, sražení hrany) a
                     obráceně, a hloubku hrotu H + L pro díru s plným průměrem
                     do hloubky H.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">◢</span> Korekce rε</summary>
+                <div class="tool-detail">
+                  <p>
+                    Korekce na rádius špičky nože pro programování bez G41/G42.
+                    Sražení / kužel: posun bodů na válci ΔZ = rε·(1 − tan(α/2))
+                    a na čele ΔX, chyba obrysu bez korekce, programované body
+                    sražení a řádky G1. Rádius 90° (vypouklý i vydutý):
+                    programovaný rádius R ± rε a posunuté body. Vnější
+                    i vnitřní obrábění, náčrt s nožem a dráhou teoretické
+                    špičky P.
                   </p>
                 </div>
               </details>

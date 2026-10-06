@@ -1077,6 +1077,18 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (zadá se jedno, druhé se dopočítá žlutě), délka hlavního břitu a hloubka hrotu
   H + L, když má díra mít plný průměr do hloubky H. Výpočet počítá s teoretickou
   špičkou (bez příčného břitu).
+- **Korekce rε** (Další kalkulačky) – korekce na rádius špičky nože, když se
+  programuje bez G41/G42 (řídicí systém pak vede teoretickou špičku P):
+  - *Sražení / kužel*: úhel α od osy Z → posun bodů ležících na válci
+    ΔZ = rε·(1 − tan(α/2)) a bodů na čele ΔX = rε·(1 − tan(45° − α/2))
+    (na průměr 2·ΔX), kolmá chyba bez korekce a zda zůstane materiál nebo nůž
+    podřízne. Se zadaným Ø D a délkou sražení c vypíše programované body a dva
+    řádky `G1`. Volba *Zpětný kužel* počítá opačný sklon.
+  - *Rádius 90°*: vypouklý (zaoblení hrany) → R' = R + rε, vydutý (rádius
+    v osazení) → R' = R − rε; bod na čele se posune o 2·rε na průměru, bod na
+    válci o rε v Z. Se zadaným Ø D vypíše body i středy oblouků.
+  - Vnější i vnitřní (vyvrtávací) nůž, soustružení ke sklíčidlu; náčrt ukazuje
+    obrys, nůž a dráhu teoretické špičky.
 - **Taper** – kuželové zkrácení
 - **Závity** – převodné tabulky
 - **Převody** – jednotky (mm/inch, RPM/SFM)

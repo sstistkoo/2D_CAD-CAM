@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kalkulačka ◢ Korekce rε** v Další kalkulačky (uživatel 6. 10. 2026) –
+  korekce na rádius špičky nože bez G41/G42: sražení a kužel (ΔZ, ΔX, chyba
+  obrysu, programované body sražení + řádky G1, i zpětný kužel) a rádius 90°
+  (R ± rε, posunuté body a středy), vnější i vnitřní nůž, náčrt s nožem
+  a dráhou teoretické špičky. Výpočet `js/calculators/noseRadiusMath.js`
+  (test `tests/noseRadiusMath.test.js` ověřuje tečnost nože k obrysu ve všech
+  variantách). Společné pomůcky kalkulaček (pole, náčrt, kóty, výsledek,
+  kopírování) přesunuty do `calcKit.js`, styly `.calc-out*` / `.calc-svg`. SW v381.
 - **Kalkulačka ⬇️ Vrták** v Další kalkulačky (uživatel 6. 10. 2026) – okno
   s geometrií špičky vrtáku a náčrtem: tabulka základních vrtáků s úhlem
   špičky (ocel 118°, nerez 135°, hliník 140°, navrtáváky…) nebo vlastní úhel;
