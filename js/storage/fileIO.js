@@ -1225,7 +1225,13 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
         // na uživatelův záměr (krátký/dlouhý), takže round-trip CAD→CAM→CAD
         // prohazoval oblouky. ccw flag tu informaci nese spolehlivě.
         const arcG = flipArc(obj.ccw === false ? 'G02' : 'G03');
-        out += `${arcG} ${fmtCoord(ex, ey)} R${obj.r.toFixed(3)}\n`;
+        // R < 0 = oblouk delší než 180° (ISO / Fanuc / Sinumerik, stejně ho
+        // čte parseGcodeToObjects i CAM getArcParams). S kladným R by stroj
+        // ujel KRATŠÍ oblouk mezi týmiž body – např. místo 270° jen 90°.
+        const TAU = 2 * Math.PI;
+        const arcSweep = (((obj.ccw === false ? obj.startAngle - obj.endAngle : obj.endAngle - obj.startAngle) % TAU) + TAU) % TAU;
+        const rOut = arcSweep > Math.PI + 1e-9 ? -obj.r : obj.r;
+        out += `${arcG} ${fmtCoord(ex, ey)} R${rOut.toFixed(3)}\n`;
         lastEndX = ex; lastEndY = ey;
         break;
       }
@@ -1255,7 +1261,9 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
             const parc = bulgeToArc(pp1, pp2, pb);
             if (parc) {
               const gCode = flipArc(pb < 0 ? 'G02' : 'G03');
-              out += `${gCode} ${fmtCoord(pp2.x, pp2.y)} R${parc.r.toFixed(3)}\n`;
+              // |bulge| > 1 ⇔ oblouk > 180° → záporné R (viz oblouk výše)
+              const rOut = Math.abs(pb) > 1 + 1e-12 ? -parc.r : parc.r;
+              out += `${gCode} ${fmtCoord(pp2.x, pp2.y)} R${rOut.toFixed(3)}\n`;
             } else {
               out += `G01 ${fmtCoord(pp2.x, pp2.y)}\n`;
             }

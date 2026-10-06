@@ -9,7 +9,7 @@ import { vSign } from '../canvas.js';
 import { resetHint, setHint, updateObjectList } from '../ui.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { showBulgeDialog } from '../dialogs/bulge.js';
-import { bulgeToArc, radiusToBulge, safeEvalMath } from '../utils.js';
+import { bulgeToArc, bulgeToCcwArc, radiusToBulge, safeEvalMath, getNearestPointOnObject } from '../utils.js';
 import { calculateAllIntersections } from '../geometry.js';
 // Auto profil / krokování znovupoužívá VÝHRADNĚ existující resolveOuterProfile
 // z CAM pipeline (contourBuild.js) — stejná logika jako u CAM tlačítek ⊙ Auto/
@@ -325,7 +325,7 @@ function _findSegmentCandidates(p1, p2) {
     }
 
     if (arc) {
-      const segType = _isClockwise(p1, p2, { x: arc.cx, y: arc.cy }) ? 'G02' : 'G03';
+      const segType = _arcDirOnObject(obj, arc, p1, p2, tol);
       const dup = candidates.some(c =>
         c.radius != null &&
         Math.abs(c.radius - arc.r) < 1e-6 &&
@@ -403,6 +403,31 @@ function _chooseSegmentCandidate(candidates) {
       if (!document.body.contains(overlay)) { obs.disconnect(); finish(candidates[0]); }
     }).observe(document.body, { childList: true });
   });
+}
+
+/**
+ * Směr oblouku z p1 do p2 tak, aby vedl PO OBJEKTU: zkusí střed oblouku
+ * proti směru i po směru hodin a vezme ten, který na objektu leží. Dřív se
+ * vždy brala kratší cesta (`_isClockwise`) – u oblouku delšího než 180°
+ * pak trasa i G-kód vedly druhou stranou. U kružnice (obě cesty na ní)
+ * zůstává kratší cesta.
+ * @returns {'G02'|'G03'} ve světové konvenci (po směru hodin = G02)
+ */
+function _arcDirOnObject(obj, arc, p1, p2, tol) {
+  const TAU = 2 * Math.PI;
+  const a1 = Math.atan2(p1.y - arc.cy, p1.x - arc.cx);
+  const a2 = Math.atan2(p2.y - arc.cy, p2.x - arc.cx);
+  const ccwSweep = ((a2 - a1) % TAU + TAU) % TAU;
+  const t = Math.min(tol, arc.r * 0.25);
+  const onObj = (ang) => {
+    const n = getNearestPointOnObject(obj, arc.cx + arc.r * Math.cos(ang), arc.cy + arc.r * Math.sin(ang));
+    return !!n && n.dist < t;
+  };
+  const ccwOn = onObj(a1 + ccwSweep / 2);
+  const cwOn = onObj(a1 - (TAU - ccwSweep) / 2);
+  if (ccwOn && !cwOn) return 'G03';
+  if (cwOn && !ccwOn) return 'G02';
+  return _isClockwise(p1, p2, { x: arc.cx, y: arc.cy }) ? 'G02' : 'G03';
 }
 
 /**
@@ -640,8 +665,22 @@ export function drawTraceToCanvas() {
     const bulge = _traceBulges[i] || 0;
     let obj;
 
-    if ((seg.segType === 'G02' || seg.segType === 'G03') && seg.centerX != null && bulge !== 0) {
-      const arc = bulgeToArc(p1, p2, bulge);
+    if ((seg.segType === 'G02' || seg.segType === 'G03') && seg.centerX != null) {
+      // Ruční bulge → oblouk z něj (CCW normalizace: záporný bulge by se
+      // jinak vykreslil jako doplněk); oblouk převzatý z výkresu (bulge 0)
+      // ze středu a směru segmentu – dřív se z něj stala rovná úsečka.
+      let arc = null;
+      if (bulge !== 0) {
+        arc = bulgeToCcwArc(p1, p2, bulge);
+      } else {
+        const a1 = Math.atan2(p1.y - seg.centerY, p1.x - seg.centerX);
+        const a2 = Math.atan2(p2.y - seg.centerY, p2.x - seg.centerX);
+        const r = Math.hypot(p1.x - seg.centerX, p1.y - seg.centerY);
+        // G03 = proti směru hodin z p1 do p2; G02 = totéž jako CCW z p2 do p1
+        arc = seg.segType === 'G03'
+          ? { cx: seg.centerX, cy: seg.centerY, r, startAngle: a1, endAngle: a2 }
+          : { cx: seg.centerX, cy: seg.centerY, r, startAngle: a2, endAngle: a1 };
+      }
       if (arc) {
         const id = state.nextId++;
         obj = {
@@ -806,6 +845,9 @@ export function getTraceGcode() {
   const { fH, fV } = coordHelpers();
   const dec = state.displayDecimals;
   const isKarusel = state.machineType === 'karusel';
+  // Stejně jako runCncExport (fileIO.js): zrcadlení jedné osy (obrábění
+  // zespodu / otočená Z) obrací smysl oblouku → G2/G3 prohozeně
+  const flipArc = (code) => (state.flipX !== state.flipZ) ? (code === 'G02' ? 'G03' : 'G02') : code;
   let gcode = '';
 
   _tracePoints.forEach((pt, i) => {
@@ -820,10 +862,11 @@ export function getTraceGcode() {
       if (seg.segType === 'G02' || seg.segType === 'G03') {
         const rVal = seg.radius !== null ? seg.radius : 0;
         const ik = _calcIK(i - 1);
+        const g = flipArc(seg.segType);
         if (ik) {
-          gcode += `${seg.segType} X${xVal.toFixed(dec)} Z${zVal.toFixed(dec)} I${ik.I.toFixed(dec)} K${ik.K.toFixed(dec)}\n`;
+          gcode += `${g} X${xVal.toFixed(dec)} Z${zVal.toFixed(dec)} I${ik.I.toFixed(dec)} K${ik.K.toFixed(dec)}\n`;
         } else {
-          gcode += `${seg.segType} X${xVal.toFixed(dec)} Z${zVal.toFixed(dec)} R${rVal.toFixed(dec)}\n`;
+          gcode += `${g} X${xVal.toFixed(dec)} Z${zVal.toFixed(dec)} R${rVal.toFixed(dec)}\n`;
         }
       } else {
         gcode += `G01 X${xVal.toFixed(dec)} Z${zVal.toFixed(dec)}\n`;

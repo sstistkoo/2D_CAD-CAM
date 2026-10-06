@@ -105,3 +105,30 @@ describe('runCncExport – řetězení a značky', () => {
     expect(code).not.toMatch(/POLOTOVAR —/);
   });
 });
+
+describe('runCncExport – znaménko R u oblouku přes 180°', () => {
+  // Kladné R by stroj ujel KRATŠÍM obloukem mezi týmiž body (kontrola CAD
+  // 6. 10. 2026) – oblouk přes 180° musí mít R < 0.
+  const rOf = (code) => [...code.matchAll(/^G0[23][^;\n]*\bR(-?[\d.]+)/gm)].map(m => parseFloat(m[1]));
+
+  it('samostatný oblouk 270° → R záporné, 90° → R kladné', () => {
+    state.machineType = 'soustruh'; state.cncOutputMode = 'abs'; state.intersections = [];
+    state.selected = null; state.multiSelected = new Set();
+    state.objects = [{ type: 'arc', cx: 0, cy: 20, r: 10, startAngle: 0, endAngle: 3 * Math.PI / 2, name: 'A' }];
+    expect(rOf(runCncExport())).toEqual([-10]);
+    state.objects = [{ type: 'arc', cx: 0, cy: 20, r: 10, startAngle: 0, endAngle: Math.PI / 2, name: 'A' }];
+    expect(rOf(runCncExport())).toEqual([10]);
+  });
+
+  it('oblouk po směru hodin: výseč se počítá ve směru oblouku', () => {
+    // CW z 0° do 90° = 270° výseč
+    state.objects = [{ type: 'arc', cx: 0, cy: 20, r: 10, startAngle: 0, endAngle: Math.PI / 2, ccw: false, name: 'A' }];
+    expect(rOf(runCncExport())).toEqual([-10]);
+  });
+
+  it('oblouk kontury s |bulge| > 1 → R záporné', () => {
+    state.objects = [{ type: 'polyline', vertices: [{ x: 40, y: 20 }, { x: 60, y: 20 }], bulges: [2], closed: false, name: 'P' }];
+    const [r] = rOf(runCncExport());
+    expect(r).toBeLessThan(0);
+  });
+});

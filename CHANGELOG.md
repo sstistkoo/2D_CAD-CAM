@@ -29,6 +29,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **CNC kód: oblouk přes 180° s kladným R** (uživatel 6. 10. 2026) – export
+  z výkresu (panel CNC KÓD, Editor i přenos do CAM) psal u oblouku vždy
+  kladné R, takže stroj (i zpětné načtení a CAM) ujel KRATŠÍ oblouk mezi
+  týmiž body – z oblouku 270° jen 90°. Nově R < 0 pro výseč > 180° (ISO /
+  Fanuc / Sinumerik; CAM `getArcParams` i `parseGcodeToObjects` ho čtou).
+  Celá sada vč. CAM 1816/1816, test v `cnc-export-chain.test.js`.
+- **Trasování profilu – oblouky** (uživatel 6. 10. 2026):
+  - směr oblouku převzatého z výkresu se vybíral vždy po kratší cestě → u
+    oblouku přes 180° trasa i G-kód vedly druhou (neexistující) stranou;
+    nově podle toho, kudy vede objekt;
+  - G-kód trasy neprohazoval G2/G3 při zrcadlení pohledu (obrábění zespodu)
+    jako CNC export;
+  - „Vykreslit profil" udělal z oblouku převzatého z výkresu rovnou úsečku
+    (oblouk jen s ručním bulge) a záporný bulge vykreslil jako doplněk.
+  SW v377.
 - **Měření, přichytávání, válcový polotovar** (uživatel 6. 10. 2026, kontrola
   dalších oblastí):
   - **válcový polotovar** se počítal jen z vrcholů kontury – oblouk (bulge)
