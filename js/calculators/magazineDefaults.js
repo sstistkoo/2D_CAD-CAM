@@ -33,8 +33,9 @@ export const ISO_DEFAULT_SET = [
 
 /**
  * Výchozí nože jako záznamy knihovny (dřík 25×25). Vždy pravá ruka —
- * jména se pak nemění se stranou hrubování (CAM levou stranu zrcadlí sám)
- * a doplňování podle jména nezdvojí PCLNR/PCLNL.
+ * jména se pak nemění se stranou hrubování (CAM levou stranu zrcadlí sám).
+ * Do zásobníku jdou jen když je PRÁZDNÝ (první spuštění, reset) — smazaný
+ * nůž se sám nevrací (camSimulator.js, uživatel 6. 10. 2026).
  */
 export function isoDefaultKnives() {
   return ISO_DEFAULT_SET.map((s) => buildIsoKnife(s.id, { ...s.opts, shank: '2525', hand: 'R' }));

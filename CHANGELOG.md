@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **🔧 Zásobník: výchozí nože jen do prázdného zásobníku + automatický výběr
+  nože podle operace** (uživatel 6. 10. 2026) – smazaný výchozí nůž se už
+  sám nevrací; prázdný zásobník (první spuštění, reset) dostane ISO nože
+  T1–T6 a u posledního nože se 🗑 nezobrazí, takže nikdy nezůstane prázdný.
+  Zapnutí závitu vybere závitový nůž se stejným úhlem profilu, zadání
+  upichnutí vybere upichovák (kulatý se nechá); nůž, který sedí, se nemění,
+  chybějící ohlásí. Jeden krok ↩ s operací. Ostatní operace nůž nemění.
+  SW v398.
 - **🔧 Zásobník: výchozí nože T1–T6 = ISO nože s držákem** (uživatel 6. 10.
   2026: místo plátku s obdélníkem skutečné nože) – PSKNR 2525M12 (čelo),
   PCLNR 2525M12 (hrubování), PDJNR 2525M15 (šlicht), SRSCR 2525M20 (kulatý

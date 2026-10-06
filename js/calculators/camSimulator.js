@@ -572,13 +572,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         setTimeout(() => showToast(`Zásobník: ${mig.replaced.length} provizorních výchozích nožů nahrazeno ISO noži (PSKNR, PCLNR, PDJNR…)`), 0);
       }
     }
-    // Chybějící výchozí nože doplnit podle jména (vždy k dispozici), na konec.
-    const existingNames = new Set(S.toolMagazine.map(s => s.name));
-    let nextSlot = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(s => s.slot)) + 1 : 1;
-    isoDefaultKnives().forEach(rec => {
-      if (existingNames.has(rec.name)) return;
-      S.toolMagazine.push(_isoMagSlot(rec, nextSlot++));
-    });
+    // Výchozí nože jen do PRÁZDNÉHO zásobníku (první spuštění) — smazaný nůž
+    // se už sám nevrací (uživatel 6. 10. 2026). Zásobník nesmí zůstat prázdný:
+    // poslední nůž nejde smazat (🗑 se u něj nekreslí) a reset ho naplní.
+    if (S.toolMagazine.length === 0) S.toolMagazine.push(..._isoDefaultMagSlots());
   }
 
   // Závit nakreslený v CAD (nástroj Závit ukládá metadata threadInfo na
@@ -5551,12 +5548,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const threadToggleBtn = tabBody.querySelector('[data-act="thread-toggle"]');
     if (threadToggleBtn) threadToggleBtn.addEventListener('click', () => {
+      pushHistory();   // zapnutí může vyměnit i nůž (autoPickToolFor) — jeden krok ↩
       S.params.threadActive = !S.params.threadActive;
+      const picked = S.params.threadActive ? autoPickToolFor('thread').msg : '';
       // Ruční zásah v programu má přednost — pak se dráhy nepřegenerují samy
       // a čekají na „🔄 Dráhy" (tlačítko svítí jako neaktuální).
       const regen = !S.gcodeDirty;
       showToast(S.params.threadActive
-        ? `Závitování ${S.params.threadName || ''} aktivní${regen ? ' — dráhy přegenerovány' : ' — program má ruční úpravy, dráhy vygeneruj přes 🔄 Dráhy'}`
+        ? `Závitování ${S.params.threadName || ''} aktivní${picked}${regen ? ' — dráhy přegenerovány' : ' — program má ruční úpravy, dráhy vygeneruj přes 🔄 Dráhy'}`
         : `Závitování vypnuto — zpět na hrubování${regen ? '' : ' (dráhy vygeneruj přes 🔄 Dráhy)'}`);
       applyChange({ cycle: true });
     });
@@ -5607,7 +5606,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         _preserveKeys.forEach(k => { _defaults[k] = S.params[k]; });
         S.params = _defaults;
         S.selectedMaterial = 'Ocel 11 373 (S235)';
-        S.toolMagazine = [];
+        // Zásobník nesmí zůstat prázdný → zpět na výchozí ISO nože.
+        S.toolMagazine = _isoDefaultMagSlots();
         S.activeMagazineSlot = null;
         S.guideLines = [];
         S.zLimits = { chuck: null, tail: null, chuckActive: false, tailActive: false, rangeStart: null, rangeEnd: null, rangeActive: false };
@@ -6702,6 +6702,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   function applyThreadPick(typeDef, t) {
+    // Při aktivním závitu může výběr vyměnit i nůž (autoPickToolFor) — jeden krok ↩.
+    if (S.params.threadActive) pushHistory();
     const P = t.P !== undefined ? t.P : Math.round(25.4 / t.tpi * 10000) / 10000;
     const ext = S.params.threadExternal !== false;
     S.params.threadName = typeDef.name(t);
@@ -6717,13 +6719,16 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Spodní strana plátku: Tr/Acme = šířka dna profilu ≈ 0,366×P, jinak 0,1.
     S.params.toolTipFlat = (typeDef.key === 'tr' || typeDef.key === 'acme')
       ? Math.round(0.366 * P * 100) / 100 : 0.1;
-    if (S.params.toolShape === 'threading') {
+    // Při AKTIVNÍM závitování vybrat ze zásobníku nůž s úhlem nového profilu
+    // (autoPickToolFor); jinak jako dřív — závitový plátek převezme úhel.
+    const pick = S.params.threadActive ? autoPickToolFor('thread') : { changed: false, msg: '' };
+    if (S.params.toolShape === 'threading' && !pick.changed) {
       S.params.toolTipAngle = typeDef.angle;
       S.params.toolRadius = 0;
     }
     S.machiningSubTab = 'zavit';
     const taperNote = typeDef.taper ? ' — kuželový 1:16 (nastaveno, ⌀ D platí na Z startu)' : '';
-    showToast(`Závit ${S.params.threadName}: P=${P} mm, H=${S.params.threadDepth} mm, ${typeDef.angle}°${taperNote}`);
+    showToast(`Závit ${S.params.threadName}: P=${P} mm, H=${S.params.threadDepth} mm, ${typeDef.angle}°${taperNote}${pick.msg}`);
     applyChange();
   }
 
@@ -6784,6 +6789,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (rec.f) slot.f = rec.f;
     if (rec.ap) slot.ap = rec.ap;
     return slot;
+  }
+
+  /** Výchozí ISO nože jako sloty T1–T6 (prázdný zásobník, reset). */
+  function _isoDefaultMagSlots() {
+    return isoDefaultKnives().map((rec, i) => _isoMagSlot(rec, i + 1));
   }
 
   // Přeřadí nože shodné jménem s výchozími ISO noži (magazineDefaults.js) na
@@ -6864,8 +6874,14 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   function _applyMagSlot(idx) {
+    if (_loadMagSlot(idx)) fullUpdate();
+  }
+
+  /** Nůž ze slotu do S.params (jako ✅ Použít), bez překreslení — volající
+   *  sám rozhodne, jestli fullUpdate, nebo applyChange (přegenerování). */
+  function _loadMagSlot(idx) {
     const slot = S.toolMagazine[idx];
-    if (!slot) return;
+    if (!slot) return false;
     S.activeMagazineSlot = idx;
     S.params.toolName        = slot.name;
     S.params.toolVbdCode     = slot.vbdCode;
@@ -6888,7 +6904,39 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.params.holderInflate = slot.holderInflate ?? 0;
     S.params.holderInflateAll = slot.holderInflateAll === true;
     S.params.holderProfile = slot.holderProfile ? JSON.parse(JSON.stringify(slot.holderProfile)) : null;
-    fullUpdate();
+    return true;
+  }
+
+  /**
+   * Automatický výběr nože ze zásobníku podle operace (uživatel 6. 10. 2026:
+   * „když závit, ať se vybere vhodný závitový nůž, když upichovat, tak
+   * upichovák — zbytek si vybírá uživatel"). Volá se při ZAPNUTÍ operace
+   * (Závit → Aktivní / jiný závit při aktivním; Upich → bod upichnutí), ne
+   * při pouhém přepnutí záložky. Nůž, který už sedí, se nemění; když
+   * vhodný v zásobníku není, nic se nemění a vrátí se upozornění.
+   *  'thread'  → závitový (▽) s úhlem profilu závitu (±0,5°), první v pořadí T
+   *  'partoff' → upichovací (▮), první v pořadí T; kulatý se nechá (upichnutí umí)
+   * @returns {{changed:boolean, msg:string}} msg = doplněk toastu ('' = nic k hlášení)
+   */
+  function autoPickToolFor(op) {
+    const mag = S.toolMagazine;
+    const same = { changed: false, msg: '' };
+    let idx = -1, missing = '';
+    if (op === 'thread') {
+      const ang = parseFloat(S.params.threadAngle) || 60;
+      const fits = (shape, tip) => shape === 'threading' && Math.abs((parseFloat(tip) || 0) - ang) < 0.5;
+      if (fits(S.params.toolShape, S.params.toolTipAngle)) return same;
+      idx = mag.findIndex(s => fits(s.shape, s.tipAngle));
+      missing = `v zásobníku není závitový nůž ${ang}° — přidej ho z 🧰 Knihovna → 📚 ISO katalog`;
+    } else if (op === 'partoff') {
+      if (S.params.toolShape === 'parting') return same;
+      idx = mag.findIndex(s => s.shape === 'parting');
+      if (idx < 0 && S.params.toolShape === 'round') return same;
+      missing = 'v zásobníku není upichovák — přidej ho z 🧰 Knihovna → 📚 ISO katalog';
+    }
+    if (idx < 0) return { changed: false, msg: missing ? ` ⚠ ${missing}` : '' };
+    _loadMagSlot(idx);
+    return { changed: true, msg: ` — nůž T${mag[idx].slot} ${mag[idx].name}${mag[idx].vbdCode ? ' (' + mag[idx].vbdCode + ')' : ''}` };
   }
 
   function _syncParamsToSlot(idx) {
@@ -7272,7 +7320,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             </div>
             <div style="display:flex;gap:6px;margin-top:6px">
               <button data-act="mag-apply" data-magidx="${i}" class="cam-sim-btn ${isActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="flex:2;font-size:12px">✅ ${isActive ? 'Aktivní nástroj' : 'Použít jako aktivní'}</button>
-              <button data-act="mag-delete" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-red" style="flex:1;font-size:12px">🗑 Smazat</button>
+              ${mag.length > 1 ? `<button data-act="mag-delete" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-red" style="flex:1;font-size:12px">🗑 Smazat</button>` : ''}
             </div>
           </div>`;
         }
@@ -7373,6 +7421,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       body.querySelectorAll('[data-act="mag-delete"]').forEach(btn => {
         btn.addEventListener('click', async () => {
           const idx = parseInt(btn.dataset.magidx);
+          if (mag.length <= 1) return;   // aspoň jeden nůž v zásobníku zůstává (🗑 se u něj nekreslí)
           if (!await camConfirm(`Smazat slot T${mag[idx]?.slot} (${mag[idx]?.name})?`)) return;
           pushHistory();
           _reorderMagazine(() => S.toolMagazine.splice(idx, 1));
@@ -9719,15 +9768,17 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.partOffPickMode) {
       const { wz } = _traceWorldFromClient(e.clientX, e.clientY);
       if (isFinite(wz)) {
+        pushHistory();   // zapnutí upichu může vyměnit i nůž (autoPickToolFor) — jeden krok ↩
         S.params.partOffZ = Math.round(wz * 1000) / 1000;
         S.partOffPickMode = false;
+        const picked = autoPickToolFor('partoff').msg;
         // Horní bod úsečky (Start X) předvyplnit povrchem polotovaru — jen když
         // ještě není nastavený (uživatel ho pak může přetáhnout níž do kapsy).
         if (!(parseFloat(S.params.partOffStartX) > 0)) {
           const stTop = (S._cachedCalc && parseFloat(S._cachedCalc.stockTopX)) || (parseFloat(S.params.stockDiameter) || 0) / 2;
           if (stTop > 0) S.params.partOffStartX = Math.round(stTop * 100) / 100;
         }
-        showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
+        showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}${picked}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
         // Zapnutí režimu → cyklus se projeví hned (pokud v programu nejsou
         // ruční úpravy, které mají přednost).
         applyChange({ cycle: true });

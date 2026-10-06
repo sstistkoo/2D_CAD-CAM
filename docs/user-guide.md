@@ -775,7 +775,20 @@ v pořadí obrábění:
 | T5 | SER 2525M16 | 16ER AG60 | Zavit |
 | T6 | MGEHR 2525-5 | MGMN 500-M | Upichovak — š 5, R 0,8 jako dřív |
 
-Chybějící výchozí nůž si CAM při otevření doplní (podle jména, na konec).
+Výchozí nože se dají jen do **prázdného** zásobníku (první spuštění, ⟲ reset
+parametrů) — smazaný nůž se už sám nevrací. Zásobník ale nikdy nezůstane
+prázdný: u **posledního** nože se 🗑 Smazat nezobrazí.
+
+**Automatický výběr nože podle operace:** když se zapne **závit** (Závit →
+✅ Aktivní, nebo výběr jiného závitu při aktivním), vybere se ze zásobníku
+závitový nůž (▽) se **stejným úhlem profilu** jako závit (60° M/UN, 55° G/BSW…),
+první v pořadí T. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
+výkresu), vybere se **upichovák** (▮); kulatý nůž, který upichnutí umí, se
+nechá. Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
+nástroj zůstane a hláška poradí přidat ho z 🧰 Knihovna → 📚 ISO katalog.
+Výměna je s operací jeden krok ↩. Ostatní operace (hrubování, dokončení)
+nůž nemění — ten si vybíráš sám.
+
 Uložený zásobník se starými provizorními noži se při prvním otevření převede:
 **nezměněný** starý nůž se nahradí ISO nožem na **stejném místě a T**;
 nůž, který sis upravil, zůstane. Dokončovací nůž a části programu ukazují
