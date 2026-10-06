@@ -3475,6 +3475,7 @@ body {
   stroke-linecap: round;
 }
 .calc-icon-svg .ci-accent { stroke: var(--ctp-peach); fill: var(--ctp-peach); fill-opacity: 0.3; }
+.calc-icon-svg .ci-thin { stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.6; }
 
 .calc-subheader {
   margin: 8px -10px -8px;

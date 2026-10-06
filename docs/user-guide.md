@@ -1099,6 +1099,16 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     válci o rε v Z. Se zadaným Ø D vypíše body i středy oblouků.
   - Vnější i vnitřní (vyvrtávací) nůž, soustružení ke sklíčidlu; náčrt ukazuje
     obrys, nůž a dráhu teoretické špičky.
+- **Roh R / C** (Další kalkulačky) – zaoblení nebo sražení obecného rohu pro
+  ruční programování (kužel → válec, kužel → čelo, dva kužely… pod libovolným
+  úhlem). Zadání *třemi body* (předchozí bod P1, roh, další bod P2 – Z a Ø X)
+  nebo *rohem a směry úseků* φ1 (do rohu) a φ2 (z rohu), 0° = +Z, 90° = +X,
+  rychlá tlačítka ±Z/±X. Zaoblení R: tečné body T1, T2 ve vzdálenosti
+  t = R·tan(δ/2) od rohu, střed, vnitřní úhel a řádky `G01` + `G02/G03 … R`;
+  směr oblouku podle nastavení stroje (soustruh/karusel, zrcadlení os) stejně
+  jako CNC export výkresu. Sražení C: body A, B ve vzdálenosti C po obou
+  úsecích a délka sražení. Upozorní, když se úprava nevejde do úseku.
+  (Sinumerik umí totéž přímo na řádku rohu: `RND=` / `CHR=`.)
 - **Rozteč děr** (Další kalkulačky) – díry na roztečné kružnici: počet děr,
   roztečný průměr, úhel první díry θ₀, celý kruh nebo zadaná úhlová rozteč Δθ,
   směr (proti / po směru hodin) a střed X/Y. Vypíše tabulku X, Y a úhlu C

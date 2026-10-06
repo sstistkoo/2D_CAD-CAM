@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kalkulačka ⌐ Roh R / C** v Další kalkulačky (uživatel 6. 10. 2026) –
+  zaoblení / sražení obecného rohu: zadání třemi body nebo rohem a směry,
+  tečné body, střed, t = R·tan(δ/2), vnitřní úhel, řádky G01/G02/G03 s R
+  (směr oblouku podle stroje stejně jako CNC export), kontrola, že se úprava
+  vejde do úseků; náčrt přiblížený na roh. `cornerMath.js` + test (střed ve
+  vzdálenosti R od obou úseků u kužele, tupého i ostrého rohu), okno
+  `corner.js`, vlastní SVG ikona. SW v388.
 - **Kalkulačka ⦶ Měření** v Další kalkulačky (uživatel 6. 10. 2026) – měření
   přes drátky a válečky: závit metodou tří drátků (M, optimální drátek
   a nejbližší ze sady, d₂ z naměřeného M), kužel přes dva válečky a měrky

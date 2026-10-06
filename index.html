@@ -1912,6 +1912,14 @@
                 <span>Korekce rε</span>
               </button>
               <button
+                id="btnOpenCorner"
+                class="calc-launch-btn"
+                title="Zaoblení / sražení obecného rohu – tečné body, střed, G-kód"
+              >
+                <span class="calc-launch-icon"><svg class="calc-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21 V12 A8 8 0 0 1 11 4 H21"/><polyline class="ci-thin" points="3,12 3,4 11,4"/><circle class="ci-accent" cx="11" cy="12" r="1.6"/></svg></span>
+                <span>Roh R / C</span>
+              </button>
+              <button
                 id="btnOpenBoltCircle"
                 class="calc-launch-btn"
                 title="Díry na roztečné kružnici – souřadnice X/Y a úhel C"
@@ -4275,6 +4283,20 @@
                     programovaný rádius R ± rε a posunuté body. Vnější
                     i vnitřní obrábění, náčrt s nožem a dráhou teoretické
                     špičky P.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">⌐</span> Roh R / C</summary>
+                <div class="tool-detail">
+                  <p>
+                    Zaoblení nebo sražení obecného rohu (kužel – válec –
+                    čelo pod libovolným úhlem). Zadání třemi body (předchozí,
+                    roh, další) nebo rohem a směry úseků. Vypíše tečné body,
+                    střed, vzdálenost t = R·tan(δ/2), vnitřní úhel a řádky
+                    G01 / G02 / G03 s R – směr oblouku podle nastavení stroje
+                    stejně jako CNC export výkresu. Hlídá, jestli se rádius
+                    vejde do úseků.
                   </p>
                 </div>
               </details>
