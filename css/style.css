@@ -4444,6 +4444,8 @@ body {
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
+/* Počet řezů ± v rozpisu průchodů závitu */
+.tol-toggle.thr-npass-btn { flex: 0 0 auto; padding: 0 8px; margin-left: 3px; font-weight: 700; }
 .tol-toggle.tol-active {
   background: var(--ctp-blue);
   color: var(--ctp-base);
@@ -4540,6 +4542,13 @@ body {
   color: var(--ctp-text);
   text-align: right;
   white-space: nowrap;
+}
+/* Poznámky přes celou šířku se zalamují (jinak roztáhnou tabulku) */
+.thr-detail-tbl td.thr-pass-note {
+  white-space: normal;
+  text-align: left;
+  font-family: inherit;
+  line-height: 1.35;
 }
 .thr-detail-tbl tr.thr-sep td {
   padding: 0;

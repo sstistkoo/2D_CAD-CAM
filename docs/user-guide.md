@@ -1122,7 +1122,12 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
     dopočítá.
 - **Taper** – kuželové zkrácení
-- **Závity** – převodné tabulky
+- **Závity** – převodné tabulky. U vybraného závitu **rozpis průchodů**:
+  hloubky řezů stejné jako v CAM (ubývající přísuv a_k = h·√(k/n), počet řezů
+  automaticky jako CAM, nerez +30 %, hliník −20 %, tlačítka − / + mění počet),
+  Ø X každého řezu (vnější od d, vnitřní od D1), přísuv radiální, boční
+  (β = α/2 − 0,5°, posun startu v Z od polohy posledního řezu) nebo střídavý
+  (posun střídá strany) a jiskřicí řez; varuje u přísuvu pod 0,02 mm.
 - **Převody** – jednotky (mm/inch, RPM/SFM)
 - **VK Kontura** – editor volné kontury (obdoba Heidenhain FK): zápis prvku
   úsečka/oblouk s neznámými rozměry (`?`), polárně k pólu (VPOL), s přehledem

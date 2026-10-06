@@ -79,6 +79,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     objekt, ne index (Zpět mezi kliknutími ji už nepřehodí). SW v378.
 
 ### Fixed
+- **Závity: rozpis průchodů** (uživatel 6. 10. 2026) – tři chyby:
+  M10×1,5 dávalo **38 řezů** (posledních 20 pod 0,02 mm – limit prvního řezu
+  0,15 mm vedl na n = (h/0,15)²); **boční přísuv nedojel na hloubku** (přísuv
+  se rozkládal jako délka po boku → ΣX = 0,799 místo 0,920, závit o 0,24 mm
+  na průměru mělčí); úhel bočního přísuvu natvrdo 30° i pro Tr / Whitworth.
+  Nově `threadPassesMath.js`: hloubky ze stejné funkce jako CAM
+  (`computeThreadPassCuts` – M10×1,5 → 8 řezů, shodně s generovaným
+  programem; nerez +30 %, hliník −20 %), boční přísuv β = α/2 − 0,5°
+  (29,5° / Tr 14,5° / BSW 27°) s posunem startu v Z od posledního řezu,
+  střídavý přísuv, **Ø X každého řezu** (vnější od d, vnitřní od D1),
+  počet řezů ±, varování u přísuvu pod 0,02 mm. Test
+  `tests/threadPassesMath.test.js`. SW v387.
 - **Drátky/válečky (dřív Měření) – kontrola** (uživatel 6. 10. 2026): závit
   přes drátky bral nejbližší drátek ze sady i mimo použitelný rozsah (např.
   Tr 40×7 → 3,2 mm, rozsah je 3,41–4,59) – mikrometr by dosedl na vrcholy

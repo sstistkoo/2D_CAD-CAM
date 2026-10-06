@@ -1,6 +1,7 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { autoPassCount, flankInfeedAngle, threadPasses } from './threadPassesMath.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 export function openThreadCalc() {
@@ -51,34 +52,31 @@ export function openThreadCalc() {
   }
 
   // ── THREAD PASSES (průchody soustružení závitu) ─────────
-  function threadPassesRows(totalDepth, nPasses, infeedType) {
+  // Hloubky řezů = stejná funkce jako CAM (threadPassesMath.js → computeThreadPassCuts).
+  // cfg: {depth, angle (úhel profilu), start (Ø, ze kterého se řeže) | undefined, internal}
+  function threadPassesRows(cfg, nPasses, infeedType) {
+    var passes = threadPasses(cfg.depth, nPasses, { method: infeedType, profileAngle: cfg.angle || 60, start: cfg.start, internal: !!cfg.internal });
     var html = '';
-    var cos30 = 0.866025;
-    var sin30 = 0.5;
-    var cumDepth = 0;
-    for (var i = 1; i <= nPasses; i++) {
-      var target = totalDepth * Math.sqrt(i / nPasses);
-      var cut = target - cumDepth;
-      if (i === nPasses) { target = totalDepth; cut = totalDepth - cumDepth; }
-      if (infeedType === 'flank') {
-        var xInf = cut * cos30;
-        var zOff = cut * sin30;
-        html += '<tr class="thr-pass-row"><td style="color:#6c7086">' + i + '.</td>' +
-          '<td>ap=' + cut.toFixed(3) + '  X=' + xInf.toFixed(3) + '  Z=' + zOff.toFixed(3) + '  \u2211=' + target.toFixed(3) + ' mm</td></tr>';
-      } else if (infeedType === 'modified') {
-        var xInf = cut * cos30;
-        var zOff = cut * sin30;
-        var sign = (i % 2 === 1) ? '+' : '\u2212';
-        html += '<tr class="thr-pass-row"><td style="color:#6c7086">' + i + '.</td>' +
-          '<td>ap=' + cut.toFixed(3) + '  X=' + xInf.toFixed(3) + '  Z=' + sign + zOff.toFixed(3) + '  \u2211=' + target.toFixed(3) + ' mm</td></tr>';
-      } else {
-        html += '<tr class="thr-pass-row"><td style="color:#6c7086">' + i + '.</td>' +
-          '<td>ap=' + cut.toFixed(3) + '  \u2211=' + target.toFixed(3) + ' mm</td></tr>';
-      }
-      cumDepth = target;
+    var minCut = Infinity;
+    for (var k = 0; k < passes.length; k++) {
+      var r = passes[k];
+      minCut = Math.min(minCut, r.cut);
+      var txt = 'ap=' + r.cut.toFixed(3) + '  ∑=' + r.depth.toFixed(3);
+      if (r.x !== null) txt += '  X=' + r.x.toFixed(3);
+      if (infeedType !== 'radial') txt += '  Z=' + (infeedType === 'alt' && r.z !== 0 ? (r.z < 0 ? '−' : '+') : '') + Math.abs(r.z).toFixed(3);
+      html += '<tr class="thr-pass-row"><td style="color:#6c7086">' + r.i + '.</td><td>' + txt + '</td></tr>';
     }
-    html += '<tr class="thr-pass-row"><td style="color:#6c7086">' + (nPasses + 1) + '.</td>' +
-      '<td style="color:#a6e3a1">jisk\u0159iv\u00FD (ap=0, spring pass)</td></tr>';
+    html += '<tr class="thr-pass-row"><td style="color:#6c7086">' + (passes.length + 1) + '.</td>' +
+      '<td style="color:#a6e3a1">jiskřivý (ap=0, spring pass)</td></tr>';
+    if (minCut < 0.02) {
+      html += '<tr class="thr-pass-row"><td colspan="2" class="thr-pass-note" style="color:#fab387">⚠ Nejmenší přísuv ' + minCut.toFixed(3) +
+        ' mm – břit už spíš tlačí, než řeže; uber řezů.</td></tr>';
+    }
+    if (infeedType !== 'radial') {
+      html += '<tr class="thr-pass-row"><td colspan="2" class="thr-pass-note" style="color:#a6adc8">Z = posun startu řezu od polohy posledního řezu' +
+        (infeedType === 'alt' ? ', střídavě na obě strany' : ' na stranu boku, po kterém nůž jede') +
+        ' (β = ' + String(flankInfeedAngle(cfg.angle || 60)).replace('.', ',') + '°).</td></tr>';
+    }
     return html;
   }
 
@@ -86,53 +84,43 @@ export function openThreadCalc() {
     return selMaterial ? selMaterial.value : 'steel';
   }
 
-  function threadPassesHTML(totalDepth, label, material) {
-    if (totalDepth <= 0) return '';
+  function threadPassesHTML(cfg, label, material) {
+    var totalDepth = cfg.depth;
+    if (!(totalDepth > 0)) return '';
     material = material || 'steel';
-    var nPasses;
-    if (totalDepth <= 0.5) nPasses = 3;
-    else if (totalDepth <= 1.0) nPasses = 5;
-    else if (totalDepth <= 1.5) nPasses = 7;
-    else if (totalDepth <= 2.0) nPasses = 9;
-    else if (totalDepth <= 3.0) nPasses = 11;
-    else nPasses = Math.ceil(totalDepth / 0.25);
-
-    var maxFirstCut = 0.15;
+    var nPasses = autoPassCount(totalDepth, material);
     var materialNote = '';
     if (material === 'stainless') {
-      nPasses = Math.ceil(nPasses * 1.3);
-      maxFirstCut = 0.10;
-      materialNote = '<tr><td colspan="2" style="color:#fab387">\u26A0 Nerez: n\u00EDzk\u00E9 ot\u00E1\u010Dky, \u0159ezn\u00FD olej</td></tr>';
+      materialNote = '<tr><td colspan="2" class="thr-pass-note" style="color:#fab387">⚠ Nerez: nízké otáčky, řezný olej (o 30 % víc řezů)</td></tr>';
     } else if (material === 'aluminum') {
-      nPasses = Math.max(2, Math.ceil(nPasses * 0.8));
-      maxFirstCut = 0.20;
-      materialNote = '<tr><td colspan="2" style="color:#a6e3a1">\uD83D\uDCA1 Hlin\u00EDk: petroleum/IPA</td></tr>';
+      materialNote = '<tr><td colspan="2" class="thr-pass-note" style="color:#a6e3a1">💡 Hliník: petroleum/IPA (o 20 % méně řezů)</td></tr>';
     } else if (material === 'cast') {
-      materialNote = '<tr><td colspan="2" style="color:#89b4fa">\uD83D\uDCA1 Litina: nasucho nebo emulze</td></tr>';
-    }
-    var firstCut = totalDepth * Math.sqrt(1 / nPasses);
-    while (firstCut > maxFirstCut && nPasses < 50) {
-      nPasses++;
-      firstCut = totalDepth * Math.sqrt(1 / nPasses);
+      materialNote = '<tr><td colspan="2" class="thr-pass-note" style="color:#89b4fa">💡 Litina: nasucho nebo emulze</td></tr>';
     }
 
-    var vcData = {steel:{vbd:'80\u2013120',hss:'15\u201325'},stainless:{vbd:'40\u201380',hss:'8\u201315'},aluminum:{vbd:'150\u2013300',hss:'30\u201360'},cast:{vbd:'60\u2013100',hss:'12\u201320'}};
+    var vcData = {steel:{vbd:'80–120',hss:'15–25'},stainless:{vbd:'40–80',hss:'8–15'},aluminum:{vbd:'150–300',hss:'30–60'},cast:{vbd:'60–100',hss:'12–20'}};
     var vc = vcData[material] || vcData.steel;
     var vcHTML = '<tr class="thr-sep"><td colspan="2"></td></tr>' +
-      '<tr><td colspan="2" style="color:#cba6f7;font-weight:600">\uD83D\uDD04 \u0158ezn\u00E1 rychlost z\u00E1vitov\u00E1n\u00ED</td></tr>' +
-      '<tr><td>VBD (pl\u00E1tky)</td><td>Vc = <strong>' + vc.vbd + '</strong> m/min</td></tr>' +
-      '<tr><td>HSS (no\u017Ee)</td><td>Vc = <strong>' + vc.hss + '</strong> m/min</td></tr>';
+      '<tr><td colspan="2" style="color:#cba6f7;font-weight:600">🔄 Řezná rychlost závitování</td></tr>' +
+      '<tr><td>VBD (plátky)</td><td>Vc = <strong>' + vc.vbd + '</strong> m/min</td></tr>' +
+      '<tr><td>HSS (nože)</td><td>Vc = <strong>' + vc.hss + '</strong> m/min</td></tr>';
 
-    var html = '</tbody><tbody class="thr-passes-group" data-depth="' + totalDepth + '" data-npasses="' + nPasses + '">' +
+    var beta = flankInfeedAngle(cfg.angle || 60);
+    var html = '</tbody><tbody class="thr-passes-group" data-depth="' + totalDepth + '" data-npasses="' + nPasses +
+        '" data-angle="' + (cfg.angle || 60) + '" data-start="' + (cfg.start > 0 ? cfg.start : '') +
+        '" data-internal="' + (cfg.internal ? 1 : 0) + '" data-infeed-type="radial">' +
       '<tr class="thr-sep"><td colspan="2"></td></tr>' +
-      '<tr><td colspan="2" style="color:#89b4fa;font-weight:600">\uD83D\uDD27 Pr\u016Fchody ' + label + ' (' + nPasses + '\u00D7)</td></tr>' +
+      '<tr><td colspan="2" style="color:#89b4fa;font-weight:600">🔧 Průchody ' + label +
+        ' (<span class="thr-pass-count">' + nPasses + '</span>×) ' +
+        '<button class="tol-toggle thr-npass-btn" data-npass="-1" title="Méně řezů">−</button>' +
+        '<button class="tol-toggle thr-npass-btn" data-npass="1" title="Víc řezů">+</button></td></tr>' +
       materialNote +
       '<tr><td colspan="2"><div class="tol-toggle-row" style="margin:4px 0">' +
-        '<button class="tol-toggle tol-active" data-infeed="radial">Radi\u00E1ln\u00ED</button>' +
-        '<button class="tol-toggle" data-infeed="flank">Bo\u010Dn\u00ED 30\u00B0</button>' +
-        '<button class="tol-toggle" data-infeed="modified">Mod. bo\u010Dn\u00ED</button>' +
+        '<button class="tol-toggle tol-active" data-infeed="radial">Radiální</button>' +
+        '<button class="tol-toggle" data-infeed="flank">Boční ' + String(beta).replace('.', ',') + '°</button>' +
+        '<button class="tol-toggle" data-infeed="alt">Střídavý</button>' +
       '</div></td></tr>' +
-      threadPassesRows(totalDepth, nPasses, 'radial') +
+      threadPassesRows(cfg, nPasses, 'radial') +
       vcHTML +
     '</tbody><tbody>';
 
@@ -277,7 +265,7 @@ export function openThreadCalc() {
     }
     if (passesConfig) {
       for (var j = 0; j < passesConfig.length; j++) {
-        html += threadPassesHTML(passesConfig[j].depth, passesConfig[j].label, getMaterial());
+        html += threadPassesHTML(passesConfig[j], passesConfig[j].label, getMaterial());
       }
     }
     html += '</table>';
@@ -328,8 +316,8 @@ export function openThreadCalc() {
       {rawHtml: drillRecommendHTML(D, D1, hInt)},
       {rawHtml: engagementLengthHTML(D), rawCopy: engagementLengthCopy(D)}
     ], [
-      {depth: hExt, label: 'vn\u011Bj\u0161\u00ED'},
-      {depth: hInt, label: 'vnit\u0159n\u00ED'}
+      {depth: hExt, label: 'vn\u011Bj\u0161\u00ED', angle: 60, start: D},
+      {depth: hInt, label: 'vnit\u0159n\u00ED', angle: 60, start: D1, internal: true}
     ], label + ' (ISO 261, 60\u00B0)');
   }
 
@@ -353,7 +341,7 @@ export function openThreadCalc() {
       {sep: true},
       {label: 'P\u0159edvrtan\u00ED', value: '<strong>' + drill.toFixed(3) + '</strong> mm', copyLabel: 'P\u0159edvrt\u00E1n\u00ED', copyValue: drill.toFixed(3) + ' mm'},
     ], [
-      {depth: hExt, label: 'profil'}
+      {depth: hExt, label: 'profil', angle: 55, start: D}
     ], name + ' (ISO 228, 55\u00B0)');
   }
 
@@ -391,7 +379,7 @@ export function openThreadCalc() {
       {label: 'P\u0159edvrtan\u00ED (\u0161roub)', value: '<strong>' + d3.toFixed(2) + '</strong> mm', copyLabel: 'P\u0159edvrt. \u0161roub', copyValue: d3.toFixed(2) + ' mm'},
       {label: 'P\u0159edvrtan\u00ED (matice)', value: '<strong>' + D1.toFixed(2) + '</strong> mm', copyLabel: 'P\u0159edvrt. matice', copyValue: D1.toFixed(2) + ' mm'},
     ], [
-      {depth: hExt, label: 'profil'}
+      {depth: hExt, label: 'profil', angle: 30, start: D}
     ], label + ' (ISO 2904, 30\u00B0)');
   }
 
@@ -424,8 +412,8 @@ export function openThreadCalc() {
       {rawHtml: drillRecommendHTML(D, D1, hInt)},
       {rawHtml: engagementLengthHTML(D), rawCopy: engagementLengthCopy(D)}
     ], [
-      {depth: hExt, label: 'vn\u011Bj\u0161\u00ED'},
-      {depth: hInt, label: 'vnit\u0159n\u00ED'}
+      {depth: hExt, label: 'vn\u011Bj\u0161\u00ED', angle: 60, start: D},
+      {depth: hInt, label: 'vnit\u0159n\u00ED', angle: 60, start: D1, internal: true}
     ], name + ' (' + std + ', 60\u00B0)');
   }
 
@@ -450,7 +438,7 @@ export function openThreadCalc() {
       {sep: true},
       {label: 'P\u0159edvrtan\u00ED', value: '<strong>' + drill.toFixed(3) + '</strong> mm', copyLabel: 'P\u0159edvrt\u00E1n\u00ED', copyValue: drill.toFixed(3) + ' mm'},
     ], [
-      {depth: hExt, label: 'profil'}
+      {depth: hExt, label: 'profil', angle: 55, start: D}
     ], name + ' (BS 84 Whitworth, 55\u00B0)');
   }
 
@@ -481,7 +469,7 @@ export function openThreadCalc() {
       {sep: true},
       {label: 'P\u0159edvrt\u00E1n\u00ED', value: '<strong>' + drill.toFixed(1) + '</strong> mm', copyLabel: 'P\u0159edvrt\u00E1n\u00ED', copyValue: drill.toFixed(1) + ' mm'},
     ], [
-      {depth: hExt, label: 'profil'}
+      {depth: hExt, label: 'profil', angle: 55}
     ], name + ' (ISO 7 / DIN 2999, 55\u00B0, ku\u017Eel 1:16)');
   }
 
@@ -508,7 +496,7 @@ export function openThreadCalc() {
       {sep: true},
       {label: 'Hloubka profilu', value: '<strong>' + hExt.toFixed(3) + '</strong> mm', copyValue: hExt.toFixed(3) + ' mm'},
     ], [
-      {depth: hExt, label: 'profil'}
+      {depth: hExt, label: 'profil', angle: 60}
     ], name + ' (ASME B1.20.1, 60\u00B0, ku\u017Eel 1:16)');
   }
 
@@ -545,7 +533,7 @@ export function openThreadCalc() {
       {label: 'P\u0159edvrtan\u00ED (\u0161roub)', value: '<strong>' + d3.toFixed(2) + '</strong> mm', copyLabel: 'P\u0159edvrt. \u0161roub', copyValue: d3.toFixed(2) + ' mm'},
       {label: 'P\u0159edvrtan\u00ED (matice)', value: '<strong>' + D1.toFixed(2) + '</strong> mm', copyLabel: 'P\u0159edvrt. matice', copyValue: D1.toFixed(2) + ' mm'},
     ], [
-      {depth: hExt, label: 'profil'}
+      {depth: hExt, label: 'profil', angle: 29, start: D}
     ], name + ' (ASME B1.5 Acme, 29\u00B0)');
   }
 
@@ -773,26 +761,35 @@ export function openThreadCalc() {
     this.textContent = vis ? '\u2753 N\u00E1pov\u011Bda' : '\u2716 Zav\u0159\u00EDt n\u00E1pov\u011Bdu';
   });
 
-  // ── Infeed strategy toggle (event delegation) ──
+  // ── Průchody: způsob přísuvu a počet řezů ± (event delegation) ──
   detail.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-infeed]');
+    var btn = e.target.closest('[data-infeed], [data-npass]');
     if (!btn) return;
     var group = btn.closest('.thr-passes-group');
     if (!group) return;
-    var infeedType = btn.dataset.infeed;
-    var totalDepth = parseFloat(group.dataset.depth);
-    var nPasses = parseInt(group.dataset.npasses);
-    var toggles = group.querySelectorAll('[data-infeed]');
-    for (var i = 0; i < toggles.length; i++) {
-      toggles[i].classList.toggle('tol-active', toggles[i] === btn);
+    if (btn.dataset.infeed) {
+      group.dataset.infeedType = btn.dataset.infeed;
+      var toggles = group.querySelectorAll('[data-infeed]');
+      for (var i = 0; i < toggles.length; i++) toggles[i].classList.toggle('tol-active', toggles[i] === btn);
+    } else {
+      var n = parseInt(group.dataset.npasses, 10) + parseInt(btn.dataset.npass, 10);
+      if (n < 1 || n > 60) return;
+      group.dataset.npasses = n;
+      group.querySelector('.thr-pass-count').textContent = n;
     }
+    var cfg = {
+      depth: parseFloat(group.dataset.depth),
+      angle: parseFloat(group.dataset.angle) || 60,
+      start: group.dataset.start ? parseFloat(group.dataset.start) : undefined,
+      internal: group.dataset.internal === '1',
+    };
     var oldRows = group.querySelectorAll('.thr-pass-row');
-    for (var i = 0; i < oldRows.length; i++) oldRows[i].remove();
-    // Insert new rows before VC data (after toggle row)
+    for (var j = 0; j < oldRows.length; j++) oldRows[j].remove();
+    // Nové řádky před řeznou rychlost (za řádek s přepínači)
     var toggleTr = group.querySelector('.tol-toggle-row');
     var refNode = toggleTr ? toggleTr.closest('tr').nextElementSibling : null;
     var temp = document.createElement('tbody');
-    temp.innerHTML = threadPassesRows(totalDepth, nPasses, infeedType);
+    temp.innerHTML = threadPassesRows(cfg, parseInt(group.dataset.npasses, 10), group.dataset.infeedType || 'radial');
     while (temp.firstChild) group.insertBefore(temp.firstChild, refNode);
   });
 
