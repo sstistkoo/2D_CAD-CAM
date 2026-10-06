@@ -6,7 +6,7 @@ vi.mock('../js/render.js', () => ({ renderAll: () => {} }));
 vi.mock('../js/canvas.js', () => ({ fitViewToWorldBounds: () => {} }));
 vi.mock('../js/geometry.js', () => ({ calculateAllIntersections: () => {} }));
 import { state } from '../js/state.js';
-import { findContourBranches, findContourGaps, findContourDuplicates } from '../js/stockTools.js';
+import { findContourBranches, findContourGaps, findContourDuplicates, generateCylinderStock } from '../js/stockTools.js';
 
 const L = (x1, y1, x2, y2) => ({ type: 'line', x1, y1, x2, y2 });
 
@@ -91,5 +91,31 @@ describe('findContourDuplicates', () => {
   it('polotovar přes konturu se nepočítá (je to běžné, ne chyba)', () => {
     state.objects = [...profile(), { ...L(0, 57, 150, 57), isStock: true }];
     expect(findContourDuplicates()).toEqual([]);
+  });
+});
+
+describe('generateCylinderStock – rozměr podle skutečné kontury', () => {
+  // Krok Zpět a hláška sahají na DOM – stačí prvky, které všechno snesou
+  const el = () => new Proxy(function () {}, { get: (t, p) => (p === Symbol.toPrimitive ? () => '' : el()), apply: () => el(), set: () => true });
+  beforeEach(() => {
+    vi.stubGlobal('document', el());
+    vi.stubGlobal('window', el());
+    state.objects = []; state.nextId = 1; state.undoStack = [];
+  });
+  const stockTop = () => Math.max(...state.objects.filter(o => o.isStock).flatMap(o => [o.y1, o.y2]));
+
+  it('oblouk kontury (bulge) vyboulený nad vrcholy je uvnitř polotovaru', () => {
+    // vrcholy ve výšce 10, půlkruh r=5 mezi nimi vede nahoru do 15
+    state.objects = [{ type: 'polyline', vertices: [{ x: 0, y: 0 }, { x: 0, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 0 }],
+      bulges: [0, -1, 0], closed: false }];
+    expect(generateCylinderStock({ allowanceX: 0, allowanceZ: 0 }).ok).toBe(true);
+    expect(stockTop()).toBeCloseTo(15, 9);
+  });
+
+  it('natočený obdélník se měří i s natočením', () => {
+    // čtverec 10×10 kolem středu (5,5) natočený o 45° → horní roh ve výšce 5 + 5·√2
+    state.objects = [{ type: 'rect', x1: 0, y1: 0, x2: 10, y2: 10, rotation: Math.PI / 4 }];
+    generateCylinderStock({ allowanceX: 0, allowanceZ: 0 });
+    expect(stockTop()).toBeCloseTo(5 + 5 * Math.SQRT2, 9);
   });
 });

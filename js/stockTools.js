@@ -22,7 +22,7 @@ import { state, pushUndo, showToast, STOCK_LAYER_ID } from './state.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList } from './ui.js';
 import { renderAll } from './render.js';
-import { bulgeToArc } from './utils.js';
+import { bulgeToArc, getRectCorners } from './utils.js';
 import { offsetContour } from './calculators/contourOffset.js';
 import { fitViewToWorldBounds } from './canvas.js';
 
@@ -72,9 +72,8 @@ function _objectsToSegments(objs) {
         }
       }
     } else if (obj.type === 'rect') {
-      const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
-      const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
-      const c = [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }];
+      // Rohy přes getRectCorners – respektuje natočení (rotation)
+      const c = getRectCorners(obj);
       for (let i = 0; i < 4; i++) segs.push({ type: 'line', p1: c[i], p2: c[(i + 1) % 4] });
     } else if (obj.type === 'circle') {
       const cx = obj.cx, cy = obj.cy, r = obj.r;
@@ -551,50 +550,24 @@ export function generateCylinderStock({ allowanceX, allowanceZ, asContour = fals
   }
 
   // Bbox: xMin, xMax (osa Z), yMax (max poloměr). Osu rotace bereme jako y=0.
+  // Ze segmentů (stejných jako pro kontrolu kontury), ne z objektů: dřív se
+  // u polyline braly jen vrcholy – oblouk (bulge) vyboulený nad ně trčel
+  // z polotovaru ven – a obdélník bez natočení.
   let xMin = Infinity, xMax = -Infinity, yMax = 0;
-  for (const o of objs) {
-    if (o.type === 'line') {
-      xMin = Math.min(xMin, o.x1, o.x2);
-      xMax = Math.max(xMax, o.x1, o.x2);
-      yMax = Math.max(yMax, o.y1, o.y2);
-    } else if (o.type === 'arc') {
-      // Extrémy oblouku v X i Y (přibližné — vezmeme endpoints + center extrémy
-      // pokud leží v zametaném úseku)
-      const sa = o.startAngle, ea = o.endAngle;
-      const ccw = o.ccw !== false;
-      const x1 = o.cx + o.r * Math.cos(sa), y1 = o.cy + o.r * Math.sin(sa);
-      const x2 = o.cx + o.r * Math.cos(ea), y2 = o.cy + o.r * Math.sin(ea);
-      xMin = Math.min(xMin, x1, x2); xMax = Math.max(xMax, x1, x2);
-      yMax = Math.max(yMax, y1, y2);
-      // Extremes only if arc passes through them
-      const passes = (target) => {
-        let s = sa, e = ea;
-        const norm = (a) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        const t = norm(target), ns = norm(s), ne = norm(e);
-        if (ccw) {
-          if (ne >= ns) return t >= ns && t <= ne;
-          return t >= ns || t <= ne;
-        }
-        if (ns >= ne) return t <= ns && t >= ne;
-        return t <= ns || t >= ne;
-      };
-      if (passes(0)) xMax = Math.max(xMax, o.cx + o.r);
-      if (passes(Math.PI)) xMin = Math.min(xMin, o.cx - o.r);
-      if (passes(Math.PI / 2)) yMax = Math.max(yMax, o.cy + o.r);
-    } else if (o.type === 'circle') {
-      xMin = Math.min(xMin, o.cx - o.r);
-      xMax = Math.max(xMax, o.cx + o.r);
-      yMax = Math.max(yMax, o.cy + o.r);
-    } else if (o.type === 'rect') {
-      xMin = Math.min(xMin, o.x1, o.x2);
-      xMax = Math.max(xMax, o.x1, o.x2);
-      yMax = Math.max(yMax, o.y1, o.y2);
-    } else if (o.type === 'polyline') {
-      for (const v of (o.vertices || [])) {
-        xMin = Math.min(xMin, v.x);
-        xMax = Math.max(xMax, v.x);
-        yMax = Math.max(yMax, v.y);
-      }
+  const grow = (x, y) => { xMin = Math.min(xMin, x); xMax = Math.max(xMax, x); yMax = Math.max(yMax, y); };
+  for (const sg of _objectsToSegments(objs)) {
+    grow(sg.p1.x, sg.p1.y);
+    grow(sg.p2.x, sg.p2.y);
+    if (sg.type !== 'arc') continue;
+    // Krajní body oblouku (0°, 90°, 180°) – jen ty, přes které skutečně vede
+    const TAU = 2 * Math.PI;
+    const a1 = Math.atan2(sg.p1.y - sg.cy, sg.p1.x - sg.cx);
+    const a2 = Math.atan2(sg.p2.y - sg.cy, sg.p2.x - sg.cx);
+    let sweep = ((sg.ccw ? a2 - a1 : a1 - a2) % TAU + TAU) % TAU;
+    if (sweep < 1e-9) sweep = TAU; // plná kružnice
+    for (const t of [0, Math.PI / 2, Math.PI]) {
+      const off = ((sg.ccw ? t - a1 : a1 - t) % TAU + TAU) % TAU;
+      if (off <= sweep + 1e-12) grow(sg.cx + sg.r * Math.cos(t), sg.cy + sg.r * Math.sin(t));
     }
   }
   if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) {

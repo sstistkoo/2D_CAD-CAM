@@ -9,7 +9,7 @@ import { state, showToast, coordHelpers } from '../state.js';
 import { renderAll } from '../render.js';
 import { addDimensionForObject } from './dimension.js';
 import { intersectInfiniteLines } from '../geometry.js';
-import { bulgeToArc } from '../utils.js';
+import { bulgeToArc, getRectCorners } from '../utils.js';
 import { drawCanvas, vSign } from '../canvas.js';
 
 const EPS = 1e-4;      // tolerance pro shodu bodů
@@ -89,15 +89,9 @@ function extractSegments(objects) {
     } else if (obj.type === 'arc') {
       arcs.push({ obj, idx, segIdx: null });
     } else if (obj.type === 'rect') {
-      // Obdélník → 4 úsečky
-      const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
-      const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
-      const rectSegs = [
-        { x1: x1, y1: y1, x2: x2, y2: y1 }, // spodní
-        { x1: x2, y1: y1, x2: x2, y2: y2 }, // pravá
-        { x1: x2, y1: y2, x2: x1, y2: y2 }, // horní
-        { x1: x1, y1: y2, x2: x1, y2: y1 }, // levá
-      ];
+      // Obdélník → 4 úsečky (přes getRectCorners – respektuje natočení)
+      const rc = getRectCorners(obj);
+      const rectSegs = rc.map((c, k) => ({ x1: c.x, y1: c.y, x2: rc[(k + 1) % 4].x, y2: rc[(k + 1) % 4].y }));
       rectSegs.forEach((seg, si) => {
         lines.push({ obj: { type: 'line', ...seg }, idx, segIdx: si });
       });
@@ -314,7 +308,8 @@ function detectGrooves(segments) {
     const bDx = bottom.obj.x2 - bottom.obj.x1;
     const bDy = bottom.obj.y2 - bottom.obj.y1;
 
-    // Pro každou kombinaci sousedů na koncích dna
+    // Pro každou kombinaci sousedů na koncích dna (jedno dno = nejvýš jeden zápich)
+    combos:
     for (const side1 of bAdj[0]) {
       for (const side2 of bAdj[1]) {
         if (segKey(side1.line) === segKey(side2.line)) continue;
@@ -359,6 +354,7 @@ function detectGrooves(segments) {
           depth1,
           depth2,
         });
+        break combos;
       }
     }
   }

@@ -29,6 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nelámou uprostřed. SW v360.
 
 ### Fixed
+- **Měření, přichytávání, válcový polotovar** (uživatel 6. 10. 2026, kontrola
+  dalších oblastí):
+  - **válcový polotovar** se počítal jen z vrcholů kontury – oblouk (bulge)
+    vyboulený nad vrcholy trčel z polotovaru ven (CAM dostal díl větší než
+    polotovar); natočený obdélník se bral bez natočení. Nově z úseků kontury
+    včetně krajních bodů oblouků (test v `contour-branches.test.js`);
+  - **přichytávání na hranu oblouku po směru hodin** hledalo bod na jeho
+    neexistujícím doplňku (`getNearestPointOnObject` nepředávala směr);
+  - **měření bod ↔ kontura / obdélník** měřilo k „středu", který byl u
+    kontury (0, 0) → vzdálenost k počátku; teď k nejbližšímu bodu objektu.
+    Totéž u generického měření 2 objektů (kontura, text, výplň) – sdílený
+    `objectCenter()`; **bod ↔ oblouk** počítá vzdálenost k oblouku, ne
+    k celé kružnici;
+  - úprava vzdálenosti / úhlu dvou úseček v Měření posunula i **zakotvenou**
+    úsečku a u krátké úsečky nechala prázdný krok Zpět;
+  - Rozpoznání prvků: natočený obdélník, jedno dno = nejvýš jeden zápich.
+  SW v376.
 - **Panel Vlastnosti – úprava souřadnic nepřepočítala průsečíky ani CNC
   kód** (uživatel 6. 10. 2026) – po přepsání X/Z, délky, úhlu, středu nebo
   poloměru v panelu se jen překreslilo: body průsečíků (přichytávání)

@@ -8,12 +8,35 @@ import { makeInputOverlay } from '../dialogFactory.js';
 import { state, showToast, toDisplayCoords, toDisplayAngle, coordHelpers, pushUndo, withUndoBatch } from '../state.js';
 import { addObject } from '../objects.js';
 import { renderAll } from '../render.js';
-import { typeLabel, bulgeToArc, safeEvalMath } from '../utils.js';
+import { typeLabel, bulgeToArc, safeEvalMath, getNearestPointOnObject } from '../utils.js';
 import { updateObjectList } from '../ui.js';
 import { addDimensionForObject, addAngleDimensionForLines, updateAssociativeDimensions } from './dimension.js';
 import { showEditObjectDialog, wireExprInputs } from './mobileEdit.js';
 import { projectPointToLine, distPointToInfiniteLine, angleBetweenLines, intersectInfiniteLines, calculateAllIntersections } from '../geometry.js';
-import { removeAnchorsForObject, cleanupOrphanAnchors } from '../tools/index.js';
+import { removeAnchorsForObject, cleanupOrphanAnchors, hasAnchoredPoint } from '../tools/index.js';
+
+/**
+ * Střed objektu pro měření. Dřív dvě kopie s „default: {0,0}" – kontura,
+ * text a výplň se pak měřily k počátku souřadnic.
+ * @returns {{x:number,y:number}|null}
+ */
+export function objectCenter(o) {
+  const bbox = (pts) => {
+    if (!pts.length) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  };
+  switch (o.type) {
+    case 'point': case 'text': return { x: o.x, y: o.y };
+    case 'line': case 'constr': return { x: (o.x1 + o.x2) / 2, y: (o.y1 + o.y2) / 2 };
+    case 'circle': case 'arc': return { x: o.cx, y: o.cy };
+    case 'rect': return { x: (o.x1 + o.x2) / 2, y: (o.y1 + o.y2) / 2 };
+    case 'polyline': return bbox(o.vertices || []);
+    case 'fill': return bbox((o.loops || []).flat());
+    default: return null;
+  }
+}
 
 // ── Měření – dialog výsledku ──
 /**
@@ -490,11 +513,12 @@ export function showMeasureTwoLinesResult(obj1, obj2, idx1, idx2) {
         const fixLine = overlay.querySelector('input[name="msFixLine"]:checked').value;
         const fixObj = fixLine === '1' ? obj1 : obj2;
         const moveObj = fixLine === '1' ? obj2 : obj1;
-        pushUndo();
+        if (hasAnchoredPoint(moveObj)) { showToast("Posouvaná úsečka je zakotvena – zvolte ji jako fixní"); return; }
         // Compute perpendicular direction from fixObj
         const fdx = fixObj.x2 - fixObj.x1, fdy = fixObj.y2 - fixObj.y1;
         const flen = Math.hypot(fdx, fdy);
         if (flen < 1e-10) { showToast("Úsečka je příliš krátká"); return; }
+        pushUndo();
         const nx = -fdy / flen, ny = fdx / flen;
         // Current perpendicular distance (signed)
         const curSignedDist = (moveObj.x1 - fixObj.x1) * nx + (moveObj.y1 - fixObj.y1) * ny;
@@ -568,6 +592,7 @@ export function showMeasureTwoLinesResult(obj1, obj2, idx1, idx2) {
         const fixChoice = overlay.querySelector('input[name="msFixAngle"]:checked').value;
         const fixObj = fixChoice === '1' ? obj1 : obj2;
         const moveObj = fixChoice === '1' ? obj2 : obj1;
+        if (hasAnchoredPoint(moveObj)) { showToast("Otáčená úsečka je zakotvena – zvolte ji jako fixní"); return; }
         const pivot = intersectInfiniteLines(fixObj, moveObj);
         if (!pivot) { showToast("Nelze najít průsečík"); return; }
         pushUndo();
@@ -797,7 +822,9 @@ export function showMeasurePointToLineResult(pt, lineObj, ptIdx, lineIdx) {
 export function showMeasurePointToCircleResult(pt, circObj) {
   const { H, V, Hp, Vp, fH, fV } = coordHelpers();
   const centerDist = Math.hypot(pt.x - circObj.cx, pt.y - circObj.cy);
-  const edgeDist = Math.abs(centerDist - circObj.r);
+  // U oblouku může být nejbližší bod jeho konec (kolmice na kružnici míjí oblouk)
+  const nearArc = circObj.type === 'arc' ? getNearestPointOnObject(circObj, pt.x, pt.y) : null;
+  const edgeDist = nearArc ? nearArc.dist : Math.abs(centerDist - circObj.r);
   let rows = '';
   rows += `<tr><td style="color:${COLORS.label}">Vzd. od středu:</td><td style="color:${COLORS.selected}">${centerDist.toFixed(3)} mm</td></tr>`;
   rows += `<tr><td style="color:${COLORS.label}">Vzd. od okraje:</td><td style="color:${COLORS.selected}">${edgeDist.toFixed(3)} mm</td></tr>`;
@@ -831,16 +858,8 @@ export function showMeasurePointToCircleResult(pt, circObj) {
 export function showMeasureTwoObjectsResult(obj1, obj2) {
   const { H, V, Hp, Vp, fH, fV } = coordHelpers();
 
-  function _getCenter(o) {
-    switch (o.type) {
-      case 'point': return { x: o.x, y: o.y };
-      case 'line': case 'constr': return { x: (o.x1 + o.x2) / 2, y: (o.y1 + o.y2) / 2 };
-      case 'circle': case 'arc': return { x: o.cx, y: o.cy };
-      case 'rect': return { x: (o.x1 + o.x2) / 2, y: (o.y1 + o.y2) / 2 };
-      default: return { x: 0, y: 0 };
-    }
-  }
-  const c1 = _getCenter(obj1), c2 = _getCenter(obj2);
+  const c1 = objectCenter(obj1), c2 = objectCenter(obj2);
+  if (!c1 || !c2) { showToast("Tyto objekty nelze změřit"); return; }
   const d = Math.hypot(c2.x - c1.x, c2.y - c1.y);
   const angle = toDisplayAngle(Math.atan2(c2.y - c1.y, c2.x - c1.x) * 180 / Math.PI);
   let rows = '';

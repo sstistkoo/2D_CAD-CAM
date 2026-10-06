@@ -3,6 +3,8 @@ import { state, showToast, toDisplayAngle } from '../state.js';
 import { renderAll } from '../render.js';
 import { resetHint, setHint } from '../ui.js';
 import { findObjectAt } from '../geometry.js';
+import { getNearestPointOnObject } from '../utils.js';
+import { objectCenter } from '../dialogs/measure.js';
 import {
   showMeasureResult, showMeasureObjectInfo, showIntersectionInfo,
   showMeasureTwoPointsResult, showMeasureMultiPointResult,
@@ -128,8 +130,12 @@ export function measureSelection() {
     } else if (_isPoint(obj)) {
       showMeasureTwoPointsResult(pt, { x: obj.x, y: obj.y });
     } else {
-      // Rect / polyline → generický
-      showMeasureTwoPointsResult(pt, _getCenter(obj));
+      // Obdélník / kontura → nejbližší bod objektu (dřív „střed", který
+      // byl u kontury (0,0) – měřilo se k počátku souřadnic)
+      const near = getNearestPointOnObject(obj, pt.x, pt.y);
+      const target = near ? { x: near.x, y: near.y } : objectCenter(obj);
+      if (!target) { showToast("Tento objekt nelze změřit"); return true; }
+      showMeasureTwoPointsResult(pt, target);
     }
     _clearSelection();
     return true;
@@ -200,14 +206,4 @@ export function measureSelection() {
   // ── Nepodporovaný mix ──
   showToast("Vyberte objekty nebo body pro měření");
   return false;
-}
-
-function _getCenter(o) {
-  switch (o.type) {
-    case 'point': return { x: o.x, y: o.y };
-    case 'line': case 'constr': return { x: (o.x1 + o.x2) / 2, y: (o.y1 + o.y2) / 2 };
-    case 'circle': case 'arc': return { x: o.cx, y: o.cy };
-    case 'rect': return { x: (o.x1 + o.x2) / 2, y: (o.y1 + o.y2) / 2 };
-    default: return { x: 0, y: 0 };
-  }
 }

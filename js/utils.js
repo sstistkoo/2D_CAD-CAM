@@ -329,7 +329,9 @@ export function getNearestPointOnObject(obj, wx, wy) {
       const d = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
       if (d < 1e-10) return null;
-      if (isAngleBetween(angle, obj.startAngle, obj.endAngle)) {
+      // Směr oblouku (ccw:false = po směru hodin) – bez něj se u CW oblouku
+      // přichytávalo na neexistující doplněk oblouku
+      if (isAngleBetween(angle, obj.startAngle, obj.endAngle, obj.ccw)) {
         return { x: obj.cx + (dx / d) * obj.r, y: obj.cy + (dy / d) * obj.r, dist: Math.abs(d - obj.r) };
       }
       // Mimo oblouk – nejbližší koncový bod
