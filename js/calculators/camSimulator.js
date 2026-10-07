@@ -2444,7 +2444,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.showSimPath !== 'none' && (prms.doFinishing || prms.finishOnly) && (calc.finishUnreachablePath || []).length > 0) {
       ctx.beginPath();
       calc.finishUnreachablePath.forEach(seg => {
-        if (seg.isDegenerate) return;
+        // Kus pod mezní čarou zanoření (pravidlo 15, ops/finishSteep.js) se
+        // nekreslí — zůstávají jen dráhy podél mezní čáry (uživatel 7. 10. 2026).
+        if (seg.isDegenerate || seg.belowPlunge) return;
         if (seg.type === 'line') {
           const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
           ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);

@@ -90,6 +90,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **CAM: pravidlo 15 — dokončování nesjíždí strměji než úhel zanoření.**
+  Úsek dokončovací dráhy se rozdělí tam, kde ve směru jízdy začne klesat
+  k ose strměji než „Úhel zanoření" (`ops/finishSteep.js`); kus před tím se
+  dokončí celý, dál jede rovný průměr a odjezd vzduchem. Strmý kus se
+  nedokončuje, nahlásí se a v náhledu se nekreslí tečkovaně. Díl uživatele
+  `projekt_2026-10-07 (3)`, úsek 2 (kulatá R 10, 45°): oblouk `N2360 G3
+  X36.836 Z106.625` končí na X 44,136 Z 111,198 a místo „Výjezd materiálem
+  posuvem" na X150 se odjíždí rychloposuvem. Otisk 29 fixtures shodný; u 13
+  se jen přejmenovala hláška (strmé úseky, které vynechávalo už hlídání
+  destičky, se hlásí podle pravidla 15). Test `cam-finish-plunge-limit`.
+- **CAM kulatá: pravidlo 14 — řetěz zanoření bez odjezdu.** Tělo vrstvy za
+  rampou, které ze skutečného polotovaru nic neubere, odpadne v jakékoli
+  délce (dřív jen pod 2 mm a proti plánovacímu obrysu s vůlí); další rampa
+  pak navazuje bez odskoku. Úsek 3 téhož dílu: místo `G0 Z-18.996`, odskoku
+  a návratu na konec rampy jeden souvislý sjezd. Otisk: hnul se jen
+  `part-22-round-r10` (zmizely tytéž odjezdy, úběr shodný, posuv vzduchem
+  283,9 → 270,2 mm). Test `cam-plunge-chain-continuous`. Zatím NEŘEŠENO:
+  řetěz úseku 1 končí na hranici úseků a pod ním zůstává zbytek (snímek
+  uživatele u bodů 5–8), kvůli němu úsek 2 nechá v údolí 239 mm² — čeká
+  na rozhodnutí, jestli smí řetěz pokračovat přes hranici úseku.
 - **Tlačítka tvaru destičky nasadí výchozí nůž i s držákem** (uživatel
   7. 10. 2026: „přednastav kulatý SRSCR2525M20, polygon PSBNR2525M12,
   upichovák MGEHR2525-5, závit SER2525M16 a na vrtání Vrtak D20"). ● ■ ▮ ▽ ⌀

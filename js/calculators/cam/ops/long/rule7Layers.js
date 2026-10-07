@@ -546,17 +546,26 @@ export function genRule7Layers(D) {
       const cut = newCutArea(path);
       if (cut <= 0.01 * Math.max(len, 1) || (cut <= 0.3 && cut <= 0.03 * len)) { idleSkips++; return null; }
     }
-    // KRÁTKÉ TĚLO ZA NÁJEZDEM, KTERÉ NIC NEUBERE (pravidla 4 a 5): klín pod
+    // TĚLO ZA NÁJEZDEM, KTERÉ NIC NEUBERE (pravidla 4, 5 a 14): klín pod
     // mezní čarou u hranice úseku vybere nájezd po čáře, tělo za ním jede
     // vzduchem k mezi a odjezd se vrací šikmo zpět — „taneček" `G0 Z145.276
     // / G1 X48.618 Z143.276` (díl (7), úsek 1). Vrstva skončí na konci nájezdu.
+    // PRAVIDLO 14 (uživatel 7. 10. 2026): platí pro tělo JAKÉKOLI délky
+    // a měří se proti SKUTEČNÉMU polotovaru (pravidlo 9). Za koncem polotovaru
+    // jelo tělo 7 mm vzduchem (`N3120 G0 Z-18.996`, odskok a návrat na konec
+    // rampy) — teď vrstva skončí na konci rampy a další rampa na ni naváže
+    // bez odskoku (viz NAVAZUJÍCÍ PRŮCHOD níž): jeden souvislý sjezd.
     if (typeof newCutArea === 'function') {
       const o = out[out.length - 1];
       const li = o.leadIn || (o.ramp ? [{ type: 'line', x1: o.ramp.x0, z1: o.ramp.z0, x2: o.x, z2: o.zStart }] : null);
       const bodyLen = o.zStart - o.zEnd;
-      if (li && li.length && !o.leadOut && !o.cont && bodyLen > 1e-6 && bodyLen < 2) {
+      if (li && li.length && !o.leadOut && !o.cont && bodyLen > 1e-6) {
         const body = { type: 'line', x1: o.x, z1: o.zStart, x2: o.x, z2: o.zEnd };
-        if (newCutArea([...li, body]) - newCutArea(li) <= 0.05 + 0.01 * bodyLen) o.zEnd = o.zStart;
+        const real = rawTab ? { topAt: rawTopInside } : {};
+        const idleBody = bodyLen < 2
+          ? newCutArea([...li, body]) - newCutArea(li) <= 0.05 + 0.01 * bodyLen
+          : newCutArea([...li, body], real) - newCutArea(li, real) <= 0.05 + 0.01 * bodyLen;
+        if (idleBody) o.zEnd = o.zStart;
       }
     }
     // Držák (pravidlo 2): kde se nevejde, vrstva končí dřív.

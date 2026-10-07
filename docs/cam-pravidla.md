@@ -244,6 +244,9 @@ který po zanořování zůstal — nekončí svisle nad ním.**
   `N3130 G1 X35.666 Z-16.996` (odskok) → zpět `N3160 G1 X33.666` a další
   rampa; má to být jeden souvislý sjezd. Úsek 1 u bodů 5–8: řetěz skončil
   svisle nad zbytkem, který měl vzít.
+- Hotovo: vrstva, jejíž tělo za rampou ze skutečného polotovaru nic
+  neubere, končí na konci rampy (`ops/long/rule7Layers.js`) a další rampa
+  navazuje bez odskoku. Test: `tests/cam-plunge-chain-continuous.test.js`.
 
 ## Pravidlo 15 — Dokončování nesjíždí strměji než úhel zanoření ✅ schváleno
 
@@ -261,3 +264,5 @@ nožem stojí materiál, aby na průměru nezůstal schodek. Teprve pak odjezd.*
   úsek 2 `N2360 G3 X36.836 Z106.625 CR=20.000` sjíždí po oblouku strměji
   než 45° — má skončit u S13 a pokračovat rovně; úsek 3 `N3320 G1 X40.566
   Z-1.500 ; Rovný průměr` má dojet v rovině až za polotovar (Z −4,89).
+- Implementace: `cam/ops/finishSteep.js` (dělení úseku), rovný průměr
+  `finRunOut` v `cam/ops/finishEmit.js`. Test: `tests/cam-finish-plunge-limit.test.js`.

@@ -18,7 +18,8 @@
 // Protažení offsetů k ose (`extendOffsetStartToAxis`) sem NEPATŘÍ: dělá se
 // pro hrubovací i dokončovací čáru najednou, takže zůstalo v pipeline.
 
-import { dropTinyArcs, getNormal, intersectSegAtZ, syncArcEndpoints } from '../camMath.js';
+import { dropTinyArcs, getNormal, intersectSegAtZ, syncArcEndpoints, getEffectivePlungeAngle } from '../camMath.js';
+import { splitSteepFinish } from './finishSteep.js';
 import { machinableRangeOf, segInterferesWithTool, trimAndRemoveLoops } from '../contourBuild.js';
 import { makeFinishTipGuard } from '../toolEnvelope.js';
 import { fitArcsToPolyline, samplePartingEnvelope } from '../camMath.js';
@@ -42,6 +43,11 @@ export function buildFinishPath(ctx) {
   const respectFin = prms.respectInsertGeometry && clearance;
   let finSkipped = 0;
   let finHolderSkipped = 0;
+  // PRAVIDLO 15 — strmý kus (k ose strměji než úhel zanoření) se nedokončuje.
+  // Směr jízdy: zprava −Z (pořadí kontury), zleva +Z (finishEmit.js otočí).
+  const plungeDeg = getEffectivePlungeAngle(prms);
+  const finDirZ = (prms.roughingSide || 'right') === 'left' ? 1 : -1;
+  let finSteepSkipped = 0;
   // Fáze 3b: vzorkování dokončovacího segmentu pro test proti zakázané
   // oblasti špičky (držák) — body po ~0,5 mm včetně konců.
   const segSamplePts = (fs) => {
@@ -116,6 +122,28 @@ export function buildFinishPath(ctx) {
       }
     }
     if (!finSeg) { pendingBreak = true; continue; }
+    // ── PRAVIDLO 15: NESJÍŽDĚT STRMĚJI NEŽ ÚHEL ZANOŘENÍ ──────────────────
+    // Úsek se rozdělí tam, kde ve směru jízdy začne klesat k ose strměji než
+    // úhel zanoření (ops/finishSteep.js). Strmá část jde mezi nedosažitelné
+    // (překážka pro rychloposuvy), ale se značkou `belowPlunge` — v náhledu
+    // se nekreslí (zůstávají dráhy podél mezní čáry zanoření). Za zachovanou
+    // částí řetěz končí → rovný průměr (`finRunOut`) a odjezd.
+    let steepAfter = false;
+    {
+      const sp = splitSteepFinish(finSeg, plungeDeg, finDirZ);
+      if (sp.steep) {
+        finSteepSkipped++;
+        sp.steep.unreachable = true;
+        sp.steep.belowPlunge = true;
+        finishUnreachablePath.push(sp.steep);
+      }
+      if (!sp.keep) { pendingBreak = true; unreachBreak = true; continue; }
+      if (sp.steep) {
+        finSeg = sp.keep;
+        // Zprava je strmá část ZA zachovanou (přeryv až po ní), zleva PŘED ní.
+        if (sp.steepFirst) unreachBreak = true; else steepAfter = true;
+      }
+    }
     // MEZ DOJEZDU Z HLÍDÁNÍ DESTIČKY. Mezní čára neomezuje jen CELÉ úseky:
     // stín nedosažitelné strmé stěny ořízne i sousední, jinak dosažitelný
     // válec. `buildMachinableContour` to zná (hrubování po ní jede), ale
@@ -198,6 +226,7 @@ export function buildFinishPath(ctx) {
     if (unreachBreak) { finSeg.chainBreak = true; unreachBreak = false; }
     pendingBreak = false;
     finRaw.push(finSeg);
+    if (steepAfter) { pendingBreak = true; unreachBreak = true; }
   }
   finishOffsetPath = dropTinyArcs(trimAndRemoveLoops(finRaw));
   // Sanitace: když je R nástroje větší než konkávní rádius kontury
@@ -232,6 +261,8 @@ export function buildFinishPath(ctx) {
   }
   if (finSkipped > 0)
     foundErrors.push({ type: 'warning', msg: `Hlídání destičky: dokončování vynechá ${finSkipped} úsek(ů), kam destička nedosáhne (přejezd G0).` });
+  if (finSteepSkipped > 0)
+    foundErrors.push({ type: 'warning', msg: `Dokončování: ${finSteepSkipped} kus(ů) kontury klesá k ose strměji než úhel zanoření ${plungeDeg.toFixed(0)}° — nedokončuje se, dál jede rovný průměr (pravidlo 15).` });
   if (finHolderSkipped > 0)
     foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): dokončování vynechá ${finHolderSkipped} úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.` });
 
