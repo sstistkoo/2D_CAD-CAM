@@ -119,6 +119,16 @@ export function polygonInsert(prms) {
     leadInSteepToChain: false,
     approachFromNoseContact: false,
     rule7Layers: false,
+    // ── PRAVIDLO 9 VE STARÉM HLOUBKOVÉM CYKLU (7. 10. 2026) ───────────────
+    //   realStockLayers — vrstva, která celou dráhou ze SKUTEČNÉHO polotovaru
+    //                     nic neubere, se nevydá a konec dojezdu ve vůli se
+    //                     ořízne (ops/long/realStock.js); bisekce poslední
+    //                     kratší vrstvy bere jen interval otevřený zprava.
+    //                     Nález: hřídel s osazením r = r polotovaru, rε 0,4
+    //                     a Vůle 1 — vrstvy v pásu vůle před čelem a dojezd po
+    //                     vršku osazení za konec polotovaru. Kulatá to má
+    //                     v rule7Layers, upichovák (stopa tělem) zatím ne.
+    realStockLayers: true,
     leadOutTrimNoseCircle: false,
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,

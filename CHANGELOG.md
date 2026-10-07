@@ -90,6 +90,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **CAM podélně (polygon): vrstvy a dojezdy ve vůli kolem polotovaru**
+  (pravidlo 9 — materiál je nakreslený polotovar, ne plánovací obrys s vůlí).
+  Nález 7. 10. 2026 na jednoduchém hřídeli r 5 × 60 s osazením r 10 = r
+  polotovaru (CL rε 0,4, Vůle 1): pásmo vůle před čelem (Z 0…1) je širší
+  než odsazení čela (Přídavek Z + rε), takže vrstvy X 3,5 / 2 / 0,5 / 0
+  jely celé ve vzduchu před čelem a dojezd první vrstvy jel posuvem po
+  vršku osazení až za konec polotovaru (`G1 Z-62.712`). S rε 0,8 vznikla
+  „poslední kratší vrstva" za koncem polotovaru a k ní rampa 5° přes celý
+  díl (tříska 5,6 mm). Průchod, který ze skutečného polotovaru nic neubere,
+  se teď nevydá, konec dojezdu ve vůli se ořízne a bisekce poslední vrstvy
+  bere jen interval otevřený zprava — hřídel má poslední vrstvu na dně
+  (X 5,7 / 6,1). Klíč plátku `realStockLayers` (jen polygon,
+  `ops/long/realStock.js`). Otisk: hnulo se 8 z 29 fixtures (polygon) —
+  odpadl konec dojezdu nebo krátký průchod ve vůli; úběr shodný, porušení
+  pravidel stejná nebo o vzduch méně. Vzorový díl uživatele (polygon
+  24. 9.) i kulatá, upichovák a vrták beze změny.
 - **Vrtání: vrták hrubovat nesmí, prázdná pole a začátek díry** (nález
   uživatele 7. 10. 2026 na dílu rozděleném na úseky — vrták ⌀5 v úseku 1,
   Vrtání „Neaktivní", 🔄 Dráhy vyrobily HRUBOVÁNÍ vrtákem):

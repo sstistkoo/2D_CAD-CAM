@@ -10,7 +10,7 @@ import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
 import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
-import { buildStockLoopRaw, offsetStockLoop, toolFootprint } from '../materialRemoval.js';
+import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintVisual } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
 import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from '../booleanRoughing.js';
@@ -34,6 +34,7 @@ import { emitOpenInterval } from './long/openPass.js';
 import { emitPocketInterval } from './long/pocketPass.js';
 import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 import { relinkOrphanChainSteps } from './long/chainRelink.js';
+import { makeRealStock, passPath, pathLen } from './long/realStock.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -1727,6 +1728,17 @@ export function genLongPasses(ctx) {
         const mid = (loX + hiX) / 2;
         const ms = scan(mid, entryZ, effZMin, true);
         const iv0 = (ms.firstOpen && ms.intervals.length > 0) ? ms.intervals[0] : null;
+        // `firstOpen` říká jen, že sken zprava začal ve volnu — krátký kus u
+        // horní meze (pás vůle před čelem kratší než `dzScan`) ale ze seznamu
+        // vypadne a `intervals[0]` je pak interval ZA stěnou kontury, kam se
+        // zprava vjet nedá. Nález 7. 10. 2026 (hřídel s osazením, rε 0,8):
+        // „poslední vrstva" X 5,214 v pásu vůle za koncem polotovaru
+        // Z −62,1…−62,8 a k ní rampa 5° přes celý díl (`G1 X5.214 Z-62.000`).
+        // Klíč plátku `realStockLayers` (pravidlo 9).
+        const openR = !iv0 || !ins.realStockLayers || (() => {
+          for (let z = iv0.zStart + dzScan; z < entryZ - 1e-9; z += dzScan) if (blockedAt(mid, z)) return false;
+          return true;
+        })();
         // Pravidlo 2 (držák se musí vejít) i tady: sken intervalů zná jen
         // hotovou konturu a konce mělčích průchodů, ne materiál, který STOJÍ
         // (nedosažitelné údolí vpravo). Hloubková smyčka se na to ptá modelu
@@ -1737,7 +1749,7 @@ export function genLongPasses(ctx) {
         // (9 kolizí držáku až 24 mm²; PWLNR 4).
         const holderOk = !iv0 || !orderAware
           || entryHolderArea(mid, iv0.zStart + entryApproachDz(prms)) <= ENTRY_FIT_TOL;
-        if (iv0 && iv0.zStart - iv0.zEnd >= dzScan && holderOk) { bestIv = iv0; bestX = mid; hiX = mid; }
+        if (iv0 && iv0.zStart - iv0.zEnd >= dzScan && holderOk && openR) { bestIv = iv0; bestX = mid; hiX = mid; }
         else loX = mid;
       }
       if (bestIv && lastDepthWithPasses - bestX > 0.1) {
@@ -2853,6 +2865,49 @@ export function genLongPasses(ctx) {
       if (!(end.z - zRun > 0.2)) continue;                  // za koncem už není materiál
       const seg = { type: 'line', x1: end.x, z1: end.z, x2: end.x, z2: zRun };
       if (lo && lo.length > 0) lo.push(seg); else p.contourLeadOut = [seg];
+    }
+  }
+
+  // ── PRAVIDLO 9: VRSTVA A DOJEZD JEN NAD SKUTEČNÝM POLOTOVAREM ─────────
+  // (klíč plátku `realStockLayers`, měření v ops/long/realStock.js)
+  // Intervaly hloubkové smyčky i doběh výš se hledají na PLÁNOVACÍ siluetě
+  // (polotovar + vůle). Pravidlo 9: plánovací obrys určuje jen, kde končí
+  // rychloposuv; jestli kus vrstvy něco ubere, rozhoduje nakreslený polotovar.
+  //   • Průchod, který celou dráhou (rampa, nájezd, tělo, dojezd) ze
+  //     skutečného polotovaru nic neubere, se nevydá.
+  //   • Konec dojezdu, který ze skutečného polotovaru nic neubere (nad tím,
+  //     co vzal sám průchod), se ořízne — vrstva končí, kde končí materiál
+  //     (pravidlo 4), vzduchem se posuvem nejede (pravidlo 5).
+  // Nález 7. 10. 2026 (hřídel r 5 × 60, osazení r 10 = r polotovaru, rε 0,4,
+  // Vůle 1): vrstvy X 3,5 / 2 / 0,5 / 0 celé v pásu vůle před čelem
+  // (Z 0…1) a dojezd první vrstvy posuvem po vršku osazení až na Z −62,712,
+  // tedy za konec polotovaru.
+  // Měří se jen proti polotovaru a vlastní dráze průchodu — co vzaly DŘÍVĚJŠÍ
+  // průchody, tu nehraje roli (to řeší značky `overCut` výš), takže se hne
+  // jen to, co leží ve vůli mimo nakreslený polotovar. Průchody svázané se
+  // sousedními (navázání bez odjezdu, řetěz zanoření, přesun z místa, kde
+  // nůž stojí) se nemění — jejich konec je začátek dalšího.
+  if (ins.realStockLayers) {
+    const real = makeRealStock({ rawLoop: stockLoopFullL, footprint: toolFootprintVisual(prms) });
+    const idle = (a, len) => a <= 0.01 * Math.max(len, 1);
+    const chainsInto = (q) => !!q && !!(q.pocketReposition || q.cleanApproach || q.emitChainFrom);
+    for (let i = real ? passes.length - 1 : -1; i >= 0; i--) {
+      const p = passes[i];
+      if (!p || p.type !== 'long' || !Number.isFinite(p.x)) continue;
+      const nextChains = chainsInto(passes[i + 1]);
+      if (!p.noRetract && !nextChains && !chainsInto(p) && !(i > 0 && passes[i - 1] && passes[i - 1].noRetract)) {
+        const path = passPath(p);
+        if (path.length > 0 && idle(real.cutArea(path), pathLen(path))) { passes.splice(i, 1); continue; }
+      }
+      const lo = p.contourLeadOut;
+      if (p.noRetract || nextChains || !Array.isArray(lo) || lo.length === 0) continue;
+      const head = passPath(p, { leadOut: false });
+      while (lo.length > 0) {
+        const tail = lo[lo.length - 1];
+        if (!idle(real.cutArea([tail], head.concat(lo.slice(0, -1))), pathLen([tail]))) break;
+        lo.pop();
+      }
+      if (lo.length === 0) delete p.contourLeadOut;
     }
   }
 

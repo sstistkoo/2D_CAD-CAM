@@ -184,6 +184,9 @@ export function roundInsert(prms) {
     //                              (ops/long/rule7Layers.js) místo hloubkové smyčky
     //                              a dodatečných úprav pořadí (29. 9. 2026)
     rule7Layers: true,
+    //   realStockLayers          — viz polygon.js; kulatá měří skutečný polotovar
+    //                              v rule7Layers.js, starý cyklus nepouští
+    realStockLayers: false,
     //   leadOutTrimNoseCircle    — dojezd „bez schodků" se na hranu materiálu
     //                              ořezává podle KRUŽNICE nosu, ne sloupce pod
     //                              středem: nos R 10 bere bokem polotovar až R

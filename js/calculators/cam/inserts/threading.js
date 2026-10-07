@@ -78,6 +78,7 @@ export function threadingInsert(prms) {
     leadInSteepToChain: false,
     approachFromNoseContact: false,
     rule7Layers: false,
+    realStockLayers: false,
     leadOutTrimNoseCircle: false,
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,
