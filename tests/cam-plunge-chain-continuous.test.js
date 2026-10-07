@@ -32,3 +32,27 @@ describe('pravidlo 14 na dílu uživatele (úsek 3, kulatá R 10, 45°)', () => 
     expect(rough.filter(l => /Z-1[6-9]\.\d/.test(l))).toEqual([]);
   });
 });
+
+// Pokračování přes hranici úseku (uživatel 7. 10. 2026: „pokud bude dobírat
+// v úseku zbytek, může zajet i do dalšího úseku, aby ten zbytek dobral").
+// Úsek 1 téhož dílu s nožem SRSCR2525M20 (rozsah Z 373,932 → 195,278): řetěz
+// ramp po mezní čáře skončil na hranici a nad údolím zůstal zbytek.
+describe('pravidlo 14 — řetěz pokračuje přes hranici úseku (úsek 1, SRSCR2525M20)', () => {
+  it('za hranicí Z 195,278 sjíždí dál rampami pod 45° a odjede kolmo v X, ne posuvem materiálem', async () => {
+    const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'cam-cases', 'round-r10-chain-beyond-section.camprog'), 'utf8'));
+    const { gcode, calc } = await runCamProg(prog);
+    const beyond = (calc.passes || []).filter(p => p.chainBeyond);
+    expect(beyond.length).toBeGreaterThan(0);
+    for (const p of beyond) {
+      expect(p.zStart).toBeLessThan(195.278);                       // za hranicí úseku
+      const dx = p.ramp.x0 - p.x, dz = p.ramp.z0 - p.zStart;
+      expect(Math.atan2(dx, dz) * 180 / Math.PI).toBeLessThanOrEqual(45.5);   // pod úhlem zanoření
+      expect(dx).toBeLessThanOrEqual(parseFloat(prog.params.depthOfCut) + 1e-6);   // nejvýš ap
+    }
+    const lines = gcode.split('\n');
+    const rough = lines.slice(lines.findIndex(l => /HRUBOVANI/.test(l)), lines.findIndex(l => /DOKONCOVANI/.test(l)));
+    expect(rough.join('\n')).not.toMatch(/Výjezd materiálem posuvem/);
+    const last = rough.findIndex(l => /Rampa/.test(l) && l.includes(`X${beyond[beyond.length - 1].x.toFixed(3)}`));
+    expect(rough[last + 1]).toMatch(/Výjezd v X \(stěna\)/);
+  });
+});

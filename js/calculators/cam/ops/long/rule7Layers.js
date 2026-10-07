@@ -52,7 +52,7 @@ const CUT_NEAR = 0.3; // podlaha dřívějších průchodů do 0,3 mm nad vrstvo
  */
 export function genRule7Layers(D) {
   const { passes, step, offsetXAt, traceOffsetPath, regions, depthsFor, stockLoop: stockLoopIn, stockLoopFull, noseR, plungeTan,
-    holderClamp, residEntryArea, newCutArea, floorAt, entryTol = 0.5, clearX = 0, clearZ = 0, stockLoopRaw = null, foundErrors } = D;
+    holderClamp, residEntryArea, newCutArea, cutStats, floorAt, entryTol = 0.5, clearX = 0, clearZ = 0, stockLoopRaw = null, foundErrors } = D;
   let holderSkips = 0, holderShifts = 0, idleSkips = 0;
   let regionTop = Infinity;   // začátek právě obráběné oblasti (rozsah, mez úseku)
 
@@ -717,12 +717,76 @@ export function genRule7Layers(D) {
     }
   };
 
+  // ── PRAVIDLO 14: ŘETĚZ ZANOŘENÍ POKRAČUJE PŘES HRANICI ÚSEKU ────────────
+  // Uživatel 7. 10. 2026 (`projekt_2026-10-07 (3)`, úsek 1 u bodů 5–8):
+  // řetěz ramp po mezní čáře skončil na hranici úseku („kolmo nad tím
+  // místem") a pod ním zůstal zbytek; „pokud bude dobírat v úseku zbytek,
+  // může zajet i do dalšího úseku, aby ten zbytek dobral" a „N1410 G1 X39.545
+  // Z195.750 — tahle dráha má pokračovat a dobrat ten zbytek, aby po
+  // zanořování nezbyl ten kousek". Řetěz proto z konce posledního průchodu
+  // oblasti pokračuje rampami po téže přímce (o ap níž, pod úhlem zanoření)
+  // i za HRANICI ÚSEKU (ne za ruční konec rozsahu 📐) dolů: končí na offsetu
+  // dílu (nezajede do něj), u držáku, který se nevejde (pravidlo 2), u kroku,
+  // který by vzal víc než jednu vrstvu (pravidlo 3 — za hranicí stojí
+  // neobrobený materiál dalšího úseku), nebo u kroku, který už nic neubere
+  // (dál vede vzduchem; co je pod ním, obrobí další úsek — pravidlo 5).
+  const chainTopAt = stockLoopRaw ? topXOnLoopFn(stockLoopRaw) : null;
+  const continueChainBeyond = (zLo, mark) => {
+    if (!chainTopAt || typeof cutStats !== 'function' || passes.length <= mark) return;
+    const last = passes[passes.length - 1];
+    if (!last || !last.rule7 || last.noRetract || !Number.isFinite(last.x)) return;
+    const lo = last.contourLeadOut;
+    const e = lo && lo.length ? { x: lo[lo.length - 1].x2, z: lo[lo.length - 1].z2 } : { x: last.x, z: last.zEnd };
+    const run = step / plungeTan;
+    // Konec posledního průchodu leží u hranice (nejvýš jeden krok rampy před ní).
+    if (!(e.z - zLo <= run + 0.6 && e.z - zLo >= -0.6)) return;
+    // Za hranicí pokračuje skutečný polotovar (jinak je to konec polotovaru).
+    if (chainTopAt(zLo - 0.5) === null) return;
+    const real = { topAt: chainTopAt };
+    const chain = [];
+    let x = e.x, z = e.z;
+    for (let k = 0; k < 400; k++) {
+      let x2 = x - step, z2 = z - run, floorHit = false;
+      // Nezajet do dílu: krok se zkrátí na první dotek offsetu (dno — konec řetězu).
+      const gougeAt = (t) => O(z + (z2 - z) * t) > x + (x2 - x) * t + 0.02;
+      let tHit = null;
+      for (let t = 0.02; t <= 1 + 1e-9; t += 0.02) if (gougeAt(t)) { tHit = t; break; }
+      if (tHit !== null) {
+        let a = Math.max(0, tHit - 0.02), b = tHit;
+        for (let it = 0; it < 30; it++) { const m = (a + b) / 2; if (gougeAt(m)) b = m; else a = m; }
+        if (a < 1e-3) break;
+        x2 = x + (x2 - x) * a; z2 = z + (z2 - z) * a; floorHit = true;
+      }
+      if (x2 < -MAT) break;
+      const seg = { type: 'line', x1: x, z1: z, x2, z2 };
+      // Kolik krok ubere ze skutečného polotovaru (proti podlaze dosud
+      // vydaných průchodů i předchozích kroků řetězu) — a nejvýš jednu
+      // vrstvu (pravidlo 3): za hranicí může stát neobrobený materiál
+      // dalšího úseku (hrb), do kterého by krok zajel celou výškou.
+      const st = cutStats([seg], { ...real, floorSegs: chain });
+      if (!st || st.maxThick > step + 0.05) break;
+      if (!(st.area > 0.05)) break;
+      const c = { x: x2, zStart: z2, zEnd: z2, ramp: { x0: x, z0: z } };
+      if (holderClamp && holderClamp(c.x, c.zStart, c.zEnd, {}) === null) break;
+      if (typeof residEntryArea === 'function' && residEntryArea(c, [], entryTol) > entryTol) break;
+      // `retractRadial` = odjezd kolmo v X (ops/roughEmit.js): šikmý odskok
+      // zpět by nosem zavadil o zbytek u hranice a výjezd by pak jel celý
+      // posuvem (`Výjezd materiálem posuvem` až na X150).
+      passes.push({ type: 'long', x: x2, zStart: z2, zEnd: z2, rule7: true, ramp: { x0: x, z0: z }, rampEntryClear: true, chainBeyond: true, retractRadial: true });
+      chain.push(seg);
+      x = x2; z = z2;
+      if (floorHit) break;
+    }
+  };
+
   const nStart = passes.length;
   for (const reg of regions) {
     const depths = depthsFor(reg.zLo, reg.zHi);
     if (!depths || depths.length === 0) continue;
     regionTop = reg.zHi;
+    const mark = passes.length;
     buildRegion(depths, reg.zHi, reg.zLo, 0, NaN);
+    if (reg.sectionLo !== false) continueChainBeyond(reg.zLo, mark);
   }
   // NAVAZUJÍCÍ PRŮCHOD ZAČÍNÁ, KDE PŘEDCHOZÍ SKONČIL → bez odskoku. Dřív
   // odjel o Odskok a hned se na totéž místo vrátil (díl uživatele 30. 9. 2026

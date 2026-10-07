@@ -244,9 +244,18 @@ který po zanořování zůstal — nekončí svisle nad ním.**
   `N3130 G1 X35.666 Z-16.996` (odskok) → zpět `N3160 G1 X33.666` a další
   rampa; má to být jeden souvislý sjezd. Úsek 1 u bodů 5–8: řetěz skončil
   svisle nad zbytkem, který měl vzít.
+- **Řetěz smí pokračovat i do dalšího úseku**, dokud bere zbytek v rozsahu
+  SVÉHO úseku (uživatel 7. 10. 2026: *„pokud bude dobírat v úseku zbytek,
+  může zajet i do dalšího úseku, aby ten zbytek dobral"*). Z konce
+  posledního průchodu u hranice úseku (ne u ručního konce rozsahu 📐)
+  sjíždí po téže přímce o ap níž, dokud nenarazí na offset dílu (dno), na
+  držák (pravidlo 2), na krok, který by vzal víc než jednu vrstvu
+  (neobrobený materiál dalšího úseku — pravidlo 3), nebo na krok, který už
+  nic neubere (dál by jel vzduchem — pravidlo 5). Na konci odjede kolmo v X.
 - Hotovo: vrstva, jejíž tělo za rampou ze skutečného polotovaru nic
   neubere, končí na konci rampy (`ops/long/rule7Layers.js`) a další rampa
-  navazuje bez odskoku. Test: `tests/cam-plunge-chain-continuous.test.js`.
+  navazuje bez odskoku; pokračování přes hranici `continueChainBeyond`
+  tamtéž. Test: `tests/cam-plunge-chain-continuous.test.js`.
 
 ## Pravidlo 15 — Dokončování nesjíždí strměji než úhel zanoření ✅ schváleno
 

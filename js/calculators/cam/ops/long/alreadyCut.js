@@ -60,20 +60,13 @@ export function makeAlreadyCut({ T, noseLiftX }) {
     return pts;
   };
 
-  // `opts.topAt` = jiná výška materiálu než plánovací obrys (rule7Layers.js:
-  // skutečný polotovar bez vůle).
-  const newCutArea = (segs, opts = {}) => {
-    const tab = floorTab();
+  // Nejnižší bod nosu dráhy `segs` v každém sloupci tabulky, kam dosáhne.
+  const lowMap = (segs, tabLen) => {
     const { capZ0, DZ_CAP } = T;
-    const stockTopTab = typeof opts.topAt === 'function' ? opts.topAt : T.stockTopTab;
-    if (!tab || !Number.isFinite(capZ0) || !Array.isArray(segs) || segs.length === 0) return Infinity;
-    const pts = samplePath(segs, DZ_CAP / 2);
-    if (pts.length === 0) return Infinity;
     const iOf = (z) => Math.round((z - capZ0) / DZ_CAP);
-    // Nejnižší bod nosu NOVÉ dráhy v každém sloupci, kam dosáhne.
     const rem = new Map();
-    for (const p of pts) {
-      const iA = Math.max(0, iOf(p.z - reachZ)), iB = Math.min(tab.length - 1, iOf(p.z + reachZ));
+    for (const p of samplePath(segs, DZ_CAP / 2)) {
+      const iA = Math.max(0, iOf(p.z - reachZ)), iB = Math.min(tabLen - 1, iOf(p.z + reachZ));
       for (let i = iA; i <= iB; i++) {
         const low = noseLow(p.x, Math.abs(capZ0 + i * DZ_CAP - p.z));
         if (low === null) continue;
@@ -81,8 +74,24 @@ export function makeAlreadyCut({ T, noseLiftX }) {
         if (cur === undefined || low < cur) rem.set(i, low);
       }
     }
+    return rem;
+  };
+
+  // Plocha i NEJVĚTŠÍ TLOUŠŤKA (ve sloupci) materiálu, který dráha `segs`
+  // uřízne a který žádná dřívější dráha nevzala. `opts.topAt` = jiná výška
+  // materiálu než plánovací obrys (rule7Layers.js: skutečný polotovar bez
+  // vůle); `opts.floorSegs` = dráha brána jako už projetá navíc k podlaze
+  // vydaných průchodů (krok řetězu proti krokům před ním). Null = nejde měřit.
+  const cutStats = (segs, opts = {}) => {
+    const tab = floorTab();
+    const { capZ0, DZ_CAP } = T;
+    const stockTopTab = typeof opts.topAt === 'function' ? opts.topAt : T.stockTopTab;
+    if (!tab || !Number.isFinite(capZ0) || !Array.isArray(segs) || segs.length === 0) return null;
+    const rem = lowMap(segs, tab.length);
+    if (rem.size === 0) return null;
+    const extra = Array.isArray(opts.floorSegs) && opts.floorSegs.length ? lowMap(opts.floorSegs, tab.length) : null;
     const reach = Math.ceil(reachZ / DZ_CAP);
-    let area = 0;
+    let area = 0, maxThick = 0;
     for (const [i, r] of rem) {
       const top = stockTopTab(capZ0 + i * DZ_CAP);
       if (top === null || r >= top) continue;
@@ -93,13 +102,18 @@ export function makeAlreadyCut({ T, noseLiftX }) {
         const low = noseLow(tab[j], Math.abs(j - i) * DZ_CAP);
         if (low !== null && low < cut) cut = low;
       }
+      if (extra) { const e = extra.get(i); if (e !== undefined && e < cut) cut = e; }
       // Pod osou (X < 0) materiál není — spodek nosu R 10 u osy tam sahá
       // (střed X 5,595 → −4,4) a pás pod osou se počítal jako řez: u vrstev
       // za čelem konce dílu 29 mm² místo skutečných 0,15 (29. 9. 2026).
       const thick = Math.min(top, cut) - Math.max(r, 0);
-      if (thick > 0) area += thick * DZ_CAP;
+      if (thick > 0) { area += thick * DZ_CAP; if (thick > maxThick) maxThick = thick; }
     }
-    return area;
+    return { area, maxThick };
   };
-  return { newCutArea };
+  const newCutArea = (segs, opts = {}) => {
+    const st = cutStats(segs, opts.topAt ? { topAt: opts.topAt } : {});
+    return st ? st.area : Infinity;
+  };
+  return { newCutArea, cutStats };
 }

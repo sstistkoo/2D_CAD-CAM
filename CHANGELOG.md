@@ -106,10 +106,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pak navazuje bez odskoku. Úsek 3 téhož dílu: místo `G0 Z-18.996`, odskoku
   a návratu na konec rampy jeden souvislý sjezd. Otisk: hnul se jen
   `part-22-round-r10` (zmizely tytéž odjezdy, úběr shodný, posuv vzduchem
-  283,9 → 270,2 mm). Test `cam-plunge-chain-continuous`. Zatím NEŘEŠENO:
-  řetěz úseku 1 končí na hranici úseků a pod ním zůstává zbytek (snímek
-  uživatele u bodů 5–8), kvůli němu úsek 2 nechá v údolí 239 mm² — čeká
-  na rozhodnutí, jestli smí řetěz pokračovat přes hranici úseku.
+  283,9 → 270,2 mm). Test `cam-plunge-chain-continuous`.
+- **CAM kulatá: řetěz zanoření pokračuje i do dalšího úseku** (pravidlo 14,
+  uživatel 7. 10. 2026: „pokud bude dobírat v úseku zbytek, může zajet
+  i do dalšího úseku"). Z konce posledního průchodu u hranice sjíždí po
+  téže přímce o ap níž — jen přes hranici úseku, ne přes ruční konec
+  rozsahu 📐 — dokud krok něco ubere, nevezme víc než ap (za hranicí stojí
+  neobrobený materiál dalšího úseku), nenarazí na dno ani na držák; pak
+  odjede kolmo v X (`retractRadial` — šikmý odskok zpět zavadil o zbytek
+  a výjezd jel celý posuvem). Emise i plánovací podlaha zapisují rampy
+  těchto kroků (`chainBeyond`) do modelu zbytku. Díl uživatele
+  `projekt_2026-10-07 (3)` s nožem SRSCR2525M20: úsek 1 sjede za hranici
+  Z 195,28 o dva kroky a blok vlevo od stěny u bodu 7 ubere po obalovou
+  čáru 45° (r 29,2 → 26,1 v Z 196,4; úsek 1 +7,3 mm²); co leží pod mezní
+  čarou bodu 5, zůstává (pravidlo 6). Úsek 2 stejně pokračuje do úseku 3.
+  Otisk: jen `part-22-round-r10` (u obou vnitřních hranic úseků dvě rampy
+  navíc, úběr +8,7 mm², porušení stejná). Nové `cutStats` (plocha
+  i největší tloušťka třísky) v `ops/long/alreadyCut.js`.
 - **Tlačítka tvaru destičky nasadí výchozí nůž i s držákem** (uživatel
   7. 10. 2026: „přednastav kulatý SRSCR2525M20, polygon PSBNR2525M12,
   upichovák MGEHR2525-5, závit SER2525M16 a na vrtání Vrtak D20"). ● ■ ▮ ▽ ⌀

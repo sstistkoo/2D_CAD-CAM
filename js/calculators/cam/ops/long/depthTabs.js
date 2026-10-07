@@ -158,7 +158,8 @@ export function makeDepthTabs({ prms, stockLoopOffsetFullL, passes }) {
     // RAMPA a SLEDOVÁNÍ KONTURY řežou taky — bez nich model tvrdí, že materiál
     // pořád stojí, a hlídání pak zamítá vjezdy do prostoru, který je dávno
     // vykopaný (na part-13-zleva-flange to stálo 29 % úběru).
-    if (!noFloor && p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
+    // Krok řetězu za hranicí úseku (`chainBeyond`) jede rampu přesně podle plánu.
+    if ((!noFloor || p.chainBeyond) && p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
     for (const key of ['contourLeadIn', 'contourLeadOut']) {
       for (const sg of (p[key] || [])) noteSegInto(tab, sg.z1, sg.x1, sg.z2, sg.x2);
     }

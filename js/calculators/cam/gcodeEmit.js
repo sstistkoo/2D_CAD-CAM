@@ -735,7 +735,11 @@ export function generateAutoGCode(S, calc) {
       // (`noteCutMove`/`noteCutArc` u každého emitovaného pohybu), takže
       // degenerovaný průchod je pokrytý tou cestou.
       const noFloor = Math.abs(pass.zStart - pass.zEnd) < 1e-6;
-      if (!noFloor) {
+      // Krok řetězu zanoření za hranicí úseku (`chainBeyond`, rule7Layers.js)
+      // má dno nulové, ale rampa se jede PŘESNĚ podle plánu (navazuje bez
+      // odskoku na předchozí krok) — bez ní model nevěděl, že řetěz údolí
+      // vybral, a výjezd ze dna jel celý posuvem „materiálem".
+      if (!noFloor || pass.chainBeyond) {
         if (pass.rampFeedFrom) {
           push(pass.rampFeedFrom.x, pass.rampFeedFrom.z);
         } else if (pass.ramp) {

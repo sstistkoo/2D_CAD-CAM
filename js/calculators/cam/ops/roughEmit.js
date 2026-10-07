@@ -492,8 +492,9 @@ calc.passes.forEach((pass, i) => {
     if (!pass.noRetract) {
       const zRetractVal = clipZGc(cur.z - zDir * rDistZ);
       // Šikmý odskok by couvl pod konturu (viz `retractHitsContour` výš) →
-      // ven svisle v X, zpátky do vlastní stopy.
-      if (Math.abs(zRetractVal - cur.z) > 1e-6 && retractHitsContour(cur.x, cur.z, -zDir)) {
+      // ven svisle v X, zpátky do vlastní stopy. Totéž chce řetěz zanoření
+      // za hranicí úseku (`retractRadial`, ops/long/rule7Layers.js, pravidlo 14).
+      if (Math.abs(zRetractVal - cur.z) > 1e-6 && (pass.retractRadial || retractHitsContour(cur.x, cur.z, -zDir))) {
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)}${note('', 'Výjezd v X (stěna)')}`, simCounter); setPos(cur.x + rDist, cur.z);
       } else {
         simCounter += 1; addN(`G1 X${xDia(cur.x + rDist)} Z${zRetractVal.toFixed(3)}`, simCounter); setPos(cur.x + rDist, zRetractVal);

@@ -639,7 +639,7 @@ export function genLongPasses(ctx) {
     rampedOutCorners.some(c => Math.abs(c.x - cx) < 2 && Math.abs(c.z - cz) < 2 && c.reachedX <= depthX + 0.5);
 
   // Kolik by průchod uřízl navíc proti už naplánovaným — viz ops/long/alreadyCut.js.
-  const { newCutArea } = makeAlreadyCut({ T, noseLiftX: noseLiftL });
+  const { newCutArea, cutStats } = makeAlreadyCut({ T, noseLiftX: noseLiftL });
 
   // Hledání intervalů na hloubce — viz ops/long/intervalScan.js.
   const { stockCrossingsAt, passEntryZ, scanIntervals, scan,
@@ -789,7 +789,11 @@ export function genLongPasses(ctx) {
         let zLo = Math.max(r.zLo, rangeClipZ ? rangeClipZ.zLo : -Infinity);
         if (!(zHi < sZHi - 1e-6)) zHi = sZHi + pad;
         if (!(zLo > sZLo + 1e-6)) zLo = sZLo - pad;
-        return { zHi, zLo };
+        // Dolní mez je HRANICE ÚSEKU (pravidlo 1) — ne ruční konec rozsahu 📐
+        // uprostřed úseku. Jen přes hranici úseku smí pokračovat řetěz
+        // zanoření (pravidlo 14, `continueChainBeyond` v rule7Layers.js).
+        const sectionLo = !(rangeClipZ && rangeClipZ.zLo > r.zLo + 0.5);
+        return { zHi, zLo, sectionLo };
       }).filter(r => r.zHi > r.zLo + 0.1),
       depthsFor: (zLo, zHi) => {
         const top = loopTopXIn(stockLoopOffsetL, zLo, zHi);
@@ -800,7 +804,7 @@ export function genLongPasses(ctx) {
       // Vjezd pravidla 7 se měří v POLOHÁCH po 2 mm, validátor plochu, kterou
       // držák za celý pohyb PŘEJEDE (tolerance 0,5 mm² na blok) — u stěny hrbu
       // 0,19 mm² v poloze = 0,7 mm² přejeté (díl (6), úsek 2). Proto přísněji.
-      residEntryArea: orderAware ? residEntryArea : null, entryTol: 0.05, newCutArea,
+      residEntryArea: orderAware ? residEntryArea : null, entryTol: 0.05, newCutArea, cutStats,
       clearX: stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x,
       stockLoopRaw: stockLoopFullL,
       clearZ: stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z,
