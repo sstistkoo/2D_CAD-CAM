@@ -31,7 +31,7 @@ import { ContourGouge } from './cam/contourGouge.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 import { camConfirm, camCloseConfirm, camOffsetDialog, camAddMoveDialog } from './cam/camSimulatorDialogs.js';
 import { injectCSS } from './cam/camSimulatorStyles.js';
-import { _defaultCamParams, stripCodeOwnedParams, SHAPE_PRESET_RADIUS, SHAPE_CUT_DEFAULTS, DRILL_PRESET } from './cam/camDefaults.js';
+import { _defaultCamParams, stripCodeOwnedParams, SHAPE_CUT_DEFAULTS } from './cam/camDefaults.js';
 import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
 import { drillGeom, drillAutoFaceZ } from './cam/ops/drill.js';
@@ -41,7 +41,7 @@ import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, d
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPreview.js';
 import { knifeThumbSvg } from './knifeThumb.js';
-import { defaultMagazineKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from './magazineDefaults.js';
+import { defaultMagazineKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV, presetKnifeForShape, presetSlotIndex, sameKnifeGeometry } from './magazineDefaults.js';
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
 import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch, threadInsertFitsSide } from './isoThreadInserts.js';
 import { isoInternalThreadHint, isoBarFitsHole, isoBoringBarDiameter } from './isoInternalTools.js';
@@ -433,6 +433,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Revize výchozí sady, kterou zásobník už dostal (magazineDefaults.js) —
     // nože přidané v novější revizi se přidají jednou, smazané se nevrací.
     magazineDefaultsRev: 0,
+    // Poslední nůž KAŽDÉHO TVARU destičky ({ round: slot, polygon: slot, … },
+    // tvar slotu zásobníku) — tlačítko tvaru ho vrátí i s držákem (uživatel
+    // 7. 10. 2026: „ať si to pamatuje, co tam nastavím"). Ukládá se se stavem.
+    shapeKnives: {},
     activeMagazineSlot: null,  // index aktivního slotu (null = zásobník nepoužit)
     editingMagazineSlot: null, // index právě editovaného slotu (rozbalená karta)
     // ── Skládání programu z více operací (cam/opParts.js) ──────
@@ -504,6 +508,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (Array.isArray(p.toolMagazine)) S.toolMagazine = p.toolMagazine;
       if (p.activeMagazineSlot !== undefined) S.activeMagazineSlot = p.activeMagazineSlot;
       if (typeof p.magazineDefaultsRev === 'number') S.magazineDefaultsRev = p.magazineDefaultsRev;
+      if (p.shapeKnives && typeof p.shapeKnives === 'object') S.shapeKnives = p.shapeKnives;
       // Migrace: dřívější roughingStrategy 'backside' → podélně + směr zleva.
       if (S.params.roughingStrategy === 'backside') {
         S.params.roughingStrategy = 'longitudinal';
@@ -1001,7 +1006,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
         showRemoval: S.showRemoval, showRefGuides: S.showRefGuides,
         toolMagazine: S.toolMagazine, activeMagazineSlot: S.activeMagazineSlot,
-        magazineDefaultsRev: S.magazineDefaultsRev,
+        magazineDefaultsRev: S.magazineDefaultsRev, shapeKnives: S.shapeKnives,
         opParts: S.opParts, activePart: S.activePart, opContourKey: S.opContourKey,
         gcodeDirty: S.gcodeDirty, gcodeKey: S.gcodeKey,
       }));
@@ -5390,24 +5395,23 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Poslední VOLBA hrubování (u plátku, který umí obojí) — dostane ji tvar,
       // který v sezení ještě nebyl; vynucené čelní z upichováku se tak nepřenese.
       if (getInsert(S.params).longRoughing !== false) S._lastFreeStrategy = S.params.roughingStrategy;
-      // Zapamatovat geometrii odcházejícího tvaru, ať se nepřepíše cizí hodnotou.
-      S._shapeGeomMem[prev] = {
-        toolLength: S.params.toolLength, toolAngle: S.params.toolAngle,
-        toolTipAngle: S.params.toolTipAngle, toolClearanceAngle: S.params.toolClearanceAngle,
-        toolRadius: S.params.toolRadius, toolTipFlat: S.params.toolTipFlat,
-        holderProfile: S.params.holderProfile,
-        roughingStrategy: S.params.roughingStrategy,
-        // Vrták má jiný držák (pouzdro v ose) — rozměry si nese jen přechod
-        // na vrták / z vrtáku, jinak se při výměně tvaru dřík nemění.
-        holderWidth: S.params.holderWidth, holderLength: S.params.holderLength,
-        // ap vrtáku = doporučený záběr Q (HSS ⌀20 → 20, tvrdokov 3×⌀) — po
-        // přepnutí z vrtáku na plátek se NESMÍ dostat do hrubování.
-        depthOfCut: S.params.depthOfCut,
-      };
-      S.params.toolShape = next;
-      // Dřík soustružnického nože před přechodem na vrták — vrátí se, až se
-      // z vrtáku přepne na tvar, který si v paměti vlastní rozměry nenese.
-      if (next === 'drill' && prev !== 'drill') S._shapeGeomMem._turnHolder = { w: S.params.holderWidth, l: S.params.holderLength };
+      // HRUBOVÁNÍ PATŘÍ K PLÁTKU (uživatel 1. 10. 2026): kulatá podélně →
+      // upichovák (umí jen čelně) → zpět na kulatou má vrátit PODÉLNĚ, ne
+      // nechat čelní z upichováku.
+      S._shapeGeomMem[prev] = { roughingStrategy: S.params.roughingStrategy };
+      _rememberShapeKnife();
+      // ── NŮŽ TVARU (uživatel 7. 10. 2026) ────────────────────────────────────
+      // Tlačítko tvaru nasadí celý nůž — destičku i DRŽÁK s obrysem: ten, který
+      // byl u tvaru nastavený naposled (S.shapeKnives, „ať si to pamatuje, co
+      // tam nastavím"), jinak výchozí: kulatá SRSCR2525M20, polygon
+      // PSBNR2525M12, upichovák MGEHR2525-5, závit SER2525M16, vrtání Vrtak D20
+      // (magazineDefaults.js) — ze 🔧 Zásobníku jako ✅ Použít, a když tam
+      // chybí, přidá se tam. Dřív se měnil jen tvar a geometrie se doplnila z paměti
+      // sezení nebo z předvolby — kulatá předvolbu neměla, takže po vrtáku
+      // zdědila jeho vyložení 145 mm (náhradní držák pak seděl 145 mm nad
+      // destičkou a nehlídal se), úhel 118° a pouzdro 40 × 80 bez obrysu
+      // (díl uživatele 7. 10. 2026: „nemám u toho plátku vůbec držák").
+      if (!_loadShapeKnife(next)) S.params.toolShape = next;
       dropInsertGuides();
       // ÚHEL ZANOŘENÍ PATŘÍ K TVARU: nový plátek začne na svém Auto (polygon =
       // natočení PU, tj. spodní hrana; kulatá 45°; upichovák kolmo). Ruční
@@ -5415,81 +5419,17 @@ export function openCamSimulator(initialContour, initialGCode) {
       // u upichováku 15° zbylých z polygonu: „zachovává si to někde úhel".
       S.params.entryAngleAuto = true;
       const mem = S._shapeGeomMem[next];
-      // OBRYS DRŽÁKU PATŘÍ K TVARU DESTIČKY. Profil se ukládá v souřadnicích
-      // ŠPIČKY — jeho spodní hrana sedí na vrchu TĚLA té destičky. Při výměně
-      // tvaru se špička vůči držáku posune, takže držák nakreslený pro upichovák
-      // (spodní hrana z=15) zůstával u kulaté destičky viset 11 mm od ní — hlídání
-      // pak bylo volnější, než má být, a aplikace o tom neřekla ani slovo
-      // (nález uživatele 27. 8. 2026, změřeno na jeho díle: 0 → 4 kolize / 51 mm²).
-      // Každý tvar si proto drží svůj obrys a při návratu ho dostane zpátky;
-      // tvar, který žádný nemá, spadne na výchozí obdélník — a řekne se to.
-      if (mem && mem.holderProfile) S.params.holderProfile = mem.holderProfile;
-      else if (S.params.holderProfile) {
-        S.params.holderProfile = null;
-        showToast('Obrys držáku byl nakreslený pro předchozí tvar plátku — vrácen výchozí obdélník; nakresli ho znovu.');
-      }
-      if (mem) {
-        // Obnovit dřívější hodnoty tohoto tvaru.
-        S.params.toolLength = mem.toolLength; S.params.toolAngle = mem.toolAngle;
-        S.params.toolTipAngle = mem.toolTipAngle; S.params.toolClearanceAngle = mem.toolClearanceAngle;
-        if (mem.toolRadius !== undefined) S.params.toolRadius = mem.toolRadius;
-        if (mem.toolTipFlat !== undefined) S.params.toolTipFlat = mem.toolTipFlat;
-        // HRUBOVÁNÍ PATŘÍ K PLÁTKU (uživatel 1. 10. 2026): kulatá podélně →
-        // upichovák (umí jen čelně) → zpět na kulatou má vrátit PODÉLNĚ, ne
-        // nechat čelní z upichováku. Jde to i s natočením: polygon si pamatuje
-        // toolAngle se znaménkem podle strategie, takže obnovit jen úhel bez
-        // strategie by dalo „podélný" úhel u čelního hrubování.
-        if (mem.roughingStrategy) S.params.roughingStrategy = mem.roughingStrategy;
-        if ((next === 'drill' || prev === 'drill') && mem.holderWidth !== undefined) {
-          S.params.holderWidth = mem.holderWidth; S.params.holderLength = mem.holderLength;
-        }
-      } else if (next === 'drill') {
-        // Vrták ⌀20 HSS 118° jako v 📚 katalogu (DRILL_PRESET).
-        S.params.toolLength = DRILL_PRESET.toolLength; S.params.toolAngle = 0;
-        S.params.toolTipAngle = DRILL_PRESET.toolTipAngle;
-        S.params.holderWidth = DRILL_PRESET.holderWidth; S.params.holderLength = DRILL_PRESET.holderLength;
-      } else if (next === 'polygon') {
-        S.params.toolLength = 10; S.params.toolAngle = 15; S.params.toolTipAngle = 90;
-      } else if (next === 'parting') {
-        // Upichovák: šířka 5, natočení 0 (vodorovně s osou Z), standardně čelní.
-        S.params.toolLength = 5; S.params.toolAngle = 0;
-        S.params.roughingStrategy = 'face';
-      } else if (next === 'threading') {
-        // Závitový plátek: lichoběžníková špička (rovná spodní strana),
-        // úhel dle zvoleného závitu. Rádius se u závitového nepoužívá —
-        // špičku definuje spodní strana (návrat na jiný tvar R obnoví z paměti).
-        S.params.toolLength = 4; S.params.toolAngle = 0;
-        S.params.toolTipAngle = parseFloat(S.params.threadAngle) || 60;
-        if (!(parseFloat(S.params.toolTipFlat) > 0)) S.params.toolTipFlat = 0.1;
-        S.params.toolRadius = 0;
-      }
-      if (prev === 'drill' && !(mem && mem.holderWidth !== undefined) && S._shapeGeomMem._turnHolder) {
-        S.params.holderWidth = S._shapeGeomMem._turnHolder.w; S.params.holderLength = S._shapeGeomMem._turnHolder.l;
-      }
-      if (prev === 'drill') {
-        const ap = mem && mem.depthOfCut !== undefined ? mem.depthOfCut : (SHAPE_CUT_DEFAULTS[next] || {}).ap;
-        if (ap !== undefined) S.params.depthOfCut = ap;
-      }
-      if (!(mem && mem.roughingStrategy) && S._lastFreeStrategy) {
-        S.params.roughingStrategy = S._lastFreeStrategy;
-        // Nový polygon dostal výchozí +15° (podélně) — znaménko natočení
-        // k čelnímu hrubování patří záporné (jako u tlačítka ↓ Čelně).
-        if (!mem && next === 'polygon' && S.params.roughingStrategy === 'face')
-          S.params.toolAngle = -Math.abs(parseFloat(S.params.toolAngle) || 15);
-      }
+      if (mem && mem.roughingStrategy) S.params.roughingStrategy = mem.roughingStrategy;
+      else if (S._lastFreeStrategy) S.params.roughingStrategy = S._lastFreeStrategy;
       // Plátek, který podélně neumí (upichovák), jede vždy čelně — i když si
       // z paměti nese něco jiného (stejná pojistka je v pipeline).
       if (getInsert(S.params).longRoughing === false) S.params.roughingStrategy = 'face';
-      // Rádius se při výměně plátku PŘEDNASTAVÍ podle tvaru — i přes paměť
-      // tvaru, jinak by kulatá dostala zpět výchozí R0,8 z camDefaults.
-      // Vrtáku se ⌀ z paměti tvaru NEpřepisuje — je to jeho hlavní rozměr.
-      if (SHAPE_PRESET_RADIUS[next] !== undefined && !(next === 'drill' && mem)) S.params.toolRadius = SHAPE_PRESET_RADIUS[next];
-      // Posuv a řezná rychlost taky (ap zůstává) — jinak by upichovák jel
-      // s F0,25 po polygonu. Viz SHAPE_CUT_DEFAULTS. Závitovému se posuv
-      // NEdosazuje: pole F je posuv HRUBOVÁNÍ (závit jede F = stoupání,
-      // ops/thread.js) a jeho f 1,5 by v hrubování udělalo F1,5 mm/ot.
-      const cut = SHAPE_CUT_DEFAULTS[next];
-      if (cut) { S.params.speed = cut.vc; if (next !== 'threading') S.params.feed = cut.f; }
+      // Znaménko natočení polygonu patří ke strategii (jako tlačítka Podélně /
+      // Čelně): nůž ze zásobníku má natočení kladné, čelně je záporné.
+      if (S.params.toolShape === 'polygon') {
+        const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
+        S.params.toolAngle = S.params.roughingStrategy === 'face' ? -mag : mag;
+      }
     }
     // Vrták = vrtání (enforceInsertOperation): přechod na vrták / z vrtáku
     // mění OPERACI, ne jen nástroj — program se přegeneruje jako po přepnutí
@@ -6014,7 +5954,6 @@ export function openCamSimulator(initialContour, initialGCode) {
   function openVbdImportDialog() {
     openInsertCalc({
       onCamImport: (data) => {
-        if (data.vbdCode) S.params.toolVbdCode = data.vbdCode;
         // Tvar se MUSÍ měnit přes applyShapeChange — s ním jde i pravidlo
         // „obrys držáku patří k tvaru destičky" (viz tam). Přímý zápis
         // S.params.toolShape nechával u nového plátku viset držák nakreslený
@@ -6026,6 +5965,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           applyShapeChange('polygon', { defer: true });
           S.params.toolTipAngle = data.tipAngle;
         }
+        // Kód destičky AŽ po změně tvaru — ta nasadí výchozí nůž i s jeho kódem.
+        if (data.vbdCode) S.params.toolVbdCode = data.vbdCode;
         if (data.clearanceAngle !== null) S.params.toolClearanceAngle = data.clearanceAngle;
         if (data.tipRadius !== null && data.tipRadius > 0) S.params.toolRadius = data.tipRadius;
         dropInsertGuides();
@@ -7209,33 +7150,21 @@ export function openCamSimulator(initialContour, initialGCode) {
     fullUpdate();
   }
 
-  /** Změna tvaru destičky ve slotu zásobníku. Obrys držáku se ukládá
-   *  v souřadnicích ŠPIČKY a je nakreslený PRO KONKRÉTNÍ tvar — po výměně
-   *  tvaru se špička vůči držáku posune, obrys by seděl jinam a hlídání by
-   *  bylo volnější, než má být. Stejné pravidlo jako applyShapeChange nad
-   *  S.params (nález uživatele 27. 8. 2026), jen pro slot. */
+  /** Změna tvaru destičky ve slotu zásobníku = VÝCHOZÍ NŮŽ TOHO TVARU
+   *  (presetKnifeForShape, uživatel 7. 10. 2026) — destička, držák i s obrysem
+   *  a řezné podmínky, stejně jako tlačítka tvaru v panelu (applyShapeChange).
+   *  Dřív se dosazovaly jen předvolby tvaru a obrys držáku se mazal: kulatá
+   *  z vrtáku si nesla jeho vyložení 145 mm a pouzdro 40 × 80. Vlastní jméno
+   *  slotu zůstává; jméno výchozího nože se přepíše na nový nůž. */
   function _setMagSlotShape(slot, next) {
     if (!slot || slot.shape === next) return;
-    slot.shape = next;
-    // Stejné výchozí hodnoty jako applyShapeChange v panelu. Dřív je měl jen
-    // handler tlačítek a jen pro upichovák/závitový: polygon z upichováku
-    // zůstal s hranou 5 mm a natočením 0°, závitový si nesl R předchozího
-    // tvaru (holderSeatZ z něj posadí držák jinam než u téhož nože z panelu).
-    if (next === 'polygon') { slot.toolLength = 10; slot.toolAngle = 15; slot.tipAngle = 90; }
-    else if (next === 'parting') { slot.toolLength = 5; slot.toolAngle = 0; }
-    else if (next === 'threading') {
-      slot.toolLength = 4; slot.toolAngle = 0; slot.tipAngle = 60; slot.radius = 0;
-      if (!(slot.tipFlat > 0)) slot.tipFlat = 0.1;
-    } else if (next === 'drill') {
-      slot.toolLength = DRILL_PRESET.toolLength; slot.toolAngle = 0; slot.tipAngle = DRILL_PRESET.toolTipAngle;
-      slot.holderWidth = DRILL_PRESET.holderWidth; slot.holderLength = DRILL_PRESET.holderLength;
-    }
-    if (SHAPE_PRESET_RADIUS[next] !== undefined) slot.radius = SHAPE_PRESET_RADIUS[next];
-    const cut = SHAPE_CUT_DEFAULTS[next];
-    if (cut) { slot.vc = cut.vc; if (next !== 'threading') slot.f = cut.f; }
-    if (slot.holderProfile) {
-      slot.holderProfile = null;
-      showToast('Obrys držáku byl nakreslený pro předchozí tvar plátku — vrácen výchozí obdélník; nakresli ho znovu.');
+    const rec = presetKnifeForShape(next);
+    if (!rec) { slot.shape = next; return; }
+    const keepName = !defaultMagazineKnives().some(d => d.name === slot.name);
+    const preset = _isoMagSlot(rec, slot.slot);
+    for (const k of Object.keys(preset)) {
+      if (k === 'slot' || (k === 'name' && keepName)) continue;
+      slot[k] = preset[k];
     }
   }
 
@@ -7253,7 +7182,56 @@ export function openCamSimulator(initialContour, initialGCode) {
   function _loadMagSlot(idx) {
     const slot = S.toolMagazine[idx];
     if (!slot) return false;
+    _rememberShapeKnife();
     S.activeMagazineSlot = idx;
+    _slotToParams(slot);
+    return true;
+  }
+
+  /** Zapamatuje AKTUÁLNÍ nůž u jeho tvaru (S.shapeKnives) — před každou
+   *  výměnou nože, ať ho tlačítko tvaru příště vrátí (applyShapeChange). */
+  function _rememberShapeKnife() {
+    const shape = S.params.toolShape;
+    if (!shape) return;
+    // Nůž BEZ nakresleného obrysu držáku (náhradní obdélník) se nepamatuje —
+    // tlačítko pak vrátí výchozí nůž s držákem (uživatel: „nemám tam pořád
+    // ten obdélník místo držáku“). Vrták má držák pouzdro bez obrysu z podstaty.
+    if (shape !== 'drill' && !S.params.holderProfile) return;
+    if (!S.shapeKnives || typeof S.shapeKnives !== 'object') S.shapeKnives = {};
+    const snap = _defaultMagSlot(0);
+    _paramsIntoSlot(snap);
+    S.shapeKnives[shape] = snap;
+  }
+
+  /** Nůž pro tvar (tlačítka tvaru): naposled nastavený u toho tvaru, jinak
+   *  výchozí (_loadPresetKnife). Slot zásobníku se označí, jen když je to
+   *  týž nůž (jméno i geometrie). */
+  function _loadShapeKnife(shape) {
+    const mem = S.shapeKnives && S.shapeKnives[shape];
+    if (!mem || mem.shape !== shape) return _loadPresetKnife(shape);
+    _slotToParams(mem);
+    const idx = (S.toolMagazine || []).findIndex(s => s && s.name === mem.name && sameKnifeGeometry(s, mem));
+    S.activeMagazineSlot = idx >= 0 ? idx : null;
+    return true;
+  }
+
+  /** Výchozí nůž tvaru do S.params — slot 🔧 Zásobníku se stejným jménem
+   *  a tvarem; když tam chybí, PŘIDÁ se tam z 📚 katalogu i s držákem
+   *  (uživatel 7. 10. 2026: „ty nože dej do Zásobníku"). */
+  function _loadPresetKnife(shape) {
+    const idx = presetSlotIndex(S.toolMagazine, shape);
+    if (idx >= 0) return _loadMagSlot(idx);
+    const rec = presetKnifeForShape(shape);
+    if (!rec) return false;
+    if (!Array.isArray(S.toolMagazine)) S.toolMagazine = [];
+    const num = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(s => s.slot || 0)) + 1 : 1;
+    S.toolMagazine.push(_isoMagSlot(rec, num));
+    showToast(`${rec.name} přidán do 🔧 Zásobníku jako T${num}`);
+    return _loadMagSlot(S.toolMagazine.length - 1);
+  }
+
+  /** Geometrie, držák a řezné podmínky slotu do S.params (bez výběru slotu). */
+  function _slotToParams(slot) {
     S.params.toolName        = slot.name;
     S.params.toolVbdCode     = slot.vbdCode;
     S.params.toolShape       = slot.shape;
@@ -7275,7 +7253,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.params.holderInflate = slot.holderInflate ?? 0;
     S.params.holderInflateAll = slot.holderInflateAll === true;
     S.params.holderProfile = slot.holderProfile ? JSON.parse(JSON.stringify(slot.holderProfile)) : null;
-    return true;
   }
 
   /**
@@ -7362,6 +7339,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   function _syncParamsToSlot(idx) {
     const slot = S.toolMagazine[idx];
     if (!slot) return;
+    _paramsIntoSlot(slot);
+  }
+
+  /** Aktuální nůž (S.params) do objektu slotu — zásobník i paměť tvaru. */
+  function _paramsIntoSlot(slot) {
     // Prázdné jméno nesmí slot přejmenovat na nic — název slotu (T1, „Šlicht")
     // je jediné, podle čeho se v seznamu pozná.
     if (S.params.toolName) slot.name = S.params.toolName;
@@ -7906,9 +7888,9 @@ export function openCamSimulator(initialContour, initialGCode) {
               const slot = S.toolMagazine[idx];
               if (!slot) return;
               pushHistory();
-              if (data.vbdCode) slot.vbdCode = data.vbdCode;
               if (data.isRound) { _setMagSlotShape(slot, 'round'); }
               else if (data.tipAngle !== null) { _setMagSlotShape(slot, 'polygon'); slot.tipAngle = data.tipAngle; }
+              if (data.vbdCode) slot.vbdCode = data.vbdCode;
               if (data.clearanceAngle !== null) slot.clearanceAngle = data.clearanceAngle;
               if (data.tipRadius !== null && data.tipRadius > 0) slot.radius = data.tipRadius;
               if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }

@@ -90,6 +90,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Tlačítka tvaru destičky nasadí výchozí nůž i s držákem** (uživatel
+  7. 10. 2026: „přednastav kulatý SRSCR2525M20, polygon PSBNR2525M12,
+  upichovák MGEHR2525-5, závit SER2525M16 a na vrtání Vrtak D20"). ● ■ ▮ ▽ ⌀
+  v panelu i ve slotu 🔧 Zásobníku berou nůž ze zásobníku (jako ✅ Použít);
+  chybí-li tam, přidá se tam z 📚 katalogu (`presetKnifeForShape`
+  v `magazineDefaults.js`). Tlačítko v panelu si u každého tvaru pamatuje
+  naposled nastavený nůž i s držákem (`S.shapeKnives`, ukládá se se stavem;
+  „ať si to pamatuje, co tam nastavím") — nůž bez obrysu držáku ne. Oprava
+  chyby z úpravy vrtáku: po přepnutí vrták → kulatá zůstalo vyložení vrtáku
+  145 mm (náhradní držák kulaté sedí tak vysoko nad destičkou → nehlídal
+  se), úhel 118° a pouzdro 40 × 80 bez obrysu — na dílu uživatele pak
+  dokončování „vyjíždělo materiálem posuvem". Test `shape-preset-knife`.
 - **CAM podélně (polygon): vrstvy a dojezdy ve vůli kolem polotovaru**
   (pravidlo 9 — materiál je nakreslený polotovar, ne plánovací obrys s vůlí).
   Nález 7. 10. 2026 na jednoduchém hřídeli r 5 × 60 s osazením r 10 = r

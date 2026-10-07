@@ -55,6 +55,31 @@ export function defaultMagazineKnives() {
   return [...isoDefaultKnives(), ...EXTRA_DEFAULT_SET.map((s) => buildIsoDrill(s.opts))];
 }
 
+/**
+ * VÝCHOZÍ NŮŽ TVARU — tlačítka ● ■ ▮ ▽ ⌀ (uživatel 7. 10. 2026: „přednastav
+ * kulatý SRSCR2525M20, polygon PSBNR2525M12, upichovák MGEHR2525-5, závit
+ * SER2525M16 a na vrtání Vrtak D20"). Tlačítko dřív měnilo jen tvar a geometrii
+ * doplnilo z paměti sezení nebo z předvolby tvaru — kulatá předvolbu neměla,
+ * takže po vrtáku zdědila jeho vyložení 145 mm (náhradní držák pak seděl
+ * 145 mm nad destičkou a nehlídal se), úhel 118° a pouzdro 40 × 80 bez obrysu.
+ * Klíč = tvar, hodnota = `id` z ISO_DEFAULT_SET / EXTRA_DEFAULT_SET.
+ */
+export const SHAPE_PRESET_KNIFE_ID = { round: 'RS', polygon: 'SB', parting: 'GR', threading: 'TH', drill: 'DR' };
+
+/** Záznam knihovny výchozího nože pro tvar destičky; null = tvar bez předvolby. */
+export function presetKnifeForShape(shape) {
+  const id = SHAPE_PRESET_KNIFE_ID[shape];
+  const k = id ? [...ISO_DEFAULT_SET, ...EXTRA_DEFAULT_SET].findIndex((s) => s.id === id) : -1;
+  return k >= 0 ? defaultMagazineKnives()[k] : null;
+}
+
+/** Index slotu zásobníku s výchozím nožem tvaru (stejné jméno i tvar); −1 = v zásobníku není. */
+export function presetSlotIndex(magazine, shape) {
+  const rec = presetKnifeForShape(shape);
+  if (!rec || !Array.isArray(magazine)) return -1;
+  return magazine.findIndex((s) => s && s.name === rec.name && (s.shape || 'round') === shape);
+}
+
 /** Výchozí nože v pořadí obrábění; `legacy` = jméno nože, který nahrazují. */
 export const ISO_DEFAULT_SET = [
   { id: 'SK', opts: { size: '12', radius: '08' }, legacy: 'Hrub čelo', role: 'čelní hrubování' },

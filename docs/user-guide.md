@@ -858,6 +858,19 @@ konec, 7. 10. 2026):
 | T5 | SER 2525M16 | 16ER AG60 | Zavit |
 | T6 | MGEHR 2525-5 | MGMN 500-M | Upichovak — š 5, R 0,8 jako dřív |
 
+**Tlačítka tvaru destičky (● ■ ▮ ▽ ⌀) nasadí celý nůž** i s držákem a jeho
+obrysem (7. 10. 2026): ● kulatá → **SRSCR2525M20**, ■ polygon →
+**PSBNR2525M12**, ▮ upichovák → **MGEHR2525-5**, ▽ závit → **SER2525M16**,
+⌀ vrtání → **Vrtak HSS D20**. Když ten nůž je ve 🔧 Zásobníku, vezme se
+odtud (jako ✅ Použít — i s jeho Vc, f a ap); když tam není, **přidá se
+tam** z 📚 ISO katalogu i s držákem. **Pamatuje si to:** u každého tvaru se
+uloží nůž, který jste u něj naposled měli (i s držákem a řeznými
+podmínkami), a tlačítko ho příště vrátí — i po obnovení stránky. Nůž bez
+nakresleného obrysu držáku (náhradní obdélník) se nepamatuje; místo něj
+přijde výchozí nůž s držákem. Tlačítka tvaru ve slotu zásobníku nasadí
+výchozí nůž; vlastní jméno slotu zůstává. Dřív tlačítko měnilo jen tvar a po vrtáku si kulatá nesla jeho
+vyložení 145 mm a pouzdro 40 × 80 bez obrysu — držák se pak nehlídal.
+
 Výchozí nože se dají jen do **prázdného** zásobníku (první spuštění, ⟲ reset
 parametrů) — smazaný nůž se už sám nevrací. Zásobník ale nikdy nezůstane
 prázdný: u **posledního** nože se 🗑 Smazat nezobrazí.
