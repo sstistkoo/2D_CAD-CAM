@@ -228,3 +228,36 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   se obyčejné vnější hrubování zprava a hotové řádky se překlopí zpátky
   (X, G2↔G3) — `cam/ops/bore.js`, stejně jako „zleva" = zrcadlo v Z.
 - Polotovar díry = předvrtání (⌀ a hloubka z operace Vrtání, nebo zadané).
+
+## Pravidlo 14 — Řetěz zanoření jede bez odjezdu až dolů ✅ schváleno
+
+**Když vrstva za rampou nic neubere, nástroj neodjíždí a nevrací se:
+další rampa navazuje přímo na konec předchozí, po téže přímce zanoření.
+Řetěz pokračuje pod úhlem zanoření až dolů a vezme i zbytek polotovaru,
+který po zanořování zůstal — nekončí svisle nad ním.**
+
+- Každý krok řetězu bere nejvýš jednu vrstvu (pravidlo 3). Co leží pod
+  mezní čarou hotové kontury, zůstává (pravidlo 6) — dobírá se jen zbytek
+  po zanořování na polotovaru, ne kus hotové kontury.
+- Zadal a schválil uživatel 7. 10. 2026 (`projekt_2026-10-07 (3)`, kulatá R 10):
+  úsek 3 `N3110 G1 X33.666 Z-11.749` (rampa) → `N3120 G0 Z-18.996` →
+  `N3130 G1 X35.666 Z-16.996` (odskok) → zpět `N3160 G1 X33.666` a další
+  rampa; má to být jeden souvislý sjezd. Úsek 1 u bodů 5–8: řetěz skončil
+  svisle nad zbytkem, který měl vzít.
+
+## Pravidlo 15 — Dokončování nesjíždí strměji než úhel zanoření ✅ schváleno
+
+**Hotovní dráha nikde nesjíždí k ose strměji než „Úhel zanoření".
+Dokončí se celý kus kontury před místem, kde kontura začne klesat
+strměji; odtud se jede rovně (rovný průměr) na téže výšce, dokud před
+nožem stojí materiál, aby na průměru nezůstal schodek. Teprve pak odjezd.**
+
+- Kus kontury strmější než úhel zanoření se nedokončuje (platí „celý,
+  nebo vůbec") a nahlásí se; v náhledu se tam hotovní dráha (tečkovaná)
+  nekreslí — zůstávají jen dráhy podél mezní čáry zanoření.
+- Rovný průměr na konci jede, dokud z materiálu nevyjede — u nože nesmí
+  zůstat kousek polotovaru. Odjezd pak vede vzduchem.
+- Zadal a schválil uživatel 7. 10. 2026 (`projekt_2026-10-07 (3)`, úhel zanoření 45°):
+  úsek 2 `N2360 G3 X36.836 Z106.625 CR=20.000` sjíždí po oblouku strměji
+  než 45° — má skončit u S13 a pokračovat rovně; úsek 3 `N3320 G1 X40.566
+  Z-1.500 ; Rovný průměr` má dojet v rovině až za polotovar (Z −4,89).
