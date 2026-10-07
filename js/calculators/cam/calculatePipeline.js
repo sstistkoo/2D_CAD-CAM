@@ -60,6 +60,23 @@ export function enforceInsertStrategy(params) {
   if (params && getInsert(params).longRoughing === false) params.roughingStrategy = 'face';
 }
 
+// VRTÁ JEN VRTÁK — a vrták nic jiného neumí. Operaci Vrtání proto určuje
+// NÁSTROJ, ne přepínač: uživatel 7. 10. 2026 dal do úseku vrták ⌀5, Vrtání
+// zůstalo „Neaktivní" a 🔄 Dráhy vyrobily HRUBOVÁNÍ vrtákem (R2,5 jako
+// rádius špičky). Opraví se přímo stav jako u enforceInsertStrategy, ať
+// panel, pipeline i emise vidí totéž: s vrtákem je program vrtací cyklus,
+// s jiným nástrojem se vrtání vypne. Cykly, které vrták neumí (závit,
+// upich, vyvrtávání), se s ním vypnou — v pořadí emise by vrtání přebily.
+export function enforceInsertOperation(params) {
+  if (!params) return;
+  const drill = !!getInsert(params).canDrill;
+  params.drillActive = drill;
+  if (!drill) return;
+  if (params.threadActive) params.threadActive = false;
+  if (params.partOffZ != null) params.partOffZ = null;
+  if (params.boreActive) params.boreActive = false;
+}
+
 // Seznam operací hrubování (operations[] model). Dokud neexistuje
 // persistentní S.operations (+ UI), odvodí se z typu × směru jako jediná
 // operace — zachovává dosavadní chování.
@@ -96,6 +113,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // zajetí — vjezdy rampou od hranice polotovaru). Staré projekty se
   // normalizují zde — jediné hrdlo, kterým teče každá generace.
   S.params.pocketFinishAtOnce = true;
+  // Vrták = vrtání (viz enforceInsertOperation) — i u starých projektů a částí.
+  enforceInsertOperation(S.params);
   // ── Druhá strana (zleva, podélně i čelně) = TÝŽ výpočet v Z-ZRCADLE ───
   // Vstup se překlopí (z → −z), celý zbytek funkce pak řeší obyčejné
   // hrubování zprava se standardním pravým nožem a hotový výsledek se před

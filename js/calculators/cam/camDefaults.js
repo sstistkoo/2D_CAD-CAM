@@ -130,7 +130,7 @@ export function _defaultCamParams() {
     // Aktivní = generuje se vrtací cyklus v ose (X0) místo hrubování —
     // stejný vzor jako závit (threadActive). Viz ops/drill.js.
     drillActive: false,
-    drillZStart: 0,          // Z čela, kde díra začíná (od něj se měří hloubka)
+    drillZStart: null,       // Z čela, kde díra začíná (od něj se měří hloubka); null = čelo dílu (drillAutoFaceZ)
     drillDepth: 20,          // hloubka díry [mm] (kladná, od Z čela)
     drillDepthFullDia: false, // true = hloubka na plný ⌀ (+ délka špičky), false = na špičku
     drillClearance: 2,       // bezpečná vzdálenost před čelem — odtud jede posuv

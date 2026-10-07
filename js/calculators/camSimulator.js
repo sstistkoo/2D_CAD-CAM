@@ -33,7 +33,7 @@ import { injectCSS } from './cam/camSimulatorStyles.js';
 import { _defaultCamParams, stripCodeOwnedParams, SHAPE_PRESET_RADIUS, SHAPE_CUT_DEFAULTS, DRILL_PRESET } from './cam/camDefaults.js';
 import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, elapsedAtProgress, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/threadHelpers.js';
-import { drillGeom } from './cam/ops/drill.js';
+import { drillGeom, drillAutoFaceZ } from './cam/ops/drill.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
 import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, drawThreadingInsert, drawDrillTool, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
@@ -44,7 +44,7 @@ import { defaultMagazineKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MA
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
 import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch, threadInsertFitsSide } from './isoThreadInserts.js';
 import { isoInternalThreadHint, isoBarFitsHole } from './isoInternalTools.js';
-import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
+import { computeCalculation, computeSimPath, roughingKey as _roughingKey, enforceInsertOperation } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
@@ -4984,8 +4984,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       act: 'partoff-clear', label: 'Zrušit upich',
     } : prms.drillActive ? {
       tab: 'vrt',
-      text: `Je aktivní <b>vrtání</b> (⌀${Math.round((parseFloat(prms.toolRadius) || 0) * 2000) / 1000}, hloubka ${prms.drillDepth}) — program obsahuje jen vrtací cyklus, hrubování/dokončování se negeneruje.`,
-      act: 'drill-deactivate', label: 'Vypnout vrtání',
+      text: `Aktivní nástroj je <b>vrták</b> (⌀${Math.round((parseFloat(prms.toolRadius) || 0) * 2000) / 1000}, hloubka ${prms.drillDepth}) — vrták umí jen vrtat, program obsahuje jen vrtací cyklus. Pro hrubování/dokončování vyber soustružnický nůž.`,
+      act: 'drill-pick-tool', label: '🔧 Jiný nůž',
     } : prms.finishOnly ? {
       tab: 'hot',
       text: 'Je zapnutá <b>jen dokončovací operace</b> (záložka Hot.) — hrubovací průchody se negenerují, jede se jediný průchod po kontuře.',
@@ -4994,10 +4994,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (_modeNote && _machSubTab !== _modeNote.tab) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#fab387">⚠ ${_modeNote.text}
         <button data-act="${_modeNote.act}" style="margin-left:6px;padding:1px 8px;font-size:10px;background:#313244;border:1px solid #45475a;border-radius:4px;cursor:pointer;color:#a6e3a1">${_modeNote.label}</button></small>`;
-    }
-    // Vrták nesoustruží — hrubování/dokončování s ním by byl nesmysl.
-    if (prms.toolShape === 'drill' && !_modeNote && (_machSubTab === 'hrub' || _machSubTab === 'hot')) {
-      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Aktivní nástroj je <b>vrták</b> — umí jen operaci Vrtání. Pro hrubování/dokončování vyber v 🔧 Zásobníku soustružnický nůž, nebo zapni záložku Vrtání.</small>`;
     }
     // Hlídání platí pro KAŽDÝ tvar plátku, ne jen polygon: kromě bočního
     // ostří polygonu hlídá i DRŽÁK (hrubování, dokončování, zbytek
@@ -5159,14 +5155,18 @@ export function openCamSimulator(initialContour, initialGCode) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_thCuts.length} průchodů (1. záběr ${_thCuts[0].toFixed(3)} mm) + ${Math.max(0, Math.round(parseFloat(prms.threadSpringPasses)) || 0)}× jiskřící · ${_thInfeedTxt}${_thTaper !== 0 ? ` · kužel 1:${Math.abs(_thTaper)} (Δ⌀ ${(Math.abs(Math.abs(parseFloat(prms.threadZEnd) - parseFloat(prms.threadZStart)) / _thTaper)).toFixed(2)} mm)` : ''} · ${_thCmd} ${_thCmd === 'G32' ? 'F' : 'K'}${prms.threadPitch} · G97 konst. otáčky${prms.threadActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
     } else if (_machSubTab === 'vrt') {
       // ── Vrtání v ose (ops/drill.js) ──
-      const _dg = drillGeom(prms);
+      const _dg = drillGeom(prms, { faceZ: drillAutoFaceZ(S), stockLoop: buildStockLoopRaw(prms, (S._cachedCalc || {}).stockPathSegments) });
       const _isDrill = prms.toolShape === 'drill';
       const _dD = Math.round(_dg.D * 1000) / 1000;
       html += `<div class="cam-sim-row" style="align-items:flex-end">
         <div class="cam-sim-field" style="flex:2"><label title="Nástroj vrták (⌀) ze 🔧 Zásobníku. Při zapnutí vrtání se vrták vybere sám (první ⌀ v pořadí T).">Vrták</label>
           <button data-act="drill-pick-tool" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px">${_isDrill ? `⌀ ${_dD} · σ ${prms.toolTipAngle}° · ${escHTML(prms.toolName || '')}` : '🔧 Vybrat vrták…'}</button>
         </div>
-        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="drill-toggle" class="cam-sim-btn ${prms.drillActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px" title="Zapnout/vypnout vrtací cyklus v ose (nahrazuje hrubování — dráhy se přegenerují)">${prms.drillActive ? '✅ Aktivní' : 'Neaktivní'}</button></div>
+        <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label>${_isDrill
+          // Vrtání určuje nástroj (enforceInsertOperation): s vrtákem se vrtá
+          // vždy, vypnout ho jde jen výběrem jiného nože — tlačítko by nic nedělalo.
+          ? `<span class="cam-sim-btn cam-sim-btn-green" style="width:100%;font-size:11px;padding:5px 6px;cursor:default" title="Nástroj je vrták — program je vrtací cyklus. Pro hrubování vyber v 🔧 Zásobníku soustružnický nůž.">✅ Aktivní</span>`
+          : `<button data-act="drill-toggle" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" title="Vybere vrták ze 🔧 Zásobníku (první ⌀ v pořadí T) — s vrtákem je program vrtací cyklus (nahrazuje hrubování, dráhy se přegenerují)">Zapnout</button>`}</div>
       </div>`;
       html += `<div style="margin-top:2px"><label style="font-size:10px;color:#6c7086">Odvod třísky</label></div>
       <div class="cam-sim-toggle-row">
@@ -5174,7 +5174,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-drillmode="break" class="${_dg.mode === 'break' ? 'cam-sim-active' : ''}" title="Lámání třísky (jako G73): po každém záběru Q jen krátký odskok o „Odskok" a vrtá dál. Rychlejší, pro mělčí díry a dobře lámavé materiály.">↯ Lámání třísky</button>
       </div>`;
       html += `<div class="cam-sim-row">
-        <div class="cam-sim-field"><label title="Z čela, kde díra začíná — od něj se měří hloubka (zprava ve směru −Z, zleva +Z)">Z čelo</label><input type="number" step="0.5" data-p="drillZStart" value="${prms.drillZStart}"></div>
+        <div class="cam-sim-field"><label title="Z čela, kde díra začíná — od něj se měří hloubka (zprava ve směru −Z, zleva +Z). Prázdné = čelo dílu na straně obrábění (zprava nejvyšší Z kontury, zleva nejnižší).">Z čelo</label><input type="number" step="0.5" data-p="drillZStart" value="${_dg.zFaceAuto ? '' : prms.drillZStart}" placeholder="auto ${_dg.zFace.toFixed(2)}"></div>
         <div class="cam-sim-field"><label title="Hloubka díry od Z čela (kladná) — na špičku, nebo na plný ⌀ (zaškrtávátko níž)">Hloubka</label><input type="number" step="1" min="0" data-p="drillDepth" value="${prms.drillDepth}"></div>
         <div class="cam-sim-field"><label title="Bezpečná vzdálenost před Z čela (R rovina) — sem se dojede rychloposuvem, odtud jede posuv a sem vrták vyjíždí. Když polotovar přesahuje (neobrobené čelo, odlitek), R rovina se posune ven až za jeho vůli (offsetovou čáru).">Bezp. vzdál.</label><input type="number" step="0.5" min="0.1" data-p="drillClearance" value="${prms.drillClearance}"></div>
       </div>
@@ -5192,9 +5192,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         <span>Hloubka na plný ⌀ (+ špička)</span>
       </div>`;
       if (!_isDrill) {
-        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Aktivní nástroj není vrták — ${prms.drillActive ? 'dráhy se nevygenerují' : 'zapnutí vybere vrták ze 🔧 Zásobníku'}. Tvar ⌀ vrták: 🔧 Zásobník nebo Nástroj → Tvar destičky.</small>`;
+        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Aktivní nástroj není vrták — vrtá se jen vrtákem. „Zapnout" ho vybere ze 🔧 Zásobníku (nebo 🧰 Knihovna → 📚 → Vrtáky, Nástroj → Tvar ⌀).</small>`;
       }
-      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_dg.targets.length} ${_dg.targets.length === 1 ? 'záběr' : _dg.targets.length < 5 ? 'záběry' : 'záběrů'} · dno špičky Z${_dg.zBottom.toFixed(2)} · ${(prms.roughingSide || 'right') === 'left' ? 'zleva (+Z)' : 'zprava (−Z)'} · G97 S${_dg.rpm}${_dg.dwell > 0 ? ` · prodleva ${_dg.dwell} s` : ''}${prms.drillActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}. Když kontura dílu díru nemá, simulace ukáže vrtání červeně jako zajetí do hotové kontury.</small>`;
+      html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_dg.targets.length} ${_dg.targets.length === 1 ? 'záběr' : _dg.targets.length < 5 ? 'záběry' : 'záběrů'} · čelo Z${_dg.zFace.toFixed(2)}${_dg.zFaceAuto ? ' (dílu)' : ''}${Math.abs(_dg.zEntry - _dg.zFace) > 0.01 ? ` · materiál v ose od Z${_dg.zEntry.toFixed(2)}` : ''} → dno špičky Z${_dg.zBottom.toFixed(2)} · ${(prms.roughingSide || 'right') === 'left' ? 'zleva (+Z)' : 'zprava (−Z)'} · G97 S${_dg.rpm}${_dg.dwell > 0 ? ` · prodleva ${_dg.dwell} s` : ''}${_isDrill ? '' : ' — vrtá se, až bude nástroj vrták'}. Když kontura dílu díru nemá, simulace ukáže vrtání červeně jako zajetí do hotové kontury.</small>`;
     }
     html += `<div style="text-align:center;margin-top:16px">
       <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
@@ -5228,6 +5228,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     const v = inp.value;
     // Vymazané pole „Z upich" = zrušit upichnutí (jako ✖ Zrušit), ne upich
     // na Z0 — prázdné číselné pole by jinak níž spadlo na `|| 0`.
+    // Vymazané „Z čelo" vrtání = automaticky čelo dílu (drillAutoFaceZ), ne Z0.
+    if (key === 'drillZStart' && String(v).trim() === '') {
+      S.params.drillZStart = null;
+      applyChange();
+      return;
+    }
     if (key === 'partOffZ' && String(v).trim() === '') {
       const wasActive = S.params.partOffZ != null;
       S.params.partOffZ = null;
@@ -5364,7 +5370,73 @@ export function openCamSimulator(initialContour, initialGCode) {
       const cut = SHAPE_CUT_DEFAULTS[next];
       if (cut) { S.params.speed = cut.vc; if (next !== 'threading') S.params.feed = cut.f; }
     }
-    if (!(opts && opts.defer)) applyChange();
+    // Vrták = vrtání (enforceInsertOperation): přechod na vrták / z vrtáku
+    // mění OPERACI, ne jen nástroj — program se přegeneruje jako po přepnutí
+    // cyklu (dřív zůstalo hrubování a s vrtákem se hrubovalo dál).
+    if (prev !== next && (prev === 'drill' || next === 'drill')) {
+      showToast(next === 'drill'
+        ? 'Nástroj je vrták — program bude vrtací cyklus (záložka Vrtání)'
+        : 'Nástroj už není vrták — vrtání vypnuto');
+    }
+    const changeOpts = prev !== next ? afterToolChange(prev === 'drill') : undefined;
+    if (!(opts && opts.defer)) applyAfterToolChange(changeOpts);
+  }
+
+  // Přepne záložku obrábění (Hrub./Hot./Upich/Závit/Vrtání…) — sdílí klik na
+  // záložku i výměna nástroje. Upichnutí se dělá čelně: při vstupu do Upich se
+  // strategie přepne na čelní a předchozí se zapamatuje, při odchodu vrátí.
+  // @returns {boolean} true = záložka se změnila
+  function setMachiningSubTab(nextTab) {
+    const prevTab = S.machiningSubTab;
+    if (nextTab === prevTab) return false;
+    if (nextTab === 'upich') {
+      if (S.params.roughingStrategy !== 'face') {
+        S._preUpichStrategy = S.params.roughingStrategy;
+        S.params.roughingStrategy = 'face';
+      } else {
+        S._preUpichStrategy = null;
+      }
+    } else if (prevTab === 'upich' && S._preUpichStrategy != null) {
+      S.params.roughingStrategy = S._preUpichStrategy;
+      S._preUpichStrategy = null;
+    }
+    S.machiningSubTab = nextTab;
+    return true;
+  }
+
+  // ZÁLOŽKA OBRÁBĚNÍ PODLE NÁSTROJE (uživatel 7. 10. 2026: „když dám vrták,
+  // ať se nastaví vrtání, když upichovák, upichování… dal jsem závitový nůž
+  // a mám tam vrtání"). Nástroj své operace → její záložka; soustružnický nůž
+  // vrátí z cizí operace na Hrub. (Hot./vlastní volbu nechá). Záložka jen
+  // ukazuje — operaci zapíná vrták sám (enforceInsertOperation), závit
+  // a upich tlačítkem v záložce (potřebují závit / bod upichnutí).
+  const TOOL_MACH_TAB = { drill: 'vrt', threading: 'zavit', parting: 'upich' };
+  function syncMachTabToTool() {
+    const cur = S.machiningSubTab || 'hrub';
+    const own = TOOL_MACH_TAB[S.params.toolShape];
+    setMachiningSubTab(own || (Object.values(TOOL_MACH_TAB).includes(cur) ? 'hrub' : cur));
+  }
+
+  // Po výměně NÁSTROJE (tvar v panelu, slot zásobníku, 🧰 knihovna): vrták ↔
+  // nůž mění operaci (enforceInsertOperation) → přegenerovat jako po přepnutí
+  // cyklu; záložka obrábění se přepne na operaci nástroje.
+  // @returns opts pro applyChange ({cycle:true} při změně vrták ↔ nůž)
+  function afterToolChange(wasDrill) {
+    const drillSwitch = wasDrill !== !!getInsert(S.params).canDrill;
+    if (drillSwitch) enforceInsertOperation(S.params);
+    syncMachTabToTool();
+    return drillSwitch ? { cycle: true } : undefined;
+  }
+
+  // Přepočet po výměně nástroje. Odchod z vrtání přegeneruje CELÝ hrubovací
+  // program (na dílu uživatele ~1,3 s, okno mezitím nereaguje) — uživatel
+  // 7. 10. 2026: „sekne se mi to, když chci přehodit plátky". Takové
+  // přegenerování jede s ⏳ hodinami jako 🔄 Dráhy; náhled bez přegenerování
+  // (desetiny sekundy) zůstává jako dřív.
+  function applyAfterToolChange(changeOpts) {
+    if (changeOpts && decideChange(S, changeOpts) === 'regen')
+      return withBusy('Generuji dráhy…', () => applyChange(changeOpts));
+    applyChange(changeOpts);
   }
 
   // Přehodí, na kterou stranu od Natočení se otevírá vrcholový úhel destičky.
@@ -5397,24 +5469,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     tabBody.querySelectorAll('[data-machtab]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const nextTab = btn.dataset.machtab;
-        const prevTab = S.machiningSubTab;
-        if (nextTab === prevTab) return;
-        if (nextTab === 'upich') {
-          // Upichnutí se dělá čelně — zapnout, pokud ještě není, a zapamatovat
-          // předchozí strategii, ať se dá po odchodu z Upich vrátit zpět.
-          if (S.params.roughingStrategy !== 'face') {
-            S._preUpichStrategy = S.params.roughingStrategy;
-            S.params.roughingStrategy = 'face';
-          } else {
-            S._preUpichStrategy = null;
-          }
-        } else if (prevTab === 'upich' && S._preUpichStrategy != null) {
-          S.params.roughingStrategy = S._preUpichStrategy;
-          S._preUpichStrategy = null;
-        }
-        S.machiningSubTab = nextTab;
-        applyChange();
+        if (setMachiningSubTab(btn.dataset.machtab)) applyChange();
       });
     });
     const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');
@@ -5679,26 +5734,21 @@ export function openCamSimulator(initialContour, initialGCode) {
     // ── Vrtání ──
     const drillToggleBtn = tabBody.querySelector('[data-act="drill-toggle"]');
     if (drillToggleBtn) drillToggleBtn.addEventListener('click', () => {
-      pushHistory();   // zapnutí může vyměnit i nůž (autoPickToolFor) — jeden krok ↩
-      S.params.drillActive = !S.params.drillActive;
-      let picked = '', off = '';
-      if (S.params.drillActive) {
-        picked = autoPickToolFor('drill').msg;
-        // Program je vždy JEN JEDEN cyklus — závit/upich by vrtání přebily
-        // (pořadí early-returnů v generateAutoGCode), takže je vypnout.
-        if (S.params.threadActive) { S.params.threadActive = false; off += ', závit vypnut'; }
-        if (S.params.partOffZ != null) { S.params.partOffZ = null; S.partOffPickMode = false; off += ', upich zrušen'; }
+      // Vrtání určuje nástroj (enforceInsertOperation) — „Zapnout" = vybrat
+      // vrták. Bez vrtáku v zásobníku se nic nemění, jen se řekne, kde ho vzít.
+      if (!getInsert(S.params).canDrill && !S.toolMagazine.some(s => s.shape === 'drill')) {
+        showToast(`⚠ ${autoPickToolFor('drill').msg.replace(/^ ⚠ /, '')}`);
+        return;
       }
-      const regen = !S.gcodeDirty;
-      showToast(S.params.drillActive
-        ? `Vrtání aktivní${picked}${off}${regen ? ' — dráhy přegenerovány' : ' — program má ruční úpravy, dráhy vygeneruj přes 🔄 Dráhy'}`
-        : `Vrtání vypnuto — zpět na hrubování${regen ? '' : ' (dráhy vygeneruj přes 🔄 Dráhy)'}`);
-      applyChange({ cycle: true });
-    });
-    const drillOffBtn = tabBody.querySelector('[data-act="drill-deactivate"]');
-    if (drillOffBtn) drillOffBtn.addEventListener('click', () => {
-      S.params.drillActive = false;
-      showToast(`Vrtání vypnuto — zpět na hrubování${S.gcodeDirty ? ' (dráhy vygeneruj přes 🔄 Dráhy)' : ''}`);
+      pushHistory();   // zapnutí vymění nůž (autoPickToolFor) — jeden krok ↩
+      S.params.drillActive = true;
+      const picked = autoPickToolFor('drill').msg;
+      // Program je vždy JEN JEDEN cyklus — závit/upich by vrtání přebily
+      // (pořadí early-returnů v generateAutoGCode), takže je vypnout.
+      let off = '';
+      if (S.params.threadActive) { S.params.threadActive = false; off += ', závit vypnut'; }
+      if (S.params.partOffZ != null) { S.params.partOffZ = null; S.partOffPickMode = false; off += ', upich zrušen'; }
+      showToast(`Vrtání aktivní${picked}${off}${!S.gcodeDirty ? ' — dráhy přegenerovány' : ' — program má ruční úpravy, dráhy vygeneruj přes 🔄 Dráhy'}`);
       applyChange({ cycle: true });
     });
     const drillPickToolBtn = tabBody.querySelector('[data-act="drill-pick-tool"]');
@@ -7033,7 +7083,12 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   function _applyMagSlot(idx) {
-    if (_loadMagSlot(idx)) fullUpdate();
+    const wasDrill = !!getInsert(S.params).canDrill;
+    if (!_loadMagSlot(idx)) return;
+    // Výměna vrták ↔ nůž mění operaci — přegenerovat jako po přepnutí cyklu,
+    // jinak by v programu zůstala stará operace (viz afterToolChange).
+    const changeOpts = afterToolChange(wasDrill);
+    if (changeOpts) applyAfterToolChange(changeOpts); else fullUpdate();
   }
 
   /** Nůž ze slotu do S.params (jako ✅ Použít), bez překreslení — volající
@@ -7113,7 +7168,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else if (op === 'drill') {
       if (getInsert(S.params).canDrill) return same;
       idx = mag.findIndex(s => s.shape === 'drill');
-      missing = 'v zásobníku není vrták — přidej nůž a v 🔧 Zásobníku mu dej tvar ⌀ (vrták)';
+      missing = 'v zásobníku není vrták — přidej ho z 🧰 Knihovna → 📚 ISO katalog → Vrtáky';
     }
     if (idx < 0) return { changed: false, msg: missing ? ` ⚠ ${missing}` : '' };
     _loadMagSlot(idx);
@@ -7304,6 +7359,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       },
       onApply: (tool) => {
         pushHistory();
+        const wasDrill = !!getInsert(S.params).canDrill;
         const knife = _libraryKnife(tool);
         if (knife) {
           // Jako 📂 Načíst z PC: obrys držáku patří k tvaru, se kterým se uložil.
@@ -7324,7 +7380,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // applyChange (v cyklu závit/upich přegeneruje program), ne jen
         // fullUpdate — stejně jako u VBD dekodéru.
         dropInsertGuides();
-        applyChange();
+        applyAfterToolChange(afterToolChange(wasDrill));
       },
     });
   }

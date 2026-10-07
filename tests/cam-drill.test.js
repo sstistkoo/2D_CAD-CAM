@@ -56,18 +56,21 @@ function moves(gcode) {
 }
 
 describe('Vrtání (operace Vrtání)', () => {
-  it('vyjíždění: 4 záběry po 5 mm, mezi nimi ven na R rovinu a zpět 1 mm nad dno', async () => {
+  it('vyjíždění: záběry po 5 mm od vjezdu do materiálu, mezi nimi ven na R rovinu a zpět 1 mm nad dno', async () => {
     const { gcode } = await runCamProg(prog({}));
     const { body, mv } = moves(gcode);
     expect(body.some(l => /G97 S398\b/.test(l))).toBe(true);        // 25·1000/(π·20) = 397,9
-    expect(mv.filter(m => m.g === 'G1').map(m => m.z)).toEqual([-5, -10, -15, -20]);
+    // Polotovar má čelo Z2 (2 mm nad čelem dílu) — vrták vjede do materiálu
+    // tam, ne na Z0, a odtud se počítá Q (nález 7. 10. 2026: odlitek před
+    // čelem + Q v jednom záběru).
+    expect(mv.filter(m => m.g === 'G1').map(m => m.z)).toEqual([-3, -8, -13, -18, -20]);
     expect(body.filter(l => /\bG1\b/.test(l)).every(l => / F0\.2\b/.test(l))).toBe(true);
     // Příjezd: R rovina Z0 + 2 by ležela v pásu vůle před čelem polotovaru
     // (Z2 + vůle 1) — polotovar končí na offsetové čáře, R rovina se posune na Z3.
     expect(mv.slice(0, 2)).toEqual([{ g: 'G0', z: 3 }, { g: 'G0', x: 0 }]);
     // Mezi záběry: G0 Z3 (ven) → G0 Z(dno + 1).
     const g0z = mv.filter(m => m.g === 'G0' && m.z !== undefined).map(m => m.z);
-    expect(g0z.slice(1, 7)).toEqual([3, -4, 3, -9, 3, -14]);
+    expect(g0z.slice(1, 9)).toEqual([3, -2, 3, -7, 3, -12, 3, -17]);
     // Odjezd: z díry, radiálně ven, pak v Z na bezpečnou polohu.
     expect(mv.slice(-3)).toEqual([{ g: 'G0', z: 3 }, { g: 'G0', x: 150 }, { g: 'G0', z: 5 }]);
     expect(body.some(l => /\bG96 S25\b/.test(l))).toBe(true);
@@ -76,7 +79,7 @@ describe('Vrtání (operace Vrtání)', () => {
   it('lámání třísky: mezi záběry jen odskok o 1 mm, bez vyjetí z díry', async () => {
     const { gcode } = await runCamProg(prog({ drillChipMode: 'break' }));
     const g0z = moves(gcode).mv.filter(m => m.g === 'G0' && m.z !== undefined).map(m => m.z);
-    expect(g0z).toEqual([3, -4, -9, -14, 3, 5]);
+    expect(g0z).toEqual([3, -2, -7, -12, -17, 3, 5]);
   });
 
   it('čelo polotovaru za R rovinou nehýbe: R = Z čelo + bezpečná vzdálenost', async () => {
@@ -118,11 +121,51 @@ describe('Vrtání (operace Vrtání)', () => {
     expect(mv[0].z).toBeLessThan(-60);                      // radiálně mimo levé čelo polotovaru
   });
 
-  it('nástroj, který není vrták, nevrtá', async () => {
-    const { gcode } = await runCamProg(prog({ toolShape: 'round', toolRadius: 0.8 }));
-    const { body, mv } = moves(gcode);
-    expect(mv.length).toBe(0);
-    expect(body.join('\n')).toMatch(/neni vrtak/);
+  it('vrták vrtá i s vypnutým Vrtáním — a závit/upich s ním vypne (nález 7. 10. 2026)', async () => {
+    // Uživatel dal do úseku vrták ⌀5, Vrtání nechal „Neaktivní" a 🔄 Dráhy
+    // vyrobily HRUBOVÁNÍ vrtákem. Vrták umí jen vrtat: operaci určuje nástroj.
+    const r = await runCamProg(prog({ drillActive: false, threadActive: true, partOffZ: -30 }));
+    expect(r.gcode).toMatch(/VRTANI/);
+    expect(r.gcode).not.toMatch(/HRUBOVANI|ZAVITOVANI|UPICHNUTI/);
+    expect([r.params.drillActive, r.params.threadActive, r.params.partOffZ]).toEqual([true, false, null]);
+  });
+
+  it('Z čelo prázdné = čelo dílu na straně obrábění (díl od Z0 doprava, nález 7. 10. 2026)', async () => {
+    // Kontura posunutá doprava: čelo Z60, díl až k Z10. Výchozí Z0 vrtalo od
+    // LEVÉHO konce skrz celý kus.
+    const shifted = contourPoints.map(p => ({ ...p, z: p.z + 60 }));
+    const run = (over) => runCamProg({ ...prog(over), contourPoints: shifted });
+    const auto = moves((await run({ drillZStart: null, stockMode: 'cylinder', stockFace: 62, stockLength: 60 })).gcode).mv;
+    expect(auto.filter(m => m.g === 'G1').map(m => m.z)).toEqual([57, 52, 47, 42, 40]);   // Q od čela polotovaru Z62
+    expect(auto[0]).toEqual({ g: 'G0', z: 63 });                      // R rovina za čelem polotovaru Z62 + vůle 1
+    const left = moves((await run({ drillZStart: null, roughingSide: 'left', drillPeck: 0, drillDepth: 5 })).gcode).mv;
+    expect(left.find(m => m.g === 'G1').z).toBe(15);                    // zleva čelo Z10 → +5
+  });
+
+  it('odlitek přesahující čelo: první záběr je Q od vjezdu do odlitku, ne odlitek + Q', async () => {
+    // Odlitek sahá 22 mm před čelo dílu (jako díl uživatele: čelo Z346,4,
+    // odlitek do Z368,9) — dřív první posuv jel 22 + Q mm bez výjezdu.
+    const stockPoints = [
+      { id: 11, type: 'G0', x: 0, z: 22, r: 0, mode: 'ABS' },
+      { id: 12, type: 'G1', x: 24, z: 22, r: 0, mode: 'ABS' },
+      { id: 13, type: 'G1', x: 24, z: -55, r: 0, mode: 'ABS' },
+      { id: 14, type: 'G1', x: 0, z: -55, r: 0, mode: 'ABS' },
+    ];
+    const r = await runCamProg({ ...prog({ stockMode: 'casting', drillZStart: null }), stockPoints });
+    const mv = moves(r.gcode).mv;
+    const g1 = mv.filter(m => m.g === 'G1').map(m => m.z);
+    expect(mv[0].z).toBeGreaterThan(22);                                // R rovina za odlitkem
+    expect(g1[0]).toBeCloseTo(17, 3);                                   // 22 − Q
+    for (let i = 1; i < g1.length; i++) expect(g1[i - 1] - g1[i]).toBeLessThanOrEqual(5 + 1e-6);
+    expect(g1[g1.length - 1]).toBe(-20);
+    expect(validateToolpath(r.calcSim.simPath, r.params, r.calcSim.stockPathSegments, { planStock: true })).toEqual([]);
+  });
+
+  it('soustružnický nůž vrtání vypne — hrubuje se jako dřív', async () => {
+    const r = await runCamProg(prog({ toolShape: 'round', toolRadius: 0.8, drillActive: true }));
+    expect(r.gcode).not.toMatch(/VRTANI/);
+    expect(r.gcode).toMatch(/HRUBOVANI/);
+    expect(r.params.drillActive).toBe(false);
   });
 
   it('simulace: díra ⌀20 odebrána obrysem vrtáku, bez kolize; krátké vyložení → náraz pouzdra', async () => {

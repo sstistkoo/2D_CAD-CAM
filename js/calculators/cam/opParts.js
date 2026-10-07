@@ -18,7 +18,7 @@
 import { polyOffset, polySimplify, polyUnion } from '../../geom/geomCore.js';
 import { fitArcsToPolyline, getArcParams } from './camMath.js';
 import { MaterialRemoval } from './materialRemoval.js';
-import { CODE_OWNED_PARAMS, _defaultCamParams, stripCodeOwnedParams } from './camDefaults.js';
+import { _defaultCamParams, stripCodeOwnedParams } from './camDefaults.js';
 import { mergePrograms } from './gcodeMerge.js';
 
 // Zjednodušení odvozeného profilu [mm]. Profil se nejdřív odsadí VEN o
@@ -107,10 +107,15 @@ export function applyPartToState(part, S) {
   // takže bez toho klíč zmizel a v režimu částí se generovalo s VYPNUTÝM
   // hlídáním držáku podle pořadí — držák pak vjížděl do šikminy polotovaru
   // (úsek 3, `G1 X17.166`, 3 kolize; nález uživatele 25. 9. 2026).
-  const defaults = _defaultCamParams();
-  const owned = {};
-  CODE_OWNED_PARAMS.forEach(k => { owned[k] = defaults[k]; });
-  S.params = Object.assign(owned, stripCodeOwnedParams(clone(part.params)) || {}, shared);
+  //
+  // Totéž platí pro KAŽDÝ klíč, který část nemá, protože vznikla dřív než
+  // on (např. Vrtání 7. 10. 2026): dostane výchozí hodnotu, stejně jako při
+  // načtení projektu (`Object.assign(_defaultCamParams(), …)` v camSimulator).
+  // Dřív zůstal `undefined` — v záložce Vrtání byla prázdná pole Z čelo,
+  // Záběr Q, Odskok… (nález uživatele 7. 10. 2026, díl rozdělený na úseky).
+  // Interní příznaky (CODE_OWNED_PARAMS) tu jsou taky: strip je z části
+  // vyhodí, takže zůstane hodnota z kódu.
+  S.params = Object.assign(_defaultCamParams(), stripCodeOwnedParams(clone(part.params)) || {}, shared);
   S.zLimits = clone(part.zLimits) || S.zLimits;
   S.xLimits = clone(part.xLimits) || S.xLimits;
   S.stockPoints = clone(part.stockPoints) || [];

@@ -79,6 +79,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Vrtání: vrták hrubovat nesmí, prázdná pole a začátek díry** (nález
+  uživatele 7. 10. 2026 na dílu rozděleném na úseky — vrták ⌀5 v úseku 1,
+  Vrtání „Neaktivní", 🔄 Dráhy vyrobily HRUBOVÁNÍ vrtákem):
+  - **Vrtání určuje nástroj** (`enforceInsertOperation` v
+    `calculatePipeline.js`): s vrtákem je program vždy vrtací cyklus (závit,
+    upich, vyvrtávání se s ním vypnou), s jiným nástrojem se vrtání vypne.
+    Přepnutí tvaru / slotu vrták ↔ nůž dráhy přegeneruje. V záložce Vrtání
+    „Zapnout" = vybrat vrták ze zásobníku; u vrtáku je místo přepínače stav.
+  - **Části programu dostanou výchozí hodnoty** klíčů, které nemají
+    (`applyPartToState`) — část uložená před Vrtáním měla prázdná pole
+    Z čelo, Záběr Q, Odskok… (dřív se doplňovaly jen interní příznaky).
+  - **Z čelo prázdné = čelo dílu** (zprava nejvyšší Z kontury, zleva
+    nejnižší). Výchozí Z0 u dílu nakresleného od Z0 doprava vrtalo od
+    levého konce skrz celý kus.
+  - **Záběry Q od vjezdu do materiálu:** odlitek před čelem dílu je taky
+    materiál — první posuv jel 22 mm odlitku + Q bez výjezdu.
+  - **Záložka obrábění podle nástroje** (uživatel: „dal jsem závitový nůž
+    a mám tam vrtání"): vrták → Vrtání, závitový nůž → Závit, upichovák →
+    Upich, soustružnický nůž z cizí operace zpět na Hrub. (Hot. zůstane) —
+    při změně tvaru v panelu, výběru slotu zásobníku i noži z 🧰 knihovny.
+    Přegenerování po výměně vrták ↔ nůž jede s ⏳ hodinami (uživatel: „sekne
+    se mi to, když chci přehodit plátky" — okno ~1,3 s nereagovalo).
 - **Tr závit: hloubka a průměry podle ISO 2904.** Vůle ve dně ac byla
   vždy 0,25 mm; správně 0,15 (P 1,5) / 0,25 (P 2–5) / 0,5 (P 6–12) /
   1 mm (P 14+). Hloubka Tr P 6–12 byla o 0,25 mm mělčí, Tr P 1,5 o 0,1 mm

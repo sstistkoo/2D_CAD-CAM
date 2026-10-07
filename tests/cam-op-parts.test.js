@@ -81,6 +81,19 @@ describe('makePart / syncPartFromState / applyPartToState', () => {
     expect(S.params.orderAwareHolder).toBe(true);
   });
 
+  it('applyPartToState doplní výchozí hodnoty klíčů, které část nemá (nález 7. 10. 2026)', () => {
+    // Část uložená dřív, než vzniklo Vrtání: v záložce byla prázdná pole
+    // (Z čelo, Záběr Q, Odskok…), protože `S.params` se nahradil celý.
+    const S = mkState();
+    const part = makePart(S, {});
+    part.params.drillDepth = 50;                        // co uživatel nastavil
+    applyPartToState(part, S);
+    expect(S.params.drillDepth).toBe(50);
+    expect([S.params.drillZStart, S.params.drillClearance, S.params.drillPeck, S.params.drillRetract, S.params.drillDwell])
+      .toEqual([null, 2, 5, 1, 0]);                     // Z čelo null = čelo dílu
+    expect(S.params.drillChipMode).toBe('clear');
+  });
+
   it('applyPartToState nesdílí reference (úprava části neteče do stavu)', () => {
     const S = mkState();
     const part = makePart(S, {});

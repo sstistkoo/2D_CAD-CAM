@@ -498,9 +498,10 @@ Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) za�
 
 **Proč se negenerují hrubovací dráhy?** Čtyři nastavení hrubování přebíjejí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
-(naklikané upichnutí), **Vrtání** (aktivní vrtání) a **Hot.** („jen dokončovací
-operace"). Když je některé z nich zapnuté, ukáže se v ostatních záložkách
-oranžové varování s tlačítkem na jeho rychlé vypnutí. Ukazuje se vždy jen ten
+(naklikané upichnutí), **Vrtání** (aktivní nástroj je vrták) a **Hot.** („jen
+dokončovací operace"). Když je některé z nich zapnuté, ukáže se v ostatních
+záložkách oranžové varování s tlačítkem na jeho rychlé vypnutí (u vrtání
+**🔧 Jiný nůž** — vrták umí jen vrtat). Ukazuje se vždy jen ten
 režim, který program opravdu řídí — mají mezi sebou pořadí: závit přebíjí
 upichnutí, upichnutí vrtání a vrtání „jen dokončení". Zapnutí závitu, upichu
 nebo vrtání ostatní dva cykly vypne (program je vždy jen jeden cyklus).
@@ -515,14 +516,30 @@ Další vrtáky (HSS / tvrdokov, ⌀3–30, i předvrtání pod závity) jsou
 v 🧰 Knihovna → 📚 ISO katalog → **Vrtáky** — odtud jde vrták vrátit i po
 smazání ze zásobníku.
 
-1. Záložka **Vrtání** → **✅ Aktivní**. Ze zásobníku se sám vybere vrták
-   (první ⌀ v pořadí T); když tam žádný není, hláška to řekne.
-2. **Z čelo** (kde díra začíná) a **Hloubka** (od čela). Zaškrtnutá
+**Vrtání určuje nástroj:** když je aktivní nástroj vrták, program je vždy
+vrtací cyklus (vrták nesoustruží) — i když vrták vybereš ze zásobníku nebo
+přepneš tvar na ⌀. S jiným nástrojem se vrtání vypne a hrubuje se.
+
+**Záložka obrábění se přepne podle nástroje:** vrták → **Vrtání**, závitový
+nůž → **Závit**, upichovák → **Upich**; soustružnický nůž vrátí z těchto
+záložek na **Hrub.** (Hot. nechá). Platí pro tvar v panelu, výběr ze 🔧
+Zásobníku i nůž z 🧰 Knihovny. Závit a upichnutí se pak zapnou v záložce
+(potřebují závit / bod upichnutí), vrtání běží s vrtákem samo.
+
+1. Záložka **Vrtání** → **Zapnout** vybere vrták ze zásobníku (první ⌀
+   v pořadí T); když tam žádný není, hláška řekne, kde ho vzít. S vrtákem
+   je místo tlačítka stav **✅ Aktivní** — vrtání vypneš výběrem jiného nože.
+   Vrtání jako další operaci za hrubováním přidej přes **➕ Operace** (v části
+   s hrubovacím nožem by vrták hrubování nahradil).
+2. **Z čelo** (kde díra začíná; **prázdné = čelo dílu** — zprava nejvyšší Z
+   kontury, zleva nejnižší) a **Hloubka** (od čela). Zaškrtnutá
    **Hloubka na plný ⌀** přidá délku špičky ⌀/2 / tan(σ/2) — dno je válcové
    v zadané hloubce; jinak se měří na špičku.
 3. **Odvod třísky:** **⇡ Vyjíždění** (jako G83 — po každém záběru Q
    z díry ven a rychloposuvem zpět až „Odskok" nad dno) nebo **↯ Lámání
    třísky** (jako G73 — jen odskok). **Záběr Q** 0 = celá díra na jeden zátah.
+   Záběry se počítají od místa, kde vrták v ose **vjede do materiálu** —
+   u neobrobeného odlitku před čelem dílu od odlitku, ne od čela.
 4. **Bezp. vzdál.** = R rovina před čelem (odtud posuv, sem výjezdy). Když
    polotovar přesahuje (neobrobené čelo, odlitek), R rovina se posune ven za
    jeho vůli — rychloposuv do pásu před polotovarem nevjede.
