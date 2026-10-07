@@ -76,6 +76,7 @@ export function drillInsert(prms) {
     footprintIsOutline: true,
     holderAxial: true,
     canDrill: true,
+    canBore: false,
     pointLengthZ: point,
   };
 }

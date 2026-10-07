@@ -138,6 +138,15 @@ export function _defaultCamParams() {
     drillChipMode: 'clear',  // 'clear' = vyjíždění z díry (G83), 'break' = lámání třísky (G73)
     drillRetract: 1,         // lámání: odskok po záběru; vyjíždění: rychloposuvem zpět až sem nad dno
     drillDwell: 0,           // prodleva na dně [s] (0 = bez prodlevy)
+    // ── VYVRTÁVÁNÍ (záložka Vyvrtávání) — pravidlo 13: zrcadlo vnějšího
+    // hrubování v ose X. Samostatná operace jako vrtání, viz ops/bore.js.
+    // První verze: podélné hrubování válcové díry ⌀ × délka od Z čela.
+    boreActive: false,
+    boreZStart: 0,           // Z čela, kde díra začíná
+    boreDiameter: 30,        // ⌀ díry po vyvrtání (hotový bez přídavku X)
+    boreDepth: 20,           // délka díry od Z čela [mm]
+    borePreDiameter: 20,     // ⌀ předvrtání (z Vrtání nebo zadaný)
+    borePreDepth: 25,        // hloubka předvrtání [mm] (≥ délka díry)
     // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
     // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
     entryAngle: 30,

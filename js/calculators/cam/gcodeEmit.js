@@ -15,13 +15,14 @@ import { segmentHitsPath } from './contourBuild.js';
 import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 import { getInsert } from './inserts/index.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
-import { roughingKey, mirrorsWorldZ } from './calculatePipeline.js';
+import { roughingKey, mirrorsWorldZ, computeCalculation } from './calculatePipeline.js';
 import { mergeCollinearMoves } from './gcodeCollapse.js';
 import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
   controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem } from './controlDialect.js';
 import { emitThread } from './ops/thread.js';
 import { emitPartOff } from './ops/partOff.js';
 import { emitDrill } from './ops/drill.js';
+import { emitBore } from './ops/bore.js';
 import { emitRoughing } from './ops/roughEmit.js';
 import { emitFinish } from './ops/finishEmit.js';
 
@@ -91,6 +92,12 @@ export function generateAutoGCode(S, calc) {
   // ── VRTÁNÍ (záložka Vrtání) ── samostatná operace, viz ops/drill.js.
   if (prms.drillActive)
     return emitDrill({ S, calc, prms, lines, addCmt, addN, note, arcR, flipArc });
+
+  // ── VYVRTÁVÁNÍ (záložka Vyvrtávání) ── pravidlo 13: zrcadlo vnějšího
+  // hrubování v X, viz ops/bore.js. Výpočet i tahle emise se mu předávají,
+  // ať modul neimportuje emitor zpátky (žádný cyklus importů).
+  if (prms.boreActive)
+    return emitBore({ S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode });
 
   if (!prms.finishOnly)
     addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey(S)] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);

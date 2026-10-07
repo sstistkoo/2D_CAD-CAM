@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM: operace Vyvrtávání** (záložka **Vyvrt.**, uživatel 7. 10. 2026).
+  Nové **pravidlo 13** (docs/cam-pravidla.md, schválené): vnitřní obrábění je
+  zrcadlo vnějšího v ose X — díra se překlopí na hřídel, předvrtání na
+  válec, spočítá se TÝŽ vnější hrubovací výpočet (pravidla 1–12) a řádky se
+  překlopí zpátky (`cam/ops/bore.js`). První verze: podélné hrubování
+  válcové díry ⌀ × délka od Z čela, zprava, z předvrtání (převezme se
+  z Vrtání: ⌀ vrtáku, hloubka na plný ⌀) — zapnutí vybere nejtlustší
+  vyvrtávací tyč z 📚 katalogu, která se vejde do předvrtání. Tyč, která by
+  zadní stranou sáhla na protější stěnu, nejede a nahlásí se. Simulace
+  (úběr, ⛔ kolize, zajetí do kontury) počítá ve stejném zrcadle, nůž se
+  kreslí k ose, obrys díry a předvrtání čárkovaně. Otisk 29 fixtures shodný.
 - **📚 Katalog — vnitřní nože do díry** (uživatel 7. 10. 2026: „přidal jsem
   vrták, takže dokážu vyvrtat díru — přidej i vnitřní nože"). Nová skupina
   **Vnitřní (do díry)**: ocelové vyvrtávací tyče ⌀10–40 (S10K … S40V,

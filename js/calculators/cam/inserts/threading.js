@@ -102,10 +102,12 @@ export function threadingInsert(prms) {
     //   holderAxial  — náhradní držák (obdélník) sedí ZA nástrojem v ose Z
     //                  (sklíčidlo/pouzdro vrtáku), ne nad ním v X
     //   canDrill     — umí operaci Vrtání (ops/drill.js)
+    //   canBore      — smí vyvrtávat (ops/bore.js, pravidlo 13: vnitřní = zrcadlo vnějšího)
     //   pointLengthZ — osová délka špičky (hloubka „na plný ⌀" = + tahle délka)
     footprintIsOutline: false,
     holderAxial: false,
     canDrill: false,
+    canBore: false,
     pointLengthZ: 0,
   };
 }

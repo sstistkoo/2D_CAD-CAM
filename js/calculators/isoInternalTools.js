@@ -66,6 +66,12 @@ const rad = (d) => d * Math.PI / 180;
 const r3 = (v) => Math.round(v * 1000) / 1000;
 const barOf = (d) => ISO_BARS.find((b) => b.d === Number(d)) || null;
 
+/** Průměr vyvrtávací tyče z jejího jména („S20S-PCLNR09" → 20), jinak null. */
+export function isoBoringBarDiameter(name) {
+  const m = /^S(\d{2})[A-Z]-/.exec(String(name || '').trim());
+  return m ? Number(m[1]) : null;
+}
+
 export function isoInternalTypeById(id) {
   return ISO_INTERNAL_TYPES.find((t) => t.id === id) || null;
 }

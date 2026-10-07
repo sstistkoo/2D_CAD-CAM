@@ -214,3 +214,17 @@ nedotkne — ani podjetím pod něj.**
 - Platí pro podélné, čelní, zleva i dokončování. Materiál nad X max o méně
   než 0,05 mm se nepočítá (`XMAX_WALL_TOL`, cam/rangeX.js).
 - Test: `tests/cam-xrange.test.js`.
+
+## Pravidlo 13 — Vnitřní obrábění (vyvrtávání) ✅ schváleno
+
+**Vnitřní obrábění je zrcadlo vnějšího v ose X. Platí pravidla 1–12 beze
+změny, jen „nahoru" znamená „k ose" a polotovar je předvrtaná díra.
+Navíc se tyč musí vejít do díry: ani zadní strana tyče se nedotkne
+protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
+
+- Schválil uživatel 7. 10. 2026 (operace Vyvrtávání, první verze jen
+  podélné hrubování v díře).
+- Výpočet: díra se překlopí kolem poloměru R_ref (r' = R_ref − r), spočítá
+  se obyčejné vnější hrubování zprava a hotové řádky se překlopí zpátky
+  (X, G2↔G3) — `cam/ops/bore.js`, stejně jako „zleva" = zrcadlo v Z.
+- Polotovar díry = předvrtání (⌀ a hloubka z operace Vrtání, nebo zadané).

@@ -496,15 +496,16 @@ začátku řetězu nezanoří kolmo. Začátek se posune po kontuře tam, kde z�
 jen přídavek, a najede se odtud rampou; oblouk se objede celý, nebo vůbec.
 Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) začíná dál"**.
 
-**Proč se negenerují hrubovací dráhy?** Čtyři nastavení hrubování přebíjejí, a
+**Proč se negenerují hrubovací dráhy?** Pět nastavení hrubování přebíjí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
-(naklikané upichnutí), **Vrtání** (aktivní nástroj je vrták) a **Hot.** („jen
-dokončovací operace"). Když je některé z nich zapnuté, ukáže se v ostatních
-záložkách oranžové varování s tlačítkem na jeho rychlé vypnutí (u vrtání
-**🔧 Jiný nůž** — vrták umí jen vrtat). Ukazuje se vždy jen ten
-režim, který program opravdu řídí — mají mezi sebou pořadí: závit přebíjí
-upichnutí, upichnutí vrtání a vrtání „jen dokončení". Zapnutí závitu, upichu
-nebo vrtání ostatní dva cykly vypne (program je vždy jen jeden cyklus).
+(naklikané upichnutí), **Vrtání** (aktivní nástroj je vrták), **Vyvrt.**
+(aktivní vyvrtávání) a **Hot.** („jen dokončovací operace"). Když je některé
+z nich zapnuté, ukáže se v ostatních záložkách oranžové varování s tlačítkem
+na jeho rychlé vypnutí (u vrtání **🔧 Jiný nůž** — vrták umí jen vrtat). Ukazuje se vždy jen ten režim, který program opravdu řídí —
+mají mezi sebou pořadí: závit přebíjí upichnutí, upichnutí vrtání, vrtání
+vyvrtávání a vyvrtávání „jen dokončení". Zapnutí závitu, upichu, vrtání nebo
+vyvrtávání ostatní cykly vypne (program je vždy jen jeden cyklus) — vrtání
+a vyvrtávání patří do dvou operací za sebou (➕ Operace).
 
 **Vrtání (záložka Vrtání).** Vrtací cyklus v ose (X0) vrtákem — nástroj
 tvaru **⌀ vrták** (v Nástroj → Tvar destičky i ve 🔧 Zásobníku vedle ⬤ ◼ ▮ ▽).
@@ -554,6 +555,33 @@ směr: zprava se vrtá k −Z, zleva k +Z. Simulace díru odebere obrysem vrták
 když kontura dílu díru nemá, ukáže vrtání červeně jako zajetí do hotové
 kontury. Když je díra pod čelem polotovaru hlubší než vyložení, panel ⚠ hlásí,
 že do čela narazí pouzdro (a ⛔ ukáže kolizi držáku).
+
+**Vyvrtávání (záložka Vyvrt.).** Podélné hrubování díry vyvrtávací tyčí
+(🧰 Knihovna → 📚 ISO katalog → **Vnitřní (do díry)**). Podle **pravidla 13**
+(docs/cam-pravidla.md) je vnitřní obrábění zrcadlo vnějšího v ose X: díra se
+překlopí na hřídel, předvrtání na válcový polotovar, spočítá se obyčejné
+vnější hrubování zprava (úseky, vrstvy po ap, hlídání držáku, vjezdy — všechna
+pravidla 1–12) a řádky se překlopí zpátky. „Nahoru" je tu „k ose": odskok
+a rychloposuvy jdou do volného předvrtání, ne do stěny.
+
+1. Záložka **Vyvrt.** → **✅ Aktivní**. Předvrtání se převezme z **Vrtání**
+   (⌀ vrtáku ze 🔧 Zásobníku, hloubka na plný ⌀ bez špičky, Z čela) a ze
+   zásobníku se vybere **nejtlustší vyvrtávací tyč, která se do předvrtání
+   vejde** (Dmin). Tlačítko **↺ z Vrtání** předvrtání převezme znovu.
+2. **Z čelo**, **⌀ díry** (hotový — na stěně zůstane Přídavek X) a **Délka**.
+   Zatím jen **válcová díra zprava**; tvar díry z CAD přijde zvlášť.
+3. **⌀ předvrtání** a **Hloubka předvrt.** (aspoň délka díry — tyč nevrtá do
+   plného). Záběr ap, posuv, Vc a přídavky sdílí s hrubováním.
+
+Program: nájezd v Z před čelo, radiálně do předvrtání (o Vůli X od stěny),
+vrstvy od předvrtání ke stěně, poslední na dně (stěna − přídavek − rε),
+odskok k ose, ven rychloposuvem; na konci radiálně v díře, ven v Z a na
+bezpečnou polohu. **Tyč se musí vejít do díry** (pravidlo 13): ani zadní
+strana tyče se nesmí dotknout protější stěny předvrtání — jinak se dráha
+nevydá a panel ⚠ to nahlásí (třeba S20S do předvrtání ⌀20: Dmin 25).
+Simulace počítá úběr, ⛔ kolize i zajetí do kontury ve stejném zrcadle jako
+dráhy: předvrtání je prázdné, nůž je otočený k ose a čárkovaně je vidět obrys
+díry (oranžově) a předvrtání (žlutě).
 
 ### 3b. Více operací na jednom kuse (➕ Operace)
 Jeden díl se často obrábí na několik operací: nejdřív se vyhrubuje jedním
@@ -848,7 +876,9 @@ aktivním závitu nůž vymění taky. Vlastní ▽ nůž bez kódu z katalogu
 se bere jako dřív jen podle úhlu. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
 výkresu), vybere se **upichovák** (▮); kulatý nůž, který upichnutí umí, se
 nechá. Když se zapne **vrtání** (Vrtání → ✅ Aktivní), vybere se první
-**vrták** (⌀). Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
+**vrták** (⌀). Když se zapne **vyvrtávání** (Vyvrt. → ✅ Aktivní), vybere se
+nejtlustší **vyvrtávací tyč** z 📚 katalogu (S20S-…), která se vejde do
+předvrtání. Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
 nástroj zůstane a hláška poradí přidat ho z 🧰 Knihovna → 📚 ISO katalog.
 Výměna je s operací jeden krok ↩. Ostatní operace (hrubování, dokončení)
 nůž nemění — ten si vybíráš sám.
