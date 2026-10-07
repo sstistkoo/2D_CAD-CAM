@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **📚 Katalog — vnitřní nože do díry** (uživatel 7. 10. 2026: „přidal jsem
+  vrták, takže dokážu vyvrtat díru — přidej i vnitřní nože"). Nová skupina
+  **Vnitřní (do díry)**: ocelové vyvrtávací tyče ⌀10–40 (S10K … S40V,
+  f a Dmin podle typických katalogů) s destičkami C 95° (PCLNR/SCLCR),
+  T 91° (STFCR), D 93° (PDUNR/SDUCR), D 107,5° (PDQNR/SDQCR), V 93°
+  (SVUBR) a vnitřní závitový nůž SNR s destičkou 11–27IR (stejná řada jako
+  ER: 60°/55°, Tr, Acme). Na kartě se volí tyč (s nejmenší dírou Dmin),
+  čip ukazuje Dmin a vyložení 4×⌀. Negativní destička až od ⌀20, destička
+  nesmí vyčnívat nad tyč. `js/calculators/isoInternalTools.js`, rozměry
+  ORIENTAČNÍ. CAM zatím soustruží jen vnější obrys — vnitřní nože jdou do
+  zásobníku a na vnitřní závit; operace Vyvrtávání přijde zvlášť.
+- **Automatický výběr závitového nože rozlišuje vnější / vnitřní:** vnější
+  závit bere destičku ER, vnitřní IR, a tyč ze zásobníku se musí vejít do
+  předvrtané díry ⌀(D − 2H). Rada nabídne jen tyče, které do díry vlezou
+  („přidej 11IR A60 (tyč ⌀10)"), nebo řekne, že nejmenší tyč potřebuje
+  větší díru. Přepnutí Vnější / Vnitřní při aktivním závitu nůž vymění
+  (jeden krok ↩).
 - **CAM: vrták jako nástroj a operace Vrtání** (uživatel 7. 10. 2026:
   „přidat do CAM i vrták mezi plátky a možnost pro vrtání"). Nový tvar
   nástroje **⌀ vrták** vedle ⬤ ◼ ▮ ▽ (⌀, vrcholový úhel σ, vyložení; držák =

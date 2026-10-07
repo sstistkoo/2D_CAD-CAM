@@ -6,8 +6,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   ISO_THREAD_INSERTS, isoThreadInsertsFor, isoThreadTooth, isoThreadInsertByCode, isoThreadShanksFor,
-  threadInsertFitsPitch, isoThreadInsertHint,
+  threadInsertFitsPitch, isoThreadInsertHint, threadInsertFitsSide,
 } from '../js/calculators/isoThreadInserts.js';
+import { isoThreadInsertsForBar, isoThreadBarsFor, isoInternalThreadHint, isoBarFitsHole } from '../js/calculators/isoInternalTools.js';
 import { buildIsoKnife, ISO_SHANKS } from '../js/calculators/isoToolCatalog.js';
 import { threadProfileDepth } from '../js/calculators/cam/threadHelpers.js';
 import { buildInsertOutlineSegments, threadingInsertEdgeMM } from '../js/calculators/cam/insertPreview.js';
@@ -111,6 +112,37 @@ describe('výběr závitového nože podle stoupání', () => {
     check(trThreads, 30, (P) => P <= 6);
     check(acmeThreads, 29, (P) => P <= 6.35 + 1e-6);
     expect(miss).toEqual([]);
+  });
+
+  it('vnější závit = destička ER, vnitřní = IR; nůž mimo katalog na obě strany', () => {
+    expect(threadInsertFitsSide('16ERAG60', true)).toBe(true);
+    expect(threadInsertFitsSide('16ERAG60', false)).toBe(false);
+    expect(threadInsertFitsSide('16IL AG60', false)).toBe(true);
+    expect(threadInsertFitsSide('22IR4.0TR', true)).toBe(false);
+    expect(threadInsertFitsSide('', false)).toBe(true);
+    expect(threadInsertFitsSide('MUJ-ZAVITAK', true)).toBe(true);
+  });
+
+  it('rada pro vnitřní závit: IR destička a jen tyče, které se vejdou do díry', () => {
+    expect(isoInternalThreadHint(60, 2)).toEqual({ hint: '16IR AG60 (tyč ⌀16, 20, 25, 32)' });
+    // M20×2,5: díra ⌀17,3 — A60 jen do P 1,5, AG60 v nejmenší tyči ⌀16 chce díru od ⌀20.
+    expect(isoInternalThreadHint(60, 2.5, 17.3)).toEqual({ hint: null, holeMin: 20 });
+    expect(isoInternalThreadHint(60, 1.5, 14)).toEqual({ hint: '11IR A60 (tyč ⌀10)' });
+    expect(isoInternalThreadHint(30, 4, 36)).toEqual({ hint: '22IR 4.0TR (tyč ⌀25)' });
+    expect(isoInternalThreadHint(30, 8, 100)).toBeNull();
+    // Tyč ze zásobníku: ⌀20 (Dmin 25) do díry ⌀17,3 ne, do ⌀26 ano; tyč mimo katalog vždy.
+    expect(isoBarFitsHole(20, 17.3)).toBe(false);
+    expect(isoBarFitsHole(20, 26)).toBe(true);
+    expect(isoBarFitsHole(18, 5)).toBe(true);
+    expect(isoBarFitsHole(20, 0)).toBe(true);
+  });
+
+  it('isoThreadBarsFor odpovídá isoThreadInsertsForBar', () => {
+    for (const ins of ISO_THREAD_INSERTS) {
+      for (const d of [10, 12, 16, 20, 25, 32, 40]) {
+        expect(isoThreadBarsFor(ins).includes(d)).toBe(isoThreadInsertsForBar(d).includes(ins));
+      }
+    }
   });
 
   it('isoThreadShanksFor odpovídá isoThreadInsertsFor', () => {

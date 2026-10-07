@@ -169,10 +169,15 @@ function icOf(shape, size) {
 
 /** Velikosti destičky, které se k dříku hodí (podle IC). */
 export function isoSizes(type, variant, shankCode) {
-  const table = INSERTS[type.shape] && INSERTS[type.shape][variant];
-  if (!table || !type[variant]) return [];
   const sh = shankOf(shankCode);
   const [lo, hi] = type.shape === 'R' ? ROUND_FIT.map((k) => k * sh.b) : sh.ic;
+  return isoSizesByIc(type, variant, lo, hi);
+}
+
+/** Velikosti destičky typu s IC v rozsahu lo–hi (dřík i vyvrtávací tyč). */
+export function isoSizesByIc(type, variant, lo, hi) {
+  const table = INSERTS[type.shape] && INSERTS[type.shape][variant];
+  if (!table || !type[variant]) return [];
   // Seřadit podle IC — klíče „09", „06" by objekt jinak vrátil až za „12", „16".
   return Object.keys(table).filter((sz) => { const ic = icOf(type.shape, sz); return ic >= lo && ic <= hi; })
     .sort((a, b) => icOf(type.shape, a) - icOf(type.shape, b));
@@ -230,7 +235,7 @@ function insertCode(type, variant, size, radius) {
 }
 
 function holderCode(type, variant, sh, size, hand) {
-  const clear = variant === 'neg' ? 'N' : (POS_CLEARANCE[type.shape] || 'C');
+  const clear = isoClearanceLetter(type, variant);
   return type[variant] + type.shape + type.style + clear + (type.neutral ? 'N' : hand) + sh.code + sh.len + size;
 }
 
@@ -423,6 +428,24 @@ function knifeRecord({ name, vbdCode, holder, prms, sh, hand, cut, desc, iso }) 
   };
 }
 
+// ── Pro vnitřní nože (isoInternalTools.js) ─────────────────────
+// Vyvrtávací tyče berou destičky, kódy, řezné podmínky a záznam odsud,
+// obrys držáku si staví samy (tyč leží podél osy, ne napříč).
+export const ISO_HOLDER_GEOM = HOLDER_GEOM[ISO_HOLDER_VERSION];
+export const isoIcOf = icOf;
+export const isoInsertCode = insertCode;
+export const isoKnifeRecord = knifeRecord;
+export const isoCutData = cutData;
+export const isoCloseLoop = closeLoop;
+/** Písmeno úhlu hřbetu v kódu držáku (ISO 5608 poz. 4): N negativní, C / B (V) pozitivní. */
+export function isoClearanceLetter(type, variant) {
+  return variant === 'neg' ? 'N' : (POS_CLEARANCE[type.shape] || 'C');
+}
+/** Úhel hřbetu α destičky [°]. */
+export function isoInsertClearance(type, variant) {
+  return variant === 'neg' ? 0 : CLEARANCE_DEG[POS_CLEARANCE[type.shape] || 'C'];
+}
+
 /**
  * Postaví celý nůž (záznam knihovny s `tool` = CAM_TOOL_KEYS).
  * @param {string} typeId  id z ISO_HOLDER_TYPES
@@ -466,7 +489,7 @@ export function buildIsoKnife(typeId, opts = {}) {
   if (!size) return null;
   const radii = isoRadii(type, size);
   const radius = radii.includes(opts.radius) ? opts.radius : (radii.includes('08') ? '08' : radii[0]);
-  const clearance = variant === 'neg' ? 0 : CLEARANCE_DEG[POS_CLEARANCE[type.shape] || 'C'];
+  const clearance = isoInsertClearance(type, variant);
   const vbdCode = insertCode(type, variant, size, radius);
   const name = holderCode(type, variant, sh, size, hand);
   const iso = { type: type.id, shank: sh.code, hand, variant, size, radius };

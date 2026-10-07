@@ -42,7 +42,8 @@ import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPrev
 import { knifeThumbSvg } from './knifeThumb.js';
 import { defaultMagazineKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from './magazineDefaults.js';
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
-import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch } from './isoThreadInserts.js';
+import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch, threadInsertFitsSide } from './isoThreadInserts.js';
+import { isoInternalThreadHint, isoBarFitsHole } from './isoInternalTools.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -5732,9 +5733,13 @@ export function openCamSimulator(initialContour, initialGCode) {
       btn.addEventListener('click', () => {
         const ext = btn.dataset.thext === '1';
         if ((S.params.threadExternal !== false) === ext) return;
+        // Při aktivním závitu se vymění i nůž (vnější ER / vnitřní IR destička) — jeden krok ↩.
+        if (S.params.threadActive) pushHistory();
         S.params.threadExternal = ext;
         // Vnější/vnitřní mění hloubku profilu (60°: 0,6134P vs 0,5413P).
         S.params.threadDepth = Math.round(threadProfileDepth(S.params.threadType, parseFloat(S.params.threadPitch) || 0, ext) * 1000) / 1000;
+        const pick = S.params.threadActive ? autoPickToolFor('thread') : { msg: '' };
+        if (pick.msg) showToast(`Závit ${ext ? 'vnější' : 'vnitřní'}${pick.msg}`);
         applyChange();
       });
     });
@@ -7082,15 +7087,24 @@ export function openCamSimulator(initialContour, initialGCode) {
       const P = parseFloat(S.params.threadPitch) || 0;
       // Destička z ISO katalogu zná svůj rozsah stoupání (plný profil Tr/Acme
       // jen jedno); vlastní ▽ nůž se bere jako dřív jen podle úhlu.
-      const fits = (shape, tip, code) => shape === 'threading' && Math.abs((parseFloat(tip) || 0) - ang) < 0.5
-        && threadInsertFitsPitch(code, P);
-      if (fits(S.params.toolShape, S.params.toolTipAngle, S.params.toolVbdCode)) return same;
-      idx = mag.findIndex(s => fits(s.shape, s.tipAngle, s.vbdCode));
-      const what = `závitový nůž ${ang}°${P > 0 ? ` na P ${String(P).replace('.', ',')}` : ''}`;
-      const hint = isoThreadInsertHint(ang, P);
-      missing = hint
-        ? `v zásobníku není ${what} — přidej ${hint} z 🧰 Knihovna → 📚 ISO katalog → Závitové`
-        : `v zásobníku není ${what} a 📚 ISO katalog ho nemá — nakresli vlastní ▽ nůž`;
+      // …a stranu: vnější závit = destička ER, vnitřní = IR (tyč SNR), která
+      // se vejde do předvrtané díry ⌀(D − 2H) (viz ops/thread.js; ⌀ tyče =
+      // holderWidth, Dmin z katalogu).
+      const ext = S.params.threadExternal !== false;
+      const hole = (parseFloat(S.params.threadDiameter) || 0) - 2 * (parseFloat(S.params.threadDepth) || 0);
+      const fits = (shape, tip, code, barD) => shape === 'threading' && Math.abs((parseFloat(tip) || 0) - ang) < 0.5
+        && threadInsertFitsPitch(code, P) && threadInsertFitsSide(code, ext)
+        && (ext || !isoThreadInsertByCode(code) || isoBarFitsHole(barD, hole));
+      if (fits(S.params.toolShape, S.params.toolTipAngle, S.params.toolVbdCode, S.params.holderWidth)) return same;
+      idx = mag.findIndex(s => fits(s.shape, s.tipAngle, s.vbdCode, s.holderWidth));
+      const what = `${ext ? '' : 'vnitřní '}závitový nůž ${ang}°${P > 0 ? ` na P ${String(P).replace('.', ',')}` : ''}`;
+      const r = ext ? { hint: isoThreadInsertHint(ang, P) } : isoInternalThreadHint(ang, P, hole > 0 ? hole : Infinity);
+      const cz = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
+      missing = r && r.hint
+        ? `v zásobníku není ${what} — přidej ${r.hint} z 🧰 Knihovna → 📚 ISO katalog → ${ext ? 'Závitové' : 'Vnitřní (do díry)'}`
+        : r && r.holeMin
+          ? `v zásobníku není ${what} a do díry ⌀${cz(hole)} se tyč z 📚 ISO katalogu nevejde (nejmenší potřebuje ⌀${r.holeMin})`
+          : `v zásobníku není ${what} a 📚 ISO katalog ho nemá — nakresli vlastní ▽ nůž`;
     } else if (op === 'partoff') {
       if (S.params.toolShape === 'parting') return same;
       idx = mag.findIndex(s => s.shape === 'parting');

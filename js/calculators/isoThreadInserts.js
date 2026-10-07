@@ -2,7 +2,8 @@
 // ║  SKICA – závitové laydown destičky (11/16/22/27 ER) pro katalog ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
-// Vnější závitové destičky do držáku SER/SEL (📚 ISO katalog). Značení je
+// Závitové destičky do držáku SER/SEL (vnější, ER) a do kulaté tyče SNR/SNL
+// (vnitřní, IR — stejná řada, zrcadlová destička) v 📚 ISO katalogu. Značení je
 // de facto standard výrobců (ISO ho nepokrývá): velikost = délka hrany
 // trojúhelníku v mm (11ER IC 6,35 · 16ER 9,525 · 22ER 12,7 · 27ER 15,875),
 // pak profil:
@@ -74,6 +75,11 @@ export function isoThreadShanksFor(insert) {
   return Object.keys(THREAD_FIT).filter((k) => THREAD_FIT[k].includes(insert.size));
 }
 
+/** Popisek do výběru — u vnitřní destičky „16IR …" místo „16ER …". */
+export function isoThreadInsertLabel(insert, internal) {
+  return internal ? insert.label.replace(/^(\d+)ER/, '$1IR') : insert.label;
+}
+
 /**
  * Zub destičky pro CAM: šířka špičky a délka boku.
  * Plný profil: špička = dno vnějšího závitu (Tr: 0,366·P − 0,536·ac,
@@ -88,11 +94,21 @@ export function isoThreadTooth(insert) {
   return { flat: r2(flat), flank: r2((0.5 * P + c + 0.2) / Math.cos(half)) };
 }
 
-/** Destička podle kódu VBD („16ERAG60", „22EL4.0TR", „16ER 8 ACME"); jinak null. */
+/** Destička podle kódu VBD („16ERAG60", „22EL4.0TR", „16IR 8 ACME"); jinak null. */
 export function isoThreadInsertByCode(vbdCode) {
-  const m = /^(\d{2})E[RL](.+)$/.exec(String(vbdCode || '').toUpperCase().replace(/\s/g, ''));
+  const m = /^(\d{2})[EI][RL](.+)$/.exec(String(vbdCode || '').toUpperCase().replace(/\s/g, ''));
   if (!m) return null;
   return ISO_THREAD_INSERTS.find((x) => x.size === Number(m[1]) && x.code.toUpperCase() === m[2]) || null;
+}
+
+/**
+ * Sedí destička na stranu závitu? ER = vnější, IR = vnitřní. Nůž, který
+ * katalog nezná (vlastní ▽), bere jako dřív vždy.
+ */
+export function threadInsertFitsSide(vbdCode, external) {
+  if (!isoThreadInsertByCode(vbdCode)) return true;
+  const internal = /^\d{2}I/.test(String(vbdCode).toUpperCase().replace(/\s/g, ''));
+  return internal !== (external !== false);
 }
 
 /** Sedí destička na stoupání P? Nůž, který katalog nezná (vlastní ▽), bere jako dřív vždy. */
@@ -102,14 +118,19 @@ export function threadInsertFitsPitch(vbdCode, P) {
   return P >= ins.pMin - 0.01 && P <= ins.pMax + 0.01;
 }
 
+/** Destičky pro úhel profilu a stoupání (pořadí katalogu). */
+export function isoThreadInsertsForPitch(angle, P) {
+  return ISO_THREAD_INSERTS.filter((x) => Math.abs(x.angle - angle) < 0.5 && P >= x.pMin - 0.01 && P <= x.pMax + 0.01);
+}
+
 /**
- * Destička z katalogu pro úhel profilu a stoupání → text rady („16ER 2.0TR",
- * když nejde do každého dříku, i dřík), nebo null, když ji katalog nemá.
- * Z více vhodných ta, která jde do nejvíc dříků (AG60 před A60).
+ * Vnější destička z katalogu pro úhel profilu a stoupání → text rady
+ * („16ER 2.0TR", když nejde do každého dříku, i dřík), nebo null, když ji
+ * katalog nemá. Z více vhodných ta, která jde do nejvíc dříků (AG60 před
+ * A60). Vnitřní: isoInternalThreadHint (isoInternalTools.js — zná díru).
  */
 export function isoThreadInsertHint(angle, P) {
-  const ins = ISO_THREAD_INSERTS
-    .filter((x) => Math.abs(x.angle - angle) < 0.5 && P >= x.pMin - 0.01 && P <= x.pMax + 0.01)
+  const ins = isoThreadInsertsForPitch(angle, P)
     .sort((a, b) => isoThreadShanksFor(b).length - isoThreadShanksFor(a).length)[0];
   if (!ins) return null;
   const shanks = isoThreadShanksFor(ins);

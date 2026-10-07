@@ -823,7 +823,11 @@ závitový nůž (▽) se **stejným úhlem profilu** jako závit (60° M/UN, 55
 první v pořadí T. Nůž z 📚 ISO katalogu musí sedět i **stoupáním** (16ER AG60
 jen P 0,5–3, Tr destička jen na své jedno stoupání); když v zásobníku není,
 hláška řekne, kterou destičku z katalogu přidat (např. „22ER 4.0TR (dřík
-25×25, 32×32)"), nebo že ji katalog nemá. Vlastní ▽ nůž bez kódu z katalogu
+25×25, 32×32)"), nebo že ji katalog nemá. U **vnitřního** závitu se bere
+vnitřní destička (IR v tyči SNR) a tyč se musí vejít do předvrtané díry
+⌀(D − 2H) — rada pak nabídne jen tyče, které do díry vlezou, nebo řekne,
+že nejmenší tyč potřebuje větší díru. Přepnutí Vnější / Vnitřní při
+aktivním závitu nůž vymění taky. Vlastní ▽ nůž bez kódu z katalogu
 se bere jako dřív jen podle úhlu. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
 výkresu), vybere se **upichovák** (▮); kulatý nůž, který upichnutí umí, se
 nechá. Když se zapne **vrtání** (Vrtání → ✅ Aktivní), vybere se první
@@ -916,6 +920,34 @@ a řezné podmínky jsou **orientační** — data v `js/calculators/isoDrills.j
 profil je destička na **jedno** stoupání, šířka špičky = dno závitu. Tr nad
 P 6 a Acme hrubší než 4 z/″ katalog nemá. Rozsahy jsou běžné řady výrobců
 — orientační.
+
+**Vnitřní (do díry)** — ocelové vyvrtávací tyče a vnitřní závitový nůž.
+Místo dříku nahoře se na kartě volí **tyč ⌀** (10–40 mm); u každé je
+napsaná nejmenší díra, do které se tyč se špičkou vejde (**Dmin**), a čip
+s rozumným vyložením ocelové tyče (4×⌀). Ruka R/L nahoře platí.
+
+| Tyč | Destička | κr | Na co |
+|---|---|---|---|
+| S..-PCLNR / SCLCR | C 80° (CNMG od ⌀20 / CCMT) | 95° | vyvrtávání do osazení i dna díry |
+| S..-STFCR | T 60° (TCMT) | 91° | malé díry, malé řezné síly |
+| S..-PDUNR / SDUCR | D 55° (DNMG od ⌀20 / DCMT) | 93° | kopírování v díře, zanoření do ~30° |
+| S..-PDQNR / SDQCR | D 55° | 107,5° | kopírování se zpětným záběrem |
+| S..-SVUBR | V 35° (VBMT, od ⌀16) | 93° | jemné kopírování, úzká vybrání |
+| SNR / SNL | 11–27IR (stejná řada jako ER) | — | vnitřní závit |
+
+| Tyč ⌀ | 10 | 12 | 16 | 20 | 25 | 32 | 40 |
+|---|---|---|---|---|---|---|---|
+| délka l1 | 125 (K) | 150 (M) | 180 (Q) | 250 (S) | 300 (T) | 350 (U) | 400 (V) |
+| f (špička → osa tyče) | 7 | 9 | 11 | 13 | 17 | 22 | 27 |
+| Dmin (nejmenší díra) | 13 | 16 | 20 | 25 | 32 | 40 | 50 |
+
+Negativní destička (upnutí páčkou) se do hlavy vejde až od tyče ⌀20;
+destička nesmí vyčnívat nad tyč víc než 1,5 mm (proto V16 až od ⌀25).
+Náhled kreslí tyč tak, jak jde v díře podél osy (destička u stěny díry,
+tyč vede ven z díry). **CAM zatím soustruží jen vnější obrys** — vnitřní
+nože jdou do zásobníku a použijí se na vnitřní závit; operace Vyvrtávání
+přijde zvlášť. Rozměry jsou **orientační** — data
+v `js/calculators/isoInternalTools.js`.
 
 Tlačítka:
 
