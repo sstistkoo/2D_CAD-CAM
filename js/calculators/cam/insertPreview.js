@@ -10,6 +10,13 @@ export const PARTING_BODY_MIN_H_MM = 15;
 // nejběžnější velikost) — JEN pro kreslení celé destičky, výpočet ji nečte.
 export const THREADING_INSERT_EDGE_MM = 16;
 
+/** Hrana tělesa závitové destičky podle kódu (11/16/22/27 ER/IR = hrana v mm), jinak 16. */
+export function threadingInsertEdgeMM(prms) {
+  const m = /^(\d{2})[EI][RL]/.exec(String((prms && prms.toolVbdCode) || '').replace(/\s/g, ''));
+  const edge = m ? Number(m[1]) : 0;
+  return edge >= 8 && edge <= 40 ? edge : THREADING_INSERT_EDGE_MM;
+}
+
 // ── Náhled geometrie destičky + držáku (dialog "⚙️ Geometrie") ────
 // Samostatná, na S/simulaci nezávislá kreslicí funkce — kreslí vždy v
 // kanonické orientaci (bez ohledu na S.flipX/flipZ/roughingSide, což jsou
@@ -530,15 +537,15 @@ export function threadingToothSegments(prms) {
   return segsFromPoints([{ x: -a, z: dz }, { x: -f2, z: 0 }, { x: f2, z: 0 }, { x: a, z: dz }]);
 }
 
-// Celá závitová destička: rovnostranný trojúhelník (hrana
-// THREADING_INSERT_EDGE_MM) se ZUBEM v každém ze tří rohů jako skutečná
+// Celá závitová destička: rovnostranný trojúhelník (hrana podle kódu
+// destičky, threadingInsertEdgeMM — výchozí 16) se ZUBEM v každém ze tří rohů jako skutečná
 // destička 16ER/IR. Boky tělesa procházejí horními rohy zubů — u 60° tak
 // bok zubu plynule pokračuje bokem tělesa, u 55°/30°/29° se v rohu zubu
 // zalomí. Zuby ostatních rohů = pracovní zub otočený o ±120° kolem těžiště.
 // Výpočet závitovou destičku dál nebere (buildInsertProfileSegments → []).
 function threadingOutlineSegments(prms) {
   const { f2, dz, a } = threadingTooth(prms);
-  const S = Math.max(THREADING_INSERT_EDGE_MM, 4 * a + 2);
+  const S = Math.max(threadingInsertEdgeMM(prms), 4 * a + 2);
   const zApex = dz - a * Math.sqrt(3);              // vrchol tělesa pod zubem
   const c = { x: 0, z: zApex + S / Math.sqrt(3) };  // těžiště
   const tooth = [{ x: -a, z: dz }, { x: -f2, z: 0 }, { x: f2, z: 0 }, { x: a, z: dz }];

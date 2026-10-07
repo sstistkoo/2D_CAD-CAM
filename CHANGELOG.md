@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **📚 Katalog — závitové destičky 11/16/22/27ER, Tr a Acme** (uživatel
+  7. 10. 2026). Dřív jen 16ER AG60/AG55 (P 0,5–3): Tr a Acme závit
+  automatický výběr nože hlásil „přidej nůž 30° z katalogu" — a katalog
+  ho neměl; M36 a hrubší (P 4–6) neměly destičku vůbec. Teď částečný
+  profil 60°/55° v řadách A (11ER, P 0,5–1,5), AG (16ER, P 0,5–3),
+  N (22ER, P 3,5–5), Q (27ER, P 5,5–6 · 4,5–4 z/″) a plný profil Tr 30°
+  (P 1,5–6) a Acme 29° (16–4 z/″) — destička na jedno stoupání, špička
+  = dno závitu. Destička jen do dříku aspoň tak širokého, jako je její
+  hrana (27ER jen 32×32). Celá destička se kreslí ve své velikosti
+  (`threadingInsertEdgeMM` podle kódu, dřív vždy 16 mm). Tabulka
+  v `js/calculators/isoThreadInserts.js`, rozměry ORIENTAČNÍ.
+- **Automatický výběr závitového nože hlídá stoupání:** destička z katalogu
+  se vezme jen na stoupání ze svého rozsahu (plný profil Tr/Acme jen na
+  své), hláška poradí konkrétní destičku („přidej 22ER 4.0TR … (dřík 25×25,
+  32×32)") nebo řekne, že ji katalog nemá. Nůž mimo katalog (vlastní ▽) se
+  bere jako dřív jen podle úhlu. Destička z katalogu se při výběru jiného
+  závitu už nepřetvoří na jiný úhel (AG60 se Tr destičkou nestane).
+
 ### Changed
 - **Hrubovací nůž zásobníku = PSBNR 2525M12 + SNMG 120408 podle ISO**
   (uživatel 6. 10. 2026: „čtverec natočený na hrubování 15°" — jeho ručně
@@ -23,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Tr závit: hloubka a průměry podle ISO 2904.** Vůle ve dně ac byla
+  vždy 0,25 mm; správně 0,15 (P 1,5) / 0,25 (P 2–5) / 0,5 (P 6–12) /
+  1 mm (P 14+). Hloubka Tr P 6–12 byla o 0,25 mm mělčí, Tr P 1,5 o 0,1 mm
+  hlubší (CAM — auto H při výběru závitu — i kalkulačka Závity). Kalkulačka
+  navíc ukazovala vnější ⌀ matice D₄ = D − 2·ac; správně D + 2·ac
+  (Tr 20×4: 20,5, ne 19,5). Uložené programy mají H uložené — změní se až
+  novým výběrem závitu.
 - **Podélné hrubování: poslední vrstva už nepustí držák do stojícího
   zbytku** (nález 6. 10. 2026 na dílu uživatele — PCLNR 9 kolizí držáku
   až 24 mm², PWLNR 4). Údolí za hrbem bylo pro nůž s vedlejší hranou 5°

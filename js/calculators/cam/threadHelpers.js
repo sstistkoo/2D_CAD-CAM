@@ -1,9 +1,11 @@
 // ── ZÁVITOVÁNÍ: sdílené výpočty ───────────────────────────────────────────
 import { getInsert } from './inserts/index.js';
+import { trClearanceAc } from '../threadData.js';
 // Hloubka profilu závitu [mm, radiálně] podle typu (stejné vzorce jako
 // kalkulačka Závity v CAD — detailMetric/detailG/detailTr/… v thread.js).
 export function threadProfileDepth(typeKey, P, external) {
-  if (typeKey === 'tr' || typeKey === 'acme') return 0.5 * P + 0.25;           // lichoběžník: H1 + vůle ac
+  if (typeKey === 'tr') return 0.5 * P + trClearanceAc(P);                     // Tr: H1 + vůle ac (0,15–1 mm podle P)
+  if (typeKey === 'acme') return 0.5 * P + 0.25;                               // Acme: H1 + vůle
   if (typeKey === 'g' || typeKey === 'bspt' || typeKey === 'bsw') return 0.6403 * P; // Whitworth 55°
   return external ? 0.6134 * P : 0.5413 * P;                                   // ISO / UN 60°
 }

@@ -8,10 +8,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  ISO_HOLDER_TYPES, ISO_SHANKS, ISO_THREAD_INSERTS, isoVariants, isoSizes, isoRadii, isoGrooveWidths,
+  ISO_HOLDER_TYPES, ISO_SHANKS, isoThreadInsertsFor, isoVariants, isoSizes, isoRadii, isoGrooveWidths,
   buildIsoKnife, isoCatalogCount, isoKnifeSvg, upgradeIsoHolderProfile, parseIsoKnifeName,
 } from '../js/calculators/isoToolCatalog.js';
-import { buildInsertProfileSegments } from '../js/calculators/cam/insertPreview.js';
+import { buildInsertProfileSegments, threadingToothSegments } from '../js/calculators/cam/insertPreview.js';
 import { CAM_TOOL_KEYS, DEFAULT_TOOL_MAGAZINE } from '../js/calculators/cam/camToolPicker.js';
 import { paramsFromMagSlot } from '../js/calculators/cam/toolSlotPreview.js';
 import { knifeThumbSvg } from '../js/calculators/knifeThumb.js';
@@ -24,7 +24,7 @@ function allCombos() {
   for (const t of ISO_HOLDER_TYPES) {
     for (const sh of ISO_SHANKS) {
       if (t.special === 'parting') isoGrooveWidths(sh.code).forEach((g) => out.push([t.id, { shank: sh.code, width: g.w }]));
-      else if (t.special === 'threading') ISO_THREAD_INSERTS.forEach((th) => out.push([t.id, { shank: sh.code, thread: th.id }]));
+      else if (t.special === 'threading') isoThreadInsertsFor(sh.code).forEach((th) => out.push([t.id, { shank: sh.code, thread: th.id }]));
       else {
         for (const variant of isoVariants(t, sh.code)) {
           for (const size of isoSizes(t, variant, sh.code)) {
@@ -91,10 +91,9 @@ describe('ISO katalog — všechny kombinace', () => {
       if (loop.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.z))) bad.push(`${rec.name}: NaN`);
       if (selfIntersects(loop)) bad.push(`${rec.name}: samoprotnutí`);
       if (!holderProfileLoop(rec.tool)) bad.push(`${rec.name}: CAM obrys nepřijme`);
-      if (rec.tool.toolShape !== 'threading') {
-        const overlap = Math.abs(polyArea(polyIntersect([loop.slice(0, -1)], [cutLoop(rec.tool)])));
-        if (overlap > 0.05) bad.push(`${rec.name} ${rec.vbdCode}: držák v řezné části ${overlap.toFixed(3)} mm²`);
-      }
+      const cut = rec.tool.toolShape === 'threading' ? threadingToothSegments(rec.tool).map((s) => s.from) : cutLoop(rec.tool);
+      const overlap = Math.abs(polyArea(polyIntersect([loop.slice(0, -1)], [cut])));
+      if (overlap > 0.05) bad.push(`${rec.name} ${rec.vbdCode}: držák v řezné části ${overlap.toFixed(3)} mm²`);
     }
     expect(bad).toEqual([]);
   });
@@ -135,6 +134,9 @@ describe('kódy ISO 5608 / ISO 1832', () => {
     ['RG', { shank: '1616', hand: 'L', size: '08' }, 'SRGCL1616H08', 'RCMT0803M0', 7],
     ['GR', { shank: '2525' }, 'MGEHR2525-3', 'MGMN300-M', 0],
     ['TH', { shank: '2525', hand: 'L', thread: 'AG55' }, 'SEL2525M16', '16ELAG55', 0],
+    ['TH', { shank: '1616', thread: 'A60' }, 'SER1616H11', '11ERA60', 0],
+    ['TH', { shank: '2525', thread: 'TR4' }, 'SER2525M22', '22ER4.0TR', 0],
+    ['TH', { shank: '3232', hand: 'L', thread: 'ACME4' }, 'SEL3232P27', '27EL4ACME', 0],
   ])('%s %j → %s + %s', (id, opts, holder, insert, alpha) => {
     const rec = buildIsoKnife(id, opts);
     expect(rec.name).toBe(holder);

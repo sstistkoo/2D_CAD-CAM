@@ -3,7 +3,7 @@ import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { autoPassCount, flankInfeedAngle, threadPasses } from './threadPassesMath.js';
 import { iso965Limits, gradeTolerances, STD_DRILLS, tapDrill, threadPercent } from './iso965.js';
-import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
+import { trClearanceAc, mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
 
 export function openThreadCalc() {
   // ── DATA ──────────────────────────────────────────────────
@@ -300,10 +300,10 @@ export function openThreadCalc() {
   function detailTr(D, P, label, starts) {
     starts = starts || 1;
     var H1   = 0.5 * P;
-    var ac   = 0.25;
+    var ac   = trClearanceAc(P);   // ISO 2904: 0,15 / 0,25 / 0,5 / 1 mm podle P
     var d2   = D - 0.5 * P;
     var d3   = D - P - 2 * ac;
-    var D4   = D - 2 * ac;
+    var D4   = D + 2 * ac;          // matice je ve dně o ac větší než šroub
     var D1   = D - P;
     var hExt = H1 + ac;
     var drill = D - P - 0.5;

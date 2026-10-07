@@ -54,6 +54,10 @@ export const gThreads = [
 ];
 
 // Tr trapézový – ISO 2904, úhel 30°
+/** Vůle ve dně Tr závitu ac [mm] podle stoupání (ISO 2904 / DIN 103): hloubka h3 = 0,5·P + ac. */
+export function trClearanceAc(P) {
+  return P <= 1.5 ? 0.15 : P <= 5 ? 0.25 : P <= 12 ? 0.5 : 1;
+}
 export const trThreads = [
   {D:8,P:1.5},{D:9,P:1.5},{D:9,P:2},{D:10,P:2},{D:10,P:3},
   {D:11,P:2},{D:11,P:3},{D:12,P:2},{D:12,P:3},{D:14,P:2},

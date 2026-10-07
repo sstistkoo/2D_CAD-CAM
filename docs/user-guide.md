@@ -669,7 +669,8 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   takže se s ní nepočítá a dráhy se tím nemění. Trojúhelníková destička
   (ε 60°) je celá už sama; u VBD kódu W (trigon) se zadní půlka nedokresluje.
   **Závitová destička** se kreslí taky celá: rovnostranný trojúhelník
-  (16ER/IR, hrana 16 mm) se zubem v každém rohu. Zub má profil zvoleného
+  se zubem v každém rohu, hrana podle kódu destičky (11/16/22/27ER/IR =
+  11/16/22/27 mm; bez kódu 16 mm). Zub má profil zvoleného
   závitu (60° M/UNC/UNF/NPT, 55° G/BSPT/BSW, 30° Tr, 29° Acme), pracovní
   zub je plně, zbytek destičky světle. Výpočet ji nebere, dráhy se nemění.
 - **natočeni PU(°)** (polární úhel; dřív "Natočení") má vedle sebe tlačítko **✛** — otevře
@@ -782,7 +783,11 @@ prázdný: u **posledního** nože se 🗑 Smazat nezobrazí.
 **Automatický výběr nože podle operace:** když se zapne **závit** (Závit →
 ✅ Aktivní, nebo výběr jiného závitu při aktivním), vybere se ze zásobníku
 závitový nůž (▽) se **stejným úhlem profilu** jako závit (60° M/UN, 55° G/BSW…),
-první v pořadí T. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
+první v pořadí T. Nůž z 📚 ISO katalogu musí sedět i **stoupáním** (16ER AG60
+jen P 0,5–3, Tr destička jen na své jedno stoupání); když v zásobníku není,
+hláška řekne, kterou destičku z katalogu přidat (např. „22ER 4.0TR (dřík
+25×25, 32×32)"), nebo že ji katalog nemá. Vlastní ▽ nůž bez kódu z katalogu
+se bere jako dřív jen podle úhlu. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
 výkresu), vybere se **upichovák** (▮); kulatý nůž, který upichnutí umí, se
 nechá. Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
 nástroj zůstane a hláška poradí přidat ho z 🧰 Knihovna → 📚 ISO katalog.
@@ -838,13 +843,31 @@ kopírovací, srážecí, zapichovací, závitové).
 | SRSCR | R (RCMT) | — | kulatá v rohu dříku, hlava sražená 45° — destička vyčnívá o R, **dojede k čelu / osazení** |
 | SRGCR | R (RCMT) | — | kulatá v rohu dříku, rovné čelo hlavy — dojede k čelu, tužší |
 | MGEHR | MGMN 2–5 mm | — | zapichování, upichování |
-| SER | 16ER AG60 / AG55 | — | vnější závit 60° / 55° — rovný dřík, destička v rohu jeho konce |
+| SER | 11–27ER: A/AG/N/Q 60° a 55°, Tr, Acme | — | vnější závit — rovný dřík, destička v rohu jeho konce (viz tabulka níž) |
 
 U každé karty se vybere **negativní / pozitivní** destička (kde existují
 obě), **velikost** (např. CNMG 0904 / 1204 / 1606) a **rádius rε**. Do
 držáku jdou i o stupeň menší/větší destičky než nejběžnější řada (hlava se
 postaví podle destičky); kulaté RCMT 06–32 mm v rozsahu průměru 0,3·b až b.
-Katalog takhle umí přes 760 kombinací. Klik na náhled ho zvětší. Tlačítka:
+Katalog takhle umí přes 800 kombinací. Klik na náhled ho zvětší.
+
+**Závitové destičky (SER/SEL)** — výběr podle dříku:
+
+| Destička | Profil | Stoupání | Dřík |
+|---|---|---|---|
+| 11ER A60 / A55 | částečný 60° / 55° | P 0,5–1,5 · 48–16 z/″ | 16×16, 20×20 |
+| 16ER AG60 / AG55 | částečný 60° / 55° | P 0,5–3 · 48–8 z/″ | všechny |
+| 22ER N60 / N55 | částečný 60° / 55° | P 3,5–5 · 7–5 z/″ | 25×25, 32×32 |
+| 27ER Q60 / Q55 | částečný 60° / 55° | P 5,5–6 · 4,5–4 z/″ | 32×32 |
+| 16 / 22 / 27ER …TR | plný Tr 30° | P 1,5–3 / 4–5 / 6 | jako řádky nad |
+| 16 / 22 / 27ER …ACME | plný Acme 29° | 16–8 / 6–5 / 4 z/″ | jako řádky nad |
+
+Částečný profil řeže celý rozsah stoupání, ale vrchol závitu nedělá. Plný
+profil je destička na **jedno** stoupání, šířka špičky = dno závitu. Tr nad
+P 6 a Acme hrubší než 4 z/″ katalog nemá. Rozsahy jsou běžné řady výrobců
+— orientační.
+
+Tlačítka:
 
 - **✅ Použít** — nůž se nastaví jako aktuální (destička, držák s obrysem
   hlavy, Vc/f/ap), okno se zavře.

@@ -41,6 +41,7 @@ import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPrev
 import { knifeThumbSvg } from './knifeThumb.js';
 import { isoDefaultKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from './magazineDefaults.js';
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
+import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch } from './isoThreadInserts.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -6738,15 +6739,17 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.params.threadTaperRatio = typeDef.taper ? 16 : 0;
     // Závitový plátek přebírá úhel profilu; náběh standardně 2×P (min 2 mm).
     S.params.threadRunIn = Math.max(2, Math.round(2 * P * 10) / 10);
-    // Spodní strana plátku: Tr/Acme = šířka dna profilu ≈ 0,366×P, jinak 0,1.
-    S.params.toolTipFlat = (typeDef.key === 'tr' || typeDef.key === 'acme')
-      ? Math.round(0.366 * P * 100) / 100 : 0.1;
     // Při AKTIVNÍM závitování vybrat ze zásobníku nůž s úhlem nového profilu
     // (autoPickToolFor); jinak jako dřív — závitový plátek převezme úhel.
+    // Destička z ISO katalogu se nepřetváří: AG60 se Tr destičkou nestane
+    // (autoPickToolFor poradí, kterou přidat).
     const pick = S.params.threadActive ? autoPickToolFor('thread') : { changed: false, msg: '' };
-    if (S.params.toolShape === 'threading' && !pick.changed) {
+    if (S.params.toolShape === 'threading' && !pick.changed && !isoThreadInsertByCode(S.params.toolVbdCode)) {
       S.params.toolTipAngle = typeDef.angle;
       S.params.toolRadius = 0;
+      // Spodní strana plátku: Tr/Acme = šířka dna profilu ≈ 0,366×P, jinak 0,1.
+      S.params.toolTipFlat = (typeDef.key === 'tr' || typeDef.key === 'acme')
+        ? Math.round(0.366 * P * 100) / 100 : 0.1;
     }
     S.machiningSubTab = 'zavit';
     const taperNote = typeDef.taper ? ' — kuželový 1:16 (nastaveno, ⌀ D platí na Z startu)' : '';
@@ -6946,10 +6949,18 @@ export function openCamSimulator(initialContour, initialGCode) {
     let idx = -1, missing = '';
     if (op === 'thread') {
       const ang = parseFloat(S.params.threadAngle) || 60;
-      const fits = (shape, tip) => shape === 'threading' && Math.abs((parseFloat(tip) || 0) - ang) < 0.5;
-      if (fits(S.params.toolShape, S.params.toolTipAngle)) return same;
-      idx = mag.findIndex(s => fits(s.shape, s.tipAngle));
-      missing = `v zásobníku není závitový nůž ${ang}° — přidej ho z 🧰 Knihovna → 📚 ISO katalog`;
+      const P = parseFloat(S.params.threadPitch) || 0;
+      // Destička z ISO katalogu zná svůj rozsah stoupání (plný profil Tr/Acme
+      // jen jedno); vlastní ▽ nůž se bere jako dřív jen podle úhlu.
+      const fits = (shape, tip, code) => shape === 'threading' && Math.abs((parseFloat(tip) || 0) - ang) < 0.5
+        && threadInsertFitsPitch(code, P);
+      if (fits(S.params.toolShape, S.params.toolTipAngle, S.params.toolVbdCode)) return same;
+      idx = mag.findIndex(s => fits(s.shape, s.tipAngle, s.vbdCode));
+      const what = `závitový nůž ${ang}°${P > 0 ? ` na P ${String(P).replace('.', ',')}` : ''}`;
+      const hint = isoThreadInsertHint(ang, P);
+      missing = hint
+        ? `v zásobníku není ${what} — přidej ${hint} z 🧰 Knihovna → 📚 ISO katalog → Závitové`
+        : `v zásobníku není ${what} a 📚 ISO katalog ho nemá — nakresli vlastní ▽ nůž`;
     } else if (op === 'partoff') {
       if (S.params.toolShape === 'parting') return same;
       idx = mag.findIndex(s => s.shape === 'parting');

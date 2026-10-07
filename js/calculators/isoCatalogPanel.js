@@ -8,7 +8,7 @@
 // 🧰 Uložit jdou stejnou cestou jako uložené nože.
 
 import {
-  ISO_HOLDER_TYPES, ISO_GROUPS, ISO_SHANKS, ISO_THREAD_INSERTS, isoVariants, isoSizes, isoRadii,
+  ISO_HOLDER_TYPES, ISO_GROUPS, ISO_SHANKS, isoThreadInsertsFor, isoVariants, isoSizes, isoRadii,
   isoGrooveWidths, isoInsertLabel, buildIsoKnife, isoKnifeSvg, isoCatalogCount,
 } from './isoToolCatalog.js';
 import { RADIUS_MM, SHAPES } from './vbdIso.js';
@@ -62,7 +62,8 @@ export function mountIsoCatalog(root, opts) {
       return select('width', isoGrooveWidths(st.shank).map((g) => [g.w, `š ${g.w} mm · ${g.code}`]), k.width, 'Šířka zapichovací destičky');
     }
     if (t.special === 'threading') {
-      return select('thread', ISO_THREAD_INSERTS.map((x) => [x.id, x.label]), k.thread, 'Profil závitové destičky');
+      return select('thread', isoThreadInsertsFor(st.shank).map((x) => [x.id, x.label]), k.thread,
+        'Závitová destička — částečný profil 60° / 55° na rozsah stoupání, plný profil Tr / Acme jen na jedno stoupání');
     }
     let html = '';
     const vars = isoVariants(t, st.shank);

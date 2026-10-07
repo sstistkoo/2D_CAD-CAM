@@ -24,7 +24,10 @@
 //   čelně, styl F/K (hlavní hrana proti posuvu −X): θ = κr − 90
 
 import { SHAPES, sizeInfo, CLEARANCE_DEG, RADIUS_MM } from './vbdIso.js';
-import { buildInsertProfileSegments, buildInsertOutlineSegments, PARTING_BODY_MIN_H_MM } from './cam/insertPreview.js';
+import { buildInsertProfileSegments, buildInsertOutlineSegments, PARTING_BODY_MIN_H_MM, threadingInsertEdgeMM } from './cam/insertPreview.js';
+import { ISO_THREAD_INSERTS, isoThreadInsertById, isoThreadInsertsFor, isoThreadTooth } from './isoThreadInserts.js';
+
+export { ISO_THREAD_INSERTS, isoThreadInsertsFor };
 import { segPoints, knifeThumbSvg } from './knifeThumb.js';
 
 /**
@@ -110,7 +113,7 @@ export const ISO_HOLDER_TYPES = [
   { id: 'GR', special: 'parting', groups: ['groove'],
     desc: 'Zapichování a upichování — destička MGMN šířky 2–5 mm, levý bok v rovině s držákem.' },
   { id: 'TH', special: 'threading', groups: ['thread'],
-    desc: 'Vnější závit — laydown destička 16ER, částečný profil AG60 (60°) / AG55 (55°).' },
+    desc: 'Vnější závit — laydown destička 11–27ER: částečný profil 60° / 55° (rozsah stoupání), plný profil Tr 30° a Acme 29° (jedno stoupání).' },
 ];
 
 /** Zapichovací destičky MGMN (výrobcovské značení, ISO je nepokrývá); tmax = max. hloubka zápichu. */
@@ -121,12 +124,6 @@ export const ISO_GROOVE_INSERTS = [
   { w: 5, code: 'MGMN500-M', r: 0.8, tmax: 23 },
 ];
 const GROOVE_FIT = { 1616: [2, 3], 2020: [2, 4], 2525: [2, 5], 3232: [3, 5] };
-
-/** Závitové laydown destičky 16ER (de facto standard, IC 9,525). */
-export const ISO_THREAD_INSERTS = [
-  { id: 'AG60', angle: 60, label: 'AG60 · 60° (M, UN), P 0,5–3' },
-  { id: 'AG55', angle: 55, label: 'AG55 · 55° (G, BSW), 8–48 z/″' },
-];
 
 const RELIEF_DEG = 3;          // úleva boků hlavy od hran destičky
 /**
@@ -153,7 +150,6 @@ const HOLDER_GEOM = {
   3: { edge: 1, round: 0.5, relief: 20 },
 };
 export const ISO_HOLDER_VERSION = 3;
-const THREAD_FLANK_MM = 2.5;   // bok zubu AG (hloubka do P 3 mm ≈ 1,8 mm)
 
 const rad = (d) => d * Math.PI / 180;
 const r3 = (v) => Math.round(v * 1000) / 1000;
@@ -185,7 +181,7 @@ export function isoSizes(type, variant, shankCode) {
 /** Varianty (neg/pos), pro které má dřík aspoň jednu velikost. */
 export function isoVariants(type, shankCode) {
   if (type.special === 'parting') return isoGrooveWidths(shankCode).length ? ['neg'] : [];
-  if (type.special === 'threading') return ['neg'];
+  if (type.special === 'threading') return isoThreadInsertsFor(shankOf(shankCode).code).length ? ['neg'] : [];
   return ['neg', 'pos'].filter((v) => isoSizes(type, v, shankCode).length > 0);
 }
 
@@ -365,7 +361,8 @@ function partingHolder(prms, g, sh) {
 }
 
 /**
- * Obrys závitového držáku (SER/SEL): ROVNÝ dřík šířky b, destička leží
+ * Obrys závitového držáku (SER/SEL): ROVNÝ dřík šířky b, destička (hrana
+ * podle velikosti 11/16/22/27ER, threadingInsertEdgeMM) leží
  * v levém rohu jeho konce (trojúhelník jako threadingOutlineSegments —
  * levý roh destičky v rovině s bokem dříku), dolní polovina se zubem
  * vyčnívá přes čelo dříku. Protilehlý roh čela je sražený (jako na výkresu
@@ -374,10 +371,13 @@ function partingHolder(prms, g, sh) {
 function threadingHolder(prms, sh) {
   const half = rad(prms.toolTipAngle / 2), L = prms.toolLength, f2 = prms.toolTipFlat / 2;
   const dz = Math.cos(half) * L, a = f2 + Math.sin(half) * L;
-  const S = Math.max(16, 4 * a + 2), zApex = dz - a * Math.sqrt(3);
+  const S = Math.max(threadingInsertEdgeMM(prms), 4 * a + 2), zApex = dz - a * Math.sqrt(3);
   const zEnd = zApex + 0.5 * S * Math.sqrt(3) / 2;          // čelo dříku v půlce výšky destičky
+  // Půlšířka destičky: u lichoběžníkových zubů (Tr, Acme) vyčnívají horní
+  // rohové zuby kousek za vrcholy trojúhelníku — bok dříku musí jít za ně.
+  const w2 = Math.max(S / 2, ...segPoints(buildInsertOutlineSegments(prms)).map((p) => Math.abs(p.x)));
   // Sražení jen vedle destičky — u úzkého dříku (16×16) by šlo přes ni.
-  const xL = -(S / 2 + 0.5), xR = xL + sh.b, c = Math.max(0, Math.min(0.3 * sh.b, xR - S / 2 - 1));
+  const xL = -(w2 + 0.5), xR = xL + sh.b, c = Math.max(0, Math.min(0.3 * sh.b, xR - w2 - 1));
   return closeLoop([{ x: xL, z: zEnd }, { x: xR - c, z: zEnd }, { x: xR, z: zEnd + c },
     { x: xR, z: sh.l1 }, { x: xL, z: sh.l1 }]);
 }
@@ -448,10 +448,15 @@ export function buildIsoKnife(typeId, opts = {}) {
       iso: { type: type.id, shank: sh.code, hand, width: g.w } });
   }
   if (type.special === 'threading') {
-    const th = ISO_THREAD_INSERTS.find((x) => x.id === opts.thread) || ISO_THREAD_INSERTS[0];
-    const prms = { toolShape: 'threading', toolLength: THREAD_FLANK_MM, toolRadius: 0, toolAngle: 0, toolTipAngle: th.angle, toolTipFlat: 0.1, toolClearanceAngle: 0 };
-    return knifeRecord({ name: `SE${hand}${sh.code}${sh.len}16`, vbdCode: `16E${hand}${th.id}`, holder: threadingHolder(prms, sh), prms, sh, hand,
-      cut: { vc: 100, f: 1.5, ap: 0.1 }, desc: type.desc,
+    const th = isoThreadInsertsFor(sh.code).find((x) => x.id === opts.thread) || isoThreadInsertById(def.thread);
+    const { flat, flank } = isoThreadTooth(th);
+    const vbdCode = `${th.size}E${hand}${th.code}`;
+    const prms = { toolShape: 'threading', toolLength: flank, toolRadius: 0, toolAngle: 0, toolTipAngle: th.angle, toolTipFlat: flat,
+      toolClearanceAngle: 0, toolVbdCode: vbdCode };
+    // Posuv = stoupání: plný profil jen to jedno, částečný 1,5 mm v rámci rozsahu.
+    const f = th.kind === 'partial' ? Math.min(Math.max(1.5, th.pMin), th.pMax) : th.P;
+    return knifeRecord({ name: `SE${hand}${sh.code}${sh.len}${th.size}`, vbdCode, holder: threadingHolder(prms, sh), prms, sh, hand,
+      cut: { vc: 100, f: r3(f), ap: 0.1 }, desc: type.desc,
       iso: { type: type.id, shank: sh.code, hand, thread: th.id } });
   }
 
@@ -487,7 +492,7 @@ export function isoCatalogCount() {
   for (const t of ISO_HOLDER_TYPES) {
     for (const sh of ISO_SHANKS) {
       if (t.special === 'parting') { n += isoGrooveWidths(sh.code).length; continue; }
-      if (t.special === 'threading') { n += ISO_THREAD_INSERTS.length; continue; }
+      if (t.special === 'threading') { n += isoThreadInsertsFor(sh.code).length; continue; }
       for (const v of isoVariants(t, sh.code)) {
         for (const sz of isoSizes(t, v, sh.code)) n += Math.max(1, isoRadii(t, sz).length);
       }
