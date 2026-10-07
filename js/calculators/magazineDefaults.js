@@ -14,12 +14,16 @@
 //   Zavit      → SER 2525M16 + 16ER AG60
 //   Upichovak  → MGEHR 2525-5 + MGMN 500-M     (š 5, R 0,8 jako dřív)
 //
+// Za nimi (bez staré předlohy) vrták HSS ⌀20 z 📚 katalogu (isoDrills.js)
+// pro operaci Vrtání (7. 10. 2026).
+//
 // DEFAULT_TOOL_MAGAZINE zůstává beze změny: stojí na něm měření
 // (scripts/cam_sweep.mjs bere obrys „Hrubovaci") a podle něj se poznají
 // staré výchozí nože v uloženém zásobníku (migrateLegacyMagazine).
 
 import { DEFAULT_TOOL_MAGAZINE as LEGACY_MAGAZINE } from './cam/camToolPicker.js';
 import { buildIsoKnife } from './isoToolCatalog.js';
+import { buildIsoDrill } from './isoDrills.js';
 
 /**
  * Revize výchozí sady. Uložený zásobník si pamatuje, kterou už dostal
@@ -27,16 +31,28 @@ import { buildIsoKnife } from './isoToolCatalog.js';
  * přidají JEDNOU (na konec) — smazaný se pak už nevrací.
  *   1 — ISO nože místo provizorních (6. 10. 2026)
  *   2 — PSBNR 2525M12 jako hrubovací (T2 místo PCLNR)
+ *   3 — vrták ⌀20 pro operaci Vrtání (7. 10. 2026)
  */
-export const MAGAZINE_DEFAULTS_REV = 2;
-export const DEFAULTS_ADDED_IN_REV = { 2: ['SB'] };
+export const MAGAZINE_DEFAULTS_REV = 3;
+export const DEFAULTS_ADDED_IN_REV = { 2: ['SB'], 3: ['DR'] };
 
 /** Nože výchozí sady přidané po revizi `rev` (záznamy knihovny). */
 export function isoDefaultsAddedSince(rev) {
   const ids = [];
   for (let r = (rev || 0) + 1; r <= MAGAZINE_DEFAULTS_REV; r++) ids.push(...(DEFAULTS_ADDED_IN_REV[r] || []));
-  const knives = isoDefaultKnives();
-  return ISO_DEFAULT_SET.map((s, i) => (ids.includes(s.id) ? knives[i] : null)).filter(Boolean);
+  const knives = defaultMagazineKnives();
+  return [...ISO_DEFAULT_SET, ...EXTRA_DEFAULT_SET].map((s, i) => (ids.includes(s.id) ? knives[i] : null)).filter(Boolean);
+}
+
+/** Výchozí nože MIMO ISO katalog držáků (bez staré předlohy) — za ISO noži. */
+export const EXTRA_DEFAULT_SET = [
+  { id: 'DR', opts: { kind: 'hss', diameter: 20 }, role: 'vrtání v ose — HSS ⌀20 118° (DIN 345, pouzdro MK2)' },
+];
+
+/** Celá výchozí sada zásobníku: ISO nože (T1–T6) + vrták (T7) — vrták je
+ *  týž záznam jako v 📚 katalogu (Vrtáky), takže smazaný jde vrátit odtud. */
+export function defaultMagazineKnives() {
+  return [...isoDefaultKnives(), ...EXTRA_DEFAULT_SET.map((s) => buildIsoDrill(s.opts))];
 }
 
 /** Výchozí nože v pořadí obrábění; `legacy` = jméno nože, který nahrazují. */

@@ -64,11 +64,15 @@ export function holderProfileLoop(prms) {
     // Stejné umístění jako holderRectProfile v insertPreview.js: spodní
     // hrana nad destičkou o `holderSeatZ` — hodnotu určuje PLÁTEK
     // (inserts/*.js), ne sdílený vzorec.
-    const z0 = getInsert(prms).holderSeatZ;
-    pts = [
-      { x: 0, z: z0 }, { x: hw, z: z0 },
-      { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 },
-    ];
+    const ins = getInsert(prms);
+    const z0 = ins.holderSeatZ;
+    pts = ins.holderAxial
+      // Vrták: sklíčidlo/pouzdro ⌀hw v OSE za vyložením (x profilu = osa Z).
+      ? [{ x: z0, z: -hw / 2 }, { x: z0, z: hw / 2 }, { x: z0 + l1, z: hw / 2 }, { x: z0 + l1, z: -hw / 2 }]
+      : [
+        { x: 0, z: z0 }, { x: hw, z: z0 },
+        { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 },
+      ];
   }
   const loop = [];
   for (const p of pts) {

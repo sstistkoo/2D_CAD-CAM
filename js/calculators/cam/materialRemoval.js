@@ -119,6 +119,15 @@ export function insertWorldLoop(prms, backside = false) {
  * (`toolFootprintVisual`) podle klíče plátku `footprintChordTol`.
  */
 export function toolFootprint(prms, chordTol = 0) {
+  // Nástroj, jehož stopa je přesně jeho obrys (vrták v ose) — stadion kolem
+  // „nosu" ⌀/2 by sahal o poloměr PŘED špičku a test dotyku by hlásil
+  // rychloposuv do dna díry, kam vrták vůbec nejede.
+  if (getInsert(prms).footprintIsOutline) {
+    const back = prms.roughingSide === 'left';
+    const outline = insertWorldLoop(prms, back);
+    // Zrcadlení obrací orientaci smyčky — vrátit ji (viz konec funkce).
+    if (outline) return back ? outline.reverse() : outline;
+  }
   const r = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
   const zBody = insertBodyZ(prms, r);
@@ -185,6 +194,8 @@ export function toolFootprintVisual(prms) {
   if (ins.footprintIsNoseOnly) return toolFootprint(prms, ins.footprintChordTol);
   const body = insertWorldLoop(prms, prms.roughingSide === 'left');
   if (!body || body.length < 3) return toolFootprint(prms);
+  // Vrták odebírá jen svým obrysem — zametení v X by díru rozšířilo o ≥3 mm.
+  if (ins.footprintIsOutline) return body;
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
   const merged = toolSweep(body, [{ x: 0, z: 0 }, { x: H, z: 0 }]);
   return (merged.length === 1 && merged[0].length >= 3) ? merged[0] : body;

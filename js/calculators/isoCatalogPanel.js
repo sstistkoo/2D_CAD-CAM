@@ -6,14 +6,24 @@
 // karty destička / velikost / rádius. Tlačítka předají HOTOVÝ záznam
 // knihovny (s `tool` = celý nůž) volajícímu — ✅ Použít, 🔧 Do zásobníku,
 // 🧰 Uložit jdou stejnou cestou jako uložené nože.
+//
+// Skupina Vrtáky (7. 10. 2026) není typ DRŽÁKU (ISO_HOLDER_TYPES — testy
+// katalogu tam čekají nakreslený obrys držáku), ale karta navíc postavená
+// z isoDrills.js: druh vrtáku × ⌀; dřík a ruka se jí netýkají.
 
 import {
   ISO_HOLDER_TYPES, ISO_GROUPS, ISO_SHANKS, isoThreadInsertsFor, isoVariants, isoSizes, isoRadii,
   isoGrooveWidths, isoInsertLabel, buildIsoKnife, isoKnifeSvg, isoCatalogCount,
 } from './isoToolCatalog.js';
 import { RADIUS_MM, SHAPES } from './vbdIso.js';
+import { ISO_DRILL_KINDS, isoDrillDiameters, isoDrillLabel, buildIsoDrill, isoDrillCount } from './isoDrills.js';
 
 const PREF_KEY = 'skica.isoCatalog';   // jen pohodlí: naposledy zvolený dřík a skupina
+
+const DRILL_TYPE = { id: 'DR', special: 'drill', groups: ['drill'],
+  desc: 'Šroubovitý vrták pro operaci Vrtání (v ose X0). Dřík a ruka nahoře se ho netýkají.' };
+const GROUPS = [...ISO_GROUPS, { id: 'drill', label: 'Vrtáky' }];
+const typeById = (id) => (id === DRILL_TYPE.id ? DRILL_TYPE : ISO_HOLDER_TYPES.find((t) => t.id === id));
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const cz = (v) => String(v).replace('.', ',');
@@ -30,6 +40,7 @@ function savePrefs(p) {
 function shapeLabel(t) {
   if (t.special === 'parting') return '▮ zapichovací';
   if (t.special === 'threading') return '▽ závitová';
+  if (t.special === 'drill') return '⌀ vrták';
   const s = SHAPES.find((x) => x.v === t.shape);
   return s ? `${t.shape} · ${s.d.toLowerCase()}` : t.shape;
 }
@@ -44,13 +55,15 @@ export function mountIsoCatalog(root, opts) {
   const prefs = loadPrefs();
   const st = {
     shank: ISO_SHANKS.some((s) => s.code === prefs.shank) ? prefs.shank : '2525',
-    group: ISO_GROUPS.some((g) => g.id === prefs.group) ? prefs.group : 'all',
+    group: GROUPS.some((g) => g.id === prefs.group) ? prefs.group : 'all',
     hand: opts.hand === 'L' ? 'L' : 'R',
     sel: {},        // id typu → { variant, size, radius, width, thread }
     zoom: null,     // id karty s velkým náhledem
   };
 
-  const recFor = (t) => buildIsoKnife(t.id, { ...(st.sel[t.id] || {}), shank: st.shank, hand: st.hand });
+  const recFor = (t) => (t.special === 'drill'
+    ? buildIsoDrill(st.sel[t.id] || {})
+    : buildIsoKnife(t.id, { ...(st.sel[t.id] || {}), shank: st.shank, hand: st.hand }));
 
   function select(key, options, value, title) {
     return `<select data-o="${key}" title="${esc(title)}">${options.map(([v, l]) =>
@@ -58,6 +71,10 @@ export function mountIsoCatalog(root, opts) {
   }
 
   function optionsHTML(t, k) {
+    if (t.special === 'drill') {
+      return select('kind', ISO_DRILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh vrtáku — HSS-Co 118° (DIN 338 / 345) nebo tvrdokov 140° (5×D, vnitřní chlazení)')
+        + select('diameter', isoDrillDiameters(k.kind).map((d) => [d, isoDrillLabel(d)]), k.diameter, 'Průměr vrtáku (u předvrtání pod závit je napsaný závit)');
+    }
     if (t.special === 'parting') {
       return select('width', isoGrooveWidths(st.shank).map((g) => [g.w, `š ${g.w} mm · ${g.code}`]), k.width, 'Šířka zapichovací destičky');
     }
@@ -87,14 +104,15 @@ export function mountIsoCatalog(root, opts) {
     if (p.toolShape === 'round') chips.push(`R ${cz(p.toolRadius)}`);
     else if (p.toolShape === 'parting') chips.push(`š ${cz(p.toolLength)}`, `R ${cz(p.toolRadius)}`);
     else if (p.toolShape === 'threading') chips.push(`ε ${p.toolTipAngle}°`);
+    else if (p.toolShape === 'drill') chips.push(`⌀ ${cz(p.toolRadius * 2)}`, `σ ${p.toolTipAngle}°`, `vyložení ${p.toolLength}`, `${rec.holderCode} ⌀${p.holderWidth}`);
     if (p.toolClearanceAngle) chips.push(`α ${p.toolClearanceAngle}°`);
-    chips.push(`Vc ${rec.vc} · f ${cz(rec.f)} · ap ${cz(rec.ap)}`);
+    chips.push(p.toolShape === 'drill' ? `Vc ${rec.vc} · f ${cz(rec.f)}` : `Vc ${rec.vc} · f ${cz(rec.f)} · ap ${cz(rec.ap)}`);
     const big = st.zoom === t.id;
     return `<div class="iso-cat-card${big ? ' iso-cat-card--big' : ''}" data-id="${t.id}">
       <button class="iso-cat-thumb" data-a="zoom" title="${big ? 'Zmenšit náhled' : 'Zvětšit náhled'}">${isoKnifeSvg(rec, big ? 200 : 68)}</button>
       <div class="iso-cat-main">
-        <div class="iso-cat-title"><b>${esc(spaced(rec.name))}</b><span class="iso-cat-ins">${esc(spacedInsert(rec.vbdCode))}</span></div>
-        <div class="iso-cat-desc">${esc(shapeLabel(t))} — ${esc(t.desc)}</div>
+        <div class="iso-cat-title"><b>${esc(t.special === 'drill' ? rec.name : spaced(rec.name))}</b><span class="iso-cat-ins">${esc(t.special === 'drill' ? rec.holderCode : spacedInsert(rec.vbdCode))}</span></div>
+        <div class="iso-cat-desc">${esc(shapeLabel(t))} — ${esc(t.special === 'drill' ? rec.desc : t.desc)}</div>
         <div class="iso-cat-chips">${chips.map((c) => `<span>${esc(c)}</span>`).join('')}</div>
         <div class="iso-cat-opts">${optionsHTML(t, k)}</div>
         <div class="iso-cat-btns">
@@ -107,8 +125,9 @@ export function mountIsoCatalog(root, opts) {
   }
 
   function visibleTypes() {
-    return ISO_HOLDER_TYPES.filter((t) => (st.group === 'all' || t.groups.includes(st.group))
+    const holders = ISO_HOLDER_TYPES.filter((t) => (st.group === 'all' || t.groups.includes(st.group))
       && isoVariants(t, st.shank).length > 0);
+    return st.group === 'all' || st.group === 'drill' ? [...holders, DRILL_TYPE] : holders;
   }
 
   function render() {
@@ -124,17 +143,17 @@ export function mountIsoCatalog(root, opts) {
       </div>
       <div class="iso-cat-groups">
         <button data-g="group" data-v="all" class="${st.group === 'all' ? 'on' : ''}">Vše</button>
-        ${ISO_GROUPS.map((g) => `<button data-g="group" data-v="${g.id}" class="${st.group === g.id ? 'on' : ''}">${esc(g.label)}</button>`).join('')}
+        ${GROUPS.map((g) => `<button data-g="group" data-v="${g.id}" class="${st.group === g.id ? 'on' : ''}">${esc(g.label)}</button>`).join('')}
       </div>
       <div class="iso-cat-list">${visibleTypes().map(cardHTML).join('') || '<div class="iso-cat-empty">Pro tento dřík tu není žádný nůž.</div>'}</div>
-      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací.
+      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací nožů a ${isoDrillCount()} vrtáků.
         Rozměry držáků a tvar hlavy jsou <b>orientační</b> podle ISO 5608/5610 a typických katalogů — ověřte v katalogu výrobce.
         Po použití jde obrys upravit v 🔪 Geometrii.</div>`;
   }
 
   function replaceCard(id) {
     const el = root.querySelector(`.iso-cat-card[data-id="${id}"]`);
-    const t = ISO_HOLDER_TYPES.find((x) => x.id === id);
+    const t = typeById(id);
     if (!el || !t) return;
     const tmp = document.createElement('div');
     tmp.innerHTML = cardHTML(t);
@@ -151,8 +170,8 @@ export function mountIsoCatalog(root, opts) {
     const card = e.target.closest('.iso-cat-card');
     if (!o || !card) return;
     const id = card.dataset.id;
-    const cur = { ...(recFor(ISO_HOLDER_TYPES.find((t) => t.id === id)) || {}).iso, ...(st.sel[id] || {}) };
-    cur[o.dataset.o] = o.dataset.o === 'width' ? Number(o.value) : o.value;
+    const cur = { ...(recFor(typeById(id)) || {}).iso, ...(st.sel[id] || {}) };
+    cur[o.dataset.o] = o.dataset.o === 'width' || o.dataset.o === 'diameter' ? Number(o.value) : o.value;
     if (o.dataset.o === 'variant') { delete cur.size; delete cur.radius; }
     st.sel[id] = cur;
     replaceCard(id);
@@ -169,7 +188,7 @@ export function mountIsoCatalog(root, opts) {
     const a = e.target.closest('[data-a]');
     const card = e.target.closest('.iso-cat-card');
     if (!a || !card) return;
-    const t = ISO_HOLDER_TYPES.find((x) => x.id === card.dataset.id);
+    const t = typeById(card.dataset.id);
     if (a.dataset.a === 'zoom') { st.zoom = st.zoom === t.id ? null : t.id; replaceCard(t.id); return; }
     const rec = recFor(t);
     if (!rec) return;

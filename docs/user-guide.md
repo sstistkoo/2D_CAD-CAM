@@ -496,13 +496,47 @@ začátku řetězu nezanoří kolmo. Začátek se posune po kontuře tam, kde z�
 jen přídavek, a najede se odtud rampou; oblouk se objede celý, nebo vůbec.
 Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) začíná dál"**.
 
-**Proč se negenerují hrubovací dráhy?** Tři nastavení hrubování přebíjejí, a
+**Proč se negenerují hrubovací dráhy?** Čtyři nastavení hrubování přebíjejí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
-(naklikané upichnutí) a **Hot.** („jen dokončovací operace"). Když je některé
-z nich zapnuté, ukáže se v ostatních záložkách oranžové varování s tlačítkem
-na jeho rychlé vypnutí. Ukazuje se vždy jen ten režim, který program opravdu
-řídí — mají mezi sebou pořadí: závit přebíjí upichnutí a upichnutí přebíjí
-„jen dokončení".
+(naklikané upichnutí), **Vrtání** (aktivní vrtání) a **Hot.** („jen dokončovací
+operace"). Když je některé z nich zapnuté, ukáže se v ostatních záložkách
+oranžové varování s tlačítkem na jeho rychlé vypnutí. Ukazuje se vždy jen ten
+režim, který program opravdu řídí — mají mezi sebou pořadí: závit přebíjí
+upichnutí, upichnutí vrtání a vrtání „jen dokončení". Zapnutí závitu, upichu
+nebo vrtání ostatní dva cykly vypne (program je vždy jen jeden cyklus).
+
+**Vrtání (záložka Vrtání).** Vrtací cyklus v ose (X0) vrtákem — nástroj
+tvaru **⌀ vrták** (v Nástroj → Tvar destičky i ve 🔧 Zásobníku vedle ⬤ ◼ ▮ ▽).
+Vrták má **⌀**, **vrcholový úhel σ** (HSS 118°, tvrdokov 140°) a **vyložení**
+(od špičky ke sklíčidlu); jeho držák je **pouzdro v ose** za vyložením
+(Tloušťka = ⌀ pouzdra, Délka = jeho délka). Výchozí vrták (T7 a přepnutí
+tvaru na ⌀): HSS ⌀20, 118°, vyložení 145, redukční pouzdro MK2 ⌀40 × 80.
+Další vrtáky (HSS / tvrdokov, ⌀3–30, i předvrtání pod závity) jsou
+v 🧰 Knihovna → 📚 ISO katalog → **Vrtáky** — odtud jde vrták vrátit i po
+smazání ze zásobníku.
+
+1. Záložka **Vrtání** → **✅ Aktivní**. Ze zásobníku se sám vybere vrták
+   (první ⌀ v pořadí T); když tam žádný není, hláška to řekne.
+2. **Z čelo** (kde díra začíná) a **Hloubka** (od čela). Zaškrtnutá
+   **Hloubka na plný ⌀** přidá délku špičky ⌀/2 / tan(σ/2) — dno je válcové
+   v zadané hloubce; jinak se měří na špičku.
+3. **Odvod třísky:** **⇡ Vyjíždění** (jako G83 — po každém záběru Q
+   z díry ven a rychloposuvem zpět až „Odskok" nad dno) nebo **↯ Lámání
+   třísky** (jako G73 — jen odskok). **Záběr Q** 0 = celá díra na jeden zátah.
+4. **Bezp. vzdál.** = R rovina před čelem (odtud posuv, sem výjezdy). Když
+   polotovar přesahuje (neobrobené čelo, odlitek), R rovina se posune ven za
+   jeho vůli — rychloposuv do pásu před polotovarem nevjede.
+5. **Prodleva (s)** na dně: Sinumerik `G4 F…`, Fanuc `G04 P…` (ms),
+   Heidenhain `G04 F…`.
+
+Otáčky jsou konstantní **G97 S = Vc·1000 / (π·⌀)** (omezené LIMS) — v ose by
+G96 vyhnal vřeteno na maximum; na konci se vrátí G96. Cyklus se píše
+**rozepsaně** (G0/G1), ne jako CYCLE83/G83 — jede stejně na všech řídicích
+systémech a simulace ho přehraje. Strana obrábění (**Zleva/Zprava**) určuje
+směr: zprava se vrtá k −Z, zleva k +Z. Simulace díru odebere obrysem vrtáku;
+když kontura dílu díru nemá, ukáže vrtání červeně jako zajetí do hotové
+kontury. Když je díra pod čelem polotovaru hlubší než vyložení, panel ⚠ hlásí,
+že do čela narazí pouzdro (a ⛔ ukáže kolizi držáku).
 
 ### 3b. Více operací na jednom kuse (➕ Operace)
 Jeden díl se často obrábí na několik operací: nejdřív se vyhrubuje jedním
@@ -761,11 +795,14 @@ Hlavička okna je v jednom řádku:
   Rozbalení karty ne.
 - **☰** — menu s méně častou správou: **📥 Import ze souborů** (jeden nebo
   víc `.json` z 💾 Uložit do PC, každý jako nový slot — celý import je jeden
-  krok ↩) a **🔄 Seřadit dle výchozích** (výchozí nože zpět na T1–T6).
+  krok ↩) a **🔄 Seřadit dle výchozích** (výchozí nože zpět na T1–T7).
 - **✕** — zavření, odsazené od ☰, ať se okno omylem nezavře.
 
 **Výchozí nože T1–T6** jsou skutečné nože z 📚 ISO katalogu (dřík 25×25),
-v pořadí obrábění:
+v pořadí obrábění, za nimi **T7 Vrtak HSS D20** (vrták ⌀20 HSS 118°, vyložení 145
+v pouzdře MK2 ⌀40 — operace Vrtání; týž vrták je v 📚 katalogu → Vrtáky;
+do uloženého zásobníku se přidal jednou na
+konec, 7. 10. 2026):
 
 | T | Nůž | Destička | Nahradil (do 6. 10. 2026) |
 |---|---|---|---|
@@ -789,7 +826,8 @@ hláška řekne, kterou destičku z katalogu přidat (např. „22ER 4.0TR (dř�
 25×25, 32×32)"), nebo že ji katalog nemá. Vlastní ▽ nůž bez kódu z katalogu
 se bere jako dřív jen podle úhlu. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
 výkresu), vybere se **upichovák** (▮); kulatý nůž, který upichnutí umí, se
-nechá. Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
+nechá. Když se zapne **vrtání** (Vrtání → ✅ Aktivní), vybere se první
+**vrták** (⌀). Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
 nástroj zůstane a hláška poradí přidat ho z 🧰 Knihovna → 📚 ISO katalog.
 Výměna je s operací jeden krok ↩. Ostatní operace (hrubování, dokončení)
 nůž nemění — ten si vybíráš sám.
@@ -824,7 +862,7 @@ katalog** — vestavěné běžné vnější soustružnické nože podle **ISO 5
 katalogu. Nahoře se volí **dřík** (16×16, 20×20, 25×25, 32×32 — podle něj
 f1, l1 a velikosti destiček, které do držáku patří), **ruka R/L** (jen název
 a náhled — v CAM se strana řídí směrem hrubování) a skupina (podélné, čelní,
-kopírovací, srážecí, zapichovací, závitové).
+kopírovací, srážecí, zapichovací, závitové, **vrtáky**).
 
 | Typ | Destička | κr | Použití |
 |---|---|---|---|
@@ -850,6 +888,18 @@ obě), **velikost** (např. CNMG 0904 / 1204 / 1606) a **rádius rε**. Do
 držáku jdou i o stupeň menší/větší destičky než nejběžnější řada (hlava se
 postaví podle destičky); kulaté RCMT 06–32 mm v rozsahu průměru 0,3·b až b.
 Katalog takhle umí přes 800 kombinací. Klik na náhled ho zvětší.
+
+**Vrtáky** (operace Vrtání) — karta s výběrem **druhu** a **⌀**; dřík a ruka
+se jí netýkají. Jako u nožů: ✅ Použít, 🔧 Do zásobníku, 🧰 Uložit.
+
+| Druh | σ | ⌀ | Vyložení | Upínač | Vc / f (ocel) |
+|---|---|---|---|---|---|
+| HSS-Co (DIN 338 / DIN 345) | 118° | 3–16 / 17,5–30 | šroubovice + 5 mm | ER16 ⌀32 (do ⌀10), ER25 ⌀42 (do ⌀16), MK2 ⌀40 (do ⌀23), MK3 ⌀50 | 25 m/min · f ≈ 0,012·⌀ + 0,02 |
+| tvrdokov 5×D, vnitřní chlazení | 140° | 3–20 | 5,5·⌀ + 12 | ER16 / ER25 / ER32 ⌀50 | 80 m/min · f ≈ 0,015·⌀ + 0,03 |
+
+Ve výběru ⌀ jsou označené průměry pro předvrtání pod závit (⌀6,8 pod M8,
+⌀8,5 pod M10, ⌀10,2 pod M12, ⌀14 pod M16, ⌀17,5 pod M20…). Rozměry
+a řezné podmínky jsou **orientační** — data v `js/calculators/isoDrills.js`.
 
 **Závitové destičky (SER/SEL)** — výběr podle dříku:
 

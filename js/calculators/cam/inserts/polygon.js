@@ -136,5 +136,17 @@ export function polygonInsert(prms) {
     holderSeatZ: Math.max(Math.max(parseFloat(prms.toolLength) || 10, 1), Math.max(parseFloat(prms.toolRadius) || 0.8, 0.1), 4),
     guideRotDeg: parseFloat(prms.toolAngle) || 0,
     guideTipDeg: parseFloat(prms.toolTipAngle) || 90,
+    // ── VRTÁK (7. 10. 2026) — klíče, které zapíná jen inserts/drill.js ──
+    //   footprintIsOutline — stopa pro úběr i test dotyku = PŘESNÝ obrys
+    //                  nástroje (bez stadionu kolem nosu a bez zametení těla
+    //                  v X — vrták v ose by jinak „vyvrtal" díru o ≥3 mm větší)
+    //   holderAxial  — náhradní držák (obdélník) sedí ZA nástrojem v ose Z
+    //                  (sklíčidlo/pouzdro vrtáku), ne nad ním v X
+    //   canDrill     — umí operaci Vrtání (ops/drill.js)
+    //   pointLengthZ — osová délka špičky (hloubka „na plný ⌀" = + tahle délka)
+    footprintIsOutline: false,
+    holderAxial: false,
+    canDrill: false,
+    pointLengthZ: 0,
   };
 }

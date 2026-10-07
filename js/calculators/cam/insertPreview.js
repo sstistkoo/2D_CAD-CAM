@@ -3,6 +3,7 @@
 // a buildInsertProfileSegments() (📐 Kreslit na CAD plátně), ať plátek v náhledu,
 // anchor bodech i reálně nakreslené CAD geometrii vypadá stejně vysoký.
 import { getInsert } from './inserts/index.js';
+import { drillDims } from './inserts/drill.js';
 
 export const PARTING_BODY_MIN_H_MM = 15;
 
@@ -84,7 +85,12 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   // V editoru obdélníku (showHolderHandles) se fituje na DESTIČKU + spodní
   // hranu držáku (ne na celé l1=200 → jinak by byla destička mikroskopická).
   const fitProfileExtent = drawMode && !opts.showHolderHandles ? profileExtentMM * 1.25 : 0;
-  const maxDim = fitInsert
+  // Vrták leží V OSE (držák za ním vodorovně, ne nad ním) — náhled se staví
+  // na šířku: špička vlevo, vyložení + sklíčidlo doprava.
+  const axialHolder = !!getInsert(prms).holderAxial;
+  const maxDim = axialHolder
+    ? Math.max(toolLen * (fitInsert ? 1.15 : 1) + (fitInsert ? 0 : shankDrawMM) * 1.1, holderW * 1.4, insRadiusMM * 4, profileExtentMM * 1.15, 12)
+    : fitInsert
     ? Math.max(toolLen * 2.6, insRadiusMM * 4.5, fitProfileExtent,
         opts.showHolderHandles ? (Math.max(parseFloat(prms.holderWidth) || 20, 0) * 1.4 + toolLen * 2) : 0, 12)
     : Math.max((gapMM + shankDrawMM) * 1.15, holderW * 1.15, toolLen * 2, profileExtentMM * 1.25, 20);
@@ -93,7 +99,9 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
   // Počátek (špička destičky): dole u fallbacku držáku, ale v kresebním režimu
   // výš (~60 %), ať je kolem destičky místo na anchory i na kulatou destičku
   // (ta má počátek ve svém středu → spodní půlka by jinak vypadla z canvasu).
-  const ox = w / 2, oy = fitInsert ? h * 0.6 : h - pad - 8;
+  // Levá ruka kreslí zrcadlově (mirror níž) — špička pak vpravo, tělo doleva.
+  const ox = axialHolder ? (prms.holderHand === 'L' ? w - pad - 6 : pad + 6) : w / 2;
+  const oy = axialHolder ? h / 2 : fitInsert ? h * 0.6 : h - pad - 8;
   const mirror = prms.holderHand === 'L' ? -1 : 1;
   // mm → screen: +z = "nahoru" do držáku (viz gapMM výše), zrcadlení dle ruky.
   const toScr = (x, z) => ({ x: ox + mirror * x * scale, y: oy - z * scale });
@@ -138,6 +146,15 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
       ctx.restore();
     }
     ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+  } else if (axialHolder && !hideHolder && !drawMode && holderW > 0 && holderL > 0) {
+    // Sklíčidlo / pouzdro vrtáku v ose za vyložením (holderRectProfile).
+    // Stejně jako u dříku se dlouhé l1 v náhledu zkrátí (jen kresba).
+    const x0 = ox + mirror * toolLen * scale;
+    const x1 = ox + mirror * (toolLen + shankDrawMM) * scale;
+    const hw2 = (holderW / 2) * scale;
+    ctx.fillStyle = COL.holder; ctx.strokeStyle = COL.holderStroke; ctx.lineWidth = 1 * us;
+    ctx.beginPath(); ctx.rect(Math.min(x0, x1), oy - hw2, Math.abs(x1 - x0), hw2 * 2); ctx.fill(); ctx.stroke();
+    texts.push({ x: (x0 + x1) / 2, y: oy - hw2 - 10, text: `⌀${holderW} × ${holderL} mm`, color: COL.text, align: 'center' });
   } else if (!hideHolder && !drawMode && holderW > 0 && holderL > 0) {
     const hw2 = (holderW / 2) * scale;
     const nearY = oy - gapMM * scale;
@@ -247,6 +264,13 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     const angLx = Math.cos(rotRad) * wPix * 0.5, angLy = Math.sin(rotRad) * wPix * 0.5 - bodyH - 6;
     texts.push({ x: ox + mirror * angLx, y: oy + angLy, text: `∠${effAngleDeg}°`, color: '#f9e2af', align: 'center' });
     labels.toolAngle = { x: ox + mirror * angLx, y: oy + angLy };
+  } else if (shape === 'drill') {
+    const { r, sigma, L } = drillDims(prms);
+    drawDrillTool(ctx, prms, scale);
+    texts.push({ x: ox + mirror * (L * 0.55) * scale, y: oy - r * scale - 10, text: `⌀${Math.round(r * 2 * 1000) / 1000}`, color: '#a6e3a1', align: 'center' });
+    texts.push({ x: ox, y: oy + r * scale + 12, text: `σ=${sigma}°`, color: '#a6e3a1', align: 'left' });
+    labels.tipAngle = { x: ox, y: oy + r * scale + 12 };
+    texts.push({ x: ox + mirror * (L * 0.55) * scale, y: oy + r * scale + 12, text: `L=${Math.round(L * 10) / 10}`, color: '#f9e2af', align: 'center' });
   }
 
   // referenční křížek ve špičce
@@ -367,6 +391,12 @@ export function getInsertAnchorPoints(prms) {
     pts.push({ x: topL.x, z: topL.z, side: 'sideA', label: 'Hrana A (vlevo)' });
     pts.push({ x: (topL.x + topR.x) / 2, z: (topL.z + topR.z) / 2, side: 'top', label: 'Vrch – střed' });
     pts.push({ x: topR.x, z: topR.z, side: 'sideB', label: 'Hrana B (vpravo)' });
+  } else if (shape === 'drill') {
+    // Konec vyložení — odtud vychází sklíčidlo/pouzdro (obrys držáku).
+    const { r, L } = drillDims(prms);
+    pts.push({ x: L, z: r, side: 'sideA', label: 'Konec vyložení (nahoře)' });
+    pts.push({ x: L, z: 0, side: 'top', label: 'Konec vyložení – osa' });
+    pts.push({ x: L, z: -r, side: 'sideB', label: 'Konec vyložení (dole)' });
   }
   // Střed rádiusu / referenční bod destičky (0,0) — cíl pro přesun držáku.
   // side:'center' → NENÍ strana obrysu, slouží jen jako cíl přesunu (viz editor).
@@ -447,6 +477,16 @@ export function buildInsertProfileSegments(prms, opts) {
     segs.push({ type: 'line', from: pBotR, to: pTopR });
     segs.push({ type: 'line', from: pTopR, to: pTopL });
     return segs;
+  }
+  if (shape === 'drill') {
+    // Vrták leží V OSE: x profilu = podél osy (ve světě Z, tělo k +x =
+    // od díry ven), z = napříč (ve světě poloměr X, obě strany osy).
+    // Špička σ → kužel délky `point`, pak válec ⌀ do vyložení L.
+    const { r, point, L } = drillDims(prms);
+    return segsFromPoints([
+      { x: 0, z: 0 }, { x: point, z: r }, { x: L, z: r },
+      { x: L, z: -r }, { x: point, z: -r },
+    ]);
   }
   return segs;
 }
@@ -599,6 +639,17 @@ export function drawPolygonInsert(ctx, prms, scale) {
   return cut;
 }
 
+/** Vrták (obrys = řezná část = tělo) + čerchovaná osa. Kontext: počátek ve
+ *  špičce, profil x → kanvas x, z → kanvas −y (jako drawHolderProfileLocal). */
+export function drawDrillTool(ctx, prms, scale) {
+  const { L } = drillDims(prms);
+  traceInsertSegments(ctx, buildInsertProfileSegments(prms), scale); ctx.fill(); ctx.stroke();
+  ctx.save();
+  ctx.setLineDash([6, 3, 1.5, 3]); ctx.strokeStyle = 'rgba(166,173,200,0.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(L * scale + 4, 0); ctx.stroke();
+  ctx.restore();
+}
+
 /** Závitová destička: celý trojúhelník se zuby světle, pracovní zub plně. */
 export function drawThreadingInsert(ctx, prms, scale) {
   drawFullAndCut(ctx, buildInsertOutlineSegments(prms), threadingToothSegments(prms), scale);
@@ -631,7 +682,13 @@ export function holderRectProfile(prms) {
   // „Střed R" v (0,0) a ať je obdélník vizuálně nad destičkou.
   // Výšku nad destičkou určuje plátek (`holderSeatZ`, inserts/*.js) —
   // tatáž hodnota jako v collisionValidator.js, ať náhled sedí s kolizemi.
-  const z0 = getInsert(prms).holderSeatZ;
+  const ins = getInsert(prms);
+  const z0 = ins.holderSeatZ;
+  // Vrták: sklíčidlo/pouzdro v ose ZA vyložením (x profilu), ⌀ = Tloušťka.
+  if (ins.holderAxial) {
+    const h = hw / 2;
+    return [{ x: z0, z: -h }, { x: z0, z: h }, { x: z0 + l1, z: h }, { x: z0 + l1, z: -h }, { x: z0, z: -h }];
+  }
   const bl = { x: 0, z: z0 }, br = { x: hw, z: z0 };
   return [bl, br, { x: hw, z: z0 + l1 }, { x: 0, z: z0 + l1 }, { x: bl.x, z: bl.z }];
 }
@@ -853,7 +910,7 @@ export function wireAllAngleCompasses(container) {
  *  ho 🔪 Geometrie pro ↻ Natočení destičky. */
 export function _renderInsertShapeFieldsHTML(prms, opts = {}) {
   const extra = opts.tipRowExtraHTML || '';
-  let html = `${(prms.toolShape === 'threading' || prms.toolShape === 'polygon') ? '' : `<div class="cam-sim-row">
+  let html = `${(prms.toolShape === 'threading' || prms.toolShape === 'polygon' || prms.toolShape === 'drill') ? '' : `<div class="cam-sim-row">
     <div class="cam-sim-field"><label title="Rádius zaoblení špičky plátku (mm). U kulatého plátku určuje celý poloměr destičky.">Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
   </div>`}
   <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>
@@ -862,6 +919,7 @@ export function _renderInsertShapeFieldsHTML(prms, opts = {}) {
     <button data-tshape="polygon" class="${prms.toolShape === 'polygon' ? 'cam-sim-active' : ''}" title="Polygonální plátek (kosočtverec/trojúhelník/kosodélník…) — definovaný délkou hrany, polárním úhlem, vrcholovým úhlem (ε) a rádiusem špičky">◼</button>
     <button data-tshape="parting" class="${prms.toolShape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
     <button data-tshape="threading" class="${prms.toolShape === 'threading' ? 'cam-sim-active' : ''}" title="Závitový plátek (profil V dle úhlu závitu)">▽</button>
+    <button data-tshape="drill" class="${prms.toolShape === 'drill' ? 'cam-sim-active' : ''}" title="Vrták — vrtání v ose (X0), operace Vrtání. Definovaný průměrem, vrcholovým úhlem a vyložením">⌀</button>
   </div>`;
   if (prms.toolShape === 'polygon') {
     html += `<div class="cam-sim-row">
@@ -884,6 +942,14 @@ export function _renderInsertShapeFieldsHTML(prms, opts = {}) {
       <div class="cam-sim-field"><label title="Vrcholový úhel V-profilu plátku — musí odpovídat úhlu závitu (M/UN 60°, G/BSW 55°, Tr 30°, Acme 29°). Výběr závitu (🧵 Závity) ho nastaví automaticky.">Úhel profilu (ε)</label><input type="number" data-p="toolTipAngle" value="${prms.toolTipAngle}" min="10" max="90" step="0.5"></div>
       <div class="cam-sim-field"><label title="Délka zobrazené hrany plátku (jen vizualizace)">Délka hrany</label><input type="number" data-p="toolLength" value="${prms.toolLength}"></div>
       <div class="cam-sim-field"><label title="Šířka rovné špičky plátku (lichoběžník). Metrické/palcové ~0,1 mm; Tr/Acme ≈ 0,366×P — výběr závitu (🧵 Závity) nastaví automaticky. Nahrazuje Rádius (R), který se u závitového plátku nepoužívá.">Spodní strana</label><input type="number" data-p="toolTipFlat" value="${prms.toolTipFlat ?? 0.1}" min="0" step="0.05"></div>
+    </div>`;
+  } else if (prms.toolShape === 'drill') {
+    // ⌀ se ukládá jako toolRadius (⌀/2) — pole `drillDiameter` přepočítá
+    // applyParamChange v camSimulator.js.
+    html += `<div class="cam-sim-row">
+      <div class="cam-sim-field"><label title="Průměr vrtáku (mm) — určuje průměr díry a otáčky (n = Vc·1000 / π·⌀)">⌀ vrtáku</label><input type="number" step="0.1" min="0.1" data-p="drillDiameter" value="${Math.round((parseFloat(prms.toolRadius) || 0) * 2 * 1000) / 1000}"></div>
+      <div class="cam-sim-field"><label title="Vrcholový úhel špičky σ — HSS 118°, tvrdokov 140°, navrtávák 90°. Určuje délku špičky (hloubka na plný ⌀).">Vrch. úhel (σ)</label><input type="number" step="1" min="60" max="180" data-p="toolTipAngle" value="${prms.toolTipAngle}"></div>
+      <div class="cam-sim-field"><label title="Vyložení — délka vrtáku od špičky ke sklíčidlu / pouzdru. Hlubší díru vrták neudělá: dál by do čela narazil držák (hlídá simulace).">Vyložení</label><input type="number" step="1" min="1" data-p="toolLength" value="${prms.toolLength}"></div>
     </div>`;
   }
   if (extra && prms.toolShape !== 'polygon') html += `<div class="cam-sim-row">${extra}</div>`;

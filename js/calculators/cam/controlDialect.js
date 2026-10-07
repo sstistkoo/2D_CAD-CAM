@@ -161,6 +161,19 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
       if (oldCtrl === 'sinumerik' && newCtrl !== 'sinumerik') out = out.replace(/\bCR=(-?[\d.]+)/i, 'R$1');
       else if (oldCtrl !== 'sinumerik' && newCtrl === 'sinumerik') out = out.replace(/\bR(-?[\d.]+)\b/i, 'CR=$1');
     }
+    // Prodleva (vrtání, ops/drill.js): Sinumerik `G4 F s`, Heidenhain
+    // `G04 F s`, Fanuc `G04 P ms` — X/U by Fanuc i simulace četly jako osu.
+    const dwellS = (() => {
+      const f = out.match(/\bG0?4\s+F(\d*\.?\d+)/i);
+      if (f) return parseFloat(f[1]);
+      const p = out.match(/\bG0?4\s+P(\d+)/i);
+      return p ? parseInt(p[1], 10) / 1000 : null;
+    })();
+    if (dwellS !== null) {
+      const word = newCtrl === 'fanuc' ? `G04 P${Math.round(dwellS * 1000)}`
+        : newCtrl === 'heidenhain' ? `G04 F${dwellS}` : `G4 F${dwellS}`;
+      out = out.replace(/\bG0?4\s+[FP]\d*\.?\d+/i, word);
+    }
     return out;
   };
 

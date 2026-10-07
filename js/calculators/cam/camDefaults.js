@@ -126,6 +126,18 @@ export function _defaultCamParams() {
     // 'flank' = boční po boku profilu (posun Z o hloubka·tan(ε/2)),
     // 'alternate' = střídavý cik-cak (boky se střídají — rovnoměrné opotřebení).
     threadInfeed: 'radial',
+    // ── Vrtání (záložka „Vrtání", nástroj ⌀ vrták) ──
+    // Aktivní = generuje se vrtací cyklus v ose (X0) místo hrubování —
+    // stejný vzor jako závit (threadActive). Viz ops/drill.js.
+    drillActive: false,
+    drillZStart: 0,          // Z čela, kde díra začíná (od něj se měří hloubka)
+    drillDepth: 20,          // hloubka díry [mm] (kladná, od Z čela)
+    drillDepthFullDia: false, // true = hloubka na plný ⌀ (+ délka špičky), false = na špičku
+    drillClearance: 2,       // bezpečná vzdálenost před čelem — odtud jede posuv
+    drillPeck: 5,            // hloubka záběru Q [mm]; 0 = na jeden zátah bez výjezdů
+    drillChipMode: 'clear',  // 'clear' = vyjíždění z díry (G83), 'break' = lámání třísky (G73)
+    drillRetract: 1,         // lámání: odskok po záběru; vyjíždění: rychloposuvem zpět až sem nad dno
+    drillDwell: 0,           // prodleva na dně [s] (0 = bez prodlevy)
     // Úhel zanoření (ramp-in) — pod tímto úhlem nástroj rampuje do
     // materiálu (nájezd dokončování, zanořování do kapes). Stupně.
     entryAngle: 30,
@@ -222,7 +234,15 @@ export function stripCodeOwnedParams(loaded) {
  * přepsat a VBD dekodér dosazuje R z kódu až po přepnutí. Závitový tu není —
  * rádius nepoužívá (applyShapeChange mu dává 0).
  */
-export const SHAPE_PRESET_RADIUS = { round: 10, polygon: 1.2, parting: 0.5 };
+export const SHAPE_PRESET_RADIUS = { round: 10, polygon: 1.2, parting: 0.5, drill: 10 };
+
+/**
+ * Výchozí vrták při přepnutí tvaru na ⌀ (panel, Geometrie, slot zásobníku):
+ * HSS ⌀20 118° jako v 📚 katalogu (isoDrills.js — DIN 345, vyložení 145,
+ * redukční pouzdro MK2 ⌀40 × 80). Rádius (⌀/2) je v SHAPE_PRESET_RADIUS.
+ * Orientační hodnoty — uživatel je hned přepíše.
+ */
+export const DRILL_PRESET = { toolLength: 145, toolTipAngle: 118, holderWidth: 40, holderLength: 80 };
 
 /**
  * Odhad řezných podmínek podle tvaru plátku: vc [m/min], f [mm/ot], ap [mm].
@@ -237,4 +257,6 @@ export const SHAPE_CUT_DEFAULTS = {
   polygon: { vc: 200, f: 0.25, ap: 2.5 },
   parting: { vc: 120, f: 0.08, ap: 2 },
   threading: { vc: 100, f: 1.5, ap: 0.1 },
+  // HSS vrták do oceli: Vc 25 m/min, f 0,2 mm/ot (⌀ 16–25); ap = záběr Q.
+  drill: { vc: 25, f: 0.2, ap: 5 },
 };

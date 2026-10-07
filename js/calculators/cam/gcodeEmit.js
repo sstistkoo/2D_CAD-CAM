@@ -21,6 +21,7 @@ import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
   controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem } from './controlDialect.js';
 import { emitThread } from './ops/thread.js';
 import { emitPartOff } from './ops/partOff.js';
+import { emitDrill } from './ops/drill.js';
 import { emitRoughing } from './ops/roughEmit.js';
 import { emitFinish } from './ops/finishEmit.js';
 
@@ -86,6 +87,10 @@ export function generateAutoGCode(S, calc) {
   const partOffActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
   if (partOffActive)
     return emitPartOff({ S, calc, prms, lines, addCmt, addN, note, arcR, flipArc });
+
+  // ── VRTÁNÍ (záložka Vrtání) ── samostatná operace, viz ops/drill.js.
+  if (prms.drillActive)
+    return emitDrill({ S, calc, prms, lines, addCmt, addN, note, arcR, flipArc });
 
   if (!prms.finishOnly)
     addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey(S)] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);

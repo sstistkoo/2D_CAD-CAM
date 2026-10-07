@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v402';
+const CACHE_NAME = 'skica-v403';
 const ASSETS = [
   './',
   './index.html',
@@ -35,6 +35,7 @@ const ASSETS = [
   './js/calculators/cam/guideOffsetJoin.js',
   './js/calculators/cam/holderGouge.js',
   './js/calculators/cam/insertPreview.js',
+  './js/calculators/cam/inserts/drill.js',
   './js/calculators/cam/inserts/index.js',
   './js/calculators/cam/inserts/parting.js',
   './js/calculators/cam/inserts/polygon.js',
@@ -43,6 +44,7 @@ const ASSETS = [
   './js/calculators/cam/interferenceGuides.js',
   './js/calculators/cam/materialRemoval.js',
   './js/calculators/cam/opParts.js',
+  './js/calculators/cam/ops/drill.js',
   './js/calculators/cam/ops/face/holderGuard.js',
   './js/calculators/cam/ops/face/insertGuard.js',
   './js/calculators/cam/ops/face/layerDepth.js',
@@ -126,6 +128,7 @@ const ASSETS = [
   './js/calculators/iso965.js',
   './js/calculators/iso965Data.js',
   './js/calculators/isoCatalogPanel.js',
+  './js/calculators/isoDrills.js',
   './js/calculators/isoThreadInserts.js',
   './js/calculators/isoToolCatalog.js',
   './js/calculators/knifeThumb.js',

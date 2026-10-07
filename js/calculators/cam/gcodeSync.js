@@ -82,15 +82,16 @@ export function gcodeStale(S) {
 }
 
 /**
- * Běží režim, který program NAHRAZUJE — závitovací nebo upichovací cyklus
- * (viz early-return v `generateAutoGCode`). Takový cyklus nemá vlastní náhled
+ * Běží režim, který program NAHRAZUJE — závitovací, upichovací nebo vrtací
+ * cyklus (viz early-return v `generateAutoGCode`). Takový cyklus nemá vlastní náhled
  * drah, takže bez přegenerování programu není na plátně vůbec vidět: závit se
  * nekreslí nijak, u upichnutí se kreslí jen rovina řezu a úchopy, ne samotný
  * (peckovaný) cyklus.
  */
 export function cycleModeActive(prms) {
   return !!prms.threadActive
-    || (prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)));
+    || (prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)))
+    || !!prms.drillActive;
 }
 
 /**

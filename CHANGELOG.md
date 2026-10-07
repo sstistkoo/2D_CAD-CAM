@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CAM: vrták jako nástroj a operace Vrtání** (uživatel 7. 10. 2026:
+  „přidat do CAM i vrták mezi plátky a možnost pro vrtání"). Nový tvar
+  nástroje **⌀ vrták** vedle ⬤ ◼ ▮ ▽ (⌀, vrcholový úhel σ, vyložení; držák =
+  pouzdro v ose za vyložením) s vlastními pravidly `cam/inserts/drill.js`.
+  Nová záložka **Vrtání**: cyklus v ose X0 s vyjížděním (G83) nebo lámáním
+  třísky (G73), záběr Q, odskok, prodleva v dialektu systému, hloubka na
+  špičku / na plný ⌀, G97 z Vc a ⌀ — rozepsaně G0/G1 (`cam/ops/drill.js`).
+  R rovina nikdy neleží v pásu vůle před polotovarem. Zapnutí vybere vrták
+  ze zásobníku a vypne závit/upich. Simulace odebírá přesným obrysem vrtáku
+  a hlídá pouzdro (krátké vyložení = ⛔ + ⚠). Výchozí zásobník má nově
+  **T7 Vrtak HSS D20** (revize 3 — do uloženého zásobníku se přidá jednou).
+  Po přepnutí tvaru z vrtáku zpět na plátek se vrací ap a dřík nože (ap
+  vrtáku = doporučený záběr Q, do hrubování nepatří).
+  Ostatní plátky mají nové klíče vypnuté — otisk 29 fixtures shodný.
+- **📚 Katalog — skupina Vrtáky** (uživatel 7. 10. 2026: „ať ho můžu vybrat,
+  kdybych ho chtěl ze zásobníku smazat"). HSS-Co 118° (DIN 338 / 345,
+  ⌀3–30) a tvrdokov 140° 5×D (⌀3–20), včetně předvrtání pod závity;
+  vyložení podle délky šroubovice, upínač ER16/25/32 nebo redukce MK2/MK3.
+  ✅ Použít / 🔧 Do zásobníku / 🧰 Uložit jako u nožů. Výchozí vrták
+  zásobníku je týž záznam (`js/calculators/isoDrills.js`).
 - **📚 Katalog — závitové destičky 11/16/22/27ER, Tr a Acme** (uživatel
   7. 10. 2026). Dřív jen 16ER AG60/AG55 (P 0,5–3): Tr a Acme závit
   automatický výběr nože hlásil „přidej nůž 30° z katalogu" — a katalog

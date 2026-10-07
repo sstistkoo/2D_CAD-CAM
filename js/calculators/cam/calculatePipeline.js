@@ -178,7 +178,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     } else if (type === 'G2' || type === 'G3') {
       const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, type);
       if (arc.error) foundErrors.push(`Řádek ${i + 2}: Rádius R${p2.r} je příliš malý.`);
-      else if (arc.r < totalOffset) foundErrors.push(`KOLIZE (Řádek ${i + 2}): Rádius kontury menší než nástroj.`);
+      // Vrták (canDrill) konturu neobjíždí — jeho ⌀/2 není rádius špičky.
+      else if (arc.r < totalOffset && !getInsert(prms).canDrill) foundErrors.push(`KOLIZE (Řádek ${i + 2}): Rádius kontury menší než nástroj.`);
       const startAngle = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
       const endAngle = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
       contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle, origIdx: i + 1 });

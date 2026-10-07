@@ -9,7 +9,7 @@ import { drawInsertAndHolderPreview } from './insertPreview.js';
 
 const SHAPE_LABEL = {
   round: '⬤ Kulatá', polygon: '◼ Čtyřstranná / polygon',
-  parting: '▮ Upichovací', threading: '▽ Závitová',
+  parting: '▮ Upichovací', threading: '▽ Závitová', drill: '⌀ Vrták',
 };
 
 function esc(s) {
@@ -54,7 +54,9 @@ function summaryHTML(slot, prms) {
   const chip = (txt, title) => `<span class="cam-sim-machine-chip"${title ? ` title="${esc(title)}"` : ''}>${esc(txt)}</span>`;
   const parts = [
     chip(SHAPE_LABEL[prms.toolShape] || prms.toolShape),
-    chip(`R${prms.toolRadius}`, 'Rádius špičky'),
+    prms.toolShape === 'drill'
+      ? chip(`⌀${Math.round(prms.toolRadius * 2000) / 1000}`, 'Průměr vrtáku')
+      : chip(`R${prms.toolRadius}`, 'Rádius špičky'),
   ];
   if (prms.toolShape === 'polygon') {
     parts.push(chip(`${prms.toolAngle}°`, 'Natočení destičky'));
@@ -63,8 +65,12 @@ function summaryHTML(slot, prms) {
   }
   if (prms.toolShape === 'parting') parts.push(chip(`š${prms.toolLength}`, 'Šířka plátku'));
   if (prms.toolShape === 'threading') parts.push(chip(`ε${prms.toolTipAngle}°`, 'Úhel profilu'));
+  if (prms.toolShape === 'drill') {
+    parts.push(chip(`σ${prms.toolTipAngle}°`, 'Vrcholový úhel špičky'));
+    parts.push(chip(`L=${prms.toolLength}`, 'Vyložení'));
+  }
   parts.push(chip(`l1=${prms.holderLength}`, 'Délka držáku'));
-  parts.push(chip(`b=${prms.holderWidth}`, 'Tloušťka držáku'));
+  parts.push(chip(prms.toolShape === 'drill' ? `⌀${prms.holderWidth}` : `b=${prms.holderWidth}`, prms.toolShape === 'drill' ? 'Průměr pouzdra / sklíčidla' : 'Tloušťka držáku'));
   parts.push(chip(prms.holderHand === 'L' ? 'Levá (L)' : 'Pravá (R)', 'Ruka držáku'));
   parts.push(chip(`↻ ${prms.knifeAngle}°`, 'Natočení nože — směr, kterým míří destička'));
   parts.push(chip(hasProfile ? '📐 vlastní obrys' : '▭ obdélník', 'Tvar držáku'));

@@ -16,6 +16,7 @@ import { CAM_TOOL_KEYS, DEFAULT_TOOL_MAGAZINE } from '../js/calculators/cam/camT
 import { paramsFromMagSlot } from '../js/calculators/cam/toolSlotPreview.js';
 import { knifeThumbSvg } from '../js/calculators/knifeThumb.js';
 import { ISO_DEFAULT_SET, isoDefaultKnives, migrateLegacyMagazine, sameKnifeGeometry, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from '../js/calculators/magazineDefaults.js';
+import { buildIsoDrill, ISO_DRILL_KINDS, isoDrillDiameters, isoDrillCount } from '../js/calculators/isoDrills.js';
 import { holderProfileLoop } from '../js/calculators/cam/collisionValidator.js';
 import { polyIntersect, polyArea } from '../js/geom/geomCore.js';
 
@@ -290,9 +291,13 @@ describe('🔧 Zásobník — výchozí ISO nože místo provizorních', () => {
     expect([again.replaced.length, again.dropped]).toEqual([0, 0]);
   });
 
-  it('revize výchozí sady: zásobník z rev 1 dostane jednou PSBNR, aktuální nic', () => {
-    expect(isoDefaultsAddedSince(1).map((r) => r.name)).toEqual(['PSBNR2525M12']);
-    expect(isoDefaultsAddedSince(0).map((r) => r.name)).toEqual(['PSBNR2525M12']);
+  it('revize výchozí sady: rev 1 dostane jednou PSBNR + vrták, rev 2 jen vrták, aktuální nic', () => {
+    expect(isoDefaultsAddedSince(1).map((r) => r.name)).toEqual(['PSBNR2525M12', 'Vrtak HSS D20']);
+    expect(isoDefaultsAddedSince(0).map((r) => r.name)).toEqual(['PSBNR2525M12', 'Vrtak HSS D20']);
+    expect(isoDefaultsAddedSince(2).map((r) => r.name)).toEqual(['Vrtak HSS D20']);
+    // Výchozí vrták = týž záznam jako v 📚 katalogu (smazaný jde vrátit odtud).
+    expect(isoDefaultsAddedSince(2)[0]).toEqual(buildIsoDrill({ kind: 'hss', diameter: 20 }));
+    expect(isoDefaultsAddedSince(2)[0].tool).toMatchObject({ toolShape: 'drill', toolRadius: 10, toolTipAngle: 118 });
     expect(isoDefaultsAddedSince(MAGAZINE_DEFAULTS_REV)).toEqual([]);
   });
 
@@ -370,5 +375,34 @@ describe('hlava držáku za břitem (verze 2) a převod starých obrysů', () =>
     const p = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'cam-cases', 'face-psknr-axis.camprog'), 'utf8')).params;
     const up = upgradeIsoHolderProfile(p.toolName, p.toolVbdCode, p.holderProfile);
     expect(up).toEqual(buildIsoKnife('SK', { shank: '2525', size: '12', radius: '08' }).tool.holderProfile);
+  });
+});
+
+describe('📚 katalog — vrtáky (isoDrills.js)', () => {
+  const all = ISO_DRILL_KINDS.flatMap((k) => isoDrillDiameters(k.id).map((d) => buildIsoDrill({ kind: k.id, diameter: d })));
+
+  it('každý druh × ⌀ dá celý nůž: vrták + pouzdro v ose za vyložením, náhled, jedinečné jméno', () => {
+    expect(all.length).toBe(isoDrillCount());
+    expect(new Set(all.map((r) => r.name)).size).toBe(all.length);
+    for (const rec of all) {
+      const t = rec.tool;
+      for (const k of CAM_TOOL_KEYS) expect(t[k], `${rec.name}.${k}`).not.toBeUndefined();
+      expect(t.toolShape).toBe('drill');
+      expect(rec.name).toMatch(/^[\x20-\x7e]+$/);                       // jde do T="…"
+      // Pouzdro začíná za vyložením a je širší než vrták.
+      const holder = holderProfileLoop(t);
+      expect(Math.min(...holder.map((p) => p.x)), rec.name).toBeCloseTo(t.toolLength, 6);
+      expect(t.holderWidth, rec.name).toBeGreaterThan(2 * t.toolRadius);
+      expect(Math.abs(polyArea(polyIntersect([holder], [cutLoop(t)]))), rec.name).toBeLessThan(1e-6);
+      expect(knifeThumbSvg(t, 36)).not.toMatch(/NaN|Infinity/);
+      expect(rec.f).toBeGreaterThan(0); expect(rec.f).toBeLessThanOrEqual(0.35);
+      for (const v of [rec.f, rec.ap, t.toolRadius]) expect(String(v), rec.name).not.toMatch(/\d{5}/);   // žádné 30.599999…
+    }
+  });
+
+  it('neznámý ⌀ / druh → výchozí HSS ⌀20; tvrdokov nemá ⌀ nad 20', () => {
+    expect(buildIsoDrill({}).name).toBe('Vrtak HSS D20');
+    expect(buildIsoDrill({ kind: 'hm', diameter: 25 }).iso.diameter).toBe(20);
+    expect(buildIsoDrill({ kind: 'hm', diameter: 10.2 }).tool.toolTipAngle).toBe(140);
   });
 });

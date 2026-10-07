@@ -588,10 +588,12 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/camSimulatorDialogs.js` | Vlastní confirm/offset/add-move dialogy |
 | `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
 | `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) — jen mapa klíč → generátor |
-| `cam/inserts/` | Pravidla PLÁTKU podle tvaru (`parting`, `polygon`, `round`, `threading`) + `index.js` s `getInsert(prms)` |
+| `cam/inserts/` | Pravidla PLÁTKU podle tvaru (`parting`, `polygon`, `round`, `threading`, `drill`) + `index.js` s `getInsert(prms)`. Vrták zapíná klíče `footprintIsOutline` (stopa = přesný obrys), `holderAxial` (pouzdro v ose za vyložením), `canDrill`, `pointLengthZ` — ostatní plátky je mají vypnuté |
 | `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
+| `cam/ops/drill.js` | OPERACE vrtání v ose — `emitDrill()` (rozepsaný G83/G73 cyklus, G97), `drillGeom()` sdílí UI |
+| `isoDrills.js` | Vrtáky pro 📚 katalog (karta Vrtáky v `isoCatalogPanel.js`, mimo `ISO_HOLDER_TYPES`) a výchozí T7 zásobníku — `buildIsoDrill({kind, diameter})` |
 | `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku), `finishPartingEnvelope()`, `clipFinishBand()` |
 | `cam/ops/roughEmit.js` | OPERACE hrubování, EMISE — `emitRoughing(E)`; vrací `simCounter` a `holderShallowBodies`, které musí přetéct do dokončování |
 | `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku) |

@@ -17,12 +17,14 @@ import { partingInsert } from './parting.js';
 import { polygonInsert } from './polygon.js';
 import { roundInsert } from './round.js';
 import { threadingInsert } from './threading.js';
+import { drillInsert } from './drill.js';
 
 const BY_SHAPE = {
   parting: partingInsert,
   polygon: polygonInsert,
   round: roundInsert,
   threading: threadingInsert,
+  drill: drillInsert,
 };
 
 /** Pravidla plátku pro dané parametry. Neznámý tvar → kulatá (nos R). */

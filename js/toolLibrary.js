@@ -60,7 +60,7 @@ function _fmt(n) {
   return (n === undefined || n === null || n === '') ? '–' : n;
 }
 
-const SHAPE_ICON = { round: '⬤', polygon: '◼', parting: '▮', threading: '▽' };
+const SHAPE_ICON = { round: '⬤', polygon: '◼', parting: '▮', threading: '▽', drill: '⌀' };
 
 /**
  * Otevře dialog knihovny nástrojů. S `onApply` má dvě záložky: 🧰 Moje nože
@@ -89,7 +89,7 @@ export async function showToolLibraryDialog(opts = {}) {
         <div class="project-info">
           <div class="project-name">${_esc(t.name)}</div>
           <div class="project-meta">
-            ${t.tool && t.tool.toolShape ? `<span title="Celý nůž — destička i držák">${SHAPE_ICON[t.tool.toolShape] || ''} + držák</span> · ` : ''}${t.material ? _esc(t.material) + ' · ' : ''}${t.vbdCode ? `<span style="font-family:monospace">${_esc(t.vbdCode)}</span> · ` : ''}rε ${_fmt(t.tipRadius)} mm${t.clearanceAngle ? ` · α ${_fmt(t.clearanceAngle)}°` : ''}
+            ${t.tool && t.tool.toolShape ? `<span title="Celý nůž — destička i držák">${SHAPE_ICON[t.tool.toolShape] || ''} + držák</span> · ` : ''}${t.material ? _esc(t.material) + ' · ' : ''}${t.vbdCode ? `<span style="font-family:monospace">${_esc(t.vbdCode)}</span> · ` : ''}${t.tool && t.tool.toolShape === 'drill' ? `⌀ ${_fmt(Math.round(t.tipRadius * 2000) / 1000)} mm · σ ${_fmt(t.tipAngle)}°` : `rε ${_fmt(t.tipRadius)} mm`}${t.clearanceAngle ? ` · α ${_fmt(t.clearanceAngle)}°` : ''}
             ${t.vc ? ` · Vc ${_fmt(t.vc)} f ${_fmt(t.f)} ap ${_fmt(t.ap)}` : ''}
           </div>
         </div>

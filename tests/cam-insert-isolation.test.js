@@ -21,7 +21,7 @@ import { getInsert } from '../js/calculators/cam/inserts/index.js';
 
 const ROOT = join(__dirname, '..');
 const CAM = join(ROOT, 'js', 'calculators', 'cam');
-const SHAPES = ['round', 'polygon', 'parting', 'threading'];
+const SHAPES = ['round', 'polygon', 'parting', 'threading', 'drill'];
 
 // UI (náhled, přepínač, popisky) a výchozí hodnoty — s drahami nesouvisí.
 const UI_FILES = new Set([
