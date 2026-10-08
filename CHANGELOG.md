@@ -90,6 +90,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Vyvrtávání „↺ z Vrtání": Z čela jako u vrtání.** Prázdné Z čelo vrtání
+  (= čelo dílu) se přebíralo jako Z0 — u dílu nakresleného od Z0 doprava
+  (čelo Z346) by vyvrtávání začalo na levém konci. Teď se bere týž výpočet
+  jako ve Vrtání (`drillGeom` + `drillAutoFaceZ`).
 - **CAM dokončování: dno u čela, Rovný průměr hlídá držák, odskok upichováku
   bez řezu bokem** (díl uživatele `projekt_2026-10-08 (2)`).
   - Hlídání držáku testovalo offset úseku ještě před oříznutím ve vnitřním

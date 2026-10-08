@@ -7334,7 +7334,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!(full > 0)) return '';
     S.params.borePreDiameter = d;
     S.params.borePreDepth = Math.round(full * 1000) / 1000;
-    S.params.boreZStart = parseFloat(S.params.drillZStart) || 0;
+    // Z čela tak, jak ho bere vrtání: prázdné Z čelo = čelo dílu
+    // (drillAutoFaceZ), ne Z0 — u dílu nakresleného od Z0 doprava by
+    // vyvrtávání jinak začalo na levém konci (stejná chyba jako u vrtání 7. 10.).
+    S.params.boreZStart = drillGeom(S.params, { faceZ: drillAutoFaceZ(S) }).zFace;
     return ` — předvrtání ⌀${d} × ${S.params.borePreDepth} z Vrtání`;
   }
 
