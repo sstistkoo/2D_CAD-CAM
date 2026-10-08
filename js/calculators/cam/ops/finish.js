@@ -18,7 +18,7 @@
 // Protažení offsetů k ose (`extendOffsetStartToAxis`) sem NEPATŘÍ: dělá se
 // pro hrubovací i dokončovací čáru najednou, takže zůstalo v pipeline.
 
-import { dropTinyArcs, getNormal, intersectSegAtZ, syncArcEndpoints, getEffectivePlungeAngle } from '../camMath.js';
+import { dropTinyArcs, getNormal, intersectSegAtZ, syncArcEndpoints, getEffectivePlungeAngle, isAngleBetween } from '../camMath.js';
 import { splitSteepFinish } from './finishSteep.js';
 import { machinableRangeOf, segInterferesWithTool, trimAndRemoveLoops } from '../contourBuild.js';
 import { makeFinishTipGuard } from '../toolEnvelope.js';
@@ -82,8 +82,32 @@ export function buildFinishPath(ctx) {
       console.warn('CAM: obálku držáku pro dokončování se nepodařilo sestavit:', err);
     }
   }
+  // PŘESAH VE VNITŘNÍM ROHU SE NEPOČÍTÁ. Offset úseku tu ještě není oříznutý
+  // (to udělá až `trimAndRemoveLoops` níž) a ve vnitřním rohu sahá o rádius
+  // špičky za skutečný konec dráhy — do míst, kde by špička byla v kontuře
+  // sousední stěny. Tam nástroj nikdy nepojede, ale držák se v nich o stěnu
+  // otřel a podle „celý, nebo vůbec" vypadl celý úsek: dno X 8,743 mezi body
+  // 11 a 12 dílu uživatele (`projekt_2026-10-08 (2)`, upichovák) zakázalo
+  // posledních 0,5 mm přesahu u šikmého čela Z 138 a dno zůstalo nedokončené.
+  const tipInContour = (p) => {
+    for (const s of contourSegments) {
+      let d;
+      if (s.type === 'line') {
+        const vx = s.p2.x - s.p1.x, vz = s.p2.z - s.p1.z, L2 = vx * vx + vz * vz;
+        const t = L2 > 0 ? Math.max(0, Math.min(1, ((p.x - s.p1.x) * vx + (p.z - s.p1.z) * vz) / L2)) : 0;
+        d = Math.hypot(p.x - (s.p1.x + vx * t), p.z - (s.p1.z + vz * t));
+      } else if (s.type === 'arc' && Number.isFinite(s.r)) {
+        const a = Math.atan2(p.x - s.cx, p.z - s.cz);
+        d = isAngleBetween(a, s.startAngle, s.endAngle, s.dir === 'G2')
+          ? Math.abs(Math.hypot(p.x - s.cx, p.z - s.cz) - s.r)
+          : Math.min(Math.hypot(p.x - s.p1.x, p.z - s.p1.z), Math.hypot(p.x - s.p2.x, p.z - s.p2.z));
+      } else continue;
+      if (d < tipR - 0.02) return true;
+    }
+    return false;
+  };
   const holderBlocks = (fs) => !!finHolderGuard
-    && segSamplePts(fs).some(p => finHolderGuard.isForbidden(p.x, p.z));
+    && segSamplePts(fs).some(p => finHolderGuard.isForbidden(p.x, p.z) && !tipInContour(p));
   let pendingBreak = false;
   // Přeryv kvůli NEDOSAŽITELNÉMU úseku (hlídání destičky) — na rozdíl od
   // mikro-přeskoku znamená „tady je díra, další dosažitelný úsek je

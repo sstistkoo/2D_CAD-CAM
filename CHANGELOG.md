@@ -90,6 +90,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **CAM dokončování: dno u čela, Rovný průměr hlídá držák, odskok upichováku
+  bez řezu bokem** (díl uživatele `projekt_2026-10-08 (2)`).
+  - Hlídání držáku testovalo offset úseku ještě před oříznutím ve vnitřním
+    rohu — v přesahu (o rádius za koncem dráhy, kam nástroj nikdy nejede) se
+    držák otřel o šikmé čelo a „celý, nebo vůbec" vyřadilo celé dno X 8,743
+    mezi body 11 a 12. Přesah, kde by špička byla v kontuře, se nepočítá: dno
+    se dokončí až do rohu a dráha jede rovnou nahoru po čele (zmizel sjezd
+    podél čela `N9660 G1 X9.661`).
+  - **Rovný průměr** na konci i začátku řetězu hlídá držák (hotový díl
+    i nevyhrubovaný zbytek) — dřív jel 15 mm po válci, kam se držák nevejde.
+  - Šikmý odskok čelního průchodu upichovákem hlídá i rovné dno plátku pod
+    MĚLČÍM sousedním průchodem — tělo jinak bokem ujedlo klín až 0,76 mm²
+    (`N4390 G1 X16.361 Z196.932`); tam se teď odjede svisle.
+  Otisk: hnulo se 5 fixtures s upichovákem, kolize 0. SW v412.
 - **CAM upichovák čelně: přejezdy, dokončování a schod u čela** (díl
   uživatele 8. 10. 2026, MGEHR2525-5). Dokončování po obálce plátku spojovalo
   místa, kam se nevejde držák, rovnou čarou posuvem (`N9550 G1 X7.675

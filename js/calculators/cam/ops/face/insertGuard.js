@@ -183,12 +183,12 @@ if (ins.cutsFullWidth) {
           for (let i = 1; i <= n && zS === null; i++) {
             const zb = p.z + (zEnd - p.z) * (i / n);
             if (partingEnvelopeAt(offsetXAt, zb, w2R, dirM, 0.4) !== null) {
-              let lo = za, hi = zb;
+              let zNull = za, zHit = zb;
               for (let k = 0; k < 30; k++) {
-                const m = (lo + hi) / 2;
-                if (partingEnvelopeAt(offsetXAt, m, w2R, dirM, 0.4) === null) lo = m; else hi = m;
+                const m = (zNull + zHit) / 2;
+                if (partingEnvelopeAt(offsetXAt, m, w2R, dirM, 0.4) === null) zNull = m; else zHit = m;
               }
-              zS = lo;
+              zS = zNull;
             }
             za = zb;
           }

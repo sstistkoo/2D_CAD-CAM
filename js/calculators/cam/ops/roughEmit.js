@@ -851,6 +851,29 @@ calc.passes.forEach((pass, i) => {
         if (p2.xEnd > cur.x + dz * rTan - 0.02) { retractGouges = true; break; }
       }
     }
+    // …a pod ROVNÝM DNEM plátku (`flatSpanZ`). Kontrola výš se ptá jen na
+    // průchody do rDistZ od ŠPIČKY. Dno ale sahá o bodySpanZ dál k obrobené
+    // straně a odskokem vjede o rDistZ do pásu, který dřív vybral jen MĚLČÍ
+    // průchod — tělo tam bokem uřízne klín (díl uživatele 8. 10. 2026,
+    // upichovák: `N4390 G1 X16.361 Z196.932` 0,69 mm², `N6670` 0,76 mm²).
+    // Měří se proti dnům UŽ PROJETÝCH průchodů (pás, který žádný nepokryl,
+    // se neposuzuje — tam rozhoduje kontura výš). Kde by řezal, ven svisle v X.
+    if (!retractGouges && rDistZ > 1e-9 && bodySpanZ > 1e-6) {
+      const done = calc.passes.slice(0, i).filter(p2 => p2.type === 'face' && Number.isFinite(p2.xEnd));
+      const floorAt = (z) => {
+        let f = null;
+        for (const p2 of done) {
+          const lo = dirZR > 0 ? p2.z : p2.z - bodySpanZ, hi = dirZR > 0 ? p2.z + bodySpanZ : p2.z;
+          if (z >= lo - 1e-6 && z <= hi + 1e-6 && (f === null || p2.xEnd < f)) f = p2.xEnd;
+        }
+        return f;
+      };
+      for (let k = 1; k <= 8 && !retractGouges; k++) {
+        const dz = rDistZ * k / 8;
+        const f = floorAt(cur.z + dirZR * (bodySpanZ + dz));
+        if (f !== null && f > cur.x + dz * rTan + 0.02) retractGouges = true;
+      }
+    }
     const zRetractVal = clipZGc(clipFaceRetractZ(cur.z + (pass.faceLeft ? -rDistZ : rDistZ), pass));
     // …a nakonec DRŽÁK. Obě kontroly výš znají jen ŠPIČKU: hotovou konturu
     // pod diagonálou a zbytek na sousedních čelních rovinách do rDistZ

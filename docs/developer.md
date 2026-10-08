@@ -1117,6 +1117,23 @@ vypadající dráhy v rozích (nález uživatele 19. 8. 2026):
      (`stairPlunge`) tam, kde tělo plátku dojede 0,02 mm před přídavek čela;
      rychloposuvem sjede až nad schod. U šikmého čela (`part-20`) pak zápich
      dojede po obálce nahoru jako dřív.
+4. **Hlídání držáku u dokončování a odskoku** (díl `projekt_2026-10-08 (2)`):
+   - `holderBlocks` (ops/finish.js) testuje offset úseku PŘED oříznutím
+     (`trimAndRemoveLoops`). Ve vnitřním rohu offset přesahuje o rádius špičky
+     do míst, kde by špička byla v sousední stěně — body, kde je špička blíž
+     kontuře než `tipR − 0,02` (`tipInContour`), se do testu nepočítají.
+     Jinak „celý, nebo vůbec" zahodí celý úsek kvůli místu, kam nástroj
+     nikdy nepojede (dno X 8,743 u šikmého čela Z 138).
+   - **Rovný průměr** (`finRunOut` / `finRunInZ`, ops/finishEmit.js) se ptá
+     `finStraightOk`: zakázaná oblast špičky z `makeFinishTipGuard` (držák ×
+     hotový díl, totéž co dokončovací úseky) a `finLeftoverHits` (držák ×
+     nevyhrubovaný zbytek). Celý, nebo vůbec.
+   - Šikmý odskok čelního průchodu (ops/roughEmit.js) u nástroje s rovným
+     dnem (`flatSpanZ`) hlídá i pás, do kterého dno odskokem nově vjede,
+     proti dnům UŽ PROJETÝCH průchodů; kde je mělčí soused, odjede se svisle.
+   - Pozor: 0,5 mm „Rovný průměr" do vzduchu na konci řetězu NENÍ chyba
+     k odstranění — na `part-9` přejede klínek polotovaru pod nosem za čelem
+     a díky tomu jede výjezd rychloposuvem (bez něj `Výjezd materiálem posuvem`).
 
 #### Náhled úběru: pás k offsetové čáře
 

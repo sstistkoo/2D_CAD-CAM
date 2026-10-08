@@ -20,7 +20,7 @@
 import { StockModel, polyArea, polyDifference, polyOffset, toolSweep } from '../../../geom/geomCore.js';
 import { segEndPoint, segStartPoint } from '../camMath.js';
 import { holderWorldLoop } from '../collisionValidator.js';
-import { offsetSilhouetteLoop } from '../toolEnvelope.js';
+import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
 
 /**
@@ -70,6 +70,7 @@ if (finBackside) {
 // a další úsek řetězu ho tedy už nevidí. Skutečný `rapidStock` zůstává
 // netknutý — rychloposuvy uvnitř dokončování tak dál plánují proti stavu
 // po hrubování (konzervativní strana).
+let finLeftoverHits = null;   // (pts) → držák v nevyhrubovaném zbytku? (viz finStraightOk)
 if ((prms.doFinishing || prms.finishOnly) && prms.respectInsertGeometry && rapidStock) {
   const holderLoop = holderWorldLoop(prms, finBackside);
   const holderShrunk = holderLoop ? (polyOffset([holderLoop], -0.05)[0] || holderLoop) : null;
@@ -115,8 +116,33 @@ if ((prms.doFinishing || prms.finishOnly) && prms.respectInsertGeometry && rapid
       // připojí zpět do ⚠ panelu, viz S.genNotes v camSimulator.js.
       S.genNotes.push({ type: 'warning', msg: `Hlídání geometrie (držák): dokončování vynechá ${finStockDropped} úsek(ů) — vedou přes NEVYHRUBOVANÝ zbytek polotovaru (držák by do něj narazil). Vyhrubujte ho z druhé strany / jiným nástrojem.` });
     }
+    finLeftoverHits = (pts) => {
+      try { return Math.abs(polyArea(finStock.collide(toolSweep(holderShrunk, pts)))) > 0.5; } catch { return false; }
+    };
   }
 }
+// ── Držák u ROVNÉHO PRŮMĚRU (pravidlo 2) ──────────────────────────
+// Rovný průměr na konci a na začátku řetězu (finRunOut / finRunInZ níž) jede
+// právě tam, kde dokončování úsek VYNECHALO — často proto, že se tam nevejde
+// držák. Dřív se na držák neptal: na part-16 jel 15 mm po válci, který
+// filtr výš vyřadil kvůli zbytku polotovaru (uživatel 8. 10. 2026: „oprav
+// ten Rovný průměr, ať hlídá držák"). Hlídá se teď stejně jako dokončovací
+// úsek: držák proti hotovému dílu (zakázaná oblast špičky — totéž hlídání
+// jako v ops/finish.js) i proti nevyhrubovanému zbytku (`finLeftoverHits`).
+// Celý, nebo vůbec — kde by narazil, rovný průměr nejede.
+let finTipGuard = null;
+if ((prms.doFinishing || prms.finishOnly) && prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__) {
+  try {
+    finTipGuard = makeFinishTipGuard(prms, calc.contourSegments || [], { backside: finBackside, stockPathSegments: calc.stockPathSegments });
+  } catch { finTipGuard = null; }
+}
+const finStraightOk = (x, z0, z1) => {
+  if (finTipGuard) {
+    const n = Math.max(1, Math.ceil(Math.abs(z1 - z0) / 0.5));
+    for (let k = 1; k <= n; k++) if (finTipGuard.isForbidden(x, z0 + (z1 - z0) * (k / n))) return false;
+  }
+  return !(finLeftoverHits && finLeftoverHits([{ x, z: z0 }, { x, z: z1 }]));
+};
 const firstGcFinSeg = finPath.find(s => !s.isDegenerate);
 // Výměna nástroje pro dokončování — jen pokud je nastaven jiný nástroj ze zásobníku
 const finSlotIdx = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? prms.finishingSlot : null;
@@ -232,7 +258,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       if (prof !== null && prof > tx + 0.02) return null;         // kontura se zvedá
       const top = residualTopXAtZ(z);
       if (top !== null && top > xCut + finMaxCut) return null;    // moc velký záběr
-      if (!finHasStockAt(z, tx)) return d < 0.7 ? null : z;        // hrana materiálu
+      if (!finHasStockAt(z, tx)) return d < 0.7 || !finStraightOk(tx, tz, z) ? null : z;   // hrana materiálu (a držák)
     }
     return null;
   };
@@ -298,6 +324,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       if (!finHasStockAt(z, x)) { zEnd = z; break; }             // vyjel z materiálu
     }
     if (zEnd === null || Math.abs(zEnd - cur.z) < 0.2) return;
+    if (!finStraightOk(x, cur.z, zEnd)) return;                  // držák (pravidlo 2)
     simCounter += 1;
     addN(`G1 X${xDia(x)} Z${zEnd.toFixed(3)}${note('', 'Rovný průměr (zbytek nejde dokončit celý)')}`, simCounter);
     setPos(x, zEnd);
