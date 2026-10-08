@@ -106,3 +106,32 @@ describe('vyvrtávání díry z výkresu', () => {
     expect(xs).toContain(13.9);
   });
 });
+
+describe('vyvrtávání — dokončení stěny díry (boreFinish)', () => {
+  it('jede po stěně (sražení, ⌀40, schod, ⌀30, dno k předvrtání), výjezdy v díře nejdál na rIn, týmž nástrojem', async () => {
+    // Vnější dokončovací nůž ve slotu 0 — do díry ho dokončení poslat nesmí.
+    const toolMagazine = [{ slot: 1, name: 'PCLNR2525M12', shape: 'polygon', radius: 0.8, tipAngle: 80, toolAngle: 5, f: 0.1, vc: 250 }];
+    const res = await runCamProg({ params: { ...base, boreFinish: true, finishingSlot: 0 }, contourPoints: P(CONNECTED), stockPoints: [], toolMagazine });
+    const lines = res.gcode.split('\n');
+    const iF = lines.findIndex(l => l.includes('DOKONCOVANI'));
+    expect(iF).toBeGreaterThan(0);
+    expect(res.gcode).not.toMatch(/T="PCLNR/);
+    const g = boreGeom(base, boreChainFromState({ params: base, contourPoints: P(CONNECTED) }).segs);
+    // boreMoves čte od značky VYVRTAVANI — dokončovací část se jí předá s ní.
+    // (první nájezd jen v Z — poloha X z hrubování tu není známá, přeskočí se)
+    const fin = boreMoves(['; --- VYVRTAVANI', ...lines.slice(iF)].join('\n')).filter(m => m.x !== null);
+    const xs = fin.map(m => +m.x.toFixed(3));
+    for (const r of [19.2, 14.2, 12.5 - 0.8]) expect(xs).toContain(+r.toFixed(3));   // stěna − rε, dno k předvrtání
+    for (const m of fin.filter(q => q.z < 0)) {
+      expect(m.x, m.line).toBeGreaterThanOrEqual(g.rIn - 1e-3);
+      expect(m.z, m.line).toBeGreaterThanOrEqual(-30 - 0.8 - 1e-3);
+    }
+    // Pomocné X max (dno díry) se uživateli nehlásí; tyč se vejde.
+    expect(res.S.genNotes.some(n => /Rozsah|nevejde/.test(n.msg))).toBe(false);
+  });
+
+  it('bez boreFinish žádné dokončení (výchozí stav)', async () => {
+    const res = await runCamProg({ params: base, contourPoints: P(CONNECTED), stockPoints: [] });
+    expect(res.gcode).not.toContain('DOKONCOVANI');
+  });
+});

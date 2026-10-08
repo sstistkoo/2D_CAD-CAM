@@ -583,6 +583,12 @@ a rychloposuvy jdou do volného předvrtání, ne do stěny.
    Body díry uvnitř předvrtání (dno vrtané díry) se nevrtají. Zatím jen zprava.
 3. **⌀ předvrtání** a **Hloubka předvrt.** (aspoň délka díry — tyč nevrtá do
    plného). Záběr ap, posuv, Vc a přídavky sdílí s hrubováním.
+4. **Dokončit stěnu díry** (výchozí vypnuto) — po hrubování jeden dokončovací
+   průchod po stěně (sražení, schody, dno až k předvrtání) **týmž nástrojem**;
+   dokončovací nůž vnějšího obrábění se do díry nepošle. Na stěně zůstane jen
+   Přídavek na dokončení (Ph). Nájezd jde jako u vnějšího dokončení rampou pod
+   úhlem zanoření před čelem (u PCLNR 5° → dlouhá rampa vzduchem); v rohu u
+   schodu dokončení dobere schodiště po hrubování.
 
 Program: nájezd v Z před čelo, radiálně do předvrtání (o Vůli X od stěny),
 vrstvy od předvrtání ke stěně, poslední na dně (stěna − přídavek − rε),

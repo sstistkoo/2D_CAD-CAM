@@ -163,12 +163,18 @@ function chainMirrorContour(g) {
   return pts.map((p, i) => ({ id: i + 1, mode: 'ABS', r: 0, ...p }));
 }
 
-/** Parametry zrcadlového světa: válec = předvrtání, vnější hrubování zprava, nic jiného. */
+/**
+ * Parametry zrcadlového světa: válec = předvrtání, vnější hrubování zprava.
+ * Dokončení stěny díry (`boreFinish`) = vnější dokončovací průchod v zrcadle,
+ * VŽDY týmž nástrojem (finishingSlot vnějšího obrábění by do díry poslal
+ * vnější dokončovací nůž).
+ */
 export function boreMirrorParams(prms, g) {
   return {
     ...prms,
     boreActive: false, drillActive: false, threadActive: false, partOffZ: null,
-    roughingStrategy: 'longitudinal', roughingSide: 'right', doFinishing: false, finishOnly: false,
+    roughingStrategy: 'longitudinal', roughingSide: 'right', doFinishing: !!prms.boreFinish, finishOnly: false,
+    finishingSlot: null,
     stockMode: 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.zF, stockLength: g.L0 - g.zF,
     safeX: +(g.k * (g.rRef - g.rIn)).toFixed(6),
   };
@@ -196,9 +202,14 @@ export function boreMirrorState(S) {
   const src = S.params.boreSource === 'cad' ? boreChainFromState(S) : null;
   const g = boreGeom(S.params, src ? src.segs : null);
   if (!g.ok) return { g, S2: null };
+  // X max v zrcadle = nos se dotkne stěny předvrtání: dokončení skončí na dně
+  // díry a nejede dál po pomocném obrysu uvnitř předvrtání (vzduchem).
+  // Polotovar (předvrtání) leží pod ním — hrubování to nemění (změřeno).
+  const xMax = g.rRef - g.r0 + Math.max(0, num(S.params.toolRadius, 0));
   const S2 = {
     params: boreMirrorParams(S.params, g), contourPoints: boreMirrorContour(g), stockPoints: [],
-    zLimits: { ...S.zLimits, rangeActive: false }, xLimits: { rangeXMin: null, rangeXMax: null, active: false },
+    zLimits: { ...S.zLimits, rangeActive: false },
+    xLimits: { rangeXMin: null, rangeXMax: xMax, active: false, minActive: false, maxActive: true },
     guideLines: [], flipX: S.flipX, flipZ: S.flipZ, manualGCode: '', errors: [], genNotes: [],
     toolMagazine: S.toolMagazine,
   };
@@ -223,6 +234,22 @@ export function boreMirrorSim(S, simPath, computeCalculation) {
   };
 }
 
+/** Rychloposuvy v díře (Z pod čelem) blíž k ose než rIn → na rIn (řádky už ve skutečném světě). */
+function clampRapidsToSafeRadius(body, g) {
+  let z = null;
+  for (const l of body) {
+    const ci = l.text.search(/[;(]/);
+    const code = ci < 0 ? l.text : l.text.slice(0, ci);
+    const mz = code.match(/Z(-?\d*\.?\d+)/);
+    const mx = code.match(/X(-?\d*\.?\d+)/);
+    const zNew = mz ? parseFloat(mz[1]) : z;
+    if (/\bG0?0\b/.test(code) && mx && zNew !== null && zNew < g.zF - 1e-6 && parseFloat(mx[1]) / g.k < g.rIn - 1e-6) {
+      l.text = code.replace(/X(-?\d*\.?\d+)/, 'X' + (g.k * g.rIn).toFixed(3)) + (ci < 0 ? '' : l.text.slice(ci));
+    }
+    z = zNew;
+  }
+}
+
 /**
  * @param ctx  { S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode }
  * @returns    hotové řádky programu
@@ -238,7 +265,10 @@ export function emitBore(ctx) {
     warn(`Vyvrtávání: ${g.reason}`);
   } else {
     const inner = generateAutoGCode(S2, computeCalculation(S2));
-    for (const e of [...(S2.errors || []), ...(S2.genNotes || [])]) if (e && e.msg) warn(`Vyvrtávání: ${e.msg}`);
+    // Hlášky ořezu rozsahem patří pomocnému X max (dno díry), ne uživateli.
+    for (const e of [...(S2.errors || []), ...(S2.genNotes || [])]) {
+      if (e && e.msg && !/^Rozsah (obrábění|X max)/.test(e.msg)) warn(`Vyvrtávání: ${e.msg}`);
+    }
     // Tělo = od prvního pohybu (nájezd na bezpečný bod v díře) po závěr programu.
     const start = inner.findIndex(l => l.simIdx === 0);
     const tail0 = buildControlTailLines(prms.controlSystem)[0];
@@ -246,6 +276,11 @@ export function emitBore(ctx) {
     if (end < 0) end = inner.length;
     const kRef = g.k * g.rRef;
     body = start < 0 ? [] : inner.slice(start, end).map(l => ({ ...l, text: unmirrorBoreLine(l.text, kRef) }));
+    // Výjezd v díře nejdál na vnitřní bezpečný poloměr: „Výjezd nad konturu"
+    // po dokončení zvedá nad pomocný obrys za dnem — ve skutečnosti k ose,
+    // kde by tyč zadní stranou sáhla na protější stěnu. Na rIn je pořád volné
+    // předvrtání (o vůli X od stěny).
+    clampRapidsToSafeRadius(body, g);
     // Pravidlo 13: v díře (Z pod čelem) tyč nesmí sáhnout na protější stěnu.
     let x = null, z = null, bad = null;
     for (const l of body) {

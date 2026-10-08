@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vyvrtávání — dokončení stěny díry** (☑ Dokončit stěnu díry v záložce
+  Vyvrt., výchozí vypnuto). Vnější dokončovací průchod v zrcadle, vždy týmž
+  nástrojem (finishingSlot se do díry nepoužije). Končí na dně díry, kde se
+  nos dotkne předvrtání (pomocné X max v zrcadle — hrubování se tím nemění,
+  změřeno); výjezdy v díře nejdál na vnitřní bezpečný poloměr. Známé: nájezd
+  rampou před čelem vzduchem (úhel zanoření plátku) a v rohu u schodu tříska
+  ze schodiště po hrubování — dědí se z vnějšího dokončení.
 - **Vyvrtávání — tvar díry z výkresu** (✏ Z výkresu v záložce Vyvrt.,
   uživatel 8. 10. 2026: „řetěz z CAD, kde by byla nakreslena"). Díra jde
   nakreslit samostatně (řetěz jedním koncem na čele, celý uvnitř dílu —

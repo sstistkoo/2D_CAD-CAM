@@ -5352,6 +5352,10 @@ export function openCamSimulator(initialContour, initialGCode) {
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Přídavek na stěně díry (radiálně, sdílí Přídavek X)">Přídavek X</label><input type="number" step="0.05" data-p="allowanceX" value="${prms.allowanceX}"></div>
         <div class="cam-sim-field"><label title="Přídavek na dně díry (sdílí Přídavek Z)">Přídavek Z</label><input type="number" step="0.05" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
+      </div>
+      <div class="cam-sim-checkbox-row" data-tooltip="Po hrubování jeden dokončovací průchod po stěně díry (sražení, schody, dno) týmž nástrojem — jako vnější dokončení, jen v díře. Na stěně zůstane jen Přídavek na dokončení (Ph).">
+        <input type="checkbox" id="cam-sim-bore-finish" ${prms.boreFinish ? 'checked' : ''}>
+        <span>Dokončit stěnu díry</span>
       </div>`;
       if (!_bg.ok) {
         html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ ${escHTML(_bg.reason)}</small>`;
@@ -5880,6 +5884,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const borePickToolBtn = tabBody.querySelector('[data-act="bore-pick-tool"]');
     if (borePickToolBtn) borePickToolBtn.addEventListener('click', () => showMagazineDialog());
+    const boreFinishCb = tabBody.querySelector('#cam-sim-bore-finish');
+    if (boreFinishCb) boreFinishCb.addEventListener('change', () => {
+      S.params.boreFinish = boreFinishCb.checked;
+      applyChange();
+    });
     tabBody.querySelectorAll('[data-boresrc]').forEach(btn => {
       btn.addEventListener('click', () => {
         if ((S.params.boreSource === 'cad') === (btn.dataset.boresrc === 'cad')) return;
