@@ -68,6 +68,8 @@ export function drillInsert(prms) {
     approachFromNoseContact: false,
     rule7Layers: false,
     realStockLayers: false,
+    leadOutPastRampWall: false,
+    closingLayerTracesFloor: false,
     leadOutTrimNoseCircle: false,
     footprintChordTol: 0,
     // Náhradní držák (sklíčidlo) začíná na konci vyložení.

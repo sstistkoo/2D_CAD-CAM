@@ -1391,6 +1391,7 @@ export function genLongPasses(ctx) {
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
           straightRunEndZ, traceOffsetPath, blockedAt, rampSt: { anchor: null, closed: false }, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
+          leadOutPastRampWall: ins.leadOutPastRampWall,
         });
         // ── VRSTVA JEDE PŘES VZDUCH DÁL (pravidlo 7) ────────────────────
         // Kus za vzduchovou mezerou má vlastní vjezd jen proto, aby se
@@ -1432,6 +1433,7 @@ export function genLongPasses(ctx) {
           pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
           rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
           straightRunEndZ, traceOffsetPath, blockedAt, rampSt, noseLiftX: noseLiftL, anchorLiftX: anchorLiftL,
+          leadOutPastRampWall: ins.leadOutPastRampWall,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
         return;
@@ -1739,8 +1741,20 @@ export function genLongPasses(ctx) {
         // „poslední vrstva" X 5,214 v pásu vůle za koncem polotovaru
         // Z −62,1…−62,8 a k ní rampa 5° přes celý díl (`G1 X5.214 Z-62.000`).
         // Klíč plátku `realStockLayers` (pravidlo 9).
+        // Stěna se tu bere PŘÍSNĚJI než v `blockedAt` (offset nad X − 0,01,
+        // ne nad X + 0,01): sken intervalů (Clipper nad vzorkovaným
+        // offsetem) a `blockedAt` se o tu setinu neshodnou. Těsně POD
+        // plošinou (X 8,69 proti offsetu 8,70) sken plošinu zablokuje
+        // a `intervals[0]` je až zápich za ní, `blockedAt` ale řekne „volno"
+        // — bisekce pak vrátila poslední vrstvu jen v zápichu a obě plošiny
+        // zůstaly 0,3 mm nad přídavkem (vyvrtávání ⌀30 s vybráním ⌀36,
+        // 8. 10. 2026). Teď dojde k hloubce, kde vrstva vede od vjezdu přes
+        // plošiny celá.
         const openR = !iv0 || !ins.realStockLayers || (() => {
-          for (let z = iv0.zStart + dzScan; z < entryZ - 1e-9; z += dzScan) if (blockedAt(mid, z)) return false;
+          for (let z = iv0.zStart + dzScan; z < entryZ - 1e-9; z += dzScan) {
+            const o = offsetXAt(z);
+            if (o !== null && o > mid - 0.01) return false;
+          }
           return true;
         })();
         // Pravidlo 2 (držák se musí vejít) i tady: sken intervalů zná jen
@@ -1758,7 +1772,36 @@ export function genLongPasses(ctx) {
       }
       if (bestIv && lastDepthWithPasses - bestX > 0.1) {
         const closePass = { type: 'long', x: bestX, zStart: bestIv.zStart, zEnd: bestIv.zEnd, blocked: bestIv.blocked };
-        if (prms.noStepRoughing && bestIv.blocked) {
+        // ── POSLEDNÍ VRSTVA SJEDE PO DNĚ ÚDOLÍ (8. 10. 2026) ───────────────
+        // Hlubší hloubka nevydala nic, takže tahle vrstva je poslední všude,
+        // kudy jede — i nad údolím, které je pod ní mělčí než `ap` (zápich,
+        // kam destička dosáhne jen po mezní čáře). Rovně přes něj by v údolí
+        // zůstal klín až 0,5 mm nad přídavkem (pravidlo 3; vyvrtávání ⌀30
+        // s vybráním ⌀36, CCMT/DCMT). Tělo vrstvy proto skončí na hraně
+        // údolí a dál se jede po obrysu jako dojezd „bez schodků" — přes
+        // dno, zpátky nahoru a dál, dokud obrys nevystoupá k vrstvě nad ní.
+        // Klíč plátku `closingLayerTracesFloor`.
+        let dipZ = null;
+        if (ins.closingLayerTracesFloor && prms.noStepRoughing) {
+          let zOk = bestIv.zStart;
+          for (let z = bestIv.zStart; z > bestIv.zEnd + 1e-9; z -= 0.05) {
+            const o = offsetXAt(z);
+            if (o === null || o >= bestX - 0.02) { zOk = z; continue; }
+            if (o < bestX - 0.05) { dipZ = zOk; break; }
+          }
+        }
+        if (dipZ !== null && dipZ < bestIv.zStart - dzScan) {
+          const lo = holderTrimLeadOut(traceOffsetPath(dipZ,
+            findLeadOutEndZ(dipZ, lastDepthWithPasses, -Infinity, Math.max(traceFloorL, effZMin))), true);
+          clipLeadOutToDepth(lo, lastDepthWithPasses);
+          if (!prms.noStepRoughingFace && isFaceLeadOut(lo)) lo.length = 0;
+          if (lo.length > 0) {
+            closePass.zEnd = dipZ;
+            closePass.blocked = true;
+            closePass.contourLeadOut = lo;
+          }
+        }
+        if (!closePass.contourLeadOut && prms.noStepRoughing && bestIv.blocked) {
           // Schod vůči vrstvě NAD ní se dobere sledováním obrysu, stejně
           // jako u běžného průchodu „bez schodků".
           const lo = holderTrimLeadOut(

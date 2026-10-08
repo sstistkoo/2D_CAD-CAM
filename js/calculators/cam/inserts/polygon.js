@@ -129,6 +129,16 @@ export function polygonInsert(prms) {
     //                     vršku osazení za konec polotovaru. Kulatá to má
     //                     v rule7Layers, upichovák (stopa tělem) zatím ne.
     realStockLayers: true,
+    //   leadOutPastRampWall — dojezd „bez schodků", jehož rampa z rohu
+    //                     přejela nedosažitelný zápich a dosedla na protější
+    //                     stěnu, pokračuje za ní po obrysu (plošina za
+    //                     zápichem dostane poslední vrstvu, pravidlo 3;
+    //                     ops/long/openPass.js, 8. 10. 2026).
+    leadOutPastRampWall: true,
+    //   closingLayerTracesFloor — poslední (kratší) vrstva z bisekce nad
+    //                     údolím mělčím než ap sjede po obrysu na jeho dno
+    //                     (ops/roughLong.js, 8. 10. 2026).
+    closingLayerTracesFloor: true,
     leadOutTrimNoseCircle: false,
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,

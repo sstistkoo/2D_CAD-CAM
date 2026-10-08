@@ -22,7 +22,7 @@ export function emitOpenInterval(D) {
     pendingRampCompletions, plungeHolderFitsAt, pocketDoneRanges,
     rampedOutCorners, residEntryArea, skipCounters, stockEntryRamp, stockTopTab,
     straightRunEndZ, traceOffsetPath, rampSt, noseLiftX, anchorLiftX = noseLiftX,
-    blockedAt = null,
+    blockedAt = null, leadOutPastRampWall = false,
   } = D;
   // Částečný krok řetězu (viz použití u zakázaného kolmého vjezdu níž).
   function partialChainStep() {
@@ -434,12 +434,30 @@ export function emitOpenInterval(D) {
     // dojezdu končila vrstva v údolí nasucho a mezi ní a hotovní konturou
     // zůstal stát klín (reálný nález na díle uživatele — dvě vrstvy
     // v údolí „nedojeté").
+    // ── RAMPA DOSEDLA NA PROTĚJŠÍ STĚNU (8. 10. 2026) ────────────────────
+    // Rampa z rohu končí buď ve VZDUCHU (opustila siluetu polotovaru — pod
+    // ní je kapsa, kterou dobere blok „dobrat najednou"), nebo na STĚNĚ
+    // KONTURY: přejela celé údolí, kam destička nedosáhne (zápich), a
+    // dosedla na jeho protější stěnu. Za tou stěnou pokračuje kontura (zase
+    // plošina), na kterou hlubší vrstva nedojede — vede k ní jen tahle
+    // rampa. Dojezd proto pokračuje po obrysu dál stejně jako každý dojezd
+    // „bez schodků" (do hlubší vrstvy nebo na vršek schodu). Bez toho na
+    // plošině za zápichem zůstala poslední vrstva (0,3 mm nad přídavkem,
+    // pravidlo 3) — nález 8. 10. 2026 (CCMT, ⌀30, zápich ⌀24 × 6, „bez
+    // schodků"). Klíč plátku `leadOutPastRampWall`.
+    const onWall = leadOutPastRampWall && rampTarget && rampTarget === rampTargetRaw
+      && blockedAt && blockedAt(rampTarget.x, rampTarget.z - dzScan);
     const tailTrace = (straightContinueZ !== null && straightContinueZ > effZMin + 1e-6)
       ? traceIfContinuous(
           traceOffsetPath(straightContinueZ,
             findLeadOutEndZ(straightContinueZ, prevX, nextX, traceFloorL)),
           rampTarget.x, straightContinueZ)
-      : [];
+      : onWall
+        ? traceIfContinuous(
+            traceOffsetPath(rampTarget.z,
+              findLeadOutEndZ(rampTarget.z, prevX, nextX, traceFloorL)),
+            rampTarget.x, rampTarget.z)
+        : [];
     const leadOut = rampTarget
       ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
           .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)

@@ -108,6 +108,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Hrubování polygonem: poslední vrstva na plošinách vedle zápichu**, kam
+  destička nedosáhne (pravidlo 3, „bez schodků"). Na plošinách zůstávala
+  celá poslední vrstva (0,3 mm nad přídavkem):
+  - vně (hřídel ⌀30, zápich ⌀24 × 6): rampa dojezdu přejela zápich, dosedla
+    na jeho protější stěnu a skončila — teď dojezd pokračuje po obrysu za
+    stěnou (klíč plátku `leadOutPastRampWall`);
+  - v díře (vyvrtávání ⌀30 s vybráním ⌀36): bisekce poslední vrstvy se
+    ptala na volno tolerantněji než sken intervalů a vybrala vrstvu jen ve
+    vybrání; teď vede přes obě plošiny (`realStockLayers`) a nad vybráním
+    sjede po dosažitelném dně místo rovně přes něj
+    (`closingLayerTracesFloor`).
+  Kulatá ani ostatní plátky se nemění. Otisk 29 fixtures shodný,
+  `tests/cam-floor-past-groove.test.js`.
 - **Vnější hrubování: díra napojená na čelo** (uzavřený řez dno → stěna díry
   → čelo → vnější obrys) se brala jako vzduch nad dílem — vrstvy jely skrz
   stěnu dílu až k ose. Pipeline ji teď z vnější kontury vyjme (obrobí ji
