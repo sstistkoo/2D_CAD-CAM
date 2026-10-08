@@ -142,6 +142,7 @@ export function _defaultCamParams() {
     // hrubování v ose X. Samostatná operace jako vrtání, viz ops/bore.js.
     // První verze: podélné hrubování válcové díry ⌀ × délka od Z čela.
     boreActive: false,
+    boreSource: 'cylinder',  // 'cylinder' = válec ⌀ × délka níž, 'cad' = díra nakreslená ve výkresu
     boreZStart: 0,           // Z čela, kde díra začíná
     boreDiameter: 30,        // ⌀ díry po vyvrtání (hotový bez přídavku X)
     boreDepth: 20,           // délka díry od Z čela [mm]

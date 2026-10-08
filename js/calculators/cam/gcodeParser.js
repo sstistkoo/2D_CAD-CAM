@@ -341,16 +341,20 @@ export function parseContourGCode(text) {
 export function parseContourAndStockGCode(text) {
   const lines = text.split('\n');
   let stockStart = -1, stockEnd = lines.length;
+  // Díra pro vyvrtávání nakreslená jako SAMOSTATNÝ řetěz (storage/fileIO.js,
+  // cam/boreContour.js) — sekce DIRA_START…DIRA_END; do kontury nepatří.
+  let boreStart = -1, boreEnd = lines.length;
   for (let i = 0; i < lines.length; i++) {
     const u = (lines[i] || '').toUpperCase();
     if (u.includes('STOCK_START')) stockStart = i;
-    else if (u.includes('STOCK_END') && stockStart !== -1) { stockEnd = i; break; }
-  }
-  if (stockStart === -1) {
-    return { contour: _parseGCodeRange(lines, 0, lines.length, Date.now()), stock: [] };
+    else if (u.includes('STOCK_END') && stockStart !== -1 && stockEnd === lines.length) stockEnd = i;
+    else if (u.includes('DIRA_START')) boreStart = i;
+    else if (u.includes('DIRA_END') && boreStart !== -1 && boreEnd === lines.length) boreEnd = i;
   }
   const idBase = Date.now();
-  const contour = _parseGCodeRange(lines, 0, stockStart, idBase);
-  const stock = _parseGCodeRange(lines, stockStart + 1, stockEnd, idBase + 100000);
-  return { contour, stock };
+  const bore = boreStart === -1 ? [] : _parseGCodeRange(lines, boreStart + 1, boreEnd, idBase + 200000);
+  const contourEnd = Math.min(stockStart === -1 ? lines.length : stockStart, boreStart === -1 ? lines.length : boreStart);
+  const contour = _parseGCodeRange(lines, 0, contourEnd, idBase);
+  const stock = stockStart === -1 ? [] : _parseGCodeRange(lines, stockStart + 1, stockEnd, idBase + 100000);
+  return { contour, stock, bore };
 }

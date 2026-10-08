@@ -26,6 +26,7 @@ import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference } from '../geom/geomCore.js';
 import { boreGeom, boreMirrorSim } from './cam/ops/bore.js';
+import { boreChainFromState } from './cam/boreContour.js';
 import { HolderGouge } from './cam/holderGouge.js';
 import { ContourGouge } from './cam/contourGouge.js';
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
@@ -330,6 +331,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       { id: 10, type: 'G3', x: 65, z: -75, r: 12, mode: 'ABS' },
       { id: 11, type: 'G1', x: 80, z: -100, r: 0, mode: 'ABS' }
     ],
+    // Díra pro vyvrtávání nakreslená v CAD jako samostatný řetěz (sekce
+    // DIRA_START…DIRA_END přenosu, cam/boreContour.js). Prázdné = žádná.
+    borePoints: [],
     stockPoints: [
       { id: 101, type: 'G0', x: 85, z: 2, r: 0, mode: 'ABS' },
       { id: 102, type: 'G1', x: 85, z: -105, r: 0, mode: 'ABS' },
@@ -516,6 +520,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       }
       if (p.contourPoints && p.contourPoints.length > 0) S.contourPoints = p.contourPoints;
       if (p.stockPoints && p.stockPoints.length > 0) S.stockPoints = p.stockPoints;
+      if (Array.isArray(p.borePoints)) S.borePoints = p.borePoints;
       // Uložené dráhy použij jen když odpovídají AKTUÁLNÍ verzi logiky
       // generování (jinak jsou zastaralé) — prázdný manualGCode se níž
       // (řádek ~3270) automaticky přegeneruje z kontury/parametrů.
@@ -651,7 +656,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   const _prevContourKey = contourKey(S.contourPoints);
   if (initialContour && typeof initialContour === 'string' && initialContour.trim()) {
     const parsed = parseContourAndStockGCode(initialContour);
-    if (parsed.contour.length > 0) { S.contourPoints = parsed.contour; _importedContour = true; }
+    if (parsed.contour.length > 0) {
+      S.contourPoints = parsed.contour; _importedContour = true;
+      // CAD je zdroj pravdy i pro díru: přenos bez ní = díra už ve výkresu není.
+      S.borePoints = parsed.bore || [];
+    }
     if (parsed.stock.length >= 2) {
       S.stockPoints = parsed.stock;
       S.params.stockMode = 'casting';
@@ -897,6 +906,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     return {
       contour: JSON.parse(JSON.stringify(S.contourPoints)),
       stock: JSON.parse(JSON.stringify(S.stockPoints)),
+      bore: JSON.parse(JSON.stringify(S.borePoints || [])),
       guides: JSON.parse(JSON.stringify(S.guideLines || [])),
       gcode: S.manualGCode,
       gcodeDirty: S.gcodeDirty,
@@ -920,6 +930,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function _restore(s) {
     S.contourPoints = s.contour;
     S.stockPoints = s.stock;
+    if (s.bore) S.borePoints = s.bore;
     if (s.guides) S.guideLines = s.guides;
     if (typeof s.gcode === 'string') S.manualGCode = s.gcode;
     // Program se vrací i se svými stavy — jinak by Zpět vrátilo ručně upravené
@@ -1001,7 +1012,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         pathLogicVersion: PATH_LOGIC_VERSION,
         params: S.params, contourPoints: S.contourPoints,
-        stockPoints: S.stockPoints, manualGCode: S.manualGCode,
+        stockPoints: S.stockPoints, borePoints: S.borePoints, manualGCode: S.manualGCode,
         flipX: S.flipX, flipZ: S.flipZ, guideLines: S.guideLines, profileOriginal: S._profileOriginal,
         zLimits: S.zLimits, showZLimits: S.showZLimits, xLimits: S.xLimits, showSimPath: S.showSimPath,
         showRemoval: S.showRemoval, showRefGuides: S.showRefGuides,
@@ -2097,7 +2108,8 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     // ── Vyvrtávání: obrys díry a předvrtání (čárkovaně, ops/bore.js) ──
     if (prms.boreActive) {
-      const bg = boreGeom(prms);
+      const bsrc = prms.boreSource === 'cad' ? boreChainFromState(S) : null;
+      const bg = boreGeom(prms, bsrc ? bsrc.segs : null);
       if (bg.D > 0 && bg.L > 0) {
         const line = (pts) => {
           ctx.beginPath();
@@ -2106,7 +2118,21 @@ export function openCamSimulator(initialContour, initialGCode) {
         };
         ctx.save(); ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5;
         ctx.strokeStyle = '#fab387';
-        line([[bg.r, bg.zF], [bg.r, bg.zF - bg.L], [Math.min(bg.r0, bg.r), bg.zF - bg.L]]);
+        if (bg.chain) {
+          // Díra z výkresu: řetěz od ústí dovnitř, oblouky navzorkované.
+          const pts = [[bg.chain[0].p1.x, bg.chain[0].p1.z]];
+          for (const s of bg.chain) {
+            if (s.type === 'arc') {
+              let d = s.endAngle - s.startAngle;
+              if (s.dir === 'G2' && d > 0) d -= 2 * Math.PI;
+              if (s.dir === 'G3' && d < 0) d += 2 * Math.PI;
+              for (let j = 1; j <= 12; j++) { const a = s.startAngle + d * j / 12; pts.push([s.cx + s.r * Math.sin(a), s.cz + s.r * Math.cos(a)]); }
+            } else pts.push([s.p2.x, s.p2.z]);
+          }
+          line(pts);
+        } else {
+          line([[bg.r, bg.zF], [bg.r, bg.zF - bg.L], [Math.min(bg.r0, bg.r), bg.zF - bg.L]]);
+        }
         if (bg.r0 > 0 && bg.L0 > 0) { ctx.strokeStyle = '#f9e2af'; line([[bg.r0, bg.zF], [bg.r0, bg.zF - bg.L0], [0, bg.zF - bg.L0]]); }
         ctx.restore();
       }
@@ -5291,7 +5317,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_dg.targets.length} ${_dg.targets.length === 1 ? 'záběr' : _dg.targets.length < 5 ? 'záběry' : 'záběrů'} · čelo Z${_dg.zFace.toFixed(2)}${_dg.zFaceAuto ? ' (dílu)' : ''}${Math.abs(_dg.zEntry - _dg.zFace) > 0.01 ? ` · materiál v ose od Z${_dg.zEntry.toFixed(2)}` : ''} → dno špičky Z${_dg.zBottom.toFixed(2)} · ${(prms.roughingSide || 'right') === 'left' ? 'zleva (+Z)' : 'zprava (−Z)'} · G97 S${_dg.rpm}${_dg.dwell > 0 ? ` · prodleva ${_dg.dwell} s` : ''}${_isDrill ? '' : ' — vrtá se, až bude nástroj vrták'}. Když kontura dílu díru nemá, simulace ukáže vrtání červeně jako zajetí do hotové kontury.</small>`;
     } else if (_machSubTab === 'vyvrt') {
       // ── Vyvrtávání (ops/bore.js, pravidlo 13 — zrcadlo vnějšího hrubování) ──
-      const _bg = boreGeom(prms);
+      const _bsrc = prms.boreSource === 'cad' ? boreChainFromState(S) : null;
+      const _bg = boreGeom(prms, _bsrc ? _bsrc.segs : null);
+      const _fromCad = prms.boreSource === 'cad';
       const _barD = isoBoringBarDiameter(prms.toolName);
       html += `<div class="cam-sim-row" style="align-items:flex-end">
         <div class="cam-sim-field" style="flex:2"><label title="Vyvrtávací tyč ze 🔧 Zásobníku (📚 katalog → Vnitřní). Při zapnutí se vybere sama — nejtlustší, která se vejde do předvrtání.">Vyvrtávací tyč</label>
@@ -5299,11 +5327,18 @@ export function openCamSimulator(initialContour, initialGCode) {
         </div>
         <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="bore-toggle" class="cam-sim-btn ${prms.boreActive ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px" title="Zapnout/vypnout vyvrtávání (nahrazuje vnější hrubování — dráhy se přegenerují)">${prms.boreActive ? '✅ Aktivní' : 'Neaktivní'}</button></div>
       </div>
-      <div class="cam-sim-row">
+      <div style="margin-top:2px"><label style="font-size:10px;color:#6c7086">Tvar díry</label></div>
+      <div class="cam-sim-toggle-row">
+        <button data-boresrc="cylinder" class="${_fromCad ? '' : 'cam-sim-active'}" title="Válcová díra ⌀ × délka zadaná čísly">⌀ Válec</button>
+        <button data-boresrc="cad" class="${_fromCad ? 'cam-sim-active' : ''}" title="Díra nakreslená ve výkresu — samostatný řetěz (jedním koncem na čele, celý uvnitř dílu), nebo napojená na čelo dílu (uzavřený řez)">✏ Z výkresu</button>
+      </div>
+      ${_fromCad ? (_bsrc
+        ? `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Díra z výkresu (${_bsrc.source === 'separate' ? 'samostatný řetěz' : 'napojená na čelo'}): ⌀${(Math.round(_bg.D * 1000) / 1000)} × ${(Math.round(_bg.L * 1000) / 1000)} od Z${(Math.round(_bg.zF * 1000) / 1000)}, ${_bsrc.segs.length} ${_bsrc.segs.length < 5 ? 'úseky' : 'úseků'}.</small>`
+        : '') : `<div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Z čela, kde díra začíná">Z čelo</label><input type="number" step="0.5" data-p="boreZStart" value="${prms.boreZStart}"></div>
         <div class="cam-sim-field"><label title="Průměr díry po vyvrtání (hrubování na stěně nechá Přídavek X)">⌀ díry</label><input type="number" step="0.5" min="0" data-p="boreDiameter" value="${prms.boreDiameter}"></div>
         <div class="cam-sim-field"><label title="Délka díry od Z čela (kladná)">Délka</label><input type="number" step="1" min="0" data-p="boreDepth" value="${prms.boreDepth}"></div>
-      </div>
+      </div>`}
       <div class="cam-sim-row" style="align-items:flex-end">
         <div class="cam-sim-field"><label title="Průměr předvrtané díry — z ní se hrubuje">⌀ předvrtání</label><input type="number" step="0.5" min="0" data-p="borePreDiameter" value="${prms.borePreDiameter}"></div>
         <div class="cam-sim-field"><label title="Hloubka předvrtání na plný ⌀ (aspoň délka díry)">Hloubka předvrt.</label><input type="number" step="1" min="0" data-p="borePreDepth" value="${prms.borePreDepth}"></div>
@@ -5321,7 +5356,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (!_bg.ok) {
         html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ ${escHTML(_bg.reason)}</small>`;
       } else {
-        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Tyč sahá ${_bg.reach.toFixed(1)} mm od špičky k ose — do předvrtání ⌀${_bg.d0} se vejde · dráhy počítá vnější hrubování v zrcadle (pravidla 1–12, pravidlo 13) · zatím válcová díra zprava${prms.boreActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
+        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Tyč sahá ${_bg.reach.toFixed(1)} mm od špičky k ose — do předvrtání ⌀${_bg.d0} se vejde · dráhy počítá vnější hrubování v zrcadle (pravidla 1–12, pravidlo 13) · zprava${prms.boreActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
       }
     }
     html += `<div style="text-align:center;margin-top:16px">
@@ -5845,6 +5880,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     });
     const borePickToolBtn = tabBody.querySelector('[data-act="bore-pick-tool"]');
     if (borePickToolBtn) borePickToolBtn.addEventListener('click', () => showMagazineDialog());
+    tabBody.querySelectorAll('[data-boresrc]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if ((S.params.boreSource === 'cad') === (btn.dataset.boresrc === 'cad')) return;
+        pushHistory();
+        S.params.boreSource = btn.dataset.boresrc;
+        applyChange();
+      });
+    });
     const boreFromDrillBtn = tabBody.querySelector('[data-act="bore-from-drill"]');
     if (boreFromDrillBtn) boreFromDrillBtn.addEventListener('click', () => {
       pushHistory();
@@ -8145,6 +8188,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       params: S.params,
       contourPoints: S.contourPoints,
       stockPoints: S.stockPoints,
+      borePoints: S.borePoints || [],
       // manualGCode = CELÝ program (i pro starší verze appky a pro frontu
       // „SPOJ G-KÓD" v editoru, která z .camprog čte právě tohle pole);
       // opParts drží jednotlivé části pro další editaci.
@@ -8191,6 +8235,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (data.params) S.params = Object.assign(_defaultCamParams(), stripCodeOwnedParams(data.params));
         if (data.contourPoints) S.contourPoints = data.contourPoints;
         if (data.stockPoints) S.stockPoints = data.stockPoints;
+        S.borePoints = Array.isArray(data.borePoints) ? data.borePoints : [];
         // Části programu (operace) — jen s odpovídající verzí logiky drah,
         // jinak by se skládaly zastaralé dráhy (stejné pravidlo jako u
         // manualGCode níž). Projekt bez opParts = klasický jednooperační.

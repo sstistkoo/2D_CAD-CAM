@@ -22,13 +22,16 @@
 //
 // První verze (rozhodnutí uživatele 7. 10. 2026): jen podélné hrubování
 // válcové díry ⌀D × délka L od Z čela, z předvrtání ⌀d0 × L0 (z operace
-// Vrtání, nebo zadané), jen zprava. Tvar díry z CAD přijde zvlášť.
+// Vrtání, nebo zadané), jen zprava.
+// 8. 10. 2026: tvar díry i z VÝKRESU (`boreSource: 'cad'`) — samostatný
+// řetěz z CAD nebo díra napojená na čelo vnější kontury (cam/boreContour.js).
 
 import { buildControlTailLines } from '../controlDialect.js';
 import { stockClearances } from '../camMath.js';
 import { holderProfileLoop } from '../collisionValidator.js';
 import { buildInsertOutlineSegments } from '../insertPreview.js';
 import { getInsert } from '../inserts/index.js';
+import { boreChainFromState } from '../boreContour.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 /** O kolik je R_ref nad stěnou díry — v zrcadle „osa" leží v dílu, mimo obrábění. */
@@ -38,26 +41,42 @@ const WALL_GAP = 0.2;
 
 /**
  * Geometrie vyvrtávání z parametrů (sdílí emise, UI i testy).
+ * @param chain  tvar díry z výkresu (segmenty od ústí dovnitř, boreChainFromState)
+ *               — jen při `boreSource: 'cad'`; jinak válec ⌀ × délka z parametrů
  * @returns {{ok:boolean, reason?:string, k:number, zF:number, D:number, L:number,
- *   d0:number, L0:number, r:number, r0:number, rRef:number, rIn:number, reach:number}}
+ *   d0:number, L0:number, r:number, r0:number, rRef:number, rIn:number, reach:number,
+ *   chain:Array|null}}
  */
-export function boreGeom(prms) {
+export function boreGeom(prms, chain = null) {
   const k = prms.mode === 'DIAMON' ? 2 : 1;          // jednotky X v programu (průměr / poloměr)
-  const zF = num(prms.boreZStart, 0);
-  const D = Math.max(0, num(prms.boreDiameter, 0)), L = Math.max(0, num(prms.boreDepth, 0));
+  const fromCad = prms.boreSource === 'cad';
   const d0 = Math.max(0, num(prms.borePreDiameter, 0)), L0 = Math.max(0, num(prms.borePreDepth, 0));
-  const r = D / 2, r0 = d0 / 2;
+  const r0 = d0 / 2;
+  let zF = num(prms.boreZStart, 0);
+  let D = Math.max(0, num(prms.boreDiameter, 0)), L = Math.max(0, num(prms.boreDepth, 0));
+  const cad = fromCad && Array.isArray(chain) && chain.length > 0 ? chain : null;
+  if (cad) {
+    // Ústí = začátek řetězu; ⌀ = největší průměr; délka = nejhlubší bod, kde
+    // je co vyvrtat (body uvnitř předvrtání — dno vrtané díry — se nepočítají).
+    const pts = cad.flatMap(s => [s.p1, s.p2]);
+    zF = cad[0].p1.z;
+    D = 2 * Math.max(...pts.map(p => p.x));
+    const cut = pts.filter(p => p.x > r0 + 0.01);
+    L = cut.length ? zF - Math.min(...cut.map(p => p.z)) : 0;
+  }
+  const r = D / 2;
   const reach = boreToolReach(prms);
   // Rychloposuvy v díře: o vůli X od stěny předvrtání — tatáž vůle, o kterou
   // je venku plánovací obrys nad polotovarem (v zrcadle je to přesně on).
   const clr = stockClearances(prms);
   const clrX = Math.max(0.1, clr.x), clrZ = Math.max(0, clr.z);
   const rIn = r0 - clrX;
-  const g = { ok: true, k, zF, D, L, d0, L0, r, r0, rRef: r + R_REF_MARGIN, rIn, clrX, clrZ, reach };
+  const g = { ok: true, k, zF, D, L, d0, L0, r, r0, rRef: r + R_REF_MARGIN, rIn, clrX, clrZ, reach, chain: cad };
   const fail = (reason) => ({ ...g, ok: false, reason });
   if ((prms.roughingSide || 'right') === 'left') return fail('Vyvrtávání zatím jen zprava (do díry od pravého čela).');
   if (!getInsert(prms).canBore) return fail('Nástroj není vyvrtávací tyč (destička polygon nebo kulatá) — vyber ji ve 🔧 Zásobníku.');
-  if (!(D > 0 && L > 0)) return fail('Zadej průměr a délku díry.');
+  if (fromCad && !cad) return fail('Ve výkresu není díra — nakresli stěnu díry (samostatně, nebo napojenou na čelo dílu), nebo přepni na Válec ⌀ × délka.');
+  if (!(D > 0 && L > 0)) return fail(cad ? 'Nakreslená díra neleží mimo předvrtání — není co vyvrtat.' : 'Zadej průměr a délku díry.');
   if (!(d0 > 0 && L0 > 0)) return fail('Zadej předvrtání (průměr a hloubku) — nebo ho převezmi z Vrtání.');
   if (!(D > d0 + 0.01)) return fail(`Díra ⌀${D} není větší než předvrtání ⌀${d0} — není co vyvrtat.`);
   if (L > L0 + 1e-6) return fail(`Díra (${L} mm) je hlubší než předvrtání (${L0} mm) — vyvrtávací tyč nevrtá do plného.`);
@@ -103,12 +122,45 @@ const FRONT_EXT = 2;
  *   do konce polotovaru a „Výjezd nad konturu" by šel přes osu.
  */
 export function boreMirrorContour(g) {
+  if (g.chain) return chainMirrorContour(g);
   const { k, zF, L, L0, r, r0, rRef, clrX, clrZ } = g;
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
   const rIn = r0 - clrX - BEYOND_BOTTOM_IN, zEnd = zF - L0 - 1;
   const zIn = zF + clrZ + FRONT_EXT;
   const pts = [[zIn, X(r)], [zF - L, X(r)], [zF - L, X(rIn)], [zEnd, X(rIn)]];
   return pts.map(([z, x], i) => ({ id: i + 1, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+}
+
+/**
+ * Totéž pro díru z výkresu: ústí protažené před čelo, řetěz díry (oblouky
+ * v zrcadle G2↔G3), a kde řetěz zajede do předvrtání za pásmo vůle (dno
+ * vrtané díry, dno k ose), skončí na té hranici a pokračuje za konec
+ * polotovaru jako u válce.
+ */
+function chainMirrorContour(g) {
+  const { k, zF, L0, r0, rRef, clrX, clrZ, chain } = g;
+  const X = (rr) => +(k * (rRef - rr)).toFixed(6);
+  const rB = r0 - clrX - BEYOND_BOTTOM_IN, zEnd = zF - L0 - 1;
+  const p0 = chain[0].p1;
+  const pts = [{ type: 'G0', x: X(p0.x), z: zF + clrZ + FRONT_EXT }, { type: 'G1', x: X(p0.x), z: p0.z }];
+  let last = p0;
+  for (const s of chain) {
+    if (s.p2.x < rB) {
+      if (s.type === 'line' && s.p1.x > rB) {
+        const t = (s.p1.x - rB) / (s.p1.x - s.p2.x);
+        last = { x: rB, z: s.p1.z + (s.p2.z - s.p1.z) * t };
+        pts.push({ type: 'G1', x: X(last.x), z: last.z });
+      }
+      break;
+    }
+    pts.push(s.type === 'line'
+      ? { type: 'G1', x: X(s.p2.x), z: s.p2.z }
+      : { type: s.dir === 'G2' ? 'G3' : 'G2', x: X(s.p2.x), z: s.p2.z, r: s.r });
+    last = s.p2;
+  }
+  if (last.x > rB + 1e-6) pts.push({ type: 'G1', x: X(rB), z: last.z });
+  pts.push({ type: 'G1', x: X(rB), z: Math.min(zEnd, last.z - 1) });
+  return pts.map((p, i) => ({ id: i + 1, mode: 'ABS', r: 0, ...p }));
 }
 
 /** Parametry zrcadlového světa: válec = předvrtání, vnější hrubování zprava, nic jiného. */
@@ -141,7 +193,8 @@ export function unmirrorBoreLine(text, kRef) {
  * X max (patří vnější kontuře), žádné části programu.
  */
 export function boreMirrorState(S) {
-  const g = boreGeom(S.params);
+  const src = S.params.boreSource === 'cad' ? boreChainFromState(S) : null;
+  const g = boreGeom(S.params, src ? src.segs : null);
   if (!g.ok) return { g, S2: null };
   const S2 = {
     params: boreMirrorParams(S.params, g), contourPoints: boreMirrorContour(g), stockPoints: [],

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vyvrtávání — tvar díry z výkresu** (✏ Z výkresu v záložce Vyvrt.,
+  uživatel 8. 10. 2026: „řetěz z CAD, kde by byla nakreslena"). Díra jde
+  nakreslit samostatně (řetěz jedním koncem na čele, celý uvnitř dílu —
+  přenos ho pošle v sekci DIRA, už ho nehlásí jako „mimo profil") nebo
+  napojenou na čelo (uzavřený řez). Schody, sražení i rádiusy díry jdou do
+  zrcadla jako kontura (oblouky G2↔G3); body uvnitř předvrtání se nevrtají.
+  `js/calculators/cam/boreContour.js`.
 - **CAM: operace Vyvrtávání** (záložka **Vyvrt.**, uživatel 7. 10. 2026).
   Nové **pravidlo 13** (docs/cam-pravidla.md, schválené): vnitřní obrábění je
   zrcadlo vnějšího v ose X — díra se překlopí na hřídel, předvrtání na
@@ -90,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Vnější hrubování: díra napojená na čelo** (uzavřený řez dno → stěna díry
+  → čelo → vnější obrys) se brala jako vzduch nad dílem — vrstvy jely skrz
+  stěnu dílu až k ose. Pipeline ji teď z vnější kontury vyjme (obrobí ji
+  Vyvrtávání). Otisk 29 fixtures shodný.
 - **Vyvrtávání „↺ z Vrtání": Z čela jako u vrtání.** Prázdné Z čelo vrtání
   (= čelo dílu) se přebíralo jako Z0 — u dílu nakresleného od Z0 doprava
   (čelo Z346) by vyvrtávání začalo na levém konci. Teď se bere týž výpočet

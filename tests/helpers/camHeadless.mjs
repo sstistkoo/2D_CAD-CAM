@@ -98,6 +98,7 @@ async function loadCam() {
   const gcodeEmitUrl = pathToFileURL(join(root, 'js/calculators/cam/gcodeEmit.js')).href;
   const gcodeSyncUrl = pathToFileURL(join(root, 'js/calculators/cam/gcodeSync.js')).href;
   const boreUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/bore.js')).href;
+  const boreContourUrl = pathToFileURL(join(root, 'js/calculators/cam/boreContour.js')).href;
   const prelude = `
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from ${JSON.stringify(camMathUrl)};
 import { _defaultCamParams } from ${JSON.stringify(camDefaultsUrl)};
@@ -114,6 +115,7 @@ import { makeHolderClamp } from ${JSON.stringify(toolEnvelopeUrl)};
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from ${JSON.stringify(interferenceGuidesUrl)};
 import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference } from ${JSON.stringify(geomCoreUrl)};
 import { boreGeom, boreMirrorSim } from ${JSON.stringify(boreUrl)};
+import { boreChainFromState } from ${JSON.stringify(boreContourUrl)};
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from ${JSON.stringify(threadDataUrl)};
 import { computeCalculation, roughingKey as _roughingKey } from ${JSON.stringify(calculatePipelineUrl)};
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from ${JSON.stringify(gcodeEmitUrl)};
@@ -172,6 +174,8 @@ export async function runCamProg(prog) {
   S.params.booleanRoughing = !!prog.params.booleanRoughing;
   S.contourPoints = prog.contourPoints;
   S.stockPoints = prog.stockPoints;
+  // Díra nakreslená jako samostatný řetěz (sekce DIRA přenosu, cam/boreContour.js).
+  S.borePoints = Array.isArray(prog.borePoints) ? prog.borePoints : [];
   S.flipX = !!prog.flipX;
   S.flipZ = !!prog.flipZ;
   S.guideLines = Array.isArray(prog.guideLines) ? prog.guideLines : [];

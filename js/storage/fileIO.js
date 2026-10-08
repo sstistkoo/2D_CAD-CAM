@@ -765,6 +765,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   if (forCam) exportObjects = exportObjects.filter(o => !dupSet.has(o) && o.type !== 'point');
   else _reportContourIssues(dups, dupSet);
   const camLeftovers = []; // forCam: položky kontury mimo hlavní profil
+  const boreItems = [];    // forCam: samostatný řetěz díry (sekce DIRA_START…DIRA_END)
 
   const isInc = state.cncOutputMode === 'inc';
   // Spodní obrábění (X+ dolů / zadní nožová hlava) nebo otočená osa Z: zrcadlení
@@ -984,6 +985,55 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       default: return obj;
     }
   }
+  // ── Samostatný řetěz DÍRY (vyvrtávání, cam/boreContour.js) ──
+  // Řetěz, který jedním koncem leží na čele dílu (nejvyšší Z hlavního
+  // profilu) a celý vede UVNITŘ — pod hlavním profilem k ose. Kus vnějšího
+  // obrysu za mezerou tím neprojde: leží mimo Z rozsah hlavního profilu nebo
+  // na něm, ne pod ním. Nejdelší takový řetěz; jinak null.
+  function _itemPts(obj) {
+    if (obj.type === 'line') return [{ x: obj.x1, y: obj.y1 }, { x: obj.x2, y: obj.y2 }];
+    if (obj.type === 'polyline') return obj.vertices.map(v => ({ x: v.x, y: v.y }));
+    if (obj.type === 'arc') {
+      const TAU = Math.PI * 2, ccw = obj.ccw !== false;
+      let d = ccw ? obj.endAngle - obj.startAngle : obj.startAngle - obj.endAngle;
+      d = (d % TAU + TAU) % TAU || TAU;
+      const out = [];
+      for (let i = 0; i <= 12; i++) {
+        const a = obj.startAngle + (ccw ? 1 : -1) * d * i / 12;
+        out.push({ x: obj.cx + obj.r * Math.cos(a), y: obj.cy + obj.r * Math.sin(a) });
+      }
+      return out;
+    }
+    return [];
+  }
+  function _findBoreChain(cands, main) {
+    const zr = (p) => (state.machineType === 'karusel' ? { z: p.y, r: p.x } : { z: p.x, r: p.y });
+    const mainPts = main.flatMap(_itemPts).map(zr);
+    if (mainPts.length < 2) return null;
+    const zFace = Math.max(...mainPts.map(p => p.z)), zLo = Math.min(...mainPts.map(p => p.z));
+    const env = (z) => {
+      let best = -Infinity;
+      for (let i = 0; i < mainPts.length - 1; i++) {
+        const a = mainPts[i], b = mainPts[i + 1];
+        if (z < Math.min(a.z, b.z) - 1e-6 || z > Math.max(a.z, b.z) + 1e-6) continue;
+        const r = Math.abs(b.z - a.z) < 1e-9 ? Math.max(a.r, b.r) : a.r + (b.r - a.r) * (z - a.z) / (b.z - a.z);
+        if (r > best) best = r;
+      }
+      return best;
+    };
+    let best = null, bestLen = 0;
+    for (const ch of cands) {
+      const pts = ch.flatMap(_itemPts).map(zr);
+      const e0 = _getEp(ch[0]), e1 = _getEp(ch[ch.length - 1]);
+      if (pts.length < 2 || !e0 || !e1) continue;
+      const atFace = [zr({ x: e0.sx, y: e0.sy }), zr({ x: e1.ex, y: e1.ey })].some(p => Math.abs(p.z - zFace) < 0.05);
+      const inside = pts.every(p => p.r > -0.01 && p.z <= zFace + 0.01 && p.z >= zLo - 0.01 && p.r < env(p.z) - 0.01);
+      const L = ch.reduce((s, it) => s + _itemLen(it), 0);
+      if (atFace && inside && L > bestLen) { best = ch; bestLen = L; }
+    }
+    return best;
+  }
+
   // Délka položky (výběr nejdelšího řetězu pro přenos do CAM). Oblouky
   // polyline stačí tětivou — jde jen o porovnání řetězů mezi sebou.
   function _itemLen(obj) {
@@ -1094,7 +1144,11 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     if (forCam && chains.length > 0) {
       const len = (ch) => ch.reduce((s, it) => s + _itemLen(it), 0);
       const main = chains.reduce((a, b) => (len(b) > len(a) ? b : a));
-      for (const ch of chains) if (ch !== main) camLeftovers.push(...ch);
+      // Díra pro vyvrtávání nakreslená jako SAMOSTATNÝ řetěz jde do CAM
+      // zvlášť (sekce DIRA, cam/boreContour.js), ne mezi „mimo profil".
+      const bore = _findBoreChain(chains.filter(ch => ch !== main), main);
+      if (bore) boreItems.push(...bore);
+      for (const ch of chains) if (ch !== main && ch !== bore) camLeftovers.push(...ch);
       camLeftovers.push(...rest);
       main.forEach(o => items.push(o));
     } else {
@@ -1326,6 +1380,15 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     out += "; STOCK_START — polotovar (isStock objekty)\n";
     stockItems.forEach(emitObj);
     out += "; STOCK_END\n\n";
+  }
+
+  // Díra pro vyvrtávání (samostatný řetěz, viz _findBoreChain) — vlastní
+  // sekce; CAM ji čte do S.borePoints (cam/gcodeParser.js), do kontury nepatří.
+  if (boreItems.length > 0) {
+    lastEndX = null; lastEndY = null;
+    out += "; DIRA_START — díra pro vyvrtávání (samostatný řetěz)\n";
+    boreItems.forEach(emitObj);
+    out += "; DIRA_END\n\n";
   }
 
   if (state.intersections.length > 0) {

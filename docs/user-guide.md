@@ -568,8 +568,19 @@ a rychloposuvy jdou do volného předvrtání, ne do stěny.
    (⌀ vrtáku ze 🔧 Zásobníku, hloubka na plný ⌀ bez špičky, Z čela) a ze
    zásobníku se vybere **nejtlustší vyvrtávací tyč, která se do předvrtání
    vejde** (Dmin). Tlačítko **↺ z Vrtání** předvrtání převezme znovu.
-2. **Z čelo**, **⌀ díry** (hotový — na stěně zůstane Přídavek X) a **Délka**.
-   Zatím jen **válcová díra zprava**; tvar díry z CAD přijde zvlášť.
+2. **Tvar díry:** **⌀ Válec** — Z čelo, ⌀ díry (hotový — na stěně zůstane
+   Přídavek X) a Délka; nebo **✏ Z výkresu** — díra nakreslená v CAD (schody,
+   sražení, rádiusy). Ve výkresu jde nakreslit dvěma způsoby:
+   - **samostatně** — řetěz čar, který jedním koncem leží na čele dílu a celý
+     vede uvnitř (pod vnějším obrysem k ose). Přenos do CAM ho pošle zvlášť
+     (sekce DIRA) a nehlásí ho fialově jako „mimo profil";
+   - **napojenou na čelo** (uzavřený řez) — čelo jde od vnějšího průměru dolů
+     na průměr díry a pokračuje stěnou díry. CAM díru z kontury vyjme: vnější
+     hrubování ji vynechá (dřív by jelo skrz stěnu dílu až k ose) a dostane ji
+     vyvrtávání.
+
+   Záložka ukáže, co ve výkresu našla (⌀ × délka, samostatně / napojená).
+   Body díry uvnitř předvrtání (dno vrtané díry) se nevrtají. Zatím jen zprava.
 3. **⌀ předvrtání** a **Hloubka předvrt.** (aspoň délka díry — tyč nevrtá do
    plného). Záběr ap, posuv, Vc a přídavky sdílí s hrubováním.
 

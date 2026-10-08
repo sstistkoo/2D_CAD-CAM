@@ -27,6 +27,7 @@ import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/fi
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 import { stockPlanLoop } from './materialRemoval.js';
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
+import { splitBoreFromSegments } from './boreContour.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
@@ -204,6 +205,13 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle, origIdx: i + 1 });
     }
   }
+  // Díra NAPOJENÁ NA ČELO (uzavřený řez: dno → stěna díry → čelo → vnější
+  // obrys) vnějšímu hrubování nepatří — obrobí ji Vyvrtávání (pravidlo 13,
+  // cam/boreContour.js). Dokud se nevyjímala, brala ji vnější kontura jako
+  // vzduch nad dílem a vrstvy jely skrz stěnu dílu až k ose (8. 10. 2026).
+  // Body kontury (worldPoints ↔ S.contourPoints) zůstávají — mizí jen segmenty.
+  const boreSplit = splitBoreFromSegments(contourSegments);
+  if (boreSplit) contourSegments = boreSplit.outer;
   // Odfiltrovat degenerované (nulové délky) segmenty dříve než normalizeContourDirection:
   // segment G0→G1 na stejném bodě (kreslení záměrně začíná na bodu bez pohybu)
   // by způsobil, že slepá-odbočka check zahodí správně otočené čelní segmenty —
