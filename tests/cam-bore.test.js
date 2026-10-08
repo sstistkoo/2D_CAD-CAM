@@ -121,11 +121,11 @@ describe('vyvrtávání válcové díry ⌀40 × 30 z předvrtání ⌀25 × 35 
 });
 
 describe('vyvrtávání — zadání a převod řádků', () => {
-  it('boreGeom hlídá zadání (⌀, hloubky, strana, nástroj)', () => {
+  it('boreGeom hlídá zadání (⌀, hloubky, nástroj); zleva je platné', () => {
     expect(boreGeom(base).ok).toBe(true);
     expect(boreGeom({ ...base, boreDiameter: 24 }).reason).toMatch(/není větší/);
     expect(boreGeom({ ...base, boreDepth: 40 }).reason).toMatch(/hlubší/);
-    expect(boreGeom({ ...base, roughingSide: 'left' }).reason).toMatch(/zprava/);
+    expect(boreGeom({ ...base, roughingSide: 'left' }).ok).toBe(true);   // zleva od 8. 10. (cam-bore-left)
     expect(boreGeom({ ...base, toolShape: 'drill' }).reason).toMatch(/vyvrtávací tyč/);
     expect(boreGeom({ ...base, borePreDiameter: 0 }).reason).toMatch(/předvrtání/);
   });

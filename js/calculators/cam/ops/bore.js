@@ -22,7 +22,8 @@
 //
 // První verze (rozhodnutí uživatele 7. 10. 2026): jen podélné hrubování
 // válcové díry ⌀D × délka L od Z čela, z předvrtání ⌀d0 × L0 (z operace
-// Vrtání, nebo zadané), jen zprava.
+// Vrtání, nebo zadané). 8. 10. 2026: i ZLEVA (od levého čela k +Z) — k zrcadlu
+// v X se přidá zrcadlo v Z (sideOf, unmirrorBoreLine s = −1).
 // 8. 10. 2026: tvar díry i z VÝKRESU (`boreSource: 'cad'`) — samostatný
 // řetěz z CAD nebo díra napojená na čelo vnější kontury (cam/boreContour.js).
 
@@ -32,12 +33,20 @@ import { holderProfileLoop } from '../collisionValidator.js';
 import { buildInsertOutlineSegments } from '../insertPreview.js';
 import { getInsert } from '../inserts/index.js';
 import { boreChainFromState } from '../boreContour.js';
+import { mirrorZLimits } from '../zMirror.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 /** O kolik je R_ref nad stěnou díry — v zrcadle „osa" leží v dílu, mimo obrábění. */
 const R_REF_MARGIN = 5;
 /** Vůle mezi tyčí a protější stěnou díry, pod kterou se nejede [mm]. */
 const WALL_GAP = 0.2;
+/**
+ * Strana: s = +1 zprava (do díry k −Z), −1 zleva (k +Z). Vnitřní svět je vždy
+ * vnější hrubování ZPRAVA: skutečné (r, z) ↔ zrcadlové (R_ref − r, s·z).
+ * Zleva se tedy navíc překlopí Z (jako „zleva" u vnějšího obrábění) — oblouky
+ * se pak otočí dvakrát a G2/G3 zůstanou.
+ */
+const sideOf = (prms) => ((prms.roughingSide || 'right') === 'left' ? -1 : 1);
 
 /**
  * Geometrie vyvrtávání z parametrů (sdílí emise, UI i testy).
@@ -50,6 +59,7 @@ const WALL_GAP = 0.2;
 export function boreGeom(prms, chain = null) {
   const k = prms.mode === 'DIAMON' ? 2 : 1;          // jednotky X v programu (průměr / poloměr)
   const fromCad = prms.boreSource === 'cad';
+  const s = sideOf(prms);
   const d0 = Math.max(0, num(prms.borePreDiameter, 0)), L0 = Math.max(0, num(prms.borePreDepth, 0));
   const r0 = d0 / 2;
   let zF = num(prms.boreZStart, 0);
@@ -62,7 +72,7 @@ export function boreGeom(prms, chain = null) {
     zF = cad[0].p1.z;
     D = 2 * Math.max(...pts.map(p => p.x));
     const cut = pts.filter(p => p.x > r0 + 0.01);
-    L = cut.length ? zF - Math.min(...cut.map(p => p.z)) : 0;
+    L = cut.length ? Math.max(...cut.map(p => s * (zF - p.z))) : 0;
   }
   const r = D / 2;
   const reach = boreToolReach(prms);
@@ -71,9 +81,8 @@ export function boreGeom(prms, chain = null) {
   const clr = stockClearances(prms);
   const clrX = Math.max(0.1, clr.x), clrZ = Math.max(0, clr.z);
   const rIn = r0 - clrX;
-  const g = { ok: true, k, zF, D, L, d0, L0, r, r0, rRef: r + R_REF_MARGIN, rIn, clrX, clrZ, reach, chain: cad };
+  const g = { ok: true, k, s, zF, D, L, d0, L0, r, r0, rRef: r + R_REF_MARGIN, rIn, clrX, clrZ, reach, chain: cad };
   const fail = (reason) => ({ ...g, ok: false, reason });
-  if ((prms.roughingSide || 'right') === 'left') return fail('Vyvrtávání zatím jen zprava (do díry od pravého čela).');
   if (!getInsert(prms).canBore) return fail('Nástroj není vyvrtávací tyč (destička polygon nebo kulatá) — vyber ji ve 🔧 Zásobníku.');
   if (fromCad && !cad) return fail('Ve výkresu není díra — nakresli stěnu díry (samostatně, nebo napojenou na čelo dílu), nebo přepni na Válec ⌀ × délka.');
   if (!(D > 0 && L > 0)) return fail(cad ? 'Nakreslená díra neleží mimo předvrtání — není co vyvrtat.' : 'Zadej průměr a délku díry.');
@@ -123,7 +132,8 @@ const FRONT_EXT = 2;
  */
 export function boreMirrorContour(g) {
   if (g.chain) return chainMirrorContour(g);
-  const { k, zF, L, L0, r, r0, rRef, clrX, clrZ } = g;
+  const { k, L, L0, r, r0, rRef, clrX, clrZ } = g;
+  const zF = g.s * g.zF;                      // čelo v zrcadle (zleva překlopené Z)
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
   const rIn = r0 - clrX - BEYOND_BOTTOM_IN, zEnd = zF - L0 - 1;
   const zIn = zF + clrZ + FRONT_EXT;
@@ -138,7 +148,13 @@ export function boreMirrorContour(g) {
  * polotovaru jako u válce.
  */
 function chainMirrorContour(g) {
-  const { k, zF, L0, r0, rRef, clrX, clrZ, chain } = g;
+  const { k, L0, r0, rRef, clrX, clrZ } = g;
+  const zF = g.s * g.zF;
+  // Zleva: řetěz překlopený v Z (oblouk tím obrátí smysl) — dál jako zprava.
+  const chain = g.s > 0 ? g.chain : g.chain.map(sg => ({
+    ...sg, p1: { x: sg.p1.x, z: -sg.p1.z }, p2: { x: sg.p2.x, z: -sg.p2.z },
+    ...(sg.type === 'arc' ? { dir: sg.dir === 'G2' ? 'G3' : 'G2' } : {}),
+  }));
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
   const rB = r0 - clrX - BEYOND_BOTTOM_IN, zEnd = zF - L0 - 1;
   const p0 = chain[0].p1;
@@ -175,23 +191,35 @@ export function boreMirrorParams(prms, g) {
     boreActive: false, drillActive: false, threadActive: false, partOffZ: null,
     roughingStrategy: 'longitudinal', roughingSide: 'right', doFinishing: !!prms.boreFinish, finishOnly: false,
     finishingSlot: null,
-    stockMode: 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.zF, stockLength: g.L0 - g.zF,
+    stockMode: 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.s * g.zF, stockLength: g.L0 - g.s * g.zF,
     safeX: +(g.k * (g.rRef - g.rIn)).toFixed(6),
   };
 }
 
-/** Řádek programu ze zrcadla zpět do skutečného světa: X = kRef − X', G2↔G3. */
-export function unmirrorBoreLine(text, kRef) {
+/**
+ * Řádek programu ze zrcadla zpět do skutečného světa: X = kRef − X', zprava
+ * G2↔G3; zleva (s = −1) navíc Z = −Z' a G2/G3 beze změny (dvě překlopení).
+ */
+export function unmirrorBoreLine(text, kRef, s = 1) {
   const ci = text.search(/[;(]/);
   let code = ci < 0 ? text : text.slice(0, ci);
   const rest = ci < 0 ? '' : text.slice(ci);
-  code = code.replace(/\bG0?([23])\b/g, (m, d) => m.replace(d, d === '2' ? '3' : '2'));
+  if (s > 0) code = code.replace(/\bG0?([23])\b/g, (m, d) => m.replace(d, d === '2' ? '3' : '2'));
   code = code.replace(/X(-?\d*\.?\d+)/g, (_, v) => {
     const x = kRef - parseFloat(v);
     return 'X' + (Math.abs(x) < 5e-4 ? 0 : x).toFixed(3);
   });
+  if (s < 0) {
+    code = code.replace(/Z(-?\d*\.?\d+)/g, (_, v) => {
+      const z = -parseFloat(v);
+      return 'Z' + (Math.abs(z) < 5e-4 ? 0 : z).toFixed(3);
+    });
+  }
   return code + rest;
 }
+
+/** Je bod (skutečné Z) v díře — za čelem ve směru do díry? */
+const inHole = (g, z) => g.s * (g.zF - z) > 1e-6;
 
 /**
  * Zrcadlový svět pro výpočet drah i simulaci: { g, S2 } (S2 = null, když
@@ -208,7 +236,7 @@ export function boreMirrorState(S) {
   const xMax = g.rRef - g.r0 + Math.max(0, num(S.params.toolRadius, 0));
   const S2 = {
     params: boreMirrorParams(S.params, g), contourPoints: boreMirrorContour(g), stockPoints: [],
-    zLimits: { ...S.zLimits, rangeActive: false },
+    zLimits: { ...(g.s > 0 ? S.zLimits : mirrorZLimits(S.zLimits || {})), rangeActive: false },
     xLimits: { rangeXMin: null, rangeXMax: xMax, active: false, minActive: false, maxActive: true },
     guideLines: [], flipX: S.flipX, flipZ: S.flipZ, manualGCode: '', errors: [], genNotes: [],
     toolMagazine: S.toolMagazine,
@@ -227,7 +255,7 @@ export function boreMirrorSim(S, simPath, computeCalculation) {
   const { g, S2 } = boreMirrorState(S);
   if (!S2 || !Array.isArray(simPath)) return null;
   const calc2 = computeCalculation(S2);
-  const flip = (pts) => pts.map(q => ({ ...q, x: g.rRef - q.x }));
+  const flip = (pts) => pts.map(q => ({ ...q, x: g.rRef - q.x, z: g.s * q.z }));
   return {
     g, params: S2.params, un: (loops) => loops.map(flip),
     calcM: { simPath: flip(simPath), stockPathSegments: calc2.stockPathSegments, contourSegments: calc2.contourSegments },
@@ -243,7 +271,7 @@ function clampRapidsToSafeRadius(body, g) {
     const mz = code.match(/Z(-?\d*\.?\d+)/);
     const mx = code.match(/X(-?\d*\.?\d+)/);
     const zNew = mz ? parseFloat(mz[1]) : z;
-    if (/\bG0?0\b/.test(code) && mx && zNew !== null && zNew < g.zF - 1e-6 && parseFloat(mx[1]) / g.k < g.rIn - 1e-6) {
+    if (/\bG0?0\b/.test(code) && mx && zNew !== null && inHole(g, zNew) && parseFloat(mx[1]) / g.k < g.rIn - 1e-6) {
       l.text = code.replace(/X(-?\d*\.?\d+)/, 'X' + (g.k * g.rIn).toFixed(3)) + (ci < 0 ? '' : l.text.slice(ci));
     }
     z = zNew;
@@ -275,7 +303,7 @@ export function emitBore(ctx) {
     let end = inner.findIndex((l, i) => i > start && l.text.replace(/^N\d+\s+/, '') === tail0);
     if (end < 0) end = inner.length;
     const kRef = g.k * g.rRef;
-    body = start < 0 ? [] : inner.slice(start, end).map(l => ({ ...l, text: unmirrorBoreLine(l.text, kRef) }));
+    body = start < 0 ? [] : inner.slice(start, end).map(l => ({ ...l, text: unmirrorBoreLine(l.text, kRef, g.s) }));
     // Výjezd v díře nejdál na vnitřní bezpečný poloměr: „Výjezd nad konturu"
     // po dokončení zvedá nad pomocný obrys za dnem — ve skutečnosti k ose,
     // kde by tyč zadní stranou sáhla na protější stěnu. Na rIn je pořád volné
@@ -289,7 +317,7 @@ export function emitBore(ctx) {
       const mx = code.match(/X(-?\d*\.?\d+)/), mz = code.match(/Z(-?\d*\.?\d+)/);
       if (mx) x = parseFloat(mx[1]);
       if (mz) z = parseFloat(mz[1]);
-      if (x !== null && z !== null && z < g.zF - 1e-6 && !boreFits(x / g.k, g.reach, g.r0)) { bad = { x, z }; break; }
+      if (x !== null && z !== null && inHole(g, z) && !boreFits(x / g.k, g.reach, g.r0)) { bad = { x, z }; break; }
     }
     if (bad) {
       const msg = `Tyč se do díry nevejde (pravidlo 13): u Z ${bad.z.toFixed(3)} by zadní strana tyče sáhla na protější stěnu předvrtání ⌀${g.d0}.`;

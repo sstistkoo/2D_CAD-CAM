@@ -1752,8 +1752,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rm = boreRemoval(bs);
     const base = rm ? buildStockLoopRaw(S.params, calc.stockPathSegments) : null;
     if (!base) return null;
-    const { zF, L0, rRef } = bs.g;
-    const zone = [{ x: 0, z: zF }, { x: rRef, z: zF }, { x: rRef, z: zF - L0 }, { x: 0, z: zF - L0 }];
+    const { zF, L0, rRef, s } = bs.g;
+    const zone = [{ x: 0, z: zF }, { x: rRef, z: zF }, { x: rRef, z: zF - s * L0 }, { x: 0, z: zF - s * L0 }];
     const removed = polyDifference([zone], bs.un(rm.model.loops));
     return { valid: true, model: { loops: polyDifference([base], removed) }, baseLoop: base };
   }
@@ -2131,9 +2131,9 @@ export function openCamSimulator(initialContour, initialGCode) {
           }
           line(pts);
         } else {
-          line([[bg.r, bg.zF], [bg.r, bg.zF - bg.L], [Math.min(bg.r0, bg.r), bg.zF - bg.L]]);
+          line([[bg.r, bg.zF], [bg.r, bg.zF - bg.s * bg.L], [Math.min(bg.r0, bg.r), bg.zF - bg.s * bg.L]]);
         }
-        if (bg.r0 > 0 && bg.L0 > 0) { ctx.strokeStyle = '#f9e2af'; line([[bg.r0, bg.zF], [bg.r0, bg.zF - bg.L0], [0, bg.zF - bg.L0]]); }
+        if (bg.r0 > 0 && bg.L0 > 0) { ctx.strokeStyle = '#f9e2af'; line([[bg.r0, bg.zF], [bg.r0, bg.zF - bg.s * bg.L0], [0, bg.zF - bg.s * bg.L0]]); }
         ctx.restore();
       }
     }
@@ -5360,7 +5360,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (!_bg.ok) {
         html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ ${escHTML(_bg.reason)}</small>`;
       } else {
-        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Tyč sahá ${_bg.reach.toFixed(1)} mm od špičky k ose — do předvrtání ⌀${_bg.d0} se vejde · dráhy počítá vnější hrubování v zrcadle (pravidla 1–12, pravidlo 13) · zprava${prms.boreActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
+        html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Tyč sahá ${_bg.reach.toFixed(1)} mm od špičky k ose — do předvrtání ⌀${_bg.d0} se vejde · dráhy počítá vnější hrubování v zrcadle (pravidla 1–12, pravidlo 13) · ${(prms.roughingSide || 'right') === 'left' ? 'zleva (do díry k +Z)' : 'zprava (do díry k −Z)'}${prms.boreActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
       }
     }
     html += `<div style="text-align:center;margin-top:16px">

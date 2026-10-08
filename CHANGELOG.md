@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vyvrtávání zleva** (od levého čela k +Z, druhé upnutí). K zrcadlu v X
+  se přidá zrcadlo v Z — program zleva je přesné zrcadlo programu zprava
+  (X stejné, Z opačně, oblouky G2↔G3; hlídá `tests/cam-bore-left.test.js`).
+  Díra z výkresu se pozná i u levého čela (napojená i samostatný řetěz).
 - **Vyvrtávání — dokončení stěny díry** (☑ Dokončit stěnu díry v záložce
   Vyvrt., výchozí vypnuto). Vnější dokončovací průchod v zrcadle, vždy týmž
   nástrojem (finishingSlot se do díry nepoužije). Končí na dně díry, kde se

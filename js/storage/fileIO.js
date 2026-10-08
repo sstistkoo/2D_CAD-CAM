@@ -986,8 +986,8 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     }
   }
   // ── Samostatný řetěz DÍRY (vyvrtávání, cam/boreContour.js) ──
-  // Řetěz, který jedním koncem leží na čele dílu (nejvyšší Z hlavního
-  // profilu) a celý vede UVNITŘ — pod hlavním profilem k ose. Kus vnějšího
+  // Řetěz, který jedním koncem leží na čele dílu (pravém nebo levém — Z
+  // hlavního profilu nejvyšší/nejnižší) a celý vede UVNITŘ — pod hlavním profilem k ose. Kus vnějšího
   // obrysu za mezerou tím neprojde: leží mimo Z rozsah hlavního profilu nebo
   // na něm, ne pod ním. Nejdelší takový řetěz; jinak null.
   function _itemPts(obj) {
@@ -1026,7 +1026,9 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       const pts = ch.flatMap(_itemPts).map(zr);
       const e0 = _getEp(ch[0]), e1 = _getEp(ch[ch.length - 1]);
       if (pts.length < 2 || !e0 || !e1) continue;
-      const atFace = [zr({ x: e0.sx, y: e0.sy }), zr({ x: e1.ex, y: e1.ey })].some(p => Math.abs(p.z - zFace) < 0.05);
+      // Ústí na pravém i levém čele (vyvrtávání zprava / zleva).
+      const atFace = [zr({ x: e0.sx, y: e0.sy }), zr({ x: e1.ex, y: e1.ey })]
+        .some(p => Math.abs(p.z - zFace) < 0.05 || Math.abs(p.z - zLo) < 0.05);
       const inside = pts.every(p => p.r > -0.01 && p.z <= zFace + 0.01 && p.z >= zLo - 0.01 && p.r < env(p.z) - 0.01);
       const L = ch.reduce((s, it) => s + _itemLen(it), 0);
       if (atFace && inside && L > bestLen) { best = ch; bestLen = L; }

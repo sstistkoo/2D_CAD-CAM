@@ -54,6 +54,18 @@ function connectedPrefix(segs) {
   return out;
 }
 
+/** Segment překlopený v Z (z → −z; oblouk obrátí smysl, úhel a → π − a). */
+function mirrorSegZ(s) {
+  const out = { ...clone(s), p1: { x: s.p1.x, z: -s.p1.z }, p2: { x: s.p2.x, z: -s.p2.z } };
+  if (s.type === 'arc') {
+    out.cz = -s.cz;
+    out.dir = s.dir === 'G2' ? 'G3' : 'G2';
+    out.startAngle = Math.PI - s.startAngle;
+    out.endAngle = Math.PI - s.endAngle;
+  }
+  return out;
+}
+
 /** Řetěz otočený pozpátku (pořadí i směr každého segmentu). */
 function reversedChain(segs) {
   const out = segs.map(clone).reverse();
@@ -70,7 +82,12 @@ function reversedChain(segs) {
  * samostatný řetěz taky ne (na konturu nenavazuje).
  * @returns {{outer:Array, bore:Array}|null} bore začíná v ústí a vede dovnitř
  */
-export function splitBoreFromSegments(segs) {
+export function splitBoreFromSegments(segs, side = 'right') {
+  // Zleva: ústí je na LEVÉM čele — totéž hledání v Z-zrcadle a zpět.
+  if (side === 'left') {
+    const res = splitBoreFromSegments((segs || []).filter(Boolean).map(mirrorSegZ), 'right');
+    return res ? { outer: res.outer.map(mirrorSegZ), bore: res.bore.map(mirrorSegZ) } : null;
+  }
   const S = (segs || []).filter(Boolean);
   if (S.length < 3) return null;
   let zMax = -Infinity;
@@ -106,13 +123,16 @@ export function splitBoreFromSegments(segs) {
  */
 export function boreChainFromState(S) {
   const mode = S.params && S.params.mode;
+  const side = S.params && S.params.roughingSide === 'left' ? 'left' : 'right';
   if (Array.isArray(S.borePoints) && S.borePoints.length > 1) {
     let segs = connectedPrefix(segmentsFromPoints(S.borePoints, mode));
     if (segs.length) {
-      if (segs[0].p1.z < segs[segs.length - 1].p2.z) segs = reversedChain(segs);
+      // Ústí = konec řetězu na čele strany obrábění (zprava větší Z, zleva menší).
+      const z0 = segs[0].p1.z, z1 = segs[segs.length - 1].p2.z;
+      if (side === 'right' ? z0 < z1 : z0 > z1) segs = reversedChain(segs);
       return { segs, source: 'separate' };
     }
   }
-  const split = splitBoreFromSegments(segmentsFromPoints(S.contourPoints, mode));
+  const split = splitBoreFromSegments(segmentsFromPoints(S.contourPoints, mode), side);
   return split ? { segs: split.bore, source: 'connected' } : null;
 }

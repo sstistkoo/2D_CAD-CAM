@@ -580,7 +580,11 @@ a rychloposuvy jdou do volného předvrtání, ne do stěny.
      vyvrtávání.
 
    Záložka ukáže, co ve výkresu našla (⌀ × délka, samostatně / napojená).
-   Body díry uvnitř předvrtání (dno vrtané díry) se nevrtají. Zatím jen zprava.
+   Body díry uvnitř předvrtání (dno vrtané díry) se nevrtají.
+   **Strana** se bere ze Zprava/Zleva jako u ostatního obrábění: zprava se
+   vrtá od pravého čela k −Z, **zleva od levého čela k +Z** (druhé upnutí) —
+   program zleva je přesné zrcadlo programu zprava. Díru z výkresu pozná
+   u pravého i levého čela.
 3. **⌀ předvrtání** a **Hloubka předvrt.** (aspoň délka díry — tyč nevrtá do
    plného). Záběr ap, posuv, Vc a přídavky sdílí s hrubováním.
 4. **Dokončit stěnu díry** (výchozí vypnuto) — po hrubování jeden dokončovací

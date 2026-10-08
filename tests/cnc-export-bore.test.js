@@ -93,4 +93,15 @@ describe('přenos do CAM — díra jako samostatný řetěz', () => {
     expect(res.code).not.toContain('DIRA_START');
     expect(res.leftovers.length).toBe(2);
   });
+
+  it('díra od LEVÉHO čela (vyvrtávání zleva) jde taky do sekce DIRA', () => {
+    setup([...OUTER(), L(-40, 20, -25, 20), L(-25, 20, -25, 12.5)]);
+    const res = transfer();
+    expect(res.code).toContain('DIRA_START');
+    expect(res.leftovers).toEqual([]);
+    const parsed = parseContourAndStockGCode(res.code);
+    const k = parsed.bore.find(q => Math.abs(parseFloat(q.z) + 40) < 1e-6).x / 20;
+    const chain = boreChainFromState({ params: { mode: k === 2 ? 'DIAMON' : 'RADIUS', roughingSide: 'left' }, borePoints: parsed.bore, contourPoints: parsed.contour });
+    expect(chain.segs[0].p1).toEqual({ x: 20, z: -40 });
+  });
 });
