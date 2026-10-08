@@ -584,6 +584,18 @@ export function genRule7Layers(D) {
       if (o.leadOut && o.leadOut.length) pass.contourLeadOut = o.leadOut;
       if (o.cont) pass.noRetract = true;
       if (o.holderClamped) pass.holderClamped = true;
+      // KONEC ŘETĚZU ZANOŘENÍ (uživatel 8. 10. 2026, úsek 3 za čelem dílu):
+      // průchod, který končí rampou (tělo za ní nic neubralo), odskakoval
+      // šikmo zpátky po téže rampě — `N3290 G1 X31.666 Z-13.749`. Když je nad
+      // koncem rampy volno (kolmý zdvih nosu ze skutečného polotovaru nic
+      // neubere — proti podlaze dřívějších průchodů a vlastní rampě), odjede
+      // se rovnou kolmo v X jako u řetězu za hranicí úseku (`retractRadial`).
+      if (o.ramp && Math.abs(o.zEnd - o.zStart) < 1e-6 && typeof cutStats === 'function' && chainTopAt) {
+        const lift = { type: 'line', x1: o.x, z1: o.zStart, x2: o.x + 2 * noseR + step, z2: o.zStart };
+        const rampSeg = { type: 'line', x1: o.ramp.x0, z1: o.ramp.z0, x2: o.x, z2: o.zStart };
+        const st = cutStats([lift], { topAt: chainTopAt, floorSegs: [rampSeg] });
+        if (st && st.area <= 0.05) pass.retractRadial = true;
+      }
       passes.push(pass);
       // Řetěz ramp založí i vjezd PO STĚNĚ, který končí na přímce zanoření:
       // nos sjel po téže přímce jako rampa, další rampa na ni navazuje přesně.

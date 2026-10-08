@@ -90,6 +90,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **CAM kulatá: konec řetězu zanoření odjíždí rovnou kolmo nahoru.** Průchod,
+  který končí rampou (tělo za ní nic neubralo), odskakoval šikmo zpátky po
+  téže rampě (`N3290 G1 X31.666 Z-13.749` za čelem dílu, uživatel 8. 10.
+  2026). Když kolmý zdvih nosu ze skutečného polotovaru nic neubere, jede
+  se `Výjezd v X` a rychloposuv. Otisk: jen `part-22-round-r10` (tentýž
+  konec řetězu za čelem), porušení stejná.
 - **CAM: pravidlo 15 — dokončování nesjíždí strměji než úhel zanoření.**
   Úsek dokončovací dráhy se rozdělí tam, kde ve směru jízdy začne klesat
   k ose strměji než „Úhel zanoření" (`ops/finishSteep.js`); kus před tím se

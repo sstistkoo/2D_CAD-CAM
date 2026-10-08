@@ -252,6 +252,9 @@ který po zanořování zůstal — nekončí svisle nad ním.**
   držák (pravidlo 2), na krok, který by vzal víc než jednu vrstvu
   (neobrobený materiál dalšího úseku — pravidlo 3), nebo na krok, který už
   nic neubere (dál by jel vzduchem — pravidlo 5). Na konci odjede kolmo v X.
+- **Konec řetězu odjíždí rovnou kolmo nahoru** (uživatel 8. 10. 2026:
+  „jede odskok a jede to zpátky po stejné dráze"): průchod, který končí
+  rampou, neodskakuje šikmo zpět po téže rampě, když je nad ním volno.
 - Hotovo: vrstva, jejíž tělo za rampou ze skutečného polotovaru nic
   neubere, končí na konci rampy (`ops/long/rule7Layers.js`) a další rampa
   navazuje bez odskoku; pokračování přes hranici `continueChainBeyond`

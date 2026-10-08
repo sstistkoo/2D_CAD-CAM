@@ -13562,7 +13562,7 @@ N4510 G1 X34.566 Z-10.779 F0.25
 N4520 G1 X32.066 Z-13.279 ; Rampa 45.0°
 ; Průchod 88 (oblouk G3)
 N4530 G1 X29.566 Z-15.779 ; Rampa 45.0°
-N4540 G1 X31.566 Z-13.779
+N4540 G1 X31.566 ; Výjezd v X (stěna)
 N4550 G0 X150.000 ; Výjezd nad konturu
 N4560 G0 Z5.000
 N4570 M30 ; Konec programu

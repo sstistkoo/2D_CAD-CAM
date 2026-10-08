@@ -28,6 +28,9 @@ describe('pravidlo 14 na dílu uživatele (úsek 3, kulatá R 10, 45°)', () => 
     const k = rough.findIndex(l => /G1 X33\.666 Z-11\.749/.test(l));
     expect(k, rough.join('\n')).toBeGreaterThan(0);
     expect(rough[k + 1]).toMatch(/G1 X29\.666 Z-15\.749 ; Rampa/);
+    // Konec řetězu: rovnou kolmo nahoru, ne šikmý odskok zpět po téže rampě
+    // (uživatel 8. 10. 2026: `N3290 G1 X31.666 Z-13.749`).
+    expect(rough[k + 2]).toMatch(/G1 X31\.666 ; Výjezd v X \(stěna\)/);
     // Polotovar končí na Z −8 — nic nejede na Z −18,996 (tělo vzduchem).
     expect(rough.filter(l => /Z-1[6-9]\.\d/.test(l))).toEqual([]);
   });
