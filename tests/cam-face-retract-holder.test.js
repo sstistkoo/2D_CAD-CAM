@@ -44,7 +44,9 @@ async function run(holderInflate) {
   return {
     hard: Math.abs(polyArea(hg.gouge)),
     band: Math.abs(polyArea(hg.gougeBand)),
-    faces: calc.passes.filter(p => p.type === 'face').length,
+    // Bez zápichu schodu u čela (`stairPlunge`, ops/face/insertGuard.js,
+    // 8. 10. 2026) — ten přibyl jinou opravou za průchodem 82.
+    faces: calc.passes.filter(p => p.type === 'face' && !p.stairPlunge).length,
     gcode,
   };
 }

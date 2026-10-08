@@ -1285,13 +1285,18 @@ N5250 G0 Z-6.068
 N5260 G1 X31.065 F0.25
 N5270 G1 X33.065 Z-4.068
 ; Průchod 112
-N5280 G0 X40.366
-N5290 G0 Z-9.068
-N5300 G1 X30.365 F0.25
-N5310 G1 X32.365 Z-7.068
-N5320 G0 X150.000 ; Výjezd nad konturu
-N5330 G0 Z5.000
-N5340 M30 ; Konec programu
+N5280 G0 X34.570
+N5290 G0 Z-4.730
+N5300 G1 X31.065 F0.25
+N5310 G1 X33.065 ; Výjezd v X (stěna)
+; Průchod 113
+N5320 G0 X40.366
+N5330 G0 Z-9.068
+N5340 G1 X30.365 F0.25
+N5350 G1 X32.365 Z-7.068
+N5360 G0 X150.000 ; Výjezd nad konturu
+N5370 G0 Z5.000
+N5380 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -1357,7 +1362,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 112,
+  "passCount": 113,
   "passTags": [
     "face",
     "face",
@@ -1471,6 +1476,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",
+    "face{blocked}",
   ],
 }
 `;
@@ -1479,7 +1485,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder
 [
   "Hlídání upichováku: 22 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 5) nevjelo do kontury.",
   "Doběh na konci úseku: 2 průchodů přidáno, aby na koncích úseků nezůstal schodek.",
-  "Hlídání držáku (čelně): 35 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 21 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
+  "Hlídání držáku (čelně): 36 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 21 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
   "Dojezd bez schodků: 2 dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.",
 ]
 `;
@@ -7862,51 +7868,56 @@ N5250 G0 Z-6.068
 N5260 G1 X31.065 F0.25
 N5270 G1 X33.065 Z-4.068
 ; Průchod 112
-N5280 G0 X40.366
-N5290 G0 Z-9.068
-N5300 G1 X30.365 F0.25
-N5310 G1 X32.365 Z-7.068
-N5320 G0 X150.000 ; Výjezd nad konturu
-N5330 G0 Z5.000
+N5280 G0 X34.570
+N5290 G0 Z-4.730
+N5300 G1 X31.065 F0.25
+N5310 G1 X33.065 ; Výjezd v X (stěna)
+; Průchod 113
+N5320 G0 X40.366
+N5330 G0 Z-9.068
+N5340 G1 X30.365 F0.25
+N5350 G1 X32.365 Z-7.068
+N5360 G0 X150.000 ; Výjezd nad konturu
+N5370 G0 Z5.000
 ; --- DOKONCOVANI ---
-N5340 G0 Z347.176
-N5350 G0 X2.000
-N5360 G1 X0.000 Z347.176 F0.25
-N5370 G1 X9.819 Z346.127
-N5380 G1 X9.917 Z346.077
-N5390 G1 X9.917 Z243.872
-N5400 G1 X9.955 Z243.772
-N5410 G1 X50.715 Z235.680
-N5420 G1 X50.881 Z235.480
-N5430 G1 X50.881 Z218.096
-N5440 G1 X50.881 Z217.096 ; Rovný průměr (zbytek nejde dokončit celý)
-N5450 G1 X51.680 F0.25 ; Výjezd materiálem posuvem
-N5460 G0 Z139.045
-N5470 G0 X40.470
-N5480 G1 X9.543 F0.25
-N5490 G1 X39.245 Z138.302
-N5500 G1 X39.483 Z136.972
-N5510 G1 X39.616 Z136.772
-N5520 G1 X39.554 Z136.572
-N5530 G1 X40.909 Z128.979
-N5540 G1 X40.918 Z122.186
-N5550 G1 X40.918 Z121.186 ; Rovný průměr (zbytek nejde dokončit celý)
-N5560 G1 X42.920 F0.25 ; Výjezd materiálem posuvem
-N5570 G0 Z75.230
-N5580 G0 X17.439
-N5590 G1 X15.439 Z75.230
-N5600 G1 X22.524 Z73.781
-N5610 G3 X27.856 Z67.037 CR=6.802
-N5620 G0 X29.970 ; Výjezd nad konturu
-N5630 G0 Z17.484
-N5640 G0 X29.841
-N5650 G1 X27.841 Z17.484
-N5660 G3 X31.366 Z9.491 CR=10.800
-N5670 G1 X31.366 Z-1.299
-N5680 G1 X31.366 Z-8.299 ; Rovný průměr (zbytek nejde dokončit celý)
-N5690 G0 X150.000 ; Výjezd nad konturu
-N5700 G0 Z5.000
-N5710 M30 ; Konec programu
+N5380 G0 Z347.176
+N5390 G0 X2.000
+N5400 G1 X0.000 Z347.176 F0.25
+N5410 G1 X9.819 Z346.127
+N5420 G1 X9.917 Z346.077
+N5430 G1 X9.917 Z243.872
+N5440 G1 X9.955 Z243.772
+N5450 G1 X50.715 Z235.680
+N5460 G1 X50.881 Z235.480
+N5470 G1 X50.881 Z217.745
+N5480 G1 X50.881 Z217.245 ; Rovný průměr (zbytek nejde dokončit celý)
+N5490 G1 X52.380 F0.25 ; Výjezd materiálem posuvem
+N5500 G0 Z139.045
+N5510 G0 X40.470
+N5520 G1 X9.543 F0.25
+N5530 G1 X39.245 Z138.302
+N5540 G1 X39.483 Z136.972
+N5550 G1 X39.616 Z136.772
+N5560 G1 X39.554 Z136.572
+N5570 G1 X40.909 Z128.979
+N5580 G1 X40.918 Z122.072
+N5590 G1 X40.918 Z121.572 ; Rovný průměr (zbytek nejde dokončit celý)
+N5600 G1 X42.920 F0.25 ; Výjezd materiálem posuvem
+N5610 G0 Z75.230
+N5620 G0 X17.439
+N5630 G1 X15.439 Z75.230
+N5640 G1 X22.524 Z73.781
+N5650 G3 X27.856 Z67.037 CR=6.802
+N5660 G1 X27.856 Z52.037 ; Rovný průměr (zbytek nejde dokončit celý)
+N5670 G1 X29.838 F0.25 ; Výjezd materiálem posuvem
+N5680 G0 Z17.486
+N5690 G1 X27.838 Z17.486
+N5700 G3 X31.366 Z9.491 CR=10.800
+N5710 G1 X31.366 Z-1.299
+N5720 G1 X31.366 Z-8.299 ; Rovný průměr (zbytek nejde dokončit celý)
+N5730 G0 X150.000 ; Výjezd nad konturu
+N5740 G0 Z5.000
+N5750 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -7972,7 +7983,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 112,
+  "passCount": 113,
   "passTags": [
     "face",
     "face",
@@ -8086,6 +8097,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",
+    "face{blocked}",
   ],
 }
 `;
@@ -8095,7 +8107,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
   "Hlídání geometrie (držák): dokončování vynechá 11 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání upichováku: 22 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 5) nevjelo do kontury.",
   "Doběh na konci úseku: 2 průchodů přidáno, aby na koncích úseků nezůstal schodek.",
-  "Hlídání držáku (čelně): 35 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
+  "Hlídání držáku (čelně): 36 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
   "Dojezd bez schodků: 2 dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.",
 ]
 `;
@@ -8732,45 +8744,52 @@ N5150 G0 Z-3.068
 N5160 G1 X30.993 F0.25
 N5170 G1 X32.993 ; Výjezd v X (stěna)
 ; Průchod 111
-N5180 G0 X41.370
-N5190 G0 Z-6.068
-N5200 G1 X30.656 F0.25
-N5210 G1 X32.656 Z-4.068
+N5180 G0 X34.570
+N5190 G0 Z-2.730
+N5200 G1 X31.020 F0.25
+N5210 G1 X33.020 ; Výjezd v X (stěna)
 ; Průchod 112
-N5220 G0 X40.366
-N5230 G0 Z-9.068
-N5240 G1 X30.320 F0.25
-N5250 G1 X32.320 Z-7.068
-N5260 G0 X150.000 ; Výjezd nad konturu
-N5270 G0 Z5.000
+N5220 G0 X41.370
+N5230 G0 Z-6.068
+N5240 G1 X30.656 F0.25
+N5250 G1 X32.656 Z-4.068
+; Průchod 113
+N5260 G0 X40.366
+N5270 G0 Z-9.068
+N5280 G1 X30.320 F0.25
+N5290 G1 X32.320 Z-7.068
+N5300 G0 X150.000 ; Výjezd nad konturu
+N5310 G0 Z5.000
 ; --- DOKONCOVANI ---
-N5280 G0 Z347.176
-N5290 G0 X2.000
-N5300 G1 X0.000 Z347.176 F0.25
-N5310 G1 X9.819 Z346.127
-N5320 G1 X9.917 Z346.077
-N5330 G1 X9.917 Z243.872
-N5340 G1 X9.955 Z243.772
-N5350 G1 X50.715 Z235.680
-N5360 G1 X50.881 Z235.480
-N5370 G1 X50.881 Z220.094
-N5380 G1 X50.881 Z219.094 ; Rovný průměr (zbytek nejde dokončit celý)
-N5390 G1 X66.610 F0.25 ; Výjezd materiálem posuvem
-N5400 G0 Z138.302
-N5410 G0 X41.245
-N5420 G1 X39.245 Z138.302
-N5430 G1 X40.909 Z128.979
-N5440 G1 X40.918 Z124.184
-N5450 G1 X40.918 Z122.184 ; Rovný průměr (zbytek nejde dokončit celý)
-N5460 G1 X42.800 F0.25 ; Výjezd materiálem posuvem
-N5470 G0 Z75.230
-N5480 G0 X17.439
-N5490 G1 X15.439 Z75.230
-N5500 G1 X22.524 Z73.781
-N5510 G3 X27.856 Z67.037 CR=6.802
-N5520 G0 X150.000 ; Výjezd nad konturu
-N5530 G0 Z5.000
-N5540 M30 ; Konec programu
+N5320 G0 Z347.176
+N5330 G0 X2.000
+N5340 G1 X0.000 Z347.176 F0.25
+N5350 G1 X9.819 Z346.127
+N5360 G1 X9.917 Z346.077
+N5370 G1 X9.917 Z243.872
+N5380 G1 X9.955 Z243.772
+N5390 G1 X50.715 Z235.680
+N5400 G1 X50.881 Z235.480
+N5410 G1 X50.881 Z219.745
+N5420 G1 X50.881 Z219.245 ; Rovný průměr (zbytek nejde dokončit celý)
+N5430 G1 X66.740 F0.25 ; Výjezd materiálem posuvem
+N5440 G0 Z138.302
+N5450 G0 X41.245
+N5460 G1 X39.245 Z138.302
+N5470 G1 X40.909 Z128.979
+N5480 G1 X40.918 Z124.072
+N5490 G1 X40.918 Z122.072 ; Rovný průměr (zbytek nejde dokončit celý)
+N5500 G1 X42.730 F0.25 ; Výjezd materiálem posuvem
+N5510 G0 Z75.230
+N5520 G0 X17.439
+N5530 G1 X15.439 Z75.230
+N5540 G1 X22.524 Z73.781
+N5550 G3 X27.856 Z67.037 CR=6.802
+N5560 G1 X27.856 Z52.537 ; Rovný průměr (zbytek nejde dokončit celý)
+N5570 G1 X29.720 F0.25 ; Výjezd materiálem posuvem
+N5580 G0 X150.000 ; Výjezd nad konturu
+N5590 G0 Z5.000
+N5600 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -8836,7 +8855,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 112,
+  "passCount": 113,
   "passTags": [
     "face",
     "face",
@@ -8950,6 +8969,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
     "face{blocked}",
     "face{blocked}",
     "face{blocked}",
+    "face{blocked}",
   ],
 }
 `;
@@ -8959,7 +8979,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
   "Hlídání geometrie (držák): dokončování vynechá 11 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání upichováku: 19 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 3) nevjelo do kontury.",
   "Doběh na konci úseku: 2 průchodů přidáno, aby na koncích úseků nezůstal schodek.",
-  "Hlídání držáku (čelně): 39 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
+  "Hlídání držáku (čelně): 40 průchodů zkráceno, 17 vynecháno — hlouběji by držák (šířka 20 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
   "Dojezd bez schodků: 1 dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.",
 ]
 `;
@@ -10617,21 +10637,24 @@ N6190 G0 X41.370
 N6200 G0 Z-3.068
 N6210 G1 X31.766 F0.25
 N6220 G1 X33.766 Z-1.068
-; Průchod 126 (bez schodků)
+; Průchod 126
 N6230 G0 X41.370
 N6240 G0 Z-6.068
 N6250 G1 X20.422 F0.25
-N6260 G1 X31.766 Z-4.582 F0.25
-N6270 G1 X31.766 Z-4.182 F0.25
-N6280 G1 X33.766 Z-2.182
+N6260 G1 X22.422 ; Výjezd v X (stěna)
 ; Průchod 127
-N6290 G0 X40.366
-N6300 G0 Z-9.068
-N6310 G1 X20.422 F0.25
-N6320 G1 X22.422 Z-7.068
-N6330 G0 X150.000 ; Výjezd nad konturu
-N6340 G0 Z5.000
-N6350 M30 ; Konec programu
+N6270 G0 X34.570
+N6280 G0 Z-4.730
+N6290 G1 X20.422 F0.25
+N6300 G1 X22.422 ; Výjezd v X (stěna)
+; Průchod 128
+N6310 G0 X40.366
+N6320 G0 Z-9.068
+N6330 G1 X20.422 F0.25
+N6340 G1 X22.422 Z-7.068
+N6350 G0 X150.000 ; Výjezd nad konturu
+N6360 G0 Z5.000
+N6370 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -10697,7 +10720,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.cam
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 127,
+  "passCount": 128,
   "passTags": [
     "face",
     "face",
@@ -10824,7 +10847,8 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.cam
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
     "face{blocked}",
-    "face{contourLeadOut,blocked}",
+    "face{blocked}",
+    "face{blocked}",
     "face{blocked}",
   ],
 }
@@ -10834,7 +10858,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.cam
 [
   "Hlídání upichováku: 22 čelních průchodů zkráceno/odebráno, aby tělo plátku (šířka 5) nevjelo do kontury.",
   "Hlídání držáku (čelně): 8 průchodů zkráceno — hlouběji by držák (šířka 23 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
-  "Dojezd bez schodků: 5 dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.",
+  "Dojezd bez schodků: 4 dojezdů zastaveno v rohu — dál kontura běží rovnoběžně s osou, kde žádný schod není a nůž by jen třel.",
 ]
 `;
 
@@ -12187,48 +12211,52 @@ N5890 G0 X24.610
 N5900 G0 Z349.000
 N5910 G1 X10.317 F0.25
 N5920 G1 X12.317 Z347.000
-; Průchod 120 (bez schodků)
+; Průchod 120
 N5930 G0 X24.610
 N5940 G0 Z352.000
 N5950 G1 X0.127 F0.25
-N5960 G1 X1.793 Z350.886 F0.25
-N5970 G1 X10.050 Z350.004 F0.25
-N5980 G1 X10.317 Z349.957 F0.25
-N5990 G1 X10.317 Z349.557 F0.25
-N6000 G1 X12.317 Z347.557
-; Průchod 121
-N6010 G0 X24.610
-N6020 G0 Z355.000
-N6030 G1 X0.127 F0.25
-N6040 G1 X2.127 Z353.000
+N5960 G1 X2.127 ; Výjezd v X (stěna)
+; Průchod 121 (bez schodků)
+N5970 G0 X13.124
+N5980 G0 Z351.094
+N5990 G1 X0.127 F0.25
+N6000 G1 X0.221 Z351.054 F0.25
+N6010 G1 X10.317 Z349.979 F0.25
+N6020 G1 X10.317 Z349.579 F0.25
+N6030 G1 X12.317 Z347.579
 ; Průchod 122
-N6050 G0 X24.610
-N6060 G0 Z358.000
-N6070 G1 X0.127 F0.25
-N6080 G1 X2.127 Z356.000
+N6040 G0 X24.610
+N6050 G0 Z355.000
+N6060 G1 X0.127 F0.25
+N6070 G1 X2.127 Z353.000
 ; Průchod 123
-N6090 G0 X24.610
-N6100 G0 Z361.000
-N6110 G1 X0.127 F0.25
-N6120 G1 X2.127 Z359.000
+N6080 G0 X24.610
+N6090 G0 Z358.000
+N6100 G1 X0.127 F0.25
+N6110 G1 X2.127 Z356.000
 ; Průchod 124
-N6130 G0 X24.610
-N6140 G0 Z364.000
-N6150 G1 X0.127 F0.25
-N6160 G1 X2.127 Z362.000
+N6120 G0 X24.610
+N6130 G0 Z361.000
+N6140 G1 X0.127 F0.25
+N6150 G1 X2.127 Z359.000
 ; Průchod 125
-N6170 G0 X24.380
-N6180 G0 Z367.000
-N6190 G1 X0.127 F0.25
-N6200 G1 X2.127 Z365.000
+N6160 G0 X24.610
+N6170 G0 Z364.000
+N6180 G1 X0.127 F0.25
+N6190 G1 X2.127 Z362.000
 ; Průchod 126
-N6210 G0 X18.995 ; Výjezd nad konturu
-N6220 G0 Z370.000
-N6230 G1 X0.127 F0.25
-N6240 G1 X2.127 Z368.000
-N6250 G0 X150.000 ; Výjezd nad konturu
-N6260 G0 Z5.000
-N6270 M30 ; Konec programu
+N6200 G0 X24.380
+N6210 G0 Z367.000
+N6220 G1 X0.127 F0.25
+N6230 G1 X2.127 Z365.000
+; Průchod 127
+N6240 G0 X18.995 ; Výjezd nad konturu
+N6250 G0 Z370.000
+N6260 G1 X0.127 F0.25
+N6270 G1 X2.127 Z368.000
+N6280 G0 X150.000 ; Výjezd nad konturu
+N6290 G0 Z5.000
+N6300 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -12294,7 +12322,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 126,
+  "passCount": 127,
   "passTags": [
     "face{backside}",
     "face{backside}",
@@ -12414,6 +12442,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper
     "face{contourLeadOut,backside,blocked}",
     "face{contourLeadOut,backside,blocked}",
     "face{contourLeadOut,backside,blocked}",
+    "face{backside,blocked}",
     "face{backside,blocked}",
     "face{contourLeadOut,backside,blocked}",
     "face{backside,blocked}",

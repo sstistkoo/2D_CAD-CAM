@@ -90,6 +90,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **CAM upichovák čelně: přejezdy, dokončování a schod u čela** (díl
+  uživatele 8. 10. 2026, MGEHR2525-5). Dokončování po obálce plátku spojovalo
+  místa, kam se nevejde držák, rovnou čarou posuvem (`N9550 G1 X7.675
+  Z166.145` přes údolí, `N9590 G1 X12.077 Z138.970` šikmo přes roh) — teď tam
+  dráha skončí, odjede rychloposuvem a najede znovu; u stěny Z 138 kopíruje
+  konturu. Tatáž spojka strašila jako překážka a přejezdy čelních průchodů
+  v údolí vyskakovaly na `G0 X69.277 ; Výjezd nad konturu` — teď jen nad
+  polotovar. Za čelem dílu jel dojezd „bez schodků" ode dna šikmo k čelu
+  (`N9300 G1 X31.866 Z-4.468`, pravý roh 0,17 mm v přídavku): průchod teď
+  odjede svisle a schod vezme svislý zápich hned vedle. Jen klíče upichováku
+  (`finishAlongEnvelope`, `cutsFullWidth`); otisk: hnulo se 5 fixtures
+  s upichovákem, kolize 0. SW v411.
 - **CAM kulatá: konec řetězu zanoření odjíždí rovnou kolmo nahoru.** Průchod,
   který končí rampou (tělo za ní nic neubralo), odskakoval šikmo zpátky po
   téže rampě (`N3290 G1 X31.666 Z-13.749` za čelem dílu, uživatel 8. 10.

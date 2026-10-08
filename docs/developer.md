@@ -1096,6 +1096,27 @@ vypadající dráhy v rozích (nález uživatele 19. 8. 2026):
    na `part-16` (včetně výjezdu po kuželu, který na osový úsek navazuje).
    Přesah se NEVÁŽE na rádius nosu: u kulaté destičky R8 by spolkl celý osový
    úsek a ořez by na `part-18` nikdy nenastal.
+3. **Mezery v předloze obálky** (nález uživatele 8. 10. 2026,
+   `projekt_2026-10-08 (1)`, test `cam-parting-face-gaps`). Vzorek obálky,
+   pod jehož oknem plátku žádná předloha není (`partingEnvelopeAt` → null), se
+   zahodí — a zbylé body pak spojila ROVNÁ ČÁRA přes mezeru:
+   - **dokončování** (`finishPartingEnvelope`): kde hlídání držáku vynechalo
+     úsek, jela obálka posuvem přes vynechané údolí (`N9550 G1 X7.675
+     Z166.145`) a jako překážka rychloposuvů (`rapidBlockers`) vyhazovala
+     přejezdy čelních průchodů pod sebou „nad konturu" (`G0 X69.277`). Obálka
+     se teď staví po úsecích Z s předlohou (`partingEnvelopeRuns`, hranice
+     0,02 mm dovnitř — na samé hranici `maxXAt` extrapoluje strmou úsečku
+     o toleranci ±0,01 ven), každý další úsek je nový řetěz (`chainBreak`).
+     Vzorkuje se TOUŽ mřížkou jako celek (`samplePartingEnvelope(…, grid)`),
+     takže dráha bez mezery vyjde beze změny.
+   - **dojezd „bez schodků" za čelem dílu** (`guardInsertFace`, zarovnání
+     schodu za runem zkrácených průchodů): napojení ode dna zápichu vedlo
+     šikmo k čelu (`N9300 G1 X31.866 Z-4.468`, pravý roh v přídavku). Dojezd
+     po dně a pak podél čela by řezal bokem plátku přes celou výšku schodu,
+     proto průchod odjede bez dojezdu a schod vezme hned za ním SVISLÝ ZÁPICH
+     (`stairPlunge`) tam, kde tělo plátku dojede 0,02 mm před přídavek čela;
+     rychloposuvem sjede až nad schod. U šikmého čela (`part-20`) pak zápich
+     dojede po obálce nahoru jako dřív.
 
 #### Náhled úběru: pás k offsetové čáře
 

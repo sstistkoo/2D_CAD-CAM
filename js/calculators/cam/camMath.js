@@ -23,16 +23,30 @@ export function getEffectivePlungeAngle(prms) {
   return ins.autoPlungeAngleDeg;
 }
 
+// Obálka upichováku v jedné osové poloze z = maximum předlohy xAt přes šířku
+// plátku (okno [z, z + dir·span], vzorky po ≤ h); null = pod tělem plátku
+// žádná předloha není.
+export function partingEnvelopeAt(xAt, z, span, dir, h = 0.4) {
+  const inner = Math.max(1, Math.ceil(span / h));
+  let m = null;
+  for (let j = 0; j <= inner; j++) {
+    const x = xAt(z + dir * span * (j / inner));
+    if (x !== null && (m === null || x > m)) m = x;
+  }
+  return m;
+}
+
 // Obálka dna upichováku: x(z) = max offsetu pod celou rovnou částí dna
 // (span = šířka − 2·rádius), tělo na straně dir (+1 = +Z, zprava; −1 zleva).
 // Programovaný bod = střed rádiusu pracovní strany; na stoupající kontuře
 // tak po povrchu jede DRUHÝ rádius (kontakt na protějším rohu), na klesající
 // se obálka kryje s offsetem. xAt(z) vrací max X offsetu v z, nebo null.
 // Vrací lomenou čáru [{x,z}] v pořadí jízdy zFrom → zTo (kolineární body
-// vyházené s tolerancí tol).
-export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol = 0.01, breakZ = null) {
+// vyházené s tolerancí tol). `grid` = vlastní mřížka vzorků (pole Z v pořadí
+// jízdy, od zFrom po zTo) místo rovnoměrné — kus delší obálky vzorkovaný
+// stejně jako celek (dokončování po úsecích, ops/finish.js).
+export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol = 0.01, breakZ = null, grid = null) {
   const n = Math.max(1, Math.ceil(Math.abs(zTo - zFrom) / h));
-  const inner = Math.max(1, Math.ceil(span / h));
   // Mřížka vzorků = rovnoměrná + ZLOMY předlohy (`breakZ`). Bez zlomů se rovná
   // úsečka nahradí TĚTIVOU přes mrížku a dráha z ní vyjede na stranu vzduchu:
   // čelo Z138,785→139,523 (na 29,6 mm v X) se vzorkovalo po 0,375 mm, zlomy na
@@ -43,7 +57,8 @@ export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol =
   // zpátky do jedné úsečky. Vzorků nemůže ubýt, takže obálka se tím nikde
   // nesníží — jen se zpřesní.
   const zs = [];
-  for (let i = 0; i <= n; i++) zs.push(zFrom + (zTo - zFrom) * (i / n));
+  if (grid) zs.push(...grid);
+  else for (let i = 0; i <= n; i++) zs.push(zFrom + (zTo - zFrom) * (i / n));
   if (breakZ) {
     const zLo = Math.min(zFrom, zTo), zHi = Math.max(zFrom, zTo);
     for (const z of breakZ) {
@@ -53,15 +68,7 @@ export function samplePartingEnvelope(xAt, zFrom, zTo, span, dir, h = 0.4, tol =
     }
     zs.sort((a, b) => (zTo >= zFrom ? a - b : b - a));
   }
-  // Obálka v dané osové poloze = maximum předlohy přes šířku plátku.
-  const envAt = (z) => {
-    let m = null;
-    for (let j = 0; j <= inner; j++) {
-      const x = xAt(z + dir * span * (j / inner));
-      if (x !== null && (m === null || x > m)) m = x;
-    }
-    return m;
-  };
+  const envAt = (z) => partingEnvelopeAt(xAt, z, span, dir, h);
   const pts = [];
   for (const z of zs) { const x = envAt(z); if (x !== null) pts.push({ x, z }); }
   // ZJEMNĚNÍ PODLE TĚTIVY. Mřížka je rovnoměrná v Z, jenže tam, kde předloha

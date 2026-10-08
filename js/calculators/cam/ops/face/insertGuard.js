@@ -5,12 +5,13 @@
 // Post-proces nad hotovým polem `passes` — pořadí volání v generátoru
 // je závazné: destička → hloubka vrstev → doběh úseku → držák.
 
-import { fitArcsToPolyline, samplePartingEnvelope } from '../../camMath.js';
+import { fitArcsToPolyline, samplePartingEnvelope, partingEnvelopeAt } from '../../camMath.js';
 import { insertReachZ } from '../../toolEnvelope.js';
 
 export function guardInsertFace(deps) {
   const {
     prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt,
+    castingOuterAtZ, rapidStartXAt,
   } = deps;
 // ── Hlídání geometrie destičky (čelně) ──
 // Spodní hrana destičky se naklání pod vodorovnou o |natočení|
@@ -162,6 +163,67 @@ if (ins.cutsFullWidth) {
         // překryla tětivou a dráha z offsetu vyjela (viz samplePartingEnvelope).
         const brkZ = [];
         for (const sg of lo || []) { brkZ.push(sg.z1); brkZ.push(sg.z2); }
+        // ZAROVNÁNÍ SCHODU ZA ČELEM DÍLU = SVISLÝ ZÁPICH, NE DOJEZD. Kde pod
+        // tělem plátku u zápichu kontura není (za čelem dílu), obálka začíná
+        // až tam, kde tělo k čelu dojede (`zS`). Vzorky před tím se dřív
+        // zahodily a napojení ode dna zápichu vedlo ŠIKMO na první vzorek
+        // s konturou: `N9300 G1 X31.866 Z-4.468` (uživatel 8. 10. 2026,
+        // `projekt_2026-10-08 (1)`) — výjezd nahoru k hotovému čelu Z 0, pravý
+        // roh 0,17 mm v přídavku. Dojezd po dně a pak nahoru podél čela by zase
+        // řezal BOKEM plátku přes celou výšku schodu (part-18: 1,36 mm v hloubce
+        // 11 mm). Upichovák zanořuje kolmo (pravidlo 6): průchod odjede bez
+        // dojezdu a schod mezi jeho tělem a přídavkem čela vezme hned za ním
+        // zápich v `zS` (0,02 mm před dotekem čela) — řeže čelní hranou, šířka
+        // třísky = šířka schodu < ap (pravidlo 3). Šikmé čelo (part-20) pak
+        // zápich dojede po obálce jako dřív; svislé čelo vzal celé sám.
+        if (partingEnvelopeAt(offsetXAt, p.z, w2R, dirM, 0.4) === null) {
+          let zS = null;
+          const n = Math.max(1, Math.ceil(Math.abs(zEnd - p.z) / 0.05));
+          let za = p.z;
+          for (let i = 1; i <= n && zS === null; i++) {
+            const zb = p.z + (zEnd - p.z) * (i / n);
+            if (partingEnvelopeAt(offsetXAt, zb, w2R, dirM, 0.4) !== null) {
+              let lo = za, hi = zb;
+              for (let k = 0; k < 30; k++) {
+                const m = (lo + hi) / 2;
+                if (partingEnvelopeAt(offsetXAt, m, w2R, dirM, 0.4) === null) lo = m; else hi = m;
+              }
+              zS = lo;
+            }
+            za = zb;
+          }
+          if (zS !== null) {
+            if (lo) delete p.contourLeadOut;
+            const zP = zS - dirM * 0.02, zIn = zS + dirM * 0.02;
+            const env = dirM * (zEnd - zIn) > 0.02
+              ? samplePartingEnvelope(offsetXAt, zIn, zEnd, w2R, dirM, 0.4, 0.003, brkZ) : [];
+            if (env.length > 0 && env[0].x > p.xEnd + 0.02 && Math.abs(zP - p.z) > 0.05
+              && castingOuterAtZ && rapidStartXAt && p.xEnd < xTouchAt(zP) - 0.01) {
+              // Nad schodem je vybráno (mělčí průchody, tělo průchodu `p`) —
+              // rychloposuv až nad vršek schodu, posuvem jen schod.
+              const xRaw = castingOuterAtZ(zP);
+              const clr = rapidStartXAt(zP, xRaw, faceLeft ? 1 : -1) - xRaw;
+              const xTop = Math.min(xRaw, Math.max(...env.map(t => t.x)));
+              const q = { type: 'face', z: zP, xStart: xTop + clr, xSurface: xTop, xEnd: p.xEnd, blocked: p.blocked, stairPlunge: true };
+              if (p.faceLeft) q.faceLeft = true;
+              if (p.retractCapZ !== undefined) q.retractCapZ = p.retractCapZ;
+              // Šikmé čelo: za zápichem po obálce nahoru (svislý kus u `zS`
+              // je vlastní stopa zápichu). Napojení rovnou na začátek obálky —
+              // osový kousek mezi `zP` a `zIn` by ořez „dojezd v rohu" níž
+              // (roughFace.js) vzal za roh a dojezd uťal.
+              if (env.some(t => t.x > env[0].x + 0.05)) {
+                const segs = [{ type: 'line', x1: p.xEnd, z1: zP, x2: env[0].x, z2: env[0].z }];
+                for (const s of fitArcsToPolyline(env, 0.02)) {
+                  if (s.type === 'line') segs.push({ type: 'line', x1: s.p1.x, z1: s.p1.z, x2: s.p2.x, z2: s.p2.z });
+                  else segs.push({ type: 'arc', x1: s.p1.x, z1: s.p1.z, x2: s.p2.x, z2: s.p2.z, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle });
+                }
+                q.contourLeadOut = segs;
+              }
+              passes.splice(passes.indexOf(p) + 1, 0, q);
+            }
+            continue;
+          }
+        }
         const pts = samplePartingEnvelope(offsetXAt, p.z, zEnd, w2R, dirM, 0.4, 0.003, brkZ);
         const fitted = fitArcsToPolyline(pts, 0.02);
         const segs = [];

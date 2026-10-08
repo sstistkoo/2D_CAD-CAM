@@ -22,7 +22,7 @@ import { dropTinyArcs, getNormal, intersectSegAtZ, syncArcEndpoints, getEffectiv
 import { splitSteepFinish } from './finishSteep.js';
 import { machinableRangeOf, segInterferesWithTool, trimAndRemoveLoops } from '../contourBuild.js';
 import { makeFinishTipGuard } from '../toolEnvelope.js';
-import { fitArcsToPolyline, samplePartingEnvelope } from '../camMath.js';
+import { fitArcsToPolyline, samplePartingEnvelope, partingEnvelopeAt } from '../camMath.js';
 import { maxXAt } from '../passHelpers.js';
 import { getInsert } from '../inserts/index.js';
 
@@ -342,6 +342,44 @@ export function buildFinishPath(ctx) {
 }
 
 /**
+ * Úseky Z [zA, zB] (v pořadí jízdy zFrom → zTo), kde má obálka upichováku
+ * nad předlohou `xAt` hodnotu — okno plátku [z, z + dir·span] zasahuje do
+ * dráhy. Mezi nimi dráha není (vynechaný úsek). Okno je totéž jako
+ * v samplePartingEnvelope (partingEnvelopeAt), hranice se dohledá půlením.
+ */
+function partingEnvelopeRuns(xAt, zFrom, zTo, span, dir, h) {
+  const has = (z) => partingEnvelopeAt(xAt, z, span, dir, h) !== null;
+  const L = Math.abs(zTo - zFrom), sgn = zTo >= zFrom ? 1 : -1;
+  const n = Math.max(1, Math.ceil(L / 0.05));
+  const at = (i) => zFrom + sgn * L * (i / n);
+  // Hranice mezi a, b (has(a) ≠ has(b)) — vrací bod na straně s dráhou.
+  const edge = (a, b) => {
+    const ha = has(a);
+    let lo = a, hi = b;
+    for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (has(m) === ha) lo = m; else hi = m; }
+    return ha ? lo : hi;
+  };
+  const runs = [];
+  let prev = at(0), prevHas = has(prev), start = prevHas ? prev : null;
+  for (let i = 1; i <= n; i++) {
+    const z = at(i), hz = has(z);
+    if (hz !== prevHas) {
+      const e = edge(prev, z);
+      if (hz) start = e; else { runs.push([start, e]); start = null; }
+    }
+    prev = z; prevHas = hz;
+  }
+  if (start !== null) runs.push([start, at(n)]);
+  // Mezera pod 0,1 mm není vynechaný úsek (tolerance na styku úseků).
+  const merged = [];
+  for (const r of runs) {
+    const last = merged[merged.length - 1];
+    if (last && Math.abs(r[0] - last[1]) < 0.1) last[1] = r[1]; else merged.push(r);
+  }
+  return merged;
+}
+
+/**
  * Dokončování UPICHOVÁKEM: dráha po obálce plátku místo po holém
  * offsetu. Vrací (případně přepsanou) dokončovací dráhu.
  */
@@ -370,13 +408,37 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
     // jízdní pořadí = klesající Z (zprava doleva) — jako offsetPath.
     // Kruhové úseky obálky se zpětně proloží G2/G3 (fitArcsToPolyline),
     // ať dokončování není rozsekané na stovky mikro-úseček.
-    const pts = samplePartingEnvelope(finXAt, fzMax, fzMin, w2RF, dirMF, 0.4, 0.003);
-    if (pts.length >= 2) {
-      const fitted = fitArcsToPolyline(pts, 0.02);
-      finishOffsetPath = fitted.map(s => s.type === 'line'
-        ? { type: 'line', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, chainBreak: false }
-        : { type: 'arc', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, refP1: { x: s.p1.x, z: s.p1.z }, refP2: { x: s.p2.x, z: s.p2.z }, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle, chainBreak: false });
+    // MEZERY V DRÁZE (uživatel 8. 10. 2026, `projekt_2026-10-08 (1)`): kde
+    // hlídání držáku vynechalo úsek (stěna Z 205 a dno údolí), obálka neměla
+    // co vzorkovat — vzorky bez dráhy se zahodily a zbylé body spojila rovná
+    // čára posuvem přes vynechané místo (`N9550 G1 X7.675 Z166.145`). Jako
+    // překážka rychloposuvů (rapidBlockers v gcodeEmit.js) pak vyhazovala
+    // přejezdy čelních průchodů „nad konturu" (`N4630 G0 X69.277`). Obálka
+    // se proto staví po úsecích Z, kde nějakou dráhu má; každý další úsek je
+    // samostatný řetěz (chainBreak → dojezd, rychloposuv, nájezd). Vzorkuje
+    // se TOUŽ mřížkou jako celá obálka (bez mezer vyjde totéž co dřív) plus
+    // hranice úseku, 0,02 mm dovnitř: na samé hranici sahá okno plátku jen do
+    // tolerance konce úseku (maxXAt ±0,01) a strmá úsečka se tam extrapoluje
+    // ven (hrb 0,04–0,06 mm).
+    const found = partingEnvelopeRuns(finXAt, fzMax, fzMin, w2RF, dirMF, 0.4);
+    const nG = Math.max(1, Math.ceil((fzMax - fzMin) / 0.4));
+    const gridG = [];
+    for (let i = 0; i <= nG; i++) gridG.push(fzMax + (fzMin - fzMax) * (i / nG));
+    // Bez mezery jeden úsek přes celý rozsah — přesně jako dřív.
+    const runs = found.length > 1
+      ? found.map(([zA, zB]) => [zA < fzMax - 1e-9 ? zA - 0.02 : zA, zB > fzMin + 1e-9 ? zB + 0.02 : zB]).filter(([zA, zB]) => zA - zB > 0.05)
+      : [[fzMax, fzMin]];
+    const out = [];
+    for (const [zA, zB] of runs) {
+      const grid = runs.length > 1 ? [zA, ...gridG.filter(z => z < zA - 0.02 && z > zB + 0.02), zB] : null;
+      const pts = samplePartingEnvelope(finXAt, zA, zB, w2RF, dirMF, 0.4, 0.003, null, grid);
+      if (pts.length < 2) continue;
+      const brk = out.length > 0;
+      fitArcsToPolyline(pts, 0.02).forEach((s, i) => out.push(s.type === 'line'
+        ? { type: 'line', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, chainBreak: brk && i === 0 }
+        : { type: 'arc', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, refP1: { x: s.p1.x, z: s.p1.z }, refP2: { x: s.p2.x, z: s.p2.z }, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle, chainBreak: brk && i === 0 }));
     }
+    if (out.length > 0) finishOffsetPath = out;
   }
 }
   return finishOffsetPath;

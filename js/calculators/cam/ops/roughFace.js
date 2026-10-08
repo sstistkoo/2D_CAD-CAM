@@ -478,7 +478,7 @@ export function genFacePasses(ctx) {
 
   // Hlídání geometrie DESTIČKY (čelně) — viz ops/face/insertGuard.js.
   guardInsertFace({
-    prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt });
+    prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, castingOuterAtZ, rapidStartXAt });
   // Hloubka vrstev (nikdy hloub než předchozí) — viz ops/face/layerDepth.js.
   const enforceLayerDepth = makeEnforceLayerDepth({
     prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt,
