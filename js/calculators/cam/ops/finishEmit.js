@@ -18,7 +18,8 @@
 // nevrací: za dokončováním už ho nikdo nečte.
 
 import { StockModel, polyArea, polyDifference, polyOffset, toolSweep } from '../../../geom/geomCore.js';
-import { segEndPoint, segStartPoint } from '../camMath.js';
+import { segEndPoint, segStartPoint, stockClearances } from '../camMath.js';
+import { getInsert } from '../inserts/index.js';
 import { holderWorldLoop } from '../collisionValidator.js';
 import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
@@ -279,13 +280,54 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     }
     return finLeadInRamp(tx, tz, withFeed);
   };
+  // ── RAMPA JEN TAM, KDE ŘEŽE (pravidlo 5, 9. 10. 2026) ──────────────────
+  // Přibližovací bod rampy leží `finishApproachDx` (2 mm) nad cílem. Při
+  // malém úhlu zanoření (polygon 5°) je rampa 22,9 mm dlouhá a jede skoro
+  // celá vzduchem souběžně s materiálem — nájezd na střed čela z Z 23,26
+  // a návrat za nedosažitelný zápich `G0 Z6.860` + `G1 X15.400 Z-16.000` nad
+  // celou hotovou plošinou. Rampa proto začne v prvním bodě TÉŽE přímky
+  // (od cíle zpět), kde má nos pod sebou celou Vůli X a v pásu Vůle Z před
+  // sebou i za sebou nic výš (hotová kontura + přídavek, stojící zbytek) —
+  // tam smí rychloposuv jako na přibližovací bod. Žádný svislý posuv navíc:
+  // ten by skončil těsně nad materiálem a dosedl by svisle (ryska, test
+  // `cam-finish-holder` — nález uživatele na part-14). Rampa zůstane aspoň
+  // průměr nosu (min. 1 mm), ať se na hotovou plochu dosedá ze strany.
+  // Zkrácená rampa leží uvnitř prověřené (`finRampClear`). Jen když to
+  // ušetří aspoň 3 mm posuvu (mez kontroly P5) — u rampy 45° (2,8 mm) se
+  // nic neušetří. Klíč plátku `finishRampFromContact`.
+  const finRampShort = getInsert(prms).finishRampFromContact;
+  const finClr = stockClearances(prms);
+  const finMatX = (z0, w) => {
+    // Nejvyšší X středu nosu, kde se v Z-okně z0 ± w dotkne materiálu.
+    let m = null;
+    for (let k = -4; k <= 4; k++) {
+      const z = z0 + w * k / 4;
+      const prof = finProfileXAt(z);
+      if (prof !== null && (m === null || prof + finAlw > m)) m = prof + finAlw;
+      const top = residualTopXAtZ(z);
+      if (top !== null && (m === null || top + finTipR > m)) m = top + finTipR;
+    }
+    return m;
+  };
+  const finRampStart = (x0, z0, x1, z1) => {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const w = finTipR + finClr.z;
+    for (let d = Math.max(1, 2 * finTipR); d < len - 0.5; d += 0.1) {
+      const t = 1 - d / len;
+      const x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
+      const m = finMatX(z, w);
+      if (m === null || m + finClr.x < x - 1e-6) return len - d >= 3 ? { x, z } : null;
+    }
+    return null;
+  };
   const finLeadInRamp = (tx, tz, withFeed) => {
     const zApp = clipZGc(tz - finDirZ * finishRampDz);
     const xApp = tx + finishApproachDx;
     if (finRampClear(xApp, zApp, tx, tz)) {
       // Nájezd na přibližovací bod s kontrolou kolize — přímá diagonála
       // z bezpečné polohy může u členité kontury proříznout offset.
-      safeRapidTo(xApp, zApp, false, !withFeed);
+      const p = finRampShort ? finRampStart(xApp, zApp, tx, tz) : null;
+      safeRapidTo(p ? p.x : xApp, p ? p.z : zApp, false, !withFeed);
       simCounter += 1;
       addN(`G1 X${xDia(tx)} Z${tz.toFixed(3)}${withFeed ? ` F${finFeed}` : ''}`, simCounter);
       setPos(tx, tz);

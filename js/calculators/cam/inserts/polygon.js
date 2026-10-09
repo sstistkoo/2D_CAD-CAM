@@ -139,6 +139,11 @@ export function polygonInsert(prms) {
     //                     údolím mělčím než ap sjede po obrysu na jeho dno
     //                     (ops/roughLong.js, 8. 10. 2026).
     closingLayerTracesFloor: true,
+    //   finishRampFromContact — nájezdová rampa dokončení jede posuvem jen
+    //                     od místa, kde něco řeže; dál od cíle rychloposuvem
+    //                     (pravidlo 5; rampa 5° z bodu 2 mm nad cílem byla
+    //                     23 mm vzduchem — ops/finishEmit.js, 9. 10. 2026).
+    finishRampFromContact: true,
     leadOutTrimNoseCircle: false,
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,

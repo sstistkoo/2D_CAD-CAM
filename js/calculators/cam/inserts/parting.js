@@ -101,6 +101,7 @@ export function partingInsert(prms) {
     realStockLayers: false,
     leadOutPastRampWall: false,
     closingLayerTracesFloor: false,
+    finishRampFromContact: false,
     leadOutTrimNoseCircle: false,
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,

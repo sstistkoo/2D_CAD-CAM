@@ -599,7 +599,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `isoDrills.js` | Vrtáky pro 📚 katalog (karta Vrtáky v `isoCatalogPanel.js`, mimo `ISO_HOLDER_TYPES`) a výchozí T7 zásobníku — `buildIsoDrill({kind, diameter})` |
 | `cam/ops/finish.js` | OPERACE dokončování, DRÁHA — `buildFinishPath()` (ořez hlídáním destičky i držáku), `finishPartingEnvelope()`, `clipFinishBand()` |
 | `cam/ops/roughEmit.js` | OPERACE hrubování, EMISE — `emitRoughing(E)`; vrací `simCounter` a `holderShallowBodies`, které musí přetéct do dokončování |
-| `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku) |
+| `cam/ops/finishEmit.js` | OPERACE dokončování, EMISE — `emitFinish(E)`; `E` je sdílené emisní prostředí (poloha nástroje, číslování bloků, model zbytku). Nájezdová rampa na začátek řetězu (`finLeadInRamp`) má přibližovací bod 2 mm nad cílem; s klíčem plátku `finishRampFromContact` (jen polygon, 9. 10. 2026) začne rampa v prvním bodě téže přímky (od cíle zpět), kde má nos pod sebou celou Vůli X a v pásu Vůle Z nic výš (`finRampStart`/`finMatX`) — k němu rychloposuv; žádný svislý posuv navíc (svislý dosed = ryska, `cam-finish-holder`); rampa aspoň průměr nosu (min. 1 mm) a jen když to ušetří ≥ 3 mm posuvu (test `cam-finish-ramp-short`) |
 | `cam/ops/roughFace.js` | Generátor průchodů — ČELNÍ hrubování; post-procesy jsou v `ops/face/` a volají se v POŘADÍ destička → hloubka vrstev → doběh úseku → držák |
 | `cam/ops/face/insertGuard.js` | `guardInsertFace()` — hlídání geometrie destičky čelně (polygon i upichovák) |
 | `cam/ops/face/layerDepth.js` | `makeEnforceLayerDepth()` — vrstva nikdy nejde hlouběji než předchozí |

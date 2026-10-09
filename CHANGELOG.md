@@ -108,6 +108,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SW v400.
 
 ### Fixed
+- **Dokončování polygonem: nájezdová rampa vzduchem** (pravidlo 5). Rampa
+  začínala 2 mm nad cílem — při úhlu zanoření 5° to bylo 22,9 mm posuvu
+  skoro celé vzduchem (nájezd na střed čela, návrat za nedosažitelný
+  zápich), při 15° 7,7 mm. Teď rampa začne v prvním bodě téže přímky,
+  kde má nos pod sebou celou Vůli X a vedle sebe Vůli Z, a k němu se jede
+  rychloposuvem (nájezd na čelo 22,9 → 1,5 mm, za zápich 22,9 → 15 mm —
+  tam jede nos nad zbytkem jen 0,2–0,3 mm, tedy v pásu Vůle). Žádný svislý
+  posuv navíc (svislý dosed = ryska); rampa aspoň průměr nosu. Klíč plátku
+  `finishRampFromContact`. Změnilo se 12 polygonových fixtures s
+  dokončením — jen body, odkud rampa začíná (kontrola pravidel: posuv
+  vzduchem −7 případů, nic nového), `tests/cam-finish-ramp-short.test.js`.
 - **Hrubování polygonem: poslední vrstva na plošinách vedle zápichu**, kam
   destička nedosáhne (pravidlo 3, „bez schodků"). Na plošinách zůstávala
   celá poslední vrstva (0,3 mm nad přídavkem):

@@ -189,6 +189,7 @@ export function roundInsert(prms) {
     realStockLayers: false,
     leadOutPastRampWall: false,
     closingLayerTracesFloor: false,
+    finishRampFromContact: false,
     //   leadOutTrimNoseCircle    — dojezd „bez schodků" se na hranu materiálu
     //                              ořezává podle KRUŽNICE nosu, ne sloupce pod
     //                              středem: nos R 10 bere bokem polotovar až R
