@@ -261,6 +261,33 @@ export function boreRemovedLoops(g, remainReal) {
 }
 
 /**
+ * Obrys DÍRY ve skutečném světě (x = poloměr, z): od ústí na čele po dno a k ose.
+ * Díl nakreslený jako hotový kalíšek díru nemá jako materiál — pro úběr se
+ * k dílu přičte, protože se obrábí z plného (vrták + tyč).
+ * @returns {Array<{x:number,z:number}>}
+ */
+export function boreHoleLoop(g) {
+  const { zF, s, L } = g;
+  const pts = [{ x: 0, z: zF }];
+  if (g.chain) {
+    pts.push({ x: g.chain[0].p1.x, z: g.chain[0].p1.z });
+    for (const sg of g.chain) {
+      if (sg.type === 'arc') {
+        let d = sg.endAngle - sg.startAngle;
+        if (sg.dir === 'G2' && d > 0) d -= 2 * Math.PI;
+        if (sg.dir === 'G3' && d < 0) d += 2 * Math.PI;
+        for (let j = 1; j <= 12; j++) { const a = sg.startAngle + d * j / 12; pts.push({ x: sg.cx + sg.r * Math.sin(a), z: sg.cz + sg.r * Math.cos(a) }); }
+      } else pts.push({ x: sg.p2.x, z: sg.p2.z });
+    }
+    const last = pts[pts.length - 1];
+    if (last.x > 1e-6) pts.push({ x: 0, z: last.z });
+  } else {
+    pts.push({ x: g.r, z: zF }, { x: g.r, z: zF - s * L }, { x: 0, z: zF - s * L });
+  }
+  return pts;
+}
+
+/**
  * Kus dna díry, který tyč z předvrtání se špičkou nevezme (skutečná Z):
  * prstenec kolem předvrtání od hloubky plného ⌀ L0 po dno a kužel po
  * špičce. null = dno se vyvrtá celé.

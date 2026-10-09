@@ -25,7 +25,7 @@ import { sectionRanges } from './cam/ops/sections/sectionRanges.js';
 import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, polyUnion, pointInLoop } from '../geom/geomCore.js';
-import { boreGeom, boreMirrorSim, boreRemovedLoops } from './cam/ops/bore.js';
+import { boreGeom, boreMirrorSim, boreRemovedLoops, boreHoleLoop } from './cam/ops/bore.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, applyPreDrillPlan } from './cam/ops/borePreDrill.js';
 import { boreFloorSim, boreFloorSplitIndex } from './cam/ops/boreFloor.js';
 import { startInMaterial } from './cam/startCheck.js';
@@ -1881,7 +1881,17 @@ export function openCamSimulator(initialContour, initialGCode) {
     try { stock = buildStockLoopRaw(prms, calc.stockPathSegments); } catch { stock = null; }
     const part = partLoopOf(calc);
     if (!part || (stock && stock.length >= 3 && Math.abs(polyArea([stock])) > 1)) return calc.stockPathSegments;
-    return part.map((p, i) => ({ type: 'line', p1: p, p2: part[(i + 1) % part.length] }));
+    // Obrobek se vrtá z plného: k dílu se přičte díra (viz boreRemovalView).
+    let loop = part;
+    try {
+      const src = S.params.boreSource === 'cad' ? boreChainFromState(S) : null;
+      const bg = boreGeom(S.params, src ? src.segs : null);
+      if (bg.ok) {
+        const u = polyUnion([boreHoleLoop(bg)], [part]);
+        loop = u.slice().sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0] || part;
+      }
+    } catch { loop = part; }
+    return loop.map((p, i) => ({ type: 'line', p1: p, p2: loop[(i + 1) % loop.length] }));
   }
   /** Úběr během vrtání: skutečný polotovar, stopa vrtáku. */
   function preDrillRemoval(calc) {
@@ -1905,7 +1915,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     let base = stockL;
     if (rm && partL) {
       try {
-        const u = polyUnion(stockL && stockL.length >= 3 ? [stockL] : [], [partL]);
+        // + díra: hotový díl ji nemá jako materiál, ale obrábí se z plného.
+        const u = polyUnion(stockL && stockL.length >= 3 ? [stockL, boreHoleLoop(bs.g)] : [boreHoleLoop(bs.g)], [partL]);
         base = u.slice().sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0] || stockL;
       } catch { base = stockL || partL; }
     }
