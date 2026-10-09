@@ -28,6 +28,7 @@ import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './z
 import { stockPlanLoop } from './materialRemoval.js';
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
 import { splitBoreFromSegments } from './boreContour.js';
+import { applyPreDrillPlan } from './ops/borePreDrill.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
@@ -116,6 +117,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   S.params.pocketFinishAtOnce = true;
   // Vrták = vrtání (viz enforceInsertOperation) — i u starých projektů a částí.
   enforceInsertOperation(S.params);
+  // Vyvrtávání z plného: ⌀ a hloubka předvrtání podle vrtáku (ops/borePreDrill.js).
+  applyPreDrillPlan(S);
   // ── Druhá strana (zleva, podélně i čelně) = TÝŽ výpočet v Z-ZRCADLE ───
   // Vstup se překlopí (z → −z), celý zbytek funkce pak řeší obyčejné
   // hrubování zprava se standardním pravým nožem a hotový výsledek se před

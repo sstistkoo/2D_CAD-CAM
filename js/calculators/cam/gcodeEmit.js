@@ -23,6 +23,7 @@ import { emitThread } from './ops/thread.js';
 import { emitPartOff } from './ops/partOff.js';
 import { emitDrill } from './ops/drill.js';
 import { emitBore } from './ops/bore.js';
+import { emitBorePreDrilled } from './ops/borePreDrill.js';
 import { emitRoughing } from './ops/roughEmit.js';
 import { emitFinish } from './ops/finishEmit.js';
 
@@ -46,6 +47,13 @@ export function generateAutoGCode(S, calc) {
   // nelze — následný přepočet (fullUpdate → calculate) ho přepíše od nuly;
   // fullUpdate proto tenhle seznam po přepočtu do ⚠ panelu připojí.
   S.genNotes = [];
+  // ── VYVRTÁVÁNÍ Z PLNÉHO ── vrtání vrtákem + vyvrtávání tyčí v jednom
+  // programu (ops/borePreDrill.js); hlavičky a výměnu nástroje dělá slučování
+  // částí programu, proto hned na začátku.
+  if (prms.boreActive && prms.borePreDrill) {
+    const merged = emitBorePreDrilled({ S, calc, generateAutoGCode });
+    if (merged) return merged;
+  }
   const lines = [];
   const add = (text, simIdx = null) => lines.push({ text, simIdx });
   const cmt = ctrlCmt(prms.controlSystem);

@@ -585,8 +585,26 @@ a rychloposuvy jdou do volného předvrtání, ne do stěny.
    vrtá od pravého čela k −Z, **zleva od levého čela k +Z** (druhé upnutí) —
    program zleva je přesné zrcadlo programu zprava. Díru z výkresu pozná
    u pravého i levého čela.
-3. **⌀ předvrtání** a **Hloubka předvrt.** (aspoň délka díry — tyč nevrtá do
-   plného). Záběr ap, posuv, Vc a přídavky sdílí s hrubováním.
+3. **Předvrtat vrtákem (z plného)** — když je díra v polotovaru plná,
+   zapne se samo při **✅ Aktivní**. Program pak nejdřív vrtá **vrtákem** a po
+   výměně nástroje vyvrtá díru **tyčí** — jeden program, obě části
+   v simulaci (během vrtání se kreslí vrták, pak tyč; úběr i ⛔ hlídání
+   zvlášť pro každý nástroj).
+   - **Vrták** se vybere sám: největší ze 🔧 Zásobníku, který nechá na stěně
+     přídavek + 1 mm a dosáhne na dno; jde ho změnit v nabídce **Vrták**.
+     Když v zásobníku žádný není, přidá se z 📚 katalogu (HSS 118°).
+   - **Tyč** se vybere sama — nejtlustší, která se vejde do díry po vrtáku;
+     když v zásobníku žádná není, přidá se z 📚 katalogu (95°, BCL).
+   - **Hloubka vrtání:** špička skončí na **dně díry + Přídavek Z** (do dna
+     nezajede). Plný ⌀ je proto o délku špičky výš a tyč z takového
+     předvrtání vezme stěnu jen do hloubky plného ⌀ — níž by se tělem opřela
+     o kužel po vrtáku. **Dno díry** (prstenec + kužel, u ⌀20 asi 6,5 mm)
+     zůstane, panel ⚠ ho nahlásí a v simulaci je vidět; dobere ho až „dno
+     díry čelně" (připravuje se).
+
+   Bez zaškrtnutí: **⌀ předvrtání** a **Hloubka předvrt.** se zadají ručně
+   (aspoň délka díry — tyč nevrtá do plného). Záběr ap, posuv, Vc a přídavky
+   sdílí s hrubováním.
 4. **Dokončit stěnu díry** (výchozí vypnuto) — po hrubování jeden dokončovací
    průchod po stěně (sražení, schody, dno až k předvrtání) **týmž nástrojem**;
    dokončovací nůž vnějšího obrábění se do díry nepošle. Na stěně zůstane jen

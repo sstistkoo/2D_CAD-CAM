@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vyvrtávání z plného: vrták → vyvrtávací tyč v jednom programu**
+  (uživatel 9. 10. 2026: „u vyvrtávání ať je možnost nastavit i vrták a pak
+  ten vyvrtávací nůž, ať je to automatizované"). Záložka Vyvrt. →
+  ☑ **Předvrtat vrtákem (z plného)** — zapne se samo, když je díra
+  v polotovaru plná. Vrták i tyč se vyberou samy (zásobník, jinak se přidají
+  z 📚 katalogu), program = vrtání + výměna nástroje + vyvrtávání (slučuje se
+  jako části „➕ Operace"). Špička vrtáku skončí na dně díry + Přídavek Z
+  (rozhodnutí uživatele) — tyč pak vezme stěnu do hloubky plného ⌀, dno díry
+  (prstenec + kužel po špičce) se nahlásí a dobere ho až „dno díry čelně".
+  Simulace: během vrtání vrták ve skutečném světě (úběr, ⛔), pak tyč
+  v zrcadle. `js/calculators/cam/ops/borePreDrill.js`,
+  `tests/cam-bore-predrill.test.js`; otisk 29 fixtures shodný.
 - **Vyvrtávání zleva** (od levého čela k +Z, druhé upnutí). K zrcadlu v X
   se přidá zrcadlo v Z — program zleva je přesné zrcadlo programu zprava
   (X stejné, Z opačně, oblouky G2↔G3; hlídá `tests/cam-bore-left.test.js`).

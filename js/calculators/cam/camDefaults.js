@@ -142,6 +142,9 @@ export function _defaultCamParams() {
     // hrubování v ose X. Samostatná operace jako vrtání, viz ops/bore.js.
     // První verze: podélné hrubování válcové díry ⌀ × délka od Z čela.
     boreActive: false,
+    borePreDrill: false,     // vyvrtávání z plného: nejdřív vrtání vrtákem (ops/borePreDrill.js)
+    borePreDrillSlot: null,  // vrták ze 🔧 Zásobníku (index); null = vybere se sám
+    borePreTip: 0,           // kužel špičky předvrtání [mm] — dopočítá applyPreDrillPlan
     boreSource: 'cylinder',  // 'cylinder' = válec ⌀ × délka níž, 'cad' = díra nakreslená ve výkresu
     boreFinish: false,       // po hrubování dokončit stěnu díry (vnější dokončení v zrcadle, týmž nástrojem)
     boreZStart: 0,           // Z čela, kde díra začíná
@@ -271,3 +274,27 @@ export const SHAPE_CUT_DEFAULTS = {
   // HSS vrták do oceli: Vc 25 m/min, f 0,2 mm/ot (⌀ 16–25); ap = záběr Q.
   drill: { vc: 25, f: 0.2, ap: 5 },
 };
+
+/**
+ * Nástroj ze slotu 🔧 Zásobníku jako parametry CAM (geometrie, držák, řezné
+ * podmínky) — pro operaci, která v programu mění nástroj sama (vyvrtávání
+ * z plného: vrták, ops/borePreDrill.js). Kód drah se na tvar neptá, jen
+ * převezme slot (cam-insert-isolation).
+ */
+export function slotToolParams(slot) {
+  const s = slot || {};
+  const out = {
+    toolName: s.name || '', toolVbdCode: s.vbdCode || '', toolShape: s.shape,
+    toolRadius: s.radius, toolTipAngle: s.tipAngle, toolAngle: s.toolAngle ?? 0,
+    toolClearanceAngle: s.clearanceAngle ?? 0, toolLength: s.toolLength, toolTipMirror: s.tipMirror === true,
+    holderInflate: s.holderInflate ?? 0, holderInflateAll: s.holderInflateAll === true,
+    holderProfile: s.holderProfile ? JSON.parse(JSON.stringify(s.holderProfile)) : null,
+  };
+  if (s.tipFlat !== undefined) out.toolTipFlat = s.tipFlat;
+  if (s.vc !== undefined) out.speed = s.vc;
+  if (s.f !== undefined) out.feed = s.f;
+  for (const [k, from] of [['holderLength', 'holderLength'], ['holderWidth', 'holderWidth'], ['holderHand', 'holderHand'], ['knifeAngle', 'knifeAngle']]) {
+    if (s[from] !== undefined) out[k] = s[from];
+  }
+  return out;
+}

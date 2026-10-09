@@ -24,8 +24,9 @@ import { sectionLeftover } from './cam/ops/sections/sectionLeftover.js';
 import { sectionRanges } from './cam/ops/sections/sectionRanges.js';
 import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
-import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference } from '../geom/geomCore.js';
-import { boreGeom, boreMirrorSim } from './cam/ops/bore.js';
+import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, pointInLoop } from '../geom/geomCore.js';
+import { boreGeom, boreMirrorSim, boreRemovedLoops } from './cam/ops/bore.js';
+import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, applyPreDrillPlan } from './cam/ops/borePreDrill.js';
 import { boreChainFromState } from './cam/boreContour.js';
 import { HolderGouge } from './cam/holderGouge.js';
 import { ContourGouge } from './cam/contourGouge.js';
@@ -45,7 +46,7 @@ import { knifeThumbSvg } from './knifeThumb.js';
 import { defaultMagazineKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV, presetKnifeForShape, presetSlotIndex, sameKnifeGeometry } from './magazineDefaults.js';
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
 import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch, threadInsertFitsSide } from './isoThreadInserts.js';
-import { isoInternalThreadHint, isoBarFitsHole, isoBoringBarDiameter } from './isoInternalTools.js';
+import { isoInternalThreadHint, isoBarFitsHole, isoBoringBarDiameter, buildIsoInternalKnife, isoInternalBars, isoInternalTypeById } from './isoInternalTools.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey, enforceInsertOperation } from './cam/calculatePipeline.js';
 import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -585,7 +586,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       remap(S, 'activeMagazineSlot');
       remap(S, 'editingMagazineSlot');
       remap(S.params, 'finishingSlot');
-      for (const part of S.opParts || []) { remap(part, 'activeMagazineSlot'); remap(part.params, 'finishingSlot'); }
+      remap(S.params, 'borePreDrillSlot');
+      for (const part of S.opParts || []) { remap(part, 'activeMagazineSlot'); remap(part.params, 'finishingSlot'); remap(part.params, 'borePreDrillSlot'); }
       if (typeof wasActive === 'number' && mig.replaced.includes(S.activeMagazineSlot)) S.activeMagazineSlot = null;
       if (mig.replaced.length) {
         setTimeout(() => showToast(`Zásobník: ${mig.replaced.length} provizorních výchozích nožů nahrazeno ISO noži (PSKNR, PCLNR, PDJNR…)`), 0);
@@ -1547,6 +1549,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const p = S.params;
     const key = [
       S.manualGCode, p.boreActive, p.boreDiameter, p.boreDepth, p.boreZStart, p.borePreDiameter, p.borePreDepth,
+      p.borePreDrill, p.borePreTip, p.borePreDrillSlot,
       p.toolRadius, p.depthOfCut, p.toolLength,
       p.holderWidth, p.holderLength, p.holderInflate, p.holderInflateAll,
       JSON.stringify(p.holderProfile || null),
@@ -1559,9 +1562,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Vyvrtávání: validuje se v zrcadle drah (viz boreSimFor), souřadnice
         // nálezů se překlopí zpátky.
         const bs = boreSimFor(calc);
+        // Vyvrtávání z plného: úsek vrtání se validuje ve skutečném světě vrtákem.
+        const pre = bs ? preDrillPhase(calc) : null;
+        const drillIssues = pre
+          ? validateToolpath(calc.simPath.slice(0, pre.iSplit + 1), pre.params, calc.stockPathSegments, { backside: toolMirrored(), planStock: true })
+          : [];
         _lastIssues = bs
-          ? validateToolpath(bs.calcM.simPath, bs.params, bs.calcM.stockPathSegments, { backside: false, planStock: true })
-            .map(it => ({ ...it, x: bs.g.rRef - it.x }))
+          ? drillIssues.concat(validateToolpath(bs.calcM.simPath, bs.params, bs.calcM.stockPathSegments, { backside: false, planStock: true })
+            .map(it => ({ ...it, x: bs.g.rRef - it.x })))
           : validateToolpath(calc.simPath, p, calc.stockPathSegments, {
             backside: toolMirrored(),
             // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE — dráhy se proti ní plánují
@@ -1604,7 +1612,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       return null;
     }
     const bs = boreSimFor(calc);
-    if (bs) return boreRemovalView(bs, calc);
+    if (bs) return inPreDrill(calc) ? preDrillRemoval(calc) : boreRemovalView(bs, calc);
     if (!_removal || _removalCalcRef !== calc) {
       _removal = new MaterialRemoval(S.params, calc.stockPathSegments);
       _removalCalcRef = calc;
@@ -1659,10 +1667,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     const bs = boreSimFor(calc);
     if (bs) {
+      if (inPreDrill(calc)) return null;   // vrták: pouzdro jede jen v ose (⛔ hlídá validátor)
       if (!bs.holderGouge) bs.holderGouge = new HolderGouge(bs.params, bs.calcM.stockPathSegments, false, { band: true });
       const hg = bs.holderGouge;
       if (!hg.valid) return null;
-      hg.advanceTo(bs.calcM.simPath, S.simProgress * (bs.calcM.simPath.length - 1));
+      hg.advanceTo(bs.calcM.simPath, boreLocalIdx(bs));
       const hardB = hg.gouge.length ? bs.un(hg.gouge) : null;
       const bandB = hg.gougeBand.length ? bs.un(hg.gougeBand) : null;
       return (hardB || bandB) ? { hard: hardB, band: bandB } : null;
@@ -1695,6 +1704,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     }
     const bs = boreSimFor(calc);
     if (bs) {
+      // Během vrtání se zajetí neukazuje: vnější kontura díru nemá (vyjmula ji
+      // pro vyvrtávání), vrtání do díry by svítilo jako zajetí do dílu.
+      if (inPreDrill(calc)) return null;
       const rmB = boreRemoval(bs);
       if (!rmB || !rmB.model) return null;
       if (!bs.contourGouge) bs.contourGouge = new ContourGouge(bs.params, bs.calcM.contourSegments, bs.calcM.stockPathSegments);
@@ -1732,18 +1744,54 @@ export function openCamSimulator(initialContour, initialGCode) {
   // předvrtání = válec, vnější nůž zprava), a výsledky se pro kreslení
   // překlopí zpátky (X = R_ref − X'). Model se váže na calc (identita).
   let _boreSim = null;
+  // ── VYVRTÁVÁNÍ Z PLNÉHO (ops/borePreDrill.js) ──────────────────────────
+  // Program = vrtání vrtákem + vyvrtávání tyčí. Úsek vrtání (do `iSplit`)
+  // se simuluje ve SKUTEČNÉM světě vrtákem (úběr, ⛔), úsek tyče v zrcadle
+  // jen ze své části dráhy — zrcadlo by vrták v ose bralo jako tyč u stěny.
+  let _preDrill = null;
+  function preDrillPhase(calc) {
+    if (!S.params.boreActive || !S.params.borePreDrill || !calc || !calc.simPath) return null;
+    if (_preDrill && _preDrill.calc === calc) return _preDrill.v;
+    const iSplit = preDrillSplitIndex(calc.simPath, S.manualGCode);
+    const plan = iSplit ? preDrillPlan(S) : null;
+    const v = iSplit && plan && plan.ok ? { iSplit, params: preDrillParams(S.params, plan), removal: null } : null;
+    _preDrill = { calc, v };
+    return v;
+  }
+  /** Probíhá právě vrtání (simulace stojí před úsekem tyče)? */
+  function inPreDrill(calc) {
+    const pre = preDrillPhase(calc);
+    return !!pre && S.simProgress * (calc.simPath.length - 1) < pre.iSplit;
+  }
   function boreSimFor(calc) {
     if (!S.params.boreActive || !calc || !calc.simPath || calc.simPath.length < 2) return null;
     if (_boreSim && _boreSim.calc === calc) return _boreSim.ok ? _boreSim : null;
-    const sim = boreMirrorSim(S, calc.simPath, computeCalculation);
-    _boreSim = sim ? { ...sim, calc, ok: true, removal: null, holderGouge: null, contourGouge: null } : { calc, ok: false };
+    const pre = preDrillPhase(calc);
+    const sim = boreMirrorSim(S, pre ? calc.simPath.slice(pre.iSplit) : calc.simPath, computeCalculation);
+    _boreSim = sim
+      ? { ...sim, calc, ok: true, iSplit: pre ? pre.iSplit : 0, removal: null, holderGouge: null, contourGouge: null }
+      : { calc, ok: false };
     return sim ? _boreSim : null;
+  }
+  /** Poloha simulace v dráze tyče (zrcadlo bere jen část za vrtáním). */
+  function boreLocalIdx(bs) {
+    const f = S.simProgress * (bs.calc.simPath.length - 1) - (bs.iSplit || 0);
+    return Math.max(0, Math.min(bs.calcM.simPath.length - 1, f));
   }
   function boreRemoval(bs) {
     if (!bs.removal) bs.removal = new MaterialRemoval(bs.params, bs.calcM.stockPathSegments);
     if (!bs.removal.valid) return null;
-    bs.removal.advanceTo(bs.calcM.simPath, S.simProgress * (bs.calcM.simPath.length - 1));
+    bs.removal.advanceTo(bs.calcM.simPath, boreLocalIdx(bs));
     return bs.removal;
+  }
+  /** Úběr během vrtání: skutečný polotovar, stopa vrtáku. */
+  function preDrillRemoval(calc) {
+    const pre = preDrillPhase(calc);
+    if (!pre) return null;
+    if (!pre.removal) pre.removal = new MaterialRemoval(pre.params, calc.stockPathSegments);
+    if (!pre.removal.valid) return null;
+    pre.removal.advanceTo(calc.simPath, S.simProgress * (calc.simPath.length - 1));
+    return pre.removal;
   }
   // Úběr pro kreslení ve SKUTEČNÉM světě: základ = celý vnější polotovar,
   // zbytek = polotovar − (předvrtání ∪ vyvrtané) — výplň i ořez vybarvení
@@ -1752,9 +1800,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const rm = boreRemoval(bs);
     const base = rm ? buildStockLoopRaw(S.params, calc.stockPathSegments) : null;
     if (!base) return null;
-    const { zF, L0, rRef, s } = bs.g;
-    const zone = [{ x: 0, z: zF }, { x: rRef, z: zF }, { x: rRef, z: zF - s * L0 }, { x: 0, z: zF - s * L0 }];
-    const removed = polyDifference([zone], bs.un(rm.model.loops));
+    const removed = boreRemovedLoops(bs.g, bs.un(rm.model.loops));
     return { valid: true, model: { loops: polyDifference([base], removed) }, baseLoop: base };
   }
 
@@ -2658,6 +2704,12 @@ export function openCamSimulator(initialContour, initialGCode) {
       const floatIndex = S.simProgress * (totalPoints - 1);
       const idx = Math.floor(floatIndex);
       const t = floatIndex - idx;
+      // Vyvrtávání z plného (ops/borePreDrill.js): do konce vrtání se kreslí
+      // vrták, potom vyvrtávací tyč (otočená k ose).
+      const preTool = preDrillPhase(calc);
+      const drillNow = !!preTool && floatIndex < preTool.iSplit;
+      const tp = drillNow ? preTool.params : prms;
+      const boreView = !drillNow && !!S.params.boreActive;
       const pCurrent = calc.simPath[idx];
       if (pCurrent) {
         const pNext = calc.simPath[Math.min(idx + 1, totalPoints - 1)] || pCurrent;
@@ -2666,7 +2718,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Ubíhající čas + živé otáčky a posuv v aktuálním místě dráhy.
         showMotionInfo(pNext, curX, elapsedAtProgress(simTimeProfile(calc.simPath), S.simProgress));
         const pt = toScreen(curX, curZ);
-        const tRad = parseFloat(prms.toolRadius) || 0.8;
+        const tRad = parseFloat(tp.toolRadius) || 0.8;
         // −0.75px = polovina šířky konturové čáry (lineWidth 1.5), aby okraj
         // plátku nepřekrýval vykreslenou čáru kontury.
         // ŽÁDNÉ pixelové podlahy: plátek drží velikost i tvar v měřítku výkresu
@@ -2682,8 +2734,8 @@ export function openCamSimulator(initialContour, initialGCode) {
         // "⚙️ Geometrie" (tam drží orientaci držáku jen knifeAngle).
         ctx.save(); ctx.translate(pt.x, pt.y);
         if ((toolMirrored()) !== !!S.flipZ) ctx.scale(-1, 1);
-        if (S.flipX !== !!S.params.boreActive) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
-        drawHolderProfileLocal(ctx, prms, S.view.scale);
+        if (S.flipX !== boreView) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
+        drawHolderProfileLocal(ctx, tp, S.view.scale);
         ctx.restore();
         // Vybarvení AKUMULOVANÝCH oblastí kolizí (držák v materiálu, zajetí do
         // hotové kontury). Smyčky jsou v SIM souřadnicích, kreslí se přímo přes
@@ -2728,9 +2780,9 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.restore();
         }
         ctx.fillStyle = C.insert; ctx.strokeStyle = C.text; ctx.lineWidth = 1;
-        if (prms.toolShape === 'round') {
+        if (tp.toolShape === 'round') {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, rPix, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        } else if (prms.toolShape === 'threading') {
+        } else if (tp.toolShape === 'threading') {
           // Závitový plátek: pracovní zub (lichoběžník) — rovná SPODNÍ STRANA
           // (šířka toolTipFlat) leží přímo na dráze (X průchodu = ⌀ řezu),
           // boky stoupají symetricky ±ε/2 od svislice. Rádius se nepoužívá.
@@ -2739,30 +2791,30 @@ export function openCamSimulator(initialContour, initialGCode) {
           // min. 1,5 px, ať je vidět i při oddálení.
           const scl = S.view.scale;
           ctx.save(); ctx.translate(pt.x, pt.y);
-          if (S.flipX !== !!S.params.boreActive) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
-          drawThreadingInsert(ctx, { ...prms, toolTipFlat: Math.max(parseFloat(prms.toolTipFlat) || 0, 1.5 / scl) }, scl);
+          if (S.flipX !== boreView) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
+          drawThreadingInsert(ctx, { ...tp, toolTipFlat: Math.max(parseFloat(tp.toolTipFlat) || 0, 1.5 / scl) }, scl);
           ctx.restore();
-        } else if (prms.toolShape === 'polygon') {
+        } else if (tp.toolShape === 'polygon') {
           ctx.save(); ctx.translate(pt.x, pt.y);
           // Zrcadlení destičky musí odpovídat globálnímu pohledu (viz vS/hS
           // v toScreen). Horizontálně (osa Z): backside a flipZ se vzájemně
           // ruší (XOR). Vertikálně (osa X): flipX zrcadlí pohled svisle.
           if ((toolMirrored()) !== !!S.flipZ) ctx.scale(-1, 1);
-          if (S.flipX !== !!S.params.boreActive) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
+          if (S.flipX !== boreView) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
           // Celá destička + řezná část ze SDÍLENÝCH segmentů (tentýž obrys
           // počítá úběr a kolize). Vlastní kopie vzorců tu dřív ignorovala
           // ⇄ Přehodit stranu (toolTipMirror) — simulace ukazovala destičku
           // jinak, než se s ní počítalo. R o −0,75 px menší, viz rPix výš.
           const scl = S.view.scale;
-          const cut = drawPolygonInsert(ctx, { ...prms, toolRadius: rPix / scl }, scl);
+          const cut = drawPolygonInsert(ctx, { ...tp, toolRadius: rPix / scl }, scl);
           // Vizualizace úhlu hřbetu (α) — tečkované čáry na hranách plátku.
           // Hrany z obrysu: t1→farA (hlavní ostří), farB→t2 (vedlejší).
-          const clearDeg = parseFloat(prms.toolClearanceAngle) || 0;
+          const clearDeg = parseFloat(tp.toolClearanceAngle) || 0;
           if (clearDeg > 0 && cut.length >= 3) {
             const clearRad = clearDeg * Math.PI / 180;
             // Na kterou stranu leží tělo destičky, určuje ⇄ (toolTipMirror).
-            const sgn = prms.toolTipMirror ? -1 : 1;
-            const clLen = Math.min((parseFloat(prms.toolLength) || 10) * scl * 0.65, 30);
+            const sgn = tp.toolTipMirror ? -1 : 1;
+            const clLen = Math.min((parseFloat(tp.toolLength) || 10) * scl * 0.65, 30);
             const px = p => ({ x: p.x * scl, y: -p.z * scl });
             const edgeA = cut[0], edgeB = cut[cut.length - 2];
             const hair = (from, to, rot) => {
@@ -2780,14 +2832,14 @@ export function openCamSimulator(initialContour, initialGCode) {
             ctx.restore();
           }
           ctx.restore();
-        } else if (prms.toolShape === 'parting') {
+        } else if (tp.toolShape === 'parting') {
           // Upichovací / zapichovací plátek: šířka = toolLength, dva spodní
           // rádiusy R. Referenční bod (0,0) = STŘED RÁDIUSU PRACOVNÍ STRANY
           // (jako u polygonu): zprava = levý roh plátku, zleva = pravý roh.
           // Lokálně kreslíme vždy levý roh v počátku s tělem doprava (do už
           // obrobené zóny); stranu obrábění řeší zrcadlení níže.
-          const wPix = (parseFloat(prms.toolLength) || 10) * S.view.scale;
-          const rotRad = -(parseFloat(prms.toolAngle) || 0) * (Math.PI / 180);
+          const wPix = (parseFloat(tp.toolLength) || 10) * S.view.scale;
+          const rotRad = -(parseFloat(tp.toolAngle) || 0) * (Math.PI / 180);
           const r = Math.min(rPix, wPix / 2);        // rádius nesmí být širší než půl plátku
           const w2 = wPix - 2 * r;                   // rovná část spodního ostří
           // Stejná mm-výška jako v dialogu "⚙️ Geometrie" (PARTING_BODY_MIN_H_MM),
@@ -2796,8 +2848,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.save(); ctx.translate(pt.x, pt.y);
           // Zrcadlení: strana obrábění (zleva = otočený plátek) XOR flipZ
           // vodorovně; flipX svisle — ladí s vS/hS v toScreen.
-          if (((prms.roughingSide || 'right') === 'left') !== !!S.flipZ) ctx.scale(-1, 1);
-          if (S.flipX !== !!S.params.boreActive) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
+          if (((tp.roughingSide || 'right') === 'left') !== !!S.flipZ) ctx.scale(-1, 1);
+          if (S.flipX !== boreView) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
           ctx.rotate(rotRad);
           // Lokální souřadnice: y roste dolů (k ose). Střed aktivního rádiusu
           // = (0,0), spodní ostří na y=+r, tělo nahoru (−y), šířka doprava.
@@ -2818,18 +2870,18 @@ export function openCamSimulator(initialContour, initialGCode) {
           ctx.moveTo(w2, -5); ctx.lineTo(w2, 5);
           ctx.stroke();
           ctx.restore();
-        } else if (prms.toolShape === 'drill') {
+        } else if (tp.toolShape === 'drill') {
           // Vrták v ose: špička na bodu dráhy, tělo k vyložení (od díry ven).
           // Zrcadlení jako u držáku — strana obrábění XOR flipZ, flipX svisle.
           ctx.save(); ctx.translate(pt.x, pt.y);
           if ((toolMirrored()) !== !!S.flipZ) ctx.scale(-1, 1);
-          if (S.flipX !== !!S.params.boreActive) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
-          drawDrillTool(ctx, prms, S.view.scale);
+          if (S.flipX !== boreView) ctx.scale(1, -1);   // vyvrtávání: nůž k ose
+          drawDrillTool(ctx, tp, S.view.scale);
           ctx.restore();
         }
         // crosshair at tool center
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-        const crossPix = prms.toolShape === 'drill' ? 7 : Math.max(rPix + 4, 7);   // poloha nástroje zůstane vidět i při oddálení (u vrtáku ⌀/2 nedává smysl)
+        const crossPix = tp.toolShape === 'drill' ? 7 : Math.max(rPix + 4, 7);   // poloha nástroje zůstane vidět i při oddálení (u vrtáku ⌀/2 nedává smysl)
         ctx.beginPath(); ctx.moveTo(pt.x - crossPix, pt.y); ctx.lineTo(pt.x + crossPix, pt.y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(pt.x, pt.y - crossPix); ctx.lineTo(pt.x, pt.y + crossPix); ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2); ctx.fill();
@@ -5339,11 +5391,36 @@ export function openCamSimulator(initialContour, initialGCode) {
         <div class="cam-sim-field"><label title="Průměr díry po vyvrtání (hrubování na stěně nechá Přídavek X)">⌀ díry</label><input type="number" step="0.5" min="0" data-p="boreDiameter" value="${prms.boreDiameter}"></div>
         <div class="cam-sim-field"><label title="Délka díry od Z čela (kladná)">Délka</label><input type="number" step="1" min="0" data-p="boreDepth" value="${prms.boreDepth}"></div>
       </div>`}
-      <div class="cam-sim-row" style="align-items:flex-end">
+      <div class="cam-sim-checkbox-row" data-tooltip="Díra je v polotovaru plná: program nejdřív vyvrtá předvrtání vrtákem ze 🔧 Zásobníku (špička skončí na dně + Přídavek Z) a pak vymění nástroj a vyvrtá díru tyčí. Vrták i tyč se vyberou samy — největší vrták, který se do díry vejde, a nejtlustší tyč do jeho díry.">
+        <input type="checkbox" id="cam-sim-bore-predrill" ${prms.borePreDrill ? 'checked' : ''}>
+        <span>Předvrtat vrtákem (z plného)</span>
+      </div>
+      ${prms.borePreDrill ? (() => {
+        const pl = preDrillPlan(S);
+        const drills = (S.toolMagazine || []).map((t, i) => ({ t, i })).filter(({ t }) => t && t.shape === 'drill');
+        const f2 = (v) => (Math.round(v * 100) / 100).toString().replace('.', ',');
+        let info;
+        if (pl.ok) {
+          const zTip = pl.zF - pl.s * pl.depthTip, zL0 = pl.zF - pl.s * pl.L0;
+          info = `Vrták ⌀${f2(pl.D)} (T${pl.slot.slot} ${escHTML(pl.slot.name || '')}) · špička do Z${f2(zTip)} (dno + přídavek Z) · plný ⌀ do Z${f2(zL0)} · pak výměna na tyč do předvrtání ⌀${f2(pl.D)}.`
+            + (pl.L0 + Math.max(0, parseFloat(prms.allowanceZ) || 0) < pl.L - 1e-6
+              ? ` Dno díry od Z${f2(zL0)} do Z${f2(pl.zF - pl.s * pl.L)} tyč podélně nevezme (opřela by se o kužel po vrtáku) — zůstane.` : '');
+        } else {
+          const rec = pl.idx < 0 && pl.dMax > 0 ? catalogDrillFor(pl.dMax, pl.L - Math.max(0, parseFloat(prms.allowanceZ) || 0)) : null;
+          info = `<span style="color:#f38ba8">⚠ ${escHTML(pl.reason || '')}</span>`
+            + (rec ? ` <button data-act="bore-predrill-catalog" class="cam-sim-btn cam-sim-btn-gray" style="font-size:11px;padding:3px 6px;margin-top:4px">➕ ${escHTML(rec.name)} z 📚 katalogu do zásobníku</button>` : '');
+        }
+        return `<div class="cam-sim-row"><div class="cam-sim-field" style="flex:1"><label title="Vrták na předvrtání ze 🔧 Zásobníku. Automaticky = největší, který nechá na stěně přídavek + 1 mm a dosáhne na dno.">Vrták</label>
+          <select id="cam-sim-bore-drill">
+            <option value="" ${Number.isInteger(prms.borePreDrillSlot) ? '' : 'selected'}>automaticky${pl.ok && pl.auto ? ` (T${pl.slot.slot} ⌀${f2(pl.D)})` : ''}</option>
+            ${drills.map(({ t, i }) => `<option value="${i}" ${prms.borePreDrillSlot === i ? 'selected' : ''}>T${t.slot} ${escHTML(t.name || '')} · ⌀${f2(2 * (parseFloat(t.radius) || 0))}</option>`).join('')}
+          </select></div></div>
+        <small class="cam-sim-info-box" style="display:block;margin-top:4px">${info}</small>`;
+      })() : `<div class="cam-sim-row" style="align-items:flex-end">
         <div class="cam-sim-field"><label title="Průměr předvrtané díry — z ní se hrubuje">⌀ předvrtání</label><input type="number" step="0.5" min="0" data-p="borePreDiameter" value="${prms.borePreDiameter}"></div>
         <div class="cam-sim-field"><label title="Hloubka předvrtání na plný ⌀ (aspoň délka díry)">Hloubka předvrt.</label><input type="number" step="1" min="0" data-p="borePreDepth" value="${prms.borePreDepth}"></div>
         <div class="cam-sim-field"><label>&nbsp;</label><button data-act="bore-from-drill" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" title="Převzít ⌀ a hloubku předvrtání z operace Vrtání (vrták ze 🔧 Zásobníku, hloubka na plný ⌀, Z čela)">↺ z Vrtání</button></div>
-      </div>
+      </div>`}
       <div class="cam-sim-row">
         <div class="cam-sim-field"><label title="Hloubka záběru ap (sdílí pole hrubování)">Záběr (ap)</label><input type="number" step="0.1" data-p="depthOfCut" value="${prms.depthOfCut}"></div>
         <div class="cam-sim-field"><label title="Posuv [mm/ot] (sdílí pole Posuv F)">Posuv (f)</label><input type="number" step="0.01" data-p="feed" value="${prms.feed}"></div>
@@ -5867,8 +5944,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (S.params.threadActive) { S.params.threadActive = false; off += ', závit vypnut'; }
         if (S.params.drillActive) { S.params.drillActive = false; off += ', vrtání vypnuto'; }
         if (S.params.partOffZ != null) { S.params.partOffZ = null; S.partOffPickMode = false; off += ', upich zrušen'; }
-        pre = boreTakePreHoleFromDrill();
-        picked = autoPickToolFor('bore').msg;
+        // Díra v polotovaru plná → nejdřív vrták, pak tyč (ops/borePreDrill.js).
+        pre = (S.params.borePreDrill || boreHoleSolid()) ? boreEnsurePreDrill() : boreTakePreHoleFromDrill();
+        picked = boreEnsureBar();
       }
       const regen = !S.gcodeDirty;
       showToast(S.params.boreActive
@@ -5896,6 +5974,32 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.boreSource = btn.dataset.boresrc;
         applyChange();
       });
+    });
+    const borePreDrillCb = tabBody.querySelector('#cam-sim-bore-predrill');
+    if (borePreDrillCb) borePreDrillCb.addEventListener('change', () => {
+      pushHistory();
+      S.params.borePreDrill = borePreDrillCb.checked;
+      let msg = '';
+      if (S.params.borePreDrill) msg = boreEnsurePreDrill() + boreEnsureBar();
+      else applyPreDrillPlan(S);
+      showToast(S.params.borePreDrill ? `Předvrtání vrtákem zapnuto${msg}` : 'Předvrtání vrtákem vypnuto — předvrtání zadej ručně');
+      applyChange({ cycle: true });
+    });
+    const boreDrillSel = tabBody.querySelector('#cam-sim-bore-drill');
+    if (boreDrillSel) boreDrillSel.addEventListener('change', () => {
+      pushHistory();
+      S.params.borePreDrillSlot = boreDrillSel.value === '' ? null : parseInt(boreDrillSel.value, 10);
+      applyPreDrillPlan(S);
+      const picked = boreEnsureBar();
+      if (picked) showToast(`Vyvrtávací tyč${picked}`);
+      applyChange({ cycle: true });
+    });
+    const borePreDrillCatBtn = tabBody.querySelector('[data-act="bore-predrill-catalog"]');
+    if (borePreDrillCatBtn) borePreDrillCatBtn.addEventListener('click', () => {
+      pushHistory();
+      const msg = boreEnsurePreDrill() + boreEnsureBar();
+      showToast(`Předvrtání${msg.replace(/^ — /, ': ')}`);
+      applyChange({ cycle: true });
     });
     const boreFromDrillBtn = tabBody.querySelector('[data-act="bore-from-drill"]');
     if (boreFromDrillBtn) boreFromDrillBtn.addEventListener('click', () => {
@@ -7196,9 +7300,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     remap(S, 'activeMagazineSlot');
     remap(S, 'editingMagazineSlot');
     remap(S.params, 'finishingSlot');
+    remap(S.params, 'borePreDrillSlot');
     for (const part of S.opParts || []) {
       remap(part, 'activeMagazineSlot');
       remap(part.params, 'finishingSlot');
+      remap(part.params, 'borePreDrillSlot');
     }
     if (wasCurrent && finTool() === fin && (!fin || fin.slot === finT)) S.gcodeKey = pathInputsKey();
     fullUpdate();
@@ -7371,6 +7477,56 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (idx < 0) return { changed: false, msg: missing ? ` ⚠ ${missing}` : '' };
     _loadMagSlot(idx);
     return { changed: true, msg: ` — nůž T${mag[idx].slot} ${mag[idx].name}${mag[idx].vbdCode ? ' (' + mag[idx].vbdCode + ')' : ''}` };
+  }
+
+  /** Vyvrtávací tyč do předvrtání: ze 🔧 Zásobníku (autoPickToolFor), a když
+   *  tam žádná není, z 📚 katalogu nejtlustší tyč 95° (BCL), která se do
+   *  předvrtání vejde — přidá se do zásobníku a vybere (uživatel 9. 10. 2026:
+   *  „ať je to automatizované"). @returns doplněk toastu */
+  function boreEnsureBar() {
+    const r = autoPickToolFor('bore');
+    if (r.changed || !/⚠/.test(r.msg)) return r.msg;
+    const d0 = parseFloat(S.params.borePreDiameter) || 0;
+    const bars = isoInternalBars(isoInternalTypeById('BCL')).filter(b => isoBarFitsHole(b.d, d0)).sort((a, b) => b.d - a.d);
+    const rec = bars.length ? buildIsoInternalKnife('BCL', { bar: bars[0].d }) : null;
+    if (!rec) return r.msg;
+    if (!Array.isArray(S.toolMagazine)) S.toolMagazine = [];
+    const num = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(t => t.slot || 0)) + 1 : 1;
+    S.toolMagazine.push(_isoMagSlot(rec, num));
+    _loadMagSlot(S.toolMagazine.length - 1);
+    return ` — tyč ${rec.name} přidána z 📚 katalogu do 🔧 Zásobníku jako T${num}`;
+  }
+
+  /** Je díra v polotovaru plná? Bod u osy 1 mm pod ústím díry leží v polotovaru. */
+  function boreHoleSolid() {
+    const calc = S._cachedCalc;
+    const loop = calc ? buildStockLoopRaw(S.params, calc.stockPathSegments) : null;
+    if (!loop) return false;
+    const pl = preDrillPlan(S);
+    if (!Number.isFinite(pl.zF)) return false;
+    return pointInLoop({ x: 0.5, z: pl.zF - pl.s * 1 }, loop) === 'inside';
+  }
+
+  /** Vyvrtávání z plného (ops/borePreDrill.js): zapne předvrtání vrtákem;
+   *  když v 🔧 Zásobníku žádný vhodný vrták není, přidá ho z 📚 katalogu
+   *  (uživatel 9. 10. 2026: „Zásobník, jinak katalog"). Předvrtání se hned
+   *  přepočítá, ať si tyč vybere podle ⌀ vrtáku. @returns doplněk toastu */
+  function boreEnsurePreDrill() {
+    S.params.borePreDrill = true;
+    let plan = preDrillPlan(S);
+    let added = '';
+    if (!plan.ok && plan.idx < 0 && plan.dMax > 0) {
+      const rec = catalogDrillFor(plan.dMax, plan.L - Math.max(0, parseFloat(S.params.allowanceZ) || 0));
+      if (rec) {
+        if (!Array.isArray(S.toolMagazine)) S.toolMagazine = [];
+        const num = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(t => t.slot || 0)) + 1 : 1;
+        S.toolMagazine.push(_isoMagSlot(rec, num));
+        added = `, ${rec.name} přidán z 📚 katalogu do 🔧 Zásobníku jako T${num}`;
+        plan = preDrillPlan(S);
+      }
+    }
+    applyPreDrillPlan(S);
+    return plan.ok ? ` — předvrtání ${plan.slot.name}${added}` : ` — předvrtání: ${plan.reason}`;
   }
 
   // Předvrtání pro vyvrtávání z operace Vrtání: ⌀ prvního vrtáku v zásobníku
