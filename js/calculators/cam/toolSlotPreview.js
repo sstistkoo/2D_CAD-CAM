@@ -6,6 +6,7 @@
 // Slot zásobníku má vlastní názvy polí (shape/radius/tipAngle…), kresba čte
 // jména z S.params (toolShape/toolRadius/…) → převod přes paramsFromMagSlot().
 import { drawInsertAndHolderPreview } from './insertPreview.js';
+import { isBoringBarLike } from '../knifeThumb.js';
 
 const SHAPE_LABEL = {
   round: '⬤ Kulatá', polygon: '◼ Čtyřstranná / polygon',
@@ -163,10 +164,15 @@ export function showToolSlotPreviewDialog(slot) {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.fillStyle = '#1e1e2e'; c.fillRect(0, 0, cw, ch);
     c.translate(panX, panY); c.scale(zoom, zoom);
+    // Vyvrtávací tyč: ostří nahoru jako v simulaci — kresba se v rámci plátna
+    // převrátí svisle (pan/zoom zůstávají), popisky a špička se převedou stejně.
+    const flip = isBoringBarLike(prms);
+    if (flip) { c.translate(0, ch); c.scale(1, -1); }
     // uiScale = 1/zoom → čáry zůstanou po přiblížení konstantně tenké.
     const res = drawInsertAndHolderPreview(c, cw, ch, prms, { uiScale: 1 / zoom });
-    lastOrigin = (res && res.origin) || { x: cw / 2, y: ch / 2 };
-    positionTexts((res && res.texts) || []);
+    const fy = (y) => (flip ? ch - y : y);
+    lastOrigin = (res && res.origin) ? { x: res.origin.x, y: fy(res.origin.y) } : { x: cw / 2, y: ch / 2 };
+    positionTexts(((res && res.texts) || []).map(t => ({ ...t, y: fy(t.y) })));
   }
 
   function zoomBy(factor, cx, cy) {

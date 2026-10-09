@@ -15,6 +15,22 @@ import { holderProfileLoop } from './cam/collisionValidator.js';
 
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
+/**
+ * Je to vyvrtávací tyč? Dřík tyče leží podél osy obrobku (profil x ~ 180 mm,
+ * k ose jen ~ 16 mm), u vnějšího nože je to naopak. Zásobník nenese příznak
+ * „vnitřní", tak se pozná podle tvaru držáku (vrták a upichovák se nepočítají).
+ * Uživatel 9. 10. 2026: u tyče má ostří mířit NAHORU (od osy ke stěně díry),
+ * jako v simulaci — náhledy kreslily vnější orientaci (ostří dolů).
+ */
+export function isBoringBarLike(prms) {
+  if (!prms || (prms.toolShape !== 'polygon' && prms.toolShape !== 'round')) return false;
+  const loop = holderProfileLoop(prms) || [];
+  if (loop.length < 3) return false;
+  const xs = loop.map(p => p.x), zs = loop.map(p => p.z);
+  const dx = Math.max(...xs) - Math.min(...xs), dz = Math.max(...zs) - Math.min(...zs);
+  return dx > 2 * dz;
+}
+
 /** Body obrysu (oblouky navzorkované kratší cestou, jako traceInsertSegments). */
 export function segPoints(segs) {
   const out = [];
@@ -45,7 +61,9 @@ export function knifeThumbSvg(prms, px = 72) {
   const kd = Number.isFinite(parseFloat(prms.knifeAngle)) ? parseFloat(prms.knifeAngle) : 270;
   const a = (270 - kd) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
   // profil {x, z} → obrazovka (y dolů), pak natočení kolem špičky jako rotScr v náhledu Geometrie
-  const scr = (q) => { const x = q.x * mir, y = -q.z; return { x: x * ca - y * sa, y: x * sa + y * ca }; };
+  // Vyvrtávací tyč: nahoru míří ostří (tělo tyče k ose dolů) — svisle převráceno.
+  const bar = isBoringBarLike(prms);
+  const scr = (q) => { const x = q.x * mir, y = bar ? q.z : -q.z; return { x: x * ca - y * sa, y: x * sa + y * ca }; };
   const full = segPoints(buildInsertOutlineSegments(prms)).map(scr);
   const cutSegs = prms.toolShape === 'threading' ? threadingToothSegments(prms) : buildInsertProfileSegments(prms);
   const cut = segPoints(cutSegs).map(scr);

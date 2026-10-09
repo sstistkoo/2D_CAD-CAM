@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kalkulačka Vrták:** „Základní vrtáky" nahoře ve sbalitelné liště; v sekci záběru
   přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
 
+### Fixed
+- **Vyvrtávací tyč v náhledech ostřím nahoru:** miniatura v 🔧 Zásobníku, v 📚 ISO
+  katalogu a okno 👁 Ukázat kreslily tyč jako vnější nůž (ostří dolů), kdežto
+  simulace ji kreslí správně (ostří nahoru, k stěně díry, tělo k ose). Tyč se
+  pozná podle tvaru držáku (dřík podél osy: `isBoringBarLike`, knifeThumb.js).
+
 ### Added
 - **Kontrola počátečního bodu:** když nástroj v Bezpečné poloze (první bod dráhy)
   leží v materiálu — v polotovaru NEBO v nakresleném dílu — vyskočí okno
