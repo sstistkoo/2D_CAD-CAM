@@ -81,7 +81,11 @@ export function drillGeom(prms, { faceZ = null, stockLoop = null } = {}) {
     const r = Math.max(D0 / 2, 0.05), far = 1e5;
     let band = [];
     try { band = polyIntersect([stockLoop], [[{ x: -r, z: -far }, { x: r, z: -far }, { x: r, z: far }, { x: -r, z: far }]]); } catch { band = []; }
-    const bz = band.flat().map(p => p.z);
+    let bz = band.flat().map(p => p.z);
+    // Odlitek nakreslený jen ČÁROU (obrys bez plochy) nemá v pásu ⌀ žádný
+    // průnik — čelo v ose je pak z bodů obrysu uvnitř pásu. Bez toho by se Q
+    // měřilo od čela dílu a první záběr jel celý odlitek najednou.
+    if (!bz.length) bz = stockLoop.filter(p => Math.abs(p.x) <= r + 1e-6).map(p => p.z);
     if (bz.length) zEntry = back(zFace, dir < 0 ? Math.max(...bz) : Math.min(...bz));
   }
   const Q = Math.max(0, num(prms.drillPeck, 0));

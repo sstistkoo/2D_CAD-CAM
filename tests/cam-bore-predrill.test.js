@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { buildIsoInternalKnife } from '../js/calculators/isoInternalTools.js';
+import { boreFloorSim, boreFloorSplitIndex, boreFloorLayer, boreBodyGap } from '../js/calculators/cam/ops/boreFloor.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, drillPointLength } from '../js/calculators/cam/ops/borePreDrill.js';
 import { boreMirrorSim, boreRemovedLoops } from '../js/calculators/cam/ops/bore.js';
 import { computeCalculation } from '../js/calculators/cam/calculatePipeline.js';
@@ -89,7 +90,10 @@ describe('vyvrtávání z plného — program a simulace', () => {
     expect(Math.min(...zs)).toBeCloseTo(30.139 + 0.5, 3);
     // Vyvrtávání má pohyby a hlásí zbylé dno.
     expect(moves(code.slice(iBar)).length).toBeGreaterThan(50);
-    expect(r.S.genNotes.some(n => /dno díry od Z 36,65 do Z 30,14/.test(n.msg))).toBe(true);
+    // Dno díry (prstenec + kužel) dobere čelní fáze téhož nože — nic nezůstává.
+    expect(code).toMatch(/DNO DIRY/);
+    expect(code.indexOf('DNO DIRY')).toBeGreaterThan(iBar);
+    expect(r.S.genNotes.some(n => /dno díry od Z/.test(n.msg))).toBe(false);
   });
 
   it('simulace: vrták ve skutečném světě, tyč v zrcadle — bez kolizí; úběr sedí s plánem', async () => {
@@ -101,7 +105,9 @@ describe('vyvrtávání z plného — program a simulace', () => {
     const dp = preDrillParams(r.S.params, plan);
     // ⛔ úsek vrtání (skutečný svět) a úsek tyče (zrcadlo).
     expect(validateToolpath(simPath.slice(0, iSplit + 1), dp, stockPathSegments, { planStock: true })).toEqual([]);
-    const bs = boreMirrorSim(r.S, simPath.slice(iSplit), computeCalculation);
+    const iFloor = boreFloorSplitIndex(simPath, r.gcode);
+    expect(iFloor).toBeGreaterThan(iSplit);
+    const bs = boreMirrorSim(r.S, simPath.slice(iSplit, iFloor), computeCalculation);
     expect(validateToolpath(bs.calcM.simPath, bs.params, bs.calcM.stockPathSegments, { planStock: true })).toEqual([]);
     // Po vrtání: díra v ose, kolem ní materiál.
     const base = buildStockLoopRaw(r.S.params, stockPathSegments);
@@ -118,9 +124,47 @@ describe('vyvrtávání z plného — program a simulace', () => {
     expect(solid(40, 80)).toBe(false);     // stěna díry vyvrtaná
     expect(solid(67, 120)).toBe(false);    // až k přídavku na stěně
     expect(solid(69.2, 120)).toBe(true);   // díl za stěnou
-    expect(solid(40, 33)).toBe(true);      // prstenec dna pod hloubkou plného ⌀
+    expect(solid(40, 33)).toBe(true);      // prstenec dna pod hloubkou plného ⌀ (jen podélná fáze)
     expect(solid(5, 31.5)).toBe(true);     // materiál kolem kuželu po špičce
     expect(solid(1, 34)).toBe(false);      // vyvrtaný kužel
+  });
+
+  it('dno díry čelně: bez kolizí, dno vyčištěné po přídavek Z, kužel pryč, pod dnem a za stěnou nic', async () => {
+    const r = await runCamProg(prog([drill(20, 145)]));
+    const { simPath } = r.calcSim;
+    const iFloor = boreFloorSplitIndex(simPath, r.gcode);
+    const fs = boreFloorSim(r.S, simPath.slice(iFloor - 1), computeCalculation);
+    expect(validateToolpath(fs.calcM.simPath, fs.params, fs.calcM.stockPathSegments, { planStock: true })).toEqual([]);
+    const mr = new MaterialRemoval(fs.params, fs.calcM.stockPathSegments);
+    mr.advanceTo(fs.calcM.simPath, fs.calcM.simPath.length - 1);
+    const rem = fs.un(mr.model.loops);
+    const solid = (x, z) => rem.some(l => pointInLoop({ x, z }, l) === 'inside');
+    // Dno Z30,139 + přídavek Z 0,5: výš je vyčištěno, pod ním zůstává.
+    expect(solid(40, 30.9)).toBe(false);
+    expect(solid(40, 30.4)).toBe(true);
+    expect(solid(40, 29)).toBe(true);
+    // Kužel po špičce vrtáku je pryč i uprostřed (špička v ose).
+    expect(solid(1, 31.3)).toBe(false);
+    expect(solid(8, 33)).toBe(false);
+    // Stěna díry (přídavek X 0,5 + rε) a díl za ní zůstává.
+    expect(solid(69.3, 35)).toBe(true);
+  });
+
+  it('vrstva dna je nejvýš mezera mezi špičkou a tělesem tyče a mřížka dosedne přesně na dno', async () => {
+    const r = await runCamProg(prog([drill(20, 145)]));
+    const gap = boreBodyGap(r.S.params);
+    expect(gap).toBeGreaterThan(1);
+    expect(boreFloorLayer(r.S.params)).toBeLessThanOrEqual(gap - 0.2 + 1e-9);
+    // Poslední vrstva leží na offsetu dna (dno + přídavek Z + rε = Z31,039).
+    const NL = String.fromCharCode(10);
+    const i = r.gcode.indexOf('DNO DIRY');
+    const zs = r.gcode.slice(i).split(NL).filter(l => /^N\d+ G0 Z[\d.]+$/.test(l)).map(l => +l.match(/Z([\d.]+)/)[1]).filter(z => z < 40);
+    expect(Math.min(...zs)).toBeCloseTo(31.039, 2);
+  });
+
+  it('izolace: ruční předvrtání (válec, bez kužele) nemá fázi dna', async () => {
+    const r = await runCamProg(prog([drill(20, 145)], { borePreDrill: false, borePreDiameter: 20, borePreDepth: 120 }));
+    expect(r.gcode).not.toMatch(/DNO DIRY/);
   });
 
   it('bez předvrtání vrtákem se nic nemění (ruční předvrtání = válec)', async () => {

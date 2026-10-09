@@ -24,6 +24,7 @@ import { emitPartOff } from './ops/partOff.js';
 import { emitDrill } from './ops/drill.js';
 import { emitBore } from './ops/bore.js';
 import { emitBorePreDrilled } from './ops/borePreDrill.js';
+import { boreFloorBody } from './ops/boreFloor.js';
 import { emitRoughing } from './ops/roughEmit.js';
 import { emitFinish } from './ops/finishEmit.js';
 
@@ -105,7 +106,7 @@ export function generateAutoGCode(S, calc) {
   // hrubování v X, viz ops/bore.js. Výpočet i tahle emise se mu předávají,
   // ať modul neimportuje emitor zpátky (žádný cyklus importů).
   if (prms.boreActive)
-    return emitBore({ S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode });
+    return emitBore({ S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode, boreFloorBody });
 
   if (!prms.finishOnly)
     addCmt(`--- HRUBOVANI (${(ROUGHING_STRATEGIES[roughingKey(S)] || ROUGHING_STRATEGIES.longitudinal).label}) ---`);

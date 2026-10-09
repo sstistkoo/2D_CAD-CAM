@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Kalkulačka Tolerance:** v tabulce ISO 2768-1 je sloupec **m** zvýrazněn rámečkem;
+  řádek `Díra | rozměr | Hřídel` místo malého pole; výsledek přeuspořádán (druh + Ø rozměr
+  a třída, vlevo úchylky, vpravo Ø max/min, dole tolerance). Sekce „Uložení" odstraněna.
+  Hodnoty ISO 286 a 2768-1 zkontrolovány proti tabulkám (beze změn).
+- **Kalkulačka Vrták:** „Základní vrtáky" nahoře ve sbalitelné liště; v sekci záběru
+  přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
+
 ### Added
+- **Vyvrtávání — dno díry čelně** (`js/calculators/cam/ops/boreFloor.js`,
+  vlastní soubor, uživatel 9. 10. 2026: „nechci aby se to jakkoliv ovlivňovalo
+  s jinými plátky a jinými drahami"). Po podélném vyvrtání z plného zbývá
+  prstenec dna a kužel po špičce vrtáku; třetí fáze téhož programu je dobere
+  ČELNĚ od osy ven, týmž nožem. Spouští se jen z vyvrtávání z plného s kuželem
+  špičky a jen s vyvrtávací tyčí — vnější obrábění, vrtání, závity a ruční
+  předvrtání tudy neprojdou (otisk 29 fixtures shodný). Vrstvy tenké nejvýš
+  na mezeru mezi špičkou a tělesem tyče (u BCL S16 1,1 mm), mřížka dosedne
+  přesně na dno (dno + přídavek Z + rε). Simulace má pro fázi vlastní
+  zrcadlový svět (úběr, ⛔, držák, zajetí).
+- **Vrtání: odlitek nakreslený jen čárou** — záběry Q se měří od čáry (čelo
+  odlitku v ose), ne od čela dílu; první záběr už nejede celý odlitek najednou.
 - **Vyvrtávání z plného: vrták → vyvrtávací tyč v jednom programu**
   (uživatel 9. 10. 2026: „u vyvrtávání ať je možnost nastavit i vrták a pak
   ten vyvrtávací nůž, ať je to automatizované"). Záložka Vyvrt. →

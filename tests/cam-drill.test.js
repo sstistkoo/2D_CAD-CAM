@@ -56,6 +56,18 @@ function moves(gcode) {
 }
 
 describe('Vrtání (operace Vrtání)', () => {
+  it('odlitek nakreslený jen čárou nad čelem: záběry se měří od čáry, ne od čela dílu', async () => {
+    // Uživatel 9. 10. 2026 (projekt_2026-10-09 (1)): čára bez plochy nemá průnik
+    // s pásem ⌀ vrtáku → vjezd se bral na čele dílu a první záběr jel celý odlitek.
+    const stockPoints = [
+      { id: 1, type: 'G0', x: 30, z: 12, r: 0, mode: 'ABS' },
+      { id: 2, type: 'G1', x: 0, z: 12, r: 0, mode: 'ABS' },
+    ];
+    const { gcode } = await runCamProg({ ...prog({ stockMode: 'casting' }), stockPoints });
+    const { mv } = moves(gcode);
+    expect(mv.filter(m => m.g === 'G1').map(m => m.z)).toEqual([7, 2, -3, -8, -13, -18, -20]);
+  });
+
   it('vyjíždění: záběry po 5 mm od vjezdu do materiálu, mezi nimi ven na R rovinu a zpět 1 mm nad dno', async () => {
     const { gcode } = await runCamProg(prog({}));
     const { body, mv } = moves(gcode);

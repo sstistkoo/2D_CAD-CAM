@@ -27,6 +27,7 @@ import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBr
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, pointInLoop } from '../geom/geomCore.js';
 import { boreGeom, boreMirrorSim, boreRemovedLoops } from './cam/ops/bore.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, applyPreDrillPlan } from './cam/ops/borePreDrill.js';
+import { boreFloorSim, boreFloorSplitIndex } from './cam/ops/boreFloor.js';
 import { boreChainFromState } from './cam/boreContour.js';
 import { HolderGouge } from './cam/holderGouge.js';
 import { ContourGouge } from './cam/contourGouge.js';
@@ -1568,8 +1569,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           ? validateToolpath(calc.simPath.slice(0, pre.iSplit + 1), pre.params, calc.stockPathSegments, { backside: toolMirrored(), planStock: true })
           : [];
         _lastIssues = bs
-          ? drillIssues.concat(validateToolpath(bs.calcM.simPath, bs.params, bs.calcM.stockPathSegments, { backside: false, planStock: true })
-            .map(it => ({ ...it, x: bs.g.rRef - it.x })))
+          ? drillIssues.concat(borePhases(bs).flatMap(b => validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true })
+            .map(it => ({ ...it, x: b.g.rRef - it.x }))))
           : validateToolpath(calc.simPath, p, calc.stockPathSegments, {
             backside: toolMirrored(),
             // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE — dráhy se proti ní plánují
@@ -1668,13 +1669,16 @@ export function openCamSimulator(initialContour, initialGCode) {
     const bs = boreSimFor(calc);
     if (bs) {
       if (inPreDrill(calc)) return null;   // vrták: pouzdro jede jen v ose (⛔ hlídá validátor)
-      if (!bs.holderGouge) bs.holderGouge = new HolderGouge(bs.params, bs.calcM.stockPathSegments, false, { band: true });
-      const hg = bs.holderGouge;
-      if (!hg.valid) return null;
-      hg.advanceTo(bs.calcM.simPath, boreLocalIdx(bs));
-      const hardB = hg.gouge.length ? bs.un(hg.gouge) : null;
-      const bandB = hg.gougeBand.length ? bs.un(hg.gougeBand) : null;
-      return (hardB || bandB) ? { hard: hardB, band: bandB } : null;
+      const hardB = [], bandB = [];
+      for (const b of borePhases(bs)) {
+        if (!b.holderGouge) b.holderGouge = new HolderGouge(b.params, b.calcM.stockPathSegments, false, { band: true });
+        const hg = b.holderGouge;
+        if (!hg.valid) continue;
+        hg.advanceTo(b.calcM.simPath, boreLocalIdx(b));
+        if (hg.gouge.length) hardB.push(...b.un(hg.gouge));
+        if (hg.gougeBand.length) bandB.push(...b.un(hg.gougeBand));
+      }
+      return (hardB.length || bandB.length) ? { hard: hardB.length ? hardB : null, band: bandB.length ? bandB : null } : null;
     }
     if (!_holderGouge || _holderGougeCalcRef !== calc) {
       _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, toolMirrored(), { band: true });
@@ -1707,12 +1711,16 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Během vrtání se zajetí neukazuje: vnější kontura díru nemá (vyjmula ji
       // pro vyvrtávání), vrtání do díry by svítilo jako zajetí do dílu.
       if (inPreDrill(calc)) return null;
-      const rmB = boreRemoval(bs);
-      if (!rmB || !rmB.model) return null;
-      if (!bs.contourGouge) bs.contourGouge = new ContourGouge(bs.params, bs.calcM.contourSegments, bs.calcM.stockPathSegments);
-      if (!bs.contourGouge.valid) return null;
-      const loopsB = bs.contourGouge.update(rmB.model.loops);
-      return loopsB.length ? bs.un(loopsB) : null;
+      const out = [];
+      for (const b of borePhases(bs)) {
+        const rmB = boreRemoval(b);
+        if (!rmB || !rmB.model) continue;
+        if (!b.contourGouge) b.contourGouge = new ContourGouge(b.params, b.calcM.contourSegments, b.calcM.stockPathSegments);
+        if (!b.contourGouge.valid) continue;
+        const loopsB = b.contourGouge.update(rmB.model.loops);
+        if (loopsB.length) out.push(...b.un(loopsB));
+      }
+      return out.length ? out : null;
     }
     let rm = (_removal && _removalCalcRef === calc && _removal.valid) ? _removal : null;
     if (!rm) {
@@ -1767,12 +1775,20 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!S.params.boreActive || !calc || !calc.simPath || calc.simPath.length < 2) return null;
     if (_boreSim && _boreSim.calc === calc) return _boreSim.ok ? _boreSim : null;
     const pre = preDrillPhase(calc);
-    const sim = boreMirrorSim(S, pre ? calc.simPath.slice(pre.iSplit) : calc.simPath, computeCalculation);
+    const i0 = pre ? pre.iSplit : 0;
+    // Čelní dobrání dna (ops/boreFloor.js) má vlastní zrcadlový svět: dráha
+    // od značky fáze se simuluje v něm, podélná fáze končí před ní.
+    const fi = boreFloorSplitIndex(calc.simPath, S.manualGCode);
+    const fl = fi && fi > i0 + 1 ? boreFloorSim(S, calc.simPath.slice(fi - 1), computeCalculation) : null;
+    const sim = boreMirrorSim(S, fl ? calc.simPath.slice(i0, fi) : calc.simPath.slice(i0), computeCalculation);
+    const phase = (m, iSplit) => ({ ...m, calc, ok: true, iSplit, removal: null, holderGouge: null, contourGouge: null });
     _boreSim = sim
-      ? { ...sim, calc, ok: true, iSplit: pre ? pre.iSplit : 0, removal: null, holderGouge: null, contourGouge: null }
+      ? { ...phase(sim, i0), floor: fl ? phase(fl, fi - 1) : null }
       : { calc, ok: false };
     return sim ? _boreSim : null;
   }
+  /** Fáze vyvrtávání, každá ve svém zrcadlovém světě: podélná, případně čelní dno. */
+  function borePhases(bs) { return bs.floor ? [bs, bs.floor] : [bs]; }
   /** Poloha simulace v dráze tyče (zrcadlo bere jen část za vrtáním). */
   function boreLocalIdx(bs) {
     const f = S.simProgress * (bs.calc.simPath.length - 1) - (bs.iSplit || 0);
@@ -1801,7 +1817,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     const base = rm ? buildStockLoopRaw(S.params, calc.stockPathSegments) : null;
     if (!base) return null;
     const removed = boreRemovedLoops(bs.g, bs.un(rm.model.loops));
-    return { valid: true, model: { loops: polyDifference([base], removed) }, baseLoop: base };
+    let loops = polyDifference([base], removed);
+    // Čelní dobrání dna (ops/boreFloor.js): ubrané = polotovar fáze MÍNUS zbytek.
+    if (bs.floor) {
+      const rf = boreRemoval(bs.floor);
+      const fl = rf ? buildStockLoopRaw(bs.floor.params, bs.floor.calcM.stockPathSegments) : null;
+      if (fl) loops = polyDifference(loops, bs.floor.un(polyDifference([fl], rf.model.loops)));
+    }
+    return { valid: true, model: { loops }, baseLoop: base };
   }
 
   function scheduleFrame(fn) {

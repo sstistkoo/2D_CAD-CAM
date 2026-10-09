@@ -228,6 +228,14 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   se obyčejné vnější hrubování zprava a hotové řádky se překlopí zpátky
   (X, G2↔G3) — `cam/ops/bore.js`, stejně jako „zleva" = zrcadlo v Z.
 - Polotovar díry = předvrtání (⌀ a hloubka z operace Vrtání, nebo zadané).
+- **Dno díry čelně** (návrh 9. 10. 2026, ke schválení uživatelem): u vyvrtávání
+  z plného s kuželem špičky se po podélné fázi dno (prstenec + kužel) dobere
+  čelním hrubováním v témže zrcadle, od osy ven, tenkými vrstvami (tloušťka ≤
+  mezera mezi špičkou a tělesem tyče), poslední vrstva na dně + přídavek Z.
+  Tělo tyče při špičce u osy sahá na protější stranu díry, kde už materiál
+  odebraly předchozí vrstvy (točí se kolem osy) — proto ta mezera. Jen s tyčí
+  (`canBore`) a jen s kuželem špičky; ostatní operace a plátky se nemění
+  (`cam/ops/boreFloor.js`).
 
 ## Pravidlo 14 — Řetěz zanoření jede bez odjezdu až dolů ✅ schváleno
 

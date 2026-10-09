@@ -170,7 +170,7 @@ export function boreMirrorContour(g) {
  * vrtané díry, dno k ose), skončí na té hranici a pokračuje za konec
  * polotovaru jako u válce.
  */
-function chainMirrorContour(g) {
+export function chainMirrorContour(g) {
   const { k, L0, r0, rRef, clrX, clrZ } = g;
   const zF = g.s * g.zF;
   // Zleva: řetěz překlopený v Z (oblouk tím obrátí smysl) — dál jako zprava.
@@ -349,16 +349,10 @@ function clampRapidsToSafeRadius(body, g) {
  * @returns    hotové řádky programu
  */
 export function emitBore(ctx) {
-  const { S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode } = ctx;
+  const { S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode, boreFloorBody } = ctx;
   const { g, S2 } = boreMirrorState(S);
   const warn = (msg) => { if (S.genNotes) S.genNotes.push({ type: 'warning', msg }); };
   addCmt(`--- VYVRTAVANI ⌀${g.D} x ${g.L} z predvrtani ⌀${g.d0} x ${g.L0} (pravidlo 13: zrcadlo vnejsiho hrubovani) ---`);
-  const left = g.ok ? boreBottomLeft(g) : null;
-  if (left) {
-    const f2 = (v) => (Math.round(v * 100) / 100).toString().replace('.', ',');
-    addCmt(`! dno diry Z${left.zFrom.toFixed(3)} az Z${left.zTo.toFixed(3)} zustava (predvrtani se spickou)`);
-    warn(`Vyvrtávání: dno díry od Z ${f2(left.zFrom)} do Z ${f2(left.zTo)} (${f2(left.thick)} mm) zůstává — z předvrtání se špičkou ho tyč podélně nevezme (tělem by se opřela o kužel po vrtáku). Dobere ho až dno díry čelně.`);
-  }
   let body = null;
   if (!g.ok) {
     addCmt(`! ${g.reason}`);
@@ -396,6 +390,19 @@ export function emitBore(ctx) {
       addCmt(`! ${msg}`);
       warn(`Vyvrtávání: ${msg}`);
       body = null;
+    }
+  }
+  // Dno díry po předvrtání se špičkou: čelně od osy ven (ops/boreFloor.js —
+  // vlastní fáze, týž nůž). Když se nevydá, hlásí se, co zůstává.
+  const left = g.ok && body ? boreBottomLeft(g) : null;
+  if (left) {
+    const f2 = (v) => (Math.round(v * 100) / 100).toString().replace('.', ',');
+    const floor = boreFloorBody ? boreFloorBody({ S, warn, computeCalculation, generateAutoGCode }) : null;
+    if (floor) {
+      body = [...body, { text: `; --- DNO DIRY Z${left.zTo.toFixed(3)} (celne od osy ven, tez nuz) ---`, simIdx: null }, ...floor.body];
+    } else {
+      addCmt(`! dno diry Z${left.zFrom.toFixed(3)} az Z${left.zTo.toFixed(3)} zustava (predvrtani se spickou)`);
+      warn(`Vyvrtávání: dno díry od Z ${f2(left.zFrom)} do Z ${f2(left.zTo)} (${f2(left.thick)} mm) zůstává — z předvrtání se špičkou ho tyč podélně nevezme (tělem by se opřela o kužel po vrtáku) a čelní dobrání dna nevyšlo.`);
     }
   }
   let simCounter = 0;

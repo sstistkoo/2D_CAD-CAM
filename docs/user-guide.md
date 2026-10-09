@@ -599,8 +599,10 @@ a rychloposuvy jdou do volného předvrtání, ne do stěny.
      nezajede). Plný ⌀ je proto o délku špičky výš a tyč z takového
      předvrtání vezme stěnu jen do hloubky plného ⌀ — níž by se tělem opřela
      o kužel po vrtáku. **Dno díry** (prstenec + kužel, u ⌀20 asi 6,5 mm)
-     zůstane, panel ⚠ ho nahlásí a v simulaci je vidět; dobere ho až „dno
-     díry čelně" (připravuje se).
+     dobere třetí část programu (`DNO DIRY`) — téže tyčí ČELNĚ od osy ven,
+     po tenkých vrstvách (nejvýš mezera mezi špičkou a tělesem tyče), až na
+     přídavek Z. Funguje u dna k ose (rovné i s rádiusem v rohu); jinak ⚠
+     napíše, co zůstává.
 
    Bez zaškrtnutí: **⌀ předvrtání** a **Hloubka předvrt.** se zadají ručně
    (aspoň délka díry — tyč nevrtá do plného). Záběr ap, posuv, Vc a přídavky
