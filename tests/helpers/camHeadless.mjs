@@ -117,7 +117,7 @@ import { MaterialRemoval, buildStockLoopRaw, offsetStockLoop, toolFootprint } fr
 import { validateToolpath } from ${JSON.stringify(collisionValidatorUrl)};
 import { makeHolderClamp } from ${JSON.stringify(toolEnvelopeUrl)};
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from ${JSON.stringify(interferenceGuidesUrl)};
-import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference } from ${JSON.stringify(geomCoreUrl)};
+import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, polyUnion } from ${JSON.stringify(geomCoreUrl)};
 import { boreGeom, boreMirrorSim, boreRemovedLoops } from ${JSON.stringify(boreUrl)};
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor } from ${JSON.stringify(borePreDrillUrl)};
 import { boreFloorSim, boreFloorSplitIndex } from ${JSON.stringify(boreFloorUrl)};

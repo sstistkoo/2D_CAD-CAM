@@ -24,7 +24,7 @@ import { sectionLeftover } from './cam/ops/sections/sectionLeftover.js';
 import { sectionRanges } from './cam/ops/sections/sectionRanges.js';
 import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
-import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, pointInLoop } from '../geom/geomCore.js';
+import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, polyUnion, pointInLoop } from '../geom/geomCore.js';
 import { boreGeom, boreMirrorSim, boreRemovedLoops } from './cam/ops/bore.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, applyPreDrillPlan } from './cam/ops/borePreDrill.js';
 import { boreFloorSim, boreFloorSplitIndex } from './cam/ops/boreFloor.js';
@@ -1872,11 +1872,22 @@ export function openCamSimulator(initialContour, initialGCode) {
     bs.removal.advanceTo(bs.calcM.simPath, boreLocalIdx(bs));
     return bs.removal;
   }
+  /**
+   * Obrys materiálu pro úběr vrtáku: odlitek nakreslený jen čárou (bez plochy) nemá
+   * co ubírat — pak je materiál nakreslený díl (jeho obrys po úsecích).
+   */
+  function bodyStockSegments(calc, prms) {
+    let stock = null;
+    try { stock = buildStockLoopRaw(prms, calc.stockPathSegments); } catch { stock = null; }
+    const part = partLoopOf(calc);
+    if (!part || (stock && stock.length >= 3 && Math.abs(polyArea([stock])) > 1)) return calc.stockPathSegments;
+    return part.map((p, i) => ({ type: 'line', p1: p, p2: part[(i + 1) % part.length] }));
+  }
   /** Úběr během vrtání: skutečný polotovar, stopa vrtáku. */
   function preDrillRemoval(calc) {
     const pre = preDrillPhase(calc);
     if (!pre) return null;
-    if (!pre.removal) pre.removal = new MaterialRemoval(pre.params, calc.stockPathSegments);
+    if (!pre.removal) pre.removal = new MaterialRemoval(pre.params, bodyStockSegments(calc, pre.params));
     if (!pre.removal.valid) return null;
     pre.removal.advanceTo(calc.simPath, S.simProgress * (calc.simPath.length - 1));
     return pre.removal;
@@ -1886,7 +1897,18 @@ export function openCamSimulator(initialContour, initialGCode) {
   // pak jdou beze změny jako u vnějšího obrábění.
   function boreRemovalView(bs, calc) {
     const rm = boreRemoval(bs);
-    const base = rm ? buildStockLoopRaw(S.params, calc.stockPathSegments) : null;
+    // Základ = polotovar ∪ nakreslený díl: odlitek nakreslený jen čárou (bez plochy)
+    // dává degenerovanou smyčku a celý obrobek by byl bez výplně i úběru
+    // (nález uživatele 9. 10. 2026: „celej obrobek černej bez simulace úběru").
+    const stockL = rm ? buildStockLoopRaw(S.params, calc.stockPathSegments) : null;
+    const partL = rm ? partLoopOf(calc) : null;
+    let base = stockL;
+    if (rm && partL) {
+      try {
+        const u = polyUnion(stockL && stockL.length >= 3 ? [stockL] : [], [partL]);
+        base = u.slice().sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0] || stockL;
+      } catch { base = stockL || partL; }
+    }
     if (!base) return null;
     const removed = boreRemovedLoops(bs.g, bs.un(rm.model.loops));
     let loops = polyDifference([base], removed);

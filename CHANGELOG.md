@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
 
 ### Fixed
+- **Úběr materiálu u vyvrtávání/vrtání s odlitkem nakresleným jen čárou:** polotovar bez plochy
+  dal degenerovanou smyčku a celý obrobek byl černý bez výplně i úběru. Základem je
+  teď polotovar ∪ nakreslený díl (`boreRemovalView`, vrták `bodyStockSegments`).
 - **Vyvrtávání s Bezpečnou polohou za dílem (Bp Z5):** program jel `G0 X9 Z5` a pak
   osou skrz plné dno dílu (uživatel 9. 10. 2026, projekt (2)). Vnitřní svět má
   vlastní bezpečné Z PŘED čelem díry, první příjezd je nejdřív v Z po vnější Bp,
