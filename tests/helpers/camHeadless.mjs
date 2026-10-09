@@ -100,6 +100,7 @@ async function loadCam() {
   const boreUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/bore.js')).href;
   const boreContourUrl = pathToFileURL(join(root, 'js/calculators/cam/boreContour.js')).href;
   const borePreDrillUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/borePreDrill.js')).href;
+  const startCheckUrl = pathToFileURL(join(root, 'js/calculators/cam/startCheck.js')).href;
   const boreFloorUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/boreFloor.js')).href;
   const prelude = `
 import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockOuterXAtZ, getNormal, vecAngle, normalizeAngle, getArcParams, intersectLineCircle, intersectHorizontalLineSegment, _locateOnContour, arcSteps, intersectLines, intersectLinesInfinite, intersectCircleCircle, segPairIntersections, getSegEnd, getSegStart, intersectHorizontalLineArc, intersectSegAtZ, findSegIntersection, setSegEnd, setSegStart, isOnSegBounds, isWithinSegStrict, segEndPoint, segStartPoint, syncArcEndpoints, reverseSeg, dropTinyArcs, pointOnSegInterior, TRIM_TOL, LOOP_INTERIOR_MIN } from ${JSON.stringify(camMathUrl)};
@@ -119,6 +120,7 @@ import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOf
 import { boreGeom, boreMirrorSim, boreRemovedLoops } from ${JSON.stringify(boreUrl)};
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor } from ${JSON.stringify(borePreDrillUrl)};
 import { boreFloorSim, boreFloorSplitIndex } from ${JSON.stringify(boreFloorUrl)};
+import { startInMaterial } from ${JSON.stringify(startCheckUrl)};
 import { boreChainFromState } from ${JSON.stringify(boreContourUrl)};
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from ${JSON.stringify(threadDataUrl)};
 import { computeCalculation, roughingKey as _roughingKey } from ${JSON.stringify(calculatePipelineUrl)};

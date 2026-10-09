@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
 
 ### Added
+- **Kontrola počátečního bodu:** když nástroj v Bezpečné poloze (první bod dráhy)
+  leží v materiálu — v polotovaru NEBO v nakresleném dílu — vyskočí okno
+  „⛔ Nástroj je v materiálu" s tlačítkem **⚙ Nastavit počáteční bod** (otevře
+  Bezpečnou polohu a zaostří X) a stejné hlášení je v panelu ⚠. Okno jen při
+  přechodu „mimo → v materiálu". Uživatel 9. 10. 2026 (vrták Bp X150 u dílu
+  ⌀290). `js/calculators/cam/startCheck.js`, `tests/cam-start-check.test.js`;
+  na 46 fixtures žádný falešný poplach.
 - **Vyvrtávání — dno díry čelně** (`js/calculators/cam/ops/boreFloor.js`,
   vlastní soubor, uživatel 9. 10. 2026: „nechci aby se to jakkoliv ovlivňovalo
   s jinými plátky a jinými drahami"). Po podélném vyvrtání z plného zbývá

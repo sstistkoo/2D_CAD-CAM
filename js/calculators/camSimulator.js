@@ -28,6 +28,7 @@ import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifferen
 import { boreGeom, boreMirrorSim, boreRemovedLoops } from './cam/ops/bore.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, applyPreDrillPlan } from './cam/ops/borePreDrill.js';
 import { boreFloorSim, boreFloorSplitIndex } from './cam/ops/boreFloor.js';
+import { startInMaterial } from './cam/startCheck.js';
 import { boreChainFromState } from './cam/boreContour.js';
 import { HolderGouge } from './cam/holderGouge.js';
 import { ContourGouge } from './cam/contourGouge.js';
@@ -1533,6 +1534,44 @@ export function openCamSimulator(initialContour, initialGCode) {
     _validateTimer = setTimeout(runCollisionValidation, 600);
   }
   let _lastIssues = [];
+  let _startHitActive = false;
+  /** Okno „nástroj je v počátečním bodě v materiálu" + rychlý odkaz na Bezpečnou polohu. */
+  function showStartPopup(st) {
+    if (document.querySelector('.cam-start-popup')) return;
+    const ov = document.createElement('div');
+    ov.className = 'cam-confirm-overlay cam-start-popup';
+    ov.innerHTML = `
+      <div class="cam-confirm-box">
+        <div class="cam-confirm-msg"><strong>⛔ Nástroj je v materiálu</strong><br><br>
+          V počátečním bodu (Bezpečná poloha X${S.params.safeX} Z${S.params.safeZ}) leží ${st.what}
+          — průnik ~${st.area.toFixed(1)} mm². Nástroj má začínat mimo materiál.</div>
+        <div class="cam-confirm-btns">
+          <button class="cam-confirm-cancel" data-r="close">Zavřít</button>
+          <button class="cam-confirm-ok" data-r="set">⚙ Nastavit počáteční bod</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.querySelector('[data-r="close"]').addEventListener('click', close);
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    ov.querySelector('[data-r="set"]').addEventListener('click', () => {
+      close();
+      S.activeTab = 'params';
+      S.safetyConfigOpen = true;
+      showSidebar();
+      renderTab();
+      const input = sidebar.querySelector('[data-p="safeX"]');
+      if (input) {
+        input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        input.focus();
+        const box = input.closest('.cam-sim-row') || input;
+        box.style.transition = 'background-color .6s';
+        box.style.backgroundColor = 'rgba(249,226,175,0.25)';
+        setTimeout(() => { box.style.backgroundColor = ''; }, 1500);
+      }
+    });
+    ov.querySelector('[data-r="set"]').focus();
+  }
   function runCollisionValidation() {
     _validateTimer = null;
     const calc = S._cachedCalc;
@@ -1578,6 +1617,16 @@ export function openCamSimulator(initialContour, initialGCode) {
             // nakreslený obrys.
             planStock: true,
           });
+        // Nástroj nesmí začínat v materiálu (cam/startCheck.js) — okno s odkazem
+        // na Bezpečnou polohu se ukáže jen při změně vstupů, ne při každém překreslení.
+        const st = bs ? null : startInMaterial(p, calc, { backside: toolMirrored() });
+        if (st) {
+          _lastIssues = _lastIssues.concat([{ kind: 'start', lineIdx: null, x: st.x, z: st.z, area: st.area, what: st.what }]);
+          // Okno jen při PŘECHODU „mimo → v materiálu" — při ladění Bp (psaní čísla)
+          // by jinak vyskakovalo po každé změně.
+          if (!_startHitActive) showStartPopup(st);
+        }
+        _startHitActive = !!st;
       } catch (err) {
         _lastIssues = [];
         console.warn('CAM: validace kolizí selhala:', err);
@@ -1594,7 +1643,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       const where = `X${(it.x * 2).toFixed(1)} Z${it.z.toFixed(1)}`;
       S.errors.push({
         collision: true,
-        msg: it.kind === 'rapid'
+        msg: it.kind === 'start'
+          ? `⛔ Nástroj je v počátečním bodu (Bp X${S.params.safeX} Z${S.params.safeZ}) v materiálu (${it.what}) — průnik ~${it.area.toFixed(1)} mm². Změň Bezpečnou polohu.`
+          : it.kind === 'rapid'
           ? `⛔ Rychloposuv materiálem (${lineLabel(it.lineIdx)}, ${where}) — průnik ~${it.area.toFixed(1)} mm².`
           : `⛔ Držák v kolizi se zbývajícím materiálem (${lineLabel(it.lineIdx)}, ${where}) — průnik ~${it.area.toFixed(1)} mm².`,
       });
