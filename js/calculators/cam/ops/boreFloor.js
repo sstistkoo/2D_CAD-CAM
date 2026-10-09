@@ -98,6 +98,9 @@ export function boreFloorState(S) {
     stockMode: 'casting', roughingStrategy: 'face',
     // Hlídání držáku/destičky zrcadlového čelního hrubování nahrazuje tloušťka vrstvy.
     respectInsertGeometry: false,
+    // Stěnu díry už dokončila podélná fáze; čelní fáze dno nedokončuje (dokončení
+    // by znovu jelo stěnou od čela dolů).
+    doFinishing: false,
     depthOfCut: evenLayer(Math.max(...stock.map(p => p.z)) - (zFl + num(S.params.allowanceZ, 0) + num(S.params.toolRadius, 0)), boreFloorLayer(S.params)),
   };
   const S3 = {

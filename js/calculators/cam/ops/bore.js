@@ -137,6 +137,8 @@ const BEYOND_BOTTOM_IN = 0.5;
 export function boreStockDepth(g) {
   return g.Lcut < g.L ? Math.max(g.L0, g.Lcut + 1) : g.L0;
 }
+/** O kolik před pásmem vůle před čelem díry leží bezpečné Z tyče [mm]. */
+const FRONT_SAFE = 5;
 /** O kolik za pásmo vůle před čelem začíná stěna díry v zrcadle [mm]. */
 const FRONT_EXT = 2;
 
@@ -229,6 +231,10 @@ export function boreMirrorParams(prms, g) {
     stockMode: 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.s * g.zF,
     stockLength: boreStockDepth(g) - g.s * g.zF,
     safeX: +(g.k * (g.rRef - g.rIn)).toFixed(6),
+    // Bezpečné Z uvnitř vnitřního světa = PŘED čelem díry (ne Bezpečná poloha
+    // stroje): ta bývá za dílem (nález uživatele 9. 10. 2026: Bp Z5 u dílu
+    // Z0–143 → tyč jela osou přes plné dno dílu).
+    safeZ: +(g.s * g.zF + g.clrZ + FRONT_SAFE).toFixed(6),
   };
 }
 
@@ -328,6 +334,23 @@ export function boreMirrorSim(S, simPath, computeCalculation) {
   };
 }
 
+/**
+ * První pohyb těla (`G0 X.. Z..` na bezpečný bod před čelem) se rozdělí na Z,
+ * pak X: z Bezpečné polohy stroje (X venku, Z klidně za dílem) by šikmý
+ * rychloposuv vedl skrz díl. Nejdřív se jede v Z po vnější Bp (mimo díl),
+ * teprve pak radiálně do osy díry před čelem.
+ */
+function splitFirstApproach(body) {
+  const i = body.findIndex(l => l.simIdx === 0);
+  if (i < 0) return;
+  const l = body[i];
+  const m = l.text.match(/^(N\d+\s+)G0\s+(X-?\d*\.?\d+)\s+(Z-?\d*\.?\d+)(.*)$/);
+  if (!m) return;
+  body.splice(i, 1,
+    { ...l, text: `${m[1]}G0 ${m[3]} ; Před čelo díry` },
+    { ...l, text: `${m[1]}G0 ${m[2]}${m[4]}` });
+}
+
 /** Rychloposuvy v díře (Z pod čelem) blíž k ose než rIn → na rIn (řádky už ve skutečném světě). */
 function clampRapidsToSafeRadius(body, g) {
   let z = null;
@@ -370,6 +393,7 @@ export function emitBore(ctx) {
     if (end < 0) end = inner.length;
     const kRef = g.k * g.rRef;
     body = start < 0 ? [] : inner.slice(start, end).map(l => ({ ...l, text: unmirrorBoreLine(l.text, kRef, g.s) }));
+    splitFirstApproach(body);
     // Výjezd v díře nejdál na vnitřní bezpečný poloměr: „Výjezd nad konturu"
     // po dokončení zvedá nad pomocný obrys za dnem — ve skutečnosti k ose,
     // kde by tyč zadní stranou sáhla na protější stěnu. Na rIn je pořád volné

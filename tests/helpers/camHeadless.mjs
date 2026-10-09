@@ -100,6 +100,7 @@ async function loadCam() {
   const boreUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/bore.js')).href;
   const boreContourUrl = pathToFileURL(join(root, 'js/calculators/cam/boreContour.js')).href;
   const borePreDrillUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/borePreDrill.js')).href;
+  const boreRealUrl = pathToFileURL(join(root, 'js/calculators/cam/boreRealCollision.js')).href;
   const startCheckUrl = pathToFileURL(join(root, 'js/calculators/cam/startCheck.js')).href;
   const boreFloorUrl = pathToFileURL(join(root, 'js/calculators/cam/ops/boreFloor.js')).href;
   const prelude = `
@@ -120,6 +121,7 @@ import { ensureCollisions, StockModel, toolSweep, polyArea, polySimplify, polyOf
 import { boreGeom, boreMirrorSim, boreRemovedLoops } from ${JSON.stringify(boreUrl)};
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor } from ${JSON.stringify(borePreDrillUrl)};
 import { boreFloorSim, boreFloorSplitIndex } from ${JSON.stringify(boreFloorUrl)};
+import { boreRealCollisions, partLoopOf } from ${JSON.stringify(boreRealUrl)};
 import { startInMaterial } from ${JSON.stringify(startCheckUrl)};
 import { boreChainFromState } from ${JSON.stringify(boreContourUrl)};
 import { mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from ${JSON.stringify(threadDataUrl)};

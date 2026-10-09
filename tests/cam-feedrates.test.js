@@ -137,3 +137,13 @@ describe('parser – modální F/S do bodů dráhy', () => {
     expect(last.spindleVal).toBe(150);
   });
 });
+
+describe('parser G-kódu: jméno nástroje v uvozovkách není adresa', () => {
+  it('T="S16Q-SCLCR09" po G96 S200 nepřepíše řeznou rychlost na 16', async () => {
+    const { parseManualGCodeToPath } = await import('../js/calculators/cam/gcodeParser.js');
+    const code = ['G96 S200 LIMS=2000', 'T="S16Q-SCLCR09" D1 M6', 'G0 X50 Z10', 'G1 Z0 F0.12'].join(String.fromCharCode(10));
+    const path = parseManualGCodeToPath(code, { safeX: 100, safeZ: 20, mode: 'RADIUS' });
+    const last = path[path.length - 1];
+    expect(last.spindleVal).toBe(200);
+  });
+});

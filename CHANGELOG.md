@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
 
 ### Fixed
+- **Vyvrtávání s Bezpečnou polohou za dílem (Bp Z5):** program jel `G0 X9 Z5` a pak
+  osou skrz plné dno dílu (uživatel 9. 10. 2026, projekt (2)). Vnitřní svět má
+  vlastní bezpečné Z PŘED čelem díry, první příjezd je nejdřív v Z po vnější Bp,
+  pak radiálně; čelní fáze dna už nedokončuje stěnu znovu.
+- **Kolize tyče s dílem se u vyvrtávání nezobrazovala:** zrcadlová simulace zná jen
+  díru, ne plné dno ani okolí. Nově se dráha tyče zametá i ve skutečném světě
+  proti hotovému dílu (`cam/boreRealCollision.js`) → ⛔ v panelu a červeně na plátně.
+- **Simulace vyvrtávání se plazila (64× vypadalo jako 1×):** parser G-kódu četl
+  „S16" z názvu nástroje `T="S16Q-SCLCR09"` jako řeznou rychlost 16 → posuv
+  ~5 mm/min místo ~60. Text v uvozovkách se už nečte jako adresy.
 - **Vyvrtávací tyč v náhledech ostřím nahoru:** miniatura v 🔧 Zásobníku, v 📚 ISO
   katalogu a okno 👁 Ukázat kreslily tyč jako vnější nůž (ostří dolů), kdežto
   simulace ji kreslí správně (ostří nahoru, k stěně díry, tělo k ose). Tyč se

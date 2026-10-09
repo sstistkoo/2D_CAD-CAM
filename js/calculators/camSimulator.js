@@ -29,6 +29,7 @@ import { boreGeom, boreMirrorSim, boreRemovedLoops } from './cam/ops/bore.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, applyPreDrillPlan } from './cam/ops/borePreDrill.js';
 import { boreFloorSim, boreFloorSplitIndex } from './cam/ops/boreFloor.js';
 import { startInMaterial } from './cam/startCheck.js';
+import { boreRealCollisions, partLoopOf } from './cam/boreRealCollision.js';
 import { boreChainFromState } from './cam/boreContour.js';
 import { HolderGouge } from './cam/holderGouge.js';
 import { ContourGouge } from './cam/contourGouge.js';
@@ -1608,7 +1609,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           ? validateToolpath(calc.simPath.slice(0, pre.iSplit + 1), pre.params, calc.stockPathSegments, { backside: toolMirrored(), planStock: true })
           : [];
         _lastIssues = bs
-          ? drillIssues.concat(borePhases(bs).flatMap(b => validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true })
+          ? drillIssues.concat(boreRealIssues(bs, calc).map(it => ({ kind: it.kind, lineIdx: it.lineIdx, x: it.x, z: it.z, area: it.area })), borePhases(bs).flatMap(b => validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true })
             .map(it => ({ ...it, x: b.g.rRef - it.x }))))
           : validateToolpath(calc.simPath, p, calc.stockPathSegments, {
             backside: toolMirrored(),
@@ -1763,6 +1764,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       // pro vyvrtávání), vrtání do díry by svítilo jako zajetí do dílu.
       if (inPreDrill(calc)) return null;
       const out = [];
+      // Zajetí tyče do dílu mimo díru (skutečný svět) — červeně, postupně podle polohy simulace.
+      const pos = S.simProgress * (calc.simPath.length - 1);
+      for (const it of boreRealIssues(bs, calc)) if (it.endIdx <= pos + 1e-9) out.push(...it.loops);
       for (const b of borePhases(bs)) {
         const rmB = boreRemoval(b);
         if (!rmB || !rmB.model) continue;
@@ -1837,6 +1841,23 @@ export function openCamSimulator(initialContour, initialGCode) {
       ? { ...phase(sim, i0), floor: fl ? phase(fl, fi - 1) : null }
       : { calc, ok: false };
     return sim ? _boreSim : null;
+  }
+  /**
+   * Kolize tyče s hotovým dílem ve SKUTEČNÉM světě (zrcadlo nezná nic mimo díru —
+   * viz cam/boreRealCollision.js). Počítá se jednou na dráhu; `endIdx` je index
+   * v celé dráze simulace.
+   */
+  function boreRealIssues(bs, calc) {
+    if (!bs.real) {
+      const i0 = bs.iSplit || 0;
+      let list = [];
+      try {
+        list = boreRealCollisions(S.params, calc.simPath.slice(i0), partLoopOf(calc))
+          .map(it => ({ ...it, endIdx: it.endIdx + i0 }));
+      } catch (err) { console.warn('CAM: kolize tyče s dílem selhaly:', err); }
+      bs.real = list;
+    }
+    return bs.real;
   }
   /** Fáze vyvrtávání, každá ve svém zrcadlovém světě: podélná, případně čelní dno. */
   function borePhases(bs) { return bs.floor ? [bs, bs.floor] : [bs]; }

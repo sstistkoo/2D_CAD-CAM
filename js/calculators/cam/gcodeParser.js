@@ -48,6 +48,11 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
     const parenIdx = clean.indexOf('(');
     if (parenIdx >= 0) clean = clean.substring(0, parenIdx).trim();
     if (!clean) return;
+    // Text v uvozovkách je JMÉNO (nástroj `T="S16Q-SCLCR09"`), ne adresy: bez toho
+    // se „S16" z názvu tyče četlo jako otáčky/řeznou rychlost 16 a celé vyvrtávání
+    // se v simulaci plazilo 5 mm/min (nález uživatele 9. 10. 2026: „64× se mi
+    // nezdá zrychlené") — stejně tak X/Z/F/R v názvu.
+    clean = clean.replace(/"[^"]*"/g, '""');
     const gMatch = clean.match(/\bG0?([0-3])\b/);
     // Řezání závitu (G33 Sinumerik/Heidenhain, G32 Fanuc) — pro simulaci
     // přímý řezný pohyb jako G1 (K/F na řádku je stoupání, ne oblouk).

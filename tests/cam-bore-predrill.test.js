@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { buildIsoInternalKnife } from '../js/calculators/isoInternalTools.js';
+import { boreRealCollisions, partLoopOf } from '../js/calculators/cam/boreRealCollision.js';
 import { boreFloorSim, boreFloorSplitIndex, boreFloorLayer, boreBodyGap } from '../js/calculators/cam/ops/boreFloor.js';
 import { preDrillPlan, preDrillParams, preDrillSplitIndex, catalogDrillFor, drillPointLength } from '../js/calculators/cam/ops/borePreDrill.js';
 import { boreMirrorSim, boreRemovedLoops } from '../js/calculators/cam/ops/bore.js';
@@ -160,6 +161,44 @@ describe('vyvrtávání z plného — program a simulace', () => {
     const i = r.gcode.indexOf('DNO DIRY');
     const zs = r.gcode.slice(i).split(NL).filter(l => /^N\d+ G0 Z[\d.]+$/.test(l)).map(l => +l.match(/Z([\d.]+)/)[1]).filter(z => z < 40);
     expect(Math.min(...zs)).toBeCloseTo(31.039, 2);
+  });
+
+  it('Bezpečná poloha za dílem (Z5): rychloposuvy tyče nikdy neprojedou dílem — nejdřív v Z venku, pak před čelem do osy', async () => {
+    // Uživatel 9. 10. 2026 (projekt_2026-10-09 (2)): Bp X300 Z5 leží u dílu Z0–143;
+    // program jel G0 X9 Z5 a pak osou Z5→Z145 přímo skrz plné dno dílu.
+    const r = await runCamProg(prog([drill(20, 145)], { safeX: 300, safeZ: 5, boreFinish: true }));
+    const part = r.calcSim.worldPoints.map(p => ({ x: p.xReal, z: p.zReal }));
+    const inPart = (x, z) => pointInLoop({ x, z }, part) === 'inside';
+    const sp = r.calcSim.simPath;
+    let bad = null;
+    for (let i = 1; i < sp.length && !bad; i++) {
+      if (sp[i].type !== 'G0') continue;
+      const a = sp[i - 1], b = sp[i], n = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.5));
+      for (let k = 0; k <= n; k++) {
+        const x = a.x + (b.x - a.x) * k / n, z = a.z + (b.z - a.z) * k / n;
+        // Pás 0,3 mm od hranice se nepočítá (stěna díry, čelo).
+        if (inPart(x, z) && inPart(x + 0.3, z) && inPart(x - 0.3, z) && inPart(x, z + 0.3) && inPart(x, z - 0.3)) { bad = { i, x, z, line: b.originalLineIdx }; break; }
+      }
+    }
+    expect(bad).toBeNull();
+    // Příjezd do díry: Z po vnější Bp (X300), pak radiálně.
+    const i = r.gcode.indexOf('VYVRTAVANI ⌀');
+    const mv = r.gcode.slice(i).split(String.fromCharCode(10)).filter(l => /^N\d+ G0 /.test(l)).slice(0, 2);
+    expect(mv[0]).toMatch(/G0 Z1\d\d/);
+    expect(mv[1]).toMatch(/G0 X9\./);
+  });
+
+  it('kolize tyče s dílem ve skutečném světě: program nic nenajde, rychloposuv osou skrz plné dno se najde', async () => {
+    // Zrcadlová simulace nezná nic mimo díru → samostatné zametení tyče proti hotovému dílu.
+    const r = await runCamProg(prog([drill(20, 145)], { safeX: 300, safeZ: 5, boreFinish: true }));
+    const part = partLoopOf(r.calcSim);
+    const sp = r.calcSim.simPath, i0 = preDrillSplitIndex(sp, r.gcode);
+    expect(boreRealCollisions(r.S.params, sp.slice(i0), part)).toEqual([]);
+    const bad = [{ x: 300, z: 5, type: 'G0' }, { x: 9, z: 5, type: 'G0', originalLineIdx: 1 }, { x: 9, z: 150, type: 'G0', originalLineIdx: 2 }];
+    const hits = boreRealCollisions(r.S.params, bad, part);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].kind).toBe('rapid');
+    expect(hits[0].area).toBeGreaterThan(50);
   });
 
   it('izolace: ruční předvrtání (válec, bez kužele) nemá fázi dna', async () => {
