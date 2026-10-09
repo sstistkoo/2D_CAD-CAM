@@ -231,10 +231,12 @@ export function boreMirrorParams(prms, g) {
     stockMode: 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.s * g.zF,
     stockLength: boreStockDepth(g) - g.s * g.zF,
     safeX: +(g.k * (g.rRef - g.rIn)).toFixed(6),
-    // Bezpečné Z uvnitř vnitřního světa = PŘED čelem díry (ne Bezpečná poloha
-    // stroje): ta bývá za dílem (nález uživatele 9. 10. 2026: Bp Z5 u dílu
+    // Bezpečné Z uvnitř vnitřního světa = PŘED čelem díry (Bezpečná poloha
+    // stroje bývá za dílem (nález uživatele 9. 10. 2026: Bp Z5 u dílu
     // Z0–143 → tyč jela osou přes plné dno dílu).
-    safeZ: +(g.s * g.zF + g.clrZ + FRONT_SAFE).toFixed(6),
+    // Zrcadlový rám (zleva Z' = −Z, ale číslo Bp se bere beze změny jako dřív):
+    // Bp se zachová, když leží před čelem aspoň o vůli Z; jinak se dá před čelo.
+    safeZ: +(num(prms.safeZ, 0) - g.s * g.zF >= g.clrZ ? num(prms.safeZ, 0) : g.s * g.zF + g.clrZ + FRONT_SAFE).toFixed(6),
   };
 }
 

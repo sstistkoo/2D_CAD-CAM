@@ -101,7 +101,8 @@ describe('vyvrtávání díry z výkresu', () => {
       expect(m.z, m.line).toBeGreaterThanOrEqual(-30 + 0.1 - 1e-3);
     }
     // Obě dna dojetá: ⌀40 (r 18,9) i ⌀30 (r 13,9).
-    const xs = mv.map(m => +m.x.toFixed(3));
+    // První příjezd je nově Z-pohyb bez X (nejdřív v Z po vnější Bp) — bez X se nepočítá.
+    const xs = mv.filter(m => m.x !== null).map(m => +m.x.toFixed(3));
     expect(xs).toContain(18.9);
     expect(xs).toContain(13.9);
   });
