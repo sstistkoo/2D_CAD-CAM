@@ -38,7 +38,7 @@ export function partLoopOf(calc) {
  * @returns {Array<{endIdx:number, kind:'rapid'|'holder', lineIdx:number|null, x:number, z:number, area:number, loops:Array}>}
  *   endIdx = index bodu simPath, kterým blok končí (pro postupné vybarvování)
  */
-export function boreRealCollisions(prms, simPath, part, { maxIssues = 40 } = {}) {
+export function boreRealCollisions(prms, simPath, part, { maxIssues = 40, maxBlocks = 6000 } = {}) {
   const out = [];
   if (!part || !Array.isArray(simPath) || simPath.length < 2) return out;
   const insRaw = toolFootprintVisual(prms);
@@ -78,8 +78,9 @@ export function boreRealCollisions(prms, simPath, part, { maxIssues = 40 } = {})
     const area = Math.abs(polyArea(inter));
     return area > TOL ? { area, loops: inter } : null;
   };
+  let nBlocks = 0;
   for (const blk of blocks) {
-    if (out.length >= maxIssues) break;
+    if (out.length >= maxIssues || ++nBlocks > maxBlocks) break;
     const pts = [];
     for (const p of blk.pts) {
       const l = pts[pts.length - 1];

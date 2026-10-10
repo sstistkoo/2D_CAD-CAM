@@ -7715,7 +7715,11 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!slot || !(parseFloat(slot.radius) > 0)) return '';
     const d = Math.round(parseFloat(slot.radius) * 2 * 1000) / 1000;
     const sigma = parseFloat(slot.tipAngle) || 118;
-    const depth = parseFloat(S.params.drillDepth) || 0;
+    // „Dno Z" (drillZEnd) má přednost před hloubkou — stejně jako ve vrtání samotném.
+    const zEndSet = S.params.drillZEnd !== null && S.params.drillZEnd !== undefined && S.params.drillZEnd !== '' && Number.isFinite(parseFloat(S.params.drillZEnd));
+    const depth = zEndSet
+      ? Math.abs(parseFloat(S.params.drillZEnd) - drillGeom(S.params, { faceZ: drillAutoFaceZ(S) }).zFace)
+      : (parseFloat(S.params.drillDepth) || 0);
     const full = S.params.drillDepthFullDia ? depth : depth - (d / 2) / Math.tan(sigma / 2 * Math.PI / 180);
     if (!(full > 0)) return '';
     S.params.borePreDiameter = d;

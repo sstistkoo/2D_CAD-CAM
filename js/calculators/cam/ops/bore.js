@@ -373,11 +373,15 @@ function splitFirstApproach(body) {
   const i = body.findIndex(l => l.simIdx === 0);
   if (i < 0) return;
   const l = body[i];
-  const m = l.text.match(/^(N\d+\s+)G0\s+(X-?\d*\.?\d+)\s+(Z-?\d*\.?\d+)(.*)$/);
-  if (!m) return;
+  // X a Z se čtou nezávisle na pořadí a zápisu (G0 / G00), zbytek řádku zůstane.
+  const head = l.text.match(/^(N\d+\s+)G0?0\b/);
+  const code = l.text.split(/[;(]/)[0];
+  const mx = code.match(/\bX-?\d*\.?\d+/), mz = code.match(/\bZ-?\d*\.?\d+/);
+  if (!head || !mx || !mz) return;
+  const tail = l.text.slice(code.length);
   body.splice(i, 1,
-    { ...l, text: `${m[1]}G0 ${m[3]} ; Před čelo díry` },
-    { ...l, text: `${m[1]}G0 ${m[2]}${m[4]}` });
+    { ...l, text: `${head[1]}G0 ${mz[0]} ; Před čelo díry` },
+    { ...l, text: `${head[1]}G0 ${mx[0]}${tail ? ' ' + tail : ''}` });
 }
 
 /** Rychloposuvy v díře (Z pod čelem) blíž k ose než rIn → na rIn (řádky už ve skutečném světě). */
