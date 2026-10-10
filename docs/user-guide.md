@@ -535,7 +535,11 @@ Zásobníku i nůž z 🧰 Knihovny. Závit a upichnutí se pak zapnou v zálož
 2. **Z čelo** (kde díra začíná; **prázdné = čelo dílu** — zprava nejvyšší Z
    kontury, zleva nejnižší) a **Hloubka** (od čela). Zaškrtnutá
    **Hloubka na plný ⌀** přidá délku špičky ⌀/2 / tan(σ/2) — dno je válcové
-   v zadané hloubce; jinak se měří na špičku.
+   v zadané hloubce; jinak se měří na špičku. Místo hloubky jde zadat **Dno Z**
+   — hodnotu Z, do které se vrtá (prázdné = platí Hloubka; s „na plný ⌀" je to Z
+   dna plného ⌀). Po vygenerování drah je ve výkrese **čárkovaně** vidět, co se
+   odvrtá (válec + špička); šedý materiál kolem zůstává. U dílu nakresleného jako
+   hotový kalíšek je materiál i dutina (vrtá se z plného).
 3. **Odvod třísky:** **⇡ Vyjíždění** (jako G83 — po každém záběru Q
    z díry ven a rychloposuvem zpět až „Odskok" nad dno) nebo **↯ Lámání
    třísky** (jako G73 — jen odskok). **Záběr Q** 0 = celá díra na jeden zátah.

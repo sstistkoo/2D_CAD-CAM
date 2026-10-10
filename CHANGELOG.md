@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pozná podle tvaru držáku (dřík podél osy: `isBoringBarLike`, knifeThumb.js).
 
 ### Added
+- **Vrtání: „Dno Z"** (uživatel 10. 10. 2026) — místo hloubky jde zadat Z, do
+  kterého se vrtá (`drillZEnd`, přednost před Hloubkou). **Čárkovaný obrys vrtané
+  díry** (válec + špička) ve výkrese a **úběr materiálu při vrtání** i u odlitku
+  nakresleného čárou: materiál = díl ∪ dutina z výkresu, vrták ubírá válec,
+  zbytek zůstává šedý. `drillHoleLoop` (ops/drill.js), `drillMaterialSegments`.
 - **Kontrola počátečního bodu:** když nástroj v Bezpečné poloze (první bod dráhy)
   leží v materiálu — v polotovaru NEBO v nakresleném dílu — vyskočí okno
   „⛔ Nástroj je v materiálu" s tlačítkem **⚙ Nastavit počáteční bod** (otevře

@@ -132,6 +132,7 @@ export function _defaultCamParams() {
     drillActive: false,
     drillZStart: null,       // Z čela, kde díra začíná (od něj se měří hloubka); null = čelo dílu (drillAutoFaceZ)
     drillDepth: 20,          // hloubka díry [mm] (kladná, od Z čela)
+    drillZEnd: null,         // místo hloubky: Z, do kterého se vrtá (null = platí Hloubka); uživatel 10. 10. 2026
     drillDepthFullDia: false, // true = hloubka na plný ⌀ (+ délka špičky), false = na špičku
     drillClearance: 2,       // bezpečná vzdálenost před čelem — odtud jede posuv
     drillPeck: 5,            // hloubka záběru Q [mm]; 0 = na jeden zátah bez výjezdů

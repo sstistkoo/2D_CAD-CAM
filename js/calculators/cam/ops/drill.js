@@ -60,7 +60,9 @@ export function drillGeom(prms, { faceZ = null, stockLoop = null } = {}) {
   const dir = prms.roughingSide === 'left' ? 1 : -1;
   const zFaceSet = prms.drillZStart !== null && prms.drillZStart !== '' && Number.isFinite(parseFloat(prms.drillZStart));
   const zFace = zFaceSet ? parseFloat(prms.drillZStart) : (Number.isFinite(faceZ) ? faceZ : 0);
-  const depth = Math.max(0, num(prms.drillDepth, 0));
+  // „Dno Z" (drillZEnd) má přednost před hloubkou: vrtá se do zadaného Z.
+  const zEndSet = prms.drillZEnd !== null && prms.drillZEnd !== undefined && prms.drillZEnd !== '' && Number.isFinite(parseFloat(prms.drillZEnd));
+  const depth = zEndSet ? Math.max(0, dir * (parseFloat(prms.drillZEnd) - zFace)) : Math.max(0, num(prms.drillDepth, 0));
   const total = depth + (prms.drillDepthFullDia ? ins.pointLengthZ : 0);
   const zBottom = zFace + dir * total;
   const back = (a, b) => (dir < 0 ? Math.max(a, b) : Math.min(a, b));   // dál od díry (ven)
@@ -106,6 +108,18 @@ export function drillGeom(prms, { faceZ = null, stockLoop = null } = {}) {
   if (!(D > 0)) return { ...g, ok: false, reason: 'Prumer vrtaku je 0 — drahy nevygenerovany.' };
   if (!(total > 0)) return { ...g, ok: false, reason: 'Hloubka vrtani je 0 — drahy nevygenerovany.' };
   return g;
+}
+
+/**
+ * Obrys vrtané díry (x = poloměr, z): válec ⌀ od čela po konec válcové části
+ * a kužel špičky do osy — pro čárkovaný náhled a úběr materiálu.
+ * @returns {Array<{x:number,z:number}>|null}
+ */
+export function drillHoleLoop(prms, g) {
+  if (!g || !g.ok) return null;
+  const r = g.D / 2, tip = getInsert(prms).pointLengthZ || 0;
+  const zCyl = g.zBottom - g.dir * tip;
+  return [{ x: 0, z: g.zFace }, { x: r, z: g.zFace }, { x: r, z: zCyl }, { x: 0, z: g.zBottom }];
 }
 
 /** Prodleva na dně v dialektu řídicího systému. */

@@ -140,7 +140,7 @@ export function preDrillParams(prms, plan) {
     ...prms,
     ...slotToolParams(plan.slot),
     drillActive: true, boreActive: false, threadActive: false, partOffZ: null,
-    drillZStart: plan.zF, drillDepth: plan.depthTip, drillDepthFullDia: false,
+    drillZStart: plan.zF, drillDepth: plan.depthTip, drillZEnd: null, drillDepthFullDia: false,
   };
 }
 

@@ -224,3 +224,21 @@ describe('Vrtání (operace Vrtání)', () => {
     }
   });
 });
+
+describe('Vrtání: „Dno Z" místo hloubky', () => {
+  it('drillZEnd určuje dno; s plným ⌀ jde špička o délku kužele dál; hloubka se ignoruje', async () => {
+    const { drillGeom, drillHoleLoop } = await import('../js/calculators/cam/ops/drill.js');
+    const p = { ...baseParams, drillZStart: 0, drillDepth: 20, drillDepthFullDia: false };
+    expect(drillGeom(p, {}).zBottom).toBeCloseTo(-20, 6);
+    const g = drillGeom({ ...p, drillZEnd: -35 }, {});
+    expect(g.zBottom).toBeCloseTo(-35, 6);
+    const gf = drillGeom({ ...p, drillZEnd: -35, drillDepthFullDia: true }, {});
+    const tip = gf.zBottom - -35;
+    expect(tip).toBeLessThan(-5);   // špička za Z dna plného ⌀
+    const loop = drillHoleLoop({ ...p, drillZEnd: -35, drillDepthFullDia: true }, gf);
+    expect(loop[2].z).toBeCloseTo(-35, 6);   // válcová část končí na zadaném Z
+    expect(loop[3].z).toBeCloseTo(gf.zBottom, 6);
+    // Z dna nad čelem = nic se nevrtá (hlášení o nulové hloubce).
+    expect(drillGeom({ ...p, drillZEnd: 5, drillDepthFullDia: false }, {}).ok).toBe(false);
+  });
+});
