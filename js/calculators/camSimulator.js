@@ -7395,6 +7395,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (tool.knifeAngle !== undefined) slot.knifeAngle = tool.knifeAngle;
     if (tool.holderInflate !== undefined) slot.holderInflate = tool.holderInflate;
     if (tool.holderInflateAll !== undefined) slot.holderInflateAll = tool.holderInflateAll;
+    if (tool.toolInternal !== undefined) slot.internal = tool.toolInternal === true;
     slot.holderProfile = tool.holderProfile ? JSON.parse(JSON.stringify(tool.holderProfile)) : null;
     // Soubory z 💾 Uložit do PC/Zásobník řezné podmínky neobsahují (jen
     // geometrie destička+držák) — doplní se odhad podle tvaru.
@@ -7570,6 +7571,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (slot.knifeAngle !== undefined) S.params.knifeAngle = slot.knifeAngle;
     S.params.holderInflate = slot.holderInflate ?? 0;
     S.params.holderInflateAll = slot.holderInflateAll === true;
+    S.params.toolInternal = typeof slot.internal === 'boolean' ? slot.internal : undefined;
     S.params.holderProfile = slot.holderProfile ? JSON.parse(JSON.stringify(slot.holderProfile)) : null;
   }
 
@@ -7741,6 +7743,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     slot.knifeAngle    = S.params.knifeAngle;
     slot.holderInflate = holderInflate(S.params);
     slot.holderInflateAll = holderInflateAll(S.params);
+    if (typeof S.params.toolInternal === 'boolean') slot.internal = S.params.toolInternal; else delete slot.internal;
     slot.holderProfile = S.params.holderProfile ? JSON.parse(JSON.stringify(S.params.holderProfile)) : null;
   }
 

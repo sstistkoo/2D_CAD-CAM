@@ -49,7 +49,8 @@ const norm = (l) => l.replace(/([XZ])(-?\d*\.?\d+)/g, (_, a, v) => a + (+parseFl
 
 async function bodies(params, right, left) {
   const r = await runCamProg({ params: { ...params, roughingSide: 'right' }, ...right, stockPoints: [] });
-  const l = await runCamProg({ params: { ...params, roughingSide: 'left' }, ...left, stockPoints: [] });
+  // Bp je ve skutečném Z: zleva leží na opačné straně (−Z) než zprava.
+  const l = await runCamProg({ params: { ...params, roughingSide: 'left', safeZ: -params.safeZ }, ...left, stockPoints: [] });
   return { right: body(r.gcode), left: body(l.gcode), notesL: l.S.genNotes };
 }
 

@@ -29,7 +29,11 @@
 // v zrcadle jede x' dolů = ve skutečnosti od osy ven.
 
 import { buildControlTailLines } from '../controlDialect.js';
-import { holderProfileLoop } from '../collisionValidator.js';
+import { holderProfileLoop, validateToolpath } from '../collisionValidator.js';
+import { parseManualGCodeToPath } from '../gcodeParser.js';
+import { MaterialRemoval } from '../materialRemoval.js';
+import { ContourGouge } from '../contourGouge.js';
+import { polyArea } from '../../../geom/geomCore.js';
 import { boreMirrorState, boreBottomLeft, boreFits, unmirrorBoreLine, chainMirrorContour, FLOOR_BEYOND_AXIS } from './bore.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
@@ -69,6 +73,13 @@ function evenLayer(span, hmax) {
 export function boreFloorState(S) {
   const { g, S2 } = boreMirrorState(S);
   if (!S2 || !boreBottomLeft(g)) return { g, S3: null };
+  // Druhá polovina díry (za osou) se v zrcadle nemodeluje — drží ji jen pravidlo „vrstva ≤
+  // mezera tělesa tyče − rezerva". Když je mezera menší než nejtenčí vrstva, pravidlo nejde
+  // splnit a fáze se nevydá (tělo tyče by u osy mohlo sáhnout na materiál za osou).
+  const gap = boreBodyGap(S.params);
+  if (gap - BODY_MARGIN < MIN_LAYER) {
+    return { g, S3: null, reason: `Těleso tyče leží ${gap.toFixed(2)} mm od špičky — mezera je menší než nejtenčí vrstva dna (${MIN_LAYER} mm + rezerva), čelní dobrání dna by za osou mohlo narazit.` };
+  }
   const { k, s, zF, L, L0, Lcut, tipL, r0, rRef } = g;
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
   // Zrcadlový rám: čelo s·zF a díra jde k MENŠÍM Z' (zleva se Z překlopí) — hloubky se
@@ -120,7 +131,8 @@ export function boreFloorState(S) {
 export function boreFloorBody({ S, warn, computeCalculation, generateAutoGCode }) {
   const { g, S3, reason } = boreFloorState(S);
   if (!S3) { if (reason) warn(`Vyvrtávání: ${reason}`); return null; }
-  const inner = generateAutoGCode(S3, computeCalculation(S3));
+  const calc3 = computeCalculation(S3);
+  const inner = generateAutoGCode(S3, calc3);
   for (const e of [...(S3.errors || []), ...(S3.genNotes || [])]) {
     if (e && e.msg && !/^Rozsah (obrábění|X max)/.test(e.msg)) warn(`Vyvrtávání (dno): ${e.msg}`);
   }
@@ -140,7 +152,32 @@ export function boreFloorBody({ S, warn, computeCalculation, generateAutoGCode }
     if (x !== null && !boreFits(x / g.k, g.reach, g.r)) { bad = x; break; }
   }
   if (bad !== null) { warn('Vyvrtávání (dno): tyč by se při čelním dobrání dna nevešla do díry (pravidlo 13).'); return null; }
+  // Pojistka: hlídání držáku/destičky ops/face/* je v téhle fázi vypnuté (viz hlavička),
+  // proto se HOTOVÁ dráha ověří tady — kolize držáku s materiálem nebo zajetí do hotové
+  // kontury = fáze se nevydá (dno zůstane a hlásí se), nikdy ne tichá kolize.
+  const why = floorUnsafeReason(S3, calc3, inner);
+  if (why) { warn(`Vyvrtávání (dno): ${why} Čelní dobrání dna se nevydalo.`); return null; }
   return { body, g };
+}
+
+/** Kolize dráhy fáze dna v jejím zrcadlovém světě; text důvodu, nebo ''. */
+function floorUnsafeReason(S3, calc3, inner) {
+  try {
+    const path = parseManualGCodeToPath(inner.map(l => l.text).join(String.fromCharCode(10)), S3.params);
+    const hits = validateToolpath(path, S3.params, calc3.stockPathSegments, { planStock: true });
+    if (hits.length) return `držák/destička by narazila do materiálu (${hits.length}× ⛔).`;
+    const mr = new MaterialRemoval(S3.params, calc3.stockPathSegments);
+    if (mr.valid) {
+      mr.advanceTo(path, path.length - 1);
+      const cg = new ContourGouge(S3.params, calc3.contourSegments, calc3.stockPathSegments);
+      const loops = cg.valid ? cg.update(mr.model.loops) : [];
+      const area = loops.reduce((a, l) => a + Math.abs(polyArea([l])), 0);
+      if (area > 0.5) return `nástroj by zajel do hotové kontury (~${area.toFixed(1)} mm²).`;
+    }
+  } catch (err) {
+    return `kontrola dráhy selhala (${err && err.message ? err.message : err}).`;
+  }
+  return '';
 }
 
 /** Značka fáze „dno" v programu (komentář před jejím tělem). */

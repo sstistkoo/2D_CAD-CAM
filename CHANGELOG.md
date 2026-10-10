@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
 
 ### Fixed
+- **Vyvrtávání zleva: Bezpečná poloha ve skutečném Z.** Dřív se číslo Bp bralo v zrcadlovém
+  rámci (Bp Z−155 zleva dalo tyči bezpečné Z na opačné straně). Teď: Bp před čelem se zachová,
+  Bp za dílem se nahradí bezpečným Z před čelem díry.
+- **Fáze dna díry:** nevydá se, když je těleso tyče blíž ke špičce než nejtenčí vrstva (druhá
+  polovina díry za osou se v zrcadle nemodeluje); hotová dráha dna se navíc ověří (kolize držáku
+  s materiálem, zajetí do kontury) a při nálezu se nevydá, ale nahlásí se.
+- **Vnitřní nůž má příznak `toolInternal`** (katalog → zásobník → parametry): náhledy tyče ostřím
+  nahoru už nestojí jen na tvaru držáku (starý slot bez příznaku se dál pozná podle tvaru).
 - **Přenos CAD → CAM bral jen označené úsečky:** po „vyrovnat kolmě" zůstala úsečka označená
   a do CAM přišla jen ona. Přenos do CAM teď vždy bere celý profil (označení se ignoruje).
 - **Úběr materiálu u vyvrtávání/vrtání s odlitkem nakresleným jen čárou:** polotovar bez plochy

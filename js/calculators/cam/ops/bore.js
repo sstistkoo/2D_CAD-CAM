@@ -241,9 +241,9 @@ export function boreMirrorParams(prms, g) {
     // Bezpečné Z uvnitř vnitřního světa = PŘED čelem díry (Bezpečná poloha
     // stroje bývá za dílem (nález uživatele 9. 10. 2026: Bp Z5 u dílu
     // Z0–143 → tyč jela osou přes plné dno dílu).
-    // Zrcadlový rám (zleva Z' = −Z, ale číslo Bp se bere beze změny jako dřív):
-    // Bp se zachová, když leží před čelem aspoň o vůli Z; jinak se dá před čelo.
-    safeZ: +(num(prms.safeZ, 0) - g.s * g.zF >= g.clrZ ? num(prms.safeZ, 0) : g.s * g.zF + g.clrZ + FRONT_SAFE).toFixed(6),
+    // Bp stroje je ve SKUTEČNÉM Z (zleva se Z' = −Z): zachová se, když leží před čelem
+    // díry aspoň o vůli Z na straně obrábění; jinak se dá bezpečné Z před čelo.
+    safeZ: +(g.s * num(prms.safeZ, 0) - g.s * g.zF >= g.clrZ ? g.s * num(prms.safeZ, 0) : g.s * g.zF + g.clrZ + FRONT_SAFE).toFixed(6),
   };
 }
 

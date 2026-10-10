@@ -70,7 +70,7 @@ export function buildIsoDrill(opts = {}) {
     toolShape: 'drill', toolLength: L, toolAngle: 0, toolTipAngle: kind.sigma, toolRadius: d / 2,
     toolTipFlat: 0.1, toolTipMirror: false, toolVbdCode: '', toolClearanceAngle: 0,
     holderLength: h.l, holderWidth: h.w, holderHand: 'R', holderProfile: null,
-    knifeAngle: 270, holderInflate: 0, holderInflateAll: false,
+    knifeAngle: 270, holderInflate: 0, holderInflateAll: false, toolInternal: false,
   };
   // Jméno bez diakritiky — jde do G-kódu (T="…").
   return {

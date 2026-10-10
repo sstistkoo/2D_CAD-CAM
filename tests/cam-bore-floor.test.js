@@ -52,7 +52,7 @@ const flipZ = (l) => l.replace(/Z(-?\d*\.?\d+)/g, (_, v) => { const z = -parseFl
 describe('dno díry čelně — okrajové případy', () => {
   it('zleva = přesné zrcadlo zprava (Z → −Z, X stejné)', async () => {
     const r = await run({}, CUP);
-    const l = await run({ roughingSide: 'left', safeZ: 155 }, mirZ(CUP));
+    const l = await run({ roughingSide: 'left', safeZ: -155 }, mirZ(CUP));
     const fr = floorMoves(r.gcode), fl = floorMoves(l.gcode);
     expect(fr && fr.length).toBeGreaterThan(10);
     expect(fl).not.toBeNull();
@@ -153,5 +153,36 @@ describe('dno díry čelně — okrajové případy', () => {
     const area = gouge.reduce((a, l) => a + Math.abs(l.reduce((s2, p, i) => { const q = l[(i + 1) % l.length]; return s2 + (p.x * q.z - q.x * p.z); }, 0) / 2), 0);
     expect(area).toBeLessThan(0.5);
     expect(boreRealCollisions(r.S.params, sp.slice(i0), partLoopOf(r.calcSim))).toEqual([]);
+  });
+
+  it('tyč s tělesem těsně u špičky (mezera 0,05): fáze dna se nevydá, hlásí důvod a zbylé dno', async () => {
+    const thin = [{ x: 0.05, z: 2.6 }, { x: 180, z: 2.6 }, { x: 180, z: 18.6 }, { x: 0.05, z: 18.6 }, { x: 0.05, z: 2.6 }];
+    const r = await run({ holderProfile: { sideA: thin, sideB: [] } });
+    expect(r.gcode).not.toMatch(/DNO DIRY/);
+    expect(r.S.genNotes.some(n => /mezera je menší než nejtenčí vrstva/.test(n.msg))).toBe(true);
+    // Dno se přesto hlásí jako zbylé (nic tiše nezmizí).
+    expect(r.S.genNotes.some(n => /dno díry od Z/.test(n.msg))).toBe(true);
+  });
+
+  it('zleva: Bp ve skutečném Z — Bp za dílem se nepoužije, Bp před čelem se zachová', async () => {
+    const behind = await run({ roughingSide: 'left', safeX: 300, safeZ: 5 }, mirZ(CUP));
+    const front = await run({ roughingSide: 'left', safeX: 300, safeZ: -170 }, mirZ(CUP));
+    const firstZ = (g) => parseFloat(g.slice(g.indexOf('VYVRTAVANI ⌀')).split(String.fromCharCode(10)).find(l => /^N\d+ G0 Z-?\d/.test(l)).match(/Z(-?[\d.]+)/)[1]);
+    expect(firstZ(behind.gcode)).toBeCloseTo(-(143.274 + 1 + 5), 0);   // před čelem díry, ne na Bp
+    expect(firstZ(front.gcode)).toBeCloseTo(-170, 3);
+  });
+});
+
+describe('náhled tyče (knifeThumb): příznak vnitřního nože', () => {
+  it('katalogová tyč nese toolInternal; příznak má přednost před tvarem držáku, starý slot bez něj se pozná podle tvaru', async () => {
+    const { isBoringBarLike } = await import('../js/calculators/knifeThumb.js');
+    const { paramsFromMagSlot } = await import('../js/calculators/cam/toolSlotPreview.js');
+    expect(bar.tool.toolInternal).toBe(true);
+    expect(isBoringBarLike(bar.tool)).toBe(true);
+    expect(isBoringBarLike({ ...bar.tool, toolInternal: false })).toBe(false);          // výslovně vnější
+    const { toolInternal, ...old } = bar.tool;                                          // starý slot bez příznaku
+    expect(isBoringBarLike(old)).toBe(true);                                            // tvar držáku
+    expect(paramsFromMagSlot({ shape: 'polygon', internal: true }).toolInternal).toBe(true);
+    expect(paramsFromMagSlot({ shape: 'polygon' }).toolInternal).toBeUndefined();
   });
 });

@@ -419,6 +419,8 @@ function knifeRecord({ name, vbdCode, holder, prms, sh, hand, cut, desc, iso }) 
     knifeAngle: 270,
     holderInflate: 0,
     holderInflateAll: false,
+    // Vyvrtávací tyč / vnitřní závit (isoInternalTools): náhledy ji kreslí ostřím nahoru.
+    toolInternal: !!(iso && iso.internal),
   };
   // `iso` = z čeho se nůž postavil (typ, dřík, volby) — UI z něj čte aktuální výběr.
   return {

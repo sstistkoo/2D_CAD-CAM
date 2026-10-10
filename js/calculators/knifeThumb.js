@@ -24,6 +24,8 @@ const r3 = (v) => Math.round(v * 1000) / 1000;
  */
 export function isBoringBarLike(prms) {
   if (!prms || (prms.toolShape !== 'polygon' && prms.toolShape !== 'round')) return false;
+  // Příznak z katalogu/zásobníku (toolInternal) má přednost; starý slot bez něj → tvar držáku.
+  if (typeof prms.toolInternal === 'boolean') return prms.toolInternal;
   const loop = holderProfileLoop(prms) || [];
   if (loop.length < 3) return false;
   const xs = loop.map(p => p.x), zs = loop.map(p => p.z);

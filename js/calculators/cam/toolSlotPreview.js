@@ -45,6 +45,7 @@ export function paramsFromMagSlot(slot) {
     holderProfile: s.holderProfile || null,
     holderInflate: num(s.holderInflate, 0),
     holderInflateAll: s.holderInflateAll === true,
+    toolInternal: s.internal,   // undefined = starý slot → rozhodne tvar držáku (isBoringBarLike)
   };
 }
 

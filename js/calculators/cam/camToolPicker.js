@@ -11,7 +11,9 @@ export const CAM_TOOL_KEYS = ['toolShape', 'toolLength', 'toolAngle', 'toolTipAn
   // se uložený/načtený nůž vracel s α předchozího nože (nebo 0).
   'toolClearanceAngle',
   'holderLength', 'holderWidth', 'holderHand', 'holderProfile',
-  'knifeAngle', 'holderInflate', 'holderInflateAll'];
+  'knifeAngle', 'holderInflate', 'holderInflateAll',
+  // vnitřní nůž (vyvrtávací tyč) — jen pro kreslení náhledů (ostřím nahoru)
+  'toolInternal'];
 let _savedCamTool = null;   // naposledy uložený/načtený nůž (mimo otevřené CAM)
 let _activeCamParams = null; // S.params živě otevřeného CAM (nebo null)
 
