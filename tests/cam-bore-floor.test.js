@@ -138,4 +138,20 @@ describe('dno díry čelně — okrajové případy', () => {
       expect(boreRealCollisions(r.S.params, bad, partLoopOf(r.calcSim)).length).toBeGreaterThan(0);
     }
   });
+
+  it('jiná tyč (⌀25, vrták ⌀40): dno bez kolize držáku, bez zajetí do kontury, bez nálezů tyče s dílem', async () => {
+    const b25 = buildIsoInternalKnife('BCL', { bar: 25 });
+    const r = await runCamProg({ params: { ...common(), ...b25.tool, toolName: b25.name }, contourPoints: P(CUP), stockPoints: [], toolMagazine: [drill(40, 145)] });
+    expect(r.gcode).toMatch(/DNO DIRY/);
+    const sp = r.calcSim.simPath, fi = boreFloorSplitIndex(sp, r.gcode), i0 = preDrillSplitIndex(sp, r.gcode);
+    const fs = boreFloorSim(r.S, sp.slice(fi - 1), computeCalculation);
+    expect(validateToolpath(fs.calcM.simPath, fs.params, fs.calcM.stockPathSegments, { planStock: true })).toEqual([]);
+    const mr = new MaterialRemoval(fs.params, fs.calcM.stockPathSegments);
+    mr.advanceTo(fs.calcM.simPath, fs.calcM.simPath.length - 1);
+    const cg = new ContourGouge(fs.params, fs.calcM.contourSegments, fs.calcM.stockPathSegments);
+    const gouge = cg.valid ? cg.update(mr.model.loops) : [];
+    const area = gouge.reduce((a, l) => a + Math.abs(l.reduce((s2, p, i) => { const q = l[(i + 1) % l.length]; return s2 + (p.x * q.z - q.x * p.z); }, 0) / 2), 0);
+    expect(area).toBeLessThan(0.5);
+    expect(boreRealCollisions(r.S.params, sp.slice(i0), partLoopOf(r.calcSim))).toEqual([]);
+  });
 });

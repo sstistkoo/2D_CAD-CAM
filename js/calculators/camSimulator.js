@@ -1667,7 +1667,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const bs = boreSimFor(calc);
     if (bs) return inPreDrill(calc) ? preDrillRemoval(calc) : boreRemovalView(bs, calc);
     if (!_removal || _removalCalcRef !== calc) {
-      _removal = new MaterialRemoval(S.params, S.params.drillActive ? drillMaterialSegments(calc) : calc.stockPathSegments);
+      _removal = new MaterialRemoval(S.params, S.params.drillActive ? bodyStockSegments(calc) : calc.stockPathSegments);
       _removalCalcRef = calc;
       _removalOuter = null;
     }
@@ -1872,11 +1872,19 @@ export function openCamSimulator(initialContour, initialGCode) {
     bs.removal.advanceTo(bs.calcM.simPath, boreLocalIdx(bs));
     return bs.removal;
   }
+  // Největší smyčka sjednocení (díl ∪ dutina bývá jedna; při nespojitosti vyhrává největší).
+  const unionLargest = (loopsA, loopsB, fallback) => {
+    const u = polyUnion(loopsA, loopsB);
+    return u.slice().sort((x, y) => Math.abs(polyArea([y])) - Math.abs(polyArea([x])))[0] || fallback;
+  };
   /**
-   * Vrtání (samostatná operace): odlitek nakreslený jen čárou nemá co ubírat — materiál
-   * je pak nakreslený díl + vrtaná díra (hotový díl díru jako materiál nemá).
+   * Materiál obrobku, který se vrtá / vyvrtává z plného: odlitek nakreslený jen čárou
+   * (bez plochy) nemá co ubírat — pak je materiál nakreslený DÍL ∪ DUTINA (hotový kalíšek
+   * díru jako materiál nemá). Dutina = díra z výkresu (uživatel 10. 10. 2026: „ať vím,
+   * co se odvrtá a co tam zůstane"), bez ní vrtaný válec vrtáku.
+   * @returns segmenty obrysu pro MaterialRemoval; s plošným polotovarem beze změny
    */
-  function drillMaterialSegments(calc) {
+  function bodyStockSegments(calc) {
     let stock = null;
     try { stock = buildStockLoopRaw(S.params, calc.stockPathSegments); } catch { stock = null; }
     if (stock && stock.length >= 3 && Math.abs(polyArea([stock])) > 1) return calc.stockPathSegments;
@@ -1884,41 +1892,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (!part) return calc.stockPathSegments;
     let loop = part;
     try {
-      // Díra z výkresu (hotový kalíšek) = materiál, který se vrtá a později vyvrtává:
-      // vrták z něj odebere válec, zbytek zůstane šedý (uživatel 10. 10. 2026:
-      // „ať vím, co se odvrtá a co tam zůstane"). Bez díry ve výkresu jen vrtaný válec.
       let hole = null;
-      try {
-        const src = boreChainFromState({ ...S, params: { ...S.params, boreSource: 'cad' } });
-        const bg = src ? boreGeom({ ...S.params, boreSource: 'cad' }, src.segs) : null;
-        if (bg && bg.chain) hole = boreHoleLoop(bg);
-      } catch { hole = null; }
+      const src = boreChainFromState({ ...S, params: { ...S.params, boreSource: 'cad' } });
+      const bg = src ? boreGeom({ ...S.params, boreSource: 'cad' }, src.segs) : null;
+      if (bg && bg.chain) hole = boreHoleLoop(bg);
       if (!hole) hole = drillHoleLoop(S.params, drillGeom(S.params, { faceZ: drillAutoFaceZ(S), stockLoop: stock }));
-      if (hole) {
-        const u = polyUnion([hole], [part]);
-        loop = u.slice().sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0] || part;
-      }
-    } catch { loop = part; }
-    return loop.map((p, i) => ({ type: 'line', p1: p, p2: loop[(i + 1) % loop.length] }));
-  }
-  /**
-   * Obrys materiálu pro úběr vrtáku: odlitek nakreslený jen čárou (bez plochy) nemá
-   * co ubírat — pak je materiál nakreslený díl (jeho obrys po úsecích).
-   */
-  function bodyStockSegments(calc, prms) {
-    let stock = null;
-    try { stock = buildStockLoopRaw(prms, calc.stockPathSegments); } catch { stock = null; }
-    const part = partLoopOf(calc);
-    if (!part || (stock && stock.length >= 3 && Math.abs(polyArea([stock])) > 1)) return calc.stockPathSegments;
-    // Obrobek se vrtá z plného: k dílu se přičte díra (viz boreRemovalView).
-    let loop = part;
-    try {
-      const src = S.params.boreSource === 'cad' ? boreChainFromState(S) : null;
-      const bg = boreGeom(S.params, src ? src.segs : null);
-      if (bg.ok) {
-        const u = polyUnion([boreHoleLoop(bg)], [part]);
-        loop = u.slice().sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0] || part;
-      }
+      // Vyvrtávání s dírou zadanou válcem (ne z výkresu).
+      if (!hole && S.params.boreActive) { const cg = boreGeom(S.params, null); if (cg.ok) hole = boreHoleLoop(cg); }
+      if (hole) loop = unionLargest([hole], [part], part);
     } catch { loop = part; }
     return loop.map((p, i) => ({ type: 'line', p1: p, p2: loop[(i + 1) % loop.length] }));
   }
@@ -1926,7 +1907,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function preDrillRemoval(calc) {
     const pre = preDrillPhase(calc);
     if (!pre) return null;
-    if (!pre.removal) pre.removal = new MaterialRemoval(pre.params, bodyStockSegments(calc, pre.params));
+    if (!pre.removal) pre.removal = new MaterialRemoval(pre.params, bodyStockSegments(calc));
     if (!pre.removal.valid) return null;
     pre.removal.advanceTo(calc.simPath, S.simProgress * (calc.simPath.length - 1));
     return pre.removal;
@@ -1945,8 +1926,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (rm && partL) {
       try {
         // + díra: hotový díl ji nemá jako materiál, ale obrábí se z plného.
-        const u = polyUnion(stockL && stockL.length >= 3 ? [stockL, boreHoleLoop(bs.g)] : [boreHoleLoop(bs.g)], [partL]);
-        base = u.slice().sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0] || stockL;
+        base = unionLargest(stockL && stockL.length >= 3 ? [stockL, boreHoleLoop(bs.g)] : [boreHoleLoop(bs.g)], [partL], stockL);
       } catch { base = stockL || partL; }
     }
     if (!base) return null;

@@ -30,7 +30,7 @@
 
 import { buildControlTailLines } from '../controlDialect.js';
 import { holderProfileLoop } from '../collisionValidator.js';
-import { boreMirrorState, boreBottomLeft, boreFits, unmirrorBoreLine, chainMirrorContour } from './bore.js';
+import { boreMirrorState, boreBottomLeft, boreFits, unmirrorBoreLine, chainMirrorContour, FLOOR_BEYOND_AXIS } from './bore.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 /** Rezerva mezi tělesem tyče a ještě neodebraným materiálem [mm]. */
@@ -69,7 +69,7 @@ function evenLayer(span, hmax) {
 export function boreFloorState(S) {
   const { g, S2 } = boreMirrorState(S);
   if (!S2 || !boreBottomLeft(g)) return { g, S3: null };
-  const { k, s, zF, L, L0, Lcut, tipL, r0, rRef, clrX } = g;
+  const { k, s, zF, L, L0, Lcut, tipL, r0, rRef } = g;
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
   // Zrcadlový rám: čelo s·zF a díra jde k MENŠÍM Z' (zleva se Z překlopí) — hloubky se
   // proto odečítají od s·zF, ne od zF (zleva by díra jela na špatnou stranu).
@@ -81,10 +81,10 @@ export function boreFloorState(S) {
   if (g.chain) {
     // Konec kontury musí ležet v ose (dno k ose) — jinak není co čelně brát.
     if (g.chain[g.chain.length - 1].p2.x > 0.01) return { g, S3: null, reason: 'Dno díry nedojíždí do osy (prstenec) — čelní dobrání dna je zatím jen pro dno k ose.' };
-    full = chainMirrorContour({ ...g, Lcut: L, r0: clrX - 3 });
+    full = chainMirrorContour({ ...g, Lcut: L }, { beyondAxis: true });
   } else {
     const zIn = zFm + Math.max(0, g.clrZ) + 2;
-    full = [[zIn, X(g.r)], [zFl, X(g.r)], [zFl, X(-3.5)], [zFl - 8, X(-3.5)]].map(([zz, x]) => ({ type: 'G1', x, z: zz, r: 0 }));
+    full = [[zIn, X(g.r)], [zFl, X(g.r)], [zFl, X(-FLOOR_BEYOND_AXIS)], [zFl - 8, X(-FLOOR_BEYOND_AXIS)]].map(([zz, x]) => ({ type: 'G1', x, z: zz, r: 0 }));
   }
   // Polotovar = zbytek po podélném vyvrtání, vše POD prstencem (Lcut): prstenec
   // dna, kužel po špičce, materiál pod dnem. Nad prstencem žádný polotovar není

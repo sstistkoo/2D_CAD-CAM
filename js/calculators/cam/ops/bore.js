@@ -172,7 +172,14 @@ export function boreMirrorContour(g) {
  * vrtané díry, dno k ose), skončí na té hranici a pokračuje za konec
  * polotovaru jako u válce.
  */
-export function chainMirrorContour(g) {
+/** O kolik za osu (do x' > R_ref) sahá kontura DNA při čelním dobrání [mm]. */
+export const FLOOR_BEYOND_AXIS = 3.5;
+
+/**
+ * @param opts.beyondAxis  kontura jde až FLOOR_BEYOND_AXIS za osu místo konce uvnitř
+ *   předvrtání (čelní dobrání dna, ops/boreFloor.js) — bez podvrhování g.r0
+ */
+export function chainMirrorContour(g, opts = {}) {
   const { k, L0, r0, rRef, clrX, clrZ } = g;
   const zF = g.s * g.zF;
   // Zleva: řetěz překlopený v Z (oblouk tím obrátí smysl) — dál jako zprava.
@@ -181,7 +188,7 @@ export function chainMirrorContour(g) {
     ...(sg.type === 'arc' ? { dir: sg.dir === 'G2' ? 'G3' : 'G2' } : {}),
   }));
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
-  const rB = r0 - clrX - BEYOND_BOTTOM_IN, zEnd = zF - boreStockDepth(g) - 1;
+  const rB = opts.beyondAxis ? -FLOOR_BEYOND_AXIS : r0 - clrX - BEYOND_BOTTOM_IN, zEnd = zF - boreStockDepth(g) - 1;
   const p0 = chain[0].p1;
   const pts = [{ type: 'G0', x: X(p0.x), z: zF + clrZ + FRONT_EXT }, { type: 'G1', x: X(p0.x), z: p0.z }];
   let last = p0;
