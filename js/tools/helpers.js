@@ -76,10 +76,22 @@ export function moveLinkedEnds(ox, oy, nx, ny, skipObj) {
     if (skipObj && !!o.isStock !== !!skipObj.isStock) continue;
     if (o.isDimension || o.isCoordLabel) continue;
     if (o.type === 'line') {
-      if (at(o.x1, o.y1)) { o.x1 = nx; o.y1 = ny; }
-      if (at(o.x2, o.y2)) { o.x2 = nx; o.y2 = ny; }
+      const m1 = at(o.x1, o.y1), m2 = at(o.x2, o.y2);
+      if (m1) { o.x1 = nx; o.y1 = ny; }
+      if (m2) { o.x2 = nx; o.y2 = ny; }
+      // Posunutý konec porušil vodorovnost/svislost sousední úsečky – vazba už neplatí
+      if ((m1 || m2) && o.constraint) delete o.constraint;
     } else if (o.type === 'polyline') {
-      for (const v of o.vertices) if (at(v.x, v.y)) { v.x = nx; v.y = ny; }
+      const n = o.vertices.length;
+      o.vertices.forEach((v, i) => {
+        if (!at(v.x, v.y)) return;
+        v.x = nx; v.y = ny;
+        if (o.segConstraints && o !== skipObj) {
+          // vrchol i patří segmentům i-1 a i
+          delete o.segConstraints[i];
+          delete o.segConstraints[(i - 1 + n) % n];
+        }
+      });
     }
   }
 }

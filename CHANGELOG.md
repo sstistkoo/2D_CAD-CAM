@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Vyrovnání (vodorovně/svisle/rovnoběžně):** když posun konce porušil vazbu navazující úsečky nebo segmentu polylinie, její zastaralá vazba se zruší (dřív zůstala značka vazby u neplatné geometrie).
+
 ### Changed
 - **Vazby (vodorovně/svisle/rovnoběžně):** místo ikony u úsečky se vazba ukazuje jemným
   barevným přetónováním úsečky (zelená / fialová / žlutá); ikona zůstane jen u vybrané vazby.
