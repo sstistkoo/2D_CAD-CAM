@@ -71,17 +71,19 @@ export function boreFloorState(S) {
   if (!S2 || !boreBottomLeft(g)) return { g, S3: null };
   const { k, s, zF, L, L0, Lcut, tipL, r0, rRef, clrX } = g;
   const X = (rr) => +(k * (rRef - rr)).toFixed(6);
-  const z = (zz) => s * zz;                                     // skutečné Z → zrcadlové
+  // Zrcadlový rám: čelo s·zF a díra jde k MENŠÍM Z' (zleva se Z překlopí) — hloubky se
+  // proto odečítají od s·zF, ne od zF (zleva by díra jela na špatnou stranu).
+  const zFm = s * zF;
   // Kontura: celá díra (až k ose) a za osu o 3,5 mm — jako u podélné fáze,
   // jen bez falešného dna.
-  const zFl = z(zF - L), zRingZ = z(zF - Lcut), zBelow = zFl - 5;
+  const zFl = zFm - L, zRingZ = zFm - Lcut, zBelow = zFl - 5;
   let full;
   if (g.chain) {
     // Konec kontury musí ležet v ose (dno k ose) — jinak není co čelně brát.
     if (g.chain[g.chain.length - 1].p2.x > 0.01) return { g, S3: null, reason: 'Dno díry nedojíždí do osy (prstenec) — čelní dobrání dna je zatím jen pro dno k ose.' };
     full = chainMirrorContour({ ...g, Lcut: L, r0: clrX - 3 });
   } else {
-    const zIn = z(zF) + Math.max(0, g.clrZ) + 2;
+    const zIn = zFm + Math.max(0, g.clrZ) + 2;
     full = [[zIn, X(g.r)], [zFl, X(g.r)], [zFl, X(-3.5)], [zFl - 8, X(-3.5)]].map(([zz, x]) => ({ type: 'G1', x, z: zz, r: 0 }));
   }
   // Polotovar = zbytek po podélném vyvrtání, vše POD prstencem (Lcut): prstenec
@@ -89,7 +91,7 @@ export function boreFloorState(S) {
   // (stěnu díry tam už vzala podélná fáze), takže plánovač nezačíná vrstvy ve
   // vzduchu a nevyrábí materiál v pásu vůle podél stěny.
   const stock = [
-    [zRingZ, 0], [zRingZ, X(r0)], [z(zF - L0), X(r0)], [z(zF - L0 - tipL), X(0)],
+    [zRingZ, 0], [zRingZ, X(r0)], [zFm - L0, X(r0)], [zFm - L0 - tipL, X(0)],
     [zBelow, X(0)], [zBelow, 0], [zRingZ, 0],
   ].map(([zz, x]) => ({ type: 'G1', x, z: zz, r: 0 }));
   const tag = (pts) => pts.map((p, i) => ({ id: i + 1, mode: 'ABS', r: 0, ...p, type: i ? p.type : 'G0' }));

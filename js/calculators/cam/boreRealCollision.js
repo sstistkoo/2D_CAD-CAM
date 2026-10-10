@@ -42,7 +42,8 @@ export function boreRealCollisions(prms, simPath, part, { maxIssues = 40 } = {})
   const out = [];
   if (!part || !Array.isArray(simPath) || simPath.length < 2) return out;
   const insRaw = toolFootprintVisual(prms);
-  const holRaw = holderWorldLoop(prms, false);
+  // Zleva (druhé upnutí) leží držák na −Z strany — táž „zpětná" strana jako v simulaci.
+  const holRaw = holderWorldLoop(prms, prms.roughingSide === 'left');
   if (!holRaw || holRaw.length < 3) return out;
   const ins = insRaw && insRaw.length >= 3 ? flipX(insRaw) : null;
   const hol = flipX(holRaw);

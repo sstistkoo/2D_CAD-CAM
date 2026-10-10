@@ -162,6 +162,10 @@ export function applyPreDrillPlan(S) {
     prms.borePreDiameter = plan.D;
     prms.borePreDepth = plan.L0;
     prms.borePreTip = plan.tipL;
+  } else if (num(prms.borePreTip, 0) !== 0) {
+    // Plán nevyšel (chybí vrták…): zbytkový kužel z dřívějška by dal falešné dno
+    // a fázi dna bez vrtání — předvrtání je pak ruční (válec).
+    prms.borePreTip = 0;
   }
   return plan;
 }

@@ -5576,7 +5576,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           const zTip = pl.zF - pl.s * pl.depthTip, zL0 = pl.zF - pl.s * pl.L0;
           info = `Vrták ⌀${f2(pl.D)} (T${pl.slot.slot} ${escHTML(pl.slot.name || '')}) · špička do Z${f2(zTip)} (dno + přídavek Z) · plný ⌀ do Z${f2(zL0)} · pak výměna na tyč do předvrtání ⌀${f2(pl.D)}.`
             + (pl.L0 + Math.max(0, parseFloat(prms.allowanceZ) || 0) < pl.L - 1e-6
-              ? ` Dno díry od Z${f2(zL0)} do Z${f2(pl.zF - pl.s * pl.L)} tyč podélně nevezme (opřela by se o kužel po vrtáku) — zůstane.` : '');
+              ? ` Dno díry od Z${f2(zL0)} do Z${f2(pl.zF - pl.s * pl.L)} tyč podélně nevezme (opřela by se o kužel po vrtáku) — dobere ho čelně od osy ven (část „DNO DIRY“ programu).` : '');
         } else {
           const rec = pl.idx < 0 && pl.dMax > 0 ? catalogDrillFor(pl.dMax, pl.L - Math.max(0, parseFloat(prms.allowanceZ) || 0)) : null;
           info = `<span style="color:#f38ba8">⚠ ${escHTML(pl.reason || '')}</span>`
