@@ -1535,6 +1535,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     _validateTimer = setTimeout(runCollisionValidation, 600);
   }
   let _lastIssues = [];
+  /** Kontrola kolizí se zastavila před koncem dráhy: null | 'blocks' | 'issues' (viz validateToolpath). */
+  let _issuesTruncated = null;
   let _startHitActive = false;
   /** Okno „nástroj je v počátečním bodě v materiálu" + rychlý odkaz na Bezpečnou polohu. */
   function showStartPopup(st) {
@@ -1599,6 +1601,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     ].join('');
     if (key !== _validatedKey) {
       _validatedKey = key;
+      let trunc = null;
+      const tr = (a) => { if (a && a.truncated && trunc !== 'blocks') trunc = a.truncated; return a; };
       try {
         // Vyvrtávání: validuje se v zrcadle drah (viz boreSimFor), souřadnice
         // nálezů se překlopí zpátky.
@@ -1606,18 +1610,19 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Vyvrtávání z plného: úsek vrtání se validuje ve skutečném světě vrtákem.
         const pre = bs ? preDrillPhase(calc) : null;
         const drillIssues = pre
-          ? validateToolpath(calc.simPath.slice(0, pre.iSplit + 1), pre.params, calc.stockPathSegments, { backside: toolMirrored(), planStock: true })
+          ? tr(validateToolpath(calc.simPath.slice(0, pre.iSplit + 1), pre.params, calc.stockPathSegments, { backside: toolMirrored(), planStock: true }))
           : [];
         _lastIssues = bs
-          ? drillIssues.concat(boreRealIssues(bs, calc).map(it => ({ kind: it.kind, lineIdx: it.lineIdx, x: it.x, z: it.z, area: it.area })), borePhases(bs).flatMap(b => validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true })
+          ? drillIssues.concat(tr(boreRealIssues(bs, calc)).map(it => ({ kind: it.kind, lineIdx: it.lineIdx, x: it.x, z: it.z, area: it.area })), borePhases(bs).flatMap(b => tr(validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true }))
             .map(it => ({ ...it, x: b.g.rRef - it.x }))))
-          : validateToolpath(calc.simPath, p, calc.stockPathSegments, {
+          : tr(validateToolpath(calc.simPath, p, calc.stockPathSegments, {
             backside: toolMirrored(),
             // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE — dráhy se proti ní plánují
             // a náhled ji vybarvuje; ⛔ panel byl poslední, kdo měřil jen
             // nakreslený obrys.
             planStock: true,
-          });
+          }));
+        _issuesTruncated = trunc;
         // Nástroj nesmí začínat v materiálu (cam/startCheck.js) — okno s odkazem
         // na Bezpečnou polohu se ukáže jen při změně vstupů, ne při každém překreslení.
         const st = bs ? null : startInMaterial(p, calc, { backside: toolMirrored() });
@@ -1630,6 +1635,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         _startHitActive = !!st;
       } catch (err) {
         _lastIssues = [];
+        _issuesTruncated = null;
         console.warn('CAM: validace kolizí selhala:', err);
       }
     }
@@ -1649,6 +1655,14 @@ export function openCamSimulator(initialContour, initialGCode) {
           : it.kind === 'rapid'
           ? `⛔ Rychloposuv materiálem (${lineLabel(it.lineIdx)}, ${where}) — průnik ~${it.area.toFixed(1)} mm².`
           : `⛔ Držák v kolizi se zbývajícím materiálem (${lineLabel(it.lineIdx)}, ${where}) — průnik ~${it.area.toFixed(1)} mm².`,
+      });
+    }
+    if (_issuesTruncated) {
+      S.errors.push({
+        collision: true,
+        msg: _issuesTruncated === 'blocks'
+          ? '⚠ Program je delší než limit kontroly kolizí (6000 bloků) — zkontrolován je jen začátek, zbytek NENÍ ověřen.'
+          : `⚠ Zobrazeno prvních ${issues.length} nálezů — kontrola se zastavila, další kolize mohou být dál v programu.`,
       });
     }
     showErrors();

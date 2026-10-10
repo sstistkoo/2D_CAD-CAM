@@ -4486,6 +4486,43 @@ body {
   font-weight: 700;
 }
 
+/* ── Tolerance: Díra | rozměr | Hřídel v jednom řádku ── */
+.tol-main-row { display: flex; gap: 6px; align-items: stretch; margin-bottom: 10px; }
+.tol-main-row .tol-toggle {
+  flex: 0 0 auto; min-width: 64px; padding: 8px 10px;
+  border: 1px solid var(--ctp-surface0); border-radius: 6px;
+}
+.tol-dim { flex: 1 1 auto; min-width: 0; display: flex; }
+.tol-dim input {
+  width: 100%; min-width: 0; box-sizing: border-box; text-align: center;
+  font-size: 16px; font-family: "Consolas", monospace;
+  background: var(--ctp-mantle); color: var(--ctp-text);
+  border: 1px solid var(--ctp-surface1); border-radius: 6px; padding: 8px 4px;
+}
+.tol-dim input:focus { outline: none; border-color: var(--ctp-blue); }
+/* Sloupec m (ISO 2768-1) v rámečku */
+.cnc-table .tol-m {
+  background: color-mix(in srgb, var(--ctp-blue) 16%, transparent);
+  border-left: 2px solid var(--ctp-blue); border-right: 2px solid var(--ctp-blue);
+  font-weight: 700;
+}
+.cnc-table-wrap .cnc-table:has(.tol-m) td { border-bottom: 1px solid #fff; }
+.cnc-table th.tol-m-top { border-top: 2px solid var(--ctp-blue); }
+.cnc-table-wrap .cnc-table td.tol-m-bot { border-bottom: 2px solid var(--ctp-blue); }
+/* Výsledek tolerance */
+.tol-res-head { font-size: 15px; margin-bottom: 8px; }
+.tol-res-kind { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; color: var(--ctp-base); }
+.tol-kind-hole { background: var(--ctp-blue); }
+.tol-kind-shaft { background: var(--ctp-mauve); }
+.tol-res-cols { display: flex; align-items: stretch; margin-bottom: 8px; }
+.tol-res-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tol-res-col + .tol-res-col { border-left: 1px solid var(--ctp-surface2); padding-left: 12px; margin-left: 12px; }
+.tol-res-col > div { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.tol-res-col span { color: var(--ctp-subtext0); font-size: 12px; }
+.tol-res-col b { font-family: "Consolas", monospace; }
+.tol-res-tol { border-top: 1px solid var(--ctp-surface1); padding-top: 6px; }
+.tol-res-note { color: var(--ctp-subtext0); font-size: 11px; margin-top: 4px; }
+
 /* ── Thread detail box ── */
 .thr-category-row {
   margin-bottom: 10px;

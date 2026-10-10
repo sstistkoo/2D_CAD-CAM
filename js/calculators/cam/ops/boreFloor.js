@@ -147,7 +147,7 @@ export function boreFloorBody({ S, warn, computeCalculation, generateAutoGCode }
   let x = null, bad = null;
   for (const l of body) {
     if (l.simIdx === null || l.simIdx === undefined) continue;
-    const mx = l.text.split(/[;(]/)[0].match(/X(-?\d*\.?\d+)/);
+    const mx = l.text.split(/[;(]/)[0].match(/X=?\+?(-?\d*\.?\d+)/);
     if (mx) x = parseFloat(mx[1]);
     if (x !== null && !boreFits(x / g.k, g.reach, g.r)) { bad = x; break; }
   }

@@ -299,7 +299,9 @@ function makeBroadPhase(stockLoop) {
  *
  * opts: backside (zrcadlení držáku), tolerance [mm², default 0.5],
  * shrink [mm, default 0.05 — zmenšení obrysů proti falešným dotykům],
- * maxIssues (default 12), maxBlocks (default 6000).
+ * maxIssues (default 12), maxBlocks (default 6000). Když se kontrola zastaví dřív
+ * než na konci dráhy, má vrácené pole vlastnost `truncated` ('blocks'|'issues').
+ * Volající to má ukázat — jinak „bez nálezů“ u dlouhého programu lže.
  */
 export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   const issues = [];
@@ -425,7 +427,8 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
 
   let n = 0;
   for (const block of blocks) {
-    if (++n > maxBlocks || issues.length >= maxIssues) break;
+    if (++n > maxBlocks) { issues.truncated = 'blocks'; break; }
+    if (issues.length >= maxIssues) { issues.truncated = 'issues'; break; }
     const pts = dedupe(block.pts);
     if (pts.length < 2) continue;
 

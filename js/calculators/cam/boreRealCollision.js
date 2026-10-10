@@ -80,7 +80,8 @@ export function boreRealCollisions(prms, simPath, part, { maxIssues = 40, maxBlo
   };
   let nBlocks = 0;
   for (const blk of blocks) {
-    if (out.length >= maxIssues || ++nBlocks > maxBlocks) break;
+    if (out.length >= maxIssues) { out.truncated = 'issues'; break; }
+    if (++nBlocks > maxBlocks) { out.truncated = 'blocks'; break; }
     const pts = [];
     for (const p of blk.pts) {
       const l = pts[pts.length - 1];

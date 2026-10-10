@@ -18,6 +18,15 @@ export function openDrillCalc() {
   });
 
   const body =
+    '<details class="calc-details" id="drillPresets">' +
+      '<summary>📋 Základní vrtáky <small>(klikni na řádek pro úhel špičky)</small></summary>' +
+      '<div class="cnc-table-wrap cnc-table-tall">' +
+        '<table class="cnc-table" id="drillPresetTbl"><thead><tr><th>Vrták / materiál</th><th>σ</th><th>Typ</th></tr></thead>' +
+        '<tbody>' + presetRows + '</tbody></table>' +
+      '</div>' +
+      '<div class="calc-note">Typ šroubovice: N normální (ocel, litina), H malé stoupání (mosaz, plasty), ' +
+        'W velké stoupání (hliník, měď). Úhly jsou orientační – rozhoduje katalog výrobce.</div>' +
+    '</details>' +
     '<div class="cnc-fields">' +
       field('D', 'Ø D', 'mm', 'Průměr vrtáku') +
       field('a', 'σ', '°', 'Úhel špičky', ' value="118"') +
@@ -37,14 +46,7 @@ export function openDrillCalc() {
     '<div class="cnc-actions">' +
       '<button class="cnc-btn cnc-btn-clear">🗑 Vymazat</button>' +
       '<button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button>' +
-    '</div>' +
-    '<div class="cnc-table-label">Základní vrtáky <small>(klikni pro úhel špičky)</small></div>' +
-    '<div class="cnc-table-wrap cnc-table-tall">' +
-      '<table class="cnc-table" id="drillPresetTbl"><thead><tr><th>Vrták / materiál</th><th>σ</th><th>Typ</th></tr></thead>' +
-      '<tbody>' + presetRows + '</tbody></table>' +
-    '</div>' +
-    '<div class="calc-note">Typ šroubovice: N normální (ocel, litina), H malé stoupání (mosaz, plasty), ' +
-      'W velké stoupání (hliník, měď). Úhly jsou orientační – rozhoduje katalog výrobce.</div>';
+    '</div>';
 
   const overlay = makeOverlay('drill', '⬇ Vrták – geometrie špičky', body);
   if (!overlay) return;
@@ -124,6 +126,8 @@ export function openDrillCalc() {
         row('Délka hlavního břitu', fmt(drillLipLength(D, a)) + ' mm');
     }
     html += notes;
+    // Špička je kužel: každých 0,1 mm hloubky přidá 0,1·2·tan(σ/2) na průměr
+    if (a < 180) html += row('Zvětšení Ø na každých 0,1 mm hloubky', '+' + fmt(drillDiameterAtDepth(0.1, a), 3) + ' mm');
     if (dEdge !== null) {
       html += full
         ? row('V hloubce ' + fmt(hEdge) + ' už plný Ø', fmt(D) + ' mm')

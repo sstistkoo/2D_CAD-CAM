@@ -81,8 +81,9 @@ export function boreGeom(prms, chain = null) {
     // je co vyvrtat (body uvnitř předvrtání — dno vrtané díry — se nepočítají).
     const pts = cad.flatMap(s => [s.p1, s.p2]);
     zF = cad[0].p1.z;
-    D = 2 * Math.max(...pts.map(p => p.x));
-    const cut = pts.filter(p => p.x > r0 + 0.01);
+    const xs = pts.map(p => p.x).filter(Number.isFinite);
+    D = xs.length ? 2 * Math.max(...xs) : 0;
+    const cut = pts.filter(p => Number.isFinite(p.x) && Number.isFinite(p.z) && p.x > r0 + 0.01);
     L = cut.length ? Math.max(...cut.map(p => s * (zF - p.z))) : 0;
   }
   const r = D / 2;
@@ -313,12 +314,12 @@ export function unmirrorBoreLine(text, kRef, s = 1) {
   let code = ci < 0 ? text : text.slice(0, ci);
   const rest = ci < 0 ? '' : text.slice(ci);
   if (s > 0) code = code.replace(/\bG0?([23])\b/g, (m, d) => m.replace(d, d === '2' ? '3' : '2'));
-  code = code.replace(/X(-?\d*\.?\d+)/g, (_, v) => {
+  code = code.replace(/X=?\+?(-?\d*\.?\d+)/g, (_, v) => {
     const x = kRef - parseFloat(v);
     return 'X' + (Math.abs(x) < 5e-4 ? 0 : x).toFixed(3);
   });
   if (s < 0) {
-    code = code.replace(/Z(-?\d*\.?\d+)/g, (_, v) => {
+    code = code.replace(/Z=?\+?(-?\d*\.?\d+)/g, (_, v) => {
       const z = -parseFloat(v);
       return 'Z' + (Math.abs(z) < 5e-4 ? 0 : z).toFixed(3);
     });
@@ -397,11 +398,11 @@ function clampRapidsToSafeRadius(body, g) {
   for (const l of body) {
     const ci = l.text.search(/[;(]/);
     const code = ci < 0 ? l.text : l.text.slice(0, ci);
-    const mz = code.match(/Z(-?\d*\.?\d+)/);
-    const mx = code.match(/X(-?\d*\.?\d+)/);
+    const mz = code.match(/Z=?\+?(-?\d*\.?\d+)/);
+    const mx = code.match(/X=?\+?(-?\d*\.?\d+)/);
     const zNew = mz ? parseFloat(mz[1]) : z;
     if (/\bG0?0\b/.test(code) && mx && zNew !== null && inHole(g, zNew) && parseFloat(mx[1]) / g.k < g.rIn - 1e-6) {
-      l.text = code.replace(/X(-?\d*\.?\d+)/, 'X' + (g.k * g.rIn).toFixed(3)) + (ci < 0 ? '' : l.text.slice(ci));
+      l.text = code.replace(/X=?\+?(-?\d*\.?\d+)/, 'X' + (g.k * g.rIn).toFixed(3)) + (ci < 0 ? '' : l.text.slice(ci));
     }
     z = zNew;
   }
@@ -444,7 +445,7 @@ export function emitBore(ctx) {
     for (const l of body) {
       if (l.simIdx === null || l.simIdx === undefined) continue;
       const code = l.text.split(/[;(]/)[0];
-      const mx = code.match(/X(-?\d*\.?\d+)/), mz = code.match(/Z(-?\d*\.?\d+)/);
+      const mx = code.match(/X=?\+?(-?\d*\.?\d+)/), mz = code.match(/Z=?\+?(-?\d*\.?\d+)/);
       if (mx) x = parseFloat(mx[1]);
       if (mz) z = parseFloat(mz[1]);
       if (x !== null && z !== null && inHole(g, z) && !boreFits(x / g.k, g.reach, g.r0)) { bad = { x, z }; break; }
