@@ -102,6 +102,15 @@ describe('runCncExport – řetězení a značky', () => {
     state.selected = null;
   });
 
+  it('díra těsně za mezerou v profilu se hlásí jako boreSuspect (10. 10. 2026)', async () => {
+    const { bridge } = await import('../js/bridge.js');
+    state.objects = [L(0, 0, 50, 0.5), L(50, 0, 50, 10), L(50, 10, 0, 10)];
+    state.selected = null; state.multiSelected = new Set(); state.intersections = [];
+    expect(bridge.buildCamTransfer().boreSuspect.length).toBe(1);
+    state.objects = [L(0, 0, 50, 0), L(50, 0, 50, 10), L(50, 10, 0, 10)];
+    expect(bridge.buildCamTransfer().boreSuspect.length).toBe(0);
+  });
+
   it('hlavička editoru je stručná, polotovar je mezi STOCK_START/STOCK_END bez prefixu u řádků', () => {
     state.objects = [
       L(0, 0, 50, 0), L(50, 0, 50, 10),
@@ -141,5 +150,37 @@ describe('runCncExport – znaménko R u oblouku přes 180°', () => {
     state.objects = [{ type: 'polyline', vertices: [{ x: 40, y: 20 }, { x: 60, y: 20 }], bulges: [2], closed: false, name: 'P' }];
     const [r] = rOf(runCncExport());
     expect(r).toBeLessThan(0);
+  });
+});
+
+describe('withLinkedEnds – vyrovnání táhne navazující konce (10. 10. 2026)', () => {
+  let moveLinkedEnds, withLinkedEnds, getLineSegment;
+  beforeAll(async () => { ({ moveLinkedEnds, withLinkedEnds, getLineSegment } = await import('../js/tools/helpers.js')); });
+  it('posunutý konec táhne navazující úsečku, vzdálené nechá', () => {
+    const a = L(0, 0, 50, 3), b = L(50, 3, 100, 3), c = L(200, 0, 210, 0);
+    state.objects = [a, b, c];
+    const ls = withLinkedEnds(getLineSegment(a, 25, 1.5), a);
+    ls.setP2(50, 0);
+    expect([a.x2, a.y2]).toEqual([50, 0]);
+    expect([b.x1, b.y1]).toEqual([50, 0]);
+    expect([b.x2, b.y2]).toEqual([100, 3]);
+    expect([c.x1, c.x2]).toEqual([200, 210]);
+  });
+  it('polyline se hýbe taky; polotovar a kóty ne', () => {
+    const a = L(0, 0, 50, 3);
+    const pl = { type: 'polyline', vertices: [{ x: 50, y: 3 }, { x: 80, y: 3 }], bulges: [0] };
+    const st = L(50, 3, 60, 3, { isStock: true });
+    const dm = L(50, 3, 60, 9, { isDimension: true });
+    state.objects = [a, pl, st, dm];
+    withLinkedEnds(getLineSegment(a, 25, 1), a).setP2(50, 0);
+    expect(pl.vertices[0]).toEqual({ x: 50, y: 0 });
+    expect([st.x1, st.y1]).toEqual([50, 3]);
+    expect([dm.x1, dm.y1]).toEqual([50, 3]);
+  });
+  it('moveLinkedEnds bez shody nic nemění', () => {
+    const b = L(10, 10, 20, 20);
+    state.objects = [b];
+    moveLinkedEnds(0, 0, 5, 5, null);
+    expect([b.x1, b.y1, b.x2, b.y2]).toEqual([10, 10, 20, 20]);
   });
 });

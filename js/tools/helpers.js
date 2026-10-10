@@ -62,6 +62,44 @@ export function getLineSegment(obj, wx, wy) {
   return null;
 }
 
+const LINK_TOL = 0.01; // shodné s tolerancí findContourGaps / řetězení kontury
+
+/**
+ * Posune koncové body ostatních úseček/polyline, které ležely na (ox, oy),
+ * na (nx, ny) – kontura po úpravě konce dál navazuje (jinak v ní vznikne
+ * mezera a díl by se do CAM nepřenesl celý). Oblouky se nehýbou (změnily by tvar).
+ */
+export function moveLinkedEnds(ox, oy, nx, ny, skipObj) {
+  const at = (x, y) => Math.abs(x - ox) < LINK_TOL && Math.abs(y - oy) < LINK_TOL;
+  for (const o of state.objects) {
+    if (o === skipObj && o.type !== 'polyline') continue;
+    if (skipObj && !!o.isStock !== !!skipObj.isStock) continue;
+    if (o.isDimension || o.isCoordLabel) continue;
+    if (o.type === 'line') {
+      if (at(o.x1, o.y1)) { o.x1 = nx; o.y1 = ny; }
+      if (at(o.x2, o.y2)) { o.x2 = nx; o.y2 = ny; }
+    } else if (o.type === 'polyline') {
+      for (const v of o.vertices) if (at(v.x, v.y)) { v.x = nx; v.y = ny; }
+    }
+  }
+}
+
+/**
+ * Obalí setP1/setP2 segmentu tak, aby s posunutým koncem jely i navazující
+ * konce jiných úseček (viz moveLinkedEnds). Pro nástroje vyrovnání
+ * (vodorovně / svisle / rovnoběžně); ostatní nástroje (ořez, prodloužení)
+ * používají getLineSegment bez obalu.
+ */
+export function withLinkedEnds(ls, obj) {
+  if (!ls) return ls;
+  const { x1, y1, x2, y2 } = ls.seg;
+  return {
+    ...ls,
+    setP1: (x, y) => { moveLinkedEnds(x1, y1, x, y, obj); ls.setP1(x, y); },
+    setP2: (x, y) => { moveLinkedEnds(x2, y2, x, y, obj); ls.setP2(x, y); },
+  };
+}
+
 // ── Vazby (constraints) – helper ──
 /** Nastaví vazbu na objekt/segment.
  *  Pro úsečky: obj.constraint = type

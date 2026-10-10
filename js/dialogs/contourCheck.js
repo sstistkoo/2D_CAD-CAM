@@ -236,20 +236,26 @@ export function openCamFromDrawing(openCam) {
 function _transferMainProfile(openCam) {
   const res = bridge.buildCamTransfer ? bridge.buildCamTransfer() : null;
   if (!res || typeof res !== 'object') { openCam(res || undefined); return; }
-  if (res.leftovers.length === 0) { openCam(res.code); return; }
+  const suspect = res.boreSuspect || [];
+  if (res.leftovers.length === 0 && suspect.length === 0) { openCam(res.code); return; }
   const view = _saveView();
-  state.camLeftovers = res.leftovers;
-  const n = res.leftovers.length;
-  const msg = `Do CAM půjde jen hlavní souvislý profil. ${n} ${_plural(n, 'čára na něj nenavazuje', 'čáry na něj nenavazují', 'čar na něj nenavazuje')} `
-    + '(vyznačeno fialově „mimo profil") a do CAM ' + _plural(n, 'nepůjde', 'nepůjdou', 'nepůjde') + '.\n\n'
-    + 'Patří-li k profilu, je v kontuře mezera — vraťte se do výkresu a spojte ji.';
+  const shown = res.leftovers.length > 0 ? res.leftovers : suspect;
+  state.camLeftovers = shown;
+  const n = shown.length;
+  const msg = res.leftovers.length > 0
+    ? `Do CAM půjde jen hlavní souvislý profil. ${n} ${_plural(n, 'čára na něj nenavazuje', 'čáry na něj nenavazují', 'čar na něj nenavazuje')} `
+      + '(vyznačeno fialově „mimo profil") a do CAM ' + _plural(n, 'nepůjde', 'nepůjdou', 'nepůjde') + '.\n\n'
+      + 'Patří-li k profilu, je v kontuře mezera — vraťte se do výkresu a spojte ji.'
+    : `Vyznačené čáry (${n}) končí těsně u konce profilu, ale nenavazují na něj — v kontuře je mezera. `
+      + 'Do CAM půjdou jako samostatná DÍRA pro vyvrtávání, ne jako součást kontury.\n\n'
+      + 'Patří-li k profilu, vraťte se do výkresu a mezeru spojte.';
   showConfirmDialog(msg, () => {
     state.camLeftovers = [];
     _restoreView(view);
     renderAll();
     openCam(res.code);
   }, {
-    confirmLabel: 'Otevřít CAM bez nich',
+    confirmLabel: res.leftovers.length > 0 ? 'Otevřít CAM bez nich' : 'Otevřít CAM i tak',
     cancelLabel: 'Zpět do výkresu',
     danger: false,
     peek: true,
@@ -257,7 +263,7 @@ function _transferMainProfile(openCam) {
     // výkresu (runCncExport → _reportContourIssues).
     onCancel: () => renderAll(),
   });
-  _zoomTo(res.leftovers);
+  _zoomTo(shown);
   renderAll();
 }
 

@@ -768,6 +768,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   else _reportContourIssues(dups, dupSet);
   const camLeftovers = []; // forCam: položky kontury mimo hlavní profil
   const boreItems = [];    // forCam: samostatný řetěz díry (sekce DIRA_START…DIRA_END)
+  const camBoreSuspect = []; // forCam: „díra" těsně za mezerou v profilu (pravděpodobně kus kontury)
 
   const isInc = state.cncOutputMode === 'inc';
   // Spodní obrábění (X+ dolů / zadní nožová hlava) nebo otočená osa Z: zrcadlení
@@ -1151,7 +1152,21 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       // Díra pro vyvrtávání nakreslená jako SAMOSTATNÝ řetěz jde do CAM
       // zvlášť (sekce DIRA, cam/boreContour.js), ne mezi „mimo profil".
       const bore = _findBoreChain(chains.filter(ch => ch !== main), main);
-      if (bore) boreItems.push(...bore);
+      if (bore) {
+        boreItems.push(...bore);
+        // Díra, jejíž konec leží těsně u volného konce hlavního profilu (do 1 mm,
+        // ale ne přesně), je skoro jistě kus kontury za MEZEROU — CAM by ji
+        // tiše vzal jako vyvrtávání. Hlásí se v dialogu (contourCheck.js).
+        const mEp = [_getEp(main[0]), _getEp(main[main.length - 1])];
+        const mainEnds = [{ x: mEp[0].sx, y: mEp[0].sy }, { x: mEp[1].ex, y: mEp[1].ey }];
+        const bEp = [_getEp(bore[0]), _getEp(bore[bore.length - 1])];
+        const boreEnds = [{ x: bEp[0].sx, y: bEp[0].sy }, { x: bEp[1].ex, y: bEp[1].ey }];
+        const near = mainEnds.some(m => boreEnds.some(b => {
+          const d = Math.hypot(m.x - b.x, m.y - b.y);
+          return d >= EPS && d < 1;
+        }));
+        if (near) camBoreSuspect.push(...bore);
+      }
       for (const ch of chains) if (ch !== main && ch !== bore) camLeftovers.push(...ch);
       camLeftovers.push(...rest);
       main.forEach(o => items.push(o));
@@ -1410,7 +1425,11 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     out += "\n; === Konec ===\n";
   }
   if (forCam) {
-    return { code: out, leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))] };
+    return {
+      code: out,
+      leftovers: [...new Set(camLeftovers.map(it => it._src).filter(Boolean))],
+      boreSuspect: [...new Set(camBoreSuspect.map(it => it._src).filter(Boolean))],
+    };
   }
   // Editor z Kalkulaček: zhuštěný zápis (modální G, jen měněné osy); panel CNC KÓD se nepřepisuje
   if (asDrawn) {

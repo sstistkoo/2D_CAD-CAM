@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   s materiálem, zajetí do kontury) a při nálezu se nevydá, ale nahlásí se.
 - **Vnitřní nůž má příznak `toolInternal`** (katalog → zásobník → parametry): náhledy tyče ostřím
   nahoru už nestojí jen na tvaru držáku (starý slot bez příznaku se dál pozná podle tvaru).
+- **Vyrovnání (vodorovně/svisle/rovnoběžně) trhalo konturu:** posunutý konec úsečky nechal sousední
+  úsečky/polyline na místě → mezera. Navazující konce se teď posunou s ním (oblouky, polotovar a kóty ne).
+- **Přenos do CAM: kus za mezerou se tiše stal „dírou":** leží-li oddělený řetěz těsně (do 1 mm) u konce
+  profilu, program na to před otevřením CAM upozorní (lze se vrátit a mezeru spojit).
 - **Přenos CAD → CAM bral jen označené úsečky:** po „vyrovnat kolmě" zůstala úsečka označená
   a do CAM přišla jen ona. Přenos do CAM teď vždy bere celý profil (označení se ignoruje).
 - **Úběr materiálu u vyvrtávání/vrtání s odlitkem nakresleným jen čárou:** polotovar bez plochy

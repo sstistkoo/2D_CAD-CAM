@@ -7,7 +7,7 @@ import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
-import { getLineSegment, setConstraint, propagateConstraints, analyzeSelection } from './helpers.js';
+import { getLineSegment, withLinkedEnds, setConstraint, propagateConstraints, analyzeSelection } from './helpers.js';
 import { isAnchored } from './anchorClick.js';
 
 export function handleParallelClick(wx, wy) {
@@ -16,7 +16,7 @@ export function handleParallelClick(wx, wy) {
     const idx = findObjectAt(wx, wy);
     if (idx === null) { showToast("Klepněte na úsečku"); return; }
     const obj = state.objects[idx];
-    const ls = getLineSegment(obj, wx, wy);
+    const ls = withLinkedEnds(getLineSegment(obj, wx, wy), obj);
     if (!ls) {
       showToast("Rovnoběžka funguje pouze pro úsečky a rovné segmenty kontur");
       return;
@@ -140,6 +140,7 @@ export function parallelFromSelection() {
       ls1 = getLineSegment(obj1, (obj1.x1 + obj1.x2) / 2, (obj1.y1 + obj1.y2) / 2);
     }
     if (!ls1) return false;
+    ls1 = withLinkedEnds(ls1, obj1);
 
     const refAngle = Math.atan2(info2.y2 - info2.y1, info2.x2 - info2.x1);
     const curAngle = Math.atan2(ls1.seg.y2 - ls1.seg.y1, ls1.seg.x2 - ls1.seg.x1);

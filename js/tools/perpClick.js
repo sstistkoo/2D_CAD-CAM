@@ -5,7 +5,7 @@
 import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
-import { getLineSegment, setConstraint, propagateConstraints, analyzeSelection } from './helpers.js';
+import { getLineSegment, withLinkedEnds, setConstraint, propagateConstraints, analyzeSelection } from './helpers.js';
 import { showEndpointChoiceDialog } from '../dialogs.js';
 import { isAnchored } from './anchorClick.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
@@ -17,7 +17,7 @@ export function handlePerpClick(wx, wy) {
   const idx = findObjectAt(wx, wy);
   if (idx === null) { showToast("Klepněte na úsečku nebo segment kontury"); return; }
   const obj = state.objects[idx];
-  const ls = getLineSegment(obj, wx, wy);
+  const ls = withLinkedEnds(getLineSegment(obj, wx, wy), obj);
   if (!ls) {
     showToast("Kolmost funguje pouze pro úsečky a rovné segmenty kontur");
     return;
@@ -92,6 +92,7 @@ export function perpFromSelection() {
     ls = getLineSegment(obj, (obj.x1 + obj.x2) / 2, (obj.y1 + obj.y2) / 2);
   }
   if (!ls) return false;
+  ls = withLinkedEnds(ls, obj);
 
   const len = Math.hypot(ls.seg.x2 - ls.seg.x1, ls.seg.y2 - ls.seg.y1);
   if (len < 1e-9) { showToast("Segment má nulovou délku"); return true; }
