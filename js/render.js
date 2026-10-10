@@ -2956,9 +2956,12 @@ function drawConstraintMarkers() {
 
     // Úsečky s vazbou
     if (obj.constraint && (obj.type === 'line' || obj.type === 'constr')) {
-      const pos = _constraintMarkerPos(obj.x1, obj.y1, obj.x2, obj.y2);
       const isSel = isSelConstr && isSelConstr.objIdx === idx && isSelConstr.segIdx === null;
-      _drawConstraintIcon(pos.x, pos.y, obj.constraint, markerSize, isSel);
+      _tintConstrainedSegment(obj.x1, obj.y1, obj.x2, obj.y2, obj.constraint);
+      if (isSel) {
+        const pos = _constraintMarkerPos(obj.x1, obj.y1, obj.x2, obj.y2);
+        _drawConstraintIcon(pos.x, pos.y, obj.constraint, markerSize, isSel);
+      }
     }
 
     // Kontury se segmentovými vazbami
@@ -2969,12 +2972,34 @@ function drawConstraintMarkers() {
         const p1 = obj.vertices[i];
         const p2 = obj.vertices[(i + 1) % n];
         if (!p1 || !p2) continue;
-        const pos = _constraintMarkerPos(p1.x, p1.y, p2.x, p2.y);
         const isSel = isSelConstr && isSelConstr.objIdx === idx && isSelConstr.segIdx === i;
-        _drawConstraintIcon(pos.x, pos.y, type, markerSize, isSel);
+        _tintConstrainedSegment(p1.x, p1.y, p2.x, p2.y, type);
+        if (isSel) {
+          const pos = _constraintMarkerPos(p1.x, p1.y, p2.x, p2.y);
+          _drawConstraintIcon(pos.x, pos.y, type, markerSize, isSel);
+        }
       }
     }
   });
+}
+
+/** Vazba se místo ikony ukazuje jemným barevným přetónováním úsečky
+ *  (zelená = vodorovná, fialová = svislá, žlutá = rovnoběžná). */
+function _tintConstrainedSegment(x1, y1, x2, y2, type) {
+  const color = type === 'horizontal' ? COLORS.axisH
+    : type === 'vertical' ? COLORS.snapEdge
+    : COLORS.yellow;
+  const [ax, ay] = worldToScreen(x1, y1);
+  const [bx, by] = worldToScreen(x2, y2);
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** Vykreslí ikonu vazby na daných world-souřadnicích (přímo, bez dalšího offsetu). */

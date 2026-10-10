@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vazby (vodorovně/svisle/rovnoběžně):** místo ikony u úsečky se vazba ukazuje jemným
+  barevným přetónováním úsečky (zelená / fialová / žlutá); ikona zůstane jen u vybrané vazby.
 - **Kalkulačka Tolerance:** v tabulce ISO 2768-1 je sloupec **m** zvýrazněn rámečkem;
   řádek `Díra | rozměr | Hřídel` místo malého pole; výsledek přeuspořádán (druh + Ø rozměr
   a třída, vlevo úchylky, vpravo Ø max/min, dole tolerance). Sekce „Uložení" odstraněna.
@@ -16,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přibyl řádek „Zvětšení Ø na každých 0,1 mm hloubky" (0,2·tan(σ/2)).
 
 ### Fixed
+- **Přenos CAD → CAM bral jen označené úsečky:** po „vyrovnat kolmě" zůstala úsečka označená
+  a do CAM přišla jen ona. Přenos do CAM teď vždy bere celý profil (označení se ignoruje).
 - **Úběr materiálu u vyvrtávání/vrtání s odlitkem nakresleným jen čárou:** polotovar bez plochy
   dal degenerovanou smyčku a celý obrobek byl černý bez výplně i úběru. Základem je
   teď polotovar ∪ nakreslený díl ∪ DÍRA (`boreHoleLoop`): hotový kalíšek díru jako

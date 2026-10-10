@@ -752,8 +752,10 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     selectedIndices.add(state.selected);
   }
   // Editor z Kalkulaček (asDrawn) dostává VŽDY celé plátno – označené objekty
-  // se v něm jen zvýrazní (viz _asDrawnSelLabels níže).
-  let exportObjects = selectedIndices.size > 0 && !asDrawn
+  // se v něm jen zvýrazní (viz _asDrawnSelLabels níže). Přenos do CAM (forCam)
+  // taky VŽDY celý profil: po „vyrovnat" zůstane úsečka označená a do CAM by
+  // pak přišla jen ona (nález 10. 10. 2026, mobil).
+  let exportObjects = selectedIndices.size > 0 && !asDrawn && !forCam
     ? state.objects.filter((_, i) => selectedIndices.has(i))
     : state.objects;
 

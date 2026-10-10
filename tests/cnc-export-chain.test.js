@@ -91,6 +91,17 @@ describe('runCncExport – řetězení a značky', () => {
     expect(code.split('\n').filter(l => /\bG0?0\b/.test(l.replace(/;.*$/, ''))).length).toBe(1);
   });
 
+  it('přenos do CAM bere celý profil i když je označena jedna úsečka (10. 10. 2026)', async () => {
+    const { bridge } = await import('../js/bridge.js');
+    state.objects = [L(0, 0, 50, 0), L(50, 0, 50, 10), L(50, 10, 0, 10)];
+    state.selected = 1; state.multiSelected = new Set();
+    const res = bridge.buildCamTransfer();
+    expect(res.code).toContain('Úsečka 1');
+    expect(res.code).toContain('Úsečka 2');
+    expect(res.code).toContain('Úsečka 3');
+    state.selected = null;
+  });
+
   it('hlavička editoru je stručná, polotovar je mezi STOCK_START/STOCK_END bez prefixu u řádků', () => {
     state.objects = [
       L(0, 0, 50, 0), L(50, 0, 50, 10),
