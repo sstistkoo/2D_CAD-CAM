@@ -51,7 +51,7 @@ function nextTip(words, hasPrevMove) {
     ? 'Další bod: G1 X… Z… (úsečka) nebo G2 / G3 X… Z… R… (oblouk).'
     : 'Začni startovním bodem: G0 X… Z…, potom G1 / G2 / G3.';
   if (arc) {
-    if (has('T')) return !has('X') && !has('Z') ? 'Tečný oblouk (T): doplň koncový bod X a Z – střed se dopočte.' : '';
+    if (has('T')) return !has('X') && !has('Z') ? 'Tečný oblouk (T): doplň koncový bod X a Z, nebo R + jedno z X / Z.' : '';
     const rad = has('R') || has('CR'), ik = has('I') || has('K');
     if (rad && ik) return 'Oblouk zadej BUĎ poloměrem R, NEBO středem I + K – ne obojí.';
     if (!rad && !ik) return 'Oblouk potřebuje poloměr R (nebo střed I + K).';
@@ -160,6 +160,7 @@ Z200</pre>
 ${row('G2/G3 … T', 'oblouk, který <b>tečně naváže</b> na předchozí úsečku nebo oblouk. Zadáte jen koncový bod X, Z – střed i poloměr se dopočtou. Nesmí následovat hned po G0.')}
 <pre>G1 Z10
 G3 X10 Z20 T      ; tečný oblouk R10</pre>
+<p>Jde i <b>R + jedna souřadnice</b>: <code>G3 X10 R10 T</code> – G2/G3 určí stranu, R poloměr a druhá souřadnice konce se dopočte (oblouk dojede k první průsečnici).</p>
 <p>Když zvolíte opačné G2/G3, než oblouk vyžaduje, editor to ohlásí. Při přenosu do výkresu se T přepíše na X Z I K se správným G2/G3.</p>
 <h4>Hrany</h4>
 ${row('CHF= / C', 'sražení hrany mezi dvěma řádky (délka sražení).')}

@@ -25,10 +25,35 @@ const T_RE = /(?:^|\s)T(?=\s|$)/;
  * Oblouk tečný ve startu ke směru předchozího pohybu, procházející koncem.
  * Střed leží na kolmici ke směru ve startu: s = |w|² / (2·n·w), w = konec − start.
  */
-function tangentArc(prev, stock, from, to, ccw, kar, flip) {
+function tangentArc(prev, stock, from, to, ccw, kar, flip, spec) {
   const dir = prev && prev.g !== 0 && !!prev.stock === stock ? moveDirDeg(prev, { opts: { karusel: kar } }) : null;
   if (dir === null) return { r: 0, ccw, err: 'T: tečný oblouk potřebuje před sebou úsečku nebo oblouk (ne G0).' };
   const a = dir * Math.PI / 180, d = { z: Math.cos(a), x: Math.sin(a) }, n = { z: -d.x, x: d.z };
+  // T + R + jedna souřadnice (X nebo Z): G2/G3 určí stranu, R poloměr; konec je průsečík
+  // kružnice s přímkou X = konst. / Z = konst. – první, ke kterému oblouk dojede (kratší).
+  const one = spec.hasX !== spec.hasZ;
+  if (spec.R !== null && !spec.hasX && !spec.hasZ) return { r: 0, ccw, err: 'T: k poloměru R doplňte koncové X nebo Z.' };
+  if (spec.R !== null && one) {
+    if (spec.R < EPS) return { r: 0, ccw, err: 'T: poloměr R musí být kladný.' };
+    const left = ccw !== kar;                       // zatáčka doleva ve fyzické rovině (Z, X)
+    const sg = left ? spec.R : -spec.R;
+    const C = { z: from.z + sg * n.z, x: from.x + sg * n.x };
+    const alongZ = spec.hasZ;                       // pevná souřadnice: Z nebo X
+    const fixed = alongZ ? to.z : to.x;
+    const dd = spec.R * spec.R - (fixed - (alongZ ? C.z : C.x)) ** 2;
+    if (dd < -1e-9) return { r: 0, ccw, err: `T: oblouk R${f3(spec.R)} ${alongZ ? 'Z' : 'X'}${f3(fixed)} nedosáhne.` };
+    const sq = Math.sqrt(Math.max(dd, 0));
+    const th = (p) => Math.atan2(p.x - C.x, p.z - C.z), th0 = th(from), dirSign = left ? 1 : -1;
+    let best = null;
+    for (const sgn of sq < 1e-9 ? [0] : [1, -1]) {
+      const E = alongZ ? { z: fixed, x: C.x + sgn * sq } : { x: fixed, z: C.z + sgn * sq };
+      let sw = ((th(E) - th0) * dirSign) % (2 * Math.PI);
+      if (sw < 0) sw += 2 * Math.PI;
+      if (sw < 1e-7) sw = 2 * Math.PI;              // E = start (leží na přímce) – to není dojetí
+      if (!best || sw < best.sw) best = { E, sw };
+    }
+    return { cx: C.x, cz: C.z, r: spec.R, ccw, end: best.E };
+  }
   const w = { z: to.z - from.z, x: to.x - from.x };
   const ww = w.z * w.z + w.x * w.x, nw = n.z * w.z + n.x * w.x;
   if (ww < EPS * EPS) return { r: 0, ccw, err: 'T: koncový bod je stejný jako začátek oblouku.' };
@@ -112,10 +137,13 @@ export function analyzeDrawCode(code, opts = {}) {
       const R = addr(c, 'CR') ?? addr(c, 'R');
       const ccw = (motion === 3) !== !!opts.flip;
       // T = tečné napojení: střed se dopočte z tečnosti ke směru předchozího pohybu.
-      const tArc = T_RE.test(c) ? tangentArc(moves[moves.length - 1], stock, from, to, ccw, kar, !!opts.flip) : null;
+      const tArc = T_RE.test(c)
+        ? tangentArc(moves[moves.length - 1], stock, from, to, ccw, kar, !!opts.flip, { hasX: X !== null, hasZ: Z !== null, R: R === null ? null : Math.abs(R) })
+        : null;
       if (tArc) {
         mv.arc = tArc;
         mv.tangent = true;
+        if (tArc.end) { to = tArc.end; mv.to = to; pos = to; }   // konec dopočtený z R a jedné souřadnice
       } else if (I !== null || K !== null) {
         const cen = { x: from.x + (I ?? 0) / xs, z: from.z + (K ?? 0) };
         const r = Math.hypot(from.x - cen.x, from.z - cen.z);
@@ -136,7 +164,7 @@ export function analyzeDrawCode(code, opts = {}) {
       if (mv.arc && !mv.arc.err && mv.arc.cx !== undefined) {
         const ws = toW(from), we = toW(to), wc = toW({ x: mv.arc.cx, z: mv.arc.cz });
         const a1 = Math.atan2(ws.y - wc.y, ws.x - wc.x), a2 = Math.atan2(we.y - wc.y, we.x - wc.x);
-        let sw = ccw ? a2 - a1 : a1 - a2;
+        let sw = mv.arc.ccw ? a2 - a1 : a1 - a2;   // smysl oblouku (u T z tečnosti, ne z G2/G3)
         while (sw <= EPS) sw += 2 * Math.PI;
         mv.arc.sweep = sw;
         mv.arc.a1 = a1; mv.arc.a2 = a2;

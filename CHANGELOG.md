@@ -27,7 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CAD editor: tečný oblouk (T).** `G3 X10 Z20 T` = oblouk tečně navazující na předchozí úsečku
   nebo oblouk; střed a poloměr se dopočtou z koncového bodu (stejný princip jako T ve Volné
   kontuře). Nesouhlasí-li G2/G3, editor to ohlásí; po G0 hlásí chybu. Při přenosu do výkresu se T
-  přepíše na X Z I K se správným G2/G3. Klávesa T je v prvním řádku kláves, kopírování celého kódu
+  přepíše na X Z I K se správným G2/G3.
+  Jde i **R + jedna souřadnice** (`G3 X10 R10 T`): G2/G3 určí stranu, R poloměr a druhá souřadnice
+  konce se dopočte (první průsečnice po směru oblouku). Opraveno: při opačném G2/G3 u T se výseč
+  počítala z G-kódu místo z tečnosti. Klávesa T je v prvním řádku kláves, kopírování celého kódu
   (📋 vše) je v liště údajů.
 
 ### Fixed
