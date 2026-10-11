@@ -117,71 +117,89 @@ export function lineHint(raw, caret, o = {}) {
   return res;
 }
 
-/** Celá nápověda k zápisu (okno z pravého panelu). Statické HTML. */
+/** Zkratka nahoře v nápovědě: co všechno jde zapsat (klepnutí na štítek vyhledá vysvětlení). */
+const QUICK = [
+  ['Pohyby', ['G0', 'G1', 'G2', 'G3']],
+  ['Režim', ['G90', 'G91']],
+  ['Souřadnice', ['X', 'Z']],
+  ['Oblouk', ['R', 'I', 'K', 'T']],
+  ['Úhel', ['PU', 'L']],
+  ['Hrany', ['CHF', 'RND']],
+  ['Výrazy', ['X=10+5', 'R1=20', 'SIN', 'SQRT']],
+  ['Značky', [';', 'KONTURA_START', 'STOCK_START']],
+  ['Tlačítka', ['∠', '🔗', '⌐', '🎯']],
+];
+
+/** Celá nápověda k zápisu (okno z pravého panelu). Statické HTML; sekce a položky se dají filtrovat. */
 export function helpHTML() {
-  const row = (k, t) => `<div class="cne-help-row"><b>${k}</b><span>${t}</span></div>`;
-  return `
-<h4>Jak se píše obrys</h4>
-<p>Každý řádek je jeden pohyb. Obrys začíná <b>startovním bodem</b> (G0), pak následují úsečky a oblouky. Pořadí řádků = pořadí na obrysu.</p>
-<pre>G90 G0 X0 Z30     ; start
+  const row = (k, t) => `<div class="cne-help-item cne-help-row"><b>${k}</b><span>${t}</span></div>`;
+  const p = t => `<div class="cne-help-item"><p>${t}</p></div>`;
+  const pre = t => `<div class="cne-help-item"><pre>${t}</pre></div>`;
+  const sec = (title, ...items) => `<section class="cne-help-sec"><h4>${title}</h4>${items.join('')}</section>`;
+  const quick = `<div class="cne-help-quick">${QUICK.map(([g, ts]) =>
+    `<div class="cne-hq-group"><small>${g}</small>${ts.map(t => `<button type="button" data-act="helpQ" data-q="${t}">${t}</button>`).join('')}</div>`).join('')}</div>`;
+  return quick + [
+    sec('Jak se píše obrys',
+      p('Každý řádek je jeden pohyb. Obrys začíná <b>startovním bodem</b> (G0), pak následují úsečky a oblouky. Pořadí řádků = pořadí na obrysu.'),
+      pre(`G90 G0 X0 Z30     ; start
 G1 X20 Z30        ; úsečka
 G1 X20 Z10
 G2 X30 Z0 R10     ; oblouk po směru hodin
-G1 X30 Z-20</pre>
-<h4>Pohyby</h4>
-${row('G0', 'rychloposuv bez řezání. První řádek = <b>startovní bod</b>.')}
-${row('G1', 'úsečka (lineární posuv) do bodu X, Z.')}
-${row('G2', 'oblouk <b>po směru hodin</b> ↻ do bodu X, Z.')}
-${row('G3', 'oblouk <b>proti směru hodin</b> ↺ do bodu X, Z.')}
-<h4>Souřadnice</h4>
-${row('G90', 'absolutní – X, Z jsou polohy od nulového bodu.')}
-${row('G91', 'přírůstkové – X, Z jsou posuny od předchozího bodu.')}
-${row('X', 'poloha v ose X (poloměr nebo průměr – podle nastavení „X displej“). Chybí-li, X se nemění.')}
-${row('Z', 'poloha v ose Z (délka). Chybí-li, Z se nemění.')}
-<h4>Oblouk – dvě možnosti zadání</h4>
-${row('R', 'poloměr oblouku. Záporný = delší oblouk (nad 180°).')}
-${row('I, K', 'střed oblouku jako posun od <b>začátku</b> oblouku: I v ose X, K v ose Z.')}
-<p>Zadej <b>buď R, nebo I + K</b> – ne obojí.</p>
-<pre>G2 X30 Z0 R10
-G2 X30 Z0 I10 K0</pre>
-<h4>Úsečka úhlem a spojení v průsečíku</h4>
-${row('PU, L', 'úsečka polárně: <b>PU</b> = úhel od +Z (proti směru hodin), <b>L</b> = délka (místo L jde zadat cílové X nebo Z). Bez G je to G1.')}
-${row('🔗', 'jedno tlačítko v horní liště, vždy u kurzoru: na řádku se sražením/zaoblením (CHF/RND) ho převede na dráhu; na druhé ze dvou křížících se úseček je <b>ořízne v průsečíku a spojí</b> do jedné kontury.')}
-<pre>G0 X0 Z0
+G1 X30 Z-20`)),
+    sec('Pohyby',
+      row('G0', 'rychloposuv bez řezání. První řádek = <b>startovní bod</b>.'),
+      row('G1', 'úsečka (lineární posuv) do bodu X, Z.'),
+      row('G2', 'oblouk <b>po směru hodin</b> ↻ do bodu X, Z.'),
+      row('G3', 'oblouk <b>proti směru hodin</b> ↺ do bodu X, Z.')),
+    sec('Souřadnice',
+      row('G90', 'absolutní – X, Z jsou polohy od nulového bodu.'),
+      row('G91', 'přírůstkové – X, Z jsou posuny od předchozího bodu.'),
+      row('X', 'poloha v ose X (poloměr nebo průměr – podle nastavení „X displej“). Chybí-li, X se nemění.'),
+      row('Z', 'poloha v ose Z (délka). Chybí-li, Z se nemění.')),
+    sec('Oblouk – dvě možnosti zadání',
+      row('R', 'poloměr oblouku. Záporný = delší oblouk (nad 180°).'),
+      row('I, K', 'střed oblouku jako posun od <b>začátku</b> oblouku: I v ose X, K v ose Z.'),
+      p('Zadej <b>buď R, nebo I + K</b> – ne obojí.'),
+      pre(`G2 X30 Z0 R10
+G2 X30 Z0 I10 K0`)),
+    sec('Úsečka úhlem (PU, L) a spojení v průsečíku',
+      row('PU, L', 'úsečka polárně: <b>PU</b> = úhel od +Z (proti směru hodin), <b>L</b> = délka (místo L jde zadat cílové X nebo Z). Bez G je to G1.'),
+      row('∠', 'tlačítko <b>Úsečka úhlem</b>: Polární (od +Z), nebo Od předchozí (odklon vlevo / vpravo od směru předchozího pohybu).'),
+      row('🔗', 'jedno tlačítko v horní liště, vždy u kurzoru: na řádku se sražením/zaoblením (CHF/RND) ho převede na dráhu; na druhé ze dvou křížících se úseček je <b>ořízne v průsečíku a spojí</b> do jedné kontury. Funguje i s obloukem a kružnicí (plná kružnice = G2/G3 se stejným začátkem a koncem + I, K). Platí první průsečík po první úsečce.'),
+      pre(`G0 X0 Z0
 G1 PU45 L1200     ; 1. úsečka
 G0 X50 Z200       ; začátek 2. úsečky
 PU180 L1200       ; 2. úsečka   ← kurzor sem, klik na 🔗
 →
 G0 X0 Z0
 G1 X50 Z50
-Z200</pre>
-<p>PU/L se před přenosem do výkresu samy přepíšou na X, Z.</p>
-<h4>Tečný oblouk (T)</h4>
-${row('G2/G3 … T', 'oblouk, který <b>tečně naváže</b> na předchozí úsečku nebo oblouk. Zadáte jen koncový bod X, Z – střed i poloměr se dopočtou. Nesmí následovat hned po G0.')}
-<pre>G1 Z10
-G3 X10 Z20 T      ; tečný oblouk R10</pre>
-<p>Jde i <b>R + jedna souřadnice</b>: <code>G3 X10 R10 T</code> – G2/G3 určí stranu, R poloměr a druhá souřadnice konce se dopočte (oblouk dojede k první průsečnici).</p>
-<p>Když zvolíte opačné G2/G3, než oblouk vyžaduje, editor to ohlásí. Při přenosu do výkresu se T přepíše na X Z I K se správným G2/G3.</p>
-<h4>Výrazy a R-parametry</h4>
-${row('X=10+5', 'hodnotu lze zadat výrazem: <code>X=20/3</code>, <code>Z[2*5]</code>, <code>X10+5</code>. Funkce: SIN, COS, TAN, ASIN, ACOS, ATAN (ve stupních), SQRT, ABS, LN, LOG, PI, mocnina <code>^</code>.')}
-${row('R1=20', 'parametr; použití <code>X=R1*2</code>. Musí být zapsán na dřívějším řádku než použití.')}
-<pre>R1=30
+Z200`),
+      p('PU/L se před přenosem do výkresu samy přepíšou na X, Z.')),
+    sec('Tečný oblouk (T)',
+      row('G2/G3 … T', 'oblouk, který <b>tečně naváže</b> na předchozí úsečku nebo oblouk. Zadáte jen koncový bod X, Z – střed i poloměr se dopočtou. Nesmí následovat hned po G0.'),
+      pre(`G1 Z10
+G3 X10 Z20 T      ; tečný oblouk R10`),
+      p('Jde i <b>R + jedna souřadnice</b>: <code>G3 X10 R10 T</code> – G2/G3 určí stranu, R poloměr a druhá souřadnice konce se dopočte (oblouk dojede k první průsečnici).'),
+      p('Když zvolíte opačné G2/G3, než oblouk vyžaduje, editor to ohlásí. Při přenosu do výkresu se T přepíše na X Z I K se správným G2/G3.')),
+    sec('Výrazy a R-parametry',
+      row('X=10+5', 'hodnotu lze zadat výrazem: <code>X=20/3</code>, <code>Z[2*5]</code>, <code>X10+5</code>. Funkce: SIN, COS, TAN, ASIN, ACOS, ATAN (ve stupních), SQRT, ABS, LN, LOG, PI, mocnina <code>^</code>.'),
+      row('R1=20', 'parametr; použití <code>X=R1*2</code>. Musí být zapsán na dřívějším řádku než použití.'),
+      pre(`R1=30
 R2=R1*2+5
 G0 X0 Z0
-G1 X=R2 Z=SIN(30)*40</pre>
-<p>Špatný výraz se ohlásí v údajích o řádku. Při přenosu do výkresu se výrazy přepíšou na čísla.</p>
-<h4>Spojení s obloukem a sražení úhlem</h4>
-<p><b>⌒∩</b> spojí v průsečíku i úsečku s obloukem nebo kružnicí (plná kružnice = G2/G3 se stejným začátkem a koncem a I, K). Platí první průsečík po první úsečce.</p>
-<p><b>⌐ Sražení úhel × délka</b> (pravý panel): kurzor na první úsečce rohu, zadáte délku a úhel (3×30°) a po které úsečce se délka měří. Jen v G90.</p>
-<h4>Hrany</h4>
-${row('CHF= / C', 'sražení hrany mezi dvěma řádky (délka sražení).')}
-${row('RND= / R', 'zaoblení hrany mezi dvěma řádky (poloměr). Tlačítka Sraž. a Zaobl. zapíšou správný tvar podle řídicího systému.')}
-<h4>Ostatní</h4>
-${row(';', 'komentář – zbytek řádku se ignoruje.')}
-${row('; KONTURA_START', 'začátek obrysu dílu (konec: <b>; KONTURA_END</b>).')}
-${row('; STOCK_START', 'začátek polotovaru (konec: <b>; STOCK_END</b>). Tlačítko ✎ Kontura značky vloží.')}
-${row('N…', 'číslo bloku (nepovinné).')}
-${row('M, F, S, T, D', 'pomocná funkce, posuv, otáčky, nástroj, korekce – kreslení je ignoruje.')}
-<h4>Tipy</h4>
-<p>Nad klávesnicí je rozbalovací lišta <b>▸ Údaje a nápověda</b>: vysvětlí slova na řádku s kurzorem a ukáže délku, úhel a koncový bod pohybu. Stisk klávesy ukáže její popis. Tlačítko <b>🎯 Bod z plátna</b> vloží souřadnice kliknutím do výkresu, <b>∠</b> zadá úsečku úhlem.</p>`;
+G1 X=R2 Z=SIN(30)*40`),
+      p('Špatný výraz se ohlásí v údajích o řádku. Při přenosu do výkresu se výrazy přepíšou na čísla.')),
+    sec('Hrany a sražení',
+      row('CHF= / C', 'sražení hrany mezi dvěma řádky (délka sražení).'),
+      row('RND= / R', 'zaoblení hrany mezi dvěma řádky (poloměr). Tlačítka Sraž. a Zaobl. zapíšou správný tvar podle řídicího systému.'),
+      row('⌐', '<b>Sražení úhel × délka</b> (pravý panel): kurzor na první úsečce rohu, zadáte délku a úhel (3×30°) a po které úsečce se délka měří. Jen v G90.')),
+    sec('Ostatní',
+      row(';', 'komentář – zbytek řádku se ignoruje.'),
+      row('; KONTURA_START', 'začátek obrysu dílu (konec: <b>; KONTURA_END</b>).'),
+      row('; STOCK_START', 'začátek polotovaru (konec: <b>; STOCK_END</b>). Tlačítko ✎ Kontura značky vloží.'),
+      row('N…', 'číslo bloku (nepovinné).'),
+      row('M, F, S, T, D', 'pomocná funkce, posuv, otáčky, nástroj, korekce – kreslení je ignoruje.')),
+    sec('Tipy',
+      p('Nad klávesnicí je rozbalovací lišta <b>▸ Údaje a nápověda</b>: vysvětlí slova na řádku s kurzorem a ukáže délku, úhel a koncový bod pohybu. Stisk klávesy ukáže její popis. Tlačítko <b>🎯</b> vloží souřadnice kliknutím do výkresu, <b>📋 vše</b> zkopíruje celý kód.')),
+  ].join('') + '<div class="cne-help-none" hidden>Nic nenalezeno – zkuste jiné slovo (např. oblouk, tečný, výraz, G2).</div>';
 }

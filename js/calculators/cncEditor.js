@@ -409,7 +409,17 @@ function rewriteLineXZ(lineText, newX, newZ, stripRe) {
   code = /\bX\s*-?[\d.]+/i.test(code) ? code.replace(/\bX\s*-?[\d.]+/i, xStr) : (code.replace(/\s+$/, '') + ' ' + xStr);
   code = /\bZ\s*-?[\d.]+/i.test(code) ? code.replace(/\bZ\s*-?[\d.]+/i, zStr) : (code.replace(/\s+$/, '') + ' ' + zStr);
 
-  return code.replace(/[ \t]+/g, ' ').replace(/\s+$/, '') + comment;
+  return code.replace(/[ \t]+/g, ' ').replace(/\s+$/, '') + (comment ? ' ' + comment : '');
+}
+
+// Za vloženým obloukem (G2/G3) by řádek bez G (modální G1 z kompaktního exportu) převzal G2/G3 –
+// proto dostane výslovné G1.
+function explicitG1(text) {
+  const ci = text.indexOf(';');
+  const code = ci >= 0 ? text.slice(0, ci) : text;
+  if (/\bG0*[0-3](?!\d)/i.test(code)) return text;
+  const n = (code.match(/^\s*N\d+\s*/i) || [''])[0];
+  return n + 'G1 ' + text.slice(n.length);
 }
 
 // ── Sražení/zaoblení → skutečná G-kód dráha ─────────────────────
@@ -428,7 +438,7 @@ function convertCornersToPaths(code, onlyLine = null) {
   // ── Pass 1: modální sledování polohy + seznam pohybových bodů a markerů ──
   const points = []; // { lineIdx, x, z, isFeed }
   let markers = []; // { lineIdx, kind, value, hasOwnXZ, pointIdx }
-  let x = null, z = null, mode = 90;
+  let x = null, z = null, mode = 90, modalG = null;   // modalG = poslední G0–G3 (řádky bez G se řídí jím)
 
   for (let i = 0; i < n; i++) {
     const raw = lines[i];
@@ -439,9 +449,12 @@ function convertCornersToPaths(code, onlyLine = null) {
     if (/\bG90\b/.test(clean)) mode = 90;
     if (/\bG91\b/.test(clean)) mode = 91;
 
-    const isFeed    = /\bG0?1\b/.test(clean);
-    const isRapid   = /\bG0+\b/.test(clean) && !isFeed;
-    const isArcMove = /\bG0?[23]\b/.test(clean);
+    // Řádek bez G (např. „X185 Z25" z kompaktního exportu) platí v naposledy zadaném modálním pohybu.
+    const gm = [...clean.matchAll(/\bG0*([0-3])(?!\d)/g)].map(m => +m[1]);
+    if (gm.length) modalG = gm[gm.length - 1];
+    const isFeed    = modalG === 1;
+    const isRapid   = modalG === 0;
+    const isArcMove = modalG === 2 || modalG === 3;
 
     const xm = clean.match(/\bX\s*(-?[\d.]+)/);
     const zm = clean.match(/\bZ\s*(-?[\d.]+)/);
@@ -479,6 +492,7 @@ function convertCornersToPaths(code, onlyLine = null) {
 
   // ── Pass 2: pro každý marker spočti geometrii korekce rohu ──
   const lineEdits = new Map();  // lineIdx -> nový text řádku (null = smazat)
+  const needG1 = new Set();     // řádky za vloženým obloukem, které potřebují výslovné G1
   const insertions = new Map(); // lineIdx -> pole řádků k vložení ZA tento řádek
   let converted = 0, skipped = 0;
   // Geometrie se počítá ve fyzické rovině (poloměr, Z): v režimu „průměr" je X
@@ -534,6 +548,7 @@ function convertCornersToPaths(code, onlyLine = null) {
       connectorLine = `G1 X${f3(tp2.x * xs)} Z${f3(tp2.z)}`;
     }
 
+    if (mk.kind === 'round') needG1.add(afterPt.lineIdx);
     const cornerLineIdx = cornerPt.lineIdx;
     const stripRe = mk.hasOwnXZ ? (mk.kind === 'chamfer' ? chamferRe : roundRe) : null;
     lineEdits.set(cornerLineIdx, rewriteLineXZ(lines[cornerLineIdx], tp1.x * xs, tp1.z, stripRe));
@@ -555,9 +570,9 @@ function convertCornersToPaths(code, onlyLine = null) {
   for (let i = 0; i < n; i++) {
     if (lineEdits.has(i)) {
       const v = lineEdits.get(i);
-      if (v !== null) out.push(v);
+      if (v !== null) out.push(needG1.has(i) ? explicitG1(v) : v);
     } else {
-      out.push(lines[i]);
+      out.push(needG1.has(i) ? explicitG1(lines[i]) : lines[i]);
     }
     if (insertions.has(i)) out.push(...insertions.get(i));
   }
@@ -888,6 +903,9 @@ function buildEditorHTML(drawMode = false) {
   <div class="cne-inner-modal" data-el="helpModal" style="display:none">
     <div class="cne-im-card cne-val-card">
       <div class="cne-im-title">Nápověda k zápisu<button class="cne-im-close" data-act="helpClose" title="Zavřít">✕</button></div>
+      <div class="cne-help-searchrow">
+        <input class="cne-im-input cne-help-search" data-el="helpSearch" type="search" inputmode="search" autocomplete="off" placeholder="🔍 Hledat: G2, oblouk, tečný…">
+      </div>
       <div class="cne-help-body">${helpHTML()}</div>
       <button class="cne-im-btn cancel" data-act="helpClose" style="margin-top:8px;width:100%">Zavřít</button>
     </div>
@@ -2177,6 +2195,32 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Nápověda k zápisu: vysvětlí slova na řádku s kurzorem a poradí, co dopsat.
   const hintEl = $('hintText');
   const infoBodyEl = $('infoBody'), helpModal = $('helpModal');
+  // Hledání v nápovědě: všechna slova dotazu musí být v položce (nebo v nadpisu sekce), bez ohledu na diakritiku.
+  const helpSearchEl = $('helpSearch');
+  const helpNorm = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  function filterHelp() {
+    if (!helpSearchEl) return;
+    const body = helpModal.querySelector('.cne-help-body');
+    const words = helpNorm(helpSearchEl.value).split(/\s+/).filter(Boolean);
+    const quick = body.querySelector('.cne-help-quick'), none = body.querySelector('.cne-help-none');
+    if (quick) quick.hidden = words.length > 0;
+    let shown = 0;
+    body.querySelectorAll('.cne-help-sec').forEach(sec => {
+      const head = helpNorm(sec.querySelector('h4').textContent);
+      let any = false;
+      sec.querySelectorAll('.cne-help-item').forEach(it => {
+        if (it.dataset.n === undefined) it.dataset.n = helpNorm(it.textContent);
+        const ok = !words.length || words.every(w => it.dataset.n.includes(w) || head.includes(w));
+        it.hidden = !ok;
+        if (ok) any = true;
+      });
+      sec.hidden = !any;
+      if (any) shown++;
+    });
+    if (none) none.hidden = shown > 0;
+    body.scrollTop = 0;
+  }
+  if (helpSearchEl) helpSearchEl.addEventListener('input', filterHelp);
   function setInfoOpen(on) {
     if (!infoBodyEl) return;
     infoBodyEl.hidden = !on;
@@ -2723,6 +2767,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'valClose':  valModal.style.display = 'none'; break;
         case 'infoToggle': setInfoOpen(infoBodyEl.hidden); break;
         case 'help':      helpModal.style.display = 'flex'; break;
+        case 'helpQ':     { const hs = $('helpSearch'); hs.value = ab.dataset.q; filterHelp(); hs.focus({ preventScroll: true }); break; }
         case 'helpClose': helpModal.style.display = 'none'; break;
         case 'cfgClose':  cfgModal.style.display = 'none'; persistCfg(); scheduleValidation(); break;
       }
@@ -2862,7 +2907,12 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Otevřeno s označenými objekty z plátna → výběr a pohled na první jejich řádek.
   if (caret === null && hlRe) {
     const idx = editor.value.split('\n').findIndex(l => { const ci = l.indexOf(';'); return ci > 0 && hlRe.test(l.substring(ci)); });
-    if (idx >= 0) jumpToLine(idx);
+    if (idx >= 0) {
+      jumpToLine(idx);
+      // Jen kurzor na konec řádku (ne označený celý řádek): další zápis – třeba CHF= z klávesy Sraž. –
+      // se připíše za kód řádku (insertText ho dá před komentář), místo aby řádek přepsal.
+      editor.selectionStart = editor.selectionEnd = editor.selectionEnd;
+    }
   }
   updateEntryMode();
 }

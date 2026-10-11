@@ -1445,6 +1445,15 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     // Popisky (Úsečka 3…) označených objektů – editor podle nich najde jejich řádky.
     const selObjs = new Set([...selectedIndices].map(i => state.objects[i]));
     _asDrawnSelLabels = [...items, ...stockItems].filter(it => selObjs.has(it._src)).map(it => it.name);
+    // Označený bod (roh / průsečík) → zvýraznit a kurzor dát na prvek, který v pořadí dráhy v tom bodě
+    // KONČÍ = první úsečka rohu (na ni patří sražení úhel × délka, spojení v průsečíku apod.).
+    for (const sp of state.selectedPoint || []) {
+      const hit = [...items, ...stockItems].find(it => {
+        const e = _getEp(it);
+        return e && Math.hypot(e.ex - sp.x, e.ey - sp.y) < 0.05;
+      });
+      if (hit && !_asDrawnSelLabels.includes(hit.name)) _asDrawnSelLabels.push(hit.name);
+    }
     _asDrawnLabelObj = new Map([...items, ...stockItems].map(it => [it.name, it._src]));
     return compactCncModal(out);
   }
@@ -1498,15 +1507,64 @@ let lastReplacedSnapshot = null; // { objects: object[], undoStackLen: number } 
  *   Navazuje-li ✓ PŘÍMO na předchozí 🔄 (nic mezi tím), nejdřív vrátí, co 🔄
  *   smazalo, a teprve pak přidá nové – viz `lastReplacedSnapshot` výš.
  */
+/** Typy objektů, které G-kód nenese – po přepsání výkresu z kódu se musí zachovat (jinak by zmizely). */
+const _KEEP_ON_REDRAW = new Set(['constr', 'text', 'fill', 'point', 'camNote']);
+
+/** Konce úsečky / oblouku (pro párování starého a nově naparsovaného objektu). */
+function _styleEnds(o) {
+  if (o.type === 'line') return [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }];
+  if (o.type === 'arc') {
+    return [{ x: o.cx + o.r * Math.cos(o.startAngle), y: o.cy + o.r * Math.sin(o.startAngle) },
+            { x: o.cx + o.r * Math.cos(o.endAngle), y: o.cy + o.r * Math.sin(o.endAngle) }];
+  }
+  return null;
+}
+
+/**
+ * Nově naparsované úsečky / oblouky dostanou barvu, typ čáry a vazbu od staršího objektu se
+ * shodnou geometrií (konce shodné v libovolném směru) – přepsání výkresu z editoru jinak
+ * zahodí vše, co G-kód nenese (barva, čárkovaná čára, vodorovnost…).
+ */
+function _inheritStyle(newObjs, oldObjs) {
+  const T = 0.01, used = new Set(), pairs = [];
+  const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < T;
+  for (const n of newObjs) {
+    const ne = _styleEnds(n);
+    if (!ne) continue;
+    const old = oldObjs.find(o => {
+      if (used.has(o) || o.type !== n.type || !!o.isStock !== !!n.isStock) return false;
+      if (o.type === 'arc' && (Math.abs(o.r - n.r) > T || Math.hypot(o.cx - n.cx, o.cy - n.cy) > T)) return false;
+      const oe = _styleEnds(o);
+      return (near(oe[0], ne[0]) && near(oe[1], ne[1])) || (near(oe[0], ne[1]) && near(oe[1], ne[0]));
+    });
+    if (!old) continue;
+    used.add(old);
+    pairs.push([old, n]);
+    for (const k of ['color', 'lineStyle', 'dashed', 'constraint']) if (old[k] !== undefined) n[k] = old[k];
+  }
+  return pairs;
+}
+
+/** Kóty navázané na starý objekt se přepojí na nový objekt se shodnou geometrií (po přepsání mají nová id). */
+function _relinkDimensions(pairs) {
+  const map = new Map();
+  for (const [o, n] of pairs) if (o.id != null && n.id != null) map.set(o.id, n.id);
+  if (!map.size) return;
+  for (const d of state.objects) if (d.isDimension && map.has(d.sourceObjId)) d.sourceObjId = map.get(d.sourceObjId);
+}
+
 function renderCncCodeToCanvas(code, { append = false } = {}) {
   if (!code) { showToast("CNC kód je prázdný"); return; }
   try {
     const { objs, warnings } = parseGcodeToObjects(code);
     if (!objs.length && !warnings.length) { showToast("Nenalezeny žádné pohyby v kódu"); return; }
     pushUndo();
+    let redrawPairs = [];
     if (!append) {
       lastReplacedSnapshot = { objects: state.objects.slice(), undoStackLen: state.undoStack.length };
-      state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel);
+      const oldDrawn = state.objects.filter(o => !o.isDimension && !o.isCoordLabel && !_KEEP_ON_REDRAW.has(o.type));
+      redrawPairs = _inheritStyle(objs, oldDrawn);
+      state.objects = state.objects.filter(o => o.isDimension || o.isCoordLabel || _KEEP_ON_REDRAW.has(o.type));
     } else {
       if (lastReplacedSnapshot && lastReplacedSnapshot.undoStackLen === state.undoStack.length - 1) {
         state.objects = lastReplacedSnapshot.objects;
@@ -1524,8 +1582,10 @@ function renderCncCodeToCanvas(code, { append = false } = {}) {
     state.selectedSegment = null;
     state._selectedSegmentObjIdx = null;
     state.multiSelectedSegments?.clear();
+    state.selectedPoint = null;   // označený roh / průsečík už po přepsání výkresu neexistuje
     calculateAllIntersections();
     updateObjectList();
+    _relinkDimensions(redrawPairs);
     updateProperties();
     autoCenterView();
     runCncExport();

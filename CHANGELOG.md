@@ -42,7 +42,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nová sražení: **⌐ Sražení úhel × délka** (3×30°; délka po 1. nebo 2. úsečce rohu, jen G90).
   Logika přesunuta do `js/calculators/cncJoin.js`.
 
+- **Editor z plátna: označený bod → kurzor na správném řádku.** Když je na plátně označený roh nebo
+  průsečík (ne úsečka), editor se otevře s kurzorem a zvýrazněním na úsečce, která v tom bodě v pořadí
+  dráhy KONČÍ – tedy na první úsečce rohu, kam patří sražení úhel × délka a spojení v průsečíku.
+  Kurzor stojí na konci řádku (ne označený celý řádek), takže klávesa Sraž. / Zaobl. připíše `CHF=` /
+  `RND=` za kód řádku místo přepsání řádku. Po přenosu na plátno se označený bod zruší.
+
 ### Fixed
+- **Přepsání výkresu z editoru už nemaže, co G-kód nenese.** „Přepsat výkres podle zapsaného kódu" /
+  „Vykreslit v CAD" dřív smazalo pomocné čáry, texty, výplně a body a zahodilo barvu, typ čáry
+  a vazbu (vodorovná/svislá) všech úseček. Teď se zachovají pomocné čáry, texty, výplně a body;
+  úsečky a oblouky se shodnou geometrií si nechají barvu, typ čáry a vazbu a kóty se přepojí na
+  jejich nové objekty. Změněné prvky (např. sražená hrana) mají nový vzhled i bez kót.
+- **Převod sražení/zaoblení (CHF/RND) nereagoval u kódu z plátna.** Kompaktní export píše řádky
+  bez G (`X185.785 Z25.65` platí v G1) a převodník je nepovažoval za pohyb, takže roh „neměl
+  následující úsečku" a tlačítko mlčelo. Řádek bez G se teď řídí posledním G0–G3. Za vloženým
+  obloukem dostane další řádek bez G výslovné `G1` (jinak by převzal G2/G3), komentář za
+  přepsaným řádkem má zase mezeru před `;`. Stejná oprava v CAM editoru.
 - **Vyrovnaná úsečka se při výběru nezvýraznila.** Barevný tón vazby (vodorovná/svislá/rovnoběžná)
   se kreslil přes výběr a přebil jeho barvu; vybraný objekt/segment se teď netónuje.
 - **CAD → CAM: oblouky při zrcadlení os a na karuselu.** S „⇅ X+ dolů" nebo „⇄ Z+ vlevo"

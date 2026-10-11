@@ -1556,8 +1556,8 @@ body {
   border: 1px solid var(--ctp-surface1);
   border-radius: 8px;
   padding: 20px;
-  min-width: 320px;
-  max-width: 480px;
+  min-width: min(320px, calc(100vw - 58px));   /* content-box: + padding 2×20 + rámeček */
+  max-width: min(480px, calc(100vw - 58px));
   position: relative;
 }
 
@@ -1639,9 +1639,14 @@ body {
 
 .input-dialog .btn-row {
   display: flex;
+  flex-wrap: wrap;          /* na úzkém displeji se tlačítka zalomí místo vytečení z okna */
   gap: 8px;
   justify-content: flex-end;
   margin-top: 8px;
+}
+@media (max-width: 480px) {
+  /* Tlačítka se rozdělí na šířku okna (2–3 v řádku) a mají užší vnitřní okraje */
+  .input-dialog .btn-row > button { flex: 1 1 auto; padding-left: 8px; padding-right: 8px; min-width: 0; }
 }
 
 .input-dialog button {
@@ -7436,6 +7441,19 @@ button.vk-header-btn-green {
   font: 600 12px system-ui, sans-serif; color: var(--ctp-subtext1);
 }
 .cne-help-body { overflow-y: auto; max-height: 62vh; font-size: 13px; line-height: 1.45; color: var(--ctp-text); }
+.cne-help-searchrow { margin: 4px 0 6px; }
+.cne-help-search { width: 100%; box-sizing: border-box; font-size: 14px; }
+.cne-help-quick { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 8px; padding: 8px; background: var(--ctp-mantle); border-radius: 8px; }
+.cne-hq-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.cne-hq-group small { flex: 0 0 82px; font-size: 11px; color: var(--ctp-subtext0); }
+.cne-hq-group button {
+  all: unset; cursor: pointer; padding: 2px 8px; border-radius: 999px;
+  font: 700 12px "Consolas","Courier New",monospace; color: var(--ctp-peach);
+  background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1);
+}
+.cne-hq-group button:active { background: var(--ctp-surface1); }
+.cne-help-sec[hidden], .cne-help-item[hidden], .cne-help-quick[hidden], .cne-help-none[hidden] { display: none; }
+.cne-help-none { padding: 14px 4px; color: var(--ctp-subtext0); font-size: 13px; }
 .cne-help-body h4 { margin: 10px 0 4px; color: var(--ctp-blue); font-size: 13px; }
 .cne-help-body p { margin: 4px 0; }
 .cne-help-body pre { margin: 4px 0; padding: 6px 8px; background: var(--ctp-mantle); border-radius: 6px; font: 12px "Consolas","Courier New",monospace; overflow-x: auto; }
