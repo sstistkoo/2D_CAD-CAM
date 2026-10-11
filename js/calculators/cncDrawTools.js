@@ -12,6 +12,7 @@
 // G3 = proti směru hodin ve světě. Tím náhled i údaje sedí s tím, co se nakreslí.
 
 import { arcFromEndpointsRadius } from '../utils.js';
+import { readAddr, updateParams, isParamLine, resolveExpressions } from './cncExpr.js';
 
 const EPS = 1e-6;
 /** Řádek s polárním zadáním úsečky: PU<úhel> + L<délka> (nebo cílové X / Z). */
@@ -94,6 +95,8 @@ export function analyzeDrawCode(code, opts = {}) {
   const fromW = (w) => kar ? { x: w.x, z: w.y } : { x: w.y, z: w.x };
   const moves = [];
   const byLine = new Map();
+  const params = new Map();   // R-parametry
+  const bad = new Map();      // řádek → nevyhodnotitelný výraz
   let pos = { z: 0, x: 0 };
   let mode = 90, motion = null, stock = false;
   const lines = code.split('\n');
@@ -103,6 +106,10 @@ export function analyzeDrawCode(code, opts = {}) {
     if (/STOCK_END/i.test(raw)) { stock = false; continue; }
     const c = codePart(raw);
     if (!c) continue;
+    updateParams(raw, params);                    // R1=10, R2=R1*2 …
+    if (isParamLine(raw)) continue;
+    const lineBad = [];
+    const addr = (cc, l) => readAddr(cc, l, params, lineBad);   // číslo i výraz
     // Jiné příkazy s X/Z (TRANS, CYCLE…, LIMS=) nejsou pohyb kontury.
     if (/^[A-Z_]{2,}/.test(c) && !/^G\d/.test(c) && !POLAR_RE.test(c)) continue;
     const gs = [...c.matchAll(/\bG\s*0*(\d{1,2})(?!\d)/g)].map(m => +m[1]);
@@ -114,6 +121,7 @@ export function analyzeDrawCode(code, opts = {}) {
     else if (POLAR_RE.test(c)) motion = 1;        // polární úsečka bez G je vždy G1
     const X = addr(c, 'X'), Z = addr(c, 'Z');
     const PU = POLAR_RE.test(c) ? addr(c, 'PU') : null;
+    if (lineBad.length) bad.set(i, 'Neplatný výraz: ' + lineBad.join(', '));
     if (X === null && Z === null && PU === null) continue;
     const from = { ...pos };
     let to = mode === 91
@@ -173,7 +181,7 @@ export function analyzeDrawCode(code, opts = {}) {
     moves.push(mv);
     byLine.set(i, mv);
   }
-  return { moves, byLine, xs, opts: { diam: !!opts.diam, karusel: kar } };
+  return { moves, byLine, xs, bad, params, opts: { diam: !!opts.diam, karusel: kar } };
 }
 
 /** Poslední pohyb na řádku `idx` nebo před ním (poloha „kde jsem"). */
@@ -337,10 +345,12 @@ export function convertLinesMode(code, first, last, target, opts = {}) {
   const xs = an.xs;
   const lines = code.split('\n');
   const tok = target === 91 ? 'G91' : 'G90';
+  // Výrazy (X=R1*2, X10+5) se v převáděných řádcích nejdřív nahradí čísly, jinak by setAxis rozbil výraz.
+  const resolved = resolveExpressions(code).code.split('\n');
   let changed = 0, firstDone = false;
   for (const mv of an.moves) {
     if (mv.line < first || mv.line > last) continue;
-    const raw = lines[mv.line];
+    const raw = resolved[mv.line];
     const ci = raw.indexOf(';');
     let c = ci >= 0 ? raw.slice(0, ci) : raw;
     const com = ci >= 0 ? raw.slice(ci) : '';
@@ -373,14 +383,14 @@ export function convertLinesMode(code, first, last, target, opts = {}) {
 
 // ── Polární úsečky (PU/L) a spojení dvou úseček v průsečíku ────
 /** Text os pohybu from → to; osa beze změny se nepíše. `inc` = přírůstky (G91). */
-function axesText(from, to, xs, inc) {
+export function axesText(from, to, xs, inc) {
   const dx = (to.x - from.x) * xs, dz = to.z - from.z;
   const parts = [];
   if (f3(dx) !== '0') parts.push('X' + f3(inc ? dx : to.x * xs));
   if (f3(dz) !== '0') parts.push('Z' + f3(inc ? dz : to.z));
   return parts.join(' ');
 }
-const lineCom = raw => (raw.match(/;.*$/) || [''])[0];
+export const lineCom = raw => (raw.match(/;.*$/) || [''])[0];
 
 /**
  * Přepíše řádky s PU/L na obyčejné souřadnice (X, Z) – CAD parser PU nezná.
@@ -402,56 +412,6 @@ export function polarToXZ(code, opts = {}) {
     converted++;
   }
   return { code: lines.join('\n'), converted };
-}
-
-/**
- * Spojí dvě úsečky v průsečíku do jedné navazující kontury. Kurzor (řádek `ln`) je
- * na druhé úsečce B (nebo na rychloposuvu před ní); před B musí být rychloposuv G0 na
- * její začátek a před ním první úsečka A. Výsledek: začátek A → průsečík → začátek B
- * (A se na průsečíku ořízne, B se obrátí a vede z průsečíku zpět na svůj začátek).
- * @returns {{code: string, line: number, point: {z: number, x: number}} | {err: string}}
- */
-export function joinAtIntersection(code, ln, opts = {}) {
-  const an = analyzeDrawCode(code, opts), mvs = an.moves, xs = an.xs;
-  let bi = -1;
-  mvs.forEach((m, i) => { if (m.line <= ln) bi = i; });
-  if (bi >= 0 && mvs[bi].g === 0 && mvs[bi + 1]?.g === 1) bi++;   // kurzor na rychloposuvu před B
-  const B = mvs[bi], J = mvs[bi - 1], A = mvs[bi - 2];
-  const hint = 'Kurzor dejte na druhou úsečku – před ní musí být rychloposuv (G0) na její začátek a první úsečka.';
-  if (!B || !J || !A || B.g !== 1 || J.g !== 0 || A.g !== 1 || A.stock !== B.stock) return { err: hint };
-  if (A.polarErr || B.polarErr) return { err: A.polarErr || B.polarErr };
-  const d1 = { z: A.to.z - A.from.z, x: A.to.x - A.from.x }, d2 = { z: B.to.z - B.from.z, x: B.to.x - B.from.x };
-  const l1 = Math.hypot(d1.z, d1.x), l2 = Math.hypot(d2.z, d2.x);
-  if (l1 < EPS || l2 < EPS) return { err: 'Jedna z úseček má nulovou délku.' };
-  const den = d1.z * d2.x - d1.x * d2.z;
-  if (Math.abs(den) < 1e-9 * l1 * l2) return { err: 'Úsečky jsou rovnoběžné – průsečík neexistuje.' };
-  const wz = B.from.z - A.from.z, wx = B.from.x - A.from.x;
-  const t = (wz * d2.x - wx * d2.z) / den, u = (wz * d1.x - wx * d1.z) / den;
-  const P = { z: A.from.z + t * d1.z, x: A.from.x + t * d1.x };
-  const tol = 1e-6;
-  if (t < -tol || t > 1 + tol || u < -tol || u > 1 + tol) {
-    const which = (t < -tol || t > 1 + tol) ? 'první' : 'druhé';
-    return { err: `Úsečky se neprotínají – průsečík X${f3(P.x * xs)} Z${f3(P.z)} leží mimo ${which} úsečku (na jejím prodloužení).` };
-  }
-  const inc = B.mode === 91;
-  const axA = axesText(A.from, P, xs, inc), axB = axesText(P, B.from, xs, inc);
-  if (!axA) return { err: 'Průsečík leží v počátku první úsečky – není co spojit.' };
-  const lines = code.split('\n');
-  // Popisky z exportu („line 1, L=141.421") – délka po oříznutí se přepíše.
-  const upd = (com, len) => com.replace(/L=[-\d.]+/, 'L=' + f3(len));
-  const comA = upd(lineCom(lines[A.line]), Math.hypot(P.z - A.from.z, P.x - A.from.x));
-  const comB = upd(lineCom(lines[B.line]), Math.hypot(B.from.z - P.z, B.from.x - P.x));
-  const out = [];
-  let endIdx = A.line;
-  for (let i = A.line; i <= B.line; i++) {
-    if (i === A.line) out.push('G1 ' + axA + (comA ? ' ' + comA : ''));
-    else if (i === J.line) continue;
-    else if (i === B.line) { if (axB) out.push(axB + (comB ? ' ' + comB : '')); }
-    else out.push(lines[i]);
-  }
-  endIdx = A.line + out.length - 1;
-  lines.splice(A.line, B.line - A.line + 1, ...out);
-  return { code: lines.join('\n'), line: endIdx, point: P };
 }
 
 /**

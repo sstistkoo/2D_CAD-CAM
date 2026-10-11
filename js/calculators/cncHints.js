@@ -162,6 +162,17 @@ ${row('G2/G3 … T', 'oblouk, který <b>tečně naváže</b> na předchozí úse
 G3 X10 Z20 T      ; tečný oblouk R10</pre>
 <p>Jde i <b>R + jedna souřadnice</b>: <code>G3 X10 R10 T</code> – G2/G3 určí stranu, R poloměr a druhá souřadnice konce se dopočte (oblouk dojede k první průsečnici).</p>
 <p>Když zvolíte opačné G2/G3, než oblouk vyžaduje, editor to ohlásí. Při přenosu do výkresu se T přepíše na X Z I K se správným G2/G3.</p>
+<h4>Výrazy a R-parametry</h4>
+${row('X=10+5', 'hodnotu lze zadat výrazem: <code>X=20/3</code>, <code>Z[2*5]</code>, <code>X10+5</code>. Funkce: SIN, COS, TAN, ASIN, ACOS, ATAN (ve stupních), SQRT, ABS, LN, LOG, PI, mocnina <code>^</code>.')}
+${row('R1=20', 'parametr; použití <code>X=R1*2</code>. Musí být zapsán na dřívějším řádku než použití.')}
+<pre>R1=30
+R2=R1*2+5
+G0 X0 Z0
+G1 X=R2 Z=SIN(30)*40</pre>
+<p>Špatný výraz se ohlásí v údajích o řádku. Při přenosu do výkresu se výrazy přepíšou na čísla.</p>
+<h4>Spojení s obloukem a sražení úhlem</h4>
+<p><b>⌒∩</b> spojí v průsečíku i úsečku s obloukem nebo kružnicí (plná kružnice = G2/G3 se stejným začátkem a koncem a I, K). Platí první průsečík po první úsečce.</p>
+<p><b>⌐ Sražení úhel × délka</b> (pravý panel): kurzor na první úsečce rohu, zadáte délku a úhel (3×30°) a po které úsečce se délka měří. Jen v G90.</p>
 <h4>Hrany</h4>
 ${row('CHF= / C', 'sražení hrany mezi dvěma řádky (délka sražení).')}
 ${row('RND= / R', 'zaoblení hrany mezi dvěma řádky (poloměr). Tlačítka Sraž. a Zaobl. zapíšou správný tvar podle řídicího systému.')}

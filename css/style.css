@@ -7484,6 +7484,8 @@ button.vk-header-btn-green {
 .cne-ang-hint { font-size: 11px; color: var(--ctp-subtext0); margin: 8px 0 4px; }
 .cne-ang-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .cne-ang-grid .cne-im-input { width: 100%; box-sizing: border-box; }
+.cne-chf-grid { grid-template-columns: repeat(2, 1fr); }
+.cne-ang-grid label small { font-size: 10px; }
 .cne-ang-res { min-height: 18px; margin: 8px 0 4px; font: 12px "Consolas","Courier New",monospace; color: var(--ctp-green); }
 .cne-isect-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 6px 10px; min-width: 238px; box-sizing: border-box; }
 .cne-isect {

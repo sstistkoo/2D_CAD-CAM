@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   počítala z G-kódu místo z tečnosti. Klávesa T je v prvním řádku kláves, kopírování celého kódu
   (📋 vše) je v liště údajů.
 
+- **CAD editor: výrazy a R-parametry v kódu.** `X=10+5`, `Z[2*5]`, `X=SIN(30)*40`, `R1=20` / `X=R1*2`
+  se vyhodnotí (dřív `X10+5` dalo tiše 10 a `X=R1*2` dalo 0 – náhled i výkres ukazovaly jiný tvar,
+  než jaký stroj vyjede). Špatný výraz se ohlásí v údajích o řádku; při přenosu do výkresu se
+  výrazy přepíšou na čísla. Převod G90↔G91 už výraz nerozbije. Logika: `js/calculators/cncExpr.js`.
+- **CAD editor: spojení v průsečíku i s obloukem / kružnicí** (⌒∩): úsečka × oblouk, oblouk × oblouk,
+  plná kružnice (G2/G3 se stejným začátkem a koncem + I, K). Platí první průsečík po první úsečce.
+  Nová sražení: **⌐ Sražení úhel × délka** (3×30°; délka po 1. nebo 2. úsečce rohu, jen G90).
+  Logika přesunuta do `js/calculators/cncJoin.js`.
+
 ### Fixed
 - **Vyrovnaná úsečka se při výběru nezvýraznila.** Barevný tón vazby (vodorovná/svislá/rovnoběžná)
   se kreslil přes výběr a přebil jeho barvu; vybraný objekt/segment se teď netónuje.

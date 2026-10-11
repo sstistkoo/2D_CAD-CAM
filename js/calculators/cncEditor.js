@@ -9,9 +9,11 @@ import { bridge } from '../bridge.js';
 import { showToast, state } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { safeEvalMath } from '../utils.js';
-import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, polarToXZ, tangentToIK, joinAtIntersection, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
+import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, polarToXZ, tangentToIK, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
 import { drawPreview } from './cncDrawPreview.js';
 import { lineHint, helpHTML } from './cncHints.js';
+import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
+import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 
@@ -656,6 +658,7 @@ function menuItemsHTML(drawMode = false) {
           <button class="cne-fs-btn" data-act="fontUp" title="Zvětšit text v editoru">A+</button></div>
         <button class="cne-menu-item" data-act="clearEditor"><span class="cne-mi-icon red">🗑</span><span class="cne-mi-text"><b>Vymazat editor</b><small>Smaže celý kód (◀ Zpět ho vrátí)</small></span></button>
         <button class="cne-menu-item" data-act="togglePreview"><span class="cne-mi-icon">📐</span><span class="cne-mi-text"><b data-el="previewLabel">Náhled kontury</b><small>Malý náhled nad kódem, řádek s kurzorem žlutě</small></span></button>
+        <button class="cne-menu-item" data-act="chfAngle"><span class="cne-mi-icon">⌐</span><span class="cne-mi-text"><b>Sražení úhel × délka</b><small>Např. 3×30° – kurzor na 1. úsečce rohu</small></span></button>
         <button class="cne-menu-item" data-act="joinLines"><span class="cne-mi-icon">∩</span><span class="cne-mi-text"><b>Spojit v průsečíku</b><small>Dvě úsečky se oříznou v místě křížení a spojí do kontury</small></span></button>
         <button class="cne-menu-item" data-act="help"><span class="cne-mi-icon">❓</span><span class="cne-mi-text"><b>Nápověda k zápisu</b><small>Co a jak se zapisuje (G0, G1, G2, X, Z, R, I, K…)</small></span></button>
         <button class="cne-menu-item" data-act="angleLine"><span class="cne-mi-icon">∠</span><span class="cne-mi-text"><b>Úsečka úhlem</b><small>Úhel + délka / X / Z → G1</small></span></button>`
@@ -827,6 +830,27 @@ function buildEditorHTML(drawMode = false) {
       <div class="cne-im-actions">
         <button class="cne-im-btn cancel" data-act="angleCancel">Zrušit</button>
         <button class="cne-im-btn ok" data-act="angleOk">Vložit G1</button>
+      </div>
+    </div>
+  </div>` : ''}
+
+  ${drawMode ? `<!-- Sražení úhel × délka -->
+  <div class="cne-inner-modal" data-el="chfModal" style="display:none">
+    <div class="cne-im-card">
+      <div class="cne-im-title">⌐ Sražení úhel × délka<button class="cne-im-close" data-act="chfCancel" title="Zavřít">✕</button></div>
+      <div class="cne-ang-from" data-el="chfFrom"></div>
+      <div class="cne-ang-modes">
+        <button class="cne-ang-mode on" data-act="chfAlong" data-along="first" title="Délka se měří od rohu po první úsečce (té, na které je kurzor)">po 1. úsečce</button>
+        <button class="cne-ang-mode" data-act="chfAlong" data-along="second" title="Délka se měří od rohu po druhé úsečce (další pohyb)">po 2. úsečce</button>
+      </div>
+      <div class="cne-ang-grid cne-chf-grid">
+        <label>Délka L<input class="cne-im-input" data-el="chfL" type="text" inputmode="decimal" autocomplete="off"></label>
+        <label>Úhel °<small>vůči té úsečce</small><input class="cne-im-input" data-el="chfA" type="text" inputmode="decimal" autocomplete="off" value="45"></label>
+      </div>
+      <div class="cne-ang-res" data-el="chfRes"></div>
+      <div class="cne-im-actions">
+        <button class="cne-im-btn cancel" data-act="chfCancel">Zrušit</button>
+        <button class="cne-im-btn ok" data-act="chfOk">Použít</button>
       </div>
     </div>
   </div>` : ''}
@@ -1003,6 +1027,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       // Nic se nezměnilo oproti kódu z výkresu → není co přepisovat, bez dotazu.
       const sameText = (a, b) => String(a).replace(/\r/g, '').trim() === String(b).replace(/\r/g, '').trim();
       if (typeof baselineCode === 'string' && sameText(code, baselineCode)) return;
+      code = resolveExpressions(code).code;      // X=R1*2, X10+5 → čísla
       code = polarToXZ(code, drawOpts()).code;   // PU/L → X Z (CAD parser polární zadání nezná)
       code = tangentToIK(code, drawOpts()).code; // G2/G3 … T → X Z I K
       if (coordMode === 'inc') code = codeToAbsolute(code);
@@ -2191,7 +2216,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       renderHint(an, ln);
       const mv = an.byLine.get(ln);
       // Každý údaj zvlášť (nelámat „střed X… Z…" uprostřed), mezi nimi zalomit lze.
-      if (mv) infoTextEl.innerHTML = moveInfo(mv, an).map(t => `<span>${esc(t)}</span>`).join(' · ');
+      const badExpr = an.bad.get(ln);
+      if (badExpr) infoTextEl.innerHTML = `<span>⚠ ${esc(badExpr)}</span>` + (mv ? ' · ' + moveInfo(mv, an).map(t => `<span>${esc(t)}</span>`).join(' · ') : '');
+      else if (mv) infoTextEl.innerHTML = moveInfo(mv, an).map(t => `<span>${esc(t)}</span>`).join(' · ');
       else {
         const p = moveAtOrBefore(an, ln);
         infoTextEl.textContent = p ? `Řádek bez pohybu · poloha X${f3(p.to.x * an.xs)} Z${f3(p.to.z)}` : 'Řádek bez pohybu';
@@ -2229,6 +2256,49 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       : '(od osy +Z, proti směru hodin; 180 = směr −Z)' + (angRelWhy ? ' – ' + angRelWhy : '');
     angleModal.dispatchEvent(new Event('input'));
   }
+  // ── Sražení úhel × délka (výpočet v cncJoin.js: chamferByAngle) ──
+  const chfModal = $('chfModal');
+  let chfAlong = 'first', chfLine = 0;
+  function chfResult() {
+    const val = k => { const t = $(k).value.trim(); if (!t) return null; const n = safeEvalMath(t); return isFinite(n) ? n : NaN; };
+    const L = val('chfL'), A = val('chfA');
+    if (L === null || A === null) return { err: '' };
+    if (Number.isNaN(L) || Number.isNaN(A)) return { err: 'Neplatné číslo.' };
+    return chamferByAngle(editor.value, chfLine, L, A, chfAlong, drawOpts());
+  }
+  function syncChf() {
+    chfModal.querySelectorAll('[data-act="chfAlong"]').forEach(b => b.classList.toggle('on', b.dataset.along === chfAlong));
+    const r = chfResult(), xs = analysis().xs;
+    $('chfRes').textContent = r.err !== undefined ? (r.err ? '⚠ ' + r.err : '')
+      : `→ zkrátit na X${f3(r.a.x * xs)} Z${f3(r.a.z)}, pak G1 X${f3(r.b.x * xs)} Z${f3(r.b.z)}`;
+  }
+  function openChamferAngle() {
+    chfLine = caretLine();
+    const an = analysis(), mv = an.byLine.get(chfLine);
+    $('chfFrom').textContent = mv && mv.g === 1
+      ? `Roh na konci řádku ${chfLine + 1}: X${f3(mv.to.x * an.xs)} Z${f3(mv.to.z)}`
+      : '⚠ Kurzor dejte na první ze dvou navazujících úseček (G1).';
+    $('chfL').value = '';
+    chfModal.style.display = 'flex';
+    syncChf();
+  }
+  function confirmChamferAngle() {
+    const r = chfResult();
+    if (r.err !== undefined) { $('chfRes').textContent = '⚠ ' + (r.err || 'Zadejte délku a úhel.'); return; }
+    chfModal.style.display = 'none';
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    captureUndoSnapshot('Sražení úhel × délka', $('chfL').value + '×' + $('chfA').value + '°');
+    editor.value = r.code;
+    const ls = r.code.split(String.fromCharCode(10));
+    let pos = 0; for (let i = 0; i <= r.line; i++) pos += ls[i].length + (i < r.line ? 1 : 0);
+    editor.selectionStart = editor.selectionEnd = pos;
+    editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
+    onInput();
+    showToast('Sražení vloženo ✓');
+  }
+  if (chfModal) chfModal.addEventListener('input', syncChf);
+
   // Jedno tlačítko ⌒∩ u kurzoru: sražení/zaoblení na řádku → dráha, jinak spojení úseček v průsečíku.
   function cornerOrJoin() {
     const ln = caretLine();
@@ -2588,6 +2658,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'togglePreview': setPreview(previewEl?.hidden); break;
         case 'angleLine': openAngleLine(); break;
         case 'joinLines': joinLines(); break;
+        case 'chfAngle': openChamferAngle(); break;
+        case 'chfAlong': chfAlong = ab.dataset.along; syncChf(); break;
+        case 'chfOk':    confirmChamferAngle(); break;
+        case 'chfCancel': chfModal.style.display = 'none'; break;
         case 'cornerJoin': cornerOrJoin(); break;
         case 'angMode':   angMode = ab.dataset.mode; syncAngleUi(); break;
         case 'angSide':   angSide = Number(ab.dataset.side); syncAngleUi(); break;
@@ -2624,6 +2698,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           // Přenes upravený kód zpět do CAD panelu (odkud kód pochází) a
           // vykresli konturu na canvas. CAD panel čte souřadnice absolutně,
           // takže přírůstkový režim (G91) před odesláním přepočítáme na G90.
+          const expr = resolveExpressions(editor.value);
+          if (expr.converted > 0) { captureUndoSnapshot('Převod výrazů na čísla'); editor.value = expr.code; onInput(); }
           const pol = polarToXZ(editor.value, drawOpts());
           if (pol.converted > 0) { captureUndoSnapshot('Převod PU/L na X Z'); editor.value = pol.code; onInput(); }
           const tan = tangentToIK(editor.value, drawOpts());

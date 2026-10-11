@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeDrawCode, polarToXZ, joinAtIntersection } from '../js/calculators/cncDrawTools.js';
+import { analyzeDrawCode, polarToXZ } from '../js/calculators/cncDrawTools.js';
+import { joinAtIntersection } from '../js/calculators/cncJoin.js';
 
 const EX = 'G0 X0 Z0\nG1 PU45 L1200\nG0 X50 Z200\nPU180 L1200';
 
