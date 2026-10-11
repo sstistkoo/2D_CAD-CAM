@@ -774,7 +774,16 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // Spodní obrábění (X+ dolů / zadní nožová hlava) nebo otočená osa Z: zrcadlení
   // jedné osy obrací smysl oblouku, proto se G2↔G3 zapisují prohozeně. Zrcadlení
   // obou os (X i Z) se vyruší. Hodnoty X (poloměr) zůstávají kladné a stejné.
-  const flipArc = (code) => (state.flipX !== state.flipZ) ? (code === 'G02' ? 'G03' : 'G02') : code;
+  // Přenos do CAM (forCam) je ale čistá geometrie v rovině CAM (Z vodorovně,
+  // X svisle, G3 = proti směru hodin): zrcadlení si CAM do programu prohazuje
+  // sám (cam/gcodeEmit.js) a konturu čte bez vracení G2/G3 — prohozený oblouk
+  // by v CAM vyšel zrcadlově (vypouklé zaoblení jako vyduté). Karusel má ve
+  // výkresu osy prohozené (svět x = X), což je vůči rovině CAM převrácení →
+  // tam se G2/G3 pro CAM otáčí (nález 10. 10. 2026).
+  const flipArc = (code) => {
+    const swap = forCam ? state.machineType === 'karusel' : state.flipX !== state.flipZ;
+    return swap ? (code === 'G02' ? 'G03' : 'G02') : code;
+  };
   let out = "";
   if (asDrawn) {
     // Editor z Kalkulaček: hlavička by na malém displeji zabrala půl obrazovky –
@@ -787,8 +796,8 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     out += `; Průsečíků: ${state.intersections.length}\n`;
     out += `; Režim: ${isInc ? 'Inkrementální (INC)' : 'Absolutní (ABS)'}\n`;
   }
-  if (state.flipX) out += "; Obrábění zespodu (X+ dolů) – G2/G3 prohozeny\n";
-  if (state.flipZ) out += "; Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny\n";
+  if (state.flipX && !forCam) out += "; Obrábění zespodu (X+ dolů) – G2/G3 prohozeny\n";
+  if (state.flipZ && !forCam) out += "; Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny\n";
   const [_gH, _gV] = state.machineType === 'karusel' ? ['X','Z'] : ['Z','X'];
   if (isInc) out += `; Reference: ${_gH}${state.incReference.x.toFixed(3)} ${_gV}${state.incReference.y.toFixed(3)}\n`;
   out += "\n";
@@ -1816,6 +1825,10 @@ function parseGcodeToObjects(code) {
       const gRval = getAddr(line, 'R');
       const gIval = getAddr(line, 'I');  // offset středu v X od aktuální polohy
       const gKval = getAddr(line, 'K');  // offset středu v Z od aktuální polohy
+      // Smysl oblouku ve světě: G2/G3 v textu jsou při zrcadlení jedné osy
+      // prohozené (flipArc v runCncExport, numerické zadání) – zpět se otočí,
+      // jinak by se oblouk po „Vykreslit" vrátil na plátno zrcadlově.
+      const arcCcw = (thisMotion === 3) !== (state.flipX !== state.flipZ);
       let acx, acy;
 
       if (gIval !== null || gKval !== null) {
@@ -1827,7 +1840,7 @@ function parseGcodeToObjects(code) {
         // Formát R: R<0 = velký oblouk (>180°), R>0 = malý oblouk
         const rArc = arcFromEndpointsRadius(
           { x: cx, y: cy }, { x: tx, y: ty },
-          Math.abs(gRval), thisMotion === 3, { longArc: gRval < 0 },
+          Math.abs(gRval), arcCcw, { longArc: gRval < 0 },
         );
         if (!rArc) {
           const chord = Math.hypot(tx - cx, ty - cy);
@@ -1849,7 +1862,7 @@ function parseGcodeToObjects(code) {
       const arcName = arcNum ? `Oblouk ${arcNum}` : 'Oblouk';
       objs.push({ type: 'arc', id: state.nextId++, name: arcName,
         cx: acx, cy: acy, r: R, startAngle: startA, endAngle: endA,
-        ccw: thisMotion === 3, isStock: inStock });
+        ccw: arcCcw, isStock: inStock });
       lastComment = '';
       cx = tx; cy = ty;
     }

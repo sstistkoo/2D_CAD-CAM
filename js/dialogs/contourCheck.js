@@ -15,6 +15,7 @@ import { state, pushUndo, showToast } from '../state.js';
 import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { fitViewToWorldBounds } from '../canvas.js';
+import { flushAutoCncExport } from '../geometry.js';
 import { showConfirmDialog } from '../dialogFactory.js';
 import { findContourDuplicates, objectsBounds } from '../stockTools.js';
 import { deleteObjectsByIndices } from '../ui.js';
@@ -26,6 +27,9 @@ import { deleteObjectsByIndices } from '../ui.js';
 const _offered = new Set();
 // Nabídka je právě otevřená (další export mezitím nemá přidávat toast).
 let _dialogOpen = false;
+// Přenos do CAM provádí čekající export předem (_transferMainProfile) —
+// ten nesmí otevřít vlastní nabídku zdvojení přes právě otevíraný CAM.
+let _camOpening = false;
 // Automatická nabídka až po první akci uživatele: při startu aplikace si
 // pohled ještě vycentruje app.js (rAF + load) a detail by přebil – tam stačí
 // toast a žluté zvýraznění. Otevření CAM nabízí vždy.
@@ -212,7 +216,7 @@ function _canvasFree() {
 export function maybeOfferContourDuplicates(dups) {
   if (!dups || dups.length === 0) return false;
   if (_dialogOpen) return true;
-  if (!_hasNew(dups) || !_canvasFree()) return false;
+  if (_camOpening || !_hasNew(dups) || !_canvasFree()) return false;
   offerContourDuplicates(dups);
   return true;
 }
@@ -234,6 +238,11 @@ export function openCamFromDrawing(openCam) {
 }
 
 function _transferMainProfile(openCam) {
+  // Úprava těsně před otevřením (i smazání zdvojené kopie v nabídce výš)
+  // naplánuje obnovu CNC panelu za 300 ms — ta by po otevření dotazu smazala
+  // jeho fialové zvýraznění. Provede se proto hned, bez vlastní nabídky.
+  _camOpening = true;
+  try { flushAutoCncExport(); } finally { _camOpening = false; }
   const res = bridge.buildCamTransfer ? bridge.buildCamTransfer() : null;
   if (!res || typeof res !== 'object') { openCam(res || undefined); return; }
   const suspect = res.boreSuspect || [];

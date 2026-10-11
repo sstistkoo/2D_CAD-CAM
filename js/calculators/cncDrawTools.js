@@ -14,6 +14,8 @@
 import { arcFromEndpointsRadius } from '../utils.js';
 
 const EPS = 1e-6;
+/** Řádek s polárním zadáním úsečky: PU<úhel> + L<délka> (nebo cílové X / Z). */
+const POLAR_RE = /(?:^|[^A-Z])PU\s*=?\s*[-+]?(?:\d|\.\d)/;
 export const f3 = v => String(Number((Math.abs(v) < 5e-4 ? 0 : v).toFixed(3)));
 
 /** Hodnota adresy (X, Z, I, K, R, CR=) z řádku bez komentáře; null = není. */
@@ -30,7 +32,9 @@ export function codePart(raw) {
 /**
  * Rozbor kódu po řádcích.
  * @param {string} code
- * @param {{diam?: boolean, karusel?: boolean}} [opts]
+ * @param {{diam?: boolean, karusel?: boolean, flip?: boolean}} [opts]
+ *   flip = G2/G3 v textu prohozené kvůli zrcadlení jedné osy (flipX ≠ flipZ,
+ *   viz flipArc v runCncExport) – oblouk se pak ve světě bere opačně.
  * @returns {{moves: object[], byLine: Map<number, object>, xs: number, opts: object}}
  *   move = { line, g, mode, stock, from:{z,x}, to:{z,x}, arc? } – x = poloměr;
  *   arc = { cz, cx, r, ccw, sweep, err? } (střed ve fyzické rovině).
@@ -52,26 +56,38 @@ export function analyzeDrawCode(code, opts = {}) {
     const c = codePart(raw);
     if (!c) continue;
     // Jiné příkazy s X/Z (TRANS, CYCLE…, LIMS=) nejsou pohyb kontury.
-    if (/^[A-Z_]{2,}/.test(c) && !/^G\d/.test(c)) continue;
+    if (/^[A-Z_]{2,}/.test(c) && !/^G\d/.test(c) && !POLAR_RE.test(c)) continue;
     const gs = [...c.matchAll(/\bG\s*0*(\d{1,2})(?!\d)/g)].map(m => +m[1]);
     if (gs.includes(90)) mode = 90;
     if (gs.includes(91)) mode = 91;
     if (gs.some(g => [4, 33, 53, 74, 75, 92, 50].includes(g))) continue;
     const gm = gs.filter(g => g <= 3);
     if (gm.length) motion = gm[gm.length - 1];
+    else if (POLAR_RE.test(c)) motion = 1;        // polární úsečka bez G je vždy G1
     const X = addr(c, 'X'), Z = addr(c, 'Z');
-    if (X === null && Z === null) continue;
+    const PU = POLAR_RE.test(c) ? addr(c, 'PU') : null;
+    if (X === null && Z === null && PU === null) continue;
     const from = { ...pos };
-    const to = mode === 91
+    let to = mode === 91
       ? { z: from.z + (Z ?? 0), x: from.x + (X ?? 0) / xs }
       : { z: Z ?? from.z, x: X !== null ? X / xs : from.x };
+    let polarErr = null;
+    if (PU !== null) {
+      // Polární zadání: PU = úhel od +Z, a L (délka), nebo cílové X / Z (v G91 přírůstek).
+      const L = addr(c, 'L');
+      const Xt = X === null ? null : (mode === 91 ? from.x * xs + X : X);
+      const Zt = Z === null ? null : (mode === 91 ? from.z + Z : Z);
+      const e = angleLineEnd(from, PU, { L, X: L === null ? Xt : null, Z: L === null ? Zt : null }, xs);
+      if (e.err) { polarErr = e.err; to = { ...from }; } else to = { z: e.z, x: e.x / xs };
+    }
     pos = to;
     if (motion === null) continue;               // souřadnice bez druhu pohybu – jen poloha
     const mv = { line: i, g: motion, mode, stock, from, to };
+    if (polarErr) mv.polarErr = polarErr;
     if (motion === 2 || motion === 3) {
       const I = addr(c, 'I'), K = addr(c, 'K');
       const R = addr(c, 'CR') ?? addr(c, 'R');
-      const ccw = motion === 3;
+      const ccw = (motion === 3) !== !!opts.flip;
       if (I !== null || K !== null) {
         const cen = { x: from.x + (I ?? 0) / xs, z: from.z + (K ?? 0) };
         const r = Math.hypot(from.x - cen.x, from.z - cen.z);
@@ -122,6 +138,7 @@ export function moveInfo(mv, an) {
   const xs = an.xs;
   const dz = mv.to.z - mv.from.z, dx = mv.to.x - mv.from.x;
   const end = `konec X${f3(mv.to.x * xs)} Z${f3(mv.to.z)}`;
+  if (mv.polarErr) return ['Úsečka PU/L', '⚠ ' + mv.polarErr];
   if (mv.g === 0 || mv.g === 1) {
     const L = Math.hypot(dz, dx);
     const parts = [mv.g === 0 ? 'Rychloposuv' : 'Úsečka', `L ${f3(L)}`];
@@ -139,6 +156,29 @@ export function moveInfo(mv, an) {
 }
 
 // ── Kontroly geometrie (validace kreslení) ─────────────────────
+/** Režim souřadnic (90 / 91) platný na konci řádku `idx` – poslední G90/G91 před ním. */
+export function modeAtLine(code, idx) {
+  let m = 90;
+  code.split('\n').slice(0, idx + 1).forEach(l => {
+    const c = codePart(l);
+    if (/\bG90\b/.test(c)) m = 90;
+    if (/\bG91\b/.test(c)) m = 91;
+  });
+  return m;
+}
+
+/** Směr pohybu v jeho koncovém bodě ve stupních od +Z (G0/G1 = směr úsečky,
+ *  oblouk = tečna); null = pohyb nemá směr (nulová délka, chybný oblouk). */
+export function moveDirDeg(mv, an) {
+  if (!mv) return null;
+  let t;
+  if (mv.g === 0 || mv.g === 1) {
+    const dz = mv.to.z - mv.from.z, dx = mv.to.x - mv.from.x, L = Math.hypot(dz, dx);
+    t = L > EPS ? { z: dz / L, x: dx / L } : null;
+  } else t = tangentAt(mv, true, an);
+  return t ? dirDeg(t.z, t.x) : null;
+}
+
 /** Tečna (Z, X) na začátku / konci pohybu – jednotkový vektor. */
 function tangentAt(mv, atEnd, an) {
   if (mv.g === 1) {
@@ -273,4 +313,87 @@ export function convertLinesMode(code, first, last, target, opts = {}) {
   if (after && after.mode !== target && !/\bG9[01]\b/i.test(codePart(lines[after.line])))
     lines[after.line] = setLineMode(lines[after.line], after.mode === 91 ? 'G91' : 'G90');
   return { code: lines.join('\n'), changed };
+}
+
+// ── Polární úsečky (PU/L) a spojení dvou úseček v průsečíku ────
+/** Text os pohybu from → to; osa beze změny se nepíše. `inc` = přírůstky (G91). */
+function axesText(from, to, xs, inc) {
+  const dx = (to.x - from.x) * xs, dz = to.z - from.z;
+  const parts = [];
+  if (f3(dx) !== '0') parts.push('X' + f3(inc ? dx : to.x * xs));
+  if (f3(dz) !== '0') parts.push('Z' + f3(inc ? dz : to.z));
+  return parts.join(' ');
+}
+const lineCom = raw => (raw.match(/;.*$/) || [''])[0];
+
+/**
+ * Přepíše řádky s PU/L na obyčejné souřadnice (X, Z) – CAD parser PU nezná.
+ * @returns {{code: string, converted: number}}
+ */
+export function polarToXZ(code, opts = {}) {
+  const an = analyzeDrawCode(code, opts);
+  const lines = code.split('\n');
+  let converted = 0;
+  for (const mv of an.moves) {
+    const raw = lines[mv.line], c = codePart(raw);
+    if (!POLAR_RE.test(c) || mv.polarErr) continue;
+    const gs = (c.match(/\bG\s*\d+/g) || []).map(g => g.replace(/\s+/g, ''));
+    if (!gs.some(g => /^G0*[0-3]$/.test(g))) gs.push('G1');   // PU bez G = G1 (po G0 by jinak zůstal rychloposuv)
+    const n = (raw.match(/^\s*N\d+\s*/i) || [''])[0];
+    const com = lineCom(raw);
+    const ax = axesText(mv.from, mv.to, an.xs, mv.mode === 91);
+    lines[mv.line] = (n + [...gs, ax].filter(Boolean).join(' ')).trim() + (com ? ' ' + com : '');
+    converted++;
+  }
+  return { code: lines.join('\n'), converted };
+}
+
+/**
+ * Spojí dvě úsečky v průsečíku do jedné navazující kontury. Kurzor (řádek `ln`) je
+ * na druhé úsečce B (nebo na rychloposuvu před ní); před B musí být rychloposuv G0 na
+ * její začátek a před ním první úsečka A. Výsledek: začátek A → průsečík → začátek B
+ * (A se na průsečíku ořízne, B se obrátí a vede z průsečíku zpět na svůj začátek).
+ * @returns {{code: string, line: number, point: {z: number, x: number}} | {err: string}}
+ */
+export function joinAtIntersection(code, ln, opts = {}) {
+  const an = analyzeDrawCode(code, opts), mvs = an.moves, xs = an.xs;
+  let bi = -1;
+  mvs.forEach((m, i) => { if (m.line <= ln) bi = i; });
+  if (bi >= 0 && mvs[bi].g === 0 && mvs[bi + 1]?.g === 1) bi++;   // kurzor na rychloposuvu před B
+  const B = mvs[bi], J = mvs[bi - 1], A = mvs[bi - 2];
+  const hint = 'Kurzor dejte na druhou úsečku – před ní musí být rychloposuv (G0) na její začátek a první úsečka.';
+  if (!B || !J || !A || B.g !== 1 || J.g !== 0 || A.g !== 1 || A.stock !== B.stock) return { err: hint };
+  if (A.polarErr || B.polarErr) return { err: A.polarErr || B.polarErr };
+  const d1 = { z: A.to.z - A.from.z, x: A.to.x - A.from.x }, d2 = { z: B.to.z - B.from.z, x: B.to.x - B.from.x };
+  const l1 = Math.hypot(d1.z, d1.x), l2 = Math.hypot(d2.z, d2.x);
+  if (l1 < EPS || l2 < EPS) return { err: 'Jedna z úseček má nulovou délku.' };
+  const den = d1.z * d2.x - d1.x * d2.z;
+  if (Math.abs(den) < 1e-9 * l1 * l2) return { err: 'Úsečky jsou rovnoběžné – průsečík neexistuje.' };
+  const wz = B.from.z - A.from.z, wx = B.from.x - A.from.x;
+  const t = (wz * d2.x - wx * d2.z) / den, u = (wz * d1.x - wx * d1.z) / den;
+  const P = { z: A.from.z + t * d1.z, x: A.from.x + t * d1.x };
+  const tol = 1e-6;
+  if (t < -tol || t > 1 + tol || u < -tol || u > 1 + tol) {
+    const which = (t < -tol || t > 1 + tol) ? 'první' : 'druhé';
+    return { err: `Úsečky se neprotínají – průsečík X${f3(P.x * xs)} Z${f3(P.z)} leží mimo ${which} úsečku (na jejím prodloužení).` };
+  }
+  const inc = B.mode === 91;
+  const axA = axesText(A.from, P, xs, inc), axB = axesText(P, B.from, xs, inc);
+  if (!axA) return { err: 'Průsečík leží v počátku první úsečky – není co spojit.' };
+  const lines = code.split('\n');
+  // Popisky z exportu („line 1, L=141.421") – délka po oříznutí se přepíše.
+  const upd = (com, len) => com.replace(/L=[-\d.]+/, 'L=' + f3(len));
+  const comA = upd(lineCom(lines[A.line]), Math.hypot(P.z - A.from.z, P.x - A.from.x));
+  const comB = upd(lineCom(lines[B.line]), Math.hypot(B.from.z - P.z, B.from.x - P.x));
+  const out = [];
+  let endIdx = A.line;
+  for (let i = A.line; i <= B.line; i++) {
+    if (i === A.line) out.push('G1 ' + axA + (comA ? ' ' + comA : ''));
+    else if (i === J.line) continue;
+    else if (i === B.line) { if (axB) out.push(axB + (comB ? ' ' + comB : '')); }
+    else out.push(lines[i]);
+  }
+  endIdx = A.line + out.length - 1;
+  lines.splice(A.line, B.line - A.line + 1, ...out);
+  return { code: lines.join('\n'), line: endIdx, point: P };
 }

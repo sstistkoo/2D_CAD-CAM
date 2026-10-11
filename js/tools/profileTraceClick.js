@@ -800,10 +800,13 @@ function _parseGcodeToTrace(text) {
     if (points.length > 0 && (curG === 'G02' || curG === 'G03')) {
       const prev = points[points.length - 1];
       let bulge = 0;
+      // Po směru hodin ve světě: G2/G3 v textu jsou při zrcadlení jedné osy
+      // prohozené (jako výstup getTraceGcode / runCncExport) – zpět se otočí.
+      const cw = (curG === 'G02') !== (state.flipX !== state.flipZ);
 
       if (rMatch) {
         const r = parseFloat(rMatch[1]);
-        bulge = radiusToBulge(prev, pt, Math.abs(r), curG === 'G02');
+        bulge = radiusToBulge(prev, pt, Math.abs(r), cw);
         if (bulge === null) bulge = 0;
         if (r < 0) bulge = -bulge;
       } else if (iMatch && kMatch) {
@@ -818,7 +821,7 @@ function _parseGcodeToTrace(text) {
           cy = prev.y + inputX(iVal);
         }
         const r = Math.hypot(prev.x - cx, prev.y - cy);
-        bulge = radiusToBulge(prev, pt, r, curG === 'G02');
+        bulge = radiusToBulge(prev, pt, r, cw);
         if (bulge === null) bulge = 0;
       }
 
@@ -840,14 +843,17 @@ function _parseGcodeToTrace(text) {
  * Vrátí G-kód trasování jako string.
  * @returns {string}
  */
-export function getTraceGcode() {
+export function getTraceGcode({ forCam = false } = {}) {
   if (_tracePoints.length < 2) return '';
   const { fH, fV } = coordHelpers();
   const dec = state.displayDecimals;
   const isKarusel = state.machineType === 'karusel';
   // Stejně jako runCncExport (fileIO.js): zrcadlení jedné osy (obrábění
-  // zespodu / otočená Z) obrací smysl oblouku → G2/G3 prohozeně
-  const flipArc = (code) => (state.flipX !== state.flipZ) ? (code === 'G02' ? 'G03' : 'G02') : code;
+  // zespodu / otočená Z) obrací smysl oblouku → G2/G3 prohozeně. Pro CAM
+  // (forCam) jde čistá geometrie v rovině CAM – bez zrcadlení, u karuselu
+  // naopak otočené (osy výkresu jsou vůči rovině CAM prohozené).
+  const swapArc = forCam ? isKarusel : state.flipX !== state.flipZ;
+  const flipArc = (code) => swapArc ? (code === 'G02' ? 'G03' : 'G02') : code;
   let gcode = '';
 
   _tracePoints.forEach((pt, i) => {
@@ -997,7 +1003,7 @@ export function updateTracePanel() {
   const camBtn = content.querySelector('#tracePanelToCam');
   if (camBtn) {
     camBtn.addEventListener('click', () => {
-      const gcode = getTraceGcode();
+      const gcode = getTraceGcode({ forCam: true });
       if (!gcode) { showToast('Žádná data k exportu'); return; }
       import('../calculators/camSimulator.js').then(m => {
         m.openCamSimulator(gcode);

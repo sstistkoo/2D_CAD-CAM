@@ -41,6 +41,7 @@ function isDimConnectedToPoints(obj, pts) {
 }
 
 let _renderRAF = null;
+let _shownZoom = null;   // zoom naposledy vypsaný v mobilním řádku souřadnic
 // Kolekce umístěných popisků kót pro detekci kolizí
 let _dimLabelRects = [];
 /** Naplánuje překreslení celého canvasu (requestAnimationFrame). */
@@ -68,6 +69,12 @@ export function renderAll() {
     // Aktualizovat přepínač VK „kreslit myší" (setTool končí renderAll,
     // takže tlačítko drží krok i při přepnutí nástroje z toolbaru)
     if (bridge.updateVkDrawButton) bridge.updateVkDrawButton();
+    // Zoom v % v mobilním řádku souřadnic – mění ho i vycentrování a přiblížení
+    // z dialogů (fitViewToWorldBounds…), ne jen gesta; jinak tam zůstalo staré číslo.
+    if (state.zoom !== _shownZoom && bridge.updateMobileCoords) {
+      _shownZoom = state.zoom;
+      bridge.updateMobileCoords(state.mouse.x, state.mouse.y);
+    }
   });
 }
 
@@ -2954,10 +2961,14 @@ function drawConstraintMarkers() {
     const layer = state.layers.find(l => l.id === obj.layer);
     if (layer && !layer.visible) return;
 
+    // Vybraný objekt/segment se nepřetónovává – tón (alfa 0,55 přes celou šířku)
+    // by přebil barvu výběru a vyrovnaná úsečka by vypadala nevybraná.
+    const objSel = idx === state.selected || state.multiSelected.has(idx);
+
     // Úsečky s vazbou
     if (obj.constraint && (obj.type === 'line' || obj.type === 'constr')) {
       const isSel = isSelConstr && isSelConstr.objIdx === idx && isSelConstr.segIdx === null;
-      _tintConstrainedSegment(obj.x1, obj.y1, obj.x2, obj.y2, obj.constraint);
+      if (!objSel) _tintConstrainedSegment(obj.x1, obj.y1, obj.x2, obj.y2, obj.constraint);
       if (isSel) {
         const pos = _constraintMarkerPos(obj.x1, obj.y1, obj.x2, obj.y2);
         _drawConstraintIcon(pos.x, pos.y, obj.constraint, markerSize, isSel);
@@ -2973,7 +2984,10 @@ function drawConstraintMarkers() {
         const p2 = obj.vertices[(i + 1) % n];
         if (!p1 || !p2) continue;
         const isSel = isSelConstr && isSelConstr.objIdx === idx && isSelConstr.segIdx === i;
-        _tintConstrainedSegment(p1.x, p1.y, p2.x, p2.y, type);
+        const segSet = state.multiSelectedSegments.get(idx);
+        const segSel = objSel && (segSet ? segSet.has(i)
+          : (state.selectedSegment == null || (state._selectedSegmentObjIdx === idx && state.selectedSegment === i)));
+        if (!segSel) _tintConstrainedSegment(p1.x, p1.y, p2.x, p2.y, type);
         if (isSel) {
           const pos = _constraintMarkerPos(p1.x, p1.y, p2.x, p2.y);
           _drawConstraintIcon(pos.x, pos.y, type, markerSize, isSel);

@@ -177,7 +177,8 @@ export function buildStockPointsFromCanvas(camParams) {
       const sa = obj.startAngle, ea = obj.endAngle;
       const p1 = { x: obj.cx + obj.r * Math.cos(sa), y: obj.cy + obj.r * Math.sin(sa) };
       const p2 = { x: obj.cx + obj.r * Math.cos(ea), y: obj.cy + obj.r * Math.sin(ea) };
-      segs.push({ p1, p2, type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, ccw: true });
+      // p1 → p2 jde ve smyslu oblouku (ccw: false = po směru hodin, viz render).
+      segs.push({ p1, p2, type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, ccw: obj.ccw !== false });
     } else if (obj.type === 'polyline') {
       const vs = obj.vertices || [];
       const bs = obj.bulges || [];
@@ -262,9 +263,11 @@ export function buildStockPointsFromCanvas(camParams) {
     }
   }
 
-  // Inverzní mapování canvas → CNC (zrcadlí transformaci v handleSendToCanvas)
+  // Inverzní mapování canvas → CNC (zrcadlí transformaci v handleSendToCanvas).
+  // Osy výkresu určuje typ stroje v CAD, ne pohled „Karusel" v CAM — stejně
+  // jako u kontury (runCncExport).
   const isDia = camParams.mode === 'DIAMON';
-  const isKarusel = camParams.machineStructure === 'carousel';
+  const isKarusel = state.machineType === 'karusel';
   const fromCanvas = (cx, cy) => {
     const xRadius = isKarusel ? cx : cy;
     const z = isKarusel ? cy : cx;
@@ -283,10 +286,10 @@ export function buildStockPointsFromCanvas(camParams) {
     if (seg.type === 'line') {
       pts.push({ id: id++, type: 'G1', x: round3(endCnc.X), z: round3(endCnc.Z), r: 0, mode: 'ABS' });
     } else if (seg.type === 'arc') {
-      // V canvasu: CCW (ccw=true) = kladný smysl. Pro soustruh (Z→x, X→y) se smysl nemění,
-      // pro karusel (X→x, Z→y) se prohazují osy (rotace o 90°), což rovněž zachovává znaménko obíhání.
-      // V CNC: G3 = CCW, G2 = CW.
-      const cnc = seg.ccw ? 'G3' : 'G2';
+      // V canvasu: CCW (ccw=true) = kladný smysl. Pro soustruh (Z→x, X→y) se smysl nemění;
+      // u karuselu (X→x, Z→y) je prohození os ZRCADLENÍ (ne otočení), takže CCW
+      // ve výkresu je v rovině CAM (Z vodorovně, X svisle) CW. V CAM: G3 = CCW, G2 = CW.
+      const cnc = (seg.ccw !== isKarusel) ? 'G3' : 'G2';
       pts.push({ id: id++, type: cnc, x: round3(endCnc.X), z: round3(endCnc.Z), r: round3(seg.r), mode: 'ABS' });
     }
   }

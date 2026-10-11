@@ -8731,7 +8731,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     state.selected = null;
 
     const isDia = S.params.mode === 'DIAMON';
-    const isKarusel = S.params.machineStructure === 'carousel';
+    // Osy výkresu určuje typ stroje v CAD (tím se kontura do CAM i poslala,
+    // runCncExport). „Karusel" v CAM je jen pohled — podle něj se výkres při
+    // rozdílném nastavení vracel přetočený (svět x ↔ y).
+    const isKarusel = state.machineType === 'karusel';
     // Mapování: CNC X,Z → canvas x,y
     // soustruh: canvas.x = Z, canvas.y = X
     // karusel:  canvas.x = X, canvas.y = Z
@@ -8777,13 +8780,15 @@ export function openCamSimulator(initialContour, initialGCode) {
           // Bez správného ccw renderer kresí default (true), což pro G2 znamená
           // dlouhý oblouk přes druhou stranu středu. Při dalším exportu pak
           // cross-product produkoval jiný G2/G3 → round-trip oblouky obracel.
+          // Karusel: svět (x = X, y = Z) je vůči rovině CAM (Z, X) převrácený,
+          // takže CCW v CAM je ve výkresu CW (jinak by se kreslil doplněk).
           const startAngle = Math.atan2(c1.y - cc.y, c1.x - cc.x);
           const endAngle   = Math.atan2(c2.y - cc.y, c2.x - cc.x);
           const id = state.nextId++;
           const obj = {
             type: 'arc', cx: cc.x, cy: cc.y, r: arc.r,
             startAngle, endAngle,
-            ccw: p2.type === 'G3',
+            ccw: (p2.type === 'G3') !== isKarusel,
             name: `Oblouk ${id}`, id, layer: isStock ? STOCK_LAYER_ID : state.activeLayer,
           };
           if (isStock) obj.isStock = true;

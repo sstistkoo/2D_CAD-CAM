@@ -7,7 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CAD editor: nápověda k zápisu.** Nad lištou s údaji k řádku se vypisuje, co které slovo na
+  řádku s kurzorem dělá (G0 = startovní bod, G1 úsečka, G2/G3 oblouk, X/Z, I/K, R, G90/G91…),
+  slovo pod kurzorem je první, a tip co dopsat (oblouk bez R / I K, prázdný řádek…). Stisk
+  klávesy ukáže její popis na 4 s (na dotyku nejsou tooltipy). Logika: `js/calculators/cncHints.js`.
+
+- **CAD editor: úsečka úhlem – polárně / od předchozí.** Tlačítko ∠ je v řádku s ikonami. Režim
+  „Od předchozí" (odklon vlevo/vpravo od směru předchozí úsečky nebo tečny oblouku) se nabídne jen
+  tam, kde předchozí pohyb má směr; po G0, na prvním řádku a při změně kontura/polotovar zůstává jen
+  polární úhel. V G91 se zapisují přírůstky.
+
+- **CAD editor: polární úsečky a spojení v průsečíku.** Řádek `G1 PU45 L1200` (úhel od +Z + délka,
+  místo L jde cílové X/Z; bez G = G1) se počítá v náhledu, údajích i průsečících. Tlačítko **🔗**
+  v horní liště (a položka v pravém panelu) pracuje u kurzoru: sražení/zaoblení (CHF/RND) na řádku převede na dráhu, jinak spojí dvě úsečky (kurzor na druhé, před ní G0 na její začátek): ořízne je
+  v průsečíku a zapíše jednu navazující konturu (`G1 X50 Z50` / `Z200`). PU/L se před přenosem do
+  výkresu přepíšou na X, Z. Úsečka úhlem nově nepíše osu, ve které se nic nemění.
+
 ### Fixed
+- **Vyrovnaná úsečka se při výběru nezvýraznila.** Barevný tón vazby (vodorovná/svislá/rovnoběžná)
+  se kreslil přes výběr a přebil jeho barvu; vybraný objekt/segment se teď netónuje.
+- **CAD → CAM: oblouky při zrcadlení os a na karuselu.** S „⇅ X+ dolů" nebo „⇄ Z+ vlevo"
+  (jen jedno z nich) a na karuselu přišly oblouky do CAM obráceně — zaoblení R5 se z vypouklého
+  stalo vydutým. Přenos do CAM teď posílá čistou geometrii (prohození G2/G3 si CAM dělá sám
+  ve výstupu); totéž platí pro „→ CAM" z Trasování profilu.
+- **CAM → CAD („📐 Kreslit") na karuselu:** oblouk se kreslil jako doplněk (270° místo 90°)
+  a osy výkresu se řídily přepínačem Karusel v CAM místo typu stroje v CAD (při rozdílném
+  nastavení se výkres vrátil přetočený). Polotovar čtený přímo z plátna bral každý oblouk
+  jako proti směru hodin.
+- **Zrcadlení os v CAD:** „Vykreslit" z panelu CNC KÓD, CNC Editor (náhled i kreslení)
+  a G-kód z Číselného zadání vracely se zrcadlením oblouky na plátno zrcadlově. CNC Editor
+  při převodu rohu na zaoblení psal na karuselu G2/G3 obráceně.
+- **Otevření CAM s čarami „mimo profil":** když se na CAM klepne do 300 ms po úpravě
+  výkresu (nebo po „Smazat kopii" v nabídce zdvojených čar), odložené obnovení panelu
+  CNC KÓD smazalo fialové zvýraznění a dotaz odkazoval na něco, co není vidět. Čekající
+  obnovení se teď provede před přenosem (bez vlastní nabídky přes otevíraný CAM).
+- **Mobil:** zoom v % v řádku souřadnic zůstával starý po ⊙ vycentrování i po přiblížení
+  z dialogů (teď se obnoví při každé změně zoomu).
 - **Vyrovnání (vodorovně/svisle/rovnoběžně):** když posun konce porušil vazbu navazující úsečky nebo segmentu polylinie, její zastaralá vazba se zruší (dřív zůstala značka vazby u neplatné geometrie).
 
 ### Changed

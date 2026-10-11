@@ -184,3 +184,99 @@ describe('withLinkedEnds – vyrovnání táhne navazující konce (10. 10. 2026
     expect([b.x1, b.y1, b.x2, b.y2]).toEqual([10, 10, 20, 20]);
   });
 });
+
+describe('CAD ↔ CAM: smysl oblouku při zrcadlení a na karuselu (10. 10. 2026)', () => {
+  // Profil: čelo, zaoblení R5 se středem ve výkresu, válec. CAM musí dostat
+  // TENTÝŽ fyzický oblouk (střed X15 Z-5) bez ohledu na ⇅/⇄ a typ stroje.
+  const lathe = () => [
+    L(0, 0, 0, 15),
+    { type: 'arc', cx: -5, cy: 15, r: 5, startAngle: 0, endAngle: Math.PI / 2, ccw: true, name: 'Oblouk' },
+    L(-5, 20, -50, 20),
+  ];
+  const karusel = () => [
+    L(0, 0, 15, 0),
+    { type: 'arc', cx: 15, cy: -5, r: 5, startAngle: Math.PI / 2, endAngle: 0, ccw: false, name: 'Oblouk' },
+    L(20, -5, 20, -50),
+  ];
+  let bridge, P, M;
+  beforeAll(async () => {
+    ({ bridge } = await import('../js/bridge.js'));
+    P = await import('../js/calculators/cam/gcodeParser.js');
+    M = await import('../js/calculators/cam/camMath.js');
+  });
+  const camArcCenter = () => {
+    const c = P.parseContourAndStockGCode(bridge.buildCamTransfer().code).contour;
+    const i = c.findIndex(q => q.type === 'G2' || q.type === 'G3');
+    const a = M.getArcParams({ x: c[i - 1].x, z: c[i - 1].z }, { x: c[i].x, z: c[i].z }, c[i].r, c[i].type);
+    return [a.cx, a.cz];
+  };
+  const reset = (mt, fx, fz, objs) => {
+    Object.assign(state, { machineType: mt, flipX: fx, flipZ: fz, xDisplayMode: 'radius', cncOutputMode: 'abs', intersections: [], selected: null });
+    state.multiSelected = new Set();
+    state.objects = objs;
+  };
+  const combos = [[false, false], [true, false], [false, true], [true, true]];
+
+  for (const [mt, mk] of [['soustruh', lathe], ['karusel', karusel]]) {
+    for (const [fx, fz] of combos) {
+      it(`${mt}, ⇅=${fx} ⇄=${fz}: CAM dostane oblouk se středem X15 Z-5`, () => {
+        reset(mt, fx, fz, mk());
+        const [cx, cz] = camArcCenter();
+        expect(cx).toBeCloseTo(15, 6);
+        expect(cz).toBeCloseTo(-5, 6);
+      });
+    }
+  }
+
+  it('přenos do CAM nepíše „G2/G3 prohozeny", program v CAD panelu ano', () => {
+    reset('soustruh', true, false, lathe());
+    expect(bridge.buildCamTransfer().code).not.toMatch(/prohozeny/);
+    const out = bridge.runCncExport();
+    expect(out).toMatch(/Obrábění zespodu.*prohozeny/);
+    expect(out).toMatch(/^G02 /m);   // zaoblení CCW ve světě → se zrcadlením G02
+  });
+
+  it('CNC kód → Vykreslit vrátí se zrcadlením tentýž oblouk', () => {
+    for (const [fx, fz] of combos) {
+      reset('soustruh', fx, fz, lathe());
+      bridge.renderCncCodeToCanvas(bridge.runCncExport());
+      const a = state.objects.find(o => o.type === 'arc');
+      expect(a.cx).toBeCloseTo(-5, 6);
+      expect(a.cy).toBeCloseTo(15, 6);
+      // výseč 90° (ne doplněk 270°)
+      const TAU = 2 * Math.PI;
+      const sweep = (((a.ccw === false ? a.startAngle - a.endAngle : a.endAngle - a.startAngle) % TAU) + TAU) % TAU;
+      expect(sweep).toBeCloseTo(Math.PI / 2, 6);
+    }
+  });
+
+  it('polotovar z plátna: oblouk po směru hodin i karusel', () => {
+    // Čtvrtkruh polotovaru nakreslený CW (ccw: false) — dřív se bral vždy jako CCW.
+    reset('soustruh', false, false, [
+      L(0, 0, 0, 20, { isStock: true }),
+      { type: 'arc', cx: -10, cy: 20, r: 10, startAngle: 0, endAngle: Math.PI / 2, ccw: true, isStock: true, name: 'O' },
+      L(-10, 30, -60, 30, { isStock: true }),
+    ]);
+    const centerOf = (pts) => {
+      const i = pts.findIndex(q => q.type === 'G2' || q.type === 'G3');
+      const a = M.getArcParams({ x: pts[i - 1].x, z: pts[i - 1].z }, { x: pts[i].x, z: pts[i].z }, pts[i].r, pts[i].type);
+      return [a.cx, a.cz];
+    };
+    let [cx, cz] = centerOf(P.buildStockPointsFromCanvas({ mode: 'RADIUS' }));
+    expect(cx).toBeCloseTo(20, 6); expect(cz).toBeCloseTo(-10, 6);
+    // stejný oblouk uložený obráceně (start/end prohozené, ccw: false)
+    state.objects[1] = { type: 'arc', cx: -10, cy: 20, r: 10, startAngle: Math.PI / 2, endAngle: 0, ccw: false, isStock: true, name: 'O' };
+    [cx, cz] = centerOf(P.buildStockPointsFromCanvas({ mode: 'RADIUS' }));
+    expect(cx).toBeCloseTo(20, 6); expect(cz).toBeCloseTo(-10, 6);
+    // karusel: svět (x = X, y = Z) — osy podle CAD, ne podle pohledu v CAM
+    state.machineType = 'karusel';
+    state.objects = [
+      L(0, 0, 20, 0, { isStock: true }),
+      { type: 'arc', cx: 20, cy: -10, r: 10, startAngle: Math.PI / 2, endAngle: 0, ccw: false, isStock: true, name: 'O' },
+      L(30, -10, 30, -60, { isStock: true }),
+    ];
+    [cx, cz] = centerOf(P.buildStockPointsFromCanvas({ mode: 'RADIUS', machineStructure: 'lathe' }));
+    expect(cx).toBeCloseTo(20, 6); expect(cz).toBeCloseTo(-10, 6);
+    state.machineType = 'soustruh';
+  });
+});

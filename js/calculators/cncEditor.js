@@ -9,8 +9,9 @@ import { bridge } from '../bridge.js';
 import { showToast, state } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { safeEvalMath } from '../utils.js';
-import { analyzeDrawCode, moveInfo, moveAtOrBefore, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
+import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, polarToXZ, joinAtIntersection, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
 import { drawPreview } from './cncDrawPreview.js';
+import { lineHint, helpHTML } from './cncHints.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 
@@ -22,6 +23,7 @@ const STORAGE_MERGE = 'skica-cnc-editor-merge-queue';
 const STORAGE_HIST  = 'skica-cnc-editor-history';
 const STORAGE_FONT  = 'skica-cnc-editor-font-size';
 const STORAGE_PREVIEW = 'skica-cnc-editor-preview';
+const STORAGE_INFO = 'skica-cnc-editor-info-open';
 const HIST_KEEP     = 30;     // kroků Zpět/Vpřed, které přežijí zavření editoru
 const HIST_MAX_CHARS = 1_000_000; // strop uložené historie (localStorage má typicky ~5 MB)
 const FS_MIN = 9, FS_MAX = 26;
@@ -414,7 +416,7 @@ function rewriteLineXZ(lineText, newX, newZ, stripRe) {
 // úsečkou před rohem + G2/G3 obloukem (zaoblení) nebo G1 spojovací
 // úsečkou (sražení). Používá stejnou geometrii jako CAD nástroj Zaob./Zkos.
 // (filletTwoLines/chamferTwoLines z geometry.js).
-function convertCornersToPaths(code) {
+function convertCornersToPaths(code, onlyLine = null) {
   const lines = code.split('\n');
   const n = lines.length;
   const ctrl = getControlSystem();
@@ -423,7 +425,7 @@ function convertCornersToPaths(code) {
 
   // ── Pass 1: modální sledování polohy + seznam pohybových bodů a markerů ──
   const points = []; // { lineIdx, x, z, isFeed }
-  const markers = []; // { lineIdx, kind, value, hasOwnXZ, pointIdx }
+  let markers = []; // { lineIdx, kind, value, hasOwnXZ, pointIdx }
   let x = null, z = null, mode = 90;
 
   for (let i = 0; i < n; i++) {
@@ -469,6 +471,8 @@ function convertCornersToPaths(code) {
     }
   }
 
+  // `onlyLine`: převést jen marker(y) na řádku s kurzorem.
+  if (onlyLine !== null) markers = markers.filter(m => m.lineIdx === onlyLine);
   if (!markers.length) return { code, converted: 0, skipped: 0 };
 
   // ── Pass 2: pro každý marker spočti geometrii korekce rohu ──
@@ -510,8 +514,13 @@ function convertCornersToPaths(code) {
       // světovém (X,Z) systému, kde světové X = G-kód Z pole a světové Y =
       // G-kód X pole (soustružnická konvence) – proto se v cross productu
       // musí prohodit .x/.z oproti tomu, jak jsou pojmenované v G-kódu.
+      // Karusel má svět (x = X, y = Z) – osy vůči soustruhu prohozené, takže
+      // tentýž součin tam vychází s opačným znaménkem (stejná past jako
+      // v numerickém zadání). Zrcadlení jedné osy pak G2/G3 v textu prohazuje
+      // jako flipArc v runCncExport – parseGcodeToObjects ho zase vrací.
       const cross = (tp1.z - cz) * (tp2.x - cx) - (tp1.x - cx) * (tp2.z - cz);
-      const gWord = cross > 0 ? 'G3' : 'G2';
+      const ccwWorld = state.machineType === 'karusel' ? cross < 0 : cross > 0;
+      const gWord = (ccwWorld !== (state.flipX !== state.flipZ)) ? 'G3' : 'G2';
       // I/K = střed oblouku relativně k jeho začátku (tp1): I v ose X, K v ose Z.
       const iVal = (cx - tp1.x) * xs, kVal = cz - tp1.z;
       connectorLine = `${gWord} X${f3(tp2.x * xs)} Z${f3(tp2.z)} I${f3(iVal)} K${f3(kVal)} R${f3(r)}`;
@@ -593,11 +602,12 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb accent c12" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
     <button class="cne-qb gray c12" data-inp="" title="Zadat číslo">123</button>
 
-    <button class="cne-qb red c12" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
-    <button class="cne-qb gray c12" data-act="copy" title="Kopírovat kód do schránky">📋</button>
-    <button class="cne-qb gray c12" data-ins=";" title="Středník (komentář)">;</button>
-    <button class="cne-qb cne-kb-btn c12" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
-    <button class="cne-qb green c12" data-ins="\\n" title="Nový řádek">↵</button>
+    <button class="cne-qb red c10" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
+    <button class="cne-qb gray c10" data-act="copy" title="Kopírovat kód do schránky">📋</button>
+    <button class="cne-qb gray c10" data-ins=";" title="Středník (komentář)">;</button>
+    <button class="cne-qb accent c10" data-act="angleLine" title="Úsečka úhlem – polárně od osy Z, nebo od předchozí úsečky">∠</button>
+    <button class="cne-qb cne-kb-btn c10" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
+    <button class="cne-qb green c10" data-ins="\\n" title="Nový řádek">↵</button>
 
     <button class="cne-qb accent cne-qb-wide c15" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
     <button class="cne-qb gray cne-qb-wide c30" data-ins=" " title="Mezera">␣</button>
@@ -646,6 +656,8 @@ function menuItemsHTML(drawMode = false) {
           <button class="cne-fs-btn" data-act="fontUp" title="Zvětšit text v editoru">A+</button></div>
         <button class="cne-menu-item" data-act="clearEditor"><span class="cne-mi-icon red">🗑</span><span class="cne-mi-text"><b>Vymazat editor</b><small>Smaže celý kód (◀ Zpět ho vrátí)</small></span></button>
         <button class="cne-menu-item" data-act="togglePreview"><span class="cne-mi-icon">📐</span><span class="cne-mi-text"><b data-el="previewLabel">Náhled kontury</b><small>Malý náhled nad kódem, řádek s kurzorem žlutě</small></span></button>
+        <button class="cne-menu-item" data-act="joinLines"><span class="cne-mi-icon">∩</span><span class="cne-mi-text"><b>Spojit v průsečíku</b><small>Dvě úsečky se oříznou v místě křížení a spojí do kontury</small></span></button>
+        <button class="cne-menu-item" data-act="help"><span class="cne-mi-icon">❓</span><span class="cne-mi-text"><b>Nápověda k zápisu</b><small>Co a jak se zapisuje (G0, G1, G2, X, Z, R, I, K…)</small></span></button>
         <button class="cne-menu-item" data-act="angleLine"><span class="cne-mi-icon">∠</span><span class="cne-mi-text"><b>Úsečka úhlem</b><small>Úhel + délka / X / Z → G1</small></span></button>`
     : `
         <button class="cne-menu-item" data-act="new"><span class="cne-mi-icon green">＋</span><span class="cne-mi-text"><b>Nový program</b><small>Vytvořit nový CNC soubor</small></span></button>`) + `
@@ -675,7 +687,7 @@ function drawToolbarHTML() {
     <button class="cne-tb-btn cne-tb-sidebar" data-act="sidebar" title="Soubory, R-parametry">☰</button>
     <span class="cne-filename" data-el="filename" hidden>—</span>
     <div class="cne-toolbar-mid">
-      <button class="cne-tb-btn" data-act="cornersToPath" title="Převést sražení/zaoblení (CHF/RND) na skutečnou dráhu G1/G2/G3">⌒</button>
+      <button class="cne-tb-btn" data-act="cornerJoin" title="Na řádku s kurzorem: převést sražení/zaoblení (CHF/RND) na skutečnou dráhu G1/G2/G3 – nebo, když je kurzor na druhé z dvou křížících se úseček (před ní G0 na její začátek), je oříznout v průsečíku a spojit do jedné kontury">🔗</button>
       <button class="cne-tb-btn cne-conv" data-el="convModeBtn" data-act="convMode" title="Přepočítat kód G90 (absolutní) ↔ G91 (přírůstkové)">G90</button>
       <button class="cne-tb-btn" data-act="search" title="Hledat v kódu (Ctrl+F)">🔍</button>
       <button class="cne-tb-btn" data-act="calc" title="Kalkulačka">🔢</button>
@@ -774,11 +786,16 @@ function buildEditorHTML(drawMode = false) {
   </div>
 
   ${drawMode ? `<div class="cne-info" data-el="infoBar">
-    <span class="cne-info-text" data-el="infoText"></span>
-    <div class="cne-info-btns">
-      <button class="cne-info-btn" data-act="angleLine" title="Úsečka zadaná úhlem (a délkou / cílovým X / Z) z bodu na kurzoru">∠</button>
-      <button class="cne-info-btn" data-act="copyLine" title="Kopírovat řádek s kurzorem">📋ř</button>
-      <button class="cne-info-btn" data-act="copyCoord" title="Kopírovat koncový bod řádku (X… Z…)">📋XZ</button>
+    <div class="cne-info-body" data-el="infoBody" hidden>
+      <span class="cne-info-text" data-el="infoText"></span>
+      <div class="cne-hint" data-el="hintText" aria-live="polite"></div>
+    </div>
+    <div class="cne-info-head">
+      <button class="cne-info-toggle" data-act="infoToggle" data-el="infoToggle" title="Rozbalit / sbalit údaje o řádku a nápovědu k zápisu">▸ Údaje a nápověda</button>
+      <div class="cne-info-btns">
+        <button class="cne-info-btn" data-act="copyLine" title="Kopírovat řádek s kurzorem">📋ř</button>
+        <button class="cne-info-btn" data-act="copyCoord" title="Kopírovat koncový bod řádku (X… Z…)">📋XZ</button>
+      </div>
     </div>
   </div>` : ''}
 
@@ -789,7 +806,15 @@ function buildEditorHTML(drawMode = false) {
     <div class="cne-im-card">
       <div class="cne-im-title">∠ Úsečka úhlem<button class="cne-im-close" data-act="angleCancel" title="Zavřít">✕</button></div>
       <div class="cne-ang-from" data-el="angleFrom"></div>
-      <label class="cne-ang-row">Úhel ° <small>(od osy +Z, proti směru hodin; 180 = směr −Z)</small>
+      <div class="cne-ang-modes" data-el="angModeRow">
+        <button class="cne-ang-mode on" data-act="angMode" data-mode="polar" title="Úhel od osy +Z">Polární</button>
+        <button class="cne-ang-mode" data-act="angMode" data-mode="rel" title="Úhel od směru předchozí úsečky / oblouku">Od předchozí</button>
+      </div>
+      <div class="cne-ang-modes" data-el="angSideRow" hidden>
+        <button class="cne-ang-mode on" data-act="angSide" data-side="1" title="Odklon od předchozího směru doleva (proti směru hodin)">↺ vlevo</button>
+        <button class="cne-ang-mode" data-act="angSide" data-side="-1" title="Odklon od předchozího směru doprava (po směru hodin)">↻ vpravo</button>
+      </div>
+      <label class="cne-ang-row"><span data-el="angLabel">Úhel °</span> <small data-el="angSmall">(od osy +Z, proti směru hodin; 180 = směr −Z)</small>
         <input class="cne-im-input" data-el="angA" type="text" inputmode="decimal" autocomplete="off"></label>
       <div class="cne-ang-hint">a jeden z údajů:</div>
       <div class="cne-ang-grid">
@@ -833,6 +858,15 @@ function buildEditorHTML(drawMode = false) {
       </div>
     </div>
   </div>
+
+  ${drawMode ? `<!-- Nápověda k zápisu -->
+  <div class="cne-inner-modal" data-el="helpModal" style="display:none">
+    <div class="cne-im-card cne-val-card">
+      <div class="cne-im-title">Nápověda k zápisu<button class="cne-im-close" data-act="helpClose" title="Zavřít">✕</button></div>
+      <div class="cne-help-body">${helpHTML()}</div>
+      <button class="cne-im-btn cancel" data-act="helpClose" style="margin-top:8px;width:100%">Zavřít</button>
+    </div>
+  </div>` : ''}
 
   <!-- Validation modal -->
   <div class="cne-inner-modal" data-el="valModal" style="display:none">
@@ -968,6 +1002,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       // Nic se nezměnilo oproti kódu z výkresu → není co přepisovat, bez dotazu.
       const sameText = (a, b) => String(a).replace(/\r/g, '').trim() === String(b).replace(/\r/g, '').trim();
       if (typeof baselineCode === 'string' && sameText(code, baselineCode)) return;
+      code = polarToXZ(code, drawOpts()).code;   // PU/L → X Z (CAD parser polární zadání nezná)
       if (coordMode === 'inc') code = codeToAbsolute(code);
       code = convertCornersToPaths(code).code;
       showConfirmDialog('Přepsat výkres podle zapsaného kódu?', () => {
@@ -2104,7 +2139,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   const isectListEl = $('isectList');
   let anCache = { code: null, an: null };
   function drawOpts() {
-    return { diam: state.xDisplayMode === 'diameter', karusel: state.machineType === 'karusel' };
+    return { diam: state.xDisplayMode === 'diameter', karusel: state.machineType === 'karusel', flip: state.flipX !== state.flipZ };
   }
   function analysis() {
     if (anCache.code !== editor.value) anCache = { code: editor.value, an: analyzeDrawCode(editor.value, drawOpts()) };
@@ -2112,11 +2147,46 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
   function caretLine() { return editor.value.slice(0, editor.selectionStart ?? 0).split('\n').length - 1; }
   let tInfo = null;
+  // Nápověda k zápisu: vysvětlí slova na řádku s kurzorem a poradí, co dopsat.
+  const hintEl = $('hintText');
+  const infoBodyEl = $('infoBody'), helpModal = $('helpModal');
+  function setInfoOpen(on) {
+    if (!infoBodyEl) return;
+    infoBodyEl.hidden = !on;
+    const t = $('infoToggle'); if (t) t.textContent = (on ? '▾' : '▸') + ' Údaje a nápověda';
+    storageSave(STORAGE_INFO, !!on);
+    syncScroll();
+  }
+  if (infoBodyEl) setInfoOpen(storageLoad(STORAGE_INFO) === true);
+  let keyHint = null;   // popis právě stisknuté klávesy (přebije nápovědu k řádku na pár sekund)
+  let tKeyHint = null;
+  function renderHint(an, ln) {
+    if (!hintEl) return;
+    if (keyHint) { hintEl.innerHTML = `<b>${esc(keyHint.k)}</b> ${esc(keyHint.t)}`; return; }
+    const v = editor.value, pos = editor.selectionStart ?? 0;
+    const ls = v.lastIndexOf('\n', pos - 1) + 1;
+    let le = v.indexOf('\n', pos); if (le < 0) le = v.length;
+    const h = lineHint(v.slice(ls, le), pos - ls, { diam: state.xDisplayMode === 'diameter', hasPrevMove: !!moveAtOrBefore(an, ln - 1) });
+    const chips = h.items.map(i => `<span class="${i.cur ? 'cur' : ''}"><b>${esc(i.k)}</b> ${esc(i.t)}</span>`);
+    const parts = h.comment ? [`<span>${esc(h.comment)}</span>`] : chips;
+    if (h.tip) parts.push(`<span class="tip">💡 ${esc(h.tip)}</span>`);
+    hintEl.innerHTML = parts.join('');
+  }
+  /** Po stisku klávesy ukáže její popis (na dotyku nejsou tooltipy). */
+  function showKeyHint(btn) {
+    const t = btn.getAttribute('title');
+    if (!t || !hintEl) return;
+    const i = t.search(/\s[–-]\s/);
+    keyHint = i > 0 ? { k: t.slice(0, i), t: t.slice(i + 3) } : { k: btn.textContent.trim(), t };
+    clearTimeout(tKeyHint);
+    tKeyHint = setTimeout(() => { keyHint = null; updateInfo(); }, 4000);
+  }
   function updateInfo() {
     if (!infoTextEl) return;
     clearTimeout(tInfo);
     tInfo = setTimeout(() => {
       const an = analysis(), ln = caretLine();
+      renderHint(an, ln);
       const mv = an.byLine.get(ln);
       // Každý údaj zvlášť (nelámat „střed X… Z…" uprostřed), mezi nimi zalomit lze.
       if (mv) infoTextEl.innerHTML = moveInfo(mv, an).map(t => `<span>${esc(t)}</span>`).join(' · ');
@@ -2138,14 +2208,82 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
 
   // Úsečka úhlem: z konce řádku s kurzorem (nebo poslední polohy před ním).
-  let angleFrom = null, angleLineIdx = 0;
+  let angleFrom = null, angleLineIdx = 0, anglePrevDir = null;
+  let angIncr = false;                  // v místě kurzoru platí G91 → zapsat přírůstky
+  let angMode = 'polar', angSide = 1;   // polární / od předchozí úsečky; vlevo (+) / vpravo (−)
+  // „Od předchozí" jen když předchozí pohyb má směr: úsečka G1 nebo oblouk G2/G3 ve
+  // stejné části kódu (kontura / polotovar). Po G0, na prvním řádku a po nulovém pohybu
+  // zbývá jen polární úhel.
+  let angRelOk = false, angRelWhy = '';
+  function syncAngleUi() {
+    if (!angRelOk) angMode = 'polar';
+    angleModal.querySelectorAll('[data-act="angMode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === angMode));
+    angleModal.querySelectorAll('[data-act="angSide"]').forEach(b => b.classList.toggle('on', Number(b.dataset.side) === angSide));
+    $('angModeRow').hidden = !angRelOk;
+    $('angSideRow').hidden = !(angRelOk && angMode === 'rel');
+    $('angLabel').textContent = angMode === 'rel' ? 'Odklon °' : 'Úhel °';
+    $('angSmall').textContent = angMode === 'rel'
+      ? `(od předchozího směru ${f3(anglePrevDir)}°; 0 = rovně dál, 90 = kolmo)`
+      : '(od osy +Z, proti směru hodin; 180 = směr −Z)' + (angRelWhy ? ' – ' + angRelWhy : '');
+    angleModal.dispatchEvent(new Event('input'));
+  }
+  // Jedno tlačítko ⌒∩ u kurzoru: sražení/zaoblení na řádku → dráha, jinak spojení úseček v průsečíku.
+  function cornerOrJoin() {
+    const ln = caretLine();
+    const cv = convertCornersToPaths(editor.value, ln);
+    if (cv.converted > 0) {
+      const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft, pos = editor.selectionStart;
+      captureUndoSnapshot('Převod sražení/zaoblení');
+      editor.value = cv.code;
+      editor.selectionStart = editor.selectionEnd = Math.min(pos, editor.value.length);
+      editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
+      editor.focus({ preventScroll: true });
+      onInput();
+      showToast('Sražení/zaoblení převedeno na G-kód dráhu ✓');
+      return;
+    }
+    if (cv.skipped > 0) { showToast('⚠ Nepodařilo se převést – zkontrolujte okolní G1 úsečky'); return; }
+    const gen = joinAtIntersection(editor.value, ln, drawOpts());
+    if (gen.err && /^Kurzor dejte/.test(gen.err)) {
+      showToast('Kurzor dejte na řádek se sražením/zaoblením, nebo na druhou ze dvou úseček ke spojení v průsečíku');
+      return;
+    }
+    joinLines();
+  }
+  // Spojit dvě úsečky v průsečíku (výpočet v cncDrawTools.js: joinAtIntersection).
+  function joinLines() {
+    const res = joinAtIntersection(editor.value, caretLine(), drawOpts());
+    if (res.err) { showToast('⚠ ' + res.err); return; }
+    const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+    captureUndoSnapshot('Spojení v průsečíku', `X${f3(res.point.x * analysis().xs)} Z${f3(res.point.z)}`);
+    editor.value = res.code;
+    const ls = res.code.split('\n');
+    let pos = 0; for (let i = 0; i <= res.line; i++) pos += ls[i].length + (i < res.line ? 1 : 0);
+    editor.selectionStart = editor.selectionEnd = pos;
+    editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
+    editor.focus({ preventScroll: true });
+    onInput();
+    showToast(`Spojeno v průsečíku X${f3(res.point.x * analysis().xs)} Z${f3(res.point.z)} ✓`);
+  }
   function openAngleLine() {
     const an = analysis();
     angleLineIdx = caretLine();
-    const p = moveAtOrBefore(an, angleLineIdx);
+    let p = moveAtOrBefore(an, angleLineIdx);
+    // Pohyb z jiné části kódu (kontura × polotovar) není „předchozí" – začíná se od počátku.
+    if (p && !!p.stock !== caretInStock()) p = null;
     angleFrom = p ? p.to : { z: 0, x: 0 };
+    anglePrevDir = null; angRelWhy = '';
+    if (!p) angRelWhy = 'předchozí úsečka tu není';
+    else if (p.g === 0) angRelWhy = 'předchozí je rychloposuv G0 (start)';
+    else {
+      anglePrevDir = moveDirDeg(p, an);
+      if (anglePrevDir === null) angRelWhy = 'předchozí pohyb nemá směr';
+    }
+    angRelOk = anglePrevDir !== null;
+    angIncr = modeAtLine(editor.value, angleLineIdx) === 91;
     $('angleFrom').textContent = `Z bodu X${f3(angleFrom.x * an.xs)} Z${f3(angleFrom.z)}` + (p ? ` (konec řádku ${p.line + 1})` : ' (počátek)');
     ['angA', 'angL', 'angX', 'angZ'].forEach(k => { $(k).value = ''; });
+    syncAngleUi();
     $('angRes').textContent = '';
     angleModal.style.display = 'flex';
   }
@@ -2154,8 +2292,20 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const A = val('angA');
     if (A === null || Number.isNaN(A)) return { err: 'Zadejte úhel.' };
     for (const k of ['angL', 'angX', 'angZ']) if (Number.isNaN(val(k))) return { err: 'Neplatné číslo.' };
-    return { A, ...angleLineEnd(angleFrom, A, { L: val('angL'), X: val('angX'), Z: val('angZ') }, analysis().xs) };
+    const rel = angMode === 'rel';
+    if (rel && anglePrevDir === null) return { err: 'Není předchozí úsečka – použijte Polární.' };
+    const abs = rel ? anglePrevDir + angSide * A : A;
+    const xs = analysis().xs;
+    const res = angleLineEnd(angleFrom, abs, { L: val('angL'), X: val('angX'), Z: val('angZ') }, xs);
+    if (res.err) return { err: res.err };
+    // V G91 se zapisují přírůstky od začátku úsečky, ne absolutní polohy.
+    const out = angIncr ? { x: res.x - angleFrom.x * xs, z: res.z - angleFrom.z } : res;
+    // Osa, ve které se nic nepohne (souřadnice shodná s předchozím bodem), se nepíše.
+    const wx = f3(res.x - angleFrom.x * xs) !== '0', wz = f3(res.z - angleFrom.z) !== '0';
+    if (!wx && !wz) return { err: 'Úsečka by měla nulovou délku (stejný bod jako předchozí).' };
+    return { A, abs, rel, inc: angIncr, wx, wz, ...out };
   }
+  const g1Text = r => 'G1' + (r.wx ? ' X' + f3(r.x) : '') + (r.wz ? ' Z' + f3(r.z) : '');
   function confirmAngle() {
     const r = angleResult();
     if (r.err) { $('angRes').textContent = '⚠ ' + r.err; return; }
@@ -2165,12 +2315,12 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     let pos = 0;
     v.split('\n').slice(0, angleLineIdx + 1).forEach(l => { pos += l.length + 1; });
     editor.selectionStart = editor.selectionEnd = Math.max(0, Math.min(v.length, pos - 1));
-    insertLines(`G1 X${f3(r.x)} Z${f3(r.z)} ; ∠${f3(r.A)}°`, 'Úsečka úhlem', `∠${f3(r.A)}°`);
+    insertLines(`${g1Text(r)} ; ∠${r.rel ? f3(r.A) + '° od předchozí' : f3(r.A) + '°'}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`);
   }
   if (angleModal) {
     angleModal.addEventListener('input', () => {
       const r = angleResult();
-      $('angRes').textContent = r.err ? '' : `→ G1 X${f3(r.x)} Z${f3(r.z)}`;
+      $('angRes').textContent = r.err ? '' : `→ ${g1Text(r)}` + (r.inc ? ' (G91 – přírůstky)' : '') + (r.rel ? `  (směr ${f3(r.abs)}° od +Z)` : '');
     });
     angleModal.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmAngle(); } });
     angleModal.addEventListener('click', e => { if (e.target === angleModal) angleModal.style.display = 'none'; });
@@ -2435,6 +2585,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           closeMenu(); break;
         case 'togglePreview': setPreview(previewEl?.hidden); break;
         case 'angleLine': openAngleLine(); break;
+        case 'joinLines': joinLines(); break;
+        case 'cornerJoin': cornerOrJoin(); break;
+        case 'angMode':   angMode = ab.dataset.mode; syncAngleUi(); break;
+        case 'angSide':   angSide = Number(ab.dataset.side); syncAngleUi(); break;
         case 'angleOk':   confirmAngle(); break;
         case 'angleCancel': angleModal.style.display = 'none'; break;
         case 'copyLine':  copyCaretLine(); break;
@@ -2468,6 +2622,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           // Přenes upravený kód zpět do CAD panelu (odkud kód pochází) a
           // vykresli konturu na canvas. CAD panel čte souřadnice absolutně,
           // takže přírůstkový režim (G91) před odesláním přepočítáme na G90.
+          const pol = polarToXZ(editor.value, drawOpts());
+          if (pol.converted > 0) { captureUndoSnapshot('Převod PU/L na X Z'); editor.value = pol.code; onInput(); }
           if (coordMode === 'inc') { captureUndoSnapshot('Převod na G90'); editor.value = codeToAbsolute(editor.value); coordMode = 'abs'; onInput(); }
           // Nepřevedené sražení/zaoblení (CHF=/RND=…) by CAD parser G-kódu
           // nerozpoznal – automaticky ho převedeme na skutečnou dráhu (G1/G2/G3).
@@ -2485,6 +2641,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'numCancel': numModal.style.display = 'none'; break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
+        case 'infoToggle': setInfoOpen(infoBodyEl.hidden); break;
+        case 'help':      helpModal.style.display = 'flex'; break;
+        case 'helpClose': helpModal.style.display = 'none'; break;
         case 'cfgClose':  cfgModal.style.display = 'none'; persistCfg(); scheduleValidation(); break;
       }
       // Položka z pravého panelu nástrojů → panel po akci zavřít.
@@ -2497,10 +2656,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (isb) { toggleSidePanel(sidebarRightEl); insertText(isb.dataset.isect, 'Průsečík'); return; }
     // Insert
     const ib = e.target.closest('[data-ins]');
-    if (ib) { insertText(ib.dataset.ins); return; }
+    if (ib) { showKeyHint(ib); insertText(ib.dataset.ins); return; }
     // Input modal
     const ip = e.target.closest('[data-inp]');
-    if (ip) { openNumpad(ip.dataset.inp); return; }
+    if (ip) { showKeyHint(ip); openNumpad(ip.dataset.inp); return; }
     // Numpad keys
     const np = e.target.closest('[data-n]');
     if (np) {
@@ -2575,6 +2734,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   // ── Init ───────────────────────────────────────────────────
   if (previewEl) setPreview(storageLoad(STORAGE_PREVIEW) === true);
+  if (infoBodyEl) setInfoOpen(storageLoad(STORAGE_INFO) === true);
   renderIntersections();
   applyKeyboardMode();
   applyFontSize();

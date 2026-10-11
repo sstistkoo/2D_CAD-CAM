@@ -87,3 +87,13 @@ describe('cncDrawTools – rozbor kreslicího G-kódu', () => {
     expect(moveAtOrBefore(an, 1).to).toEqual({ z: 5, x: 10 });
   });
 });
+
+describe('cncDrawTools – zrcadlení jedné osy (flip)', () => {
+  it('G2/G3 prohozené v textu dávají se flip tentýž střed', () => {
+    const plain = analyzeDrawCode('G0 X20 Z65\nG2 X25 Z60 R5').byLine.get(1).arc;
+    const flipped = analyzeDrawCode('G0 X20 Z65\nG3 X25 Z60 R5', { flip: true }).byLine.get(1).arc;
+    expect(flipped.cx).toBeCloseTo(plain.cx, 6);
+    expect(flipped.cz).toBeCloseTo(plain.cz, 6);
+    expect(flipped.ccw).toBe(plain.ccw);
+  });
+});

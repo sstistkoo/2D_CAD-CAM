@@ -750,6 +750,18 @@ a držáku, validátor) proto nesmí `flipX`/`flipZ` číst — do 30. 9. 2026 t
 jiný nůž. Hlídá `tests/cam-quadrants.test.js` (4 kvadranty = tytéž průchody,
 mezní čáry, simulovaná dráha; G-kód jen G2↔G3).
 
+**Přenos CAD ↔ CAM nese kanonickou geometrii** (10. 10. 2026). Kontura do
+CAM (`runCncExport({ forCam: true })`, „→ CAM" z Trasování profilu
+`getTraceGcode({ forCam: true })`) se píše v rovině CAM (Z vodorovně,
+X svisle, G3 = proti směru hodin): **bez** prohození kvůli ⇅/⇄ (CAM konturu
+čte `parseContourAndStockGCode` bez vracení) a **na karuselu s G2↔G3**, protože
+svět výkresu (x = X, y = Z) je vůči rovině CAM převrácený. Zpět („📐 Kreslit",
+`handleSendToCanvas`, i `buildStockPointsFromCanvas`) platí totéž obráceně
+a osy výkresu se řídí **`state.machineType` z CAD**, ne pohledem „Karusel"
+v CAM. Uvnitř CAD je text G-kódu „strojový" (prohozený `flipArc`) a čtečky ho
+vracejí (`parseGcodeToObjects`, `analyzeDrawCode({ flip })`). Hlídá
+`tests/cnc-export-chain.test.js` (4 kvadranty × soustruh/karusel).
+
 #### Části programu (operace)
 
 Jedna kontura se dá obrobit na několik operací (hrubování → drážky → závit),

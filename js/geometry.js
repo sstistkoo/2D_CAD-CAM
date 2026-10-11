@@ -868,6 +868,19 @@ function scheduleAutoCncExport() {
   }, 300);
 }
 
+/**
+ * Čekající obnovení CNC panelu provede hned. Volá se před přenosem do CAM:
+ * jinak by doběhlo až po otevření dotazu „mimo profil" a smazalo by jeho
+ * fialové zvýraznění (runCncExport → _reportContourIssues).
+ */
+export function flushAutoCncExport() {
+  if (!_autoCncExportTimer) return;
+  clearTimeout(_autoCncExportTimer);
+  _autoCncExportTimer = null;
+  if (bridge.autoSortAllGroups) bridge.autoSortAllGroups();
+  if (bridge.runCncExport) bridge.runCncExport();
+}
+
 /** Přepočítá všechny průsečíky mezi objekty. */
 export function calculateAllIntersections() {
   const pts = [];
