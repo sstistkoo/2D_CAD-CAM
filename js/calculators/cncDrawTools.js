@@ -18,6 +18,29 @@ const EPS = 1e-6;
 const POLAR_RE = /(?:^|[^A-Z])PU\s*=?\s*[-+]?(?:\d|\.\d)/;
 export const f3 = v => String(Number((Math.abs(v) < 5e-4 ? 0 : v).toFixed(3)));
 
+/** Samostatné T na řádku s G2/G3 = tečné napojení (T5 = nástroj se nepočítá). */
+const T_RE = /(?:^|\s)T(?=\s|$)/;
+
+/**
+ * Oblouk tečný ve startu ke směru předchozího pohybu, procházející koncem.
+ * Střed leží na kolmici ke směru ve startu: s = |w|² / (2·n·w), w = konec − start.
+ */
+function tangentArc(prev, stock, from, to, ccw, kar, flip) {
+  const dir = prev && prev.g !== 0 && !!prev.stock === stock ? moveDirDeg(prev, { opts: { karusel: kar } }) : null;
+  if (dir === null) return { r: 0, ccw, err: 'T: tečný oblouk potřebuje před sebou úsečku nebo oblouk (ne G0).' };
+  const a = dir * Math.PI / 180, d = { z: Math.cos(a), x: Math.sin(a) }, n = { z: -d.x, x: d.z };
+  const w = { z: to.z - from.z, x: to.x - from.x };
+  const ww = w.z * w.z + w.x * w.x, nw = n.z * w.z + n.x * w.x;
+  if (ww < EPS * EPS) return { r: 0, ccw, err: 'T: koncový bod je stejný jako začátek oblouku.' };
+  if (Math.abs(nw) < 1e-9 * Math.sqrt(ww)) return { r: 0, ccw, err: 'T: koncový bod leží na tečně – oblouk by byl přímka (použijte G1).' };
+  const sg = ww / (2 * nw);
+  // Zatáčka doleva ve fyzické rovině (Z, X) je proti směru hodin; u karuselu je svět zrcadlený.
+  const worldCcw = (sg > 0) !== kar;
+  const arc = { cx: from.x + sg * n.x, cz: from.z + sg * n.z, r: Math.abs(sg), ccw: worldCcw };
+  if (worldCcw !== ccw) arc.warn = `T: tečný oblouk do tohoto bodu jde opačným smyslem – správně je G${worldCcw !== flip ? 3 : 2}`;
+  return arc;
+}
+
 /** Hodnota adresy (X, Z, I, K, R, CR=) z řádku bez komentáře; null = není. */
 function addr(line, letter) {
   const m = new RegExp('(?:^|[^A-Z])' + letter + '\\s*=?\\s*([-+]?(?:\\d+\\.?\\d*|\\.\\d+))', 'i').exec(line);
@@ -88,7 +111,12 @@ export function analyzeDrawCode(code, opts = {}) {
       const I = addr(c, 'I'), K = addr(c, 'K');
       const R = addr(c, 'CR') ?? addr(c, 'R');
       const ccw = (motion === 3) !== !!opts.flip;
-      if (I !== null || K !== null) {
+      // T = tečné napojení: střed se dopočte z tečnosti ke směru předchozího pohybu.
+      const tArc = T_RE.test(c) ? tangentArc(moves[moves.length - 1], stock, from, to, ccw, kar, !!opts.flip) : null;
+      if (tArc) {
+        mv.arc = tArc;
+        mv.tangent = true;
+      } else if (I !== null || K !== null) {
         const cen = { x: from.x + (I ?? 0) / xs, z: from.z + (K ?? 0) };
         const r = Math.hypot(from.x - cen.x, from.z - cen.z);
         const r2 = Math.hypot(to.x - cen.x, to.z - cen.z);
@@ -150,7 +178,7 @@ export function moveInfo(mv, an) {
   if (!a) return [`Oblouk G${mv.g}`, 'chybí R / I,K', end];
   if (a.err) return [`Oblouk G${mv.g}`, a.err];
   const deg = a.sweep * 180 / Math.PI;
-  return [`Oblouk G${mv.g}`, `R ${f3(a.r)}`, `střed X${f3(a.cx * xs)} Z${f3(a.cz)}`,
+  return [`Oblouk G${mv.g}${mv.tangent ? ' T (tečný)' : ''}`, ...(a.warn ? ['⚠ ' + a.warn] : []), `R ${f3(a.r)}`, `střed X${f3(a.cx * xs)} Z${f3(a.cz)}`,
     `I${f3((a.cx - mv.from.x) * xs)} K${f3(a.cz - mv.from.z)}`, `výseč ${f3(deg)}°`,
     `délka ${f3(a.r * a.sweep)}`, end];
 }
@@ -180,7 +208,7 @@ export function moveDirDeg(mv, an) {
 }
 
 /** Tečna (Z, X) na začátku / konci pohybu – jednotkový vektor. */
-function tangentAt(mv, atEnd, an) {
+export function tangentAt(mv, atEnd, an) {
   if (mv.g === 1) {
     const dz = mv.to.z - mv.from.z, dx = mv.to.x - mv.from.x, L = Math.hypot(dz, dx);
     return L > EPS ? { z: dz / L, x: dx / L } : null;
@@ -396,4 +424,31 @@ export function joinAtIntersection(code, ln, opts = {}) {
   endIdx = A.line + out.length - 1;
   lines.splice(A.line, B.line - A.line + 1, ...out);
   return { code: lines.join('\n'), line: endIdx, point: P };
+}
+
+/**
+ * Přepíše tečné oblouky (G2/G3 … T) na obyčejný zápis X Z I K se správným G2/G3 –
+ * CAD parser T nezná. Střed dopočte analýza (viz tangentArc).
+ * @returns {{code: string, converted: number}}
+ */
+export function tangentToIK(code, opts = {}) {
+  const an = analyzeDrawCode(code, opts);
+  const lines = code.split('\n');
+  let converted = 0;
+  for (const mv of an.moves) {
+    if (!mv.tangent || !mv.arc || mv.arc.err) continue;
+    const raw = lines[mv.line], c = codePart(raw);
+    const n = (raw.match(/^\s*N\d+\s*/i) || [''])[0];
+    const com = lineCom(raw);
+    const g = mv.arc.ccw !== !!opts.flip ? 'G3' : 'G2';
+    const inc = mv.mode === 91, xs = an.xs;
+    // Ostatní slova řádku (F, M…) zůstanou; mizí G2/G3, X, Z, I, K, R, CR a samotné T.
+    const rest = c.replace(/\bG\s*0*[23](?!\d)/g, ' ').replace(/(?:^|\s)T(?=\s|$)/g, ' ')
+      .replace(/(?<![A-Z])(?:X|Z|I|K|R|CR)\s*=?\s*[-+]?(?:\d+\.?\d*|\.\d+)/g, ' ').replace(/\s+/g, ' ').trim();
+    const x = f3(inc ? (mv.to.x - mv.from.x) * xs : mv.to.x * xs), z = f3(inc ? mv.to.z - mv.from.z : mv.to.z);
+    const ik = `I${f3((mv.arc.cx - mv.from.x) * xs)} K${f3(mv.arc.cz - mv.from.z)}`;
+    lines[mv.line] = (n + [g, rest, `X${x}`, `Z${z}`, ik].filter(Boolean).join(' ')).trim() + (com ? ' ' + com : '');
+    converted++;
+  }
+  return { code: lines.join('\n'), converted };
 }

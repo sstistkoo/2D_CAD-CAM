@@ -35,7 +35,7 @@ function wordHelp(w, num, o) {
     case 'M': return 'pomocná funkce (vřeteno, chlazení, konec programu…)';
     case 'F': return 'posuv';
     case 'S': return 'otáčky / řezná rychlost';
-    case 'T': return 'číslo nástroje';
+    case 'T': return 'číslo nástroje (u G2 / G3 = tečné napojení na předchozí prvek)';
     case 'D': return 'korekce nástroje';
     case 'N': return 'číslo bloku (řádku)';
     default: return null;
@@ -51,6 +51,7 @@ function nextTip(words, hasPrevMove) {
     ? 'Další bod: G1 X… Z… (úsečka) nebo G2 / G3 X… Z… R… (oblouk).'
     : 'Začni startovním bodem: G0 X… Z…, potom G1 / G2 / G3.';
   if (arc) {
+    if (has('T')) return !has('X') && !has('Z') ? 'Tečný oblouk (T): doplň koncový bod X a Z – střed se dopočte.' : '';
     const rad = has('R') || has('CR'), ik = has('I') || has('K');
     if (rad && ik) return 'Oblouk zadej BUĎ poloměrem R, NEBO středem I + K – ne obojí.';
     if (!rad && !ik) return 'Oblouk potřebuje poloměr R (nebo střed I + K).';
@@ -155,6 +156,11 @@ G0 X0 Z0
 G1 X50 Z50
 Z200</pre>
 <p>PU/L se před přenosem do výkresu samy přepíšou na X, Z.</p>
+<h4>Tečný oblouk (T)</h4>
+${row('G2/G3 … T', 'oblouk, který <b>tečně naváže</b> na předchozí úsečku nebo oblouk. Zadáte jen koncový bod X, Z – střed i poloměr se dopočtou. Nesmí následovat hned po G0.')}
+<pre>G1 Z10
+G3 X10 Z20 T      ; tečný oblouk R10</pre>
+<p>Když zvolíte opačné G2/G3, než oblouk vyžaduje, editor to ohlásí. Při přenosu do výkresu se T přepíše na X Z I K se správným G2/G3.</p>
 <h4>Hrany</h4>
 ${row('CHF= / C', 'sražení hrany mezi dvěma řádky (délka sražení).')}
 ${row('RND= / R', 'zaoblení hrany mezi dvěma řádky (poloměr). Tlačítka Sraž. a Zaobl. zapíšou správný tvar podle řídicího systému.')}

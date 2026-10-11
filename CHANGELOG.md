@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v průsečíku a zapíše jednu navazující konturu (`G1 X50 Z50` / `Z200`). PU/L se před přenosem do
   výkresu přepíšou na X, Z. Úsečka úhlem nově nepíše osu, ve které se nic nemění.
 
+- **CAD editor: tečný oblouk (T).** `G3 X10 Z20 T` = oblouk tečně navazující na předchozí úsečku
+  nebo oblouk; střed a poloměr se dopočtou z koncového bodu (stejný princip jako T ve Volné
+  kontuře). Nesouhlasí-li G2/G3, editor to ohlásí; po G0 hlásí chybu. Při přenosu do výkresu se T
+  přepíše na X Z I K se správným G2/G3. Klávesa T je v prvním řádku kláves, kopírování celého kódu
+  (📋 vše) je v liště údajů.
+
 ### Fixed
 - **Vyrovnaná úsečka se při výběru nezvýraznila.** Barevný tón vazby (vodorovná/svislá/rovnoběžná)
   se kreslil přes výběr a přebil jeho barvu; vybraný objekt/segment se teď netónuje.
