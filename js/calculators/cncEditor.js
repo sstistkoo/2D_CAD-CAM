@@ -591,10 +591,11 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb accent cne-qb-arc c10" data-ins="G3 " title="G3 &ndash; kruhov&aacute; interpolace proti sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G3</span><small>&#8634; oblouk</small></button>
     <button class="cne-qb del c10" data-act="backspace" title="Smazat znak">⌫</button>
 
-    <button class="cne-qb accent cne-qb-big c15" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start bod</small></button>
-    <button class="cne-qb accent cne-qb-big c15" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
-    <button class="cne-qb cne-qb-big c15" data-inp="X" title="Osa X (${xWord})"><span>X</span><small>${xWord}</small></button>
-    <button class="cne-qb cne-qb-big c15" data-inp="Z" title="Osa Z (délka)"><span>Z</span><small>délka</small></button>
+    <button class="cne-qb accent cne-qb-big c12" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start</small></button>
+    <button class="cne-qb accent cne-qb-big c12" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
+    <button class="cne-qb cne-qb-big c12" data-inp="X" title="Osa X (${xWord})"><span>X</span><small>${xWord}</small></button>
+    <button class="cne-qb cne-qb-big c12" data-inp="Z" title="Osa Z (délka)"><span>Z</span><small>délka</small></button>
+    <button class="cne-qb accent cne-qb-big c12" data-act="angleLine" title="Úsečka úhlem – polárně od osy Z, nebo od předchozí úsečky"><span>∠</span><small>úhel</small></button>
 
     <button class="cne-qb blue c12" data-act="lineG" data-g="G90" title="Napíše G90 (absolutní) na začátek řádku s kurzorem">G90</button>
     <button class="cne-qb blue c12" data-act="lineG" data-g="G91" title="Napíše G91 (přírůstkové) na začátek řádku s kurzorem">G91</button>
@@ -602,12 +603,11 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb accent c12" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
     <button class="cne-qb gray c12" data-inp="" title="Zadat číslo">123</button>
 
-    <button class="cne-qb red c10" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
-    <button class="cne-qb gray c10" data-act="copy" title="Kopírovat kód do schránky">📋</button>
-    <button class="cne-qb gray c10" data-ins=";" title="Středník (komentář)">;</button>
-    <button class="cne-qb accent c10" data-act="angleLine" title="Úsečka úhlem – polárně od osy Z, nebo od předchozí úsečky">∠</button>
-    <button class="cne-qb cne-kb-btn c10" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
-    <button class="cne-qb green c10" data-ins="\\n" title="Nový řádek">↵</button>
+    <button class="cne-qb red c12" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
+    <button class="cne-qb gray c12" data-act="copy" title="Kopírovat kód do schránky">📋</button>
+    <button class="cne-qb gray c12" data-ins=";" title="Středník (komentář)">;</button>
+    <button class="cne-qb cne-kb-btn c12" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
+    <button class="cne-qb green c12" data-ins="\\n" title="Nový řádek">↵</button>
 
     <button class="cne-qb accent cne-qb-wide c15" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
     <button class="cne-qb gray cne-qb-wide c30" data-ins=" " title="Mezera">␣</button>
