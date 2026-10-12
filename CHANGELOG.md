@@ -50,6 +50,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RND=` za kód řádku místo přepsání řádku. Po přenosu na plátno se označený bod zruší.
 
 ### Fixed
+- **CAM: rozsah X (📐) s kulatou destičkou platí pro břit, ne pro střed nosu.** Meze X min / X max
+  a stěna pod X max (pravidlo 12) se porovnávaly s programovaným bodem, kulatá ale řeže o R níž
+  a dál: R 10 s X min 15 hrubovala i dokončovala až na X 4–5 a s X max 22 sáhla do stěny nad
+  stropem (X 24,9). Teď čelní i podélné hrubování, dojezd „bez schodků", dokončování i jeho
+  „Rovný průměr" drží břit v mezích. Jen kulatá (`noseLiftX`); ostatní plátky beze změny.
+  Test: `tests/cam-xrange-round-nose.test.js`.
+- **CAM: čelisti/koník ořezávají i nájezd a dojezd po kontuře.** Ořez zkracoval jen tělo podélného
+  průchodu: dojezd „bez schodků" projel čelistmi (čelisti Z10: `G1 Z-4.955`) a průchod celý za
+  čelistmi se „zkrátil" naruby a jeho nájezd po kontuře jel za ně. Dojezd se teď utne na mezi,
+  průchod za mezí nebo s nájezdem mimo pás se vynechá. Test: `tests/cam-chuck-traced-leads.test.js`.
+- **CAM: čelní hrubování kulatou destičkou — první vrstva už nebere víc než ap.** Mřížka vrstev
+  byla mřížkou středů nosu, ale kulatá řeže o rádius před středem, takže první vrstva u čela
+  vzala ap + R (R 10 / ap 4: `N160 G1 X13.101` = 9,3 mm v ose Z; part-18 R 8 / ap 3: 9,0 mm).
+  První vrstvy se teď dělí od místa, kde se čela dotkne břit; se zapnutým koníkem sedne první
+  vrstva přímo na něj. Dojezd „bez schodků" končí na předchozí vrstvě a dojezd, který nic
+  neubere, se nevydá (part-18: posuv vzduchem 3 → 0). Jen kulatá (klíč `faceLayerNoseLead`);
+  polygon, upichovák i podélné hrubování beze změny. Test: `tests/cam-face-first-layer-nose.test.js`.
+- **CAM: hrubování už nezajede do dílu za malým vnitřním rádiusem.** Když je vnitřní zaoblení
+  kontury menší než rádius destičky (např. R 5 s kulatou R 10) a za ním následuje krátká stěna
+  a vypuklý oblouk, ořez offsetu nechal stěnu v dráze pozpátku (smyčka pod konturou). Čelní
+  dojezd „bez schodků" po ní sjel o 2,8 mm do hotového dílu (`G2 X15.000 Z30.200`, červená
+  oblast v simulátoru). Kontrola obráceného úseku v `trimAndRemoveLoops` teď počítá
+  i s navazujícím obloukem, ne jen s úsečkou. Test: `tests/cam-offset-swallowed-wall.test.js`.
 - **Přepsání výkresu z editoru už nemaže, co G-kód nenese.** „Přepsat výkres podle zapsaného kódu" /
   „Vykreslit v CAD" dřív smazalo pomocné čáry, texty, výplně a body a zahodilo barvu, typ čáry
   a vazbu (vodorovná/svislá) všech úseček. Teď se zachovají pomocné čáry, texty, výplně a body;

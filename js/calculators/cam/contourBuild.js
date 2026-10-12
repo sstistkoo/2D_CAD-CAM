@@ -971,10 +971,17 @@ export function trimAndRemoveLoops(rawSegs, opts = {}) {
                           (nextOff.p1.z - rawSegs[i + 1].p1.z) * oz) / rawLen2;
             if (tRaw <= 1 + 1e-6) { continue; } // průsečík uvnitř → skutečný zpětný řez
             // tRaw > 1: průsečík za koncem. Peek-ahead: příští trim napraví?
-            if (i + 2 < rawSegs.length && !rawSegs[i + 2].chainBreak &&
-                rawSegs[i + 2].type === 'line') {
+            // Platí i pro navazující OBLOUK (týž průsečík, jaký spočte příští
+            // trim). Dřív se díval jen na úsečku, takže krátká stěna mezi
+            // pohlceným vnitřním rádiusem (R kontury < R plátku) a vypuklým
+            // obloukem zůstala v dráze POZPÁTKU — smyčka pod konturou, po které
+            // čelní dojezd sjel 2,8 mm do dílu (`projekt_2026-10-12`, R 10:
+            // `G2 X15.000 Z30.200` / `G1 X17.987 Z30.200`).
+            if (i + 2 < rawSegs.length && !rawSegs[i + 2].chainBreak) {
               const nn = rawSegs[i + 2];
-              const c2 = intersectLinesInfinite(nextOff.p1, nextOff.p2, nn.p1, nn.p2);
+              const c2 = nn.type === 'line'
+                ? intersectLinesInfinite(nextOff.p1, nextOff.p2, nn.p1, nn.p2)
+                : findSegIntersection(nextOff, nn);
               if (c2) {
                 const dx2 = c2.x - nextOff.p1.x, dz2 = c2.z - nextOff.p1.z;
                 if (dx2 * ox + dz2 * oz < 0) continue; // stále obrácený → přeskočit

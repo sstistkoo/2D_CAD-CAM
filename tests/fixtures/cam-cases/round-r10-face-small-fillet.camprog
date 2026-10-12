@@ -1,0 +1,395 @@
+{
+  "__camprog": 1,
+  "pathLogicVersion": 3,
+  "savedAt": "2026-10-12T05:57:15.178Z",
+  "params": {
+    "machineType": "LIMS=2000",
+    "mode": "RADIUS",
+    "toolName": "SRSCR2525M20",
+    "speed": 180,
+    "feed": 0.24,
+    "depthOfCut": 4,
+    "retractDistance": 2,
+    "rapidFeed": 6000,
+    "retractAngle": 45,
+    "allowanceX": 0,
+    "allowanceZ": 0,
+    "toolRadius": 10,
+    "finishAllowance": 0.2,
+    "doFinishing": true,
+    "roughingStrategy": "face",
+    "finishOnly": false,
+    "roughingSide": "right",
+    "stockMode": "casting",
+    "stockMargin": 5,
+    "stockDiameter": 50,
+    "stockLength": 5,
+    "stockFace": 71,
+    "safeX": 150,
+    "safeZ": 5,
+    "machineStructure": "lathe",
+    "controlSystem": "sinumerik",
+    "autoProfile": true,
+    "toolShape": "round",
+    "toolLength": 10,
+    "toolAngle": 0,
+    "toolTipAngle": 90,
+    "toolTipMirror": false,
+    "toolVbdCode": "RCMT2006M0",
+    "toolClearanceAngle": 7,
+    "holderWidth": 25,
+    "holderLength": 150,
+    "holderHand": "R",
+    "holderProfile": {
+      "sideA": [
+        {
+          "x": 9.575,
+          "z": 4.465
+        },
+        {
+          "x": 9.575,
+          "z": 15.565
+        },
+        {
+          "x": 25,
+          "z": 30.99
+        },
+        {
+          "x": 25,
+          "z": 150
+        },
+        {
+          "x": 0,
+          "z": 150
+        },
+        {
+          "x": 0,
+          "z": 10.565
+        },
+        {
+          "x": 2.377,
+          "z": 10.294
+        },
+        {
+          "x": 4.631,
+          "z": 9.495
+        },
+        {
+          "x": 6.649,
+          "z": 8.21
+        },
+        {
+          "x": 8.325,
+          "z": 6.504
+        },
+        {
+          "x": 9.575,
+          "z": 4.465
+        }
+      ],
+      "sideB": []
+    },
+    "knifeAngle": 270,
+    "holderInflate": 0,
+    "holderInflateAll": false,
+    "toolTipFlat": 0.1,
+    "partOffZ": null,
+    "partingApproachFeed": 1,
+    "partOffSmooth": false,
+    "partOffStartX": 0,
+    "finishingSlot": null,
+    "threadActive": false,
+    "threadName": "",
+    "threadType": "mc",
+    "threadDiameter": 20,
+    "threadPitch": 2.5,
+    "threadAngle": 60,
+    "threadDepth": 1.534,
+    "threadExternal": true,
+    "threadZStart": 0,
+    "threadZEnd": -20,
+    "threadRunIn": 3,
+    "threadRunOut": 0,
+    "threadPasses": 0,
+    "threadSpringPasses": 1,
+    "threadTaperRatio": 0,
+    "threadInfeed": "radial",
+    "drillActive": false,
+    "drillZStart": null,
+    "drillDepth": 20,
+    "drillZEnd": null,
+    "drillDepthFullDia": false,
+    "drillClearance": 2,
+    "drillPeck": 5,
+    "drillChipMode": "clear",
+    "drillRetract": 1,
+    "drillDwell": 0,
+    "boreActive": false,
+    "borePreDrill": false,
+    "borePreDrillSlot": null,
+    "borePreTip": 0,
+    "boreSource": "cylinder",
+    "boreFinish": false,
+    "boreZStart": 0,
+    "boreDiameter": 30,
+    "boreDepth": 20,
+    "borePreDiameter": 20,
+    "borePreDepth": 25,
+    "entryAngle": 30,
+    "entryAngleAuto": true,
+    "respectInsertGeometry": true,
+    "plungeRoughing": true,
+    "pocketFinishAtOnce": true,
+    "noStepRoughing": true,
+    "noStepRoughingFace": true,
+    "orderAwareHolder": true,
+    "rapidClearance": 1,
+    "rapidFeedGap": 1,
+    "stockClearX": null,
+    "stockClearZ": null,
+    "holderAutoComplete": true,
+    "regionRoughing": true,
+    "booleanRoughing": false,
+    "toolInternal": false
+  },
+  "contourPoints": [
+    {
+      "id": 1791783255181,
+      "type": "G0",
+      "x": 0,
+      "z": 68.217,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255182,
+      "type": "G1",
+      "x": 3.52,
+      "z": 68.217,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255183,
+      "type": "G1",
+      "x": 7.88,
+      "z": 56.686,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255184,
+      "type": "G3",
+      "x": 8.203,
+      "z": 54.917,
+      "r": 5,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255185,
+      "type": "G1",
+      "x": 8.203,
+      "z": 36.992,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255186,
+      "type": "G1",
+      "x": 3.936,
+      "z": 37.096,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255187,
+      "type": "G1",
+      "x": 3.936,
+      "z": 32.517,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255188,
+      "type": "G1",
+      "x": 7.787,
+      "z": 32.517,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255189,
+      "type": "G1",
+      "x": 7.787,
+      "z": 25,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255190,
+      "type": "G2",
+      "x": 12.787,
+      "z": 20,
+      "r": 5,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255191,
+      "type": "G1",
+      "x": 15,
+      "z": 20,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255192,
+      "type": "G3",
+      "x": 20,
+      "z": 15,
+      "r": 5,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255193,
+      "type": "G1",
+      "x": 20,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255194,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783255195,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "stockPoints": [
+    {
+      "id": 1791783355181,
+      "type": "G0",
+      "x": 0,
+      "z": 73.217,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355182,
+      "type": "G1",
+      "x": 6.975,
+      "z": 73.217,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355183,
+      "type": "G1",
+      "x": 12.557,
+      "z": 58.454,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355184,
+      "type": "G3",
+      "x": 13.203,
+      "z": 54.917,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355185,
+      "type": "G1",
+      "x": 13.203,
+      "z": 31.869,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355186,
+      "type": "G1",
+      "x": 13.203,
+      "z": 25,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355187,
+      "type": "G1",
+      "x": 15,
+      "z": 25,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355188,
+      "type": "G3",
+      "x": 25,
+      "z": 15,
+      "r": 10,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355189,
+      "type": "G1",
+      "x": 25,
+      "z": -5,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355190,
+      "type": "G1",
+      "x": 0,
+      "z": -5,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1791783355191,
+      "type": "G1",
+      "x": 0,
+      "z": 73.217,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "borePoints": [],
+  "manualGCode": "; Vygenerovaný kód SINUMERIK 840D\n; Datum: 12. 10. 2026\nN10 G18 ; Rovina ZX\nN20 G90 ; Absolutní programování\nN30 G54 ; Posunutí počátku\nN40 G95 ; Posuv na otáčku\nN50 G75 X150 ; Nájezd do ref. bodu\nN60 G75 Z5\nN70 LIMS=2000 ; Limit otáček\nN80 G96 S180 LIMS=2000 ; Konst. řezná rychlost\nN90 DIAMOF ; Programování poloměru\nN100 T=\"SRSCR2525M20\" D1 M6 ; Výměna nástroje\nN110 M3 ; Vřeteno CW\nN120 M8 ; Chlazení ZAP\nN130 G0 X150 Z5 ; Rychloposuv\n; --- HRUBOVANI (CELNI) ---\n; Průchod 1 (bez schodků)\nN140 G0 Z71.717\nN150 G0 X20.300\nN160 G1 X13.101 F0.24\nN170 G1 X11.589 Z75.717 F0.24\nN180 G1 X13.589 Z77.717\n; Průchod 2 (bez schodků)\nN190 G0 X21.250\nN200 G0 Z69.217\nN210 G1 X14.047 F0.24\nN220 G1 X12.534 Z73.217 F0.24\nN230 G1 X14.534 Z75.217\n; Průchod 3 (bez schodků)\nN240 G0 X22.760\nN250 G0 Z65.217\nN260 G1 X15.559 F0.24\nN270 G1 X14.047 Z69.217 F0.24\nN280 G1 X16.047 Z71.217\n; Průchod 4 (bez schodků)\nN290 G0 X24.210\nN300 G0 Z61.217\nN310 G1 X17.072 F0.24\nN320 G1 X15.559 Z65.217 F0.24\nN330 G1 X17.559 Z67.217\n; Průchod 5 (bez schodků)\nN340 G0 X25.080\nN350 G0 Z57.217\nN360 G1 X18.228 F0.24\nN370 G2 X17.421 Z60.293 CR=15.200 F0.24\nN380 G1 X17.072 Z61.217 F0.24\nN390 G1 X19.072 Z63.217\n; Průchod 6 (bez schodků)\nN400 G0 X25.210\nN410 G0 Z53.217\nN420 G1 X18.403 F0.24\nN430 G1 X18.403 Z54.916 F0.24\nN440 G2 X18.228 Z57.217 CR=15.200 F0.24\nN450 G1 X20.228 Z59.217\n; Průchod 7 (bez schodků)\nN460 G0 X25.210\nN470 G0 Z49.217\nN480 G1 X18.403 F0.24\nN490 G1 X18.403 Z53.217 F0.24\nN500 G1 X20.403 Z55.217\n; Průchod 8 (bez schodků)\nN510 G0 X25.210\nN520 G0 Z45.217\nN530 G1 X18.403 F0.24\nN540 G1 X18.403 Z49.217 F0.24\nN550 G1 X20.403 Z51.217\n; Průchod 9 (bez schodků)\nN560 G0 X25.210\nN570 G0 Z41.217\nN580 G1 X18.403 F0.24\nN590 G1 X18.403 Z45.217 F0.24\nN600 G1 X20.403 Z47.217\n; Průchod 10 (bez schodků)\nN610 G0 X25.210\nN620 G0 Z37.217\nN630 G1 X18.403 F0.24\nN640 G1 X18.403 Z41.217 F0.24\nN650 G1 X20.403 Z43.217\n; Průchod 11 (bez schodků)\nN660 G0 X26.440\nN670 G0 Z33.217\nN680 G1 X18.403 F0.24\nN690 G1 X18.403 Z37.217 F0.24\nN700 G1 X20.403 Z39.217\n; Průchod 12 (bez schodků)\nN710 G0 X31.390\nN720 G0 Z29.217\nN730 G1 X20.377 F0.24\nN740 G2 X17.987 Z29.904 CR=15.200 F0.24\nN750 G1 X17.987 Z30.304 F0.24\nN760 G1 X19.987 Z32.304\n; Průchod 13 (bez schodků)\nN770 G0 X34.350\nN780 G0 Z25.217\nN790 G1 X26.254 F0.24\nN800 G2 X20.377 Z29.217 CR=15.200 F0.24\nN810 G1 X22.377 Z31.217\n; Průchod 14 (bez schodků)\nN820 G0 X36.040\nN830 G0 Z21.217\nN840 G1 X28.870 F0.24\nN850 G2 X26.254 Z25.217 CR=15.200 F0.24\nN860 G1 X28.254 Z27.217\n; Průchod 15 (bez schodků)\nN870 G0 X36.880\nN880 G0 Z17.217\nN890 G1 X30.037 F0.24\nN900 G2 X28.870 Z21.217 CR=15.200 F0.24\nN910 G1 X30.870 Z23.217\n; Průchod 16 (bez schodků)\nN920 G0 X37.000\nN930 G0 Z13.217\nN940 G1 X30.200 F0.24\nN950 G1 X30.200 Z15.000 F0.24\nN960 G2 X30.037 Z17.217 CR=15.200 F0.24\nN970 G1 X32.037 Z19.217\n; Průchod 17 (bez schodků)\nN980 G0 X37.000\nN990 G0 Z9.217\nN1000 G1 X30.200 F0.24\nN1010 G1 X30.200 Z13.217 F0.24\nN1020 G1 X32.200 Z15.217\n; Průchod 18 (bez schodků)\nN1030 G0 X37.000\nN1040 G0 Z5.217\nN1050 G1 X30.200 F0.24\nN1060 G1 X30.200 Z9.217 F0.24\nN1070 G1 X32.200 Z11.217\n; Průchod 19 (bez schodků)\nN1080 G0 X37.000\nN1090 G0 Z1.217\nN1100 G1 X30.200 F0.24\nN1110 G1 X30.200 Z5.217 F0.24\nN1120 G1 X32.200 Z7.217\n; Průchod 20 (bez schodků)\nN1130 G0 X37.000\nN1140 G0 Z-2.783\nN1150 G1 X30.200 F0.24\nN1160 G1 X30.200 Z1.217 F0.24\nN1170 G1 X32.200 Z3.217\nN1180 G0 X150.000 ; Výjezd nad konturu\nN1190 G0 Z5.000\n; --- DOKONCOVANI ---\nN1200 G0 Z79.370\nN1210 G0 X11.190\nN1220 G1 X2.000 F0.24\nN1230 G1 X0.000 Z78.217 F0.24\nN1240 G1 X10.430 Z78.217\nN1250 G1 X17.234 Z60.222\nN1260 G3 X18.203 Z54.916 CR=15.000\nN1270 G1 X18.203 Z36.992\nN1280 G1 X18.203 Z36.492 ; Rovný průměr (zbytek nejde dokončit celý)\nN1290 G0 X19.420 ; Výjezd nad konturu\nN1300 G0 Z33.208\nN1310 G0 X19.290\nN1320 G1 X17.787 Z31.705 F0.24 ; Zanoření 45.0°\nN1330 G1 X17.787 Z29.739\nN1340 G3 X30.000 Z15.000 CR=15.000\nN1350 G1 X30.000 Z0.000\nN1360 G1 X30.000 Z-5.500 ; Rovný průměr (zbytek nejde dokončit celý)\nN1370 G0 X150.000 ; Výjezd nad konturu\nN1380 G0 Z5.000\nN1390 M30 ; Konec programu\n; --- KONTURA (Pro referenci) ---\n; G0 X0 Z68.217\n; G1 X3.52 Z68.217\n; G1 X7.88 Z56.686\n; G3 X8.203 Z54.917 CR=5.000\n; G1 X8.203 Z36.992\n; G1 X3.936 Z37.096\n; G1 X3.936 Z32.517\n; G1 X7.787 Z32.517\n; G1 X7.787 Z25\n; G2 X12.787 Z20 CR=5.000\n; G1 X15 Z20\n; G3 X20 Z15 CR=5.000\n; G1 X20 Z0\n; G1 X0 Z0\n; G1 X0 Z0",
+  "gcodeDirty": false,
+  "gcodeKey": "fcf5d5ad",
+  "opParts": [],
+  "activePart": 0,
+  "opContourKey": null,
+  "flipX": false,
+  "flipZ": false,
+  "guideLines": [],
+  "zLimits": {
+    "chuck": -47.13,
+    "tail": 79.37,
+    "chuckActive": true,
+    "tailActive": true,
+    "rangeStart": 13.64,
+    "rangeEnd": 54.57,
+    "rangeActive": false
+  },
+  "showZLimits": "on",
+  "xLimits": {
+    "rangeXMin": null,
+    "rangeXMax": null,
+    "active": false
+  },
+  "showSimPath": "all",
+  "showRemoval": true,
+  "showRefGuides": false
+}

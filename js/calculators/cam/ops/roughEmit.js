@@ -30,7 +30,7 @@ export function emitRoughing(E) {
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
-    rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
+    rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
@@ -138,8 +138,45 @@ export function emitRoughing(E) {
     }
     return false;
   };
+  // ČELNÍ DOJEZD, KTERÝ NIC NEUBERE (pravidlo 5) — jen s klíčem plátku
+  // `faceLayerNoseLead` (kulatá). První vrstvy u čela jsou u ní blíž než ap
+  // a vrstva, která před nimi jela až k ose, už vybrala i schod, který má
+  // dojezd sloupnout (díl uživatele 12. 10. 2026: `N270` 3,6 mm posuvem
+  // vzduchem). Měří se proti ZBYTKU: co průchod s dojezdem ubere navíc proti
+  // průchodu bez něj — zápich průchodu se do modelu zapíše až na jeho konci.
+  // Mez = mez kontroly P5 (scripts/cam_rules_check.mjs): 0,01 mm² na mm.
+  const faceLeadOutCuts = (pass) => {
+    if (!insGc.faceLayerNoseLead || !rapidCutArea) return true;
+    const body = [{ x: Math.max(pass.xStart, pass.xEnd), z: pass.z }, { x: pass.xEnd, z: pass.z }];
+    const pts = body.slice();
+    let len = 0;
+    const add = (x, z) => {
+      const l = pts[pts.length - 1];
+      const d = Math.hypot(x - l.x, z - l.z);
+      if (d > 1e-6) { pts.push({ x, z }); len += d; }
+    };
+    for (const seg of pass.contourLeadOut) {
+      if (seg.type === 'arc' && Number.isFinite(seg.cx) && Number.isFinite(seg.startAngle) && Number.isFinite(seg.endAngle)) {
+        let a0 = seg.startAngle, a1 = seg.endAngle;
+        if (seg.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+        if (seg.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
+        const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) * seg.r / 0.2));
+        for (let k = 1; k <= n; k++) {
+          const a = a0 + (a1 - a0) * k / n;
+          add(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
+        }
+      } else add(seg.x2, seg.z2);
+    }
+    if (len < 1e-6) return true;
+    const aBody = rapidCutArea(body), aAll = rapidCutArea(pts);
+    if (aBody === null || aAll === null) return true;
+    return aAll - aBody >= 0.01 * len;
+  };
 calc.passes.forEach((pass, i) => {
-  addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ` (oblouk ${flipArc('G3')})` : pass.contourLeadIn ? ' (kapsa po kontuře)' : pass.contourLeadOut ? ' (bez schodků)' : ''}`);
+  // Dojezd „bez schodků" tohoto průchodu (čelní, který nic neubere, odpadne).
+  const leadOutNow = (pass.type === 'face' && pass.contourLeadOut && !faceLeadOutCuts(pass))
+    ? null : pass.contourLeadOut;
+  addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ` (oblouk ${flipArc('G3')})` : pass.contourLeadIn ? ' (kapsa po kontuře)' : leadOutNow ? ' (bez schodků)' : ''}`);
   // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
   // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
   // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
@@ -798,10 +835,10 @@ calc.passes.forEach((pass, i) => {
     const xTouch = Math.max(pass.xSurface, pass.xEnd);
     if (cur.x - xTouch > 1e-6) { simCounter += 1; addN(`G1 X${xDia(xTouch)} F${prms.feed}`, simCounter); setPos(xTouch, pass.z); }
     if (Math.abs(cur.x - pass.xEnd) > 1e-6) { simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z); }
-    if (pass.contourLeadOut) {
+    if (leadOutNow) {
       // Bez schodků: dál po kontuře (G1/G2/G3) v pásu Z∈[z−ap, z]
       // místo okamžitého odskoku — schod se obrobí přímo po obrysu.
-      for (const seg of pass.contourLeadOut) {
+      for (const seg of leadOutNow) {
         const fx = cur.x, fz = cur.z;
         if (seg.type === 'line') {
           simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);

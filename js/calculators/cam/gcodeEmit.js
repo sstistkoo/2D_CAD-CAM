@@ -210,6 +210,12 @@ export function generateAutoGCode(S, calc) {
   // (20. 8. 2026). Ostatní rozhodnutí (EXIT-SPLIT, výjezd posuvem, strop
   // zdvihu) zůstávají na syrovém zbytku: jsou na něj citlivé a přepnutí
   // všeho najednou přepsalo všech 24 fixtures.
+  // Kolik by tah po bodech `pts` ubral ze ZBYTKU (plný obrys nástroje) [mm²];
+  // null = model není. Čte ho jen čelní dojezd s klíčem `faceLayerNoseLead`.
+  const rapidCutArea = (pts) => {
+    if (!rapidStock || !rapidFoot) return null;
+    try { return Math.abs(polyArea(rapidStock.collide(toolSweep(rapidFoot, pts)))); } catch { return null; }
+  };
   const rapidHitsPlan = (x1, z1, x2, z2) => {
     if (!rapidStockPlan) return false;
     try {
@@ -1218,7 +1224,7 @@ export function generateAutoGCode(S, calc) {
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
-    rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidTopX,
+    rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,

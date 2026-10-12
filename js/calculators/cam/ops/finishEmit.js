@@ -354,11 +354,16 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   const finRunOut = () => {
     if (!rapidStock || cur.x === null) return;
     const x = cur.x, xCut = cur.x - finTipR;
+    // Stěna nad X max (pravidlo 12): střed nejdál o `noseLiftX` před ní, jinak
+    // by nos kulaté sáhl do materiálu nad stropem (R 10, X max 22: X 24,8).
+    const wallLimZ = Number.isFinite(calc.rangeWallZ)
+      ? calc.rangeWallZ - finDirZ * (getInsert(prms).noseLiftX || 0) : null;
     let zEnd = null;
     for (let d = 0.5; d <= 400; d += 0.5) {
       const zRaw = cur.z + finDirZ * d;
       const z = clipZGc(zRaw);
       if (Math.abs(z - zRaw) > 1e-6) return;                    // useknuto limitem
+      if (wallLimZ !== null && finDirZ * (z - wallLimZ) > 1e-6) return;   // stěna nad X max
       const prof = finProfileXAt(z);
       if (prof !== null && prof > x + 0.02) return;             // kontura se zvedá
       const top = residualTopXAtZ(z);

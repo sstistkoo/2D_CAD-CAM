@@ -27,6 +27,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { stockClearanceIsZero, stockClearances } from '../js/calculators/cam/camMath.js';
+import { getInsert } from '../js/calculators/cam/inserts/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, 'fixtures', 'cam');
@@ -49,11 +50,14 @@ async function firstGap(file, override = {}) {
     .sort((a, b) => (left ? a - b : b - a));
   const step = parseFloat(params.depthOfCut);
   const clrZ = stockClearanceIsZero(params) ? 0 : stockClearances(params).z;
-  return { gap: Math.abs(zs[1] - zs[0]), step, clrZ, left, zs };
+  // Kulatá dělí i PŘEDSTIH nosu (břit řeže o R před středem — `faceLayerNoseLead`,
+  // 12. 10. 2026); bez něj brala první vrstva ap + R.
+  const lead = getInsert(params).faceLayerNoseLead ? parseFloat(params.toolRadius) : 0;
+  return { gap: Math.abs(zs[1] - zs[0]), step, clrZ, lead, left, zs };
 }
 
-const expectedGap = (step, clrZ) => {
-  const span = step + clrZ;
+const expectedGap = (step, clrZ, lead = 0) => {
+  const span = step + clrZ + lead;
   const nSkim = span > step * 1.1 ? Math.ceil(span / step - 1e-9) : 1;
   return span / nSkim;
 };
@@ -61,7 +65,7 @@ const expectedGap = (step, clrZ) => {
 describe('čelní skim nenechá na styku mřížek tenkou vrstvu', () => {
   // NAMĚŘENO po opravě; před ní byla první rozteč rovna Vůli Z (1,000).
   for (const [f, want] of [
-    ['part-18-face-big-radius.camprog', 2.0],   // ap 3,   Vůle Z 1 → 4/2
+    ['part-18-face-big-radius.camprog', 3.0],   // ap 3,   Vůle Z 1, kulatá R 8 → 12/4
     ['part-16-face-holder.camprog', 2.0],       // ap 3,   Vůle Z 1 → 4/2
     ['part-19-face-tilted-insert.camprog', 2.0],
     ['face-parting-retract-holder.camprog', 2.0],
@@ -72,7 +76,7 @@ describe('čelní skim nenechá na styku mřížek tenkou vrstvu', () => {
       const r = await firstGap(f);
       expect(r.clrZ, 'fixture bez Vůle Z by nic neměřila').toBeGreaterThan(0);
       expect(r.gap, `vrstvy: ${r.zs.slice(0, 4).join(', ')}`).toBeCloseTo(want, 6);
-      expect(r.gap).toBeCloseTo(expectedGap(r.step, r.clrZ), 6);
+      expect(r.gap).toBeCloseTo(expectedGap(r.step, r.clrZ, r.lead), 6);
       // Rovnoměrné dělení `ap + VůleZ` nemůže dát díl menší než polovina ap
       // (span > (nSkim−1)·ap ⇒ span/nSkim > (nSkim−1)/nSkim · ap ≥ ap/2).
       expect(r.gap).toBeGreaterThanOrEqual(r.step / 2 - 1e-6);

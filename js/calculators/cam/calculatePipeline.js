@@ -548,13 +548,21 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       xMaxNothing = true;
       foundErrors.push({ type: 'warning', msg: `Rozsah X max ${machiningRangeX.xHi}: polotovar sahá nad X max už na začátku obrábění — nad čarou se neobrábí a pod ten materiál se nepodjíždí, dráhy nebyly generovány.` });
     } else if (w) {
-      machiningRange = { zLo: Math.max(w.zWall, machiningRange ? machiningRange.zLo : -Infinity), zHi: machiningRange ? machiningRange.zHi : 1e4 };
+      const zLo0 = machiningRange ? machiningRange.zLo : -Infinity;
+      // `xMaxWall`: dolní mez je STĚNA materiálu nad X max — té se nesmí
+      // dotknout ani nos (pravidlo 12), takže podélné hrubování a dokončování
+      // končí střed o `noseLiftX` před ní (čelní to dělá samo, viz roughFace).
+      machiningRange = { zLo: Math.max(w.zWall, zLo0), zHi: machiningRange ? machiningRange.zHi : 1e4, xMaxWall: w.zWall >= zLo0 };
       foundErrors.push({ type: 'warning', msg: `Rozsah X max ${machiningRangeX.xHi}: od Z ${zShow(w.zWall)} stojí polotovar nad X max — obrábí se jen po tuto hranici, dál by se muselo pod materiál nad čarou.` });
     }
   }
   // Čelisti (levý konec v upínači) — backside nesmí řezat pod chuck.
   const chuckZ = (zLimits.chuckActive && typeof zLimits.chuck === 'number' && isFinite(zLimits.chuck))
     ? zLimits.chuck : null;
+  // Koník (pravý konec) — čelní průchod za ním se zahodí (ořez níž), takže ho
+  // čelní hrubování potřebuje znát už při dělení prvních vrstev.
+  const tailZ = (zLimits.tailActive && typeof zLimits.tail === 'number' && isFinite(zLimits.tail))
+    ? zLimits.tail : null;
 
   // ── Sdílené helpery pro offsetPath (čelní i podélné hrubování) ──
   // Geometrické dotazy žijí v cam/passHelpers.js — hrubování zleva si z téže
@@ -582,7 +590,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     prms, sRad, stockFace, step, offsetPath, stockPathSegments,
     stockWorldPoints, worldPoints, passes, foundErrors,
     offsetXAt, traceOffsetPath, findPocketExitZ,
-    findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ,
+    findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ, tailZ,
     holderClampZEnd, interferenceGuides,
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
@@ -614,11 +622,16 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   if (xMaxNothing) finishOffsetPath = [];   // pravidlo 12: není co obrábět
   if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
+    // Dokončovací dráha je dráha STŘEDU nosu; meze X a stěna pod X max platí
+    // pro to, co nůž odebere — o `noseLiftX` (jen kulatá R, jinak 0) dál.
+    // Kulatá R 10 s X min 15 jinak dokončovala až do X 5 a s X max 22 sáhla
+    // do stěny nad stropem (12. 10. 2026). Ruční konce rozsahu Z beze změny.
+    const liftF = getInsert(prms).noseLiftX || 0;
     const res = clipFinishBand(finishOffsetPath, {
-      zLo: machiningRange ? machiningRange.zLo : -Infinity,
+      zLo: machiningRange ? machiningRange.zLo + (machiningRange.xMaxWall ? liftF : 0) : -Infinity,
       zHi: machiningRange ? machiningRange.zHi : Infinity,
-      xLo: machiningRangeX ? machiningRangeX.xLo : -Infinity,
-      xHi: machiningRangeX ? machiningRangeX.xHi : Infinity,
+      xLo: machiningRangeX ? machiningRangeX.xLo + liftF : -Infinity,
+      xHi: machiningRangeX ? machiningRangeX.xHi + liftF : Infinity,
     });
     if (res.trimmed > 0 || res.dropped > 0) {
       finishOffsetPath = res.path;
@@ -645,10 +658,32 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     let droppedCount = 0;
     let clampedCount = 0;
     const clamped = [];
+    // Pás [čelisti, koník] pro trasované nájezdy/dojezdy (Z i vrcholy oblouků).
+    const bandLo = chuckLim ?? -Infinity, bandHi = tailLim ?? Infinity;
+    const inBand = (z) => z >= bandLo - 1e-6 && z <= bandHi + 1e-6;
+    const segZs = (s) => {
+      if (s.type !== 'arc' || !Number.isFinite(s.cz)) return [s.z1, s.z2];
+      let a0 = s.startAngle, a1 = s.endAngle;
+      if (s.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+      if (s.dir === 'G3' && a1 < a0) a1 += 2 * Math.PI;
+      const zs = [s.z1, s.z2];
+      for (let k = Math.ceil(Math.min(a0, a1) / Math.PI); k * Math.PI <= Math.max(a0, a1); k++) zs.push(s.cz + Math.cos(k * Math.PI) * s.r);
+      return zs;
+    };
     for (const pass of passes) {
       if (pass.type === 'long') {
         let zS = pass.zStart, zE = pass.zEnd;
         const origZS = zS, origZE = zE;
+        // TĚLO CELÉ ZA MEZÍ, nebo NÁJEZD PO KONTUŘE mimo pás → vynechat. Dřív
+        // se takový průchod „zkrátil" naruby (zStart < zEnd) a nájezd po kontuře
+        // jel čelistmi (díl uživatele 12. 10. 2026, čelisti Z10: kapsa po
+        // kontuře `G1 X30.200 Z-4.225` → `X28 Z-6.425` a zpět `G1 Z10`).
+        if ((chuckLim !== null && Math.max(zS, zE) < chuckLim - EPS)
+          || (tailLim !== null && Math.min(zS, zE) > tailLim + EPS)
+          || (pass.contourLeadIn && !pass.contourLeadIn.every(sg => segZs(sg).every(inBand)))) {
+          droppedCount++;
+          continue;
+        }
         if (chuckLim !== null && zE < chuckLim) zE = chuckLim;
         if (tailLim  !== null && zS > tailLim)  zS = tailLim;
         if (pass.ramp) {
@@ -672,7 +707,30 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
           if (!pass.contourLeadIn && !pass.contourLeadOut) { droppedCount++; continue; }
         }
         if (zS !== origZS || zE !== origZE) clampedCount++;
-        clamped.push({ ...pass, zStart: zS, zEnd: zE });
+        const out = { ...pass, zStart: zS, zEnd: zE };
+        // DOJEZD „bez schodků" jede po kontuře dál než tělo průchodu — a ořez
+        // výš zkracoval jen tělo. Dojezd tak projel čelistmi (díl uživatele
+        // 12. 10. 2026, čelisti Z10: `G1 Z-4.955` po válci, 69 mm² za čelistmi).
+        // Utne se tam, kde opustí pás; po zkrácení konce těla k němu nevede.
+        if (pass.contourLeadOut) {
+          const keep = [];
+          if (zE === origZE) {
+            for (const s of pass.contourLeadOut) {
+              if (segZs(s).every(inBand)) { keep.push(s); continue; }
+              if (s.type === 'line' && inBand(s.z1) && Math.abs(s.z2 - s.z1) > 1e-9) {
+                const zc = s.z2 < bandLo ? bandLo : bandHi;
+                const t = (zc - s.z1) / (s.z2 - s.z1);
+                if (t > 1e-6) keep.push({ ...s, x2: s.x1 + (s.x2 - s.x1) * t, z2: zc });
+              }
+              break;
+            }
+          }
+          if (keep.length !== pass.contourLeadOut.length || zE !== origZE) {
+            if (keep.length > 0) out.contourLeadOut = keep; else delete out.contourLeadOut;
+            clampedCount++;
+          }
+        }
+        clamped.push(out);
       } else if (pass.type === 'face') {
         if (chuckLim !== null && pass.z < chuckLim) { droppedCount++; continue; }
         if (tailLim  !== null && pass.z > tailLim)  { droppedCount++; continue; }
@@ -793,7 +851,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
-  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, partSegments: rawContourForInterference, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null };
+  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, partSegments: rawContourForInterference, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null,
+    // Z stěny materiálu nad X max (pravidlo 12) — emise dokončování za ni
+    // nepustí ani „Rovný průměr" (finishEmit.js `finRunOut`). null = není.
+    rangeWallZ: (machiningRange && machiningRange.xMaxWall) ? machiningRange.zLo : null };
   // Zpět do reálného světa (simPath se nezrcadlí — je z reálného G-kódu).
   return mirZ ? mirrorCalcZ(calcOut) : calcOut;
 }

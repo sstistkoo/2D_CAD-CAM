@@ -1154,7 +1154,9 @@ stojí a diagonální odskok by do něj zajel.
 Čelisti Z / Koník Z) — vypnutím se mez zruší, hodnota zůstane na příště.
 Zapnout jde i jen jednu z nich.
 
-- **▼ X min = dno.** Pod tenhle poloměr se nejede (podélně ani čelně).
+- **▼ X min = dno.** Pod tenhle poloměr se nejede (podélně ani čelně). Mez platí pro
+  **obrobenou plochu**: u kulaté destičky jede střed nosu o rádius výš, aby na mez
+  dosedl břit (totéž u X max a stěny pod ním i u dokončování).
 - **X max ▲ = strop** (pravidlo 12). Nad čarou se neobrábí **nic** a pod
   materiál, který nad ní stojí, se ani nepodjíždí — podélně ani čelně.
   Obrábí se proto jen od volného konce (strany, ze které hrubuješ) po místo,
@@ -1275,6 +1277,14 @@ Vedlejší přepínač **i u čelního** rozhoduje, jestli se tohle dělá i na 
 Dojezdy po **kuželových a válcových** stěnách a dokončení ramp/kapes tenhle
 přepínač neovlivňuje — ty patří k podélnému hrubování a jedou vždy, jinak by
 pod nimi zůstal stát klín materiálu.
+
+**Kulatá destička čelně — první vrstvy u čela.** Programovaný bod je střed
+nosu, ale břit řeže o celý rádius před ním. První vrstvy se proto dělí od
+polohy středu, ve které se čela polotovaru dotkne břit (střed o R za čelem),
+a každá vezme v ose Z nejvýš *Hloubku záběru*. Je-li zapnutý **koník**, první
+vrstva sedne přímo na něj (průchod se středem za koníkem se nevydá) a zbytek se
+rozdělí rovnoměrně. Dojezd „bez schodků", který by ze zbytku nic neubral (schod
+už vybrala vrstva jedoucí až k ose), se vynechá a průchod rovnou odskočí.
 
 ### Offsetové čáry v náhledu
 

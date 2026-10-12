@@ -145,6 +145,7 @@ export function polygonInsert(prms) {
     //                     23 mm vzduchem — ops/finishEmit.js, 9. 10. 2026).
     finishRampFromContact: true,
     leadOutTrimNoseCircle: false,
+    faceLayerNoseLead: false,   // viz round.js
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──

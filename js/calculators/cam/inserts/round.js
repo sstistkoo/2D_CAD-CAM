@@ -196,6 +196,12 @@ export function roundInsert(prms) {
     //                              od středu (30. 9. 2026, díl (10): zahlazení
     //                              schodku na stěně Z 205 se nevydalo vůbec)
     leadOutTrimNoseCircle: true,
+    //   faceLayerNoseLead        — čelně: břit předbíhá střed o R, takže první
+    //                              vrstvy u čela polotovaru se dělí od místa,
+    //                              kde se ČELA dotkne kruh nosu (střed o R za
+    //                              čelem), ne střed. Dřív první vrstva brala
+    //                              ap + R (12. 10. 2026, R 10 / ap 4: 9,3 mm)
+    faceLayerNoseLead: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

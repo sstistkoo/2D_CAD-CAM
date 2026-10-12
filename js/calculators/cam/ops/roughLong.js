@@ -39,7 +39,13 @@ import { makeRealStock, passPath, pathLen } from './long/realStock.js';
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange: machiningRangeIn, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
+  // STĚNA POD X MAX (pravidlo 12): rozsah končí na ní, ale průchody končí
+  // STŘEDEM nosu — kulatá by se o `noseLiftX` (R) zakousla do materiálu nad
+  // X max (R 10, X max 22: odebráno až X 24,9). Mez se proto posune o R před
+  // stěnu. Ruční konec rozsahu 📐 se nemění (navazování úseků řeší pravidlo 11).
+  const machiningRange = (machiningRangeIn && machiningRangeIn.xMaxWall && (ins.noseLiftX || 0) > 0)
+    ? { ...machiningRangeIn, zLo: machiningRangeIn.zLo + ins.noseLiftX } : machiningRangeIn;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -290,7 +296,12 @@ export function genLongPasses(ctx) {
   }
   // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
   if (machiningRangeX) {
-    const filtered = depths.filter(d => d >= machiningRangeX.xLo - 0.005 && d <= machiningRangeX.xHi + 0.005);
+    // Meze platí pro OBROBENOU plochu, hloubky `d` jsou dráha STŘEDU nosu —
+    // řeže se o `noseLiftL` níž (kulatá R; ostatní 0 = beze změny). Bez toho
+    // jela R 10 s X min 15 dnem až na X 5 a pod X max vypadly vrstvy, které
+    // řežou pod ním, takže první zbylá brala ap + R (12. 10. 2026).
+    const rxLo = machiningRangeX.xLo + noseLiftL, rxHi = machiningRangeX.xHi + noseLiftL;
+    const filtered = depths.filter(d => d >= rxLo - 0.005 && d <= rxHi + 0.005);
     if (reportRangeX && filtered.length === 0 && depths.length > 0) {
       const { xLo, xHi } = machiningRangeX;   // jedna mez může chybět (±∞)
       const span = !isFinite(xLo) ? `do ${xHi}` : !isFinite(xHi) ? `od ${xLo}` : `${xLo}–${xHi}`;
@@ -309,9 +320,9 @@ export function genLongPasses(ctx) {
     // `xHi`) a průchod na `xHi` by z ní nic neubral.
     if (filtered.length > 0) {
       const deepest = filtered[filtered.length - 1];
-      const below = depths.some(d => d < machiningRangeX.xLo - 1e-6);
-      if (below && deepest - machiningRangeX.xLo > Math.max(0.02, step * 0.02))
-        filtered.push(machiningRangeX.xLo);
+      const below = depths.some(d => d < rxLo - 1e-6);
+      if (below && deepest - rxLo > Math.max(0.02, step * 0.02))
+        filtered.push(rxLo);
     }
     depths.splice(0, depths.length, ...filtered);
   }
