@@ -81,7 +81,7 @@ const TOKEN_RE = new RegExp(
 );
 
 // ── Helpers ────────────────────────────────────────────────────
-function esc(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(t) { return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function storageSave(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota */ }
