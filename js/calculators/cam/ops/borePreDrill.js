@@ -23,7 +23,7 @@
 import { boreGeom } from './bore.js';
 import { boreChainFromState } from '../boreContour.js';
 import { mergePrograms } from '../gcodeMerge.js';
-import { buildIsoDrill, isoDrillDiameters } from '../../isoDrills.js';
+import { buildIsoDrill, isoPreDrillDiameters } from '../../isoDrills.js';
 import { slotToolParams } from '../camDefaults.js';
 import { getInsert } from '../inserts/index.js';
 
@@ -72,7 +72,7 @@ export function preDrillMaxDiameter(prms, rMin) {
  * @returns {Object|null} záznam knihovny (buildIsoDrill)
  */
 export function catalogDrillFor(dMax, reach = 0) {
-  const ds = isoDrillDiameters('hss').filter(d => d <= dMax + 1e-9).sort((a, b) => b - a);
+  const ds = isoPreDrillDiameters().filter(d => d <= dMax + 1e-9).sort((a, b) => b - a);
   if (!ds.length) return null;
   for (const d of ds) {
     const rec = buildIsoDrill({ kind: 'hss', diameter: d });

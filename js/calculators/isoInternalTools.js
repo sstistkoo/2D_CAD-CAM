@@ -9,7 +9,7 @@
 // l1 leží PODÉL osy; f = od špičky k ose tyče, Dmin = nejmenší díra, do
 // které tyč se špičkou vleze. Rozměry ORIENTAČNÍ (typické řady výrobců).
 //
-// CAM zatím soustruží jen VNĚJŠÍ obrys — tyč jde do zásobníku a použije se
+// Řada tyčí ⌀10–80 (⌀50–80 pro velké díry na karuselu). CAM zatím soustruží jen VNĚJŠÍ obrys — tyč jde do zásobníku a použije se
 // na vnitřní závit; operace Vyvrtávání přijde zvlášť.
 //
 // Obrys je v PROFILOVÝCH souřadnicích jako u vnějších nožů, jen zrcadlově
@@ -40,9 +40,13 @@ export const ISO_BARS = [
   { d: 25, len: 'T', l1: 300, f: 17, dmin: 32, ic: [6, 12.7] },
   { d: 32, len: 'U', l1: 350, f: 22, dmin: 40, ic: [9, 12.7] },
   { d: 40, len: 'V', l1: 400, f: 27, dmin: 50, ic: [9, 16] },
+  // Těžké tyče pro velké díry (karusel, 9. 10. 2026+): ⌀50–80, vyložení ocelové tyče 4×d.
+  { d: 50, len: 'W', l1: 450, f: 34, dmin: 63, ic: [9, 19.1] },
+  { d: 63, len: 'X', l1: 500, f: 43, dmin: 80, ic: [9, 19.1] },
+  { d: 80, len: 'Y', l1: 600, f: 54, dmin: 100, ic: [9, 19.1] },
 ];
 /** Vnitřní závitové destičky (IR) do tyče ⌀d (SNR): hrana destičky zhruba d/2 až d + 1. */
-const THREAD_BAR_FIT = { 10: [11], 12: [11], 16: [11, 16], 20: [11, 16], 25: [16, 22], 32: [16, 22, 27], 40: [22, 27] };
+const THREAD_BAR_FIT = { 10: [11], 12: [11], 16: [11, 16], 20: [11, 16], 25: [16, 22], 32: [16, 22, 27], 40: [22, 27], 50: [22, 27], 63: [22, 27], 80: [22, 27] };
 /** Páčka negativní destičky (upnutí P) se do hlavy vejde až od tyče ⌀20. */
 const NEG_MIN_D = 20;
 const RELIEF_MAIN_DEG = 3;   // čelo tyče za hlavní hranou (jako levý bok vnějších držáků)

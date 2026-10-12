@@ -30,8 +30,8 @@ import { isoThreadInsertLabel } from './isoThreadInserts.js';
 const PREF_KEY = 'skica.isoCatalog';   // jen pohodlí: naposledy zvolený dřík a skupina
 
 const DRILL_TYPE = { id: 'DR', special: 'drill', groups: ['drill'],
-  desc: 'Šroubovitý vrták pro operaci Vrtání (v ose X0). Dřík a ruka nahoře se ho netýkají.' };
-const GROUPS = [...ISO_GROUPS, { id: 'internal', label: 'Vnitřní (do díry)' }, { id: 'drill', label: 'Vrtáky' }];
+  desc: 'Šroubovitý vrták nebo navrtávák pro operaci Vrtání (v ose X0). Dřík a ruka nahoře se ho netýkají.' };
+const GROUPS = [...ISO_GROUPS, { id: 'internal', label: 'Vnitřní (do díry)' }, { id: 'drill', label: 'Vrtáky a navrtávák' }];
 const typeById = (id) => (id === DRILL_TYPE.id ? DRILL_TYPE
   : ISO_HOLDER_TYPES.find((t) => t.id === id) || ISO_INTERNAL_TYPES.find((t) => t.id === id));
 const isInternal = (t) => ISO_INTERNAL_TYPES.includes(t);
@@ -49,7 +49,7 @@ function savePrefs(p) {
 }
 
 function shapeLabel(t) {
-  if (t.special === 'parting') return '▮ zapichovací';
+  if (t.special === 'parting') return t.round ? '▮ radiusový zápich' : '▮ zapichovací';
   if (t.special === 'threading') return '▽ závitová';
   if (t.special === 'drill') return '⌀ vrták';
   const s = SHAPES.find((x) => x.v === t.shape);
@@ -85,8 +85,8 @@ export function mountIsoCatalog(root, opts) {
 
   function optionsHTML(t, k) {
     if (t.special === 'drill') {
-      return select('kind', ISO_DRILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh vrtáku — HSS-Co 118° (DIN 338 / 345) nebo tvrdokov 140° (5×D, vnitřní chlazení)')
-        + select('diameter', isoDrillDiameters(k.kind).map((d) => [d, isoDrillLabel(d)]), k.diameter, 'Průměr vrtáku (u předvrtání pod závit je napsaný závit)');
+      return select('kind', ISO_DRILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh — vrták HSS-Co 118° (DIN 338 / 345), tvrdokov 140° (5×D, vnitřní chlazení) nebo navrtávák 90° / 120°')
+        + select('diameter', isoDrillDiameters(k.kind).map((d) => [d, isoDrillLabel(d, k.kind)]), k.diameter, 'Průměr vrtáku (u předvrtání pod závit je napsaný závit)');
     }
     if (isInternal(t)) {
       const bar = select('bar', isoInternalBars(t).map((b) => [b.d, `tyč ⌀${b.d} · díra od ⌀${b.dmin}`]), k.bar,
@@ -98,7 +98,8 @@ export function mountIsoCatalog(root, opts) {
       return bar + insertSelects(t, k, isoInternalVariants(t, k.bar), isoInternalSizes(t, k.variant, k.bar));
     }
     if (t.special === 'parting') {
-      return select('width', isoGrooveWidths(st.shank).map((g) => [g.w, `š ${g.w} mm · ${g.code}`]), k.width, 'Šířka zapichovací destičky');
+      return select('width', isoGrooveWidths(st.shank, t).map((g) => [g.w, `š ${g.w} mm${t.round ? ` · R ${cz(g.r)}` : ''} · ${g.code}`]), k.width,
+        t.round ? 'Šířka radiusové zapichovací destičky (plný rádius dna = šířka / 2)' : 'Šířka zapichovací destičky');
     }
     if (t.special === 'threading') {
       return select('thread', isoThreadInsertsFor(st.shank).map((x) => [x.id, x.label]), k.thread,

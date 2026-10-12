@@ -988,7 +988,8 @@ kopírovací, srážecí, zapichovací, závitové, **vrtáky**).
 | PSSNR / SSSCR, PSDNN | S 90° | 45° | srážení hran |
 | SRDCN | R (RCMT) | — | kulatá neutrální — kopírování oběma směry, k čelu nedojede (dřík je souměrně nad destičkou) |
 | SRSCR (= SRGCR) | R (RCMT) | — | kulatá v rohu dříku, hlava sražená 45° — destička vyčnívá o R, **dojede k čelu / osazení**; SRGCR/SRGCL je totéž (výrobce uvádí ekvivalent), v katalogu je jedna karta |
-| MGEHR | MGMN 2–5 mm | — | zapichování, upichování |
+| MGEHR | MGMN 2–8 mm (6 mm od dříku 25×25, 8 mm jen 32×32) | — | zapichování, upichování |
+| MGEHR (radiusový) | MRMN 3–8 mm, plný rádius dna R = šířka / 2 | — | radiusové zápichy (O-kroužky, ložiska); na upichování ne. Jméno `MGEHR2525-4-R2` |
 | SER | 11–27ER: A/AG/N/Q 60° a 55°, Tr, Acme | — | vnější závit — rovný dřík, destička v rohu jeho konce (viz tabulka níž) |
 
 U každé karty se vybere **negativní / pozitivní** destička (kde existují
@@ -1003,16 +1004,22 @@ Katalog takhle umí přes 800 kombinací. Klik na náhled ho zvětší.
 a přestaví držák. Přepsání R / délky hrany ručně držák taky přestaví, dokud je
 to pořád katalogový obrys (ručně upravený držák se nemění).
 
-**Vrtáky** (operace Vrtání) — karta s výběrem **druhu** a **⌀**; dřík a ruka
-se jí netýkají. Jako u nožů: ✅ Použít, 🔧 Do zásobníku, 🧰 Uložit.
+**Vrtáky a navrtáváky** (operace Vrtání) — karta s výběrem **druhu** a **⌀**;
+dřík a ruka se jí netýkají. Jako u nožů: ✅ Použít, 🔧 Do zásobníku, 🧰 Uložit.
 
 | Druh | σ | ⌀ | Vyložení | Upínač | Vc / f (ocel) |
 |---|---|---|---|---|---|
-| HSS-Co (DIN 338 / DIN 345) | 118° | 3–16 / 17,5–30 | šroubovice + 5 mm | ER16 ⌀32 (do ⌀10), ER25 ⌀42 (do ⌀16), MK2 ⌀40 (do ⌀23), MK3 ⌀50 | 25 m/min · f ≈ 0,012·⌀ + 0,02 |
+| HSS-Co (DIN 338 / DIN 345) | 118° | 3–16 / 17,5–50 | šroubovice + 5 mm | ER16 ⌀32 (do ⌀10), ER25 ⌀42 (do ⌀16), MK2 ⌀40 (do ⌀23), MK3 ⌀50 (do ⌀31,5), MK4 ⌀63 (do ⌀44), MK5 ⌀80 | 25 m/min · f ≈ 0,012·⌀ + 0,02 |
 | tvrdokov 5×D, vnitřní chlazení | 140° | 3–20 | 5,5·⌀ + 12 | ER16 / ER25 / ER32 ⌀50 | 80 m/min · f ≈ 0,015·⌀ + 0,03 |
+| **navrtávák** HSS-Co | 90° / 120° | 3–20 | 2·⌀ + 11 (krátký, tuhý) | ER16 / ER25 / ER32 | 30 m/min · f ≈ 0,008·⌀ + 0,02 |
+
+**Navrtávák** se zařadí před vrták: navrtá střed a sražení, takže vrták
+nesjede po čele. Je bez záběru Q (celá hloubka na jeden zátah) — v záložce
+Vrtání dejte **Záběr Q = 0** a hloubku jen na důlek (≈ 0,3·⌀). Vrchol 90°
+se hodí před HSS 118°, 120° před vrtáky 118–140° a tvrdokov.
 
 Ve výběru ⌀ jsou označené průměry pro předvrtání pod závit (⌀6,8 pod M8,
-⌀8,5 pod M10, ⌀10,2 pod M12, ⌀14 pod M16, ⌀17,5 pod M20…). Rozměry
+⌀8,5 pod M10, ⌀10,2 pod M12, ⌀14 pod M16, ⌀17,5 pod M20, ⌀21 pod M24…). Rozměry
 a řezné podmínky jsou **orientační** — data v `js/calculators/isoDrills.js`.
 
 **Závitové destičky (SER/SEL)** — výběr podle dříku:
@@ -1032,7 +1039,7 @@ P 6 a Acme hrubší než 4 z/″ katalog nemá. Rozsahy jsou běžné řady výr
 — orientační.
 
 **Vnitřní (do díry)** — ocelové vyvrtávací tyče a vnitřní závitový nůž.
-Místo dříku nahoře se na kartě volí **tyč ⌀** (10–40 mm); u každé je
+Místo dříku nahoře se na kartě volí **tyč ⌀** (10–80 mm; ⌀50, 63 a 80 jsou těžké tyče pro velké díry na karuselu); u každé je
 napsaná nejmenší díra, do které se tyč se špičkou vejde (**Dmin**), a čip
 s rozumným vyložením ocelové tyče (4×⌀). Ruka R/L nahoře platí.
 
@@ -1045,11 +1052,11 @@ s rozumným vyložením ocelové tyče (4×⌀). Ruka R/L nahoře platí.
 | S..-SVUBR | V 35° (VBMT, od ⌀16) | 93° | jemné kopírování, úzká vybrání |
 | SNR / SNL | 11–27IR (stejná řada jako ER) | — | vnitřní závit |
 
-| Tyč ⌀ | 10 | 12 | 16 | 20 | 25 | 32 | 40 |
-|---|---|---|---|---|---|---|---|
-| délka l1 | 125 (K) | 150 (M) | 180 (Q) | 250 (S) | 300 (T) | 350 (U) | 400 (V) |
-| f (špička → osa tyče) | 7 | 9 | 11 | 13 | 17 | 22 | 27 |
-| Dmin (nejmenší díra) | 13 | 16 | 20 | 25 | 32 | 40 | 50 |
+| Tyč ⌀ | 10 | 12 | 16 | 20 | 25 | 32 | 40 | 50 | 63 | 80 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| délka l1 | 125 (K) | 150 (M) | 180 (Q) | 250 (S) | 300 (T) | 350 (U) | 400 (V) | 450 (W) | 500 (X) | 600 (Y) |
+| f (špička → osa tyče) | 7 | 9 | 11 | 13 | 17 | 22 | 27 | 34 | 43 | 54 |
+| Dmin (nejmenší díra) | 13 | 16 | 20 | 25 | 32 | 40 | 50 | 63 | 80 | 100 |
 
 Negativní destička (upnutí páčkou) se do hlavy vejde až od tyče ⌀20;
 destička nesmí vyčnívat nad tyč víc než 1,5 mm (proto V16 až od ⌀25).

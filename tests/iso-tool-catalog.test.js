@@ -24,7 +24,7 @@ function allCombos() {
   const out = [];
   for (const t of ISO_HOLDER_TYPES) {
     for (const sh of ISO_SHANKS) {
-      if (t.special === 'parting') isoGrooveWidths(sh.code).forEach((g) => out.push([t.id, { shank: sh.code, width: g.w }]));
+      if (t.special === 'parting') isoGrooveWidths(sh.code, t).forEach((g) => out.push([t.id, { shank: sh.code, width: g.w }]));
       else if (t.special === 'threading') isoThreadInsertsFor(sh.code).forEach((th) => out.push([t.id, { shank: sh.code, thread: th.id }]));
       else {
         for (const variant of isoVariants(t, sh.code)) {

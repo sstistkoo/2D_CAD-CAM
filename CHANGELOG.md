@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **📚 Katalog: navrtáváky 90° / 120°.** Nová položka ve skupině Vrtáky
+  (HSS-Co ⌀3–20, krátké vyložení, bez záběru Q) pro navrtání středu před
+  vrtákem. Jméno `Navrtavak 90 D10`. Jde stejnou cestou jako vrták (operace
+  Vrtání, tvar ⌀).
+- **📚 Katalog: hustší řada vrtáků.** HSS doplněno o ⌀9, 11, 13, 15, 19, 21
+  a velké ⌀32–50 (Morse 4 a 5 pouzdro), tvrdokov o ⌀9, 11, 13, 15, 19;
+  předvrtání pod M14 (⌀12) a M24 (⌀21) je označené. **Předvrtání v CAM jede
+  dál po původní řadě** (`isoPreDrillDiameters`), takže se dráhy nemění.
+- **📚 Katalog: těžké vyvrtávací tyče ⌀50, 63 a 80** (S50W…, S63X…, S80Y…;
+  Dmin 63 / 80 / 100) pro velké díry na karuselu, všechny typy včetně
+  závitového SNR. Při automatickém přidání tyče do zásobníku (Vyvrtávání)
+  se u děr nad ⌀63 vybere ⌀50 místo ⌀40.
+- **📚 Katalog: zapichováky 6 a 8 mm** (MGMN 600 / 800; 6 mm do dříku 25×25,
+  8 mm jen 32×32) a **radiusový zápich MRMN 3–8 mm** s plným rádiusem dna.
 - **Velikost plátku podle ISO katalogu.** U nože s katalogovým kódem držáku (SRSCL2525M12,
   PSKNR2525M12…) je v poli plátku (panel Parametry i Geometrie nástroje) výběr „Velikost
   podle katalogu" — RCMT 0803M0 / 1003M0 / 1204M0…, u polygonu CNMG 0903 / 1204 / 1606….
