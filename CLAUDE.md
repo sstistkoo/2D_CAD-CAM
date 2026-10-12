@@ -168,6 +168,21 @@ docs/                 # developer.md, user-guide.md
   aj. mají přes 1000 řádků) jako vedlejší efekt nesouvisející opravy — to
   by byl scope-creep. Refaktoring/rozdělení existujícího souboru je
   samostatné, vědomé rozhodnutí (po dohodě), ne automatika při bugfixu.
+- **⛔ ZÁKAZ DALŠÍHO RŮSTU OBŘÍCH SOUBORŮ (pokyn uživatele 12. 10. 2026):**
+  do souborů nad ~2000 řádků se NEPŘIDÁVÁ nový kód — žádná nová funkce,
+  dialog, větev ani blok. Nová funkčnost jde do NOVÉHO souboru (~300–500 ř.),
+  ze starého se jen zavolá (import + jedno volání). Dovoleno je jen malé
+  opravné zásahy (bugfix, úprava řádků) a odebírání kódu; soubor nesmí
+  po změně vyrůst o víc než pár řádků. Dotčené soubory (řádky k 12. 10.):
+  `calculators/camSimulator.js` 11712 (celé uvnitř jedné funkce
+  `openCamSimulator`, sdílí stav přes closure — nový kód tam dávat jako
+  modul, kterému se `S` a callbacky předají parametrem), `ui.js` 5312,
+  `render.js` 3115, `cam/ops/roughLong.js` 3119, `cncEditor.js` 2918,
+  `geometry.js` 2553, `vkContour.js` 2347. Nemusí se kvůli tomu nic
+  přepisovat — pravidlo se týká jen NOVÉHO kódu. Nelze-li kód jinak
+  umístit, nejdřív se zeptej uživatele.
+  Hlídá to `tests/file-size-budget.test.js` (běží v `test:cad`): stropy souborů
+  + žádný jiný soubor v `js/` přes 1500 ř. Po zmenšení souboru strop SNIŽ.
 - **Tokeny:** pracovat úsporně — stručně, bez zbytečného opakování příkazů,
   opakovaného čtení stejných souborů nebo nadbytečného vypisování velkých
   výstupů, které nejsou k věci.
