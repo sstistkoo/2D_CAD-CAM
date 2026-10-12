@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Tolerance: vlastní úchylky.** Přepínač „Třída a stupeň ISO / Vlastní úchylky“; ve vlastním režimu se zadá průměr (Ø) a horní/dolní úchylka v mm (např. -0,255 / -0,304) a dopočítá se Ø max, Ø min a tolerance.
+- **Tolerance: vlastní úchylky.** Přepínač „Třída a stupeň ISO / Vlastní úchylky“; ve vlastním režimu se zadá průměr (Ø) a horní/dolní úchylka v mm (např. -0,255 / -0,304) a dopočítá se Ø max, Ø min a tolerance. V liště okna je tlačítko 🔢 pro kalkulačku (kontrola výpočtu).
 - **CAD editor: nápověda k zápisu.** Nad lištou s údaji k řádku se vypisuje, co které slovo na
   řádku s kurzorem dělá (G0 = startovní bod, G1 úsečka, G2/G3 oblouk, X/Z, I/K, R, G90/G91…),
   slovo pod kurzorem je první, a tip co dopsat (oblouk bez R / I K, prázdný řádek…). Stisk

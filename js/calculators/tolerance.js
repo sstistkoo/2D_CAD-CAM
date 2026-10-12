@@ -1,6 +1,6 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
-import { makeOverlay } from '../dialogFactory.js';
+import { makeOverlay, isTouchDevice, onOverlayRemoved } from '../dialogFactory.js';
 import { deviations, SHAFT_LETTERS, HOLE_LETTERS } from './iso286.js';
 
 export function openToleranceCalc() {
@@ -54,8 +54,8 @@ export function openToleranceCalc() {
   }
 
   var body =
-    '<div class="cnc-table-label">Volné míry – ČSN EN ISO 2768-1 <small>(■ m = střední třída)</small></div>' +
-    '<div class="cnc-table-wrap">' + freeHTML + '</div>' +
+    '<details class="tol-free"><summary>Volné míry – ČSN EN ISO 2768-1 <small>(■ m = střední třída)</small></summary>' +
+    '<div class="cnc-table-wrap">' + freeHTML + '</div></details>' +
     '<div class="cnc-table-label" style="margin-top:12px">Tolerované rozměry – ČSN EN ISO 286-1</div>' +
     '<div class="tol-toggle-row">' +
       '<button class="tol-toggle tol-active" data-src="iso">Třída a stupeň ISO</button>' +
@@ -69,8 +69,8 @@ export function openToleranceCalc() {
     '</div>' +
     '<div class="tol-custom-row" data-id="tolCustom" hidden>' +
       '<span class="tol-range-lbl">Rozmezí</span>' +
-      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
-      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
+      '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
+      '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
     '</div>' +
     '<div class="cnc-field cnc-field-full" data-id="tolIsoClass"><span>Třída</span>' +
       '<div class="tol-grid tol-class-grid" data-id="tolClass">' + holeBtns + '</div></div>' +
@@ -81,6 +81,42 @@ export function openToleranceCalc() {
 
   var overlay = makeOverlay("tolerance", "📏 Tolerance", body);
   if (!overlay) return;
+
+  // Mobil: okno se drží nad softwarovou klávesnicí (visualViewport) a zadávané pole
+  // se po vysunutí klávesnice odroluje do viditelné části
+  var vv = window.visualViewport;
+  if (vv && isTouchDevice()) {
+    var fitWin = function() {
+      overlay.style.top = vv.offsetTop + "px";
+      overlay.style.height = vv.height + "px";
+      var w = overlay.querySelector(".calc-window");
+      if (w) w.style.maxHeight = Math.max(200, vv.height - 48) + "px";
+    };
+    vv.addEventListener("resize", fitWin);
+    vv.addEventListener("scroll", fitWin);
+    onOverlayRemoved(overlay, function() {
+      vv.removeEventListener("resize", fitWin);
+      vv.removeEventListener("scroll", fitWin);
+    });
+    fitWin();
+    overlay.addEventListener("focusin", function(e) {
+      var t = e.target;
+      if (t && t.tagName === "INPUT") setTimeout(function() { t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 300);
+    });
+  }
+
+  // 🔢 Kalkulačka na kontrolu výpočtu – plovoucí tlačítko z plátna je pod tímto oknem skryté
+  var calcBtn = document.createElement("button");
+  calcBtn.type = "button";
+  calcBtn.className = "calc-titlebar-btn tol-calc-btn";
+  calcBtn.title = "Kalkulačka";
+  calcBtn.setAttribute("aria-label", "Kalkulačka");
+  calcBtn.textContent = "🔢";
+  calcBtn.addEventListener("click", function() {
+    import('../ui.js').then(function(m) { m.openCalculator(); });
+  });
+  var closeBtn = overlay.querySelector(".calc-close-btn");
+  closeBtn.parentNode.insertBefore(calcBtn, closeBtn);
 
   var inpDim = overlay.querySelector('[data-id="tolDim"]');
   var gridClass = overlay.querySelector('[data-id="tolClass"]');
@@ -108,6 +144,7 @@ export function openToleranceCalc() {
       var prev = grid.querySelector('.tol-g-active');
       if (prev) prev.classList.remove('tol-g-active');
       btn.classList.add('tol-g-active');
+      if (document.activeElement && document.activeElement.tagName === "INPUT") document.activeElement.blur(); // schová klávesnici
       if (onChange) onChange();
     });
   }
@@ -209,6 +246,16 @@ export function openToleranceCalc() {
   }
 
   inpDim.addEventListener("input", calc);
+  // Číselná klávesnice (hlavně iOS) nemá minus → tlačítko ± přepne znaménko
+  overlay.querySelectorAll(".tol-sign").forEach(function(b) {
+    b.addEventListener("mousedown", function(e) { e.preventDefault(); }); // nesebrat focus poli
+    b.addEventListener("click", function() {
+      var inp = b.parentNode.querySelector("input");
+      var v = inp.value.trim();
+      inp.value = v.charAt(0) === "-" ? v.slice(1) : "-" + v.replace(/^\+/, "");
+      inp.dispatchEvent(new Event("input"));
+    });
+  });
   inpUp.addEventListener("input", calc);
   inpLo.addEventListener("input", calc);
 
