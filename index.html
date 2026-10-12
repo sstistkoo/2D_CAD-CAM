@@ -1928,6 +1928,22 @@
                 <span>Rozteč děr</span>
               </button>
               <button
+                id="btnOpenArc"
+                class="calc-launch-btn"
+                title="Oblouk – tětiva a výška, tři body, začátek + konec + R (střed, I/K, G02/G03)"
+              >
+                <span class="calc-launch-icon"><svg class="calc-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18 A12 12 0 0 1 21 18"/><line class="ci-thin" x1="3" y1="18" x2="21" y2="18"/><circle class="ci-accent" cx="12" cy="6.2" r="1.6"/></svg></span>
+                <span>Oblouk</span>
+              </button>
+              <button
+                id="btnOpenThermal"
+                class="calc-launch-btn"
+                title="Tepelná roztažnost – rozměr při teplotě, ohřev pro nalisování, změna vůle spoje"
+              >
+                <span class="calc-launch-icon">🌡️</span>
+                <span>Roztažnost</span>
+              </button>
+              <button
                 id="btnOpenWireMeasure"
                 class="calc-launch-btn"
                 title="Měření přes drátky a válečky – závit (3 drátky), kužel, rybina"
@@ -4309,6 +4325,33 @@
                     a střed. Tabulka souřadnic X/Y a úhlu C (pro soustruh
                     s osou C), vzdálenost sousedních děr, můstek mezi dírami
                     a náčrt.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">⌒</span> Oblouk</summary>
+                <div class="tool-detail">
+                  <p>
+                    Tři záložky. <strong>Tětiva + výška</strong>: z libovolných
+                    dvou veličin (tětiva, výška, rádius) dopočítá třetí,
+                    středový úhel a délku oblouku. <strong>Tři body</strong>:
+                    rádius, střed, smysl G02/G03 a řádky G-kódu. <strong>Start
+                    + konec + R</strong>: střed, I/K, úhel a řádek G-kódu pro
+                    zvolený smysl a oblouk do/přes 180°. Souřadnice Z a Ø X,
+                    G02/G03 podle nastavení stroje jako CNC export výkresu.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">🌡️</span> Tepelná roztažnost</summary>
+                <div class="tool-detail">
+                  <p>
+                    <strong>Rozměr při teplotě</strong>: přepočet naměřeného
+                    rozměru teplého dílu na 20 °C (a zpět) podle materiálu.
+                    <strong>Nalisování</strong>: teplota ohřevu nebo chlazení
+                    pro přesah a montážní vůli. <strong>Vůle spoje</strong>:
+                    změna vůle hřídel/otvor z různých materiálů při provozní
+                    teplotě. Lineární model, α orientační (lze zadat vlastní).
                   </p>
                 </div>
               </details>

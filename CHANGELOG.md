@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kalkulačka ⌒ Oblouk** v Další kalkulačky – tětiva + výška + rádius
+  (libovolné dvě), oblouk přes tři body a oblouk ze startu, konce a R: střed,
+  I/K, úhel, délka a řádky G02/G03 podle nastavení stroje (sdílí `arcCode`
+  s kalkulačkou Roh R / C). `arcMath.js` + test, okno `arc.js`.
+- **Kalkulačka 🌡️ Roztažnost** v Další kalkulačky – rozměr při teplotě ↔ 20 °C,
+  teplota ohřevu / chlazení pro nalisování, změna vůle spoje z různých
+  materiálů. `thermalMath.js` + test, okno `thermal.js`. Tlačítka obou
+  kalkulaček napojuje `calcLaunchers.js` (ui.js je na stropu velikosti). SW v473.
 - **📚 Katalog: dřík 40×40** (R200, f1 50) pro karusel — všechny typy držáků,
   zapichovací MGMN 3–8 mm a závitové destičky 16–27ER. Rozměr dříku odvozen
   z řady ISO 5610; jakmile bude znám přesný držák z karuselu, ověřit.

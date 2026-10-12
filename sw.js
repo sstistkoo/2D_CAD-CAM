@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v472';
+const CACHE_NAME = 'skica-v473';
 const ASSETS = [
   './',
   './index.html',
@@ -12,9 +12,12 @@ const ASSETS = [
   './js/ai/aiSettings.js',
   './js/app.js',
   './js/bridge.js',
+  './js/calculators/arc.js',
+  './js/calculators/arcMath.js',
   './js/calculators/boltCircle.js',
   './js/calculators/boltCircleMath.js',
   './js/calculators/calcKit.js',
+  './js/calculators/calcLaunchers.js',
   './js/calculators/cam/booleanRoughing.js',
   './js/calculators/cam/boreContour.js',
   './js/calculators/cam/boreRealCollision.js',
@@ -158,6 +161,8 @@ const ASSETS = [
   './js/calculators/sinumerikHub.js',
   './js/calculators/sysvar.js',
   './js/calculators/taper.js',
+  './js/calculators/thermal.js',
+  './js/calculators/thermalMath.js',
   './js/calculators/thread.js',
   './js/calculators/threadData.js',
   './js/calculators/threadPassesMath.js',

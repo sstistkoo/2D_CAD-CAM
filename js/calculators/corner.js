@@ -19,7 +19,7 @@ const dirButtons = (target) => '<div class="rough-radius-row">' + DIRS.map(([v, 
   '<button type="button" class="rough-r-btn tol-g-btn" data-dir-for="' + target + '" data-v="' + v + '">' + t + ' ' + v + '°</button>').join('') + '</div>';
 
 /** G-kód oblouku podle nastavení stroje (stejně jako CNC export výkresu). */
-function arcCode(ccwZX) {
+export function arcCode(ccwZX) {
   const ccwWorld = state.machineType === 'karusel' ? !ccwZX : ccwZX;   // karusel: X vodorovně, Z svisle
   const code = ccwWorld ? 'G03' : 'G02';
   return state.flipX !== state.flipZ ? (code === 'G02' ? 'G03' : 'G02') : code;
