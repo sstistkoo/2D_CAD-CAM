@@ -1377,7 +1377,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   strojní čas s G96 (u čelení bez omezení t = π·(D₁² − D₂²) / (4000·vc·f))
   a srovnání s G97 při stálých otáčkách z většího průměru.
 - **Zkrácení / prodleva** – doba obrábění
-- **Tolerance** – tolerance dle DIN ISO 286
+- **Tolerance** – tolerance dle DIN ISO 286 (třída + stupeň, nebo vlastní horní/dolní úchylka v mm)
 - **Hmotnost** – hmotnost prutů
 - **Vrták** (Další kalkulačky) – geometrie špičky vrtáku s náčrtem: tabulka
   základních vrtáků a úhlů špičky σ (ocel 118°, legovaná ocel 130°, nerez 135°,

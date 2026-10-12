@@ -57,15 +57,24 @@ export function openToleranceCalc() {
     '<div class="cnc-table-label">Volné míry – ČSN EN ISO 2768-1 <small>(■ m = střední třída)</small></div>' +
     '<div class="cnc-table-wrap">' + freeHTML + '</div>' +
     '<div class="cnc-table-label" style="margin-top:12px">Tolerované rozměry – ČSN EN ISO 286-1</div>' +
+    '<div class="tol-toggle-row">' +
+      '<button class="tol-toggle tol-active" data-src="iso">Třída a stupeň ISO</button>' +
+      '<button class="tol-toggle" data-src="custom">Vlastní úchylky</button>' +
+    '</div>' +
     '<div class="tol-main-row">' +
       '<button class="tol-toggle tol-active" data-mode="hole">Díra</button>' +
-      '<label class="tol-dim" aria-label="Jmenovitý rozměr v mm">' +
+      '<label class="tol-dim" aria-label="Jmenovitý průměr v mm"><span class="tol-dim-sym">Ø</span>' +
         '<input type="text" inputmode="decimal" data-id="tolDim" placeholder="Rozměr mm"></label>' +
       '<button class="tol-toggle" data-mode="shaft">Hřídel</button>' +
     '</div>' +
-    '<div class="cnc-field cnc-field-full"><span>Třída</span>' +
+    '<div class="tol-custom-row" data-id="tolCustom" hidden>' +
+      '<span class="tol-range-lbl">Rozmezí</span>' +
+      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
+      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
+    '</div>' +
+    '<div class="cnc-field cnc-field-full" data-id="tolIsoClass"><span>Třída</span>' +
       '<div class="tol-grid tol-class-grid" data-id="tolClass">' + holeBtns + '</div></div>' +
-    '<div class="cnc-field cnc-field-full"><span>Stupeň</span>' +
+    '<div class="cnc-field cnc-field-full" data-id="tolIsoIT"><span>Stupeň</span>' +
       '<div class="tol-grid tol-it-grid" data-id="tolIT">' + itBtns + '</div></div>' +
     '<div class="cnc-result tol-res" id="tolResult">Zadejte rozměr…</div>' +
     '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div>';
@@ -79,6 +88,11 @@ export function openToleranceCalc() {
   var resultEl = overlay.querySelector("#tolResult");
   var btnHole = overlay.querySelector('[data-mode="hole"]');
   var btnShaft = overlay.querySelector('[data-mode="shaft"]');
+  var inpUp = overlay.querySelector('[data-id="tolUp"]');
+  var inpLo = overlay.querySelector('[data-id="tolLo"]');
+  var customRow = overlay.querySelector('[data-id="tolCustom"]');
+  var isoBlocks = overlay.querySelectorAll('[data-id="tolIsoClass"],[data-id="tolIsoIT"]');
+  var isCustom = false;
   var isHole = true;
   var copyText = ""; // prostý text posledního platného výsledku pro Kopírovat
 
@@ -111,49 +125,115 @@ export function openToleranceCalc() {
   btnHole.addEventListener("click", function() { setMode(true); });
   btnShaft.addEventListener("click", function() { setMode(false); });
 
+  // Přepínač: třída + stupeň ISO × vlastní horní/dolní úchylka (mm)
+  overlay.querySelectorAll('[data-src]').forEach(function(b) {
+    b.addEventListener("click", function() {
+      isCustom = b.dataset.src === "custom";
+      overlay.querySelectorAll('[data-src]').forEach(function(o) { o.classList.toggle("tol-active", o === b); });
+      customRow.hidden = !isCustom;
+      isoBlocks.forEach(function(el) { el.hidden = isCustom; });
+      calc();
+    });
+  });
+
   // Úchylky s desetinnou částí (js/JS u lichého IT) bez zbytečných nul
   function sign(v) { var r = Math.round(v * 10) / 10; return r > 0 ? "+" + r : "" + r; }
   function mm(v) { return String(parseFloat(v.toFixed(4))); }
 
+  var LS_KEY = "skica_tolerance";
+  function saveState() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        custom: isCustom, hole: isHole, dim: inpDim.value, up: inpUp.value, lo: inpLo.value,
+        cls: { hole: getGridVal(gridClass) && isHole ? getGridVal(gridClass) : savedCls.hole,
+               shaft: getGridVal(gridClass) && !isHole ? getGridVal(gridClass) : savedCls.shaft },
+        it: getGridVal(gridIT)
+      }));
+    } catch (e) { /* localStorage nedostupné */ }
+  }
+  var savedCls = { hole: null, shaft: null };
+
   function calc() {
     copyText = "";
+    saveState();
     var dim = inpDim.value !== "" ? safeEvalMath(inpDim.value) : null;
-    if (dim === null || !(dim > 0 && dim <= 500)) {
-      resultEl.textContent = dim !== null ? "Rozměr mimo rozsah (0–500 mm)" : "Zadejte rozměr…";
-      return;
+    if (dim === null) { resultEl.textContent = "Zadejte rozměr…"; return; }
+    if (!isFinite(dim) || dim <= 0) { resultEl.textContent = "Neplatný rozměr"; return; }
+    if (!isCustom && dim > 500) { resultEl.textContent = "Rozměr mimo rozsah ISO 286 (0–500 mm)"; return; }
+    var r, tolLabel;
+    if (isCustom) {
+      if (inpUp.value === "" || inpLo.value === "") { resultEl.textContent = "Zadejte horní i dolní úchylku…"; return; }
+      var up = safeEvalMath(inpUp.value), lo = safeEvalMath(inpLo.value);
+      if (!isFinite(up) || !isFinite(lo)) { resultEl.textContent = "Neplatná úchylka"; return; }
+      if (up < lo) { var tmp = up; up = lo; lo = tmp; } // zadáno naopak → přizpůsobit
+      var f3 = function(v) { return (v > 0 ? "+" : "") + String(parseFloat(v.toFixed(4))); };
+      r = { upper: up * 1000, lower: lo * 1000, tol: Math.round((up - lo) * 1e6) / 1000 };
+      tolLabel = "Ø" + dim + " " + f3(up) + " / " + f3(lo);
+    } else {
+      var itGrade = parseInt(getGridVal(gridIT), 10); // 1..18
+      var letter = getGridVal(gridClass);
+      r = deviations(letter, itGrade, dim);
+      if (r.error) { resultEl.textContent = r.error; return; }
+      tolLabel = "Ø" + dim + " " + letter + itGrade;
     }
-    var itGrade = parseInt(getGridVal(gridIT), 10); // 1..18
-    var letter = getGridVal(gridClass);
-    var r = deviations(letter, itGrade, dim);
-    if (r.error) { resultEl.textContent = r.error; return; }
 
     var dimMax = dim + r.upper / 1000;
     var dimMin = dim + r.lower / 1000;
     var kind = isHole ? "Díra" : "Hřídel";
-    var tolLabel = "Ø" + dim + " " + letter + itGrade;
     var tolMm = (r.tol / 1000).toFixed(4).replace(/0$/, '');
 
+    // Rozhodující rozměr: díra = menší průměr (úchylka +), hřídel = větší průměr (úchylka −)
+    var keyLbl = isHole ? "Ø min" : "Ø max";
+    var keyVal = isHole ? dimMin : dimMax;
+    var tolSgn = isHole ? "+" : "−";
+    var tolTxt = tolSgn + r.tol + " µm (" + tolSgn + tolMm + " mm)";
+
     copyText = kind + " " + tolLabel + " │ " + sign(r.upper) + " / " + sign(r.lower) + " µm │ max " +
-      mm(dimMax) + " / min " + mm(dimMin) + " mm │ tolerance " + r.tol + " µm";
+      mm(dimMax) + " / min " + mm(dimMin) + " mm │ " + keyLbl + " " + mm(keyVal) + " mm " + tolTxt;
 
     resultEl.innerHTML =
       '<div class="tol-res-head"><span class="tol-res-kind ' + (isHole ? 'tol-kind-hole' : 'tol-kind-shaft') + '">' +
         kind + '</span> <strong>' + tolLabel + '</strong></div>' +
       '<div class="tol-res-cols">' +
         '<div class="tol-res-col">' +
-          '<div><span>Horní úchylka</span><b>' + sign(r.upper) + ' µm</b></div>' +
-          '<div><span>Dolní úchylka</span><b>' + sign(r.lower) + ' µm</b></div>' +
+          '<div><span>Horní</span><b>' + sign(r.upper) + ' µm</b></div>' +
+          '<div><span>Dolní</span><b>' + sign(r.lower) + ' µm</b></div>' +
         '</div>' +
         '<div class="tol-res-col">' +
-          '<div><span>Ø max</span><b>' + mm(dimMax) + ' mm</b></div>' +
-          '<div><span>Ø min</span><b>' + mm(dimMin) + ' mm</b></div>' +
+          '<div' + (isHole ? '' : ' class="tol-res-key"') + '><span>Ø max</span><b>' + mm(dimMax) + ' mm</b></div>' +
+          '<div' + (isHole ? ' class="tol-res-key"' : '') + '><span>Ø min</span><b>' + mm(dimMin) + ' mm</b></div>' +
         '</div>' +
       '</div>' +
-      '<div class="tol-res-tol">Tolerance: <b>' + r.tol + ' µm</b> (' + tolMm + ' mm)</div>' +
+      '<div class="tol-res-tol"><span>' + keyLbl + '</span><br><b>' + mm(keyVal) + ' mm</b> ' + tolTxt + '</div>' +
       (r.note ? '<div class="tol-res-note">' + r.note + '</div>' : '');
   }
 
   inpDim.addEventListener("input", calc);
+  inpUp.addEventListener("input", calc);
+  inpLo.addEventListener("input", calc);
+
+  // Obnovení posledního nastavení
+  (function restoreState() {
+    var st = null;
+    try { st = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { /* ignorovat */ }
+    if (!st) return;
+    savedCls = st.cls || savedCls;
+    function pick(grid, val) {
+      var b = val != null && grid.querySelector('.tol-g-btn[data-val="' + val + '"]');
+      if (!b) return;
+      var prev = grid.querySelector('.tol-g-active');
+      if (prev) prev.classList.remove('tol-g-active');
+      b.classList.add('tol-g-active');
+    }
+    inpDim.value = st.dim || ""; inpUp.value = st.up || ""; inpLo.value = st.lo || "";
+    isHole = st.hole !== false;
+    btnHole.classList.toggle("tol-active", isHole);
+    btnShaft.classList.toggle("tol-active", !isHole);
+    gridClass.innerHTML = isHole ? holeBtns : shaftBtns;
+    pick(gridClass, isHole ? savedCls.hole : savedCls.shaft);
+    pick(gridIT, st.it);
+    if (st.custom) overlay.querySelector('[data-src="custom"]').click(); else calc();
+  })();
 
   overlay.querySelector(".cnc-btn-copy").addEventListener("click", function() {
     if (copyText) {

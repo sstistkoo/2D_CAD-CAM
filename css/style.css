@@ -4497,7 +4497,18 @@ body {
   flex: 0 0 auto; min-width: 64px; padding: 8px 10px;
   border: 1px solid var(--ctp-surface0); border-radius: 6px;
 }
-.tol-dim { flex: 1 1 auto; min-width: 0; display: flex; }
+.tol-dim { flex: 1 1 auto; min-width: 0; display: flex; position: relative; }
+.tol-dim-sym { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 16px; color: var(--ctp-subtext0); pointer-events: none; }
+.tol-custom-row { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
+.tol-custom-row[hidden], .cnc-field[hidden] { display: none; }
+.tol-dev { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ctp-subtext0); }
+.tol-dev input {
+  width: 100%; min-width: 0; box-sizing: border-box; text-align: center;
+  font-size: 16px; font-family: "Consolas", monospace;
+  background: var(--ctp-mantle); color: var(--ctp-text);
+  border: 1px solid var(--ctp-surface1); border-radius: 6px; padding: 8px 4px;
+}
+.tol-dev input:focus { outline: none; border-color: var(--ctp-blue); }
 .tol-dim input {
   width: 100%; min-width: 0; box-sizing: border-box; text-align: center;
   font-size: 16px; font-family: "Consolas", monospace;
@@ -4525,6 +4536,9 @@ body {
 .tol-res-col > div { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
 .tol-res-col span { color: var(--ctp-subtext0); font-size: 12px; }
 .tol-res-col b { font-family: "Consolas", monospace; }
+.tol-res-col > div.tol-res-key { background: color-mix(in srgb, var(--ctp-blue) 22%, transparent); border-radius: 4px; padding: 2px 4px; margin: 0 -4px; }
+.tol-range-lbl { align-self: center; font-size: 12px; color: var(--ctp-subtext0); }
+.tol-res-tol span { color: var(--ctp-subtext0); font-size: 12px; }
 .tol-res-tol { border-top: 1px solid var(--ctp-surface1); padding-top: 6px; }
 .tol-res-note { color: var(--ctp-subtext0); font-size: 11px; margin-top: 4px; }
 
