@@ -7,6 +7,9 @@
 
 import { openArcCalc } from './arc.js';
 import { openThermalCalc } from './thermal.js';
+import { openVolumeCalc } from './volume.js';
+import './trigGeneral.js';                       // bridge.extendTrigCalc – záložka Obecný trojúhelník
 
 document.getElementById('btnOpenArc')?.addEventListener('click', openArcCalc);
 document.getElementById('btnOpenThermal')?.addEventListener('click', openThermalCalc);
+document.getElementById('btnOpenVolume')?.addEventListener('click', openVolumeCalc);

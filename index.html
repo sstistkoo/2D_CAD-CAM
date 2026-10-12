@@ -1793,7 +1793,7 @@
             <button
               id="btnOpenTrig"
               class="calc-launch-btn"
-              title="Trigonometrie"
+              title="Trigonometrie – pravoúhlý i obecný trojúhelník"
             >
               <span class="calc-launch-icon">📐</span>
               <span>Trigonometrie</span>
@@ -1922,10 +1922,18 @@
               <button
                 id="btnOpenBoltCircle"
                 class="calc-launch-btn"
-                title="Díry na roztečné kružnici – souřadnice X/Y a úhel C"
+                title="Rozmístění děr – roztečná kružnice, řada, mřížka (souřadnice X/Y, úhel C)"
               >
-                <span class="calc-launch-icon">◎</span>
-                <span>Rozteč děr</span>
+                <span class="calc-launch-icon"><svg class="calc-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle class="ci-thin" cx="8" cy="8" r="5.5"/><circle class="ci-accent" cx="8" cy="2.5" r="1.4"/><circle class="ci-accent" cx="13.5" cy="8" r="1.4"/><circle class="ci-accent" cx="8" cy="13.5" r="1.4"/><circle class="ci-accent" cx="2.5" cy="8" r="1.4"/><circle cx="16" cy="16" r="1.5"/><circle cx="21" cy="16" r="1.5"/><circle cx="16" cy="21" r="1.5"/><circle cx="21" cy="21" r="1.5"/></svg></span>
+                <span>Rozmístění děr</span>
+              </button>
+              <button
+                id="btnOpenVolume"
+                class="calc-launch-btn"
+                title="Objem a hmotnost z výkresu – hotový díl, polotovar a odebraný materiál"
+              >
+                <span class="calc-launch-icon">⚖️</span>
+                <span>Objem z výkresu</span>
               </button>
               <button
                 id="btnOpenArc"
@@ -4190,9 +4198,12 @@
                 </summary>
                 <div class="tool-detail">
                   <p>
-                    Výpočty pravoúhlého trojúhelníku – zadejte libovolné 2
+                    Dvě záložky. <strong>Pravoúhlý</strong>: zadejte libovolné 2
                     hodnoty (strany nebo úhly) a dopočítá zbývající.
-                    Goniometrické funkce sin, cos, tan a jejich inverze.
+                    <strong>Obecný</strong>: zadejte 3 hodnoty (aspoň jednu
+                    stranu) – SSS, SAS, ASA/AAS a SSA (u nejednoznačného případu
+                    až dvě řešení). Vypíše i obsah, obvod, výšky a poloměry
+                    kružnice opsané a vepsané. Zvolená záložka se pamatuje.
                   </p>
                 </div>
               </details>
@@ -4317,14 +4328,32 @@
                 </div>
               </details>
               <details class="help-tool-item">
-                <summary><span class="tool-icon">◎</span> Rozteč děr</summary>
+                <summary><span class="tool-icon"><svg class="calc-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle class="ci-thin" cx="8" cy="8" r="5.5"/><circle class="ci-accent" cx="8" cy="2.5" r="1.4"/><circle class="ci-accent" cx="13.5" cy="8" r="1.4"/><circle class="ci-accent" cx="8" cy="13.5" r="1.4"/><circle class="ci-accent" cx="2.5" cy="8" r="1.4"/><circle cx="16" cy="16" r="1.5"/><circle cx="21" cy="16" r="1.5"/><circle cx="16" cy="21" r="1.5"/><circle cx="21" cy="21" r="1.5"/></svg></span> Rozmístění děr</summary>
                 <div class="tool-detail">
                   <p>
-                    Díry na roztečné kružnici: počet děr, roztečný průměr,
-                    úhel první díry, celý kruh nebo zadaná úhlová rozteč, směr
-                    a střed. Tabulka souřadnic X/Y a úhlu C (pro soustruh
-                    s osou C), vzdálenost sousedních děr, můstek mezi dírami
-                    a náčrt.
+                    Tři záložky. <strong>Kružnice</strong>: díry na roztečné
+                    kružnici – počet děr, roztečný průměr, úhel první díry, celý
+                    kruh nebo zadaná úhlová rozteč, směr a střed; tabulka X/Y
+                    a úhlu C (soustruh s osou C), vzdálenost sousedních děr,
+                    můstek a náčrt. <strong>Řada</strong>: díry na přímce –
+                    počet, začátek a rozteč s úhlem, nebo do koncového bodu.
+                    <strong>Mřížka</strong>: nx × ny děr s roztečemi, natočením
+                    a pořadím po řádcích nebo meandrem. U všech tabulka
+                    souřadnic, můstek a náčrt s pořadím vrtání.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">⚖️</span> Objem z výkresu</summary>
+                <div class="tool-detail">
+                  <p>
+                    Rotační objem a hmotnost hotového dílu z kontury ve výkresu,
+                    volitelně i polotovaru (vrstva Polotovar nebo válec Ø × délka)
+                    a odebraného materiálu. Vypíše největší Ø, délku a těžiště
+                    na ose; materiál s hustotou nebo vlastní ρ. Počítá hlavní
+                    souvislý profil (otevřený od osy k ose i uzavřený),
+                    samostatně nakreslená díra se nepočítá. Tlačítko „Načíst
+                    z výkresu“ obnoví data po úpravě výkresu.
                   </p>
                 </div>
               </details>

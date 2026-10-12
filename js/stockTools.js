@@ -166,6 +166,34 @@ function _chainSegments(segs, leftoverOut) {
   return chain;
 }
 
+/**
+ * Hlavní řetěz kontury a polotovaru v souřadnicích plátna (pro kalkulačku Objem).
+ * Hlavní = nejdelší souvislý řetěz (zatoulaná kružnice nebo čára jinde ve výkresu
+ * ho nepřebije). `leftovers` = počet segmentů, které na něj nenavazují.
+ * @returns {{part:{chain:object[], leftovers:number}, stock:{chain:object[], leftovers:number}}}
+ */
+export function getRevolveProfiles() {
+  const len = (s) => (s.type === 'line' ? Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y)
+    : s.r * (((s.ccw ? Math.atan2(s.p2.y - s.cy, s.p2.x - s.cx) - Math.atan2(s.p1.y - s.cy, s.p1.x - s.cx)
+      : Math.atan2(s.p1.y - s.cy, s.p1.x - s.cx) - Math.atan2(s.p2.y - s.cy, s.p2.x - s.cx)) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) || 2 * Math.PI));
+  const build = (objs) => {
+    let rest = _objectsToSegments(objs).filter(s => !_isDegenerate(s));
+    const total = rest.length;
+    let best = [], bestLen = -1;
+    while (rest.length) {
+      const left = [];
+      const chain = _chainSegments(rest, left);
+      const L = chain.reduce((a, s) => a + len(s), 0);
+      if (L > bestLen) { best = chain; bestLen = L; }
+      rest = left;
+    }
+    return { chain: best, leftovers: total - best.length };
+  };
+  const stockObjs = state.objects.filter(o => o.isStock && !o.isDimension && !o.isCoordLabel &&
+    o.type !== 'constr' && o.type !== 'text' && o.type !== 'point');
+  return { part: build(_contourObjects()), stock: build(stockObjs) };
+}
+
 // ── Kontrola uzavřenosti/validity kontury ──────────────────────
 // Vrátí pole bodů (cad souřadnice) v místech, kde je kontura přerušená:
 //  - konce hlavního řetězu, pokud netvoří uzavřenou smyčku,

@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v473';
+const CACHE_NAME = 'skica-v478';
 const ASSETS = [
   './',
   './index.html',
@@ -142,6 +142,8 @@ const ASSETS = [
   './js/calculators/gcode.js',
   './js/calculators/help.js',
   './js/calculators/holderIsoData.js',
+  './js/calculators/holePattern.js',
+  './js/calculators/holePatternMath.js',
   './js/calculators/insert.js',
   './js/calculators/iso286.js',
   './js/calculators/iso965.js',
@@ -156,6 +158,7 @@ const ASSETS = [
   './js/calculators/mcode.js',
   './js/calculators/noseRadius.js',
   './js/calculators/noseRadiusMath.js',
+  './js/calculators/revolveMath.js',
   './js/calculators/roughness.js',
   './js/calculators/shortcuts.js',
   './js/calculators/sinumerikHub.js',
@@ -167,12 +170,14 @@ const ASSETS = [
   './js/calculators/threadData.js',
   './js/calculators/threadPassesMath.js',
   './js/calculators/tolerance.js',
+  './js/calculators/trigGeneral.js',
   './js/calculators/vbdIso.js',
   './js/calculators/vkCommit.js',
   './js/calculators/vkContour.js',
   './js/calculators/vkHelp.js',
   './js/calculators/vkPreviewRender.js',
   './js/calculators/vkSolver.js',
+  './js/calculators/volume.js',
   './js/calculators/weight.js',
   './js/calculators/wireMeasure.js',
   './js/calculators/wireMeasureMath.js',
@@ -281,6 +286,7 @@ const ASSETS = [
   './js/tools/threadClick.js',
   './js/tools/trimClick.js',
   './js/touch.js',
+  './js/triangleSolver.js',
   './js/trigSolver.js',
   './js/types.js',
   './js/ui.js',

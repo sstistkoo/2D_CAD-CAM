@@ -21,6 +21,8 @@ export const bridge = {
   updateIntersectionList: null,
   calculateAllIntersections: null,
   runCncExport: null,
+  // Trigonometrie: záložka Obecný trojúhelník (calculators/trigGeneral.js)
+  extendTrigCalc: null,
   // Přenos do CAM: jen hlavní profil → { code, leftovers } (storage/fileIO.js)
   buildCamTransfer: null,
   // Zdvojené čáry kontury: nabídka smazání (vždy / jednou pro novou sadu) a

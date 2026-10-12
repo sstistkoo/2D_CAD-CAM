@@ -17,6 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Trigonometrie: záložka Obecný trojúhelník** vedle původního pravoúhlého
+  (přepínač nahoře, volba se pamatuje). Ze 3 hodnot (aspoň jedna strana)
+  řeší SSS, SAS, ASA/AAS i SSA včetně dvou řešení; obsah, obvod, výšky,
+  poloměry kružnice opsané a vepsané, náčrt, kopírování. `triangleSolver.js`
+  + test, záložky `calculators/trigGeneral.js` (do okna v ui.js se napojují
+  přes `bridge.extendTrigCalc`, ui.js nevyrostl).
+- **Rozteč děr → Rozmístění děr**: k roztečné kružnici přibyly záložky Řada
+  (díry na přímce: rozteč + úhel nebo koncový bod) a Mřížka (nx × ny,
+  natočení, pořadí po řádcích / meandr). Přejmenováno, nová ikona (kružnice
+  + mřížka). `holePatternMath.js` + test, panely `holePattern.js`. SW v478.
+- **Kalkulačka ⚖️ Objem z výkresu** v Další kalkulačky – rotační objem,
+  hmotnost a těžiště hotového dílu z kontury ve výkresu, polotovar z vrstvy
+  Polotovar nebo válec Ø × L a odebraný materiál (kg, cm³, %). Přesný výpočet
+  z úseček a oblouků (Pappova věta), soustruh i karusel. `revolveMath.js` + test
+  (koule, polokoule, torus, komolý kužel, těžiště), okno `volume.js`, nový export
+  `getRevolveProfiles` ve `stockTools.js`. SW v478.
 - **Kalkulačka ⌒ Oblouk** v Další kalkulačky – tětiva + výška + rádius
   (libovolné dvě), oblouk přes tři body a oblouk ze startu, konce a R: střed,
   I/K, úhel, délka a řádky G02/G03 podle nastavení stroje (sdílí `arcCode`

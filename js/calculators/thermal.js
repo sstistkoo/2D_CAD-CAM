@@ -113,7 +113,7 @@ export function openThermalCalc() {
     if (!r) return bad('Ø spoje musí být kladný, přesah a vůle nesmí být záporné.');
     let html = outMain('ohřev na ' + fmt(r.heated, 0) + ' °C', 'ΔT = ' + fmt(r.dT, 0) + ' K, průměr naroste o ' + fmt(r.dD, 3) + ' mm') +
       outRow('Nebo chlazení na', fmt(r.cooled, 0) + ' °C');
-    if (r.heated > 250) html += outWarn('Nad ~250 °C hrozí popuštění kalené oceli a změna struktury; u hliníku a plastů hlídej mez teploty materiálu.');
+    if (r.heated > 200) html += outWarn('Nad ~200 °C hrozí popuštění kalené oceli a změna struktury; u hliníku a plastů hlídej mez teploty materiálu.');
     if (r.cooled < -196) html += outWarn('Chlazení nelze: potřebná teplota je pod bodem varu dusíku (−196 °C). Použij ohřev.');
     else if (r.cooled < -78) html += outHint('Pod −78 °C (suchý led) je třeba kapalný dusík (−196 °C).');
     else if (r.cooled < -20) html += outHint('Chlazení dosáhne suchý led (−78 °C) nebo kapalný dusík.');

@@ -5,10 +5,17 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { boltCircle } from './boltCircleMath.js';
+import { mountRowPanel, mountGridPanel } from './holePattern.js';
 import {
   fmt, numVal as val, numField, selectField, outRow, outWarn, outHint, outMain,
-  copyText, svgEl, svgClear, fitView,
+  copyText, svgEl, svgClear, fitView, tabsHtml, wireTabs,
 } from './calcKit.js';
+
+const TITLES = {
+  circle: '◎ Rozmístění děr – roztečná kružnice',
+  row: '◎ Rozmístění děr – řada',
+  grid: '◎ Rozmístění děr – mřížka',
+};
 
 export function openBoltCircleCalc() {
   const body =
@@ -33,8 +40,9 @@ export function openBoltCircleCalc() {
     '<div class="calc-note">Úhel 0° = kladná osa X, kladný směr proti hodinám. Soustruh s osou C (vrtání do čela): ' +
       'X = roztečný průměr, C = úhel. Frézka / karusel s hlavou: X, Y.</div>';
 
-  const overlay = makeOverlay('boltCircle', '◎ Díry na roztečné kružnici', body);
+  const overlay = makeOverlay('boltCircle', TITLES.circle, body);
   if (!overlay) return;
+  addPatternTabs(overlay);
 
   const q = (id) => overlay.querySelector('[data-id="' + id + '"]');
   const inp = { n: q('n'), pcd: q('pcd'), a0: q('a0'), d: q('d'), step: q('step'), cx: q('cx'), cy: q('cy') };
@@ -128,4 +136,24 @@ export function openBoltCircleCalc() {
 
   showMode();
   solve();
+}
+
+/** Záložky Kružnice / Řada / Mřížka: stávající obsah okna zůstane v záložce Kružnice. */
+function addPatternTabs(overlay) {
+  const box = overlay.querySelector('.calc-body');
+  const title = overlay.querySelector('.calc-titlebar h3');
+  const wrap = (mode) => { const d = document.createElement('div'); d.dataset.patMode = mode; return d; };
+  const circle = wrap('circle'), row = wrap('row'), grid = wrap('grid');
+  while (box.firstChild) circle.appendChild(box.firstChild);
+  row.style.display = 'none';
+  grid.style.display = 'none';
+  const bar = document.createElement('div');
+  bar.innerHTML = tabsHtml([['circle', 'Kružnice'], ['row', 'Řada'], ['grid', 'Mřížka']]);
+  box.append(bar, circle, row, grid);
+  mountRowPanel(row);
+  mountGridPanel(grid);
+  wireTabs(bar, (id) => {
+    [circle, row, grid].forEach(w => { w.style.display = w.dataset.patMode === id ? '' : 'none'; });
+    title.textContent = TITLES[id];
+  });
 }

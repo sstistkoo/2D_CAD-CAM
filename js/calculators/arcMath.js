@@ -41,17 +41,18 @@ export function arcLargeVariant(r) {
  *   null = body leží na přímce (nebo splývají)
  */
 export function arcFrom3Points(P1, P2, P3) {
-  const ax = P1.z, ay = P1.x, bx = P2.z, by = P2.x, cx = P3.z, cy = P3.x;
+  // počítá se vůči P1 (jinak by u malého oblouku daleko od počátku ubývala přesnost)
+  const ax = 0, ay = 0, bx = P2.z - P1.z, by = P2.x - P1.x, cx = P3.z - P1.z, cy = P3.x - P1.x;
   const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
   const scale = Math.max(Math.abs(ax), Math.abs(bx), Math.abs(cx), Math.abs(ay), Math.abs(by), Math.abs(cy), 1);
   if (Math.abs(d) < 1e-9 * scale * scale) return null;
   const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
   const O = {
-    z: (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d,
-    x: (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d,
+    z: P1.z + (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d,
+    x: P1.x + (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d,
   };
-  const R = Math.hypot(ax - O.z, ay - O.x);
-  const cross = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+  const R = Math.hypot(P1.z - O.z, P1.x - O.x);
+  const cross = bx * (cy - by) - by * (cx - bx);
   const ccw = cross > 0;
   const sweep = sweepDeg(O, P1, P3, ccw);
   return { O, R, ccw, sweep, length: R * sweep / DEG };

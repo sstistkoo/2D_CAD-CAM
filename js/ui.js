@@ -4219,7 +4219,7 @@ clipBtn.addEventListener("click", (e) => {
     navigator.clipboard.writeText(String(v)).then(() => showToast("Zkopírováno do schránky: " + v));
   }
 });
-document.getElementById("btnOpenTrig").addEventListener("click", openTrigCalc);
+document.getElementById("btnOpenTrig").addEventListener("click", () => { openTrigCalc(); bridge.extendTrigCalc?.(); }); // záložka Obecný: calculators/trigGeneral.js
 document.getElementById("btnOpenCutting").addEventListener("click", openCuttingCalc);
 document.getElementById("btnOpenTaper").addEventListener("click", openTaperCalc);
 document.getElementById("btnOpenThread").addEventListener("click", openThreadCalc);

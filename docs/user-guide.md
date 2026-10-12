@@ -1439,27 +1439,18 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   jako CNC export výkresu. Sražení C: body A, B ve vzdálenosti C po obou
   úsecích a délka sražení. Upozorní, když se úprava nevejde do úseku.
   (Sinumerik umí totéž přímo na řádku rohu: `RND=` / `CHR=`.)
-- **Rozteč děr** (Další kalkulačky) – díry na roztečné kružnici: počet děr,
-  roztečný průměr, úhel první díry θ₀, celý kruh nebo zadaná úhlová rozteč Δθ,
-  směr (proti / po směru hodin) a střed X/Y. Vypíše tabulku X, Y a úhlu C
-  (soustruh s osou C: X = roztečný průměr, C = úhel), vzdálenost středů
-  sousedních děr a se zadaným Ø díry i můstek (nebo upozorní na překrytí).
-- **Oblouk** (Další kalkulačky) – tři záložky. *Tětiva + výška*: z libovolných
-  dvou veličin (tětiva c, výška h, rádius R) dopočítá třetí, středový úhel
-  a délku oblouku (R = (c²/4 + h²) / 2h; u c + R ukáže i variantu přes půlkruh).
-  *Tři body*: kružnice přes P1, P2, P3 – rádius, střed, smysl, úhel, délka
-  a řádky `G01` + `G02/G03 … R…` (záporné R = oblouk přes 180°) i s I/K. *Start +
-  konec + R*: střed, I/K, úhel a řádek G-kódu pro zvolený smysl (G02/G03)
-  a velikost oblouku (do / přes 180°). Zadává se Z a Ø X, uvnitř se počítá
-  poloměr; I je v poloměru, K v Z, obojí od začátku oblouku. G02/G03 se řídí
-  nastavením stroje (soustruh/karusel, zrcadlení os) jako CNC export výkresu.
-- **Roztažnost** (Další kalkulačky, 🌡️) – tepelná roztažnost, lineární model
-  s referencí 20 °C a α z tabulky materiálů (orientační, lze zadat vlastní).
-  *Rozměr při teplotě*: naměřený rozměr teplého dílu → rozměr při 20 °C
-  (a naopak). *Nalisování*: z Ø spoje, přesahu a montážní vůle teplota ohřevu
-  (nebo chlazení) – s varováním před popuštěním kalené oceli a před chlazením
-  pod −78 / −196 °C. *Vůle spoje*: změna vůle hřídel/otvor z různých materiálů
-  (např. hliník na oceli) při provozní teplotě.
+- **Rozmístění děr** (Další kalkulačky, dříve Rozteč děr) – tři záložky:
+  - *Kružnice*: díry na roztečné kružnici: počet děr, roztečný průměr, úhel
+    první díry θ₀, celý kruh nebo zadaná úhlová rozteč Δθ, směr (proti / po
+    směru hodin) a střed X/Y. Vypíše tabulku X, Y a úhlu C (soustruh s osou C:
+    X = roztečný průměr, C = úhel), vzdálenost středů sousedních děr a se
+    zadaným Ø díry i můstek (nebo upozorní na překrytí).
+  - *Řada*: díry na přímce – počet n, začátek (X, Y) a buď rozteč s úhlem, nebo
+    koncový bod (rozteč se dopočte, díry jsou rovnoměrně včetně obou krajních).
+    Tabulka X, Y, délka řady, můstek, náčrt s pořadím vrtání.
+  - *Mřížka*: nx × ny děr s roztečemi px, py, natočená o θ kolem první díry;
+    pořadí po řádcích, nebo meandrem (každý druhý řádek opačně → kratší
+    pojezdy). Tabulka X, Y, rozměr mřížky, můstky v řadě a mezi řadami.
 - **Drátky/válečky** (Další kalkulačky, ikona profilu závitu s drátky) – měření
   přes drátky a válečky:
   - *Závit – 3 drátky*: metrický ISO, UNC/UNF, Whitworth, Tr nebo vlastní úhel;

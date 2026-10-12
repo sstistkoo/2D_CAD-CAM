@@ -51,6 +51,14 @@ describe('arcFrom3Points', () => {
     expect(r.ccw).toBe(false);                                      // 0° → 180° → 90° = po směru hodin
     expect(r.sweep).toBeCloseTo(270, 8);
   });
+  it('malý oblouk daleko od počátku: střed i R zůstanou přesné', () => {
+    const O = { z: -2000, x: 1500 }, R = 40, t = [0.2, 0.3, 0.4];
+    const P = t.map(a => ({ z: O.z + R * Math.cos(a), x: O.x + R * Math.sin(a) }));
+    const r = arcFrom3Points(...P);
+    expect(r.R).toBeCloseTo(R, 7);
+    expect(r.O.z).toBeCloseTo(O.z, 7); expect(r.O.x).toBeCloseTo(O.x, 7);
+    expect(r.sweep).toBeCloseTo(0.2 * 180 / Math.PI, 6);
+  });
   it('body na přímce → null', () => {
     expect(arcFrom3Points({ z: 0, x: 0 }, { z: 1, x: 1 }, { z: 2, x: 2 })).toBeNull();
   });

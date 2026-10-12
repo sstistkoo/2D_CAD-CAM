@@ -37,7 +37,7 @@ export function openArcCalc() {
       pt('zs', 'xs', 'Začátek S') + pt('ze', 'xe', 'Konec E') +
       '<div class="cnc-fields">' +
         numField('Re', 'Rádius R', 'mm', 'rádius') +
-        selectField('dir', 'Smysl', [['G03', 'G03 (↺ proti hod.)'], ['G02', 'G02 (↻ po hod.)']]) +
+        selectField('dir', 'Smysl', [['G03', 'G03'], ['G02', 'G02']]) +
         selectField('size', 'Oblouk', [['small', 'do 180°'], ['large', 'přes 180°']]) +
       '</div>' +
     '</div>' +
