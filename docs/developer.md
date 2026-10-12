@@ -585,6 +585,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `isoThreadInserts.js` (mimo `cam/`) | Závitové laydown destičky katalogu: 11/16/22/27ER, částečný profil A/AG/N/Q 60°/55° (rozsah stoupání `pMin`–`pMax`) a plný profil Tr 30° / Acme 29° (jedno stoupání). `isoThreadTooth` = zub pro CAM (`toolTipFlat` = dno závitu u plného profilu, `toolLength` = bok do hloubky závitu), `THREAD_FIT` = které velikosti jdou do dříku (hrana ≤ b). `threadInsertFitsPitch(vbdCode, P)`, `threadInsertFitsSide` (ER vnější / IR vnitřní) a `isoThreadInsertHint(úhel, P)` používá `autoPickToolFor` v camSimulator (nůž mimo katalog = jen podle úhlu). Hlídá `tests/iso-thread-inserts.test.js` (zub dosáhne do hloubky pro `pMax`, pokrytí tabulek závitů) |
 | `cam/camDefaults.js` | Výchozí CAM parametry (`_defaultCamParams`) |
 | `cam/threadHelpers.js` | Závitování a upichnutí — sdílená geometrie |
+| `cam/partOffReach.js` | Dosah čepele upichováku z OBRYSU držáku (kde se obrys rozšíří za šířku plátku + 0,15 mm) → varování v `calculatePipeline.js`, když je polotovar hlubší než dosah (např. MGEHR 2525-5 sahá ~20 mm). Bez nového klíče nástroje; obrys bez rozšíření dosah neomezuje. Katalogová lišta `GD` (`isoToolCatalog.js`, dosah 32–65) staví čepel do plného `tmax`. Hlídá `tests/part-off-reach.test.js` |
 | `cam/camSimulatorDialogs.js` | Vlastní confirm/offset/add-move dialogy |
 | `cam/camSimulatorStyles.js` | CSS simulátoru (injektováno přes `<style>`) |
 | `cam/roughingStrategies.js` | Registr hrubovacích strategií (podélně/čelně/zleva) — jen mapa klíč → generátor |

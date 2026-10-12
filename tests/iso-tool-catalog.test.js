@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  ISO_HOLDER_TYPES, ISO_SHANKS, isoThreadInsertsFor, isoVariants, isoSizes, isoRadii, isoGrooveWidths,
+  ISO_HOLDER_TYPES, ISO_SHANKS, isoThreadInsertsFor, isoVariants, isoSizes, isoRadii, isoGrooveWidths, isoLongReaches,
   buildIsoKnife, isoCatalogCount, isoKnifeSvg, upgradeIsoHolderProfile, parseIsoKnifeName,
 } from '../js/calculators/isoToolCatalog.js';
 import { buildInsertProfileSegments, threadingToothSegments } from '../js/calculators/cam/insertPreview.js';
@@ -24,7 +24,7 @@ function allCombos() {
   const out = [];
   for (const t of ISO_HOLDER_TYPES) {
     for (const sh of ISO_SHANKS) {
-      if (t.special === 'parting') isoGrooveWidths(sh.code, t).forEach((g) => out.push([t.id, { shank: sh.code, width: g.w }]));
+      if (t.special === 'parting') isoGrooveWidths(sh.code, t).forEach((g) => (t.long ? isoLongReaches(g.w) : [undefined]).forEach((reach) => out.push([t.id, { shank: sh.code, width: g.w, reach }])));
       else if (t.special === 'threading') isoThreadInsertsFor(sh.code).forEach((th) => out.push([t.id, { shank: sh.code, thread: th.id }]));
       else {
         for (const variant of isoVariants(t, sh.code)) {

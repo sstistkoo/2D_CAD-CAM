@@ -21,6 +21,7 @@ import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { planSections } from './ops/sections/sectionPlan.js';
 import { sectionGuides } from './ops/sections/sectionGuides.js';
 import { partOffGeom } from './threadHelpers.js';
+import { partOffReachWarning } from './partOffReach.js';
 import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
@@ -939,6 +940,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     stockTopX = -9999;
     stockWorldPoints.forEach(p => { if (p.xReal > stockTopX) stockTopX = p.xReal; });
   }
+
+  // Upichnutí hlouběji, než čepel sahá (partOffReach.js).
+  const reachWarn = partOffReachWarning(prms, stockTopX);
+  if (reachWarn) foundErrors.push({ type: 'warning', msg: reachWarn });
 
   S.errors = foundErrors;
   // profileModeActive = výpočet drah/hlídání běží po vyřešeném profilu (vždy).

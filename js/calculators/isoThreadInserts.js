@@ -22,7 +22,7 @@ import { trClearanceAc } from './threadData.js';
 /** Délka boku zubu [mm] u částečného profilu podle velikosti destičky (hloubka do největšího P řady). */
 const PARTIAL_FLANK_MM = { 11: 1.3, 16: 2.5, 22: 4.0, 27: 4.8 };
 /** Velikosti destičky, které se vejdou do dříku (hrana ≤ šířka dříku — širší hlava „vypadá šíleně"). */
-const THREAD_FIT = { 1616: [11, 16], 2020: [11, 16], 2525: [16, 22], 3232: [16, 22, 27] };
+const THREAD_FIT = { 1616: [11, 16], 2020: [11, 16], 2525: [16, 22], 3232: [16, 22, 27], 4040: [16, 22, 27] };
 const ACME_CLEARANCE_MM = 0.25;   // vůle ve dně jako v threadProfileDepth (cam/threadHelpers.js)
 const TPI = (n) => 25.4 / n;
 const r2 = (v) => Math.round(v * 100) / 100;

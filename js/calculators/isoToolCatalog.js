@@ -41,6 +41,8 @@ export const ISO_SHANKS = [
   { code: '2020', h: 20, b: 20, len: 'K', l1: 125, f1: 25, ic: [6, 16], ic0: 12.7 },
   { code: '2525', h: 25, b: 25, len: 'M', l1: 150, f1: 32, ic: [6, 20], ic0: 12.7 },
   { code: '3232', h: 32, b: 32, len: 'P', l1: 170, f1: 40, ic: [9, 20], ic0: 15.875 },
+  // 4040 (karusel, 12. 10. 2026): řada ISO 5610 R200; f1 ≈ 1,25×b jako u řady níž.
+  { code: '4040', h: 40, b: 40, len: 'R', l1: 200, f1: 50, ic: [12, 25.4], ic0: 19.05 },
 ];
 /** Kulatá destička do dříku: průměr 0,3·b až b. */
 const ROUND_FIT = [0.3, 1];
@@ -71,8 +73,8 @@ const POS_CLEARANCE = { V: 'B' };
 
 // f1 stylu B (κr 75°, podélně): špička leží UVNITŘ šířky dříku — Sandvik
 // DSBNR 2525M12 f1 = 22 (ostatní přesazené styly 2525: 32 — DCLNR, DSKNR,
-// DSSNR/PSSNR, PTGNR, PTFNR). 1616/2020/3232 odvozeno stejnou řadou.
-const F1_STYLE_B = { 1616: 13, 2020: 17, 2525: 22, 3232: 27 };
+// DSSNR/PSSNR, PTGNR, PTFNR). 1616/2020/3232/4040 odvozeno stejnou řadou.
+const F1_STYLE_B = { 1616: 13, 2020: 17, 2525: 22, 3232: 27, 4040: 34 };
 
 // Typy držáků. neg/pos = písmeno upnutí (ISO 5608 poz. 1) pro negativní /
 // pozitivní destičku — chybí-li, varianta se nenabízí. face = κr se měří
@@ -114,6 +116,8 @@ export const ISO_HOLDER_TYPES = [
     desc: 'Kulatá destička v rohu dříku, hlava zkosená 45° (ekvivalent SRSCR) — dojede k čelu / osazení.' },
   { id: 'GR', special: 'parting', groups: ['groove'],
     desc: 'Zapichování a upichování — destička MGMN šířky 2–8 mm, levý bok v rovině s držákem.' },
+  { id: 'GD', special: 'parting', long: true, groups: ['groove'],
+    desc: 'Upichovací lišta s dlouhým dosahem (32–65 mm) — na velké průměry (karusel), kde standardní MGEHR (dosah 16–23 mm) nedosáhne. Lišta je tenká, hlava se rozšiřuje až za dosahem.' },
   { id: 'GN', special: 'parting', round: true, groups: ['groove'],
     desc: 'Radiusový zápich — destička MRMN s plným rádiusem dna (šířka 3–8 mm = 2R): zápichy pro O-kroužky, ložiskové a rádiusové drážky. Na upichování se nehodí (dno je kulaté).' },
   { id: 'TH', special: 'threading', groups: ['thread'],
@@ -133,7 +137,11 @@ export const ISO_GROOVE_INSERTS = [
 export const ISO_RADIUS_GROOVE_INSERTS = [
   { w: 3, tmax: 10 }, { w: 4, tmax: 13 }, { w: 5, tmax: 16 }, { w: 6, tmax: 18 }, { w: 8, tmax: 22 },
 ].map((g) => ({ ...g, code: `MRMN${g.w}00-M`, r: g.w / 2 }));
-const GROOVE_FIT = { 1616: [2, 3], 2020: [2, 4], 2525: [2, 6], 3232: [3, 8] };
+const GROOVE_FIT = { 1616: [2, 3], 2020: [2, 4], 2525: [2, 6], 3232: [3, 8], 4040: [3, 8] };
+/** Šířky lišt s dlouhým dosahem podle dříku (do 1616 se lišta nevejde) a dosahy [mm]; lišta šířky w snese dosah do 13×w. */
+const LONG_FIT = { 2020: [3, 4], 2525: [3, 6], 3232: [3, 8], 4040: [3, 8] };
+const LONG_REACHES = [32, 40, 50, 65];
+export const isoLongReaches = (w) => LONG_REACHES.filter((r) => r <= 13 * w);
 
 const RELIEF_DEG = 3;          // úleva boků hlavy od hran destičky
 /**
@@ -213,6 +221,10 @@ export function isoRadii(type, size) {
 /** Zapichovací destičky, které se vejdou do dříku; `type.round` = radiusový zápich (MRMN). */
 export function isoGrooveWidths(shankCode, type) {
   const [lo, hi] = GROOVE_FIT[shankOf(shankCode).code];
+  if (type && type.long) {
+    const fit = LONG_FIT[shankOf(shankCode).code];
+    return fit ? ISO_GROOVE_INSERTS.filter((g) => g.w >= fit[0] && g.w <= fit[1]) : [];
+  }
   return (type && type.round ? ISO_RADIUS_GROOVE_INSERTS : ISO_GROOVE_INSERTS).filter((g) => g.w >= lo && g.w <= hi);
 }
 
@@ -221,7 +233,7 @@ export function isoDefaults(type, shankCode) {
   const sh = shankOf(shankCode);
   if (type.special === 'parting') {
     const ws = isoGrooveWidths(sh.code, type);
-    return { variant: 'neg', width: (ws.find((g) => g.w === 3) || ws[0] || {}).w };
+    return { variant: 'neg', width: (ws.find((g) => g.w === (type.long ? 5 : 3)) || ws[0] || {}).w, reach: type.long ? 40 : undefined };
   }
   if (type.special === 'threading') return { variant: 'neg', thread: 'AG60' };
   const variant = isoVariants(type, sh.code)[0];
@@ -363,11 +375,12 @@ function roundHolder(r, sh, style, geom) {
 }
 
 /** Obrys zapichovacího držáku: čepel užší o 0,1 mm/stranu do tmax, levý bok v rovině s destičkou. */
-function partingHolder(prms, g, sh) {
+function partingHolder(prms, g, sh, long = false) {
   const w = prms.toolLength, r = Math.min(prms.toolRadius, w / 2);
   const bodyTop = Math.max(w * 0.6, r + PARTING_BODY_MIN_H_MM) - r;
   const xBL = -r + 0.1, xBR = w - r - 0.1, xR = xBL + sh.b;
-  const zBlade = Math.max(bodyTop + 1, Math.min(g.tmax, 0.8 * sh.b) - r);
+  // Lišta s dlouhým dosahem: čepel sahá do plného tmax (standardní držák ji ořezává na 0,8·b).
+  const zBlade = Math.max(bodyTop + 1, (long ? g.tmax : Math.min(g.tmax, 0.8 * sh.b)) - r);
   return closeLoop([{ x: xBL, z: bodyTop }, { x: xBR, z: bodyTop }, { x: xBR, z: zBlade },
     { x: xR, z: zBlade + (xR - xBR) }, { x: xR, z: sh.l1 }, { x: xBL, z: sh.l1 }]);
 }
@@ -472,16 +485,24 @@ export function buildIsoKnife(typeId, opts = {}) {
   if (!def) return null;
 
   if (type.special === 'parting') {
-    const g = isoGrooveWidths(sh.code, type).find((x) => x.w === Number(opts.width))
+    let g = isoGrooveWidths(sh.code, type).find((x) => x.w === Number(opts.width))
       || (type.round ? ISO_RADIUS_GROOVE_INSERTS : ISO_GROOVE_INSERTS).find((x) => x.w === def.width);
     if (!g) return null;
+    let reach;
+    if (type.long) {
+      const rs = isoLongReaches(g.w);
+      reach = rs.includes(Number(opts.reach)) ? Number(opts.reach) : (rs.includes(def.reach) ? def.reach : rs[rs.length - 1]);
+      g = { ...g, tmax: reach };
+    }
     const prms = { toolShape: 'parting', toolLength: g.w, toolRadius: g.r, toolAngle: 0, toolTipAngle: 90, toolTipFlat: 0.1, toolClearanceAngle: 0 };
     // Radiusový zápich: stejný držák MGEHR, jméno nese rádiusovou destičku (jedinečné v zásobníku).
-    const name = type.round ? `MGEH${hand}${sh.code}-${g.w}-R${g.r}` : `MGEH${hand}${sh.code}-${g.w}`;
-    const cut = type.round ? { vc: 100, f: r3(0.04 + 0.008 * g.w), ap: 1 } : { vc: 120, f: r3(0.05 + 0.01 * g.w), ap: 2 };
-    return knifeRecord({ name, vbdCode: g.code, holder: partingHolder(prms, g, sh), prms, sh, hand,
+    const name = type.round ? `MGEH${hand}${sh.code}-${g.w}-R${g.r}`
+      : type.long ? `UPICH${hand}${sh.code}-${g.w}-T${reach}` : `MGEH${hand}${sh.code}-${g.w}`;
+    const cut = type.round ? { vc: 100, f: r3(0.04 + 0.008 * g.w), ap: 1 }
+      : type.long ? { vc: 100, f: r3(0.04 + 0.008 * g.w), ap: 1.5 } : { vc: 120, f: r3(0.05 + 0.01 * g.w), ap: 2 };
+    return knifeRecord({ name, vbdCode: g.code, holder: partingHolder(prms, g, sh, !!type.long), prms, sh, hand,
       cut, desc: type.desc,
-      iso: { type: type.id, shank: sh.code, hand, width: g.w } });
+      iso: { type: type.id, shank: sh.code, hand, width: g.w, ...(type.long ? { reach } : {}) } });
   }
   if (type.special === 'threading') {
     const th = isoThreadInsertsFor(sh.code).find((x) => x.id === opts.thread) || isoThreadInsertById(def.thread);
@@ -542,7 +563,7 @@ export function isoCatalogCount() {
   let n = 0;
   for (const t of ISO_HOLDER_TYPES) {
     for (const sh of ISO_SHANKS) {
-      if (t.special === 'parting') { n += isoGrooveWidths(sh.code, t).length; continue; }
+      if (t.special === 'parting') { n += isoGrooveWidths(sh.code, t).reduce((m, g) => m + (t.long ? isoLongReaches(g.w).length : 1), 0); continue; }
       if (t.special === 'threading') { n += isoThreadInsertsFor(sh.code).length; continue; }
       for (const v of isoVariants(t, sh.code)) {
         for (const sz of isoSizes(t, v, sh.code)) n += Math.max(1, isoRadii(t, sz).length);

@@ -95,8 +95,8 @@ describe('výběr závitového nože podle stoupání', () => {
 
   it('rada: destička do nejvíc dříků, u velkých i dřík; mimo katalog null', () => {
     expect(isoThreadInsertHint(60, 1.5)).toBe('16ER AG60');
-    expect(isoThreadInsertHint(30, 4)).toBe('22ER 4.0TR (dřík 25×25, 32×32)');
-    expect(isoThreadInsertHint(29, 25.4 / 4)).toBe('27ER 4ACME (dřík 32×32)');
+    expect(isoThreadInsertHint(30, 4)).toBe('22ER 4.0TR (dřík 25×25, 32×32, 40×40)');
+    expect(isoThreadInsertHint(29, 25.4 / 4)).toBe('27ER 4ACME (dřík 32×32, 40×40)');
     expect(isoThreadInsertHint(30, 8)).toBeNull();
     expect(isoThreadInsertHint(60, 0.35)).toBeNull();
   });

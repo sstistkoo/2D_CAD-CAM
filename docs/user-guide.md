@@ -926,7 +926,7 @@ závitový nůž (▽) se **stejným úhlem profilu** jako závit (60° M/UN, 55
 první v pořadí T. Nůž z 📚 ISO katalogu musí sedět i **stoupáním** (16ER AG60
 jen P 0,5–3, Tr destička jen na své jedno stoupání); když v zásobníku není,
 hláška řekne, kterou destičku z katalogu přidat (např. „22ER 4.0TR (dřík
-25×25, 32×32)"), nebo že ji katalog nemá. U **vnitřního** závitu se bere
+25×25, 32×32, 40×40)"), nebo že ji katalog nemá. U **vnitřního** závitu se bere
 vnitřní destička (IR v tyči SNR) a tyč se musí vejít do předvrtané díry
 ⌀(D − 2H) — rada pak nabídne jen tyče, které do díry vlezou, nebo řekne,
 že nejmenší tyč potřebuje větší díru. Přepnutí Vnější / Vnitřní při
@@ -968,7 +968,7 @@ nástroje) a **kam**:
 Okno **🧰 Knihovna** má dvě záložky: **🧰 Moje nože** (uložené) a **📚 ISO
 katalog** — vestavěné běžné vnější soustružnické nože podle **ISO 5608**
 (držák) a **ISO 1832** (destička). Prázdná knihovna se otevře rovnou na
-katalogu. Nahoře se volí **dřík** (16×16, 20×20, 25×25, 32×32 — podle něj
+katalogu. Nahoře se volí **dřík** (16×16, 20×20, 25×25, 32×32, 40×40 — podle něj
 f1, l1 a velikosti destiček, které do držáku patří), **ruka R/L** (jen název
 a náhled — v CAM se strana řídí směrem hrubování) a skupina (podélné, čelní,
 kopírovací, srážecí, zapichovací, závitové, **vrtáky**).
@@ -988,7 +988,8 @@ kopírovací, srážecí, zapichovací, závitové, **vrtáky**).
 | PSSNR / SSSCR, PSDNN | S 90° | 45° | srážení hran |
 | SRDCN | R (RCMT) | — | kulatá neutrální — kopírování oběma směry, k čelu nedojede (dřík je souměrně nad destičkou) |
 | SRSCR (= SRGCR) | R (RCMT) | — | kulatá v rohu dříku, hlava sražená 45° — destička vyčnívá o R, **dojede k čelu / osazení**; SRGCR/SRGCL je totéž (výrobce uvádí ekvivalent), v katalogu je jedna karta |
-| MGEHR | MGMN 2–8 mm (6 mm od dříku 25×25, 8 mm jen 32×32) | — | zapichování, upichování |
+| MGEHR | MGMN 2–8 mm (6 mm od dříku 25×25, 8 mm od 32×32) | — | zapichování, upichování; dosah čepele jen 16–23 mm |
+| UPICH (lišta) | MGMN 3–8 mm na dlouhé čepeli, **dosah 32 / 40 / 50 / 65 mm** (do 13× šířka; od dříku 20×20) | — | upichování velkých průměrů (karusel). Jméno `UPICHR2525-5-T40` (T = dosah). Orientační — kód destičky bere z MGMN, ověřte v katalogu výrobce lišty |
 | MGEHR (radiusový) | MRMN 3–8 mm, plný rádius dna R = šířka / 2 | — | radiusové zápichy (O-kroužky, ložiska); na upichování ne. Jméno `MGEHR2525-4-R2` |
 | SER | 11–27ER: A/AG/N/Q 60° a 55°, Tr, Acme | — | vnější závit — rovný dřík, destička v rohu jeho konce (viz tabulka níž) |
 

@@ -17,7 +17,7 @@
 
 import {
   ISO_HOLDER_TYPES, ISO_GROUPS, ISO_SHANKS, isoThreadInsertsFor, isoVariants, isoSizes, isoRadii,
-  isoGrooveWidths, isoInsertLabel, buildIsoKnife, isoKnifeSvg, isoCatalogCount,
+  isoGrooveWidths, isoLongReaches, isoInsertLabel, buildIsoKnife, isoKnifeSvg, isoCatalogCount,
 } from './isoToolCatalog.js';
 import { RADIUS_MM, SHAPES } from './vbdIso.js';
 import { ISO_DRILL_KINDS, isoDrillDiameters, isoDrillLabel, buildIsoDrill, isoDrillCount } from './isoDrills.js';
@@ -49,7 +49,7 @@ function savePrefs(p) {
 }
 
 function shapeLabel(t) {
-  if (t.special === 'parting') return t.round ? '▮ radiusový zápich' : '▮ zapichovací';
+  if (t.special === 'parting') return t.round ? '▮ radiusový zápich' : t.long ? '▮ upichovací lišta, dlouhý dosah' : '▮ zapichovací';
   if (t.special === 'threading') return '▽ závitová';
   if (t.special === 'drill') return '⌀ vrták';
   const s = SHAPES.find((x) => x.v === t.shape);
@@ -99,7 +99,9 @@ export function mountIsoCatalog(root, opts) {
     }
     if (t.special === 'parting') {
       return select('width', isoGrooveWidths(st.shank, t).map((g) => [g.w, `š ${g.w} mm${t.round ? ` · R ${cz(g.r)}` : ''} · ${g.code}`]), k.width,
-        t.round ? 'Šířka radiusové zapichovací destičky (plný rádius dna = šířka / 2)' : 'Šířka zapichovací destičky');
+        t.round ? 'Šířka radiusové zapichovací destičky (plný rádius dna = šířka / 2)' : 'Šířka zapichovací destičky')
+        + (t.long ? select('reach', isoLongReaches(k.width).map((r) => [r, `dosah ${r} mm`]), k.reach,
+          'Dosah lišty — největší hloubka zápichu / upichnutí (poloměr); tenčí lišta snese menší dosah') : '');
     }
     if (t.special === 'threading') {
       return select('thread', isoThreadInsertsFor(st.shank).map((x) => [x.id, x.label]), k.thread,
@@ -129,7 +131,7 @@ export function mountIsoCatalog(root, opts) {
     const chips = [];
     if (!t.special && t.shape !== 'R') chips.push(`κr ${cz(t.kr)}°${t.face ? ' (čelně)' : ''}`, `ε ${p.toolTipAngle}°`);
     if (p.toolShape === 'round') chips.push(`R ${cz(p.toolRadius)}`);
-    else if (p.toolShape === 'parting') chips.push(`š ${cz(p.toolLength)}`, `R ${cz(p.toolRadius)}`);
+    else if (p.toolShape === 'parting') chips.push(`š ${cz(p.toolLength)}`, `R ${cz(p.toolRadius)}`, ...(k.reach ? [`dosah ${k.reach}`] : []));
     else if (p.toolShape === 'threading') chips.push(`ε ${p.toolTipAngle}°`);
     else if (p.toolShape === 'drill') chips.push(`⌀ ${cz(p.toolRadius * 2)}`, `σ ${p.toolTipAngle}°`, `vyložení ${p.toolLength}`, `${rec.holderCode} ⌀${p.holderWidth}`);
     if (p.toolClearanceAngle) chips.push(`α ${p.toolClearanceAngle}°`);
@@ -203,7 +205,7 @@ export function mountIsoCatalog(root, opts) {
     if (!o || !card) return;
     const id = card.dataset.id;
     const cur = { ...(recFor(typeById(id)) || {}).iso, ...(st.sel[id] || {}) };
-    cur[o.dataset.o] = ['width', 'diameter', 'bar'].includes(o.dataset.o) ? Number(o.value) : o.value;
+    cur[o.dataset.o] = ['width', 'diameter', 'bar', 'reach'].includes(o.dataset.o) ? Number(o.value) : o.value;
     if (o.dataset.o === 'variant') { delete cur.size; delete cur.radius; }
     st.sel[id] = cur;
     replaceCard(id);

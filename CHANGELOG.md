@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **📚 Katalog: dřík 40×40** (R200, f1 50) pro karusel — všechny typy držáků,
+  zapichovací MGMN 3–8 mm a závitové destičky 16–27ER. Rozměr dříku odvozen
+  z řady ISO 5610; jakmile bude znám přesný držák z karuselu, ověřit.
+- **📚 Katalog: upichovací lišta s dlouhým dosahem** (`UPICHR2525-5-T40`):
+  čepel 32 / 40 / 50 / 65 mm, šířka 3–8 mm, od dříku 20×20. Standardní MGEHR
+  sahá jen 16–23 mm.
+- **Upichnutí: kontrola dosahu čepele.** Když je polotovar hlubší, než čepel
+  nástroje sahá (dosah se čte z obrysu držáku, `cam/partOffReach.js`), CAM
+  ukáže varování — v té hloubce by o polotovar zavadila celá hlava držáku.
+  Dráhy se neblokují (hlášení je jen informace). Např. výchozí MGEHR 2525-5
+  sahá ~20 mm.
 - **📚 Katalog: navrtáváky 90° / 120°.** Nová položka ve skupině Vrtáky
   (HSS-Co ⌀3–20, krátké vyložení, bez záběru Q) pro navrtání středu před
   vrtákem. Jméno `Navrtavak 90 D10`. Jde stejnou cestou jako vrták (operace
