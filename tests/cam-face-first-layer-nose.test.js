@@ -34,8 +34,8 @@ function rightZ(loops, x) {
 }
 
 /** Největší tloušťka v ose Z, kterou ubral některý posuv: { v, line }. */
-async function worstAxialChip(rel) {
-  const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures', rel), 'utf8'));
+async function worstAxialChip(rel, tweak = (p) => p) {
+  const prog = tweak(JSON.parse(readFileSync(join(__dirname, 'fixtures', rel), 'utf8')));
   const r = await runCamProg(prog);
   const sp = r.calcSim.simPath, lines = r.gcode.split('\n');
   // Jen hrubování — dokončování jede po kontuře podél osy, ap se ho netýká.
@@ -57,15 +57,28 @@ async function worstAxialChip(rel) {
       if (b0 - b1 > worst.v) worst = { v: b0 - b1, line: (lines[sp[i].originalLineIdx] || '').trim() };
     }
   }
-  return { worst, ap: parseFloat(r.params.depthOfCut), gcode: r.gcode };
+  return { worst, ap: parseFloat(r.params.depthOfCut), gcode: r.gcode, r };
 }
 
+const USER = 'cam-cases/round-r10-face-small-fillet.camprog';
+const TAIL = 79.37;
+
 describe('čelně kulatou: žádný řez nevezme v ose Z víc než ap', () => {
-  it('díl uživatele (R 10, ap 4, koník Z 79,37)', async () => {
-    const { worst, ap, gcode } = await worstAxialChip('cam-cases/round-r10-face-small-fillet.camprog');
+  it('díl uživatele bez koníku (R 10, ap 4)', async () => {
+    const { worst, ap } = await worstAxialChip(USER, (p) => ({ ...p, zLimits: { ...p.zLimits, tailActive: false } }));
     expect(worst.v, worst.line).toBeLessThanOrEqual(ap + 0.05);
-    // První vrstva sedí na koníku, ne za ním (průchod za koníkem se zahazuje).
-    expect(gcode).toMatch(/G0 Z79\.370\n\S+ G0 X[\d.]+\n\S+ G1 X0\.000/);
+  }, 180000);
+
+  // S koníkem Z 79,37 (6 mm za čelem polotovaru) se tenká první vrstva postavit
+  // nedá: plátek R 10 sahá 10 mm za střed a do koníku nesmí (uživatel
+  // 12. 10. 2026: meze platí pro okraj plátku). První vrstva proto sedí přesně
+  // na Z 69,37, žádný řezný pohyb za tu mez nejede a program to nahlásí.
+  it('díl uživatele s koníkem: plátek za koník nesáhne, první vrstva na mezi', async () => {
+    const { gcode, r } = await worstAxialChip(USER);
+    expect(gcode).toMatch(/HRUBOVANI \(CELNI\) ---\n; Průchod 1[^\n]*\n\S+ G0 Z69\.370\n/);
+    const beyond = r.calcSim.simPath.filter(q => q.type !== 'G0' && q.z > TAIL - 10 + 0.01);
+    expect(beyond.map(q => q.z)).toEqual([]);
+    expect(r.errors.some(e => /Koník Z 79\.37: první čelní vrstva vezme/.test(e.msg))).toBe(true);
   }, 180000);
 
   it('part-18 (R 8, ap 3)', async () => {

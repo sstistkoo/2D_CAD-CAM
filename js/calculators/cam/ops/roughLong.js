@@ -10,7 +10,7 @@ import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
 import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
-import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintVisual } from '../materialRemoval.js';
+import { buildStockLoopRaw, insertExtent, offsetStockLoop, toolFootprint, toolFootprintVisual } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
 import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
 import { sampleOffsetRegion, buildResidual, layerZIntervalsAtX, computeResidualRegions } from '../booleanRoughing.js';
@@ -40,12 +40,14 @@ export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
   const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange: machiningRangeIn, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
-  // STĚNA POD X MAX (pravidlo 12): rozsah končí na ní, ale průchody končí
-  // STŘEDEM nosu — kulatá by se o `noseLiftX` (R) zakousla do materiálu nad
-  // X max (R 10, X max 22: odebráno až X 24,9). Mez se proto posune o R před
-  // stěnu. Ruční konec rozsahu 📐 se nemění (navazování úseků řeší pravidlo 11).
-  const machiningRange = (machiningRangeIn && machiningRangeIn.xMaxWall && (ins.noseLiftX || 0) > 0)
-    ? { ...machiningRangeIn, zLo: machiningRangeIn.zLo + ins.noseLiftX } : machiningRangeIn;
+  // KONEC ROZSAHU Z (ruční 📐 uvnitř úseku i stěna pod X max, pravidlo 12)
+  // platí pro OBRYS DESTIČKY: průchody končí STŘEDEM nosu, plátek sahá dál —
+  // kulatá R 10 s X max 22 se zakousla do stěny až na X 24,9 (12. 10. 2026).
+  // Posunutý konec `zLoCut` spočítá calculatePipeline (na hranici úseku se
+  // neposouvá — pravidla 11/14). Začátek rozsahu hlídá pravidlo 11.
+  const extL = insertExtent(prms);
+  const machiningRange = (machiningRangeIn && Number.isFinite(machiningRangeIn.zLoCut))
+    ? { ...machiningRangeIn, zLo: machiningRangeIn.zLoCut } : machiningRangeIn;
   // ── PODÉLNÉ HRUBOVÁNÍ (RIGHT → LEFT, standard soustružení) ─────
   // Pro každou hloubku currentX od (maxStockX − step) po minPartX:
   //   1. Najdi všechny Z-hranice na této hloubce (krajní stocku +
@@ -296,11 +298,14 @@ export function genLongPasses(ctx) {
   }
   // X-rozsah obrábění (📐): omezit hloubky průchodů na daný interval poloměrů.
   if (machiningRangeX) {
-    // Meze platí pro OBROBENOU plochu, hloubky `d` jsou dráha STŘEDU nosu —
-    // řeže se o `noseLiftL` níž (kulatá R; ostatní 0 = beze změny). Bez toho
+    // Meze platí pro OBRYS DESTIČKY, hloubky `d` jsou dráha STŘEDU nosu —
+    // plátek sahá o `extL.down` níž (kulatá R, polygon rádius nosu). Bez toho
     // jela R 10 s X min 15 dnem až na X 5 a pod X max vypadly vrstvy, které
     // řežou pod ním, takže první zbylá brala ap + R (12. 10. 2026).
-    const rxLo = machiningRangeX.xLo + noseLiftL, rxHi = machiningRangeX.xHi + noseLiftL;
+    // X max (strop): nad ním je v obráběné zóně vzduch, jde jen o to, aby pod
+    // ním nezůstal pás — stačí rádius kulaté (`noseLiftL`); pomocné X max
+    // vyvrtávání (dno díry) se tím nehýbe.
+    const rxLo = machiningRangeX.xLo + (machiningRangeX.xLo > 0 ? extL.down : 0), rxHi = machiningRangeX.xHi + noseLiftL;
     const filtered = depths.filter(d => d >= rxLo - 0.005 && d <= rxHi + 0.005);
     if (reportRangeX && filtered.length === 0 && depths.length > 0) {
       const { xLo, xHi } = machiningRangeX;   // jedna mez může chybět (±∞)
@@ -803,7 +808,9 @@ export function genLongPasses(ctx) {
         // Dolní mez je HRANICE ÚSEKU (pravidlo 1) — ne ruční konec rozsahu 📐
         // uprostřed úseku. Jen přes hranici úseku smí pokračovat řetěz
         // zanoření (pravidlo 14, `continueChainBeyond` v rule7Layers.js).
-        const sectionLo = !(rangeClipZ && rangeClipZ.zLo > r.zLo + 0.5);
+        // (porovnává se NEposunutý rozsah — posun o přesah plátku z hranice
+        // úseku nedělá ruční konec rozsahu)
+        const sectionLo = !(machiningRangeIn && machiningRangeIn.zLo > r.zLo + 0.5);
         return { zHi, zLo, sectionLo };
       }).filter(r => r.zHi > r.zLo + 0.1),
       depthsFor: (zLo, zHi) => {

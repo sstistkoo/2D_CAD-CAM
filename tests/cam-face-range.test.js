@@ -27,7 +27,7 @@ import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 import { _defaultCamParams } from '../js/calculators/cam/camDefaults.js';
-import { insertBodyZ } from '../js/calculators/cam/materialRemoval.js';
+import { insertBodyZ, insertExtent } from '../js/calculators/cam/materialRemoval.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, 'fixtures', 'cam');
@@ -358,11 +358,14 @@ describe('rozsah 📐 vymezuje OBROBENOU PLOCHU, ne programovaný bod', () => {
         `${file}: bez pásu se pod dolní mez vůbec nejede — případ nic netestuje`).toBe(true);
       const longs = longsOf(band);
       expect(longs.length).toBeGreaterThan(0);
-      const deepest = Math.min(...longs.map(p => p.x));
-      expect(deepest, `${file}: nejhlubší průchod je na r${deepest.toFixed(2)}, tedy ${(deepest - xLo).toFixed(2)} mm nad dnem pásu`)
+      // Dno pásu platí pro OBRYS DESTIČKY (12. 10. 2026): průchod je dráha
+      // středu nosu, plátek sahá o `down` níž — na dno dosedne plátek.
+      const down = insertExtent(band.prog.params).down;
+      const deepest = Math.min(...longs.map(p => p.x)) - down;
+      expect(deepest, `${file}: plátek nejhlubšího průchodu je na r${deepest.toFixed(2)}, tedy ${(deepest - xLo).toFixed(2)} mm nad dnem pásu`)
         .toBeCloseTo(xLo, 2);
       for (const p of longs)
-        expect(p.x, `${file}: průchod na r${p.x.toFixed(2)} leží pod dnem pásu`).toBeGreaterThanOrEqual(xLo - 0.01);
+        expect(p.x - down, `${file}: plátek průchodu na r${p.x.toFixed(2)} leží pod dnem pásu`).toBeGreaterThanOrEqual(xLo - 0.01);
     }, 120000);
   }
 });

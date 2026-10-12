@@ -2,7 +2,7 @@
 
 import { getInsert } from '../inserts/index.js';
 import { topXOnLoop, rapidFeedGap, quantizeUp, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc, samplePartingEnvelope, stockClearances, stockClearanceIsZero } from '../camMath.js';
-import { offsetStockLoop, stockPlanLoop, insertBodyZ, toolFootprint } from '../materialRemoval.js';
+import { offsetStockLoop, stockPlanLoop, insertBodyZ, insertExtent, toolFootprint } from '../materialRemoval.js';
 import { insertReachZ } from '../toolEnvelope.js';
 import { SKIM_MIN_LAYER } from './shared.js';
 import { guardInsertFace } from './face/insertGuard.js';
@@ -250,27 +250,29 @@ export function genFacePasses(ctx) {
   // se plánovacího čela dotkne břit — o rádius za čelem. Dřív se dělilo od
   // čela samotného a první vrstva vzala ap + R (díl uživatele 12. 10. 2026,
   // R 10 / ap 4: `N160 G1 X13.101` na Z71,717 → 9,3 mm v ose Z).
-  // KONÍK: čelní průchod se středem za ním se zahodí (ořez v calculatePipeline),
-  // takže když by dělení začalo až za ním, první vrstva sedne PŘESNĚ na něj
-  // a zbytek se rozdělí od něj.
+  // KONÍK: průchod, jehož PLÁTEK by sahal za koník, se zahodí (ořez
+  // v calculatePipeline — mez pro střed je koník minus to, kam obrys destičky
+  // sahá za střed, `insertExtent`). Když by vrstvy začínaly až za touto mezí,
+  // první vrstva sedne PŘESNĚ na ni a zbytek se rozdělí od ní; leží-li mez až
+  // za první vrstvou mřížky, vrstvy před ní odpadnou. Platí pro každý plátek.
+  const extF = insertExtent(prms);
+  const lim0 = faceLeft ? chuckZ : tailZ;
+  const startLimCut = lim0 === null ? null : lim0 + sgnF * (faceLeft ? extF.zNeg : extF.zPos);
   let skimEdgeZ = planEdgeZ - sgnF * noseLeadF;
   let skimAtLimit = false;
-  if (noseLeadF > 0) {
-    const startLim = faceLeft ? chuckZ : tailZ;
-    if (startLim !== null && sgnF * (startLim - skimEdgeZ) > 0 && sgnF * (firstMainZ - startLim) > 0) {
-      skimEdgeZ = startLim;
-      skimAtLimit = true;
-      const bite = -sgnF * (faceEdgeZ - (startLim + sgnF * noseLeadF));   // čelo − břit
-      if (bite > step + 0.01)
-        foundErrors.push({ type: 'warning', msg: `Koník Z ${startLim}: první čelní vrstva vezme ${bite.toFixed(2)} mm (víc než ap ${step}) — kulatá destička řeže o rádius před středem a dál od čela střed za koník nesmí.` });
-    }
+  if (startLimCut !== null && sgnF * (startLimCut - skimEdgeZ) > 0) {
+    skimAtLimit = true;
+    const bite = -sgnF * (faceEdgeZ - (startLimCut + sgnF * rTipFC));   // čelo − břit
+    if (bite > step + 0.01)
+      foundErrors.push({ type: 'warning', msg: `${faceLeft ? 'Čelisti' : 'Koník'} Z ${lim0}: první čelní vrstva vezme ${bite.toFixed(2)} mm (víc než ap ${step}) — plátek sahá ${(faceLeft ? extF.zNeg : extF.zPos).toFixed(1)} mm za střed nosu a za mez nesmí, takže blíž k čelu se vrstva postavit nedá.` });
+    if (sgnF * (firstMainZ - startLimCut) > 0) skimEdgeZ = startLimCut;
   }
   const skimSpan = Math.abs(firstMainZ - skimEdgeZ);   // = ap + Vůle Z (+ předstih nosu)
   const nSkim = skimSpan > step * (1 + SKIM_MIN_LAYER)
     ? Math.ceil(skimSpan / step - 1e-9)
     : 1;
   const zListAll = [];
-  if (skimAtLimit) zListAll.push(skimEdgeZ);
+  if (skimAtLimit && skimEdgeZ === startLimCut) zListAll.push(skimEdgeZ);
   for (let k = 1; k < nSkim; k++) {
     const z = skimEdgeZ + sgnF * k * (skimSpan / nSkim);
     // MEZ: vrstva, která by ležela až ZA nakresleným čelem (nastane jen při
@@ -284,6 +286,14 @@ export function genFacePasses(ctx) {
     for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zListAll.push(z);
   } else {
     for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zListAll.push(z);
+  }
+  // Vrstva NA MEZI startu je první. Vrstvy před ní (mez leží až za první
+  // vrstvou mřížky) by ořez stejně zahodil a vrstva těsně za ní by vzala jen
+  // setiny (koník Z 79,37, R 10: 69,370 → 69,217) — obojí pryč; další vrstva
+  // je až o víc než `SKIM_MIN_LAYER` dál (táž mez jako u skim vrstvy).
+  if (skimAtLimit) {
+    const rest = zListAll.filter(z => sgnF * (z - startLimCut) > SKIM_MIN_LAYER * step);
+    zListAll.splice(0, zListAll.length, startLimCut, ...rest);
   }
   // ── Rozsah obrábění Z (📐) ─────────────────────────────────────────────
   // Marchovací osa čelního hrubování je Z, takže rozsah tady vybírá VRSTVY —
@@ -337,7 +347,7 @@ export function genFacePasses(ctx) {
   // stojí stabilita čelních snapshotů (táž logika jako `faceRetractCapZ` níž).
   if (machiningRange && zList.length > 0) {
     const rNose = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
-    const lead = rNose;                                 // řez před programovaným bodem
+    const lead = Math.max(rNose, extF.zNeg);           // plátek před programovaným bodem
     const trail = Math.max(rNose, insertBodyZ(prms, rNose));   // řez za ním (tělo destičky)
     const bndStart = faceLeft ? machiningRange.zLo : machiningRange.zHi;
     const bndEnd = faceLeft ? machiningRange.zHi : machiningRange.zLo;
@@ -482,10 +492,11 @@ export function genFacePasses(ctx) {
     // nad pásem (`xEnd >= xHi`), nechá uprostřed dílu stát neobrobené plátky
     // a nos je při nájezdu ořízne — na part-18 (R8) přesně 11,8 mm² kolize
     // rychloposuvu na `N2810 G0 X46.450`, kde bez toho byla nula.
-    // Mez platí pro OBROBENOU plochu: `xEnd` je střed nosu a kulatá řeže
-    // o `noseLiftX` (R) níž — bez toho jela R 10 s X min 15 až na X 5
-    // (12. 10. 2026). U ostatních plátků je `noseLiftX` 0 (beze změny).
-    const xLoCut = machiningRangeX ? machiningRangeX.xLo + (ins.noseLiftX || 0) : -Infinity;
+    // Mez platí pro OBRYS DESTIČKY: `xEnd` je střed nosu a plátek sahá
+    // o `extF.down` níž (kulatá R; natočený polygon i víc než rádius nosu) —
+    // bez toho jela R 10 s X min 15 až na X 5 (12. 10. 2026).
+    // (X min na ose či pod ní: pod ní žádný materiál není — přesah se nepřičítá)
+    const xLoCut = machiningRangeX ? machiningRangeX.xLo + (machiningRangeX.xLo > 0 ? extF.down : 0) : -Infinity;
     let rangeXClamped = false;
     if (machiningRangeX && xEnd < xLoCut - 1e-9) {
       xEnd = xLoCut;
@@ -515,7 +526,7 @@ export function genFacePasses(ctx) {
         ? traceOffsetPath(currentZ, currentZ - leadSpan)
         : reverseTrace(traceOffsetPath(currentZ + leadSpan, currentZ));
       // DNO ROZSAHU X platí i pro dojezd: kontura pod průchodem může klesat
-      // pod X min (střed + `noseLiftX` = břit na mezi) a dojezd by po ní
+      // pod X min (střed + `extF.down` = plátek na mezi) a dojezd by po ní
       // sjel tam, kam se nesmí. Utne se v místě, kde mez protne.
       if (machiningRangeX && isFinite(xLoCut)) {
         const keep = [];

@@ -25,7 +25,7 @@ import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
-import { stockPlanLoop } from './materialRemoval.js';
+import { buildStockLoopRaw, insertExtent, stockPlanLoop } from './materialRemoval.js';
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
 import { splitBoreFromSegments } from './boreContour.js';
 import { applyPreDrillPlan } from './ops/borePreDrill.js';
@@ -548,10 +548,9 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       xMaxNothing = true;
       foundErrors.push({ type: 'warning', msg: `Rozsah X max ${machiningRangeX.xHi}: polotovar sahá nad X max už na začátku obrábění — nad čarou se neobrábí a pod ten materiál se nepodjíždí, dráhy nebyly generovány.` });
     } else if (w) {
+      // Stěna je konec rozsahu Z — a ten platí pro OBRYS DESTIČKY (`zLoCut` níž),
+      // takže se jí nedotkne ani nos (pravidlo 12).
       const zLo0 = machiningRange ? machiningRange.zLo : -Infinity;
-      // `xMaxWall`: dolní mez je STĚNA materiálu nad X max — té se nesmí
-      // dotknout ani nos (pravidlo 12), takže podélné hrubování a dokončování
-      // končí střed o `noseLiftX` před ní (čelní to dělá samo, viz roughFace).
       machiningRange = { zLo: Math.max(w.zWall, zLo0), zHi: machiningRange ? machiningRange.zHi : 1e4, xMaxWall: w.zWall >= zLo0 };
       foundErrors.push({ type: 'warning', msg: `Rozsah X max ${machiningRangeX.xHi}: od Z ${zShow(w.zWall)} stojí polotovar nad X max — obrábí se jen po tuto hranici, dál by se muselo pod materiál nad čarou.` });
     }
@@ -581,8 +580,77 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     }
   }
 
+  // ── KONEC ROZSAHU Z PRO OBRYS DESTIČKY (uživatel 12. 10. 2026) ─────────
+  // Průchody i dokončování končí STŘEDEM nosu; plátek sahá o `insertExtent().zNeg`
+  // dál. Ruční konec rozsahu 📐 UVNITŘ úseku a stěna pod X max (pravidlo 12)
+  // proto končí o ten přesah dřív — za mez nesmí žádná část plátku.
+  // Na HRANICI ÚSEKU (rozsah do 0,5 mm od ní) se nic neposouvá: tam platí
+  // schválená pravidla 11 a 14 (řetěz zanoření smí pokračovat do dalšího úseku)
+  // a 15 (rovný průměr dojede, dokud z materiálu nevyjede).
+  // Mez za KONCEM POLOTOVARU se neposouvá — za ní je vzduch, není co chránit
+  // (kulatá zleva by jinak končila 10 mm před koncem a nechala tam klín).
+  // ZAČÁTEK rozsahu se neposouvá: sousedí s tím, co se obrábělo dřív, a co
+  // tam sousední rozsah nechal, nejde odhadnout (posun o přesah protáhl
+  // dokončování zpět do hotového úseku — posuv vzduchem). Navazující ruční
+  // rozsahy uvnitř úseku se proto musí překrývat aspoň o přesah plátku.
+  if (machiningRange) {
+    const ext0 = insertExtent(prms);
+    const secZ = sectionPlan && Array.isArray(sectionPlan.sections)
+      ? sectionPlan.sections.flatMap(s => [s.zLo, s.zHi]).filter(Number.isFinite) : [];
+    const onEdge = (z) => secZ.some(e => Math.abs(e - z) <= 0.5);
+    let stZLo = -Infinity;
+    try {
+      const st = buildStockLoopRaw(prms, stockPathSegments);
+      if (st && st.length > 2) stZLo = Math.min(...st.map(p => p.z));
+    } catch {
+      // bez obrysu: posouvat (bezpečnější strana)
+    }
+    const loInside = machiningRange.zLo > stZLo + 0.05;
+    machiningRange = {
+      ...machiningRange,
+      zLoCut: machiningRange.zLo + ((machiningRange.xMaxWall || (loInside && !onEdge(machiningRange.zLo))) ? ext0.zNeg : 0),
+    };
+  }
+
   // Dokončování upichovákem po obálce plátku — viz ops/finish.js.
   finishOffsetPath = finishPartingEnvelope(prms, finishOffsetPath);
+
+  // ── ČELISTI / KONÍK PRO PODÉLNÉ HRUBOVÁNÍ: plánuje se rovnou v pásu ────
+  // Ořez Z-limity níž zkracuje a zahazuje průchody až PO vygenerování — další
+  // vrstvy přitom počítaly s těmi, které ořez pak zahodil (part-11 zleva:
+  // rampa vzala 5,6 mm při ap 5, 12. 10. 2026). Podélné hrubování proto dostane
+  // pás, kam smí CELÝ plátek (insertExtent), rovnou jako rozsah. Jen když pás
+  // opravdu zasahuje do polotovaru — jinak se nemění nic. Čelní si koník řeší
+  // samo (první vrstva na mezi, roughFace.js) a jeho průchody na sobě nestojí.
+  let rangeForPasses = machiningRange;
+  if (roughingKey(S) !== 'face' && (chuckZ !== null || tailZ !== null)) {
+    const e = insertExtent(prms);
+    let stZLo = -Infinity, stZHi = Infinity;
+    try {
+      const st = buildStockLoopRaw(prms, stockPathSegments);
+      if (st && st.length > 2) { stZLo = Math.min(...st.map(p => p.z)); stZHi = Math.max(...st.map(p => p.z)); }
+    } catch {
+      // bez obrysu polotovaru: pás se nepředává (ořez níž platí dál)
+    }
+    const bLo = chuckZ !== null ? chuckZ + e.zNeg : -Infinity;
+    const bHi = tailZ !== null ? tailZ - e.zPos : Infinity;
+    // Platí jen tam, kde pás zasahuje DOVNITŘ obráběného (polotovar ∩ rozsah).
+    const r0 = machiningRange || { zLo: stZLo - 1e3, zHi: stZHi + 1e3 };
+    const effLo = Math.max(stZLo, r0.zLo), effHi = Math.min(stZHi, r0.zHi);
+    const cutLo = bLo > effLo + 0.05, cutHi = bHi < effHi - 0.05;
+    if (Number.isFinite(stZLo) && Number.isFinite(stZHi) && (cutLo || cutHi)) {
+      rangeForPasses = {
+        ...r0,
+        zLo: Math.max(r0.zLo, bLo), zHi: Math.min(r0.zHi, bHi),
+        zLoCut: Math.max(Number.isFinite(r0.zLoCut) ? r0.zLoCut : r0.zLo, bLo),
+      };
+      const zShowL = (z) => (mirZ ? -z : z).toFixed(2);
+      const msgs = [];
+      if (cutLo) msgs.push(`${mirZ ? 'koníku' : 'čelistí'} (střed nosu nejdál Z ${zShowL(bLo)})`);
+      if (cutHi) msgs.push(`${mirZ ? 'čelistí' : 'koníku'} (střed nosu nejdál Z ${zShowL(bHi)})`);
+      foundErrors.push({ type: 'warning', msg: `Z-limity: plátek sahá ${e.zNeg.toFixed(1)} mm před a ${e.zPos.toFixed(1)} mm za střed nosu — u ${msgs.join(' a u ')} se neobrábí, aby do nich nevjel. Zbytek tam zůstane.` });
+    }
+  }
 
   // ── Strategie hrubování (cam/roughingStrategies.js) ──
   // passCtx = sdílený kontext: data + pass-helpery z calculate().
@@ -590,7 +658,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     prms, sRad, stockFace, step, offsetPath, stockPathSegments,
     stockWorldPoints, worldPoints, passes, foundErrors,
     offsetXAt, traceOffsetPath, findPocketExitZ,
-    findLeadOutEndZ, hIntersect, machiningRange, machiningRangeX, chuckZ, tailZ,
+    findLeadOutEndZ, hIntersect, machiningRange: rangeForPasses, machiningRangeX, chuckZ, tailZ,
     holderClampZEnd, interferenceGuides,
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
@@ -622,16 +690,20 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   if (xMaxNothing) finishOffsetPath = [];   // pravidlo 12: není co obrábět
   if ((machiningRange || machiningRangeX) && finishOffsetPath.length > 0) {
-    // Dokončovací dráha je dráha STŘEDU nosu; meze X a stěna pod X max platí
-    // pro to, co nůž odebere — o `noseLiftX` (jen kulatá R, jinak 0) dál.
-    // Kulatá R 10 s X min 15 jinak dokončovala až do X 5 a s X max 22 sáhla
-    // do stěny nad stropem (12. 10. 2026). Ruční konce rozsahu Z beze změny.
-    const liftF = getInsert(prms).noseLiftX || 0;
+    // Dokončovací dráha je dráha STŘEDU nosu; meze platí pro OBRYS DESTIČKY
+    // (insertExtent): X min/X max o to, kam plátek sahá pod střed, konec
+    // rozsahu Z o to, kam sahá před něj (`zLoCut` výš). Kulatá R 10
+    // s X min 15 jinak dokončovala až do X 5 a s X max 22 sáhla do stěny nad
+    // stropem (12. 10. 2026).
+    const extF = insertExtent(prms);
     const res = clipFinishBand(finishOffsetPath, {
-      zLo: machiningRange ? machiningRange.zLo + (machiningRange.xMaxWall ? liftF : 0) : -Infinity,
+      zLo: machiningRange ? machiningRange.zLoCut : -Infinity,
       zHi: machiningRange ? machiningRange.zHi : Infinity,
-      xLo: machiningRangeX ? machiningRangeX.xLo + liftF : -Infinity,
-      xHi: machiningRangeX ? machiningRangeX.xHi + liftF : Infinity,
+      // (X min pod osou: pod ní žádný materiál není — přesah se nepřičítá)
+      xLo: machiningRangeX ? machiningRangeX.xLo + (machiningRangeX.xLo > 0 ? extF.down : 0) : -Infinity,
+      // X max: nad ním je v zóně vzduch — jen rádius kulaté (pomocné X max
+      // vyvrtávání = dno díry se nehýbe)
+      xHi: machiningRangeX ? machiningRangeX.xHi + (getInsert(prms).noseLiftX || 0) : Infinity,
     });
     if (res.trimmed > 0 || res.dropped > 0) {
       finishOffsetPath = res.path;
@@ -658,9 +730,31 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     let droppedCount = 0;
     let clampedCount = 0;
     const clamped = [];
+    // MEZE PRO STŘED NOSU: do čelistí ani do koníku nesmí žádná část PLÁTKU
+    // (uživatel 12. 10. 2026: „ať nehrozí, že ve skutečnosti do něčeho vjede
+    // plátek"). Střed se proto drží o přesah obrysu (insertExtent) před nimi —
+    // u kulaté R 10 o 10 mm; dřív končil přesně na mezi a nos jel o R dál.
+    const extL = insertExtent(prms);
+    const cLo = chuckLim !== null ? chuckLim + extL.zNeg : null;
+    const cHi = tailLim !== null ? tailLim - extL.zPos : null;
     // Pás [čelisti, koník] pro trasované nájezdy/dojezdy (Z i vrcholy oblouků).
-    const bandLo = chuckLim ?? -Infinity, bandHi = tailLim ?? Infinity;
+    const bandLo = cLo ?? -Infinity, bandHi = cHi ?? Infinity;
     const inBand = (z) => z >= bandLo - 1e-6 && z <= bandHi + 1e-6;
+    // Trasa (nájezd/dojezd po kontuře) uťatá tam, kde opustí pás; oblouk, který
+    // ho opouští, se nebere celý.
+    const trimToBand = (segs) => {
+      const keep = [];
+      for (const s of segs) {
+        if (segZs(s).every(inBand)) { keep.push(s); continue; }
+        if (s.type === 'line' && inBand(s.z1) && Math.abs(s.z2 - s.z1) > 1e-9) {
+          const zc = s.z2 < bandLo ? bandLo : bandHi;
+          const t = (zc - s.z1) / (s.z2 - s.z1);
+          if (t > 1e-6) keep.push({ ...s, x2: s.x1 + (s.x2 - s.x1) * t, z2: zc });
+        }
+        break;
+      }
+      return keep;
+    };
     const segZs = (s) => {
       if (s.type !== 'arc' || !Number.isFinite(s.cz)) return [s.z1, s.z2];
       let a0 = s.startAngle, a1 = s.endAngle;
@@ -678,21 +772,21 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
         // se takový průchod „zkrátil" naruby (zStart < zEnd) a nájezd po kontuře
         // jel čelistmi (díl uživatele 12. 10. 2026, čelisti Z10: kapsa po
         // kontuře `G1 X30.200 Z-4.225` → `X28 Z-6.425` a zpět `G1 Z10`).
-        if ((chuckLim !== null && Math.max(zS, zE) < chuckLim - EPS)
-          || (tailLim !== null && Math.min(zS, zE) > tailLim + EPS)
+        if ((cLo !== null && Math.max(zS, zE) < cLo - EPS)
+          || (cHi !== null && Math.min(zS, zE) > cHi + EPS)
           || (pass.contourLeadIn && !pass.contourLeadIn.every(sg => segZs(sg).every(inBand)))) {
           droppedCount++;
           continue;
         }
-        if (chuckLim !== null && zE < chuckLim) zE = chuckLim;
-        if (tailLim  !== null && zS > tailLim)  zS = tailLim;
+        if (cLo !== null && zE < cLo) zE = cLo;
+        if (cHi !== null && zS > cHi) zS = cHi;
         if (pass.ramp) {
           // Zanořovací průchod (sledování kontury + rampa) nelze zkrátit
           // zprava — limit by rozbil návaznost na konturu. Pokud limity
           // stahují zStart, nebo vršek sledování kontury/rampy leží za
           // tailLim, celý vynech.
           const leadInTopZ = (pass.contourLeadIn && pass.contourLeadIn.length > 0) ? pass.contourLeadIn[0].z1 : pass.ramp.z0;
-          if (zS !== origZS || (tailLim !== null && leadInTopZ > tailLim)) { droppedCount++; continue; }
+          if (zS !== origZS || (cHi !== null && leadInTopZ > cHi)) { droppedCount++; continue; }
           // Floor může mít nulovou šířku (čistá rampa bez floor-u) — to
           // je v pořádku, zahodit jen pokud limit ořezal zEnd až za
           // začátek rampy (zS).
@@ -713,18 +807,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
         // 12. 10. 2026, čelisti Z10: `G1 Z-4.955` po válci, 69 mm² za čelistmi).
         // Utne se tam, kde opustí pás; po zkrácení konce těla k němu nevede.
         if (pass.contourLeadOut) {
-          const keep = [];
-          if (zE === origZE) {
-            for (const s of pass.contourLeadOut) {
-              if (segZs(s).every(inBand)) { keep.push(s); continue; }
-              if (s.type === 'line' && inBand(s.z1) && Math.abs(s.z2 - s.z1) > 1e-9) {
-                const zc = s.z2 < bandLo ? bandLo : bandHi;
-                const t = (zc - s.z1) / (s.z2 - s.z1);
-                if (t > 1e-6) keep.push({ ...s, x2: s.x1 + (s.x2 - s.x1) * t, z2: zc });
-              }
-              break;
-            }
-          }
+          const keep = zE === origZE ? trimToBand(pass.contourLeadOut) : [];
           if (keep.length !== pass.contourLeadOut.length || zE !== origZE) {
             if (keep.length > 0) out.contourLeadOut = keep; else delete out.contourLeadOut;
             clampedCount++;
@@ -732,8 +815,20 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
         }
         clamped.push(out);
       } else if (pass.type === 'face') {
-        if (chuckLim !== null && pass.z < chuckLim) { droppedCount++; continue; }
-        if (tailLim  !== null && pass.z > tailLim)  { droppedCount++; continue; }
+        if (cLo !== null && pass.z < cLo - 1e-6) { droppedCount++; continue; }
+        if (cHi !== null && pass.z > cHi + 1e-6) { droppedCount++; continue; }
+        // Čelní dojezd „bez schodků" jede k obrobené straně — u koníku přímo
+        // k němu. Utne se na mezi jako u podélného.
+        if (pass.contourLeadOut) {
+          const keep = trimToBand(pass.contourLeadOut);
+          if (keep.length !== pass.contourLeadOut.length || (keep.length && keep[keep.length - 1] !== pass.contourLeadOut[keep.length - 1])) {
+            const out = { ...pass };
+            if (keep.length > 0) out.contourLeadOut = keep; else delete out.contourLeadOut;
+            clamped.push(out);
+            clampedCount++;
+            continue;
+          }
+        }
         clamped.push(pass);
       } else {
         clamped.push(pass);
@@ -763,8 +858,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     // oblouk na hranici TRIMUJE místo zahození (dřív padl celý, i když z něj
     // uvnitř zůstávala většina).
     const finLim = clipFinishBand(finishOffsetPath, {
-      zLo: chuckLim !== null ? chuckLim : -Infinity,
-      zHi: tailLim !== null ? tailLim : Infinity,
+      zLo: cLo !== null ? cLo : -Infinity,
+      zHi: cHi !== null ? cHi : Infinity,
     });
     const finishClipped = finLim.trimmed;
     const finishDropped = finLim.dropped;
@@ -852,9 +947,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
   const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, partSegments: rawContourForInterference, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null,
-    // Z stěny materiálu nad X max (pravidlo 12) — emise dokončování za ni
-    // nepustí ani „Rovný průměr" (finishEmit.js `finRunOut`). null = není.
-    rangeWallZ: (machiningRange && machiningRange.xMaxWall) ? machiningRange.zLo : null };
+    // Konec rozsahu Z (ruční 📐 i stěna nad X max, pravidlo 12) — emise
+    // dokončování za něj nepustí plátek ani „Rovným průměrem" (finishEmit.js
+    // `finRunOut`). null = rozsah neplatí.
+    rangeEndZ: (machiningRange && machiningRange.zLoCut !== machiningRange.zLo) ? machiningRange.zLo : null };
   // Zpět do reálného světa (simPath se nezrcadlí — je z reálného G-kódu).
   return mirZ ? mirrorCalcZ(calcOut) : calcOut;
 }

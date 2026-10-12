@@ -206,6 +206,6 @@ export function mirrorCalcZ(calc) {
   if (calc.interferenceGuides) out.interferenceGuides = mirrorGuides(calc.interferenceGuides);
   if (calc.passes) out.passes = calc.passes.map(mirrorPass);
   if (calc.sectionPlan) out.sectionPlan = mirrorSectionPlan(calc.sectionPlan);
-  if (Number.isFinite(calc.rangeWallZ)) out.rangeWallZ = -calc.rangeWallZ;
+  if (Number.isFinite(calc.rangeEndZ)) out.rangeEndZ = -calc.rangeEndZ;
   return out;
 }

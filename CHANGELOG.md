@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RND=` za kód řádku místo přepsání řádku. Po přenosu na plátno se označený bod zruší.
 
 ### Fixed
+- **CAM: čelisti, koník a meze rozsahu platí pro OBRYS PLÁTKU (pravidlo 16), u všech plátků.**
+  Dřív se hlídal jen programovaný bod (střed nosu): kulatá R 10 s čelistmi na Z10 řezala až do
+  Z1,35, polygon L15 natočený 15° by zleva sahal tělem 13,9 mm do čelistí a polygon jel o rádius
+  nosu pod X min / nad X max. Teď se střed drží o přesah obrysu destičky (`insertExtent`) před
+  čelistmi, koníkem, X min, stěnou pod X max a ručním koncem rozsahu Z; podélné hrubování plánuje
+  vrstvy rovnou v povoleném pásu (dřív je ořez zahazoval až potom a další vrstva brala víc než ap).
+  Kde mez nedovolí tenkou první vrstvu (koník těsně za čelem), program to nahlásí. Na hranici
+  úseků zůstávají pravidla 11/14/15. Testy: `cam-xrange-round-nose`, `cam-chuck-traced-leads`,
+  `cam-face-first-layer-nose`.
 - **CAM: rozsah X (📐) s kulatou destičkou platí pro břit, ne pro střed nosu.** Meze X min / X max
   a stěna pod X max (pravidlo 12) se porovnávaly s programovaným bodem, kulatá ale řeže o R níž
   a dál: R 10 s X min 15 hrubovala i dokončovala až na X 4–5 a s X max 22 sáhla do stěny nad

@@ -1155,8 +1155,9 @@ stojí a diagonální odskok by do něj zajel.
 Zapnout jde i jen jednu z nich.
 
 - **▼ X min = dno.** Pod tenhle poloměr se nejede (podélně ani čelně). Mez platí pro
-  **obrobenou plochu**: u kulaté destičky jede střed nosu o rádius výš, aby na mez
-  dosedl břit (totéž u X max a stěny pod ním i u dokončování).
+  **obrys plátku** (pravidlo 16): střed nosu jede o to, kam plátek sahá pod něj,
+  výš — u kulaté o rádius, u polygonu o rádius nosu (totéž u stěny pod X max
+  i u dokončování). X min na ose či pod ní se neposouvá.
 - **X max ▲ = strop** (pravidlo 12). Nad čarou se neobrábí **nic** a pod
   materiál, který nad ní stojí, se ani nepodjíždí — podélně ani čelně.
   Obrábí se proto jen od volného konce (strany, ze které hrubuješ) po místo,

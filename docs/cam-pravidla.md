@@ -286,3 +286,28 @@ nožem stojí materiál, aby na průměru nezůstal schodek. Teprve pak odjezd.*
   Z-1.500 ; Rovný průměr` má dojet v rovině až za polotovar (Z −4,89).
 - Implementace: `cam/ops/finishSteep.js` (dělení úseku), rovný průměr
   `finRunOut` v `cam/ops/finishEmit.js`. Test: `tests/cam-finish-plunge-limit.test.js`.
+
+## Pravidlo 16 — Meze platí pro obrys plátku ✅ schváleno
+
+**Za čelisti, koník, X min, X max, stěnu pod X max ani za konec rozsahu Z
+nesmí žádná část plátku — ne jen programovaný bod (střed nosu).**
+
+- Zadal uživatel 12. 10. 2026: *„čelisti a rozsahy ať taky nejsou ke středu, ale
+  k okraji plátku, tak aby nehrozilo ve skutečnosti, že do něčeho takového vjede
+  plátek"* — pro všechny plátky (kulatá R 10 sahá 10 mm, natočený polygon
+  podélně 3–4 mm před nos a 9–14 mm za něj).
+- Přesah se bere z obrysu destičky (`insertExtent` v `cam/materialRemoval.js`).
+- Kde mez nedovolí vrstvu tenčí než ap (koník těsně za čelem), vrstva se
+  postaví na mez a nahlásí se; co za mezí zůstane, se nahlásí.
+- **Upřesnění k potvrzení uživatelem** (domyšleno při implementaci):
+  - Na **hranici úseku** (rozsah do 0,5 mm od ní) se konec rozsahu neposouvá —
+    tam dál platí pravidla 11, 14 a 15.
+  - **Začátek** rozsahu Z se neposouvá (sousedí s tím, co se obrábělo dřív;
+    hlídá ho pravidlo 11). Navazující ruční rozsahy uvnitř úseku se proto
+    musí překrývat aspoň o přesah plátku.
+  - Konec rozsahu **za koncem polotovaru** se neposouvá (za ním je vzduch).
+  - **X min na ose či pod ní** se neposouvá (pod osou materiál není).
+  - **X max** (strop) se posouvá jen o rádius kulaté — nad stropem je
+    v obráběné zóně vzduch; stěnu nad stropem hlídá konec rozsahu Z.
+- Testy: `tests/cam-xrange-round-nose.test.js`, `tests/cam-chuck-traced-leads.test.js`,
+  `tests/cam-face-first-layer-nose.test.js`.

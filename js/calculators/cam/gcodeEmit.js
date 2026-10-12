@@ -12,7 +12,7 @@ import { StockModel, polyArea, polyDifference, polyOffset, polySimplify, toolSwe
 import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLineSegment, isAngleBetween, quantizeUp, rapidFeedGap, stockClearances, topXOnLoop, topXOnLoopFn } from './camMath.js';
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
-import { buildStockLoopRaw, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
+import { buildStockLoopRaw, insertExtent, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 import { getInsert } from './inserts/index.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { roughingKey, mirrorsWorldZ, computeCalculation } from './calculatePipeline.js';
@@ -129,8 +129,12 @@ export function generateAutoGCode(S, calc) {
   const entryAngleDegGc = getEffectivePlungeAngle(prms);
   const entryRadGc = entryAngleDegGc * Math.PI / 180;
   // Helper: ořezat Z na aktivní čelisti/koník limity (G-kód generace).
-  const gcChuckZ = (S.zLimits.chuckActive && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck)) ? S.zLimits.chuck : null;
-  const gcTailZ  = (S.zLimits.tailActive  && typeof S.zLimits.tail  === 'number' && isFinite(S.zLimits.tail))  ? S.zLimits.tail  : null;
+  // Mez platí pro OBRYS DESTIČKY, ne pro programovaný bod (insertExtent;
+  // tady v SKUTEČNÉM světě, zleva zrcadlený): střed nosu zůstane o přesah
+  // plátku před čelistmi i koníkem (uživatel 12. 10. 2026).
+  const gcExt = insertExtent(prms);
+  const gcChuckZ = (S.zLimits.chuckActive && typeof S.zLimits.chuck === 'number' && isFinite(S.zLimits.chuck)) ? S.zLimits.chuck + gcExt.zNeg : null;
+  const gcTailZ  = (S.zLimits.tailActive  && typeof S.zLimits.tail  === 'number' && isFinite(S.zLimits.tail))  ? S.zLimits.tail - gcExt.zPos : null;
   const clipZGc = (z) => {
     let v = z;
     if (gcTailZ  !== null && v > gcTailZ)  v = gcTailZ;

@@ -20,8 +20,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIX = join(__dirname, 'fixtures', 'cam-cases', 'round-r10-face-small-fillet.camprog');
 
 /** Plocha odebraná v pásu X ∈ [x0, x1] za celý program [mm²]. */
-async function removedIn(strategy, xLimits, x0, x1) {
+async function removedIn(strategy, xLimits, x0, x1, tool = {}) {
   const prog = JSON.parse(readFileSync(FIX, 'utf8'));
+  Object.assign(prog.params, tool);
   prog.params.roughingStrategy = strategy;
   prog.params.doFinishing = true;
   prog.xLimits = { rangeXMin: null, rangeXMax: null, minActive: false, maxActive: false, active: true, ...xLimits };
@@ -35,16 +36,26 @@ async function removedIn(strategy, xLimits, x0, x1) {
   return Math.abs(polyArea(polyIntersect(removed, [box])));
 }
 
-describe('rozsah X s kulatou R 10 — za mez nesáhne ani nos', () => {
-  for (const strategy of ['face', 'longitudinal']) {
-    it(`${strategy}: X min 15 — pod X 15 se nic neodebere`, async () => {
-      const a = await removedIn(strategy, { rangeXMin: 15, minActive: true }, 0.01, 15 - 0.05);
-      expect(a).toBeLessThan(0.05);
-    }, 180000);
+// Polygon (12. 10. 2026, uživatel: „poligon to oprav taky"): meze platí pro
+// obrys destičky i u něj — dřív jel o rádius nosu za X min (13,99 při X min 15)
+// a nad X max (22,85 při X max 22).
+const TOOLS = [
+  ['kulatá R 10', {}],
+  ['polygon R 0,8', { toolShape: 'polygon', toolRadius: 0.8, toolAngle: -3 }],
+];
 
-    it(`${strategy}: X max 22 — materiálu nad stropem se nástroj nedotkne (pravidlo 12)`, async () => {
-      const a = await removedIn(strategy, { rangeXMax: 22, maxActive: true }, 22 + XMAX_WALL_TOL, 100);
-      expect(a).toBeLessThan(0.05);
-    }, 180000);
+describe('rozsah X — za mez nesáhne žádná část plátku', () => {
+  for (const [label, tool] of TOOLS) {
+    for (const strategy of ['face', 'longitudinal']) {
+      it(`${label}, ${strategy}: X min 15 — pod X 15 se nic neodebere`, async () => {
+        const a = await removedIn(strategy, { rangeXMin: 15, minActive: true }, 0.01, 15 - 0.05, tool);
+        expect(a).toBeLessThan(0.05);
+      }, 180000);
+
+      it(`${label}, ${strategy}: X max 22 — materiálu nad stropem se nástroj nedotkne (pravidlo 12)`, async () => {
+        const a = await removedIn(strategy, { rangeXMax: 22, maxActive: true }, 22 + XMAX_WALL_TOL, 100, tool);
+        expect(a).toBeLessThan(0.05);
+      }, 180000);
+    }
   }
 });

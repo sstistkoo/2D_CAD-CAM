@@ -21,6 +21,7 @@ import { StockModel, polyArea, polyDifference, polyOffset, toolSweep } from '../
 import { segEndPoint, segStartPoint, stockClearances } from '../camMath.js';
 import { getInsert } from '../inserts/index.js';
 import { holderWorldLoop } from '../collisionValidator.js';
+import { insertExtent } from '../materialRemoval.js';
 import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
 
@@ -354,16 +355,19 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   const finRunOut = () => {
     if (!rapidStock || cur.x === null) return;
     const x = cur.x, xCut = cur.x - finTipR;
-    // Stěna nad X max (pravidlo 12): střed nejdál o `noseLiftX` před ní, jinak
-    // by nos kulaté sáhl do materiálu nad stropem (R 10, X max 22: X 24,8).
-    const wallLimZ = Number.isFinite(calc.rangeWallZ)
-      ? calc.rangeWallZ - finDirZ * (getInsert(prms).noseLiftX || 0) : null;
+    // Konec rozsahu Z (ruční 📐 i stěna nad X max, pravidlo 12): střed nejdál
+    // o to, kam plátek sahá ve směru jízdy, před ním — jinak by nos kulaté sáhl
+    // do materiálu nad stropem (R 10, X max 22: X 24,8) nebo do sousední,
+    // ještě neobrobené části.
+    const extR = insertExtent(prms);
+    const wallLimZ = Number.isFinite(calc.rangeEndZ)
+      ? calc.rangeEndZ - finDirZ * (finDirZ < 0 ? extR.zNeg : extR.zPos) : null;
     let zEnd = null;
     for (let d = 0.5; d <= 400; d += 0.5) {
       const zRaw = cur.z + finDirZ * d;
       const z = clipZGc(zRaw);
       if (Math.abs(z - zRaw) > 1e-6) return;                    // useknuto limitem
-      if (wallLimZ !== null && finDirZ * (z - wallLimZ) > 1e-6) return;   // stěna nad X max
+      if (wallLimZ !== null && finDirZ * (z - wallLimZ) > 1e-6) return;   // konec rozsahu Z
       const prof = finProfileXAt(z);
       if (prof !== null && prof > x + 0.02) return;             // kontura se zvedá
       const top = residualTopXAtZ(z);

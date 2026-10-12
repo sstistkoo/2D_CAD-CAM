@@ -101,6 +101,28 @@ export function insertWorldLoop(prms, backside = false) {
 }
 
 /**
+ * Kam sahá OBRYS DESTIČKY od programovaného bodu (svět; zleva zrcadlený
+ * podle `roughingSide`): `down` pod něj (−X), `zNeg` k −Z, `zPos` k +Z.
+ *
+ * Meze, za které nástroj nesmí (čelisti, koník, X min / X max, stěna pod
+ * X max, konec rozsahu Z), platí pro TENHLE obrys, ne pro programovaný bod
+ * (= střed nosu): uživatel 12. 10. 2026 — „ať nehrozí, že ve skutečnosti do
+ * něčeho vjede plátek". Kulatá R 10 sahá všude o 10 mm, polygon natočený
+ * o 15° podélně 3,2 mm před nos a 9 mm za něj. Bez obrysu (závitový) se
+ * použije plánovací stopa.
+ */
+export function insertExtent(prms) {
+  const loop = insertWorldLoop(prms, prms && prms.roughingSide === 'left') || toolFootprint(prms);
+  let minX = 0, minZ = 0, maxZ = 0;
+  for (const p of loop || []) {
+    if (p.x < minX) minX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  return { down: -minX, zNeg: -minZ, zPos: maxZ };
+}
+
+/**
  * Obrys řezné části nástroje RELATIVNĚ k programovanému bodu dráhy
  * (= střed rádiusové kružnice špičky — viz kreslení plátku v draw()).
  *
