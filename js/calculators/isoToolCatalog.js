@@ -107,9 +107,11 @@ export const ISO_HOLDER_TYPES = [
   { id: 'RD', shape: 'R', style: 'D', neutral: true, pos: 'S', groups: ['copy', 'long'],
     desc: 'Kulatá destička, neutrální — kopírování oběma směry. Dřík je souměrně nad destičkou, k čelu nedojede.' },
   { id: 'RS', shape: 'R', style: 'S', pos: 'S', groups: ['copy', 'long', 'face'],
-    desc: 'Kulatá destička v rohu dříku, hlava zkosená 45° — destička vyčnívá o R, dojede až k čelu / osazení.' },
-  { id: 'RG', shape: 'R', style: 'G', pos: 'S', groups: ['copy', 'long', 'face'],
-    desc: 'Kulatá destička v rohu dříku, rovné čelo hlavy (90°) — dojede k čelu, tužší než zkosená hlava.' },
+    desc: 'Kulatá destička v rohu dříku, hlava zkosená 45° (SRSCR = SRGCR) — destička vyčnívá o R, dojede až k čelu / osazení.' },
+  // SRGCR/SRGCL = totéž co SRSCR/SRSCL → v nabídce se neopakuje (alias), ale
+  // kód se pořád rozpozná (uložené nože, parseIsoKnifeName).
+  { id: 'RG', shape: 'R', style: 'G', alias: true, pos: 'S', groups: ['copy', 'long', 'face'],
+    desc: 'Kulatá destička v rohu dříku, hlava zkosená 45° (ekvivalent SRSCR) — dojede k čelu / osazení.' },
   { id: 'GR', special: 'parting', groups: ['groove'],
     desc: 'Zapichování a upichování — destička MGMN šířky 2–5 mm, levý bok v rovině s držákem.' },
   { id: 'TH', special: 'threading', groups: ['thread'],
@@ -325,7 +327,7 @@ function polygonHolder(prms, type, sh, geom) {
  *  D (SRDCN)  neutrální — dřík souměrně nad destičkou, boky hlavy 65°.
  *  S (SRSCR)  dřík od středu destičky doprava: vlevo destička vyčnívá o R
  *             (dojede k čelu / osazení), vpravo krček a sražení hlavy 45°.
- *  G (SRGCR)  totéž bez sražení — rovné čelo hlavy nad destičkou (90°).
+ *  G (SRGCR)  výrobce (AKKO): SRGCL = ekvivalent SRSCR → stejná hlava jako S.
  */
 function roundHolder(r, sh, style, geom) {
   const PHI = 25;
@@ -345,13 +347,9 @@ function roundHolder(r, sh, style, geom) {
   const FA = at(PHI, rr), xR = sh.b;
   const seat = [];
   for (let i = N - 1; i >= 1; i--) seat.push(at(PHI + i * step, rr));
-  let head;
-  if (style === 'S') {
-    const zNeck = rr + 0.5 * r;
-    head = [FA, { x: FA.x, z: zNeck }, { x: xR, z: zNeck + (xR - FA.x) }];
-  } else {
-    head = [FA, { x: xR, z: FA.z }];
-  }
+  // S i G: krček a sražení hlavy 45° (výrobce: SRGCL = ekvivalent SRSCR).
+  const zNeck = rr + 0.5 * r;
+  const head = [FA, { x: FA.x, z: zNeck }, { x: xR, z: zNeck + (xR - FA.x) }];
   return closeLoop([...head, { x: xR, z: sh.l1 }, { x: 0, z: sh.l1 }, at(90, rr), ...seat]);
 }
 
@@ -509,6 +507,21 @@ export function buildIsoKnife(typeId, opts = {}) {
     toolTipFlat: 0.1, toolTipMirror: false, toolVbdCode: vbdCode, toolClearanceAngle: clearance };
   return knifeRecord({ name, vbdCode, holder: polygonHolder(prms, type, sh, geom), prms, sh, hand,
     cut: cutData('polygon', edge, eps, R), desc: type.desc, iso });
+}
+
+/**
+ * Obrys držáku z katalogu pro LIBOVOLNĚ velkou destičku (ne jen katalogovou
+ * velikost) — držák se postaví podle `prms` (toolRadius / toolLength / úhly).
+ * Jen kulaté a polygonové typy; jinak null. Viz cam/holderFollowsInsert.js.
+ */
+export function isoHolderForInsert(typeId, shankCode, prms) {
+  const type = isoTypeById(typeId);
+  if (!type || type.special) return null;
+  const sh = shankOf(shankCode), geom = HOLDER_GEOM[ISO_HOLDER_VERSION];
+  const holder = type.shape === 'R'
+    ? roundHolder(prms.toolRadius, sh, type.style, geom)
+    : polygonHolder(prms, type, sh, geom);
+  return { sideA: holder, sideB: [] };
 }
 
 /** Kolik různých nožů katalog umí postavit (typ × dřík × varianta × velikost × rádius / šířka / profil). */

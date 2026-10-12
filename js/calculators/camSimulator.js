@@ -42,10 +42,13 @@ import { threadProfileDepth, computeThreadPassCuts, partOffGeom } from './cam/th
 import { drillGeom, drillAutoFaceZ, drillHoleLoop } from './cam/ops/drill.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
 import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides, markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour, normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections, trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide } from './cam/contourBuild.js';
+import { HOLDER_SIZE_PARAMS, insertOfParams, insertOfSlot, holderForResizedInsert } from './cam/holderFollowsInsert.js';
+import { catalogSizeRowHTML, applyCatalogSize } from './cam/catalogInsertSize.js';
 import { PARTING_BODY_MIN_H_MM, buildInsertOutlineSegments, drawPolygonInsert, drawThreadingInsert, drawDrillTool, drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, _pickCamTool, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { showToolSlotPreviewDialog, paramsFromMagSlot } from './cam/toolSlotPreview.js';
 import { knifeThumbSvg } from './knifeThumb.js';
+import { strategyKnifeSlot } from './cam/strategyKnife.js';
 import { defaultMagazineKnives, migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV, presetKnifeForShape, presetSlotIndex, sameKnifeGeometry } from './magazineDefaults.js';
 import { upgradeIsoHolderProfile } from './isoToolCatalog.js';
 import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch, threadInsertFitsSide } from './isoThreadInserts.js';
@@ -5236,7 +5239,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         <button data-act="open-magazine" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px" title="Zásobník nožů T1, T2… — v hlavičce okna i 🧰 Knihovna a 🔪 Geometrie aktuálního nástroje">🔧 Zásobník</button>
         ${prms.toolShape === 'threading' ? `<button data-act="open-threads" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:2px 8px;font-size:11px;margin-left:4px" title="Databáze závitů — výběr nastaví parametry operace Závit i úhel závitového plátku">🧵 Závity</button>` : ''}
       </div>
-      ${_renderInsertShapeFieldsHTML(prms)}
+      ${_renderInsertShapeFieldsHTML(prms, { sizeRowHTML: catalogSizeRowHTML(prms) })}
     </div>`;
     const _machOpen = S.machiningConfigOpen;
     const _fmtNum = (v) => String(v).replace('.', ',');
@@ -5636,6 +5639,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   // z modalu Geometrie nástroje, aby obě UI zapisovaly do S.params stejně.
   function applyParamChange(key, inp) {
     const v = inp.value;
+    if (key === 'isoSize') {          // výběr velikosti z katalogu (cam/catalogInsertSize.js)
+      if (applyCatalogSize(S.params, v)) { dropInsertGuides(); applyChange(); } else renderTab();
+      return;
+    }
+    const _was = HOLDER_SIZE_PARAMS.has(key) ? insertOfParams(S.params) : null;
     // Vymazané pole „Z upich" = zrušit upichnutí (jako ✖ Zrušit), ne upich
     // na Z0 — prázdné číselné pole by jinak níž spadlo na `|| 0`.
     // Vymazané „Z čelo" vrtání = automaticky čelo dílu (drillAutoFaceZ), ne Z0.
@@ -5670,6 +5678,9 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.threadDepth = Math.round(threadProfileDepth(S.params.threadType, parseFloat(v) || 0, S.params.threadExternal !== false) * 1000) / 1000;
       }
     }
+    // Katalogový držák sleduje velikost plátku (cam/holderFollowsInsert.js).
+    const _hp = _was && holderForResizedInsert(_was, insertOfParams(S.params));
+    if (_hp) S.params.holderProfile = _hp;
     // Změna tvaru/úhlu destičky → smazat zastaralé promované interferenční čáry
     if (INSERT_PARAMS.has(key)) dropInsertGuides();
     applyChange();
@@ -5714,12 +5725,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Plátek, který podélně neumí (upichovák), jede vždy čelně — i když si
       // z paměti nese něco jiného (stejná pojistka je v pipeline).
       if (getInsert(S.params).longRoughing === false) S.params.roughingStrategy = 'face';
-      // Znaménko natočení polygonu patří ke strategii (jako tlačítka Podélně /
-      // Čelně): nůž ze zásobníku má natočení kladné, čelně je záporné.
-      if (S.params.toolShape === 'polygon') {
-        const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
-        S.params.toolAngle = S.params.roughingStrategy === 'face' ? -mag : mag;
-      }
+      // Natočení polygonu + držák PSKNR ↔ PSBNR patří ke strategii (jako tlačítka).
+      if (S.params.toolShape === 'polygon') _polygonForStrategy();
     }
     // Vrták = vrtání (enforceInsertOperation): přechod na vrták / z vrtáku
     // mění OPERACI, ne jen nástroj — program se přegeneruje jako po přepnutí
@@ -5899,18 +5906,10 @@ export function openCamSimulator(initialContour, initialGCode) {
     tabBody.querySelectorAll('[data-rough]').forEach(btn => {
       btn.addEventListener('click', () => {
         S.params.roughingStrategy = btn.dataset.rough;
-        // Znaménko natočení je dáno strategií, ale platí to JEN pro natočenou
-        // polygonovou destičku. U UPICHOVÁKU musí natočení zůstat 0 (břit je
-        // rovnoběžný s osou), u závitového a kulaté se nepoužívá — předtím se sem
-        // zapisovalo ±15° bez ohledu na tvar, takže uživateli se nula při každém
-        // přepnutí přepsala na 15 (nález 20. 8. 2026). VELIKOST se teď zachovává:
-        // kdo si nastavil 25°, nemá důvod dostat 15°.
-        if (S.params.toolShape === 'polygon') {
-          const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
-          const nextAngle = btn.dataset.rough === 'face' ? -mag : mag;
-          if (nextAngle !== parseFloat(S.params.toolAngle)) dropInsertGuides();
-          S.params.toolAngle = nextAngle;
-        }
+        // Znaménko natočení + držák (PSKNR ↔ PSBNR, uživatel 12. 10. 2026) jen
+        // u polygonu — upichovák musí mít natočení 0 (nález 20. 8. 2026);
+        // velikost natočení se zachovává (kdo má 25°, nedostane 15°).
+        if (S.params.toolShape === 'polygon') _polygonForStrategy();
         applyChange();
       });
     });
@@ -7110,7 +7109,7 @@ export function openCamSimulator(initialContour, initialGCode) {
                 <div class="cam-sim-field"><input type="text" data-p="toolVbdCode" value="${escAttr(prms.toolVbdCode || '')}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" maxlength="20" spellcheck="false" autocomplete="off"></div>
                 <button data-act="geom-open-vbd" class="cam-geom-btn" title="Rozpoznat rozměry destičky z ISO kódu VBD">🔩 Dekodér</button>
               </div>
-              ${_renderInsertShapeFieldsHTML(prms, { tipRowExtraHTML: `<button data-act="geom-open-rotate-insert" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení jen destičky (polární úhel)">↻ Natočení destičky (${prms.toolAngle}°)</button>` })}
+              ${_renderInsertShapeFieldsHTML(prms, { sizeRowHTML: catalogSizeRowHTML(prms), tipRowExtraHTML: `<button data-act="geom-open-rotate-insert" class="cam-sim-btn cam-sim-btn-gray" style="width:auto;display:inline-flex;padding:3px 8px;font-size:11px" title="Natočení jen destičky (polární úhel)">↻ Natočení destičky (${prms.toolAngle}°)</button>` })}
             ` : `
               <div class="cam-geom-btnrow">
                 <button data-act="geom-toggle-draw" class="cam-geom-btn${drawModeActive ? ' on' : ''}" ${anchorsSupported ? '' : 'disabled'} title="${anchorsSupported ? 'Kreslit obrys držáku úsečkami od zvýrazněného bodu na destičce v náhledu' : 'Ruční obrys je zatím podporovaný jen pro kulatou a čtyřstrannou destičku — použijte 📐 Kreslit na CAD'}">✏️ Kreslit obrys</button>
@@ -7499,6 +7498,17 @@ export function openCamSimulator(initialContour, initialGCode) {
       if (k === 'slot' || (k === 'name' && keepName)) continue;
       slot[k] = preset[k];
     }
+  }
+
+  /** Polygon po změně strategie: nůž PSKNR ↔ PSBNR ze zásobníku (strategyKnife.js)
+   *  a natočení se znaménkem strategie (čelně −, podélně +). */
+  function _polygonForStrategy() {
+    const i = strategyKnifeSlot(S.toolMagazine, S.params, S.params.roughingStrategy);
+    const prev = parseFloat(S.params.toolAngle);
+    if (i >= 0) _loadMagSlot(i);
+    const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
+    S.params.toolAngle = S.params.roughingStrategy === 'face' ? -mag : mag;
+    if (i >= 0 || S.params.toolAngle !== prev) dropInsertGuides();
   }
 
   function _applyMagSlot(idx) {
@@ -8182,9 +8192,12 @@ export function openCamSimulator(initialContour, initialGCode) {
           if (!slot) return;
           const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','tipFlat','vc','f','ap'];
           pushHistory();
+          const _slotWas = insertOfSlot(slot);
           // ⌀ vrtáku se ukládá jako rádius (⌀/2), stejně jako v panelu.
           if (field === 'drillD') slot.radius = Math.max(0.05, (parseFloat(inp.value) || 0) / 2);
           else slot[field] =numFields.includes(field) ? (parseFloat(inp.value) || 0) : inp.value;
+          const _slotHp = holderForResizedInsert(_slotWas, insertOfSlot(slot));
+          if (_slotHp) slot.holderProfile = _slotHp;
           if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
         });
       });

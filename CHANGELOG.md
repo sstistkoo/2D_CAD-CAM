@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **ISO katalog: držák SRGCR/SRGCL má hlavu sraženou 45°.** Výrobce (AKKO) uvádí
+  SRGCL 2525 M12 jako ekvivalent SRSCR; styl G se dřív kreslil s rovným čelem
+  hlavy. Nyní má stejný obrys jako styl S, a protože by byly dvě karty stejné,
+  v katalogu zůstává jen SRSCR/SRSCL (popisek „SRSCR = SRGCR“). Kód SRGCR/SRGCL
+  se u uložených nožů dál rozpozná (`alias` v `ISO_HOLDER_TYPES`).
+
 ### Added
+
+- **Velikost plátku podle ISO katalogu.** U nože s katalogovým kódem držáku (SRSCL2525M12,
+  PSKNR2525M12…) je v poli plátku (panel Parametry i Geometrie nástroje) výběr „Velikost
+  podle katalogu" — RCMT 0803M0 / 1003M0 / 1204M0…, u polygonu CNMG 0903 / 1204 / 1606….
+  Nastaví R (kulatá) nebo délku hrany (polygon), VBD kód a název nože a přestaví držák.
+  Ručně přepsané R / hrana mimo katalog ukáže „— vlastní velikost —"
+  (`cam/catalogInsertSize.js`).
+- **Držák z katalogu se přizpůsobí velikosti plátku.** Po přepsání Rádiusu (R) kulaté
+  destičky, nebo Délky hrany / R polygonové, se obrys držáku přestaví podle nové
+  velikosti (v panelu Parametry, v Geometrii nástroje i v zápisu slotu Zásobníku).
+  Jen když je obrys pořád nezměněný katalogový (kód držáku se rozpozná a obrys
+  odpovídá původní velikosti); vlastní nebo ručně upravený držák se nemění
+  (`cam/holderFollowsInsert.js`, `isoHolderForInsert`).
+- **Polygon: držák se mění se strategií hrubování.** Přepnutí Čelně ↔ Podélně
+  vymění ze 🔧 Zásobníku celý nůž (čelně PSKNR2525M12, podélně PSBNR2525M12),
+  ne jen natočení plátku (`cam/strategyKnife.js`). Vlastní / jiný polygonový
+  držák se nemění.
 - **Tolerance: vlastní úchylky.** Přepínač „Třída a stupeň ISO / Vlastní úchylky“; ve vlastním režimu se zadá průměr (Ø) a horní/dolní úchylka v mm (např. -0,255 / -0,304) a dopočítá se Ø max, Ø min a tolerance. V liště okna je tlačítko 🔢 pro kalkulačku (kontrola výpočtu).
 - **CAD editor: nápověda k zápisu.** Nad lištou s údaji k řádku se vypisuje, co které slovo na
   řádku s kurzorem dělá (G0 = startovní bod, G1 úsečka, G2/G3 oblouk, X/Z, I/K, R, G90/G91…),
@@ -50,6 +75,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RND=` za kód řádku místo přepsání řádku. Po přenosu na plátno se označený bod zruší.
 
 ### Fixed
+- **CAM čelně: zbytečné zdvihy rychloposuvem a dojezd do neobrobené mezery.** Tři nálezy na dílu
+  s přírubou a krčkem (kulatá R10, `part-23-face-neck-round-r10`): (1) přejezd v Z se ověřoval
+  ve výšce `xStart` místo skutečné výšky nástroje, hlásil neexistující blokádu a zvedl na
+  `G0 X75.545 ; Výjezd nad konturu` (5×); (2) okno nosu za koncem polotovaru bralo jmenovitý Ø
+  polotovaru jako stěnu, takže poslední průchody u čela (`G0 X66.422`) vyjížděly nad průměr a jely
+  posuvem vzduchem — nově tam materiál není; (3) dojezd „bez schodků“ průchodu před krčkem jel
+  do mezery po průchodech, které hlídání plátku vyhodilo (zajel 7,8 mm do plného materiálu
+  a „dobíral schodek, který tam není“) — dojezd se teď maže (`ops/face/leadOutOverGap.js`).
+  Změnily se i 3 starší fixtures (zmizel zdvih), snapshoty aktualizovány.
+  Test: `tests/cam-face-neck-travel.test.js`.
 - **CAM: řetěz zanoření od hranice rozsahu drží mřížku hloubek.** Kotva rampy leží spodkem nosu na
   offsetové čáře, mřížka polygonu ve středu nosu — kontrola „jedna vrstva" porovnávala středy a vrstvu
   zahodila; další pak brala ap + rádius (part-11 zleva u čelistí: 5,8 mm při ap 5). Navíc vrstvu, kterou

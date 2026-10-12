@@ -987,8 +987,7 @@ kopírovací, srážecí, zapichovací, závitové, **vrtáky**).
 | MVVNN / SVVBN | V 35° | 72,5° | jemné kopírování oběma směry |
 | PSSNR / SSSCR, PSDNN | S 90° | 45° | srážení hran |
 | SRDCN | R (RCMT) | — | kulatá neutrální — kopírování oběma směry, k čelu nedojede (dřík je souměrně nad destičkou) |
-| SRSCR | R (RCMT) | — | kulatá v rohu dříku, hlava sražená 45° — destička vyčnívá o R, **dojede k čelu / osazení** |
-| SRGCR | R (RCMT) | — | kulatá v rohu dříku, rovné čelo hlavy — dojede k čelu, tužší |
+| SRSCR (= SRGCR) | R (RCMT) | — | kulatá v rohu dříku, hlava sražená 45° — destička vyčnívá o R, **dojede k čelu / osazení**; SRGCR/SRGCL je totéž (výrobce uvádí ekvivalent), v katalogu je jedna karta |
 | MGEHR | MGMN 2–5 mm | — | zapichování, upichování |
 | SER | 11–27ER: A/AG/N/Q 60° a 55°, Tr, Acme | — | vnější závit — rovný dřík, destička v rohu jeho konce (viz tabulka níž) |
 
@@ -997,6 +996,12 @@ obě), **velikost** (např. CNMG 0904 / 1204 / 1606) a **rádius rε**. Do
 držáku jdou i o stupeň menší/větší destičky než nejběžnější řada (hlava se
 postaví podle destičky); kulaté RCMT 06–32 mm v rozsahu průměru 0,3·b až b.
 Katalog takhle umí přes 800 kombinací. Klik na náhled ho zvětší.
+
+**Velikost plátku jde změnit i potom** — u nože z katalogu je v poli plátku
+(panel Parametry a 🔪 Geometrie) výběr **Velikost podle katalogu** (např. RCMT
+0803M0 / 1204M0 / 2006M0). Nastaví R, nebo délku hrany, VBD kód a název nože
+a přestaví držák. Přepsání R / délky hrany ručně držák taky přestaví, dokud je
+to pořád katalogový obrys (ručně upravený držák se nemění).
 
 **Vrtáky** (operace Vrtání) — karta s výběrem **druhu** a **⌀**; dřík a ruka
 se jí netýkají. Jako u nožů: ✅ Použít, 🔧 Do zásobníku, 🧰 Uložit.

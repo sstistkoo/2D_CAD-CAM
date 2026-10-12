@@ -9,6 +9,7 @@ import { guardInsertFace } from './face/insertGuard.js';
 import { makeEnforceLayerDepth } from './face/layerDepth.js';
 import { makeRegionRunOut } from './face/regionRunOut.js';
 import { makeHolderGuardFace } from './face/holderGuard.js';
+import { faceZs, dropLeadOutOverGap } from './face/leadOutOverGap.js';
 
 export function genFacePasses(ctx) {
   // Pravidla PLÁTKU (cam/inserts/*) — generátor se jich ptá místo toho, aby
@@ -90,7 +91,9 @@ export function genFacePasses(ctx) {
     stockZLo = Math.min(...stockWorldPoints.map(p => p.zReal));
     stockZHi = Math.max(...stockWorldPoints.map(p => p.zReal));
   }
-  const castingOuterAtZ = (z) => {
+  // `null` = ZA KONCEM polotovaru (obrys tam mine a není ani doběh/čelo, kam se
+  // povrch dotáhne) — žádný materiál. `castingOuterAtZ` z toho dělá jmenovité sRad.
+  const castingOuterRealAt = (z) => {
     const v = castingOuterOrNull(z);
     if (v !== null) return v;
     // ZA ČELEM NA STRANĚ STARTU (jen s předstihem nosu): tam stojí střed prvních
@@ -106,7 +109,11 @@ export function genFacePasses(ctx) {
         if (w !== null) return w;
       }
     }
-    return sRad;
+    return null;
+  };
+  const castingOuterAtZ = (z) => {
+    const v = castingOuterRealAt(z);
+    return v !== null ? v : sRad;
   };
   // Rapid-bezpečná X pro STŘED špičky na zadané Z. Nos je kruh rádiusu R:
   // ve vzdálenosti dz od středu sahá o √(R²−dz²) níž než střed, takže
@@ -131,7 +138,13 @@ export function genFacePasses(ctx) {
     const n = 8;
     for (let i = 1; i <= n && rTipFC > 1e-6; i++) {
       const dz = rTipFC * (i / n);
-      const cand = castingOuterAtZ(z + dirUncut * dz) + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz));
+      // Okno nosu za koncem polotovaru je vzduch: jmenovité sRad (Ø polotovaru)
+      // by tam stavělo neexistující stěnu a poslední průchody u čela by
+      // nahoru vyjížděly nad průměr a jely posuvem vzduchem (nález uživatele
+      // 12. 10. 2026: `G0 X66.422` u Z−7 při polotovaru Ø77 u čela).
+      const outerW = castingOuterRealAt(z + dirUncut * dz);
+      if (outerW === null && stockZLo !== null) continue;
+      const cand = (outerW !== null ? outerW : sRad) + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz));
       if (cand > need) need = cand;
     }
     need += clrXFC;
@@ -545,6 +558,7 @@ export function genFacePasses(ctx) {
     }
   }
 
+  const zsBeforeGuards = faceZs(passes);
   // Hlídání geometrie DESTIČKY (čelně) — viz ops/face/insertGuard.js.
   guardInsertFace({
     prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, castingOuterAtZ, rapidStartXAt });
@@ -565,6 +579,8 @@ export function genFacePasses(ctx) {
   if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.` });
   holderGuardFace(true);
   enforceLayerDepth();
+  // Dojezd do mezery po vyhozeném průchodu by jel do neobrobeného materiálu.
+  dropLeadOutOverGap({ passes, before: zsBeforeGuards, faceLeft, step });
 
   // ── Dojezd se zastaví v ROHU (kde zahne do stěny rovnoběžné s osou) ──
   // Dojezd „bez schodků“ sleduje konturu k obrobené straně, aby sloupl schod

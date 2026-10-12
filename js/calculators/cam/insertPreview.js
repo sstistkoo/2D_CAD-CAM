@@ -905,12 +905,13 @@ export function wireAllAngleCompasses(container) {
   });
 }
 
-/** `opts.tipRowExtraHTML` — tlačítka navíc do řádku pod poli (u polygonu
+/** `opts.sizeRowHTML` — řádek „Velikost podle katalogu" (cam/catalogInsertSize.js).
+ *  `opts.tipRowExtraHTML` — tlačítka navíc do řádku pod poli (u polygonu
  *  vedle ⇄ Přehodit stranu, u ostatních tvarů samostatný řádek); používá
  *  ho 🔪 Geometrie pro ↻ Natočení destičky. */
 export function _renderInsertShapeFieldsHTML(prms, opts = {}) {
   const extra = opts.tipRowExtraHTML || '';
-  let html = `${(prms.toolShape === 'threading' || prms.toolShape === 'polygon' || prms.toolShape === 'drill') ? '' : `<div class="cam-sim-row">
+  let html = `${opts.sizeRowHTML || ''}${(prms.toolShape === 'threading' || prms.toolShape === 'polygon' || prms.toolShape === 'drill') ? '' : `<div class="cam-sim-row">
     <div class="cam-sim-field"><label title="Rádius zaoblení špičky plátku (mm). U kulatého plátku určuje celý poloměr destičky.">Rádius (R)</label><input type="number" step="0.1" data-p="toolRadius" value="${prms.toolRadius}"></div>
   </div>`}
   <div style="margin-top:4px"><label style="font-size:10px;color:#6c7086">Tvar destičky</label></div>

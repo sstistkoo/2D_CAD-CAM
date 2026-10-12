@@ -800,7 +800,11 @@ calc.passes.forEach((pass, i) => {
         || rapidHitsPlan(x, zFrom, x, zTo);
       const capX = Math.max(rapidTopX + rapidStopX, pass.xStart);
       let xTrav = pass.xStart;
-      if (Math.abs(zTo - zFrom) > 1e-6 && travelBlocked(xTrav)) {
+      // Přejezd v Z se ověřuje v SKUTEČNÉ výšce nástroje: pod `cur.x` se nesjíždí
+      // (sjezd na xStart až po přejezdu), takže test v nižším xStart hlásil
+      // blokádu, kterou ve výšce `cur.x` nikdo nemá, a zbytečně zvedl na strop
+      // (nález uživatele 12. 10. 2026: `G0 X75.545 ; Výjezd nad konturu`).
+      if (Math.abs(zTo - zFrom) > 1e-6 && travelBlocked(Math.max(xTrav, cur.x))) {
         let top = null;
         const n = 24;
         for (let i = 0; i <= n; i++) {
@@ -808,7 +812,7 @@ calc.passes.forEach((pass, i) => {
           if (t !== null && (top === null || t > top)) top = t;
         }
         xTrav = top !== null ? Math.min(capX, Math.max(pass.xStart, top + rapidStopX)) : capX;
-        if (travelBlocked(xTrav)) xTrav = capX;
+        if (travelBlocked(Math.max(xTrav, cur.x))) xTrav = capX;
       }
       if (xTrav > cur.x + 1e-6) {
         simCounter += 1;

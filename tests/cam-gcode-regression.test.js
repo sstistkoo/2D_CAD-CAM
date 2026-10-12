@@ -56,6 +56,9 @@ const EXPECTED_HARD = {
   // (a přesně na R 10) se nos nevejde. Vlastnost zadání — fixture je tu kvůli
   // mezní čáře zanoření u kulaté destičky a kvůli `ap` měřenému od BŘITU.
   'part-22-round-r10.camprog': ['Rádius kontury menší než nástroj'],
+  // Čelně kulatá R 10 do zaoblení R 6 se nevejde — vlastnost zadání. Fixture je
+  // tu kvůli přejezdům a dojezdu u příruby s krčkem (tests/cam-face-neck-travel.test.js).
+  'part-23-face-neck-round-r10.camprog': ['Rádius kontury menší než nástroj'],
 };
 
 describe('CAM pipeline regrese (G-kód + struktura)', () => {

@@ -153,7 +153,7 @@ export function mountIsoCatalog(root, opts) {
   }
 
   function visibleTypes() {
-    const holders = ISO_HOLDER_TYPES.filter((t) => (st.group === 'all' || t.groups.includes(st.group))
+    const holders = ISO_HOLDER_TYPES.filter((t) => !t.alias && (st.group === 'all' || t.groups.includes(st.group))
       && isoVariants(t, st.shank).length > 0);
     const internal = st.group === 'all' || st.group === 'internal' ? ISO_INTERNAL_TYPES : [];
     const drill = st.group === 'all' || st.group === 'drill' ? [DRILL_TYPE] : [];

@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v467';
+const CACHE_NAME = 'skica-v471';
 const ASSETS = [
   './',
   './index.html',
@@ -24,6 +24,7 @@ const ASSETS = [
   './js/calculators/cam/camSimulatorDialogs.js',
   './js/calculators/cam/camSimulatorStyles.js',
   './js/calculators/cam/camToolPicker.js',
+  './js/calculators/cam/catalogInsertSize.js',
   './js/calculators/cam/collisionValidator.js',
   './js/calculators/cam/contourBuild.js',
   './js/calculators/cam/contourGouge.js',
@@ -35,6 +36,7 @@ const ASSETS = [
   './js/calculators/cam/gcodeParser.js',
   './js/calculators/cam/gcodeSync.js',
   './js/calculators/cam/guideOffsetJoin.js',
+  './js/calculators/cam/holderFollowsInsert.js',
   './js/calculators/cam/holderGouge.js',
   './js/calculators/cam/insertPreview.js',
   './js/calculators/cam/inserts/drill.js',
@@ -53,6 +55,7 @@ const ASSETS = [
   './js/calculators/cam/ops/face/holderGuard.js',
   './js/calculators/cam/ops/face/insertGuard.js',
   './js/calculators/cam/ops/face/layerDepth.js',
+  './js/calculators/cam/ops/face/leadOutOverGap.js',
   './js/calculators/cam/ops/face/regionRunOut.js',
   './js/calculators/cam/ops/finish.js',
   './js/calculators/cam/ops/finishEmit.js',
@@ -104,6 +107,7 @@ const ASSETS = [
   './js/calculators/cam/residualTracker.js',
   './js/calculators/cam/roughingStrategies.js',
   './js/calculators/cam/startCheck.js',
+  './js/calculators/cam/strategyKnife.js',
   './js/calculators/cam/threadHelpers.js',
   './js/calculators/cam/toolEnvelope.js',
   './js/calculators/cam/toolOffset.js',

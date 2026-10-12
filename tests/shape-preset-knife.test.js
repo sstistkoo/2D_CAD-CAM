@@ -20,6 +20,7 @@ import {
   presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, SHAPE_PRESET_KNIFE_ID, sameKnifeGeometry,
 } from '../js/calculators/magazineDefaults.js';
 import { _defaultCamParams, SHAPE_CUT_DEFAULTS } from '../js/calculators/cam/camDefaults.js';
+import { strategyKnifeSlot } from '../js/calculators/cam/strategyKnife.js';
 import { getInsert } from '../js/calculators/cam/inserts/index.js';
 import { holderInflate, holderInflateAll } from '../js/calculators/cam/collisionValidator.js';
 
@@ -29,7 +30,7 @@ const EXPECTED = {
   threading: 'SER2525M16', drill: 'Vrtak HSS D20',
 };
 const FNS = ['applyShapeChange', '_loadMagSlot', '_rememberShapeKnife', '_loadShapeKnife', '_loadPresetKnife',
-  '_slotToParams', '_paramsIntoSlot', '_isoMagSlot', '_buildMagSlotFromTool', '_defaultMagSlot', '_setMagSlotShape'];
+  '_slotToParams', '_paramsIntoSlot', '_isoMagSlot', '_buildMagSlotFromTool', '_defaultMagSlot', '_setMagSlotShape', '_polygonForStrategy'];
 
 function loadShapeFns() {
   const src = readFileSync(join(__dirname, '..', 'js', 'calculators', 'camSimulator.js'), 'utf8').replace(/\r\n/g, '\n');
@@ -40,7 +41,7 @@ function loadShapeFns() {
   };
   const S = { params: { ..._defaultCamParams() }, toolMagazine: [], shapeKnives: {}, _shapeGeomMem: {}, activeMagazineSlot: null };
   const deps = {
-    S, getInsert, presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, sameKnifeGeometry,
+    S, getInsert, strategyKnifeSlot, presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, sameKnifeGeometry,
     SHAPE_CUT_DEFAULTS, holderInflate, holderInflateAll,
     dropInsertGuides: () => {}, applyChange: () => {}, showToast: () => {},
     afterToolChange: () => undefined, applyAfterToolChange: () => {}, fullUpdate: () => {},
