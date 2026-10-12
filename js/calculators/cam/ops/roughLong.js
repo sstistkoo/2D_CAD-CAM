@@ -1014,6 +1014,30 @@ export function genLongPasses(ctx) {
   };
   // Okno dna → jen v něm jede poslední vrstva (viz „POSLEDNÍ VRSTVA NA DNĚ").
   const floorWin = new Map();
+  // ŘETĚZ ZANOŘENÍ OD HRANICE ROZSAHU NAVÁŽE NA VRSTVU, KTEROU JEL JINÝ VJEZD
+  // (12. 10. 2026). Otevřený průchod si vjezd někdy postaví sám — kus za
+  // vzduchovou mezerou (`airEntry`, čerstvý stav řetězu) nebo nájezd rampou
+  // z povrchu (openPass.js) — a řetěz od hranice rozsahu (`entryRampAnchor`)
+  // přitom zůstane na staré kotvě. Další hloubka z ní rampou nedosedla, vrstva
+  // vypadla a uzavírací krok vydal hotovou vrstvu podruhé (part-11 zleva
+  // u čelistí: X 29,566 dvakrát, pod ní nic). Když nový průchod na téže hloubce
+  // pokrývá místo, kam by přímka zanoření z kotvy dosedla, kotva se posune na
+  // jeho začátek — řetěz pak pokračuje z něj.
+  const advanceChainOver = (from, X) => {
+    if (!entryRampAnchor || entryRampClosed || passes.length <= from) return;
+    const anchorDepthX = entryRampAnchor.x - (entryRampAnchor.first ? anchorLiftL - noseLiftL : 0);
+    if (!(entryRampAnchor.x > X + 0.05 && anchorDepthX - X <= step + 0.05)) return;
+    const zLand = entryRampAnchor.z - (entryRampAnchor.x - X) / effPlungeTanL;
+    for (let i = passes.length - 1; i >= from; i--) {
+      const q = passes[i];
+      if (!q || q.type !== 'long' || Math.abs(q.x - X) > 1e-6
+          || !Number.isFinite(q.zStart) || !Number.isFinite(q.zEnd)) continue;
+      if (zLand <= Math.max(q.zStart, q.zEnd) + dzScan && zLand >= Math.min(q.zStart, q.zEnd) - dzScan) {
+        entryRampAnchor = { x: X, z: q.zStart, first: false };
+        return;
+      }
+    }
+  };
   for (let depthIdx = 0; depthIdx < depths.length; depthIdx++) {
     const currentX = depths[depthIdx];
     const sz = stockZRangeAt(currentX, true);   // destička smí přejet osu — viz výš
@@ -1437,10 +1461,12 @@ export function genLongPasses(ctx) {
             }
           }
         }
+        advanceChainOver(nBefore, currentX);
         return;
       }
       if (idx === 0 && firstOpen) {
         // Otevřený vjezd zprava — viz ops/long/openPass.js.
+        const nBeforeOpen = passes.length;
         const rampSt = { anchor: entryRampAnchor, closed: entryRampClosed };
         emitOpenInterval({
           prms, passes, step, dzScan, DZ_CAP, capTab, currentX, iv, intervals,
@@ -1454,6 +1480,7 @@ export function genLongPasses(ctx) {
           leadOutPastRampWall: ins.leadOutPastRampWall,
         });
         entryRampAnchor = rampSt.anchor; entryRampClosed = rampSt.closed;
+        advanceChainOver(nBeforeOpen, currentX);
         return;
       }
       // Kapsa za bossem kontury — viz ops/long/pocketPass.js.
@@ -1559,7 +1586,11 @@ export function genLongPasses(ctx) {
       // Nejvýš JEDNU vrstvu pod kotvou (pravidlo 3) — kotva z povrchu nad
       // vypadlými vrstvami by jinak dala rampu přes víc vrstev naráz
       // (part-17: X 17,7 → 9,9 při ap 3, držák v materiálu).
-      let loX = Math.max(currentX, entryRampAnchor.x - step - 1e-6), hiX = entryRampAnchor.x;
+      // „Jedna vrstva" v soustavě HLOUBEK: kotva z povrchu (`first`) leží
+      // o `anchorLiftL` nad offsetovou čarou, mřížka o `noseLiftL` (u polygonu
+      // 0,8 × 0) — viz `freshTooDeep` v openPass.js.
+      const anchorDepthX = entryRampAnchor.x - (entryRampAnchor.first ? anchorLiftL - noseLiftL : 0);
+      let loX = Math.max(currentX, anchorDepthX - step - 1e-6), hiX = entryRampAnchor.x;
       let bestCiv = null, bestX = null;
       // ── SKEN TU ŽÁDNÉ INTERVALY NEVRACÍ ──────────────────────────────────
       // Test „scan() ještě pustí" nemohl v tomhle režimu projít NIKDY. Řetěz
@@ -1632,8 +1663,19 @@ export function genLongPasses(ctx) {
           loX = mid;
         }
       }
-      if (bestCiv && entryRampAnchor.x - bestX > 0.05) {
-        const zS2 = entryRampAnchor.z - (entryRampAnchor.x - bestX) / effPlungeTanL;
+      // UŽ JETÉ OKNO SE NEVYDÁVÁ PODRUHÉ (12. 10. 2026). Kus téže hloubky za
+      // vzduchovou mezerou (`airEntry`) si staví vlastní vjezd s čerstvým stavem
+      // řetězu, takže řetěz od hranice rozsahu zůstane „otevřený" — a uzavírací
+      // krok pak vydal tutéž vrstvu znovu (part-11 zleva: X 29,566 Z 40…80
+      // dvakrát, druhý průchod 40 mm posuvem vzduchem).
+      const zS2c = bestCiv ? entryRampAnchor.z - (entryRampAnchor.x - bestX) / effPlungeTanL : null;
+      // (Uzavírací krok jde až na DALŠÍ hloubce — hledá se v celém úseku.)
+      const winCovered = bestCiv && passes.slice(regionMark).some(q => q && q.type === 'long'
+        && Math.abs(q.x - bestX) < 0.02 && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd)
+        && Math.max(q.zStart, q.zEnd) >= Math.max(zS2c, bestCiv.zEnd) - 0.05 - dzScan
+        && Math.min(q.zStart, q.zEnd) <= Math.min(zS2c, bestCiv.zEnd) + 0.05 + dzScan);
+      if (bestCiv && entryRampAnchor.x - bestX > 0.05 && !winCovered) {
+        const zS2 = zS2c;
         const finalPass = { type: 'long', x: bestX, zStart: zS2, zEnd: bestCiv.zEnd, blocked: true };
         finalPass.ramp = { x0: entryRampAnchor.x, z0: entryRampAnchor.z };
         finalPass.entryRangeRamp = true;

@@ -320,7 +320,14 @@ export function emitOpenInterval(D) {
     // mělčí vrstvy tady nejely (vypadly), rampa z povrchu by brala naráz
     // víc — part-17: X 17,7 → 9,9 při ap 3 a držák v materiálu. Vrstva se
     // pak vynechá jako každá, kam rampa nedosáhne.
-    const freshTooDeep = rampSt.anchor && rampSt.anchor.first && rampSt.anchor.x - currentX > step + 0.05;
+    // Měří se MATERIÁL v TÉŽE soustavě jako hloubka (`candS` výš): kotva
+    // z povrchu leží o `anchorLiftX` (rádius nosu) nad offsetovou čarou,
+    // hloubka mřížky o `noseLiftX` — u polygonu 0,8 × 0. Porovnání středů
+    // přímo dávalo o rádius nosu víc, než rampa ubere, a vrstva pod hranicí
+    // rozsahu vypadla; uzavírací krok ji pak nahradil mělčí a další vrstva
+    // vzala ap + rádius (part-11 zleva u čelistí: 5,8 mm při ap 5, 12. 10. 2026).
+    const freshTooDeep = rampSt.anchor && rampSt.anchor.first
+      && rampSt.anchor.x - (anchorLiftX || 0) + (noseLiftX || 0) - currentX > step + 0.05;
     if (rampSt.anchor && rampSt.anchor.x > currentX + 0.05 && !freshTooDeep) {
       const zS = rampSt.anchor.z - (rampSt.anchor.x - currentX) / effPlungeTanL;
       if (zS > iv.zEnd + 0.05) {

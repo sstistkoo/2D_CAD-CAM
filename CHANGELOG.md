@@ -50,6 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RND=` za kód řádku místo přepsání řádku. Po přenosu na plátno se označený bod zruší.
 
 ### Fixed
+- **CAM: řetěz zanoření od hranice rozsahu drží mřížku hloubek.** Kotva rampy leží spodkem nosu na
+  offsetové čáře, mřížka polygonu ve středu nosu — kontrola „jedna vrstva" porovnávala středy a vrstvu
+  zahodila; další pak brala ap + rádius (part-11 zleva u čelistí: 5,8 mm při ap 5). Navíc vrstvu, kterou
+  vyjel jiný vjezd, vydal uzavírací krok podruhé (40 mm posuvem vzduchem) a vrstvy pod ní vypadly.
+  Test: `tests/cam-range-entry-chain.test.js`.
 - **CAM: čelisti, koník a meze rozsahu platí pro OBRYS PLÁTKU (pravidlo 16), u všech plátků.**
   Dřív se hlídal jen programovaný bod (střed nosu): kulatá R 10 s čelistmi na Z10 řezala až do
   Z1,35, polygon L15 natočený 15° by zleva sahal tělem 13,9 mm do čelistí a polygon jel o rádius
