@@ -24,8 +24,11 @@ const CAM = join(ROOT, 'js', 'calculators', 'cam');
 const SHAPES = ['round', 'polygon', 'parting', 'threading', 'drill'];
 
 // UI (náhled, přepínač, popisky) a výchozí hodnoty — s drahami nesouvisí.
+// catalogInsertSize / holderFollowsInsert / strategyKnife: úpravy nože ve
+// 🔧 Zásobníku a Parametrech; importuje je jen camSimulator.js (generátor drah ne).
 const UI_FILES = new Set([
   'insertPreview.js', 'toolSlotPreview.js', 'camToolPicker.js', 'camDefaults.js',
+  'catalogInsertSize.js', 'holderFollowsInsert.js', 'strategyKnife.js',
 ]);
 
 // Soubor → čím je čtení parametru tvaru chráněné (klíč plátku).
