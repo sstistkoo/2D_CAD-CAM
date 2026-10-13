@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v480';
+const CACHE_NAME = 'skica-v481';
 const ASSETS = [
   './',
   './index.html',
@@ -216,6 +216,7 @@ const ASSETS = [
   './js/dialogs/threadDialog.js',
   './js/dimensionDedup.js',
   './js/dxf.js',
+  './js/errorReport.js',
   './js/events.js',
   './js/gcodeNormalize.js',
   './js/geom/geomCore.js',
@@ -294,6 +295,7 @@ const ASSETS = [
   './js/ui.js',
   './js/utils.js',
   './dxf-json.html',
+  './eslint.config.js',
   './gear_debug.html',
   './gear_profiles.html',
   './internal_gear_test.svg',

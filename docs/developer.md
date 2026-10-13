@@ -1634,9 +1634,38 @@ dočasné skrytí) se hledá přes `container.closest('.calc-overlay')`.
 
 ```bash
 npm test              # Vitest (run once)
+npm run test:cad      # bez CAM pipeline (~25 s) — výchozí mimo js/calculators/cam/**
 npm run test:watch    # Watch mode
 npm run test:coverage # s coverage
+npm run lint          # ESLint — jen chyby (s cache, ~4 s)
 ```
+
+### Hlídače mimo běžné testy (běží v `test:cad`)
+
+- **ESLint** (`eslint.config.js`, `tests/lint.test.js`). Jako CHYBA hlídá jen
+  to, co je vždy bug: neexistující proměnná (`no-undef` — hlavně při stěhování
+  kódu mezi soubory), zdvojený klíč / `case`, přepsaná konstanta či import…
+  Stylistická pravidla (nepoužitá proměnná ap.) jsou jen varování —
+  `npx eslint .` je ukáže, testy kvůli nim nepadají. Cizí knihovny
+  (`lib/`, `js/lib/`) se nelintují.
+- **Importy** (`tests/imports-resolve.test.js`): každý relativní import vč.
+  dynamického `import('…')` vede na existující soubor s přesnou velikostí
+  písmen (Windows ji toleruje, Linux / GitHub Pages ne).
+- **DOM testy**: hlavička `// @vitest-environment happy-dom` (např.
+  `tests/error-report.test.js`).
+
+### GitHub Actions (`.github/workflows/testy.yml`)
+
+Po pushi do `main` a u pull requestu běží `npm run test:cad` (Node 24, `npm ci`).
+Plná sada `npm test` jen ručně: Actions → Testy → Run workflow → „Plná sada".
+
+### Hlášení chyb v aplikaci (`js/errorReport.js`)
+
+Neošetřená chyba / promise rejection ukáže lištu „⚠ Něco se pokazilo“
+s tlačítkem „📋 Zkopírovat pro Clauda“ (text chyby, místo, stack, verze
+`APP_VERSION` z `constants.js`, prohlížeč — nic z výkresu). Šum prohlížeče
+(ResizeObserver loop, „Script error.“, rozšíření) se ignoruje. Při změně
+verze aplikace upravit `APP_VERSION` spolu s `package.json`.
 
 ### Struktura testů
 

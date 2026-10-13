@@ -1,0 +1,42 @@
+# Automatické testy na GitHubu.
+# Po každém pushi do main (a u pull requestu) se spustí `npm run test:cad`
+# (≈1 min: CAD, UI, editory, export + ESLint + strop velikosti souborů).
+# Spadne-li, u commitu je červený křížek a GitHub pošle e-mail.
+#
+# Plná sada včetně CAM (`npm test`, ≈13 min) se pouští jen ručně:
+# GitHub → Actions → „Testy" → Run workflow → zaškrtnout „Plná sada".
+name: Testy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      plna:
+        description: 'Plná sada včetně CAM (npm test, ≈13 min)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: testy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Testy CAD (+ ESLint)
+        if: ${{ !inputs.plna }}
+        run: npm run test:cad
+      - name: Plná sada včetně CAM
+        if: ${{ inputs.plna }}
+        run: npm test

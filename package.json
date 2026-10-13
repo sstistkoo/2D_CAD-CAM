@@ -8,7 +8,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:cad": "vitest run --config vitest.cad.config.js",
-    "sw": "node scripts/generate-sw-assets.js"
+    "sw": "node scripts/generate-sw-assets.js",
+    "lint": "eslint . --quiet --cache --cache-location node_modules/.cache/eslint/"
   },
   "keywords": [],
   "author": "",
@@ -16,9 +17,12 @@
   "type": "module",
   "devDependencies": {
     "@babel/parser": "^8.0.7",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^5.0.4",
+    "eslint": "^10.12.0",
     "fake-indexeddb": "^6.2.5",
+    "globals": "^17.13.0",
     "happy-dom": "^21.0.1",
-    "vitest": "^4.1.2"
+    "vitest": "^5.0.4"
   }
 }

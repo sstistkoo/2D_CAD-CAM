@@ -1816,7 +1816,7 @@ export function updateProperties() {
         btn.textContent = "📝 Otevřít editor textu";
         btn.style.cssText = "width:100%;padding:6px;background:var(--ctp-blue);color:var(--ctp-base);border:none;border-radius:4px;cursor:pointer;font-size:13px;margin-top:4px";
         btn.addEventListener("click", () => {
-          import('../dialogs/textDialog.js').then(({ showTextDialog }) => {
+          import('./dialogs/textDialog.js').then(({ showTextDialog }) => {
             showTextDialog({
               text: obj.text,
               fontSize: obj.fontSize || 14,

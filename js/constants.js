@@ -2,6 +2,10 @@
 // ║  SKICA – Centralizované konstanty                           ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+// Verze aplikace (drž v souladu s package.json) — úvodní řádek konzole
+// a hlášení chyby (errorReport.js).
+export const APP_VERSION = '1.8.0';
+
 // ── Catppuccin Mocha – barvy tématu ─────────────────────────
 const DARK_COLORS = {
   primary:       '#89b4fa',

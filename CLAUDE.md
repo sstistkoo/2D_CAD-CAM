@@ -52,6 +52,8 @@ npm test              # všechny testy vč. CAM (~13 min) — jen při zásahu d
 npm run test:cad      # stejná sada BEZ CAM pipeline testů (~10 s místo ~13 min) —
                       #   VÝCHOZÍ při práci mimo js/calculators/cam/** (CAD, UI, editory,
                       #   export); seznam vzorů viz vitest.cad.config.js
+npm run lint          # ESLint, jen chyby (no-undef aj.); běží i v test:cad
+                      #   (tests/lint.test.js) — varování (styl) testy neshodí
 npm run test:watch    # watch mód
 npm run test:coverage # coverage — POZOR: instrumentace zpomalí CAM ~4× a šest
                       #   testů spadne na SVÉ vlastní timeouty; není to regrese

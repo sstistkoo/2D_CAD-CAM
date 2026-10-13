@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Dráhy beze změny (otisk shodný u všech fixtures); mizí 6 hlášení na part-22/23
   a 2 na part-18. Test „oblouk jen z půlky" už nepočítá strmý kus pravidla 15
   (`belowPlunge`) — tam se oblouk dělí záměrně.
+- **Text: tlačítko „📝 Otevřít editor textu“ ve vlastnostech** nic nedělalo —
+  `ui.js` načítal dialog z `'../dialogs/textDialog.js'` (mimo složku `js/`).
+  Našel to nový test importů.
 - **CAM: 🔄 Dráhy × ✂ Po úsecích v náhledu Celý program.** U programu z úseků
   je vidět buď jedno, nebo druhé podle hrubování v panelu. Po úsecích se
   čelně neukazuje (úseky nemá, klik končil chybou). Čelně je místo něj
@@ -58,6 +61,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Viditelné hlášení chyb**: neošetřená chyba dřív skončila jen v konzoli
+  (na mobilu neviditelná). Teď se ukáže lišta „⚠ Něco se pokazilo“
+  s tlačítkem „📋 Zkopírovat pro Clauda“ (text chyby, místo, verze, prohlížeč;
+  nic z výkresu). `js/errorReport.js` + test; verze v `APP_VERSION` (constants.js).
+- **Hlídače kódu v testech**: ESLint (`npm run lint`, v `test:cad` jen
+  skutečné chyby — neexistující proměnná, zdvojený klíč…; styl jen jako
+  varování) a test, že každý relativní import vede na existující soubor
+  s přesnou velikostí písmen.
+- **GitHub Actions** (`.github/workflows/testy.yml`): po pushi do main běží
+  `npm run test:cad`; plná sada ručně (Run workflow → Plná sada).
+- **Vývojové nástroje**: vitest 5 (oprava bezpečnostního varování
+  `@vitest/mocker`), `npm audit fix` (nanoid), happy-dom, eslint.
+  `npm audit`: 0 varování.
 - **Trigonometrie: záložka Obecný trojúhelník** vedle původního pravoúhlého
   (přepínač nahoře, volba se pamatuje). Ze 3 hodnot (aspoň jedna strana)
   řeší SSS, SAS, ASA/AAS i SSA včetně dvou řešení; obsah, obvod, výšky,

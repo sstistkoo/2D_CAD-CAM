@@ -11,19 +11,17 @@ import { initAutoSave } from './storage.js';
 import { getMeta, setMeta, migrateFromLocalStorage } from './idb.js';
 import { bridge } from './bridge.js';
 import { loadFont } from './lib/fontLoader.js';
+import { installErrorReporter } from './errorReport.js';
+import { APP_VERSION } from './constants.js';
 // Geometrické knihovny (Clipper2/Turf/Detect-Collisions) se importují
 // výhradně přes adaptér js/geom/geomCore.js — ne přímo z lib/.
 
 // Preload font pro vektorový text v DXF (na pozadí, nedrží start aplikace)
 loadFont().catch(() => { /* fallback uvnitř export funkce */ });
 
-// ── Globální error handlery ──
-window.addEventListener('error', (e) => {
-  console.error('Neošetřená chyba:', e.error || e.message);
-});
-window.addEventListener('unhandledrejection', (e) => {
-  console.error('Neošetřený promise rejection:', e.reason);
-});
+// ── Globální error handlery: konzole + viditelná lišta „⚠ Něco se pokazilo"
+// s „📋 Zkopírovat pro Clauda" (errorReport.js) ──
+installErrorReporter();
 
 // Side-effect imports — tyto moduly registrují event listenery při načtení
 import './render.js';
@@ -258,7 +256,7 @@ document.addEventListener('click', (e) => {
 });
 
 console.log(
-  "%c SKICA – CAD pro CNC soustružník v1.8.0 (X,Z) ",
+  `%c SKICA – CAD pro CNC soustružník v${APP_VERSION} (X,Z) `,
   "background:#89b4fa;color:#1e1e2e;font-size:18px;font-weight:bold;padding:4px 12px;border-radius:4px;",
 );
 console.log(
