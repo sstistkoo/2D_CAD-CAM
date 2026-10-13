@@ -79,6 +79,19 @@ export function installSimDom() {
   const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)[1];
   document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/gi, '');
 
+  // happy-dom nemá Path2D (výplň úběru materiálu) — cesta si zapisuje
+  // příkazy do `__ops` ([jméno, ...argumenty]).
+  if (typeof globalThis.Path2D === 'undefined') {
+    globalThis.Path2D = window.Path2D = class Path2D {
+      constructor() {
+        const ops = [];
+        return new Proxy(this, {
+          get: (t, k) => (k === '__ops' ? ops : typeof k === 'symbol' ? t[k] : (...a) => { ops.push([k, ...a]); }),
+        });
+      }
+    };
+  }
+
   const ctxOf = new WeakMap();
   HTMLCanvasElement.prototype.getContext = function () {
     if (!ctxOf.has(this)) ctxOf.set(this, recordingContext(this));
