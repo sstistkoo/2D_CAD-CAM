@@ -1,6 +1,7 @@
 # Plán: rozdělení `js/calculators/camSimulator.js`
 
 > Stav 13. 10. 2026: **11 716 ř.**, strop v `tests/file-size-budget.test.js` = 11 712 + 15.
+> Po Fázi 1 (13. 10. odpoledne): **10 972 ř.**, strop 10 972.
 > Schváleno uživatelem jako samostatná práce (CLAUDE.md: refaktoring obřího
 > souboru = vědomé rozhodnutí, ne vedlejší efekt opravy). Pořadí: **od toho,
 > u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
@@ -34,6 +35,21 @@ Simulátor je JEDNA funkce `openCamSimulator`, bloky si sdílejí proměnné př
 
 Provázanost měří `node scripts/sim_coupling.mjs [blok]` (reads / writes /
 fanIn + seznam symbolů). Pouštět před a po každém kroku.
+
+Doplněno ve Fázi 1:
+- **Obal místo rozbalení, když jde o jednu funkci:** `function x(a) { _x(ctx, a); }`
+  zůstane hoisted jako dřív — žádné riziko TDZ. Vlastní stav bloku (`let`
+  debounce, cache…) → **továrna** `createXxx(ctx)` vrátí funkce
+  (`const { x } = createXxx(ctx)` na místě bloku).
+- **TDZ:** `const { x } = …` nahrazuje hoisted funkci → `node scripts/sim_coupling.mjs --sync`
+  ukáže, co se volá synchronně při otevření; nic z toho nesmí vést na `x` dřív,
+  než proběhne řádek s továrnou. Do `ctx` nedávat `const`, který je deklarovaný
+  až NÍŽ (např. `showSidebar` v EVENT WIRING) — předat líně `() => showSidebar()`.
+- **Tělo doslova:** modul vzniká vyříznutím bloku skriptem (odsazení −2,
+  nová hlavička), ne přepisem; po přesunu odebrat importy, které simulátor už
+  nepoužívá (ESLint je nehlásí jako chybu).
+- **Testy nezávislé na generátoru drah** (běží v `test:cad`): vlastní malá
+  kontura/polotovar nebo ručně psaný program místo dráhy z fixture.
 
 ## Testy
 
@@ -102,8 +118,17 @@ symboly jiných bloků; fanIn = kolik bloků sahá na jeho funkce).
 - harness `tests/helpers/simUi.mjs` (otevření nad `tests/fixtures/**/*.camprog`,
   stub canvasu, zavření) + první smoke test `tests/sim-ui-smoke.test.js`.
 
-### Fáze 1 — piloty: malé, skoro nic nepřepisují (~780 ř.)
+### Fáze 1 — piloty: malé, skoro nic nepřepisují (~780 ř.) ✅ 13. 10.
 Účel: zavést vzor `ctx` na místech, kde se nemůže moc pokazit.
+
+Hotovo (11 716 → 10 972 ř., otisk drah shodný u všech 30 fixtures):
+`cam/sim/autoStock.js` (test `sim-ui-auto-stock`), `sendToCanvas.js`
+(`sim-ui-send-to-canvas`, snapshot objektů CAD soustruh + karusel),
+`tangentLineModal.js` (`sim-ui-tangent-line`), `insertSegmentModal.js`
+(`sim-ui-insert-segment`; předtím commit `_pickHandler` → `canvasPick.handler`),
+`collisionWarnings.js` (`sim-ui-collision-warnings`). `cam-insert-isolation`
+nekontroluje `cam/sim/` (UI jako camSimulator.js) a hlídá, že z něj kód drah
+nic neimportuje.
 
 | Blok | ř. | čte | píše | test |
 |---|---|---|---|---|
@@ -156,10 +181,31 @@ Nic nepřepisuje, ale volá ho 13 bloků → test **záznamem volání ctx** nad
 | editor tab, SIMULATION, .camprog, vyvrtávání z plného | 150–240 | | |
 Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak je.
 
+## Nalezené chyby (při stěhování neopravené — opravit zvlášť, po dohodě)
+
+1. **„📐 Kreslit" se neptá.** `addEventListener('click', handleSendToCanvas)`
+   předá objekt události jako `skipConfirm` (pravdivý) → dotaz „Smazat
+   aktuální výkres a vložit konturu z CAM simulátoru?" se nikdy neukáže
+   (tlačítko v liště G-kódu i `to-canvas-edit` v Editoru). Výkres jde vrátit
+   přes ↩ v CAD (pushUndo). Opravit = `() => handleSendToCanvas()`; zeptat se
+   uživatele, jestli dotaz chce.
+2. **🎯 Přebrat souřadnice v režimu Ø (DIAMON).** Obsluha myši
+   (`canvasPick.handler`, CANVAS INTERACTION) přichytává k bodům podle
+   `p.x` (v Ø režimu PRŮMĚR) proti poloměru kurzoru — přichycení míjí;
+   bez přichycení modal „➕ Vložit segment" dostane do pole X (průměr)
+   POLOMĚR, modal „přidat G-kód pohyb" naopak přichycený průměr ještě
+   zdvojí (`ms.x = wx * 2`). V režimu poloměru je vše v pořádku
+   (`sim-ui-insert-segment` proto běží v RADIUS).
+3. **Nesmyslná souřadnice v ⛔ hlášce:** `part-18-parting-90-ramp` hlásí
+   „Držák v kolizi … (N1050, X973417795…)" — `it.x` z validátoru ~5·10⁸.
+   (Zjištěno sondou nad fixtures v harnessu; ⛔ hlášky v UI má i řada
+   dalších fixtures — part-10, 14, 15, 18, 20, 22, 23, 4/6/8/9.)
+
 ## Kontrolní seznam jednoho kroku
 
 1. `node scripts/sim_coupling.mjs "<blok>"` → seznam závislostí do `ctx`;
-   ověřit pasti výš (dosažitelnost z `calculate`, testy vyřezávající funkce).
+   ověřit pasti výš (dosažitelnost z `calculate`, testy vyřezávající funkce,
+   `--sync` u továrny, `cam-insert-isolation` u čtení `toolShape`/`toolAngle`).
 2. `node scripts/cam_fingerprint.mjs --save=pred.json` (ve scratchpadu).
 3. Napsat test bloku, **projde na starém kódu**.
 4. Přestěhovat (jen přesun + `ctx`), v simulátoru import + volání.
@@ -173,4 +219,5 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 - [x] Plán, měřicí skript `scripts/sim_coupling.mjs` (13. 10. 2026)
 - [x] `happy-dom` + `@babel/parser` v devDependencies, zkouška otevření simulátoru (13. 10.)
 - [x] Fáze 0 — harness, háček, první smoke test (13. 10.)
-- [ ] Fáze 1 · [ ] Fáze 2 · [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
+- [x] Fáze 1 — 5 pilotů (13. 10.)
+- [ ] Fáze 2 · [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)

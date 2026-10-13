@@ -9,6 +9,12 @@
 //
 //   node scripts/sim_coupling.mjs                  # tabulka
 //   node scripts/sim_coupling.mjs "params tab"     # + seznam symbolů bloku
+//   node scripts/sim_coupling.mjs --sync           # co se volá SYNCHRONNĚ při otevření
+//
+// --sync: příkazy nejvyšší úrovně openCamSimulator (ne deklarace funkcí)
+// a přímá volání v nich. Před nahrazením hoisted `function x()` za
+// `const { x } = createXxx(ctx)` ověř, že se x (ani nic, co ho volá) nevolá
+// synchronně DŘÍV, než proběhne řádek s továrnou — jinak TDZ ReferenceError.
 //
 // Přibližné: zastínění jmen ve vnořených scopech se nerozlišuje.
 import { readFileSync } from 'fs';
@@ -83,7 +89,24 @@ const rows = [...stats.entries()].filter(([, v]) => v.lines >= 40)
 console.table(rows);
 console.log(`celkem ${lines.length} ř.`);
 
+if (process.argv[2] === '--sync') {
+  const calls = (node, out, inFn) => {
+    if (!node || typeof node !== 'object') return out;
+    if (Array.isArray(node)) { node.forEach(n => calls(n, out, inFn)); return out; }
+    const isFn = /Function/.test(node.type || '');
+    if (node.type === 'CallExpression' && !inFn && node.callee.type === 'Identifier') out.add(node.callee.name);
+    for (const k of Object.keys(node)) if (!SKIP.has(k)) calls(node[k], out, inFn || isFn);
+    return out;
+  };
+  console.log('\nSynchronní volání při otevření (řádek: funkce):');
+  for (const st of body) {
+    if (st.type === 'FunctionDeclaration') continue;
+    const c = [...calls(st, new Set(), false)];
+    if (c.length) console.log(`  ${st.loc.start.line}: ${c.join(', ')}`);
+  }
+}
+
 const want = process.argv[2];
-if (want) for (const [name, v] of stats) if (name.startsWith(want)) {
+if (want && want !== '--sync') for (const [name, v] of stats) if (name.startsWith(want)) {
   console.log(`\n${name}\n  čte:  ${[...v.reads].join(', ')}\n  píše: ${[...v.writes].join(', ')}\n  sahají na něj: ${[...v.fanIn].join(' | ')}`);
 }
