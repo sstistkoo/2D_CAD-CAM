@@ -202,6 +202,12 @@ export function roundInsert(prms) {
     //                              čelem), ne střed. Dřív první vrstva brala
     //                              ap + R (12. 10. 2026, R 10 / ap 4: 9,3 mm)
     faceLayerNoseLead: true,
+    //   faceDescentAtPlungeAngle — čelně: do PLNÉHO materiálu průchod nejde
+    //                              hlouběji než o ap·tan(úhel zanoření) pod dno
+    //                              předchozí vrstvy (pravidlo 6). Kulatý nos by
+    //                              jinak bral plnou šířkou a hrozilo vylomení
+    //                              držáku (uživatel 13. 10. 2026, pod přírubou)
+    faceDescentAtPlungeAngle: true,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──
     //   holderSeatZ  — o kolik nad destičkou sedí spodní hrana NÁHRADNÍHO
     //                  držáku (obdélník, když není nakreslený obrys). Dřív

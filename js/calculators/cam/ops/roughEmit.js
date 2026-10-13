@@ -145,8 +145,26 @@ export function emitRoughing(E) {
   // vzduchem). Měří se proti ZBYTKU: co průchod s dojezdem ubere navíc proti
   // průchodu bez něj — zápich průchodu se do modelu zapíše až na jeho konci.
   // Mez = mez kontroly P5 (scripts/cam_rules_check.mjs): 0,01 mm² na mm.
+  //
+  // MĚŘENÍ SAMO NESTAČÍ (13. 10. 2026): schod mezi vrstvami kulaté R10 má na
+  // rovině i oblouku setiny mm, a to je pod přesností modelu (nos jako
+  // 12úhelník, průhyb 0,086 mm). Dojezd se pak střídal — jeden průchod ho měl,
+  // další ne (part-23 / díl uživatele u S11–S13). Uživatel: „dojezd vždy".
+  // Vynechá se proto jen dojezd, který je ve vzduchu i GEOMETRICKY: vrstva,
+  // ke které stoupá, jela hlouběji než jeho nejnižší bod (k ose), takže schod
+  // nevznikl. Jinak dojezd jede, i když model naměří šum kolem nuly.
+  const faceLeadOutInAir = (pass) => {
+    const lo = pass.contourLeadOut;
+    const zTo = lo[lo.length - 1].z2;
+    const prev = calc.passes.find(q => q.type === 'face' && Math.abs(q.z - zTo) < 1e-3);
+    if (!prev) return false;                       // vrstva vypadla → stojí tam polotovar
+    let minX = pass.xEnd;
+    for (const sg of lo) minX = Math.min(minX, sg.x1, sg.x2);
+    return !prev.blocked || prev.xEnd < minX - 0.05;
+  };
   const faceLeadOutCuts = (pass) => {
     if (!insGc.faceLayerNoseLead || !rapidCutArea) return true;
+    if (!faceLeadOutInAir(pass)) return true;
     const body = [{ x: Math.max(pass.xStart, pass.xEnd), z: pass.z }, { x: pass.xEnd, z: pass.z }];
     const pts = body.slice();
     let len = 0;
@@ -812,7 +830,16 @@ calc.passes.forEach((pass, i) => {
           if (t !== null && (top === null || t > top)) top = t;
         }
         xTrav = top !== null ? Math.min(capX, Math.max(pass.xStart, top + rapidStopX)) : capX;
-        if (travelBlocked(Math.max(xTrav, cur.x))) xTrav = capX;
+        // Lokální strop měří jen svislici pod středem; nos R ale sahá o R do
+        // stran a zavadí o roh, který leží těsně za cílovým Z (klín pod mezní
+        // čarou u čela osazení, part-23 13. 10. 2026). Místo skoku až na strop
+        // nad konturou se vezme nejnižší ověřeně volná výška mezi nimi.
+        if (travelBlocked(Math.max(xTrav, cur.x))) {
+          let free = capX;
+          for (let x = xTrav + 0.5; x < capX; x += 0.5)
+            if (!travelBlocked(Math.max(x, cur.x))) { free = x; break; }
+          xTrav = free;
+        }
       }
       if (xTrav > cur.x + 1e-6) {
         simCounter += 1;
@@ -890,6 +917,22 @@ calc.passes.forEach((pass, i) => {
         const dz = dirZR * (p2.z - cur.z);
         if (dz <= 1e-6 || dz > rDistZ + 1e-6) continue;
         if (p2.xEnd > cur.x + dz * rTan - 0.02) { retractGouges = true; break; }
+      }
+    }
+    // …a po OBROBENÉ PLOŠE K DALŠÍ VRSTVĚ. Kontrola výš vidí sousední průchody
+    // jen do rDistZ (2 mm), vrstvy jsou ale od sebe ap. Stoupá-li dno mezi
+    // koncem tohoto průchodu a koncem vrstvy na straně odskoku stejně strmě
+    // jako odskok, jel by odskok po obrobené ploše zpátky; strměji — zařízl by
+    // se do ní (uživatel 13. 10. 2026: „odskok 45° i zanořování 45° … ať odjede
+    // kolmo nahoru", „i když bude obrobené mít víc jak 45°, ať to vyjede
+    // nahoru"). Typicky schodiště po zanoření (ops/face/plungeDescent.js).
+    if (!retractGouges && rDistZ > 1e-9) {
+      const apR = parseFloat(prms.depthOfCut) || 0;
+      const prevLayer = calc.passes.find(p2 => p2.type === 'face' && Number.isFinite(p2.xEnd)
+        && dirZR * (p2.z - cur.z) > 1e-6 && dirZR * (p2.z - cur.z) <= apR + 1e-3);
+      if (prevLayer) {
+        const rise = (prevLayer.xEnd - cur.x) / Math.abs(prevLayer.z - cur.z);
+        if (rise >= rTan - 1e-3) retractGouges = true;
       }
     }
     // …a pod ROVNÝM DNEM plátku (`flatSpanZ`). Kontrola výš se ptá jen na

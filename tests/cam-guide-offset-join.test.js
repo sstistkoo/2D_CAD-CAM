@@ -37,18 +37,25 @@ describe('offset mezní čáry zanoření — napojení na okolní řetěz', () 
     line(40.556, 194.509, 17.144, 194.509),
   ];
 
-  it('napojí se přesně tam, kde se offsety kříží', () => {
+  // ZMĚNA 13. 10. 2026 (uživatel, S5: „dobrat jenom ten kousek s tím
+  // zanořením 45°"). Dřív se řetěz napojil na offset čela (38,234 @ Z194,509)
+  // — ale za tím průsečíkem jde řetěz po čele dolů, tedy POD mez, a klín mezi
+  // posledním průchodem a koncem čáry zůstal stát. Teď jde po čáře až na její
+  // konec; pod ním tu řetěz už není (krček chybí), takže tam skončí.
+  it('jde po mezní čáře až na její konec, ne na průsečík s offsetem čela', () => {
     const l = guideOffsetLine(guide, 10 + 0.4, 10 + 0.5);
-    const res = joinChainToGuideOffset(roughChain(), l, 10.5);
+    // Čelní hrubování (`endBeyondChain`) — podélně se za konec řetězu nejde.
+    const res = joinChainToGuideOffset(roughChain(), l, 10.5, { endBeyondChain: true });
     expect(res).not.toBeNull();
-    // Body, které uživatel ukázal na fotkách (a nasnapoval v aplikaci).
+    // Horní napojení = body, které uživatel ukázal na fotkách 17. 9. 2026.
     expect(near(res.from.x, 60.481)).toBe(true);
     expect(near(res.from.z, 216.756)).toBe(true);
-    expect(near(res.to.x, 38.234)).toBe(true);
-    expect(near(res.to.z, 194.509)).toBe(true);
-    // Řetěz je spojitý: vodorovně → po mezní čáře → dál dolů.
+    expect(near(res.to.x, l.p2.x)).toBe(true);
+    expect(near(res.to.z, l.p2.z)).toBe(true);
+    expect(res.to.z).toBeLessThan(194.509);
+    // Řetěz je spojitý: vodorovně → po mezní čáře až na konec.
     const c = res.chain;
-    expect(c.length).toBe(3);
+    expect(c.length).toBe(2);
     expect(c[1].fromGuideOffset).toBe(true);
     for (let i = 1; i < c.length; i++) {
       expect(near(c[i].p1.x, c[i - 1].p2.x)).toBe(true);
@@ -98,10 +105,14 @@ describe('offset mezní čáry zanoření — napojení na okolní řetěz', () 
     const g = { x1: 21.566, z1: -9, x2: 30.566, z2: 0 };
     const l = guideOffsetLine(g, 10.4, 10.5);
     const chain = [line(40.966, 9.503, 40.966, -10.5), line(40.966, -10.5, 0, -10.5)];
-    const res = joinChainToGuideOffset(chain, l, 10.5);
+    const res = joinChainToGuideOffset(chain, l, 10.5, { endBeyondChain: true });
     expect(res).not.toBeNull();
     expect(near(res.from.x, 40.966)).toBe(true);
-    expect(near(res.to.z, -10.5)).toBe(true);
+    // Od 13. 10. 2026 (uživatel, S25) až na konec čáry za offsetem čela —
+    // offset čela pod čarou je pod mezí zanoření a z řetězu zmizí.
+    expect(near(res.to.x, l.p2.x)).toBe(true);
+    expect(near(res.to.z, l.p2.z)).toBe(true);
+    expect(res.chain.some(sg => Math.abs(sg.p1.z + 10.5) < 1e-6 && Math.abs(sg.p2.z + 10.5) < 1e-6)).toBe(false);
   });
 
   it('bez napojení jde řetěz po čáře a pak KOLMO DOLŮ', () => {

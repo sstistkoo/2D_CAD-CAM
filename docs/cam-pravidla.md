@@ -67,6 +67,11 @@ Kolmo jen tehdy, když je v nastavení kolmo (90°).**
   je v nastavení cokoli. Materiál, kam by musela sáhnout spodní hrana,
   zůstane stát a nahlásí se.
 - **Kulatá:** přednastaveno 45°; smí i kolmo, pokud je tak nastaveno.
+- **Čelně (kulatá)** — upřesnění uživatele 13. 10. 2026: krok do strany je ap,
+  takže i do plného materiálu jde průchod nejvýš o ap·tan(úhel zanoření) pod
+  dno předchozí vrstvy (při 45° o ap) a další zase o ap níž — ne kolmo, jinak
+  hrozí vylomení držáku s plátkem. Kde je vedle vzduch (čelo, osa, za koncem
+  polotovaru), mez neplatí. `cam/ops/face/plungeDescent.js`.
 - **Upichovák:** kolmo (to je jeho normální zanoření).
 - Rampa nikdy nevezme víc než jednu vrstvu (ap) — viz pravidlo 3.
 

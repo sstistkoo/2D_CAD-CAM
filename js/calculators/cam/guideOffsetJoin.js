@@ -241,7 +241,7 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
   const ux = dx / L, uz = dz / L;
   const along = (p) => (p.x - A.x) * ux + (p.z - A.z) * uz;   // 0 = A, L = B
   const sideOf = (p) => (p.x - A.x) * line.n.x + (p.z - A.z) * line.n.z;
-  const { contour = null, minDist = 0 } = guard;
+  const { contour = null, minDist = 0, endBeyondChain = false } = guard;
 
   const hits = [];
   for (let i = 0; i < chain.length; i++) {
@@ -304,6 +304,47 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
    * leží POD mezí zanoření a generovaly by se z toho dráhy, které ji
    * podjíždějí.
    */
+  /**
+   * KONEC ČÁRY ZA KONCEM ŘETĚZU. Mezní čára od konce dílu (čelo na Z 0) jde
+   * až na hranu polotovaru za ním, ale řetěz končí offsetem čela — pod koncem
+   * čáry žádný segment není a kolmý dojezd nemá kam. Řetěz pak skončí na
+   * konci offsetu čáry; to, co za kotvou zbývalo (offset čela, kus pod mezí),
+   * se zahodí. Bez toho dráhy u S25 skončily na offsetu čela a roh polotovaru
+   * za koncem dílu zůstal „od nože" (uživatel 13. 10. 2026).
+   * Jen když konec čáry opravdu leží ZA rozsahem zbytku řetězu v Z, a jen
+   * na vyžádání (`endBeyondChain` — čelní hrubování): podélný řetěz ramp by
+   * po takovém offsetu sjel za konec polotovaru posuvem vzduchem (pravidlo 5,
+   * tests/cam-plunge-chain-continuous). Čelně vrstvy za koncem hlídá dotyk nosu.
+   */
+  const buildEndAtE = () => {
+    if (!endBeyondChain) return null;
+    const E = line.p2;
+    let zMin = Infinity, zMax = -Infinity, end = chain.length;
+    for (let i = first.i; i < chain.length; i++) {
+      if (i > first.i && chain[i] && chain[i].chainBreak) { end = i; break; }
+      const seg = chain[i];
+      if (!seg || seg.isDegenerate) continue;
+      for (const t of [i === first.i ? first.t : 0, 0.5, 1]) {
+        const p = pointAt(seg, t);
+        zMin = Math.min(zMin, p.z); zMax = Math.max(zMax, p.z);
+      }
+    }
+    if (!(E.z < zMin - MIN_BRIDGE || E.z > zMax + MIN_BRIDGE)) return null;
+    if (Math.hypot(E.x - first.pt.x, E.z - first.pt.z) < MIN_BRIDGE) return null;
+    if (!bridgeClears(first.pt, E, contour, minDist)) return null;
+    const out = chain.slice(0, first.i);
+    const head = cloneSeg(chain[first.i]);
+    setSegEnd(head, first.pt);
+    const headGone = segTooShort(head);
+    if (!headGone) out.push(head);
+    out.push({
+      type: 'line', p1: { ...first.pt }, p2: { x: E.x, z: E.z }, fromGuideOffset: true,
+      ...(chain[first.i].chainBreak && headGone ? { chainBreak: true } : {}),
+    });
+    out.push(...chain.slice(end));
+    return { chain: out, from: first.pt, to: { x: E.x, z: E.z } };
+  };
+
   const buildDrop = () => {
     const E = line.p2;                         // offset konce mezní čáry
     if (Math.hypot(E.x - first.pt.x, E.z - first.pt.z) < MIN_BRIDGE) return null;
@@ -318,7 +359,7 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
         if (!best || h.pt.x > best.pt.x) best = { i, t: h.t, pt: h.pt };
       }
     }
-    if (!best) return null;
+    if (!best) return buildEndAtE();
     // Obě části náhrady musí zůstat od dílu dál než (R + menší přídavek).
     if (!bridgeClears(first.pt, E, contour, minDist)) return null;
     if (!bridgeClears(E, best.pt, contour, minDist)) return null;
@@ -360,10 +401,40 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
   //    uživatele 25. 9. 2026: „proč se to pořád předělává na konturu … mělo
   //    by to dělat u každého rádiusu"). Krátké napojení zůstává, kde dojezd
   //    nejde (roh u čela, mělký důlek).
+  //    NAPOJENÍ, ZA KTERÝM ŘETĚZ ZAJEDE POD MEZ, MÁ PŘEDNOST AŽ PO DOJEZDU.
+  //    Když čára vede PŘED čelem osazení, protne ji offset toho čela ještě
+  //    uprostřed čáry — a řetěz za průsečíkem pokračuje po čele dolů, tedy
+  //    POD mezí zanoření. Dráhy pak u čela skončily a klín mezi posledním
+  //    průchodem a koncem čáry zůstal stát (uživatel 13. 10. 2026, S5:
+  //    „dobrat jenom ten kousek s tím zanořením 45°", jako se to dojede u
+  //    S14, kde čára vede nad údolím a napojí se dojezdem). Takové napojení
+  //    se použije, jen když dojezd nejde (pod koncem čáry už řetěz není).
   const inWindow = hits.slice(1).filter(h => h.s <= L + maxExtend);
   const isFar = (h) => h.s > first.s + maxExtend;
+  // Řetěz za průsečíkem se sleduje, dokud je v rozsahu čáry (za jejím koncem
+  // už mez neplatí) — pod mez může zajet až o úsek dál (svislý kus offsetu
+  // ploché části, pak teprve čelo).
+  const divesUnder = (h) => {
+    for (let i = h.i; i < chain.length; i++) {
+      const seg = chain[i];
+      if (!seg || seg.isDegenerate) continue;
+      if (i > h.i && seg.chainBreak) return false;
+      const t0 = i === h.i ? h.t : 0;
+      let inSpan = false;
+      for (let k = 1; k <= DIP_SAMPLES; k++) {
+        const p = pointAt(seg, t0 + (1 - t0) * (k / DIP_SAMPLES));
+        if (along(p) >= L - MIN_BRIDGE) continue;
+        inSpan = true;
+        if (sideOf(p) < -MIN_DIP) return true;
+      }
+      if (!inSpan && i > h.i) return false;
+    }
+    return false;
+  };
+  let divingFar = null;
   for (let k = inWindow.length - 1; k >= 0; k--) {
     if (!isFar(inWindow[k])) continue;
+    if (divesUnder(inWindow[k])) { if (!divingFar) divingFar = inWindow[k]; continue; }
     const res = build(inWindow[k]);
     if (res) return res;
   }
@@ -376,6 +447,10 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
   //    mez zanoření) a offsetové čáry POD mezí se z řetězu vyhodí.
   const drop = buildDrop();
   if (drop) return drop;
+  if (divingFar) {
+    const res = build(divingFar);
+    if (res) return res;
+  }
   // 3) Krátké napojení u kotvy.
   for (let k = inWindow.length - 1; k >= 0; k--) {
     if (isFar(inWindow[k])) continue;
@@ -397,9 +472,11 @@ export function joinChainToGuideOffset(chain, line, maxExtend, guard = {}) {
  * @param {number} offZ posun v ose Z
  * @param {string} store klíč, pod který se uloží napojená čára
  * @param {Array} [contour] kontura pro pojistku proti zajetí do dílu
+ * @param {{endBeyondChain?: boolean}} [opts] čelně: čára smí vést řetěz až na
+ *   svůj konec i za koncem řetězu (viz `buildEndAtE`)
  * @returns {Array} nový řetěz (nebo původní, když se nenapojilo nic)
  */
-export function joinPlungeGuideOffsets(chain, guides, offX, offZ, store, contour = null) {
+export function joinPlungeGuideOffsets(chain, guides, offX, offZ, store, contour = null, opts = {}) {
   let out = chain;
   // Náhrada smí dílu přijít nejvýš na (R + menší z přídavků); menší proto, že
   // po složkách se offset posouvá v X o `offX` a v Z o `offZ` a přísnější
@@ -414,7 +491,7 @@ export function joinPlungeGuideOffsets(chain, guides, offX, offZ, store, contour
     // Okolí nakreslené čáry pro 1. stupeň: o velikost samotného offsetu —
     // o tolik totiž offset zaoblí roh, u kterého mezní čára kotví.
     const res = joinChainToGuideOffset(out, line, Math.max(offX, offZ) + MIN_BRIDGE,
-      { contour, minDist });
+      { contour, minDist, endBeyondChain: !!opts.endBeyondChain });
     if (!res) continue;
     out = res.chain;
     g[store] = { p1: { ...res.from }, p2: { ...res.to } };

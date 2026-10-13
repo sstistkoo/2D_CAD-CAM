@@ -9,7 +9,7 @@ import { bridge } from '../../bridge.js';
 import { topXOnLoop, _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
 import { getEffectivePlungeAngle } from './camMath.js';
 import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getPlungeGuardRange, getToolClearanceRange, markDominatedGuides, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
-import { buildRawOffsets } from './toolOffset.js';
+import { buildRawOffsets, isOuterArc } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
 import { pathTimeSeconds } from './feedRates.js';
 import { computeInterferenceGuides } from './interferenceGuides.js';
@@ -174,7 +174,6 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   const allowanceX = parseFloat(prms.allowanceX) || 0;
   const allowanceZ = parseFloat(prms.allowanceZ) || 0;
   const finishAllowance = parseFloat(prms.finishAllowance) || 0;
-  const totalOffset = tipR + Math.max(allowanceX, allowanceZ) + finishAllowance;
   const retractDist = parseFloat(prms.retractDistance) || 2.0;
 
   let contourSegments = [];
@@ -202,8 +201,15 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     } else if (type === 'G2' || type === 'G3') {
       const arc = getArcParams({ x: p1.xReal, z: p1.zReal }, { x: p2.xReal, z: p2.zReal }, p2.rVal, type);
       if (arc.error) foundErrors.push(`Řádek ${i + 2}: Rádius R${p2.r} je příliš malý.`);
+      // Nevejde se jen do DUTÉHO zaoblení menšího než R plátku. Vypuklý roh
+      // plátek objede při jakémkoli rádiusu a přídavek tu nehraje roli
+      // (hotovní dráha jede v R plátku; dutý R = R plátku se vejde přesně).
+      // Dřív se hlásil každý oblouk < R + přídavky — na part-22/23 tak
+      // „kolidovaly" vypuklé hrany R 6 a dutá R 10 kulatou R 10 (13. 10. 2026).
       // Vrták (canDrill) konturu neobjíždí — jeho ⌀/2 není rádius špičky.
-      else if (arc.r < totalOffset && !getInsert(prms).canDrill) foundErrors.push(`KOLIZE (Řádek ${i + 2}): Rádius kontury menší než nástroj.`);
+      else if (arc.r < tipR - 1e-3 && !getInsert(prms).canDrill
+        && !isOuterArc({ ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type }))
+        foundErrors.push(`KOLIZE (Řádek ${i + 2}): Rádius kontury menší než nástroj.`);
       const startAngle = Math.atan2(p1.xReal - arc.cx, p1.zReal - arc.cz);
       const endAngle = Math.atan2(p2.xReal - arc.cx, p2.zReal - arc.cz);
       contourSegments.push({ type: 'arc', ...arc, p1: { x: p1.xReal, z: p1.zReal }, p2: { x: p2.xReal, z: p2.zReal }, dir: type, startAngle, endAngle, origIdx: i + 1 });
@@ -469,13 +475,15 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     const pgs = ins.plungeGuideJoinsOffset
       ? interferenceGuides.filter(g => g.plungeLimit && !g._dominated)
       : [];
+    const endBeyondChain = getRoughingOperations(S)
+      .some(op => !!(ROUGHING_STRATEGIES[op.kind] || {}).guideEndBeyondChain);
     if (pgs.length > 0 && tipR > 0) {
       offsetPath = joinPlungeGuideOffsets(offsetPath, pgs,
         tipR + allowanceX + finishAllowance, tipR + allowanceZ + finishAllowance,
-        'offRough', contourSegments);
+        'offRough', contourSegments, { endBeyondChain });
       if (finishRefPath.length > 0)
         finishRefPath = joinPlungeGuideOffsets(finishRefPath, pgs, tipR, tipR,
-          'offFinish', contourSegments);
+          'offFinish', contourSegments, { endBeyondChain });
     }
   }
 

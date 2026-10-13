@@ -215,7 +215,15 @@ const holderGuardFace = (report) => {
       // následující průchod po offsetové čáře.
       const roAir = p.runOut && p.xEnd >= xTouchAt(p.z) - 0.01;
       if (drop.has(p) || roAir) stair.push({ ...entry, raw: true });
-      else if (!p.contourLeadOut) stair.push({ ...entry, x: p.xEnd });
+      // Dno nad povrchem polotovaru není schod: průchod, který skončil
+      // středem nosu NAD plánovacím obrysem (zkrácený zanořením, ops/face/
+      // plungeDescent.js), pod sebou materiál výš než ten obrys nenechal.
+      // Bez toho držák viděl falešnou stěnu a celý krček za ní držel výš
+      // (part-18 13. 10. 2026: +155 mm² zbytku).
+      else if (!p.contourLeadOut) {
+        const top = planLoopFC ? topXOnLoop(planLoopFC, p.z) : null;
+        stair.push({ ...entry, x: top !== null ? Math.min(p.xEnd, top) : p.xEnd });
+      }
     }
     if (drop.size > 0) {
       for (let i = passes.length - 1; i >= 0; i--) if (drop.has(passes[i])) passes.splice(i, 1);

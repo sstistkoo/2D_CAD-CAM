@@ -73,6 +73,7 @@ export function drillInsert(prms) {
     finishRampFromContact: false,
     leadOutTrimNoseCircle: false,
     faceLayerNoseLead: false,   // viz round.js
+    faceDescentAtPlungeAngle: false,   // viz round.js
     footprintChordTol: 0,
     // Náhradní držák (sklíčidlo) začíná na konci vyložení.
     holderSeatZ: L,

@@ -295,8 +295,13 @@ describe('CAM: nájezd a výjezd dokončování', () => {
       // část v finishOffsetPath a odříznutý cíp v finishUnreachablePath se
       // shodným středem i poloměrem. Nově musí být oblouk buď celý obrobený,
       // nebo celý nedosažitelný — taková dvojice tedy nesmí existovat.
+      // VÝJIMKA: strmý kus pravidla 15 (`belowPlunge`, ops/finishSteep.js).
+      // Tam se oblouk dělí ZÁMĚRNĚ v místě, kde začne klesat strměji než úhel
+      // zanoření (schválený příklad v docs/cam-pravidla.md: CR=20 končí na
+      // 133,6°) a dál jede rovný průměr. „Celý, nebo vůbec" platí pro dosah
+      // destičky a držáku, ne pro tuhle mez (part-23, 13. 10. 2026).
       const cut = calc.finishOffsetPath.filter(s => s.type === 'arc' && !s.isDegenerate);
-      const skip = calc.finishUnreachablePath.filter(s => s.type === 'arc');
+      const skip = calc.finishUnreachablePath.filter(s => s.type === 'arc' && !s.belowPlunge);
       const split = cut.filter(a => skip.some(b =>
         Math.hypot(a.cx - b.cx, a.cz - b.cz) < 1e-6 && Math.abs(a.r - b.r) < 1e-6));
       expect(split.map(a => `${name}: c(${a.cx.toFixed(2)},${a.cz.toFixed(2)}) r=${a.r.toFixed(2)}`)).toEqual([]);

@@ -48,18 +48,10 @@ const warningList = (errors) => errors.map(e => (typeof e === 'string' ? `HARD: 
 
 // Hlášení, která fixture vydává ZÁMĚRNĚ (vlastnost zadání, ne rozbitý pipeline).
 // Nepatří sem nic, co jde spravit v kódu — jen fakta o dílu/nástroji.
-const EXPECTED_HARD = {
-  // R 8 mm do zaoblení R 6 mm se nevejde. Fixture je tu kvůli velkému
-  // rádiusu nosu (viz tests/cam-face-tip-radius.test.js), ne kvůli tomuhle.
-  'part-18-face-big-radius.camprog': ['Rádius kontury menší než nástroj'],
-  // Týž díl PODÉLNĚ a s KULATOU destičkou R 10: do vnitřních zaoblení R 6
-  // (a přesně na R 10) se nos nevejde. Vlastnost zadání — fixture je tu kvůli
-  // mezní čáře zanoření u kulaté destičky a kvůli `ap` měřenému od BŘITU.
-  'part-22-round-r10.camprog': ['Rádius kontury menší než nástroj'],
-  // Čelně kulatá R 10 do zaoblení R 6 se nevejde — vlastnost zadání. Fixture je
-  // tu kvůli přejezdům a dojezdu u příruby s krčkem (tests/cam-face-neck-travel.test.js).
-  'part-23-face-neck-round-r10.camprog': ['Rádius kontury menší než nástroj'],
-};
+// (Dřív tu byly part-18/22/23 s „R 8/R 10 do zaoblení R 6 se nevejde" — ty
+// R 6 jsou ale VYPUKLÉ hrany, plátek je objede. Hlášení bylo planým poplachem
+// kontroly v calculatePipeline.js, opraveno 13. 10. 2026.)
+const EXPECTED_HARD = {};
 
 describe('CAM pipeline regrese (G-kód + struktura)', () => {
   it('nalezeny fixtures', () => {

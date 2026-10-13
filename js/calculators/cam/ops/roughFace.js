@@ -9,6 +9,7 @@ import { guardInsertFace } from './face/insertGuard.js';
 import { makeEnforceLayerDepth } from './face/layerDepth.js';
 import { makeRegionRunOut } from './face/regionRunOut.js';
 import { makeHolderGuardFace } from './face/holderGuard.js';
+import { makeFaceDescentLimit } from './face/plungeDescent.js';
 import { faceZs, dropLeadOutOverGap } from './face/leadOutOverGap.js';
 
 export function genFacePasses(ctx) {
@@ -169,6 +170,23 @@ export function genFacePasses(ctx) {
   // jen bez vůle a na obě strany. Programovaný bod je střed nosu, takže mez
   // leží o rádius NAD povrchem — porovnávat konec řezu se samotným povrchem
   // (natož s jmenovitým sRad) je záměna soustav.
+  // Zóna za koncem polotovaru (zprava za nejnižším Z) — viz marchování níž.
+  // Jen s předstihem nosu (kulatá) a jen u odlitku: u válce `castingOuterOrNull`
+  // vrací všude jmenovitý poloměr a konec materiálu by nebyl poznat.
+  const endZoneF = (noseLeadF > 0 && prms.roughingSide !== 'left' && stockZLo !== null) ? noseLeadF : 0;
+  const inEndZone = (z) => endZoneF > 0 && z < stockZLo - 1e-6;
+  // Dotyk nosu v zóně: jen proti polotovaru, který OPRAVDU je (za koncem nic
+  // nestojí — jmenovité sRad by z prázdna udělalo stěnu).
+  const endZoneTouchAt = (z) => {
+    let m = -Infinity;
+    for (let i = 0; i <= 16; i++) {
+      const dz = rTipFC * (i / 8) - rTipFC;
+      const v = castingOuterOrNull(z + dz);
+      if (v === null) continue;
+      m = Math.max(m, v + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz)));
+    }
+    return m;
+  };
   const xTouchAt = (z) => {
     let m = castingOuterAtZ(z) + rTipFC;
     const n = 8;
@@ -296,7 +314,13 @@ export function genFacePasses(ctx) {
     if (sgnF * (z - faceEdgeZ) >= -0.01 - noseLeadF) zListAll.push(z);
   }
   if (!faceLeft) {
-    for (let z = faceStartZ - step; z >= marchEndZ - faceRunOut - 0.01; z -= step) zListAll.push(z);
+    // ZA KONCEM POLOTOVARU (jen s předstihem nosu = kulatá): nos je kruh R
+    // a bokem bere roh polotovaru ještě se středem až R za jeho koncem. Bez
+    // téhle zóny vrstvy skončily na konci polotovaru a jeho roh nad mezní čarou
+    // zanoření zůstal stát „od nože" (uživatel 13. 10. 2026, S25). Jestli
+    // průchod v zóně opravdu něco ubere, rozhoduje dotyk nosu (`endZoneTouchAt`).
+    const endZ = endZoneF > 0 ? Math.min(marchEndZ - faceRunOut, stockZLo - endZoneF) : marchEndZ - faceRunOut;
+    for (let z = faceStartZ - step; z >= endZ - 0.01; z -= step) zListAll.push(z);
   } else {
     for (let z = marchEndZ + step; z <= faceStartZ + faceRunOut + 0.01; z += step) zListAll.push(z);
   }
@@ -456,8 +480,8 @@ export function genFacePasses(ctx) {
     });
     xsEnd.sort((a, b) => a - b);
     // Per-Z casting outer (pro casting). Pro cylinder = sRad konstantní.
-    const xSurface = castingOuterAtZ(currentZ);
-    const xTouch = xTouchAt(currentZ);
+    const xSurface = inEndZone(currentZ) ? castingOuterAtZ(stockZLo) : castingOuterAtZ(currentZ);
+    const xTouch = inEndZone(currentZ) ? endZoneTouchAt(currentZ) : xTouchAt(currentZ);
     let xEnd;
     let xEndBlocked = false;
     if (xsEnd.length > 0) {
@@ -577,6 +601,15 @@ export function genFacePasses(ctx) {
     offsetXAt, castingOuterOrNull, clrXFC, planLoopFC });
   const runOutAdded = appendRegionRunOut();
   if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.` });
+  // Zanoření do plného materiálu nejvýš o ap pod úhlem zanoření — viz
+  // ops/face/plungeDescent.js. Před držákem i za ním: obě hlídání hloubku jen
+  // zvedají a držák musí vidět konečná dna (schodiště), jinak by počítal
+  // s hlubšími, než jaká po zvednutí zůstanou.
+  const limitDescent = makeFaceDescentLimit({
+    prms, ins, passes, foundErrors, zList, xTouchAt, castingOuterOrNull, faceOffsetOut });
+  limitDescent(false);
+  holderGuardFace(false);
+  limitDescent(true);
   holderGuardFace(true);
   enforceLayerDepth();
   // Dojezd do mezery po vyhozeném průchodu by jel do neobrobeného materiálu.

@@ -104,6 +104,7 @@ export function partingInsert(prms) {
     finishRampFromContact: false,
     leadOutTrimNoseCircle: false,
     faceLayerNoseLead: false,   // viz round.js
+    faceDescentAtPlungeAngle: false,   // viz round.js
     // Průhyb tětivy nosu v modelu úběru — jen kulatá (viz round.js).
     footprintChordTol: 0,
     // ── DŘÍV SDÍLENÝ KÓD, TEĎ VLASTNÍ HODNOTA PLÁTKU (audit 23. 9. 2026) ──

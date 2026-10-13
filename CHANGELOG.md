@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM čelně, kulatá: do plného materiálu pod úhlem zanoření, ne kolmo.**
+  Průchod jde do plného materiálu nejvýš o ap·tan(úhel zanoření) pod dno
+  předchozí vrstvy (při 45° o ap), další zase o ap níž (pravidlo 6). Dřív pod
+  přírubou sjel z X32,3 rovnou na X22,8 a bral plnou šířkou nosu — hrozilo
+  vylomení držáku. `ops/face/plungeDescent.js`, klíč `faceDescentAtPlungeAngle`.
+  Hlídání držáku bere dno průchodu nejvýš na plánovacím obrysu polotovaru
+  (zkrácený průchod nad polotovarem nedělá falešnou stěnu).
+- **CAM čelně: odskok nejede po obrobené ploše ani do ní.** Když obrobené dno
+  mezi koncem průchodu a další vrstvou na straně odskoku stoupá stejně strmě
+  jako odskok (45° odskok po 45° schodišti zanoření) nebo strměji, odjede se
+  kolmo „Výjezd v X". Dřív to kontrola viděla jen do vzdálenosti odskoku
+  (2 mm), vrstvy jsou ale od sebe ap (`roughEmit.js`).
+- **CAM čelně, kulatá: dojezd „bez schodků" vždy.** Vynechá se jen dojezd,
+  který je geometricky ve vzduchu (vrstva, ke které stoupá, jela hlouběji);
+  dřív rozhodovalo jen měření úběru a na schodu 0,04 mm se dojezd střídal.
+- **CAM čelně, kulatá: S25 — 45° až za konec polotovaru.** Mezní čára od konce
+  dílu vede dráhu až na svůj konec i za offsetem čela a vrstvy pokračují nejvýš
+  o R za konec polotovaru, dokud nos bokem bere jeho roh.
+- **CAM čelně, kulatá: 45° průchody před čelem osazení dojedou na konec mezní
+  čáry (S5).** Mezní čára zanoření vedla před čelem příruby až na hranu
+  polotovaru, ale offset čela ji protnul uprostřed a dráha za průsečíkem
+  pokračovala POD mez — průchody skončily u čela a klín polotovaru „od nože"
+  zůstal stát. Napojení, za kterým řetěz zajede pod mez, má teď přednost až po
+  dojezdu „po čáře na konec a kolmo dolů" (`guideOffsetJoin.js`, jen kulatá).
+  Díl uživatele: −166 mm² zbytku, 0 kolizí; uvolnilo to i několik průchodů pod
+  přírubou. Přejezd v Z, kterému lokální strop nestačí (nos R sahá do stran),
+  hledá nejnižší volnou výšku místo skoku na strop nad konturou (`roughEmit.js`).
+- **CAM: planá „KOLIZE: Rádius kontury menší než nástroj".** Kontrola hlásila
+  každý oblouk menší než R plátku + přídavky — i vypuklé hrany (plátek je jen
+  objede) a dutá zaoblení přesně v R plátku. Nově jen DUTÉ zaoblení menší než
+  R plátku (`isOuterArc` v `cam/toolOffset.js`, táž geometrie jako offset).
+  Dráhy beze změny (otisk shodný u všech fixtures); mizí 6 hlášení na part-22/23
+  a 2 na part-18. Test „oblouk jen z půlky" už nepočítá strmý kus pravidla 15
+  (`belowPlunge`) — tam se oblouk dělí záměrně.
 - **CAM: 🔄 Dráhy × ✂ Po úsecích v náhledu Celý program.** U programu z úseků
   je vidět buď jedno, nebo druhé podle hrubování v panelu. Po úsecích se
   čelně neukazuje (úseky nemá, klik končil chybou). Čelně je místo něj

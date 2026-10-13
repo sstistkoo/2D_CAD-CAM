@@ -29,6 +29,9 @@ export { genFacePasses, genLongPasses };
 // hrubování má jedinou cestu — genLongPasses s booleovskými intervaly.
 export const ROUGHING_STRATEGIES = {
   longitudinal: { genPasses: genLongPasses, label: 'PODELNE' },
-  face: { genPasses: genFacePasses, label: 'CELNI' },
+  // guideEndBeyondChain — offset mezní čáry zanoření smí vést až na konec čáry
+  // i za koncem řetězu (S25, guideOffsetJoin.js). Jen čelně: vrstvy za koncem
+  // polotovaru tam hlídá dotyk nosu, podélný řetěz ramp by jel vzduchem.
+  face: { genPasses: genFacePasses, label: 'CELNI', guideEndBeyondChain: true },
   backside: { genPasses: genLongPasses, label: 'PODELNE ZLEVA' },
 };

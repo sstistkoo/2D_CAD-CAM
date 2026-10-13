@@ -21,6 +21,28 @@
 
 import { fitArcsToPolyline, getNormal } from './camMath.js';
 
+/** Úhly začátku a konce oblouku rozvinuté podle G2/G3 (konec za začátkem ve směru `dir`). */
+function arcSweep(seg) {
+  const sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
+  let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
+  if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+  if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+  return [sA, eA];
+}
+
+/**
+ * Vypuklý (OUTER) oblouk kontury — střed kružnice leží v materiálu, plátek
+ * ho objíždí zvenku a vejde se k němu jakýkoli rádius. Dutý (INNER) oblouk
+ * je zaoblení v osazení: plátek se do něj vejde, jen když R plátku ≤ R oblouku.
+ * Rozhoduje geometrie, ne G2/G3 ani směr průchodu (viz komentář v buildRawOffsets).
+ */
+export function isOuterArc(seg) {
+  const [sA, eA] = arcSweep(seg);
+  const midArcX = seg.cx + Math.sin((sA + eA) / 2) * seg.r;
+  const midAbsX = Math.abs(Number.isFinite(midArcX) ? midArcX : (seg.p1.x + seg.p2.x) / 2);
+  return Math.abs(seg.cx) < midAbsX;
+}
+
 /**
  * Offset segmentů kontury o (tipR + přídavek) na stranu vzduchu.
  *
@@ -74,14 +96,8 @@ export function buildRawOffsets(contourSegments, tipR, aX, aZ, fin) {
       // je), ne ke straně odsazení: `reverseSeg` prohazuje start↔konec A
       // překlápí G2↔G3 zároveň, takže střed oblouku vyjde stejně v obou
       // směrech průchodu. Autodetekce zůstává nezávislá na směru jízdy.
-      let sA = Math.atan2(seg.p1.x - seg.cx, seg.p1.z - seg.cz);
-      let eA = Math.atan2(seg.p2.x - seg.cx, seg.p2.z - seg.cz);
-      if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
-      if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
-      const midArcX = seg.cx + Math.sin((sA + eA) / 2) * seg.r;
-      const midAbsX = Math.abs(Number.isFinite(midArcX) ? midArcX : (seg.p1.x + seg.p2.x) / 2);
-      const centerAbsX = Math.abs(seg.cx);
-      const isOuter = centerAbsX < midAbsX;
+      const [sA, eA] = arcSweep(seg);
+      const isOuter = isOuterArc(seg);
       // Per-axis offset stejně jako u úseček: bod oblouku s normálou
       // (sin a, cos a) se posouvá o (R+aX) v X a (R+aZ) v Z → poloosy.
       const rx = isOuter ? seg.r + tipR + aX + fin : seg.r - (tipR + aX + fin);

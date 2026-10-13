@@ -52,11 +52,10 @@ function pipelineSummary(calc) {
 
 // Hlášení, která fixture vydává ZÁMĚRNĚ (vlastnost zadání, ne rozbitý pipeline).
 // Nepatří sem nic, co jde spravit v kódu — jen fakta o dílu/nástroji.
-const EXPECTED_HARD = {
-  // R 8 mm do zaoblení R 6 mm se nevejde. Fixture je tu kvůli velkému
-  // rádiusu nosu (viz tests/cam-face-tip-radius.test.js), ne kvůli tomuhle.
-  'part-18-face-big-radius.camprog': ['Rádius kontury menší než nástroj'],
-};
+// (Dřív tu byly part-18/22/23 s „R 8/R 10 do zaoblení R 6 se nevejde" — ty
+// R 6 jsou ale VYPUKLÉ hrany, plátek je objede. Hlášení bylo planým poplachem
+// kontroly v calculatePipeline.js, opraveno 13. 10. 2026.)
+const EXPECTED_HARD = {};
 
 describe('CAM booleovská hrubovací větev — regrese (booleanRoughing=on)', () => {
   // POJISTKA PROTI NÁVRATU DUPLICITY. Když se u některé fixture příznak
