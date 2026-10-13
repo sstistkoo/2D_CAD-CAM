@@ -8,42 +8,24 @@
 // podmínka „ne vnitřek oblouku". Klik doprostřed oblouku pak buď nenašel nic,
 // nebo označil SOUSEDNÍ úsečku (nález uživatele: „na G2/G3 se nic neděje").
 //
-// Funkce žije v closure `openCamSimulator`, takže se sem — stejně jako
-// v `scripts/cam_debug.mjs` — vyřízne ze zdroje a spustí nad stubem
-// (skutečný simPath z fixture, umělá projekce plátna). Kdyby se přejmenovala
-// nebo přesunula, test spadne na chybějící kotvě, ne tiše.
+// Funkce žije v `cam/sim/gcodeNodes.js` (do 13. 10. 2026 v closure
+// `openCamSimulator`, odkud se sem vyřezávala ze zdroje) — spustí se nad
+// stubem (skutečný simPath z fixture, umělá projekce plátna).
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { tmpdir } from 'os';
 import { runCamProgFile } from './helpers/camHeadless.mjs';
+import { createGcodeNodes } from '../js/calculators/cam/sim/gcodeNodes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..');
 const SCALE = 4;   // px/mm umělé projekce (na měřítku nezáleží)
 
-/** Vyřízne `getGSegmentAt` ze zdroje a vrátí ji nad zadaným simPath. */
-async function loadPicker(simPath) {
-  // CRLF na LF — soubor je v repu s CRLF a konec funkce se hledá podle
-  // odsazení („\n  }" = uzavírací závorka na úrovni closure).
-  const src = readFileSync(join(root, 'js/calculators/camSimulator.js'), 'utf8').replace(/\r\n/g, '\n');
-  const start = src.indexOf('  function getGSegmentAt(');
-  if (start < 0) throw new Error('cam-path-pick-arc: getGSegmentAt nenalezena v camSimulator.js');
-  const end = src.indexOf('\n  }\n', start);
-  if (end < 0) throw new Error('cam-path-pick-arc: konec getGSegmentAt nenalezen');
-  const body = src.slice(start, end + 4);
-  const mod = `
-const S = { gcodeEditEnabled: false, simRunning: false, _cachedCalc: { simPath: ${JSON.stringify(simPath)} } };
-const canvas = { getBoundingClientRect: () => ({ left: 0, top: 0 }) };
-const _gToScreen = (x, z) => ({ x: 100 + z * ${SCALE}, y: 300 - x * ${SCALE} });
-${body}
-export { getGSegmentAt };
-`;
-  const tmp = join(tmpdir(), `_cam_pick_${process.pid}_${Date.now()}.mjs`);
-  writeFileSync(tmp, mod);
-  try { return (await import(pathToFileURL(tmp).href)).getGSegmentAt; }
-  finally { try { unlinkSync(tmp); } catch { /* nevadí */ } }
+/** `getGSegmentAt` nad zadaným simPath. */
+function loadPicker(simPath) {
+  const S = { gcodeEditEnabled: false, simRunning: false, _cachedCalc: { simPath } };
+  const canvas = { getBoundingClientRect: () => ({ left: 0, top: 0 }) };
+  const _gToScreen = (x, z) => ({ x: 100 + z * SCALE, y: 300 - x * SCALE });
+  return createGcodeNodes({ S, canvas, _gToScreen }).getGSegmentAt;
 }
 
 /** Oblouky v simPath jako { lineIdx, mid } (mid = bod uprostřed řetězu). */
