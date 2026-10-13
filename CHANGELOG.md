@@ -65,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pole X dostane průměr a režim se přepne na G90 (převzatý bod je absolutní).
   Druhé 🎯 ve stejném modalu dřív nedělalo nic — handler se nastaví při každém
   vstupu (i v modalu „➕ Přidat pohyb" na dráze). Test `sim-ui-insert-segment`.
+- **CAM: nesmyslná souřadnice v ⛔ hlášce („X973417795…").** Program uložený
+  v .camprog / prohlížeči před opravou generátoru z 27. 8. 2026 (upichovák,
+  zanoření 90° → `G0 X486708909.740`) se při otevření nepřegeneroval, protože
+  má stejnou verzi logiky drah. Teď se uložený program se souřadnicí mimo
+  rozsah stroje (> 10 m) zahodí a dráhy se vygenerují znovu; ručně upravený
+  zůstane a aplikace na souřadnici upozorní. `cam/sim/programSanity.js`,
+  test `sim-ui-program-sanity`.
 
 ### Removed
 

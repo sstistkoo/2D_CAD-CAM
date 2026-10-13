@@ -213,7 +213,12 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
    POLOMĚR, modal „přidat G-kód pohyb" naopak přichycený průměr ještě
    zdvojí (`ms.x = wx * 2`). V režimu poloměru je vše v pořádku
    (`sim-ui-insert-segment` proto běží v RADIUS).
-3. **Nesmyslná souřadnice v ⛔ hlášce:** `part-18-parting-90-ramp` hlásí
+3. ✅ **OPRAVENO 13. 10.:** nesmyslná souřadnice byla PŘÍMO v uloženém
+   programu fixture (`N560 G0 X486708909.740`, chyba generátoru opravená
+   27. 8. v 7d0ae64); stejná verze logiky drah → program se při otevření
+   nepřegeneroval. Teď ho `cam/sim/programSanity.js` zahodí (neupravený) nebo
+   upozorní (ručně upravený). Po opravě 0 ⛔ hlášek u toho dílu. Původní popis:
+   **Nesmyslná souřadnice v ⛔ hlášce:** `part-18-parting-90-ramp` hlásí
    „Držák v kolizi … (N1050, X973417795…)" — `it.x` z validátoru ~5·10⁸.
    (Zjištěno sondou nad fixtures v harnessu; ⛔ hlášky v UI má i řada
    dalších fixtures — part-10, 14, 15, 18, 20, 22, 23, 4/6/8/9.)

@@ -64,6 +64,7 @@ import { openTangentLineModal as _openTangentLineModal } from './cam/sim/tangent
 import { openInsertSegmentModal as _openInsertSegmentModal } from './cam/sim/insertSegmentModal.js';
 import { createCollisionValidation, createHolderGougeView } from './cam/sim/collisionWarnings.js';
 import { createSnap } from './cam/sim/snap.js';
+import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { createGcodeNodes } from './cam/sim/gcodeNodes.js';
 import { createHitTest } from './cam/sim/hitTest.js';
 import { createGuideLines } from './cam/sim/guideLines.js';
@@ -538,7 +539,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       // Uložené dráhy použij jen když odpovídají AKTUÁLNÍ verzi logiky
       // generování (jinak jsou zastaralé) — prázdný manualGCode se níž
       // (řádek ~3270) automaticky přegeneruje z kontury/parametrů.
-      if (p.manualGCode && p.pathLogicVersion === PATH_LOGIC_VERSION) {
+      if (p.manualGCode && p.pathLogicVersion === PATH_LOGIC_VERSION && !dropInsaneSavedProgram(p.manualGCode, p.gcodeDirty)) {
         S.manualGCode = p.manualGCode;
         // Ruční zásah v uloženém programu přežije zavření appky — jinak by ho
         // po dalším otevření beze slova přepsala první auto-regenerace.
@@ -7380,7 +7381,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // Uložené dráhy jen když odpovídají aktuální verzi logiky generování;
         // jinak přegenerovat z kontury/parametrů (fullUpdate níž to zajistí,
         // protože prázdný manualGCode → generateAutoGCode).
-        if (typeof data.manualGCode === 'string' && data.pathLogicVersion === PATH_LOGIC_VERSION) {
+        if (typeof data.manualGCode === 'string' && data.pathLogicVersion === PATH_LOGIC_VERSION && !dropInsaneSavedProgram(data.manualGCode, data.gcodeDirty)) {
           S.manualGCode = data.manualGCode;
           // Ruční úpravy uložené v projektu zůstávají chráněné i po načtení;
           // otisk vstupů taky, ať se nečerstvé dráhy hlásí i po otevření souboru.
