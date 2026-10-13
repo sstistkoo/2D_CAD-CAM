@@ -1658,7 +1658,9 @@ npm run lint          # ESLint — jen chyby (s cache, ~4 s)
 ### GitHub Actions (`.github/workflows/testy.yml`)
 
 Po pushi do `main` a u pull requestu běží `npm run test:cad` (Node 24, `npm ci`).
-Plná sada `npm test` jen ručně: Actions → Testy → Run workflow → „Plná sada".
+Plná sada `npm test` každou noc v 01:00 UTC (selhání → e-mail) a ručně:
+Actions → Testy → Run workflow → „Plná sada". GitHub noční běh vypne po
+60 dnech bez commitu (znovu zapnout tlačítkem „Enable workflow“).
 
 ### Hlášení chyb v aplikaci (`js/errorReport.js`)
 

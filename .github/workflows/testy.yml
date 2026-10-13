@@ -3,8 +3,12 @@
 # (≈1 min: CAD, UI, editory, export + ESLint + strop velikosti souborů).
 # Spadne-li, u commitu je červený křížek a GitHub pošle e-mail.
 #
-# Plná sada včetně CAM (`npm test`, ≈13 min) se pouští jen ručně:
-# GitHub → Actions → „Testy" → Run workflow → zaškrtnout „Plná sada".
+# Plná sada včetně CAM (`npm test`, ≈13 min):
+#  • každou noc ve 3:00 SELČ (01:00 UTC) — CAM regrese se tak neschová do dne,
+#    kdy někdo pustí plnou sadu ručně (part-23 byl červený od 2667121
+#    a nikdo to nevěděl). Selhání → e-mail. Pozn.: GitHub noční běh
+#    vypne po 60 dnech bez commitu v repu (stačí pak push nebo „Enable").
+#  • ručně: GitHub → Actions → „Testy" → Run workflow → zaškrtnout „Plná sada".
 name: Testy
 
 on:
@@ -12,6 +16,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
       plna:
@@ -19,14 +25,15 @@ on:
         type: boolean
         default: false
 
+# Skupina i podle druhu spuštění: push nesmí zrušit běžící noční/ruční plnou sadu.
 concurrency:
-  group: testy-${{ github.ref }}
+  group: testy-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   testy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,8 +42,8 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Testy CAD (+ ESLint)
-        if: ${{ !inputs.plna }}
+        if: ${{ github.event_name != 'schedule' && !inputs.plna }}
         run: npm run test:cad
       - name: Plná sada včetně CAM
-        if: ${{ inputs.plna }}
+        if: ${{ github.event_name == 'schedule' || inputs.plna }}
         run: npm test
