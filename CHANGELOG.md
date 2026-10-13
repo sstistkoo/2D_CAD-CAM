@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: 🔄 Dráhy × ✂ Po úsecích v náhledu Celý program.** U programu z úseků
+  je vidět buď jedno, nebo druhé podle hrubování v panelu. Po úsecích se
+  čelně neukazuje (úseky nemá, klik končil chybou). Čelně je místo něj
+  🔄 Dráhy, které po potvrzení nahradí části jedním programem s nastavením
+  z panelu. Dřív se 🔄 Dráhy v Celém programu skrývalo (po načtení nebylo co
+  zmáčknout) a po přepnutí na část vrátila část své Podélně. Pravidla
+  v `cam/genButtons.js` + test, camSimulator.js se zmenšil.
 - **ISO katalog: držák SRGCR/SRGCL má hlavu sraženou 45°.** Výrobce (AKKO) uvádí
   SRGCL 2525 M12 jako ekvivalent SRSCR; styl G se dřív kreslil s rovným čelem
   hlavy. Nyní má stejný obrys jako styl S, a protože by byly dvě karty stejné,

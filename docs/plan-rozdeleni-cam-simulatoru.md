@@ -1,0 +1,138 @@
+# Plán: rozdělení `js/calculators/camSimulator.js`
+
+> Stav 13. 10. 2026: **11 716 ř.**, strop v `tests/file-size-budget.test.js` = 11 712 + 15.
+> Schváleno uživatelem jako samostatná práce (CLAUDE.md: refaktoring obřího
+> souboru = vědomé rozhodnutí, ne vedlejší efekt opravy). Pořadí: **od toho,
+> u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
+
+## Pravidla
+
+1. **Žádná změna chování.** Kód se jen přestěhuje. Žádné „když už jsem tady“
+   opravy — nalezenou chybu zapsat, opravit zvlášť.
+2. **Jeden blok = jeden commit**, po každém kroku musí být aplikace funkční.
+3. **Nejdřív test, pak stěhování.** Test bloku se napíše a projde na STARÉM
+   kódu, pak se blok přesune a test musí projít beze změny.
+4. Po každém kroku **snížit strop** v `file-size-budget.test.js` na nový počet řádků.
+5. Nový soubor ~300–500 ř.; větší blok rozdělit na víc souborů podle logiky.
+6. Nový JS soubor → `npm run sw`. Dokumentace: `docs/developer.md` (kde co žije).
+7. Kam: `js/calculators/cam/sim/` (nová složka jen pro kousky simulátoru).
+
+## Vzor vyjmutí (ověřený na `cam/genButtons.js`, 13. 10.)
+
+Simulátor je JEDNA funkce `openCamSimulator`, bloky si sdílejí proměnné přes closure.
+
+- **Co blok jen ČTE nebo VOLÁ** (S, draw, fullUpdate, pushHistory…) → předá
+  se parametrem. Modul exportuje `createXxx(ctx)` nebo `showXxxDialog(ctx, …)`,
+  v simulátoru zůstane import + jedno volání.
+- **Co blok PŘEPISUJE** (`let` proměnné jiných bloků, sloupec *writes*) →
+  parametrem předat nejde (modul nepřepíše cizí `let`). Proměnné se nejdřív
+  přesunou do sdíleného objektu (např. `const toolUi = { magEditSlotRef: null, … }`)
+  — to je samostatný malý commit PŘED stěhováním.
+- Funkce volané odjinud (*fanIn*) modul vrátí; simulátor je rozbalí do
+  stejných jmen (`const { showMagazineDialog } = createMagazine(ctx)`), aby se
+  zbytek souboru neměnil.
+
+Provázanost měří `node scripts/sim_coupling.mjs [blok]` (reads / writes /
+fanIn + seznam symbolů). Pouštět před a po každém kroku.
+
+## Testy
+
+Simulátor (UI) dnes testy skoro nemá — hlídají hlavně generování drah.
+Proto vrstvy:
+
+| Vrstva | Co hlídá | Kdy |
+|---|---|---|
+| **Fáze 0: harness** `tests/sim-ui-*.test.js` | otevření simulátoru nad fixture .camprog v DOM prostředí; dialog jde otevřít, prvky existují, změna pole se zapíše do `S.params` / localStorage | napsat PŘED přesunem každého bloku |
+| **Unit testy** vyjmutých čistých funkcí | snap, validace, výpočty bez DOM | při vyjmutí |
+| **Záznam kreslení** (stub `ctx` zapisuje volání) | `draw()` nad fixture dá stejnou posloupnost volání před i po | Fáze 5 |
+| **Otisk drah** `cam_fingerprint.mjs --save/--diff` | dráhy se nehnuly (mají být SHODNÉ u všech fixtures) | každý krok |
+| **`npm run test:cad`** | celek + strop velikosti | každý krok |
+| **Proklikání v prohlížeči** (Browser pane, `skica-static`) | daný dialog/funkce reálně funguje | každý krok |
+
+**⚠ Rozhodnutí pro Fázi 0:** DOM prostředí pro vitest potřebuje vývojovou
+knihovnu (`happy-dom`, jen `devDependencies`, do aplikace se nedostane).
+Bez ní lze testovat jen vyjmuté čisté funkce + ruční proklik. Uživatel
+rozhodne na začátku Fáze 0.
+
+Pro testy přidat do simulátoru „háček“ (1 řádek): `openCamSimulator` vrátí
+`{ S, close }`, aby test viděl stav bez lovení v DOM.
+
+## Pořadí kroků
+
+Čísla z `sim_coupling.mjs` 13. 10. 2026 (ř. = řádky bloku; čte/píše = closure
+symboly jiných bloků; fanIn = kolik bloků sahá na jeho funkce).
+
+### Fáze 0 — příprava (simulátor se nemění, kromě háčku)
+- harness `tests/sim-ui-harness.js` (otevření nad `tests/fixtures/cam-cases/*.camprog`,
+  stub canvasu, zavření) + první smoke test „otevře se, vykreslí, zavře“.
+
+### Fáze 1 — piloty: malé, skoro nic nepřepisují (~780 ř.)
+Účel: zavést vzor `ctx` na místech, kde se nemůže moc pokazit.
+
+| Blok | ř. | čte | píše | test |
+|---|---|---|---|---|
+| auto stock | 55 | 3 | 0 | polotovar z kontury → `S.stockPoints` |
+| Modal: tečná úsečka pod úhlem | 145 | 5 | 0 | otevřít, zadat, přidá segment |
+| Vrátit konturu zpět na plátno | 163 | 4 | 0 | (stub CAD) dostane body kontury |
+| Validace kolizí + Kolize držáku (oranžové) | 190 | 11 | 0 | unit nad fixture: stejné hlášky |
+| Modal pro vložení segmentu | 227 | 2 | 1 (`_pickHandler`) | otevřít, vložit |
+
+### Fáze 2 — snapy (~1 020 ř.), nic nepřepisují
+| Blok | ř. | čte | píše | test |
+|---|---|---|---|---|
+| SNAP MEZNÍCH ČAR (rozsah 📐, čelisti, koník) | 892 | 16 | 0 | unit: tažení meze → hodnota v `S.zLimits` |
+| SNAP (jako v CAD) | 127 | 6 | 0 | unit: přichycení k bodu/hraně |
+
+### Fáze 3 — záložka Parametry (~1 160 ř.), nic nepřepisuje
+| Blok | ř. | čte | píše | test |
+|---|---|---|---|---|
+| params tab | 1159 | 30 | 0 | každé pole/přepínač → `S.params`; Čelně/Podélně, Zprava/Zleva, záložky Hrub./Hot./… |
+Rozdělit na víc souborů (hrubování / dokončení / vrtání+vyvrtávání / závit…).
+
+### Fáze 4 — nože: Geometrie + Zásobník (~2 110 ř.)
+Přepisují si navzájem proměnné → **nejdřív** commit „sdílený objekt `toolUi`“
+(`magEditSlotRef`, `magEditHandTouched`, `magazineDialogRefresh`,
+`toolGeomModalRefresh`), pak stěhovat.
+
+| Blok | ř. | čte | píše | test |
+|---|---|---|---|---|
+| magazine dialog | 1056 | 19 | 3 | otevřít, vybrat slot, uložit nůž, ↩/↪ |
+| Modal „⚙️ Geometrie“ | 1053 | 22 | 2 | otevřít, změnit tvar/úhel, import/export geometrie |
+
+### Fáze 5 — kreslení plátna (~1 320 ř.)
+Nic nepřepisuje, ale volá ho 13 bloků → test **záznamem volání ctx** nad
+2–3 fixtures (dráhy, části, vyvrtávání) PŘED stěhováním.
+
+| Blok | ř. | čte | píše | test |
+|---|---|---|---|---|
+| CANVAS DRAWING | 1322 | 26 | 0 | záznam kreslení shodný |
+
+**Po Fázi 1–5:** ~11 700 − ~6 400 ≈ **5 300 ř.** v `camSimulator.js`.
+
+### Fáze 6 — rozhodnout až potom (nejvíc provázané)
+| Blok | ř. | čte | píše |
+|---|---|---|---|
+| Myš / výběr obdélníkem / tažení | 747 | 68 | **9** |
+| Precision crosshair (mobil) | 345 | 24 | 3 |
+| EVENT WIRING | 503 | 66 | 0 |
+| Auto profil / krokování | 453 | 13 | 1 |
+| ČÁSTI PROGRAMU | 315 | 14 | **7** |
+| editor tab, SIMULATION, .camprog, vyvrtávání z plného | 150–240 | | |
+Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak je.
+
+## Kontrolní seznam jednoho kroku
+
+1. `node scripts/sim_coupling.mjs "<blok>"` → seznam závislostí do `ctx`.
+2. `node scripts/cam_fingerprint.mjs --save=pred.json` (ve scratchpadu).
+3. Napsat test bloku, **projde na starém kódu**.
+4. Přestěhovat (jen přesun + `ctx`), v simulátoru import + volání.
+5. Test bloku + `npm run test:cad` zelené; `cam_fingerprint --diff` SHODNÝ.
+6. `npm run sw`; proklik v prohlížeči (dialog/funkce + konzole bez chyb).
+7. Snížit strop v `file-size-budget.test.js`, krátce doplnit `docs/developer.md`.
+8. Commit `refactor(sim): <blok> → cam/sim/<soubor>.js`.
+
+## Stav
+
+- [x] Plán, měřicí skript `scripts/sim_coupling.mjs` (13. 10. 2026)
+- [ ] Fáze 0 — rozhodnout `happy-dom`, harness, háček
+- [ ] Fáze 1 · [ ] Fáze 2 · [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)

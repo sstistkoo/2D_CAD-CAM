@@ -22,6 +22,7 @@ import { makeHolderClamp } from './cam/toolEnvelope.js';
 import { drawSectionPlan } from './cam/ops/sections/drawSections.js';
 import { sectionLeftover } from './cam/ops/sections/sectionLeftover.js';
 import { sectionRanges } from './cam/ops/sections/sectionRanges.js';
+import { genButtonsHidden, regenWholeProgram } from './cam/genButtons.js';
 import { getInsert } from './cam/inserts/index.js';
 import { computeInterferenceGuides, camRayIntersection, guidePolyPoints, guideBridgePts, mkBridgeSegs } from './cam/interferenceGuides.js';
 import { StockModel, toolSweep, polyArea, polySimplify, polyOffset, polyDifference, polyUnion, pointInLoop } from '../geom/geomCore.js';
@@ -4755,19 +4756,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     updateGenButtons();
   }
 
-  // Vidět jsou jen tlačítka, která teď opravdu jdou použít (přání uživatele
-  // 30. 9. 2026 — dřív „jednou fungovalo jedno, podruhé druhé" a nefunkční
-  // tlačítko odpovědělo jen hláškou):
-  //  • „🔄 Dráhy" — ne v náhledu celého programu (tam se negeneruje; dráhy
-  //    části se přegenerují po kliknutí na její chip),
-  //  • „✂ Po úsecích" — jen když má plán úseky (fialové čáry) v rozsahu
-  //    obrábění; po „Po úsecích" zůstává (přegeneruje části od začátku),
-  //  • „↺ Reset" — jen když program má části.
+  // Vidět jsou jen tlačítka, která teď opravdu jdou použít — pravidla v cam/genButtons.js.
   function updateGenButtons() {
-    refreshBtn.hidden = partsActive() && S.opView === 'all';
-    const fromSections = partsActive() && !!S.opParts[0].baseLimits;
-    sectionBtn.hidden = !(fromSections || !sectionSteps(S._cachedCalc).error);
-    resetPartsBtn.hidden = !partsActive();
+    const h = genButtonsHidden({ hasParts: partsActive(), allView: S.opView === 'all',
+      fromSections: partsActive() && !!S.opParts[0].baseLimits, face: roughingKey() === 'face',
+      sectionsOk: !sectionSteps(S._cachedCalc).error });
+    refreshBtn.hidden = h.refresh; sectionBtn.hidden = h.section; resetPartsBtn.hidden = h.reset;
   }
 
   // ── UI: lišta částí programu (operací) ──
@@ -9840,13 +9834,10 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // code area buttons
   root.querySelector('[data-code="refresh"]').addEventListener('click', async () => {
-    // V náhledu celého programu se negeneruje — nebylo by kam (kód je složený
-    // ze všech částí); přepnout zpět na aktivní část.
-    if (S.opView === 'all') {
-      showToast('Náhled celého programu — přepněte na „Část", tam se dráhy generují');
-      return;
-    }
     if (isBusy()) return;
+    // Celý program: části nahradí jeden program s nastavením z panelu (cam/genButtons.js).
+    if (S.opView === 'all') return regenWholeProgram(S, { confirm: camConfirm, busy: withBusy,
+      pushHistory, restoreBaseFromLive, regen: _regenGCode, toast: showToast });
     const what = partsActive() ? `části „${S.opParts[S.activePart].name}"` : 'aktuální kontury';
     // Ptát se jen tehdy, když je co ztratit. V automaticky vygenerovaném
     // programu ruční úpravy nejsou, tak neotravovat dialogem při každém kliku.

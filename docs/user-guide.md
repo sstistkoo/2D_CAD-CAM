@@ -657,11 +657,16 @@ i s tím, co je pod ním (nezahazuje se).
 vrátí původní polotovar a rozsah, dráhy částí smaže (jde vzít zpět přes ↩ Zpět).
 
 **V liště jsou vidět jen tlačítka, která teď jdou použít:**
-- **🔄 Dráhy** chybí v náhledu **Celý program** (tam se negeneruje) — klikni
-  na chip části a dráhy té části přegeneruješ.
+- U programu z **✂ Po úsecích** je v náhledu **Celý program** vidět **buď
+  ✂ Po úsecích, nebo 🔄 Dráhy** — podle hrubování nastaveného v panelu:
+  podélně přegeneruje úseky od začátku **✂ Po úsecích**; čelně (to úseky
+  nemá) je místo něj **🔄 Dráhy**, které po potvrzení **nahradí části jedním
+  programem** s nastavením z panelu nad původním polotovarem a rozsahem
+  (jako ↺ Reset + 🔄 Dráhy, jde vzít zpět přes ↩ Zpět).
+- V **části** (klik na chip) **🔄 Dráhy** přegeneruje jen tu část. U částí
+  z **➕ Operace** se v náhledu Celý program negeneruje — přepni na část.
 - **✂ Po úsecích** je vidět jen tam, kde díl má úseky (fialové čáry) v rozsahu
-  obrábění — tedy u podélného hrubování kulatou/polygonem. Po jeho použití
-  zůstává: dalším klikem se části přegenerují od začátku.
+  obrábění — tedy u podélného hrubování kulatou/polygonem, **nikdy čelně**.
 - **↺ Reset** je vidět jen tehdy, když má program části.
 
 Generování drah trvá na složitém dílu i několik sekund. Po dobu výpočtu je přes
