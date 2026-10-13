@@ -189,7 +189,10 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
    (tlačítko v liště G-kódu i `to-canvas-edit` v Editoru). Výkres jde vrátit
    přes ↩ v CAD (pushUndo). Opravit = `() => handleSendToCanvas()`; zeptat se
    uživatele, jestli dotaz chce.
-2. **🎯 Přebrat souřadnice v režimu Ø (DIAMON).** Obsluha myši
+2. ✅ **OPRAVENO 13. 10.** (přichycení k absolutní poloze bodu ve světě,
+   pole X v jednotkách bodů + G90, handler se nastraží při každém 🎯 — dřív
+   druhé 🎯 ve stejném modalu nedělalo nic). Původní popis:
+   **🎯 Přebrat souřadnice v režimu Ø (DIAMON).** Obsluha myši
    (`canvasPick.handler`, CANVAS INTERACTION) přichytává k bodům podle
    `p.x` (v Ø režimu PRŮMĚR) proti poloměru kurzoru — přichycení míjí;
    bez přichycení modal „➕ Vložit segment" dostane do pole X (průměr)

@@ -9677,7 +9677,8 @@ export function openCamSimulator(initialContour, initialGCode) {
       const amEl = ov.querySelector('#agm-angmode'); if (amEl) ms.angMode = amEl.value;
     };
 
-    const enterPickMode = () => { syncValues(); pickMode = true; ov.style.display = 'none'; hint.style.display = 'block'; canvas.style.cursor = 'crosshair'; };
+    // Handler a Esc nastražit při KAŽDÉM vstupu (po převzetí se mažou).
+    const enterPickMode = () => { syncValues(); pickMode = true; canvasPick.handler = onPick; document.addEventListener('keydown', handlePickEsc); ov.style.display = 'none'; hint.style.display = 'block'; canvas.style.cursor = 'crosshair'; };
     const exitPickMode = () => { pickMode = false; ov.style.display = ''; hint.style.display = 'none'; canvas.style.cursor = 'crosshair'; renderModal(); setTimeout(() => { const el = ov.querySelector('#agm-x'); if (el) { el.focus(); el.select(); } }, 30); };
 
     const inp = 'background:#1e1e2e;border:1px solid #45475a;color:#cdd6f4;border-radius:4px;padding:6px;font-size:14px;width:100%;box-sizing:border-box';
@@ -9762,7 +9763,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     renderModal();
     document.body.appendChild(ov);
 
-    canvasPick.handler = (wx, wz) => {
+    const onPick = (wx, wz) => {
       if (!pickMode) { canvasPick.handler = null; return; }
       ms.x = Math.round((isDia ? wx * 2 : wx) * 1000) / 1000;
       ms.z = Math.round(wz * 1000) / 1000;
@@ -9922,14 +9923,16 @@ export function openCamSimulator(initialContour, initialGCode) {
         wz = hS * (sx - S.view.panX) / S.view.scale;
         wx = vS * (sy - S.view.panY) / S.view.scale;
       }
-      // snap na nejbližší bod kontury
-      const allPts = [...S.contourPoints, ...S.stockPoints];
+      // snap na nejbližší bod kontury/polotovaru — ve SVĚTĚ (poloměr, absolutně):
+      // v Ø režimu je X bodu průměr, u INC bodů přírůstek. Handler dostane poloměr.
+      const k = prms.mode === 'DIAMON' ? 0.5 : 1;
+      const allPts = [...resolvePointsToAbsolute(S.contourPoints), ...resolvePointsToAbsolute(S.stockPoints)];
       let best = null, bestD = Infinity;
       for (const p of allPts) {
-        const d = Math.hypot(p.x - wx, p.z - wz);
+        const d = Math.hypot(p.xAbs * k - wx, p.zAbs - wz);
         if (d < bestD) { bestD = d; best = p; }
       }
-      if (best && bestD < 20 / S.view.scale) { wx = best.x; wz = best.z; }
+      if (best && bestD < 20 / S.view.scale) { wx = best.xAbs * k; wz = best.zAbs; }
       canvasPick.handler(wx, wz);
       e.stopPropagation();
       return;

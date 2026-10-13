@@ -58,9 +58,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hlavy. Nyní má stejný obrys jako styl S, a protože by byly dvě karty stejné,
   v katalogu zůstává jen SRSCR/SRSCL (popisek „SRSCR = SRGCR“). Kód SRGCR/SRGCL
   se u uložených nožů dál rozpozná (`alias` v `ISO_HOLDER_TYPES`).
+- **CAM: „🎯 Přebrat souřadnice z bodu" v režimu průměru.** Přichycení
+  porovnávalo průměr bodu s poloměrem kurzoru (k bodu se nepřichytilo,
+  u INC bodů přírůstek místo polohy), modal „➕ Vložit segment" pak dostal
+  do pole X poloměr místo průměru. Teď se přichytává k absolutní poloze bodu,
+  pole X dostane průměr a režim se přepne na G90 (převzatý bod je absolutní).
+  Druhé 🎯 ve stejném modalu dřív nedělalo nic — handler se nastaví při každém
+  vstupu (i v modalu „➕ Přidat pohyb" na dráze). Test `sim-ui-insert-segment`.
 
 ### Added
 
+- **Testy okna CAM simulátoru a jeho rozdělení** (`docs/plan-rozdeleni-cam-simulatoru.md`):
+  harness `tests/helpers/simUi.mjs` (happy-dom, záznam kreslení) a testy
+  `tests/sim-ui-*.test.js`; z `camSimulator.js` (11 716 → ~10 970 ř.) přestěhované
+  beze změny chování do `js/calculators/cam/sim/`: Auto-rozměr polotovaru,
+  📐 Kreslit, modaly tečny a vložení segmentu, varování kolizí.
 - **Viditelné hlášení chyb**: neošetřená chyba dřív skončila jen v konzoli
   (na mobilu neviditelná). Teď se ukáže lišta „⚠ Něco se pokazilo“
   s tlačítkem „📋 Zkopírovat pro Clauda“ (text chyby, místo, verze, prohlížeč;

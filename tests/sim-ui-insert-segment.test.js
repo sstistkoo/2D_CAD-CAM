@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 // „+" režim, klik na bod → modal „➕ Vložit segment za bod" (blok „Modal pro
 // vložení segmentu" → js/calculators/cam/sim/insertSegmentModal.js). Test
-// prošel na starém kódu před přestěhováním. Režim poloměru (RADIUS): v Ø
-// režimu má 🎯 Přebrat souřadnice zapsanou chybu (docs/plan-rozdeleni-cam-simulatoru.md).
+// prošel na starém kódu před přestěhováním (režim poloměru). Na konci
+// 🎯 Přebrat souřadnice v režimu Ø (oprava 13. 10. 2026) i pro modal
+// „➕ Přidat pohyb" na dráze.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { installSimDom, openSim, loadFixture, settle } from './helpers/simUi.mjs';
 
@@ -118,5 +119,75 @@ describe('simulátor — vložit segment za bod', () => {
     expect([$('#ism-x').value, $('#ism-z').value]).toEqual(['20', '-50']);
     await ok();
     expect(pts(sim.S.contourPoints)[3]).toEqual({ type: 'G1', x: 20, z: -50, r: 0, mode: 'ABS' });
+  });
+});
+
+// Totéž v režimu Ø (DIAMON): X bodů je PRŮMĚR. Do 13. 10. 2026 se přichycovalo
+// podle průměru bodu proti poloměru kurzoru (míjelo se), modal segmentu dostal
+// do pole X poloměr a modal pohybu přichycený průměr ještě zdvojil.
+describe('simulátor — 🎯 Přebrat souřadnice v režimu Ø', () => {
+  const dia = (list) => list.map(p => ({ ...p, x: p.x * 2 }));
+  async function openDia() {
+    const { S } = sim;
+    S.params.mode = 'DIAMON';
+    S.params.respectInsertGeometry = false;
+    S.params.stockMode = 'casting';
+    S.contourPoints = dia(CONTOUR);
+    S.stockPoints = dia(STOCK);
+    S.guideLines = [];
+    S.editMode = 'contour';
+    S.gcodeEditEnabled = false;
+    S.view = { scale: 8, panX: 600, panY: 400 };
+    sim.fullUpdate();
+    S.addPointMode = true;
+    sim.mouse('mousedown', 20, -30);
+    sim.mouse('mouseup', 20, -30);
+    await settle(5);
+    expect(modal()).not.toBeNull();
+  }
+  const pick = async (x, z, btn = '#ism-pick') => {
+    document.querySelector(btn).click();
+    sim.mouse('mousedown', x, z);
+    sim.mouse('mouseup', x, z);
+    await settle(5);
+  };
+
+  it('segment: přichytí se k bodu (Ø40 Z-50), mimo body vezme kurzor jako průměr', async () => {
+    await openDia();
+    await pick(20.5, -50.5);
+    expect([$('#ism-x').value, $('#ism-z').value]).toEqual(['40', '-50']);
+    await pick(25, -40);
+    expect([$('#ism-x').value, $('#ism-z').value]).toEqual(['50', '-40']);
+    $('#ism-cancel').click();
+  });
+
+  it('segment: převzaté souřadnice jsou absolutní → režim přepne na G90 ABS', async () => {
+    await openDia();
+    $('#ism-mode').click();
+    expect($('#ism-mode').textContent.trim()).toBe('G91 INC');
+    await pick(20.5, -50.5);
+    expect($('#ism-mode').textContent.trim()).toBe('G90 ABS');
+    await ok();
+    expect(pts(sim.S.contourPoints)[3]).toEqual({ type: 'G1', x: 40, z: -50, r: 0, mode: 'ABS' });
+  });
+
+  it('přidat pohyb na dráze: přichycený bod kontury jako průměr', async () => {
+    const { S } = sim;
+    await openDia();
+    $('#ism-cancel').click();
+    S.manualGCode = ['G0 X100 Z10', 'G1 X40 Z5 F0.2', 'G1 X40 Z-60', 'G0 X100 Z10'].join('\n');
+    S.gcodeDirty = true;
+    sim.fullUpdate();
+    S.gcodeEditEnabled = true;
+    S.addPointMode = true;
+    sim.mouse('mousedown', 20, 5);   // uzel dráhy X40 Z5
+    sim.mouse('mouseup', 20, 5);
+    await settle(5);
+    const agm = () => document.querySelector('#agm-x');
+    expect(agm()).not.toBeNull();
+    await pick(20.5, -50.5, '#agm-pick');
+    expect([agm().value, document.querySelector('#agm-z').value]).toEqual(['40', '-50']);
+    document.querySelector('#agm-cancel').click();
+    S.gcodeEditEnabled = false;
   });
 });

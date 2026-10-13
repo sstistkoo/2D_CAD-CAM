@@ -44,6 +44,10 @@ export function openInsertSegmentModal({ S, canvas, canvasPick }, fromPt, onConf
   const enterPickMode = () => {
     syncValues();
     pickMode = true;
+    // Nastražit při KAŽDÉM vstupu — po převzetí se handler maže a druhé
+    // 🎯 ve stejném modalu dřív nedělalo nic (ani Esc).
+    canvasPick.handler = onPick;
+    document.addEventListener('keydown', handlePickEsc);
     ov.style.display = 'none';
     hint.style.display = 'block';
     canvas.style.cursor = 'crosshair';
@@ -229,10 +233,13 @@ export function openInsertSegmentModal({ S, canvas, canvasPick }, fromPt, onConf
   setTimeout(() => ov.querySelector('#ism-x') && ov.querySelector('#ism-x').focus(), 50);
 
   // pick handler – kliknutí na canvas přebere souřadnice bodu
-  canvasPick.handler = (wx, wz) => {
+  const onPick = (wx, wz) => {
     if (!pickMode) { canvasPick.handler = null; return; }
-    ov._x = Math.round(wx * 100) / 100;
+    // wx = poloměr ve světě → do pole X v jednotkách bodů (Ø režim = průměr);
+    // převzatý bod je absolutní, takže i režim G90.
+    ov._x = Math.round((S.params.mode === 'DIAMON' ? wx * 2 : wx) * 100) / 100;
     ov._z = Math.round(wz * 100) / 100;
+    ov._mode = 'ABS';
     document.removeEventListener('keydown', handlePickEsc);
     canvasPick.handler = null;
     exitPickMode();
