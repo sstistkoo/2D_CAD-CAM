@@ -49,10 +49,19 @@ Proto vrstvy:
 | **`npm run test:cad`** | celek + strop velikosti | každý krok |
 | **Proklikání v prohlížeči** (Browser pane, `skica-static`) | daný dialog/funkce reálně funguje | každý krok |
 
-**⚠ Rozhodnutí pro Fázi 0:** DOM prostředí pro vitest potřebuje vývojovou
-knihovnu (`happy-dom`, jen `devDependencies`, do aplikace se nedostane).
-Bez ní lze testovat jen vyjmuté čisté funkce + ruční proklik. Uživatel
-rozhodne na začátku Fáze 0.
+**DOM prostředí: `happy-dom`** (jen `devDependencies`, schváleno 13. 10. 2026).
+Zkouška 13. 10. (Node + happy-dom, bez vitestu): simulátor se otevře
+(88 tlačítek), vygeneruje G-kód (246 ř.), uloží stav do localStorage a klik
+na „Čelně“ skryje „✂ Po úsecích“. Co harness musí udělat:
+- vložit `<body>` z `index.html` bez `<script>` — moduly aplikace (např.
+  `js/canvas.js`) hledají své prvky už při importu,
+- zkopírovat do `globalThis` všechny vlastnosti okna, které Node nemá
+  (`CSS`, `getComputedStyle`, …) — ve vitestu to udělá
+  `// @vitest-environment happy-dom` v hlavičce testu,
+- stub `HTMLCanvasElement.prototype.getContext` (happy-dom 2D kontext neumí);
+  **⚠ kreslení zatím neproběhlo (0 volání ctx)** — zjistit, jestli `draw()`
+  čeká na rAF / velikost plátna (ResizeObserver, `clientWidth` = 0), než se
+  začne s Fází 5.
 
 Pro testy přidat do simulátoru „háček“ (1 řádek): `openCamSimulator` vrátí
 `{ S, close }`, aby test viděl stav bez lovení v DOM.
@@ -134,5 +143,6 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 ## Stav
 
 - [x] Plán, měřicí skript `scripts/sim_coupling.mjs` (13. 10. 2026)
-- [ ] Fáze 0 — rozhodnout `happy-dom`, harness, háček
+- [x] `happy-dom` + `@babel/parser` v devDependencies, zkouška otevření simulátoru (13. 10.)
+- [ ] Fáze 0 — harness, háček, první smoke test
 - [ ] Fáze 1 · [ ] Fáze 2 · [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
