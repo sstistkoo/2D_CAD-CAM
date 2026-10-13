@@ -5,6 +5,7 @@
 > Po Fázi 2 (13. 10. večer): **9 978 ř.**, strop 9 978.
 > Po Fázi 3 (13. 10. večer): **9 018 ř.**, strop 9 018.
 > Po Fázi 4 (13. 10. večer): **6 741 ř.**, strop 6 741.
+> Po Fázi 5 (13. 10. večer): **5 431 ř.**, strop 5 431.
 > Schváleno uživatelem jako samostatná práce (CLAUDE.md: refaktoring obřího
 > souboru = vědomé rozhodnutí, ne vedlejší efekt opravy). Pořadí: **od toho,
 > u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
@@ -185,7 +186,21 @@ Přepisují si navzájem proměnné → **nejdřív** commit „sdílený objekt
 | magazine dialog | 1056 | 19 | 3 | otevřít, vybrat slot, uložit nůž, ↩/↪ |
 | Modal „⚙️ Geometrie“ | 1053 | 22 | 2 | otevřít, změnit tvar/úhel, import/export geometrie |
 
-### Fáze 5 — kreslení plátna (~1 320 ř.)
+### Fáze 5 — kreslení plátna (~1 320 ř.) ✅ 13. 10.
+
+Hotovo (6 741 → 5 431 ř., otisk drah shodný): `draw()` byla JEDNA funkce;
+vrstvy si nic nepřepisují (jen cesty úběru uvnitř první vrstvy), takže tělo
+doslova → `cam/sim/drawCanvas.js` (převod svět → obrazovka, skládá vrstvy)
++ `drawStock.js` / `drawContour.js` / `drawToolpath.js` / `drawOverlays.js`.
+V simulátoru hoisted obal `draw()`, kontext se skládá při KAŽDÉM kreslení
+(`let` tažení/hoveru mění jiné bloky; první `draw()` až ve `fullUpdate`
+v INITIAL SETUP, po všech deklaracích — žádné TDZ). Test `sim-ui-draw`
+(vlastní kontura + ruční program: pořadí a místa vrstev) + háček
+`openCamSimulator().draw`. Přesun ověřila sonda: celý záznam volání
+kreslení nad VŠEMI 50 fixtures × 32 stavy (simulace, 🙈, meze, úprava drah,
+body, výběr, SNAP, trasování, hover, flip, zoom, karusel) — 1 600/1 600
+shodných (2 běhy na starém kódu shodné = sonda deterministická).
+
 Nic nepřepisuje, ale volá ho 13 bloků → test **záznamem volání ctx** nad
 2–3 fixtures (dráhy, části, vyvrtávání) PŘED stěhováním.
 
@@ -193,7 +208,7 @@ Nic nepřepisuje, ale volá ho 13 bloků → test **záznamem volání ctx** nad
 |---|---|---|---|---|
 | CANVAS DRAWING | 1322 | 26 | 0 | záznam kreslení shodný |
 
-**Po Fázi 1–5:** ~11 700 − ~6 400 ≈ **5 300 ř.** v `camSimulator.js`.
+**Po Fázi 1–5:** ~11 700 − ~6 400 ≈ **5 300 ř.** v `camSimulator.js` (skutečnost: 5 431).
 
 ### Fáze 6 — rozhodnout až potom (nejvíc provázané)
 | Blok | ř. | čte | píše |
@@ -265,4 +280,6 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
   až při otevření (hoisted obal). `shape-preset-knife` a `cam-path-pick-arc`
   už nic ze zdroje simulátoru nevyřezávají. Testy `sim-ui-tool-dialogs`,
   `mag-slots`. Otisk drah shodný.
-- [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
+- [x] Fáze 5 — kreslení plátna (13. 10.): `drawCanvas.js` + 4 vrstvy, test
+  `sim-ui-draw`, sonda záznamu kreslení 1 600/1 600 shodných.
+- [ ] Fáze 6 (rozhodnout)
