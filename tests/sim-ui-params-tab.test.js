@@ -123,6 +123,45 @@ describe('simulátor — záložka Parametry', () => {
     expect(S.params.respectInsertGeometry).toBe(!was);
   });
 
+  it('nůž: tvar destičky z tlačítek tvaru', async () => {
+    const { S } = sim;
+    S.toolConfigOpen = true;
+    await showParams();
+    const was = S.params.toolShape;
+    await click('[data-tshape="round"]');
+    expect(S.params.toolShape).toBe('round');
+    await click(`[data-tshape="${was === 'round' ? 'polygon' : was}"]`);
+    expect(S.params.toolShape).toBe(was === 'round' ? 'polygon' : was);
+  });
+
+  it('dokončení, závit (zap/vyp + přísuv), vrtání (zap/vyp + režim)', async () => {
+    const { S } = sim;
+    S.machiningConfigOpen = true; S.machiningSubTab = 'hrub';
+    await showParams();
+    const fin = S.params.doFinishing;
+    const cb = $('#cam-sim-fin');
+    cb.checked = !fin; cb.dispatchEvent(new Event('change')); await settle(5);
+    expect(S.params.doFinishing).toBe(!fin);
+    cb.checked = fin; cb.dispatchEvent(new Event('change')); await settle(5);
+
+    S.machiningSubTab = 'zavit';
+    await showParams();
+    await click('[data-act="thread-toggle"]');
+    expect([S.params.threadActive, S.params.drillActive, S.params.boreActive]).toEqual([true, false, false]);
+    await click('[data-thinfeed="flank"]');
+    expect($('[data-thinfeed="flank"]').classList.contains('cam-sim-active')).toBe(true);
+    await click('[data-act="thread-toggle"]');
+    expect(S.params.threadActive).toBe(false);
+
+    S.machiningSubTab = 'vrt';
+    await showParams();
+    await click('[data-act="drill-toggle"]');
+    expect(S.params.drillActive).toBe(true);
+    await click('[data-drillmode="break"]');
+    expect($('[data-drillmode="break"]').classList.contains('cam-sim-active')).toBe(true);
+    S.params.drillActive = false;
+  });
+
   it('meze: čelisti zapnout/vypnout', async () => {
     const { S } = sim;
     S.safetyConfigOpen = true;
@@ -132,5 +171,20 @@ describe('simulátor — záložka Parametry', () => {
     expect(!!S.zLimits.chuckActive).toBe(!was);
     await click('[data-act="chuck-active"]');
     expect(!!S.zLimits.chuckActive).toBe(was);
+  });
+
+  // Poslední — mění skoro celý stav.
+  it('🔄 Resetovat vše: po potvrzení výchozí parametry, geometrie stroje/polotovaru zůstane', async () => {
+    const { S } = sim;
+    S.params.safeX = 321; S.params.mode = 'RADIUS'; S.params.stockDiameter = 77;
+    S.guideLines = [{ x1: 1, z1: 2, x2: 3, z2: 4 }];
+    await showParams();
+    await click('[data-act="reset"]');
+    document.querySelector('.cam-confirm-ok').click();
+    await settle(20);
+    expect(S.params.safeX).not.toBe(321);
+    expect([S.params.mode, S.params.stockDiameter]).toEqual(['RADIUS', 77]);
+    expect(S.guideLines).toEqual([]);
+    expect(S.selectedMaterial).toBe('Ocel 11 373 (S235)');
   });
 });
