@@ -256,4 +256,12 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 - [x] Fáze 1 — 5 pilotů (13. 10.)
 - [x] Fáze 2 — snapy + zbytek bloku SNAP MEZNÍCH ČAR (13. 10.)
 - [x] Fáze 3 — záložka Parametry (13. 10.; pomocné funkce změn → Fáze 4)
-- [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
+- [ ] Fáze 4 — rozpracováno 13. 10.: ✅ test `sim-ui-tool-dialogs`, ✅ `toolUi` (c9e0419).
+  Další kroky: (2) čisté funkce slotů `_defaultMagSlot`, `_slotNameFromFilename`,
+  `_buildMagSlotFromTool`, `_isoMagSlot`, `_isoDefaultMagSlots`, `_setMagSlotShape`
+  → obyčejné exporty (volají se SYNCHRONNĚ při načítání, ř. ~590–622 → ne továrna);
+  `_upgradeIsoHolders` → export s parametrem S + hoisted obal; (3) nože/sloty
+  závislé na S → továrna; (4) pomocné funkce změn parametrů (applyShapeChange…)
+  → továrna, křížové závislosti s (3) předat líně; `shape-preset-knife` přepnout
+  z vyřezávání zdroje na importy; (5) výběr závitu, okno Geometrie, okno Zásobník
+  → moduly. · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
