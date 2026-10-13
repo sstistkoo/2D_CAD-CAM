@@ -119,8 +119,17 @@ export async function openSim(prog, { settleMs = 30 } = {}) {
   const rootEl = document.querySelector('.cam-sim-root');
   const canvas = rootEl.querySelector('.cam-sim-canvas-wrap canvas');
   const calls = () => canvas.getContext('2d').__calls;
+  const S = h.S;
+  // Inverze clientToWorldCam (camSimulator.js); happy-dom má rect plátna v 0,0.
+  const worldToClient = (x, z) => {
+    const vS = S.flipX ? 1 : -1, hS = S.flipZ ? -1 : 1, v = S.view;
+    return S.params.machineStructure === 'carousel'
+      ? { clientX: v.panX + hS * x * v.scale, clientY: v.panY + vS * z * v.scale }
+      : { clientX: v.panX + hS * z * v.scale, clientY: v.panY + vS * x * v.scale };
+  };
+  const wrap = rootEl.querySelector('.cam-sim-canvas-wrap');
   return {
-    S: h.S,
+    S,
     close: async () => { h.close(); await settle(5); },
     root: rootEl,
     q: (sel) => rootEl.querySelector(sel),
@@ -128,5 +137,12 @@ export async function openSim(prog, { settleMs = 30 } = {}) {
     canvas,
     drawCalls: calls,
     clearDrawCalls: () => { calls().length = 0; },
+    /** Přepočet drah + překreslení (po přímé změně `S` v testu). */
+    fullUpdate: () => window.__camDebug.fullUpdate(),
+    worldToClient,
+    /** Událost myši na plátně v bodě světa (x = poloměr, z). */
+    mouse: (type, x, z, opts = {}) => {
+      wrap.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, ...worldToClient(x, z), ...opts }));
+    },
   };
 }
