@@ -23,14 +23,17 @@ import { _defaultCamParams, SHAPE_CUT_DEFAULTS } from '../js/calculators/cam/cam
 import { strategyKnifeSlot } from '../js/calculators/cam/strategyKnife.js';
 import { getInsert } from '../js/calculators/cam/inserts/index.js';
 import { holderInflate, holderInflateAll } from '../js/calculators/cam/collisionValidator.js';
+import { _isoMagSlot, _buildMagSlotFromTool, _defaultMagSlot, _setMagSlotShape } from '../js/calculators/cam/sim/magSlots.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXPECTED = {
   round: 'SRSCR2525M20', polygon: 'PSBNR2525M12', parting: 'MGEHR2525-5',
   threading: 'SER2525M16', drill: 'Vrtak HSS D20',
 };
+// Čisté funkce slotů žijí od 13. 10. 2026 v cam/sim/magSlots.js (import níž),
+// zbytek se zatím vyřezává ze zdroje simulátoru.
 const FNS = ['applyShapeChange', '_loadMagSlot', '_rememberShapeKnife', '_loadShapeKnife', '_loadPresetKnife',
-  '_slotToParams', '_paramsIntoSlot', '_isoMagSlot', '_buildMagSlotFromTool', '_defaultMagSlot', '_setMagSlotShape', '_polygonForStrategy'];
+  '_slotToParams', '_paramsIntoSlot', '_polygonForStrategy'];
 
 function loadShapeFns() {
   const src = readFileSync(join(__dirname, '..', 'js', 'calculators', 'camSimulator.js'), 'utf8').replace(/\r\n/g, '\n');
@@ -43,6 +46,7 @@ function loadShapeFns() {
   const deps = {
     S, getInsert, strategyKnifeSlot, presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, sameKnifeGeometry,
     SHAPE_CUT_DEFAULTS, holderInflate, holderInflateAll,
+    _isoMagSlot, _buildMagSlotFromTool, _defaultMagSlot, _setMagSlotShape,
     dropInsertGuides: () => {}, applyChange: () => {}, showToast: () => {},
     afterToolChange: () => undefined, applyAfterToolChange: () => {}, fullUpdate: () => {},
   };
