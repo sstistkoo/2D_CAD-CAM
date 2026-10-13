@@ -10015,14 +10015,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         const pt = { type: ov._type, x: ov._x, z: ov._z, r: ov._r || 0, mode: ov._mode };
         const tgt = ov._target;
         ov.remove(); hint.remove();
-        _pickHandler = null;
+        canvasPick.handler = null;
         canvas.style.cursor = 'crosshair';
         onConfirm(pt, tgt);
       });
 
       ov.querySelector('#ism-cancel').addEventListener('click', () => {
         document.removeEventListener('keydown', handlePickEsc);
-        ov.remove(); hint.remove(); _pickHandler = null; canvas.style.cursor = 'crosshair';
+        ov.remove(); hint.remove(); canvasPick.handler = null; canvas.style.cursor = 'crosshair';
       });
 
       ov.addEventListener('keydown', e => {
@@ -10042,12 +10042,12 @@ export function openCamSimulator(initialContour, initialGCode) {
     setTimeout(() => ov.querySelector('#ism-x') && ov.querySelector('#ism-x').focus(), 50);
 
     // pick handler – kliknutí na canvas přebere souřadnice bodu
-    _pickHandler = (wx, wz) => {
-      if (!pickMode) { _pickHandler = null; return; }
+    canvasPick.handler = (wx, wz) => {
+      if (!pickMode) { canvasPick.handler = null; return; }
       ov._x = Math.round(wx * 100) / 100;
       ov._z = Math.round(wz * 100) / 100;
       document.removeEventListener('keydown', handlePickEsc);
-      _pickHandler = null;
+      canvasPick.handler = null;
       exitPickMode();
     };
   }
@@ -10145,12 +10145,12 @@ export function openCamSimulator(initialContour, initialGCode) {
         syncValues();
         document.removeEventListener('keydown', handlePickEsc);
         ov.remove(); hint.remove();
-        _pickHandler = null; canvas.style.cursor = 'crosshair';
+        canvasPick.handler = null; canvas.style.cursor = 'crosshair';
         onConfirm({ type: ms.type, x: isDia ? ms.x / 2 : ms.x, z: ms.z, cr: ms.cr });
       };
       const doCancel = () => {
         document.removeEventListener('keydown', handlePickEsc);
-        ov.remove(); hint.remove(); _pickHandler = null; canvas.style.cursor = 'crosshair';
+        ov.remove(); hint.remove(); canvasPick.handler = null; canvas.style.cursor = 'crosshair';
       };
       ov.querySelector('#agm-ok').addEventListener('click', doConfirm);
       ov.querySelector('#agm-cancel').addEventListener('click', doCancel);
@@ -10164,17 +10164,19 @@ export function openCamSimulator(initialContour, initialGCode) {
     renderModal();
     document.body.appendChild(ov);
 
-    _pickHandler = (wx, wz) => {
-      if (!pickMode) { _pickHandler = null; return; }
+    canvasPick.handler = (wx, wz) => {
+      if (!pickMode) { canvasPick.handler = null; return; }
       ms.x = Math.round((isDia ? wx * 2 : wx) * 1000) / 1000;
       ms.z = Math.round(wz * 1000) / 1000;
       document.removeEventListener('keydown', handlePickEsc);
-      _pickHandler = null;
+      canvasPick.handler = null;
       exitPickMode();
     };
   }
 
-  let _pickHandler = null;
+  // Klik na plátno pro modaly (🎯 Přebrat souřadnice) — objekt, ať handler
+  // mohou nastavit i modaly vyňaté do cam/sim/ (modul nepřepíše cizí `let`).
+  const canvasPick = { handler: null };
 
   canvasWrap.addEventListener('wheel', e => {
     e.preventDefault();
@@ -10308,7 +10310,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       return;
     }
     // Pick handler pro modal vložení segmentu
-    if (_pickHandler) {
+    if (canvasPick.handler) {
       const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -10330,7 +10332,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (d < bestD) { bestD = d; best = p; }
       }
       if (best && bestD < 20 / S.view.scale) { wx = best.x; wz = best.z; }
-      _pickHandler(wx, wz);
+      canvasPick.handler(wx, wz);
       e.stopPropagation();
       return;
     }
