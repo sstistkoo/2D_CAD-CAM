@@ -2,6 +2,7 @@
 
 > Stav 13. 10. 2026: **11 716 ř.**, strop v `tests/file-size-budget.test.js` = 11 712 + 15.
 > Po Fázi 1 (13. 10. odpoledne): **10 972 ř.**, strop 10 972.
+> Po Fázi 2 (13. 10. večer): **9 978 ř.**, strop 9 978.
 > Schváleno uživatelem jako samostatná práce (CLAUDE.md: refaktoring obřího
 > souboru = vědomé rozhodnutí, ne vedlejší efekt opravy). Pořadí: **od toho,
 > u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
@@ -138,7 +139,18 @@ nic neimportuje.
 | Validace kolizí + Kolize držáku (oranžové) | 190 | 11 | 0 | unit nad fixture: stejné hlášky |
 | Modal pro vložení segmentu | 227 | 2 | 1 (`_pickHandler`) | otevřít, vložit |
 
-### Fáze 2 — snapy (~1 020 ř.), nic nepřepisují
+### Fáze 2 — snapy (~1 020 ř.), nic nepřepisují ✅ 13. 10.
+
+Hlavička „SNAP MEZNÍCH ČAR" ve skutečnosti kryla ~1 000 ř. až po SIMULATION
+— rozděleno podle logiky na 5 modulů (10 972 → 9 978 ř., otisk drah shodný):
+`cam/sim/snap.js` (`createSnap`: SNAP jako v CAD, snap tažené meze, úhlový
+snap; test `sim-ui-snap`), `gcodeNodes.js` (úprava drah v G-kódu; test
+`sim-ui-gcode-edit`, `cam-path-pick-arc` teď importuje továrnu místo
+vyřezávání ze zdroje), `hitTest.js` (bod/úsečka/oblouk pod kurzorem,
+úchopy upichnutí, mezní čáry; `sim-ui-hit-test`), `guideLines.js`
+(konstrukční čáry, Prodl/Ořez; `sim-ui-guide-lines`). Továrny MUSÍ vznikat
+v pořadí gcodeNodes → hitTest → guideLines → snap (každá dostává funkce
+předchozích; `sim_coupling.mjs --sync` je ukáže).
 | Blok | ř. | čte | píše | test |
 |---|---|---|---|---|
 | SNAP MEZNÍCH ČAR (rozsah 📐, čelisti, koník) | 892 | 16 | 0 | unit: tažení meze → hodnota v `S.zLimits` |
@@ -223,4 +235,5 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 - [x] `happy-dom` + `@babel/parser` v devDependencies, zkouška otevření simulátoru (13. 10.)
 - [x] Fáze 0 — harness, háček, první smoke test (13. 10.)
 - [x] Fáze 1 — 5 pilotů (13. 10.)
-- [ ] Fáze 2 · [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
+- [x] Fáze 2 — snapy + zbytek bloku SNAP MEZNÍCH ČAR (13. 10.)
+- [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
