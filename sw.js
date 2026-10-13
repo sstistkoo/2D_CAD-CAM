@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v503';
+const CACHE_NAME = 'skica-v504';
 const ASSETS = [
   './',
   './index.html',
@@ -114,6 +114,11 @@ const ASSETS = [
   './js/calculators/cam/roughingStrategies.js',
   './js/calculators/cam/sim/autoStock.js',
   './js/calculators/cam/sim/collisionWarnings.js',
+  './js/calculators/cam/sim/drawCanvas.js',
+  './js/calculators/cam/sim/drawContour.js',
+  './js/calculators/cam/sim/drawOverlays.js',
+  './js/calculators/cam/sim/drawStock.js',
+  './js/calculators/cam/sim/drawToolpath.js',
   './js/calculators/cam/sim/gcodeNodes.js',
   './js/calculators/cam/sim/geomPopups.js',
   './js/calculators/cam/sim/guideLines.js',
