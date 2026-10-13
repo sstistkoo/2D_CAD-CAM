@@ -4,6 +4,7 @@
 > Po Fázi 1 (13. 10. odpoledne): **10 972 ř.**, strop 10 972.
 > Po Fázi 2 (13. 10. večer): **9 978 ř.**, strop 9 978.
 > Po Fázi 3 (13. 10. večer): **9 018 ř.**, strop 9 018.
+> Po Fázi 4 (13. 10. večer): **6 741 ř.**, strop 6 741.
 > Schváleno uživatelem jako samostatná práce (CLAUDE.md: refaktoring obřího
 > souboru = vědomé rozhodnutí, ne vedlejší efekt opravy). Pořadí: **od toho,
 > u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
@@ -256,12 +257,12 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 - [x] Fáze 1 — 5 pilotů (13. 10.)
 - [x] Fáze 2 — snapy + zbytek bloku SNAP MEZNÍCH ČAR (13. 10.)
 - [x] Fáze 3 — záložka Parametry (13. 10.; pomocné funkce změn → Fáze 4)
-- [ ] Fáze 4 — rozpracováno 13. 10.: ✅ test `sim-ui-tool-dialogs`, ✅ `toolUi` (c9e0419).
-  Další kroky: (2) čisté funkce slotů `_defaultMagSlot`, `_slotNameFromFilename`,
-  `_buildMagSlotFromTool`, `_isoMagSlot`, `_isoDefaultMagSlots`, `_setMagSlotShape`
-  → obyčejné exporty (volají se SYNCHRONNĚ při načítání, ř. ~590–622 → ne továrna);
-  `_upgradeIsoHolders` → export s parametrem S + hoisted obal; (3) nože/sloty
-  závislé na S → továrna; (4) pomocné funkce změn parametrů (applyShapeChange…)
-  → továrna, křížové závislosti s (3) předat líně; `shape-preset-knife` přepnout
-  z vyřezávání zdroje na importy; (5) výběr závitu, okno Geometrie, okno Zásobník
-  → moduly. · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
+- [x] Fáze 4 — Zásobník, Geometrie, nože (13. 10.): `toolUi`, `magSlots.js`
+  (čisté funkce slotů, volají se při načítání → exporty), `paramChanges.js` +
+  `knifeSlots.js` (skládá `knives.js`, vzájemná volání líně), `threadPicker.js`,
+  `toolFiles.js`, `magazineDialog.js`, `toolGeometryDialog.js` (+ `geomUi`,
+  `holderCadDraw.js`, `geomPopups.js`). Okna Geometrie a výběr závitu se staví
+  až při otevření (hoisted obal). `shape-preset-knife` a `cam-path-pick-arc`
+  už nic ze zdroje simulátoru nevyřezávají. Testy `sim-ui-tool-dialogs`,
+  `mag-slots`. Otisk drah shodný.
+- [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
