@@ -3,6 +3,7 @@
 > Stav 13. 10. 2026: **11 716 ř.**, strop v `tests/file-size-budget.test.js` = 11 712 + 15.
 > Po Fázi 1 (13. 10. odpoledne): **10 972 ř.**, strop 10 972.
 > Po Fázi 2 (13. 10. večer): **9 978 ř.**, strop 9 978.
+> Po Fázi 3 (13. 10. večer): **9 018 ř.**, strop 9 018.
 > Schváleno uživatelem jako samostatná práce (CLAUDE.md: refaktoring obřího
 > souboru = vědomé rozhodnutí, ne vedlejší efekt opravy). Pořadí: **od toho,
 > u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
@@ -156,7 +157,18 @@ předchozích; `sim_coupling.mjs --sync` je ukáže).
 | SNAP MEZNÍCH ČAR (rozsah 📐, čelisti, koník) | 892 | 16 | 0 | unit: tažení meze → hodnota v `S.zLimits` |
 | SNAP (jako v CAD) | 127 | 6 | 0 | unit: přichycení k bodu/hraně |
 
-### Fáze 3 — záložka Parametry (~1 160 ř.), nic nepřepisuje
+### Fáze 3 — záložka Parametry (~1 160 ř.), nic nepřepisuje ✅ 13. 10.
+
+Hotovo (9 971 → 9 018 ř., otisk drah shodný): HTML → `cam/sim/paramsPanelsHtml.js`
+(stroj, bezpečná poloha, meze, materiál, nůž) + `paramsMachiningHtml.js`
+(Obrábění s podzáložkami); události → `paramsEventsGeneral.js` +
+`paramsEventsMachining.js` (ctx se sestaví při každém vykreslení — žádné
+TDZ); `MATERIALS` → `materials.js`. HTML všech podzáložek ověřeno sondou
+před/po (shodné až na odsazení řádků šablony). Test `sim-ui-params-tab`
+(snapshot ovládacích prvků + přepínače → stav). **Zbývá:** pomocné funkce
+změn parametrů (`applyParamChange`, `applyShapeChange`, `setMachiningSubTab`,
+`afterToolChange`, … ~190 ř.) — `applyShapeChange` vyřezává ze zdroje test
+`shape-preset-knife` spolu s funkcemi zásobníku, proto se přesunou s Fází 4.
 | Blok | ř. | čte | píše | test |
 |---|---|---|---|---|
 | params tab | 1159 | 30 | 0 | každé pole/přepínač → `S.params`; Čelně/Podélně, Zprava/Zleva, záložky Hrub./Hot./… |
@@ -243,4 +255,5 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 - [x] Fáze 0 — harness, háček, první smoke test (13. 10.)
 - [x] Fáze 1 — 5 pilotů (13. 10.)
 - [x] Fáze 2 — snapy + zbytek bloku SNAP MEZNÍCH ČAR (13. 10.)
-- [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
+- [x] Fáze 3 — záložka Parametry (13. 10.; pomocné funkce změn → Fáze 4)
+- [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
