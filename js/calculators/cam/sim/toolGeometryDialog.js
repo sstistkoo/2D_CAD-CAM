@@ -26,16 +26,17 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
     // re-rendery (render() vždy přepíše dlg.innerHTML) — patří proto do
     // vnějšího closure dialogu, ne do S.params (je to jen UI stav náhledu).
     let viewZoom = 1, viewPanX = 0, viewPanY = 0;
-    let activeGeomTab = 'insert'; // 'insert' | 'holder'
+    // Záložka a strana kreslení obrysu v objektu — přepisují je i vyňaté části
+    // okna (holderCadDraw.js, geomPopups.js), které cizí `let` nezmění.
+    const geomUi = { activeGeomTab: 'insert', currentDrawSide: null }; // activeGeomTab: 'insert' | 'holder'
     let isDraggingCanvas = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0, clickMoved = false;
     // Poslední klikatelné popisky úhlů z canvasu (logické souřadnice před
     // zoom/pan), použité k umístění "hotspot" bublin přes canvas.
     let lastLabels = {};
     // Ruční kreslení obrysu držáku — drawModeActive zapíná zobrazení
-    // klikatelných anchor bodů na destičce; currentDrawSide drží, která
+    // klikatelných anchor bodů na destičce; geomUi.currentDrawSide drží, která
     // strana ('sideA'/'sideB') se právě rozšiřuje (viz handleDrawCanvasClick).
     let drawModeActive = false;
-    let currentDrawSide = null;
     let lastAnchorHits = [];
     // Editor tvaru držáku (z obdélníku): rectEditActive zapíná spodní klikací
     // body držáku + anchory destičky (vč. Střed R); rectMoveSel = vybraný bod
@@ -93,8 +94,8 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
       cctx.scale(viewZoom, viewZoom);
       // uiScale = 1/viewZoom → čáry/markery zůstanou po zoomu konstantně tenké.
       const result = drawInsertAndHolderPreview(cctx, cw, ch, S.params,
-        { showAnchors: drawModeActive || rectEditActive, activeSide: currentDrawSide, uiScale: 1 / viewZoom,
-          hideHolder: activeGeomTab === 'insert',
+        { showAnchors: drawModeActive || rectEditActive, activeSide: geomUi.currentDrawSide, uiScale: 1 / viewZoom,
+          hideHolder: geomUi.activeGeomTab === 'insert',
           showHolderHandles: rectEditActive, selectedHandle: rectMoveSel });
       lastLabels = (result && result.labels) || {};
       lastAnchorHits = (result && result.anchorHits) || [];
@@ -132,8 +133,8 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
     function onHotspotClick(key) {
       const target = HOTSPOT_TARGETS[key];
       if (!target) return;
-      const needTabSwitch = activeGeomTab !== target.tab;
-      if (needTabSwitch) { activeGeomTab = target.tab; render(); }
+      const needTabSwitch = geomUi.activeGeomTab !== target.tab;
+      if (needTabSwitch) { geomUi.activeGeomTab = target.tab; render(); }
       setTimeout(() => {
         const el = target.focusId ? dlg.querySelector('#' + target.focusId) : dlg.querySelector(target.focusSelector);
         if (el) { el.focus(); if (el.select) el.select(); }
@@ -264,7 +265,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
         pushHistory();
         S.params.holderProfile[best.side] = [{ x: best.wx, z: best.wz }];
       }
-      currentDrawSide = best.side;
+      geomUi.currentDrawSide = best.side;
       applyChange();
       showHolderSidePopup(best.side);
     }
@@ -466,12 +467,12 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
       popup.querySelector('#geom-side-clear').addEventListener('click', () => {
         pushHistory();
         S.params.holderProfile[side] = [];
-        currentDrawSide = null;
+        geomUi.currentDrawSide = null;
         applyChange();
         popup.remove();
         redrawCanvas();
       });
-      const finishSide = () => { currentDrawSide = null; popup.remove(); redrawCanvas(); };
+      const finishSide = () => { geomUi.currentDrawSide = null; popup.remove(); redrawCanvas(); };
       popup.querySelector('#geom-side-done').addEventListener('click', finishSide);
       popup.addEventListener('click', e => { if (e.target === popup) finishSide(); });
       lenInp.focus();
@@ -737,7 +738,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
       if (bridge.updateHolderDrawButtons) bridge.updateHolderDrawButtons();
       overlay.style.display = '';
       dlg.style.display = '';
-      activeGeomTab = 'holder';
+      geomUi.activeGeomTab = 'holder';
       if (toolUi.toolGeomModalRefresh) toolUi.toolGeomModalRefresh();
       showToast(result ? 'Obrys držáku uložen 📐' : 'Kreslení držáku zrušeno');
     }
@@ -772,7 +773,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
       // Rozložení (uživatel 1. 10. 2026): hlavička název | ↩ ↪ ☰ · ✕ (jako
       // 🔧 Zásobník — sdílí jeho třídy cam-mag-*), pod náhledem jeden
       // přepínač 🔩 Destička / 🗜 Držák. Celý nůž (zásobník, soubor) je v ☰.
-      const insertTab = activeGeomTab === 'insert';
+      const insertTab = geomUi.activeGeomTab === 'insert';
       const prof = prms.holderProfile;
       const hasProfileNow = !!(prof && ((prof.sideA && prof.sideA.length) || (prof.sideB && prof.sideB.length)));
       const anchorsSupported = prms.toolShape === 'round' || prms.toolShape === 'polygon';
@@ -860,7 +861,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
 
       // Přepínač Destička/Držák — jen lokální UI stav, bez historie.
       dlg.querySelector('[data-act="geom-tab-toggle"]').addEventListener('click', () => {
-        activeGeomTab = activeGeomTab === 'insert' ? 'holder' : 'insert';
+        geomUi.activeGeomTab = geomUi.activeGeomTab === 'insert' ? 'holder' : 'insert';
         render();
       });
 
@@ -890,7 +891,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
       const toggleDrawBtn = dlg.querySelector('[data-act="geom-toggle-draw"]');
       if (toggleDrawBtn) toggleDrawBtn.addEventListener('click', () => {
         drawModeActive = !drawModeActive;
-        currentDrawSide = null;
+        geomUi.currentDrawSide = null;
         document.querySelector('.geom-side-popup')?.remove();
         render();
       });
@@ -909,7 +910,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
         rectMoveSel = null; chamferPickMode = false;
         if (rectEditActive) {
           // Vypnout freehand kreslení + materializovat obdélník, pokud není obrys.
-          drawModeActive = false; currentDrawSide = null;
+          drawModeActive = false; geomUi.currentDrawSide = null;
           const p = S.params.holderProfile;
           const hasP = p && ((p.sideA && p.sideA.length) || (p.sideB && p.sideB.length));
           if (!hasP) { pushHistory(); S.params.holderProfile = { sideA: holderRectProfile(S.params), sideB: [] }; }
