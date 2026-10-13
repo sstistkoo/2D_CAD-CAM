@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  Tlačítka tvaru destičky nasadí NŮŽ TVARU i s držákem           ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -9,50 +10,28 @@
 // vyložení vrtáku 145 mm (náhradní držák kulaté sedí `toolLength` nad
 // destičkou → nehlídal se), úhel 118° a pouzdro 40 × 80 bez obrysu.
 //
-// `applyShapeChange` / `_setMagSlotShape` jsou uvnitř closure openCamSimulator
-// (DOM), proto se vyříznou ze zdroje a pustí nad stubem stavu — totéž
-// rozhraní, jaké jim dává panel (S, getInsert, …).
+// `applyShapeChange` a nože/sloty žijí od 13. 10. 2026 v továrně createKnives
+// (cam/sim/knives.js), čisté funkce slotů v cam/sim/magSlots.js. Test postaví
+// továrnu nad stubem stavu stejně jako simulátor (dřív se funkce vyřezávaly
+// ze zdroje camSimulator.js).
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import {
-  presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, SHAPE_PRESET_KNIFE_ID, sameKnifeGeometry,
-} from '../js/calculators/magazineDefaults.js';
-import { _defaultCamParams, SHAPE_CUT_DEFAULTS } from '../js/calculators/cam/camDefaults.js';
-import { strategyKnifeSlot } from '../js/calculators/cam/strategyKnife.js';
-import { getInsert } from '../js/calculators/cam/inserts/index.js';
-import { holderInflate, holderInflateAll } from '../js/calculators/cam/collisionValidator.js';
-import { _isoMagSlot, _buildMagSlotFromTool, _defaultMagSlot, _setMagSlotShape } from '../js/calculators/cam/sim/magSlots.js';
+import { presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, SHAPE_PRESET_KNIFE_ID } from '../js/calculators/magazineDefaults.js';
+import { _defaultCamParams } from '../js/calculators/cam/camDefaults.js';
+import { _isoMagSlot, _setMagSlotShape } from '../js/calculators/cam/sim/magSlots.js';
+import { createKnives } from '../js/calculators/cam/sim/knives.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXPECTED = {
   round: 'SRSCR2525M20', polygon: 'PSBNR2525M12', parting: 'MGEHR2525-5',
   threading: 'SER2525M16', drill: 'Vrtak HSS D20',
 };
-// Čisté funkce slotů žijí od 13. 10. 2026 v cam/sim/magSlots.js (import níž),
-// zbytek se zatím vyřezává ze zdroje simulátoru.
-const FNS = ['applyShapeChange', '_loadMagSlot', '_rememberShapeKnife', '_loadShapeKnife', '_loadPresetKnife',
-  '_slotToParams', '_paramsIntoSlot', '_polygonForStrategy'];
-
 function loadShapeFns() {
-  const src = readFileSync(join(__dirname, '..', 'js', 'calculators', 'camSimulator.js'), 'utf8').replace(/\r\n/g, '\n');
-  const cut = (name) => {
-    const a = src.indexOf(`  function ${name}(`);
-    if (a < 0) throw new Error(`camSimulator.js: funkce ${name} nenalezena`);
-    return src.slice(a, src.indexOf('\n  }\n', a) + 4);
-  };
-  const S = { params: { ..._defaultCamParams() }, toolMagazine: [], shapeKnives: {}, _shapeGeomMem: {}, activeMagazineSlot: null };
-  const deps = {
-    S, getInsert, strategyKnifeSlot, presetKnifeForShape, presetSlotIndex, defaultMagazineKnives, sameKnifeGeometry,
-    SHAPE_CUT_DEFAULTS, holderInflate, holderInflateAll,
-    _isoMagSlot, _buildMagSlotFromTool, _defaultMagSlot, _setMagSlotShape,
-    dropInsertGuides: () => {}, applyChange: () => {}, showToast: () => {},
-    afterToolChange: () => undefined, applyAfterToolChange: () => {}, fullUpdate: () => {},
-  };
-  const body = FNS.map(cut).join('\n') + '\nreturn { applyShapeChange, _setMagSlotShape, _isoMagSlot, _loadMagSlot };';
-  const make = new Function(...Object.keys(deps), body);
-  return { S, ...make(...Object.values(deps)) };
+  const S = { params: { ..._defaultCamParams() }, toolMagazine: [], shapeKnives: {}, _shapeGeomMem: {}, activeMagazineSlot: null, guideLines: [] };
+  const k = createKnives({
+    S, toolUi: { toolGeomModalRefresh: null, magazineDialogRefresh: null, magEditSlotRef: null, magEditHandTouched: false },
+    applyChange: () => {}, renderTab: () => {}, withBusy: (_msg, fn) => fn(), gcodeStale: () => false, pathInputsKey: () => '',
+    fullUpdate: () => {}, saveState: () => {}, pushHistory: () => {},
+  });
+  return { S, applyShapeChange: k.applyShapeChange, _setMagSlotShape, _isoMagSlot, _loadMagSlot: k._loadMagSlot };
 }
 
 describe('výchozí nůž pro tvar destičky (magazineDefaults.js)', () => {
