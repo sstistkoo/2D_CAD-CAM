@@ -108,6 +108,44 @@ describe('🔧 Zásobník', () => {
   });
 });
 
+describe('🔧 Zásobník — ☰ menu a 💾 Uložit aktuální nástroj', () => {
+  it('💾 → Do zásobníku: nový slot s názvem, aktivní; ☰ → 🔄 Seřadit vrátí výchozí nože na T1…', async () => {
+    const { S } = sim;
+    const n = S.toolMagazine.length;
+    await clickEl(mag().querySelector('#mag-dlg-save-current'));
+    const menu = () => [...document.querySelectorAll('.input-overlay')].find(o => o.querySelector('.cam-mag-menu'));
+    expect(menu()).toBeTruthy();
+    menu().querySelector('[data-act="save-name"]').value = 'Můj nůž';
+    await clickEl(menu().querySelector('[data-mi="0"]'));   // 🔧 Do zásobníku
+    expect(S.toolMagazine.length).toBe(n + 1);
+    expect(S.toolMagazine[n].name).toBe('Můj nůž');
+    expect(S.activeMagazineSlot).toBe(n);
+    // Nový nůž na začátek, ať je co řadit: ▲ až na T1.
+    for (let i = n; i > 0; i--) await clickEl(inMag(`[data-act="mag-up"][data-magidx="${i}"]`));
+    expect(S.toolMagazine[0].name).toBe('Můj nůž');
+    await clickEl(inMag('[data-act="mag-menu"]'));
+    await clickEl(menu().querySelector('[data-mi="1"]'));   // 🔄 Seřadit dle výchozích
+    expect(names()).toMatchInlineSnapshot(`
+      [
+        "T1 PSKNR2525M12",
+        "T2 PSBNR2525M12",
+        "T3 PDJNR2525M15",
+        "T4 SRSCR2525M20",
+        "T5 SER2525M16",
+        "T6 MGEHR2525-5",
+        "T7 Vrtak HSS D20",
+        "T8 Můj nůž",
+      ]
+    `);
+    // úklid: vlastní nůž (teď poslední) pryč
+    const last = S.toolMagazine.length - 1;
+    if (S.editingMagazineSlot !== last) await clickEl(inMag(`[data-act="mag-toggle"][data-magidx="${last}"]`));
+    await clickEl(inMag(`[data-act="mag-delete"][data-magidx="${last}"]`));
+    await clickEl(document.querySelector('.cam-confirm-ok'));
+    expect(S.toolMagazine.length).toBe(n);
+  });
+});
+
 describe('🔪 Geometrie', () => {
   it('z hlavičky zásobníku: pole držáku → S.params, přepnutí záložky, ✕ zavře', async () => {
     const { S } = sim;

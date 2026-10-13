@@ -5,6 +5,7 @@
 // „magazine dialog", docs/plan-rozdeleni-cam-simulatoru.md).
 import { SHAPE_CUT_DEFAULTS } from '../camDefaults.js';
 import { defaultMagazineKnives, presetKnifeForShape } from '../../magazineDefaults.js';
+import { upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
 
 export function _defaultMagSlot(num) {
   return {
@@ -86,4 +87,21 @@ export function _setMagSlotShape(slot, next) {
     if (k === 'slot' || (k === 'name' && keepName)) continue;
     slot[k] = preset[k];
   }
+}
+
+// Volá se i při načítání stavu — S jako parametr (simulátor má obal _upgradeIsoHolders).
+/** Starý obrys držáku nožů z 📚 ISO katalogu (verze 1: hlava končila přesně
+ *  na břitu) → aktuální — ve slotech `slots`, v S.params i v částech
+ *  programu. Nože odjinud a upravené obrysy se nemění. Vrací počet oprav. */
+export function upgradeIsoHolders(S, slots) {
+  const fix = (obj, nameKey, vbdKey) => {
+    const np = obj ? upgradeIsoHolderProfile(obj[nameKey], obj[vbdKey], obj.holderProfile) : null;
+    if (np) obj.holderProfile = JSON.parse(JSON.stringify(np));
+    return np ? 1 : 0;
+  };
+  let n = 0;
+  for (const sl of slots || []) n += fix(sl, 'name', 'vbdCode');
+  n += fix(S.params, 'toolName', 'toolVbdCode');
+  for (const part of S.opParts || []) n += fix(part.params, 'toolName', 'toolVbdCode');
+  return n;
 }
