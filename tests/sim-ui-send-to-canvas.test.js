@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
-// „📐 Kreslit" — vrácení kontury, polotovaru, konstrukčních čar a programu
-// ze simulátoru na plátno CAD (blok „Vrátit konturu zpět na plátno" →
-// js/calculators/cam/sim/sendToCanvas.js). Hodnoty jsou charakterizace
-// starého kódu — po přestěhování se nesmí změnit.
+// Návrat z CAM do CAD křížkem ✕: bez změn jen zavře, se změnami se zeptá
+// „Zahodit změny / 📐 Zachovat a přenést". Přenos vrátí na plátno CAD
+// konturu, polotovar, konstrukční čáry a skrytou poznámku s programem
+// (js/calculators/cam/sim/sendToCanvas.js). Hodnoty jsou charakterizace
+// kódu z 13. 10. 2026 (tehdy i tlačítkem „📐 Kreslit", které uživatel nechal
+// odstranit — nepoužíval ho, vrací se vždy křížkem).
 import { describe, it, expect, beforeAll } from 'vitest';
 import { installSimDom, openSim, loadFixture, settle } from './helpers/simUi.mjs';
 
@@ -33,26 +35,65 @@ function summary(objs) {
   });
 }
 
-async function sendToCanvas(machineType, setup) {
+const OLD = { type: 'line', x1: 0, y1: 0, x2: 1, y2: 1, id: 999, name: 'starý výkres', layer: 0 };
+
+/** Otevře simulátor nad konturou; `setup(S)` může stav upravit. */
+async function openWith(machineType, setup = () => {}) {
   state.machineType = machineType;
   state.objects.length = 0;
-  state.objects.push({ type: 'line', x1: 0, y1: 0, x2: 1, y2: 1, id: 999, name: 'starý výkres', layer: 0 });
+  state.objects.push({ ...OLD });
   const sim = await openSim(loadFixture('cam/part-1.camprog'));
   const { S } = sim;
   S.params.mode = 'DIAMON';
   S.contourPoints = structuredClone(CONTOUR);
   S.guideLines = [{ ...GUIDE, id: 1 }];
   setup(S);
-  sim.q('[data-code="to-canvas"]').click();
+  return sim;
+}
+const closeBtn = () => document.querySelector('.cam-sim-toolbar .calc-close-btn');
+const choice = () => document.querySelector('.cam-confirm-overlay [data-r="save"]')?.closest('.cam-confirm-overlay') || null;
+
+/** ✕ se změnou v programu → „📐 Zachovat a přenést" → objekty výkresu CAD. */
+async function sendToCanvas(machineType, setup) {
+  const sim = await openWith(machineType, setup);
+  sim.S.manualGCode += '\n; ruční poznámka';   // změna → ✕ se zeptá
+  closeBtn().click();
   await settle(10);
-  // Potvrzení „Smazat aktuální výkres…?", pokud se ukáže.
-  document.querySelector('.cam-confirm-ok')?.click();
+  expect(choice()).not.toBeNull();
+  choice().querySelector('[data-r="save"]').click();
   await settle(20);
   expect(document.querySelector('.cam-sim-root')).toBeNull();   // simulátor se zavřel
   return summary(state.objects);
 }
 
-describe('simulátor → plátno CAD (📐 Kreslit)', () => {
+describe('✕ zavřít CAM', () => {
+  it('bez změn jen zavře — bez dotazu, výkres CAD zůstane; „📐 Kreslit" už není', async () => {
+    const sim = await openWith('soustruh');
+    expect(sim.q('[data-code="to-canvas"]')).toBeNull();
+    sim.q('[data-tab="editor"]').click();
+    expect(sim.root.querySelector('[data-act="to-canvas-edit"]')).toBeNull();
+    expect(sim.qa('button').some(b => b.textContent.includes('📐 Kreslit'))).toBe(false);
+    closeBtn().click();
+    await settle(10);
+    expect(choice()).toBeNull();
+    expect(document.querySelector('.cam-sim-root')).toBeNull();
+    expect(state.objects).toEqual([OLD]);
+  });
+
+  it('se změnami se zeptá; „Zahodit změny" zavře a výkres nechá', async () => {
+    const sim = await openWith('soustruh');
+    sim.S.manualGCode += '\n; ruční poznámka';
+    closeBtn().click();
+    await settle(10);
+    expect(choice().textContent).toContain('Neuložené změny v CAM');
+    choice().querySelector('[data-r="discard"]').click();
+    await settle(10);
+    expect(document.querySelector('.cam-sim-root')).toBeNull();
+    expect(state.objects).toEqual([OLD]);
+  });
+});
+
+describe('✕ → 📐 Zachovat a přenést: simulátor → plátno CAD', () => {
   it('soustruh: kontura (úsečky + oblouk), válec jako polotovar, konstrukční čára, program', async () => {
     const objs = await sendToCanvas('soustruh', (S) => {
       S.params.stockMode = 'cylinder';

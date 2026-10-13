@@ -411,6 +411,13 @@ CAM část ti umožní generovat NC programy pro obrábění.
 4. Klikni **Spustit** – uvidíš simulaci dráhy nástroje
 5. Červená destička = aktuální pozice
 
+**Návrat do CAD = křížek ✕** v liště nahoře. Bez změn v CAM jen zavře (výkres
+zůstane, jak byl). Se změnami se zeptá: **Zahodit změny**, nebo **📐 Zachovat
+a přenést** — výkres v CAD se pak nahradí konturou, polotovarem a konstrukčními
+čarami z CAM (s tvými úpravami) a program drah se uloží do výkresu, takže se
+při dalším otevření CAM obnoví. Co do CAM nešlo (kóty, texty, kresba mimo
+profil), po přenosu ve výkresu není — vrátíš to v CAD přes ↩ Zpět.
+
 **🎯 Centrovat** vejde díl, polotovar i bezpečnou polohu do plátna, ale volné
 místo nedělí rovnoměrně: víc ho nechá na straně, odkud jede nůž — radiálně
 od osy ven (podle toho, nad nebo pod osou díl leží), axiálně podle strany

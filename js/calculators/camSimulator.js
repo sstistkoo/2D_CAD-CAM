@@ -192,7 +192,6 @@ export function openCamSimulator(initialContour, initialGCode) {
             </div>
             <div class="cam-sim-code-row">
               <button data-code="reset-parts" title="Reset: zrušit rozdělení programu na části (Po úsecích / ➕ Operace) — vrátí se původní polotovar a rozsah, dráhy částí se smažou (jde vzít zpět přes ↩ Zpět)">↺ Reset</button>
-              <button data-code="to-canvas" title="Vrátit konturu na plátno pro úpravu">📐 Kreslit</button>
               <button data-code="save-prog" title="Uložit celý projekt (kontura + parametry + G-kód) do souboru .camprog">💾 Uložit</button>
               <button data-code="load-prog" title="Načíst projekt ze souboru .camprog">📂 Načíst</button>
             </div>
@@ -275,7 +274,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         const choice = await camCloseConfirm();
         if (choice === 'discard') overlay.remove();
         else if (choice === 'save') {
-          await handleSendToCanvas(true);
+          await handleSendToCanvas();
           // handleSendToCanvas calls overlay.remove() on success; if it returned
           // early (e.g. < 2 contour points), the overlay stays open intentionally
           // so the user can fix the contour and try again.
@@ -726,7 +725,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.opParts[0].baseStockLoop = null;   // původní obrys se přepočítá
   }
 
-  // Obnovit ručně upravený G-kód uložený při "📐 Kreslit" (CAM → CAD) jako
+  // Obnovit ručně upravený G-kód uložený při ✕ → „📐 Zachovat a přenést" (CAM → CAD) jako
   // skrytá poznámka na výkrese — má přednost před localStorage/auto kódem,
   // takže ruční úpravy drah přežijí cestu tam a zpět přes CAD.
   const camNoteIdx = state.objects.findIndex(o => o.isCamPathNote);
@@ -813,7 +812,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     // uživatele — v zobrazení části by se rozsah vždy „přestěhoval" na
     // hranice úseku 1 (nález 25. 9. 2026).
     if (S.opParts[0].baseLimits && !_gcodeFromNote) { S.opView = 'all'; applyView(); }
-    // Dráhy upravené během výletu přes CAD („📐 Kreslit" → poznámka na
+    // Dráhy upravené během výletu přes CAD (✕ → „Zachovat a přenést" → poznámka na
     // výkrese) patří té části, ze které se odcházelo — applyPartToState je
     // právě přepsal uloženou verzí, tak je vrátit zpět (i do záznamu části).
     if (_gcodeFromNote) {
@@ -3810,9 +3809,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     <div style="display:flex;gap:4px;margin-top:4px">
       <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-indigo" data-act="export-pdf">📄 Export PDF</button>
       <button class="cam-sim-btn cam-sim-btn-half cam-sim-btn-green" data-act="send-editor">🔧 Otevřít v CAM Editoru</button>
-    </div>
-    <div style="display:flex;gap:4px;margin-top:4px">
-      <button class="cam-sim-btn cam-sim-btn-blue" data-act="to-canvas-edit" title="Vrátit konturu na plátno pro úpravu (přepsat výkres)">📐 Kreslit</button>
     </div>`;
     tabBody.innerHTML = html;
     attachEditorEvents();
@@ -3908,8 +3904,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (pdfBtn) pdfBtn.addEventListener('click', handleExportPDF);
     const editorBtn = tabBody.querySelector('[data-act="send-editor"]');
     if (editorBtn) editorBtn.addEventListener('click', handleSendToEditor);
-    const toCanvasBtn = tabBody.querySelector('[data-act="to-canvas-edit"]');
-    if (toCanvasBtn) toCanvasBtn.addEventListener('click', handleSendToCanvas);
     // Cylinder stock param inputs
     tabBody.querySelectorAll('[data-cylp]').forEach(el => {
       el.addEventListener('change', () => {
@@ -7495,9 +7489,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     openCamEditor(text, getActiveCodeLineIdx());
   }
 
-  // ── Vrátit konturu zpět na plátno ── → cam/sim/sendToCanvas.js
-  function handleSendToCanvas(skipConfirm = false) {
-    return _handleSendToCanvas({ S, setOpView, getAllGuideLines, overlay }, skipConfirm);
+  // ── Vrátit konturu zpět na plátno (✕ → 📐 Zachovat a přenést) ── → cam/sim/sendToCanvas.js
+  function handleSendToCanvas() {
+    return _handleSendToCanvas({ S, setOpView, getAllGuideLines, overlay });
   }
 
   // ── TRASOVÁNÍ PROFILU ──────────────────────────────────────────
@@ -8500,7 +8494,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     const chip = e.target.closest('[data-op]');
     if (chip && !e.target.closest('[data-op-del]')) handleRenamePart(parseInt(chip.dataset.op, 10));
   });
-  root.querySelector('[data-code="to-canvas"]').addEventListener('click', handleSendToCanvas);
   root.querySelector('[data-code="save-prog"]').addEventListener('click', handleSaveProject);
   root.querySelector('[data-code="load-prog"]').addEventListener('click', handleLoadProject);
   const showSidebar = () => {
@@ -8593,7 +8586,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Vloží do polotovaru nový bod tam, kde jeho obrys protíná svislou
   // čáru limitu čelistí (Z = S.zLimits.chuck) — vznikne reálný vrchol
   // polotovaru, který lze tahat/označit i použít jako bod pro kreslení
-  // (po "📐 Kreslit" je vidět jako koncový bod úsečky polotovaru).
+  // (po přenosu do CAD je vidět jako koncový bod úsečky polotovaru).
   function handleAddStockChuckPoint() {
     const chuckLim = S.zLimits.chuck;
     if (typeof chuckLim !== 'number' || !isFinite(chuckLim)) return;

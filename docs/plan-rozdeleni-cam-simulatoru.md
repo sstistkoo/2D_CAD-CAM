@@ -195,7 +195,9 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 
 ## Nalezené chyby (při stěhování neopravené — opravit zvlášť, po dohodě)
 
-1. **„📐 Kreslit" se neptá.** `addEventListener('click', handleSendToCanvas)`
+1. ✅ **VYŘEŠENO 13. 10.: tlačítko „📐 Kreslit" odstraněno** (uživatel ho
+   nepoužíval, do CAD se vrací křížkem ✕, který se při změnách ptá).
+   Původní popis: **„📐 Kreslit" se neptá.** `addEventListener('click', handleSendToCanvas)`
    předá objekt události jako `skipConfirm` (pravdivý) → dotaz „Smazat
    aktuální výkres a vložit konturu z CAM simulátoru?" se nikdy neukáže
    (tlačítko v liště G-kódu i `to-canvas-edit` v Editoru). Výkres jde vrátit

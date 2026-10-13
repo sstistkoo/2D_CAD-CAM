@@ -1,4 +1,4 @@
-// Vrácení kontury ze simulátoru na plátno CAD („📐 Kreslit", ✕ → Uložit):
+// Vrácení kontury ze simulátoru na plátno CAD (✕ → „📐 Zachovat a přenést"):
 // kontura, polotovar (válec / vlastní tvar), konstrukční čáry a skrytá
 // poznámka s programem drah. Vyňato z camSimulator.js (blok „Vrátit konturu
 // zpět na plátno", docs/plan-rozdeleni-cam-simulatoru.md) — stav simulátoru
@@ -11,26 +11,22 @@ import { updateObjectList } from '../../../ui.js';
 import { getArcParams } from '../camMath.js';
 import { resolvePointsToAbsolute } from '../contourBuild.js';
 import { guidePolyPoints } from '../interferenceGuides.js';
-import { camConfirm } from '../camSimulatorDialogs.js';
 
 /**
  * Smaže výkres CAD a vloží do něj konturu/polotovar/konstrukční čáry ze
- * simulátoru, pak simulátor zavře. Bez potvrzení při `skipConfirm`.
+ * simulátoru, pak simulátor zavře. Ptá se volající (✕ → camCloseConfirm);
+ * tlačítko „📐 Kreslit" uživatel 13. 10. 2026 nechal odstranit.
  * @param ctx.S                stav simulátoru
  * @param ctx.setOpView        přepnutí náhledu část × celý program
  * @param ctx.getAllGuideLines ruční + automatické konstrukční čáry
  * @param ctx.overlay          okno simulátoru (zavře se)
  */
-export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overlay }, skipConfirm = false) {
+export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overlay }) {
   // Na plátno (a do skryté poznámky s G-kódem) patří dráhy JEDNÉ části —
   // z náhledu celého programu by se zpátky vrátil složený kód jako část.
   if (S.opView === 'all') setOpView('part');
   const pts = resolvePointsToAbsolute(S.contourPoints);
   if (pts.length < 2) { alert('Kontura nemá dostatek bodů.'); return; }
-  if (!skipConfirm) {
-    const ok = await camConfirm('Smazat aktuální výkres a vložit konturu z CAM simulátoru?');
-    if (!ok) return;
-  }
 
   // Uložit undo, smazat stávající objekty
   pushUndo();

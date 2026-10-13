@@ -66,6 +66,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Druhé 🎯 ve stejném modalu dřív nedělalo nic — handler se nastaví při každém
   vstupu (i v modalu „➕ Přidat pohyb" na dráze). Test `sim-ui-insert-segment`.
 
+### Removed
+
+- **CAM: tlačítko „📐 Kreslit"** (spodní panel G-kódu i záložka ✏ Editor).
+  Mazalo výkres v CAD bez dotazu (připravený dotaz se kvůli chybě nikdy
+  neukázal) a uživatel ho nepoužíval. Návrat do CAD je křížkem ✕: bez změn
+  jen zavře, se změnami se zeptá „Zahodit změny / 📐 Zachovat a přenést".
+  Test `sim-ui-send-to-canvas`.
+
 ### Added
 
 - **Testy okna CAM simulátoru a jeho rozdělení** (`docs/plan-rozdeleni-cam-simulatoru.md`):
