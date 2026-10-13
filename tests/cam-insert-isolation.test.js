@@ -53,9 +53,11 @@ const listJs = (dir) => readdirSync(dir).flatMap((n) => {
 const codeOf = (p) => readFileSync(p, 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .split(/\r?\n/).map((l) => l.replace(/(^|[^:'"`])\/\/.*$/, '$1')).join('\n');
-const camFiles = listJs(CAM)
-  .map((p) => relative(CAM, p).split('\\').join('/'))
-  .filter((r) => !r.startsWith('inserts/') && !UI_FILES.has(r));
+// cam/sim/ = kousky UI simulátoru vyňaté z camSimulator.js (ten leží mimo
+// cam/ a kontrolou nikdy neprocházel) — dráhy z nich nečtou, viz test níž.
+const allCamFiles = listJs(CAM).map((p) => relative(CAM, p).split('\\').join('/'));
+const camFiles = allCamFiles
+  .filter((r) => !r.startsWith('inserts/') && !r.startsWith('sim/') && !UI_FILES.has(r));
 
 describe('Oddělení plátků', () => {
   it('každý plátek definuje stejnou sadu klíčů', () => {
@@ -70,6 +72,12 @@ describe('Oddělení plátků', () => {
 
   it('kód drah se neptá na toolShape (jen přes getInsert)', () => {
     const offenders = camFiles.filter((r) => /\btoolShape\b/.test(codeOf(join(CAM, r))));
+    expect(offenders).toEqual([]);
+  });
+
+  it('kód drah neimportuje UI simulátoru (cam/sim/)', () => {
+    const offenders = allCamFiles.filter((r) => !r.startsWith('sim/')
+      && /from\s+['"][^'"]*\bsim\//.test(codeOf(join(CAM, r))));
     expect(offenders).toEqual([]);
   });
 
