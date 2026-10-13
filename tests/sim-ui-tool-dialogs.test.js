@@ -184,6 +184,62 @@ describe('🔪 Geometrie', () => {
   });
 });
 
+describe('🔪 Geometrie — natočení, zoom, kreslení držáku na CAD', () => {
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  async function openGeom() {
+    const { S } = sim;
+    if (!mag()) await openMagazine();
+    if (!inMag('[data-act="mag-apply"][data-magidx="0"]')) await clickEl(inMag('[data-act="mag-toggle"][data-magidx="0"]'));
+    await clickEl(inMag('[data-act="mag-apply"][data-magidx="0"]'));   // PSKNR — polygon s obrysem držáku
+    await clickEl(inMag('[data-act="mag-geometry"]'));
+    expect(geom()).not.toBeNull();
+    return S;
+  }
+
+  it('↻ natočení destičky z popupu, zoom ± a reset', async () => {
+    const S = await openGeom();
+    await clickEl(inGeom('[data-act="geom-open-rotate-insert"]'));
+    const ang = document.querySelector('#geom-rotate-angle');
+    expect(ang.value).toBe(String(S.params.toolAngle));
+    const past = S.past.length;
+    await changeEl(ang, 7);
+    expect(S.params.toolAngle).toBe(7);
+    expect(S.past.length).toBe(past + 1);
+    await clickEl(document.querySelector('#geom-rotate-close'));
+    expect(document.querySelector('.geom-rotate-popup')).toBeNull();
+    for (const a of ['geom-zoom-in', 'geom-zoom-out', 'geom-zoom-reset']) await clickEl(inGeom(`[data-act="${a}"]`));
+    await clickEl(inGeom('[data-act="geom-undo"]'));
+    expect(S.params.toolAngle).not.toBe(7);
+  });
+
+  it('📐 Kreslit na CAD: zrušit nic nezmění, potvrdit vrátí obrys držáku z vrstvy Držák', async () => {
+    const S = sim.S;
+    const { state } = await import('../js/state.js');
+    const { bridge } = await import('../js/bridge.js');
+    if (inGeom('[data-act="geom-tab-toggle"]') && !inGeom('[data-act="geom-draw-on-cad"]')) await clickEl(inGeom('[data-act="geom-tab-toggle"]'));
+    const prof0 = JSON.stringify(S.params.holderProfile);
+    const objs0 = state.objects.length;
+    await clickEl(inGeom('[data-act="geom-draw-on-cad"]'));
+    expect(state.holderDrawMode).toBeTruthy();
+    expect(state.layers.map(l => l.name)).toEqual(['Plátek', 'Držák']);
+    expect(geom().style.display).toBe('none');
+    bridge.cancelHolderDraw();
+    await settle(5);
+    expect(state.holderDrawMode).toBeNull();
+    expect(geom().style.display).toBe('');
+    expect(JSON.stringify(S.params.holderProfile)).toBe(prof0);
+    expect(state.objects.length).toBe(objs0);
+
+    await clickEl(inGeom('[data-act="geom-draw-on-cad"]'));
+    bridge.confirmHolderDraw();   // beze změny výkresu → obrys z úseček na vrstvě Držák
+    await settle(5);
+    expect(state.holderDrawMode).toBeNull();
+    const prof = JSON.stringify(S.params.holderProfile, (_k, v) => (typeof v === 'number' ? r3(v) : v));
+    expect(prof).toMatchInlineSnapshot(`"{"sideA":[{"x":10.58,"z":-2.628},{"x":31.202,"z":4.878},{"x":31.202,"z":150},{"x":6.202,"z":150},{"x":6.202,"z":20.287},{"x":3.014,"z":10.477},{"x":10.58,"z":-2.628}],"sideB":[]}"`);
+    await clickEl(inGeom('[data-act="geom-close"]'));
+  });
+});
+
 describe('🧵 výběr závitu', () => {
   it('klik na řádek tabulky nastaví závit do parametrů', async () => {
     const { S } = sim;
