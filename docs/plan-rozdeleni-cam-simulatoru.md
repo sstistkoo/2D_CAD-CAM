@@ -66,14 +66,41 @@ na „Čelně“ skryje „✂ Po úsecích“. Co harness musí udělat:
 Pro testy přidat do simulátoru „háček“ (1 řádek): `openCamSimulator` vrátí
 `{ S, close }`, aby test viděl stav bez lovení v DOM.
 
+**Hotovo 13. 10. (Fáze 0):** harness `tests/helpers/simUi.mjs`
+(`installSimDom()`, `openSim(prog)` → `{ S, close, q, qa, canvas, drawCalls }`,
+`loadFixture`, `settle`), smoke test `tests/sim-ui-smoke.test.js` (běží
+v `test:cad`, ~6 s). Kreslení: `draw()` končil na `canvas.width = 0`
+(happy-dom nemá layout, `clientWidth` = 0) — harness vrací 800 × 600 jen pro
+`.cam-sim-canvas-wrap`; `getContext('2d')` je záznamník volání pro každé
+plátno zvlášť (`['lineTo', x, y]`, `['=', 'strokeStyle', …]`) → základ
+pro Fázi 5. Otevření = fixture do localStorage (`skica-cam-simulator`),
+flipX/flipZ do `state` (simulátor je z localStorage nebere).
+
+### ⚠ Pasti při stěhování (zjištěno ve Fázi 0)
+
+- **`camHeadless.mjs` (+ `scripts/cam_gcode_repro.mjs`, `cam_debug.mjs`,
+  `cam_face_debug.mjs`, `tests/helpers/camInternals.mjs`) vyřezávají
+  VŠECHNY importy `camSimulator.js`** a nahrazují je ručním prelude;
+  headless běh končí `return` na řádku `const STORAGE_KEY = …` a volá jen
+  `calculate()` / `generateAutoGCode()`. Blok, na který z nich vede volání,
+  by po přestěhování v headless běhu chyběl (ReferenceError, často spolknutý
+  try/catch → tichá změna drah). Před stěhováním ověřit, že blok z
+  `calculate`/`generateAutoGCode` není dosažitelný; jinak doplnit prelude.
+  `const { … } = createXxx(ctx)` za kotvou je v headless běhu v TDZ.
+- **Testy, které vyřezávají funkce ze zdroje simulátoru:**
+  `cam-path-pick-arc` (`getGSegmentAt`), `shape-preset-knife`
+  (`applyShapeChange`, `_loadMagSlot`, … — blok Zásobník/Geometrie),
+  `camInternals.mjs` (seznam `EXPORTS`). Při přesunu takové funkce je
+  přepnout na import z nového modulu.
+
 ## Pořadí kroků
 
 Čísla z `sim_coupling.mjs` 13. 10. 2026 (ř. = řádky bloku; čte/píše = closure
 symboly jiných bloků; fanIn = kolik bloků sahá na jeho funkce).
 
-### Fáze 0 — příprava (simulátor se nemění, kromě háčku)
-- harness `tests/sim-ui-harness.js` (otevření nad `tests/fixtures/cam-cases/*.camprog`,
-  stub canvasu, zavření) + první smoke test „otevře se, vykreslí, zavře“.
+### Fáze 0 — příprava (simulátor se nemění, kromě háčku) ✅ 13. 10.
+- harness `tests/helpers/simUi.mjs` (otevření nad `tests/fixtures/**/*.camprog`,
+  stub canvasu, zavření) + první smoke test `tests/sim-ui-smoke.test.js`.
 
 ### Fáze 1 — piloty: malé, skoro nic nepřepisují (~780 ř.)
 Účel: zavést vzor `ctx` na místech, kde se nemůže moc pokazit.
@@ -131,7 +158,8 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 
 ## Kontrolní seznam jednoho kroku
 
-1. `node scripts/sim_coupling.mjs "<blok>"` → seznam závislostí do `ctx`.
+1. `node scripts/sim_coupling.mjs "<blok>"` → seznam závislostí do `ctx`;
+   ověřit pasti výš (dosažitelnost z `calculate`, testy vyřezávající funkce).
 2. `node scripts/cam_fingerprint.mjs --save=pred.json` (ve scratchpadu).
 3. Napsat test bloku, **projde na starém kódu**.
 4. Přestěhovat (jen přesun + `ctx`), v simulátoru import + volání.
@@ -144,5 +172,5 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
 
 - [x] Plán, měřicí skript `scripts/sim_coupling.mjs` (13. 10. 2026)
 - [x] `happy-dom` + `@babel/parser` v devDependencies, zkouška otevření simulátoru (13. 10.)
-- [ ] Fáze 0 — harness, háček, první smoke test
+- [x] Fáze 0 — harness, háček, první smoke test (13. 10.)
 - [ ] Fáze 1 · [ ] Fáze 2 · [ ] Fáze 3 · [ ] Fáze 4 · [ ] Fáze 5 · [ ] Fáze 6 (rozhodnout)
