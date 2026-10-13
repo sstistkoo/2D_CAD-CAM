@@ -858,20 +858,19 @@ export function openCamSimulator(initialContour, initialGCode) {
   const resetPartsBtn = root.querySelector('[data-code="reset-parts"]');
   const busyEl = root.querySelector('.cam-sim-busy');
   const busyText = root.querySelector('.cam-sim-busy-text');
+  // Sdílený stav oken nožů (⚙️ Geometrie × 🔧 Zásobník) — objekt, ať ho mohou
+  // měnit i okna vyňatá do cam/sim/ (modul nepřepíše cizí `let`).
+  const toolUi = { toolGeomModalRefresh: null, magazineDialogRefresh: null, magEditSlotRef: null, magEditHandTouched: false };
   // Refresh callback modalu "⚙️ Geometrie", pokud je otevřený — viz fullUpdate().
   // Záměrně NE na S (S.params se snapshotuje/serializuje, funkce tam nepatří).
-  let toolGeomModalRefresh = null;
   // Refresh seznamu otevřeného zásobníku (viz showMagazineDialog) a slot, který
   // se právě edituje přes ✏️ Upravit — po zavření Geometrie se do něj vrátí
   // upravená geometrie z S.params (drží se REFERENCE na slot, ne index: ten se
   // posune smazáním nebo 🔄 Seřazením).
-  let magazineDialogRefresh = null;
-  let magEditSlotRef = null;
   // Ruka držáku se při OTEVŘENÍ Geometrie odvozuje ze směru hrubování, takže
   // po ✏️ Upravit je v S.params odvozená hodnota, ne ta ze slotu. Zpátky se
   // smí zapsat, jen když ji uživatel v dialogu opravdu přepnul (⇄ Ruka) —
   // jinak by pouhé otevření a zavření změnilo uloženému noži ruku.
-  let magEditHandTouched = false;
   // Zpřístupnit živé parametry nástroje modulu (knihovna nožů / projekt) a
   // převzít naposledy uložený/načtený nůž, aby přežil zavření a otevření CAM
   // i načtení projektu (viz getCamToolGeometry/applyCamToolGeometry).
@@ -880,7 +879,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   if (savedCamTool) {
     for (const k of CAM_TOOL_KEYS) if (savedCamTool[k] !== undefined) S.params[k] = savedCamTool[k];
   }
-  bridge.refreshCamToolGeometry = () => { if (toolGeomModalRefresh) toolGeomModalRefresh(); };
+  bridge.refreshCamToolGeometry = () => { if (toolUi.toolGeomModalRefresh) toolUi.toolGeomModalRefresh(); };
   const toolbar = root.querySelector('.cam-sim-toolbar');
   const playerBar = root.querySelector('.cam-sim-player-bar');
   const playBtn = playerBar.querySelector('[data-act="play"]');
@@ -953,9 +952,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       // ✏️ Upravit drží REFERENCI na slot a obnovené pole je nová kopie ze
       // snímku — bez přenosu na slot na stejném místě by se po ↩ v Geometrii
       // úpravy do slotu při zavření už nezapsaly (flushMagSlotEdit by ho nenašel).
-      const refIdx = magEditSlotRef ? S.toolMagazine.indexOf(magEditSlotRef) : -1;
+      const refIdx = toolUi.magEditSlotRef ? S.toolMagazine.indexOf(toolUi.magEditSlotRef) : -1;
       S.toolMagazine = s.toolMagazine;
-      if (magEditSlotRef) magEditSlotRef = S.toolMagazine[refIdx] || null;
+      if (toolUi.magEditSlotRef) toolUi.magEditSlotRef = S.toolMagazine[refIdx] || null;
     }
     if ('activeMagazineSlot' in s) S.activeMagazineSlot = s.activeMagazineSlot;
     if (s.zLimits) S.zLimits = s.zLimits;
@@ -981,7 +980,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     _restore(prev);
     updateUndoRedoBtns();
     fullUpdate();
-    if (magazineDialogRefresh) magazineDialogRefresh();
+    if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();
   }
   function redo() {
     if (S.future.length === 0) return;
@@ -990,7 +989,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     _restore(next);
     updateUndoRedoBtns();
     fullUpdate();
-    if (magazineDialogRefresh) magazineDialogRefresh();
+    if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();
   }
   function updateUndoRedoBtns() {
     const uBtn = root.querySelector('[data-act="undo"]');
@@ -4175,7 +4174,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // ── Modal "⚙️ Geometrie" — náhled + geometrie destičky (VBD) a držáku
   // (ISO 5608/5610). Nezávislý na hlavním panelu (může být otevřený souběžně);
-  // jediný zdroj pravdy zůstává S.params, synchronizace viz toolGeomModalRefresh.
+  // jediný zdroj pravdy zůstává S.params, synchronizace viz toolUi.toolGeomModalRefresh.
   function showToolGeometryDialog() {
     const dlg = document.createElement('div');
     dlg.className = 'input-overlay cam-geom-overlay';
@@ -4211,7 +4210,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     function closeDialog() {
       if (canvasResizeObs) { canvasResizeObs.disconnect(); canvasResizeObs = null; }
-      toolGeomModalRefresh = null;
+      toolUi.toolGeomModalRefresh = null;
       document.removeEventListener('keydown', onKeyDown);
       dlg.remove();
       flushMagSlotEdit();
@@ -4898,7 +4897,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       overlay.style.display = '';
       dlg.style.display = '';
       activeGeomTab = 'holder';
-      if (toolGeomModalRefresh) toolGeomModalRefresh();
+      if (toolUi.toolGeomModalRefresh) toolUi.toolGeomModalRefresh();
       showToast(result ? 'Obrys držáku uložen 📐' : 'Kreslení držáku zrušeno');
     }
 
@@ -5005,7 +5004,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       dlg.querySelector('[data-act="geom-menu"]').addEventListener('click', () => showMagazineMenu('☰ Nůž', [
         { icon: '🔧', label: 'Zásobník', run: () => showMagazineDialog(),
           hint: 'Nože T1, T2… — výběr, úpravy, pořadí' },
-        { icon: '💾', label: 'Uložit nůž', run: () => showSaveCurrentToolDialog(() => { if (magazineDialogRefresh) magazineDialogRefresh(); }),
+        { icon: '💾', label: 'Uložit nůž', run: () => showSaveCurrentToolDialog(() => { if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh(); }),
           hint: 'Destička i držák do zásobníku nebo do knihovny' },
         { icon: '💾', label: 'Uložit do PC', run: () => exportToolGeometryFile(),
           hint: 'Celý nůž jako .json soubor na disk' },
@@ -5040,7 +5039,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       const toggleHandBtn = dlg.querySelector('[data-act="geom-toggle-hand"]');
       if (toggleHandBtn) toggleHandBtn.addEventListener('click', withHistory(() => {
         S.params.holderHand = S.params.holderHand === 'L' ? 'R' : 'L';
-        magEditHandTouched = true;   // ruční volba — smí se uložit do slotu
+        toolUi.magEditHandTouched = true;   // ruční volba — smí se uložit do slotu
         applyChange();
       }));
       const openRotateInsertBtn = dlg.querySelector('[data-act="geom-open-rotate-insert"]');
@@ -5112,10 +5111,10 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     // Ruka držáku se při OTEVŘENÍ dialogu odvodí ze směru hrubování
     // (roughingSide) — poté ji lze tlačítkem "⇄ Ruka" ručně přepnout, aniž by
-    // se přepínala zpátky při každém re-renderu (viz toolGeomModalRefresh).
+    // se přepínala zpátky při každém re-renderu (viz toolUi.toolGeomModalRefresh).
     S.params.holderHand = S.params.roughingSide === 'left' ? 'L' : 'R';
 
-    toolGeomModalRefresh = render;
+    toolUi.toolGeomModalRefresh = render;
     render();
   }
 
@@ -5636,18 +5635,18 @@ export function openCamSimulator(initialContour, initialGCode) {
    *  otevřel přes ✏️ Upravit. Zapisuje jen dokud je ten slot aktivní — pokud si
    *  uživatel mezitím načetl jiný nůž, patří S.params jemu a slot zůstane. */
   function flushMagSlotEdit() {
-    const ref = magEditSlotRef;
-    magEditSlotRef = null;
+    const ref = toolUi.magEditSlotRef;
+    toolUi.magEditSlotRef = null;
     if (!ref) return;
     const idx = S.toolMagazine.indexOf(ref);
     if (idx >= 0 && S.activeMagazineSlot === idx) {
       const handBefore = ref.holderHand;
       _syncParamsToSlot(idx);
-      if (!magEditHandTouched && handBefore !== undefined) ref.holderHand = handBefore;
+      if (!toolUi.magEditHandTouched && handBefore !== undefined) ref.holderHand = handBefore;
       saveState();
     }
-    magEditHandTouched = false;
-    if (magazineDialogRefresh) magazineDialogRefresh();
+    toolUi.magEditHandTouched = false;
+    if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();
   }
 
   /** Uloží AKTUÁLNĚ nastavený nůž (destička i držák z Geometrie nástroje) jako
@@ -5709,7 +5708,7 @@ export function openCamSimulator(initialContour, initialGCode) {
             && tool.holderProfile === undefined) S.params.holderProfile = null;
         for (const k of CAM_TOOL_KEYS) if (tool[k] !== undefined) S.params[k] = tool[k];
         fullUpdate();
-        if (toolGeomModalRefresh) toolGeomModalRefresh();
+        if (toolUi.toolGeomModalRefresh) toolUi.toolGeomModalRefresh();
         showToast('Nůž (destička + držák) načten ze souboru');
       };
       reader.readAsText(file);
@@ -5783,7 +5782,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         if (rec.ap) slot.ap = rec.ap;
         mag.push(slot);
         saveState();
-        if (magazineDialogRefresh) magazineDialogRefresh();
+        if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();
         showToast(`${rec.name} přidán do zásobníku jako T${num}`);
       },
       onApply: (tool) => {
@@ -5820,7 +5819,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const open = document.querySelector('.cam-geom-overlay');
     if (!open) { showToolGeometryDialog(); return; }
     document.body.appendChild(open);
-    if (toolGeomModalRefresh) toolGeomModalRefresh();
+    if (toolUi.toolGeomModalRefresh) toolUi.toolGeomModalRefresh();
   }
 
   /** Malé okno s volbami nad zásobníkem (☰ menu, 💾 kam uložit). Volba okno
@@ -5880,7 +5879,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const openDlg = document.querySelector('.cam-mag-overlay');
     if (openDlg) {
       document.body.appendChild(openDlg);
-      if (magazineDialogRefresh) magazineDialogRefresh();
+      if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();
       return;
     }
 
@@ -6100,7 +6099,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
       // ✏️ Upravit — Geometrie nástroje umí editovat jen S.params, takže se
       // nůž nejdřív načte jako aktivní; zpětný zápis do slotu řeší
-      // magEditSlotRef při zavření modalu (viz closeDialog v Geometrii).
+      // toolUi.magEditSlotRef při zavření modalu (viz closeDialog v Geometrii).
       body.querySelectorAll('[data-act="mag-edit"]').forEach(btn => {
         btn.addEventListener('click', () => {
           const idx = parseInt(btn.dataset.magidx);
@@ -6110,8 +6109,8 @@ export function openCamSimulator(initialContour, initialGCode) {
           // by už v S.params byl nový nůž a změny předchozího by se ztratily.
           flushMagSlotEdit();
           _applyMagSlot(idx);
-          magEditSlotRef = mag[idx];
-          magEditHandTouched = false;
+          toolUi.magEditSlotRef = mag[idx];
+          toolUi.magEditHandTouched = false;
           renderBody();
           // Když už je Geometrie otevřená (zásobník se z ní dá otevřít),
           // druhý modal navíc nezakládat — jen ji vytáhnout s načteným nožem.
@@ -6270,14 +6269,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         hint: 'Výchozí ISO nože (PSKNR, PSBNR, PDJNR, SRSCR, SER, MGEHR) zpět na T1–T6 v pořadí obrábění, vlastní za ně' },
     ]));
     dlg.querySelector('[data-act="mag-close"]').addEventListener('click', () => {
-      if (magazineDialogRefresh === renderBody) magazineDialogRefresh = null;
+      if (toolUi.magazineDialogRefresh === renderBody) toolUi.magazineDialogRefresh = null;
       dlg.remove();
     });
 
     // Seznam se musí umět překreslit i zvenčí — po ✏️ Upravit se do slotu
     // vrací geometrie až při zavření Geometrie (viz flushMagSlotEdit), po ↩/↪
     // je v S.toolMagazine kopie ze snímku.
-    magazineDialogRefresh = renderBody;
+    toolUi.magazineDialogRefresh = renderBody;
     renderBody();
     updateUndoRedoBtns();
   }
@@ -7143,7 +7142,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     _updateProfileButtons();   // ❌ smazat profil zůstane, dokud profil existuje
     // Modal "⚙️ Geometrie" (pokud otevřený) se přerenderuje ze stejného
     // S.params — obousměrná synchronizace s hlavním panelem.
-    if (toolGeomModalRefresh) toolGeomModalRefresh();
+    if (toolUi.toolGeomModalRefresh) toolUi.toolGeomModalRefresh();
   }
 
   // Přegeneruje S.manualGCode z aktuální kontury+parametrů. Volat JEN přes
