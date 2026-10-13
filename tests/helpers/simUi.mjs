@@ -115,7 +115,7 @@ export const settle = (ms = 30) => new Promise(r => setTimeout(r, ms));
 /**
  * Otevře simulátor nad .camprog (jako by ho aplikace měla uložený
  * v localStorage). Bez `prog` = výchozí stav (vzorová kontura).
- * Vrací { S, close, root, q, qa, canvas, drawCalls, clearDrawCalls }.
+ * Vrací { S, close, root, q, qa, canvas, drawCalls, clearDrawCalls, draw, … }.
  */
 export async function openSim(prog, { settleMs = 30 } = {}) {
   installSimDom();
@@ -150,6 +150,8 @@ export async function openSim(prog, { settleMs = 30 } = {}) {
     canvas,
     drawCalls: calls,
     clearDrawCalls: () => { calls().length = 0; },
+    /** Jen překreslení (bez přepočtu drah) — `draw()` simulátoru. */
+    draw: () => h.draw(),
     /** Přepočet drah + překreslení (po přímé změně `S` v testu). */
     fullUpdate: () => window.__camDebug.fullUpdate(),
     worldToClient,

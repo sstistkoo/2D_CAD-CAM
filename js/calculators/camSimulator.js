@@ -6737,5 +6737,5 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
   if (typeof window !== 'undefined') window.__camDebug = { S, calculate, camRayIntersection, fullUpdate, getArcParams, getNormal, vecAngle, normalizeAngle, getToolClearanceRange, segInterferesWithTool, isAngleBetween, intersectLineCircle };
   // Háček pro testy UI (tests/helpers/simUi.mjs): stav + zavření bez lovení v DOM.
-  return { S, close: () => overlay.remove() };
+  return { S, close: () => overlay.remove(), draw };
 }
