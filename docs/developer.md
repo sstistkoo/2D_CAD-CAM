@@ -1654,6 +1654,12 @@ npm run lint          # ESLint — jen chyby (s cache, ~4 s)
   písmen (Windows ji toleruje, Linux / GitHub Pages ne).
 - **DOM testy**: hlavička `// @vitest-environment happy-dom` (např.
   `tests/error-report.test.js`).
+- **Vývojářské skripty** (`tests/dev-scripts.test.js`): `scripts/cam_debug.mjs`,
+  `cam_face_debug.mjs` a `cam_gcode_repro.mjs` se spustí jako ručně a musí
+  doběhnout, vypsat své oddíly a nenechat v `scripts/` dočasné soubory
+  (do 13. 10. 2026 nepozorovaně padaly). `cam_gcode_repro` jede přes
+  `tests/helpers/camHeadless.mjs`, takže `test:cad` zachytí i rozbitý headless
+  běh CAM (~2 s). Nový skript, který čte zdroj aplikace, sem přidat.
 
 ### GitHub Actions (`.github/workflows/testy.yml`)
 
