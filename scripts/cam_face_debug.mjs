@@ -1,39 +1,25 @@
 // Harness: reprodukuje ČELNÍ hrubování + "Hlídání geometrie destičky (čelně)"
 // na uživatelově .camprog. Izoluje blok zkracování čelních průchodů, aby bylo
 // vidět, KDE (na jakém Z) staircase mezní čára začíná.
-// Spuštění: node scripts/cam_face_debug.mjs
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { fileURLToPath, pathToFileURL } from 'url';
+// Spuštění: node scripts/cam_face_debug.mjs [soubor.camprog]   (výchozí scripts/user_face.camprog)
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { genFacePasses } from '../js/calculators/cam/roughingStrategies.js';
-import { isAngleBetween } from '../js/calculators/cam/camMath.js';
+import * as camMath from '../js/calculators/cam/camMath.js';
+import * as contourBuild from '../js/calculators/cam/contourBuild.js';
+import * as guidesModule from '../js/calculators/cam/interferenceGuides.js';
 
+const { isAngleBetween } = camMath;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 
-let src = readFileSync(join(root, 'js/calculators/camSimulator.js'), 'utf8');
-src = src.replace(/^import\s[^\n]*$/gm, '');
-const camMathUrl = pathToFileURL(join(root, 'js/calculators/cam/camMath.js')).href;
-const prelude = `
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from ${JSON.stringify(camMathUrl)};
-const ROUGHING_STRATEGIES = {};
-const makeOverlay=()=>({}), openCamEditor=()=>{}, state={}, pushUndo=()=>{}, showToast=()=>{};
-const renderAll=()=>{}, autoCenterView=()=>{}, calculateAllIntersections=()=>{}, updateObjectList=()=>{};
-const bulgeToArc=()=>{}, showToolLibraryDialog=()=>{};
-`;
-const exportsTail = `
-export { resolvePointsToAbsolute, getArcParams, getNormal, foldContourToMachiningSide,
-  getToolClearanceRange, segInterferesWithTool, trimAndRemoveLoops, spliceBridgeSegments,
-  removeContourSelfIntersections, buildMachinableContour, dropTinyArcs, normalizeContourDirection,
-  computeInterferenceGuides, extendOffsetStartToAxis, intersectSegAtZ, _locateOnContour };
-`;
-const tmpPath = join(root, 'scripts', '_camface_tmp.mjs');
-writeFileSync(tmpPath, prelude + src + exportsTail);
-const H = await import(pathToFileURL(tmpPath).href + '?t=' + Date.now());
-try { unlinkSync(tmpPath); } catch { /* */ }
+// Funkce se dřív vyřezávaly ze zdroje camSimulator.js; od přesunu do modulů
+// cam/ se importují přímo (vyřezávání tiše přestalo fungovat, 13. 10. 2026).
+const H = { ...camMath, ...contourBuild, ...guidesModule };
 
 // ── uživatelův .camprog (jen relevantní část) ──
-const prog = JSON.parse(readFileSync(join(root, 'scripts', 'user_face.camprog'), 'utf8'));
+const prog = JSON.parse(readFileSync(process.argv[2] || join(root, 'scripts', 'user_face.camprog'), 'utf8'));
 const prms = prog.params;
 const contourPoints = prog.contourPoints;
 const stockPoints = prog.stockPoints;

@@ -1,35 +1,15 @@
 // Deterministický harness: přehraje uložený CAM program přes REÁLNÉ
-// geometrické funkce z camSimulator.js (bez DOM) a vypíše finishing offset.
+// geometrické funkce CAM (bez DOM) a vypíše finishing offset.
 // Spuštění:  node scripts/cam_debug.mjs
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { fileURLToPath, pathToFileURL } from 'url';
-import { dirname, join } from 'path';
+//
+// Funkce se dřív vyřezávaly ze zdroje camSimulator.js; od přesunu do modulů
+// cam/ (camMath, contourBuild, interferenceGuides) se importují přímo —
+// vyřezávání tiše přestalo fungovat („Export … is not defined", 13. 10. 2026).
+import * as camMath from '../js/calculators/cam/camMath.js';
+import * as contourBuild from '../js/calculators/cam/contourBuild.js';
+import * as interferenceGuides from '../js/calculators/cam/interferenceGuides.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..');
-
-let src = readFileSync(join(root, 'js/calculators/camSimulator.js'), 'utf8');
-// Odstranit importy (nahradíme jen ty čisté + stuby pro DOM/state).
-src = src.replace(/^import\s[^\n]*$/gm, '');
-
-const camMathUrl = pathToFileURL(join(root, 'js/calculators/cam/camMath.js')).href;
-const prelude = `
-import { getEffectivePlungeAngle, isAngleBetween, intersectVerticalLineSegment, intersectVerticalLineArc } from ${JSON.stringify(camMathUrl)};
-const ROUGHING_STRATEGIES = {};
-const makeOverlay=()=>({}), openCamEditor=()=>{}, state={}, pushUndo=()=>{}, showToast=()=>{};
-const renderAll=()=>{}, autoCenterView=()=>{}, calculateAllIntersections=()=>{}, updateObjectList=()=>{};
-const bulgeToArc=()=>{}, showToolLibraryDialog=()=>{};
-`;
-const exportsTail = `
-export { resolvePointsToAbsolute, getArcParams, getNormal, vecAngle, normalizeAngle,
-  getToolClearanceRange, segInterferesWithTool, trimAndRemoveLoops, spliceBridgeSegments,
-  removeContourSelfIntersections, segEndPoint, segStartPoint, buildMachinableContour,
-  camRayIntersection, computeInterferenceGuides, intersectLineCircle, extendOffsetStartToAxis };
-`;
-const tmpPath = join(root, 'scripts', '_cam_tmp.mjs');
-writeFileSync(tmpPath, prelude + src + exportsTail);
-const H = await import(pathToFileURL(tmpPath).href + '?t=' + Date.now());
-try { unlinkSync(tmpPath); } catch { /* temp soubor – nevadí */ }
+const H = { ...camMath, ...contourBuild, ...interferenceGuides };
 
 // ── Uložený program (z dotazu uživatele) ──
 const prms = {

@@ -98,8 +98,10 @@ flipX/flipZ do `state` (simulátor je z localStorage nebere).
 
 ### ⚠ Pasti při stěhování (zjištěno ve Fázi 0)
 
-- **`camHeadless.mjs` (+ `scripts/cam_gcode_repro.mjs`, `cam_debug.mjs`,
-  `cam_face_debug.mjs`, `tests/helpers/camInternals.mjs`) vyřezávají
+- **`camHeadless.mjs` (+ `tests/helpers/camInternals.mjs`; skripty
+  `cam_gcode_repro.mjs`, `cam_debug.mjs`, `cam_face_debug.mjs` od 14. 10.
+  už ne — první jede přes camHeadless, další dva importují moduly `cam/`
+  přímo; jejich vlastní vyřezávání bylo rozbité už před rozdělením) vyřezávají
   VŠECHNY importy `camSimulator.js`** a nahrazují je ručním prelude;
   headless běh končí `return` na řádku `const STORAGE_KEY = …` a volá jen
   `calculate()` / `generateAutoGCode()`. Blok, na který z nich vede volání,

@@ -5,7 +5,8 @@
 //
 // Slouží jako REGRESNÍ základ: `runCamProg(prog)` vrátí { calc, gcode } z REÁLNÉHO
 // kódu (ne z reimplementace), takže snapshot G-kódu chytí jakoukoli regresi
-// v logice hrubování. Odvozeno z scripts/cam_gcode_repro.mjs.
+// v logice hrubování. Odvozeno z scripts/cam_gcode_repro.mjs (ten od 14. 10. 2026
+// naopak jede přes tenhle helper).
 import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';

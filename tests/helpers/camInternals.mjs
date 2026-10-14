@@ -1,6 +1,6 @@
 // Zpřístupní VNITŘNÍ (neexportované) geometrické funkce camSimulator.js pro
-// přímé jednotkové testy — přes text-surgery (strip importů + přidání exportů),
-// stejně jako scripts/cam_debug.mjs. Umožňuje charakterizovat čisté funkce jako
+// přímé jednotkové testy — přes text-surgery (strip importů + přidání exportů).
+// Umožňuje charakterizovat čisté funkce jako
 // buildMachinableContour bez celého pipeline. DOM se nedotkne (openCamSimulator
 // se nevolá), stačí drobné globální stuby pro případ, že by se něco vyhodnotilo
 // při importu.
