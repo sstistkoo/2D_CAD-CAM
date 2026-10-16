@@ -12,10 +12,10 @@
 // Bez vlastního řádku tady: js/ui/cncJump.js (skok v CNC kódu, volá ho panel
 // vlastností), js/ui/trigCalc.js (Trigonometrie, otevírá ji launchers.js).
 
-import { state, undo, redo } from './state.js';
+import { undo, redo } from './state.js';
 import { renderAll } from './render.js';
 import { bridge } from './bridge.js';
-import { getMeta, setMeta } from './idb.js';
+import { saveSettings } from './storage/settingsStore.js';
 import { getCalcClipboardValue, setCalcClipboardValue, openCalculator, initCalcButtons } from './ui/calculator.js';
 import { initLauncherButtons } from './ui/launchers.js';
 import { openFillColorPicker } from './ui/colorPicker.js';
@@ -48,37 +48,9 @@ bridge.resetHint = () => resetHint();
 bridge.setTool = (tool) => setTool(tool);
 bridge.applyTheme = () => applyTheme();
 
-// ── Okamžité uložení nastavení do IDB ──
-let _persistTimer = null;
+// ── Uložení nastavení (zvlášť od výkresu, js/storage/settingsStore.js) ──
 export function persistSettings() {
-  if (_persistTimer) clearTimeout(_persistTimer);
-  _persistTimer = setTimeout(async () => {
-    try {
-      const data = await getMeta('currentProjectData');
-      const base = data || {};
-      base.gridSize = state.gridSize;
-      base.coordMode = state.coordMode;
-      base.incReference = state.incReference;
-      base.machineType = state.machineType;
-      base.xDisplayMode = state.xDisplayMode;
-      base.flipX = state.flipX;
-      base.flipZ = state.flipZ;
-      base.mirrorPreview = state.mirrorPreview;
-      base.showContourGaps = state.showContourGaps;
-      base.displayDecimals = state.displayDecimals;
-      base.theme = state.theme;
-      base.snapToGrid = state.snapToGrid;
-      base.angleSnap = state.angleSnap;
-      base.angleSnapStep = state.angleSnapStep;
-      base.showDimensions = state.showDimensions;
-      base.showObjectNumbers = state.showObjectNumbers;
-      base.showIntersectionNumbers = state.showIntersectionNumbers;
-      base.snapQuadrants = state.snapQuadrants;
-      base.snapMidpoints = state.snapMidpoints;
-      base.snapCenters = state.snapCenters;
-      await setMeta('currentProjectData', base);
-    } catch(e) { console.warn('persistSettings:', e); }
-  }, 500);
+  saveSettings();
 }
 
 // ── Scroll input do viditelné oblasti na mobilu (nad klávesnici) ──

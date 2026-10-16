@@ -8,6 +8,7 @@ import { resizeCanvases, autoCenterView } from './canvas.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList, updateProperties, resetHint, updateDimsBtn, updateSnapPtsBtn, updateCoordModeBtn, updateMachineTypeBtn, updateXDisplayBtn, updateSnapGridBtn, togglePanel, updateLayerList, updateStatusProject, checkFirstRunHelp, updateAngleSnapBtn, updateNullPointUI } from './ui.js';
 import { initAutoSave } from './storage.js';
+import { restoreSettings, initSettingsAutoSave } from './storage/settingsStore.js';
 import { getMeta, setMeta, migrateFromLocalStorage } from './idb.js';
 import { bridge } from './bridge.js';
 import { loadFont } from './lib/fontLoader.js';
@@ -50,18 +51,16 @@ document.querySelectorAll('.panel-header[data-panel]').forEach(header => {
 async function tryAutoLoad() {
   try {
     const data = await getMeta('currentProjectData');
+    // Nastavení (snapy, mřížka, motiv, osy…) se obnoví VŽDY, i k prázdnému
+    // výkresu — ukládá se zvlášť, viz js/storage/settingsStore.js. Dřív se
+    // bralo jen z výkresu a jen když měl objekty.
+    restoreSettings(data);
     if (data && data.objects && data.objects.length > 0) {
       const _exp = expandPolylineObjects(data.objects, data.nextId || 1);
       state.objects = _exp.objects;
       state.nextId = _exp.nextId;
-      if (data.gridSize && data.gridSize > 0)
-        state.gridSize = data.gridSize;
-      if (data.coordMode) state.coordMode = data.coordMode;
-      if (data.incReference) state.incReference = data.incReference;
       state.nullPointActive = !!data.nullPointActive;
       state.nullPointAngle = data.nullPointAngle || 0;
-      if (data.machineType) state.machineType = data.machineType;
-      state.xDisplayMode = data.xDisplayMode || 'radius';
       if (data.layers) {
         state.layers = data.layers;
         state.activeLayer = data.activeLayer || 0;
@@ -71,18 +70,6 @@ async function tryAutoLoad() {
         state.objects.forEach(obj => { if (obj.layer === undefined) obj.layer = 0; });
       }
       state.anchors = data.anchors || [];
-      if (data.showObjectNumbers !== undefined) state.showObjectNumbers = data.showObjectNumbers;
-      if (data.showIntersectionNumbers !== undefined) state.showIntersectionNumbers = data.showIntersectionNumbers;
-      if (data.displayDecimals !== undefined) state.displayDecimals = data.displayDecimals;
-      if (data.theme) state.theme = data.theme;
-      if (data.snapToGrid !== undefined) state.snapToGrid = data.snapToGrid;
-      if (data.angleSnap !== undefined) state.angleSnap = data.angleSnap;
-      if (data.angleSnapStep !== undefined) state.angleSnapStep = data.angleSnapStep;
-      if (data.showDimensions !== undefined) state.showDimensions = data.showDimensions;
-      if (data.snapQuadrants !== undefined) state.snapQuadrants = data.snapQuadrants;
-      if (data.snapMidpoints !== undefined) state.snapMidpoints = data.snapMidpoints;
-      if (data.snapCenters !== undefined) state.snapCenters = data.snapCenters;
-      if (data.showContourGaps !== undefined) state.showContourGaps = data.showContourGaps;
       if (Array.isArray(data.undoStack)) state.undoStack = data.undoStack;
       updateObjectList();
       updateProperties();
@@ -204,6 +191,7 @@ window.addEventListener('beforeunload', () => {
   updateNullPointUI();
   updateLayerList();
   initAutoSave();
+  initSettingsAutoSave();
   updateStatusProject();
   if (bridge.runCncExport) bridge.runCncExport();
   if (bridge.updateMobileCoords) bridge.updateMobileCoords(0, 0);

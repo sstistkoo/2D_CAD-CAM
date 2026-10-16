@@ -9,7 +9,6 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { installUiDom } from './helpers/uiDom.mjs';
-import { getMeta, setMeta } from '../js/idb.js';
 
 let ui, state, bridge, undo;
 const toast = () => document.querySelector('.toast')?.textContent;
@@ -149,7 +148,7 @@ describe('ABS/INC, R/⌀, typ stroje a indikátory', () => {
   });
 
   it('klik na indikátor přepne hodnotu a uloží nastavení (persistSettings); jiný klik nic', async () => {
-    await setMeta('currentProjectData', { objects: [] });
+    localStorage.removeItem('skica-settings');
     el('indMachine').click();
     el('indCoordMode').click();
     el('indXDisplay').click();
@@ -161,8 +160,8 @@ describe('ABS/INC, R/⌀, typ stroje a indikátory', () => {
       .toEqual(['karusel', 'inc', 'diameter', true, true, 'intersections']);
     expect(ev.defaultPrevented).toBe(true);
     await vi.waitFor(async () => {
-      const d = await getMeta('currentProjectData');
-      expect([d.machineType, d.coordMode, d.xDisplayMode, d.snapToGrid, d.angleSnap, d.showDimensions]).toEqual(['karusel', 'inc', 'diameter', true, true, 'intersections']);
+      const d = JSON.parse(localStorage.getItem('skica-settings'));
+      expect([d?.machineType, d?.coordMode, d.xDisplayMode, d.snapToGrid, d.angleSnap, d.showDimensions]).toEqual(['karusel', 'inc', 'diameter', true, true, 'intersections']);
     }, { timeout: 2000 });
     const other = document.createElement('span');
     other.className = 'coord-ind';

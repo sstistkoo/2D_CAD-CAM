@@ -2,7 +2,7 @@
 // Dialog ⚙️ Nastavení (#desktopSettings / #mobileSettings). Psáno PŘED
 // přesunem z ui.js do js/ui/settingsDialog.js (docs/plan-refaktoringu-ui.md,
 // Fáze 2a) jako charakterizace: každé pole dialogu → `state`, stav tlačítek,
-// hláška a uložení nastavení do IDB (persistSettings, se zpožděním 500 ms).
+// hláška a uložení nastavení (persistSettings → js/storage/settingsStore.js).
 // Projde na starém kódu a po přesunu musí projít beze změny.
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
@@ -147,16 +147,19 @@ describe('Nastavení', () => {
     expect([state.theme, document.body.classList.contains('light-theme')]).toEqual(['dark', false]);
   });
 
-  it('změna se uloží do IDB (persistSettings, se zpožděním)', async () => {
+  it('změna se uloží (persistSettings) — zvlášť od výkresu', async () => {
     await setMeta('currentProjectData', { objects: [1], gridSize: 1 });
+    localStorage.removeItem('skica-settings');
     open();
     q('#settDecimals').value = '2';
     q('#settDecimals').dispatchEvent(new Event('change'));
     click('settMachKarusel');
     await vi.waitFor(async () => {
-      const d = await getMeta('currentProjectData');
-      expect([d.displayDecimals, d.machineType, d.gridSize, d.objects]).toEqual([2, 'karusel', 10, [1]]);
+      const d = JSON.parse(localStorage.getItem('skica-settings'));
+      expect([d?.displayDecimals, d?.machineType, d?.gridSize]).toEqual([2, 'karusel', 10]);
     }, { timeout: 2000 });
+    // výkres zůstane, jak byl (nastavení se ukládá zvlášť, 'skica-settings')
+    expect(await getMeta('currentProjectData')).toEqual({ objects: [1], gridSize: 1 });
   });
 
   it('projekty a export: tlačítko zavře Nastavení a otevře cíl', async () => {

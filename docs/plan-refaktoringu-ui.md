@@ -1,8 +1,10 @@
 # Plán: rozdělení `js/ui.js`
 
 > **HOTOVO 16. 10. 2026:** `ui.js` 5 312 → **156 ř.** (rozcestník), kód v 16 modulech
-> `js/ui/` + balíku `js/ui/properties/` (6 souborů), strop v `file-size-budget` = 156.
-> „Nalezené chyby" níž: všech 9 opraveno 16. 10. (č. 7–9 nalezeny při opravách).
+> `js/ui/` + balíku `js/ui/properties/` (6 souborů). Po opravě č. 10 (ukládání
+> nastavení přesunuto do `js/storage/settingsStore.js`) **128 ř.**, strop
+> v `file-size-budget` = 128.
+> „Nalezené chyby" níž: všech 10 opraveno 16. 10. (č. 7–10 nalezeny při opravách).
 >
 > Výchozí stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
 > Zadal uživatel 16. 10. jako samostatnou práci na nové sezení (CLAUDE.md:
@@ -132,6 +134,17 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    teď končí u okraje panelu a položky, které se nevejdou, přejdou celé na
    druhý řádek. Při šířce ≥ 1280 px beze změny. `tests/statusbar-layout.test.js`
    (stráž CSS), rozložení ověřeno v prohlížeči.
+10. ✅ **Opraveno 16. 10.** — **Nastavení se po obnovení stránky ztrácelo:**
+   ukládalo se jen do rozkresleného výkresu a `tryAutoLoad` (app.js) ho
+   obnovilo jen s neprázdným výkresem — po „Smazat vše" nebo na čisté stránce
+   zmizelo. Tolerance úhlového snapu, snap k bodům a otočení osy Z se
+   neukládaly vůbec, otočení os a náhled zrcadlení se při startu neobnovily
+   a přepínače z klávesnice (S, D, N, I…) se neukládaly. Teď vlastní
+   `js/storage/settingsStore.js` (localStorage `skica-settings`, synchronně —
+   stihne se i při obnovení stránky), obnoví se vždy; starší data se vezmou
+   z uloženého výkresu. Projekt nese i `flipZ` (dřív se při otevření
+   vynulovalo). `tests/settings-store.test.js`, ověřeno v prohlížeči
+   (obnovení stránky, Smazat vše, zavření karty, migrace).
 
 ## Co v souboru je (měřeno 16. 10.)
 

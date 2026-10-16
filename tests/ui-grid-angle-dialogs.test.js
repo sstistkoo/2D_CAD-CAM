@@ -6,7 +6,6 @@
 // (Tlačítko Zrušit obsluhuje globální handler `.btn-cancel-overlay` v app.js.)
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { getMeta, setMeta } from '../js/idb.js';
 import { installUiDom } from './helpers/uiDom.mjs';
 
 let ui, state, bridge;
@@ -66,7 +65,7 @@ describe('uložení a překreslení po změně v dialogu (dialogy jsou nově dos
     const orig = bridge.updateCoordBarIndicators;
     bridge.updateCoordBarIndicators = vi.fn();
     try {
-      await setMeta('currentProjectData', { objects: [] });
+      localStorage.removeItem('skica-settings');
       state.gridSize = 10;
       state.angleSnapStep = 15;
       ui.showGridSizeDialog();
@@ -76,13 +75,18 @@ describe('uložení a překreslení po změně v dialogu (dialogy jsou nově dos
       ov().querySelector('.angle-preset[data-deg="30"]').click();
       expect(bridge.updateCoordBarIndicators).toHaveBeenCalledTimes(2);
       await vi.waitFor(async () => {
-        const d = await getMeta('currentProjectData');
-        expect([d.gridSize, d.angleSnapStep]).toEqual([2, 30]);
+        const d = JSON.parse(localStorage.getItem('skica-settings'));
+        expect([d?.gridSize, d?.angleSnapStep]).toEqual([2, 30]);
       }, { timeout: 2000 });
       ui.showAngleSnapDialog();
       ov().querySelector('#dlgAngleStep').value = '45';
+      ov().querySelector('#dlgAngleTol').value = '4';
       ov().querySelector('#dlgAngleOk').click();
-      await vi.waitFor(async () => expect((await getMeta('currentProjectData')).angleSnapStep).toBe(45), { timeout: 2000 });
+      // i tolerance (dřív se neukládala vůbec)
+      await vi.waitFor(async () => {
+        const d = JSON.parse(localStorage.getItem('skica-settings'));
+        expect([d.angleSnapStep, d.angleSnapTolerance]).toEqual([45, 4]);
+      }, { timeout: 2000 });
       expect(bridge.updateCoordBarIndicators).toHaveBeenCalledTimes(3);
     } finally { bridge.updateCoordBarIndicators = orig; }
   });

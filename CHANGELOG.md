@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nastavení se po obnovení stránky už neztrácí.** Ukládalo se jen spolu
+  s rozkresleným výkresem a obnovilo se jen tehdy, když výkres nebyl prázdný —
+  po „Smazat vše" nebo bez výkresu se vrátilo na výchozí. Tolerance úhlového
+  snapu, snap k bodům a otočení osy Z se neukládaly vůbec, otočení os
+  a náhled zrcadlení se při startu neobnovily a přepnutí klávesou (S, D, N,
+  I…) se neuložilo. Teď se nastavení ukládá zvlášť od výkresu (hned po
+  změně, při autosave i při zavření nebo obnovení stránky) a při startu se
+  obnoví vždy; nastavení ze starší verze se převezme z uloženého výkresu.
+  Projekt nově nese i otočení osy Z. `js/storage/settingsStore.js`, test
+  `settings-store`.
+
 - **Dolní lišta ukazuje nápovědu k nástroji a název projektu.** Obojí se
   zapisovalo do prvků, které v aplikaci nebyly. Teď jsou na konci dolní lišty
   ve volném místě (ostatní položky se neposunou); když se nevejdou, zkrátí se

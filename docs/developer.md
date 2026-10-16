@@ -1369,6 +1369,7 @@ Segment {
 | Modul | Účel |
 |-------|------|
 | `storage/autoSave.js` | Automatické ukládání do IndexedDB |
+| `storage/settingsStore.js` | Nastavení aplikace zvlášť od výkresu (localStorage `skica-settings`, synchronně — stihne se i při `pagehide`): `SETTINGS_KEYS` + kontrola hodnot, `saveSettings` (volá `persistSettings` v ui.js, `saveProject`, skrytí/zavření stránky), `restoreSettings(currentProjectData)` při startu vždy (chybějící klíče z výkresu = migrace starších dat). Nové nastavení ve `state` přidat do jeho `SCHEMA`, jinak se neuloží. Test `settings-store` |
 | `storage/projectManager.js` | CRUD projektů, seznamy |
 | `storage/fileIO.js` | Import/export souborů |
 | `storage/exportImage.js` | Export PNG / SVG (SVG geometrie přes Maker.js) |
