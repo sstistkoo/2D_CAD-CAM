@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Tolerance: úchylky ve „Vlastních úchylkách" jde zadat v mm i µm.**
+  Tlačítko mm/µm pod popiskem Rozmezí přepíná jednotku a přepočte už
+  zadané hodnoty; výsledek zůstává stejný. Volba se pamatuje.
+  `js/calculators/tolerance.js`, `css/style.css`, test `tolerance-units`.
 - **Mobil: ve výběru textu by nemělo být „Přeložit".** Stránka je označena
   `translate="no"` (a `notranslate`), takže Chrome na Androidu nemá
   nabízet překlad vybraného textu. Vyjmout/Kopírovat/Vložit zůstává (je to
