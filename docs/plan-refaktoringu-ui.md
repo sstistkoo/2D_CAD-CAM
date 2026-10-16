@@ -14,12 +14,25 @@
 | 1a poznámky → `js/ui/notesDialog.js` | `refactor(ui): poznámky…` | 4 947 | `ui-notes` |
 | 1d kalkulačka → `js/ui/calculator.js` (+ `initCalcButtons()`) | `refactor(ui): kalkulačka…` | 4 437 | `ui-calculator` |
 | 1c Trigonometrie → `js/ui/trigCalc.js` | `refactor(ui): Trigonometrie…` | 4 216 | `ui-trig` |
+| 1b spouštěcí tlačítka → `js/ui/launchers.js` (+ `initLauncherButtons()`) | `refactor(ui): spouštěcí tlačítka…` | 4 162 | `ui-launchers` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
 `getCalcLastResult()` (jediná změněná řádka mimo hlavičky/importy).
 `_lastFocusedInput` (píše ho focusin listener při načtení, čte `openCalculator`)
 je stav modulu `calculator.js`, listener v `initCalcButtons()`.
+
+1b: místo samotné `openDrawCncEditor` (4 ř.) celý souvislý blok listenerů
+spouštěcích tlačítek (CNC kalkulačky, Trigonometrie, ✏️ Editor, VK/číselné
+zadání, CAM, AI, 📝) — čte jen importy a nic zvenku ho nečte. ui.js tím
+přestal importovat `cnc-calcs.js`, `combinedModal.js`, `aiPanel.js`;
+pořadí vyhodnocení modulů s kódem při načtení (od `app.js`) ověřeno
+nástrojem níž — beze změny.
+
+Pořadí vyhodnocení: post-order DFS přes statické importy od `js/app.js`
+(jako prohlížeč), vypsat moduly s kódem při načtení a porovnat s commitem
+před rozdělením (0bc0338). Přesun importu nesmí přeskládat moduly s kódem
+při načtení. (Skript ve scratchpadu sezení, babel parser — snadno znovu.)
 
 Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
 `localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js
