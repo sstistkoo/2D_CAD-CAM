@@ -1409,7 +1409,7 @@ Segment {
 - `js/dialogs/` – jednotlivá dialogová okna
   - `combinedModal.js` – sloučené okno „Zadání objektu": záložky 📐 VK a
     🔢 Číselné zadání. Otevírá se přes `showCombinedModal('vk' | 'num')` a
-    je to **jediný** vstup – všech pět spouštěčů (`btnOpenVk`, `btnNumInput`,
+    je to **jediný** vstup – všechny spouštěče (`btnNumInput`,
     `desktopNumInput`, `mobileNumInput`, klávesa `n`) míří sem.
     Záložky i ⤢ sedí v **liště okna** (`titlebarControlsHTML()`), ne nad
     formulářem – okno je na mobilu ukotvené dole a každý řádek navíc ubírá

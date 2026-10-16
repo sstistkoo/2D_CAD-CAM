@@ -1501,7 +1501,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **VK Kontura** – editor volné kontury (obdoba Heidenhain FK): zápis prvku
   úsečka/oblouk s neznámými rozměry (`?`), polárně k pólu (VPOL), s přehledem
   syntaxe a převodem doplněného zápisu na ISO G-kód.
-  Otevírá se ve **sdíleném okně „Zadání objektu"** – druhá záložka je
+  Otevírá se ve **sdíleném okně „Zadání objektu"** (tlačítko 🔢 Zadat /
+  ✏️ VK na výkresu; z pravého panelu už ne) – druhá záložka je
   🔢 Číselné zadání objektu, takže se dá mezi oběma způsoby zadání
   přepínat bez zavírání okna (a naopak: 🔢 kdekoli v appce otevře totéž
   okno rovnou na číselné záložce). Obě záložky, ⤢ i ✕ sedí v jedné
