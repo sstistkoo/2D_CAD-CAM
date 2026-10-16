@@ -107,11 +107,10 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    nástroje dělalo dva záznamy Zpět** (`setTool` volal `pushUndo()` a `addObject()`
    ho volá znovu — první Zpět vrátilo konturu, druhé nic). Nadbytečný
    `pushUndo()` v `js/ui/toolbar.js` odebrán. Test `ui-toolbar`.
-7. **Výběr barvy: puštění myši mimo dialog po tažení v SV ploše picker zruší**
-   (a vrátí původní barvu). `click` po tažení vznikne na společném předkovi
-   mousedown/mouseup — na pozadí overlaye — a jeho handler „klik mimo" zavolá
-   `finish(false)`. Stejně i před rozdělením. Oprava: klik mimo ignorovat, když
-   právě skončilo tažení (`js/ui/colorPicker.js`).
+7. ✅ **Opraveno 16. 10.** — **Výběr barvy: puštění myši mimo dialog po tažení
+   (SV plocha, posuvníky) picker zrušilo** i s barvou — `click` po tažení vznikne
+   na společném předkovi, pozadí overlaye. Teď „klik mimo" zruší jen tehdy, když
+   i stisk začal na pozadí (`pointerdown`). Test `ui-color-picker`.
 
 ## Co v souboru je (měřeno 16. 10.)
 

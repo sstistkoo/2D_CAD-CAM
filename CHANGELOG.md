@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Výběr barvy: tažení puštěné mimo okno ho už nezruší.** Po tažení
+  v barevné ploše nebo posuvníku (odstín, tloušťka, průhlednost) a puštění
+  myši nad pozadím se okno zavřelo a barva se vrátila. Klik mimo okno teď
+  zruší výběr jen tehdy, když i stisk začal mimo okno. `js/ui/colorPicker.js`,
+  test `ui-color-picker`.
 - **Kontura uložená přepnutím nástroje jde vrátit jedním Zpět.** Rozkreslená
   kontura se při přepnutí na jiný nástroj uloží; dřív k tomu vznikly dva
   záznamy Zpět (první konturu vrátil, druhý nic). `js/ui/toolbar.js`, test

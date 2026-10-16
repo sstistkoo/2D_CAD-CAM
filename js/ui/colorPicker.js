@@ -411,7 +411,12 @@ function openColorPicker(opts) {
   dialog.appendChild(okRow);
 
   overlay.appendChild(dialog);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) finish(false); });
+  // Klik mimo dialog zruší výběr jen tehdy, když i stisk začal na pozadí.
+  // Po tažení z dialogu (SV plocha, posuvníky) puštěném nad pozadím vznikne
+  // click na společném předkovi — overlayi — a dřív picker zrušil i s barvou.
+  let downOnBackdrop = false;
+  overlay.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === overlay; });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && downOnBackdrop) finish(false); });
   document.body.appendChild(overlay);
 }
 

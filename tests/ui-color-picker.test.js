@@ -17,6 +17,8 @@ const rgb = () => [...pop().querySelectorAll('.custom-picker-rgb input')].map(i 
 const sliders = () => [...pop().querySelectorAll('.color-popover-width')].map(r => [r.querySelector('label').textContent, r.querySelector('input').value, r.querySelector('span').textContent]);
 const setInput = (el, v) => { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); };
 const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+// Klik mimo dialog: stisk i puštění na pozadí overlaye (jako skutečná myš).
+const backdropClick = () => { pop().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); pop().click(); };
 const toast = () => document.querySelector('.toast')?.textContent;
 
 beforeAll(async () => {
@@ -91,7 +93,7 @@ describe('výběr barvy — Vybarvit (bridge.openFillColorPicker)', () => {
   });
 
   it('✕, Escape i klik mimo dialog zruší celé vybarvení (smaže novou výplň)', () => {
-    for (const cancel of [() => q('.color-popover-close').click(), esc, () => pop().click()]) {
+    for (const cancel of [() => q('.color-popover-close').click(), esc, backdropClick]) {
       const fill = { type: 'fill', color: '#00ff00', alpha: 1 };
       state.objects = [{ type: 'point', x: 0, y: 0 }, fill];
       bridge.openFillColorPicker(fill);
@@ -213,7 +215,7 @@ describe('výběr barvy — tažení v ploše a úklid listenerů', () => {
   it('po zavření (OK, ✕, Escape, klik mimo, kapátko → znovu → OK) nezůstane na window žádný listener', async () => {
     const t = trackWindowDrag();
     try {
-      const closers = [() => q('.color-popover-ok').click(), () => q('.color-popover-close').click(), esc, () => pop().click()];
+      const closers = [() => q('.color-popover-ok').click(), () => q('.color-popover-close').click(), esc, backdropClick];
       for (const close of closers) {
         const fill = { type: 'fill', color: '#ff0000', alpha: 1 };
         state.objects = [fill];
@@ -236,6 +238,28 @@ describe('výběr barvy — tažení v ploše a úklid listenerů', () => {
       await settle();
       expect(t.active.size).toBe(0);
     } finally { t.restore(); }
+  });
+
+  it('tažení z dialogu puštěné nad pozadím picker nezavře (nález č. 7)', () => {
+    const fill = { type: 'fill', color: '#ff0000', alpha: 1 };
+    state.objects = [fill];
+    bridge.openFillColorPicker(fill);
+    const sv = q('.custom-picker-sv');
+    sv.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100 });
+    sv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    sv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 50, clientY: 50 }));
+    window.dispatchEvent(new MouseEvent('mouseup', {}));
+    pop().click();   // click po tažení vznikne na společném předkovi = pozadí
+    expect(pop()).toBeTruthy();
+    expect(fill.color).toBe('#804040');
+    expect(state.objects).toEqual([fill]);
+    // posuvník průhlednosti stejně
+    const alpha = pop().querySelectorAll('.color-popover-width input')[0];
+    alpha.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    pop().click();
+    expect(pop()).toBeTruthy();
+    q('.color-popover-ok').click();
+    expect(pop()).toBeNull();
   });
 
   it('tažení v SV ploše mění barvu, po puštění myši už ne', () => {
