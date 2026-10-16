@@ -101,7 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panelů → `js/ui/intersectionList.js` (test `ui-intersection-list`), seznam
   vrstev → `js/ui/layerList.js` (test `ui-layer-list`), seznam objektů →
   `js/ui/objectList.js` a skok do CNC kódu → `js/ui/cncJump.js` (test
-  `ui-object-list`).
+  `ui-object-list`), lišta nástrojů a `setTool` → `js/ui/toolbar.js` (test
+  `ui-toolbar`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`

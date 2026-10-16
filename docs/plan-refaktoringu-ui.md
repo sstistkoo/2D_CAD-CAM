@@ -23,6 +23,7 @@
 | 2c průsečíky + `togglePanel` → `js/ui/intersectionList.js` | `refactor(ui): seznam průsečíků…` | 2 648 | `ui-intersection-list` |
 | 2d vrstvy → `js/ui/layerList.js` (+ `initLayerButtons()`) | `refactor(ui): seznam vrstev…` | 2 529 | `ui-layer-list` |
 | 2e seznam objektů → `js/ui/objectList.js`, skok do CNC → `js/ui/cncJump.js` | `refactor(ui): seznam objektů…` | 1 873 | `ui-object-list` |
+| 3a lišta, `setTool`, hinty, přídavek → `js/ui/toolbar.js` (+ `initToolbar()`) | `refactor(ui): lišta nástrojů…` | 1 579 | `ui-toolbar` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -75,6 +76,14 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    formátuje `fmtStatusCoords(wx, wy)` (relativně k právě nastavenému bodu).
    Oprava: formátovat absolutně (před přepnutím). Test `ui-null-point` to
    charakterizuje.
+5. **Hinty se nikde nezobrazují:** `setHint` / `resetHint` (19 importérů)
+   zapisují do `#statusHint`, který v `index.html` není (a podle historie
+   nikdy nebyl). Rozhodnout s uživatelem: přidat prvek do stavového řádku,
+   nebo hinty odebrat. Test `ui-toolbar` prvek přidává jen pro charakterizaci.
+6. **Auto-uložení rozkreslené kontury při přepnutí nástroje dělá dva záznamy
+   Zpět** — `setTool` volá `pushUndo()` a `addObject()` ho volá znovu (první
+   Zpět vrátí konturu, druhé nic). Tužka má jen ten z `addObject`. Oprava:
+   odebrat `pushUndo()` v `setTool` (`js/ui/toolbar.js`).
 
 ## Co v souboru je (měřeno 16. 10.)
 
