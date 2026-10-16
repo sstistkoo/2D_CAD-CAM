@@ -94,11 +94,9 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    `.coord-ind`, Nastavení), ale **dialogy Velikost mřížky a Krok úhlového
    snapu** se otevíraly jen pravým klikem na `btnSnapGrid`/`btnAngleSnap` —
    z UI teď nejsou dosažitelné. Rozhodnout s uživatelem (odebrat / navěsit jinam).
-4. **Nulový bod: toast po nastavení ukazuje „ΔX: 0 ΔZ: 0"** místo souřadnic
-   bodu — `applyNullPoint` nejdřív přepne INC a nastaví referenci, pak teprve
-   formátuje `fmtStatusCoords(wx, wy)` (relativně k právě nastavenému bodu).
-   Oprava: formátovat absolutně (před přepnutím). Test `ui-null-point` to
-   charakterizuje.
+4. ✅ **Opraveno 16. 10.** — **Nulový bod: toast po nastavení ukazoval „ΔX: 0 ΔZ: 0"**
+   místo souřadnic bodu (`fmtStatusCoords` až po přepnutí do INC vůči právě
+   nastavenému bodu). Teď se poloha formátuje v ABS předem. Test `ui-null-point`.
 5. **Hinty ani název projektu se nikde nezobrazují:** `setHint` / `resetHint`
    (19 importérů) zapisují do `#statusHint` a `updateStatusProject` do
    `#statusProject` — ani jeden prvek v `index.html` není (`#statusHint` podle

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nulový bod: hláška ukazuje polohu bodu.** Po nastavení nulového bodu
+  hláška vždy psala „Nulový bod: ΔX: 0 ΔZ: 0" (souřadnice se formátovaly až
+  vůči právě nastavenému bodu). Teď ukáže absolutní polohu, např.
+  „Nulový bod: X: 4 Z: 12 ∠15°". `js/ui/nullPoint.js`, test `ui-null-point`.
 - **Výběr barvy: nehromadí listenery při každém otevření.** Každé otevření okna
   výběru barvy (barva vrstvy, objektu, Vybarvit) přidalo na `window` dva
   listenery pro tažení v ploše a už je neodebralo. Teď se odeberou při zavření

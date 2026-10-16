@@ -51,6 +51,12 @@ export function clearNullPoint() {
 
 /** Aplikuje nový nulový bod. */
 function applyNullPoint(wx, wy, angle) {
+  // Poloha bodu do hlášky v ABS: v INC by se ukázala vůči referenci —
+  // po nastavení vůči tomuhle bodu, tedy vždy „ΔX: 0 ΔZ: 0".
+  const mode = state.coordMode;
+  state.coordMode = 'abs';
+  const where = fmtStatusCoords(wx, wy);
+  state.coordMode = mode;
   state.incReference = { x: wx, y: wy };
   state.nullPointAngle = angle || 0;
   state.nullPointActive = true;
@@ -60,7 +66,7 @@ function applyNullPoint(wx, wy, angle) {
   }
   updateNullPointUI();
   renderAll();
-  showToast(`Nulový bod: ${fmtStatusCoords(wx, wy)}${angle ? ' ∠' + angle + '°' : ''}`);
+  showToast(`Nulový bod: ${where}${angle ? ' ∠' + angle + '°' : ''}`);
 }
 
 /** Zobrazí dialog pro nastavení nulového bodu. */

@@ -39,7 +39,20 @@ describe('nulový bod', () => {
     expect(ov()).toBeNull();
     expect(np()).toEqual([{ x: 10, y: 5 }, 30, true, 'inc']);
     expect(indicator()).toEqual([false, 'X: 5.000  Z: 10.000  ∠30°', true]);
-    expect(toast()).toMatchInlineSnapshot(`"Nulový bod: ΔX: 0   ΔZ: 0 ∠30°"`);
+    // Hláška v absolutních souřadnicích (dřív se formátovala až po přepnutí
+    // do INC vůči právě nastavenému bodu → vždy „ΔX: 0 ΔZ: 0", nález č. 4).
+    expect(toast()).toBe('Nulový bod: X: 5   Z: 10 ∠30°');
+    // i když už INC běží s jiným bodem
+    document.getElementById('btnSetRef').click();   // aktivní → zrušit
+    state.coordMode = 'inc';
+    state.incReference = { x: 100, y: 100 };
+    state.nullPointActive = false;
+    document.getElementById('btnSetRef').click();
+    q('#nullPtH').value = '-4';
+    q('#nullPtV').value = '7.5';
+    q('#nullPtOk').click();
+    expect(toast()).toBe('Nulový bod: X: 7.5   Z: -4');
+    expect(state.coordMode).toBe('inc');
   });
 
   it('druhý klik na aktivní 📍 nulový bod zruší (ABS); ✕ v panelu taky', () => {
