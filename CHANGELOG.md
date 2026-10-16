@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   automatickým uložením. Nastavení se také uloží i tehdy, když zápis výkresu
   do IndexedDB selže (plné úložiště). Aplikace naběhne a nastavení obnoví,
   i když IndexedDB nefunguje. `js/storage/projectManager.js`, `js/app.js`.
+- **Kalkulačka: historie se nevykresluje do zavřeného okna.** Když se okno
+  zavřelo dřív, než se historie načetla z IndexedDB, vykreslovala se do
+  zavřeného okna. V testech na GitHubu to po skončení testu shodilo běh
+  („document is not defined"). `js/ui/calculator.js`, test
+  `ui-calculator-history-race`.
 - **Poznámky: hledání se posune na nález i v dlouhých odstavcích.** Posun
   počítal jen řádky textu, ne zalomené řádky na obrazovce, takže nález
   zůstal mimo viditelnou část. `js/ui/notesDialog.js`.

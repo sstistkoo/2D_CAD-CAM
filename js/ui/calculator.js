@@ -192,6 +192,8 @@ export function openCalculator() {
   let justEvaluated = false; // po „=" začne další číslice nový výpočet
   let history = [];
   getMeta('calcHistory').then(h => {
+    // Okno se mohlo mezitím zavřít — do zavřeného už nic nevykreslovat.
+    if (!overlay.isConnected) return;
     if (Array.isArray(h)) { history = h; renderHistory(); }
   });
 
