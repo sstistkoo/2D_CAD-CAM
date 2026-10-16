@@ -176,9 +176,11 @@ docs/                 # developer.md, user-guide.md
   ze starého se jen zavolá (import + jedno volání). Dovoleno je jen malé
   opravné zásahy (bugfix, úprava řádků) a odebírání kódu; soubor nesmí
   po změně vyrůst o víc než pár řádků. Dotčené soubory (řádky k 12. 10.):
-  `calculators/camSimulator.js` 11712 (celé uvnitř jedné funkce
-  `openCamSimulator`, sdílí stav přes closure — nový kód tam dávat jako
-  modul, kterému se `S` a callbacky předají parametrem), `ui.js` 5312,
+  `calculators/camSimulator.js` 11712 → po rozdělení 13. 10. 5432 (zbylé
+  jádro uvnitř jedné funkce `openCamSimulator`, sdílí stav přes closure —
+  nový kód jako modul do `js/calculators/cam/sim/`, kterému se `S`
+  a callbacky předají parametrem; vzory v `docs/plan-rozdeleni-cam-simulatoru.md`;
+  zbytek jádra se dál NEROZDĚLUJE, rozhodnutí uživatele 16. 10.), `ui.js` 5312,
   `render.js` 3115, `cam/ops/roughLong.js` 3119, `cncEditor.js` 2918,
   `geometry.js` 2553, `vkContour.js` 2347. Nemusí se kvůli tomu nic
   přepisovat — pravidlo se týká jen NOVÉHO kódu. Nelze-li kód jinak

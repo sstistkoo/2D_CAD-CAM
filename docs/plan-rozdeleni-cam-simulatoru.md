@@ -212,7 +212,9 @@ Nic nepřepisuje, ale volá ho 13 bloků → test **záznamem volání ctx** nad
 
 **Po Fázi 1–5:** ~11 700 − ~6 400 ≈ **5 300 ř.** v `camSimulator.js` (skutečnost: 5 431).
 
-### Fáze 6 — rozhodnout až potom (nejvíc provázané)
+### Fáze 6 — NEBUDE SE DĚLAT (rozhodnutí uživatele 16. 10. 2026)
+„Malý zisk, velké riziko rozbití." Jádro (~5 400 ř.) zůstává v `camSimulator.js`;
+nový kód do něj dál nepřidávat (CLAUDE.md, strop v `file-size-budget.test.js`).
 | Blok | ř. | čte | píše |
 |---|---|---|---|
 | Myš / výběr obdélníkem / tažení | 747 | 68 | **9** |
@@ -284,4 +286,5 @@ Tady je riziko nejvyšší a přínos se zmenšuje — možná nechat jádro jak
   `mag-slots`. Otisk drah shodný.
 - [x] Fáze 5 — kreslení plátna (13. 10.): `drawCanvas.js` + 4 vrstvy, test
   `sim-ui-draw`, sonda záznamu kreslení 1 600/1 600 shodných.
-- [ ] Fáze 6 (rozhodnout)
+- [x] ~~Fáze 6~~ — nedělá se (uživatel 16. 10. 2026: malý zisk, velké riziko).
+  **Plán je uzavřený:** 11 716 → 5 432 ř., 30 modulů v `js/calculators/cam/sim/`.
