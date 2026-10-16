@@ -95,17 +95,27 @@ describe('setTool', () => {
     Object.assign(state, { tool: 'polyline', drawing: true, tempPoints: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }], _polylineBulges: [0.5] });
     ui.setTool('select');
     expect(state.objects.map(o => [o.type, o.name, o.vertices.length, o.bulges])).toEqual([['polyline', 'Kontura 10', 3, [0.5, 0]]]);
-    // pushUndo() v setTool + další v addObject() → 2 záznamy (nález č. 6)
-    expect([toast(), state.undoStack.length]).toEqual(['Kontura uložena (3 bodů)', 2]);
+    // jeden záznam Zpět (dřív pushUndo() v setTool + další v addObject(), nález č. 6)
+    expect([toast(), state.undoStack.length]).toEqual(['Kontura uložena (3 bodů)', 1]);
     Object.assign(state, { tool: 'pencil', drawing: true, tempPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }] });
     ui.setTool('line');
     expect(state.objects[1].name).toBe('Tužka 11');
-    expect([toast(), state.undoStack.length]).toEqual(['Náčrt tužkou uložen (2 bodů)', 3]);
+    expect([toast(), state.undoStack.length]).toEqual(['Náčrt tužkou uložen (2 bodů)', 2]);
     Object.assign(state, { tool: 'profileTrace', drawing: true, tempPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }] });
     ui.setTool('line');
     Object.assign(state, { tool: 'chainDimension', drawing: true });
     ui.setTool('line');
     expect([bridge.finishProfileTrace.mock.calls.length, bridge.finishChainDimension.mock.calls.length]).toEqual([1, 1]);
+  });
+
+  it('auto-uloženou konturu vrátí jedno Zpět', async () => {
+    const { undo } = await import('../js/state.js');
+    state.objects = [{ type: 'point', id: 1, x: 0, y: 0, layer: 0 }];
+    Object.assign(state, { tool: 'polyline', drawing: true, tempPoints: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }], _polylineBulges: [] });
+    ui.setTool('select');
+    expect([state.objects.length, state.undoStack.length]).toEqual([2, 1]);
+    undo();
+    expect(state.objects.map(o => o.type)).toEqual(['point']);
   });
 
   it('refreshToolbarActive, setHint, resetHint', () => {

@@ -2,7 +2,8 @@
 
 > **HOTOVO 16. 10. 2026:** `ui.js` 5 312 → **156 ř.** (rozcestník), kód v 16 modulech
 > `js/ui/` + balíku `js/ui/properties/` (6 souborů), strop v `file-size-budget` = 156. Zbývá jen
-> „Nalezené chyby" níž — opravit zvlášť, po dohodě s uživatelem.
+> „Nalezené chyby" níž: č. 1, 2, 4, 6 opraveny 16. 10.; č. 3, 5 čekají na
+> rozhodnutí uživatele, č. 7 nalezena při opravě č. 2.
 >
 > Výchozí stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
 > Zadal uživatel 16. 10. jako samostatnou práci na nové sezení (CLAUDE.md:
@@ -102,10 +103,10 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    `#statusProject` — ani jeden prvek v `index.html` není (`#statusHint` podle
    historie nikdy nebyl). Rozhodnout s uživatelem: přidat prvek do stavového řádku,
    nebo hinty odebrat. Testy `ui-toolbar` / `ui-help-theme` prvky přidávají jen pro charakterizaci.
-6. **Auto-uložení rozkreslené kontury při přepnutí nástroje dělá dva záznamy
-   Zpět** — `setTool` volá `pushUndo()` a `addObject()` ho volá znovu (první
-   Zpět vrátí konturu, druhé nic). Tužka má jen ten z `addObject`. Oprava:
-   odebrat `pushUndo()` v `setTool` (`js/ui/toolbar.js`).
+6. ✅ **Opraveno 16. 10.** — **Auto-uložení rozkreslené kontury při přepnutí
+   nástroje dělalo dva záznamy Zpět** (`setTool` volal `pushUndo()` a `addObject()`
+   ho volá znovu — první Zpět vrátilo konturu, druhé nic). Nadbytečný
+   `pushUndo()` v `js/ui/toolbar.js` odebrán. Test `ui-toolbar`.
 7. **Výběr barvy: puštění myši mimo dialog po tažení v SV ploše picker zruší**
    (a vrátí původní barvu). `click` po tažení vznikne na společném předkovi
    mousedown/mouseup — na pozadí overlaye — a jeho handler „klik mimo" zavolá

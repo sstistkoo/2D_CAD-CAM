@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kontura uložená přepnutím nástroje jde vrátit jedním Zpět.** Rozkreslená
+  kontura se při přepnutí na jiný nástroj uloží; dřív k tomu vznikly dva
+  záznamy Zpět (první konturu vrátil, druhý nic). `js/ui/toolbar.js`, test
+  `ui-toolbar`.
 - **Nulový bod: hláška ukazuje polohu bodu.** Po nastavení nulového bodu
   hláška vždy psala „Nulový bod: ΔX: 0 ΔZ: 0" (souřadnice se formátovaly až
   vůči právě nastavenému bodu). Teď ukáže absolutní polohu, např.

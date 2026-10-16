@@ -9,7 +9,7 @@
 // místě (pořadí listenerů). Kód aplikace importuje jen z js/ui.js (setTool,
 // setHint, resetHint, …), nikdy z js/ui/* napřímo.
 
-import { state, showToast, pushUndo, resetDrawingState } from '../state.js';
+import { state, showToast, resetDrawingState } from '../state.js';
 import { toolLabel } from '../utils.js';
 import { renderAll } from '../render.js';
 import { drawCanvas } from '../canvas.js';
@@ -183,7 +183,8 @@ export function setTool(tool) {
   if (state.tool === 'polyline' && state.drawing && state.tempPoints.length >= 2) {
     const bulges = state._polylineBulges || [];
     while (bulges.length < state.tempPoints.length - 1) bulges.push(0);
-    pushUndo();
+    // Zpět zapíše addObject() — dřív tu byl ještě jeden pushUndo() navíc
+    // a auto-uložená kontura potřebovala dvě Zpět.
     addObject({
       type: 'polyline',
       vertices: state.tempPoints.slice(),
