@@ -19,13 +19,13 @@ const NEW_FILE_MAX = 1500;
 const BUDGET = {
   'calculators/camSimulator.js': 5431,   // rozdělování (docs/plan-rozdeleni-cam-simulatoru.md) — po každém kroku snížit
   'ui.js': 128,   // rozcestník (rozděleno 16. 10. do js/ui/) — kód sem nepřidávat
-  'render.js': 3115,
+  'render.js': 69,   // rozcestník (rozděleno 16. 10. do js/render/) — kód sem nepřidávat
   'calculators/cam/ops/roughLong.js': 3119,
-  'calculators/cncEditor.js': 2918,
+  'calculators/cncEditor.js': 2635,   // 16. 10.: shodný kód s camEditor.js → gcodeEditorShared.js
   'geometry.js': 74,   // rozcestník (rozděleno 16. 10. do js/geometry/) — kód sem nepřidávat
   'calculators/vkContour.js': 2347,
   'storage/fileIO.js': 1988,
-  'calculators/camEditor.js': 1897,
+  'calculators/camEditor.js': 1613,   // 16. 10.: shodný kód s cncEditor.js → gcodeEditorShared.js
   'events.js': 1762,
   'calculators/cam/gcodeEmit.js': 1290,
 };

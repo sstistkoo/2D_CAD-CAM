@@ -35,7 +35,9 @@ index.html
 │   ├── geometry/          # select, hitDistance, intersections, tangents,
 │   │                      #   tangentCircles, linesOffset, transforms, fillet
 │   ├── canvas.js          # Canvas 2D kontext, transformace
-│   ├── render.js          # Překreslování celého výkresu
+│   ├── render.js          # Plánování překreslení + rozcestník exportů z render/*.js
+│   ├── render/            # common, bounds, axes, mirrorFills, objects, overlays,
+│   │                      #   labels, primitives, view, text, constraints
 │   ├── dxf.js             # DXF import + export
 │   ├── cnc-calcs.js       # CNC kalkulačky (otáčky, střih, tolerance)
 │   ├── toolLibrary.js     # Správa toolů
@@ -161,6 +163,28 @@ import { renderAll, renderAllDebounced } from './render.js';
 - `renderAll()` – naplánuje překreslení přes `requestAnimationFrame` (debouncing).
 - `renderAllDebounced(delay = 32)` – explicitní debounce pro rychlé UI změny.
 - Volá se po každé změně `state.objects` (např. po `addObject`, `moveObject`, `calculateAllIntersections`).
+
+Od 16. 10. 2026 je `render.js` jen jádro (`renderAll`/`renderAllDebounced`)
+a rozcestník — kód kreslení žije v `js/render/*.js` podle témat:
+
+| Modul | Obsah |
+|-------|-------|
+| `common.js` | `resolveObjectColor`, vazba kóty na body |
+| `bounds.js` | `getObjectBounds`, `boundsOverlap`, viewport |
+| `axes.js` | mřížka a osy |
+| `mirrorFills.js` | náhled zrcadlení, výplně |
+| `objects.js` | `renderObjects` – hlavní smyčka |
+| `overlays.js` | mezery kontury, zvýraznění, výběr, snap |
+| `labels.js` | šipky a popisky kót, čísla objektů/průsečíků |
+| `primitives.js` | bod, úsečka, kružnice, oblouk, obdélník, polyline |
+| `view.js` | cíl kreslení (plátno / export), kolizní obdélníky popisků |
+| `text.js` | text (i po cestě), `drawTextOn`/`drawDimensionOn` pro export |
+| `constraints.js` | značky vazeb, vodítko úhlového snapu |
+
+Zvenku importovat jen z `render.js` (testy mockují `../js/render.js`). Nová
+funkce patří do modulu svého tématu, veřejná navíc do seznamu exportů
+rozcestníku. Sdílený stav (`_tv`, `_dimLabelRects`) mění jen `view.js`
+(`_withView`, `resetDimLabelRects`); ostatní moduly ho jen čtou.
 
 `canvas.js` poskytuje transformace mezi world a screen souřadnicemi:
 - `worldToScreen(wx, wy)` → `{sx, sy}`
@@ -582,6 +606,12 @@ který už v syntaxi není.
 
 `calculators/contourOffset.js` – offset kontury pro zajištění rozměrů.
 `calculators/camEditor.js` – editor CAM strategií.
+`calculators/gcodeEditorShared.js` – kód společný CAM Editoru a CNC Editoru
+(`cncEditor.js`): slovníky G/M kódů, zvýraznění syntaxe, ukládání, výchozí
+hlavička, předpony sražení/zaoblení dle řídicího systému a `convertCornersToPaths`.
+Rozdíly editorů se předávají volbami (CNC: X jako průměr, I/K, karusel/flip
+→ G2/G3, čísla bez nul); test `tests/gcode-editor-corners.test.js`. Oprava
+sdíleného chování patří sem, ne do jednoho z editorů.
 `calculators/camSimulator.js` – simulátor obrysů obrábění (`openCamSimulator`,
 ~8 400 ř. — orchestrace: `draw()`, event-handlery, UI editoru/parametrů/
 zásobníku nástrojů + tenké wrappery `calculate()`/`generateAutoGCode()`/
@@ -1489,7 +1519,7 @@ Segment {
     porovnáním vzdálenosti k `line2FarPoint` (neořezaný vzdálený konec
     úsečky za rohem, dodá volající) – blíž k němu je vždycky strana ZA
     rohem, bez ohledu na interní pořadí. Stejná past a stejné řešení jako
-    `convertCornersToPaths()` v CNC Editoru (`js/calculators/cncEditor.js`).
+    `convertCornersToPaths()` editorů (`js/calculators/gcodeEditorShared.js`).
     Ověřeno round-tripem: výstup `applyCornerGcode()` porovnaný ručně
     s výstupem `convertCornersToPaths()` pro tentýž roh – identická dráha.
 

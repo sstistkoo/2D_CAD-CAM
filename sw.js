@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v524';
+const CACHE_NAME = 'skica-v525';
 const ASSETS = [
   './',
   './index.html',
@@ -172,6 +172,7 @@ const ASSETS = [
   './js/calculators/drillGeometry.js',
   './js/calculators/g96Math.js',
   './js/calculators/gcode.js',
+  './js/calculators/gcodeEditorShared.js',
   './js/calculators/help.js',
   './js/calculators/holderIsoData.js',
   './js/calculators/holePattern.js',
@@ -274,6 +275,17 @@ const ASSETS = [
   './js/lineStyles.js',
   './js/objects.js',
   './js/render.js',
+  './js/render/axes.js',
+  './js/render/bounds.js',
+  './js/render/common.js',
+  './js/render/constraints.js',
+  './js/render/labels.js',
+  './js/render/mirrorFills.js',
+  './js/render/objects.js',
+  './js/render/overlays.js',
+  './js/render/primitives.js',
+  './js/render/text.js',
+  './js/render/view.js',
   './js/state.js',
   './js/stockTools.js',
   './js/storage.js',

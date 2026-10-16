@@ -74,9 +74,10 @@ node scripts/cam_sweep.mjs                           # úběr × kolize
   malé opravy a odebírání kódu. Stropy hlídá `tests/file-size-budget.test.js` (běží v
   `test:cad`; žádný jiný soubor v `js/` nad 1500 ř.). Po zmenšení souboru strop SNIŽ.
   Dotčeno: `camSimulator.js` (5432; zbylé jádro se dál nedělí, nový kód do `cam/sim/`,
-  vzory v `docs/plan-rozdeleni-cam-simulatoru.md`), `render.js`, `cam/ops/roughLong.js`,
-  `cncEditor.js`, `vkContour.js`, `fileIO.js`, `camEditor.js`, `events.js`. `ui.js` a
-  `geometry.js` jsou rozcestníky (kód nepřidávat). Nelze-li kód umístit, zeptej se.
+  vzory v `docs/plan-rozdeleni-cam-simulatoru.md`), `cam/ops/roughLong.js`,
+  `cncEditor.js`, `vkContour.js`, `fileIO.js`, `camEditor.js`, `events.js`. `ui.js`,
+  `geometry.js` a `render.js` jsou rozcestníky (kód nepřidávat). Společný kód obou
+  editorů G-kódu patří do `calculators/gcodeEditorShared.js`. Nelze-li kód umístit, zeptej se.
 - **Tokeny:** stručně, nečti opakovaně stejné soubory, nevypisuj velké výstupy. Obří soubory
   (`css/style.css`, `js/lib/browser.maker.js`, velké `js/**`) čti přes grep + `offset/limit`,
   nikdy celé. Test výstupy ořezávej (`| tail`).

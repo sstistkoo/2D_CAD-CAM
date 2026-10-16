@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Refaktoring: `render.js` rozdělen do `js/render/*.js`** (11 modulů podle
+  témat, největší `objects.js` ~890 ř.). `render.js` zůstal jádrem
+  (`renderAll`) a rozcestníkem se stejným seznamem exportů – importy jinde
+  se nemění. Chování beze změny.
+- **Refaktoring: společný kód CAM Editoru a CNC Editoru v
+  `js/calculators/gcodeEditorShared.js`.** Oba editory měly ~300 ř. shodných
+  kopií (slovníky G/M kódů, zvýraznění, výchozí hlavička, řídicí systém,
+  převod sražení/zaoblení na dráhu). Převod rohů je jedna funkce s volbami;
+  výstup obou editorů ověřen proti původnímu kódu (3 řídicí systémy × 16
+  stavů). Nový test `tests/gcode-editor-corners.test.js`.
+
 - **Pravý panel: z „Další kalkulačky" zmizelo tlačítko VK Kontura.** Bylo
   to duplikát – VK se otevírá z okna „Zadání objektu" na výkresu (🔢 Zadat /
   ✏️ VK, záložka VK). `index.html`, `js/ui/launchers.js`, testy, dokumentace.
