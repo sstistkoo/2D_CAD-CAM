@@ -1,0 +1,3 @@
+# Snímky vitestu vždy s LF: vitest je zapisuje s LF, a s CRLF z core.autocrlf
+# by je na Windows po každém běhu testů přepsal (soubor pak vypadá změněný).
+*.snap text eol=lf
