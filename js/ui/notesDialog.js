@@ -298,7 +298,10 @@ export async function openNotesDialog() {
   // ── Search in text ──
   let searchMatches = [];
   let searchIdx = -1;
-  const doSearch = (dir) => {
+  // fromField = hledá se z pole hledání (psaní, Enter): fokus v poli zůstane,
+  // nález se v editoru jen označí a editor se na něj posune. Dřív se fokus
+  // přesunul do editoru a další psaná písmena přepsala označený nález.
+  const doSearch = (dir, fromField = false) => {
     const q = searchInput.value;
     if (!q) { searchCountEl.textContent = ''; return; }
     searchMatches = [];
@@ -309,13 +312,23 @@ export async function openNotesDialog() {
     if (!searchMatches.length) { searchCountEl.textContent = '0 / 0'; return; }
     searchIdx = (searchIdx + dir + searchMatches.length) % searchMatches.length;
     searchCountEl.textContent = (searchIdx + 1) + ' / ' + searchMatches.length;
-    ta.focus();
+    if (!fromField) ta.focus();
     ta.setSelectionRange(searchMatches[searchIdx], searchMatches[searchIdx] + q.length);
+    if (fromField) {
+      // Bez fokusu prohlížeč k označení neposune — posunout na řádek nálezu.
+      const line = ta.value.slice(0, searchMatches[searchIdx]).split('\n').length - 1;
+      const cs = getComputedStyle(ta);
+      let lh = parseFloat(cs.lineHeight);
+      if (isNaN(lh)) lh = (parseFloat(cs.fontSize) || 14) * 1.2;
+      ta.scrollTop = Math.max(0, (line - 2) * lh);
+    }
   };
-  searchInput.addEventListener('input', () => { searchIdx = -1; doSearch(1); });
+  searchInput.addEventListener('input', () => { searchIdx = -1; doSearch(1, true); });
   searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); doSearch(e.shiftKey ? -1 : 1); }
-    if (e.key === 'Escape') searchBar.classList.remove('open');
+    if (e.key === 'Enter') { e.preventDefault(); doSearch(e.shiftKey ? -1 : 1, true); }
+    // Escape zavře jen lištu hledání — nesmí bublat na document, jinak ESC
+    // z makeOverlay / events.js zavře celé okno poznámek.
+    if (e.key === 'Escape') { e.stopPropagation(); searchBar.classList.remove('open'); ta.focus(); }
   });
 
   // ── Event delegation for toolbar + action buttons ──

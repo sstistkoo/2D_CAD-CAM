@@ -75,11 +75,14 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
 
 ## Nalezené chyby (opravit zvlášť, ne při stěhování)
 
-1. **Poznámky: Escape v poli Hledat zavře celé okno**, ne jen lištu hledání —
-   keydown bublá z inputu na `document` k ESC handleru `makeOverlay`
-   (obsah se uloží, takže se nic neztratí). Oprava: `e.stopPropagation()`
-   u Escape v `searchInput` keydown. Test `ui-notes` teď stávající chování
-   charakterizuje — při opravě ho upravit.
+1. ✅ **Opraveno 16. 10.** — **Poznámky: Escape v poli Hledat zavřel celé okno**,
+   ne jen lištu hledání (keydown bublal na `document` k ESC `makeOverlay`
+   / `events.js`). Při opravě se našla horší příčina: po prvním napsaném znaku
+   `doSearch` přesunul fokus do editoru a **další písmena přepsala označený
+   nález v poznámce** (Escape pak přicházel už z editoru). Teď: psaní a Enter
+   v poli hledání nechají fokus v poli (nález se v editoru označí a posune),
+   Escape zavře jen lištu a vrátí fokus do editoru na označený nález; ▲/▼
+   přejdou do editoru jako dřív. Test `ui-notes`.
 2. **Výběr barvy: každé otevření přidá na `window` listenery `mousemove`
    a `mouseup` (tažení v SV ploše) a nikdy je neodebere** — s každým otevřením
    pickeru jich přibývá (únik; `svDragging` zůstane false, takže se nic

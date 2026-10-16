@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Poznámky: hledání už nepřepisuje text poznámky a Escape nezavře okno.**
+  Po prvním napsaném znaku v poli Hledat skočil kurzor do poznámky a další
+  písmena přepsala označený nález (hledání „ahoj" v „ahoj světe" udělalo
+  „hojhoj světe"). Psaní a Enter teď zůstávají v poli hledání (nález se
+  v poznámce označí a posune), Escape zavře jen lištu hledání a vrátí kurzor
+  na označený nález — dřív zavřel celé okno. `js/ui/notesDialog.js`, test
+  `ui-notes`.
 - **CAM čelně, kulatá: do plného materiálu pod úhlem zanoření, ne kolmo.**
   Průchod jde do plného materiálu nejvýš o ap·tan(úhel zanoření) pod dno
   předchozí vrstvy (při 45° o ap), další zase o ap níž (pravidlo 6). Dřív pod

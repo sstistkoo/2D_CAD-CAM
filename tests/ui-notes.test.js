@@ -152,13 +152,24 @@ describe('poznámkový blok', () => {
     act('search');
     expect(sel('#notesSearchBar').classList.contains('open')).toBe(true);
     const si = sel('#notesSearchInput');
+    si.focus();
     si.value = 'AHOJ';
     si.dispatchEvent(new Event('input', { bubbles: true }));
     expect(sel('#notesSearchCount').textContent).toBe('1 / 2');
     expect([ta().selectionStart, ta().selectionEnd]).toEqual([3, 7]);
+    // Psaní a Enter v poli hledání nechají fokus v poli (dřív skočil do
+    // editoru a další písmena přepsala označený nález v poznámce).
+    expect(document.activeElement).toBe(si);
+    si.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect([sel('#notesSearchCount').textContent, ta().selectionStart, document.activeElement]).toEqual(['2 / 2', 18, si]);
+    si.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true }));
+    expect([sel('#notesSearchCount').textContent, ta().selectionStart]).toEqual(['1 / 2', 3]);
+    expect(ta().value).toBe('\t**ahoj** světe\n# ahoj');
+    // Tlačítka ▲/▼ přejdou do editoru (nález je tam vidět označený).
     act('searchNext');
     expect(sel('#notesSearchCount').textContent).toBe('2 / 2');
     expect([ta().selectionStart, ta().selectionEnd]).toEqual([18, 22]);
+    expect(document.activeElement).toBe(ta());
     si.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(sel('#notesSearchBar').classList.contains('open')).toBe(false);
 
@@ -170,11 +181,21 @@ describe('poznámkový blok', () => {
     expect(ta().value).toBe('');
     expect(toast()).toBe('Záložka vymazána');
 
-    // Escape v poli hledání bublá na document → ESC z makeOverlay zavře celé
-    // okno (a zavření uloží). Stávající chování — viz „Nalezené chyby"
-    // v docs/plan-refaktoringu-ui.md; tady se jen charakterizuje.
+    // Escape v poli hledání zavře jen lištu hledání a vrátí kurzor do editoru
+    // (dřív bublal na document a ESC z makeOverlay / events.js zavřel celé
+    // okno — nález č. 1 v docs/plan-refaktoringu-ui.md). Další Escape z editoru
+    // už okno zavře (a zavření uloží).
     act('search');
+    const onDoc = vi.fn();
+    document.addEventListener('keydown', onDoc);
     sel('#notesSearchInput').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.removeEventListener('keydown', onDoc);
+    await settle(20);
+    expect(overlay()).toBeTruthy();
+    expect(onDoc).not.toHaveBeenCalled();
+    expect(sel('#notesSearchBar').classList.contains('open')).toBe(false);
+    expect(document.activeElement).toBe(ta());
+    ta().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await settle(20);
     expect(overlay()).toBeNull();
     await vi.waitFor(async () => expect(await getMeta('userNotesAll')).toEqual([{ id: 1, title: 'A', text: '' }]));
