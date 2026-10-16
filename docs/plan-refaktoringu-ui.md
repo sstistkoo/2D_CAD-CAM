@@ -22,6 +22,7 @@
 | 2a Nastavení → `js/ui/settingsDialog.js` | `refactor(ui): Nastavení…` | 2 797 | `ui-settings` |
 | 2c průsečíky + `togglePanel` → `js/ui/intersectionList.js` | `refactor(ui): seznam průsečíků…` | 2 648 | `ui-intersection-list` |
 | 2d vrstvy → `js/ui/layerList.js` (+ `initLayerButtons()`) | `refactor(ui): seznam vrstev…` | 2 529 | `ui-layer-list` |
+| 2e seznam objektů → `js/ui/objectList.js`, skok do CNC → `js/ui/cncJump.js` | `refactor(ui): seznam objektů…` | 1 873 | `ui-object-list` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
