@@ -20,6 +20,7 @@ import { loadLineStylePref, refreshLineStyleBtn, activeLineStyle } from './lineS
 import { getCalcClipboardValue, setCalcClipboardValue, openCalculator, initCalcButtons } from './ui/calculator.js';
 import { initLauncherButtons } from './ui/launchers.js';
 import { openLayerColorPicker, openObjectColorPicker, openFillColorPicker } from './ui/colorPicker.js';
+import { showGridSizeDialog, showAngleSnapDialog } from './ui/gridAngleDialogs.js';
 
 // ── Bridge registrace (rozbíjí cyklickou závislost geometry ↔ ui) ──
 bridge.updateProperties = () => updateProperties();
@@ -3034,98 +3035,8 @@ export { getCalcClipboardValue, setCalcClipboardValue, openCalculator };
 initCalcButtons();   // 🔢, 📋, sledování posledního pole (js/ui/calculator.js)
 initLauncherButtons();   // CNC kalkulačky, Trigonometrie, ✏️ Editor, VK, CAM, AI, 📝 (js/ui/launchers.js)
 
-// ── Dialog: Grid Size ──
-/** Otevře dialog pro nastavení velikosti mřížky. */
-export function showGridSizeDialog() {
-  const overlay = document.createElement("div");
-  overlay.className = "input-overlay";
-  overlay.innerHTML = `
-    <div class="input-dialog">
-      <h3># Velikost mřížky</h3>
-      <label>Velikost kroku (mm):</label>
-      <input type="number" id="dlgGridSize" step="0.1" min="0.1" value="${state.gridSize}" inputmode="decimal">
-      <div class="btn-row">
-        <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
-        <button class="btn-ok" id="dlgGridOk">OK</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const inp = overlay.querySelector("#dlgGridSize");
-  focusInput(inp, { select: true });
-  function confirm() {
-    const v = safeEvalMath(inp.value);
-    if (!isNaN(v) && v > 0) {
-      state.gridSize = v;
-      showToast(`Mřížka: ${v} mm`);
-    }
-    overlay.remove();
-  }
-  overlay.querySelector("#dlgGridOk").addEventListener("click", confirm);
-  inp.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") confirm();
-    if (e.key === "Escape") overlay.remove();
-    e.stopPropagation();
-  });
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-}
-
-// ── Dialog: Angle Snap Step ──
-/** Otevře dialog pro nastavení kroku úhlového snapu. */
-export function showAngleSnapDialog() {
-  const overlay = document.createElement("div");
-  overlay.className = "input-overlay";
-  overlay.innerHTML = `
-    <div class="input-dialog">
-      <h3>∠ Krok úhlového snapu</h3>
-      <div class="btn-row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-        <button class="btn-cancel angle-preset" data-deg="15">15°</button>
-        <button class="btn-cancel angle-preset" data-deg="30">30°</button>
-        <button class="btn-cancel angle-preset" data-deg="45">45°</button>
-        <button class="btn-cancel angle-preset" data-deg="90">90°</button>
-      </div>
-      <label>Vlastní krok (°):</label>
-      <input type="number" id="dlgAngleStep" step="1" min="1" max="180" value="${state.angleSnapStep}" inputmode="decimal">
-      <label style="margin-top:8px">Tolerance přichycení (°):</label>
-      <input type="number" id="dlgAngleTol" step="1" min="1" max="45" value="${state.angleSnapTolerance}" inputmode="decimal">
-      <div class="btn-row">
-        <button class="btn-cancel btn-cancel-overlay">Zrušit</button>
-        <button class="btn-ok" id="dlgAngleOk">OK</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const inp = overlay.querySelector("#dlgAngleStep");
-  focusInput(inp, { select: true });
-
-  overlay.querySelectorAll(".angle-preset").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const deg = parseInt(btn.dataset.deg);
-      state.angleSnapStep = deg;
-      showToast(`Úhlový snap: ${deg}°`);
-      overlay.remove();
-    });
-  });
-
-  function confirm() {
-    const v = safeEvalMath(inp.value);
-    const tolInp = overlay.querySelector("#dlgAngleTol");
-    const tol = safeEvalMath(tolInp.value);
-    if (!isNaN(v) && v > 0 && v <= 180) {
-      state.angleSnapStep = v;
-    }
-    if (!isNaN(tol) && tol > 0 && tol <= 45) {
-      state.angleSnapTolerance = tol;
-    }
-    showToast(`Úhlový snap: ${state.angleSnapStep}° (tolerance ${state.angleSnapTolerance}°)`);
-    overlay.remove();
-  }
-  overlay.querySelector("#dlgAngleOk").addEventListener("click", confirm);
-  inp.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") confirm();
-    if (e.key === "Escape") overlay.remove();
-    e.stopPropagation();
-  });
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-}
+// ── Dialogy mřížky a kroku úhlového snapu → js/ui/gridAngleDialogs.js ──
+export { showGridSizeDialog, showAngleSnapDialog };
 
 
 // ╔══════════════════════════════════════════════════════════════╗

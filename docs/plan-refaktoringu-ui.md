@@ -16,6 +16,7 @@
 | 1c Trigonometrie → `js/ui/trigCalc.js` | `refactor(ui): Trigonometrie…` | 4 216 | `ui-trig` |
 | 1b spouštěcí tlačítka → `js/ui/launchers.js` (+ `initLauncherButtons()`) | `refactor(ui): spouštěcí tlačítka…` | 4 162 | `ui-launchers` |
 | 1e výběr barvy → `js/ui/colorPicker.js` | `refactor(ui): výběr barvy…` | 3 709 | `ui-color-picker` |
+| 2b-1 dialogy mřížky a úhlu → `js/ui/gridAngleDialogs.js` | `refactor(ui): dialogy mřížky…` | 3 620 | `ui-grid-angle-dialogs` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -52,6 +53,13 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    pickeru jich přibývá (únik; `svDragging` zůstane false, takže se nic
    nepokazí, jen se hromadí). Oprava: odebrat je ve `finish()` a při
    kapátku (`js/ui/colorPicker.js`, `openColorPicker`).
+3. **Mrtvé odkazy na tlačítka:** `btnSnapGrid`, `btnAngleSnap`, `btnSnapPts`,
+   `btnDims`, `btnCoordMode`, `btnXDisplay`, `btnMachineType`, `btnHistory`,
+   `btnSettings`, `btnCalcInt` nejsou v `index.html` ani je nic nevytváří
+   (ui.js na ně věší listenery přes `?.`). Přepínače mají náhradu (indikátory
+   `.coord-ind`, Nastavení), ale **dialogy Velikost mřížky a Krok úhlového
+   snapu** se otevíraly jen pravým klikem na `btnSnapGrid`/`btnAngleSnap` —
+   z UI teď nejsou dosažitelné. Rozhodnout s uživatelem (odebrat / navěsit jinam).
 
 ## Co v souboru je (měřeno 16. 10.)
 
