@@ -1,6 +1,10 @@
 # Plán: rozdělení `js/ui.js`
 
-> Stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
+> **HOTOVO 16. 10. 2026:** `ui.js` 5 312 → **156 ř.** (rozcestník), kód v 16 modulech
+> `js/ui/` + balíku `js/ui/properties/` (6 souborů), strop v `file-size-budget` = 156. Zbývá jen
+> „Nalezené chyby" níž — opravit zvlášť, po dohodě s uživatelem.
+>
+> Výchozí stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
 > Zadal uživatel 16. 10. jako samostatnou práci na nové sezení (CLAUDE.md:
 > refaktoring obřího souboru = vědomé rozhodnutí). Postup stejný jako u
 > simulátoru (`docs/plan-rozdeleni-cam-simulatoru.md`) a `geometry.js`
@@ -26,6 +30,8 @@
 | 3a lišta, `setTool`, hinty, přídavek → `js/ui/toolbar.js` (+ `initToolbar()`) | `refactor(ui): lišta nástrojů…` | 1 579 | `ui-toolbar` |
 | 3b přepínače stavového řádku → `js/ui/statusButtons.js` (+ `initStatusButtons()`) | `refactor(ui): přepínače stavového řádku…` | 1 338 | `ui-status-buttons` |
 | 3c název projektu, nápověda, motiv → `js/ui/helpTheme.js` (+ `initHelpButtons()`) | `refactor(ui): nápověda a motiv…` | 1 272 | `ui-help-theme` |
+| 4-0 charakterizace panelu vlastností (generativní, 16 scénářů / 190 akcí) | `test(ui): charakterizace panelu vlastností…` | 1 272 | `ui-properties` |
+| 4 panel vlastností → `js/ui/properties/` (kostra `index.js` + `line`, `arcCircle`, `rect`, `polyline`, `text`) | `refactor(ui): panel vlastností…` | **156** | `ui-properties` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -53,6 +59,14 @@ ji bere ze sourozeneckého `./drawingHistory.js`, export ui.js se neměnil.
 AST (každý příkaz i s komentáři nad ním): deklarace funkcí na úroveň modulu,
 ostatní příkazy v původním pořadí do `initStatusButtons()`; kontrola proložením
 zpět = původní text. Deklarace se vyzvednou, takže na jejich pořadí nezáleží.
+
+Fáze 4: měření (AST) ukázalo, že žádná větev `switch (obj.type)` nepřepisuje
+sdílené lokální proměnné — všechny jen čtou `obj`, `tbody`, `H`, `V` a pomocníky
+řádků. Každá větev je jeden blok s jediným `break` na konci → tělo bloku doslova
+(jen o 4 mezery méně odsazené, řádky uvnitř víceřádkového template literalu beze
+změny) jako `export function xProps({ obj, tbody, … })`; kostra volá `xProps(ctx)`.
+Bod (3 ř.) zůstal v kostře. Kontrola: větve zpět = původní řádky, diff kostry
+jen `export` u `_afterGeomEdit`, řádek `ctx` a volání větví.
 
 Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
 `localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js

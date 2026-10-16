@@ -144,7 +144,8 @@ Testy jsou v `tests/` – unit i integrační (např. CAM g-code, DXF, gear).
 │   ├── toolLibrary.js  # Správa nástrojů
 │   ├── stockTools.js   # Nástroje pro soustruh
 │   ├── touch.js        # Touch ovládání
-│   ├── ui.js           # UI, panely, tooltipy
+│   ├── ui.js           # UI — rozcestník (kód v ui/ podle témat)
+│   ├── ui/             # panely, seznamy, dialogy, lišta, panel vlastností
 │   ├── dialogs/        # Všechna dialogová okna (numerický input, M-code, gear, thread, ...)
 │   ├── tools/          # Nástroje kreslení/úprav (line, arc, rect, polyline, gear, array, ...)
 │   ├── calculators/    # CAM: gcode, threadData, roughness, cutting, tolerance, contour, ... 

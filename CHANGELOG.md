@@ -83,28 +83,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Rozdělování `js/ui.js`** (5 312 ř.) do `js/ui/`
-  (`docs/plan-refaktoringu-ui.md`), kód se stěhuje beze změny, `ui.js` zůstává
-  rozcestníkem se stejnými exporty. Pojistky `tests/ui-api.test.js` + harness
-  `tests/helpers/uiDom.mjs` (exporty, klíče `bridge`, pořadí listenerů při
-  načtení, stráže importů). Zatím vyňato: poznámkový blok →
-  `js/ui/notesDialog.js` (test `ui-notes`), kalkulačka 🔢 se schránkou 📋 →
-  `js/ui/calculator.js` (test `ui-calculator`), Trigonometrie →
-  `js/ui/trigCalc.js` (test `ui-trig`), spouštěcí tlačítka (CNC kalkulačky, ✏️
-  Editor, VK, CAM, AI, 📝) → `js/ui/launchers.js` (test `ui-launchers`), výběr
-  barvy s kapátkem → `js/ui/colorPicker.js` (test `ui-color-picker`), dialogy
-  mřížky a kroku úhlu → `js/ui/gridAngleDialogs.js` (test
-  `ui-grid-angle-dialogs`), nulový bod → `js/ui/nullPoint.js` (test
-  `ui-null-point`), Smazat vše a historie smazaných výkresů →
-  `js/ui/drawingHistory.js` (test `ui-drawing-history`), dialog Nastavení →
-  `js/ui/settingsDialog.js` (test `ui-settings`), seznam průsečíků a rozbalování
-  panelů → `js/ui/intersectionList.js` (test `ui-intersection-list`), seznam
-  vrstev → `js/ui/layerList.js` (test `ui-layer-list`), seznam objektů →
-  `js/ui/objectList.js` a skok do CNC kódu → `js/ui/cncJump.js` (test
-  `ui-object-list`), lišta nástrojů a `setTool` → `js/ui/toolbar.js` (test
-  `ui-toolbar`), přepínače stavového řádku a indikátory →
-  `js/ui/statusButtons.js` (test `ui-status-buttons`), název projektu, nápověda
-  a motiv → `js/ui/helpTheme.js` (test `ui-help-theme`).
+- **Rozdělení `js/ui.js`** (5 312 ř.) do `js/ui/` (`docs/plan-refaktoringu-ui.md`).
+  Kód přesunutý beze změny, `ui.js` zůstává rozcestníkem (156 ř.) se stejnými
+  exporty a s kódem při načtení (bridge, listenery) v původním pořadí — moduly
+  v `js/ui/` mají `initXxx()`. 16 modulů + balík: poznámky, kalkulačka, Trigonometrie,
+  spouštěcí tlačítka, výběr barvy, dialogy mřížky/úhlu, nulový bod, Smazat vše
+  a historie, Nastavení, průsečíky, vrstvy, seznam objektů, skok do CNC kódu,
+  lišta nástrojů, přepínače stavového řádku, nápověda a motiv a panel vlastností
+  (`js/ui/properties/`: kostra + větve podle typu objektu). Pojistky
+  `tests/ui-api.test.js` + harness `tests/helpers/uiDom.mjs` (exporty, klíče
+  `bridge`, pořadí listenerů při načtení, stráže importů a kódu při načtení)
+  a 16 charakterizačních testů `tests/ui-*.test.js` (panel vlastností
+  generativně: 16 scénářů, 190 akcí), všechny psané a ověřené na kódu před
+  přesunem. Nalezené chyby (neopraveno, zapsáno v plánu): Escape v hledání
+  poznámek zavře okno, únik listenerů výběru barvy, tlačítka bez prvků
+  v `index.html` (dialogy mřížky/úhlu nedosažitelné, hinty a název projektu se
+  nezobrazují), toast nulového bodu „ΔX: 0 ΔZ: 0", dvojí Zpět při auto-uložení
+  kontury.
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`
