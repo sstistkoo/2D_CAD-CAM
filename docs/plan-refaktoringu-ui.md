@@ -20,6 +20,7 @@
 | 2b-2 nulový bod → `js/ui/nullPoint.js` (+ `initNullPointButtons()`) | `refactor(ui): nulový bod…` | 3 456 | `ui-null-point` |
 | 2b-3 Smazat vše + historie → `js/ui/drawingHistory.js` (+ `initClearAllButton()`) | `refactor(ui): Smazat vše a historie…` | 3 300 | `ui-drawing-history` |
 | 2a Nastavení → `js/ui/settingsDialog.js` | `refactor(ui): Nastavení…` | 2 797 | `ui-settings` |
+| 2c průsečíky + `togglePanel` → `js/ui/intersectionList.js` | `refactor(ui): seznam průsečíků…` | 2 648 | `ui-intersection-list` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
