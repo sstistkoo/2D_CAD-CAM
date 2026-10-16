@@ -1,3 +1,5 @@
+import { closeOnBackdropClick } from '../../dialogFactory.js';
+
 // ── Custom confirm dialog ──────────────────────────────────────
 export function camConfirm(message) {
   return new Promise(resolve => {
@@ -15,7 +17,7 @@ export function camConfirm(message) {
     const cleanup = (val) => { ov.remove(); resolve(val); };
     ov.querySelector('.cam-confirm-ok').addEventListener('click', () => cleanup(true));
     ov.querySelector('.cam-confirm-cancel').addEventListener('click', () => cleanup(false));
-    ov.addEventListener('click', e => { if (e.target === ov) cleanup(false); });
+    closeOnBackdropClick(ov, () => cleanup(false));
     ov.querySelector('.cam-confirm-ok').focus();
   });
 }
@@ -36,7 +38,7 @@ export function camCloseConfirm() {
     const cleanup = (val) => { ov.remove(); resolve(val); };
     ov.querySelector('[data-r="discard"]').addEventListener('click', () => cleanup('discard'));
     ov.querySelector('[data-r="save"]').addEventListener('click', () => cleanup('save'));
-    ov.addEventListener('click', e => { if (e.target === ov) cleanup(null); });
+    closeOnBackdropClick(ov, () => cleanup(null));
     ov.querySelector('[data-r="save"]').focus();
   });
 }
@@ -73,7 +75,7 @@ export function camOffsetDialog(count) {
     };
     ov.querySelector('.cam-confirm-ok').addEventListener('click', doConfirm);
     ov.querySelector('.cam-confirm-cancel').addEventListener('click', () => cleanup(null));
-    ov.addEventListener('click', e => { if (e.target === ov) cleanup(null); });
+    closeOnBackdropClick(ov, () => cleanup(null));
     ov.addEventListener('keydown', e => {
       if (e.key === 'Enter') doConfirm();
       else if (e.key === 'Escape') cleanup(null);
@@ -128,7 +130,7 @@ export function camAddMoveDialog(def) {
     };
     ov.querySelector('.cam-confirm-ok').addEventListener('click', doConfirm);
     ov.querySelector('.cam-confirm-cancel').addEventListener('click', () => cleanup(null));
-    ov.addEventListener('click', e => { if (e.target === ov) cleanup(null); });
+    closeOnBackdropClick(ov, () => cleanup(null));
     ov.addEventListener('keydown', e => { if (e.key === 'Enter') doConfirm(); else if (e.key === 'Escape') cleanup(null); });
     ov.querySelector('#cam-mv-x').focus();
   });

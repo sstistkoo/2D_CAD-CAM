@@ -11,6 +11,7 @@ import { applyThemeColors } from '../constants.js';
 import { state, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { getMeta, setMeta } from '../idb.js';
+import { closeOnBackdropClick } from '../dialogFactory.js';
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  Statusbar – název projektu                                  ║
@@ -78,9 +79,8 @@ export function initHelpButtons() {
   document.getElementById('helpCloseBtn')?.addEventListener('click', hideHelp);
 
   // Help overlay click on background
-  document.getElementById('helpOverlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'helpOverlay') hideHelp();
-  });
+  const helpOverlay = document.getElementById('helpOverlay');
+  if (helpOverlay) closeOnBackdropClick(helpOverlay, () => hideHelp());
 
   // Help toolbar button
   document.getElementById('btnHelp')?.addEventListener('click', toggleHelp);

@@ -45,8 +45,10 @@ describe('stavový řádek a nápověda', () => {
     expect(visible()).toBe(false);
     document.getElementById('btnHelp').click();
     expect(visible()).toBe(true);
+    help().firstElementChild.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     help().firstElementChild.click();
     expect(visible()).toBe(true);
+    help().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));   // klik na pozadí: stisk i puštění
     help().click();
     expect(visible()).toBe(false);
     document.getElementById('btnHelp').click();

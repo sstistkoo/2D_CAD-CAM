@@ -4,6 +4,7 @@
 // a „💾 Uložit aktuální nástroj". Vyňato z camSimulator.js (blok „magazine
 // dialog", docs/plan-rozdeleni-cam-simulatoru.md) — stav simulátoru a jeho
 // funkce se předávají parametrem.
+import { closeOnBackdropClick } from '../../../dialogFactory.js';
 import { showToast } from '../../../state.js';
 import { showToolLibraryDialog, saveToolToLibrary } from '../../../toolLibrary.js';
 import { upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
@@ -174,7 +175,7 @@ export function createToolFiles({ S, toolUi, pushHistory, saveState, fullUpdate,
         </div>
       </div>`;
     const close = () => ovr.remove();
-    ovr.addEventListener('click', e => { if (e.target === ovr) close(); });
+    closeOnBackdropClick(ovr, () => close());
     ovr.querySelector('[data-act="menu-close"]').addEventListener('click', close);
     ovr.querySelectorAll('[data-mi]').forEach(btn => {
       btn.addEventListener('click', () => { close(); items[+btn.dataset.mi].run(ovr); });

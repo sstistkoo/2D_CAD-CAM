@@ -4,7 +4,7 @@
 // ║  syntaxe (dvojče CAM Editoru, pracuje s CNC kódem z CAD)     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { makeOverlay, onOverlayRemoved, showConfirmDialog } from '../dialogFactory.js';
+import { makeOverlay, onOverlayRemoved, showConfirmDialog, closeOnBackdropClick } from '../dialogFactory.js';
 import { bridge } from '../bridge.js';
 import { showToast, state } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
@@ -2439,7 +2439,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       $('angRes').textContent = r.err ? '' : `→ ${g1Text(r)}` + (r.inc ? ' (G91 – přírůstky)' : '') + (r.rel ? `  (směr ${f3(r.abs)}° od +Z)` : '');
     });
     angleModal.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmAngle(); } });
-    angleModal.addEventListener('click', e => { if (e.target === angleModal) angleModal.style.display = 'none'; });
+    closeOnBackdropClick(angleModal, () => { angleModal.style.display = 'none'; });
   }
 
   function copyText(t, what) {
@@ -2836,13 +2836,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   mergeFileInput.addEventListener('change', handleMergeLoad);
 
   // Close menu modal on click outside card
-  $('menuModal').addEventListener('click', e => {
-    if (e.target === $('menuModal')) $('menuModal').style.display = 'none';
-  });
+  closeOnBackdropClick($('menuModal'), () => { $('menuModal').style.display = 'none'; });
   // Close numpad modal on click outside card
-  numModal.addEventListener('click', e => {
-    if (e.target === numModal) numModal.style.display = 'none';
-  });
+  closeOnBackdropClick(numModal, () => { numModal.style.display = 'none'; });
 
   // ── Cleanup ────────────────────────────────────────────────
   new MutationObserver((_, obs) => {

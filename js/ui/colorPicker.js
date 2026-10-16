@@ -13,7 +13,7 @@ import { state, showToast } from '../state.js';
 import { renderAllDebounced, resolveObjectColor } from '../render.js';
 import { drawCanvas, screenToWorld } from '../canvas.js';
 import { findObjectAt } from '../geometry.js';
-import { onOverlayRemoved } from '../dialogFactory.js';
+import { onOverlayRemoved, closeOnBackdropClick } from '../dialogFactory.js';
 import { updateObjectList } from '../ui.js';
 
 // 7 základních barev duhy pro rychlý výběr barvy vrstvy jedním klikem.
@@ -411,12 +411,9 @@ function openColorPicker(opts) {
   dialog.appendChild(okRow);
 
   overlay.appendChild(dialog);
-  // Klik mimo dialog zruší výběr jen tehdy, když i stisk začal na pozadí.
-  // Po tažení z dialogu (SV plocha, posuvníky) puštěném nad pozadím vznikne
-  // click na společném předkovi — overlayi — a dřív picker zrušil i s barvou.
-  let downOnBackdrop = false;
-  overlay.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === overlay; });
-  overlay.addEventListener('click', (e) => { if (e.target === overlay && downOnBackdrop) finish(false); });
+  // Klik mimo dialog zruší výběr jen se stiskem na pozadí — tažení z dialogu
+  // (SV plocha, posuvníky) puštěné nad pozadím picker nezruší.
+  closeOnBackdropClick(overlay, () => finish(false));
   document.body.appendChild(overlay);
 }
 

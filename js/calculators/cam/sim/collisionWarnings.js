@@ -4,6 +4,7 @@
 // držáku/destičky" a „Kolize držáku s materiálem", docs/plan-rozdeleni-
 // cam-simulatoru.md). Stav simulátoru a jeho funkce se předávají parametrem;
 // vnitřní stav (debounce, cache klíče, instance HolderGouge) drží továrna.
+import { closeOnBackdropClick } from '../../../dialogFactory.js';
 import { validateToolpath } from '../collisionValidator.js';
 import { startInMaterial } from '../startCheck.js';
 import { HolderGouge } from '../holderGouge.js';
@@ -46,7 +47,7 @@ export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, 
     document.body.appendChild(ov);
     const close = () => ov.remove();
     ov.querySelector('[data-r="close"]').addEventListener('click', close);
-    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    closeOnBackdropClick(ov, () => close());
     ov.querySelector('[data-r="set"]').addEventListener('click', () => {
       close();
       S.activeTab = 'params';

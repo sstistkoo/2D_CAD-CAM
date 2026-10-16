@@ -53,6 +53,7 @@ describe('dialog velikosti mřížky', () => {
     document.removeEventListener('keydown', spy);
     expect([state.gridSize, ov(), bubbled]).toEqual([3, null, 0]);
     ui.showGridSizeDialog();
+    ov().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));   // klik na pozadí: stisk i puštění
     ov().click();
     expect(ov()).toBeNull();
   });

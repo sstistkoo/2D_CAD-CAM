@@ -111,6 +111,13 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    (SV plocha, posuvníky) picker zrušilo** i s barvou — `click` po tažení vznikne
    na společném předkovi, pozadí overlaye. Teď „klik mimo" zruší jen tehdy, když
    i stisk začal na pozadí (`pointerdown`). Test `ui-color-picker`.
+8. ✅ **Opraveno 16. 10.** — **Totéž ve všech oknech:** označení textu v poli
+   (nebo tažení posuvníku) z okna ven a puštění nad pozadím okno zavřelo —
+   Nastavení, kalkulačky, poznámky, vstupní dialogy, nápověda, dialogy CAM
+   simulátoru, okna editorů. Nalezeno při č. 7. Společný helper
+   `closeOnBackdropClick()` v `js/dialogFactory.js` (zavře jen se stiskem na
+   pozadí) nahradil všech 25 míst (13 v CAM simulátoru); `tests/dialog-backdrop.test.js` hlídá, že
+   v `js/` žádné nové okno nezavírá klikem na pozadí bez něj.
 
 ## Co v souboru je (měřeno 16. 10.)
 

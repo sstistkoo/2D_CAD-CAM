@@ -8,7 +8,7 @@
 
 import { state, showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
-import { focusInput } from '../dialogFactory.js';
+import { focusInput, closeOnBackdropClick } from '../dialogFactory.js';
 
 // ── Dialog: Grid Size ──
 /** Otevře dialog pro nastavení velikosti mřížky. */
@@ -42,7 +42,7 @@ export function showGridSizeDialog() {
     if (e.key === "Escape") overlay.remove();
     e.stopPropagation();
   });
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  closeOnBackdropClick(overlay, () => overlay.remove());
 }
 
 // ── Dialog: Angle Snap Step ──
@@ -100,5 +100,5 @@ export function showAngleSnapDialog() {
     if (e.key === "Escape") overlay.remove();
     e.stopPropagation();
   });
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  closeOnBackdropClick(overlay, () => overlay.remove());
 }

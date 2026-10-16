@@ -5,6 +5,7 @@
 //
 // Slot zásobníku má vlastní názvy polí (shape/radius/tipAngle…), kresba čte
 // jména z S.params (toolShape/toolRadius/…) → převod přes paramsFromMagSlot().
+import { closeOnBackdropClick } from '../../dialogFactory.js';
 import { drawInsertAndHolderPreview } from './insertPreview.js';
 import { isBoringBarLike } from '../knifeThumb.js';
 
@@ -131,7 +132,7 @@ export function showToolSlotPreviewDialog(slot) {
   }
   function onKeyDown(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKeyDown);
-  dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+  closeOnBackdropClick(dlg, () => close());
   dlg.querySelector('[data-act="prev-close"]').addEventListener('click', close);
 
   // Popisky (b, l1, ε…) jako HTML spany nad canvasem — ostré a konstantně

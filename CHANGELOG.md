@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Okna se nezavřou, když tažení z nich skončí nad pozadím.** Označení
+  textu v poli (nebo tažení posuvníku) z okna ven a puštění myši nad tmavým
+  pozadím okno zavřelo — Nastavení, kalkulačky, poznámky, vstupní dialogy,
+  nápověda, dialogy CAM simulátoru i editorů. Klik na pozadí teď okno zavře
+  jen tehdy, když i stisk začal na pozadí. Společný `closeOnBackdropClick()`
+  v `js/dialogFactory.js`, test `dialog-backdrop`.
 - **Výběr barvy: tažení puštěné mimo okno ho už nezruší.** Po tažení
   v barevné ploše nebo posuvníku (odstín, tloušťka, průhlednost) a puštění
   myši nad pozadím se okno zavřelo a barva se vrátila. Klik mimo okno teď
