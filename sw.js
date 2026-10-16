@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v512';
+const CACHE_NAME = 'skica-v513';
 const ASSETS = [
   './',
   './index.html',
@@ -333,6 +333,7 @@ const ASSETS = [
   './js/ui.js',
   './js/ui/calculator.js',
   './js/ui/colorPicker.js',
+  './js/ui/drawingHistory.js',
   './js/ui/gridAngleDialogs.js',
   './js/ui/launchers.js',
   './js/ui/notesDialog.js',

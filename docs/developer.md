@@ -44,7 +44,7 @@ index.html
 │   ├── ui.js              # Panely, seznamy, property panel (rozděluje se do ui/)
 │   ├── ui/                # bloky vyňaté z ui.js (importovat přes ui.js): notesDialog,
 │   │                      #   calculator, trigCalc, launchers, colorPicker, gridAngleDialogs,
-│   │                      #   nullPoint
+│   │                      #   nullPoint, drawingHistory
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
 │   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)

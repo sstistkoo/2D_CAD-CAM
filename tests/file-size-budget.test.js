@@ -18,7 +18,7 @@ const NEW_FILE_MAX = 1500;
 // řádky k 12. 10. 2026
 const BUDGET = {
   'calculators/camSimulator.js': 5431,   // rozdělování (docs/plan-rozdeleni-cam-simulatoru.md) — po každém kroku snížit
-  'ui.js': 3456,   // rozdělování (docs/plan-refaktoringu-ui.md) — po každém kroku snížit
+  'ui.js': 3300,   // rozdělování (docs/plan-refaktoringu-ui.md) — po každém kroku snížit
   'render.js': 3115,
   'calculators/cam/ops/roughLong.js': 3119,
   'calculators/cncEditor.js': 2918,

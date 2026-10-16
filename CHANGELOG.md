@@ -95,7 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   barvy s kapátkem → `js/ui/colorPicker.js` (test `ui-color-picker`), dialogy
   mřížky a kroku úhlu → `js/ui/gridAngleDialogs.js` (test
   `ui-grid-angle-dialogs`), nulový bod → `js/ui/nullPoint.js` (test
-  `ui-null-point`).
+  `ui-null-point`), Smazat vše a historie smazaných výkresů →
+  `js/ui/drawingHistory.js` (test `ui-drawing-history`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`
