@@ -150,9 +150,11 @@ export function togglePanel(id) {
   // Update header arrow
   const header = el.previousElementSibling;
   if (header && header.classList.contains('panel-header')) {
-    const textNode = header.childNodes;
+    // šipka je buď přímo v hlavičce, nebo ve <span> (CNC Kód, Objekty)
+    const textNode = [...header.childNodes];
+    for (const c of header.children) if (c.tagName === 'SPAN') textNode.push(...c.childNodes);
     for (const n of textNode) {
-      if (n.nodeType === 3) {
+      if (n.nodeType === 3 && /[▾▸]/.test(n.textContent)) {
         n.textContent = n.textContent.replace(/[▾▸]/, opening ? '▾' : '▸');
         break;
       }

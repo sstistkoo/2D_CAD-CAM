@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Pravý panel: CNC Kód je po načtení sbalený.** Otevře se klepnutím na
+  hlavičku (a při otevření se kód přegeneruje). Šipka ▸/▾ u CNC Kódu
+  a Objektů se teď při klepnutí správně přepíná (byla ve `<span>`, který
+  se přeskakoval). `index.html`, `css/style.css`, `js/ui/intersectionList.js`.
 - **Tolerance: úchylky ve „Vlastních úchylkách" jde zadat v mm i µm.**
   Tlačítko mm/µm pod popiskem Rozmezí přepíná jednotku a přepočte už
   zadané hodnoty; výsledek zůstává stejný. Volba se pamatuje.

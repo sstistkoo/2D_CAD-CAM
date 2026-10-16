@@ -529,6 +529,11 @@ body {
   display: none;
 }
 
+/* CNC kód je po načtení sbalený; otevře se klepnutím na hlavičku */
+#cncPanel {
+  display: none;
+}
+
 .panel-body table {
   width: 100%;
   border-collapse: collapse;
