@@ -115,6 +115,7 @@ function _loadProjectData(data) {
   // Projekt nese i režim kót – indikátor 📐 ve stavovém řádku musí sedět
   updateDimsBtn();
   bridge.updateCoordBarIndicators?.();
+  saveSettings();   // nastavení z projektu platí i po obnovení stránky
 }
 
 // ── Save / Load ──
@@ -127,8 +128,8 @@ function _loadProjectData(data) {
  */
 export async function saveProject({ quiet = false } = {}) {
   const data = _buildProjectData();
+  saveSettings();   // před zápisem do IDB — ten může selhat (plné úložiště)
   await setMeta('currentProjectData', data);
-  saveSettings();
   await _saveToProjects(state.projectName, data);
   showToast("Projekt uložen", undefined, { quiet });
   updateStatusProject();

@@ -3,14 +3,40 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 // Vyňato z js/ui.js beze změny (16. 10. 2026, docs/plan-refaktoringu-ui.md,
-// Fáze 1a). Listener tlačítka #btnOpenNotes věší dál js/ui.js na původním
-// místě; kód aplikace importuje jen z js/ui.js, nikdy z js/ui/* napřímo.
+// Fáze 1a). Listener tlačítka #btnOpenNotes věší js/ui/launchers.js
+// (initLauncherButtons); kód aplikace importuje jen z js/ui.js, nikdy
+// z js/ui/* napřímo.
 
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { getMeta, setMeta } from '../idb.js';
 
 // ── Poznámkový blok (profesionální verze) ──
+/**
+ * Svislá poloha znaku `pos` v textovém poli i se zalomenými řádky: zrcadlo
+ * se stejným písmem, odsazením a šířkou jako pole. null = pole nemá
+ * rozvržení (skryté, test bez layoutu).
+ * @param {HTMLTextAreaElement} ta @param {CSSStyleDeclaration} cs @param {number} pos
+ */
+function textTopAt(ta, cs, pos) {
+  if (!ta.clientWidth) return null;
+  const m = document.createElement('div');
+  for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing',
+    'wordSpacing', 'tabSize', 'paddingTop', 'paddingLeft', 'paddingRight', 'textTransform']) m.style[p] = cs[p];
+  Object.assign(m.style, {
+    position: 'absolute', visibility: 'hidden', left: '-99999px', top: '0', boxSizing: 'border-box',
+    width: ta.clientWidth + 'px', border: '0', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', wordBreak: cs.wordBreak,
+  });
+  m.textContent = ta.value.slice(0, pos);
+  const mark = document.createElement('span');
+  mark.textContent = '\u200b';
+  m.appendChild(mark);
+  document.body.appendChild(m);
+  const top = mark.offsetTop;
+  m.remove();
+  return top;
+}
+
 /** Otevře poznámkový blok (📝): víc záložek, autosave, hledání, export .txt. */
 export async function openNotesDialog() {
   // ── Data layer: multiple note tabs stored in IDB ──
@@ -315,12 +341,15 @@ export async function openNotesDialog() {
     if (!fromField) ta.focus();
     ta.setSelectionRange(searchMatches[searchIdx], searchMatches[searchIdx] + q.length);
     if (fromField) {
-      // Bez fokusu prohlížeč k označení neposune — posunout na řádek nálezu.
-      const line = ta.value.slice(0, searchMatches[searchIdx]).split('\n').length - 1;
+      // Bez fokusu prohlížeč k označení neposune — posunout na nález.
       const cs = getComputedStyle(ta);
       let lh = parseFloat(cs.lineHeight);
       if (isNaN(lh)) lh = (parseFloat(cs.fontSize) || 14) * 1.2;
-      ta.scrollTop = Math.max(0, (line - 2) * lh);
+      // Poloha i se zalomenými řádky (dlouhý odstavec = víc řádků na
+      // obrazovce); bez rozvržení (skrytý editor) aspoň podle řádků textu.
+      const top = textTopAt(ta, cs, searchMatches[searchIdx]);
+      const line = ta.value.slice(0, searchMatches[searchIdx]).split('\n').length - 1;
+      ta.scrollTop = Math.max(0, top != null ? top - 2 * lh : (line - 2) * lh);
     }
   };
   searchInput.addEventListener('input', () => { searchIdx = -1; doSearch(1, true); });

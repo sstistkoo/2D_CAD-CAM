@@ -55,6 +55,20 @@ describe('nulový bod', () => {
     expect(state.coordMode).toBe('inc');
   });
 
+  it('nastavení i zrušení se hned uloží s ABS/INC (po obnovení stránky platí dál)', () => {
+    const stored = () => JSON.parse(localStorage.getItem('skica-settings'));
+    document.getElementById('btnSetRef').click();
+    q('#nullPtH').value = '10';
+    q('#nullPtV').value = '5';
+    q('#nullPtAngle').value = '30';
+    q('#nullPtOk').click();
+    const s = stored();
+    expect([s.incReference, s.nullPointAngle, s.nullPointActive, s.coordMode]).toEqual([{ x: 10, y: 5 }, 30, true, 'inc']);
+    ui.clearNullPoint();
+    const c = stored();
+    expect([c.incReference, c.nullPointAngle, c.nullPointActive, c.coordMode]).toEqual([{ x: 0, y: 0 }, 0, false, 'abs']);
+  });
+
   it('druhý klik na aktivní 📍 nulový bod zruší (ABS); ✕ v panelu taky', () => {
     document.getElementById('btnSetRef').click();
     q('#nullPtH').value = '1';

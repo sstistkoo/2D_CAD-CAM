@@ -12,7 +12,7 @@ import { safeEvalMath } from '../utils.js';
 import { renderAll } from '../render.js';
 import { drawCanvas, screenToWorld, snapPt } from '../canvas.js';
 import { makeInputOverlay, focusInput } from '../dialogFactory.js';
-import { updateCoordModeBtn } from '../ui.js';
+import { updateCoordModeBtn, persistSettings } from '../ui.js';
 
 // ── Nul. bod tlačítko – nastavení/zrušení nulového bodu ──
 
@@ -46,6 +46,7 @@ export function clearNullPoint() {
   updateCoordModeBtn();
   updateNullPointUI();
   renderAll();
+  persistSettings();
   showToast('Nulový bod zrušen – ABS režim');
 }
 
@@ -66,6 +67,7 @@ function applyNullPoint(wx, wy, angle) {
   }
   updateNullPointUI();
   renderAll();
+  persistSettings();
   showToast(`Nulový bod: ${where}${angle ? ' ∠' + angle + '°' : ''}`);
 }
 

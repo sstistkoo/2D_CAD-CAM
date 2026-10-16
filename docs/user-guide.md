@@ -1714,7 +1714,7 @@ Nastavení API klíčů: ☰ → **Nastavení** → **AI nastavení**
 - Projekt se ukládá do **IndexedDB** každých 2 sekundy po změně
 - Při zavření/znovu otevření se obnoví automaticky
 - **Nastavení** (mřížka, snapy, krok a tolerance úhlu, kóty, motiv, R/⌀,
-  ABS/INC, typ stroje, otočení os, desetinná místa…) se ukládá **zvlášť od
+  ABS/INC s nulovým bodem, typ stroje, otočení os, desetinná místa…) se ukládá **zvlášť od
   výkresu** — hned po změně i při zavření stránky — a po znovuotevření se
   obnoví vždy, i když je výkres prázdný. Otevřený projekt přinese svoje
   nastavení (typ stroje, osy, snapy) a to pak platí dál.
