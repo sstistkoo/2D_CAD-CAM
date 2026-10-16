@@ -37,7 +37,7 @@ describe('co se ukládá', () => {
       'showDimensions', 'showObjectNumbers', 'showIntersectionNumbers',
     ]));
     // výkres (objekty, hladiny, nulový bod) do nastavení nepatří
-    for (const k of ['objects', 'layers', 'anchors', 'nullPointActive', 'undoStack']) expect(store.SETTINGS_KEYS).not.toContain(k);
+    for (const k of ['objects', 'layers', 'anchors', 'undoStack']) expect(store.SETTINGS_KEYS).not.toContain(k);
   });
 });
 
@@ -67,6 +67,16 @@ describe('obnovení při startu (restoreSettings)', () => {
     expect([state.gridSize, state.coordMode]).toEqual([5, 'inc']);
   });
 
+  it('ABS/INC a nulový bod se obnoví spolu — i k prázdnému výkresu', async () => {
+    // dřív: INC a reference z nastavení, ale nulový bod (zobrazení, natočení)
+    // jen z výkresu s objekty → INC vůči skrytému, neotočenému bodu
+    Object.assign(state, { coordMode: 'inc', incReference: { x: 50, y: 20 }, nullPointActive: true, nullPointAngle: 30 });
+    store.saveSettings();
+    Object.assign(state, { coordMode: 'abs', incReference: { x: 0, y: 0 }, nullPointActive: false, nullPointAngle: 0 });
+    store.restoreSettings({ objects: [] });
+    expect([state.coordMode, state.incReference, state.nullPointActive, state.nullPointAngle]).toEqual(['inc', { x: 50, y: 20 }, true, 30]);
+  });
+
   it('neplatné hodnoty přeskočí (výchozí zůstane)', async () => {
     Object.assign(state, { gridSize: 10, theme: 'dark', angleSnapTolerance: 1, displayDecimals: 3, incReference: { x: 0, y: 0 } });
     localStorage.setItem('skica-settings', JSON.stringify({ gridSize: -1, theme: 'modrá', angleSnapTolerance: 90, displayDecimals: '2', incReference: null, snapToGrid: 'ano' }));
@@ -89,6 +99,17 @@ describe('kdy se ukládá', () => {
     expect(stored().snapToPoints).toBe(false);
     // projekt nese i otočení osy Z (dřív se při otevření vždy vynulovalo)
     expect((await getMeta('currentProjectData')).flipZ).toBe(true);
+  });
+
+  it('otevřený projekt: jeho nastavení se uloží hned (ne až s dalším autosave)', async () => {
+    state.machineType = 'soustruh';
+    state.gridSize = 10;
+    store.saveSettings();
+    await setMeta('currentProjectData', { objects: [{ type: 'point', id: 1, x: 0, y: 0, layer: 0 }], machineType: 'karusel', gridSize: 5 });
+    const { loadProject } = await import('../js/storage/projectManager.js');
+    await loadProject();
+    expect([stored().machineType, stored().gridSize]).toEqual(['karusel', 5]);
+    state.objects = [];
   });
 
   it('při skrytí stránky (mobil, přepnutí aplikace) a při zavření', () => {

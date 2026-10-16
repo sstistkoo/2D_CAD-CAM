@@ -8,7 +8,7 @@ import { resizeCanvases, autoCenterView } from './canvas.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList, updateProperties, resetHint, updateDimsBtn, updateSnapPtsBtn, updateCoordModeBtn, updateMachineTypeBtn, updateXDisplayBtn, updateSnapGridBtn, togglePanel, updateLayerList, updateStatusProject, checkFirstRunHelp, updateAngleSnapBtn, updateNullPointUI } from './ui.js';
 import { initAutoSave } from './storage.js';
-import { restoreSettings, initSettingsAutoSave } from './storage/settingsStore.js';
+import { restoreSettings, saveSettings, initSettingsAutoSave } from './storage/settingsStore.js';
 import { getMeta, setMeta, migrateFromLocalStorage } from './idb.js';
 import { bridge } from './bridge.js';
 import { loadFont } from './lib/fontLoader.js';
@@ -49,18 +49,21 @@ document.querySelectorAll('.panel-header[data-panel]').forEach(header => {
 
 // ── Auto-load při startu ──
 async function tryAutoLoad() {
+  let data = null;
   try {
-    const data = await getMeta('currentProjectData');
-    // Nastavení (snapy, mřížka, motiv, osy…) se obnoví VŽDY, i k prázdnému
-    // výkresu — ukládá se zvlášť, viz js/storage/settingsStore.js. Dřív se
-    // bralo jen z výkresu a jen když měl objekty.
-    restoreSettings(data);
+    data = await getMeta('currentProjectData');
+  } catch (e) {
+    console.warn('Auto-load selhal:', e);
+  }
+  // Nastavení (snapy, mřížka, motiv, osy, nulový bod…) se obnoví VŽDY, i k
+  // prázdnému výkresu a i když čtení výkresu z IDB selže — ukládá se zvlášť,
+  // viz js/storage/settingsStore.js. Dřív jen z výkresu s objekty.
+  restoreSettings(data);
+  try {
     if (data && data.objects && data.objects.length > 0) {
       const _exp = expandPolylineObjects(data.objects, data.nextId || 1);
       state.objects = _exp.objects;
       state.nextId = _exp.nextId;
-      state.nullPointActive = !!data.nullPointActive;
-      state.nullPointAngle = data.nullPointAngle || 0;
       if (data.layers) {
         state.layers = data.layers;
         state.activeLayer = data.activeLayer || 0;
@@ -83,6 +86,7 @@ async function tryAutoLoad() {
 
 // ── Auto-save každých 30 s ──
 setInterval(() => {
+  saveSettings();
   if (state.objects.length > 0) {
     const data = {
       version: 1.6,
@@ -163,7 +167,7 @@ window.addEventListener('beforeunload', () => {
 
 // ── Inicializace ──
 (async () => {
-  await migrateFromLocalStorage();
+  await migrateFromLocalStorage().catch(e => console.warn('Migrace z localStorage selhala:', e));
   await tryAutoLoad();
   // Aplikovat uložený motiv (bez toastu při startu)
   if (state.theme === 'light') {

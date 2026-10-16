@@ -36,8 +36,13 @@ const SCHEMA = {
   snapQuadrants: isBool,
   snapMidpoints: isBool,
   snapCenters: isBool,
+  // ABS/INC a nulový bod patří k sobě (INC se měří od incReference, otočený
+  // o nullPointAngle) — obnovují se spolu, jinak by po startu bylo INC
+  // vůči skrytému, neotočenému bodu.
   coordMode: oneOf('abs', 'inc'),
   incReference: (v) => !!v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y),
+  nullPointActive: isBool,
+  nullPointAngle: (v) => typeof v === 'number' && Number.isFinite(v),
   machineType: oneOf('soustruh', 'karusel'),
   xDisplayMode: oneOf('radius', 'diameter'),
   flipX: isBool,

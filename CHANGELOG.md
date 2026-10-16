@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nulový bod se po obnovení stránky obnoví spolu s INC.** Po „Smazat vše"
+  a obnovení stránky zůstal režim INC vůči nulovému bodu, ale bod byl skrytý
+  a bez natočení. Nulový bod se teď ukládá a obnovuje spolu s ABS/INC.
+  `js/storage/settingsStore.js`, `js/ui/nullPoint.js`.
+- **Nastavení z otevřeného projektu se uloží hned.** Dřív až s dalším
+  automatickým uložením. Nastavení se také uloží i tehdy, když zápis výkresu
+  do IndexedDB selže (plné úložiště). Aplikace naběhne a nastavení obnoví,
+  i když IndexedDB nefunguje. `js/storage/projectManager.js`, `js/app.js`.
+- **Kalkulačka: historie se nevykresluje do zavřeného okna.** Když se okno
+  zavřelo dřív, než se historie načetla z IndexedDB, vykreslovala se do
+  zavřeného okna. V testech na GitHubu to po skončení testu shodilo běh
+  („document is not defined"). `js/ui/calculator.js`, test
+  `ui-calculator-history-race`.
+- **Poznámky: hledání se posune na nález i v dlouhých odstavcích.** Posun
+  počítal jen řádky textu, ne zalomené řádky na obrazovce, takže nález
+  zůstal mimo viditelnou část. `js/ui/notesDialog.js`.
+
 - **Nastavení se po obnovení stránky už neztrácí.** Ukládalo se jen spolu
   s rozkresleným výkresem a obnovilo se jen tehdy, když výkres nebyl prázdný —
   po „Smazat vše" nebo bez výkresu se vrátilo na výchozí. Tolerance úhlového
