@@ -43,7 +43,7 @@ index.html
 │   ├── touch.js           # Touch ovládání
 │   ├── ui.js              # Panely, seznamy, property panel (rozděluje se do ui/)
 │   ├── ui/                # bloky vyňaté z ui.js (importovat přes ui.js): notesDialog,
-│   │                      #   calculator, trigCalc, launchers
+│   │                      #   calculator, trigCalc, launchers, colorPicker
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
 │   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)

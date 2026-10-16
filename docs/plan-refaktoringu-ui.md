@@ -15,6 +15,7 @@
 | 1d kalkulačka → `js/ui/calculator.js` (+ `initCalcButtons()`) | `refactor(ui): kalkulačka…` | 4 437 | `ui-calculator` |
 | 1c Trigonometrie → `js/ui/trigCalc.js` | `refactor(ui): Trigonometrie…` | 4 216 | `ui-trig` |
 | 1b spouštěcí tlačítka → `js/ui/launchers.js` (+ `initLauncherButtons()`) | `refactor(ui): spouštěcí tlačítka…` | 4 162 | `ui-launchers` |
+| 1e výběr barvy → `js/ui/colorPicker.js` | `refactor(ui): výběr barvy…` | 3 709 | `ui-color-picker` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -46,6 +47,11 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    (obsah se uloží, takže se nic neztratí). Oprava: `e.stopPropagation()`
    u Escape v `searchInput` keydown. Test `ui-notes` teď stávající chování
    charakterizuje — při opravě ho upravit.
+2. **Výběr barvy: každé otevření přidá na `window` listenery `mousemove`
+   a `mouseup` (tažení v SV ploše) a nikdy je neodebere** — s každým otevřením
+   pickeru jich přibývá (únik; `svDragging` zůstane false, takže se nic
+   nepokazí, jen se hromadí). Oprava: odebrat je ve `finish()` a při
+   kapátku (`js/ui/colorPicker.js`, `openColorPicker`).
 
 ## Co v souboru je (měřeno 16. 10.)
 

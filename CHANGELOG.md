@@ -90,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   poznámkový blok → `js/ui/notesDialog.js` (test `ui-notes`), kalkulačka 🔢 se
   schránkou 📋 → `js/ui/calculator.js` (test `ui-calculator`), Trigonometrie →
   `js/ui/trigCalc.js` (test `ui-trig`), spouštěcí tlačítka (CNC kalkulačky,
-  ✏️ Editor, VK, CAM, AI, 📝) → `js/ui/launchers.js` (test `ui-launchers`).
+  ✏️ Editor, VK, CAM, AI, 📝) → `js/ui/launchers.js` (test `ui-launchers`), výběr
+  barvy s kapátkem → `js/ui/colorPicker.js` (test `ui-color-picker`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`
