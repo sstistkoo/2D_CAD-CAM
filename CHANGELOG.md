@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Tolerance: u „Vlastní úchylky" zmizela tlačítka ±.** Pole Rozmezí má
+  jen vstupní políčka, minus se píše přímo. `js/calculators/tolerance.js`,
+  `css/style.css`.
+
 ### Fixed
 
 - **Nulový bod se po obnovení stránky obnoví spolu s INC.** Po „Smazat vše"

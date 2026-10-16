@@ -69,8 +69,8 @@ export function openToleranceCalc() {
     '</div>' +
     '<div class="tol-custom-row" data-id="tolCustom" hidden>' +
       '<span class="tol-range-lbl">Rozmezí</span>' +
-      '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
-      '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
+      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
+      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
     '</div>' +
     '<div class="cnc-field cnc-field-full" data-id="tolIsoClass"><span>Třída</span>' +
       '<div class="tol-grid tol-class-grid" data-id="tolClass">' + holeBtns + '</div></div>' +
@@ -246,16 +246,6 @@ export function openToleranceCalc() {
   }
 
   inpDim.addEventListener("input", calc);
-  // Číselná klávesnice (hlavně iOS) nemá minus → tlačítko ± přepne znaménko
-  overlay.querySelectorAll(".tol-sign").forEach(function(b) {
-    b.addEventListener("mousedown", function(e) { e.preventDefault(); }); // nesebrat focus poli
-    b.addEventListener("click", function() {
-      var inp = b.parentNode.querySelector("input");
-      var v = inp.value.trim();
-      inp.value = v.charAt(0) === "-" ? v.slice(1) : "-" + v.replace(/^\+/, "");
-      inp.dispatchEvent(new Event("input"));
-    });
-  });
   inpUp.addEventListener("input", calc);
   inpLo.addEventListener("input", calc);
 
