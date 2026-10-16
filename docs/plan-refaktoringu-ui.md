@@ -24,6 +24,7 @@
 | 2d vrstvy → `js/ui/layerList.js` (+ `initLayerButtons()`) | `refactor(ui): seznam vrstev…` | 2 529 | `ui-layer-list` |
 | 2e seznam objektů → `js/ui/objectList.js`, skok do CNC → `js/ui/cncJump.js` | `refactor(ui): seznam objektů…` | 1 873 | `ui-object-list` |
 | 3a lišta, `setTool`, hinty, přídavek → `js/ui/toolbar.js` (+ `initToolbar()`) | `refactor(ui): lišta nástrojů…` | 1 579 | `ui-toolbar` |
+| 3b přepínače stavového řádku → `js/ui/statusButtons.js` (+ `initStatusButtons()`) | `refactor(ui): přepínače stavového řádku…` | 1 338 | `ui-status-buttons` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -46,6 +47,11 @@ při načtení. (Skript ve scratchpadu sezení, babel parser — snadno znovu.)
 2b se dělala před 2a a ve třech modulech (`gridAngleDialogs`, `nullPoint`,
 `drawingHistory`): Nastavení volá neexportovanou `showHistoryDialog` — po 2b
 ji bere ze sourozeneckého `./drawingHistory.js`, export ui.js se neměnil.
+
+3b: funkce byly v ui.js prokládané kódem při načtení. Blok se rozdělil podle
+AST (každý příkaz i s komentáři nad ním): deklarace funkcí na úroveň modulu,
+ostatní příkazy v původním pořadí do `initStatusButtons()`; kontrola proložením
+zpět = původní text. Deklarace se vyzvednou, takže na jejich pořadí nezáleží.
 
 Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
 `localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js

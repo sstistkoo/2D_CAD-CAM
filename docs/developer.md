@@ -45,7 +45,7 @@ index.html
 │   ├── ui/                # bloky vyňaté z ui.js (importovat přes ui.js): notesDialog,
 │   │                      #   calculator, trigCalc, launchers, colorPicker, gridAngleDialogs,
 │   │                      #   nullPoint, drawingHistory, settingsDialog, intersectionList,
-│   │                      #   layerList, objectList, cncJump, toolbar
+│   │                      #   layerList, objectList, cncJump, toolbar, statusButtons
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
 │   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)
