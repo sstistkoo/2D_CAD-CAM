@@ -7,7 +7,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const css = readFileSync(join(import.meta.dirname, '..', 'css', 'style.css'), 'utf8');
+// CRLF → LF: na Windows (core.autocrlf) má pracovní kopie CRLF a indexOf níž hledá '\n'
+const css = readFileSync(join(import.meta.dirname, '..', 'css', 'style.css'), 'utf8').replace(/\r\n/g, '\n');
 const px = (v) => parseFloat(v);
 
 describe('stavový řádek vs. pravý panel (desktop)', () => {

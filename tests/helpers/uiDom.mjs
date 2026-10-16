@@ -23,7 +23,7 @@ import { installSimDom, settle } from './simUi.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, '..', '..');
-const SELF = fileURLToPath(import.meta.url);
+const SELF_REL = relative(REPO, fileURLToPath(import.meta.url)).replace(/\\/g, '/');
 
 /** DOM jako v aplikaci (volat před prvním importem modulů aplikace). */
 export function installUiDom() {
@@ -34,11 +34,12 @@ export function installUiDom() {
 function callerOrigin() {
   const frames = new Error().stack.split('\n').slice(1);
   for (const f of frames) {
-    const m = f.match(/((?:file:\/\/)?\/[^\s():]+\.m?js):\d+:\d+/);
+    // i Windows: file:///C:/…, C:\… nebo C:/… (písmeno disku se dvojtečkou)
+    const m = f.match(/((?:file:\/\/\/?)?(?:[A-Za-z]:)?[\\/][^\s():]+\.m?js):\d+:\d+/);
     if (!m) continue;
-    const file = m[1].replace(/^file:\/\//, '');
-    if (file === SELF) continue;
+    const file = m[1].startsWith('file:') ? fileURLToPath(m[1]) : m[1];
     const rel = relative(REPO, file).replace(/\\/g, '/');
+    if (rel === SELF_REL) continue;
     if (rel === 'js/ui.js' || rel.startsWith('js/ui/')) return 'ui';
     return rel;
   }
