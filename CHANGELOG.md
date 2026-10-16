@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Mobil: ve výběru textu by nemělo být „Přeložit".** Stránka je označena
+  `translate="no"` (a `notranslate`), takže Chrome na Androidu nemá
+  nabízet překlad vybraného textu. Vyjmout/Kopírovat/Vložit zůstává (je to
+  systémové menu). `index.html`.
 - **Tolerance: u „Vlastní úchylky" zmizela tlačítka ±.** Pole Rozmezí má
   jen vstupní políčka, minus se píše přímo. `js/calculators/tolerance.js`,
   `css/style.css`.
