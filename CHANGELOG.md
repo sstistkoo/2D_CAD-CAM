@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Výběr barvy: nehromadí listenery při každém otevření.** Každé otevření okna
+  výběru barvy (barva vrstvy, objektu, Vybarvit) přidalo na `window` dva
+  listenery pro tažení v ploše a už je neodebralo. Teď se odeberou při zavření
+  okna. `js/ui/colorPicker.js`, test `ui-color-picker`.
 - **Poznámky: hledání už nepřepisuje text poznámky a Escape nezavře okno.**
   Po prvním napsaném znaku v poli Hledat skočil kurzor do poznámky a další
   písmena přepsala označený nález (hledání „ahoj" v „ahoj světe" udělalo

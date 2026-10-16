@@ -83,11 +83,10 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    v poli hledání nechají fokus v poli (nález se v editoru označí a posune),
    Escape zavře jen lištu a vrátí fokus do editoru na označený nález; ▲/▼
    přejdou do editoru jako dřív. Test `ui-notes`.
-2. **Výběr barvy: každé otevření přidá na `window` listenery `mousemove`
-   a `mouseup` (tažení v SV ploše) a nikdy je neodebere** — s každým otevřením
-   pickeru jich přibývá (únik; `svDragging` zůstane false, takže se nic
-   nepokazí, jen se hromadí). Oprava: odebrat je ve `finish()` a při
-   kapátku (`js/ui/colorPicker.js`, `openColorPicker`).
+2. ✅ **Opraveno 16. 10.** — **Výběr barvy: každé otevření přidalo na `window`
+   listenery `mousemove` a `mouseup`** (tažení v SV ploše) a nikdy je neodebralo.
+   Teď se odeberou přes `onOverlayRemoved`, ať se okno zavře jakkoli. Test
+   `ui-color-picker` (počítá aktivní listenery po všech cestách zavření).
 3. **Mrtvé odkazy na tlačítka:** `btnSnapGrid`, `btnAngleSnap`, `btnSnapPts`,
    `btnDims`, `btnCoordMode`, `btnXDisplay`, `btnMachineType`, `btnHistory`,
    `btnSettings`, `btnCalcInt` nejsou v `index.html` ani je nic nevytváří
@@ -109,6 +108,11 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    Zpět** — `setTool` volá `pushUndo()` a `addObject()` ho volá znovu (první
    Zpět vrátí konturu, druhé nic). Tužka má jen ten z `addObject`. Oprava:
    odebrat `pushUndo()` v `setTool` (`js/ui/toolbar.js`).
+7. **Výběr barvy: puštění myši mimo dialog po tažení v SV ploše picker zruší**
+   (a vrátí původní barvu). `click` po tažení vznikne na společném předkovi
+   mousedown/mouseup — na pozadí overlaye — a jeho handler „klik mimo" zavolá
+   `finish(false)`. Stejně i před rozdělením. Oprava: klik mimo ignorovat, když
+   právě skončilo tažení (`js/ui/colorPicker.js`).
 
 ## Co v souboru je (měřeno 16. 10.)
 

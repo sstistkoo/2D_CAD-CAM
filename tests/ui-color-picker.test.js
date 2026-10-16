@@ -188,3 +188,69 @@ describe('výběr barvy — vrstva a výběr objektů', () => {
     expect(a.color).not.toBe('#ff0000');
   });
 });
+
+describe('výběr barvy — tažení v ploše a úklid listenerů', () => {
+  // Nález č. 2 (docs/plan-refaktoringu-ui.md): každé otevření přidalo na window
+  // mousemove/mouseup pro tažení v SV ploše a nikdy je neodebralo.
+  function trackWindowDrag() {
+    let p = window;
+    while (p && !Object.prototype.hasOwnProperty.call(p, 'addEventListener')) p = Object.getPrototypeOf(p);
+    const add = p.addEventListener, remove = p.removeEventListener;
+    const active = new Set();
+    p.addEventListener = function (type, fn, o) {
+      if (this === window && (type === 'mousemove' || type === 'mouseup')) active.add(type + ':' + (fn.__id ??= Math.random()));
+      return add.call(this, type, fn, o);
+    };
+    p.removeEventListener = function (type, fn, o) {
+      if (this === window && fn?.__id) active.delete(type + ':' + fn.__id);
+      return remove.call(this, type, fn, o);
+    };
+    return { active, restore: () => { p.addEventListener = add; p.removeEventListener = remove; } };
+  }
+  const settle = () => new Promise(r => setTimeout(r, 10));
+  const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+  it('po zavření (OK, ✕, Escape, klik mimo, kapátko → znovu → OK) nezůstane na window žádný listener', async () => {
+    const t = trackWindowDrag();
+    try {
+      const closers = [() => q('.color-popover-ok').click(), () => q('.color-popover-close').click(), esc, () => pop().click()];
+      for (const close of closers) {
+        const fill = { type: 'fill', color: '#ff0000', alpha: 1 };
+        state.objects = [fill];
+        bridge.openFillColorPicker(fill);
+        expect(t.active.size).toBe(2);
+        close();
+        await settle();
+        expect(t.active.size).toBe(0);
+      }
+      const fill = { type: 'fill', color: '#ff0000', alpha: 1 };
+      state.objects = [fill];
+      bridge.openFillColorPicker(fill);
+      q('.color-popover-eyedrop').click();
+      await settle();
+      expect(t.active.size).toBe(0);
+      esc();   // kapátko zrušit → picker se otevře znovu
+      expect(pop()).toBeTruthy();
+      expect(t.active.size).toBe(2);
+      q('.color-popover-ok').click();
+      await settle();
+      expect(t.active.size).toBe(0);
+    } finally { t.restore(); }
+  });
+
+  it('tažení v SV ploše mění barvu, po puštění myši už ne', () => {
+    const fill = { type: 'fill', color: '#ff0000', alpha: 1 };
+    state.objects = [fill];
+    bridge.openFillColorPicker(fill);
+    const sv = q('.custom-picker-sv');
+    sv.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100 });
+    sv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 100, clientY: 0 }));
+    expect(fill.color).toBe('#ff0000');
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 50, clientY: 50 }));
+    expect(fill.color).toBe('#804040');
+    window.dispatchEvent(new MouseEvent('mouseup', {}));
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 0, clientY: 100 }));
+    expect(fill.color).toBe('#804040');
+    q('.color-popover-ok').click();
+  });
+});

@@ -13,6 +13,7 @@ import { state, showToast } from '../state.js';
 import { renderAllDebounced, resolveObjectColor } from '../render.js';
 import { drawCanvas, screenToWorld } from '../canvas.js';
 import { findObjectAt } from '../geometry.js';
+import { onOverlayRemoved } from '../dialogFactory.js';
 import { updateObjectList } from '../ui.js';
 
 // 7 základních barev duhy pro rychlý výběr barvy vrstvy jedním klikem.
@@ -293,8 +294,17 @@ function openColorPicker(opts) {
   }
   let svDragging = false;
   svArea.addEventListener('mousedown', (e) => { svDragging = true; svPointerHandler(e); });
-  window.addEventListener('mousemove', (e) => { if (svDragging) svPointerHandler(e); });
-  window.addEventListener('mouseup', () => { svDragging = false; });
+  // Tažení pokračuje i mimo plochu → listenery na window. Odebrat, jakmile
+  // okno zmizí (OK, ✕, Escape, klik mimo, kapátko) — dřív zůstávaly a každé
+  // otevření pickeru přidalo další dva.
+  const onWinMouseMove = (e) => { if (svDragging) svPointerHandler(e); };
+  const onWinMouseUp = () => { svDragging = false; };
+  window.addEventListener('mousemove', onWinMouseMove);
+  window.addEventListener('mouseup', onWinMouseUp);
+  onOverlayRemoved(overlay, () => {
+    window.removeEventListener('mousemove', onWinMouseMove);
+    window.removeEventListener('mouseup', onWinMouseUp);
+  });
   svArea.addEventListener('touchstart', (e) => { svDragging = true; svPointerHandler(e); e.preventDefault(); }, { passive: false });
   svArea.addEventListener('touchmove', (e) => { if (svDragging) { svPointerHandler(e); e.preventDefault(); } }, { passive: false });
   svArea.addEventListener('touchend', () => { svDragging = false; });
