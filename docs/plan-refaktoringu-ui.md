@@ -17,6 +17,7 @@
 | 1b spouštěcí tlačítka → `js/ui/launchers.js` (+ `initLauncherButtons()`) | `refactor(ui): spouštěcí tlačítka…` | 4 162 | `ui-launchers` |
 | 1e výběr barvy → `js/ui/colorPicker.js` | `refactor(ui): výběr barvy…` | 3 709 | `ui-color-picker` |
 | 2b-1 dialogy mřížky a úhlu → `js/ui/gridAngleDialogs.js` | `refactor(ui): dialogy mřížky…` | 3 620 | `ui-grid-angle-dialogs` |
+| 2b-2 nulový bod → `js/ui/nullPoint.js` (+ `initNullPointButtons()`) | `refactor(ui): nulový bod…` | 3 456 | `ui-null-point` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -60,6 +61,11 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    `.coord-ind`, Nastavení), ale **dialogy Velikost mřížky a Krok úhlového
    snapu** se otevíraly jen pravým klikem na `btnSnapGrid`/`btnAngleSnap` —
    z UI teď nejsou dosažitelné. Rozhodnout s uživatelem (odebrat / navěsit jinam).
+4. **Nulový bod: toast po nastavení ukazuje „ΔX: 0 ΔZ: 0"** místo souřadnic
+   bodu — `applyNullPoint` nejdřív přepne INC a nastaví referenci, pak teprve
+   formátuje `fmtStatusCoords(wx, wy)` (relativně k právě nastavenému bodu).
+   Oprava: formátovat absolutně (před přepnutím). Test `ui-null-point` to
+   charakterizuje.
 
 ## Co v souboru je (měřeno 16. 10.)
 

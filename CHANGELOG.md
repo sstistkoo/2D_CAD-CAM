@@ -83,16 +83,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Rozdělování `js/ui.js`** (5 312 ř.) do `js/ui/` (`docs/plan-refaktoringu-ui.md`),
-  kód se stěhuje beze změny, `ui.js` zůstává rozcestníkem se stejnými exporty.
-  Pojistky `tests/ui-api.test.js` + harness `tests/helpers/uiDom.mjs` (exporty,
-  klíče `bridge`, pořadí listenerů při načtení, stráže importů). Zatím vyňato:
-  poznámkový blok → `js/ui/notesDialog.js` (test `ui-notes`), kalkulačka 🔢 se
-  schránkou 📋 → `js/ui/calculator.js` (test `ui-calculator`), Trigonometrie →
-  `js/ui/trigCalc.js` (test `ui-trig`), spouštěcí tlačítka (CNC kalkulačky,
-  ✏️ Editor, VK, CAM, AI, 📝) → `js/ui/launchers.js` (test `ui-launchers`), výběr
+- **Rozdělování `js/ui.js`** (5 312 ř.) do `js/ui/`
+  (`docs/plan-refaktoringu-ui.md`), kód se stěhuje beze změny, `ui.js` zůstává
+  rozcestníkem se stejnými exporty. Pojistky `tests/ui-api.test.js` + harness
+  `tests/helpers/uiDom.mjs` (exporty, klíče `bridge`, pořadí listenerů při
+  načtení, stráže importů). Zatím vyňato: poznámkový blok →
+  `js/ui/notesDialog.js` (test `ui-notes`), kalkulačka 🔢 se schránkou 📋 →
+  `js/ui/calculator.js` (test `ui-calculator`), Trigonometrie →
+  `js/ui/trigCalc.js` (test `ui-trig`), spouštěcí tlačítka (CNC kalkulačky, ✏️
+  Editor, VK, CAM, AI, 📝) → `js/ui/launchers.js` (test `ui-launchers`), výběr
   barvy s kapátkem → `js/ui/colorPicker.js` (test `ui-color-picker`), dialogy
-  mřížky a kroku úhlu → `js/ui/gridAngleDialogs.js` (test `ui-grid-angle-dialogs`).
+  mřížky a kroku úhlu → `js/ui/gridAngleDialogs.js` (test
+  `ui-grid-angle-dialogs`), nulový bod → `js/ui/nullPoint.js` (test
+  `ui-null-point`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`
