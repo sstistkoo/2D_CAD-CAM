@@ -9,6 +9,17 @@
 import { state, showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { focusInput, closeOnBackdropClick } from '../dialogFactory.js';
+import { renderAll } from '../render.js';
+import { bridge } from '../bridge.js';
+import { persistSettings } from '../ui.js';
+
+// Po změně v dialogu: překreslit (mřížka), obnovit indikátory # / ∠ a uložit
+// nastavení — jako stejná pole v Nastavení (dřív jen do paměti do obnovení stránky).
+function _applied() {
+  renderAll();
+  bridge.updateCoordBarIndicators?.();
+  persistSettings();
+}
 
 // ── Dialog: Grid Size ──
 /** Otevře dialog pro nastavení velikosti mřížky. */
@@ -32,6 +43,7 @@ export function showGridSizeDialog() {
     const v = safeEvalMath(inp.value);
     if (!isNaN(v) && v > 0) {
       state.gridSize = v;
+      _applied();
       showToast(`Mřížka: ${v} mm`);
     }
     overlay.remove();
@@ -76,6 +88,7 @@ export function showAngleSnapDialog() {
     btn.addEventListener("click", () => {
       const deg = parseInt(btn.dataset.deg);
       state.angleSnapStep = deg;
+      _applied();
       showToast(`Úhlový snap: ${deg}°`);
       overlay.remove();
     });
@@ -91,6 +104,7 @@ export function showAngleSnapDialog() {
     if (!isNaN(tol) && tol > 0 && tol <= 45) {
       state.angleSnapTolerance = tol;
     }
+    _applied();
     showToast(`Úhlový snap: ${state.angleSnapStep}° (tolerance ${state.angleSnapTolerance}°)`);
     overlay.remove();
   }

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dialogy Velikost mřížky a Krok úhlového snapu jdou zase otevřít.** Šly
+  jen pravým klikem na tlačítka snapu, která v aplikaci nejsou. Teď pravý
+  klik na indikátor **#** / **∠** v dolní liště (desktop). Po změně se mřížka
+  překreslí, indikátor ukáže novou hodnotu a nastavení se uloží (dřív zůstalo
+  jen v paměti). `js/ui/statusButtons.js`, `js/ui/gridAngleDialogs.js`,
+  testy `ui-status-buttons`, `ui-grid-angle-dialogs`.
 - **Okna se nezavřou, když tažení z nich skončí nad pozadím.** Označení
   textu v poli (nebo tažení posuvníku) z okna ven a puštění myši nad tmavým
   pozadím okno zavřelo — Nastavení, kalkulačky, poznámky, vstupní dialogy,

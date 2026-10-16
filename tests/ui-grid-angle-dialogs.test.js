@@ -5,10 +5,11 @@
 // charakterizace: projde na starém kódu a po přesunu musí projít beze změny.
 // (Tlačítko Zrušit obsluhuje globální handler `.btn-cancel-overlay` v app.js.)
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { getMeta, setMeta } from '../js/idb.js';
 import { installUiDom } from './helpers/uiDom.mjs';
 
-let ui, state;
+let ui, state, bridge;
 const ov = () => document.querySelector('.input-overlay');
 const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
 const toast = () => document.querySelector('.toast')?.textContent;
@@ -17,6 +18,7 @@ beforeAll(async () => {
   installUiDom();
   ui = await import('../js/ui.js');
   ({ state } = await import('../js/state.js'));
+  ({ bridge } = await import('../js/bridge.js'));
 });
 afterEach(() => { document.querySelectorAll('.input-overlay').forEach(o => o.remove()); });
 
@@ -56,6 +58,33 @@ describe('dialog velikosti mřížky', () => {
     ov().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));   // klik na pozadí: stisk i puštění
     ov().click();
     expect(ov()).toBeNull();
+  });
+});
+
+describe('uložení a překreslení po změně v dialogu (dialogy jsou nově dosažitelné, nález č. 3)', () => {
+  it('velikost mřížky i krok úhlu se uloží do nastavení a obnoví indikátory', async () => {
+    const orig = bridge.updateCoordBarIndicators;
+    bridge.updateCoordBarIndicators = vi.fn();
+    try {
+      await setMeta('currentProjectData', { objects: [] });
+      state.gridSize = 10;
+      state.angleSnapStep = 15;
+      ui.showGridSizeDialog();
+      ov().querySelector('#dlgGridSize').value = '2';
+      ov().querySelector('#dlgGridOk').click();
+      ui.showAngleSnapDialog();
+      ov().querySelector('.angle-preset[data-deg="30"]').click();
+      expect(bridge.updateCoordBarIndicators).toHaveBeenCalledTimes(2);
+      await vi.waitFor(async () => {
+        const d = await getMeta('currentProjectData');
+        expect([d.gridSize, d.angleSnapStep]).toEqual([2, 30]);
+      }, { timeout: 2000 });
+      ui.showAngleSnapDialog();
+      ov().querySelector('#dlgAngleStep').value = '45';
+      ov().querySelector('#dlgAngleOk').click();
+      await vi.waitFor(async () => expect((await getMeta('currentProjectData')).angleSnapStep).toBe(45), { timeout: 2000 });
+      expect(bridge.updateCoordBarIndicators).toHaveBeenCalledTimes(3);
+    } finally { bridge.updateCoordBarIndicators = orig; }
   });
 });
 

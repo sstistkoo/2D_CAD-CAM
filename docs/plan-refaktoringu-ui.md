@@ -88,13 +88,18 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    listenery `mousemove` a `mouseup`** (tažení v SV ploše) a nikdy je neodebralo.
    Teď se odeberou přes `onOverlayRemoved`, ať se okno zavře jakkoli. Test
    `ui-color-picker` (počítá aktivní listenery po všech cestách zavření).
-3. **Mrtvé odkazy na tlačítka:** `btnSnapGrid`, `btnAngleSnap`, `btnSnapPts`,
-   `btnDims`, `btnCoordMode`, `btnXDisplay`, `btnMachineType`, `btnHistory`,
-   `btnSettings`, `btnCalcInt` nejsou v `index.html` ani je nic nevytváří
-   (ui.js na ně věší listenery přes `?.`). Přepínače mají náhradu (indikátory
-   `.coord-ind`, Nastavení), ale **dialogy Velikost mřížky a Krok úhlového
-   snapu** se otevíraly jen pravým klikem na `btnSnapGrid`/`btnAngleSnap` —
-   z UI teď nejsou dosažitelné. Rozhodnout s uživatelem (odebrat / navěsit jinam).
+3. ✅ **Opraveno 16. 10.** — **Mrtvé odkazy na tlačítka:** `btnSnapGrid`,
+   `btnAngleSnap`, `btnSnapPts`, `btnDims`, `btnCoordMode`, `btnXDisplay`,
+   `btnMachineType`, `btnHistory`, `btnSettings`, `btnCalcInt` nejsou
+   v `index.html` (ui.js na ně věší listenery přes `?.`). Všechny funkce kromě
+   dvou mají náhradu (indikátory `.coord-ind`, klávesa S, Nastavení, automatický
+   výpočet průsečíků). **Dialogy Velikost mřížky a Krok úhlového snapu** šly
+   otevřít jen pravým klikem na chybějící `btnSnapGrid`/`btnAngleSnap`. Teď
+   pravý klik na indikátory # / ∠ ve stavovém řádku (desktop; na mobilu je
+   dlouhé podržení přesný ukazatel a hodnoty jsou v Nastavení). Dialogy po
+   změně překreslí, obnoví indikátory a uloží nastavení (dřív jen do paměti).
+   Odkazy na chybějící tlačítka zůstaly — nic nedělají a nevadí. Testy
+   `ui-status-buttons`, `ui-grid-angle-dialogs`.
 4. ✅ **Opraveno 16. 10.** — **Nulový bod: toast po nastavení ukazoval „ΔX: 0 ΔZ: 0"**
    místo souřadnic bodu (`fmtStatusCoords` až po přepnutí do INC vůči právě
    nastavenému bodu). Teď se poloha formátuje v ABS předem. Test `ui-null-point`.

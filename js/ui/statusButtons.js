@@ -272,4 +272,15 @@ export function initStatusButtons() {
     else return;
     persistSettings();
   });
+
+  // Pravý klik na # / ∠ ve stavovém řádku otevře dialog velikosti mřížky /
+  // kroku úhlu (dřív jen na btnSnapGrid / btnAngleSnap, které v index.html
+  // nejsou). Jen desktop: v mobilní liště je dlouhé podržení přesný ukazatel
+  // (touch.js) a mřížka i krok úhlu jsou v Nastavení.
+  document.addEventListener("contextmenu", (e) => {
+    const ind = e.target.closest?.("#statusbar .coord-ind");
+    if (!ind) return;
+    if (ind.classList.contains("ind-grid")) { e.preventDefault(); showGridSizeDialog(); }
+    else if (ind.classList.contains("ind-angle")) { e.preventDefault(); showAngleSnapDialog(); }
+  });
 }

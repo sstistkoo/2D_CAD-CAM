@@ -86,6 +86,12 @@ Indikátor kót nese i písmeno aktuálního režimu: **📐V** vše, **📐P** 
 **📐K** kóty, **📐–** skryté. Popisek (tooltip, na mobilu i precision pointer)
 vždy ukazuje aktuální hodnotu a co klik udělá.
 
+**Pravý klik** na **#** nebo **∠** v dolní liště (desktop) otevře dialog
+*Velikost mřížky*, resp. *Krok úhlového snapu* (předvolby 15/30/45/90°, vlastní
+krok a tolerance přichycení). Na mobilu je dlouhé podržení vyhrazené přesnému
+ukazateli — velikost mřížky a krok úhlu se tam nastaví v ⚙️ Nastavení →
+# Mřížka a snap.
+
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky
 - Panel nástrojů CAD **na šířku** má pevné řádky — tlačítka se šířkou

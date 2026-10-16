@@ -187,6 +187,7 @@ describe('ui.js — kód při načtení', () => {
         "ui #btnDeleteDims click",
         "ui #btnAutoDetect click",
         "ui document click",
+        "ui document contextmenu",
         "ui #btnSetRef click",
         "ui #btnClearNullPoint click",
         "ui #btnUndo click",

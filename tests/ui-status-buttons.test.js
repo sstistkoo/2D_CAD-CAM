@@ -172,3 +172,24 @@ describe('ABS/INC, R/⌀, typ stroje a indikátory', () => {
     expect(state.machineType).toBe('karusel');
   });
 });
+
+describe('pravý klik na indikátory # / ∠ (nález č. 3)', () => {
+  // Dialogy velikosti mřížky a kroku úhlu se otevíraly jen pravým klikem na
+  // btnSnapGrid / btnAngleSnap, které v index.html nejsou. Teď pravý klik na
+  // indikátory ve stavovém řádku (desktop). Mobilní lišta souřadnic ne —
+  // dlouhé podržení tam patří přesnému ukazateli (touch.js); hodnoty jsou
+  // na mobilu v Nastavení.
+  const ctx = (el) => { const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); el.dispatchEvent(e); return e; };
+  it('stavový řádek: # otevře velikost mřížky, ∠ krok úhlu; mobilní lišta ne', () => {
+    let e = ctx(document.querySelector('#statusbar .ind-grid'));
+    expect([e.defaultPrevented, document.querySelector('.input-overlay h3')?.textContent]).toEqual([true, '# Velikost mřížky']);
+    document.querySelector('.input-overlay').remove();
+    e = ctx(document.querySelector('#statusbar .ind-angle'));
+    expect([e.defaultPrevented, document.querySelector('.input-overlay h3')?.textContent]).toEqual([true, '∠ Krok úhlového snapu']);
+    document.querySelector('.input-overlay').remove();
+    e = ctx(el('indGrid'));
+    expect([e.defaultPrevented, document.querySelector('.input-overlay')]).toEqual([false, null]);
+    e = ctx(document.querySelector('#statusbar .ind-dims'));
+    expect([e.defaultPrevented, document.querySelector('.input-overlay')]).toEqual([false, null]);
+  });
+});
