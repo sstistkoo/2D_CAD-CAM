@@ -1,206 +1,89 @@
 # Projekt: SKICA – 2D CAD/CAM
 
-**SKICA** je offline-first PWA aplikace pro 2D kreslení (CAD) a generování NC
-programů (CAM) pro CNC soustruhy a karusely. Běží plně v prohlížeči jako
-client-side SPA bez backendu a bez build kroků (vanilla JS + ES moduly, 0 runtime
-závislostí).
+Offline-first PWA pro 2D kreslení (CAD) a generování NC programů (CAM) pro CNC
+soustruhy a karusely. Client-side SPA, bez backendu a build kroků (vanilla JS +
+ES moduly, 0 runtime závislostí). UI i dokumentace česky. Verze 1.8.0, ISC.
 
-> Verze: 1.8.0 | Licence: ISC | Jazyk UI/dokumentace: čeština
-
-## Podporované řídicí systémy (CAM výstup)
-- **Sinumerik** (Siemens 840D sl a kompatibilní) – subprogramy, hlavičky dle předvoleb
-- **Fanuc** (standardní ISO 6983 dialekt)
-- **Heidenhain** (TNC 640 a kompatibilní)
-
-## Podporované typy strojů
-- **Soustruhy** – osa X radiální, osa Z axiální (standardní konfigurace)
-- **Karusely / obráběcí centra** – osa X axiální, osa Z radiální (prohození os)
-
-## Klíčové vlastnosti
-- **CAD/CAM integrace:** Kreslení 2D prvků (LINE, ARC, CIRCLE, RECT, POLYLINE, TEXT)
-  a pokročilé úpravy (FILLET, CHAMFER, TRIM, EXTEND, BREAK, JOIN, MOVE, COPY, ROTATE,
-  SCALE, MIRROR, ARRAY, BOOLEAN) s asociativními dimenzemi a průsečíky.
-- **Generátory:** zubová kola (cylindrická/kuželová), prstové drážky (DIN/VDI),
-  závity (metrické i technologické formy A/B/C).
-- **G-kód / CAM:** výsekové strategie (čárový, kličkový, koncentrické obrysy),
-  vrtací cykly, simulátor drah, přímočaré závity a vrtání.
-- **CNC kalkulačky:** tolerance, otáčky, střih, hmotnost, prodlevy, M-kódy.
-- **AI panel:** fotka výkresu → LLM analýza → soustružnický profil (Z/D).
-  Poskytovatelé: Groq, Gemini, OpenRouter.
-- **Online/offline:** statická webová stránka (GitHub Pages) + Service Worker/PWA.
-- **UX:** tmavý/světlý režim (Catppuccin), mobilní touch ovládání, IndexedDB
-  autosave, neomezené UNDO/REDO.
-
-## Souřadnicový systém
-- `wx` (world X) → vodorovně, `wy` (world Y) → svisle.
-- Při exportu G-kódu/osách CNC se mapuje na X (radiální/axiální) a Z dle typu stroje.
-
-## Stack
-| Vrstva       | Technologie                                  |
-|--------------|----------------------------------------------|
-| Frontend     | Vanilla JS, ES modules (žádné závislosti)    |
-| Ukládání     | IndexedDB, localStorage                      |
-| Offline      | PWA: Service Worker + Cache                  |
-| DXF          | Custom DXF parser/export (SI formát)         |
-| Testování    | Vitest                                       |
-| AI           | Groq / Gemini / OpenRouter API               |
-| UI paleta    | Catppuccin (dark + light)                    |
+- **Řídicí systémy (CAM výstup):** Sinumerik 840D sl, Fanuc (ISO 6983), Heidenhain TNC 640.
+- **Stroje:** soustruh (X radiální, Z axiální); karusel (osy prohozené: X axiální, Z radiální).
+- **Souřadnice:** `wx` vodorovně, `wy` svisle; při exportu G-kódu se mapují na X/Z dle typu stroje.
+- **Funkce:** CAD (LINE, ARC, CIRCLE, RECT, POLYLINE, TEXT + úpravy FILLET…BOOLEAN),
+  generátory (ozubení, drážky, závity), CAM (hrubování, vrtání, vyvrtávání, simulátor),
+  CNC kalkulačky, AI panel (foto → profil; Groq/Gemini/OpenRouter), PWA, Catppuccin
+  dark/light, IndexedDB autosave, UNDO/REDO.
+- **Stack:** vanilla JS, IndexedDB/localStorage, Service Worker, vlastní DXF parser, Vitest.
 
 ## Příkazy
 ```bash
-npm test              # všechny testy vč. CAM (~13 min) — jen při zásahu do js/calculators/cam/**
-npm run test:cad      # stejná sada BEZ CAM pipeline testů (~10 s místo ~13 min) —
-                      #   VÝCHOZÍ při práci mimo js/calculators/cam/** (CAD, UI, editory,
-                      #   export); seznam vzorů viz vitest.cad.config.js
-npm run lint          # ESLint, jen chyby (no-undef aj.); běží i v test:cad
-                      #   (tests/lint.test.js) — varování (styl) testy neshodí
-npm run test:watch    # watch mód
-npm run test:coverage # coverage — POZOR: instrumentace zpomalí CAM ~4× a šest
-                      #   testů spadne na SVÉ vlastní timeouty; není to regrese
-npm run sw            # vygenerovat SW assety (scripts/generate-sw-assets.js)
-                      #   PO PŘIDÁNÍ JS SOUBORU SPUSTIT — jinak chybí v offline cache
+npm run test:cad      # VÝCHOZÍ mimo js/calculators/cam/** (~10 s); běží i lint
+npm test              # plná sada vč. CAM (~13 min) — jen při zásahu do cam/**
+npx vitest run tests/nazev.test.js   # cílený test při ladění
+npm run lint          # ESLint (jen chyby)
+npm run sw            # PO PŘIDÁNÍ JS SOUBORU — jinak chybí v offline cache
+npm run test:coverage # POZOR: zpomalí CAM ~4×, šest testů spadne na vlastní timeout (není regrese)
+npx serve .           # lokální běh (ES moduly vyžadují server, ne file://)
 
-# CAM – KONTROLA PODLE PRAVIDEL (docs/cam-pravidla.md): porušení s čísly N…
-node scripts/cam_rules_check.mjs soubor.camprog [--generator=simple] [--all]
-# CAM – „koho všeho se moje oprava dotkla?" (~35 s, viz hlavička skriptu)
-node scripts/cam_fingerprint.mjs --save=pred.json   # PŘED zásahem
-node scripts/cam_fingerprint.mjs --diff=pred.json   # PO zásahu → seznam změněných dílů
-node scripts/cam_sweep.mjs                          # úběr × kolize (jestli je to k lepšímu)
-# lokální běh (ES moduly vyžadují server, ne file://):
-npx serve .          # nebo: python -m http.server 8080
+# CAM nástroje
+node scripts/cam_rules_check.mjs soubor.camprog [--generator=simple] [--all]  # porušení pravidel
+node scripts/cam_fingerprint.mjs --save=pred.json    # otisk PŘED zásahem
+node scripts/cam_fingerprint.mjs --diff=pred.json    # PO zásahu → změněné díly (~35 s)
+node scripts/cam_sweep.mjs                           # úběr × kolize
 ```
-Testy žijí v `tests/` (unit + integrační: CAM g-code, DXF, gear, tolerance…).
 
 ## Struktura (výběr)
-```
-index.html            # PWA entry point, CSP, manifest
-sw.js                 # Service Worker (cache offline)
-manifest.json         # PWA manifest
-css/style.css         # Catppuccin Mocha/Latte (~5.5k ř.)
-js/
-  app.js              # vstupní bod (side-effect importy)
-  state.js            # globální stav, undo/redo (pushUndo/performUndo), toast
-  objects.js          # CRUD nad výkresovými objekty
-  types.js            # JSDoc typové definice (registry/typy)
-  constants.js        # barvy, prahy, počítadla
-  bridge.js           # zprostředkovatel mezi moduly (AutoCenter, store)
-  geometry.js         # rozcestník geometrie (exporty z geometry/*.js)
-  geometry/           # výběr, hit-test, průsečíky, tečny, tečné kružnice,
-                      #   přímky+offset, transformace, zaoblení/sražení
-  canvas.js           # 2D kontext, transformace
-  render.js           # překreslení celého výkresu
-  dxf.js              # DXF import/export
-  cnc-calcs.js        # CNC kalkulačky
-  toolLibrary.js      # správa nástrojů (sdílená)
-  tools/              # registry nástrojů – handlery *Click (kreslení/úpravy)
-  calculators/        # CAM: gcode, camSimulator, camEditor, thread, taper, ...
-  dialogs/            # dialogová okna (gear, thread, M-code, numerický input)
-  storage/            # IndexedDB, export PNG, autosave
-  ai/                 # AI panel + nastavení poskytovatelů
-  lib/                # font loader (DXF text)
-tests/                # 30+ testovacích souborů
-scripts/              # generate-sw-assets.js
-docs/                 # developer.md, user-guide.md
-```
+`index.html` (entry, CSP) · `sw.js` · `css/style.css` · `js/app.js` (vstup) ·
+`state.js` (stav, undo) · `objects.js` · `types.js` · `bridge.js` · `geometry.js` +
+`geometry/` · `render.js` · `dxf.js` · `tools/` (handlery `*Click`) ·
+`calculators/` (CAM: gcode, camSimulator, camEditor, cncEditor, thread…) ·
+`calculators/cam/` (pipeline, ops/) · `dialogs/` · `ui.js` + `ui/` · `storage/` ·
+`ai/` · `lib/` · `tests/` · `scripts/` · `docs/`.
 
-## Architektura (co dodržovat)
-- **Stav:** jediný sdílený objekt `state` (`js/state.js`). Výkres = `state.objects`
-  (pole). Změny obaluj `pushUndo()` před mutací; poté `renderAll()`.
-- **Objekty:** typy definované v `js/types.js`, každý má CSS-like vlastnosti
-  (stroke, dash, color…). CRUD přes `js/objects.js`.
-- **Render:** reaktivní překreslení canvasu po každé změně stavu.
-- **Eventy/nástroje:** `events.js` volá handlery v `tools/*.js`; nástroj se
-  registruje do registry a přiděluje si canvas handlery.
-- **CAM pipeline:** generátory v `js/calculators/` → struktura kontur/drah →
-  `gcode.js`/`sinumerikHub.js` produkují NC výstup.
-- **Bridge:** `js/bridge.js` slouží jako zprostředkovatel mezi moduly (AutoCenter,
-  store) – nevytvářet přímé cyklické importy mezi moduly.
+## Architektura
+- **Stav:** jediný objekt `state` (`js/state.js`); výkres = `state.objects`.
+  Před mutací `pushUndo()`, potom `renderAll()`.
+- **Objekty:** typy v `js/types.js`, CRUD přes `js/objects.js`.
+- **Nástroje:** `events.js` volá handlery z `tools/*.js` (registry).
+- **CAM pipeline:** generátory → kontury/dráhy → `gcode.js`/`sinumerikHub.js` → NC výstup.
+- **Bridge:** `js/bridge.js` zprostředkuje moduly; nevytvářej cyklické importy.
 
-## Konvence pro změny kódu
-- Žádné runtime závislosti (vanilla JS, ES modules). Nové knihovny jen po dohodě.
-- Dodržovat české UI řetězce a Catppuccin paletu v `css/style.css`.
-- Před změnou G-kódu/Sinumeriku ověřit, že výstup sedí pro daný řídicí systém.
-- U nových nástrojů postupovat dle `docs/developer.md` § „Přidání nového nástroje“.
-- Při změně nebo přidání funkcí vždy aktualizovat příslušnou dokumentaci v docs/ a případně CHANGELOG.md.
-- Před PR/push spustit testy: `npm run test:cad` (práce mimo CAM), `npm test` jen při zásahu do CAM – musí projít.
+## Konvence
+- Žádné runtime závislosti (nové knihovny jen po dohodě).
+- České UI řetězce, Catppuccin paleta v `css/style.css`.
+- Před změnou G-kódu/Sinumeriku ověř výstup pro daný řídicí systém.
+- Nový nástroj dle `docs/developer.md` § „Přidání nového nástroje".
+- Změna/přidání funkce → aktualizuj `docs/` a `CHANGELOG.md`.
+- Před PR/push: `npm run test:cad` (mimo CAM) nebo `npm test` (zásah do CAM) — musí projít.
 
-## Efektivní práce (Claude Code)
-- **Testy:** celou sadu (`npm test` / `npx vitest run`) spouštět jen když je
-  to opravdu potřeba ověřit, ne opakovaně "pro jistotu" po každé drobné
-  úpravě. Během ladění stačí cílený/izolovaný test
-  (`npx vitest run tests/nazev.test.js`). Celou sadu spustit až na závěr
-  (potvrzení hotové práce) a před PR/push.
-  - **Práce mimo `js/calculators/cam/**` (CAD nástroje, dialogy, mobil, UI,
-    editory, export G-kódu z CAD):** stačí `npm run test:cad` — i před
-    PR/push. CAM testy se tu NEPOUŠTÍ (na pokyn uživatele 12. 9. a 3. 10. 2026:
-    „když pracuji v CAD, nemusí se dělat testy pro CAM"). Plná sada
-    (`npm test`) se pouští jen když se mění `js/calculators/cam/**` nebo
-    něco, co CAM pipeline přímo čte (např. větev `forCam` v `runCncExport`).
-  - **Bezpečnostní testy podle DŮKAZU, ne preventivně** (upraveno 7. 9. 2026
-    na pokyn uživatele: *„aby se ty testy nedělaly jenom když je to potřeba,
-    ne preventivně pokaždé"*). U zásahů do hrubování/kolizí/materiálu
-    (`js/calculators/cam/**`) rozhoduje otisk, ne pocit:
+## Efektivní práce
+- **Testy:** celou sadu jen na závěr a před PR/push, při ladění cílený test.
+  Mimo `js/calculators/cam/**` stačí `test:cad` (pokyn uživatele 12. 9. a 3. 10. 2026).
+  `npm test` jen při změně `cam/**` nebo kódu, který CAM přímo čte (např. větev `forCam` v `runCncExport`).
+- **Bezpečnostní CAM testy podle DŮKAZU (7. 9. 2026), ne preventivně.** Při zásahu do
+  hrubování/kolizí/materiálu: `cam_fingerprint --save` → změna → `--diff`.
+  - Otisk SHODNÝ → `collision-validator`, `material-removal`, `cam-traversal-invariants`
+    se nepouští (nemají čím spadnout). Pustit jen test, na který změna reálně sahá.
+  - Otisk se HNUL → pustit `tests/collision-validator.test.js` a
+    `tests/material-removal.test.js` (případně `cam-traversal-invariants`).
+  - Bez otisku (nelze pořídit) → testy pustit.
+- **Test padá jen v celé sadě?** Nejdřív zkontroluj timeout (výchozí 5 s vitestu; teď 120 s),
+  neodepisuj jako flake. Sada je deterministická, stačí jeden běh.
+- **Velikost souborů:** nové soubory ~300–500 ř. Neexistující velké soubory se kvůli
+  vedlejší opravě nedělí (scope-creep); rozdělení je samostatné vědomé rozhodnutí.
+- **⛔ Zákaz růstu obřích souborů (12. 10. 2026):** do souborů nad ~2000 ř. se NEPŘIDÁVÁ
+  nový kód; nová funkčnost jde do nového souboru, ze starého se jen zavolá. Dovoleny jsou
+  malé opravy a odebírání kódu. Stropy hlídá `tests/file-size-budget.test.js` (běží v
+  `test:cad`; žádný jiný soubor v `js/` nad 1500 ř.). Po zmenšení souboru strop SNIŽ.
+  Dotčeno: `camSimulator.js` (5432; zbylé jádro se dál nedělí, nový kód do `cam/sim/`,
+  vzory v `docs/plan-rozdeleni-cam-simulatoru.md`), `render.js`, `cam/ops/roughLong.js`,
+  `cncEditor.js`, `vkContour.js`, `fileIO.js`, `camEditor.js`, `events.js`. `ui.js` a
+  `geometry.js` jsou rozcestníky (kód nepřidávat). Nelze-li kód umístit, zeptej se.
+- **Tokeny:** stručně, nečti opakovaně stejné soubory, nevypisuj velké výstupy. Obří soubory
+  (`css/style.css`, `js/lib/browser.maker.js`, velké `js/**`) čti přes grep + `offset/limit`,
+  nikdy celé. Test výstupy ořezávej (`| tail`).
 
-    ```bash
-    node scripts/cam_fingerprint.mjs --save=pred.json   # PŘED zásahem
-    node scripts/cam_fingerprint.mjs --diff=pred.json   # PO zásahu
-    ```
-
-    - **Otisk SHODNÝ u všech fixtures** → `collision-validator`,
-      `material-removal` ani `cam-traversal-invariants` se NEPOUŠTÍ. Měří
-      dráhy; když se ani jedna dráha nezměnila, nemají čím spadnout — otisk
-      je silnější důkaz než ony. Pustit jen test, na který změna reálně
-      sahá (u nové ⚠ hlášky třeba jen snapshot `cam-gcode-regression`).
-    - **Otisk se HNUL** → pustit cílené `tests/collision-validator.test.js`
-      a `tests/material-removal.test.js` (případně
-      `cam-traversal-invariants`). Tohle se pak nepřeskakuje kvůli úspoře.
-
-    Nejde o změkčení: gate je MĚŘENÍ, ne odhad. Bez otisku (nebo když ho
-    nelze pořídit) platí přísnější varianta — testy pustit.
-  - **Sada je deterministická — jeden běh stačí.** „Historická nestabilita"
-    (`boolean-roughing-wiring` aj.) byla 13. 8. 2026 vysvětlena: NEbyl to
-    nedeterminismus, ale VÝCHOZÍ 5s timeout vitestu. CAM testy pouští celý
-    pipeline (jednotky až desítky sekund) a při plné sadě padaly podle
-    vytížení stroje — izolovaně prošly. `vitest.config.js` má teď
-    `testTimeout`/`hookTimeout` 120 s a sada běží 1285/1285 opakovaně.
-    Když test padá jen v celé sadě, NEodepisuj to jako flake: zkontroluj,
-    jestli to není timeout.
-- **Velikost souborů:** platí jen pro NOVÉ soubory — cílit na ~300–500
-  řádků, a když by narostl přes tenhle rozsah, rozdělit logický celek do
-  dalšího souboru místo dalšího kumulování do jednoho. NENÍ to mandát
-  rozdělit už existující velké soubory (`gcodeEmit.js`, `roughingStrategies.js`
-  aj. mají přes 1000 řádků) jako vedlejší efekt nesouvisející opravy — to
-  by byl scope-creep. Refaktoring/rozdělení existujícího souboru je
-  samostatné, vědomé rozhodnutí (po dohodě), ne automatika při bugfixu.
-- **⛔ ZÁKAZ DALŠÍHO RŮSTU OBŘÍCH SOUBORŮ (pokyn uživatele 12. 10. 2026):**
-  do souborů nad ~2000 řádků se NEPŘIDÁVÁ nový kód — žádná nová funkce,
-  dialog, větev ani blok. Nová funkčnost jde do NOVÉHO souboru (~300–500 ř.),
-  ze starého se jen zavolá (import + jedno volání). Dovoleno je jen malé
-  opravné zásahy (bugfix, úprava řádků) a odebírání kódu; soubor nesmí
-  po změně vyrůst o víc než pár řádků. Dotčené soubory (řádky k 12. 10.):
-  `calculators/camSimulator.js` 11712 → po rozdělení 13. 10. 5432 (zbylé
-  jádro uvnitř jedné funkce `openCamSimulator`, sdílí stav přes closure —
-  nový kód jako modul do `js/calculators/cam/sim/`, kterému se `S`
-  a callbacky předají parametrem; vzory v `docs/plan-rozdeleni-cam-simulatoru.md`;
-  zbytek jádra se dál NEROZDĚLUJE, rozhodnutí uživatele 16. 10.), `ui.js` 5312 → rozcestník 128 (rozděleno 16. 10. do `js/ui/`;
-  `docs/plan-refaktoringu-ui.md`),
-  `render.js` 3115, `cam/ops/roughLong.js` 3119, `cncEditor.js` 2918,
-  `geometry.js` 2553 → rozcestník 74 (rozděleno 16. 10. do `js/geometry/`), `vkContour.js` 2347. Nemusí se kvůli tomu nic
-  přepisovat — pravidlo se týká jen NOVÉHO kódu. Nelze-li kód jinak
-  umístit, nejdřív se zeptej uživatele.
-  Hlídá to `tests/file-size-budget.test.js` (běží v `test:cad`): stropy souborů
-  + žádný jiný soubor v `js/` přes 1500 ř. Po zmenšení souboru strop SNIŽ.
-- **Tokeny:** pracovat úsporně — stručně, bez zbytečného opakování příkazů,
-  opakovaného čtení stejných souborů nebo nadbytečného vypisování velkých
-  výstupů, které nejsou k věci.
-
-## Odkazy a dokumentace
-- `README.md` – přehled funkcí a struktury
-- `docs/developer.md` – architektura, přidání nástroje, CAM pipeline, DXF
-- `docs/cam-pravidla.md` – **JEDINÝ zdroj pravidel CAM drah** (schvaluje
-  uživatel, jedno pravidlo = jedna ověřitelná podmínka). Číst PŘED každým
-  zásahem do generování drah. Nic, co tam není, neplatí.
-- `docs/user-guide.md` – uživatelská příručka
-- `CONTRIBUTING.md` – pravidla přispívání
-- `CHANGELOG.md` – deník změn (Keep a Changelog / SemVer)
-- GitHub Pages: statická distribuce aplikace
+## Odkazy
+- `docs/cam-pravidla.md` — **JEDINÝ zdroj pravidel CAM drah** (schvaluje uživatel,
+  1 pravidlo = 1 ověřitelná podmínka). Číst PŘED každým zásahem do generování drah.
+  Co tam není, neplatí.
+- `docs/developer.md` (architektura, nový nástroj, CAM pipeline, DXF) ·
+  `docs/user-guide.md` · `README.md` · `CONTRIBUTING.md` · `CHANGELOG.md`
