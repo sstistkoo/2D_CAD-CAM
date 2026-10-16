@@ -42,7 +42,7 @@ index.html
 │   ├── stockTools.js      # Pomocné nástroje pro soustruh
 │   ├── touch.js           # Touch ovládání
 │   ├── ui.js              # Panely, seznamy, property panel (rozděluje se do ui/)
-│   ├── ui/                # bloky vyňaté z ui.js: notesDialog (importovat přes ui.js)
+│   ├── ui/                # bloky vyňaté z ui.js: notesDialog, calculator (importovat přes ui.js)
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
 │   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)

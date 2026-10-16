@@ -87,7 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kód se stěhuje beze změny, `ui.js` zůstává rozcestníkem se stejnými exporty.
   Pojistky `tests/ui-api.test.js` + harness `tests/helpers/uiDom.mjs` (exporty,
   klíče `bridge`, pořadí listenerů při načtení, stráže importů). Zatím vyňato:
-  poznámkový blok → `js/ui/notesDialog.js` (test `ui-notes`).
+  poznámkový blok → `js/ui/notesDialog.js` (test `ui-notes`), kalkulačka 🔢 se
+  schránkou 📋 → `js/ui/calculator.js` (test `ui-calculator`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`

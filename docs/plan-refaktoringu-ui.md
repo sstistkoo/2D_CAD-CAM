@@ -12,6 +12,13 @@
 |---|---|---|---|
 | Fáze 0 — pojistky | `test(ui): pojistky…` | 5 312 | `ui-api` (exporty, bridge, 92 listenerů, DOM při načtení, stráže) |
 | 1a poznámky → `js/ui/notesDialog.js` | `refactor(ui): poznámky…` | 4 947 | `ui-notes` |
+| 1d kalkulačka → `js/ui/calculator.js` (+ `initCalcButtons()`) | `refactor(ui): kalkulačka…` | 4 437 | `ui-calculator` |
+
+1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
+se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
+`getCalcLastResult()` (jediná změněná řádka mimo hlavičky/importy).
+`_lastFocusedInput` (píše ho focusin listener při načtení, čte `openCalculator`)
+je stav modulu `calculator.js`, listener v `initCalcButtons()`.
 
 Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
 `localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js
